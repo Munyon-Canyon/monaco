@@ -280,35 +280,6 @@ func TestRetry_aRouterFailureOnAnEVMBuyRetryBuysTheResolvedSolanaMint(t *testing
 	}
 }
 
-func TestRetry_aStrandedCashRetryKeepsItsChainAndSkipsTheRouter(t *testing.T) {
-	t.Parallel()
-	e := newRouteEnv(t)
-	e.privy.script(multichain.ActionSucceeded)
-	e.evm.fills = []app.EVMFill{{State: app.FillReverted}}
-	cmd := e.routedBuy(t)
-	first := e.swapsOf(t, cmd.ProposalID)[0]
-	e.requote()
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
-	ondo := e.ondoOrder(t)
-	elsewhere := e.solanaWinner(t, ondo, true)
-	router := &routerFake{fresh: e.comparison(t, elsewhere)}
-
-	code := e.retryThrough(t, e.reroutingHandler(router, e.withListing(e.winners.listings[elsewhere])), cmd, first)
-
-	second := e.retrySwap(t, cmd.ProposalID)
-	status, action := e.bridgeOutOf(t, second)
-	if code != "ok" || len(router.asked) != 0 || status != "succeeded" || action != "reused:"+first.String() {
-		t.Fatalf("retry %s, router asked %v, bridge_out %s %s, want the stranded cash reused on its own chain",
-			code, router.asked, status, action)
-	}
-	if winner, _, ok := e.routeOf(t, second); !ok || winner != e.listing.ID.UUID() {
-		t.Fatalf("retry route %v %s, want the stranded listing's route copied", ok, winner)
-	}
-	if len(e.privy.calls()) != 1 {
-		t.Fatalf("%d transfers, want the one bridge", len(e.privy.calls()))
-	}
-}
-
 type countingRouter struct{ calls int }
 
 func (c *countingRouter) Best(
