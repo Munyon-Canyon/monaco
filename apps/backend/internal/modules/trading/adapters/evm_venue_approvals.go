@@ -55,25 +55,21 @@ func checkSwapTarget(spec app.EVMSwapSpec, tx mc.EVMTransaction) error {
 func checkApproval(spec app.EVMSwapSpec, router chain.EVMAddress, now time.Time, tx mc.EVMTransaction) error {
 	refused := errs.New(errs.CodeDecodeFailed, "trading.EVMVenue.approval", slog.String("to", tx.To.String()))
 	permit2, _ := chain.ParseEVMAddress(permit2Address)
-	if len(tx.Data) < 4 || tx.Value.Sign() != 0 {
-		return refused
-	}
-	selector, args := hex.EncodeToString(tx.Data[:4]), tx.Data[4:]
-	switch selector {
-	case erc20ApproveSelector:
-		spender, ok := wordAddress(args, 0, len(args) == 2*abiWord)
+	cut := min(len(tx.Data), 4)
+	selector, args, plain := hex.EncodeToString(tx.Data[:cut]), tx.Data[cut:], tx.Value.Sign() == 0
+	if selector == erc20ApproveSelector {
+		spender, ok := wordAddress(args, 0, plain && len(args) == 2*abiWord)
 		amount := new(big.Int).SetBytes(args[min(len(args), abiWord):])
 		return approved(ok && tx.To == spec.TokenIn && spender == permit2, amount, spec, refused)
-	case permit2ApproveSelector:
-		token, ok := wordAddress(args, 0, len(args) == 4*abiWord && tx.To == permit2)
-		spender, ok := wordAddress(args, 1, ok)
-		amount := new(big.Int).SetBytes(args[min(len(args), 2*abiWord):min(len(args), 3*abiWord)])
-		expiration := new(big.Int).SetBytes(args[min(len(args), 3*abiWord):])
-		fresh := expiration.Cmp(big.NewInt(now.Unix())) > 0 &&
-			expiration.Cmp(big.NewInt(now.Add(permitExpiryWindow).Unix())) <= 0
-		return approved(ok && fresh && token == spec.TokenIn && spender == router, amount, spec, refused)
 	}
-	return refused
+	shaped := plain && selector == permit2ApproveSelector && len(args) == 4*abiWord && tx.To == permit2
+	token, ok := wordAddress(args, 0, shaped)
+	spender, ok := wordAddress(args, 1, ok)
+	amount := new(big.Int).SetBytes(args[min(len(args), 2*abiWord):min(len(args), 3*abiWord)])
+	expiration := new(big.Int).SetBytes(args[min(len(args), 3*abiWord):])
+	fresh := expiration.Cmp(big.NewInt(now.Unix())) > 0 &&
+		expiration.Cmp(big.NewInt(now.Add(permitExpiryWindow).Unix())) <= 0
+	return approved(ok && fresh && token == spec.TokenIn && spender == router, amount, spec, refused)
 }
 
 func wordAddress(args []byte, index int, ok bool) (chain.EVMAddress, bool) {
@@ -91,4 +87,39 @@ func approved(ok bool, amount *big.Int, spec app.EVMSwapSpec, refused error) err
 		return refused
 	}
 	return nil
+}
+
+func exactApproval(spec app.EVMSwapSpec) mc.EVMTransaction {
+	selector, _ := hex.DecodeString(erc20ApproveSelector)
+	permit2, _ := chain.ParseEVMAddress(permit2Address)
+	data := slices.Concat(selector, make([]byte, addressPadding), permit2[:],
+		new(big.Int).SetUint64(spec.AmountIn).FillBytes(make([]byte, abiWord)))
+	return mc.EVMTransaction{Network: spec.Network, To: spec.TokenIn, Data: data, Value: new(big.Int)}
+}
+
+func permitAsTransaction(quote swapQuoteWire) error {
+	signed := len(quote.PermitData) > 0 && string(quote.PermitData) != "null"
+	if signed && quote.PermitTransaction == nil {
+		return errs.New(errs.CodeDecodeFailed, "trading.EVMVenue.permit",
+			slog.String("reason", "permit_data_without_permit_transaction"))
+	}
+	return nil
+}
+
+func ownPermit(spec app.EVMSwapSpec, raw txWire, now time.Time) (mc.EVMTransaction, error) {
+	theirs, err := evmTx(spec.Network, raw)
+	permit2, _ := chain.ParseEVMAddress(permit2Address)
+	valid := err == nil && theirs.To == permit2 && len(theirs.Data) == 4+4*abiWord &&
+		hex.EncodeToString(theirs.Data[:4]) == permit2ApproveSelector
+	spender, ok := wordAddress(theirs.Data[min(len(theirs.Data), 4):], 1, valid)
+	if !ok {
+		return mc.EVMTransaction{}, errs.New(errs.CodeDecodeFailed, "trading.EVMVenue.permit",
+			slog.String("reason", "permit_transaction_unreadable"))
+	}
+	selector, _ := hex.DecodeString(permit2ApproveSelector)
+	expiry := big.NewInt(now.Add(permitExpiryWindow).Unix())
+	data := slices.Concat(selector, make([]byte, addressPadding), spec.TokenIn[:], make([]byte, addressPadding),
+		spender[:], new(big.Int).SetUint64(spec.AmountIn).FillBytes(make([]byte, abiWord)),
+		expiry.FillBytes(make([]byte, abiWord)))
+	return mc.EVMTransaction{Network: spec.Network, To: permit2, Data: data, Value: new(big.Int)}, nil
 }

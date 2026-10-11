@@ -260,12 +260,11 @@ func TestEVMVenue_buildMapsUpstreamErrors(t *testing.T) {
 			ok, probe, strings.ReplaceAll(quote, strings.ToUpper(venueOwner[:2])+venueOwner[2:], "0xbad"), swap,
 			nil, nil, errs.CodeDecodeFailed,
 		},
-		"bad to":      {ok, probe, quote, swapReply(evmTxJSON("0x12", "0x01", "0x0")), nil, nil, errs.CodeDecodeFailed},
-		"bad data":    {ok, probe, quote, swapReply(evmTxJSON(venueRouter, "0x1", "0x0")), nil, nil, errs.CodeDecodeFailed},
-		"bad value":   {ok, probe, quote, swapReply(evmTxJSON(venueRouter, "0x01", "0xzz")), nil, nil, errs.CodeDecodeFailed},
-		"bad approve": {approvalReply(evmTxJSON("0x12", "0x01", "0x0")), probe, quote, swap, nil, nil, errs.CodeDecodeFailed},
-		"no amount":   {"", "", "", "", nil, func(s *app.EVMSwapSpec) { s.AmountIn = 0 }, errs.CodeInvalidInput},
-		"solana":      {"", "", "", "", nil, func(s *app.EVMSwapSpec) { s.Network = chain.NetworkSolana }, errs.CodeInvalidInput},
+		"bad to":    {ok, probe, quote, swapReply(evmTxJSON("0x12", "0x01", "0x0")), nil, nil, errs.CodeDecodeFailed},
+		"bad data":  {ok, probe, quote, swapReply(evmTxJSON(venueRouter, "0x1", "0x0")), nil, nil, errs.CodeDecodeFailed},
+		"bad value": {ok, probe, quote, swapReply(evmTxJSON(venueRouter, "0x01", "0xzz")), nil, nil, errs.CodeDecodeFailed},
+		"no amount": {"", "", "", "", nil, func(s *app.EVMSwapSpec) { s.AmountIn = 0 }, errs.CodeInvalidInput},
+		"solana":    {"", "", "", "", nil, func(s *app.EVMSwapSpec) { s.Network = chain.NetworkSolana }, errs.CodeInvalidInput},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -405,43 +404,17 @@ func abiCall(selector string, words ...string) string {
 
 func TestEVMVenue_buildRefusesAnApprovalItDidNotExpect(t *testing.T) {
 	t.Parallel()
-	maxUint256 := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(1)).String()
 	otherRouter := "0x3fc91a3afd70395cd496c647d5a6cc9d4b2b7fad"
 	permitCall := func(token, spender, amount string) string {
 		return evmTxJSON(permit2, abiCall("87517c45", word(token), word(spender), word(amount),
 			word(expiresIn(time.Minute))), "0x0")
 	}
 	for name, tc := range map[string]struct{ approval, permit string }{
-		"unlimited approval": {evmTxJSON(baseCash, abiCall("095ea7b3", word(permit2), word(maxUint256)), "0x0"), "null"},
-		"approval above the amount": {
-			evmTxJSON(baseCash, abiCall("095ea7b3", word(permit2), word("9992501")), "0x0"), "null",
-		},
-		"approval to another spender": {
-			evmTxJSON(baseCash, abiCall("095ea7b3", word(otherRouter), word("1")), "0x0"), "null",
-		},
-		"approval on another token": {
-			evmTxJSON(venueToken, abiCall("095ea7b3", word(permit2), word("1")), "0x0"), "null",
-		},
-		"unknown selector": {evmTxJSON(baseCash, abiCall("39509351", word(permit2), word("1")), "0x0"), "null"},
-		"short call":       {evmTxJSON(baseCash, "0x095ea7", "0x0"), "null"},
-		"dirty address word": {
-			evmTxJSON(baseCash, abiCall("095ea7b3", "ff"+word(permit2)[2:], word("1")), "0x0"), "null",
-		},
-		"truncated approval":       {evmTxJSON(baseCash, abiCall("095ea7b3", word(permit2)), "0x0"), "null"},
-		"permit to another router": {"null", permitCall(baseCash, otherRouter, "1")},
-		"permit of another token":  {"null", permitCall(venueToken, venueRouter, "1")},
-		"unlimited permit":         {"null", permitCall(baseCash, venueRouter, maxUint256)},
+		"permit with an unknown selector": {"null", evmTxJSON(permit2, abiCall("39509351", word(baseCash), word("1")), "0x0")},
+		"short permit":                    {"null", evmTxJSON(permit2, "0x8751", "0x0")},
+		"permit to another router":        {"null", permitCall(baseCash, otherRouter, "1")},
 		"permit not on Permit2": {"null", evmTxJSON(otherRouter,
 			abiCall("87517c45", word(baseCash), word(venueRouter), word("1"), word(expiresIn(time.Minute))), "0x0")},
-		"approval with value": {evmTxJSON(baseCash, abiCall("095ea7b3", word(permit2), word("1")), "0x1"), "null"},
-		"permit with value": {"null", evmTxJSON(permit2, abiCall("87517c45", word(baseCash), word(venueRouter),
-			word("1"), word(expiresIn(time.Minute))), "0x1")},
-		"permit without expiry": {"null", evmTxJSON(permit2, abiCall("87517c45", word(baseCash), word(venueRouter),
-			word("1"), word("0")), "0x0")},
-		"permit already expired": {"null", evmTxJSON(permit2, abiCall("87517c45", word(baseCash), word(venueRouter),
-			word("1"), word(expiresIn(0))), "0x0")},
-		"permit past the window": {"null", evmTxJSON(permit2, abiCall("87517c45", word(baseCash), word(venueRouter),
-			word("1"), word(expiresIn(30*time.Minute+time.Second))), "0x0")},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

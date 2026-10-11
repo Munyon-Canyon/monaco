@@ -54,6 +54,7 @@ type EVMFill struct {
 type EVMVenue interface {
 	Build(ctx context.Context, spec EVMSwapSpec) (EVMSwapPlan, error)
 	Fill(ctx context.Context, network chain.Network, txHash string, out, owner chain.EVMAddress) (EVMFill, error)
+	Receipt(ctx context.Context, network chain.Network, txHash string) (EVMFillState, error)
 }
 
 type EVMSender interface {
@@ -74,6 +75,10 @@ func (UnwiredEVMVenue) Fill(
 	chain.EVMAddress,
 ) (EVMFill, error) {
 	return EVMFill{}, notImplemented("EVMVenue.Fill", "#4970")
+}
+
+func (UnwiredEVMVenue) Receipt(context.Context, chain.Network, string) (EVMFillState, error) {
+	return 0, notImplemented("EVMVenue.Receipt", "#4970")
 }
 
 type EVMSwapLeg struct {
@@ -122,7 +127,11 @@ func (s EVMSwap) send(ctx context.Context, leg EVMSwapLeg) (string, error) {
 	}
 	key := stepKey(leg.Ref)
 	for i, approval := range plan.Approvals {
-		if _, err := s.Sender.Send(ctx, leg.WalletID, approval, key+":approve:"+strconv.Itoa(i)); err != nil {
+		sent, err := s.Sender.Send(ctx, leg.WalletID, approval, key+":approve:"+strconv.Itoa(i))
+		if err == nil {
+			err = s.approved(ctx, leg, sent)
+		}
+		if err != nil {
 			return "", err
 		}
 	}
@@ -136,6 +145,26 @@ func (s EVMSwap) send(ctx context.Context, leg EVMSwapLeg) (string, error) {
 	}
 	faultpoint.Hit(ctx, faultpoint.AfterSwapSubmitted)
 	return hash, nil
+}
+
+func (s EVMSwap) approved(ctx context.Context, leg EVMSwapLeg, hash string) error {
+	state := FillPending
+	err := s.Poll.until(ctx, s.Journal.Clock, func() (bool, error) {
+		var err error
+		state, err = s.Venue.Receipt(ctx, leg.Spec.Network, hash)
+		return state != FillPending, err
+	})
+	attrs := []slog.Attr{slog.String("approval_hash", hash), slog.String("swap_id", leg.Ref.SwapID.String())}
+	switch {
+	case err != nil:
+		return err
+	case state == FillReverted:
+		return errs.New(errs.CodeSwapFailed, evmSwapOp, append(attrs, slog.String("reason", "approval_reverted"))...)
+	case state == FillPending:
+		return errs.New(errs.CodeUpstreamUnavailable, evmSwapOp,
+			append(attrs, slog.String("reason", "approval_unconfirmed"))...)
+	}
+	return nil
 }
 
 func (s EVMSwap) submit(ctx context.Context, leg EVMSwapLeg, hash string) error {

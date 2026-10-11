@@ -92,6 +92,7 @@ type swapQuoteRequest struct {
 	SlippageTolerance json.Number `json:"slippageTolerance"`
 	RoutingPreference string      `json:"routingPreference"`
 	Protocols         []string    `json:"protocols"`
+	PermitAsTx        bool        `json:"generatePermitAsTransaction"`
 }
 
 type outputWire struct {
@@ -109,7 +110,8 @@ type swapQuoteWire struct {
 		} `json:"output"`
 		AggregatedOutputs []outputWire `json:"aggregatedOutputs"`
 	} `json:"-"`
-	PermitTransaction *txWire `json:"permitTransaction"`
+	PermitTransaction *txWire         `json:"permitTransaction"`
+	PermitData        json.RawMessage `json:"permitData"`
 }
 
 type swapRequest struct {
@@ -185,6 +187,7 @@ func (v *EVMVenue) quote(
 		TokenInChainID: spec.Network.EVMChainID(), TokenOutChainID: spec.Network.EVMChainID(),
 		TokenIn: spec.TokenIn.String(), TokenOut: spec.TokenOut.String(), Swapper: spec.Owner.String(),
 		SlippageTolerance: percent(bps), RoutingPreference: uniswapPreference, Protocols: []string{"V2", "V3", "V4"},
+		PermitAsTx: true,
 	}, &quote, attrs)
 	if err != nil {
 		return swapQuoteWire{}, err
@@ -224,12 +227,14 @@ func buildPlan(
 		txErr = checkSwapTarget(spec, tx)
 	}
 	plan := app.EVMSwapPlan{Swap: tx, OutAmount: out, MinOut: minOut}
-	errList := []error{minErr, outErr, txErr}
-	for _, raw := range []*txWire{approval.Approval, quote.PermitTransaction} {
-		if raw == nil {
-			continue
-		}
-		approve, err := evmTx(spec.Network, *raw)
+	errList := []error{minErr, outErr, txErr, permitAsTransaction(quote)}
+	if approval.Approval != nil {
+		approve := exactApproval(spec)
+		plan.Approvals = append(plan.Approvals, approve)
+		errList = append(errList, checkApproval(spec, tx.To, now, approve))
+	}
+	if raw := quote.PermitTransaction; raw != nil {
+		approve, err := ownPermit(spec, *raw, now)
 		if err == nil {
 			err = checkApproval(spec, tx.To, now, approve)
 		}

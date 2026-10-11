@@ -44,10 +44,29 @@ type rpcResponse struct {
 func (v *EVMVenue) Fill(
 	ctx context.Context, network chain.Network, txHash string, out, owner chain.EVMAddress,
 ) (app.EVMFill, error) {
+	state, receipt, attrs, err := v.receipt(ctx, network, txHash)
+	if err != nil || state != app.FillSucceeded {
+		return app.EVMFill{State: state}, err
+	}
+	received, err := transferredTo(receipt.Logs, out, owner)
+	if err != nil {
+		return app.EVMFill{}, errs.Wrap(err, errs.CodeDecodeFailed, evmVenueFillOp, attrs...)
+	}
+	return app.EVMFill{State: app.FillSucceeded, Out: received}, nil
+}
+
+func (v *EVMVenue) Receipt(ctx context.Context, network chain.Network, txHash string) (app.EVMFillState, error) {
+	state, _, _, err := v.receipt(ctx, network, txHash)
+	return state, err
+}
+
+func (v *EVMVenue) receipt(
+	ctx context.Context, network chain.Network, txHash string,
+) (app.EVMFillState, *receiptWire, []slog.Attr, error) {
 	attrs := []slog.Attr{slog.String("network", string(network)), slog.String("tx_hash", txHash)}
 	client, ok := v.rpc[network]
 	if !ok || !evmHex.MatchString(txHash) || len(txHash) != 66 {
-		return app.EVMFill{}, errs.New(errs.CodeInvalidInput, evmVenueFillOp, attrs...)
+		return 0, nil, attrs, errs.New(errs.CodeInvalidInput, evmVenueFillOp, attrs...)
 	}
 	raw, _ := json.Marshal(
 		rpcRequest{JSONRPC: "2.0", ID: 1, Method: "eth_getTransactionReceipt", Params: []string{txHash}},
@@ -56,34 +75,30 @@ func (v *EVMVenue) Fill(
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := client.Do(ctx, req)
 	if err != nil {
-		return app.EVMFill{}, errs.Wrap(err, errs.CodeRPCUnavailable, evmVenueFillOp, attrs...)
+		return 0, nil, attrs, errs.Wrap(err, errs.CodeRPCUnavailable, evmVenueFillOp, attrs...)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return app.EVMFill{}, errs.New(errs.CodeRPCUnavailable, evmVenueFillOp,
+		return 0, nil, attrs, errs.New(errs.CodeRPCUnavailable, evmVenueFillOp,
 			append(attrs, slog.Int("status", resp.StatusCode))...)
 	}
 	var w rpcResponse
 	if err := json.NewDecoder(io.LimitReader(resp.Body, evmMaxBody)).Decode(&w); err != nil {
-		return app.EVMFill{}, errs.Wrap(err, errs.CodeDecodeFailed, evmVenueFillOp, attrs...)
+		return 0, nil, attrs, errs.Wrap(err, errs.CodeDecodeFailed, evmVenueFillOp, attrs...)
 	}
 	switch {
 	case w.Error != nil:
-		return app.EVMFill{}, errs.New(errs.CodeRPCUnavailable, evmVenueFillOp,
+		return 0, nil, attrs, errs.New(errs.CodeRPCUnavailable, evmVenueFillOp,
 			append(attrs, slog.Int("rpc_code", w.Error.Code))...)
 	case w.Result == nil:
-		return app.EVMFill{State: app.FillPending}, nil
+		return app.FillPending, nil, attrs, nil
 	case w.Result.Status == "0x0":
-		return app.EVMFill{State: app.FillReverted}, nil
+		return app.FillReverted, nil, attrs, nil
 	case w.Result.Status != "0x1":
-		return app.EVMFill{}, errs.New(errs.CodeDecodeFailed, evmVenueFillOp,
+		return 0, nil, attrs, errs.New(errs.CodeDecodeFailed, evmVenueFillOp,
 			append(attrs, slog.String("status", w.Result.Status))...)
 	}
-	received, err := transferredTo(w.Result.Logs, out, owner)
-	if err != nil {
-		return app.EVMFill{}, errs.Wrap(err, errs.CodeDecodeFailed, evmVenueFillOp, attrs...)
-	}
-	return app.EVMFill{State: app.FillSucceeded, Out: received}, nil
+	return app.FillSucceeded, w.Result, attrs, nil
 }
 
 func transferredTo(logs []logWire, token, owner chain.EVMAddress) (uint64, error) {
