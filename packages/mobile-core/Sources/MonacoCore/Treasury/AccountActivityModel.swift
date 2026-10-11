@@ -12,6 +12,8 @@ public final class AccountActivityModel {
         case loaded
     }
 
+    public static let refreshingHints = ["balance_changed", "cashout_changed"]
+
     public private(set) var toast: String?
 
     private let api: APIClient
@@ -75,7 +77,7 @@ public final class AccountActivityModel {
     }
 
     public func observe() async {
-        await refresher.observe(hints.hints(matching: .user(what: "balance_changed")))
+        await refresher.observe(Self.refreshingHints.map { hints.hints(matching: .user(what: $0)) })
     }
 
     public func setVisible(_ visible: Bool) {
