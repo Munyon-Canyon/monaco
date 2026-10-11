@@ -239,19 +239,22 @@ func (c *Client) execution(ctx context.Context, walletID string, e executionWire
 	if err != nil {
 		return multichain.Execution{}, err
 	}
-	micros, err := swapMicros(op, w)
+	input, err := swapMicros(op, w.InputAmount)
 	if err != nil {
 		return multichain.Execution{}, err
 	}
-	out.AmountMicros, out.Signature = micros, solanaSignature(status.Steps)
+	output, err := swapMicros(op, w.OutputAmount)
+	if err != nil {
+		return multichain.Execution{}, err
+	}
+	if w.OutputAmount == nil {
+		output = input
+	}
+	out.AmountMicros, out.InputMicros, out.Signature = output, input, solanaSignature(status.Steps)
 	return out, nil
 }
 
-func swapMicros(op string, w swapWire) (money.Micros, error) {
-	amount := w.OutputAmount
-	if amount == nil {
-		amount = w.InputAmount
-	}
+func swapMicros(op string, amount *string) (money.Micros, error) {
 	if amount == nil {
 		return money.Micros{}, nil
 	}

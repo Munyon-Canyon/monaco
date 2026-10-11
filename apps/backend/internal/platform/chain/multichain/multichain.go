@@ -212,6 +212,7 @@ type Execution struct {
 	Network      chain.Network `json:"network"`
 	SourceTx     string        `json:"source_tx"`
 	AmountMicros money.Micros  `json:"amount_micros"`
+	InputMicros  money.Micros  `json:"input_micros"`
 	State        ActionState   `json:"state"`
 	Signature    string        `json:"solana_signature,omitempty"`
 }
