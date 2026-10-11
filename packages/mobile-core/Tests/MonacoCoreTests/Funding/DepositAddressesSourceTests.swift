@@ -56,6 +56,34 @@ final class DepositAddressesSourceTests: XCTestCase {
         XCTAssertEqual(try DepositNetwork.list(json: Data(json.utf8)).map(\.id), ["solana"])
     }
 
+    func testAnEVMItemCarriesItsEstimatedFee() async throws {
+        let json =
+            #"{"addresses":[{"network":"solana","address":"\#(solana)","asset":"USDC"},"#
+            + #"{"network":"base","address":"\#(evm)","asset":"USDC","estimated_fee_micros":"163098"},"#
+            + #"{"network":"arbitrum","address":"\#(evm)","asset":"USDC"}]}"#
+
+        let networks = try DepositNetwork.list(json: Data(json.utf8))
+
+        XCTAssertEqual(networks.map(\.estimatedFeeMicros), [nil, 163_098, nil])
+    }
+
+    func testAMalformedFeeIsNilAndKeepsTheAddress() async throws {
+        let json =
+            #"{"addresses":[{"network":"base","address":"\#(evm)","asset":"USDC","estimated_fee_micros":"0.16"}]}"#
+
+        let networks = try DepositNetwork.list(json: Data(json.utf8))
+
+        XCTAssertEqual(networks, [DepositNetwork(id: "base", address: evm)])
+        XCTAssertNil(networks.first?.estimatedFeeMicros)
+    }
+
+    func testSolanaNeverCarriesAFee() async throws {
+        let json =
+            #"{"addresses":[{"network":"solana","address":"\#(solana)","asset":"USDC","estimated_fee_micros":"5000"}]}"#
+
+        XCTAssertNil(try DepositNetwork.list(json: Data(json.utf8)).first?.estimatedFeeMicros)
+    }
+
     func testABodyThatIsNotTheShapeIsADecodingError() {
         XCTAssertThrowsError(try DepositNetwork.list(json: Data(#"{"addresses":"nope"}"#.utf8))) { error in
             guard case APIError.decoding = error else { return XCTFail("\(error) is not a decoding error") }
