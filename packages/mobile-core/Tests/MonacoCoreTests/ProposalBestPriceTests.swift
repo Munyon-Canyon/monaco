@@ -17,6 +17,17 @@ final class ProposalBestPriceTests: XCTestCase {
         XCTAssertNil(ProposalSummary(.sample()).bestPrice)
     }
 
+    func testAProposalDetailCarriesItsComparison() {
+        var detail = Components.Schemas.ProposalDetail.sample(kind: .sell)
+        detail.priceComparison = BestPrice.sampleComparison(now: Date())
+
+        let summary = ProposalDetail(detail).summary
+
+        XCTAssertEqual(summary.bestPrice?.venues.count, 3)
+        XCTAssertEqual(summary.bestPrice?.isSell, true)
+        XCTAssertNil(ProposalDetail(.sample()).summary.bestPrice)
+    }
+
     func testAVoteKeepsTheComparison() {
         var proposal = Components.Schemas.Proposal.sample()
         proposal.priceComparison = BestPrice.sampleComparison(now: Date())
