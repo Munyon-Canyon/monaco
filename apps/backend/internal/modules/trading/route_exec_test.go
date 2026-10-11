@@ -39,6 +39,15 @@ func (f listingsFake) Listing(_ context.Context, id multichain.ListingID) (multi
 	return l, nil
 }
 
+func (f listingsFake) ListingByAsset(_ context.Context, asset string) (multichain.Listing, error) {
+	for _, l := range f.listings {
+		if string(l.Network)+":"+l.TokenAddress == asset {
+			return l, nil
+		}
+	}
+	return multichain.Listing{}, errs.New(errs.CodeAssetNotFound, "listings.ListingByAsset")
+}
+
 type treasuryEVMFake struct {
 	wallet multichain.EVMWallet
 	err    error

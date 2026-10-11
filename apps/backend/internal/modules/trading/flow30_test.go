@@ -76,6 +76,10 @@ func (*flowChain) Best(
 	}, nil
 }
 
+func (*flowChain) ListingByAsset(context.Context, string) (multichain.Listing, error) {
+	return flows.RoutedListing(), nil
+}
+
 func (*flowChain) EnsureTreasuryEVMWallet(context.Context, ids.CabalID) (multichain.EVMWallet, error) {
 	return flows.RoutedTreasuryEVM(), nil
 }

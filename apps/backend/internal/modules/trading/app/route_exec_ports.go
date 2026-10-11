@@ -13,16 +13,14 @@ import (
 
 type Listings interface {
 	Listing(ctx context.Context, id multichain.ListingID) (multichain.Listing, error)
+	ListingByAsset(ctx context.Context, asset string) (multichain.Listing, error)
 }
 
 type TreasuryEVM interface {
 	EnsureTreasuryEVMWallet(ctx context.Context, cabal ids.CabalID) (multichain.EVMWallet, error)
 }
 
-type (
-	UnwiredListings    struct{}
-	UnwiredTreasuryEVM struct{}
-)
+type UnwiredListings struct{}
 
 func notImplemented(port, ticket string) error {
 	return errs.New(
@@ -37,8 +35,8 @@ func (UnwiredListings) Listing(context.Context, multichain.ListingID) (multichai
 	return multichain.Listing{}, notImplemented("Listings.Listing", "#4969")
 }
 
-func (UnwiredTreasuryEVM) EnsureTreasuryEVMWallet(context.Context, ids.CabalID) (multichain.EVMWallet, error) {
-	return multichain.EVMWallet{}, notImplemented("TreasuryEVM.EnsureTreasuryEVMWallet", "#4966")
+func (UnwiredListings) ListingByAsset(context.Context, string) (multichain.Listing, error) {
+	return multichain.Listing{}, notImplemented("Listings.ListingByAsset", "#4969")
 }
 
 type Poll struct {
