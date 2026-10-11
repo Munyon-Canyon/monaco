@@ -87,3 +87,18 @@ func FundActivity(f Fund, status ActivityStatus) Activity {
 		USDCMicros: optional(f.USDCMicros), Units: optional(f.ShareUnits), TxSignature: f.TxSignature,
 	}
 }
+
+type CashOut struct {
+	JobID        uuid.UUID
+	CabalID      ids.CabalID
+	UserID       ids.UserID
+	PayoutMicros uint64
+	TxSignature  chain.Signature
+}
+
+func CashOutActivity(c CashOut, status ActivityStatus) Activity {
+	return Activity{
+		ID: c.JobID, CabalID: c.CabalID, Actor: c.UserID, Kind: ActivityCashOut, Status: status,
+		USDCMicros: optional(c.PayoutMicros), TxSignature: c.TxSignature,
+	}
+}

@@ -108,6 +108,33 @@ func (h Activity) FundFailed(ctx context.Context, tx db.Tx, e events.FundFailed,
 	}, domain.ActivityFailed), at)
 }
 
+func (h Activity) CashOutStarted(ctx context.Context, tx db.Tx, e events.CashOutStarted, at time.Time) error {
+	return h.record(ctx, tx, domain.CashOutActivity(domain.CashOut{
+		JobID: e.JobID, CabalID: ids.CabalIDFrom(e.CabalID), UserID: ids.UserIDFrom(e.UserID),
+		PayoutMicros: e.PayoutMicros.Uint64(),
+	}, domain.ActivityPending), at)
+}
+
+func (h Activity) CashOutCompleted(ctx context.Context, tx db.Tx, e events.CashOutCompleted, at time.Time) error {
+	return h.record(ctx, tx, domain.CashOutActivity(domain.CashOut{
+		JobID: e.JobID, CabalID: ids.CabalIDFrom(e.CabalID), UserID: ids.UserIDFrom(e.UserID),
+		PayoutMicros: e.PayoutMicros.Uint64(), TxSignature: e.Signature,
+	}, domain.ActivityConfirmed), at)
+}
+
+func (h Activity) CashOutPartial(ctx context.Context, tx db.Tx, e events.CashOutPartial, at time.Time) error {
+	return h.record(ctx, tx, domain.CashOutActivity(domain.CashOut{
+		JobID: e.JobID, CabalID: ids.CabalIDFrom(e.CabalID), UserID: ids.UserIDFrom(e.UserID),
+		PayoutMicros: e.PayoutMicros.Uint64(), TxSignature: e.Signature,
+	}, domain.ActivityConfirmed), at)
+}
+
+func (h Activity) CashOutFailed(ctx context.Context, tx db.Tx, e events.CashOutFailed, at time.Time) error {
+	return h.record(ctx, tx, domain.CashOutActivity(domain.CashOut{
+		JobID: e.JobID, CabalID: ids.CabalIDFrom(e.CabalID), UserID: ids.UserIDFrom(e.UserID),
+	}, domain.ActivityFailed), at)
+}
+
 func actor(user ids.UserID) pgtype.UUID {
 	return pgtype.UUID{Bytes: user.UUID(), Valid: !user.IsZero()}
 }
