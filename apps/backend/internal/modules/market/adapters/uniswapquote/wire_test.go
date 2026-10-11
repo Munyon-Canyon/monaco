@@ -37,7 +37,7 @@ func clientAt(t *testing.T, url string) *uniswapquote.Client {
 		t.Fatal(err)
 	}
 	hc := httpclient.New("uniswap-quote-test", uniswapquote.Options(url, 5*time.Second)...)
-	return uniswapquote.New(hc, "test-key", swapper, testkit.NewClock(quotedAt()))
+	return uniswapquote.New(hc, "test-key", uniswapquote.Stored(swapper), testkit.NewClock(quotedAt()))
 }
 
 type wireQuote struct {

@@ -22,3 +22,4 @@ Dated record of changes to [data-model.md](../data-model.md). Add one line per c
 - 2026-09-26: Planned table list recorded and mapped to current schema. Ledger shape, naming conflict and fold-ins proposed; not yet confirmed.
 - 2026-10-11: M24 multichain (#4917, #4974). New tables `asset_listings`, `treasury_evm_wallets`, `evm_deposit_forwards`, `trade_routes`, `trade_steps` and `treasury_in_transit`; `user_wallets` gains the EVM deposit wallet, `cabal_positions` gains `listing_id`, `withdrawals` gains `destination_kind`, `network`, `evm_address` and `privy_action_id`. Wallets table added under Wallets.
 - 2026-10-11: New table `evm_simulation_account` in `market`, the one wallet EVM quotes simulate from (#5336).
+- 2026-10-11: `evm_simulation_account` gains `legacy_network` and a seeded legacy row for the QA treasury on Base, kept until the one-shot replaces it (#5336).

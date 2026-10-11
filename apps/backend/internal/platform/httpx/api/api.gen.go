@@ -824,6 +824,11 @@ type UnavailableVenue struct {
 	// Examples: simulation_failed
 	Reason UnavailableVenueReason `json:"reason"`
 
+	// ReasonDetail Optional words that say more about the reason, for the app to show beside "Unavailable". Set when a chain can't be simulated yet, as "not set up on this chain yet".
+	//
+	// Examples: not set up on this chain yet
+	ReasonDetail *string `json:"reason_detail,omitempty"`
+
 	// Venue Where the swap would run.
 	//
 	// Examples: uniswap

@@ -45,6 +45,7 @@ type routeFixture struct {
 	listings    []multichain.Listing
 	quotes      map[multichain.ListingID]recordedQuote
 	inputs      map[multichain.ListingID]money.Micros
+	simulation  app.SimulationReadiness
 }
 
 func (f *routeFixture) EnabledListings(context.Context, multichain.StockID) ([]multichain.Listing, error) {
@@ -213,6 +214,9 @@ func route(
 		clk,
 		rules,
 	)
+	if f.simulation != nil {
+		r = r.WithSimulationCheck(f.simulation)
+	}
 	ctx := observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, &f.logs))
 	c, err := r.Best(ctx, stockID(t, g), multichain.SideBuy, money.MicrosFromUint64(100_000_000))
 	return c, byName, f, err

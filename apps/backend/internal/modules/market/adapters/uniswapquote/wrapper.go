@@ -102,7 +102,8 @@ type routeResult struct {
 }
 
 func (c *Client) sponsored(
-	ctx context.Context, l mc.Listing, amount money.Micros, req quoteRequest, attrs []slog.Attr,
+	ctx context.Context, l mc.Listing, amount money.Micros, req quoteRequest, owner chain.EVMAddress,
+	attrs []slog.Attr,
 ) (mc.Quote, error) {
 	if q, hit := c.cached(l, amount); hit {
 		return q, nil
@@ -119,7 +120,7 @@ func (c *Client) sponsored(
 			q, raw, err := c.quote(ctx, l, mc.SideBuy, r, attrs)
 			q.Options = mc.RouteOptions{HooksOptions: r.HooksOptions}
 			if err == nil {
-				q, err = c.penalize(ctx, l, amount, raw, q, attrs)
+				q, err = c.penalize(ctx, simulated{l, amount, owner}, raw, q, attrs)
 			}
 			found[i] = routeResult{quote: q, err: err}
 			return nil
@@ -152,8 +153,14 @@ type swapWire struct {
 	} `json:"swap"`
 }
 
+type simulated struct {
+	listing mc.Listing
+	amount  money.Micros
+	owner   chain.EVMAddress
+}
+
 func (c *Client) penalize(
-	ctx context.Context, l mc.Listing, amount money.Micros, raw json.RawMessage, q mc.Quote, attrs []slog.Attr,
+	ctx context.Context, s simulated, raw json.RawMessage, q mc.Quote, attrs []slog.Attr,
 ) (mc.Quote, error) {
 	var swap swapWire
 	if err := c.postJSON(ctx, "/v1/swap", swapRequest{Quote: raw}, &swap, attrs); err != nil {
@@ -167,12 +174,12 @@ func (c *Client) penalize(
 	if routerErr != nil || dataErr != nil {
 		return mc.Quote{}, errs.New(errs.CodeDecodeFailed, wrapperOp, append(attrs, slog.String("reason", "swap"))...)
 	}
-	received, met, err := c.simulate(ctx, l, amount, router, calldata, attrs)
+	received, met, err := c.simulate(ctx, s, router, calldata, attrs)
 	if err != nil || met || received.Cmp(q.GrossOutput) >= 0 {
 		return q, err
 	}
 	short := new(big.Int).Sub(q.GrossOutput, received)
-	short.Mul(short, new(big.Int).SetUint64(amount.Uint64()))
+	short.Mul(short, new(big.Int).SetUint64(s.amount.Uint64()))
 	loss := short.Quo(short, q.GrossOutput).Uint64()
 	q.GrossOutput = received
 	q.Costs = append(q.Costs, mc.Cost{Kind: mc.CostPriceImpact, Micros: money.MicrosFromUint64(loss)})
@@ -180,15 +187,14 @@ func (c *Client) penalize(
 }
 
 func (c *Client) simulate(
-	ctx context.Context, l mc.Listing, amount money.Micros, router chain.EVMAddress, calldata []byte,
-	attrs []slog.Attr,
+	ctx context.Context, s simulated, router chain.EVMAddress, calldata []byte, attrs []slog.Attr,
 ) (*big.Int, bool, error) {
+	l, amount, owner := s.listing, s.amount, s.owner
 	slots, ok := cashLayouts()[l.Network]
 	client, rpcOK := c.wrapper.rpc[l.Network]
 	if !ok || !rpcOK {
 		return nil, false, errs.New(errs.CodeNoRoute, wrapperOp, append(attrs, slog.String("reason", "unsupported"))...)
 	}
-	owner := c.swapper
 	code, err := evmsim.Call(ctx, client, "eth_getCode", []any{owner.String(), "latest"}, attrs)
 	if delegate, ok := evmsim.Delegation(code); err != nil || !ok || delegate != c.wrapper.delegate {
 		return nil, false, errors.Join(err, errs.New(errs.CodeNoRoute, wrapperOp,

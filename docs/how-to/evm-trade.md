@@ -24,7 +24,7 @@ A dead proposal's cash is bridged back.
 
 Privy sponsors gas through EIP-7702, so every EVM swap runs through the treasury EOA's ERC-7579 `execute`.
 - **Two routes per quote.** For a buy, market's Uniswap quoter asks for two routes: the default, and one restricted to hookless pools (`hooksOptions: V4_NO_HOOKS`).
-- **Each is simulated.** The quoter simulates each swap through `execute` at 3,000,000 gas, under Base's 16,777,216-gas cap per transaction, and keeps the one that delivers more.
+- **Each is simulated.** The quoter simulates each swap through `execute` at 3,000,000 gas, under Base's 16,777,216-gas cap per transaction, and keeps the one that delivers more. It simulates from the account stored in `evm_simulation_account`: the dedicated app-owned wallet, or until the one-shot runs, the seeded legacy QA treasury on Base. The account holds no USDC: state overrides set its balance and Permit2 allowance.
 - **The route is fixed for execution.** The chosen hook setting rides on the quote, and execution builds the swap on the same route.
 
 ## Before you run it
@@ -33,6 +33,7 @@ Privy sponsors gas through EIP-7702, so every EVM swap runs through the treasury
 - Run the backend on `.env.local`, clear of other checkouts: `MONACO_HTTP_ADDR=127.0.0.1:18080 MONACO_WORKER_HEALTH_ADDR=127.0.0.1:18081`.
 - Locally, start the worker with `LISTINGS_SYNC_ENABLED=true`. The listing sync links Coinbase and Ondo listings to their stocks, and `.env.local` leaves it off. Without it, the router only ever compares Solana listings. Staging and production sync on the worker's first boot tick.
 - The EVM gate turns on only when `UNISWAP_API_KEY` is set and market's quoter and the cabal treasury-wallet port are wired.
+- Run `bin/monacoctl market simulation-account` once against the environment's database and Privy app. It creates the dedicated simulation account, delegates it on each EVM chain with a sponsored zero-value self-transfer, and prints each chain's code and delegate. Once Base is delegated, it replaces the seeded legacy account. Until then, Base simulates from the legacy account and every other EVM chain shows "Unavailable: not set up on this chain yet" ([trade-execution.md](../architecture/trade-execution.md#simulation-account)).
 - If Helius returns 429, use the Alchemy Solana URL for the session.
 
 ## Run it

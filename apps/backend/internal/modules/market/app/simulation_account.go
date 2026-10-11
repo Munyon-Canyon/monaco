@@ -24,7 +24,10 @@ const (
 type SimulationAccount struct {
 	WalletID string
 	Address  chain.EVMAddress
+	Legacy   chain.Network
 }
+
+func (a SimulationAccount) Covers(n chain.Network) bool { return a.Legacy == "" || a.Legacy == n }
 
 type AccountCode interface {
 	Code(ctx context.Context, n chain.Network, account chain.EVMAddress) (string, error)
@@ -39,7 +42,9 @@ func LoadSimulationAccount(ctx context.Context, q sqlc.DBTX) (SimulationAccount,
 		return SimulationAccount{}, false, errs.Wrap(err, errs.CodeOf(err), simulationAccountOp)
 	}
 	addr, _ := chain.ParseEVMAddress(row.Address)
-	return SimulationAccount{WalletID: row.PrivyWalletID, Address: addr}, true, nil
+	return SimulationAccount{
+		WalletID: row.PrivyWalletID, Address: addr, Legacy: chain.Network(row.LegacyNetwork),
+	}, true, nil
 }
 
 type SimulationAccounts struct {
@@ -50,37 +55,57 @@ type SimulationAccounts struct {
 
 func NewSimulationAccounts(q sqlc.DBTX) *SimulationAccounts { return &SimulationAccounts{q: q} }
 
-func (s *SimulationAccounts) SimulationAccount(ctx context.Context) (chain.EVMAddress, bool, error) {
+func (s *SimulationAccounts) Stored(ctx context.Context) (SimulationAccount, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.found != nil {
-		return s.found.Address, true, nil
+		return *s.found, true, nil
 	}
 	a, ok, err := LoadSimulationAccount(ctx, s.q)
-	if ok {
+	if ok && a.Legacy == "" {
 		s.found = &a
 	}
+	return a, ok, err
+}
+
+func (s *SimulationAccounts) SimulationAccount(ctx context.Context) (chain.EVMAddress, bool, error) {
+	a, ok, err := s.Stored(ctx)
 	return a.Address, ok, err
 }
 
-func SetUpSimulationAccount(
-	ctx context.Context, q sqlc.DBTX, wallets multichain.EVMWallets, now time.Time,
-) (SimulationAccount, bool, error) {
-	if a, ok, err := LoadSimulationAccount(ctx, q); ok || err != nil {
-		return a, false, err
+type SimulationSetup struct {
+	Account  SimulationAccount
+	Created  bool
+	Replaces chain.Network
+}
+
+func PrepareSimulationAccount(
+	ctx context.Context, q sqlc.DBTX, wallets multichain.EVMWallets,
+) (SimulationSetup, error) {
+	stored, ok, err := LoadSimulationAccount(ctx, q)
+	if err != nil || ok && stored.Legacy == "" {
+		return SimulationSetup{Account: stored}, err
 	}
 	w, err := wallets.CreateAppEVMWallet(ctx, simulationWalletKey)
 	if err != nil {
-		return SimulationAccount{}, false, err
+		return SimulationSetup{}, err
 	}
-	inserted, err := sqlc.New(q).InsertSimulationAccount(ctx, sqlc.InsertSimulationAccountParams{
-		PrivyWalletID: w.ID, Address: w.Address.String(), CreatedAt: now,
+	return SimulationSetup{
+		Account: SimulationAccount{WalletID: w.ID, Address: w.Address}, Created: true, Replaces: stored.Legacy,
+	}, nil
+}
+
+func StoreSimulationAccount(ctx context.Context, q sqlc.DBTX, a SimulationAccount, now time.Time) error {
+	n, err := sqlc.New(q).ReplaceSimulationAccount(ctx, sqlc.ReplaceSimulationAccountParams{
+		PrivyWalletID: a.WalletID, Address: a.Address.String(), CreatedAt: now,
 	})
 	if err != nil {
-		return SimulationAccount{}, false, errs.Wrap(err, errs.CodeOf(err), simulationAccountOp)
+		return errs.Wrap(err, errs.CodeOf(err), simulationAccountOp)
 	}
-	a, _, err := LoadSimulationAccount(ctx, q)
-	return a, inserted == 1, err
+	if n != 1 {
+		return errs.New(errs.CodeVersionConflict, simulationAccountOp, slog.String("reason", "already_stored"))
+	}
+	return nil
 }
 
 type Delegation struct {

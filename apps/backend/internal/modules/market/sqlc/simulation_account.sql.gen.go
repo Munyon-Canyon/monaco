@@ -10,20 +10,25 @@ import (
 	"time"
 )
 
-const insertSimulationAccount = `-- name: InsertSimulationAccount :execrows
-INSERT INTO evm_simulation_account (privy_wallet_id, address, created_at)
-VALUES ($1, $2, $3)
-ON CONFLICT (singleton) DO NOTHING
+const replaceSimulationAccount = `-- name: ReplaceSimulationAccount :execrows
+INSERT INTO evm_simulation_account (privy_wallet_id, address, created_at, legacy_network)
+VALUES ($1::text, $2, $3, NULL)
+ON CONFLICT (singleton) DO UPDATE SET
+  privy_wallet_id = EXCLUDED.privy_wallet_id,
+  address = EXCLUDED.address,
+  created_at = EXCLUDED.created_at,
+  legacy_network = NULL
+WHERE evm_simulation_account.legacy_network IS NOT NULL
 `
 
-type InsertSimulationAccountParams struct {
+type ReplaceSimulationAccountParams struct {
 	PrivyWalletID string
 	Address       string
 	CreatedAt     time.Time
 }
 
-func (q *Queries) InsertSimulationAccount(ctx context.Context, arg InsertSimulationAccountParams) (int64, error) {
-	result, err := q.db.Exec(ctx, insertSimulationAccount, arg.PrivyWalletID, arg.Address, arg.CreatedAt)
+func (q *Queries) ReplaceSimulationAccount(ctx context.Context, arg ReplaceSimulationAccountParams) (int64, error) {
+	result, err := q.db.Exec(ctx, replaceSimulationAccount, arg.PrivyWalletID, arg.Address, arg.CreatedAt)
 	if err != nil {
 		return 0, err
 	}
@@ -31,17 +36,20 @@ func (q *Queries) InsertSimulationAccount(ctx context.Context, arg InsertSimulat
 }
 
 const simulationAccount = `-- name: SimulationAccount :one
-SELECT privy_wallet_id, address FROM evm_simulation_account WHERE singleton
+SELECT coalesce(privy_wallet_id, '')::text AS privy_wallet_id, address,
+  coalesce(legacy_network, '')::text AS legacy_network
+FROM evm_simulation_account WHERE singleton
 `
 
 type SimulationAccountRow struct {
 	PrivyWalletID string
 	Address       string
+	LegacyNetwork string
 }
 
 func (q *Queries) SimulationAccount(ctx context.Context) (SimulationAccountRow, error) {
 	row := q.db.QueryRow(ctx, simulationAccount)
 	var i SimulationAccountRow
-	err := row.Scan(&i.PrivyWalletID, &i.Address)
+	err := row.Scan(&i.PrivyWalletID, &i.Address, &i.LegacyNetwork)
 	return i, err
 }

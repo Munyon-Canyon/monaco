@@ -45,6 +45,10 @@ type RouterRules struct {
 	MaxQuoteAge  time.Duration
 }
 
+type SimulationReadiness interface {
+	Ready(ctx context.Context, n chain.Network) (bool, error)
+}
+
 type Venues map[multichain.Venue]multichain.Quoter
 
 func (v Venues) Quote(
@@ -59,12 +63,13 @@ func (v Venues) Quote(
 }
 
 type Router struct {
-	listings RouteListings
-	quoter   multichain.Quoter
-	prices   SharePrices
-	bridge   BridgeQuotes
-	clock    clock.Clock
-	rules    RouterRules
+	listings   RouteListings
+	quoter     multichain.Quoter
+	prices     SharePrices
+	bridge     BridgeQuotes
+	clock      clock.Clock
+	rules      RouterRules
+	simulation SimulationReadiness
 }
 
 func NewRouter(
@@ -72,6 +77,11 @@ func NewRouter(
 	bridge BridgeQuotes, clk clock.Clock, rules RouterRules,
 ) *Router {
 	return &Router{listings: listings, quoter: quoter, prices: prices, bridge: bridge, clock: clk, rules: rules}
+}
+
+func (r *Router) WithSimulationCheck(s SimulationReadiness) *Router {
+	r.simulation = s
+	return r
 }
 
 var (
@@ -85,6 +95,7 @@ type venueQuote struct {
 	ok      bool
 	err     error
 	reason  multichain.UnavailableReason
+	detail  string
 	took    time.Duration
 }
 
@@ -96,11 +107,22 @@ type bridgeEstimate struct {
 
 type bridgeEstimates map[chain.Network]*bridgeEstimate
 
-func estimatesFor(listings []multichain.Listing) bridgeEstimates {
-	out := bridgeEstimates{}
+type readiness struct {
+	once  sync.Once
+	ready bool
+	err   error
+}
+
+type perChain struct {
+	bridges bridgeEstimates
+	ready   map[chain.Network]*readiness
+}
+
+func perChainFor(listings []multichain.Listing) perChain {
+	out := perChain{bridges: bridgeEstimates{}, ready: map[chain.Network]*readiness{}}
 	for _, l := range listings {
 		if l.Network != chain.NetworkSolana {
-			out[l.Network] = &bridgeEstimate{}
+			out.bridges[l.Network], out.ready[l.Network] = &bridgeEstimate{}, &readiness{}
 		}
 	}
 	return out
@@ -133,11 +155,11 @@ func (r *Router) best(
 		listings = slices.DeleteFunc(listings, func(l multichain.Listing) bool { return l.Network != on })
 	}
 	ref, refErr := r.prices.SharePrice(ctx, stock)
-	estimates := estimatesFor(listings)
+	chains := perChainFor(listings)
 	quotes, err := concurrency.FanOut(ctx, quoteFanOut, listings,
 		func(ctx context.Context, l multichain.Listing) (venueQuote, error) {
 			start := r.clock.Now()
-			q := r.quote(ctx, l, amount, ref, refErr, estimates)
+			q := r.quote(ctx, l, amount, ref, refErr, chains)
 			q.listing, q.took = l, r.clock.Now().Sub(start)
 			return q, nil
 		})
@@ -148,11 +170,14 @@ func (r *Router) best(
 }
 
 func (r *Router) quote(
-	ctx context.Context, l multichain.Listing, amount, ref money.Micros, refErr error, estimates bridgeEstimates,
+	ctx context.Context, l multichain.Listing, amount, ref money.Micros, refErr error, chains perChain,
 ) venueQuote {
 	ctx, cancel := context.WithTimeout(ctx, r.rules.QuoteTimeout)
 	defer cancel()
-	input, costs, err := r.bridgeIn(ctx, l, amount, refErr, estimates)
+	if q, ready := r.simulationReady(ctx, l, chains.ready[l.Network]); !ready {
+		return q
+	}
+	input, costs, err := r.bridgeIn(ctx, l, amount, refErr, chains.bridges)
 	if err != nil && refErr != nil {
 		return venueQuote{err: err, reason: multichain.UnavailableStale}
 	}
@@ -179,6 +204,29 @@ func (r *Router) quote(
 	q.NetShares = multichain.ShareNanos(scale(gross, input.Uint64()-gas, input.Uint64()))
 	return venueQuote{quote: q, ok: true}
 }
+
+func (r *Router) simulationReady(ctx context.Context, l multichain.Listing, check *readiness) (venueQuote, bool) {
+	if r.simulation == nil || check == nil {
+		return venueQuote{}, true
+	}
+	check.once.Do(func() { check.ready, check.err = r.simulation.Ready(ctx, l.Network) })
+	switch {
+	case check.err != nil:
+		return failed(ctx, check.err), false
+	case !check.ready:
+		return venueQuote{
+			err: errs.New(errs.CodeNoRoute, routerOp, slog.String("listing_id", l.ID.String()),
+				slog.String("network", string(l.Network)), slog.String("reason", notDelegated)),
+			reason: multichain.UnavailableSimulationFailed, detail: NotDelegatedDetail,
+		}, false
+	}
+	return venueQuote{}, true
+}
+
+const (
+	notDelegated       = "simulation_account_not_delegated"
+	NotDelegatedDetail = "not set up on this chain yet"
+)
 
 func failed(ctx context.Context, err error) venueQuote {
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
@@ -289,6 +337,7 @@ func (r *Router) rank(
 				slog.String("err", errText(q.err)), slog.Int64("duration_ms", q.took.Milliseconds()))
 			unavailable = append(unavailable, multichain.UnavailableVenue{
 				ListingID: q.listing.ID, Network: q.listing.Network, Venue: q.listing.Venue, Reason: reason,
+				Detail: q.detail,
 			})
 			continue
 		}
@@ -296,7 +345,9 @@ func (r *Router) rank(
 	}
 	if len(ranked) == 0 {
 		code := errs.CodeNoRoute
-		if slices.ContainsFunc(unavailable, func(u multichain.UnavailableVenue) bool { return !unroutable(u.Reason) }) {
+		if slices.ContainsFunc(unavailable, func(u multichain.UnavailableVenue) bool {
+			return !unroutable(u.Reason) && u.Detail != NotDelegatedDetail
+		}) {
 			code = errs.CodeQuoteUnavailable
 		}
 		return multichain.Comparison{}, errs.New(code, routerOp, slog.String("stock_id", stock.String()))
@@ -335,6 +386,8 @@ func solanaFirst(q multichain.Quote) int {
 func (r *Router) dropReason(q venueQuote) (string, multichain.UnavailableReason) {
 	now := r.clock.Now()
 	switch {
+	case !q.ok && q.detail == NotDelegatedDetail:
+		return notDelegated, q.reason
 	case !q.ok:
 		return string(errs.CodeOf(q.err)), q.reason
 	case !now.Before(q.quote.ExpiresAt):

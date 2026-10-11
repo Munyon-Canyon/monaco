@@ -8,6 +8,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -75,63 +76,119 @@ func simulationWallets(t *testing.T) *simWallets {
 	return &simWallets{created: multichain.EVMWallet{ID: a.WalletID, Address: a.Address}}
 }
 
-func TestSetUpSimulationAccount_createsOnceAndReusesTheStoredWallet(t *testing.T) {
-	t.Parallel()
-	pool := testkit.DB(t)
-	wallets := simulationWallets(t)
-	now := testkit.NewClock(time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC)).Now()
+const legacyAddress = "0xf15262a7ee9d20fa690185d58e0eb2aad475bf32"
 
-	first, created, err := app.SetUpSimulationAccount(t.Context(), pool, wallets, now)
-	if err != nil || !created || first != simAccount(t) || wallets.creates != 1 {
-		t.Fatalf("first run = %+v created %t, %v, creates %d", first, created, err, wallets.creates)
+func simNow() time.Time {
+	return testkit.NewClock(time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC)).Now()
+}
+
+func TestLoadSimulationAccount_startsFromTheSeededLegacyRowOnBaseOnly(t *testing.T) {
+	t.Parallel()
+	a, ok, err := app.LoadSimulationAccount(t.Context(), testkit.DB(t))
+	if err != nil || !ok || a.Address.String() != legacyAddress || a.Legacy != chain.NetworkBase || a.WalletID != "" {
+		t.Fatalf("seed = %+v, %t, %v, want the legacy Base account", a, ok, err)
 	}
-	second, created, err := app.SetUpSimulationAccount(t.Context(), pool, wallets, now)
-	if err != nil || created || second != first || wallets.creates != 1 {
-		t.Fatalf("second run = %+v created %t, %v, creates %d, want the stored wallet and no new create",
-			second, created, err, wallets.creates)
+	if !a.Covers(chain.NetworkBase) || a.Covers(chain.NetworkRobinhood) {
+		t.Fatalf("legacy covers base %t robinhood %t, want Base only", a.Covers(chain.NetworkBase),
+			a.Covers(chain.NetworkRobinhood))
 	}
 }
 
-func TestSetUpSimulationAccount_reportsCreateAndStoreFailures(t *testing.T) {
+func TestPrepareSimulationAccount_replacesTheLegacyRowThenReusesTheDedicatedWallet(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	wallets := simulationWallets(t)
+
+	first, err := app.PrepareSimulationAccount(t.Context(), pool, wallets)
+	if err != nil || !first.Created || first.Replaces != chain.NetworkBase || first.Account != simAccount(t) {
+		t.Fatalf("first run = %+v, %v, want a new wallet replacing the legacy Base row", first, err)
+	}
+	if err := app.StoreSimulationAccount(t.Context(), pool, first.Account, simNow()); err != nil {
+		t.Fatal(err)
+	}
+	wantStored(t, pool, simAccount(t))
+	second, err := app.PrepareSimulationAccount(t.Context(), pool, wallets)
+	if err != nil || second.Created || second.Account != simAccount(t) || wallets.creates != 1 {
+		t.Fatalf("second run = %+v, %v, creates %d, want the stored wallet reused", second, err, wallets.creates)
+	}
+	if err := app.StoreSimulationAccount(t.Context(), pool, second.Account, simNow()); errs.CodeOf(err) !=
+		errs.CodeVersionConflict {
+		t.Fatalf("storing over a dedicated wallet = %v, want version_conflict", err)
+	}
+}
+
+func wantStored(t *testing.T, q sqlc.DBTX, want app.SimulationAccount) {
+	t.Helper()
+	if stored, _, err := app.LoadSimulationAccount(t.Context(), q); err != nil || stored != want {
+		t.Fatalf("stored = %+v, %v, want %+v", stored, err, want)
+	}
+}
+
+func TestPrepareSimulationAccount_createsWhenNothingIsStored(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	if _, err := pool.Exec(t.Context(), `DELETE FROM evm_simulation_account`); err != nil {
+		t.Fatal(err)
+	}
+	setup, err := app.PrepareSimulationAccount(t.Context(), pool, simulationWallets(t))
+	if err != nil || !setup.Created || setup.Replaces != "" {
+		t.Fatalf("empty table = %+v, %v, want a new wallet that replaces nothing", setup, err)
+	}
+	if err := app.StoreSimulationAccount(t.Context(), pool, setup.Account, simNow()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPrepareSimulationAccount_reportsCreateReadAndStoreFailures(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	wallets := simulationWallets(t)
 	wallets.err = errs.New(errs.CodePrivyUnavailable, "fake")
-	if _, _, err := app.SetUpSimulationAccount(t.Context(), pool, wallets, time.Time{}); !errors.Is(err, wallets.err) {
+	if _, err := app.PrepareSimulationAccount(t.Context(), pool, wallets); !errors.Is(err, wallets.err) {
 		t.Fatalf("create failure = %v", err)
-	}
-	wallets.err, wallets.created.ID = nil, ""
-	if _, _, err := app.SetUpSimulationAccount(t.Context(), pool, wallets, time.Time{}); err == nil {
-		t.Fatal("store failure returned no error")
-	}
-	if _, ok, err := app.LoadSimulationAccount(t.Context(), pool); ok || err != nil {
-		t.Fatalf("after failures = %t, %v, want nothing stored", ok, err)
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, _, err := app.SetUpSimulationAccount(ctx, pool, wallets, time.Time{}); err == nil {
+	if _, err := app.PrepareSimulationAccount(ctx, pool, wallets); err == nil {
 		t.Fatal("read failure returned no error")
+	}
+	if err := app.StoreSimulationAccount(ctx, pool, simAccount(t), simNow()); err == nil {
+		t.Fatal("store failure returned no error")
+	}
+	if a, _, err := app.LoadSimulationAccount(t.Context(), pool); err != nil || a.Legacy != chain.NetworkBase {
+		t.Fatalf("after failures = %+v, %v, want the legacy row untouched", a, err)
 	}
 }
 
-func TestSimulationAccounts_readTheStoredAddressAndKeepIt(t *testing.T) {
+func TestSimulationAccounts_rereadTheLegacyRowAndKeepTheDedicatedOne(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	accounts := app.NewSimulationAccounts(pool)
-	if _, ok, err := accounts.SimulationAccount(t.Context()); ok || err != nil {
-		t.Fatalf("empty = %t, %v, want no account", ok, err)
+	if got, ok, err := accounts.SimulationAccount(t.Context()); !ok || err != nil || got.String() != legacyAddress {
+		t.Fatalf("legacy = %s, %t, %v, want the seeded address", got, ok, err)
 	}
-	if _, _, err := app.SetUpSimulationAccount(t.Context(), pool, simulationWallets(t), time.Time{}); err != nil {
+	if err := app.StoreSimulationAccount(t.Context(), pool, simAccount(t), simNow()); err != nil {
 		t.Fatal(err)
 	}
 	if got, ok, err := accounts.SimulationAccount(t.Context()); !ok || err != nil || got != simAccount(t).Address {
-		t.Fatalf("stored = %s, %t, %v, want %s", got, ok, err, simAddress)
+		t.Fatalf("after the swap = %s, %t, %v, want %s", got, ok, err, simAddress)
 	}
 	if _, err := pool.Exec(t.Context(), `DELETE FROM evm_simulation_account`); err != nil {
 		t.Fatal(err)
 	}
-	if got, ok, err := accounts.SimulationAccount(t.Context()); !ok || err != nil || got != simAccount(t).Address {
-		t.Fatalf("after delete = %s, %t, %v, want the kept address", got, ok, err)
+	if got, ok, err := accounts.Stored(t.Context()); !ok || err != nil || got != simAccount(t) {
+		t.Fatalf("after delete = %+v, %t, %v, want the kept dedicated account", got, ok, err)
+	}
+}
+
+func TestSimulationAccounts_reportNoneAndReadFailures(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	if _, err := pool.Exec(t.Context(), `DELETE FROM evm_simulation_account`); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := app.NewSimulationAccounts(pool).Stored(t.Context()); ok || err != nil {
+		t.Fatalf("empty = %t, %v, want no account", ok, err)
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()

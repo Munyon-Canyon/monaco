@@ -152,6 +152,7 @@ type UnavailableVenue struct {
 	Network   chain.Network     `json:"network"`
 	Venue     Venue             `json:"venue"`
 	Reason    UnavailableReason `json:"reason"`
+	Detail    string            `json:"reason_detail,omitempty"`
 }
 
 type Comparison struct {
