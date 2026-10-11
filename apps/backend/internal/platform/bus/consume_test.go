@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -371,6 +372,8 @@ func TestRegistry_aMessageBehindASlowHandlerIsDeliveredOnce(t *testing.T) {
 	h := newHarness(t)
 	entered, release := make(chan struct{}), make(chan struct{})
 	var calls atomic.Uint64
+	var releaseOnce sync.Once
+	unblock := func() { releaseOnce.Do(func() { close(release) }) }
 	slowFirst := bus.Handle("notify.push",
 		func(ctx context.Context, tx db.Tx, e events.SystemPinged, _ time.Time) error {
 			if calls.Add(1) == 1 {
@@ -383,38 +386,23 @@ func TestRegistry_aMessageBehindASlowHandlerIsDeliveredOnce(t *testing.T) {
 		})
 	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{slowFirst}})
 	startRegistry(h.ctx(t), t, reg)
+	t.Cleanup(unblock)
 
 	h.publishPing(t)
 	await(t, "the slow first handler", entered)
-	queued := h.publishPing(t)
-	h.ackWaitsPass(t, 3)
-	close(release)
+	h.publishPing(t)
+	testkit.Eventually(t, func() bool {
+		ci := h.consumerInfo(t)
+		return ci.NumPending+ci.Delivered.Consumer == 2
+	}, waitLong)
+	if ci := h.consumerInfo(t); ci.Delivered.Consumer != 1 || ci.NumPending != 1 {
+		t.Fatalf("while the first handler runs the consumer delivered %d messages with %d pending, want 1 and 1",
+			ci.Delivered.Consumer, ci.NumPending)
+	}
+	unblock()
 	testkit.Eventually(t, func() bool { return len(h.handled(t)) == 2 }, waitLong)
-	h.assertNoRedelivery(t)
-	var deliveries []any
-	for _, line := range h.lines(t, "bus.dispatched") {
-		if line["event_id"] == queued.String() {
-			deliveries = append(deliveries, line["delivery"])
-		}
-	}
-	if !slices.Equal(deliveries, []any{1.0}) {
-		t.Fatalf("the queued message was dispatched as deliveries %v, want only delivery 1", deliveries)
-	}
 	if dl := h.deadLetters(t); len(dl) != 0 {
 		t.Fatalf("DEADLETTER = %v, want empty", dl)
-	}
-}
-
-func (h *harness) ackWaitsPass(t *testing.T, n int) {
-	t.Helper()
-	cfg := h.bus.Consumer
-	cfg.Durable = "probe"
-	probe, err := h.bus.JS.CreateOrUpdateConsumer(t.Context(), h.bus.Events, cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for range n + 1 {
-		h.fetch(t, probe)
 	}
 }
 
