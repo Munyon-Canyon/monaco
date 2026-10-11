@@ -71,5 +71,6 @@ type RoutePorts struct {
 	Sender      EVMSender
 	Venue       EVMVenue
 	EVMSales    EVMSales
+	Router      multichain.Router
 	EVM         bool
 }

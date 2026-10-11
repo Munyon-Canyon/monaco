@@ -30,6 +30,7 @@ type ExecuteTrade struct {
 	QuoteOutAmount uint64
 	Retry          *Retry
 	Route          *multichain.Comparison
+	unrouted       bool
 }
 
 type Retry struct {
@@ -59,6 +60,7 @@ type ExecuteTradeDeps struct {
 	Ports    EnginePorts
 	USDC     chain.Mint
 	EVM      bool
+	Router   multichain.Router
 }
 
 type ExecuteTradeHandler struct {
@@ -152,6 +154,10 @@ func (h *ExecuteTradeHandler) check(
 	ctx context.Context, cmd ExecuteTrade,
 ) (SwapRequest, multichain.Listing, refusal, error) {
 	untradable := refusal{code: errs.CodeAssetUntradable}
+	cmd, err := h.reroute(ctx, cmd)
+	if err != nil {
+		return SwapRequest{}, multichain.Listing{}, refusal{}, err
+	}
 	winner, err := h.winner(ctx, cmd)
 	switch code := errs.CodeOf(err); {
 	case code == errs.CodeAssetNotFound || code == errs.CodeAssetUntradable:
@@ -251,7 +257,7 @@ func (h *ExecuteTradeHandler) request(cmd ExecuteTrade, asset market.Asset, w ca
 		},
 		Route: cmd.Route,
 	}
-	if cmd.Retry != nil {
+	if cmd.Retry != nil && !cmd.unrouted {
 		req.RouteOf = &cmd.Retry.Of
 	}
 	if cmd.Action == domain.ActionSell {

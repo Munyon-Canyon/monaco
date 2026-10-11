@@ -61,6 +61,21 @@ func (*flowChain) Listing(context.Context, multichain.ListingID) (multichain.Lis
 	return flows.RoutedListing(), nil
 }
 
+func (*flowChain) Best(
+	_ context.Context, _ multichain.StockID, side multichain.Side, amount money.Micros,
+) (multichain.Comparison, error) {
+	l := flows.RoutedListing()
+	return multichain.Comparison{
+		StockID: l.StockID, Side: side, Winner: l.ID,
+		Ranked: []multichain.Quote{{
+			ListingID: l.ID, Network: l.Network, Venue: l.Venue, Side: side, InputMicros: amount, NetMicros: amount,
+			Costs: []multichain.Cost{{
+				Kind: multichain.CostBridge, Micros: money.MicrosFromUint64(flows.RoutedBridgeFee),
+			}},
+		}},
+	}, nil
+}
+
 func (*flowChain) EnsureTreasuryEVMWallet(context.Context, ids.CabalID) (multichain.EVMWallet, error) {
 	return flows.RoutedTreasuryEVM(), nil
 }
@@ -135,7 +150,8 @@ func runFlow30Step(t *testing.T, name string) {
 			}),
 			trading.WithChain(layer.venue, layer.signer),
 			trading.WithRoutePorts(app.RoutePorts{
-				Listings: fake, TreasuryEVM: fake, Quoter: fake, Actions: fake, Sender: fake, Venue: fake, EVM: true,
+				Listings: fake, TreasuryEVM: fake, Quoter: fake, Actions: fake, Sender: fake, Venue: fake, Router: fake,
+				EVM: true,
 			}),
 		)
 	}, func(d module.Deps) module.Module {

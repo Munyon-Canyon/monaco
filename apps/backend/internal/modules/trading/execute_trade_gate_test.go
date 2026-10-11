@@ -1,6 +1,7 @@
 package trading_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
@@ -8,8 +9,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -84,7 +87,8 @@ func TestModule_routesAnEVMWinnerOnlyWithEVMOn(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			route := newRouteEnv(t)
-			route.options = []trading.Option{trading.WithRoutePorts(app.RoutePorts{Listings: route.listings, EVM: evm})}
+			ports := app.RoutePorts{Listings: route.listings, Router: staticRouter{route.route}, EVM: evm}
+			route.options = []trading.Option{trading.WithRoutePorts(ports)}
 			b := newEngineBusOn(t, testkit.Config(), route.engineEnv)
 			b.quote(usdcToken(), aaplxToken(), quotedOut, true)
 			cmd := b.buy()
@@ -99,4 +103,12 @@ func TestModule_routesAnEVMWinnerOnlyWithEVMOn(t *testing.T) {
 			}
 		})
 	}
+}
+
+type staticRouter struct{ c *multichain.Comparison }
+
+func (r staticRouter) Best(
+	context.Context, multichain.StockID, multichain.Side, money.Micros,
+) (multichain.Comparison, error) {
+	return *r.c, nil
 }
