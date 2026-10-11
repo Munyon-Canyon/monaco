@@ -16,6 +16,7 @@ const listRoutedUnfinished = `-- name: ListRoutedUnfinished :many
 SELECT s.id
 FROM swaps AS s
 WHERE s.status IN ('created', 'submitted') AND s.created_at < $1::timestamptz
+  AND s.parked_at IS NULL
   AND EXISTS (SELECT 1 FROM trade_steps AS t WHERE t.trade_id = s.id)
 ORDER BY s.updated_at, s.id
 LIMIT $2
@@ -50,14 +51,14 @@ const listStrandedCash = `-- name: ListStrandedCash :many
 SELECT s.id, s.source_kind, s.source_id,
   EXISTS (SELECT 1 FROM trade_steps AS b WHERE b.trade_id = s.id AND b.step = 'bridge_back')::bool AS returning
 FROM swaps AS s
-WHERE coalesce(s.failed_at, s.confirmed_at) < $1::timestamptz
+WHERE coalesce(s.failed_at, s.confirmed_at, s.parked_at) < $1::timestamptz
   AND (
     EXISTS (
       SELECT 1 FROM trade_steps AS b
       WHERE b.trade_id = s.id AND b.step = 'bridge_back' AND b.status IN ('pending', 'submitted')
     )
     OR (
-      s.status = 'failed'
+      (s.status = 'failed' OR s.parked_at IS NOT NULL)
       AND EXISTS (
         SELECT 1 FROM trade_steps AS o WHERE o.trade_id = s.id AND o.step = 'bridge_out' AND o.status = 'succeeded'
       )
@@ -137,6 +138,33 @@ func (q *Queries) MarkSubmittedEVM(ctx context.Context, arg MarkSubmittedEVMPara
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const parkRouted = `-- name: ParkRouted :one
+UPDATE swaps AS s
+SET parked_at = $1::timestamptz, parked_code = $2::text
+WHERE s.id = $3::uuid AND s.parked_at IS NULL AND s.status IN ('created', 'submitted')
+RETURNING s.cabal_id, coalesce((
+  SELECT t.step FROM trade_steps AS t WHERE t.trade_id = s.id ORDER BY t.updated_at DESC, t.created_at DESC LIMIT 1
+), '')::text AS step
+`
+
+type ParkRoutedParams struct {
+	At   time.Time
+	Code string
+	ID   uuid.UUID
+}
+
+type ParkRoutedRow struct {
+	CabalID uuid.UUID
+	Step    string
+}
+
+func (q *Queries) ParkRouted(ctx context.Context, arg ParkRoutedParams) (ParkRoutedRow, error) {
+	row := q.db.QueryRow(ctx, parkRouted, arg.At, arg.Code, arg.ID)
+	var i ParkRoutedRow
+	err := row.Scan(&i.CabalID, &i.Step)
+	return i, err
 }
 
 const reuseStrandedCash = `-- name: ReuseStrandedCash :execrows
@@ -225,7 +253,7 @@ SELECT EXISTS (
   FROM trade_steps AS o
   JOIN swaps AS s ON s.id = o.trade_id
   WHERE o.trade_id = $1::uuid AND o.step = 'bridge_out' AND o.status = 'succeeded'
-    AND s.status = 'failed'
+    AND (s.status = 'failed' OR s.parked_at IS NOT NULL)
     AND NOT EXISTS (
       SELECT 1 FROM trade_steps AS t
       WHERE t.trade_id = o.trade_id AND (t.step = 'bridge_back' OR (t.step = 'swap' AND t.status <> 'failed'))

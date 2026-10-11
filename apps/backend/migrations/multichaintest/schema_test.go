@@ -129,3 +129,18 @@ func TestSwapFailureCodesIncludeSwapReverted(t *testing.T) {
 	}
 	run(t, pool, stmts)
 }
+
+func TestSwapsAreParkedWithAtAndCodeTogether(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	insert := `INSERT INTO swaps (id, source_kind, source_id, cabal_id, treasury_address, action, symbol, in_mint,
+		out_mint, in_amount, slippage_bps, status, parked_at, parked_code, created_at, updated_at)
+		VALUES (gen_random_uuid(), 'proposal', gen_random_uuid(), gen_random_uuid(), $1, 'buy', 'AAPLx', 'usdc',
+		'aaplx', 1000000, 100, 'created', $2, $3, now(), now())`
+	run(t, pool, []stmt{
+		{"unparked", insert, []any{evmAddr, nil, nil}, true},
+		{"parked", insert, []any{evmAddr, "2026-10-11T00:00:00Z", "asset_untradable"}, true},
+		{"parked without a code", insert, []any{evmAddr, "2026-10-11T00:00:00Z", nil}, false},
+		{"a code without parking", insert, []any{evmAddr, nil, "asset_untradable"}, false},
+	})
+}
