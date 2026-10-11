@@ -10,6 +10,7 @@ struct WithdrawConfirmView: View {
 
     static let caveat = "Double-check the address. Transfers can't be undone."
     let destinationAddress: String
+    var network = WithdrawNetwork.solana
     let amountText: String
     let amountLabel: String
     var fullBalanceMicros: Int64?
@@ -39,6 +40,7 @@ struct WithdrawConfirmView: View {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
                     MonacoGroupedList {
                         ReceiptLine(label: "To", value: .address(destinationAddress))
+                        ReceiptLine(label: "Network", value: .words(network.name))
                         ReceiptLine(label: "From", value: .words("Account balance"))
                         ReceiptLine(label: "Arrives", value: .words("About a minute"), isLast: true)
                     }

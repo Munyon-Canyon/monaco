@@ -9,6 +9,7 @@ struct WithdrawView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var withdrawing: Withdrawing?
     @State private var destinationAddress = ""
+    @State private var network = WithdrawNetwork.solana
     @State private var amount = WithdrawAmount()
     @State private var refusedAddress: String?
     @State private var showConfirm = false
@@ -27,6 +28,7 @@ struct WithdrawView: View {
             state: environment.balance.state,
             amountText: amountText,
             destinationAddress: $destinationAddress,
+            network: $network,
             onMax: { amount.tapMax() },
             refusedAddress: refusedAddress,
             onContinue: {
@@ -41,12 +43,14 @@ struct WithdrawView: View {
         )
         .analyticsScreen("withdraw", step: .withdraw(.withdrawOpened))
         .onChange(of: destinationAddress) { _, _ in refusedAddress = nil }
+        .onChange(of: network) { _, _ in refusedAddress = nil }
         .onChange(of: showConfirm) { _, shown in
             if !shown { frozen = nil }
         }
         .navigationDestination(isPresented: $showConfirm) {
             WithdrawConfirmView(
                 destinationAddress: trimmedAddress,
+                network: network,
                 amountText: amount.text,
                 amountLabel: UsdAmountFormatter.format(flooredMicros: frozen?.micros ?? 0),
                 fullBalanceMicros: frozen?.fullBalanceLabel != nil ? frozen?.micros : nil,
@@ -66,7 +70,7 @@ struct WithdrawView: View {
         guard let withdrawing, let frozen, frozen.micros > 0 else { return }
         let micros = frozen.micros
         let fullBalanceLabel = frozen.fullBalanceLabel
-        switch await withdrawing.submit(micros: micros, toAddress: trimmedAddress) {
+        switch await withdrawing.submit(micros: micros, toAddress: trimmedAddress, network: network) {
         case .accepted:
             Haptics.success()
             if let line = Self.message(for: withdrawing.progress, fullBalanceLabel: fullBalanceLabel) {
@@ -153,15 +157,22 @@ struct WithdrawAmount: Equatable {
 struct WithdrawForm: Equatable {
     let amountText: String
     let destinationAddress: String
+    let network: WithdrawNetwork
     let availableMicros: Int64?
     /// The member's own deposit address, which is never a destination.
     let ownDepositAddress: String?
+    let estimatedReceiveMicros: Int64?
     private let balance: AccountBalance?
 
-    init(amountText: String, destinationAddress: String, balance: AccountBalance?) {
+    init(
+        amountText: String, destinationAddress: String, network: WithdrawNetwork = .solana,
+        estimatedReceiveMicros: Int64? = nil, balance: AccountBalance?
+    ) {
         self.balance = balance
         self.amountText = amountText
         self.destinationAddress = destinationAddress
+        self.network = network
+        self.estimatedReceiveMicros = estimatedReceiveMicros
         availableMicros = balance?.availableMicros
         ownDepositAddress = balance?.depositAddress
     }
@@ -173,8 +184,8 @@ struct WithdrawForm: Equatable {
         return Decimal(availableMicros) / Decimal(1_000_000)
     }
 
-    var addressValidation: Result<String, SolanaAddressProblem> {
-        SolanaAddress.validate(destinationAddress, ownDepositAddress: ownDepositAddress)
+    var addressValidation: Result<String, WithdrawAddressProblem> {
+        network.validate(destinationAddress, ownDepositAddress: ownDepositAddress)
     }
 
     var canContinue: Bool {
@@ -197,8 +208,14 @@ struct WithdrawForm: Equatable {
 
     /// Nothing while the field is empty; otherwise why the pasted address can't be used.
     var addressProblem: String? {
-        guard case .failure(let problem) = addressValidation, problem != .empty else { return nil }
-        return SolanaAddress.message(for: problem)
+        guard case .failure(let problem) = addressValidation, !problem.isEmpty else { return nil }
+        return network.message(for: problem)
+    }
+
+    var receiveLine: String? {
+        guard let micros = AmountEntryText.micros(amountText), micros > 0, problem == nil else { return nil }
+        guard network.isEVM else { return network.receiveLine(receiveMicros: micros) }
+        return estimatedReceiveMicros.map { network.receiveLine(receiveMicros: $0) }
     }
 
     var balanceHelper: String {
@@ -207,7 +224,8 @@ struct WithdrawForm: Equatable {
     }
 
     /// Under the address field: what kind of address, and that it is final.
-    static let caveat = "A Solana address that accepts USDC. Transfers can't be undone."
+    static let caveat = WithdrawNetwork.solana.caveat
+    var addressCaveat: String { network.caveat }
 }
 
 /// Withdraw's entry layout: the amount as the hero, the address it goes to in the market's
@@ -218,6 +236,8 @@ struct WithdrawContent: View {
     let state: LoadState<AccountBalance>
     @Binding var amountText: String
     @Binding var destinationAddress: String
+    @Binding var network: WithdrawNetwork
+    var estimatedReceiveMicros: Int64?
     var onMax: () -> Void = {}
     var refusedAddress: String?
     let onContinue: () -> Void
@@ -225,10 +245,10 @@ struct WithdrawContent: View {
     let onRetry: () -> Void
 
     private var form: WithdrawForm {
-        if case .loaded(let balance) = state {
-            return WithdrawForm(amountText: amountText, destinationAddress: destinationAddress, balance: balance)
-        }
-        return WithdrawForm(amountText: amountText, destinationAddress: destinationAddress, balance: nil)
+        let balance: AccountBalance? = if case .loaded(let balance) = state { balance } else { nil }
+        return WithdrawForm(
+            amountText: amountText, destinationAddress: destinationAddress, network: network,
+            estimatedReceiveMicros: estimatedReceiveMicros, balance: balance)
     }
 
     /// The amount pad, the destination field and the button belong together: whenever one is on
@@ -262,6 +282,15 @@ struct WithdrawContent: View {
                         onPreset: { _ in onMax() }
                     )
                     .padding(.horizontal, MonacoTheme.Space.gutter)
+
+                    if let receiveLine = form.receiveLine {
+                        Text(receiveLine)
+                            .font(MonacoTheme.Typo.subheadStrong)
+                            .foregroundStyle(MonacoTheme.ink)
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, MonacoTheme.Space.gutter)
+                            .accessibilityIdentifier("withdraw-receive")
+                    }
 
                     destination
                 }
@@ -301,7 +330,15 @@ struct WithdrawContent: View {
                 .tint(MonacoTheme.brand)
             }
 
-            WithdrawAddressField(text: $destinationAddress)
+            Picker("Network", selection: $network) {
+                ForEach(WithdrawNetwork.allCases) { network in
+                    Text(network.name).tag(network)
+                }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("withdraw-network-picker")
+
+            WithdrawAddressField(text: $destinationAddress, placeholder: network.placeholder)
 
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 if let problem = refusedAddress ?? form.addressProblem {
@@ -311,7 +348,7 @@ struct WithdrawContent: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("withdraw-address-problem")
                 }
-                Text(WithdrawForm.caveat)
+                Text(form.addressCaveat)
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.muted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -325,11 +362,10 @@ struct WithdrawContent: View {
 /// member can read the whole address back before the confirm step shows it again.
 private struct WithdrawAddressField: View {
     @Binding var text: String
-
-    private static let placeholder = "USDC address on Solana"
+    let placeholder: String
 
     var body: some View {
         MonacoAddressField(
-            placeholder: Self.placeholder, text: $text, accessibilityIdentifier: "withdraw-address-field")
+            placeholder: placeholder, text: $text, accessibilityIdentifier: "withdraw-address-field")
     }
 }
