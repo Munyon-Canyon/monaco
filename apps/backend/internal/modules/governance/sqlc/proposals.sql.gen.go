@@ -221,7 +221,7 @@ func (q *Queries) LockForWithdraw(ctx context.Context, id uuid.UUID) (LockForWit
 const lockProposal = `-- name: LockProposal :one
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, p.token_amount, p.quote_out_amount,
-  p.status, p.threshold,
+  p.status, p.threshold, p.expires_at,
   EXISTS (
     SELECT 1 FROM proposal_voters AS v WHERE v.proposal_id = p.id AND v.voter_id = $1
   ) AS is_voter
@@ -247,6 +247,7 @@ type LockProposalRow struct {
 	QuoteOutAmount int64
 	Status         string
 	Threshold      string
+	ExpiresAt      time.Time
 	IsVoter        bool
 }
 
@@ -265,6 +266,7 @@ func (q *Queries) LockProposal(ctx context.Context, arg LockProposalParams) (Loc
 		&i.QuoteOutAmount,
 		&i.Status,
 		&i.Threshold,
+		&i.ExpiresAt,
 		&i.IsVoter,
 	)
 	return i, err

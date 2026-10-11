@@ -13,3 +13,4 @@ Dated record of changes to [proposals.md](../proposals.md). Add one line per cha
 - 2026-09-26: Initial decision. Proposals are simple CRUD with votes, comments and status; execution checks only on threshold met; future chat references planned.
 - 2026-10-07: The pass threshold is copied onto the proposal at creation, so a cabal rules change no longer moves an open vote (#3464).
 - 2026-10-09: Governance's reopen on `trade.retry_requested` is skipped when the swap that was retried has already been followed by a newer swap that failed, so the proposal stays `execution_blocked` instead of ending `passed` with a failed swap (#4749).
+- 2026-10-11: A ballot is refused with a `Blocked` code once the proposal's `expires_at` has passed, even if the expiry poller has not reached it yet (#4750).
