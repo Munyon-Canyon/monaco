@@ -360,8 +360,8 @@ func (r SwapRequest) recordRoute(ctx context.Context, tx db.Tx, insert sqlc.Inse
 			})
 		}
 		if err == nil && r.ReusesStranded && claimed == 0 {
-			err = errs.New(errs.CodeDBUnavailable, "trading.SwapRequest.recordRoute",
-				slog.String("reason", "stranded_cash_taken"), slog.String("from_trade", r.RouteOf.String()))
+			err = errs.New(errs.CodeStrandedCashTaken, "trading.SwapRequest.recordRoute",
+				slog.String("from_trade", r.RouteOf.String()))
 		}
 		return err
 	}

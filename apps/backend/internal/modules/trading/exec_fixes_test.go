@@ -144,9 +144,14 @@ func TestRetry_aBridgeBackThatTakesTheStrandedCashFirstFailsTheClaimAndRechecksF
 	d := e.delivery(t, retry)
 
 	err := h.Handle(actorContext(t.Context()), d, retry, nil)
-	if !errs.Retryable(errs.CodeOf(err)) || len(e.swapsOf(t, cmd.ProposalID)) != 1 || len(e.privy.calls()) != 1 {
-		t.Fatalf("Handle err = %v with %d swaps after %d transfers, want a retryable error, no retry swap, "+
-			"and no second bridge", err, len(e.swapsOf(t, cmd.ProposalID)), len(e.privy.calls()))
+	code := errs.CodeOf(err)
+	if code != errs.CodeStrandedCashTaken || !errs.Retryable(code) || errs.Alert(code) ||
+		errs.VerdictFor(code) != errs.VerdictNak {
+		t.Fatalf("Handle err = %v, want a retryable, non-alerting %s that naks", err, errs.CodeStrandedCashTaken)
+	}
+	if len(e.swapsOf(t, cmd.ProposalID)) != 1 || len(e.privy.calls()) != 1 {
+		t.Fatalf("%d swaps after %d transfers, want no retry swap and no second bridge",
+			len(e.swapsOf(t, cmd.ProposalID)), len(e.privy.calls()))
 	}
 	if err := h.Handle(actorContext(t.Context()), d, retry, nil); err != nil {
 		t.Fatal(err)

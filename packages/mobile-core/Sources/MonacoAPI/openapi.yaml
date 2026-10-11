@@ -5628,6 +5628,7 @@ components:
         - session_required
         - slippage_exceeded
         - storage_unavailable
+        - stranded_cash_taken
         - swap_failed
         - swap_not_found
         - swap_not_retryable
