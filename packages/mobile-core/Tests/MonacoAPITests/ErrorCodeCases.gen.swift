@@ -84,6 +84,7 @@ extension Components.Schemas.ErrorCode {
         case .invalidAddress: true
         case .invalidConfig: true
         case .invalidInput: true
+        case .invalidNetwork: true
         case .inviteExpired: true
         case .joinNeedsRequest: true
         case .jupiterRejected: true
@@ -102,6 +103,7 @@ extension Components.Schemas.ErrorCode {
         case .notCabalCreator: true
         case .notCabalMember: true
         case .notFound: true
+        case .notImplemented: true
         case .notProposer: true
         case .onrampInvalidTransition: true
         case .onrampLinkExpired: true

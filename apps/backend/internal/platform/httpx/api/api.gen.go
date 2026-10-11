@@ -90,6 +90,7 @@ const (
 	InvalidAddress ErrorCode = "invalid_address"
 	InvalidConfig ErrorCode = "invalid_config"
 	InvalidInput ErrorCode = "invalid_input"
+	InvalidNetwork ErrorCode = "invalid_network"
 	InviteExpired ErrorCode = "invite_expired"
 	JoinNeedsRequest ErrorCode = "join_needs_request"
 	JupiterRejected ErrorCode = "jupiter_rejected"
@@ -108,6 +109,7 @@ const (
 	NotCabalCreator ErrorCode = "not_cabal_creator"
 	NotCabalMember ErrorCode = "not_cabal_member"
 	NotFound ErrorCode = "not_found"
+	NotImplemented ErrorCode = "not_implemented"
 	NotProposer ErrorCode = "not_proposer"
 	OnrampInvalidTransition ErrorCode = "onramp_invalid_transition"
 	OnrampLinkExpired ErrorCode = "onramp_link_expired"
@@ -338,6 +340,8 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case InvalidInput:
 		return true
+	case InvalidNetwork:
+		return true
 	case InviteExpired:
 		return true
 	case JoinNeedsRequest:
@@ -373,6 +377,8 @@ func (e ErrorCode) Valid() bool {
 	case NotCabalMember:
 		return true
 	case NotFound:
+		return true
+	case NotImplemented:
 		return true
 	case NotProposer:
 		return true
