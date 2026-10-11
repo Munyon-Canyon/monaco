@@ -761,3 +761,15 @@ func TestReadFlowsTSV_namesTheFirstProblem(t *testing.T) {
 		t.Fatalf("readFlowsTSV = %v, want the first problem", err)
 	}
 }
+
+func TestFlowsSteps_printsFlow30StepsAsPending(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	if code := toolFlows(toolEnv{})([]string{"steps"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("code=%d stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "30\t1\tEVM deposit credited\tpending\t#4967\n") ||
+		!strings.Contains(stdout.String(), "30\t5\tEVM withdrawal\tpending\t#4972\n") {
+		t.Fatalf("flows steps = %q, want flow 30's steps pending with their owners", stdout.String())
+	}
+}

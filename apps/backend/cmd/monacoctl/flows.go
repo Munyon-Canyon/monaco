@@ -324,6 +324,9 @@ func liveEnv(repo fs.FS, backend string, mods module.Set) flows.Env {
 
 func toolFlows(env toolEnv) tool {
 	return func(args []string, stdout, stderr io.Writer) int {
+		if slices.Equal(args, []string{"steps"}) {
+			return flowsSteps(stdout)
+		}
 		return flowsCmd(env.environ, args, runCommand, os.DirFS("../.."), stdout, stderr)
 	}
 }
@@ -380,5 +383,12 @@ func flowsSeed(ctx context.Context, repo fs.FS, environ []string, id, outcome st
 	}
 	body, _ := json.Marshal(result)
 	_, _ = fmt.Fprintf(stdout, "%s\n", body)
+	return 0
+}
+
+func flowsSteps(stdout io.Writer) int {
+	for _, step := range testflows.Steps() {
+		_, _ = fmt.Fprintf(stdout, "%s\t%d\t%s\t%s\t%s\n", step.Flow, step.Order, step.Name, step.Status, step.Owner)
+	}
 	return 0
 }

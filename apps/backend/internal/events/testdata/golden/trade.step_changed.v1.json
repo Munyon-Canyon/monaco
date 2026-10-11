@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "swap_id": "01890a5d-ac96-774b-bcce-b302099a8057",
+  "cabal_id": "01890a5d-ac96-774b-bcce-b302099a8058",
+  "step": "bridge_out",
+  "network": "base",
+  "status": "succeeded",
+  "privy_action_id": "privy-action-transfer-1",
+  "amount_micros": "10000000"
+}

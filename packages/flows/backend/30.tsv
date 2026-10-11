@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+30	Multichain money path	trading			deposit.evm_forwarded;trade.routed;trade.step_changed		ok	planned	docs/architecture/trade-execution.md#how-it-works

@@ -19,6 +19,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
@@ -78,12 +79,27 @@ type Routes interface {
 	CheckRoute(ctx context.Context, id AssetID, side Side, amount money.BaseUnits) (RouteCheck, error)
 }
 
-type Module struct {
-	deps module.Deps
-	hot  []app.HotMints
+type multichainParts struct {
+	quoter multichain.Quoter
+	router multichain.Router
+	prices multichain.EVMPriceSource
 }
 
-func New(d module.Deps) *Module { return &Module{deps: d} }
+func newMultichain() multichainParts {
+	return multichainParts{
+		quoter: adapters.MultichainRoutingQuoter(),
+		router: adapters.MultichainRoutingRouter(),
+		prices: adapters.MultichainPricesEVMPriceSource(),
+	}
+}
+
+type Module struct {
+	multichain multichainParts
+	deps       module.Deps
+	hot        []app.HotMints
+}
+
+func New(d module.Deps) *Module { return &Module{multichain: newMultichain(), deps: d} }
 
 func (*Module) Name() string { return "market" }
 

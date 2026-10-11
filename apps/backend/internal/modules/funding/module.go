@@ -19,6 +19,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
@@ -33,13 +34,26 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/tools/ops/replay"
 )
 
-type Module struct {
-	deps     module.Deps
-	balances *adapters.Balances
-	owners   []port.SignatureOwner
+type multichainParts struct {
+	forwarding    multichain.DepositForwarding
+	walletActions multichain.WalletActions
 }
 
-func New(d module.Deps) *Module { return &Module{deps: d} }
+func newMultichain() multichainParts {
+	return multichainParts{
+		forwarding:    adapters.MultichainDepositsDepositForwarding(),
+		walletActions: adapters.MultichainWithdrawalsWalletActions(),
+	}
+}
+
+type Module struct {
+	multichain multichainParts
+	deps       module.Deps
+	balances   *adapters.Balances
+	owners     []port.SignatureOwner
+}
+
+func New(d module.Deps) *Module { return &Module{multichain: newMultichain(), deps: d} }
 
 func (*Module) Name() string { return "funding" }
 

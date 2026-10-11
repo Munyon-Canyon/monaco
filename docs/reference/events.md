@@ -531,6 +531,20 @@ Subject `events.deposit.credited`, version 1.
 | `slot` | `int64` |
 | `block_time` | `*time.Time` |
 
+## `deposit.evm_forwarded`
+
+Subject `events.deposit.evm_forwarded`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `forward_id` | `uuid.UUID` |
+| `user_id` | `uuid.UUID` |
+| `network` | `chain.Network` |
+| `source_tx` | `string` |
+| `privy_execution_id` | `string` |
+| `amount_micros` | `money.Micros` |
+
 ## `follow.created`
 
 Subject `events.follow.created`, version 1.
@@ -865,6 +879,37 @@ Subject `events.trade.retry_requested`, version 1.
 | `slippage_bps` | `int32` |
 | `requested_by` | `uuid.UUID` |
 | `at_current_price` | `bool` |
+
+## `trade.routed`
+
+Subject `events.trade.routed`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `swap_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `action` | `string` |
+| `winner_listing_id` | `uuid.UUID` |
+| `network` | `chain.Network` |
+| `venue` | `string` |
+| `quotes_compared` | `int` |
+| `amount_micros` | `money.Micros` |
+
+## `trade.step_changed`
+
+Subject `events.trade.step_changed`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `swap_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `step` | `string` |
+| `network` | `chain.Network` |
+| `status` | `string` |
+| `privy_action_id` | `string` |
+| `amount_micros` | `money.Micros` |
 
 ## `trade.submitted`
 

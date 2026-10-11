@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "forward_id": "01890a5d-ac96-774b-bcce-b302099a8057",
+  "user_id": "01890a5d-ac96-774b-bcce-b302099a8058",
+  "network": "base",
+  "source_tx": "0x2c9f6f0b1a3e0c4d1f5b6a7e8d9c0b1a2f3e4d5c6b7a8998877665544332211a",
+  "privy_execution_id": "privy-execution-1",
+  "amount_micros": "9992500"
+}
