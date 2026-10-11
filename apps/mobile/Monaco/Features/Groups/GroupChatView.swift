@@ -51,7 +51,8 @@ struct GroupChatView: View {
             api: environment.api,
             realtime: environment.chatRealtime,
             now: { Date() },
-            onArrival: { await seen.messageArrived() }
+            onArrival: { await seen.messageArrived() },
+            blocked: BlockedAuthors(api: environment.api)
         )
         ChatSessionRegistry.register(created)
         session = created
