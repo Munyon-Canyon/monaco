@@ -3,6 +3,7 @@ package flows
 import (
 	"context"
 	"math/big"
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,7 +33,44 @@ const (
 )
 
 func (defined) StepsF30FundCabal() FlowStep {
-	return FlowStep{Flow: "30", Order: 2, Name: "Fund cabal", Owner: "#4970", Status: StepPending}
+	return FlowStep{
+		Flow: "30", Order: 2, Name: "Fund cabal", Owner: "#4970", Status: StepReady, Script: F30FundCabal,
+	}
+}
+
+func F30FundCabal(s *scenario.Scenario) {
+	f := seedFund(s)
+	cabal := f.cabal.ID.String()
+	s.Given(scenario.AsSeededUser("member", f.member.ID)).
+		When(
+			scenario.Post(f.path(), fundBody),
+			scenario.ExpectStatus(http.StatusAccepted),
+			scenario.Remember("transfer_id", "transfer"),
+			scenario.AwaitTick("treasury.fund-transfers"),
+			scenario.AwaitTick("treasury.fund-transfers"),
+			scenario.Get("/v1/fund-transfers/{transfer}"),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("status", "settled"),
+			scenario.Eventually("the cabal's USDC ledger row holds the funding", f30Funded(f.cabal.ID)),
+			scenario.Get("/v1/cabals/"+cabal+"/pot"),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("cash_micros", f30FundMicros),
+			scenario.ExpectJSON("pot_value_micros", f30FundMicros),
+		)
+}
+
+const f30FundMicros = 5_000_000
+
+func f30Funded(cabal ids.CabalID) func(*scenario.Scenario) bool {
+	return func(s *scenario.Scenario) bool {
+		var funded bool
+		if err := s.DB().QueryRow(s.Context(), `SELECT EXISTS (SELECT 1 FROM cabal_positions
+			WHERE cabal_id = $1 AND asset = $2 AND units = $3)`,
+			cabal.UUID(), string(testkit.USDCMint), f30FundMicros).Scan(&funded); err != nil {
+			s.Fatalf("flows: read the cabal's USDC row: %v", err)
+		}
+		return funded
+	}
 }
 
 func (defined) StepsF30RoutedBuy() FlowStep {
