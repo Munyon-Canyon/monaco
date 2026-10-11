@@ -70,6 +70,26 @@ final class AccountActivityModelTests: XCTestCase {
         XCTAssertEqual(model.rows.count, Page.sampleFirst.items.count + 1)
     }
 
+    func testACashOutChangedHintReloadsTheFirstPage() async throws {
+        let cashOut = Components.Schemas.UserTxn(
+            id: "txn-cash-out", kind: .cashOut, status: .pending, usdcMicros: "1000000",
+            cabal: .init(id: "cabal-1", name: "Sunday Investors"), txSignature: nil,
+            createdAt: Page.sampleFirst.items[0].createdAt.addingTimeInterval(3600))
+        let refreshed = Page(items: [cashOut] + Page.sampleFirst.items, nextCursor: Page.sampleFirst.nextCursor)
+        let (model, transport, hints) = try make([.page(.sampleFirst), .page(refreshed)])
+        await model.load()
+        let observer = await observing(model, hints)
+        addTeardownBlock { observer.cancel() }
+
+        await hints.send(.changed(.user("me"), what: "cashout_changed", id: "1"))
+
+        let reloaded = await waitUntil { model.rows.first?.id == "txn-cash-out" }
+        XCTAssertTrue(reloaded)
+        let count = await transport.sent.count
+        XCTAssertEqual(count, 2)
+        XCTAssertEqual(model.rows.count, Page.sampleFirst.items.count + 1)
+    }
+
     func testAResyncReloadsTheFirstPage() async throws {
         let (model, transport, hints) = try make([.page(.sampleFirst), .page(.sampleFirst)])
         await model.load()
@@ -260,7 +280,7 @@ final class AccountActivityModelTests: XCTestCase {
 
     private func observing(_ model: AccountActivityModel, _ hints: FakeHintStream) async -> Task<Void, Never> {
         let observer = Task { await model.observe() }
-        let subscribed = await waitUntil { await hints.subscriberCount == 1 }
+        let subscribed = await waitUntil { await hints.subscriberCount == 2 }
         XCTAssertTrue(subscribed)
         return observer
     }
