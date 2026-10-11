@@ -26,7 +26,10 @@ sql:
 
 func git(t *testing.T, repo string, args ...string) {
 	t.Helper()
-	full := append([]string{"-C", repo, "-c", "user.name=t", "-c", "user.email=t@example.com"}, args...)
+	full := append([]string{
+		"-C", repo, "-c", "user.name=t", "-c", "user.email=t@example.com",
+		"-c", "gc.auto=0", "-c", "maintenance.auto=false",
+	}, args...)
 	if out, err := exec.CommandContext(t.Context(), "git", full...).CombinedOutput(); err != nil {
 		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
 	}
