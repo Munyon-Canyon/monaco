@@ -39,6 +39,7 @@ DERIVED = OUT / "derived"
 RESULTS = OUT / "results.tsv"
 BUNDLE_ID = "xyz.monacolabs.app"
 DRIVER = "xcuitest"
+SIM_SLOT_HOLD = 86400
 
 COLUMNS = [
     "time", "journey", "version", "scenario", "driver", "build", "run", "result", "expected",
@@ -785,12 +786,43 @@ def check_simulator_api_environment(udid, api_base_url):
 
 
 BOOTED = []
+SIM_SLOTS = {}
+
+
+def take_sim_slot(udid):
+    """Holds one machine-wide `sim` slot (scripts/qa/xcode-lock.sh) for udid, waiting in the queue while two
+    simulators are already up. The slot is held by a process that lives until release_sim_slot closes its stdin,
+    or until this process dies."""
+    if udid in SIM_SLOTS:
+        return
+    holder = subprocess.Popen(
+        ["scripts/qa/xcode-lock.sh", "sim", "sh", "-c", "echo held; exec cat"], cwd=str(ROOT),
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True,
+        env=dict(os.environ, MONACO_LOCK_HOLD=str(SIM_SLOT_HOLD)))
+    if holder.stdout.readline().strip() != "held":
+        holder.wait()
+        raise JourneyError("could not take a simulator slot for %s (xcode-lock.sh sim exited %s)" % (udid, holder.returncode))
+    SIM_SLOTS[udid] = holder
+
+
+def release_sim_slot(udid):
+    holder = SIM_SLOTS.pop(udid, None)
+    if holder is None:
+        return
+    holder.stdin.close()
+    holder.stdout.close()
+    holder.wait()
 
 
 def boot_simulator(udid):
-    sh(["xcrun", "simctl", "boot", udid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    sh(["xcrun", "simctl", "bootstatus", udid, "-b"], check=True,
-       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    take_sim_slot(udid)
+    try:
+        sh(["xcrun", "simctl", "boot", udid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        sh(["xcrun", "simctl", "bootstatus", udid, "-b"], check=True,
+           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except BaseException:
+        release_sim_slot(udid)
+        raise
     if udid not in BOOTED:
         BOOTED.append(udid)
 
@@ -798,7 +830,8 @@ def boot_simulator(udid):
 @contextlib.contextmanager
 def simulator_shutdown(keep=False):
     """Shuts down every simulator the run booted when it ends, passes, fails or is interrupted. A simulator
-    that was already booted before the run is left alone. keep=True (--keep-sims) skips the shutdown."""
+    that was already booted before the run is left alone. keep=True (--keep-sims) skips the shutdown. Each
+    simulator's `sim` slot is released after its shutdown, whether or not the simulator is kept."""
     del BOOTED[:]
     before = set()
     for items in simulator_devices().values():
@@ -815,6 +848,8 @@ def simulator_shutdown(keep=False):
                 if udid not in before:
                     sh(["xcrun", "simctl", "shutdown", udid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         del BOOTED[:]
+        for udid in list(SIM_SLOTS):
+            release_sim_slot(udid)
 
 
 def reset_journey_simulator(udid, explicit, fresh):

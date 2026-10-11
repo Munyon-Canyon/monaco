@@ -41,6 +41,7 @@ func newLockEnv(t *testing.T) *lockEnv {
 
 func (e *lockEnv) xcodeLock() string   { return filepath.Join(e.dir, "xcode.lock") }
 func (e *lockEnv) swiftpmLock() string { return filepath.Join(e.dir, "swiftpm.lock") }
+func (e *lockEnv) simLock() string     { return filepath.Join(e.dir, "sim.lock") }
 
 // call is one running xcode-lock.sh process.
 type call struct {
@@ -80,6 +81,7 @@ func (e *lockEnv) start(workdir string, extraEnv []string, args ...string) *call
 	cmd.Env = append(os.Environ(),
 		"MONACO_XCODE_LOCK_DIR="+e.xcodeLock(),
 		"MONACO_SWIFTPM_LOCK_DIR="+e.swiftpmLock(),
+		"MONACO_SIM_LOCK_DIR="+e.simLock(),
 		"MONACO_LOCK_POLL=0.1",
 		"MONACO_XCODE_SLOTS=1",
 		"MONACO_SWIFTPM_SLOTS=1",
@@ -736,6 +738,77 @@ func TestXcodeLockSlotsRunHoldersTogether(t *testing.T) {
 	}
 	if exists(e.xcodeLock()) || exists(e.xcodeLock()+".2") {
 		t.Fatalf("a slot dir is still present after every caller exited")
+	}
+}
+
+// The sim class caps booted simulators machine-wide: two by default, MONACO_SIM_SLOTS
+// otherwise, with no per-lane rule, so a third holder waits however many lanes are involved.
+func TestXcodeLockSimCapsHoldersAtTwo(t *testing.T) {
+	t.Parallel()
+	for name, slotsEnv := range map[string][]string{"MONACO_SIM_SLOTS=2": {"MONACO_SIM_SLOTS=2"}, "default": nil} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			e := newLockEnv(t)
+			env := append([]string{"MONACO_LANE=one-lane"}, slotsEnv...)
+			aIn, bIn, cIn := filepath.Join(e.dir, "a.in"), filepath.Join(e.dir, "b.in"), filepath.Join(e.dir, "c.in")
+			aRelease, bRelease := filepath.Join(e.dir, "a.release"), filepath.Join(e.dir, "b.release")
+			queued := func(c *call) bool {
+				return strings.Contains(c.stderr.String(), "xcode-lock(sim): queue position 1 behind ")
+			}
+
+			a := e.start(e.dir, env, append([]string{"sim"}, holdUntil(aIn, aRelease)...)...)
+			await(t, "the first sim holder to run", func() bool { return exists(aIn) }, a)
+			b := e.start(e.dir, env, append([]string{"sim"}, holdUntil(bIn, bRelease)...)...)
+			t.Cleanup(func() {
+				_ = os.WriteFile(aRelease, nil, 0o644)
+				_ = os.WriteFile(bRelease, nil, 0o644)
+			})
+			await(t, "the second sim holder to run", func() bool { return exists(bIn) }, a, b)
+			if !exists(e.simLock()) || !exists(e.simLock()+".2") || exists(e.xcodeLock()) {
+				t.Fatalf("sim holders are not in the sim slots 1 and 2")
+			}
+
+			c := e.start(e.dir, env, "sim", "touch", cIn)
+			await(t, "the third sim holder to queue", func() bool { return queued(c) }, a, b, c)
+			if exists(cIn) {
+				t.Fatalf("a third sim holder ran while both slots were held")
+			}
+
+			if err := os.WriteFile(bRelease, nil, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if code := b.wait(t); code != 0 {
+				t.Fatalf("holder b exit %d:\n%s", code, b.stderr.String())
+			}
+			if code := c.wait(t); code != 0 || !exists(cIn) {
+				t.Fatalf("third sim holder exit %d, ran %v:\n%s", code, exists(cIn), c.stderr.String())
+			}
+			if err := os.WriteFile(aRelease, nil, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if code := a.wait(t); code != 0 {
+				t.Fatalf("holder a exit %d:\n%s", code, a.stderr.String())
+			}
+			if exists(e.simLock()) || exists(e.simLock()+".2") {
+				t.Fatalf("a sim slot dir is still present after every caller exited")
+			}
+		})
+	}
+}
+
+// A caller takes the sim slot, then the xcode slot, and the sim class is independent of the
+// xcode one: a sim holder never blocks an xcode holder, and its command may call xcode itself.
+func TestXcodeLockSimHolderMayTakeAnXcodeSlot(t *testing.T) {
+	t.Parallel()
+	e := newLockEnv(t)
+	out := filepath.Join(e.dir, "order")
+	c := e.start(e.dir, nil, "sim", e.script, "xcode", "sh", "-c", `[ -d "$1" ] && echo held > "$2"`, "sh", e.simLock(), out)
+	if code := c.wait(t); code != 0 {
+		t.Fatalf("sim then xcode exit %d:\n%s", code, c.stderr.String())
+	}
+	got, err := os.ReadFile(out)
+	if err != nil || strings.TrimSpace(string(got)) != "held" {
+		t.Fatalf("the sim slot was not held while the xcode command ran: %q %v", got, err)
 	}
 }
 

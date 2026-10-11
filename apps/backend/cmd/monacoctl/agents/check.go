@@ -471,17 +471,17 @@ func (env *Env) xcodeRow(changed []string) (checkRow, bool) {
 		return checkRow{}, false
 	}
 	waited := env.statePath(lockWaitedDir, strconv.Itoa(os.Getpid())+".waited")
-	locked := []string{
+	vars := []string{
 		"env",
 		"MONACO_LOCK_WAITED=" + waited,
 		lockHoldVar + seconds(env.Config.Budget[xcodeKind]),
 		"MONACO_XCODE_LOCK_TIMEOUT=" + seconds(xcodeLockWait),
-		"bash", "-c",
 	}
 	cmds := env.installXcsift()
 	cmds = append(cmds,
-		append(slices.Clone(locked), xcodeScript("build-for-testing")),
-		append(slices.Clone(locked), xcodeScript("-only-testing:MonacoTests test-without-building")),
+		append(slices.Clone(vars), "bash", "-c", xcodeScript("build-for-testing")),
+		append(slices.Clone(vars), "scripts/qa/xcode-lock.sh", "sim", "bash", "-c",
+			xcodeScript("-only-testing:MonacoTests test-without-building")),
 	)
 	return checkRow{label: "xcode", kind: xcodeKind, dir: env.Work, cmds: cmds, lockWaited: waited}, true
 }
