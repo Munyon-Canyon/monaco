@@ -1,11 +1,14 @@
 package treasury
 
 import (
+	"context"
+	"math/big"
 	"testing"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 )
@@ -46,5 +49,50 @@ func TestMarketResolverCarriesCatalogNames(t *testing.T) {
 	got, err := marketResolver(marketfake.NewCatalog(asset))(t.Context(), asset.Mint.Address())
 	if err != nil || got.Symbol != asset.Symbol || got.DisplayName != asset.DisplayName || got.Symbol == "" {
 		t.Fatalf("marketResolver() names = %q %q, %v", got.Symbol, got.DisplayName, err)
+	}
+}
+
+type listingPricesFake struct {
+	prices map[market.ListingKey]market.ListingPrice
+	err    error
+}
+
+func (f listingPricesFake) ListingPrices(
+	context.Context, []market.ListingKey, time.Time,
+) (map[market.ListingKey]market.ListingPrice, error) {
+	return f.prices, f.err
+}
+
+func TestMarketListingsCarriesTheListingItsStockAndItsPrice(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, 10, 3, 0, 0, 0, 0, time.UTC)
+	priced := market.ListingPrice{Price: &market.Price{Micros: money.MicrosFromUint64(30), ObservedAt: at}}
+	priced.Issuer, priced.Symbol, priced.Network, priced.Decimals = "ondo", "AAPLon", chain.NetworkBase, 18
+	priced.SharesPerToken = big.NewRat(1, 1)
+	priced.Asset = &market.ListedAsset{Mint: "XsbE", Symbol: "AAPLx", DisplayName: "Apple", Kind: "equity"}
+	unpriced := market.ListingPrice{}
+	got, err := marketListings(listingPricesFake{prices: map[market.ListingKey]market.ListingPrice{
+		"base:0x1": priced, "base:0x2": unpriced,
+	}})(t.Context(), []string{"base:0x1", "base:0x2"}, at)
+	one := got["base:0x1"]
+	if err != nil || one.Price == nil || one.Price.Micros.Uint64() != 30 || one.Asset == nil ||
+		one.Asset.Symbol != "AAPLx" || one.Network != chain.NetworkBase ||
+		got["base:0x2"].Price != nil || got["base:0x2"].Asset != nil {
+		t.Fatalf("marketListings = %+v, %v", got, err)
+	}
+	if v, err := one.Value(big.NewInt(1_000_000_000_000_000_000)); err != nil || v.Uint64() != 30 {
+		t.Fatalf("Value of one token = %v, %v, want 30", v, err)
+	}
+	down := errs.New(errs.CodeDBUnavailable, "test")
+	if _, err := marketListings(
+		listingPricesFake{err: down},
+	)(
+		t.Context(),
+		nil,
+		at,
+	); errs.CodeOf(
+		err,
+	) != errs.CodeDBUnavailable {
+		t.Fatalf("marketListings over a failed read = %v, want db_unavailable", err)
 	}
 }

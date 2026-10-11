@@ -196,7 +196,7 @@ func waitingCashOut(cash, held, reserved uint64) *Queries {
 	}
 	members := []sqlc.CabalMemberSharesRow{member("10", "100000000", "0")}
 	q := potQueries(potFake{snapshot: snapshot, members: members}, nil)
-	q.q = stakeStore{positions: positions}
+	q.q, q.transit = stakeStore{positions: positions}, stakeStore{positions: positions}
 	return q
 }
 

@@ -3,6 +3,7 @@ package treasury
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -311,7 +312,37 @@ func (m *Module) reads() *adapters.Queries {
 		marketPrices(marketModule.Prices()),
 		m.deps.Clock,
 		chain.SolanaAddress(m.deps.Config.Solana.USDCMint),
-	)
+	).WithListings(marketListings(marketModule.Prices()))
+}
+
+func marketListings(reader market.ListingPrices) app.ListingReader {
+	return func(ctx context.Context, keys []string, at time.Time) (map[string]app.ListingQuote, error) {
+		asked := make([]market.ListingKey, len(keys))
+		for i, k := range keys {
+			asked[i] = market.ListingKey(k)
+		}
+		prices, err := reader.ListingPrices(ctx, asked, at)
+		if err != nil {
+			return nil, err
+		}
+		out := make(map[string]app.ListingQuote, len(prices))
+		for key, p := range prices {
+			quote := app.ListingQuote{
+				ListingID: p.ID.UUID(), Issuer: p.Issuer, Symbol: p.Symbol, Network: p.Network,
+				Decimals: p.Decimals, SharesPerToken: p.SharesPerToken, Value: p.Value,
+			}
+			if p.Asset != nil {
+				quote.Asset = &app.ListedAsset{
+					Mint: p.Asset.Mint, Symbol: p.Asset.Symbol, DisplayName: p.Asset.DisplayName, Kind: p.Asset.Kind,
+				}
+			}
+			if p.Price != nil {
+				quote.Price = &app.Price{Micros: p.Price.Micros, ObservedAt: p.Price.ObservedAt}
+			}
+			out[string(key)] = quote
+		}
+		return out, nil
+	}
 }
 
 func marketResolver(catalog market.Catalog) app.MintResolver {

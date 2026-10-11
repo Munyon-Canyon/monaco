@@ -35,8 +35,10 @@ type Queries struct {
 	reserved  reservationStore
 	signature signatureStore
 	wallet    walletLedgerStore
+	transit   transitStore
 	catalog   app.MintResolver
 	prices    app.PriceReader
+	listings  app.ListingReader
 	clock     clock.Clock
 	usdc      chain.SolanaAddress
 }
@@ -47,6 +49,10 @@ type queryStore interface {
 	CabalUserPosition(context.Context, sqlc.CabalUserPositionParams) (sqlc.CabalUserPositionRow, error)
 	CabalStakeSnapshot(context.Context, sqlc.CabalStakeSnapshotParams) ([]sqlc.CabalStakeSnapshotRow, error)
 	UserStakes(context.Context, uuid.UUID) ([]uuid.UUID, error)
+}
+
+type transitStore interface {
+	CabalValueRows(context.Context, uuid.UUID) ([]sqlc.CabalValueRowsRow, error)
 }
 
 type fundStore interface {
@@ -94,6 +100,7 @@ func NewQueries(
 		reserved:  queries,
 		signature: queries,
 		wallet:    queries,
+		transit:   queries,
 		catalog:   catalog,
 		prices:    prices,
 		clock:     c,
@@ -105,8 +112,13 @@ func (q *Queries) On(db sqlc.DBTX) *Queries {
 	on := *q
 	queries := sqlc.New(db)
 	on.q, on.pot, on.history, on.flows, on.funds = queries, queries, queries, queries, queries
-	on.reserved, on.signature, on.wallet = queries, queries, queries
+	on.reserved, on.signature, on.wallet, on.transit = queries, queries, queries, queries
 	return &on
+}
+
+func (q *Queries) WithListings(listings app.ListingReader) *Queries {
+	q.listings = listings
+	return q
 }
 
 func (q *Queries) CashOutReservations(ctx context.Context) (map[ids.CabalID]money.Micros, error) {
@@ -170,14 +182,24 @@ func (q *Queries) Positions(ctx context.Context, cabalID ids.CabalID) ([]port.Po
 }
 
 func (q *Queries) PotValue(ctx context.Context, cabalID ids.CabalID) (money.Micros, error) {
-	rows, err := q.q.CabalPositions(ctx, cabalID.UUID())
+	rows, err := q.transit.CabalValueRows(ctx, cabalID.UUID())
 	if err != nil {
 		return money.Micros{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.PotValue")
 	}
-	assets := map[chain.SolanaAddress]app.Asset{}
-	positions := make([]port.Position, 0, len(rows))
+	held := make([]heldRow, 0, len(rows))
 	for _, row := range rows {
-		position, err := q.position(ctx, row.Asset, row.Units, row.CostBasisMicros, assets)
+		if row.Asset.Valid {
+			held = append(held, heldRow{asset: row.Asset.String, units: row.Units, cost: row.CostBasisMicros})
+		}
+	}
+	split, err := q.byChain(held)
+	if err != nil {
+		return money.Micros{}, err
+	}
+	assets := map[chain.SolanaAddress]app.Asset{}
+	positions := make([]port.Position, 0, len(split.solana))
+	for _, row := range split.solana {
+		position, err := q.position(ctx, row.asset, row.units, row.cost, assets)
 		if err != nil {
 			return money.Micros{}, err
 		}
@@ -187,14 +209,18 @@ func (q *Queries) PotValue(ctx context.Context, cabalID ids.CabalID) (money.Micr
 	if err != nil {
 		return money.Micros{}, err
 	}
-	return subtractCashOutReservation(total, cashOutReservedMicros(rows))
-}
-
-func cashOutReservedMicros(rows []sqlc.CabalPositionsRow) string {
-	if len(rows) == 0 {
-		return "0"
+	transit, err := micros(rows[0].InTransitMicros)
+	if err != nil {
+		return money.Micros{}, err
 	}
-	return rows[0].CashOutReservedMicros
+	off, err := q.offSolana(ctx, transit, split)
+	if err != nil {
+		return money.Micros{}, err
+	}
+	if total, err = total.Add(off); err != nil {
+		return money.Micros{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.PotValue")
+	}
+	return subtractCashOutReservation(total, rows[0].CashOutReservedMicros)
 }
 
 func subtractCashOutReservation(total money.Micros, raw string) (money.Micros, error) {
