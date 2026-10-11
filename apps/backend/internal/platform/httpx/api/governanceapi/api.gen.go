@@ -598,6 +598,11 @@ type ProposalDetail struct {
 	// Examples: null
 	MyBallot *BallotChoice `json:"my_ballot"`
 
+	// PriceComparison Every venue checked for the trade, best first. Absent for a sell and until routing fills it.
+	//
+	// Examples: {"quotes":[{"costs":[],"expires_at":"2026-10-10T12:00:30Z","issuer":"xstocks","listing_id":"01928a6e-0000-7000-8000-000000000001","net_micros":"10000000","net_share_nanos":"40000000","network":"solana","quoted_at":"2026-10-10T12:00:00Z","venue":"jupiter"}],"winner_listing_id":"01928a6e-0000-7000-8000-000000000001"}
+	PriceComparison *externalRef0.PriceComparison `json:"price_comparison,omitempty"`
+
 	// ProposerId The member who proposed it.
 	//
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
