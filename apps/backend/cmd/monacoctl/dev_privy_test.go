@@ -55,6 +55,10 @@ func TestDevPrivyCommands_refuseBadArgumentsAndProduction(t *testing.T) {
 		"no key":          {config.EnvLocal, []string{"privy-transfer", "--wallet", "w", "--to", "x", "--usdc", "1"}, 2},
 		"both senders":    {config.EnvLocal, append([]string{"privy-transfer", "--usdc", "1", "--user", "u"}, ok...), 2},
 		"bad network":     {config.EnvLocal, append([]string{"privy-transfer", "--usdc", "1", "--network", "mars"}, ok...), 2},
+		"bad source":      {config.EnvLocal, append([]string{"privy-transfer", "--usdc", "1", "--from", "mars"}, ok...), 2},
+		"reindex no id":   {config.EnvLocal, []string{"privy-reindex", "--network", "base"}, 2},
+		"reindex extra":   {config.EnvLocal, []string{"privy-reindex", "--wallet", "w", "extra"}, 2},
+		"production scan": {config.EnvProduction, []string{"privy-reindex", "--wallet", "w"}, 1},
 		"wallet no key":   {config.EnvLocal, []string{"privy-evm-wallet"}, 2},
 		"production send": {config.EnvProduction, append([]string{"privy-transfer", "--usdc", "1"}, ok...), 1},
 		"production make": {config.EnvProduction, []string{"privy-evm-wallet", "--key", "k"}, 1},
@@ -66,5 +70,43 @@ func TestDevPrivyCommands_refuseBadArgumentsAndProduction(t *testing.T) {
 				t.Fatalf("exit %d stdout %q stderr %q, want %d", code, stdout.String(), stderr.String(), tc.code)
 			}
 		})
+	}
+}
+
+func TestDevPrivyTransfer_sendsFromAnEVMWalletToSolana(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	code := devCmd(privyDevConfig(t, config.EnvLocal), []string{
+		"privy-transfer", "--wallet", "wallet-member", "--from", "base", "--network", "solana",
+		"--to", string(qaMember), "--usdc", "1", "--key", "qa-back", "--poll", "1ms",
+	}, &stdout, &stderr)
+	if out := stdout.String(); code != 0 || !strings.Contains(out, `"from":"base","to":"solana"`) ||
+		!strings.Contains(out, `"state":"succeeded"`) {
+		t.Fatalf("exit %d stdout %s stderr %s", code, out, stderr.String())
+	}
+}
+
+func TestDevPrivyReindex_rescansTheWalletAndReportsFailures(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	cfg := privyDevConfig(t, config.EnvStaging)
+	if code := devCmd(cfg, []string{"privy-reindex", "--wallet", "w1"}, &stdout, &stderr); code != 0 ||
+		stdout.String() != "reindexed w1 on base\n" {
+		t.Fatalf("exit %d stdout %q stderr %q", code, stdout.String(), stderr.String())
+	}
+	for name, tc := range map[string]struct {
+		cfg  config.Config
+		args []string
+		want string
+	}{
+		"not evm":       {cfg, []string{"privy-reindex", "--wallet", "w1", "--network", "solana"}, "invalid_network"},
+		"no privy keys": {devConfig(config.EnvLocal), []string{"privy-reindex", "--wallet", "w1"}, "privy.New"},
+	} {
+		stdout.Reset()
+		stderr.Reset()
+		if code := devCmd(tc.cfg, tc.args, &stdout, &stderr); code != 1 || stdout.Len() != 0 ||
+			!strings.Contains(stderr.String(), tc.want) {
+			t.Fatalf("%s: exit %d stderr %q, want %q", name, code, stderr.String(), tc.want)
+		}
 	}
 }
