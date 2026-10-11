@@ -153,6 +153,33 @@ paths:
               schema: {$ref: "#/components/schemas/WithdrawAccepted"}
               example: {withdrawal_id: 01890a5d-ac96-774b-bcce-b302099a8057, status: submitted, tx_signature: 5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW}
         default: {$ref: "#/components/responses/Problem"}
+  /v1/me/withdrawals/preview:
+    post:
+      operationId: previewWithdrawal
+      tags: [funding]
+      x-idempotent: false
+      x-allow-restricted: true
+      summary: Show what a withdrawal would deliver.
+      description: >-
+        Validates the amount, network and address like `POST /v1/me/withdrawals` and returns the amount the
+        destination receives. A Solana withdrawal receives the full amount. An EVM withdrawal is bridged from Solana at exact
+        input, so `receive_micros` is Privy's estimate after its fees and `expires_at` is when that quote ends.
+        Nothing is held or sent.
+      requestBody:
+        description: The withdrawal to preview.
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/WithdrawRequest"}
+            example: {amount_micros: "10000000", destination_kind: evm, network: base, to_address: "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed"}
+      responses:
+        "200":
+          description: The amount the destination would receive.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/WithdrawalPreview"}
+              example: {receive_micros: "9992500", expires_at: "2026-10-11T10:30:00Z"}
+        default: {$ref: "#/components/responses/Problem"}
   /v1/me/withdrawals/{id}:
     get:
       operationId: getMyWithdrawal
@@ -526,16 +553,14 @@ components:
       enum: [created, submitted, confirmed, failed]
     WithdrawRequest:
       type: object
-      description: A withdrawal of platform balance to any Solana address.
+      description: A withdrawal of platform balance to a Solana address or to an address on an EVM network.
       additionalProperties: false
       required: [amount_micros, to_address]
       properties:
         destination_kind:
           type: string
           enum: [solana, evm]
-          description: >-
-            Where `to_address` lives. Missing means solana. evm answers `not_implemented` until the
-            multichain withdrawal work lands.
+          description: Where `to_address` lives. Missing means solana.
           examples: [solana]
         network:
           type: string
@@ -549,8 +574,26 @@ components:
           examples: ["2000000"]
         to_address:
           type: string
-          description: The destination Solana wallet. It cannot be the caller's own member wallet.
+          description: >-
+            The destination: a Solana wallet, which cannot be the caller's own member wallet, or for
+            destination_kind evm a 0x address on `network`.
           examples: [9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P]
+    WithdrawalPreview:
+      type: object
+      description: What a withdrawal would deliver to its destination.
+      additionalProperties: false
+      required: [receive_micros, expires_at]
+      properties:
+        receive_micros:
+          type: string
+          pattern: "^[0-9]+$"
+          description: USDC micros the destination receives. An estimate for an EVM network, exact for Solana.
+          examples: ["9992500"]
+        expires_at:
+          type: [string, "null"]
+          format: date-time
+          description: When the EVM quote expires. Null for Solana, which has no quote.
+          examples: ["2026-10-11T10:30:00Z"]
     WithdrawAccepted:
       type: object
       description: A signed and sent withdrawal.

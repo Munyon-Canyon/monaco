@@ -28,6 +28,7 @@ type HTTP struct {
 	Exchange    *app.ExchangeOnrampTokenHandler
 	Report      *app.ReportOnrampStatusHandler
 	Withdrawals *app.WithdrawHandler
+	Preview     app.PreviewWithdrawalHandler
 	Pause       *app.PauseCabalHandler
 	Resume      *app.ResumeCabalHandler
 	Cabals      CabalExists
@@ -51,6 +52,26 @@ func (h HTTP) Withdraw(ctx context.Context, req api.WithdrawRequestObject) (api.
 	}
 	return api.Withdraw202JSONResponse(api.WithdrawAccepted{
 		WithdrawalId: got.ID, Status: api.WithdrawalStatus(got.Status), TxSignature: string(got.TxSignature),
+	}), nil
+}
+
+func (h HTTP) PreviewWithdrawal(
+	ctx context.Context, req api.PreviewWithdrawalRequestObject,
+) (api.PreviewWithdrawalResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	request, err := domain.ParseWithdrawalRequest(rawWithdrawal(*req.Body))
+	if err != nil {
+		return nil, err
+	}
+	got, err := h.Preview.Handle(ctx, user, request)
+	if err != nil {
+		return nil, err
+	}
+	return api.PreviewWithdrawal200JSONResponse(api.WithdrawalPreview{
+		ReceiveMicros: got.ReceiveMicros.String(), ExpiresAt: got.ExpiresAt,
 	}), nil
 }
 

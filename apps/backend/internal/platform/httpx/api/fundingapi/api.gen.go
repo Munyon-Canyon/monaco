@@ -368,14 +368,14 @@ type WithdrawAccepted struct {
 	WithdrawalId openapi_types.UUID `json:"withdrawal_id"`
 }
 
-// WithdrawRequest A withdrawal of platform balance to any Solana address.
+// WithdrawRequest A withdrawal of platform balance to a Solana address or to an address on an EVM network.
 type WithdrawRequest struct {
 	// AmountMicros USDC micros, at least 1000000.
 	//
 	// Examples: 2000000
 	AmountMicros string `json:"amount_micros"`
 
-	// DestinationKind Where `to_address` lives. Missing means solana. evm answers `not_implemented` until the multichain withdrawal work lands.
+	// DestinationKind Where `to_address` lives. Missing means solana.
 	//
 	// Examples: solana
 	DestinationKind *WithdrawRequestDestinationKind `json:"destination_kind,omitempty"`
@@ -385,13 +385,13 @@ type WithdrawRequest struct {
 	// Examples: solana
 	Network *WithdrawRequestNetwork `json:"network,omitempty"`
 
-	// ToAddress The destination Solana wallet. It cannot be the caller's own member wallet.
+	// ToAddress The destination: a Solana wallet, which cannot be the caller's own member wallet, or for destination_kind evm a 0x address on `network`.
 	//
 	// Examples: 9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P
 	ToAddress string `json:"to_address"`
 }
 
-// WithdrawRequestDestinationKind Where `to_address` lives. Missing means solana. evm answers `not_implemented` until the multichain withdrawal work lands.
+// WithdrawRequestDestinationKind Where `to_address` lives. Missing means solana.
 //
 // Examples: solana
 type WithdrawRequestDestinationKind string
@@ -434,6 +434,19 @@ type Withdrawal struct {
 
 	// WithdrawalId Examples: 01890a5d-ac96-774b-bcce-b302099a8057
 	WithdrawalId openapi_types.UUID `json:"withdrawal_id"`
+}
+
+// WithdrawalPreview What a withdrawal would deliver to its destination.
+type WithdrawalPreview struct {
+	// ExpiresAt When the EVM quote expires. Null for Solana, which has no quote.
+	//
+	// Examples: 2026-10-11T10:30:00Z
+	ExpiresAt *time.Time `json:"expires_at"`
+
+	// ReceiveMicros USDC micros the destination receives. An estimate for an EVM network, exact for Solana.
+	//
+	// Examples: 9992500
+	ReceiveMicros string `json:"receive_micros"`
 }
 
 // WithdrawalStatus created, then submitted, then confirmed. created or submitted can end in failed.
@@ -505,6 +518,9 @@ type ResumeAdminAllJSONRequestBody = externalRef0.ReasonBody
 // WithdrawJSONRequestBody defines body for Withdraw for application/json ContentType.
 type WithdrawJSONRequestBody = WithdrawRequest
 
+// PreviewWithdrawalJSONRequestBody defines body for PreviewWithdrawal for application/json ContentType.
+type PreviewWithdrawalJSONRequestBody = WithdrawRequest
+
 // CreateOnrampSessionJSONRequestBody defines body for CreateOnrampSession for application/json ContentType.
 type CreateOnrampSessionJSONRequestBody = CreateOnrampSessionRequest
 
@@ -537,6 +553,9 @@ type ServerInterface interface {
 	// Withdraw Send platform balance to a Solana address.
 	// (POST /v1/me/withdrawals)
 	Withdraw(w http.ResponseWriter, r *http.Request, params WithdrawParams)
+	// PreviewWithdrawal Show what a withdrawal would deliver.
+	// (POST /v1/me/withdrawals/preview)
+	PreviewWithdrawal(w http.ResponseWriter, r *http.Request)
 	// GetMyWithdrawal Read one of the caller's withdrawals.
 	// (GET /v1/me/withdrawals/{id})
 	GetMyWithdrawal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
@@ -853,6 +872,20 @@ func (siw *ServerInterfaceWrapper) Withdraw(w http.ResponseWriter, r *http.Reque
 	handler.ServeHTTP(w, r)
 }
 
+// PreviewWithdrawal operation middleware
+func (siw *ServerInterfaceWrapper) PreviewWithdrawal(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PreviewWithdrawal(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMyWithdrawal operation middleware
 func (siw *ServerInterfaceWrapper) GetMyWithdrawal(w http.ResponseWriter, r *http.Request) {
 
@@ -1145,6 +1178,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/resume", wrapper.ResumeAdminAll)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/balance", wrapper.GetMyBalance)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/withdrawals", wrapper.Withdraw)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/withdrawals/preview", wrapper.PreviewWithdrawal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/withdrawals/{id}", wrapper.GetMyWithdrawal)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/onramp/sessions", wrapper.CreateOnrampSession)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/onramp/sessions/exchange", wrapper.ExchangeOnrampToken)
@@ -1433,6 +1467,45 @@ func (response WithdrawdefaultApplicationProblemPlusJSONResponse) VisitWithdrawR
 	return err
 }
 
+type PreviewWithdrawalRequestObject struct {
+	Body *PreviewWithdrawalJSONRequestBody
+}
+
+type PreviewWithdrawalResponseObject interface {
+	VisitPreviewWithdrawalResponse(w http.ResponseWriter) error
+}
+
+type PreviewWithdrawal200JSONResponse WithdrawalPreview
+
+func (response PreviewWithdrawal200JSONResponse) VisitPreviewWithdrawalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewWithdrawaldefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response PreviewWithdrawaldefaultApplicationProblemPlusJSONResponse) VisitPreviewWithdrawalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMyWithdrawalRequestObject struct {
 	Id openapi_types.UUID `json:"id"`
 }
@@ -1654,6 +1727,9 @@ type StrictServerInterface interface {
 	// Withdraw Send platform balance to a Solana address.
 	// (POST /v1/me/withdrawals)
 	Withdraw(ctx context.Context, request WithdrawRequestObject) (WithdrawResponseObject, error)
+	// PreviewWithdrawal Show what a withdrawal would deliver.
+	// (POST /v1/me/withdrawals/preview)
+	PreviewWithdrawal(ctx context.Context, request PreviewWithdrawalRequestObject) (PreviewWithdrawalResponseObject, error)
 	// GetMyWithdrawal Read one of the caller's withdrawals.
 	// (GET /v1/me/withdrawals/{id})
 	GetMyWithdrawal(ctx context.Context, request GetMyWithdrawalRequestObject) (GetMyWithdrawalResponseObject, error)
@@ -1920,6 +1996,37 @@ func (sh *strictHandler) Withdraw(w http.ResponseWriter, r *http.Request, params
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(WithdrawResponseObject); ok {
 		if err := validResponse.VisitWithdrawResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PreviewWithdrawal operation middleware
+func (sh *strictHandler) PreviewWithdrawal(w http.ResponseWriter, r *http.Request) {
+	var request PreviewWithdrawalRequestObject
+
+	var body PreviewWithdrawalJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PreviewWithdrawal(ctx, request.(PreviewWithdrawalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PreviewWithdrawal")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PreviewWithdrawalResponseObject); ok {
+		if err := validResponse.VisitPreviewWithdrawalResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

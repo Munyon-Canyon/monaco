@@ -12,6 +12,24 @@ This page shows how to prove an EVM withdrawal end to end with real USDC on main
    - `failed` after a step was broadcast keeps the hold, is never retried, and logs `funding.withdrawal.needs_support` once.
 3. If the create's outcome is unknown, the row stays `created`. After `WITHDRAWAL_UNSENT_AGE` the worker asks Privy again with the same key, so the transfer is never sent twice.
 
+## Preview what arrives
+
+`POST /v1/me/withdrawals/preview` takes the same body as the withdrawal and holds or sends nothing. A Solana withdrawal receives the whole amount. For an EVM network, the backend asks Privy for an exact-input quote (`POST /v1/wallets/{id}/transfer/quote`) and returns its `estimated_output_amount` as `receive_micros`, with the quote's `expires_at`. Privy checks the member wallet's balance, so a preview for more than the wallet holds answers `insufficient_funds`.
+
+A real preview on 2026-10-11, for the QA user below holding 1 USDC:
+
+```http
+POST /v1/me/withdrawals/preview
+
+{"amount_micros":"1000000","destination_kind":"evm","network":"base","to_address":"0x670a375581f32356bd269d5e5cb66e2c55c295b2"}
+```
+
+```json
+{"expires_at":"2026-10-11T10:49:29Z","receive_micros":"999250"}
+```
+
+That matches the 0.99925 USDC the first run delivered. The 1 USDC funded for this preview (`2S9U9buxZo8X7GTUNg3bigPA4q6dyrdjvERGJiCKpgUafY1e9VgtkSZ3QoxziGVHBMCcFcFWEoszykYkQrQDoRes`) went back to the QA pot with an in-app Solana withdrawal, `01a12a94-ab45-7ad5-b94e-d64fb4e31120` ([`4gcGkgz24rcBongoniKTzNsdeTyzcSbtrEDGW1UcXz4VTUGMQ9GunmcihJaggKevMDLo44z3P38cBgjzLu7jSk6B`](https://solscan.io/tx/4gcGkgz24rcBongoniKTzNsdeTyzcSbtrEDGW1UcXz4VTUGMQ9GunmcihJaggKevMDLo44z3P38cBgjzLu7jSk6B)).
+
 ## Before you run it
 
 - The member wallet pays the Solana fee for the transfer until Privy gas sponsorship is on. Fund it with a little SOL: `monacoctl qa fund --user <user-uuid> --sol 0.002`. A wallet with no SOL gets an action that ends `rejected` (`AccountNotFound`), and the withdrawal fails with `transfer_rejected`.

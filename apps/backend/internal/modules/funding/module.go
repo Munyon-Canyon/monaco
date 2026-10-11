@@ -78,17 +78,22 @@ func (m *Module) Mount(r api.Mount) {
 	queries := identity.New(m.deps).Queries()
 	wallets := app.WalletReader{Reader: queries}
 	fundingapi.Mount(adapters.HTTP{
-		Balances: m.balanceReader(), Wallets: wallets,
+		Balances:    m.balanceReader(),
+		Wallets:     wallets,
 		Create:      app.NewCreateOnrampSessionHandler(m.deps.UoW, m.deps.Clock, cfg.FundPageURL()),
 		Exchange:    app.NewExchangeOnrampTokenHandler(m.deps.UoW, m.deps.Clock, wallets, queries, cfg.Solana.USDCMint),
 		Report:      app.NewReportOnrampStatusHandler(m.deps.UoW, m.deps.Clock, m.deps.Bus),
 		Reads:       m.deps.Pool,
 		IDs:         m.deps.IDs,
 		Withdrawals: app.NewWithdrawHandler(m.withdrawDeps(wallets)),
-		Pause:       app.NewPauseCabalHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock, m.deps.Bus),
-		Resume:      app.NewResumeCabalHandler(m.deps.UoW, m.deps.Clock, m.deps.Bus),
-		Cabals:      cabalExists{cabal.New(m.deps).Queries()},
-		Arriving:    app.EVMDepositArrivals{Reads: m.deps.Pool},
+		Preview: app.PreviewWithdrawalHandler{
+			Wallets: wallets,
+			Quotes:  adapters.NewPrivyTransferQuotes(cfg, m.deps.Clock),
+		},
+		Pause:    app.NewPauseCabalHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock, m.deps.Bus),
+		Resume:   app.NewResumeCabalHandler(m.deps.UoW, m.deps.Clock, m.deps.Bus),
+		Cabals:   cabalExists{cabal.New(m.deps).Queries()},
+		Arriving: app.EVMDepositArrivals{Reads: m.deps.Pool},
 	}, r)
 }
 
