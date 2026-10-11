@@ -14,6 +14,7 @@ struct ProposalDetailSlotView: View {
     let proposalID: String
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
+    @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @State private var model: ProposalDetailModel?
     @State private var pause: ProposalPauseModel?
     @State private var showBurst = false
@@ -49,8 +50,8 @@ struct ProposalDetailSlotView: View {
                     votes(detail)
                     reason(detail)
                     expected(summary)
-                    if let bestPrice = summary.bestPrice {
-                        BestPriceSection(bestPrice: bestPrice)
+                    if let model {
+                        ProposalBestPrice(summary: summary, model: model)
                     }
                     status(summary)
                     if model?.canWithdraw == true {
@@ -80,6 +81,7 @@ struct ProposalDetailSlotView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             let model = preparedModel()
+            refresh?.register("proposal-detail") { await model.refresh() }
             if model.value == nil { await model.load() }
             guard let cabalID = model.value?.summary.cabalID else { return }
             async let detailHints: Void = model.observe()
@@ -263,5 +265,23 @@ struct ProposalDetailSlotView: View {
         let created = ProposalDetailModel(id: proposalID, cabalID: "", repository: repository, hints: environment.hints)
         model = created
         return created
+    }
+}
+
+private struct ProposalBestPrice: View {
+    let summary: ProposalSummary
+    let model: ProposalDetailModel
+
+    var body: some View {
+        let decimals = model.asset?.decimals ?? AssetCatalogDefaults.decimals
+        if LiveBestPriceModel.isLive(summary) {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                if let row = model.livePrice.row(for: summary, decimals: decimals, now: context.date) {
+                    BestPriceSection(row: row)
+                }
+            }
+        } else if let row = model.livePrice.row(for: summary, decimals: decimals, now: .now) {
+            BestPriceSection(row: row)
+        }
     }
 }

@@ -298,6 +298,15 @@ public struct ProposalsRepository: Sendable {
         }
     }
 
+    public func priceComparison(cabalID: String, proposalID: String) async throws -> LivePriceComparison {
+        try await api.read { client in
+            let value = try await client.getCabalProposalPriceComparison(
+                path: .init(id: cabalID, proposalId: proposalID)
+            ).ok.body.json
+            return LivePriceComparison(value)
+        }
+    }
+
     public func members(cabalID: String) async throws -> [ProposalMember] {
         try await api.read { client in
             try await client.getCabal(path: .init(id: cabalID)).ok.body.json.members.map(ProposalMember.init)

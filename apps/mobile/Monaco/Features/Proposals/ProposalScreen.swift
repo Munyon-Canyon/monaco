@@ -11,6 +11,7 @@ struct ProposalScreen: View {
     let sections: [any ProposalSection.Type]
     @Environment(AppEnvironment.self) private var environment
     @State private var comments: CommentsModel?
+    @State private var refresh = ScreenRefresh()
 
     init(proposalID: String, sections: [any ProposalSection.Type] = Self.sections) {
         self.context = ProposalContext(proposalID: proposalID)
@@ -24,6 +25,8 @@ struct ProposalScreen: View {
         } else {
             SectionStack(context: context, sections: sections)
                 .environment(\.proposalComments, comments)
+                .environment(refresh)
+                .refreshable { await refresh.run() }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     if let comments { CommentComposerBar(model: comments) }
                 }

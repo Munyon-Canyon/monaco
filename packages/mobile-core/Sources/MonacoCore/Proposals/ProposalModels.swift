@@ -140,6 +140,7 @@ public final class ProposalDetailModel {
     public private(set) var didRetry = false
     public private(set) var isVoting = false
     public private(set) var priceMove: ProposalPriceMove?
+    public let livePrice: LiveBestPriceModel
     private let id: String
     private let cabalID: String
     private let repository: ProposalsRepository
@@ -150,14 +151,21 @@ public final class ProposalDetailModel {
     private let voting: ProposalVoteModel
     private var retriedSwapID: String?
     private let proposeService: any ProposeService
+    @ObservationIgnored private var isVisible = false
 
-    public init(id: String, cabalID: String, repository: ProposalsRepository, hints: any HintSource) {
+    public init(
+        id: String, cabalID: String, repository: ProposalsRepository, hints: any HintSource,
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+    ) {
         self.id = id
         self.cabalID = cabalID
         self.repository = repository
         self.hints = hints
         voting = ProposalVoteModel(repository: repository)
         proposeService = LiveProposeService(api: repository.api)
+        livePrice = LiveBestPriceModel(sleep: sleep) { cabalID in
+            try await repository.priceComparison(cabalID: cabalID, proposalID: id)
+        }
         let hook = ProposalReloadHook()
         refresher = HintRefresher { await hook.run?() }
         hook.run = { [weak self] in await self?.load() }
@@ -184,6 +192,7 @@ public final class ProposalDetailModel {
             if let members = await members { self.members = members }
             if let asset = await asset { self.asset = asset }
             errorMessage = nil
+            syncLivePrice()
             await loadPriceMove(for: detail.summary)
         } catch {
             errorMessage = ToastCopy.message(for: APIError(error))
@@ -273,7 +282,23 @@ public final class ProposalDetailModel {
             hints.hints(matching: .cabal(id: cabalID, what: "swap_updated")),
         ])
     }
-    public func setVisible(_ visible: Bool) { refresher.setVisible(visible) }
+    public func setVisible(_ visible: Bool) {
+        isVisible = visible
+        refresher.setVisible(visible)
+        syncLivePrice()
+    }
+
+    public func refresh() async {
+        async let detail: Void = load()
+        async let price: Void = livePrice.refresh()
+        _ = await (detail, price)
+    }
+
+    private func syncLivePrice() {
+        let summary = value?.summary
+        let isLive = isVisible && summary.map(LiveBestPriceModel.isLive) == true
+        livePrice.poll(cabalID: isLive ? summary?.cabalID : nil)
+    }
 }
 
 @Observable
