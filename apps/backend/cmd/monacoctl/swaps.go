@@ -25,7 +25,11 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
-const swapsUsage = "usage: monacoctl swaps force-resolve --signature <sig> --to confirmed|failed [--out-amount <units>] --reason <text> [--yes]"
+const swapsUsage = `usage:
+  monacoctl swaps force-resolve --signature <sig> --to confirmed|failed [--out-amount <units>] --reason <text> [--yes]
+  monacoctl swaps parked
+  monacoctl swaps unpark --swap <uuid> --reason <text> [--yes]
+  monacoctl swaps fail-parked --swap <uuid> --reason <text> [--yes]`
 
 func toolSwaps(env toolEnv) tool { return swapsTool(env.environ, clock.Real{}, os.Stdin) }
 
@@ -55,7 +59,12 @@ func swapsTool(environ []string, clk clock.Clock, stdin io.Reader) tool {
 		)
 	}
 	return func(args []string, stdout, stderr io.Writer) int {
-		return run(map[string]command{"force-resolve": forceResolve}, nil, environ, args, stdout, stderr)
+		return run(map[string]command{
+			"force-resolve": forceResolve,
+			"parked":        listParked(clk),
+			"unpark":        resolveParked(tradingapp.ParkedUnpark, environ, clk, stdin),
+			"fail-parked":   resolveParked(tradingapp.ParkedFail, environ, clk, stdin),
+		}, nil, environ, args, stdout, stderr)
 	}
 }
 
@@ -92,7 +101,7 @@ func resolveSwap(
 		return fail(stderr, err)
 	}
 	printSwap(stdout, "before", before)
-	if !yes && !confirmed(stdin, stderr) {
+	if !yes && !confirmed(stdin, stderr, "Force-resolve this swap?") {
 		_, _ = fmt.Fprintln(stderr, "monacoctl: cancelled")
 		return 1
 	}
@@ -142,8 +151,8 @@ func forceResolveUnits(decimals int16, amount uint64, to domain.Status) (money.B
 	return money.NewBaseUnits(amount, uint8(decimals)), nil
 }
 
-func confirmed(stdin io.Reader, stderr io.Writer) bool {
-	_, _ = fmt.Fprint(stderr, "Force-resolve this swap? [y/N] ")
+func confirmed(stdin io.Reader, stderr io.Writer, question string) bool {
+	_, _ = fmt.Fprint(stderr, question+" [y/N] ")
 	line, _ := bufio.NewReader(stdin).ReadString('\n')
 	return strings.EqualFold(strings.TrimSpace(line), "y")
 }
