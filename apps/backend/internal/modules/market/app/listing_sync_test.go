@@ -231,9 +231,9 @@ func TestListingSync_storesIssuerListingsAndEnablesOnlyTheVerifiedOnes(t *testin
 	want := []string{
 		"coinbase AAPLc base " + aaplC + "  8 1 tradable=true enabled=true verified=true",
 		"coinbase TSLAc base " + tslaC + "  8 1.0003771186767842 tradable=true enabled=false verified=false",
-		"robinhood AAPL robinhood " + aaplRH + "  18 1.002 tradable=true enabled=true verified=true",
-		"robinhood NVDA robinhood " + nvdaRH + "  18 1.000776 tradable=true enabled=true verified=true",
-		"xstocks AAPLx ethereum " + aaplXEVM + " " + aaplXWrap + " 18 1 tradable=true enabled=true verified=true",
+		"robinhood AAPL robinhood " + aaplRH + "  18 1.002 tradable=true enabled=false verified=true",
+		"robinhood NVDA robinhood " + nvdaRH + "  18 1.000776 tradable=true enabled=false verified=true",
+		"xstocks AAPLx ethereum " + aaplXEVM + " " + aaplXWrap + " 18 1 tradable=true enabled=false verified=true",
 		"xstocks AAPLx solana " + aaplXSolan + "  8 1 tradable=true enabled=true verified=true",
 	}
 	if got := r.rows(t); !slices.Equal(got, want) {
@@ -445,5 +445,59 @@ func TestListingSync_keepsAListingTheOverrideTurnedOffDisabled(t *testing.T) {
 	r.run(t)
 	if got := r.rows(t); len(got) != 1 || !strings.HasSuffix(got[0], "tradable=true enabled=false verified=true") {
 		t.Fatalf("rows = %q, want it verified but kept off by its override", got)
+	}
+}
+
+func TestListingSync_insertsXStocksOffSolanaAndRobinhoodListingsOff(t *testing.T) {
+	t.Parallel()
+	const aaplXBase = "0x00000000000000000000000000000000005186b1"
+	xBase := evm("xstocks", "AAPL", "AAPLx", chain.NetworkBase, aaplXBase)
+	xSol := app.IssuerListing{
+		Issuer: "xstocks", Ticker: "AAPL", Symbol: "AAPLx", Network: chain.NetworkSolana,
+		TokenAddress: aaplXSolan, Decimals: u8(8), Tradable: true,
+	}
+	r := newListingRig(
+		t,
+		&source{
+			issuer: "xstocks",
+			batch:  app.ListingBatch{Issuer: "xstocks", Listings: []app.IssuerListing{xBase, xSol}},
+		},
+		&source{issuer: "robinhood", batch: app.ListingBatch{Issuer: "robinhood", Listings: []app.IssuerListing{
+			evm("robinhood", "AAPL", "AAPL", chain.NetworkRobinhood, aaplRH),
+			evm("robinhood", "NVDA", "NVDA", chain.NetworkRobinhood, nvdaRH),
+		}}},
+	)
+	if _, err := r.pool.Exec(t.Context(), `INSERT INTO asset_listings (id, issuer, symbol, network, chain_id,
+		token_address, decimals, shares_per_token, venue, enabled, tradable_override, created_at)
+		VALUES ($1, 'robinhood', 'NVDA', 'robinhood', 46630, $2, 18, 1, 'uniswap', false, true, $3)`,
+		testkit.NewIDs(5186).NewV7(), nvdaRH, r.clock.Now()); err != nil {
+		t.Fatal(err)
+	}
+	r.run(t)
+	r.run(t)
+	rows, err := r.pool.Query(t.Context(), `SELECT issuer, network, coalesce(tradable_override::text, 'null'), enabled,
+		verified_at IS NOT NULL FROM asset_listings ORDER BY issuer, network, symbol`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var got []string
+	for rows.Next() {
+		var issuer, network, override string
+		var enabled, verified bool
+		if err := rows.Scan(&issuer, &network, &override, &enabled, &verified); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, fmt.Sprintf("%s %s override=%s enabled=%t verified=%t", issuer, network, override, enabled,
+			verified))
+	}
+	want := []string{
+		"robinhood robinhood override=false enabled=false verified=true",
+		"robinhood robinhood override=true enabled=true verified=true",
+		"xstocks base override=false enabled=false verified=true",
+		"xstocks solana override=null enabled=true verified=true",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("rows =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }

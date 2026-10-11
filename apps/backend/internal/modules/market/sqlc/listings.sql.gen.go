@@ -397,7 +397,7 @@ func (q *Queries) SetListingTradableOverride(ctx context.Context, arg SetListing
 const upsertListings = `-- name: UpsertListings :execrows
 INSERT INTO asset_listings (
   id, asset_id, issuer, symbol, network, chain_id, token_address, wrapper_address, decimals,
-  shares_per_token, venue, issuer_tradable, enabled, created_at
+  shares_per_token, venue, issuer_tradable, tradable_override, enabled, created_at
 )
 SELECT
   u.id,
@@ -411,7 +411,9 @@ SELECT
     1
   ),
   CASE WHEN u.network = 'solana' THEN 'jupiter' ELSE 'uniswap' END,
-  u.issuer_tradable, false, $2::timestamptz
+  u.issuer_tradable,
+  CASE WHEN ($1::text = 'xstocks' AND u.network <> 'solana') OR u.network = 'robinhood' THEN false END,
+  false, $2::timestamptz
 FROM ROWS FROM (
   unnest($3::uuid[]), unnest($4::text[]), unnest($5::text[]),
   unnest($6::text[]), unnest($7::bigint[]), unnest($8::text[]),
