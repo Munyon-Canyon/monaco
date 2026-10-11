@@ -93,16 +93,12 @@ type Routes interface {
 }
 
 type multichainParts struct {
-	quoter multichain.Quoter
-	router multichain.Router
 	prices multichain.EVMPriceSource
 }
 
-func newMultichain() multichainParts {
-	quoter := adapters.MultichainRoutingQuoter()
+func newMultichain(d module.Deps) multichainParts {
+	quoter := adapters.MultichainRoutingQuoter(d)
 	return multichainParts{
-		quoter: quoter,
-		router: adapters.MultichainRoutingRouter(),
 		prices: adapters.MultichainPricesEVMPriceSource(quoter),
 	}
 }
@@ -113,7 +109,7 @@ type Module struct {
 	hot        []app.HotMints
 }
 
-func New(d module.Deps) *Module { return &Module{multichain: newMultichain(), deps: d} }
+func New(d module.Deps) *Module { return &Module{multichain: newMultichain(d), deps: d} }
 
 func (*Module) Name() string { return "market" }
 
@@ -142,6 +138,8 @@ func (m *Module) Calendar() *app.Calendar { return app.NewCalendar(m.Catalog()) 
 var _ Prices = (*app.PriceBook)(nil)
 
 func (m *Module) Prices() *app.PriceBook { return app.NewPriceBook(m.deps.Pool, m.deps.Clock) }
+
+func (m *Module) Router() *app.Router { return adapters.MultichainRoutingRouter(m.deps, m.Prices()) }
 
 var _ Routes = (*app.RouteChecker)(nil)
 

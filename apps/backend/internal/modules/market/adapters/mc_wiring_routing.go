@@ -1,7 +1,73 @@
 package adapters
 
-import "github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+import (
+	"context"
+	"sync"
+	"time"
 
-func MultichainRoutingQuoter() multichain.Pending { return multichain.Pending{Ticket: "#4969"} }
+	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/jupiterquote"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/uniswapquote"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+)
 
-func MultichainRoutingRouter() multichain.Pending { return multichain.Pending{Ticket: "#4969"} }
+const routerQuoteAge = 15 * time.Second
+
+func quoteSwapper() chain.EVMAddress {
+	var a chain.EVMAddress
+	for i := range a {
+		a[i] = 0x11
+	}
+	return a
+}
+
+func routingClient(d module.Deps, name string, opts ...httpclient.Option) *httpclient.Client {
+	if d.HTTPClient == nil {
+		return httpclient.New(name, opts...)
+	}
+	return d.HTTPClient(name, opts...)
+}
+
+type DeferredQuoter struct {
+	once   sync.Once
+	build  func() app.Venues
+	venues app.Venues
+}
+
+func (q *DeferredQuoter) Quote(
+	ctx context.Context, l multichain.Listing, side multichain.Side, amount money.Micros,
+) (multichain.Quote, error) {
+	q.once.Do(func() { q.venues = q.build() })
+	return q.venues.Quote(ctx, l, side, amount)
+}
+
+func MultichainRoutingQuoter(d module.Deps) *DeferredQuoter {
+	return &DeferredQuoter{build: func() app.Venues { return RoutingVenues(d) }}
+}
+
+func RoutingVenues(d module.Deps) app.Venues {
+	venues := app.Venues{multichain.VenueJupiter: jupiterquote.NewQuoter(d.JupiterClient(), d.Clock)}
+	cfg := d.Config.Routing
+	if cfg.UniswapAPIKey != "" {
+		client := routingClient(d, "uniswap", uniswapquote.Options(cfg.UniswapBaseURL, cfg.UniswapTimeout)...)
+		venues[multichain.VenueUniswap] = uniswapquote.New(client, cfg.UniswapAPIKey, quoteSwapper(), d.Clock)
+	}
+	return venues
+}
+
+func MultichainRoutingRouter(d module.Deps, prices app.SampledPrices) *app.Router {
+	cfg := d.Config
+	bridge := NewPrivyBridgeQuotes(routingClient(d, "privy-bridge",
+		httpclient.WithBaseURL(cfg.Privy.BaseURL), httpclient.WithTimeout(cfg.Timeouts.Privy)),
+		cfg.Privy.AppID, cfg.Privy.AppSecret)
+	rules := app.RouterRules{
+		MinEdgeBps: uint64(max(cfg.Routing.MinEdgeBps, 0)), MaxImpactBps: uint64(max(cfg.Routing.MaxImpactBps, 0)),
+		QuoteTimeout: cfg.Routing.UniswapTimeout, MaxQuoteAge: routerQuoteAge,
+	}
+	return app.NewRouter(NewStockListings(d.Pool), RoutingVenues(d), app.NewStockPrices(prices, d.Clock),
+		bridge, d.Clock, rules)
+}

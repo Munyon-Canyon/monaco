@@ -55,6 +55,7 @@ type Config struct {
 	Solana     Solana
 	EVM        EVM
 	Listings   Listings
+	Routing    Routing
 	Relayer    Relayer
 	APNs       APNs
 	PostHog    PostHog
@@ -363,6 +364,7 @@ func fields() []field {
 		agentsFields(),
 		evmFields(),
 		listingsFields(),
+		routingFields(),
 	)
 }
 

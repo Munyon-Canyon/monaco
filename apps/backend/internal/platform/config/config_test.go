@@ -103,6 +103,10 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 			OndoBaseURL: "https://app.ondo.finance", CoinbaseBaseURL: "https://api.coinbase.com",
 			RobinhoodBaseURL: "https://api.robinhood.com",
 		},
+		Routing: config.Routing{
+			UniswapBaseURL: "https://trade-api.gateway.uniswap.org", UniswapTimeout: 5 * time.Second,
+			MinEdgeBps: 10, MaxImpactBps: 300,
+		},
 	}
 	if !reflect.DeepEqual(cfg, want) {
 		t.Fatalf("Load = %+v, want %+v", cfg, want)
@@ -199,6 +203,11 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"ONDO_BASE_URL=http://fakes/ondo",
 		"COINBASE_BASE_URL=http://fakes/coinbase",
 		"ROBINHOOD_BASE_URL=http://fakes/robinhood-api",
+		"UNISWAP_API_KEY=uni-secret",
+		"UNISWAP_BASE_URL=http://fakes/uniswap",
+		"MONACO_TIMEOUT_UNISWAP=3s",
+		"ROUTER_MIN_EDGE_BPS=25",
+		"ROUTER_MAX_IMPACT_BPS=150",
 		"RELAYER_PRIVATE_KEY=relayer-key",
 		"APNS_KEY_P8=p8-key",
 		"APNS_KEY_ID=key-id",
@@ -288,6 +297,10 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		Listings: config.Listings{
 			OndoBaseURL: "http://fakes/ondo", CoinbaseBaseURL: "http://fakes/coinbase",
 			RobinhoodBaseURL: "http://fakes/robinhood-api",
+		},
+		Routing: config.Routing{
+			UniswapAPIKey: "uni-secret", UniswapBaseURL: "http://fakes/uniswap", UniswapTimeout: 3 * time.Second,
+			MinEdgeBps: 25, MaxImpactBps: 150,
 		},
 		Relayer:  config.Relayer{PrivateKey: "relayer-key"},
 		APNs:     config.APNs{KeyP8: "p8-key", KeyID: "key-id", TeamID: "team-id", Topic: "com.example.app"},
@@ -691,6 +704,11 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"ONDO_BASE_URL", "https://app.ondo.finance"},
 		{"COINBASE_BASE_URL", "https://api.coinbase.com"},
 		{"ROBINHOOD_BASE_URL", "https://api.robinhood.com"},
+		{"UNISWAP_API_KEY", "***"},
+		{"UNISWAP_BASE_URL", "https://trade-api.gateway.uniswap.org"},
+		{"MONACO_TIMEOUT_UNISWAP", "5s"},
+		{"ROUTER_MIN_EDGE_BPS", "10"},
+		{"ROUTER_MAX_IMPACT_BPS", "300"},
 	}
 	if len(got) != len(tests) {
 		t.Fatalf("Redacted has %d keys, want %d: %v", len(got), len(tests), got)
