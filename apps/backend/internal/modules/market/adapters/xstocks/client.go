@@ -48,31 +48,42 @@ type nodeWire struct {
 }
 
 type deploymentWire struct {
-	Address string `json:"address"`
-	Network string `json:"network"`
+	Address          string `json:"address"`
+	Network          string `json:"network"`
+	WrapperAddressV2 string `json:"wrapperAddressV2"`
 }
 
 func (c *Client) Catalog(ctx context.Context) ([]app.ProviderAsset, error) {
 	var out []app.ProviderAsset
+	err := c.eachNode(ctx, "xstocks.Client.Catalog", func(n nodeWire) error {
+		asset, listed, err := toProviderAsset(n)
+		if listed {
+			out = append(out, asset)
+		}
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) eachNode(ctx context.Context, op string, visit func(nodeWire) error) error {
 	for page := range maxPages {
 		list, err := c.page(ctx, page)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		for _, n := range list.Nodes {
-			asset, listed, err := toProviderAsset(n)
-			if err != nil {
-				return nil, err
-			}
-			if listed {
-				out = append(out, asset)
+			if err := visit(n); err != nil {
+				return err
 			}
 		}
 		if !list.Page.HasNextPage {
-			return out, nil
+			return nil
 		}
 	}
-	return nil, errs.New(errs.CodeDecodeFailed, "xstocks.Client.Catalog", slog.Int("max_pages", maxPages))
+	return errs.New(errs.CodeDecodeFailed, op, slog.Int("max_pages", maxPages))
 }
 
 func (c *Client) page(ctx context.Context, page int) (listWire, error) {

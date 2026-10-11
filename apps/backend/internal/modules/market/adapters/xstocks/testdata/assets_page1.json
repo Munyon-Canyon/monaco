@@ -1,0 +1,6 @@
+{
+ "nodes": [
+  {"symbol":"NVDAx","name":"NVIDIA xStock","logo":"https://xstocks-metadata.backed.fi/logos/tokens/NVDAx.png","isTradingHalted":false,"deployments":[{"address":"0xc845b2894dbddd03858fd2d643b4ef725fe0849d","network":"Ethereum","wrapperAddressV2":"0xa8ddb5cd96b5222afe198316e9a57caa642850d5"},{"address":"0xc845b2894dbddd03858fd2d643b4ef725fe0849d","network":"Arbitrum","wrapperAddressV2":"0xa8ddb5cd96b5222afe198316e9a57caa642850d5"},{"address":"Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh","network":"Solana"},{"address":"0xc845b2894dbddd03858fd2d643b4ef725fe0849d","network":"Ink","wrapperAddressV2":"0xa8ddb5cd96b5222afe198316e9a57caa642850d5"}]}
+ ],
+ "page": {"currentPage":1,"hasNextPage":false}
+}
