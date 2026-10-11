@@ -5,6 +5,7 @@ public struct BestPrice: Equatable, Sendable {
     public struct Venue: Equatable, Sendable, Identifiable {
         public let id: String
         public let name: String
+        public let network: Components.Schemas.Network
         public let netShareNanos: Int64
         public let netMicros: Int64
         public let isWinner: Bool
@@ -19,7 +20,8 @@ public struct BestPrice: Equatable, Sendable {
             guard let shares = Int64(quote.netShareNanos), let micros = Int64(quote.netMicros) else { return nil }
             return Venue(
                 id: quote.listingId, name: Self.venueName(venue: quote.venue, network: quote.network),
-                netShareNanos: shares, netMicros: micros, isWinner: quote.listingId == comparison.winnerListingId)
+                network: quote.network, netShareNanos: shares, netMicros: micros,
+                isWinner: quote.listingId == comparison.winnerListingId)
         }
         guard let winner = venues.first(where: \.isWinner) else { return nil }
         self.venues = [winner] + venues.filter { !$0.isWinner }

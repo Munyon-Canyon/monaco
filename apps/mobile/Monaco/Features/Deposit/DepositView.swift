@@ -162,16 +162,7 @@ struct DepositNetworkMark: View {
     let network: DepositNetwork
 
     var body: some View {
-        if network.isSolana {
-            Image("SolanaMark")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 28)
-                .frame(width: 40, height: 40)
-                .accessibilityHidden(true)
-        } else {
-            SunkenGlyphMark(systemImage: "point.3.connected.trianglepath.dotted")
-        }
+        ChainMark(network: network.id)
     }
 }
 
