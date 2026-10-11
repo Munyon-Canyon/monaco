@@ -200,6 +200,9 @@ func buildPlan(
 	}
 	minOut, minErr := minOutFor(quote.Quote.AggregatedOutputs, spec.Owner)
 	tx, txErr := evmTx(spec.Network, *swap.Swap)
+	if txErr == nil {
+		txErr = checkSwapTarget(spec, tx)
+	}
 	plan := app.EVMSwapPlan{Swap: tx, MinOut: minOut}
 	errList := []error{minErr, txErr}
 	for _, raw := range []*txWire{approval.Approval, quote.PermitTransaction} {
@@ -207,6 +210,9 @@ func buildPlan(
 			continue
 		}
 		approve, err := evmTx(spec.Network, *raw)
+		if err == nil {
+			err = checkApproval(spec, tx.To, approve)
+		}
 		plan.Approvals = append(plan.Approvals, approve)
 		errList = append(errList, err)
 	}

@@ -100,7 +100,7 @@ func transferredTo(logs []logWire, token, owner chain.EVMAddress) (uint64, error
 		}
 		total.Add(total, amount)
 	}
-	if !total.IsUint64() {
+	if total.Sign() == 0 || !total.IsUint64() {
 		return 0, errs.New(errs.CodeDecodeFailed, "trading.EVMVenue.transfer", slog.String("total", total.String()))
 	}
 	return total.Uint64(), nil

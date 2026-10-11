@@ -149,7 +149,7 @@ func (r *RouteExec) settle(
 	switch {
 	case cause != nil && code == errs.CodePriceMoved:
 		return r.finish(ctx, b, failed(b.req, b.id, domain.FailurePriceMoved, ""), string(code))
-	case cause != nil && errs.Retryable(code):
+	case cause != nil && (errs.Retryable(code) || result.Hash != ""):
 		return cause
 	case cause != nil:
 		return r.finish(ctx, b, failed(b.req, b.id, domain.FailureNeverSubmitted, ""), string(code))

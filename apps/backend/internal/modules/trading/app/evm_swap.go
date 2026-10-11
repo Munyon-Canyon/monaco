@@ -166,7 +166,7 @@ func (s EVMSwap) await(ctx context.Context, leg EVMSwapLeg, hash string) (EVMSwa
 		return fill.State != FillPending, nil
 	})
 	if err != nil {
-		return EVMSwapResult{}, err
+		return EVMSwapResult{Hash: hash}, err
 	}
 	return result, nil
 }

@@ -500,3 +500,22 @@ func TestRouteExec_aResumeThatCannotResolveTheRouteChangesNothing(t *testing.T) 
 	}
 	wantSteps(t, e.steps(t, view.ID.UUID()), "bridge_out:pending:0", "bridge_out:submitted:0")
 }
+
+func TestRouteExec_aFillItCannotReadLeavesTheSubmittedSwapForAHuman(t *testing.T) {
+	t.Parallel()
+	e := newRouteEnv(t)
+	e.privy.script(multichain.ActionSucceeded)
+	e.evm.fillErr = errs.New(errs.CodeDecodeFailed, "evm.Fill")
+	req := e.request()
+
+	if _, err := e.buy(t.Context(), req); errs.CodeOf(err) != errs.CodeDecodeFailed {
+		t.Fatalf("Buy err = %v, want decode_failed", err)
+	}
+	swap := e.swapIDs(t, req.Source.ID)[0]
+	if status, _, _, _ := e.row(t, swap); status != string(domain.StatusSubmitted) {
+		t.Fatalf("swap is %s, want submitted", status)
+	}
+	if got := e.steps(t, swap); got[len(got)-1] != "swap:submitted:0" {
+		t.Fatalf("step events = %v, want the swap step left submitted", got)
+	}
+}
