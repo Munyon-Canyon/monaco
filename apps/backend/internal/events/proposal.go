@@ -7,6 +7,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
@@ -46,16 +47,17 @@ func (ProposalCreated) AggregateType() string { return proposalAggregate }
 func (e ProposalCreated) AggregateID() uuid.UUID { return e.ProposalID }
 
 type ProposalPassed struct {
-	V              int                 `json:"v"`
-	ProposalID     uuid.UUID           `json:"proposal_id"`
-	CabalID        uuid.UUID           `json:"cabal_id"`
-	Kind           string              `json:"kind"`
-	Symbol         string              `json:"symbol"`
-	Mint           chain.SolanaAddress `json:"mint"`
-	USDCMicros     money.Micros        `json:"usdc_micros,omitzero"`
-	TokenAmount    uint64              `json:"token_amount,string,omitzero"`
-	QuoteOutAmount uint64              `json:"quote_out_amount,string"`
-	ProposerID     uuid.UUID           `json:"proposer_id"                  pii:"true"`
+	V               int                    `json:"v"`
+	ProposalID      uuid.UUID              `json:"proposal_id"`
+	CabalID         uuid.UUID              `json:"cabal_id"`
+	Kind            string                 `json:"kind"`
+	Symbol          string                 `json:"symbol"`
+	Mint            chain.SolanaAddress    `json:"mint"`
+	USDCMicros      money.Micros           `json:"usdc_micros,omitzero"`
+	TokenAmount     uint64                 `json:"token_amount,string,omitzero"`
+	QuoteOutAmount  uint64                 `json:"quote_out_amount,string"`
+	ProposerID      uuid.UUID              `json:"proposer_id"                  pii:"true"`
+	PriceComparison *multichain.Comparison `json:"price_comparison,omitempty"`
 }
 
 func (ProposalPassed) Type() Type { return TypeProposalPassed }

@@ -1,0 +1,55 @@
+{
+  "v": 1,
+  "proposal_id": "019b76da-a803-72a9-a950-66c83cf88ade",
+  "cabal_id": "019b76da-a804-7e75-aef3-bb0850e72a50",
+  "kind": "buy",
+  "symbol": "AAPLx",
+  "mint": "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
+  "usdc_micros": "100000000",
+  "quote_out_amount": "29610838",
+  "proposer_id": "019b76da-a805-79c5-a84f-1917856031b5",
+  "price_comparison": {
+    "stock_id": "019b76da-a800-7110-b1b9-064c439456d2",
+    "side": "buy",
+    "ranked": [
+      {
+        "listing_id": "019b76da-a801-7ced-8cbf-33b5967217d9",
+        "network": "base",
+        "venue": "uniswap",
+        "side": "buy",
+        "input_micros": "100000000",
+        "gross_output_units": 30690575,
+        "costs": [
+          {
+            "kind": "bridge",
+            "micros": "75000"
+          },
+          {
+            "kind": "gas",
+            "micros": "76119"
+          }
+        ],
+        "net_share_nanos": 306675000,
+        "net_micros": "100000000",
+        "quoted_at": "2026-10-11T08:50:00Z",
+        "expires_at": "2026-10-11T08:50:30Z",
+        "route_id": "quote-base"
+      },
+      {
+        "listing_id": "019b76da-a802-7767-bda7-b17318a7225b",
+        "network": "solana",
+        "venue": "jupiter",
+        "side": "buy",
+        "input_micros": "100000000",
+        "gross_output_units": 29610838,
+        "costs": null,
+        "net_share_nanos": 297076000,
+        "net_micros": "100000000",
+        "quoted_at": "2026-10-11T08:50:00Z",
+        "expires_at": "2026-10-11T08:50:30Z",
+        "route_id": "quote-solana"
+      }
+    ],
+    "winner": "019b76da-a801-7ced-8cbf-33b5967217d9"
+  }
+}
