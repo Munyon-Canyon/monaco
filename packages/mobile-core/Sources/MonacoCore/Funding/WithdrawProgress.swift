@@ -76,7 +76,7 @@ public final class Withdrawing {
     private let hints: any HintSource
     private let inFlightRetryDelay: Duration
     private let submission = IdempotentSubmission()
-    @ObservationIgnored private var unconfirmed: (micros: Int64, toAddress: String)?
+    @ObservationIgnored private var unconfirmed: (micros: Int64, toAddress: String, network: WithdrawNetwork)?
 
     static let inFlightRetries = 3
 
@@ -88,12 +88,14 @@ public final class Withdrawing {
 
     public var isSubmitting: Bool { progress == .submitting }
 
-    public func submit(micros: Int64, toAddress: String) async -> WithdrawAttempt {
+    public func submit(
+        micros: Int64, toAddress: String, network: WithdrawNetwork = .solana
+    ) async -> WithdrawAttempt {
         guard progress == .idle else {
             if case .submitted(let withdrawal) = progress { return .accepted(withdrawal) }
             return .unconfirmed(retryMessage: ToastCopy.message(for: .inFlight))
         }
-        if submission.hasPendingKey, let pending = unconfirmed, pending != (micros, toAddress) {
+        if submission.hasPendingKey, let pending = unconfirmed, pending != (micros, toAddress, network) {
             return .unconfirmed(retryMessage: MoneyFlowCopy.unconfirmed.summary)
         }
         progress = progress.applying(.start)
@@ -101,7 +103,7 @@ public final class Withdrawing {
         while true {
             do {
                 let withdrawal = try await source.withdraw(
-                    micros: micros, toAddress: toAddress, submission: submission)
+                    micros: micros, toAddress: toAddress, network: network, submission: submission)
                 progress = progress.applying(.accepted(withdrawal))
                 return .accepted(withdrawal)
             } catch {
@@ -113,7 +115,7 @@ public final class Withdrawing {
                 }
                 progress = progress.applying(.refused)
                 if submission.hasPendingKey {
-                    unconfirmed = (micros, toAddress)
+                    unconfirmed = (micros, toAddress, network)
                     return .unconfirmed(retryMessage: MoneyFlowCopy.pendingKeyLine(error))
                 }
                 return .refused(MoneyFlowCopy.withdrawFailure(error))
