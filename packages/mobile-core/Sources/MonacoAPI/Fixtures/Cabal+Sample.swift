@@ -25,6 +25,12 @@ extension Components.Schemas.Cabal {
         )
     }
 
+    public static func sampleBanned(role: String?) -> Self {
+        var cabal = sample(role: role)
+        cabal.status = "banned"
+        return cabal
+    }
+
     public static func sampleWithMembers(role: String?) -> Self {
         var cabal = sample(role: role)
         let joined = Date(timeIntervalSince1970: 1_790_000_000)

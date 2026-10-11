@@ -15,6 +15,9 @@ extension Components.Schemas.CabalActivity {
     public static let sampleCashOut = sample(
         4, kind: .cashOut, status: .failed, asset: nil, micros: 12_500_000, actor: sampleActor)
 
+    public static let sampleWindDownCashOut = sample(
+        5, kind: .cashOut, status: .confirmed, asset: nil, micros: 42_000_000, actor: nil)
+
     public static let samples = [sampleBuy, sampleSell, sampleFund, sampleCashOut]
 
     public static func sample(

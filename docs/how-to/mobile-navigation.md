@@ -196,6 +196,7 @@ struct CabalScreen: View {
 | | `CabalsJoinSlot` | #646 |
 | | `CabalsBoardSlot` | #699 |
 | `Features/Groups/CabalScreen.swift`, `CabalContext(cabalID: String)`, body | `CabalHeaderSlot` | #606 |
+| | `CabalClosedSlot` | #2146 |
 | | `CabalPotSlot` | #2137 |
 | | `CabalValueChartSlot` | #660 |
 | | `CabalSliceSlot` | #2137 |

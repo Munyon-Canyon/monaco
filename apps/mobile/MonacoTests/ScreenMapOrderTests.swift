@@ -29,7 +29,8 @@ struct ScreenMapOrderTests {
     @Test func cabalScreenFollowsTheScreenMap() {
         #expect(
             names(CabalScreen.sections) == [
-                "CabalHeaderSlot", "CabalPotSlot", "CabalValueChartSlot", "CabalSliceSlot", "CabalPauseSlot",
+                "CabalHeaderSlot", "CabalClosedSlot", "CabalPotSlot", "CabalValueChartSlot", "CabalSliceSlot",
+                "CabalPauseSlot",
                 "CabalJoinSlot", "CabalActionsSlot", "CabalProposalsSlot", "CabalHoldingsSlot", "CabalAgentSlot",
                 "CabalMemberBoardSlot", "CabalActivitySlot",
             ])

@@ -5,6 +5,7 @@ import SwiftUI
 struct CabalScreen: View {
     static let sections: [any CabalSection.Type] = [
         CabalHeaderSlot.self,
+        CabalClosedSlot.self,
         CabalPotSlot.self,
         CabalValueChartSlot.self,
         CabalSliceSlot.self,

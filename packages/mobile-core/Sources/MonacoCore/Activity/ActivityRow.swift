@@ -54,7 +54,7 @@ public struct ActivityRow: Identifiable, Equatable, Sendable {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
         let sameYear = calendar.component(.year, from: activity.occurredAt) == calendar.component(.year, from: now)
-        let headline = Self.headline(activity.kind, assetName: activity.asset?.name)
+        let headline = Self.headline(activity.kind, assetName: activity.asset?.name, hasActor: activity.actor != nil)
         self.id = activity.id
         self.kind = Kind(activity.kind)
         self.symbol = activity.asset?.symbol
@@ -106,13 +106,13 @@ public struct ActivityRow: Identifiable, Equatable, Sendable {
     }
 
     private static func headline(
-        _ kind: Components.Schemas.CabalActivity.KindPayload, assetName: String?
+        _ kind: Components.Schemas.CabalActivity.KindPayload, assetName: String?, hasActor: Bool = true
     ) -> (title: String, glyph: String) {
         switch kind {
         case .buy: (assetName.map { "Bought \($0)" } ?? "Bought", "arrow.down")
         case .sell: (assetName.map { "Sold \($0)" } ?? "Sold", "arrow.up")
         case .fund: ("Money added", "plus")
-        case .cashOut: ("Cashed out", "arrow.down.left")
+        case .cashOut: (hasActor ? "Cashed out" : "Closed by Monaco", "arrow.down.left")
         }
     }
 
