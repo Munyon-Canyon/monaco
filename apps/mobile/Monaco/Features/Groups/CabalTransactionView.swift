@@ -136,6 +136,9 @@ struct CabalTransactionView: View {
                     SolscanLinkRow(url: url, identifier: "cabal-txn-solscan")
                 }
             }
+            if let bestPrice = swap?.bestPrice {
+                BestPriceSection(bestPrice: bestPrice)
+            }
             if swap?.retryable == true, !isRetrying {
                 retryButton(row)
             }
