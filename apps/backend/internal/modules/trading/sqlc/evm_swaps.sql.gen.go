@@ -32,3 +32,48 @@ func (q *Queries) MarkSubmittedEVM(ctx context.Context, arg MarkSubmittedEVMPara
 	}
 	return result.RowsAffected(), nil
 }
+
+const routedSwap = `-- name: RoutedSwap :one
+SELECT s.id, s.cabal_id, s.source_kind, s.source_id, s.action, s.symbol, s.in_mint, s.out_mint, s.in_amount,
+  s.slippage_bps, s.source_batch_size, s.status, r.comparison
+FROM swaps AS s
+JOIN trade_routes AS r ON r.trade_id = s.id
+WHERE s.id = $1::uuid
+`
+
+type RoutedSwapRow struct {
+	ID              uuid.UUID
+	CabalID         uuid.UUID
+	SourceKind      string
+	SourceID        uuid.UUID
+	Action          string
+	Symbol          string
+	InMint          string
+	OutMint         string
+	InAmount        int64
+	SlippageBps     int32
+	SourceBatchSize int32
+	Status          string
+	Comparison      []byte
+}
+
+func (q *Queries) RoutedSwap(ctx context.Context, id uuid.UUID) (RoutedSwapRow, error) {
+	row := q.db.QueryRow(ctx, routedSwap, id)
+	var i RoutedSwapRow
+	err := row.Scan(
+		&i.ID,
+		&i.CabalID,
+		&i.SourceKind,
+		&i.SourceID,
+		&i.Action,
+		&i.Symbol,
+		&i.InMint,
+		&i.OutMint,
+		&i.InAmount,
+		&i.SlippageBps,
+		&i.SourceBatchSize,
+		&i.Status,
+		&i.Comparison,
+	)
+	return i, err
+}

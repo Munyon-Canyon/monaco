@@ -25,12 +25,17 @@ const (
 
 	AfterSellRequest Name = "after-sell-request"
 	AfterSellConfirm Name = "after-sell-confirm"
+
+	AfterBridgeLanded  Name = "after-bridge-landed"
+	AfterRequote       Name = "after-requote"
+	AfterSwapSubmitted Name = "after-swap-submitted"
 )
 
 func Names() []Name {
 	return []Name{
-		AfterBroadcast, AfterCandidate, AfterCreate, AfterExecute, AfterPublish, AfterSellConfirm, AfterSellRequest,
-		AfterSign, BeforeCommit, FirstSightAfterCommit, FirstSightBeforeCommit,
+		AfterBridgeLanded, AfterBroadcast, AfterCandidate, AfterCreate, AfterExecute, AfterPublish, AfterRequote,
+		AfterSellConfirm, AfterSellRequest, AfterSign, AfterSwapSubmitted, BeforeCommit, FirstSightAfterCommit,
+		FirstSightBeforeCommit,
 	}
 }
 
