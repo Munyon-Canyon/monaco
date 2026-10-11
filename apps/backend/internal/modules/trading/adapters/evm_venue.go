@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/time/rate"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	mc "github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 )
 
@@ -47,12 +49,15 @@ type EVMVenue struct {
 	uniswap *httpclient.Client
 	key     string
 	rpc     map[chain.Network]*httpclient.Client
+	clock   clock.Clock
 	limit   *rate.Limiter
 }
 
-func NewEVMVenue(uniswap *httpclient.Client, apiKey string, rpc map[chain.Network]*httpclient.Client) *EVMVenue {
+func NewEVMVenue(
+	uniswap *httpclient.Client, apiKey string, rpc map[chain.Network]*httpclient.Client, clk clock.Clock,
+) *EVMVenue {
 	return &EVMVenue{
-		uniswap: uniswap, key: apiKey, rpc: rpc,
+		uniswap: uniswap, key: apiKey, rpc: rpc, clock: clk,
 		limit: rate.NewLimiter(rate.Limit(uniswapPerSecond), uniswapPerSecond),
 	}
 }
@@ -148,7 +153,7 @@ func (v *EVMVenue) Build(ctx context.Context, spec app.EVMSwapSpec) (app.EVMSwap
 	if err := v.post(ctx, "/v1/swap", swapRequest{Quote: quote.Raw}, &swap, attrs); err != nil {
 		return app.EVMSwapPlan{}, err
 	}
-	plan, err := buildPlan(spec, approval, quote, swap)
+	plan, err := buildPlan(spec, approval, quote, swap, v.clock.Now())
 	if err != nil {
 		return app.EVMSwapPlan{}, errs.Wrap(err, errs.CodeDecodeFailed, evmVenueBuildOp, attrs...)
 	}
@@ -194,6 +199,7 @@ func buildPlan(
 	approval approvalWire,
 	quote swapQuoteWire,
 	swap swapWire,
+	now time.Time,
 ) (app.EVMSwapPlan, error) {
 	if swap.Swap == nil {
 		return app.EVMSwapPlan{}, errs.New(errs.CodeDecodeFailed, "trading.EVMVenue.plan")
@@ -211,7 +217,7 @@ func buildPlan(
 		}
 		approve, err := evmTx(spec.Network, *raw)
 		if err == nil {
-			err = checkApproval(spec, tx.To, approve)
+			err = checkApproval(spec, tx.To, now, approve)
 		}
 		plan.Approvals = append(plan.Approvals, approve)
 		errList = append(errList, err)

@@ -102,7 +102,7 @@ func (s EVMSwap) Run(ctx context.Context, leg EVMSwapLeg) (EVMSwapResult, error)
 	hash := step.PrivyActionID
 	if step.Status == domain.StepPending {
 		if hash, err = s.send(ctx, leg); err != nil {
-			return EVMSwapResult{}, err
+			return EVMSwapResult{Hash: hash}, err
 		}
 	}
 	return s.await(ctx, leg, hash)
@@ -129,7 +129,7 @@ func (s EVMSwap) send(ctx context.Context, leg EVMSwapLeg) (string, error) {
 	}
 	faultpoint.Hit(ctx, faultpoint.AfterBroadcast)
 	if err := s.submit(ctx, leg, hash); err != nil {
-		return "", err
+		return hash, err
 	}
 	faultpoint.Hit(ctx, faultpoint.AfterSwapSubmitted)
 	return hash, nil

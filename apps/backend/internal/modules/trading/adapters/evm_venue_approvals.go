@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"math/big"
 	"slices"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
@@ -18,6 +19,7 @@ const (
 	erc20ApproveSelector   = "095ea7b3"
 	permit2ApproveSelector = "87517c45"
 	abiWord                = 32
+	permitExpiryWindow     = 30 * time.Minute
 	addressPadding         = 12
 )
 
@@ -44,16 +46,16 @@ func universalRouters(n chain.Network) []string {
 }
 
 func checkSwapTarget(spec app.EVMSwapSpec, tx mc.EVMTransaction) error {
-	if !slices.Contains(universalRouters(spec.Network), tx.To.String()) {
+	if !slices.Contains(universalRouters(spec.Network), tx.To.String()) || tx.Value.Sign() != 0 {
 		return errs.New(errs.CodeDecodeFailed, "trading.EVMVenue.swapTarget", slog.String("to", tx.To.String()))
 	}
 	return nil
 }
 
-func checkApproval(spec app.EVMSwapSpec, router chain.EVMAddress, tx mc.EVMTransaction) error {
+func checkApproval(spec app.EVMSwapSpec, router chain.EVMAddress, now time.Time, tx mc.EVMTransaction) error {
 	refused := errs.New(errs.CodeDecodeFailed, "trading.EVMVenue.approval", slog.String("to", tx.To.String()))
 	permit2, _ := chain.ParseEVMAddress(permit2Address)
-	if len(tx.Data) < 4 {
+	if len(tx.Data) < 4 || tx.Value.Sign() != 0 {
 		return refused
 	}
 	selector, args := hex.EncodeToString(tx.Data[:4]), tx.Data[4:]
@@ -66,7 +68,10 @@ func checkApproval(spec app.EVMSwapSpec, router chain.EVMAddress, tx mc.EVMTrans
 		token, ok := wordAddress(args, 0, len(args) == 4*abiWord && tx.To == permit2)
 		spender, ok := wordAddress(args, 1, ok)
 		amount := new(big.Int).SetBytes(args[min(len(args), 2*abiWord):min(len(args), 3*abiWord)])
-		return approved(ok && token == spec.TokenIn && spender == router, amount, spec, refused)
+		expiration := new(big.Int).SetBytes(args[min(len(args), 3*abiWord):])
+		fresh := expiration.Cmp(big.NewInt(now.Unix())) > 0 &&
+			expiration.Cmp(big.NewInt(now.Add(permitExpiryWindow).Unix())) <= 0
+		return approved(ok && fresh && token == spec.TokenIn && spender == router, amount, spec, refused)
 	}
 	return refused
 }

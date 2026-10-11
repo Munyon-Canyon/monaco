@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -20,7 +21,12 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
+
+func venueNow() time.Time { return time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC) }
+
+func expiresIn(d time.Duration) string { return strconv.FormatInt(venueNow().Add(d).Unix(), 10) }
 
 const (
 	venueOwner  = "0x00000000000000000000000000000000000000aa"
@@ -109,7 +115,8 @@ func newVenueEnv(t *testing.T) *venueEnv {
 		return httpclient.New(name, httpclient.WithBaseURL(url), httpclient.WithTimeout(time.Second))
 	}
 	e.venue = adapters.NewEVMVenue(client("uniswap-test", uni.URL), "uniswap-key",
-		map[chain.Network]*httpclient.Client{chain.NetworkBase: client("evm-rpc-base-test", rpc.URL+"/rpc")})
+		map[chain.Network]*httpclient.Client{chain.NetworkBase: client("evm-rpc-base-test", rpc.URL+"/rpc")},
+		testkit.NewClock(venueNow()))
 	return e
 }
 
@@ -188,14 +195,14 @@ func TestEVMVenue_buildAddsThePermitTransactionAndSkipsAnApprovedToken(t *testin
 	t.Parallel()
 	e := newVenueEnv(t)
 	permit := evmTxJSON(permit2, abiCall("87517c45", word(baseCash), word(venueRouter), word("9992500"),
-		word("1760000000")), "")
+		word(expiresIn(10*time.Minute))), "")
 	e.script(approvalReply("null"), quoteReply("990000", "990000", "null"), quoteReply("990000", "990000", permit),
-		swapReply(evmTxJSON(venueRouter, "0x3593564c", "0x1")))
+		swapReply(evmTxJSON(venueRouter, "0x3593564c", "0x0")))
 
 	plan, err := e.venue.Build(t.Context(), e.spec(t))
 	if err != nil || len(plan.Approvals) != 1 ||
 		plan.Approvals[0].To != evmAddress(t, permit2) ||
-		plan.Swap.Value.Int64() != 1 ||
+		plan.Swap.Value.Sign() != 0 ||
 		plan.MinOut != 990_000 {
 		t.Fatalf("plan = %+v, %v, want the permit as the one approval", plan, err)
 	}
@@ -401,7 +408,8 @@ func TestEVMVenue_buildRefusesAnApprovalItDidNotExpect(t *testing.T) {
 	maxUint256 := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(1)).String()
 	otherRouter := "0x3fc91a3afd70395cd496c647d5a6cc9d4b2b7fad"
 	permitCall := func(token, spender, amount string) string {
-		return evmTxJSON(permit2, abiCall("87517c45", word(token), word(spender), word(amount), word("1")), "0x0")
+		return evmTxJSON(permit2, abiCall("87517c45", word(token), word(spender), word(amount),
+			word(expiresIn(time.Minute))), "0x0")
 	}
 	for name, tc := range map[string]struct{ approval, permit string }{
 		"unlimited approval": {evmTxJSON(baseCash, abiCall("095ea7b3", word(permit2), word(maxUint256)), "0x0"), "null"},
@@ -424,7 +432,16 @@ func TestEVMVenue_buildRefusesAnApprovalItDidNotExpect(t *testing.T) {
 		"permit of another token":  {"null", permitCall(venueToken, venueRouter, "1")},
 		"unlimited permit":         {"null", permitCall(baseCash, venueRouter, maxUint256)},
 		"permit not on Permit2": {"null", evmTxJSON(otherRouter,
-			abiCall("87517c45", word(baseCash), word(venueRouter), word("1"), word("1")), "0x0")},
+			abiCall("87517c45", word(baseCash), word(venueRouter), word("1"), word(expiresIn(time.Minute))), "0x0")},
+		"approval with value": {evmTxJSON(baseCash, abiCall("095ea7b3", word(permit2), word("1")), "0x1"), "null"},
+		"permit with value": {"null", evmTxJSON(permit2, abiCall("87517c45", word(baseCash), word(venueRouter),
+			word("1"), word(expiresIn(time.Minute))), "0x1")},
+		"permit without expiry": {"null", evmTxJSON(permit2, abiCall("87517c45", word(baseCash), word(venueRouter),
+			word("1"), word("0")), "0x0")},
+		"permit already expired": {"null", evmTxJSON(permit2, abiCall("87517c45", word(baseCash), word(venueRouter),
+			word("1"), word(expiresIn(0))), "0x0")},
+		"permit past the window": {"null", evmTxJSON(permit2, abiCall("87517c45", word(baseCash), word(venueRouter),
+			word("1"), word(expiresIn(30*time.Minute+time.Second))), "0x0")},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -502,7 +519,8 @@ func TestEVMVenue_buildAcceptsANewerRouterAndHoldsThePermitToIt(t *testing.T) {
 	t.Parallel()
 	const router212 = "0xd6145b2d3f379919e8cdeda7b97e37c4b2ca9c40"
 	permitTo := func(spender string) string {
-		return evmTxJSON(permit2, abiCall("87517c45", word(baseCash), word(spender), word("1"), word("1")), "0x0")
+		return evmTxJSON(permit2, abiCall("87517c45", word(baseCash), word(spender), word("1"),
+			word(expiresIn(30*time.Minute))), "0x0")
 	}
 	for name, tc := range map[string]struct {
 		spender string
@@ -525,5 +543,16 @@ func TestEVMVenue_buildAcceptsANewerRouterAndHoldsThePermitToIt(t *testing.T) {
 				t.Fatalf("Build err = %v, want decode_failed for a permit to another router", err)
 			}
 		})
+	}
+}
+
+func TestEVMVenue_buildRefusesASwapThatSendsValue(t *testing.T) {
+	t.Parallel()
+	e := newVenueEnv(t)
+	e.script(approvalReply("null"), quoteReply("1000000", "1000000", "null"),
+		quoteReply("1000000", "990000", "null"), swapReply(evmTxJSON(venueRouter, "0x01", "0x1")))
+
+	if _, err := e.venue.Build(t.Context(), e.spec(t)); errs.CodeOf(err) != errs.CodeDecodeFailed {
+		t.Fatalf("Build err = %v, want decode_failed for a swap sending native value", err)
 	}
 }

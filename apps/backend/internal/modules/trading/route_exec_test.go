@@ -519,3 +519,31 @@ func TestRouteExec_aFillItCannotReadLeavesTheSubmittedSwapForAHuman(t *testing.T
 		t.Fatalf("step events = %v, want the swap step left submitted", got)
 	}
 }
+
+func TestRouteExec_aSwapSentButNotRecordedIsNeverFailedAsUnsent(t *testing.T) {
+	t.Parallel()
+	e := newRouteEnv(t)
+	e.privy.script(multichain.ActionSucceeded)
+	req := e.request()
+	swapKey := func() string { return "trade:" + e.swapIDs(t, req.Source.ID)[0].String() + ":swap" }
+	e.evm.afterSendAny = func(key string) {
+		if key != swapKey() {
+			return
+		}
+		if _, err := e.pool.Exec(t.Context(), `UPDATE swaps SET status = 'submitted', tx_signature = '0xother',
+			submitted_at = now() WHERE source_id = $1`, req.Source.ID); err != nil {
+			t.Error(err)
+		}
+	}
+
+	if _, err := e.buy(t.Context(), req); errs.CodeOf(err) != errs.CodeVersionConflict {
+		t.Fatalf("Buy err = %v, want version_conflict from the record", err)
+	}
+	swap := e.swapIDs(t, req.Source.ID)[0]
+	if got := e.steps(t, swap); got[len(got)-1] != "swap:pending:0" {
+		t.Fatalf("step events = %v, want the swap step left for the resume, not failed", got)
+	}
+	if n := e.count(t, `SELECT count(*) FROM events WHERE type = 'trade.failed' AND aggregate_id = $1`, swap); n != 0 {
+		t.Fatalf("%d trade.failed, want none for a swap that was sent", n)
+	}
+}
