@@ -14,6 +14,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/concurrency"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 const (
@@ -74,9 +75,10 @@ func NewRouter(
 var _ multichain.Router = (*Router)(nil)
 
 type venueQuote struct {
-	quote multichain.Quote
-	ok    bool
-	err   error
+	listing multichain.Listing
+	quote   multichain.Quote
+	ok      bool
+	err     error
 }
 
 func (r *Router) Best(
@@ -93,12 +95,14 @@ func (r *Router) Best(
 	ref, refErr := r.prices.SharePrice(ctx, stock)
 	quotes, err := concurrency.FanOut(ctx, quoteFanOut, listings,
 		func(ctx context.Context, l multichain.Listing) (venueQuote, error) {
-			return r.quote(ctx, l, amount, ref, refErr), nil
+			q := r.quote(ctx, l, amount, ref, refErr)
+			q.listing = l
+			return q, nil
 		})
 	if err != nil {
 		return multichain.Comparison{}, errs.Wrap(err, errs.CodeInternal, routerOp)
 	}
-	return r.rank(stock, quotes)
+	return r.rank(ctx, stock, quotes)
 }
 
 func (r *Router) quote(
@@ -204,14 +208,17 @@ func costOf(costs []multichain.Cost, kind multichain.CostKind) uint64 {
 	return total
 }
 
-func (r *Router) rank(stock multichain.StockID, quotes []venueQuote) (multichain.Comparison, error) {
-	now := r.clock.Now()
+func (r *Router) rank(
+	ctx context.Context, stock multichain.StockID, quotes []venueQuote,
+) (multichain.Comparison, error) {
 	var ranked []multichain.Quote
 	for _, q := range quotes {
-		fresh := q.ok && now.Before(q.quote.ExpiresAt) && now.Sub(q.quote.QuotedAt) <= r.rules.MaxQuoteAge
-		if fresh && q.quote.NetShares > 0 {
-			ranked = append(ranked, q.quote)
+		if reason := r.dropReason(q); reason != "" {
+			observability.Info(ctx, observability.MarketRouterVenueDropped,
+				slog.String("listing_id", q.listing.ID.String()), slog.String("reason", reason))
+			continue
 		}
+		ranked = append(ranked, q.quote)
 	}
 	if len(ranked) == 0 {
 		return multichain.Comparison{}, errs.New(errs.CodeNoRoute, routerOp, slog.String("stock_id", stock.String()))
@@ -219,7 +226,10 @@ func (r *Router) rank(stock multichain.StockID, quotes []venueQuote) (multichain
 	slices.SortStableFunc(ranked, func(a, b multichain.Quote) int {
 		return cmp.Or(cmp.Compare(b.NetShares, a.NetShares), cmp.Compare(solanaFirst(a), solanaFirst(b)))
 	})
-	winner := r.winner(ranked)
+	winner, err := r.winner(ctx, stock, quotes, ranked)
+	if err != nil {
+		return multichain.Comparison{}, err
+	}
 	ranked = append([]multichain.Quote{ranked[winner]}, slices.Delete(slices.Clone(ranked), winner, winner+1)...)
 	return multichain.Comparison{
 		StockID: stock,
@@ -236,17 +246,46 @@ func solanaFirst(q multichain.Quote) int {
 	return 1
 }
 
-func (r *Router) winner(ranked []multichain.Quote) int {
+func (r *Router) dropReason(q venueQuote) string {
+	now := r.clock.Now()
+	switch {
+	case !q.ok:
+		return string(errs.CodeOf(q.err))
+	case !now.Before(q.quote.ExpiresAt):
+		return "expired"
+	case now.Sub(q.quote.QuotedAt) > r.rules.MaxQuoteAge:
+		return "stale"
+	case q.quote.NetShares == 0:
+		return "no_output"
+	}
+	return ""
+}
+
+func (r *Router) winner(
+	ctx context.Context, stock multichain.StockID, quotes []venueQuote, ranked []multichain.Quote,
+) (int, error) {
 	if ranked[0].Network == chain.NetworkSolana {
-		return 0
+		return 0, nil
 	}
 	i := slices.IndexFunc(ranked, func(q multichain.Quote) bool { return q.Network == chain.NetworkSolana })
 	if i < 0 {
-		return 0
+		return 0, r.solanaUnquoted(ctx, stock, quotes)
 	}
 	evm, sol := uint64(ranked[0].NetShares), uint64(ranked[i].NetShares)
 	if scale(evm, bpsWhole, 1) < scale(sol, bpsWhole+r.rules.MinEdgeBps, 1) {
-		return i
+		return i, nil
 	}
-	return 0
+	return 0, nil
+}
+
+func (r *Router) solanaUnquoted(ctx context.Context, stock multichain.StockID, quotes []venueQuote) error {
+	i := slices.IndexFunc(quotes, func(q venueQuote) bool { return q.listing.Network == chain.NetworkSolana })
+	if i < 0 {
+		return nil
+	}
+	venue := string(quotes[i].listing.Venue)
+	observability.Degraded(ctx, observability.MarketRouterSolanaUnquoted,
+		slog.String("stock_id", stock.String()), slog.String("venue", venue))
+	return errs.New(errs.CodeQuoteUnavailable, routerOp, slog.String("stock_id", stock.String()),
+		slog.String("venue", venue))
 }
