@@ -7,13 +7,13 @@ enum AppAnalytics {
     static var current = Analytics(sink: NoopAnalyticsSink())
 
     static func makeDefault(apiKey: String = Config.postHogAPIKey) -> Analytics {
-        Analytics(sink: makeSink(apiKey: apiKey, isTest: Config.isRunningTests))
+        Analytics(sink: makeSink(apiKey: apiKey, isTest: Config.isRunningTests, environment: Config.api.environment))
     }
 
-    static func makeSink(apiKey: String, isTest: Bool) -> any AnalyticsSink {
+    static func makeSink(apiKey: String, isTest: Bool, environment: MonacoEnvironment) -> any AnalyticsSink {
         let logging = LoggingAnalyticsSink()
         guard !apiKey.isEmpty, !isTest else { return logging }
-        let postHog = PostHogAnalyticsSink(apiKey: apiKey)
+        let postHog = PostHogAnalyticsSink(apiKey: apiKey, environment: environment)
         guard MonacoBuildKind.current == .debug else { return postHog }
         return CompositeAnalyticsSink(sinks: [postHog, logging])
     }

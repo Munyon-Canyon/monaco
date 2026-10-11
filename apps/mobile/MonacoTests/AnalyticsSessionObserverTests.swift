@@ -3,6 +3,7 @@ import MonacoAnalytics
 import Synchronization
 import Testing
 
+import enum MonacoCore.MonacoEnvironment
 import struct MonacoCore.SessionProfile
 
 @testable import Monaco
@@ -146,11 +147,19 @@ struct AnalyticsSessionObserverTests {
 @MainActor
 struct AppAnalyticsSinkChoiceTests {
     @Test func anEmptyKeyLogsOnly() {
-        #expect(AppAnalytics.makeSink(apiKey: "", isTest: false) is LoggingAnalyticsSink)
+        #expect(AppAnalytics.makeSink(apiKey: "", isTest: false, environment: .staging) is LoggingAnalyticsSink)
     }
 
     @Test func testsNeverReachPostHog() {
-        #expect(AppAnalytics.makeSink(apiKey: "phc_test_placeholder", isTest: true) is LoggingAnalyticsSink)
+        let sink = AppAnalytics.makeSink(apiKey: "phc_test_placeholder", isTest: true, environment: .staging)
+        #expect(sink is LoggingAnalyticsSink)
+    }
+
+    @Test(arguments: MonacoEnvironment.allCases)
+    func everyBuildTagsItsPostHogEventsWithItsEnvironment(environment: MonacoEnvironment) {
+        let properties = PostHogAnalyticsSink.superProperties(for: environment)
+        #expect(properties["env"] as? String == environment.rawValue)
+        #expect(properties.count == 1)
     }
 
     @Test func referralEventsKeepTheirNamesAndShareAFlowID() {
