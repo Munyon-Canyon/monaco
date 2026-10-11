@@ -98,7 +98,27 @@ Today the founder is the only admin, with role `operator`. When others join, the
 
 ## Grafana
 
-The business dashboards (money, governance, social and safety) are Grafana Cloud dashboards in the folder `Monaco Business`, on the stack `monacolabs`. They read `GET /v1/admin/dashboards/{money,governance,social,safety}` through the Infinity data source, with the time picker mapped to `from`, `to` and `bucket`. Money is shown in USDC from micros strings. The data source authenticates with the viewer service token below.
+The business dashboards (money, governance, social and safety) are Grafana Cloud dashboards in the folder `Monaco Business`, on the stack `monacolabs`. They read `GET /v1/admin/dashboards/{money,governance,social,safety}` of **staging** through the Infinity data source `Monaco Admin API (staging)`, with the time picker mapped to `from` and `to` and the `bucket` variable (`day` or `week`) mapped to `bucket`. Money is shown in USDC from micros strings. The data source authenticates with the viewer service token below, held in a Grafana secure field.
+
+The dashboards live in the repo, so Grafana can be rebuilt from it:
+
+| File | What it holds |
+|---|---|
+| `ops/grafana/folder.json` | The `Monaco Business` folder. |
+| `ops/grafana/datasource.json` | The Infinity data source, with no secret. `__MONACO_API_BASE_URL__` becomes the staging `PUBLIC_API_BASE_URL`, and the token is not in it. |
+| `ops/grafana/dashboards/*.json` | The four dashboards, one panel per line. |
+
+Each panel is one request to the route, and a stat panel draws several tiles from one request, because a service token is limited to 60 requests a minute with a burst of 20. A dashboard opens in 4 to 8 requests. The `from`, `to` and `bucket` fields the routes echo back are not drawn.
+
+### Sync
+
+    scripts/grafana-sync.sh
+
+It reads `GRAFANA_URL` and `GRAFANA_SERVICE_ACCOUNT_TOKEN` from the decrypted `.env.local`, and the staging API URL from `PUBLIC_API_BASE_URL` in `.env.staging` (it needs `DOTENV_PRIVATE_KEY_STAGING` in `.env.keys`; set `MONACO_API_BASE_URL` to skip that). It upserts the folder, the data source and every dashboard by uid, so running it twice changes nothing. Run it after editing a file under `ops/grafana/`. A data source update without `--set-token` keeps the secure header Grafana already holds.
+
+The Grafana service account needs `datasources:create` and `datasources:write` on top of dashboard and folder write, or the sync answers 403 on the data source.
+
+To edit a dashboard, change it in Grafana, export it with the share menu's JSON model, and replace its file. Keep the uid.
 
 ## Service tokens for Grafana
 
@@ -117,19 +137,25 @@ Run it against the database of the environment the token is for. The token print
     just build backend
     (umask 077; scripts/with-dotenv-local.sh bin/monacoctl admin token create --name grafana > ~/grafana-token.txt)
 
-`with-dotenv-local.sh` loads `.env.local`, which points at the local database. For another environment, export that environment's `DATABASE_URL` the way its runbook does.
+`with-dotenv-local.sh` loads `.env.local`, which points at the local database. For staging, decrypt `.env.staging` over it (from the clone that holds `.env.keys`, or add `-fk <path to .env.keys>`) and pipe the token straight into Grafana, so it is never shown or written to a file:
+
+    scripts/with-dotenv-local.sh bash -c 'MONACO_ENV=staging NATS_URL=tls://connect.ngs.global \
+      dotenvx run -f .env.staging --overload --quiet -- bin/monacoctl admin token create --name grafana' \
+      | scripts/grafana-sync.sh --set-token
+
+`--overload` makes `.env.staging` win over `.env.local`, and the command only reads `MONACO_ENV` and `NATS_URL` to pass config validation. Build `bin/monacoctl` from a commit whose latest migration the staging database has, or the command stops with `db_schema_behind`. `--set-token` reads the token from stdin and stores it in the data source's secure header.
 
 Pick a lowercase name of letters, digits, `-` or `_`. A name is unique among live tokens.
 
 ### Store
 
-Paste the token only into the Grafana Infinity data source secret, as a bearer token (`Authorization: Bearer mst_...`). Do not put it in a dashboard, a variable, a repo, a ticket or a chat message. Delete the file you wrote it to once it is in Grafana.
+The token goes only into the Grafana Infinity data source secret, as a bearer token (`Authorization: Bearer mst_...`), which `scripts/grafana-sync.sh --set-token` sets. Do not put it in a dashboard, a variable, a repo, a ticket or a chat message. Delete the file you wrote it to once it is in Grafana.
 
 ### Rotate
 
-1. Create a second token under a new name, such as `grafana-2`.
-2. Put it in the data source secret and check that a dashboard loads.
-3. Revoke the old one.
+1. Create a second token under a new name, such as `grafana-2`, and pipe it into `scripts/grafana-sync.sh --set-token` as in Create.
+2. Open Monaco Business → Money and check that it loads.
+3. Revoke the old one with `admin token revoke --name grafana`, run against the staging database the same way.
 
 ### Revoke
 

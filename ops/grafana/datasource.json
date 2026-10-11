@@ -1,0 +1,16 @@
+{
+  "uid": "monaco-admin-staging",
+  "name": "Monaco Admin API (staging)",
+  "type": "yesoreyeram-infinity-datasource",
+  "access": "proxy",
+  "url": "__MONACO_API_BASE_URL__/v1/admin/dashboards",
+  "basicAuth": false,
+  "isDefault": false,
+  "jsonData": {
+    "auth_method": "none",
+    "allowedHosts": ["__MONACO_API_BASE_URL__"],
+    "httpHeaderName1": "Authorization",
+    "tlsSkipVerify": false,
+    "timeoutInSeconds": 30
+  }
+}
