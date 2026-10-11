@@ -272,6 +272,21 @@ type Router interface {
 	Best(ctx context.Context, stockID StockID, side Side, amountMicros money.Micros) (Comparison, error)
 }
 
+type NetworkRouter interface {
+	BestOn(
+		ctx context.Context, stockID StockID, side Side, amountMicros money.Micros, n chain.Network,
+	) (Comparison, error)
+}
+
+func BestOn(
+	ctx context.Context, r Router, stockID StockID, side Side, amountMicros money.Micros, n chain.Network,
+) (Comparison, error) {
+	if on, ok := r.(NetworkRouter); ok {
+		return on.BestOn(ctx, stockID, side, amountMicros, n)
+	}
+	return r.Best(ctx, stockID, side, amountMicros)
+}
+
 type EVMPriceSource interface {
 	Prices(ctx context.Context, listings []Listing) (map[ListingID]Price, error)
 }

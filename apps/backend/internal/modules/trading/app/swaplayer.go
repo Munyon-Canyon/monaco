@@ -49,6 +49,7 @@ type SwapRequest struct {
 	SourceBatchSize int
 	StillWanted     func(ctx context.Context) (bool, error)
 	Route           *multichain.Comparison
+	Pin             chain.Network
 	RouteOf         *ids.SwapID
 	ReusesStranded  bool
 }
@@ -354,7 +355,7 @@ func (r SwapRequest) insertParams(id uuid.UUID, now time.Time) (sqlc.InsertCreat
 func (r SwapRequest) recordRoute(ctx context.Context, tx db.Tx, insert sqlc.InsertCreatedParams) error {
 	switch {
 	case r.Route != nil:
-		return RecordRoute(ctx, tx, ids.SwapIDFrom(insert.ID), *r.Route, insert.CreatedAt)
+		return RecordRoute(ctx, tx, ids.SwapIDFrom(insert.ID), *r.Route, r.Pin, insert.CreatedAt)
 	case r.RouteOf != nil:
 		q := sqlc.New(tx.Queries())
 		err := q.CopyTradeRoute(ctx, sqlc.CopyTradeRouteParams{

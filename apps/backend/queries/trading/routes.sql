@@ -1,10 +1,14 @@
 -- name: InsertTradeRoute :exec
-INSERT INTO trade_routes (trade_id, comparison, winner_listing_id, created_at)
-VALUES ($1, $2, $3, $4)
+INSERT INTO trade_routes (trade_id, comparison, winner_listing_id, created_at, pinned_network)
+VALUES (
+  sqlc.arg(trade_id), sqlc.arg(comparison), sqlc.arg(winner_listing_id), sqlc.arg(created_at),
+  NULLIF(sqlc.arg(pinned_network)::text, '')
+)
 ON CONFLICT (trade_id) DO NOTHING;
 
 -- name: FindTradeRoute :one
-SELECT trade_id, comparison, winner_listing_id, created_at FROM trade_routes
+SELECT trade_id, comparison, winner_listing_id, created_at, coalesce(pinned_network, '')::text AS pinned_network
+FROM trade_routes
 WHERE trade_id = $1;
 
 -- name: UpsertTradeStep :exec

@@ -13,8 +13,8 @@ import (
 )
 
 const copyTradeRoute = `-- name: CopyTradeRoute :exec
-INSERT INTO trade_routes (trade_id, comparison, winner_listing_id, created_at)
-SELECT $1::uuid, r.comparison, r.winner_listing_id, $2::timestamptz
+INSERT INTO trade_routes (trade_id, comparison, winner_listing_id, created_at, pinned_network)
+SELECT $1::uuid, r.comparison, r.winner_listing_id, $2::timestamptz, r.pinned_network
 FROM trade_routes AS r
 WHERE r.trade_id = $3::uuid
 ON CONFLICT (trade_id) DO NOTHING

@@ -43,6 +43,7 @@ extension Components.Schemas.ErrorCode {
         case .cannotFollowSelf: true
         case .cannotRevokeAccess: true
         case .cashOutInProgress: true
+        case .chainTradingOff: true
         case .chatBodyInvalid: true
         case .chatMessageNotFound: true
         case .chatMessageNotOwned: true
@@ -113,6 +114,7 @@ extension Components.Schemas.ErrorCode {
         case .phoneLinkedElsewhere: true
         case .phoneNotLinked: true
         case .photoInvalid: true
+        case .pinnedChainUnavailable: true
         case .postHogRejected: true
         case .postHogUnavailable: true
         case .potCashShort: true

@@ -1,6 +1,7 @@
 package multichain_test
 
 import (
+	"context"
 	"slices"
 	"testing"
 
@@ -8,6 +9,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func pinQuote(n chain.Network) multichain.Quote {
@@ -38,5 +40,41 @@ func TestPin_picksTheNetworksBestListingAndKeepsTheRanking(t *testing.T) {
 	}
 	if _, ok := c.Pin(chain.NetworkArbitrum); ok {
 		t.Fatal("Pin(arbitrum) = true with no arbitrum quote")
+	}
+}
+
+type bestOnly struct{ winner multichain.ListingID }
+
+func (r bestOnly) Best(
+	context.Context, multichain.StockID, multichain.Side, money.Micros,
+) (multichain.Comparison, error) {
+	return multichain.Comparison{Winner: r.winner}, nil
+}
+
+type networkScoped struct {
+	bestOnly
+	asked chain.Network
+}
+
+func (r *networkScoped) BestOn(
+	_ context.Context, _ multichain.StockID, _ multichain.Side, _ money.Micros, n chain.Network,
+) (multichain.Comparison, error) {
+	r.asked = n
+	return multichain.Comparison{Winner: multichain.ListingIDFrom(uuid.Nil)}, nil
+}
+
+func TestBestOn_asksARouterThatScopesByNetworkAndFallsBackToBest(t *testing.T) {
+	t.Parallel()
+	best := multichain.ListingIDFrom(uuid.New())
+	scoped := &networkScoped{bestOnly: bestOnly{winner: best}}
+	got, err := multichain.BestOn(t.Context(), scoped, multichain.StockID{}, multichain.SideBuy, money.Micros{},
+		chain.NetworkBase)
+	if err != nil || !got.Winner.IsZero() || scoped.asked != chain.NetworkBase {
+		t.Fatalf("BestOn = %s, %v, asked %q, want the network-scoped answer for base", got.Winner, err, scoped.asked)
+	}
+	got, err = multichain.BestOn(t.Context(), bestOnly{winner: best}, multichain.StockID{}, multichain.SideBuy,
+		money.Micros{}, chain.NetworkBase)
+	if err != nil || got.Winner != best {
+		t.Fatalf("BestOn = %s, %v, want Best's %s from a router with no network scope", got.Winner, err, best)
 	}
 }

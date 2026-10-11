@@ -1,5 +1,7 @@
 cabal_shares_short
+chain_trading_off
 no_route
+pinned_chain_unavailable
 price_moved
 slippage_exceeded
 swap_failed

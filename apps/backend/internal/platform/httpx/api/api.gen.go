@@ -51,6 +51,7 @@ const (
 	CannotFollowSelf ErrorCode = "cannot_follow_self"
 	CannotRevokeAccess ErrorCode = "cannot_revoke_access"
 	CashOutInProgress ErrorCode = "cash_out_in_progress"
+	ChainTradingOff ErrorCode = "chain_trading_off"
 	ChatBodyInvalid ErrorCode = "chat_body_invalid"
 	ChatMessageNotFound ErrorCode = "chat_message_not_found"
 	ChatMessageNotOwned ErrorCode = "chat_message_not_owned"
@@ -121,6 +122,7 @@ const (
 	PhoneLinkedElsewhere ErrorCode = "phone_linked_elsewhere"
 	PhoneNotLinked ErrorCode = "phone_not_linked"
 	PhotoInvalid ErrorCode = "photo_invalid"
+	PinnedChainUnavailable ErrorCode = "pinned_chain_unavailable"
 	PostHogRejected ErrorCode = "post_hog_rejected"
 	PostHogUnavailable ErrorCode = "post_hog_unavailable"
 	PotCashShort ErrorCode = "pot_cash_short"
@@ -262,6 +264,8 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case CashOutInProgress:
 		return true
+	case ChainTradingOff:
+		return true
 	case ChatBodyInvalid:
 		return true
 	case ChatMessageNotFound:
@@ -401,6 +405,8 @@ func (e ErrorCode) Valid() bool {
 	case PhoneNotLinked:
 		return true
 	case PhotoInvalid:
+		return true
+	case PinnedChainUnavailable:
 		return true
 	case PostHogRejected:
 		return true

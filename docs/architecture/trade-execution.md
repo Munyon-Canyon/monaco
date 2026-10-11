@@ -141,6 +141,8 @@ A stock can trade on several chains, from several issuers. Every trade buys or s
 
 `propose_trade` and `preview_trade` call it, store the winner's quote as the display quote, and return the ranked list as `price_comparison` (venue, network, net shares or USDC, each cost, and the winner). When the proposal passes, the comparison is written to `trade_routes` (`comparison` jsonb, `winner_listing_id`) through the pass event, and the engine executes against that winner. `trade.routed` records the decision on the swap.
 
+A member can pin a buy to one chain with `network` on the proposal. The stored comparison stays the router's, and the display quote is the pinned chain's best listing. At execution a pinned buy re-quotes only its pinned network's best listing (an EVM pin asks `Router.BestOn`, which skips the Solana quote) and never changes chain. A retry reads the pin from `trade_routes.pinned_network`. When the pinned chain has no route, the proposal ends `execution_blocked` with `pinned_chain_unavailable`; when trading on that EVM chain is off, with `chain_trading_off`. A Solana pin keeps the Solana-only fallback when the router fails.
+
 #### Execute on an EVM chain
 
 A Solana winner takes the path above, unchanged. An EVM winner runs as a journal of steps, one `trade_steps` row per step, unique on `(trade_id, step)`. Each step stores its Privy action id before it polls, so a crash resumes the step instead of repeating it, and each change appends `trade.step_changed`.

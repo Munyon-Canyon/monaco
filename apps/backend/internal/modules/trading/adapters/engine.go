@@ -30,7 +30,7 @@ func (e Engine) Handle(ctx context.Context, d bus.Delivery, ev events.ProposalPa
 	return e.Trades.Handle(ctx, d, app.ExecuteTrade{
 		ProposalID: ids.ProposalIDFrom(ev.ProposalID), CabalID: ids.CabalIDFrom(ev.CabalID), Action: action,
 		Symbol: ev.Symbol, Mint: ev.Mint, USDCMicros: ev.USDCMicros, TokenAmount: ev.TokenAmount,
-		QuoteOutAmount: ev.QuoteOutAmount, Route: ev.PriceComparison,
+		QuoteOutAmount: ev.QuoteOutAmount, Route: ev.PriceComparison, Pin: ev.Network,
 	}, bus.Heartbeat(ctx))
 }
 

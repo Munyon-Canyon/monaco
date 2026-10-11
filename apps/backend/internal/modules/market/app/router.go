@@ -72,7 +72,10 @@ func NewRouter(
 	return &Router{listings: listings, quoter: quoter, prices: prices, bridge: bridge, clock: clk, rules: rules}
 }
 
-var _ multichain.Router = (*Router)(nil)
+var (
+	_ multichain.Router        = (*Router)(nil)
+	_ multichain.NetworkRouter = (*Router)(nil)
+)
 
 type venueQuote struct {
 	listing multichain.Listing
@@ -85,6 +88,18 @@ type venueQuote struct {
 func (r *Router) Best(
 	ctx context.Context, stock multichain.StockID, side multichain.Side, amount money.Micros,
 ) (multichain.Comparison, error) {
+	return r.best(ctx, stock, side, amount, "")
+}
+
+func (r *Router) BestOn(
+	ctx context.Context, stock multichain.StockID, side multichain.Side, amount money.Micros, n chain.Network,
+) (multichain.Comparison, error) {
+	return r.best(ctx, stock, side, amount, n)
+}
+
+func (r *Router) best(
+	ctx context.Context, stock multichain.StockID, side multichain.Side, amount money.Micros, on chain.Network,
+) (multichain.Comparison, error) {
 	if side != multichain.SideBuy || amount.IsZero() {
 		return multichain.Comparison{}, errs.New(errs.CodeInvalidInput, routerOp,
 			slog.String("side", string(side)), slog.String("amount_micros", amount.String()))
@@ -92,6 +107,9 @@ func (r *Router) Best(
 	listings, err := r.listings.EnabledListings(ctx, stock)
 	if err != nil {
 		return multichain.Comparison{}, err
+	}
+	if on != "" {
+		listings = slices.DeleteFunc(listings, func(l multichain.Listing) bool { return l.Network != on })
 	}
 	ref, refErr := r.prices.SharePrice(ctx, stock)
 	quotes, err := concurrency.FanOut(ctx, quoteFanOut, listings,

@@ -5618,6 +5618,7 @@ components:
         - cannot_follow_self
         - cannot_revoke_access
         - cash_out_in_progress
+        - chain_trading_off
         - chat_body_invalid
         - chat_message_not_found
         - chat_message_not_owned
@@ -5688,6 +5689,7 @@ components:
         - phone_linked_elsewhere
         - phone_not_linked
         - photo_invalid
+        - pinned_chain_unavailable
         - post_hog_rejected
         - post_hog_unavailable
         - pot_cash_short
