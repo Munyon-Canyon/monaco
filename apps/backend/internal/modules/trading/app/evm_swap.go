@@ -22,17 +22,19 @@ import (
 const evmSwapOp = "trading.EVMSwap"
 
 type EVMSwapSpec struct {
-	Network  chain.Network
-	Owner    chain.EVMAddress
-	TokenIn  chain.EVMAddress
-	TokenOut chain.EVMAddress
-	AmountIn uint64
-	MinOut   uint64
+	Network     chain.Network
+	Owner       chain.EVMAddress
+	TokenIn     chain.EVMAddress
+	TokenOut    chain.EVMAddress
+	AmountIn    uint64
+	MinOut      uint64
+	SlippageBps int32
 }
 
 type EVMSwapPlan struct {
 	Approvals []multichain.EVMTransaction
 	Swap      multichain.EVMTransaction
+	OutAmount uint64
 	MinOut    uint64
 }
 
@@ -113,9 +115,10 @@ func (s EVMSwap) send(ctx context.Context, leg EVMSwapLeg) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if plan.MinOut < leg.Spec.MinOut {
+	floor := max(leg.Spec.MinOut, domain.SlippageOf(leg.Spec.SlippageBps).MinOut(plan.OutAmount))
+	if floor == 0 || plan.MinOut < floor {
 		return "", errs.New(errs.CodePriceMoved, evmSwapOp,
-			slog.Uint64("plan_min_out", plan.MinOut), slog.Uint64("floor", leg.Spec.MinOut))
+			slog.Uint64("plan_min_out", plan.MinOut), slog.Uint64("floor", floor))
 	}
 	key := stepKey(leg.Ref)
 	for i, approval := range plan.Approvals {

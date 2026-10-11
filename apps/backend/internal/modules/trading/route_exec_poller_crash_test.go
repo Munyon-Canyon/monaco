@@ -77,7 +77,7 @@ func TestEVMTrades_aBridgeBackCrashedAfterItsTransferFinishesWithOneAction(t *te
 	e.mustTick(t, 1, 1)
 	e.mustTick(t, 0, 0)
 
-	if status, action := e.stepOf(t, swap, "bridge_back"); status != "succeeded" || e.privy.actions() != 2 ||
+	if status, action := e.bridgeBackOf(t, swap); status != "succeeded" || e.privy.actions() != 2 ||
 		action != "privy-action-2" {
 		t.Fatalf("bridge_back %s %s after %d actions, want one bridge out and one bridge back",
 			status, action, e.privy.actions())

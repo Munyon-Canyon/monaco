@@ -117,7 +117,7 @@ func (e *routeEnv) request() app.SwapRequest {
 }
 
 func (e *routeEnv) buy(ctx context.Context, req app.SwapRequest) (app.SwapView, error) {
-	return e.exec().Buy(actorContext(ctx), req, e.listing, nil)
+	return e.exec().Trade(actorContext(ctx), req, e.listing, nil)
 }
 
 func (e *routeEnv) mustBuy(t *testing.T, req app.SwapRequest, want domain.Status) app.SwapView {
@@ -222,7 +222,7 @@ func (e *routeEnv) wantOneBridgeAndOneBuild(t *testing.T, swap ids.SwapID) {
 	}
 	want := app.EVMSwapSpec{
 		Network: chain.NetworkBase, Owner: evmAddress(t, evmTreasury), TokenIn: evmAddress(t, baseCash),
-		TokenOut: evmAddress(t, e.listing.TokenAddress), AmountIn: landedMicros, MinOut: 302_940_000,
+		TokenOut: evmAddress(t, e.listing.TokenAddress), AmountIn: landedMicros, MinOut: 302_940_000, SlippageBps: 100,
 	}
 	if !slices.Equal(e.evm.specs, []app.EVMSwapSpec{want}) {
 		t.Fatalf("built %+v, want the landed amount with a floor from the requote", e.evm.specs)

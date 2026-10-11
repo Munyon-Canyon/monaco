@@ -66,7 +66,7 @@ func TestBridgeBack_aStartedReturnIsResumedEvenIfTheProposalIsRetryableAgain(t *
 
 	e.mustTick(t, 1, 1)
 
-	if status, action := e.stepOf(t, swap, "bridge_back"); status != "succeeded" || action != "privy-action-2" {
+	if status, action := e.bridgeBackOf(t, swap); status != "succeeded" || action != "privy-action-2" {
 		t.Fatalf("bridge_back %s %s, want succeeded on its one action", status, action)
 	}
 }
@@ -96,7 +96,7 @@ func TestBridgeBack_cashARetryReusedIsNeverBridgedBack(t *testing.T) {
 			len(e.privy.calls()),
 		)
 	}
-	if status, _ := e.stepOf(t, first, "bridge_back"); status != "" {
+	if status, _ := e.bridgeBackOf(t, first); status != "" {
 		t.Fatalf("the reused swap has a bridge_back step %s, want none", status)
 	}
 }
@@ -142,9 +142,9 @@ func TestEVMTrades_reportsARetryableReadError(t *testing.T) {
 	}
 }
 
-func (e *routeEnv) stepOf(t *testing.T, swap uuid.UUID, step string) (status, action string) {
+func (e *routeEnv) bridgeBackOf(t *testing.T, swap uuid.UUID) (status, action string) {
 	t.Helper()
 	_ = e.pool.QueryRow(t.Context(), `SELECT status, coalesce(privy_action_id, '') FROM trade_steps
-		WHERE trade_id = $1 AND step = $2`, swap, step).Scan(&status, &action)
+		WHERE trade_id = $1 AND step = 'bridge_back'`, swap).Scan(&status, &action)
 	return status, action
 }

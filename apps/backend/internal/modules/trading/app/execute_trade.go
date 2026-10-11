@@ -89,7 +89,7 @@ func (h *ExecuteTradeHandler) Handle(ctx context.Context, d bus.Delivery, cmd Ex
 	}
 	var view SwapView
 	if winner.Network.IsEVM() {
-		view, err = h.d.Routes.Buy(ctx, req, winner, heartbeat)
+		view, err = h.d.Routes.Trade(ctx, req, winner, heartbeat)
 	} else {
 		view, err = h.d.Layer.Run(ctx, req, heartbeat)
 	}
@@ -163,19 +163,27 @@ func (h *ExecuteTradeHandler) check(
 	if refused.refused() || err != nil {
 		return SwapRequest{}, multichain.Listing{}, refused, err
 	}
-	checks := []tradeCheck{h.funds, h.slippage, h.price, h.paused}
-	switch {
-	case winner.Network.IsEVM():
-		checks = []tradeCheck{h.routedFunds, h.slippage, h.paused}
-	case winner.Network == chain.NetworkSolana:
-		req.OutMint = chain.Mint{Address: chain.SolanaAddress(winner.TokenAddress), Decimals: winner.Decimals}
-	}
-	for _, next := range checks {
+	for _, next := range h.checks(cmd, winner, &req) {
 		if refused, err := next(ctx, cmd, &req); refused.refused() || err != nil {
 			return SwapRequest{}, multichain.Listing{}, refused, err
 		}
 	}
 	return req, winner, refusal{}, nil
+}
+
+func (h *ExecuteTradeHandler) checks(cmd ExecuteTrade, winner multichain.Listing, req *SwapRequest) []tradeCheck {
+	token := chain.Mint{Address: chain.SolanaAddress(winner.TokenAddress), Decimals: winner.Decimals}
+	switch {
+	case winner.Network.IsEVM() && cmd.Action == domain.ActionSell:
+		return []tradeCheck{h.held(evmAsset(winner.Network, winner.TokenAddress)), h.slippage, h.paused}
+	case winner.Network.IsEVM():
+		return []tradeCheck{h.routedFunds, h.slippage, h.paused}
+	case winner.Network == chain.NetworkSolana && cmd.Action == domain.ActionSell:
+		req.InMint = token
+	case winner.Network == chain.NetworkSolana:
+		req.OutMint = token
+	}
+	return []tradeCheck{h.funds, h.slippage, h.price, h.paused}
 }
 
 func (h *ExecuteTradeHandler) tradable(
@@ -198,6 +206,19 @@ func (h *ExecuteTradeHandler) tradable(
 		return SwapRequest{}, refusal{}, err
 	}
 	return h.request(cmd, asset, wallet), refusal{}, nil
+}
+
+func (h *ExecuteTradeHandler) held(asset string) tradeCheck {
+	return func(ctx context.Context, cmd ExecuteTrade, req *SwapRequest) (refusal, error) {
+		evm, err := evmListings(ctx, h.d.Ports.Positions, h.d.Layer.d.Clock.Now(), cmd.CabalID)
+		if err != nil {
+			return refusal{}, err
+		}
+		if have := evm[asset]; have < req.InAmount {
+			return refusal{code: errs.CodeCabalSharesShort, have: have, need: req.InAmount}, nil
+		}
+		return refusal{}, nil
+	}
 }
 
 func (h *ExecuteTradeHandler) routedFunds(ctx context.Context, cmd ExecuteTrade, req *SwapRequest) (refusal, error) {
