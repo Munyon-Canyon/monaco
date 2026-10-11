@@ -1536,6 +1536,76 @@ func TestWatchOnce_landsAnArmedStackThatWentGreen(t *testing.T) {
 	}
 }
 
+func TestWatchOnce_endsAnArmedStackWhoseTopPRIsNoLongerOpen(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		state string
+		want  string
+	}{
+		{"merged", "MERGED", "stack #2 landed (#1 #2)\n"},
+		{"closed unmerged", "CLOSED", "armed stack #2 disarmed: top PR #2 is closed without landing\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			s := armedStack(t, f)
+			if code, _, _ := f.agents(t, "land-stack", "2"); code != 0 {
+				t.Fatal(code)
+			}
+			s.prs[2].State = tc.state
+			f.hub.on(get("/compare/fb...b2-oid"), `{"status":"diverged"}`)
+			f.noFailures()
+			code, stdout, stderr := f.agents(t, "watch", "--once")
+			if code != 0 || !strings.Contains(stdout, tc.want) || strings.Contains(stdout+stderr, "watch error") {
+				t.Fatalf("%d %q %q", code, stdout, stderr)
+			}
+			if r := f.owned(t); len(r.Armed) > 0 || len(r.Queued) > 0 {
+				t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
+			}
+			code, stdout, stderr = f.agents(t, "watch", "--once")
+			if code != 0 || strings.Contains(stdout+stderr, "#2") {
+				t.Fatalf("second pass: %d %q %q", code, stdout, stderr)
+			}
+		})
+	}
+}
+
+func TestWatchOnce_reportsWhyItCannotEndAnArmedStackWhoseTopPRIsNotOpen(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name         string
+		state        string
+		gone, frozen bool
+		want         string
+	}{
+		{"top PR unreadable", "OPEN", true, false, "watch error: armed stack #2: #2 is not a PR"},
+		{"landing unreadable", "CLOSED", false, false, "watch error: armed stack #2: compare b2-oid with fb"},
+		{"record unwritable", "MERGED", false, true, "watch error: settle #2: write owner record: "},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			s := armedStack(t, f)
+			if code, _, _ := f.agents(t, "land-stack", "2"); code != 0 {
+				t.Fatal(code)
+			}
+			s.prs[2].State = tc.state
+			if tc.gone {
+				delete(s.prs, 2)
+			}
+			if tc.frozen {
+				freeze(t, f.Env(t).recordPath(40))
+			}
+			f.noFailures()
+			_, stdout, stderr := f.agents(t, "watch", "--once")
+			if !strings.Contains(stdout+stderr, tc.want) {
+				t.Fatalf("stdout %q stderr %q, want %q", stdout, stderr, tc.want)
+			}
+		})
+	}
+}
+
 func requeuedDuringRelease(t *testing.T, at int, relabel bool) (*fixture, *stackGH, Queue) {
 	t.Helper()
 	f := newFixture(t)

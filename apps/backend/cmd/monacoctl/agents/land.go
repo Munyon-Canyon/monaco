@@ -162,6 +162,9 @@ func (env *Env) landArmed(ctx context.Context, r Record, a Arm, reran map[int64]
 }
 
 func (env *Env) landFresh(ctx context.Context, r Record, top int, reran map[int64]int) []string {
+	if lines, ended := env.endClosedTop(ctx, r, top); ended {
+		return lines
+	}
 	var out strings.Builder
 	stack, dir, err := env.stackOf(ctx, r, top, &out)
 	if err != nil {
@@ -185,7 +188,13 @@ func (env *Env) landFresh(ctx context.Context, r Record, top int, reran map[int6
 	case flows.waiting != "":
 		return nil
 	}
-	state, err := env.checkRuns(ctx, stack, reran, &out)
+	return env.queueArmed(ctx, r, top, dir, stack, reran, &out)
+}
+
+func (env *Env) queueArmed(
+	ctx context.Context, r Record, top int, dir string, stack []stackPR, reran map[int64]int, out *strings.Builder,
+) []string {
+	state, err := env.checkRuns(ctx, stack, reran, out)
 	if err != nil {
 		disarmed := env.disarm(ctx, r, top, cmp.Or(cliText(err), err.Error()))
 		items := make([]string, 0, len(disarmed)+1)
@@ -195,7 +204,7 @@ func (env *Env) landFresh(ctx context.Context, r Record, top int, reran map[int6
 	if state == runsPending {
 		return nil
 	}
-	err = env.queue(ctx, r, dir, stack, &out)
+	err = env.queue(ctx, r, dir, stack, out)
 	items := []string{fmt.Sprintf("armed stack #%d landing", top)}
 	for line := range strings.Lines(out.String()) {
 		items = append(items, strings.TrimSuffix(line, "\n"))
@@ -204,6 +213,29 @@ func (env *Env) landFresh(ctx context.Context, r Record, top int, reran map[int6
 		return append(items, env.disarm(ctx, r, top, cmp.Or(cliText(err), err.Error()))...)
 	}
 	return items
+}
+
+func (env *Env) endClosedTop(ctx context.Context, r Record, top int) ([]string, bool) {
+	tops, err := env.stackPulls(ctx, []int{top})
+	if err != nil {
+		return []string{watchErr(fmt.Sprintf("armed stack #%d: ", top), err)}, true
+	}
+	pr := tops[0]
+	if pr.State == "OPEN" {
+		return nil, false
+	}
+	landed, err := env.landed(ctx, pr.closed())
+	if err != nil {
+		return []string{watchErr(fmt.Sprintf("armed stack #%d: ", top), err)}, true
+	}
+	if !landed {
+		return env.disarm(ctx, r, top, fmt.Sprintf("top PR #%d is closed without landing", top)), true
+	}
+	q := *r.Armed.find(top)
+	if err := env.conclude(ctx, r, q, outcomeLanded, landedLine(q)); err != nil {
+		return []string{watchErr(fmt.Sprintf("settle #%d: ", top), err)}, true
+	}
+	return []string{landedLine(q)}, true
 }
 
 func (env *Env) disarm(ctx context.Context, r Record, top int, why string) []string {
