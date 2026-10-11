@@ -48,8 +48,9 @@ func (s *source) Issuer() string { return s.issuer }
 func (s *source) Listings(context.Context) (app.ListingBatch, error) { return s.batch, s.err }
 
 type verifier struct {
-	failing map[string]bool
-	cancel  context.CancelFunc
+	failing  map[string]bool
+	decimals map[string]uint8
+	cancel   context.CancelFunc
 }
 
 func (v *verifier) Verify(_ context.Context, l app.ListingToVerify) (uint8, error) {
@@ -58,6 +59,9 @@ func (v *verifier) Verify(_ context.Context, l app.ListingToVerify) (uint8, erro
 	}
 	if v.failing[l.TokenAddress] {
 		return 0, errs.Wrap(fmt.Errorf("%s symbol() differs", l.TokenAddress), errs.CodeInvalidAddress, "test.Verify")
+	}
+	if d, ok := v.decimals[l.TokenAddress]; ok {
+		return d, nil
 	}
 	if l.Decimals != nil {
 		return *l.Decimals, nil
@@ -391,5 +395,55 @@ func TestCatalogPoller_syncsListingsAfterTheProviders(t *testing.T) {
 		return a.Equal(slog.Int("listings", 4))
 	}) {
 		t.Fatalf("report = %+v, want 2 listings stored and verified", report)
+	}
+}
+
+func TestListingSync_leavesAListingWhoseChainDecimalsDifferDisabled(t *testing.T) {
+	t.Parallel()
+	listing := evm("ondo", "AAPL", "AAPLon", chain.NetworkEthereum, "0x14c3abf95cb9c93a8b82c1cdcb76d72cb87b2d4c")
+	listing.Decimals, listing.SharesPerToken = u8(18), rat(t, "1")
+	r := newListingRig(
+		t,
+		&source{issuer: "ondo", batch: app.ListingBatch{Issuer: "ondo", Listings: []app.IssuerListing{listing}}},
+	)
+	r.verify.decimals = map[string]uint8{listing.TokenAddress: 8}
+	r.run(t)
+	if got := r.rows(
+		t,
+	); len(got) != 1 ||
+		!strings.HasSuffix(got[0], " 18 1 tradable=true enabled=false verified=false") {
+		t.Fatalf("rows = %q, want the issuer's 18 kept and the listing disabled", got)
+	}
+	failed := r.logged(t, "market.listings.verify_failed")
+	if len(failed) != 1 || !strings.Contains(failed[0], "chain_decimals=8") ||
+		!strings.Contains(failed[0], "issuer_decimals=18") {
+		t.Fatalf("verify_failed logs = %q", failed)
+	}
+}
+
+func TestListingSync_keepsAListingTheOverrideTurnedOffDisabled(t *testing.T) {
+	t.Parallel()
+	listing := evm("xstocks", "AAPL", "AAPLx", chain.NetworkEthereum, aaplXEVM)
+	listing.Decimals, listing.SharesPerToken = u8(18), rat(t, "1")
+	r := newListingRig(
+		t,
+		&source{issuer: "xstocks", batch: app.ListingBatch{Issuer: "xstocks", Listings: []app.IssuerListing{listing}}},
+	)
+	_, err := r.pool.Exec(
+		t.Context(),
+		`INSERT INTO asset_listings (id, issuer, symbol, network, chain_id, token_address,
+		decimals, shares_per_token, venue, enabled, tradable_override, created_at)
+		VALUES ($1, 'xstocks', 'AAPLx', 'ethereum', 1, $2, 18, 1, 'uniswap', false, false, $3)`,
+		testkit.NewIDs(4990).NewV7(),
+		aaplXEVM,
+		r.clock.Now(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.run(t)
+	r.run(t)
+	if got := r.rows(t); len(got) != 1 || !strings.HasSuffix(got[0], "tradable=true enabled=false verified=true") {
+		t.Fatalf("rows = %q, want it verified but kept off by its override", got)
 	}
 }

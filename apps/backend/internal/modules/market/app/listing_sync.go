@@ -207,6 +207,10 @@ func (s *ListingSync) check(ctx context.Context, row sqlc.ListListingsToVerifyRo
 		l.Decimals = &stored
 	}
 	decimals, verifyErr := s.verifier.Verify(ctx, l)
+	if verifyErr == nil && l.Decimals != nil && *l.Decimals != decimals {
+		verifyErr = errs.New(errs.CodeDecodeFailed, "market.ListingSync.check",
+			slog.Int("issuer_decimals", int(*l.Decimals)), slog.Int("chain_decimals", int(decimals)))
+	}
 	c := ListingCheck{ListingToVerify: l, VerifiedDecimals: decimals, Err: verifyErr}
 	if verifyErr != nil && !all {
 		return c, nil

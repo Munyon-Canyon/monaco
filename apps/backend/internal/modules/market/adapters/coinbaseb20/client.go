@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"math/big"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -17,6 +18,7 @@ import (
 )
 
 const (
+	maxDecimals = 36
 	Issuer      = "coinbase"
 	stocksPath  = "/v1/tokenized-stocks"
 	maxBodySize = 4 << 20
@@ -37,11 +39,11 @@ type stocksWire struct {
 }
 
 type tokenWire struct {
-	ContractAddress string      `json:"contract_address"`
-	Symbol          string      `json:"symbol"`
-	Decimals        *uint8      `json:"decimals"`
-	Multiplier      json.Number `json:"multiplier"`
-	IsLive          bool        `json:"is_live"`
+	ContractAddress string       `json:"contract_address"`
+	Symbol          string       `json:"symbol"`
+	Decimals        *json.Number `json:"decimals"`
+	Multiplier      json.Number  `json:"multiplier"`
+	IsLive          bool         `json:"is_live"`
 }
 
 func (c *Client) Listings(ctx context.Context) (app.ListingBatch, error) {
@@ -85,6 +87,11 @@ func toListing(t tokenWire) (app.IssuerListing, string) {
 	if t.Decimals == nil {
 		return app.IssuerListing{}, "missing decimals"
 	}
+	raw, err := strconv.ParseUint(t.Decimals.String(), 10, 8)
+	if err != nil || raw > maxDecimals {
+		return app.IssuerListing{}, "bad decimals"
+	}
+	decimals := uint8(raw)
 	return app.IssuerListing{
 		Issuer:         Issuer,
 		Ticker:         strings.TrimSuffix(t.Symbol, "c"),
@@ -92,7 +99,7 @@ func toListing(t tokenWire) (app.IssuerListing, string) {
 		Network:        chain.NetworkBase,
 		ChainID:        chain.NetworkBase.EVMChainID(),
 		TokenAddress:   token.String(),
-		Decimals:       t.Decimals,
+		Decimals:       &decimals,
 		SharesPerToken: multiplier,
 		Tradable:       t.IsLive,
 	}, ""

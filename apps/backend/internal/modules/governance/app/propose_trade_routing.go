@@ -3,20 +3,42 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"math/big"
+	"sync/atomic"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
-const shareNanos = 1_000_000_000
+const (
+	shareNanos       = 1_000_000_000
+	fallbackLogEvery = time.Minute
+)
 
-func compare(
-	ctx context.Context, router multichain.Router, asset market.Asset, trade domain.Trade,
+type fallbackLog struct{ last atomic.Int64 }
+
+func (f *fallbackLog) note(ctx context.Context, now time.Time, symbol string, err error) {
+	code := errs.CodeOf(err)
+	last := f.last.Load()
+	if code == errs.CodeNoRoute || now.UnixNano()-last < int64(fallbackLogEvery) ||
+		!f.last.CompareAndSwap(last, now.UnixNano()) {
+		return
+	}
+	observability.Degraded(ctx, observability.MarketRouterFallback,
+		slog.String("symbol", symbol), slog.String("code", string(code)))
+}
+
+func (h *ProposeTradeHandler) compare(
+	ctx context.Context,
+	asset market.Asset,
+	trade domain.Trade,
 ) *multichain.Comparison {
+	router := h.ports.Router
 	if router == nil || trade.Kind != domain.KindBuy {
 		return nil
 	}
@@ -27,6 +49,7 @@ func compare(
 		c, err = router.Best(ctx, stock, multichain.SideBuy, trade.USDCMicros)
 	}
 	if err != nil {
+		h.fallbacks.note(ctx, h.clock.Now(), asset.Symbol, err)
 		return nil
 	}
 	return &c

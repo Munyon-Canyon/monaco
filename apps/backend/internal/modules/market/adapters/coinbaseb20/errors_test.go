@@ -58,6 +58,8 @@ func TestListings_skipsAnUnreadableTokenAndAlertsOnlyWhenItIsLive(t *testing.T) 
 		token("BADc", "0x12", `"decimals":8,`, "1", "true"),
 		token("ZEROc", aaplOnBase, `"decimals":8,`, "0", "true"),
 		token("NODECc", aaplOnBase, "", "1", "true"),
+		token("HUGEc", aaplOnBase, `"decimals":300,`, "1", "true"),
+		token("NEGc", aaplOnBase, `"decimals":-1,`, "1", "true"),
 		token("DEADc", "0x12", `"decimals":8,`, "1", "false"),
 		token("GOOGLc", googlOnBase, `"decimals":8,`, "1", "false"),
 		token("AAPLc", aaplOnBase, `"decimals":8,`, "1", "true"),
@@ -78,6 +80,7 @@ func TestListings_skipsAnUnreadableTokenAndAlertsOnlyWhenItIsLive(t *testing.T) 
 	alerts := logs.Lines("market.listings.asset_skipped", "level", "issuer", "symbol", "reason")
 	want := []string{
 		"WARN coinbase BADc bad address", "WARN coinbase ZEROc bad multiplier", "WARN coinbase NODECc missing decimals",
+		"WARN coinbase HUGEc bad decimals", "WARN coinbase NEGc bad decimals",
 	}
 	if !slices.Equal(alerts, want) {
 		t.Errorf("alerts = %q, want %q", alerts, want)

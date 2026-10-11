@@ -37,7 +37,7 @@ func (h *ProposeTradeHandler) Preview(ctx context.Context, req ProposeTrade) (Tr
 		routeErr = errs.New(errs.CodeNoRoute, "governance.Preview")
 	}
 	if routeErr == nil {
-		out.PriceComparison = compare(ctx, h.ports.Router, asset, req.Trade)
+		out.PriceComparison = h.compare(ctx, asset, req.Trade)
 		out.QuoteOut = displayQuote(asset, out.PriceComparison, quote.OutAmount.Uint64(), h.clock.Now())
 	}
 	failed := slices.DeleteFunc([]error{fundsErr, routeErr}, func(err error) bool { return err == nil })

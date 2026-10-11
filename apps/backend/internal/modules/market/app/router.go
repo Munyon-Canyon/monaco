@@ -17,12 +17,10 @@ import (
 )
 
 const (
-	routerOp       = "market.Router.Best"
-	shareNanos     = 1_000_000_000
-	bpsWhole       = 10_000
-	quoteFanOut    = 8
-	DefaultEdgeBps = 10
-	DefaultImpact  = 300
+	routerOp    = "market.Router.Best"
+	shareNanos  = 1_000_000_000
+	bpsWhole    = 10_000
+	quoteFanOut = 8
 )
 
 type RouteListings interface {
@@ -42,13 +40,6 @@ type RouterRules struct {
 	MaxImpactBps uint64
 	QuoteTimeout time.Duration
 	MaxQuoteAge  time.Duration
-}
-
-func DefaultRouterRules() RouterRules {
-	return RouterRules{
-		MinEdgeBps: DefaultEdgeBps, MaxImpactBps: DefaultImpact,
-		QuoteTimeout: 5 * time.Second, MaxQuoteAge: 15 * time.Second,
-	}
 }
 
 type Venues map[multichain.Venue]multichain.Quoter

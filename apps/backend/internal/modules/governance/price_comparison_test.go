@@ -220,3 +220,25 @@ func TestCastVote_refusesAStoredComparisonItCannotRead(t *testing.T) {
 		).
 		Then(scenario.ExpectEvents(events.TypeProposalPassed, 0))
 }
+
+func TestPreview_logsABrokenRouterOnceAMinute(t *testing.T) {
+	t.Parallel()
+	w := newTradeWorld(t)
+	preview := w.preview("kind=buy&symbol=AAPLx&usdc_micros=5000000")
+	w.routedScenario(t, stubRouter{t: t, err: errs.New(errs.CodeUpstreamUnavailable, "test")}).Given(w.asMember()).
+		When(
+			scenario.Get(preview),
+			scenario.ExpectStatus(http.StatusOK), scenario.ExpectJSON("quote_out_amount", quoteUnits),
+			scenario.Get(preview), scenario.ExpectStatus(http.StatusOK),
+		).
+		Then(scenario.ExpectLogs("market.router.fallback", 1))
+}
+
+func TestPreview_doesNotLogAStockWithNoRoute(t *testing.T) {
+	t.Parallel()
+	w := newTradeWorld(t)
+	preview := w.preview("kind=buy&symbol=AAPLx&usdc_micros=5000000")
+	w.routedScenario(t, stubRouter{t: t, err: errs.New(errs.CodeNoRoute, "test")}).Given(w.asMember()).
+		When(scenario.Get(preview), scenario.ExpectStatus(http.StatusOK)).
+		Then(scenario.ExpectLogs("market.router.fallback", 0))
+}

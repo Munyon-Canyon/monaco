@@ -117,6 +117,7 @@ const (
 	aaplonSolana = "aaplon-solana"
 	aaplonEth    = "aaplon-ethereum"
 	aaplcBase    = "aaplc-base"
+	wholeSolana  = "whole-solana"
 )
 
 func appleListings(t *testing.T, g *testkit.IDs) map[string]multichain.Listing {
@@ -138,6 +139,10 @@ func appleListings(t *testing.T, g *testkit.IDs) map[string]multichain.Listing {
 		aaplcBase: {
 			ID: listingID(t, g), Issuer: "coinbase", Symbol: "AAPLc", Network: chain.NetworkBase,
 			Decimals: 8, SharesPerToken: rat("1"), Venue: multichain.VenueUniswap,
+		},
+		wholeSolana: {
+			ID: listingID(t, g), Issuer: "xstocks", Symbol: "WHLx", Network: chain.NetworkSolana,
+			Decimals: 8, SharesPerToken: rat("1"), Venue: multichain.VenueJupiter,
 		},
 	}
 }
@@ -194,7 +199,7 @@ func costsOf(q multichain.Quote) map[multichain.CostKind]uint64 {
 
 func TestRouterRanksEveryListingInUnderlyingShares(t *testing.T) {
 	t.Parallel()
-	c, l, _, err := route(t, recordedApple(), app.DefaultRouterRules())
+	c, l, _, err := route(t, recordedApple(), testRules())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +219,7 @@ func TestRouterRanksEveryListingInUnderlyingShares(t *testing.T) {
 
 func TestRouterChargesTheBridgeAndGasOfAnEVMRoute(t *testing.T) {
 	t.Parallel()
-	c, l, f, err := route(t, recordedApple(), app.DefaultRouterRules())
+	c, l, f, err := route(t, recordedApple(), testRules())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,7 +249,7 @@ func TestRouterKeepsSolanaUnlessAnEVMRouteBeatsItByTheEdge(t *testing.T) {
 	quotes := recordedApple()
 	delete(quotes, aaplonSolana)
 	quotes[aaplcBase] = recordedQuote{units: 29_720_000}
-	c, l, _, err := route(t, quotes, app.DefaultRouterRules())
+	c, l, _, err := route(t, quotes, testRules())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,7 +260,7 @@ func TestRouterKeepsSolanaUnlessAnEVMRouteBeatsItByTheEdge(t *testing.T) {
 		t.Fatalf("Base should still rank by shares behind the kept Solana winner: %+v", c.Ranked)
 	}
 	quotes[aaplcBase] = recordedQuote{units: 29_800_000}
-	c, l, _, err = route(t, quotes, app.DefaultRouterRules())
+	c, l, _, err = route(t, quotes, testRules())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -276,7 +281,7 @@ func TestRouterDropsExpiredStaleAndOverImpactQuotes(t *testing.T) {
 			t.Parallel()
 			quotes := recordedApple()
 			quotes[aaplcBase] = base
-			c, l, _, err := route(t, quotes, app.DefaultRouterRules())
+			c, l, _, err := route(t, quotes, testRules())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -297,7 +302,7 @@ func TestRouterFailsWithNoRouteWhenNoListingQuotes(t *testing.T) {
 	_, _, _, err := route(t, map[string]recordedQuote{
 		aaplxSolana: {err: errs.New(errs.CodeNoRoute, "test")},
 		aaplcBase:   {err: errs.New(errs.CodeNoRoute, "test")},
-	}, app.DefaultRouterRules())
+	}, testRules())
 	if errs.CodeOf(err) != errs.CodeNoRoute {
 		t.Fatalf("err = %v, want no_route", err)
 	}
@@ -305,7 +310,7 @@ func TestRouterFailsWithNoRouteWhenNoListingQuotes(t *testing.T) {
 
 func TestRouterRefusesSells(t *testing.T) {
 	t.Parallel()
-	r := app.NewRouter(nil, nil, nil, nil, testkit.NewClock(clock.Real{}.Now()), app.DefaultRouterRules())
+	r := app.NewRouter(nil, nil, nil, nil, testkit.NewClock(clock.Real{}.Now()), testRules())
 	_, err := r.Best(t.Context(), multichain.StockID{}, multichain.SideSell, money.MicrosFromUint64(1))
 	if errs.CodeOf(err) != errs.CodeInvalidInput {
 		t.Fatalf("err = %v, want invalid_input", err)
@@ -318,7 +323,7 @@ func TestRouterChargesImpactBeyondThePoolFee(t *testing.T) {
 		aaplxSolana: {units: 29_610_838},
 		aaplcBase:   {units: 29_500_000, poolFee: 10_000},
 	}
-	c, l, _, err := route(t, quotes, app.DefaultRouterRules())
+	c, l, _, err := route(t, quotes, testRules())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -354,7 +359,7 @@ func TestRouterDropsEVMListingsItCannotPrice(t *testing.T) {
 	for name, tweak := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			c, l, _, err := route(t, recordedApple(), app.DefaultRouterRules(), tweak)
+			c, l, _, err := route(t, recordedApple(), testRules(), tweak)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -370,7 +375,7 @@ func TestRouterKeepsTheBestEVMRouteWhenNoSolanaListingQuotes(t *testing.T) {
 	c, l, _, err := route(t, map[string]recordedQuote{
 		aaplonEth: recordedApple()[aaplonEth], aaplcBase: recordedApple()[aaplcBase],
 		aaplxSolana: {err: errs.New(errs.CodeNoRoute, "test")},
-	}, app.DefaultRouterRules())
+	}, testRules())
 	if err != nil || c.Winner != l[aaplcBase].ID || len(c.Ranked) != 2 {
 		t.Fatalf("comparison = %+v, %v", c, err)
 	}
@@ -381,7 +386,7 @@ func TestRouterDropsQuotesWithNoUsableOutput(t *testing.T) {
 	huge, _ := new(big.Int).SetString("1000000000000000000000000000000000000000", 10)
 	c, l, _, err := route(t, map[string]recordedQuote{
 		aaplxSolana: {units: 29_610_838}, aaplonSolana: {units: 0}, aaplcBase: {big: huge},
-	}, app.DefaultRouterRules())
+	}, testRules())
 	if err != nil || len(c.Ranked) != 1 || c.Winner != l[aaplxSolana].ID {
 		t.Fatalf("comparison = %+v, %v, want only AAPLx", c.Ranked, err)
 	}
@@ -393,7 +398,7 @@ func TestRouterSurfacesListingAndCancellationErrors(t *testing.T) {
 	_, _, _, err := route(
 		t,
 		recordedApple(),
-		app.DefaultRouterRules(),
+		testRules(),
 		func(f *routeFixture) { f.listingsErr = failing },
 	)
 	if !errors.Is(err, failing) {
@@ -405,7 +410,7 @@ func TestRouterSurfacesListingAndCancellationErrors(t *testing.T) {
 		inputs: map[multichain.ListingID]money.Micros{},
 	}
 	f.listings = []multichain.Listing{appleListings(t, g)[aaplxSolana]}
-	r := app.NewRouter(f, fixtureQuoter{f: f}, f, f, f.clk, app.DefaultRouterRules())
+	r := app.NewRouter(f, fixtureQuoter{f: f}, f, f, f.clk, testRules())
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	if _, err := r.Best(
@@ -439,8 +444,39 @@ func TestRouterKeepsSolanaWhenAnEVMQuoteIsTooLargeToCompare(t *testing.T) {
 	t.Parallel()
 	c, l, _, err := route(t, map[string]recordedQuote{
 		aaplxSolana: {units: 29_610_838}, aaplcBase: {units: 200_000_000_000_000},
-	}, app.DefaultRouterRules())
+	}, testRules())
 	if err != nil || c.Winner != l[aaplxSolana].ID {
 		t.Fatalf("comparison = %+v, %v, want Solana kept over an overflowing quote", c.Ranked, err)
+	}
+}
+
+func testRules() app.RouterRules {
+	return app.RouterRules{
+		MinEdgeBps:   10,
+		MaxImpactBps: 300,
+		QuoteTimeout: 5 * time.Second,
+		MaxQuoteAge:  15 * time.Second,
+	}
+}
+
+func TestRouterLetsAnEVMRouteWinAtExactlyTheEdgeAndKeepsSolanaOnATie(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		base   int64
+		winner string
+	}{
+		"exactly 10 bps ahead": {100_100_000, aaplcBase},
+		"just under the edge":  {100_099_999, wholeSolana},
+		"a tie":                {100_000_000, wholeSolana},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			c, l, _, err := route(t, map[string]recordedQuote{
+				wholeSolana: {units: 100_000_000}, aaplcBase: {units: tc.base},
+			}, testRules())
+			if err != nil || c.Winner != l[tc.winner].ID || c.Ranked[0].ListingID != l[tc.winner].ID {
+				t.Fatalf("comparison = %+v, %v, want %s first", c.Ranked, err, tc.winner)
+			}
+		})
 	}
 }
