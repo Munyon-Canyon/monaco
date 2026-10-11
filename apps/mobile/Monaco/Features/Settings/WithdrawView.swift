@@ -37,7 +37,7 @@ struct WithdrawView: View {
             amountText: amountText,
             destinationAddress: $destinationAddress,
             network: $network,
-            estimatedReceiveMicros: estimate?.receiveMicros(for: previewRequest),
+            estimatedReceiveMicros: estimate?.receiveMicros(for: previewRequest, at: Date()),
             onMax: { amount.tapMax() },
             refusedAddress: refusedAddress,
             onContinue: {
@@ -58,8 +58,18 @@ struct WithdrawView: View {
         }
         .task(id: previewRequest) {
             guard let previewRequest else { return }
-            let fetched = await WithdrawEstimate.fetch(previewRequest, from: WithdrawSource(api: environment.api))
-            if !Task.isCancelled { estimate = fetched }
+            let source = WithdrawSource(api: environment.api)
+            var delay = WithdrawEstimate.debounce
+            while !Task.isCancelled {
+                let fetched = await WithdrawEstimate.fetch(previewRequest, from: source, after: delay)
+                guard !Task.isCancelled else { return }
+                estimate = fetched
+                guard let expiresAt = fetched?.expiresAt else { return }
+                try? await Task.sleep(for: WithdrawEstimate.refetchDelay(until: expiresAt, now: Date()))
+                guard !Task.isCancelled else { return }
+                estimate = nil
+                delay = .zero
+            }
         }
         .navigationDestination(isPresented: $showConfirm) {
             WithdrawConfirmView(
@@ -258,21 +268,29 @@ struct WithdrawPreviewRequest: Hashable {
 struct WithdrawEstimate: Equatable {
     let request: WithdrawPreviewRequest
     let receiveMicros: Int64
+    let expiresAt: Date?
 
-    func receiveMicros(for current: WithdrawPreviewRequest?) -> Int64? {
-        current == request ? receiveMicros : nil
+    func receiveMicros(for current: WithdrawPreviewRequest?, at now: Date) -> Int64? {
+        guard current == request else { return nil }
+        if let expiresAt, now >= expiresAt { return nil }
+        return receiveMicros
     }
 
     static let debounce = Duration.milliseconds(400)
+
+    static func refetchDelay(until expiresAt: Date, now: Date) -> Duration {
+        .seconds(max(0, expiresAt.timeIntervalSince(now)))
+    }
 
     static func fetch(
         _ request: WithdrawPreviewRequest, from source: WithdrawSource, after delay: Duration = debounce
     ) async -> WithdrawEstimate? {
         do {
             try await Task.sleep(for: delay)
-            let receive = try await source.previewReceiveMicros(
+            let preview = try await source.preview(
                 micros: request.micros, toAddress: request.toAddress, network: request.network)
-            return WithdrawEstimate(request: request, receiveMicros: receive)
+            return WithdrawEstimate(
+                request: request, receiveMicros: preview.receiveMicros, expiresAt: preview.expiresAt)
         } catch {
             return nil
         }

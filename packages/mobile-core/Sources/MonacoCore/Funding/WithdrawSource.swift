@@ -27,6 +27,16 @@ public struct Withdrawal: Equatable, Sendable {
     }
 }
 
+public struct WithdrawPreview: Equatable, Sendable {
+    public let receiveMicros: Int64
+    public let expiresAt: Date?
+
+    public init(receiveMicros: Int64, expiresAt: Date?) {
+        self.receiveMicros = receiveMicros
+        self.expiresAt = expiresAt
+    }
+}
+
 public struct WithdrawSource: Sendable {
     private let api: APIClient
 
@@ -46,10 +56,11 @@ public struct WithdrawSource: Sendable {
             txSignature: accepted.txSignature)
     }
 
-    public func previewReceiveMicros(micros: Int64, toAddress: String, network: WithdrawNetwork) async throws -> Int64 {
+    public func preview(micros: Int64, toAddress: String, network: WithdrawNetwork) async throws -> WithdrawPreview {
         let body = network.request(micros: micros, toAddress: toAddress)
         let preview = try await api.read { try await $0.previewWithdrawal(body: .json(body)).ok.body.json }
-        return try AccountBalance.micros(preview.receiveMicros)
+        return WithdrawPreview(
+            receiveMicros: try AccountBalance.micros(preview.receiveMicros), expiresAt: preview.expiresAt)
     }
 
     public func withdrawal(id: String) async throws -> Withdrawal {
