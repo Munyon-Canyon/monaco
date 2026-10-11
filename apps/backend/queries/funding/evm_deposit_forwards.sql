@@ -6,7 +6,7 @@ INSERT INTO evm_deposit_forwards AS f (
   $6
 )
 ON CONFLICT (privy_execution_id) DO UPDATE SET privy_execution_id = f.privy_execution_id
-RETURNING f.id, f.user_id, f.status, (f.xmax = 0)::boolean AS inserted;
+RETURNING f.id, f.user_id, f.status, f.created_at, (f.xmax = 0)::boolean AS inserted;
 
 -- name: MarkEVMDepositForwardArrived :execrows
 UPDATE evm_deposit_forwards
@@ -39,10 +39,10 @@ WITH credit AS (
   FROM evm_deposit_forwards f
   JOIN deposits d ON d.user_id = f.user_id AND d.amount_micros = f.amount_micros
   WHERE f.id = sqlc.arg(id) AND f.status = 'pending' AND f.solana_signature IS NULL
-    AND d.credited_at >= f.created_at
+    AND d.credited_at >= sqlc.arg(credited_after)::timestamptz
     AND d.credited_at <= f.created_at + make_interval(secs => sqlc.arg(window_seconds)::float8)
     AND NOT EXISTS (SELECT 1 FROM evm_deposit_forwards o WHERE o.solana_signature = d.tx_signature)
-  ORDER BY d.credited_at, d.id
+  ORDER BY abs(extract(epoch FROM d.credited_at - f.created_at)), d.id
   LIMIT 1
 )
 UPDATE evm_deposit_forwards f

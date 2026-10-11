@@ -80,10 +80,10 @@ WITH credit AS (
   FROM evm_deposit_forwards f
   JOIN deposits d ON d.user_id = f.user_id AND d.amount_micros = f.amount_micros
   WHERE f.id = $1 AND f.status = 'pending' AND f.solana_signature IS NULL
-    AND d.credited_at >= f.created_at
-    AND d.credited_at <= f.created_at + make_interval(secs => $2::float8)
+    AND d.credited_at >= $2::timestamptz
+    AND d.credited_at <= f.created_at + make_interval(secs => $3::float8)
     AND NOT EXISTS (SELECT 1 FROM evm_deposit_forwards o WHERE o.solana_signature = d.tx_signature)
-  ORDER BY d.credited_at, d.id
+  ORDER BY abs(extract(epoch FROM d.credited_at - f.created_at)), d.id
   LIMIT 1
 )
 UPDATE evm_deposit_forwards f
@@ -94,11 +94,12 @@ WHERE f.id = $1 AND f.status = 'pending' AND f.solana_signature IS NULL
 
 type ArriveEVMDepositForwardFromCreditParams struct {
 	ID            uuid.UUID
+	CreditedAfter time.Time
 	WindowSeconds float64
 }
 
 func (q *Queries) ArriveEVMDepositForwardFromCredit(ctx context.Context, arg ArriveEVMDepositForwardFromCreditParams) (int64, error) {
-	result, err := q.db.Exec(ctx, arriveEVMDepositForwardFromCredit, arg.ID, arg.WindowSeconds)
+	result, err := q.db.Exec(ctx, arriveEVMDepositForwardFromCredit, arg.ID, arg.CreditedAfter, arg.WindowSeconds)
 	if err != nil {
 		return 0, err
 	}
@@ -265,7 +266,7 @@ INSERT INTO evm_deposit_forwards AS f (
   $6
 )
 ON CONFLICT (privy_execution_id) DO UPDATE SET privy_execution_id = f.privy_execution_id
-RETURNING f.id, f.user_id, f.status, (f.xmax = 0)::boolean AS inserted
+RETURNING f.id, f.user_id, f.status, f.created_at, (f.xmax = 0)::boolean AS inserted
 `
 
 type UpsertEVMDepositForwardParams struct {
@@ -280,10 +281,11 @@ type UpsertEVMDepositForwardParams struct {
 }
 
 type UpsertEVMDepositForwardRow struct {
-	ID       uuid.UUID
-	UserID   uuid.UUID
-	Status   string
-	Inserted bool
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	Status    string
+	CreatedAt time.Time
+	Inserted  bool
 }
 
 func (q *Queries) UpsertEVMDepositForward(ctx context.Context, arg UpsertEVMDepositForwardParams) (UpsertEVMDepositForwardRow, error) {
@@ -302,6 +304,7 @@ func (q *Queries) UpsertEVMDepositForward(ctx context.Context, arg UpsertEVMDepo
 		&i.ID,
 		&i.UserID,
 		&i.Status,
+		&i.CreatedAt,
 		&i.Inserted,
 	)
 	return i, err
