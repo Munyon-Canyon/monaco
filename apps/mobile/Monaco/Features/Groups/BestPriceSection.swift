@@ -1,3 +1,4 @@
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -40,6 +41,7 @@ struct BestPriceSection: View {
 
     private func label(chevron: Bool) -> some View {
         HStack(spacing: MonacoTheme.Space.sm) {
+            ChainMark(network: (row.venues?.winner.network ?? .solana).rawValue)
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(row.figure)
                     .moneyFont(.row)
@@ -74,6 +76,7 @@ struct BestPriceSheet: View {
     struct Row: Equatable, Identifiable {
         let id: String
         let name: String
+        let network: String
         let figure: String
         let isWinner: Bool
     }
@@ -83,7 +86,9 @@ struct BestPriceSheet: View {
 
     static func rows(_ bestPrice: BestPrice) -> [Row] {
         bestPrice.venues.map {
-            Row(id: $0.id, name: $0.name, figure: bestPrice.figure($0), isWinner: $0.isWinner)
+            Row(
+                id: $0.id, name: $0.name, network: $0.network.rawValue, figure: bestPrice.figure($0),
+                isWinner: $0.isWinner)
         }
     }
 
@@ -128,7 +133,8 @@ private struct BestPriceVenueRow: View {
     let isLast: Bool
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.sm) {
+        HStack(spacing: MonacoTheme.Space.sm) {
+            ChainMark(network: row.network, size: 32)
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(row.name)
                     .font(MonacoTheme.Typo.headline)

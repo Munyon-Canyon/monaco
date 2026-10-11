@@ -49,6 +49,7 @@ final class BestPriceTests: XCTestCase {
         XCTAssertEqual(best.headline, "Best price across 3 venues")
         XCTAssertEqual(best.venues.map(\.name), ["Uniswap on Base", "Jupiter on Solana", "Uniswap on Ethereum"])
         XCTAssertEqual(best.venues.map(\.isWinner), [true, false, false])
+        XCTAssertEqual(best.venues.map(\.network), [.base, .solana, .ethereum])
         XCTAssertEqual(best.venues.map(best.figure), ["0.0401 shares", "0.0400 shares", "0.0398 shares"])
         XCTAssertEqual(best.advantage, "You get 0.0001 more shares than the next best")
     }
