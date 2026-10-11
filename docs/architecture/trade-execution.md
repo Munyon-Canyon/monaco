@@ -148,6 +148,16 @@ Jupiter's `/order` sends some stocks to its market-maker router, JupiterZ, which
 
 A member can pin a buy to one chain with `network` on the proposal. The stored comparison stays the router's, and the display quote is the pinned chain's best listing. At execution a pinned buy re-quotes only its pinned network's best listing (an EVM pin asks `Router.BestOn`, which skips the Solana quote) and never changes chain. A retry reads the pin from `trade_routes.pinned_network`. When the pinned chain has no route, the proposal ends `execution_blocked` with `pinned_chain_unavailable`; when trading on that EVM chain is off, with `chain_trading_off`. A Solana pin keeps the Solana-only fallback when the router fails.
 
+#### Simulation account
+
+An EVM quote is simulated from one app-owned Privy EVM wallet, never from a cabal treasury (#5336). The wallet has the treasuries' ownership: app-owned, with the `PRIVY_AUTHORIZATION_KEY_ID` quorum as owner. `market` stores its Privy id and address in `evm_simulation_account`, one row per database, so each environment has its own wallet under its own Privy app. The wallet is never funded: the simulation sets the cash balance and the Permit2 allowance with `eth_call` state overrides.
+
+The simulation runs through the account's ERC-7579 `execute`, so the account needs an EIP-7702 delegation on each chain. `monacoctl market simulation-account` sets it up and is safe to rerun:
+
+1. It reads the stored wallet, or creates one (Privy idempotency key `market:simulation-account`) and stores it.
+2. For each EVM chain with an RPC URL, it reads `eth_getCode`. A chain that has no delegation gets one zero-value self-transfer through Privy `eth_sendTransaction` with `sponsor: true`, so Privy's paymaster pays the gas and attaches the delegation.
+3. It prints each chain's code and the delegate Privy set, and exits 1 if any chain stays undelegated after `--timeout` (default 2 m).
+
 #### Execute on an EVM chain
 
 A Solana winner takes the path above, unchanged. An EVM winner runs as a journal of steps, one `trade_steps` row per step, unique on `(trade_id, step)`. Each step stores its Privy action id before it polls, so a crash resumes the step instead of repeating it, and each change appends `trade.step_changed`.
