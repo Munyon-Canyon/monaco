@@ -1,17 +1,12 @@
 package uniswapquote
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"io"
 	"log/slog"
 	"math/big"
-	"net/http"
-	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +15,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/evmsim"
 	mc "github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/concurrency"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
@@ -27,26 +23,18 @@ import (
 )
 
 const (
-	wrapperOp          = "uniswapquote.Wrapper"
-	wrapperCacheTTL    = 15 * time.Second
-	entryPoint         = "0x0000000071727de22e5e9d8baf0edac6f37da032"
-	permit2            = "0x000000000022d473030f116ddee9f6b43ac78ba3"
-	executeSelector    = "e9ae5c53"
-	tooLittleSelector  = "0x8b063d73"
-	delegationPrefix   = "0xef0100"
-	permit2AllowSlot   = 1
-	permitLifetime     = 365 * 24 * time.Hour
-	wordBytes          = 32
-	revertWords        = 2
-	DefaultDelegate    = "0xd6cedde84be40893d153be9d467cd6ad37875b28"
-	SimulationGas      = 3_000_000
-	NoHooks            = "V4_NO_HOOKS"
-	fiatBalanceSlot    = 9
-	fiatAllowanceSlot  = 10
-	usdgBalanceSlot    = 1
-	usdgAllowanceSlot  = 3
-	expirationShift    = 160
-	maxRevertDataBytes = 4 + revertWords*wordBytes
+	wrapperOp         = "uniswapquote.Wrapper"
+	wrapperCacheTTL   = 15 * time.Second
+	permit2           = "0x000000000022d473030f116ddee9f6b43ac78ba3"
+	permit2AllowSlot  = 1
+	permitLifetime    = 365 * 24 * time.Hour
+	wordBytes         = 32
+	DefaultDelegate   = "0xd6cedde84be40893d153be9d467cd6ad37875b28"
+	fiatBalanceSlot   = 9
+	fiatAllowanceSlot = 10
+	usdgBalanceSlot   = 1
+	usdgAllowanceSlot = 3
+	expirationShift   = 160
 )
 
 type cashSlots struct{ balance, allowance byte }
@@ -122,7 +110,7 @@ func (c *Client) sponsored(
 	zero := json.Number("0")
 	req.SlippageTolerance, req.PermitAsTx = &zero, true
 	hookless := req
-	hookless.HooksOptions = NoHooks
+	hookless.HooksOptions = mc.NoHooks
 	routes := []quoteRequest{req, hookless}
 	found, err := concurrency.FanOut(ctx, len(routes), routes,
 		func(ctx context.Context, r quoteRequest) (routeResult, error) {
@@ -189,26 +177,6 @@ func (c *Client) penalize(
 	return q, nil
 }
 
-type rpcCall struct {
-	JSONRPC string `json:"jsonrpc"`
-	ID      int    `json:"id"`
-	Method  string `json:"method"`
-	Params  []any  `json:"params"`
-}
-
-type rpcReply struct {
-	Result *string `json:"result"`
-	Error  *struct {
-		Code    int    `json:"code"`
-		Message string `json:"message"`
-		Data    any    `json:"data"`
-	} `json:"error"`
-}
-
-type overrideAccount struct {
-	StateDiff map[string]string `json:"stateDiff"`
-}
-
 func (c *Client) simulate(
 	ctx context.Context, l mc.Listing, amount money.Micros, router chain.EVMAddress, calldata []byte,
 	attrs []slog.Attr,
@@ -219,83 +187,28 @@ func (c *Client) simulate(
 		return nil, false, errs.New(errs.CodeNoRoute, wrapperOp, append(attrs, slog.String("reason", "unsupported"))...)
 	}
 	owner := c.swapper
-	code, err := rpc(ctx, client, "eth_getCode", []any{owner.String(), "latest"}, attrs)
-	want := delegationPrefix + strings.TrimPrefix(c.wrapper.delegate.String(), "0x")
-	if err != nil || code.Result == nil || !strings.EqualFold(*code.Result, want) {
+	code, err := evmsim.Call(ctx, client, "eth_getCode", []any{owner.String(), "latest"}, attrs)
+	if delegate, ok := evmsim.Delegation(code); err != nil || !ok || delegate != c.wrapper.delegate {
 		return nil, false, errors.Join(err, errs.New(errs.CodeNoRoute, wrapperOp,
 			append(attrs, slog.String("reason", "account_not_delegated"))...))
 	}
 	cash, _ := chain.ParseEVMAddress(strings.ToLower(l.Network.Cash().Address))
-	value := word(new(big.Int).SetUint64(amount.Uint64()))
+	value := evmsim.Word(new(big.Int).SetUint64(amount.Uint64()))
 	expiry := new(big.Int).SetInt64(c.clock.Now().Add(permitLifetime).Unix())
 	packed := new(big.Int).Or(new(big.Int).SetUint64(amount.Uint64()), expiry.Lsh(expiry, expirationShift))
-	overrides := map[string]overrideAccount{
+	overrides := map[string]evmsim.Override{
 		cash.String(): {StateDiff: map[string]string{
 			slotOf(owner[:], []byte{slots.balance}):                                value,
 			slotOf(permit2Bytes(), mappingSlot(owner[:], []byte{slots.allowance})): value,
 		}},
 		permit2: {StateDiff: map[string]string{
-			slotOf(router[:], mappingSlot(cash[:], mappingSlot(owner[:], []byte{permit2AllowSlot}))): word(packed),
+			slotOf(router[:], mappingSlot(cash[:], mappingSlot(owner[:], []byte{permit2AllowSlot}))): evmsim.Word(
+				packed,
+			),
 		}},
 	}
-	call := map[string]string{
-		"from": entryPoint, "to": owner.String(), "data": execute(router, calldata),
-		"gas": "0x" + strconv.FormatUint(SimulationGas, 16),
-	}
-	reply, err := rpc(ctx, client, "eth_call", []any{call, "latest", overrides}, attrs)
-	if err != nil {
-		return nil, false, err
-	}
-	return outcome(reply, attrs)
+	return evmsim.Simulate(ctx, client, evmsim.Swap{Owner: owner, Router: router, Calldata: calldata}, overrides, attrs)
 }
-
-func rpc(
-	ctx context.Context,
-	client *httpclient.Client,
-	method string,
-	params []any,
-	attrs []slog.Attr,
-) (rpcReply, error) {
-	raw, _ := json.Marshal(rpcCall{JSONRPC: "2.0", ID: 1, Method: method, Params: params})
-	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "", bytes.NewReader(raw))
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := client.Do(ctx, req)
-	if err != nil {
-		return rpcReply{}, errs.Wrap(err, errs.CodeRPCUnavailable, wrapperOp, attrs...)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	var reply rpcReply
-	if err := json.NewDecoder(io.LimitReader(resp.Body, maxBody)).Decode(&reply); err != nil {
-		return rpcReply{}, errs.Wrap(err, errs.CodeDecodeFailed, wrapperOp, attrs...)
-	}
-	return reply, nil
-}
-
-func outcome(reply rpcReply, attrs []slog.Attr) (*big.Int, bool, error) {
-	if reply.Error == nil && reply.Result != nil {
-		return nil, true, nil
-	}
-	data := ""
-	if reply.Error != nil {
-		data, _ = reply.Error.Data.(string)
-	}
-	raw, err := hex.DecodeString(strings.TrimPrefix(data, "0x"))
-	if !strings.HasPrefix(data, tooLittleSelector) || err != nil || len(raw) != maxRevertDataBytes {
-		return nil, false, errs.New(errs.CodeNoRoute, wrapperOp,
-			append(attrs, slog.String("reason", "simulation_reverted"))...)
-	}
-	return new(big.Int).SetBytes(raw[4+wordBytes:]), false, nil
-}
-
-func execute(router chain.EVMAddress, calldata []byte) string {
-	inner := slices.Concat(router[:], make([]byte, wordBytes), calldata)
-	body := slices.Concat(inner, make([]byte, (wordBytes-len(inner)%wordBytes)%wordBytes))
-	out := executeSelector + strings.Repeat("0", 2*wordBytes) + word(big.NewInt(2 * wordBytes))[2:] +
-		word(big.NewInt(int64(len(inner))))[2:] + hex.EncodeToString(body)
-	return "0x" + out
-}
-
-func word(v *big.Int) string { return "0x" + hex.EncodeToString(v.FillBytes(make([]byte, wordBytes))) }
 
 func padded(b []byte) []byte { return append(make([]byte, wordBytes-len(b)), b...) }
 

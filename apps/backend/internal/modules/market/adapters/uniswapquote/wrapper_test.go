@@ -19,6 +19,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/uniswapquote"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/evmsim"
 	mc "github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -90,7 +91,7 @@ func (r *route) calldata() string {
 func (r *wrapperRig) serveUniswap(w http.ResponseWriter, path string, body map[string]any) {
 	quote, _ := body["quote"].(map[string]any)
 	hookless := r.hookless != nil &&
-		(body["hooksOptions"] == uniswapquote.NoHooks || quote != nil && quote["quoteId"] == r.hookless.quoteID())
+		(body["hooksOptions"] == mc.NoHooks || quote != nil && quote["quoteId"] == r.hookless.quoteID())
 	switch {
 	case path == "/v1/swap" && hookless:
 		r.swaps++
@@ -625,7 +626,7 @@ func liveRoutes(t *testing.T) (hooked, hookless route) {
 	current := &hooked
 	for _, e := range rec.Exchanges {
 		switch {
-		case e.Path == "/v1/quote" && e.Request["hooksOptions"] == uniswapquote.NoHooks:
+		case e.Path == "/v1/quote" && e.Request["hooksOptions"] == mc.NoHooks:
 			current = &hookless
 			current.quote = string(e.Response)
 		case e.Path == "/v1/quote":
@@ -650,7 +651,7 @@ func TestWrapper_replaysTheLiveRoutesAndBuysThroughTheHooklessOne(t *testing.T) 
 	q, err := r.buy(t, chain.NetworkBase)
 
 	if err != nil || q.GrossOutput.Int64() != 1_388_248 || q.RouteID != hookless.quoteID() ||
-		q.Options.HooksOptions != uniswapquote.NoHooks || !slices.Equal(r.quotes[0]["protocols"].([]any),
+		q.Options.HooksOptions != mc.NoHooks || !slices.Equal(r.quotes[0]["protocols"].([]any),
 		[]any{"V2", "V3", "V4"}) {
 		t.Fatalf("quote = %v %s %+v, %v, want the hookless v3 route's 1388248 over the hooked route's 1318734",
 			q.GrossOutput, q.RouteID, q.Options, err)
@@ -720,9 +721,9 @@ func TestWrapper_oneRouteFailingLeavesTheOther(t *testing.T) {
 
 func TestWrapper_simulatesUnderBasesPerTransactionGasCap(t *testing.T) {
 	t.Parallel()
-	if uniswapquote.SimulationGas > 1<<24 {
+	if evmsim.SimulationGas > 1<<24 {
 		t.Fatalf("simulation gas %d exceeds the 16777216 a Base transaction may use (EIP-7825)",
-			uniswapquote.SimulationGas)
+			evmsim.SimulationGas)
 	}
 }
 
