@@ -5,8 +5,30 @@ import SwiftUI
 @Observable
 @MainActor
 final class ToastCenter {
-    var current: MonacoToast?
+    static let errorBurst: TimeInterval = 1
+
+    private var shown: MonacoToast?
+    @ObservationIgnored private var shownAt = Date.distantPast
+    private let now: () -> Date
     var bottomCTAs = 0
+
+    init(now: @escaping () -> Date = Date.init) {
+        self.now = now
+    }
+
+    var current: MonacoToast? {
+        get { shown }
+        set {
+            if let newValue, let shown, !newValue.isSuccess, !shown.isSuccess,
+                newValue.message == shown.message,
+                now().timeIntervalSince(shownAt) < Self.errorBurst
+            {
+                return
+            }
+            shown = newValue
+            if newValue != nil { shownAt = now() }
+        }
+    }
 
     func show(_ error: APIError) {
         if case .cancelled = error { return }

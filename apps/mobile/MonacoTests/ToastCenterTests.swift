@@ -6,6 +6,14 @@ import UIKit
 
 @testable import Monaco
 
+private final class ToastClock {
+    private var date = Date(timeIntervalSinceReferenceDate: 1_000)
+
+    func now() -> Date { date }
+
+    func advance(_ seconds: TimeInterval) { date = date.addingTimeInterval(seconds) }
+}
+
 @MainActor
 struct ToastCenterTests {
     @Test func transportShowsOfflineCopy() {
@@ -33,6 +41,55 @@ struct ToastCenterTests {
         center.show(success: "Funded this cabal.")
         #expect(center.current?.message == "Funded this cabal.")
         #expect(center.current?.isSuccess == true)
+    }
+
+    @Test func theSameErrorWithinTheBurstKeepsTheFirstToast() {
+        let clock = ToastClock()
+        let center = ToastCenter(now: clock.now)
+        center.current = MonacoToast(message: "You're offline. Try again.")
+        let first = center.current
+        clock.advance(0.3)
+        center.current = MonacoToast(message: "You're offline. Try again.")
+        #expect(center.current?.id == first?.id)
+    }
+
+    @Test func theSameErrorAfterTheBurstShowsAgain() {
+        let clock = ToastClock()
+        let center = ToastCenter(now: clock.now)
+        center.current = MonacoToast(message: "You're offline. Try again.")
+        let first = center.current
+        clock.advance(1.5)
+        center.current = MonacoToast(message: "You're offline. Try again.")
+        #expect(center.current?.message == "You're offline. Try again.")
+        #expect(center.current?.id != first?.id)
+    }
+
+    @Test func aDifferentErrorWithinTheBurstShows() {
+        let clock = ToastClock()
+        let center = ToastCenter(now: clock.now)
+        center.current = MonacoToast(message: "You're offline. Try again.")
+        clock.advance(0.3)
+        center.current = MonacoToast(message: "Couldn't load the pot.")
+        #expect(center.current?.message == "Couldn't load the pot.")
+    }
+
+    @Test func aSuccessWithinTheBurstShows() {
+        let clock = ToastClock()
+        let center = ToastCenter(now: clock.now)
+        center.current = MonacoToast(message: "You're offline. Try again.")
+        clock.advance(0.3)
+        center.show(success: "Funded this cabal.")
+        #expect(center.current?.message == "Funded this cabal.")
+        #expect(center.current?.isSuccess == true)
+    }
+
+    @Test func settingNilClearsTheToast() {
+        let clock = ToastClock()
+        let center = ToastCenter(now: clock.now)
+        center.current = MonacoToast(message: "You're offline. Try again.")
+        clock.advance(0.3)
+        center.current = nil
+        #expect(center.current == nil)
     }
 
     @Test func theDefaultPlacementLiftsOnlyWhileABottomCTAIsOnScreen() {
