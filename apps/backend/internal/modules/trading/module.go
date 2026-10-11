@@ -67,11 +67,14 @@ type multichainParts struct {
 	evmWallets    multichain.EVMWallets
 }
 
-func newMultichain() multichainParts {
-	return multichainParts{
-		walletActions: adapters.MultichainExecutionWalletActions(),
-		evmWallets:    adapters.MultichainExecutionEVMWallets(),
+func newMultichain(d module.Deps) multichainParts {
+	parts := multichainParts{
+		walletActions: multichain.Pending{Ticket: "#4970"}, evmWallets: multichain.Pending{Ticket: "#4970"},
 	}
+	if client, err := adapters.MultichainExecutionPrivy(d.Config, d.Clock); err == nil {
+		parts.walletActions, parts.evmWallets = client, client
+	}
+	return parts
 }
 
 type Module struct {
@@ -94,7 +97,7 @@ func WithChain(venue Venue, signer Signer) Option {
 }
 
 func New(d module.Deps, opts ...Option) *Module {
-	m := &Module{multichain: newMultichain(), deps: d}
+	m := &Module{multichain: newMultichain(d), deps: d}
 	for _, opt := range opts {
 		opt(m)
 	}
