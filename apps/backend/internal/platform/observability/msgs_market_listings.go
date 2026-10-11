@@ -19,7 +19,7 @@ var (
 	}
 	MarketRouterVenueDropped = Msg{
 		Name:     "market.router.venue_dropped",
-		Required: []string{"listing_id", "reason"},
+		Required: []string{"listing_id", "reason", "err", "duration_ms"},
 	}
 	MarketListingVerifyFailed = Msg{
 		Name:     "market.listings.verify_failed",

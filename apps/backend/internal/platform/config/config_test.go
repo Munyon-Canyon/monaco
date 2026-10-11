@@ -104,7 +104,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 			RobinhoodBaseURL: "https://api.robinhood.com",
 		},
 		Routing: config.Routing{
-			UniswapBaseURL: "https://trade-api.gateway.uniswap.org", UniswapTimeout: 5 * time.Second,
+			UniswapBaseURL: "https://trade-api.gateway.uniswap.org", UniswapTimeout: 4 * time.Second,
 			MinEdgeBps: 10, MaxImpactBps: 300,
 		},
 	}
@@ -706,7 +706,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"ROBINHOOD_BASE_URL", "https://api.robinhood.com"},
 		{"UNISWAP_API_KEY", "***"},
 		{"UNISWAP_BASE_URL", "https://trade-api.gateway.uniswap.org"},
-		{"MONACO_TIMEOUT_UNISWAP", "5s"},
+		{"MONACO_TIMEOUT_UNISWAP", "4s"},
 		{"ROUTER_MIN_EDGE_BPS", "10"},
 		{"ROUTER_MAX_IMPACT_BPS", "300"},
 	}

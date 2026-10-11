@@ -3,9 +3,11 @@ package app
 import (
 	"cmp"
 	"context"
+	"errors"
 	"log/slog"
 	"math/big"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -83,6 +85,25 @@ type venueQuote struct {
 	ok      bool
 	err     error
 	reason  multichain.UnavailableReason
+	took    time.Duration
+}
+
+type bridgeEstimate struct {
+	once    sync.Once
+	arrived money.Micros
+	err     error
+}
+
+type bridgeEstimates map[chain.Network]*bridgeEstimate
+
+func estimatesFor(listings []multichain.Listing) bridgeEstimates {
+	out := bridgeEstimates{}
+	for _, l := range listings {
+		if l.Network != chain.NetworkSolana {
+			out[l.Network] = &bridgeEstimate{}
+		}
+	}
+	return out
 }
 
 func (r *Router) Best(
@@ -112,10 +133,12 @@ func (r *Router) best(
 		listings = slices.DeleteFunc(listings, func(l multichain.Listing) bool { return l.Network != on })
 	}
 	ref, refErr := r.prices.SharePrice(ctx, stock)
+	estimates := estimatesFor(listings)
 	quotes, err := concurrency.FanOut(ctx, quoteFanOut, listings,
 		func(ctx context.Context, l multichain.Listing) (venueQuote, error) {
-			q := r.quote(ctx, l, amount, ref, refErr)
-			q.listing = l
+			start := r.clock.Now()
+			q := r.quote(ctx, l, amount, ref, refErr, estimates)
+			q.listing, q.took = l, r.clock.Now().Sub(start)
 			return q, nil
 		})
 	if err != nil {
@@ -125,20 +148,20 @@ func (r *Router) best(
 }
 
 func (r *Router) quote(
-	ctx context.Context, l multichain.Listing, amount, ref money.Micros, refErr error,
+	ctx context.Context, l multichain.Listing, amount, ref money.Micros, refErr error, estimates bridgeEstimates,
 ) venueQuote {
 	ctx, cancel := context.WithTimeout(ctx, r.rules.QuoteTimeout)
 	defer cancel()
-	input, costs, err := r.bridgeIn(ctx, l, amount, refErr)
+	input, costs, err := r.bridgeIn(ctx, l, amount, refErr, estimates)
 	if err != nil && refErr != nil {
 		return venueQuote{err: err, reason: multichain.UnavailableStale}
 	}
 	if err != nil {
-		return failed(err)
+		return failed(ctx, err)
 	}
 	q, err := r.quoter.Quote(ctx, l, multichain.SideBuy, input)
 	if err != nil {
-		return failed(err)
+		return failed(ctx, err)
 	}
 	gross := grossShares(q.GrossOutput, l)
 	fees := quotedCosts{
@@ -157,7 +180,13 @@ func (r *Router) quote(
 	return venueQuote{quote: q, ok: true}
 }
 
-func failed(err error) venueQuote {
+func failed(ctx context.Context, err error) venueQuote {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return venueQuote{
+			err:    errs.Wrap(err, errs.CodeUpstreamUnavailable, routerOp),
+			reason: multichain.UnavailableStale,
+		}
+	}
 	if errs.CodeOf(err) == errs.CodeNoRoute {
 		return venueQuote{err: err, reason: multichain.UnavailableNoRoute}
 	}
@@ -165,7 +194,7 @@ func failed(err error) venueQuote {
 }
 
 func (r *Router) bridgeIn(
-	ctx context.Context, l multichain.Listing, amount money.Micros, refErr error,
+	ctx context.Context, l multichain.Listing, amount money.Micros, refErr error, estimates bridgeEstimates,
 ) (money.Micros, []multichain.Cost, error) {
 	if l.Network == chain.NetworkSolana {
 		return amount, nil, nil
@@ -173,7 +202,9 @@ func (r *Router) bridgeIn(
 	if refErr != nil {
 		return money.Micros{}, nil, refErr
 	}
-	arrived, err := r.bridge.BridgeOut(ctx, l.Network, amount)
+	estimate := estimates[l.Network]
+	estimate.once.Do(func() { estimate.arrived, estimate.err = r.bridge.BridgeOut(ctx, l.Network, amount) })
+	arrived, err := estimate.arrived, estimate.err
 	if err != nil {
 		return money.Micros{}, nil, err
 	}
@@ -254,7 +285,8 @@ func (r *Router) rank(
 	for _, q := range quotes {
 		if logged, reason := r.dropReason(q); reason != "" {
 			observability.Info(ctx, observability.MarketRouterVenueDropped,
-				slog.String("listing_id", q.listing.ID.String()), slog.String("reason", logged))
+				slog.String("listing_id", q.listing.ID.String()), slog.String("reason", logged),
+				slog.String("err", errText(q.err)), slog.Int64("duration_ms", q.took.Milliseconds()))
 			unavailable = append(unavailable, multichain.UnavailableVenue{
 				ListingID: q.listing.ID, Network: q.listing.Network, Venue: q.listing.Venue, Reason: reason,
 			})
@@ -280,6 +312,13 @@ func (r *Router) rank(
 		Winner:      ranked[0].ListingID,
 		Unavailable: unavailable,
 	}, nil
+}
+
+func errText(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
 
 func solanaFirst(q multichain.Quote) int {
