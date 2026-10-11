@@ -7,6 +7,7 @@ struct DepositQRCode: View {
     static let accessibilityLabelText = "QR code of your deposit address"
 
     let address: String
+    var showsSolanaMark = true
     let onCopy: (String) -> Void
 
     static func image(for address: String) -> CIImage? {
@@ -26,13 +27,15 @@ struct DepositQRCode: View {
                     .scaledToFit()
                     .padding(MonacoTheme.Space.m)
             }
-            Image("SolanaMark")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 24)
-                .padding(MonacoTheme.Space.s)
-                .background(Color.white, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.chip))
-                .accessibilityHidden(true)
+            if showsSolanaMark {
+                Image("SolanaMark")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 24)
+                    .padding(MonacoTheme.Space.s)
+                    .background(Color.white, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.chip))
+                    .accessibilityHidden(true)
+            }
         }
         .frame(width: Self.side, height: Self.side)
         .background(Color.white, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.chip))
