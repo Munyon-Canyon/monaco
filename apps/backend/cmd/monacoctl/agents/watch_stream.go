@@ -43,18 +43,20 @@ func streams(args []string) bool {
 }
 
 type stream struct {
-	env       *Env
-	since     time.Time
-	prev      map[string]bool
-	ejected   map[int]bool
-	blocks    map[string]string
-	seenOpen  map[int]bool
-	reported  map[int]bool
-	told      map[dropKey]bool
-	reran     map[int64]int
-	waits     map[int]*graphiteWait
-	trunkSaid string
-	onBase    map[int]time.Time
+	env          *Env
+	since        time.Time
+	prev         map[string]bool
+	ejected      map[int]bool
+	blocks       map[string]string
+	seenOpen     map[int]bool
+	reported     map[int]bool
+	told         map[dropKey]bool
+	reran        map[int64]int
+	waits        map[int]*graphiteWait
+	trunkSaid    string
+	indicatorAt  time.Time
+	indicatorDue string
+	onBase       map[int]time.Time
 }
 
 type dropKey struct {

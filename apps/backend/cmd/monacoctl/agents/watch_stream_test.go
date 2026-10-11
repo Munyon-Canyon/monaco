@@ -1533,7 +1533,7 @@ func TestWatchStream_saysATrunkSkipOncePerOriginCommit(t *testing.T) {
 	}
 	trunkGit(t, r.primary, "checkout", "-q", "--", "tracked.txt")
 	got := s.trunkLines(t.Context())
-	if len(got) != 1 || !strings.HasPrefix(got[0], "staging fast-forwarded to ") {
+	if len(got) != 2 || !strings.HasPrefix(got[0], "staging fast-forwarded to ") {
 		t.Fatalf("clean checkout printed %q", got)
 	}
 }
