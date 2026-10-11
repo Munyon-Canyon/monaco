@@ -13,5 +13,6 @@ func init() {
 		TradingEngineStubbed,
 		TradingCashOutSellStubbed,
 		TradingStepChanged,
+		TradingRoutedSwapParked,
 	)
 }

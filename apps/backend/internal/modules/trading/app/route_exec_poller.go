@@ -2,14 +2,20 @@ package app
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"log/slog"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
@@ -19,6 +25,7 @@ type Resumer interface {
 }
 
 type EVMTrades struct {
+	uow       *db.UnitOfWork
 	reads     sqlc.DBTX
 	clock     clock.Clock
 	routes    Resumer
@@ -26,8 +33,10 @@ type EVMTrades struct {
 	timing    SweepTiming
 }
 
-func NewEVMTrades(reads sqlc.DBTX, c clock.Clock, routes Resumer, proposals Proposals, timing SweepTiming) *EVMTrades {
-	return &EVMTrades{reads: reads, clock: c, routes: routes, proposals: proposals, timing: timing}
+func NewEVMTrades(
+	uow *db.UnitOfWork, reads sqlc.DBTX, c clock.Clock, routes Resumer, proposals Proposals, timing SweepTiming,
+) *EVMTrades {
+	return &EVMTrades{uow: uow, reads: reads, clock: c, routes: routes, proposals: proposals, timing: timing}
 }
 
 func (*EVMTrades) Name() string { return "trading.evm_trades" }
@@ -51,7 +60,7 @@ func (p *EVMTrades) Tick(ctx context.Context) (poller.Report, error) {
 	for _, id := range unfinished {
 		_, err := q.TouchRouted(ctx, sqlc.TouchRoutedParams{ID: id, At: now})
 		if err == nil {
-			err = p.routes.Resume(ctx, ids.SwapIDFrom(id))
+			err = p.resume(ctx, id, now)
 		}
 		if err == nil {
 			report.Changed++
@@ -66,6 +75,27 @@ func (p *EVMTrades) Tick(ctx context.Context) (poller.Report, error) {
 		failures = append(failures, err)
 	}
 	return report, errors.Join(failures...)
+}
+
+func (p *EVMTrades) resume(ctx context.Context, id uuid.UUID, now time.Time) error {
+	err := p.routes.Resume(ctx, ids.SwapIDFrom(id))
+	code := errs.CodeOf(err)
+	if err == nil || errs.Retryable(code) || ctx.Err() != nil {
+		return err
+	}
+	parkErr := p.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		row, err := sqlc.New(tx.Queries()).ParkRouted(ctx, sqlc.ParkRoutedParams{At: now, Code: string(code), ID: id})
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		tx.AfterCommit(func(ctx context.Context) {
+			observability.Alert(ctx, observability.TradingRoutedSwapParked,
+				slog.String("swap_id", id.String()), slog.String("cabal_id", row.CabalID.String()),
+				slog.String("code", string(code)), slog.String("step", row.Step))
+		})
+		return err
+	})
+	return errors.Join(err, parkErr)
 }
 
 func (p *EVMTrades) bridgeBack(

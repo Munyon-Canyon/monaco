@@ -46,3 +46,8 @@ var TradingStepChanged = Msg{
 		"swap_id", "cabal_id", "step", "network", "before_status", "status", "amount_micros", "fee_micros",
 	},
 }
+
+var TradingRoutedSwapParked = Msg{
+	Name:     "trading.routed_swap.parked",
+	Required: []string{"swap_id", "cabal_id", "code", "step"},
+}

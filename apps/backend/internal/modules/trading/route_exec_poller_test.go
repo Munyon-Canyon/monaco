@@ -17,7 +17,7 @@ import (
 )
 
 func (e *routeEnv) poller() *app.EVMTrades {
-	return app.NewEVMTrades(e.pool, e.clk, e.exec(), e.proposals, app.DefaultSweepTiming())
+	return app.NewEVMTrades(e.uow, e.pool, e.clk, e.exec(), e.proposals, app.DefaultSweepTiming())
 }
 
 func (e *routeEnv) tick(ctx context.Context, t *testing.T) (poller.Report, error) {

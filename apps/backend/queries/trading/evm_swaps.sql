@@ -15,6 +15,7 @@ WHERE s.id = sqlc.arg(id)::uuid;
 SELECT s.id
 FROM swaps AS s
 WHERE s.status IN ('created', 'submitted') AND s.created_at < sqlc.arg(older_than)::timestamptz
+  AND s.parked_at IS NULL
   AND EXISTS (SELECT 1 FROM trade_steps AS t WHERE t.trade_id = s.id)
 ORDER BY s.updated_at, s.id
 LIMIT sqlc.arg(max_rows);
@@ -33,7 +34,7 @@ SELECT EXISTS (
   FROM trade_steps AS o
   JOIN swaps AS s ON s.id = o.trade_id
   WHERE o.trade_id = sqlc.arg(swap_id)::uuid AND o.step = 'bridge_out' AND o.status = 'succeeded'
-    AND s.status = 'failed'
+    AND (s.status = 'failed' OR s.parked_at IS NOT NULL)
     AND NOT EXISTS (
       SELECT 1 FROM trade_steps AS t
       WHERE t.trade_id = o.trade_id AND (t.step = 'bridge_back' OR (t.step = 'swap' AND t.status <> 'failed'))
@@ -59,14 +60,14 @@ WHERE o.trade_id = sqlc.arg(from_trade)::uuid AND o.step = 'bridge_out' AND o.st
 SELECT s.id, s.source_kind, s.source_id,
   EXISTS (SELECT 1 FROM trade_steps AS b WHERE b.trade_id = s.id AND b.step = 'bridge_back')::bool AS returning
 FROM swaps AS s
-WHERE coalesce(s.failed_at, s.confirmed_at) < sqlc.arg(older_than)::timestamptz
+WHERE coalesce(s.failed_at, s.confirmed_at, s.parked_at) < sqlc.arg(older_than)::timestamptz
   AND (
     EXISTS (
       SELECT 1 FROM trade_steps AS b
       WHERE b.trade_id = s.id AND b.step = 'bridge_back' AND b.status IN ('pending', 'submitted')
     )
     OR (
-      s.status = 'failed'
+      (s.status = 'failed' OR s.parked_at IS NOT NULL)
       AND EXISTS (
         SELECT 1 FROM trade_steps AS o WHERE o.trade_id = s.id AND o.step = 'bridge_out' AND o.status = 'succeeded'
       )
@@ -84,3 +85,11 @@ LIMIT sqlc.arg(max_rows);
 UPDATE swaps
 SET updated_at = sqlc.arg(at)::timestamptz
 WHERE id = sqlc.arg(id)::uuid AND status IN ('failed', 'confirmed');
+
+-- name: ParkRouted :one
+UPDATE swaps AS s
+SET parked_at = sqlc.arg(at)::timestamptz, parked_code = sqlc.arg(code)::text
+WHERE s.id = sqlc.arg(id)::uuid AND s.parked_at IS NULL AND s.status IN ('created', 'submitted')
+RETURNING s.cabal_id, coalesce((
+  SELECT t.step FROM trade_steps AS t WHERE t.trade_id = s.id ORDER BY t.updated_at DESC, t.created_at DESC LIMIT 1
+), '')::text AS step;
