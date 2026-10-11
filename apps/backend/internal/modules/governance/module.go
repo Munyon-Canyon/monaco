@@ -19,7 +19,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
-	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
@@ -48,25 +47,14 @@ func WithPorts(p Ports) Option { return func(m *Module) { m.ports = &p } }
 
 func WithSwaps(s app.Swaps) Option { return func(m *Module) { m.swaps = s } }
 
-type multichainParts struct {
-	router multichain.Router
-}
-
-func newMultichain() multichainParts {
-	return multichainParts{
-		router: adapters.MultichainRoutingRouter(),
-	}
-}
-
 type Module struct {
-	multichain multichainParts
-	deps       module.Deps
-	ports      *Ports
-	swaps      app.Swaps
+	deps  module.Deps
+	ports *Ports
+	swaps app.Swaps
 }
 
 func New(d module.Deps, opts ...Option) *Module {
-	m := &Module{multichain: newMultichain(), deps: d}
+	m := &Module{deps: d}
 	for _, opt := range opts {
 		opt(m)
 	}
@@ -117,9 +105,16 @@ func (m *Module) tradePorts() Ports {
 	if deps.Config.Timeouts.JupiterExecute == 0 {
 		deps.Config.Timeouts.JupiterExecute = time.Second
 	}
+	if deps.Config.Privy.BaseURL == "" {
+		deps.Config.Privy.BaseURL = "http://privy.invalid"
+	}
+	if deps.Config.Timeouts.Privy == 0 {
+		deps.Config.Timeouts.Privy = time.Second
+	}
 	markets := market.New(deps)
 	return Ports{
 		Cabals: cabal.New(m.deps).Queries(), Assets: markets.Catalog(), Routes: markets.RouteChecker(),
+		Router:   markets.Router(),
 		Treasury: treasury.New(m.deps).Queries(), Balances: solana.New(deps.Config, deps.Clock),
 		USDC: chain.Mint{Address: chain.SolanaAddress(deps.Config.Solana.USDCMint), Decimals: 6},
 	}

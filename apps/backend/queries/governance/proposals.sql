@@ -18,13 +18,13 @@ FROM proposal, unnest(@voter_ids::uuid[]) AS voter;
 WITH proposal AS (
   INSERT INTO proposals (
     id, cabal_id, proposer_id, kind, symbol, mint, usdc_micros, token_amount, thesis,
-    quote_out_amount, threshold, status, expires_at, created_at, updated_at
+    quote_out_amount, threshold, status, expires_at, created_at, updated_at, price_comparison
   )
   VALUES (
     sqlc.arg(id), sqlc.arg(cabal_id), sqlc.arg(proposer_id), sqlc.arg(kind), sqlc.arg(symbol), sqlc.arg(mint),
     NULLIF(sqlc.arg(usdc_micros)::text, '0')::bigint, NULLIF(sqlc.arg(token_amount)::text, '0')::bigint,
     NULLIF(sqlc.arg(thesis)::text, ''), sqlc.arg(quote_out_amount)::text::bigint, sqlc.arg(threshold), 'open', sqlc.arg(expires_at),
-    sqlc.arg(created_at), sqlc.arg(created_at)
+    sqlc.arg(created_at), sqlc.arg(created_at), sqlc.narg(price_comparison)::jsonb
   )
   RETURNING id
 )
@@ -85,7 +85,7 @@ SELECT voter_id FROM votes WHERE proposal_id = @proposal_id ORDER BY cast_at, vo
 -- name: LockProposal :one
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, p.token_amount, p.quote_out_amount,
-  p.status, p.threshold, p.expires_at,
+  p.status, p.threshold, p.expires_at, p.price_comparison,
   EXISTS (
     SELECT 1 FROM proposal_voters AS v WHERE v.proposal_id = p.id AND v.voter_id = @voter_id
   ) AS is_voter
