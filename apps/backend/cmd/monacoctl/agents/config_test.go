@@ -345,15 +345,15 @@ func TestApplyLocalConfig_acceptsCapacityTrackingAndMilestoneWithinBounds(t *tes
 		t.Fatalf("tracking and milestone: %+v %v, want %+v", got, err, applied)
 	}
 	for body, want := range map[string]string{
-		"repo = \"x/y\"\n":               `.monaco/agents.local.toml:1: unknown key "repo"`,
-		"lanes = 6\n[batch]\nsize = 3\n": `.monaco/agents.local.toml:3: unknown key "batch.size"`,
-		"[check.budget]\ngo = \"90s\"\n": `.monaco/agents.local.toml:2: unknown key "check.budget.go"`,
-		"[check.tokens]\ncpu = 0\n":      ".monaco/agents.local.toml: check.tokens.cpu: want at least 1, got 0",
-		"lanes = 0\n":                    ".monaco/agents.local.toml: lanes: want at least 1, got 0",
-		"tracking = 0\n":                 ".monaco/agents.local.toml: tracking: want at least 1, got 0",
-		"milestone = \"\"\n":             `.monaco/agents.local.toml: milestone: want a name, got ""`,
-		"[dispatch]\nmax_queue = 0\n":    ".monaco/agents.local.toml: dispatch.max_queue: want at least 1, got 0",
-		"lanes = [\n":                    ".monaco/agents.local.toml:1: want a list",
+		"repo = \"x/y\"\n":                   `.monaco/agents.local.toml:1: unknown key "repo"`,
+		"lanes = 6\n[batch]\nsize = 3\n":     `.monaco/agents.local.toml:3: unknown key "batch.size"`,
+		"[check.budget]\nkotlin = \"90s\"\n": `.monaco/agents.local.toml:2: unknown key "check.budget.kotlin"`,
+		"[check.tokens]\ncpu = 0\n":          ".monaco/agents.local.toml: check.tokens.cpu: want at least 1, got 0",
+		"lanes = 0\n":                        ".monaco/agents.local.toml: lanes: want at least 1, got 0",
+		"tracking = 0\n":                     ".monaco/agents.local.toml: tracking: want at least 1, got 0",
+		"milestone = \"\"\n":                 `.monaco/agents.local.toml: milestone: want a name, got ""`,
+		"[dispatch]\nmax_queue = 0\n":        ".monaco/agents.local.toml: dispatch.max_queue: want at least 1, got 0",
+		"lanes = [\n":                        ".monaco/agents.local.toml:1: want a list",
 	} {
 		if _, err := applyLocalConfig(tracked, strings.NewReader(body)); err == nil ||
 			!strings.Contains(cliText(err), want) {
@@ -422,5 +422,47 @@ func TestAgents_warnsThatMaxLoadIsDeprecatedInBothFiles(t *testing.T) {
 		"dispatch is gated by dispatch.max_queue\n"
 	if code != 0 || stderr != want {
 		t.Fatalf("code=%d stderr=%q", code, stderr)
+	}
+}
+
+func TestApplyLocalConfig_aLocalBudgetOverridesTheRepoValueForThatKindOnly(t *testing.T) {
+	t.Parallel()
+	tracked, err := parseConfig(strings.NewReader(testConfig))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := applyLocalConfig(tracked, strings.NewReader("[check.budget]\njourneys = \"45s\"\nswift = \"4m\"\n"))
+	if err != nil || got.Budget["journeys"] != 45*time.Second || got.Budget["swift"] != 4*time.Minute ||
+		got.Budget["go"] != defaultBudget()["go"] ||
+		!reflect.DeepEqual(got.LocalBudget, map[string]bool{"journeys": true, "swift": true}) {
+		t.Fatalf("local budgets: %v %v %v", got.Budget, got.LocalBudget, err)
+	}
+	if tracked.Budget["journeys"] != 30*time.Second || tracked.LocalBudget != nil {
+		t.Fatalf("the repo config changed: %v %v", tracked.Budget["journeys"], tracked.LocalBudget)
+	}
+	got, err = applyLocalConfig(tracked, strings.NewReader("lanes = 2\n"))
+	if err != nil || got.LocalBudget != nil || got.Budget["journeys"] != 30*time.Second {
+		t.Fatalf("no local budget keeps the repo values: %v %v %v", got.Budget["journeys"], got.LocalBudget, err)
+	}
+}
+
+func TestApplyLocalConfig_anInvalidLocalBudgetNamesTheLocalFile(t *testing.T) {
+	t.Parallel()
+	tracked, err := parseConfig(strings.NewReader(testConfig))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for body, want := range map[string]string{
+		"[check.budget]\njourneys = \"soon\"\n": `.monaco/agents.local.toml:2: budget journeys: want a positive duration such as "60s", got "soon"`,
+		"[check.budget]\njourneys = \"0s\"\n":   `.monaco/agents.local.toml:2: budget journeys: want a positive duration`,
+		"[check.budget]\njourneys = 45\n":       ".monaco/agents.local.toml:2: quote:",
+	} {
+		if _, err := applyLocalConfig(tracked, strings.NewReader(body)); err == nil ||
+			!strings.Contains(cliText(err), want) {
+			t.Errorf("%q: got %v, want %q", body, err, want)
+		}
+	}
+	if tracked.Budget["journeys"] != 30*time.Second {
+		t.Fatalf("a rejected local budget changed the repo budget: %v", tracked.Budget["journeys"])
 	}
 }

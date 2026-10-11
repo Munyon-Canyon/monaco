@@ -991,7 +991,7 @@ func (r *checkRun) runRow(ctx context.Context, row checkRow, stdout io.Writer, t
 
 func budgetNote(sb scaledBudget, warnings int) string {
 	note := ""
-	if sb.scaled() {
+	if sb.scaled() || sb.local {
 		note += "  budget " + sb.String()
 	}
 	if warnings > 0 {
@@ -1047,6 +1047,7 @@ func (r *checkRun) prepare(ctx context.Context, row checkRow, stdout io.Writer) 
 
 func (r *checkRun) rowBudget(ctx context.Context, row checkRow) (context.Context, context.CancelFunc, scaledBudget) {
 	sb := r.env.scaleBudget(ctx, r.env.Config.Budget[row.kind])
+	sb.local = r.env.Config.LocalBudget[row.kind]
 	if row.kind == packageKind {
 		return ctx, func() {}, sb
 	}
@@ -1090,6 +1091,7 @@ type scaledBudget struct {
 	factor               float64
 	load                 float64
 	cores                int
+	local                bool
 }
 
 const (
@@ -1098,6 +1100,13 @@ const (
 )
 
 func (s scaledBudget) scaled() bool { return s.limit > s.base }
+
+func (s scaledBudget) baseString() string {
+	if s.local {
+		return s.base.String() + " (local)"
+	}
+	return s.base.String()
+}
 
 func (s scaledBudget) capped() bool { return s.ceiling > s.base }
 
@@ -1110,10 +1119,10 @@ func (s scaledBudget) peakNote() string {
 
 func (s scaledBudget) String() string {
 	if !s.scaled() {
-		return s.limit.String()
+		return s.baseString()
 	}
 	return fmt.Sprintf("%s (base %s, x%.1f for load1 %.1f over %d cores)",
-		s.limit, s.base, s.factor, s.load, s.cores)
+		s.limit, s.baseString(), s.factor, s.load, s.cores)
 }
 
 func (s scaledBudget) observe(load float64) scaledBudget {
