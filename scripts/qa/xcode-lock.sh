@@ -25,8 +25,11 @@
 # in its slot, and a waiter logs its queue position and every holder's pid and cwd every 60 s.
 #
 # `xcode` gives each lane at most one slot, so one lane with several worktrees cannot take
-# the machine's builds from the others. The lane is $MONACO_LANE, else $HERDR_WORKSPACE_ID,
-# else the git top level (a plain terminal or cloud agent is a lane per worktree). A waiter
+# the machine's builds from the others. The lane is $MONACO_LANE, else the git top level when
+# that is a ticket worktree (a direct child of `<primary checkout>/.worktrees/`; owners
+# spawned from one herdr workspace all inherit its $HERDR_WORKSPACE_ID, which would put every
+# ticket in one lane), else $HERDR_WORKSPACE_ID, else the git top level (a plain terminal or
+# cloud agent is a lane per worktree). A waiter
 # writes its lane into its ticket. It counts only the live tickets ahead of it that are
 # eligible: the first ticket of each lane whose lane holds no live slot. A lane-blocked
 # waiter at the head therefore never keeps another lane from a free slot. The held command
@@ -49,8 +52,9 @@
 #                              .git/.monaco/xcode-slots, reread on every wait poll,
 #                              else max(1, RAM GB / 16))
 #   MONACO_SWIFTPM_SLOTS       `swiftpm` slots (default max(1, min(RAM GB / 8, CPUs / 8)))
-#   MONACO_LANE                lane of this caller (default $HERDR_WORKSPACE_ID, else the git
-#                              top level, else $PWD)
+#   MONACO_LANE                lane of this caller (default the git top level when it is a
+#                              ticket worktree under <primary checkout>/.worktrees/, else
+#                              $HERDR_WORKSPACE_ID, else the git top level, else $PWD)
 #   MONACO_XCODE_LOCK_DIR      `xcode` lock dir (default /private/tmp/monaco-xcodebuild.lock)
 #   MONACO_SWIFTPM_LOCK_DIR    `swiftpm` lock dir (default /private/tmp/monaco-swiftpm.lock)
 #   MONACO_XCODE_LOCK_TIMEOUT  seconds a waiter waits before exit 75 (default 5400)
@@ -107,7 +111,14 @@ read_slots() {
 queue_dir="$base_dir.queue"
 lane=""
 if [[ "$class" == xcode ]]; then
-  lane="${MONACO_LANE:-${HERDR_WORKSPACE_ID:-$(git rev-parse --show-toplevel 2>/dev/null || pwd -P)}}"
+  top="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  if [[ -z "${MONACO_LANE:-}" && -n "$top" ]]; then
+    common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+    if [[ -n "$common" && "$(dirname "$top")" == "$(dirname "$common")/.worktrees" ]]; then
+      MONACO_LANE="$top"
+    fi
+  fi
+  lane="${MONACO_LANE:-${HERDR_WORKSPACE_ID:-${top:-$(pwd -P)}}}"
   # A nested call from the held command runs at once: its lane already holds the slot.
   held_dir="${MONACO_XCODE_LOCK_HELD:-}"
   if [[ -n "$held_dir" ]]; then
