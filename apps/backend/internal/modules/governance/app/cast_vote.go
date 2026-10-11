@@ -13,6 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -101,7 +102,11 @@ func (h *CastVoteHandler) vote(
 	case domain.Undecided:
 		return out, nil
 	case domain.Passed:
-		out.Status, decided = domain.StatusPassed, passed(p)
+		comparison, err := decodeComparison(p.PriceComparison)
+		if err != nil {
+			return CastVoteResult{}, err
+		}
+		out.Status, decided = domain.StatusPassed, passed(p, comparison)
 	case domain.Failed:
 		out.Status, decided = domain.StatusFailed, events.ProposalFailed{V: 1, ProposalID: p.ID, CabalID: p.CabalID}
 	}
@@ -113,11 +118,12 @@ func (h *CastVoteHandler) vote(
 	return out, tx.Events.Append(ctx, decided)
 }
 
-func passed(p sqlc.LockProposalRow) events.ProposalPassed {
+func passed(p sqlc.LockProposalRow, comparison *multichain.Comparison) events.ProposalPassed {
 	return events.ProposalPassed{
 		V: 1, ProposalID: p.ID, CabalID: p.CabalID, ProposerID: p.ProposerID, Kind: p.Kind, Symbol: p.Symbol,
 		Mint: chain.SolanaAddress(p.Mint), USDCMicros: money.MicrosFromUint64(unsigned(p.UsdcMicros.Int64)),
 		TokenAmount: unsigned(p.TokenAmount.Int64), QuoteOutAmount: unsigned(p.QuoteOutAmount),
+		PriceComparison: comparison,
 	}
 }
 

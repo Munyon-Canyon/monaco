@@ -148,7 +148,9 @@ func (h HTTP) GetCabalProposalPreview(
 	if err != nil {
 		return nil, err
 	}
-	out := api.GetCabalProposalPreview200JSONResponse{PotValueMicros: pot, QuoteOutAmount: positive(quote)}
+	out := api.GetCabalProposalPreview200JSONResponse{
+		PotValueMicros: pot, QuoteOutAmount: positive(quote), PriceComparison: wireComparison(got.PriceComparison),
+	}
 	if got.Advisory != "" {
 		out.AdvisoryCode, out.AdvisoryMessage = ptr(string(got.Advisory)), ptr(errs.Message(got.Advisory))
 	}
@@ -242,6 +244,7 @@ func wireProposal(v app.ProposalView) api.Proposal {
 		Symbol: v.Symbol, UsdcMicros: positive(v.USDCMicros), TokenAmount: positive(v.TokenAmount),
 		QuoteOutAmount: v.QuoteOut, Status: api.ProposalStatus(v.Status), ExpiresAt: v.ExpiresAt,
 		CreatedAt: v.CreatedAt, Tally: wireTally(v.Tally), CanVote: v.CanVote,
+		PriceComparison: wireComparison(v.Comparison),
 	}
 	out.Thesis = present(v.Thesis)
 	if v.StatusReason != "" {

@@ -221,7 +221,7 @@ func (q *Queries) LockForWithdraw(ctx context.Context, id uuid.UUID) (LockForWit
 const lockProposal = `-- name: LockProposal :one
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, p.token_amount, p.quote_out_amount,
-  p.status, p.threshold, p.expires_at,
+  p.status, p.threshold, p.expires_at, p.price_comparison,
   EXISTS (
     SELECT 1 FROM proposal_voters AS v WHERE v.proposal_id = p.id AND v.voter_id = $1
   ) AS is_voter
@@ -236,19 +236,20 @@ type LockProposalParams struct {
 }
 
 type LockProposalRow struct {
-	ID             uuid.UUID
-	CabalID        uuid.UUID
-	ProposerID     uuid.UUID
-	Kind           string
-	Symbol         string
-	Mint           string
-	UsdcMicros     pgtype.Int8
-	TokenAmount    pgtype.Int8
-	QuoteOutAmount int64
-	Status         string
-	Threshold      string
-	ExpiresAt      time.Time
-	IsVoter        bool
+	ID              uuid.UUID
+	CabalID         uuid.UUID
+	ProposerID      uuid.UUID
+	Kind            string
+	Symbol          string
+	Mint            string
+	UsdcMicros      pgtype.Int8
+	TokenAmount     pgtype.Int8
+	QuoteOutAmount  int64
+	Status          string
+	Threshold       string
+	ExpiresAt       time.Time
+	PriceComparison []byte
+	IsVoter         bool
 }
 
 func (q *Queries) LockProposal(ctx context.Context, arg LockProposalParams) (LockProposalRow, error) {
@@ -267,6 +268,7 @@ func (q *Queries) LockProposal(ctx context.Context, arg LockProposalParams) (Loc
 		&i.Status,
 		&i.Threshold,
 		&i.ExpiresAt,
+		&i.PriceComparison,
 		&i.IsVoter,
 	)
 	return i, err
@@ -276,13 +278,13 @@ const openProposal = `-- name: OpenProposal :execrows
 WITH proposal AS (
   INSERT INTO proposals (
     id, cabal_id, proposer_id, kind, symbol, mint, usdc_micros, token_amount, thesis,
-    quote_out_amount, threshold, status, expires_at, created_at, updated_at
+    quote_out_amount, threshold, status, expires_at, created_at, updated_at, price_comparison
   )
   VALUES (
     $2, $3, $4, $5, $6, $7,
     NULLIF($8::text, '0')::bigint, NULLIF($9::text, '0')::bigint,
     NULLIF($10::text, ''), $11::text::bigint, $12, 'open', $13,
-    $14, $14
+    $14, $14, $15::jsonb
   )
   RETURNING id
 )
@@ -292,20 +294,21 @@ FROM proposal, unnest($1::uuid[]) AS voter
 `
 
 type OpenProposalParams struct {
-	VoterIds       []uuid.UUID
-	ID             uuid.UUID
-	CabalID        uuid.UUID
-	ProposerID     uuid.UUID
-	Kind           string
-	Symbol         string
-	Mint           string
-	UsdcMicros     string
-	TokenAmount    string
-	Thesis         string
-	QuoteOutAmount string
-	Threshold      string
-	ExpiresAt      time.Time
-	CreatedAt      time.Time
+	VoterIds        []uuid.UUID
+	ID              uuid.UUID
+	CabalID         uuid.UUID
+	ProposerID      uuid.UUID
+	Kind            string
+	Symbol          string
+	Mint            string
+	UsdcMicros      string
+	TokenAmount     string
+	Thesis          string
+	QuoteOutAmount  string
+	Threshold       string
+	ExpiresAt       time.Time
+	CreatedAt       time.Time
+	PriceComparison []byte
 }
 
 func (q *Queries) OpenProposal(ctx context.Context, arg OpenProposalParams) (int64, error) {
@@ -324,6 +327,7 @@ func (q *Queries) OpenProposal(ctx context.Context, arg OpenProposalParams) (int
 		arg.Threshold,
 		arg.ExpiresAt,
 		arg.CreatedAt,
+		arg.PriceComparison,
 	)
 	if err != nil {
 		return 0, err

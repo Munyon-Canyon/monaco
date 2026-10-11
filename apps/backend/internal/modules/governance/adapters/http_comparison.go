@@ -1,0 +1,27 @@
+package adapters
+
+import (
+	"strconv"
+
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	wire "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+)
+
+func wireComparison(c *multichain.Comparison) *wire.PriceComparison {
+	if c == nil {
+		return nil
+	}
+	out := &wire.PriceComparison{WinnerListingId: c.Winner.UUID(), Quotes: make([]wire.RouteQuote, len(c.Ranked))}
+	for i, q := range c.Ranked {
+		costs := make([]wire.RouteCost, len(q.Costs))
+		for j, cost := range q.Costs {
+			costs[j] = wire.RouteCost{Kind: wire.RouteCostKind(cost.Kind), Micros: cost.Micros.String()}
+		}
+		out.Quotes[i] = wire.RouteQuote{
+			ListingId: q.ListingID.UUID(), Issuer: q.Issuer, Network: wire.Network(q.Network),
+			Venue: wire.RouteQuoteVenue(q.Venue), NetShareNanos: strconv.FormatUint(uint64(q.NetShares), 10),
+			NetMicros: q.NetMicros.String(), Costs: costs, QuotedAt: q.QuotedAt, ExpiresAt: q.ExpiresAt,
+		}
+	}
+	return out
+}

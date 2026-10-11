@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -52,6 +53,7 @@ type TradePorts struct {
 	Cabals   Cabals
 	Assets   Assets
 	Routes   market.Routes
+	Router   multichain.Router
 	Treasury Treasury
 	Balances Balances
 	USDC     chain.Mint
@@ -76,6 +78,7 @@ type OpenedProposal struct {
 	USDCMicros      int64
 	TokenAmount     int64
 	QuoteOutAmount  int64
+	PriceComparison *multichain.Comparison
 }
 
 type ProposeTradeHandler struct {
@@ -140,20 +143,19 @@ func (h *ProposeTradeHandler) Open(ctx context.Context, cmd ProposeTrade) (Opene
 		return OpenedProposal{}, err
 	}
 	now := h.clock.Now()
+	comparison := compare(ctx, h.ports.Router, asset, cmd.Trade)
 	p, err := domain.NewProposal(domain.Draft{
 		ID: ids.ProposalIDFrom(h.ids.NewV7()), CabalID: cmd.CabalID, ProposerID: cmd.ProposerID, Kind: cmd.Trade.Kind,
 		Symbol: asset.Symbol, Mint: asset.Mint.Address(), USDCMicros: cmd.Trade.USDCMicros,
 		TokenAmount: money.NewBaseUnits(cmd.Trade.TokenAmount, asset.Decimals), Thesis: cmd.Trade.Thesis,
-		QuoteOut: quote.OutAmount.Uint64(), ExpiresAt: now.Add(rules.ProposalExpiry),
+		QuoteOut:  displayQuote(asset, comparison, quote.OutAmount.Uint64(), now),
+		ExpiresAt: now.Add(rules.ProposalExpiry),
 	})
 	if err != nil {
 		return OpenedProposal{}, err
 	}
 	err = h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		if _, err := sqlc.New(tx.Queries()).OpenProposal(ctx, openParams(p.Draft(), rule, voters, now)); err != nil {
-			return errs.Wrap(err, errs.CodeInternal, op)
-		}
-		return tx.Events.Append(ctx, created(p.Draft(), len(voters)))
+		return store(ctx, tx, openParams(p.Draft(), rule, voters, now), comparison, created(p.Draft(), len(voters)))
 	})
 	if err != nil {
 		return OpenedProposal{}, err
@@ -166,8 +168,23 @@ func (h *ProposeTradeHandler) Open(ctx context.Context, cmd ProposeTrade) (Opene
 	return OpenedProposal{
 		Draft: p.Draft(), Voters: voters, CreatedAt: now, Needed: rule.Needed(len(voters)), ProposerCanVote: canVote,
 		USDCMicros: decimal(p.Draft().USDCMicros.String()), TokenAmount: decimal(p.Draft().TokenAmount.String()),
-		QuoteOutAmount: decimal(strconv.FormatUint(p.Draft().QuoteOut, 10)),
+		QuoteOutAmount: decimal(strconv.FormatUint(p.Draft().QuoteOut, 10)), PriceComparison: comparison,
 	}, nil
+}
+
+func store(
+	ctx context.Context, tx db.Tx, params sqlc.OpenProposalParams, comparison *multichain.Comparison,
+	event events.ProposalCreated,
+) error {
+	const op = "governance.ProposeTrade"
+	var err error
+	if params.PriceComparison, err = encodeComparison(comparison); err != nil {
+		return err
+	}
+	if _, err := sqlc.New(tx.Queries()).OpenProposal(ctx, params); err != nil {
+		return errs.Wrap(err, errs.CodeInternal, op)
+	}
+	return tx.Events.Append(ctx, event)
 }
 
 func decimal(raw string) int64 {

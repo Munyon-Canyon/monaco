@@ -17,7 +17,7 @@ const getProposal = `-- name: GetProposal :one
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.usdc_micros, p.token_amount, p.quote_out_amount,
   p.thesis, p.threshold, p.status, p.status_reason, p.expires_at, p.created_at,
-  coalesce(mine.choice, '')::text AS my_ballot
+  coalesce(mine.choice, '')::text AS my_ballot, p.price_comparison
 FROM proposals AS p
 LEFT JOIN votes AS mine ON mine.proposal_id = p.id AND mine.voter_id = $1
 WHERE p.id = $2
@@ -29,21 +29,22 @@ type GetProposalParams struct {
 }
 
 type GetProposalRow struct {
-	ID             uuid.UUID
-	CabalID        uuid.UUID
-	ProposerID     uuid.UUID
-	Kind           string
-	Symbol         string
-	UsdcMicros     pgtype.Int8
-	TokenAmount    pgtype.Int8
-	QuoteOutAmount int64
-	Thesis         pgtype.Text
-	Threshold      string
-	Status         string
-	StatusReason   pgtype.Text
-	ExpiresAt      time.Time
-	CreatedAt      time.Time
-	MyBallot       string
+	ID              uuid.UUID
+	CabalID         uuid.UUID
+	ProposerID      uuid.UUID
+	Kind            string
+	Symbol          string
+	UsdcMicros      pgtype.Int8
+	TokenAmount     pgtype.Int8
+	QuoteOutAmount  int64
+	Thesis          pgtype.Text
+	Threshold       string
+	Status          string
+	StatusReason    pgtype.Text
+	ExpiresAt       time.Time
+	CreatedAt       time.Time
+	MyBallot        string
+	PriceComparison []byte
 }
 
 func (q *Queries) GetProposal(ctx context.Context, arg GetProposalParams) (GetProposalRow, error) {
@@ -65,6 +66,7 @@ func (q *Queries) GetProposal(ctx context.Context, arg GetProposalParams) (GetPr
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.MyBallot,
+		&i.PriceComparison,
 	)
 	return i, err
 }

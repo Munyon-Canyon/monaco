@@ -13,6 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
@@ -57,6 +58,7 @@ type ProposalView struct {
 	Tally        Tally
 	MyBallot     domain.Choice
 	CanVote      bool
+	Comparison   *multichain.Comparison
 }
 
 type ProposalPage struct {
@@ -155,12 +157,16 @@ func proposalView(row sqlc.ListProposalsRow, tally Tally) (ProposalView, error) 
 	if err != nil {
 		return ProposalView{}, err
 	}
+	comparison, err := decodeComparison(row.PriceComparison)
+	if err != nil {
+		return ProposalView{}, err
+	}
 	return ProposalView{
 		ID: ids.ProposalIDFrom(row.ID), CabalID: ids.CabalIDFrom(row.CabalID),
 		ProposerID: ids.UserIDFrom(row.ProposerID), Kind: kind, Symbol: row.Symbol, USDCMicros: row.UsdcMicros.Int64,
 		TokenAmount: row.TokenAmount.Int64, QuoteOut: row.QuoteOutAmount, Thesis: row.Thesis.String,
 		Status: status, StatusReason: errs.Code(row.StatusReason.String), ExpiresAt: row.ExpiresAt,
-		CreatedAt: row.CreatedAt, Tally: tally, MyBallot: domain.Choice(row.MyBallot),
+		CreatedAt: row.CreatedAt, Tally: tally, MyBallot: domain.Choice(row.MyBallot), Comparison: comparison,
 	}, nil
 }
 

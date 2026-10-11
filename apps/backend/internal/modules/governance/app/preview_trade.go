@@ -7,13 +7,15 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type TradePreview struct {
-	QuoteOut uint64
-	Advisory errs.Code
-	Pot      money.Micros
+	QuoteOut        uint64
+	Advisory        errs.Code
+	Pot             money.Micros
+	PriceComparison *multichain.Comparison
 }
 
 func (h *ProposeTradeHandler) Preview(ctx context.Context, req ProposeTrade) (TradePreview, error) {
@@ -35,7 +37,8 @@ func (h *ProposeTradeHandler) Preview(ctx context.Context, req ProposeTrade) (Tr
 		routeErr = errs.New(errs.CodeNoRoute, "governance.Preview")
 	}
 	if routeErr == nil {
-		out.QuoteOut = quote.OutAmount.Uint64()
+		out.PriceComparison = compare(ctx, h.ports.Router, asset, req.Trade)
+		out.QuoteOut = displayQuote(asset, out.PriceComparison, quote.OutAmount.Uint64(), h.clock.Now())
 	}
 	failed := slices.DeleteFunc([]error{fundsErr, routeErr}, func(err error) bool { return err == nil })
 	for _, err := range failed {
