@@ -11,6 +11,7 @@ struct ProposeAmountScreen: View {
     @State private var amountText = ""
     @State private var showsReason = false
     @FocusState private var reasonFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(service: MonacoCore.ProposeService, cabalID: String, stock: ProposeStock, trade: ProposeTrade? = nil) {
         self.stock = stock
@@ -83,11 +84,15 @@ struct ProposeAmountScreen: View {
         .safeAreaInset(edge: .bottom) {
             BottomCTA {
                 VStack(spacing: MonacoTheme.Space.s) {
-                    if !reasonFocused { AmountKeypad(amountText: $amountText) }
+                    if !reasonFocused {
+                        AmountKeypad(amountText: $amountText)
+                            .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+                    }
                     Button(model.reviewTitle) { showsReview = true }.buttonStyle(.monacoPrimary)
                         .disabled(!model.reviewEnabled(assetName: stock.name))
                         .accessibilityIdentifier("propose-amount-review")
                 }
+                .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: reasonFocused)
             }
         }
         .navigationDestination(isPresented: $showsReview) {
