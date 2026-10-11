@@ -130,7 +130,8 @@ public struct ProposalDetail: Identifiable, Equatable, Sendable {
 
     init(_ value: Components.Schemas.ProposalDetail) {
         let proposal = Components.Schemas.Proposal(
-            id: value.id, cabalId: value.cabalId, proposerId: value.proposerId, kind: value.kind,
+            priceComparison: value.priceComparison, id: value.id, cabalId: value.cabalId, proposerId: value.proposerId,
+            kind: value.kind,
             symbol: value.symbol, usdcMicros: value.usdcMicros, tokenAmount: value.tokenAmount,
             quoteOutAmount: value.quoteOutAmount, thesis: value.thesis, status: value.status,
             statusReason: value.statusReason, statusMessage: value.statusMessage, expiresAt: value.expiresAt,
