@@ -234,7 +234,7 @@ func (m *Module) build() {
 	m.routed = m.routes(layer, ports, route)
 	m.trades = app.NewExecuteTradeHandler(app.ExecuteTradeDeps{
 		Layer: layer, Routes: m.routed, Listings: route.Listings, UoW: m.deps.UoW,
-		Reads: m.deps.Pool, Venue: venue, Ports: ports, USDC: usdc, EVM: route.EVM,
+		Reads: m.deps.Pool, Venue: venue, Ports: ports, USDC: usdc, EVM: route.EVM, Router: route.Router,
 	})
 	m.sells = app.NewSellForCashOutHandler(app.SellForCashOutDeps{
 		Layer: layer, UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: clk, Venue: venue, USDC: usdc,
@@ -286,6 +286,9 @@ func (m *Module) routePorts() app.RoutePorts {
 	}
 	if p.EVMSales == nil {
 		p.EVMSales = app.UnwiredEVMSales{}
+	}
+	if p.Router == nil {
+		p.Router = adapters.NewLazyRouter(func() multichain.Router { return market.New(m.deps).Router() })
 	}
 	return p
 }
