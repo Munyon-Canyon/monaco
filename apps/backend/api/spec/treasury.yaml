@@ -314,6 +314,13 @@ components:
       additionalProperties: false
       required: [symbol, display_name, kind, units, token_amount, price_micros, value_micros, weight_bps, cost_basis_micros, pnl_micros]
       properties:
+        listings:
+          type: array
+          description: >-
+            The holding split by the tokenized listing it is held in, for the detail view. Absent until the
+            multichain valuation work lands.
+          items: {$ref: "#/components/schemas/HoldingListing"}
+          examples: [[{listing_id: 01928a6e-0000-7000-8000-000000000001, issuer: xstocks, network: solana, token_amount: "73000000", value_micros: 60000000}]]
         symbol: {type: string, description: "The token symbol.", examples: [AAPLx]}
         display_name: {type: string, description: "The display name.", examples: [Apple]}
         kind: {type: string, enum: [equity, pre_ipo], description: "Whether the token tracks a listed equity or a pre-IPO company.", examples: [equity]}
@@ -430,3 +437,14 @@ components:
           description: The Solana transaction signature. Null until the transaction is sent.
           examples: [5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW]
         occurred_at: {type: string, format: date-time, description: When it started., examples: ["2026-10-03T15:00:00Z"]}
+    HoldingListing:
+      type: object
+      description: The part of a holding kept in one listing.
+      additionalProperties: false
+      required: [listing_id, issuer, network, token_amount, value_micros]
+      properties:
+        listing_id: {type: string, format: uuid, description: The listing held., examples: [01928a6e-0000-7000-8000-000000000001]}
+        issuer: {type: string, description: The token issuer., examples: [xstocks]}
+        network: {$ref: "#/components/schemas/Network"}
+        token_amount: {type: string, pattern: "^[0-9]+$", description: Token base units held in this listing., examples: ["73000000"]}
+        value_micros: {type: integer, format: int64, description: This part's value in USDC micros., examples: [60000000]}

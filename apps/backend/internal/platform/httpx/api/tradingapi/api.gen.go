@@ -58,22 +58,22 @@ func (e SwapDetailSourceKind) Valid() bool {
 
 // Defines values for SwapDetailStatus.
 const (
-	Confirmed SwapDetailStatus = "confirmed"
-	Created   SwapDetailStatus = "created"
-	Failed    SwapDetailStatus = "failed"
-	Submitted SwapDetailStatus = "submitted"
+	SwapDetailStatusConfirmed SwapDetailStatus = "confirmed"
+	SwapDetailStatusCreated   SwapDetailStatus = "created"
+	SwapDetailStatusFailed    SwapDetailStatus = "failed"
+	SwapDetailStatusSubmitted SwapDetailStatus = "submitted"
 )
 
 // Valid indicates whether the value is a known member of the SwapDetailStatus enum.
 func (e SwapDetailStatus) Valid() bool {
 	switch e {
-	case Confirmed:
+	case SwapDetailStatusConfirmed:
 		return true
-	case Created:
+	case SwapDetailStatusCreated:
 		return true
-	case Failed:
+	case SwapDetailStatusFailed:
 		return true
-	case Submitted:
+	case SwapDetailStatusSubmitted:
 		return true
 	default:
 		return false
@@ -89,6 +89,51 @@ const (
 func (e SwapRetryAcceptedStatus) Valid() bool {
 	switch e {
 	case RetryRequested:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TradeStepStatus.
+const (
+	TradeStepStatusFailed    TradeStepStatus = "failed"
+	TradeStepStatusPending   TradeStepStatus = "pending"
+	TradeStepStatusSubmitted TradeStepStatus = "submitted"
+	TradeStepStatusSucceeded TradeStepStatus = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the TradeStepStatus enum.
+func (e TradeStepStatus) Valid() bool {
+	switch e {
+	case TradeStepStatusFailed:
+		return true
+	case TradeStepStatusPending:
+		return true
+	case TradeStepStatusSubmitted:
+		return true
+	case TradeStepStatusSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TradeStepStep.
+const (
+	BridgeBack TradeStepStep = "bridge_back"
+	BridgeOut  TradeStepStep = "bridge_out"
+	Swap       TradeStepStep = "swap"
+)
+
+// Valid indicates whether the value is a known member of the TradeStepStep enum.
+func (e TradeStepStep) Valid() bool {
+	switch e {
+	case BridgeBack:
+		return true
+	case BridgeOut:
+		return true
+	case Swap:
 		return true
 	default:
 		return false
@@ -142,6 +187,11 @@ type SwapDetail struct {
 	// Examples: true
 	Retryable bool `json:"retryable"`
 
+	// Route The price comparison the trade routed on. Absent for trades placed before routing, and until the multichain trading work lands.
+	//
+	// Examples: {"quotes":[{"costs":[],"expires_at":"2026-10-10T12:00:30Z","issuer":"xstocks","listing_id":"01928a6e-0000-7000-8000-000000000001","net_micros":"10000000","net_share_nanos":"40000000","network":"solana","quoted_at":"2026-10-10T12:00:00Z","venue":"jupiter"}],"winner_listing_id":"01928a6e-0000-7000-8000-000000000001"}
+	Route *externalRef0.PriceComparison `json:"route,omitempty"`
+
 	// Source What asked for the trade.
 	Source SwapSource `json:"source"`
 
@@ -149,6 +199,11 @@ type SwapDetail struct {
 	//
 	// Examples: failed
 	Status SwapDetailStatus `json:"status"`
+
+	// Steps The journaled steps of a routed trade, in order. Absent for a single Solana swap.
+	//
+	// Examples: [{"amount_micros":"10000000","network":"solana","status":"succeeded","step":"swap","updated_at":"2026-10-10T12:00:10Z"}]
+	Steps *[]TradeStep `json:"steps,omitempty"`
 
 	// Symbol The token symbol.
 	//
@@ -229,6 +284,44 @@ type SwapRetryRequest struct {
 	// Examples: true
 	AtCurrentPrice *bool `json:"at_current_price,omitempty"`
 }
+
+// TradeStep One journaled step of a routed trade.
+type TradeStep struct {
+	// AmountMicros The USDC the step moves, in micros.
+	//
+	// Examples: 10000000
+	AmountMicros string `json:"amount_micros"`
+
+	// Network The chain a wallet, listing or step lives on.
+	//
+	// Examples: solana
+	Network externalRef0.Network `json:"network"`
+
+	// Status Where the step is.
+	//
+	// Examples: succeeded
+	Status TradeStepStatus `json:"status"`
+
+	// Step What the step does.
+	//
+	// Examples: swap
+	Step TradeStepStep `json:"step"`
+
+	// UpdatedAt When the step last changed.
+	//
+	// Examples: 2026-10-10T12:00:10Z
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// TradeStepStatus Where the step is.
+//
+// Examples: succeeded
+type TradeStepStatus string
+
+// TradeStepStep What the step does.
+//
+// Examples: swap
+type TradeStepStep string
 
 // PostSwapRetryParams defines parameters for PostSwapRetry.
 type PostSwapRetryParams struct {

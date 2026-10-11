@@ -453,6 +453,26 @@ paths:
       responses:
         "204": {description: The handle is reassigned.}
         default: {$ref: "#/components/responses/Problem"}
+  /v1/me/deposit-addresses:
+    get:
+      operationId: getMyDepositAddresses
+      tags: [identity]
+      x-allow-restricted: true
+      summary: List the addresses the caller can deposit USDC to, one per network.
+      description: >-
+        Returns the caller's Solana member wallet and one EVM address that serves Base, Arbitrum and
+        Ethereum. USDC sent to the EVM address is forwarded to the Solana member wallet and shows as
+        `arriving_micros` on the balance until it lands. Answers `not_implemented` until the multichain
+        deposit work lands.
+      responses:
+        "200":
+          description: The caller's deposit addresses.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DepositAddresses"}
+              example: {addresses: [{network: solana, address: 5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP, asset: USDC}, {network: base, address: "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed", asset: USDC}, {network: arbitrum, address: "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed", asset: USDC}, {network: ethereum, address: "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed", asset: USDC}]}
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   schemas:
     UserSearchResult:
@@ -677,3 +697,26 @@ components:
             Free text. The server trims it and requires 3 to 500 characters, otherwise it answers
             reason_required.
           examples: [verified owner]
+    DepositAddresses:
+      type: object
+      description: Every address the caller can deposit USDC to.
+      additionalProperties: false
+      required: [addresses]
+      properties:
+        addresses:
+          type: array
+          description: One entry per network, Solana first.
+          items: {$ref: "#/components/schemas/DepositAddress"}
+          examples: [[{network: solana, address: 5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP, asset: USDC}]]
+    DepositAddress:
+      type: object
+      description: Where to send USDC on one network.
+      additionalProperties: false
+      required: [network, address, asset]
+      properties:
+        network: {$ref: "#/components/schemas/Network"}
+        address:
+          type: string
+          description: A base58 Solana address, or a lowercase 0x EVM address.
+          examples: [5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP]
+        asset: {type: string, enum: [USDC], description: The token to send., examples: [USDC]}

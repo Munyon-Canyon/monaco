@@ -4,6 +4,8 @@
 package api
 
 import (
+	"time"
+
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
@@ -511,6 +513,33 @@ func (e ErrorCode) Valid() bool {
 	}
 }
 
+// Defines values for Network.
+const (
+	Arbitrum Network = "arbitrum"
+	Base Network = "base"
+	Ethereum Network = "ethereum"
+	Robinhood Network = "robinhood"
+	Solana Network = "solana"
+)
+
+// Valid indicates whether the value is a known member of the Network enum.
+func (e Network) Valid() bool {
+	switch e {
+	case Arbitrum:
+		return true
+	case Base:
+		return true
+	case Ethereum:
+		return true
+	case Robinhood:
+		return true
+	case Solana:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProblemType.
 const (
 	AboutBlank ProblemType = "about:blank"
@@ -526,10 +555,73 @@ func (e ProblemType) Valid() bool {
 	}
 }
 
+// Defines values for RouteCostKind.
+const (
+	Bridge RouteCostKind = "bridge"
+	Gas RouteCostKind = "gas"
+	PoolFee RouteCostKind = "pool_fee"
+	PriceImpact RouteCostKind = "price_impact"
+	PrivyFee RouteCostKind = "privy_fee"
+)
+
+// Valid indicates whether the value is a known member of the RouteCostKind enum.
+func (e RouteCostKind) Valid() bool {
+	switch e {
+	case Bridge:
+		return true
+	case Gas:
+		return true
+	case PoolFee:
+		return true
+	case PriceImpact:
+		return true
+	case PrivyFee:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RouteQuoteVenue.
+const (
+	Jupiter RouteQuoteVenue = "jupiter"
+	Uniswap RouteQuoteVenue = "uniswap"
+)
+
+// Valid indicates whether the value is a known member of the RouteQuoteVenue enum.
+func (e RouteQuoteVenue) Valid() bool {
+	switch e {
+	case Jupiter:
+		return true
+	case Uniswap:
+		return true
+	default:
+		return false
+	}
+}
+
 // ErrorCode The closed list of error codes. Generated from the errs table by cmd/gen errors.
 //
 // Examples: not_found
 type ErrorCode string
+
+// Network The chain a wallet, listing or step lives on.
+//
+// Examples: solana
+type Network string
+
+// PriceComparison Every venue quoted for one trade, best first, by underlying shares received for a buy or USDC received for a sell, after every cost of the route.
+type PriceComparison struct {
+	// Quotes Every quote compared, best first.
+	//
+	// Examples: []
+	Quotes []RouteQuote `json:"quotes"`
+
+	// WinnerListingId The listing the trade routes to.
+	//
+	// Examples: 01928a6e-0000-7000-8000-000000000001
+	WinnerListingId openapi_types.UUID `json:"winner_listing_id"`
+}
 
 // Problem An RFC 9457 problem details body with a stable Monaco error code.
 //
@@ -581,6 +673,77 @@ type ReasonBody struct {
 	// Examples: spam
 	Reason string `json:"reason"`
 }
+
+// RouteCost One cost of a route, in USDC micros.
+type RouteCost struct {
+	// Kind What the cost pays for.
+	//
+	// Examples: bridge
+	Kind RouteCostKind `json:"kind"`
+
+	// Micros The cost in USDC micros.
+	//
+	// Examples: 7500
+	Micros string `json:"micros"`
+}
+
+// RouteCostKind What the cost pays for.
+//
+// Examples: bridge
+type RouteCostKind string
+
+// RouteQuote One venue's all-in quote for the trade.
+type RouteQuote struct {
+	// Costs Every cost of the route.
+	//
+	// Examples: [{"kind":"bridge","micros":"7500"}]
+	Costs []RouteCost `json:"costs"`
+
+	// ExpiresAt When the quote stops being valid.
+	//
+	// Examples: 2026-10-10T12:00:30Z
+	ExpiresAt time.Time `json:"expires_at"`
+
+	// Issuer The token issuer.
+	//
+	// Examples: xstocks
+	Issuer string `json:"issuer"`
+
+	// ListingId The listing quoted.
+	//
+	// Examples: 01928a6e-0000-7000-8000-000000000001
+	ListingId openapi_types.UUID `json:"listing_id"`
+
+	// NetMicros USDC after every cost, in micros. For a buy it is the amount spent.
+	//
+	// Examples: 10000000
+	NetMicros string `json:"net_micros"`
+
+	// NetShareNanos Underlying shares after every cost, in billionths of a share.
+	//
+	// Examples: 40000000
+	NetShareNanos string `json:"net_share_nanos"`
+
+	// Network The chain a wallet, listing or step lives on.
+	//
+	// Examples: solana
+	Network Network `json:"network"`
+
+	// QuotedAt When the quote was taken.
+	//
+	// Examples: 2026-10-10T12:00:00Z
+	QuotedAt time.Time `json:"quoted_at"`
+
+	// Venue Where the swap would run.
+	//
+	// Examples: jupiter
+	Venue RouteQuoteVenue `json:"venue"`
+}
+
+// RouteQuoteVenue Where the swap would run.
+//
+// Examples: jupiter
+type RouteQuoteVenue string
 
 // IdempotencyKey Examples: 6f1c1a52-3a4e-4d0e-9d7b-2f7f3f5b9d10
 type IdempotencyKey = string
