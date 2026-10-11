@@ -956,7 +956,7 @@ func TestWatch_flagsALabeledPRStuckOnAGraphiteBaseOnEveryPass(t *testing.T) {
 	))
 	want := "#1820 is stuck on graphite-base/1820 (a restack that never retargeted); owner: dequeue 1821, " +
 		"gt restack, gt submit --stack --draft, land-stack 1821; ticket #40"
-	out := streamRounds(t, f, 2, func(int) {})
+	out := streamRounds(t, f, 3, func(int) { f.now = f.now.Add(6 * time.Minute) })
 	if strings.Count(out, want+"\n") != 2 || strings.Contains(out, "#1830") || strings.Contains(out, "#1821 is stuck") {
 		t.Fatalf("stream:\n%s", out)
 	}
