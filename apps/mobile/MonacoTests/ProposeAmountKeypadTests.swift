@@ -38,7 +38,7 @@ struct ProposeAmountKeypadTests {
     func theAmountFigureComesBackIntoViewWhenTheMemberTypes() async throws {
         try Self.setAutomation(enabled: true)
         defer { try? Self.setAutomation(enabled: false) }
-        let (window, navigation) = try Self.window(textSize: .accessibility5)
+        let (window, navigation) = try Self.window(textSize: .accessibility5, size: CGSize(width: 440, height: 956))
         defer { window.isHidden = true }
         let barBottom = navigation.navigationBar.convert(navigation.navigationBar.bounds, to: nil).maxY
 
@@ -58,8 +58,12 @@ struct ProposeAmountKeypadTests {
 
         await expectWithinDeadline("the figure starts clear of the bar and the keypad") { figureIsClear() }
         let scroll = try #require(Self.first(UIScrollView.self, in: window))
-        scroll.setContentOffset(CGPoint(x: 0, y: -scroll.adjustedContentInset.top), animated: false)
-        await expectWithinDeadline("scrolling to the top puts the figure behind the bar") { !figureIsClear() }
+        let startFrame = try #require(Self.element("amount-entry-field", in: window)).accessibilityFrame
+        let hiddenBy: CGFloat = 20
+        let behindTheBar = scroll.contentOffset.y + (startFrame.minY - barBottom) + hiddenBy
+        scroll.setContentOffset(CGPoint(x: 0, y: behindTheBar), animated: false)
+        window.layoutIfNeeded()
+        try #require(!figureIsClear(), "scrolling down puts the figure behind the bar")
         var typed = ""
         for digit in [1, 2, 3] {
             let key = try #require(Self.element("amount-keypad-\(digit)", in: window))
@@ -109,7 +113,7 @@ struct ProposeAmountKeypadTests {
     }
 
     private static func window(
-        textSize: DynamicTypeSize = .large, trade: MonacoCore.ProposeTrade? = nil
+        textSize: DynamicTypeSize = .large, trade: MonacoCore.ProposeTrade? = nil, size: CGSize? = nil
     ) throws -> (UIWindow, UINavigationController) {
         let scene = try #require(
             UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first,
@@ -130,6 +134,7 @@ struct ProposeAmountKeypadTests {
                 .environment(ToastCenter())
                 .dynamicTypeSize(textSize)
         )
+        if let size { window.frame = CGRect(origin: .zero, size: size) }
         window.makeKeyAndVisible()
         window.layoutIfNeeded()
         let navigation = try #require(first(UINavigationController.self, in: window.rootViewController))
