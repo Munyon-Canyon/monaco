@@ -165,7 +165,7 @@ func (q *Queries) WalletLedgerMicros(
 	return settled, int(row.Pending), nil
 }
 
-func (q *Queries) Positions(ctx context.Context, cabalID ids.CabalID) ([]port.Position, error) {
+func (q *Queries) SolanaPositions(ctx context.Context, cabalID ids.CabalID) ([]port.Position, error) {
 	rows, err := q.q.CabalPositions(ctx, cabalID.UUID())
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.Positions")
@@ -173,6 +173,9 @@ func (q *Queries) Positions(ctx context.Context, cabalID ids.CabalID) ([]port.Po
 	assets := map[chain.SolanaAddress]app.Asset{}
 	positions := make([]port.Position, 0, len(rows))
 	for _, row := range rows {
+		if place := domain.PlaceAsset(row.Asset, q.usdc).Place; place == domain.EVMCash || place == domain.EVMToken {
+			continue
+		}
 		position, err := q.position(ctx, row.Asset, row.Units, row.CostBasisMicros, assets)
 		if err != nil {
 			return nil, err

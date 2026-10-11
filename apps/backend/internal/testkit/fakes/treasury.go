@@ -146,8 +146,8 @@ func (f *Treasury) UserStakeHistory(_ context.Context, userID ids.UserID) ([]por
 	return append([]port.StakePoint{}, f.stakeHistory[userID]...), nil
 }
 
-func (f *Treasury) Positions(_ context.Context, cabalID ids.CabalID) ([]treasury.Position, error) {
-	if err := f.Check("Positions"); err != nil {
+func (f *Treasury) SolanaPositions(_ context.Context, cabalID ids.CabalID) ([]treasury.Position, error) {
+	if err := f.Check("SolanaPositions"); err != nil {
 		return nil, err
 	}
 	f.mu.Lock()

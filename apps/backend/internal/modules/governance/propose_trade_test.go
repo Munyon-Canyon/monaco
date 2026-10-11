@@ -102,9 +102,9 @@ func (r guardedTreasury) PotValue(ctx context.Context, id ids.CabalID) (money.Mi
 	return r.Treasury.PotValue(ctx, id)
 }
 
-func (r guardedTreasury) Positions(ctx context.Context, id ids.CabalID) ([]treasury.Position, error) {
-	r.g.port("Positions")
-	return r.Treasury.Positions(ctx, id)
+func (r guardedTreasury) SolanaPositions(ctx context.Context, id ids.CabalID) ([]treasury.Position, error) {
+	r.g.port("SolanaPositions")
+	return r.Treasury.SolanaPositions(ctx, id)
 }
 
 type guardedBalances struct {
@@ -281,7 +281,7 @@ func TestProposeTrade_refusesWhatThePortsRefuse(t *testing.T) {
 			w.join(w.members[0], false)
 		}, sellAAPL(1), errs.CodeInvalidInput},
 		"positions unknown": {
-			func(w *tradeWorld) { w.treasury.Fail("Positions", failed) },
+			func(w *tradeWorld) { w.treasury.Fail("SolanaPositions", failed) },
 			sellAAPL(1), errs.CodeUpstreamUnavailable,
 		},
 		"position in other units": {func(w *tradeWorld) {

@@ -18,7 +18,7 @@ import (
 func TestTreasury_Positions(t *testing.T) {
 	t.Parallel()
 	w := newTreasuryWorld()
-	positions, err := w.fake.Positions(t.Context(), w.cabalID)
+	positions, err := w.fake.SolanaPositions(t.Context(), w.cabalID)
 	if err != nil || !reflect.DeepEqual(positions, []treasury.Position{w.position}) {
 		t.Fatalf("Positions = (%+v, %v), want (%+v, nil)", positions, err, []treasury.Position{w.position})
 	}
@@ -70,7 +70,7 @@ func TestTreasury_Snapshots(t *testing.T) {
 func TestTreasury_Unknown(t *testing.T) {
 	t.Parallel()
 	w := newTreasuryWorld()
-	if positions, err := w.fake.Positions(t.Context(), w.otherCabalID); err != nil || len(positions) != 0 {
+	if positions, err := w.fake.SolanaPositions(t.Context(), w.otherCabalID); err != nil || len(positions) != 0 {
 		t.Fatalf("unknown Positions = (%+v, %v), want (empty, nil)", positions, err)
 	}
 	if got, err := w.fake.Stake(t.Context(), w.cabalID, w.otherUserID); err != nil || got != (treasury.Stake{}) {
@@ -131,7 +131,7 @@ func TestTreasury_Faults(t *testing.T) {
 	cabalID := ids.CabalIDFrom(ids.Real{}.NewV7())
 	userID := ids.UserIDFrom(ids.Real{}.NewV7())
 	calls := map[string]func() error{
-		"Positions":        func() error { _, err := fake.Positions(t.Context(), cabalID); return err },
+		"SolanaPositions":  func() error { _, err := fake.SolanaPositions(t.Context(), cabalID); return err },
 		"PotValue":         func() error { _, err := fake.PotValue(t.Context(), cabalID); return err },
 		"TotalShares":      func() error { _, err := fake.TotalShares(t.Context(), cabalID); return err },
 		"ShareUnits":       func() error { _, err := fake.ShareUnits(t.Context(), cabalID, userID); return err },

@@ -85,7 +85,7 @@ func (c *reconcileChain) SignaturesFor(
 
 type ledgerPositions map[ids.CabalID][]treasuryport.Position
 
-func (l ledgerPositions) Positions(_ context.Context, id ids.CabalID) ([]treasuryport.Position, error) {
+func (l ledgerPositions) SolanaPositions(_ context.Context, id ids.CabalID) ([]treasuryport.Position, error) {
 	return l[id], nil
 }
 
@@ -460,7 +460,7 @@ func TestTreasuryReconcile_AFailedTreasuryListFailsTheTick(t *testing.T) {
 
 type failingLedger struct{}
 
-func (failingLedger) Positions(context.Context, ids.CabalID) ([]treasuryport.Position, error) {
+func (failingLedger) SolanaPositions(context.Context, ids.CabalID) ([]treasuryport.Position, error) {
 	return nil, errWatchDown
 }
 

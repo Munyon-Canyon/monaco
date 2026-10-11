@@ -35,7 +35,7 @@ const cashOutSellHandler = "trading.cashout_sell"
 
 type ledgerPositions []treasuryport.Position
 
-func (p ledgerPositions) Positions(context.Context, ids.CabalID) ([]treasuryport.Position, error) {
+func (p ledgerPositions) SolanaPositions(context.Context, ids.CabalID) ([]treasuryport.Position, error) {
 	return p, nil
 }
 

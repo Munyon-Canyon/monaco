@@ -47,6 +47,6 @@ func (UnwiredProposals) Retryable(context.Context, ids.ProposalID) (bool, error)
 
 type UnwiredPositions struct{}
 
-func (UnwiredPositions) Positions(context.Context, ids.CabalID) ([]treasuryport.Position, error) {
+func (UnwiredPositions) SolanaPositions(context.Context, ids.CabalID) ([]treasuryport.Position, error) {
 	return nil, unwired("Positions.Positions")
 }
