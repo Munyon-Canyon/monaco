@@ -26,11 +26,15 @@ type multichainParts struct {
 	forwarding multichain.DepositForwarding
 }
 
-func newMultichain() multichainParts {
-	return multichainParts{
-		evmWallets: adapters.MultichainPrivyEVMWallets(),
+func newMultichain(d module.Deps) multichainParts {
+	parts := multichainParts{
+		evmWallets: multichain.Pending{Ticket: "#4966"},
 		forwarding: adapters.MultichainDepositsDepositForwarding(),
 	}
+	if client, err := adapters.MultichainPrivyEVMWallets(d.Config, d.Clock); err == nil {
+		parts.evmWallets = client
+	}
+	return parts
 }
 
 type Module struct {
@@ -85,7 +89,7 @@ func WithTreasuryReads(reads app.TreasuryReads) Option {
 
 func New(d module.Deps, opts ...Option) *Module {
 	reads := treasury.New(d).LiveReads()
-	m := &Module{multichain: newMultichain(), deps: d, treasury: liveReads{
+	m := &Module{multichain: newMultichain(d), deps: d, treasury: liveReads{
 		reads: reads,
 		sharesOn: func(ctx context.Context, db dbsqlc.DBTX, cabalID ids.CabalID, user ids.UserID) (money.SharesUnits, error) {
 			return reads.On(db).ShareUnits(ctx, cabalID, user)
@@ -155,6 +159,10 @@ func (m *Module) Pollers() []poller.Poller {
 }
 
 func (m *Module) Queries() port.Queries { return adapters.NewQueries(m.deps.Pool) }
+
+func (m *Module) TreasuryEVMWallets() adapters.TreasuryEVMWallets {
+	return adapters.TreasuryEVMWallets{DB: m.deps.Pool, Wallets: m.multichain.evmWallets, Clock: m.deps.Clock}
+}
 
 func (*Module) DashboardOn(db dbsqlc.DBTX) adapters.Dashboard { return adapters.NewDashboard(db) }
 
