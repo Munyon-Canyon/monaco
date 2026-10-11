@@ -42,16 +42,17 @@ func streams(args []string) bool {
 }
 
 type stream struct {
-	env      *Env
-	since    time.Time
-	prev     map[string]bool
-	ejected  map[int]bool
-	blocks   map[string]string
-	seenOpen map[int]bool
-	reported map[int]bool
-	told     map[dropKey]bool
-	reran    map[int64]int
-	waits    map[int]*graphiteWait
+	env       *Env
+	since     time.Time
+	prev      map[string]bool
+	ejected   map[int]bool
+	blocks    map[string]string
+	seenOpen  map[int]bool
+	reported  map[int]bool
+	told      map[dropKey]bool
+	reran     map[int64]int
+	waits     map[int]*graphiteWait
+	trunkSaid string
 }
 
 type dropKey struct {
@@ -75,7 +76,7 @@ func newStream(env *Env) *stream {
 func (env *Env) watchStream(ctx context.Context, every time.Duration, out io.Writer) error {
 	s := newStream(env)
 	for {
-		for _, item := range s.next(ctx) {
+		for _, item := range append(s.trunkLines(ctx), s.next(ctx)...) {
 			_, _ = io.WriteString(out, item+"\n")
 		}
 		select {

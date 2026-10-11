@@ -1510,3 +1510,54 @@ func TestWatchStream_aRecordAddedWhileTheWatchReadsGitHubKeepsTheArmedLinesOnThe
 		t.Fatalf("armed record not queued: %+v", r)
 	}
 }
+
+func TestWatchStream_saysATrunkSkipOncePerOriginCommit(t *testing.T) {
+	t.Parallel()
+	r := newTrunkRepo(t)
+	r.env.Now = time.Now
+	s := newStream(r.env)
+	writeFile(t, filepath.Join(r.primary, "tracked.txt"), "edited\n")
+	skip := "staging not fast-forwarded: primary checkout has uncommitted changes"
+	r.land("a.txt")
+	for round := 1; round <= 2; round++ {
+		got := s.trunkLines(t.Context())
+		if round == 1 && !slices.Equal(got, []string{skip}) || round == 2 && len(got) != 0 {
+			t.Fatalf("round %d printed %q", round, got)
+		}
+	}
+	r.land("b.txt")
+	if got := s.trunkLines(t.Context()); !slices.Equal(got, []string{skip}) {
+		t.Fatalf("new origin commit printed %q", got)
+	}
+	trunkGit(t, r.primary, "checkout", "-q", "--", "tracked.txt")
+	got := s.trunkLines(t.Context())
+	if len(got) != 1 || !strings.HasPrefix(got[0], "staging fast-forwarded to ") {
+		t.Fatalf("clean checkout printed %q", got)
+	}
+}
+
+func TestWatchStream_saysATrunkErrorOnceUntilItClears(t *testing.T) {
+	t.Parallel()
+	r := newTrunkRepo(t)
+	r.env.Now = time.Now
+	broken := true
+	r.env.Run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
+		if broken && args[0] == "fetch" {
+			return nil, errors.New("offline")
+		}
+		return Exec(ctx, dir, stdin, name, args...)
+	}
+	s := newStream(r.env)
+	for round, want := range []int{1, 0, 0} {
+		if round == 2 {
+			broken = false
+		}
+		if got := s.trunkLines(t.Context()); len(got) != want || want == 1 && !strings.Contains(got[0], "offline") {
+			t.Fatalf("round %d printed %q", round, got)
+		}
+	}
+	broken = true
+	if got := s.trunkLines(t.Context()); len(got) != 1 {
+		t.Fatalf("a repeat of the error after it cleared printed %q", got)
+	}
+}
