@@ -27,13 +27,14 @@ SET status = 'failed', failure_code = @failure_code::text,
 WHERE id = @id
   AND CASE status
     WHEN 'created' THEN @failure_code::text IN ('never_submitted', 'source_cancelled', 'price_moved')
-    WHEN 'submitted' THEN @failure_code::text IN ('blockhash_expired', 'jupiter_failed', 'force_resolved')
+    WHEN 'submitted' THEN @failure_code::text IN ('blockhash_expired', 'jupiter_failed', 'force_resolved', 'swap_reverted')
     ELSE false
   END;
 
 -- name: SwapForForceResolve :one
 SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, in_amount, out_mint, out_decimals,
-  source_batch_size, status, tx_signature
+  source_batch_size, status, tx_signature,
+  EXISTS (SELECT 1 FROM trade_steps WHERE trade_steps.trade_id = swaps.id) AS routed
 FROM swaps
 WHERE tx_signature = @tx_signature::text;
 
@@ -45,16 +46,18 @@ WHERE source_kind = @source_kind AND source_id = @source_id AND in_mint = @in_mi
 -- name: ListStaleCreated :many
 SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, source_batch_size, in_amount
 FROM swaps
-WHERE status = 'created' AND created_at < @older_than
-ORDER BY updated_at, id
+WHERE swaps.status = 'created' AND swaps.created_at < @older_than
+  AND NOT EXISTS (SELECT 1 FROM trade_steps WHERE trade_steps.trade_id = swaps.id)
+ORDER BY swaps.updated_at, swaps.id
 LIMIT @max_rows;
 
 -- name: ListStaleSubmitted :many
 SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, out_mint, out_decimals, in_amount,
   source_batch_size, treasury_address, tx_signature, signed_tx
 FROM swaps
-WHERE status = 'submitted' AND submitted_at < @older_than::timestamptz
-ORDER BY updated_at, id
+WHERE swaps.status = 'submitted' AND swaps.submitted_at < @older_than::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM trade_steps WHERE trade_steps.trade_id = swaps.id)
+ORDER BY swaps.updated_at, swaps.id
 LIMIT @max_rows;
 
 -- name: TouchSubmitted :execrows

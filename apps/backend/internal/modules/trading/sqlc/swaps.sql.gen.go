@@ -71,7 +71,7 @@ SET status = 'failed', failure_code = $1::text,
 WHERE id = $3
   AND CASE status
     WHEN 'created' THEN $1::text IN ('never_submitted', 'source_cancelled', 'price_moved')
-    WHEN 'submitted' THEN $1::text IN ('blockhash_expired', 'jupiter_failed', 'force_resolved')
+    WHEN 'submitted' THEN $1::text IN ('blockhash_expired', 'jupiter_failed', 'force_resolved', 'swap_reverted')
     ELSE false
   END
 `
@@ -143,8 +143,9 @@ func (q *Queries) InsertCreated(ctx context.Context, arg InsertCreatedParams) er
 const listStaleCreated = `-- name: ListStaleCreated :many
 SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, source_batch_size, in_amount
 FROM swaps
-WHERE status = 'created' AND created_at < $1
-ORDER BY updated_at, id
+WHERE swaps.status = 'created' AND swaps.created_at < $1
+  AND NOT EXISTS (SELECT 1 FROM trade_steps WHERE trade_steps.trade_id = swaps.id)
+ORDER BY swaps.updated_at, swaps.id
 LIMIT $2
 `
 
@@ -199,8 +200,9 @@ const listStaleSubmitted = `-- name: ListStaleSubmitted :many
 SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, out_mint, out_decimals, in_amount,
   source_batch_size, treasury_address, tx_signature, signed_tx
 FROM swaps
-WHERE status = 'submitted' AND submitted_at < $1::timestamptz
-ORDER BY updated_at, id
+WHERE swaps.status = 'submitted' AND swaps.submitted_at < $1::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM trade_steps WHERE trade_steps.trade_id = swaps.id)
+ORDER BY swaps.updated_at, swaps.id
 LIMIT $2
 `
 
@@ -292,7 +294,8 @@ func (q *Queries) MarkSubmitted(ctx context.Context, arg MarkSubmittedParams) (i
 
 const swapForForceResolve = `-- name: SwapForForceResolve :one
 SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, in_amount, out_mint, out_decimals,
-  source_batch_size, status, tx_signature
+  source_batch_size, status, tx_signature,
+  EXISTS (SELECT 1 FROM trade_steps WHERE trade_steps.trade_id = swaps.id) AS routed
 FROM swaps
 WHERE tx_signature = $1::text
 `
@@ -311,6 +314,7 @@ type SwapForForceResolveRow struct {
 	SourceBatchSize int32
 	Status          string
 	TxSignature     pgtype.Text
+	Routed          bool
 }
 
 func (q *Queries) SwapForForceResolve(ctx context.Context, txSignature string) (SwapForForceResolveRow, error) {
@@ -330,6 +334,7 @@ func (q *Queries) SwapForForceResolve(ctx context.Context, txSignature string) (
 		&i.SourceBatchSize,
 		&i.Status,
 		&i.TxSignature,
+		&i.Routed,
 	)
 	return i, err
 }

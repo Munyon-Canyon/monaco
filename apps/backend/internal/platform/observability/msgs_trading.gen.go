@@ -11,5 +11,6 @@ func init() {
 		TradingRetryRequested,
 		TradingEngineStubbed,
 		TradingCashOutSellStubbed,
+		TradingStepChanged,
 	)
 }
