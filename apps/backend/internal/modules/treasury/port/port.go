@@ -33,6 +33,14 @@ type CabalPositions struct {
 	Holdings    []Position
 	TotalShares money.SharesUnits
 	Unpriced    bool
+	EVMCash     money.Micros
+	InTransit   money.Micros
+	Listings    []ListingPosition
+}
+
+type ListingPosition struct {
+	Key   string
+	Units *big.Int
 }
 
 type MemberStake struct {

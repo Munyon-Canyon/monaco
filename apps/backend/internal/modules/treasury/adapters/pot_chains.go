@@ -9,7 +9,9 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
@@ -124,4 +126,42 @@ func (q *Queries) offSolana(ctx context.Context, transit money.Micros, split cha
 		}
 	}
 	return total, nil
+}
+
+func (q *Queries) offSolanaPosition(p *port.CabalPositions, asset, unitsRaw string) (bool, error) {
+	const op = "treasury.Queries.offSolanaPosition"
+	switch domain.PlaceAsset(asset, q.usdc).Place {
+	case domain.EVMCash:
+		cash, err := micros(unitsRaw)
+		if err != nil {
+			return true, err
+		}
+		if p.EVMCash, err = p.EVMCash.Add(cash); err != nil {
+			return true, errs.Wrap(err, errs.CodeOf(err), op)
+		}
+		return true, nil
+	case domain.EVMToken:
+		units, ok := new(big.Int).SetString(unitsRaw, 10)
+		if !ok || units.Sign() < 0 {
+			return true, errs.New(errs.CodeDecodeFailed, op, slog.String("asset", asset))
+		}
+		p.Listings = append(p.Listings, port.ListingPosition{Key: asset, Units: units})
+		return true, nil
+	case domain.SolanaCash, domain.SolanaToken:
+	}
+	return false, nil
+}
+
+func (q *Queries) inTransitByCabal(ctx context.Context) (map[ids.CabalID]money.Micros, error) {
+	rows, err := q.transit.InTransitByCabal(ctx)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.inTransitByCabal")
+	}
+	out := make(map[ids.CabalID]money.Micros, len(rows))
+	for _, row := range rows {
+		if out[ids.CabalIDFrom(row.CabalID)], err = micros(row.Micros); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
 }

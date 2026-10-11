@@ -28,6 +28,7 @@ type Market interface {
 	Prices
 	Calendar
 	ListAll(context.Context) ([]market.Asset, error)
+	ListingPrices(context.Context, []market.ListingKey, time.Time) (map[market.ListingKey]market.ListingPrice, error)
 }
 
 type Treasury interface {

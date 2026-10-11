@@ -82,6 +82,7 @@ func (m *Module) Wire(set module.Set) {
 				catalog:  provider.Catalog(),
 				prices:   provider.Prices(),
 				calendar: provider.Calendar(),
+				listings: provider.Prices(),
 			}
 		}
 	}
@@ -137,6 +138,7 @@ type marketPort struct {
 	catalog  market.Catalog
 	prices   market.Prices
 	calendar market.Calendar
+	listings market.ListingPrices
 }
 
 func (p marketPort) ListAll(ctx context.Context) ([]market.Asset, error) {
@@ -153,6 +155,12 @@ func (p marketPort) PricesAsOf(
 	at time.Time,
 ) (map[market.AssetID]market.Price, error) {
 	return p.prices.PricesAsOf(ctx, ids, at)
+}
+
+func (p marketPort) ListingPrices(
+	ctx context.Context, keys []market.ListingKey, at time.Time,
+) (map[market.ListingKey]market.ListingPrice, error) {
+	return p.listings.ListingPrices(ctx, keys, at)
 }
 
 func (p marketPort) Session(ctx context.Context, id market.AssetID, at time.Time) (market.SessionInfo, error) {

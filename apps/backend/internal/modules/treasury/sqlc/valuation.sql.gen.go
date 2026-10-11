@@ -76,3 +76,35 @@ func (q *Queries) CabalValueRows(ctx context.Context, cabalID uuid.UUID) ([]Caba
 	}
 	return items, nil
 }
+
+const inTransitByCabal = `-- name: InTransitByCabal :many
+SELECT cabal_id, sum(amount_micros)::text AS micros
+FROM treasury_in_transit
+GROUP BY cabal_id
+ORDER BY cabal_id
+`
+
+type InTransitByCabalRow struct {
+	CabalID uuid.UUID
+	Micros  string
+}
+
+func (q *Queries) InTransitByCabal(ctx context.Context) ([]InTransitByCabalRow, error) {
+	rows, err := q.db.Query(ctx, inTransitByCabal)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []InTransitByCabalRow
+	for rows.Next() {
+		var i InTransitByCabalRow
+		if err := rows.Scan(&i.CabalID, &i.Micros); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

@@ -11,7 +11,7 @@ import (
 func TestMarketPort_forwardsEveryRead(t *testing.T) {
 	t.Parallel()
 	fake := &marketPortFake{}
-	port := marketPort{catalog: fake, prices: fake, calendar: fake}
+	port := marketPort{catalog: fake, prices: fake, calendar: fake, listings: fake}
 	ctx := t.Context()
 	if _, err := port.ListAll(ctx); err != nil {
 		t.Fatal(err)
@@ -25,8 +25,11 @@ func TestMarketPort_forwardsEveryRead(t *testing.T) {
 	if _, err := port.Session(ctx, market.AssetID{}, valuationTime()); err != nil {
 		t.Fatal(err)
 	}
-	if fake.calls != 4 {
-		t.Fatalf("calls = %d, want 4", fake.calls)
+	if _, err := port.ListingPrices(ctx, nil, valuationTime()); err != nil {
+		t.Fatal(err)
+	}
+	if fake.calls != 5 {
+		t.Fatalf("calls = %d, want 5", fake.calls)
 	}
 }
 
@@ -72,4 +75,11 @@ func (f *marketPortFake) PricesAsOf(
 func (f *marketPortFake) Session(context.Context, market.AssetID, time.Time) (market.SessionInfo, error) {
 	f.calls++
 	return market.SessionInfo{}, nil
+}
+
+func (f *marketPortFake) ListingPrices(
+	context.Context, []market.ListingKey, time.Time,
+) (map[market.ListingKey]market.ListingPrice, error) {
+	f.calls++
+	return map[market.ListingKey]market.ListingPrice{}, nil
 }

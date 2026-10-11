@@ -53,6 +53,7 @@ type queryStore interface {
 
 type transitStore interface {
 	CabalValueRows(context.Context, uuid.UUID) ([]sqlc.CabalValueRowsRow, error)
+	InTransitByCabal(context.Context) ([]sqlc.InTransitByCabalRow, error)
 }
 
 type fundStore interface {
@@ -421,6 +422,10 @@ func (q *Queries) CabalPositionsAt(ctx context.Context, at time.Time) ([]port.Ca
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.CabalPositionsAt")
 	}
+	transit, err := q.inTransitByCabal(ctx)
+	if err != nil {
+		return nil, err
+	}
 	out := []port.CabalPositions{}
 	assets := map[chain.SolanaAddress]app.Asset{}
 	for _, row := range rows {
@@ -430,19 +435,34 @@ func (q *Queries) CabalPositionsAt(ctx context.Context, at time.Time) ([]port.Ca
 			if err != nil {
 				return nil, err
 			}
-			out = append(out, port.CabalPositions{CabalID: cabalID, TotalShares: shareUnits})
+			out = append(out, port.CabalPositions{
+				CabalID: cabalID, TotalShares: shareUnits, InTransit: transit[cabalID],
+			})
 		}
-		position, err := q.position(ctx, row.Asset, row.Units, row.CostBasisMicros, assets)
-		if unresolvedMint(err) {
-			out[len(out)-1].Unpriced = true
-			continue
-		}
-		if err != nil {
+		if err := q.addPositionRow(ctx, &out[len(out)-1], row, assets); err != nil {
 			return nil, err
 		}
-		out[len(out)-1].Holdings = append(out[len(out)-1].Holdings, position)
 	}
 	return out, nil
+}
+
+func (q *Queries) addPositionRow(
+	ctx context.Context, p *port.CabalPositions, row sqlc.CabalPositionSnapshotsAtRow,
+	assets map[chain.SolanaAddress]app.Asset,
+) error {
+	if held, err := q.offSolanaPosition(p, row.Asset, row.Units); held || err != nil {
+		return err
+	}
+	position, err := q.position(ctx, row.Asset, row.Units, row.CostBasisMicros, assets)
+	if unresolvedMint(err) {
+		p.Unpriced = true
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	p.Holdings = append(p.Holdings, position)
+	return nil
 }
 
 func (q *Queries) MemberStakesAt(ctx context.Context, at time.Time) ([]port.MemberStake, error) {

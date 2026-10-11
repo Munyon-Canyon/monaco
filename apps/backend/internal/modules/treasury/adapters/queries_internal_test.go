@@ -327,7 +327,7 @@ func TestPositionValueUsesEffectiveUIMultiplier(t *testing.T) {
 func TestHistoricalReadFailures(t *testing.T) {
 	t.Parallel()
 	boom := errs.New(errs.CodeDBUnavailable, "test")
-	q := &Queries{history: historicalStore{snapshotsErr: boom}, usdc: usdcMint}
+	q := &Queries{history: historicalStore{snapshotsErr: boom}, transit: stakeStore{}, usdc: usdcMint}
 	q.catalog = app.MintResolver(func(context.Context, chain.SolanaAddress) (app.Asset, error) {
 		return app.Asset{}, errs.New(errs.CodeAssetNotFound, "test")
 	})
@@ -367,7 +367,7 @@ func TestHistoricalReadFailures(t *testing.T) {
 
 func TestHistoricalReadsSuccess(t *testing.T) {
 	t.Parallel()
-	q := &Queries{usdc: usdcMint}
+	q := &Queries{usdc: usdcMint, transit: stakeStore{}}
 	q.history = historicalStore{snapshots: []sqlc.CabalPositionSnapshotsAtRow{{
 		Asset: usdcMint, Units: "1", CostBasisMicros: "1", ShareUnits: "1",
 	}}}
@@ -435,6 +435,10 @@ func (s walletStore) WalletLedgerMicros(
 
 func (s stakeStore) CabalPositions(context.Context, uuid.UUID) ([]sqlc.CabalPositionsRow, error) {
 	return s.positions, s.positionsErr
+}
+
+func (stakeStore) InTransitByCabal(context.Context) ([]sqlc.InTransitByCabalRow, error) {
+	return nil, nil
 }
 
 func (s stakeStore) CabalValueRows(context.Context, uuid.UUID) ([]sqlc.CabalValueRowsRow, error) {
@@ -539,16 +543,20 @@ func TestCashOutReservationsReadFailures(t *testing.T) {
 func TestCabalPositionsAtMarksACabalWithAnUnresolvableMintAndKeepsTheRest(t *testing.T) {
 	t.Parallel()
 	good, bad := ids.Real{}.NewV7(), ids.Real{}.NewV7()
-	q := &Queries{usdc: usdcMint, history: historicalStore{snapshots: []sqlc.CabalPositionSnapshotsAtRow{
-		{
-			CabalID:         bad,
-			Asset:           "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
-			Units:           "1",
-			CostBasisMicros: "0",
-			ShareUnits:      "1",
-		},
-		{CabalID: good, Asset: usdcMint, Units: "5", CostBasisMicros: "5", ShareUnits: "1"},
-	}}}
+	q := &Queries{
+		usdc:    usdcMint,
+		transit: stakeStore{},
+		history: historicalStore{snapshots: []sqlc.CabalPositionSnapshotsAtRow{
+			{
+				CabalID:         bad,
+				Asset:           "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
+				Units:           "1",
+				CostBasisMicros: "0",
+				ShareUnits:      "1",
+			},
+			{CabalID: good, Asset: usdcMint, Units: "5", CostBasisMicros: "5", ShareUnits: "1"},
+		}},
+	}
 	q.catalog = app.MintResolver(func(context.Context, chain.SolanaAddress) (app.Asset, error) {
 		return app.Asset{}, errs.New(errs.CodeAssetNotFound, "test")
 	})
