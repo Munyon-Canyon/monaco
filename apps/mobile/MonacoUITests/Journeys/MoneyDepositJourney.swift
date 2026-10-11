@@ -2,15 +2,15 @@ import XCTest
 
 enum MoneyDepositJourney {
     static let id = "money/deposit"
-    static let version = 1
+    static let version = 2
 
     static let screenTimeout: TimeInterval = 15
 
-    static let howItWorks = [
-        "Send USDC to the address above from an exchange or another app.",
-        "Your account balance updates a few seconds after it arrives.",
-        "Fund a cabal to move it into the pot and grow your slice.",
-    ]
+    static let evmArrival = "Arrives in a few minutes"
+
+    static func howItWorks(on network: String) -> [String] {
+        ["Send USDC on \(network)", "It lands in your balance", "Fund a cabal"]
+    }
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -42,7 +42,47 @@ enum MoneyDepositJourney {
         )
     }
 
-    static func copyAddress(_ app: XCUIApplication, recorder: JourneyRecorder) {
+    static func openNetworks(_ app: XCUIApplication, step: String) {
+        let crypto = app.element("deposit-crypto-row")
+        XCTAssertTrue(crypto.waitForExistence(timeout: screenTimeout), "\(step): no Send crypto on Add money")
+        crypto.tap()
+        XCTAssertTrue(
+            app.navigationBars["Choose a network"].waitForExistence(timeout: screenTimeout),
+            "\(step): Choose a network did not show within \(Int(screenTimeout)) s"
+        )
+    }
+
+    static func openAddress(_ app: XCUIApplication, network: String, name: String, step: String) {
+        let row = app.element("deposit-network-\(network)")
+        XCTAssertTrue(row.waitForExistence(timeout: screenTimeout), "\(step): no \(name) in the network list")
+        row.tap()
+        XCTAssertTrue(
+            app.navigationBars["Send USDC on \(name)"].waitForExistence(timeout: screenTimeout),
+            "\(step): Send USDC on \(name) did not show within \(Int(screenTimeout)) s"
+        )
+        XCTAssertTrue(
+            app.element("deposit-address-value").waitForExistence(timeout: screenTimeout),
+            "\(step): the \(name) deposit address did not show within \(Int(screenTimeout)) s"
+        )
+    }
+
+    static func copy(_ app: XCUIApplication, step: String) {
+        let copy = app.buttons["deposit-address-copy-button"]
+        XCTAssertEqual(copy.label, "Copy address", "\(step): the copy button's label")
+        copy.tap()
+        XCTAssertTrue(
+            app.staticTexts["Address copied."].firstMatch.waitForExistence(timeout: 5),
+            "\(step): the toast \"Address copied.\" did not show within 5 s"
+        )
+    }
+
+    static func expectWarning(_ app: XCUIApplication, on name: String, step: String) {
+        let warning = app.element("deposit-network-warning")
+        XCTAssertEqual(
+            warning.label, "Only send USDC on \(name) to this address.", "\(step): the network note under the address")
+    }
+
+    static func copySolana(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S1.1", "the runner's deposit is in the balance") {
             app.tab("Home").tap()
             XCTAssertTrue(
@@ -51,54 +91,75 @@ enum MoneyDepositJourney {
             )
         }
 
-        recorder.step("S1.2", "open Add money") {
+        recorder.step("S1.2", "Add money offers Card, then Send crypto") {
             openAddMoney(app, step: "S1.2")
-            let crypto = app.buttons["Crypto"]
-            XCTAssertTrue(crypto.waitForExistence(timeout: 10), "S1.2: no Crypto on Add money")
-            crypto.tap()
-            XCTAssertTrue(
-                app.staticTexts["Your deposit address"].waitForExistence(timeout: screenTimeout),
-                "S1.2: no Your deposit address")
-            XCTAssertTrue(app.staticTexts["Your deposit address"].exists, "S1.2: no Your deposit address")
-            XCTAssertTrue(
-                app.element("deposit-address-value").waitForExistence(timeout: screenTimeout),
-                "S1.2: the deposit address did not show within \(Int(screenTimeout)) s"
-            )
+            let card = app.element("deposit-card-row")
+            let crypto = app.element("deposit-crypto-row")
+            XCTAssertTrue(card.waitForExistence(timeout: screenTimeout), "S1.2: no Card on Add money")
+            XCTAssertTrue(crypto.waitForExistence(timeout: screenTimeout), "S1.2: no Send crypto on Add money")
+            XCTAssertEqual(card.label, "Card", "S1.2: the card row's label")
+            XCTAssertEqual(crypto.label, "Send crypto", "S1.2: the crypto row's label")
+            XCTAssertLessThan(card.frame.minY, crypto.frame.minY, "S1.2: Card is not above Send crypto")
         }
 
-        recorder.step("S1.3", "copy the address") {
-            let copy = app.buttons["deposit-address-copy-button"]
-            XCTAssertEqual(copy.label, "Copy address", "S1.3: the copy button's label")
-            copy.tap()
-            XCTAssertTrue(
-                app.staticTexts["Address copied."].firstMatch.waitForExistence(timeout: 5),
-                "S1.3: the toast \"Address copied.\" did not show within 5 s"
-            )
-            XCTAssertTrue(
-                app.staticTexts["Only send USDC on Solana to this address."].exists,
-                "S1.3: no network note under the address"
-            )
+        recorder.step("S1.3", "Send crypto lists Solana first, then Base") {
+            openNetworks(app, step: "S1.3")
+            let solana = app.element("deposit-network-solana")
+            let base = app.element("deposit-network-base")
+            XCTAssertTrue(solana.waitForExistence(timeout: screenTimeout), "S1.3: no Solana in the network list")
+            XCTAssertTrue(base.waitForExistence(timeout: screenTimeout), "S1.3: no Base in the network list")
+            XCTAssertLessThan(solana.frame.minY, base.frame.minY, "S1.3: Solana is not first")
+            JoinJourney.snap(app, "S1-A-networks")
+        }
+
+        recorder.step("S1.4", "open the Solana address") {
+            openAddress(app, network: "solana", name: "Solana", step: "S1.4")
+            XCTAssertTrue(app.staticTexts["Your deposit address"].exists, "S1.4: no Your deposit address")
+            XCTAssertFalse(app.element("deposit-arrival-note").exists, "S1.4: Solana shows an arrival note")
+        }
+
+        recorder.step("S1.5", "copy the Solana address") {
+            copy(app, step: "S1.5")
+            expectWarning(app, on: "Solana", step: "S1.5")
             JoinJourney.snap(app, "S1-A-address-copied")
         }
 
-        recorder.step("S1.4", "read How it works") {
-            let last = app.staticTexts[howItWorks[2]]
+        recorder.step("S1.6", "read How it works") {
+            let steps = howItWorks(on: "Solana")
+            let last = app.element("deposit-how-it-works")
             app.scrollIntoReach(last)
-            XCTAssertTrue(app.staticTexts["How it works"].exists, "S1.4: no How it works header")
-            for line in howItWorks {
-                XCTAssertTrue(app.staticTexts[line].waitForExistence(timeout: 10), "S1.4: no \"\(line)\"")
+            XCTAssertTrue(app.staticTexts["How it works"].exists, "S1.6: no How it works header")
+            for (index, line) in steps.enumerated() {
+                XCTAssertTrue(
+                    GovernanceProposeBuyJourney.labelled(app, containing: "Step \(index + 1): \(line)")
+                        .waitForExistence(timeout: 10),
+                    "S1.6: no step \"\(line)\"")
             }
-            XCTAssertTrue(app.element("deposit-screen-balance-value").exists, "S1.4: no balance row on Add money")
+            XCTAssertTrue(app.element("deposit-screen-balance-value").exists, "S1.6: no balance row on Add money")
         }
     }
 
-    static func chooseMethod(_ app: XCUIApplication, recorder: JourneyRecorder) {
-        recorder.step("S2.1", "Add money offers Card and Crypto") {
+    static func copyBase(_ app: XCUIApplication, recorder: JourneyRecorder) {
+        recorder.step("S2.1", "open the network list again") {
+            app.popToRoot()
             openAddMoney(app, step: "S2.1")
+            openNetworks(app, step: "S2.1")
             XCTAssertTrue(
-                app.buttons["Card"].waitForExistence(timeout: 10) && app.buttons["Crypto"].exists,
-                "S2.1: Add money has no Card and Crypto chooser"
-            )
+                app.element("deposit-network-base").waitForExistence(timeout: screenTimeout),
+                "S2.1: no Base in the network list")
+        }
+
+        recorder.step("S2.2", "open the Base address") {
+            openAddress(app, network: "base", name: "Base", step: "S2.2")
+            let address = app.element("deposit-address-value").label
+            XCTAssertTrue(address.lowercased().hasPrefix("0x"), "S2.2: the Base address does not start 0x: \(address)")
+            expectWarning(app, on: "Base", step: "S2.2")
+            XCTAssertEqual(app.element("deposit-arrival-note").label, evmArrival, "S2.2: the arrival note")
+            JoinJourney.snap(app, "S2-A-base-address")
+        }
+
+        recorder.step("S2.3", "copy the Base address") {
+            copy(app, step: "S2.3")
         }
     }
 }
