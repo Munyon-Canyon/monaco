@@ -33,7 +33,7 @@ func (c *Client) SignTransaction(ctx context.Context, walletID string, unsigned 
 			SignedTransaction string `json:"signed_transaction"`
 		} `json:"data"`
 	}
-	if err := c.do(ctx, c.signed(op, http.MethodPost, path, body, ""), &w); err != nil {
+	if err := c.do(ctx, c.signedPost(op, path, body, ""), &w); err != nil {
 		return nil, err
 	}
 	signed, err := base64.StdEncoding.DecodeString(w.Data.SignedTransaction)
@@ -43,7 +43,8 @@ func (c *Client) SignTransaction(ctx context.Context, walletID string, unsigned 
 	return signed, nil
 }
 
-func (c *Client) signed(op, method, path string, body any, idemKey string) call {
+func (c *Client) signedPost(op, path string, body any, idemKey string) call {
+	method := http.MethodPost
 	headers := map[string]string{"privy-app-id": c.cfg.AppID}
 	if idemKey != "" {
 		headers[idempotencyHeader] = idemKey

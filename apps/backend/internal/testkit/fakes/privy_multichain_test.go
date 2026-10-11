@@ -176,3 +176,25 @@ func TestPrivyMultichainFake_pagesExecutionsAndRefusesAChangedAttachReplay(t *te
 		t.Fatalf("unfiltered executions = %s", rec.Body.String())
 	}
 }
+
+func TestPrivyMultichainFake_ethereumRPCAndOutcomeControlRefuseMalformedRequests(t *testing.T) {
+	t.Parallel()
+	srv := fakes.New()
+	rpc := "/privy/v1/wallets/w/rpc"
+	noTo := `{"method":"eth_signTransaction","caip2":"eip155:8453","params":{"transaction":{}}}`
+	for name, tc := range map[string]struct {
+		path, body string
+		headers    map[string]string
+		want       int
+	}{
+		"send without a key": {rpc, `{"method":"eth_sendTransaction"}`, nil, 401},
+		"sign without a to":  {rpc, noTo, signedHeaders(t, rpc, noTo), 400},
+		"bad outcome":        {"/_privy_action", `{"status":"exploded"}`, nil, 400},
+		"outcome not json":   {"/_privy_action", `nope`, nil, 400},
+		"outcome reset":      {"/_privy_action", `{"status":""}`, nil, 204},
+	} {
+		if rec := privyCall(t, srv, http.MethodPost, tc.path, tc.body, tc.headers); rec.Code != tc.want {
+			t.Fatalf("%s: %d %s, want %d", name, rec.Code, rec.Body.String(), tc.want)
+		}
+	}
+}

@@ -71,7 +71,7 @@ func (c *Client) Transfer(
 	}
 	var w actionWire
 	path := "/v1/wallets/" + url.PathEscape(walletID) + "/transfer"
-	if err := c.do(ctx, c.signed(op, http.MethodPost, path, body, idemKey), &w); err != nil {
+	if err := c.do(ctx, c.signedPost(op, path, body, idemKey), &w); err != nil {
 		return "", err
 	}
 	status, err := decodeAction(w)

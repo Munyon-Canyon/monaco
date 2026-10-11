@@ -140,7 +140,7 @@ func (c *Client) Attach(ctx context.Context, evmWalletID string, solanaDest chai
 	}
 	path := "/v1/wallets/" + url.PathEscape(evmWalletID) + "/automations/attach"
 	key := "attach:" + evmWalletID + ":" + string(solanaDest)
-	if err := c.do(ctx, c.signed(op, http.MethodPost, path, body, key), &w); err != nil {
+	if err := c.do(ctx, c.signedPost(op, path, body, key), &w); err != nil {
 		return err
 	}
 	return checkAttachment(op, w.Data, id, evmWalletID, solanaDest)

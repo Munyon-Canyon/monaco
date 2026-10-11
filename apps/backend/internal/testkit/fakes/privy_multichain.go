@@ -37,11 +37,14 @@ type privyMultichain struct {
 	attachments []privyAttachment
 	executions  []map[string]any
 	bodies      map[string]string
+	outcome     string
+	sends       map[string]map[string]any
 }
 
 func (p *privyMultichain) init() {
 	if p.actions == nil {
 		p.actions, p.byKey, p.bodies = map[string]privyAction{}, map[string]string{}, map[string]string{}
+		p.sends = map[string]map[string]any{}
 	}
 }
 
@@ -146,6 +149,10 @@ func (s *Server) privyTransfer(w http.ResponseWriter, r *http.Request) {
 	defer p.mu.Unlock()
 	p.init()
 	key := r.PathValue("id") + "/" + r.Header.Get("privy-idempotency-key")
+	if p.conflicts(key, body) {
+		privyError(w, http.StatusBadRequest, "idempotency key reused with a different request")
+		return
+	}
 	if id, ok := p.byKey[key]; ok {
 		writeJSON(w, p.actions[id])
 		return
@@ -170,6 +177,9 @@ func (s *Server) privyAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	action.Status = "succeeded"
+	if p.outcome != "" {
+		action.Status = p.outcome
+	}
 	sum := sha256.Sum256([]byte(action.ID))
 	source := chain.Network(action.SourceChain)
 	first := map[string]any{
@@ -182,8 +192,11 @@ func (s *Server) privyAction(w http.ResponseWriter, r *http.Request) {
 			"transaction_hash": "0x" + hex.EncodeToString(sum[:]),
 		}
 	}
+	if action.Status != "succeeded" {
+		first["status"] = map[string]string{"rejected": "rejected", "failed": "reverted"}[action.Status]
+	}
 	action.Steps = []map[string]any{first}
-	if action.DestChain != "" && action.DestChain != action.SourceChain {
+	if action.Status == "succeeded" && action.DestChain != "" && action.DestChain != action.SourceChain {
 		action.Steps = append(action.Steps, map[string]any{
 			"type": "external_transaction", "status": "confirmed",
 		})
