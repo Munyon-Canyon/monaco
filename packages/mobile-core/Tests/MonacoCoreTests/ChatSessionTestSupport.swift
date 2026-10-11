@@ -74,16 +74,20 @@ extension ChatFixtures {
         _ transport: StubTransport,
         realtime: FakeChatRealtime = FakeChatRealtime(),
         keys: [String] = ["key-1", "key-2", "key-3"],
-        clock: any Clock<Duration> = ContinuousClock()
+        clock: any Clock<Duration> = ContinuousClock(),
+        blocked: Bool = false
     ) -> ChatSession {
         let remaining = Mutex(keys)
+        let api = APIClient(
+            serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
         return ChatSession(
             cabalID: cabalID,
             viewerID: viewerID,
-            api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport),
+            api: api,
             realtime: realtime,
             now: { epoch.addingTimeInterval(3_600) },
             makeKey: { remaining.withLock { $0.isEmpty ? "key-extra" : $0.removeFirst() } },
+            blocked: blocked ? BlockedAuthors(api: api) : nil,
             clock: clock
         )
     }

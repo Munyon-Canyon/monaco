@@ -62,6 +62,7 @@ public actor ThreadSession {
     }
 
     public func reload() async {
+        await chat.refreshBlocked()
         await loadNewest()
     }
 

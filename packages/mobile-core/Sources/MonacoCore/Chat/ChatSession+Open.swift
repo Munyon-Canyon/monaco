@@ -8,6 +8,7 @@ extension ChatSession {
         let generation = openGeneration
         openBuffer = []
         catchUpOwed = false
+        await refreshBlocked()
         subscribe()
         if !channelAttached { await awaitFirstAttach(generation: generation) }
         guard generation == openGeneration else { return }
@@ -29,6 +30,7 @@ extension ChatSession {
     }
 
     public func reload() async {
+        await refreshBlocked()
         await loadNewest()
         if isOpen, !state.isClosed { subscribe() }
     }

@@ -56,7 +56,8 @@ struct ChatThreadView: View {
             viewerID: environment.viewer?.userID ?? "",
             api: environment.api,
             realtime: environment.chatRealtime,
-            now: { Date() }
+            now: { Date() },
+            blocked: BlockedAuthors(api: environment.api)
         )
         ChatSessionRegistry.register(created)
         return created

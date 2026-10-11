@@ -38,6 +38,7 @@ public actor ChatSession {
     let now: @Sendable () -> Date
     let makeKey: @Sendable () -> String
     private let onArrival: @Sendable () async -> Void
+    let blocked: BlockedAuthors?
     let attachTimeout: Duration
     let clock: any Clock<Duration>
     var state: State
@@ -64,6 +65,7 @@ public actor ChatSession {
         now: @escaping @Sendable () -> Date,
         makeKey: @escaping @Sendable () -> String = { UUID().uuidString.lowercased() },
         onArrival: @escaping @Sendable () async -> Void = {},
+        blocked: BlockedAuthors? = nil,
         attachTimeout: Duration = .seconds(3),
         clock: any Clock<Duration> = ChatSession.systemClock
     ) {
@@ -74,6 +76,7 @@ public actor ChatSession {
         self.realtime = realtime
         self.now = now
         self.makeKey = makeKey
+        self.blocked = blocked
         self.onArrival = onArrival
         self.state = State(timeline: ChatTimeline(viewerID: viewerID))
     }
@@ -138,6 +141,7 @@ public actor ChatSession {
     }
 
     func apply(_ event: ChatRealtimeEvent) async {
+        if case .messageCreated(let message) = event, await isBlocked(message) { return }
         for thread in attached.values { await thread.apply(event) }
         switch event {
         case .messageCreated(let message):
@@ -281,11 +285,6 @@ public actor ChatSession {
 
     private func removeSubscriber(_ id: UUID) {
         subscribers[id] = nil
-    }
-
-    static func isClosed(_ error: APIError) -> Bool {
-        guard case .problem(let problem) = error else { return false }
-        return problem.code == .known(.notCabalMember)
     }
 }
 
