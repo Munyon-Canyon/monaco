@@ -333,7 +333,7 @@ func poll(limit time.Duration, done func() bool) bool {
 }
 
 func Exec(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
-	if name == "gh" {
+	if name == "gh" || name == "git" && len(args) > 0 && args[0] == "fetch" {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, ghTimeout())
 		defer cancel()
