@@ -30,7 +30,24 @@ type qualifyFixture struct {
 	pool *pgxpool.Pool
 	uow  *db.UnitOfWork
 	ids  *testkit.IDs
-	logs *bytes.Buffer
+	logs *lockedLogs
+}
+
+type lockedLogs struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (l *lockedLogs) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.buf.Write(p)
+}
+
+func (l *lockedLogs) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.buf.String()
 }
 
 func newQualifyFixture(t *testing.T, seed uint64) qualifyFixture {
@@ -38,7 +55,7 @@ func newQualifyFixture(t *testing.T, seed uint64) qualifyFixture {
 	pool := testkit.DB(t)
 	return qualifyFixture{
 		pool: pool, uow: db.New(pool, testkit.NewIDs(seed), testkit.NewClock(deliveredAt())),
-		ids: testkit.NewIDs(seed + 1000), logs: &bytes.Buffer{},
+		ids: testkit.NewIDs(seed + 1000), logs: &lockedLogs{},
 	}
 }
 
@@ -309,7 +326,7 @@ func TestReferralQualify_AfterAttach(t *testing.T) {
 	if err := attach.Handle(ctx, app.AttachReferral{CallerID: caller, Code: "k7m4qx2p", Source: "manual"}); err != nil {
 		t.Fatal(err)
 	}
-	f := qualifyFixture{pool: pool, uow: uow, ids: generator, logs: &bytes.Buffer{}}
+	f := qualifyFixture{pool: pool, uow: uow, ids: generator, logs: &lockedLogs{}}
 	f.mustApply(t, users, f.funded(caller.UUID(), 10_000_000))
 	f.wantState(t, caller.UUID(), "qualified", true, 1)
 	if got := f.qualifiedEvents(t)[0]; got.Referrer != referrer.UUID() || got.Referee != caller.UUID() {
