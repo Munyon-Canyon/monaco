@@ -24,24 +24,34 @@ public struct BestPrice: Equatable, Sendable {
 
     public init?(_ comparison: Components.Schemas.PriceComparison?, isSell: Bool) {
         guard let comparison else { return nil }
-        let venues = comparison.quotes.compactMap { quote -> Venue? in
+        let quoted = comparison.quotes.compactMap { quote -> Venue? in
             guard let shares = Int64(quote.netShareNanos), let micros = Int64(quote.netMicros) else { return nil }
             return Venue(
-                id: quote.listingId, name: Self.venueName(venue: quote.venue, network: quote.network),
-                network: quote.network, netShareNanos: shares, netMicros: micros,
-                isWinner: quote.listingId == comparison.winnerListingId)
+                id: quote.listingId, name: Self.chainName(quote.network), network: quote.network,
+                netShareNanos: shares, netMicros: micros, isWinner: quote.listingId == comparison.winnerListingId)
         }
-        guard let winner = venues.first(where: \.isWinner) else { return nil }
-        self.venues = [winner] + venues.filter { !$0.isWinner }
-        unavailable = comparison.unavailable.compactMap { venue -> UnavailableVenue? in
-            guard let exchange = Components.Schemas.RouteQuote.VenuePayload(rawValue: venue.venue.rawValue) else {
-                return nil
+        guard let winner = quoted.first(where: \.isWinner) else { return nil }
+        var venues = [winner]
+        for venue in quoted where !venue.isWinner {
+            guard let index = venues.firstIndex(where: { $0.network == venue.network }) else {
+                venues.append(venue)
+                continue
             }
+            if !venues[index].isWinner, Self.beats(venue, venues[index], isSell: isSell) { venues[index] = venue }
+        }
+        self.venues = venues
+        var networks = Set(venues.map(\.network))
+        unavailable = comparison.unavailable.compactMap { venue -> UnavailableVenue? in
+            guard networks.insert(venue.network).inserted else { return nil }
             return UnavailableVenue(
-                id: venue.listingId, name: Self.venueName(venue: exchange, network: venue.network),
-                network: venue.network, reason: Self.reasonText(venue.reason))
+                id: venue.listingId, name: Self.chainName(venue.network), network: venue.network,
+                reason: Self.reasonText(venue.reason))
         }
         self.isSell = isSell
+    }
+
+    private static func beats(_ venue: Venue, _ other: Venue, isSell: Bool) -> Bool {
+        isSell ? venue.netMicros > other.netMicros : venue.netShareNanos > other.netShareNanos
     }
 
     public var winner: Venue { venues[0] }
@@ -99,17 +109,6 @@ public struct BestPrice: Equatable, Sendable {
         let tenThousandths = nanos / nanosPerTenThousandth
         let fraction = String(tenThousandths % 10_000)
         return "\(tenThousandths / 10_000).\(String(repeating: "0", count: 4 - fraction.count))\(fraction)"
-    }
-
-    static func venueName(
-        venue: Components.Schemas.RouteQuote.VenuePayload, network: Components.Schemas.Network
-    ) -> String {
-        let exchange =
-            switch venue {
-            case .jupiter: "Jupiter"
-            case .uniswap: "Uniswap"
-            }
-        return "\(exchange) on \(chainName(network))"
     }
 
     public static func chainName(_ network: Components.Schemas.Network) -> String {

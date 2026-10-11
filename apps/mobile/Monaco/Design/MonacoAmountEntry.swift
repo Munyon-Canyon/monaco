@@ -28,6 +28,7 @@ struct AmountEntry<Accessory: View>: View {
     private let helper: String?
     private let overLimitHelper: String
     private let problem: String?
+    private let isLoading: Bool
     private let onPreset: (AmountPreset) -> Void
 
     @FocusState private var focused: Bool
@@ -45,6 +46,7 @@ struct AmountEntry<Accessory: View>: View {
         helper: String? = nil,
         overLimitHelper: String = "More than you have",
         problem: String? = nil,
+        isLoading: Bool = false,
         input: AmountEntryInput = .systemKeyboard,
         onPreset: @escaping (AmountPreset) -> Void = { _ in },
         @ViewBuilder accessory: () -> Accessory
@@ -57,6 +59,7 @@ struct AmountEntry<Accessory: View>: View {
         self.helper = helper
         self.overLimitHelper = overLimitHelper
         self.problem = problem
+        self.isLoading = isLoading
         self.onPreset = onPreset
     }
 
@@ -78,13 +81,20 @@ struct AmountEntry<Accessory: View>: View {
                 presetRow
             }
             if let helperLine {
-                Text(helperLine)
-                    .font(MonacoTheme.Typo.callout)
-                    .foregroundStyle(hasProblem ? MonacoTheme.loss : MonacoTheme.muted)
-                    .multilineTextAlignment(.center)
-                    .contentTransition(.opacity)
-                    .animation(reduceMotion ? nil : .snappy, value: helperLine)
-                    .accessibilityIdentifier("amount-entry-helper")
+                HStack(spacing: MonacoTheme.Space.xs) {
+                    if isLoading && !hasProblem {
+                        ProgressView()
+                            .controlSize(.small)
+                            .accessibilityIdentifier("amount-entry-spinner")
+                    }
+                    Text(helperLine)
+                        .font(MonacoTheme.Typo.callout)
+                        .foregroundStyle(hasProblem ? MonacoTheme.loss : MonacoTheme.muted)
+                        .multilineTextAlignment(.center)
+                        .contentTransition(.opacity)
+                        .animation(reduceMotion ? nil : .snappy, value: helperLine)
+                        .accessibilityIdentifier("amount-entry-helper")
+                }
             }
             accessory
         }
@@ -258,6 +268,7 @@ extension AmountEntry where Accessory == EmptyView {
         helper: String? = nil,
         overLimitHelper: String = "More than you have",
         problem: String? = nil,
+        isLoading: Bool = false,
         input: AmountEntryInput = .systemKeyboard,
         onPreset: @escaping (AmountPreset) -> Void = { _ in }
     ) {

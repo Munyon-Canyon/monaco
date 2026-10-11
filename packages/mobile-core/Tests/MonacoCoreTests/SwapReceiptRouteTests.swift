@@ -44,7 +44,7 @@ final class SwapReceiptRouteTests: XCTestCase {
         let receipt = SwapReceipt(try swap(status: "confirmed", steps: nil))
 
         XCTAssertEqual(receipt.bestPrice?.headline, "Best price across 2 venues")
-        XCTAssertEqual(receipt.bestPrice?.winner.name, "Uniswap on Base")
+        XCTAssertEqual(receipt.bestPrice?.winner.name, "Base")
         XCTAssertEqual(receipt.statusLabel, "Done")
     }
 

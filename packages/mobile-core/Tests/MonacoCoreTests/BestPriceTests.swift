@@ -11,13 +11,14 @@ final class BestPriceTests: XCTestCase {
         return try decoder.decode(Components.Schemas.PriceComparison.self, from: Data(json.utf8))
     }
 
-    private typealias Quote = (id: String, issuer: String, venue: String, shares: String, micros: String)
+    private typealias Quote = (id: String, issuer: String, network: String, shares: String, micros: String)
 
     private func comparison(winner: String, quotes: [Quote]) throws -> Components.Schemas.PriceComparison {
         let now = ISO8601DateFormatter().string(from: Date())
         let rows = quotes.map { quote in
             """
-            {"listing_id": "\(quote.id)", "issuer": "\(quote.issuer)", "network": "solana", "venue": "\(quote.venue)",
+            {"listing_id": "\(quote.id)", "issuer": "\(quote.issuer)", "network": "\(quote.network)",
+             "venue": "\(quote.network == "solana" ? "jupiter" : "uniswap")",
              "net_share_nanos": "\(quote.shares)", "net_micros": "\(quote.micros)", "costs": [],
              "quoted_at": "\(now)", "expires_at": "\(now)"}
             """
@@ -39,7 +40,7 @@ final class BestPriceTests: XCTestCase {
 
         XCTAssertEqual(best.headline, "Best price across 1 venue")
         XCTAssertEqual(best.price, "$250.00 a share")
-        XCTAssertEqual(best.winner.name, "Jupiter on Solana")
+        XCTAssertEqual(best.winner.name, "Solana")
         XCTAssertEqual(best.figure(best.winner), "0.0400 shares")
         XCTAssertNil(best.advantage)
     }
@@ -48,7 +49,7 @@ final class BestPriceTests: XCTestCase {
         let best = try XCTUnwrap(BestPrice(BestPrice.sampleComparison(now: Date()), isSell: false))
 
         XCTAssertEqual(best.headline, "Best price across 3 venues")
-        XCTAssertEqual(best.venues.map(\.name), ["Uniswap on Base", "Jupiter on Solana", "Uniswap on Ethereum"])
+        XCTAssertEqual(best.venues.map(\.name), ["Base", "Solana", "Ethereum"])
         XCTAssertEqual(best.venues.map(\.isWinner), [true, false, false])
         XCTAssertEqual(best.venues.map(\.network), [.base, .solana, .ethereum])
         XCTAssertEqual(best.venues.map(best.figure), ["0.0401 shares", "0.0400 shares", "0.0398 shares"])
@@ -59,7 +60,7 @@ final class BestPriceTests: XCTestCase {
         let compared = try comparison(
             winner: "b",
             quotes: [
-                ("a", "xstocks", "jupiter", "40000000", "10000000"), ("b", "ondo", "uniswap", "41000000", "10000000"),
+                ("a", "xstocks", "solana", "40000000", "10000000"), ("b", "ondo", "base", "41000000", "10000000"),
             ])
 
         let best = try XCTUnwrap(BestPrice(compared, isSell: false))
@@ -72,7 +73,7 @@ final class BestPriceTests: XCTestCase {
         let compared = try comparison(
             winner: "a",
             quotes: [
-                ("a", "xstocks", "jupiter", "40000000", "10050000"), ("b", "ondo", "uniswap", "40000000", "10000000"),
+                ("a", "xstocks", "solana", "40000000", "10050000"), ("b", "ondo", "base", "40000000", "10000000"),
             ])
 
         let best = try XCTUnwrap(BestPrice(compared, isSell: true))
@@ -85,7 +86,7 @@ final class BestPriceTests: XCTestCase {
         let compared = try comparison(
             winner: "a",
             quotes: [
-                ("a", "xstocks", "jupiter", "40050000", "10000000"), ("b", "ondo", "uniswap", "40000000", "10000000"),
+                ("a", "xstocks", "solana", "40050000", "10000000"), ("b", "ondo", "base", "40000000", "10000000"),
             ])
 
         XCTAssertNil(BestPrice(compared, isSell: false)?.advantage)
@@ -110,9 +111,67 @@ final class BestPriceTests: XCTestCase {
         XCTAssertEqual(best.headline, "Best price across 1 venue")
         XCTAssertNil(best.advantage)
         XCTAssertEqual(best.unavailable.map(\.id), ["b", "c", "d"])
-        XCTAssertEqual(best.unavailable.map(\.name), ["Uniswap on Base", "Uniswap on Ethereum", "Uniswap on Arbitrum"])
+        XCTAssertEqual(best.unavailable.map(\.name), ["Base", "Ethereum", "Arbitrum"])
         XCTAssertEqual(best.unavailable.map(\.network), [.base, .ethereum, .arbitrum])
         XCTAssertEqual(best.unavailable.map(\.reason), ["Unavailable right now", "No route", "Unavailable right now"])
+    }
+
+    func testEachChainIsOneRowWithItsBestQuote() throws {
+        let buy = try comparison(
+            winner: "base",
+            quotes: [
+                ("sol-x", "xstocks", "solana", "40000000", "10000000"),
+                ("base", "xstocks", "base", "41000000", "10000000"),
+                ("sol-o", "ondo", "solana", "40500000", "10000000"),
+            ])
+
+        let best = try XCTUnwrap(BestPrice(buy, isSell: false))
+
+        XCTAssertEqual(best.headline, "Best price across 2 venues")
+        XCTAssertEqual(best.venues.map(\.name), ["Base", "Solana"])
+        XCTAssertEqual(best.venues.map(\.id), ["base", "sol-o"])
+        XCTAssertEqual(best.venues.map(\.isWinner), [true, false])
+        XCTAssertEqual(best.advantage, "You get 0.0005 more shares than the next best")
+
+        let sell = try comparison(
+            winner: "base",
+            quotes: [
+                ("sol-x", "xstocks", "solana", "40000000", "9900000"),
+                ("base", "xstocks", "base", "40000000", "10000000"),
+                ("sol-o", "ondo", "solana", "41000000", "9800000"),
+            ])
+
+        XCTAssertEqual(try XCTUnwrap(BestPrice(sell, isSell: true)).venues.map(\.id), ["base", "sol-x"])
+    }
+
+    func testAChainWithAQuoteShowsNoUnavailableRowAndEachOtherChainShowsOne() throws {
+        let now = ISO8601DateFormatter().string(from: Date())
+        let compared = try decode(
+            """
+            {"winner_listing_id": "a", "quotes": [{"listing_id": "a", "issuer": "xstocks", "network": "solana",
+             "venue": "jupiter", "net_share_nanos": "40000000", "net_micros": "10000000", "costs": [],
+             "quoted_at": "\(now)", "expires_at": "\(now)"}],
+             "unavailable": [
+              {"listing_id": "b", "network": "solana", "venue": "jupiter", "reason": "no_route"},
+              {"listing_id": "c", "network": "base", "venue": "uniswap", "reason": "no_route"},
+              {"listing_id": "d", "network": "base", "venue": "uniswap", "reason": "stale"}]}
+            """)
+
+        let best = try XCTUnwrap(BestPrice(compared, isSell: false))
+
+        XCTAssertEqual(best.venues.map(\.id), ["a"])
+        XCTAssertEqual(best.unavailable.map(\.id), ["c"])
+        XCTAssertEqual(best.unavailable.map(\.name), ["Base"])
+    }
+
+    func testEveryChainIsLabelledByItsNameAlone() throws {
+        let labels = try Components.Schemas.Network.allCases.map { network -> String in
+            let quote: Quote = ("a", "xstocks", network.rawValue, "40000000", "10000000")
+            let compared = try comparison(winner: "a", quotes: [quote])
+            return try XCTUnwrap(BestPrice(compared, isSell: false)).winner.name
+        }
+
+        XCTAssertEqual(labels, ["Solana", "Base", "Arbitrum", "Ethereum", "Robinhood Chain"])
     }
 
     func testEveryUnavailableReasonHasText() {
@@ -126,7 +185,7 @@ final class BestPriceTests: XCTestCase {
 
     func testNoComparisonOrAMissingWinnerShowsNothing() throws {
         XCTAssertNil(BestPrice(nil, isSell: false))
-        let orphaned = try comparison(winner: "z", quotes: [("a", "xstocks", "jupiter", "40000000", "10000000")])
+        let orphaned = try comparison(winner: "z", quotes: [("a", "xstocks", "solana", "40000000", "10000000")])
         XCTAssertNil(BestPrice(orphaned, isSell: false))
     }
 }

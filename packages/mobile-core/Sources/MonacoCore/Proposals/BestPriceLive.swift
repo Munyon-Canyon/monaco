@@ -33,7 +33,7 @@ public struct BestPriceRow: Equatable, Sendable {
         for _ in 0..<decimals { unit *= 10 }
         let (priceMicros, _) = quoteOut.dividingFullWidth(usdcMicros.multipliedFullWidth(by: unit))
         figure = "\(UsdAmountFormatter.format(micros: priceMicros)) a share"
-        headline = BestPrice.venueName(venue: .jupiter, network: .solana)
+        headline = BestPrice.chainName(.solana)
         self.caption = caption
         venues = nil
     }
