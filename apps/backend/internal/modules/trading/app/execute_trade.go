@@ -50,12 +50,15 @@ func (c ExecuteTrade) amount() uint64 {
 }
 
 type ExecuteTradeDeps struct {
-	Layer *SwapLayer
-	UoW   *db.UnitOfWork
-	Reads sqlc.DBTX
-	Venue Venue
-	Ports EnginePorts
-	USDC  chain.Mint
+	Layer    *SwapLayer
+	Routes   *RouteExec
+	Listings Listings
+	UoW      *db.UnitOfWork
+	Reads    sqlc.DBTX
+	Venue    Venue
+	Ports    EnginePorts
+	USDC     chain.Mint
+	EVM      bool
 }
 
 type ExecuteTradeHandler struct {
@@ -77,14 +80,19 @@ func (h *ExecuteTradeHandler) Handle(ctx context.Context, d bus.Delivery, cmd Ex
 	if done, err := h.claimed(ctx, d, cmd); done || err != nil {
 		return err
 	}
-	req, refused, err := h.check(ctx, cmd)
+	req, winner, refused, err := h.check(ctx, cmd)
 	switch {
 	case err != nil:
 		return h.checkFailed(ctx, d, cmd, err)
 	case refused.refused():
 		return h.block(ctx, d, cmd, refused)
 	}
-	view, err := h.d.Layer.Run(ctx, req, heartbeat)
+	var view SwapView
+	if winner.Network.IsEVM() {
+		view, err = h.d.Routes.Buy(ctx, req, winner, heartbeat)
+	} else {
+		view, err = h.d.Layer.Run(ctx, req, heartbeat)
+	}
 	if err != nil || view.Status == domain.StatusCreated {
 		return err
 	}
@@ -138,7 +146,38 @@ func (h *ExecuteTradeHandler) claimed(ctx context.Context, d bus.Delivery, cmd E
 	})
 }
 
-func (h *ExecuteTradeHandler) check(ctx context.Context, cmd ExecuteTrade) (SwapRequest, refusal, error) {
+type tradeCheck func(context.Context, ExecuteTrade, *SwapRequest) (refusal, error)
+
+func (h *ExecuteTradeHandler) check(
+	ctx context.Context, cmd ExecuteTrade,
+) (SwapRequest, multichain.Listing, refusal, error) {
+	req, refused, err := h.tradable(ctx, cmd)
+	if refused.refused() || err != nil {
+		return SwapRequest{}, multichain.Listing{}, refused, err
+	}
+	winner, err := h.winner(ctx, cmd)
+	switch code := errs.CodeOf(err); {
+	case code == errs.CodeAssetNotFound || code == errs.CodeAssetUntradable:
+		return SwapRequest{}, multichain.Listing{}, refusal{code: errs.CodeAssetUntradable}, nil
+	case err != nil:
+		return SwapRequest{}, multichain.Listing{}, refusal{}, err
+	}
+	checks := []tradeCheck{h.funds, h.slippage, h.price, h.paused}
+	switch {
+	case winner.Network.IsEVM():
+		checks = []tradeCheck{h.funds, h.slippage, h.paused}
+	case winner.Network == chain.NetworkSolana:
+		req.OutMint = chain.Mint{Address: chain.SolanaAddress(winner.TokenAddress), Decimals: winner.Decimals}
+	}
+	for _, next := range checks {
+		if refused, err := next(ctx, cmd, &req); refused.refused() || err != nil {
+			return SwapRequest{}, multichain.Listing{}, refused, err
+		}
+	}
+	return req, winner, refusal{}, nil
+}
+
+func (h *ExecuteTradeHandler) tradable(ctx context.Context, cmd ExecuteTrade) (SwapRequest, refusal, error) {
 	untradable := refusal{code: errs.CodeAssetUntradable}
 	asset, err := h.d.Ports.Catalog.AssetBySymbol(ctx, cmd.Symbol)
 	switch {
@@ -153,15 +192,7 @@ func (h *ExecuteTradeHandler) check(ctx context.Context, cmd ExecuteTrade) (Swap
 	if err != nil {
 		return SwapRequest{}, refusal{}, err
 	}
-	req := h.request(cmd, asset, wallet)
-	for _, next := range []func(context.Context, ExecuteTrade, *SwapRequest) (refusal, error){
-		h.funds, h.price, h.paused,
-	} {
-		if refused, err := next(ctx, cmd, &req); refused.refused() || err != nil {
-			return SwapRequest{}, refused, err
-		}
-	}
-	return req, refusal{}, nil
+	return h.request(cmd, asset, wallet), refusal{}, nil
 }
 
 func (h *ExecuteTradeHandler) request(cmd ExecuteTrade, asset market.Asset, w cabalport.TreasuryWallet) SwapRequest {
@@ -213,12 +244,13 @@ func (h *ExecuteTradeHandler) funds(ctx context.Context, cmd ExecuteTrade, req *
 	return refusal{}, nil
 }
 
-func (h *ExecuteTradeHandler) price(ctx context.Context, cmd ExecuteTrade, req *SwapRequest) (refusal, error) {
+func (h *ExecuteTradeHandler) slippage(ctx context.Context, cmd ExecuteTrade, req *SwapRequest) (refusal, error) {
 	bps, err := h.slippageBps(ctx, cmd)
-	if err != nil {
-		return refusal{}, err
-	}
 	req.SlippageBps = domain.SlippageOf(bps).Bps()
+	return refusal{}, err
+}
+
+func (h *ExecuteTradeHandler) price(ctx context.Context, _ ExecuteTrade, req *SwapRequest) (refusal, error) {
 	quote, err := h.d.Venue.Quote(ctx, QuoteSpec{InMint: req.InMint, OutMint: req.OutMint, InAmount: req.InAmount})
 	if err != nil {
 		return refusal{}, err

@@ -86,12 +86,15 @@ type Module struct {
 	once        sync.Once
 	trades      *app.ExecuteTradeHandler
 	sells       *app.SellForCashOutHandler
+	route       app.RoutePorts
 	treasuryEVM cabalport.TreasuryEVM
 }
 
 type Option func(*Module)
 
 func WithEnginePorts(p EnginePorts) Option { return func(m *Module) { m.ports = p } }
+
+func WithRoutePorts(p app.RoutePorts) Option { return func(m *Module) { m.route = p } }
 
 func WithChain(venue Venue, signer Signer) Option {
 	return func(m *Module) { m.venue, m.signer = venue, signer }
@@ -223,14 +226,48 @@ func (m *Module) build() {
 	})
 	usdc := chain.Mint{Address: chain.SolanaAddress(cfg.Solana.USDCMint), Decimals: usdcDecimals}
 	ports := m.enginePorts()
+	route := m.routePorts()
 	m.trades = app.NewExecuteTradeHandler(app.ExecuteTradeDeps{
-		Layer: layer, UoW: m.deps.UoW, Reads: m.deps.Pool, Venue: venue, Ports: ports, USDC: usdc,
+		Layer: layer, Routes: m.routes(layer, ports, route), Listings: route.Listings, UoW: m.deps.UoW,
+		Reads: m.deps.Pool, Venue: venue, Ports: ports, USDC: usdc, EVM: route.EVM,
 	})
 	m.sells = app.NewSellForCashOutHandler(app.SellForCashOutDeps{
 		Layer: layer, UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: clk, Venue: venue, USDC: usdc,
 		Holdings: app.LedgerHoldings{Ledger: ports.Positions, Catalog: ports.Catalog, USDC: usdc},
 		Wallets:  app.CabalWallets{Cabals: ports.Cabals},
 	})
+}
+
+func (m *Module) routes(layer *app.SwapLayer, ports EnginePorts, route app.RoutePorts) *app.RouteExec {
+	return app.NewRouteExec(app.RouteExecDeps{
+		Layer:   layer,
+		Journal: app.Journal{UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, IDs: m.deps.IDs},
+		Wallets: app.CabalWallets{Cabals: ports.Cabals}, TreasuryEVM: route.TreasuryEVM, Listings: route.Listings,
+		Quoter: route.Quoter, Actions: route.Actions, Sender: route.Sender, Venue: route.Venue, Poll: app.DefaultPoll(),
+	})
+}
+
+func (m *Module) routePorts() app.RoutePorts {
+	p := m.route
+	if p.Listings == nil {
+		p.Listings = market.New(m.deps).Catalog()
+	}
+	if p.TreasuryEVM == nil {
+		p.TreasuryEVM = app.UnwiredTreasuryEVM{}
+	}
+	if p.Quoter == nil {
+		p.Quoter = multichain.Pending{Ticket: "#4969"}
+	}
+	if p.Actions == nil {
+		p.Actions = m.multichain.walletActions
+	}
+	if p.Sender == nil {
+		p.Sender = adapters.EVMSend{Wallets: m.multichain.evmWallets}
+	}
+	if p.Venue == nil {
+		p.Venue = app.UnwiredEVMVenue{}
+	}
+	return p
 }
 
 func (m *Module) enginePorts() EnginePorts {

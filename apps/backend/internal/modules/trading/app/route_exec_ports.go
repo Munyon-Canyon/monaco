@@ -62,3 +62,13 @@ func (p Poll) until(ctx context.Context, clk clock.Clock, done func() (bool, err
 		}
 	}
 }
+
+type RoutePorts struct {
+	Listings    Listings
+	TreasuryEVM TreasuryEVM
+	Quoter      multichain.Quoter
+	Actions     multichain.WalletActions
+	Sender      EVMSender
+	Venue       EVMVenue
+	EVM         bool
+}

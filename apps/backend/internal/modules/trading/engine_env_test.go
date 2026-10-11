@@ -10,11 +10,13 @@ import (
 	busevents "github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	governance "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	platform "github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -111,6 +113,8 @@ type engineEnv struct {
 	proposals *proposalsFake
 	balances  *balancesFake
 	ledger    *chainfake.Ledger
+	winners   listingsFake
+	options   []trading.Option
 }
 
 func newEngineEnv(t *testing.T) *engineEnv {
@@ -119,7 +123,7 @@ func newEngineEnv(t *testing.T) *engineEnv {
 }
 
 func newEngineEnvOn(layer *layerEnv) *engineEnv {
-	e := &engineEnv{layerEnv: layer}
+	e := &engineEnv{layerEnv: layer, winners: listingsFake{listings: map[multichain.ListingID]multichain.Listing{}}}
 	e.cabal = ids.CabalIDFrom(e.ids.NewV7())
 	e.wallet = cabal.TreasuryWallet{
 		CabalID: e.cabal, PrivyWalletID: treasuryWallet, Address: chainfake.WalletAddress(treasuryWallet),
@@ -174,7 +178,8 @@ func (e *engineEnv) ports() app.EnginePorts {
 
 func (e *engineEnv) handler() *app.ExecuteTradeHandler {
 	return app.NewExecuteTradeHandler(app.ExecuteTradeDeps{
-		Layer: e.layer(), UoW: e.uow, Reads: e.reads, Venue: e.venue, Ports: e.ports(), USDC: usdcToken(),
+		Layer: e.layer(), Listings: e.winners, UoW: e.uow, Reads: e.reads, Venue: e.venue, Ports: e.ports(),
+		USDC: usdcToken(),
 	})
 }
 
@@ -196,7 +201,7 @@ func (e *engineEnv) delivery(t *testing.T, cmd app.ExecuteTrade) bus.Delivery {
 	ev := busevents.ProposalPassed{
 		V: 1, ProposalID: cmd.ProposalID.UUID(), CabalID: cmd.CabalID.UUID(), Kind: string(cmd.Action),
 		Symbol: cmd.Symbol, Mint: cmd.Mint, USDCMicros: cmd.USDCMicros, TokenAmount: cmd.TokenAmount,
-		QuoteOutAmount: cmd.QuoteOutAmount, ProposerID: e.ids.NewV7(),
+		QuoteOutAmount: cmd.QuoteOutAmount, ProposerID: e.ids.NewV7(), PriceComparison: cmd.Route,
 	}
 	var id uuid.UUID
 	err := e.uow.Do(actorContext(t.Context()), func(ctx context.Context, tx db.Tx) error {
