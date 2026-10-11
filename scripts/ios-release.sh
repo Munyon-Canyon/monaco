@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Archive the iOS app and upload it to TestFlight.
 # Usage, from the repo root: scripts/ios-release.sh staging|production
-# Secrets come from .env.local through scripts/with-dotenv-local.sh.
+# Secrets come from .env.local through scripts/with-dotenv-local.sh, except the
+# App Store Connect key (ASC_*), which comes from .env.staging for both environments.
 # There is no just recipe: release stays this script.
 set -euo pipefail
 
@@ -37,6 +38,20 @@ refuse_empty_asc_vars() {
       echo "error: ${name} is empty" >&2
       exit 1
     fi
+  done
+}
+
+# Fill each unset ASC_* from .env.staging. An exported value wins.
+load_asc_vars() {
+  local name value
+  for name in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8_BASE64; do
+    if [[ -n "${!name+x}" ]]; then
+      continue
+    fi
+    if ! value="$(dotenvx get "$name" -f "${repo_root}/.env.staging" 2>/dev/null)"; then
+      value=""
+    fi
+    export "${name}=${value}"
   done
 }
 
@@ -126,7 +141,7 @@ main() {
   refuse_dirty_tree
 
   # An explicit empty value fails before dotenv, so a planted missing-key run
-  # does not decrypt .env.local. Unset means the value is loaded from the file.
+  # does not decrypt .env.local. Unset means the value is loaded from .env.staging.
   if [[ "${MONACO_IOS_RELEASE_WRAPPED:-}" != 1 ]]; then
     for name in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8_BASE64; do
       if asc_var_explicitly_empty "$name"; then
@@ -139,6 +154,7 @@ main() {
   fi
 
   refuse_unpushed_head
+  load_asc_vars
   refuse_empty_asc_vars
 
   case "$env_name" in
