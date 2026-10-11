@@ -31,12 +31,14 @@ type multichainParts struct {
 
 func newMultichain(d module.Deps) multichainParts {
 	parts := multichainParts{
-		evmWallets:     multichain.Pending{Ticket: "#4966"},
-		forwarding:     adapters.MultichainDepositsDepositForwarding(),
-		depositWallets: adapters.MultichainDepositsEVMDepositWallets(),
+		evmWallets: multichain.Pending{Ticket: "#4966"},
+		forwarding: multichain.Pending{Ticket: "#4967"},
 	}
 	if client, err := adapters.MultichainPrivyEVMWallets(d.Config, d.Clock); err == nil {
 		parts.evmWallets = client
+	}
+	if client, err := adapters.MultichainDepositsDepositForwarding(d.Config, d.Clock); err == nil {
+		parts.forwarding = client
 	}
 	return parts
 }
@@ -127,11 +129,15 @@ func (m *Module) Mount(r api.Mount) {
 		store = m.deps.Photos
 	}
 	m.ensurePrivy()
+	var deposits adapters.DepositWallets = m.EVMDepositWallets()
+	if m.multichain.depositWallets != nil {
+		deposits = m.multichain.depositWallets
+	}
 	identityapi.Mount(adapters.HTTP{
 		Open: m.openSession(), Reads: m.deps.Pool, Clock: m.deps.Clock,
 		Cards: adapters.NewQueries(m.deps.Pool), Follows: m.follows,
 		Deposits: adapters.DepositAddresses{
-			Members: adapters.NewQueries(m.deps.Pool), EVM: m.multichain.depositWallets,
+			Members: adapters.NewQueries(m.deps.Pool), EVM: deposits,
 			Networks: m.deps.Config.Funding.EVMDepositNetworks,
 		},
 		Onboard: app.NewOnboarding(app.OnboardingDeps{

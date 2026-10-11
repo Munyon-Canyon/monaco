@@ -137,11 +137,23 @@ func TestEVMWallets_aCorruptStoredAddressIsInternal(t *testing.T) {
 	}
 }
 
-func TestModuleEVMDepositWallets_failsSafeUntilEveryPartIsWired(t *testing.T) {
+func TestModuleEVMDepositWallets_failsSafeWithoutPrivyAndEnsuresThroughPrivy(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	q := sqlc.New(pool)
 	user := seedMember(t, q, true)
+	deps := func(cfg config.Config) module.Deps {
+		return module.Deps{
+			Config: cfg, Clock: clock.Real{}, IDs: ids.Real{}, Pool: pool, UoW: db.New(pool, ids.Real{}, clock.Real{}),
+		}
+	}
+	_, err := identity.New(deps(config.Config{})).EVMDepositWallets().EnsureEVMDepositWallet(t.Context(), user)
+	if errs.CodeOf(err) != errs.CodeNotImplemented {
+		t.Fatalf("without privy: err = %v, want not_implemented", err)
+	}
+	if _, err := q.FindUserEVMWallet(t.Context(), user.UUID()); err == nil {
+		t.Fatal("a wallet was stored without privy")
+	}
 	srv := httptest.NewServer(fakes.New())
 	t.Cleanup(srv.Close)
 	privyConfig := config.Config{Privy: config.Privy{
@@ -150,18 +162,12 @@ func TestModuleEVMDepositWallets_failsSafeUntilEveryPartIsWired(t *testing.T) {
 		AuthorizationPrivateKey: fakes.PrivyAuthorizationKeyConfig(),
 		AuthorizationKeyID:      fakes.PrivyAuthorizationKeyID,
 	}, Timeouts: config.Timeouts{Privy: 5 * time.Second}}
-	for name, cfg := range map[string]config.Config{"no privy": {}, "privy without forwarding": privyConfig} {
-		m := identity.New(module.Deps{
-			Config: cfg, Clock: clock.Real{}, IDs: ids.Real{}, Pool: pool, UoW: db.New(pool, ids.Real{}, clock.Real{}),
-		})
-		if _, err := m.EVMDepositWallets().
-			EnsureEVMDepositWallet(t.Context(), user); errs.CodeOf(
-			err,
-		) != errs.CodeNotImplemented {
-			t.Fatalf("%s: err = %v, want not_implemented", name, err)
-		}
+	got, err := identity.New(deps(privyConfig)).EVMDepositWallets().EnsureEVMDepositWallet(t.Context(), user)
+	if err != nil {
+		t.Fatalf("through privy: %v", err)
 	}
-	if _, err := q.FindUserEVMWallet(t.Context(), user.UUID()); err == nil {
-		t.Fatal("a wallet was stored without its forwarding")
+	stored, err := q.FindUserEVMWallet(t.Context(), user.UUID())
+	if err != nil || stored.EvmAddress != got.String() {
+		t.Fatalf("stored wallet = %+v, %v, want the ensured address %s", stored, err, got)
 	}
 }

@@ -27,13 +27,6 @@ type DepositAddresses struct {
 	Networks []chain.Network
 }
 
-type PendingDepositWallets struct{ Ticket string }
-
-func (p PendingDepositWallets) EnsureEVMDepositWallet(context.Context, ids.UserID) (chain.EVMAddress, error) {
-	return chain.EVMAddress{}, errs.New(errs.CodeNotImplemented, "identity.EnsureEVMDepositWallet",
-		slog.String("ticket", p.Ticket))
-}
-
 func (h HTTP) GetMyDepositAddresses(
 	ctx context.Context, _ api.GetMyDepositAddressesRequestObject,
 ) (api.GetMyDepositAddressesResponseObject, error) {

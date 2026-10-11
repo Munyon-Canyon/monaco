@@ -9,6 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters"
 	privyadapter "github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters/privy"
+	identityapp "github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -16,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/privyfake"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
@@ -80,7 +82,7 @@ func TestDepositAddresses_EVMFailureStillReturnsTheSolanaAddress(t *testing.T) {
 		)
 }
 
-func TestDepositAddresses_TheEVMWalletWaitsOnTheMultichainClient(t *testing.T) {
+func TestDepositAddresses_DefaultWiringFallsBackToSolanaWhenPrivyFails(t *testing.T) {
 	t.Parallel()
 	s := depositScenario(t, []chain.Network{chain.NetworkBase})
 	user := testkit.SeedUser(t, s.DB(), testkit.UserOpts{WithWallet: true})
@@ -145,5 +147,44 @@ func TestEVMDepositWallets_readFailureIsInternal(t *testing.T) {
 	wallets := adapters.NewEnrolledEVMWallets(testkit.DB(t))
 	if _, err := wallets.EVMDepositWallets(ctx, ids.UserID{}, 10); errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("EVMDepositWallets on a cancelled context = %v, want %s", err, errs.CodeInternal)
+	}
+}
+
+func TestDepositAddresses_EnsuresOneForwardedEVMWalletAndServesItOnEveryNetwork(t *testing.T) {
+	t.Parallel()
+	wallets, forwarding := &privyfake.EVMWallets{}, &privyfake.Forwarding{}
+	client, _, upstreams := overPrivyFakes(t)
+	users, privyWallets := privyadapter.Users{Client: client}, privyadapter.Wallets{Client: client}
+	s := scenario.New(t,
+		scenario.WithModules(func(d module.Deps) module.Module {
+			d.Config.Funding.EVMDepositNetworks = []chain.Network{chain.NetworkBase, chain.NetworkArbitrum}
+			ensure := identityapp.NewEVMDepositWallets(identityapp.EVMDepositWalletDeps{
+				UoW: d.UoW, Reads: d.Pool, Store: adapters.EVMWallets{}, Wallets: wallets, Forwarding: forwarding,
+				Clock: d.Clock,
+			})
+			return identity.New(d, identity.WithPrivy(users, privyWallets), identity.WithDepositWallets(ensure))
+		}),
+		scenario.WithPrivy(upstreams, privyAppID),
+	)
+	user := testkit.SeedUser(t, s.DB(), testkit.UserOpts{WithWallet: true})
+	created, err := wallets.CreateAppEVMWallet(t.Context(), "evm-deposit:"+user.ID.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		s.Given(scenario.AsSeededUser("member", user.ID)).
+			When(scenario.Get("/v1/me/deposit-addresses")).
+			Then(
+				scenario.ExpectStatus(200),
+				scenario.ExpectJSON("addresses", []map[string]string{
+					{"network": "solana", "address": string(user.Address), "asset": "USDC"},
+					{"network": "base", "address": created.Address.String(), "asset": "USDC"},
+					{"network": "arbitrum", "address": created.Address.String(), "asset": "USDC"},
+				}),
+			)
+	}
+	if forwarding.Attaches() != 1 || forwarding.Destination(created.ID) != user.Address {
+		t.Fatalf("attaches = %d to %s, want one attach to the member wallet %s",
+			forwarding.Attaches(), forwarding.Destination(created.ID), user.Address)
 	}
 }
