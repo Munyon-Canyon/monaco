@@ -44,7 +44,8 @@ func dataset(t *testing.T) []datasetRow {
 		rows = append(rows, datasetRow{
 			issuer: r[col["issuer"]], symbol: r[col["symbol"]], network: r[col["network"]], address: address,
 			decimals: r[col["decimals"]],
-			enabled:  r[col["verified"]] == "True" && r[col["trading_halted"]] == "False",
+			enabled: r[col["verified"]] == "True" && r[col["trading_halted"]] == "False" &&
+				(r[col["issuer"]] != "xstocks" || r[col["network"]] == "solana"),
 		})
 	}
 	return rows
@@ -80,6 +81,20 @@ func TestAssetListingsHoldEveryVerifiedDatasetRow(t *testing.T) {
 		if g, ok := got[w.issuer+"/"+w.network+"/"+w.address]; !ok || g != w {
 			t.Errorf("listing %s/%s/%s = %+v, want %+v", w.issuer, w.network, w.address, g, w)
 		}
+	}
+}
+
+func TestListingOverrideTurnsOffEveryXStocksEVMListing(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	var overridden, xstocksEVM, enabled int
+	err := pool.QueryRow(t.Context(), `SELECT count(*) FILTER (WHERE tradable_override = false),
+		count(*) FILTER (WHERE issuer = 'xstocks' AND network <> 'solana'),
+		count(*) FILTER (WHERE issuer = 'xstocks' AND network <> 'solana' AND enabled) FROM asset_listings`).
+		Scan(&overridden, &xstocksEVM, &enabled)
+	if err != nil || overridden != xstocksEVM || xstocksEVM != 2409 || enabled != 0 {
+		t.Fatalf("overridden = %d, xStocks EVM = %d, enabled = %d, %v, want all 2409 off", overridden, xstocksEVM,
+			enabled, err)
 	}
 }
 
