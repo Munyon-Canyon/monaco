@@ -5,15 +5,18 @@ The Everyone / Following toggle never leaves Everyone. S2.1 expects no cell from
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Feed/FeedView.swift b/apps/mobile/Monaco/Features/Feed/FeedView.swift
-index 6e31e4efb..8854a1662 100644
+index 8dc0cf9c3..a9f9a6373 100644
 --- a/apps/mobile/Monaco/Features/Feed/FeedView.swift
 +++ b/apps/mobile/Monaco/Features/Feed/FeedView.swift
-@@ -77,7 +77,7 @@ private struct FeedScreen: View {
+@@ -115,9 +115,9 @@ private struct FeedScreen: View {
      private var scope: Binding<FeedScope> {
          Binding(
              get: { model.query.scope },
--            set: { next in Task { await model.select(next) } }
-+            set: { _ in Task { await model.select(FeedScope.everyone) } }
+-            set: { next in
++            set: { _ in
+                 readingID = nil
+-                Task { await model.select(next) }
++                Task { await model.select(FeedScope.everyone) }
+             }
          )
      }
- 

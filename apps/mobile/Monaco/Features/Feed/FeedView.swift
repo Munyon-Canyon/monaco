@@ -69,6 +69,7 @@ private struct FeedScreen: View {
 
     @Environment(ToastCenter.self) private var toasts
     @State private var search = ""
+    @State private var readingID: Components.Schemas.FeedItem.ID?
 
     var body: some View {
         ScrollView {
@@ -78,6 +79,7 @@ private struct FeedScreen: View {
                 MonacoChipBar(
                     items: FeedChip.allCases, selected: model.query.chip, title: \.title, identifierPrefix: "feed-chip"
                 ) { chip in
+                    readingID = nil
                     Task { await model.select(chip) }
                 }
                 MonacoSegmented(FeedScope.allCases, selection: scope, label: \.title)
@@ -87,10 +89,14 @@ private struct FeedScreen: View {
             }
             .padding(.vertical, MonacoTheme.Space.m)
         }
+        .scrollPosition(id: $readingID, anchor: .top)
         .scrollDismissesKeyboard(.interactively)
         .refreshable { await model.refresh() }
         .monacoCanvas()
-        .onChange(of: search) { _, text in model.setSearch(text) }
+        .onChange(of: search) { _, text in
+            readingID = nil
+            model.setSearch(text)
+        }
         .onChange(of: model.failureTick) { _, _ in
             guard let error = model.lastError else { return }
             toasts.show(error)
@@ -109,7 +115,10 @@ private struct FeedScreen: View {
     private var scope: Binding<FeedScope> {
         Binding(
             get: { model.query.scope },
-            set: { next in Task { await model.select(next) } }
+            set: { next in
+                readingID = nil
+                Task { await model.select(next) }
+            }
         )
     }
 
@@ -167,6 +176,7 @@ private struct FeedScreen: View {
                     MonacoRowSkeleton(rows: 1, markShape: .circle)
                 }
             }
+            .scrollTargetLayout()
         }
     }
 }
