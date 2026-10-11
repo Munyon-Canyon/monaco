@@ -22,9 +22,6 @@ type lockEnv struct {
 	dir    string
 	script string
 	extra  []string
-	// pgroup starts each call in its own process group, so a test can signal the group the
-	// way a terminal's Ctrl-C does.
-	pgroup bool
 	// calls numbers the callers, so each gets its own lane unless a test names one.
 	calls atomic.Int32
 }
@@ -78,9 +75,8 @@ func (e *lockEnv) start(workdir string, extraEnv []string, args ...string) *call
 	e.t.Helper()
 	cmd := exec.Command(e.script, args...)
 	cmd.Dir = workdir
-	if e.pgroup {
-		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	}
+	// Every call has its own process group, so a test can signal it as a terminal's Ctrl-C does and cleanup can kill the held command with the wrapper.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Env = append(os.Environ(),
 		"MONACO_XCODE_LOCK_DIR="+e.xcodeLock(),
 		"MONACO_SWIFTPM_LOCK_DIR="+e.swiftpmLock(),
@@ -104,7 +100,7 @@ func (e *lockEnv) start(workdir string, extraEnv []string, args ...string) *call
 		select {
 		case <-c.done:
 		default:
-			_ = cmd.Process.Kill()
+			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 			<-c.done
 		}
 	})
@@ -544,7 +540,6 @@ func TestXcodeLockTermWaitsForCommandBeforeRelease(t *testing.T) {
 // the wrapper has to forward the signal.
 func TestXcodeLockGroupInterruptStopsCommand(t *testing.T) {
 	limiterPaths(t, func(t *testing.T, e *lockEnv) {
-		e.pgroup = true
 		pidFile := filepath.Join(e.dir, "cmd.pid")
 		holder := e.start(e.dir, nil, "xcode", "sh", "-c", `echo $$ > "$1"; exec sleep 30`, "sh", pidFile)
 		cmdPid := readPid(t, pidFile)
@@ -996,5 +991,99 @@ func TestXcodeLockLogsEachBuild(t *testing.T) {
 	f = strings.Split(lines[2], "\t")
 	if len(f) != 9 || f[5] != "other" || f[7] != "7" {
 		t.Fatalf("second row wrong: %q", lines[2])
+	}
+}
+
+// laneRepo makes a git repo with a commit, plus the worktrees at the given paths.
+func laneRepo(t *testing.T, root string, worktrees ...string) string {
+	t.Helper()
+	repo := filepath.Join(root, "repo")
+	for _, args := range [][]string{
+		{"init", "-q", repo},
+		{"-C", repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "x"},
+	} {
+		if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	for _, wt := range worktrees {
+		if out, err := exec.Command("git", "-C", repo, "worktree", "add", "-q", "--detach", wt).CombinedOutput(); err != nil {
+			t.Fatalf("git worktree add %s: %v\n%s", wt, err, out)
+		}
+	}
+	return repo
+}
+
+// heldLane runs a holder in workdir with env, waits for it to hold the slot and returns the
+// lane the slot records.
+func heldLane(t *testing.T, e *lockEnv, workdir string, env []string) string {
+	t.Helper()
+	n := strconv.Itoa(int(e.calls.Add(1)))
+	in, rel := filepath.Join(e.dir, "in."+n), filepath.Join(e.dir, "rel."+n)
+	c := e.start(workdir, env, append([]string{"xcode"}, holdUntil(in, rel)...)...)
+	t.Cleanup(func() { release(t, rel) })
+	await(t, "holder to run", func() bool { return exists(in) }, c)
+	lanes, err := filepath.Glob(e.xcodeLock() + "*/lane")
+	if err != nil || len(lanes) != 1 {
+		t.Fatalf("want one held slot, got %v (%v)", lanes, err)
+	}
+	raw, err := os.ReadFile(lanes[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	release(t, rel)
+	if code := c.wait(t); code != 0 {
+		t.Fatalf("holder exit %d:\n%s", code, c.stderr.String())
+	}
+	return strings.TrimSpace(string(raw))
+}
+
+// Ticket worktrees under <repo>/.worktrees/ inherit one herdr workspace ID, yet each is its
+// own lane: two slots are free and both run at once.
+func TestXcodeLockTicketWorktreesShareAHerdrIDButNotALane(t *testing.T) {
+	t.Parallel()
+	e := newLockEnv(t)
+	root, err := filepath.EvalSymlinks(e.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, b := filepath.Join(root, "repo", ".worktrees", "1"), filepath.Join(root, "repo", ".worktrees", "2")
+	laneRepo(t, root, a, b)
+	env := []string{"MONACO_LANE=", "HERDR_WORKSPACE_ID=w1", "MONACO_XCODE_SLOTS=2"}
+	aIn, bIn := filepath.Join(e.dir, "a.in"), filepath.Join(e.dir, "b.in")
+	aRel, bRel := filepath.Join(e.dir, "a.rel"), filepath.Join(e.dir, "b.rel")
+
+	ca := e.start(a, env, append([]string{"xcode"}, holdUntil(aIn, aRel)...)...)
+	cb := e.start(b, env, append([]string{"xcode"}, holdUntil(bIn, bRel)...)...)
+	t.Cleanup(func() { release(t, aRel, bRel) })
+	eventually(t, "both ticket worktrees to run", func() bool { return exists(aIn) && exists(bIn) })
+	release(t, aRel, bRel)
+	if ca.wait(t) != 0 || cb.wait(t) != 0 {
+		t.Fatalf("a worktree exited non-zero")
+	}
+}
+
+// A ticket worktree's lane is its top level; a worktree outside .worktrees/ keeps the herdr
+// workspace ID; an explicit MONACO_LANE wins over both.
+func TestXcodeLockLaneChoice(t *testing.T) {
+	t.Parallel()
+	e := newLockEnv(t)
+	root, err := filepath.EvalSymlinks(e.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ticket := filepath.Join(root, "repo", ".worktrees", "7")
+	herdr := filepath.Join(root, "herdr", "lane")
+	laneRepo(t, root, ticket, herdr)
+	herdrID := []string{"MONACO_LANE=", "HERDR_WORKSPACE_ID=w1", "MONACO_XCODE_SLOTS=2"}
+
+	if got := heldLane(t, e, ticket, herdrID); got != ticket {
+		t.Errorf("ticket worktree lane %q, want %q", got, ticket)
+	}
+	if got := heldLane(t, e, herdr, herdrID); got != "w1" {
+		t.Errorf("worktree outside .worktrees/ lane %q, want w1", got)
+	}
+	if got := heldLane(t, e, ticket, []string{"MONACO_LANE=mine", "HERDR_WORKSPACE_ID=w1", "MONACO_XCODE_SLOTS=2"}); got != "mine" {
+		t.Errorf("explicit lane %q, want mine", got)
 	}
 }
