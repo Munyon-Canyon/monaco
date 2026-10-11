@@ -32,7 +32,7 @@ func TestModule_ordersNameTheConfiguredRelayerAsPayer(t *testing.T) {
 	orders := &orderLog{Venue: e.venue}
 	conn := testkit.NATS(t).Conn
 	m := trading.New(module.Deps{Config: cfg, Clock: e.clk, IDs: e.ids, Pool: e.pool, UoW: e.uow, Bus: conn},
-		trading.WithEnginePorts(e.ports()), trading.WithChain(orders, nil))
+		trading.WithEnginePorts(e.ports()), trading.WithChain(orders, nil), trading.WithChainReader(e.fills))
 	e.dispatchVia(t, conn, m)
 	if len(orders.specs) == 0 || orders.specs[0].Payer != chainfake.RelayerAddress() {
 		t.Fatalf("orders = %+v, want the configured relayer %s as payer", orders.specs, chainfake.RelayerAddress())

@@ -42,7 +42,12 @@ func TestModule_aRoutedSwapUsesTheCabalsTreasuryEVMWallet(t *testing.T) {
 		AuthorizationKeyID:      fakes.PrivyAuthorizationKeyID,
 	}
 	d := module.Deps{Config: cfg, Clock: e.clk, IDs: e.ids, Pool: e.pool, UoW: e.uow}
-	m := trading.New(d, trading.WithEnginePorts(e.ports()), trading.WithChain(e.venue, e.signer))
+	m := trading.New(
+		d,
+		trading.WithEnginePorts(e.ports()),
+		trading.WithChain(e.venue, e.signer),
+		trading.WithChainReader(e.fills),
+	)
 	module.NewSet(cabal.New(d), m)
 
 	_, err := m.Pollers()[1].Tick(actorContext(t.Context()))

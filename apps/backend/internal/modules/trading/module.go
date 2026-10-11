@@ -84,6 +84,7 @@ type Module struct {
 	ports       EnginePorts
 	venue       Venue
 	signer      Signer
+	reader      app.ChainReader
 	once        sync.Once
 	trades      *app.ExecuteTradeHandler
 	sells       *app.SellForCashOutHandler
@@ -102,6 +103,8 @@ func WithRoutePorts(p app.RoutePorts) Option { return func(m *Module) { m.route 
 func WithChain(venue Venue, signer Signer) Option {
 	return func(m *Module) { m.venue, m.signer = venue, signer }
 }
+
+func WithChainReader(r app.ChainReader) Option { return func(m *Module) { m.reader = r } }
 
 func New(d module.Deps, opts ...Option) *Module {
 	m := &Module{multichain: newMultichain(d), deps: d}
@@ -195,9 +198,12 @@ func (m *Module) engineAdapter() adapters.Engine {
 func (m *Module) Pollers() []poller.Poller {
 	cfg := m.deps.Config.Trade
 	timing := app.SweepTiming{Interval: cfg.SwapSweepInterval, Age: cfg.SwapSweepAge}
+	reader := m.reader
+	if reader == nil {
+		reader = chainadapters.NewReader(solana.New(m.deps.Config, m.deps.Clock))
+	}
 	return []poller.Poller{
-		app.NewSwapSweeper(m.deps.UoW, m.deps.Pool, m.deps.Clock,
-			chainadapters.NewReader(solana.New(m.deps.Config, m.deps.Clock)), m.deps.Bus, timing),
+		app.NewSwapSweeper(m.deps.UoW, m.deps.Pool, m.deps.Clock, reader, m.deps.Bus, timing),
 		app.NewEVMTrades(m.deps.UoW, m.deps.Pool, m.deps.Clock, routeResumer{m: m}, m.modulePorts().Proposals, timing),
 	}
 }
@@ -228,9 +234,13 @@ func (m *Module) build() {
 			signer = chainadapters.NewSigner(client, payer)
 		}
 	}
+	reader := m.reader
+	if reader == nil {
+		reader = chainadapters.NewReader(solana.New(cfg, clk))
+	}
 	layer := app.NewSwapLayer(app.SwapLayerDeps{
 		UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: clk, IDs: m.deps.IDs, Venue: venue, Signer: signer,
-		Hints: m.deps.Bus,
+		Chain: reader, Hints: m.deps.Bus,
 	})
 	usdc := chain.Mint{Address: chain.SolanaAddress(cfg.Solana.USDCMint), Decimals: usdcDecimals}
 	ports := m.enginePorts()

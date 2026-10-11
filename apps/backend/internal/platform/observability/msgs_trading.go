@@ -5,6 +5,11 @@ var TradingSwapFinished = Msg{
 	Required: []string{"swap_id", "source", "status", "failure_code"},
 }
 
+var TradingSwapFillUnread = Msg{
+	Name:     "trading.swap.fill_unread",
+	Required: []string{"swap_id", "code"},
+}
+
 var TradingSwapForceResolved = Msg{
 	Name:     "trading.swap.force_resolved",
 	Required: []string{"swap_id", "signature", "from", "to", "reason"},
