@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/binary"
 	"errors"
 	"flag"
 	"fmt"
@@ -32,9 +33,11 @@ import (
 )
 
 const (
-	qaUsage         = "usage: monacoctl qa pot [--address] | qa pot new | qa fund --user <user-uuid> --usdc <amount>"
+	qaUsage = "usage: monacoctl qa pot [--address] | qa pot new | " +
+		"qa fund --user <user-uuid> (--usdc <amount> | --sol <amount>)"
 	qaPotKey        = "QA_POT_PRIVATE_KEY"
 	qaMaxFundMicros = 5_000_000
+	qaMaxFundLamps  = 10_000_000
 	qaMinPotLamport = 10_000_000
 	qaUSDCDecimals  = 6
 	qaSOLDecimals   = 9
@@ -128,7 +131,8 @@ func qaFundCmd(env qaEnv, cfg config.Config, args []string, stdout, stderr io.Wr
 	fs.SetOutput(io.Discard)
 	user := fs.String("user", "", "")
 	usdc := fs.String("usdc", "", "")
-	if fs.Parse(args) != nil || fs.NArg() != 0 || *user == "" || *usdc == "" {
+	sol := fs.String("sol", "", "")
+	if fs.Parse(args) != nil || fs.NArg() != 0 || *user == "" || (*usdc == "") == (*sol == "") {
 		_, _ = fmt.Fprintln(stderr, qaUsage)
 		return 2
 	}
@@ -137,7 +141,78 @@ func qaFundCmd(env qaEnv, cfg config.Config, args []string, stdout, stderr io.Wr
 		_, _ = fmt.Fprintln(stderr, qaUsage)
 		return 2
 	}
+	if *sol != "" {
+		return fundUserSOL(env, cfg, userID, *sol, stdout, stderr)
+	}
 	return fundUser(env, cfg, userID, *usdc, stdout, stderr)
+}
+
+func fundUserSOL(env qaEnv, cfg config.Config, user uuid.UUID, rawSOL string, stdout, stderr io.Writer) int {
+	lamports, ok := parseUnits(rawSOL, qaSOLDecimals)
+	if !ok {
+		_, _ = fmt.Fprintf(stderr, "qa fund: --sol %q must be more than 0 SOL, with at most 9 decimals\n", rawSOL)
+		return 1
+	}
+	if lamports > qaMaxFundLamps {
+		_, _ = fmt.Fprintln(stderr, "qa fund: at most 0.01 SOL per transfer")
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), env.wait)
+	defer cancel()
+	pot, dest, code := fundTarget(ctx, env, cfg, user, stderr)
+	if code != 0 {
+		return code
+	}
+	rpc := env.rpc(cfg)
+	held, err := rpc.SOLBalance(ctx, pot.address)
+	if err != nil {
+		return fail(stderr, err)
+	}
+	if held.Uint64() < qaMinPotLamport+lamports {
+		_, _ = fmt.Fprintf(stderr,
+			"qa fund: the QA pot %s holds %s SOL, and this transfer needs at least %s SOL. "+
+				"The operator must top it up (README.md, Agent QA: the QA pot)\n",
+			pot.address, units(held.Uint64(), qaSOLDecimals), units(qaMinPotLamport+lamports, qaSOLDecimals))
+		return 1
+	}
+	sig, err := sendMessageFromPot(ctx, env, rpc, pot, func(hash [32]byte) []byte {
+		return solTransferMessage(pot.address, dest, lamports, hash)
+	})
+	if err != nil {
+		return fail(stderr, err)
+	}
+	_, _ = fmt.Fprintf(stdout, "sent %s SOL to %s\nsignature %s\n", units(lamports, qaSOLDecimals), dest, sig)
+	return 0
+}
+
+func fundTarget(
+	ctx context.Context, env qaEnv, cfg config.Config, user uuid.UUID, stderr io.Writer,
+) (qaPot, chain.SolanaAddress, int) {
+	pot, err := loadPot(env.environ)
+	if err != nil {
+		return qaPot{}, "", fail(stderr, err)
+	}
+	dest, err := env.wallet(ctx, cfg, user)
+	if errors.Is(err, errNoMemberWallet) {
+		_, _ = fmt.Fprintf(stderr, "qa fund: no member wallet for user %s\n", user)
+		return qaPot{}, "", 1
+	}
+	if err != nil {
+		return qaPot{}, "", fail(stderr, err)
+	}
+	return pot, dest, 0
+}
+
+func solTransferMessage(from, to chain.SolanaAddress, lamports uint64, blockhash [32]byte) []byte {
+	msg := []byte{1, 0, 1, 3}
+	for _, k := range []chain.SolanaAddress{from, to, chain.SystemProgram} {
+		b, _ := k.Bytes()
+		msg = append(msg, b...)
+	}
+	msg = append(msg, blockhash[:]...)
+	data := binary.LittleEndian.AppendUint64(binary.LittleEndian.AppendUint32(nil, 2), lamports)
+	msg = append(msg, 1, 2, 2, 0, 1, 12)
+	return append(msg, data...)
 }
 
 func newPot(env qaEnv, stdout, stderr io.Writer) int {
@@ -196,19 +271,11 @@ func fundUser(env qaEnv, cfg config.Config, user uuid.UUID, rawUSDC string, stdo
 		_, _ = fmt.Fprintln(stderr, "qa fund: at most 5 USDC per transfer")
 		return 1
 	}
-	pot, err := loadPot(env.environ)
-	if err != nil {
-		return fail(stderr, err)
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), env.wait)
 	defer cancel()
-	dest, err := env.wallet(ctx, cfg, user)
-	if errors.Is(err, errNoMemberWallet) {
-		_, _ = fmt.Fprintf(stderr, "qa fund: no member wallet for user %s\n", user)
-		return 1
-	}
-	if err != nil {
-		return fail(stderr, err)
+	pot, dest, code := fundTarget(ctx, env, cfg, user, stderr)
+	if code != 0 {
+		return code
 	}
 	rpc := env.rpc(cfg)
 	mint, err := rpc.MintConfig(ctx, chain.SolanaAddress(cfg.Solana.USDCMint))
@@ -260,11 +327,19 @@ func checkPotBalances(
 func sendFromPot(
 	ctx context.Context, env qaEnv, rpc qaRPC, pot qaPot, spec relayer.TransferSpec, program chain.SolanaAddress,
 ) (chain.Signature, error) {
+	return sendMessageFromPot(ctx, env, rpc, pot, func(hash [32]byte) []byte {
+		return relayer.TransferMessage(pot.address, spec, program, hash)
+	})
+}
+
+func sendMessageFromPot(
+	ctx context.Context, env qaEnv, rpc qaRPC, pot qaPot, message func(blockhash [32]byte) []byte,
+) (chain.Signature, error) {
 	hash, err := rpc.LatestBlockhash(ctx)
 	if err != nil {
 		return "", fmt.Errorf("qa fund: %w", err)
 	}
-	msg := relayer.TransferMessage(pot.address, spec, program, hash.Hash)
+	msg := message(hash.Hash)
 	tx := chain.Transaction{Signatures: [][]byte{ed25519.Sign(pot.key, msg)}, Message: msg}
 	want := chain.SignatureOf(tx.Signatures[0])
 	sig, err := rpc.SendTransaction(ctx, tx.Encode())
@@ -345,13 +420,15 @@ func dotenvxSet(bin string) func(ctx context.Context, root, value string) error 
 	}
 }
 
-func parseUSDC(raw string) (uint64, bool) {
+func parseUSDC(raw string) (uint64, bool) { return parseUnits(raw, qaUSDCDecimals) }
+
+func parseUnits(raw string, decimals int) (uint64, bool) {
 	whole, frac, _ := strings.Cut(raw, ".")
-	if whole == "" || len(frac) > qaUSDCDecimals || strings.HasPrefix(whole, "+") {
+	if whole == "" || len(frac) > decimals || strings.HasPrefix(whole, "+") {
 		return 0, false
 	}
-	micros, err := strconv.ParseUint(whole+frac+strings.Repeat("0", qaUSDCDecimals-len(frac)), 10, 64)
-	return micros, err == nil && micros > 0
+	v, err := strconv.ParseUint(whole+frac+strings.Repeat("0", decimals-len(frac)), 10, 64)
+	return v, err == nil && v > 0
 }
 
 func units(v uint64, decimals int) string {
