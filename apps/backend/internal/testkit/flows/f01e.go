@@ -11,6 +11,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
+const photoPurgePoller = "identity.photo_purges"
+
 const (
 	deleteOK      = "did:privy:qa-del-ok"
 	deleteOther   = "did:privy:qa-del-ok-other"
@@ -19,8 +21,6 @@ const (
 	deleteCrash   = "did:privy:qa-del-crash"
 	deletedHandle = "del_gone"
 )
-
-const photoPurgePoller = "identity.photo_purges"
 
 func (defined) WorkerEnvF01e() []string { return []string{"IDENTITY_PHOTO_PURGES_INTERVAL=1s"} }
 
@@ -31,8 +31,6 @@ func F01eDeleteAccountOK(s *scenario.Scenario) {
 			actorLogged(observability.IdentityAccountDeleted),
 			scenario.ExpectEvents(events.TypeUserDeleted, 1),
 			scenario.EventuallyPublished(events.TypeUserDeleted, 1),
-			scenario.AwaitTick(photoPurgePoller),
-			scenario.AwaitTick(photoPurgePoller),
 			photoPurged(deleteOK),
 			scenario.SignIn(deleteOK),
 			scenario.ExpectProblem(errs.CodeAccountDeleted),
@@ -68,16 +66,14 @@ func F01eDeleteAccountCrashBeforeCommit(s *scenario.Scenario) {
 }
 
 func photoPurged(sub string) scenario.Step {
-	return func(s *scenario.Scenario) {
+	return scenario.EventuallyPolled(photoPurgePoller, "photo_purged_at set for "+sub, func(s *scenario.Scenario) bool {
 		var purged bool
 		if err := s.DB().QueryRow(s.Context(),
 			`SELECT photo_purged_at IS NOT NULL FROM users WHERE privy_user_id = $1`, sub).Scan(&purged); err != nil {
 			s.Fatalf("flows: read photo_purged_at for %s: %v", sub, err)
 		}
-		if !purged {
-			s.Fatalf("flows: %s photo_purged_at is null after two %s ticks", sub, photoPurgePoller)
-		}
-	}
+		return purged
+	})
 }
 
 func deleteRefused(s *scenario.Scenario, sub string, code errs.Code, seeds ...scenario.Step) {

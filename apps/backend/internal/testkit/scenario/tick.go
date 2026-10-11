@@ -24,6 +24,15 @@ func AwaitTick(poller string) Step {
 	}, "after the step started")
 }
 
+func EventuallyPolled(poller, what string, done func(*Scenario) bool) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		stop := s.app.tick(s.t, poller)
+		defer stop()
+		Eventually(what, done)(s)
+	}
+}
+
 func AwaitTickPastTimeouts(poller string) Step {
 	return func(s *Scenario) {
 		s.t.Helper()
