@@ -13,6 +13,76 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const assetByListingToken = `-- name: AssetByListingToken :one
+SELECT a.id, a.symbol, l.token_address AS mint, l.decimals, a.issuer, a.kind, a.display_name, a.logo_url,
+  a.ui_multiplier_num, a.ui_multiplier_den, a.issuer_tradable, a.tradable_override, a.popular_rank, a.company_key,
+  a.first_seen_at, a.updated_at, a.chain_checked_at, a.ui_multiplier_next_num, a.ui_multiplier_next_den,
+  a.ui_multiplier_next_at, a.last_quoted_at, l.shares_per_token::text AS shares_per_token
+FROM asset_listings AS l
+JOIN assets AS a ON a.id = l.asset_id
+WHERE l.network = $1::text AND l.token_address = $2::text AND l.decimals IS NOT NULL
+`
+
+type AssetByListingTokenParams struct {
+	Network      string
+	TokenAddress string
+}
+
+type AssetByListingTokenRow struct {
+	ID                  uuid.UUID
+	Symbol              string
+	Mint                string
+	Decimals            pgtype.Int2
+	Issuer              string
+	Kind                string
+	DisplayName         string
+	LogoUrl             pgtype.Text
+	UiMultiplierNum     int64
+	UiMultiplierDen     int64
+	IssuerTradable      bool
+	TradableOverride    pgtype.Bool
+	PopularRank         pgtype.Int2
+	CompanyKey          string
+	FirstSeenAt         time.Time
+	UpdatedAt           time.Time
+	ChainCheckedAt      pgtype.Timestamptz
+	UiMultiplierNextNum pgtype.Int8
+	UiMultiplierNextDen pgtype.Int8
+	UiMultiplierNextAt  pgtype.Timestamptz
+	LastQuotedAt        pgtype.Timestamptz
+	SharesPerToken      string
+}
+
+func (q *Queries) AssetByListingToken(ctx context.Context, arg AssetByListingTokenParams) (AssetByListingTokenRow, error) {
+	row := q.db.QueryRow(ctx, assetByListingToken, arg.Network, arg.TokenAddress)
+	var i AssetByListingTokenRow
+	err := row.Scan(
+		&i.ID,
+		&i.Symbol,
+		&i.Mint,
+		&i.Decimals,
+		&i.Issuer,
+		&i.Kind,
+		&i.DisplayName,
+		&i.LogoUrl,
+		&i.UiMultiplierNum,
+		&i.UiMultiplierDen,
+		&i.IssuerTradable,
+		&i.TradableOverride,
+		&i.PopularRank,
+		&i.CompanyKey,
+		&i.FirstSeenAt,
+		&i.UpdatedAt,
+		&i.ChainCheckedAt,
+		&i.UiMultiplierNextNum,
+		&i.UiMultiplierNextDen,
+		&i.UiMultiplierNextAt,
+		&i.LastQuotedAt,
+		&i.SharesPerToken,
+	)
+	return i, err
+}
+
 const findListing = `-- name: FindListing :one
 SELECT id, asset_id, issuer, symbol, network, chain_id, token_address, wrapper_address, decimals,
   shares_per_token::text AS shares_per_token, venue, enabled, verified_at, created_at
@@ -110,6 +180,42 @@ func (q *Queries) FindListingByToken(ctx context.Context, arg FindListingByToken
 	return i, err
 }
 
+const haltMissingListings = `-- name: HaltMissingListings :many
+UPDATE asset_listings SET issuer_tradable = false, enabled = false
+WHERE issuer = $1::text AND symbol = ANY ($2::text[]) AND issuer_tradable
+RETURNING symbol, network
+`
+
+type HaltMissingListingsParams struct {
+	Issuer  string
+	Symbols []string
+}
+
+type HaltMissingListingsRow struct {
+	Symbol  string
+	Network string
+}
+
+func (q *Queries) HaltMissingListings(ctx context.Context, arg HaltMissingListingsParams) ([]HaltMissingListingsRow, error) {
+	rows, err := q.db.Query(ctx, haltMissingListings, arg.Issuer, arg.Symbols)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []HaltMissingListingsRow
+	for rows.Next() {
+		var i HaltMissingListingsRow
+		if err := rows.Scan(&i.Symbol, &i.Network); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEnabledListingsForAsset = `-- name: ListEnabledListingsForAsset :many
 SELECT id, asset_id, issuer, symbol, network, chain_id, token_address, wrapper_address, decimals,
   shares_per_token::text AS shares_per_token, venue, enabled, verified_at, created_at
@@ -168,4 +274,200 @@ func (q *Queries) ListEnabledListingsForAsset(ctx context.Context, assetID pgtyp
 		return nil, err
 	}
 	return items, nil
+}
+
+const listListingsToVerify = `-- name: ListListingsToVerify :many
+SELECT id, issuer, symbol, network, token_address, wrapper_address, decimals
+FROM asset_listings
+WHERE verified_at IS NULL OR $1::bool
+ORDER BY issuer, network, symbol
+`
+
+type ListListingsToVerifyRow struct {
+	ID             uuid.UUID
+	Issuer         string
+	Symbol         string
+	Network        string
+	TokenAddress   string
+	WrapperAddress pgtype.Text
+	Decimals       pgtype.Int2
+}
+
+func (q *Queries) ListListingsToVerify(ctx context.Context, allListings bool) ([]ListListingsToVerifyRow, error) {
+	rows, err := q.db.Query(ctx, listListingsToVerify, allListings)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListListingsToVerifyRow
+	for rows.Next() {
+		var i ListListingsToVerifyRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Issuer,
+			&i.Symbol,
+			&i.Network,
+			&i.TokenAddress,
+			&i.WrapperAddress,
+			&i.Decimals,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markListingUnverified = `-- name: MarkListingUnverified :execrows
+UPDATE asset_listings SET verified_at = NULL, enabled = false
+WHERE id = $1 AND verified_at IS NOT NULL
+`
+
+func (q *Queries) MarkListingUnverified(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, markListingUnverified, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const markListingVerified = `-- name: MarkListingVerified :execrows
+UPDATE asset_listings SET
+  decimals = $1::smallint,
+  verified_at = $2::timestamptz,
+  enabled = coalesce(tradable_override, issuer_tradable)
+WHERE id = $3
+`
+
+type MarkListingVerifiedParams struct {
+	Decimals   int16
+	VerifiedAt time.Time
+	ID         uuid.UUID
+}
+
+func (q *Queries) MarkListingVerified(ctx context.Context, arg MarkListingVerifiedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markListingVerified, arg.Decimals, arg.VerifiedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setListingTradableOverride = `-- name: SetListingTradableOverride :one
+UPDATE asset_listings SET
+  tradable_override = $1::bool,
+  enabled = verified_at IS NOT NULL AND coalesce($1::bool, issuer_tradable)
+WHERE id = $2
+RETURNING id, issuer, symbol, network, token_address, enabled
+`
+
+type SetListingTradableOverrideParams struct {
+	Override pgtype.Bool
+	ID       uuid.UUID
+}
+
+type SetListingTradableOverrideRow struct {
+	ID           uuid.UUID
+	Issuer       string
+	Symbol       string
+	Network      string
+	TokenAddress string
+	Enabled      bool
+}
+
+func (q *Queries) SetListingTradableOverride(ctx context.Context, arg SetListingTradableOverrideParams) (SetListingTradableOverrideRow, error) {
+	row := q.db.QueryRow(ctx, setListingTradableOverride, arg.Override, arg.ID)
+	var i SetListingTradableOverrideRow
+	err := row.Scan(
+		&i.ID,
+		&i.Issuer,
+		&i.Symbol,
+		&i.Network,
+		&i.TokenAddress,
+		&i.Enabled,
+	)
+	return i, err
+}
+
+const upsertListings = `-- name: UpsertListings :execrows
+INSERT INTO asset_listings (
+  id, asset_id, issuer, symbol, network, chain_id, token_address, wrapper_address, decimals,
+  shares_per_token, venue, issuer_tradable, enabled, created_at
+)
+SELECT
+  u.id,
+  (SELECT a.id FROM assets AS a WHERE a.issuer = 'xstocks' AND a.symbol = u.ticker || 'x'),
+  $1::text, u.symbol, u.network, NULLIF(u.chain_id, 0), u.token_address, NULLIF(u.wrapper_address, ''),
+  NULLIF(u.decimals, -1),
+  coalesce(
+    NULLIF(u.shares_per_token, '')::numeric,
+    (SELECT a.ui_multiplier_num::numeric / a.ui_multiplier_den FROM assets AS a
+      WHERE a.issuer = 'xstocks' AND a.symbol = u.ticker || 'x' AND a.ui_multiplier_den > 0),
+    1
+  ),
+  CASE WHEN u.network = 'solana' THEN 'jupiter' ELSE 'uniswap' END,
+  u.issuer_tradable, false, $2::timestamptz
+FROM ROWS FROM (
+  unnest($3::uuid[]), unnest($4::text[]), unnest($5::text[]),
+  unnest($6::text[]), unnest($7::bigint[]), unnest($8::text[]),
+  unnest($9::text[]), unnest($10::smallint[]),
+  unnest($11::text[]), unnest($12::bool[])
+) AS u (
+  id, ticker, symbol, network, chain_id, token_address, wrapper_address, decimals, shares_per_token, issuer_tradable
+)
+ON CONFLICT (issuer, network, token_address) DO UPDATE SET
+  asset_id = coalesce(asset_listings.asset_id, excluded.asset_id),
+  symbol = excluded.symbol,
+  wrapper_address = excluded.wrapper_address,
+  decimals = CASE WHEN asset_listings.verified_at IS NULL THEN excluded.decimals ELSE asset_listings.decimals END,
+  shares_per_token = excluded.shares_per_token,
+  issuer_tradable = excluded.issuer_tradable,
+  enabled = asset_listings.verified_at IS NOT NULL AND coalesce(asset_listings.tradable_override, excluded.issuer_tradable)
+WHERE (
+  asset_listings.asset_id, asset_listings.symbol, asset_listings.wrapper_address, asset_listings.decimals,
+  asset_listings.shares_per_token, asset_listings.issuer_tradable
+) IS DISTINCT FROM (
+  coalesce(asset_listings.asset_id, excluded.asset_id), excluded.symbol, excluded.wrapper_address,
+  CASE WHEN asset_listings.verified_at IS NULL THEN excluded.decimals ELSE asset_listings.decimals END,
+  excluded.shares_per_token, excluded.issuer_tradable
+)
+`
+
+type UpsertListingsParams struct {
+	Issuer           string
+	Now              time.Time
+	Ids              []uuid.UUID
+	Tickers          []string
+	Symbols          []string
+	Networks         []string
+	ChainIds         []int64
+	TokenAddresses   []string
+	WrapperAddresses []string
+	Decimals         []int16
+	SharesPerTokens  []string
+	IssuerTradables  []bool
+}
+
+func (q *Queries) UpsertListings(ctx context.Context, arg UpsertListingsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, upsertListings,
+		arg.Issuer,
+		arg.Now,
+		arg.Ids,
+		arg.Tickers,
+		arg.Symbols,
+		arg.Networks,
+		arg.ChainIds,
+		arg.TokenAddresses,
+		arg.WrapperAddresses,
+		arg.Decimals,
+		arg.SharesPerTokens,
+		arg.IssuerTradables,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

@@ -3,6 +3,7 @@ package domain
 import (
 	"log/slog"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -54,11 +55,34 @@ func ParseKind(raw string) (Kind, error) {
 type Mint struct{ address chain.SolanaAddress }
 
 func ParseMint(raw string) (Mint, error) {
+	if network, address, ok := strings.Cut(raw, ":"); ok {
+		return parseListingMint(network, address)
+	}
 	a, err := chain.ParseAddress(raw)
 	if err != nil {
 		return Mint{}, err
 	}
 	return Mint{address: a}, nil
+}
+
+func parseListingMint(rawNetwork, rawAddress string) (Mint, error) {
+	network, err := chain.ParseNetwork(rawNetwork)
+	if err != nil {
+		return Mint{}, err
+	}
+	if !network.IsEVM() {
+		return Mint{}, errs.New(errs.CodeInvalidAddress, "market.ParseMint", slog.String("network", rawNetwork))
+	}
+	address, err := chain.ParseEVMAddress(rawAddress)
+	if err != nil {
+		return Mint{}, err
+	}
+	return Mint{address: chain.SolanaAddress(string(network) + ":" + address.String())}, nil
+}
+
+func (m Mint) Listing() (chain.Network, string, bool) {
+	network, address, ok := strings.Cut(string(m.address), ":")
+	return chain.Network(network), address, ok
 }
 
 func (m Mint) Address() chain.SolanaAddress { return m.address }

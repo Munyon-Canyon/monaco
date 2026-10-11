@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"math"
+	"math/big"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
@@ -24,8 +25,37 @@ func (c *Catalog) AssetByID(ctx context.Context, id domain.AssetID) (domain.Asse
 }
 
 func (c *Catalog) AssetByMint(ctx context.Context, mint domain.Mint) (domain.Asset, error) {
-	row, err := c.q.AssetByMint(ctx, mint.String())
-	return one(row, err, "market.Catalog.AssetByMint", slog.String("mint", mint.String()))
+	const op = "market.Catalog.AssetByMint"
+	key := slog.String("mint", mint.String())
+	network, address, listed := mint.Listing()
+	if !listed {
+		row, err := c.q.AssetByMint(ctx, mint.String())
+		return one(row, err, op, key)
+	}
+	row, err := c.q.AssetByListingToken(ctx, sqlc.AssetByListingTokenParams{
+		Network: string(network), TokenAddress: address,
+	})
+	if err != nil {
+		return one(sqlc.Asset{}, err, op, key)
+	}
+	asset, err := listingAsset(row, mint)
+	return one(asset, err, op, key)
+}
+
+func listingAsset(row sqlc.AssetByListingTokenRow, mint domain.Mint) (sqlc.Asset, error) {
+	shares, ok := new(big.Rat).SetString(row.SharesPerToken)
+	if !ok || shares.Sign() <= 0 || !shares.Num().IsInt64() || !shares.Denom().IsInt64() {
+		return sqlc.Asset{}, errs.New(errs.CodeDecodeFailed, "market.listingAsset",
+			slog.String("shares_per_token", row.SharesPerToken))
+	}
+	return sqlc.Asset{
+		ID: row.ID, Symbol: row.Symbol, Mint: mint.String(), Decimals: row.Decimals.Int16, Issuer: row.Issuer,
+		Kind: row.Kind, DisplayName: row.DisplayName, LogoUrl: row.LogoUrl,
+		UiMultiplierNum: shares.Num().Int64(), UiMultiplierDen: shares.Denom().Int64(),
+		IssuerTradable: row.IssuerTradable, TradableOverride: row.TradableOverride, PopularRank: row.PopularRank,
+		CompanyKey: row.CompanyKey, FirstSeenAt: row.FirstSeenAt, UpdatedAt: row.UpdatedAt,
+		ChainCheckedAt: row.ChainCheckedAt, LastQuotedAt: row.LastQuotedAt,
+	}, nil
 }
 
 func (c *Catalog) AssetBySymbol(ctx context.Context, symbol string) (domain.Asset, error) {
