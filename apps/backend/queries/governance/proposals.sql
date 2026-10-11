@@ -85,7 +85,7 @@ SELECT voter_id FROM votes WHERE proposal_id = @proposal_id ORDER BY cast_at, vo
 -- name: LockProposal :one
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, p.token_amount, p.quote_out_amount,
-  p.status, p.threshold,
+  p.status, p.threshold, p.expires_at,
   EXISTS (
     SELECT 1 FROM proposal_voters AS v WHERE v.proposal_id = p.id AND v.voter_id = @voter_id
   ) AS is_voter

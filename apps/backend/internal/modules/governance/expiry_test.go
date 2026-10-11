@@ -174,7 +174,7 @@ func raceVoteFirst(t *testing.T) {
 	t.Parallel()
 	d := newVoteDB(t)
 	p, v := d.open(t, 1)
-	d.clk.Set(p.ExpiresAt)
+	d.clk.Set(p.ExpiresAt.Add(-time.Second))
 	release := d.holdBallots(t)
 	h := d.handler()
 	var voted, ticked errgroup.Group
@@ -185,6 +185,7 @@ func raceVoteFirst(t *testing.T) {
 		return err
 	})
 	d.waitingOnLocks(t, 1)
+	d.clk.Set(p.ExpiresAt)
 	ticked.Go(func() (err error) {
 		tick, err = d.tick(t.Context())
 		return err

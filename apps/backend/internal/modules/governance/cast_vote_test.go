@@ -285,6 +285,27 @@ func TestCastVote_VoterSetFrozen(t *testing.T) {
 	}
 }
 
+func TestCastVote_refusesABallotAtOrAfterExpiresAt(t *testing.T) {
+	t.Parallel()
+	d := newVoteDB(t)
+	h := d.handler()
+	p, v := d.open(t, 3)
+	d.clk.Set(p.ExpiresAt.Add(-time.Second))
+	d.mustCast(t, h, p.ID, v[0], domain.ChoiceYes)
+	for _, at := range []time.Time{p.ExpiresAt, p.ExpiresAt.Add(time.Second)} {
+		d.clk.Set(at)
+		if _, err := d.cast(t.Context(), h, p.ID, v[1], domain.ChoiceYes); errs.CodeOf(err) != errs.CodeProposalClosed {
+			t.Fatalf("a vote at %s (expires_at %s) err = %v, want proposal_closed", at, p.ExpiresAt, err)
+		}
+	}
+	if b := d.ballots(t, p.ID); len(b) != 1 || b[v[0]] != "yes" {
+		t.Fatalf("ballots = %v, want only the one cast before expires_at", b)
+	}
+	if got := d.row(t, p.ID).status.String; got != "open" {
+		t.Fatalf("status %s, want open until the poller runs", got)
+	}
+}
+
 func TestCastVote_refusals(t *testing.T) {
 	t.Parallel()
 	d := newVoteDB(t)

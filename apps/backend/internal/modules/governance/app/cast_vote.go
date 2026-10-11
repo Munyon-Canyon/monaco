@@ -68,11 +68,15 @@ func (h *CastVoteHandler) vote(
 	const op = "governance.CastVote"
 	q := sqlc.New(tx.Queries())
 	p, err := q.LockProposal(ctx, sqlc.LockProposalParams{ID: cmd.ProposalID.UUID(), VoterID: cmd.VoterID.UUID()})
-	switch {
-	case err != nil:
+	if err != nil {
 		return CastVoteResult{}, lookupFailed(err, op)
+	}
+	now := h.clock.Now()
+	switch {
 	case p.Status != string(domain.StatusOpen):
 		return CastVoteResult{}, errs.New(errs.CodeProposalClosed, op, slog.String("status", p.Status))
+	case !now.Before(p.ExpiresAt):
+		return CastVoteResult{}, errs.New(errs.CodeProposalClosed, op, slog.Time("expires_at", p.ExpiresAt))
 	case !p.IsVoter:
 		return CastVoteResult{}, errs.New(errs.CodeNotAVoter, op)
 	}
@@ -81,7 +85,6 @@ func (h *CastVoteHandler) vote(
 		return CastVoteResult{}, err
 	}
 	rule := domain.ThresholdRule(p.Threshold)
-	now := h.clock.Now()
 	n, err := q.CastBallot(ctx, sqlc.CastBallotParams{
 		ProposalID: p.ID, VoterID: cmd.VoterID.UUID(), Choice: string(cmd.Choice), CastAt: now,
 	})
