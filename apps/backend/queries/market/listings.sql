@@ -20,7 +20,7 @@ WHERE network = $1 AND token_address = $2;
 -- name: UpsertListings :execrows
 INSERT INTO asset_listings (
   id, asset_id, issuer, symbol, network, chain_id, token_address, wrapper_address, decimals,
-  shares_per_token, venue, issuer_tradable, enabled, created_at
+  shares_per_token, venue, issuer_tradable, tradable_override, enabled, created_at
 )
 SELECT
   u.id,
@@ -34,7 +34,9 @@ SELECT
     1
   ),
   CASE WHEN u.network = 'solana' THEN 'jupiter' ELSE 'uniswap' END,
-  u.issuer_tradable, false, sqlc.arg(now)::timestamptz
+  u.issuer_tradable,
+  CASE WHEN (sqlc.arg(issuer)::text = 'xstocks' AND u.network <> 'solana') OR u.network = 'robinhood' THEN false END,
+  false, sqlc.arg(now)::timestamptz
 FROM ROWS FROM (
   unnest(sqlc.arg(ids)::uuid[]), unnest(sqlc.arg(tickers)::text[]), unnest(sqlc.arg(symbols)::text[]),
   unnest(sqlc.arg(networks)::text[]), unnest(sqlc.arg(chain_ids)::bigint[]), unnest(sqlc.arg(token_addresses)::text[]),
