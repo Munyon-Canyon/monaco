@@ -66,3 +66,6 @@ WHERE user_id = @user_id AND status <> 'confirmed'
   AND (NOT @has_cursor::bool OR (created_at, id) < (@cursor_at::timestamptz, @cursor_id::uuid))
 ORDER BY created_at DESC, id DESC
 LIMIT @row_limit;
+-- name: SetWithdrawalPrivyAction :execrows
+UPDATE withdrawals SET privy_action_id = $2
+WHERE id = $1 AND destination_kind = 'evm' AND privy_action_id IS NULL;

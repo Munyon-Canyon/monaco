@@ -296,6 +296,24 @@ func (q *Queries) LockWalletOutflow(ctx context.Context, userID uuid.UUID) error
 	return err
 }
 
+const setWithdrawalPrivyAction = `-- name: SetWithdrawalPrivyAction :execrows
+UPDATE withdrawals SET privy_action_id = $2
+WHERE id = $1 AND destination_kind = 'evm' AND privy_action_id IS NULL
+`
+
+type SetWithdrawalPrivyActionParams struct {
+	ID            uuid.UUID
+	PrivyActionID pgtype.Text
+}
+
+func (q *Queries) SetWithdrawalPrivyAction(ctx context.Context, arg SetWithdrawalPrivyActionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setWithdrawalPrivyAction, arg.ID, arg.PrivyActionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const submitWithdrawal = `-- name: SubmitWithdrawal :execrows
 UPDATE withdrawals
 SET status = 'submitted', signed_tx = $2::bytea, tx_signature = $3::text,
