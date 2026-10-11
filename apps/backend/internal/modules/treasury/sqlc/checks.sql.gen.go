@@ -20,8 +20,8 @@ WITH legs AS (
   SELECT l.cabal_id, l.asset, l.seq, false AS stored, l.units::text AS units,
     (CASE
       WHEN l.units < 0 THEN 0
-      WHEN l.asset = $1::text THEN l.units
-      ELSE coalesce(-(sum(l.units) FILTER (WHERE l.asset = $1::text AND l.units < 0)
+      WHEN l.asset = ANY($1::text[]) THEN l.units
+      ELSE coalesce(-(sum(l.units) FILTER (WHERE l.asset = ANY($1::text[]) AND l.units < 0)
         OVER (PARTITION BY l.txn_id)), 0)
     END)::text AS cost
   FROM legs l
@@ -42,8 +42,8 @@ type CabalCostsRow struct {
 	Cost    string
 }
 
-func (q *Queries) CabalCosts(ctx context.Context, usdc string) ([]CabalCostsRow, error) {
-	rows, err := q.db.Query(ctx, cabalCosts, usdc)
+func (q *Queries) CabalCosts(ctx context.Context, cash []string) ([]CabalCostsRow, error) {
+	rows, err := q.db.Query(ctx, cabalCosts, cash)
 	if err != nil {
 		return nil, err
 	}

@@ -61,6 +61,7 @@ func TestModule_servesActivityAndConsumesTradeEvents(t *testing.T) {
 	}
 	want := []string{
 		"treasury_trades treasury.trades " + string(events.TypeTradeConfirmed),
+		"treasury_trades treasury.trade_steps " + string(events.TypeTradeStepChanged),
 		"treasury_activity treasury.activity.submitted " + string(events.TypeTradeSubmitted),
 		"treasury_activity treasury.activity.confirmed " + string(events.TypeTradeConfirmed),
 		"treasury_activity treasury.activity.failed " + string(events.TypeTradeFailed),

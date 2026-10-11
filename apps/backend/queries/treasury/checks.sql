@@ -40,8 +40,8 @@ WITH legs AS (
   SELECT l.cabal_id, l.asset, l.seq, false AS stored, l.units::text AS units,
     (CASE
       WHEN l.units < 0 THEN 0
-      WHEN l.asset = sqlc.arg(usdc)::text THEN l.units
-      ELSE coalesce(-(sum(l.units) FILTER (WHERE l.asset = sqlc.arg(usdc)::text AND l.units < 0)
+      WHEN l.asset = ANY(sqlc.arg(cash)::text[]) THEN l.units
+      ELSE coalesce(-(sum(l.units) FILTER (WHERE l.asset = ANY(sqlc.arg(cash)::text[]) AND l.units < 0)
         OVER (PARTITION BY l.txn_id)), 0)
     END)::text AS cost
   FROM legs l

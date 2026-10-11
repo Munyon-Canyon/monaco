@@ -45,7 +45,12 @@ func integer(text string) *big.Int {
 
 func costBasisDrift(ctx context.Context, q *sqlc.Queries, usdc domain.Asset) ([]string, error) {
 	const op = "treasury.CheckLedger"
-	rows, err := q.CabalCosts(ctx, string(usdc))
+	cash := domain.CashAssets(usdc)
+	assets := make([]string, len(cash))
+	for i, a := range cash {
+		assets[i] = string(a)
+	}
+	rows, err := q.CabalCosts(ctx, assets)
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
