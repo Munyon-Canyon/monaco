@@ -8,8 +8,6 @@ struct CurveScrubChart: View {
     @Binding var selection: Int?
     let identifier: String
 
-    private static let unitsPerDollar = 1_000_000.0
-
     private var tint: Color {
         switch curve.direction {
         case .up: MonacoTheme.profitVivid
@@ -19,16 +17,25 @@ struct CurveScrubChart: View {
     }
 
     var body: some View {
-        MonacoScrubChart(
-            points: curve.drawnPoints.map { .init(date: $0.at, value: Double($0.value) / Self.unitsPerDollar) },
+        let bars = curve.chartBars
+        MonacoCandleChart(
+            bars: bars,
+            intervalSeconds: curve.slotSeconds,
+            style: .line,
             tint: tint,
-            baseline: nil,
+            lastPrice: bars.last?.close,
+            isLive: range == .oneHour || range == .oneDay,
+            resetKey: range.rawValue,
+            hasOlder: false,
+            initialVisibleBars: bars.count,
+            valueText: { UsdAmountFormatter.format(micros: Int64(($0 * 1_000_000).rounded())) },
+            gutter: 88,
             height: height,
-            drawOnKey: range.rawValue,
             selection: $selection,
+            onNeedOlder: {},
             summary: "\(range.accessibilityName) value history",
             nearestIndex: { curve.nearestIndex(to: $0) },
-            describePoint: { index in
+            describeBar: { index in
                 curve.readout(at: index).map { "\($0.value), \($0.pnl)" } ?? ""
             },
             accessibilityIdentifier: identifier
@@ -50,9 +57,17 @@ struct CurveReadoutLine: View {
             .accessibilityHidden(readout == nil)
     }
 
-    private var text: String {
+    private var text: String { Self.text(for: readout, range: range) }
+
+    static func text(
+        for readout: ValueCurve.Readout?,
+        range: LeaderboardRange,
+        locale: Locale = .autoupdatingCurrent,
+        timeZone: TimeZone = .autoupdatingCurrent
+    ) -> String {
         guard let readout else { return " " }
-        let date = ChartScrubLabel.caption(for: readout.at, range: range.scrubLabelRange)
+        let date = ChartScrubLabel.caption(
+            for: readout.at, range: range.scrubLabelRange, locale: locale, timeZone: timeZone)
         return "\(readout.value) · \(readout.pnl) · \(date)"
     }
 }

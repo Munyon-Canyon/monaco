@@ -70,6 +70,22 @@ public struct ValueCurve: Equatable, Sendable {
 
     public var hasEnoughHistory: Bool { !samples.isEmpty }
 
+    public var chartBars: [PlottedBar] {
+        drawnSamples.map { sample in
+            let value = NSDecimalNumber(value: sample.value).dividing(by: NSDecimalNumber(value: 1_000_000)).doubleValue
+            return PlottedBar(date: sample.at, open: value, high: value, low: value, close: value)
+        }
+    }
+
+    public var slotSeconds: Int {
+        let gaps = zip(drawnSamples, drawnSamples.dropFirst())
+            .map { Int($1.at.timeIntervalSince($0.at).rounded()) }
+            .filter { $0 > 0 }
+            .sorted()
+        guard !gaps.isEmpty else { return 60 }
+        return gaps[gaps.count / 2]
+    }
+
     public var direction: PortfolioSummary.Direction {
         guard let first = samples.first, let last = samples.last, samples.count >= 2 else { return .flat }
         if last.pnl > first.pnl { return .up }
