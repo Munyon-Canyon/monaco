@@ -187,6 +187,8 @@ nonisolated extension SampleAPIProtocol {
         case "/v1/me/balance":
             return script.mode == .balanceFails
                 ? problem(503, "unavailable", "The balance can't be read right now.") : json(script.balance)
+        case "/v1/me/referral-code":
+            return json(Components.Schemas.MyReferralCode.sample)
         case "/v1/me/portfolio":
             return json(empty ? Components.Schemas.MyPortfolio.sampleEmpty : .sample)
         case "/v1/me/pnl-history":

@@ -7,6 +7,13 @@ design-gallery-primitives     -MonacoDesignGallery -MonacoDesignGalleryTab primi
 design-gallery-money          -MonacoDesignGallery -MonacoDesignGalleryTab money
 design-gallery-controls       -MonacoDesignGallery -MonacoDesignGalleryTab controls
 design-gallery-toast          -MonacoDesignGallery -MonacoDesignGalleryTab toast
+design-gallery-share-card     -MonacoDesignGallery -MonacoDesignGalleryTab shareCard
+
+share-card-cabal-gain         -MonacoShareCardSample cabalGain
+share-card-cabal-loss         -MonacoShareCardSample cabalLoss
+share-card-cabal-short        -MonacoShareCardSample cabalShort
+share-card-me-gain            -MonacoShareCardSample meGain
+share-card-me-no-code         -MonacoShareCardSample meNoCode
 
 home-populated                -MonacoHomeSample populated
 home-empty                    -MonacoHomeSample empty

@@ -6,7 +6,7 @@ import SwiftUI
 ///
 /// Launch arguments (Debug builds only):
 /// - `-MonacoDesignGallery` — opens the gallery instead of the app.
-/// - `-MonacoDesignGalleryTab <primitives|money|controls|toast>` — initial tab.
+/// - `-MonacoDesignGalleryTab <primitives|money|controls|toast|shareCard>` — initial tab.
 enum MonacoDesignGallery {
     static func matches(_ arguments: [String]) -> Bool {
         arguments.contains("-MonacoDesignGallery")
@@ -27,7 +27,7 @@ enum MonacoDesignGallery {
 }
 
 enum GalleryTab: String {
-    case primitives, money, controls, toast
+    case primitives, money, controls, toast, shareCard
 }
 
 private struct MonacoDesignGalleryRoot: View {
@@ -47,6 +47,9 @@ private struct MonacoDesignGalleryRoot: View {
             NavigationStack { GalleryToastPage() }
                 .tabItem { Label("Toast", systemImage: "text.bubble") }
                 .tag(GalleryTab.toast)
+            NavigationStack { GalleryShareCardPage() }
+                .tabItem { Label("Share card", systemImage: "square.and.arrow.up") }
+                .tag(GalleryTab.shareCard)
         }
     }
 }
@@ -330,6 +333,28 @@ private struct GalleryControlsPage: View {
                 Button("Review") {}.buttonStyle(.monacoPrimary)
             }
         }
+    }
+}
+
+private struct GalleryShareCardPage: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+                MonacoSectionHeader("Share card")
+                ForEach(Array(cards.enumerated()), id: \.offset) { _, content in
+                    ShareCardView(content: content, face: nil)
+                        .environment(\.colorScheme, .dark)
+                        .clipShape(RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous))
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(MonacoTheme.Space.gutter)
+        }
+        .monacoCanvas()
+    }
+
+    private var cards: [ShareCardContent] {
+        [ShareCardSamples.cabal(.gain), ShareCardSamples.me(.loss), ShareCardSamples.cabalShort]
     }
 }
 
