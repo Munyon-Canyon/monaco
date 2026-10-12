@@ -26,11 +26,11 @@ func TestChartQueries_bucketFromAUTCOriginOutsideAUTCSession(t *testing.T) {
 	if _, err := conn.Exec(t.Context(), `SET TIME ZONE 'America/New_York'`); err != nil {
 		t.Fatal(err)
 	}
-	rows, err := sqlc.New(conn).ChartBuckets(t.Context(), sqlc.ChartBucketsParams{
+	rows, err := sqlc.New(conn).ChartBucketsPage(t.Context(), sqlc.ChartBucketsPageParams{
 		BucketSeconds: 86400, Mint: mint,
-		Since: at.Add(-time.Hour), Until: at.Add(time.Hour),
+		Since: at.Add(-time.Hour), Until: at.Add(time.Hour), PageLimit: 500,
 	})
 	if err != nil || len(rows) != 1 || !rows[0].Bucket.Equal(time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)) {
-		t.Fatalf("ChartBuckets = %+v, %v", rows, err)
+		t.Fatalf("ChartBucketsPage = %+v, %v", rows, err)
 	}
 }

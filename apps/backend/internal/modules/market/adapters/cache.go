@@ -168,17 +168,17 @@ func CacheChart(next app.Charter, cache *Cache) *CachedChart {
 	return &CachedChart{next: next, cache: cache}
 }
 
-func (c *CachedChart) Handle(ctx context.Context, symbol, raw string) (app.Chart, error) {
-	span, err := domain.ParseChartRange(raw)
+func (c *CachedChart) Handle(ctx context.Context, symbol string, req app.ChartRequest) (app.Chart, error) {
+	span, err := domain.ParseChartRange(req.Range)
 	if err != nil {
 		return app.Chart{}, err
 	}
 	ttl := longTTL
-	if span == domain.Chart1D {
+	if req.Before == nil {
 		ttl = shortTTL
 	}
-	got, err := c.cache.serve(ctx, chartKey(symbol, span), ttl, func(ctx context.Context) (any, error) {
-		chart, loadErr := c.next.Handle(ctx, symbol, string(span))
+	got, err := c.cache.serve(ctx, chartKey(symbol, span, req), ttl, func(ctx context.Context) (any, error) {
+		chart, loadErr := c.next.Handle(ctx, symbol, req)
 		if loadErr != nil {
 			return nil, loadErr
 		}
@@ -190,8 +190,12 @@ func (c *CachedChart) Handle(ctx context.Context, symbol, raw string) (app.Chart
 	return got.(chartBox).v, nil
 }
 
-func chartKey(symbol string, span domain.ChartRange) string {
-	return "chart\x00" + symbol + "\x00" + string(span)
+func chartKey(symbol string, span domain.ChartRange, req app.ChartRequest) string {
+	before := ""
+	if req.Before != nil {
+		before = req.Before.UTC().Format(time.RFC3339Nano)
+	}
+	return fmt.Sprintf("chart\x00%s\x00%s\x00%s\x00%s\x00%d", symbol, span, req.Interval, before, req.Limit)
 }
 
 var _ app.Lister = (*CachedList)(nil)
