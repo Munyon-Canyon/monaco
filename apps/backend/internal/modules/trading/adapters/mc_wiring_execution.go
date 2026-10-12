@@ -18,17 +18,25 @@ func MultichainExecutionVenue(d module.Deps) (*EVMVenue, bool) {
 	if cfg.Routing.UniswapAPIKey == "" {
 		return nil, false
 	}
-	client := d.HTTPClient
-	if client == nil {
-		client = httpclient.New
+	uniswap := clients(d)("uniswap-swap",
+		httpclient.WithBaseURL(cfg.Routing.UniswapBaseURL), httpclient.WithTimeout(cfg.Routing.UniswapTimeout))
+	return NewEVMVenue(uniswap, cfg.Routing.UniswapAPIKey, EVMRPC(d), d.Clock).WithLimiter(d.UniswapLimiter()), true
+}
+
+func clients(d module.Deps) func(string, ...httpclient.Option) *httpclient.Client {
+	if d.HTTPClient == nil {
+		return httpclient.New
 	}
+	return d.HTTPClient
+}
+
+func EVMRPC(d module.Deps) map[chain.Network]*httpclient.Client {
+	client, cfg := clients(d), d.Config
 	rpc := map[chain.Network]*httpclient.Client{}
 	for _, n := range chain.Networks() {
 		if url := cfg.EVM.RPCURL(n); n.IsEVM() && url != "" {
 			rpc[n] = client("evm-rpc-"+string(n), httpclient.WithBaseURL(url), httpclient.WithTimeout(cfg.Timeouts.RPC))
 		}
 	}
-	uniswap := client("uniswap-swap",
-		httpclient.WithBaseURL(cfg.Routing.UniswapBaseURL), httpclient.WithTimeout(cfg.Routing.UniswapTimeout))
-	return NewEVMVenue(uniswap, cfg.Routing.UniswapAPIKey, rpc, d.Clock).WithLimiter(d.UniswapLimiter()), true
+	return rpc
 }

@@ -101,5 +101,6 @@ type RoutePorts struct {
 	Router      multichain.Router
 	TopUp       SOLTopUp
 	Arrivals    Arrivals
+	EVMArrivals EVMArrivals
 	EVM         bool
 }

@@ -2,11 +2,13 @@ package trading_test
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -120,6 +122,35 @@ func (p *privyFake) sent(id multichain.ActionID) uint64 {
 }
 
 const arrivalPrefix = "arrival:"
+
+type evmArrivalsFake struct {
+	mu      sync.Mutex
+	short   uint64
+	missing int
+	err     error
+	seen    []time.Time
+}
+
+func (f *evmArrivalsFake) Inbound(
+	_ context.Context, _ chain.Network, _, _ chain.EVMAddress, since time.Time, atMost money.Micros, exclude []string,
+) (app.EVMArrival, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.seen = append(f.seen, since)
+	if err := f.err; err != nil {
+		f.err = nil
+		return app.EVMArrival{}, false, err
+	}
+	if f.missing > 0 {
+		f.missing--
+		return app.EVMArrival{}, false, nil
+	}
+	got := atMost.Uint64() - min(f.short, atMost.Uint64()-1)
+	return app.EVMArrival{
+		Amount: money.MicrosFromUint64(got),
+		TxHash: fmt.Sprintf("0x%064x", len(exclude)+1),
+	}, true, nil
+}
 
 type arrivalsFake struct {
 	privy *privyFake

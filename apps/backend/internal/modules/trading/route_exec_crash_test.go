@@ -42,6 +42,7 @@ func TestRouteExec_aCrashAtEveryStepBoundaryResumesWithOneBridgeAndOneSwap(t *te
 	}{
 		"after the bridge transfer":      {faultpoint.AfterBroadcast, 0},
 		"after the bridge landed":        {faultpoint.AfterExecute, 0},
+		"after the arrival was observed": {faultpoint.AfterArrivalObserved, 0},
 		"after the bridge was journaled": {faultpoint.AfterBridgeLanded, 0},
 		"after the requote":              {faultpoint.AfterRequote, 0},
 		"after the swap send":            {faultpoint.AfterBroadcast, 1},
@@ -89,5 +90,43 @@ func TestRouteExec_aCrashRightAfterTheCreateLeavesTheSwapToTheSweeper(t *testing
 	if status, _, _, _ := e.row(t, swap); status != string(domain.StatusFailed) || len(e.privy.calls()) != 0 {
 		t.Fatalf("swap %s after %d transfers, want failed by the sweeper with nothing bridged",
 			status, len(e.privy.calls()))
+	}
+}
+
+func TestRouteExec_aCrashBetweenObservingAndRecordingALateArrivalRecordsItOnce(t *testing.T) {
+	t.Parallel()
+	e := newRouteEnv(t)
+	e.landings.short = realBridgeFee
+	_, swap := e.strand(t)
+	if _, err := e.pool.Exec(t.Context(), `UPDATE trade_steps SET arrived_micros = NULL, arrival_tx = NULL
+		WHERE trade_id = $1`, swap); err != nil {
+		t.Fatal(err)
+	}
+	ctx := faultpoint.ArmedAfter(actorContext(t.Context()), faultpoint.AfterArrivalObserved, 0)
+	crashed := func() (p any) {
+		defer func() { p = recover() }()
+		_, _ = e.exec().Stranded(ctx, ids.SwapIDFrom(swap))
+		return nil
+	}()
+	if crashed != (faultpoint.Crash{Name: faultpoint.AfterArrivalObserved}) {
+		t.Fatalf("Stranded ended with %v, want a crash after the observation", crashed)
+	}
+	if arrived, _, _ := e.arrival(t, swap); arrived != 0 {
+		t.Fatalf("arrival %d recorded before the crash point, want none", arrived)
+	}
+
+	for range 2 {
+		got, err := e.exec().Stranded(actorContext(t.Context()), ids.SwapIDFrom(swap))
+		if err != nil || got.OnEVM.Uint64() != 24_990_937 {
+			t.Fatalf("Stranded = %+v, %v, want the 24990937 that arrived", got, err)
+		}
+	}
+
+	if arrived, _, _ := e.arrival(t, swap); arrived != 24_990_937 {
+		t.Fatalf("arrival = %d, want 24990937", arrived)
+	}
+	if n := e.count(t, `SELECT count(*) FROM events WHERE type = 'trade.step_changed' AND aggregate_id = $1
+		AND payload->>'step' = 'bridge_out' AND payload->>'status' = 'succeeded'`, swap); n != 2 {
+		t.Fatalf("%d bridge_out succeeded events, want the landing and one arrival", n)
 	}
 }

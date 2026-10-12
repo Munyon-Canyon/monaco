@@ -37,6 +37,7 @@ type RouteExecDeps struct {
 	Venue       EVMVenue
 	TopUp       SOLTopUp
 	Arrivals    Arrivals
+	EVMArrivals EVMArrivals
 	Poll        Poll
 }
 
@@ -106,19 +107,15 @@ func (r *RouteExec) resume(ctx context.Context, id uuid.UUID) error {
 		result, err := r.swap().Run(ctx, b.sellLeg())
 		return r.settle(ctx, b, money.Micros{}, result, err)
 	}
-	landed, err := b.sent.Sub(b.fee)
-	if err != nil {
-		return err
-	}
 	var requote swapQuote
 	if b.status == domain.StatusCreated {
 		var stop bool
-		if requote, stop, err = r.bridgeAndQuote(ctx, b, landed); err != nil || stop {
+		if b, requote, stop, err = r.bridgeAndQuote(ctx, b); err != nil || stop {
 			return err
 		}
 	}
-	result, err := r.swap().Run(ctx, b.swapLeg(landed, requote))
-	return r.settle(ctx, b, landed, result, err)
+	result, err := r.swap().Run(ctx, b.swapLeg(b.landed, requote))
+	return r.settle(ctx, b, b.landed, result, err)
 }
 
 func (r *RouteExec) bridge() Bridge {
@@ -134,18 +131,34 @@ type swapQuote struct {
 	route multichain.RouteOptions
 }
 
-func (r *RouteExec) bridgeAndQuote(ctx context.Context, b routedBuy, landed money.Micros) (swapQuote, bool, error) {
-	status, err := r.bridge().Run(ctx, b.bridgeOut())
+func (r *RouteExec) bridgeAndQuote(ctx context.Context, b routedBuy) (routedBuy, swapQuote, bool, error) {
+	leg := b.bridgeOut()
+	leg.Observe = func(ctx context.Context, _ multichain.ActionStatus) (money.Micros, domain.Arrival, error) {
+		step, _, err := r.d.Journal.Step(ctx, ids.SwapIDFrom(b.id), domain.StepBridgeOut)
+		if err == nil {
+			step.Arrival, err = r.observeOut(ctx, b, step)
+		}
+		if err == nil {
+			b, err = b.arrived(step)
+		}
+		return b.fee, step.Arrival, err
+	}
+	status, err := r.bridge().Run(ctx, leg)
 	switch {
 	case err != nil:
-		return swapQuote{}, true, err
+		return b, swapQuote{}, true, err
 	case status == domain.StepFailed:
-		return swapQuote{}, true, r.finish(ctx, b, failed(b.req, b.id, domain.FailureNeverSubmitted, ""), "")
+		return b, swapQuote{}, true, r.finish(ctx, b, failed(b.req, b.id, domain.FailureNeverSubmitted, ""), "")
 	case status != domain.StepSucceeded:
-		return swapQuote{}, true, nil
+		return b, swapQuote{}, true, nil
 	}
 	faultpoint.Hit(ctx, faultpoint.AfterBridgeLanded)
-	quote, err := r.d.Quoter.Quote(ctx, b.listing, multichain.SideBuy, landed)
+	q, stop, err := r.requote(ctx, b)
+	return b, q, stop, err
+}
+
+func (r *RouteExec) requote(ctx context.Context, b routedBuy) (swapQuote, bool, error) {
+	quote, err := r.d.Quoter.Quote(ctx, b.listing, multichain.SideBuy, b.landed)
 	if err != nil && errs.Retryable(errs.CodeOf(err)) {
 		return swapQuote{}, true, err
 	}
@@ -224,6 +237,8 @@ type routedBuy struct {
 	listing      multichain.Listing
 	sent         money.Micros
 	fee          money.Micros
+	landed       money.Micros
+	estimate     money.Micros
 	slippage     int32
 	solanaWallet string
 	solana       chain.SolanaAddress
@@ -241,15 +256,67 @@ func (r *RouteExec) load(ctx context.Context, id uuid.UUID) (routedBuy, error) {
 	jsonErr := json.Unmarshal(row.Comparison, &comparison)
 	req, err := sweepRequest(row.CabalID, row.SourceKind, row.SourceID, row.Action, row.Symbol, row.InMint,
 		row.InAmount, row.SourceBatchSize)
-	if err := errors.Join(jsonErr, err); err != nil {
+	sent, estimate := money.MicrosFromUint64(req.InAmount), bridgeFee(comparison)
+	landed, landedErr := sent.Sub(estimate)
+	if req.Action == domain.ActionSell {
+		landedErr = nil
+	}
+	if err := errors.Join(jsonErr, err, landedErr); err != nil {
 		return routedBuy{}, errs.Wrap(err, errs.CodeDecodeFailed, routeExecOp, slog.String("swap_id", id.String()))
 	}
 	req.OutMint = chain.Mint{Address: chain.SolanaAddress(row.OutMint)}
 	b := routedBuy{
-		id: id, req: req, status: domain.Status(row.Status), sent: money.MicrosFromUint64(req.InAmount),
-		fee: bridgeFee(comparison), slippage: row.SlippageBps,
+		id: id, req: req, status: domain.Status(row.Status), sent: sent,
+		fee: estimate, landed: landed, estimate: estimate, slippage: row.SlippageBps,
 	}
-	return r.resolve(ctx, b, comparison.Winner)
+	if b, err = r.resolve(ctx, b, comparison.Winner); err != nil {
+		return routedBuy{}, err
+	}
+	return r.landing(ctx, b)
+}
+
+func (r *RouteExec) landing(ctx context.Context, b routedBuy) (routedBuy, error) {
+	swap := ids.SwapIDFrom(b.id)
+	step, started, err := r.d.Journal.Step(ctx, swap, domain.StepBridgeOut)
+	if err != nil || !started || step.Status != domain.StepSucceeded {
+		return b, err
+	}
+	if !step.Arrival.Observed() {
+		step.Arrival, err = r.observeOut(ctx, b, step)
+		if err == nil {
+			step, err = r.d.Journal.Arrived(ctx, b.ref(domain.StepBridgeOut), step.Arrival)
+		}
+	}
+	if err == nil {
+		b, err = b.arrived(step)
+	}
+	return b, err
+}
+
+func (b routedBuy) arrived(step domain.TradeStep) (routedBuy, error) {
+	fee, err := step.Amount.Sub(step.Arrival.Amount)
+	b.fee, b.landed = fee, step.Arrival.Amount
+	return b, err
+}
+
+func (r *RouteExec) observeOut(ctx context.Context, b routedBuy, step domain.TradeStep) (domain.Arrival, error) {
+	var arrival domain.Arrival
+	found := false
+	exclude, err := r.d.Journal.ArrivalTxs(ctx, step.Network)
+	if err == nil {
+		arrival, found, err = r.d.EVMArrivals.Inbound(ctx, step.Network, b.cash, b.evm.Address, step.SentAt,
+			step.Amount, exclude)
+	}
+	if err == nil && !found {
+		err = errs.New(errs.CodeUpstreamUnavailable, "trading.RouteExec.observeOut",
+			slog.String("swap_id", b.id.String()), slog.String("network", string(step.Network)),
+			slog.String("reason", "bridge_out_not_arrived"))
+	}
+	if err != nil {
+		return domain.Arrival{}, err
+	}
+	faultpoint.Hit(ctx, faultpoint.AfterArrivalObserved)
+	return arrival, nil
 }
 
 func (r *RouteExec) resolve(ctx context.Context, b routedBuy, winner multichain.ListingID) (routedBuy, error) {

@@ -107,16 +107,18 @@ func TestBridgeBack_refusesWhatItCannotLoadOrJournal(t *testing.T) {
 	if err := e.exec().BridgeBack(actorContext(t.Context()), ids.SwapIDFrom(e.ids.NewV7())); err == nil {
 		t.Fatal("BridgeBack of an unknown swap succeeded")
 	}
-	e.route.Ranked[0].Costs = []multichain.Cost{
-		{Kind: multichain.CostBridge, Micros: money.MicrosFromUint64(buyMicros)},
-	}
+	e.landings.missing = 1
 	e.privy.script(multichain.ActionSucceeded)
-	cmd := e.routedBuy(t)
-	if err := e.exec().
-		BridgeBack(actorContext(t.Context()), ids.SwapIDFrom(e.swapsOf(t, cmd.ProposalID)[0])); errs.CodeOf(
-		err,
-	) != errs.CodeInvalidInput {
-		t.Fatalf("BridgeBack of nothing landed err = %v, want invalid_input", err)
+	unseen := e.request()
+	if _, err := e.buy(t.Context(), unseen); errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
+		t.Fatalf("Buy whose bridge out is not on chain yet err = %v, want upstream_unavailable", err)
+	}
+	stuck := e.swapIDs(t, unseen.Source.ID)[0]
+	if err := e.exec().BridgeBack(actorContext(t.Context()), ids.SwapIDFrom(stuck)); err != nil {
+		t.Fatalf("BridgeBack of a bridge out not seen yet err = %v, want nothing to do", err)
+	}
+	if status, _ := e.bridgeBackOf(t, stuck); status != "" || len(e.privy.calls()) != 1 {
+		t.Fatalf("bridge back %q after %d transfers, want none before the arrival", status, len(e.privy.calls()))
 	}
 	e.route.Ranked[0].Costs = []multichain.Cost{
 		{Kind: multichain.CostBridge, Micros: money.MicrosFromUint64(buyMicros + 1)},
