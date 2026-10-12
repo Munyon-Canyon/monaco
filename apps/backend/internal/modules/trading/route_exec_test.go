@@ -2,6 +2,7 @@ package trading_test
 
 import (
 	"context"
+	"log/slog"
 	"math/big"
 	"slices"
 	"strings"
@@ -14,9 +15,12 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	mcfakes "github.com/monaco/monaco/apps/backend/internal/testkit/fakes/multichain"
 )
 
@@ -576,5 +580,27 @@ func TestRouteExec_aSwapSentButNotRecordedIsNeverFailedAsUnsent(t *testing.T) {
 	}
 	if n := e.count(t, `SELECT count(*) FROM events WHERE type = 'trade.failed' AND aggregate_id = $1`, swap); n != 0 {
 		t.Fatalf("%d trade.failed, want none for a swap that was sent", n)
+	}
+}
+
+func TestRouteExec_aRefusedSwapLogsPrivysReason(t *testing.T) {
+	t.Parallel()
+	e := newRouteEnv(t)
+	e.bridgedToTheSwap(t)
+	e.evm.buildErr = errs.New(errs.CodeInvalidInput, "privy.SendEVMTransaction", slog.Int("status", 400),
+		slog.String("privy_error", "Transaction simulation failed"), slog.String("privy_code", "invalid_data"))
+	logs := &testkit.Logs{}
+	ctx := observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
+
+	view, err := e.buy(ctx, e.request())
+	if err != nil || view.Status != domain.StatusFailed {
+		t.Fatalf("Buy = %s, %v, want failed", view.Status, err)
+	}
+
+	got := logs.Lines("trading.swap.refused", "swap_id", "step", "code", "detail")
+	want := []string{view.ID.String() + " swap invalid_input " +
+		"map[privy_code:invalid_data privy_error:Transaction simulation failed status:400]"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("trading.swap.refused = %q, want %q", got, want)
 	}
 }

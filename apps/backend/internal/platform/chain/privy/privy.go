@@ -21,7 +21,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 )
 
-const maxBody = 1 << 20
+const (
+	maxBody    = 1 << 20
+	maxRefusal = 200
+)
 
 type UserID string
 
@@ -116,11 +119,7 @@ func (c *Client) do(ctx context.Context, in call, into any) error {
 		return errs.New(errs.CodePrivyUnavailable, in.op, slog.Int("status", resp.StatusCode))
 	}
 	if code, failed := statusCode(resp.StatusCode); failed {
-		attrs := []slog.Attr{slog.Int("status", resp.StatusCode)}
-		if limit, detail := userLimit(raw); limit && code == errs.CodeInvalidInput {
-			code, attrs = errs.CodePrivyUserLimit, append(attrs, slog.String("detail", detail))
-		}
-		return errs.New(code, in.op, attrs...)
+		return failure(in.op, code, resp.StatusCode, raw)
 	}
 	if into == nil {
 		return nil
@@ -131,13 +130,30 @@ func (c *Client) do(ctx context.Context, in call, into any) error {
 	return nil
 }
 
-func userLimit(raw []byte) (bool, string) {
-	var body struct {
-		Error string `json:"error"`
-		Code  string `json:"code"`
-	}
+func failure(op string, code errs.Code, status int, raw []byte) error {
+	attrs := []slog.Attr{slog.Int("status", status)}
+	var body refusal
 	_ = json.Unmarshal(raw, &body)
-	return body.Code == "max_accounts_reached", body.Error
+	switch {
+	case body.Code == "max_accounts_reached" && code == errs.CodeInvalidInput:
+		code, attrs = errs.CodePrivyUserLimit, append(attrs, slog.String("detail", body.Error))
+	case status < http.StatusInternalServerError:
+		attrs = append(attrs, slog.String("privy_error", cut(body.Error, maxRefusal)),
+			slog.String("privy_code", cut(body.Code, maxRefusal)))
+	}
+	return errs.New(code, op, attrs...)
+}
+
+type refusal struct {
+	Error string `json:"error"`
+	Code  string `json:"code"`
+}
+
+func cut(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return strings.ToValidUTF8(s[:n], "")
 }
 
 func statusCode(status int) (errs.Code, bool) {
