@@ -278,9 +278,10 @@ func (q *Queries) ParkedRoutedForUpdate(ctx context.Context, id uuid.UUID) (Park
 }
 
 const reuseStrandedCash = `-- name: ReuseStrandedCash :execrows
-INSERT INTO trade_steps (id, trade_id, step, network, privy_action_id, amount_micros, status, created_at, updated_at)
+INSERT INTO trade_steps (id, trade_id, step, network, privy_action_id, amount_micros, status, created_at, updated_at,
+  arrived_micros, arrival_tx)
 SELECT $1::uuid, $2::uuid, 'bridge_out', o.network, 'reused:' || o.trade_id::text,
-  o.amount_micros, 'succeeded', $3::timestamptz, $3::timestamptz
+  o.amount_micros, 'succeeded', $3::timestamptz, $3::timestamptz, o.arrived_micros, o.arrival_tx
 FROM trade_steps AS o
 JOIN swaps AS s ON s.id = o.trade_id
 WHERE o.trade_id = $4::uuid AND o.step = 'bridge_out' AND o.status = 'succeeded'

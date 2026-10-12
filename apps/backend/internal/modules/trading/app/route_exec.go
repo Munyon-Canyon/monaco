@@ -199,7 +199,7 @@ func (r *RouteExec) finish(
 	return l.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		var stepErr error
 		if stepFailure == "" {
-			_, stepErr = r.d.Journal.succeeded(ctx, tx, ref, money.Micros{})
+			_, stepErr = r.d.Journal.succeeded(ctx, tx, ref, money.Micros{}, domain.Arrival{})
 		} else {
 			_, stepErr = r.d.Journal.failed(ctx, tx, ref, stepFailure)
 		}

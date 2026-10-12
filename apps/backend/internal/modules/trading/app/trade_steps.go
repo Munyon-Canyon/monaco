@@ -70,6 +70,7 @@ type stepMove struct {
 	actionID string
 	reason   string
 	fee      money.Micros
+	arrival  domain.Arrival
 }
 
 func (j Journal) Submitted(ctx context.Context, ref domain.StepRef, actionID string) (bool, error) {
@@ -83,12 +84,57 @@ func (j Journal) submitted(ctx context.Context, tx db.Tx, ref domain.StepRef, ac
 	return j.move(ctx, tx, ref, stepMove{to: domain.StepSubmitted, actionID: actionID})
 }
 
-func (j Journal) Succeeded(ctx context.Context, ref domain.StepRef, fee money.Micros) (bool, error) {
-	return j.in(ctx, func(ctx context.Context, tx db.Tx) (bool, error) { return j.succeeded(ctx, tx, ref, fee) })
+func (j Journal) Succeeded(
+	ctx context.Context, ref domain.StepRef, fee money.Micros, arrival domain.Arrival,
+) (bool, error) {
+	return j.in(ctx, func(ctx context.Context, tx db.Tx) (bool, error) {
+		return j.succeeded(ctx, tx, ref, fee, arrival)
+	})
 }
 
-func (j Journal) succeeded(ctx context.Context, tx db.Tx, ref domain.StepRef, fee money.Micros) (bool, error) {
-	return j.move(ctx, tx, ref, stepMove{to: domain.StepSucceeded, fee: fee})
+func (j Journal) succeeded(
+	ctx context.Context, tx db.Tx, ref domain.StepRef, fee money.Micros, arrival domain.Arrival,
+) (bool, error) {
+	return j.move(ctx, tx, ref, stepMove{to: domain.StepSucceeded, fee: fee, arrival: arrival})
+}
+
+func (j Journal) Arrived(ctx context.Context, ref domain.StepRef, arrival domain.Arrival) (domain.TradeStep, error) {
+	var after domain.TradeStep
+	err := j.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		q := sqlc.New(tx.Queries())
+		before, err := readStep(ctx, q, ref.SwapID, ref.Step)
+		fee, arrived, arrivalErr := arrivalColumns(before.Amount, arrival)
+		if err = errors.Join(err, arrivalErr); err != nil {
+			return err
+		}
+		n, err := q.RecordTradeStepArrival(ctx, sqlc.RecordTradeStepArrivalParams{
+			ArrivedMicros: arrived, ArrivalTx: arrival.TxHash, At: j.Clock.Now(),
+			TradeID: ref.SwapID.UUID(), Step: string(ref.Step),
+		})
+		if err == nil {
+			after, err = readStep(ctx, q, ref.SwapID, ref.Step)
+		}
+		if err != nil || n == 0 {
+			return err
+		}
+		tx.AfterCommit(func(ctx context.Context) { logStep(ctx, ref, before.Status, after, fee) })
+		return tx.Events.Append(ctx, stepChanged(ref, after, fee))
+	})
+	return after, err
+}
+
+func (j Journal) ArrivalTxs(ctx context.Context, network chain.Network) ([]string, error) {
+	return sqlc.New(j.Reads).ArrivalTxs(ctx, string(network))
+}
+
+func arrivalColumns(sent money.Micros, arrival domain.Arrival) (money.Micros, int64, error) {
+	fee, err := sent.Sub(arrival.Amount)
+	arrived, ok := domain.Column(arrival.Amount.Uint64())
+	if err != nil || !ok || arrival.Amount.IsZero() || !arrival.Observed() {
+		return money.Micros{}, 0, errs.New(errs.CodeInvalidInput, journalOp,
+			slog.String("arrived_micros", arrival.Amount.String()), slog.String("amount_micros", sent.String()))
+	}
+	return fee, arrived, nil
 }
 
 func (j Journal) Failed(ctx context.Context, ref domain.StepRef, reason string) (bool, error) {
@@ -132,12 +178,24 @@ func (j Journal) move(ctx context.Context, tx db.Tx, ref domain.StepRef, m stepM
 		return false, errs.New(errs.CodeInvalidInput, journalOp,
 			slog.String("fee_micros", m.fee.String()), slog.String("amount_micros", before.Amount.String()))
 	}
-	n, err := j.apply(ctx, q, ref, m)
+	var arrived int64
+	if m.arrival.Observed() {
+		fee, column, err := arrivalColumns(before.Amount, m.arrival)
+		if err == nil && fee != m.fee {
+			err = errs.New(errs.CodeInvalidInput, journalOp,
+				slog.String("fee_micros", m.fee.String()), slog.String("arrived_micros", m.arrival.Amount.String()))
+		}
+		if err != nil {
+			return false, err
+		}
+		arrived = column
+	}
+	n, err := j.apply(ctx, q, ref, m, arrived)
 	if err != nil || n == 0 {
 		return false, err
 	}
 	after := before
-	after.Status = m.to
+	after.Status, after.Arrival = m.to, m.arrival
 	if m.actionID != "" {
 		after.PrivyActionID = m.actionID
 	}
@@ -145,7 +203,9 @@ func (j Journal) move(ctx context.Context, tx db.Tx, ref domain.StepRef, m stepM
 	return true, tx.Events.Append(ctx, stepChanged(ref, after, m.fee))
 }
 
-func (j Journal) apply(ctx context.Context, q *sqlc.Queries, ref domain.StepRef, m stepMove) (int64, error) {
+func (j Journal) apply(
+	ctx context.Context, q *sqlc.Queries, ref domain.StepRef, m stepMove, arrived int64,
+) (int64, error) {
 	at, trade, kind := j.Clock.Now(), ref.SwapID.UUID(), string(ref.Step)
 	if m.to == domain.StepSubmitted {
 		return q.MarkTradeStepSubmitted(ctx, sqlc.MarkTradeStepSubmittedParams{
@@ -154,6 +214,7 @@ func (j Journal) apply(ctx context.Context, q *sqlc.Queries, ref domain.StepRef,
 	}
 	return q.FinishTradeStep(ctx, sqlc.FinishTradeStepParams{
 		Status: string(m.to), Error: m.reason, At: at, TradeID: trade, Step: kind,
+		ArrivedMicros: arrived, ArrivalTx: m.arrival.TxHash,
 	})
 }
 
@@ -192,8 +253,9 @@ func readStep(ctx context.Context, q *sqlc.Queries, swap ids.SwapID, kind domain
 	if err != nil {
 		return domain.TradeStep{}, err
 	}
-	amount, err := money.ParseMicros(row.AmountMicros)
-	if err != nil {
+	amount, amountErr := money.ParseMicros(row.AmountMicros)
+	arrived, arrivedErr := money.ParseMicros(row.ArrivedMicros)
+	if err := errors.Join(amountErr, arrivedErr); err != nil {
 		return domain.TradeStep{}, err
 	}
 	return domain.TradeStep{
@@ -202,6 +264,8 @@ func readStep(ctx context.Context, q *sqlc.Queries, swap ids.SwapID, kind domain
 		SourceBatchSize: int(row.SourceBatchSize), Step: domain.StepKind(row.Step),
 		Network: chain.Network(row.Network), PrivyActionID: row.PrivyActionID, Amount: amount,
 		Status: domain.StepStatus(row.Status), Error: row.Error, Attempt: int(row.Attempt),
-		PriorPrivyActionIDs: row.PriorPrivyActionIds, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		PriorPrivyActionIDs: row.PriorPrivyActionIds, SentAt: row.SentAt, CreatedAt: row.CreatedAt,
+		UpdatedAt: row.UpdatedAt,
+		Arrival:   domain.Arrival{Amount: arrived, TxHash: row.ArrivalTx},
 	}, nil
 }
