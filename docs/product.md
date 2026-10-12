@@ -107,7 +107,7 @@ Sells work the same way and keep the issuer and chain already held.
 
 Which chain words a member sees:
 
-- **Network names** (Solana, Base, Arbitrum, Ethereum) appear only in the Deposit and Withdraw network pickers.
+- **Network names** (Solana, Base, Arbitrum, Ethereum, Robinhood Chain) appear only in the Deposit and Withdraw network pickers, the Review sheet's venue rows, the chain picker, and the stock page's best-price line. Nowhere else.
 - **Venue names** appear only on a trade's detail, which shows what was checked, for example "Checked 3 venues for Apple. Best: Ondo. You got 0.002 more shares than the next best." Issuer names follow the copy rule above: never "xStock".
 - Nowhere else: proposals, holdings, the pot and activity name the stock, not the chain.
 
