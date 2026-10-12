@@ -23,11 +23,11 @@ import (
 	mc "github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 )
 
 const (
 	uniswapKeyHeader   = "x-api-key"
-	uniswapPerSecond   = 5
 	evmMaxBody         = 1 << 20
 	uniswapNoRoute     = "NoRouteFoundError"
 	uniswapClassic     = "CLASSIC"
@@ -59,8 +59,13 @@ func NewEVMVenue(
 ) *EVMVenue {
 	return &EVMVenue{
 		uniswap: uniswap, key: apiKey, rpc: rpc, clock: clk,
-		limit: rate.NewLimiter(rate.Limit(uniswapPerSecond), uniswapPerSecond),
+		limit: module.NewUniswapLimiter(),
 	}
+}
+
+func (v *EVMVenue) WithLimiter(l *rate.Limiter) *EVMVenue {
+	v.limit = l
+	return v
 }
 
 type approvalRequest struct {

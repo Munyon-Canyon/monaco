@@ -211,7 +211,7 @@ func (c *Client) route(
 	ctx context.Context, s simulated, r sponsoredRoute, rank ranked, attrs []slog.Attr,
 ) routeResult {
 	start := c.clock.Now()
-	err := c.wait(ctx, wrapperOp, attrs)
+	err := c.admit(ctx, wrapperOp, r.req, attrs)
 	out := routeResult{took: routeSteps{wait: c.clock.Now().Sub(start)}}
 	var q mc.Quote
 	var raw json.RawMessage

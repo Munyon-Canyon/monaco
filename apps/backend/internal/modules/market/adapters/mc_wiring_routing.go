@@ -67,7 +67,7 @@ func routingVenues(d module.Deps, accounts uniswapquote.Accounts) app.Venues {
 	if cfg.UniswapAPIKey != "" {
 		client := routingClient(d, "uniswap", uniswapquote.Options(cfg.UniswapBaseURL, cfg.UniswapQuoteTimeout)...)
 		venues[multichain.VenueUniswap] = uniswapquote.New(client, cfg.UniswapAPIKey, accounts, d.Clock).
-			WithWrapper(uniswapquote.NewWrapper(wrapperRPC(d), wrapperDelegate()))
+			WithLimiter(d.UniswapLimiter()).WithWrapper(uniswapquote.NewWrapper(wrapperRPC(d), wrapperDelegate()))
 	}
 	return venues
 }

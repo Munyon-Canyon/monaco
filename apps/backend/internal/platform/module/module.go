@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/time/rate"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/apns"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
@@ -39,6 +40,20 @@ type Deps struct {
 	APNs       apns.Sender
 	Photos     PhotoStore
 	Jupiter    *jupiter.Client
+	Uniswap    *rate.Limiter
+}
+
+const UniswapCallsPerSecond = 5
+
+func NewUniswapLimiter() *rate.Limiter {
+	return rate.NewLimiter(rate.Limit(UniswapCallsPerSecond), UniswapCallsPerSecond)
+}
+
+func (d Deps) UniswapLimiter() *rate.Limiter {
+	if d.Uniswap != nil {
+		return d.Uniswap
+	}
+	return NewUniswapLimiter()
 }
 
 func (d Deps) JupiterClient() *jupiter.Client {
@@ -68,6 +83,9 @@ func (r *Registry) Add(build func(Deps) Module) {
 }
 
 func (r *Registry) Build(d Deps) Set {
+	if d.Uniswap == nil {
+		d.Uniswap = NewUniswapLimiter()
+	}
 	mods := make([]Module, 0, 1+len(r.builders))
 	mods = append(mods, platform{d: d})
 	for _, build := range r.builders {
