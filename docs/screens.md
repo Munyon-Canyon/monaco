@@ -60,6 +60,7 @@ Feed ──── item ──▶ ProposalRoute | TransactionRoute | AssetRoute |
 Cabals ┬─ + ──▶ New cabal sheet ──── Start a cabal ──▶ create ──▶ CabalRoute
        ├─ search result / card / Top cabals row ──▶ CabalRoute
 CabalRoute ─┬─ i ──▶ Cabal details sheet (rules, treasury, edit, leave)
+            ├─ share ──▶ Share sheet (the gain card, Share, Copy link), members only
             ├─ Fund ───────▶ FundRoute
             ├─ Propose ────▶ ProposeRoute ──▶ Buy | Sell | Add a trading bot
             ├─ Cash out ───▶ CashOutRoute
@@ -129,6 +130,8 @@ Toolbar: back on the left, and an "i" button on the right that opens the details
 | 12 | `CabalMemberBoardSlot` | #699 | yes | yes | "Leaderboard": ranked members with the viewer's row washed and labelled "You", then "Updated …" under the list. Rows open `UserProfileRoute` |
 | 13 | `CabalActivitySlot` | #654 | yes | hidden | "Activity" with "See all" past five rows. Rows: glyph, title ("Bought Alphabet", "Money added", "Cashed out", "Scout · Bought Nvidia"), age plus a status in amber ("Pending") or red ("Failed · Retry"), amount. Rows open `TransactionRoute`. Empty: "Nothing yet" / "Money added and trades show up here." |
 
+**Share sheet.** A share button sits left of "i" for members of an open cabal once the pot has loaded (id `cabal-share-button`). The same sheet opens from the Profile toolbar ("Share your return", `profile-share-button`) and from the share button beside Home's portfolio chip (`home-share-button`). Title "Share", "Done" at the top right. It shows the card as a 4:5 dark image (1080 × 1350 px when shared): the all-time gain and return, the gain curve, three stats ("Put in", "In the pot", "Members" for a cabal; "Put in", "In cabals", "Cabals" for you) and the sharer's invite link. "Share" opens the system sheet with the image and the link; "Copy link" copies the link and shows the toast "Link copied.". It carries only the viewer's own figures and own cabals.
+
 **Cabal details sheet** ("i"). Title "Cabal details", "Done" at the top right. Detents medium and large.
 
 | Order | Slot | Owner | Shows |
@@ -195,7 +198,7 @@ Title "Trading bot". The bot's name and state. "Budget" / "From the pot" / "$200
 
 ## Profile tab
 
-Pull to refresh, like Home.
+Pull to refresh, like Home. Toolbar: a share button at the top right opens the Share sheet with the viewer's return card.
 
 | Order | Slot | Owner | Shows |
 | --- | --- | --- | --- |

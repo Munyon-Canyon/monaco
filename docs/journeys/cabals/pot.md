@@ -1,7 +1,7 @@
 ---
 id: cabals/pot
 title: The cabal pot
-version: 3
+version: 4
 milestone: M12
 requires: [auth/sign-in]
 actors: [A]
@@ -35,14 +35,23 @@ The format of this doc is in [App journeys](../README.md).
 | S1.2 | A | wait | `cabal-pot-value` | | Reads "$0.00" within 10 s (screens.md `CabalPotSlot`: pot value from `GET /v1/cabals/{id}/pot`; old app: `PotSectionView` pot value) |
 | S1.3 | A | wait | `cabal-slice-value` | | Under the hairline, "Your slice" over "$0.00" with "Fund to get a slice" within 10 s (screens.md `CabalSliceSlot`: No stake: "$0.00" with "Fund to get a slice") |
 
-### S2 Holdings
+### S2 Share the cabal's gain
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA slice {QA.run}` | `cabal-header-name` reads `QA slice {QA.run}` within 15 s |
-| S2.2 | A | scroll to | "Holdings" | | The section header "Holdings" shows within 10 s (screens.md `CabalHoldingsSlot`: "Holdings") |
-| S2.3 | A | wait | `cabal-holdings-empty` | | Reads "Fund, then propose the first buy." within 10 s (screens.md `CabalHoldingsSlot`: Zero pot; old app: `pot-empty` "Add money, then propose the first buy.") |
-| S2.4 | A | tap | `cabal-holdings-cash` | | The asset screen for "Cash" shows within 10 s (screens.md: "Rows open `AssetRoute`"; old app: `pot-row-USDC`) |
+| S2.2 | A | tap | `cabal-share-button` | | The sheet "Share" shows the gain card as `share-card-image` within 15 s (screens.md: the share button next to the cabal's details button; members of an open cabal only) |
+| S2.3 | A | tap | `share-card-copy` | | The toast "Link copied." shows within 5 s. The journey does not open the system share sheet, which XCUITest cannot dismiss reliably |
+| S2.4 | A | tap | `share-card-done` | | The sheet closes and `cabal-header-name` still reads `QA slice {QA.run}` within 5 s |
+
+### S3 Holdings
+
+| Step | Actor | Action | Target | Input | Expect |
+| --- | --- | --- | --- | --- | --- |
+| S3.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA slice {QA.run}` | `cabal-header-name` reads `QA slice {QA.run}` within 15 s |
+| S3.2 | A | scroll to | "Holdings" | | The section header "Holdings" shows within 10 s (screens.md `CabalHoldingsSlot`: "Holdings") |
+| S3.3 | A | wait | `cabal-holdings-empty` | | Reads "Fund, then propose the first buy." within 10 s (screens.md `CabalHoldingsSlot`: Zero pot; old app: `pot-empty` "Add money, then propose the first buy.") |
+| S3.4 | A | tap | `cabal-holdings-cash` | | The asset screen for "Cash" shows within 10 s (screens.md: "Rows open `AssetRoute`"; old app: `pot-row-USDC`) |
 
 ## Ground truth
 
@@ -52,8 +61,8 @@ The format of this doc is in [App journeys](../README.md).
 
 - S1.2: no pot value. The hero shows "The pot's value shows up here soon." (`cabal-pot-coming`). Blocked by #2136 (the `GET /v1/cabals/{id}/pot` route) and #2137 (the slot).
 - S1.3: no slice value. The hero shows "Your slice shows up here soon." (`cabal-slice-coming`). Blocked by #2136 and #2137.
-- S2.3: no holdings rows or empty state. The section shows "Holdings show up here soon." (`cabal-holdings-coming`). Blocked by #2136 and #2137.
-- S2.4: no holding row opens an asset. Blocked by #2136.
+- S3.3: no holdings rows or empty state. The section shows "Holdings show up here soon." (`cabal-holdings-coming`). Blocked by #2136 and #2137.
+- S3.4: no holding row opens an asset. Blocked by #2136.
 
 ## Not covered
 

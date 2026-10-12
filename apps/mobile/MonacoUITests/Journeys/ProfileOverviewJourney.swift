@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileOverviewJourney {
     static let id = "profile/overview"
-    static let version = 4
+    static let version = 5
 
     static let notYet = "Not available yet"
     static let signOutTitle = "Sign out of Monaco?"
@@ -148,60 +148,86 @@ enum ProfileOverviewJourney {
         }
     }
 
+    static func shareReturn(_ app: XCUIApplication, recorder: JourneyRecorder) {
+        recorder.step("S5.1", "open the return card") {
+            openProfile(app, step: "S5.1")
+            let button = app.buttons["profile-share-button"]
+            XCTAssertTrue(button.waitForExistence(timeout: 15), "S5.1: no share button within 15 s")
+            button.tap()
+            XCTAssertTrue(
+                app.element("share-card-image").waitForExistence(timeout: 15),
+                "S5.1: the share sheet drew no card within 15 s")
+        }
+
+        recorder.step("S5.2", "copy the link") {
+            app.buttons["share-card-copy"].tap()
+            XCTAssertTrue(
+                app.staticTexts["Link copied."].waitForExistence(timeout: 5), "S5.2: no 'Link copied.' toast within 5 s"
+            )
+        }
+
+        recorder.step("S5.3", "close the sheet") {
+            app.buttons["share-card-done"].tap()
+            XCTAssertTrue(
+                app.element("profile-header").waitForExistence(timeout: 5),
+                "S5.3: the Profile tab did not come back within 5 s")
+        }
+    }
+
     static func signOut(_ app: XCUIApplication, recorder: JourneyRecorder) {
         let button = app.buttons["profileSignOutButton"]
         let confirm = app.confirmDialogButton("profile-sign-out-confirm")
 
-        recorder.step("S5.1", "ask to sign out") {
-            openProfile(app, step: "S5.1")
+        recorder.step("S6.1", "ask to sign out") {
+            openProfile(app, step: "S6.1")
             let settings = app.element("profile-settings-row")
             app.scrollIntoReach(settings, maxSwipes: 30)
             settings.tap()
-            XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10), "S5.1: Settings did not open")
+            XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10), "S6.1: Settings did not open")
             app.scrollIntoReach(button)
             button.tap()
-            XCTAssertTrue(confirm.waitForExistence(timeout: 5), "S5.1: Sign out did not ask to confirm")
-            XCTAssertTrue(app.staticTexts[signOutTitle].exists, "S5.1: the confirm does not read '\(signOutTitle)'")
-            XCTAssertTrue(app.staticTexts[signOutMessage].exists, "S5.1: the confirm does not read '\(signOutMessage)'")
+            XCTAssertTrue(confirm.waitForExistence(timeout: 5), "S6.1: Sign out did not ask to confirm")
+            XCTAssertTrue(app.staticTexts[signOutTitle].exists, "S6.1: the confirm does not read '\(signOutTitle)'")
+            XCTAssertTrue(app.staticTexts[signOutMessage].exists, "S6.1: the confirm does not read '\(signOutMessage)'")
         }
 
-        recorder.step("S5.2", "tap outside the confirm") {
+        recorder.step("S6.2", "tap outside the confirm") {
             app.dismissConfirmDialog(title: signOutTitle)
-            XCTAssertTrue(confirm.waitForNonExistence(timeout: 5), "S5.2: a tap outside did not close the confirm")
+            XCTAssertTrue(confirm.waitForNonExistence(timeout: 5), "S6.2: a tap outside did not close the confirm")
             XCTAssertTrue(
-                app.navigationBars["Settings"].exists, "S5.2: Settings is gone after the confirm closed")
+                app.navigationBars["Settings"].exists, "S6.2: Settings is gone after the confirm closed")
         }
 
-        recorder.step("S5.3", "sign out") {
+        recorder.step("S6.3", "sign out") {
             app.scrollIntoReach(button)
             button.tap()
-            XCTAssertTrue(confirm.waitForExistence(timeout: 5), "S5.3: Sign out did not ask to confirm")
+            XCTAssertTrue(confirm.waitForExistence(timeout: 5), "S6.3: Sign out did not ask to confirm")
             confirm.tap()
-            XCTAssertTrue(app.tab("Home").waitForNonExistence(timeout: 15), "S5.3: the tab bar stayed after sign-out")
-            XCTAssertEqual(SignInJourney.currentScreen(app), .login, "S5.3: the login form did not show")
+            XCTAssertTrue(app.tab("Home").waitForNonExistence(timeout: 15), "S6.3: the tab bar stayed after sign-out")
+            XCTAssertEqual(SignInJourney.currentScreen(app), .login, "S6.3: the login form did not show")
         }
     }
 
     static func totals(_ app: XCUIApplication, cabal: Cabal, recorder: JourneyRecorder) {
-        recorder.step("S6.1", "the band shows the member's totals") {
-            openProfile(app, step: "S6.1")
-            XCTAssertTrue(waitUntil(15) { cabalsCount(app) != nil }, "S6.1: the stats band did not load")
+        recorder.step("S7.1", "the band shows the member's totals") {
+            openProfile(app, step: "S7.1")
+            XCTAssertTrue(waitUntil(15) { cabalsCount(app) != nil }, "S7.1: the stats band did not load")
             XCTAssertFalse(
                 app.element("profile-stat-in-cabals").label.contains(notYet),
-                "S6.1: 'In cabals' shows no figure (#2140)")
+                "S7.1: 'In cabals' shows no figure (#2140)")
             XCTAssertFalse(
-                app.element("profile-stat-return").label.contains(notYet), "S6.1: 'Return' shows no figure (#2140)")
+                app.element("profile-stat-return").label.contains(notYet), "S7.1: 'Return' shows no figure (#2140)")
             XCTAssertFalse(
-                app.element("profile-stats-coming").exists, "S6.1: 'Your totals show up here soon.' shows (#2140)")
+                app.element("profile-stats-coming").exists, "S7.1: 'Your totals show up here soon.' shows (#2140)")
         }
 
-        recorder.step("S6.2", "the cabal row shows its value") {
+        recorder.step("S7.2", "the cabal row shows its value") {
             let cabalRow = row(app, cabal)
             app.scrollIntoReach(cabalRow)
-            XCTAssertTrue(cabalRow.waitForExistence(timeout: 15), "S6.2: no row for '\(cabal.name)'")
+            XCTAssertTrue(cabalRow.waitForExistence(timeout: 15), "S7.2: no row for '\(cabal.name)'")
             XCTAssertFalse(
                 app.element("profile-cabals-coming").exists,
-                "S6.2: 'Pot values show up here soon.' shows (#2140, #2136)")
+                "S7.2: 'Pot values show up here soon.' shows (#2140, #2136)")
         }
     }
 }
