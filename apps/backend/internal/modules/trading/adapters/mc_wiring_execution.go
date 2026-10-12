@@ -30,5 +30,5 @@ func MultichainExecutionVenue(d module.Deps) (*EVMVenue, bool) {
 	}
 	uniswap := client("uniswap-swap",
 		httpclient.WithBaseURL(cfg.Routing.UniswapBaseURL), httpclient.WithTimeout(cfg.Routing.UniswapTimeout))
-	return NewEVMVenue(uniswap, cfg.Routing.UniswapAPIKey, rpc, d.Clock), true
+	return NewEVMVenue(uniswap, cfg.Routing.UniswapAPIKey, rpc, d.Clock).WithLimiter(d.UniswapLimiter()), true
 }

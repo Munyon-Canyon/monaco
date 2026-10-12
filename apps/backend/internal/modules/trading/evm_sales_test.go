@@ -4,13 +4,18 @@ import (
 	"context"
 	"math/big"
 	"net/http"
+	"net/http/httptest"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
 
+	"golang.org/x/time/rate"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/adapters"
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -214,5 +219,32 @@ func TestMultichainExecutionVenue_swapsUnderTheExecutionTimeoutNotTheQuoteOne(t 
 	})
 	if took != 7*time.Second {
 		t.Fatalf("the execution Uniswap client gives up after %v, want MONACO_TIMEOUT_UNISWAP's 7s", took)
+	}
+}
+
+func TestMultichainExecutionVenue_waitsOnTheProcessWideUniswapLimit(t *testing.T) {
+	t.Parallel()
+	var calls atomic.Int32
+	uni := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls.Add(1) }))
+	t.Cleanup(uni.Close)
+	cfg := testkit.Config()
+	cfg.Timeouts.RPC = time.Second
+	cfg.Routing = config.Routing{UniswapAPIKey: "key", UniswapBaseURL: uni.URL, UniswapTimeout: time.Second}
+	shared := rate.NewLimiter(rate.Every(time.Hour), 1)
+	shared.Allow()
+	venue, _ := adapters.MultichainExecutionVenue(module.Deps{
+		Config: cfg, Clock: testkit.NewClock(time.Unix(0, 0)), Uniswap: shared,
+	})
+	owner, _ := chain.ParseEVMAddress("0x00000000000000000000000000000000000051a1")
+	cash, _ := chain.ParseEVMAddress(chain.NetworkBase.Cash().Address)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+	defer cancel()
+
+	_, err := venue.Build(ctx, app.EVMSwapSpec{
+		Network: chain.NetworkBase, Owner: owner, TokenIn: cash, TokenOut: owner, AmountIn: 1_000_000, MinOut: 1,
+	})
+
+	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable || calls.Load() != 0 {
+		t.Fatalf("Build err = %v after %d calls, want the spent shared limit to hold the call", err, calls.Load())
 	}
 }

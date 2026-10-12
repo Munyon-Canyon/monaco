@@ -10,6 +10,9 @@ import (
 	"math/big"
 	"net/http"
 	"regexp"
+	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -19,6 +22,7 @@ import (
 	mc "github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
@@ -27,7 +31,7 @@ const (
 	upstream       = "uniswap-quote"
 	keyHeader      = "x-api-key"
 	quoteTTL       = 30 * time.Second
-	callsPerSecond = 5
+	noRouteTTL     = 3 * time.Minute
 	maxBody        = 1 << 20
 	feeDenominator = 1_000_000
 	v2PoolFee      = 3000
@@ -48,6 +52,12 @@ type Client struct {
 	clock    clock.Clock
 	limit    *rate.Limiter
 	wrapper  *Wrapper
+	noRoutes noRoutes
+}
+
+type noRoutes struct {
+	mu    sync.Mutex
+	until map[string]time.Time
 }
 
 func Options(baseURL string, timeout time.Duration) []httpclient.Option {
@@ -60,8 +70,47 @@ func Options(baseURL string, timeout time.Duration) []httpclient.Option {
 func New(c *httpclient.Client, apiKey string, accounts Accounts, clk clock.Clock) *Client {
 	return &Client{
 		http: c, key: apiKey, accounts: accounts, clock: clk,
-		limit: rate.NewLimiter(rate.Limit(callsPerSecond), callsPerSecond),
+		limit:    module.NewUniswapLimiter(),
+		noRoutes: noRoutes{until: map[string]time.Time{}},
 	}
+}
+
+func (c *Client) WithLimiter(l *rate.Limiter) *Client {
+	c.limit = l
+	return c
+}
+
+func routeKey(r quoteRequest) string {
+	return strings.Join([]string{
+		strconv.FormatInt(r.TokenInChainID, 10), strings.ToLower(r.TokenIn), strings.ToLower(r.TokenOut), r.Type,
+		strings.Join(r.Protocols, "+"), r.HooksOptions,
+	}, "|")
+}
+
+func (c *Client) knownNoRoute(r quoteRequest) bool {
+	c.noRoutes.mu.Lock()
+	defer c.noRoutes.mu.Unlock()
+	until, ok := c.noRoutes.until[routeKey(r)]
+	return ok && c.clock.Now().Before(until)
+}
+
+func (c *Client) rememberNoRoute(r quoteRequest) {
+	c.noRoutes.mu.Lock()
+	defer c.noRoutes.mu.Unlock()
+	now := c.clock.Now()
+	for k, until := range c.noRoutes.until {
+		if !now.Before(until) {
+			delete(c.noRoutes.until, k)
+		}
+	}
+	c.noRoutes.until[routeKey(r)] = now.Add(noRouteTTL)
+}
+
+func (c *Client) admit(ctx context.Context, op string, r quoteRequest, attrs []slog.Attr) error {
+	if c.knownNoRoute(r) {
+		return errs.New(errs.CodeNoRoute, op, append(attrs, slog.String("reason", "cached_no_route"))...)
+	}
+	return c.wait(ctx, op, attrs)
 }
 
 type quoteRequest struct {
@@ -121,7 +170,7 @@ func (c *Client) Quote(ctx context.Context, l mc.Listing, side mc.Side, amount m
 	if c.wrapper != nil && side == mc.SideBuy {
 		return c.sponsored(ctx, l, amount, req, swapper, attrs)
 	}
-	if err := c.wait(ctx, op, attrs); err != nil {
+	if err := c.admit(ctx, op, req, attrs); err != nil {
 		return mc.Quote{}, err
 	}
 	q, _, err := c.quote(ctx, l, side, req, attrs)
@@ -181,6 +230,7 @@ func (c *Client) post(ctx context.Context, op string, body quoteRequest, attrs [
 	attrs = append(attrs, slog.Int("status", status))
 	switch {
 	case w.ErrorCode == noRoute:
+		c.rememberNoRoute(body)
 		return quoteWire{}, errs.New(errs.CodeNoRoute, op, attrs...)
 	case status != http.StatusOK:
 		return quoteWire{}, errs.New(

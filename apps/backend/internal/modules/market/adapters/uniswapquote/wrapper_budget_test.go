@@ -215,7 +215,7 @@ func TestWrapper_buildsEachSwapUnderTheRateLimit(t *testing.T) {
 	uni := httpclient.New("uniswap-limit-test", append(uniswapquote.Options("http://uniswap.test", 5*time.Second),
 		httpclient.WithTransport(inMemory{serve: both}))...)
 	client := uniswapquote.New(uni, "test-key", uniswapquote.Stored(owner), r.clock).WithWrapper(r.wrapper).
-		WithLimit(rate.NewLimiter(rate.Every(time.Hour), 2))
+		WithLimiter(rate.NewLimiter(rate.Every(time.Hour), 2))
 	budget, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
 
