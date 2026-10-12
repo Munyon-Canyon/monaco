@@ -6396,7 +6396,10 @@ components:
         quote_out_amount:
           type: integer
           format: int64
-          description: The quoted output, in the output asset's base units, from the winning venue or, without a comparison, from Jupiter.
+          description: >-
+            The quoted output, in the output asset's base units, from the winning venue or, without a
+            comparison, from Jupiter. 0 when the proposal is pinned to a chain with no live quote, and
+            `price_comparison` then lists that chain as unavailable.
           examples: [40000000]
         quoted_at:
           type: string
