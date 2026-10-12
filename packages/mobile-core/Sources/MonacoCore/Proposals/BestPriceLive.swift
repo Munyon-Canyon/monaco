@@ -104,26 +104,27 @@ public final class LiveBestPriceModel {
         return BestPrice.pinnedUnavailable(latest?.comparison, network: summary.network)
     }
 
-    public func isAwaitingFirstQuote(for summary: ProposalSummary) -> Bool {
-        Self.isLive(summary) && summary.network != nil && latest == nil
+    public func isFindingPrice(for summary: ProposalSummary, decimals: Int, now: Date) -> Bool {
+        Self.isLive(summary) && summary.network != nil && unavailableReason(for: summary) == nil
+            && liveRow(for: summary, decimals: decimals, now: now) == nil
     }
 
     public func row(for summary: ProposalSummary, decimals: Int, now: Date) -> BestPriceRow? {
         guard Self.isLive(summary) else { return summary.bestPrice.map { BestPriceRow($0) } }
-        guard unavailableReason(for: summary) == nil, !isAwaitingFirstQuote(for: summary) else { return nil }
-        if let latest, now.timeIntervalSince(latest.quotedAt) <= Self.staleAfter {
-            let caption = Self.age(since: latest.quotedAt, now: now)
-            if let bestPrice = BestPrice(latest.comparison, isSell: false) {
-                return BestPriceRow(bestPrice, caption: caption)
-            }
-            if let row = BestPriceRow(
-                solanaQuote: latest.quoteOutAmount, usdcMicros: summary.usdcMicros, decimals: decimals,
-                caption: caption)
-            {
-                return row
-            }
-        }
+        guard unavailableReason(for: summary) == nil else { return nil }
+        if let row = liveRow(for: summary, decimals: decimals, now: now) { return row }
+        guard summary.network == nil else { return nil }
         return summary.bestPrice.map { BestPriceRow($0, caption: Self.whenProposed) }
+    }
+
+    private func liveRow(for summary: ProposalSummary, decimals: Int, now: Date) -> BestPriceRow? {
+        guard let latest, now.timeIntervalSince(latest.quotedAt) <= Self.staleAfter else { return nil }
+        let caption = Self.age(since: latest.quotedAt, now: now)
+        if let bestPrice = BestPrice(latest.comparison, isSell: false) {
+            return BestPriceRow(bestPrice, caption: caption)
+        }
+        return BestPriceRow(
+            solanaQuote: latest.quoteOutAmount, usdcMicros: summary.usdcMicros, decimals: decimals, caption: caption)
     }
 
     static func age(since quotedAt: Date, now: Date) -> String {
