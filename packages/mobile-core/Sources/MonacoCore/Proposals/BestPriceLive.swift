@@ -104,9 +104,13 @@ public final class LiveBestPriceModel {
         return BestPrice.pinnedUnavailable(latest?.comparison, network: summary.network)
     }
 
+    public func isAwaitingFirstQuote(for summary: ProposalSummary) -> Bool {
+        Self.isLive(summary) && summary.network != nil && latest == nil
+    }
+
     public func row(for summary: ProposalSummary, decimals: Int, now: Date) -> BestPriceRow? {
         guard Self.isLive(summary) else { return summary.bestPrice.map { BestPriceRow($0) } }
-        guard unavailableReason(for: summary) == nil else { return nil }
+        guard unavailableReason(for: summary) == nil, !isAwaitingFirstQuote(for: summary) else { return nil }
         if let latest, now.timeIntervalSince(latest.quotedAt) <= Self.staleAfter {
             let caption = Self.age(since: latest.quotedAt, now: now)
             if let bestPrice = BestPrice(latest.comparison, isSell: false) {
