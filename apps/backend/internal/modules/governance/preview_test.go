@@ -268,3 +268,30 @@ func TestHTTP_GetCabalProposalPreview_refusesWhatCannotGoOnTheWire(t *testing.T)
 		t.Errorf("anonymous GetCabalProposalPreview err = %v, want unauthorized", err)
 	}
 }
+
+func TestPreview_aPinnedBuyQuotesOnlyThePinnedChain(t *testing.T) {
+	t.Parallel()
+	w := newTradeWorld(t)
+	clk := testkit.NewClock(clock.Real{}.Now().UTC())
+	chains := marketfake.NewChains(clk, chain.NetworkSolana, chain.NetworkBase, chain.NetworkArbitrum)
+	w.clockedScenario(t, chains.Router(), clk).Given(w.asMember()).When(
+		scenario.Get(w.preview("kind=buy&symbol=AAPLx&usdc_micros=5000000&network=solana")),
+		scenario.ExpectStatus(http.StatusOK), scenario.ExpectJSON("advisory_code", nil),
+		scenario.ExpectField("price_comparison", func(_ *scenario.Scenario, raw json.RawMessage) {
+			if _, quotes := comparisonOf(t, raw); len(quotes) != 1 {
+				t.Fatalf("price_comparison = %s, want the Solana quote alone", raw)
+			}
+		}),
+		func(*scenario.Scenario) {
+			if quoted := chains.Quoted(); !slices.Equal(quoted, []chain.Network{chain.NetworkSolana}) {
+				t.Fatalf("a Solana pin quoted %v, want Solana alone", quoted)
+			}
+		},
+		scenario.Get(w.preview("kind=buy&symbol=AAPLx&usdc_micros=5000000")), scenario.ExpectStatus(http.StatusOK),
+		func(*scenario.Scenario) {
+			if quoted := chains.Quoted(); len(quoted) != 4 {
+				t.Fatalf("an unpinned preview quoted %v, want every chain", quoted)
+			}
+		},
+	).Then(scenario.ExpectEvents(events.TypeProposalCreated, 0))
+}

@@ -384,6 +384,11 @@ type marketAPI struct {
 
 func newMarketAPI(t *testing.T, when time.Time) marketAPI {
 	t.Helper()
+	return newMarketAPIMounting(t, when, func(d module.Deps) func(apibase.Mount) { return market.New(d).Mount })
+}
+
+func newMarketAPIMounting(t *testing.T, when time.Time, mounting func(module.Deps) func(apibase.Mount)) marketAPI {
+	t.Helper()
 	pool := testkit.DB(t)
 	clk := testkit.NewClock(when)
 	verifier, err := auth.NewDevVerifier(
@@ -391,7 +396,7 @@ func newMarketAPI(t *testing.T, when time.Time) marketAPI {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mount := market.New(module.Deps{Pool: pool, Clock: clk}).Mount
+	mount := mounting(module.Deps{Pool: pool, Clock: clk})
 	handler, err := httpx.Handler(httpx.Deps{
 		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, io.Discard),
 		Tracer:       noop.NewTracerProvider(),
