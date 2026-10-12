@@ -108,3 +108,14 @@ func TestCheckApproval_acceptsOnlyAnExactApprovalOrPermitForThisSwap(t *testing.
 		})
 	}
 }
+
+func TestCheckSwapTarget_refusesEveryRouterOnANetworkWithoutUniswap(t *testing.T) {
+	t.Parallel()
+	spec := app.EVMSwapSpec{Network: chain.NetworkSolana}
+	for _, router := range []string{guardRouter, otherRouter, "0x204faca1764b154221e35c0d20abb3c525710498"} {
+		tx := guardTx(t, router, "01", 0)
+		if err := checkSwapTarget(spec, tx); errs.CodeOf(err) != errs.CodeDecodeFailed {
+			t.Fatalf("checkSwapTarget(solana, %s) = %v, want decode_failed", router, err)
+		}
+	}
+}
