@@ -120,12 +120,50 @@ func (c *ProposalComparisons) quote(
 	if err != nil {
 		return LiveComparison{}, err
 	}
-	priced, _ := pinned(comparison, chain.Network(row.Network))
+	network := chain.Network(row.Network)
+	live := LiveComparison{Comparison: comparison, QuotedAt: now}
+	priced, missed := pinned(comparison, network)
+	proposed, err := decodeComparison(row.PriceComparison)
+	switch {
+	case missed == nil:
+		live.QuoteOut = displayQuote(asset, priced, routed, now)
+	case err != nil:
+		return LiveComparison{}, err
+	default:
+		live.Comparison = unquotedPin(comparison, proposed, network)
+	}
 	observability.Debug(ctx, observability.GovernanceProposalComparisonRefreshed,
 		slog.String("proposal_id", row.ID.String()), slog.Bool("compared", comparison != nil))
-	return LiveComparison{
-		QuoteOut:   displayQuote(asset, priced, routed, now),
-		Comparison: comparison,
-		QuotedAt:   now,
-	}, nil
+	return live, nil
+}
+
+func unquotedPin(live, proposed *multichain.Comparison, n chain.Network) *multichain.Comparison {
+	for _, c := range []*multichain.Comparison{live, proposed} {
+		if venue, ok := pinVenue(c, n); ok {
+			return &multichain.Comparison{
+				StockID: c.StockID, Side: multichain.SideBuy, Winner: venue.ListingID,
+				Unavailable: []multichain.UnavailableVenue{venue},
+			}
+		}
+	}
+	return nil
+}
+
+func pinVenue(c *multichain.Comparison, n chain.Network) (multichain.UnavailableVenue, bool) {
+	if c == nil {
+		return multichain.UnavailableVenue{}, false
+	}
+	for _, q := range c.Ranked {
+		if q.Network == n {
+			return multichain.UnavailableVenue{
+				ListingID: q.ListingID, Network: n, Venue: q.Venue, Reason: multichain.UnavailableNoRoute,
+			}, true
+		}
+	}
+	for _, u := range c.Unavailable {
+		if u.Network == n {
+			return u, true
+		}
+	}
+	return multichain.UnavailableVenue{}, false
 }
