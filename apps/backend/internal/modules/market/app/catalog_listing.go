@@ -42,6 +42,23 @@ func (c *Catalog) ListingByAsset(ctx context.Context, asset string) (multichain.
 	return listingFromRow(sqlc.FindListingRow(row), err, op, key)
 }
 
+func (c *Catalog) ListingOn(
+	ctx context.Context, stock multichain.StockID, n chain.Network,
+) (multichain.ListingID, multichain.Venue, error) {
+	const op = "market.Catalog.ListingOn"
+	key := slog.String("network", string(n))
+	row, err := c.q.FindListingForAssetOn(ctx, sqlc.FindListingForAssetOnParams{
+		AssetID: stock.UUID(), Network: string(n),
+	})
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return multichain.ListingID{}, "", errs.New(errs.CodeAssetNotFound, op, key)
+	case err != nil:
+		return multichain.ListingID{}, "", errs.Wrap(err, errs.CodeInternal, op, key)
+	}
+	return multichain.ListingIDFrom(row.ID), multichain.Venue(row.Venue), nil
+}
+
 func listingFromRow(row sqlc.FindListingRow, err error, op string, key slog.Attr) (multichain.Listing, error) {
 	switch {
 	case errors.Is(err, sql.ErrNoRows):

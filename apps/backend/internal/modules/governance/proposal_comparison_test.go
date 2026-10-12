@@ -280,7 +280,7 @@ func TestProposalComparison_concurrentViewersShareOneRouterCall(t *testing.T) {
 	ports.Router = router
 	propose := app.NewProposeTradeHandler(db.New(h.d.pool, h.d.ids, clock.Real{}), h.d.ids, clock.Real{}, ports,
 		app.NoHints{})
-	comparisons := app.NewProposalComparisons(h.d.pool, propose)
+	comparisons := app.NewProposalComparisons(h.d.pool, propose, nil)
 	req := app.GetProposalComparison{
 		CabalID: h.w.cabal, ProposalID: ids.ProposalIDFrom(p.ID), Caller: h.w.members[0],
 	}

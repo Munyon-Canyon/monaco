@@ -7,3 +7,7 @@ var GovernanceBanVoidSkipped = Msg{
 var GovernanceProposalComparisonRefreshed = Msg{
 	Name: "governance.proposal.comparison_refreshed", Required: []string{"proposal_id", "compared"},
 }
+
+var GovernanceProposalComparisonUnlisted = Msg{
+	Name: "governance.proposal.comparison_unlisted", Required: []string{"proposal_id", "network"},
+}

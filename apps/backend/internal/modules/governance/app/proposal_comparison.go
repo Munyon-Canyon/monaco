@@ -32,10 +32,11 @@ type LiveComparison struct {
 }
 
 type ProposalComparisons struct {
-	q       *sqlc.Queries
-	propose *ProposeTradeHandler
-	mu      sync.Mutex
-	cached  map[ids.ProposalID]*cachedComparison
+	q        *sqlc.Queries
+	propose  *ProposeTradeHandler
+	listings PinListings
+	mu       sync.Mutex
+	cached   map[ids.ProposalID]*cachedComparison
 }
 
 type cachedComparison struct {
@@ -44,8 +45,10 @@ type cachedComparison struct {
 	live LiveComparison
 }
 
-func NewProposalComparisons(db sqlc.DBTX, propose *ProposeTradeHandler) *ProposalComparisons {
-	return &ProposalComparisons{q: sqlc.New(db), propose: propose, cached: map[ids.ProposalID]*cachedComparison{}}
+func NewProposalComparisons(db sqlc.DBTX, propose *ProposeTradeHandler, listings PinListings) *ProposalComparisons {
+	return &ProposalComparisons{
+		q: sqlc.New(db), propose: propose, listings: listings, cached: map[ids.ProposalID]*cachedComparison{},
+	}
 }
 
 func (c *ProposalComparisons) Get(ctx context.Context, req GetProposalComparison) (LiveComparison, error) {
@@ -123,35 +126,67 @@ func (c *ProposalComparisons) quote(
 	network := chain.Network(row.Network)
 	live := LiveComparison{Comparison: comparison, QuotedAt: now}
 	priced, missed := pinned(comparison, network)
-	proposed, err := decodeComparison(row.PriceComparison)
-	switch {
-	case missed == nil:
+	if missed == nil {
 		live.QuoteOut = displayQuote(asset, priced, routed, now)
-	case err != nil:
+	} else if live.Comparison, err = c.unquotedPin(ctx, row, asset, comparison); err != nil {
 		return LiveComparison{}, err
-	default:
-		live.Comparison = unquotedPin(comparison, proposed, network)
 	}
 	observability.Debug(ctx, observability.GovernanceProposalComparisonRefreshed,
 		slog.String("proposal_id", row.ID.String()), slog.Bool("compared", comparison != nil))
 	return live, nil
 }
 
-func unquotedPin(live, proposed *multichain.Comparison, n chain.Network) *multichain.Comparison {
+func (c *ProposalComparisons) unquotedPin(
+	ctx context.Context, row sqlc.GetProposalRow, asset market.Asset, live *multichain.Comparison,
+) (*multichain.Comparison, error) {
+	proposed, err := decodeComparison(row.PriceComparison)
+	if err != nil {
+		return nil, err
+	}
+	n := chain.Network(row.Network)
+	unquoted := &multichain.Comparison{Side: multichain.SideBuy}
+	venue, listed := multichain.UnavailableVenue{}, false
+	for _, cmp := range []*multichain.Comparison{proposed, live} {
+		if v, ok := pinVenue(cmp, n); ok {
+			venue, unquoted.StockID, listed = v, cmp.StockID, true
+		}
+	}
+	if !listed {
+		if venue, err = c.listedPin(ctx, asset, n); err != nil {
+			return nil, err
+		}
+		if venue.ListingID.IsZero() {
+			observability.Info(ctx, observability.GovernanceProposalComparisonUnlisted,
+				slog.String("proposal_id", row.ID.String()), slog.String("network", string(n)))
+		}
+	}
+	unquoted.Winner, unquoted.Unavailable = venue.ListingID, []multichain.UnavailableVenue{venue}
+	return unquoted, nil
+}
+
+func (c *ProposalComparisons) listedPin(
+	ctx context.Context, asset market.Asset, n chain.Network,
+) (multichain.UnavailableVenue, error) {
 	venue := multichain.UnavailableVenue{
-		Network: n, Venue: multichain.VenueUniswap, Reason: multichain.UnavailableNoRoute,
+		Network: n,
+		Venue:   multichain.VenueUniswap,
+		Reason:  multichain.UnavailableNoRoute,
 	}
 	if !n.IsEVM() {
 		venue.Venue = multichain.VenueJupiter
 	}
-	unquoted := &multichain.Comparison{Side: multichain.SideBuy}
-	for _, c := range []*multichain.Comparison{proposed, live} {
-		if listed, ok := pinVenue(c, n); ok {
-			venue, unquoted.StockID = listed, c.StockID
-		}
+	var stock multichain.StockID
+	var id multichain.ListingID
+	var on multichain.Venue
+	found := false
+	err := stock.UnmarshalText([]byte(asset.ID.String()))
+	if err == nil {
+		id, on, found, err = c.listings.PinListing(ctx, stock, n)
 	}
-	unquoted.Winner, unquoted.Unavailable = venue.ListingID, []multichain.UnavailableVenue{venue}
-	return unquoted
+	if found {
+		venue.ListingID, venue.Venue = id, on
+	}
+	return venue, err
 }
 
 func pinVenue(c *multichain.Comparison, n chain.Network) (multichain.UnavailableVenue, bool) {
