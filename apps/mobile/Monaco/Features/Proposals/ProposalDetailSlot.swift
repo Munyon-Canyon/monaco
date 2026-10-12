@@ -51,7 +51,8 @@ struct ProposalDetailSlotView: View {
                     reason(detail)
                     expected(summary)
                     if let network = summary.network {
-                        ProposalChainSection(network: network)
+                        ProposalChainSection(
+                            network: network, unavailable: model?.livePrice.unavailableReason(for: summary))
                     }
                     if let model {
                         ProposalBestPrice(summary: summary, model: model)
@@ -291,6 +292,7 @@ private struct ProposalBestPrice: View {
 
 private struct ProposalChainSection: View {
     let network: Components.Schemas.Network
+    let unavailable: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -299,9 +301,16 @@ private struct ProposalChainSection: View {
             MonacoGroupedList {
                 HStack(spacing: MonacoTheme.Space.sm) {
                     ChainMark(network: network.rawValue, size: 32)
-                    Text(BestPrice.chainName(network))
-                        .font(MonacoTheme.Typo.headline)
-                        .foregroundStyle(MonacoTheme.ink)
+                    VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                        Text(BestPrice.chainName(network))
+                            .font(MonacoTheme.Typo.headline)
+                            .foregroundStyle(MonacoTheme.ink)
+                        if let unavailable {
+                            Text(unavailable)
+                                .font(MonacoTheme.Typo.subhead)
+                                .foregroundStyle(MonacoTheme.secondaryText)
+                        }
+                    }
                     Spacer(minLength: 0)
                 }
                 .padding(MonacoTheme.Space.m)

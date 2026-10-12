@@ -1,7 +1,9 @@
 import Foundation
 import MonacoAPI
 import MonacoCore
+import SwiftUI
 import Testing
+import UIKit
 
 @testable import Monaco
 
@@ -70,6 +72,65 @@ struct ProposalDetailBestPriceTests {
         #expect(row.headline == "Solana")
         #expect(row.caption == "Updated 12s ago")
         #expect(row.venues == nil)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func aPinnedBuyWhoseChainLostItsLiveQuoteShowsTheChainUnavailableAndNoPrice() async throws {
+        var detail = Components.Schemas.ProposalDetail.sample()
+        detail.priceComparison = BestPrice.sampleComparison(now: now)
+        detail.network = .base
+        let lost = #"""
+            {"quote_out_amount": 0, "quoted_at": "\#(ISO8601DateFormatter().string(from: Date()))",
+             "price_comparison": {"winner_listing_id": "b", "quotes": [], "unavailable": [
+               {"listing_id": "b", "network": "base", "venue": "uniswap", "reason": "simulation_failed",
+                "reason_detail": "not set up on this chain yet"}]}}
+            """#
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let transport = StubTransport(routes: [
+            "/v1/proposals/\(detail.id)": [.json(.ok, String(decoding: try encoder.encode(detail), as: UTF8.self))],
+            "/v1/cabals/\(detail.cabalId)/proposals/\(detail.id)/price-comparison": [.json(.ok, lost)],
+        ])
+        let api = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
+        let model = ProposalDetailModel(
+            id: detail.id, cabalID: detail.cabalId, repository: ProposalsRepository(api: api), hints: FakeHintSource())
+        await model.load()
+        model.setVisible(true)
+        defer { model.setVisible(false) }
+        while model.livePrice.latest == nil { await Task.yield() }
+
+        try AccessibilityTree.setAutomation(enabled: true)
+        defer { try? AccessibilityTree.setAutomation(enabled: false) }
+        let window = try Self.window(hosting: ProposalDetailSlotView(proposalID: detail.id, model: model), api: api)
+        defer { window.isHidden = true }
+        let unavailable = "Unavailable: not set up on this chain yet"
+        await ProposalTestWindow.until {
+            AccessibilityTree.labels(in: window).contains { $0.contains(unavailable) }
+        }
+        for _ in 0..<200 { await Task.yield() }
+
+        let labels = AccessibilityTree.labels(in: window)
+        #expect(labels.contains { $0.contains(unavailable) }, "labels: \(labels)")
+        #expect(!labels.contains { $0.contains("Price when proposed") }, "labels: \(labels)")
+        #expect(!labels.contains { $0.contains("a share") }, "labels: \(labels)")
+    }
+
+    private static func window(hosting view: some View, api: APIClient) throws -> UIWindow {
+        let scene = try #require(
+            UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first,
+            "the test host has no window scene"
+        )
+        let environment = AppEnvironment(
+            auth: PrivyAuthService.processInstance ?? PrivyAuthService(), api: api, hints: FakeHintSource(),
+            isAuthenticated: { true }, endAuthSession: {})
+        let window = UIWindow(windowScene: scene)
+        window.rootViewController = UIHostingController(
+            rootView: NavigationStack { view }
+                .environment(environment)
+                .environment(ToastCenter())
+        )
+        window.makeKeyAndVisible()
+        return window
     }
 
     @Test(.timeLimit(.minutes(1)))

@@ -94,6 +94,15 @@ public struct BestPrice: Equatable, Sendable {
 
     static let nanosPerTenThousandth: Int64 = 100_000
 
+    public static func pinnedUnavailable(
+        _ comparison: Components.Schemas.PriceComparison?, network: Components.Schemas.Network?
+    ) -> String? {
+        guard let network, let comparison, comparison.quotes.isEmpty,
+            let venue = comparison.unavailable.first(where: { $0.network == network })
+        else { return nil }
+        return reasonText(venue.reason, detail: venue.reasonDetail)
+    }
+
     static func reasonText(
         _ reason: Components.Schemas.UnavailableVenue.ReasonPayload, detail: String? = nil
     ) -> String {
