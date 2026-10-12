@@ -181,6 +181,31 @@ func (q *Queries) FindListingByToken(ctx context.Context, arg FindListingByToken
 	return i, err
 }
 
+const findListingForAssetOn = `-- name: FindListingForAssetOn :one
+SELECT id, venue
+FROM asset_listings
+WHERE asset_id = $1::uuid AND network = $2::text
+ORDER BY enabled DESC, verified_at IS NULL, issuer, token_address
+LIMIT 1
+`
+
+type FindListingForAssetOnParams struct {
+	AssetID uuid.UUID
+	Network string
+}
+
+type FindListingForAssetOnRow struct {
+	ID    uuid.UUID
+	Venue string
+}
+
+func (q *Queries) FindListingForAssetOn(ctx context.Context, arg FindListingForAssetOnParams) (FindListingForAssetOnRow, error) {
+	row := q.db.QueryRow(ctx, findListingForAssetOn, arg.AssetID, arg.Network)
+	var i FindListingForAssetOnRow
+	err := row.Scan(&i.ID, &i.Venue)
+	return i, err
+}
+
 const haltMissingListings = `-- name: HaltMissingListings :many
 UPDATE asset_listings SET issuer_tradable = false, enabled = false
 WHERE issuer = $1::text AND symbol = ANY ($2::text[]) AND issuer_tradable

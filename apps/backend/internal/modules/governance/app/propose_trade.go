@@ -39,6 +39,12 @@ type Assets interface {
 	AssetBySymbol(ctx context.Context, symbol string) (market.Asset, error)
 }
 
+type PinListings interface {
+	PinListing(
+		ctx context.Context, stock multichain.StockID, n chain.Network,
+	) (multichain.ListingID, multichain.Venue, bool, error)
+}
+
 type Treasury interface {
 	PotValue(ctx context.Context, id ids.CabalID) (money.Micros, error)
 	SolanaPositions(ctx context.Context, id ids.CabalID) ([]treasuryport.Position, error)

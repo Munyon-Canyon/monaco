@@ -219,3 +219,32 @@ func TestListingByAssetRefusesUnverifiedUnknownAndMalformedAssets(t *testing.T) 
 		}
 	}
 }
+
+func TestListingOn_findsAnAssetsListingOnANetworkEvenWhenDisabled(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	id := seedListedAsset(t, pool)
+	var stock multichain.StockID
+	if err := stock.UnmarshalText([]byte(id.String())); err != nil {
+		t.Fatal(err)
+	}
+	var want uuid.UUID
+	if err := pool.QueryRow(t.Context(), `SELECT id FROM asset_listings WHERE token_address = $1`,
+		"0x1100000000000000000000000000000000000001").Scan(&want); err != nil {
+		t.Fatal(err)
+	}
+	c := NewCatalog(pool)
+	listing, venue, err := c.ListingOn(t.Context(), stock, chain.NetworkEthereum)
+	if err != nil || listing != multichain.ListingIDFrom(want) || venue != multichain.VenueUniswap {
+		t.Fatalf("ListingOn(ethereum) = %s, %s, %v, want the first verified listing %s on uniswap",
+			listing, venue, err, want)
+	}
+	if _, _, err := c.ListingOn(t.Context(), stock, chain.NetworkBase); errs.CodeOf(err) != errs.CodeAssetNotFound {
+		t.Fatalf("ListingOn(base) err = %v, want asset_not_found", err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, _, err := c.ListingOn(ctx, stock, chain.NetworkEthereum); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("ListingOn on a cancelled context err = %v, want internal", err)
+	}
+}

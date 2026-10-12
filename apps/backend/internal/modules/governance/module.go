@@ -69,10 +69,12 @@ func (m *Module) Mount(r api.Mount) {
 	reads := app.NewProposalReads(m.deps.Pool, trading.New(m.deps).Queries())
 	propose := app.NewProposeTradeHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock, ports, hints)
 	governanceapi.Mount(adapters.HTTP{
-		Propose:     propose,
-		Comparisons: app.NewProposalComparisons(m.deps.Pool, propose),
-		Vote:        app.NewCastVoteHandler(m.deps.UoW, ports.Cabals, m.deps.Clock, hints),
-		Withdraw:    app.NewWithdrawProposalHandler(m.deps.UoW, m.deps.Clock, hints),
+		Propose: propose,
+		Comparisons: app.NewProposalComparisons(
+			m.deps.Pool, propose, adapters.PinListings{Market: market.New(m.deps).Catalog()},
+		),
+		Vote:     app.NewCastVoteHandler(m.deps.UoW, ports.Cabals, m.deps.Clock, hints),
+		Withdraw: app.NewWithdrawProposalHandler(m.deps.UoW, m.deps.Clock, hints),
 		Void: app.NewVoidProposalHandler(
 			m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, trading.New(m.deps).Queries(), hints,
 		),

@@ -6,5 +6,6 @@ func init() {
 	register(
 		GovernanceBanVoidSkipped,
 		GovernanceProposalComparisonRefreshed,
+		GovernanceProposalComparisonUnlisted,
 	)
 }
