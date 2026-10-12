@@ -412,7 +412,7 @@ SELECT
   ),
   CASE WHEN u.network = 'solana' THEN 'jupiter' ELSE 'uniswap' END,
   u.issuer_tradable,
-  CASE WHEN $1::text = 'xstocks' AND u.network <> 'solana' THEN false END,
+  CASE WHEN $1::text = 'xstocks' AND u.network NOT IN ('solana', 'arbitrum') THEN false END,
   false, $2::timestamptz
 FROM ROWS FROM (
   unnest($3::uuid[]), unnest($4::text[]), unnest($5::text[]),

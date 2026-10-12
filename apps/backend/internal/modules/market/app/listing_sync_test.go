@@ -505,3 +505,51 @@ func TestListingSync_insertsXStocksOffSolanaOffAndRobinhoodOnItsIssuerFlag(t *te
 		t.Fatalf("rows =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
+
+func TestListingSync_keepsXStocksOnArbitrumOnItsIssuerFlagAndEthereumOffByItsOverride(t *testing.T) {
+	t.Parallel()
+	const (
+		aaplXArb = "0x00000000000000000000000000000000005361b1"
+		tslaXArb = "0x00000000000000000000000000000000005361b2"
+	)
+	listings := []app.IssuerListing{
+		evm("xstocks", "AAPL", "AAPLx", chain.NetworkArbitrum, aaplXArb),
+		evm("xstocks", "AAPL", "AAPLx", chain.NetworkEthereum, aaplXEVM),
+		evm("xstocks", "TSLA", "TSLAx", chain.NetworkArbitrum, tslaXArb),
+	}
+	r := newListingRig(t, &source{issuer: "xstocks", batch: app.ListingBatch{Issuer: "xstocks", Listings: listings}})
+	if _, err := r.pool.Exec(t.Context(), `INSERT INTO asset_listings (id, issuer, symbol, network, chain_id,
+		token_address, decimals, shares_per_token, venue, issuer_tradable, enabled, tradable_override, verified_at,
+		created_at)
+		VALUES ($1, 'xstocks', 'AAPLx', 'arbitrum', 42161, $2, 18, 1, 'uniswap', true, true, NULL, $4, $4),
+		($3, 'xstocks', 'AAPLx', 'ethereum', 1, $5, 18, 1, 'uniswap', true, false, false, $4, $4)`,
+		testkit.NewIDs(5361).NewV7(), aaplXArb, testkit.NewIDs(5362).NewV7(), r.clock.Now(), aaplXEVM); err != nil {
+		t.Fatal(err)
+	}
+	r.run(t)
+	r.run(t)
+	rows, err := r.pool.Query(t.Context(), `SELECT symbol, network, coalesce(tradable_override::text, 'null'), enabled,
+		verified_at IS NOT NULL FROM asset_listings ORDER BY symbol, network`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var got []string
+	for rows.Next() {
+		var symbol, network, override string
+		var enabled, verified bool
+		if err := rows.Scan(&symbol, &network, &override, &enabled, &verified); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, fmt.Sprintf("%s %s override=%s enabled=%t verified=%t", symbol, network, override, enabled,
+			verified))
+	}
+	want := []string{
+		"AAPLx arbitrum override=null enabled=true verified=true",
+		"AAPLx ethereum override=false enabled=false verified=true",
+		"TSLAx arbitrum override=null enabled=true verified=true",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("rows =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}

@@ -19,6 +19,7 @@ const (
 	offByDefaultMigration = "../../../migrations/20261011143000_listings_off_by_default.sql"
 
 	robinhoodFollowsIssuerMigration = "../../../migrations/20261011160000_robinhood_listings_follow_issuer.sql"
+	arbitrumFollowsIssuerMigration  = "../../../migrations/20261012090003_market_arbitrum_xstocks_follow_issuer.sql"
 )
 
 type datasetRow struct {
@@ -51,7 +52,7 @@ func dataset(t *testing.T) []datasetRow {
 			issuer: r[col["issuer"]], symbol: r[col["symbol"]], network: r[col["network"]], address: address,
 			decimals: r[col["decimals"]],
 			enabled: r[col["verified"]] == "True" && r[col["trading_halted"]] == "False" &&
-				(r[col["issuer"]] != "xstocks" || r[col["network"]] == "solana"),
+				(r[col["issuer"]] != "xstocks" || r[col["network"]] == "solana" || r[col["network"]] == "arbitrum"),
 		})
 	}
 	return rows
@@ -90,21 +91,83 @@ func TestAssetListingsHoldEveryVerifiedDatasetRow(t *testing.T) {
 	}
 }
 
-func TestListingOverrideTurnsOffEveryXStocksEVMListingAndLeavesRobinhoodToTheIssuer(t *testing.T) {
+func TestListingOverrideTurnsOffXStocksOnEthereumAndLeavesArbitrumAndRobinhoodToTheIssuer(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
-	var xOff, xEnabled, rhNull, rhEnabled int
+	var ethOff, ethEnabled, arbNull, arbOffIssuer, rhNull, rhOffIssuer int
 	err := pool.QueryRow(t.Context(), `SELECT
-		count(*) FILTER (WHERE issuer = 'xstocks' AND network <> 'solana' AND tradable_override = false),
-		count(*) FILTER (WHERE issuer = 'xstocks' AND network <> 'solana' AND enabled),
+		count(*) FILTER (WHERE issuer = 'xstocks' AND network = 'ethereum' AND tradable_override = false),
+		count(*) FILTER (WHERE issuer = 'xstocks' AND network = 'ethereum' AND enabled),
+		count(*) FILTER (WHERE issuer = 'xstocks' AND network = 'arbitrum' AND tradable_override IS NULL),
+		count(*) FILTER (WHERE issuer = 'xstocks' AND network = 'arbitrum' AND enabled
+			IS DISTINCT FROM (verified_at IS NOT NULL AND issuer_tradable)),
 		count(*) FILTER (WHERE network = 'robinhood' AND tradable_override IS NULL),
 		count(*) FILTER (WHERE network = 'robinhood' AND enabled
 			IS DISTINCT FROM (verified_at IS NOT NULL AND issuer_tradable))
 		FROM asset_listings`).
-		Scan(&xOff, &xEnabled, &rhNull, &rhEnabled)
-	if err != nil || xOff != 2409 || xEnabled != 0 || rhNull != 194 || rhEnabled != 0 {
-		t.Fatalf("xStocks EVM off = %d, enabled = %d; Robinhood with no override = %d, off its issuer flag = %d, %v;"+
-			" want 2409, 0, 194, 0", xOff, xEnabled, rhNull, rhEnabled, err)
+		Scan(&ethOff, &ethEnabled, &arbNull, &arbOffIssuer, &rhNull, &rhOffIssuer)
+	if err != nil || ethOff != 1219 || ethEnabled != 0 || arbNull != 1190 || arbOffIssuer != 0 || rhNull != 194 ||
+		rhOffIssuer != 0 {
+		t.Fatalf("xStocks Ethereum off = %d, enabled = %d; xStocks Arbitrum with no override = %d, off its issuer flag"+
+			" = %d; Robinhood with no override = %d, off its issuer flag = %d, %v; want 1219, 0, 1190, 0, 194, 0",
+			ethOff, ethEnabled, arbNull, arbOffIssuer, rhNull, rhOffIssuer, err)
+	}
+}
+
+func TestArbitrumFollowsIssuerMigrationResetsOnlyXStocksArbitrumAndRerunsAsANoOp(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	type row struct {
+		issuer, network, token string
+		override, verified     string
+		tradable, enabled      bool
+		wantOverride           string
+		wantEnabled            bool
+	}
+	tok := func(suffix string) string { return "0x00000000000000000000000000000000005361" + suffix }
+	rows := []row{
+		{"xstocks", "arbitrum", tok("a1"), "false", "now()", true, false, "<nil>", true},
+		{"xstocks", "arbitrum", tok("a2"), "false", "now()", false, false, "<nil>", false},
+		{"xstocks", "arbitrum", tok("a3"), "false", "NULL", true, false, "<nil>", false},
+		{"xstocks", "arbitrum", tok("a4"), "NULL", "now()", true, false, "<nil>", true},
+		{"xstocks", "arbitrum", tok("a5"), "NULL", "now()", true, true, "<nil>", true},
+		{"xstocks", "arbitrum", tok("a6"), "true", "now()", false, true, "true", true},
+		{"xstocks", "ethereum", tok("a7"), "false", "now()", true, false, "false", false},
+		{"ondo", "arbitrum", tok("a8"), "false", "now()", true, false, "false", false},
+		{"robinhood", "robinhood", tok("a9"), "false", "now()", true, false, "false", false},
+	}
+	for _, r := range rows {
+		execListingSQL(t, pool, `INSERT INTO asset_listings (id, issuer, symbol, network, chain_id, token_address,
+			decimals, shares_per_token, venue, issuer_tradable, tradable_override, enabled, verified_at, created_at)
+			VALUES ('`+ids.Real{}.NewV7().String()+`', '`+r.issuer+`', 'T5361', '`+r.network+`', 1, '`+r.token+`',
+			8, 1, 'uniswap', `+strconv.FormatBool(r.tradable)+`, `+r.override+`, `+strconv.FormatBool(r.enabled)+`,
+			`+r.verified+`, now())`)
+	}
+	migration, err := os.ReadFile(arbitrumFollowsIssuerMigration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for run, want := range []int64{4, 0} {
+		tag, err := pool.Exec(t.Context(), string(migration))
+		if err != nil || tag.RowsAffected() != want {
+			t.Fatalf("run %d changed %d rows, %v, want %d", run+1, tag.RowsAffected(), err, want)
+		}
+	}
+	for _, r := range rows {
+		var override *bool
+		var enabled bool
+		if err := pool.QueryRow(t.Context(), `SELECT tradable_override, enabled FROM asset_listings
+			WHERE token_address = $1`, r.token).Scan(&override, &enabled); err != nil {
+			t.Fatal(err)
+		}
+		got := "<nil>"
+		if override != nil {
+			got = strconv.FormatBool(*override)
+		}
+		if got != r.wantOverride || enabled != r.wantEnabled {
+			t.Errorf("%s %s %s override = %s enabled = %t, want %s %t", r.issuer, r.network, r.token, got, enabled,
+				r.wantOverride, r.wantEnabled)
+		}
 	}
 }
 
