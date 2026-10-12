@@ -40,7 +40,7 @@ have() { command -v "$1" >/dev/null 2>&1; }
 dev_tools=(
   apt-get awk basename bc benchstat brew caffeinate cat chmod cp curl cut date dirname
   docker dotenvx du ffmpeg ffprobe find gh git go golangci-lint grep gt hdiutil head id
-  install jq just kill ln ls lsof magick mdutil mkdir mkfifo mktemp mv nats npm npx oasdiff open pgrep
+  install ioreg jq just kill ln ls lsof magick mdutil mkdir mkfifo mktemp mv nats npm npx oasdiff open pgrep
   pkill ps python3 rm sed seq sha256sum shasum simslim sleep sort stat swift sysctl tail
   tar tee touch tr uname uuidgen wc xcode-select xcodebuild xcrun
 )

@@ -236,6 +236,12 @@ func TestReverseDepsSeedsNonGoFilesFromTheirPackage(t *testing.T) {
 			[]string{"./internal/testkit/flows", "./top"},
 		},
 		{"one fallback among seeds", []string{"leaf/x.go", "go.mod"}, all},
+		{"a test file yields only its own package", []string{"migrations/m_test.go"}, []string{"./migrations"}},
+		{
+			"a test file beside a source file still yields the importers",
+			[]string{"migrations/m_test.go", "api/x.go"},
+			[]string{"./api", "./app", "./migrations"},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
