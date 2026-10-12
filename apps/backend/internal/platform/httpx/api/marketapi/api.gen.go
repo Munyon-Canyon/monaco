@@ -37,6 +37,39 @@ func (e AssetBestChainVenue) Valid() bool {
 	}
 }
 
+// Defines values for AssetChartInterval.
+const (
+	AssetChartIntervalN15m AssetChartInterval = "15m"
+	AssetChartIntervalN1d  AssetChartInterval = "1d"
+	AssetChartIntervalN1h  AssetChartInterval = "1h"
+	AssetChartIntervalN1w  AssetChartInterval = "1w"
+	AssetChartIntervalN30m AssetChartInterval = "30m"
+	AssetChartIntervalN4h  AssetChartInterval = "4h"
+	AssetChartIntervalN5m  AssetChartInterval = "5m"
+)
+
+// Valid indicates whether the value is a known member of the AssetChartInterval enum.
+func (e AssetChartInterval) Valid() bool {
+	switch e {
+	case AssetChartIntervalN15m:
+		return true
+	case AssetChartIntervalN1d:
+		return true
+	case AssetChartIntervalN1h:
+		return true
+	case AssetChartIntervalN1w:
+		return true
+	case AssetChartIntervalN30m:
+		return true
+	case AssetChartIntervalN4h:
+		return true
+	case AssetChartIntervalN5m:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AssetChartRange.
 const (
 	AssetChartRangeALL AssetChartRange = "ALL"
@@ -45,6 +78,7 @@ const (
 	AssetChartRangeN1W AssetChartRange = "1W"
 	AssetChartRangeN1Y AssetChartRange = "1Y"
 	AssetChartRangeN3M AssetChartRange = "3M"
+	AssetChartRangeN6M AssetChartRange = "6M"
 )
 
 // Valid indicates whether the value is a known member of the AssetChartRange enum.
@@ -61,6 +95,8 @@ func (e AssetChartRange) Valid() bool {
 	case AssetChartRangeN1Y:
 		return true
 	case AssetChartRangeN3M:
+		return true
+	case AssetChartRangeN6M:
 		return true
 	default:
 		return false
@@ -186,6 +222,7 @@ const (
 	GetAssetChartParamsRangeN1W GetAssetChartParamsRange = "1W"
 	GetAssetChartParamsRangeN1Y GetAssetChartParamsRange = "1Y"
 	GetAssetChartParamsRangeN3M GetAssetChartParamsRange = "3M"
+	GetAssetChartParamsRangeN6M GetAssetChartParamsRange = "6M"
 )
 
 // Valid indicates whether the value is a known member of the GetAssetChartParamsRange enum.
@@ -202,6 +239,41 @@ func (e GetAssetChartParamsRange) Valid() bool {
 	case GetAssetChartParamsRangeN1Y:
 		return true
 	case GetAssetChartParamsRangeN3M:
+		return true
+	case GetAssetChartParamsRangeN6M:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetAssetChartParamsInterval.
+const (
+	GetAssetChartParamsIntervalN15m GetAssetChartParamsInterval = "15m"
+	GetAssetChartParamsIntervalN1d  GetAssetChartParamsInterval = "1d"
+	GetAssetChartParamsIntervalN1h  GetAssetChartParamsInterval = "1h"
+	GetAssetChartParamsIntervalN1w  GetAssetChartParamsInterval = "1w"
+	GetAssetChartParamsIntervalN30m GetAssetChartParamsInterval = "30m"
+	GetAssetChartParamsIntervalN4h  GetAssetChartParamsInterval = "4h"
+	GetAssetChartParamsIntervalN5m  GetAssetChartParamsInterval = "5m"
+)
+
+// Valid indicates whether the value is a known member of the GetAssetChartParamsInterval enum.
+func (e GetAssetChartParamsInterval) Valid() bool {
+	switch e {
+	case GetAssetChartParamsIntervalN15m:
+		return true
+	case GetAssetChartParamsIntervalN1d:
+		return true
+	case GetAssetChartParamsIntervalN1h:
+		return true
+	case GetAssetChartParamsIntervalN1w:
+		return true
+	case GetAssetChartParamsIntervalN30m:
+		return true
+	case GetAssetChartParamsIntervalN4h:
+		return true
+	case GetAssetChartParamsIntervalN5m:
 		return true
 	default:
 		return false
@@ -256,14 +328,14 @@ type AssetBestChainVenue string
 
 // AssetChart The buckets for one asset and one range.
 //
-// Examples: {"attribution":"Data provided by CoinGecko","bucket_seconds":300,"empty":false,"points":[{"close_micros":110000000,"high_micros":130000000,"low_micros":90000000,"open_micros":100000000,"t":"2026-03-04T14:55:00Z"}],"range":"1D"}
+// Examples: {"attribution":"Data provided by CoinGecko","bucket_seconds":300,"empty":false,"interval":"5m","next_before":"2026-03-04T14:55:00Z","points":[{"close_micros":110000000,"high_micros":130000000,"low_micros":90000000,"open_micros":100000000,"t":"2026-03-04T14:55:00Z"}],"range":"1D"}
 type AssetChart struct {
 	// Attribution The data source line the chart shows.
 	//
 	// Examples: Data provided by CoinGecko
 	Attribution string `json:"attribution"`
 
-	// BucketSeconds The width of each bucket, in seconds.
+	// BucketSeconds The width of each bucket, in seconds. Equals `interval` in seconds.
 	//
 	// Examples: 300
 	BucketSeconds int64 `json:"bucket_seconds"`
@@ -273,12 +345,22 @@ type AssetChart struct {
 	// Examples: false
 	Empty bool `json:"empty"`
 
+	// Interval The effective bar width.
+	//
+	// Examples: 5m
+	Interval AssetChartInterval `json:"interval"`
+
+	// NextBefore The `before` to send for older bars. Null when none exist.
+	//
+	// Examples: 2026-03-04T14:55:00Z
+	NextBefore *time.Time `json:"next_before"`
+
 	// Points The buckets in time order. Empty when the asset has no samples in the range.
 	//
 	// Examples: [{"close_micros":110000000,"high_micros":130000000,"low_micros":90000000,"open_micros":100000000,"t":"2026-03-04T14:55:00Z"}]
 	Points []ChartPoint `json:"points"`
 
-	// PreviousCloseMicros The day-change base in USD micros, the price the header's day change is measured from. Set only when `range` is `1D` and the base sample exists.
+	// PreviousCloseMicros The day-change base in USD micros, the price the header's day change is measured from. Set only when `range` is `1D`, no `before` was sent, and the base sample exists.
 	//
 	// Examples: 100000000
 	PreviousCloseMicros *int64 `json:"previous_close_micros,omitempty"`
@@ -288,6 +370,11 @@ type AssetChart struct {
 	// Examples: 1D
 	Range AssetChartRange `json:"range"`
 }
+
+// AssetChartInterval The effective bar width.
+//
+// Examples: 5m
+type AssetChartInterval string
 
 // AssetChartRange The range that was requested.
 //
@@ -614,12 +701,24 @@ type GetAssetsParamsFilter string
 
 // GetAssetChartParams defines parameters for GetAssetChart.
 type GetAssetChartParams struct {
-	// Range How far back to read, and how wide each bucket is.
+	// Range The preset: the default interval and the first window.
 	Range GetAssetChartParamsRange `form:"range" json:"range"`
+
+	// Interval The bar width. Absent means the range default, `1D` 5m, `1W`/`1M`/`3M` 1h, `6M`/`1Y`/`ALL` 1d. Allowed per range, `1D` and `1W` 5m 15m 30m 1h 4h 1d; `1M` 15m 30m 1h 4h 1d; `3M` 30m 1h 4h 1d 1w; `6M` 1h 4h 1d 1w; `1Y` and `ALL` 4h 1d 1w. Weekly bars start on Monday 00:00 UTC. Any other pair is `invalid_input`.
+	Interval *GetAssetChartParamsInterval `form:"interval,omitempty" json:"interval,omitempty"`
+
+	// Before Bars that start before this instant, aligned down to the interval. The read then reaches back to the asset's first sample, not just the range.
+	Before *time.Time `form:"before,omitempty" json:"before,omitempty"`
+
+	// Limit The most bars one response returns, the newest ones, in time order. Without `before` and without `limit` the response holds the whole preset window, uncapped. With `before` and without `limit` it holds at most 500 bars. An explicit `limit` always applies.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // GetAssetChartParamsRange defines parameters for GetAssetChart.
 type GetAssetChartParamsRange string
+
+// GetAssetChartParamsInterval defines parameters for GetAssetChart.
+type GetAssetChartParamsInterval string
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -797,6 +896,45 @@ func (siw *ServerInterfaceWrapper) GetAssetChart(w http.ResponseWriter, r *http.
 			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "range"})
 		} else {
 			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "range", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "interval" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "interval", r.URL.Query(), &params.Interval, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "interval"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "interval", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "before" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "before", r.URL.Query(), &params.Before, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "before"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "before", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
 		}
 		return
 	}

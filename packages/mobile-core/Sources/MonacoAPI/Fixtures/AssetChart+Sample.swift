@@ -3,6 +3,7 @@ import Foundation
 extension Components.Schemas.AssetChart {
     public static let oneDay = Self(
         range: ._1d,
+        interval: ._5m,
         bucketSeconds: 300,
         points: [
             .init(
@@ -14,14 +15,17 @@ extension Components.Schemas.AssetChart {
             )
         ],
         empty: false,
-        attribution: "Data provided by CoinGecko"
+        attribution: "Data provided by CoinGecko",
+        nextBefore: nil
     )
 
     public static let empty = Self(
         range: ._1d,
+        interval: ._5m,
         bucketSeconds: 300,
         points: [],
         empty: true,
-        attribution: "Data provided by CoinGecko"
+        attribution: "Data provided by CoinGecko",
+        nextBefore: nil
     )
 }

@@ -249,28 +249,28 @@ final class AssetDetailClientModelTests: XCTestCase {
     }
 
     private let detail = #"""
-        {"symbol":"AAPLx","display_name":"Apple xStock","issuer":"xstocks","kind":"equity","logo_url":null,"price_micros":110000000,"price_as_of":null,"change_bps":1000,"sparkline_micros":[],"quotable":true,"session":{"state":"open","continuous":false,"holiday":"","early_close":false,"next_state":"after_hours","next_transition":null},"decimals":8,"ui_multiplier":{"num":1,"den":1},"tradable":true,"other_listings":[{"symbol":"AAPLx","display_name":"Apple xStock","issuer":"prestocks","kind":"equity","logo_url":null,"tradable":false}],"attribution":"Data provided by CoinGecko"}
+        {"symbol":"AAPLx","display_name":"Apple xStock","issuer":"xstocks","kind":"equity","logo_url":null,"price_micros":110000000,"price_as_of":null,"change_bps":1000,"sparkline_micros":[],"quotable":true,"session":{"state":"open","continuous":false,"holiday":"","early_close":false,"next_state":"after_hours","next_transition":null},"decimals":8,"ui_multiplier":{"num":1,"den":1},"tradable":true,"other_listings":[{"symbol":"AAPLx","display_name":"Apple xStock","issuer":"prestocks","kind":"equity","logo_url":null,"tradable":false}],"attribution":"Data provided by CoinGecko","next_before":null}
         """#
 
     private let chart = #"""
-        {"range":"1D","bucket_seconds":300,"points":[{"t":"2026-03-04T14:30:00Z","open_micros":100000000,"high_micros":112000000,"low_micros":99000000,"close_micros":110000000},{"t":"2026-03-04T14:35:00Z","open_micros":110000000,"high_micros":113000000,"low_micros":109000000,"close_micros":111000000}],"empty":false,"attribution":"Data provided by CoinGecko"}
+        {"range":"1D","interval":"5m","bucket_seconds":300,"points":[{"t":"2026-03-04T14:30:00Z","open_micros":100000000,"high_micros":112000000,"low_micros":99000000,"close_micros":110000000},{"t":"2026-03-04T14:35:00Z","open_micros":110000000,"high_micros":113000000,"low_micros":109000000,"close_micros":111000000}],"empty":false,"attribution":"Data provided by CoinGecko","next_before":null}
         """#
 
     private func chart(range: String) -> String {
         #"""
-        {"range":"\#(range)","bucket_seconds":300,"points":[],"empty":true,"attribution":"Data provided by CoinGecko"}
+        {"range":"\#(range)","interval":"5m","bucket_seconds":300,"points":[],"empty":true,"attribution":"Data provided by CoinGecko","next_before":null}
         """#
     }
 
     private func chart(range: String, prices: [Int64]) -> Components.Schemas.AssetChart {
         .init(
-            range: chartRange(for: range), bucketSeconds: 300,
+            range: chartRange(for: range), interval: defaultInterval(for: range), bucketSeconds: 300,
             points: prices.enumerated().map { index, price in
                 .init(
                     t: Date(timeIntervalSince1970: 1_772_596_200 + Double(index)), openMicros: price,
                     highMicros: price, lowMicros: price, closeMicros: price)
             },
-            empty: prices.isEmpty, attribution: "Test"
+            empty: prices.isEmpty, attribution: "Test", nextBefore: nil
         )
     }
 
@@ -289,12 +289,22 @@ final class AssetDetailClientModelTests: XCTestCase {
         }
     }
 
+    private func defaultInterval(for range: String) -> Components.Schemas.AssetChart.IntervalPayload {
+        switch range {
+        case "1D": ._15m
+        case "1W": ._1h
+        case "1M": ._4h
+        default: ._1d
+        }
+    }
+
     private func chartRange(for range: String) -> Components.Schemas.AssetChart.RangePayload {
         switch range {
         case "1D": ._1d
         case "1W": ._1w
         case "1M": ._1m
         case "3M": ._3m
+        case "6M": ._6m
         case "1Y": ._1y
         default: .all
         }

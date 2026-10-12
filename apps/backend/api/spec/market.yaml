@@ -97,8 +97,32 @@ paths:
         - name: range
           in: query
           required: true
-          description: How far back to read, and how wide each bucket is.
-          schema: {type: string, enum: [1D, 1W, 1M, 3M, 1Y, ALL], examples: [1D]}
+          description: "The preset: the default interval and the first window."
+          schema: {type: string, enum: [1D, 1W, 1M, 3M, 6M, 1Y, ALL], examples: [1D]}
+        - name: interval
+          in: query
+          required: false
+          description: >-
+            The bar width. Absent means the range default, `1D` 5m, `1W`/`1M`/`3M` 1h, `6M`/`1Y`/`ALL` 1d.
+            Allowed per range, `1D` and `1W` 5m 15m 30m 1h 4h 1d; `1M` 15m 30m 1h 4h 1d; `3M` 30m 1h 4h 1d 1w;
+            `6M` 1h 4h 1d 1w; `1Y` and `ALL` 4h 1d 1w. Weekly bars start on Monday 00:00 UTC. Any other pair is
+            `invalid_input`.
+          schema: {type: string, enum: [5m, 15m, 30m, 1h, 4h, 1d, 1w], examples: [15m]}
+        - name: before
+          in: query
+          required: false
+          description: >-
+            Bars that start before this instant, aligned down to the interval. The read then reaches back
+            to the asset's first sample, not just the range.
+          schema: {type: string, format: date-time, examples: ["2026-03-04T14:55:00Z"]}
+        - name: limit
+          in: query
+          required: false
+          description: >-
+            The most bars one response returns, the newest ones, in time order. Without `before` and
+            without `limit` the response holds the whole preset window, uncapped. With `before` and
+            without `limit` it holds at most 500 bars. An explicit `limit` always applies.
+          schema: {type: integer, minimum: 1, maximum: 1000, examples: [500]}
       responses:
         "200":
           description: The chart.
@@ -529,6 +553,7 @@ components:
       description: The buckets for one asset and one range.
       examples:
         - range: 1D
+          interval: 5m
           bucket_seconds: 300
           points:
             - t: "2026-03-04T14:55:00Z"
@@ -538,24 +563,32 @@ components:
               close_micros: 110000000
           empty: false
           attribution: Data provided by CoinGecko
+          next_before: "2026-03-04T14:55:00Z"
       additionalProperties: false
       required:
         - range
+        - interval
         - bucket_seconds
         - points
         - empty
         - attribution
+        - next_before
       properties:
         range:
           type: string
           description: The range that was requested.
-          enum: [1D, 1W, 1M, 3M, 1Y, ALL]
+          enum: [1D, 1W, 1M, 3M, 6M, 1Y, ALL]
           examples: [1D]
+        interval:
+          type: string
+          description: The effective bar width.
+          enum: [5m, 15m, 30m, 1h, 4h, 1d, 1w]
+          examples: [5m]
         bucket_seconds:
           type: integer
           format: int64
           minimum: 1
-          description: The width of each bucket, in seconds.
+          description: The width of each bucket, in seconds. Equals `interval` in seconds.
           examples: [300]
         points:
           type: array
@@ -576,12 +609,17 @@ components:
           type: string
           description: The data source line the chart shows.
           examples: ["Data provided by CoinGecko"]
+        next_before:
+          type: [string, "null"]
+          format: date-time
+          description: The `before` to send for older bars. Null when none exist.
+          examples: ["2026-03-04T14:55:00Z"]
         previous_close_micros:
           type: integer
           format: int64
           description: >-
             The day-change base in USD micros, the price the header's day change is measured from.
-            Set only when `range` is `1D` and the base sample exists.
+            Set only when `range` is `1D`, no `before` was sent, and the base sample exists.
           examples: [100000000]
     AssetList:
       type: object

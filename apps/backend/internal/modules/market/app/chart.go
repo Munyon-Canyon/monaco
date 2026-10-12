@@ -23,6 +23,7 @@ type Point struct {
 
 type Chart struct {
 	Range         domain.ChartRange
+	Interval      domain.ChartInterval
 	Bucket        time.Duration
 	Points        []Point
 	Empty         bool
@@ -79,7 +80,7 @@ func (c *AssetChart) Handle(ctx context.Context, symbol, raw string) (Chart, err
 	if err != nil {
 		return Chart{}, err
 	}
-	out := Chart{Range: span, Bucket: span.Bucket(), Points: []Point{}}
+	out := Chart{Range: span, Interval: span.DefaultInterval(), Bucket: span.Bucket(), Points: []Point{}}
 	if !priced {
 		out.Empty = true
 		return out, nil
