@@ -115,6 +115,43 @@ struct ProposalDetailBestPriceTests {
         #expect(!labels.contains { $0.contains("a share") }, "labels: \(labels)")
     }
 
+    @Test(.timeLimit(.minutes(1)))
+    func aPinnedBuyShowsTheBestPriceLoadingAndNoStoredPriceUntilItsFirstLiveComparison() async throws {
+        var detail = Components.Schemas.ProposalDetail.sample()
+        detail.priceComparison = BestPrice.sampleComparison(now: now)
+        detail.network = .base
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let comparisonPath = "/v1/cabals/\(detail.cabalId)/proposals/\(detail.id)/price-comparison"
+        let transport = StubTransport(routes: [
+            "/v1/proposals/\(detail.id)": [.json(.ok, String(decoding: try encoder.encode(detail), as: UTF8.self))],
+            comparisonPath: [.hang],
+        ])
+        let api = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
+        let model = ProposalDetailModel(
+            id: detail.id, cabalID: detail.cabalId, repository: ProposalsRepository(api: api), hints: FakeHintSource())
+        await model.load()
+        model.setVisible(true)
+        defer { model.setVisible(false) }
+        await transport.waitForRequest(path: comparisonPath)
+
+        try AccessibilityTree.setAutomation(enabled: true)
+        defer { try? AccessibilityTree.setAutomation(enabled: false) }
+        let window = try Self.window(hosting: ProposalDetailSlotView(proposalID: detail.id, model: model), api: api)
+        defer { window.isHidden = true }
+        let loading = ProposeAmountModel.findingPrice
+        await ProposalTestWindow.until {
+            AccessibilityTree.labels(in: window).contains { $0.contains(loading) }
+        }
+        for _ in 0..<200 { await Task.yield() }
+
+        let labels = AccessibilityTree.labels(in: window)
+        #expect(model.livePrice.latest == nil)
+        #expect(labels.contains { $0.contains(loading) }, "labels: \(labels)")
+        #expect(!labels.contains { $0.contains("Price when proposed") }, "labels: \(labels)")
+        #expect(!labels.contains { $0.contains("a share") }, "labels: \(labels)")
+    }
+
     private static func window(hosting view: some View, api: APIClient) throws -> UIWindow {
         let scene = try #require(
             UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first,

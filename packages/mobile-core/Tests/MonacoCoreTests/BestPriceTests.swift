@@ -220,6 +220,31 @@ final class BestPriceTests: XCTestCase {
         XCTAssertEqual(model.row(for: unpinned, decimals: 8, now: now)?.caption, LiveBestPriceModel.whenProposed)
     }
 
+    @MainActor
+    func testAPinnedBuyShowsLoadingAndNoStoredPriceUntilItsFirstLiveComparison() async throws {
+        let now = Date()
+        let live = LivePriceComparison(
+            .init(priceComparison: BestPrice.sampleComparison(now: now), quoteOutAmount: 10_000_000, quotedAt: now))
+        let model = LiveBestPriceModel(sleep: { try await TestClock().sleep(for: $0) }, fetch: { _ in live })
+        defer { model.poll(cabalID: nil) }
+        var proposal = Components.Schemas.Proposal.sample(kind: .buy)
+        proposal.priceComparison = BestPrice.sampleComparison(now: now)
+        let unpinned = ProposalSummary(proposal)
+        proposal.network = .base
+        let pinned = ProposalSummary(proposal)
+
+        XCTAssertTrue(model.isAwaitingFirstQuote(for: pinned))
+        XCTAssertNil(model.row(for: pinned, decimals: 8, now: now))
+        XCTAssertFalse(model.isAwaitingFirstQuote(for: unpinned))
+        XCTAssertEqual(model.row(for: unpinned, decimals: 8, now: now)?.caption, LiveBestPriceModel.whenProposed)
+
+        model.poll(cabalID: "cabal-1")
+        for _ in 0..<500 where model.latest == nil { await Task.yield() }
+
+        XCTAssertFalse(model.isAwaitingFirstQuote(for: pinned))
+        XCTAssertEqual(model.row(for: pinned, decimals: 8, now: now)?.caption, "Updated just now")
+    }
+
     func testNoComparisonOrAMissingWinnerShowsNothing() throws {
         XCTAssertNil(BestPrice(nil, isSell: false))
         let orphaned = try comparison(winner: "z", quotes: [("a", "xstocks", "solana", "40000000", "10000000")])

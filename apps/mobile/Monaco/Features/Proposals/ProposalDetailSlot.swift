@@ -280,12 +280,37 @@ private struct ProposalBestPrice: View {
         let decimals = model.asset?.decimals ?? AssetCatalogDefaults.decimals
         if LiveBestPriceModel.isLive(summary) {
             TimelineView(.periodic(from: .now, by: 1)) { context in
-                if let row = model.livePrice.row(for: summary, decimals: decimals, now: context.date) {
+                if model.livePrice.isAwaitingFirstQuote(for: summary) {
+                    BestPriceLoading()
+                } else if let row = model.livePrice.row(for: summary, decimals: decimals, now: context.date) {
                     BestPriceSection(row: row)
                 }
             }
         } else if let row = model.livePrice.row(for: summary, decimals: decimals, now: .now) {
             BestPriceSection(row: row)
+        }
+    }
+}
+
+private struct BestPriceLoading: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+            MonacoSectionHeader("Price")
+                .padding(.horizontal, MonacoTheme.Space.gutter)
+            MonacoGroupedList {
+                HStack(spacing: MonacoTheme.Space.xs) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text(ProposeAmountModel.findingPrice)
+                        .font(MonacoTheme.Typo.callout)
+                        .foregroundStyle(MonacoTheme.muted)
+                    Spacer(minLength: 0)
+                }
+                .padding(MonacoTheme.Space.m)
+                .frame(minHeight: 44)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("best-price-loading")
+            }
         }
     }
 }
