@@ -16,7 +16,26 @@ import (
 
 	externalRef0 "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// Defines values for AssetBestChainVenue.
+const (
+	Jupiter AssetBestChainVenue = "jupiter"
+	Uniswap AssetBestChainVenue = "uniswap"
+)
+
+// Valid indicates whether the value is a known member of the AssetBestChainVenue enum.
+func (e AssetBestChainVenue) Valid() bool {
+	switch e {
+	case Jupiter:
+		return true
+	case Uniswap:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for AssetChartRange.
 const (
@@ -188,6 +207,52 @@ func (e GetAssetChartParamsRange) Valid() bool {
 		return false
 	}
 }
+
+// AssetBestChain The chain a $1 buy of the asset gets the most underlying shares on, after every cost, with every chain's figures.
+type AssetBestChain struct {
+	// AmountMicros The USDC buy quoted, in micros. Always $1.
+	//
+	// Examples: 1000000
+	AmountMicros string `json:"amount_micros"`
+
+	// ListingId The winning listing.
+	//
+	// Examples: 01928a6e-0000-7000-8000-000000000001
+	ListingId openapi_types.UUID `json:"listing_id"`
+
+	// NetShareNanos Underlying shares $1 buys on the winning chain after every cost, in billionths of a share.
+	//
+	// Examples: 4000000
+	NetShareNanos string `json:"net_share_nanos"`
+
+	// Network The chain a wallet, listing or step lives on.
+	//
+	// Examples: solana
+	Network externalRef0.Network `json:"network"`
+
+	// PriceComparison Every venue quoted for one trade, best first, by underlying shares received for a buy or USDC received for a sell, after every cost of the route.
+	PriceComparison externalRef0.PriceComparison `json:"price_comparison"`
+
+	// QuotedAt When the chains were quoted.
+	//
+	// Examples: 2026-10-11T12:00:00Z
+	QuotedAt time.Time `json:"quoted_at"`
+
+	// Symbol The ticker asked for.
+	//
+	// Examples: AAPLx
+	Symbol string `json:"symbol"`
+
+	// Venue Where the winning swap would run.
+	//
+	// Examples: jupiter
+	Venue AssetBestChainVenue `json:"venue"`
+}
+
+// AssetBestChainVenue Where the winning swap would run.
+//
+// Examples: jupiter
+type AssetBestChainVenue string
 
 // AssetChart The buckets for one asset and one range.
 //
@@ -564,6 +629,9 @@ type ServerInterface interface {
 	// GetAsset Read one asset.
 	// (GET /v1/assets/{symbol})
 	GetAsset(w http.ResponseWriter, r *http.Request, symbol string)
+	// GetAssetBestChain Read the best chain to buy one asset on.
+	// (GET /v1/assets/{symbol}/best-chain)
+	GetAssetBestChain(w http.ResponseWriter, r *http.Request, symbol string)
 	// GetAssetChart Read one asset's chart.
 	// (GET /v1/assets/{symbol}/chart)
 	GetAssetChart(w http.ResponseWriter, r *http.Request, symbol string, params GetAssetChartParams)
@@ -667,6 +735,32 @@ func (siw *ServerInterfaceWrapper) GetAsset(w http.ResponseWriter, r *http.Reque
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAsset(w, r, symbol)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAssetBestChain operation middleware
+func (siw *ServerInterfaceWrapper) GetAssetBestChain(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "symbol" -------------
+	var symbol string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "symbol", r.PathValue("symbol"), &symbol, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "symbol", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAssetBestChain(w, r, symbol)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -840,6 +934,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/assets", wrapper.GetAssets)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/assets/{symbol}", wrapper.GetAsset)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/assets/{symbol}/best-chain", wrapper.GetAssetBestChain)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/assets/{symbol}/chart", wrapper.GetAssetChart)
 
 	return m
@@ -923,6 +1018,45 @@ func (response GetAssetdefaultApplicationProblemPlusJSONResponse) VisitGetAssetR
 	return err
 }
 
+type GetAssetBestChainRequestObject struct {
+	Symbol string `json:"symbol"`
+}
+
+type GetAssetBestChainResponseObject interface {
+	VisitGetAssetBestChainResponse(w http.ResponseWriter) error
+}
+
+type GetAssetBestChain200JSONResponse AssetBestChain
+
+func (response GetAssetBestChain200JSONResponse) VisitGetAssetBestChainResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAssetBestChaindefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetAssetBestChaindefaultApplicationProblemPlusJSONResponse) VisitGetAssetBestChainResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetAssetChartRequestObject struct {
 	Symbol string `json:"symbol"`
 	Params GetAssetChartParams
@@ -971,6 +1105,9 @@ type StrictServerInterface interface {
 	// GetAsset Read one asset.
 	// (GET /v1/assets/{symbol})
 	GetAsset(ctx context.Context, request GetAssetRequestObject) (GetAssetResponseObject, error)
+	// GetAssetBestChain Read the best chain to buy one asset on.
+	// (GET /v1/assets/{symbol}/best-chain)
+	GetAssetBestChain(ctx context.Context, request GetAssetBestChainRequestObject) (GetAssetBestChainResponseObject, error)
 	// GetAssetChart Read one asset's chart.
 	// (GET /v1/assets/{symbol}/chart)
 	GetAssetChart(ctx context.Context, request GetAssetChartRequestObject) (GetAssetChartResponseObject, error)
@@ -1060,6 +1197,32 @@ func (sh *strictHandler) GetAsset(w http.ResponseWriter, r *http.Request, symbol
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAssetResponseObject); ok {
 		if err := validResponse.VisitGetAssetResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAssetBestChain operation middleware
+func (sh *strictHandler) GetAssetBestChain(w http.ResponseWriter, r *http.Request, symbol string) {
+	var request GetAssetBestChainRequestObject
+
+	request.Symbol = symbol
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAssetBestChain(ctx, request.(GetAssetBestChainRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAssetBestChain")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAssetBestChainResponseObject); ok {
+		if err := validResponse.VisitGetAssetBestChainResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

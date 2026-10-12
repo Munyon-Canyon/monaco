@@ -154,6 +154,12 @@ Jupiter's `/order` sends some stocks to its market-maker router, JupiterZ, which
 
 A member can pin a buy to one chain with `network` on the proposal. The stored comparison stays the router's, and the display quote is the pinned chain's best listing. At execution a pinned buy re-quotes only its pinned network's best listing (an EVM pin asks `Router.BestOn`, which skips the Solana quote) and never changes chain. A retry reads the pin from `trade_routes.pinned_network`. When the pinned chain has no route, the proposal ends `execution_blocked` with `pinned_chain_unavailable`; when trading on that EVM chain is off, with `chain_trading_off`. A Solana pin keeps the Solana-only fallback when the router fails.
 
+The app picks the chain before the member types an amount, so Review does not wait for a full comparison:
+
+1. **Stock page prefetch.** Opening a stock calls `GET /v1/assets/{symbol}/best-chain`. It runs `Router.Best` for a $1 buy and returns the winner's network, venue, listing and net shares per $1, every chain's figures as `price_comparison`, and `quoted_at`. The answer is cached per symbol in the api process and shared by every member. An answer under 20 s old is served as is. One under 60 s old is served while one refresh per symbol runs in the background. An older one is refreshed before the answer. Each refresh logs `market.best_chain.refreshed` with its `duration_ms`. The figure is display only.
+2. **Pinned preview.** The app previews the member's amount with `network` set to that winner. A pinned buy preview asks `Router.BestOn`, which quotes only the pinned chain's listings, so it costs one venue's quote instead of every chain's.
+3. **Re-route at execution.** Execution quotes again, as above, so a member never trades on the prefetched figure.
+
 #### Simulation account
 
 EVM quotes are simulated from one account stored in `evm_simulation_account`, one row per database (#5336). The target is an app-owned Privy EVM wallet with the treasuries' ownership: app-owned, with the `PRIVY_AUTHORIZATION_KEY_ID` quorum as owner. Each environment gets its own wallet under its own Privy app. The wallet is never funded: the simulation sets the cash balance and the Permit2 allowance with `eth_call` state overrides.

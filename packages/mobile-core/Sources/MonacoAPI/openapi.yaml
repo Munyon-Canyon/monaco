@@ -2385,6 +2385,33 @@ paths:
                 $ref: "#/components/schemas/AssetDetail"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/assets/{symbol}/best-chain:
+    get:
+      operationId: getAssetBestChain
+      tags: [market]
+      summary: Read the best chain to buy one asset on.
+      description: >-
+        Quotes a $1 buy of the asset on every enabled listing and returns the winner with every chain's
+        figures. The answer is shared by every member and kept per symbol: a figure under 20 seconds old
+        is served as is, one under 60 seconds old is served while a refresh runs, and an older one is
+        refreshed before the answer. The figure is for display and for choosing the chain to pin a
+        preview to; a trade quotes again when it runs. An unknown symbol is `asset_not_found`, one that
+        cannot be bought is `asset_untradable`, and no chain to quote is `no_route` or
+        `quote_unavailable`.
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          description: The ticker the app shows.
+          schema: {type: string, minLength: 1, maxLength: 64, examples: [AAPLx]}
+      responses:
+        "200":
+          description: The best chain.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AssetBestChain"}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/assets/{symbol}/chart:
     get:
       operationId: getAssetChart
@@ -6691,6 +6718,21 @@ components:
         photo_url: {type: [string, "null"]}
         followed_by_me: {type: boolean, description: "Whether the caller follows them. The caller never appears in their own results.", examples: [false]}
   # api/spec/market.yaml
+    AssetBestChain:
+      type: object
+      description: >-
+        The chain a $1 buy of the asset gets the most underlying shares on, after every cost, with every
+        chain's figures.
+      required: [symbol, amount_micros, network, venue, listing_id, net_share_nanos, quoted_at, price_comparison]
+      properties:
+        symbol: {type: string, description: The ticker asked for., examples: [AAPLx]}
+        amount_micros: {type: string, pattern: "^[0-9]+$", description: "The USDC buy quoted, in micros. Always $1.", examples: ["1000000"]}
+        network: {$ref: "#/components/schemas/Network"}
+        venue: {type: string, enum: [jupiter, uniswap], description: Where the winning swap would run., examples: [jupiter]}
+        listing_id: {type: string, format: uuid, description: The winning listing., examples: [01928a6e-0000-7000-8000-000000000001]}
+        net_share_nanos: {type: string, pattern: "^[0-9]+$", description: "Underlying shares $1 buys on the winning chain after every cost, in billionths of a share.", examples: ["4000000"]}
+        quoted_at: {type: string, format: date-time, description: When the chains were quoted., examples: ["2026-10-11T12:00:00Z"]}
+        price_comparison: {$ref: "#/components/schemas/PriceComparison"}
     AssetChart:
       type: object
       description: The buckets for one asset and one range.

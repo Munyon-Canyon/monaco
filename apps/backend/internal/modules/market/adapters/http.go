@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -11,17 +12,20 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	wire "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/marketapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type HTTP struct {
-	List   app.Lister
-	Detail app.Detailer
-	Chart  app.Charter
-	Clock  clock.Clock
+	List      app.Lister
+	Detail    app.Detailer
+	Chart     app.Charter
+	BestChain app.BestChainer
+	Clock     clock.Clock
 }
 
 var _ api.StrictServerInterface = HTTP{}
@@ -73,6 +77,19 @@ func (h HTTP) GetAssetChart(
 		return nil, err
 	}
 	return api.GetAssetChart200JSONResponse(body), nil
+}
+
+func (h HTTP) GetAssetBestChain(
+	ctx context.Context, req api.GetAssetBestChainRequestObject,
+) (api.GetAssetBestChainResponseObject, error) {
+	if err := caller(ctx); err != nil {
+		return nil, err
+	}
+	best, err := h.BestChain.Get(ctx, req.Symbol)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetAssetBestChain200JSONResponse(wireBestChain(best)), nil
 }
 
 func listRequest(p api.GetAssetsParams) app.ListRequest {
@@ -261,3 +278,41 @@ func present(s string) *string {
 	}
 	return &s
 }
+
+func wireBestChain(b app.BestChain) api.AssetBestChain {
+	winner := b.Winner()
+	return api.AssetBestChain{
+		Symbol: b.Symbol, AmountMicros: b.Amount.String(), Network: wire.Network(winner.Network),
+		Venue: api.AssetBestChainVenue(winner.Venue), ListingId: winner.ListingID.UUID(),
+		NetShareNanos: shareNanos(winner.NetShares), QuotedAt: b.QuotedAt.UTC(),
+		PriceComparison: wireComparison(b.Comparison),
+	}
+}
+
+func wireComparison(c multichain.Comparison) wire.PriceComparison {
+	out := wire.PriceComparison{
+		WinnerListingId: c.Winner.UUID(), Quotes: make([]wire.RouteQuote, len(c.Ranked)),
+		Unavailable: make([]wire.UnavailableVenue, len(c.Unavailable)),
+	}
+	for i, u := range c.Unavailable {
+		out.Unavailable[i] = wire.UnavailableVenue{
+			ListingId: u.ListingID.UUID(), Network: wire.Network(u.Network),
+			Venue: wire.UnavailableVenueVenue(u.Venue), Reason: wire.UnavailableVenueReason(u.Reason),
+			ReasonDetail: present(u.Detail),
+		}
+	}
+	for i, q := range c.Ranked {
+		costs := make([]wire.RouteCost, len(q.Costs))
+		for j, cost := range q.Costs {
+			costs[j] = wire.RouteCost{Kind: wire.RouteCostKind(cost.Kind), Micros: cost.Micros.String()}
+		}
+		out.Quotes[i] = wire.RouteQuote{
+			ListingId: q.ListingID.UUID(), Issuer: q.Issuer, Network: wire.Network(q.Network),
+			Venue: wire.RouteQuoteVenue(q.Venue), NetShareNanos: shareNanos(q.NetShares),
+			NetMicros: q.NetMicros.String(), Costs: costs, QuotedAt: q.QuotedAt, ExpiresAt: q.ExpiresAt,
+		}
+	}
+	return out
+}
+
+func shareNanos(n multichain.ShareNanos) string { return strconv.FormatUint(uint64(n), 10) }

@@ -38,6 +38,21 @@ func (q *DeferredQuoter) Quote(
 	return q.venues.Quote(ctx, l, side, amount)
 }
 
+type DeferredRouter struct {
+	once   sync.Once
+	build  func() *app.Router
+	router *app.Router
+}
+
+func DeferRouter(build func() *app.Router) *DeferredRouter { return &DeferredRouter{build: build} }
+
+func (r *DeferredRouter) Best(
+	ctx context.Context, stock multichain.StockID, side multichain.Side, amount money.Micros,
+) (multichain.Comparison, error) {
+	r.once.Do(func() { r.router = r.build() })
+	return r.router.Best(ctx, stock, side, amount)
+}
+
 func MultichainRoutingQuoter(d module.Deps) *DeferredQuoter {
 	return &DeferredQuoter{build: func() app.Venues { return RoutingVenues(d) }}
 }
