@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
@@ -38,5 +40,18 @@ func TestProposalComparison_sweepKeepsYoungAndBusyEntriesAndEvictsExpiredOnes(t 
 	}
 	if len(c.cached) != 2 {
 		t.Fatalf("cached %d entries, want the busy one and the new one", len(c.cached))
+	}
+}
+
+func TestUnquotedPin_listsAnUnlistedPinnedChainWithNoRouteOnItsVenue(t *testing.T) {
+	t.Parallel()
+	for n, venue := range map[chain.Network]multichain.Venue{
+		chain.NetworkSolana: multichain.VenueJupiter, chain.NetworkBase: multichain.VenueUniswap,
+	} {
+		got := unquotedPin(&multichain.Comparison{}, nil, n)
+		want := multichain.UnavailableVenue{Network: n, Venue: venue, Reason: multichain.UnavailableNoRoute}
+		if len(got.Ranked) != 0 || !got.Winner.IsZero() || len(got.Unavailable) != 1 || got.Unavailable[0] != want {
+			t.Errorf("%s: unquotedPin = %+v, want only %+v unavailable", n, got, want)
+		}
 	}
 }
