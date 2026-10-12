@@ -45,7 +45,7 @@ public struct BestPrice: Equatable, Sendable {
             guard networks.insert(venue.network).inserted else { return nil }
             return UnavailableVenue(
                 id: venue.listingId, name: Self.chainName(venue.network), network: venue.network,
-                reason: Self.reasonText(venue.reason))
+                reason: Self.reasonText(venue.reason, detail: venue.reasonDetail))
         }
         self.isSell = isSell
     }
@@ -94,8 +94,11 @@ public struct BestPrice: Equatable, Sendable {
 
     static let nanosPerTenThousandth: Int64 = 100_000
 
-    static func reasonText(_ reason: Components.Schemas.UnavailableVenue.ReasonPayload) -> String {
-        switch reason {
+    static func reasonText(
+        _ reason: Components.Schemas.UnavailableVenue.ReasonPayload, detail: String? = nil
+    ) -> String {
+        if let detail, !detail.isEmpty { return "Unavailable: \(detail)" }
+        return switch reason {
         case .noRoute: "No route"
         case .stale, .expired, .simulationFailed, .impact: "Unavailable right now"
         }

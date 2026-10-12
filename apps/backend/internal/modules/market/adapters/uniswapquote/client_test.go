@@ -35,7 +35,10 @@ func newHarness(t *testing.T) harness {
 		t.Fatal(err)
 	}
 	hc := httpclient.New("uniswap-quote-test", uniswapquote.Options(srv.URL, 5*time.Second)...)
-	return harness{fake: fake, client: uniswapquote.New(hc, "test-key", swapper, testkit.NewClock(quotedAt()))}
+	return harness{
+		fake:   fake,
+		client: uniswapquote.New(hc, "test-key", uniswapquote.Stored(swapper), testkit.NewClock(quotedAt())),
+	}
 }
 
 func listing(t *testing.T, network chain.Network, token string, decimals uint8) mc.Listing {

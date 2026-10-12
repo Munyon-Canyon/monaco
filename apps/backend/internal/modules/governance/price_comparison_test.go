@@ -303,13 +303,19 @@ func TestPreview_carriesTheVenuesTheRouterCouldNotQuote(t *testing.T) {
 	t.Parallel()
 	w := newTradeWorld(t)
 	c := appleComparison(t)
-	base := multichain.ListingIDFrom(testkit.NewIDs(5272).NewV7())
+	ids := testkit.NewIDs(5272)
+	base, rh := multichain.ListingIDFrom(ids.NewV7()), multichain.ListingIDFrom(ids.NewV7())
 	c.Unavailable = []multichain.UnavailableVenue{{
 		ListingID: base, Network: chain.NetworkBase, Venue: multichain.VenueUniswap,
 		Reason: multichain.UnavailableSimulationFailed,
+	}, {
+		ListingID: rh, Network: chain.NetworkRobinhood, Venue: multichain.VenueUniswap,
+		Reason: multichain.UnavailableSimulationFailed, Detail: "not set up on this chain yet",
 	}}
 	want := `[{"listing_id":"` + base.String() +
-		`","network":"base","reason":"simulation_failed","venue":"uniswap"}]`
+		`","network":"base","reason":"simulation_failed","venue":"uniswap"},{"listing_id":"` + rh.String() +
+		`","network":"robinhood","reason":"simulation_failed","reason_detail":"not set up on this chain yet",` +
+		`"venue":"uniswap"}]`
 	router := &countingRouter{c: c}
 	w.clockedScenario(t, router, clock.Real{}).Given(w.asMember()).
 		When(

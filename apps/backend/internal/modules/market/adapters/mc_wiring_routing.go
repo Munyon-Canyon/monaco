@@ -18,13 +18,6 @@ import (
 
 const routerQuoteAge = 15 * time.Second
 
-const simulationAccount = "0xf15262a7ee9d20fa690185d58e0eb2aad475bf32"
-
-func quoteSwapper() chain.EVMAddress {
-	a, _ := chain.ParseEVMAddress(simulationAccount)
-	return a
-}
-
 func routingClient(d module.Deps, name string, opts ...httpclient.Option) *httpclient.Client {
 	if d.HTTPClient == nil {
 		return httpclient.New(name, opts...)
@@ -50,11 +43,15 @@ func MultichainRoutingQuoter(d module.Deps) *DeferredQuoter {
 }
 
 func RoutingVenues(d module.Deps) app.Venues {
+	return routingVenues(d, app.NewSimulationAccounts(d.Pool))
+}
+
+func routingVenues(d module.Deps, accounts uniswapquote.Accounts) app.Venues {
 	venues := app.Venues{multichain.VenueJupiter: jupiterquote.NewQuoter(d.JupiterClient(), d.Clock)}
 	cfg := d.Config.Routing
 	if cfg.UniswapAPIKey != "" {
 		client := routingClient(d, "uniswap", uniswapquote.Options(cfg.UniswapBaseURL, cfg.UniswapQuoteTimeout)...)
-		venues[multichain.VenueUniswap] = uniswapquote.New(client, cfg.UniswapAPIKey, quoteSwapper(), d.Clock).
+		venues[multichain.VenueUniswap] = uniswapquote.New(client, cfg.UniswapAPIKey, accounts, d.Clock).
 			WithWrapper(uniswapquote.NewWrapper(wrapperRPC(d), wrapperDelegate()))
 	}
 	return venues
@@ -81,8 +78,13 @@ func MultichainRoutingRouter(d module.Deps, prices app.SampledPrices) *app.Route
 	bridge := NewPrivyBridgeQuotes(routingClient(d, "privy-bridge",
 		httpclient.WithBaseURL(cfg.Privy.BaseURL), httpclient.WithTimeout(cfg.Timeouts.Privy)),
 		cfg.Privy.AppID, cfg.Privy.AppSecret)
-	return app.NewRouter(NewStockListings(d.Pool), RoutingVenues(d), app.NewStockPrices(prices, d.Clock),
+	accounts := app.NewSimulationAccounts(d.Pool)
+	router := app.NewRouter(NewStockListings(d.Pool), routingVenues(d, accounts), app.NewStockPrices(prices, d.Clock),
 		bridge, d.Clock, routerRules(cfg.Routing))
+	if cfg.Routing.UniswapAPIKey == "" {
+		return router
+	}
+	return router.WithSimulationCheck(app.NewSimulationCheck(accounts, NewEVMCode(d), wrapperDelegate()))
 }
 
 func routerRules(cfg config.Routing) app.RouterRules {

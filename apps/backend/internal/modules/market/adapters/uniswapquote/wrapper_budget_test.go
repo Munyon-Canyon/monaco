@@ -60,7 +60,7 @@ func TestWrapper_keepsTheFinishedRouteWhenTheOtherOutlivesTheBudget(t *testing.T
 		httpclient.WithTransport(spendOnSimulation{spend: spend}))
 	uni := httpclient.New("uniswap-wrapper-test",
 		append(uniswapquote.Options(r.uniBase, 5*time.Second), httpclient.WithTransport(hookless{}))...)
-	client := uniswapquote.New(uni, "test-key", owner, r.clock).
+	client := uniswapquote.New(uni, "test-key", uniswapquote.Stored(owner), r.clock).
 		WithWrapper(uniswapquote.NewWrapper(map[chain.Network]*httpclient.Client{chain.NetworkBase: rpc}, delegate))
 
 	q, err := client.Quote(budget, b20Listing(t, chain.NetworkBase), mc.SideBuy, money.MicrosFromUint64(liveInput))

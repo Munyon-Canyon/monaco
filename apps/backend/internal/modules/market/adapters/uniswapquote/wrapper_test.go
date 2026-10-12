@@ -173,7 +173,7 @@ func newWrapperRig(t *testing.T, network chain.Network) *wrapperRig {
 		network: httpclient.New("evm-rpc-test", httpclient.WithBaseURL(rpc.URL), httpclient.WithTimeout(time.Second)),
 	}
 	r.wrapper = uniswapquote.NewWrapper(rpcs, delegate)
-	r.client = uniswapquote.New(hc, "test-key", owner, r.clock).WithWrapper(r.wrapper)
+	r.client = uniswapquote.New(hc, "test-key", uniswapquote.Stored(owner), r.clock).WithWrapper(r.wrapper)
 	return r
 }
 
@@ -500,7 +500,8 @@ func TestWrapper_anUnreachableRPCDropsTheVenue(t *testing.T) {
 	rpcs := map[chain.Network]*httpclient.Client{chain.NetworkBase: httpclient.New("evm-rpc-dead",
 		httpclient.WithBaseURL(dead.URL), httpclient.WithTimeout(time.Second))}
 	hc := httpclient.New("uniswap-wrapper-dead", uniswapquote.Options(r.uniURL(t), 5*time.Second)...)
-	client := uniswapquote.New(hc, "test-key", owner, r.clock).WithWrapper(uniswapquote.NewWrapper(rpcs, delegate))
+	client := uniswapquote.New(hc, "test-key", uniswapquote.Stored(owner), r.clock).
+		WithWrapper(uniswapquote.NewWrapper(rpcs, delegate))
 	_, err := client.Quote(t.Context(), b20Listing(t, chain.NetworkBase), mc.SideBuy, money.MicrosFromUint64(liveInput))
 	if errs.CodeOf(err) != errs.CodeRPCUnavailable {
 		t.Fatalf("Quote err = %v, want rpc_unavailable", err)

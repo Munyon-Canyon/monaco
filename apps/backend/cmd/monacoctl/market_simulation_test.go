@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +11,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -26,6 +29,7 @@ type simulationRig struct {
 	cfg     config.Config
 	privy   *fakes.Server
 	creates atomic.Int32
+	pool    *pgxpool.Pool
 }
 
 func codeRPC(t *testing.T, code func(call int32) string) string {
@@ -50,7 +54,7 @@ func codeRPC(t *testing.T, code func(call int32) string) string {
 
 func newSimulationRig(t *testing.T, robinhood func(call int32) string) *simulationRig {
 	t.Helper()
-	rig := &simulationRig{privy: fakes.New()}
+	rig := &simulationRig{privy: fakes.New(), pool: testkit.DB(t)}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost && r.URL.Path == "/privy/v1/wallets" {
 			rig.creates.Add(1)
@@ -60,7 +64,7 @@ func newSimulationRig(t *testing.T, robinhood func(call int32) string) *simulati
 	t.Cleanup(srv.Close)
 	rig.cfg = config.Config{
 		Env: config.EnvLocal,
-		DB:  config.DB{URL: testkit.DB(t).Config().ConnString(), MaxConns: 4},
+		DB:  config.DB{URL: rig.pool.Config().ConnString(), MaxConns: 4},
 		Privy: config.Privy{
 			AppID: "app-fixture", AppSecret: "secret", BaseURL: srv.URL + "/privy",
 			VerificationKey:         fakes.PrivyVerificationKey(),
@@ -86,6 +90,17 @@ func (r *simulationRig) run(t *testing.T, args ...string) (int, string) {
 	return code, stdout.String()
 }
 
+func (r *simulationRig) stored(t *testing.T) (string, string) {
+	t.Helper()
+	var address, legacy string
+	err := r.pool.QueryRow(t.Context(),
+		`SELECT address, coalesce(legacy_network, '') FROM evm_simulation_account`).Scan(&address, &legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return address, legacy
+}
+
 func lineFor(out, network string) string {
 	for line := range strings.SplitSeq(out, "\n") {
 		if strings.HasPrefix(line, network+"\t") {
@@ -98,7 +113,7 @@ func lineFor(out, network string) string {
 func TestMarketSimulationAccount_createsOnceDelegatesAndPrintsEachChainsCode(t *testing.T) {
 	t.Parallel()
 	rig := newSimulationRig(t, func(call int32) string {
-		if call == 1 {
+		if call <= 2 {
 			return "0x"
 		}
 		return "0xef0100" + otherDelegate[2:]
@@ -112,9 +127,15 @@ func TestMarketSimulationAccount_createsOnceDelegatesAndPrintsEachChainsCode(t *
 		t.Fatalf("base %q, robinhood %q, want base untouched and the delegate Privy set on robinhood", base, rh)
 	}
 	address := strings.TrimPrefix(strings.Split(out, "\n")[1], "address ")
+	if stored, legacy := rig.stored(t); !strings.HasSuffix(out, "\nstored\n") || stored != address || legacy != "" {
+		t.Fatalf("stored %s legacy %q, want the legacy row replaced by %s:\n%s", stored, legacy, address, out)
+	}
 
 	code, out = rig.run(t)
 	rig.wantCounts(t, code, out, "reused")
+	if strings.Contains(out, "stored") {
+		t.Fatalf("second run stored again:\n%s", out)
+	}
 	if !strings.Contains(out, "address "+address+"\n") {
 		t.Fatalf("second run printed another address than %s:\n%s", address, out)
 	}
@@ -131,7 +152,7 @@ func (r *simulationRig) wantCounts(t *testing.T, code int, out, verb string) {
 func TestMarketSimulationAccount_failsWhenAChainStaysUndelegated(t *testing.T) {
 	t.Parallel()
 	rig := newSimulationRig(t, func(int32) string { return "0x" })
-	code, out := rig.run(t, "--timeout", "5ms", "--poll", "1ms")
+	code, out := rig.run(t, "--timeout", "1ms", "--poll", "1h")
 	rh := lineFor(out, "robinhood")
 	if code != 1 || !strings.HasPrefix(rh, "robinhood\tcode=0x\tdelegate=none\tsent=0x") {
 		t.Fatalf("exit %d, robinhood line %q:\n%s", code, rh, out)
@@ -178,5 +199,33 @@ func TestMarketSimulationAccount_refusesBadArgumentsAndReportsSetupFailures(t *t
 	noQuorum.Privy.AuthorizationKeyID = ""
 	if code := simulationAccount(clock.Real{})(noQuorum, nil, &stdout, &stderr); code != 1 || stdout.Len() != 0 {
 		t.Fatalf("no quorum exit %d stdout %q, want 1 before any output", code, stdout.String())
+	}
+}
+
+func TestMarketSimulationAccount_keepsTheLegacyRowUntilTheNewWalletIsDelegatedOnBase(t *testing.T) {
+	t.Parallel()
+	rig := newSimulationRig(t, func(int32) string { return "0xef0100" + defaultDelegate[2:] })
+	rig.cfg.EVM.RPCURLBase = codeRPC(t, func(int32) string { return "0x" })
+	code, out := rig.run(t, "--timeout", "1ms", "--poll", "1h")
+	if code != 1 || !strings.Contains(out, "kept the legacy account: the new wallet is not delegated on base\n") {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	if stored, legacy := rig.stored(t); stored != "0xf15262a7ee9d20fa690185d58e0eb2aad475bf32" || legacy != "base" {
+		t.Fatalf("stored %s legacy %q, want the legacy Base row kept", stored, legacy)
+	}
+}
+
+func TestMarketSimulationAccount_refusesToOverwriteAWalletStoredMeanwhile(t *testing.T) {
+	t.Parallel()
+	rig := newSimulationRig(t, func(int32) string { return "0xef0100" + defaultDelegate[2:] })
+	rig.cfg.EVM.RPCURLBase = codeRPC(t, func(int32) string {
+		_, _ = rig.pool.Exec(context.Background(), `UPDATE evm_simulation_account
+			SET privy_wallet_id = 'wallet-other', legacy_network = NULL`)
+		return "0xef0100" + defaultDelegate[2:]
+	})
+	var stdout, stderr bytes.Buffer
+	code := simulationAccount(clock.Real{})(rig.cfg, nil, &stdout, &stderr)
+	if code != 1 || !strings.Contains(stderr.String(), "version_conflict") {
+		t.Fatalf("exit %d stderr %q:\n%s", code, stderr.String(), stdout.String())
 	}
 }

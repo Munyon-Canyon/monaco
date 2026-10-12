@@ -7,6 +7,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -44,24 +46,54 @@ func simulationAccount(clk clock.Clock) command {
 		if err != nil {
 			return fail(stderr, err)
 		}
-		a, created, err := app.SetUpSimulationAccount(ctx, pool, wallets, clk.Now())
+		setup, err := app.PrepareSimulationAccount(ctx, pool, wallets)
 		if err != nil {
 			return fail(stderr, err)
 		}
-		_, _ = fmt.Fprintf(stdout, "wallet %s\naddress %s\n%s\n", a.WalletID, a.Address, map[bool]string{
-			true: "created", false: "reused",
-		}[created])
-		code := adapters.NewEVMCode(module.Deps{Config: cfg})
-		undelegated := 0
-		for _, n := range code.Networks() {
-			d, err := delegateOn(ctx, wallets, code, a, n, delegationWait{timeout: *timeout, poll: *poll})
-			_, _ = fmt.Fprintln(stdout, delegationLine(d, err))
-			if err != nil || !d.Delegated() {
-				undelegated++
-			}
+		_, _ = fmt.Fprintf(stdout, "wallet %s\naddress %s\n%s\n", setup.Account.WalletID, setup.Account.Address,
+			map[bool]string{true: "created", false: "reused"}[setup.Created])
+		wait := delegationWait{timeout: *timeout, poll: *poll}
+		delegated, undelegated := delegateAll(ctx, cfg, wallets, setup.Account, wait, stdout)
+		if !setup.Created {
+			return min(undelegated, 1)
+		}
+		if code := storeSetup(ctx, pool, setup, delegated, clk.Now(), stdout, stderr); code != 0 {
+			return code
 		}
 		return min(undelegated, 1)
 	}
+}
+
+func storeSetup(
+	ctx context.Context, pool *pgxpool.Pool, setup app.SimulationSetup, delegated map[chain.Network]bool,
+	now time.Time, stdout, stderr io.Writer,
+) int {
+	if setup.Replaces != "" && !delegated[setup.Replaces] {
+		_, _ = fmt.Fprintf(stdout, "kept the legacy account: the new wallet is not delegated on %s\n", setup.Replaces)
+		return 1
+	}
+	if err := app.StoreSimulationAccount(ctx, pool, setup.Account, now); err != nil {
+		return fail(stderr, err)
+	}
+	_, _ = fmt.Fprintln(stdout, "stored")
+	return 0
+}
+
+func delegateAll(
+	ctx context.Context, cfg config.Config, wallets multichain.EVMWallets, a app.SimulationAccount,
+	wait delegationWait, stdout io.Writer,
+) (map[chain.Network]bool, int) {
+	code := adapters.NewEVMCode(module.Deps{Config: cfg})
+	delegated, undelegated := map[chain.Network]bool{}, 0
+	for _, n := range code.Networks() {
+		d, err := delegateOn(ctx, wallets, code, a, n, wait)
+		_, _ = fmt.Fprintln(stdout, delegationLine(d, err))
+		delegated[n] = err == nil && d.Delegated()
+		if !delegated[n] {
+			undelegated++
+		}
+	}
+	return delegated, undelegated
 }
 
 func delegateOn(

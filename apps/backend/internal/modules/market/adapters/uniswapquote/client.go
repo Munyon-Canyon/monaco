@@ -37,13 +37,17 @@ const (
 
 var _ mc.Quoter = (*Client)(nil)
 
+type Accounts interface {
+	SimulationAccount(ctx context.Context) (chain.EVMAddress, bool, error)
+}
+
 type Client struct {
-	http    *httpclient.Client
-	key     string
-	swapper chain.EVMAddress
-	clock   clock.Clock
-	limit   *rate.Limiter
-	wrapper *Wrapper
+	http     *httpclient.Client
+	key      string
+	accounts Accounts
+	clock    clock.Clock
+	limit    *rate.Limiter
+	wrapper  *Wrapper
 }
 
 func Options(baseURL string, timeout time.Duration) []httpclient.Option {
@@ -53,9 +57,9 @@ func Options(baseURL string, timeout time.Duration) []httpclient.Option {
 	}
 }
 
-func New(c *httpclient.Client, apiKey string, swapper chain.EVMAddress, clk clock.Clock) *Client {
+func New(c *httpclient.Client, apiKey string, accounts Accounts, clk clock.Clock) *Client {
 	return &Client{
-		http: c, key: apiKey, swapper: swapper, clock: clk,
+		http: c, key: apiKey, accounts: accounts, clock: clk,
 		limit: rate.NewLimiter(rate.Limit(callsPerSecond), callsPerSecond),
 	}
 }
@@ -100,12 +104,22 @@ type quoteWire struct {
 func (c *Client) Quote(ctx context.Context, l mc.Listing, side mc.Side, amount money.Micros) (mc.Quote, error) {
 	const op = "uniswapquote.Client.Quote"
 	attrs := []slog.Attr{slog.String("network", string(l.Network)), slog.String("side", string(side))}
-	req, ok := c.request(l, side, amount)
+	swapper, found, err := c.accounts.SimulationAccount(ctx)
+	if err != nil {
+		return mc.Quote{}, err
+	}
+	if !found {
+		return mc.Quote{}, errs.New(
+			errs.CodeNoRoute,
+			op,
+			append(attrs, slog.String("reason", "no_simulation_account"))...)
+	}
+	req, ok := c.request(l, side, amount, swapper)
 	if !ok {
 		return mc.Quote{}, errs.New(errs.CodeInvalidInput, op, append(attrs, slog.String("amount", amount.String()))...)
 	}
 	if c.wrapper != nil && side == mc.SideBuy {
-		return c.sponsored(ctx, l, amount, req, attrs)
+		return c.sponsored(ctx, l, amount, req, swapper, attrs)
 	}
 	q, _, err := c.quote(ctx, l, side, req, attrs)
 	return q, err
@@ -129,11 +143,13 @@ func (c *Client) quote(
 	return q, w.Raw, nil
 }
 
-func (c *Client) request(l mc.Listing, side mc.Side, amount money.Micros) (quoteRequest, bool) {
+func (c *Client) request(
+	l mc.Listing, side mc.Side, amount money.Micros, swapper chain.EVMAddress,
+) (quoteRequest, bool) {
 	cash := l.Network.Cash().Address
 	r := quoteRequest{
 		Amount: amount.String(), TokenInChainID: l.Network.EVMChainID(), TokenOutChainID: l.Network.EVMChainID(),
-		Swapper: c.swapper.String(), RoutingPreference: "BEST_PRICE", Protocols: []string{"V2", "V3", "V4"},
+		Swapper: swapper.String(), RoutingPreference: "BEST_PRICE", Protocols: []string{"V2", "V3", "V4"},
 	}
 	switch side {
 	case mc.SideBuy:

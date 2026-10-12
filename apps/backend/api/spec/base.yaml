@@ -128,6 +128,12 @@ components:
             Why the venue couldn't be quoted: no route, a stale price or quote, an expired quote, a failed quote
             simulation, or price impact past the limit.
           examples: [simulation_failed]
+        reason_detail:
+          type: string
+          description: >-
+            Optional words that say more about the reason, for the app to show beside "Unavailable". Set when a
+            chain can't be simulated yet, as "not set up on this chain yet".
+          examples: [not set up on this chain yet]
     RouteQuote:
       type: object
       description: One venue's all-in quote for the trade.

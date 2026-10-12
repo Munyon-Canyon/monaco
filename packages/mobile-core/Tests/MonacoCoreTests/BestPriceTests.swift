@@ -102,7 +102,9 @@ final class BestPriceTests: XCTestCase {
              "unavailable": [
               {"listing_id": "b", "network": "base", "venue": "uniswap", "reason": "simulation_failed"},
               {"listing_id": "c", "network": "ethereum", "venue": "uniswap", "reason": "no_route"},
-              {"listing_id": "d", "network": "arbitrum", "venue": "uniswap", "reason": "stale"}]}
+              {"listing_id": "d", "network": "arbitrum", "venue": "uniswap", "reason": "stale"},
+              {"listing_id": "e", "network": "robinhood", "venue": "uniswap", "reason": "simulation_failed",
+               "reason_detail": "not set up on this chain yet"}]}
             """)
 
         let best = try XCTUnwrap(BestPrice(compared, isSell: false))
@@ -110,10 +112,12 @@ final class BestPriceTests: XCTestCase {
         XCTAssertEqual(best.winner.id, "a")
         XCTAssertEqual(best.headline, "Best price across 1 venue")
         XCTAssertNil(best.advantage)
-        XCTAssertEqual(best.unavailable.map(\.id), ["b", "c", "d"])
-        XCTAssertEqual(best.unavailable.map(\.name), ["Base", "Ethereum", "Arbitrum"])
-        XCTAssertEqual(best.unavailable.map(\.network), [.base, .ethereum, .arbitrum])
-        XCTAssertEqual(best.unavailable.map(\.reason), ["Unavailable right now", "No route", "Unavailable right now"])
+        XCTAssertEqual(best.unavailable.map(\.id), ["b", "c", "d", "e"])
+        XCTAssertEqual(best.unavailable.map(\.name), ["Base", "Ethereum", "Arbitrum", "Robinhood Chain"])
+        XCTAssertEqual(best.unavailable.map(\.network), [.base, .ethereum, .arbitrum, .robinhood])
+        XCTAssertEqual(
+            best.unavailable.map(\.reason),
+            ["Unavailable right now", "No route", "Unavailable right now", "Unavailable: not set up on this chain yet"])
     }
 
     func testEachChainIsOneRowWithItsBestQuote() throws {
@@ -180,7 +184,11 @@ final class BestPriceTests: XCTestCase {
         ]
         let unavailable = "Unavailable right now"
         XCTAssertEqual(
-            reasons.map(BestPrice.reasonText), ["No route", unavailable, unavailable, unavailable, unavailable])
+            reasons.map { BestPrice.reasonText($0) }, ["No route", unavailable, unavailable, unavailable, unavailable])
+        XCTAssertEqual(
+            BestPrice.reasonText(.simulationFailed, detail: "not set up on this chain yet"),
+            "Unavailable: not set up on this chain yet")
+        XCTAssertEqual(BestPrice.reasonText(.simulationFailed, detail: ""), unavailable)
     }
 
     func testNoComparisonOrAMissingWinnerShowsNothing() throws {

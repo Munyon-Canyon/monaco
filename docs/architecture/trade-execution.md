@@ -150,13 +150,19 @@ A member can pin a buy to one chain with `network` on the proposal. The stored c
 
 #### Simulation account
 
-An EVM quote is simulated from one app-owned Privy EVM wallet, never from a cabal treasury (#5336). The wallet has the treasuries' ownership: app-owned, with the `PRIVY_AUTHORIZATION_KEY_ID` quorum as owner. `market` stores its Privy id and address in `evm_simulation_account`, one row per database, so each environment has its own wallet under its own Privy app. The wallet is never funded: the simulation sets the cash balance and the Permit2 allowance with `eth_call` state overrides.
+EVM quotes are simulated from one account stored in `evm_simulation_account`, one row per database (#5336). The target is an app-owned Privy EVM wallet with the treasuries' ownership: app-owned, with the `PRIVY_AUTHORIZATION_KEY_ID` quorum as owner. Each environment gets its own wallet under its own Privy app. The wallet is never funded: the simulation sets the cash balance and the Permit2 allowance with `eth_call` state overrides.
+
+Until that wallet exists, the row is a seeded legacy row: `0xf15262a7…`, the Base treasury of the 2026-10-11 QA cabal, marked `legacy_network = 'base'` because Base is the only chain it is delegated on. It has no Privy wallet id. Quotes on Base keep simulating from it, so nothing changes when the seed lands.
 
 The simulation runs through the account's ERC-7579 `execute`, so the account needs an EIP-7702 delegation on each chain. `monacoctl market simulation-account` sets it up and is safe to rerun:
 
-1. It reads the stored wallet, or creates one (Privy idempotency key `market:simulation-account`) and stores it.
+1. It reuses a stored dedicated wallet. Over a legacy row, or with no row, it creates one (Privy idempotency key `market:simulation-account`).
 2. For each EVM chain with an RPC URL, it reads `eth_getCode`. A chain that has no delegation gets one zero-value self-transfer through Privy `eth_sendTransaction` with `sponsor: true`, so Privy's paymaster pays the gas and attaches the delegation.
-3. It prints each chain's code and the delegate Privy set, and exits 1 if any chain stays undelegated after `--timeout` (default 2 m).
+3. It prints each chain's code and the delegate Privy set.
+4. A new wallet replaces the row only once it is delegated on the legacy row's chain. Otherwise the command prints `kept the legacy account` and the legacy row stays. A dedicated row is never overwritten.
+5. It exits 1 if any chain stays undelegated after `--timeout` (default 2 m).
+
+`Router.Best` checks the account once per comparison: one `eth_getCode` per EVM chain among the listings, shared by every listing on that chain. The check fails for a chain whose code is `0x`, a chain whose delegate isn't the wrapper's `DefaultDelegate`, a chain the legacy row doesn't cover, or every chain when no row is stored. Each venue on a failing chain is listed as `simulation_failed` with `reason_detail` "not set up on this chain yet", and `market.router.venue_dropped` logs it as `simulation_account_not_delegated`. The app shows "Unavailable: not set up on this chain yet". Such a venue counts as no route: when no listing quotes, the router answers `no_route` and the gate falls back to the Solana mint. A failed `eth_getCode` lists the venue as plain `simulation_failed`.
 
 #### Execute on an EVM chain
 
