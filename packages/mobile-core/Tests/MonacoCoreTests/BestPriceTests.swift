@@ -1,5 +1,6 @@
 import Foundation
 import MonacoAPI
+import MonacoTestClock
 import XCTest
 
 @testable import MonacoCore
@@ -189,6 +190,34 @@ final class BestPriceTests: XCTestCase {
             BestPrice.reasonText(.simulationFailed, detail: "not set up on this chain yet"),
             "Unavailable: not set up on this chain yet")
         XCTAssertEqual(BestPrice.reasonText(.simulationFailed, detail: ""), unavailable)
+    }
+
+    @MainActor
+    func testAPinnedChainWithNoLiveQuoteShowsUnavailableAndNoPrice() async throws {
+        let now = Date()
+        let lost = try decode(
+            """
+            {"winner_listing_id": "b", "quotes": [], "unavailable": [
+              {"listing_id": "b", "network": "base", "venue": "uniswap", "reason": "simulation_failed",
+               "reason_detail": "not set up on this chain yet"}]}
+            """)
+        let live = LivePriceComparison(.init(priceComparison: lost, quoteOutAmount: 0, quotedAt: now))
+        let model = LiveBestPriceModel(sleep: { try await TestClock().sleep(for: $0) }, fetch: { _ in live })
+        defer { model.poll(cabalID: nil) }
+        var proposal = Components.Schemas.Proposal.sample(kind: .buy)
+        proposal.priceComparison = BestPrice.sampleComparison(now: now)
+        let unpinned = ProposalSummary(proposal)
+        proposal.network = .base
+        let pinned = ProposalSummary(proposal)
+
+        model.poll(cabalID: "cabal-1")
+        for _ in 0..<500 where model.latest == nil { await Task.yield() }
+
+        XCTAssertEqual(model.unavailableReason(for: pinned), "Unavailable: not set up on this chain yet")
+        XCTAssertNil(model.row(for: pinned, decimals: 8, now: now))
+        XCTAssertNil(model.row(for: pinned, decimals: 8, now: now.addingTimeInterval(120)))
+        XCTAssertNil(model.unavailableReason(for: unpinned))
+        XCTAssertEqual(model.row(for: unpinned, decimals: 8, now: now)?.caption, LiveBestPriceModel.whenProposed)
     }
 
     func testNoComparisonOrAMissingWinnerShowsNothing() throws {
