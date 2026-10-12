@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -74,6 +75,19 @@ type Arrivals interface {
 		owner chain.SolanaAddress,
 		mint chain.Mint,
 	) (money.BaseUnits, error)
+}
+
+type EVMArrival = domain.Arrival
+
+type EVMArrivals interface {
+	Inbound(
+		ctx context.Context,
+		network chain.Network,
+		token, owner chain.EVMAddress,
+		since time.Time,
+		atMost money.Micros,
+		exclude []string,
+	) (EVMArrival, bool, error)
 }
 
 type RoutePorts struct {

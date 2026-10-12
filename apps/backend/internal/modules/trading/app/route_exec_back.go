@@ -30,12 +30,13 @@ func (r *RouteExec) bridgeBack(ctx context.Context, b routedBuy) (domain.StepSta
 		return "", err
 	}
 	leg := b.bridgeBack(amount)
-	leg.Observe = func(ctx context.Context, action multichain.ActionStatus) (money.Micros, error) {
+	leg.Observe = func(ctx context.Context, action multichain.ActionStatus) (money.Micros, domain.Arrival, error) {
 		arrived, err := r.arrival(ctx, b, action)
 		if err != nil {
-			return money.Micros{}, err
+			return money.Micros{}, domain.Arrival{}, err
 		}
-		return amount.Sub(atMost(arrived, amount))
+		fee, err := amount.Sub(atMost(arrived, amount))
+		return fee, domain.Arrival{}, err
 	}
 	return r.bridge().Run(ctx, leg)
 }

@@ -34,6 +34,13 @@ type StepRef struct {
 	Network chain.Network
 }
 
+type Arrival struct {
+	Amount money.Micros
+	TxHash string
+}
+
+func (a Arrival) Observed() bool { return a.TxHash != "" }
+
 type TradeStep struct {
 	ID                  uuid.UUID
 	SwapID              ids.SwapID
@@ -48,6 +55,8 @@ type TradeStep struct {
 	Error               string
 	Attempt             int
 	PriorPrivyActionIDs []string
+	Arrival             Arrival
+	SentAt              time.Time
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 }

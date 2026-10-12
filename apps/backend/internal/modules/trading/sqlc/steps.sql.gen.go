@@ -12,18 +12,48 @@ import (
 	"github.com/google/uuid"
 )
 
+const arrivalTxs = `-- name: ArrivalTxs :many
+SELECT arrival_tx::text AS arrival_tx
+FROM trade_steps
+WHERE network = $1::text AND arrival_tx IS NOT NULL
+ORDER BY arrival_tx
+`
+
+func (q *Queries) ArrivalTxs(ctx context.Context, network string) ([]string, error) {
+	rows, err := q.db.Query(ctx, arrivalTxs, network)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var arrival_tx string
+		if err := rows.Scan(&arrival_tx); err != nil {
+			return nil, err
+		}
+		items = append(items, arrival_tx)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const finishTradeStep = `-- name: FinishTradeStep :execrows
 UPDATE trade_steps
-SET status = $1::text, error = NULLIF($2::text, ''), updated_at = $3::timestamptz
-WHERE trade_id = $4::uuid AND step = $5::text AND status IN ('pending', 'submitted')
+SET status = $1::text, error = NULLIF($2::text, ''), updated_at = $3::timestamptz,
+  arrived_micros = NULLIF($4::bigint, 0), arrival_tx = NULLIF($5::text, '')
+WHERE trade_id = $6::uuid AND step = $7::text AND status IN ('pending', 'submitted')
 `
 
 type FinishTradeStepParams struct {
-	Status  string
-	Error   string
-	At      time.Time
-	TradeID uuid.UUID
-	Step    string
+	Status        string
+	Error         string
+	At            time.Time
+	ArrivedMicros int64
+	ArrivalTx     string
+	TradeID       uuid.UUID
+	Step          string
 }
 
 func (q *Queries) FinishTradeStep(ctx context.Context, arg FinishTradeStepParams) (int64, error) {
@@ -31,6 +61,8 @@ func (q *Queries) FinishTradeStep(ctx context.Context, arg FinishTradeStepParams
 		arg.Status,
 		arg.Error,
 		arg.At,
+		arg.ArrivedMicros,
+		arg.ArrivalTx,
 		arg.TradeID,
 		arg.Step,
 	)
@@ -146,6 +178,36 @@ func (q *Queries) MarkTradeStepSubmitted(ctx context.Context, arg MarkTradeStepS
 	return result.RowsAffected(), nil
 }
 
+const recordTradeStepArrival = `-- name: RecordTradeStepArrival :execrows
+UPDATE trade_steps
+SET arrived_micros = $1::bigint, arrival_tx = $2::text,
+  updated_at = $3::timestamptz
+WHERE trade_id = $4::uuid AND step = $5::text AND status = 'succeeded'
+  AND arrival_tx IS NULL
+`
+
+type RecordTradeStepArrivalParams struct {
+	ArrivedMicros int64
+	ArrivalTx     string
+	At            time.Time
+	TradeID       uuid.UUID
+	Step          string
+}
+
+func (q *Queries) RecordTradeStepArrival(ctx context.Context, arg RecordTradeStepArrivalParams) (int64, error) {
+	result, err := q.db.Exec(ctx, recordTradeStepArrival,
+		arg.ArrivedMicros,
+		arg.ArrivalTx,
+		arg.At,
+		arg.TradeID,
+		arg.Step,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const retryTradeStep = `-- name: RetryTradeStep :execrows
 UPDATE trade_steps
 SET attempt = attempt + 1, status = 'pending', error = NULL, prior_privy_action_ids = CASE WHEN privy_action_id IS NULL THEN prior_privy_action_ids
@@ -170,9 +232,12 @@ func (q *Queries) RetryTradeStep(ctx context.Context, arg RetryTradeStepParams) 
 const tradeStep = `-- name: TradeStep :one
 SELECT t.id, t.trade_id, t.step, t.network, coalesce(t.privy_action_id, '')::text AS privy_action_id,
   t.amount_micros::text AS amount_micros, t.status, coalesce(t.error, '')::text AS error, t.created_at, t.updated_at,
-  t.attempt, t.prior_privy_action_ids::text[] AS prior_privy_action_ids, s.cabal_id, s.source_kind, s.source_id, s.source_batch_size
+  t.attempt, t.prior_privy_action_ids::text[] AS prior_privy_action_ids, s.cabal_id, s.source_kind, s.source_id, s.source_batch_size,
+  coalesce(t.arrived_micros, 0)::text AS arrived_micros, coalesce(t.arrival_tx, '')::text AS arrival_tx,
+  coalesce(o.created_at, t.created_at)::timestamptz AS sent_at
 FROM trade_steps AS t
 JOIN swaps AS s ON s.id = t.trade_id
+LEFT JOIN trade_steps AS o ON t.privy_action_id = 'reused:' || o.trade_id::text AND o.step = t.step
 WHERE t.trade_id = $1::uuid AND t.step = $2::text
 `
 
@@ -198,6 +263,9 @@ type TradeStepRow struct {
 	SourceKind          string
 	SourceID            uuid.UUID
 	SourceBatchSize     int32
+	ArrivedMicros       string
+	ArrivalTx           string
+	SentAt              time.Time
 }
 
 func (q *Queries) TradeStep(ctx context.Context, arg TradeStepParams) (TradeStepRow, error) {
@@ -220,6 +288,9 @@ func (q *Queries) TradeStep(ctx context.Context, arg TradeStepParams) (TradeStep
 		&i.SourceKind,
 		&i.SourceID,
 		&i.SourceBatchSize,
+		&i.ArrivedMicros,
+		&i.ArrivalTx,
+		&i.SentAt,
 	)
 	return i, err
 }

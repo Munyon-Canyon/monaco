@@ -43,9 +43,10 @@ SELECT EXISTS (
 )::bool AS stranded;
 
 -- name: ReuseStrandedCash :execrows
-INSERT INTO trade_steps (id, trade_id, step, network, privy_action_id, amount_micros, status, created_at, updated_at)
+INSERT INTO trade_steps (id, trade_id, step, network, privy_action_id, amount_micros, status, created_at, updated_at,
+  arrived_micros, arrival_tx)
 SELECT sqlc.arg(id)::uuid, sqlc.arg(to_trade)::uuid, 'bridge_out', o.network, 'reused:' || o.trade_id::text,
-  o.amount_micros, 'succeeded', sqlc.arg(at)::timestamptz, sqlc.arg(at)::timestamptz
+  o.amount_micros, 'succeeded', sqlc.arg(at)::timestamptz, sqlc.arg(at)::timestamptz, o.arrived_micros, o.arrival_tx
 FROM trade_steps AS o
 JOIN swaps AS s ON s.id = o.trade_id
 WHERE o.trade_id = sqlc.arg(from_trade)::uuid AND o.step = 'bridge_out' AND o.status = 'succeeded'
