@@ -111,6 +111,14 @@ One page at one URL carries one `VITE_PRIVY_APP_ID`, and staging and production 
 3. `.env.staging` sets `FUND_PAGE_URL` to that `/fund` URL and adds its origin to `WEB_ALLOWED_ORIGINS`; `scripts/render-staging-env.sh` pushes them to Render.
 4. The staging Privy app has no allowed-domains list, so any origin may use it. If one is ever added, it must include this domain.
 
+### Vercel projects and their Git checks
+
+Two Vercel projects in the `munyon-canyon` team build `apps/web` from `Munyon-Canyon/monaco`: `monaco` (production branch `main`, `monacolabs.xyz`) and `monaco-staging` (production branch `staging`). `vercel.json` sets `git.deploymentEnabled` so that only `main` and `staging` deploy, and each project posts a `Vercel – <project>` status on every pushed commit.
+
+A `Vercel – monaco: Deployment failed.` status with no details link and a duration of 0 means Vercel refused the push before it created a deployment, so there is no build log. On the PR, the `vercel[bot]` comment gives the reason. The status comes before Vercel reads the branch, so `vercel.json` (`git.deploymentEnabled` or `ignoreCommand`) cannot clear it. Fix it in the dashboard, on the project's Git connection.
+
+`There is no GitHub account connected to this Vercel account.` means the `monaco` project's Git connection belongs to a Vercel login that has no GitHub account linked. The project was linked while the repo was `lognorman20/monaco`, before it moved to `Munyon-Canyon` (#5383). To fix it, a team owner whose Vercel account has GitHub linked (Account Settings → Authentication) disconnects the repository in `monaco` → Settings → Git, then connects `Munyon-Canyon/monaco` again with production branch `main`. Root directory stays `apps/web`.
+
 `.github/workflows/web-deploy-check.yml` curls `/fund` on every successful Vercel deployment and fails unless it answers 200. Production builds from `main`, so `/fund` only exists there after the fund page is promoted from `staging`.
 
 Notes:
