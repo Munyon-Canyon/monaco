@@ -190,7 +190,7 @@ nonisolated extension SampleAPIProtocol {
         case "/v1/me/portfolio":
             return json(empty ? Components.Schemas.MyPortfolio.sampleEmpty : .sample)
         case "/v1/me/pnl-history":
-            return json(empty ? Components.Schemas.MyPnlHistory.sampleEmpty : .sample())
+            return json(empty ? Components.Schemas.MyPnlHistory.sampleEmpty : .sampleCurve())
         case "/v1/me/txns":
             return json(empty ? Components.Schemas.UserTxnPage.sampleEmpty : .sampleFirst)
         case "/v1/me/pending-votes":
@@ -390,7 +390,7 @@ nonisolated extension SampleAPIProtocol {
         case "value-history":
             let history: Components.Schemas.CabalValueHistory =
                 empty || range == "1D"
-                ? .init(cabalId: id, range: ._1d, points: [], pricesAsOf: nil) : .sample(cabalID: id)
+                ? .init(cabalId: id, range: ._1d, points: [], pricesAsOf: nil) : .sampleCurve(cabalID: id)
             return json(history)
         case "cashouts" where tail.last == "preview":
             return json(script.cashOut)

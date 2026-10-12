@@ -53,6 +53,32 @@ extension Components.Schemas.MyPnlHistory {
     }
 
     public static let sampleEmpty = Self(range: ._1d, points: [])
+
+    public static func sampleCurve(range: RangePayload = ._1d, count: Int = 49) -> Self {
+        let walk = SampleWalk.equity(count: count, base: 962_000_000, step: 4_000_000, seed: 7)
+        return Self(
+            range: range,
+            points: walk.enumerated().map { index, equity in
+                Components.Schemas.PnlPoint(
+                    at: Date(timeIntervalSince1970: 1_790_931_600 + TimeInterval(index * 1_800)),
+                    equityMicros: equity, pnlMicros: equity - walk[0])
+            })
+    }
+}
+
+enum SampleWalk {
+    static func equity(count: Int, base: Int64, step: Int64, seed: UInt64) -> [Int64] {
+        var state = seed &* 0x9E37_79B9_7F4A_7C15
+        var value = base
+        var out: [Int64] = []
+        for index in 0..<count {
+            state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+            let noise = Int64(state >> 33) % (step * 2) - step + step / 4
+            value += noise + (index > count / 2 ? step / 3 : 0)
+            out.append(value)
+        }
+        return out
+    }
 }
 
 extension Components.Schemas.CabalValueHistory {
@@ -67,6 +93,20 @@ extension Components.Schemas.CabalValueHistory {
                 Components.Schemas.CabalValuePoint(
                     at: Date(timeIntervalSince1970: 1_790_931_600 + TimeInterval(index * 86_400)),
                     valueMicros: pair.0, navPerShareMicros: 1_000_000, pnlMicros: pair.1)
+            },
+            pricesAsOf: Date(timeIntervalSince1970: 1_791_190_800))
+    }
+
+    public static func sampleCurve(
+        cabalID: String = Components.Schemas.CabalRef.sampleAlpha.id, range: RangePayload = ._1m, count: Int = 31
+    ) -> Self {
+        let walk = SampleWalk.equity(count: count, base: 950_000_000, step: 7_000_000, seed: 11)
+        return Self(
+            cabalId: cabalID, range: range,
+            points: walk.enumerated().map { index, value in
+                Components.Schemas.CabalValuePoint(
+                    at: Date(timeIntervalSince1970: 1_790_931_600 + TimeInterval(index * 86_400)),
+                    valueMicros: value, navPerShareMicros: 1_000_000, pnlMicros: value - walk[0])
             },
             pricesAsOf: Date(timeIntervalSince1970: 1_791_190_800))
     }
