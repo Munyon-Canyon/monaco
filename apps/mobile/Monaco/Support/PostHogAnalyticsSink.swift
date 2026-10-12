@@ -1,10 +1,15 @@
 import MonacoAnalytics
+import MonacoCore
 import PostHog
 
 struct PostHogAnalyticsSink: AnalyticsSink {
     static let host = "https://us.i.posthog.com"
 
-    init(apiKey: String) {
+    static func superProperties(for environment: MonacoEnvironment) -> [String: Any] {
+        ["env": environment.rawValue]
+    }
+
+    init(apiKey: String, environment: MonacoEnvironment) {
         let config = PostHogConfig(projectToken: apiKey, host: Self.host)
         config.captureApplicationLifecycleEvents = true
         config.captureScreenViews = false
@@ -12,6 +17,7 @@ struct PostHogAnalyticsSink: AnalyticsSink {
         config.sessionReplay = false
         config.personProfiles = .identifiedOnly
         PostHogSDK.shared.setup(config)
+        PostHogSDK.shared.register(Self.superProperties(for: environment))
     }
 
     func identify(userID: String, properties: [String: AnalyticsValue]) {
