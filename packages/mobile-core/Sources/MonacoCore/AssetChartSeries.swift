@@ -22,6 +22,11 @@ public struct AssetChartSeries: Equatable, Sendable {
     /// samples at one instant are two marks with one identity.
     public let points: [MarketChartPoint]
     public let plotted: [PlottedPoint]
+    public let bars: [PlottedBar]
+    public let candleBars: [PlottedBar]
+    public let interval: ChartInterval
+    public let nextBefore: Date?
+    private let anchorUsdcMicros: Int64?
     private let thinned: [MarketChartPoint]
     /// The close of the regular session before this window, when the source knew
     /// one. Only the day chart has a use for it.
@@ -38,11 +43,20 @@ public struct AssetChartSeries: Equatable, Sendable {
         previousCloseUsdcMicros: Int64? = nil,
         source: MarketChartSource? = nil,
         basis: MarketPriceBasis? = nil,
-        basisSymbol: String? = nil
+        basisSymbol: String? = nil,
+        interval: ChartInterval? = nil,
+        nextBefore: Date? = nil,
+        anchorUsdcMicros: Int64? = nil
     ) {
         self.range = range
         let canonical = Self.canonical(points)
         self.points = canonical
+        let bars = canonical.map(\.bar)
+        self.bars = bars
+        self.candleBars = bars.openingFlatBarsAtThePreviousClose
+        self.interval = interval ?? ChartInterval.default(for: range)
+        self.nextBefore = nextBefore
+        self.anchorUsdcMicros = anchorUsdcMicros ?? canonical.first?.priceUsdcMicros
         let thinned = SparklineSeries.downsample(canonical, to: Self.maximumPlottedPoints)
         self.thinned = thinned
         self.plotted = thinned.map { PlottedPoint(date: $0.date, value: $0.chartValue) }
@@ -86,6 +100,10 @@ public struct AssetChartSeries: Equatable, Sendable {
 
     public var lastPoint: MarketChartPoint? { points.last }
 
+    public var intervalSeconds: Int { interval.seconds }
+
+    public var hasOlder: Bool { nextBefore != nil }
+
     public func point(at index: Int) -> MarketChartPoint? {
         thinned.indices.contains(index) ? thinned[index] : nil
     }
@@ -101,7 +119,7 @@ public struct AssetChartSeries: Equatable, Sendable {
     /// chart against, so those measure from their own first point.
     public var baselineUsdcMicros: Int64? {
         if let previousClose = previousCloseBaselineUsdcMicros { return previousClose }
-        return points.first?.priceUsdcMicros
+        return anchorUsdcMicros
     }
 
     public var baselineValue: Double? {
@@ -202,6 +220,104 @@ public struct AssetChartSeries: Equatable, Sendable {
         nearestIndex(to: date).flatMap(point(at:))
     }
 
+    public func bar(at index: Int) -> PlottedBar? {
+        bars.indices.contains(index) ? bars[index] : nil
+    }
+
+    public func barPoint(at index: Int) -> MarketChartPoint? {
+        points.indices.contains(index) ? points[index] : nil
+    }
+
+    public func nearestBarIndex(to date: Date) -> Int? {
+        guard !points.isEmpty else { return nil }
+        let target = date.timeIntervalSince1970
+        var low = 0
+        var high = points.count - 1
+        if target <= TimeInterval(points[low].timestamp) { return low }
+        if target >= TimeInterval(points[high].timestamp) { return high }
+        while low + 1 < high {
+            let mid = (low + high) / 2
+            if TimeInterval(points[mid].timestamp) < target {
+                low = mid
+            } else {
+                high = mid
+            }
+        }
+        let before = target - TimeInterval(points[low].timestamp)
+        let after = TimeInterval(points[high].timestamp) - target
+        return after < before ? high : low
+    }
+
+    public func changeRatio(toBarIndex index: Int?) -> String? {
+        guard let baseline = baselineValue, baseline > 0 else { return nil }
+        guard let value = barTarget(at: index)?.chartValue else { return nil }
+        return Self.ratioString(value / baseline - 1)
+    }
+
+    public func changeDollars(toBarIndex index: Int?) -> String? {
+        guard let baseline = baselineValue else { return nil }
+        guard let value = barTarget(at: index)?.chartValue else { return nil }
+        let delta = value - baseline
+        guard delta.isFinite else { return nil }
+        return String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), delta)
+    }
+
+    private func barTarget(at index: Int?) -> MarketChartPoint? {
+        guard let index else { return points.last }
+        return barPoint(at: index)
+    }
+
+    public func prepending(_ older: AssetChartSeries) -> AssetChartSeries {
+        AssetChartSeries(
+            range: range,
+            points: older.points + points,
+            previousCloseUsdcMicros: previousCloseUsdcMicros,
+            source: source,
+            basis: basis,
+            basisSymbol: basisSymbol,
+            interval: interval,
+            nextBefore: older.nextBefore,
+            anchorUsdcMicros: anchorUsdcMicros
+        )
+    }
+
+    public func refreshed(with fresh: AssetChartSeries) -> AssetChartSeries {
+        guard let oldest = points.first, let freshFirst = fresh.points.first, oldest.timestamp < freshFirst.timestamp
+        else { return fresh }
+        let kept = points.filter { $0.timestamp < freshFirst.timestamp }
+        return AssetChartSeries(
+            range: fresh.range,
+            points: kept + fresh.points,
+            previousCloseUsdcMicros: fresh.previousCloseUsdcMicros,
+            source: fresh.source,
+            basis: fresh.basis,
+            basisSymbol: fresh.basisSymbol,
+            interval: fresh.interval,
+            nextBefore: nextBefore,
+            anchorUsdcMicros: fresh.anchorUsdcMicros
+        )
+    }
+
+    public func describeBar(
+        at index: Int,
+        locale: Locale = .autoupdatingCurrent,
+        timeZone: TimeZone = .autoupdatingCurrent
+    ) -> String? {
+        guard let bar = bar(at: index) else { return nil }
+        let posix = Locale(identifier: "en_US_POSIX")
+        func price(_ value: Double) -> String { String(format: "%.2f", locale: posix, value) }
+        let when = ChartScrubLabel.caption(
+            for: bar.date,
+            range: range,
+            intervalSeconds: interval.seconds,
+            locale: locale,
+            timeZone: timeZone
+        )
+        let figures =
+            "Open \(price(bar.open)), high \(price(bar.high)), low \(price(bar.low)), close \(price(bar.close))"
+        return "\(figures), \(when)"
+    }
+
     // MARK: - Whose price this is
 
     /// "AAPL on its home exchange" — the caption under a curve drawn from the
@@ -241,6 +357,7 @@ public enum ChartScrubLabel {
     public static func caption(
         for date: Date,
         range: AssetChartRange,
+        intervalSeconds: Int? = nil,
         locale: Locale = .autoupdatingCurrent,
         timeZone: TimeZone = .autoupdatingCurrent
     ) -> String {
@@ -249,7 +366,7 @@ public enum ChartScrubLabel {
         calendar.timeZone = timeZone
         return SharedFormatters.string(
             from: date,
-            pattern: .template(template(for: range)),
+            pattern: .template(template(for: range, intervalSeconds: intervalSeconds)),
             locale: locale,
             calendar: calendar,
             timeZone: timeZone
@@ -258,7 +375,10 @@ public enum ChartScrubLabel {
 
     /// `j` is the locale's own hour field: 12-hour with an AM/PM marker where that
     /// is how people read a clock, 24-hour where it is not.
-    private static func template(for range: AssetChartRange) -> String {
+    private static func template(for range: AssetChartRange, intervalSeconds: Int?) -> String {
+        if let intervalSeconds, intervalSeconds < 86_400 {
+            return range == .oneDay ? "EEEjmm" : "EEEMMMdjmm"
+        }
         switch range {
         case .oneDay: return "EEEjmm"
         case .oneWeek, .oneMonth, .threeMonths, .sixMonths: return "EEEMMMd"

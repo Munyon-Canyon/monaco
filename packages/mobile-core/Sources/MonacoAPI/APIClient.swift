@@ -11,7 +11,7 @@ public struct APIClient: Sendable {
     public init(
         serverURL: URL,
         tokens: any AccessTokenProvider,
-        transport: any ClientTransport = URLSessionTransport()
+        transport: any ClientTransport = URLSessionTransport(configuration: .init(httpBodyProcessingMode: .buffered))
     ) {
         self.init(serverURL: serverURL, tokens: tokens, transport: transport, clock: ContinuousClock())
     }

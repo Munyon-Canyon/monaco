@@ -81,8 +81,22 @@ public enum MarketMapping {
                     lowUsdcMicros: $0.lowMicros
                 )
             },
-            previousCloseUsdcMicros: value.previousCloseMicros
+            previousCloseUsdcMicros: value.previousCloseMicros,
+            interval: chartInterval(value.interval),
+            nextBefore: value.nextBefore
         )
+    }
+
+    private static func chartInterval(_ wire: Components.Schemas.AssetChart.IntervalPayload) -> ChartInterval {
+        switch wire {
+        case ._5m: .m5
+        case ._15m: .m15
+        case ._30m: .m30
+        case ._1h: .h1
+        case ._4h: .h4
+        case ._1d: .d1
+        case ._1w: .w1
+        }
     }
 
     public static func session(_ wire: Components.Schemas.MarketSession) -> MarketSession {
