@@ -88,10 +88,16 @@ func (r *route) calldata() string {
 	return strings.ToLower(strings.TrimPrefix(w.Swap.Data, "0x"))
 }
 
+func hooklessRequest(body map[string]any) bool {
+	protocols, _ := body["protocols"].([]any)
+	_, hooks := body["hooksOptions"]
+	return !hooks && slices.Equal(protocols, []any{"V2", "V3"})
+}
+
 func (r *wrapperRig) serveUniswap(w http.ResponseWriter, path string, body map[string]any) {
 	quote, _ := body["quote"].(map[string]any)
 	hookless := r.hookless != nil &&
-		(body["hooksOptions"] == mc.NoHooks || quote != nil && quote["quoteId"] == r.hookless.quoteID())
+		(hooklessRequest(body) || quote != nil && quote["quoteId"] == r.hookless.quoteID())
 	switch {
 	case path == "/v1/swap" && hookless:
 		r.swaps++
@@ -126,6 +132,28 @@ func revertTooLittle(floor, received int64) string {
 		w(floor) + w(received) + `"}}`
 }
 
+func (r *wrapperRig) uniswap(w http.ResponseWriter, req *http.Request) {
+	var body map[string]any
+	_ = json.NewDecoder(req.Body).Decode(&body)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	w.Header().Set("Content-Type", "application/json")
+	r.serveUniswap(w, req.URL.Path, body)
+}
+
+func (r *wrapperRig) rpc(w http.ResponseWriter, req *http.Request) {
+	var body map[string]any
+	_ = json.NewDecoder(req.Body).Decode(&body)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if body["method"] == "eth_getCode" {
+		_, _ = io.WriteString(w, r.codeReply)
+		return
+	}
+	r.calls = append(r.calls, body)
+	r.serveCall(w, body)
+}
+
 func newWrapperRig(t *testing.T, network chain.Network) *wrapperRig {
 	t.Helper()
 	r := &wrapperRig{
@@ -142,28 +170,10 @@ func newWrapperRig(t *testing.T, network chain.Network) *wrapperRig {
 		swap: `{"requestId":"s1","swap":{"to":"0xD6145b2d3F379919E8CdEdA7B97E37c4b2Ca9C40",` +
 			`"data":"0x3593564c00","value":"0x00","chainId":8453}}`,
 	}
-	uni := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		var body map[string]any
-		_ = json.NewDecoder(req.Body).Decode(&body)
-		r.mu.Lock()
-		defer r.mu.Unlock()
-		w.Header().Set("Content-Type", "application/json")
-		r.serveUniswap(w, req.URL.Path, body)
-	}))
+	uni := httptest.NewServer(http.HandlerFunc(r.uniswap))
 	t.Cleanup(uni.Close)
 	r.uniBase = uni.URL
-	rpc := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		var body map[string]any
-		_ = json.NewDecoder(req.Body).Decode(&body)
-		r.mu.Lock()
-		defer r.mu.Unlock()
-		if body["method"] == "eth_getCode" {
-			_, _ = io.WriteString(w, r.codeReply)
-			return
-		}
-		r.calls = append(r.calls, body)
-		r.serveCall(w, body)
-	}))
+	rpc := httptest.NewServer(http.HandlerFunc(r.rpc))
 	t.Cleanup(rpc.Close)
 	r.rpcURL = rpc.URL
 	owner, _ := chain.ParseEVMAddress(liveOwner)
@@ -652,14 +662,29 @@ func TestWrapper_replaysTheLiveRoutesAndBuysThroughTheHooklessOne(t *testing.T) 
 	q, err := r.buy(t, chain.NetworkBase)
 
 	if err != nil || q.GrossOutput.Int64() != 1_388_248 || q.RouteID != hookless.quoteID() ||
-		q.Options.HooksOptions != mc.NoHooks || !slices.Equal(r.quotes[0]["protocols"].([]any),
-		[]any{"V2", "V3", "V4"}) {
+		q.Options.HooksOptions != mc.NoHooks || !r.askedBothRoutes() {
 		t.Fatalf("quote = %v %s %+v, %v, want the hookless v3 route's 1388248 over the hooked route's 1318734",
 			q.GrossOutput, q.RouteID, q.Options, err)
 	}
 	if len(r.calls) != 2 {
 		t.Fatalf("%d simulations, want one per route", len(r.calls))
 	}
+}
+
+func (r *wrapperRig) askedBothRoutes() bool {
+	var hooked, hookless int
+	for _, q := range r.quotes {
+		protocols, _ := q["protocols"].([]any)
+		_, hooks := q["hooksOptions"]
+		switch {
+		case hooks:
+		case slices.Equal(protocols, []any{"V2", "V3", "V4"}):
+			hooked++
+		case slices.Equal(protocols, []any{"V2", "V3"}):
+			hookless++
+		}
+	}
+	return len(r.quotes) == 2 && hooked == 1 && hookless == 1
 }
 
 func TestWrapper_keepsTheHookedRouteWhenItSimulatesHigher(t *testing.T) {

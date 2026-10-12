@@ -9,6 +9,7 @@ func init() {
 		MarketRouterFallback,
 		MarketRouterSolanaUnquoted,
 		MarketRouterVenueDropped,
+		MarketRouterUniswapSteps,
 		MarketListingVerifyFailed,
 	)
 }
