@@ -112,15 +112,20 @@ CoinGecko is called with the Demo key (`COINGECKO_API_KEY` in encrypted `.env.pr
 
 ### Reads
 
-`GET /v1/assets/{symbol}/chart?range=` and every sparkline resolve symbol to mint, read `price_points` for the range's window, and bucket:
+`GET /v1/assets/{symbol}/chart?range=[&interval=][&before=][&limit=]` and every sparkline resolve symbol to mint, read `price_points` for the range's window, and bucket. `range` names the preset: its default interval and its first window. `interval` is the optional bar width, and the table says which widths each range allows; any other pair is `invalid_input`.
 
-| Range | Bucket |
-| --- | --- |
-| 1D | 5 min |
-| 1W, 1M, 3M | 1 hour |
-| 1Y, ALL | 1 day |
+| Range | Default interval | Allowed intervals |
+| --- | --- | --- |
+| 1D | 5 min | 5m 15m 30m 1h 4h 1d |
+| 1W | 1 hour | 5m 15m 30m 1h 4h 1d |
+| 1M | 1 hour | 15m 30m 1h 4h 1d |
+| 3M | 1 hour | 30m 1h 4h 1d 1w |
+| 6M | 1 day | 1h 4h 1d 1w |
+| 1Y, ALL | 1 day | 4h 1d 1w |
 
-Each bucket's open, high, low and close come from the samples inside it, on the server, so the app draws what it receives ([Thin client](backend-platform.md#thin-client)). The route and its response schema live in `api/openapi.yaml`, and the generated Swift client replaces today's hand-written `AssetChartSeries` decoding when iOS cuts over in Rollout step 7. The read is a CQRS-lite query through sqlc. An in-memory cache sits in front of it, with the TTL set to the sampler cadence for 1D (120 s) and 15 min for the rest, and a single-flight that collapses concurrent misses. Empty answers are cached too.
+Weekly (`1w`) bars start on Monday 00:00 UTC. A request with only `range` gets the default interval, so an older app build reads the same buckets as before. `limit` (1 to 1000) caps the bars in one response: the read takes the newest `limit` bars and returns them oldest first. With neither `before` nor `limit` the response is the whole preset window, uncapped, exactly as before the parameters existed; with `before` and no `limit` it holds at most 500 bars; an explicit `limit` always applies. `before` pans left: it is aligned down to the interval, the response holds bars that start before it, and the read reaches back to the asset's first sample instead of stopping at the range window. `next_before` in the response is the start of the oldest bar returned, or null when no older sample exists; the app sends it as the next `before`. The day-change base (`previous_close_micros`) is set only on the first 1D page.
+
+Each bucket's open, high, low and close come from the samples inside it, on the server, so the app draws what it receives ([Thin client](backend-platform.md#thin-client)). The route and its response schema live in `api/openapi.yaml`, and the generated Swift client replaces today's hand-written `AssetChartSeries` decoding when iOS cuts over in Rollout step 7. The read is a CQRS-lite query through sqlc. An in-memory cache sits in front of it, keyed by symbol, range, interval, `before` and `limit`, with the TTL set to the sampler cadence (120 s) for a page that holds the live bar (no `before`) and 15 min for an older page, and a single-flight that collapses concurrent misses. Empty answers are cached too.
 
 Range `ALL` is capped at whatever the table holds. On the Demo key that is 365 days from backfill day, which covers every xStock (launched June 2025) and every pre-IPO token in the catalog.
 

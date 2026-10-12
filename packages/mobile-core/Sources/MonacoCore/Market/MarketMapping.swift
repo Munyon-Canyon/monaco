@@ -127,6 +127,7 @@ public enum MarketMapping {
         case ._1w: .oneWeek
         case ._1m: .oneMonth
         case ._3m: .threeMonths
+        case ._6m: .sixMonths
         case ._1y: .oneYear
         case .all: .all
         }

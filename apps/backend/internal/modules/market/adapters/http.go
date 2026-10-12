@@ -207,8 +207,15 @@ func wireChart(chart app.Chart) (api.AssetChart, error) {
 		base = &wired
 	}
 	return api.AssetChart{
-		Range: api.AssetChartRange(chart.Range), BucketSeconds: int64(chart.Bucket / time.Second),
-		Points: points, Empty: chart.Empty, Attribution: domain.Attribution, PreviousCloseMicros: base,
+		Range:    api.AssetChartRange(chart.Range),
+		Interval: api.AssetChartInterval(chart.Interval),
+		BucketSeconds: int64(
+			chart.Bucket / time.Second,
+		),
+		Points:              points,
+		Empty:               chart.Empty,
+		Attribution:         domain.Attribution,
+		PreviousCloseMicros: base,
 	}, nil
 }
 

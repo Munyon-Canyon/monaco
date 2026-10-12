@@ -288,6 +288,7 @@ public final class AssetDetailClientModel {
         case .oneWeek: ._1w
         case .oneMonth: ._1m
         case .threeMonths: ._3m
+        case .sixMonths: ._6m
         case .oneYear: ._1y
         case .all: .all
         }
@@ -301,6 +302,7 @@ extension AssetChartRange {
         case .oneWeek: "Past week"
         case .oneMonth: "Past month"
         case .threeMonths: "Past three months"
+        case .sixMonths: "Past six months"
         case .oneYear: "Past year"
         case .all: "All time"
         }

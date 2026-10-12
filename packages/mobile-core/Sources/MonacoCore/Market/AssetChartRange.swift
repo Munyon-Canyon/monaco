@@ -3,6 +3,7 @@ public enum AssetChartRange: String, Codable, CaseIterable, Sendable {
     case oneWeek = "1W"
     case oneMonth = "1M"
     case threeMonths = "3M"
+    case sixMonths = "6M"
     case oneYear = "1Y"
     case all = "ALL"
 
