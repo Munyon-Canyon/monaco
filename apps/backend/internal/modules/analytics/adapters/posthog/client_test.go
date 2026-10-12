@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"maps"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -27,7 +28,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit/posthogfake"
 )
 
-const apiKey = "ph-test-key"
+const (
+	apiKey = "ph-test-key"
+	env    = config.EnvStaging
+)
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
@@ -35,7 +39,13 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { retu
 
 func newClient(t *testing.T, host string, opts ...httpclient.Option) posthog.Client {
 	t.Helper()
+	return newClientIn(t, env, host, opts...)
+}
+
+func newClientIn(t *testing.T, in config.Env, host string, opts ...httpclient.Option) posthog.Client {
+	t.Helper()
 	cfg := config.Config{
+		Env:      in,
 		PostHog:  config.PostHog{APIKey: apiKey, Host: host},
 		Timeouts: config.Timeouts{PostHog: time.Minute},
 	}
@@ -57,6 +67,12 @@ func sample() app.Capture {
 		Properties: map[string]any{"cabal": "alpha", "first": true},
 		Set:        map[string]any{"tier": "gold"},
 	}
+}
+
+func withEnv(props map[string]any) map[string]any {
+	out := map[string]any{"env": string(env)}
+	maps.Copy(out, props)
+	return out
 }
 
 func sameCapture(t *testing.T, got, want fakes.PostHogCapture) {
@@ -85,12 +101,34 @@ func TestClient_Capture_sendsEachCaptureTheWayPostHogExpectsIt(t *testing.T) {
 	}
 	sameCapture(t, got[0], fakes.PostHogCapture{
 		APIKey: apiKey, UUID: first.UUID, Event: first.Event, DistinctID: first.DistinctID,
-		Timestamp: first.Timestamp, Properties: first.Properties, Set: first.Set,
+		Timestamp: first.Timestamp, Properties: withEnv(first.Properties), Set: first.Set,
 	})
 	sameCapture(t, got[1], fakes.PostHogCapture{
 		APIKey: apiKey, UUID: second.UUID, Event: second.Event, DistinctID: second.DistinctID,
-		Timestamp: second.Timestamp, Properties: map[string]any{},
+		Timestamp: second.Timestamp, Properties: withEnv(nil),
 	})
+}
+
+func TestClient_Capture_tagsEveryCaptureWithTheEnvironmentTheBackendRunsIn(t *testing.T) {
+	t.Parallel()
+	for _, in := range []config.Env{config.EnvLocal, config.EnvStaging, config.EnvProduction} {
+		t.Run(string(in), func(t *testing.T) {
+			t.Parallel()
+			fake := posthogfake.New(t)
+			c := sample()
+			c.Properties = map[string]any{"env": "caller-supplied"}
+			if err := newClientIn(t, in, fake.Host()).Capture(t.Context(), []app.Capture{c}); err != nil {
+				t.Fatal(err)
+			}
+			got := fake.Captures()
+			if len(got) != 1 || got[0].Properties["env"] != string(in) {
+				t.Fatalf("captures = %+v, want one with env=%s", got, in)
+			}
+			if c.Properties["env"] != "caller-supplied" {
+				t.Fatalf("caller's properties = %v, want them left alone", c.Properties)
+			}
+		})
+	}
 }
 
 func TestClient_Capture_sendsTheTimestampInUTCWithoutTouchingTheCallersProperties(t *testing.T) {
