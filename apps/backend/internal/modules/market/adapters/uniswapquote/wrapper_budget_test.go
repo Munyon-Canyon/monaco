@@ -11,8 +11,10 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -202,7 +204,18 @@ func TestWrapper_logsHowLongEachStepTook(t *testing.T) {
 func TestWrapper_buildsEachSwapUnderTheRateLimit(t *testing.T) {
 	t.Parallel()
 	r := newWrapperRig(t, chain.NetworkBase)
-	client := r.client.WithLimit(rate.NewLimiter(rate.Every(time.Hour), 2))
+	quotes := &meeting{want: 2, all: make(chan struct{})}
+	both := func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path == "/v1/quote" && !quotes.attend(req.Context(), t.Context()) {
+			return
+		}
+		r.uniswap(w, req)
+	}
+	owner, _ := chain.ParseEVMAddress(liveOwner)
+	uni := httpclient.New("uniswap-limit-test", append(uniswapquote.Options("http://uniswap.test", 5*time.Second),
+		httpclient.WithTransport(inMemory{serve: both}))...)
+	client := uniswapquote.New(uni, "test-key", uniswapquote.Stored(owner), r.clock).WithWrapper(r.wrapper).
+		WithLimit(rate.NewLimiter(rate.Every(time.Hour), 2))
 	budget, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
 
@@ -214,26 +227,24 @@ func TestWrapper_buildsEachSwapUnderTheRateLimit(t *testing.T) {
 	}
 }
 
-type afterSimulation struct {
-	once      *sync.Once
-	simulated chan struct{}
+type inMemory struct {
+	serve   http.HandlerFunc
+	release <-chan struct{}
 }
 
-func (a afterSimulation) RoundTrip(req *http.Request) (*http.Response, error) {
+func (m inMemory) RoundTrip(req *http.Request) (*http.Response, error) {
 	body, _ := io.ReadAll(req.Body)
 	req.Body = io.NopCloser(bytes.NewReader(body))
-	if bytes.Contains(body, []byte(`"protocols":["V2","V3"]`)) {
+	if m.release != nil && bytes.Contains(body, []byte(`"protocols":["V2","V3"]`)) {
 		select {
-		case <-a.simulated:
+		case <-m.release:
 		case <-req.Context().Done():
 			return nil, req.Context().Err()
 		}
 	}
-	resp, err := http.DefaultTransport.RoundTrip(req)
-	if bytes.Contains(body, []byte(`"eth_call"`)) {
-		a.once.Do(func() { close(a.simulated) })
-	}
-	return resp, err
+	w := httptest.NewRecorder()
+	m.serve(w, req)
+	return w.Result(), nil
 }
 
 func TestWrapper_skipsTheSwapOfARouteThatCannotBeatTheSimulatedOne(t *testing.T) {
@@ -245,20 +256,34 @@ func TestWrapper_skipsTheSwapOfARouteThatCannotBeatTheSimulatedOne(t *testing.T)
 		swap:  strings.Replace(r.swap, "0x3593564c00", "0x3593564c01", 1),
 		reply: `{"jsonrpc":"2.0","id":1,"result":"0x"}`,
 	}
-	gate := afterSimulation{once: &sync.Once{}, simulated: make(chan struct{})}
 	owner, _ := chain.ParseEVMAddress(liveOwner)
 	delegate, _ := chain.ParseEVMAddress(uniswapquote.DefaultDelegate)
-	uni := httpclient.New("uniswap-outranked-test", append(uniswapquote.Options(r.uniBase, 5*time.Second),
-		httpclient.WithTransport(gate))...)
-	rpc := httpclient.New("evm-rpc-outranked-test", httpclient.WithBaseURL(r.rpcURL),
-		httpclient.WithTimeout(time.Second), httpclient.WithTransport(gate))
-	client := uniswapquote.New(uni, "test-key", uniswapquote.Stored(owner), r.clock).
-		WithWrapper(uniswapquote.NewWrapper(map[chain.Network]*httpclient.Client{chain.NetworkBase: rpc}, delegate))
+	synctest.Test(t, func(t *testing.T) {
+		release := make(chan struct{})
+		uni := httpclient.New(
+			"uniswap-outranked-test",
+			append(uniswapquote.Options("http://uniswap.test", 5*time.Second),
+				httpclient.WithTransport(inMemory{serve: r.uniswap, release: release}))...)
+		rpc := httpclient.New("evm-rpc-outranked-test", httpclient.WithBaseURL("http://rpc.test"),
+			httpclient.WithTimeout(time.Second), httpclient.WithTransport(inMemory{serve: r.rpc}))
+		client := uniswapquote.New(uni, "test-key", uniswapquote.Stored(owner), r.clock).
+			WithWrapper(uniswapquote.NewWrapper(map[chain.Network]*httpclient.Client{chain.NetworkBase: rpc}, delegate))
+		var q mc.Quote
+		var err error
+		var g errgroup.Group
+		g.Go(func() error {
+			q, err = client.Quote(t.Context(), b20Listing(t, chain.NetworkBase), mc.SideBuy,
+				money.MicrosFromUint64(liveInput))
+			return nil
+		})
 
-	q, err := client.Quote(t.Context(), b20Listing(t, chain.NetworkBase), mc.SideBuy, money.MicrosFromUint64(liveInput))
+		synctest.Wait()
+		close(release)
+		_ = g.Wait()
 
-	if err != nil || q.RouteID != "q-live" || q.GrossOutput.Int64() != quotedUnits || r.swaps != 1 {
-		t.Fatalf("quote = %v %s, %v after %d swap builds, want the simulated default route and no hookless swap",
-			q.GrossOutput, q.RouteID, err, r.swaps)
-	}
+		if err != nil || q.RouteID != "q-live" || q.GrossOutput.Int64() != quotedUnits || r.swaps != 1 {
+			t.Fatalf("quote = %v %s, %v after %d swap builds, want the simulated default route and no hookless swap",
+				q.GrossOutput, q.RouteID, err, r.swaps)
+		}
+	})
 }

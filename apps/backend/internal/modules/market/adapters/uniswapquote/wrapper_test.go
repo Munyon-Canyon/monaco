@@ -132,6 +132,28 @@ func revertTooLittle(floor, received int64) string {
 		w(floor) + w(received) + `"}}`
 }
 
+func (r *wrapperRig) uniswap(w http.ResponseWriter, req *http.Request) {
+	var body map[string]any
+	_ = json.NewDecoder(req.Body).Decode(&body)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	w.Header().Set("Content-Type", "application/json")
+	r.serveUniswap(w, req.URL.Path, body)
+}
+
+func (r *wrapperRig) rpc(w http.ResponseWriter, req *http.Request) {
+	var body map[string]any
+	_ = json.NewDecoder(req.Body).Decode(&body)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if body["method"] == "eth_getCode" {
+		_, _ = io.WriteString(w, r.codeReply)
+		return
+	}
+	r.calls = append(r.calls, body)
+	r.serveCall(w, body)
+}
+
 func newWrapperRig(t *testing.T, network chain.Network) *wrapperRig {
 	t.Helper()
 	r := &wrapperRig{
@@ -148,28 +170,10 @@ func newWrapperRig(t *testing.T, network chain.Network) *wrapperRig {
 		swap: `{"requestId":"s1","swap":{"to":"0xD6145b2d3F379919E8CdEdA7B97E37c4b2Ca9C40",` +
 			`"data":"0x3593564c00","value":"0x00","chainId":8453}}`,
 	}
-	uni := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		var body map[string]any
-		_ = json.NewDecoder(req.Body).Decode(&body)
-		r.mu.Lock()
-		defer r.mu.Unlock()
-		w.Header().Set("Content-Type", "application/json")
-		r.serveUniswap(w, req.URL.Path, body)
-	}))
+	uni := httptest.NewServer(http.HandlerFunc(r.uniswap))
 	t.Cleanup(uni.Close)
 	r.uniBase = uni.URL
-	rpc := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		var body map[string]any
-		_ = json.NewDecoder(req.Body).Decode(&body)
-		r.mu.Lock()
-		defer r.mu.Unlock()
-		if body["method"] == "eth_getCode" {
-			_, _ = io.WriteString(w, r.codeReply)
-			return
-		}
-		r.calls = append(r.calls, body)
-		r.serveCall(w, body)
-	}))
+	rpc := httptest.NewServer(http.HandlerFunc(r.rpc))
 	t.Cleanup(rpc.Close)
 	r.rpcURL = rpc.URL
 	owner, _ := chain.ParseEVMAddress(liveOwner)
