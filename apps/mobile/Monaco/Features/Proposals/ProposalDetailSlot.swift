@@ -280,7 +280,7 @@ private struct ProposalBestPrice: View {
         let decimals = model.asset?.decimals ?? AssetCatalogDefaults.decimals
         if LiveBestPriceModel.isLive(summary) {
             TimelineView(.periodic(from: .now, by: 1)) { context in
-                if model.livePrice.isAwaitingFirstQuote(for: summary) {
+                if model.livePrice.isFindingPrice(for: summary, decimals: decimals, now: context.date) {
                     BestPriceLoading()
                 } else if let row = model.livePrice.row(for: summary, decimals: decimals, now: context.date) {
                     BestPriceSection(row: row)

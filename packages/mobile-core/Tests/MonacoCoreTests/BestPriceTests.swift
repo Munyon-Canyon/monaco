@@ -216,6 +216,7 @@ final class BestPriceTests: XCTestCase {
         XCTAssertEqual(model.unavailableReason(for: pinned), "Unavailable: not set up on this chain yet")
         XCTAssertNil(model.row(for: pinned, decimals: 8, now: now))
         XCTAssertNil(model.row(for: pinned, decimals: 8, now: now.addingTimeInterval(120)))
+        XCTAssertFalse(model.isFindingPrice(for: pinned, decimals: 8, now: now.addingTimeInterval(120)))
         XCTAssertNil(model.unavailableReason(for: unpinned))
         XCTAssertEqual(model.row(for: unpinned, decimals: 8, now: now)?.caption, LiveBestPriceModel.whenProposed)
     }
@@ -233,16 +234,59 @@ final class BestPriceTests: XCTestCase {
         proposal.network = .base
         let pinned = ProposalSummary(proposal)
 
-        XCTAssertTrue(model.isAwaitingFirstQuote(for: pinned))
+        XCTAssertTrue(model.isFindingPrice(for: pinned, decimals: 8, now: now))
         XCTAssertNil(model.row(for: pinned, decimals: 8, now: now))
-        XCTAssertFalse(model.isAwaitingFirstQuote(for: unpinned))
+        XCTAssertFalse(model.isFindingPrice(for: unpinned, decimals: 8, now: now))
         XCTAssertEqual(model.row(for: unpinned, decimals: 8, now: now)?.caption, LiveBestPriceModel.whenProposed)
 
         model.poll(cabalID: "cabal-1")
         for _ in 0..<500 where model.latest == nil { await Task.yield() }
 
-        XCTAssertFalse(model.isAwaitingFirstQuote(for: pinned))
+        XCTAssertFalse(model.isFindingPrice(for: pinned, decimals: 8, now: now))
         XCTAssertEqual(model.row(for: pinned, decimals: 8, now: now)?.caption, "Updated just now")
+    }
+
+    @MainActor
+    func testAPinnedBuyWhosePollingFailsPastSixtySecondsShowsLoadingAndNeverTheStoredPrice() async throws {
+        struct Offline: Error {}
+        let clock = TestClock()
+        let start = Date()
+        let now = { start.addingTimeInterval(TimeInterval(clock.now.offset.components.seconds)) }
+        let live = LivePriceComparison(
+            .init(priceComparison: BestPrice.sampleComparison(now: start), quoteOutAmount: 10_000_000, quotedAt: start))
+        let fetches = Watched(0)
+        let fetch: @Sendable (String) async throws -> LivePriceComparison = { _ in
+            let count = fetches.mutate { count in
+                count += 1
+                return count
+            }
+            guard count == 1 else { throw Offline() }
+            return live
+        }
+        let model = LiveBestPriceModel(sleep: { try await clock.sleep(for: $0) }, fetch: fetch)
+        defer { model.poll(cabalID: nil) }
+        var proposal = Components.Schemas.Proposal.sample(kind: .buy)
+        proposal.priceComparison = BestPrice.sampleComparison(now: start)
+        let unpinned = ProposalSummary(proposal)
+        proposal.network = .base
+        let pinned = ProposalSummary(proposal)
+
+        model.poll(cabalID: "cabal-1")
+        for _ in 0..<500 where model.latest == nil { await Task.yield() }
+        XCTAssertEqual(model.row(for: pinned, decimals: 8, now: now())?.caption, "Updated just now")
+
+        for _ in 0..<5 {
+            _ = await clock.state.until { $0.pending > 0 }
+            clock.advance(by: LiveBestPriceModel.interval)
+        }
+        _ = await fetches.until { $0 >= 6 }
+
+        XCTAssertGreaterThan(now().timeIntervalSince(start), LiveBestPriceModel.staleAfter)
+        XCTAssertEqual(model.latest, live)
+        XCTAssertNil(model.unavailableReason(for: pinned))
+        XCTAssertNil(model.row(for: pinned, decimals: 8, now: now()))
+        XCTAssertTrue(model.isFindingPrice(for: pinned, decimals: 8, now: now()))
+        XCTAssertEqual(model.row(for: unpinned, decimals: 8, now: now())?.caption, LiveBestPriceModel.whenProposed)
     }
 
     func testNoComparisonOrAMissingWinnerShowsNothing() throws {

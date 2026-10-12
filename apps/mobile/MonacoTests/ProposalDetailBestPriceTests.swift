@@ -152,6 +152,47 @@ struct ProposalDetailBestPriceTests {
         #expect(!labels.contains { $0.contains("a share") }, "labels: \(labels)")
     }
 
+    @Test(.timeLimit(.minutes(1)))
+    func aPinnedBuyWhoseLastLiveComparisonIsStaleShowsTheBestPriceLoadingAndNoStoredPrice() async throws {
+        var detail = Components.Schemas.ProposalDetail.sample()
+        detail.priceComparison = BestPrice.sampleComparison(now: now)
+        detail.network = .base
+        let staleAt = Date().addingTimeInterval(-(LiveBestPriceModel.staleAfter + 60))
+        let stale = Components.Schemas.ProposalPriceComparison(quoteOutAmount: 10_000_000, quotedAt: staleAt)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let transport = StubTransport(routes: [
+            "/v1/proposals/\(detail.id)": [.json(.ok, String(decoding: try encoder.encode(detail), as: UTF8.self))],
+            "/v1/cabals/\(detail.cabalId)/proposals/\(detail.id)/price-comparison": [
+                .json(.ok, String(decoding: try encoder.encode(stale), as: UTF8.self))
+            ],
+        ])
+        let api = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
+        let model = ProposalDetailModel(
+            id: detail.id, cabalID: detail.cabalId, repository: ProposalsRepository(api: api), hints: FakeHintSource())
+        await model.load()
+        model.setVisible(true)
+        defer { model.setVisible(false) }
+        while model.livePrice.latest == nil { await Task.yield() }
+
+        try AccessibilityTree.setAutomation(enabled: true)
+        defer { try? AccessibilityTree.setAutomation(enabled: false) }
+        let window = try Self.window(hosting: ProposalDetailSlotView(proposalID: detail.id, model: model), api: api)
+        defer { window.isHidden = true }
+        let loading = ProposeAmountModel.findingPrice
+        await ProposalTestWindow.until {
+            AccessibilityTree.labels(in: window).contains { $0.contains(loading) }
+        }
+        for _ in 0..<200 { await Task.yield() }
+
+        let labels = AccessibilityTree.labels(in: window)
+        let age = try #require(model.livePrice.latest.map { Date().timeIntervalSince($0.quotedAt) })
+        #expect(age > LiveBestPriceModel.staleAfter)
+        #expect(labels.contains { $0.contains(loading) }, "labels: \(labels)")
+        #expect(!labels.contains { $0.contains("Price when proposed") }, "labels: \(labels)")
+        #expect(!labels.contains { $0.contains("a share") }, "labels: \(labels)")
+    }
+
     private static func window(hosting view: some View, api: APIClient) throws -> UIWindow {
         let scene = try #require(
             UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first,
