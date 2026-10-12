@@ -20,6 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 const routeExecOp = "trading.RouteExec"
@@ -174,6 +175,9 @@ func (r *RouteExec) settle(
 	case cause != nil && (errs.Retryable(code) || result.Hash != ""):
 		return cause
 	case cause != nil:
+		observability.Degraded(ctx, observability.TradingSwapRefused, slog.String("swap_id", b.id.String()),
+			slog.String("step", string(domain.StepSwap)), slog.String("code", string(code)),
+			slog.GroupAttrs("detail", errs.Detail(cause)...))
 		return r.finish(ctx, b, failed(b.req, b.id, domain.FailureNeverSubmitted, ""), string(code))
 	}
 	switch {
