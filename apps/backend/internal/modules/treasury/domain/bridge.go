@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"errors"
 	"slices"
 	"strconv"
 	"strings"
@@ -82,6 +83,21 @@ func NewBridgeLandedTxn(id uuid.UUID, b Bridge, usdc Asset) (CabalTxn, error) {
 		return CabalTxn{}, err
 	}
 	return NewCabalTxn(txn.CabalTxnHeader, append(txn.Entries(), fee.Entries()...))
+}
+
+func NewBridgeAdjustedTxn(id uuid.UUID, b Bridge, booked money.Micros, usdc Asset) (CabalTxn, bool, error) {
+	toFees, toErr := b.Fee.Delta(booked)
+	fromTreasury, fromErr := booked.Delta(b.Fee)
+	if err := errors.Join(toErr, fromErr); err != nil || toFees.IsZero() {
+		return CabalTxn{}, false, err
+	}
+	_, destination := b.assets(usdc)
+	txn, err := NewCabalTxn(CabalTxnHeader{ID: id, CabalID: b.CabalID, Kind: CabalSwap, Status: TxnSettled},
+		[]CabalEntry{
+			{Account: CabalTreasury, Asset: destination, Amount: fromTreasury},
+			{Account: CabalFees, Asset: destination, Amount: toFees},
+		})
+	return txn, err == nil, err
 }
 
 func NewBridgeReturnedTxn(id uuid.UUID, b Bridge, usdc Asset) (CabalTxn, error) {

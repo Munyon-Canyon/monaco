@@ -4,8 +4,10 @@ import (
 	"context"
 	"log/slog"
 	"math/big"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -17,7 +19,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
-const tradeStepsOp = "treasury.TradeSteps.Handle"
+const (
+	tradeStepsOp = "treasury.TradeSteps.Handle"
+	reusedPrefix = "reused:"
+)
 
 type TradeSteps struct {
 	Ledger app.Ledger
@@ -45,6 +50,9 @@ func (h TradeSteps) Handle(ctx context.Context, tx db.Tx, e events.TradeStepChan
 	case "submitted":
 		err = h.sent(ctx, tx, q, ledger, b, at)
 	case "succeeded":
+		if b.SwapID, err = bookedOn(e); err != nil {
+			return err
+		}
 		err = finish(ctx, q, b, func() error { return ledger.BridgeLanded(ctx, tx, b) })
 	case "failed":
 		if e.PrivyActionID == "" {
@@ -74,6 +82,19 @@ func (TradeSteps) sent(
 		CabalID: b.CabalID.UUID(), TradeID: b.SwapID, Network: string(b.Network), CreatedAt: at,
 		AmountMicros: pgtype.Numeric{Int: new(big.Int).SetUint64(b.Sent.Uint64()), Valid: true},
 	})
+}
+
+func bookedOn(e events.TradeStepChanged) (uuid.UUID, error) {
+	from, reused := strings.CutPrefix(e.PrivyActionID, reusedPrefix)
+	if !reused {
+		return e.SwapID, nil
+	}
+	id, err := uuid.Parse(from)
+	if err != nil {
+		return uuid.UUID{}, errs.Wrap(err, errs.CodeInvalidInput, tradeStepsOp,
+			slog.String("privy_action_id", e.PrivyActionID))
+	}
+	return id, nil
 }
 
 func finish(ctx context.Context, q *sqlc.Queries, b domain.Bridge, post func() error) error {

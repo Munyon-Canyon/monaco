@@ -2,18 +2,21 @@ package app
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 const (
 	bridgeSubmitted = "submitted"
 	bridgeSucceeded = "succeeded"
 	bridgeFailed    = "failed"
+	bridgeAdjusted  = "adjust"
 )
 
 func (l Ledger) BridgeSent(ctx context.Context, tx db.Tx, b domain.Bridge) (bool, error) {
@@ -32,7 +35,44 @@ func (l Ledger) BridgeSent(ctx context.Context, tx db.Tx, b domain.Bridge) (bool
 }
 
 func (l Ledger) BridgeLanded(ctx context.Context, tx db.Tx, b domain.Bridge) error {
-	return l.finishBridge(ctx, tx, b, bridgeSucceeded, domain.NewBridgeLandedTxn)
+	if err := l.finishBridge(ctx, tx, b, bridgeSucceeded, domain.NewBridgeLandedTxn); err != nil {
+		return err
+	}
+	if b.Direction != domain.BridgeOut {
+		return nil
+	}
+	return l.adjustLanded(ctx, tx, b)
+}
+
+func (l Ledger) adjustLanded(ctx context.Context, tx db.Tx, b domain.Bridge) error {
+	id := b.TxnID(bridgeAdjusted)
+	posted, err := txnPosted(ctx, tx, id)
+	var booked money.Micros
+	if err == nil && !posted {
+		booked, err = bookedFee(ctx, tx, b.TxnID(bridgeSucceeded), domain.EVMCashAsset(b.Network))
+	}
+	if err != nil || posted {
+		return err
+	}
+	txn, adjust, err := domain.NewBridgeAdjustedTxn(id, b, booked, l.usdc)
+	if err != nil || !adjust {
+		return err
+	}
+	return l.PostCabalTxn(ctx, tx, txn)
+}
+
+func bookedFee(ctx context.Context, tx db.Tx, landed uuid.UUID, asset domain.Asset) (money.Micros, error) {
+	rows, err := sqlc.New(tx.Queries()).AdminTxnByID(ctx, landed)
+	var fee money.Micros
+	for _, r := range rows {
+		if r.Account != string(domain.CabalFees) || r.Asset != string(asset) || r.Amount <= 0 {
+			continue
+		}
+		credit, creditErr := money.SignedMicrosFromInt64(r.Amount).Micros()
+		sum, sumErr := fee.Add(credit)
+		fee, err = sum, errors.Join(err, creditErr, sumErr)
+	}
+	return fee, err
 }
 
 func (l Ledger) BridgeReturned(ctx context.Context, tx db.Tx, b domain.Bridge) error {
