@@ -126,7 +126,7 @@ func flowsReaders() []string {
 }
 
 func reverseDeps(byDir map[string]listedPackage, changed []string) []string {
-	hit, ok := seedPackages(byDir, changed)
+	hit, local, ok := seedPackages(byDir, changed)
 	if !ok {
 		return []string{allPackages}
 	}
@@ -141,7 +141,8 @@ func reverseDeps(byDir map[string]listedPackage, changed []string) []string {
 	var out []string
 	for dir, p := range byDir {
 		tests := slices.Concat(p.TestImports, p.XTestImports)
-		if hit[p.ImportPath] || slices.ContainsFunc(tests, func(i string) bool { return hit[i] }) {
+		testsHit := slices.ContainsFunc(tests, func(i string) bool { return hit[i] })
+		if hit[p.ImportPath] || local[p.ImportPath] || testsHit {
 			out = append(out, "./"+dir)
 		}
 	}
@@ -149,22 +150,30 @@ func reverseDeps(byDir map[string]listedPackage, changed []string) []string {
 	return out
 }
 
-func seedPackages(byDir map[string]listedPackage, changed []string) (map[string]bool, bool) {
-	hit := map[string]bool{}
+func seedPackages(byDir map[string]listedPackage, changed []string) (hit, local map[string]bool, ok bool) {
+	hit, local = map[string]bool{}, map[string]bool{}
 	for _, f := range changed {
 		dirs := seedDirs(byDir, f)
 		if len(dirs) == 0 {
-			return nil, false
+			return nil, nil, false
+		}
+		into := hit
+		if testOnly(f) {
+			into = local
 		}
 		for _, d := range dirs {
-			p, ok := byDir[d]
-			if !ok {
-				return nil, false
+			p, found := byDir[d]
+			if !found {
+				return nil, nil, false
 			}
-			hit[p.ImportPath] = true
+			into[p.ImportPath] = true
 		}
 	}
-	return hit, true
+	return hit, local, true
+}
+
+func testOnly(f string) bool {
+	return strings.HasSuffix(f, "_test.go")
 }
 
 func seedDirs(byDir map[string]listedPackage, f string) []string {
