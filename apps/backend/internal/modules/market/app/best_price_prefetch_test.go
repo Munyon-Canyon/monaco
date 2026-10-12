@@ -175,6 +175,42 @@ func TestBestChainsRefreshesAnAnswerPastAMinuteBeforeAnswering(t *testing.T) {
 	})
 }
 
+func TestBestChainsKeepsTheStaleAnswerWhenItsRefreshFails(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		w := newPrefetchWorld(t, marketfake.NewCatalog(marketfake.AAPLx()))
+		first := w.get(t)
+		w.f.listingsErr = errs.New(errs.CodeJupiterUnavailable, "test")
+		w.f.clk.Advance(30 * time.Second)
+		for attempt := 1; attempt <= 2; attempt++ {
+			if got := w.get(t); !got.QuotedAt.Equal(first.QuotedAt) {
+				t.Fatalf("read %d: quoted at %v, want the stale answer from %v", attempt, got.QuotedAt, first.QuotedAt)
+			}
+			synctest.Wait()
+			w.expectFailedRefreshes(t, attempt)
+		}
+		w.f.clk.Advance(app.BestChainServed - 30*time.Second)
+		got, err := w.best.Get(w.context(t), "AAPLx")
+		if errs.CodeOf(err) != errs.CodeJupiterUnavailable || !got.QuotedAt.IsZero() {
+			t.Fatalf("a minute later: Get = %v, %v, want the refresh error, not the stale answer", got.QuotedAt, err)
+		}
+		w.expectFailedRefreshes(t, 2)
+	})
+}
+
+func (w *prefetchWorld) expectFailedRefreshes(t *testing.T, want int) {
+	t.Helper()
+	lines := w.logs.Lines("market.best_chain.refresh_failed", "symbol", "code")
+	if len(lines) != want {
+		t.Fatalf("refresh_failed lines = %q, want %d", lines, want)
+	}
+	for _, line := range lines {
+		if line != "AAPLx jupiter_unavailable" {
+			t.Fatalf("refresh_failed line = %q", line)
+		}
+	}
+}
+
 func TestBestChainsAnswersWhatItCannotQuote(t *testing.T) {
 	t.Parallel()
 	bad := marketfake.AAPLx()
