@@ -9,9 +9,9 @@ trap 'rm -f "$error_file"' EXIT
 samples="$(scripts/with-dotenv-local.sh apps/mobile/qa/journeys/psql.sh -v ON_ERROR_STOP=1 -tA -q \
   <apps/mobile/qa/journeys/stocks/browse.catalogue.sql 2>"$error_file")" || true
 
-if [[ "$samples" != "8" ]]; then
+if [[ "$samples" != "128" ]]; then
   grep -v -e '^with-dotenv-local:' -e 'injected env' "$error_file" >&2 || true
   echo "${1:?usage: browse.setup.sh <scenario>}: could not seed the journey catalogue (got '${samples}' samples)" >&2
   exit 1
 fi
-echo "$1: seeded JRNYAx, JRNYPx, JRNYQx and JRNYZx with two price samples each"
+echo "$1: seeded JRNYAx, JRNYPx, JRNYQx and JRNYZx with two price samples each, and JRNYAx with 120 five-minute samples more"

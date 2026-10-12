@@ -5,6 +5,9 @@ import SwiftUI
 
 enum AssetDetailSampleScenario: String, CaseIterable {
     case open
+    case candles
+    case candlesLong
+    case candlesSparse
     case notHeld
     case preMarket
     case afterHours
@@ -29,7 +32,9 @@ enum AssetDetailSampleScenario: String, CaseIterable {
     var script: SampleAPIScript {
         var script = SampleAPIScript()
         switch self {
-        case .open: break
+        case .open, .candles: break
+        case .candlesLong: script.candleCount = 2_200
+        case .candlesSparse: script.sparseCandles = true
         case .notHeld: script.cabalCount = 0
         case .preMarket: script.asset.session = .preMarket
         case .afterHours: script.asset.session = .afterHours
@@ -54,7 +59,9 @@ final class AssetDetailSampleHarnessEntry: SampleHarnessEntry {
         guard let scenario = AssetDetailSampleScenario.matching(arguments) else { return nil }
         let script = scenario.script
         SampleAPIProtocol.install(script)
-        return AnyView(SampleAppFrame(auth: auth, tab: .stocks, routes: [AssetRoute(symbol: script.asset.symbol)]))
+        return AnyView(
+            SampleAppFrame(auth: auth, tab: .stocks, routes: [AssetRoute(symbol: script.asset.symbol)])
+        )
     }
 }
 #endif

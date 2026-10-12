@@ -72,4 +72,31 @@ struct AssetScrubHeaderTests {
         #expect(Self.header(-1) == nil)
         #expect(Self.header(0, chart: nil) == nil)
     }
+
+    private static func barHeader(_ index: Int?, chart: AssetChartSeries?) -> AssetScrubHeader? {
+        AssetScrubHeader(chart: chart, barIndex: index, locale: us, timeZone: utc)
+    }
+
+    @Test func aHeldBarShowsThatBarsCloseChangeAndTimeOfDay() throws {
+        let day = AssetChartSeries(
+            range: .oneWeek,
+            points: [
+                .init(timestamp: Self.start + 14 * 3_600, priceUsdcMicros: 100_000_000),
+                .init(timestamp: Self.start + 14 * 3_600 + 900, priceUsdcMicros: 102_000_000),
+            ],
+            interval: .m15)
+
+        let header = try #require(Self.barHeader(1, chart: day))
+
+        #expect(header.price == "$102.00")
+        #expect(header.basisPoints == 200)
+        #expect(header.caption == "Fri, Aug 14 at 2:15\u{202F}PM")
+    }
+
+    @Test func aBarIndexTheSeriesDoesNotHaveRestoresTheLiveHeader() {
+        #expect(Self.barHeader(nil, chart: Self.series) == nil)
+        #expect(Self.barHeader(3, chart: Self.series) == nil)
+        #expect(Self.barHeader(-1, chart: Self.series) == nil)
+        #expect(Self.barHeader(0, chart: nil) == nil)
+    }
 }

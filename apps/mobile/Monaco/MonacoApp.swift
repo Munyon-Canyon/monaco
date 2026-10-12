@@ -55,6 +55,11 @@ struct MonacoApp: App {
     }
 
     private var root: some View {
+        #if DEBUG
+        ContentView().environment(
+            \.scrubSelectionPersists, ProcessInfo.processInfo.arguments.contains("-MonacoScrubHolds"))
+        #else
         ContentView()
+        #endif
     }
 }

@@ -1,7 +1,7 @@
 journey: stocks/asset-detail
-expect-fail: S2, S4
+expect-fail: S2, S4, S5
 
-A Stocks row opens nothing. S2.1 and S4.1 expect the asset screen, so S2 and S4 must fail.
+A Stocks row opens nothing. S2.1, S4.1 and S5.1 expect the asset screen, so S2, S4 and S5 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Assets/StocksTabView.swift b/apps/mobile/Monaco/Features/Assets/StocksTabView.swift

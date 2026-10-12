@@ -2,14 +2,14 @@ import XCTest
 
 enum StocksAssetDetailJourney {
     static let id = "stocks/asset-detail"
-    static let version = 6
+    static let version = 7
 
     static let alpha = StocksBrowseJourney.alpha
     static let preIpo = StocksBrowseJourney.preIpo
     static let otherListingID = "asset-other-listing-JRNYQx"
     static let otherListingTicker = "JRNYQx"
     static let buyCaption = "Your cabal votes before anything is bought"
-    static let ranges = ["1D", "1W", "1M", "3M", "1Y", "ALL"]
+    static let ranges = ["1D", "1W", "1M", "3M", "6M", "1Y", "ALL"]
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -34,6 +34,14 @@ enum StocksAssetDetailJourney {
         app.descendants(matching: .any).matching(
             NSPredicate(
                 format: "identifier BEGINSWITH 'propose-pick-cabal-' AND identifier != 'propose-pick-cabal-question'"))
+    }
+
+    static func expectPicker(_ app: XCUIApplication, asking question: String) {
+        let asked = app.element("propose-pick-cabal-question")
+        XCTAssertTrue(asked.waitForExistence(timeout: 10), "S1.8: the cabal picker never showed its question")
+        XCTAssertEqual(asked.label, question, "S1.8: the cabal picker does not ask '\(question)'")
+        XCTAssertTrue(cabalRows(app).firstMatch.waitForExistence(timeout: 10), "S1.8: no cabal row in the picker")
+        XCTAssertGreaterThanOrEqual(cabalRows(app).count, 2, "S1.8: the picker lists fewer than two cabals")
     }
 
     static func scrollToText(_ app: XCUIApplication, _ text: String, step: String) {
@@ -122,11 +130,7 @@ enum StocksAssetDetailJourney {
             XCTAssertTrue(
                 app.navigationBars["Pick a cabal"].waitForExistence(timeout: 10),
                 "S1.8: Propose buy did not open the cabal picker titled 'Pick a cabal' (#613)")
-            XCTAssertEqual(
-                app.element("propose-pick-cabal-question").label, question,
-                "S1.8: the cabal picker does not ask '\(question)'")
-            XCTAssertTrue(cabalRows(app).firstMatch.waitForExistence(timeout: 10), "S1.8: no cabal row in the picker")
-            XCTAssertGreaterThanOrEqual(cabalRows(app).count, 2, "S1.8: the picker lists fewer than two cabals")
+            expectPicker(app, asking: question)
         }
 
         recorder.step("S1.9", "pick a cabal and reach Amount") {
@@ -189,24 +193,54 @@ enum StocksAssetDetailJourney {
     }
 
     static func position(_ app: XCUIApplication, recorder: JourneyRecorder) {
-        recorder.step("S4.1", "open Journey Alpha") {
-            openAsset(app, alpha, step: "S4.1")
+        recorder.step("S5.1", "open Journey Alpha") {
+            openAsset(app, alpha, step: "S5.1")
         }
 
-        recorder.step("S4.2", "see Your cabals' position") {
-            scrollTo(app, app.element("asset-cabal-positions"), named: "asset-cabal-positions", step: "S4.2")
+        recorder.step("S5.2", "see Your cabals' position") {
+            scrollTo(app, app.element("asset-cabal-positions"), named: "asset-cabal-positions", step: "S5.2")
             let holding = app.descendants(matching: .any)
                 .matching(NSPredicate(format: "identifier BEGINSWITH 'asset-position-'")).firstMatch
-            XCTAssertTrue(holding.exists, "S4.2: no cabal row under 'Your cabals' position'")
+            XCTAssertTrue(holding.exists, "S5.2: no cabal row under 'Your cabals' position'")
         }
 
-        recorder.step("S4.3", "tap Propose sell") {
+        recorder.step("S5.3", "tap Propose sell") {
             let sell = app.buttons["asset-detail-propose-sell"]
-            XCTAssertTrue(sell.waitForExistence(timeout: 5), "S4.3: no Propose sell")
+            XCTAssertTrue(sell.waitForExistence(timeout: 5), "S5.3: no Propose sell")
             sell.tap()
             XCTAssertTrue(
                 app.navigationBars["Propose sell"].waitForExistence(timeout: 10),
-                "S4.3: Propose sell did not open the propose screen")
+                "S5.3: Propose sell did not open the propose screen")
+        }
+    }
+
+    static func zoomAndPan(_ app: XCUIApplication, recorder: JourneyRecorder) {
+        recorder.step("S4.1", "open Journey Alpha") {
+            openAsset(app, alpha, step: "S4.1")
+            XCTAssertTrue(
+                app.element("asset-detail-chart").waitForExistence(timeout: 15), "S4.1: no chart for the seeded samples"
+            )
+        }
+
+        recorder.step("S4.2", "pinch the chart") {
+            let chart = app.element("asset-detail-chart")
+            chart.pinch(withScale: 2, velocity: 1)
+            XCTAssertTrue(chart.exists, "S4.2: the chart is gone after the pinch")
+        }
+
+        recorder.step("S4.3", "pan back in time") {
+            app.element("asset-detail-chart").swipeRight()
+            XCTAssertTrue(
+                app.buttons["asset-chart-jump"].waitForExistence(timeout: 10),
+                "S4.3: no jump-to-latest button after panning back")
+        }
+
+        recorder.step("S4.4", "jump to the latest bar") {
+            let jump = app.buttons["asset-chart-jump"]
+            jump.tap()
+            let gone = NSPredicate(format: "exists == false")
+            let wait = XCTNSPredicateExpectation(predicate: gone, object: jump)
+            XCTAssertEqual(XCTWaiter().wait(for: [wait], timeout: 10), .completed, "S4.4: the jump button stayed")
         }
     }
 }
