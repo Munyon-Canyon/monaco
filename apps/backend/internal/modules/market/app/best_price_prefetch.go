@@ -83,9 +83,21 @@ func (b *BestChains) cached(ctx context.Context, symbol string) (BestChain, bool
 	case !ok || age >= BestChainServed:
 		return BestChain{}, false
 	case age >= BestChainFresh:
-		b.flight.DoChan(symbol, b.refresh(ctx, symbol))
+		b.flight.DoChan(symbol, b.refreshBehind(ctx, symbol))
 	}
 	return got, true
+}
+
+func (b *BestChains) refreshBehind(ctx context.Context, symbol string) func() (any, error) {
+	refresh := b.refresh(ctx, symbol)
+	return func() (any, error) {
+		got, err := refresh()
+		if err != nil {
+			observability.Degraded(ctx, observability.MarketBestChainRefreshFailed, slog.String("symbol", symbol),
+				slog.String("error", err.Error()), slog.String("code", string(errs.CodeOf(err))))
+		}
+		return got, err
+	}
 }
 
 func (b *BestChains) refresh(ctx context.Context, symbol string) func() (any, error) {
