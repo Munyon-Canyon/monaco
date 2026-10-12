@@ -21,8 +21,10 @@ nonisolated struct SampleAPIScript: Sendable {
     var pictureWriteFails = false
     var balance = Components.Schemas.Balance.sample
     var asset = Components.Schemas.AssetDetail.googl
-    var chart = Components.Schemas.AssetChart.oneDay
+    var chart = Components.Schemas.AssetChart.candles
     var cabalCount = 1
+    var candleCount = 300
+    var sparseCandles = false
     var pot = Components.Schemas.CabalPot.sampleInvested
     var proposal: Components.Schemas.ProposalDetail?
     var pendingVotes: [Components.Schemas.PendingVote] = []
@@ -281,9 +283,39 @@ nonisolated extension SampleAPIProtocol {
         case 1:
             return json(script.asset)
         case 2 where tail[1] == "chart":
-            return json(script.chart)
+            return json(
+                chartReply(script.chart, query: query, candleCount: script.candleCount, sparse: script.sparseCandles))
         default:
             return problem(404, "not_found", "Not in the sample data.")
+        }
+    }
+
+    private static func chartReply(
+        _ base: Components.Schemas.AssetChart, query: [String: String], candleCount: Int, sparse: Bool
+    ) -> Components.Schemas.AssetChart {
+        let range = query["range"].flatMap(Components.Schemas.AssetChart.RangePayload.init(rawValue:)) ?? base.range
+        let interval =
+            query["interval"].flatMap(Components.Schemas.AssetChart.IntervalPayload.init(rawValue:))
+            ?? Self.defaultInterval(range)
+        if query["before"] != nil {
+            return .init(
+                range: range, interval: interval, bucketSeconds: base.bucketSeconds, points: [], empty: true,
+                attribution: base.attribution, nextBefore: nil)
+        }
+        if base == .candles { return .candles(range: range, interval: interval, count: candleCount, sparse: sparse) }
+        var echoed = base
+        echoed.range = range
+        echoed.interval = interval
+        return echoed
+    }
+
+    private static func defaultInterval(
+        _ range: Components.Schemas.AssetChart.RangePayload
+    ) -> Components.Schemas.AssetChart.IntervalPayload {
+        switch range {
+        case ._1d: ._5m
+        case ._1w, ._1m, ._3m: ._1h
+        case ._6m, ._1y, .all: ._1d
         }
     }
 

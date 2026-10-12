@@ -21,6 +21,15 @@ FROM (VALUES
 JOIN assets a ON a.symbol = p.symbol
 CROSS JOIN (VALUES (now() - interval '12 hours'), (now())) AS s(ts);
 
+INSERT INTO price_points (mint, ts, price_micros, source)
+SELECT a.mint,
+  date_bin(interval '5 minutes', now(), timestamptz '2000-01-01 00:00:00+00') - n * interval '5 minutes',
+  (121500000 + ((n * 7919) % 41) * 100000)::bigint,
+  'qa-journey'
+FROM assets a CROSS JOIN generate_series(1, 120) AS n
+WHERE a.symbol = 'JRNYAx'
+ON CONFLICT (mint, ts) DO NOTHING;
+
 UPDATE assets SET last_quoted_at = now() WHERE symbol IN ('JRNYAx', 'JRNYPx', 'JRNYQx', 'JRNYZx');
 
 SELECT count(*) FROM price_points WHERE source = 'qa-journey';

@@ -8,11 +8,11 @@ apps/mobile/qa/journeys/stocks/browse.setup.sh "$scenario"
 # shellcheck disable=SC1091
 source scripts/qa/seed.sh
 # The 52-week bar draws only over a year range with a width, and the catalogue seed gives JRNYAx one price at both
-# samples (P2). Lower the older sample so S2.3 has a range to read. The latest sample, and the price the screen shows, stay.
+# samples (P2); the chart seed adds 120 five-minute samples in the last ten hours. Lower the older sample so S2.3 has a range to read. The latest sample, and the price the screen shows, stay.
 qa_sql >/dev/null <<'SQL'
 UPDATE price_points p SET price_micros = 120000000
 FROM assets a
-WHERE a.mint = p.mint AND a.symbol = 'JRNYAx' AND p.source = 'qa-journey' AND p.ts < now() - interval '1 hour'
+WHERE a.mint = p.mint AND a.symbol = 'JRNYAx' AND p.source = 'qa-journey' AND p.ts < now() - interval '11 hours'
 SQL
 [[ "$scenario" == S1 ]] || exit 0
 

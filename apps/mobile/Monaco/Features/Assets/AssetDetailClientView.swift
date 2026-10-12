@@ -8,6 +8,7 @@ struct AssetDetailClientView: View {
     let symbol: String
     @State private var model: AssetDetailClientModel?
     @State private var scrubbedIndex: Int?
+    @AppStorage("asset-chart-style") private var storedStyle = MonacoChartStyle.candles.rawValue
     @State private var priceTick: MonacoPriceTick?
 
     init(symbol: String, model: AssetDetailClientModel? = nil) {
@@ -85,6 +86,7 @@ struct AssetDetailClientView: View {
         .monacoCanvas()
         .foregroundStyle(MonacoTheme.ink)
         .safeAreaInset(edge: .bottom) { proposeBar(detail, model: model) }
+        .monacoFrameStats("AssetDetail")
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("asset-detail-root")
     }
@@ -154,11 +156,12 @@ struct AssetDetailClientView: View {
     }
 
     private func scrubHeader(_ model: AssetDetailClientModel) -> AssetScrubHeader? {
-        AssetScrubHeader(chart: model.chart, index: scrubbedIndex)
+        AssetScrubHeader(chart: model.chart, barIndex: scrubbedIndex)
     }
 
     private func chart(_ detail: AssetDetailPresentation, model: AssetDetailClientModel) -> some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+            chartControls(model)
             chartContent(detail, model: model)
             MonacoRangeChips(
                 ranges: AssetChartRange.allCases, selection: model.selectedRange, identifierPrefix: "asset-range",
@@ -168,53 +171,6 @@ struct AssetDetailClientView: View {
             .accessibilityIdentifier("asset-chart-ranges")
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
-    }
-
-    @ViewBuilder
-    private func chartContent(_ detail: AssetDetailPresentation, model: AssetDetailClientModel) -> some View {
-        switch model.chartPhase {
-        case .idle, .loading:
-            SkeletonBlock(width: nil, height: 200, radius: 0)
-                .accessibilityIdentifier("asset-detail-chart-loading")
-        case .failed:
-            MonacoErrorRow(thing: "price history", identifier: "asset-detail-chart-failed") {
-                Task { await model.loadChart(range: model.selectedRange) }
-            }
-        case .loaded:
-            if let chart = model.chart, chart.points.count >= 2 {
-                scrubChart(chart, isMarketLive: detail.session == .open)
-            } else {
-                EmptyState(
-                    title: PreIpoCopy.chartEmpty,
-                    message: detail.kind == .preIpo ? PreIpoCopy.chartEmptyMessage : "The curve draws as it trades."
-                )
-                .frame(height: 200)
-                .accessibilityIdentifier("asset-detail-chart-empty")
-            }
-        }
-    }
-
-    private func scrubChart(_ chart: AssetChartSeries, isMarketLive: Bool) -> some View {
-        MonacoScrubChart(
-            points: chart.plotted,
-            tint: chartTone(chart),
-            baseline: chart.drawsBaselineRule ? chart.baselineValue : nil,
-            isLive: isMarketLive && chart.range == .oneDay,
-            drawOnKey: chart.range.rawValue,
-            selection: $scrubbedIndex,
-            summary: "\(chart.range.label) price history",
-            nearestIndex: { chart.nearestIndex(to: $0) },
-            describePoint: { index in
-                guard let point = chart.point(at: index) else { return "" }
-                return UsdAmountFormatter.format(micros: point.priceUsdcMicros)
-            },
-            accessibilityIdentifier: "asset-detail-chart"
-        )
-    }
-
-    private func chartTone(_ chart: AssetChartSeries) -> Color {
-        guard let basisPoints = model?.rangeChange?.basisPoints else { return MonacoTheme.muted }
-        return basisPoints > 0 ? MonacoTheme.profitVivid : basisPoints < 0 ? MonacoTheme.lossVivid : MonacoTheme.muted
     }
 
     @ViewBuilder
@@ -258,6 +214,110 @@ struct AssetDetailClientView: View {
 }
 
 extension AssetDetailClientView {
+    fileprivate var chartStyle: Binding<MonacoChartStyle> {
+        Binding(
+            get: { MonacoChartStyle(rawValue: storedStyle) ?? .candles },
+            set: { storedStyle = $0.rawValue }
+        )
+    }
+
+    @ViewBuilder
+    fileprivate func chartControls(_ model: AssetDetailClientModel) -> some View {
+        if model.chartPhase == .loaded, model.chart?.isDrawable == true {
+            HStack(spacing: MonacoTheme.Space.s) {
+                intervalMenu(model)
+                Spacer(minLength: 0)
+                MonacoChartStyleToggle(style: chartStyle)
+            }
+        }
+    }
+
+    fileprivate func intervalMenu(_ model: AssetDetailClientModel) -> some View {
+        Menu {
+            ForEach(ChartInterval.allowed(for: model.selectedRange), id: \.self) { interval in
+                Button {
+                    guard interval != model.selectedInterval else { return }
+                    Haptics.selection()
+                    scrubbedIndex = nil
+                    Task { await model.loadChart(range: model.selectedRange, interval: interval) }
+                } label: {
+                    if interval == model.selectedInterval {
+                        Label(interval.label, systemImage: "checkmark")
+                    } else {
+                        Text(interval.label)
+                    }
+                }
+                .accessibilityIdentifier("asset-interval-\(interval.rawValue)")
+            }
+        } label: {
+            HStack(spacing: MonacoTheme.Space.xs) {
+                Text(model.selectedInterval.label)
+                Image(systemName: "chevron.down").font(MonacoTheme.Typo.caption)
+            }
+            .monacoChipLabel(isSelected: false, isPreset: true)
+        }
+        .accessibilityLabel("Bar interval, \(model.selectedInterval.label)")
+        .accessibilityIdentifier("asset-chart-interval")
+    }
+
+    @ViewBuilder
+    fileprivate func chartContent(_ detail: AssetDetailPresentation, model: AssetDetailClientModel) -> some View {
+        switch model.chartPhase {
+        case .idle, .loading:
+            SkeletonBlock(width: nil, height: 200, radius: 0)
+                .accessibilityIdentifier("asset-detail-chart-loading")
+        case .failed:
+            MonacoErrorRow(thing: "price history", identifier: "asset-detail-chart-failed") {
+                Task { await model.loadChart(range: model.selectedRange) }
+            }
+        case .loaded:
+            if let chart = model.chart, chart.points.count >= 2 {
+                candleChart(chart, model: model, isMarketLive: detail.session == .open)
+            } else {
+                EmptyState(
+                    title: PreIpoCopy.chartEmpty,
+                    message: detail.kind == .preIpo ? PreIpoCopy.chartEmptyMessage : "The curve draws as it trades."
+                )
+                .frame(height: 200)
+                .accessibilityIdentifier("asset-detail-chart-empty")
+            }
+        }
+    }
+
+    fileprivate func drawnBars(_ chart: AssetChartSeries) -> [PlottedBar] {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-MonacoRawCandles") { return chart.bars }
+        #endif
+        return chart.candleBars
+    }
+
+    fileprivate func candleChart(
+        _ chart: AssetChartSeries, model: AssetDetailClientModel, isMarketLive: Bool
+    ) -> some View {
+        MonacoCandleChart(
+            bars: drawnBars(chart),
+            intervalSeconds: chart.intervalSeconds,
+            style: chartStyle.wrappedValue,
+            tint: chartTone(chart),
+            lastPrice: chart.lastPoint?.chartValue,
+            isLive: isMarketLive && chart.range == .oneDay,
+            resetKey: "\(chart.range.rawValue)-\(chart.interval.rawValue)",
+            hasOlder: chart.hasOlder && chart.bars.count < AssetDetailClientModel.maximumBars,
+            retryToken: model.olderFailureTick,
+            selection: $scrubbedIndex,
+            onNeedOlder: { Task { await model.loadOlder() } },
+            summary: "\(chart.range.label) price history, \(chart.interval.label) bars",
+            nearestIndex: { chart.nearestBarIndex(to: $0) },
+            describeBar: { chart.describeBar(at: $0) ?? "" },
+            accessibilityIdentifier: "asset-detail-chart"
+        )
+    }
+
+    fileprivate func chartTone(_ chart: AssetChartSeries) -> Color {
+        guard let basisPoints = model?.rangeChange?.basisPoints else { return MonacoTheme.muted }
+        return basisPoints > 0 ? MonacoTheme.profitVivid : basisPoints < 0 ? MonacoTheme.lossVivid : MonacoTheme.muted
+    }
+
     @ViewBuilder
     fileprivate func stats(_ detail: AssetDetailPresentation, model: AssetDetailClientModel) -> some View {
         if let stats = model.stats {
@@ -445,6 +505,20 @@ struct AssetScrubHeader: Equatable {
         caption = ChartScrubLabel.caption(
             for: Date(timeIntervalSince1970: TimeInterval(point.timestamp)),
             range: chart.range, locale: locale, timeZone: timeZone)
+    }
+
+    init?(
+        chart: AssetChartSeries?,
+        barIndex: Int?,
+        locale: Locale = .autoupdatingCurrent,
+        timeZone: TimeZone = .autoupdatingCurrent
+    ) {
+        guard let chart, let barIndex, let point = chart.barPoint(at: barIndex) else { return nil }
+        price = UsdAmountFormatter.format(micros: point.priceUsdcMicros)
+        basisPoints = Self.basisPoints(from: chart.baselineUsdcMicros, to: point.priceUsdcMicros)
+        caption = ChartScrubLabel.caption(
+            for: point.date, range: chart.range, intervalSeconds: chart.intervalSeconds,
+            locale: locale, timeZone: timeZone)
     }
 
     private static func basisPoints(from first: Int64?, to value: Int64) -> Int64? {

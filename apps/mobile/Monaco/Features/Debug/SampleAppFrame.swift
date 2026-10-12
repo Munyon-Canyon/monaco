@@ -38,6 +38,9 @@ struct SampleAppFrame: View {
                     .modifier(SampleScrollModifier(anchor: SampleScrollAnchor.requested(by: SampleScrollAnchor.flag)))
                     .environment(environment)
                     .environment(environment.sessionStore)
+                    .environment(
+                        \.scrubSelectionPersists, ProcessInfo.processInfo.arguments.contains("-MonacoScrubHolds")
+                    )
                     .sheet(isPresented: $showsSheet) { sheet?() }
             } else {
                 MonacoTheme.canvas.ignoresSafeArea()
