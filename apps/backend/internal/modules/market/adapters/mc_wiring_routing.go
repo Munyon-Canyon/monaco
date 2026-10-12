@@ -90,9 +90,9 @@ func wrapperRPC(d module.Deps) map[chain.Network]*httpclient.Client {
 
 func MultichainRoutingRouter(d module.Deps, prices app.SampledPrices) *app.Router {
 	cfg := d.Config
-	bridge := NewPrivyBridgeQuotes(routingClient(d, "privy-bridge",
+	bridge := NewCachedBridgeQuotes(NewPrivyBridgeQuotes(routingClient(d, "privy-bridge",
 		httpclient.WithBaseURL(cfg.Privy.BaseURL), httpclient.WithTimeout(cfg.Timeouts.Privy)),
-		cfg.Privy.AppID, cfg.Privy.AppSecret)
+		cfg.Privy.AppID, cfg.Privy.AppSecret), d.Clock)
 	accounts := app.NewSimulationAccounts(d.Pool)
 	router := app.NewRouter(NewStockListings(d.Pool), routingVenues(d, accounts), app.NewStockPrices(prices, d.Clock),
 		bridge, d.Clock, routerRules(cfg.Routing))
