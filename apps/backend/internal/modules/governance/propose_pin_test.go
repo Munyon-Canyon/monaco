@@ -199,3 +199,122 @@ func TestCastVote_carriesThePinOnThePassEvent(t *testing.T) {
 			scenario.ExpectEventPayload(events.TypeProposalPassed, map[string]any{"network": "base"}),
 		)
 }
+
+type unavailableWire struct {
+	ListingID string `json:"listing_id"`
+	Network   string `json:"network"`
+	Venue     string `json:"venue"`
+	Reason    string `json:"reason"`
+	Detail    string `json:"reason_detail"`
+}
+
+func expectOnlyUnavailable(t *testing.T, want unavailableWire) func(*scenario.Scenario, json.RawMessage) {
+	t.Helper()
+	return func(_ *scenario.Scenario, raw json.RawMessage) {
+		t.Helper()
+		var got struct {
+			Winner      string            `json:"winner_listing_id"`
+			Quotes      []json.RawMessage `json:"quotes"`
+			Unavailable []unavailableWire `json:"unavailable"`
+		}
+		if err := json.Unmarshal(raw, &got); err != nil || got.Winner != want.ListingID || len(got.Quotes) != 0 ||
+			len(got.Unavailable) != 1 || got.Unavailable[0] != want {
+			t.Fatalf("price_comparison = %s, %v, want only %+v unavailable and no quote", raw, err, want)
+		}
+	}
+}
+
+func storeComparison(t *testing.T, raw any) scenario.Step {
+	t.Helper()
+	return func(s *scenario.Scenario) {
+		t.Helper()
+		if _, err := s.DB().Exec(t.Context(), `UPDATE proposals SET price_comparison = $2 WHERE id = $1`,
+			s.Recall("proposal"), raw); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestProposalComparison_showsALostPinnedChainUnavailableWithNoFigure(t *testing.T) {
+	t.Parallel()
+	proposed := solanaFirstComparison(t)
+	base := proposed.Ranked[1]
+	solanaOnly := proposed
+	solanaOnly.Ranked = proposed.Ranked[:1]
+	detail := "not set up on this chain yet"
+	undelegated := solanaOnly
+	undelegated.Unavailable = []multichain.UnavailableVenue{{
+		ListingID: base.ListingID, Network: chain.NetworkBase, Venue: multichain.VenueUniswap,
+		Reason: multichain.UnavailableSimulationFailed, Detail: detail,
+	}}
+	dropped := unavailableWire{
+		ListingID: base.ListingID.String(), Network: "base", Venue: "uniswap", Reason: "no_route",
+	}
+	simulated := dropped
+	simulated.Reason, simulated.Detail = "simulation_failed", detail
+	cases := []struct {
+		name  string
+		given func(r *countingRouter) scenario.Step
+		want  *unavailableWire
+	}{
+		{
+			"the router dropped the chain",
+			func(r *countingRouter) scenario.Step { return r.quote(solanaOnly) }, &dropped,
+		},
+		{
+			"the router could not simulate the chain",
+			func(r *countingRouter) scenario.Step { return r.quote(undelegated) }, &simulated,
+		},
+		{
+			"the router found no venue",
+			func(r *countingRouter) scenario.Step { return r.fail(errs.New(errs.CodeNoRoute, "test")) }, &dropped,
+		},
+		{
+			"the proposal kept no quote for the chain",
+			func(r *countingRouter) scenario.Step {
+				return func(s *scenario.Scenario) { r.quote(solanaOnly)(s); storeComparison(t, nil)(s) }
+			},
+			nil,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			w := newTradeWorld(t)
+			router := &countingRouter{c: proposed}
+			shown := scenario.ExpectNoField("price_comparison")
+			if tc.want != nil {
+				shown = scenario.ExpectField("price_comparison", expectOnlyUnavailable(t, *tc.want))
+			}
+			w.clockedScenario(t, router, clock.Real{}).Given(w.asMember()).
+				When(
+					scenario.Post(w.proposals(), buyAAPLOnBase),
+					scenario.ExpectStatus(http.StatusCreated),
+					scenario.Remember("id", "proposal"),
+					tc.given(router),
+					scenario.Get(w.liveComparison()),
+					scenario.ExpectStatus(http.StatusOK),
+					scenario.ExpectJSON("quote_out_amount", 0),
+					shown,
+				)
+		})
+	}
+}
+
+func TestProposalComparison_refusesAPinnedProposalWhoseStoredComparisonIsUnreadable(t *testing.T) {
+	t.Parallel()
+	w := newTradeWorld(t)
+	proposed := solanaFirstComparison(t)
+	solanaOnly := proposed
+	solanaOnly.Ranked = proposed.Ranked[:1]
+	router := &countingRouter{c: proposed}
+	w.clockedScenario(t, router, clock.Real{}).Given(w.asMember()).
+		When(
+			scenario.Post(w.proposals(), buyAAPLOnBase),
+			scenario.Remember("id", "proposal"),
+			router.quote(solanaOnly),
+			storeComparison(t, `"unreadable"`),
+			scenario.Get(w.liveComparison()),
+			scenario.ExpectProblem(errs.CodeDecodeFailed),
+		)
+}
