@@ -1,3 +1,4 @@
+import Foundation
 import MonacoAPI
 import Observation
 
@@ -34,18 +35,24 @@ public final class AssetDetailClientModel {
     }
 
     public private(set) var detailPhase: Phase = .idle
-    public private(set) var chartPhase: Phase = .idle
+    public internal(set) var chartPhase: Phase = .idle
     public private(set) var detail: AssetDetailPresentation?
-    public private(set) var chart: AssetChartSeries?
-    public private(set) var chartError: APIError?
-    public private(set) var selectedRange: AssetChartRange = .oneDay
+    public internal(set) var chart: AssetChartSeries?
+    public internal(set) var chartError: APIError?
+    public internal(set) var selectedRange: AssetChartRange = .oneDay
+    public internal(set) var selectedInterval: ChartInterval = .preferred(for: .oneDay)
+    public internal(set) var isLoadingOlder = false
+    public internal(set) var olderFailureTick = 0
     public private(set) var lastError: APIError?
     public private(set) var failureTick = 0
     public private(set) var positions: [AssetCabalPosition] = []
     public private(set) var stats: AssetStats?
-    private var chartGeneration = 0
-    private let api: APIClient?
-    private let symbol: String
+    var chartGeneration = 0
+    var selectionGeneration = 0
+    public static let maximumBars = 4_000
+    public static let olderPageSize = 500
+    let api: APIClient?
+    let symbol: String
     private let hints: (any HintSource)?
     private let refresher: HintRefresher
 
@@ -82,6 +89,7 @@ public final class AssetDetailClientModel {
         sampleDetail: Components.Schemas.AssetDetail?,
         chart: AssetChartSeries?,
         selectedRange: AssetChartRange = .oneDay,
+        selectedInterval: ChartInterval? = nil,
         chartPhase: Phase = .loaded
     ) {
         api = nil
@@ -92,6 +100,7 @@ public final class AssetDetailClientModel {
         detailPhase = sampleDetail == nil ? .loading : .loaded
         self.chart = chart
         self.selectedRange = selectedRange
+        self.selectedInterval = selectedInterval ?? chart?.interval ?? .default(for: selectedRange)
         self.chartPhase = chartPhase
     }
     #endif
@@ -106,7 +115,7 @@ public final class AssetDetailClientModel {
             detail = Self.presentation(response)
             detailPhase = .loaded
             lastError = nil
-            await loadChart(range: selectedRange)
+            await loadChart(range: selectedRange, interval: selectedInterval)
         } catch {
             let error = APIError(error)
             lastError = error
@@ -175,10 +184,13 @@ public final class AssetDetailClientModel {
     }
 
     private func chartSeries(api: APIClient, range: AssetChartRange) async throws -> AssetChartSeries {
-        if let chart, chart.range == range { return chart }
+        let interval = ChartInterval.default(for: range)
+        if let chart, chart.range == range, chart.interval == interval || chart.interval == .preferred(for: range) {
+            return chart
+        }
         let symbol = symbol
         let response = try await api.read { client in
-            try await client.getAssetChart(path: .init(symbol: symbol), query: .init(range: Self.wireRange(range)))
+            try await client.getAssetChart(path: .init(symbol: symbol), query: Self.query(range, interval, before: nil))
                 .ok.body.json
         }
         return MarketMapping.chart(response)
@@ -208,45 +220,10 @@ public final class AssetDetailClientModel {
             detail = Self.presentation(response)
             detailPhase = .loaded
             lastError = nil
-            if selectedRange == .oneDay, chartPhase != .loading { await refreshChart() }
+            if chartPhase != .loading { await refreshChart() }
         } catch {
             lastError = APIError(error)
             if !BackgroundRefresh.isActive { failureTick += 1 }
-        }
-    }
-
-    public func loadChart(range: AssetChartRange = .oneDay) async {
-        guard let api else { return }
-        selectedRange = range
-        let isDrawn = chart?.range == range
-        chartPhase = isDrawn ? .loaded : .loading
-        await readChart(api: api, range: range, replacesChartPhase: !isDrawn)
-    }
-
-    private func refreshChart() async {
-        guard let api else { return }
-        await readChart(api: api, range: selectedRange, replacesChartPhase: false)
-    }
-
-    private func readChart(api: APIClient, range: AssetChartRange, replacesChartPhase: Bool) async {
-        chartGeneration += 1
-        let issued = chartGeneration
-        do {
-            let response = try await api.read { client in
-                try await client.getAssetChart(
-                    path: .init(symbol: symbol),
-                    query: .init(range: Self.wireRange(range))
-                ).ok.body.json
-            }
-            guard issued == chartGeneration else { return }
-            chart = MarketMapping.chart(response)
-            chartError = nil
-            chartPhase = .loaded
-        } catch {
-            guard issued == chartGeneration else { return }
-            let error = APIError(error)
-            chartError = error
-            if replacesChartPhase { chartPhase = .failed(error) }
         }
     }
 
@@ -278,20 +255,6 @@ public final class AssetDetailClientModel {
         let (scaled, scaleOverflow) = change.multipliedReportingOverflow(by: 10_000)
         guard !changeOverflow, !scaleOverflow else { return nil }
         return scaled / first
-    }
-
-    private static func wireRange(
-        _ range: AssetChartRange
-    ) -> Operations.GetAssetChart.Input.Query.RangePayload {
-        switch range {
-        case .oneDay: ._1d
-        case .oneWeek: ._1w
-        case .oneMonth: ._1m
-        case .threeMonths: ._3m
-        case .sixMonths: ._6m
-        case .oneYear: ._1y
-        case .all: .all
-        }
     }
 }
 
