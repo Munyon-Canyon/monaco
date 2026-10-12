@@ -97,7 +97,8 @@ final class AssetDetailClientModelRefreshTests: XCTestCase {
             case .day: Components.Schemas.AssetChart.oneDay
             case .week:
                 Components.Schemas.AssetChart(
-                    range: ._1w, bucketSeconds: 300, points: [], empty: true, attribution: "Test")
+                    range: ._1w, interval: ._5m, bucketSeconds: 300, points: [], empty: true, attribution: "Test",
+                    nextBefore: nil)
             }
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

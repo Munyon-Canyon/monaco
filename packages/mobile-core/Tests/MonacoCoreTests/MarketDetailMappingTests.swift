@@ -10,6 +10,7 @@ final class MarketDetailMappingTests: XCTestCase {
         let chart = MarketMapping.chart(
             .init(
                 range: ._1d,
+                interval: ._5m,
                 bucketSeconds: 300,
                 points: [
                     .init(
@@ -21,7 +22,8 @@ final class MarketDetailMappingTests: XCTestCase {
                     )
                 ],
                 empty: false,
-                attribution: "Data provided by CoinGecko"
+                attribution: "Data provided by CoinGecko",
+                nextBefore: nil
             )
         )
 
@@ -51,6 +53,7 @@ final class MarketDetailMappingTests: XCTestCase {
     private func chartWire(previousCloseMicros: Int64?) -> Components.Schemas.AssetChart {
         .init(
             range: ._1d,
+            interval: ._5m,
             bucketSeconds: 300,
             points: [
                 .init(
@@ -63,6 +66,7 @@ final class MarketDetailMappingTests: XCTestCase {
             ],
             empty: false,
             attribution: "Data provided by CoinGecko",
+            nextBefore: nil,
             previousCloseMicros: previousCloseMicros
         )
     }

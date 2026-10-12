@@ -261,7 +261,7 @@ public enum ChartScrubLabel {
     private static func template(for range: AssetChartRange) -> String {
         switch range {
         case .oneDay: return "EEEjmm"
-        case .oneWeek, .oneMonth, .threeMonths: return "EEEMMMd"
+        case .oneWeek, .oneMonth, .threeMonths, .sixMonths: return "EEEMMMd"
         case .oneYear, .all: return "MMMdyyyy"
         }
     }
