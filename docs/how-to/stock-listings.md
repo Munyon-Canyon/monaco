@@ -33,7 +33,7 @@ Turn a listing on or off by hand, or return it to the issuer's flag, with its `a
 
 ### Listings that start off
 
-xStocks listings on any network other than Solana start off, whatever the issuer says (#5186). None of them has a usable route (see [Venues and pools](#venues-and-pools)).
+xStocks listings on Ethereum start off, whatever the issuer says (#5186). None of them has a usable route (see [Venues and pools](#venues-and-pools)). xStocks on Arbitrum follow the issuer's flag (#5361).
 
 The sync inserts these rows with `tradable_override = false`, so they stay disabled after they verify. A later sync never changes an override. To turn one on, find its `asset_listings.id` and set the override:
 
@@ -86,7 +86,7 @@ Quotes were taken on Sunday 2026-10-11 at about 08:50 UTC, with US markets close
 - **Ondo on Ethereum:** single Uniswap v3 pools against USDC. AAPLon uses the 1% tier (`0xad82c9eb065a5cfed71db087e4a52c8a09c69921`), TSLAon the 1% and 0.3% tiers, and NVDAon the 0.3% tier (`0xc9b4bc7c15423fcfe6b75ab5118ba773945a3a46`). Uniswap reports about 1% price impact for Apple and Tesla and 0.3% for Nvidia, mostly the pool fee.
 - **Coinbase B20 on Base:** Uniswap routes these tokens itself, so no aggregator such as Kyber is needed. Apple and Nvidia route USDC to WETH (v3, 0.01%) to `mmETH` to the stock through v4 pools whose hooks quote the price. Tesla routes through a v4 USDC pool with a hook (0.2% fee). Uniswap reports `priceImpact: 100` for the hooked routes, which is not a real impact, so the router measures impact against Monaco's own reference price instead.
 - **Coinbase quotes below the reference price:** the Base quotes for Apple and Nvidia come in about 3% under the last Chainlink total-return feed price ($336.84 for Apple, $230.26 for Nvidia, both from Friday 2026-10-09). The hooks may quote stale or indicative prices while the market is closed. #4970's first EVM execution confirms whether these quotes fill.
-- **xStocks on EVM:** neither the token nor its wrapper has a Uniswap route on Arbitrum. On Ethereum only the raw TSLAx and NVDAx tokens have pools, and those are too thin to use. Every xStocks EVM listing stays disabled at launch, by override (see [Listings that start off](#listings-that-start-off)).
+- **xStocks on EVM:** neither the token nor its wrapper has a Uniswap route on Arbitrum. On Ethereum only the raw TSLAx and NVDAx tokens have pools, and those are too thin to use. Every xStocks EVM listing stayed disabled at launch, by override (see [Listings that start off](#listings-that-start-off)). Arbitrum listings follow the issuer's flag again since #5361, so the router quotes them and drops any with no route.
 - **Robinhood Chain:** the chain's cash asset is USDG (`0x5fc5360d0400a0fd4f2af552add042d716f1d168`, 6 decimals), not USDC. Privy bridges Solana USDC to Robinhood USDG and back, and the router quotes Uniswap in USDG (see [EVM trades](evm-trade.md)). On 2026-10-11 Uniswap quoted 5 USDG into AAPL at 0.03% impact, NVDA at 0.03% and TSLA at 0.07%, with about $0.01 of gas each. A Robinhood listing follows Robinhood's own tradable flag once it verifies on chain (#5203). The dataset's addresses start unverified (no `decimals`), so each one turns on after its first passing `listings verify`.
 
 ## Hold and swap eligibility
