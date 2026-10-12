@@ -1,7 +1,7 @@
 journey: cabals/pot
-expect-fail: S2
+expect-fail: S3
 
-The holdings section is headed "Assets". S2.2 scrolls to "Holdings", so it must fail.
+The holdings section is headed "Assets". S3.2 scrolls to "Holdings", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalHoldingsSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalHoldingsSlot.swift

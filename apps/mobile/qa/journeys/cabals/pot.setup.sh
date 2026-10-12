@@ -17,7 +17,7 @@ ready_actor() {
 }
 
 case "$scenario" in
-  S1 | S2)
+  S1 | S2 | S3)
     ready_actor A
     name="QA slice $run"
     if [[ "$(qa_sql -v name="$name" <<<"SELECT count(*) FROM cabals WHERE name = :'name'")" == 0 ]]; then

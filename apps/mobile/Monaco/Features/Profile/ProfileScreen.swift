@@ -1,3 +1,4 @@
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -15,10 +16,17 @@ struct ProfileScreen: View {
     @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @State private var portfolio: PortfolioModel?
+    @State private var showsShare = false
     let sections: [any ProfileSection.Type]
 
     init(sections: [any ProfileSection.Type] = Self.sections) {
         self.sections = sections
+    }
+
+    static func canShare(profile: SessionProfile?, portfolioState: LoadState<PortfolioSummary>?) -> Bool {
+        var loaded = false
+        if case .loaded = portfolioState { loaded = true }
+        return ShareCardAccess.canShareMe(hasProfile: profile != nil, portfolioLoaded: loaded)
     }
 
     var body: some View {
@@ -38,6 +46,27 @@ struct ProfileScreen: View {
                 guard let message else { return }
                 toasts.current = MonacoToast(message: message)
                 portfolio?.dismissToast()
+            }
+            .toolbar {
+                if Self.canShare(profile: environment.sessionStore.profile, portfolioState: portfolio?.state) {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showsShare = true
+                        } label: {
+                            Image(systemName: "square.and.arrow.up")
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .accessibilityLabel("Share your return")
+                        .accessibilityIdentifier("profile-share-button")
+                    }
+                }
+            }
+            .sheet(isPresented: $showsShare) {
+                if let profile = environment.sessionStore.profile {
+                    ShareCardHost(api: environment.api) { await $0.loadMe(profile: profile) }
+                        .monacoToastCenter(toasts)
+                }
             }
     }
 

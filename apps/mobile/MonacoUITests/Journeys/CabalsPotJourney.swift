@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsPotJourney {
     static let id = "cabals/pot"
-    static let version = 3
+    static let version = 4
 
     static let screenTimeout: TimeInterval = 15
 
@@ -40,34 +40,66 @@ enum CabalsPotJourney {
         }
     }
 
-    static func holdings(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
+    static func shareGain(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S2.1", "open the cabal") {
             JoinJourney.openBySearch(app, cabal(run: run), step: "S2.1")
         }
 
-        recorder.step("S2.2", "scroll to Holdings") {
-            let header = app.staticTexts["Holdings"]
-            app.scrollIntoReach(header)
-            XCTAssertTrue(header.waitForExistence(timeout: 10), "S2.2: no Holdings section within 10 s")
+        recorder.step("S2.2", "the share button shows the gain card") {
+            let button = app.buttons["cabal-share-button"]
+            XCTAssertTrue(button.waitForExistence(timeout: screenTimeout), "S2.2: no share button within 15 s")
+            button.tap()
+            XCTAssertTrue(
+                app.element("share-card-image").waitForExistence(timeout: screenTimeout),
+                "S2.2: the share sheet drew no card within 15 s"
+            )
         }
 
-        recorder.step("S2.3", "a zero pot says how to start") {
+        recorder.step("S2.3", "copy the link") {
+            app.buttons["share-card-copy"].tap()
+            XCTAssertTrue(
+                app.staticTexts["Link copied."].waitForExistence(timeout: 5),
+                "S2.3: no 'Link copied.' toast within 5 s"
+            )
+        }
+
+        recorder.step("S2.4", "close the sheet") {
+            app.buttons["share-card-done"].tap()
+            XCTAssertTrue(
+                app.element("cabal-header-name").waitForExistence(timeout: 5),
+                "S2.4: the cabal screen did not come back within 5 s"
+            )
+        }
+    }
+
+    static func holdings(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
+        recorder.step("S3.1", "open the cabal") {
+            JoinJourney.openBySearch(app, cabal(run: run), step: "S3.1")
+        }
+
+        recorder.step("S3.2", "scroll to Holdings") {
+            let header = app.staticTexts["Holdings"]
+            app.scrollIntoReach(header)
+            XCTAssertTrue(header.waitForExistence(timeout: 10), "S3.2: no Holdings section within 10 s")
+        }
+
+        recorder.step("S3.3", "a zero pot says how to start") {
             let empty = app.element("cabal-holdings-empty")
             app.scrollIntoReach(empty)
             XCTAssertTrue(
                 JoinJourney.waitForLabel(empty, containing: "Fund, then propose the first buy.", timeout: 10),
-                "S2.3: no zero-pot holdings copy within 10 s (known failure, #2136 #2137)"
+                "S3.3: no zero-pot holdings copy within 10 s (known failure, #2136 #2137)"
             )
         }
 
-        recorder.step("S2.4", "the Cash row opens its asset") {
+        recorder.step("S3.4", "the Cash row opens its asset") {
             let cash = app.element("cabal-holdings-cash")
             app.scrollIntoReach(cash)
-            XCTAssertTrue(cash.waitForExistence(timeout: 10), "S2.4: no Cash row within 10 s (known failure, #2136)")
+            XCTAssertTrue(cash.waitForExistence(timeout: 10), "S3.4: no Cash row within 10 s (known failure, #2136)")
             cash.tap()
             XCTAssertTrue(
                 app.navigationBars.staticTexts["Cash"].waitForExistence(timeout: 10),
-                "S2.4: the Cash asset screen did not show within 10 s"
+                "S3.4: the Cash asset screen did not show within 10 s"
             )
         }
     }

@@ -34,6 +34,7 @@ struct CabalScreen: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @State private var showsDetails = false
+    @State private var showsShare = false
     @State private var heroScrolledAway = false
     @State private var models = CabalScreenModels()
     @State private var retryTick = 0
@@ -47,6 +48,14 @@ struct CabalScreen: View {
         self.context = CabalContext(cabalID: cabalID)
         self.sections = sections
         self.detailsSections = detailsSections
+    }
+
+    static func canShare(cabal: Components.Schemas.Cabal?, potState: LoadState<CabalPotSummary>) -> Bool {
+        guard let cabal else { return false }
+        var potLoaded = false
+        if case .loaded = potState { potLoaded = true }
+        return ShareCardAccess.canShareCabal(
+            isMember: cabal.me != nil, isActive: cabal.status != "banned", potLoaded: potLoaded)
     }
 
     var body: some View {
@@ -94,6 +103,19 @@ struct CabalScreen: View {
             pot.setVisible(visible)
         }
         .toolbar {
+            if Self.canShare(cabal: cabal.cabal, potState: pot.state) {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showsShare = true
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("Share this cabal's gain")
+                    .accessibilityIdentifier("cabal-share-button")
+                }
+            }
             if !SectionStack<CabalContext>.live(details).isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -106,6 +128,12 @@ struct CabalScreen: View {
                     .accessibilityLabel("Cabal details")
                     .accessibilityIdentifier("cabal-details-button")
                 }
+            }
+        }
+        .sheet(isPresented: $showsShare) {
+            if let shared = cabal.cabal {
+                ShareCardHost(api: environment.api) { await $0.loadCabal(cabalID: shared.id, cabal: shared) }
+                    .monacoToastCenter(toasts)
             }
         }
         .sheet(isPresented: $showsDetails) {

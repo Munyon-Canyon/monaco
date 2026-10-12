@@ -155,6 +155,8 @@ Performance is the product. Rank by **percent return**, never by dollars, so a s
 
 `percent return = current value ÷ net USDC in − 1`, where net USDC in is money funded minus money cashed out. Anyone with nothing in is left off the board.
 
+A member can share a gain card, an image of their own all-time gain and return with their invite link, from the cabal screen (for a cabal they are in), from Profile and from Home. It carries only the sharer's own figures and own cabals, never another member's.
+
 **Inside a cabal** (the cabal screen):
 
 - **Pot.** USDC plus each holding with units, price, value and purchase price.

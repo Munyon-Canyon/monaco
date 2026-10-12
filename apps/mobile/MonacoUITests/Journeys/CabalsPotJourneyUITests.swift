@@ -20,8 +20,14 @@ nonisolated final class CabalsPotJourneyUITests: XCTestCase {
 
         try session.scenario("S2") {
             try session.act(as: "A")
+            CabalsPotJourney.shareGain(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-A-share")
+        }
+
+        try session.scenario("S3") {
+            try session.act(as: "A")
             CabalsPotJourney.holdings(app, run: run, recorder: recorder)
-            attachScreenshot(of: app, named: "S2-A-holdings")
+            attachScreenshot(of: app, named: "S3-A-holdings")
         }
     }
 }

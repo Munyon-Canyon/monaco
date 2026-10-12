@@ -1,7 +1,7 @@
 ---
 id: profile/overview
 title: Your profile
-version: 4
+version: 5
 milestone: M9
 requires: [auth/sign-in]
 actors: [A]
@@ -63,24 +63,34 @@ Starts signed in (auth/sign-in).
 | S4.2 | tap | `settings-advanced` | | The "Advanced" screen shows within 5 s, with `settings-explorer-solscan` reading "Solscan explorer" | The Advanced screen's explorer list |
 | S4.3 | tap | `settings-explorer-solscan` | | Safari is in the foreground within 15 s | The Solscan row opens Safari |
 
-### S5 Sign out
+### S5 Share your return
 
 Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S5.1 | tap, tap, then scroll to and tap | the Profile tab, `profile-settings-row`, then `profileSignOutButton` in Settings | | Within 5 s the confirm shows "Sign out of Monaco?" and "Your money stays where it is. You'll need a new code to sign back in." | `profile-sign-out`, with "Sign out of Monaco?" |
-| S5.2 | tap | outside the dialog | | The confirm closes within 5 s, and the "Settings" screen still shows. On iOS 27 the confirm is a popover with no Cancel button | "Cancel" |
-| S5.3 | tap, then tap | `profileSignOutButton`, then `profile-sign-out-confirm` | | The login form shows within 15 s, and the tab bar does not | `profile-sign-out-confirm` |
+| S5.1 | tap | the Profile tab, then `profile-share-button` | | Within 15 s the sheet "Share" shows the return card as `share-card-image` (screens.md: the share button in the Profile toolbar) | New in the spec |
+| S5.2 | tap | `share-card-copy` | | The toast "Link copied." shows within 5 s. The journey does not open the system share sheet, which XCUITest cannot dismiss reliably | New in the spec |
+| S5.3 | tap | `share-card-done` | | The sheet closes and `profile-header` still shows within 5 s | New in the spec |
 
-### S6 Totals and pot values
+### S6 Sign out
+
+Starts signed in (auth/sign-in).
+
+| Step | Action | Target | Input | Expect | Old app |
+| --- | --- | --- | --- | --- | --- |
+| S6.1 | tap, tap, then scroll to and tap | the Profile tab, `profile-settings-row`, then `profileSignOutButton` in Settings | | Within 5 s the confirm shows "Sign out of Monaco?" and "Your money stays where it is. You'll need a new code to sign back in." | `profile-sign-out`, with "Sign out of Monaco?" |
+| S6.2 | tap | outside the dialog | | The confirm closes within 5 s, and the "Settings" screen still shows. On iOS 27 the confirm is a popover with no Cancel button | "Cancel" |
+| S6.3 | tap, then tap | `profileSignOutButton`, then `profile-sign-out-confirm` | | The login form shows within 15 s, and the tab bar does not | `profile-sign-out-confirm` |
+
+### S7 Totals and pot values
 
 Starts signed in (auth/sign-in). Every step here fails on staging until the routes land (Known failures).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S6.1 | tap | the Profile tab | | Within 15 s, `profile-stat-in-cabals` and `profile-stat-return` read a figure, not "Not available yet", and `profile-stats-coming` does not show | The old header's portfolio total |
-| S6.2 | scroll to | `cabal-row-{cabalID}` | | The row shows the cabal's value, and `profile-cabals-coming` ("Pot values show up here soon.") does not show | `ProfileCabalsSection` row value |
+| S7.1 | tap | the Profile tab | | Within 15 s, `profile-stat-in-cabals` and `profile-stat-return` read a figure, not "Not available yet", and `profile-stats-coming` does not show | The old header's portfolio total |
+| S7.2 | scroll to | `cabal-row-{cabalID}` | | The row shows the cabal's value, and `profile-cabals-coming` ("Pot values show up here soon.") does not show | `ProfileCabalsSection` row value |
 
 ## Ground truth
 
@@ -90,8 +100,8 @@ Signing out ends the session the run opened, and nothing on A's account changes.
 
 | Step | What fails | Blocked by |
 | --- | --- | --- |
-| S6.1 | "In cabals" and "Return" show "—" with "Your totals show up here soon.", because no route serves the member's totals | #2140 |
-| S6.2 | Your cabals rows show no value, with "Pot values show up here soon.", because no route serves the pot or the member's slice | #2140, #2136 |
+| S7.1 | "In cabals" and "Return" show "—" with "Your totals show up here soon.", because no route serves the member's totals | #2140 |
+| S7.2 | Your cabals rows show no value, with "Pot values show up here soon.", because no route serves the pot or the member's slice | #2140, #2136 |
 
 ## Not covered
 

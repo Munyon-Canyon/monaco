@@ -28,6 +28,7 @@ private struct HomePortfolioHero: View {
     @Environment(\.homeReads) private var reads
     @State private var chart: ValueChartModel?
     @State private var selection: Int?
+    @State private var showsShare = false
 
     var body: some View {
         Group {
@@ -83,10 +84,36 @@ private struct HomePortfolioHero: View {
                         MoneyText(micros: summary.totalMicros, style: .hero)
                             .accessibilityIdentifier("home-portfolio-total")
                     }
-                    chip(summary)
+                    HStack(spacing: MonacoTheme.Space.s) {
+                        chip(summary)
+                        Spacer(minLength: 0)
+                        shareButton
+                    }
                 }
                 if !summary.isEmpty {
                     curve
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var shareButton: some View {
+        if ProfileScreen.canShare(profile: environment.sessionStore.profile, portfolioState: portfolio?.state) {
+            Button {
+                showsShare = true
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .font(MonacoTheme.Typo.subheadStrong)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Share your return")
+            .accessibilityIdentifier("home-share-button")
+            .sheet(isPresented: $showsShare) {
+                if let profile = environment.sessionStore.profile {
+                    ShareCardHost(api: environment.api) { await $0.loadMe(profile: profile) }
+                        .monacoToastCenter(toasts)
                 }
             }
         }

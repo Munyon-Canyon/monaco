@@ -40,15 +40,21 @@ nonisolated final class ProfileOverviewJourneyUITests: XCTestCase {
 
         try session.scenario("S5") {
             try session.act(as: "A")
-            ProfileOverviewJourney.signOut(app, recorder: recorder)
-            attachScreenshot(of: app, named: "S5 signed out")
+            ProfileOverviewJourney.shareReturn(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S5 share your return")
         }
 
         try session.scenario("S6") {
+            try session.act(as: "A")
+            ProfileOverviewJourney.signOut(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S6 signed out")
+        }
+
+        try session.scenario("S7") {
             let cabal = try ProfileOverviewJourney.Cabal.handedOff()
             try session.act(as: "A")
             ProfileOverviewJourney.totals(app, cabal: cabal, recorder: recorder)
-            attachScreenshot(of: app, named: "S6 totals")
+            attachScreenshot(of: app, named: "S7 totals")
         }
     }
 }
