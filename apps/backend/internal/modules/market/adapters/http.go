@@ -68,7 +68,7 @@ func (h HTTP) GetAssetChart(
 	if err := caller(ctx); err != nil {
 		return nil, err
 	}
-	chart, err := h.Chart.Handle(ctx, req.Symbol, string(req.Params.Range))
+	chart, err := h.Chart.Handle(ctx, req.Symbol, chartRequest(req.Params))
 	if err != nil {
 		return nil, err
 	}
@@ -90,6 +90,17 @@ func (h HTTP) GetAssetBestChain(
 		return nil, err
 	}
 	return api.GetAssetBestChain200JSONResponse(wireBestChain(best)), nil
+}
+
+func chartRequest(p api.GetAssetChartParams) app.ChartRequest {
+	out := app.ChartRequest{Range: string(p.Range), Before: p.Before}
+	if p.Interval != nil {
+		out.Interval = string(*p.Interval)
+	}
+	if p.Limit != nil {
+		out.Limit = *p.Limit
+	}
+	return out
 }
 
 func listRequest(p api.GetAssetsParams) app.ListRequest {
@@ -206,16 +217,15 @@ func wireChart(chart app.Chart) (api.AssetChart, error) {
 		}
 		base = &wired
 	}
+	var next *time.Time
+	if chart.NextBefore != nil {
+		utc := chart.NextBefore.UTC()
+		next = &utc
+	}
 	return api.AssetChart{
-		Range:    api.AssetChartRange(chart.Range),
-		Interval: api.AssetChartInterval(chart.Interval),
-		BucketSeconds: int64(
-			chart.Bucket / time.Second,
-		),
-		Points:              points,
-		Empty:               chart.Empty,
-		Attribution:         domain.Attribution,
-		PreviousCloseMicros: base,
+		Range: api.AssetChartRange(chart.Range), Interval: api.AssetChartInterval(chart.Interval),
+		BucketSeconds: int64(chart.Bucket / time.Second), Points: points, Empty: chart.Empty,
+		Attribution: domain.Attribution, NextBefore: next, PreviousCloseMicros: base,
 	}, nil
 }
 

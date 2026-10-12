@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -20,9 +21,11 @@ type chartRead struct {
 	asset    func() (sqlc.Asset, error)
 	newest   func() ([]sqlc.NewestSamplesRow, error)
 	earliest func() (time.Time, error)
-	buckets  func() ([]sqlc.ChartBucketsRow, error)
+	buckets  func() ([]sqlc.ChartBucketsPageRow, error)
 	queue    func() (int64, error)
-	got      *sqlc.ChartBucketsParams
+	got      *sqlc.ChartBucketsPageParams
+	older    func(time.Time) bool
+	olderErr error
 	newestAt func(time.Time) []sqlc.NewestSamplesRow
 	first    []sqlc.FirstSamplesSinceRow
 }
@@ -51,7 +54,13 @@ func (r chartRead) NewestSamples(_ context.Context, arg sqlc.NewestSamplesParams
 
 func (r chartRead) EarliestPrice(context.Context, string) (time.Time, error) { return r.earliest() }
 
-func (r chartRead) ChartBuckets(_ context.Context, arg sqlc.ChartBucketsParams) ([]sqlc.ChartBucketsRow, error) {
+func (r chartRead) HasSampleBefore(_ context.Context, arg sqlc.HasSampleBeforeParams) (bool, error) {
+	return r.older != nil && r.older(arg.Before), r.olderErr
+}
+
+func (r chartRead) ChartBucketsPage(
+	_ context.Context, arg sqlc.ChartBucketsPageParams,
+) ([]sqlc.ChartBucketsPageRow, error) {
 	if r.got != nil {
 		*r.got = arg
 	}
@@ -70,20 +79,24 @@ func TestChart_stopsAtTheAcceptedSample(t *testing.T) {
 	apple := appleRow(t, "equity")
 	when := time.Date(2026, 3, 4, 15, 0, 0, 0, time.UTC)
 	acceptedAt := when.Add(-time.Minute)
-	var got sqlc.ChartBucketsParams
+	var got sqlc.ChartBucketsPageParams
 	read := chartRead{
 		asset: func() (sqlc.Asset, error) { return apple, nil },
 		newest: func() ([]sqlc.NewestSamplesRow, error) {
 			return []sqlc.NewestSamplesRow{{Mint: apple.Mint, Ts: acceptedAt, PriceMicros: 100}}, nil
 		},
-		buckets: func() ([]sqlc.ChartBucketsRow, error) {
-			return []sqlc.ChartBucketsRow{{
+		buckets: func() ([]sqlc.ChartBucketsPageRow, error) {
+			return []sqlc.ChartBucketsPageRow{{
 				Bucket: acceptedAt, OpenMicros: 1, HighMicros: 1, LowMicros: 1, CloseMicros: 1,
 			}}, nil
 		},
 		got: &got,
 	}
-	_, err := (&AssetChart{read: read, base: read, clock: testkit.NewClock(when)}).Handle(t.Context(), "AAPLx", "1D")
+	_, err := (&AssetChart{read: read, base: read, clock: testkit.NewClock(when)}).Handle(
+		t.Context(),
+		"AAPLx",
+		ChartRequest{Range: "1D"},
+	)
 	if err != nil || !got.Until.Equal(acceptedAt) || got.Since.Equal(when) {
 		t.Fatalf("until = %s since %s err %v", got.Until, got.Since, err)
 	}
@@ -94,17 +107,17 @@ func TestChart_dayChartIsTheLastSessionWhenTheMarketIsClosed(t *testing.T) {
 	apple := appleRow(t, "equity")
 	saturday := time.Date(2026, 3, 7, 15, 0, 0, 0, time.UTC)
 	fridayOpen := time.Date(2026, 3, 6, 14, 30, 0, 0, time.UTC)
-	var got sqlc.ChartBucketsParams
+	var got sqlc.ChartBucketsPageParams
 	read := chartRead{
 		asset: func() (sqlc.Asset, error) { return apple, nil },
 		newest: func() ([]sqlc.NewestSamplesRow, error) {
 			return []sqlc.NewestSamplesRow{{Mint: apple.Mint, Ts: saturday.Add(-time.Minute), PriceMicros: 100}}, nil
 		},
-		buckets: func() ([]sqlc.ChartBucketsRow, error) { return nil, nil },
+		buckets: func() ([]sqlc.ChartBucketsPageRow, error) { return nil, nil },
 		got:     &got,
 	}
 	chart := &AssetChart{read: read, base: read, clock: testkit.NewClock(saturday)}
-	_, err := chart.Handle(t.Context(), "AAPLx", "1D")
+	_, err := chart.Handle(t.Context(), "AAPLx", ChartRequest{Range: "1D"})
 	if err != nil || !got.Since.Equal(fridayOpen) {
 		t.Fatalf("since = %s want %s err %v", got.Since, fridayOpen, err)
 	}
@@ -119,7 +132,7 @@ func TestChart_reportsAMissingAssetAndABadRead(t *testing.T) {
 	sample := func() ([]sqlc.NewestSamplesRow, error) {
 		return []sqlc.NewestSamplesRow{{Mint: apple.Mint, Ts: when.Add(-time.Minute), PriceMicros: 110}}, nil
 	}
-	bar := sqlc.ChartBucketsRow{Bucket: when, OpenMicros: 1, HighMicros: 4, LowMicros: 1, CloseMicros: 3}
+	bar := sqlc.ChartBucketsPageRow{Bucket: when, OpenMicros: 1, HighMicros: 4, LowMicros: 1, CloseMicros: 3}
 	cases := []chartCase{
 		{raw: "nope", code: errs.CodeInvalidInput},
 		{
@@ -147,26 +160,40 @@ func TestChart_reportsAMissingAssetAndABadRead(t *testing.T) {
 		{raw: "ALL", read: chartRead{asset: okAsset, newest: sample, earliest: func() (time.Time, error) {
 			return time.Time{}, boom
 		}}, code: errs.CodeInternal},
-		{raw: "1D", read: chartRead{asset: okAsset, newest: sample, buckets: func() ([]sqlc.ChartBucketsRow, error) {
-			return nil, boom
-		}}, code: errs.CodeInternal},
-		{raw: "1D", read: chartRead{asset: okAsset, newest: sample, buckets: func() ([]sqlc.ChartBucketsRow, error) {
-			bad := sqlc.ChartBucketsRow{Bucket: when, OpenMicros: 1, HighMicros: 1, LowMicros: 1, CloseMicros: -1}
-			return []sqlc.ChartBucketsRow{bad}, nil
-		}}, code: errs.CodeDecodeFailed},
+		{
+			raw: "1D",
+			read: chartRead{asset: okAsset, newest: sample, buckets: func() ([]sqlc.ChartBucketsPageRow, error) {
+				return nil, boom
+			}},
+			code: errs.CodeInternal,
+		},
+		{
+			raw: "1D",
+			read: chartRead{asset: okAsset, newest: sample, buckets: func() ([]sqlc.ChartBucketsPageRow, error) {
+				bad := sqlc.ChartBucketsPageRow{
+					Bucket:      when,
+					OpenMicros:  1,
+					HighMicros:  1,
+					LowMicros:   1,
+					CloseMicros: -1,
+				}
+				return []sqlc.ChartBucketsPageRow{bad}, nil
+			}},
+			code: errs.CodeDecodeFailed,
+		},
 		{raw: "1D", read: chartRead{asset: okAsset, newest: func() ([]sqlc.NewestSamplesRow, error) {
 			return []sqlc.NewestSamplesRow{{Ts: when.Add(-400 * 24 * time.Hour), PriceMicros: 50}}, nil
-		}, buckets: func() ([]sqlc.ChartBucketsRow, error) { return nil, nil }}, empty: true},
+		}, buckets: func() ([]sqlc.ChartBucketsPageRow, error) { return nil, nil }}, empty: true},
 		{raw: "1D", read: chartRead{asset: okAsset, newest: func() ([]sqlc.NewestSamplesRow, error) {
 			return []sqlc.NewestSamplesRow{
 				{Ts: when.Add(-time.Hour), PriceMicros: 50},
 				{Ts: when, PriceMicros: 400},
 			}, nil
-		}, buckets: func() ([]sqlc.ChartBucketsRow, error) { return []sqlc.ChartBucketsRow{bar}, nil }}},
+		}, buckets: func() ([]sqlc.ChartBucketsPageRow, error) { return []sqlc.ChartBucketsPageRow{bar}, nil }}},
 	}
 	for i, tc := range cases {
 		chart := &AssetChart{read: tc.read, base: tc.read, clock: testkit.NewClock(when)}
-		got, err := chart.Handle(t.Context(), "AAPLx", tc.raw)
+		got, err := chart.Handle(t.Context(), "AAPLx", ChartRequest{Range: tc.raw})
 		assertChartCase(t, i, tc, got, err)
 	}
 }
@@ -198,18 +225,22 @@ func TestChart_aFailedBackfillQueueIsLoggedAndTheChartStillReturns(t *testing.T)
 	t.Parallel()
 	apple := appleRow(t, "equity")
 	when := time.Date(2026, 3, 4, 15, 0, 0, 0, time.UTC)
-	bar := sqlc.ChartBucketsRow{Bucket: when, OpenMicros: 1, HighMicros: 4, LowMicros: 1, CloseMicros: 3}
+	bar := sqlc.ChartBucketsPageRow{Bucket: when, OpenMicros: 1, HighMicros: 4, LowMicros: 1, CloseMicros: 3}
 	read := chartRead{
 		asset: func() (sqlc.Asset, error) { return apple, nil },
 		newest: func() ([]sqlc.NewestSamplesRow, error) {
 			return []sqlc.NewestSamplesRow{{Mint: apple.Mint, Ts: when, PriceMicros: 3}}, nil
 		},
-		buckets: func() ([]sqlc.ChartBucketsRow, error) { return []sqlc.ChartBucketsRow{bar}, nil },
+		buckets: func() ([]sqlc.ChartBucketsPageRow, error) { return []sqlc.ChartBucketsPageRow{bar}, nil },
 		queue:   func() (int64, error) { return 0, errs.New(errs.CodeInternal, "market.test") },
 	}
 	logs := &testkit.Logs{}
 	ctx := observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
-	got, err := (&AssetChart{read: read, base: read, clock: testkit.NewClock(when)}).Handle(ctx, "AAPLx", "1D")
+	got, err := (&AssetChart{read: read, base: read, clock: testkit.NewClock(when)}).Handle(
+		ctx,
+		"AAPLx",
+		ChartRequest{Range: "1D"},
+	)
 	if err != nil || got.Empty || len(got.Points) != 1 || got.Points[0].Close != money.MicrosFromUint64(3) {
 		t.Fatalf("chart = %+v, %v, want the one bar despite the failed queue write", got, err)
 	}
@@ -235,19 +266,19 @@ func TestChart_dayChartCarriesThePreviousCloseAndOtherRangesOmitIt(t *testing.T)
 			}
 			return []sqlc.NewestSamplesRow{{Mint: apple.Mint, Ts: when.Add(-time.Minute), PriceMicros: 100_000_000}}
 		},
-		buckets: func() ([]sqlc.ChartBucketsRow, error) {
-			return []sqlc.ChartBucketsRow{{
+		buckets: func() ([]sqlc.ChartBucketsPageRow, error) {
+			return []sqlc.ChartBucketsPageRow{{
 				Bucket: when.Add(-time.Minute), OpenMicros: 1, HighMicros: 1, LowMicros: 1, CloseMicros: 1,
 			}}, nil
 		},
 	}
 	chart := &AssetChart{read: read, base: read, clock: testkit.NewClock(when)}
-	day, err := chart.Handle(t.Context(), "AAPLx", "1D")
+	day, err := chart.Handle(t.Context(), "AAPLx", ChartRequest{Range: "1D"})
 	if err != nil || day.PreviousClose == nil || *day.PreviousClose != money.MicrosFromUint64(98_000_000) {
 		t.Fatalf("1D previous close = %v err %v", day.PreviousClose, err)
 	}
 	for _, raw := range []string{"1W", "1M", "3M", "1Y"} {
-		other, otherErr := chart.Handle(t.Context(), "AAPLx", raw)
+		other, otherErr := chart.Handle(t.Context(), "AAPLx", ChartRequest{Range: raw})
 		if otherErr != nil || other.PreviousClose != nil {
 			t.Fatalf("%s previous close = %v err %v", raw, other.PreviousClose, otherErr)
 		}
@@ -266,13 +297,17 @@ func TestChart_dayChartOmitsThePreviousCloseWhenTheSampleIsMissing(t *testing.T)
 			}
 			return nil
 		},
-		buckets: func() ([]sqlc.ChartBucketsRow, error) {
-			return []sqlc.ChartBucketsRow{{
+		buckets: func() ([]sqlc.ChartBucketsPageRow, error) {
+			return []sqlc.ChartBucketsPageRow{{
 				Bucket: when.Add(-time.Minute), OpenMicros: 1, HighMicros: 1, LowMicros: 1, CloseMicros: 1,
 			}}, nil
 		},
 	}
-	day, err := (&AssetChart{read: read, base: read, clock: testkit.NewClock(when)}).Handle(t.Context(), "AAPLx", "1D")
+	day, err := (&AssetChart{read: read, base: read, clock: testkit.NewClock(when)}).Handle(
+		t.Context(),
+		"AAPLx",
+		ChartRequest{Range: "1D"},
+	)
 	if err != nil || day.PreviousClose != nil || day.Empty {
 		t.Fatalf("previous close = %v empty %v err %v", day.PreviousClose, day.Empty, err)
 	}
@@ -312,14 +347,14 @@ func TestChart_dayChartReportsEachPreviousCloseFailure(t *testing.T) {
 			newest: func() ([]sqlc.NewestSamplesRow, error) {
 				return []sqlc.NewestSamplesRow{{Mint: tc.row.Mint, Ts: tc.at, PriceMicros: 1}}, nil
 			},
-			buckets: func() ([]sqlc.ChartBucketsRow, error) {
-				return []sqlc.ChartBucketsRow{
+			buckets: func() ([]sqlc.ChartBucketsPageRow, error) {
+				return []sqlc.ChartBucketsPageRow{
 					{Bucket: tc.at, OpenMicros: 1, HighMicros: 1, LowMicros: 1, CloseMicros: 1},
 				}, nil
 			},
 		}, close: tc.close, first: tc.first, boom: boom, now: tc.at, fail: tc.fail}
 		chart := &AssetChart{read: read, base: read, clock: testkit.NewClock(tc.at)}
-		if _, err := chart.Handle(t.Context(), "AAPLx", "1D"); err == nil {
+		if _, err := chart.Handle(t.Context(), "AAPLx", ChartRequest{Range: "1D"}); err == nil {
 			t.Fatalf("%s: want an error", name)
 		}
 	}
@@ -363,15 +398,202 @@ func TestChart_preIPODayChartMeasuresFromTheFirstSampleOfTheDay(t *testing.T) {
 		newest: func() ([]sqlc.NewestSamplesRow, error) {
 			return []sqlc.NewestSamplesRow{{Mint: pre.Mint, Ts: when.Add(-time.Minute), PriceMicros: 110_000_000}}, nil
 		},
-		buckets: func() ([]sqlc.ChartBucketsRow, error) {
-			return []sqlc.ChartBucketsRow{
+		buckets: func() ([]sqlc.ChartBucketsPageRow, error) {
+			return []sqlc.ChartBucketsPageRow{
 				{Bucket: when, OpenMicros: 1, HighMicros: 1, LowMicros: 1, CloseMicros: 1},
 			}, nil
 		},
 		first: []sqlc.FirstSamplesSinceRow{{Mint: pre.Mint, Ts: when.Add(-time.Hour), PriceMicros: 100_000_000}},
 	}
-	day, err := (&AssetChart{read: read, base: read, clock: testkit.NewClock(when)}).Handle(t.Context(), "AAPLx", "1D")
+	day, err := (&AssetChart{read: read, base: read, clock: testkit.NewClock(when)}).Handle(
+		t.Context(),
+		"AAPLx",
+		ChartRequest{Range: "1D"},
+	)
 	if err != nil || day.PreviousClose == nil || *day.PreviousClose != money.MicrosFromUint64(100_000_000) {
 		t.Fatalf("pre-IPO previous close = %v err %v", day.PreviousClose, err)
+	}
+}
+
+func pagedChart(
+	t *testing.T, older func(time.Time) bool, buckets int,
+) (*AssetChart, *sqlc.ChartBucketsPageParams, time.Time) {
+	t.Helper()
+	apple := appleRow(t, "equity")
+	when := time.Date(2026, 3, 4, 15, 0, 0, 0, time.UTC)
+	var got sqlc.ChartBucketsPageParams
+	read := chartRead{
+		asset: func() (sqlc.Asset, error) { return apple, nil },
+		newest: func() ([]sqlc.NewestSamplesRow, error) {
+			return []sqlc.NewestSamplesRow{{Mint: apple.Mint, Ts: when.Add(-time.Minute), PriceMicros: 100}}, nil
+		},
+		earliest: func() (time.Time, error) { return when.Add(-300 * 24 * time.Hour), nil },
+		buckets: func() ([]sqlc.ChartBucketsPageRow, error) {
+			rows := make([]sqlc.ChartBucketsPageRow, 0, buckets)
+			for i := range buckets {
+				rows = append(rows, sqlc.ChartBucketsPageRow{
+					Bucket: when.Add(-time.Duration(buckets-i) * time.Hour), OpenMicros: 1, HighMicros: 1, LowMicros: 1,
+					CloseMicros: 1,
+				})
+			}
+			return rows, nil
+		},
+		older: older,
+		got:   &got,
+	}
+	return &AssetChart{read: read, base: read, clock: testkit.NewClock(when)}, &got, when
+}
+
+func TestChart_defaultIntervalIsTodaysBucketForEveryRange(t *testing.T) {
+	t.Parallel()
+	want := map[string]time.Duration{
+		"1D": 5 * time.Minute, "1W": time.Hour, "1M": time.Hour, "3M": time.Hour,
+		"6M": 24 * time.Hour, "1Y": 24 * time.Hour, "ALL": 24 * time.Hour,
+	}
+	for raw, width := range want {
+		chart, got, _ := pagedChart(t, nil, 1)
+		out, err := chart.Handle(t.Context(), "AAPLx", ChartRequest{Range: raw})
+		if err != nil || out.Bucket != width || got.BucketSeconds != int64(width/time.Second) ||
+			out.Interval != domain.ChartRange(raw).DefaultInterval() {
+			t.Fatalf("%s = %+v %+v %v", raw, out, got, err)
+		}
+	}
+}
+
+func TestChart_anExplicitIntervalSetsTheBucketWidth(t *testing.T) {
+	t.Parallel()
+	chart, got, _ := pagedChart(t, nil, 1)
+	out, err := chart.Handle(t.Context(), "AAPLx", ChartRequest{Range: "1W", Interval: "15m"})
+	if err != nil || out.Bucket != 15*time.Minute || out.Interval != domain.Interval15m || got.BucketSeconds != 900 {
+		t.Fatalf("15m = %+v %+v %v", out, got, err)
+	}
+}
+
+func TestChart_rejectsAnIntervalOrLimitOutsideTheContract(t *testing.T) {
+	t.Parallel()
+	for _, req := range []ChartRequest{
+		{Range: "1Y", Interval: "5m"},
+		{Range: "6M", Interval: "30m"},
+		{Range: "1D", Interval: "1m"},
+		{Range: "1D", Interval: "15M"},
+		{Range: "1M", Interval: "1w"},
+		{Range: "1D", Limit: 1001},
+		{Range: "1D", Limit: -1},
+	} {
+		chart, _, _ := pagedChart(t, nil, 1)
+		if _, err := chart.Handle(t.Context(), "AAPLx", req); errs.CodeOf(err) != errs.CodeInvalidInput {
+			t.Fatalf("%+v = %v", req, err)
+		}
+	}
+}
+
+func TestChart_limitIsUncappedOnTheFirstPageAndFiveHundredOnABeforePage(t *testing.T) {
+	t.Parallel()
+	chart, got, when := pagedChart(t, nil, 1)
+	if _, err := chart.Handle(
+		t.Context(),
+		"AAPLx",
+		ChartRequest{Range: "1M"},
+	); err != nil ||
+		got.PageLimit != math.MaxInt32 {
+		t.Fatalf("first page limit = %d %v, want uncapped", got.PageLimit, err)
+	}
+	before := when.Add(-time.Hour)
+	if _, err := chart.Handle(t.Context(), "AAPLx", ChartRequest{Range: "1D", Before: &before}); err != nil ||
+		got.PageLimit != 500 {
+		t.Fatalf("before page limit = %d %v", got.PageLimit, err)
+	}
+	for _, req := range []ChartRequest{{Range: "1D", Limit: 1000}, {Range: "1D", Limit: 7, Before: &before}} {
+		if _, err := chart.Handle(t.Context(), "AAPLx", req); err != nil || int(got.PageLimit) != req.Limit {
+			t.Fatalf("%+v limit = %d %v", req, got.PageLimit, err)
+		}
+	}
+}
+
+func TestChart_beforeAlignsDownReadsToTheFirstSampleAndStopsBeforeIt(t *testing.T) {
+	t.Parallel()
+	chart, got, when := pagedChart(t, nil, 1)
+	before := time.Date(2026, 3, 4, 12, 7, 31, 0, time.UTC)
+	out, err := chart.Handle(t.Context(), "AAPLx", ChartRequest{Range: "1D", Interval: "15m", Before: &before})
+	aligned := time.Date(2026, 3, 4, 12, 0, 0, 0, time.UTC)
+	if err != nil || !got.Until.Equal(aligned.Add(-time.Microsecond)) {
+		t.Fatalf("until = %s err %v, want %s", got.Until, err, aligned.Add(-time.Microsecond))
+	}
+	if !got.Since.Equal(when.Add(-300 * 24 * time.Hour)) {
+		t.Fatalf("since = %s, want the earliest sample, not the range start", got.Since)
+	}
+	if out.PreviousClose != nil {
+		t.Fatalf("a before page carries the day-change base: %v", out.PreviousClose)
+	}
+}
+
+func TestChart_beforeLaterThanTheNewestSampleKeepsTheNewestAsTheCeiling(t *testing.T) {
+	t.Parallel()
+	chart, got, when := pagedChart(t, nil, 1)
+	before := when.Add(time.Hour)
+	if _, err := chart.Handle(t.Context(), "AAPLx", ChartRequest{Range: "1D", Before: &before}); err != nil {
+		t.Fatal(err)
+	}
+	if !got.Until.Equal(when.Add(-time.Minute)) {
+		t.Fatalf("until = %s, want the accepted sample", got.Until)
+	}
+}
+
+func TestChart_nextBeforeIsSetOnlyWhenAnOlderSampleExists(t *testing.T) {
+	t.Parallel()
+	for _, hasOlder := range []bool{true, false} {
+		var asked time.Time
+		chart, _, when := pagedChart(t, func(at time.Time) bool { asked = at; return hasOlder }, 3)
+		out, err := chart.Handle(t.Context(), "AAPLx", ChartRequest{Range: "1W"})
+		oldest := when.Add(-3 * time.Hour)
+		if err != nil || !asked.Equal(oldest) {
+			t.Fatalf("asked for samples before %s, want %s (%v)", asked, oldest, err)
+		}
+		if hasOlder && (out.NextBefore == nil || !out.NextBefore.Equal(oldest)) {
+			t.Fatalf("next_before = %v, want %s", out.NextBefore, oldest)
+		}
+		if !hasOlder && out.NextBefore != nil {
+			t.Fatalf("next_before = %v, want nil", out.NextBefore)
+		}
+	}
+}
+
+func TestChart_aFailedOlderSampleLookupFailsTheChart(t *testing.T) {
+	t.Parallel()
+	chart, _, _ := pagedChart(t, func(time.Time) bool { return true }, 3)
+	read, ok := chart.read.(chartRead)
+	if !ok {
+		t.Fatalf("read is %T", chart.read)
+	}
+	read.olderErr = errs.New(errs.CodeInternal, "market.test")
+	chart.read = read
+	if _, err := chart.Handle(t.Context(), "AAPLx", ChartRequest{Range: "1W"}); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("err = %v, want %s", err, errs.CodeInternal)
+	}
+}
+
+func TestChart_anEmptyPageHasNoNextBefore(t *testing.T) {
+	t.Parallel()
+	chart, _, _ := pagedChart(t, func(time.Time) bool { return true }, 0)
+	out, err := chart.Handle(t.Context(), "AAPLx", ChartRequest{Range: "1D"})
+	if err != nil || !out.Empty || out.NextBefore != nil {
+		t.Fatalf("empty page = %+v %v", out, err)
+	}
+}
+
+func TestAlignDown_snapsToTheBinOrigin(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, 3, 4, 12, 7, 31, 500, time.UTC)
+	cases := map[time.Duration]time.Time{
+		5 * time.Minute:    time.Date(2026, 3, 4, 12, 5, 0, 0, time.UTC),
+		15 * time.Minute:   time.Date(2026, 3, 4, 12, 0, 0, 0, time.UTC),
+		4 * time.Hour:      time.Date(2026, 3, 4, 12, 0, 0, 0, time.UTC),
+		24 * time.Hour:     time.Date(2026, 3, 4, 0, 0, 0, 0, time.UTC),
+		7 * 24 * time.Hour: time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC),
+	}
+	for width, want := range cases {
+		if got := alignDown(at, width); !got.Equal(want) {
+			t.Fatalf("%s = %s, want %s", width, got, want)
+		}
 	}
 }

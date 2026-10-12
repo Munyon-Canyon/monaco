@@ -769,7 +769,9 @@ func TestChart_rejectsACallerThatIsNotAUser(t *testing.T) {
 
 type hugeChart struct{ chart app.Chart }
 
-func (h hugeChart) Handle(context.Context, string, string) (app.Chart, error) { return h.chart, nil }
+func (h hugeChart) Handle(context.Context, string, app.ChartRequest) (app.Chart, error) {
+	return h.chart, nil
+}
 
 func containsAll(body string, parts ...string) bool {
 	for _, part := range parts {
@@ -881,5 +883,171 @@ func (s marketAPI) quotedAgo(t *testing.T, a market.Asset, ago time.Duration) {
 	if _, err := s.pool.Exec(t.Context(), `UPDATE assets SET last_quoted_at = $2 WHERE mint = $1`,
 		a.Mint.String(), s.when.Add(-ago)); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func seedDenseChartPrices(t *testing.T, s marketAPI) {
+	t.Helper()
+	mint := marketfake.AAPLx().Mint.String()
+	for i := range 60 {
+		s.price(t, mint, -time.Minute-time.Duration(i)*2*time.Minute, int64(100_000_000+i))
+	}
+}
+
+func TestChart_intervalChoosesTheBarWidth(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.seedFixtures(t)
+	seedDenseChartPrices(t, s)
+	got := chartOf(t, s.get(t, "/v1/assets/AAPLx/chart?range=1D&interval=15m"))
+	if got.BucketSeconds != 900 || got.Interval != api.AssetChartIntervalN15m || got.Empty {
+		t.Fatalf("15m = %+v", got)
+	}
+	for _, point := range got.Points {
+		if point.T.Unix()%900 != 0 {
+			t.Fatalf("bar %s is not on a 15-minute boundary", point.T)
+		}
+	}
+	def := chartOf(t, s.get(t, "/v1/assets/AAPLx/chart?range=1D"))
+	if def.BucketSeconds != 300 || def.Interval != api.AssetChartIntervalN5m {
+		t.Fatalf("default = %+v", def)
+	}
+}
+
+func TestChart_pagesOlderBarsWithBefore(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.seedFixtures(t)
+	seedDenseChartPrices(t, s)
+	first := chartOf(t, s.get(t, "/v1/assets/AAPLx/chart?range=1D&limit=5"))
+	if len(first.Points) != 5 || first.NextBefore == nil || !first.NextBefore.Equal(first.Points[0].T) {
+		t.Fatalf("first page = %+v", first)
+	}
+	seen := pageBackToTheStart(t, s, first)
+	oldest := marketWhen().Add(-119 * time.Minute).Truncate(5 * time.Minute)
+	newest := marketWhen().Add(-time.Minute).Truncate(5 * time.Minute)
+	want := int(newest.Sub(oldest)/(5*time.Minute)) + 1
+	if !seen[0].T.Equal(oldest) || len(seen) != want {
+		t.Fatalf("paged %d bars from %s, want %d from %s", len(seen), seen[0].T, want, oldest)
+	}
+	for i := 1; i < len(seen); i++ {
+		if !seen[i].T.After(seen[i-1].T) {
+			t.Fatalf("bars out of order at %d: %s then %s", i, seen[i-1].T, seen[i].T)
+		}
+	}
+	rec := s.get(t, "/v1/assets/AAPLx/chart?range=1D&before="+url.QueryEscape(oldest.Format(time.RFC3339)))
+	if !chartOf(t, rec).Empty || !strings.Contains(rec.Body.String(), `"next_before":null`) {
+		t.Fatalf("before the first bar = %s", rec.Body)
+	}
+}
+
+func pageBackToTheStart(t *testing.T, s marketAPI, first api.AssetChart) []api.ChartPoint {
+	t.Helper()
+	seen := first.Points
+	page := first
+	for range 20 {
+		if page.NextBefore == nil {
+			return seen
+		}
+		before := url.QueryEscape(page.NextBefore.UTC().Format(time.RFC3339))
+		page = chartOf(t, s.get(t, "/v1/assets/AAPLx/chart?range=1D&limit=5&before="+before))
+		if len(page.Points) == 0 || !page.Points[len(page.Points)-1].T.Before(seen[0].T) {
+			t.Fatalf("page = %+v, want bars strictly before %s", page, seen[0].T)
+		}
+		if page.PreviousCloseMicros != nil {
+			t.Fatalf("an older page carries the day-change base: %+v", page)
+		}
+		seen = append(append([]api.ChartPoint{}, page.Points...), seen...)
+	}
+	t.Fatalf("never reached the start: %+v", page)
+	return nil
+}
+
+func TestChart_rejectsAnIntervalTheRangeDoesNotAllow(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.seedFixtures(t)
+	for _, path := range []string{
+		"/v1/assets/AAPLx/chart?range=1Y&interval=5m",
+		"/v1/assets/AAPLx/chart?range=6M&interval=15m",
+		"/v1/assets/AAPLx/chart?range=1D&interval=1m",
+		"/v1/assets/AAPLx/chart?range=1D&limit=1001",
+	} {
+		rec := s.get(t, path)
+		if rec.Code != http.StatusBadRequest || problemCode(t, rec) != apibase.InvalidInput {
+			t.Fatalf("%s = %d %s", path, rec.Code, rec.Body)
+		}
+	}
+}
+
+func TestChart_sixMonths(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.seedFixtures(t)
+	mint := marketfake.AAPLx().Mint.String()
+	s.price(t, mint, -190*24*time.Hour, 98_000_000)
+	s.price(t, mint, -170*24*time.Hour, 99_000_000)
+	s.price(t, mint, -time.Minute, 100_000_000)
+	got := chartOf(t, s.get(t, "/v1/assets/AAPLx/chart?range=6M"))
+	if got.Range != api.AssetChartRangeN6M || got.BucketSeconds != 86400 || len(got.Points) != 2 {
+		t.Fatalf("6M = %+v", got)
+	}
+	if !got.Points[0].T.Equal(marketWhen().Add(-170 * 24 * time.Hour).Truncate(24 * time.Hour)) {
+		t.Fatalf("6M first = %s", got.Points[0].T)
+	}
+	if got.NextBefore == nil || !got.NextBefore.Equal(got.Points[0].T) {
+		t.Fatalf("6M next_before = %v, want the first bar since an older sample exists", got.NextBefore)
+	}
+}
+
+func TestChart_firstPageIsTheWholeWindowAndABeforePageIsCapped(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.seedFixtures(t)
+	if _, err := s.pool.Exec(t.Context(), `INSERT INTO price_points (mint, ts, price_micros, source)
+		SELECT $1, $2::timestamptz - (i * interval '1 hour') - interval '1 minute', 100000000 + (i % 7), 'jupiter'
+		FROM generate_series(0, 1299) AS i`, marketfake.AAPLx().Mint.String(), marketWhen()); err != nil {
+		t.Fatal(err)
+	}
+	whole := chartOf(t, s.get(t, "/v1/assets/AAPLx/chart?range=1M"))
+	if n := len(whole.Points); n < 719 || n > 721 || whole.NextBefore == nil {
+		t.Fatalf("1M without a limit = %d bars next_before %v, want the whole ~720-hour window", n, whole.NextBefore)
+	}
+	before := url.QueryEscape(marketWhen().Add(-24 * time.Hour).Format(time.RFC3339))
+	page := chartOf(t, s.get(t, "/v1/assets/AAPLx/chart?range=1M&before="+before))
+	if len(page.Points) != 500 || page.NextBefore == nil {
+		t.Fatalf("before page without a limit = %d bars next_before %v, want 500", len(page.Points), page.NextBefore)
+	}
+	capped := chartOf(t, s.get(t, "/v1/assets/AAPLx/chart?range=1M&limit=10"))
+	if len(capped.Points) != 10 {
+		t.Fatalf("explicit limit = %d bars", len(capped.Points))
+	}
+}
+
+func TestChart_weeklyBarsStartOnMondayAndPageBack(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.seedFixtures(t)
+	if _, err := s.pool.Exec(t.Context(), `INSERT INTO price_points (mint, ts, price_micros, source)
+		SELECT $1, $2::timestamptz - (i * interval '1 day') - interval '1 minute', 100000000 + (i % 7), 'jupiter'
+		FROM generate_series(0, 299) AS i`, marketfake.AAPLx().Mint.String(), marketWhen()); err != nil {
+		t.Fatal(err)
+	}
+	got := chartOf(t, s.get(t, "/v1/assets/AAPLx/chart?range=1Y&interval=1w"))
+	if got.BucketSeconds != 604800 || got.Interval != api.AssetChartInterval("1w") || len(got.Points) < 40 {
+		t.Fatalf("1w = %d s %s %d bars", got.BucketSeconds, got.Interval, len(got.Points))
+	}
+	for _, point := range got.Points {
+		if point.T.Weekday() != time.Monday || point.T.Hour() != 0 || point.T.Minute() != 0 {
+			t.Fatalf("weekly bar starts %s (%s), want Monday 00:00 UTC", point.T, point.T.Weekday())
+		}
+	}
+	before := url.QueryEscape(got.Points[10].T.Add(3 * 24 * time.Hour).Format(time.RFC3339))
+	page := chartOf(t, s.get(t, "/v1/assets/AAPLx/chart?range=1Y&interval=1w&before="+before))
+	if len(page.Points) == 0 || !page.Points[len(page.Points)-1].T.Equal(got.Points[9].T) {
+		t.Fatalf("before page last bar = %v, want %s", page.Points, got.Points[9].T)
+	}
+	if rec := s.get(t, "/v1/assets/AAPLx/chart?range=1M&interval=1w"); rec.Code != http.StatusBadRequest {
+		t.Fatalf("1M weekly = %d", rec.Code)
 	}
 }

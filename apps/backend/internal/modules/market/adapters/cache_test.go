@@ -28,7 +28,7 @@ func TestChart_CacheSingleFlight(t *testing.T) {
 		var group errgroup.Group
 		for range 50 {
 			group.Go(func() error {
-				_, err := cached.Handle(t.Context(), "AAPLx", "1D")
+				_, err := cached.Handle(t.Context(), "AAPLx", app.ChartRequest{Range: "1D"})
 				return err
 			})
 		}
@@ -40,7 +40,7 @@ func TestChart_CacheSingleFlight(t *testing.T) {
 		if err := group.Wait(); err != nil {
 			t.Fatal(err)
 		}
-		chart, err := cached.Handle(t.Context(), "AAPLx", "1D")
+		chart, err := cached.Handle(t.Context(), "AAPLx", app.ChartRequest{Range: "1D"})
 		if err != nil || !chart.Empty || fake.calls.Load() != 1 {
 			t.Fatalf("cached = %+v calls %d err %v", chart, fake.calls.Load(), err)
 		}
@@ -58,13 +58,13 @@ func TestChart_aCanceledLeaderDoesNotFailTheRest(t *testing.T) {
 		var leader error
 		var group errgroup.Group
 		group.Go(func() error {
-			_, leader = cached.Handle(leaderCtx, "AAPLx", "1D")
+			_, leader = cached.Handle(leaderCtx, "AAPLx", app.ChartRequest{Range: "1D"})
 			return nil
 		})
 		synctest.Wait()
 		for range 10 {
 			group.Go(func() error {
-				_, err := cached.Handle(t.Context(), "AAPLx", "1D")
+				_, err := cached.Handle(t.Context(), "AAPLx", app.ChartRequest{Range: "1D"})
 				return err
 			})
 		}
@@ -78,7 +78,12 @@ func TestChart_aCanceledLeaderDoesNotFailTheRest(t *testing.T) {
 		if !errors.Is(leader, context.Canceled) || fake.calls.Load() != 1 {
 			t.Fatalf("leader = %v calls %d", leader, fake.calls.Load())
 		}
-		if _, err := cached.Handle(t.Context(), "AAPLx", "1D"); err != nil || fake.calls.Load() != 1 {
+		if _, err := cached.Handle(
+			t.Context(),
+			"AAPLx",
+			app.ChartRequest{Range: "1D"},
+		); err != nil ||
+			fake.calls.Load() != 1 {
 			t.Fatalf("stored = %d %v", fake.calls.Load(), err)
 		}
 	})
@@ -94,12 +99,12 @@ func TestChart_aLateMissUsesWhatTheFirstLoadStored(t *testing.T) {
 		cached := CacheChart(fake, store)
 		var group errgroup.Group
 		group.Go(func() error {
-			_, err := cached.Handle(t.Context(), "AAPLx", "1D")
+			_, err := cached.Handle(t.Context(), "AAPLx", app.ChartRequest{Range: "1D"})
 			return err
 		})
 		synctest.Wait()
 		stored := app.Chart{Empty: true, Points: []app.Point{}}
-		store.keep(chartKey("AAPLx", domain.Chart1D), chartBox{v: stored}, shortTTL)
+		store.keep(chartKey("AAPLx", domain.Chart1D, app.ChartRequest{Range: "1D"}), chartBox{v: stored}, shortTTL)
 		close(hold)
 		if err := group.Wait(); err != nil || fake.calls.Load() != 0 {
 			t.Fatalf("calls = %d err %v", fake.calls.Load(), err)
@@ -109,32 +114,59 @@ func TestChart_aLateMissUsesWhatTheFirstLoadStored(t *testing.T) {
 
 func TestChart_expiresOnTheTTLBoundary(t *testing.T) {
 	t.Parallel()
+	before := marketWhen().Add(-time.Hour)
 	cases := []struct {
-		raw string
+		req app.ChartRequest
 		ttl time.Duration
 	}{
-		{"1D", shortTTL},
-		{"1W", longTTL},
-		{"1M", longTTL},
-		{"3M", longTTL},
-		{"1Y", longTTL},
-		{"ALL", longTTL},
+		{app.ChartRequest{Range: "1D"}, shortTTL},
+		{app.ChartRequest{Range: "1W"}, shortTTL},
+		{app.ChartRequest{Range: "1Y"}, shortTTL},
+		{app.ChartRequest{Range: "ALL"}, shortTTL},
+		{app.ChartRequest{Range: "1D", Before: &before}, longTTL},
+		{app.ChartRequest{Range: "1W", Before: &before}, longTTL},
 	}
 	for _, tc := range cases {
 		clk := testkit.NewClock(marketWhen())
 		fake := &countingChart{}
 		cached := CacheChart(fake, NewCache(clk))
-		if _, err := cached.Handle(t.Context(), "AAPLx", tc.raw); err != nil {
-			t.Fatalf("%s load = %v", tc.raw, err)
+		if _, err := cached.Handle(t.Context(), "AAPLx", tc.req); err != nil {
+			t.Fatalf("%+v load = %v", tc.req, err)
 		}
 		clk.Advance(tc.ttl - time.Nanosecond)
-		if _, err := cached.Handle(t.Context(), "AAPLx", tc.raw); err != nil || fake.calls.Load() != 1 {
-			t.Fatalf("%s inside = %d %v", tc.raw, fake.calls.Load(), err)
+		if _, err := cached.Handle(t.Context(), "AAPLx", tc.req); err != nil || fake.calls.Load() != 1 {
+			t.Fatalf("%+v inside = %d %v", tc.req, fake.calls.Load(), err)
 		}
 		clk.Advance(time.Nanosecond)
-		if _, err := cached.Handle(t.Context(), "AAPLx", tc.raw); err != nil || fake.calls.Load() != 2 {
-			t.Fatalf("%s boundary = %d %v", tc.raw, fake.calls.Load(), err)
+		if _, err := cached.Handle(t.Context(), "AAPLx", tc.req); err != nil || fake.calls.Load() != 2 {
+			t.Fatalf("%+v boundary = %d %v", tc.req, fake.calls.Load(), err)
 		}
+	}
+}
+
+func TestChart_cachesEachIntervalLimitAndPageSeparately(t *testing.T) {
+	t.Parallel()
+	before := marketWhen().Add(-time.Hour)
+	fake := &countingChart{}
+	cached := CacheChart(fake, NewCache(testkit.NewClock(marketWhen())))
+	reqs := []app.ChartRequest{
+		{Range: "1W"},
+		{Range: "1W", Interval: "15m"},
+		{Range: "1W", Interval: "1h"},
+		{Range: "1Y", Interval: "1w"},
+		{Range: "1Y", Interval: "1d"},
+		{Range: "1W", Interval: "15m", Limit: 5},
+		{Range: "1W", Interval: "15m", Before: &before},
+	}
+	for round := range 2 {
+		for _, req := range reqs {
+			if _, err := cached.Handle(t.Context(), "AAPLx", req); err != nil {
+				t.Fatalf("round %d %+v = %v", round, req, err)
+			}
+		}
+	}
+	if int(fake.calls.Load()) != len(reqs) {
+		t.Fatalf("loads = %d, want one per distinct request (%d)", fake.calls.Load(), len(reqs))
 	}
 }
 
@@ -142,16 +174,22 @@ func TestChart_doesNotCacheABadRangeOrAnError(t *testing.T) {
 	t.Parallel()
 	fake := &countingChart{}
 	cached := CacheChart(fake, NewCache(testkit.NewClock(marketWhen())))
-	_, err := cached.Handle(t.Context(), "AAPLx", "nope")
+	_, err := cached.Handle(t.Context(), "AAPLx", app.ChartRequest{Range: "nope"})
 	if errs.CodeOf(err) != errs.CodeInvalidInput || fake.calls.Load() != 0 {
 		t.Fatalf("bad range = %v calls %d", err, fake.calls.Load())
 	}
 	brokenFake := &errChart{}
 	broken := CacheChart(brokenFake, NewCache(testkit.NewClock(marketWhen())))
-	if _, err := broken.Handle(t.Context(), "AAPLx", "1D"); errs.CodeOf(err) != errs.CodeInternal {
+	if _, err := broken.Handle(
+		t.Context(),
+		"AAPLx",
+		app.ChartRequest{Range: "1D"},
+	); errs.CodeOf(
+		err,
+	) != errs.CodeInternal {
 		t.Fatalf("first = %v", err)
 	}
-	_, err = broken.Handle(t.Context(), "AAPLx", "1D")
+	_, err = broken.Handle(t.Context(), "AAPLx", app.ChartRequest{Range: "1D"})
 	if errs.CodeOf(err) != errs.CodeInternal || brokenFake.calls.Load() != 2 {
 		t.Fatalf("second = %d %v", brokenFake.calls.Load(), err)
 	}
@@ -255,14 +293,14 @@ func (c *countingList) Handle(context.Context, app.ListRequest) (app.Page, error
 
 type countingChart struct{ calls atomic.Int32 }
 
-func (c *countingChart) Handle(context.Context, string, string) (app.Chart, error) {
+func (c *countingChart) Handle(context.Context, string, app.ChartRequest) (app.Chart, error) {
 	c.calls.Add(1)
 	return app.Chart{Empty: true, Points: []app.Point{}}, nil
 }
 
 type errChart struct{ calls atomic.Int32 }
 
-func (c *errChart) Handle(context.Context, string, string) (app.Chart, error) {
+func (c *errChart) Handle(context.Context, string, app.ChartRequest) (app.Chart, error) {
 	c.calls.Add(1)
 	return app.Chart{}, errs.New(errs.CodeInternal, "market.test")
 }
@@ -272,7 +310,7 @@ type gateChart struct {
 	gate  <-chan struct{}
 }
 
-func (g *gateChart) Handle(ctx context.Context, _, _ string) (app.Chart, error) {
+func (g *gateChart) Handle(ctx context.Context, _ string, _ app.ChartRequest) (app.Chart, error) {
 	g.calls.Add(1)
 	select {
 	case <-ctx.Done():

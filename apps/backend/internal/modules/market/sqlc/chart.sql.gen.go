@@ -10,32 +10,41 @@ import (
 	"time"
 )
 
-const chartBuckets = `-- name: ChartBuckets :many
-SELECT date_bin(
-    ($1::bigint * interval '1 second'),
-    ts,
-    timestamptz '2000-01-01 00:00:00+00'
-  )::timestamptz AS bucket,
-  (array_agg(price_micros ORDER BY ts ASC))[1]::bigint AS open_micros,
-  max(price_micros)::bigint AS high_micros,
-  min(price_micros)::bigint AS low_micros,
-  (array_agg(price_micros ORDER BY ts DESC))[1]::bigint AS close_micros
-FROM price_points
-WHERE mint = $2::text
-  AND ts >= $3::timestamptz
-  AND ts <= $4::timestamptz
-GROUP BY bucket
-ORDER BY bucket
+const chartBucketsPage = `-- name: ChartBucketsPage :many
+SELECT newest.bucket, newest.open_micros, newest.high_micros, newest.low_micros, newest.close_micros
+FROM (
+  SELECT date_bin(
+      ($1::bigint * interval '1 second'),
+      ts,
+      CASE WHEN $1::bigint = 604800
+        THEN timestamptz '2000-01-03 00:00:00+00'
+        ELSE timestamptz '2000-01-01 00:00:00+00'
+      END
+    )::timestamptz AS bucket,
+    (array_agg(price_micros ORDER BY ts ASC))[1]::bigint AS open_micros,
+    max(price_micros)::bigint AS high_micros,
+    min(price_micros)::bigint AS low_micros,
+    (array_agg(price_micros ORDER BY ts DESC))[1]::bigint AS close_micros
+  FROM price_points
+  WHERE mint = $2::text
+    AND ts >= $3::timestamptz
+    AND ts <= $4::timestamptz
+  GROUP BY bucket
+  ORDER BY bucket DESC
+  LIMIT $5::integer
+) newest
+ORDER BY newest.bucket ASC
 `
 
-type ChartBucketsParams struct {
+type ChartBucketsPageParams struct {
 	BucketSeconds int64
 	Mint          string
 	Since         time.Time
 	Until         time.Time
+	PageLimit     int32
 }
 
-type ChartBucketsRow struct {
+type ChartBucketsPageRow struct {
 	Bucket      time.Time
 	OpenMicros  int64
 	HighMicros  int64
@@ -43,20 +52,21 @@ type ChartBucketsRow struct {
 	CloseMicros int64
 }
 
-func (q *Queries) ChartBuckets(ctx context.Context, arg ChartBucketsParams) ([]ChartBucketsRow, error) {
-	rows, err := q.db.Query(ctx, chartBuckets,
+func (q *Queries) ChartBucketsPage(ctx context.Context, arg ChartBucketsPageParams) ([]ChartBucketsPageRow, error) {
+	rows, err := q.db.Query(ctx, chartBucketsPage,
 		arg.BucketSeconds,
 		arg.Mint,
 		arg.Since,
 		arg.Until,
+		arg.PageLimit,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ChartBucketsRow
+	var items []ChartBucketsPageRow
 	for rows.Next() {
-		var i ChartBucketsRow
+		var i ChartBucketsPageRow
 		if err := rows.Scan(
 			&i.Bucket,
 			&i.OpenMicros,
@@ -87,4 +97,25 @@ func (q *Queries) EarliestPrice(ctx context.Context, mint string) (time.Time, er
 	var ts time.Time
 	err := row.Scan(&ts)
 	return ts, err
+}
+
+const hasSampleBefore = `-- name: HasSampleBefore :one
+SELECT EXISTS (
+  SELECT 1
+  FROM price_points
+  WHERE mint = $1::text
+    AND ts < $2::timestamptz
+)
+`
+
+type HasSampleBeforeParams struct {
+	Mint   string
+	Before time.Time
+}
+
+func (q *Queries) HasSampleBefore(ctx context.Context, arg HasSampleBeforeParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasSampleBefore, arg.Mint, arg.Before)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
