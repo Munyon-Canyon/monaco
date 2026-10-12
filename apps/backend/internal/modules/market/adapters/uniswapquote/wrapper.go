@@ -20,6 +20,7 @@ import (
 	mc "github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 const (
@@ -99,6 +100,39 @@ func (c *Client) remember(l mc.Listing, amount money.Micros, q mc.Quote) {
 type routeResult struct {
 	quote mc.Quote
 	err   error
+	took  routeSteps
+}
+
+type routeSteps struct{ wait, quote, penalize, call time.Duration }
+
+type sponsoredRoute struct {
+	req     quoteRequest
+	options mc.RouteOptions
+}
+
+type simulatedOutputs struct {
+	mu  sync.Mutex
+	out [2]*big.Int
+}
+
+func (o *simulatedOutputs) outranked(i int, quoted *big.Int) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	other := o.out[1-i]
+	return other != nil && (quoted.Cmp(other) < 0 || quoted.Cmp(other) == 0 && i > 0)
+}
+
+func (o *simulatedOutputs) record(i int, received *big.Int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.out[i] = received
+}
+
+type accountCode struct {
+	done  chan struct{}
+	reply evmsim.Reply
+	err   error
+	took  time.Duration
 }
 
 func (c *Client) sponsored(
@@ -108,21 +142,24 @@ func (c *Client) sponsored(
 	if q, hit := c.cached(l, amount); hit {
 		return q, nil
 	}
+	start := c.clock.Now()
 	zero := json.Number("0")
 	req.SlippageTolerance, req.PermitAsTx = &zero, true
 	hookless := req
-	hookless.HooksOptions = mc.NoHooks
-	routes := []quoteRequest{req, hookless}
+	hookless.Protocols = hooklessProtocols()
+	routes := []sponsoredRoute{{req: req}, {req: hookless, options: mc.RouteOptions{HooksOptions: mc.NoHooks}}}
 	found := make([]routeResult, len(routes))
+	code := &accountCode{done: make(chan struct{})}
+	s := simulated{listing: l, amount: amount, owner: owner, code: code}
+	outputs := &simulatedOutputs{}
 	var g errgroup.Group
+	g.Go(func() error {
+		c.readCode(ctx, s, attrs)
+		return nil
+	})
 	for i, r := range routes {
 		g.Go(func() error {
-			q, raw, err := c.quote(ctx, l, mc.SideBuy, r, attrs)
-			q.Options = mc.RouteOptions{HooksOptions: r.HooksOptions}
-			if err == nil {
-				q, err = c.penalize(ctx, simulated{l, amount, owner}, raw, q, attrs)
-			}
-			found[i] = routeResult{quote: q, err: err}
+			found[i] = c.route(ctx, s, r, ranked{outputs: outputs, index: i}, attrs)
 			return nil
 		})
 	}
@@ -133,11 +170,81 @@ func (c *Client) sponsored(
 			best = r
 		}
 	}
+	observability.Debug(ctx, observability.MarketRouterUniswapSteps,
+		slog.String("network", string(l.Network)),
+		slog.String("route", routeName(best)),
+		slog.Int64("total_ms", c.clock.Now().Sub(start).Milliseconds()),
+		slog.Int64("get_code_ms", code.took.Milliseconds()),
+		slog.Int64("default_wait_ms", found[0].took.wait.Milliseconds()),
+		slog.Int64("default_quote_ms", found[0].took.quote.Milliseconds()),
+		slog.Int64("default_penalize_ms", found[0].took.penalize.Milliseconds()),
+		slog.Int64("default_call_ms", found[0].took.call.Milliseconds()),
+		slog.Int64("hookless_wait_ms", found[1].took.wait.Milliseconds()),
+		slog.Int64("hookless_quote_ms", found[1].took.quote.Milliseconds()),
+		slog.Int64("hookless_penalize_ms", found[1].took.penalize.Milliseconds()),
+		slog.Int64("hookless_call_ms", found[1].took.call.Milliseconds()))
 	if best.err != nil {
 		return mc.Quote{}, best.err
 	}
 	c.remember(l, amount, best.quote)
 	return best.quote, nil
+}
+
+func routeName(r routeResult) string {
+	switch {
+	case r.err != nil:
+		return "none"
+	case r.quote.Options.HooksOptions == mc.NoHooks:
+		return "hookless"
+	}
+	return "default"
+}
+
+func hooklessProtocols() []string { return []string{"V2", "V3"} }
+
+type ranked struct {
+	outputs *simulatedOutputs
+	index   int
+}
+
+func (c *Client) route(
+	ctx context.Context, s simulated, r sponsoredRoute, rank ranked, attrs []slog.Attr,
+) routeResult {
+	start := c.clock.Now()
+	err := c.wait(ctx, wrapperOp, attrs)
+	out := routeResult{took: routeSteps{wait: c.clock.Now().Sub(start)}}
+	var q mc.Quote
+	var raw json.RawMessage
+	if err == nil {
+		start = c.clock.Now()
+		q, raw, err = c.quote(ctx, s.listing, mc.SideBuy, r.req, attrs)
+		out.took.quote = c.clock.Now().Sub(start)
+	}
+	q.Options = r.options
+	if err == nil && rank.outputs.outranked(rank.index, q.GrossOutput) {
+		err = errs.New(errs.CodeNoRoute, wrapperOp, append(attrs, slog.String("reason", "outranked"))...)
+	}
+	if err == nil {
+		start = c.clock.Now()
+		q, err = c.penalize(ctx, s, raw, q, attrs, &out.took)
+		out.took.penalize = c.clock.Now().Sub(start)
+	}
+	if err == nil {
+		rank.outputs.record(rank.index, q.GrossOutput)
+	}
+	out.quote, out.err = q, err
+	return out
+}
+
+func (c *Client) readCode(ctx context.Context, s simulated, attrs []slog.Attr) {
+	defer close(s.code.done)
+	client, ok := c.wrapper.rpc[s.listing.Network]
+	if !ok {
+		return
+	}
+	start := c.clock.Now()
+	s.code.reply, s.code.err = evmsim.Call(ctx, client, "eth_getCode", []any{s.owner.String(), "latest"}, attrs)
+	s.code.took = c.clock.Now().Sub(start)
 }
 
 type swapRequest struct {
@@ -157,12 +264,16 @@ type simulated struct {
 	listing mc.Listing
 	amount  money.Micros
 	owner   chain.EVMAddress
+	code    *accountCode
 }
 
 func (c *Client) penalize(
-	ctx context.Context, s simulated, raw json.RawMessage, q mc.Quote, attrs []slog.Attr,
+	ctx context.Context, s simulated, raw json.RawMessage, q mc.Quote, attrs []slog.Attr, took *routeSteps,
 ) (mc.Quote, error) {
 	var swap swapWire
+	if err := c.wait(ctx, wrapperOp, attrs); err != nil {
+		return mc.Quote{}, err
+	}
 	if err := c.postJSON(ctx, "/v1/swap", swapRequest{Quote: raw}, &swap, attrs); err != nil {
 		return mc.Quote{}, err
 	}
@@ -174,7 +285,9 @@ func (c *Client) penalize(
 	if routerErr != nil || dataErr != nil {
 		return mc.Quote{}, errs.New(errs.CodeDecodeFailed, wrapperOp, append(attrs, slog.String("reason", "swap"))...)
 	}
+	start := c.clock.Now()
 	received, met, err := c.simulate(ctx, s, router, calldata, attrs)
+	took.call = c.clock.Now().Sub(start)
 	if err != nil || met || received.Cmp(q.GrossOutput) >= 0 {
 		return q, err
 	}
@@ -195,7 +308,8 @@ func (c *Client) simulate(
 	if !ok || !rpcOK {
 		return nil, false, errs.New(errs.CodeNoRoute, wrapperOp, append(attrs, slog.String("reason", "unsupported"))...)
 	}
-	code, err := evmsim.Call(ctx, client, "eth_getCode", []any{owner.String(), "latest"}, attrs)
+	<-s.code.done
+	code, err := s.code.reply, s.code.err
 	if delegate, ok := evmsim.Delegation(code); err != nil || !ok || delegate != c.wrapper.delegate {
 		return nil, false, errors.Join(err, errs.New(errs.CodeNoRoute, wrapperOp,
 			append(attrs, slog.String("reason", "account_not_delegated"))...))

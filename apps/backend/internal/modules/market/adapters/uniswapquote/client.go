@@ -121,8 +121,18 @@ func (c *Client) Quote(ctx context.Context, l mc.Listing, side mc.Side, amount m
 	if c.wrapper != nil && side == mc.SideBuy {
 		return c.sponsored(ctx, l, amount, req, swapper, attrs)
 	}
+	if err := c.wait(ctx, op, attrs); err != nil {
+		return mc.Quote{}, err
+	}
 	q, _, err := c.quote(ctx, l, side, req, attrs)
 	return q, err
+}
+
+func (c *Client) wait(ctx context.Context, op string, attrs []slog.Attr) error {
+	if err := c.limit.Wait(ctx); err != nil {
+		return errs.Wrap(err, errs.CodeUpstreamUnavailable, op, attrs...)
+	}
+	return nil
 }
 
 func (c *Client) quote(
@@ -198,9 +208,6 @@ func (c *Client) send(
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, path, bytes.NewReader(raw))
 	req.Header.Set(keyHeader, c.key)
 	req.Header.Set("Content-Type", "application/json")
-	if err := c.limit.Wait(ctx); err != nil {
-		return 0, errs.Wrap(err, errs.CodeUpstreamUnavailable, op, attrs...)
-	}
 	resp, err := c.http.Do(ctx, req)
 	if err != nil {
 		return 0, errs.Wrap(err, errs.CodeOf(err), op, attrs...)

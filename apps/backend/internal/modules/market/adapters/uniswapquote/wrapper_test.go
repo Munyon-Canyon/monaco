@@ -88,10 +88,16 @@ func (r *route) calldata() string {
 	return strings.ToLower(strings.TrimPrefix(w.Swap.Data, "0x"))
 }
 
+func hooklessRequest(body map[string]any) bool {
+	protocols, _ := body["protocols"].([]any)
+	_, hooks := body["hooksOptions"]
+	return !hooks && slices.Equal(protocols, []any{"V2", "V3"})
+}
+
 func (r *wrapperRig) serveUniswap(w http.ResponseWriter, path string, body map[string]any) {
 	quote, _ := body["quote"].(map[string]any)
 	hookless := r.hookless != nil &&
-		(body["hooksOptions"] == mc.NoHooks || quote != nil && quote["quoteId"] == r.hookless.quoteID())
+		(hooklessRequest(body) || quote != nil && quote["quoteId"] == r.hookless.quoteID())
 	switch {
 	case path == "/v1/swap" && hookless:
 		r.swaps++
@@ -652,14 +658,29 @@ func TestWrapper_replaysTheLiveRoutesAndBuysThroughTheHooklessOne(t *testing.T) 
 	q, err := r.buy(t, chain.NetworkBase)
 
 	if err != nil || q.GrossOutput.Int64() != 1_388_248 || q.RouteID != hookless.quoteID() ||
-		q.Options.HooksOptions != mc.NoHooks || !slices.Equal(r.quotes[0]["protocols"].([]any),
-		[]any{"V2", "V3", "V4"}) {
+		q.Options.HooksOptions != mc.NoHooks || !r.askedBothRoutes() {
 		t.Fatalf("quote = %v %s %+v, %v, want the hookless v3 route's 1388248 over the hooked route's 1318734",
 			q.GrossOutput, q.RouteID, q.Options, err)
 	}
 	if len(r.calls) != 2 {
 		t.Fatalf("%d simulations, want one per route", len(r.calls))
 	}
+}
+
+func (r *wrapperRig) askedBothRoutes() bool {
+	var hooked, hookless int
+	for _, q := range r.quotes {
+		protocols, _ := q["protocols"].([]any)
+		_, hooks := q["hooksOptions"]
+		switch {
+		case hooks:
+		case slices.Equal(protocols, []any{"V2", "V3", "V4"}):
+			hooked++
+		case slices.Equal(protocols, []any{"V2", "V3"}):
+			hookless++
+		}
+	}
+	return len(r.quotes) == 2 && hooked == 1 && hookless == 1
 }
 
 func TestWrapper_keepsTheHookedRouteWhenItSimulatesHigher(t *testing.T) {
