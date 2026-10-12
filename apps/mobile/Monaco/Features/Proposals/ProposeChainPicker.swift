@@ -41,6 +41,14 @@ struct ProposeChainSection: View {
                     .accessibilityHint("Chooses the chain the cabal buys on")
                     .accessibilityIdentifier("propose-chain-row")
                 }
+                if let problem = model.chainProblem {
+                    Text(problem)
+                        .font(MonacoTheme.Typo.caption)
+                        .foregroundStyle(MonacoTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, MonacoTheme.Space.gutter)
+                        .accessibilityIdentifier("propose-chain-problem")
+                }
             }
             .sheet(isPresented: $choosing) {
                 ProposeChainSheet(options: options, selected: model.chain) { model.choose($0) }

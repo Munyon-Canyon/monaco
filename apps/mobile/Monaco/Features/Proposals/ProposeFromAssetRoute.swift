@@ -103,7 +103,7 @@ struct ProposeFromAssetScreen: View {
         case .buy:
             ProposeAmountScreen(
                 service: MonacoCore.LiveProposeService(api: environment.api), cabalID: cabal.id,
-                stock: ProposeStock(symbol: symbol))
+                stock: ProposeStock(symbol: symbol), bestChains: environment.bestChains)
         case .sell:
             CabalPotModelHost(cabalID: cabal.id) { pot in
                 sellAmount(cabal, pot: pot)

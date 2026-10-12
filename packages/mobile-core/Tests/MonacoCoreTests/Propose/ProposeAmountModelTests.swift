@@ -220,15 +220,22 @@ final class ProposeAmountModelTests: XCTestCase {
     }
 }
 
-private actor PreviewService: ProposeService {
+actor PreviewService: ProposeService {
     struct Failure: Error {}
     let code: String?
+    let pinnedCode: String?
+    let quoteOut: Int64?
     var amounts: [Int64] = []
+    var networks: [Components.Schemas.Network?] = []
     private var failing = false
     private var holding = false
     private var held: [CheckedContinuation<Void, Never>] = []
 
-    init(code: String? = nil) { self.code = code }
+    init(code: String? = nil, pinnedCode: String? = nil, quoteOut: Int64? = nil) {
+        self.code = code
+        self.pinnedCode = pinnedCode
+        self.quoteOut = quoteOut
+    }
 
     func setFailing(_ value: Bool) { failing = value }
     func hold() { holding = true }
@@ -240,12 +247,17 @@ private actor PreviewService: ProposeService {
 
     func potValue(cabalID _: String) async throws -> Int64 { 500_000_000 }
 
-    func preview(cabalID _: String, draft: ProposalDraft) async throws -> ProposePreview {
+    func preview(
+        cabalID _: String, draft: ProposalDraft, network: Components.Schemas.Network?
+    ) async throws -> ProposePreview {
         amounts.append(draft.amount)
+        networks.append(network)
         if failing { throw Failure() }
         if holding { await withCheckedContinuation { held.append($0) } }
         return ProposePreview(
-            .init(quoteOutAmount: nil, advisoryCode: code, advisoryMessage: nil, potValueMicros: 500_000_000))
+            .init(
+                quoteOutAmount: quoteOut, advisoryCode: network == nil ? code : pinnedCode, advisoryMessage: nil,
+                potValueMicros: 500_000_000))
     }
 
     func propose(
@@ -256,4 +268,5 @@ private actor PreviewService: ProposeService {
     }
     func withdraw(proposalID _: String, submission _: IdempotentSubmission) async throws {}
     func recordedAmounts() -> [Int64] { amounts }
+    func recordedNetworks() -> [Components.Schemas.Network?] { networks }
 }

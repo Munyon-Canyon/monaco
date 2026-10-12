@@ -21,7 +21,7 @@ public struct ProposeChainOption: Identifiable, Equatable, Sendable {
 
     public var id: String { chain.network?.rawValue ?? "best" }
 
-    public static func options(_ bestPrice: BestPrice?) -> [ProposeChainOption] {
+    public static func options(_ bestPrice: BestPrice?, isEstimate: Bool = false) -> [ProposeChainOption] {
         guard let bestPrice, !bestPrice.isSell else { return [] }
         var networks: [Components.Schemas.Network] = []
         for venue in bestPrice.venues where !networks.contains(venue.network) {
@@ -29,13 +29,16 @@ public struct ProposeChainOption: Identifiable, Equatable, Sendable {
         }
         guard networks.count > 1 else { return [] }
         let winner = bestPrice.winner
+        let figure = { (venue: BestPrice.Venue) in
+            isEstimate ? "about \(bestPrice.figure(venue))" : bestPrice.figure(venue)
+        }
         let best = ProposeChainOption(
-            chain: .best, title: "Best price", figure: bestPrice.figure(winner), network: winner.network, isBest: true)
+            chain: .best, title: "Best price", figure: figure(winner), network: winner.network, isBest: true)
         return [best]
             + networks.compactMap { network in
                 bestPrice.venue(on: network).map {
                     ProposeChainOption(
-                        chain: .network(network), title: BestPrice.chainName(network), figure: bestPrice.figure($0),
+                        chain: .network(network), title: BestPrice.chainName(network), figure: figure($0),
                         network: network, isBest: false)
                 }
             }
