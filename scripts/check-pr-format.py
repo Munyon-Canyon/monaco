@@ -119,15 +119,35 @@ def command_errors(body: str) -> list[str]:
     return errors
 
 
-def sha_errors(body: str, head: str) -> list[str]:
+def sha_errors(body: str, head: str, base: str = "") -> list[str]:
     errors = []
     for sha in dict.fromkeys(SHA_RE.findall(strip_comments(body))):
         full = git("rev-parse", "--verify", "--quiet", f"{sha}^{{commit}}")
+        if full is None and base and git("fetch", "--quiet", "--no-tags", "origin", sha) is not None:
+            full = git("rev-parse", "--verify", "--quiet", f"{sha}^{{commit}}")
         if full is None:
             errors.append(f"the body cites {sha}, which is not a commit in this repository")
-        elif git("merge-base", "--is-ancestor", full, head) is None:
+        elif git("merge-base", "--is-ancestor", full, head) is None and not rebased_into(full, base, head):
             errors.append(f"the body cites {sha}, which is not an ancestor of the head {head[:12]}; cite the SHA this PR contains")
     return errors
+
+
+# A stacked PR is rebased by Graphite when the PR below it lands, so the SHA its body cites leaves
+# the branch. That SHA still names this PR's work when one of the PR's commits carries the same patch.
+def rebased_into(sha: str, base: str, head: str) -> bool:
+    cited = patch_id(sha)
+    if not base or not cited:
+        return False
+    ours = git("rev-list", f"{base}..{head}") or ""
+    return any(patch_id(c) == cited for c in ours.split())
+
+
+def patch_id(sha: str) -> str:
+    diff = subprocess.run(["git", "show", "--format=", sha], capture_output=True, text=True).stdout
+    if not diff.strip():
+        return ""
+    run = subprocess.run(["git", "patch-id", "--stable"], input=diff, capture_output=True, text=True)
+    return run.stdout.split(" ")[0] if run.returncode == 0 else ""
 
 
 def commit_errors(base: str, head: str) -> list[str]:
@@ -218,7 +238,7 @@ def template_errors(env: dict[str, str], body: str) -> list[str]:
         + command_errors(body)
         + closing_errors(body)
         + ticket_errors(body, *neighbours(env))
-        + sha_errors(body, env["HEAD_SHA"])
+        + sha_errors(body, env["HEAD_SHA"], env.get("BASE_SHA", ""))
     )
 
 
