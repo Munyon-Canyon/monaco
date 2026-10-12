@@ -222,6 +222,13 @@ def commit(subject: str) -> str:
     return git("rev-parse", "HEAD")
 
 
+def change(path: str, text: str, subject: str) -> str:
+    with open(path, "w") as f:
+        f.write(text)
+    git("add", path)
+    return commit(subject)
+
+
 class RepoTest(unittest.TestCase):
     def setUp(self):
         self.env = dict(os.environ)
@@ -260,6 +267,25 @@ class ShaTest(RepoTest):
         head = commit("feat: head")
         self.assertRegex(side[:10], check.SHA_RE)
         errors = check.sha_errors(pr(f"Part of #789. Built at {side[:10]}."), head)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("not an ancestor of the head", errors[0])
+
+    def test_accepts_a_sha_rebased_into_the_pr_with_the_same_patch(self):
+        git("switch", "-q", "-c", "before-rebase")
+        before = change("a.txt", "work\n", "feat: work")
+        git("switch", "-q", "trunk")
+        landed = change("b.txt", "lower PR\n", "feat: lower PR")
+        after = change("a.txt", "work\n", "feat: work")
+        body = pr(f"Part of #789. Checked on {before[:10]}.")
+        self.assertEqual(check.sha_errors(body, after, landed), [])
+        self.assertEqual(len(check.sha_errors(body, after)), 1)
+
+    def test_rejects_a_sha_whose_patch_differs_from_every_pr_commit(self):
+        git("switch", "-q", "-c", "other")
+        other = change("a.txt", "other work\n", "feat: other")
+        git("switch", "-q", "trunk")
+        head = change("a.txt", "work\n", "feat: work")
+        errors = check.sha_errors(pr(f"Part of #789. Checked on {other[:10]}."), head, self.base)
         self.assertEqual(len(errors), 1)
         self.assertIn("not an ancestor of the head", errors[0])
 
