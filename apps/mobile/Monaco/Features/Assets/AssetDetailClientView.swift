@@ -23,7 +23,12 @@ struct AssetDetailClientView: View {
                 await start()
                 await model?.observe()
             }
-            .onScreenVisibilityChange { model?.setVisible($0) }
+            .task { await environment.bestChains.refreshIfNeeded(symbol: symbol) }
+            .onScreenVisibilityChange { visible in
+                model?.setVisible(visible)
+                guard visible else { return }
+                Task { await environment.bestChains.refreshIfNeeded(symbol: symbol) }
+            }
             .onChange(of: model?.detail?.priceMicros) { oldPrice, newPrice in
                 guard let oldPrice, let newPrice, oldPrice != newPrice else { return }
                 priceTick = .init(sequence: (priceTick?.sequence ?? 0) + 1, isUp: newPrice > oldPrice)
@@ -140,6 +145,9 @@ struct AssetDetailClientView: View {
             if detail.market.showsSessionChip, let session = MarketSessionCopy.chip(for: detail.market.status) {
                 MarketSessionChip(session: session)
                     .accessibilityIdentifier("asset-detail-session")
+            }
+            if let bestChain = environment.bestChains.bestChain(for: symbol) {
+                AssetBestChainLine(bestChain: bestChain)
             }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
@@ -347,6 +355,22 @@ extension AssetDetailClientView {
                 .foregroundStyle(MonacoTheme.muted)
             }
         }
+    }
+}
+
+private struct AssetBestChainLine: View {
+    let bestChain: AssetBestChain
+
+    var body: some View {
+        HStack(spacing: MonacoTheme.Space.xs) {
+            ChainMark(network: bestChain.network.rawValue, size: 24)
+            Text(bestChain.headline)
+                .font(MonacoTheme.Typo.subhead)
+                .foregroundStyle(MonacoTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("asset-detail-best-chain")
     }
 }
 

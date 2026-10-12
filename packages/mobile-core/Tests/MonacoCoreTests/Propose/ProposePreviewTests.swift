@@ -12,13 +12,28 @@ final class ProposePreviewTests: XCTestCase {
             )
         )
         let preview = try await LiveProposeService(api: api(transport)).preview(
-            cabalID: "cabal", draft: .buy(symbol: "AAPLx", usdcMicros: 5_000_000, thesis: "")
+            cabalID: "cabal", draft: .buy(symbol: "AAPLx", usdcMicros: 5_000_000, thesis: ""), network: nil
         )
 
         XCTAssertEqual(preview.quoteOutAmount, 21_000_000)
         XCTAssertNil(preview.advisoryCode)
         XCTAssertEqual(preview.maxMicros, 100_000_000)
         XCTAssertEqual(preview.potHelperText, "The pot has $100.00")
+    }
+
+    func testAPinnedPreviewAsksForOnlyThatChain() async throws {
+        let transport = StubTransport(
+            .json(.ok, #"{"quote_out_amount":21000000,"pot_value_micros":100000000}"#))
+
+        _ = try await LiveProposeService(api: api(transport)).preview(
+            cabalID: "cabal", draft: .buy(symbol: "AAPLx", usdcMicros: 5_000_000, thesis: ""), network: .base)
+        _ = try await LiveProposeService(api: api(transport)).preview(
+            cabalID: "cabal", draft: .buy(symbol: "AAPLx", usdcMicros: 5_000_000, thesis: ""), network: nil)
+
+        let paths = await transport.sent.map { $0.path ?? "" }
+        XCTAssertEqual(paths.count, 2)
+        XCTAssertTrue(paths[0].contains("network=base"), paths[0])
+        XCTAssertFalse(paths[1].contains("network"), paths[1])
     }
 
     func testPotExceededDisablesReview() {

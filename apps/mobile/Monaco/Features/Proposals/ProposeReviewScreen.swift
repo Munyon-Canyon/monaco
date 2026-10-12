@@ -13,14 +13,16 @@ struct ProposeReviewScreen: View {
     private let preview: MonacoCore.ProposePreview
     private let trade: MonacoCore.ProposeTrade
     private let buyName: String?
+    private let bestChain: MonacoCore.AssetBestChain?
     private let memory: MonacoCore.ProposeReviewMemory
 
     init(
         service: MonacoCore.ProposeService, cabalID: String, draft: MonacoCore.ProposalDraft,
         preview: MonacoCore.ProposePreview, trade: MonacoCore.ProposeTrade, buyName: String? = nil,
-        memory: MonacoCore.ProposeReviewMemory
+        bestChain: MonacoCore.AssetBestChain? = nil, memory: MonacoCore.ProposeReviewMemory
     ) {
         self.buyName = buyName
+        self.bestChain = bestChain
         self.memory = memory
         self.service = service
         self.cabalID = cabalID
@@ -58,7 +60,9 @@ struct ProposeReviewScreen: View {
                     }
                 }
                 if let bestPrice = model.bestPrice {
-                    BestPriceSection(bestPrice: bestPrice)
+                    BestPriceSection(
+                        row: BestPriceRow(
+                            bestPrice, caption: model.isEstimate ? MonacoCore.ProposeReviewModel.estimateCaption : nil))
                 }
                 ProposeChainSection(model: model)
                 if let reason = model.reason {
@@ -81,7 +85,7 @@ struct ProposeReviewScreen: View {
                 BottomCTA {
                     Button(model.sendTitle) { Task { await send(model) } }
                         .buttonStyle(.monacoPrimary)
-                        .disabled(model.isSending || model.proposalID != nil)
+                        .disabled(!model.canSend)
                         .accessibilityIdentifier("propose-review-send")
                 }
             }
@@ -105,7 +109,7 @@ struct ProposeReviewScreen: View {
             model = memory.hold(
                 MonacoCore.ProposeReviewModel(
                     service: service, cabalID: cabalID, cabal: cabal, draft: draft, preview: preview, trade: trade,
-                    buyName: buyName))
+                    buyName: buyName, bestChain: bestChain))
         } catch {
             cabalFailed = true
         }

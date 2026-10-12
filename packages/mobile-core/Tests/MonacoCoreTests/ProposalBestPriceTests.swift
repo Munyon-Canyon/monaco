@@ -79,7 +79,9 @@ final class ProposalBestPriceTests: XCTestCase {
 private struct UnusedProposeService: ProposeService {
     struct Unused: Error {}
 
-    func preview(cabalID _: String, draft _: ProposalDraft) async throws -> ProposePreview { throw Unused() }
+    func preview(cabalID _: String, draft _: ProposalDraft, network _: Components.Schemas.Network?) async throws
+        -> ProposePreview
+    { throw Unused() }
     func potValue(cabalID _: String) async throws -> Int64 { throw Unused() }
     func propose(
         cabalID _: String, draft _: ProposalDraft, network _: Components.Schemas.Network?,

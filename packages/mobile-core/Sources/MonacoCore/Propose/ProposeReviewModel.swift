@@ -18,6 +18,7 @@ public final class ProposeReviewModel {
     public private(set) var errorMessage: String?
     public private(set) var proposalID: String?
     public private(set) var chain: ProposeChain = .best
+    public private(set) var chainPreview: ChainPreview?
 
     public let cabal: ProposeCabalInfo
     private let service: ProposeService
@@ -27,13 +28,16 @@ public final class ProposeReviewModel {
     private let trade: ProposeTrade
     private let submission: IdempotentSubmission
     private let buyName: String?
+    private let bestChain: AssetBestChain?
+    private var chainTask: Task<Void, Never>?
 
     public init(
         service: ProposeService, cabalID: String, cabal: ProposeCabalInfo, draft: ProposalDraft,
-        preview: ProposePreview, trade: ProposeTrade, buyName: String? = nil,
+        preview: ProposePreview, trade: ProposeTrade, buyName: String? = nil, bestChain: AssetBestChain? = nil,
         submission: IdempotentSubmission = IdempotentSubmission()
     ) {
         self.buyName = buyName
+        self.bestChain = trade.isSell ? nil : bestChain
         self.service = service
         self.cabalID = cabalID
         self.cabal = cabal
@@ -68,13 +72,50 @@ public final class ProposeReviewModel {
         }
     }
 
-    public var bestPrice: BestPrice? { preview.bestPrice(isSell: isSell) }
+    public var bestPrice: BestPrice? {
+        bestChain?.bestPrice(forMicros: draft.amount) ?? preview.bestPrice(isSell: isSell)
+    }
 
-    public var chainOptions: [ProposeChainOption] { ProposeChainOption.options(bestPrice) }
+    public var isEstimate: Bool { bestChain != nil }
+
+    public static let estimateCaption = "Estimate from the price of a $1 buy"
+
+    public var chainOptions: [ProposeChainOption] { ProposeChainOption.options(bestPrice, isEstimate: isEstimate) }
 
     public func choose(_ chain: ProposeChain) {
         guard !isSending, proposalID == nil else { return }
         self.chain = chain
+        chainTask?.cancel()
+        chainPreview = nil
+        guard let bestChain, let network = chain.network, network != bestChain.network else { return }
+        chainPreview = ChainPreview(network: network, state: .loading)
+        let draft = draft
+        chainTask = Task { [service, cabalID] in
+            let state: ChainPreview.State
+            do {
+                state = .loaded(try await service.preview(cabalID: cabalID, draft: draft, network: network))
+            } catch {
+                state = .failed
+            }
+            guard !Task.isCancelled else { return }
+            self.chainPreview = ChainPreview(network: network, state: state)
+        }
+    }
+
+    public var chainProblem: String? {
+        guard let chainPreview else { return nil }
+        switch chainPreview.state {
+        case .loading: return nil
+        case .failed: return "Can't get a price on \(BestPrice.chainName(chainPreview.network)) right now"
+        case .loaded(let preview): return preview.message(assetName: assetName)
+        }
+    }
+
+    public var canSend: Bool {
+        guard !isSending, proposalID == nil else { return false }
+        guard let chainPreview else { return true }
+        if case .loading = chainPreview.state { return false }
+        return chainProblem == nil
     }
 
     public var destination: String { "to \(cabal.name)" }
@@ -101,15 +142,31 @@ public final class ProposeReviewModel {
     }
 
     private func outcomeRows(kind: AssetKind) -> [Row] {
-        var rows: [Row] = []
-        if let network = chain.network, let bestPrice, let venue = bestPrice.venue(on: network) {
+        if let chainPreview {
+            guard case .loaded(let pinned) = chainPreview.state else {
+                return estimateRows(on: chainPreview.network)
+            }
+            return quoteRows(pinned, kind: kind)
+        }
+        if bestChain == nil, let network = chain.network, let bestPrice, let venue = bestPrice.venue(on: network) {
+            var rows: [Row] = []
             rows.append(Row(label: "Cabal gets", value: "about \(bestPrice.figure(venue))"))
             if let price = bestPrice.price(of: venue) {
                 rows.append(Row(label: "Price", value: "about \(price)"))
             }
             return rows
         }
-        let quantity = quantity
+        return quoteRows(preview, kind: kind)
+    }
+
+    private func estimateRows(on network: Components.Schemas.Network) -> [Row] {
+        guard let bestPrice, let venue = bestPrice.venue(on: network) else { return [] }
+        return [Row(label: "Cabal gets", value: "Estimate: about \(bestPrice.figure(venue))")]
+    }
+
+    private func quoteRows(_ preview: ProposePreview, kind: AssetKind) -> [Row] {
+        var rows: [Row] = []
+        let quantity = quantity(preview)
         if let quantity {
             rows.append(
                 Row(label: "Cabal gets", value: "about \(TokenQuantityFormatter.label(quantity: quantity, kind: kind))")
@@ -146,7 +203,7 @@ public final class ProposeReviewModel {
     public var successToast: String { "Proposal sent to \(cabal.name)" }
 
     public func send() async {
-        guard !isSending, proposalID == nil else { return }
+        guard canSend else { return }
         isSending = true
         errorMessage = nil
         defer { isSending = false }
@@ -158,7 +215,7 @@ public final class ProposeReviewModel {
         }
     }
 
-    private var quantity: Decimal? {
+    private func quantity(_ preview: ProposePreview) -> Decimal? {
         guard case .buy(_, _, let tokenDecimals) = trade, let tokenDecimals, let out = preview.quoteOutAmount, out > 0
         else { return nil }
         return TokenQuantityFormatter.quantity(fromAtomics: String(out), decimals: tokenDecimals)
@@ -176,6 +233,17 @@ public final class ProposeReviewModel {
         guard pot > 0, draft.amount <= Int64.max / 100 else { return nil }
         return (draft.amount * 100 + pot / 2) / pot
     }
+}
+
+public struct ChainPreview: Equatable, Sendable {
+    public enum State: Equatable, Sendable {
+        case loading
+        case loaded(ProposePreview)
+        case failed
+    }
+
+    public let network: Components.Schemas.Network
+    public let state: State
 }
 
 @MainActor

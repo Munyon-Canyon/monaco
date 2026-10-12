@@ -11,6 +11,7 @@ final class AppEnvironment {
     let api: APIClient
     let hints: any HintConnecting
     let assetLogos: AssetLogoStore
+    let bestChains: AssetBestChainStore
     let chatRealtime: SharedChatRealtime
     let auth: PrivyAuthService
     let linking: any AccountLinking
@@ -62,6 +63,7 @@ final class AppEnvironment {
         let api = api ?? APIClient(serverURL: Config.api.baseURL, tokens: tokens)
         self.api = api
         self.assetLogos = AssetLogoStore(api: api)
+        self.bestChains = AssetBestChainStore(api: api, now: { Date() })
         self.chatRealtime = SharedChatRealtime { AblyChatRealtime(api: api) }
         self.cardDeposit = CardDeposit(source: OnrampSource(api: api), hints: hints, now: { Date() })
         self.balance = BalanceSource(api: api, hints: hints)
@@ -218,6 +220,7 @@ final class AppEnvironment {
         balance.reset()
         cashOuts.reset()
         sessionStore.reset()
+        bestChains.reset()
         #if DEBUG
         tokens.use(nil)
         devSessionActive = false

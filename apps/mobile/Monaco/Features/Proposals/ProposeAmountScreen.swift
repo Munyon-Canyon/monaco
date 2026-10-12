@@ -13,13 +13,16 @@ struct ProposeAmountScreen: View {
     @FocusState private var reasonFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(service: MonacoCore.ProposeService, cabalID: String, stock: ProposeStock, trade: ProposeTrade? = nil) {
+    init(
+        service: MonacoCore.ProposeService, cabalID: String, stock: ProposeStock, trade: ProposeTrade? = nil,
+        bestChains: AssetBestChainStore? = nil
+    ) {
         self.stock = stock
         self.cabalID = cabalID
         let trade = trade ?? .buy(symbol: stock.symbol, kind: stock.assetKind, tokenDecimals: stock.tokenDecimals)
         _model = State(
             initialValue: ProposeAmountModel(
-                service: service, cabalID: cabalID, trade: trade, clock: ContinuousClock()))
+                service: service, cabalID: cabalID, trade: trade, clock: ContinuousClock(), bestChains: bestChains))
     }
 
     private static let amountEntryID = "propose-amount-entry"
@@ -46,6 +49,9 @@ struct ProposeAmountScreen: View {
                     ) {
                         VStack(spacing: MonacoTheme.Space.s) {
                             if let note = model.sellQuantityNote { AmountEntryNote(note) }
+                            if let note = model.buyQuantityNote {
+                                AmountEntryNote(note).accessibilityIdentifier("propose-amount-quantity")
+                            }
                             reasonSection
                         }
                     }
@@ -73,6 +79,7 @@ struct ProposeAmountScreen: View {
         }
         .monacoCanvas()
         .task { await model.load() }
+        .task { await model.prefetchBestChain() }
         .task {
             guard !model.trade.isSell,
                 let asset = try? await ProposalsRepository(api: environment.api).asset(symbol: stock.symbol)
@@ -100,7 +107,7 @@ struct ProposeAmountScreen: View {
                 ProposeReviewScreen(
                     service: MonacoCore.LiveProposeService(api: environment.api), cabalID: cabalID,
                     draft: model.draft, preview: preview, trade: model.trade,
-                    buyName: stock.name, memory: reviewMemory)
+                    buyName: stock.name, bestChain: model.previewBestChain, memory: reviewMemory)
             }
         }
         .accessibilityElement(children: .contain)

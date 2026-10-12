@@ -108,17 +108,23 @@ struct ProposeAmountKeypadTests {
         }
     }
 
-    private actor HeldPreviewService: MonacoCore.ProposeService {
+    actor HeldPreviewService: MonacoCore.ProposeService {
         private var held: CheckedContinuation<Void, Never>?
+        private(set) var networks: [Components.Schemas.Network?] = []
+        private(set) var answered = false
 
         func isAsked() -> Bool { held != nil }
 
         func answer() {
+            answered = true
             held?.resume()
             held = nil
         }
 
-        func preview(cabalID _: String, draft _: ProposalDraft) async throws -> ProposePreview {
+        func preview(cabalID _: String, draft _: ProposalDraft, network: Components.Schemas.Network?) async throws
+            -> ProposePreview
+        {
+            networks.append(network)
             await withCheckedContinuation { held = $0 }
             return ProposePreview(
                 .init(quoteOutAmount: nil, advisoryCode: nil, advisoryMessage: nil, potValueMicros: 500_000_000))
@@ -135,8 +141,10 @@ struct ProposeAmountKeypadTests {
         }
     }
 
-    private struct UnansweredProposeService: MonacoCore.ProposeService {
-        func preview(cabalID _: String, draft _: ProposalDraft) async throws -> ProposePreview {
+    struct UnansweredProposeService: MonacoCore.ProposeService {
+        func preview(cabalID _: String, draft _: ProposalDraft, network _: Components.Schemas.Network?) async throws
+            -> ProposePreview
+        {
             throw CancellationError()
         }
         func potValue(cabalID _: String) async throws -> Int64 { throw CancellationError() }
@@ -151,7 +159,7 @@ struct ProposeAmountKeypadTests {
         }
     }
 
-    private static func setAutomation(enabled: Bool) throws {
+    static func setAutomation(enabled: Bool) throws {
         let library = try #require(dlopen("/usr/lib/libAccessibility.dylib", RTLD_NOW))
         let symbol = try #require(dlsym(library, "_AXSSetAutomationEnabled"))
         unsafeBitCast(symbol, to: (@convention(c) (Int32) -> Void).self)(enabled ? 1 : 0)
@@ -161,9 +169,10 @@ struct ProposeAmountKeypadTests {
         ProposeHolding(Components.Schemas.CabalPot.sampleInvested.holdings[0])
     }
 
-    private static func window(
+    static func window(
         textSize: DynamicTypeSize = .large, trade: MonacoCore.ProposeTrade? = nil, size: CGSize? = nil,
-        service: any MonacoCore.ProposeService = UnansweredProposeService()
+        service: any MonacoCore.ProposeService = UnansweredProposeService(),
+        bestChains: MonacoCore.AssetBestChainStore? = nil
     ) throws -> (UIWindow, UINavigationController) {
         let scene = try #require(
             UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first,
@@ -176,7 +185,7 @@ struct ProposeAmountKeypadTests {
             isAuthenticated: { true }, endAuthSession: {})
         let screen = ProposeAmountScreen(
             service: service, cabalID: "cabal-1", stock: ProposeStock(symbol: "GOOGLx"),
-            trade: trade)
+            trade: trade, bestChains: bestChains)
         let window = UIWindow(windowScene: scene)
         window.rootViewController = UIHostingController(
             rootView: NavigationStack { screen }
@@ -207,7 +216,7 @@ struct ProposeAmountKeypadTests {
         return view.subviews.lazy.compactMap { firstResponder(in: $0) }.first
     }
 
-    private static func element(_ identifier: String, in root: NSObject, depth: Int = 0) -> NSObject? {
+    static func element(_ identifier: String, in root: NSObject, depth: Int = 0) -> NSObject? {
         if Self.identifier(of: root) == identifier { return root }
         guard depth < 80 else { return nil }
         var children: [NSObject] = (root as? UIView)?.subviews ?? []
@@ -222,14 +231,14 @@ struct ProposeAmountKeypadTests {
         return children.lazy.compactMap { element(identifier, in: $0, depth: depth + 1) }.first
     }
 
-    private static func identifier(of element: NSObject) -> String? {
+    static func identifier(of element: NSObject) -> String? {
         guard element.responds(to: #selector(getter: UIAccessibilityIdentification.accessibilityIdentifier)) else {
             return nil
         }
         return element.value(forKey: "accessibilityIdentifier") as? String
     }
 
-    private static func eventually(within seconds: Double = 3, _ predicate: () -> Bool) async -> Bool {
+    static func eventually(within seconds: Double = 3, _ predicate: () -> Bool) async -> Bool {
         let deadline = Date().addingTimeInterval(seconds)
         while !predicate() {
             if Date() > deadline { return false }

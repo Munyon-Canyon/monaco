@@ -31,8 +31,8 @@ struct ProposeBuyStockView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $picked) { stock in
             ProposeAmountScreen(
-                service: MonacoCore.LiveProposeService(api: environment.api), cabalID: cabalID, stock: stock
-            )
+                service: MonacoCore.LiveProposeService(api: environment.api), cabalID: cabalID, stock: stock,
+                bestChains: environment.bestChains)
         }
         .task {
             let model = preparedModel()

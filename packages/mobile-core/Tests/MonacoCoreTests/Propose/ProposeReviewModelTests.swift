@@ -252,17 +252,39 @@ final class ProposeReviewModelTests: XCTestCase {
     }
 }
 
-private actor ReviewService: ProposeService {
+actor ReviewService: ProposeService {
     struct Failure: Error {}
     private var failures: Int
     private var holdsFirst: Bool
     private var held: CheckedContinuation<Void, Never>?
     private(set) var submissions: [IdempotentSubmission] = []
     private(set) var networks: [Components.Schemas.Network?] = []
+    private(set) var previewNetworks: [Components.Schemas.Network?] = []
+    private let chainQuoteOut: Int64
+    private let chainCode: String?
+    private var holdsChain: Bool
+    private var heldChain: CheckedContinuation<Void, Never>?
 
-    init(failures: Int = 0, holdsFirst: Bool = false) {
+    init(
+        failures: Int = 0, holdsFirst: Bool = false, chainQuoteOut: Int64 = 99_000_000, chainCode: String? = nil,
+        holdsChain: Bool = false
+    ) {
         self.failures = failures
         self.holdsFirst = holdsFirst
+        self.chainQuoteOut = chainQuoteOut
+        self.chainCode = chainCode
+        self.holdsChain = holdsChain
+    }
+
+    func waitUntilChainAsked() async -> Bool {
+        for _ in 0..<1_000 where heldChain == nil { await Task.yield() }
+        return heldChain != nil
+    }
+
+    func releaseChain() {
+        holdsChain = false
+        heldChain?.resume()
+        heldChain = nil
     }
 
     func waitUntilHeld() async {
@@ -274,7 +296,16 @@ private actor ReviewService: ProposeService {
         held = nil
     }
 
-    func preview(cabalID _: String, draft _: ProposalDraft) async throws -> ProposePreview { throw Failure() }
+    func preview(
+        cabalID _: String, draft _: ProposalDraft, network: Components.Schemas.Network?
+    ) async throws -> ProposePreview {
+        previewNetworks.append(network)
+        if holdsChain { await withCheckedContinuation { heldChain = $0 } }
+        return ProposePreview(
+            .init(
+                quoteOutAmount: chainQuoteOut, advisoryCode: chainCode, advisoryMessage: nil,
+                potValueMicros: 500_000_000))
+    }
 
     func potValue(cabalID _: String) async throws -> Int64 { throw Failure() }
 

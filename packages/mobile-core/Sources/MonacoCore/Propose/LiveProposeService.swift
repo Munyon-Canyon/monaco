@@ -7,10 +7,12 @@ public struct LiveProposeService: ProposeService {
         self.api = api
     }
 
-    public func preview(cabalID: String, draft: ProposalDraft) async throws -> ProposePreview {
+    public func preview(
+        cabalID: String, draft: ProposalDraft, network: Components.Schemas.Network?
+    ) async throws -> ProposePreview {
         let reply = try await api.read { client in
             try await client.getCabalProposalPreview(
-                path: .init(id: cabalID), query: draft.previewQuery
+                path: .init(id: cabalID), query: draft.previewQuery(network: network)
             ).ok.body.json
         }
         return ProposePreview(reply)
@@ -43,9 +45,12 @@ public struct LiveProposeService: ProposeService {
 }
 
 extension ProposalDraft {
-    fileprivate var previewQuery: Operations.GetCabalProposalPreview.Input.Query {
+    fileprivate func previewQuery(
+        network: Components.Schemas.Network?
+    ) -> Operations.GetCabalProposalPreview.Input.Query {
         switch self {
-        case .buy(let symbol, let usdcMicros, _): .init(kind: .buy, symbol: symbol, usdcMicros: usdcMicros)
+        case .buy(let symbol, let usdcMicros, _):
+            .init(kind: .buy, symbol: symbol, usdcMicros: usdcMicros, network: network)
         case .sell(let symbol, let tokenAmount, _): .init(kind: .sell, symbol: symbol, tokenAmount: tokenAmount)
         }
     }

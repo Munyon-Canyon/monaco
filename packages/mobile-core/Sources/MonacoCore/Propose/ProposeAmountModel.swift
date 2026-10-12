@@ -1,4 +1,5 @@
 import Foundation
+import MonacoAPI
 import Observation
 
 @Observable @MainActor
@@ -11,17 +12,24 @@ public final class ProposeAmountModel {
     public private(set) var isLoading = false
     public private(set) var thesis = ""
     public private(set) var trade: ProposeTrade
+    public private(set) var bestChain: AssetBestChain?
+    public private(set) var previewBestChain: AssetBestChain?
 
     private let service: ProposeService
     private let cabalID: String
     private let clock: any Clock<Duration>
+    private let bestChains: AssetBestChainStore?
     private var previewTask: Task<Void, Never>?
 
-    public init(service: ProposeService, cabalID: String, trade: ProposeTrade, clock: any Clock<Duration>) {
+    public init(
+        service: ProposeService, cabalID: String, trade: ProposeTrade, clock: any Clock<Duration>,
+        bestChains: AssetBestChainStore? = nil
+    ) {
         self.service = service
         self.cabalID = cabalID
         self.trade = trade
         self.clock = clock
+        self.bestChains = bestChains
     }
 
     public var maxMicros: Int64? {
@@ -65,6 +73,29 @@ public final class ProposeAmountModel {
         potMicros = try? await service.potValue(cabalID: cabalID)
     }
 
+    public func prefetchBestChain() async {
+        guard case .buy(let symbol, _, _) = trade, let bestChains else { return }
+        await bestChains.refreshIfNeeded(symbol: symbol)
+    }
+
+    public var estimate: String? {
+        guard isLoading, case .buy(_, let kind, _) = trade, let bestChain, amountMicros > 0,
+            let shares = TokenQuantityFormatter.quantity(
+                fromAtomics: String(bestChain.shareNanos(forMicros: amountMicros)), decimals: 9)
+        else { return nil }
+        return "Estimate: about \(TokenQuantityFormatter.label(quantity: shares, kind: kind)) on \(bestChain.chainName)"
+    }
+
+    public var buyQuantityNote: String? {
+        if let estimate { return estimate }
+        guard !isLoading, case .buy(_, let kind, let decimals) = trade, let decimals, let preview,
+            previewAmountMicros == amountMicros, amountMicros > 0, let out = preview.quoteOutAmount, out > 0,
+            let quantity = TokenQuantityFormatter.quantity(fromAtomics: String(out), decimals: decimals)
+        else { return nil }
+        let label = "About \(TokenQuantityFormatter.label(quantity: quantity, kind: kind))"
+        return previewBestChain.map { "\(label) on \($0.chainName)" } ?? label
+    }
+
     public func setThesis(_ text: String) { thesis = ProposeReasonRules.limited(text) }
 
     public func resolveAsset(kind: AssetKind, decimals: Int) {
@@ -77,16 +108,20 @@ public final class ProposeAmountModel {
         previewTask?.cancel()
         previewFailed = false
         isLoading = amountMicros > 0
+        bestChain = currentBestChain
         guard amountMicros > 0 else { return }
         let draft = self.draft
         let amount = amountMicros
+        let pinned = bestChain?.network
         previewTask = Task { [clock, service, cabalID] in
             do {
                 try await clock.sleep(for: .milliseconds(400))
                 guard !Task.isCancelled else { return }
-                let preview = try await service.preview(cabalID: cabalID, draft: draft)
+                let (preview, isPinned) = try await Self.preview(
+                    service, cabalID: cabalID, draft: draft, pinned: pinned)
                 guard !Task.isCancelled else { return }
                 self.preview = preview
+                self.previewBestChain = isPinned ? self.bestChain : nil
                 self.previewAmountMicros = amount
                 self.isLoading = false
             } catch is CancellationError {
@@ -99,6 +134,24 @@ public final class ProposeAmountModel {
     }
 
     public func retryPreview() { setAmount(micros: amountMicros) }
+
+    private var currentBestChain: AssetBestChain? {
+        guard case .buy(let symbol, _, _) = trade else { return nil }
+        return bestChains?.bestChain(for: symbol)
+    }
+
+    private nonisolated static let unpinnedAdvisories: Set<String> = ["no_route", "invalid_network"]
+
+    private nonisolated static func preview(
+        _ service: ProposeService, cabalID: String, draft: ProposalDraft, pinned: Components.Schemas.Network?
+    ) async throws -> (ProposePreview, isPinned: Bool) {
+        if let pinned {
+            let preview = try? await service.preview(cabalID: cabalID, draft: draft, network: pinned)
+            try Task.checkCancellation()
+            if let preview, !unpinnedAdvisories.contains(preview.advisoryCode ?? "") { return (preview, true) }
+        }
+        return (try await service.preview(cabalID: cabalID, draft: draft, network: nil), false)
+    }
 
     public func useMax() {
         guard let maxMicros else { return }
