@@ -46,6 +46,19 @@ Each service opens at most this many connections:
 
 5. Trigger a deploy (`render deploys create <service-id>`), then check `curl -fsS https://<api-host>/healthz`.
 
+## Telemetry and analytics keys
+
+`.env.staging` holds the same PostHog project and Grafana Cloud stack as `.env.local`, so staging data lands beside local data and is told apart by one field each:
+
+| Key | Staging value | Tells staging apart by |
+| --- | --- | --- |
+| `POSTHOG_API_KEY` | the project key from `.env.local` | the `env` property (`staging`) on every server and iOS event |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | the Grafana Cloud OTLP gateway from `.env.local` | `service_name` |
+| `OTEL_EXPORTER_OTLP_HEADERS` | the Grafana Cloud auth header from `.env.local` | `service_name` |
+| `OTEL_SERVICE_NAME` | `monaco-staging` | `service_name` in Loki, Tempo and Prometheus |
+
+After a key change, push and redeploy as in the next section. To check, query `{service_name="monaco-staging"}` in Grafana Explore (Loki), and filter PostHog events on `env = staging`. When Grafana Cloud rotates the token, update both `.env.local` and `.env.staging`.
+
 ## Change a secret
 
 Edit `.env.staging` with `dotenvx set`, rerun `scripts/render-staging-env.sh`, then redeploy both services. Env group changes reach a service only on its next deploy.
