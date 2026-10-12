@@ -40,7 +40,11 @@ func universalRouters(n chain.Network) []string {
 			"0xa51afafe0263b40edaef0df8781ea9aa03e381a3", "0x8b844f885672f333bc0042cb669255f93a4c1e6b",
 			"0x2d01411773c8c24805306e89a41f7855c3c4fe65",
 		}
-	case chain.NetworkSolana, chain.NetworkRobinhood:
+	case chain.NetworkRobinhood:
+		return []string{
+			"0x8876789976decbfcbbbe364623c63652db8c0904", "0x204faca1764b154221e35c0d20abb3c525710498",
+		}
+	case chain.NetworkSolana:
 	}
 	return nil
 }

@@ -456,14 +456,15 @@ func TestEVMVenue_buildRefusesAnApprovalItDidNotExpect(t *testing.T) {
 	}
 }
 
-func TestEVMVenue_buildRefusesASwapToAnotherRouterOrOnAChainWithoutOne(t *testing.T) {
+func TestEVMVenue_buildRefusesASwapToAnotherRouter(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
 		router  string
 		network chain.Network
 	}{
-		"another router": {"0x3fc91a3afd70395cd496c647d5a6cc9d4b2b7fad", chain.NetworkBase},
-		"robinhood":      {venueRouter, chain.NetworkRobinhood},
+		"another router":           {"0x3fc91a3afd70395cd496c647d5a6cc9d4b2b7fad", chain.NetworkBase},
+		"robinhood router on base": {"0x204faca1764b154221e35c0d20abb3c525710498", chain.NetworkBase},
+		"base router on robinhood": {venueRouter, chain.NetworkRobinhood},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -496,12 +497,18 @@ func TestEVMVenue_fillNeverConfirmsASwapThatCreditedNothing(t *testing.T) {
 
 func TestEVMVenue_buildAcceptsEachNetworksUniversalRouter(t *testing.T) {
 	t.Parallel()
-	for network, router := range map[chain.Network]string{
-		chain.NetworkEthereum: "0x66a9893cc07d91d95644aedd05d03f95e1dba8af",
-		chain.NetworkArbitrum: "0xa51afafe0263b40edaef0df8781ea9aa03e381a3",
+	for name, tc := range map[string]struct {
+		network chain.Network
+		router  string
+	}{
+		"ethereum":        {chain.NetworkEthereum, "0x66a9893cc07d91d95644aedd05d03f95e1dba8af"},
+		"arbitrum":        {chain.NetworkArbitrum, "0xa51afafe0263b40edaef0df8781ea9aa03e381a3"},
+		"robinhood":       {chain.NetworkRobinhood, "0x8876789976decbfcbbbe364623c63652db8c0904"},
+		"robinhood 2.1.2": {chain.NetworkRobinhood, "0x204faca1764b154221e35c0d20abb3c525710498"},
 	} {
-		t.Run(string(network), func(t *testing.T) {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
+			network, router := tc.network, tc.router
 			e := newVenueEnv(t)
 			e.script(approvalReply("null"), quoteReply("1000000", "1000000", "null"),
 				quoteReply("1000000", "990000", "null"), swapReply(evmTxJSON(router, "0x01", "0x0")))
