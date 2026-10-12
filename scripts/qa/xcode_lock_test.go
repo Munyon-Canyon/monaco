@@ -333,6 +333,38 @@ func TestXcodeLockStopsAQuietIdleCommand(t *testing.T) {
 	}
 }
 
+func TestXcodeLockTurnsOffTestDiagnosticsForXcodebuildTests(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		args []string
+		want []string
+	}{
+		{[]string{"-scheme", "Monaco", "test"}, []string{"-collect-test-diagnostics", "never", "-scheme", "Monaco", "test"}},
+		{[]string{"-only-testing:MonacoTests", "test-without-building"}, []string{"-collect-test-diagnostics", "never", "-only-testing:MonacoTests", "test-without-building"}},
+		{[]string{"-collect-test-diagnostics", "on-failure", "test"}, []string{"-collect-test-diagnostics", "on-failure", "test"}},
+		{[]string{"-scheme", "Monaco", "build-for-testing"}, []string{"-scheme", "Monaco", "build-for-testing"}},
+	} {
+		t.Run(strings.Join(tc.args, " "), func(t *testing.T) {
+			t.Parallel()
+			e := newLockEnv(t)
+			fake := filepath.Join(e.dir, "bin", "xcodebuild")
+			out := filepath.Join(e.dir, "args")
+			writeExecutable(t, fake, "#!/bin/sh\nprintf '%s\\n' \"$@\" > \""+out+"\"\n")
+			c := e.start(e.dir, nil, append([]string{"xcode", fake}, tc.args...)...)
+			if code := c.wait(t); code != 0 {
+				t.Fatalf("exit %d:\n%s", code, c.stderr.String())
+			}
+			got, err := os.ReadFile(out)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if want := strings.Join(tc.want, "\n") + "\n"; string(got) != want {
+				t.Fatalf("xcodebuild got args\n%s\nwant\n%s", got, want)
+			}
+		})
+	}
+}
+
 func TestXcodeLockLetsACommandThatPrintsRunPastTheStallWindow(t *testing.T) {
 	t.Parallel()
 	e := newLockEnv(t)
