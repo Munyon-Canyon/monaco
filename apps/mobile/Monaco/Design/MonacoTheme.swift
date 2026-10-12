@@ -85,6 +85,7 @@ enum MonacoTheme {
 
     /// Chart strokes and the live dot only.
     static let profitVivid = Color.adaptive(light: 0x12B76A, dark: 0x2EDB8A)
+    static let onVivid = Color.adaptive(light: 0x0E1512, dark: 0x0E1512)
 
     static let lossVivid = Color.adaptive(light: 0xE5484D, dark: 0xFF6B5E)
 
