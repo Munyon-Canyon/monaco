@@ -332,6 +332,13 @@ func poll(limit time.Duration, done func() bool) bool {
 	}
 }
 
+func trimmedGoFlags(flags string) string {
+	if slices.Contains(strings.Fields(flags), "-trimpath") {
+		return flags
+	}
+	return strings.TrimSpace(flags + " -trimpath")
+}
+
 func Exec(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
 	if name == "gh" || name == "git" && len(args) > 0 && args[0] == "fetch" {
 		var cancel context.CancelFunc
@@ -340,7 +347,7 @@ func Exec(ctx context.Context, dir, stdin, name string, args ...string) ([]byte,
 	}
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GOFLAGS="+trimmedGoFlags(os.Getenv("GOFLAGS")))
 	cmd.Stdin = strings.NewReader(stdin)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

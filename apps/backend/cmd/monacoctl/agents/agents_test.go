@@ -532,3 +532,24 @@ func TestHarnessGit_errorIncludesStderr(t *testing.T) {
 		t.Fatalf("err=%v", err)
 	}
 }
+
+func TestTrimmedGoFlags_addsTrimpathAndKeepsTheCallersFlags(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ set, want string }{
+		{"", "-trimpath"},
+		{"-mod=mod", "-mod=mod -trimpath"},
+		{"-trimpath -mod=mod", "-trimpath -mod=mod"},
+	} {
+		if got := trimmedGoFlags(tc.set); got != tc.want {
+			t.Fatalf("trimmedGoFlags(%q) = %q, want %q", tc.set, got, tc.want)
+		}
+	}
+}
+
+func TestExec_runsCommandsWithTrimmedGoFlags(t *testing.T) {
+	t.Setenv("GOFLAGS", "-mod=mod")
+	out, err := Exec(t.Context(), "", "", "sh", "-c", `printf %s "$GOFLAGS"`)
+	if err != nil || string(out) != "-mod=mod -trimpath" {
+		t.Fatalf("Exec saw GOFLAGS %q, %v; want %q", out, err, "-mod=mod -trimpath")
+	}
+}
