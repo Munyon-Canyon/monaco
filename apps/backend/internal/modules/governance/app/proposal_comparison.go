@@ -138,15 +138,20 @@ func (c *ProposalComparisons) quote(
 }
 
 func unquotedPin(live, proposed *multichain.Comparison, n chain.Network) *multichain.Comparison {
-	for _, c := range []*multichain.Comparison{live, proposed} {
-		if venue, ok := pinVenue(c, n); ok {
-			return &multichain.Comparison{
-				StockID: c.StockID, Side: multichain.SideBuy, Winner: venue.ListingID,
-				Unavailable: []multichain.UnavailableVenue{venue},
-			}
+	venue := multichain.UnavailableVenue{
+		Network: n, Venue: multichain.VenueUniswap, Reason: multichain.UnavailableNoRoute,
+	}
+	if !n.IsEVM() {
+		venue.Venue = multichain.VenueJupiter
+	}
+	unquoted := &multichain.Comparison{Side: multichain.SideBuy}
+	for _, c := range []*multichain.Comparison{proposed, live} {
+		if listed, ok := pinVenue(c, n); ok {
+			venue, unquoted.StockID = listed, c.StockID
 		}
 	}
-	return nil
+	unquoted.Winner, unquoted.Unavailable = venue.ListingID, []multichain.UnavailableVenue{venue}
+	return unquoted
 }
 
 func pinVenue(c *multichain.Comparison, n chain.Network) (multichain.UnavailableVenue, bool) {

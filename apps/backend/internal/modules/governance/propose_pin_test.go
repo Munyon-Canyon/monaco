@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
@@ -252,29 +254,31 @@ func TestProposalComparison_showsALostPinnedChainUnavailableWithNoFigure(t *test
 	}
 	simulated := dropped
 	simulated.Reason, simulated.Detail = "simulation_failed", detail
+	unlisted := dropped
+	unlisted.ListingID = uuid.Nil.String()
 	cases := []struct {
 		name  string
 		given func(r *countingRouter) scenario.Step
-		want  *unavailableWire
+		want  unavailableWire
 	}{
 		{
 			"the router dropped the chain",
-			func(r *countingRouter) scenario.Step { return r.quote(solanaOnly) }, &dropped,
+			func(r *countingRouter) scenario.Step { return r.quote(solanaOnly) }, dropped,
 		},
 		{
 			"the router could not simulate the chain",
-			func(r *countingRouter) scenario.Step { return r.quote(undelegated) }, &simulated,
+			func(r *countingRouter) scenario.Step { return r.quote(undelegated) }, simulated,
 		},
 		{
 			"the router found no venue",
-			func(r *countingRouter) scenario.Step { return r.fail(errs.New(errs.CodeNoRoute, "test")) }, &dropped,
+			func(r *countingRouter) scenario.Step { return r.fail(errs.New(errs.CodeNoRoute, "test")) }, dropped,
 		},
 		{
 			"the proposal kept no quote for the chain",
 			func(r *countingRouter) scenario.Step {
 				return func(s *scenario.Scenario) { r.quote(solanaOnly)(s); storeComparison(t, nil)(s) }
 			},
-			nil,
+			unlisted,
 		},
 	}
 	for _, tc := range cases {
@@ -282,10 +286,6 @@ func TestProposalComparison_showsALostPinnedChainUnavailableWithNoFigure(t *test
 			t.Parallel()
 			w := newTradeWorld(t)
 			router := &countingRouter{c: proposed}
-			shown := scenario.ExpectNoField("price_comparison")
-			if tc.want != nil {
-				shown = scenario.ExpectField("price_comparison", expectOnlyUnavailable(t, *tc.want))
-			}
 			w.clockedScenario(t, router, clock.Real{}).Given(w.asMember()).
 				When(
 					scenario.Post(w.proposals(), buyAAPLOnBase),
@@ -295,7 +295,7 @@ func TestProposalComparison_showsALostPinnedChainUnavailableWithNoFigure(t *test
 					scenario.Get(w.liveComparison()),
 					scenario.ExpectStatus(http.StatusOK),
 					scenario.ExpectJSON("quote_out_amount", 0),
-					shown,
+					scenario.ExpectField("price_comparison", expectOnlyUnavailable(t, tc.want)),
 				)
 		})
 	}
