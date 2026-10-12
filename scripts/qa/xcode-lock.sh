@@ -44,6 +44,11 @@
 # that slot's pid is alive runs its command at once, so a wrapped script that calls the
 # wrapper again cannot deadlock on its own lane.
 #
+# An `xcode` xcodebuild `test` or `test-without-building` with no -collect-test-diagnostics
+# gets `-collect-test-diagnostics never`. Without it, a run with a failing test makes
+# xcodebuild run `simctl diagnose --timeout=600` on the simulator, which sits at 0% CPU and
+# prints nothing for the full 600 s, holding the slot and tripping the stall watch (#5375).
+#
 # Each `xcode` run appends a row to `<git common dir>/.monaco/xcode-builds.tsv` when the
 # command exits: start (UTC), lane, cwd, HEAD, a short hash of `git status --porcelain`, the
 # xcodebuild action, seconds waited, exit code, seconds run. A logging failure changes nothing.
@@ -134,6 +139,19 @@ read_slots() {
 }
 queue_dir="$base_dir.queue"
 lane=""
+if [[ "$class" == xcode && "${1##*/}" == xcodebuild ]]; then
+  tests=0
+  diag_set=0
+  for arg in "$@"; do
+    case "$arg" in
+      -collect-test-diagnostics) diag_set=1 ;;
+      test | test-without-building) tests=1 ;;
+    esac
+  done
+  if (( tests && !diag_set )); then
+    set -- "$1" -collect-test-diagnostics never "${@:2}"
+  fi
+fi
 if [[ "$class" == xcode ]]; then
   top="$(git rev-parse --show-toplevel 2>/dev/null || true)"
   if [[ -z "${MONACO_LANE:-}" && -n "$top" ]]; then
