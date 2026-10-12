@@ -152,7 +152,7 @@ func (r *Router) best(
 		return multichain.Comparison{}, err
 	}
 	if on != "" {
-		listings = slices.DeleteFunc(listings, func(l multichain.Listing) bool { return l.Network != on })
+		listings = slices.DeleteFunc(slices.Clone(listings), func(l multichain.Listing) bool { return l.Network != on })
 	}
 	ref, refErr := r.prices.SharePrice(ctx, stock)
 	chains := perChainFor(listings)

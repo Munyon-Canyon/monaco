@@ -696,3 +696,34 @@ func TestRouterLeavesUnavailableEmptyWhenEveryVenueQuotes(t *testing.T) {
 		t.Fatalf("unavailable = %+v, %v, want none", c.Unavailable, err)
 	}
 }
+
+func TestRouterBestOnLeavesTheCallersListingsUnchanged(t *testing.T) {
+	t.Parallel()
+	g := testkit.NewIDs(5373)
+	byName := appleListings(t, g)
+	quotes := recordedApple()
+	f := &routeFixture{
+		clk:    testkit.NewClock(clock.Real{}.Now().Truncate(time.Second)),
+		quotes: map[multichain.ListingID]recordedQuote{},
+		inputs: map[multichain.ListingID]money.Micros{},
+	}
+	for _, name := range []string{aaplxSolana, aaplonEth, aaplcBase} {
+		f.listings = append(f.listings, byName[name])
+		f.quotes[byName[name].ID] = quotes[name]
+	}
+	want := slices.Clone(f.listings)
+	quoter := fixtureQuoter{f: f}
+	r := app.NewRouter(f, app.Venues{multichain.VenueJupiter: quoter, multichain.VenueUniswap: quoter}, f, f, f.clk,
+		testRules())
+
+	if _, err := r.BestOn(t.Context(), stockID(t, g), multichain.SideBuy, money.MicrosFromUint64(100_000_000),
+		chain.NetworkBase); err != nil {
+		t.Fatal(err)
+	}
+	for i := range want {
+		if f.listings[i].ID != want[i].ID || f.listings[i].Network != want[i].Network ||
+			f.listings[i].SharesPerToken != want[i].SharesPerToken {
+			t.Fatalf("listings[%d] = %+v after BestOn(base), want %+v unchanged", i, f.listings[i], want[i])
+		}
+	}
+}
