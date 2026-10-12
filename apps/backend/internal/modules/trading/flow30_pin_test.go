@@ -32,7 +32,7 @@ func TestFlowStep30_PinnedBuyBlockedWhileItsChainTradingIsOff(t *testing.T) {
 				trading.WithChain(layer.venue, layer.signer), trading.WithChainReader(layer.fills),
 				trading.WithRoutePorts(app.RoutePorts{
 					Listings: fake, TreasuryEVM: fake, Quoter: fake, Actions: fake, Sender: fake, Venue: fake,
-					Router: fake, TopUp: fake, Arrivals: fake,
+					Router: fake, TopUp: fake, Arrivals: fake, EVMArrivals: fake,
 				}),
 			)
 		},

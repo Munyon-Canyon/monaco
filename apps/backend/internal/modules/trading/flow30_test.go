@@ -2,6 +2,7 @@ package trading_test
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"strconv"
 	"sync"
@@ -118,6 +119,13 @@ func (*flowChain) InboundAmount(
 	return money.NewBaseUnits(flows.RoutedSaleProceeds-flows.RoutedBridgeFee, 6), nil
 }
 
+func (*flowChain) Inbound(
+	_ context.Context, _ platform.Network, _, _ platform.EVMAddress, _ time.Time, atMost money.Micros, exclude []string,
+) (app.EVMArrival, bool, error) {
+	landed := money.MicrosFromUint64(atMost.Uint64() - flows.RoutedBridgeFee)
+	return app.EVMArrival{Amount: landed, TxHash: fmt.Sprintf("0x%064x", len(exclude)+1)}, true, nil
+}
+
 func (c *flowChain) Send(_ context.Context, _ string, _ multichain.EVMTransaction, key string) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -181,6 +189,7 @@ func runFlow30Step(t *testing.T, name string) {
 				Router:      fake,
 				TopUp:       fake,
 				Arrivals:    fake,
+				EVMArrivals: fake,
 				EVM:         true,
 			}),
 		)

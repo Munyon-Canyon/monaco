@@ -78,13 +78,13 @@ func (r *RouteExec) Stranded(ctx context.Context, id ids.SwapID) (StrandedCash, 
 	if err != nil {
 		return StrandedCash{}, err
 	}
-	onEVM, sentErr := b.sent.Sub(b.fee)
-	back, backErr := onEVM.Sub(b.fee)
+	onEVM := b.landed
+	back, backErr := onEVM.Sub(b.estimate)
 	observed, landed, err := r.observedBack(ctx, b)
 	if landed {
 		back = observed
 	}
-	return StrandedCash{OnEVM: onEVM, Back: back}, errors.Join(sentErr, backErr, err)
+	return StrandedCash{OnEVM: onEVM, Back: back}, errors.Join(backErr, err)
 }
 
 func (r *RouteExec) ReturnStranded(ctx context.Context, id ids.SwapID) (money.Micros, bool, error) {
@@ -111,10 +111,7 @@ func (r *RouteExec) returning(ctx context.Context, b routedBuy) (money.Micros, e
 	if err != nil || started {
 		return step.Amount, err
 	}
-	landed, err := b.sent.Sub(b.fee)
-	if err != nil {
-		return money.Micros{}, err
-	}
+	landed := b.landed
 	claimed := false
 	err = r.d.Layer.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		q := sqlc.New(tx.Queries())
@@ -136,7 +133,7 @@ func (r *RouteExec) returning(ctx context.Context, b routedBuy) (money.Micros, e
 
 func (b routedBuy) bridgeBack(landed money.Micros) BridgeLeg {
 	return BridgeLeg{
-		Ref: b.ref(domain.StepBridgeBack), WalletID: b.evm.ID, Fee: b.fee,
+		Ref: b.ref(domain.StepBridgeBack), WalletID: b.evm.ID, Fee: b.estimate,
 		Spec: multichain.TransferSpec{
 			From: b.listing.Network, To: chain.NetworkSolana, Destination: string(b.solana), AmountMicros: landed,
 		},
