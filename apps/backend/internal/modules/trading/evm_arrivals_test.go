@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -19,6 +21,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -54,14 +57,17 @@ type fakeChain struct {
 	maxSpan  uint64
 	failLogs bool
 	calls    map[string]int
+	order    []string
 	froms    []uint64
 	budget   int
+	spacing  int64
 	clock    steppingClock
 }
 
 func newFakeChain() *fakeChain {
 	return &fakeChain{
-		head: chainHead, calls: map[string]int{}, budget: -1, clock: steppingClock{testkit.NewClock(chainStart())},
+		head: chainHead, calls: map[string]int{}, budget: -1, spacing: 1,
+		clock: steppingClock{testkit.NewClock(chainStart())},
 	}
 }
 
@@ -72,7 +78,7 @@ func (c *fakeChain) allowLogs(n int) {
 }
 
 func (c *fakeChain) blockAt(n int64) time.Time {
-	return chainStart().Add(time.Duration(n) * time.Second)
+	return chainStart().Add(time.Duration(n*c.spacing) * time.Second)
 }
 
 func topic(addr string) string {
@@ -88,6 +94,7 @@ func (c *fakeChain) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.calls[req.Method]++
+	c.order = append(c.order, req.Method)
 	if req.Method == "eth_getLogs" && c.budget == 0 {
 		w.WriteHeader(http.StatusTooManyRequests)
 		return
@@ -115,14 +122,17 @@ func quantity(raw json.RawMessage) uint64 {
 
 func (c *fakeChain) answer(method string, params []json.RawMessage) (any, string) {
 	switch method {
-	case "eth_blockNumber":
-		return fmt.Sprintf("0x%x", c.head), ""
 	case "eth_getBlockByNumber":
-		n := quantity(params[0])
+		n := c.head
+		if string(params[0]) != `"latest"` {
+			n = quantity(params[0])
+		}
 		if n > c.head {
 			return nil, ""
 		}
-		return map[string]string{"timestamp": fmt.Sprintf("0x%x", chainStart().Unix()+int64(n%(1<<40)))}, ""
+		return map[string]string{
+			"number": fmt.Sprintf("0x%x", n), "timestamp": fmt.Sprintf("0x%x", c.blockAt(int64(n%(1<<40))).Unix()),
+		}, ""
 	case "eth_getLogs":
 		return c.getLogs(params[0])
 	}
@@ -163,8 +173,15 @@ func (c *fakeChain) takeCalls() map[string]int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	calls := c.calls
-	c.calls, c.froms = map[string]int{}, nil
+	c.calls, c.froms, c.order = map[string]int{}, nil, nil
 	return calls
+}
+
+func (c *fakeChain) callsBeforeLogs() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	before, _, _ := strings.Cut(strings.Join(c.order, " "), "eth_getLogs")
+	return strings.Fields(before)
 }
 
 func (c *fakeChain) firstFrom() uint64 {
@@ -296,8 +313,8 @@ func TestEVMArrivals_findsALaterArrivalUnderATenBlockCapWithoutRescanning(t *tes
 	if paced := c.clock.Now().Sub(start); paced != 13*250*time.Millisecond {
 		t.Fatalf("tick 2 waited %s between its 14 calls, want 250ms before each after the first", paced)
 	}
-	if second["eth_getLogs"] != 13 || second["eth_getBlockByNumber"] != 0 || second["eth_blockNumber"] != 1 {
-		t.Fatalf("tick 2 calls = %v, want 13 chunks from the cursor and no block search", second)
+	if second["eth_getLogs"] != 13 || second["eth_getBlockByNumber"] != 1 || len(second) != 2 {
+		t.Fatalf("tick 2 calls = %v, want the head and 13 chunks from the cursor", second)
 	}
 }
 
@@ -374,17 +391,22 @@ func rawRPC(t *testing.T, reply func(method string) (int, string)) *adapters.EVM
 		steppingClock{testkit.NewClock(chainStart())})
 }
 
+func refusedAfterHead(head func(string) (int, string)) func(string) (int, string) {
+	var calls atomic.Int32
+	return func(method string) (int, string) {
+		if calls.Add(1) == 1 {
+			return head(method)
+		}
+		return http.StatusOK, `{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"no"}}`
+	}
+}
+
 func TestEVMArrivals_refusesWhatItCannotRead(t *testing.T) {
 	t.Parallel()
 	ok := func(result string) (int, string) {
 		return http.StatusOK, `{"jsonrpc":"2.0","id":1,"result":` + result + `}`
 	}
-	block := func(method string) (int, string) {
-		if method == "eth_blockNumber" {
-			return ok(`"0x10"`)
-		}
-		return ok(`{"timestamp":"0x7fffffff"}`)
-	}
+	block := func(string) (int, string) { return ok(`{"number":"0x10","timestamp":"0x7fffffff"}`) }
 	for name, tc := range map[string]struct {
 		reply func(string) (int, string)
 		want  errs.Code
@@ -392,14 +414,13 @@ func TestEVMArrivals_refusesWhatItCannotRead(t *testing.T) {
 		"outage":       {func(string) (int, string) { return http.StatusServiceUnavailable, `{}` }, errs.CodeRPCUnavailable},
 		"refused":      {func(string) (int, string) { return http.StatusNotFound, `{}` }, errs.CodeRPCUnavailable},
 		"not json":     {func(string) (int, string) { return http.StatusOK, `<html>` }, errs.CodeDecodeFailed},
-		"not a number": {func(string) (int, string) { return ok(`7`) }, errs.CodeDecodeFailed},
-		"not hex":      {func(string) (int, string) { return ok(`"0xzz"`) }, errs.CodeDecodeFailed},
-		"block refused": {func(method string) (int, string) {
-			if method == "eth_blockNumber" {
-				return ok(`"0x10"`)
-			}
+		"not a block":  {func(string) (int, string) { return ok(`7`) }, errs.CodeDecodeFailed},
+		"not a number": {func(string) (int, string) { return ok(`{"number":7}`) }, errs.CodeDecodeFailed},
+		"not hex":      {func(string) (int, string) { return ok(`{"number":"0xzz"}`) }, errs.CodeDecodeFailed},
+		"head refused": {func(string) (int, string) {
 			return http.StatusOK, `{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"no"}}`
 		}, errs.CodeRPCUnavailable},
+		"sampled block refused": {refusedAfterHead(block), errs.CodeRPCUnavailable},
 		"short transfer data": {func(method string) (int, string) {
 			if method != "eth_getLogs" {
 				return block(method)
@@ -471,5 +492,86 @@ func TestEVMArrivals_resumesFromItsCursorAfterARateLimitAndBacksOff(t *testing.T
 	}
 	if want := []uint64{3_880, 3_980, 4_080, 4_180, 4_280}; !slices.Equal(firsts, want) {
 		t.Fatalf("first block per tick = %v, want %v", firsts, want)
+	}
+}
+
+func TestEVMArrivals_findsTheStartBlockWithTwoCallsBeforeItsFirstLogRead(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		spacing int64
+		step    int64
+		want    uint64
+	}{
+		"hours back, one block a second": {spacing: 1, step: 4_000, want: 3_880},
+		"hours back, one block every 2s": {spacing: 2, step: 4_000, want: 3_940},
+		"minutes back":                   {spacing: 1, step: 9_900, want: 9_780},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			c := newFakeChain()
+			c.spacing = tc.spacing
+
+			_, found, err := c.inbound(t, c.arrivals(t, 10), c.blockAt(tc.step))
+
+			before := c.callsBeforeLogs()
+			if err != nil || found || c.firstFrom() != tc.want {
+				t.Fatalf("Inbound = %v, %v, first chunk from %d, want nothing found from %d",
+					found, err, c.firstFrom(), tc.want)
+			}
+			if want := []string{"eth_getBlockByNumber", "eth_getBlockByNumber"}; !slices.Equal(before, want) {
+				t.Fatalf("calls before the first eth_getLogs = %v, want the head and one sampled block", before)
+			}
+		})
+	}
+}
+
+func TestEVMArrivals_logsEachScanWithItsCallsAndRange(t *testing.T) {
+	t.Parallel()
+	c := newFakeChain()
+	c.maxSpan = 10
+	c.logs = []chainLog{{block: 3_905, token: rhUSDG, from: rhBridge, to: rhTreasury, amount: 972_507, tx: txHash(1)}}
+	a := c.arrivals(t, 10)
+	logs := &testkit.Logs{}
+	ctx := observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
+
+	c.allowLogs(2)
+	_, _, err := c.inboundCtx(ctx, t, a, c.blockAt(4_000))
+	if !errs.Retryable(errs.CodeOf(err)) {
+		t.Fatalf("tick 1 err = %v, want a retryable 429", err)
+	}
+	c.clock.Advance(time.Minute)
+	c.allowLogs(-1)
+	if _, found, err := c.inboundCtx(ctx, t, a, c.blockAt(4_000)); err != nil || !found {
+		t.Fatalf("tick 2 = %v, %v, want the transfer", found, err)
+	}
+
+	want := []string{"5 1 3880 3899 3900 false", "2 0 3900 3909 3900 true"}
+	if lines := logs.Lines(observability.TradingEVMArrivalsScan.Name, "calls", "refused", "from", "to", "next",
+		"found"); !slices.Equal(lines, want) {
+		t.Fatalf("scan logs = %q, want %q", lines, want)
+	}
+}
+
+func TestEVMRPC_readsTheProvidersMessageOnA429(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"error":{"code":-32011,"message":"request limit reached"}}`))
+	}))
+	t.Cleanup(srv.Close)
+	cfg := config.Config{EVM: config.EVM{RPCURLRobinhood: srv.URL}, Timeouts: config.Timeouts{RPC: time.Second}}
+	a := adapters.NewEVMArrivals(adapters.EVMRPC(module.Deps{Config: cfg}), 10,
+		steppingClock{testkit.NewClock(chainStart())})
+
+	_, _, err := a.Inbound(t.Context(), chain.NetworkRobinhood, evmAddress(t, rhUSDG), evmAddress(t, rhTreasury),
+		chainStart(), money.MicrosFromUint64(1), nil)
+
+	if errs.CodeOf(err) != errs.CodeRPCUnavailable || !strings.HasSuffix(err.Error(), "request limit reached") {
+		t.Fatalf("Inbound err = %v, want rpc_unavailable carrying the provider's message", err)
+	}
+	if _, _, err := a.Inbound(t.Context(), chain.NetworkRobinhood, evmAddress(t, rhUSDG),
+		evmAddress(t, rhTreasury), chainStart(), money.MicrosFromUint64(1), nil); !slices.ContainsFunc(
+		errs.Detail(err), func(a slog.Attr) bool { return a.Key == "reason" && a.Value.String() == "rate_limited" }) {
+		t.Fatalf("second Inbound err = %v, want the network backing off after the 429", err)
 	}
 }

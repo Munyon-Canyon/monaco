@@ -76,3 +76,8 @@ var TradingEVMArrivalsChunk = Msg{
 	Name:     "trading.evm_arrivals.chunk",
 	Required: []string{"network", "owner", "from", "to", "chunk", "rpc_message"},
 }
+
+var TradingEVMArrivalsScan = Msg{
+	Name:     "trading.evm_arrivals.scan",
+	Required: []string{"network", "owner", "calls", "refused", "from", "to", "next", "found"},
+}
