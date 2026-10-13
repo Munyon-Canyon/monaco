@@ -12,6 +12,7 @@ Staging has its own accounts and keys, separate from local development. All of t
 
 - A Privy app of its own (`PRIVY_APP_ID`, its secret, verification key, authorization key and the iOS client for `xyz.monacolabs.app`).
 - A Helius mainnet RPC (`SOLANA_RPC_URL`).
+- EVM RPCs (`EVM_RPC_URL_BASE` and the other networks). The Alchemy free tier works: it caps `eth_getLogs` at 10 blocks, which is the `EVM_LOGS_MAX_BLOCKS` default, so a bridge arrival on Base takes a tick or two longer to show than on a paid plan. On a paid plan, raise `EVM_LOGS_MAX_BLOCKS` to the plan's range.
 - Its own relayer fee payer, `6zPvHbTHwVakhN3FiVmFqjUFhY5mdAAt865vUAZFFyVr`. The api and worker refuse to boot when it holds 0.001 SOL or less, so top it up with SOL from any wallet. Check it with `MONACO_ENV=local` and the staging `RELAYER_PRIVATE_KEY` and `SOLANA_RPC_URL` through `monacoctl relayer balance`.
 
 Render's GitHub app must be installed on the Munyon-Canyon org with access to this repo; without it Render never hears about pushes and nothing deploys on its own. Every push to `staging` that touches `apps/backend/**` or `render.yaml` redeploys both services. Before the api goes live, its pre-deploy command, `predeploy` (`apps/backend/deployments/predeploy.sh`), runs `monacoctl migrate apply` then `monacoctl bus apply`. Render runs that command without a shell, so `&&` or `sh -c "..."` in `render.yaml` does not work. The worker can start before that finishes. It then stops with `db_schema_behind`, and Render restarts it until the schema catches up.

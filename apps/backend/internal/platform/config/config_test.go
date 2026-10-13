@@ -99,6 +99,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 			RPCURLArbitrum:  "https://arb1.arbitrum.io/rpc",
 			RPCURLEthereum:  "https://ethereum-rpc.publicnode.com",
 			RPCURLRobinhood: "https://rpc.mainnet.chain.robinhood.com",
+			LogsMaxBlocks:   10,
 		},
 		Listings: config.Listings{
 			OndoBaseURL: "https://app.ondo.finance", CoinbaseBaseURL: "https://api.coinbase.com",
@@ -201,6 +202,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"EVM_RPC_URL_ARBITRUM=http://fakes/arbitrum",
 		"EVM_RPC_URL_ETHEREUM=http://fakes/ethereum",
 		"EVM_RPC_URL_ROBINHOOD=http://fakes/robinhood",
+		"EVM_LOGS_MAX_BLOCKS=2000",
 		"LISTINGS_SYNC_ENABLED=false",
 		"ONDO_BASE_URL=http://fakes/ondo",
 		"COINBASE_BASE_URL=http://fakes/coinbase",
@@ -296,6 +298,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		EVM: config.EVM{
 			RPCURLBase: "http://fakes/base", RPCURLArbitrum: "http://fakes/arbitrum",
 			RPCURLEthereum: "http://fakes/ethereum", RPCURLRobinhood: "http://fakes/robinhood",
+			LogsMaxBlocks: 2000,
 		},
 		Listings: config.Listings{
 			OndoBaseURL: "http://fakes/ondo", CoinbaseBaseURL: "http://fakes/coinbase",
@@ -704,6 +707,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"EVM_RPC_URL_ARBITRUM", "***"},
 		{"EVM_RPC_URL_ETHEREUM", "***"},
 		{"EVM_RPC_URL_ROBINHOOD", "***"},
+		{"EVM_LOGS_MAX_BLOCKS", "10"},
 		{"LISTINGS_SYNC_ENABLED", "true"},
 		{"ONDO_BASE_URL", "https://app.ondo.finance"},
 		{"COINBASE_BASE_URL", "https://api.coinbase.com"},

@@ -310,7 +310,7 @@ func (m *Module) routePorts() app.RoutePorts {
 		p.TopUp = relayer.NewLazyTopUps(m.deps.Config, m.deps.UoW, m.deps.Clock)
 	}
 	if p.EVMArrivals == nil {
-		p.EVMArrivals = adapters.NewEVMArrivals(adapters.EVMRPC(m.deps))
+		p.EVMArrivals = adapters.NewEVMArrivals(adapters.EVMRPC(m.deps), int64(m.deps.Config.EVM.LogsMaxBlocks))
 	}
 	return p
 }
