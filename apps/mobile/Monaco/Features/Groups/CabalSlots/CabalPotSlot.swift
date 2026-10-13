@@ -90,7 +90,7 @@ private struct AllTimeChip: View {
     private var label: String { PnLBadge.label(dollarPnl: allTime, percentReturn: allTimeReturn) }
 
     var body: some View {
-        (Text(label).foregroundStyle(PnLTone(dollarPnl: allTime).color)
+        (Text(label).foregroundStyle(PnLTone(dollarPnl: allTime, percentReturn: allTimeReturn).color)
             + Text(" All time").foregroundStyle(MonacoTheme.secondaryText))
             .moneyFont(.caption)
             .lineLimit(2)

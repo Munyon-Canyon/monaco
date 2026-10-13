@@ -39,6 +39,21 @@ struct CurveChangeLineTests {
         #expect(!text.contains("Past day"))
     }
 
+    @Test func aSubCentChangeReadsThePercentAlone() throws {
+        let curve = ValueCurve(
+            samples: [(3_000_000, 0), (3_000_000, 3_000)].enumerated().map { index, pair in
+                .init(
+                    at: Self.start.addingTimeInterval(TimeInterval(index) * 1_800), value: Int64(pair.0),
+                    pnl: Int64(pair.1))
+            })
+        let change = try #require(curve.change(.pnl))
+
+        let text = CurveChangeLine.text(change: change, range: .oneDay)
+
+        #expect(text == "+0.10% Past day")
+        #expect(!text.contains("$"))
+    }
+
     @Test func aMissingChangeReadsBlank() {
         #expect(CurveChangeLine.text(change: nil, range: .oneDay) == " ")
     }

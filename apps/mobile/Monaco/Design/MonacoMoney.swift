@@ -194,13 +194,15 @@ struct PnLBadge: View {
     static func label(dollarPnl: String, percentReturn: String?) -> String {
         let dollars = SignedUsdFormatter.format(dollarPnl)
         let percent = PercentReturnFormatter.format(percentReturn)
-        return percent == "—" ? dollars : "\(dollars) (\(percent))"
+        if percent == "—" { return dollars }
+        if dollars == "$0.00", percent != "0.0%" { return percent }
+        return "\(dollars) (\(percent))"
     }
 
     var body: some View {
         Text(Self.label(dollarPnl: dollarPnl, percentReturn: percentReturn))
             .moneyFont(style)
-            .foregroundStyle(PnLTone(dollarPnl: dollarPnl).color)
+            .foregroundStyle(PnLTone(dollarPnl: dollarPnl, percentReturn: percentReturn).color)
             .lineLimit(1)
             .minimumScaleFactor(0.8)
             .accessibilityElement(children: .ignore)
@@ -238,7 +240,7 @@ struct MoneyHero: View {
                 .contentTransition(reduceMotion ? .identity : .numericText())
                 .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: value)
                 .modifier(HeroTypeCap(isHero: true))
-            (Text(change).foregroundStyle(PnLTone(dollarPnl: dollarChange ?? "0").color)
+            (Text(change).foregroundStyle(PnLTone(dollarPnl: dollarChange ?? "0", percentReturn: percentChange).color)
                 + Text(" \(period)").foregroundStyle(MonacoTheme.secondaryText))
                 .moneyFont(.caption)
                 .lineLimit(1)
@@ -298,6 +300,16 @@ nonisolated enum PnLTone {
 }
 
 extension PnLTone {
+    init(dollarPnl: String, percentReturn: String?) {
+        let dollars = SignedUsdFormatter.format(dollarPnl)
+        let percent = PercentReturnFormatter.format(percentReturn)
+        guard dollars == "$0.00", percent != "—", percent != "0.0%" else {
+            self.init(dollarPnl: dollarPnl)
+            return
+        }
+        self = percent.hasPrefix("−") ? .loss : percent.hasPrefix("+") ? .profit : .flat
+    }
+
     var color: Color {
         switch self {
         case .profit: return MonacoTheme.profit
