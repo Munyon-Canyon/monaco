@@ -55,6 +55,20 @@ final class ValueCurvePlotTests: XCTestCase {
         XCTAssertEqual(value.change(.pnl, to: 1)?.percentText, "+0.33%")
     }
 
+    func testPnLChangeUnderACentReadsThePercentAlone() {
+        let value = curve([(3_000_000, 0, nil), (3_000_000, 3_000, nil)])
+
+        XCTAssertEqual(
+            value.change(.pnl), ValueCurve.Change(amountText: nil, percentText: "+0.10%", direction: .up))
+    }
+
+    func testPnLChangeThatRoundsToNothingIsFlat() {
+        let value = curve([(3_000_000, 0, nil), (3_000_000, 100, nil)])
+
+        XCTAssertEqual(
+            value.change(.pnl), ValueCurve.Change(amountText: "$0.00", percentText: "0.00%", direction: .flat))
+    }
+
     func testPnLLossReadsWithATypographicMinus() {
         let value = curve([(4_000_000, 0, nil), (4_000_000, -20_000, nil)])
 

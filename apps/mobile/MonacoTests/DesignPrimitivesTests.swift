@@ -153,6 +153,16 @@ struct AmountEntryTextTests {
     }
 }
 
+struct PnLBadgeLabelTests {
+    @Test func aSubCentLossReadsThePercentAlone() {
+        #expect(PnLBadge.label(dollarPnl: "0.00", percentReturn: "-0.001") == "−0.1%")
+    }
+
+    @Test func aChangeThatRoundsToNothingKeepsTheDollars() {
+        #expect(PnLBadge.label(dollarPnl: "0.00", percentReturn: "0.000") == "$0.00 (0.0%)")
+    }
+}
+
 struct PnLSpeechTests {
     @Test func dollarsReadWithDirection() {
         #expect(PnLSpeech.dollars("+48.20") == "up 48 dollars 20 cents")

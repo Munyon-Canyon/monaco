@@ -152,10 +152,14 @@ extension ValueCurve {
         switch plot {
         case .pnl:
             let base = drawn.first { $0.value > 0 }?.value
+            let amount = UsdAmountFormatter.format(signedMicros: delta)
+            let percent = base.map { Self.percentText(delta, over: $0) }
+            let underACent = amount == "$0.00"
+            let movedAPercent = percent != nil && percent != "0.00%"
             return Change(
-                amountText: UsdAmountFormatter.format(signedMicros: delta),
-                percentText: base.map { Self.percentText(delta, over: $0) },
-                direction: direction)
+                amountText: underACent && movedAPercent ? nil : amount,
+                percentText: percent,
+                direction: underACent && !movedAPercent ? .flat : direction)
         case .nav:
             return Change(
                 amountText: nil,
