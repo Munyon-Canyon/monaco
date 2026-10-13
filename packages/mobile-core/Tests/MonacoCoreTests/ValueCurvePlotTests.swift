@@ -69,6 +69,28 @@ final class ValueCurvePlotTests: XCTestCase {
             value.change(.pnl), ValueCurve.Change(amountText: "$0.00", percentText: "0.00%", direction: .flat))
     }
 
+    func testHomePillReadsTheAllTimePercentAloneWhenDollarsRoundToZero() {
+        let value = curve([(3_003_000, 0, nil), (3_000_000, -3_000, nil)])
+
+        XCTAssertEqual(value.pill(.pnl), ValueCurve.Pill(text: "−0.1%", direction: .down))
+    }
+
+    func testHomePillReadsSignedDollarsOtherwiseAndFlatWhenNothingMoved() {
+        XCTAssertEqual(
+            curve([(3_000_000, 0, nil), (3_050_000, 50_000, nil)]).pill(.pnl),
+            ValueCurve.Pill(text: "+$0.05", direction: .up))
+        XCTAssertEqual(
+            curve([(3_000_000, 0, nil), (3_000_000, 100, nil)]).pill(.pnl),
+            ValueCurve.Pill(text: "$0.00", direction: .flat))
+    }
+
+    func testCabalPillIsTheReturnPercentNeverTheFourDecimalSharePrice() {
+        let value = curve([(1_000_000, 0, 1_000_000), (1_000_000, 0, 1_003_100)])
+
+        XCTAssertEqual(value.pill(.nav), ValueCurve.Pill(text: "+0.3%", direction: .up))
+        XCTAssertNil(curve([(1_000_000, 0, nil)]).pill(.nav))
+    }
+
     func testPnLLossReadsWithATypographicMinus() {
         let value = curve([(4_000_000, 0, nil), (4_000_000, -20_000, nil)])
 

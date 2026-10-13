@@ -27,15 +27,17 @@ struct CurveScrubChart: View {
         NSDecimalNumber(value: micros).dividing(by: NSDecimalNumber(value: 1_000_000)).doubleValue
     }
 
-    private func text(_ value: Double) -> String {
-        switch plot {
-        case .pnl: UsdAmountFormatter.format(signedMicros: Int64((value * 1_000_000).rounded()))
-        case .nav: value.formatted(.number.precision(.fractionLength(4)))
+    private func pillTint(_ direction: PortfolioSummary.Direction) -> Color {
+        switch direction {
+        case .up: MonacoTheme.profitVivid
+        case .down: MonacoTheme.lossVivid
+        case .flat: MonacoTheme.tertiaryText
         }
     }
 
     var body: some View {
         let points = points
+        let pill = curve.pill(plot)
         let bars = points.map { point -> PlottedBar in
             let value = Self.units(point.value)
             return PlottedBar(date: point.at, open: value, high: value, low: value, close: value)
@@ -46,13 +48,16 @@ struct CurveScrubChart: View {
             intervalSeconds: curve.slotSeconds,
             style: .line,
             tint: tint,
-            lastPrice: bars.last?.close,
+            lastPrice: pill == nil ? nil : bars.last?.close,
             isLive: range == .oneHour || range == .oneDay,
             fixedDomain: Self.units(domain.lowerBound)...Self.units(domain.upperBound),
+            baseline: bars.first?.close,
+            tagTint: pill.map { pillTint($0.direction) },
+            showsLastPriceRule: false,
             resetKey: range.rawValue,
             hasOlder: false,
             initialVisibleBars: bars.count,
-            valueText: text,
+            valueText: { _ in pill?.text ?? "" },
             gutter: 88,
             height: height,
             selection: $selection,

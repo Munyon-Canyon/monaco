@@ -23,6 +23,9 @@ struct MonacoCandleOverlay: View {
     let style: MonacoChartStyle
     let tint: Color
     let lastPrice: Double?
+    let baseline: Double?
+    let tagTint: Color?
+    let showsLastPriceRule: Bool
     let isLive: Bool
     let isAtLatest: Bool
     let selection: Int?
@@ -51,6 +54,7 @@ struct MonacoCandleOverlay: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             axisLabels
+            baselineMark
             lastPriceMarks
             lineDot
             crosshair
@@ -88,10 +92,23 @@ struct MonacoCandleOverlay: View {
     }
 
     @ViewBuilder
+    private var baselineMark: some View {
+        if let baseline, domain.contains(baseline) {
+            Path { path in
+                path.move(to: CGPoint(x: plot.minX, y: y(baseline)))
+                path.addLine(to: CGPoint(x: plot.maxX, y: y(baseline)))
+            }
+            .stroke(MonacoTheme.secondaryText, style: StrokeStyle(lineWidth: 1, dash: [3, 4]))
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+
+    @ViewBuilder
     private var lastPriceMarks: some View {
         if let lastPrice, selection == nil {
             let clamped = min(max(y(lastPrice), plot.minY + 10), plot.maxY - 10)
-            if domain.contains(lastPrice) {
+            if showsLastPriceRule, domain.contains(lastPrice) {
                 Path { path in
                     path.move(to: CGPoint(x: plot.minX, y: clamped))
                     path.addLine(to: CGPoint(x: plot.maxX, y: clamped))
@@ -100,7 +117,7 @@ struct MonacoCandleOverlay: View {
                 .allowsHitTesting(false)
             }
             priceTag(
-                lastPrice, at: clamped, fill: style == .line ? tint : MonacoTheme.profitVivid,
+                lastPrice, at: clamped, fill: tagTint ?? (style == .line ? tint : MonacoTheme.profitVivid),
                 label: MonacoTheme.onVivid)
         }
     }
