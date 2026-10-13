@@ -5,15 +5,15 @@ The cabal screen names its holding rows `cabal-position-<ticker>` instead of `ca
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalHoldingsSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalHoldingsSlot.swift
-index 6e98401c9..406e60ed4 100644
+index e57dbc54c..d70fe8371 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalHoldingsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalHoldingsSlot.swift
-@@ -83,7 +83,7 @@ struct CabalHoldingsSection: View {
+@@ -86,7 +86,7 @@ struct CabalHoldingsSection: View {
                          HoldingRow(row: row)
                      }
                      .buttonStyle(.monacoRow)
 -                    .accessibilityIdentifier("cabal-holding-\(row.ticker)")
 +                    .accessibilityIdentifier("cabal-position-\(row.ticker)")
                  }
-                 cashRow(summary.cash)
+                 cashRow(summary.cash, yield: summary.cashYield)
              }
