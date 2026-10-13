@@ -15,25 +15,39 @@ public struct LivePriceComparison: Equatable, Sendable {
 }
 
 public struct BestPriceRow: Equatable, Sendable {
+    public let network: Components.Schemas.Network
     public let figure: String
-    public let headline: String
+    public let headline: String?
     public let caption: String?
     public let venues: BestPrice?
 
     public init(_ bestPrice: BestPrice, caption: String? = nil) {
+        network = bestPrice.winner.network
         figure = bestPrice.price ?? bestPrice.figure(bestPrice.winner)
         headline = bestPrice.headline
         self.caption = caption
         venues = bestPrice
     }
 
-    init?(solanaQuote quoteOut: Int64, usdcMicros: Int64?, decimals: Int, caption: String) {
+    init?(_ bestPrice: BestPrice, pinned network: Components.Schemas.Network, caption: String?) {
+        guard let venue = bestPrice.venue(on: network), let price = bestPrice.price(of: venue) else { return nil }
+        self.network = network
+        figure = "\(price) on \(BestPrice.chainName(network))"
+        headline = nil
+        self.caption = caption
+        venues = nil
+    }
+
+    init?(solanaQuote quoteOut: Int64, usdcMicros: Int64?, decimals: Int, isPinned: Bool, caption: String) {
         guard let usdcMicros, quoteOut > 0, (0...18).contains(decimals) else { return nil }
         var unit: Int64 = 1
         for _ in 0..<decimals { unit *= 10 }
         let (priceMicros, _) = quoteOut.dividingFullWidth(usdcMicros.multipliedFullWidth(by: unit))
-        figure = "\(UsdAmountFormatter.format(micros: priceMicros)) a share"
-        headline = BestPrice.chainName(.solana)
+        let price = "\(UsdAmountFormatter.format(micros: priceMicros)) a share"
+        let chain = BestPrice.chainName(.solana)
+        network = .solana
+        figure = isPinned ? "\(price) on \(chain)" : price
+        headline = isPinned ? nil : chain
         self.caption = caption
         venues = nil
     }
@@ -110,7 +124,7 @@ public final class LiveBestPriceModel {
     }
 
     public func row(for summary: ProposalSummary, decimals: Int, now: Date) -> BestPriceRow? {
-        guard Self.isLive(summary) else { return summary.bestPrice.map { BestPriceRow($0) } }
+        guard Self.isLive(summary) else { return Self.row(summary.bestPrice, pinned: summary.network, caption: nil) }
         guard unavailableReason(for: summary) == nil else { return nil }
         if let row = liveRow(for: summary, decimals: decimals, now: now) { return row }
         guard summary.network == nil else { return nil }
@@ -121,10 +135,20 @@ public final class LiveBestPriceModel {
         guard let latest, now.timeIntervalSince(latest.quotedAt) <= Self.staleAfter else { return nil }
         let caption = Self.age(since: latest.quotedAt, now: now)
         if let bestPrice = BestPrice(latest.comparison, isSell: false) {
-            return BestPriceRow(bestPrice, caption: caption)
+            return Self.row(bestPrice, pinned: summary.network, caption: caption)
         }
+        guard summary.network == nil || summary.network == .solana else { return nil }
         return BestPriceRow(
-            solanaQuote: latest.quoteOutAmount, usdcMicros: summary.usdcMicros, decimals: decimals, caption: caption)
+            solanaQuote: latest.quoteOutAmount, usdcMicros: summary.usdcMicros, decimals: decimals,
+            isPinned: summary.network != nil, caption: caption)
+    }
+
+    private static func row(
+        _ bestPrice: BestPrice?, pinned network: Components.Schemas.Network?, caption: String?
+    ) -> BestPriceRow? {
+        guard let bestPrice else { return nil }
+        guard let network else { return BestPriceRow(bestPrice, caption: caption) }
+        return BestPriceRow(bestPrice, pinned: network, caption: caption)
     }
 
     static func age(since quotedAt: Date, now: Date) -> String {

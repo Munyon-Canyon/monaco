@@ -103,6 +103,63 @@ final class BestPriceLiveTests: XCTestCase {
         XCTAssertNil(row?.venues)
     }
 
+    func testAPinnedBuyShowsOnlyThePinnedChainsPriceWhenAnotherChainWins() async throws {
+        let model = LiveBestPriceModel(
+            sleep: { try await TestClock().sleep(for: $0) }, fetch: Fetches([.success(solanaBeatsRobinhood())]).next)
+        model.poll(cabalID: "cabal-1")
+        await waitUntil { model.latest != nil }
+
+        let row = try XCTUnwrap(
+            model.row(for: openBuy(pinned: .robinhood), decimals: 8, now: quotedAt.addingTimeInterval(8)))
+        XCTAssertEqual(row.network, .robinhood)
+        XCTAssertEqual(row.figure, "$400.00 a share on Robinhood Chain")
+        XCTAssertNil(row.headline)
+        XCTAssertEqual(row.caption, "Updated 8s ago")
+        XCTAssertNil(row.venues)
+
+        let unpinned = try XCTUnwrap(model.row(for: openBuy, decimals: 8, now: quotedAt.addingTimeInterval(8)))
+        XCTAssertEqual(unpinned.network, .solana)
+        XCTAssertEqual(unpinned.headline, "Best price across 2 venues")
+        XCTAssertNotNil(unpinned.venues)
+    }
+
+    func testAPinnedBuyWithNoQuoteOnItsChainShowsNoPrice() async {
+        let model = LiveBestPriceModel(
+            sleep: { try await TestClock().sleep(for: $0) }, fetch: Fetches([.success(solanaBeatsRobinhood())]).next)
+        model.poll(cabalID: "cabal-1")
+        await waitUntil { model.latest != nil }
+
+        XCTAssertNil(model.row(for: openBuy(pinned: .base), decimals: 8, now: quotedAt))
+        XCTAssertTrue(model.isFindingPrice(for: openBuy(pinned: .base), decimals: 8, now: quotedAt))
+    }
+
+    func testWithNoRouteOnlyASolanaPinOrNoPinShowsTheSolanaQuote() async {
+        let noRoute = LivePriceComparison(.init(quoteOutAmount: 10_000_000, quotedAt: quotedAt))
+        let model = LiveBestPriceModel(
+            sleep: { try await TestClock().sleep(for: $0) }, fetch: Fetches([.success(noRoute)]).next)
+        model.poll(cabalID: "cabal-1")
+        await waitUntil { model.latest != nil }
+
+        let solana = model.row(for: openBuy(pinned: .solana), decimals: 8, now: quotedAt)
+        XCTAssertEqual(solana?.figure, "$10.00 a share on Solana")
+        XCTAssertNil(solana?.headline)
+        XCTAssertNil(model.row(for: openBuy(pinned: .robinhood), decimals: 8, now: quotedAt))
+    }
+
+    func testAClosedPinnedBuyShowsOnlyThePinnedChainsStoredPrice() throws {
+        var proposal = Components.Schemas.Proposal.sample(kind: .buy)
+        proposal.status = .executed
+        proposal.network = .ethereum
+        proposal.priceComparison = BestPrice.sampleComparison(now: quotedAt)
+        let model = LiveBestPriceModel(sleep: { try await TestClock().sleep(for: $0) }, fetch: Fetches([]).next)
+
+        let row = try XCTUnwrap(model.row(for: ProposalSummary(proposal), decimals: 8, now: quotedAt))
+        XCTAssertEqual(row.network, .ethereum)
+        XCTAssertEqual(row.figure, "$251.26 a share on Ethereum")
+        XCTAssertNil(row.headline)
+        XCTAssertNil(row.venues)
+    }
+
     func testPullToRefreshFetchesWithoutWaitingForTheTimer() async {
         let clock = TestClock()
         let fetches = Fetches([.success(live(winnerShares: "40500000")), .success(live(winnerShares: "40900000"))])
@@ -178,6 +235,33 @@ final class BestPriceLiveTests: XCTestCase {
         var proposal = Components.Schemas.Proposal.sample(kind: .buy)
         proposal.priceComparison = BestPrice.sampleComparison(now: quotedAt)
         return ProposalSummary(proposal)
+    }
+
+    private func openBuy(pinned network: Components.Schemas.Network) -> ProposalSummary {
+        var proposal = Components.Schemas.Proposal.sample(kind: .buy)
+        proposal.priceComparison = BestPrice.sampleComparison(now: quotedAt)
+        proposal.network = network
+        return ProposalSummary(proposal)
+    }
+
+    private func solanaBeatsRobinhood() -> LivePriceComparison {
+        func quote(_ id: String, _ network: Components.Schemas.Network, shares: String) -> Components.Schemas.RouteQuote
+        {
+            Components.Schemas.RouteQuote(
+                listingId: id, issuer: "xstocks", network: network, venue: network == .solana ? .jupiter : .uniswap,
+                netShareNanos: shares, netMicros: "10000000", costs: [], quotedAt: quotedAt,
+                expiresAt: quotedAt.addingTimeInterval(30))
+        }
+        return LivePriceComparison(
+            .init(
+                priceComparison: .init(
+                    winnerListingId: "listing-sol",
+                    quotes: [
+                        quote("listing-sol", .solana, shares: "40500000"),
+                        quote("listing-rh", .robinhood, shares: "25000000"),
+                    ],
+                    unavailable: []),
+                quoteOutAmount: 40_500_000, quotedAt: quotedAt))
     }
 
     private func live(winnerShares: String, at time: Date? = nil) -> LivePriceComparison {

@@ -116,6 +116,56 @@ struct ProposalDetailBestPriceTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
+    func aPinnedBuyShowsOnlyItsChainsPriceWhenAnotherChainWins() async throws {
+        var detail = Components.Schemas.ProposalDetail.sample()
+        detail.priceComparison = BestPrice.sampleComparison(now: now)
+        detail.network = .robinhood
+        let quotedAt = ISO8601DateFormatter().string(from: Date())
+        let expiresAt = ISO8601DateFormatter().string(from: Date().addingTimeInterval(30))
+        func quote(_ id: String, _ network: String, _ venue: String, shares: String) -> String {
+            """
+            {"listing_id": "\(id)", "issuer": "xstocks", "network": "\(network)", "venue": "\(venue)",
+             "net_share_nanos": "\(shares)", "net_micros": "10000000", "costs": [],
+             "quoted_at": "\(quotedAt)", "expires_at": "\(expiresAt)"}
+            """
+        }
+        let live = """
+            {"quote_out_amount": 40500000, "quoted_at": "\(quotedAt)",
+             "price_comparison": {"winner_listing_id": "sol", "unavailable": [], "quotes": [
+               \(quote("sol", "solana", "jupiter", shares: "40500000")),
+               \(quote("rh", "robinhood", "uniswap", shares: "25000000"))]}}
+            """
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let transport = StubTransport(routes: [
+            "/v1/proposals/\(detail.id)": [.json(.ok, String(decoding: try encoder.encode(detail), as: UTF8.self))],
+            "/v1/cabals/\(detail.cabalId)/proposals/\(detail.id)/price-comparison": [.json(.ok, live)],
+        ])
+        let api = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
+        let model = ProposalDetailModel(
+            id: detail.id, cabalID: detail.cabalId, repository: ProposalsRepository(api: api), hints: FakeHintSource())
+        await model.load()
+        model.setVisible(true)
+        defer { model.setVisible(false) }
+        while model.livePrice.latest == nil { await Task.yield() }
+
+        try AccessibilityTree.setAutomation(enabled: true)
+        defer { try? AccessibilityTree.setAutomation(enabled: false) }
+        let window = try Self.window(hosting: ProposalDetailSlotView(proposalID: detail.id, model: model), api: api)
+        defer { window.isHidden = true }
+        let pinned = "$400.00 a share on Robinhood Chain"
+        await ProposalTestWindow.until {
+            AccessibilityTree.labels(in: window).contains { $0.contains(pinned) }
+        }
+        for _ in 0..<200 { await Task.yield() }
+
+        let labels = AccessibilityTree.labels(in: window)
+        #expect(labels.contains { $0.contains(pinned) }, "labels: \(labels)")
+        #expect(!labels.contains { $0.contains("Best price across") }, "labels: \(labels)")
+        #expect(!labels.contains { $0.contains("Solana") }, "labels: \(labels)")
+    }
+
+    @Test(.timeLimit(.minutes(1)))
     func aPinnedBuyShowsTheBestPriceLoadingAndNoStoredPriceUntilItsFirstLiveComparison() async throws {
         var detail = Components.Schemas.ProposalDetail.sample()
         detail.priceComparison = BestPrice.sampleComparison(now: now)

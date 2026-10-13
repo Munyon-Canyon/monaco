@@ -41,16 +41,18 @@ struct BestPriceSection: View {
 
     private func label(chevron: Bool) -> some View {
         HStack(spacing: MonacoTheme.Space.sm) {
-            ChainMark(network: (row.venues?.winner.network ?? .solana).rawValue)
+            ChainMark(network: row.network.rawValue)
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(row.figure)
                     .moneyFont(.row)
                     .foregroundStyle(MonacoTheme.ink)
                     .accessibilityIdentifier("best-price-figure")
-                Text(row.headline)
-                    .font(MonacoTheme.Typo.subhead)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                    .accessibilityIdentifier("best-price-headline")
+                if let headline = row.headline {
+                    Text(headline)
+                        .font(MonacoTheme.Typo.subhead)
+                        .foregroundStyle(MonacoTheme.secondaryText)
+                        .accessibilityIdentifier("best-price-headline")
+                }
                 if let caption = row.caption {
                     Text(caption)
                         .font(MonacoTheme.Typo.caption)
