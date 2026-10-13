@@ -6,7 +6,7 @@ import SwiftUI
 ///
 /// Launch arguments (Debug builds only):
 /// - `-MonacoDesignGallery` — opens the gallery instead of the app.
-/// - `-MonacoDesignGalleryTab <primitives|money|controls|toast|shareCard>` — initial tab.
+/// - `-MonacoDesignGalleryTab <primitives|money|balance|controls|toast|shareCard>` — initial tab.
 enum MonacoDesignGallery {
     static func matches(_ arguments: [String]) -> Bool {
         arguments.contains("-MonacoDesignGallery")
@@ -27,7 +27,7 @@ enum MonacoDesignGallery {
 }
 
 enum GalleryTab: String {
-    case primitives, money, controls, toast, shareCard
+    case primitives, money, balance, controls, toast, shareCard
 }
 
 private struct MonacoDesignGalleryRoot: View {
@@ -41,6 +41,9 @@ private struct MonacoDesignGalleryRoot: View {
             NavigationStack { GalleryMoneyPage() }
                 .tabItem { Label("Money", systemImage: "dollarsign") }
                 .tag(GalleryTab.money)
+            NavigationStack { GalleryBalancePage() }
+                .tabItem { Label("Balance", systemImage: "banknote") }
+                .tag(GalleryTab.balance)
             NavigationStack { GalleryControlsPage() }
                 .tabItem { Label("Controls", systemImage: "slider.horizontal.3") }
                 .tag(GalleryTab.controls)
@@ -258,6 +261,31 @@ private struct GalleryMoneyPage: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.bottom, MonacoTheme.Space.xl)
+        }
+        .monacoCanvas()
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct GalleryBalancePage: View {
+    var body: some View {
+        ScrollView {
+            MonacoGroupedList {
+                HomeBalanceSummary(display: .amount(0))
+                MonacoRule()
+                HomeBalanceSummary(display: .amount(1_990_000))
+                MonacoRule()
+                HomeBalanceSummary(display: .amount(12_345_670_000))
+                MonacoRule()
+                HomeBalanceSummary(
+                    display: .amount(198_500_000), status: PlatformBalanceCard.pendingLine(micros: 50_000_000),
+                    arrivingMicros: 4_500_000)
+                MonacoRule()
+                HomeBalanceSummary(display: .loading)
+                MonacoRule()
+                HomeBalanceSummary(display: .unavailable, retry: {})
+            }
         }
         .monacoCanvas()
         .navigationTitle("")

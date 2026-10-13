@@ -7,8 +7,8 @@ import SwiftUI
 ///
 /// It used to be a white card with the figure at 28pt, which made the balance the loudest
 /// thing on a money screen whose job is somewhere else (an address to copy, an amount to
-/// type). It is the row Home draws (`HomeBalanceRowSection`) now, so the balance reads the
-/// same wherever it appears. The type keeps the file's name; it is no longer a card.
+/// type). Home and Profile lead with the figure instead (`HomeBalanceSummary`). The type keeps
+/// the file's name; it is no longer a card.
 ///
 /// Put it inside a `MonacoGroupedList`, which draws the rules.
 struct PlatformBalanceCard: View {
