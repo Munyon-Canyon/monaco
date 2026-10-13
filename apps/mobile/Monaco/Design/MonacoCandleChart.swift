@@ -28,6 +28,7 @@ struct MonacoCandleChart: View {
     var tint: Color
     var lastPrice: Double?
     var isLive: Bool = false
+    var fixedDomain: ClosedRange<Double>?
     var resetKey: AnyHashable
     var hasOlder: Bool
     var retryToken = 0
@@ -68,6 +69,7 @@ struct MonacoCandleChart: View {
         tint: Color,
         lastPrice: Double?,
         isLive: Bool = false,
+        fixedDomain: ClosedRange<Double>? = nil,
         resetKey: AnyHashable,
         hasOlder: Bool,
         retryToken: Int = 0,
@@ -88,6 +90,7 @@ struct MonacoCandleChart: View {
         self.tint = tint
         self.lastPrice = lastPrice
         self.isLive = isLive
+        self.fixedDomain = fixedDomain
         self.resetKey = resetKey
         self.hasOlder = hasOlder
         self.retryToken = retryToken
@@ -109,7 +112,8 @@ struct MonacoCandleChart: View {
     }
 
     private var domain: ClosedRange<Double> {
-        window.valueDomain(of: bars, slack: TimeInterval(intervalSeconds) / 2, closesOnly: style == .line)
+        if let fixedDomain { return fixedDomain }
+        return window.valueDomain(of: bars, slack: TimeInterval(intervalSeconds) / 2, closesOnly: style == .line)
     }
 
     private var xDomain: ClosedRange<Date> {
