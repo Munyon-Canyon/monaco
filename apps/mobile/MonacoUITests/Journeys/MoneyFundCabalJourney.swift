@@ -2,7 +2,7 @@ import XCTest
 
 enum MoneyFundCabalJourney {
     static let id = "money/fund-cabal"
-    static let version = 4
+    static let version = 5
 
     static let screenTimeout: TimeInterval = 15
 
@@ -71,7 +71,7 @@ enum MoneyFundCabalJourney {
             let note = app.element("fund-cabal-yield-note")
             XCTAssertTrue(note.waitForExistence(timeout: 5), "S1.3: no yield note")
             XCTAssertEqual(
-                note.label, "Your cabal grows its USDC treasury with yield. Cash it holds earns 3.5% APY.",
+                note.label, "Your cabal earns yield on its USDC. Cash it holds earns 3.5% APY.",
                 "S1.3: the yield note")
         }
 

@@ -111,7 +111,7 @@ struct FundCabalFormTests {
     @Test func theNoteSaysTheCabalEarnsYield() {
         #expect(
             CabalYield.fundNote
-                == "Your cabal grows its USDC treasury with yield. Cash it holds earns 3.5% APY.")
+                == "Your cabal earns yield on its USDC. Cash it holds earns 3.5% APY.")
     }
 
     @Test func maxIsTheWholeBalanceAndZeroWhenEmpty() {
