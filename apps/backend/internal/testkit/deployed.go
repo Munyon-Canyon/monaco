@@ -11,7 +11,8 @@ import (
 func DeployedEnv() []string {
 	return append(APNsEnv(), "ABLY_API_KEY=deployed.key:deployed-secret",
 		"AGENT_KEY_ENCRYPTION_KEY=AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=",
-		"PRIVY_AUTHORIZATION_PRIVATE_KEY="+deployedAuthorizationKey(), "PRIVY_AUTHORIZATION_KEY_ID=deployed-key-quorum")
+		"PRIVY_AUTHORIZATION_PRIVATE_KEY="+deployedAuthorizationKey(), "PRIVY_AUTHORIZATION_KEY_ID=deployed-key-quorum",
+		"EVM_RPC_URL_BASE=http://127.0.0.1:1/base")
 }
 
 func deployedAuthorizationKey() string {
