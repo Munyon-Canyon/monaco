@@ -37,6 +37,14 @@ final class ValueCurveChartTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(value.slotSeconds, 1)
     }
 
+    func testFittedDomainContainsTheFirstPointSoTheBaselineAlwaysDraws() throws {
+        for values: [Int64] in [[0, 1_000_000, 3_000_000], [0, -2_000_000, -5_000_000], [4_000_000]] {
+            let plotted = curve(values).plotted(.pnl)
+            let first = try XCTUnwrap(plotted.first).value
+            XCTAssertTrue(ValueCurve.fittedDomain(plotted).contains(first), "\(values)")
+        }
+    }
+
     func testSlotSeconds_isTheMedianGapSoAnOddSnapshotDoesNotSetTheBarWidth() {
         let value = ValueCurve(
             samples: [0, 300, 600, 900, 4_500].map { .init(at: start.addingTimeInterval($0), value: 1, pnl: 0) })

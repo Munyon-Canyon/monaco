@@ -175,10 +175,41 @@ extension ValueCurve {
         }
     }
 
-    private static func percentText(_ delta: Int64, over base: Int64) -> String {
+    public struct Pill: Equatable, Sendable {
+        public let text: String
+        public let direction: PortfolioSummary.Direction
+    }
+
+    public func pill(_ plot: Plot) -> Pill? {
+        guard let last = samples.last else { return nil }
+        switch plot {
+        case .pnl:
+            let amount = UsdAmountFormatter.format(signedMicros: last.pnl)
+            guard amount == "$0.00" else {
+                return Pill(text: amount, direction: PortfolioSummary.Direction(signedMicros: last.pnl))
+            }
+            let contributed = last.value - last.pnl
+            let percent = contributed > 0 ? Self.percentText(last.pnl, over: contributed, fractionDigits: 1) : nil
+            return Self.pill(percent: percent, fallback: amount)
+        case .nav:
+            guard let nav = last.nav else { return nil }
+            return Self.pill(
+                percent: Self.percentText(nav - Self.shareBase, over: Self.shareBase, fractionDigits: 1),
+                fallback: "0.0%")
+        }
+    }
+
+    private static let shareBase: Int64 = 1_000_000
+
+    private static func pill(percent: String?, fallback: String) -> Pill {
+        guard let percent, percent != "0.0%" else { return Pill(text: fallback, direction: .flat) }
+        return Pill(text: percent, direction: percent.hasPrefix("−") ? .down : .up)
+    }
+
+    private static func percentText(_ delta: Int64, over base: Int64, fractionDigits: Int = 2) -> String {
         let scaled = delta * 10_000
         let half = base / 2
         let basisPoints = (scaled >= 0 ? scaled + half : scaled - half) / base
-        return PercentFormatter.format(basisPoints: basisPoints, signed: true)
+        return PercentFormatter.format(basisPoints: basisPoints, signed: true, fractionDigits: fractionDigits)
     }
 }

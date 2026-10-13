@@ -29,6 +29,9 @@ struct MonacoCandleChart: View {
     var lastPrice: Double?
     var isLive: Bool = false
     var fixedDomain: ClosedRange<Double>?
+    var baseline: Double?
+    var tagTint: Color?
+    var showsLastPriceRule = true
     var resetKey: AnyHashable
     var hasOlder: Bool
     var retryToken = 0
@@ -70,6 +73,9 @@ struct MonacoCandleChart: View {
         lastPrice: Double?,
         isLive: Bool = false,
         fixedDomain: ClosedRange<Double>? = nil,
+        baseline: Double? = nil,
+        tagTint: Color? = nil,
+        showsLastPriceRule: Bool = true,
         resetKey: AnyHashable,
         hasOlder: Bool,
         retryToken: Int = 0,
@@ -91,6 +97,9 @@ struct MonacoCandleChart: View {
         self.lastPrice = lastPrice
         self.isLive = isLive
         self.fixedDomain = fixedDomain
+        self.baseline = baseline
+        self.tagTint = tagTint
+        self.showsLastPriceRule = showsLastPriceRule
         self.resetKey = resetKey
         self.hasOlder = hasOlder
         self.retryToken = retryToken
@@ -174,6 +183,9 @@ struct MonacoCandleChart: View {
                     style: style,
                     tint: tint,
                     lastPrice: lastPrice,
+                    baseline: baseline,
+                    tagTint: tagTint,
+                    showsLastPriceRule: showsLastPriceRule,
                     isLive: isLive,
                     isAtLatest: isAtLatest,
                     selection: selection,
