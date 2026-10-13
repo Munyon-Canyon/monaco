@@ -10,7 +10,7 @@ import (
 func evmDepositNetworks(key string, at func(*Config) *[]chain.Network) field {
 	return field{
 		key:      key,
-		fallback: string(chain.NetworkBase),
+		fallback: string(chain.NetworkBase) + "," + string(chain.NetworkArbitrum) + "," + string(chain.NetworkEthereum),
 		want:     "comma-separated distinct EVM networks taking USDC: base, arbitrum or ethereum",
 		set: func(c *Config, v string) bool {
 			*at(c) = nil

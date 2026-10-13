@@ -37,7 +37,7 @@ Each service opens at most this many connections:
 
 1. Add a payment method to the Render workspace. `render blueprints validate render.yaml` fails with `need_payment_info` until you do.
 2. In the Render dashboard, choose **New** → **Blueprint**, pick this repo, and point it at `render.yaml` on `staging`. This creates the two services and the `monaco-staging` env group.
-3. Fill `.env.staging` with the secrets (`dotenvx set KEY value -f .env.staging` encrypts as it writes). `render.yaml` sets the non-secret keys. The file's private key, `DOTENV_PRIVATE_KEY_STAGING`, is not in the repo; share it like the `.env.local` key.
+3. Fill `.env.staging` with the secrets (`dotenvx set KEY value -f .env.staging` encrypts as it writes). `render.yaml` sets the non-secret keys. Leave `EVM_DEPOSIT_NETWORKS` unset so Deposit offers Base, Arbitrum and Ethereum after Solana; set it, as in `EVM_DEPOSIT_NETWORKS=base`, only to narrow that list. The file's private key, `DOTENV_PRIVATE_KEY_STAGING`, is not in the repo; share it like the `.env.local` key.
 4. Push the secrets and the NATS creds file into the env group:
 
    ```bash
