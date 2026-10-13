@@ -19,8 +19,9 @@ func TestModule_servesCabalsAndHintsTheCreator(t *testing.T) {
 		Timeouts: config.Timeouts{Privy: time.Second},
 	}})
 	consumers := m.Consumers()
-	if m.Name() != "cabal" || !testkit.Serves(m.Mount, "GET", "/v1/cabals") || len(consumers) != 2 ||
-		consumers[0].Durable != "cabal_ban" || consumers[1].Durable != "cabal_hints" || len(m.Pollers()) != 1 {
+	if m.Name() != "cabal" || !testkit.Serves(m.Mount, "GET", "/v1/cabals") || len(consumers) != 3 ||
+		consumers[0].Durable != "cabal_ban" || consumers[1].Durable != "cabal_hints" ||
+		consumers[2].Durable != "cabal_evm_wallet" || len(m.Pollers()) != 1 {
 		t.Fatalf("module = %s, consumers %v, pollers %v",
 			m.Name(), consumers, m.Pollers())
 	}

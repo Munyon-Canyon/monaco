@@ -87,6 +87,10 @@ func WithTreasuryReads(reads app.TreasuryReads) Option {
 	return func(m *Module) { m.treasury = reads }
 }
 
+func WithEVMWallets(wallets multichain.EVMWallets) Option {
+	return func(m *Module) { m.multichain.evmWallets = wallets }
+}
+
 func New(d module.Deps, opts ...Option) *Module {
 	reads := treasury.New(d).LiveReads()
 	m := &Module{multichain: newMultichain(d), deps: d, treasury: liveReads{
@@ -138,6 +142,7 @@ func (m *Module) http() adapters.HTTP {
 
 func (m *Module) Consumers() []bus.Consumer {
 	hints := adapters.Hints{Publish: m.deps.Bus}
+	evm := adapters.TreasuryEVMWalletOnCreate{Wallets: m.TreasuryEVMWallets(), UoW: m.deps.UoW}
 	return []bus.Consumer{{
 		Durable:  "cabal_ban",
 		Handlers: []bus.HandlerSpec{bus.Handle("cabal.ban", adapters.Ban{IDs: m.deps.IDs}.Handle)},
@@ -151,6 +156,9 @@ func (m *Module) Consumers() []bus.Consumer {
 			bus.Handle("cabal.hints.updated", hints.Updated),
 			bus.Handle("cabal.hints.member_left", hints.MemberLeft),
 		},
+	}, {
+		Durable:  "cabal_evm_wallet",
+		Handlers: []bus.HandlerSpec{bus.HandleOwn("cabal.evm_wallet", evm.Handle)},
 	}}
 }
 
