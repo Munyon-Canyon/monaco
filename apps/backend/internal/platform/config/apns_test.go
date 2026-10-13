@@ -21,7 +21,8 @@ func TestLoad_apnsKeyIsOptionalInLocalAndTest(t *testing.T) {
 
 func TestLoad_apnsKeyIsOptionalInStaging(t *testing.T) {
 	t.Parallel()
-	cfg, err := config.Load(append(required(), "MONACO_ENV=staging", "ABLY_API_KEY=ably-key", agentKeyEnv))
+	cfg, err := config.Load(append(required(), "MONACO_ENV=staging", "ABLY_API_KEY=ably-key", agentKeyEnv,
+		baseRPCEnv))
 	if err != nil {
 		t.Fatalf("MONACO_ENV=staging without an APNs key: %v", err)
 	}
@@ -35,7 +36,7 @@ func TestLoad_apnsBaseURLIsAllowedOutsideProduction(t *testing.T) {
 	const base = "http://127.0.0.1:8099/apns"
 	for _, env := range []config.Env{config.EnvLocal, config.EnvTest, config.EnvStaging} {
 		environ := append(append(required(), apnsKeys()...), "MONACO_ENV="+string(env), "APNS_BASE_URL="+base,
-			"ABLY_API_KEY=ably-key", agentKeyEnv)
+			"ABLY_API_KEY=ably-key", agentKeyEnv, baseRPCEnv)
 		cfg, err := config.Load(environ)
 		if err != nil {
 			t.Fatalf("MONACO_ENV=%s with APNS_BASE_URL: %v", env, err)

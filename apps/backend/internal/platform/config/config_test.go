@@ -28,6 +28,8 @@ const agentKey = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="
 
 const agentKeyEnv = "AGENT_KEY_ENCRYPTION_KEY=" + agentKey
 
+const baseRPCEnv = "EVM_RPC_URL_BASE=https://base.example/rpc"
+
 func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 	t.Parallel()
 	cfg, err := config.Load(append(required(), "PATH=/usr/bin", "HOME=/home/monaco"))
@@ -348,7 +350,7 @@ func TestLoadAcceptsEveryEnv(t *testing.T) {
 	t.Parallel()
 	for _, env := range []config.Env{config.EnvLocal, config.EnvTest, config.EnvStaging, config.EnvProduction} {
 		environ := append(append(required(), apnsKeys()...), "MONACO_ENV="+string(env), "ABLY_API_KEY=ably-key",
-			agentKeyEnv)
+			agentKeyEnv, baseRPCEnv)
 		if env == config.EnvProduction {
 			environ = append(environ, "POSTHOG_API_KEY=ph-key")
 		}
@@ -366,7 +368,7 @@ func TestLoadBootsWithoutACoinGeckoKeyInEveryEnv(t *testing.T) {
 	t.Parallel()
 	for _, env := range []config.Env{config.EnvLocal, config.EnvTest, config.EnvStaging, config.EnvProduction} {
 		environ := append(append(required(), apnsKeys()...), "MONACO_ENV="+string(env), "POSTHOG_API_KEY=ph-key",
-			"ABLY_API_KEY=ably-key", agentKeyEnv)
+			"ABLY_API_KEY=ably-key", agentKeyEnv, baseRPCEnv)
 		cfg, err := config.Load(environ)
 		if err != nil || cfg.CoinGecko.APIKey != "" {
 			t.Fatalf("MONACO_ENV=%s: key %q, err %v; want no key and no error", env, cfg.CoinGecko.APIKey, err)
@@ -456,7 +458,7 @@ func TestLoadFailures(t *testing.T) {
 				"MONACO_ENV=production",
 				"POSTHOG_API_KEY=ph-key",
 				"ABLY_API_KEY=ably-key",
-				agentKeyEnv,
+				agentKeyEnv, baseRPCEnv,
 				"APNS_KEY_ID=key-id",
 			),
 			want: "config.Load: invalid_input: missing APNS_KEY_P8, APNS_TEAM_ID",
@@ -473,7 +475,7 @@ func TestLoadFailures(t *testing.T) {
 				"MONACO_ENV=production",
 				"POSTHOG_API_KEY=ph-key",
 				"ABLY_API_KEY=ably-key",
-				agentKeyEnv,
+				agentKeyEnv, baseRPCEnv,
 				"APNS_BASE_URL=http://fakes/apns",
 			),
 			want: "config.Load: invalid_input: invalid APNS_BASE_URL (not allowed in production)",
@@ -485,7 +487,7 @@ func TestLoadFailures(t *testing.T) {
 				"MONACO_ENV=production",
 				"POSTHOG_API_KEY=ph-key",
 				"ABLY_API_KEY=ably-key",
-				agentKeyEnv,
+				agentKeyEnv, baseRPCEnv,
 				"APNS_BASE_URL=http://fakes/apns",
 			),
 			want: "config.Load: invalid_input: missing APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID; " +
@@ -499,25 +501,34 @@ func TestLoadFailures(t *testing.T) {
 		{
 			name: "production without a PostHog key",
 			environ: append(append(required(), apnsKeys()...), "MONACO_ENV=production", "ABLY_API_KEY=ably-key",
-				agentKeyEnv),
+				agentKeyEnv, baseRPCEnv),
 			want: "config.Load: invalid_input: missing POSTHOG_API_KEY",
 		},
 		{
 			name: "an empty PostHog key counts as missing in production",
 			environ: append(append(required(), apnsKeys()...), "MONACO_ENV=production", "POSTHOG_API_KEY=",
-				"ABLY_API_KEY=ably-key", agentKeyEnv),
+				"ABLY_API_KEY=ably-key", agentKeyEnv, baseRPCEnv),
 			want: "config.Load: invalid_input: missing POSTHOG_API_KEY",
 		},
 		{
 			name:    "production names every missing key in one error",
 			environ: []string{"MONACO_ENV=production", "NATS_URL=nats://x"},
 			want: "config.Load: invalid_input: missing DATABASE_URL, APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID, " +
-				"POSTHOG_API_KEY, ABLY_API_KEY, AGENT_KEY_ENCRYPTION_KEY",
+				"POSTHOG_API_KEY, ABLY_API_KEY, AGENT_KEY_ENCRYPTION_KEY; " +
+				"invalid EVM_RPC_URL_BASE (the public Base RPC refuses eth_getLogs; set a provider URL)",
 		},
 		{
-			name:    "staging without the agent key encryption key",
-			environ: append(append(required(), apnsKeys()...), "MONACO_ENV=staging", "ABLY_API_KEY=ably-key"),
-			want:    "config.Load: invalid_input: missing AGENT_KEY_ENCRYPTION_KEY",
+			name: "staging without the agent key encryption key",
+			environ: append(append(required(), apnsKeys()...), "MONACO_ENV=staging", "ABLY_API_KEY=ably-key",
+				baseRPCEnv),
+			want: "config.Load: invalid_input: missing AGENT_KEY_ENCRYPTION_KEY",
+		},
+		{
+			name: "staging on the public Base RPC, which refuses eth_getLogs",
+			environ: append(required(), "MONACO_ENV=staging", "ABLY_API_KEY=ably-key", agentKeyEnv,
+				"EVM_RPC_URL_BASE="+config.PublicBaseRPC),
+			want: "config.Load: invalid_input: " +
+				"invalid EVM_RPC_URL_BASE (the public Base RPC refuses eth_getLogs; set a provider URL)",
 		},
 		{
 			name:    "an agent key encryption key one byte short",
@@ -601,7 +612,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		"SUPABASE_SERVICE_ROLE_KEY":       "supabase-service-secret",
 	}
 	environ := make([]string, 0, 2+len(secrets))
-	environ = append(environ, "MONACO_ENV=staging", "MONACO_TIMEOUT_JUPITER_EXECUTE=90s",
+	environ = append(environ, "MONACO_ENV=staging", "MONACO_TIMEOUT_JUPITER_EXECUTE=90s", baseRPCEnv,
 		"APNS_KEY_ID=key-id", "APNS_TEAM_ID=team-id", "NATS_CREDS=/run/secrets/nats.creds")
 	for k, v := range secrets {
 		environ = append(environ, k+"="+v)
