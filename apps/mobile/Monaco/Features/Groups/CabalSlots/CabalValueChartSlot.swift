@@ -67,7 +67,7 @@ private struct CabalValueChart: View {
     }
 
     @ViewBuilder private var skeleton: some View {
-        CurveReadoutLine(readout: nil)
+        CurveChangeLine(curve: nil, plot: .nav)
         SkeletonBlock(height: 160, radius: 12)
             .accessibilityIdentifier("cabal-value-chart-loading")
         MonacoRangeChipsSkeleton(ranges: CabalValueChartSlot.ranges)
@@ -75,10 +75,10 @@ private struct CabalValueChart: View {
 
     @ViewBuilder private func loaded(_ model: ValueChartModel) -> some View {
         let shown = model.shownRange ?? model.range
-        CurveReadoutLine(
-            readout: model.curve.flatMap { curve in selection.flatMap { curve.readout(at: $0) } }, range: shown)
+        CurveChangeLine(curve: model.curve, plot: .nav, range: shown, selection: selection)
         if let curve = model.curve, curve.hasEnoughHistory {
-            CurveScrubChart(curve: curve, range: shown, selection: $selection, identifier: "cabal-value-chart")
+            CurveScrubChart(
+                curve: curve, plot: .nav, range: shown, selection: $selection, identifier: "cabal-value-chart")
         } else {
             VStack(alignment: .leading, spacing: HeroRhythm.withinChart) {
                 Rectangle()

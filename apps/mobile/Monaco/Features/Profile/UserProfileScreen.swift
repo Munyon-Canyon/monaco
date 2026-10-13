@@ -48,3 +48,10 @@ struct UserProfileScreen: View {
         return created
     }
 }
+
+extension UserProfileScreen {
+    init(userID: String, preview: UserPreview?) {
+        self.context = UserProfileContext(userID: userID, preview: preview)
+        self.sections = Self.sections
+    }
+}
