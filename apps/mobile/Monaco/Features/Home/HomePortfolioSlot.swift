@@ -155,7 +155,7 @@ private struct HomePortfolioHero: View {
     @ViewBuilder private func curveRows(_ chart: ValueChartModel) -> some View {
         switch chart.state {
         case .idle, .loading:
-            CurveReadoutLine(readout: nil)
+            CurveChangeLine(curve: nil, plot: .pnl)
             SkeletonBlock(height: 160, radius: 12)
                 .accessibilityIdentifier("home-portfolio-chart-loading")
             rangeChips(chart)
@@ -165,10 +165,10 @@ private struct HomePortfolioHero: View {
             }
         case .loaded:
             let shown = chart.shownRange ?? chart.range
-            CurveReadoutLine(
-                readout: chart.curve.flatMap { curve in selection.flatMap { curve.readout(at: $0) } }, range: shown)
+            CurveChangeLine(curve: chart.curve, plot: .pnl, range: shown, selection: selection)
             if let curve = chart.curve, curve.hasEnoughHistory {
-                CurveScrubChart(curve: curve, range: shown, selection: $selection, identifier: "home-pnl-chart")
+                CurveScrubChart(
+                    curve: curve, plot: .pnl, range: shown, selection: $selection, identifier: "home-pnl-chart")
             } else {
                 VStack(alignment: .leading, spacing: HeroRhythm.withinChart) {
                     hairline
@@ -222,7 +222,7 @@ struct HomePortfolioSkeleton: View {
                 Text(" ").moneyFont(.caption).skeletonBar(width: 120, radius: 12)
             }
             VStack(alignment: .leading, spacing: HeroRhythm.withinChart) {
-                CurveReadoutLine(readout: nil)
+                CurveChangeLine(curve: nil, plot: .pnl)
                 SkeletonBlock(height: 160, radius: 12)
                 MonacoRangeChipsSkeleton(ranges: LeaderboardRange.allCases)
             }

@@ -8,10 +8,3 @@ nonisolated struct UserProfileRoute: AppRoute {
         UserProfileScreen(userID: userID, preview: preview)
     }
 }
-
-extension UserProfileScreen {
-    init(userID: String, preview: UserPreview?) {
-        self.context = UserProfileContext(userID: userID, preview: preview)
-        self.sections = Self.sections
-    }
-}
