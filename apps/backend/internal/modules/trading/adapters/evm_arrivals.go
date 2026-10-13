@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
@@ -27,16 +28,26 @@ const (
 	arrivalLookback      = 2 * time.Minute
 	arrivalChunksPerTick = 30
 	arrivalSettleBlocks  = 2
+	arrivalPace          = 250 * time.Millisecond
+	arrivalBackoffFirst  = 15 * time.Second
+	arrivalBackoffCap    = 60 * time.Second
 	evmTopicHexChars     = 64
 )
 
 var _ app.EVMArrivals = (*EVMArrivals)(nil)
 
 type EVMArrivals struct {
-	rpc     map[chain.Network]*httpclient.Client
-	chunk   int64
-	mu      sync.Mutex
-	cursors map[arrivalKey]arrivalCursor
+	rpc       map[chain.Network]*httpclient.Client
+	chunk     int64
+	clock     clock.Clock
+	mu        sync.Mutex
+	cursors   map[arrivalKey]arrivalCursor
+	throttled map[chain.Network]arrivalBackoff
+}
+
+type arrivalBackoff struct {
+	until time.Time
+	wait  time.Duration
 }
 
 type arrivalKey struct {
@@ -50,8 +61,23 @@ type arrivalCursor struct {
 	chunk int64
 }
 
-func NewEVMArrivals(rpc map[chain.Network]*httpclient.Client, maxBlocks int64) *EVMArrivals {
-	return &EVMArrivals{rpc: rpc, chunk: max(maxBlocks, 1), cursors: map[arrivalKey]arrivalCursor{}}
+func NewEVMArrivals(rpc map[chain.Network]*httpclient.Client, maxBlocks int64, clk clock.Clock) *EVMArrivals {
+	return &EVMArrivals{
+		rpc: rpc, chunk: max(maxBlocks, 1), clock: clk,
+		cursors: map[arrivalKey]arrivalCursor{}, throttled: map[chain.Network]arrivalBackoff{},
+	}
+}
+
+type pacer struct {
+	clock   clock.Clock
+	started bool
+}
+
+func (p *pacer) wait() {
+	if p.started {
+		<-p.clock.After(arrivalPace)
+	}
+	p.started = true
 }
 
 type arrivalLog struct {
@@ -71,6 +97,7 @@ type logFilter struct {
 
 type arrivalScan struct {
 	client  *httpclient.Client
+	pace    *pacer
 	network chain.Network
 	owner   chain.EVMAddress
 	attrs   []slog.Attr
@@ -92,16 +119,38 @@ func (a *EVMArrivals) Inbound(
 	if !ok {
 		return app.EVMArrival{}, false, errs.New(errs.CodeInvalidInput, evmArrivalsOp, attrs...)
 	}
+	if until, waiting := a.backingOff(network); waiting {
+		return app.EVMArrival{}, false, errs.New(errs.CodeRPCUnavailable, evmArrivalsOp,
+			append(attrs, slog.String("reason", "rate_limited"), slog.Time("retry_at", until))...)
+	}
 	transfer, recipient := transferEventTopic, topicOf(owner)
 	s := arrivalScan{
-		client: client, network: network, owner: owner, attrs: attrs, atMost: atMost, exclude: exclude,
-		filter: logFilter{Address: token.String(), Topics: []*string{&transfer, nil, &recipient}},
+		client: client, pace: &pacer{clock: a.clock}, network: network, owner: owner, attrs: attrs, atMost: atMost,
+		exclude: exclude, filter: logFilter{Address: token.String(), Topics: []*string{&transfer, nil, &recipient}},
 	}
+	key := arrivalKey{network: network, owner: owner, since: since.UnixNano()}
+	got, found, err := a.inbound(ctx, s, key, since)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	switch {
+	case rateLimited(err):
+		b := a.throttled[network]
+		b.wait = min(max(2*b.wait, arrivalBackoffFirst), arrivalBackoffCap)
+		b.until = a.clock.Now().Add(b.wait)
+		a.throttled[network] = b
+	case err == nil:
+		delete(a.throttled, network)
+	}
+	return got, found, err
+}
+
+func (a *EVMArrivals) inbound(
+	ctx context.Context, s arrivalScan, key arrivalKey, since time.Time,
+) (app.EVMArrival, bool, error) {
 	var head hexInt
 	if err := s.call(ctx, "eth_blockNumber", []any{}, &head); err != nil {
 		return app.EVMArrival{}, false, err
 	}
-	key := arrivalKey{network: network, owner: owner, since: since.UnixNano()}
 	cur, err := a.cursor(ctx, s, key, since, int64(head))
 	if err != nil {
 		return app.EVMArrival{}, false, err
@@ -115,6 +164,19 @@ func (a *EVMArrivals) Inbound(
 		a.cursors[key] = cur
 	}
 	return got, found, err
+}
+
+func (a *EVMArrivals) backingOff(network chain.Network) (time.Time, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	until := a.throttled[network].until
+	return until, a.clock.Now().Before(until)
+}
+
+func rateLimited(err error) bool {
+	return slices.ContainsFunc(errs.Detail(err), func(a slog.Attr) bool {
+		return a.Key == "status" && a.Value.String() == strconv.Itoa(http.StatusTooManyRequests)
+	})
 }
 
 func (a *EVMArrivals) cursor(
@@ -167,7 +229,7 @@ type rpcError struct {
 func (f *rpcError) Error() string { return f.Message }
 
 func rangeCapped(err error) (*rpcError, bool) {
-	words := []string{"range", "limit", "too large", "too many", "more than", "exceed"}
+	words := []string{"range", "too large", "more than"}
 	var fault *rpcError
 	if !errors.As(err, &fault) {
 		return nil, false
@@ -245,6 +307,7 @@ func (h *hexInt) UnmarshalJSON(raw []byte) error {
 
 func (s arrivalScan) call(ctx context.Context, method string, params []any, into any) error {
 	attrs := append(slices.Clone(s.attrs), slog.String("method", method))
+	s.pace.wait()
 	raw, _ := json.Marshal(rpcCall{JSONRPC: "2.0", ID: 1, Method: method, Params: params})
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "", bytes.NewReader(raw))
 	req.Header.Set("Content-Type", "application/json")

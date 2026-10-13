@@ -54,10 +54,21 @@ type fakeChain struct {
 	maxSpan  uint64
 	failLogs bool
 	calls    map[string]int
+	froms    []uint64
+	budget   int
+	clock    steppingClock
 }
 
 func newFakeChain() *fakeChain {
-	return &fakeChain{head: chainHead, calls: map[string]int{}}
+	return &fakeChain{
+		head: chainHead, calls: map[string]int{}, budget: -1, clock: steppingClock{testkit.NewClock(chainStart())},
+	}
+}
+
+func (c *fakeChain) allowLogs(n int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.budget = n
 }
 
 func (c *fakeChain) blockAt(n int64) time.Time {
@@ -77,6 +88,13 @@ func (c *fakeChain) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.calls[req.Method]++
+	if req.Method == "eth_getLogs" && c.budget == 0 {
+		w.WriteHeader(http.StatusTooManyRequests)
+		return
+	}
+	if req.Method == "eth_getLogs" && c.budget > 0 {
+		c.budget--
+	}
 	result, rpcErr := c.answer(req.Method, req.Params)
 	reply := map[string]any{"jsonrpc": "2.0", "id": 1, "result": result}
 	if rpcErr == alchemyFreeCap {
@@ -120,6 +138,7 @@ func (c *fakeChain) getLogs(param json.RawMessage) (any, string) {
 	}
 	_ = json.Unmarshal(param, &f)
 	from, to := quantity(f.FromBlock), quantity(f.ToBlock)
+	c.froms = append(c.froms, from)
 	if c.failLogs {
 		return nil, "internal error"
 	}
@@ -144,8 +163,14 @@ func (c *fakeChain) takeCalls() map[string]int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	calls := c.calls
-	c.calls = map[string]int{}
+	c.calls, c.froms = map[string]int{}, nil
 	return calls
+}
+
+func (c *fakeChain) firstFrom() uint64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.froms[0]
 }
 
 func (c *fakeChain) arrivals(t *testing.T, chunk int64) *adapters.EVMArrivals {
@@ -157,7 +182,7 @@ func (c *fakeChain) arrivals(t *testing.T, chunk int64) *adapters.EVMArrivals {
 		httpclient.WithBaseURL(srv.URL),
 		httpclient.WithTimeout(time.Second),
 	)
-	return adapters.NewEVMArrivals(map[chain.Network]*httpclient.Client{chain.NetworkRobinhood: rpc}, chunk)
+	return adapters.NewEVMArrivals(map[chain.Network]*httpclient.Client{chain.NetworkRobinhood: rpc}, chunk, c.clock)
 }
 
 func (c *fakeChain) inbound(
@@ -261,11 +286,15 @@ func TestEVMArrivals_findsALaterArrivalUnderATenBlockCapWithoutRescanning(t *tes
 	if err != nil || found || first["eth_getLogs"] != 30 {
 		t.Fatalf("tick 1 = %v, %v with %v calls, want nothing yet after 30 chunks", found, err, first)
 	}
+	start := c.clock.Now()
 	got, found, err := c.inbound(t, a, c.blockAt(4_000))
 	second := c.takeCalls()
 
 	if err != nil || !found || got.TxHash != txHash(1) {
 		t.Fatalf("tick 2 = %+v, %v, %v, want the transfer 300 blocks after the step", got, found, err)
+	}
+	if paced := c.clock.Now().Sub(start); paced != 13*250*time.Millisecond {
+		t.Fatalf("tick 2 waited %s between its 14 calls, want 250ms before each after the first", paced)
 	}
 	if second["eth_getLogs"] != 13 || second["eth_getBlockByNumber"] != 0 || second["eth_blockNumber"] != 1 {
 		t.Fatalf("tick 2 calls = %v, want 13 chunks from the cursor and no block search", second)
@@ -314,7 +343,7 @@ func TestEVMArrivals_anRPCOutageIsRetryable(t *testing.T) {
 
 func TestEVMArrivals_anUnknownNetworkIsInvalidInput(t *testing.T) {
 	t.Parallel()
-	a := adapters.NewEVMArrivals(nil, 10)
+	a := adapters.NewEVMArrivals(nil, 10, steppingClock{testkit.NewClock(chainStart())})
 
 	_, _, err := a.Inbound(t.Context(), chain.NetworkBase, evmAddress(t, rhUSDG), evmAddress(t, rhTreasury),
 		chainStart(), money.MicrosFromUint64(1), nil)
@@ -341,7 +370,8 @@ func rawRPC(t *testing.T, reply func(method string) (int, string)) *adapters.EVM
 		httpclient.WithBaseURL(srv.URL),
 		httpclient.WithTimeout(time.Second),
 	)
-	return adapters.NewEVMArrivals(map[chain.Network]*httpclient.Client{chain.NetworkRobinhood: rpc}, 10)
+	return adapters.NewEVMArrivals(map[chain.Network]*httpclient.Client{chain.NetworkRobinhood: rpc}, 10,
+		steppingClock{testkit.NewClock(chainStart())})
 }
 
 func TestEVMArrivals_refusesWhatItCannotRead(t *testing.T) {
@@ -397,12 +427,49 @@ func TestEVMArrivals_aClosedRPCIsUnavailable(t *testing.T) {
 		httpclient.WithBaseURL(srv.URL),
 		httpclient.WithTimeout(time.Second),
 	)
-	a := adapters.NewEVMArrivals(map[chain.Network]*httpclient.Client{chain.NetworkRobinhood: rpc}, 10)
+	a := adapters.NewEVMArrivals(map[chain.Network]*httpclient.Client{chain.NetworkRobinhood: rpc}, 10,
+		steppingClock{testkit.NewClock(chainStart())})
 
 	_, _, err := a.Inbound(t.Context(), chain.NetworkRobinhood, evmAddress(t, rhUSDG), evmAddress(t, rhTreasury),
 		chainStart(), money.MicrosFromUint64(1), nil)
 
 	if !errs.Retryable(errs.CodeOf(err)) {
 		t.Fatalf("Inbound err = %v, want a retryable outage", err)
+	}
+}
+
+func TestEVMArrivals_resumesFromItsCursorAfterARateLimitAndBacksOff(t *testing.T) {
+	t.Parallel()
+	c := newFakeChain()
+	c.maxSpan = 10
+	c.logs = []chainLog{{block: 4_300, token: rhUSDG, from: rhBridge, to: rhTreasury, amount: 972_507, tx: txHash(1)}}
+	a := c.arrivals(t, 10)
+	backoffs := []time.Duration{15 * time.Second, 30 * time.Second, time.Minute, time.Minute}
+	firsts := make([]uint64, 0, len(backoffs)+1)
+
+	for tick, backoff := range backoffs {
+		c.allowLogs(10)
+		_, found, err := c.inbound(t, a, c.blockAt(4_000))
+		firsts = append(firsts, c.firstFrom())
+		if calls := c.takeCalls(); found || !errs.Retryable(errs.CodeOf(err)) || calls["eth_getLogs"] != 11 {
+			t.Fatalf("tick %d = %v, %v with %v calls, want a retryable 429 after 10 chunks", tick+1, found, err, calls)
+		}
+		c.clock.Advance(backoff - time.Second)
+		_, _, err = c.inbound(t, a, c.blockAt(4_000))
+		if calls := c.takeCalls(); errs.CodeOf(err) != errs.CodeRPCUnavailable || len(calls) != 0 {
+			t.Fatalf("tick %d retry inside %s = %v with %v calls, want no RPC call", tick+1, backoff, err, calls)
+		}
+		c.clock.Advance(time.Second)
+	}
+	c.allowLogs(10)
+	got, found, err := c.inbound(t, a, c.blockAt(4_000))
+	firsts = append(firsts, c.firstFrom())
+	last := c.takeCalls()
+
+	if err != nil || !found || got.TxHash != txHash(1) || last["eth_getLogs"] != 3 {
+		t.Fatalf("tick 5 = %+v, %v, %v with %v calls, want the transfer in the third chunk", got, found, err, last)
+	}
+	if want := []uint64{3_880, 3_980, 4_080, 4_180, 4_280}; !slices.Equal(firsts, want) {
+		t.Fatalf("first block per tick = %v, want %v", firsts, want)
 	}
 }
