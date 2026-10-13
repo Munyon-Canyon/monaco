@@ -235,7 +235,10 @@ func (l *SwapLayer) confirm(
 }
 
 func (l *SwapLayer) orderFailed(ctx context.Context, req SwapRequest, id uuid.UUID, cause error) error {
-	if errs.CodeOf(cause) == errs.CodeJupiterRejected {
+	if code := errs.CodeOf(cause); code == errs.CodeJupiterRejected {
+		observability.Degraded(ctx, observability.TradingSwapRefused, slog.String("swap_id", id.String()),
+			slog.String("step", "order"), slog.String("code", string(code)),
+			slog.GroupAttrs("detail", errs.Detail(cause)...))
 		_, err := l.move(ctx, req, id, failed(req, id, domain.FailureNeverSubmitted, ""))
 		return err
 	}
