@@ -53,6 +53,7 @@ public final class AssetDetailClientModel {
     public static let olderPageSize = 500
     let api: APIClient?
     let symbol: String
+    let barCap: Int
     private let hints: (any HintSource)?
     private let refresher: HintRefresher
 
@@ -73,9 +74,10 @@ public final class AssetDetailClientModel {
         return chart.points.count < 2
     }
 
-    public init(api: APIClient, symbol: String, hints: any HintSource) {
+    public init(api: APIClient, symbol: String, hints: any HintSource, barCap: Int = maximumBars) {
         self.api = api
         self.symbol = symbol
+        self.barCap = barCap
         self.hints = hints
         let hook = ReloadHook()
         refresher = HintRefresher { await hook.run?() }
@@ -94,6 +96,7 @@ public final class AssetDetailClientModel {
     ) {
         api = nil
         symbol = sampleDetail?.symbol ?? ""
+        barCap = Self.maximumBars
         hints = nil
         refresher = HintRefresher {}
         detail = sampleDetail.map(Self.presentation)

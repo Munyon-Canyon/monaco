@@ -32,10 +32,12 @@ final class AssetDetailClientModelPagingTests: XCTestCase {
         return .json(.ok, String(decoding: try encoder.encode(value), as: UTF8.self))
     }
 
-    private func makeModel(_ transport: StubTransport) -> AssetDetailClientModel {
+    private func makeModel(_ transport: StubTransport, barCap: Int = AssetDetailClientModel.maximumBars)
+        -> AssetDetailClientModel
+    {
         let api = APIClient(
             serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
-        return AssetDetailClientModel(api: api, symbol: "AAPLx", hints: FakeHintStream())
+        return AssetDetailClientModel(api: api, symbol: "AAPLx", hints: FakeHintStream(), barCap: barCap)
     }
 
     private func paths(_ transport: StubTransport) async -> [String] {
@@ -173,24 +175,31 @@ final class AssetDetailClientModelPagingTests: XCTestCase {
         XCTAssertEqual(model.chart?.bars.count, 20)
     }
 
-    func testLoadOlderStopsAtTheBarCap() async throws {
-        let cursor = Date(timeIntervalSince1970: TimeInterval(start + 1_500 * 3_600))
-        let transport = StubTransport(scripted: [try reply(page(from: 1_000, count: 1_000, nextBefore: cursor))])
-        let model = makeModel(transport)
-        await model.loadChart(range: .oneWeek)
-        XCTAssertEqual(model.chart?.bars.count, 1_000)
-        XCTAssertLessThan(1_000, AssetDetailClientModel.maximumBars)
+    func testTheProductionBarCapIs4000() {
+        XCTAssertEqual(AssetDetailClientModel.maximumBars, 4_000)
+    }
 
-        let capped = StubTransport(scripted: [
-            try reply(page(from: 0, count: AssetDetailClientModel.maximumBars, nextBefore: cursor))
+    func testLoadOlderStopsAtTheBarCap() async throws {
+        let cap = 40
+        let cursor = Date(timeIntervalSince1970: TimeInterval(start + 100 * 3_600))
+        let below = StubTransport(scripted: [
+            try reply(page(from: 10, count: cap - 1, nextBefore: cursor)),
+            try reply(page(from: 0, count: 10)),
         ])
-        let full = makeModel(capped)
+        let under = makeModel(below, barCap: cap)
+        await under.loadChart(range: .oneWeek)
+        await under.loadOlder()
+        let belowSent = await paths(below)
+        XCTAssertEqual(belowSent.count, 2)
+
+        let capped = StubTransport(scripted: [try reply(page(from: 0, count: cap, nextBefore: cursor))])
+        let full = makeModel(capped, barCap: cap)
         await full.loadChart(range: .oneWeek)
         await full.loadOlder()
 
         let sent = await paths(capped)
         XCTAssertEqual(sent.count, 1)
-        XCTAssertEqual(full.chart?.bars.count, AssetDetailClientModel.maximumBars)
+        XCTAssertEqual(full.chart?.bars.count, cap)
     }
 
     func testALoadOlderFailureLeavesTheChartAndAllowsARetry() async throws {

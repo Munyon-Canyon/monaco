@@ -49,7 +49,7 @@ extension AssetDetailClientModel {
 
     public func loadOlder() async {
         guard let api, !isLoadingOlder, let current = chart, let cursor = current.nextBefore,
-            current.bars.count < Self.maximumBars
+            current.bars.count < barCap
         else { return }
         let issued = selectionGeneration
         isLoadingOlder = true
