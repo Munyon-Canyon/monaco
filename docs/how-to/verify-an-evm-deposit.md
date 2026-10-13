@@ -11,7 +11,7 @@ Privy watches each member's EVM deposit address, bridges the USDC to the member'
 - #4966 has landed, so `GET /v1/me/deposit-addresses` returns an EVM address and the poller reads real executions.
 - Privy gas sponsorship is on for Base in the Privy dashboard, and the Privy gas credit balance is above zero. The member's EVM deposit wallet holds no ETH. Without sponsorship, Privy rejects the forwarding swap with `insufficient funds for gas`. Without credits, it rejects it with `Insufficient gas credits balance`.
 - The shared QA pot holds at least 2 USDC. Check it with `monacoctl qa pot`.
-- `EVM_DEPOSIT_NETWORKS` includes `base`. It is the default.
+- `EVM_DEPOSIT_NETWORKS` is unset or includes `base`. Unset enables Base, Arbitrum and Ethereum.
 
 ## Run it
 
