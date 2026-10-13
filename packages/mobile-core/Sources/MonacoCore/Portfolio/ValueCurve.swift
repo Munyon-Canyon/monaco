@@ -115,3 +115,66 @@ public struct ValueCurve: Equatable, Sendable {
         }
     }
 }
+
+extension ValueCurve {
+    public enum Plot: Sendable { case pnl, nav }
+
+    public struct Change: Equatable, Sendable {
+        public let amountText: String?
+        public let percentText: String?
+        public let direction: PortfolioSummary.Direction
+    }
+
+    public func plotted(_ plot: Plot) -> [CurvePoint] {
+        drawnSamples.map { CurvePoint(at: $0.at, value: Self.plottedValue($0, plot)) }
+    }
+
+    public static func fittedDomain(_ points: [CurvePoint]) -> ClosedRange<Int64> {
+        guard let low = points.map(\.value).min(), let high = points.map(\.value).max() else { return 0...1 }
+        guard high > low else {
+            let half = max(1_000, abs(low) / 200)
+            return (low - half)...(low + half)
+        }
+        let pad = (high - low) * 8 / 100
+        return (low - pad)...(high + pad)
+    }
+
+    public func change(_ plot: Plot) -> Change? {
+        change(plot, to: drawnSamples.count - 1)
+    }
+
+    public func change(_ plot: Plot, to index: Int) -> Change? {
+        let drawn = drawnSamples
+        guard let first = drawn.first, drawn.indices.contains(index) else { return nil }
+        let first0 = Self.plottedValue(first, plot)
+        let delta = Self.plottedValue(drawn[index], plot) - first0
+        let direction = PortfolioSummary.Direction(signedMicros: delta)
+        switch plot {
+        case .pnl:
+            let base = drawn.first { $0.value > 0 }?.value
+            return Change(
+                amountText: UsdAmountFormatter.format(signedMicros: delta),
+                percentText: base.map { Self.percentText(delta, over: $0) },
+                direction: direction)
+        case .nav:
+            return Change(
+                amountText: nil,
+                percentText: first0 > 0 ? Self.percentText(delta, over: first0) : nil,
+                direction: direction)
+        }
+    }
+
+    private static func plottedValue(_ sample: Sample, _ plot: Plot) -> Int64 {
+        switch plot {
+        case .pnl: sample.pnl
+        case .nav: sample.nav ?? sample.pnl
+        }
+    }
+
+    private static func percentText(_ delta: Int64, over base: Int64) -> String {
+        let scaled = delta * 10_000
+        let half = base / 2
+        let basisPoints = (scaled >= 0 ? scaled + half : scaled - half) / base
+        return PercentFormatter.format(basisPoints: basisPoints, signed: true)
+    }
+}
