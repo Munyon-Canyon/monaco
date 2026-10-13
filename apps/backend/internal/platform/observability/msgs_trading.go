@@ -71,3 +71,8 @@ var TradingRoutedSwapResolved = Msg{
 	Name:     "trading.routed_swap.resolved",
 	Required: []string{"swap_id", "cabal_id", "action", "actor", "reason", "parked_code"},
 }
+
+var TradingEVMArrivalsChunk = Msg{
+	Name:     "trading.evm_arrivals.chunk",
+	Required: []string{"network", "owner", "from", "to", "chunk", "rpc_message"},
+}

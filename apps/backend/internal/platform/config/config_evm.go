@@ -7,6 +7,7 @@ type EVM struct {
 	RPCURLArbitrum  string
 	RPCURLEthereum  string
 	RPCURLRobinhood string
+	LogsMaxBlocks   int32
 }
 
 func (e EVM) RPCURL(n chain.Network) string {
@@ -34,5 +35,6 @@ func evmFields() []field {
 			func(c *Config) *string { return &c.EVM.RPCURLEthereum }).secret(),
 		text("EVM_RPC_URL_ROBINHOOD", "https://rpc.mainnet.chain.robinhood.com",
 			func(c *Config) *string { return &c.EVM.RPCURLRobinhood }).secret(),
+		count("EVM_LOGS_MAX_BLOCKS", 10, func(c *Config) *int32 { return &c.EVM.LogsMaxBlocks }),
 	}
 }

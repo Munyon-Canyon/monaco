@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -17,30 +19,39 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 const (
-	evmArrivalsOp    = "trading.EVMArrivals.Inbound"
-	arrivalLookback  = 2 * time.Minute
-	arrivalSpan      = 50_000
-	arrivalMinSpan   = 500
-	evmTopicHexChars = 64
+	evmArrivalsOp        = "trading.EVMArrivals.Inbound"
+	arrivalLookback      = 2 * time.Minute
+	arrivalChunksPerTick = 30
+	arrivalSettleBlocks  = 2
+	evmTopicHexChars     = 64
 )
 
 var _ app.EVMArrivals = (*EVMArrivals)(nil)
 
 type EVMArrivals struct {
-	rpc  map[chain.Network]*httpclient.Client
-	span int64
+	rpc     map[chain.Network]*httpclient.Client
+	chunk   int64
+	mu      sync.Mutex
+	cursors map[arrivalKey]arrivalCursor
 }
 
-func NewEVMArrivals(rpc map[chain.Network]*httpclient.Client) *EVMArrivals {
-	return &EVMArrivals{rpc: rpc, span: arrivalSpan}
+type arrivalKey struct {
+	network chain.Network
+	owner   chain.EVMAddress
+	since   int64
 }
 
-func (a *EVMArrivals) WithSpan(span int64) *EVMArrivals {
-	a.span = span
-	return a
+type arrivalCursor struct {
+	next  int64
+	chunk int64
+}
+
+func NewEVMArrivals(rpc map[chain.Network]*httpclient.Client, maxBlocks int64) *EVMArrivals {
+	return &EVMArrivals{rpc: rpc, chunk: max(maxBlocks, 1), cursors: map[arrivalKey]arrivalCursor{}}
 }
 
 type arrivalLog struct {
@@ -60,6 +71,8 @@ type logFilter struct {
 
 type arrivalScan struct {
 	client  *httpclient.Client
+	network chain.Network
+	owner   chain.EVMAddress
 	attrs   []slog.Attr
 	filter  logFilter
 	atMost  money.Micros
@@ -81,35 +94,86 @@ func (a *EVMArrivals) Inbound(
 	}
 	transfer, recipient := transferEventTopic, topicOf(owner)
 	s := arrivalScan{
-		client: client, attrs: attrs, atMost: atMost, exclude: exclude,
+		client: client, network: network, owner: owner, attrs: attrs, atMost: atMost, exclude: exclude,
 		filter: logFilter{Address: token.String(), Topics: []*string{&transfer, nil, &recipient}},
 	}
 	var head hexInt
-	var from int64
-	err := s.call(ctx, "eth_blockNumber", []any{}, &head)
-	if err == nil {
-		from, err = s.firstBlockAt(ctx, since.Add(-arrivalLookback), int64(head))
+	if err := s.call(ctx, "eth_blockNumber", []any{}, &head); err != nil {
+		return app.EVMArrival{}, false, err
 	}
+	key := arrivalKey{network: network, owner: owner, since: since.UnixNano()}
+	cur, err := a.cursor(ctx, s, key, since, int64(head))
 	if err != nil {
 		return app.EVMArrival{}, false, err
 	}
-	span := max(a.span, 1)
-	for from <= int64(head) {
-		to := min(from+span-1, int64(head))
-		logs, err := s.logs(ctx, from, to)
-		if errs.CodeOf(err) == errs.CodeRPCUnavailable && span > arrivalMinSpan {
-			span = max(span/2, arrivalMinSpan)
-			continue
+	got, found, cur, err := s.scan(ctx, cur, int64(head)-arrivalSettleBlocks)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if found {
+		delete(a.cursors, key)
+	} else {
+		a.cursors[key] = cur
+	}
+	return got, found, err
+}
+
+func (a *EVMArrivals) cursor(
+	ctx context.Context, s arrivalScan, key arrivalKey, since time.Time, head int64,
+) (arrivalCursor, error) {
+	a.mu.Lock()
+	cur, ok := a.cursors[key]
+	a.mu.Unlock()
+	if ok {
+		return cur, nil
+	}
+	from, err := s.firstBlockAt(ctx, since.Add(-arrivalLookback), head)
+	return arrivalCursor{next: from, chunk: a.chunk}, err
+}
+
+func (s arrivalScan) scan(
+	ctx context.Context, cur arrivalCursor, settled int64,
+) (app.EVMArrival, bool, arrivalCursor, error) {
+	for range arrivalChunksPerTick {
+		if cur.next > settled {
+			break
+		}
+		to := min(cur.next+cur.chunk-1, settled)
+		logs, err := s.logs(ctx, cur.next, to)
+		if fault, capped := rangeCapped(err); capped && cur.chunk > 1 {
+			observability.Info(ctx, observability.TradingEVMArrivalsChunk,
+				slog.String("network", string(s.network)), slog.String("owner", s.owner.String()),
+				slog.Int64("from", cur.next), slog.Int64("to", to), slog.Int64("chunk", cur.chunk/2),
+				slog.String("rpc_message", fault.Message))
+			cur.chunk /= 2
+			to = min(cur.next+cur.chunk-1, settled)
+			logs, err = s.logs(ctx, cur.next, to)
 		}
 		if err != nil {
-			return app.EVMArrival{}, false, err
+			return app.EVMArrival{}, false, cur, err
 		}
 		if got, found, err := s.first(logs); err != nil || found {
-			return got, found, err
+			return got, found, cur, err
 		}
-		from = to + 1
+		cur.next = to + 1
 	}
-	return app.EVMArrival{}, false, nil
+	return app.EVMArrival{}, false, cur, nil
+}
+
+type rpcError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+func (f *rpcError) Error() string { return f.Message }
+
+func rangeCapped(err error) (*rpcError, bool) {
+	words := []string{"range", "limit", "too large", "too many", "more than", "exceed"}
+	var fault *rpcError
+	if !errors.As(err, &fault) {
+		return nil, false
+	}
+	msg := strings.ToLower(fault.Message)
+	return fault, slices.ContainsFunc(words, func(w string) bool { return strings.Contains(msg, w) })
 }
 
 func topicOf(a chain.EVMAddress) string {
@@ -189,22 +253,21 @@ func (s arrivalScan) call(ctx context.Context, method string, params []any, into
 		return errs.Wrap(err, errs.CodeRPCUnavailable, evmArrivalsOp, attrs...)
 	}
 	defer func() { _ = resp.Body.Close() }()
+	var reply struct {
+		Result json.RawMessage `json:"result"`
+		Error  *rpcError       `json:"error"`
+	}
+	decodeErr := json.NewDecoder(io.LimitReader(resp.Body, evmMaxBody)).Decode(&reply)
+	if reply.Error != nil {
+		return errs.Wrap(reply.Error, errs.CodeRPCUnavailable, evmArrivalsOp, append(attrs,
+			slog.Int("status", resp.StatusCode), slog.Int("rpc_code", reply.Error.Code),
+			slog.String("rpc_message", reply.Error.Message))...)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return errs.New(errs.CodeRPCUnavailable, evmArrivalsOp, append(attrs, slog.Int("status", resp.StatusCode))...)
 	}
-	var reply struct {
-		Result json.RawMessage `json:"result"`
-		Error  *struct {
-			Code    int    `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
-	}
-	if err := json.NewDecoder(io.LimitReader(resp.Body, evmMaxBody)).Decode(&reply); err != nil {
-		return errs.Wrap(err, errs.CodeDecodeFailed, evmArrivalsOp, attrs...)
-	}
-	if reply.Error != nil {
-		return errs.New(errs.CodeRPCUnavailable, evmArrivalsOp, append(attrs, slog.Int("rpc_code", reply.Error.Code),
-			slog.String("rpc_message", reply.Error.Message))...)
+	if decodeErr != nil {
+		return errs.Wrap(decodeErr, errs.CodeDecodeFailed, evmArrivalsOp, attrs...)
 	}
 	if err := json.Unmarshal(reply.Result, into); err != nil {
 		return errs.Wrap(err, errs.CodeDecodeFailed, evmArrivalsOp, attrs...)

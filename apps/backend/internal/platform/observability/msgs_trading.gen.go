@@ -18,5 +18,6 @@ func init() {
 		TradingRoutedSwapParked,
 		TradingBridgeBackRetried,
 		TradingRoutedSwapResolved,
+		TradingEVMArrivalsChunk,
 	)
 }

@@ -1,10 +1,12 @@
 package trading_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -15,8 +17,11 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 const (
@@ -27,6 +32,9 @@ const (
 )
 
 const chainHead = 10_000
+
+const alchemyFreeCap = "Under the Free tier plan, you can make eth_getLogs requests with up to a 10 block range. " +
+	"Based on your parameters, this block range should work: [0x3219ddd, 0x3219de6]. Upgrade to PAYG for expanded block range."
 
 func chainStart() time.Time { return time.Date(2026, 10, 12, 4, 0, 0, 0, time.UTC) }
 
@@ -71,8 +79,11 @@ func (c *fakeChain) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.calls[req.Method]++
 	result, rpcErr := c.answer(req.Method, req.Params)
 	reply := map[string]any{"jsonrpc": "2.0", "id": 1, "result": result}
+	if rpcErr == alchemyFreeCap {
+		w.WriteHeader(http.StatusBadRequest)
+	}
 	if rpcErr != "" {
-		reply = map[string]any{"jsonrpc": "2.0", "id": 1, "error": map[string]any{"code": -32000, "message": rpcErr}}
+		reply = map[string]any{"jsonrpc": "2.0", "id": 1, "error": map[string]any{"code": -32600, "message": rpcErr}}
 	}
 	_ = json.NewEncoder(w).Encode(reply)
 }
@@ -109,8 +120,11 @@ func (c *fakeChain) getLogs(param json.RawMessage) (any, string) {
 	}
 	_ = json.Unmarshal(param, &f)
 	from, to := quantity(f.FromBlock), quantity(f.ToBlock)
-	if c.failLogs || (c.maxSpan > 0 && to-from+1 > c.maxSpan) {
-		return nil, "block range too large"
+	if c.failLogs {
+		return nil, "internal error"
+	}
+	if c.maxSpan > 0 && to-from+1 > c.maxSpan {
+		return nil, alchemyFreeCap
 	}
 	out := []map[string]any{}
 	for _, l := range c.logs {
@@ -126,7 +140,15 @@ func (c *fakeChain) getLogs(param json.RawMessage) (any, string) {
 	return out, ""
 }
 
-func (c *fakeChain) arrivals(t *testing.T, span int64) *adapters.EVMArrivals {
+func (c *fakeChain) takeCalls() map[string]int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	calls := c.calls
+	c.calls = map[string]int{}
+	return calls
+}
+
+func (c *fakeChain) arrivals(t *testing.T, chunk int64) *adapters.EVMArrivals {
 	t.Helper()
 	srv := httptest.NewServer(c)
 	t.Cleanup(srv.Close)
@@ -135,14 +157,21 @@ func (c *fakeChain) arrivals(t *testing.T, span int64) *adapters.EVMArrivals {
 		httpclient.WithBaseURL(srv.URL),
 		httpclient.WithTimeout(time.Second),
 	)
-	return adapters.NewEVMArrivals(map[chain.Network]*httpclient.Client{chain.NetworkRobinhood: rpc}).WithSpan(span)
+	return adapters.NewEVMArrivals(map[chain.Network]*httpclient.Client{chain.NetworkRobinhood: rpc}, chunk)
 }
 
 func (c *fakeChain) inbound(
 	t *testing.T, a *adapters.EVMArrivals, since time.Time, exclude ...string,
 ) (app.EVMArrival, bool, error) {
 	t.Helper()
-	return a.Inbound(t.Context(), chain.NetworkRobinhood, evmAddress(t, rhUSDG), evmAddress(t, rhTreasury), since,
+	return c.inboundCtx(t.Context(), t, a, since, exclude...)
+}
+
+func (c *fakeChain) inboundCtx(
+	ctx context.Context, t *testing.T, a *adapters.EVMArrivals, since time.Time, exclude ...string,
+) (app.EVMArrival, bool, error) {
+	t.Helper()
+	return a.Inbound(ctx, chain.NetworkRobinhood, evmAddress(t, rhUSDG), evmAddress(t, rhTreasury), since,
 		money.MicrosFromUint64(1_000_000), exclude)
 }
 
@@ -220,16 +249,54 @@ func TestEVMArrivals_reportsNothingFoundYet(t *testing.T) {
 	}
 }
 
-func TestEVMArrivals_narrowsTheSpanWhenTheRPCRefusesTheRange(t *testing.T) {
+func TestEVMArrivals_findsALaterArrivalUnderATenBlockCapWithoutRescanning(t *testing.T) {
 	t.Parallel()
 	c := newFakeChain()
-	c.maxSpan = 2_000
-	c.logs = []chainLog{{block: 9_000, token: rhUSDG, from: rhBridge, to: rhTreasury, amount: 972_507, tx: txHash(1)}}
+	c.maxSpan = 10
+	c.logs = []chainLog{{block: 4_300, token: rhUSDG, from: rhBridge, to: rhTreasury, amount: 972_507, tx: txHash(1)}}
+	a := c.arrivals(t, 10)
 
-	got, found, err := c.inbound(t, c.arrivals(t, 50_000), c.blockAt(10))
+	_, found, err := c.inbound(t, a, c.blockAt(4_000))
+	first := c.takeCalls()
+	if err != nil || found || first["eth_getLogs"] != 30 {
+		t.Fatalf("tick 1 = %v, %v with %v calls, want nothing yet after 30 chunks", found, err, first)
+	}
+	got, found, err := c.inbound(t, a, c.blockAt(4_000))
+	second := c.takeCalls()
 
 	if err != nil || !found || got.TxHash != txHash(1) {
-		t.Fatalf("Inbound = %+v, %v, %v, want the transfer found in narrower spans", got, found, err)
+		t.Fatalf("tick 2 = %+v, %v, %v, want the transfer 300 blocks after the step", got, found, err)
+	}
+	if second["eth_getLogs"] != 13 || second["eth_getBlockByNumber"] != 0 || second["eth_blockNumber"] != 1 {
+		t.Fatalf("tick 2 calls = %v, want 13 chunks from the cursor and no block search", second)
+	}
+}
+
+func TestEVMArrivals_halvesARefusedChunkAndRetriesItOnce(t *testing.T) {
+	t.Parallel()
+	c := newFakeChain()
+	c.maxSpan = 10
+	c.logs = []chainLog{{block: 3_885, token: rhUSDG, from: rhBridge, to: rhTreasury, amount: 972_507, tx: txHash(1)}}
+	a := c.arrivals(t, 40)
+	logs := &testkit.Logs{}
+	ctx := observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
+
+	_, _, err := c.inboundCtx(ctx, t, a, c.blockAt(4_000))
+	first := c.takeCalls()
+	if errs.CodeOf(err) != errs.CodeRPCUnavailable || !strings.HasSuffix(err.Error(), alchemyFreeCap) ||
+		first["eth_getLogs"] != 2 {
+		t.Fatalf("tick 1 = %v with %v calls, want the provider's refusal after one halved retry", err, first)
+	}
+	got, found, err := c.inboundCtx(ctx, t, a, c.blockAt(4_000))
+	second := c.takeCalls()
+
+	if err != nil || !found || got.TxHash != txHash(1) || second["eth_getLogs"] != 2 {
+		t.Fatalf("tick 2 = %+v, %v, %v with %v calls, want the transfer after halving to 10", got, found, err, second)
+	}
+	want := []string{"3880 3919 20 " + alchemyFreeCap, "3880 3899 10 " + alchemyFreeCap}
+	if lines := logs.Lines(observability.TradingEVMArrivalsChunk.Name, "from", "to", "chunk",
+		"rpc_message"); !slices.Equal(lines, want) {
+		t.Fatalf("chunk logs = %q, want %q", lines, want)
 	}
 }
 
@@ -247,7 +314,7 @@ func TestEVMArrivals_anRPCOutageIsRetryable(t *testing.T) {
 
 func TestEVMArrivals_anUnknownNetworkIsInvalidInput(t *testing.T) {
 	t.Parallel()
-	a := adapters.NewEVMArrivals(nil)
+	a := adapters.NewEVMArrivals(nil, 10)
 
 	_, _, err := a.Inbound(t.Context(), chain.NetworkBase, evmAddress(t, rhUSDG), evmAddress(t, rhTreasury),
 		chainStart(), money.MicrosFromUint64(1), nil)
@@ -274,7 +341,7 @@ func rawRPC(t *testing.T, reply func(method string) (int, string)) *adapters.EVM
 		httpclient.WithBaseURL(srv.URL),
 		httpclient.WithTimeout(time.Second),
 	)
-	return adapters.NewEVMArrivals(map[chain.Network]*httpclient.Client{chain.NetworkRobinhood: rpc})
+	return adapters.NewEVMArrivals(map[chain.Network]*httpclient.Client{chain.NetworkRobinhood: rpc}, 10)
 }
 
 func TestEVMArrivals_refusesWhatItCannotRead(t *testing.T) {
@@ -330,7 +397,7 @@ func TestEVMArrivals_aClosedRPCIsUnavailable(t *testing.T) {
 		httpclient.WithBaseURL(srv.URL),
 		httpclient.WithTimeout(time.Second),
 	)
-	a := adapters.NewEVMArrivals(map[chain.Network]*httpclient.Client{chain.NetworkRobinhood: rpc})
+	a := adapters.NewEVMArrivals(map[chain.Network]*httpclient.Client{chain.NetworkRobinhood: rpc}, 10)
 
 	_, _, err := a.Inbound(t.Context(), chain.NetworkRobinhood, evmAddress(t, rhUSDG), evmAddress(t, rhTreasury),
 		chainStart(), money.MicrosFromUint64(1), nil)
