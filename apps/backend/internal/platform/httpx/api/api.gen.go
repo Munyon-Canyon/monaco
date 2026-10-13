@@ -138,7 +138,6 @@ const (
 	ProposalNotFound ErrorCode = "proposal_not_found"
 	ProposalStillOpen ErrorCode = "proposal_still_open"
 	QuoteUnavailable ErrorCode = "quote_unavailable"
-	RankingCloseSampleMissing ErrorCode = "ranking_close_sample_missing"
 	RankingRunsStalled ErrorCode = "ranking_runs_stalled"
 	RateLimited ErrorCode = "rate_limited"
 	ReasonRequired ErrorCode = "reason_required"
@@ -437,8 +436,6 @@ func (e ErrorCode) Valid() bool {
 	case ProposalStillOpen:
 		return true
 	case QuoteUnavailable:
-		return true
-	case RankingCloseSampleMissing:
 		return true
 	case RankingRunsStalled:
 		return true

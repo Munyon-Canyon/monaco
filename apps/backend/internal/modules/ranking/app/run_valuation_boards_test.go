@@ -15,7 +15,6 @@ func TestRunValuation_failsTheTickWhenThePreviousRowsCannotBeRead(t *testing.T) 
 	t.Parallel()
 	f, usdc := heldAssetPorts(t, 1)
 	f.previousErr = errs.New(errs.CodeInternal, "test")
-	delete(f.latestRows, f.assetRows[0].ID)
 	delete(f.asOfRows, f.assetRows[0].ID)
 	if _, err := NewRunValuation(
 		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f, Snapshots: f}, usdc,

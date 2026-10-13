@@ -13,27 +13,12 @@ type Sample struct {
 	At    time.Time
 }
 
-type Session struct {
-	Open            bool
-	Continuous      bool
-	LastClose       time.Time
-	LastSessionOpen time.Time
-}
-
-func PriceForBoard(s Session, latest, atClose *Sample, now time.Time) (priced Sample, flags []Flag, closeMissing bool) {
-	sample, asOf := latest, now
-	offSession := !s.Open && !s.Continuous
-	if offSession {
-		sample, asOf = atClose, s.LastClose
+func PriceForBoard(latest *Sample, now time.Time) (priced Sample, flags []Flag) {
+	if latest == nil {
+		return Sample{}, []Flag{FlagUnpricedAssets}
 	}
-	if sample == nil {
-		return Sample{}, []Flag{FlagUnpricedAssets}, false
+	if now.Sub(latest.At) <= StaleAfter {
+		return *latest, nil
 	}
-	if asOf.Sub(sample.At) <= StaleAfter {
-		return *sample, nil, false
-	}
-	if offSession && !s.LastSessionOpen.IsZero() && !sample.At.Before(s.LastSessionOpen) && !sample.Price.IsZero() {
-		return *sample, nil, true
-	}
-	return *sample, []Flag{FlagStalePrices}, false
+	return *latest, []Flag{FlagStalePrices}
 }

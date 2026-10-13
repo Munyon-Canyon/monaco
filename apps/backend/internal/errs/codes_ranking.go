@@ -1,10 +1,9 @@
 package errs
 
 const (
-	CodeConservationBroken        Code = "conservation_broken"
-	CodePricesStale               Code = "prices_stale"
-	CodeRankingRunsStalled        Code = "ranking_runs_stalled"
-	CodeRankingCloseSampleMissing Code = "ranking_close_sample_missing"
+	CodeConservationBroken Code = "conservation_broken"
+	CodePricesStale        Code = "prices_stale"
+	CodeRankingRunsStalled Code = "ranking_runs_stalled"
 )
 
 func (codeFiles) Ranking() map[Code]Row {
@@ -21,12 +20,6 @@ func (codeFiles) Ranking() map[Code]Row {
 		},
 		CodeRankingRunsStalled: {
 			Name:    "RankingRunsStalled",
-			Kind:    KindInternal,
-			Alert:   true,
-			Message: "Something went wrong.",
-		},
-		CodeRankingCloseSampleMissing: {
-			Name:    "RankingCloseSampleMissing",
 			Kind:    KindInternal,
 			Alert:   true,
 			Message: "Something went wrong.",
