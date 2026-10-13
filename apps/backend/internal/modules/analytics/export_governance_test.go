@@ -47,6 +47,35 @@ func TestAnalyticsExport_Governance(t *testing.T) {
 		actor func(s scene) string
 		want  func(s scene) fakes.PostHogCapture
 	}{
+		"proposal.created": {
+			event: func(s scene) events.Event {
+				return events.ProposalCreated{
+					V: 1, ProposalID: s.proposal, CabalID: s.cabal, ProposerID: s.proposer, Kind: "buy",
+					Symbol: "NVDAx", Mint: aaplxMint, USDCMicros: money.MicrosFromUint64(10_250_000),
+					QuoteOutAmount: 5_000_000, VoterCount: 3,
+				}
+			},
+			actor: func(s scene) string { return userActor(s.proposer) },
+			want: func(s scene) fakes.PostHogCapture {
+				return fakes.PostHogCapture{
+					Event: "proposal_created", DistinctID: s.proposer.String(),
+					Properties: s.props(map[string]any{"kind": "buy", "symbol": "NVDAx", "usdc_amount": 10.25}),
+				}
+			},
+		},
+		"vote.cast": {
+			event: func(s scene) events.Event {
+				return events.VoteCast{V: 1, ProposalID: s.proposal, CabalID: s.cabal, VoterID: s.voter, Choice: "yes"}
+			},
+			actor: func(s scene) string { return userActor(s.voter) },
+			want: func(s scene) fakes.PostHogCapture {
+				return fakes.PostHogCapture{
+					Event:      "vote_cast",
+					DistinctID: s.voter.String(),
+					Properties: s.props(map[string]any{"choice": "yes"}),
+				}
+			},
+		},
 		"proposal.passed": {
 			event: func(s scene) events.Event {
 				return events.ProposalPassed{

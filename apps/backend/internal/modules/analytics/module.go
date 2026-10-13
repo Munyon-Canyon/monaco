@@ -82,6 +82,8 @@ func registerReferralExports(r *Registry) {
 
 func registerProposalExports(r *Registry, proposers app.ProposerReader) {
 	p := exports.Proposals{Proposers: proposers}
+	Export(r, string(events.TypeProposalCreated), p.ProposalCreated)
+	Export(r, string(events.TypeVoteCast), p.VoteCast)
 	Export(r, string(events.TypeProposalPassed), p.ProposalPassed)
 	Export(r, string(events.TypeProposalFailed), p.ProposalFailed)
 	Export(r, string(events.TypeProposalExpired), p.ProposalExpired)
