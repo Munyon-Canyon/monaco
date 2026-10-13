@@ -8,6 +8,29 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 )
 
+func TestLoad_evmDepositNetworksDefaultToEveryUSDCEVMChain(t *testing.T) {
+	t.Parallel()
+	cfg, err := config.Load(required())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []chain.Network{chain.NetworkBase, chain.NetworkArbitrum, chain.NetworkEthereum}
+	if !slices.Equal(cfg.Funding.EVMDepositNetworks, want) {
+		t.Fatalf("EVMDepositNetworks = %v, want %v", cfg.Funding.EVMDepositNetworks, want)
+	}
+}
+
+func TestLoad_evmDepositNetworksNarrowToTheConfiguredList(t *testing.T) {
+	t.Parallel()
+	cfg, err := config.Load(append(required(), "EVM_DEPOSIT_NETWORKS=base"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []chain.Network{chain.NetworkBase}; !slices.Equal(cfg.Funding.EVMDepositNetworks, want) {
+		t.Fatalf("EVMDepositNetworks = %v, want %v", cfg.Funding.EVMDepositNetworks, want)
+	}
+}
+
 func TestLoad_evmDepositNetworksKeepTheConfiguredOrder(t *testing.T) {
 	t.Parallel()
 	cfg, err := config.Load(append(required(), "EVM_DEPOSIT_NETWORKS=ethereum,base,arbitrum"))

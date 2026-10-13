@@ -26,7 +26,7 @@ The format of this doc is in [App journeys](../README.md).
 | Id | What must be true |
 | --- | --- |
 | P1 | Actor A has signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
-| P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend`. `EVM_DEPOSIT_NETWORKS` is unset or includes `base` (the default is `base`) |
+| P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend`. `EVM_DEPOSIT_NETWORKS` is unset or includes `base` (unset enables Base, Arbitrum and Ethereum) |
 | P3 | The runner sent A at least 1 USDC on Solana from the QA pot (`monacoctl qa fund`) or the Phantom MCP agent wallet to the address Add money shows, per `funds` |
 | P4 | `apps/mobile/qa/journeys/money/deposit.setup.sh` ran right before the scenario. It marks A as done with onboarding and sets A's display name through `scripts/qa/seed.sh` |
 
@@ -64,5 +64,5 @@ None known.
 - The toast "Deposit received: $25.00". It shows on whichever screen is open when a deposit lands, and the runner deposits before the run, so a step would wait on a person. `BalanceChangeTests` covers its copy.
 - Tapping the address itself to copy it (`deposit-address-value`). It copies the same way as S1.5.
 - A deposit on Base and its forwarding to Solana, with the "Arriving" line on the balance. It needs a Base transfer from outside Monaco, which the runner can't make, so [Verify multichain money](../../how-to/verify-multichain.md) covers it. `DepositArrivingTests` covers the line.
-- Arbitrum and Ethereum. They show only when `EVM_DEPOSIT_NETWORKS` lists them, and their screens are Base's with another name. `DepositNetworksTests` covers them.
+- Arbitrum and Ethereum. They show after Base by default, and their screens are Base's with another name. `DepositNetworksTests` covers them.
 - The clipboard's content. XCUITest cannot read the simulator pasteboard without a system prompt.
