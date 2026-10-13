@@ -167,7 +167,6 @@ Money reaches a cabal treasury only through Monaco's flow: platform balance → 
 
 - The deposit screen only ever shows the user's **own member-wallet address**, with the line "Only send USDC on Solana to this address."
 - Wherever a treasury address appears (cabal detail, explorer links), it is labelled **"Do not send funds here. Transfers are returned."** No copy button; an explorer link only.
-- The fund-this-cabal sheet repeats it: "Only fund this cabal from here. USDC sent straight to the cabal is returned and pauses its trading."
 
 ### Detect
 

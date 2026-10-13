@@ -50,6 +50,7 @@ public struct CabalPotSummary: Equatable, Sendable {
     public let allTime: String
     public let allTimeReturn: String?
     public let cash: String
+    public let cashYield: String?
     public let invested: String
     public let slice: Slice?
     public private(set) var holdings: [Row]
@@ -64,6 +65,7 @@ public struct CabalPotSummary: Equatable, Sendable {
             PercentFormatter.format(basisPoints: Int64($0), signed: true, fractionDigits: 1)
         }
         cash = UsdAmountFormatter.format(micros: pot.cashMicros)
+        cashYield = pot.cashMicros > 0 ? CabalYield.apy : nil
         invested = UsdAmountFormatter.format(micros: pot.holdings.reduce(0) { $0 + $1.valueMicros })
         slice = pot.me.map { me in
             guard me.shareUnits != 0 else { return .none }

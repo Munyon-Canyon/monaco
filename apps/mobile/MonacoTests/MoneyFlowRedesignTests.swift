@@ -107,16 +107,11 @@ struct FundCabalFormTests {
         #expect(FundCabalForm(amountText: "", balance: Fixture.balance(2_999_999)).availability == "$2.99 available")
     }
 
-    /// The line under the pad names the cabal once its name has loaded.
-    @Test func theNoteNamesTheCabalWhenThereIsAChoice() {
+    /// The line under the pad says the cabal earns yield on its cash.
+    @Test func theNoteSaysTheCabalEarnsYield() {
         #expect(
-            FundCabalForm.note(into: nil)
-                == "The money leaves your account balance and joins the pot. Your slice grows by the same amount.")
-        #expect(
-            FundCabalForm.note(into: "Semis or bust")
-                == "The money leaves your account balance and joins Semis or bust's pot. Your slice grows by the same amount."
-        )
-        #expect(FundCabalForm.note(into: "") == FundCabalForm.note(into: nil))
+            CabalYield.fundNote
+                == "Your cabal grows its USDC treasury with yield. Cash it holds earns 3.5% APY.")
     }
 
     @Test func maxIsTheWholeBalanceAndZeroWhenEmpty() {
@@ -282,8 +277,7 @@ struct MoneyFlowCopyTests {
         let strings =
             DepositContent.steps + [
                 DepositAddressCard.networkNote,
-                FundCabalForm.note(into: nil),
-                FundCabalForm.note(into: "Weekend investors"),
+                CabalYield.fundNote,
                 FundCabalForm.overBalance,
                 FundCabalForm.belowMinimum,
                 WithdrawForm.caveat,

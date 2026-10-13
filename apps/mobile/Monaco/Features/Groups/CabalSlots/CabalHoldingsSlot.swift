@@ -71,7 +71,7 @@ struct CabalHoldingsSection: View {
         case .zero:
             note(Self.zeroPotNote(canPropose: canPropose), id: "cabal-holdings-empty")
         case .cashOnly:
-            MonacoGroupedList { cashRow(summary.cash) }
+            MonacoGroupedList { cashRow(summary.cash, yield: summary.cashYield) }
             note(Self.cashOnlyNote(canPropose: canPropose), id: "cabal-holdings-nothing-bought")
         case .invested:
             AllocationBar(legend: summary.legend, tint: .forGroupId(cabalID))
@@ -88,7 +88,7 @@ struct CabalHoldingsSection: View {
                     .buttonStyle(.monacoRow)
                     .accessibilityIdentifier("cabal-holding-\(row.ticker)")
                 }
-                cashRow(summary.cash)
+                cashRow(summary.cash, yield: summary.cashYield)
             }
         }
     }
@@ -101,7 +101,7 @@ struct CabalHoldingsSection: View {
         canPropose ? "No stocks right now. Propose a buy to put the cash to work." : "No stocks right now."
     }
 
-    private func cashRow(_ cash: String) -> some View {
+    private func cashRow(_ cash: String, yield: String?) -> some View {
         MonacoRow(title: "Cash", isLast: true) {
             StockMark(symbol: "USDC")
         } trailing: {
@@ -109,6 +109,13 @@ struct CabalHoldingsSection: View {
                 .moneyFont(.row)
                 .foregroundStyle(MonacoTheme.ink)
                 .lineLimit(1)
+            if let yield {
+                Text(yield)
+                    .moneyFont(.caption)
+                    .foregroundStyle(MonacoTheme.profit)
+                    .lineLimit(1)
+                    .accessibilityIdentifier("cabal-holdings-cash-yield")
+            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("cabal-holdings-cash")
