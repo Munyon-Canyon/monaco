@@ -32,7 +32,7 @@ func (q *Queries) FindTreasuryEVMWallet(ctx context.Context, cabalID uuid.UUID) 
 const insertTreasuryEVMWallet = `-- name: InsertTreasuryEVMWallet :exec
 INSERT INTO treasury_evm_wallets (cabal_id, privy_wallet_id, address, created_at)
 VALUES ($1, $2, $3, $4)
-ON CONFLICT (cabal_id) DO NOTHING
+ON CONFLICT DO NOTHING
 `
 
 type InsertTreasuryEVMWalletParams struct {

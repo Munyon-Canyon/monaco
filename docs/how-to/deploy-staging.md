@@ -59,6 +59,19 @@ Each service opens at most this many connections:
 
 After a key change, push and redeploy as in the next section. To check, query `{service_name="monaco-staging"}` in Grafana Explore (Loki), and filter PostHog events on `env = staging`. When Grafana Cloud rotates the token, update both `.env.local` and `.env.staging`.
 
+## Backfill EVM wallets
+
+Every user with a member wallet gets an EVM deposit wallet, and every cabal with a treasury wallet gets an EVM treasury wallet. `monacoctl ops evm-wallets` creates the ones that are missing. It calls the same ensures as the app, one at a time and at most 5 a second, so a rerun creates nothing twice. `--users` or `--cabals` limits the run to one kind, and `--dry-run` prints the counts without calling Privy.
+
+From the repo root, build `bin/monacoctl` with `just build backend`, then run:
+
+```bash
+dotenvx run -f .env.local -f .env.staging --overload -- bin/monacoctl ops evm-wallets --dry-run
+dotenvx run -f .env.local -f .env.staging --overload -- bin/monacoctl ops evm-wallets
+```
+
+It prints one line per created wallet (kind, id, address), then `evm-wallets: users created=N existing=N failed=N; cabals created=N existing=N failed=N`. It exits 1 when any ensure failed, and stderr names each failure. Rerun it until `failed=0`.
+
 ## Change a secret
 
 Edit `.env.staging` with `dotenvx set`, rerun `scripts/render-staging-env.sh`, then redeploy both services. Env group changes reach a service only on its next deploy.

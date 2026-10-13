@@ -1,6 +1,8 @@
 package identity
 
 import (
+	"context"
+
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 
@@ -252,6 +254,10 @@ func (m *Module) EVMDepositWallets() *app.EVMDepositWallets {
 		UoW: m.deps.UoW, Reads: m.deps.Pool, Store: adapters.EVMWallets{}, Wallets: m.multichain.evmWallets,
 		Forwarding: m.multichain.forwarding, Clock: m.deps.Clock,
 	})
+}
+
+func (m *Module) EVMWalletBackfillUsers(ctx context.Context) ([]app.EVMWalletBackfillUser, error) {
+	return app.EVMWalletBackfillUsers(ctx, m.deps.Pool)
 }
 
 func (*Module) DashboardOn(db dbsqlc.DBTX) adapters.Dashboard { return adapters.NewDashboard(db) }
