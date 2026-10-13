@@ -81,7 +81,7 @@ For agent proposals (`agent_*` kinds), `passed` emits `proposal.passed` like any
 `CastVote` ([flow 10](backend-platform.md#flows)), from `POST /v1/proposals/{id}/votes` with an `Idempotency-Key`. One `uow.Do`:
 
 1. Lock the proposal row. Refuse with a `Blocked` code if the proposal is not `open` or its `expires_at` has passed (the expiry poller may not have reached it yet), or `Forbidden` if the caller is not in the proposal's frozen voter set (`proposal_voters`).
-2. Upsert the ballot.
+2. Upsert the ballot and append `vote.cast` (one per ballot, a changed vote appends another), in the same transaction.
 3. Count yes and no against the frozen voter set and the proposal's own frozen `threshold` (majority or unanimous), read from the locked row. This is a pure domain function over integers, no network.
 4. If still undecided, commit and return. **No execution check.**
 5. If `failed`, guarded update to `failed`, append `proposal.failed`, commit.

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -73,13 +74,8 @@ func (h *CastVoteHandler) vote(
 		return CastVoteResult{}, lookupFailed(err, op)
 	}
 	now := h.clock.Now()
-	switch {
-	case p.Status != string(domain.StatusOpen):
-		return CastVoteResult{}, errs.New(errs.CodeProposalClosed, op, slog.String("status", p.Status))
-	case !now.Before(p.ExpiresAt):
-		return CastVoteResult{}, errs.New(errs.CodeProposalClosed, op, slog.Time("expires_at", p.ExpiresAt))
-	case !p.IsVoter:
-		return CastVoteResult{}, errs.New(errs.CodeNotAVoter, op)
+	if err := mayVote(p, now, op); err != nil {
+		return CastVoteResult{}, err
 	}
 	*cabal = p.CabalID
 	if err := notBanned(ctx, h.cabals, ids.CabalIDFrom(p.CabalID), op); err != nil {
@@ -90,6 +86,9 @@ func (h *CastVoteHandler) vote(
 		ProposalID: p.ID, VoterID: cmd.VoterID.UUID(), Choice: string(cmd.Choice), CastAt: now,
 	})
 	if err != nil {
+		return CastVoteResult{}, err
+	}
+	if err := appendVoteCast(ctx, tx, p.ID, p.CabalID, cmd, now); err != nil {
 		return CastVoteResult{}, err
 	}
 	voters, yes, no := int(n.Voters), int(n.Yes), int(n.No)
@@ -116,6 +115,26 @@ func (h *CastVoteHandler) vote(
 		return CastVoteResult{}, err
 	}
 	return out, tx.Events.Append(ctx, decided)
+}
+
+func mayVote(p sqlc.LockProposalRow, now time.Time, op string) error {
+	switch {
+	case p.Status != string(domain.StatusOpen):
+		return errs.New(errs.CodeProposalClosed, op, slog.String("status", p.Status))
+	case !now.Before(p.ExpiresAt):
+		return errs.New(errs.CodeProposalClosed, op, slog.Time("expires_at", p.ExpiresAt))
+	case !p.IsVoter:
+		return errs.New(errs.CodeNotAVoter, op)
+	}
+	return nil
+}
+
+func appendVoteCast(
+	ctx context.Context, tx db.Tx, proposal, cabal uuid.UUID, cmd CastVote, at time.Time,
+) error {
+	return tx.Events.Append(ctx, events.VoteCast{
+		V: 1, ProposalID: proposal, CabalID: cabal, VoterID: cmd.VoterID.UUID(), Choice: string(cmd.Choice), CastAt: at,
+	})
 }
 
 func passed(p sqlc.LockProposalRow, comparison *multichain.Comparison) events.ProposalPassed {

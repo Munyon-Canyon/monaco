@@ -1007,6 +1007,19 @@ Subject `events.user.profile_updated`, version 1.
 | `display_name` | `string` |
 | `photo_url` | `string` |
 
+## `vote.cast`
+
+Subject `events.vote.cast`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `proposal_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `voter_id` | `uuid.UUID` |
+| `choice` | `string` |
+| `cast_at` | `time.Time` |
+
 ## `withdrawal.confirmed`
 
 Subject `events.withdrawal.confirmed`, version 1.
