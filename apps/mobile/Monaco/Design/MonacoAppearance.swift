@@ -133,27 +133,16 @@ extension View {
     }
 
     func monacoSheet(title: String, titleIdentifier: String? = nil) -> some View {
-        let heading = Text(title)
-            .font(MonacoTheme.Typo.title)
-            .foregroundStyle(MonacoTheme.ink)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.top, MonacoTheme.Space.m)
-            .padding(.bottom, MonacoTheme.Space.s)
-            .accessibilityAddTraits(.isHeader)
-        return VStack(alignment: .leading, spacing: 0) {
-            if let titleIdentifier {
-                heading.accessibilityIdentifier(titleIdentifier)
-            } else {
-                heading
-            }
+        VStack(alignment: .leading, spacing: 0) {
+            MonacoSheetHeading(title: title, identifier: titleIdentifier)
             self
                 .environment(\.insideMonacoSheet, true)
         }
-        .background(MonacoTheme.surface)
-        .presentationBackground(MonacoTheme.surface)
-        .presentationCornerRadius(MonacoTheme.Radius.sheet)
-        .presentationDragIndicator(.visible)
+        .monacoSheetChrome()
+    }
+
+    func monacoFittedSheet(title: String, titleIdentifier: String? = nil) -> some View {
+        MonacoFittedSheet(title: title, titleIdentifier: titleIdentifier, content: self)
     }
 
     func monacoTopLevelHeader(title: String) -> some View {
@@ -198,4 +187,67 @@ extension View {
             .listRowBackground(Color.clear)
     }
 
+}
+
+private struct MonacoSheetHeading: View {
+    let title: String
+    let identifier: String?
+
+    var body: some View {
+        let heading = Text(title)
+            .font(MonacoTheme.Typo.title)
+            .foregroundStyle(MonacoTheme.ink)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .padding(.top, MonacoTheme.Space.m)
+            .padding(.bottom, MonacoTheme.Space.s)
+            .accessibilityAddTraits(.isHeader)
+        if let identifier {
+            heading.accessibilityIdentifier(identifier)
+        } else {
+            heading
+        }
+    }
+}
+
+private struct MonacoFittedSheet<Content: View>: View {
+    let title: String
+    let titleIdentifier: String?
+    let content: Content
+
+    @State private var headingHeight: CGFloat = 0
+    @State private var contentHeight: CGFloat = 0
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            MonacoSheetHeading(title: title, identifier: titleIdentifier)
+                .onGeometryChange(for: CGFloat.self) {
+                    $0.size.height
+                } action: {
+                    headingHeight = $0
+                }
+            ScrollView {
+                content
+                    .environment(\.insideMonacoSheet, true)
+                    .onGeometryChange(for: CGFloat.self) {
+                        $0.size.height
+                    } action: {
+                        contentHeight = $0
+                    }
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
+        .monacoSheetChrome()
+        .presentationDetents(
+            headingHeight > 0 && contentHeight > 0 ? [.height(headingHeight + contentHeight)] : [.medium])
+    }
+}
+
+extension View {
+    fileprivate func monacoSheetChrome() -> some View {
+        background(MonacoTheme.surface)
+            .presentationBackground(MonacoTheme.surface)
+            .presentationCornerRadius(MonacoTheme.Radius.sheet)
+            .presentationDragIndicator(.visible)
+    }
 }
