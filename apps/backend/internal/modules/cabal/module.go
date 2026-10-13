@@ -168,6 +168,10 @@ func (m *Module) TreasuryEVMWallets() adapters.TreasuryEVMWallets {
 	return adapters.TreasuryEVMWallets{DB: m.deps.Pool, Wallets: m.multichain.evmWallets, Clock: m.deps.Clock}
 }
 
+func (m *Module) EVMWalletBackfillCabals(ctx context.Context) ([]app.EVMWalletBackfillCabal, error) {
+	return app.EVMWalletBackfillCabals(ctx, m.deps.Pool)
+}
+
 func (*Module) DashboardOn(db dbsqlc.DBTX) adapters.Dashboard { return adapters.NewDashboard(db) }
 
 func (m *Module) LeaveCabalHandler() *app.LeaveCabalHandler {

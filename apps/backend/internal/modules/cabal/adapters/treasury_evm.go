@@ -38,7 +38,10 @@ func (t TreasuryEVMWallets) EnsureTreasuryEVMWallet(
 	}); err != nil {
 		return multichain.EVMWallet{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	got, _, err := t.stored(ctx, cabalID)
+	got, found, err := t.stored(ctx, cabalID)
+	if err == nil && !found {
+		return multichain.EVMWallet{}, errs.New(errs.CodeInternal, op)
+	}
 	return got, err
 }
 

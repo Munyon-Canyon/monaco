@@ -15,7 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 )
 
-const opsUsage = "usage: monacoctl ops pause --cabal <id>|--all --note <text> | resume --cabal <id>|--all"
+const opsUsage = "usage: monacoctl ops pause --cabal <id>|--all --note <text> | resume --cabal <id>|--all | evm-wallets"
 
 func toolOps(env toolEnv) tool { return opsTool(env.environ, clock.Real{}) }
 
@@ -88,6 +88,7 @@ func opsTool(environ []string, clk clock.Clock) tool {
 		})
 	}
 	return func(args []string, stdout, stderr io.Writer) int {
-		return run(map[string]command{"pause": pause, "resume": resume}, nil, environ, args, stdout, stderr)
+		cmds := map[string]command{"pause": pause, "resume": resume, "evm-wallets": evmWalletsCommand(clk)}
+		return run(cmds, nil, environ, args, stdout, stderr)
 	}
 }

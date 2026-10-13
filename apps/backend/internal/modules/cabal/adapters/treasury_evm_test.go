@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	cabalmodule "github.com/monaco/monaco/apps/backend/internal/modules/cabal"
@@ -39,6 +40,67 @@ func TestEnsureTreasuryEVMWallet_concurrentCallsStoreOneWallet(t *testing.T) {
 	if again, err := ensure.EnsureTreasuryEVMWallet(t.Context(), cabal.ID); err != nil || again != got[0] ||
 		wallets.Creates() != creates {
 		t.Fatalf("a stored wallet = %+v, %v after %d creates; want no new create", again, err, wallets.Creates())
+	}
+}
+
+type lockstepWallets struct {
+	*privyfake.EVMWallets
+	arrived *sync.WaitGroup
+}
+
+func (l lockstepWallets) CreateAppEVMWallet(ctx context.Context, key string) (multichain.EVMWallet, error) {
+	l.arrived.Done()
+	l.arrived.Wait()
+	return l.EVMWallets.CreateAppEVMWallet(ctx, key)
+}
+
+func TestEnsureTreasuryEVMWallet_twoEnsuresInsertingAtOnceBothReadTheStoredWallet(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	clk := testkit.NewClock(time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC))
+	for round := range 30 {
+		cabal := testkit.NewCabal(t, pool)
+		var arrived sync.WaitGroup
+		arrived.Add(2)
+		ensure := adapters.TreasuryEVMWallets{
+			DB: pool, Wallets: lockstepWallets{EVMWallets: &privyfake.EVMWallets{}, arrived: &arrived}, Clock: clk,
+		}
+		got := make([]multichain.EVMWallet, 2)
+		failures := make([]error, 2)
+		var wg sync.WaitGroup
+		for i := range got {
+			wg.Go(func() { got[i], failures[i] = ensure.EnsureTreasuryEVMWallet(t.Context(), cabal.ID) })
+		}
+		wg.Wait()
+		if failures[0] != nil || failures[1] != nil || got[0] != got[1] || got[0].ID == "" {
+			t.Fatalf("round %d: ensures = %+v %v, %+v %v; want one stored wallet", round, got[0], failures[0],
+				got[1], failures[1])
+		}
+	}
+}
+
+func TestEnsureTreasuryEVMWallet_aWalletStoredForAnotherCabalIsInternal(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	owner, cabal := testkit.NewCabal(t, pool), testkit.NewCabal(t, pool)
+	wallets := &privyfake.EVMWallets{}
+	taken, err := wallets.CreateAppEVMWallet(t.Context(), "treasury-evm:"+cabal.ID.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(
+		t.Context(),
+		`INSERT INTO treasury_evm_wallets (cabal_id, privy_wallet_id, address, created_at)
+		VALUES ($1, $2, $3, now())`,
+		owner.ID.UUID(),
+		taken.ID,
+		taken.Address.String(),
+	); err != nil {
+		t.Fatal(err)
+	}
+	ensure := adapters.TreasuryEVMWallets{DB: pool, Wallets: wallets, Clock: clock.Real{}}
+	if got, err := ensure.EnsureTreasuryEVMWallet(t.Context(), cabal.ID); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("ensure = %+v, %v; want internal", got, err)
 	}
 }
 
