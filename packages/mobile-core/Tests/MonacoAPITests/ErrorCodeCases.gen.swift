@@ -130,7 +130,6 @@ extension Components.Schemas.ErrorCode {
         case .proposalNotFound: true
         case .proposalStillOpen: true
         case .quoteUnavailable: true
-        case .rankingCloseSampleMissing: true
         case .rankingRunsStalled: true
         case .rateLimited: true
         case .reasonRequired: true

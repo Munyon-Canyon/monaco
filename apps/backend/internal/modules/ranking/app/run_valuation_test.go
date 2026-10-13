@@ -99,10 +99,9 @@ func TestRunValuation_returnsReadErrors(t *testing.T) {
 			f.userErr = errs.New(errs.CodeInternal, "test")
 			f.stakeRows = []treasury.MemberStake{{UserID: ids.UserIDFrom(ids.Real{}.NewV7())}}
 		},
-		"pauses":        func(f *countingPorts) { f.pausesErr = errs.New(errs.CodeInternal, "test") },
-		"catalog":       func(f *countingPorts) { f.assetsErr = errs.New(errs.CodeInternal, "test") },
-		"latest prices": func(f *countingPorts) { f.latestErr = errs.New(errs.CodeInternal, "test") },
-		"prices as of":  func(f *countingPorts) { f.asOfErr = errs.New(errs.CodeInternal, "test") },
+		"pauses":       func(f *countingPorts) { f.pausesErr = errs.New(errs.CodeInternal, "test") },
+		"catalog":      func(f *countingPorts) { f.assetsErr = errs.New(errs.CodeInternal, "test") },
+		"prices as of": func(f *countingPorts) { f.asOfErr = errs.New(errs.CodeInternal, "test") },
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -115,17 +114,6 @@ func TestRunValuation_returnsReadErrors(t *testing.T) {
 				t.Fatal("Run() error = nil")
 			}
 		})
-	}
-}
-
-func TestRunValuation_returnsSessionError(t *testing.T) {
-	t.Parallel()
-	f, usdc := heldAssetPorts(t, 1)
-	f.sessionErr = errs.New(errs.CodeInternal, "test")
-	if _, err := NewRunValuation(
-		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f, Snapshots: f}, usdc,
-	).Run(t.Context(), valuationTime()); err == nil {
-		t.Fatal("Run() error = nil")
 	}
 }
 
@@ -189,15 +177,12 @@ func TestRunValuation_cabalNAVErrors(t *testing.T) {
 	}
 	var listed market.AssetID
 	now := valuationTime()
-	sessions := map[market.AssetID]market.SessionInfo{listed: {State: "open"}}
 	runner := NewRunValuation(Ports{Market: &countingPorts{}}, usdc)
 	if _, _, err := runner.cabalNAV(
 		money.Micros{},
 		money.Micros{},
 		[]treasury.Position{{Mint: stock.Address()}},
 		money.SharesUnits{},
-		nil,
-		nil,
 		nil,
 		nil,
 		now,
@@ -213,8 +198,6 @@ func TestRunValuation_cabalNAVErrors(t *testing.T) {
 		[]treasury.Position{{Mint: stock.Address()}},
 		money.SharesUnits{},
 		assets,
-		sessions,
-		nil,
 		nil,
 		now,
 	); err != nil ||
@@ -228,8 +211,6 @@ func TestRunValuation_cabalNAVErrors(t *testing.T) {
 		[]treasury.Position{{Mint: stock.Address(), Units: money.NewBaseUnits(1, 20)}},
 		money.SharesUnits{},
 		assets,
-		sessions,
-		fresh,
 		fresh,
 		now,
 	); err == nil {
@@ -464,7 +445,6 @@ func TestRunValuation_excludesUnpricedAndReturnsUnexpectedConservationErrors(t *
 		"unpriced": func(id ids.CabalID, f *countingPorts) {
 			f.positionRows = []treasury.CabalPositions{{CabalID: id, Holdings: []treasury.Position{{Mint: stock.Address()}}}}
 			f.assetRows = []market.Asset{{ID: assetID, Mint: stock}}
-			f.sessions = map[market.AssetID]market.SessionInfo{assetID: {State: "open"}}
 		},
 		"invalid conservation": func(id ids.CabalID, f *countingPorts) {
 			f.positionRows = []treasury.CabalPositions{{CabalID: id, Holdings: []treasury.Position{{Mint: usdc, Units: money.NewBaseUnits(1, 6)}}, TotalShares: money.SharesUnitsFromUint64(1)}}
@@ -552,7 +532,7 @@ func TestRunValuation_valuesUSDCWithoutCatalogLookup(t *testing.T) {
 	if err != nil || len(got.Cabals) != 1 || got.Cabals[0].Value != money.MicrosFromUint64(2_000_000) {
 		t.Fatalf("Run() = %#v, %v", got, err)
 	}
-	if f.assets != 1 || f.latest != 1 || f.asOf != 1 {
+	if f.assets != 1 || f.asOf != 1 {
 		t.Fatalf("market calls = %#v", f)
 	}
 }
@@ -582,16 +562,13 @@ func heldAssetPorts(t *testing.T, cabalCount int) (*countingPorts, chain.SolanaA
 		}
 	}
 	f := &countingPorts{
-		assetRows:  []market.Asset{{ID: newAssetID(t), Mint: mints[0]}},
-		latestRows: map[market.AssetID]market.Price{},
-		asOfRows:   map[market.AssetID]market.Price{},
-		sessions:   map[market.AssetID]market.SessionInfo{},
+		assetRows: []market.Asset{{ID: newAssetID(t), Mint: mints[0]}},
+		asOfRows:  map[market.AssetID]market.Price{},
 	}
 	f.assetRows = append(f.assetRows, market.Asset{ID: newAssetID(t), Mint: mints[1]})
 	for _, asset := range f.assetRows {
 		price := market.Price{Micros: money.MicrosFromUint64(1_000_000), ObservedAt: now}
-		f.latestRows[asset.ID], f.asOfRows[asset.ID] = price, price
-		f.sessions[asset.ID] = market.SessionInfo{State: "open"}
+		f.asOfRows[asset.ID] = price
 	}
 	for range cabalCount {
 		id := ids.CabalIDFrom(ids.Real{}.NewV7())
@@ -612,7 +589,7 @@ func heldAssetPorts(t *testing.T, cabalCount int) (*countingPorts, chain.SolanaA
 	return f, usdc
 }
 
-func TestRunValuation_readsSessionsOncePerHeldAssetWhateverTheCabalCount(t *testing.T) {
+func TestRunValuation_readsPricesOncePerRunWhateverTheCabalCount(t *testing.T) {
 	t.Parallel()
 	for _, cabals := range []int{1, 500} {
 		f, usdc := heldAssetPorts(t, cabals)
@@ -623,7 +600,7 @@ func TestRunValuation_readsSessionsOncePerHeldAssetWhateverTheCabalCount(t *test
 		if err != nil || len(got.Cabals) != cabals || len(got.Flagged) != 0 {
 			t.Fatalf("Run() with %d cabals = %d valued, %d flagged, %v", cabals, len(got.Cabals), len(got.Flagged), err)
 		}
-		if f.sessionCalls != 2 || f.latest != 1 || f.asOf != 1 || f.assets != 1 || f.positions != 1 {
+		if f.asOf != 1 || f.assets != 1 || f.positions != 1 {
 			t.Fatalf("%d cabals: calls = %#v", cabals, f)
 		}
 	}
@@ -644,7 +621,6 @@ func TestRunValuation_returnsAValuationErrorFromTheStage(t *testing.T) {
 func TestRunValuation_flagsACabalWithAnUnpricedAssetInsteadOfDroppingIt(t *testing.T) {
 	t.Parallel()
 	f, usdc := heldAssetPorts(t, 2)
-	delete(f.latestRows, f.assetRows[0].ID)
 	delete(f.asOfRows, f.assetRows[0].ID)
 	got, err := NewRunValuation(
 		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f, Snapshots: f},
@@ -659,30 +635,29 @@ func TestRunValuation_flagsACabalWithAnUnpricedAssetInsteadOfDroppingIt(t *testi
 }
 
 type countingPorts struct {
-	all, memberCalls, positions, stakes, paused, assets, latest, asOf, sessionCalls int
-	reservations, previousCalls, flowCalls, snapshotCalls, stakesErrAfter           int
-	flowRows                                                                        []treasury.MemberFlow
-	snapshotRows                                                                    []sqlc.SnapshotsAtRow
-	flowsErr, snapshotsErr                                                          error
-	reservedRows                                                                    map[ids.CabalID]money.Micros
-	userRows                                                                        map[ids.UserID]identity.UserCard
-	previousRows                                                                    []sqlc.LeaderboardEntry
-	reservedErr, previousErr                                                        error
-	cabals                                                                          []cabal.View
-	members                                                                         map[ids.CabalID][]cabal.MemberView
-	positionRows                                                                    []treasury.CabalPositions
-	stakeRows                                                                       []treasury.MemberStake
-	assetRows                                                                       []market.Asset
-	asOfInstants                                                                    []time.Time
-	asOfAt                                                                          func(time.Time) map[market.AssetID]market.Price
-	latestRows, asOfRows                                                            map[market.AssetID]market.Price
-	sessions                                                                        map[market.AssetID]market.SessionInfo
-	pausedSet                                                                       funding.PausedSet
-	allErr, membersErr, positionsErr, stakesErr                                     error
-	userErr, pausesErr, assetsErr, latestErr, asOfErr, sessionErr                   error
-	listingRows                                                                     map[market.ListingKey]market.ListingPrice
-	listingsErr                                                                     error
-	listingCalls                                                                    int
+	all, memberCalls, positions, stakes, paused, assets, asOf             int
+	reservations, previousCalls, flowCalls, snapshotCalls, stakesErrAfter int
+	flowRows                                                              []treasury.MemberFlow
+	snapshotRows                                                          []sqlc.SnapshotsAtRow
+	flowsErr, snapshotsErr                                                error
+	reservedRows                                                          map[ids.CabalID]money.Micros
+	userRows                                                              map[ids.UserID]identity.UserCard
+	previousRows                                                          []sqlc.LeaderboardEntry
+	reservedErr, previousErr                                              error
+	cabals                                                                []cabal.View
+	members                                                               map[ids.CabalID][]cabal.MemberView
+	positionRows                                                          []treasury.CabalPositions
+	stakeRows                                                             []treasury.MemberStake
+	assetRows                                                             []market.Asset
+	asOfInstants                                                          []time.Time
+	asOfAt                                                                func(time.Time) map[market.AssetID]market.Price
+	asOfRows                                                              map[market.AssetID]market.Price
+	pausedSet                                                             funding.PausedSet
+	allErr, membersErr, positionsErr, stakesErr                           error
+	userErr, pausesErr, assetsErr, asOfErr                                error
+	listingRows                                                           map[market.ListingKey]market.ListingPrice
+	listingsErr                                                           error
+	listingCalls                                                          int
 }
 
 func (f *countingPorts) AllCabals(context.Context) ([]cabal.View, error) {
@@ -735,11 +710,6 @@ func (f *countingPorts) ListAll(context.Context) ([]market.Asset, error) {
 	return f.assetRows, f.assetsErr
 }
 
-func (f *countingPorts) LatestPrices(context.Context) (map[market.AssetID]market.Price, error) {
-	f.latest++
-	return f.latestRows, f.latestErr
-}
-
 func (f *countingPorts) PricesAsOf(
 	_ context.Context,
 	assetIDs []market.AssetID,
@@ -759,11 +729,6 @@ func (f *countingPorts) PricesAsOf(
 	return f.asOfRows, f.asOfErr
 }
 
-func (f *countingPorts) Session(_ context.Context, id market.AssetID, _ time.Time) (market.SessionInfo, error) {
-	f.sessionCalls++
-	return f.sessions[id], f.sessionErr
-}
-
 func (f *countingPorts) UsersByID(context.Context, []ids.UserID) (map[ids.UserID]identity.UserCard, error) {
 	return f.userRows, f.userErr
 }
@@ -781,39 +746,9 @@ func (f *countingPorts) PreviousEntriesForCabals(
 	return f.previousRows, f.previousErr
 }
 
-func TestRunValuation_pricesAClosedAssetAtItsCloseNotAtTheRunTime(t *testing.T) {
-	t.Parallel()
-	now := valuationTime()
-	closeAt := now.Add(-18 * time.Hour)
-	f, usdc := heldAssetPorts(t, 1)
-	closed, open := f.assetRows[0].ID, f.assetRows[1].ID
-	f.sessions[closed] = market.SessionInfo{State: "closed", LastClose: closeAt}
-	f.latestRows[closed] = market.Price{Micros: money.MicrosFromUint64(5_000_000), ObservedAt: now}
-	f.asOfAt = func(at time.Time) map[market.AssetID]market.Price {
-		if at.Equal(closeAt) {
-			return map[market.AssetID]market.Price{
-				closed: {Micros: money.MicrosFromUint64(3_000_000), ObservedAt: closeAt},
-			}
-		}
-		return map[market.AssetID]market.Price{
-			open:   {Micros: money.MicrosFromUint64(1_000_000), ObservedAt: now},
-			closed: {Micros: money.MicrosFromUint64(5_000_000), ObservedAt: now},
-		}
-	}
-	got, err := NewRunValuation(
-		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f, Snapshots: f}, usdc,
-	).Run(t.Context(), now)
-	if err != nil || len(got.Cabals) != 1 || got.Cabals[0].Value != money.MicrosFromUint64(5_000_000) {
-		t.Fatalf("Run() = %#v, %v, want 1 USDC + 3 at the close + 1 open, not 7 with the off-hours sample", got, err)
-	}
-	if f.asOf != 2 || !f.asOfInstants[0].Equal(closeAt) || !f.asOfInstants[1].Equal(now) {
-		t.Fatalf("PricesAsOf instants = %v, want one call at the close and one at the run time", f.asOfInstants)
-	}
-}
-
 func wantOneReadPerPort(t *testing.T, f *countingPorts) {
 	t.Helper()
-	once := []int{f.all, f.memberCalls, f.positions, f.paused, f.assets, f.latest, f.asOf, f.flowCalls, f.snapshotCalls}
+	once := []int{f.all, f.memberCalls, f.positions, f.paused, f.assets, f.asOf, f.flowCalls, f.snapshotCalls}
 	if slices.ContainsFunc(once, func(n int) bool { return n != 1 }) || f.stakes != 1+len(rangedRanges()) {
 		t.Fatalf("calls = %#v", f)
 	}

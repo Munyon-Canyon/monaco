@@ -143,7 +143,7 @@ func RankedValuationPricesStaleAt(s *scenario.Scenario, now time.Time) {
 	s.Given(rankedUsers()...).When(
 		scenario.AwaitTickPastTimeouts(valuationPoller),
 		awaitRankedRows(),
-		makePricesStale(rankedMint, now),
+		makePricesStale(rankedMint),
 		queueRankedValuation(now),
 		scenario.AwaitTickPastTimeouts(valuationPoller),
 	).Then(
@@ -251,21 +251,12 @@ func awaitSnapshotEvent() scenario.Step {
 	})
 }
 
-func makePricesStale(mint chain.SolanaAddress, now time.Time) scenario.Step {
+func makePricesStale(mint chain.SolanaAddress) scenario.Step {
 	return func(s *scenario.Scenario) {
 		s.Helper()
-		aged := 6 * time.Minute
-		if session := rankedSession(s, now); !session.Continuous {
-			var newest time.Time
-			if err := s.DB().QueryRow(s.Context(),
-				`SELECT max(ts) FROM price_points WHERE mint = $1`, string(mint)).Scan(&newest); err != nil {
-				s.Fatalf("flows: read the newest price: %v", err)
-			}
-			aged = max(aged, newest.Sub(session.LastSessionOpen)+time.Minute)
-		}
 		if _, err := s.DB().Exec(s.Context(),
 			`UPDATE price_points SET ts = ts - $2 * interval '1 microsecond' WHERE mint = $1`,
-			string(mint), aged.Microseconds()); err != nil {
+			string(mint), (6 * time.Minute).Microseconds()); err != nil {
 			s.Fatalf("flows: age the prices: %v", err)
 		}
 	}
@@ -309,16 +300,6 @@ const rankedMint = "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp"
 
 func seedRankedAsset(s *scenario.Scenario, now time.Time) {
 	insertAsset(s, ids.Real{}.NewV7(), "AAPLx", rankedMint, now)
-	session := rankedSession(s, now)
-	if session.Continuous || session.State == domain.StateOpen {
-		return
-	}
-	if _, err := s.DB().Exec(s.Context(),
-		`INSERT INTO price_points (mint, ts, price_micros, source) VALUES ($1, $2, $3, 'jupiter')
-		ON CONFLICT (mint, ts) DO NOTHING`,
-		rankedMint, session.LastClose.Add(-time.Minute), assetPriceMicros); err != nil {
-		s.Fatalf("flows: seed the close price: %v", err)
-	}
 }
 
 type RankedPin struct {
@@ -355,20 +336,6 @@ func RankedOffSessionPins(from time.Time) ([]RankedPin, error) {
 		{"InsideCloseWindow", at(day, 16, 3)},
 		{"LateInCloseWindow", at(day, 16, 5)},
 	}, nil
-}
-
-func rankedSession(s *scenario.Scenario, now time.Time) domain.SessionInfo {
-	s.Helper()
-	var kind domain.Kind
-	err := s.DB().QueryRow(s.Context(), `SELECT kind FROM assets WHERE mint = $1`, rankedMint).Scan(&kind)
-	if err != nil {
-		s.Fatalf("flows: read the kind of AAPLx: %v", err)
-	}
-	session, err := domain.Session(kind, now)
-	if err != nil {
-		s.Fatalf("flows: the session of AAPLx: %v", err)
-	}
-	return session
 }
 
 func rankedUsers() []scenario.Step {

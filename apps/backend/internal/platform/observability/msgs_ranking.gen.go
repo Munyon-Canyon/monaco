@@ -9,6 +9,5 @@ func init() {
 		RankingCabalExcluded,
 		RankingCabalUnpricedListing,
 		RankingRunCompleted,
-		RankingCloseSampleMissing,
 	)
 }

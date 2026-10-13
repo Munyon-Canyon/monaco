@@ -16,17 +16,11 @@ import (
 )
 
 type Prices interface {
-	LatestPrices(context.Context) (map[market.AssetID]market.Price, error)
 	PricesAsOf(context.Context, []market.AssetID, time.Time) (map[market.AssetID]market.Price, error)
-}
-
-type Calendar interface {
-	Session(context.Context, market.AssetID, time.Time) (market.SessionInfo, error)
 }
 
 type Market interface {
 	Prices
-	Calendar
 	ListAll(context.Context) ([]market.Asset, error)
 	ListingPrices(context.Context, []market.ListingKey, time.Time) (map[market.ListingKey]market.ListingPrice, error)
 }

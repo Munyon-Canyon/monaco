@@ -149,20 +149,11 @@ func (r RunValuation) value(ctx context.Context, data readData, at time.Time) (V
 	if err != nil {
 		return Valuation{}, err
 	}
-	latest, err := r.ports.Market.LatestPrices(ctx)
+	atTime, err := r.ports.Market.PricesAsOf(ctx, idsForPrices, at)
 	if err != nil {
 		return Valuation{}, err
 	}
-	sessions, err := r.sessions(ctx, idsForPrices, at)
-	if err != nil {
-		return Valuation{}, err
-	}
-	atTime, err := r.pricesAtPricingInstants(ctx, idsForPrices, sessions, at)
-	if err != nil {
-		return Valuation{}, err
-	}
-	logMissingCloseSamples(ctx, byMint, idsForPrices, sessions, latest, atTime, at)
-	values, flagged, err := r.values(ctx, inputs, byMint, latest, atTime, sessions, data.stakes, at)
+	values, flagged, err := r.values(ctx, inputs, byMint, atTime, data.stakes, at)
 	if err != nil {
 		return Valuation{}, err
 	}
@@ -174,84 +165,6 @@ func (r RunValuation) value(ctx context.Context, data readData, at time.Time) (V
 		AsOf: at, PricesAsOf: at, Cabals: values, Flagged: flagged, Entries: entries,
 		Excluded: len(data.cabals) - len(values),
 	}, nil
-}
-
-func (r RunValuation) pricesAtPricingInstants(
-	ctx context.Context,
-	assetIDs []market.AssetID,
-	sessions map[market.AssetID]market.SessionInfo,
-	at time.Time,
-) (map[market.AssetID]market.Price, error) {
-	groups := map[int64][]market.AssetID{at.UnixNano(): {}}
-	instants := map[int64]time.Time{at.UnixNano(): at}
-	for _, assetID := range assetIDs {
-		instant := pricingInstant(sessions[assetID], at)
-		groups[instant.UnixNano()] = append(groups[instant.UnixNano()], assetID)
-		instants[instant.UnixNano()] = instant
-	}
-	prices := make(map[market.AssetID]market.Price, len(assetIDs))
-	for _, key := range slices.Sorted(maps.Keys(groups)) {
-		page, err := r.ports.Market.PricesAsOf(ctx, groups[key], instants[key])
-		if err != nil {
-			return nil, err
-		}
-		maps.Copy(prices, page)
-	}
-	return prices, nil
-}
-
-func pricingInstant(session market.SessionInfo, at time.Time) time.Time {
-	if string(session.State) == "open" || session.Continuous {
-		return at
-	}
-	return session.LastClose
-}
-
-func logMissingCloseSamples(
-	ctx context.Context,
-	byMint map[string]market.Asset,
-	assetIDs []market.AssetID,
-	sessions map[market.AssetID]market.SessionInfo,
-	latest, atTime map[market.AssetID]market.Price,
-	at time.Time,
-) {
-	symbols := make(map[market.AssetID]string, len(byMint))
-	for _, asset := range byMint {
-		symbols[asset.ID] = asset.Symbol
-	}
-	for _, assetID := range assetIDs {
-		session := sessions[assetID]
-		_, _, fellBack := domain.PriceForBoard(
-			boardSession(session),
-			sample(latest, assetID),
-			sample(atTime, assetID),
-			at,
-		)
-		if !fellBack {
-			continue
-		}
-		observability.Alert(
-			ctx,
-			observability.RankingCloseSampleMissing,
-			slog.String("asset", symbols[assetID]),
-			slog.Time("close_at", session.LastClose),
-			slog.Time(
-				"sample_at",
-				atTime[assetID].ObservedAt,
-			),
-			slog.String("code", string(errs.CodeRankingCloseSampleMissing)),
-			slog.Bool("alert", errs.Alert(errs.CodeRankingCloseSampleMissing)),
-		)
-	}
-}
-
-func boardSession(session market.SessionInfo) domain.Session {
-	return domain.Session{
-		Open:            string(session.State) == "open",
-		Continuous:      session.Continuous,
-		LastClose:       session.LastClose,
-		LastSessionOpen: session.LastSessionOpen,
-	}
 }
 
 func logSkipped(ctx context.Context) func(ids.CabalID) {
@@ -342,22 +255,6 @@ func (RunValuation) logSkipped(ctx context.Context) func(ids.CabalID, Window, st
 	}
 }
 
-func (r RunValuation) sessions(
-	ctx context.Context,
-	assetIDs []market.AssetID,
-	at time.Time,
-) (map[market.AssetID]market.SessionInfo, error) {
-	sessions := make(map[market.AssetID]market.SessionInfo, len(assetIDs))
-	for _, assetID := range assetIDs {
-		session, err := r.ports.Market.Session(ctx, assetID, at)
-		if err != nil {
-			return nil, err
-		}
-		sessions[assetID] = session
-	}
-	return sessions, nil
-}
-
 func (r RunValuation) inputs(
 	ctx context.Context,
 	data readData,
@@ -429,8 +326,7 @@ func (r RunValuation) values(
 	ctx context.Context,
 	inputs []valuationInput,
 	byMint map[string]market.Asset,
-	latest, atTime map[market.AssetID]market.Price,
-	sessions map[market.AssetID]market.SessionInfo,
+	atTime map[market.AssetID]market.Price,
 	stakes []treasury.MemberStake,
 	at time.Time,
 ) ([]CabalValue, []CabalValue, error) {
@@ -452,8 +348,6 @@ func (r RunValuation) values(
 				in.tokens,
 				in.position.TotalShares,
 				byMint,
-				sessions,
-				latest,
 				atTime,
 				at,
 			)
@@ -554,8 +448,7 @@ func (r RunValuation) cabalNAV(
 	positions []treasury.Position,
 	totalShares money.SharesUnits,
 	assets map[string]market.Asset,
-	sessions map[market.AssetID]market.SessionInfo,
-	latest, atTime map[market.AssetID]market.Price,
+	atTime map[market.AssetID]market.Price,
 	at time.Time,
 ) (domain.NAV, []domain.Flag, error) {
 	holdings := make([]domain.Holding, 0, len(positions))
@@ -569,13 +462,7 @@ func (r RunValuation) cabalNAV(
 				slog.String("mint", string(holding.Mint)),
 			)
 		}
-		session := sessions[asset.ID]
-		price, priceFlags, _ := domain.PriceForBoard(
-			boardSession(session),
-			sample(latest, asset.ID),
-			sample(atTime, asset.ID),
-			at,
-		)
+		price, priceFlags := domain.PriceForBoard(sample(atTime, asset.ID), at)
 		flags = append(flags, priceFlags...)
 		if len(priceFlags) != 0 {
 			continue

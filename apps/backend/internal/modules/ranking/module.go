@@ -81,7 +81,6 @@ func (m *Module) Wire(set module.Set) {
 			m.ports.Market = marketPort{
 				catalog:  provider.Catalog(),
 				prices:   provider.Prices(),
-				calendar: provider.Calendar(),
 				listings: provider.Prices(),
 			}
 		}
@@ -137,16 +136,11 @@ func QueriesOn(db dbsqlc.DBTX) port.Queries { return adapters.Latest{DB: db} }
 type marketPort struct {
 	catalog  market.Catalog
 	prices   market.Prices
-	calendar market.Calendar
 	listings market.ListingPrices
 }
 
 func (p marketPort) ListAll(ctx context.Context) ([]market.Asset, error) {
 	return p.catalog.ListAll(ctx)
-}
-
-func (p marketPort) LatestPrices(ctx context.Context) (map[market.AssetID]market.Price, error) {
-	return p.prices.LatestPrices(ctx)
 }
 
 func (p marketPort) PricesAsOf(
@@ -161,8 +155,4 @@ func (p marketPort) ListingPrices(
 	ctx context.Context, keys []market.ListingKey, at time.Time,
 ) (map[market.ListingKey]market.ListingPrice, error) {
 	return p.listings.ListingPrices(ctx, keys, at)
-}
-
-func (p marketPort) Session(ctx context.Context, id market.AssetID, at time.Time) (market.SessionInfo, error) {
-	return p.calendar.Session(ctx, id, at)
 }
