@@ -32,6 +32,8 @@ func TestModule_exportsEachProductSubjectOnTheAnalyticsDurable(t *testing.T) {
 		got = append(got, h.Name)
 	}
 	want := []string{
+		"analytics.posthog.proposal.created",
+		"analytics.posthog.vote.cast",
 		"analytics.posthog.proposal.passed",
 		"analytics.posthog.proposal.failed",
 		"analytics.posthog.proposal.expired",

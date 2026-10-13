@@ -70,6 +70,8 @@ Metrics that need history (e.g. "members per cabal last month") come from the `e
 | `deposit_credited` | `deposit.credited` (flow 5) |
 | `onramp_status_changed` | `onramp.status_changed` (flow 6) |
 | `cabal_funded` | `cabal.funded` (flow 7) |
+| `proposal_created` | `proposal.created` (flow 9) |
+| `vote_cast` | `vote.cast` (flow 10) |
 | `proposal_passed` | `proposal.passed` (flow 10) |
 | `proposal_failed` | `proposal.failed` (flow 10) |
 | `proposal_expired` | `proposal.expired` (flow 10) |
@@ -85,7 +87,7 @@ Metrics that need history (e.g. "members per cabal last month") come from the `e
 | `referral_attributed` | `referral.attributed` (flow 25) |
 | `referral_qualified` | `referral.qualified` (flow 25) |
 
-`usdc_amount` is a decimal number of USDC for PostHog charts only. It rides on `deposit_credited`, `cabal_funded`, `cash_out_completed`, `cash_out_partial`, `withdrawal_sent`, `proposal_passed` and `trade_executed`. No event carries a wallet address, a transaction signature, a cabal name, a comment body or a referral code.
+`usdc_amount` is a decimal number of USDC for PostHog charts only. It rides on `deposit_credited`, `cabal_funded`, `cash_out_completed`, `cash_out_partial`, `withdrawal_sent`, `proposal_created`, `proposal_passed` and `trade_executed`. No event carries a wallet address, a transaction signature, a cabal name, a comment body or a referral code.
 
 `user_signed_up` sets the person properties `login_provider`, `created_at` and `auth_state`. `created_at` is in UTC and `auth_state` starts at `CREATED`. `auth_state_changed` sets `auth_state` to the new state. Both send their values in PostHog's `$set` property on the capture, so the server updates the person with no separate identify call.
 

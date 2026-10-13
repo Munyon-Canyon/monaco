@@ -18,6 +18,24 @@ const microsPerUSDC = 1_000_000
 
 type Proposals struct{ Proposers app.ProposerReader }
 
+func (Proposals) ProposalCreated(_ context.Context, e events.ProposalCreated) (app.Capture, bool, error) {
+	return app.Capture{
+		Event:      "proposal_created",
+		DistinctID: e.ProposerID.String(),
+		Properties: proposalProps(e.ProposalID, e.CabalID, map[string]any{
+			"kind": e.Kind, "symbol": e.Symbol, "usdc_amount": usdc(e.USDCMicros),
+		}),
+	}, true, nil
+}
+
+func (Proposals) VoteCast(_ context.Context, e events.VoteCast) (app.Capture, bool, error) {
+	return app.Capture{
+		Event:      "vote_cast",
+		DistinctID: e.VoterID.String(),
+		Properties: proposalProps(e.ProposalID, e.CabalID, map[string]any{"choice": e.Choice}),
+	}, true, nil
+}
+
 func (Proposals) ProposalPassed(_ context.Context, e events.ProposalPassed) (app.Capture, bool, error) {
 	return app.Capture{
 		Event:      "proposal_passed",
