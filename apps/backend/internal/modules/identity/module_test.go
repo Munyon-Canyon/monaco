@@ -2,6 +2,7 @@ package identity_test
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -27,9 +28,20 @@ func TestModule_registersItsRoutesAndTheNudgePoller(t *testing.T) {
 		t.Fatalf("module %s does not serve POST /v1/auth/session", m.Name())
 	}
 	consumers := m.Consumers()
-	if len(consumers) != 1 || consumers[0].Durable != "identity_first_deposit" ||
-		len(consumers[0].Handlers) != 1 || consumers[0].Handlers[0].Name != "identity.first_deposit" {
-		t.Fatalf("consumers = %v, want identity_first_deposit with handler identity.first_deposit", consumers)
+	var got []string
+	for _, c := range consumers {
+		for _, h := range c.Handlers {
+			got = append(got, c.Durable+"/"+h.Name)
+		}
+	}
+	if want := []string{
+		"identity_first_deposit/identity.first_deposit",
+		"identity_evm_wallet/identity.evm_wallet",
+	}; !slices.Equal(
+		got,
+		want,
+	) {
+		t.Fatalf("consumers = %v, want %v", got, want)
 	}
 	pollers := m.Pollers()
 	if len(pollers) != 1 || pollers[0].Name() != "identity.nudges" || pollers[0].Interval() != 5*time.Hour {

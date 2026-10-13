@@ -104,6 +104,17 @@ Every user balance stays on Solana. Base, Arbitrum and Ethereum are ways in, not
 
 Each user gets one **EVM deposit wallet**, the same address on every EVM network. It is app-owned: `identity`'s `EnsureEVMDepositWallet` creates it through Privy with the idempotency key `evm-deposit:<user_id>`, our authorization key quorum as owner, and stores it in `user_wallets.evm_privy_wallet_id`, `evm_address` and `evm_created_at` (all three or none). A concurrent second call loses the insert and reads the stored row back. The wallet only ever forwards to the user's own Solana member wallet, so the user never signs anything for it.
 
+### When the EVM wallets are created
+
+Both EVM wallets are created when their owner is, so no request waits on a Privy create:
+
+| Wallet | Created by | On | Ensure |
+| --- | --- | --- | --- |
+| A user's EVM deposit wallet | `identity.evm_wallet` | `user.created` | `EnsureEVMDepositWallet` |
+| A cabal's EVM treasury wallet | `cabal.evm_wallet` | `cabal.created` | `EnsureTreasuryEVMWallet`, idempotency key `treasury-evm:<cabal_id>` |
+
+Each consumer calls its ensure outside the delivery transaction, then records the delivery. A Privy failure returns a retryable code, so the bus redelivers the event, and sign-in or cabal creation neither waits on it nor fails from it. A deleted user, a user with no member wallet, or a process without Privy wired is recorded with its code and acked. The lazy ensures stay as a fallback: `GET /v1/me/deposit-addresses` and the first trade routed to an EVM chain still create a wallet that is missing. Users and cabals created before the consumers existed are filled by `monacoctl ops evm-wallets` ([Deploy staging](../how-to/deploy-staging.md#backfill-evm-wallets)).
+
 Privy's deposit accounts would create this wallet for us, but they need a destination owned 1-of-1 by the user with no authorization key, and our member wallets carry our key as an additional signer ([#4917](https://github.com/Munyon-Canyon/monaco/issues/4917), open question 1). So forwarding uses Privy **wallet automations** instead:
 
 1. One app automation, created once with `CreateAutomation`: trigger, a USDC deposit on Base, Arbitrum or Ethereum; action, swap to USDC on Solana.

@@ -99,6 +99,9 @@ func New(d module.Deps, opts ...Option) *Module {
 	for _, opt := range opts {
 		opt(m)
 	}
+	if m.multichain.depositWallets == nil {
+		m.multichain.depositWallets = m.EVMDepositWallets()
+	}
 	return m
 }
 
@@ -139,15 +142,11 @@ func (m *Module) Mount(r api.Mount) {
 		store = m.deps.Photos
 	}
 	m.ensurePrivy()
-	var deposits adapters.DepositWallets = m.EVMDepositWallets()
-	if m.multichain.depositWallets != nil {
-		deposits = m.multichain.depositWallets
-	}
 	identityapi.Mount(adapters.HTTP{
 		Open: m.openSession(), Reads: m.deps.Pool, Clock: m.deps.Clock,
 		Cards: adapters.NewQueries(m.deps.Pool), Follows: m.follows,
 		Deposits: adapters.DepositAddresses{
-			Members: adapters.NewQueries(m.deps.Pool), EVM: deposits, Fees: m.multichain.depositFees,
+			Members: adapters.NewQueries(m.deps.Pool), EVM: m.multichain.depositWallets, Fees: m.multichain.depositFees,
 			Networks: m.deps.Config.Funding.EVMDepositNetworks,
 		},
 		Onboard: app.NewOnboarding(app.OnboardingDeps{
@@ -217,13 +216,18 @@ func (m *Module) openSession() *app.OpenSessionHandler {
 	})
 }
 
-func (*Module) Consumers() []bus.Consumer {
+func (m *Module) Consumers() []bus.Consumer {
+	evm := adapters.EVMWalletOnSignup{Wallets: m.multichain.depositWallets, UoW: m.deps.UoW}
 	return []bus.Consumer{
 		{
 			Durable: "identity_first_deposit",
 			Handlers: []bus.HandlerSpec{
 				bus.Handle("identity.first_deposit", adapters.FirstDeposit{}.Handle),
 			},
+		},
+		{
+			Durable:  "identity_evm_wallet",
+			Handlers: []bus.HandlerSpec{bus.HandleOwn("identity.evm_wallet", evm.Handle)},
 		},
 	}
 }

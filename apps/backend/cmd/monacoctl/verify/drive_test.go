@@ -61,8 +61,11 @@ func servedIdentityEnv(t *testing.T) Env {
 	t.Cleanup(upstream.Close)
 	cfg := config.Config{
 		Privy: config.Privy{
-			AppID: PrivyAppID, BaseURL: upstream.URL + "/privy", VerificationKey: fakes.PrivyVerificationKey(),
-			AuthorizationKeyID: fakes.PrivyAuthorizationKeyID,
+			AppID:                   PrivyAppID,
+			BaseURL:                 upstream.URL + "/privy",
+			VerificationKey:         fakes.PrivyVerificationKey(),
+			AuthorizationKeyID:      fakes.PrivyAuthorizationKeyID,
+			AuthorizationPrivateKey: fakes.PrivyAuthorizationKeyConfig(),
 		},
 		Timeouts: config.Timeouts{Privy: 10 * time.Second},
 	}
