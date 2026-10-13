@@ -1,6 +1,8 @@
 package adapters
 
 import (
+	"net/http"
+
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -35,7 +37,8 @@ func EVMRPC(d module.Deps) map[chain.Network]*httpclient.Client {
 	rpc := map[chain.Network]*httpclient.Client{}
 	for _, n := range chain.Networks() {
 		if url := cfg.EVM.RPCURL(n); n.IsEVM() && url != "" {
-			rpc[n] = client("evm-rpc-"+string(n), httpclient.WithBaseURL(url), httpclient.WithTimeout(cfg.Timeouts.RPC))
+			rpc[n] = client("evm-rpc-"+string(n), httpclient.WithBaseURL(url), httpclient.WithTimeout(cfg.Timeouts.RPC),
+				httpclient.WithReturned(http.StatusTooManyRequests))
 		}
 	}
 	return rpc
