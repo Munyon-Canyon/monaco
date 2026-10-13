@@ -34,36 +34,25 @@ private struct NewCabalSheetPresenter: ViewModifier {
 struct NewCabalSheet: View {
     let onCreate: () -> Void
 
-    @State private var contentHeight: CGFloat = 0
-
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-                MonacoGroupedList {
-                    Button(action: onCreate) {
-                        MonacoRow(
-                            title: "Start a cabal",
-                            subtitle: "Name it and set the rules",
-                            chevron: true,
-                            isLast: true
-                        ) {
-                            SunkenGlyphMark(systemImage: "plus")
-                        }
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+            MonacoGroupedList {
+                Button(action: onCreate) {
+                    MonacoRow(
+                        title: "Start a cabal",
+                        subtitle: "Name it and set the rules",
+                        chevron: true,
+                        isLast: true
+                    ) {
+                        SunkenGlyphMark(systemImage: "plus")
                     }
-                    .buttonStyle(.monacoRow)
-                    .accessibilityIdentifier("new-cabal-create-row")
                 }
-            }
-            .padding(.bottom, MonacoTheme.Space.xl)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .onGeometryChange(for: CGFloat.self) {
-                $0.size.height
-            } action: {
-                contentHeight = $0
+                .buttonStyle(.monacoRow)
+                .accessibilityIdentifier("new-cabal-create-row")
             }
         }
-        .scrollBounceBehavior(.basedOnSize)
-        .monacoSheet(title: "New cabal")
-        .presentationDetents(contentHeight > 0 ? [.height(contentHeight)] : [.medium])
+        .padding(.bottom, MonacoTheme.Space.xl)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .monacoFittedSheet(title: "New cabal")
     }
 }
