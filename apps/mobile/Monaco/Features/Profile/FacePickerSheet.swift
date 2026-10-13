@@ -15,10 +15,6 @@ struct FacePickerSheet: View {
     let onPickPhoto: (PhotosPickerItem) -> Void
 
     @State private var selection: PhotosPickerItem?
-    /// The sheet is as tall as the grid and the button. A medium detent left a blank third.
-    @State private var contentHeight: CGFloat = 0
-
-    @ScaledMetric(relativeTo: .title) private var titleAllowance: CGFloat = 64
 
     private let columns = Array(
         repeating: GridItem(.flexible(), spacing: MonacoTheme.Space.m),
@@ -26,36 +22,27 @@ struct FacePickerSheet: View {
     )
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
-                Text("Pick an animal, or use a photo.")
-                    .font(MonacoTheme.Typo.body)
-                    .foregroundStyle(MonacoTheme.muted)
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
+            Text("Pick an animal, or use a photo.")
+                .font(MonacoTheme.Typo.body)
+                .foregroundStyle(MonacoTheme.muted)
 
-                LazyVGrid(columns: columns, spacing: MonacoTheme.Space.m) {
-                    ForEach(PixelAnimal.allCases, id: \.self) { animal in
-                        face(animal)
-                    }
+            LazyVGrid(columns: columns, spacing: MonacoTheme.Space.m) {
+                ForEach(PixelAnimal.allCases, id: \.self) { animal in
+                    face(animal)
                 }
+            }
 
-                PhotosPicker(selection: $selection, matching: .images, photoLibrary: .shared()) {
-                    Text("Choose a photo")
-                }
-                .buttonStyle(.monacoSecondary)
-                .accessibilityIdentifier("face-choose-photo")
+            PhotosPicker(selection: $selection, matching: .images, photoLibrary: .shared()) {
+                Text("Choose a photo")
             }
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.bottom, MonacoTheme.Space.xl)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .onGeometryChange(for: CGFloat.self) {
-                $0.size.height
-            } action: {
-                contentHeight = $0
-            }
+            .buttonStyle(.monacoSecondary)
+            .accessibilityIdentifier("face-choose-photo")
         }
-        .scrollBounceBehavior(.basedOnSize)
-        .monacoSheet(title: "Your face")
-        .presentationDetents(contentHeight > 0 ? [.height(contentHeight + titleAllowance)] : [.medium])
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.bottom, MonacoTheme.Space.xl)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .monacoFittedSheet(title: "Your face")
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("face-picker-sheet")
         .onChange(of: selection) { _, item in

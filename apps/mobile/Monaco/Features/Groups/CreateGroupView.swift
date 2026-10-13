@@ -81,7 +81,6 @@ struct CreateGroupView: View {
         .scrollDismissesKeyboard(.interactively)
         .monacoCanvas()
         .navigationTitle(CabalRulesCopy.screenTitle)
-        .navigationBarTitleDisplayMode(.large)
         .safeAreaInset(edge: .bottom) {
             BottomCTA {
                 Button {

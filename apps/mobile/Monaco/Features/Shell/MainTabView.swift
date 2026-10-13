@@ -20,13 +20,7 @@ struct MainTabView: View {
                         }
                         .hardBottomScrollEdge()
                         .analyticsScreen(String(describing: tab))
-                        .navigationDestination(for: AnyAppRoute.self) { route in
-                            route.destination()
-                                .monacoCanvas()
-                                .navigationBarTitleDisplayMode(.inline)
-                                .toolbarBackground(MonacoTheme.canvas, for: .navigationBar)
-                                .toolbarBackground(.visible, for: .navigationBar)
-                        }
+                        .tabRouteDestinations()
                 }
                 .monacoToastCenter(toasts, isEnabled: tab == navigator.selectedTab)
                 .tabItem {
@@ -88,6 +82,18 @@ extension View {
             scrollEdgeEffectStyle(.hard, for: .bottom)
         } else {
             self
+        }
+    }
+}
+
+extension View {
+    func tabRouteDestinations() -> some View {
+        navigationDestination(for: AnyAppRoute.self) { route in
+            route.destination()
+                .monacoCanvas()
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbarBackground(MonacoTheme.canvas, for: .navigationBar)
+                .toolbarBackground(.visible, for: .navigationBar)
         }
     }
 }
