@@ -20,7 +20,6 @@ struct FundCabalView: View {
     var body: some View {
         FundCabalContent(
             state: environment.balance.state,
-            cabalName: cabal?.cabalName,
             amountText: $amountText,
             isSubmitting: funding?.isSubmitting ?? false,
             onSubmit: { Task { await fund() } },
@@ -167,18 +166,6 @@ struct FundCabalForm: Equatable {
         if micros > 0, micros < Self.minimumMicros { return Self.belowMinimum }
         return nil
     }
-
-    /// What funding does, under the pad. Cash out's says the same thing the other way round.
-    static func note(into cabalName: String?) -> String {
-        guard let cabalName, !cabalName.isEmpty else {
-            return "The money leaves your account balance and joins the pot. Your slice grows by the same amount."
-        }
-        return
-            "The money leaves your account balance and joins \(cabalName)'s pot. Your slice grows by the same amount."
-    }
-
-    static let treasuryNote =
-        "Only fund this cabal from here. USDC sent straight to the cabal is returned and pauses its trading."
 }
 
 /// Fund this cabal's layout: the amount as the hero, the balance it comes out of, and a button
@@ -187,7 +174,6 @@ struct FundCabalForm: Equatable {
 /// Pure: what the screen knows comes in, what the member does goes out.
 struct FundCabalContent: View {
     let state: LoadState<AccountBalance>
-    let cabalName: String?
     @Binding var amountText: String
     let isSubmitting: Bool
     let onSubmit: () -> Void
@@ -281,15 +267,12 @@ struct FundCabalContent: View {
                 problem: form.problem,
                 input: .keypad
             ) {
-                VStack(spacing: MonacoTheme.Space.s) {
-                    AmountEntryNote(FundCabalForm.note(into: cabalName))
-                    Text(FundCabalForm.treasuryNote)
-                        .font(MonacoTheme.Typo.caption)
-                        .foregroundStyle(MonacoTheme.muted)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("fund-cabal-treasury-note")
-                }
+                Text(CabalYield.fundNote)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.profit)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("fund-cabal-yield-note")
             }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)

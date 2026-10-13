@@ -67,15 +67,12 @@ enum MoneyFundCabalJourney {
             )
         }
 
-        recorder.step("S1.3", "the notes under the pad") {
-            let note =
-                "The money leaves your account balance and joins \(name)'s pot. Your slice grows by the same amount."
-            XCTAssertTrue(app.staticTexts[note].waitForExistence(timeout: 5), "S1.3: no note naming \(name)")
+        recorder.step("S1.3", "the yield note under the pad") {
+            let note = app.element("fund-cabal-yield-note")
+            XCTAssertTrue(note.waitForExistence(timeout: 5), "S1.3: no yield note")
             XCTAssertEqual(
-                app.element("fund-cabal-treasury-note").label,
-                "Only fund this cabal from here. USDC sent straight to the cabal is returned and pauses its trading.",
-                "S1.3: the treasury note"
-            )
+                note.label, "Your cabal grows its USDC treasury with yield. Cash it holds earns 3.5% APY.",
+                "S1.3: the yield note")
         }
 
         recorder.step("S1.4", "more than the balance") {

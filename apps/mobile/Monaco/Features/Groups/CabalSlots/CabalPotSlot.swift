@@ -74,7 +74,10 @@ struct CabalPotBand: View {
                 .accessibilityIdentifier("cabal-pot-value")
             AllTimeChip(allTime: summary.allTime, allTimeReturn: summary.allTimeReturn)
             if summary.state != .zero {
-                CabalInkCaption("\(summary.invested) in stocks · \(summary.cash) cash", id: "cabal-pot-split")
+                CabalInkCaption(
+                    ["\(summary.invested) in stocks", "\(summary.cash) cash", summary.cashYield].compactMap { $0 }
+                        .joined(separator: " · "),
+                    id: "cabal-pot-split")
             }
         }
     }
