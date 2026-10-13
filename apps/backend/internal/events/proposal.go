@@ -21,6 +21,7 @@ const (
 	TypeProposalExecuted         Type = "proposal.executed"
 	TypeProposalExecutionBlocked Type = "proposal.execution_blocked"
 	TypeProposalReopened         Type = "proposal.reopened"
+	TypeVoteCast                 Type = "vote.cast"
 )
 
 const proposalAggregate = "proposal"
@@ -156,3 +157,18 @@ func (ProposalReopened) Type() Type { return TypeProposalReopened }
 func (ProposalReopened) AggregateType() string { return proposalAggregate }
 
 func (e ProposalReopened) AggregateID() uuid.UUID { return e.ProposalID }
+
+type VoteCast struct {
+	V          int       `json:"v"`
+	ProposalID uuid.UUID `json:"proposal_id"`
+	CabalID    uuid.UUID `json:"cabal_id"`
+	VoterID    uuid.UUID `json:"voter_id"    pii:"true"`
+	Choice     string    `json:"choice"`
+	CastAt     time.Time `json:"cast_at"`
+}
+
+func (VoteCast) Type() Type { return TypeVoteCast }
+
+func (VoteCast) AggregateType() string { return proposalAggregate }
+
+func (e VoteCast) AggregateID() uuid.UUID { return e.ProposalID }

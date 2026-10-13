@@ -1,11 +1,13 @@
 package trading_test
 
 import (
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
@@ -90,5 +92,28 @@ func TestExecuteTrade_aSolanaWinnerJupiterAcceptsKeepsItsListing(t *testing.T) {
 	}
 	if winner, _, ok := e.routeOf(t, swaps[0]); !ok || winner != ondo.UUID() {
 		t.Fatalf("route winner %v %s, want the Ondo listing %s", ok, winner, ondo.UUID())
+	}
+}
+
+type payerlessSigner struct {
+	app.Signer
+	err error
+}
+
+func (p payerlessSigner) FeePayer() (chain.SolanaAddress, error) { return "", p.err }
+
+func TestExecuteTrade_aFeePayerFailureBeforeTheFallbackOrderFailsTheTrade(t *testing.T) {
+	t.Parallel()
+	e := newEngineEnv(t)
+	_, _, cmd := e.ondoThenXStocks(t)
+	cause := errs.New(errs.CodeRPCUnavailable, "relayer.FeePayer")
+	e.signer = payerlessSigner{Signer: e.signer, err: cause}
+
+	err := e.handle(t, e.delivery(t, cmd), cmd)
+	if !errors.Is(err, cause) {
+		t.Fatalf("handle = %v, want the fee payer error %v", err, cause)
+	}
+	if n := len(e.swapsOf(t, cmd.ProposalID)); n != 0 {
+		t.Fatalf("%d swaps, want none", n)
 	}
 }
