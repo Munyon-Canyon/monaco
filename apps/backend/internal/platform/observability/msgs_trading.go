@@ -20,6 +20,11 @@ var TradingSwapForceResolved = Msg{
 	Required: []string{"swap_id", "signature", "from", "to", "reason"},
 }
 
+var TradingRouteFellBack = Msg{
+	Name:     "trading.route.fell_back",
+	Required: []string{"proposal_id", "from_listing", "to_listing"},
+}
+
 var TradingEngineBlocked = Msg{
 	Name:     "trading.engine.blocked",
 	Required: []string{"proposal_id", "cabal_id", "code", "have", "need"},

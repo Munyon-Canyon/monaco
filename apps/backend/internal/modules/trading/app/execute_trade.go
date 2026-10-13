@@ -154,7 +154,6 @@ type tradeCheck func(context.Context, ExecuteTrade, *SwapRequest) (refusal, erro
 func (h *ExecuteTradeHandler) check(
 	ctx context.Context, cmd ExecuteTrade,
 ) (SwapRequest, multichain.Listing, refusal, error) {
-	untradable := refusal{code: errs.CodeAssetUntradable}
 	cmd, err := h.reroute(ctx, cmd)
 	if code := errs.CodeOf(err); pinRefused(code) {
 		return SwapRequest{}, multichain.Listing{}, refusal{code: code}, nil
@@ -162,6 +161,23 @@ func (h *ExecuteTradeHandler) check(
 	if err != nil {
 		return SwapRequest{}, multichain.Listing{}, refusal{}, err
 	}
+	for {
+		req, winner, refused, err := h.prepare(ctx, cmd)
+		if err != nil || refused.refused() {
+			return req, winner, refused, err
+		}
+		next, fell, err := h.fallback(ctx, cmd, req, winner)
+		if err != nil || !fell {
+			return req, winner, refusal{}, err
+		}
+		cmd = next
+	}
+}
+
+func (h *ExecuteTradeHandler) prepare(
+	ctx context.Context, cmd ExecuteTrade,
+) (SwapRequest, multichain.Listing, refusal, error) {
+	untradable := refusal{code: errs.CodeAssetUntradable}
 	winner, err := h.winner(ctx, cmd)
 	switch code := errs.CodeOf(err); {
 	case code == errs.CodeAssetNotFound || code == errs.CodeAssetUntradable:
