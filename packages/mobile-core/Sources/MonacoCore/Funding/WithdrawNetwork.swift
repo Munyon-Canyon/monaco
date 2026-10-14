@@ -9,7 +9,7 @@ public enum WithdrawAddressProblem: Error, Equatable, Sendable {
 }
 
 public enum WithdrawNetwork: String, CaseIterable, Identifiable, Sendable {
-    case solana, base, arbitrum, ethereum
+    case solana, base, arbitrum, ethereum, monad
 
     public var id: String { rawValue }
 
@@ -19,6 +19,7 @@ public enum WithdrawNetwork: String, CaseIterable, Identifiable, Sendable {
         case .base: "Base"
         case .arbitrum: "Arbitrum"
         case .ethereum: "Ethereum"
+        case .monad: "Monad"
         }
     }
 

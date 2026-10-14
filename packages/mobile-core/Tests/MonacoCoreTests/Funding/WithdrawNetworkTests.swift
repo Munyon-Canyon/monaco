@@ -60,7 +60,7 @@ final class WithdrawNetworkTests: XCTestCase {
     }
 
     func testCopyNamesTheNetworkAndMarksAnEVMEstimateAsApproximate() {
-        XCTAssertEqual(WithdrawNetwork.allCases.map(\.name), ["Solana", "Base", "Arbitrum", "Ethereum"])
+        XCTAssertEqual(WithdrawNetwork.allCases.map(\.name), ["Solana", "Base", "Arbitrum", "Ethereum", "Monad"])
         XCTAssertEqual(WithdrawNetwork.base.placeholder, "USDC address on Base")
         XCTAssertEqual(WithdrawNetwork.base.caveat, "A Base address that accepts USDC. Transfers can't be undone.")
         XCTAssertEqual(

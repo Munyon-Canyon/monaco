@@ -18,6 +18,7 @@ public struct ProposeChainOption: Identifiable, Equatable, Sendable {
     public let figure: String
     public let network: Components.Schemas.Network?
     public let isBest: Bool
+    public var isAvailable = true
 
     public var id: String { chain.network?.rawValue ?? "best" }
 
@@ -34,13 +35,20 @@ public struct ProposeChainOption: Identifiable, Equatable, Sendable {
         }
         let best = ProposeChainOption(
             chain: .best, title: "Best price", figure: figure(winner), network: winner.network, isBest: true)
-        return [best]
-            + networks.compactMap { network in
-                bestPrice.venue(on: network).map {
-                    ProposeChainOption(
-                        chain: .network(network), title: BestPrice.chainName(network), figure: figure($0),
-                        network: network, isBest: false)
-                }
+        let chains = networks.compactMap { network in
+            bestPrice.venue(on: network).map {
+                ProposeChainOption(
+                    chain: .network(network), title: BestPrice.chainName(network), figure: figure($0),
+                    network: network, isBest: false)
             }
+        }
+        let demo =
+            bestPrice.venue(on: .monad) == nil
+            ? [
+                ProposeChainOption(
+                    chain: .network(.monad), title: BestPrice.chainName(.monad), figure: "No price yet",
+                    network: .monad, isBest: false, isAvailable: false)
+            ] : []
+        return [best] + chains + demo
     }
 }
