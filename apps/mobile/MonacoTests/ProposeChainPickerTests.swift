@@ -18,25 +18,28 @@ struct ProposeChainPickerTests {
         #expect(
             rows.map(\.id) == [
                 "propose-chain-best", "propose-chain-base", "propose-chain-solana", "propose-chain-ethereum",
+                "propose-chain-monad",
             ])
         #expect(
             rows.map { ChainMark.imageName(for: $0.network) }
-                == ["BaseMark", "BaseMark", "SolanaMark", "EthereumMark"])
+                == ["BaseMark", "BaseMark", "SolanaMark", "EthereumMark", "MonadMark"])
     }
 
     @Test func onlyTheChosenRowIsChecked() throws {
         let rows = ProposeChainSheet.rows(try options(), selected: .network(.solana))
 
-        #expect(rows.map(\.isSelected) == [false, false, true, false])
+        #expect(rows.map(\.isSelected) == [false, false, true, false, false])
         #expect(
-            ProposeChainSheet.rows(try options(), selected: .best).map(\.isSelected) == [true, false, false, false])
+            ProposeChainSheet.rows(try options(), selected: .best).map(\.isSelected) == [
+                true, false, false, false, false,
+            ])
     }
 
     @Test func rowCopySaysCabalAndShowsNoAddressOrIssuerName() throws {
         let rows = ProposeChainSheet.rows(try options(), selected: .best)
 
         #expect(rows.first?.caption == "The cabal buys wherever the price is best when the trade runs")
-        #expect(rows.last?.caption == "The cabal buys only on Ethereum")
+        #expect(rows.dropLast().last?.caption == "The cabal buys only on Ethereum")
         for row in rows {
             for text in [row.title, row.figure, row.caption] {
                 #expect(!text.localizedCaseInsensitiveContains("xstock"))

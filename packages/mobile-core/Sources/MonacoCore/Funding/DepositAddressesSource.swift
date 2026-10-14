@@ -28,6 +28,7 @@ public struct DepositNetwork: Equatable, Hashable, Sendable, Identifiable {
         case "arbitrum": "Arbitrum"
         case "ethereum": "Ethereum"
         case "robinhood": "Robinhood Chain"
+        case "monad": "Monad"
         default: id.prefix(1).uppercased() + id.dropFirst()
         }
     }
@@ -46,7 +47,14 @@ public struct DepositNetwork: Equatable, Hashable, Sendable, Identifiable {
             let fee = item.estimatedFeeMicros.flatMap { try? AccountBalance.micros($0) }
             return DepositNetwork(id: id, address: address, estimatedFeeMicros: fee)
         }
-        return networks.filter(\.isSolana) + networks.filter { !$0.isSolana }
+        var ordered = networks.filter(\.isSolana) + networks.filter { !$0.isSolana }
+        if !ordered.contains(where: { $0.id == DemoMonad.id }),
+            let evm = ordered.first(where: \.isEVM)
+        {
+            ordered.append(
+                DepositNetwork(id: DemoMonad.id, address: evm.address, estimatedFeeMicros: evm.estimatedFeeMicros))
+        }
+        return ordered
     }
 
     private struct Wire: Decodable {

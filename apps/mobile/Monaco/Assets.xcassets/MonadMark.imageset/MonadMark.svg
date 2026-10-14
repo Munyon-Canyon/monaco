@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <mask id="hole">
+    <rect width="64" height="64" fill="#000"/>
+    <rect x="9" y="9" width="46" height="46" rx="9" fill="#fff" transform="rotate(45 32 32)"/>
+    <rect x="22" y="22" width="20" height="20" rx="5" fill="#000" transform="rotate(45 32 32)"/>
+  </mask>
+  <rect width="64" height="64" fill="#836EF9" mask="url(#hole)"/>
+</svg>

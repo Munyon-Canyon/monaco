@@ -7,12 +7,13 @@ final class ProposeChainChoiceTests: XCTestCase {
     func testOptionsLeadWithBestPriceThenEachChainsBestListing() {
         let options = ProposeChainOption.options(Self.bestPrice(Self.fourVenues))
 
-        XCTAssertEqual(options.map(\.title), ["Best price", "Base", "Solana", "Ethereum"])
+        XCTAssertEqual(options.map(\.title), ["Best price", "Base", "Solana", "Ethereum", "Monad"])
         XCTAssertEqual(
-            options.map(\.chain), [.best, .network(.base), .network(.solana), .network(.ethereum)])
-        XCTAssertEqual(options.map(\.figure), ["0.4012 shares", "0.4012 shares", "0.4000 shares", "0.3980 shares"])
-        XCTAssertEqual(options.map(\.network), [.base, .base, .solana, .ethereum])
-        XCTAssertEqual(options.map(\.isBest), [true, false, false, false])
+            options.map(\.chain), [.best, .network(.base), .network(.solana), .network(.ethereum), .network(.monad)])
+        XCTAssertEqual(
+            options.map(\.figure), ["0.4012 shares", "0.4012 shares", "0.4000 shares", "0.3980 shares", "No price yet"])
+        XCTAssertEqual(options.map(\.network), [.base, .base, .solana, .ethereum, .monad])
+        XCTAssertEqual(options.map(\.isBest), [true, false, false, false, false])
     }
 
     func testNoOptionsForASellNoComparisonOrOneChain() {

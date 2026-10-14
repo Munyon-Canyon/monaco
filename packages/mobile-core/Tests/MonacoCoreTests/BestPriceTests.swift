@@ -113,12 +113,15 @@ final class BestPriceTests: XCTestCase {
         XCTAssertEqual(best.winner.id, "a")
         XCTAssertEqual(best.headline, "Best price across 1 venue")
         XCTAssertNil(best.advantage)
-        XCTAssertEqual(best.unavailable.map(\.id), ["b", "c", "d", "e"])
-        XCTAssertEqual(best.unavailable.map(\.name), ["Base", "Ethereum", "Arbitrum", "Robinhood Chain"])
-        XCTAssertEqual(best.unavailable.map(\.network), [.base, .ethereum, .arbitrum, .robinhood])
+        XCTAssertEqual(best.unavailable.map(\.id), ["b", "c", "d", "e", "demo-monad"])
+        XCTAssertEqual(best.unavailable.map(\.name), ["Base", "Ethereum", "Arbitrum", "Robinhood Chain", "Monad"])
+        XCTAssertEqual(best.unavailable.map(\.network), [.base, .ethereum, .arbitrum, .robinhood, .monad])
         XCTAssertEqual(
             best.unavailable.map(\.reason),
-            ["Unavailable right now", "No route", "Unavailable right now", "Unavailable: not set up on this chain yet"])
+            [
+                "Unavailable right now", "No route", "Unavailable right now",
+                "Unavailable: not set up on this chain yet", "No price yet",
+            ])
     }
 
     func testEachChainIsOneRowWithItsBestQuote() throws {
@@ -165,8 +168,8 @@ final class BestPriceTests: XCTestCase {
         let best = try XCTUnwrap(BestPrice(compared, isSell: false))
 
         XCTAssertEqual(best.venues.map(\.id), ["a"])
-        XCTAssertEqual(best.unavailable.map(\.id), ["c"])
-        XCTAssertEqual(best.unavailable.map(\.name), ["Base"])
+        XCTAssertEqual(best.unavailable.map(\.id), ["c", "demo-monad"])
+        XCTAssertEqual(best.unavailable.map(\.name), ["Base", "Monad"])
     }
 
     func testEveryChainIsLabelledByItsNameAlone() throws {
@@ -176,7 +179,7 @@ final class BestPriceTests: XCTestCase {
             return try XCTUnwrap(BestPrice(compared, isSell: false)).winner.name
         }
 
-        XCTAssertEqual(labels, ["Solana", "Base", "Arbitrum", "Ethereum", "Robinhood Chain"])
+        XCTAssertEqual(labels, ["Solana", "Base", "Arbitrum", "Ethereum", "Robinhood Chain", "Monad"])
     }
 
     func testEveryUnavailableReasonHasText() {

@@ -41,12 +41,18 @@ public struct BestPrice: Equatable, Sendable {
         }
         self.venues = venues
         var networks = Set(venues.map(\.network))
-        unavailable = comparison.unavailable.compactMap { venue -> UnavailableVenue? in
+        var unavailable = comparison.unavailable.compactMap { venue -> UnavailableVenue? in
             guard networks.insert(venue.network).inserted else { return nil }
             return UnavailableVenue(
                 id: venue.listingId, name: Self.chainName(venue.network), network: venue.network,
                 reason: Self.reasonText(venue.reason, detail: venue.reasonDetail))
         }
+        if !isSell, networks.insert(.monad).inserted {
+            unavailable.append(
+                UnavailableVenue(
+                    id: "demo-monad", name: Self.chainName(.monad), network: .monad, reason: "No price yet"))
+        }
+        self.unavailable = unavailable
         self.isSell = isSell
     }
 
@@ -130,6 +136,7 @@ public struct BestPrice: Equatable, Sendable {
         case .arbitrum: "Arbitrum"
         case .ethereum: "Ethereum"
         case .robinhood: "Robinhood Chain"
+        case .monad: "Monad"
         }
     }
 }
