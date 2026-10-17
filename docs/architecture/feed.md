@@ -73,7 +73,7 @@ All through the `feed` consumer on the event bus. Each source module appends its
 - **Member joined** → `cabal.member_joined` (flow 3) → insert `member_joined` item.
 - **News** (deferred) → an ingest job pulls from a provider and inserts items tagged by `asset_id`.
 
-The RFC also routes `cabal.member_left`, `cabal.funded`, `cashout.*`, agent lifecycle events and `user.profile_updated` to the feed (flows 4, 7, 14, 16, 23). None of them creates an item. Profile and cabal-name changes refresh the snapshots in `title`, `payload` and `search`; the rest keep the viewer's cabal list current for `scope=mine`.
+The RFC also routes `cabal.member_left`, `cabal.funded`, `cashout.*` and `user.profile_updated` to the feed (flows 4, 7, 14, 23). None of them creates an item. Profile and cabal-name changes refresh the snapshots in `title`, `payload` and `search`; the rest keep the viewer's cabal list current for `scope=mine`.
 
 ## Reading the feed
 

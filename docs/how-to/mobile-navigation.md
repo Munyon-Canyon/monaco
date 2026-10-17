@@ -205,7 +205,6 @@ struct CabalScreen: View {
 | | `CabalActionsSlot` | #2134 |
 | | `CabalProposalsSlot` | #612 |
 | | `CabalHoldingsSlot` | #2137 |
-| | `CabalAgentSlot` | #691 |
 | | `CabalMemberBoardSlot` | #699 |
 | | `CabalActivitySlot` | #654 |
 | `CabalScreen` details sheet, "Cabal details" (toolbar `info.circle` button, hidden while no details slot is live) | `CabalInviteMemberSlot` | #696 |
@@ -242,7 +241,6 @@ exists, are declared ahead of time so an opener never waits on the screen's buil
 | `ChatRoute(cabalID:)` | `Features/Groups/ChatRoute.swift` | #676 | #2134 |
 | `SettingsRoute()` | `Features/Settings/SettingsRoute.swift` | #2139 | #2139 |
 | `AccountActivityRoute()` | `Features/Settings/AccountActivityRoute.swift` | #2138 | #2139 |
-| `AgentRoute(cabalID:)` | `Features/Groups/AgentRoute.swift` | #691 | #691 |
 | `ProposeFromAssetRoute(symbol:kind:)` | `Features/Proposals/ProposeFromAssetRoute.swift` | #613 | #577 |
 
 Ids are `String`s: the generated types these screens read do not exist yet.

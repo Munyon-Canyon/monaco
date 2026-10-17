@@ -7,7 +7,7 @@ This page is what stays true through the rewrite: the parts, the outside service
 
 ## In one paragraph
 
-An iOS app talks to one Go API over HTTP. The API keeps the books in Postgres (members, share units, votes, trades) and keeps the money on Solana mainnet, in wallets that Privy holds the keys for. Every member has one Privy wallet, and every cabal has one Privy treasury wallet. When a vote passes or an agent sends a valid trade, the API swaps the treasury's USDC for a tokenized stock on Jupiter, and Privy signs for the treasury. An app-owned "relayer" wallet pays every Solana fee, so users never need SOL. There is no custom on-chain program: Solana holds the assets, and Postgres holds who owns what share of them.
+An iOS app talks to one Go API over HTTP. The API keeps the books in Postgres (members, share units, votes, trades) and keeps the money on Solana mainnet, in wallets that Privy holds the keys for. Every member has one Privy wallet, and every cabal has one Privy treasury wallet. When a vote passes, the API swaps the treasury's USDC for a tokenized stock on Jupiter, and Privy signs for the treasury. An app-owned "relayer" wallet pays every Solana fee, so users never need SOL. There is no custom on-chain program: Solana holds the assets, and Postgres holds who owns what share of them.
 
 Two rules hold everywhere:
 
@@ -44,7 +44,6 @@ Every third party Monaco depends on, what it does, and what happens without it.
 | **Yahoo Finance** | Chart history for the underlying stock (the default chart source). | `CHART_SOURCE=yahoo` (default) or `jupiter` | No |
 | **Definitive Flash** | Alternative swap venue. Off by default. | `SWAP_PROVIDER=flash`, `FLASH_API_KEY` | No |
 | **Supabase Storage** | Stores profile photos and cabal pictures. | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | No. Photo upload is off without it. |
-| **ClawPump** | Runs trading agents. Monaco never talks to it; ClawPump's agent calls the Monaco API. | `PUBLIC_API_BASE_URL` (the URL agents are told to call) | No |
 | **Sentry** | Error reports for panics and internal errors. | `SENTRY_DSN` | No |
 
 The full env list with comments is in `.env.example`. The rewrite adds Synadia Cloud for NATS and Grafana Cloud for traces, metrics, logs, and alerts. See [Deploy and observability](architecture/backend-platform.md#deploy-and-observability).
@@ -63,7 +62,7 @@ Four kinds of wallet appear in this repo. Only the first three are part of the p
 
 ## Flows
 
-Each flow below is the path one user action takes. The same rules apply whether a person or an agent starts it. The full list of flows, with their events and outcomes, is in [backend-platform.md](architecture/backend-platform.md#flows).
+Each flow below is the path one user action takes. The full list of flows, with their events and outcomes, is in [backend-platform.md](architecture/backend-platform.md#flows).
 
 ### Sign in
 
@@ -97,11 +96,7 @@ Shares are credited only after the transfer confirms, and only once per transact
 - A buy is refused up front if Jupiter cannot route it, or if it is bigger than the whole pot.
 - A proposal passes by majority or unanimously (the cabal's rule), or dies at its expiry.
 - The stock tokens land in the treasury. A failed swap can be retried.
-- Sells work the same way. Proposals can also add, pause, resume or remove an agent.
-
-### Agent trade
-
-A cabal votes an agent in with a USDC budget and gets an API key. The agent never holds money or keys to the treasury. Its trades land in the treasury next to the members' trades and show in the cabal's activity feed. Over-budget trades are refused, never partly filled. Details: [agent-trading.md](agent-trading.md). Setup: [how-to/connect-an-agent.md](how-to/connect-an-agent.md).
+- Sells work the same way.
 
 ### Cash out and withdraw
 
@@ -133,7 +128,6 @@ What the design guarantees:
 | Money is never credited or paid twice | Every transfer's signature is stored before it is broadcast, so a crash or a retry finishes the first transaction instead of sending a second one. |
 | A retried request never repeats a trade | Every mutating call takes an `Idempotency-Key` header. The server stores the response and replays it. Sign-in (`POST /v1/auth/session`) is the one exception, because finding or creating the user is already idempotent. |
 | A new member cannot take existing gains | Shares are priced at the current pot value. Rounding always favours the pot. |
-| An agent cannot overspend | Its budget is checked and reserved before each swap. It can only sell what it bought. |
 | Non-members see nothing | Every cabal route checks membership ([multi-user-verification.md](multi-user-verification.md)). |
 | The phone cannot move money on its own | All signing happens on the server through Privy. |
 

@@ -37,10 +37,6 @@ One take per row, shot in this order because each needs the state the one before
 | 14 | `chat-jordan` | Jordan | Talk it over | "In. Told you" |
 | 15 | `chat-maya` | Maya | | "We own Google now" |
 | 16 | `pre-ipo` | Jordan | Pre-IPO too | Pre-IPO section, SpaceX, the reference price and premium, the issuers |
-| 17 | `bot` | Maya | Add a trading bot | Propose, Add a trading bot, $200, "Scout", Send |
-| 18 | `vote-bot` | Jordan | | Yes, Passed |
-| 19 | `bot-key` | Jordan | Connect it to ClawPump | The bot's screen, the key card, Copy connect instructions |
-| 20 | `bot-activity` | Jordan | Watch it trade | Activity: Scout bought $40 of Nvidia (`scripts/demo/agent-intent.sh buy NVDAx 40`) |
 | 21 | `profit` | Maya | Cash out any time | Cash out, 25%, the pot and slice shrink, the balance grows |
 | 22 | `board-outro` | Maya | See who's up | Cabals tab, Home top investors with the three faces |
 | 23 | outro card | | trymonaco.xyz | |

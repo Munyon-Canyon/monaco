@@ -61,7 +61,7 @@ Event payloads are Go types in the `events` package, one file per aggregate, wit
 | `aggregate_type`, `aggregate_id` | `proposal` / `<uuid>`, `cabal_txn` / `<uuid>`, `user` / `<uuid>`, … |
 | `type` | `proposal.passed`, `trade.confirmed`, … Also the NATS subject suffix. |
 | `payload` | JSONB. The facts a consumer needs without a lookup: ids, amounts, before/after status. Every payload carries a `v` field. A handler accepts the current and the previous version (default 2026-09-27). Money events carry every amount the ledger holds, so `monacoctl replay --verify` can check the ledger ([data-model.md](data-model.md#double-entry-ledgers)). |
-| `actor_type`, `actor_id` | `user`, `admin`, `system`, `agent`. For `user`, `admin` and `agent` the id is that actor's id. For `system` it is `poller.<name>` on an event a poller appended, for example `poller.market.catalog`. |
+| `actor_type`, `actor_id` | `user`, `admin`, `system`. For `user` and `admin` the id is that actor's id. For `system` it is `poller.<name>` on an event a poller appended, for example `poller.market.catalog`. |
 | `trace_parent` | The W3C `traceparent` of the request that wrote the row, or null when tracing is off. The relay publishes after the request is gone, so the trace reaches the consumer only if the row stores it ([context rule 9](backend-platform.md#context-rules)). |
 | `created_at` | Commit order is not guaranteed by this; see [Ordering](#ordering). |
 | `published_at` | Null until the relay gets a JetStream ack. Partial index `WHERE published_at IS NULL`. |
@@ -176,7 +176,7 @@ Rows added to the flow registry on 2026-09-27 (defaults):
 
 A new `analytics` module exports to PostHog. It consumes flows 7, 10, 11, 14, 20 and 21 in addition to those that already listed analytics (default 2026-09-27).
 
-The trade engine is a consumer like any other. A passed proposal no longer writes a row addressed to it. The tally emits `proposal.passed`, and the trade engine picks it up. Agent intents emit `agent.intent_created` and reach the same engine ([Flows](backend-platform.md#flows), row 17). The 15 s proposal safety-net poller is dropped (default 2026-09-27). A stuck `proposal.passed` ends in `DEADLETTER`, and `monacoctl deadletter retry` replays it.
+The trade engine is a consumer like any other. A passed proposal no longer writes a row addressed to it. The tally emits `proposal.passed`, and the trade engine picks it up. The 15 s proposal safety-net poller is dropped (default 2026-09-27). A stuck `proposal.passed` ends in `DEADLETTER`, and `monacoctl deadletter retry` replays it.
 
 ### Ordering
 

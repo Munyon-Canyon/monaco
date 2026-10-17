@@ -54,7 +54,6 @@ apps/backend/
 │   │   ├── treasury/              ledgers (cabal_txns, user_txns), fund, cash out, positions
 │   │   ├── funding/               deposits poller, withdrawals, onramp sessions, bounce, cabal pauses
 │   │   ├── market/                assets catalog, price poller, price history, provider strategies
-│   │   ├── agents/                agent keys, intents, budget enforcement
 │   │   ├── social/                follows, feed, comments, chat bridge
 │   │   ├── ranking/               valuation snapshots, leaderboards
 │   │   ├── notify/                notifications, device tokens, APNs
@@ -121,7 +120,7 @@ Each table has one module that writes it. Other modules read it through that mod
 | Pattern | Where | Shape |
 | --- | --- | --- |
 | **Unit of Work** | Every write that emits an event. Required by the events-as-outbox rule. | `uow.Do(ctx, func(ctx context.Context, tx Tx) error)`. `Tx` exposes the module's repos and `Events.Append`. Commit wakes the relay in the same process. No `Begin/Commit` anywhere else (lint: `forbidigo` on `pgx.Tx.Commit` outside `platform/db`). |
-| **Command** | Every user or agent intent: `ProposeTrade`, `CastVote`, `FundCabal`, `CashOut`, `Withdraw`, `SubmitAgentIntent`, `CreateCabal`. | Typed struct with `IdempotencyKey`, one `Handle(ctx, cmd) (Result, error)` per command. HTTP handler parses → builds command → calls handler. Same command can come from HTTP, an agent key, or `monacoctl`. |
+| **Command** | Every user intent: `ProposeTrade`, `CastVote`, `FundCabal`, `CashOut`, `Withdraw`, `CreateCabal`. | Typed struct with `IdempotencyKey`, one `Handle(ctx, cmd) (Result, error)` per command. HTTP handler parses → builds command → calls handler. Same command can come from HTTP or `monacoctl`. |
 | **Query (CQRS-lite)** | Every screen read. | Reads hit projections (`cabal_positions`, `leaderboard_entries`, feed) directly via sqlc, bypassing domain. Writes go through commands. No shared "service" object doing both. |
 | **Strategy** | Asset issuers (xStocks, Tessera, PreStocks) and swap venue (Jupiter today). | `type AssetProvider interface { Catalog(ctx); Quote(ctx, Asset, Micros) (Quote, error) }`. Best-price buy runs every provider that lists the asset (fan-out, below) and picks the min. `Venue` interface for execution. |
 | **Registry (creational)** | Providers keyed by `Issuer`; consumers keyed by durable name; handlers keyed by handler name; events keyed by subject. | Built once in `cmd/*/main.go`. Duplicate key panics at boot. Tests assert every `events` type has at least one registered subject. |
@@ -140,7 +139,7 @@ Patterns deliberately left out: abstract factory, builder for domain objects, ge
 3. `context.Background()` / `TODO()` only in `main`, tests and `platform/bus` consumer roots (`forbidigo`).
 4. Every outbound call gets a deadline at the adapter: RPC 5 s, Privy 10 s, Jupiter quote 5 s, `/execute` 2 min. Set in config, not literals.
 5. HTTP request context dies with the client. Work that must finish after the response (nothing, ideally; the event does it) uses `context.WithoutCancel(ctx)` plus its own timeout, never `Background`. A request that has claimed its `Idempotency-Key` is the exception: the `Idempotency` middleware runs its handler on `context.WithoutCancel`, so a hang-up cannot cancel it and the answer it stores and replays is the handler's own, never a 499. Only the outbound deadlines of rule 4 bound it.
-6. Values in context are limited to request-scoped metadata: trace span, actor (`user`/`agent`/`admin`/`system`), request id. Typed unexported keys. Never dependencies, never optional parameters.
+6. Values in context are limited to request-scoped metadata: trace span, actor (`user`/`admin`/`system`), request id. Typed unexported keys. Never dependencies, never optional parameters.
 7. Cancellation propagates into every goroutine. Every `select` that sends or receives also selects `<-ctx.Done()`.
 8. Use `context.WithCancelCause` / `context.Cause` so logs say why work stopped.
 9. Trace context crosses NATS in message headers (`otel` propagator on publish and in `bus.Dispatch`).
@@ -557,7 +556,7 @@ Lint that makes the shared-state leak a compile-time failure:
 
 ## Flows
 
-Each flow is a command, the events it emits, the consumers that react, and every outcome it can end in. The table below is the target state of the rewrite, not the current code. Most of rows 1 to 17 existed in the deleted legacy backend in some form; 18 to 28 are partly new. Nothing here is "future reference": every row becomes a test before its module's rollout step closes.
+Each flow is a command, the events it emits, the consumers that react, and every outcome it can end in. The table below is the target state of the rewrite, not the current code. Most of rows 1 to 15 existed in the deleted legacy backend in some form; 18 to 28 are partly new. Nothing here is "future reference": every row becomes a test before its module's rollout step closes.
 
 ### The flow files are the source of truth
 
@@ -625,8 +624,6 @@ Adding a flow is one row plus the tests it names. Deleting a flow deletes the ro
 | 13 | Withdraw / void proposal | `WithdrawProposal`, admin `VoidProposal` | `proposal.withdrawn`, `.voided` | feed |
 | 14 | Cash out | `CashOut` from `POST /v1/cabals/{id}/cashouts` → burn shares → sell if short → pay USDC to member wallet; the start publishes the user cash-out and cabal activity hints after commit | `cashout.started`, `cashout.completed` / `.partial` / `.failed` | ranking (each one triggers a valuation run), cabal activity, feed, analytics |
 | 15 | Withdraw to address | `Withdraw` | `withdrawal.submitted`, `.confirmed`, `.failed` | treasury (`user_txns`), analytics |
-| 16 | Agent lifecycle | Proposal kinds add / pause / resume / remove agent | `agent.enabled`, `.paused`, `.removed`, `agent.key_revealed` | governance (marks the agent proposal executed on `agent.enabled` / `.paused` / `.removed`), agents, feed |
-| 17 | Agent trade | `SubmitAgentIntent` (key auth, budget check at submit and again at execution) | `agent.intent_created` → same engine as 11 | trading, same as 11 |
 | 18 | Prices | One market poller, every 120 s (fan-out over providers), writes `price_points` | `price.tick` (core NATS only, one batched message per tick, not stored as event); `asset.price_moved`, appended by the same poller (there is no second poller) | `price.tick`: ranking, live SSE. `asset.price_moved`: feed |
 | 19 | Valuation + leaderboards | Every 2 minutes, and on `trade.confirmed`, `cabal.funded`, `cashout.completed` | `ranking.snapshot_written` | live SSE |
 | 20 | Follow / unfollow | `Follow`, `Unfollow` | `follow.created`, `.removed` | notify, analytics |
@@ -979,7 +976,7 @@ The PR's Proof section pastes the `monacoctl agents check` output and says that 
 2. Events + relay + `bus.Dispatch` with the bus test suite green on embedded NATS.
 3. Identity, cabal, funding (deposits), treasury (fund, shares). E2E flows 1–7.
 4. Governance + trading. Flows 8–13, with crash-point tests. Flow 8 lands here because the pause it writes is what trading checks.
-5. Cash out, withdraw, agents. Flows 14–17.
+5. Cash out, withdraw. Flows 14 and 15.
 6. Market, ranking, social, notify, referrals, admin.
 7. Cut iOS over in one release behind the generated client. The old backend was already deleted in step 1 (M7), so the cutover deletes nothing. The new backend starts on an empty database. Nothing is backfilled from the old backend and nothing syncs between them. A returning user signs in and gets their existing Privy wallet back; every other row starts fresh. Funds left in the old treasuries are test funds only. They are wiped at cutover: swept to an ops wallet or written off. Members are not cashed out.
 
@@ -1001,6 +998,7 @@ The PR's Proof section pastes the `monacoctl agents check` output and says that 
 - **Migrations use atlas**, versioned SQL files under `migrations/` named `YYYYMMDDHHMMSS_name.sql`, `atlas migrate lint` in CI (a rebase that brings in another branch's migration regenerates `atlas.sum` with `atlas migrate hash`), `atlas migrate apply` in the deploy's pre-deploy step. The pinned build is atlas community (`apps/backend/.atlas-version`), because from v0.38 the official build requires a login for `migrate lint`. `scripts/install-atlas.sh` (run by `just install`) puts it at the repo's gitignored `.bin/atlas`. `monacoctl migrate apply|status|lint` finds the `apps/backend` module from the working directory or its own executable, runs that exact path there, never the `atlas` first on `PATH`, and refuses to run when `atlas version` is not the pinned community build. `just migrate db` runs it against `.env.local`. Nothing migrates at boot; a binary that finds a schema behind its expectation fails boot with `db_schema_behind` and logs `have`, `want` and the hint `run: just migrate db`.
 - **`cabal` everywhere**: Go types, tables, event subjects, and the new HTTP routes (`/v1/cabals/{id}`). The old rule "API routes and types stay `groups`" was for the backend being replaced; it ends when the iOS app cuts over to the generated client (Rollout step 7), which renames the routes on both sides in the same release. The legacy `/v1/groups` routes went with the old backend in M7.
 - **The legacy backend is deleted in M7**, at the start of Rollout step 1, not at the iOS cutover. Every later ticket builds on an empty module instead of working around the old code. Accepted consequence: the iOS app has no working backend, local or deployed, until the domain milestone rebuilds its routes; mobile UI work uses sample data or the fakes server.
+- **Cabals have no trading agents.** The agents module, its tables and events, and flows 16 and 17 were removed (#5490). Every swap comes from a passed proposal or a cash out.
 - **NATS is Synadia Cloud**, free plan first. See [NATS hosting and budget](#nats-hosting-and-budget).
 - **JSON is snake_case.** API request and response fields and event payload fields are snake_case. Go and Swift identifiers follow their own language's conventions; the generated clients map between them.
 

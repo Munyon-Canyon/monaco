@@ -259,7 +259,7 @@ sequenceDiagram
   API-->>Agent: fill
 ```
 
-The agent never holds money or keys to the treasury. Its trades land in the treasury next to the members' trades and show in the cabal's activity feed. Over-budget trades are refused, never partly filled. Details: [agent-trading.md](../agent-trading.md). Setup: [how-to/connect-an-agent.md](../how-to/connect-an-agent.md).
+The agent never holds money or keys to the treasury. Its trades land in the treasury next to the members' trades and show in the cabal's activity feed. Over-budget trades are refused, never partly filled.
 
 ### Cash out and withdraw
 

@@ -102,7 +102,7 @@ Header: X-Monaco-Agent-Key
 
 The reference agent is [`agents/momentum-bot`](https://github.com/lognorman20/monaco/tree/242c2609/agents/momentum-bot): standard-library Go,
 one readable momentum rule, dry run by default. How to run it:
-[`docs/how-to/connect-an-agent.md`](../../how-to/connect-an-agent.md).
+`docs/how-to/connect-an-agent.md` (deleted in #5490).
 
 ### Safety model
 

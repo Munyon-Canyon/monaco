@@ -63,6 +63,5 @@ The rows come from SQL because no route writes `cabal_activity` without a real s
 ## Not covered
 
 - The amber "Pending" status. A pending row turns confirmed or failed on its own, so a seeded one is not a stable state to read.
-- "Scout · Bought Nvidia", an agent's trade. Agents have no route on staging.
 - Paging past the first page of `GET /v1/cabals/{id}/activity` in the "See all" list. Six rows fit on one page.
 - The empty state "Nothing yet" / "Money added and trades show up here.". `ActivityModelTests` in `packages/mobile-core` covers it.

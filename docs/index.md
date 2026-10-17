@@ -1,6 +1,6 @@
 # Monaco docs
 
-Monaco is an iOS app where friends pool USDC into a shared pot (a **cabal**), vote on which tokenized US stocks to buy on Solana, and compete on leaderboards. A cabal can also hand part of its pot to a trading agent.
+Monaco is an iOS app where friends pool USDC into a shared pot (a **cabal**), vote on which tokenized US stocks to buy on Solana, and compete on leaderboards.
 
 ## Start here
 
@@ -18,7 +18,6 @@ Read these in order to understand the repo:
 | --- | --- |
 | [architecture/backend-platform.md](architecture/backend-platform.md) | You are building the new backend: rings, lint, tests, flows, NATS, deploy. The rewrite's source of truth |
 | [architecture/ci.md](architecture/ci.md) | You are changing CI: what runs on which PRs, runner choice, minute budget |
-| [agent-trading.md](agent-trading.md) | You are building or debugging a trading agent |
 | [design.md](design.md) | You are changing the iOS UI: colours, type, layout rules |
 | [screens.md](screens.md) | You are building or changing an iOS screen: what each tab and screen shows, top to bottom, and which ticket builds each part |
 | [multi-user-verification.md](multi-user-verification.md) | You changed auth, membership, money or boards and need to re-verify |
@@ -30,7 +29,6 @@ Read these in order to understand the repo:
 | [Agent workflow setup](agents/setup.md) | Giving a clone the plugins, model roles, skills and rules the agent workflow runs with |
 | [Ship a ticket](how-to/ship-a-ticket.md) | Taking one ticket from its issue to a merge on `staging`, as a person or an agent owner |
 | [Run a milestone](how-to/run-a-milestone.md) | Orchestrating a milestone: tickets, batches, owners and verifiers, landing, restacks and the promotion of `staging` into `main` |
-| [Connect a trading agent](how-to/connect-an-agent.md) | Hooking up ClawPump or any LLM agent |
 | [Deploy staging](how-to/deploy-staging.md) | The Render, Supabase and Synadia staging backend, and how to change its secrets |
 | [Demo checklist](how-to/demo-checklist.md) | A manual end-to-end pass before a demo |
 | [Run on the local simulator](how-to/local-simulator.md) | Simulator signing and keychain issues |
