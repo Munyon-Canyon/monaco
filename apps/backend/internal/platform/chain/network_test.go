@@ -1,6 +1,7 @@
 package chain_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -61,5 +62,21 @@ func TestCashAddressesParseOnTheirNetwork(t *testing.T) {
 		if a, err := chain.ParseEVMAddress(addr); err != nil || a.String() != addr {
 			t.Errorf("%s: cash address %q is not a lowercase EVM address: %v", n, addr, err)
 		}
+	}
+}
+
+func TestTradingNetworksExcludeTheDepositOnlyChains(t *testing.T) {
+	t.Parallel()
+	want := []chain.Network{chain.NetworkSolana, chain.NetworkBase, chain.NetworkRobinhood}
+	if got := chain.TradingNetworks(); !slices.Equal(got, want) {
+		t.Fatalf("TradingNetworks() = %v, want %v", got, want)
+	}
+	for _, n := range chain.Networks() {
+		if got := n.Trades(); got != slices.Contains(want, n) {
+			t.Errorf("%s.Trades() = %v", n, got)
+		}
+	}
+	if chain.NetworkArbitrum.Trades() || chain.NetworkEthereum.Trades() {
+		t.Fatal("arbitrum and ethereum must not trade")
 	}
 }

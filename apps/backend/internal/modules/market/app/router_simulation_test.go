@@ -87,7 +87,7 @@ func sameVenues(a, b []multichain.UnavailableVenue) bool {
 
 func TestRouterMarksAChainWithoutCodeUnavailableAndChecksEachChainOnce(t *testing.T) {
 	t.Parallel()
-	code := codeOn(map[chain.Network]string{chain.NetworkBase: "0x", chain.NetworkEthereum: delegatedCode})
+	code := codeOn(map[chain.Network]string{chain.NetworkBase: "0x", chain.NetworkRobinhood: delegatedCode})
 	c, l, f, err := route(t, appleWithTwoBaseListings(), testRules(), withSimulation(storedAccount{found: true}, code))
 	if err != nil || c.Winner == l[aaplcBase].ID {
 		t.Fatalf("comparison = %+v, %v, want a winner off Base", c, err)
@@ -95,7 +95,7 @@ func TestRouterMarksAChainWithoutCodeUnavailableAndChecksEachChainOnce(t *testin
 	if want := notDelegatedOn(l, aaplcBase, aaplxBase); !sameVenues(c.Unavailable, want) {
 		t.Fatalf("unavailable = %+v, want both Base listings not delegated", c.Unavailable)
 	}
-	if code.reads[chain.NetworkBase] != 1 || code.reads[chain.NetworkEthereum] != 1 || len(code.reads) != 2 {
+	if code.reads[chain.NetworkBase] != 1 || code.reads[chain.NetworkRobinhood] != 1 || len(code.reads) != 2 {
 		t.Fatalf("code reads = %v, want one per EVM chain per comparison", code.reads)
 	}
 	if f.bridges[chain.NetworkBase] != 0 {
@@ -109,7 +109,7 @@ func TestRouterMarksAChainWithoutCodeUnavailableAndChecksEachChainOnce(t *testin
 
 func TestRouterMarksAChainDelegatedElsewhereUnavailable(t *testing.T) {
 	t.Parallel()
-	code := codeOn(map[chain.Network]string{chain.NetworkBase: otherCode, chain.NetworkEthereum: delegatedCode})
+	code := codeOn(map[chain.Network]string{chain.NetworkBase: otherCode, chain.NetworkRobinhood: delegatedCode})
 	c, l, _, err := route(t, recordedApple(), testRules(), withSimulation(storedAccount{found: true}, code))
 	if err != nil || c.Winner == l[aaplcBase].ID {
 		t.Fatalf("comparison = %+v, %v, want a winner off Base", c, err)
@@ -121,7 +121,7 @@ func TestRouterMarksAChainDelegatedElsewhereUnavailable(t *testing.T) {
 
 func TestRouterQuotesAChainDelegatedToTheExpectedContract(t *testing.T) {
 	t.Parallel()
-	code := codeOn(map[chain.Network]string{chain.NetworkBase: delegatedCode, chain.NetworkEthereum: delegatedCode})
+	code := codeOn(map[chain.Network]string{chain.NetworkBase: delegatedCode, chain.NetworkRobinhood: delegatedCode})
 	c, l, _, err := route(t, recordedApple(), testRules(), withSimulation(storedAccount{found: true}, code))
 	if err != nil || c.Winner != l[aaplcBase].ID || len(c.Unavailable) != 0 {
 		t.Fatalf("comparison = %+v, %v, want Base to win as without the check", c, err)
@@ -135,21 +135,21 @@ func TestRouterMarksEveryEVMChainUnavailableWithoutAStoredAccount(t *testing.T) 
 	if err != nil || len(code.reads) != 0 {
 		t.Fatalf("comparison = %+v, %v, reads %v, want no code read without an account", c, err, code.reads)
 	}
-	if want := notDelegatedOn(l, aaplcBase, aaplonEth); !sameVenues(c.Unavailable, want) {
+	if want := notDelegatedOn(l, aaplcBase, aaplonRobinhood); !sameVenues(c.Unavailable, want) {
 		t.Fatalf("unavailable = %+v, want every EVM listing not delegated", c.Unavailable)
 	}
 }
 
 func TestRouterQuotesOnlyTheLegacyAccountsChain(t *testing.T) {
 	t.Parallel()
-	code := codeOn(map[chain.Network]string{chain.NetworkBase: delegatedCode, chain.NetworkEthereum: delegatedCode})
+	code := codeOn(map[chain.Network]string{chain.NetworkBase: delegatedCode, chain.NetworkRobinhood: delegatedCode})
 	account := storedAccount{found: true, legacy: chain.NetworkBase}
 	c, l, _, err := route(t, recordedApple(), testRules(), withSimulation(account, code))
 	if err != nil || c.Winner != l[aaplcBase].ID {
 		t.Fatalf("comparison = %+v, %v, want Base to win from the legacy account as before", c, err)
 	}
-	if want := notDelegatedOn(l, aaplonEth); !sameVenues(c.Unavailable, want) {
-		t.Fatalf("unavailable = %+v, want Ethereum not set up", c.Unavailable)
+	if want := notDelegatedOn(l, aaplonRobinhood); !sameVenues(c.Unavailable, want) {
+		t.Fatalf("unavailable = %+v, want Robinhood Chain not set up", c.Unavailable)
 	}
 	if code.reads[chain.NetworkBase] != 1 || len(code.reads) != 1 {
 		t.Fatalf("code reads = %v, want Base only", code.reads)
@@ -175,7 +175,7 @@ func TestRouterTreatsAnUnreadableCheckAsAFailedSimulation(t *testing.T) {
 		c, l, _, err := route(t, recordedApple(), testRules(), tweak)
 		want := []multichain.UnavailableVenue{
 			{ListingID: l[aaplcBase].ID, Reason: multichain.UnavailableSimulationFailed},
-			{ListingID: l[aaplonEth].ID, Reason: multichain.UnavailableSimulationFailed},
+			{ListingID: l[aaplonRobinhood].ID, Reason: multichain.UnavailableSimulationFailed},
 		}
 		if err != nil || !sameVenues(c.Unavailable, want) {
 			t.Fatalf("%s: comparison = %+v, %v, want the EVM listings as simulation_failed", name, c, err)

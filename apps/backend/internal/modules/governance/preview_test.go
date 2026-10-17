@@ -273,7 +273,7 @@ func TestPreview_aPinnedBuyQuotesOnlyThePinnedChain(t *testing.T) {
 	t.Parallel()
 	w := newTradeWorld(t)
 	clk := testkit.NewClock(clock.Real{}.Now().UTC())
-	chains := marketfake.NewChains(clk, chain.NetworkSolana, chain.NetworkBase, chain.NetworkArbitrum)
+	chains := marketfake.NewChains(clk, chain.NetworkSolana, chain.NetworkBase, chain.NetworkRobinhood)
 	w.clockedScenario(t, chains.Router(), clk).Given(w.asMember()).When(
 		scenario.Get(w.preview("kind=buy&symbol=AAPLx&usdc_micros=5000000&network=solana")),
 		scenario.ExpectStatus(http.StatusOK), scenario.ExpectJSON("advisory_code", nil),

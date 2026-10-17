@@ -133,12 +133,12 @@ func stockID(t *testing.T, g *testkit.IDs) multichain.StockID {
 }
 
 const (
-	aaplxSolana  = "aaplx-solana"
-	aaplonSolana = "aaplon-solana"
-	aaplonEth    = "aaplon-ethereum"
-	aaplcBase    = "aaplc-base"
-	aaplxBase    = "aaplx-base"
-	wholeSolana  = "whole-solana"
+	aaplxSolana     = "aaplx-solana"
+	aaplonSolana    = "aaplon-solana"
+	aaplonRobinhood = "aaplon-robinhood"
+	aaplcBase       = "aaplc-base"
+	aaplxBase       = "aaplx-base"
+	wholeSolana     = "whole-solana"
 )
 
 func appleListings(t *testing.T, g *testkit.IDs) map[string]multichain.Listing {
@@ -153,8 +153,8 @@ func appleListings(t *testing.T, g *testkit.IDs) map[string]multichain.Listing {
 			ID: listingID(t, g), Issuer: "ondo", Symbol: "AAPLon", Network: chain.NetworkSolana,
 			Decimals: 9, SharesPerToken: rat("1.003376073740221058"), Venue: multichain.VenueJupiter,
 		},
-		aaplonEth: {
-			ID: listingID(t, g), Issuer: "ondo", Symbol: "AAPLon", Network: chain.NetworkEthereum,
+		aaplonRobinhood: {
+			ID: listingID(t, g), Issuer: "ondo", Symbol: "AAPLon", Network: chain.NetworkRobinhood,
 			Decimals: 18, SharesPerToken: rat("1.003376073740221058"), Venue: multichain.VenueUniswap,
 		},
 		aaplcBase: {
@@ -174,10 +174,10 @@ func appleListings(t *testing.T, g *testkit.IDs) map[string]multichain.Listing {
 
 func recordedApple() map[string]recordedQuote {
 	return map[string]recordedQuote{
-		aaplxSolana:  {units: 29_610_838},
-		aaplonSolana: {units: 295_449_773},
-		aaplonEth:    {units: 294_521_447_600_868_269, gas: 34_015, poolFee: 999_250},
-		aaplcBase:    {units: 30_690_575, gas: 76_119, poolFee: 9_993},
+		aaplxSolana:     {units: 29_610_838},
+		aaplonSolana:    {units: 295_449_773},
+		aaplonRobinhood: {units: 294_521_447_600_868_269, gas: 34_015, poolFee: 999_250},
+		aaplcBase:       {units: 30_690_575, gas: 76_119, poolFee: 9_993},
 	}
 }
 
@@ -239,7 +239,7 @@ func TestRouterRanksEveryListingInUnderlyingShares(t *testing.T) {
 	if c.Winner != l[aaplcBase].ID {
 		t.Fatalf("winner = %s, want Base", c.Winner)
 	}
-	want := []string{aaplcBase, aaplxSolana, aaplonSolana, aaplonEth}
+	want := []string{aaplcBase, aaplxSolana, aaplonSolana, aaplonRobinhood}
 	if len(c.Ranked) != len(want) {
 		t.Fatalf("ranked = %+v", c.Ranked)
 	}
@@ -273,7 +273,7 @@ func TestRouterChargesTheBridgeAndGasOfAnEVMRoute(t *testing.T) {
 	eth := costsOf(c.Ranked[3])
 	if eth[multichain.CostBridge] != 75_000 || eth[multichain.CostPoolFee] != 999_250 ||
 		eth[multichain.CostPriceImpact] != 0 {
-		t.Fatalf("Ondo Ethereum = %+v, want the 1%% pool fee to explain its gap to the reference", eth)
+		t.Fatalf("Ondo Robinhood = %+v, want the 1%% pool fee to explain its gap to the reference", eth)
 	}
 }
 
@@ -357,9 +357,9 @@ func TestRouterAnswersQuoteUnavailableUnlessEveryVenueHasNoRoute(t *testing.T) {
 func TestRouterRoutesToEVMWhenSolanaHasNoRoute(t *testing.T) {
 	t.Parallel()
 	c, l, f, err := route(t, map[string]recordedQuote{
-		aaplxSolana: {err: errs.New(errs.CodeNoRoute, "test")},
-		aaplonEth:   recordedApple()[aaplonEth],
-		aaplcBase:   recordedApple()[aaplcBase],
+		aaplxSolana:     {err: errs.New(errs.CodeNoRoute, "test")},
+		aaplonRobinhood: recordedApple()[aaplonRobinhood],
+		aaplcBase:       recordedApple()[aaplcBase],
 	}, testRules())
 	if err != nil || c.Winner != l[aaplcBase].ID || len(c.Ranked) != 2 {
 		t.Fatalf("comparison = %+v, %v, want Base to win", c, err)
@@ -444,7 +444,8 @@ func TestRouterFailsClosedWhenTheSolanaListingCannotBeQuoted(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			c, l, f, err := route(t, map[string]recordedQuote{
-				aaplonEth: recordedApple()[aaplonEth], aaplcBase: recordedApple()[aaplcBase], aaplxSolana: solana,
+				aaplonRobinhood: recordedApple()[aaplonRobinhood], aaplcBase: recordedApple()[aaplcBase],
+				aaplxSolana: solana,
 			}, testRules())
 			if errs.CodeOf(err) != errs.CodeQuoteUnavailable {
 				t.Fatalf("comparison = %+v, %v, want quote_unavailable instead of an EVM winner", c, err)
@@ -478,7 +479,7 @@ func TestRouterLogsAnUnpricedQuoteWithNoOutput(t *testing.T) {
 func TestRouterRoutesToTheBestEVMListingWhenTheStockHasNoSolanaListing(t *testing.T) {
 	t.Parallel()
 	c, l, f, err := route(t, map[string]recordedQuote{
-		aaplonEth: recordedApple()[aaplonEth], aaplcBase: recordedApple()[aaplcBase],
+		aaplonRobinhood: recordedApple()[aaplonRobinhood], aaplcBase: recordedApple()[aaplcBase],
 	}, testRules())
 	if err != nil || c.Winner != l[aaplcBase].ID || len(c.Ranked) != 2 {
 		t.Fatalf("comparison = %+v, %v", c, err)
@@ -491,10 +492,10 @@ func TestRouterRoutesToTheBestEVMListingWhenTheStockHasNoSolanaListing(t *testin
 func TestRouterLogsEachDroppedVenueWithItsReason(t *testing.T) {
 	t.Parallel()
 	_, l, f, err := route(t, map[string]recordedQuote{
-		aaplxSolana:  {units: 29_610_838},
-		aaplonSolana: {units: 295_449_773, age: 16 * time.Second},
-		aaplonEth:    {units: 294_521_447_600_868_269, ttl: time.Second, age: 2 * time.Second},
-		aaplcBase:    {err: errs.New(errs.CodeNoRoute, "test")},
+		aaplxSolana:     {units: 29_610_838},
+		aaplonSolana:    {units: 295_449_773, age: 16 * time.Second},
+		aaplonRobinhood: {units: 294_521_447_600_868_269, ttl: time.Second, age: 2 * time.Second},
+		aaplcBase:       {err: errs.New(errs.CodeNoRoute, "test")},
 	}, testRules())
 	if err != nil {
 		t.Fatal(err)
@@ -508,7 +509,7 @@ func TestRouterLogsEachDroppedVenueWithItsReason(t *testing.T) {
 		got[id] = reason
 	}
 	want := map[string]string{
-		l[aaplonSolana].ID.String(): "stale", l[aaplonEth].ID.String(): "expired",
+		l[aaplonSolana].ID.String(): "stale", l[aaplonRobinhood].ID.String(): "expired",
 		l[aaplcBase].ID.String(): "no_route",
 	}
 	if !maps.Equal(got, want) {
@@ -707,7 +708,7 @@ func TestRouterBestOnLeavesTheCallersListingsUnchanged(t *testing.T) {
 		quotes: map[multichain.ListingID]recordedQuote{},
 		inputs: map[multichain.ListingID]money.Micros{},
 	}
-	for _, name := range []string{aaplxSolana, aaplonEth, aaplcBase} {
+	for _, name := range []string{aaplxSolana, aaplonRobinhood, aaplcBase} {
 		f.listings = append(f.listings, byName[name])
 		f.quotes[byName[name].ID] = quotes[name]
 	}

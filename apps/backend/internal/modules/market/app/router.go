@@ -147,10 +147,14 @@ func (r *Router) best(
 		return multichain.Comparison{}, errs.New(errs.CodeInvalidInput, routerOp,
 			slog.String("side", string(side)), slog.String("amount_micros", amount.String()))
 	}
+	if on != "" && !on.Trades() {
+		return multichain.Comparison{}, errs.New(errs.CodeInvalidNetwork, routerOp, slog.String("network", string(on)))
+	}
 	listings, err := r.listings.EnabledListings(ctx, stock)
 	if err != nil {
 		return multichain.Comparison{}, err
 	}
+	listings = slices.DeleteFunc(slices.Clone(listings), func(l multichain.Listing) bool { return !l.Network.Trades() })
 	if on != "" {
 		listings = slices.DeleteFunc(slices.Clone(listings), func(l multichain.Listing) bool { return l.Network != on })
 	}
