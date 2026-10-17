@@ -38,7 +38,7 @@ case "$scenario" in
     story_cabal
     "$QA_ROOT/apps/mobile/qa/journeys/stocks/browse.setup.sh" S1
     ;;
-  S2 | S4 | S5 | S6 | S7 | S8)
+  S2 | S4 | S5 | S7 | S8)
     story_cabal
     ;;
   *)

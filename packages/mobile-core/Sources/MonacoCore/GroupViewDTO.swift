@@ -157,33 +157,6 @@ public struct MemberSliceDTO: Codable, Equatable, Sendable {
     }
 }
 
-public struct GroupAgentDTO: Codable, Equatable, Sendable {
-    public let id: String
-    public let status: String
-    public let agentDisplayName: String
-    public let allocationUsdcMicros: String
-    /// Plaintext bot key for cabal members; omitted for spectators and revoked agents.
-    public let apiKey: String?
-    /// Paste-ready setup text for an external agent; sent only alongside apiKey.
-    public let connectText: String?
-
-    public init(
-        id: String,
-        status: String,
-        agentDisplayName: String,
-        allocationUsdcMicros: String,
-        apiKey: String? = nil,
-        connectText: String? = nil
-    ) {
-        self.id = id
-        self.status = status
-        self.agentDisplayName = agentDisplayName
-        self.allocationUsdcMicros = allocationUsdcMicros
-        self.apiKey = apiKey
-        self.connectText = connectText
-    }
-}
-
 public struct GroupViewDTO: Codable, Equatable, Sendable {
     public let id: String
     public let name: String
@@ -191,7 +164,6 @@ public struct GroupViewDTO: Codable, Equatable, Sendable {
     public let potTotalUsd: String?
     public let pot: [PotRowDTO]
     public let you: MemberSliceDTO
-    public let agent: GroupAgentDTO?
     /// The cabal's picture. Nil when it has none, and the mark falls back to
     /// its tinted initials.
     public let pictureUrl: String?
@@ -207,7 +179,6 @@ public struct GroupViewDTO: Codable, Equatable, Sendable {
         potTotalUsd: String? = nil,
         pot: [PotRowDTO],
         you: MemberSliceDTO,
-        agent: GroupAgentDTO? = nil,
         pictureUrl: String? = nil,
         isCreator: Bool? = nil
     ) {
@@ -217,7 +188,6 @@ public struct GroupViewDTO: Codable, Equatable, Sendable {
         self.potTotalUsd = potTotalUsd
         self.pot = pot
         self.you = you
-        self.agent = agent
         self.pictureUrl = pictureUrl
         self.isCreator = isCreator
     }

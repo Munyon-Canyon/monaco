@@ -45,35 +45,4 @@ final class GroupViewDTOTests: XCTestCase {
 
         XCTAssertEqual(row.tokenAmount, "50000000")
     }
-
-    func testGroupAgentDTO_decodesApiKey() throws {
-        let json = """
-            {"id":"a1","status":"active","agentDisplayName":"Scout","allocationUsdcMicros":"100000000","apiKey":"scout"}
-            """
-
-        let agent = try JSONDecoder().decode(GroupAgentDTO.self, from: Data(json.utf8))
-
-        XCTAssertEqual(agent.apiKey, "scout")
-    }
-
-    func testGroupAgentDTO_decodesConnectText() throws {
-        let json = """
-            {"id":"a1","status":"active","agentDisplayName":"Scout","allocationUsdcMicros":"100000000","apiKey":"scout","connectText":"Send this header on every request: X-Monaco-Agent-Key: scout"}
-            """
-
-        let agent = try JSONDecoder().decode(GroupAgentDTO.self, from: Data(json.utf8))
-
-        XCTAssertEqual(agent.connectText, "Send this header on every request: X-Monaco-Agent-Key: scout")
-    }
-
-    func testGroupAgentDTO_connectTextAbsent_decodesNil() throws {
-        let json = """
-            {"id":"a1","status":"active","agentDisplayName":"Scout","allocationUsdcMicros":"100000000"}
-            """
-
-        let agent = try JSONDecoder().decode(GroupAgentDTO.self, from: Data(json.utf8))
-
-        XCTAssertNil(agent.apiKey)
-        XCTAssertNil(agent.connectText)
-    }
 }

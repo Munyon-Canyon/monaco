@@ -31,7 +31,7 @@ struct ScreenMapOrderTests {
             names(CabalScreen.sections) == [
                 "CabalHeaderSlot", "CabalClosedSlot", "CabalPotSlot", "CabalValueChartSlot", "CabalSliceSlot",
                 "CabalPauseSlot",
-                "CabalJoinSlot", "CabalActionsSlot", "CabalProposalsSlot", "CabalHoldingsSlot", "CabalAgentSlot",
+                "CabalJoinSlot", "CabalActionsSlot", "CabalProposalsSlot", "CabalHoldingsSlot",
                 "CabalMemberBoardSlot", "CabalActivitySlot",
             ])
     }
@@ -49,13 +49,6 @@ struct ScreenMapOrderTests {
                 "ProfileHeaderSlot", "ProfileFollowCountsSlot", "ProfileStatsSlot", "ProfileBalanceSlot",
                 "ProfileCabalsSlot", "ProfileLinksSlot",
             ])
-    }
-
-    @Test func routeStubsRenderTheirPlaceholder() {
-        let stubs: [(Any, String)] = [(AgentRoute(cabalID: "c").destination(), "Trading bot")]
-        for (view, screen) in stubs {
-            #expect((view as? NotMigratedView)?.screen == screen)
-        }
     }
 
     @Test func proposeFromAssetRouteRendersItsScreen() {

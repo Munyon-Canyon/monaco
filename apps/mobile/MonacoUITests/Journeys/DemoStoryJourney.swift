@@ -2,7 +2,7 @@ import XCTest
 
 enum DemoStoryJourney {
     static let id = "demo/story"
-    static let version = 3
+    static let version = 4
 
     static let screenTimeout: TimeInterval = 15
     static let formTimeout: TimeInterval = 10
@@ -190,48 +190,6 @@ enum DemoStoryJourney {
                 "S5.2: B's message did not show within 10 s (known failure, #623)"
             )
             sendMessage(app, "We own Google now", step: "S5.2")
-        }
-    }
-
-    static func addABot(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
-        recorder.step("S6.1", "propose a trading bot") {
-            tapAction(app, "cabal-action-propose", run: run, step: "S6.1")
-            let bot = button(app, "Add a trading bot")
-            XCTAssertTrue(
-                bot.waitForExistence(timeout: formTimeout), "S6.1: no Add a trading bot (known failure, #691)")
-            bot.tap()
-            let amount = app.textFields.firstMatch
-            amount.tap()
-            amount.typeText("1")
-            let name = app.textFields.element(boundBy: 1)
-            name.tap()
-            name.typeText("Scout")
-            button(app, "Send").tap()
-            XCTAssertTrue(
-                app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Scout'")).firstMatch
-                    .waitForExistence(timeout: screenTimeout),
-                "S6.1: no proposal for Scout (known failure, #691)"
-            )
-        }
-    }
-
-    static func connectTheBot(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
-        recorder.step("S6.2", "copy the connect instructions") {
-            JoinJourney.openBySearch(app, cabal(run: run), step: "S6.2")
-            let header = app.staticTexts["Trading bot"]
-            app.scrollIntoReach(header)
-            XCTAssertTrue(
-                header.waitForExistence(timeout: formTimeout), "S6.2: no Trading bot row (known failure, #691)")
-            app.buttons.matching(NSPredicate(format: "label CONTAINS 'Scout'")).firstMatch.tap()
-            button(app, "Copy connect instructions").tap()
-            JoinJourney.waitForToast(app, "Connect instructions copied", step: "S6.2")
-        }
-
-        recorder.step("S6.3", "watch it trade") {
-            let trades = app.staticTexts["Trades"]
-            app.scrollIntoReach(trades)
-            XCTAssertTrue(
-                trades.waitForExistence(timeout: 30), "S6.3: no Trades on the bot screen (known failure, #691)")
         }
     }
 

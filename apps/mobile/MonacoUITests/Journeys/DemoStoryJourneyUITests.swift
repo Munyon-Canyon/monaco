@@ -54,16 +54,6 @@ nonisolated final class DemoStoryJourneyUITests: XCTestCase {
             attachScreenshot(of: app, named: "S5-A-chat")
         }
 
-        try session.scenario("S6") {
-            try session.act(as: "A")
-            DemoStoryJourney.addABot(app, run: run, recorder: recorder)
-            attachScreenshot(of: app, named: "S6-A-bot-proposed")
-
-            try session.act(as: "B")
-            DemoStoryJourney.connectTheBot(app, run: run, recorder: recorder)
-            attachScreenshot(of: app, named: "S6-B-bot")
-        }
-
         try session.scenario("S7") {
             try session.act(as: "A")
             DemoStoryJourney.cashOut(app, run: run, recorder: recorder)

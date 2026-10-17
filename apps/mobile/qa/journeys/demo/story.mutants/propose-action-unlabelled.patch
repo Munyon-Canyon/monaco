@@ -1,7 +1,7 @@
 journey: demo/story
-expect-fail: S4 S6
+expect-fail: S4
 
-The Propose button loses cabal-action-propose. S4.1 and S6.1 tap it, so both must fail.
+The Propose button loses cabal-action-propose. S4.1 taps it, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
