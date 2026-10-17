@@ -100,14 +100,14 @@ Sells work the same way and keep the issuer and chain already held.
 
 | Issuer | Chains it lists on | At launch |
 | --- | --- | --- |
-| xStocks | Solana, Ethereum, Arbitrum | Solana only. Ethereum and Arbitrum stay disabled: real quotes found no Uniswap route on Arbitrum and 31–99% price impact on Ethereum ([#4969](https://github.com/Munyon-Canyon/monaco/issues/4969)). |
-| Ondo | Solana, Ethereum | Per listing, once verified |
+| xStocks | Solana, Ethereum, Arbitrum | Solana only. Ethereum and Arbitrum are deposit and withdrawal networks only, not trading venues ([#5491](https://github.com/Munyon-Canyon/monaco/issues/5491)); real quotes found no Uniswap route on Arbitrum and 31–99% price impact on Ethereum ([#4969](https://github.com/Munyon-Canyon/monaco/issues/4969)). |
+| Ondo | Solana, Ethereum | Solana, per listing, once verified. Ethereum is a deposit and withdrawal network only ([#5491](https://github.com/Munyon-Canyon/monaco/issues/5491)). |
 | Coinbase | Base | Per listing, once verified. Routes through Uniswap v4 pools. |
 | Robinhood | Robinhood Chain | Per listing, once verified |
 
 Which chain words a member sees:
 
-- **Network names** (Solana, Base, Arbitrum, Ethereum, Robinhood Chain) appear only in the Deposit and Withdraw network pickers, the Review sheet's venue rows, the chain picker, and the stock page's best-price line. Nowhere else.
+- **Network names** (Solana, Base, Arbitrum, Ethereum, Robinhood Chain) appear only in the Deposit and Withdraw network pickers, the Review sheet's venue rows, the chain picker, and the stock page's best-price line. Nowhere else. Arbitrum and Ethereum are deposit and withdrawal networks only, so only the Deposit and Withdraw pickers name them; trades happen on Solana, Base and Robinhood Chain ([#5491](https://github.com/Munyon-Canyon/monaco/issues/5491)).
 - **Venue names** appear only on a trade's detail, which shows what was checked, for example "Checked 3 venues for Apple. Best: Ondo. You got 0.002 more shares than the next best." Issuer names follow the copy rule above: never "xStock".
 - Nowhere else: proposals, holdings, the pot and activity name the stock, not the chain.
 

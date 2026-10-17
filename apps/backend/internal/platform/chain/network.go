@@ -2,6 +2,7 @@ package chain
 
 import (
 	"log/slog"
+	"slices"
 	"strconv"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -59,6 +60,12 @@ func evmSpec(chainID int64, symbol, address string) networkSpec {
 func Networks() []Network {
 	return []Network{NetworkSolana, NetworkBase, NetworkArbitrum, NetworkEthereum, NetworkRobinhood}
 }
+
+func TradingNetworks() []Network {
+	return []Network{NetworkSolana, NetworkBase, NetworkRobinhood}
+}
+
+func (n Network) Trades() bool { return slices.Contains(TradingNetworks(), n) }
 
 func ParseNetwork(raw string) (Network, error) {
 	if raw == "" {

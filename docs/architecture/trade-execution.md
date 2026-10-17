@@ -118,7 +118,7 @@ A stock can trade on several chains, from several issuers. Every trade buys or s
 
 `market` owns `asset_listings`: one row per issuer per stock per chain, with the token address (and, for xStocks on EVM, its `w<symbol>` wrapper), decimals, `shares_per_token` (how many underlying shares one token is worth, refreshed every catalog run, since Ondo's grows with reinvested dividends) and the venue (`jupiter` on Solana, `uniswap` on EVM). A listing starts disabled and is enabled only after it is verified on chain: an EVM token's `symbol()` and `decimals()` match the issuer, a Solana mint exists under SPL Token or Token-2022. `set_tradable_override` applies per listing. The seed and the issuers' APIs are in `docs/how-to/stock-listings.md` (#4969).
 
-Which chains list which issuers, and whether those listings are on. "Issuer's flag" means a listing is enabled once it verifies on chain and its issuer reports it tradable; "off by override" means `tradable_override = false` keeps it disabled whatever the issuer says.
+Which chains list which issuers, and whether those listings are on. Arbitrum and Ethereum are deposit and withdrawal networks only, not trading venues (#5491). The router quotes only `chain.TradingNetworks()` (Solana, Base, Robinhood Chain): their rows below stay in `asset_listings` but never reach a comparison, and `BestOn` pinned to either returns `invalid_network`. "Issuer's flag" means a listing is enabled once it verifies on chain and its issuer reports it tradable; "off by override" means `tradable_override = false` keeps it disabled whatever the issuer says.
 
 | Issuer | Chain | On |
 | --- | --- | --- |
@@ -133,7 +133,7 @@ Which chains list which issuers, and whether those listings are on. "Issuer's fl
 **At launch** (real quotes from #4969, 2026-10-11):
 
 - **xStocks on Ethereum stay disabled.** The Uniswap Trading API found 31–99% price impact on Ethereum at cabal trade sizes. They stay in `asset_listings` with `enabled = false`, and the router never quotes them.
-- **xStocks on Arbitrum follow the issuer's flag (#5361).** Uniswap found no Arbitrum route at launch, so they started off by override. Migration `20261012090003_market_arbitrum_xstocks_follow_issuer.sql` clears that override, and the sync inserts new Arbitrum rows with none. The router quotes them in the best-price comparison, and drops one with no route.
+- **xStocks on Arbitrum follow the issuer's flag (#5361).** Uniswap found no Arbitrum route at launch, so they started off by override. Migration `20261012090003_market_arbitrum_xstocks_follow_issuer.sql` clears that override, and the sync inserts new Arbitrum rows with none. Since #5491 the router no longer quotes them, because Arbitrum is a deposit and withdrawal network only.
 - **Coinbase B20 on Base routes through Uniswap.** Its pools are Uniswap v4 hooked pools, which the Trading API quotes and routes, so no aggregator such as Kyber is needed.
 
 #### Quote, compare, pick
