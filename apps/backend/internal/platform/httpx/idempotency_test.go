@@ -312,7 +312,7 @@ func TestIdempotency_keysAreScopedPerActor(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.Handle("/", Idempotency(store)(next))
 	for _, a := range []auth.Actor{
-		{Kind: auth.ActorUser, ID: "u1"}, {Kind: auth.ActorUser, ID: "u2"}, {Kind: auth.ActorAgent, ID: "u1"},
+		{Kind: auth.ActorUser, ID: "u1"}, {Kind: auth.ActorUser, ID: "u2"}, {Kind: auth.ActorService, ID: "u1"},
 	} {
 		rec := send(t, h.deps.wrap(asActor(a, mux)), http.MethodPost, "/v1/things", "k1", `{}`)
 		if rec.Code != http.StatusCreated {

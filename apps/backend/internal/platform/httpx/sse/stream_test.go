@@ -348,9 +348,14 @@ func TestStream_refusesCallersTheHubRejects(t *testing.T) {
 	) != errs.CodeUnauthorized {
 		t.Fatalf("GetStream without an actor = %v, want unauthorized", err)
 	}
-	agent := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorAgent, ID: f.user(t).String()})
-	if _, err := stream.GetStream(agent, platformapi.GetStreamRequestObject{}); errs.CodeOf(err) != errs.CodeForbidden {
-		t.Fatalf("GetStream as an agent = %v, want forbidden", err)
+	service := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorService, ID: f.user(t).String()})
+	if _, err := stream.GetStream(
+		service,
+		platformapi.GetStreamRequestObject{},
+	); errs.CodeOf(
+		err,
+	) != errs.CodeForbidden {
+		t.Fatalf("GetStream as a service = %v, want forbidden", err)
 	}
 }
 

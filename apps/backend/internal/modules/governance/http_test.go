@@ -19,7 +19,7 @@ func TestHTTP_refusesCallersThatAreNotAUserAndUnknownChoices(t *testing.T) {
 		want   errs.Code
 	}{
 		"no actor":       {nil, "yes", errs.CodeUnauthorized},
-		"agent":          {&auth.Actor{Kind: auth.ActorAgent, ID: "a1"}, "yes", errs.CodeForbidden},
+		"service":        {&auth.Actor{Kind: auth.ActorService, ID: "a1"}, "yes", errs.CodeForbidden},
 		"bad user id":    {&auth.Actor{Kind: auth.ActorUser, ID: "u1"}, "yes", errs.CodeUnauthorized},
 		"unknown choice": {&auth.Actor{Kind: auth.ActorUser, ID: member}, "abstain", errs.CodeInvalidInput},
 	} {

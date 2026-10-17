@@ -444,7 +444,7 @@ func TestHub_RegisterRejectsActorsThatAreNotUsers(t *testing.T) {
 		actor auth.Actor
 		want  errs.Code
 	}{
-		{auth.Actor{Kind: auth.ActorAgent, ID: f.user(t).String()}, errs.CodeForbidden},
+		{auth.Actor{Kind: auth.ActorService, ID: f.user(t).String()}, errs.CodeForbidden},
 		{auth.Actor{Kind: auth.ActorUser, ID: "not-a-uuid"}, errs.CodeUnauthorized},
 	}
 	for _, c := range cases {
