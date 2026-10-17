@@ -259,6 +259,7 @@ func Load(environ []string) (Config, error) {
 	}
 	bad.checkAPNs(cfg)
 	bad.checkTrade(cfg)
+	bad.checkEVM(cfg)
 	bad.missing = append(bad.missing, missingIn(cfg)...)
 	for k := range vars {
 		if strings.HasPrefix(k, "MONACO_") && !known[k] && !isIOSBuildKey(k) {
