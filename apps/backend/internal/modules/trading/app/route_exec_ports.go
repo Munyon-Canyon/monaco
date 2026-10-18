@@ -106,5 +106,6 @@ type RoutePorts struct {
 	TopUp       SOLTopUp
 	Arrivals    Arrivals
 	EVMArrivals EVMArrivals
+	EVMCash     EVMCash
 	EVM         bool
 }

@@ -38,6 +38,7 @@ type RouteExecDeps struct {
 	TopUp       SOLTopUp
 	Arrivals    Arrivals
 	EVMArrivals EVMArrivals
+	Cash        EVMCash
 	Poll        Poll
 }
 
@@ -248,6 +249,14 @@ type routedBuy struct {
 }
 
 func (r *RouteExec) load(ctx context.Context, id uuid.UUID) (routedBuy, error) {
+	b, err := r.loadRow(ctx, id)
+	if err != nil {
+		return routedBuy{}, err
+	}
+	return r.landing(ctx, b)
+}
+
+func (r *RouteExec) loadRow(ctx context.Context, id uuid.UUID) (routedBuy, error) {
 	row, err := sqlc.New(r.d.Layer.d.Reads).RoutedSwap(ctx, id)
 	if err != nil {
 		return routedBuy{}, errs.Wrap(err, errs.CodeInternal, routeExecOp, slog.String("swap_id", id.String()))
@@ -269,10 +278,7 @@ func (r *RouteExec) load(ctx context.Context, id uuid.UUID) (routedBuy, error) {
 		id: id, req: req, status: domain.Status(row.Status), sent: sent,
 		fee: estimate, landed: landed, estimate: estimate, slippage: row.SlippageBps,
 	}
-	if b, err = r.resolve(ctx, b, comparison.Winner); err != nil {
-		return routedBuy{}, err
-	}
-	return r.landing(ctx, b)
+	return r.resolve(ctx, b, comparison.Winner)
 }
 
 func (r *RouteExec) landing(ctx context.Context, b routedBuy) (routedBuy, error) {

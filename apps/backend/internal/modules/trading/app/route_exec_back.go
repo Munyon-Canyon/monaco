@@ -16,12 +16,33 @@ import (
 )
 
 func (r *RouteExec) BridgeBack(ctx context.Context, id ids.SwapID) error {
-	b, err := r.load(ctx, id.UUID())
+	b, err := r.loadRow(ctx, id.UUID())
+	if err == nil {
+		b, err = r.returnLanding(ctx, b)
+	}
 	if err != nil {
 		return err
 	}
 	_, err = r.bridgeBack(ctx, b)
 	return err
+}
+
+func (r *RouteExec) returnLanding(ctx context.Context, b routedBuy) (routedBuy, error) {
+	swap := ids.SwapIDFrom(b.id)
+	_, started, err := r.d.Journal.Step(ctx, swap, domain.StepBridgeBack)
+	if err != nil || started {
+		return b, err
+	}
+	out, started, err := r.d.Journal.Step(ctx, swap, domain.StepBridgeOut)
+	if err != nil || !started || out.Status != domain.StepSucceeded {
+		return b, err
+	}
+	if out.Arrival.Observed() {
+		return b.arrived(out)
+	}
+	held, err := r.d.Cash.Balance(ctx, b.listing.Network, b.evm.Address)
+	b.landed = atMost(b.landed, held)
+	return b, err
 }
 
 func (r *RouteExec) bridgeBack(ctx context.Context, b routedBuy) (domain.StepStatus, error) {
@@ -112,6 +133,9 @@ func (r *RouteExec) returning(ctx context.Context, b routedBuy) (money.Micros, e
 		return step.Amount, err
 	}
 	landed := b.landed
+	if landed.IsZero() {
+		return landed, nil
+	}
 	claimed := false
 	err = r.d.Layer.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		q := sqlc.New(tx.Queries())

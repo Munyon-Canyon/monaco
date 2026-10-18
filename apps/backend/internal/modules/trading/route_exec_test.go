@@ -74,6 +74,7 @@ type routeEnv struct {
 	topUps   *topUpFake
 	arrivals *arrivalsFake
 	landings *evmArrivalsFake
+	cash     *cashFake
 }
 
 func newRouteEnv(t *testing.T) *routeEnv {
@@ -82,6 +83,7 @@ func newRouteEnv(t *testing.T) *routeEnv {
 	e.topUps = &topUpFake{privy: e.privy}
 	e.arrivals = &arrivalsFake{privy: e.privy, short: bridgeFeeMicros}
 	e.landings = &evmArrivalsFake{short: bridgeFeeMicros}
+	e.cash = &cashFake{balance: money.MicrosFromUint64(1 << 40)}
 	stepping := steppingClock{e.clk}
 	e.journal = app.Journal{UoW: db.New(e.pool, e.ids, stepping), Reads: e.pool, Clock: stepping, IDs: e.ids}
 	id := e.engineEnv.listing(t)
@@ -121,9 +123,20 @@ func (e *routeEnv) requote() {
 
 func (e *routeEnv) exec() *app.RouteExec {
 	return app.NewRouteExec(app.RouteExecDeps{
-		Layer: e.layer(), Journal: e.journal, Wallets: app.CabalWallets{Cabals: liveCabals{e: e.engineEnv}},
-		TreasuryEVM: e.treasury, Listings: e.listings, Quoter: e.quotes, Actions: e.privy, Sender: e.evm,
-		Venue: e.evm, TopUp: e.topUps, Arrivals: e.arrivals, EVMArrivals: e.landings, Poll: app.DefaultPoll(),
+		Layer:       e.layer(),
+		Journal:     e.journal,
+		Wallets:     app.CabalWallets{Cabals: liveCabals{e: e.engineEnv}},
+		TreasuryEVM: e.treasury,
+		Listings:    e.listings,
+		Quoter:      e.quotes,
+		Actions:     e.privy,
+		Sender:      e.evm,
+		Venue:       e.evm,
+		TopUp:       e.topUps,
+		Arrivals:    e.arrivals,
+		EVMArrivals: e.landings,
+		Cash:        e.cash,
+		Poll:        app.DefaultPoll(),
 	})
 }
 
