@@ -126,7 +126,8 @@ footer a { display: inline-flex; align-items: center; min-height: 48px; }
 <script>
 // The mark, printed live: Monaco's icon as a cream halftone on the dark page, shaded like lit stone.
 // It never moves; three soft blobs wander through it, thinning the cream so the page's own green shows through.
-// A pointer over the lockup is a lamp held over the print: the light swings round to it and the blobs scatter from it.
+// A pointer over the figures is a lamp held over the print: the light swings round to it and the blobs scatter from it.
+// Anywhere else on the page, the mark is left to itself.
 (function () {
   var css = getComputedStyle(document.documentElement);
   var CREAM = css.getPropertyValue("--screen").trim();
@@ -217,18 +218,20 @@ footer a { display: inline-flex; align-items: center; min-height: 48px; }
   var rt; addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(function () { size(); draw(); }, 120); });
   size(); draw();
   if (still) return;
-  // The pointer is read over the whole lockup, so the light turns toward it before it reaches the mark; a touch counts
-  // while the finger is down. A fresh hover lights the lamp under the pointer; it then trails the pointer and fades on leave.
-  var zone = document.getElementById("join");
+  // The pointer counts only over the figures themselves, not the rest of the page or the bare corners of the canvas,
+  // with a margin of about 3% of the mark so the lamp does not flicker along an edge. A touch counts while the finger is
+  // down. A fresh hover lights the lamp under the pointer; it then trails the pointer and fades once it leaves the ink.
+  function onInk(x, y) { return near(x, y) || near(x - 3, y) || near(x + 3, y) || near(x, y - 3) || near(x, y + 3); }
   function aim(e) {
     var r = cv.getBoundingClientRect();
     if (!r.width) return;
     var x = (e.clientX - r.left) / r.width * 100, y = (e.clientY - r.top) / r.height * 100;
+    if (!onInk(x, y)) { over = false; return; }
     if (!over) { ps[0] = x; ps[1] = y; }
     pt[0] = x; pt[1] = y; over = true;
   }
-  zone.addEventListener("pointermove", aim); zone.addEventListener("pointerdown", aim);
-  zone.addEventListener("pointerleave", function () { over = false; });
+  cv.addEventListener("pointermove", aim); cv.addEventListener("pointerdown", aim);
+  cv.addEventListener("pointerleave", function () { over = false; });
   // The print develops up from the baseline over 2.4s while the blobs start to wander (about a tenth of the mark a second).
   var t0 = performance.now(), last = 0, raf = 0, seen = true;
   function frame(now) {
