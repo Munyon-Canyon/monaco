@@ -90,6 +90,10 @@ type EVMArrivals interface {
 	) (EVMArrival, bool, error)
 }
 
+type EVMCash interface {
+	Balance(ctx context.Context, network chain.Network, owner chain.EVMAddress) (money.Micros, error)
+}
+
 type RoutePorts struct {
 	Listings    Listings
 	TreasuryEVM TreasuryEVM
