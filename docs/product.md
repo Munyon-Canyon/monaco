@@ -4,7 +4,7 @@ What Monaco does and the rules it follows, from the user's side. For how it is b
 
 ## What Monaco is
 
-Monaco lets friends run a small hedge fund together. A group, called a **cabal**, pools USDC into one shared pot. Members propose trades in tokenized US stocks, vote on them, and passed trades execute for the whole pot. Each member owns a share of the pot, so when the pot gains, every member's stake gains with it. A cabal can also vote in a trading agent with a capped budget.
+Monaco lets friends run a small hedge fund together. A group, called a **cabal**, pools USDC into one shared pot. Members propose trades in tokenized US stocks, vote on them, and passed trades execute for the whole pot. Each member owns a share of the pot, so when the pot gains, every member's stake gains with it.
 
 The loop is: join, put money in, decide, watch the pot, decide again. Leaderboards inside each cabal and across the app are what bring people back.
 
@@ -18,11 +18,10 @@ The loop is: join, put money in, decide, watch the pot, decide again. Leaderboar
 | **Fund** | Moving USDC from your account balance into a cabal's pot. This is what buys you shares. |
 | **Pot** | Everything a cabal owns: its USDC plus its stock holdings. It sits in the cabal's treasury wallet. |
 | **Share units** | Your claim on a fraction of the pot. Their value moves with the pot. |
-| **Proposal** | A request the cabal votes on: buy, sell, or add, pause, resume or remove an agent. |
+| **Proposal** | A request the cabal votes on: buy or sell. |
 | **Voter set** | The members allowed to propose and vote. Either everyone or a named list. |
 | **Cash out** | Selling some or all of your share units back to the cabal for USDC in your account balance. |
 | **Withdraw** | Sending USDC from your account balance to an outside address on Solana, Base, Arbitrum or Ethereum. |
-| **Agent** | A program the cabal voted in to trade a slice of the pot. |
 
 User-facing copy says "cabal", "pot value", "your slice" and "gain or loss". It never says "NAV", "P&L", "wallet", "gas", "mint" or "xStock", and it never shows a raw token address.
 
@@ -132,22 +131,6 @@ Reference addresses (Solana mainnet):
 - xStocks: `GET https://api.xstocks.fi/api/v2/public/assets/{symbol}`, then the `deployments` entry where `network == Solana`. `AAPLx` is `XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp`, `TSLAx` is `XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB`.
 - Tessera: `tSpaceX` `TSPXcLV76s6V2zDiZQ18kBfcbnjaE2ZzNT3ga2Pd99v`, `tKalshi` `TKLSidmLVt3cqGaaodG8tyRzoANfQwoh67AccjmubeZ`, `tOpenAI` `oPAiAikWTaFj9RYoRFD35ccfwhnMcB3ThgBZRHSkjTZ`.
 - PreStocks: `SPACEX` `PreANxuXjsy2pvisWWMNB6YaJNzr7681wJJr2rHsfTh`, `OPENAI` `PreweJYECqtQwBtpxHL171nL2K6umo692gTm7Q3rpgF`, `KALSHI` `PreLWGkkeqG1s4HEfFZSy9moCrJ7btsHuUtfcCeoRua`, `ANTHROPIC` `Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw`, `ANDURIL` `PresTj4Yc2bAR197Er7wz4UUKSfqt6FryBEdAriBoQB`, `NEURALINK` `PrekqLJvJ3qVdXmBGDiexvwUTF4rLFDa6HWS4HJbw9S`, `FIGUREAI` `PreZad18qfPtbxNpMtMuAuX2zVpvkEU8DnJx56faCWd`, `POLYMARKET` `Pre8AREmFPtoJFT8mQSXQLh56cwJmM7CFDRuoGBZiUP`.
-
-## Agents
-
-A cabal can vote to hand a slice of the pot to an agent, for example 10% for one strategy. Members see how much each agent has and how it has done, and vote to raise, cut, pause or remove it. A cabal can start with every trade as a vote, delegate once a strategy has a record, and pull the money if it doesn't work. The cabal always stays in charge.
-
-How it works:
-
-1. **The cabal votes the agent in** with a name and a USDC budget. When the vote passes, Monaco creates an API key for it.
-2. **A member connects the agent.** In the app, **Group → Agent → Copy connect instructions** copies the key, the API address, and a link to the agent's instructions (`/v1/agent/skill.md`).
-3. **The agent runs somewhere else**, usually on [ClawPump](how-to/connect-an-agent.md#connect-a-clawpump-agent): paste the instructions in as a custom skill and add an hourly automation. The same text works as the prompt for any LLM agent.
-4. **The agent sends trades to Monaco.** It reads its budget and prices, then sends buy or sell intents with its key.
-5. **Monaco enforces the vote.** A wrong or removed key, a paused agent, or a trade over budget is refused. Valid trades run through the same swap path as a passed vote and land in the cabal's pot and activity feed.
-
-The agent never holds the cabal's money. Turn off ClawPump's own trading skill so the agent can't trade from a ClawPump wallet instead, which would split the pot. Monaco never stores a ClawPump key.
-
-Details: [agent-trading.md](agent-trading.md).
 
 ## Performance
 

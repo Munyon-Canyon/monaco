@@ -6,7 +6,7 @@ iOS app: friends pool USDC and buy tokenized US stocks on Solana.
 
 This README covers cloning, configuring and running the repo. To understand the system, start with the [docs index](docs/index.md): [product rules](docs/product.md), then [architecture](docs/architecture.md) (components, outside services, wallets and money flows).
 
-Monaco lets you create a hedge fund with friends by pooling money to buy stocks together. Members propose and vote on trades, and approved trades execute for the group; as the pool profits, each member’s stake increases in value through NAV. You can even add an agent to your cabal to trade on your behalf. Built as a social trading app, Monaco turns investing into an easy group game anyone can join simply by depositing money.
+Monaco lets you create a hedge fund with friends by pooling money to buy stocks together. Members propose and vote on trades, and approved trades execute for the group; as the pool profits, each member’s stake increases in value through NAV. Built as a social trading app, Monaco turns investing into an easy group game anyone can join simply by depositing money.
 
 <img width="339" height="677" alt="image" src="https://github.com/user-attachments/assets/59c70f26-8049-4bc2-9c39-2946bb8013e7" />
 
@@ -164,7 +164,7 @@ Or `curl -sfS https://dotenvx.sh | sh`. See [install docs](https://dotenvx.com/d
 | `PRESTOCKS_API_BASE_URL` | `https://prestocks.com` | Public PreStocks catalog used for pre-IPO tokens. |
 | `PRESTOCKS_ENABLED` | `true` | Include PreStocks tokens in search, detail, and sweeps. `false` hides them from the catalog; existing holdings still value from Jupiter. |
 
-`PUBLIC_API_BASE_URL` is the API URL agents are told to call. It is not a secret and defaults to `http://127.0.0.1:8080`. Set it to the public https URL in a deployed env.
+`PUBLIC_API_BASE_URL` is the API's public URL. `scripts/grafana-sync.sh` reads the staging value for the Grafana data source. It is not a secret and defaults to `http://127.0.0.1:8080`. Set it to the public https URL in a deployed env.
 
 Justfile `dotenv-load` only reads plain `.env` — not dotenvx ciphertext. Recipes that need secrets re-exec once under `dotenvx run -f .env.local` (via `scripts/with-dotenv-local.sh`). Mobile Privy uses `scripts/ensure-ios-privy-config.sh` (xcconfig) + `SIMCTL_CHILD_*` at sim launch.
 
@@ -417,8 +417,6 @@ Merge bottom-up. The rules and why they exist: [Pull requests: small and stacked
 There is no deploy pipeline in this repo yet. The backend is being rebuilt; how it deploys is in the RFC's [Deploy and observability](docs/architecture/backend-platform.md#deploy-and-observability) section.
 
 **iOS.** `scripts/ios-release.sh staging` or `scripts/ios-release.sh production` archives and uploads a TestFlight build. See [`apps/mobile/TestFlight.md`](apps/mobile/TestFlight.md).
-
-**Trading agent.** An agent needs only its key and `PUBLIC_API_BASE_URL`. A ClawPump agent connects by pasting the connect instructions. See [`docs/how-to/connect-an-agent.md`](docs/how-to/connect-an-agent.md) and [`docs/agent-trading.md`](docs/agent-trading.md).
 
 ## Layout
 

@@ -33,7 +33,7 @@ Only `proposals`, `proposal_voters` and `votes` are governance tables. The other
 | Column | Notes |
 | --- | --- |
 | `id`, `cabal_id`, `proposer_id` | Branded UUIDv7 ids ([Money and types](backend-platform.md#money-and-types)). |
-| `kind` | `buy`, `sell`, or an agent action (`agent_add`, `agent_pause`, `agent_resume`, `agent_remove`) |
+| `kind` | `buy` or `sell` |
 | `symbol`, `mint` | The asset's display symbol and its Solana mint address. Both are carried on `proposal.created` and `proposal.passed`. |
 | `usdc_micros` / `token_amount` | Trade amount. Exactly one is set: `usdc_micros` for a buy, `token_amount` (the mint's base units) for a sell. On `proposal.passed`, `usdc_micros` is a `money.Micros` and `token_amount` is a `uint64` encoded as a JSON string. Immutable once the first vote is cast. |
 | `thesis` | Proposer's short reason, shown on the card. |
@@ -68,13 +68,11 @@ open ──► passed ──► executed
 | `failed` | Tally | Enough `no` votes that `passed` is now impossible. Emits `proposal.failed`. |
 | `expired` | Expiry sweep | `expires_at` reached while still `open`. Emits `proposal.expired`. |
 | `withdrawn` | `WithdrawProposal` | The proposer withdrew before anyone else voted. Only the proposer can withdraw. Emits `proposal.withdrawn`. |
-| `executed` | Governance consumer of `trade.confirmed`, or of `agent.enabled` / `.paused` / `.removed` for agent kinds | The linked swap confirmed. Emits `proposal.executed`, which the feed may use. |
+| `executed` | Governance consumer of `trade.confirmed` | The linked swap confirmed. Emits `proposal.executed`, which the feed may use. |
 | `execution_blocked` | Governance consumer of `trade.blocked` and `trade.failed` | A pre-trade check failed, or the swap failed (`status_reason` `swap_failed`). `status_reason` holds the code. Emits `proposal.execution_blocked`. Terminal; voters re-propose if they still want it. Only `swap_failed` is retryable: `RetryTrade` accepts it, and governance's consumer of `trade.retry_requested` moves it back to `passed` and emits `proposal.reopened`, unless the swap that was retried has already been followed by a newer swap that failed, in which case the proposal stays `execution_blocked`. |
 | `voided` | Admin `VoidProposal` | Removed by Monaco with a reason. Only from `open`, or `passed` with no live swap (asked through trading's query port). Emits `proposal.voided`. See [analytics-admin.md](analytics-admin.md#actions). |
 
 The status is a Go type with a `transitions` table and a pure `Next(from, event)` ([State machine](backend-platform.md#patterns-and-where-each-earns-its-place)). Every transition is a guarded update (`WHERE status = $expected`), the same pattern as `swaps`, so a racing vote, expiry sweep and trade-event consumer can never double-transition. Every transition appends its `events` row in the same `uow.Do`.
-
-For agent proposals (`agent_*` kinds), `passed` emits `proposal.passed` like any other kind. The `agents` module consumes it, applies the change, and emits `agent.enabled`, `agent.paused` or `agent.removed` ([flow 16](backend-platform.md#flows)). Governance does not write agent tables. Governance consumes `agent.enabled`, `agent.paused` and `agent.removed`, sets the proposal to `executed` and emits `proposal.executed`, the same way it handles `trade.confirmed`. [Flow 16](backend-platform.md#flows) lists `governance` among its consumers for this.
 
 ## Vote path
 
@@ -126,7 +124,6 @@ Planned shape, not built yet:
 | Run pre-trade checks on every vote to show "would execute" live | Cost and noise. Balance and price move; voters would see a flickering answer. Checks run once, at pass. |
 | Execute synchronously in the vote request that crosses the threshold | Ties the last voter's request to a multi-second swap and loses the trade on crash. See [trade-execution.md](trade-execution.md#alternatives-considered). |
 | Store execution state only on the swap row, no `executed` / `execution_blocked` on the proposal | Every list query would ask trading to render a card. A status written by governance's consumers of trade events keeps list reads one-table. |
-| Apply agent proposals in the tally transaction | Governance would write the `agents` module's tables, which `depguard` forbids. The agents module consumes `proposal.passed` instead. |
 | Editable proposals | Invalidates cast votes. Withdraw and re-propose instead. |
 | Merge a proposal's feed comments and its chat thread into one stream | Mixes the public discussion with the members' conversation. Kept separate (default 2026-09-27). |
 | Voter set resolved live at tally time (the old backend) | Joins and leaves mid-vote move the threshold under voters. Frozen at creation instead. |

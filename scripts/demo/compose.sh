@@ -43,10 +43,6 @@ beats=(
   "chat-jordan|1.3|Talk it over|8.5-11,20.5-23,30-33.5"
   "chat-maya|1.3||2-5,15.5-20"
   "pre-ipo|1.3|Pre-IPO too|3-6,12-15,23.5-27.5,35-38.5"
-  "bot|1.4|Add a trading bot|6.5-9.5,13-15.5,23.5-26,32.5-35,39.5-43.5"
-  "vote-bot|1.2||0-5"
-  "bot-key|1.4|Connect it to ClawPump|2.5-5,24-27,38.5-41.5,55.5-59.5"
-  "bot-activity|1.2|Watch it trade|0.3-3.3,4-7"
   "profit|1.3|Cash out any time|1-4,25-28,34-38.5,55.8-57.5"
   "board-outro|1.2|See who's up|1.5-5,15.5-20.7"
 )
@@ -101,7 +97,7 @@ cut_filter() { # cut_filter <input label> <segments> <speed> <output label>
   for p in "${parts[@]}"; do
     local a=${p%-*} b=${p#*-}
     split+="[i$k]"
-    chain+="[i$k]trim=start=$a:end=$b,setpts=(PTS-STARTPTS)/$speed[s$k];"
+    chain+="[i$k]trim=start=$a:end=$b,setpts=(PTS-STARTPTS)/${speed}[s$k];"
     join+="[s$k]"
     dur=$(echo "$dur + ($b - $a) / $speed" | bc -l)
     k=$((k + 1))
@@ -118,7 +114,7 @@ beat_vertical() { # <clip> <speed> <caption> <segments> <out>
   [[ -f "$work/mask-phone-v.png" ]] || magick -size "${pw}x${ph}" xc:none -fill white -draw "roundrectangle 0,0 $((pw - 1)),$((ph - 1)) 76,76" "$work/mask-phone-v.png"
   [[ -f "$work/paper-vertical.png" ]] || magick -size 1080x1920 "xc:$paper" -fill "$ink" -draw "roundrectangle $((px - 16)),$((py - 16)) $((px + pw + 15)),$((py + ph + 15)) 92,92" "$work/paper-vertical.png"
   local cut; cut=$(cut_filter "[1:v]" "$segs" "$speed" "cut")
-  local phone="[cut]scale=${pw}:${ph}:force_original_aspect_ratio=increase,crop=${pw}:${ph},setsar=1,fps=$fps[p];[2:v]format=gray[m];[p][m]alphamerge[phone];[0:v][phone]overlay=${px}:${py}:shortest=1"
+  local phone="[cut]scale=${pw}:${ph}:force_original_aspect_ratio=increase,crop=${pw}:${ph},setsar=1,fps=${fps}[p];[2:v]format=gray[m];[p][m]alphamerge[phone];[0:v][phone]overlay=${px}:${py}:shortest=1"
   if [[ -z "$cap" ]]; then
     ffmpeg -y -loglevel error -loop 1 -t "$dur" -i "$work/paper-vertical.png" -i "$c" -loop 1 -t "$dur" -i "$work/mask-phone-v.png" \
       -filter_complex "${cut}${phone}[out]" -map "[out]" -pix_fmt yuv420p -an "$o"
@@ -137,7 +133,7 @@ beat_site() { # <clip> <speed> <caption> <segments> <out>
   [[ -f "$work/mask-phone.png" ]] || magick -size "${pw}x${ph}" xc:none -fill white -draw "roundrectangle 0,0 $((pw - 1)),$((ph - 1)) 44,44" "$work/mask-phone.png"
   [[ -f "$work/paper-site.png" ]] || magick -size 1920x1080 "xc:$paper" -fill "$ink" -draw "roundrectangle $((px - 12)),$((py - 12)) $((px + pw + 11)),$((py + ph + 11)) 56,56" "$work/paper-site.png"
   local cut; cut=$(cut_filter "[1:v]" "$segs" "$speed" "cut")
-  local phone="[cut]scale=${pw}:${ph}:force_original_aspect_ratio=increase,crop=${pw}:${ph},setsar=1,fps=$fps[p];[2:v]format=gray[m];[p][m]alphamerge[phone];[0:v][phone]overlay=${px}:${py}:shortest=1"
+  local phone="[cut]scale=${pw}:${ph}:force_original_aspect_ratio=increase,crop=${pw}:${ph},setsar=1,fps=${fps}[p];[2:v]format=gray[m];[p][m]alphamerge[phone];[0:v][phone]overlay=${px}:${py}:shortest=1"
   if [[ -z "$cap" ]]; then
     ffmpeg -y -loglevel error -loop 1 -t "$dur" -i "$work/paper-site.png" -i "$c" -loop 1 -t "$dur" -i "$work/mask-phone.png" \
       -filter_complex "${cut}${phone}[out]" -map "[out]" -pix_fmt yuv420p -an "$o"

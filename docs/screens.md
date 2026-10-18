@@ -37,7 +37,7 @@ The demo film (`docs/demo/storyboard.md`) and the last pre-rewrite build (`01544
 - **Ink hero.** The cabal hero is the one dark `heroInk` band, and at most one per screen. Home's money sits on the paper, not on ink. Cabal hero slots stacked one after another each paint the same full-bleed `heroInk` background, so they read as one band.
 - **Section.** Header in `Typo.section`, an optional count badge, an optional "See all" link on the right, then ruled rows (`MonacoSectionHeader`, `MonacoGroupedList`). Sections are ledgers on paper, not cards.
 - **Range chips.** A row of capsule chips under a chart or board. Selected is ink with white text. Boards and value curves use ranking's ranges: "1H", "1D", "1W", "1M", "All". Stock charts use market's ranges: "1D", "1W", "1M", "3M", "6M", "1Y", "ALL".
-- **Amount entry** (fund, propose, add a bot, cash out, withdraw). A large centred "$0" that turns ink when non-zero. Quick-pick chips under it. A grey helper line ("$1,000.00 available"). A short grey explainer. A full-width primary button pinned above the tab bar whose label echoes the amount ("Add $500 to the pot"). The button is disabled at $0 and over the limit, and the helper turns red with the limit message.
+- **Amount entry** (fund, propose, cash out, withdraw). A large centred "$0" that turns ink when non-zero. Quick-pick chips under it. A grey helper line ("$1,000.00 available"). A short grey explainer. A full-width primary button pinned above the tab bar whose label echoes the amount ("Add $500 to the pot"). The button is disabled at $0 and over the limit, and the helper turns red with the limit message.
 - **Bottom CTA.** Primary actions sit in a pill pinned above the tab bar, with a spinner and a "…ing" label while submitting.
 - **Toasts** confirm every action. A toast is the dark rounded panel above the tab bar. No alerts or banners for confirmations.
 - **People and cabals.** A person is an avatar (photo, or the animal their id hashes to) and a display name. Tapping a person anywhere (boards, members, feed, chat, comments, votes) opens `UserProfileRoute`. A cabal is its picture or tinted initials tile and its name. Tapping a cabal opens `CabalRoute`.
@@ -62,12 +62,11 @@ Cabals ┬─ + ──▶ New cabal sheet ──── Start a cabal ──▶ c
 CabalRoute ─┬─ i ──▶ Cabal details sheet (rules, treasury, edit, leave)
             ├─ share ──▶ Share sheet (the gain card, Share, Copy link), members only
             ├─ Fund ───────▶ FundRoute
-            ├─ Propose ────▶ ProposeRoute ──▶ Buy | Sell | Add a trading bot
+            ├─ Propose ────▶ ProposeRoute ──▶ Buy | Sell
             ├─ Cash out ───▶ CashOutRoute
             ├─ Chat ───────▶ ChatRoute
             ├─ proposal ───▶ ProposalRoute
             ├─ holding ────▶ AssetRoute
-            ├─ trading bot ▶ AgentRoute (#691)
             └─ activity row ▶ TransactionRoute
 Stocks ── row ──▶ AssetRoute ── Propose buy ──▶ Pick a cabal ──▶ Amount ──▶ Review
 Profile ┬─ Followers / Following ──▶ FollowListRoute
@@ -82,7 +81,7 @@ Profile ┬─ Followers / Following ──▶ FollowListRoute
                                              └─ Sign out
 ```
 
-#2134 adds the slots and route stubs this page names that do not exist yet: `HomeCabalsSlot`, `CabalSliceSlot`, `CabalValueChartSlot`, `CabalActionsSlot`, `CabalHoldingsSlot`, `CabalAgentSlot`, `CabalRulesSlot`, `ProfileStatsSlot`, `ProfileCabalsSlot`, and the routes `JoinRoute()`, `FundRoute(cabalID:)`, `ChatRoute(cabalID:)`, `SettingsRoute()`, `AccountActivityRoute()`, `AgentRoute(cabalID:)`, `ProposeFromAssetRoute(symbol:kind:)`. It removes the `CabalCashOutSlot`, `CabalChatSlot` and `ProfileDeleteAccountSlot` stubs, whose jobs move to the action row and Settings.
+#2134 adds the slots and route stubs this page names that do not exist yet: `HomeCabalsSlot`, `CabalSliceSlot`, `CabalValueChartSlot`, `CabalActionsSlot`, `CabalHoldingsSlot`, `CabalRulesSlot`, `ProfileStatsSlot`, `ProfileCabalsSlot`, and the routes `JoinRoute()`, `FundRoute(cabalID:)`, `ChatRoute(cabalID:)`, `SettingsRoute()`, `AccountActivityRoute()`, `ProposeFromAssetRoute(symbol:kind:)`. It removes the `CabalCashOutSlot`, `CabalChatSlot` and `ProfileDeleteAccountSlot` stubs, whose jobs move to the action row and Settings.
 
 ## Home
 
@@ -126,9 +125,8 @@ Toolbar: back on the left, and an "i" button on the right that opens the details
 | 8 | `CabalActionsSlot` | #2134 | yes | hidden | Four round ink buttons, equal width: "Fund" (`plus`, `FundRoute`), "Propose" (`arrow.up.right`, `ProposeRoute(cabalID:)`, #613), "Cash out" (`arrow.down.left`, `CashOutRoute`), "Chat" (`bubble.left`, `ChatRoute`, with an unread dot from #704). Propose is disabled with the caption "Only voters can propose" when `me.can_vote` is false. When the actions read fails after the cabal loaded, the buttons give way to "Couldn't load the cabal actions." with "Try again". While the cabal is paused the buttons stay enabled, and Fund and Cash out show the pause on their own screens (#651, #657) |
 | 9 | `CabalProposalsSlot` | #612 | yes | yes, read-only | "Needs your vote" with a count badge and "See all" (the full open and closed list). Open proposal cards, newest first. Passed proposals whose trade has not finished sit under "In progress" until the trade is bought, sold or failed. Each section is hidden when empty. Empty: "No open votes", plus "Propose the first buy." only for a voter. When a trade the viewer voted on settles, a toast says so: "Bought $250.00 of Alphabet", "Sold 0.2161 shares of Alphabet", or "Couldn't buy: …" / "Couldn't sell: …" when it is blocked |
 | 10 | `CabalHoldingsSlot` | #2137 | yes | yes | "Holdings": an allocation bar with a legend ("● GOOGL 25%  Cash 75%"), then one row per holding (logo, ticker, "0.73 shares · $341.58", or "0.73 tokens" for a pre-IPO holding, value over its gain or loss) and a "Cash" row. Rows open `AssetRoute`. Empty pot: the Cash row and "No stocks right now. Propose a buy to put the cash to work." (non-voters: "No stocks right now."). Zero pot: "Fund, then propose the first buy." (non-voters: "Nothing in the pot yet."). |
-| 11 | `CabalAgentSlot` | #691 | yes | yes | "Trading bot": one row with the bot's name, "$200.00 budget" and its state ("Active", "Paused"). Opens the trading bot screen. Hidden when the cabal has no bot |
-| 12 | `CabalMemberBoardSlot` | #699 | yes | yes | "Leaderboard": ranked members with the viewer's row washed and labelled "You", then "Updated …" under the list. Rows open `UserProfileRoute` |
-| 13 | `CabalActivitySlot` | #654 | yes | hidden | "Activity" with "See all" past five rows. Rows: glyph, title ("Bought Alphabet", "Money added", "Cashed out", "Scout · Bought Nvidia"), age plus a status in amber ("Pending") or red ("Failed · Retry"), amount. Rows open `TransactionRoute`. Empty: "Nothing yet" / "Money added and trades show up here." |
+| 11 | `CabalMemberBoardSlot` | #699 | yes | yes | "Leaderboard": ranked members with the viewer's row washed and labelled "You", then "Updated …" under the list. Rows open `UserProfileRoute` |
+| 12 | `CabalActivitySlot` | #654 | yes | hidden | "Activity" with "See all" past five rows. Rows: glyph, title ("Bought Alphabet", "Money added", "Cashed out"), age plus a status in amber ("Pending") or red ("Failed · Retry"), amount. Rows open `TransactionRoute`. Empty: "Nothing yet" / "Money added and trades show up here." |
 
 **Share sheet.** A share button sits left of "i" for members of an open cabal once the pot has loaded (id `cabal-share-button`). The same sheet opens from the Profile toolbar ("Share your return", `profile-share-button`) and from the share button beside Home's portfolio chip (`home-share-button`). Title "Share", "Done" at the top right. It shows the card as a 4:5 dark image (1080 × 1350 px when shared): the all-time gain and return, the gain curve, three stats ("Put in", "In the pot", "Members" for a cabal; "Put in", "In cabals", "Cabals" for you) and the sharer's invite link. "Share" opens the system sheet with the image and the link; "Copy link" copies the link and shows the toast "Link copied.". It carries only the viewer's own figures and own cabals.
 
@@ -154,7 +152,7 @@ Used by Home's "Needs your vote", the cabal's proposals and the proposals list (
 
 ## Propose (#613)
 
-**Propose chooser** (`ProposeRoute(cabalID:)`), pushed from the action row. Title "Propose". Rows: "Buy a stock" / "Your cabal votes on it first"; "Sell something the cabal owns" / "Apple, Nvidia and 1 more" (disabled with "Nothing to sell yet" when there are no holdings); and in M23 "Add a trading bot" / "Give a bot a budget from the pot" (#691).
+**Propose chooser** (`ProposeRoute(cabalID:)`), pushed from the action row. Title "Propose". Rows: "Buy a stock" / "Your cabal votes on it first"; "Sell something the cabal owns" / "Apple, Nvidia and 1 more" (disabled with "Nothing to sell yet" when there are no holdings).
 
 **Buy, step 1.** Title "Buy". Search "Search Apple, Tesla, NVDA…", then "Popular". Rows show logo, ticker over name, price over the day's change. A stock that cannot trade is dimmed: "<name> · Can't buy right now".
 
@@ -191,10 +189,6 @@ Large title "Stocks". Search "Search Apple, Tesla, NVDA…"; results replace the
 ## Chat (`ChatRoute`, #676)
 
 Title is the cabal tile and name. Empty: the tile, the name, then "No messages yet" over "Say hi, or float a stock idea." Day dividers in mono. Others' messages on the left with the author's avatar (opens `UserProfileRoute`) and name over the first of a run; mine on the right in ink. A failed send shows "Not sent · Retry" under the bubble. Composer "Message your cabal" with a send disc. A non-member or removed member sees the composer replaced by "You're not in this cabal anymore." #703 adds threads and delete, #704 "Seen by N" and unread badges, #2147 @mentions.
-
-## Trading bot (M23, #691)
-
-Title "Trading bot". The bot's name and state. "Budget" / "From the pot" / "$200.00", then "Spent" and "Holdings" from the bot's trades. The "Bot key" card: the key masked with "Show key" (the reveal is audited), "Paste this key into your bot. Anyone in the cabal can copy it here until the bot is removed.", primary "Copy connect instructions", secondary "Copy key". Below, "Trades" lists the bot's swaps with their `reason`. "Spent", "Holdings" and "Trades" need an agent read route that M23 does not ticket yet. Toast "Connect instructions copied".
 
 ## Profile tab
 
