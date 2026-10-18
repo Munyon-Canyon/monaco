@@ -1,4 +1,4 @@
-h1:iaemFirtwDK4E4FCZh3rW2Onf+d4JSJLkhdqGdYQ4SE=
+h1:PFomwWToGbJaDAOsG+DfXaP8UsGIsq0qFqNX8paTT80=
 20260927140427_platform.sql h1:dpKT9ALI2RTf1SBI4IzLY9kt47VTa8+JAziYaHsX5Jw=
 20260927185159_idempotency.sql h1:iYIp5Y5kBuPj5UJGcOifMeosr8qf0tj17c+5bmF37zE=
 20260929120000_system.sql h1:m6n0Y3tCc4MlfYNzi6Fh01YnogvlBbpQb1/X4WCtW40=
@@ -99,3 +99,4 @@ h1:iaemFirtwDK4E4FCZh3rW2Onf+d4JSJLkhdqGdYQ4SE=
 20261012090004_trading_trade_step_arrivals.sql h1:UYP/54O126cLXSmhZQwcIPdc7tZj3emySdWKORTensM=
 20261017231803_agents_drop_tables.sql h1:UUXu1W8PgYg2mkmI1mQxbFRPwRvfDs6uUkZMBbvqigE=
 20261018003606_trading_return_evm_cash_action.sql h1:gS4UjU4F1e6uKHQI8fMneuYsV3+7hkg7CaKLNTmy6dw=
+20261018003607_market_drop_coingecko_price_points.sql h1:TvpOp1TPR4XmPbuLkbrLoUO34X3LMycjSeQN918Jxfg=

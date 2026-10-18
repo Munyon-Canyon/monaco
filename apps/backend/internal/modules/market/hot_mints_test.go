@@ -49,11 +49,11 @@ VALUES ($1, $2, $3, 'buy', 'PRPx', 'MintProposed', 5, 1, 'majority', 'open', $4,
 	}
 }
 
-func TestModule_theBackfillQueuesHeldAndProposedListedMints(t *testing.T) {
+func TestModule_retentionKeepsHistoryOfHeldAndProposedListedMints(t *testing.T) {
 	t.Parallel()
 	pool, g := testkit.DB(t), testkit.NewIDs(3)
-	clk := testkit.NewClock(clock.Real{}.Now().UTC().Truncate(time.Microsecond))
-	now := clk.Now()
+	now := retentionNow()
+	clk := testkit.NewClock(now)
 	held, proposed, cold := marketfake.TSpaceX(), marketfake.SPACEX(), marketfake.TSLAx()
 	cold.PopularRank = 0
 	seedAssets(t, pool, now, held, proposed, cold)
@@ -68,17 +68,31 @@ VALUES ($1, $2, $3, 'buy', 'SPACEX', $4, 5, 1, 'majority', 'open', $5, $5, $5)`,
 		g.NewV7(), g.NewV7(), g.NewV7(), proposed.Mint.String(), now); err != nil {
 		t.Fatal(err)
 	}
+	old := now.Add(-30 * 24 * time.Hour)
+	insertPrices(t, pool, []priceRow{
+		{mint: held.Mint.String(), ts: old, micros: 100_000_000, source: "jupiter"},
+		{mint: proposed.Mint.String(), ts: old, micros: 100_000_000, source: "jupiter"},
+		{mint: cold.Mint.String(), ts: old, micros: 100_000_000, source: "jupiter"},
+	})
 	d := module.Deps{Pool: pool, Config: moduleConfig(), Clock: clk, IDs: g, UoW: db.New(pool, g, clk)}
 	m := market.New(d)
 	module.NewSet(m, treasury.New(d), governance.New(d))
-	history := &marketfake.PriceHistoryFake{}
-	if _, err := m.Backfill(history).Tick(t.Context()); err != nil {
+	if _, err := m.Retention().Tick(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := queued(t, pool), mintStrings(held.Mint, proposed.Mint); !slices.Equal(got, want) {
-		t.Fatalf("price_backfills = %v, want the held and proposed listed mints %v", got, want)
+	rows := loadPrices(t, pool)
+	got := make([]string, 0, len(rows))
+	for _, row := range rows {
+		got = append(got, row.mint)
 	}
-	if got := len(history.Calls()); got != 6 {
-		t.Fatalf("%d calls, want 3 for each of the held and proposed mints", got)
+	slices.Sort(got)
+	if want := []string{
+		held.Mint.String(),
+		proposed.Mint.String(),
+	}; !slices.Equal(
+		got,
+		slices.Sorted(slices.Values(want)),
+	) {
+		t.Fatalf("mints with history after retention = %v, want the held and proposed listed mints %v", got, want)
 	}
 }

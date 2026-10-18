@@ -20,7 +20,7 @@ import (
 )
 
 type reconcileRig struct {
-	*backfillRig
+	*historyRig
 	reconcile *app.Reconcile
 }
 
@@ -31,12 +31,12 @@ func newReconcileRig(t *testing.T, assets ...market.Asset) *reconcileRig {
 
 func newHotReconcileRig(t *testing.T, hot []app.HotMints, assets ...market.Asset) *reconcileRig {
 	t.Helper()
-	b := newBackfillRig(t)
+	b := newHistoryRig(t)
 	seedAssets(t, b.pool, b.clock.Now(), assets...)
 	ids := testkit.NewIDs(5)
 	return &reconcileRig{
-		backfillRig: b,
-		reconcile:   app.NewReconcile(db.New(b.pool, ids, b.clock), b.pool, b.clock, b.history, hot...),
+		historyRig: b,
+		reconcile:  app.NewReconcile(db.New(b.pool, ids, b.clock), b.pool, b.clock, b.history, hot...),
 	}
 }
 
@@ -284,7 +284,7 @@ func (h *heldTick) finish(t *testing.T, wait time.Duration) {
 
 func tripCooldown(t *testing.T, c *app.Cooldown) {
 	t.Helper()
-	c.Trip(t.Context(), "market.backfill", errs.New(errs.CodeCoinGeckoRateLimited, "test"))
+	c.Trip(t.Context(), "market.chart", errs.New(errs.CodeCoinGeckoRateLimited, "test"))
 }
 
 func TestReconcile_aCooldownMidTickHoldsTheRestOfTheNightUntilItEnds(t *testing.T) {
@@ -350,7 +350,7 @@ func TestReconcile_aTickCancelledInACooldownStopsWaiting(t *testing.T) {
 	r.reconcile.WithCooldown(cool)
 	ctx, cancel := context.WithCancel(r.ctx(t))
 	r.history.During(func() {
-		cool.Trip(t.Context(), "market.backfill", errs.New(errs.CodeCoinGeckoRateLimited, "test"))
+		cool.Trip(t.Context(), "market.chart", errs.New(errs.CodeCoinGeckoRateLimited, "test"))
 		cancel()
 	})
 	_, err := r.reconcile.Tick(ctx)

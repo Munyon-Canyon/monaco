@@ -26,7 +26,7 @@ func TestCooldown_aShorterTripNeverShortensALongerOne(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		clk := clock.Real{}
 		c := app.NewCooldown(clk)
-		c.Trip(t.Context(), "market.backfill", rateLimited(900))
+		c.Trip(t.Context(), "market.chart", rateLimited(900))
 		<-clk.After(time.Minute)
 		c.Trip(t.Context(), "market.reconcile", rateLimited(0))
 		<-clk.After(2 * time.Minute)
@@ -46,7 +46,7 @@ func TestCooldown_waitFollowsAnExtensionMadeWhileWaiting(t *testing.T) {
 		clk := clock.Real{}
 		c := app.NewCooldown(clk)
 		start := clk.Now()
-		c.Trip(t.Context(), "market.backfill", rateLimited(0))
+		c.Trip(t.Context(), "market.chart", rateLimited(0))
 		var extend errgroup.Group
 		extend.Go(func() error {
 			<-clk.After(30 * time.Second)
@@ -67,7 +67,7 @@ func TestCooldown_waitStopsWhenTheContextEnds(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		c := app.NewCooldown(clock.Real{})
-		c.Trip(t.Context(), "market.backfill", rateLimited(0))
+		c.Trip(t.Context(), "market.chart", rateLimited(0))
 		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cancel()
 		if err := c.Wait(ctx); err == nil {

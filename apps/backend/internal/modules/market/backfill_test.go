@@ -162,8 +162,6 @@ func (r *backfillRig) putChart(m market.Mint) {
 	r.history.Put(m, 365, sample(at(13*time.Hour+41*time.Second), 120_000_000))
 }
 
-func sample(at time.Time, micros uint64) app.Sample { return app.Sample{At: at, Price: usd(micros)} }
-
 func TestBackfill_ThreeCallsPerMint(t *testing.T) {
 	t.Parallel()
 	r := newBackfillRig(t)
