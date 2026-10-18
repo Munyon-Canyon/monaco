@@ -102,7 +102,8 @@ func (q *Queries) ListRoutedUnfinished(ctx context.Context, arg ListRoutedUnfini
 
 const listStrandedCash = `-- name: ListStrandedCash :many
 SELECT s.id, s.source_kind, s.source_id,
-  EXISTS (SELECT 1 FROM trade_steps AS b WHERE b.trade_id = s.id AND b.step = 'bridge_back')::bool AS returning
+  EXISTS (SELECT 1 FROM trade_steps AS b WHERE b.trade_id = s.id AND b.step = 'bridge_back')::bool AS returning,
+  coalesce(s.failed_at, s.confirmed_at, s.parked_at)::timestamptz AS finished_at
 FROM swaps AS s
 WHERE coalesce(s.failed_at, s.confirmed_at, s.parked_at) < $1::timestamptz
   AND (
@@ -136,6 +137,7 @@ type ListStrandedCashRow struct {
 	SourceKind string
 	SourceID   uuid.UUID
 	Returning  bool
+	FinishedAt time.Time
 }
 
 func (q *Queries) ListStrandedCash(ctx context.Context, arg ListStrandedCashParams) ([]ListStrandedCashRow, error) {
@@ -152,6 +154,7 @@ func (q *Queries) ListStrandedCash(ctx context.Context, arg ListStrandedCashPara
 			&i.SourceKind,
 			&i.SourceID,
 			&i.Returning,
+			&i.FinishedAt,
 		); err != nil {
 			return nil, err
 		}

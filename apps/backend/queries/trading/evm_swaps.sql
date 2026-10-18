@@ -59,7 +59,8 @@ WHERE o.trade_id = sqlc.arg(from_trade)::uuid AND o.step = 'bridge_out' AND o.st
 
 -- name: ListStrandedCash :many
 SELECT s.id, s.source_kind, s.source_id,
-  EXISTS (SELECT 1 FROM trade_steps AS b WHERE b.trade_id = s.id AND b.step = 'bridge_back')::bool AS returning
+  EXISTS (SELECT 1 FROM trade_steps AS b WHERE b.trade_id = s.id AND b.step = 'bridge_back')::bool AS returning,
+  coalesce(s.failed_at, s.confirmed_at, s.parked_at)::timestamptz AS finished_at
 FROM swaps AS s
 WHERE coalesce(s.failed_at, s.confirmed_at, s.parked_at) < sqlc.arg(older_than)::timestamptz
   AND (
