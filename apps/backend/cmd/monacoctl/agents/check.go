@@ -49,6 +49,7 @@ type checkRow struct {
 	cmds  [][]string
 	skip  string
 
+	header string
 	class  string
 	dbCmds func(db testDB) [][]string
 	prep   [][]string
@@ -680,7 +681,12 @@ func (env *Env) goRows(ctx context.Context, self, base, head string, changed []s
 	if err != nil {
 		return nil, fmt.Errorf("find affected packages: %w", err)
 	}
-	pkgs := strings.Fields(string(out))
+	tested := strings.Fields(string(out))
+	skipped, err := env.Run(ctx, backend, "", self, "ci", "affected", "--base", base, "--excluded")
+	if err != nil {
+		return nil, fmt.Errorf("find excluded packages: %w", err)
+	}
+	pkgs := slices.Concat(tested, strings.Fields(string(skipped)))
 	if len(pkgs) == 0 {
 		return nil, nil
 	}
@@ -694,6 +700,11 @@ func (env *Env) goRows(ctx context.Context, self, base, head string, changed []s
 		return nil, err
 	}
 	covered := coverageFiles(backend, changed)
+	testRow := goTestRow(env, backend, tags, tested, covered, profile)
+	testRow.header = testHeader(tested, strings.Fields(string(skipped)))
+	if len(tested) == 0 {
+		testRow.skip = "every affected package is excluded: " + strings.Join(strings.Fields(string(skipped)), " ")
+	}
 	return []checkRow{
 		{
 			label: "go build", kind: "go", dir: backend, class: "cpu",
@@ -707,17 +718,29 @@ func (env *Env) goRows(ctx context.Context, self, base, head string, changed []s
 			cmds:  [][]string{slices.Concat([]string{"go", "vet"}, tags, pkgs)},
 		},
 		lint,
-		{
-			label: "go test -short", kind: packageKind, dir: backend, class: "db",
-			dbCmds: func(db testDB) [][]string {
-				p := strconv.Itoa(testParallelism(runtime.NumCPU(), db.busy))
-				return [][]string{slices.Concat(db.testEnv(), []string{"go", "test"}, tags, []string{
-					"-short", "-count=1", "-timeout", env.Config.Budget[packageKind].String(), "-p", p, "-json",
-				}, coverFlags(backend, pkgs, covered, profile), pkgs)}
-			},
-		},
+		testRow,
 		coverageRow(backend, self, profile, covered),
 	}, nil
+}
+
+func testHeader(tested, skipped []string) string {
+	header := fmt.Sprintf("closure of %d packages", len(tested))
+	if len(skipped) > 0 {
+		header += "; excluded " + strings.Join(skipped, " ")
+	}
+	return header
+}
+
+func goTestRow(env *Env, backend string, tags, pkgs []string, covered map[string]bool, profile string) checkRow {
+	return checkRow{
+		label: "go test -short", kind: packageKind, dir: backend, class: "db",
+		dbCmds: func(db testDB) [][]string {
+			p := strconv.Itoa(testParallelism(runtime.NumCPU(), db.busy))
+			return [][]string{slices.Concat(db.testEnv(), []string{"go", "test"}, tags, []string{
+				"-short", "-count=1", "-timeout", env.Config.Budget[packageKind].String(), "-p", p, "-json",
+			}, coverFlags(backend, pkgs, covered, profile), pkgs)}
+		},
+	}
 }
 
 func coverageFiles(backend string, changed []string) map[string]bool {
@@ -999,6 +1022,10 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 }
 
 func (r *checkRun) runRow(ctx context.Context, row checkRow, stdout io.Writer, tokenWait string) error {
+	if row.header != "" {
+		_, _ = fmt.Fprintf(stdout, "  %-15s %s\n", row.label, row.header)
+		_, _ = fmt.Fprintf(&r.log, "%s: %s\n", row.label, row.header)
+	}
 	ctx, cancel, sb := r.rowBudget(ctx, row)
 	defer cancel()
 	watch := r.env.watchLoad(ctx, sb)

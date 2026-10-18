@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"path"
 	"slices"
 	"strings"
@@ -17,7 +18,7 @@ import (
 )
 
 const (
-	ciUsage     = "usage: monacoctl ci affected --base <ref>"
+	ciUsage     = "usage: monacoctl ci affected --base <ref> [--excluded]"
 	allPackages = "./..."
 )
 
@@ -50,14 +51,18 @@ func ciTool(env ciEnv) tool {
 		fs := flag.NewFlagSet("ci affected", flag.ContinueOnError)
 		fs.SetOutput(io.Discard)
 		base := fs.String("base", "", "")
+		excluded := fs.Bool("excluded", false, "")
 		if fs.Parse(args[1:]) != nil || fs.NArg() != 0 || *base == "" {
 			_, _ = fmt.Fprintln(stderr, ciUsage)
 			return 2
 		}
-		pkgs, err := env.affected(context.Background(), *base)
+		pkgs, skipped, err := env.affected(context.Background(), *base)
 		if err != nil {
 			_, _ = fmt.Fprintf(stderr, "monacoctl ci affected: %v\n", err)
 			return 1
+		}
+		if *excluded {
+			pkgs = skipped
 		}
 		for _, p := range pkgs {
 			_, _ = fmt.Fprintln(stdout, p)
@@ -66,32 +71,33 @@ func ciTool(env ciEnv) tool {
 	}
 }
 
-func (env ciEnv) affected(ctx context.Context, base string) ([]string, error) {
+func (env ciEnv) affected(ctx context.Context, base string) (selected, excluded []string, err error) {
 	const op = "monacoctl.ciAffected"
 	diff, err := env.exec(ctx, env.moduleDir, nil, env.gitBin,
 		"diff", "--name-only", "--relative", base+"...HEAD", "--", ".")
 	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeInternal, op)
+		return nil, nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	rows, err := env.exec(ctx, env.moduleDir, nil, env.gitBin,
 		"diff", "--name-only", base+"...HEAD", "--", ":(top)"+flows.Dir)
 	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeInternal, op)
+		return nil, nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	changed := slices.Concat(strings.Fields(string(diff)), strings.Fields(string(rows)))
 	if len(changed) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	listed, err := env.exec(ctx, env.moduleDir, nil, env.goBin,
 		"list", "-deps", "-json=ImportPath,Imports,TestImports,XTestImports,Module", allPackages)
 	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeInternal, op)
+		return nil, nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	pkgs, err := decodePackages(listed)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return reverseDeps(pkgs, changed), nil
+	selected, excluded = reverseDeps(pkgs, changed)
+	return selected, excluded, nil
 }
 
 func decodePackages(data []byte) (map[string]listedPackage, error) {
@@ -125,11 +131,44 @@ func flowsReaders() []string {
 	}
 }
 
-func reverseDeps(byDir map[string]listedPackage, changed []string) []string {
+func agentTooling() []string {
+	return []string{"cmd/monacoctl", "cmd/monacoctl/agents", "cmd/monacoctl/verify"}
+}
+
+func sharedTooling(dir string) bool {
+	return slices.ContainsFunc([]string{"internal/platform", "internal/events"}, func(root string) bool {
+		return dir == root || strings.HasPrefix(dir, root+"/")
+	})
+}
+
+func reverseDeps(byDir map[string]listedPackage, changed []string) (selected, excluded []string) {
 	hit, local, ok := seedPackages(byDir, changed)
 	if !ok {
-		return []string{allPackages}
+		return []string{allPackages}, nil
 	}
+	seeds := maps.Clone(hit)
+	growToImporters(byDir, hit)
+	dirOf := map[string]string{}
+	for dir, p := range byDir {
+		dirOf[p.ImportPath] = dir
+	}
+	for dir, p := range byDir {
+		tests := slices.Concat(p.TestImports, p.XTestImports)
+		testsHit := slices.ContainsFunc(tests, func(i string) bool { return hit[i] })
+		switch {
+		case !hit[p.ImportPath] && !local[p.ImportPath] && !testsHit:
+		case slices.Contains(agentTooling(), dir) && !inputsChanged(p, dirOf, seeds, local):
+			excluded = append(excluded, "./"+dir)
+		default:
+			selected = append(selected, "./"+dir)
+		}
+	}
+	slices.Sort(selected)
+	slices.Sort(excluded)
+	return selected, excluded
+}
+
+func growToImporters(byDir map[string]listedPackage, hit map[string]bool) {
 	for grew := true; grew; {
 		grew = false
 		for _, p := range byDir {
@@ -138,16 +177,11 @@ func reverseDeps(byDir map[string]listedPackage, changed []string) []string {
 			}
 		}
 	}
-	var out []string
-	for dir, p := range byDir {
-		tests := slices.Concat(p.TestImports, p.XTestImports)
-		testsHit := slices.ContainsFunc(tests, func(i string) bool { return hit[i] })
-		if hit[p.ImportPath] || local[p.ImportPath] || testsHit {
-			out = append(out, "./"+dir)
-		}
-	}
-	slices.Sort(out)
-	return out
+}
+
+func inputsChanged(p listedPackage, dirOf map[string]string, seeds, local map[string]bool) bool {
+	return seeds[p.ImportPath] || local[p.ImportPath] ||
+		slices.ContainsFunc(p.Imports, func(i string) bool { return seeds[i] && !sharedTooling(dirOf[i]) })
 }
 
 func seedPackages(byDir map[string]listedPackage, changed []string) (hit, local map[string]bool, ok bool) {
@@ -173,7 +207,7 @@ func seedPackages(byDir map[string]listedPackage, changed []string) (hit, local 
 }
 
 func testOnly(f string) bool {
-	return strings.HasSuffix(f, "_test.go")
+	return strings.HasSuffix(f, "_test.go") || strings.HasPrefix(f, "internal/events/testdata/")
 }
 
 func seedDirs(byDir map[string]listedPackage, f string) []string {

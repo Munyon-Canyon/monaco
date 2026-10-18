@@ -51,6 +51,8 @@ type checkHarness struct {
 	calls       []string
 	names       []string
 	affected    string
+	excluded    string
+	excludedErr error
 	affectedErr error
 	replies     []reply
 	goos        string
@@ -122,6 +124,9 @@ func (h *checkHarness) run(ctx context.Context, dir, stdin, name string, args ..
 		h.onCall(line)
 	}
 	if strings.HasPrefix(line, "ci affected") {
+		if strings.HasSuffix(line, "--excluded") {
+			return []byte(h.excluded), errors.Join(h.affectedErr, h.excludedErr)
+		}
 		return []byte(h.affected), h.affectedErr
 	}
 	bare := testDBEnvRE.ReplaceAllString(line, "")
@@ -424,6 +429,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 	want := []string{
 		".: gt parent --no-interactive",
 		"apps/backend: ci affected --base origin/fb",
+		"apps/backend: ci affected --base origin/fb --excluded",
 		"apps/backend: go env GOPATH",
 		"apps/backend: golangci-lint version --short",
 		pr + "check-gate-changes.py",
@@ -2399,5 +2405,53 @@ func TestCheck_aLaneBuildFailureFailsTheCheckWithItsError(t *testing.T) {
 	if code != 1 || !strings.Contains(stderr, "build this tree's monacoctl") ||
 		!strings.Contains(stderr, "syntax error") {
 		t.Fatalf("%d %q", code, stderr)
+	}
+}
+
+func TestCheck_theGoTestRowHeaderNamesTheClosureAndWhatItExcluded(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.affected = "./internal/a\n./internal/b\n"
+	h.excluded = "./cmd/monacoctl\n./cmd/monacoctl/agents\n"
+	code, stdout, stderr := h.check(t)
+	want := "go test -short  closure of 2 packages; excluded ./cmd/monacoctl ./cmd/monacoctl/agents\n"
+	if code != 0 || !strings.Contains(stdout, want) {
+		t.Fatalf("check: %d %q %q", code, stdout, stderr)
+	}
+	joined := strings.Join(h.calls, "\n")
+	if !strings.Contains(joined, "./cmd/monacoctl/agents") ||
+		strings.Contains(joined, "go test") && strings.Contains(testCall(h.calls), "cmd/monacoctl") {
+		t.Fatalf("build and vet cover the excluded packages, go test does not: %v", h.calls)
+	}
+}
+
+func testCall(calls []string) string {
+	for _, c := range calls {
+		if strings.Contains(c, " go test ") || strings.Contains(c, "go test -tags") {
+			return c
+		}
+	}
+	return ""
+}
+
+func TestCheck_theGoTestRowSkipsWhenEveryAffectedPackageIsExcluded(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.excluded = "./cmd/monacoctl\n"
+	code, stdout, stderr := h.check(t)
+	if code != 0 ||
+		!strings.Contains(stdout, "go test -short  skip  every affected package is excluded: ./cmd/monacoctl\n") {
+		t.Fatalf("check: %d %q %q", code, stdout, stderr)
+	}
+	if strings.Contains(testCall(h.calls), "go test") {
+		t.Fatalf("go test ran with no packages: %v", h.calls)
+	}
+	h = newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.excludedErr = errors.New("go list broke")
+	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "find excluded packages") {
+		t.Fatalf("excluded: %d %q", code, stderr)
 	}
 }
