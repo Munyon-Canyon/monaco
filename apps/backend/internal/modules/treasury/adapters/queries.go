@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"math/big"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -251,7 +252,7 @@ func (q *Queries) potValuePositions(
 	prices := map[uuid.UUID]app.Price{}
 	if needsPrices {
 		var err error
-		prices, err = q.prices.LatestPrices(ctx)
+		prices, err = q.pricesOf(ctx, positions, assets)
 		if err != nil {
 			return money.Micros{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.PotValue")
 		}
@@ -268,6 +269,18 @@ func (q *Queries) potValuePositions(
 		}
 	}
 	return total, nil
+}
+
+func (q *Queries) pricesOf(
+	ctx context.Context, positions []port.Position, assets map[chain.SolanaAddress]app.Asset,
+) (map[uuid.UUID]app.Price, error) {
+	held := make([]uuid.UUID, 0, len(positions))
+	for _, position := range positions {
+		if asset, ok := assets[position.Mint]; ok && position.Mint != q.usdc && !slices.Contains(held, asset.ID) {
+			held = append(held, asset.ID)
+		}
+	}
+	return q.prices.PricesAsOf(ctx, held, q.clock.Now())
 }
 
 func (q *Queries) positionValue(

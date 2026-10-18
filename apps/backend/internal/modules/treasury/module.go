@@ -370,8 +370,12 @@ func marketResolver(catalog market.Catalog) app.MintResolver {
 }
 
 func marketPrices(reader market.Prices) app.PriceReader {
-	return func(ctx context.Context) (map[uuid.UUID]app.Price, error) {
-		prices, err := reader.LatestPrices(ctx)
+	return func(ctx context.Context, ids []uuid.UUID, at time.Time) (map[uuid.UUID]app.Price, error) {
+		asked := make([]market.AssetID, len(ids))
+		for i, id := range ids {
+			asked[i] = market.AssetIDFrom(id)
+		}
+		prices, err := reader.PricesAsOf(ctx, asked, at)
 		if err != nil {
 			return nil, err
 		}

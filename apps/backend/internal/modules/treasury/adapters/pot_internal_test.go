@@ -61,7 +61,7 @@ func potQueries(store potFake, pricesErr error) *Queries {
 		catalog: app.MintResolver(func(context.Context, chain.SolanaAddress) (app.Asset, error) {
 			return app.Asset{ID: aapl.ID.UUID(), Symbol: aapl.Symbol, Decimals: aapl.Decimals, ChainChecked: true}, nil
 		}),
-		prices: app.PriceReader(func(context.Context) (map[uuid.UUID]app.Price, error) {
+		prices: app.PriceReader(func(context.Context, []uuid.UUID, time.Time) (map[uuid.UUID]app.Price, error) {
 			return map[uuid.UUID]app.Price{
 					aapl.ID.UUID(): {Micros: money.MicrosFromUint64(100_000_000), ObservedAt: now},
 				},

@@ -13,16 +13,20 @@ import (
 )
 
 type fakeBook struct {
-	latest    map[domain.AssetID]domain.Sample
-	latestErr error
-	asOf      map[domain.AssetID]domain.Sample
-	asOfErr   error
-	days      []domain.Sample
-	dayErr    error
+	asOf    map[domain.AssetID]domain.Sample
+	asOfErr error
+	days    []domain.Sample
+	dayErr  error
 }
 
-func (f fakeBook) LatestPrices(context.Context) (map[domain.AssetID]domain.Sample, error) {
-	return f.latest, f.latestErr
+func (fakeBook) PointsCount(context.Context) (int64, error) { return 0, nil }
+
+func (fakeBook) RecentSamples(context.Context) (map[domain.AssetID][]domain.Sample, error) {
+	return map[domain.AssetID][]domain.Sample{}, nil
+}
+
+func (fakeBook) SamplesOf(context.Context, []domain.AssetID) (map[domain.AssetID][]domain.Sample, error) {
+	return map[domain.AssetID][]domain.Sample{}, nil
 }
 
 func (f fakeBook) PricesAsOf(context.Context, []domain.AssetID, time.Time) (map[domain.AssetID]domain.Sample, error) {
@@ -40,13 +44,17 @@ func TestRecordMoves_reportsAReferenceReadFailure(t *testing.T) {
 	asset := domain.Asset{ID: id, Kind: domain.KindEquity, Symbol: "AAPLx"}
 	mark := domain.Sample{Micros: money.MicrosFromUint64(220_000_000), ObservedAt: at}
 	p := &SamplePrices{
-		book: fakeBook{
-			latest:  map[domain.AssetID]domain.Sample{id: mark},
-			asOfErr: errs.New(errs.CodeDBUnavailable, "test.prices"),
-		},
+		book:  fakeBook{asOfErr: errs.New(errs.CodeDBUnavailable, "test.prices")},
 		clock: testkit.NewClock(at),
 	}
-	if err := p.recordMoves(t.Context(), []domain.Asset{asset}, at); errs.CodeOf(err) != errs.CodeDBUnavailable {
+	if err := p.recordMoves(
+		t.Context(),
+		[]domain.Asset{asset},
+		at,
+		map[domain.AssetID]domain.Sample{id: mark},
+	); errs.CodeOf(
+		err,
+	) != errs.CodeDBUnavailable {
 		t.Fatalf("recordMoves = %v, want db_unavailable", err)
 	}
 }
@@ -58,13 +66,17 @@ func TestRecordMoves_reportsAPreIPOWindowFailure(t *testing.T) {
 	asset := domain.Asset{ID: id, Kind: domain.KindPreIPO, Symbol: "SPACx"}
 	mark := domain.Sample{Micros: money.MicrosFromUint64(220_000_000), ObservedAt: at}
 	p := &SamplePrices{
-		book: fakeBook{
-			latest: map[domain.AssetID]domain.Sample{id: mark},
-			dayErr: errs.New(errs.CodeDBUnavailable, "test.day"),
-		},
+		book:  fakeBook{dayErr: errs.New(errs.CodeDBUnavailable, "test.day")},
 		clock: testkit.NewClock(at),
 	}
-	if err := p.recordMoves(t.Context(), []domain.Asset{asset}, at); errs.CodeOf(err) != errs.CodeDBUnavailable {
+	if err := p.recordMoves(
+		t.Context(),
+		[]domain.Asset{asset},
+		at,
+		map[domain.AssetID]domain.Sample{id: mark},
+	); errs.CodeOf(
+		err,
+	) != errs.CodeDBUnavailable {
 		t.Fatalf("recordMoves = %v, want db_unavailable", err)
 	}
 }

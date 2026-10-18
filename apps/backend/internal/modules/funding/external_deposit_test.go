@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -52,10 +54,31 @@ func (a watchAssets) AssetByMint(_ context.Context, mint market.Mint) (market.As
 	return asset, nil
 }
 
-type watchPrices map[market.AssetID]market.Price
+type watchPrices struct {
+	mu    sync.Mutex
+	have  map[market.AssetID]market.Price
+	asked [][]market.AssetID
+}
 
-func (p watchPrices) LatestPrices(context.Context) (map[market.AssetID]market.Price, error) {
-	return p, nil
+func (p *watchPrices) set(id market.AssetID, price market.Price) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.have[id] = price
+}
+
+func (p *watchPrices) PricesAsOf(
+	_ context.Context, ids []market.AssetID, _ time.Time,
+) (map[market.AssetID]market.Price, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.asked = append(p.asked, slices.Clone(ids))
+	out := map[market.AssetID]market.Price{}
+	for _, id := range ids {
+		if price, ok := p.have[id]; ok {
+			out[id] = price
+		}
+	}
+	return out, nil
 }
 
 type watchWallets struct {
@@ -89,7 +112,7 @@ type watchEnv struct {
 	cabal  testkit.SeededCabal
 	usdc   chain.SolanaAddress
 	stock  market.Asset
-	prices watchPrices
+	prices *watchPrices
 	owned  ownedSigs
 	deps   app.DetectDeps
 }
@@ -110,19 +133,25 @@ func newWatchEnv(t *testing.T, wallets ...identityport.MemberWallet) *watchEnv {
 	if err := assetID.UnmarshalText([]byte(ids.Real{}.NewV7().String())); err != nil {
 		t.Fatal(err)
 	}
+	var decoyID market.AssetID
+	if err := decoyID.UnmarshalText([]byte(ids.Real{}.NewV7().String())); err != nil {
+		t.Fatal(err)
+	}
 	stockMint, err := market.ParseMint(string(randomAddress(t)))
 	if err != nil {
 		t.Fatal(err)
 	}
 	env := &watchEnv{
-		pool:   pool,
-		clock:  clk,
-		hints:  &pauseHints{},
-		chain:  &watchChain{transfers: map[chain.Signature][]solana.Transfer{}},
-		cabal:  testkit.NewCabal(t, pool),
-		usdc:   randomAddress(t),
-		prices: watchPrices{},
-		owned:  ownedSigs{},
+		pool:  pool,
+		clock: clk,
+		hints: &pauseHints{},
+		chain: &watchChain{transfers: map[chain.Signature][]solana.Transfer{}},
+		cabal: testkit.NewCabal(t, pool),
+		usdc:  randomAddress(t),
+		prices: &watchPrices{have: map[market.AssetID]market.Price{
+			decoyID: {Micros: money.MicrosFromUint64(1), ObservedAt: clk.Now()},
+		}},
+		owned: ownedSigs{},
 		stock: market.Asset{
 			ID: assetID, Symbol: "AAPLx", Mint: stockMint, Decimals: 8,
 			UIMultiplier: market.Multiplier{Num: 1, Den: 1},
@@ -155,7 +184,7 @@ func (e *watchEnv) setPrice(price *market.Price) {
 	if p.ObservedAt.IsZero() {
 		p.ObservedAt = e.clock.Now()
 	}
-	e.prices[e.stock.ID] = p
+	e.prices.set(e.stock.ID, p)
 }
 
 func (e *watchEnv) usdcMint() chain.Mint { return chain.Mint{Address: e.usdc, Decimals: 6} }
@@ -365,7 +394,10 @@ func TestDetectExternalDeposit_IgnoredTransfersNeverPause(t *testing.T) {
 		}, "ignored_dust", errs.CodeDust},
 		{"priced stock dust", func(t *testing.T, e *watchEnv) chain.Signature {
 			t.Helper()
-			e.prices[e.stock.ID] = market.Price{Micros: money.MicrosFromUint64(200_000_000), ObservedAt: e.clock.Now()}
+			e.prices.set(
+				e.stock.ID,
+				market.Price{Micros: money.MicrosFromUint64(200_000_000), ObservedAt: e.clock.Now()},
+			)
 			return e.inbound(t, e.stockMint(), 400_000, randomAddress(t))
 		}, "ignored_dust", errs.CodeDust},
 		{"unknown mint", func(t *testing.T, e *watchEnv) chain.Signature {
@@ -420,6 +452,9 @@ func TestDetectExternalDeposit_StockPricing(t *testing.T) {
 			}
 			if e := detectedEvent(t, env.pool); e.AssetID == nil || *e.AssetID != env.stock.ID.UUID() {
 				t.Fatalf("event asset = %v, want %s", e.AssetID, env.stock.ID)
+			}
+			if asked := env.prices.asked; len(asked) != 1 || len(asked[0]) != 1 || asked[0][0] != env.stock.ID {
+				t.Fatalf("price reads asked for %v, want one read for the deposited stock only", asked)
 			}
 		})
 	}

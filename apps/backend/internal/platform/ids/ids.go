@@ -45,6 +45,8 @@ func New[T any](g Generator) ID[T] { return ID[T]{u: g.NewV7()} }
 
 func NewUserID(g Generator) UserID { return New[user](g) }
 
+func From[T any](u uuid.UUID) ID[T] { return ID[T]{u: u} }
+
 func Parse[T any](raw string) (ID[T], error) {
 	u, err := uuid.Parse(raw)
 	if err != nil || u.String() != raw || u.Version() != 7 || u.Variant() != uuid.RFC4122 {

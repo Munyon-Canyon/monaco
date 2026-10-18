@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -18,6 +20,8 @@ type AssetID = ids.ID[asset]
 func NewAssetID(g ids.Generator) AssetID { return ids.New[asset](g) }
 
 func ParseAssetID(raw string) (AssetID, error) { return ids.Parse[asset](raw) }
+
+func AssetIDFrom(u uuid.UUID) AssetID { return ids.From[asset](u) }
 
 const Attribution = "Data provided by CoinGecko"
 

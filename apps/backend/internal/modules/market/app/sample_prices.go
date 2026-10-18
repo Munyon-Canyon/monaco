@@ -22,7 +22,9 @@ import (
 )
 
 type priceReader interface {
-	LatestPrices(context.Context) (map[domain.AssetID]domain.Sample, error)
+	PointsCount(context.Context) (int64, error)
+	RecentSamples(context.Context) (map[domain.AssetID][]domain.Sample, error)
+	SamplesOf(context.Context, []domain.AssetID) (map[domain.AssetID][]domain.Sample, error)
 	PricesAsOf(context.Context, []domain.AssetID, time.Time) (map[domain.AssetID]domain.Sample, error)
 	DaySamples(context.Context, domain.AssetID, time.Time, time.Time) ([]domain.Sample, error)
 }
@@ -48,6 +50,12 @@ type SamplePrices struct {
 	cached  []domain.Asset
 	version CatalogVersion
 	loaded  bool
+
+	window   map[domain.AssetID][]domain.Sample
+	lastTick time.Time
+	seededAt time.Time
+	points   int64
+	wrote    int64
 }
 
 func NewSamplePrices(
@@ -70,6 +78,9 @@ func (p *SamplePrices) Tick(ctx context.Context) (poller.Report, error) {
 	if err != nil {
 		return poller.Report{}, err
 	}
+	if err = p.ensureWindow(ctx); err != nil {
+		return poller.Report{}, err
+	}
 	at := domain.Bucket(p.clock.Now())
 	start := p.clock.Now()
 	need, err := p.needs(ctx, assets, p.capacity())
@@ -90,24 +101,17 @@ func (p *SamplePrices) Tick(ctx context.Context) (poller.Report, error) {
 			left = append(left, a)
 		}
 	}
-	written, err := p.insert(ctx, rows)
-	var evmAttrs []slog.Attr
-	if err == nil {
-		evmAttrs, err = p.sampleListings(ctx, at, answered)
-	}
-	var pubErr error
-	if err == nil {
-		pubErr = p.publish(ctx, at, assets)
-	}
-	if err == nil {
-		err = p.recordMoves(ctx, assets, at)
-	}
-	if err == nil {
-		err = pubErr
-	}
+	inserted, err := p.insert(ctx, rows)
 	if err != nil {
 		return poller.Report{}, err
 	}
+	evmAttrs, err := p.settle(ctx, at, assets, answered, rows.Mints, inserted)
+	if err != nil {
+		p.window = nil
+		return poller.Report{}, err
+	}
+	p.points += p.wrote
+	written := len(inserted)
 	missing := len(left)
 	logMissing(ctx, left)
 	report := poller.Report{Scanned: len(asked), Changed: written, Attrs: []slog.Attr{
@@ -137,6 +141,7 @@ func (p *SamplePrices) catalogAssets(ctx context.Context) ([]domain.Asset, error
 		return nil, err
 	}
 	p.cached, p.version, p.loaded = assets, version, true
+	p.window = nil
 	return assets, nil
 }
 
@@ -187,30 +192,51 @@ func storableMicros(micros money.Micros) (int64, bool) {
 	return signed.Int64(), err == nil
 }
 
-func (p *SamplePrices) insert(ctx context.Context, rows sqlc.InsertPricePointsParams) (int, error) {
+func (p *SamplePrices) insert(
+	ctx context.Context,
+	rows sqlc.InsertPricePointsParams,
+) ([]sqlc.InsertPricePointsRow, error) {
 	if len(rows.Mints) == 0 {
-		return 0, nil
+		return nil, nil
 	}
-	var written int64
+	var inserted []sqlc.InsertPricePointsRow
 	err := p.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		var err error
 		q := sqlc.New(tx.Queries())
-		if written, err = q.InsertPricePoints(ctx, rows); err == nil {
+		if inserted, err = q.InsertPricePoints(ctx, rows); err == nil {
 			_, err = q.MarkAssetsQuoted(ctx, sqlc.MarkAssetsQuotedParams{At: p.clock.Now(), Mints: rows.Mints})
 		}
 		return err
 	})
 	if err != nil {
-		return 0, errs.Wrap(err, errs.CodeOf(err), "market.SamplePrices.insert", slog.Int("rows", len(rows.Mints)))
+		return nil, errs.Wrap(err, errs.CodeOf(err), "market.SamplePrices.insert", slog.Int("rows", len(rows.Mints)))
 	}
-	return int(written), nil
+	p.wrote += int64(len(inserted))
+	return inserted, nil
 }
 
-func (p *SamplePrices) publish(ctx context.Context, at time.Time, assets []domain.Asset) error {
-	accepted, err := p.book.LatestPrices(ctx)
-	if err != nil {
-		return err
+func (p *SamplePrices) settle(
+	ctx context.Context, at time.Time, assets []domain.Asset, answered map[domain.Mint]money.Micros,
+	asked []string, inserted []sqlc.InsertPricePointsRow,
+) ([]slog.Attr, error) {
+	if err := p.absorb(ctx, assets, answered, asked, inserted); err != nil {
+		return nil, err
 	}
+	attrs, err := p.sampleListings(ctx, at, answered)
+	if err != nil {
+		return nil, err
+	}
+	accepted := p.accepted()
+	pubErr := p.publish(ctx, at, assets, accepted)
+	if err := p.recordMoves(ctx, assets, at, accepted); err != nil {
+		return nil, err
+	}
+	return attrs, pubErr
+}
+
+func (p *SamplePrices) publish(
+	ctx context.Context, at time.Time, assets []domain.Asset, accepted map[domain.AssetID]domain.Sample,
+) error {
 	tick := events.PriceTick{V: 1, AsOf: at, Prices: make([]events.TickPrice, 0, len(accepted))}
 	for _, a := range assets {
 		if s, ok := accepted[a.ID]; ok {

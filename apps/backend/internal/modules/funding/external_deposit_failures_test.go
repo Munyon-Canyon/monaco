@@ -3,6 +3,7 @@ package funding_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/domain"
@@ -31,7 +32,7 @@ func (failing) AssetByMint(context.Context, market.Mint) (market.Asset, error) {
 	return market.Asset{}, errWatchDown
 }
 
-func (failing) LatestPrices(context.Context) (map[market.AssetID]market.Price, error) {
+func (failing) PricesAsOf(context.Context, []market.AssetID, time.Time) (map[market.AssetID]market.Price, error) {
 	return nil, errWatchDown
 }
 

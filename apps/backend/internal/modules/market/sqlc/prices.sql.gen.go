@@ -12,6 +12,17 @@ import (
 	"github.com/google/uuid"
 )
 
+const countPricePoints = `-- name: CountPricePoints :one
+SELECT count(*)::bigint AS points FROM price_points
+`
+
+func (q *Queries) CountPricePoints(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countPricePoints)
+	var points int64
+	err := row.Scan(&points)
+	return points, err
+}
+
 const deleteColdPricePoints = `-- name: DeleteColdPricePoints :many
 DELETE FROM price_points
 WHERE ctid IN (
@@ -51,13 +62,14 @@ func (q *Queries) DeleteColdPricePoints(ctx context.Context, arg DeleteColdPrice
 	return items, nil
 }
 
-const insertPricePoints = `-- name: InsertPricePoints :execrows
+const insertPricePoints = `-- name: InsertPricePoints :many
 INSERT INTO price_points (mint, ts, price_micros, source)
 SELECT u.mint, $1::timestamptz, u.price_micros, $2::text
 FROM ROWS FROM (
   unnest($3::text[]), unnest($4::bigint[])
 ) AS u (mint, price_micros)
 ON CONFLICT (mint, ts) DO NOTHING
+RETURNING mint, ts, price_micros
 `
 
 type InsertPricePointsParams struct {
@@ -67,17 +79,35 @@ type InsertPricePointsParams struct {
 	PriceMicros []int64
 }
 
-func (q *Queries) InsertPricePoints(ctx context.Context, arg InsertPricePointsParams) (int64, error) {
-	result, err := q.db.Exec(ctx, insertPricePoints,
+type InsertPricePointsRow struct {
+	Mint        string
+	Ts          time.Time
+	PriceMicros int64
+}
+
+func (q *Queries) InsertPricePoints(ctx context.Context, arg InsertPricePointsParams) ([]InsertPricePointsRow, error) {
+	rows, err := q.db.Query(ctx, insertPricePoints,
 		arg.Ts,
 		arg.Source,
 		arg.Mints,
 		arg.PriceMicros,
 	)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected(), nil
+	defer rows.Close()
+	var items []InsertPricePointsRow
+	for rows.Next() {
+		var i InsertPricePointsRow
+		if err := rows.Scan(&i.Mint, &i.Ts, &i.PriceMicros); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertReconciledPricePoints = `-- name: InsertReconciledPricePoints :execrows

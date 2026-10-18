@@ -40,9 +40,11 @@ type Price struct {
 	ObservedAt time.Time
 }
 
-type PriceReader func(context.Context) (map[uuid.UUID]Price, error)
+type PriceReader func(context.Context, []uuid.UUID, time.Time) (map[uuid.UUID]Price, error)
 
-func (r PriceReader) LatestPrices(ctx context.Context) (map[uuid.UUID]Price, error) { return r(ctx) }
+func (r PriceReader) PricesAsOf(ctx context.Context, ids []uuid.UUID, at time.Time) (map[uuid.UUID]Price, error) {
+	return r(ctx, ids, at)
+}
 
 type MintResolver func(context.Context, chain.SolanaAddress) (Asset, error)
 

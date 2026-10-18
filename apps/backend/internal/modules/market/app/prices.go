@@ -53,16 +53,58 @@ func (b *PriceBook) DaySamples(
 func (b *PriceBook) PricesAsOf(
 	ctx context.Context, ids []domain.AssetID, at time.Time,
 ) (map[domain.AssetID]domain.Sample, error) {
-	asked := make([]uuid.UUID, len(ids))
-	for i, id := range ids {
-		asked[i] = id.UUID()
+	return b.accepted(ctx, "market.PriceBook.PricesAsOf", sqlc.RecentPriceSamplesParams{At: at, Ids: assetUUIDs(ids)})
+}
+
+func (b *PriceBook) PointsCount(ctx context.Context) (int64, error) {
+	n, err := b.q.CountPricePoints(ctx)
+	if err != nil {
+		return 0, errs.Wrap(err, errs.CodeOf(err), "market.PriceBook.PointsCount")
 	}
-	return b.accepted(ctx, "market.PriceBook.PricesAsOf", sqlc.RecentPriceSamplesParams{At: at, Ids: asked})
+	return n, nil
+}
+
+func (b *PriceBook) RecentSamples(ctx context.Context) (map[domain.AssetID][]domain.Sample, error) {
+	return b.raw(ctx, "market.PriceBook.RecentSamples",
+		sqlc.RecentPriceSamplesParams{At: b.clock.Now(), EveryAsset: true})
+}
+
+func (b *PriceBook) SamplesOf(ctx context.Context, ids []domain.AssetID) (map[domain.AssetID][]domain.Sample, error) {
+	return b.raw(ctx, "market.PriceBook.SamplesOf",
+		sqlc.RecentPriceSamplesParams{At: b.clock.Now(), Ids: assetUUIDs(ids)})
+}
+
+func assetUUIDs(ids []domain.AssetID) []uuid.UUID {
+	out := make([]uuid.UUID, len(ids))
+	for i, id := range ids {
+		out[i] = id.UUID()
+	}
+	return out
 }
 
 func (b *PriceBook) accepted(
 	ctx context.Context, op string, arg sqlc.RecentPriceSamplesParams,
 ) (map[domain.AssetID]domain.Sample, error) {
+	recent, err := b.raw(ctx, op, arg)
+	if err != nil {
+		return nil, err
+	}
+	return acceptAll(recent), nil
+}
+
+func acceptAll(recent map[domain.AssetID][]domain.Sample) map[domain.AssetID]domain.Sample {
+	out := make(map[domain.AssetID]domain.Sample, len(recent))
+	for id, newestFirst := range recent {
+		if s, ok := domain.Accept(newestFirst); ok {
+			out[id] = s
+		}
+	}
+	return out
+}
+
+func (b *PriceBook) raw(
+	ctx context.Context, op string, arg sqlc.RecentPriceSamplesParams,
+) (map[domain.AssetID][]domain.Sample, error) {
 	arg.PerAsset = domain.HoldWindow
 	rows, err := b.q.RecentPriceSamples(ctx, arg)
 	if err != nil {
@@ -76,13 +118,7 @@ func (b *PriceBook) accepted(
 		}
 		recent[id] = append(recent[id], s)
 	}
-	out := make(map[domain.AssetID]domain.Sample, len(recent))
-	for id, newestFirst := range recent {
-		if s, ok := domain.Accept(newestFirst); ok {
-			out[id] = s
-		}
-	}
-	return out, nil
+	return recent, nil
 }
 
 func sampleOf(row sqlc.RecentPriceSamplesRow) (domain.AssetID, domain.Sample, error) {

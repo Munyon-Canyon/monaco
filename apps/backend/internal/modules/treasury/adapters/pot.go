@@ -127,7 +127,7 @@ func (q *Queries) potHoldings(
 func (q *Queries) priceHoldings(
 	ctx context.Context, positions []port.Position, assets map[chain.SolanaAddress]app.Asset, asOf time.Time,
 ) ([]port.Holding, time.Time, error) {
-	prices, err := q.prices.LatestPrices(ctx)
+	prices, err := q.pricesOf(ctx, positions, assets)
 	if err != nil {
 		return nil, time.Time{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.CabalPot")
 	}

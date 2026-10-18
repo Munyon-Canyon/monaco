@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -23,7 +25,8 @@ func TestMarketReadersMapCatalogAndPrices(t *testing.T) {
 	}
 	prices := &marketfake.PricesFake{}
 	prices.Set(asset.ID, money.MicrosFromUint64(7), time.Date(2026, 10, 3, 0, 0, 0, 0, time.UTC))
-	gotPrices, err := marketPrices(prices)(t.Context())
+	at := time.Date(2026, 10, 3, 0, 0, 0, 0, time.UTC)
+	gotPrices, err := marketPrices(prices)(t.Context(), []uuid.UUID{asset.ID.UUID()}, at)
 	if err != nil || gotPrices[asset.ID.UUID()].Micros.Uint64() != 7 {
 		t.Fatalf("marketPrices() = %#v, %v", gotPrices, err)
 	}
@@ -37,8 +40,8 @@ func TestMarketReadersMapCatalogAndPrices(t *testing.T) {
 	if _, err := marketResolver(catalog)(t.Context(), asset.Mint.Address()); err == nil {
 		t.Fatal("marketResolver error = nil")
 	}
-	prices.FailOnce("LatestPrices", errs.New(errs.CodeDBUnavailable, "test"))
-	if _, err := marketPrices(prices)(t.Context()); err == nil {
+	prices.FailOnce("PricesAsOf", errs.New(errs.CodeDBUnavailable, "test"))
+	if _, err := marketPrices(prices)(t.Context(), []uuid.UUID{asset.ID.UUID()}, at); err == nil {
 		t.Fatal("marketPrices error = nil")
 	}
 }

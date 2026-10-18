@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 
@@ -39,6 +40,8 @@ type (
 )
 
 func ParseMint(raw string) (Mint, error) { return domain.ParseMint(raw) }
+
+func AssetIDFrom(u uuid.UUID) AssetID { return domain.AssetIDFrom(u) }
 
 type AssetLookup interface {
 	AssetByID(ctx context.Context, id AssetID) (Asset, error)
