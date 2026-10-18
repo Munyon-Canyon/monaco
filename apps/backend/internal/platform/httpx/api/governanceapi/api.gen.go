@@ -839,6 +839,11 @@ type TradePreview struct {
 	// Examples: null
 	AdvisoryMessage *string `json:"advisory_message"`
 
+	// MaxBuyMicros The largest buy this token's transfer fee leaves the cash able to cover, in micros. Absent for a sell.
+	//
+	// Examples: 985000
+	MaxBuyMicros *int64 `json:"max_buy_micros,omitempty"`
+
 	// PotValueMicros The cabal's total value, USDC plus priced holdings, in micros.
 	//
 	// Examples: 100000000
@@ -853,6 +858,11 @@ type TradePreview struct {
 	//
 	// Examples: 21000000
 	QuoteOutAmount *int64 `json:"quote_out_amount"`
+
+	// SpendableCashMicros The USDC on the cabal's Solana treasury wallet, the cash a buy draws on, in micros. Absent for a sell.
+	//
+	// Examples: 990000
+	SpendableCashMicros *int64 `json:"spendable_cash_micros,omitempty"`
 }
 
 // VoidedProposal A proposal after a moderator voided it.
@@ -949,7 +959,7 @@ type GetCabalProposalPreviewParams struct {
 	// Symbol The token symbol from the catalog.
 	Symbol string `form:"symbol" json:"symbol"`
 
-	// UsdcMicros USDC a buy spends, in micros.
+	// UsdcMicros USDC a buy spends, in micros. A buy that leaves it out returns only the pot and the spendable cash.
 	UsdcMicros *int64 `form:"usdc_micros,omitempty" json:"usdc_micros,omitempty"`
 
 	// TokenAmount Token base units a sell spends.

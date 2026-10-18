@@ -95,7 +95,7 @@ func TestPreview_answersEachCheckAsAnAdvisoryOrAProblem(t *testing.T) {
 	steps = append(steps, advises("kind=buy&symbol=NOPEx&usdc_micros=1", "asset_not_found", nil)...)
 	steps = append(steps, advises("kind=buy&symbol=TSLAx&usdc_micros=1", "no_route", nil)...)
 	steps = append(steps,
-		scenario.Get(w.preview("kind=buy&symbol=AAPLx")), scenario.ExpectProblem(errs.CodeInvalidInput),
+		scenario.Get(w.preview("kind=buy&symbol=AAPLx&token_amount=5")), scenario.ExpectProblem(errs.CodeInvalidInput),
 		scenario.AsUser("mallory"),
 		scenario.Get(w.preview("kind=buy&symbol=AAPLx&usdc_micros=1")), scenario.ExpectProblem(errs.CodeNotCabalMember),
 	)
@@ -233,10 +233,20 @@ func TestHTTP_GetCabalProposalPreview_refusesWhatCannotGoOnTheWire(t *testing.T)
 		params  api.GetCabalProposalPreviewParams
 		want    errs.Code
 	}{
-		"no amount": {
+		"sell with no amount": {
 			func(*tradeWorld) {},
-			api.GetCabalProposalPreviewParams{Kind: "buy", Symbol: "AAPLx"},
+			api.GetCabalProposalPreviewParams{Kind: "sell", Symbol: "AAPLx"},
 			errs.CodeInvalidInput,
+		},
+		"cash unreadable": {
+			func(w *tradeWorld) { w.chain.Fail("TokenBalance", errs.New(errs.CodeUpstreamUnavailable, "test")) },
+			api.GetCabalProposalPreviewParams{Kind: "buy", Symbol: "AAPLx"},
+			errs.CodeUpstreamUnavailable,
+		},
+		"cash past int64": {
+			func(w *tradeWorld) { w.holdCash(math.MaxUint64) },
+			api.GetCabalProposalPreviewParams{Kind: "buy", Symbol: "AAPLx"},
+			errs.CodeDecodeFailed,
 		},
 		"pot past int64": {
 			func(w *tradeWorld) { w.treasury.SetPotValue(w.cabal, money.MicrosFromUint64(math.MaxUint64)) },

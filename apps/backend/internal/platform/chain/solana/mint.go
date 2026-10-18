@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"maps"
 	"math/big"
+	"math/bits"
 	"strconv"
 	"strings"
 	"time"
@@ -42,6 +43,24 @@ func (c MintConfig) FeeHeadroom(amount uint64) uint64 {
 		return c.MaxFee.Uint64()
 	}
 	return fee.Uint64()
+}
+
+func (c MintConfig) MaxSpend(cash uint64) uint64 {
+	fits := func(x uint64) bool {
+		total, carry := bits.Add64(x, c.FeeHeadroom(x), 0)
+		return carry == 0 && total <= cash
+	}
+	lo, hi := uint64(0), cash
+	for lo < hi {
+		gap := hi - lo
+		mid := lo + gap/2 + gap%2
+		if fits(mid) {
+			lo = mid
+		} else {
+			hi = mid - 1
+		}
+	}
+	return lo
 }
 
 type feeWire struct {

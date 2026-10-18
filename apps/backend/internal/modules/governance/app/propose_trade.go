@@ -277,15 +277,7 @@ func funds(
 func cashCovers(
 	ctx context.Context, p TradePorts, cabal ids.CabalID, asset market.Asset, trade domain.Trade,
 ) error {
-	wallet, err := p.Cabals.TreasuryWallet(ctx, cabal)
-	if err != nil {
-		return err
-	}
-	cash, err := p.Balances.TokenBalance(ctx, wallet.Address, p.USDC)
-	if err != nil {
-		return err
-	}
-	cfg, err := p.Balances.MintConfig(ctx, asset.Mint.Address())
+	cash, cfg, err := spendableCash(ctx, p, cabal, asset)
 	if err != nil {
 		return err
 	}
@@ -298,6 +290,24 @@ func cashCovers(
 			slog.String("usdc_micros", trade.USDCMicros.String()))
 	}
 	return nil
+}
+
+func spendableCash(
+	ctx context.Context, p TradePorts, cabal ids.CabalID, asset market.Asset,
+) (money.Micros, solana.MintConfig, error) {
+	wallet, err := p.Cabals.TreasuryWallet(ctx, cabal)
+	if err != nil {
+		return money.Micros{}, solana.MintConfig{}, err
+	}
+	cash, err := p.Balances.TokenBalance(ctx, wallet.Address, p.USDC)
+	if err != nil {
+		return money.Micros{}, solana.MintConfig{}, err
+	}
+	cfg, err := p.Balances.MintConfig(ctx, asset.Mint.Address())
+	if err != nil {
+		return money.Micros{}, solana.MintConfig{}, err
+	}
+	return money.MicrosFromUint64(cash.Uint64()), cfg, nil
 }
 
 func ledgerHolds(
