@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Monaco · Start a hedge fund with your friends</title>
 <meta name="description" content="Pool money with your friends, vote on what to buy, and everyone owns a slice of the pot. Join the Monaco waitlist.">
-<meta name="theme-color" content="#F8F5EE">
+<meta name="theme-color" content="#0F291C">
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <meta property="og:type" content="website">
@@ -17,230 +17,249 @@
 <meta name="twitter:image" content="https://trymonaco.xyz/assets/og.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..400&display=swap">
 <style>
-  :root {
-    color-scheme: light;
-    --bg: #F8F5EE;
-    --bg-2: #FFFFFF;
-    --ink: #0F291C;
-    --ink-2: rgba(15, 41, 28, 0.68);
-    --ink-3: rgba(15, 41, 28, 0.48);
-    --line: rgba(15, 41, 28, 0.10);
-    --line-strong: rgba(15, 41, 28, 0.18);
-    --green: #1E8C55;
-    --green-soft: #E4F2E6;
-    --mint: #BFE6C8;
-    --up: #1E8C55;
-    --down: #C8543E;
-    --radius: 14px;
-    --sans: "Outfit", "Helvetica Neue", Arial, sans-serif;
-  }
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html { -webkit-text-size-adjust: 100%; }
-  body {
-    margin: 0; background: var(--bg); color: var(--ink);
-    font-family: var(--sans); font-size: 17px; line-height: 1.55;
-    -webkit-font-smoothing: antialiased;
-    overflow-x: hidden;
-  }
-  img, svg, video { display: block; max-width: 100%; }
-  a { color: inherit; }
-  .wrap { width: 100%; max-width: 1120px; margin: 0 auto; padding-inline: 20px; }
+/* Tokens. Direction: a members' share certificate from a security printer. See DESIGN.md. */
+:root {
+  color-scheme: dark;
+  --paper: #0F291C;        /* Monaco green: the page, and the only green. Everything else is cream or cream mixed into it */
+  --field: transparent;    /* the field sits on the page itself */
+  --ink: #E6E0CC;          /* soft cream: all text and the button, 11.7:1 on the page */
+  --ink-press: #D3CCB6;    /* button hover */
+  --ink-soft: #909786;     /* cream 60% into the page: disabled button, visited links */
+  --ink-faint: #909786;    /* cream 60% into the page: placeholders, 5.1:1 */
+  --error: #FF8A7A;        /* validation errors, 6.8:1 on the page */
+  --rule: #2F4436;         /* cream 15% into the page: footer rule */
+  --rule-strong: #697666;  /* cream 42% into the page: field outline, 3.2:1 */
+  --screen: #E6E0CC;       /* the icon's light ink: cream dots where the stones catch the light */
+  --serif: "Fraunces", Georgia, serif;
+  --r: 3px;
+  --s1: 8px; --s2: 16px; --s3: 24px; --s4: 40px; --s5: 64px; --s6: 96px;
+  --fast: 180ms cubic-bezier(.2, .7, .2, 1);
+  --gutter: max(20px, env(safe-area-inset-left));
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; min-height: 100vh; min-height: 100dvh; display: grid; grid-template-rows: 1fr auto; background: var(--paper); color: var(--ink); font: 300 17px/1.5 var(--serif); font-variation-settings: "opsz" 14; -webkit-font-smoothing: antialiased; }
+a { color: var(--ink); }
+a:visited { color: var(--ink-soft); }
+.mono { font-family: var(--serif); font-weight: 400; font-size: 15px; line-height: 1.4; letter-spacing: 0; font-variation-settings: "opsz" 14; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-  /* Nav */
-  .nav { position: sticky; top: 0; z-index: 10; background: rgba(248, 245, 238, 0.82); backdrop-filter: saturate(140%) blur(12px); -webkit-backdrop-filter: saturate(140%) blur(12px); border-bottom: 1px solid transparent; transition: border-color .2s; padding-top: env(safe-area-inset-top, 0px); }
-  .nav.scrolled { border-color: var(--line); }
-  .nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 68px; }
-  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
-  .brand .m { width: 30px; height: 30px; }
-  .brand .w { height: 21px; width: auto; }
-  .btn { font: inherit; font-weight: 600; font-size: 15px; border-radius: 999px; padding: 11px 20px; min-height: 44px; border: 1px solid var(--ink); background: var(--ink); color: #fff; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; touch-action: manipulation; transition: transform .15s ease, background .15s ease; }
-  .btn:hover { background: #1A3D2B; border-color: #1A3D2B; }
-  .btn:active { transform: scale(0.98); }
-  .btn.ghost { background: transparent; color: var(--ink); border-color: var(--line-strong); }
-  .btn.ghost:hover { border-color: var(--ink-2); background: transparent; }
-  .btn:focus-visible, input:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
-  .btn[disabled] { opacity: .6; cursor: progress; }
+/* Phones: one centred column. Mark, name, line, then the sign-up bar. */
+main { width: 100%; margin: 0 auto; padding: calc(var(--s4) + env(safe-area-inset-top)) var(--gutter) var(--s4); display: grid; justify-items: center; align-content: center; text-align: center; }
+#mark { width: min(56vw, 32dvh, 280px); aspect-ratio: 1; display: block; }
+.copy { display: grid; justify-items: center; width: 100%; max-width: 420px; }
+h1 { margin: clamp(var(--s2), 3dvh, 28px) 0 0; font-weight: 300; font-size: clamp(52px, 15vw, 80px); line-height: 1; letter-spacing: -.02em; font-variation-settings: "opsz" 144; }
+.lede { margin: 12px 0 0; white-space: nowrap; color: var(--ink); font-size: clamp(14px, 4.4vw, 22px); line-height: 1.35; font-variation-settings: "opsz" 24; }
 
-  /* Hero */
-  .hero { position: relative; padding-block: 88px 56px; text-align: center; overflow: hidden; }
-  .hero::before { content: ""; position: absolute; inset: -20% -10% auto; height: 620px; background: radial-gradient(45% 55% at 30% 25%, rgba(191, 230, 200, 0.75), transparent 70%), radial-gradient(40% 50% at 72% 35%, rgba(255, 221, 160, 0.45), transparent 70%); pointer-events: none; }
-  .hero .wrap { position: relative; display: grid; justify-items: center; gap: 26px; }
-  .pill { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--ink-2); background: rgba(255,255,255,0.7); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px 6px 8px; }
-  .pill .dot { width: 18px; height: 18px; border-radius: 50%; background: var(--green-soft); display: grid; place-items: center; }
-  .pill .dot img { width: 12px; height: 12px; }
-  h1 { margin: 0; font-weight: 600; font-size: clamp(46px, 8.4vw, 92px); line-height: 0.98; letter-spacing: -0.035em; text-wrap: balance; }
-  h1 em, h2 em { font-style: normal; color: var(--green); }
-  .sub { margin: 0; max-width: 34em; font-size: clamp(17px, 2.1vw, 20px); color: var(--ink-2); text-wrap: balance; }
+/* The sign-up: one control that steps through join -> email -> handle -> done. */
+form { margin-top: clamp(var(--s3), 4dvh, var(--s4)); width: 100%; max-width: 400px; }
+.bar { position: relative; display: flex; align-items: center; height: 54px; border: 1px solid var(--rule-strong); border-radius: var(--r); background: var(--field); transition: border-color var(--fast); }
+.bar:focus-within { border-color: var(--ink); }
+.f { flex: 1; min-width: 0; animation: in var(--fast) both; }
+input { width: 100%; height: 52px; padding: 0 14px; border: 0; border-radius: 0; background: none; color: var(--ink); font: 400 17px var(--serif); font-variation-settings: "opsz" 14; outline: none; }
+input::placeholder { color: var(--ink-faint); }
+.bar:has(.bad), .bar:has(.bad):focus-within { border-color: var(--error); }
+button { border: 0; border-radius: 2px; background: var(--ink); color: var(--paper); cursor: pointer; touch-action: manipulation; transition: background var(--fast); }
+button:hover { background: var(--ink-press); }
+button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+button[disabled] { cursor: progress; background: var(--ink-soft); }
+.start { position: absolute; inset: -1px; border-radius: var(--r); display: flex; align-items: center; justify-content: center; gap: .6em; font-size: 17px; }
+.go { flex: none; width: 46px; height: 46px; margin: 3px; font: 400 20px var(--serif); line-height: 1; animation: in var(--fast) both; }
+.start i, .go i { font-style: normal; display: inline-block; transition: transform var(--fast); }
+.start:hover i, .go:hover i { transform: translateX(3px); }
+.bar[data-step="0"] { border-color: transparent; background: none; }
+.bar[data-step="0"] .f, .bar[data-step="0"] .go, .bar:not([data-step="0"]) .start,
+.bar[data-step="1"] .h, .bar[data-step="2"] .e { display: none; }
+@keyframes in { from { opacity: 0; transform: translateX(6px); } }
+@media (prefers-reduced-motion: reduce) { .f, .go { animation: none; } }
+.st { margin: 12px 0 0; color: var(--ink); }
+.st:empty { display: none; }
+.st.ok { color: var(--ink); }
+.st.err { color: var(--error); }
+form.done .bar { display: none; }
+form.done .st { margin: 0; }
+.hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 
-  /* Waitlist form */
-  .join { width: 100%; max-width: 480px; display: grid; gap: 10px; }
-  .field { display: flex; padding: 4px; border-radius: 999px; background: #fff; border: 1px solid var(--line-strong); box-shadow: 0 10px 30px -18px rgba(15, 41, 28, 0.35); transition: border-color .15s; }
-  .field:focus-within { border-color: var(--green); }
-  .field.invalid, .field.invalid:focus-within { border-color: var(--down); }
-  .field input { flex: 1; min-width: 0; font: inherit; font-size: 16px; color: var(--ink); background: transparent; border: 0; padding: 12px 14px; outline: none; }
-  .field input::placeholder { color: var(--ink-3); }
-  .join .btn.submit { width: 100%; padding-block: 13px; font-size: 16px; }
-  .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
-  .status { min-height: 22px; margin: 0; font-size: 14px; color: var(--ink-3); }
-  .status.ok { color: var(--up); }
-  .status.err { color: var(--down); }
-  .join.done .field, .join.done .btn.submit { display: none; }
-  .joined { display: none; align-items: center; justify-content: center; gap: 10px; padding: 14px 18px; border-radius: 999px; background: var(--green-soft); border: 1px solid var(--mint); color: var(--ink); font-weight: 500; }
-  .join.done .joined { display: flex; }
+footer { margin: 0 var(--gutter); border-top: 1px solid var(--rule); display: flex; justify-content: center; align-items: center; gap: var(--s3); padding-bottom: env(safe-area-inset-bottom); color: var(--ink); }
+footer p { margin: 0; }
+footer a { display: inline-flex; align-items: center; min-height: 48px; }
 
-  /* Sections */
-  section { scroll-margin-top: 80px; }
-  .sec { padding-block: 96px; border-top: 1px solid var(--line); }
-  .eyebrow { font-size: 13px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--green); margin: 0 0 14px; }
-  h2 { margin: 0; font-weight: 600; font-size: clamp(34px, 5vw, 56px); line-height: 1.02; letter-spacing: -0.03em; text-wrap: balance; max-width: 16em; }
-  .lede { margin: 18px 0 0; max-width: 36em; color: var(--ink-2); font-size: 18px; }
-
-
-  /* CTA + footer */
-  footer { border-top: 1px solid var(--line); padding-block: 28px calc(28px + env(safe-area-inset-bottom, 0px)); color: var(--ink-3); font-size: 14px; }
-  footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: center; align-items: center; }
-  footer p { margin: 0; }
-  .social { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding-inline: 4px; color: var(--ink-2); text-decoration: none; font-weight: 500; transition: color .15s; }
-  .social:hover { color: var(--ink); }
-  .social:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; border-radius: 6px; }
-
-  @media (max-width: 860px) {
-    .sec { padding-block: 72px; }
-  }
-  @media (max-width: 480px) {
-    .wrap { padding-inline: 16px; }
-    .nav .btn { padding: 10px 16px; font-size: 14px; }
-    .brand .w { height: 18px; }
-    .hero { padding-block: 40px 32px; }
-    .field input { padding: 13px 14px; }
-    .join .btn.submit { padding-block: 14px; }
-  }
-  @media (prefers-reduced-motion: no-preference) {
-    .rise { animation: rise .7s cubic-bezier(.2, .7, .2, 1) both; }
-    .rise:nth-child(2) { animation-delay: .06s; } .rise:nth-child(3) { animation-delay: .12s; } .rise:nth-child(4) { animation-delay: .18s; }
-    @keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-  }
+/* Wide screens: mark and copy form one lockup, centred in the window, sharing a vertical centre. */
+@media (min-width: 820px) {
+  main { grid-template-columns: auto minmax(0, 520px); justify-content: center; align-items: center; column-gap: clamp(var(--s5), 6vw, var(--s6)); text-align: left; padding-block: var(--s5); }
+  #mark { width: clamp(240px, 24vw, 320px); }
+  .copy { justify-items: start; max-width: 520px; }
+  h1 { margin: 0; font-size: clamp(72px, 7vw, 104px); }
+  .lede { margin-top: var(--s2); font-size: clamp(22px, 2vw, 26px); }
+  form { margin-top: var(--s4); }
+  .st { text-align: left; }
+  footer { margin-inline: auto; width: calc(100% - 2 * var(--gutter)); max-width: 1080px; justify-content: space-between; }
+}
 </style>
 </head>
 <body>
-
-<header class="nav" id="nav">
-  <div class="wrap">
-    <a class="brand" href="/" aria-label="Monaco home">
-      <img class="m" src="/assets/mark-ink.svg" alt="" width="30" height="30">
-      <img class="w" src="/assets/wordmark-ink.svg" alt="monaco" width="133" height="21">
-    </a>
-    <a class="btn" href="#join">Join the waitlist</a>
+<main id="join">
+  <canvas id="mark" aria-hidden="true"></canvas>
+  <div class="copy">
+    <h1>Monaco</h1>
+    <p class="lede">Turn your group chat into a hedge fund.</p>
+    <form data-waitlist novalidate>
+      <div class="bar" data-step="0">
+        <button class="start mono" type="button">Join the waitlist <i aria-hidden="true">→</i></button>
+        <label class="f e"><span class="sr">Email</span><input name="email" type="email" inputmode="email" autocomplete="email" enterkeyhint="next" placeholder="Your email" required></label>
+        <label class="f h"><span class="sr">Twitter handle (optional)</span><input name="twitter" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send" maxlength="16" placeholder="@handle (optional)"></label>
+        <button class="go" type="submit" aria-label="Continue"><i aria-hidden="true">→</i></button>
+      </div>
+      <div class="hp" aria-hidden="true"><label>Company<input name="company" tabindex="-1" autocomplete="off"></label></div>
+      <p class="st mono" aria-live="polite"></p>
+    </form>
   </div>
-</header>
-
-<main>
-  <section class="hero" id="join">
-    <div class="wrap">
-      <span class="pill rise"><span class="dot"><img src="/assets/mark-ink.svg" alt=""></span>Coming to iOS</span>
-      <h1 class="rise">Start a hedge fund with your <em>friends.</em></h1>
-      <p class="sub rise">Pool money with your friends, vote on what to buy, and everyone owns a slice of the pot.</p>
-      <form class="join rise" data-waitlist novalidate>
-        <div class="field">
-          <label for="twitter-hero" class="hp">Twitter handle (optional)</label>
-          <input id="twitter-hero" name="twitter" type="text" autocomplete="off" placeholder="Twitter handle (optional)" maxlength="16">
-        </div>
-        <div class="field">
-          <label for="email-hero" class="hp">Email</label>
-          <input id="email-hero" name="email" type="email" inputmode="email" autocomplete="email" placeholder="you@email.com" required>
-        </div>
-        <button class="btn submit" type="submit">Join the waitlist</button>
-        <div class="hp" aria-hidden="true"><label for="company-hero">Company</label><input id="company-hero" name="company" tabindex="-1" autocomplete="off"></div>
-        <div class="joined" role="status"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>You're on the list. We'll email you when your invite is ready.</div>
-        <p class="status" aria-live="polite">iOS first.</p>
-      </form>
-    </div>
-  </section>
-
 </main>
-
-<footer>
-  <div class="wrap">
-    <a class="brand" href="/" aria-label="Monaco home"><img class="m" src="/assets/mark-ink.svg" alt="" width="24" height="24" style="width:24px;height:24px"><img class="w" src="/assets/wordmark-ink.svg" alt="monaco" style="height:16px;width:auto"></a>
-    <a class="social" href="https://x.com/trymonaco" target="_blank" rel="noopener" aria-label="Monaco on Twitter (@trymonaco)"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>@trymonaco</a>
-  </div>
+<footer class="mono">
+  <p>© 2026 Monaco Labs</p>
+  <a href="https://x.com/trymonaco" target="_blank" rel="noopener">Twitter</a>
 </footer>
 
 <script>
+// The mark, printed live: Monaco's icon as a cream halftone on the dark page, shaded like lit stone.
+// It never moves; three soft blobs wander through it, thinning the cream so the page's own green shows through.
 (function () {
-  var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-  var TWITTER = /^[A-Za-z0-9_]{1,15}$/;
-  var BAD_TWITTER = "Enter a valid Twitter handle, like @monaco, or leave it blank.";
-  var ENDPOINT = "/api/waitlist";
+  var css = getComputedStyle(document.documentElement);
+  var CREAM = css.getPropertyValue("--screen").trim();
+  var still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function clamp(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+  function ease(v) { v = clamp(v); return v * v * (3 - 2 * v); }
+  var cv = document.getElementById("mark"), cx = cv.getContext("2d"), P = new Path2D("M49.1 99.4C49 99.4 48.8 99.4 48.5 99.4C46.5 99.1 44.2 97.8 42.8 96.1C41.4 94.2 40.7 92.3 40.7 90.1C40.7 88.7 41.1 87.3 41.7 85.9C42.3 84.8 43.2 83.7 44.3 82.8C45.4 81.9 46.9 81.2 48.4 81C50.5 80.6 53.1 81 54.9 82.1C56.4 83.1 57.4 84.2 58.4 85.8C59.2 87.2 59.5 88.9 59.4 90.7C59.3 92 59.1 92.8 58.5 94.1C58.1 94.9 57.9 95.2 57.3 95.9C56.2 97.2 55.5 97.8 54.2 98.5C52.7 99.2 51.7 99.4 50.2 99.5C49.7 99.5 49.2 99.5 49.1 99.4ZM61.8 87.3C61.5 87.2 61.4 87 61.3 86.1C61.1 85.2 61 84.8 60.5 83.7C59.7 82.2 59.4 81.6 58.4 80.7C57.2 79.4 55.4 78.5 53.1 77.9C51.9 77.6 49.2 77.5 48.1 77.7C45.3 78.3 44.2 78.8 42.5 80C40.7 81.3 39.3 83.6 38.7 86.2C38.6 86.9 38.5 87 38.2 87.2C37.6 87.6 34.7 86.7 32.9 85.5C30.9 84.2 29.8 83.1 28.6 81.3C28.1 80.5 27.5 79.3 27.2 78.5C26.4 76.1 26.2 73.9 26.6 71.1C26.7 70.8 27 69.5 27.3 68.7C27.6 67.7 28.6 65.7 29.1 64.9C29.3 64.7 29.5 64.3 29.6 64.1C30.2 63.2 31.8 61.3 32.8 60.3C34.2 58.9 34.8 58.4 35.7 57.8C37 56.9 38.3 56.5 39.4 56.6C39.8 56.6 40.8 56.9 41.1 57C42.2 57.6 42.9 58.1 43.9 59.4C44.6 60.3 45 60.8 45.7 62C45.9 62.4 46.2 62.9 46.4 63.3C46.9 64.1 47.4 65 47.8 65.9C48 66.4 48.3 67 48.4 67.2C48.7 67.8 49.2 68.6 49.5 68.8C49.8 69.1 50.5 69.5 51 69.6C51.6 69.8 52.2 69.8 53.7 69.7C56.1 69.6 58.3 69.7 59.6 69.9C61.2 70.2 62.9 70.8 63.9 71.5C64.6 72 66.3 72.8 67.8 73.4C68.9 73.9 69 73.9 69.8 74.2C70.9 74.5 71.1 74.6 72 74.7C72.4 74.8 72.8 74.8 72.9 74.9C73.5 75.2 73.5 75.8 73 77.8C72.3 80.4 70.8 82.6 68.4 84.5C66.9 85.7 66 86.2 63.8 86.9C62.8 87.3 62.1 87.4 61.8 87.3ZM73.7 72.6C73.1 72.5 71.7 72.3 71.3 72.2C69.9 71.8 68.6 71.3 67.5 70.8C65 69.6 62.5 67.7 60.8 65.6C59.5 64.1 58.8 63 58.3 61.7C58 60.9 58 60.5 58 59.8C58.2 58.6 58.6 57.7 59.5 56.6C60 55.9 60.1 55.8 60.7 55.3C62 54.3 63.2 53.5 65 52.7C65.7 52.3 65.9 52.2 67.2 51.8C68.7 51.2 69.2 50.9 69.8 50.3C70.2 49.9 70.4 49.5 70.5 49C70.6 48.7 70.6 48.5 70.6 45.1L70.6 41.5L70.8 40.9C71 39.9 71.1 39.4 71.4 38.7C71.5 38.4 71.7 38 71.7 37.9C71.8 37.7 72 37.4 72.1 37.1C72.4 36.6 72.4 36.6 73 35.5C73.7 34.3 73.9 33.9 74.6 32.1C74.9 31.3 75.2 30.2 75.4 29.5C75.6 28.1 75.7 27.7 75.8 27.5C76.2 27.1 77 27.1 78.7 27.4C79.8 27.7 81.4 28.4 82.7 29.2C83.8 30 85.1 31.3 86 32.6C87.1 34.2 88 36.2 88.2 37.9C88.3 38.6 88.1 38.8 87.1 39C85.7 39.2 84.4 39.7 83.2 40.5C81.7 41.6 81 42.3 80.2 43.7C79 45.6 78.5 47.3 78.5 49.7C78.5 50.8 78.6 51.5 79 52.6C79.9 56 82.2 58.6 85.4 59.9C86.2 60.1 86.4 60.2 87.2 60.3C87.8 60.5 88.1 60.6 88.2 60.8C88.3 61 88.3 61.6 88.2 62C87.8 63.7 87.3 64.7 86.6 66C86.1 66.8 84.8 68.3 84 69.1C83.4 69.6 82 70.6 81.5 70.9C80.1 71.7 78.3 72.3 76.6 72.5C76 72.6 74.4 72.7 73.7 72.6ZM22 72.4C20.2 72.2 18.6 71.5 16.8 70.2C15.2 69.1 13.7 67.3 12.7 65.4C12.2 64.4 11.6 62.8 11.4 61.9C11.3 61 11.5 60.5 12 60.4C13.7 60.1 13.9 60.1 14.6 59.9C15.5 59.5 16.9 58.9 17.5 58.4C18.1 58.1 19.1 57.1 19.5 56.6C20.2 55.6 21 54.1 21.4 53C21.5 52.5 21.7 51.2 21.8 50.6C21.9 48.4 21.3 45.7 20.1 43.9C19.7 43.2 18.7 42.1 18.1 41.5C17 40.5 15.2 39.4 14 39C13.7 38.9 13.1 38.8 12.7 38.7C11.8 38.5 11.7 38.5 11.6 38.2C11.4 37.9 11.4 37.8 11.6 37.1C12 35.1 13.1 32.9 14.4 31.4C15.5 30.2 17 29.1 18.3 28.5C19.9 27.7 20.7 27.5 22.7 27.1C23.7 27 25.4 27 26.6 27.1C29 27.5 31.7 28.4 33.5 29.5C33.6 29.6 34 29.8 34.2 29.9C35.5 30.7 36 31.1 37.1 32.1C37.5 32.5 37.8 32.8 37.9 32.8C38 32.9 39.2 34.2 39.6 34.8C40.5 35.9 41.3 37.2 41.5 38.2C41.7 38.7 41.7 39.6 41.6 40.1C41.4 40.6 41.1 41.4 40.7 41.9C40.3 42.6 39.1 43.8 38.2 44.4C36.7 45.5 35.9 45.9 34.7 46.5C34.5 46.6 33.9 46.8 33.5 47C33 47.2 32.5 47.5 32.3 47.6C30.8 48.2 29.8 49.1 29.6 50.1C29.4 50.8 29.4 50.9 29.4 54.2L29.4 57.4L29.2 58.4C29.1 59 29 59.6 28.9 59.8C28.7 60.4 27.7 62.6 27.1 63.8C25.6 66.4 24.7 68.8 24.3 71.2C24.1 72.3 24 72.4 22.9 72.4C22.5 72.4 22.1 72.4 22 72.4ZM8.5 58.6C6.5 58.5 5 58 3.6 56.9C1.9 55.5 0.8 53.9 0.3 51.9C-0.1 50.2-0.1 49.3 0.3 47.4C0.7 45.8 1.4 44.4 2.7 43.1C3.7 42 5.6 41 7.3 40.6C7.9 40.5 7.9 40.5 9.2 40.5C10.6 40.5 11.1 40.5 12.2 40.9C13.3 41.2 14.9 42.3 15.7 43.1C17.6 45.2 18.6 48.1 18.2 50.8C17.9 52.6 17.1 54.2 15.9 55.7C15.3 56.4 14.2 57.2 13.3 57.7C11.8 58.4 10.1 58.8 8.5 58.6ZM89.8 58.6C87.5 58.4 86 57.7 84.4 56.1C82.6 54.4 81.9 52.7 81.6 49.7C81.5 49.3 81.7 48 81.9 47.3C82.4 45.4 83.2 44.1 84.7 42.7C86 41.4 88.3 40.5 90.5 40.4C92.5 40.3 94.7 41 96.4 42.2C98.3 43.7 99.6 46 100 48.3C100.1 49.3 100 50.7 99.7 51.8C99.4 52.7 99.4 52.8 99.1 53.5C98.1 55.3 96.9 56.6 95 57.6C94.5 57.9 93 58.4 92.3 58.5C91.8 58.6 90.2 58.7 89.8 58.6ZM60.8 42.4C60.5 42.3 59.4 42 59.2 41.9C58.4 41.5 56.9 40.2 56.1 39.3C56 39.1 55.6 38.5 55.2 37.9C54.3 36.6 53.9 35.8 52.7 33.4C51.8 31.8 51.6 31.4 50.9 30.8C50.5 30.4 49.8 30 49.4 29.9C48.7 29.7 47.8 29.7 45.9 29.8C40.4 29.9 39.5 29.8 36.1 28.1C32.5 26.2 30.1 25.4 27.9 25C27.2 24.9 27 24.8 26.9 24.6C26.7 24.3 26.6 24 26.7 23.5C27.1 20 29.2 16.6 32.2 14.6C34.3 13.1 37.6 12 38.3 12.4C38.5 12.5 38.6 12.7 38.7 13.4C38.9 14.3 39.1 15 39.7 16.1C40.9 18.5 43.1 20.4 45.8 21.3C48.6 22.3 51.6 22.3 54.5 21.2C55.9 20.8 57.3 19.8 58.6 18.6C59.2 18 59.4 17.7 59.9 16.9C60.8 15.4 61.1 14.7 61.3 13.3C61.5 12.3 61.8 12.1 62.9 12.4C65.2 12.9 67.8 14.3 69.5 16.1C72 18.6 73.3 21.5 73.6 25.2C73.7 27.1 73.3 29.8 72.5 31.5C72.4 31.8 72.2 32.2 72.2 32.3C71.9 33 71.5 33.9 71.2 34.3C71 34.5 70.8 34.9 70.7 35.1C70.5 35.5 70.2 36 69.3 37.1C68.4 38.3 66.4 40.2 65.3 41C63.6 42.1 62.1 42.5 60.8 42.4ZM49.1 18.9C47.3 18.7 45.9 18.1 44.3 17C42.6 15.8 41.2 13.3 40.8 11.2C40.7 10.5 40.7 9.2 40.8 8.5C41.1 7 41.8 5.3 42.7 4.1C43 3.8 43.8 3 44.4 2.5C45.4 1.7 46.9 1 48.5 0.7C49.4 0.6 50.8 0.6 51.9 0.8C54.3 1.2 56.7 2.9 58 5C58.6 6 59 7.1 59.2 8.2C59.3 8.7 59.4 10.4 59.3 10.9C59.2 11.5 58.9 12.7 58.6 13.2C58.5 13.5 58.4 13.8 58.4 13.9C58.1 14.4 57.2 15.7 56.4 16.5C55.2 17.6 53.5 18.4 51.9 18.8C50.8 19 49.9 19 49.1 18.9Z");
+  var N = 200, f = N / 100, R = 15, i, x, y;
 
+  // Height field: distance to the silhouette edge, rounded into a dome, so each stone shades like lit stone.
+  var o = document.createElement("canvas"), oc = o.getContext("2d"); o.width = o.height = N; oc.scale(f, f); oc.fill(P);
+  var a = oc.getImageData(0, 0, N, N).data, D = new Float32Array(N * N);
+  for (i = 0; i < N * N; i++) D[i] = a[i * 4 + 3] > 127 ? 1e9 : 0;
+  function g(x, y) { return x < 0 || y < 0 || x >= N || y >= N ? 0 : D[y * N + x]; }
+  function m(i, x, y, s) { if (D[i]) D[i] = Math.min(D[i], g(x + s, y) + 1, g(x, y + s) + 1, g(x + s, y + s) + 1.414, g(x - s, y + s) + 1.414); }
+  for (y = 0; y < N; y++) for (x = 0; x < N; x++) m(y * N + x, x, y, -1);
+  for (y = N - 1; y >= 0; y--) for (x = N - 1; x >= 0; x--) m(y * N + x, x, y, 1);
+  function h(x, y) { x = Math.max(0, Math.min(N - 1, x)); y = Math.max(0, Math.min(N - 1, y)); var t = Math.min(D[y * N + x] / R, 1); return Math.sqrt(t * (2 - t)) * R; }
+  function near(u, v) { for (var k = 0; k < 5; k++) { var px = (u + [0, .8, -.8, 0, 0][k]) * f | 0, py = (v + [0, 0, 0, .8, -.8][k]) * f | 0; if (px >= 0 && py >= 0 && px < N && py < N && a[(py * N + px) * 4 + 3]) return true; } return false; }
 
-  function twitterHandle(value) {
-    var handle = value.trim().replace(/^@/, "");
-    if (handle === "") return "";
-    return TWITTER.test(handle) ? handle : null;
-  }
-
-  var nav = document.getElementById("nav");
-  function onScroll() { nav.classList.toggle("scrolled", window.scrollY > 8); }
-  window.addEventListener("scroll", onScroll, { passive: true }); onScroll();
-
-  function params() {
-    var q = new URLSearchParams(location.search);
-    return { ref: q.get("ref") || q.get("utm_source") || "" };
-  }
-
-  document.querySelectorAll("form[data-waitlist]").forEach(function (form) {
-    var input = form.querySelector('input[name="email"]');
-    var twitterInput = form.querySelector('input[name="twitter"]');
-    var trap = form.querySelector('input[name="company"]');
-    var button = form.querySelector('button[type="submit"]');
-    var status = form.querySelector(".status");
-    function say(text, kind) { status.textContent = text; status.className = "status" + (kind ? " " + kind : ""); }
-    function mark(el, bad) { el.setAttribute("aria-invalid", bad ? "true" : "false"); el.parentNode.classList.toggle("invalid", bad); }
-    function checkTwitter() {
-      var bad = twitterHandle(twitterInput.value) === null;
-      mark(twitterInput, bad);
-      if (bad) say(BAD_TWITTER, "err");
-      return !bad;
+  // Two screens on staggered honeycomb grids at classic print angles; each dot keeps the surface normal under it.
+  function screen(deg, pitch, dx) {
+    var c = Math.cos(deg * Math.PI / 180), s = Math.sin(deg * Math.PI / 180), out = [], row = 0;
+    for (var v = -72; v < 72; v += pitch * .866, row++) for (var u = -72 + (row % 2) * pitch / 2; u < 72; u += pitch) {
+      var X = 50 + u * c - v * s, Y = 50 + u * s + v * c;
+      if (!near(X, Y)) continue;
+      var px = Math.round(X * f), py = Math.round(Y * f), hx = (h(px + 1, py) - h(px - 1, py)) / 2, hy = (h(px, py + 1) - h(px, py - 1)) / 2, l = Math.hypot(hx, hy, 1);
+      out.push([X + dx, Y + dx, 0, -hx / l, -hy / l, 1 / l, Y / 100, (X + Y) / 200]);
     }
+    out.r = pitch * .62; return out;
+  }
+  var G = screen(15, .9, 0), Au = [];
 
-    twitterInput.addEventListener("blur", checkTwitter);
-    twitterInput.addEventListener("input", function () {
-      if (twitterInput.getAttribute("aria-invalid") === "true" && twitterHandle(twitterInput.value) !== null) { mark(twitterInput, false); say(""); }
-    });
-    input.addEventListener("input", function () { if (input.getAttribute("aria-invalid") === "true") { mark(input, false); say(""); } });
-
-    form.addEventListener("submit", function (e) {
-      e.preventDefault();
-      if (!checkTwitter()) { twitterInput.focus(); return; }
-      var email = input.value.trim();
-      if (!EMAIL.test(email)) { mark(input, true); say("Enter a valid email, like you@email.com.", "err"); input.focus(); return; }
-      button.disabled = true; say("Adding you…");
-      var ctrl = new AbortController();
-      var timer = setTimeout(function () { ctrl.abort(); }, 10000);
-      fetch(ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email, twitter: twitterHandle(twitterInput.value), company: trap.value, source: params().ref }),
-        signal: ctrl.signal
-      }).then(function (res) {
-        return res.json().catch(function () { return {}; }).then(function (body) { return { ok: res.ok, status: res.status, body: body }; });
-      }).then(function (r) {
-        if (r.ok) {
-          document.querySelectorAll("form[data-waitlist]").forEach(function (f) { f.classList.add("done"); f.querySelector(".status").textContent = ""; });
-          return;
+  // The light is three soft blobs (B) wandering over the mark. Their edges wobble so they read as blobs, not discs,
+  // and the light direction follows the first, so shadows slide across each stone as it drifts by.
+  function shade(B, tm, dev) {
+    var lx = (B[0][0] - 50) / 50 * .8, ly = (B[0][1] - 50) / 50 * .8, n = Math.hypot(lx, ly, .8), L0 = lx / n, L1 = ly / n, L2 = .8 / n;
+    var hn = Math.hypot(L0, L1, L2 + 1);
+    [G, Au].forEach(function (S, j) {
+      for (var q = 0; q < S.length; q++) {
+        var p = S[q], df = Math.max(0, p[3] * L0 + p[4] * L1 + p[5] * L2), sp = Math.pow(Math.max(0, (p[3] * L0 + p[4] * L1 + p[5] * (L2 + 1)) / hn), 20);
+        var blob = 0, t;
+        for (var b = 0; b < B.length; b++) {
+          var ex = p[0] - B[b][0], ey = p[1] - B[b][1], d2 = ex * ex + ey * ey;
+          if (d2 > 2025) continue; // beyond any blob's reach: skip the wobble maths
+          var an = Math.atan2(ey, ex), rr = 22 * (1 + .2 * Math.sin(3 * an + tm * 1.6 + b * 2) + .12 * Math.sin(5 * an - tm * 1.2 + b));
+          blob += Math.exp(-2 * d2 / (rr * rr));
         }
-        if (r.status === 429) say("Too many tries from this network. Try again in an hour.", "err");
-        else if (r.status === 400) say(r.body.error || "That email didn't look right. Check it and try again.", "err");
-        else say("The waitlist is having trouble right now. Try again in a minute.", "err");
-      }).catch(function () {
-        say("Couldn't reach the waitlist. Check your connection and try again.", "err");
-      }).finally(function () { clearTimeout(timer); button.disabled = false; });
+        blob = clamp(blob);
+        t = Math.max(.12, clamp(.1 + .85 * df + .45 * sp - .85 * blob)); // never below .12, so a stone keeps its shape under a blob
+        if (dev < 1) t *= ease((dev * 1.6 - (1 - p[6])) * 2.6);
+        p[2] = t;
+      }
     });
-  });
+  }
+  function ink(S, color, over) {
+    cx.globalCompositeOperation = over ? "multiply" : "source-over"; cx.fillStyle = color; cx.beginPath();
+    for (var q = 0; q < S.length; q++) { var p = S[q], r = S.r * Math.sqrt(p[2]); if (r > .03) { cx.moveTo(p[0] + r, p[1]); cx.arc(p[0], p[1], r, 0, 6.2832); } }
+    cx.fill();
+  }
+  // Wandering paths from a few unrelated sines: smooth, never sharp, never an obvious loop. Each blob (b) gets its own phases.
+  function path(t, b) {
+    return [50 + 30 * Math.sin(t * .061 + 1 + b * 2.1) * Math.cos(t * .043 + b * 1.3) + 9 * Math.sin(t * .137 + 4 + b * 3.7),
+            50 + 30 * Math.sin(t * .053 + 2.3 + b * 2.9) + 9 * Math.cos(t * .113 + .5 + b * 1.9)];
+  }
+  var k = 1, tm = 0, dv = still ? 1 : 0;
+  function size() { var r = Math.min(devicePixelRatio || 1, 2); cv.width = cv.height = Math.round(cv.clientWidth * r); k = cv.width / 100; }
+  function draw() {
+    var w = tm * 6;
+    shade([path(w, 0), path(w, 1), path(w, 2)], tm, dv);
+    cx.setTransform(1, 0, 0, 1, 0, 0); cx.clearRect(0, 0, cv.width, cv.height); cx.setTransform(k, 0, 0, k, 0, 0);
+    cx.save(); cx.clip(P);
+    ink(G, CREAM);
+    cx.restore();
+  }
+  var rt; addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(function () { size(); draw(); }, 120); });
+  size(); draw();
+  if (still) return;
+  // The print develops up from the baseline over 2.4s while the blobs start to wander (about a tenth of the mark a second).
+  var t0 = performance.now(), last = 0, raf = 0, seen = true;
+  function frame(now) {
+    raf = requestAnimationFrame(frame);
+    if (now - last < 33) return; last = now;
+    var t = now - t0; dv = Math.min(1, t / 2400); tm = t / 1000; draw();
+  }
+  function run() { cancelAnimationFrame(raf); if (seen && !document.hidden) raf = requestAnimationFrame(frame); }
+  document.addEventListener("visibilitychange", run);
+  if (window.IntersectionObserver) new IntersectionObserver(function (e) { seen = e[0].isIntersecting; run(); }).observe(cv);
+  run();
+})();
 
+// The waitlist: one control that steps join -> email -> handle -> done. Same endpoint, fields and messages as before.
+(function () {
+  var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/, TWITTER = /^[A-Za-z0-9_]{1,15}$/;
+  function handle(v) { v = v.trim().replace(/^@/, ""); return v === "" ? "" : TWITTER.test(v) ? v : null; }
+  var form = document.querySelector("form[data-waitlist]"), bar = form.querySelector(".bar"), start = form.querySelector(".start"), go = form.querySelector(".go");
+  var email = form.email, tw = form.twitter, trap = form.company, st = form.querySelector(".st");
+  function say(t, k) { st.textContent = t; st.className = "st mono" + (k ? " " + k : ""); }
+  function flag(el, bad) { el.setAttribute("aria-invalid", bad ? "true" : "false"); el.parentNode.classList.toggle("bad", bad); }
+  function step(n) {
+    bar.dataset.step = n; say("");
+    go.setAttribute("aria-label", n === 2 ? "Join the waitlist" : "Continue");
+    if (n) (n === 1 ? email : tw).focus();
+  }
+  start.addEventListener("click", function () { step(1); });
+  // Escape on the handle goes back to the email, in case it needs fixing.
+  tw.addEventListener("keydown", function (e) { if (e.key === "Escape") step(1); });
+  email.addEventListener("input", function () { if (email.getAttribute("aria-invalid") === "true") { flag(email, false); say(""); } });
+  tw.addEventListener("input", function () { if (tw.getAttribute("aria-invalid") === "true" && handle(tw.value) !== null) { flag(tw, false); say(""); } });
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var n = +bar.dataset.step;
+    if (n === 0) return step(1);
+    if (n === 1) {
+      if (!EMAIL.test(email.value.trim())) { flag(email, true); say("Enter a valid email, like you@email.com.", "err"); return email.focus(); }
+      flag(email, false); return step(2);
+    }
+    if (handle(tw.value) === null) { flag(tw, true); say("Enter a valid Twitter handle, like @monaco, or leave it blank.", "err"); return tw.focus(); }
+    go.disabled = true; say("Adding you…");
+    var q = new URLSearchParams(location.search), ctrl = new AbortController(), timer = setTimeout(function () { ctrl.abort(); }, 10000);
+    fetch("/api/waitlist", {
+      method: "POST", headers: { "Content-Type": "application/json" }, signal: ctrl.signal,
+      body: JSON.stringify({ email: email.value.trim(), twitter: handle(tw.value), company: trap.value, source: q.get("ref") || q.get("utm_source") || "" })
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (body) { return { ok: res.ok, status: res.status, body: body }; });
+    }).then(function (r) {
+      if (r.ok) { form.classList.add("done"); return say("You're on the list. We'll email you when your invite is ready.", "ok"); }
+      if (r.status === 429) say("Too many tries from this network. Try again in an hour.", "err");
+      else if (r.status === 400) { step(1); say(r.body.error || "That email didn't look right. Check it and try again.", "err"); }
+      else say("The waitlist is having trouble right now. Try again in a minute.", "err");
+    }).catch(function () {
+      say("Couldn't reach the waitlist. Check your connection and try again.", "err");
+    }).finally(function () { clearTimeout(timer); go.disabled = false; });
+  });
 })();
 </script>
 </body>
