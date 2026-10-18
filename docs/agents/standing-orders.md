@@ -58,13 +58,13 @@ To change a rule, edit this page in a PR and say why under "What came up".
 
 ## Enforced by tooling
 
-These original orders are now enforced. The hooks are `scripts/agent-guard.py`, `scripts/agent-guard-dispatch.py` and `scripts/agent-guard-dev-db.sh`. The checks are the PR format check (`scripts/check-pr-format.py`) and the PR size check (`scripts/check-pr-size.py`).
+These original orders are now enforced. The hooks are `scripts/agent-guard.py`, `scripts/agent-guard-dispatch.py` and `scripts/agent-guard-dev-db.sh`. The check is the PR format check (`scripts/check-pr-format.py`), advisory since 2026-10-17.
 
 | Order | Rule | Enforced by |
 | --- | --- | --- |
 | 3 | Graphite does all branching. No `git rebase` onto a local branch or interactively (`--continue`, `--abort` and a rebase onto a remote-tracking ref such as `origin/staging` are allowed), no `gh pr create`, no `gh pr edit --base`. | agent guard |
 | 4, 14, 17, 20 | Template sections, `Part of #N` or `Closes #N` under Why, the "Needs from Logan" section on the last PR, Conventional Commit subjects, a title with no issue number or type prefix, and no SHA that is not an ancestor of the head. | PR format check, agent guard |
-| 5, 21 | Each PR is under 1000 changed lines, and no build output is committed. | PR size check |
+| 5, 21 | No build output is committed. | prose |
 | 6, 18 | Stage 0 passes on the current tree before a push. Owners and verifiers run no full suite, no `-race` and no local mutation testing. | agent guard |
 | 7 | No `gh run watch`, no `gh pr checks --watch` and no `sleep` over 10 seconds. | agent guard |
 | 9 | A push never drops commits that the remote has and the local branch lacks. | agent guard |

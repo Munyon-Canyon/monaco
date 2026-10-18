@@ -8,7 +8,7 @@ Set up the clone with [Agent workflow setup](../agents/setup.md). The [standing 
 
 | Role | Who | Does |
 | --- | --- | --- |
-| Operator | a person | Merges each promotion into `main` by hand. Adds the `large-pr` and `gate-change-approved` labels. Owns accounts, secrets and paid services. |
+| Operator | a person | Merges each promotion into `main` by hand. Adds the `gate-change-approved` label. Owns accounts, secrets and paid services. |
 | Root | a person or an agent | Writes and batches tickets, dispatches owners and verifiers, lands PRs, restacks, keeps the tracking issue current. The only session that runs `gt sync` or restacks. |
 | Owner | an agent on `opus`, one per ticket | Builds the ticket's stack, runs stage 0, submits drafts, sets bodies, exits. |
 | Verifier | an agent on another model (`sonnet` for an `opus` owner) | Reviews each PR against its ticket and posts `verify`, which is advisory. Runs no tests. |
@@ -218,7 +218,7 @@ One ticket changes hands the same way. [Hand off a ticket](ship-a-ticket.md#hand
 Each rule below came from a failure in the M7 run.
 
 - **A PR format failure caused by the body is fixed by editing the body.** `gh run rerun --failed` replays the original event with the old body, and it failed again on #895 and #962.
-- **A checker fix reaches a PR only through its base.** `PR format` and `PR size` run `scripts/check-pr-format.py` and `scripts/check-pr-size.py` from the PR's base commit, so a PR's own edit to a checker does not change that PR's verdict, and an upper PR of a stack picks up a checker fix only after a restack. #1090 failed `PR size` on a merge ref that still had the old checker.
+- **A checker fix reaches a PR only through its base.** `PR format` runs `scripts/check-pr-format.py` from the PR's base commit, so a PR's own edit to the checker does not change that PR's verdict, and an upper PR of a stack picks up a checker fix only after a restack. #1090 failed the old `PR size` job on a merge ref that still had the old checker.
 - **Order the queue so a fix lands ahead of the PRs it unblocks.** Three PRs queued ahead of the teardown fix #952 would have failed on the same defect. They were dequeued and requeued behind it.
 - **One ejection from a proxy or runner error is an infra flake, not a code defect.** Docker Hub, Go proxy and `curl` 500 errors ejected #843, #933 and #934. Each landed on requeue with no code change.
 - **Build every branch after a restack.** The #482 stack restacked cleanly and still failed to compile, because the tip had renamed a helper that #903 called.
