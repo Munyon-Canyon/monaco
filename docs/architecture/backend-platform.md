@@ -108,7 +108,7 @@ Each table has one module that writes it. Other modules read it through that mod
 | `cabal_txns` | treasury | Written by treasury's consumer of `trade.confirmed`, and by fund and cash out. |
 | `user_txns` | treasury | Written by treasury's consumers of `deposit.credited` and `withdrawal.confirmed`, and by fund and cash out. |
 | `cabal_pauses` | funding | The one pause record. Trading and treasury read it through funding's query port at check time. There is no `cabals.trading_paused_at`. An ops pause is a pause record with reason `ops`. |
-| `price_points` | market | One table for every price sample, `price_micros bigint`. The poller writes it; price history and charts read it. Pyth is dropped. |
+| `price_points` | market | One table for every price sample, `price_micros bigint`. The poller writes it; price history and charts read it. Pyth is dropped. An hourly retention poller thins every mint to hourly points after 2 hours, keeps daily points past 7 days only for held, proposed and popular mints, and deletes the rest; the budget is under 100 MB steady state for about 1,500 mints ([retention](price-history.md#retention)). |
 | `follows` | social | Soft delete through `deleted_at`. A unique partial index on `(follower_id, followee_id) WHERE deleted_at IS NULL` lets a re-follow insert a new row. Follower and following counts are an indexed `count(*)` over live rows; there is no counts table. |
 | `cabal_messages` | social | Chat messages. Soft delete through `deleted_at`. |
 | `chat_seen` | social | One seen watermark per member per cabal. Rows are hard-deleted when a member leaves; they are not user content. |
