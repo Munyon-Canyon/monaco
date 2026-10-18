@@ -14,5 +14,4 @@ import MonacoCore
 
 typealias PotRowDTO = MonacoCore.PotRowDTO
 typealias MemberSliceDTO = MonacoCore.MemberSliceDTO
-typealias GroupAgentDTO = MonacoCore.GroupAgentDTO
 typealias GroupViewDTO = MonacoCore.GroupViewDTO

@@ -14,7 +14,6 @@ struct CabalScreen: View {
         CabalActionsSlot.self,
         CabalProposalsSlot.self,
         CabalHoldingsSlot.self,
-        CabalAgentSlot.self,
         CabalMemberBoardSlot.self,
         CabalActivitySlot.self,
     ]

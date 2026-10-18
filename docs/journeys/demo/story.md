@@ -1,7 +1,7 @@
 ---
 id: demo/story
 title: The demo story
-version: 3
+version: 4
 milestone: M8.5
 requires: [auth/sign-in, cabals/create-cabal, stocks/asset-detail]
 actors: [A, B]
@@ -14,7 +14,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/DemoStoryJourney.swift, apps/mobil
 
 # The demo story
 
-Two friends start a cabal, fund the pot, vote on a stock, watch it fill, add a trading bot, cash out and see who is up. The beats are the film in [the demo storyboard](../../demo/storyboard.md). A is Maya and B is Jordan. Priya's beats (7, 8, 12) are played by B or folded into A's, because a journey run has two actors.
+Two friends start a cabal, fund the pot, vote on a stock, watch it fill, cash out and see who is up. The beats are the film in [the demo storyboard](../../demo/storyboard.md). A is Maya and B is Jordan. Priya's beats (7, 8, 12) are played by B or folded into A's, because a journey run has two actors.
 
 Old app (`c838bd24`): each beat's tap path is the one its own journey cites. Sign in is [auth/sign-in](../auth/sign-in.md), start and join are [cabals/create-cabal](../cabals/create-cabal.md) S4, the stock beats are [stocks/asset-detail](../stocks/asset-detail.md). The beats with no journey yet cite the old app's view and the [screens.md](../../screens.md) copy in their Expect cell.
 
@@ -84,16 +84,6 @@ Beats 14 and 15.
 | S5.1 | B | open, tap, type, then send | `QA story {QA.run}`, `cabal-action-chat`, "Message your cabal" | "In. Told you" | The message shows on the right within 10 s (beat 14 "Talk it over"; old app: `GroupChatView`; screens.md Chat composer "Message your cabal") |
 | S5.2 | A | open, tap, type, then send | `QA story {QA.run}`, `cabal-action-chat`, "Message your cabal" | "We own Google now" | B's "In. Told you" shows on the left and A's message on the right within 10 s (beat 15; screens.md Chat) |
 
-### S6 Add and connect a trading bot
-
-Beats 17 to 20.
-
-| Step | Actor | Action | Target | Input | Expect |
-| --- | --- | --- | --- | --- | --- |
-| S6.1 | A | open, tap, then tap | `QA story {QA.run}`, `cabal-action-propose`, "Add a trading bot" | `$1`, "Scout" | The proposal card for the bot shows within 15 s (beat 17 "Add a trading bot"; screens.md Propose chooser "Add a trading bot" / "Give a bot a budget from the pot") |
-| S6.2 | B | open, then tap | the cabal's "Trading bot" row, then "Copy connect instructions" | | The toast "Connect instructions copied" within 10 s (beats 18 and 19 "Connect it to ClawPump"; screens.md Trading bot "Bot key" card) |
-| S6.3 | B | scroll to | "Trades" | | A trade by Scout shows within 30 s (beat 20 "Watch it trade"; screens.md Trading bot "Trades") |
-
 ### S7 Cash out
 
 Beat 21.
@@ -125,7 +115,6 @@ Beat 22.
 | S4.1, S4.2 | Propose opens a stub, not the propose flow | #613 |
 | S4.3, S4.4 | No "Needs your vote", no vote, no majority buy | #612 |
 | S5.1, S5.2 | Chat is a stub with no composer | #623 |
-| S6.1, S6.2, S6.3 | No "Add a trading bot", no trading bot screen | #691 |
 | S7.1, S7.2 | Cash out is a stub with no amount entry | #657 |
 | S8.2 | The people board has no ranked rows | #617 |
 
@@ -135,4 +124,4 @@ Beat 22.
 - Beats 0 and 23, the intro and outro cards. They are not app screens.
 - Beat 9, Maya funding $200. It is the same flow as S2 with another actor.
 - The face sheet on Profile. The storyboard keeps it off camera.
-- Identifiers. The fund, propose, vote, chat, bot and cash-out screens have no accessibility identifiers yet, so S2.2 to S7.2 find them by their screens.md copy. #651 (`FundRoute`), #613 (`ProposeRoute`), #612 (`ProposalDetailSlot`), #623 (`ChatRoute`), #691 (`AgentRoute`) and #657 (`CashOutRoute`) should add them; this ticket does not touch app code.
+- Identifiers. The fund, propose, vote, chat and cash-out screens have no accessibility identifiers yet, so S2.2 to S7.2 find them by their screens.md copy. #651 (`FundRoute`), #613 (`ProposeRoute`), #612 (`ProposalDetailSlot`), #623 (`ChatRoute`) and #657 (`CashOutRoute`) should add them; this ticket does not touch app code.
