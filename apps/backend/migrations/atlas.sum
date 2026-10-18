@@ -1,4 +1,4 @@
-h1:O2Lv78i6W19jgc9EuFJbIdTW3DeFkkacIu4yIHfjCnk=
+h1:G4sEFKfRyM+HpI7KIZ1qWiiL+54ForD8S/iBDbGEuro=
 20260927140427_platform.sql h1:dpKT9ALI2RTf1SBI4IzLY9kt47VTa8+JAziYaHsX5Jw=
 20260927185159_idempotency.sql h1:iYIp5Y5kBuPj5UJGcOifMeosr8qf0tj17c+5bmF37zE=
 20260929120000_system.sql h1:m6n0Y3tCc4MlfYNzi6Fh01YnogvlBbpQb1/X4WCtW40=
@@ -97,3 +97,4 @@ h1:O2Lv78i6W19jgc9EuFJbIdTW3DeFkkacIu4yIHfjCnk=
 20261012090002_market_simulation_account_legacy.sql h1:0kBUspB2Uxwm90ylfGxnsnA0+f9PXLuz9glRMwaCwwE=
 20261012090003_market_arbitrum_xstocks_follow_issuer.sql h1:RkiFp44X7fpIB57JbEXW9Ds2/P4yP7T/4X/E7lH8qr4=
 20261012090004_trading_trade_step_arrivals.sql h1:UYP/54O126cLXSmhZQwcIPdc7tZj3emySdWKORTensM=
+20261017231803_agents_drop_tables.sql h1:UUXu1W8PgYg2mkmI1mQxbFRPwRvfDs6uUkZMBbvqigE=
