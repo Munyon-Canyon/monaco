@@ -60,6 +60,7 @@ form { margin-top: clamp(var(--s3), 4dvh, var(--s4)); width: 100%; max-width: 40
 .f { flex: 1; min-width: 0; animation: in var(--fast) both; }
 input { width: 100%; height: 52px; padding: 0 14px; border: 0; border-radius: 0; background: none; color: var(--ink); font: 400 17px var(--serif); font-variation-settings: "opsz" 14; outline: none; }
 input::placeholder { color: var(--ink-faint); }
+@media (max-width: 360px) { input::placeholder { font-size: 15px; } } /* keeps "Twitter @handle (optional)" whole on the narrowest phones */
 .bar:has(.bad), .bar:has(.bad):focus-within { border-color: var(--error); }
 button { border: 0; border-radius: 2px; background: var(--ink); color: var(--paper); cursor: pointer; touch-action: manipulation; transition: background var(--fast); }
 button:hover { background: var(--ink-press); }
@@ -109,7 +110,7 @@ footer a { display: inline-flex; align-items: center; min-height: 48px; }
       <div class="bar" data-step="0">
         <button class="start mono" type="button">Join the waitlist <i aria-hidden="true">→</i></button>
         <label class="f e"><span class="sr">Email</span><input name="email" type="email" inputmode="email" autocomplete="email" enterkeyhint="next" placeholder="Your email" required></label>
-        <label class="f h"><span class="sr">Twitter handle (optional)</span><input name="twitter" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send" maxlength="16" placeholder="@handle (optional)"></label>
+        <label class="f h"><span class="sr">Twitter handle (optional)</span><input name="twitter" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send" maxlength="16" placeholder="Twitter @handle (optional)"></label>
         <button class="go" type="submit" aria-label="Continue"><i aria-hidden="true">→</i></button>
       </div>
       <div class="hp" aria-hidden="true"><label>Company<input name="company" tabindex="-1" autocomplete="off"></label></div>
