@@ -11,5 +11,6 @@ func init() {
 		MarketChartBackfillQueueFailed,
 		MarketHistoryDisabled,
 		MarketHistoryCooldown,
+		MarketChartHistoryFailed,
 	)
 }

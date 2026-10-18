@@ -31,3 +31,8 @@ var MarketHistoryCooldown = Msg{
 	Name:     "market.history.cooldown",
 	Required: []string{"poller", "until", "retry_after_s"},
 }
+
+var MarketChartHistoryFailed = Msg{
+	Name:     "market.chart.history_failed",
+	Required: []string{"mint", "code", "err"},
+}

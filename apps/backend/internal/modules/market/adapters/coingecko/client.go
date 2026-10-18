@@ -26,7 +26,7 @@ import (
 const (
 	upstream       = "coingecko"
 	keyHeader      = "x-cg-demo-api-key"
-	callsPerMinute = 20
+	callsPerMinute = 25
 	maxBody        = 8 << 20
 )
 
@@ -58,10 +58,10 @@ type chartWire struct {
 
 func (c *Client) MarketChart(ctx context.Context, mint domain.Mint, days int) ([]app.Sample, error) {
 	const op = "coingecko.Client.MarketChart"
-	if !c.Configured() || days < 1 {
+	if !c.Configured() || (days < 1 && days != app.HistoryMaxDays) {
 		return nil, errs.New(errs.CodeInvalidInput, op, slog.Bool("keyed", c.Configured()), slog.Int("days", days))
 	}
-	query := url.Values{"vs_currency": {"usd"}, "days": {strconv.Itoa(days)}}
+	query := url.Values{"vs_currency": {"usd"}, "days": {daysParam(days)}}
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet,
 		"/coins/solana/contract/"+url.PathEscape(mint.String())+"/market_chart?"+query.Encode(), nil)
 	req.Header.Set(keyHeader, c.key)
@@ -95,6 +95,13 @@ func (c *Client) MarketChart(ctx context.Context, mint domain.Mint, days int) ([
 			slog.String("mint", mint.String()), slog.Int("days", days), slog.Int("dropped", dropped))
 	}
 	return out, err
+}
+
+func daysParam(days int) string {
+	if days == app.HistoryMaxDays {
+		return "max"
+	}
+	return strconv.Itoa(days)
 }
 
 func rateLimited(err error) bool {
