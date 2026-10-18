@@ -60,7 +60,6 @@ type Config struct {
 	APNs       APNs
 	PostHog    PostHog
 	Ably       Ably
-	Agents     Agents
 	Supabase   Supabase
 	Web        Web
 	Trade      Trade
@@ -361,7 +360,6 @@ func fields() []field {
 		tradeFields(),
 		adminFields(),
 		ablyFields(),
-		agentsFields(),
 		evmFields(),
 		listingsFields(),
 		routingFields(),
