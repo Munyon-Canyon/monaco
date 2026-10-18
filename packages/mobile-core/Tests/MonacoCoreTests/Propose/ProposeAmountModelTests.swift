@@ -19,7 +19,7 @@ final class ProposeAmountModelTests: XCTestCase {
 
         let amounts = await service.recordedAmounts()
         XCTAssertEqual(amounts, [50_000_000])
-        XCTAssertEqual(model.maxMicros, 500_000_000)
+        XCTAssertEqual(model.maxMicros, 499_000_000)
     }
 
     func testTypingAReasonKeepsItAndStopsAtTheLimit() {
@@ -104,11 +104,78 @@ final class ProposeAmountModelTests: XCTestCase {
         XCTAssertFalse(model.reviewEnabled(assetName: "Apple"))
     }
 
-    func testBuyOverTheLimitSaysThePot() {
+    func testBuyOverTheLimitSaysTheCabalIsShortOnCash() {
         let model = ProposeAmountModel(
             service: PreviewService(), cabalID: "cabal", trade: Self.buy, clock: TestClock())
 
-        XCTAssertEqual(model.overLimitHelper, "More than the pot has")
+        XCTAssertEqual(model.overLimitHelper, "The cabal doesn't have that much cash")
+    }
+
+    func testBuyMaxIsTheLargestBuyNotThePot() async {
+        let service = PreviewService(cash: (990_000, 980_000))
+        let model = ProposeAmountModel(service: service, cabalID: "cabal", trade: Self.buy, clock: TestClock())
+        XCTAssertNil(model.maxMicros)
+        XCTAssertNil(model.spendableCashMicros)
+
+        await model.load()
+
+        XCTAssertEqual(model.spendableCashMicros, 990_000)
+        XCTAssertEqual(model.maxMicros, 980_000)
+        XCTAssertEqual(model.helperText, "The cabal can spend $0.99")
+        model.useMax()
+        XCTAssertEqual(model.amountMicros, 980_000)
+        XCTAssertFalse(model.isOverLimit)
+        let amounts = await service.recordedAmounts()
+        XCTAssertEqual(amounts, [])
+    }
+
+    func testBuyAboveTheLargestBuyShowsCashShortBeforeSending() async {
+        let clock = TestClock()
+        let model = ProposeAmountModel(
+            service: PreviewService(cash: (990_000, 980_000)), cabalID: "cabal", trade: Self.buy, clock: clock)
+        await model.load()
+
+        model.setAmount(micros: 1_000_000)
+
+        XCTAssertTrue(model.isOverLimit)
+        XCTAssertEqual(model.message(assetName: "Alphabet"), "The cabal doesn't have that much cash")
+        await settle()
+        clock.advance(by: .milliseconds(400))
+        await settle()
+        XCTAssertEqual(model.message(assetName: "Alphabet"), "The cabal doesn't have that much cash")
+        XCTAssertFalse(model.reviewEnabled(assetName: "Alphabet"))
+
+        model.setAmount(micros: 980_000)
+        await settle()
+        clock.advance(by: .milliseconds(400))
+        await settle()
+        XCTAssertNil(model.message(assetName: "Alphabet"))
+        XCTAssertTrue(model.reviewEnabled(assetName: "Alphabet"))
+    }
+
+    func testAFailedCashReadLeavesMaxUnavailableAndFlagsIt() async {
+        let service = PreviewService()
+        await service.setFailing(true)
+        let model = ProposeAmountModel(service: service, cabalID: "cabal", trade: Self.buy, clock: TestClock())
+
+        await model.load()
+
+        XCTAssertTrue(model.cashFailed)
+        XCTAssertNil(model.maxMicros)
+        XCTAssertNil(model.spendableCashMicros)
+    }
+
+    func testASellNeverReadsCashAndKeepsTheHoldingAsMax() async {
+        let apple = ProposeHoldingTests.holding(name: "Apple", units: "1.2034", valueMicros: 278_470_000)
+        let service = PreviewService()
+        let model = ProposeAmountModel(service: service, cabalID: "cabal", trade: .sell(apple), clock: TestClock())
+
+        await model.load()
+
+        XCTAssertNil(model.spendableCashMicros)
+        XCTAssertEqual(model.maxMicros, 278_470_000)
+        let networks = await service.recordedNetworks()
+        XCTAssertTrue(networks.isEmpty)
     }
 
     func testResolveAssetFixesABuyAndLeavesASellAlone() {
@@ -133,8 +200,8 @@ final class ProposeAmountModelTests: XCTestCase {
 
         await model.load()
 
-        XCTAssertEqual(model.maxMicros, 500_000_000)
-        XCTAssertEqual(model.helperText, "The pot has $500.00")
+        XCTAssertEqual(model.maxMicros, 499_000_000)
+        XCTAssertEqual(model.helperText, "The cabal can spend $500.00")
     }
 
     func testHelperSaysItIsFindingThePriceAndClearsTheAdvisoryWhileAPreviewLoads() async {
@@ -153,12 +220,12 @@ final class ProposeAmountModelTests: XCTestCase {
         XCTAssertTrue(model.isLoading)
         XCTAssertEqual(model.helperText, "Finding the best price…")
         XCTAssertNil(model.message(assetName: "Alphabet"))
-        XCTAssertEqual(model.maxMicros, 500_000_000)
+        XCTAssertEqual(model.maxMicros, 499_000_000)
         await settle()
         clock.advance(by: .milliseconds(400))
         await settle()
         XCTAssertFalse(model.isLoading)
-        XCTAssertEqual(model.helperText, "The pot has $500.00")
+        XCTAssertEqual(model.helperText, "The cabal can spend $500.00")
         XCTAssertEqual(model.message(assetName: "Alphabet"), "More than the pot has")
     }
 
@@ -225,13 +292,18 @@ actor PreviewService: ProposeService {
     let code: String?
     let pinnedCode: String?
     let quoteOut: Int64?
+    let cash: (spendable: Int64, maxBuy: Int64)
     var amounts: [Int64] = []
     var networks: [Components.Schemas.Network?] = []
     private var failing = false
     private var holding = false
     private var held: [CheckedContinuation<Void, Never>] = []
 
-    init(code: String? = nil, pinnedCode: String? = nil, quoteOut: Int64? = nil) {
+    init(
+        code: String? = nil, pinnedCode: String? = nil, quoteOut: Int64? = nil,
+        cash: (spendable: Int64, maxBuy: Int64) = (500_000_000, 499_000_000)
+    ) {
+        self.cash = cash
         self.code = code
         self.pinnedCode = pinnedCode
         self.quoteOut = quoteOut
@@ -245,19 +317,20 @@ actor PreviewService: ProposeService {
         held = []
     }
 
-    func potValue(cabalID _: String) async throws -> Int64 { 500_000_000 }
-
     func preview(
         cabalID _: String, draft: ProposalDraft, network: Components.Schemas.Network?
     ) async throws -> ProposePreview {
-        amounts.append(draft.amount)
         networks.append(network)
+        if draft.amount > 0 { amounts.append(draft.amount) }
         if failing { throw Failure() }
         if holding { await withCheckedContinuation { held.append($0) } }
+        let isBuy: Bool
+        if case .buy = draft { isBuy = true } else { isBuy = false }
         return ProposePreview(
             .init(
                 quoteOutAmount: quoteOut, advisoryCode: network == nil ? code : pinnedCode, advisoryMessage: nil,
-                potValueMicros: 500_000_000))
+                potValueMicros: 500_000_000, spendableCashMicros: isBuy ? cash.spendable : nil,
+                maxBuyMicros: isBuy ? cash.maxBuy : nil))
     }
 
     func propose(

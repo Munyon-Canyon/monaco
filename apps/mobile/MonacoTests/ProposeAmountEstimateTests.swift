@@ -41,7 +41,7 @@ extension ProposeAmountKeypadTests {
         let (window, _) = try Self.window(service: service, bestChains: store)
         defer { window.isHidden = true }
         func helper() -> String? { Self.element("amount-entry-helper", in: window)?.accessibilityLabel }
-        #expect(await Self.eventually(within: 10) { helper() == "The pot has $500.00" })
+        #expect(await Self.eventually(within: 10) { helper() == "The cabal can spend $500.00" })
 
         let one = try #require(Self.element("amount-keypad-1", in: window))
         #expect(one.accessibilityActivate())
@@ -51,7 +51,7 @@ extension ProposeAmountKeypadTests {
         #expect(Self.element("propose-amount-quantity", in: window) == nil)
         #expect(await service.networks == [nil])
         await service.answer()
-        #expect(await Self.eventually(within: 10) { helper() == "The pot has $500.00" })
+        #expect(await Self.eventually(within: 10) { helper() == "The cabal can spend $500.00" })
     }
 
     fileprivate static func bestChains(answer: MonacoCore.AssetBestChain?) -> MonacoCore.AssetBestChainStore {

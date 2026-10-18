@@ -40,7 +40,11 @@ struct ProposeAmountScreen: View {
                         operationLabel
                             .padding(.horizontal, MonacoTheme.Space.gutter)
                         MonacoGroupedList { ProposeStockRow(stock: stock, logoURL: nil, isLast: true) }
-                        ProposePotTotalRow(cabalID: cabalID)
+                        if model.trade.isSell {
+                            ProposePotTotalRow(cabalID: cabalID)
+                        } else {
+                            ProposeCashToSpendRow(micros: model.spendableCashMicros, failed: model.cashFailed)
+                        }
                     }
                     AmountEntry(
                         amountText: $amountText, max: max, presets: presets, helper: model.helperText,

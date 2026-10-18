@@ -5,6 +5,8 @@ public struct ProposePreview: Equatable, Sendable {
     public let advisoryCode: String?
     public let advisoryMessage: String?
     public let potValueMicros: Int64
+    public let spendableCashMicros: Int64?
+    public let maxBuyMicros: Int64?
     public let priceComparison: Components.Schemas.PriceComparison?
 
     public init(_ preview: Components.Schemas.TradePreview) {
@@ -12,6 +14,8 @@ public struct ProposePreview: Equatable, Sendable {
         advisoryCode = preview.advisoryCode
         advisoryMessage = preview.advisoryMessage
         potValueMicros = preview.potValueMicros
+        spendableCashMicros = preview.spendableCashMicros
+        maxBuyMicros = preview.maxBuyMicros
         priceComparison = preview.priceComparison
     }
 

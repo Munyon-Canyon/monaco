@@ -82,7 +82,6 @@ private struct UnusedProposeService: ProposeService {
     func preview(cabalID _: String, draft _: ProposalDraft, network _: Components.Schemas.Network?) async throws
         -> ProposePreview
     { throw Unused() }
-    func potValue(cabalID _: String) async throws -> Int64 { throw Unused() }
     func propose(
         cabalID _: String, draft _: ProposalDraft, network _: Components.Schemas.Network?,
         submission _: IdempotentSubmission

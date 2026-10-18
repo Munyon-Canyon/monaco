@@ -18,10 +18,6 @@ public struct LiveProposeService: ProposeService {
         return ProposePreview(reply)
     }
 
-    public func potValue(cabalID: String) async throws -> Int64 {
-        try await api.read { try await $0.getCabalPot(path: .init(id: cabalID)).ok.body.json }.potValueMicros
-    }
-
     public func propose(
         cabalID: String, draft: ProposalDraft, network: Components.Schemas.Network?, submission: IdempotentSubmission
     ) async throws -> String {
@@ -50,7 +46,7 @@ extension ProposalDraft {
     ) -> Operations.GetCabalProposalPreview.Input.Query {
         switch self {
         case .buy(let symbol, let usdcMicros, _):
-            .init(kind: .buy, symbol: symbol, usdcMicros: usdcMicros, network: network)
+            .init(kind: .buy, symbol: symbol, usdcMicros: usdcMicros > 0 ? usdcMicros : nil, network: network)
         case .sell(let symbol, let tokenAmount, _): .init(kind: .sell, symbol: symbol, tokenAmount: tokenAmount)
         }
     }

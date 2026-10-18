@@ -307,8 +307,6 @@ actor ReviewService: ProposeService {
                 potValueMicros: 500_000_000))
     }
 
-    func potValue(cabalID _: String) async throws -> Int64 { throw Failure() }
-
     func propose(
         cabalID _: String, draft _: ProposalDraft, network: Components.Schemas.Network?,
         submission: IdempotentSubmission

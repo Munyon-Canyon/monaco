@@ -6,7 +6,8 @@ import Observation
 public final class ProposeAmountModel {
     public private(set) var amountMicros: Int64 = 0
     public private(set) var preview: ProposePreview?
-    public private(set) var potMicros: Int64?
+    public private(set) var cashPreview: ProposePreview?
+    public private(set) var cashFailed = false
     public private(set) var previewAmountMicros: Int64?
     public private(set) var previewFailed = false
     public private(set) var isLoading = false
@@ -34,23 +35,29 @@ public final class ProposeAmountModel {
 
     public var maxMicros: Int64? {
         switch trade {
-        case .buy: preview?.potValueMicros ?? potMicros
+        case .buy: cashFigures?.maxBuyMicros
         case .sell(let holding): holding.valueMicros
         }
     }
+
+    public var spendableCashMicros: Int64? { cashFigures?.spendableCashMicros }
+
+    private var cashFigures: ProposePreview? { preview?.spendableCashMicros != nil ? preview : cashPreview }
+
+    public static let cashShort = "The cabal doesn't have that much cash"
 
     public static let findingPrice = "Finding the best price…"
 
     public var helperText: String? {
         if isLoading { return Self.findingPrice }
         return switch trade {
-        case .buy: (preview?.potValueMicros ?? potMicros).map { "The pot has \(UsdAmountFormatter.format(micros: $0))" }
+        case .buy: spendableCashMicros.map { "The cabal can spend \(UsdAmountFormatter.format(micros: $0))" }
         case .sell(let holding): holding.helperText
         }
     }
 
     public var overLimitHelper: String {
-        guard case .sell(let holding) = trade else { return "More than the pot has" }
+        guard case .sell(let holding) = trade else { return Self.cashShort }
         return holding.valueMicros > 0 ? "More than the cabal holds" : ProposeHolding.noPriceHelper
     }
 
@@ -64,13 +71,22 @@ public final class ProposeAmountModel {
     }
 
     public var isOverLimit: Bool {
-        guard case .sell(let holding) = trade else { return false }
-        return amountMicros > holding.valueMicros
+        switch trade {
+        case .buy: maxMicros.map { amountMicros > $0 } ?? false
+        case .sell(let holding): amountMicros > holding.valueMicros
+        }
     }
 
     public func load() async {
-        guard !trade.isSell else { return }
-        potMicros = try? await service.potValue(cabalID: cabalID)
+        guard case .buy(let symbol, _, _) = trade else { return }
+        do {
+            cashPreview = try await service.preview(
+                cabalID: cabalID, draft: .buy(symbol: symbol, usdcMicros: 0, thesis: ""), network: nil)
+            cashFailed = false
+        } catch is CancellationError {
+        } catch {
+            cashFailed = true
+        }
     }
 
     public func prefetchBestChain() async {
@@ -166,6 +182,7 @@ public final class ProposeAmountModel {
     }
 
     public func message(assetName: String) -> String? {
+        if !trade.isSell, isOverLimit { return overLimitHelper }
         guard !isLoading else { return nil }
         return preview?.message(assetName: assetName, isSell: trade.isSell)
     }
