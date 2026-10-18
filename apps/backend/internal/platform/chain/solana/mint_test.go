@@ -572,3 +572,30 @@ func TestMintConfigFeeHeadroom_roundsUpAndStopsAtTheMaximumFee(t *testing.T) {
 		}
 	})
 }
+
+func TestMintConfig_maxSpendIsTheLargestAmountWhoseFeeHeadroomFitsTheCash(t *testing.T) {
+	t.Parallel()
+	rapid.Check(t, func(rt *rapid.T) {
+		cfg := solana.MintConfig{
+			TransferFeeBps: rapid.Uint16Range(0, 10_000).Draw(rt, "bps"),
+			MaxFee:         money.NewBaseUnits(rapid.Uint64().Draw(rt, "maxFee"), 8),
+		}
+		cash := rapid.Uint64().Draw(rt, "cash")
+		got := cfg.MaxSpend(cash)
+		if got+cfg.FeeHeadroom(got) > cash || got > cash {
+			rt.Fatalf("max spend %d with headroom %d exceeds cash %d", got, cfg.FeeHeadroom(got), cash)
+		}
+		if next := got + 1; got < cash && next+cfg.FeeHeadroom(next) <= cash && next+cfg.FeeHeadroom(next) >= next {
+			rt.Fatalf("max spend %d is not the largest: %d also fits cash %d", got, next, cash)
+		}
+	})
+}
+
+func TestMintConfig_maxSpendOfTheLargestCashTerminates(t *testing.T) {
+	t.Parallel()
+	cfg := solana.MintConfig{TransferFeeBps: 1, MaxFee: money.NewBaseUnits(math.MaxUint64, 8)}
+	got := cfg.MaxSpend(math.MaxUint64)
+	if got == 0 || got+cfg.FeeHeadroom(got) < got {
+		t.Fatalf("max spend of the largest cash = %d", got)
+	}
+}

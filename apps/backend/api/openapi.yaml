@@ -1655,7 +1655,9 @@ paths:
         - name: usdc_micros
           in: query
           required: false
-          description: USDC a buy spends, in micros.
+          description: >-
+            USDC a buy spends, in micros. A buy that leaves it out returns only the pot and the spendable
+            cash.
           schema: {type: integer, format: int64, minimum: 1, examples: [5000000]}
         - name: token_amount
           in: query
@@ -6558,6 +6560,20 @@ components:
           format: int64
           description: The cabal's total value, USDC plus priced holdings, in micros.
           examples: [100000000]
+        spendable_cash_micros:
+          type: integer
+          format: int64
+          description: >-
+            The USDC on the cabal's Solana treasury wallet, the cash a buy draws on, in micros. Absent
+            for a sell.
+          examples: [990000]
+        max_buy_micros:
+          type: integer
+          format: int64
+          description: >-
+            The largest buy this token's transfer fee leaves the cash able to cover, in micros. Absent
+            for a sell.
+          examples: [985000]
     VoidedProposal:
       type: object
       description: A proposal after a moderator voided it.

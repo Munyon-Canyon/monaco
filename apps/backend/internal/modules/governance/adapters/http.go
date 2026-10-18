@@ -1,9 +1,11 @@
 package adapters
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"math"
+	"strings"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/app"
@@ -129,11 +131,7 @@ func (h HTTP) GetCabalProposalPreview(
 	if err != nil {
 		return nil, err
 	}
-	trade, err := domain.NewTrade(domain.Trade{
-		Kind: domain.Kind(req.Params.Kind), Symbol: req.Params.Symbol,
-		USDCMicros: money.MicrosFromUint64(amount(req.Params.UsdcMicros)), TokenAmount: amount(req.Params.TokenAmount),
-		Network: network(req.Params.Network),
-	})
+	trade, err := previewTrade(req.Params)
 	if err != nil {
 		return nil, err
 	}
@@ -155,10 +153,39 @@ func (h HTTP) GetCabalProposalPreview(
 	out := api.GetCabalProposalPreview200JSONResponse{
 		PotValueMicros: pot, QuoteOutAmount: positive(quote), PriceComparison: wireComparison(got.PriceComparison),
 	}
+	if err := wireSpendable(&out, got.Spendable); err != nil {
+		return nil, err
+	}
 	if got.Advisory != "" {
 		out.AdvisoryCode, out.AdvisoryMessage = ptr(string(got.Advisory)), ptr(errs.Message(got.Advisory))
 	}
 	return out, nil
+}
+
+func previewTrade(params api.GetCabalProposalPreviewParams) (domain.Trade, error) {
+	trade := domain.Trade{
+		Kind: domain.Kind(params.Kind), Symbol: params.Symbol,
+		USDCMicros: money.MicrosFromUint64(amount(params.UsdcMicros)), TokenAmount: amount(params.TokenAmount),
+		Network: network(params.Network),
+	}
+	amountless := trade.Kind == domain.KindBuy && params.UsdcMicros == nil && params.TokenAmount == nil
+	if amountless && strings.TrimSpace(trade.Symbol) != "" {
+		return trade, nil
+	}
+	return domain.NewTrade(trade)
+}
+
+func wireSpendable(out *api.GetCabalProposalPreview200JSONResponse, s *app.Spendable) error {
+	if s == nil {
+		return nil
+	}
+	cash, cashErr := wireInt(s.Cash.Uint64(), "spendable_cash_micros")
+	maxBuy, maxErr := wireInt(s.MaxBuy.Uint64(), "max_buy_micros")
+	if err := cmp.Or(cashErr, maxErr); err != nil {
+		return errs.Wrap(err, errs.CodeDecodeFailed, "governance.wireSpendable")
+	}
+	out.SpendableCashMicros, out.MaxBuyMicros = &cash, &maxBuy
+	return nil
 }
 
 func wireInt(v uint64, field string) (int64, error) {

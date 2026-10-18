@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -16,6 +17,12 @@ type TradePreview struct {
 	Advisory        errs.Code
 	Pot             money.Micros
 	PriceComparison *multichain.Comparison
+	Spendable       *Spendable
+}
+
+type Spendable struct {
+	Cash   money.Micros
+	MaxBuy money.Micros
 }
 
 func (h *ProposeTradeHandler) Preview(ctx context.Context, req ProposeTrade) (TradePreview, error) {
@@ -30,6 +37,16 @@ func (h *ProposeTradeHandler) Preview(ctx context.Context, req ProposeTrade) (Tr
 	asset, err := h.ports.Assets.AssetBySymbol(ctx, req.Trade.Symbol)
 	if err != nil {
 		return out, advise(&out, err)
+	}
+	if req.Trade.Kind == domain.KindBuy {
+		cash, cfg, err := spendableCash(ctx, h.ports, req.CabalID, asset)
+		if err != nil {
+			return TradePreview{}, err
+		}
+		out.Spendable = &Spendable{Cash: cash, MaxBuy: money.MicrosFromUint64(cfg.MaxSpend(cash.Uint64()))}
+		if req.Trade.USDCMicros.Uint64() == 0 {
+			return out, nil
+		}
 	}
 	fundsErr := funds(ctx, h.ports, req.CabalID, asset, req.Trade, pot)
 	routed, comparison, routeErr := h.route(ctx, asset, req.Trade)
