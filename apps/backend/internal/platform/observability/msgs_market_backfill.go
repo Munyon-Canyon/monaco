@@ -18,11 +18,6 @@ var MarketReconcileSkippedNoKey = Msg{
 	Name: "market.reconcile.skipped_no_key",
 }
 
-var MarketChartBackfillQueueFailed = Msg{
-	Name:     "market.chart.backfill_queue_failed",
-	Required: []string{"mint", "code", "err"},
-}
-
 var MarketHistoryDisabled = Msg{
 	Name: "market.history.disabled",
 }

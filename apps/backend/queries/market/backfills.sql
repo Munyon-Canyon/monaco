@@ -45,19 +45,3 @@ INSERT INTO price_backfills (mint, requested_at)
 SELECT u.mint, sqlc.arg(now)::timestamptz
 FROM unnest(sqlc.arg(mints)::text[]) AS u (mint)
 ON CONFLICT (mint) DO UPDATE SET requested_at = excluded.requested_at, done_at = NULL, last_code = NULL, attempts = 0, last_attempt_at = NULL;
-
--- name: QueueNewListingBackfills :execrows
-INSERT INTO price_backfills (mint, requested_at)
-SELECT a.mint, sqlc.arg(now)::timestamptz
-FROM assets AS a
-WHERE a.mint = ANY (sqlc.arg(mints)::text[])
-  AND a.first_seen_at = sqlc.arg(now)::timestamptz
-  AND coalesce(a.tradable_override, a.issuer_tradable)
-ON CONFLICT (mint) DO NOTHING;
-
--- name: QueueAllListedBackfills :execrows
-INSERT INTO price_backfills (mint, requested_at)
-SELECT a.mint, sqlc.arg(now)::timestamptz
-FROM assets AS a
-WHERE a.chain_checked_at IS NOT NULL AND coalesce(a.tradable_override, a.issuer_tradable)
-ON CONFLICT (mint) DO NOTHING;

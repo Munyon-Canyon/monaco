@@ -14,7 +14,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
-	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 type Point struct {
@@ -54,7 +53,6 @@ type chartReader interface {
 	AssetBySymbol(context.Context, string) (sqlc.Asset, error)
 	NewestSamples(context.Context, sqlc.NewestSamplesParams) ([]sqlc.NewestSamplesRow, error)
 	EarliestPrice(context.Context, string) (time.Time, error)
-	InsertPendingBackfills(context.Context, sqlc.InsertPendingBackfillsParams) (int64, error)
 }
 
 type chartHistory interface {
@@ -112,7 +110,6 @@ func (c *AssetChart) fromPricePoints(
 	now time.Time,
 ) (Chart, error) {
 	mint := asset.Mint.String()
-	c.queueBackfill(ctx, mint, now)
 	until, priced, err := c.until(ctx, mint, now)
 	if err != nil {
 		return Chart{}, err
@@ -157,14 +154,6 @@ func (c *AssetChart) readWindow(
 	}
 	since, ok, err := c.since(ctx, asset, span, req.Before != nil, now)
 	return since, until, ok, err
-}
-
-func (c *AssetChart) queueBackfill(ctx context.Context, mint string, now time.Time) {
-	if _, err := c.read.InsertPendingBackfills(ctx,
-		sqlc.InsertPendingBackfillsParams{Mints: []string{mint}, Now: now}); err != nil {
-		observability.Degraded(ctx, observability.MarketChartBackfillQueueFailed, slog.String("mint", mint),
-			slog.String("code", string(errs.CodeOf(err))), slog.Any("err", err))
-	}
 }
 
 func (c *AssetChart) previousCloseOrNil(ctx context.Context, asset domain.Asset, now time.Time) (*money.Micros, error) {

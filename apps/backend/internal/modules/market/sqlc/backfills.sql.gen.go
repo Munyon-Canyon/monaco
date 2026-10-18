@@ -126,45 +126,6 @@ func (q *Queries) PendingBackfills(ctx context.Context, arg PendingBackfillsPara
 	return items, nil
 }
 
-const queueAllListedBackfills = `-- name: QueueAllListedBackfills :execrows
-INSERT INTO price_backfills (mint, requested_at)
-SELECT a.mint, $1::timestamptz
-FROM assets AS a
-WHERE a.chain_checked_at IS NOT NULL AND coalesce(a.tradable_override, a.issuer_tradable)
-ON CONFLICT (mint) DO NOTHING
-`
-
-func (q *Queries) QueueAllListedBackfills(ctx context.Context, now time.Time) (int64, error) {
-	result, err := q.db.Exec(ctx, queueAllListedBackfills, now)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const queueNewListingBackfills = `-- name: QueueNewListingBackfills :execrows
-INSERT INTO price_backfills (mint, requested_at)
-SELECT a.mint, $1::timestamptz
-FROM assets AS a
-WHERE a.mint = ANY ($2::text[])
-  AND a.first_seen_at = $1::timestamptz
-  AND coalesce(a.tradable_override, a.issuer_tradable)
-ON CONFLICT (mint) DO NOTHING
-`
-
-type QueueNewListingBackfillsParams struct {
-	Now   time.Time
-	Mints []string
-}
-
-func (q *Queries) QueueNewListingBackfills(ctx context.Context, arg QueueNewListingBackfillsParams) (int64, error) {
-	result, err := q.db.Exec(ctx, queueNewListingBackfills, arg.Now, arg.Mints)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const requestBackfills = `-- name: RequestBackfills :execrows
 INSERT INTO price_backfills (mint, requested_at)
 SELECT u.mint, $1::timestamptz
