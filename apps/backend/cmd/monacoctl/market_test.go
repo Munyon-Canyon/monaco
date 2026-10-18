@@ -99,7 +99,7 @@ func TestMarketThinPrices_deletesOldDuplicates(t *testing.T) {
 	pool := testkit.DB(t)
 	now := clock.Real{}.Now().UTC().Truncate(time.Hour)
 	aapl := marketfake.AAPLx().Mint.String()
-	old := now.Add(-10 * 24 * time.Hour)
+	old := now.Add(-3 * 24 * time.Hour)
 	_, err := pool.Exec(t.Context(), `INSERT INTO price_points (mint, ts, price_micros, source) VALUES
 		($1, $2, 1, 'jupiter'), ($1, $3, 2, 'coingecko'), ($1, $4, 3, 'jupiter')`,
 		aapl, old, old.Add(time.Minute), now.Add(-time.Hour))
@@ -141,7 +141,7 @@ func TestMarketThinPrices_skipsWhenTheWorkerHoldsTheLock(t *testing.T) {
 	pool := testkit.DB(t)
 	now := clock.Real{}.Now().UTC().Truncate(time.Hour)
 	aapl := marketfake.AAPLx().Mint.String()
-	old := now.Add(-10 * 24 * time.Hour)
+	old := now.Add(-3 * 24 * time.Hour)
 	_, err := pool.Exec(t.Context(), `INSERT INTO price_points (mint, ts, price_micros, source) VALUES
 		($1, $2, 1, 'jupiter'), ($1, $3, 2, 'jupiter')`, aapl, old, old.Add(time.Minute))
 	if err != nil {

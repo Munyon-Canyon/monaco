@@ -39,6 +39,42 @@ WHERE ctid IN (
 )
 RETURNING ts;
 
+-- name: ThinKeptPricePoints :many
+DELETE FROM price_points
+WHERE ctid IN (
+  SELECT p.ctid
+  FROM price_points AS p
+  WHERE p.ts >= sqlc.arg(after)::timestamptz
+    AND p.ts < sqlc.arg(older_than)::timestamptz
+    AND (
+      p.mint = ANY (sqlc.arg(keep)::text[])
+      OR p.mint IN (SELECT a.mint FROM assets AS a WHERE a.popular_rank IS NOT NULL)
+    )
+    AND p.ts < (SELECT max(latest.ts) FROM price_points AS latest WHERE latest.mint = p.mint)
+    AND EXISTS (
+      SELECT 1
+      FROM price_points AS earlier
+      WHERE earlier.mint = p.mint
+        AND earlier.ts >= date_bin((sqlc.arg(bucket)::text)::interval, p.ts, TIMESTAMPTZ 'epoch')
+        AND earlier.ts < p.ts
+    )
+  ORDER BY p.ts
+  LIMIT sqlc.arg(batch_limit)::integer
+)
+RETURNING ts;
+
+-- name: DeleteColdPricePoints :many
+DELETE FROM price_points
+WHERE ctid IN (
+  SELECT p.ctid
+  FROM price_points AS p
+  WHERE p.ts < sqlc.arg(older_than)::timestamptz
+    AND NOT (p.mint = ANY (sqlc.arg(keep)::text[]))
+    AND p.mint NOT IN (SELECT a.mint FROM assets AS a WHERE a.popular_rank IS NOT NULL)
+  LIMIT sqlc.arg(batch_limit)::integer
+)
+RETURNING ts;
+
 -- name: InsertBackfilledPricePoints :execrows
 INSERT INTO price_points (mint, ts, price_micros, source)
 SELECT sqlc.arg(mint)::text, u.ts, u.price_micros, sqlc.arg(source)::text

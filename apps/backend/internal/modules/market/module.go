@@ -200,7 +200,7 @@ func (m *Module) Pollers() []poller.Poller {
 	pollers = append(pollers,
 		m.catalogPoller(providers, facts, xs),
 		m.samplePrices(),
-		app.NewRetention(m.deps.UoW, m.deps.Clock),
+		m.Retention(),
 	)
 	if !cfg.CoinGecko.HistoryEnabled {
 		return pollers
@@ -210,6 +210,10 @@ func (m *Module) Pollers() []poller.Poller {
 		m.Backfill(history).WithCooldown(cooldown),
 		app.NewReconcile(m.deps.UoW, m.deps.Pool, m.deps.Clock, history, m.hot...).WithCooldown(cooldown),
 	)
+}
+
+func (m *Module) Retention() *app.Retention {
+	return app.NewRetention(m.deps.UoW, m.deps.Clock, m.hot...)
 }
 
 func (m *Module) Backfill(history app.PriceHistory) *app.Backfill {

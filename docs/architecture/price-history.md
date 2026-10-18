@@ -133,7 +133,15 @@ A cabal's P&L curve reads `cabal_value_snapshots`, written every 2 minutes by th
 
 ### Retention
 
-A monthly `market` poller, under the same advisory-lock rule, thins old rows: 2-minute samples kept 7 days, 5-minute for 90 days, hourly forever. Seventy mints at hourly resolution is about 600k rows a year.
+An hourly `market.retention` poller, under the same advisory-lock rule, thins and deletes old rows in three batched passes (decided 2026-10-17, #5500):
+
+1. Every mint: samples older than 2 hours are thinned to one per hour.
+2. Hot mints (held and proposed, from the `HotMints` sources) plus every mint with a popular rank: samples older than 7 days are thinned to one per day.
+3. Every other mint: samples older than 7 days are deleted.
+
+The two thinning passes keep the earliest sample in a bucket and never delete a mint's newest sample; the cold pass deletes every sample past 7 days. A failing hot source fails the tick before any delete, so a held mint never loses history to a read error.
+
+Size budget: under 100 MB steady state for about 1,500 mints. A mint keeps about 60 raw samples, 166 hourly samples and, if hot or popular, one sample a day, which is about 230 rows for a cold mint and 230 plus 365 a year for a hot one, so 1,500 mints stay near 350k rows with indexes. Before this policy the table reached 1.53 GB in a week (902 MB of it indexes) and the free plan's 500 MB cap made the database read-only on 2026-10-16.
 
 ### Budget
 

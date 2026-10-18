@@ -7,12 +7,16 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/governance"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 )
 
 const marketUsage = "usage: monacoctl market tradable <symbol> on|off|auto | thin-prices | simulation-account"
@@ -90,7 +94,10 @@ func thinPrices(clk clock.Clock, lock retentionLock, cfg config.Config, args []s
 		return 0
 	}
 	defer release()
-	report, err := app.NewRetention(db.New(pool, ids.Real{}, clk), clk).Tick(ctx)
+	d := module.Deps{Config: cfg, Pool: pool, Clock: clk, IDs: ids.Real{}, UoW: db.New(pool, ids.Real{}, clk)}
+	m := market.New(d)
+	module.NewSet(m, treasury.New(d), governance.New(d))
+	report, err := m.Retention().Tick(ctx)
 	if err != nil {
 		return fail(stderr, err)
 	}
