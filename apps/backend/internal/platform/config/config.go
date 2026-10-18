@@ -104,6 +104,7 @@ type Worker struct {
 	HealthAddr          string
 	FundSendWindow      time.Duration
 	WithdrawalUnsentAge time.Duration
+	PollerBackoffMax    time.Duration
 }
 
 type DB struct {
@@ -354,6 +355,7 @@ func (f field) secret() field {
 func fields() []field {
 	return slices.Concat(
 		platformFields(),
+		pollerFields(),
 		marketFields(),
 		fundingFields(),
 		webFields(),
@@ -397,6 +399,13 @@ func marketFields() []field {
 			func(c *Config) *string { return &c.PreStocks.BaseURL }),
 		duration("MARKET_PRICE_POLL_INTERVAL", 120*time.Second,
 			func(c *Config) *time.Duration { return &c.Market.PricePollInterval }),
+	}
+}
+
+func pollerFields() []field {
+	return []field{
+		duration("MONACO_POLLER_BACKOFF_MAX", 5*time.Minute,
+			func(c *Config) *time.Duration { return &c.Worker.PollerBackoffMax }),
 	}
 }
 

@@ -734,3 +734,87 @@ func TestSamplePrices_recordsLastQuotedAtAndASilentMintStopsBeingQuotable(t *tes
 	tick(time.Minute)
 	want("first price back", tsla, true)
 }
+
+type listAllCounter struct{ calls atomic.Int32 }
+
+func (c *listAllCounter) TraceQueryStart(
+	ctx context.Context,
+	_ *pgx.Conn,
+	data pgx.TraceQueryStartData,
+) context.Context {
+	if strings.Contains(data.SQL, "FROM assets ORDER BY symbol") {
+		c.calls.Add(1)
+	}
+	return ctx
+}
+
+func (*listAllCounter) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
+
+func TestSamplePrices_reloadsTheCatalogOnlyWhenTheAssetsChange(t *testing.T) {
+	t.Parallel()
+	aapl, tsla := marketfake.AAPLx(), marketfake.TSLAx()
+	q := &quotes{}
+	q.quote(aapl, 200_000_000)
+	r := newSampleRig(t, fixed(q), aapl)
+	reads := &listAllCounter{}
+	cfg := r.pool.Config()
+	cfg.ConnConfig.Tracer = reads
+	counted, err := pgxpool.NewWithConfig(t.Context(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(counted.Close)
+	ids := testkit.NewIDs(12)
+	poller := app.NewSamplePrices(db.New(r.pool, ids, r.clock), counted, ids, r.clock, q, r.ticks, 2*time.Minute)
+	tick := func(after time.Duration, wantCalls int32) {
+		t.Helper()
+		r.clock.Advance(after)
+		if _, err := poller.Tick(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if got := reads.calls.Load(); got != wantCalls {
+			t.Fatalf("ListAll calls after %v = %d, want %d", after, got, wantCalls)
+		}
+	}
+	tick(0, 1)
+	tick(2*time.Minute, 1)
+	tick(time.Hour, 1)
+	seedAssets(t, r.pool, r.clock.Now(), tsla)
+	tick(2*time.Minute, 2)
+	tick(2*time.Minute, 2)
+}
+
+type failListAll struct{}
+
+func (failListAll) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	if !strings.Contains(data.SQL, "FROM assets ORDER BY symbol") {
+		return ctx
+	}
+	canceled, cancel := context.WithCancel(ctx)
+	cancel()
+	return canceled
+}
+
+func (failListAll) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
+
+func TestSamplePrices_aFailedCatalogReadFailsTheTickAndCachesNothing(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx()
+	q := &quotes{}
+	q.quote(aapl, 200_000_000)
+	r := newSampleRig(t, fixed(q), aapl)
+	cfg := r.pool.Config()
+	cfg.ConnConfig.Tracer = failListAll{}
+	failing, err := pgxpool.NewWithConfig(t.Context(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(failing.Close)
+	ids := testkit.NewIDs(12)
+	poller := app.NewSamplePrices(db.New(r.pool, ids, r.clock), failing, ids, r.clock, q, r.ticks, 2*time.Minute)
+	for range 2 {
+		if _, err := poller.Tick(t.Context()); err == nil {
+			t.Fatal("Tick succeeded, want the failed catalog read to fail every tick")
+		}
+	}
+}

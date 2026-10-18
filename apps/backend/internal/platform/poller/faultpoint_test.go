@@ -48,7 +48,7 @@ func TestAttempt_logsAndRepanicsAFaultpoint(t *testing.T) {
 			t.Fatalf("logs = %s", got)
 		}
 	}()
-	runner.attempt(ctx, crashingPoller{}, locks)
+	runner.attempt(ctx, crashingPoller{}, locks, 0)
 }
 
 func TestTick_repanicsAFaultpoint(t *testing.T) {

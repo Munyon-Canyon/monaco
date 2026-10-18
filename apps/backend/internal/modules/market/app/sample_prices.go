@@ -44,6 +44,10 @@ type SamplePrices struct {
 	listings *PriceBook
 	evm      EVMSampling
 	dropped  map[ListingKey]time.Time
+
+	cached  []domain.Asset
+	version CatalogVersion
+	loaded  bool
 }
 
 func NewSamplePrices(
@@ -62,7 +66,7 @@ func (*SamplePrices) Name() string { return "market.prices" }
 func (p *SamplePrices) Interval() time.Duration { return p.interval }
 
 func (p *SamplePrices) Tick(ctx context.Context) (poller.Report, error) {
-	assets, err := p.catalog.ListAll(ctx)
+	assets, err := p.catalogAssets(ctx)
 	if err != nil {
 		return poller.Report{}, err
 	}
@@ -118,6 +122,22 @@ func (p *SamplePrices) Tick(ctx context.Context) (poller.Report, error) {
 			slog.Int64("duration_ms", p.clock.Now().Sub(start).Milliseconds()))
 	}
 	return report, nil
+}
+
+func (p *SamplePrices) catalogAssets(ctx context.Context) ([]domain.Asset, error) {
+	version, err := p.catalog.Version(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if p.loaded && version == p.version {
+		return p.cached, nil
+	}
+	assets, err := p.catalog.ListAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	p.cached, p.version, p.loaded = assets, version, true
+	return assets, nil
 }
 
 const priceTail = 15 * time.Second

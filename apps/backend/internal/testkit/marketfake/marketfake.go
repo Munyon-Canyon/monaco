@@ -115,6 +115,10 @@ func (f *CatalogFake) ListAll(_ context.Context) ([]market.Asset, error) {
 	return f.list("ListAll", func(market.Asset) bool { return true })
 }
 
+func (f *CatalogFake) ByMints(_ context.Context, mints []string) ([]market.Asset, error) {
+	return f.list("ByMints", func(a market.Asset) bool { return slices.Contains(mints, a.Mint.String()) })
+}
+
 func (f *CatalogFake) Siblings(ctx context.Context, id market.AssetID) ([]market.Asset, error) {
 	asset, err := f.AssetByID(ctx, id)
 	if err != nil {

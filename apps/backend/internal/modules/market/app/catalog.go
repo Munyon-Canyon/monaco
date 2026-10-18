@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"math"
 	"math/big"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
@@ -76,6 +77,24 @@ func (c *Catalog) ListPriceable(ctx context.Context) ([]domain.Asset, error) {
 func (c *Catalog) ListAll(ctx context.Context) ([]domain.Asset, error) {
 	rows, err := c.q.ListAssets(ctx)
 	return many(rows, err, "market.Catalog.ListAll")
+}
+
+type CatalogVersion struct {
+	Assets    int64
+	UpdatedAt time.Time
+}
+
+func (c *Catalog) Version(ctx context.Context) (CatalogVersion, error) {
+	row, err := c.q.AssetsVersion(ctx)
+	if err != nil {
+		return CatalogVersion{}, errs.Wrap(err, errs.CodeOf(err), "market.Catalog.Version")
+	}
+	return CatalogVersion{Assets: row.Assets, UpdatedAt: row.UpdatedAt}, nil
+}
+
+func (c *Catalog) ByMints(ctx context.Context, mints []string) ([]domain.Asset, error) {
+	rows, err := c.q.AssetsByMints(ctx, mints)
+	return many(rows, err, "market.Catalog.ByMints")
 }
 
 func (c *Catalog) Siblings(ctx context.Context, id domain.AssetID) ([]domain.Asset, error) {

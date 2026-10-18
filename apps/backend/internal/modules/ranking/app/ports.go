@@ -21,7 +21,7 @@ type Prices interface {
 
 type Market interface {
 	Prices
-	ListAll(context.Context) ([]market.Asset, error)
+	AssetsByMints(context.Context, []string) ([]market.Asset, error)
 	ListingPrices(context.Context, []market.ListingKey, time.Time) (map[market.ListingKey]market.ListingPrice, error)
 }
 

@@ -117,7 +117,7 @@ func (r RunValuation) read(ctx context.Context, at time.Time) (readData, error) 
 	if err != nil {
 		return readData{}, err
 	}
-	assets, err := r.ports.Market.ListAll(ctx)
+	assets, err := r.ports.Market.AssetsByMints(ctx, r.heldMints(positions))
 	if err != nil {
 		return readData{}, err
 	}
@@ -133,6 +133,22 @@ func (r RunValuation) read(ctx context.Context, at time.Time) (readData, error) 
 		cabals: cabals, members: members, positions: positions, stakes: stakes, reserved: reserved, users: users,
 		paused: paused, assets: assets, ranged: ranged, listings: listings,
 	}, nil
+}
+
+func (r RunValuation) heldMints(positions []treasury.CabalPositions) []string {
+	seen := map[string]bool{}
+	mints := []string{}
+	for _, position := range positions {
+		for _, holding := range position.Holdings {
+			mint := string(holding.Mint)
+			if holding.Mint != r.usdc && !seen[mint] {
+				seen[mint] = true
+				mints = append(mints, mint)
+			}
+		}
+	}
+	slices.Sort(mints)
+	return mints
 }
 
 func cabalIDs(cabals []cabalport.CabalView) []ids.CabalID {

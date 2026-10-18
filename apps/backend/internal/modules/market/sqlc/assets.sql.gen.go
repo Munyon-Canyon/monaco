@@ -7,6 +7,7 @@ package sqlc
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -107,6 +108,70 @@ func (q *Queries) AssetBySymbol(ctx context.Context, symbol string) (Asset, erro
 		&i.UiMultiplierNextAt,
 		&i.LastQuotedAt,
 	)
+	return i, err
+}
+
+const assetsByMints = `-- name: AssetsByMints :many
+SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at, ui_multiplier_next_num, ui_multiplier_next_den, ui_multiplier_next_at, last_quoted_at FROM assets
+WHERE mint = ANY($1::text[])
+ORDER BY symbol
+`
+
+func (q *Queries) AssetsByMints(ctx context.Context, mints []string) ([]Asset, error) {
+	rows, err := q.db.Query(ctx, assetsByMints, mints)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Asset
+	for rows.Next() {
+		var i Asset
+		if err := rows.Scan(
+			&i.ID,
+			&i.Symbol,
+			&i.Mint,
+			&i.Decimals,
+			&i.Issuer,
+			&i.Kind,
+			&i.DisplayName,
+			&i.LogoUrl,
+			&i.UiMultiplierNum,
+			&i.UiMultiplierDen,
+			&i.IssuerTradable,
+			&i.TradableOverride,
+			&i.PopularRank,
+			&i.CompanyKey,
+			&i.FirstSeenAt,
+			&i.UpdatedAt,
+			&i.ChainCheckedAt,
+			&i.UiMultiplierNextNum,
+			&i.UiMultiplierNextDen,
+			&i.UiMultiplierNextAt,
+			&i.LastQuotedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const assetsVersion = `-- name: AssetsVersion :one
+SELECT count(*)::bigint AS assets, coalesce(max(updated_at), TIMESTAMPTZ 'epoch')::timestamptz AS updated_at FROM assets
+`
+
+type AssetsVersionRow struct {
+	Assets    int64
+	UpdatedAt time.Time
+}
+
+func (q *Queries) AssetsVersion(ctx context.Context) (AssetsVersionRow, error) {
+	row := q.db.QueryRow(ctx, assetsVersion)
+	var i AssetsVersionRow
+	err := row.Scan(&i.Assets, &i.UpdatedAt)
 	return i, err
 }
 

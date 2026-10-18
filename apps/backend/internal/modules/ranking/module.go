@@ -139,8 +139,8 @@ type marketPort struct {
 	listings market.ListingPrices
 }
 
-func (p marketPort) ListAll(ctx context.Context) ([]market.Asset, error) {
-	return p.catalog.ListAll(ctx)
+func (p marketPort) AssetsByMints(ctx context.Context, mints []string) ([]market.Asset, error) {
+	return p.catalog.ByMints(ctx, mints)
 }
 
 func (p marketPort) PricesAsOf(
