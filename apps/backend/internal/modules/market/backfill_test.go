@@ -853,7 +853,7 @@ func TestBackfill_popularMintsGoBeforeOthers(t *testing.T) {
 	}
 }
 
-func TestBackfill_theCatalogPollerQueuesTradableNewListingsAndTheTickQueuesOnlyHotListedMints(t *testing.T) {
+func TestBackfill_theTickQueuesOnlyHotListedMints(t *testing.T) {
 	t.Parallel()
 	aapl, tsla, jpst := marketfake.AAPLx(), marketfake.TSLAx(), marketfake.JPSTx()
 	tsla.IssuerTradable, jpst.IssuerTradable = false, true
@@ -863,10 +863,6 @@ func TestBackfill_theCatalogPollerQueuesTradableNewListingsAndTheTickQueuesOnlyH
 	rig.tick(t)
 	rig.exec(t, `UPDATE assets SET chain_checked_at = now()`)
 	rig.tick(t)
-	if got, want := queued(t, rig.pool), mintStrings(aapl.Mint, jpst.Mint); !slices.Equal(got, want) {
-		t.Fatalf("price_backfills after two catalog ticks = %v, want the tradable new listings %v", got, want)
-	}
-	rig.exec(t, `DELETE FROM price_backfills`)
 	history := &marketfake.PriceHistoryFake{}
 	backfill := app.NewBackfill(db.New(rig.pool, rig.ids, rig.clock), rig.pool, rig.clock, history)
 	if _, err := backfill.Tick(rig.ctx(t)); err != nil {

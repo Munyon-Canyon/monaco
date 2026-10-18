@@ -127,9 +127,7 @@ func (p *CatalogPoller) apply(ctx context.Context, c issuerCatalog) (int, error)
 		delisted, err := q.DelistMissingAssets(ctx,
 			sqlc.DelistMissingAssetsParams{Now: now, Issuer: rows.Issuer, Listed: rows.Mints})
 		changed = upserted + delisted
-		_, queueErr := q.QueueNewListingBackfills(ctx,
-			sqlc.QueueNewListingBackfillsParams{Now: now, Mints: rows.Mints})
-		return errors.Join(err, queueErr)
+		return err
 	})
 	if err != nil {
 		return 0, errs.Wrap(err, errs.CodeOf(err), "market.CatalogPoller.apply", slog.String("issuer", rows.Issuer))

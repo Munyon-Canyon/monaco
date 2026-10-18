@@ -8,7 +8,6 @@ func init() {
 		MarketBackfillUnlisted,
 		MarketCoinGeckoSubMicroDropped,
 		MarketReconcileSkippedNoKey,
-		MarketChartBackfillQueueFailed,
 		MarketHistoryDisabled,
 		MarketHistoryCooldown,
 		MarketChartHistoryFailed,
