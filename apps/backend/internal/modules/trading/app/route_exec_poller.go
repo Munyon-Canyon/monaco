@@ -19,6 +19,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
+const StrandedReturnHold = 24 * time.Hour
+
 type Resumer interface {
 	Resume(ctx context.Context, id ids.SwapID) error
 	BridgeBack(ctx context.Context, id ids.SwapID) error
@@ -103,7 +105,8 @@ func (p *EVMTrades) bridgeBack(
 ) (bool, error) {
 	_, err := q.TouchFinished(ctx, sqlc.TouchFinishedParams{ID: row.ID, At: now})
 	retryable := false
-	if err == nil && !row.Returning && row.SourceKind == string(domain.SourceProposal) {
+	held := now.Sub(row.FinishedAt) < StrandedReturnHold
+	if err == nil && held && !row.Returning && row.SourceKind == string(domain.SourceProposal) {
 		retryable, err = p.proposals.Retryable(ctx, ids.ProposalIDFrom(row.SourceID))
 	}
 	if err != nil || retryable {
