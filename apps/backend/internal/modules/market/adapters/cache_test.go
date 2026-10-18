@@ -319,3 +319,134 @@ func (g *gateChart) Handle(ctx context.Context, _ string, _ app.ChartRequest) (a
 		return app.Chart{Empty: true, Points: []app.Point{}}, nil
 	}
 }
+
+type countingHistory struct {
+	calls   atomic.Int32
+	err     error
+	samples []app.Sample
+	off     bool
+}
+
+func (c *countingHistory) Configured() bool { return !c.off }
+
+func (c *countingHistory) MarketChart(context.Context, domain.Mint, int) ([]app.Sample, error) {
+	c.calls.Add(1)
+	return c.samples, c.err
+}
+
+func historyMint(t *testing.T) domain.Mint {
+	t.Helper()
+	m, err := domain.ParseMint("XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+
+func TestHistory_aDayIsCachedForFiveMinutesAndLongerRangesForAnHour(t *testing.T) {
+	t.Parallel()
+	clk := testkit.NewClock(marketWhen())
+	fake := &countingHistory{samples: []app.Sample{{At: marketWhen()}}}
+	cached := CacheHistory(fake, NewCache(clk))
+	mint := historyMint(t)
+	ask := func(days int) {
+		t.Helper()
+		got, err := cached.MarketChart(t.Context(), mint, days)
+		if err != nil || len(got) != 1 {
+			t.Fatalf("days %d = %v err %v", days, got, err)
+		}
+	}
+	ask(1)
+	ask(7)
+	ask(app.HistoryMaxDays)
+	ask(1)
+	ask(7)
+	if fake.calls.Load() != 3 {
+		t.Fatalf("calls = %d, want one per (mint, days)", fake.calls.Load())
+	}
+	clk.Advance(6 * time.Minute)
+	ask(1)
+	ask(7)
+	if fake.calls.Load() != 4 {
+		t.Fatalf("calls = %d after 6 minutes, want only the day refetched", fake.calls.Load())
+	}
+	clk.Advance(time.Hour)
+	ask(7)
+	ask(app.HistoryMaxDays)
+	if fake.calls.Load() != 6 {
+		t.Fatalf("calls = %d after an hour, want 7d and max refetched", fake.calls.Load())
+	}
+}
+
+func TestHistory_aNotFoundIsRememberedForADay(t *testing.T) {
+	t.Parallel()
+	clk := testkit.NewClock(marketWhen())
+	fake := &countingHistory{err: errs.New(errs.CodeNotFound, "coingecko.test")}
+	cached := CacheHistory(fake, NewCache(clk))
+	mint := historyMint(t)
+	for range 3 {
+		if _, err := cached.MarketChart(t.Context(), mint, 7); errs.CodeOf(err) != errs.CodeNotFound {
+			t.Fatalf("err = %v", err)
+		}
+	}
+	clk.Advance(23 * time.Hour)
+	if _, err := cached.MarketChart(
+		t.Context(),
+		mint,
+		7,
+	); errs.CodeOf(err) != errs.CodeNotFound ||
+		fake.calls.Load() != 1 {
+		t.Fatalf("err = %v calls %d", err, fake.calls.Load())
+	}
+	clk.Advance(2 * time.Hour)
+	if _, err := cached.MarketChart(
+		t.Context(),
+		mint,
+		7,
+	); errs.CodeOf(err) != errs.CodeNotFound ||
+		fake.calls.Load() != 2 {
+		t.Fatalf("err = %v calls %d", err, fake.calls.Load())
+	}
+}
+
+func TestHistory_anUpstreamErrorIsNotCachedAndConfiguredPassesThrough(t *testing.T) {
+	t.Parallel()
+	fake := &countingHistory{err: errs.New(errs.CodeUpstreamUnavailable, "coingecko.test"), off: true}
+	cached := CacheHistory(fake, NewCache(testkit.NewClock(marketWhen())))
+	if cached.Configured() {
+		t.Fatal("Configured = true over an unconfigured history")
+	}
+	for range 2 {
+		if _, err := cached.MarketChart(
+			t.Context(),
+			historyMint(t),
+			1,
+		); errs.CodeOf(
+			err,
+		) != errs.CodeUpstreamUnavailable {
+			t.Fatalf("err = %v", err)
+		}
+	}
+	if fake.calls.Load() != 2 {
+		t.Fatalf("calls = %d, want a retry after an error", fake.calls.Load())
+	}
+}
+
+func TestHistory_concurrentMissesMakeOneCall(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		fake := &countingHistory{samples: []app.Sample{{At: marketWhen()}}}
+		cached := CacheHistory(fake, NewCache(testkit.NewClock(marketWhen())))
+		mint := historyMint(t)
+		var group errgroup.Group
+		for range 20 {
+			group.Go(func() error {
+				_, err := cached.MarketChart(t.Context(), mint, 30)
+				return err
+			})
+		}
+		if err := group.Wait(); err != nil || fake.calls.Load() != 1 {
+			t.Fatalf("err = %v calls %d", err, fake.calls.Load())
+		}
+	})
+}

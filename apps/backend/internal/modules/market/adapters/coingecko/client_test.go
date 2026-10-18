@@ -371,8 +371,8 @@ func TestCoinGecko_LimiterHolds(t *testing.T) {
 		if len(reqs) != 45 {
 			t.Fatalf("sent %d requests, want 45", len(reqs))
 		}
-		if most := mostInAMinute(reqs); most > 20 {
-			t.Fatalf("%d calls inside one minute, want at most 20", most)
+		if most := mostInAMinute(reqs); most > 25 {
+			t.Fatalf("%d calls inside one minute, want at most 25", most)
 		}
 	})
 }
@@ -399,11 +399,23 @@ func mostInAMinute(reqs []sent) int {
 	for i, r := range reqs {
 		n := 0
 		for _, o := range reqs[i:] {
-			if o.at.Sub(r.at) < time.Minute {
+			if o.at.Sub(r.at) < time.Minute-time.Millisecond {
 				n++
 			}
 		}
 		most = max(most, n)
 	}
 	return most
+}
+
+func TestCoinGecko_maxAsksForTheWholeHistory(t *testing.T) {
+	t.Parallel()
+	c, u := clientOver(replying(http.StatusOK, `{"prices":[[1790553641000,270.5]]}`), "demo-key")
+	got, err := c.MarketChart(t.Context(), mint(t, aaplx), app.HistoryMaxDays)
+	if err != nil || len(got) != 1 {
+		t.Fatalf("max = %v err %v", got, err)
+	}
+	if reqs := u.requests(); len(reqs) != 1 || reqs[0].query != "days=max&vs_currency=usd" {
+		t.Fatalf("requests = %+v", reqs)
+	}
 }

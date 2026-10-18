@@ -8,6 +8,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
+const HistoryMaxDays = -1
+
 type Sample struct {
 	At    time.Time
 	Price money.Micros

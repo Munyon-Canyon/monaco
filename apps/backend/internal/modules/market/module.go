@@ -158,10 +158,14 @@ func (m *Module) RouteChecker() *app.RouteChecker {
 func (m *Module) Mount(r api.Mount) {
 	list := app.NewListAssets(m.deps.Pool, m.deps.Clock)
 	cache := adapters.NewCache(m.deps.Clock)
+	chart := app.NewChart(m.deps.Pool, m.deps.Clock)
+	if m.deps.Config.CoinGecko.HistoryEnabled {
+		chart.WithHistory(adapters.CacheHistory(m.priceHistory(), cache))
+	}
 	marketapi.Mount(adapters.HTTP{
 		List:      adapters.CacheList(list, cache),
 		Detail:    app.NewDetail(m.deps.Pool, list),
-		Chart:     adapters.CacheChart(app.NewChart(m.deps.Pool, m.deps.Clock), cache),
+		Chart:     adapters.CacheChart(chart, cache),
 		BestChain: app.NewBestChains(m.Catalog(), adapters.DeferRouter(m.Router), m.deps.Clock),
 		Clock:     m.deps.Clock,
 	}, r)

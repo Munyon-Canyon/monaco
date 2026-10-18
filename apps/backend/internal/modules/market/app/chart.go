@@ -72,11 +72,17 @@ type AssetChart struct {
 	read  chartReader
 	base  dayBaseReader
 	clock clock.Clock
+	hist  PriceHistory
 }
 
 func NewChart(db sqlc.DBTX, c clock.Clock) *AssetChart {
 	queries := sqlc.New(db)
 	return &AssetChart{read: queries, base: queries, clock: c}
+}
+
+func (c *AssetChart) WithHistory(h PriceHistory) *AssetChart {
+	c.hist = h
+	return c
 }
 
 func (c *AssetChart) Handle(ctx context.Context, symbol string, req ChartRequest) (Chart, error) {
@@ -90,6 +96,21 @@ func (c *AssetChart) Handle(ctx context.Context, symbol string, req ChartRequest
 		return Chart{}, err
 	}
 	now := c.clock.Now()
+	if out, ok, histErr := c.fromHistory(ctx, asset, req, span, interval, limit, now); ok || histErr != nil {
+		return out, histErr
+	}
+	return c.fromPricePoints(ctx, asset, req, span, interval, limit, now)
+}
+
+func (c *AssetChart) fromPricePoints(
+	ctx context.Context,
+	asset domain.Asset,
+	req ChartRequest,
+	span domain.ChartRange,
+	interval domain.ChartInterval,
+	limit int,
+	now time.Time,
+) (Chart, error) {
 	mint := asset.Mint.String()
 	c.queueBackfill(ctx, mint, now)
 	until, priced, err := c.until(ctx, mint, now)
