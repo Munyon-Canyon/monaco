@@ -142,7 +142,7 @@ func sharedTooling(dir string) bool {
 }
 
 func reverseDeps(byDir map[string]listedPackage, changed []string) (selected, excluded []string) {
-	hit, local, ok := seedPackages(byDir, changed)
+	hit, local, bare, ok := seedPackages(byDir, changed)
 	if !ok {
 		return []string{allPackages}, nil
 	}
@@ -156,7 +156,7 @@ func reverseDeps(byDir map[string]listedPackage, changed []string) (selected, ex
 		tests := slices.Concat(p.TestImports, p.XTestImports)
 		testsHit := slices.ContainsFunc(tests, func(i string) bool { return hit[i] })
 		switch {
-		case !hit[p.ImportPath] && !local[p.ImportPath] && !testsHit:
+		case !hit[p.ImportPath] && !local[p.ImportPath] && !bare[p.ImportPath] && !testsHit:
 		case slices.Contains(agentTooling(), dir) && !inputsChanged(p, dirOf, seeds, local):
 			excluded = append(excluded, "./"+dir)
 		default:
@@ -184,12 +184,18 @@ func inputsChanged(p listedPackage, dirOf map[string]string, seeds, local map[st
 		slices.ContainsFunc(p.Imports, func(i string) bool { return seeds[i] && !sharedTooling(dirOf[i]) })
 }
 
-func seedPackages(byDir map[string]listedPackage, changed []string) (hit, local map[string]bool, ok bool) {
-	hit, local = map[string]bool{}, map[string]bool{}
+func seedPackages(byDir map[string]listedPackage, changed []string) (hit, local, bare map[string]bool, ok bool) {
+	hit, local, bare = map[string]bool{}, map[string]bool{}, map[string]bool{}
 	for _, f := range changed {
+		if shared, modules, scoped := moduleScoped(byDir, f); scoped {
+			for _, dir := range append(modules, shared) {
+				bare[byDir[dir].ImportPath] = true
+			}
+			continue
+		}
 		dirs := seedDirs(byDir, f)
 		if len(dirs) == 0 {
-			return nil, nil, false
+			return nil, nil, nil, false
 		}
 		into := hit
 		if testOnly(f) {
@@ -198,12 +204,76 @@ func seedPackages(byDir map[string]listedPackage, changed []string) (hit, local 
 		for _, d := range dirs {
 			p, found := byDir[d]
 			if !found {
-				return nil, nil, false
+				return nil, nil, nil, false
 			}
 			into[p.ImportPath] = true
 		}
 	}
-	return hit, local, true
+	return hit, local, bare, true
+}
+
+func moduleScoped(byDir map[string]listedPackage, f string) (shared string, modules []string, scoped bool) {
+	shared, area := moduleArea(f)
+	if _, found := byDir[shared]; !found || area == "" {
+		return "", nil, false
+	}
+	if dirs := moduleDirs(byDir, area); len(dirs) > 0 {
+		return shared, dirs, true
+	}
+	if shared == "internal/errs" {
+		return shared, moduleDirs(byDir, ""), true
+	}
+	return "", nil, false
+}
+
+func moduleArea(f string) (shared, area string) {
+	dir, name := path.Split(f)
+	shared = strings.TrimSuffix(path.Clean(dir), "/testdata")
+	if strings.HasSuffix(name, "_test.go") {
+		return shared, ""
+	}
+	stem := strings.TrimSuffix(strings.TrimSuffix(name, ".go"), ".gen")
+	switch {
+	case shared == "internal/platform/observability" && strings.HasSuffix(name, ".go"):
+		area = strings.TrimPrefix(stem, "msgs_")
+	case shared == "internal/events" && strings.HasSuffix(name, ".go"):
+		area = strings.TrimSuffix(stem, "_registrations")
+	case shared == "internal/errs" && strings.HasSuffix(name, ".go"):
+		area = strings.TrimPrefix(stem, "codes_")
+	case shared == "internal/errs" && strings.HasSuffix(name, ".golden"):
+		stem = strings.TrimSuffix(name, ".golden")
+		area = strings.TrimPrefix(stem, "codes_")
+	}
+	if area == stem {
+		return shared, ""
+	}
+	return shared, area
+}
+
+func cutLast(s, sep string) (before, after string, found bool) {
+	i := strings.LastIndex(s, sep)
+	if i < 0 {
+		return s, "", false
+	}
+	return s[:i], s[i+len(sep):], true
+}
+
+func moduleDirs(byDir map[string]listedPackage, area string) []string {
+	var dirs []string
+	for dir := range byDir {
+		module, found := strings.CutPrefix(dir, "internal/modules/")
+		if !found {
+			continue
+		}
+		module, _, _ = strings.Cut(module, "/")
+		if area == "" || module == area {
+			dirs = append(dirs, dir)
+		}
+	}
+	if trimmed, _, found := cutLast(area, "_"); len(dirs) == 0 && found {
+		return moduleDirs(byDir, trimmed)
+	}
+	return dirs
 }
 
 func testOnly(f string) bool {
