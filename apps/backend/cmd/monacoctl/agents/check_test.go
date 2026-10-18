@@ -426,7 +426,6 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		"apps/backend: ci affected --base origin/fb",
 		"apps/backend: go env GOPATH",
 		"apps/backend: golangci-lint version --short",
-		pr + "check-pr-size.py",
 		pr + "check-gate-changes.py",
 		pr + "check-legacy-growth.py",
 		"apps/backend: go build -o /dev/null -tags faultpoints ./internal/x ./cmd/api",
@@ -512,7 +511,7 @@ func TestCheck_overBudgetExitsOneNamingTheSlowestPackageAndRecordsNothing(t *tes
 	}}
 
 	code, stdout, stderr := h.check(t, "--base", "fb")
-	want := "go test -short: package ./internal/slow took 82.0s, over the 20s per-package budget"
+	want := "go test -short: package ./internal/slow took 81.0s, over the 20s per-package budget"
 	if code != 1 || !strings.Contains(stderr, want) {
 		t.Fatalf("over budget: %d %q %q", code, stdout, stderr)
 	}
@@ -577,8 +576,8 @@ func TestCheck_aMissingPinnedToolIsTheFirstRowAndStopsTheRun(t *testing.T) {
 			if code != 1 || !strings.Contains(stdout, want) || !strings.Contains(stderr, "tools failed; see the log") {
 				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
 			}
-			if strings.Contains(stdout, "pr size") || slices.ContainsFunc(h.calls, func(c string) bool {
-				return strings.Contains(c, "check-pr-size.py")
+			if strings.Contains(stdout, "gate changes") || slices.ContainsFunc(h.calls, func(c string) bool {
+				return strings.Contains(c, "check-gate-changes.py")
 			}) {
 				t.Fatalf("a row ran after the tools row: %q %v", stdout, h.calls)
 			}
@@ -754,7 +753,7 @@ func TestCheck_mirroredCommandsStillMatchTheirWorkflows(t *testing.T) {
 			"run: scripts/ci/oasdiff-breaking-test.sh",
 			"../../scripts/ci/oasdiff-breaking.sh",
 		},
-		"pr-format.yml":      {"run: python3 scripts/check-pr-size.py", "run: python3 scripts/check-gate-changes.py"},
+		"pr-format.yml":      {"run: python3 scripts/check-gate-changes.py"},
 		"docs.yml":           {"NO_MKDOCS_2_WARNING: 'true'", "mkdocs build --strict --site-dir site"},
 		"ci-mobile-core.yml": {"python3 scripts/check-legacy-growth.py"},
 	} {
@@ -788,13 +787,13 @@ func TestCheck_pathRowsRunTheCIStepsForTheirPathsAgainstTheStackParent(t *testin
 		t.Fatalf("check: %d %q %q", code, stdout, stderr)
 	}
 	spec := filepath.Join(h.stateDir(t, "openapi"), h.head(t)[:12]+".yaml")
-	if size := ".: env BASE_SHA=" + h.mergeBase(t, "parent") + " HEAD_SHA=" + h.head(
+	if gate := ".: env BASE_SHA=" + h.mergeBase(t, "parent") + " HEAD_SHA=" + h.head(
 		t,
-	) + " PR_LABELS=[] python3 scripts/check-pr-size.py"; !slices.Contains(
+	) + " PR_LABELS=[] python3 scripts/check-gate-changes.py"; !slices.Contains(
 		h.calls,
-		size,
+		gate,
 	) {
-		t.Fatalf("size against the stack parent: want %q in\n%s", size, strings.Join(h.calls, "\n"))
+		t.Fatalf("gate changes against the stack parent: want %q in\n%s", gate, strings.Join(h.calls, "\n"))
 	}
 	want := []string{
 		".: ready.sh",
@@ -841,21 +840,21 @@ func TestCheck_prRowsStopAnOversizedDiffAndCountGateWarnings(t *testing.T) {
 		out:    "::warning file=a_test.go,line=3::test-skip\n::warning file=b,line=1::gate-file\n",
 	}}
 	if code, stdout, stderr := h.check(t); code != 0 ||
-		!strings.Contains(stdout, "  gate changes    ok    0.0s  2 warnings in the log\n") ||
-		!strings.Contains(stdout, "  pr size         ok    1.0s\n") {
+		!strings.Contains(stdout, "  gate changes    ok    0.0s  2 warnings in the log\n") {
 		t.Fatalf("gate warnings: %d %q %q", code, stdout, stderr)
 	}
 
 	h.commit(t, map[string]string{"README.md": "hi again\n"})
 	pr = "env BASE_SHA=" + h.mergeBase(t, "origin/fb") + " HEAD_SHA=" + h.head(t) + " PR_LABELS=[] python3 scripts/"
 	h.calls, h.replies = nil, []reply{{
-		prefix: pr + "check-pr-size.py", out: "1204 changed lines counted (limit 1000).",
+		prefix: pr + "check-legacy-growth.py", out: "2 legacy paths grew",
 		err: errors.New("exit status 1"),
 	}}
 	code, stdout, stderr := h.check(t)
-	if code != 1 || !strings.Contains(stderr, "pr size failed") || !strings.Contains(stdout, "1204 changed lines") ||
-		slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, "gate") }) {
-		t.Fatalf("oversized: %d %q %q %v", code, stdout, stderr, h.calls)
+	if code != 1 || !strings.Contains(stderr, "legacy growth failed") ||
+		!strings.Contains(stdout, "2 legacy paths grew") ||
+		slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, "go build") }) {
+		t.Fatalf("legacy growth: %d %q %q %v", code, stdout, stderr, h.calls)
 	}
 }
 
@@ -1504,7 +1503,7 @@ func (h *checkHarness) rebase(t *testing.T) {
 }
 
 func (h *checkHarness) ranRows() bool {
-	return slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, "check-pr-size.py") })
+	return slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, "check-gate-changes.py") })
 }
 
 func (h *checkHarness) treeOf(t *testing.T) string {

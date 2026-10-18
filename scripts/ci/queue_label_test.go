@@ -39,14 +39,13 @@ func TestPRFormat_queueLabelEventsSkipTheRequiredChecks(t *testing.T) {
 		"pr-format":    queueLabel,
 		"gate-changes": queueLabel,
 		"changelog":    queueLabel,
-		"pr-size":      mergeQueue,
 	} {
 		if !strings.Contains(jobs[job], want) {
 			t.Errorf("%s does not skip with %s:\n%s", job, want, jobs[job])
 		}
 	}
-	if strings.Contains(jobs["pr-size"], "github.event.label.name == 'fast-track'") {
-		t.Error("pr-size skips fast-track, which it enforces")
+	if _, ok := jobs["pr-size"]; ok {
+		t.Error("pr-size is back; the PR size cap ended on 2026-10-17")
 	}
 	group := regexp.MustCompile(`(?m)^  group: (.+)$`).FindStringSubmatch(head)
 	if group == nil || !strings.Contains(group[1], labelAction+" && (github.event.label.name == 'merge-queue' || "+

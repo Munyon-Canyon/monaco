@@ -175,34 +175,34 @@ func goodPrBody() string {
 	return b.String()
 }
 
-func TestPrBody_marksADraftReadyOnlyAfterTheFullPrFormatCheckPasses(t *testing.T) {
+func TestPrBody_printsFormatFindingsAndSetsTheBodyAnyway(t *testing.T) {
 	s := newPrBodySandbox(t)
 	base := s.head(t)
 	commitFile(t, s.repo, "a.txt", "feat(bus): add the thing")
 
 	template := readRepo(t, repoRoot(t), ".github/pull_request_template.md")
-	failures := []struct{ name, title, body, want string }{
+	findings := []struct{ name, title, body, want string }{
 		{"commit-subject title", "feat(bus): add the thing", goodPrBody(), "commit-type prefix"},
 		{"empty template", "Add the thing", template, `"## TLDR" is empty`},
 		{"no ticket link", "Add the thing", strings.Replace(goodPrBody(), "Part of #7.", "Text.", 1), "links no ticket"},
 	}
-	for _, f := range failures {
+	for _, f := range findings {
 		out, err := s.run(t, true, base, f.title, f.body)
-		if err == nil || !strings.Contains(out, f.want) {
-			t.Errorf("%s: want a failure naming %q, got err=%v out=%q", f.name, f.want, err, out)
+		if err != nil || !strings.Contains(out, f.want) || !strings.Contains(out, "PR format check failed (advisory)") {
+			t.Errorf("%s: want a finding naming %q and the advisory line, got err=%v out=%q", f.name, f.want, err, out)
 		}
-		if calls := s.ghCalls(t); changedPR(calls) {
-			t.Errorf("%s: gh changed the PR after a failed check: %q", f.name, calls)
+		if calls := s.ghCalls(t); !changedPR(calls) {
+			t.Errorf("%s: gh left the PR alone after an advisory finding: %q", f.name, calls)
 		}
 	}
 
 	commitFile(t, s.repo, "b.txt", "Add a thing")
-	if out, err := s.run(t, true, base, "Add the thing", goodPrBody()); err == nil ||
+	if out, err := s.run(t, true, base, "Add the thing", goodPrBody()); err != nil ||
 		!strings.Contains(out, `"Add a thing" is not a Conventional Commit`) {
-		t.Fatalf("want the commit check from base..head, got err=%v out=%q", err, out)
+		t.Fatalf("want the commit finding from base..head, got err=%v out=%q", err, out)
 	}
-	if calls := s.ghCalls(t); changedPR(calls) {
-		t.Fatalf("gh changed the PR after a failed commit check: %q", calls)
+	if calls := s.ghCalls(t); !changedPR(calls) {
+		t.Fatalf("gh left the PR alone after an advisory commit finding: %q", calls)
 	}
 }
 

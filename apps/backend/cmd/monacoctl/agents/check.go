@@ -552,9 +552,6 @@ func xcodeScript(action string) string {
 func (env *Env) prRows(parent, head string) []checkRow {
 	vars := []string{"env", "BASE_SHA=" + parent, "HEAD_SHA=" + head, "PR_LABELS=[]", "python3"}
 	return []checkRow{
-		{label: "pr size", kind: "pr", dir: env.Work, cmds: [][]string{
-			append(slices.Clone(vars), "scripts/check-pr-size.py"),
-		}},
 		{label: "gate changes", kind: "pr", dir: env.Work, cmds: [][]string{
 			append(slices.Clone(vars), "scripts/check-gate-changes.py"),
 		}},

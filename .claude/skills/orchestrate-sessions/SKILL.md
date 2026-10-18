@@ -104,7 +104,7 @@ After a stack lands, its owner removes its worktree and closes its workspace in 
 
 ## The user
 
-Keep a list in the decision log, with phase `morning`, of the calls that only the user can make: `gate-change-approved` and `large-pr` labels, secrets, paid services, and taking over a teammate's tickets. Ask once, and keep going around anything blocked.
+Keep a list in the decision log, with phase `morning`, of the calls that only the user can make: the `gate-change-approved` label, secrets, paid services, and taking over a teammate's tickets. Ask once, and keep going around anything blocked.
 
 A status reply leads with the number of PRs landed since the last reply and since the start, then milestone progress, then the open calls.
 

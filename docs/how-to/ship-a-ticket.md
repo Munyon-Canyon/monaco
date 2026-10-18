@@ -150,11 +150,9 @@ The result says which of these holds:
 
 ## When a check fails
 
-**PR format failed because of the body.** Fix the body file and run `scripts/pr-body.sh` again. The body edit runs a fresh check. Never use `gh run rerun --failed` here. A rerun replays the original event with the old body and fails again.
+**PR format warned.** The `PR format` job is advisory. It stays green and reports its findings as warning annotations, and `scripts/pr-body.sh` sets the body even when the check fails. Fix the body file or reword the commit with `gt modify` when you next touch the PR. Never loop on the body to clear a warning, and never use `gh run rerun --failed` here, since a rerun replays the original event with the old body.
 
-**PR format failed on a commit subject.** Reword the commit with `gt modify` (Conventional Commit subject), rerun `agents check` and submit again.
-
-**PR size failed.** Split the branch below 1000 changed lines per PR with `gt split --by-hunk`, or with the `distribute-stack-changes` skill. Only a person adds the `large-pr` label. A committed binary also fails this check. Build into `bin/` or `/dev/null`, never into the tree.
+**The PR is large.** There is no size cap. Split a branch only when the split helps a reader, with `gt split --by-hunk` or the `distribute-stack-changes` skill. Build into `bin/` or `/dev/null`, never into the tree.
 
 **Stage 1 shows a stale red `ci / ci-ok` from a cancelled run.** A newer push cancelled it. The newest run is the one that counts.
 
