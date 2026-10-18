@@ -51,6 +51,7 @@ type checkHarness struct {
 	calls       []string
 	names       []string
 	affected    string
+	excluded    string
 	affectedErr error
 	replies     []reply
 	goos        string
@@ -122,6 +123,9 @@ func (h *checkHarness) run(ctx context.Context, dir, stdin, name string, args ..
 		h.onCall(line)
 	}
 	if strings.HasPrefix(line, "ci affected") {
+		if strings.HasSuffix(line, "--excluded") {
+			return []byte(h.excluded), h.affectedErr
+		}
 		return []byte(h.affected), h.affectedErr
 	}
 	bare := testDBEnvRE.ReplaceAllString(line, "")
@@ -424,6 +428,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 	want := []string{
 		".: gt parent --no-interactive",
 		"apps/backend: ci affected --base origin/fb",
+		"apps/backend: ci affected --base origin/fb --excluded",
 		"apps/backend: go env GOPATH",
 		"apps/backend: golangci-lint version --short",
 		pr + "check-gate-changes.py",
@@ -2400,4 +2405,31 @@ func TestCheck_aLaneBuildFailureFailsTheCheckWithItsError(t *testing.T) {
 		!strings.Contains(stderr, "syntax error") {
 		t.Fatalf("%d %q", code, stderr)
 	}
+}
+
+func TestCheck_theGoTestRowHeaderNamesTheClosureAndWhatItExcluded(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.affected = "./internal/a\n./internal/b\n"
+	h.excluded = "./cmd/monacoctl\n./cmd/monacoctl/agents\n"
+	code, stdout, stderr := h.check(t)
+	want := "go test -short  closure of 2 packages; excluded ./cmd/monacoctl ./cmd/monacoctl/agents\n"
+	if code != 0 || !strings.Contains(stdout, want) {
+		t.Fatalf("check: %d %q %q", code, stdout, stderr)
+	}
+	joined := strings.Join(h.calls, "\n")
+	if !strings.Contains(joined, "./cmd/monacoctl/agents") ||
+		strings.Contains(joined, "go test") && strings.Contains(testCall(h.calls), "cmd/monacoctl") {
+		t.Fatalf("build and vet cover the excluded packages, go test does not: %v", h.calls)
+	}
+}
+
+func testCall(calls []string) string {
+	for _, c := range calls {
+		if strings.Contains(c, " go test ") || strings.Contains(c, "go test -tags") {
+			return c
+		}
+	}
+	return ""
 }

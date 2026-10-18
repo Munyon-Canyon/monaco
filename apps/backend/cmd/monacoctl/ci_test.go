@@ -246,7 +246,7 @@ func TestReverseDepsSeedsNonGoFilesFromTheirPackage(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if got := reverseDeps(byDir, tc.changed); !slices.Equal(got, tc.want) {
+			if got, _ := reverseDeps(byDir, tc.changed); !slices.Equal(got, tc.want) {
 				t.Fatalf("reverseDeps(%v) = %v, want %v", tc.changed, got, tc.want)
 			}
 		})
@@ -304,5 +304,139 @@ func TestCIAffectedSeesABackendFlowFileOutsideTheModule(t *testing.T) {
 	want := "./" + strings.Join(slices.Sorted(slices.Values(flowsReaders())), "\n./") + "\n"
 	if code != 0 || stdout != want {
 		t.Fatalf("code=%d stdout=%q want %q stderr=%s", code, stdout, want, stderr)
+	}
+}
+
+func TestAffectedLeavesTheAgentToolingOutUnlessItsOwnInputsChanged(t *testing.T) {
+	t.Parallel()
+	const mod = "example.com/m/"
+	pkg := func(dir string, imports ...string) listedPackage {
+		p := listedPackage{ImportPath: mod + dir}
+		for _, i := range imports {
+			p.Imports = append(p.Imports, mod+i)
+		}
+		return p
+	}
+	byDir := map[string]listedPackage{
+		"internal/events":         pkg("internal/events"),
+		"internal/errs":           pkg("internal/errs"),
+		"internal/platform/chain": pkg("internal/platform/chain"),
+		"internal/modules/cabal":  pkg("internal/modules/cabal", "internal/events"),
+		"internal/tools/flows":    pkg("internal/tools/flows"),
+		"cmd/monacoctl": pkg(
+			"cmd/monacoctl",
+			"internal/events",
+			"internal/errs",
+			"internal/modules/cabal",
+			"internal/platform/chain",
+		),
+		"cmd/monacoctl/agents": pkg("cmd/monacoctl/agents", "internal/events", "internal/errs"),
+		"cmd/monacoctl/verify": pkg(
+			"cmd/monacoctl/verify",
+			"internal/events",
+			"internal/platform/chain",
+			"internal/tools/flows",
+		),
+		"cmd/gen":                pkg("cmd/gen"),
+		"internal/testkit/flows": pkg("internal/testkit/flows"),
+		"internal/tools/gen":     pkg("internal/tools/gen"),
+		"cmd/monacoctl/agents/x": pkg("cmd/monacoctl/agents/x", "internal/errs"),
+	}
+	tooling := []string{"./cmd/monacoctl", "./cmd/monacoctl/agents", "./cmd/monacoctl/verify"}
+	cases := []struct {
+		name     string
+		changed  []string
+		selected []string
+		excluded []string
+	}{
+		{
+			"an events change no longer selects the tooling",
+			[]string{"internal/events/proposal.go"},
+			[]string{"./internal/events", "./internal/modules/cabal"},
+			tooling,
+		},
+		{
+			"a platform change no longer selects the tooling",
+			[]string{"internal/platform/chain/network.go"},
+			[]string{"./internal/platform/chain"},
+			[]string{"./cmd/monacoctl", "./cmd/monacoctl/verify"},
+		},
+		{
+			"an events golden selects internal/events only",
+			[]string{"internal/events/testdata/golden/vote.cast.v1.json"},
+			[]string{"./internal/events"},
+			nil,
+		},
+		{
+			"a change in the verify package still selects it and its importers",
+			[]string{"cmd/monacoctl/verify/run.go"},
+			[]string{"./cmd/monacoctl/verify"},
+			nil,
+		},
+		{
+			"a change in agents still selects agents",
+			[]string{"cmd/monacoctl/agents/check.go"},
+			[]string{"./cmd/monacoctl/agents"},
+			nil,
+		},
+		{
+			"a direct import outside platform and events still selects the tooling",
+			[]string{"internal/errs/errs.go"},
+			[]string{"./cmd/monacoctl", "./cmd/monacoctl/agents", "./cmd/monacoctl/agents/x", "./internal/errs"},
+			nil,
+		},
+		{
+			"a direct module import selects only the tooling that imports it",
+			[]string{"internal/modules/cabal/app.go"},
+			[]string{"./cmd/monacoctl", "./internal/modules/cabal"},
+			nil,
+		},
+		{
+			"a flow file still selects the flow readers",
+			[]string{"packages/flows/backend/03.tsv"},
+			[]string{
+				"./cmd/gen", "./cmd/monacoctl", "./cmd/monacoctl/agents", "./cmd/monacoctl/verify",
+				"./internal/testkit/flows", "./internal/tools/flows", "./internal/tools/gen",
+			},
+			nil,
+		},
+		{"go.mod still selects everything", []string{"go.mod"}, []string{allPackages}, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			selected, excluded := reverseDeps(byDir, tc.changed)
+			if !slices.Equal(selected, tc.selected) || !slices.Equal(excluded, tc.excluded) {
+				t.Fatalf("reverseDeps(%v) = %v excluding %v, want %v excluding %v",
+					tc.changed, selected, excluded, tc.selected, tc.excluded)
+			}
+		})
+	}
+}
+
+func TestAffectedExcludedFlagPrintsWhatTheClosureDropped(t *testing.T) {
+	t.Parallel()
+	dir := ciModule(t)
+	writeCIFile(t, dir, "internal/events/events.go", "package events\n")
+	writeCIFile(
+		t,
+		dir,
+		"cmd/monacoctl/main.go",
+		"package main\n\nimport _ \"example.com/m/internal/events\"\n\nfunc main() {}\n",
+	)
+	git(t, dir, "add", ".")
+	git(t, dir, "commit", "-q", "-m", "tooling")
+	git(t, dir, "tag", "tooling")
+	writeCIFile(t, dir, "internal/events/events.go", "package events\n\nvar E = 1\n")
+	git(t, dir, "add", ".")
+	git(t, dir, "commit", "-q", "-m", "change")
+	env := ciEnv{moduleDir: dir, goBin: "go", gitBin: "git", exec: runCommand}
+	code, stdout, stderr := runCIAffected(env, "affected", "--base", "tooling", "--excluded")
+	if code != 0 || stdout != "./cmd/monacoctl\n" {
+		t.Fatalf("code=%d stdout=%q stderr=%s", code, stdout, stderr)
+	}
+	code, stdout, stderr = runCIAffected(env, "affected", "--base", "tooling")
+	if code != 0 || strings.Contains(stdout, "cmd/monacoctl") || !strings.Contains(stdout, "./internal/events") {
+		t.Fatalf("code=%d stdout=%q stderr=%s", code, stdout, stderr)
 	}
 }
