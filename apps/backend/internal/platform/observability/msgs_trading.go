@@ -72,6 +72,14 @@ var TradingBridgeBackRetried = Msg{
 	Required: []string{"swap_id", "cabal_id", "attempt", "actor", "reason"},
 }
 
+var TradingEVMCashReturnQueued = Msg{
+	Name: "trading.evm_cash_return.queued",
+	Required: []string{
+		"swap_id", "requested_swap_id", "cabal_id", "network", "landed_micros", "on_chain_micros", "amount_micros",
+		"actor", "reason",
+	},
+}
+
 var TradingRoutedSwapResolved = Msg{
 	Name:     "trading.routed_swap.resolved",
 	Required: []string{"swap_id", "cabal_id", "action", "actor", "reason", "parked_code"},

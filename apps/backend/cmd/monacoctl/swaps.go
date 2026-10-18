@@ -32,11 +32,16 @@ const swapsUsage = `usage:
   monacoctl swaps fail-parked --swap <uuid> --reason <text> [--yes]
   monacoctl swaps failed-bridge-backs
   monacoctl swaps retry-bridge-back --swap <uuid> --reason <text> [--yes]
+  monacoctl swaps return-evm-cash --swap <uuid> --reason <text> [--yes]
   monacoctl swaps overstated-sells`
 
 func toolSwaps(env toolEnv) tool { return swapsTool(env.environ, clock.Real{}, os.Stdin) }
 
 func swapsTool(environ []string, clk clock.Clock, stdin io.Reader) tool {
+	return swapsToolWith(environ, clk, stdin, liveCashPorts)
+}
+
+func swapsToolWith(environ []string, clk clock.Clock, stdin io.Reader, ports cashPorts) tool {
 	forceResolve := func(cfg config.Config, args []string, stdout, stderr io.Writer) int {
 		fs := flag.NewFlagSet("swaps force-resolve", flag.ContinueOnError)
 		fs.SetOutput(io.Discard)
@@ -69,6 +74,7 @@ func swapsTool(environ []string, clk clock.Clock, stdin io.Reader) tool {
 			"fail-parked":         resolveParked(tradingapp.ParkedFail, environ, clk, stdin),
 			"failed-bridge-backs": listFailedBridgeBacks(clk),
 			"retry-bridge-back":   retryBridgeBack(environ, clk, stdin),
+			"return-evm-cash":     returnEVMCash(environ, clk, stdin, ports),
 			"overstated-sells":    listOverstatedSells(clk),
 		}, nil, environ, args, stdout, stderr)
 	}

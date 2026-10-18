@@ -163,6 +163,7 @@ func TestSwapOperatorActionsCheckTheActionAndTheReasonLength(t *testing.T) {
 		{"unpark", insert, []any{swap, "unpark", "rpc blip"}, true},
 		{"fail parked", insert, []any{swap, "fail_parked", "listing gone"}, true},
 		{"retry bridge back", insert, []any{swap, "retry_bridge_back", "privy rejected"}, true},
+		{"return evm cash", insert, []any{swap, "return_evm_cash", "stranded since 2026-10-12"}, true},
 		{"unknown action", insert, []any{swap, "force_resolve", "rpc blip"}, false},
 		{"empty reason", insert, []any{swap, "unpark", ""}, false},
 		{"500 characters", insert, []any{swap, "unpark", long}, true},
