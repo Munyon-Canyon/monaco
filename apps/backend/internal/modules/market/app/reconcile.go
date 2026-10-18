@@ -105,11 +105,27 @@ func (r *Reconcile) fill(ctx context.Context, mint domain.Mint) (int, error) {
 	var rows int64
 	err = r.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		var err error
-		rows, err = sqlc.New(tx.Queries()).InsertBackfilledPricePoints(ctx, insertParams(mint, window, samples))
+		rows, err = sqlc.New(tx.Queries()).InsertReconciledPricePoints(ctx, insertParams(mint, window, samples))
 		return err
 	})
 	if err != nil {
 		return 0, errs.Wrap(err, errs.CodeOf(err), op, slog.String("mint", mint.String()))
 	}
 	return int(rows), nil
+}
+
+type historyWindow struct {
+	days   int
+	bucket time.Duration
+}
+
+func insertParams(mint domain.Mint, w historyWindow, samples []Sample) sqlc.InsertReconciledPricePointsParams {
+	p := sqlc.InsertReconciledPricePointsParams{Mint: mint.String(), Source: string(domain.SourceCoinGecko)}
+	for _, s := range samples {
+		if stored, ok := storableMicros(s.Price); ok {
+			p.Timestamps = append(p.Timestamps, s.At.Truncate(w.bucket))
+			p.PriceMicros = append(p.PriceMicros, stored)
+		}
+	}
+	return p
 }

@@ -75,7 +75,7 @@ WHERE ctid IN (
 )
 RETURNING ts;
 
--- name: InsertBackfilledPricePoints :execrows
+-- name: InsertReconciledPricePoints :execrows
 INSERT INTO price_points (mint, ts, price_micros, source)
 SELECT sqlc.arg(mint)::text, u.ts, u.price_micros, sqlc.arg(source)::text
 FROM ROWS FROM (
