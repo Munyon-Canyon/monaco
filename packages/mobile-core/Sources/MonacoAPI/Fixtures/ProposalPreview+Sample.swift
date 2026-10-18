@@ -2,7 +2,9 @@
 import Foundation
 
 extension Components.Schemas.TradePreview {
-    public static let proposalPreviewClean = Self(quoteOutAmount: 21_000_000, potValueMicros: 100_000_000)
+    public static let proposalPreviewClean = Self(
+        quoteOutAmount: 21_000_000, potValueMicros: 100_000_000, spendableCashMicros: 100_000_000,
+        maxBuyMicros: 99_000_000)
     public static let proposalPreviewPotExceeded = Self(
         advisoryCode: "pot_exceeded", advisoryMessage: "More than the pot has", potValueMicros: 100_000_000
     )

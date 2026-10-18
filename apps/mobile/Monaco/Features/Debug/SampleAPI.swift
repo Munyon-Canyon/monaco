@@ -147,7 +147,7 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
         }
         if parts.count >= 3, parts[1] == "cabals", UUID(uuidString: parts[2]) != nil || parts[2].count > 8 {
             let tail = Array(parts.dropFirst(3))
-            return proposeReply(id: parts[2], tail: tail, method: method)
+            return proposeReply(id: parts[2], tail: tail, method: method, query: query, script: script)
                 ?? cabalReply(id: parts[2], tail: tail, range: range, script: script)
         }
         if parts.count >= 3, parts[1] == "proposals" {
@@ -350,8 +350,15 @@ nonisolated extension SampleAPIProtocol {
             joinedAt: Date(timeIntervalSince1970: 1_790_000_000), pendingRequestCount: 0, unreadCount: 0)
     }
 
-    private static func proposeReply(id: String, tail: [String], method: String) -> Reply? {
-        if tail == ["proposals", "preview"] { return json(Components.Schemas.TradePreview.proposalPreviewClean) }
+    private static func proposeReply(
+        id: String, tail: [String], method: String, query: [String: String], script: SampleAPIScript
+    ) -> Reply? {
+        if tail == ["proposals", "preview"] {
+            if script.mode == .potUnavailable, query["usdc_micros"] == nil {
+                return problem(503, "unavailable", "The cash can't be read right now.")
+            }
+            return json(Components.Schemas.TradePreview.proposalPreviewClean)
+        }
         guard tail == ["proposals"], method == "POST" else { return nil }
         var created = Components.Schemas.ProposalDetail.sample()
         created.cabalId = id

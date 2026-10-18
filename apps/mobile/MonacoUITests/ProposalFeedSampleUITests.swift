@@ -324,13 +324,15 @@ nonisolated final class ProposeFromStockSampleUITests: XCTestCase {
     }
 
     @MainActor
-    func testStockEntry_reachesTheAmountStepWithThePot() throws {
+    func testStockEntry_reachesTheAmountStepWithTheCash() throws {
         launch("amount")
         XCTAssertTrue(element("amount-entry-field").waitForExistence(timeout: 10), "the amount step never drew")
         let helper = element("amount-entry-helper")
-        XCTAssertTrue(helper.waitForExistence(timeout: 10), "the pot helper never drew")
-        XCTAssertTrue(helper.label.hasPrefix("The pot has"), "the helper should say what the pot has: \(helper.label)")
-        XCTAssertTrue(element("propose-amount-pot-total").exists, "the pot total row is missing")
+        XCTAssertTrue(helper.waitForExistence(timeout: 10), "the cash helper never drew")
+        XCTAssertTrue(
+            helper.label.hasPrefix("The cabal can spend"),
+            "the helper should say what the cabal can spend: \(helper.label)")
+        XCTAssertTrue(element("propose-amount-cash").exists, "the cash row is missing")
     }
 
     @MainActor
@@ -339,12 +341,13 @@ nonisolated final class ProposeFromStockSampleUITests: XCTestCase {
 
         let amount = element("amount-entry-field")
         XCTAssertTrue(amount.waitForExistence(timeout: 10), "the amount step did not open when the pot failed")
-        let total = element("propose-amount-pot-total")
-        XCTAssertTrue(total.waitForExistence(timeout: 10), "the pot total row is missing")
-        XCTAssertTrue(total.label.contains("Unavailable"), "the pot total should say Unavailable: \(total.label)")
+        let total = element("propose-amount-cash")
+        XCTAssertTrue(total.waitForExistence(timeout: 10), "the cash row is missing")
+        XCTAssertTrue(total.label.contains("Unavailable"), "the cash row should say Unavailable: \(total.label)")
         XCTAssertFalse(
-            app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "The pot has")).firstMatch.exists,
-            "no pot figure should be claimed when the read failed")
+            app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "The cabal can spend")).firstMatch
+                .exists,
+            "no cash figure should be claimed when the read failed")
 
         let preset = app.buttons["$50"]
         XCTAssertTrue(preset.waitForExistence(timeout: 5), "the presets never drew")

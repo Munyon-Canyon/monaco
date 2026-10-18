@@ -85,7 +85,7 @@ struct ProposeAmountKeypadTests {
         defer { window.isHidden = true }
         func helper() -> String? { Self.element("amount-entry-helper", in: window)?.accessibilityLabel }
         func spinning() -> Bool { Self.element("amount-entry-spinner", in: window) != nil }
-        #expect(await Self.eventually(within: 10) { helper() == "The pot has $500.00" })
+        #expect(await Self.eventually(within: 10) { helper() == "The cabal can spend $500.00" })
 
         let one = try #require(Self.element("amount-keypad-1", in: window))
         #expect(one.accessibilityActivate())
@@ -94,7 +94,7 @@ struct ProposeAmountKeypadTests {
         while await !service.isAsked() { await Task.yield() }
         #expect(helper() == "Finding the best price…")
         await service.answer()
-        #expect(await Self.eventually(within: 10) { helper() == "The pot has $500.00" && !spinning() })
+        #expect(await Self.eventually(within: 10) { helper() == "The cabal can spend $500.00" && !spinning() })
     }
 
     @Test(.timeLimit(.minutes(1)))
@@ -121,15 +121,18 @@ struct ProposeAmountKeypadTests {
             held = nil
         }
 
-        func preview(cabalID _: String, draft _: ProposalDraft, network: Components.Schemas.Network?) async throws
+        func preview(cabalID _: String, draft: ProposalDraft, network: Components.Schemas.Network?) async throws
             -> ProposePreview
         {
-            networks.append(network)
-            await withCheckedContinuation { held = $0 }
+            if draft.amount > 0 {
+                networks.append(network)
+                await withCheckedContinuation { held = $0 }
+            }
             return ProposePreview(
-                .init(quoteOutAmount: nil, advisoryCode: nil, advisoryMessage: nil, potValueMicros: 500_000_000))
+                .init(
+                    quoteOutAmount: nil, advisoryCode: nil, advisoryMessage: nil, potValueMicros: 500_000_000,
+                    spendableCashMicros: 500_000_000, maxBuyMicros: 499_000_000))
         }
-        func potValue(cabalID _: String) async throws -> Int64 { 500_000_000 }
         func propose(
             cabalID _: String, draft _: ProposalDraft, network _: Components.Schemas.Network?,
             submission _: IdempotentSubmission
@@ -147,7 +150,6 @@ struct ProposeAmountKeypadTests {
         {
             throw CancellationError()
         }
-        func potValue(cabalID _: String) async throws -> Int64 { throw CancellationError() }
         func propose(
             cabalID _: String, draft _: ProposalDraft, network _: Components.Schemas.Network?,
             submission _: IdempotentSubmission
