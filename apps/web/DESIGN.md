@@ -16,7 +16,9 @@ The halftone print. The Monaco icon is drawn live on canvas as one cream screen 
 shaded like lit stone, on a fine screen (dot pitch 0.9% of the icon's width). It prints in from the
 baseline, then stays still while three soft blobs wander through it on smooth, non-repeating paths.
 A blob thins the cream so the page's own green shows through; a floor of small dots keeps every
-stone's shape readable.
+stone's shape readable. A pointer over the lockup is a lamp held over the print: the light swings
+round to it so every stone's shadow follows the hand, the blobs scatter from it and the cream under
+it recovers, and it fades out when the pointer leaves.
 
 ## Tokens
 Two colours only: Monaco green is the page and cream is everything on it. Any other tone is cream mixed
@@ -39,9 +41,9 @@ into the green, never a second green, so nothing can read as a shade off.
   IBM Plex Mono was dropped so the button matches the rest of the page.
 - Radius: 3px everywhere (certificate, not app chip).
 - Spacing: 8 / 16 / 24 / 40 / 64 / 96.
-- Motion: 180ms ease-out for state changes. Two moments: the icon prints in, then the blobs
-  wander through it (30fps, paused off-screen or in a hidden tab); button hover.
-  Honors `prefers-reduced-motion`.
+- Motion: 180ms ease-out for state changes. Three moments: the icon prints in, the blobs wander
+  through it, and they scatter from a pointer (30fps, paused off-screen or in a hidden tab); button
+  hover. Honors `prefers-reduced-motion`, which also switches the pointer response off.
 - Layout: phones get one centred column: icon, "Monaco", the line, then the sign-up bar, with a
   centred footer; it fits a 375x812 phone without scrolling. From 820px the icon and the copy form
   one lockup centred in the window (icon left, copy left-aligned beside it, sharing a vertical

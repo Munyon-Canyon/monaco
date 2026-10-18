@@ -126,6 +126,7 @@ footer a { display: inline-flex; align-items: center; min-height: 48px; }
 <script>
 // The mark, printed live: Monaco's icon as a cream halftone on the dark page, shaded like lit stone.
 // It never moves; three soft blobs wander through it, thinning the cream so the page's own green shows through.
+// A pointer over the lockup is a lamp held over the print: the light swings round to it and the blobs scatter from it.
 (function () {
   var css = getComputedStyle(document.documentElement);
   var CREAM = css.getPropertyValue("--screen").trim();
@@ -159,10 +160,10 @@ footer a { display: inline-flex; align-items: center; min-height: 48px; }
   }
   var G = screen(15, .9, 0), Au = [];
 
-  // The light is three soft blobs (B) wandering over the mark. Their edges wobble so they read as blobs, not discs,
-  // and the light direction follows the first, so shadows slide across each stone as it drifts by.
-  function shade(B, tm, dev) {
-    var lx = (B[0][0] - 50) / 50 * .8, ly = (B[0][1] - 50) / 50 * .8, n = Math.hypot(lx, ly, .8), L0 = lx / n, L1 = ly / n, L2 = .8 / n;
+  // The light is the soft blobs (B, each [x, y, weight]) wandering over the mark. Their edges wobble so they read as
+  // blobs, not discs, and the light comes from Lp (the first blob, or the pointer), so shadows slide across each stone.
+  function shade(B, Lp, tm, dev) {
+    var lx = (Lp[0] - 50) / 50 * .8, ly = (Lp[1] - 50) / 50 * .8, n = Math.hypot(lx, ly, .8), L0 = lx / n, L1 = ly / n, L2 = .8 / n;
     var hn = Math.hypot(L0, L1, L2 + 1);
     [G, Au].forEach(function (S, j) {
       for (var q = 0; q < S.length; q++) {
@@ -172,7 +173,7 @@ footer a { display: inline-flex; align-items: center; min-height: 48px; }
           var ex = p[0] - B[b][0], ey = p[1] - B[b][1], d2 = ex * ex + ey * ey;
           if (d2 > 2025) continue; // beyond any blob's reach: skip the wobble maths
           var an = Math.atan2(ey, ex), rr = 22 * (1 + .2 * Math.sin(3 * an + tm * 1.6 + b * 2) + .12 * Math.sin(5 * an - tm * 1.2 + b));
-          blob += Math.exp(-2 * d2 / (rr * rr));
+          blob += B[b][2] * Math.exp(-2 * d2 / (rr * rr));
         }
         blob = clamp(blob);
         t = Math.max(.12, clamp(.1 + .85 * df + .45 * sp - .85 * blob)); // never below .12, so a stone keeps its shape under a blob
@@ -189,13 +190,25 @@ footer a { display: inline-flex; align-items: center; min-height: 48px; }
   // Wandering paths from a few unrelated sines: smooth, never sharp, never an obvious loop. Each blob (b) gets its own phases.
   function path(t, b) {
     return [50 + 30 * Math.sin(t * .061 + 1 + b * 2.1) * Math.cos(t * .043 + b * 1.3) + 9 * Math.sin(t * .137 + 4 + b * 3.7),
-            50 + 30 * Math.sin(t * .053 + 2.3 + b * 2.9) + 9 * Math.cos(t * .113 + .5 + b * 1.9)];
+            50 + 30 * Math.sin(t * .053 + 2.3 + b * 2.9) + 9 * Math.cos(t * .113 + .5 + b * 1.9), 1];
   }
   var k = 1, tm = 0, dv = still ? 1 : 0;
+  // The pointer in mark units: where it is (pt), where the lamp has caught up to (ps), and how present it is (pw, 0 to 1).
+  var pt = [50, 50], ps = [50, 50], pw = 0, over = false;
   function size() { var r = Math.min(devicePixelRatio || 1, 2); cv.width = cv.height = Math.round(cv.clientWidth * r); k = cv.width / 100; }
   function draw() {
-    var w = tm * 6;
-    shade([path(w, 0), path(w, 1), path(w, 2)], tm, dv);
+    var w = tm * 6, B = [path(w, 0), path(w, 1), path(w, 2)], Lp = B[0], b, ex, ey, d, push;
+    ps[0] += (pt[0] - ps[0]) * .18; ps[1] += (pt[1] - ps[1]) * .18; pw += ((over ? 1 : 0) - pw) * .1;
+    if (pw > .01) {
+      // Each blob scatters from the lamp, further the nearer it is; the lamp cancels what is left under it and takes the light.
+      for (b = 0; b < 3; b++) {
+        ex = B[b][0] - ps[0]; ey = B[b][1] - ps[1]; d = Math.hypot(ex, ey) || 1; push = pw * 16 * Math.exp(-d * d / 1800);
+        B[b][0] += ex / d * push; B[b][1] += ey / d * push;
+      }
+      B.push([ps[0], ps[1], -pw]);
+      Lp = [B[0][0] + (ps[0] - B[0][0]) * pw, B[0][1] + (ps[1] - B[0][1]) * pw];
+    }
+    shade(B, Lp, tm, dv);
     cx.setTransform(1, 0, 0, 1, 0, 0); cx.clearRect(0, 0, cv.width, cv.height); cx.setTransform(k, 0, 0, k, 0, 0);
     cx.save(); cx.clip(P);
     ink(G, CREAM);
@@ -204,6 +217,18 @@ footer a { display: inline-flex; align-items: center; min-height: 48px; }
   var rt; addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(function () { size(); draw(); }, 120); });
   size(); draw();
   if (still) return;
+  // The pointer is read over the whole lockup, so the light turns toward it before it reaches the mark; a touch counts
+  // while the finger is down. A fresh hover lights the lamp under the pointer; it then trails the pointer and fades on leave.
+  var zone = document.getElementById("join");
+  function aim(e) {
+    var r = cv.getBoundingClientRect();
+    if (!r.width) return;
+    var x = (e.clientX - r.left) / r.width * 100, y = (e.clientY - r.top) / r.height * 100;
+    if (!over) { ps[0] = x; ps[1] = y; }
+    pt[0] = x; pt[1] = y; over = true;
+  }
+  zone.addEventListener("pointermove", aim); zone.addEventListener("pointerdown", aim);
+  zone.addEventListener("pointerleave", function () { over = false; });
   // The print develops up from the baseline over 2.4s while the blobs start to wander (about a tenth of the mark a second).
   var t0 = performance.now(), last = 0, raf = 0, seen = true;
   function frame(now) {
