@@ -58,7 +58,7 @@ func moduleConfig() config.Config {
 func TestModule_pollsTheCatalogHourly(t *testing.T) {
 	t.Parallel()
 	pollers := market.New(module.Deps{Config: moduleConfig(), HTTPClient: httpclient.New}).Pollers()
-	if len(pollers) != 5 || pollers[0].Name() != "market.catalog" || pollers[0].Interval() != time.Hour {
+	if len(pollers) != 4 || pollers[0].Name() != "market.catalog" || pollers[0].Interval() != time.Hour {
 		t.Fatalf("Pollers = %v, want market.catalog every hour first", pollers)
 	}
 }
@@ -119,7 +119,7 @@ func TestModule_retriesXStocksThreeTimesWithinTheBackoffCeilings(t *testing.T) {
 	})
 }
 
-func TestModule_backfillsEveryFiveMinutesAndReconcilesDailyOnOneCoinGeckoClient(t *testing.T) {
+func TestModule_reconcilesDailyOnOneCoinGeckoClient(t *testing.T) {
 	t.Parallel()
 	built := 0
 	deps := module.Deps{
@@ -132,23 +132,22 @@ func TestModule_backfillsEveryFiveMinutesAndReconcilesDailyOnOneCoinGeckoClient(
 		},
 	}
 	pollers := market.New(deps).Pollers()
-	backfill, reconcile := pollers[3], pollers[4]
-	if backfill.Name() != "market.backfill" || backfill.Interval() != 5*time.Minute ||
-		reconcile.Name() != "market.reconcile" || reconcile.Interval() != 24*time.Hour {
-		t.Fatalf("Pollers = %v, want market.backfill every 5m then market.reconcile every 24h", pollers)
+	reconcile := pollers[3]
+	if len(pollers) != 4 || reconcile.Name() != "market.reconcile" || reconcile.Interval() != 24*time.Hour {
+		t.Fatalf("Pollers = %v, want market.reconcile every 24h after the first three", pollers)
 	}
 	if built != 1 {
-		t.Fatalf("built %d CoinGecko clients, want one so a single limiter paces both pollers", built)
+		t.Fatalf("built %d CoinGecko clients, want one", built)
 	}
 }
 
-func TestModule_withHistoryDisabledNeitherCoinGeckoPollerRuns(t *testing.T) {
+func TestModule_withHistoryDisabledNoCoinGeckoPollerRuns(t *testing.T) {
 	t.Parallel()
 	cfg := moduleConfig()
 	cfg.CoinGecko.HistoryEnabled = false
 	pollers := market.New(module.Deps{Config: cfg, HTTPClient: httpclient.New}).Pollers()
 	for _, p := range pollers {
-		if p.Name() == "market.backfill" || p.Name() == "market.reconcile" {
+		if p.Name() == "market.reconcile" {
 			t.Fatalf("Pollers include %s with MARKET_HISTORY_ENABLED off", p.Name())
 		}
 	}
