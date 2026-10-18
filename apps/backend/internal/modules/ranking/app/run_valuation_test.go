@@ -606,6 +606,28 @@ func TestRunValuation_readsPricesOncePerRunWhateverTheCabalCount(t *testing.T) {
 	}
 }
 
+func TestRunValuation_asksTheCatalogOnlyForTheMintsACabalHolds(t *testing.T) {
+	t.Parallel()
+	f, usdc := heldAssetPorts(t, 1)
+	unheld, err := market.ParseMint("4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.assetRows = append(f.assetRows, market.Asset{ID: newAssetID(t), Mint: unheld})
+	f.positionRows[0].Holdings = f.positionRows[0].Holdings[:2]
+	held := string(f.positionRows[0].Holdings[1].Mint)
+	got, err := NewRunValuation(
+		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f, Snapshots: f},
+		usdc,
+	).Run(t.Context(), valuationTime())
+	if err != nil || len(got.Cabals) != 1 || len(f.assetRows) != 3 {
+		t.Fatalf("Run() = %#v, %v", got, err)
+	}
+	if want := [][]string{{held}}; !slices.EqualFunc(f.assetMints, want, slices.Equal) {
+		t.Fatalf("catalog asked for %v, want exactly %v of 3 assets", f.assetMints, want)
+	}
+}
+
 func TestRunValuation_returnsAValuationErrorFromTheStage(t *testing.T) {
 	t.Parallel()
 	f, usdc := heldAssetPorts(t, 100)
@@ -649,6 +671,7 @@ type countingPorts struct {
 	positionRows                                                          []treasury.CabalPositions
 	stakeRows                                                             []treasury.MemberStake
 	assetRows                                                             []market.Asset
+	assetMints                                                            [][]string
 	asOfInstants                                                          []time.Time
 	asOfAt                                                                func(time.Time) map[market.AssetID]market.Price
 	asOfRows                                                              map[market.AssetID]market.Price
@@ -705,9 +728,16 @@ func (f *countingPorts) PausedCabals(context.Context) (funding.PausedSet, error)
 	return f.pausedSet, f.pausesErr
 }
 
-func (f *countingPorts) ListAll(context.Context) ([]market.Asset, error) {
+func (f *countingPorts) AssetsByMints(_ context.Context, mints []string) ([]market.Asset, error) {
 	f.assets++
-	return f.assetRows, f.assetsErr
+	f.assetMints = append(f.assetMints, mints)
+	var held []market.Asset
+	for _, asset := range f.assetRows {
+		if slices.Contains(mints, asset.Mint.String()) {
+			held = append(held, asset)
+		}
+	}
+	return held, f.assetsErr
 }
 
 func (f *countingPorts) PricesAsOf(

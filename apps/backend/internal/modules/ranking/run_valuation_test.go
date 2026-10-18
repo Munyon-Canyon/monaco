@@ -32,6 +32,10 @@ type openMarket struct {
 	listings market.ListingPrices
 }
 
+func (m openMarket) AssetsByMints(ctx context.Context, mints []string) ([]market.Asset, error) {
+	return m.ByMints(ctx, mints)
+}
+
 func (m openMarket) ListingPrices(
 	ctx context.Context, keys []market.ListingKey, at time.Time,
 ) (map[market.ListingKey]market.ListingPrice, error) {

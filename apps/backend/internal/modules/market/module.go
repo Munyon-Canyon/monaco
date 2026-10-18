@@ -40,12 +40,17 @@ type (
 
 func ParseMint(raw string) (Mint, error) { return domain.ParseMint(raw) }
 
-type Catalog interface {
+type AssetLookup interface {
 	AssetByID(ctx context.Context, id AssetID) (Asset, error)
 	AssetByMint(ctx context.Context, mint Mint) (Asset, error)
 	AssetBySymbol(ctx context.Context, symbol string) (Asset, error)
+}
+
+type Catalog interface {
+	AssetLookup
 	ListTradable(ctx context.Context) ([]Asset, error)
 	ListAll(ctx context.Context) ([]Asset, error)
+	ByMints(ctx context.Context, mints []string) ([]Asset, error)
 }
 
 type CompanyListings interface {

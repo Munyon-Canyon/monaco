@@ -63,7 +63,9 @@ func TestScripts_registersEveryFlowScriptInThePackage(t *testing.T) {
 func TestEnv_shortensThePricePollerForFlow18(t *testing.T) {
 	t.Parallel()
 	got := flows.Env()["18"]
-	want := []string{"MARKET_PRICE_POLL_INTERVAL=2s", "MONACO_TIMEOUT_JUPITER_QUOTE=1s"}
+	want := []string{
+		"MARKET_PRICE_POLL_INTERVAL=2s", "MONACO_TIMEOUT_JUPITER_QUOTE=1s", "MONACO_POLLER_BACKOFF_MAX=2s",
+	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("Env()[18] = %q, want %q", got, want)
 	}

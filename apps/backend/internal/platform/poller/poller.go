@@ -22,7 +22,20 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability/boundary"
 )
 
-const lockTimeout = 5 * time.Second
+const (
+	lockTimeout     = 5 * time.Second
+	minBackoff      = 5 * time.Second
+	defaultMaxWait  = 5 * time.Minute
+	maxBackoffShift = 20
+)
+
+type outcome int
+
+const (
+	outcomeOK outcome = iota
+	outcomeSkipped
+	outcomeFailed
+)
 
 type Poller interface {
 	Name() string
@@ -44,6 +57,8 @@ type Runner struct {
 	clock  clock.Clock
 	errors metric.Int64Counter
 
+	maxBackoff time.Duration
+
 	mu   sync.Mutex
 	last map[string]time.Time
 }
@@ -54,7 +69,12 @@ func NewRunner(pool *pgxpool.Pool, c clock.Clock, meter metric.Meter) (*Runner, 
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, "poller.NewRunner")
 	}
-	return &Runner{pool: pool, clock: c, errors: counter, last: map[string]time.Time{}}, nil
+	return &Runner{pool: pool, clock: c, errors: counter, maxBackoff: defaultMaxWait, last: map[string]time.Time{}}, nil
+}
+
+func (r *Runner) WithBackoffMax(d time.Duration) *Runner {
+	r.maxBackoff = d
+	return r
 }
 
 func (r *Runner) Run(ctx context.Context, pollers ...Poller) error {
@@ -83,20 +103,41 @@ func (r *Runner) LastTick(name string) time.Time {
 
 func (r *Runner) loop(ctx context.Context, p Poller, locks *db.Locks) error {
 	ticker := r.clock.NewTicker(p.Interval())
-	defer ticker.Stop()
+	defer func() { ticker.Stop() }()
+	failures := 0
 	for {
-		r.attempt(ctx, p, locks)
+		wait := ticker.C()
+		backedOff := false
+		if r.attempt(ctx, p, locks, r.backoff(p.Interval(), failures+1)) == outcomeFailed {
+			failures++
+			wait = r.clock.After(r.backoff(p.Interval(), failures))
+			backedOff = true
+		} else {
+			failures = 0
+		}
 		select {
 		case <-ctx.Done():
 			return locks.Release(ctx, lockKey(p))
-		case <-ticker.C():
+		case <-wait:
+		}
+		if backedOff {
+			ticker.Stop()
+			ticker = r.clock.NewTicker(p.Interval())
 		}
 	}
 }
 
+func (r *Runner) backoff(interval time.Duration, failures int) time.Duration {
+	d := max(interval, minBackoff)
+	for range min(failures-1, maxBackoffShift) {
+		d = min(d*2, r.maxBackoff)
+	}
+	return min(d, r.maxBackoff)
+}
+
 func lockKey(p Poller) string { return "poller:" + p.Name() }
 
-func (r *Runner) attempt(ctx context.Context, p Poller, locks *db.Locks) {
+func (r *Runner) attempt(ctx context.Context, p Poller, locks *db.Locks, retryIn time.Duration) outcome {
 	name := p.Name()
 	ctx = faultpoint.WithFlow(ctx, flow(name))
 	defer recoverAttempt(ctx, name)
@@ -105,12 +146,12 @@ func (r *Runner) attempt(ctx context.Context, p Poller, locks *db.Locks) {
 	held, err := locks.Hold(lockCtx, lockKey(p))
 	cancelLock()
 	if err != nil {
-		r.fail(ctx, name, err)
-		return
+		r.fail(ctx, name, err, retryIn)
+		return outcomeFailed
 	}
 	if !held {
 		observability.Debug(ctx, observability.PollerSkipped, slog.String("poller", name))
-		return
+		return outcomeSkipped
 	}
 	start := r.clock.Now()
 	actor := auth.Actor{Kind: auth.ActorSystem, ID: "poller." + name}
@@ -118,12 +159,13 @@ func (r *Runner) attempt(ctx context.Context, p Poller, locks *db.Locks) {
 	report, err := tick(tickCtx, p)
 	cancelTick()
 	if err != nil {
-		r.fail(ctx, name, deadlineAsTimeout(err))
-		return
+		r.fail(ctx, name, deadlineAsTimeout(err), retryIn)
+		return outcomeFailed
 	}
 	observability.Info(ctx, observability.PollerTick, slog.String("poller", name),
 		slog.Int("scanned", report.Scanned), slog.Int("changed", report.Changed),
 		slog.Int64("duration_ms", r.clock.Now().Sub(start).Milliseconds()), slog.GroupAttrs("detail", report.Attrs...))
+	return outcomeOK
 }
 
 func TickBudget(p Poller) time.Duration {
@@ -187,7 +229,7 @@ func tick(ctx context.Context, p Poller) (report Report, err error) {
 	return p.Tick(ctx)
 }
 
-func (r *Runner) fail(ctx context.Context, name string, err error) {
+func (r *Runner) fail(ctx context.Context, name string, err error, retryIn time.Duration) {
 	if ctx.Err() != nil {
 		return
 	}
@@ -198,8 +240,16 @@ func (r *Runner) fail(ctx context.Context, name string, err error) {
 		metric.WithAttributes(attribute.String("poller", name), attribute.String("code", string(code))),
 	)
 	detail := errs.Detail(err)
-	boundary.Error(ctx, observability.PollerFailed, slog.String("poller", name), slog.String("code", string(code)),
-		slog.Any("err", err), slog.Bool("alert", errs.Alert(code)), slog.GroupAttrs("detail", detail...))
+	boundary.Error(
+		ctx,
+		observability.PollerFailed,
+		slog.String("poller", name),
+		slog.String("code", string(code)),
+		slog.Any("err", err),
+		slog.Bool("alert", errs.Alert(code)),
+		slog.Duration("retry_in", retryIn),
+		slog.GroupAttrs("detail", detail...),
+	)
 }
 
 func (r *Runner) mark(name string, at time.Time) {

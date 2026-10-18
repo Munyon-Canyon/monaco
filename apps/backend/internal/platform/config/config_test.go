@@ -35,6 +35,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 		HTTP: config.HTTP{Addr: ":8080", MaxBodyBytes: 1 << 20},
 		Worker: config.Worker{
 			HealthAddr: ":8081", FundSendWindow: 2 * time.Minute, WithdrawalUnsentAge: 2 * time.Minute,
+			PollerBackoffMax: 5 * time.Minute,
 		},
 		DB:   config.DB{URL: "postgres://monaco@localhost:54322/monaco", MaxConns: 11},
 		NATS: config.NATS{URL: "nats://localhost:4222"},
@@ -134,6 +135,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"MONACO_WORKER_HEALTH_ADDR=127.0.0.1:9001",
 		"FUND_SEND_WINDOW=5s",
 		"WITHDRAWAL_UNSENT_AGE=6s",
+		"MONACO_POLLER_BACKOFF_MAX=7s",
 		"DATABASE_URL=postgres://prod",
 		"MONACO_DB_MAX_CONNS=40",
 		"NATS_URL=nats://prod:4222",
@@ -235,6 +237,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		HTTP: config.HTTP{Addr: "127.0.0.1:9000", MaxBodyBytes: 4096, TrustProxyHeaders: true},
 		Worker: config.Worker{
 			HealthAddr: "127.0.0.1:9001", FundSendWindow: 5 * time.Second, WithdrawalUnsentAge: 6 * time.Second,
+			PollerBackoffMax: 7 * time.Second,
 		},
 		DB:   config.DB{URL: "postgres://prod", MaxConns: 40},
 		NATS: config.NATS{URL: "nats://prod:4222"},
@@ -602,6 +605,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"MONACO_WORKER_HEALTH_ADDR", ":8081"},
 		{"FUND_SEND_WINDOW", "2m0s"},
 		{"WITHDRAWAL_UNSENT_AGE", "2m0s"},
+		{"MONACO_POLLER_BACKOFF_MAX", "5m0s"},
 		{"MONACO_DB_MAX_CONNS", "11"},
 		{"OTEL_EXPORTER_OTLP_ENDPOINT", ""},
 		{"OTEL_SERVICE_NAME", "monaco"},

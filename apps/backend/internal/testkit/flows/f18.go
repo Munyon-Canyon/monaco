@@ -19,7 +19,11 @@ import (
 )
 
 func (defined) WorkerEnvF18() []string {
-	return []string{"MARKET_PRICE_POLL_INTERVAL=2s", "MONACO_TIMEOUT_JUPITER_QUOTE=1s"}
+	return []string{
+		"MARKET_PRICE_POLL_INTERVAL=2s",
+		"MONACO_TIMEOUT_JUPITER_QUOTE=1s",
+		"MONACO_POLLER_BACKOFF_MAX=2s",
+	}
 }
 
 const (

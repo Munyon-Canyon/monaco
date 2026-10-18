@@ -13,7 +13,7 @@ func TestMarketPort_forwardsEveryRead(t *testing.T) {
 	fake := &marketPortFake{}
 	port := marketPort{catalog: fake, prices: fake, listings: fake}
 	ctx := t.Context()
-	if _, err := port.ListAll(ctx); err != nil {
+	if _, err := port.AssetsByMints(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := port.PricesAsOf(ctx, nil, valuationTime()); err != nil {
@@ -47,7 +47,11 @@ func (*marketPortFake) ListTradable(context.Context) ([]market.Asset, error) {
 	return []market.Asset{}, nil
 }
 
-func (f *marketPortFake) ListAll(context.Context) ([]market.Asset, error) {
+func (*marketPortFake) ListAll(context.Context) ([]market.Asset, error) {
+	return []market.Asset{}, nil
+}
+
+func (f *marketPortFake) ByMints(context.Context, []string) ([]market.Asset, error) {
 	f.calls++
 	return []market.Asset{}, nil
 }

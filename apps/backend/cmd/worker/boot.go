@@ -135,6 +135,7 @@ func startWork(
 	if err != nil {
 		return health{}, err
 	}
+	runner.WithBackoffMax(d.Config.Worker.PollerBackoffMax)
 	stopConsumers, err := startConsumers(ctx, d.Bus, d.UoW, d.Clock, set.Consumers(),
 		bus.WithAckWait(d.Config.Bus.AckWait))
 	if err != nil {

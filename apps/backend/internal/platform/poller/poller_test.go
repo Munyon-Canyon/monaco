@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -81,6 +82,8 @@ func TestRunner_panickingTickIsRecoveredAndTheNextTickRuns(t *testing.T) {
 		}
 		return poller.Report{Changed: 1}, nil
 	}}
+	afters := make(chan time.Duration, 8)
+	h.clock.NotifyAfters(afters)
 	out, _ := h.start(t, p)
 	failed := out.expect(t, "poller.tick.failed")
 	detail, _ := failed["detail"].(map[string]any)
@@ -92,7 +95,7 @@ func TestRunner_panickingTickIsRecoveredAndTheNextTickRuns(t *testing.T) {
 	if got := h.errorCount(t, "test.panics", "panic"); got != 1 {
 		t.Fatalf("poller_errors_total{panic} = %d, want 1", got)
 	}
-	h.clock.Advance(interval)
+	h.clock.Advance(<-afters)
 	if line := out.expect(t, "poller.tick"); line["changed"] != 1.0 {
 		t.Fatalf("tick after the panic = %v, want changed 1", line)
 	}
@@ -104,6 +107,8 @@ func TestRunner_tickErrorIsLoggedWithItsAttrsAndCountedByCode(t *testing.T) {
 	p := &fakePoller{name: "test.upstream", tick: func(int32) (poller.Report, error) {
 		return poller.Report{}, errs.New(errs.CodeUpstreamUnavailable, "test.fetch", slog.String("provider", "rpc"))
 	}}
+	afters := make(chan time.Duration, 8)
+	h.clock.NotifyAfters(afters)
 	out, _ := h.start(t, p)
 	for range 2 {
 		failed := out.expect(t, "poller.tick.failed")
@@ -112,7 +117,7 @@ func TestRunner_tickErrorIsLoggedWithItsAttrsAndCountedByCode(t *testing.T) {
 			failed["alert"] != false || detail["provider"] != "rpc" {
 			t.Fatalf("failed line = %v, want the code and the error attrs", failed)
 		}
-		h.clock.Advance(interval)
+		h.clock.Advance(<-afters)
 	}
 	out.expect(t, "poller.tick.failed")
 	if got := h.errorCount(t, "test.upstream", "upstream_unavailable"); got != 3 {
@@ -141,9 +146,11 @@ func TestRunner_lockErrorIsCountedAndTheLoopKeepsGoing(t *testing.T) {
 	closed.Close()
 	h := newHarness(t, closed, testkit.NewClock(epoch()))
 	p := &fakePoller{name: "test.nodb", tick: quiet}
+	afters := make(chan time.Duration, 8)
+	h.clock.NotifyAfters(afters)
 	out, _ := h.start(t, p)
 	out.expect(t, "poller.tick.failed")
-	h.clock.Advance(interval)
+	h.clock.Advance(<-afters)
 	out.expect(t, "poller.tick.failed")
 	if got := h.errorCount(t, "test.nodb", "internal"); got != 2 || p.ticks.Load() != 0 {
 		t.Fatalf("errors = %d ticks = %d, want 2 errors and no tick without the lock", got, p.ticks.Load())
@@ -484,5 +491,70 @@ func TestNewRunner_failsWhenTheCounterCannotBeCreated(t *testing.T) {
 	runner, err := poller.NewRunner(nil, testkit.NewClock(epoch()), brokenMeter{})
 	if runner != nil || errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("NewRunner = %v, %v; want nil and internal", runner, err)
+	}
+}
+
+type fastPoller struct{ fakePoller }
+
+func (*fastPoller) Interval() time.Duration { return time.Second }
+
+func TestRunner_failingTickBacksOffToTheCapAndASuccessReturnsItToItsInterval(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t, testkit.DB(t), testkit.NewClock(epoch()))
+	const failures = 8
+	p := &fastPoller{fakePoller{name: "test.backoff", tick: func(n int32) (poller.Report, error) {
+		if n <= failures {
+			return poller.Report{}, errs.New(errs.CodeUpstreamUnavailable, "test.fetch")
+		}
+		return poller.Report{}, nil
+	}}}
+	afters := make(chan time.Duration, 8)
+	h.clock.NotifyAfters(afters)
+	out, _ := h.start(t, p)
+	want := []time.Duration{
+		5 * time.Second, 10 * time.Second, 20 * time.Second, 40 * time.Second,
+		80 * time.Second, 160 * time.Second, 5 * time.Minute, 5 * time.Minute,
+	}
+	attempts := make([]time.Duration, 0, failures)
+	for i := range failures {
+		attempts = append(attempts, h.clock.Now().Sub(epoch()))
+		failed := out.expect(t, "poller.tick.failed")
+		got := <-afters
+		if got != want[i] || failed["retry_in"] != float64(want[i]) {
+			t.Fatalf("failure %d waits %v (logged %v), want %v", i+1, got, failed["retry_in"], want[i])
+		}
+		h.clock.Advance(got)
+	}
+	wantAttempts := []time.Duration{
+		0, 5 * time.Second, 15 * time.Second, 35 * time.Second, 75 * time.Second,
+		155 * time.Second, 315 * time.Second, 615 * time.Second,
+	}
+	if !slices.Equal(attempts, wantAttempts) {
+		t.Fatalf("attempts at %v, want %v", attempts, wantAttempts)
+	}
+	out.expect(t, "poller.tick")
+	h.clock.Advance(time.Second)
+	out.expect(t, "poller.tick")
+	if got := p.ticks.Load(); got != failures+2 {
+		t.Fatalf("ticks = %d, want %d: a success returns the poller to its interval", got, failures+2)
+	}
+}
+
+func TestRunner_aConfiguredBackoffCapReplacesTheDefault(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t, testkit.DB(t), testkit.NewClock(epoch()))
+	h.runner.WithBackoffMax(2 * time.Second)
+	p := &fastPoller{fakePoller{name: "test.cap", tick: func(int32) (poller.Report, error) {
+		return poller.Report{}, errs.New(errs.CodeUpstreamUnavailable, "test.fetch")
+	}}}
+	afters := make(chan time.Duration, 3)
+	h.clock.NotifyAfters(afters)
+	out, _ := h.start(t, p)
+	for range 3 {
+		out.expect(t, "poller.tick.failed")
+		if got := <-afters; got != 2*time.Second {
+			t.Fatalf("wait = %v, want the configured 2s cap", got)
+		}
+		h.clock.Advance(2 * time.Second)
 	}
 }
