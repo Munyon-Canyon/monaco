@@ -192,7 +192,7 @@ func TestHTTP_refusesCallersThatAreNotAUser(t *testing.T) {
 		want  errs.Code
 	}{
 		"no actor":    {nil, errs.CodeUnauthorized},
-		"agent":       {&auth.Actor{Kind: auth.ActorAgent, ID: "a1"}, errs.CodeForbidden},
+		"service":     {&auth.Actor{Kind: auth.ActorService, ID: "a1"}, errs.CodeForbidden},
 		"bad user id": {&auth.Actor{Kind: auth.ActorUser, ID: "u1"}, errs.CodeUnauthorized},
 	} {
 		ctx := t.Context()

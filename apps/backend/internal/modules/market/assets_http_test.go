@@ -301,9 +301,9 @@ func TestAssets_rejectsACallerThatIsNotAUser(t *testing.T) {
 	if _, err := h.GetAssets(t.Context(), api.GetAssetsRequestObject{}); errs.CodeOf(err) != errs.CodeUnauthorized {
 		t.Fatalf("no actor = %v", err)
 	}
-	agent := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorAgent, ID: "agent"})
-	if _, err := h.GetAssets(agent, api.GetAssetsRequestObject{}); errs.CodeOf(err) != errs.CodeForbidden {
-		t.Fatalf("agent = %v", err)
+	service := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorService, ID: "service"})
+	if _, err := h.GetAssets(service, api.GetAssetsRequestObject{}); errs.CodeOf(err) != errs.CodeForbidden {
+		t.Fatalf("service = %v", err)
 	}
 	bad := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: "not-a-uuid"})
 	if _, err := h.GetAssets(bad, api.GetAssetsRequestObject{}); errs.CodeOf(err) != errs.CodeUnauthorized {

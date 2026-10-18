@@ -53,7 +53,7 @@ func TestVoidProposal_refusesWhatItMustNotVoid(t *testing.T) {
 	}{
 		"no actor":         {"", open.ID, errs.CodeUnauthorized},
 		"a user":           {auth.ActorUser, open.ID, errs.CodeForbidden},
-		"an agent":         {auth.ActorAgent, open.ID, errs.CodeForbidden},
+		"a service":        {auth.ActorService, open.ID, errs.CodeForbidden},
 		"unknown":          {auth.ActorAdmin, d.ids.NewV7(), errs.CodeProposalNotFound},
 		"failed":           {auth.ActorAdmin, failed.ID, errs.CodeProposalClosed},
 		"a submitted swap": {auth.ActorSystem, traded.ID, errs.CodeLiveSwapExists},

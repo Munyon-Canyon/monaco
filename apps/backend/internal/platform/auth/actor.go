@@ -10,7 +10,6 @@ type ActorKind string
 
 const (
 	ActorUser    ActorKind = "user"
-	ActorAgent   ActorKind = "agent"
 	ActorAdmin   ActorKind = "admin"
 	ActorSystem  ActorKind = "system"
 	ActorService ActorKind = "service"

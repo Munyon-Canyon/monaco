@@ -274,10 +274,10 @@ func TestOnboard_refusesWhatItCannotFold(t *testing.T) {
 func TestHTTP_onboardingRefusesCallersThatAreNotAUser(t *testing.T) {
 	t.Parallel()
 	h := adapters.HTTP{}
-	agent := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorAgent, ID: "a1"})
-	_, phone := h.PostOnboardingPhone(agent, api.PostOnboardingPhoneRequestObject{})
-	_, socials := h.PostOnboardingSocials(agent, api.PostOnboardingSocialsRequestObject{})
-	_, skip := h.PostOnboardingSkip(agent, api.PostOnboardingSkipRequestObject{})
+	service := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorService, ID: "a1"})
+	_, phone := h.PostOnboardingPhone(service, api.PostOnboardingPhoneRequestObject{})
+	_, socials := h.PostOnboardingSocials(service, api.PostOnboardingSocialsRequestObject{})
+	_, skip := h.PostOnboardingSkip(service, api.PostOnboardingSkipRequestObject{})
 	for name, err := range map[string]error{"phone": phone, "socials": socials, "skip": skip} {
 		if errs.CodeOf(err) != errs.CodeForbidden {
 			t.Errorf("%s err = %v, want forbidden", name, err)

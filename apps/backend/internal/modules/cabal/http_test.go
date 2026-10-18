@@ -388,8 +388,8 @@ func TestHTTP_rejectsACallerThatIsNotAUser(t *testing.T) {
 	req := cabalPost("c1", "Friends pot", "request", "list", "unanimous", domain.ExpiryWeek, nil)
 	lookup := api.GetCabalRequestObject{Id: f.ids.NewV7()}
 	rejectCaller(t.Context(), t, f, h, req, lookup, "absent", errs.CodeUnauthorized)
-	agent := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorAgent, ID: f.user.ID.String()})
-	rejectCaller(agent, t, f, h, req, lookup, "agent", errs.CodeForbidden)
+	service := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorService, ID: f.user.ID.String()})
+	rejectCaller(service, t, f, h, req, lookup, "service", errs.CodeForbidden)
 	bad := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: "not-a-user"})
 	rejectCaller(bad, t, f, h, req, lookup, "bad id", errs.CodeUnauthorized)
 }

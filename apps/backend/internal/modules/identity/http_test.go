@@ -175,7 +175,7 @@ func TestSearchUsers_RateLimit(t *testing.T) {
 func TestHTTP_searchUsersRefusesCallersThatAreNotAUser(t *testing.T) {
 	t.Parallel()
 	h := adapters.HTTP{}
-	ctx := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorAgent, ID: "a1"})
+	ctx := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorService, ID: "a1"})
 	if _, err := h.SearchUsers(ctx, api.SearchUsersRequestObject{}); errs.CodeOf(err) != errs.CodeForbidden {
 		t.Fatalf("SearchUsers err = %v, want %s", err, errs.CodeForbidden)
 	}
@@ -665,7 +665,7 @@ func TestHTTP_getMeRefusesCallersThatAreNotAUser(t *testing.T) {
 		want  errs.Code
 	}{
 		"no actor":    {nil, errs.CodeUnauthorized},
-		"agent":       {&auth.Actor{Kind: auth.ActorAgent, ID: "a1"}, errs.CodeForbidden},
+		"service":     {&auth.Actor{Kind: auth.ActorService, ID: "a1"}, errs.CodeForbidden},
 		"admin":       {&auth.Actor{Kind: auth.ActorAdmin, ID: "a2"}, errs.CodeForbidden},
 		"bad user id": {&auth.Actor{Kind: auth.ActorUser, ID: "u1"}, errs.CodeUnauthorized},
 	} {
