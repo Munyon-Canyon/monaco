@@ -286,7 +286,7 @@ func (m *Module) routes(layer *app.SwapLayer, ports EnginePorts, route app.Route
 		Journal: app.Journal{UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, IDs: m.deps.IDs},
 		Wallets: app.CabalWallets{Cabals: ports.Cabals}, TreasuryEVM: route.TreasuryEVM, Listings: route.Listings,
 		Quoter: route.Quoter, Actions: route.Actions, Sender: route.Sender, Venue: route.Venue, TopUp: route.TopUp,
-		Arrivals: route.Arrivals, EVMArrivals: route.EVMArrivals, Poll: app.DefaultPoll(),
+		Arrivals: route.Arrivals, EVMArrivals: route.EVMArrivals, Cash: route.EVMCash, Poll: app.DefaultPoll(),
 	})
 }
 
@@ -312,6 +312,9 @@ func (m *Module) routePorts() app.RoutePorts {
 	if p.EVMArrivals == nil {
 		p.EVMArrivals = adapters.NewEVMArrivals(adapters.EVMRPC(m.deps), int64(m.deps.Config.EVM.LogsMaxBlocks),
 			m.deps.Clock)
+	}
+	if p.EVMCash == nil {
+		p.EVMCash = adapters.NewEVMCash(adapters.EVMRPC(m.deps))
 	}
 	return p
 }
