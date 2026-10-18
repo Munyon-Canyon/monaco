@@ -440,3 +440,89 @@ func TestAffectedExcludedFlagPrintsWhatTheClosureDropped(t *testing.T) {
 		t.Fatalf("code=%d stdout=%q stderr=%s", code, stdout, stderr)
 	}
 }
+
+func TestReverseDepsSeedsPerModuleSharedFilesFromTheirModule(t *testing.T) {
+	t.Parallel()
+	const mod = "example.com/m/"
+	pkg := func(dir string, imports ...string) listedPackage {
+		p := listedPackage{ImportPath: mod + dir}
+		for _, i := range imports {
+			p.Imports = append(p.Imports, mod+i)
+		}
+		return p
+	}
+	const obs, errsPkg, events = "internal/platform/observability", "internal/errs", "internal/events"
+	byDir := map[string]listedPackage{
+		obs:                              pkg(obs),
+		errsPkg:                          pkg(errsPkg),
+		events:                           pkg(events),
+		"internal/modules/trading":       pkg("internal/modules/trading", obs, errsPkg, events),
+		"internal/modules/trading/app":   pkg("internal/modules/trading/app", obs),
+		"internal/modules/cabal":         pkg("internal/modules/cabal", "internal/modules/trading", obs),
+		"internal/modules/cabal/adapter": pkg("internal/modules/cabal/adapter", obs),
+		"cmd/api":                        pkg("cmd/api", "internal/modules/cabal", obs, errsPkg, events),
+	}
+	trading := []string{"./internal/modules/trading", "./internal/modules/trading/app"}
+	cabal := []string{"./internal/modules/cabal", "./internal/modules/cabal/adapter"}
+	with := func(shared string, groups ...[]string) []string {
+		out := []string{"./" + shared}
+		for _, g := range groups {
+			out = append(out, g...)
+		}
+		slices.Sort(out)
+		return out
+	}
+	fullObs := []string{
+		"./cmd/api", "./internal/modules/cabal", "./internal/modules/cabal/adapter",
+		"./internal/modules/trading", "./internal/modules/trading/app", "./" + obs,
+	}
+	fullErrs := []string{"./cmd/api", "./" + errsPkg, "./internal/modules/cabal", "./internal/modules/trading"}
+	fullEvents := []string{"./cmd/api", "./" + events, "./internal/modules/cabal", "./internal/modules/trading"}
+	cases := []struct {
+		name    string
+		changed []string
+		want    []string
+	}{
+		{"a module message file", []string{obs + "/msgs_trading.go"}, with(obs, trading)},
+		{"a module generated message file", []string{obs + "/msgs_trading.gen.go"}, with(obs, trading)},
+		{"a message file named for a module area", []string{obs + "/msgs_trading_stranded.go"}, with(obs, trading)},
+		{
+			"two modules' message files",
+			[]string{obs + "/msgs_trading.go", obs + "/msgs_cabal.go"},
+			with(obs, trading, cabal),
+		},
+		{"a message file without a module", []string{obs + "/msgs_bus.go"}, fullObs},
+		{"another file in observability", []string{obs + "/observability.go"}, fullObs},
+		{"a message test file", []string{obs + "/msgs_trading_test.go"}, []string{"./" + obs}},
+		{"a module error code file", []string{errsPkg + "/codes_trading.go"}, with(errsPkg, trading)},
+		{"a module error code golden", []string{errsPkg + "/testdata/codes_trading.golden"}, with(errsPkg, trading)},
+		{
+			"an error code file named for a module area",
+			[]string{errsPkg + "/codes_cabal_blocks.go"},
+			with(errsPkg, cabal),
+		},
+		{"an error code file with no module", []string{errsPkg + "/codes_platform.go"}, with(errsPkg, trading, cabal)},
+		{
+			"an error code golden with no module",
+			[]string{errsPkg + "/testdata/codes_platform.golden"},
+			with(errsPkg, trading, cabal),
+		},
+		{"another file in errs", []string{errsPkg + "/errs.go"}, fullErrs},
+		{"a module event registrations file", []string{events + "/trading_registrations.go"}, with(events, trading)},
+		{"an event registrations file with no module", []string{events + "/ghost_registrations.go"}, fullEvents},
+		{"another file in events", []string{events + "/fund.go"}, fullEvents},
+		{
+			"a module file beside a shared module file",
+			[]string{obs + "/msgs_cabal.go", "internal/modules/trading/app/x.go"},
+			with(obs, cabal, []string{"./internal/modules/trading/app"}),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got, _ := reverseDeps(byDir, tc.changed); !slices.Equal(got, tc.want) {
+				t.Fatalf("reverseDeps(%v) = %v, want %v", tc.changed, got, tc.want)
+			}
+		})
+	}
+}
