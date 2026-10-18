@@ -1,10 +1,14 @@
--- name: InsertPricePoints :execrows
+-- name: InsertPricePoints :many
 INSERT INTO price_points (mint, ts, price_micros, source)
 SELECT u.mint, sqlc.arg(ts)::timestamptz, u.price_micros, sqlc.arg(source)::text
 FROM ROWS FROM (
   unnest(sqlc.arg(mints)::text[]), unnest(sqlc.arg(price_micros)::bigint[])
 ) AS u (mint, price_micros)
-ON CONFLICT (mint, ts) DO NOTHING;
+ON CONFLICT (mint, ts) DO NOTHING
+RETURNING mint, ts, price_micros;
+
+-- name: CountPricePoints :one
+SELECT count(*)::bigint AS points FROM price_points;
 
 -- name: RecentPriceSamples :many
 SELECT a.id AS asset_id, p.ts, p.price_micros

@@ -13,11 +13,9 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
-func (p *SamplePrices) recordMoves(ctx context.Context, assets []domain.Asset, bucket time.Time) error {
-	marks, err := p.book.LatestPrices(ctx)
-	if err != nil {
-		return err
-	}
+func (p *SamplePrices) recordMoves(
+	ctx context.Context, assets []domain.Asset, bucket time.Time, marks map[domain.AssetID]domain.Sample,
+) error {
 	for _, a := range assets {
 		mark, ok := marks[a.ID]
 		if !ok || !mark.ObservedAt.Equal(bucket) {

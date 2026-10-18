@@ -54,7 +54,7 @@ type WatchAssets interface {
 }
 
 type WatchPrices interface {
-	LatestPrices(ctx context.Context) (map[market.AssetID]market.Price, error)
+	PricesAsOf(ctx context.Context, ids []market.AssetID, at time.Time) (map[market.AssetID]market.Price, error)
 }
 
 type DetectDeps struct {
@@ -188,11 +188,11 @@ func (h *DetectExternalDepositHandler) listed(
 func (h *DetectExternalDepositHandler) stockValue(
 	ctx context.Context, asset market.Asset, units money.BaseUnits,
 ) (money.Micros, bool, error) {
-	prices, err := h.d.Prices.LatestPrices(ctx)
+	now := h.d.Clock.Now()
+	prices, err := h.d.Prices.PricesAsOf(ctx, []market.AssetID{asset.ID}, now)
 	if err != nil {
 		return money.Micros{}, false, err
 	}
-	now := h.d.Clock.Now()
 	price, ok := prices[asset.ID]
 	m := asset.UIMultiplierAt(now)
 	if !ok || now.Sub(price.ObservedAt) > livePriceAge || m.Num <= 0 || m.Den <= 0 {

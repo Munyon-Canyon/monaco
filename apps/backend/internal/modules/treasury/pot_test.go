@@ -67,10 +67,13 @@ func newPotCase(t *testing.T) potCase {
 	prices := &marketfake.PricesFake{}
 	reads := 0
 	reader := priceReader(prices)
-	q := adapterQueriesWithReader(f, func(ctx context.Context) (map[uuid.UUID]app.Price, error) {
-		reads++
-		return reader(ctx)
-	})
+	q := adapterQueriesWithReader(
+		f,
+		func(ctx context.Context, ids []uuid.UUID, at time.Time) (map[uuid.UUID]app.Price, error) {
+			reads++
+			return reader(ctx, ids, at)
+		},
+	)
 	return potCase{f: f, cabal: cabal, funder: funder, prices: prices, reads: &reads, q: q}
 }
 
@@ -237,6 +240,22 @@ func TestGetCabalPot_OnePriceRead(t *testing.T) {
 	got, err := p.get(t, p.funder, p.funder)
 	if err != nil || len(got.Holdings) != 3 || *p.reads != 1 {
 		t.Fatalf("three holdings price reads = %d, holdings %d, %v", *p.reads, len(got.Holdings), err)
+	}
+}
+
+func TestGetCabalPot_asksOnlyForTheHeldAssets(t *testing.T) {
+	t.Parallel()
+	p := newPotCase(t)
+	p.buy(t, 40_000_000, 200_000_000)
+	for _, asset := range marketfake.Fixtures() {
+		p.prices.Set(asset.ID, money.MicrosFromUint64(30_000_000), p.f.clock.Now())
+	}
+	if _, err := p.get(t, p.funder, p.funder); err != nil {
+		t.Fatal(err)
+	}
+	asked := p.prices.Asked()
+	if len(asked) != 1 || len(asked[0]) != 1 || asked[0][0] != marketfake.AAPLx().ID {
+		t.Fatalf("price reads asked for %v, want one read for AAPLx only", asked)
 	}
 }
 

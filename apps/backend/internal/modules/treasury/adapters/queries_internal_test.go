@@ -152,7 +152,7 @@ func TestStakeReadBranches(t *testing.T) {
 	}
 	nonUSDC := priced
 	nonUSDC.stake[0].Asset = pgtype.Text{String: "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp", Valid: true}
-	noPrices := app.PriceReader(func(context.Context) (map[uuid.UUID]app.Price, error) {
+	noPrices := app.PriceReader(func(context.Context, []uuid.UUID, time.Time) (map[uuid.UUID]app.Price, error) {
 		return nil, errs.New(errs.CodeDBUnavailable, "test")
 	})
 	pricedQueries := newTestQueries(nonUSDC, noPrices)
@@ -216,7 +216,7 @@ func TestOpenFund(t *testing.T) {
 
 func TestQueryValueAndShareFailures(t *testing.T) {
 	t.Parallel()
-	prices := app.PriceReader(func(context.Context) (map[uuid.UUID]app.Price, error) {
+	prices := app.PriceReader(func(context.Context, []uuid.UUID, time.Time) (map[uuid.UUID]app.Price, error) {
 		return map[uuid.UUID]app.Price{}, nil
 	})
 	q := newTestQueries(stakeStore{}, prices)

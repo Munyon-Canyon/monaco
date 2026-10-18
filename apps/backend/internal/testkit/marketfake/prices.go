@@ -2,6 +2,7 @@ package marketfake
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"time"
 
@@ -17,6 +18,7 @@ type PricesFake struct {
 
 	mu      sync.Mutex
 	samples map[market.AssetID][]market.Price
+	asked   [][]market.AssetID
 }
 
 func (f *PricesFake) Set(asset market.AssetID, micros money.Micros, observedAt time.Time) {
@@ -51,6 +53,7 @@ func (f *PricesFake) PricesAsOf(
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.asked = append(f.asked, slices.Clone(ids))
 	out := map[market.AssetID]market.Price{}
 	for _, id := range ids {
 		if p, ok := newest(f.samples[id], func(p market.Price) bool { return !p.ObservedAt.After(at) }); ok {
@@ -58,6 +61,12 @@ func (f *PricesFake) PricesAsOf(
 		}
 	}
 	return out, nil
+}
+
+func (f *PricesFake) Asked() [][]market.AssetID {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.asked)
 }
 
 func newest(samples []market.Price, keep func(market.Price) bool) (market.Price, bool) {

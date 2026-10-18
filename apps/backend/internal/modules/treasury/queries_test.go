@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
@@ -143,7 +144,7 @@ func TestPotValue_EmptyCabalZero(t *testing.T) {
 func TestPotValue_ChecksHoldingsBeforePrices(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	reader := app.PriceReader(func(context.Context) (map[uuid.UUID]app.Price, error) {
+	reader := app.PriceReader(func(context.Context, []uuid.UUID, time.Time) (map[uuid.UUID]app.Price, error) {
 		return nil, errs.New(errs.CodeDBUnavailable, "test")
 	})
 	q := adapterQueriesWithReader(f, reader)
@@ -165,21 +166,17 @@ func TestPotValue_QueryCount(t *testing.T) {
 	for _, asset := range marketfake.Fixtures() {
 		prices.Set(asset.ID, money.MicrosFromUint64(30_000_000), f.clock.Now())
 	}
-	reads := 0
-	reader := app.PriceReader(func(ctx context.Context) (map[uuid.UUID]app.Price, error) {
-		reads++
-		latest, err := prices.LatestPrices(ctx)
-		if err != nil {
-			return nil, err
-		}
-		out := make(map[uuid.UUID]app.Price, len(latest))
-		for id, price := range latest {
-			out[id.UUID()] = app.Price{Micros: price.Micros, ObservedAt: price.ObservedAt}
-		}
-		return out, nil
-	})
+	var asked [][]uuid.UUID
+	inner := priceReader(prices)
+	reader := app.PriceReader(
+		func(ctx context.Context, ids []uuid.UUID, at time.Time) (map[uuid.UUID]app.Price, error) {
+			asked = append(asked, ids)
+			return inner(ctx, ids, at)
+		},
+	)
 	q := adapterQueriesWithReader(f, reader)
-	assertPotValueQueries(t, q, cabal, &reads)
+	assertPotValueQueries(t, q, cabal, &asked, 1)
+	asked = nil
 	const insert = `INSERT INTO cabal_positions (cabal_id, asset, units, cost_basis_micros, updated_at)
 VALUES ($1, $2, 1, 1, $3), ($1, $4, 1, 1, $3)`
 	tsla, jpst := marketfake.TSLAx().Mint.Address(), marketfake.JPSTx().Mint.Address()
@@ -189,19 +186,18 @@ VALUES ($1, $2, 1, 1, $3), ($1, $4, 1, 1, $3)`
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertPotValueQueries(t, q, cabal, &reads)
+	assertPotValueQueries(t, q, cabal, &asked, 3)
 }
 
-func assertPotValueQueries(t *testing.T, q *adapters.Queries, cabal ids.CabalID, reads *int) {
+func assertPotValueQueries(t *testing.T, q *adapters.Queries, cabal ids.CabalID, asked *[][]uuid.UUID, held int) {
 	t.Helper()
-	*reads = 0
 	testkit.AssertQueries(t, "PotValue one and three holdings", func() {
 		if _, err := q.PotValue(t.Context(), cabal); err != nil {
 			t.Fatal(err)
 		}
 	})
-	if *reads != 1 {
-		t.Fatalf("price reads = %d, want 1", *reads)
+	if len(*asked) != 1 || len((*asked)[0]) != held {
+		t.Fatalf("price reads asked for %v, want one read for exactly the %d held assets", *asked, held)
 	}
 }
 
@@ -409,9 +405,12 @@ func TestPositionsAndStakesAt(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	user, other, cabal := f.user(t), f.user(t), f.cabal(t)
-	q := adapterQueriesWithReader(f, app.PriceReader(func(context.Context) (map[uuid.UUID]app.Price, error) {
-		return map[uuid.UUID]app.Price{}, nil
-	}))
+	q := adapterQueriesWithReader(
+		f,
+		app.PriceReader(func(context.Context, []uuid.UUID, time.Time) (map[uuid.UUID]app.Price, error) {
+			return map[uuid.UUID]app.Price{}, nil
+		}),
+	)
 	before := f.clock.Now().Add(-time.Nanosecond)
 	if got, err := q.CabalPositionsAt(t.Context(), before); err != nil || len(got) != 0 {
 		t.Fatalf("CabalPositionsAt(before) = %#v, %v", got, err)
@@ -718,8 +717,12 @@ func adapterQueriesWithReader(f fixture, reader app.PriceReader) *adapters.Queri
 }
 
 func priceReader(prices *marketfake.PricesFake) app.PriceReader {
-	return app.PriceReader(func(ctx context.Context) (map[uuid.UUID]app.Price, error) {
-		latest, err := prices.LatestPrices(ctx)
+	return app.PriceReader(func(ctx context.Context, ids []uuid.UUID, at time.Time) (map[uuid.UUID]app.Price, error) {
+		asked := make([]market.AssetID, len(ids))
+		for i, id := range ids {
+			asked[i] = market.AssetIDFrom(id)
+		}
+		latest, err := prices.PricesAsOf(ctx, asked, at)
 		if err != nil {
 			return nil, err
 		}

@@ -818,3 +818,278 @@ func TestSamplePrices_aFailedCatalogReadFailsTheTickAndCachesNothing(t *testing.
 		}
 	}
 }
+
+type sqlCounter struct {
+	match    string
+	failFrom int32
+	calls    atomic.Int32
+}
+
+func (c *sqlCounter) TraceQueryStart(
+	ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData,
+) context.Context {
+	if !strings.Contains(data.SQL, c.match) {
+		return ctx
+	}
+	if n := c.calls.Add(1); c.failFrom == 0 || n < c.failFrom {
+		return ctx
+	}
+	canceled, cancel := context.WithCancel(ctx)
+	cancel()
+	return canceled
+}
+
+func (*sqlCounter) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
+
+const recentSamplesSQL = "-- name: RecentPriceSamples"
+
+func countedPoller(t *testing.T, r *sampleRig, q *quotes) (*app.SamplePrices, *sqlCounter) {
+	t.Helper()
+	counter := &sqlCounter{match: recentSamplesSQL}
+	return tracedPoller(t, r, q, counter), counter
+}
+
+func tracedPoller(t *testing.T, r *sampleRig, q *quotes, counter *sqlCounter) *app.SamplePrices {
+	t.Helper()
+	cfg := r.pool.Config()
+	cfg.ConnConfig.Tracer = counter
+	counted, err := pgxpool.NewWithConfig(t.Context(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(counted.Close)
+	ids := testkit.NewIDs(13)
+	return app.NewSamplePrices(db.New(r.pool, ids, r.clock), counted, ids, r.clock, q, r.ticks, 2*time.Minute)
+}
+
+func TestSamplePrices_aFailedPointsCountFailsTheTickBeforeAsking(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx()
+	r, q := newMoveRig(t, closedMarket(), aapl)
+	q.quote(aapl, 200_000_000)
+	poller := tracedPoller(t, r, q, &sqlCounter{match: "-- name: CountPricePoints", failFrom: 1})
+	if _, err := poller.Tick(t.Context()); err == nil {
+		t.Fatal("Tick succeeded, want the failed price_points count to fail it")
+	}
+	if q.calls != 0 {
+		t.Fatalf("asked Jupiter %d times after the failed count", q.calls)
+	}
+}
+
+func TestSamplePrices_aFailedReadOfAConflictedMintFailsTheTickAndSeedsAgain(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx()
+	r, q := newMoveRig(t, closedMarket(), aapl)
+	q.quote(aapl, 200_000_000)
+	seedPrice(t, r.pool, aapl.Mint.String(), domain.Bucket(r.clock.Now()), 150_000_000)
+	counter := &sqlCounter{match: recentSamplesSQL, failFrom: 2}
+	poller := tracedPoller(t, r, q, counter)
+	if _, err := poller.Tick(t.Context()); err == nil {
+		t.Fatal("Tick succeeded, want the failed read of the conflicted mint to fail it")
+	}
+	if got := len(r.ticks.published()); got != 0 {
+		t.Fatalf("published %d price.tick messages after the failed read", got)
+	}
+}
+
+func closedMarket() time.Time { return time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC) }
+
+func wantReads(t *testing.T, c *sqlCounter, want int32) {
+	t.Helper()
+	if got := c.calls.Load(); got != want {
+		t.Fatalf("RecentPriceSamples reads = %d, want %d", got, want)
+	}
+}
+
+func wantTickMatchesTheDatabase(t *testing.T, r *sampleRig, sent events.PriceTick) {
+	t.Helper()
+	fresh, err := app.NewPriceBook(r.pool, r.clock).LatestPrices(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sent.Prices) != len(fresh) {
+		t.Fatalf("price.tick has %d prices, the database view has %d", len(sent.Prices), len(fresh))
+	}
+	for _, p := range sent.Prices {
+		id, err := domain.ParseAssetID(p.AssetID.String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		want, ok := fresh[id]
+		if !ok || p.PriceMicros != want.Micros || !p.ObservedAt.Equal(want.ObservedAt) {
+			t.Fatalf("price.tick price %+v, the database view has %+v", p, want)
+		}
+	}
+}
+
+func TestSamplePrices_threeTicksReadTheWindowOnceAndPublishWhatTheDatabaseHolds(t *testing.T) {
+	t.Parallel()
+	aapl, tsla := marketfake.AAPLx(), marketfake.TSLAx()
+	r, q := newMoveRig(t, closedMarket(), aapl, tsla)
+	poller, reads := countedPoller(t, r, q)
+	for i, micros := range []uint64{200_000_000, 210_000_000, 215_000_000} {
+		q.quote(aapl, micros)
+		q.quote(tsla, micros/2)
+		if _, err := poller.Tick(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		sent := r.ticks.published()
+		if len(sent) != i+1 {
+			t.Fatalf("published %d price.tick messages after tick %d", len(sent), i+1)
+		}
+		wantTickMatchesTheDatabase(t, r, sent[i])
+		r.clock.Advance(domain.SampleBucket)
+	}
+	wantReads(t, reads, 1)
+}
+
+func TestSamplePrices_rowsDeletedByAnotherWriterSeedTheWindowAgain(t *testing.T) {
+	t.Parallel()
+	aapl, tsla := marketfake.AAPLx(), marketfake.TSLAx()
+	r, q := newMoveRig(t, closedMarket(), aapl, tsla)
+	q.quote(aapl, 200_000_000)
+	q.quote(tsla, 100_000_000)
+	poller, reads := countedPoller(t, r, q)
+	if _, err := poller.Tick(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	q.mu.Lock()
+	delete(q.prices, tsla.Mint)
+	q.mu.Unlock()
+	if _, err := r.pool.Exec(t.Context(), `DELETE FROM price_points WHERE mint = $1`, tsla.Mint.String()); err != nil {
+		t.Fatal(err)
+	}
+	r.clock.Advance(domain.SampleBucket)
+	if _, err := poller.Tick(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	sent := r.ticks.published()
+	if got := len(sent[1].Prices); got != 1 {
+		t.Fatalf("price.tick after the delete has %d prices, want 1", got)
+	}
+	wantTickMatchesTheDatabase(t, r, sent[1])
+	wantReads(t, reads, 2)
+}
+
+func TestSamplePrices_movesUseTheMarksTheDatabaseHolds(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx()
+	r, q := newMoveRig(t, openInstant(t, clock.Real{}.Now()), aapl)
+	info := equitySession(t, r.clock.Now())
+	seedPrice(t, r.pool, aapl.Mint.String(), info.LastClose, 200_000_000)
+	q.quote(aapl, 220_000_000)
+	poller, _ := countedPoller(t, r, q)
+	ctx := pollerCtx(t)
+	for range 2 {
+		if _, err := poller.Tick(ctx); err != nil {
+			t.Fatal(err)
+		}
+		r.clock.Advance(domain.SampleBucket)
+	}
+	fresh, err := app.NewPriceBook(r.pool, r.clock).LatestPrices(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	moves := movedEvents(t, r.pool)
+	if len(moves) != 2 {
+		t.Fatalf("moves = %d, want +500 and +1000", len(moves))
+	}
+	for _, m := range moves {
+		if m.MarkMicros != fresh[aapl.ID].Micros {
+			t.Fatalf("move mark = %v, the database view has %v", m.MarkMicros, fresh[aapl.ID].Micros)
+		}
+	}
+}
+
+func TestSamplePrices_aCatalogChangeSeedsTheWindowAgainOnce(t *testing.T) {
+	t.Parallel()
+	aapl, tsla := marketfake.AAPLx(), marketfake.TSLAx()
+	r, q := newMoveRig(t, closedMarket(), aapl)
+	q.quote(aapl, 200_000_000)
+	poller, reads := countedPoller(t, r, q)
+	tick := func(want int32) {
+		t.Helper()
+		if _, err := poller.Tick(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		wantReads(t, reads, want)
+		r.clock.Advance(domain.SampleBucket)
+	}
+	tick(1)
+	tick(1)
+	seedAssets(t, r.pool, r.clock.Now(), tsla)
+	tick(2)
+	tick(2)
+}
+
+func TestSamplePrices_aGapLongerThanOneAndAHalfIntervalsSeedsTheWindowAgain(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx()
+	r, q := newMoveRig(t, closedMarket(), aapl)
+	q.quote(aapl, 200_000_000)
+	poller, reads := countedPoller(t, r, q)
+	for _, gap := range []time.Duration{0, domain.SampleBucket, 5 * domain.SampleBucket} {
+		r.clock.Advance(gap)
+		if _, err := poller.Tick(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	wantReads(t, reads, 2)
+}
+
+func TestSamplePrices_anHourOfTicksSeedsTheWindowAgainOnce(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx()
+	r, q := newMoveRig(t, closedMarket(), aapl)
+	q.quote(aapl, 200_000_000)
+	poller, reads := countedPoller(t, r, q)
+	ticks := int(time.Hour/domain.SampleBucket) + 1
+	for i := range ticks {
+		if i > 0 {
+			r.clock.Advance(domain.SampleBucket)
+		}
+		if _, err := poller.Tick(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if i == ticks-2 {
+			wantReads(t, reads, 1)
+		}
+	}
+	wantReads(t, reads, 2)
+}
+
+func TestSamplePrices_aTickThatFailsAfterTheInsertSeedsTheWindowAgain(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx()
+	r, q := newMoveRig(t, closedMarket(), aapl)
+	q.quote(aapl, 200_000_000)
+	poller, reads := countedPoller(t, r, q)
+	r.ticks.err = errs.New(errs.CodeUpstreamUnavailable, "test.publish")
+	if _, err := poller.Tick(t.Context()); err == nil {
+		t.Fatal("Tick whose publish fails succeeded")
+	}
+	r.ticks.err = nil
+	r.clock.Advance(domain.SampleBucket)
+	if _, err := poller.Tick(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	wantReads(t, reads, 2)
+}
+
+func TestSamplePrices_aConflictingInsertPublishesWhatTheDatabaseKeeps(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx()
+	q := &quotes{}
+	q.quote(aapl, 200_000_000)
+	r := newSampleRig(t, fixed(q), aapl)
+	seedPrice(t, r.pool, aapl.Mint.String(), r.bucket, 150_000_000)
+	if _, err := r.poller.Tick(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	sent := r.ticks.published()
+	if len(sent) != 1 {
+		t.Fatalf("published %d price.tick messages, want 1", len(sent))
+	}
+	wantTick(t, sent[0], r.bucket, tickPrice(aapl, 150_000_000, r.bucket))
+	wantTickMatchesTheDatabase(t, r, sent[0])
+}
