@@ -16,9 +16,10 @@ The halftone print. The Monaco icon is drawn live on canvas as one cream screen 
 shaded like lit stone, on a fine screen (dot pitch 0.9% of the icon's width). It prints in from the
 baseline, then stays still while three soft blobs wander through it on smooth, non-repeating paths.
 A blob thins the cream so the page's own green shows through; a floor of small dots keeps every
-stone's shape readable. A pointer over the lockup is a lamp held over the print: the light swings
-round to it so every stone's shadow follows the hand, the blobs scatter from it and the cream under
-it recovers, and it fades out when the pointer leaves.
+stone's shape readable. A pointer over the figures themselves is a lamp held over the print: the
+light swings round to it so every stone's shadow follows the hand, the blobs scatter from it and
+the cream under it recovers, and it fades out once the pointer leaves the ink. The rest of the page,
+and the bare corners of the canvas, leave the mark alone.
 
 ## Tokens
 Two colours only: Monaco green is the page and cream is everything on it. Any other tone is cream mixed
