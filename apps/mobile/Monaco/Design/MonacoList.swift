@@ -509,7 +509,7 @@ struct EmptyState: View {
                     primaryButton
                     if let secondaryActionTitle, let secondaryAction {
                         Button(secondaryActionTitle, action: secondaryAction)
-                            .buttonStyle(.monacoSecondary)
+                            .buttonStyle(.monacoOutline)
                     }
                 }
                 .padding(.top, MonacoTheme.Space.l)
