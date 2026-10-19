@@ -246,6 +246,8 @@ private struct HomePortfolioHero: View {
     private var chartSkeleton: some View {
         CurveScrubChartFrame { SkeletonBlock(height: nil, radius: MonacoTheme.Radius.cardTight) }
             .padding(.top, MonacoTheme.Space.m)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Loading the chart")
             .accessibilityIdentifier("home-portfolio-chart-loading")
     }
 
