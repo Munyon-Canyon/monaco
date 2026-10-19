@@ -315,6 +315,13 @@ asset-open-bottom             -MonacoAssetDetailSample open -MonacoSampleScroll 
 asset-pre-ipo-bottom          -MonacoAssetDetailSample preIpo -MonacoSampleScroll bottom
 asset-open-large-text         -MonacoAssetDetailSample open -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 
+watchlist-ready               -MonacoWatchlistSample ready
+watchlist-empty               -MonacoWatchlistSample empty
+watchlist-no-results          -MonacoWatchlistSample noResults
+watchlist-loading             -MonacoWatchlistSample loading
+watchlist-failed              -MonacoWatchlistSample failed
+watchlist-ready-large-text    -MonacoWatchlistSample ready -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
+
 # Screens around the cabal screen: start and join.
 group-nav-start               -MonacoGroupNavSample start
 
