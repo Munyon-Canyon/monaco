@@ -5,9 +5,10 @@ The first row on Top investors reads "Rank 1" with no crown, because the leader 
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Design/MonacoBoardRow.swift b/apps/mobile/Monaco/Design/MonacoBoardRow.swift
+index ad63f1432..7de1afe5b 100644
 --- a/apps/mobile/Monaco/Design/MonacoBoardRow.swift
 +++ b/apps/mobile/Monaco/Design/MonacoBoardRow.swift
-@@ -30,7 +30,7 @@
+@@ -38,7 +38,7 @@ struct BoardRow<Leading: View>: View {
          MonacoRowLayout(dynamicTypeSize: dynamicTypeSize, scaledTitleWidthFloor: titleWidthFloor)
      }
  
@@ -16,10 +17,10 @@ diff --git a/apps/mobile/Monaco/Design/MonacoBoardRow.swift b/apps/mobile/Monaco
  
      var body: some View {
          Group {
-@@ -138,7 +138,7 @@
+@@ -165,7 +165,7 @@ struct BoardRow<Leading: View>: View {
      }
  
-     static func spoken(_ row: LeaderboardRowView, figure: Figure) -> String {
+     static func spoken(_ row: LeaderboardRowView, figure: Figure, movement: Int? = nil) -> String {
 -        var sentence = row.rank == 1 ? "First, \(row.name)" : "Rank \(row.rank), \(row.name)"
 +        var sentence = row.rank == 0 ? "First, \(row.name)" : "Rank \(row.rank), \(row.name)"
          if row.isViewer { sentence += ", \(viewerLabel)" }
