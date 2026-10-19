@@ -14,6 +14,7 @@ struct CabalMark: View {
     private let size: CGFloat
     private let pictureURL: URL?
     private let accessibilityLabel: String?
+    private let markForm: MarkForm
 
     @State private var loadedPicture: UIImage?
     @State private var pictureFailed = false
@@ -27,8 +28,10 @@ struct CabalMark: View {
         name: String,
         size: CGFloat = 40,
         pictureUrl: String? = nil,
+        shape: MarkForm = .tile,
         accessibilityLabel: String? = nil
     ) {
+        markForm = shape
         tint = .forGroupId(groupId)
         initials = CabalMark.initials(for: name)
         self.name = name
@@ -47,7 +50,7 @@ struct CabalMark: View {
     }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: MarkGeometry.radius(for: size), style: .continuous)
+        let shape = markShape
         return
             shape
             .fill(tint.fill)
@@ -69,6 +72,10 @@ struct CabalMark: View {
             .clipShape(shape)
             .modifier(CabalMarkAccessibility(label: accessibilityLabel))
             .task(id: pictureURL) { await loadPicture() }
+    }
+
+    private var markShape: AnyShape {
+        MarkGeometry.shape(markForm, size: size)
     }
 
     private var initialsLabel: some View {
@@ -151,6 +158,16 @@ private struct CabalMarkAccessibility: ViewModifier {
     }
 }
 
+enum StockMarkSize: CGFloat {
+    case feed = 28
+    case mover = 31
+    case card = 35
+    case row = 42
+    case header = 47
+    case review = 48
+    case receipt = 54
+}
+
 /// A stock's tile: the company's logo when the catalogue knows one, and the ticker
 /// on a sunken fill when it does not. "USDC" (cash) shows a dollar sign.
 ///
@@ -168,6 +185,13 @@ struct StockMark: View {
     private let content: Content
     private let size: CGFloat
     private let logoURL: URL?
+
+    init(
+        symbol: String, displayName: String? = nil, assetKind: AssetKind = .stock, size: StockMarkSize,
+        logoURL: URL? = nil
+    ) {
+        self.init(symbol: symbol, displayName: displayName, assetKind: assetKind, size: size.rawValue, logoURL: logoURL)
+    }
 
     init(
         symbol: String, displayName: String? = nil, assetKind: AssetKind = .stock, size: CGFloat = 40,
@@ -216,7 +240,9 @@ struct StockMark: View {
 
     @State private var logo: UIImage?
 
-    private var shape: Circle { Circle() }
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: MarkGeometry.radius(for: size), style: .continuous)
+    }
 
     /// The issuer's artwork frames every company logo with four grey arrows that reach about
     /// 16% in from each edge, so drawn whole they show as triangles poking out around the mark.
@@ -277,7 +303,7 @@ struct StockMark: View {
         case .letter(let letter):
             Text(letter)
                 .font(.system(size: size * StockMark.textScale(for: letter), weight: .semibold))
-                .foregroundStyle(MonacoTheme.ink)
+                .foregroundStyle(MonacoTheme.primaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
                 .padding(.horizontal, size * 0.08)
@@ -302,30 +328,70 @@ struct StockMark: View {
     }
 }
 
-private enum MarkGeometry {
+enum MarkForm {
+    case tile, circle
+}
+
+enum MarkGeometry {
+    static let radiusFraction: CGFloat = 0.32
+
     static func radius(for size: CGFloat) -> CGFloat {
-        size * MonacoTheme.Radius.tile / 40
+        size * radiusFraction
+    }
+
+    static func shape(_ form: MarkForm, size: CGFloat) -> AnyShape {
+        switch form {
+        case .tile: return AnyShape(RoundedRectangle(cornerRadius: radius(for: size), style: .continuous))
+        case .circle: return AnyShape(Circle())
+        }
     }
 }
 
-/// An ink glyph on a sunken disc: the mark for something that is not a stock and not a cabal —
+/// A brand glyph on a soft green tile: the mark for something that is not a stock and not a cabal —
 /// a trading bot, an action in a sheet (start a cabal, join with a code). Coins are for stocks;
 /// tinted marks are for cabals.
 struct SunkenGlyphMark: View {
     let systemImage: String
-    var size: CGFloat = 40
-    /// For a bot that was removed: the glyph drops to the quiet ink.
+    var size: CGFloat = 44
     var isMuted = false
 
+    init(systemImage: String, size: CGFloat = 44, isMuted: Bool = false) {
+        self.systemImage = systemImage
+        self.size = size
+        self.isMuted = isMuted
+    }
+
+    init(icon: MonacoIcon, size: CGFloat = 44, isMuted: Bool = false) {
+        self.init(systemImage: icon.symbol, size: size, isMuted: isMuted)
+    }
+
+    private static let glyphFraction: CGFloat = 0.5
+
     var body: some View {
-        Circle()
-            .fill(MonacoTheme.surfaceSunken)
+        RoundedRectangle(cornerRadius: MarkGeometry.radius(for: size), style: .continuous)
+            .fill(isMuted ? MonacoTheme.surfaceSunken : MonacoTheme.brandSoft)
             .frame(width: size, height: size)
             .overlay {
                 Image(systemName: systemImage)
-                    .font(.system(size: size * 0.425, weight: .medium))
-                    .foregroundStyle(isMuted ? MonacoTheme.tertiaryText : MonacoTheme.secondaryText)
+                    .font(.system(size: size * Self.glyphFraction, weight: .medium))
+                    .foregroundStyle(isMuted ? MonacoTheme.secondaryText : MonacoTheme.brand)
             }
+            .accessibilityHidden(true)
+    }
+}
+
+struct PencilBadgeMark: View {
+    private static let diameter: CGFloat = 28
+    private static let ring: CGFloat = 2
+    private static let glyph: CGFloat = 13
+
+    var body: some View {
+        Image(systemName: MonacoIcon.edit.symbol)
+            .font(.system(size: Self.glyph, weight: .semibold))
+            .foregroundStyle(MonacoTheme.identityFill)
+            .frame(width: Self.diameter, height: Self.diameter)
+            .background(MonacoTheme.pencilFill, in: Circle())
+            .overlay { Circle().strokeBorder(MonacoTheme.identityFill, lineWidth: Self.ring) }
             .accessibilityHidden(true)
     }
 }
