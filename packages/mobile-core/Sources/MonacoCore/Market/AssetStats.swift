@@ -1,5 +1,15 @@
 import Foundation
 
+public struct AssetStatCell: Equatable, Sendable {
+    public let label: String
+    public let value: String
+
+    public init(label: String, value: String) {
+        self.label = label
+        self.value = value
+    }
+}
+
 public struct AssetStats: Equatable, Sendable {
     public let open: Int64?
     public let dayHigh: Int64?
@@ -21,6 +31,15 @@ public struct AssetStats: Equatable, Sendable {
         yearHigh = yearCandles.map(\.highUsdcMicros).max()
         yearLow = yearCandles.map(\.lowUsdcMicros).min()
         previousClose = Self.previousClose(priceMicros: priceMicros, changeBasisPoints: changeBasisPoints)
+    }
+
+    public var cells: [AssetStatCell] {
+        [
+            ("Open", open), ("Previous close", previousClose), ("Day high", dayHigh), ("Day low", dayLow),
+            ("52-week high", yearHigh), ("52-week low", yearLow),
+        ].compactMap { label, micros in
+            micros.map { AssetStatCell(label: label, value: UsdAmountFormatter.format(micros: $0)) }
+        }
     }
 
     public func yearRangeBasisPoints(priceMicros: Int64?) -> Int64? {

@@ -62,3 +62,40 @@ final class AssetStatsTests: XCTestCase {
         XCTAssertEqual(label(.preIpo), "2.5 tokens")
     }
 }
+
+extension AssetStatsTests {
+    func testTheGridCellsRunOpenPreviousCloseDayRangeThenTheYearRange() {
+        let day = AssetChartSeries(
+            range: .oneDay,
+            points: [
+                MarketChartPoint(
+                    timestamp: 1, priceUsdcMicros: 101_000_000, openUsdcMicros: 100_000_000,
+                    highUsdcMicros: 105_000_000, lowUsdcMicros: 99_000_000)
+            ])
+        let year = AssetChartSeries(
+            range: .oneYear,
+            points: [
+                MarketChartPoint(
+                    timestamp: 1, priceUsdcMicros: 120_000_000, openUsdcMicros: 100_000_000,
+                    highUsdcMicros: 150_000_000, lowUsdcMicros: 90_000_000)
+            ])
+        let stats = AssetStats(day: day, year: year, priceMicros: 110_000_000, changeBasisPoints: 1000)
+
+        XCTAssertEqual(
+            stats.cells,
+            [
+                AssetStatCell(label: "Open", value: "$100.00"),
+                AssetStatCell(label: "Previous close", value: "$100.00"),
+                AssetStatCell(label: "Day high", value: "$105.00"),
+                AssetStatCell(label: "Day low", value: "$99.00"),
+                AssetStatCell(label: "52-week high", value: "$150.00"),
+                AssetStatCell(label: "52-week low", value: "$90.00"),
+            ])
+    }
+
+    func testTheGridLeavesOutACellTheCandlesCannotGive() {
+        let stats = AssetStats(day: nil, year: nil, priceMicros: 110_000_000, changeBasisPoints: 1000)
+
+        XCTAssertEqual(stats.cells, [AssetStatCell(label: "Previous close", value: "$100.00")])
+    }
+}
