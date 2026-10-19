@@ -35,13 +35,10 @@ type Preferences struct {
 }
 
 func (p Preferences) Enabled(c Category) bool {
-	switch c {
-	case CategoryDecisionRequests:
+	if c == CategoryDecisionRequests {
 		return p.DecisionRequests
-	case CategoryRepliesAndMentions:
-		return p.RepliesAndMentions
 	}
-	return true
+	return p.RepliesAndMentions
 }
 
 func PreferencesFrom(enabled map[Category]bool) Preferences {

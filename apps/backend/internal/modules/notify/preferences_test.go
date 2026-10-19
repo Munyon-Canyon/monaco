@@ -20,6 +20,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/notify/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -283,5 +284,56 @@ func TestCategoryOf_classifiesEveryKindExactlyOnce(t *testing.T) {
 				t.Errorf("kind %q is in %q (%v), want %q and a Name() in app/", name, got, ok, want)
 			}
 		}
+	}
+}
+
+func (r *pushRig) dropPreferences(t *testing.T) {
+	t.Helper()
+	r.exec(t, `DROP TABLE notification_preferences`)
+}
+
+func TestPreferences_failWhenTheUsersPortFails(t *testing.T) {
+	t.Parallel()
+	r := newPushRig(t)
+	user := r.user(t, "active")
+	users := failingUsers{errs.New(errs.CodeDBUnavailable, "test")}
+
+	_, getErr := app.GetNotificationPreferences(t.Context(), r.pool, users, user)
+	_, setErr := app.NewSetNotificationPreferencesHandler(r.uow, users, r.clock).
+		Handle(t.Context(), app.SetNotificationPreferences{UserID: user})
+
+	wantVerdict(t, getErr, errs.CodeDBUnavailable, errs.VerdictFor(errs.CodeDBUnavailable))
+	wantVerdict(t, setErr, errs.CodeDBUnavailable, errs.VerdictFor(errs.CodeDBUnavailable))
+}
+
+func TestPreferences_failWhenTheTableIsUnavailable(t *testing.T) {
+	t.Parallel()
+	r := newPushRig(t)
+	user := r.user(t, "active")
+	r.dropPreferences(t)
+
+	_, getErr := app.GetNotificationPreferences(t.Context(), r.pool, r.users, user)
+	_, setErr := app.NewSetNotificationPreferencesHandler(r.uow, r.users, r.clock).
+		Handle(t.Context(), app.SetNotificationPreferences{UserID: user})
+
+	if errs.CodeOf(getErr) != errs.CodeDBUnavailable || setErr == nil {
+		t.Fatalf("get = %v, set = %v, want a db_unavailable read and a failed save", getErr, setErr)
+	}
+}
+
+func TestPush_naksWhenPreferencesCannotBeRead(t *testing.T) {
+	t.Parallel()
+	r := newPushRig(t)
+	user := r.user(t, "active")
+	r.device(t, user, token('a'))
+	d, e := r.trigger(t, opsActor, user)
+	r.dropPreferences(t)
+
+	err := r.handle(t, r.sender, d, e, app.Test{})
+
+	wantVerdict(t, err, errs.CodeDBUnavailable, errs.VerdictFor(errs.CodeDBUnavailable))
+	r.wantKinds(t)
+	if sent := r.sender.Sent(); len(sent) != 0 {
+		t.Fatalf("sent %d pushes, want none before preferences are read", len(sent))
 	}
 }
