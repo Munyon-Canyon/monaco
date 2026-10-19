@@ -4,11 +4,10 @@ import Testing
 
 @testable import Monaco
 
-/// The one line under a sign-in field: whichever of the error, the hint and the explainer is
-/// most pressing, and never two of them at once.
+/// What the form says besides its helper: whichever of the error, the in-flight note and the
+/// address hint is most pressing, and never two notices at once.
 @MainActor
 struct OTPFieldCaptionTests {
-    private let explainer = OTPDestination.sms.caption
     private let hint = OTPDestination.sms.invalidHint
 
     private func caption(
@@ -20,32 +19,40 @@ struct OTPFieldCaptionTests {
         OTPFieldCaption.resolve(
             phase: phase,
             isCodeStep: codeStep,
-            explainer: explainer,
             invalidHint: invalid ? hint : nil,
             resent: resent
         )
     }
 
-    @Test func anUntouchedAddressStepSaysWhatTheButtonWillDo() {
-        #expect(caption(.idle) == .note(explainer))
-        #expect(caption(.sendingCode) == .note(explainer))
+    @Test func anUntouchedAddressStepSaysNothingBesidesItsHelper() {
+        #expect(caption(.idle) == nil)
     }
 
-    @Test func aNumberThatCannotBeTextedGetsTheHintInsteadOfTheExplainer() {
+    @Test func aSendInFlightIsAnInfoNotice() {
+        let sending = caption(.sendingCode)
+        #expect(sending == .note(OTPFieldCaption.sendingCode))
+        #expect(sending?.tone == .info)
+    }
+
+    @Test func aNumberThatCannotBeTextedGetsTheHintAboveTheHelper() {
         #expect(caption(.idle, invalid: true) == .hint(hint))
+        #expect(caption(.idle, invalid: true)?.tone == nil)
     }
 
     @Test func aFailureWinsOnEitherStep() {
         let message = LoginFailureCopy.message(for: .rateLimited, step: .sendCode)
         #expect(caption(.failed(message: message), invalid: true) == .error(message))
         #expect(caption(.failed(message: message), codeStep: true, resent: true) == .error(message))
-        #expect(caption(.failed(message: message))?.isError == true)
+        #expect(caption(.failed(message: message))?.tone == .error)
     }
 
-    /// The read-back above the code field already says where the code went.
     @Test func theCodeStepIsQuietUntilThereIsSomethingToSay() {
         #expect(caption(.awaitingCode, codeStep: true) == nil)
-        #expect(caption(.verifyingCode, codeStep: true) == nil)
+    }
+
+    @Test func aCodeBeingCheckedIsAnInfoNotice() {
+        #expect(caption(.verifyingCode, codeStep: true) == .note(OTPFieldCaption.verifyingCode))
+        #expect(caption(.verifyingCode, codeStep: true)?.tone == .info)
     }
 
     @Test func aResendIsSaidWhileItRunsAndOnceItLands() {
@@ -54,17 +61,77 @@ struct OTPFieldCaptionTests {
     }
 }
 
+/// Which layout the login screen draws, read off the flow.
+@MainActor
+struct LoginFlowLayoutTests {
+    private func codeStep(sentTo address: String = "+15551234567") -> LoginFlow {
+        var flow = LoginFlow()
+        _ = flow.beginSend()
+        flow.sendSucceeded(destination: address)
+        return flow
+    }
+
+    @Test func theAddressStepIsNotTheCodeStep() {
+        #expect(!LoginFlow().isOnCodeStep)
+    }
+
+    @Test func aSentCodeAndASignedInMemberAreBothOnTheCodeStep() {
+        var flow = codeStep()
+        #expect(flow.isOnCodeStep)
+        flow.authenticated(userID: "user")
+        #expect(flow.isOnCodeStep)
+    }
+
+    @Test func onlyAnOfflineFailureDrawsTheTryAgainState() {
+        var offline = LoginFlow()
+        offline.sendFailed(message: OTPCode.offlineMessage)
+        #expect(offline.isOffline)
+
+        var throttled = LoginFlow()
+        throttled.sendFailed(message: LoginFailureCopy.message(for: .rateLimited, step: .sendCode))
+        #expect(!throttled.isOffline)
+
+        var rejected = codeStep()
+        _ = rejected.beginVerify()
+        rejected.verifyFailed(message: OTPCode.rejectedMessage)
+        #expect(!rejected.isOffline)
+    }
+
+    @Test func offlineOnTheCodeStepKeepsTheCodeStep() {
+        var flow = codeStep()
+        _ = flow.beginVerify()
+        flow.verifyFailed(message: OTPCode.offlineMessage)
+        #expect(flow.isOffline)
+        #expect(flow.isOnCodeStep)
+    }
+
+    @Test func tryAgainReturnsToTheStepTheFailureLeft() {
+        var address = LoginFlow()
+        address.sendFailed(message: OTPCode.offlineMessage)
+        address.clearFailure()
+        #expect(!address.isOffline)
+        #expect(!address.isOnCodeStep)
+
+        var code = codeStep()
+        _ = code.beginVerify()
+        code.verifyFailed(message: OTPCode.offlineMessage)
+        code.clearFailure()
+        #expect(!code.isOffline)
+        #expect(code.isOnCodeStep)
+    }
+}
+
 /// The button says what it will do, or what it is doing.
 @MainActor
 struct OTPPrimaryActionTests {
     @Test func theAddressStepSendsACode() {
         #expect(OTPPrimaryAction.title(phase: .idle, isCodeStep: false) == "Send code")
-        #expect(OTPPrimaryAction.title(phase: .sendingCode, isCodeStep: false) == "Sending code\u{2026}")
+        #expect(OTPPrimaryAction.title(phase: .sendingCode, isCodeStep: false) == "Sending\u{2026}")
     }
 
-    @Test func theCodeStepSignsIn() {
+    @Test func theCodeStepContinues() {
         #expect(OTPPrimaryAction.title(phase: .awaitingCode, isCodeStep: true) == "Continue")
-        #expect(OTPPrimaryAction.title(phase: .verifyingCode, isCodeStep: true) == "Signing you in\u{2026}")
+        #expect(OTPPrimaryAction.title(phase: .verifyingCode, isCodeStep: true) == "Verifying\u{2026}")
     }
 
     /// A new code on its way is not the member signing in.
@@ -118,14 +185,21 @@ struct WelcomeCopyTests {
         let strings = [
             SessionGateCopy.restoreFailedTitle,
             SessionGateCopy.openFailedTitle,
+            OTPFieldCaption.sendingCode,
+            OTPFieldCaption.verifyingCode,
             OTPFieldCaption.sendingNewCode,
             OTPFieldCaption.newCodeSent,
+            OTPCode.offlineMessage,
             OTPDestination.sms.caption,
+            OTPDestination.sms.placeholder,
             OTPDestination.sms.invalidHint,
             OTPDestination.sms.changeLabel,
+            OTPDestination.sms.verifyTitle,
             OTPDestination.email.caption,
+            OTPDestination.email.placeholder,
             OTPDestination.email.invalidHint,
             OTPDestination.email.changeLabel,
+            OTPDestination.email.verifyTitle,
             OTPPrimaryAction.title(phase: .idle, isCodeStep: false),
             OTPPrimaryAction.title(phase: .sendingCode, isCodeStep: false),
             OTPPrimaryAction.title(phase: .awaitingCode, isCodeStep: true),

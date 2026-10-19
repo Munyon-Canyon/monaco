@@ -12,19 +12,21 @@ enum OTPChannel {
 
 struct OTPDestination {
     let channel: OTPChannel
-    /// Under the empty field: what the button will do.
+    /// Under the field, always: what the button will do.
     let caption: String
     let prompt: String
+    let placeholder: String
     let keyboardType: UIKeyboardType
     let contentType: UITextContentType
     /// Shown under the field once what's typed can't be sent to.
     let invalidHint: String
     let changeLabel: String
+    let verifyTitle: String
     let addressFieldIdentifier: String
     let identifierPrefix: String
     /// The address in the shape the provider needs, or nil when it isn't one yet.
     let normalize: (String) -> String?
-    /// How the address reads back in "We sent a code to …".
+    /// How the address reads back under "Enter the 6-digit code sent to".
     let display: (String) -> String
 }
 
@@ -40,18 +42,35 @@ enum OTPCode {
     static var rejectedMessage: String {
         LoginFailureCopy.message(for: .codeRejected, step: .verifyCode)
     }
+
+    static var offlineMessage: String {
+        LoginFailureCopy.message(for: .offline, step: .sendCode)
+    }
 }
 
-/// The one line under a sign-in field. One slot, so an error, a hint and the explainer never
-/// stack up under the field: the most pressing of them is the one that shows.
+extension LoginFlow {
+    var isOnCodeStep: Bool {
+        if case .authenticated = phase { return true }
+        return isCodeEntry
+    }
+
+    var isOffline: Bool {
+        phase == .failed(message: OTPCode.offlineMessage)
+    }
+}
+
+/// What the form says besides its helper: an error or an in-flight note as a notice, an address
+/// hint as the line above the helper. One slot, so two notices never stack up.
 enum OTPFieldCaption: Equatable {
     /// The last request failed. Set in `loss`.
     case error(String)
     /// What's typed can't be sent to yet.
     case hint(String)
-    /// What the button will do, or what just happened.
+    /// What is happening, or just happened.
     case note(String)
 
+    static let sendingCode = "Sending your sign-in code\u{2026}"
+    static let verifyingCode = "Verifying your code\u{2026}"
     static let sendingNewCode = "Sending a new code\u{2026}"
     static let newCodeSent = "New code sent."
 
@@ -61,26 +80,30 @@ enum OTPFieldCaption: Equatable {
         }
     }
 
-    var isError: Bool {
-        if case .error = self { return true }
-        return false
+    var tone: MonacoNotice.Tone? {
+        switch self {
+        case .error: return .error
+        case .note: return .info
+        case .hint: return nil
+        }
     }
 
     static func resolve(
         phase: LoginPhase,
         isCodeStep: Bool,
-        explainer: String,
         invalidHint: String?,
         resent: Bool
     ) -> OTPFieldCaption? {
         if case .failed(let message) = phase { return .error(message) }
         if isCodeStep {
-            // The read-back above the field already says where the code went.
-            if phase == .sendingCode { return .note(sendingNewCode) }
-            return resent ? .note(newCodeSent) : nil
+            switch phase {
+            case .verifyingCode: return .note(verifyingCode)
+            case .sendingCode: return .note(sendingNewCode)
+            default: return resent ? .note(newCodeSent) : nil
+            }
         }
-        if let invalidHint { return .hint(invalidHint) }
-        return .note(explainer)
+        if phase == .sendingCode { return .note(sendingCode) }
+        return invalidHint.map { .hint($0) }
     }
 }
 
@@ -89,9 +112,9 @@ enum OTPPrimaryAction {
     static func title(phase: LoginPhase, isCodeStep: Bool) -> String {
         if isCodeStep {
             // A resend in flight is not the member signing in: the button keeps its name.
-            return phase == .verifyingCode ? "Signing you in\u{2026}" : "Continue"
+            return phase == .verifyingCode ? "Verifying\u{2026}" : "Continue"
         }
-        return phase == .sendingCode ? "Sending code\u{2026}" : "Send code"
+        return phase == .sendingCode ? "Sending\u{2026}" : "Send code"
     }
 }
 
@@ -99,22 +122,21 @@ enum OTPPrimaryAction {
 /// address they ask for, so both run through this one form, and the code rules (6 digits, digits
 /// only, auto-submit) live in a single place.
 ///
-/// The code step reads the address back rather than leaving a greyed-out copy of the field on
-/// screen, takes the code in the market's mono with wide tracking, and keeps "Send a new code" and
-/// "Change number" as text under the button. Whatever needs saying goes in the caption line under
-/// the field.
+/// The address step is a labelled field, a helper and the button. The code step is its own screen:
+/// a back button, the boxes and the button, with "Send a new code" and "Change number" as text
+/// under it. When the connection is down either step gives way to a "Try again" empty state.
 struct OTPLoginForm: View {
     @ObservedObject var auth: PrivyAuthService
     let destination: OTPDestination
     /// The login screen's scroll view, so the button can be kept above the keyboard.
     let scroll: ScrollViewProxy
 
-    @State private var address = ""
+    @State private var address: String
     @State private var otpCode: String
-    /// A new code went out after the first one. Said once under the field, until the member types.
+    /// A new code went out after the first one. Said once under the boxes, until the member types.
     @State private var resent = false
     @State private var cooldown = ResendCooldown(clock: ContinuousClock())
-    @State private var addressHintArmed = false
+    @State private var addressHintArmed: Bool
     @FocusState private var focusedField: Field?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.analytics) private var analytics
@@ -129,12 +151,16 @@ struct OTPLoginForm: View {
         auth: PrivyAuthService,
         destination: OTPDestination,
         scroll: ScrollViewProxy,
-        initialCode: String = ""
+        initialCode: String = "",
+        initialAddress: String = ""
     ) {
         self.auth = auth
         self.destination = destination
         self.scroll = scroll
         _otpCode = State(initialValue: initialCode)
+        _address = State(initialValue: initialAddress)
+        _addressHintArmed = State(
+            initialValue: !initialAddress.isEmpty && destination.normalize(initialAddress) == nil)
     }
 
     // The form calls the service itself rather than through closures the two login views
@@ -158,30 +184,21 @@ struct OTPLoginForm: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if isCodeStep {
-                if let sentTo = auth.flow.destination {
-                    readBack(sentTo)
-                        .padding(.bottom, MonacoTheme.Space.sm)
-                }
-                codeField
+                VerifyCodeHeader(
+                    backIdentifier: "\(destination.identifierPrefix)VerifyBackButton",
+                    onBack: changeAddress
+                )
+                .disabled(auth.flow.isBusy)
+                .authStepTransition(reduceMotion: reduceMotion)
+            }
+            if auth.flow.isOffline {
+                offlineState
+            } else if isCodeStep {
+                verifyStep
             } else {
-                addressField
+                addressStep
             }
-
-            if let caption {
-                captionLine(caption)
-                    .padding(.top, MonacoTheme.Space.s)
-            }
-
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                primaryButton
-                if isCodeStep {
-                    codeActions
-                }
-            }
-            .padding(.top, MonacoTheme.Space.l)
-            .id(OTPCode.actionsAnchor)
         }
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: isCodeStep)
         .revealsWhileActive(
             OTPCode.actionsAnchor,
             isActive: focusedField != nil,
@@ -195,6 +212,10 @@ struct OTPLoginForm: View {
             }
             Haptics.warning()
             AccessibilityNotification.Announcement(message).post()
+        }
+        .onChange(of: caption) { _, latest in
+            guard case .note(let text)? = latest else { return }
+            AccessibilityNotification.Announcement(text).post()
         }
         .onChange(of: isCodeStep) { _, onCodeStep in
             if onCodeStep { restartCooldown() }
@@ -212,26 +233,80 @@ struct OTPLoginForm: View {
             }
         }
     }
+}
+
+extension OTPLoginForm {
+    // MARK: Steps
+
+    private var addressStep: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(destination.prompt)
+                .font(MonacoTheme.Typo.captionStrong)
+                .foregroundStyle(MonacoTheme.ink)
+                .padding(.bottom, MonacoTheme.Space.s)
+                .accessibilityHidden(true)
+            addressField
+            hintLine
+            Text(destination.caption)
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, MonacoTheme.Space.s)
+            noticeLine(after: MonacoTheme.Space.sm)
+            actions
+        }
+        .authStepTransition(reduceMotion: reduceMotion)
+    }
+
+    private var verifyStep: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+                Text(destination.verifyTitle)
+                    .authHeadline()
+                if let sentTo = auth.flow.destination {
+                    sentLine(sentTo)
+                }
+            }
+            .padding(.top, MonacoTheme.Space.xl)
+            codeField
+                .padding(.top, MonacoTheme.Space.l)
+            noticeLine(after: MonacoTheme.Space.m)
+            actions
+        }
+        .authStepTransition(reduceMotion: reduceMotion)
+    }
+
+    private var offlineState: some View {
+        EmptyState(
+            title: "Couldn't load this view",
+            message: "Your existing information hasn't been changed. Try again when your connection is available.",
+            actionTitle: "Try again",
+            systemImage: MonacoIcon.offline.symbol,
+            action: retryAfterOffline
+        )
+        .authStepTransition(reduceMotion: reduceMotion)
+    }
 
     // MARK: Pieces
 
-    /// "We sent a code to +1 555 123 4567": the sentence in the brand's voice, the address in
-    /// the market's, as an address is set everywhere else in the app.
-    private func readBack(_ sentTo: String) -> some View {
-        let sentAddress: Text = Text(destination.display(sentTo))
-            .font(MonacoTheme.Typo.data)
-            .foregroundStyle(MonacoTheme.ink)
-        return Text("We sent a code to \(sentAddress)")
-            .font(MonacoTheme.Typo.callout)
-            .foregroundStyle(MonacoTheme.muted)
-            .fixedSize(horizontal: false, vertical: true)
+    private func sentLine(_ sentTo: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Enter the \(OTPCode.length)-digit code sent to")
+                .font(MonacoTheme.Typo.body)
+            Text(destination.display(sentTo))
+                .font(MonacoTheme.Typo.headline)
+        }
+        .foregroundStyle(MonacoTheme.muted)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
     private var addressField: some View {
         TextField(
             destination.prompt,
             text: $address,
-            prompt: Text(destination.prompt).foregroundStyle(MonacoTheme.disabledLabel)
+            prompt: Text(destination.placeholder).foregroundStyle(MonacoTheme.muted)
         )
         .keyboardType(destination.keyboardType)
         .textContentType(destination.contentType)
@@ -242,7 +317,11 @@ struct OTPLoginForm: View {
             Task { await sendCode() }
         }
         .focused($focusedField, equals: .address)
-        .authTextFieldStyle(isFocused: focusedField == .address, focus: { focusedField = .address })
+        .authTextFieldStyle(
+            isFocused: focusedField == .address,
+            isInvalid: showsAddressHint,
+            focus: { focusedField = .address }
+        )
         .accessibilityIdentifier(destination.addressFieldIdentifier)
     }
 
@@ -270,19 +349,35 @@ struct OTPLoginForm: View {
     }
 
     @ViewBuilder
-    private func captionLine(_ caption: OTPFieldCaption) -> some View {
-        let line = Text(caption.text)
-            .font(MonacoTheme.Typo.caption)
-            .foregroundStyle(caption.isError ? MonacoTheme.loss : MonacoTheme.muted)
-        switch caption {
-        case .hint:
-            line
+    private var hintLine: some View {
+        if case .hint(let text) = caption {
+            Text(text)
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.loss)
                 .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, MonacoTheme.Space.xs)
                 .accessibilityIdentifier("\(destination.identifierPrefix)AddressHint")
-        case .error, .note:
-            line
-                .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    @ViewBuilder
+    private func noticeLine(after spacing: CGFloat) -> some View {
+        if let caption, let tone = caption.tone {
+            MonacoNotice(tone, message: caption.text)
+                .padding(.top, spacing)
+        }
+    }
+
+    private var actions: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            primaryButton
+            if isCodeStep {
+                codeActions
+                    .padding(.top, MonacoTheme.Space.m)
+            }
+        }
+        .padding(.top, MonacoTheme.Space.l)
+        .id(OTPCode.actionsAnchor)
     }
 
     @ViewBuilder
@@ -316,19 +411,23 @@ struct OTPLoginForm: View {
         }
     }
 
-    /// Side by side, the way Home sets "Add money" and "Cash out"; one under the other at the
-    /// accessibility sizes, where two labels in a row run into each other.
+    /// The two ends sit apart, as in the design; one under the other at the accessibility sizes,
+    /// where two labels in a row run into each other.
     private var codeActions: some View {
+        let isStacked = dynamicTypeSize.isAccessibilitySize
         let layout =
-            dynamicTypeSize.isAccessibilitySize
+            isStacked
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
-            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.l))
+            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.m))
         return layout {
             TimelineView(.periodic(from: .now, by: 1)) { _ in
                 textAction(cooldown.label, identifier: "\(destination.identifierPrefix)ResendCodeButton") {
                     Task { await resendCode() }
                 }
                 .disabled(!cooldown.canResend || auth.flow.isBusy)
+            }
+            if !isStacked {
+                Spacer(minLength: 0)
             }
             textAction(destination.changeLabel, identifier: "\(destination.identifierPrefix)ChangeAddressButton") {
                 changeAddress()
@@ -344,7 +443,9 @@ struct OTPLoginForm: View {
         .disabled(auth.flow.isBusy)
         .accessibilityIdentifier(identifier)
     }
+}
 
+extension OTPLoginForm {
     // MARK: Actions
 
     private func sendCode() async {
@@ -381,6 +482,18 @@ struct OTPLoginForm: View {
         }
     }
 
+    private func retryAfterOffline() {
+        guard isCodeStep else {
+            auth.clearLoginFailure()
+            return
+        }
+        otpCode = ""
+        auth.clearLoginFailure()
+        DispatchQueue.main.async {
+            focusedField = .code
+        }
+    }
+
     private func submitCode(_ code: String) async {
         if auth.pendingUser != nil {
             guard !auth.flow.isBusy else { return }
@@ -405,10 +518,7 @@ extension OTPLoginForm {
         auth.flow.destination ?? destination.normalize(address)
     }
 
-    private var isCodeStep: Bool {
-        if case .authenticated = auth.flow.phase { return true }
-        return auth.flow.isCodeEntry
-    }
+    private var isCodeStep: Bool { auth.flow.isOnCodeStep }
 
     private var showsAddressHint: Bool {
         !isCodeStep
@@ -434,7 +544,6 @@ extension OTPLoginForm {
         OTPFieldCaption.resolve(
             phase: auth.flow.phase,
             isCodeStep: isCodeStep,
-            explainer: destination.caption,
             invalidHint: showsAddressHint ? destination.invalidHint : nil,
             resent: resent
         )

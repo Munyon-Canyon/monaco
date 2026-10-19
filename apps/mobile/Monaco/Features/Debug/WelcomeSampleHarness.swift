@@ -14,12 +14,19 @@ import SwiftUI
 enum WelcomeSampleScenario: String, CaseIterable {
     /// Back on login after the session ended, with the reason over the form.
     case signedOut
+    case signInPhone
+    case signInEmail
+    case addressInvalid
+    case sending
+    case sendOffline
     /// A code went to a phone number; the code field is empty.
     case code
     /// A code went to an email address.
     case emailCode
     /// The six digits typed in were turned down.
     case codeRejected
+    case verifying
+    case verifyOffline
     /// Launch, restoring a saved sign-in: the launch mark, held.
     case restoring
     /// The saved sign-in couldn't be checked (offline).
@@ -47,7 +54,8 @@ struct WelcomeSampleHarness: View {
 
     var body: some View {
         switch scenario {
-        case .signedOut, .code, .codeRejected, .emailCode:
+        case .signedOut, .signInPhone, .signInEmail, .addressInvalid, .sending, .sendOffline,
+            .code, .emailCode, .codeRejected, .verifying, .verifyOffline:
             SampleLoginScreen(scenario: scenario)
         case .restoring:
             SessionRestoringView()
@@ -85,10 +93,12 @@ private struct SampleLoginScreen: View {
 
     var body: some View {
         switch scenario {
-        case .codeRejected:
+        case .codeRejected, .verifying, .verifyOffline:
             LoginView(auth: signIn, methods: [.sms, .email], initialCode: "465354")
-        case .emailCode:
+        case .emailCode, .signInEmail:
             LoginView(auth: signIn, methods: [.sms, .email], initialMethod: .email)
+        case .addressInvalid:
+            LoginView(auth: signIn, methods: [.sms, .email], initialAddress: "202 555")
         default:
             LoginView(auth: signIn, methods: [.sms, .email])
         }
@@ -109,6 +119,16 @@ final class SampleSignIn: PrivyAuthService {
         case .signedOut:
             flow = LoginFlow()
             lastSignOutReason = LoginFailureCopy.sessionExpired
+        case .signInPhone, .signInEmail, .addressInvalid:
+            flow = LoginFlow()
+        case .sending:
+            var sending = LoginFlow()
+            _ = sending.beginSend()
+            flow = sending
+        case .sendOffline:
+            var offline = LoginFlow()
+            offline.sendFailed(message: OTPCode.offlineMessage)
+            flow = offline
         case .code:
             flow = SampleSignIn.onCodeStep(sentTo: "+15551234567")
         case .emailCode:
@@ -118,6 +138,15 @@ final class SampleSignIn: PrivyAuthService {
             _ = rejected.beginVerify()
             rejected.verifyFailed(message: OTPCode.rejectedMessage)
             flow = rejected
+        case .verifying:
+            var verifying = SampleSignIn.onCodeStep(sentTo: "+15551234567")
+            _ = verifying.beginVerify()
+            flow = verifying
+        case .verifyOffline:
+            var offline = SampleSignIn.onCodeStep(sentTo: "+15551234567")
+            _ = offline.beginVerify()
+            offline.verifyFailed(message: OTPCode.offlineMessage)
+            flow = offline
         case .restoring, .restoreFailed, .gateLoading, .gateFailed, .emptyStates:
             flow = LoginFlow()
         }

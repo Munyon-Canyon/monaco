@@ -83,6 +83,27 @@ Profile ┬─ Followers / Following ──▶ FollowListRoute
 
 #2134 adds the slots and route stubs this page names that do not exist yet: `HomeCabalsSlot`, `CabalSliceSlot`, `CabalValueChartSlot`, `CabalActionsSlot`, `CabalHoldingsSlot`, `CabalRulesSlot`, `ProfileStatsSlot`, `ProfileCabalsSlot`, and the routes `JoinRoute()`, `FundRoute(cabalID:)`, `ChatRoute(cabalID:)`, `SettingsRoute()`, `AccountActivityRoute()`, `ProposeFromAssetRoute(symbol:kind:)`. It removes the `CabalCashOutSlot`, `CabalChatSlot` and `ProfileDeleteAccountSlot` stubs, whose jobs move to the action row and Settings.
 
+## Sign in
+
+`LoginView` draws two layouts over one `OTPLoginForm`, so the address, the cooldown and the typed code survive a step change. The design is `docs/design/v3/` (`signin` and `verify`). The journey is [Sign in](journeys/auth/sign-in.md), and it drives the same identifiers in both layouts.
+
+| Layout | Top to bottom |
+| --- | --- |
+| Sign in | Wordmark "monaco" (`MonacoWordmark`, header). Headline "Your people. / Your next chapter." and "Pool funds. Propose an investment. / Decide together." The sign-out reason, when set, as an info notice (`signOutReasonNotice`). The "Text message" / "Email" segments, when both methods are on. A label ("Phone number" or "Email address") over a 48 pt field with the placeholder "+1 (202) 555-0100" or "you@example.com", then the helper "We'll send a code to sign you in." Primary "Send code" (`smsSendCodeButton`, `emailSendCodeButton`). The cover card "One pot. Shared decisions." / "Join a cabal with people you know, or start your own." (`AuthCoverCard`: a `CabalCover` thumb with the brand tint gradient and the mark, no stock photo, [decision 8](design/v3/decisions.md)). Debug builds add "Dev: sign in as …" under it |
+| Verify code | `VerifyCodeHeader`: a glass "Back" button (`smsVerifyBackButton`, `emailVerifyBackButton`) and the title "Verify code". "Check your messages." (SMS) or "Check your email.", then "Enter the 6-digit code sent to" over the address. Six code boxes, one text field (`smsCodeField`, `emailCodeField`). Primary "Continue" (`smsVerifyButton`, `emailVerifyButton`). Text links "Send a new code" (`smsResendCodeButton`, counts down as "Send a new code in 23s") and "Change number" or "Change email" (`smsChangeAddressButton`) |
+
+Back, "Change number" and "Change email" all return to the address step with the address kept. A code of six digits submits on the sixth.
+
+| State | Sign in | Verify code |
+| --- | --- | --- |
+| Loading | Info notice "Sending your sign-in code…" under the helper, button "Sending…" and held | Info notice "Verifying your code…", button "Verifying…" and held |
+| Empty | The empty field with its placeholder | Six empty boxes |
+| Error row | The address can't be sent to: the field border and the line "Enter your full mobile number." (or "Enter an email address, like you@example.com.") turn `loss` above the helper. Any other failed send: an error notice with the `LoginFailureCopy` message | A rejected code: the boxes turn `loss`, the code clears, and an error notice reads "That code didn't work. Check it, or send a new one." Any other failure: an error notice with its message |
+| Error toast | The offline failure also raises an error toast | The same |
+| Connection error | The offline failure replaces the method segments, the field, the button and the cover card with "Couldn't load this view" and "Try again", under the wordmark and headline. "Try again" clears the failure and keeps the address | Replaces everything under the bar. "Try again" clears the failure and the boxes, and keeps the cooldown |
+
+Privy does not report an expired code apart from a rejected one, so the design's expired state ("That code expired. Request a new one.", warn tone) is not drawn: both show the rejected notice. Draw it when `LoginFailure` gains an `expired` case.
+
 ## Home
 
 Pull to refresh. Refreshes on the hints its slots name. Toolbar: the viewer's avatar at the top right opens the Profile tab (#2134).
