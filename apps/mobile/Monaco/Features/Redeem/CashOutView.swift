@@ -3,22 +3,36 @@ import MonacoAnalytics
 import MonacoCore
 import SwiftUI
 
+enum CashOutStep: Equatable {
+    case entry
+    case review
+}
+
 struct CashOutView: View {
     let cabalID: String
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
-    @Environment(\.dismiss) private var dismiss
     @State private var model: CashOutModel?
+    @State private var cabal: CabalActionsModel?
     @State private var amountText = ""
+    @State private var step = CashOutStep.entry
+    @State private var startedJob: CashOutJob?
 
     var body: some View {
         CashOutContent(
             model: model,
+            cabalName: cabal?.cabalName,
             runningJob: environment.cashOuts.job(for: cabalID),
+            startedJob: startedJob,
+            settledNotice: settledNotice,
             amountText: $amountText,
+            step: step,
+            onReview: { step = .review },
+            onBack: { step = .entry },
             onSubmit: { Task { await submit() } },
-            onFund: { environment.navigator.open(FundRoute(cabalID: cabalID), in: environment.navigator.selectedTab) }
+            onFund: { environment.navigator.open(FundRoute(cabalID: cabalID), in: environment.navigator.selectedTab) },
+            onActivity: { environment.navigator.open(AccountActivityRoute(), in: environment.navigator.selectedTab) }
         )
         .analyticsScreen("cash_out", step: .cashOut(.cashOutOpened))
         .task {
@@ -27,7 +41,20 @@ struct CashOutView: View {
             await model.load()
             await model.observe()
         }
+        .task {
+            let cabal =
+                self.cabal ?? CabalActionsModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
+            self.cabal = cabal
+            await cabal.load()
+        }
         .onScreenVisibilityChange { model?.setVisible($0) }
+    }
+
+    private var settledNotice: CashOutNotice? {
+        guard let startedJob, let notice = environment.cashOuts.notice, notice.jobID == startedJob.id else {
+            return nil
+        }
+        return notice
     }
 
     private func submit() async {
@@ -37,9 +64,10 @@ struct CashOutView: View {
             environment.cashOuts.track(job)
             Haptics.success()
             toasts.show(success: job.startedToast)
-            dismiss()
+            startedJob = job
         case .refused(let message):
             toasts.current = MonacoToast(message: message)
+            step = .review
         case nil:
             break
         }
@@ -48,14 +76,41 @@ struct CashOutView: View {
 
 struct CashOutContent: View {
     let model: CashOutModel?
+    var cabalName: String?
+    var failure: APIError?
     let runningJob: CashOutJob?
+    var startedJob: CashOutJob?
+    var settledNotice: CashOutNotice?
     @Binding var amountText: String
+    var step = CashOutStep.entry
+    var onReview: () -> Void = {}
+    var onBack: () -> Void = {}
     let onSubmit: () -> Void
     let onFund: () -> Void
+    var onActivity: () -> Void = {}
 
     private var enteredMicros: Int64 { AmountEntryText.micros(amountText) ?? 0 }
 
+    private var state: LoadState<CashOutPreview> {
+        if let failure { return .failed(failure) }
+        return model?.state ?? .loading
+    }
+
+    private var isSubmitting: Bool { model?.isSubmitting ?? false }
+
     var body: some View {
+        Group {
+            if let startedJob {
+                outcome(startedJob)
+            } else {
+                form
+            }
+        }
+        .navigationTitle("Cash out your share")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var form: some View {
         ScrollView {
             content
                 .padding(.top, MonacoTheme.Space.s)
@@ -64,54 +119,44 @@ struct CashOutContent: View {
         .scrollBounceBehavior(.basedOnSize)
         .monacoCanvas()
         .safeAreaInset(edge: .bottom) {
-            if runningJob == nil, let preview = model?.preview, Self.canEnterAmount(preview) {
-                submitBar(preview)
+            if let preview = model?.preview, failure == nil, Self.canEnterAmount(preview) {
+                dock(preview)
             }
         }
-        .navigationBarBackButtonHidden(model?.isSubmitting ?? false)
-        .navigationTitle("Cash out")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(isSubmitting || step == .review)
+        .toolbar {
+            if step == .review, !isSubmitting {
+                ToolbarItem(placement: .topBarLeading) {
+                    MonacoGlassButton(
+                        systemImage: "chevron.left", accessibilityLabel: "Back", placement: .toolbar, action: onBack)
+                }
+            }
+        }
     }
 
     @ViewBuilder private var content: some View {
-        if let runningJob, let progress = runningJob.progress {
-            VStack(spacing: MonacoTheme.Space.m) {
-                AmountEntrySkeleton()
-                Text(progress)
-                    .font(MonacoTheme.Typo.rowTitle)
-                    .foregroundStyle(MonacoTheme.ink)
+        switch state {
+        case .idle, .loading:
+            AmountEntrySkeleton()
+                .padding(.horizontal, MonacoTheme.Space.gutter)
+                .accessibilityIdentifier("cash-out-loading")
+        case .failed:
+            MoneyLoadFailure(identifier: "cash-out-error") {
+                Task { await model?.load() }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.top, MonacoTheme.Space.xl)
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("cash-out-progress")
-        } else {
-            switch model?.state ?? .loading {
-            case .idle, .loading:
-                AmountEntrySkeleton()
-                    .padding(.horizontal, MonacoTheme.Space.gutter)
-                    .accessibilityIdentifier("cash-out-loading")
-            case .failed:
-                MonacoErrorRow(thing: "your slice", identifier: "cash-out-error") {
-                    Task { await model?.load() }
-                }
-            case .loaded(let preview):
-                loaded(preview)
-            }
+        case .loaded(let preview):
+            loaded(preview)
         }
     }
 
     private func loaded(_ preview: CashOutPreview) -> some View {
-        VStack(spacing: MonacoTheme.Space.l) {
-            if let pause = preview.pause {
-                CabalPauseRow(pause: pause)
-                    .padding(.horizontal, MonacoTheme.Space.gutter)
-            } else if !preview.hasStake {
+        VStack(spacing: MonacoTheme.Space.sm) {
+            if !preview.hasStake {
                 EmptyState(
                     title: "Nothing to cash out yet",
-                    message: "Fund this cabal first. Your slice shows up here.",
-                    actionTitle: "Fund",
+                    message: "Fund this cabal first. Your share shows up here.",
+                    actionTitle: "Fund this cabal",
+                    systemImage: "tray",
                     action: onFund
                 )
                 .accessibilityIdentifier("cash-out-empty")
@@ -121,11 +166,25 @@ struct CashOutContent: View {
                     message: Self.belowMinimumMessage(preview)
                 )
                 .accessibilityIdentifier("cash-out-below-minimum")
+            } else if step == .review {
+                shareStat(preview)
+                review(preview)
             } else {
+                MonacoNotice(
+                    .info,
+                    message:
+                        "Cash out of this cabal to your cash balance. External wallet withdrawal is a separate step."
+                )
+                .accessibilityIdentifier("cash-out-explainer")
+                if let pause = preview.pause {
+                    CabalPauseRow(pause: pause)
+                }
+                shareStat(preview)
                 amountEntry(preview)
-                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                entryNotices(preview)
             }
         }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
     }
 
     static func belowMinimumMessage(_ preview: CashOutPreview) -> String {
@@ -134,8 +193,25 @@ struct CashOutContent: View {
             + "so this one has to grow first."
     }
 
+    private func shareStat(_ preview: CashOutPreview) -> some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+            Text("Your share in \(cabalName ?? "this cabal")")
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.muted)
+            MoneyText(micros: UsdAmountFormatter.flooredToCents(preview.sliceMicros), style: .card)
+                .foregroundStyle(MonacoTheme.ink)
+                .accessibilityIdentifier("cash-out-share-value")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, MonacoTheme.Space.m)
+        .overlay(alignment: .top) { MonacoRule() }
+        .overlay(alignment: .bottom) { MonacoRule() }
+        .accessibilityElement(children: .combine)
+    }
+
     private func amountEntry(_ preview: CashOutPreview) -> some View {
         let verdict = preview.verdict(enteredMicros: enteredMicros)
+        let slice = UsdAmountFormatter.format(flooredMicros: preview.sliceMicros)
         return AmountEntry(
             amountText: $amountText,
             max: AmountEntryText.dollars(micros: preview.sliceMicros),
@@ -144,37 +220,104 @@ struct CashOutContent: View {
                 .fraction(0.5, label: "50%"),
                 .fraction(1, label: "All"),
             ],
-            helper: CashOutAmountRule.helper(
-                for: verdict, enteredMicros: enteredMicros, sliceMicros: preview.sliceMicros,
-                minimumMicros: preview.minMicros),
-            overLimitHelper: "More than your slice",
-            problem: CashOutAmountRule.problem(for: verdict, minimumMicros: preview.minMicros),
+            caption: "Cash-out request",
+            helper: verdict == .sellsWholeSlice
+                ? CashOutAmountRule.explainer(for: verdict) : "\(slice) current share value",
+            overLimitHelper: "",
             input: .keypad
-        ) {
-            AmountEntryNote(CashOutAmountRule.explainer(for: verdict))
-                .accessibilityIdentifier("cash-out-explainer")
-        }
+        )
         .accessibilityIdentifier("cash-out-amount")
+    }
+
+    @ViewBuilder
+    private func entryNotices(_ preview: CashOutPreview) -> some View {
+        let verdict = preview.verdict(enteredMicros: enteredMicros)
+        if verdict == .overSlice {
+            MonacoNotice(.error, message: "The request exceeds your current share value.")
+        } else if let problem = CashOutAmountRule.problem(for: verdict, minimumMicros: preview.minMicros) {
+            MonacoNotice(.error, message: problem)
+                .accessibilityIdentifier("cash-out-below-minimum")
+        }
+    }
+
+    private func review(_ preview: CashOutPreview) -> some View {
+        let verdict = preview.verdict(enteredMicros: enteredMicros)
+        let requested = CashOutAmountRule.effectiveMicros(
+            for: verdict, enteredMicros: enteredMicros, sliceMicros: preview.sliceMicros)
+        return VStack(spacing: MonacoTheme.Space.sm) {
+            MoneyKeyRowCard(rows: [
+                MoneyKeyRow(
+                    label: "Requested amount", value: .data(UsdAmountFormatter.format(flooredMicros: requested))),
+                MoneyKeyRow(label: "Destination", value: .words("Your cash")),
+                MoneyKeyRow(label: "Final proceeds", value: .words("Confirmed at settlement")),
+                MoneyKeyRow(label: "Costs", value: .words("From the redemption quote")),
+            ])
+            MonacoNotice(
+                .warn,
+                message: "Review the live estimate before confirming. No immediate settlement time is promised.")
+        }
     }
 
     static func canEnterAmount(_ preview: CashOutPreview) -> Bool {
         preview.pause == nil && preview.hasStake && !preview.sliceIsBelowMinimum
     }
 
-    private func submitBar(_ preview: CashOutPreview) -> some View {
-        let verdict = preview.verdict(enteredMicros: enteredMicros)
-        let isSubmitting = model?.isSubmitting ?? false
-        let title = CashOutAmountRule.submitTitle(
-            for: verdict, enteredMicros: enteredMicros, sliceMicros: preview.sliceMicros)
-        return BottomCTA {
+    private func dock(_ preview: CashOutPreview) -> some View {
+        BottomCTA {
             VStack(spacing: MonacoTheme.Space.s) {
-                AmountKeypad(amountText: $amountText)
-                Button(action: onSubmit) {
-                    SubmitLabel(isWorking: isSubmitting, idle: title, working: "Cashing out…")
+                if step == .entry {
+                    AmountKeypad(amountText: $amountText)
+                    Button("Review cash-out", action: onReview)
+                        .buttonStyle(.monacoPrimary)
+                        .disabled(!(model?.maySubmit(enteredMicros: enteredMicros) ?? false))
+                        .accessibilityIdentifier("cash-out-review")
+                } else {
+                    Button(action: onSubmit) {
+                        SubmitLabel(isWorking: isSubmitting, idle: "Request cash-out", working: "Requesting…")
+                    }
+                    .buttonStyle(.monacoPrimary)
+                    .disabled(isSubmitting || !(model?.maySubmit(enteredMicros: enteredMicros) ?? false))
+                    .accessibilityIdentifier("cash-out-submit")
                 }
-                .buttonStyle(.monacoPrimary)
-                .disabled(isSubmitting || !(model?.maySubmit(enteredMicros: enteredMicros) ?? false))
-                .accessibilityIdentifier("cash-out-submit")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func outcome(_ job: CashOutJob) -> some View {
+        let rows = { (status: String) in
+            [
+                MoneyKeyRow(label: "From", value: .words(cabalName ?? "This cabal")),
+                MoneyKeyRow(label: "To", value: .words("Your cash")),
+                MoneyKeyRow(
+                    label: "Requested value", value: .data(UsdAmountFormatter.format(flooredMicros: job.payoutMicros))),
+                MoneyKeyRow(label: "Status", value: .words(status)),
+            ]
+        }
+        if let settledNotice, settledNotice.isSuccess {
+            MoneyOutcome(
+                tone: .done, title: "Cash-out complete",
+                message: "Settled proceeds are now in your cash balance.", rows: rows("Completed"),
+                identifier: "cash-out-progress"
+            ) {
+                Button("View activity", action: onActivity).buttonStyle(.monacoPrimary)
+            }
+        } else if let settledNotice {
+            MoneyOutcome(
+                tone: .error, title: "Cash-out didn't go through", message: settledNotice.message, rows: rows("Failed"),
+                identifier: "cash-out-progress"
+            ) {
+                Button("View activity", action: onActivity).buttonStyle(.monacoPrimary)
+            }
+        } else {
+            MoneyOutcome(
+                tone: .pending, title: "Cash-out requested",
+                message: "Your share redemption is processing. Final proceeds will appear when it settles.",
+                rows: rows("Processing"),
+                notice: "Timing and final proceeds depend on the cabal's holdings and execution.",
+                identifier: "cash-out-progress"
+            ) {
+                Button("View activity", action: onActivity).buttonStyle(.monacoPrimary)
             }
         }
     }
@@ -206,19 +349,37 @@ private struct CashOutHarnessScreen: View {
         }
     }
 
-    private var runningJob: CashOutJob? {
-        mode == "selling"
-            ? CashOutJob(id: "j", cabalID: "c", status: .selling, payoutMicros: 1_000_000, resultCode: nil) : nil
+    private var step: CashOutStep { mode == "review" ? .review : .entry }
+
+    private var startedJob: CashOutJob? {
+        switch mode {
+        case "selling", "processing", "completed":
+            CashOutJob(
+                id: "j", cabalID: "c", status: mode == "completed" ? .completed : .selling, payoutMicros: 250_000_000,
+                resultCode: nil)
+        default: nil
+        }
+    }
+
+    private var settledNotice: CashOutNotice? {
+        mode == "completed" ? startedJob?.outcome : nil
+    }
+
+    private var failure: APIError? {
+        mode == "error" ? .transport(URLError(.notConnectedToInternet)) : nil
     }
 
     var body: some View {
         NavigationStack {
-            CashOutContent(model: model, runningJob: runningJob, amountText: $amountText, onSubmit: {}, onFund: {})
-                .task {
-                    let created = model ?? CashOutModel.preview(preview)
-                    model = created
-                    await created.load()
-                }
+            CashOutContent(
+                model: model, cabalName: "Big Ballers", failure: failure, runningJob: nil, startedJob: startedJob,
+                settledNotice: settledNotice, amountText: $amountText, step: step, onSubmit: {}, onFund: {}
+            )
+            .task {
+                let created = model ?? CashOutModel.preview(preview)
+                model = created
+                await created.load()
+            }
         }
         .tint(MonacoTheme.ink)
     }

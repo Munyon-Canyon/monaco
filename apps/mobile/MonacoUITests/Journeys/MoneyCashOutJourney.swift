@@ -2,7 +2,7 @@ import XCTest
 
 enum MoneyCashOutJourney {
     static let id = "money/cash-out"
-    static let version = 2
+    static let version = 3
 
     static let screenTimeout: TimeInterval = 15
 
@@ -34,7 +34,8 @@ enum MoneyCashOutJourney {
             let action = app.element("cabal-action-cash-out")
             XCTAssertTrue(action.waitForExistence(timeout: screenTimeout), "S1.2: no Cash out action")
             action.tap()
-            XCTAssertTrue(app.navigationBars["Cash out"].waitForExistence(timeout: 10), "S1.2: no Cash out screen")
+            XCTAssertTrue(
+                app.navigationBars["Cash out your share"].waitForExistence(timeout: 10), "S1.2: no Cash out screen")
             XCTAssertTrue(app.element("cash-out-amount").exists, "S1.2: no amount entry")
             for chip in ["25%", "50%", "All"] {
                 XCTAssertTrue(app.buttons[chip].exists, "S1.2: no \(chip) chip")
@@ -49,23 +50,24 @@ enum MoneyCashOutJourney {
 
         recorder.step("S1.3", "the helper reads the slice's worth") {
             XCTAssertTrue(
-                app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Your slice is worth $'"))
+                app.staticTexts.matching(NSPredicate(format: "label ENDSWITH 'current share value'"))
                     .firstMatch.waitForExistence(timeout: 10),
-                "S1.3: no Your slice is worth $… (known failure, #657)"
+                "S1.3: no … current share value (known failure, #657)"
             )
         }
 
         recorder.step("S1.4", "pick 25%") {
             app.buttons["25%"].tap()
-            let submit = app.buttons["cash-out-submit"]
+            let submit = app.buttons["cash-out-review"]
             XCTAssertTrue(
-                JoinJourney.waitForLabel(submit, containing: "Cash out $", timeout: 5),
+                JoinJourney.waitForLabel(submit, containing: "Review cash-out", timeout: 5),
                 "S1.4: the submit reads \(submit.label) (known failure, #657)"
             )
             XCTAssertTrue(submit.isEnabled, "S1.4: the submit is disabled (known failure, #657)")
         }
 
         recorder.step("S1.5", "cash out") {
+            app.buttons["cash-out-review"].tap()
             app.buttons["cash-out-submit"].tap()
             XCTAssertTrue(
                 app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Cashing out $'"))
@@ -73,7 +75,7 @@ enum MoneyCashOutJourney {
                 "S1.5: no Cashing out toast (known failure, #657 and #653)"
             )
             XCTAssertTrue(
-                app.element("cabal-header-name").waitForExistence(timeout: 10), "S1.5: the cabal screen is not back")
+                app.element("cash-out-progress").waitForExistence(timeout: 10), "S1.5: no cash-out outcome")
         }
     }
 
@@ -97,7 +99,7 @@ enum MoneyCashOutJourney {
             field.typeText(refundAddress)
             app.buttons["withdraw-continue-button"].tap()
             XCTAssertTrue(
-                app.staticTexts["You're withdrawing"].waitForExistence(timeout: 10), "S2.2: no confirm screen")
+                app.staticTexts["Review withdrawal"].waitForExistence(timeout: 10), "S2.2: no confirm screen")
             JoinJourney.snap(app, "S2-A-withdraw-confirm")
         }
 

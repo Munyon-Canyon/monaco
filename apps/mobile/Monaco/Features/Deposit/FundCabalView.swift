@@ -16,17 +16,27 @@ struct FundCabalView: View {
     @State private var pauseState: CashOutModel?
     @State private var funding: Funding?
     @State private var amountText = ""
+    @State private var confirmation: FundConfirmation?
+    @State private var isVisible = false
 
     var body: some View {
         FundCabalContent(
+            cabalID: cabalID,
+            cabalName: cabal?.cabalName,
             state: environment.balance.state,
             amountText: $amountText,
             isSubmitting: funding?.isSubmitting ?? false,
             onSubmit: { Task { await fund() } },
             onRetry: { Task { await environment.balance.load() } },
             onAddMoney: { openDeposit(prefillMicros: nil) },
+            onDeposit: { openDeposit(prefillMicros: $0) },
             pause: pauseState?.preview?.pause
         )
+        .onAppear { isVisible = true }
+        .onDisappear { isVisible = false }
+        .sheet(item: $confirmation, onDismiss: { dismiss() }) { confirmation in
+            FundConfirmedSheet(confirmation: confirmation)
+        }
         .task {
             if funding == nil {
                 funding = Funding(cabalID: cabalID, source: FundSource(api: environment.api), hints: environment.hints)
@@ -61,8 +71,13 @@ struct FundCabalView: View {
         switch await funding.submit(micros: micros) {
         case .accepted:
             Haptics.success()
-            if let line = funding.progress.toast(cabalName: cabalName) { toasts.show(success: line) }
-            dismiss()
+            if isVisible {
+                confirmation = FundConfirmation(
+                    amount: UsdAmountFormatter.format(micros: micros), cabalName: cabalName ?? "your cabal")
+            } else {
+                if let line = funding.progress.toast(cabalName: cabalName) { toasts.show(success: line) }
+                dismiss()
+            }
             Task { [toasts] in
                 let settled = await funding.settle()
                 guard settled.isSettled, let line = settled.toast(cabalName: cabalName) else { return }
@@ -119,6 +134,7 @@ enum FundCabalStage: Equatable {
 /// What Fund this cabal says and allows for the amount typed against the balance it has.
 struct FundCabalForm: Equatable {
     static let overBalance = "Not enough in your account balance."
+    static let insufficientNotice = "Not enough cash. Reduce the amount or deposit into your account."
     static let minimumMicros: Int64 = 1_000_000
     static let belowMinimum = "The minimum is $1."
 
@@ -146,9 +162,8 @@ struct FundCabalForm: Equatable {
     /// The button reads the amount, so the member sees what they are about to send.
     var ctaTitle: String {
         guard let value = AmountEntryText.decimal(amountText), value > 0 else { return "Enter an amount" }
-        let isWhole = (AmountEntryText.micros(amountText) ?? 0) % 1_000_000 == 0
-        let amount = isWhole ? AmountEntryText.display(amountText) : UsdAmountFormatter.format(decimal: value)
-        return "Add \(amount) to the pot"
+        let amount = UsdAmountFormatter.format(decimal: value)
+        return "Deposit \(amount)"
     }
 
     /// The line under the figure: what there is to fund with, and what is still on its way out (funds and withdrawals).
@@ -157,6 +172,25 @@ struct FundCabalForm: Equatable {
         let available = "\(UsdAmountFormatter.format(flooredMicros: availableMicros)) available"
         guard inFlightMicros > 0 else { return available }
         return "\(available) · \(UsdAmountFormatter.format(micros: inFlightMicros)) pending"
+    }
+
+    var cashLine: String? {
+        guard let availableMicros else { return nil }
+        return MoneyCashLine.text(availableMicros: availableMicros, inFlightMicros: inFlightMicros)
+    }
+
+    var isOverBalance: Bool { problem == Self.overBalance }
+
+    var shortfallMicros: Int64? {
+        guard let micros = AmountEntryText.micros(amountText), let availableMicros, micros > availableMicros else {
+            return nil
+        }
+        return micros - availableMicros
+    }
+
+    var noticeText: String? {
+        guard let problem else { return nil }
+        return isOverBalance ? Self.insufficientNotice : problem
     }
 
     /// Replaces the helper, in red, while the amount typed is over the balance or under the minimum.
@@ -168,17 +202,44 @@ struct FundCabalForm: Equatable {
     }
 }
 
-/// Fund this cabal's layout: the amount as the hero, the balance it comes out of, and a button
-/// that reads the amount.
-///
-/// Pure: what the screen knows comes in, what the member does goes out.
+struct FundConfirmation: Identifiable, Equatable {
+    let id = UUID()
+    let amount: String
+    let cabalName: String
+}
+
+struct FundConfirmedSheet: View {
+    let confirmation: FundConfirmation
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: MonacoTheme.Space.l) {
+            OutcomeView(
+                tone: .done, title: "Deposit confirmed",
+                message: "\(confirmation.amount) added to your share in \(confirmation.cabalName)")
+            Button("Done") { dismiss() }
+                .buttonStyle(.monacoPrimary)
+                .accessibilityIdentifier("fund-cabal-done-button")
+        }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.top, MonacoTheme.Space.m)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .monacoSheet(title: "Deposit confirmed", detents: .result, showsClose: true)
+        .accessibilityIdentifier("fund-cabal-success-sheet")
+    }
+}
+
 struct FundCabalContent: View {
+    let cabalID: String
+    var cabalName: String?
     let state: LoadState<AccountBalance>
     @Binding var amountText: String
     let isSubmitting: Bool
     let onSubmit: () -> Void
     let onRetry: () -> Void
     let onAddMoney: () -> Void
+    var onDeposit: (Int64?) -> Void = { _ in }
     var pause: CabalPause?
 
     private var stage: FundCabalStage {
@@ -195,43 +256,40 @@ struct FundCabalContent: View {
     var body: some View {
         ScrollView {
             stageContent
-                // The amount stage starts where Cash out's does, so the two read as one pair.
                 .padding(.top, stage.showsAmountEntry ? MonacoTheme.Space.s : MonacoTheme.Space.xl)
-                .padding(.bottom, stage.showsAmountEntry ? MonacoTheme.Space.s : MonacoTheme.Space.xl)
+                .padding(.bottom, MonacoTheme.Space.s)
         }
         .scrollBounceBehavior(.basedOnSize)
         .monacoCanvas()
         .safeAreaInset(edge: .bottom) {
-            if stage.showsAddMoneyCTA {
-                BottomCTA {
-                    Button("Add money", action: onAddMoney)
-                        .buttonStyle(.monacoPrimary)
-                        .accessibilityIdentifier("fund-cabal-add-money-button")
-                }
-            } else if stage.showsAmountEntry {
-                BottomCTA {
-                    VStack(spacing: MonacoTheme.Space.s) {
-                        AmountKeypad(amountText: $amountText)
-                        if stage.showsDepositAction {
-                            Button("Deposit", action: onAddMoney)
-                                .buttonStyle(.monacoSecondary)
-                                .disabled(isSubmitting)
-                                .accessibilityIdentifier("fund-cabal-deposit-button")
-                        }
-                        Button(action: onSubmit) {
-                            SubmitLabel(isWorking: isSubmitting, idle: form.ctaTitle, working: "Adding…")
-                        }
-                        .buttonStyle(.monacoPrimary)
-                        .disabled(!form.canSubmit || isSubmitting)
-                        .accessibilityIdentifier("fund-cabal-submit-button")
-                    }
-                }
+            if stage.showsAmountEntry {
+                dock
             }
         }
         .navigationBarBackButtonHidden(isSubmitting)
-        .navigationTitle("Fund this cabal")
+        .navigationTitle(cabalName.map { "Deposit to \($0)" } ?? "Deposit to cabal")
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("fund-cabal-view")
+    }
+
+    private var dock: some View {
+        BottomCTA {
+            VStack(spacing: MonacoTheme.Space.sm) {
+                AmountKeypad(amountText: $amountText)
+                Button(action: onSubmit) {
+                    SubmitLabel(isWorking: isSubmitting, idle: form.ctaTitle, working: "Processing…")
+                }
+                .buttonStyle(.monacoPrimary)
+                .disabled(!form.canSubmit || isSubmitting)
+                .accessibilityIdentifier("fund-cabal-submit-button")
+                if form.isOverBalance {
+                    Button("Deposit to account") { onDeposit(form.shortfallMicros) }
+                        .buttonStyle(.monacoOutline)
+                        .disabled(isSubmitting)
+                        .accessibilityIdentifier("fund-cabal-deposit-button")
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -242,11 +300,15 @@ struct FundCabalContent: View {
                 .padding(.horizontal, MonacoTheme.Space.gutter)
                 .accessibilityIdentifier("fund-cabal-loading")
         case .failed:
-            MonacoErrorRow(thing: "your balance", identifier: "fund-cabal-balance-error", retry: onRetry)
+            MoneyLoadFailure(identifier: "fund-cabal-balance-error", retry: onRetry)
         case .needsMoney:
             EmptyState(
                 title: "Add money first",
-                message: "Send USDC on Solana to your deposit address, then fund this cabal."
+                message: "Send USDC to your deposit address, then fund this cabal.",
+                actionTitle: "Add money",
+                actionIdentifier: "fund-cabal-add-money-button",
+                systemImage: "wallet.bifold",
+                action: onAddMoney
             )
             .accessibilityIdentifier("fund-cabal-needs-money")
         case .amount:
@@ -255,7 +317,8 @@ struct FundCabalContent: View {
     }
 
     private var amountEntry: some View {
-        VStack(spacing: MonacoTheme.Space.l) {
+        VStack(spacing: MonacoTheme.Space.sm) {
+            contextCard
             if let pause {
                 CabalPauseRow(pause: pause)
             }
@@ -263,18 +326,49 @@ struct FundCabalContent: View {
                 amountText: $amountText,
                 max: form.maxDollars,
                 presets: [.dollars(25), .dollars(50), .dollars(100), .fraction(1, label: "Max")],
-                helper: form.availability,
-                problem: form.problem,
+                caption: "Deposit amount",
+                overLimitHelper: "",
                 input: .keypad
-            ) {
-                Text(CabalYield.fundNote)
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.profit)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("fund-cabal-yield-note")
-            }
+            )
+            notices
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
+    }
+
+    private var contextCard: some View {
+        MonacoCard(style: .tight) {
+            HStack(spacing: MonacoTheme.Space.sm) {
+                CabalCover(
+                    cabalId: cabalID, tint: .forGroupId(cabalID), pictureURL: nil, style: .thumb(34)
+                )
+                .frame(width: 34, height: 34)
+                .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(cabalName ?? "This cabal")
+                        .font(MonacoTheme.Typo.headline)
+                        .foregroundStyle(MonacoTheme.ink)
+                    if let cashLine = form.cashLine {
+                        Text(cashLine)
+                            .font(MonacoTheme.Typo.caption)
+                            .foregroundStyle(MonacoTheme.muted)
+                            .accessibilityIdentifier("fund-cabal-cash-line")
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    @ViewBuilder
+    private var notices: some View {
+        if let notice = form.noticeText {
+            MonacoNotice(.error, message: notice)
+        }
+        if isSubmitting {
+            MonacoNotice(.warn, message: "Processing your deposit…")
+        }
+        MonacoNotice(.info, message: CabalYield.fundNote)
+            .accessibilityIdentifier("fund-cabal-yield-note")
     }
 }
