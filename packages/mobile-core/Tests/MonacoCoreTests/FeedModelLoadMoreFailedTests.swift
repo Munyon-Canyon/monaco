@@ -78,7 +78,7 @@ final class FeedModelLoadMoreFailedTests: XCTestCase {
         await model.load()
         await model.loadMore()
         XCTAssertTrue(model.loadMoreFailed)
-        await model.select(.trades)
+        await model.toggle(.completedTrades)
         XCTAssertFalse(model.loadMoreFailed)
     }
 

@@ -6,32 +6,37 @@ public enum FeedKind: String, CaseIterable, Sendable {
     case priceMove = "price_move"
     case cabalCreated = "cabal_created"
     case memberJoined = "member_joined"
+    case reply
+    case threshold
 }
 
-public enum FeedChip: CaseIterable, Hashable, Sendable {
-    case all
+public enum FeedKindGroup: CaseIterable, Hashable, Sendable {
     case proposals
-    case trades
+    case completedTrades
     case priceMoves
-    case cabals
+    case repliesAndVotes
+    case proposalOutcomes
+    case cabalActivity
 
     public var title: String {
         switch self {
-        case .all: "All"
         case .proposals: "Proposals"
-        case .trades: "Trades"
+        case .completedTrades: "Completed trades"
         case .priceMoves: "Price moves"
-        case .cabals: "Cabals"
+        case .repliesAndVotes: "Replies & votes"
+        case .proposalOutcomes: "Proposal outcomes"
+        case .cabalActivity: "Cabal activity"
         }
     }
 
     var kinds: [FeedKind] {
         switch self {
-        case .all: []
         case .proposals: [.proposal]
-        case .trades: [.trade]
+        case .completedTrades: [.trade]
         case .priceMoves: [.priceMove]
-        case .cabals: [.cabalCreated, .memberJoined]
+        case .repliesAndVotes: [.reply]
+        case .proposalOutcomes: [.threshold]
+        case .cabalActivity: [.cabalCreated, .memberJoined]
         }
     }
 }
@@ -61,12 +66,12 @@ extension FeedScope {
 }
 
 public struct FeedQuery: Equatable, Sendable {
-    public var chip: FeedChip
+    public var kinds: Set<FeedKindGroup>
     public var scope: FeedScope
     public var search: String
 
-    public init(chip: FeedChip = .all, scope: FeedScope = .everyone, search: String = "") {
-        self.chip = chip
+    public init(kinds: Set<FeedKindGroup> = [], scope: FeedScope = .everyone, search: String = "") {
+        self.kinds = kinds
         self.scope = scope
         self.search = search
     }
@@ -76,7 +81,7 @@ public struct FeedQuery: Equatable, Sendable {
     }
 
     public func parameters(cursor: String?, limit: Int) -> Operations.GetFeed.Input.Query {
-        let kinds = chip.kinds.map(\.rawValue)
+        let kinds = Set(self.kinds.flatMap(\.kinds)).map(\.rawValue).sorted()
         let q = trimmedSearch
         return .init(
             kind: kinds.isEmpty ? nil : kinds.joined(separator: ","),

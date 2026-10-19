@@ -140,12 +140,10 @@ private struct FeedScreen: View {
                 .accessibilityIdentifier("feed-scope")
             }
             Section("Show") {
-                Picker("Show", selection: chip) {
-                    ForEach(FeedChip.allCases, id: \.self) { chip in
-                        Text(chip.title).tag(chip).accessibilityIdentifier("feed-chip-\(chip.title)")
-                    }
+                ForEach(FeedKindGroup.allCases, id: \.self) { group in
+                    Toggle(group.title, isOn: kindBinding(group))
+                        .accessibilityIdentifier("feed-chip-\(group.title)")
                 }
-                .pickerStyle(.inline)
             }
             Section {
                 Button("Muted") { showsMuted = true }
@@ -163,7 +161,7 @@ private struct FeedScreen: View {
     }
 
     private var isFiltered: Bool {
-        model.query.scope != .everyone || model.query.chip != .all
+        model.query.scope != .everyone || !model.query.kinds.isEmpty
     }
 
     private var isNarrowed: Bool {
@@ -189,12 +187,12 @@ private struct FeedScreen: View {
         )
     }
 
-    private var chip: Binding<FeedChip> {
+    private func kindBinding(_ group: FeedKindGroup) -> Binding<Bool> {
         Binding(
-            get: { model.query.chip },
-            set: { next in
+            get: { model.query.kinds.contains(group) },
+            set: { _ in
                 readingID = nil
-                Task { await model.select(next) }
+                Task { await model.toggle(group) }
             }
         )
     }

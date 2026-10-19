@@ -9,15 +9,15 @@ import XCTest
 final class FeedModelPickTests: XCTestCase {
     private let samples = Components.Schemas.FeedItem.samples
 
-    func testAChipKeepsTheLoadedRowsUntilTheNewPageArrives() async throws {
+    func testAKindKeepsTheLoadedRowsUntilTheNewPageArrives() async throws {
         let transport = StubTransport(scripted: [.json(.ok, try Self.page(samples)), .gate])
         let model = makeModel(transport)
         await model.load()
-        let pick = Task { await model.select(.proposals) }
+        let pick = Task { await model.toggle(.proposals) }
         await transport.waitForRequests(2)
         XCTAssertEqual(model.items.count, samples.count)
         XCTAssertEqual(model.phase, .loaded)
-        XCTAssertEqual(model.query.chip, .proposals)
+        XCTAssertEqual(model.query.kinds, [.proposals])
         await transport.releaseGate(.json(.ok, try Self.page([samples[0]])))
         await pick.value
         XCTAssertEqual(model.items.map(\.id), [samples[0].id])
@@ -57,14 +57,14 @@ final class FeedModelPickTests: XCTestCase {
         let transport = StubTransport(scripted: [.json(.ok, try Self.page(samples)), .gate, .gate])
         let model = makeModel(transport)
         await model.load()
-        let proposals = Task { await model.select(.proposals) }
+        let proposals = Task { await model.toggle(.proposals) }
         await transport.waitForRequests(2)
-        let trades = Task { await model.select(.trades) }
+        let trades = Task { await model.toggle(.completedTrades) }
         await transport.waitForRequests(3)
         await transport.releaseGate(.json(.ok, try Self.page([samples[0]])))
         await proposals.value
         XCTAssertEqual(model.items.count, samples.count)
-        XCTAssertEqual(model.query.chip, .trades)
+        XCTAssertEqual(model.query.kinds, [.proposals, .completedTrades])
         await transport.releaseGate(.json(.ok, try Self.page([samples[1]])))
         await trades.value
         XCTAssertEqual(model.items.map(\.id), [samples[1].id])
@@ -77,7 +77,7 @@ final class FeedModelPickTests: XCTestCase {
         ])
         let model = makeModel(transport)
         await model.load()
-        await model.select(.trades)
+        await model.toggle(.completedTrades)
         guard case .failed = model.phase else { return XCTFail("expected failure, got \(model.phase)") }
         XCTAssertTrue(model.items.isEmpty)
     }
@@ -87,7 +87,7 @@ final class FeedModelPickTests: XCTestCase {
         let model = makeModel(transport)
         await model.load()
         XCTAssertEqual(model.phase, .empty(query: nil))
-        let pick = Task { await model.select(.trades) }
+        let pick = Task { await model.toggle(.completedTrades) }
         await transport.waitForRequests(2)
         XCTAssertEqual(model.phase, .loading)
         await transport.releaseGate(.json(.ok, try Self.page([])))
@@ -114,13 +114,13 @@ final class FeedModelPickTests: XCTestCase {
         XCTAssertEqual(model.query.search, "zzz")
     }
 
-    func testTappingTheSelectedChipWhileASearchLoadsKeepsTheLoadedRows() async throws {
+    func testClearingKindsWhileASearchLoadsKeepsTheLoadedRows() async throws {
         let transport = StubTransport(scripted: [.json(.ok, try Self.page(samples)), .hang, .gate])
         let clock = TestClock()
         let model = makeModel(transport, clock: clock)
         await model.load()
         await search("zz", in: model, clock: clock, transport: transport, requests: 2)
-        let tap = Task { await model.select(.all) }
+        let tap = Task { await model.clearKinds() }
         await transport.waitForRequests(3)
         await settle()
         XCTAssertEqual(model.items.count, samples.count)

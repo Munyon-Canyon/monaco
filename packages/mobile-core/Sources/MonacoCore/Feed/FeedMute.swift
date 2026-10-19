@@ -82,6 +82,8 @@ extension FeedKind {
         case .priceMove: "Price moves"
         case .cabalCreated: "New cabals"
         case .memberJoined: "New members"
+        case .reply: "Replies"
+        case .threshold: "Approved proposals"
         }
     }
 }

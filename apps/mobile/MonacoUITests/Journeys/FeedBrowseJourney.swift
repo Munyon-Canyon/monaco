@@ -2,11 +2,12 @@ import XCTest
 
 enum FeedBrowseJourney {
     static let id = "feed/browse"
-    static let version = 4
+    static let version = 5
     static let searchPlaceholder = "Search the feed"
     static let filterOptions = [
-        "feed-scope-Everyone", "feed-scope-My cabals", "feed-scope-Following", "feed-chip-All",
-        "feed-chip-Proposals", "feed-chip-Trades", "feed-chip-Price moves", "feed-chip-Cabals", "feed-muted-link",
+        "feed-scope-Everyone", "feed-scope-My cabals", "feed-scope-Following",
+        "feed-chip-Proposals", "feed-chip-Completed trades", "feed-chip-Price moves", "feed-chip-Replies & votes",
+        "feed-chip-Proposal outcomes", "feed-chip-Cabal activity", "feed-muted-link",
     ]
 
     static func recorder() -> JourneyRecorder {
@@ -25,6 +26,16 @@ enum FeedBrowseJourney {
         XCTAssertTrue(app.element("feed-root").waitForExistence(timeout: 15), "\(step): no Feed tab within 15 s")
     }
 
+    static func menuItem(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
+        let label =
+            identifier == "feed-muted-link"
+            ? "Muted"
+            : identifier.replacingOccurrences(of: "feed-scope-", with: "").replacingOccurrences(
+                of: "feed-chip-", with: "")
+        return app.buttons.matching(NSPredicate(format: "identifier == %@ OR label == %@", identifier, label))
+            .firstMatch
+    }
+
     static func openFilter(_ app: XCUIApplication) {
         app.element("feed-filter").tap()
     }
@@ -33,11 +44,13 @@ enum FeedBrowseJourney {
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)).tap()
     }
 
-    static func choose(_ app: XCUIApplication, _ option: String) {
+    static func choose(_ app: XCUIApplication, _ options: String...) {
         openFilter(app)
-        let item = app.element(option)
-        XCTAssertTrue(item.waitForExistence(timeout: 5), "no \(option) in the filter menu")
-        item.tap()
+        for option in options {
+            let item = menuItem(app, option)
+            XCTAssertTrue(item.waitForExistence(timeout: 5), "no \(option) in the filter menu")
+            item.tap()
+        }
         closeFilter(app)
     }
 
@@ -59,13 +72,14 @@ enum FeedBrowseJourney {
             XCTAssertEqual(field.placeholderValue, searchPlaceholder, "S1.1: the search placeholder is not the spec's")
             openFilter(app)
             for option in filterOptions {
-                XCTAssertTrue(app.element(option).waitForExistence(timeout: 5), "S1.1: no \(option) in the menu")
+                XCTAssertTrue(menuItem(app, option).waitForExistence(timeout: 5), "S1.1: no \(option) in the menu")
             }
+            XCTAssertFalse(menuItem(app, "feed-chip-All").exists, "S1.1: the menu offers an All toggle")
             closeFilter(app)
         }
 
-        recorder.step("S1.2", "the Cabals chip shows the seeded cabal") {
-            choose(app, "feed-chip-Cabals")
+        recorder.step("S1.2", "the Cabal activity toggle shows the seeded cabal") {
+            choose(app, "feed-chip-Cabal activity")
             XCTAssertTrue(
                 text(app, containing: "started \(joinedCabal(run: run))").waitForExistence(timeout: 15),
                 "S1.2: no 'started \(joinedCabal(run: run))' cell within 15 s"
@@ -116,7 +130,6 @@ enum FeedBrowseJourney {
         recorder.step("S3.1", "a cabal cell opens the cabal") {
             openFeed(app, step: "S3.1")
             choose(app, "feed-scope-Everyone")
-            choose(app, "feed-chip-Cabals")
             let cell = text(app, containing: "started \(joinedCabal(run: run))")
             XCTAssertTrue(cell.waitForExistence(timeout: 15), "S3.1: no 'started \(joinedCabal(run: run))' cell")
             cell.tap()
@@ -129,7 +142,7 @@ enum FeedBrowseJourney {
 
         recorder.step("S3.2", "a proposal cell opens the proposal") {
             app.navigationBars.buttons.element(boundBy: 0).tap()
-            choose(app, "feed-chip-Proposals")
+            choose(app, "feed-chip-Cabal activity", "feed-chip-Proposals")
             let cell = app.descendants(matching: .any)
                 .matching(NSPredicate(format: "identifier BEGINSWITH 'feed-cell-'")).firstMatch
             XCTAssertTrue(
@@ -143,7 +156,7 @@ enum FeedBrowseJourney {
 
         recorder.step("S3.3", "hide a cell") {
             app.navigationBars.buttons.element(boundBy: 0).tap()
-            choose(app, "feed-chip-Cabals")
+            choose(app, "feed-chip-Proposals", "feed-chip-Cabal activity")
             let cell = text(app, containing: "started \(joinedCabal(run: run))")
             XCTAssertTrue(cell.waitForExistence(timeout: 15), "S3.3: no 'started \(joinedCabal(run: run))' cell")
             cell.press(forDuration: 1)

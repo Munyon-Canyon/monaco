@@ -3,19 +3,32 @@ import MonacoCore
 import XCTest
 
 final class FeedQueryTests: XCTestCase {
-    func testEachChipSendsItsKinds() {
-        let expected: [FeedChip: String?] = [
-            .all: nil,
+    func testEachGroupSendsItsKinds() {
+        let expected: [FeedKindGroup: String] = [
             .proposals: "proposal",
-            .trades: "trade",
+            .completedTrades: "trade",
             .priceMoves: "price_move",
-            .cabals: "cabal_created,member_joined",
+            .repliesAndVotes: "reply",
+            .proposalOutcomes: "threshold",
+            .cabalActivity: "cabal_created,member_joined",
         ]
-        for chip in FeedChip.allCases {
-            let params = FeedQuery(chip: chip).parameters(cursor: nil, limit: 30)
-            XCTAssertEqual(params.kind, expected[chip] ?? nil, chip.title)
+        for group in FeedKindGroup.allCases {
+            let params = FeedQuery(kinds: [group]).parameters(cursor: nil, limit: 30)
+            XCTAssertEqual(params.kind, expected[group], group.title)
         }
-        XCTAssertEqual(FeedChip.allCases.map(\.title), ["All", "Proposals", "Trades", "Price moves", "Cabals"])
+        XCTAssertEqual(
+            FeedKindGroup.allCases.map(\.title),
+            [
+                "Proposals", "Completed trades", "Price moves", "Replies & votes", "Proposal outcomes",
+                "Cabal activity",
+            ])
+    }
+
+    func testSeveralGroupsSendTheSortedUnionAndNoneSendsNoKind() {
+        let union = FeedQuery(kinds: [.cabalActivity, .proposals, .repliesAndVotes])
+        XCTAssertEqual(union.parameters(cursor: nil, limit: 30).kind, "cabal_created,member_joined,proposal,reply")
+        XCTAssertNil(FeedQuery().parameters(cursor: nil, limit: 30).kind)
+        XCTAssertNil(FeedQuery(kinds: []).parameters(cursor: nil, limit: 30).kind)
     }
 
     func testEachScopeSendsItsWireValue() {
