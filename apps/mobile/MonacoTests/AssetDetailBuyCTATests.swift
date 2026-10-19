@@ -16,8 +16,9 @@ struct AssetDetailBuyCTATests {
             AssetDetailBuyCTA.caption(tradable: true, quotable: false, canSell: true) == "Trading paused right now")
     }
 
-    @Test func untradableAssetsShowTheDisabledCopy() {
-        #expect(AssetDetailBuyCTA.title(tradable: false) == "Can't buy right now")
+    @Test func theBuyButtonSaysProposeABuyAndTurnsToUnavailableWhenTheStockCannotTrade() {
+        #expect(AssetDetailBuyCTA.title(tradable: true) == "Propose a buy")
+        #expect(AssetDetailBuyCTA.title(tradable: false) == "Unavailable")
     }
 
     @Test func tradableAssetsOpenTheBuyProposalInTheHostTab() {

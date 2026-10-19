@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceProposeFromAssetJourney {
     static let id = "governance/propose-from-asset"
-    static let version = 4
+    static let version = 5
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -16,7 +16,7 @@ enum GovernanceProposeFromAssetJourney {
 
         recorder.step("S1.1", "open GOOGL from the Markets tab") {
             app.tab("Markets").tap()
-            let field = app.textFields["Search Apple, Tesla, NVDA…"].firstMatch
+            let field = app.textFields["Search stocks or tickers"].firstMatch
             XCTAssertTrue(field.waitForExistence(timeout: 10), "S1.1: no stock search on the Markets tab")
             field.tap()
             field.typeText("GOOGL")
@@ -26,12 +26,14 @@ enum GovernanceProposeFromAssetJourney {
             row.tap()
             XCTAssertTrue(app.element("asset-detail-root").waitForExistence(timeout: 15), "S1.1: no asset screen")
             let propose = app.buttons["asset-detail-propose-buy"]
-            XCTAssertTrue(propose.waitForExistence(timeout: 15), "S1.1: no Propose buy")
-            XCTAssertEqual(propose.label, "Propose buy", "S1.1: the asset CTA")
+            XCTAssertTrue(propose.waitForExistence(timeout: 15), "S1.1: no Propose a buy")
+            app.scrollIntoReach(propose)
+            XCTAssertEqual(propose.label, "Propose a buy", "S1.1: the asset CTA")
             buy.expectText(app, "Your cabal votes before anything is bought", step: "S1.1")
         }
 
         recorder.step("S1.2", "pick a cabal") {
+            app.scrollIntoReach(app.buttons["asset-detail-propose-buy"])
             app.buttons["asset-detail-propose-buy"].tap()
             buy.expectTitle(app, "Pick a cabal", step: "S1.2")
             buy.expectText(app, "Which cabal should buy GOOGL?", step: "S1.2")
