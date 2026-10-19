@@ -87,7 +87,7 @@ struct HomeScreen: View {
             systemImage: MonacoIcon.bell.symbol, accessibilityLabel: "Notifications", style: .quiet,
             placement: .toolbar
         ) {
-            environment.navigator.open(HomeActivityStubRoute(), in: .home)
+            environment.navigator.open(ActivityFeedRoute(), in: .home)
         }
         .accessibilityIdentifier("home-notifications-button")
     }

@@ -108,7 +108,7 @@ struct HomeMoneyStrip: View {
     private func metric<Value: View>(
         _ label: String, spoken: String, identifier: String, @ViewBuilder value: () -> Value
     ) -> some View {
-        NavigationLink(value: AnyAppRoute(WithdrawRoute())) {
+        NavigationLink(value: AnyAppRoute(BalancesRoute())) {
             VStack(alignment: .leading, spacing: 0) {
                 Text(label)
                     .font(MonacoTheme.Typo.caption)

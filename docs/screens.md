@@ -106,17 +106,46 @@ Privy does not report an expired code apart from a rejected one, so the design's
 
 ## Home
 
-Pull to refresh. Refreshes on the hints its slots name. The v3 brand toolbar: the "monaco" wordmark on the left (a header, read as "Monaco"), then the bell (`HomeActivityStubRoute` until S3's `ActivityFeedRoute`; its unread dot stays hidden until a notifications API exists) and the viewer's avatar, which opens the Profile tab. Slots sit `Space.section` (24) apart; the cabal rail bleeds to the screen edge.
+Pull to refresh. Refreshes on the hints its slots name. The v3 brand toolbar: the "monaco" wordmark on the left (a header, read as "Monaco"), then the bell (`ActivityFeedRoute`; its unread dot stays hidden until a notifications API exists) and the viewer's avatar, which opens the Profile tab. Slots sit `Space.section` (24) apart; the cabal rail bleeds to the screen edge.
 
 | Order | Slot | Shows |
 | --- | --- | --- |
 | 1 | `HomeNudgeSlot` | One onboarding nudge (link your phone, link X) as an info `MonacoNotice` with a close button. Hidden when there is none |
 | 2 | `HomePortfolioSlot` | Optional warn notice "Prices delayed" / "Last updated N minutes ago." when a refresh failed over loaded data. Then the hero: the signed P&L for the selected period in `moneyFont(.hero)` ("−$417.68"), under it the signed percent in profit or loss and the period ("past week", "past month", "all time"), the line chart of `GET /v1/me/pnl-history` at 170pt with its start and end dates (hold for the crosshair, pinch to zoom; the hero follows the scrubbed point), and the period track 1W · 1M · All (default 1M; 3M and 1Y open when the backend serves them). Short history: "Not enough history for the last month yet" at chart height. Cash only: "$0.00", "No positions yet", a quiet chart "No investment history", no periods. Empty: "$0.00" and "No investment history yet". Loading: a page skeleton labelled "Loading Home". All three reads offline: "Couldn't load this view" with "Try again" |
-| 3 | `HomeBalanceSlot` | The money strip under a hairline: Net worth (cabal shares plus cash, summed in MonacoCore) and Cash from `GET /v1/me/balance`, each a button that opens Withdraw until S3's Your money lands, and a compact "Deposit" capsule (`DepositRoute()`). The card-deposit "arriving" and pending lines stay under it in the warning colour. Balance failed: "—" and an error row. Hidden when there is no cabal and no cash. At accessibility sizes the strip stacks |
+| 3 | `HomeBalanceSlot` | The money strip under a hairline: Net worth (cabal shares plus cash, summed in MonacoCore) and Cash from `GET /v1/me/balance`, each a button that opens Your money (`BalancesRoute()`), and a compact "Deposit" capsule (`DepositRoute()`). The card-deposit "arriving" and pending lines stay under it in the warning colour. Balance failed: "—" and an error row. Hidden when there is no cabal and no cash. At accessibility sizes the strip stacks |
 | 4 | `HomePendingVotesSlot` | "Proposals" with a count pill of the cards that need the viewer and "See all" (`PendingVotesRoute()`). Up to two decision cards, needs-your-vote first, then trades in progress. Nothing pending: "No proposals need your attention." and "Closed decisions remain in proposal history.". Loading: one skeleton card. Failed: a card "Proposals couldn't load" with "Try again". Hidden when there are no positions |
 | 5 | `HomeCabalsSlot` | "Your cabals" and "See all" (the Cabals tab). A horizontal rail of 300pt `CabalCoverCard`s from `GET /v1/me/portfolio`: tint and picture cover, name, member count, a "1 vote needed" badge, your share, your ownership of the pot, your all-time P&L or "Not funded", and a share disc. A card opens `CabalRoute`. No cabals: "Start with your people" / "Create a cabal or open an invitation from a friend." with "Create a cabal" and an outline "Explore cabals" that selects the Cabals tab |
 | 6 | `HomeLeaderboardSlot` | "Leaderboard" and "View all" (`HomeLeaderboardStubRoute` until S13). A Cabals / People menu select and a 1W / 1M / All menu select (default Cabals, 1M), the line "Cabal P&L · 1M" or "Personal P&L · 1M", and the top three `BoardRow`s. The rank-change glyph and "Rank change" stay hidden until the backend serves rank movement. Empty: "No investors yet" / "Fund a cabal to get on the board." or "No cabals ranked yet" / "Public cabals show up here once they're funded." |
 | 7 | `HomeMarketUpdatesSlot` | "Market updates" and "Markets" (the Markets tab). The largest 24 hour mover in the catalogue ("NVIDIA · +4.18%", "24h token move", opens `AssetRoute`) and a static "News" row, "News opens soon.", until there is a news source. Hidden when there is no cabal and no cash |
+
+## Your money (`BalancesRoute`)
+
+Opens from the Home money strip (the "Net worth" and "Cash" metrics). A pushed screen with the inline title "Your money", the tab bar visible and pull to refresh, which reloads both reads. `BalancesModel` composes `GET /v1/me/portfolio` and `GET /v1/me/balance`; net worth is the portfolio total plus available cash, summed in `Int64` micros in MonacoCore.
+
+| Part | Shows |
+| --- | --- |
+| Performance | The eyebrow "Net worth", the figure in `moneyFont(.hero)` and the helper "Your cabal shares + cash" |
+| Two stats | "In cabals" and "Cash" between hairlines in `moneyFont(.card)`. At accessibility sizes the columns stack |
+| Actions | Three `CircleAction` tiles: "Deposit" (`DepositRoute()`), "Withdraw" (`WithdrawRoute()`) and "Activity" (`AccountActivityRoute()`) |
+| Your allocation | One row per portfolio cabal, in portfolio order: a 40pt circular `CabalMark`, the name, "Your share", the value and a chevron (`CabalRoute`). The Cash row is always last: a wallet glyph, "Cash", "Not allocated to a cabal", the cash value (`DepositRoute()`) |
+| Closing notice | Info notice "These are your own shares, not the full values of your cabals. Personal returns exclude deposits as investment gains." |
+
+States. Cash only (the portfolio has no rows): "In cabals" reads "$0.00" and an info notice "No funds are allocated to a cabal yet." replaces the cabal rows. Loading: a skeleton labelled "Loading your money". Either read failed with nothing cached: "Couldn’t load this view" with "Try again", which reloads both reads. A refresh that fails over cached figures keeps them and raises the error toast. Harness: `-balancesHarness <ready|cashOnly|loading|error>`.
+
+## Activity (`ActivityFeedRoute`)
+
+Opens from the Home toolbar bell. A pushed screen with the inline title "Activity" and the tab bar visible. `ActivityFeedModel` is fixture-backed: the live source returns `comingSoon` until the backend serves notifications.
+
+| Part | Shows |
+| --- | --- |
+| Mark all read | A trailing text button in every loaded state, including empty. It marks every item read with a 0.2 s fade; a no-op when nothing is unread |
+| Group label | "New" while any item is unread, otherwise "Earlier" |
+| Items | A 38pt avatar, the title, up to three lines of body, "<Cabal> · <age>" and an optional `StatusBadge` (for example the warn badge "Execution pending"), then a chevron. Unread items sit on a `brandSoft` block 8pt apart; read items are plain rows divided by hairlines. A tap marks the item read and opens its `PushRoute` destination through `PushRouter` |
+| Account update | A wallet-glyph `MonacoRow` ("Deposit confirmed", "$100.00 · Yesterday") that opens `AccountActivityRoute()` |
+
+States. Empty: "You’re caught up" / "Replies, votes and proposal updates appear here.". Loading: five row skeletons labelled "Loading activity". Failed: "Couldn’t load this view" with "Try again". Live app until the API ships: the nav title and one centred caption, "Your activity shows up here soon.", with no fixture people or amounts. Harness: `-activityFeedHarness <unread|read|empty|loading|error|live>`.
+
+Missing API (file a backend ticket): `GET /v1/me/notifications` (paged, newest first, each item with `id`, `kind`, `title`, `body`, `cabal`, `actor`, `created_at`, `read_at`, an optional status badge and a destination that maps onto the `PushRoute` cases), `POST /v1/me/notifications/read` (all, or up to an item id), and an unread count or `has_unread` flag on an existing Home read for the bell's dot. Read state is local to the model until then.
 
 ## Cabals tab
 
