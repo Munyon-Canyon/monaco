@@ -236,6 +236,6 @@ final class ProposalSegmentsTests: XCTestCase {
     private static func proposal(_ status: String, id: String, ballot: String? = nil, canVote: Bool = true) -> String {
         let mine = ballot.map { #""\#($0)""# } ?? "null"
         return
-            #"{"id":"\#(id)","cabal_id":"c","proposer_id":"u","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"\#(status)","status_reason":null,"status_message":null,"expires_at":"2099-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":\#(mine),"can_vote":\#(canVote)}"#
+            #"{"id":"\#(id)","cabal_id":"c","cabal_name":"Cabal","proposer_id":"u","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"\#(status)","status_reason":null,"status_message":null,"expires_at":"2099-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":\#(mine),"can_vote":\#(canVote)}"#
     }
 }

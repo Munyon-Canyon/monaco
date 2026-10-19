@@ -121,7 +121,11 @@ func (h HTTP) PostCabalProposal(
 	if err != nil {
 		return nil, err
 	}
-	return api.PostCabalProposal201JSONResponse(wireOpenedProposal(opened)), nil
+	name, err := h.Reads.CabalName(ctx, opened.Draft.CabalID)
+	if err != nil {
+		return nil, err
+	}
+	return api.PostCabalProposal201JSONResponse(wireOpenedProposal(opened, name)), nil
 }
 
 func (h HTTP) GetCabalProposalPreview(
@@ -220,10 +224,10 @@ func (h HTTP) detail(ctx context.Context, id ids.ProposalID, user ids.UserID) (a
 	}
 	p := wireProposal(got.Proposal)
 	out := api.ProposalDetail{
-		Id: p.Id, CabalId: p.CabalId, ProposerId: p.ProposerId, Kind: p.Kind, Symbol: p.Symbol,
-		UsdcMicros: p.UsdcMicros, TokenAmount: p.TokenAmount, QuoteOutAmount: p.QuoteOutAmount, Thesis: p.Thesis,
-		Status: p.Status, StatusReason: p.StatusReason, StatusMessage: p.StatusMessage, ExpiresAt: p.ExpiresAt,
-		CreatedAt: p.CreatedAt, Tally: p.Tally, MyBallot: p.MyBallot,
+		Id: p.Id, CabalId: p.CabalId, CabalName: p.CabalName, ProposerId: p.ProposerId, Kind: p.Kind,
+		Symbol: p.Symbol, UsdcMicros: p.UsdcMicros, TokenAmount: p.TokenAmount, QuoteOutAmount: p.QuoteOutAmount,
+		Thesis: p.Thesis, Status: p.Status, StatusReason: p.StatusReason, StatusMessage: p.StatusMessage,
+		ExpiresAt: p.ExpiresAt, CreatedAt: p.CreatedAt, Tally: p.Tally, MyBallot: p.MyBallot,
 		Voters: make([]api.ProposalVoter, len(got.Voters)), CanVote: got.CanVote, CanWithdraw: got.CanWithdraw,
 		PriceComparison: p.PriceComparison, Network: p.Network,
 	}
@@ -263,8 +267,8 @@ func (h HTTP) GetMyPendingVotes(
 	out := make(api.GetMyPendingVotes200JSONResponse, len(pending))
 	for i, v := range pending {
 		out[i] = api.PendingVote{
-			ProposalId: v.ProposalID.UUID(), CabalId: v.CabalID.UUID(), Kind: api.ProposalKind(v.Kind),
-			Symbol: v.Symbol, ExpiresAt: v.ExpiresAt,
+			ProposalId: v.ProposalID.UUID(), CabalId: v.CabalID.UUID(), CabalName: v.CabalName,
+			Kind: api.ProposalKind(v.Kind), Symbol: v.Symbol, ExpiresAt: v.ExpiresAt,
 		}
 	}
 	return out, nil
@@ -272,11 +276,24 @@ func (h HTTP) GetMyPendingVotes(
 
 func wireProposal(v app.ProposalView) api.Proposal {
 	out := api.Proposal{
-		Id: v.ID.UUID(), CabalId: v.CabalID.UUID(), ProposerId: v.ProposerID.UUID(), Kind: api.ProposalKind(v.Kind),
-		Symbol: v.Symbol, UsdcMicros: positive(v.USDCMicros), TokenAmount: positive(v.TokenAmount),
-		QuoteOutAmount: v.QuoteOut, Status: api.ProposalStatus(v.Status), ExpiresAt: v.ExpiresAt,
-		CreatedAt: v.CreatedAt, Tally: wireTally(v.Tally), CanVote: v.CanVote,
-		PriceComparison: wireComparison(v.Comparison), Network: wireNetwork(v.Network),
+		Id:         v.ID.UUID(),
+		CabalId:    v.CabalID.UUID(),
+		CabalName:  v.CabalName,
+		ProposerId: v.ProposerID.UUID(),
+		Kind: api.ProposalKind(
+			v.Kind,
+		),
+		Symbol:          v.Symbol,
+		UsdcMicros:      positive(v.USDCMicros),
+		TokenAmount:     positive(v.TokenAmount),
+		QuoteOutAmount:  v.QuoteOut,
+		Status:          api.ProposalStatus(v.Status),
+		ExpiresAt:       v.ExpiresAt,
+		CreatedAt:       v.CreatedAt,
+		Tally:           wireTally(v.Tally),
+		CanVote:         v.CanVote,
+		PriceComparison: wireComparison(v.Comparison),
+		Network:         wireNetwork(v.Network),
 	}
 	out.Thesis = present(v.Thesis)
 	if v.StatusReason != "" {
@@ -294,11 +311,12 @@ func wireTally(t app.Tally) api.Tally {
 	return api.Tally{Yes: t.Yes, No: t.No, Voters: t.Voters, Needed: t.Needed}
 }
 
-func wireOpenedProposal(opened app.OpenedProposal) api.ProposalDetail {
+func wireOpenedProposal(opened app.OpenedProposal, cabalName string) api.ProposalDetail {
 	d := opened.Draft
 	p := api.Proposal{
 		Id:             d.ID.UUID(),
 		CabalId:        d.CabalID.UUID(),
+		CabalName:      cabalName,
 		ProposerId:     d.ProposerID.UUID(),
 		Kind:           api.ProposalKind(d.Kind),
 		Symbol:         d.Symbol,
@@ -316,10 +334,10 @@ func wireOpenedProposal(opened app.OpenedProposal) api.ProposalDetail {
 		voters[i] = api.ProposalVoter{UserId: voter.UUID()}
 	}
 	return api.ProposalDetail{
-		Id: p.Id, CabalId: p.CabalId, ProposerId: p.ProposerId, Kind: p.Kind, Symbol: p.Symbol,
-		UsdcMicros: p.UsdcMicros, TokenAmount: p.TokenAmount, QuoteOutAmount: p.QuoteOutAmount, Thesis: p.Thesis,
-		Status: p.Status, StatusReason: p.StatusReason, StatusMessage: p.StatusMessage, ExpiresAt: p.ExpiresAt,
-		CreatedAt: p.CreatedAt, Tally: p.Tally, MyBallot: p.MyBallot, Voters: voters,
+		Id: p.Id, CabalId: p.CabalId, CabalName: p.CabalName, ProposerId: p.ProposerId, Kind: p.Kind,
+		Symbol: p.Symbol, UsdcMicros: p.UsdcMicros, TokenAmount: p.TokenAmount, QuoteOutAmount: p.QuoteOutAmount,
+		Thesis: p.Thesis, Status: p.Status, StatusReason: p.StatusReason, StatusMessage: p.StatusMessage,
+		ExpiresAt: p.ExpiresAt, CreatedAt: p.CreatedAt, Tally: p.Tally, MyBallot: p.MyBallot, Voters: voters,
 		CanVote: opened.ProposerCanVote, CanWithdraw: true,
 		PriceComparison: wireComparison(opened.PriceComparison), Network: wireNetwork(d.Network),
 	}

@@ -210,7 +210,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProposalDetail"
-              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, kind: buy, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: open, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 1, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", voters: [{user_id: 01890a5d-ac96-774b-bcce-b302099a8059, choice: "yes", cast_at: "2026-10-03T16:00:00Z"}, {user_id: 01890a5d-ac96-774b-bcce-b302099a8061, choice: null, cast_at: null}], can_vote: true, can_withdraw: true, swap: null}
+              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, kind: buy, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: open, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 1, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", voters: [{user_id: 01890a5d-ac96-774b-bcce-b302099a8059, choice: "yes", cast_at: "2026-10-03T16:00:00Z"}, {user_id: 01890a5d-ac96-774b-bcce-b302099a8061, choice: null, cast_at: null}], can_vote: true, can_withdraw: true, swap: null}
         default:
           $ref: "#/components/responses/Problem"
     delete:
@@ -238,7 +238,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProposalDetail"
-              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, kind: buy, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: withdrawn, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 1, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", voters: [{user_id: 01890a5d-ac96-774b-bcce-b302099a8059, choice: "yes", cast_at: "2026-10-03T16:00:00Z"}, {user_id: 01890a5d-ac96-774b-bcce-b302099a8061, choice: null, cast_at: null}], can_vote: false, can_withdraw: false, swap: null}
+              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, kind: buy, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: withdrawn, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 1, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", voters: [{user_id: 01890a5d-ac96-774b-bcce-b302099a8059, choice: "yes", cast_at: "2026-10-03T16:00:00Z"}, {user_id: 01890a5d-ac96-774b-bcce-b302099a8061, choice: null, cast_at: null}], can_vote: false, can_withdraw: false, swap: null}
         default:
           $ref: "#/components/responses/Problem"
   /v1/me/pending-votes:
@@ -255,7 +255,7 @@ paths:
           content:
             application/json:
               schema: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/PendingVote"}}
-              example: [{proposal_id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, kind: buy, symbol: AAPLx, expires_at: "2026-10-04T15:00:00Z"}]
+              example: [{proposal_id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, kind: buy, symbol: AAPLx, expires_at: "2026-10-04T15:00:00Z"}]
         default:
           $ref: "#/components/responses/Problem"
   /v1/proposals/{id}/votes:
@@ -640,6 +640,7 @@ components:
       required:
         - id
         - cabal_id
+        - cabal_name
         - proposer_id
         - kind
         - symbol
@@ -663,6 +664,7 @@ components:
           examples: [{winner_listing_id: 01928a6e-0000-7000-8000-000000000001, quotes: [{listing_id: 01928a6e-0000-7000-8000-000000000001, issuer: xstocks, network: solana, venue: jupiter, net_share_nanos: "40000000", net_micros: "10000000", costs: [], quoted_at: "2026-10-10T12:00:00Z", expires_at: "2026-10-10T12:00:30Z"}], unavailable: []}]
         id: {type: string, format: uuid, description: The proposal id., examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
         cabal_id: {type: string, format: uuid, description: The cabal id., examples: [01890a5d-ac96-774b-bcce-b302099a8058]}
+        cabal_name: {type: string, description: "The cabal's current name.", examples: [Friday Night Lights]}
         proposer_id: {type: string, format: uuid, description: The member who proposed it., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
         kind: {$ref: "#/components/schemas/ProposalKind"}
         symbol: {type: string, description: The token symbol., examples: [AAPLx]}
@@ -749,6 +751,7 @@ components:
       required:
         - id
         - cabal_id
+        - cabal_name
         - proposer_id
         - kind
         - symbol
@@ -770,6 +773,7 @@ components:
       properties:
         id: {type: string, format: uuid, description: The proposal id., examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
         cabal_id: {type: string, format: uuid, description: The cabal id., examples: [01890a5d-ac96-774b-bcce-b302099a8058]}
+        cabal_name: {type: string, description: "The cabal's current name.", examples: [Friday Night Lights]}
         proposer_id: {type: string, format: uuid, description: The member who proposed it., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
         kind: {$ref: "#/components/schemas/ProposalKind"}
         symbol: {type: string, description: The token symbol., examples: [AAPLx]}
@@ -858,10 +862,11 @@ components:
       type: object
       description: An open proposal that still needs the caller's ballot.
       additionalProperties: false
-      required: [proposal_id, cabal_id, kind, symbol, expires_at]
+      required: [proposal_id, cabal_id, cabal_name, kind, symbol, expires_at]
       properties:
         proposal_id: {type: string, format: uuid, description: The proposal id., examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
         cabal_id: {type: string, format: uuid, description: The cabal id., examples: [01890a5d-ac96-774b-bcce-b302099a8058]}
+        cabal_name: {type: string, description: "The cabal's current name.", examples: [Friday Night Lights]}
         kind: {$ref: "#/components/schemas/ProposalKind"}
         symbol: {type: string, description: The token symbol., examples: [AAPLx]}
         expires_at: {type: string, format: date-time, description: When voting closes., examples: ["2026-10-04T15:00:00Z"]}

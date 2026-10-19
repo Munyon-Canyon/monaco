@@ -50,6 +50,10 @@ func (r *ProposalReads) Get(ctx context.Context, req GetProposal) (ProposalDetai
 	if err != nil {
 		return ProposalDetail{}, err
 	}
+	view.CabalName, err = r.CabalName(ctx, view.CabalID)
+	if err != nil {
+		return ProposalDetail{}, err
+	}
 	swap, found, err := r.swaps.LatestBySource(ctx, trading.Source{Kind: "proposal", ID: row.ID})
 	if err != nil {
 		return ProposalDetail{}, err

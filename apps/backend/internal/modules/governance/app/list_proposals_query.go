@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -45,6 +46,7 @@ type ListProposals struct {
 type ProposalView struct {
 	ID           ids.ProposalID
 	CabalID      ids.CabalID
+	CabalName    string
 	ProposerID   ids.UserID
 	Kind         domain.Kind
 	Symbol       string
@@ -69,12 +71,38 @@ type ProposalPage struct {
 }
 
 type ProposalReads struct {
-	q     *sqlc.Queries
-	swaps Swaps
+	q      *sqlc.Queries
+	swaps  Swaps
+	cabals cabalport.ViewReader
 }
 
-func NewProposalReads(db sqlc.DBTX, s Swaps) *ProposalReads {
-	return &ProposalReads{q: sqlc.New(db), swaps: s}
+func NewProposalReads(db sqlc.DBTX, s Swaps, c cabalport.ViewReader) *ProposalReads {
+	return &ProposalReads{q: sqlc.New(db), swaps: s, cabals: c}
+}
+
+func (r *ProposalReads) CabalName(ctx context.Context, id ids.CabalID) (string, error) {
+	names, err := r.cabalNames(ctx, []ids.CabalID{id})
+	return names[id], err
+}
+
+func (r *ProposalReads) cabalNames(ctx context.Context, cabalIDs []ids.CabalID) (map[ids.CabalID]string, error) {
+	distinct := make([]ids.CabalID, 0, len(cabalIDs))
+	seen := make(map[ids.CabalID]bool, len(cabalIDs))
+	for _, id := range cabalIDs {
+		if !seen[id] {
+			seen[id] = true
+			distinct = append(distinct, id)
+		}
+	}
+	views, err := r.cabals.Cabals(ctx, distinct)
+	if err != nil {
+		return nil, err
+	}
+	names := make(map[ids.CabalID]string, len(views))
+	for id, v := range views {
+		names[id] = v.Name
+	}
+	return names, nil
 }
 
 type pageCursor struct {
@@ -109,11 +137,20 @@ func (r *ProposalReads) List(ctx context.Context, req ListProposals) (ProposalPa
 	if err != nil {
 		return ProposalPage{}, err
 	}
+	cabalIDs := make([]ids.CabalID, len(rows))
+	for i, row := range rows {
+		cabalIDs[i] = ids.CabalIDFrom(row.CabalID)
+	}
+	names, err := r.cabalNames(ctx, cabalIDs)
+	if err != nil {
+		return ProposalPage{}, err
+	}
 	for _, row := range rows {
 		view, err := proposalView(row, tallies[row.ID].tally)
 		if err != nil {
 			return ProposalPage{}, err
 		}
+		view.CabalName = names[view.CabalID]
 		view.CanVote = view.Status == domain.StatusOpen && tallies[row.ID].callerVotes
 		page.Items = append(page.Items, view)
 	}

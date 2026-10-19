@@ -66,7 +66,7 @@ func (*Module) Name() string { return "governance" }
 func (m *Module) Mount(r api.Mount) {
 	ports := m.tradePorts()
 	hints := adapters.Hints{Publish: m.deps.Bus}
-	reads := app.NewProposalReads(m.deps.Pool, trading.New(m.deps).Queries())
+	reads := app.NewProposalReads(m.deps.Pool, trading.New(m.deps).Queries(), cabal.New(m.deps).Queries())
 	propose := app.NewProposeTradeHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock, ports, hints)
 	governanceapi.Mount(adapters.HTTP{
 		Propose: propose,

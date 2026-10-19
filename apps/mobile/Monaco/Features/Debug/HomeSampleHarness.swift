@@ -202,7 +202,8 @@ enum HomeSampleData {
     private static func pending(_ proposal: Proposal) -> Components.Schemas.PendingVote {
         let second = proposal == .second
         return Components.Schemas.PendingVote(
-            proposalId: "home-proposal-\(second ? 2 : 1)", cabalId: second ? techCrew : bigBallers, kind: .buy,
+            proposalId: "home-proposal-\(second ? 2 : 1)", cabalId: second ? techCrew : bigBallers,
+            cabalName: second ? "Tech Crew" : "Big Ballers", kind: .buy,
             symbol: second ? "MSFTx" : "NVDAx", expiresAt: .now.addingTimeInterval(8 * 3_600))
     }
 
@@ -211,6 +212,7 @@ enum HomeSampleData {
             status: status(proposal), myBallot: proposal == .voted ? .yes : nil, canVote: true)
         let second = proposal == .second
         detail.cabalId = second ? techCrew : bigBallers
+        detail.cabalName = second ? "Tech Crew" : "Big Ballers"
         detail.symbol = second ? "MSFTx" : "NVDAx"
         detail.usdcMicros = second ? 250_000_000 : 400_000_000
         detail.tally = .init(yes: 3, no: 1, voters: 8, needed: 5)

@@ -129,7 +129,7 @@ final class ProposalTradingTests: XCTestCase {
     func testPendingModelLoadsTheCardContextAndKeepsItWhenALaterFetchFails() async throws {
         func pending(_ symbols: [String]) -> String {
             let rows = symbols.enumerated().map { index, symbol in
-                #"{"proposal_id":"p\#(index)","cabal_id":"c","kind":"buy","symbol":"\#(symbol)","expires_at":"2099-01-01T00:00:00Z"}"#
+                #"{"proposal_id":"p\#(index)","cabal_id":"c","cabal_name":"Cabal","kind":"buy","symbol":"\#(symbol)","expires_at":"2099-01-01T00:00:00Z"}"#
             }
             return "[\(rows.joined(separator: ","))]"
         }
@@ -198,7 +198,7 @@ final class ProposalTradingTests: XCTestCase {
     }
 
     private static let pending =
-        #"[{"proposal_id":"p","cabal_id":"c","kind":"buy","symbol":"AAPLx","expires_at":"2099-01-01T00:00:00Z"}]"#
+        #"[{"proposal_id":"p","cabal_id":"c","cabal_name":"Cabal","kind":"buy","symbol":"AAPLx","expires_at":"2099-01-01T00:00:00Z"}]"#
 
     private static func repository(_ transport: StubTransport) -> ProposalsRepository {
         repository(transport: transport)
@@ -210,10 +210,10 @@ final class ProposalTradingTests: XCTestCase {
     }
 
     private static func proposal(_ status: String, id: String) -> String {
-        #"{"id":"\#(id)","cabal_id":"c","proposer_id":"u","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"\#(status)","status_reason":null,"status_message":null,"expires_at":"2099-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":null,"can_vote":true}"#
+        #"{"id":"\#(id)","cabal_id":"c","cabal_name":"Cabal","proposer_id":"u","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"\#(status)","status_reason":null,"status_message":null,"expires_at":"2099-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":null,"can_vote":true}"#
     }
 
     static func detail(_ status: String, ballot: String? = nil) -> String {
-        #"{"id":"p","cabal_id":"c","proposer_id":"u","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"\#(status)","status_reason":null,"status_message":null,"expires_at":"2099-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":\#(ballot.map { "\"\($0)\"" } ?? "null"),"voters":[{"user_id":"u","choice":null,"cast_at":null}],"can_vote":false,"can_withdraw":false,"swap":null}"#
+        #"{"id":"p","cabal_id":"c","cabal_name":"Cabal","proposer_id":"u","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"\#(status)","status_reason":null,"status_message":null,"expires_at":"2099-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":\#(ballot.map { "\"\($0)\"" } ?? "null"),"voters":[{"user_id":"u","choice":null,"cast_at":null}],"can_vote":false,"can_withdraw":false,"swap":null}"#
     }
 }

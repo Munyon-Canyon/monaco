@@ -27,16 +27,23 @@ type readsDB struct {
 	cabal  uuid.UUID
 	caller uuid.UUID
 	swaps  *fakes.Trading
+	names  *namedCabals
 }
 
 func newReadsDB(t *testing.T) readsDB {
 	t.Helper()
 	d := newProposalDB(t)
-	return readsDB{proposalDB: d, cabal: d.ids.NewV7(), caller: d.ids.NewV7(), swaps: fakes.NewTrading()}
+	return readsDB{
+		proposalDB: d,
+		cabal:      d.ids.NewV7(),
+		caller:     d.ids.NewV7(),
+		swaps:      fakes.NewTrading(),
+		names:      &namedCabals{},
+	}
 }
 
 func (d readsDB) reads() *app.ProposalReads {
-	return app.NewProposalReads(d.pool, d.swaps)
+	return app.NewProposalReads(d.pool, d.swaps, d.names)
 }
 
 func (d readsDB) seed(t *testing.T, at time.Time, voters ...uuid.UUID) uuid.UUID {

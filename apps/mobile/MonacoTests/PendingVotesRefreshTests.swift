@@ -50,8 +50,8 @@ struct PendingVotesRefreshTests {
     }
 
     private static let pending =
-        #"[{"proposal_id":"p","cabal_id":"cabal-1","kind":"buy","symbol":"AAPLx","expires_at":"2099-01-01T00:00:00Z"}]"#
+        #"[{"proposal_id":"p","cabal_id":"cabal-1","cabal_name":"Cabal","kind":"buy","symbol":"AAPLx","expires_at":"2099-01-01T00:00:00Z"}]"#
 
     private static let detail =
-        #"{"id":"p","cabal_id":"cabal-1","proposer_id":"u","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"open","status_reason":null,"status_message":null,"expires_at":"2099-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":null,"voters":[],"can_vote":true,"can_withdraw":false,"swap":null}"#
+        #"{"id":"p","cabal_id":"cabal-1","cabal_name":"Cabal","proposer_id":"u","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"open","status_reason":null,"status_message":null,"expires_at":"2099-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":null,"voters":[],"can_vote":true,"can_withdraw":false,"swap":null}"#
 }

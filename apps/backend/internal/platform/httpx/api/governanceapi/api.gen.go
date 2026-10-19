@@ -444,6 +444,11 @@ type PendingVote struct {
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
 	CabalId openapi_types.UUID `json:"cabal_id"`
 
+	// CabalName The cabal's current name.
+	//
+	// Examples: Friday Night Lights
+	CabalName string `json:"cabal_name"`
+
 	// ExpiresAt When voting closes.
 	//
 	// Examples: 2026-10-04T15:00:00Z
@@ -471,6 +476,11 @@ type Proposal struct {
 	//
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
 	CabalId openapi_types.UUID `json:"cabal_id"`
+
+	// CabalName The cabal's current name.
+	//
+	// Examples: Friday Night Lights
+	CabalName string `json:"cabal_name"`
 
 	// CanVote Whether the caller can vote on it now, which means it is open and they are one of its voters.
 	//
@@ -567,6 +577,11 @@ type ProposalDetail struct {
 	//
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
 	CabalId openapi_types.UUID `json:"cabal_id"`
+
+	// CabalName The cabal's current name.
+	//
+	// Examples: Friday Night Lights
+	CabalName string `json:"cabal_name"`
 
 	// CanVote The caller is in the voter set and the proposal is open.
 	//
