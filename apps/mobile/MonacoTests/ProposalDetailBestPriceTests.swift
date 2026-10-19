@@ -35,8 +35,11 @@ struct ProposalDetailBestPriceTests {
 
         #expect(BestPriceSection.figure(bestPrice) == "$249.25 a share")
         #expect(bestPrice.headline == "Best price across 3 venues")
-        #expect(BestPriceSheet.rows(bestPrice).map(\.name) == ["Base", "Solana", "Ethereum"])
-        #expect(BestPriceSheet.rows(bestPrice).map(\.isWinner) == [true, false, false])
+        let rows = BestPriceSheet.rows(bestPrice)
+        #expect(rows.map(\.name) == ["Base", "Solana", "Ethereum", "Monad"])
+        #expect(rows.map(\.isWinner) == [true, false, false, false])
+        #expect(rows.last?.figure == "No price yet")
+        #expect(rows.last?.isUnavailable == true)
     }
 
     @Test(.timeLimit(.minutes(1)))
