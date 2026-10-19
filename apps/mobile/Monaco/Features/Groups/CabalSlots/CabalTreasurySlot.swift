@@ -84,25 +84,27 @@ struct CabalTreasuryCard: View {
     let address: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            Text(CabalTreasurySlotCopy.warning)
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.warning)
-                .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+            MonacoNotice(.warn, message: CabalTreasurySlotCopy.warning)
                 .padding(.horizontal, MonacoTheme.Space.gutter)
                 .accessibilityIdentifier("cabal-treasury-warning")
-            MonacoGroupedList {
-                ReceiptLine(label: "Address", value: .address(address), isLast: solscan == nil)
-                    .accessibilityIdentifier("cabal-treasury-address")
-                if let solscan {
-                    Link(destination: solscan) {
-                        MonacoRow(title: CabalTreasurySlotCopy.solscan, chevron: true, isLast: true) {
-                            SunkenGlyphMark(systemImage: "safari")
-                        }
+            MonacoWalletAddressText(address: address, textStyle: .subheadline)
+                .padding(MonacoTheme.Space.sm)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: MonacoTheme.Radius.field, style: .continuous)
+                        .fill(MonacoTheme.surfaceSunken)
+                )
+                .padding(.horizontal, MonacoTheme.Space.gutter)
+                .accessibilityIdentifier("cabal-treasury-address")
+            if let solscan {
+                Link(destination: solscan) {
+                    MonacoRow(title: CabalTreasurySlotCopy.solscan, chevron: true, isLast: true) {
+                        SunkenGlyphMark(systemImage: "safari")
                     }
-                    .buttonStyle(.monacoRow)
-                    .accessibilityIdentifier("cabal-treasury-solscan")
                 }
+                .buttonStyle(.monacoRow)
+                .accessibilityIdentifier("cabal-treasury-solscan")
             }
         }
     }

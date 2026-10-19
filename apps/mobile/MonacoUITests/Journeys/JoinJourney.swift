@@ -3,7 +3,7 @@ import XCTest
 
 enum JoinJourney {
     static let id = "cabals/join"
-    static let version = 7
+    static let version = 8
 
     static let screenTimeout: TimeInterval = 15
 
@@ -158,8 +158,9 @@ enum JoinJourney {
             app.buttons["cabal-join-button"].tap()
             waitForToast(app, requestedToast, step: "S1.6")
             XCTAssertTrue(
-                waitForLabel(app.element("cabal-join-requested"), containing: "Request sent", timeout: screenTimeout),
-                "S1.6: no Request sent on the cabal screen"
+                waitForLabel(
+                    app.element("cabal-join-requested"), containing: "Request pending", timeout: screenTimeout),
+                "S1.6: no Request pending on the cabal screen"
             )
             XCTAssertTrue(app.buttons["cabal-join-cancel"].exists, "S1.6: no Cancel request")
             snap(app, "S1-B-request-sent")
@@ -173,9 +174,11 @@ enum JoinJourney {
             openBySearch(app, name, step: "S1.7")
             XCTAssertTrue(
                 waitForLabel(
-                    app.element("cabal-join-requests-heading"), containing: "1 person wants to join", timeout: 2),
-                "S1.7: no 1 person wants to join within 2 s of the cabal screen"
+                    app.element("cabal-join-requests-heading"), containing: "1 request to review",
+                    timeout: screenTimeout),
+                "S1.7: no 1 request to review on the cabal screen"
             )
+            openRequests(app, step: "S1.7")
             let rows = app.descendants(matching: .any).matching(identifier: "cabal-join-request-row")
             XCTAssertEqual(rows.count, 1, "S1.7: expected one request row")
             XCTAssertTrue(rows.firstMatch.label.contains(member), "S1.7: the request does not name \(member)")
@@ -183,12 +186,13 @@ enum JoinJourney {
         }
 
         recorder.step("S1.8", "approve it") {
-            app.buttons["cabal-join-approve"].firstMatch.tap()
+            decide(app, approve: true, step: "S1.8")
             waitForToast(app, "Approved.", step: "S1.8")
             XCTAssertTrue(
-                app.element("cabal-join-requests-heading").waitForNonExistence(timeout: 10),
-                "S1.8: the request block is still on the screen"
+                app.element("members-requests-empty").waitForExistence(timeout: 10),
+                "S1.8: the request is still on the Members screen"
             )
+            app.navigationBars.buttons.firstMatch.tap()
             XCTAssertTrue(
                 waitForLabel(app.element("cabal-member-count"), containing: "2 members", timeout: 10),
                 "S1.8: the hero does not read 2 members: \(app.element("cabal-member-count").label)"
@@ -203,7 +207,7 @@ enum JoinJourney {
                 app.element("cabal-action-fund").waitForExistence(timeout: screenTimeout),
                 "S1.9: no member actions on the cabal within \(Int(screenTimeout)) s"
             )
-            XCTAssertFalse(app.element("cabal-join-requested").exists, "S1.9: still reads Request sent")
+            XCTAssertFalse(app.element("cabal-join-requested").exists, "S1.9: still reads Request pending")
             XCTAssertFalse(app.buttons["cabal-join-button"].exists, "S1.9: still offers to join")
             snap(app, "S1-B-member")
         }
@@ -212,6 +216,27 @@ enum JoinJourney {
 }
 
 extension JoinJourney {
+    static func openRequests(_ app: XCUIApplication, step: String) {
+        let heading = app.element("cabal-join-requests-heading")
+        XCTAssertTrue(
+            heading.waitForExistence(timeout: screenTimeout),
+            "\(step): no join requests row within \(Int(screenTimeout)) s")
+        heading.tap()
+        XCTAssertTrue(
+            app.element("cabal-join-request-row").waitForExistence(timeout: 10),
+            "\(step): the Members screen shows no request within 10 s")
+    }
+
+    static func decide(_ app: XCUIApplication, approve: Bool, step: String) {
+        let review = app.buttons["cabal-join-review"].firstMatch
+        XCTAssertTrue(review.waitForExistence(timeout: 10), "\(step): no Review button within 10 s")
+        review.tap()
+        let choice = app.buttons[approve ? "cabal-join-approve" : "cabal-join-deny"]
+        XCTAssertTrue(
+            choice.waitForExistence(timeout: 5), "\(step): the review dialog has no \(approve ? "Approve" : "Deny")")
+        choice.tap()
+    }
+
     static func creatorOpensTheCabal(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         let name = openCabal(run: run)
 
@@ -231,7 +256,7 @@ extension JoinJourney {
             waitForToast(app, "Cabal updated.", step: "S2.1")
             app.navigationBars.buttons.firstMatch.tap()
             CabalsEditRulesJourney.assertRule(app, "join", reads: "Open", step: "S2.1")
-            app.buttons["cabal-details-done"].tap()
+            app.navigationBars.buttons.firstMatch.tap()
         }
     }
 
@@ -281,8 +306,9 @@ extension JoinJourney {
             app.buttons["cabal-join-button"].tap()
             waitForToast(app, requestedToast, step: "S3.1")
             XCTAssertTrue(
-                waitForLabel(app.element("cabal-join-requested"), containing: "Request sent", timeout: screenTimeout),
-                "S3.1: no Request sent on the cabal screen"
+                waitForLabel(
+                    app.element("cabal-join-requested"), containing: "Request pending", timeout: screenTimeout),
+                "S3.1: no Request pending on the cabal screen"
             )
         }
     }
@@ -290,9 +316,8 @@ extension JoinJourney {
     static func creatorDeclines(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S3.2", "decline the request") {
             openBySearch(app, gateCabal(run: run), step: "S3.2")
-            let deny = app.buttons["cabal-join-deny"].firstMatch
-            XCTAssertTrue(deny.waitForExistence(timeout: screenTimeout), "S3.2: no Deny within \(Int(screenTimeout)) s")
-            deny.tap()
+            openRequests(app, step: "S3.2")
+            decide(app, approve: false, step: "S3.2")
             waitForToast(app, "Denied.", step: "S3.2")
         }
     }
@@ -316,8 +341,9 @@ extension JoinJourney {
             app.buttons["cabal-join-button"].tap()
             waitForToast(app, requestedToast, step: "S3.4")
             XCTAssertTrue(
-                waitForLabel(app.element("cabal-join-requested"), containing: "Request sent", timeout: screenTimeout),
-                "S3.4: no Request sent on the cabal screen"
+                waitForLabel(
+                    app.element("cabal-join-requested"), containing: "Request pending", timeout: screenTimeout),
+                "S3.4: no Request pending on the cabal screen"
             )
             XCTAssertFalse(app.element("cabal-join-declined").exists, "S3.4: still reads Request declined")
         }

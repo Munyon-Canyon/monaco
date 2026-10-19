@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsActivityJourney {
     static let id = "cabals/activity"
-    static let version = 6
+    static let version = 7
 
     static let screenTimeout: TimeInterval = 15
 

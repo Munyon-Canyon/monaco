@@ -37,14 +37,9 @@ struct CabalActionsLive: View {
         }
         .task(id: retry.tick) {
             let model = preparedModel()
-            guard cabalModel != nil else {
-                await model.load()
-                await model.loadUnread()
-                await model.observe()
-                return
-            }
-            await model.loadUnread()
-            await model.observeUnread()
+            guard cabalModel == nil else { return }
+            await model.load()
+            await model.observe()
         }
     }
 
@@ -63,6 +58,10 @@ struct CabalActionsRow: View {
 
     @Environment(ToastCenter.self) private var toasts
     @Environment(\.cabalModel) private var cabalModel
+    @Environment(\.cabalPotModel) private var potModel
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var hasNoShare: Bool { potModel?.summary?.slice == CabalPotSummary.Slice.none }
 
     var body: some View {
         content
@@ -78,6 +77,7 @@ struct CabalActionsRow: View {
             Color.clear.frame(height: 0)
         } else {
             actionsContent
+                .padding(.horizontal, MonacoTheme.Space.gutter)
         }
     }
 
@@ -88,18 +88,21 @@ struct CabalActionsRow: View {
                 Color.clear.frame(height: 0)
             } else {
                 HStack(spacing: 0) {
-                    ForEach(0..<4, id: \.self) { _ in
-                        SkeletonBlock(width: 56, height: 56, radius: 28)
-                            .frame(maxWidth: .infinity)
+                    ForEach(0..<3, id: \.self) { _ in
+                        SkeletonBlock(
+                            width: CircleActionMetrics.baseDiscSize, height: CircleActionMetrics.baseDiscSize,
+                            radius: CircleActionMetrics.baseDiscSize / 2
+                        )
+                        .frame(maxWidth: .infinity)
                     }
                 }
-                .padding(.horizontal, MonacoTheme.Space.gutter)
                 .accessibilityHidden(true)
             }
         case .hidden:
             Color.clear.frame(height: 0)
         case .failed:
-            MonacoErrorRow(thing: "the cabal actions", identifier: "cabal-actions-failed", retry: retry)
+            MonacoErrorRow(
+                thing: "the cabal actions", identifier: "cabal-actions-failed", inset: false, retry: retry)
         case .member(let canPropose):
             if let model {
                 buttons(cabalID: model.cabalID, canPropose: canPropose)
@@ -108,48 +111,53 @@ struct CabalActionsRow: View {
     }
 
     private func buttons(cabalID: String, canPropose: Bool) -> some View {
-        VStack(spacing: MonacoTheme.Space.s) {
-            HStack(alignment: .top, spacing: 0) {
-                action("Fund", "plus", id: "cabal-action-fund", FundRoute(cabalID: cabalID))
-                action("Propose", "arrow.up.right", id: "cabal-action-propose", ProposeRoute(cabalID: cabalID))
-                    .disabled(!canPropose)
-                action("Cash out", "arrow.down.left", id: "cabal-action-cash-out", CashOutRoute(cabalID: cabalID))
-                action(
-                    "Chat", "bubble.left", id: "cabal-action-chat", ChatRoute(cabalID: cabalID),
-                    unread: model?.hasUnreadChat == true)
-            }
+        VStack(spacing: MonacoTheme.Space.sm) {
+            tiles(cabalID: cabalID, canPropose: canPropose)
             if !canPropose {
-                Text("Only voters can propose")
-                    .font(MonacoTheme.Typo.callout)
-                    .foregroundStyle(MonacoTheme.muted)
+                Text(CabalCopy.onlyVotersCaption)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .multilineTextAlignment(.center)
                     .accessibilityIdentifier("cabal-action-propose-caption")
             }
+            if hasNoShare {
+                MonacoNotice(.info, message: CabalCopy.noShareNotice)
+                    .accessibilityIdentifier("cabal-no-share-notice")
+            }
         }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
     }
 
-    private func action(
-        _ title: String, _ systemImage: String, id: String, _ route: some AppRoute, unread: Bool = false
-    ) -> some View {
+    @ViewBuilder private func tiles(cabalID: String, canPropose: Bool) -> some View {
+        let fund = action(
+            CabalCopy.depositLabel, MonacoIcon.deposit.symbol, id: "cabal-action-fund", FundRoute(cabalID: cabalID))
+        let propose = action(
+            "Propose", MonacoIcon.propose.symbol, id: "cabal-action-propose", ProposeRoute(cabalID: cabalID)
+        )
+        .disabled(!canPropose)
+        let cashOut = action(
+            "Cash out", MonacoIcon.cashOut.symbol, id: "cabal-action-cash-out", CashOutRoute(cabalID: cabalID)
+        )
+        .disabled(hasNoShare)
+        .accessibilityLabel(hasNoShare ? CabalCopy.cashOutUnavailable : "Cash out")
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: MonacoTheme.Space.s) {
+                fund
+                propose
+                cashOut
+            }
+        } else {
+            HStack(alignment: .top, spacing: 0) {
+                fund
+                propose
+                cashOut
+            }
+        }
+    }
+
+    private func action(_ title: String, _ systemImage: String, id: String, _ route: some AppRoute) -> some View {
         CircleAction(title, systemImage: systemImage) { open(route) }
             .frame(maxWidth: .infinity)
-            .overlay(alignment: .top) { if unread { UnreadDot() } }
-            .accessibilityLabel(unread ? CabalCopy.chatUnreadAction : title)
             .accessibilityIdentifier(id)
-    }
-}
-
-private struct UnreadDot: View {
-    @ScaledMetric(relativeTo: .footnote) private var scaledDiscSize: CGFloat = 56
-
-    var body: some View {
-        Circle()
-            .fill(MonacoTheme.brand)
-            .frame(width: 8, height: 8)
-            .overlay(Circle().strokeBorder(MonacoTheme.background, lineWidth: 1.5))
-            .offset(x: CircleActionMetrics.discSize(scaled: scaledDiscSize) / 2 - 6, y: 2)
-            .accessibilityHidden(true)
-            .accessibilityIdentifier("cabal-action-chat-unread")
     }
 }
 

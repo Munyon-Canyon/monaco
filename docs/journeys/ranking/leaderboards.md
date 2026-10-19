@@ -1,7 +1,7 @@
 ---
 id: ranking/leaderboards
 title: The leaderboards
-version: 3
+version: 4
 milestone: M16
 requires: [auth/sign-in]
 actors: [A]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/RankingLeaderboardsJourney.swift, 
 
 # The leaderboards
 
-Monaco ranks people and cabals by return. Home has "Top investors" across everyone, each cabal has a "Leaderboard" of its members, and the Cabals tab has the "Cabal leaderboard". A row opens that person's profile. The copy is in [screens.md](../../screens.md#home) (Home slot 6), `CabalMemberBoardSlot` on the [cabal screen](../../screens.md#cabal-screen-cabalroute) and `CabalsBoardSlot` on the [Cabals tab](../../screens.md#cabals-tab).
+Monaco ranks people and cabals by return. Home has "Top investors" across everyone, each cabal has "Member standings", and the Cabals tab has the "Cabal leaderboard". A row opens that person's profile. The copy is in [screens.md](../../screens.md#home) (Home slot 6), `CabalMemberBoardSlot` on the [cabal screen](../../screens.md#cabal-screen-cabalroute) and `CabalsBoardSlot` on the [Cabals tab](../../screens.md#cabals-tab).
 
 Old app (`c838bd24`): `Home/HomeLeaderboardSection.swift` (Top investors, "Everyone" / "Friends", range chips), a row opening the profile with the cabals you share (now `UserProfileRoute`), the member board on `GroupDetailView` opening a profile, and Top cabals on the Cabals tab.
 
@@ -41,7 +41,7 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA ranks {QA.run}` | `cabal-header-name` reads `QA ranks {QA.run}` within 15 s |
-| S2.2 | A | scroll | "Leaderboard" | | The header "Leaderboard" and three `cabal-member-<user id>` rows show within 15 s, A's labelled "You" (screens.md `CabalMemberBoardSlot`: ""Leaderboard": ranked members with the viewer's row washed and labelled "You""; old app: `GroupDetailView` member board) |
+| S2.2 | A | scroll | "Member standings" | | The header "Member standings" and three `cabal-member-<user id>` rows show within 15 s, A's labelled "You" (screens.md `CabalMemberBoardSlot`: ""Leaderboard": ranked members with the viewer's row washed and labelled "You""; old app: `GroupDetailView` member board) |
 | S2.3 | A | tap | `cabal-member-<B id>` | | `user-profile-name` reads B's display name within 15 s (screens.md `CabalMemberBoardSlot`: "Rows open `UserProfileRoute`"; old app: member row opens the profile) |
 | S2.4 | A | go back, then read | the member board | | Each member row shows a return, and `cabal-member-board-coming` "Rankings show up here soon." is gone within 10 s (screens.md `CabalMemberBoardSlot`: "ranked members"; old app: `GroupDetailView` member board ranked by P&L) |
 

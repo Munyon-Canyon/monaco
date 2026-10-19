@@ -96,16 +96,20 @@ struct CabalLeaveSection: View {
     }
 
     private func leaveButton(_ standing: LeaveStanding) -> some View {
-        Button("Leave cabal", role: .destructive) { confirming = true }
-            .buttonStyle(.monacoDestructive)
-            .disabled(model?.isLeaving ?? false)
-            .accessibilityIdentifier("cabalLeaveButton")
-            .confirmationDialog("Leave \(standing.cabalName)?", isPresented: $confirming, titleVisibility: .visible) {
-                Button("Leave cabal", role: .destructive) {
-                    Task { await leave() }
-                }
-                .accessibilityIdentifier("cabalLeaveConfirmButton")
+        Button(role: .destructive) {
+            confirming = true
+        } label: {
+            Text("Leave cabal").foregroundStyle(MonacoTheme.loss)
+        }
+        .buttonStyle(.monacoOutline)
+        .disabled(model?.isLeaving ?? false)
+        .accessibilityIdentifier("cabalLeaveButton")
+        .confirmationDialog("Leave \(standing.cabalName)?", isPresented: $confirming, titleVisibility: .visible) {
+            Button("Leave cabal", role: .destructive) {
+                Task { await leave() }
             }
+            .accessibilityIdentifier("cabalLeaveConfirmButton")
+        }
     }
 
     private func leave() async {

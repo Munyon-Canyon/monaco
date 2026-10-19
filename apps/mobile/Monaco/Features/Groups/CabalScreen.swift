@@ -12,64 +12,55 @@ struct CabalScreen: View {
         CabalPauseSlot.self,
         CabalJoinSlot.self,
         CabalActionsSlot.self,
+        CabalChatPreviewSlot.self,
         CabalProposalsSlot.self,
         CabalHoldingsSlot.self,
         CabalMemberBoardSlot.self,
         CabalActivitySlot.self,
+        CabalRulesRowSlot.self,
     ]
 
     static let detailsSections: [any CabalSection.Type] = [
-        CabalInviteMemberSlot.self,
+        CabalInfoCoverSlot.self,
         CabalRulesSlot.self,
+        CabalInfoLinksSlot.self,
         CabalTreasurySlot.self,
+        CabalInfoFooterSlot.self,
         CabalLeaveSlot.self,
     ]
 
-    private static let heroScrollDistance: CGFloat = 140
-
     let context: CabalContext
     let sections: [any CabalSection.Type]
-    let detailsSections: [any CabalSection.Type]
     @Environment(AppEnvironment.self) private var environment
-    @Environment(ToastCenter.self) private var toasts
-    @State private var showsDetails = false
-    @State private var showsShare = false
-    @State private var heroScrolledAway = false
+    @Environment(\.hostMainTab) private var hostMainTab
+    @State private var showsInvite = false
     @State private var models = CabalScreenModels()
     @State private var retryTick = 0
     @State private var refresh = ScreenRefresh()
 
-    init(
-        cabalID: String,
-        sections: [any CabalSection.Type] = Self.sections,
-        detailsSections: [any CabalSection.Type] = Self.detailsSections
-    ) {
+    init(cabalID: String, sections: [any CabalSection.Type] = Self.sections) {
         self.context = CabalContext(cabalID: cabalID)
         self.sections = sections
-        self.detailsSections = detailsSections
     }
 
-    static func canShare(cabal: Components.Schemas.Cabal?, potState: LoadState<CabalPotSummary>) -> Bool {
+    static func canShare(cabal: Components.Schemas.Cabal?) -> Bool {
         guard let cabal else { return false }
-        var potLoaded = false
-        if case .loaded = potState { potLoaded = true }
-        return ShareCardAccess.canShareCabal(
-            isMember: cabal.me != nil, isActive: cabal.status != "banned", potLoaded: potLoaded)
+        return cabal.me != nil && cabal.status != "banned"
     }
 
     var body: some View {
         let sections = sections.map { $0.erased }
-        let details = detailsSections.map { $0.erased }
         let (cabal, pot) = models.prepared(cabalID: context.cabalID, environment: environment)
         Group {
             if SectionStack<CabalContext>.live(sections).isEmpty {
                 NotMigratedView(screen: "Cabal")
             } else if cabal.cabal == nil, case .failed = cabal.state {
-                ScrollView {
-                    MonacoErrorRow(thing: "this cabal", identifier: "cabal-failed") { retryTick += 1 }
-                        .padding(.top, MonacoTheme.Space.m)
-                }
-                .monacoCanvas()
+                CabalFullScreenError(identifier: "cabal-failed") { retryTick += 1 }
+            } else if let loaded = cabal.cabal, loaded.me == nil, Self.showsPublicLayout(self.sections) {
+                PublicCabalView(cabal: cabal, retry: { retryTick += 1 })
+                    .environment(\.cabalModel, cabal)
+                    .environment(\.cabalPotModel, pot)
+                    .environment(refresh)
             } else {
                 SectionStack(context: context, sections: sections)
                     .environment(\.cabalModel, cabal)
@@ -82,12 +73,8 @@ struct CabalScreen: View {
             }
         }
         .environment(\.cabalRetry, CabalRetry(tick: retryTick) { retryTick += 1 })
-        .onScrollGeometryChange(for: Bool.self) { geometry in
-            geometry.contentOffset.y + geometry.contentInsets.top > Self.heroScrollDistance
-        } action: { _, scrolledAway in
-            heroScrolledAway = scrolledAway
-        }
-        .navigationTitle(heroScrolledAway ? cabal.cabal?.name ?? "" : "")
+        .environment(\.cabalShare, CabalShare { showsInvite = true })
+        .navigationTitle(cabal.cabal?.name ?? "")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: retryTick) {
             async let loadedCabal: Void = cabal.load()
@@ -102,67 +89,69 @@ struct CabalScreen: View {
             pot.setVisible(visible)
         }
         .toolbar {
-            if Self.canShare(cabal: cabal.cabal, potState: pot.state) {
+            if let loaded = cabal.cabal, loaded.me != nil {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showsShare = true
-                    } label: {
-                        Image(systemName: "square.and.arrow.up")
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .accessibilityLabel("Share this cabal's gain")
-                    .accessibilityIdentifier("cabal-share-button")
-                }
-            }
-            if !SectionStack<CabalContext>.live(details).isEmpty {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showsDetails = true
-                    } label: {
-                        Image(systemName: "info.circle")
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .accessibilityLabel("Cabal details")
-                    .accessibilityIdentifier("cabal-details-button")
-                }
-            }
-        }
-        .sheet(isPresented: $showsShare) {
-            if let shared = cabal.cabal {
-                ShareCardHost(api: environment.api) { await $0.loadCabal(cabalID: shared.id, cabal: shared) }
-                    .monacoToastCenter(toasts)
-            }
-        }
-        .sheet(isPresented: $showsDetails) {
-            NavigationStack {
-                SectionStack(context: context, sections: details)
-                    .environment(\.cabalModel, cabal)
-                    .environment(\.cabalPotModel, pot)
-                    .monacoSheet(title: "Cabal details")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button("Done") {
-                                showsDetails = false
-                            }
-                            .accessibilityIdentifier("cabal-details-done")
+                    HStack(spacing: MonacoTheme.Space.s) {
+                        if Self.canShare(cabal: loaded) {
+                            MonacoGlassButton(
+                                icon: .share, accessibilityLabel: "Share cabal invitation", style: .quiet,
+                                placement: .toolbar
+                            ) { showsInvite = true }
+                            .accessibilityIdentifier("cabal-share-button")
                         }
+                        MonacoGlassButton(
+                            icon: .info, accessibilityLabel: "Cabal information", style: .quiet,
+                            placement: .toolbar
+                        ) {
+                            environment.navigator.open(
+                                CabalInfoRoute(cabalID: context.cabalID),
+                                in: hostMainTab ?? environment.navigator.selectedTab)
+                        }
+                        .accessibilityIdentifier("cabal-details-button")
                     }
-                    .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
+                }
             }
-            .presentationDetents([.medium, .large])
-            .monacoToastCenter(toasts)
+        }
+        .sheet(isPresented: $showsInvite) {
+            if let shared = cabal.cabal {
+                CabalInviteSheet(cabal: shared)
+            }
         }
     }
 
+    private static func showsPublicLayout(_ sections: [any CabalSection.Type]) -> Bool {
+        sections.contains { $0 == CabalHeaderSlot.self }
+    }
+}
+
+struct CabalFullScreenError: View {
+    let identifier: String
+    let retry: () -> Void
+
+    var body: some View {
+        EmptyState(
+            title: CabalCopy.loadFailedTitle, message: CabalCopy.loadFailedBody,
+            actionTitle: "Try again", actionIdentifier: "\(identifier)-retry",
+            systemImage: MonacoIcon.offline.symbol, action: retry
+        )
+        .frame(maxHeight: .infinity)
+        .monacoCanvas()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(identifier)
+    }
 }
 
 @MainActor
-private final class CabalScreenModels {
+final class CabalScreenModels {
     private var cabal: CabalModel?
     private var pot: CabalPotModel?
+    private var edit: CabalEditModel?
+
+    func preparedEdit(cabalID: String, environment: AppEnvironment) -> CabalEditModel {
+        let created = edit ?? CabalEditModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
+        edit = created
+        return created
+    }
 
     func prepared(cabalID: String, environment: AppEnvironment) -> (CabalModel, CabalPotModel) {
         let cabal = self.cabal ?? CabalModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
@@ -181,8 +170,15 @@ struct CabalRetry {
     var retry: (() -> Void)?
 }
 
+struct CabalShare {
+    var open: () -> Void
+}
+
 extension EnvironmentValues {
     @Entry var cabalRetry = CabalRetry()
     @Entry var cabalModel: CabalModel? = nil
     @Entry var cabalPotModel: CabalPotModel? = nil
+    @Entry var cabalShare: CabalShare? = nil
+    @Entry var cabalEditModel: CabalEditModel? = nil
+    @Entry var cabalInfoSaving = false
 }

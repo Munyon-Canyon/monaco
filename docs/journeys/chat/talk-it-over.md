@@ -1,7 +1,7 @@
 ---
 id: chat/talk-it-over
 title: Talk it over
-version: 3
+version: 4
 milestone: M19
 requires: [auth/sign-in]
 actors: [A, B]
@@ -64,8 +64,8 @@ B has not opened the chat since S3, so the two messages A sends here are all B h
 | --- | --- | --- | --- | --- | --- |
 | S5.1 | A | tap, tap, type, then tap, twice | the `cabals-list-card-<id>`, `cabal-action-chat`, `chat-composer`, then `chat-send` | `one {QA.run}`, then `two {QA.run}` | Both messages show within 5 s |
 | S5.2 | B | tap, then wait | the Cabals tab, then the `cabals-list-card-<id>` of `QA {QA.run}` | | The card reads "2 unread messages" within 10 s |
-| S5.3 | B | tap, then tap | the `cabals-list-card-<id>`, then `cabal-action-chat` | | `cabal-action-chat` reads "Chat, unread messages" (the dot) before the tap. The chat shows `two {QA.run}` as its newest message and `gm {QA.run}`, and no message reads `typo {QA.run}` |
-| S5.4 | B | tap back, then tap back | `BackButton`, then `BackButton` | | `cabal-action-chat` reads "Chat" again within 10 s of the first back, and the card has no unread badge on the Cabals tab |
+| S5.3 | B | tap, then tap | the `cabals-list-card-<id>`, then `cabal-action-chat` | | `cabal-action-chat` (the chat preview card) reads "…2 unread messages" (its count pill) before the tap. The chat shows `two {QA.run}` as its newest message and `gm {QA.run}`, and no message reads `typo {QA.run}` |
+| S5.4 | B | tap back, then tap back | `BackButton`, then `BackButton` | | `cabal-action-chat` no longer reads an unread count within 10 s of the first back, and the card has no unread badge on the Cabals tab |
 
 ## Ground truth
 

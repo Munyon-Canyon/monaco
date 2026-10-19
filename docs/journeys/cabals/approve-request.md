@@ -1,7 +1,7 @@
 ---
 id: cabals/approve-request
 title: Ask to join, cancel, and the creator's answer
-version: 2
+version: 3
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -32,18 +32,18 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | B | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA ask {QA.run}` | `cabal-header-name` reads `QA ask {QA.run}` and `cabal-join-button` reads "Request to join" within 15 s (old app: the non-member cabal screen's "Request to join") |
-| S1.2 | B | tap | `cabal-join-button` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s. `cabal-join-requested` reads "Request sent" next to `cabal-join-cancel` "Cancel request" within 10 s |
+| S1.2 | B | tap | `cabal-join-button` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s. `cabal-join-requested` reads "Request pending" next to `cabal-join-cancel` "Cancel request" within 10 s |
 | S1.3 | B | tap | `cabal-join-cancel` | | `cabal-join-button` reads "Request to join" again within 10 s, and there is no `cabal-join-requested` |
-| S1.4 | B | tap | `cabal-join-button` | | `cabal-join-requested` reads "Request sent" within 10 s |
-| S1.5 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA ask {QA.run}` | `cabal-join-requests-heading` reads "1 person wants to join" within 15 s, with one `cabal-join-request-row` naming B and its `cabal-join-approve` "Approve" and `cabal-join-deny` "Deny" |
-| S1.6 | A | tap | `cabal-join-deny` | | The toast "Denied." shows within 10 s. `cabal-join-requests-heading` is gone, and `cabal-member-count` still reads "1 member" |
+| S1.4 | B | tap | `cabal-join-button` | | `cabal-join-requested` reads "Request pending" within 10 s |
+| S1.5 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA ask {QA.run}` | `cabal-join-requests-heading` reads "1 request to review" within 15 s. Tapping it opens the Requests tab with one `cabal-join-request-row` naming B and its `cabal-join-review` "Review B" button, which opens a dialog with `cabal-join-approve` and `cabal-join-deny` |
+| S1.6 | A | tap, then tap | `cabal-join-review`, then `cabal-join-deny` in the dialog | | The toast "Denied." shows within 10 s. `members-requests-empty` shows, and after the back button `cabal-member-count` still reads "1 member" |
 
 ### S2 The creator approves
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA ok {QA.run}` | `cabal-join-requests-heading` reads "1 person wants to join" within 15 s, with one `cabal-join-request-row` naming B |
-| S2.2 | A | tap | `cabal-join-approve` | | The toast "Approved." shows within 10 s. `cabal-join-requests-heading` is gone, and `cabal-member-count` reads "2 members" within 10 s |
+| S2.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA ok {QA.run}` | `cabal-join-requests-heading` reads "1 request to review" within 15 s, and its Requests tab holds one `cabal-join-request-row` naming B |
+| S2.2 | A | tap, then tap | `cabal-join-review`, then `cabal-join-approve` in the dialog | | The toast "Approved." shows within 10 s. `members-requests-empty` shows, and after the back button `cabal-member-count` reads "2 members" within 10 s |
 
 ## Ground truth
 

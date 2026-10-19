@@ -115,47 +115,11 @@ struct CabalPicturePicker: View {
 
     private func upload(_ item: PhotosPickerItem) async {
         defer { selection = nil }
-
-        let data: Data?
-        do {
-            data = try await item.loadTransferable(type: Data.self)
-        } catch {
-            data = nil
-        }
-        guard let data else {
-            onResult(MonacoToast(message: "Couldn't read that picture.", isSuccess: false))
-            return
-        }
-
-        // The same preparer profile photos use: downsample and re-encode off the
-        // main thread, so the cap is met before the bytes leave the phone.
-        let prepared: ProfilePhotoUploadPreparer.Prepared
-        switch await ProfilePhotoUploadPreparer.prepared(from: data) {
-        case .success(let ready):
-            prepared = ready
-        case .failure(.unreadable):
-            onResult(MonacoToast(message: "That picture could not be opened. Try another.", isSuccess: false))
-            return
-        case .failure(.tooLarge):
-            onResult(MonacoToast(message: "That picture is too big to upload. Try another.", isSuccess: false))
-            return
-        }
-
-        switch await editor.setPicture(imageData: prepared.data, mimeType: prepared.mimeType) {
-        case .saved:
-            onResult(MonacoToast(message: "Picture updated.", isSuccess: true))
-        case .failed(let message):
-            onResult(MonacoToast(message: message, isSuccess: false))
-        }
+        onResult(await editor.upload(item))
     }
 
     private func remove() async {
-        switch await editor.removePicture() {
-        case .saved:
-            onResult(MonacoToast(message: "Picture removed.", isSuccess: true))
-        case .failed(let message):
-            onResult(MonacoToast(message: message, isSuccess: false))
-        }
+        onResult(await editor.remove())
     }
 }
 

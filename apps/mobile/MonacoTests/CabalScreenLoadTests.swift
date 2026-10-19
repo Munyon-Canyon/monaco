@@ -89,11 +89,13 @@ struct CabalScreenLoadTests {
             CabalProposals(cabalID: "cabal-1", makeModel: { _, _ in list }).environment(\.cabalModel, cabal))
         defer { window.isHidden = true }
 
-        await ProposalTestWindow.until { AccessibilityTree.labels(in: window).contains("No open votes") }
+        await ProposalTestWindow.until {
+            AccessibilityTree.labels(in: window).contains("No proposals need your attention.")
+        }
         for _ in 0..<500 { await Task.yield() }
 
         let labels = AccessibilityTree.labels(in: window)
-        #expect(labels.contains("No open votes"), "labels: \(labels)")
+        #expect(labels.contains("No proposals need your attention."), "labels: \(labels)")
         #expect(labels.contains("Propose the first buy.") == hasMessage, "labels: \(labels)")
     }
 

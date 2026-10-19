@@ -11,7 +11,8 @@ enum CabalActivitySlot: CabalSection {
 }
 
 enum CabalActivityCopy {
-    static let header = "Activity"
+    static let header = "Group activity"
+    static let helper = "Decisions and transactions in this pot"
     static let seeAll = "See all"
     static let emptyTitle = "Nothing yet"
     static let emptyMessage = "Money added and trades show up here."
@@ -65,12 +66,24 @@ private struct CabalActivityLive: View {
 struct CabalActivitySection: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.hostMainTab) private var hostMainTab
+    @Environment(\.cabalPotModel) private var potModel
     let model: CabalActivityModel?
 
+    private var isHidden: Bool {
+        if model?.phase == .hidden { return true }
+        guard model?.phase == .empty, let state = potModel?.summary?.state else { return false }
+        return state != .invested
+    }
+
     var body: some View {
-        if model?.phase != .hidden {
+        if !isHidden {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 header
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .padding(.bottom, -MonacoTheme.Space.s)
+                Text(CabalActivityCopy.helper)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.secondaryText)
                     .padding(.horizontal, MonacoTheme.Space.gutter)
                 CabalActivityContent(
                     opensThroughNavigator: true, model: model, rows: model?.firstFive ?? [], skeletonRows: 3)
@@ -241,10 +254,7 @@ private struct CabalActivityRowView: View {
     }
 
     private var chevron: some View {
-        Image(systemName: "chevron.right")
-            .font(.footnote.weight(.semibold))
-            .foregroundStyle(MonacoTheme.tertiaryText)
-            .accessibilityHidden(true)
+        MonacoRowChevron()
     }
 
     private var subtitle: Text {

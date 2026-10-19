@@ -50,10 +50,13 @@ nonisolated final class ShareCardSampleUITests: XCTestCase {
 
     @MainActor
     func testTheCabalScreenSharesItsGainAndCopiesTheLink() throws {
-        let app = launch(["-MonacoGroupDetailSample", "populated"])
+        let app = launch(["-MonacoGroupDetailSample", "ready"])
         let button = app.buttons["cabal-share-button"]
         XCTAssertTrue(button.waitForExistence(timeout: 30), "no share button on a member's cabal")
         button.tap()
+        let gain = element(app, "cabal-invite-gain-row")
+        XCTAssertTrue(gain.waitForExistence(timeout: 15), "the invite sheet has no gain row")
+        gain.tap()
         let shown = element(app, "share-card-image").waitForExistence(timeout: 30)
         attach(app.screenshot(), "share-cabal-sheet")
         let tree = XCTAttachment(string: app.debugDescription)
@@ -66,7 +69,8 @@ nonisolated final class ShareCardSampleUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["Link copied."].waitForExistence(timeout: 5), "no toast after Copy link")
         app.buttons["share-card-done"].tap()
-        XCTAssertTrue(app.buttons["cabal-share-button"].waitForExistence(timeout: 5), "the sheet did not close")
+        XCTAssertTrue(
+            element(app, "cabal-invite-gain-row").waitForExistence(timeout: 5), "the gain sheet did not close")
     }
 
     @MainActor

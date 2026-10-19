@@ -200,20 +200,47 @@ group-nav-root                -MonacoGroupNavSample root
 group-nav-list                -MonacoGroupNavSample list
 group-nav-create              -MonacoGroupNavSample create
 
-group-detail-populated        -MonacoGroupDetailSample populated
-group-detail-empty            -MonacoGroupDetailSample empty
-group-detail-loading          -MonacoGroupDetailSample loading
-group-detail-paused           -MonacoGroupDetailSample paused
-group-detail-outsider         -MonacoGroupDetailSample outsider
-group-detail-invited          -MonacoGroupDetailSample invited
-group-detail-requests         -MonacoGroupDetailSample requests
-group-detail-cash-only        -MonacoGroupDetailSample cashOnly
-group-detail-votes            -MonacoGroupDetailSample votes
-group-detail-populated-upper  -MonacoGroupDetailSample populated -MonacoSampleScroll 0.3
-group-detail-populated-center -MonacoGroupDetailSample populated -MonacoSampleScroll center
-group-detail-populated-bottom -MonacoGroupDetailSample populated -MonacoSampleScroll bottom
-group-detail-votes-center     -MonacoGroupDetailSample votes -MonacoSampleScroll center
-group-detail-paused-center    -MonacoGroupDetailSample paused -MonacoSampleScroll center
+cabal-ready                       -MonacoGroupDetailSample ready
+cabal-ready-dark                  -MonacoGroupDetailSample ready -AppleInterfaceStyle Dark
+cabal-ready-large-text            -MonacoGroupDetailSample ready -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
+cabal-ready-upper                 -MonacoGroupDetailSample ready -MonacoSampleScroll 0.3
+cabal-ready-center                -MonacoGroupDetailSample ready -MonacoSampleScroll center
+cabal-ready-bottom                -MonacoGroupDetailSample ready -MonacoSampleScroll bottom
+cabal-no-share                    -MonacoGroupDetailSample noShare
+cabal-cash-only                   -MonacoGroupDetailSample cashOnly
+cabal-no-proposals                -MonacoGroupDetailSample noProposals
+cabal-no-proposals-center         -MonacoGroupDetailSample noProposals -MonacoSampleScroll center
+cabal-executing                   -MonacoGroupDetailSample executing -MonacoSampleScroll center
+cabal-completed                   -MonacoGroupDetailSample completed -MonacoSampleScroll center
+cabal-empty                       -MonacoGroupDetailSample empty
+cabal-loading                     -MonacoGroupDetailSample loading
+cabal-error                       -MonacoGroupDetailSample error
+cabal-paused                      -MonacoGroupDetailSample paused
+cabal-paused-center               -MonacoGroupDetailSample paused -MonacoSampleScroll center
+cabal-votes                       -MonacoGroupDetailSample votes
+cabal-votes-center                -MonacoGroupDetailSample votes -MonacoSampleScroll center
+cabal-public-preview              -MonacoGroupDetailSample publicPreview
+cabal-public-preview-dark         -MonacoGroupDetailSample publicPreview -AppleInterfaceStyle Dark
+cabal-public-pending              -MonacoGroupDetailSample publicPending
+cabal-public-member               -MonacoGroupDetailSample publicMember
+cabal-public-private              -MonacoGroupDetailSample publicPrivate
+cabal-public-invited              -MonacoGroupDetailSample invited
+cabal-public-outsider             -MonacoGroupDetailSample outsider
+cabal-info                        -MonacoGroupDetailSample info
+cabal-info-dark                   -MonacoGroupDetailSample info -AppleInterfaceStyle Dark
+cabal-info-admin                  -MonacoGroupDetailSample infoAdmin
+cabal-info-saving                 -MonacoGroupDetailSample infoSaving
+cabal-info-bottom                 -MonacoGroupDetailSample info -MonacoSampleScroll bottom
+cabal-members                     -MonacoGroupDetailSample members
+cabal-members-dark                -MonacoGroupDetailSample members -AppleInterfaceStyle Dark
+cabal-voters                      -MonacoGroupDetailSample voters
+cabal-members-requests            -MonacoGroupDetailSample requests
+cabal-members-requests-empty      -MonacoGroupDetailSample requestsEmpty
+cabal-invite                      -MonacoGroupDetailSample invite
+cabal-invite-dark                 -MonacoGroupDetailSample invite -AppleInterfaceStyle Dark
+cabal-invite-preview              -MonacoGroupDetailSample invitePreview
+cabal-invite-invalid              -MonacoGroupDetailSample inviteInvalid
+cabal-invite-pending              -MonacoGroupDetailSample invitePending
 
 profile-placeholder           -MonacoProfileSample placeholder
 profile-photo                 -MonacoProfileSample photo

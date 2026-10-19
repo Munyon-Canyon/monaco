@@ -4,16 +4,16 @@ expect-fail: S2
 Approve sends a deny. S2.2 waits for the toast "Approved." and 2 members, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalJoinSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalJoinSlot.swift
-index c11c19992..41b38c27c 100644
---- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalJoinSlot.swift
-+++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalJoinSlot.swift
-@@ -243,7 +243,7 @@ private struct CabalPendingRequestRow: View {
-                     .buttonStyle(.plain)
-                     .accessibilityLabel("Deny \(request.name)")
-                     .accessibilityIdentifier("cabal-join-deny")
--                    Button("Approve") { decide(true, offersVote && canVote) }
-+                    Button("Approve") { decide(false, offersVote && canVote) }
-                         .buttonStyle(.monacoCompactProminent)
-                         .accessibilityLabel("Approve \(request.name)")
-                         .accessibilityIdentifier("cabal-join-approve")
+diff --git a/apps/mobile/Monaco/Features/Groups/MembersView.swift b/apps/mobile/Monaco/Features/Groups/MembersView.swift
+index c4132335a..909217bca 100644
+--- a/apps/mobile/Monaco/Features/Groups/MembersView.swift
++++ b/apps/mobile/Monaco/Features/Groups/MembersView.swift
+@@ -238,7 +238,7 @@ struct MembersView: View {
+ 
+     @ViewBuilder private func reviewButtons(_ request: CabalPendingRequest) -> some View {
+         Button("Approve") {
+-            Task { await requests?.decide(request, approve: true) }
++            Task { await requests?.decide(request, approve: false) }
+         }
+         .accessibilityIdentifier("cabal-join-approve")
+         if requests?.picksVoters == true {

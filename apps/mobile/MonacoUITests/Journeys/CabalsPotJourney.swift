@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsPotJourney {
     static let id = "cabals/pot"
-    static let version = 4
+    static let version = 5
 
     static let screenTimeout: TimeInterval = 15
 
@@ -16,8 +16,8 @@ enum CabalsPotJourney {
         recorder.step("S1.1", "open the cabal and find the pot") {
             JoinJourney.openBySearch(app, cabal(run: run), step: "S1.1")
             XCTAssertTrue(
-                app.staticTexts["In the pot"].waitForExistence(timeout: screenTimeout),
-                "S1.1: the hero has no In the pot within 15 s"
+                app.element("cabal-pot-value").waitForExistence(timeout: screenTimeout),
+                "S1.1: the cabal shows no pot value within 15 s"
             )
         }
 
@@ -35,8 +35,8 @@ enum CabalsPotJourney {
                 JoinJourney.waitForLabel(value, containing: "$0.00", timeout: 10),
                 "S1.3: no slice value of $0.00 within 10 s (known failure, #2136 #2137)"
             )
-            XCTAssertTrue(app.staticTexts["Your slice"].exists, "S1.3: no Your slice header")
-            XCTAssertTrue(app.staticTexts["Fund to get a slice"].exists, "S1.3: no Fund to get a slice")
+            XCTAssertTrue(app.staticTexts["Your share"].exists, "S1.3: no Your share label")
+            XCTAssertTrue(app.element("cabal-slice-none").exists, "S1.3: the share is not the no-stake cell")
         }
     }
 
@@ -49,6 +49,9 @@ enum CabalsPotJourney {
             let button = app.buttons["cabal-share-button"]
             XCTAssertTrue(button.waitForExistence(timeout: screenTimeout), "S2.2: no share button within 15 s")
             button.tap()
+            let gain = app.element("cabal-invite-gain-row")
+            XCTAssertTrue(gain.waitForExistence(timeout: screenTimeout), "S2.2: the invite sheet has no gain row")
+            gain.tap()
             XCTAssertTrue(
                 app.element("share-card-image").waitForExistence(timeout: screenTimeout),
                 "S2.2: the share sheet drew no card within 15 s"
@@ -65,6 +68,7 @@ enum CabalsPotJourney {
 
         recorder.step("S2.4", "close the sheet") {
             app.buttons["share-card-done"].tap()
+            app.buttons["Close"].tap()
             XCTAssertTrue(
                 app.element("cabal-header-name").waitForExistence(timeout: 5),
                 "S2.4: the cabal screen did not come back within 5 s"
@@ -98,8 +102,8 @@ enum CabalsPotJourney {
             XCTAssertTrue(cash.waitForExistence(timeout: 10), "S3.4: no Cash row within 10 s (known failure, #2136)")
             cash.tap()
             XCTAssertTrue(
-                app.navigationBars.staticTexts["Cash"].waitForExistence(timeout: 10),
-                "S3.4: the Cash asset screen did not show within 10 s"
+                app.navigationBars.staticTexts["Cabal cash"].waitForExistence(timeout: 10),
+                "S3.4: the Cabal cash screen did not show within 10 s"
             )
         }
     }

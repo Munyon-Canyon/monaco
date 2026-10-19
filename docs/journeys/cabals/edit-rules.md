@@ -1,7 +1,7 @@
 ---
 id: cabals/edit-rules
 title: Edit a cabal's rules and name
-version: 5
+version: 6
 milestone: M10
 requires: [auth/sign-in]
 actors: [A]
@@ -11,9 +11,9 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/CabalsEditRulesJourney.swift, apps
 
 # Edit a cabal's rules and name
 
-The creator opens a cabal's details, opens Cabal settings from a Rules row, renames the cabal, changes what passes and how long votes stay open, and saves. In the same editor the creator picks who votes, and one Save sends it all. The details sheet reads the new rules back. The rules are [Cabals](../../architecture/cabals.md#rules).
+The creator opens a cabal's information screen, opens Cabal settings from the Edit link of "The rules", renames the cabal, changes what passes and how long votes stay open, and saves. In the same editor the creator picks who votes, and one Save sends it all. The information screen reads the new rules back. The rules are [Cabals](../../architecture/cabals.md#rules).
 
-Old app (`c838bd24`): Cabal -> i -> Rules -> the editor -> Save; the name and picture in the same editor (`GroupDetailsSheet.swift`, `CabalPictureEditor.swift`). Spec: `CabalRulesSlot` in [screens.md](../../screens.md#cabal-screen-cabalroute).
+Old app (`c838bd24`): Cabal -> i -> Rules -> the editor -> Save; the name and picture in the same editor (`GroupDetailsSheet.swift`, `CabalPictureEditor.swift`). Spec: `CabalRulesSlot` and `CabalInfoView` in [screens.md](../../screens.md#cabal-screen-cabalroute).
 
 The format of this doc is in [App journeys](../README.md).
 
@@ -32,15 +32,15 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA rules {QA.run}` | `cabal-header-name` reads `QA rules {QA.run}` within 15 s |
-| S1.2 | A | tap, then scroll to | `cabal-details-button`, then `cabal-rules` | | `cabal-rules-name` reads "Name" `QA rules {QA.run}`, `cabal-rules-voters` "Who votes" "Every member", `cabal-rules-threshold` "To pass" "Majority" and `cabal-rules-expiry` "Votes stay open" "1 day" within 10 s |
+| S1.2 | A | tap, then scroll to | `cabal-details-button`, then `cabal-rules` | | `cabal-rules-voters` reads "Who votes" "Everyone", `cabal-rules-threshold` "Current threshold" "2 of 2 eligible voters" and `cabal-rules-expiry` "Votes stay open" "1 day" within 10 s |
 | S1.3 | A | tap | `cabal-rules-edit` | | The "Cabal settings" screen shows `edit-cabal-name` holding `QA rules {QA.run}` and `edit-cabal-rules-footer` reading "Vote rules apply to new proposals. Who can join applies right away." within 10 s |
 | S1.4 | A | clear, then type | `edit-cabal-name` | `QA renamed {QA.run}` | `edit-cabal-save` "Save" is enabled |
 | S1.5 | A | tap, then tap | "Everyone agrees" in `edit-rule-threshold`, then "1 week" in `edit-rule-expiry` | | `edit-rule-threshold` reads "Passes only if every voter says yes." and `edit-rule-expiry` reads "A vote that hasn't passed closes after 1 week." |
 | S1.6 | A | tap | "People I pick" in `edit-rule-voters` | | `edit-rule-voters` first showed "Everyone" selected, and now `edit-cabal-voters` lists the members within 10 s |
 | S1.7 | A | tap | `voters-member-<member-id>` | | The row names B and is selected |
 | S1.8 | A | tap | `edit-cabal-save` | | The toast "Cabal updated." shows within 10 s. One Save sends the name, threshold, expiry and voters in one PATCH |
-| S1.9 | A | tap back | the navigation bar's back button | | The details sheet shows `cabal-rules-threshold` "Everyone agrees", `cabal-rules-expiry` "1 week" and `cabal-rules-voters` naming A and B within 10 s |
-| S1.10 | A | tap | `cabal-details-done` | | `cabal-header-name` reads `QA renamed {QA.run}` within 10 s |
+| S1.9 | A | tap back | the navigation bar's back button | | The information screen shows `cabal-rules-threshold` "2 of 2 eligible voters", `cabal-rules-expiry` "1 week" and `cabal-rules-voters` "People I pick" within 10 s |
+| S1.10 | A | tap back | the navigation bar's back button | | `cabal-header-name` reads `QA renamed {QA.run}` within 10 s |
 
 ## Ground truth
 

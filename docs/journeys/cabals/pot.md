@@ -1,7 +1,7 @@
 ---
 id: cabals/pot
 title: The cabal pot
-version: 4
+version: 5
 milestone: M12
 requires: [auth/sign-in]
 actors: [A]
@@ -31,18 +31,18 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA slice {QA.run}` | `cabal-header-name` reads `QA slice {QA.run}`, and the hero shows "In the pot" within 15 s (screens.md `CabalPotSlot`: "In the pot") |
+| S1.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA slice {QA.run}` | `cabal-header-name` reads `QA slice {QA.run}`, and the pot value `cabal-pot-value` shows within 15 s (screens.md `CabalPotSlot`: the pot hero) |
 | S1.2 | A | wait | `cabal-pot-value` | | Reads "$0.00" within 10 s (screens.md `CabalPotSlot`: pot value from `GET /v1/cabals/{id}/pot`; old app: `PotSectionView` pot value) |
-| S1.3 | A | wait | `cabal-slice-value` | | Under the hairline, "Your slice" over "$0.00" with "Fund to get a slice" within 10 s (screens.md `CabalSliceSlot`: No stake: "$0.00" with "Fund to get a slice") |
+| S1.3 | A | wait | `cabal-slice-value` | | Between the hairlines, "Your share" over "$0.00" (the no-stake cell `cabal-slice-none`) beside "Cash" within 10 s (screens.md `CabalSliceSlot`: two-stat rule) |
 
 ### S2 Share the cabal's gain
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA slice {QA.run}` | `cabal-header-name` reads `QA slice {QA.run}` within 15 s |
-| S2.2 | A | tap | `cabal-share-button` | | The sheet "Share" shows the gain card as `share-card-image` within 15 s (screens.md: the share button next to the cabal's details button; members of an open cabal only) |
+| S2.2 | A | tap | `cabal-share-button` | | The sheet "Share cabal" shows within 15 s. Tapping its row `cabal-invite-gain-row` shows the gain card as `share-card-image` within 15 s (screens.md: the share button next to the cabal's information button; members of an open cabal only) |
 | S2.3 | A | tap | `share-card-copy` | | The toast "Link copied." shows within 5 s. The journey does not open the system share sheet, which XCUITest cannot dismiss reliably |
-| S2.4 | A | tap | `share-card-done` | | The sheet closes and `cabal-header-name` still reads `QA slice {QA.run}` within 5 s |
+| S2.4 | A | tap | `share-card-done` | | The gain sheet closes, then the "Close" button closes the invite sheet, and `cabal-header-name` still reads `QA slice {QA.run}` within 5 s |
 
 ### S3 Holdings
 
@@ -51,7 +51,7 @@ The format of this doc is in [App journeys](../README.md).
 | S3.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA slice {QA.run}` | `cabal-header-name` reads `QA slice {QA.run}` within 15 s |
 | S3.2 | A | scroll to | "Holdings" | | The section header "Holdings" shows within 10 s (screens.md `CabalHoldingsSlot`: "Holdings") |
 | S3.3 | A | wait | `cabal-holdings-empty` | | Reads "Fund, then propose the first buy." within 10 s (screens.md `CabalHoldingsSlot`: Zero pot; old app: `pot-empty` "Add money, then propose the first buy.") |
-| S3.4 | A | tap | `cabal-holdings-cash` | | The asset screen for "Cash" shows within 10 s (screens.md: "Rows open `AssetRoute`"; old app: `pot-row-USDC`) |
+| S3.4 | A | tap | `cabal-holdings-cash` | | The "Cabal cash" screen shows within 10 s (screens.md: the Cash row opens `GroupCashRoute`; old app: `pot-row-USDC`) |
 
 ## Ground truth
 

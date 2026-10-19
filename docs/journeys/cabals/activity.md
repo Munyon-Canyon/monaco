@@ -1,7 +1,7 @@
 ---
 id: cabals/activity
 title: Cabal activity
-version: 6
+version: 7
 milestone: M14
 requires: [auth/sign-in]
 actors: [A]
@@ -36,7 +36,7 @@ The rows come from SQL because no route writes `cabal_activity` without a real s
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap, type, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA activity {QA.run}` | `cabal-header-name` reads `QA activity {QA.run}` within 15 s |
-| S1.2 | A | scroll to | `cabal-activity` | | The section header reads "Activity" with "See all" (`cabal-activity-see-all`), and the newest row `cabal-activity-row-{failed_trade}` reads "Bought Apple" with the red status "Failed" within 15 s |
+| S1.2 | A | scroll to | `cabal-activity` | | The section header reads "Group activity" with "See all" (`cabal-activity-see-all`), and the newest row `cabal-activity-row-{failed_trade}` reads "Bought Apple" with the red status "Failed" within 15 s |
 | S1.3 | A | tap | `cabal-activity-see-all` | | The "Activity" screen lists all six rows (`cabal-activity-row-<id>`), "Money added" among them, within 10 s |
 | S1.4 | A | tap | `cabal-activity-row-{confirmed_trade}` | | The "Transaction" receipt shows within 10 s: `cabal-txn-amount` "$25.00", `cabal-txn-status` "Done", and `cabal-txn-solscan` "View on Solscan" |
 | S1.5 | A | tap the back button of the "Transaction" bar, then of the "Activity" bar | | | The "Activity" list shows, then `cabal-header-name` within 10 s each |

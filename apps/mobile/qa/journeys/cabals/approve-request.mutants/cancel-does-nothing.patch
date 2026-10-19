@@ -5,14 +5,15 @@ Cancel request no longer revokes the request. S1.3 waits for Request to join to 
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalJoinSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalJoinSlot.swift
+index 8c1468a47..00ad34f15 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalJoinSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalJoinSlot.swift
-@@ -78,7 +78,7 @@
-                 .accessibilityIdentifier("cabal-join-requested")
-             }
-             Button("Cancel request") {
--                Task { await model.cancelRequest() }
-+                _ = model
-             }
-             .buttonStyle(.monacoText)
-             .disabled(model.isBusy)
+@@ -154,7 +154,7 @@ struct CabalEntryActions: View {
+             .disabled(true)
+             .accessibilityIdentifier("cabal-join-requested")
+         Button("Cancel request") {
+-            Task { await model.cancelRequest() }
++            _ = model
+         }
+         .buttonStyle(.monacoText)
+         .disabled(model.isBusy)

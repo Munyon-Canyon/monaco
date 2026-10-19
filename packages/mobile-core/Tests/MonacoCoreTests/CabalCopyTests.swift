@@ -31,6 +31,45 @@ final class CabalCopyTests: XCTestCase {
         XCTAssertEqual(CabalCopy.unreadLabel(100), "More than 99 unread messages")
     }
 
+    func testTheV3CabalLines() {
+        XCTAssertEqual(CabalCopy.roleLine(isCreator: true), "You’re an administrator")
+        XCTAssertEqual(CabalCopy.roleLine(isCreator: false), "You’re a member")
+        XCTAssertEqual(CabalCopy.votersSummary(members: 8, eligible: 8), "8 members · 8 eligible voters")
+        XCTAssertEqual(CabalCopy.votersSummary(members: 1, eligible: 1), "1 member · 1 eligible voter")
+        XCTAssertEqual(CabalCopy.requestsLine(1), "1 request to review")
+        XCTAssertEqual(CabalCopy.requestsLine(2), "2 requests to review")
+        XCTAssertEqual(CabalCopy.chatFooter(cabalName: "Big Ballers", unread: 0), "Big Ballers")
+        XCTAssertEqual(CabalCopy.chatFooter(cabalName: "Big Ballers", unread: 1), "Big Ballers · 1 new message")
+        XCTAssertEqual(CabalCopy.chatFooter(cabalName: "Big Ballers", unread: 120), "Big Ballers · 99+ new messages")
+    }
+
+    func testTheRulesCardReadsThresholdAndVoters() {
+        var cabal = Components.Schemas.Cabal.sampleWithMembers(role: "creator")
+        cabal.rules.threshold = "majority"
+        XCTAssertEqual(CabalCopy.whoVotes(cabal), "Everyone")
+        XCTAssertEqual(CabalCopy.thresholdLine(cabal), "2 of 3 eligible voters")
+        cabal.rules.threshold = "unanimous"
+        XCTAssertEqual(CabalCopy.thresholdLine(cabal), "3 of 3 eligible voters")
+        cabal.rules.voterMode = "list"
+        cabal.members[2].canVote = false
+        XCTAssertEqual(CabalCopy.whoVotes(cabal), "People I pick")
+        XCTAssertEqual(CabalCopy.eligibleVoterCount(cabal), 2)
+        XCTAssertEqual(CabalCopy.thresholdLine(cabal), "2 of 2 eligible voters")
+    }
+
+    func testTheChatPreviewKeepsOnlyALiveMessageWithABody() {
+        var message = Components.Schemas.ChatMessage(
+            id: "m-1", author: .init(id: "u-1", handle: "alex", displayName: " ", photoUrl: nil), body: "gm",
+            createdAt: Date(timeIntervalSince1970: 0), alsoInChannel: false, replyCount: 0, deleted: false)
+        XCTAssertEqual(CabalChatPreviewMessage(message)?.author, "@alex")
+        XCTAssertEqual(CabalChatPreviewMessage(message)?.body, "gm")
+        message.body = nil
+        XCTAssertNil(CabalChatPreviewMessage(message))
+        message.body = "gm"
+        message.deleted = true
+        XCTAssertNil(CabalChatPreviewMessage(message))
+    }
+
     private func myCabal(role: String, pending: Int32) -> Components.Schemas.MyCabal {
         .init(
             id: "c-1", name: "QA pot", pictureUrl: nil, role: role, canVote: true, memberCount: 2,

@@ -24,13 +24,18 @@ struct CabalSliceBand: View {
                 Color.clear.frame(height: 0)
             } else {
                 band {
-                    SkeletonBlock(width: 140, height: 28)
-                    SkeletonBlock(width: 100, height: 14)
+                    stat("Your share", id: "cabal-slice-loading") { SkeletonBlock(width: 110, height: 28) }
+                    stat("Cash", id: "cabal-slice-cash-loading") { SkeletonBlock(width: 90, height: 28) }
                 }
             }
         case .loaded(let summary):
             if let slice = summary.slice {
-                band { figures(slice) }
+                band {
+                    stat("Your share", id: slice == .none ? "cabal-slice-none" : "cabal-slice-share") {
+                        figure(slice.value, id: "cabal-slice-value")
+                    }
+                    stat("Cash", id: "cabal-slice-cash-cell") { figure(summary.cash, id: "cabal-slice-cash") }
+                }
             } else {
                 Color.clear.frame(height: 0)
             }
@@ -40,66 +45,39 @@ struct CabalSliceBand: View {
     }
 
     private func band(@ViewBuilder _ content: () -> some View) -> some View {
-        CabalInkBand {
-            Rectangle()
-                .fill(MonacoTheme.onHeroHairline)
-                .frame(height: 1)
-                .padding(.bottom, MonacoTheme.Space.s)
-                .accessibilityHidden(true)
-            content()
+        VStack(spacing: 0) {
+            MonacoRule()
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: MonacoTheme.Space.gutter) { content() }
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) { content() }
+            }
+            .padding(.vertical, MonacoTheme.Space.m)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            MonacoRule()
         }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
     }
 
-    private func figures(_ slice: CabalPotSummary.Slice) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .lastTextBaseline) {
-                value(slice)
-                Spacer(minLength: MonacoTheme.Space.m)
-                share(slice, alignment: .trailing)
-            }
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                value(slice)
-                share(slice, alignment: .leading)
-            }
-        }
-    }
-
-    private func value(_ slice: CabalPotSummary.Slice) -> some View {
+    private func stat(_ title: String, id: String, @ViewBuilder _ figure: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-            Text("Your slice")
-                .font(MonacoTheme.Typo.callout)
+            Text(title)
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
-                .foregroundStyle(MonacoTheme.onHero)
-                .accessibilityAddTraits(.isHeader)
-            Text(slice.value)
-                .moneyFont(.large)
-                .foregroundStyle(MonacoTheme.onHero)
-                .lineLimit(1)
-                .minimumScaleFactor(MoneyStyle.large.minimumScaleFactor)
-                .accessibilityIdentifier("cabal-slice-value")
+            figure()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(id)
     }
 
-    @ViewBuilder
-    private func share(_ slice: CabalPotSummary.Slice, alignment: HorizontalAlignment) -> some View {
-        switch slice {
-        case .none:
-            Text("Fund to get a slice")
-                .font(MonacoTheme.Typo.callout)
-                .fixedSize(horizontal: false, vertical: true)
-                .foregroundStyle(MonacoTheme.onHeroMuted)
-                .accessibilityIdentifier("cabal-slice-none")
-        case .stake(_, let ofPot, let gain):
-            VStack(alignment: alignment, spacing: MonacoTheme.Space.xs) {
-                Text(ofPot)
-                    .font(MonacoTheme.Typo.callout)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .foregroundStyle(MonacoTheme.onHeroMuted)
-                    .accessibilityIdentifier("cabal-slice-share")
-                PnLText(dollarPnl: gain, style: .caption)
-                    .accessibilityIdentifier("cabal-slice-gain")
-            }
-        }
+    private func figure(_ text: String, id: String) -> some View {
+        Text(text)
+            .moneyFont(.card)
+            .foregroundStyle(MonacoTheme.primaryText)
+            .lineLimit(1)
+            .minimumScaleFactor(MoneyStyle.card.minimumScaleFactor)
+            .accessibilityIdentifier(id)
     }
 }
 

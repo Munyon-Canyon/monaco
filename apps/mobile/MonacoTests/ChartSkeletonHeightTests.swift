@@ -60,7 +60,7 @@ struct ChartSkeletonHeightTests {
         let loaded = try await Self.cabalHeroHeight(
             cabal: Self.reply(Components.Schemas.Cabal.sample(role: "member")),
             pot: Self.reply(Components.Schemas.CabalPot.sampleInvested),
-            waitingFor: "cabal-pot-split")
+            waitingFor: "cabal-pot-value")
 
         #expect(abs(loaded - skeleton) < Self.tolerance, "skeleton \(skeleton), loaded \(loaded)")
     }

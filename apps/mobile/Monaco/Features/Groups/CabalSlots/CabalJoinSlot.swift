@@ -62,89 +62,21 @@ struct CabalJoinSection: View {
                     Task { await model.load() }
                 }
             }
-        case .invited:
-            CabalInviteAnswer(model: model)
-        case .join:
-            policyNote(model.joinPolicy)
-            enterButton(model, idle: model.joinPolicy == .open ? "Join" : "Request to join")
-        case .declined:
-            MonacoGroupedList {
-                MonacoRow(
-                    title: CabalJoinCopy.declined,
-                    subtitle: model.joinPolicy.prospectNote,
-                    isLast: true,
-                    leading: {
-                        Image(systemName: "xmark.circle")
-                            .font(.title3)
-                            .foregroundStyle(MonacoTheme.muted)
-                            .accessibilityHidden(true)
-                    }
-                )
-                .accessibilityElement(children: .combine)
-                .accessibilityIdentifier("cabal-join-declined")
-            }
-            enterButton(model, idle: model.joinPolicy == .open ? "Join" : CabalJoinCopy.askAgain)
-        case .requested:
-            MonacoGroupedList {
-                MonacoRow(
-                    title: "Request sent",
-                    isLast: true,
-                    leading: {
-                        Image(systemName: "clock")
-                            .font(.title3)
-                            .foregroundStyle(MonacoTheme.warning)
-                            .accessibilityHidden(true)
-                    }
-                )
-                .accessibilityElement(children: .combine)
-                .accessibilityIdentifier("cabal-join-requested")
-            }
-            Button("Cancel request") {
-                Task { await model.cancelRequest() }
-            }
-            .buttonStyle(.monacoText)
-            .disabled(model.isBusy)
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            .accessibilityIdentifier("cabal-join-cancel")
         case .pending(let requests):
-            MonacoSectionHeader(CabalAccessStanding.heading(count: requests.count))
-                .padding(.horizontal, MonacoTheme.Space.gutter)
-                .accessibilityIdentifier("cabal-join-requests-heading")
-            MonacoGroupedList {
-                ForEach(requests) { request in
-                    CabalPendingRequestRow(
-                        request: request,
-                        isDeciding: model.deciding.contains(request.id),
-                        offersVote: model.picksVoters,
-                        decide: { approve, canVote in
-                            Task { await model.decide(request, approve: approve, canVote: canVote) }
-                        }
-                    )
+            NavigationLink(value: AnyAppRoute(MembersRoute(cabalID: cabalID, tab: .requests))) {
+                MonacoRow(
+                    title: "Join requests", subtitle: CabalCopy.requestsLine(requests.count), chevron: true,
+                    isLast: true
+                ) {
+                    SunkenGlyphMark(systemImage: "person")
                 }
             }
+            .buttonStyle(.monacoRow)
+            .accessibilityIdentifier("cabal-join-requests-heading")
+        case .invited, .join, .declined, .requested:
+            CabalEntryActions(model: model)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
         }
-    }
-
-    private func policyNote(_ policy: CabalJoinPolicy) -> some View {
-        Text(policy.prospectNote)
-            .font(MonacoTheme.Typo.caption)
-            .foregroundStyle(MonacoTheme.muted)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            .accessibilityIdentifier("cabal-join-policy")
-    }
-
-    private func enterButton(_ model: CabalAccessModel, idle: String) -> some View {
-        Button {
-            Task { await model.enter() }
-        } label: {
-            SubmitLabel(
-                isWorking: model.isBusy, idle: idle, working: model.joinPolicy == .open ? "Joining…" : "Sending…")
-        }
-        .buttonStyle(.monacoPrimary)
-        .disabled(model.isBusy)
-        .padding(.horizontal, MonacoTheme.Space.gutter)
-        .accessibilityIdentifier("cabal-join-button")
     }
 
     private func preparedModel() -> CabalAccessModel {
@@ -165,10 +97,71 @@ struct CabalJoinSection: View {
     }
 }
 
-private struct CabalInviteAnswer: View {
+struct CabalEntryActions: View {
     let model: CabalAccessModel
 
     var body: some View {
+        VStack(spacing: MonacoTheme.Space.sm) {
+            switch model.standing {
+            case .join:
+                policyNote
+                enterButton(idle: model.joinPolicy == .open ? "Join" : "Request to join")
+            case .declined:
+                declinedNote
+                enterButton(idle: model.joinPolicy == .open ? "Join" : CabalJoinCopy.askAgain)
+            case .requested:
+                requestedButtons
+            case .invited:
+                inviteButtons
+            case .hidden, .pending:
+                EmptyView()
+            }
+        }
+    }
+
+    private var policyNote: some View {
+        Text(model.joinPolicy.prospectNote)
+            .font(MonacoTheme.Typo.caption)
+            .foregroundStyle(MonacoTheme.secondaryText)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("cabal-join-policy")
+    }
+
+    private var declinedNote: some View {
+        Text(CabalJoinCopy.declined)
+            .font(MonacoTheme.Typo.caption)
+            .foregroundStyle(MonacoTheme.secondaryText)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("cabal-join-declined")
+    }
+
+    private func enterButton(idle: String) -> some View {
+        Button {
+            Task { await model.enter() }
+        } label: {
+            SubmitLabel(
+                isWorking: model.isBusy, idle: idle, working: model.joinPolicy == .open ? "Joining…" : "Sending…")
+        }
+        .buttonStyle(.monacoPrimary)
+        .disabled(model.isBusy)
+        .accessibilityIdentifier("cabal-join-button")
+    }
+
+    @ViewBuilder private var requestedButtons: some View {
+        Button("Request pending") {}
+            .buttonStyle(.monacoSecondary)
+            .disabled(true)
+            .accessibilityIdentifier("cabal-join-requested")
+        Button("Cancel request") {
+            Task { await model.cancelRequest() }
+        }
+        .buttonStyle(.monacoText)
+        .disabled(model.isBusy)
+        .accessibilityIdentifier("cabal-join-cancel")
+    }
+
+    @ViewBuilder private var inviteButtons: some View {
         Button {
             Task { await model.accept() }
         } label: {
@@ -176,18 +169,12 @@ private struct CabalInviteAnswer: View {
         }
         .buttonStyle(.monacoPrimary)
         .disabled(model.isBusy)
-        .padding(.horizontal, MonacoTheme.Space.gutter)
         .accessibilityIdentifier("cabal-join-accept")
         Button("Decline") {
             Task { await model.decline() }
         }
-        .buttonStyle(.plain)
-        .font(MonacoTheme.Typo.rowTitle)
-        .foregroundStyle(MonacoTheme.muted)
-        .frame(maxWidth: .infinity, minHeight: 44)
-        .contentShape(Rectangle())
+        .buttonStyle(.monacoOutline)
         .disabled(model.isBusy)
-        .padding(.horizontal, MonacoTheme.Space.gutter)
         .accessibilityIdentifier("cabal-join-decline")
     }
 }
@@ -196,72 +183,6 @@ enum CabalJoinCopy {
     static let canVote = "Can vote"
     static let declined = "Request declined"
     static let askAgain = "Ask again"
-}
-
-private struct CabalPendingRequestRow: View {
-    let request: CabalPendingRequest
-    let isDeciding: Bool
-    let offersVote: Bool
-    let decide: (Bool, Bool) -> Void
-
-    @State private var canVote = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            HStack(spacing: MonacoTheme.Space.s) {
-                NavigationLink(
-                    value: AnyAppRoute(
-                        UserProfileRoute(
-                            userID: request.userID,
-                            preview: UserPreview(displayName: request.name, handle: nil, photoURL: request.photoURL)
-                        ))
-                ) {
-                    HStack(spacing: MonacoTheme.Space.sm) {
-                        MonacoAvatar(photoURL: request.photoURL, displayName: request.name, seed: request.userID)
-                        Text(request.name)
-                            .font(MonacoTheme.Typo.rowTitle)
-                            .foregroundStyle(MonacoTheme.ink)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(minHeight: 44)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("cabal-join-request-row")
-                HStack(spacing: MonacoTheme.Space.s) {
-                    Button {
-                        decide(false, false)
-                    } label: {
-                        Text("Deny")
-                            .font(MonacoTheme.Typo.calloutStrong)
-                            .foregroundStyle(MonacoTheme.muted)
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Deny \(request.name)")
-                    .accessibilityIdentifier("cabal-join-deny")
-                    Button("Approve") { decide(true, offersVote && canVote) }
-                        .buttonStyle(.monacoCompactProminent)
-                        .accessibilityLabel("Approve \(request.name)")
-                        .accessibilityIdentifier("cabal-join-approve")
-                }
-                .disabled(isDeciding)
-            }
-            if offersVote {
-                Toggle(CabalJoinCopy.canVote, isOn: $canVote)
-                    .font(MonacoTheme.Typo.rowTitle)
-                    .tint(MonacoTheme.brandFill)
-                    .frame(minHeight: 44)
-                    .disabled(isDeciding)
-                    .accessibilityIdentifier("cabal-join-can-vote")
-            }
-        }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.vertical, MonacoTheme.Space.sm)
-    }
 }
 
 #if DEBUG
