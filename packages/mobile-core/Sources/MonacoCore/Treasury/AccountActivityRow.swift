@@ -19,9 +19,16 @@ public struct AccountActivityRow: Identifiable, Hashable, Sendable {
             switch self {
             case .pending: "Pending"
             case .settled: "Done"
-            case .failed: "Failed"
+            case .failed: "Not completed"
             }
         }
+    }
+
+    public enum Kind: Hashable, Sendable {
+        case deposit
+        case withdrawal
+        case fund
+        case cashOut
     }
 
     public struct Cabal: Hashable, Sendable {
@@ -30,7 +37,9 @@ public struct AccountActivityRow: Identifiable, Hashable, Sendable {
     }
 
     public let id: String
+    public let kind: Kind
     public let title: String
+    public let subtitle: String
     public let glyph: String
     public let date: String
     public let fullDate: String
@@ -50,10 +59,12 @@ public struct AccountActivityRow: Identifiable, Hashable, Sendable {
         let sameYear = calendar.component(.year, from: txn.createdAt) == calendar.component(.year, from: now)
         let headline = Self.headline(txn.kind, cabalName: cabal?.name ?? "a cabal")
         self.id = txn.id
+        self.kind = Kind(txn.kind)
         self.title = headline.title
         self.glyph = headline.glyph
         let short: SharedFormatters.DatePattern = sameYear ? .template("MMMdjmm") : .template("yMMMd")
         self.date = Self.string(txn.createdAt, short, calendar, locale)
+        self.subtitle = "\(headline.subtitleLead) · \(date)"
         self.fullDate = Self.string(txn.createdAt, .template("yMMMdjmm"), calendar, locale)
         self.status = Status(txn.status)
         self.amount = UsdAmountFormatter.format(signedMicros: micros)
@@ -63,12 +74,12 @@ public struct AccountActivityRow: Identifiable, Hashable, Sendable {
 
     private static func headline(
         _ kind: Components.Schemas.UserTxn.KindPayload, cabalName: String
-    ) -> (title: String, glyph: String) {
+    ) -> (title: String, glyph: String, subtitleLead: String) {
         switch kind {
-        case .deposit: ("Deposit", "arrow.down.to.line")
-        case .withdrawal: ("Withdrawal", "arrow.up.right")
-        case .fund: ("Funded \(cabalName)", "plus")
-        case .cashOut: ("Cashed out of \(cabalName)", "arrow.down.left")
+        case .deposit: ("Deposit received", "arrow.down", "USDC")
+        case .withdrawal: ("Withdrawal", "arrow.up.right", "USDC")
+        case .fund: ("Deposit to \(cabalName)", "person.3", "From cash")
+        case .cashOut: ("Cashed out of \(cabalName)", "arrow.down.left", "To cash")
         }
     }
 
@@ -76,6 +87,17 @@ public struct AccountActivityRow: Identifiable, Hashable, Sendable {
         _ date: Date, _ pattern: SharedFormatters.DatePattern, _ calendar: Calendar, _ locale: Locale
     ) -> String {
         SharedFormatters.string(from: date, pattern: pattern, locale: locale, calendar: calendar)
+    }
+}
+
+extension AccountActivityRow.Kind {
+    fileprivate init(_ payload: Components.Schemas.UserTxn.KindPayload) {
+        switch payload {
+        case .deposit: self = .deposit
+        case .withdrawal: self = .withdrawal
+        case .fund: self = .fund
+        case .cashOut: self = .cashOut
+        }
     }
 }
 

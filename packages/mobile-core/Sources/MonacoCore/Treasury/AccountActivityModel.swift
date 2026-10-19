@@ -12,9 +12,15 @@ public final class AccountActivityModel {
         case loaded
     }
 
+    public enum Filter: Hashable, Sendable {
+        case all
+        case pending
+    }
+
     public static let refreshingHints = ["balance_changed", "cashout_changed"]
 
     public private(set) var toast: String?
+    public var filter: Filter = .all
 
     private let api: APIClient
     private let hints: any HintSource
@@ -49,6 +55,24 @@ public final class AccountActivityModel {
 
     public var rows: [AccountActivityRow] { pager.items }
 
+    public var visibleRows: [AccountActivityRow] {
+        switch filter {
+        case .all: rows
+        case .pending: rows.filter { $0.status == .pending }
+        }
+    }
+
+    public var hasMore: Bool {
+        switch pager.phase {
+        case .idle, .loadingMore: true
+        case .exhausted, .loadingFirst, .failed: false
+        }
+    }
+
+    public var isFilterEmpty: Bool {
+        filter == .pending && !rows.isEmpty && visibleRows.isEmpty && pager.phase == .exhausted
+    }
+
     public var isLoadingMore: Bool { pager.phase == .loadingMore }
 
     public var phase: Phase {
@@ -74,6 +98,14 @@ public final class AccountActivityModel {
 
     public func loadMore() async {
         await pager.loadMore()
+    }
+
+    public func fillFilter() async {
+        while filter == .pending, visibleRows.isEmpty, hasMore, !Task.isCancelled {
+            let before = rows.count
+            await pager.loadMore()
+            if rows.count == before, hasMore { break }
+        }
     }
 
     public func observe() async {
