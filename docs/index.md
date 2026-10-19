@@ -39,6 +39,7 @@ Read these in order to understand the repo:
 | [App journeys](journeys/README.md) | The journey docs QA is built from, their XCUITests, and how to run and measure them |
 | [Read iOS app logs](how-to/read-ios-logs.md) | Matching a Console.app line to an API request, crash diagnostics |
 | [Gardener](how-to/gardener.md) | The nightly dead-code, candidate-lint and generator-drift report |
+| [Reply-finder](how-to/reply-finder.md) | Setting up and running the read-only X reply-finder that feeds a Telegram channel |
 | [Verify multichain money](how-to/verify-multichain.md) | The real-money run from a Base deposit through a cabal trade on another chain to a Base withdrawal, and its recorded results |
 | [Privy wallet actions](how-to/privy-wallet-actions.md) | Cross-chain USDC transfers through Privy `/transfer`, and the first real Solana to Base run |
 | [Verify EVM withdrawals](how-to/verify-withdrawals.md) | Proving a withdrawal to Base, Arbitrum or Ethereum with real USDC through the API, and the first recorded run |

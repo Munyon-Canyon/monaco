@@ -1,0 +1,357 @@
+{
+  "group chat investing": {
+    "data": [
+      {
+        "id": "1847000000000011000",
+        "text": "Our group chat finally agreed on a stock. Is there an app where friends can pool money and vote on what to buy?",
+        "author_id": "u1",
+        "created_at": "2026-10-18T10:01:00.000Z",
+        "entities": {}
+      },
+      {
+        "id": "1847000000000009000",
+        "text": "Our investment club runs on a group chat and a spreadsheet, and every vote gets lost. Anyone found a better way to invest together?",
+        "author_id": "u3",
+        "created_at": "2026-10-18T09:59:00.000Z",
+        "entities": {}
+      },
+      {
+        "id": "1847000000000006000",
+        "text": "Posted my portfolio update for the group chat. Still red, full breakdown here https://t.co/x2",
+        "author_id": "u2",
+        "created_at": "2026-10-18T09:56:00.000Z",
+        "entities": {
+          "urls": [
+            {
+              "url": "https://t.co/x2",
+              "expanded_url": "https://pablotrades.example/portfolio-update"
+            }
+          ]
+        }
+      }
+    ],
+    "includes": {
+      "users": [
+        {
+          "id": "u3",
+          "username": "clubtreasurer",
+          "public_metrics": {
+            "followers_count": 3200
+          }
+        },
+        {
+          "id": "u2",
+          "username": "pablo_trades",
+          "public_metrics": {
+            "followers_count": 18500
+          }
+        },
+        {
+          "id": "u1",
+          "username": "maria_invests",
+          "public_metrics": {
+            "followers_count": 1240
+          }
+        }
+      ]
+    },
+    "meta": {
+      "newest_id": "1847000000000011000",
+      "oldest_id": "1847000000000006000",
+      "result_count": 3
+    }
+  },
+  "investment club": {
+    "data": [
+      {
+        "id": "1847000000000013000",
+        "text": "¿Alguien conoce una app para un investment club entre amigos? Queremos votar cada compra.",
+        "author_id": "u4",
+        "created_at": "2026-10-18T10:03:00.000Z",
+        "entities": {}
+      },
+      {
+        "id": "1847000000000009000",
+        "text": "Our investment club runs on a group chat and a spreadsheet, and every vote gets lost. Anyone found a better way to invest together?",
+        "author_id": "u3",
+        "created_at": "2026-10-18T09:59:00.000Z",
+        "entities": {}
+      }
+    ],
+    "includes": {
+      "users": [
+        {
+          "id": "u4",
+          "username": "lucia_ahorra",
+          "public_metrics": {
+            "followers_count": 860
+          }
+        },
+        {
+          "id": "u3",
+          "username": "clubtreasurer",
+          "public_metrics": {
+            "followers_count": 3200
+          }
+        }
+      ]
+    },
+    "meta": {
+      "newest_id": "1847000000000013000",
+      "oldest_id": "1847000000000009000",
+      "result_count": 2
+    }
+  },
+  "tokenized stocks": {
+    "data": [
+      {
+        "id": "1847000000000012000",
+        "text": "tokenized stocks tokenized stocks tokenized stocks https://t.co/x6",
+        "author_id": "u6",
+        "created_at": "2026-10-18T10:02:00.000Z",
+        "entities": {
+          "urls": [
+            {
+              "url": "https://t.co/x6",
+              "expanded_url": "https://spam.example/free"
+            }
+          ]
+        }
+      },
+      {
+        "id": "1847000000000004000",
+        "text": "Tokenized stocks trade on weekends now. Who holds the real shares behind them?",
+        "author_id": "u5",
+        "created_at": "2026-10-18T09:54:00.000Z",
+        "entities": {}
+      }
+    ],
+    "includes": {
+      "users": [
+        {
+          "id": "u6",
+          "username": "stocksbot24",
+          "public_metrics": {
+            "followers_count": 12
+          }
+        },
+        {
+          "id": "u5",
+          "username": "defi_dana",
+          "public_metrics": {
+            "followers_count": 54000
+          }
+        }
+      ]
+    },
+    "meta": {
+      "newest_id": "1847000000000012000",
+      "oldest_id": "1847000000000004000",
+      "result_count": 2
+    }
+  },
+  "xStocks": {
+    "data": [
+      {
+        "id": "1847000000000010000",
+        "text": "$xStocks $TSLAx $NVDAx",
+        "author_id": "u7",
+        "created_at": "2026-10-18T10:00:00.000Z",
+        "entities": {}
+      },
+      {
+        "id": "1847000000000008000",
+        "text": "Does anyone know if xStocks work in Ecuador? Asking for a friend.",
+        "author_id": "u8",
+        "created_at": "2026-10-18T09:58:00.000Z",
+        "entities": {}
+      }
+    ],
+    "includes": {
+      "users": [
+        {
+          "id": "u8",
+          "username": "amir_codes",
+          "public_metrics": {
+            "followers_count": 2100
+          }
+        },
+        {
+          "id": "u7",
+          "username": "traderjoe",
+          "public_metrics": {
+            "followers_count": 9000
+          }
+        }
+      ]
+    },
+    "meta": {
+      "newest_id": "1847000000000010000",
+      "oldest_id": "1847000000000008000",
+      "result_count": 2
+    }
+  },
+  "FOMO app": {
+    "data": [
+      {
+        "id": "1847000000000014000",
+        "text": "Is the FOMO app just copy trading with extra steps?",
+        "author_id": "u9",
+        "created_at": "2026-10-18T10:04:00.000Z",
+        "entities": {}
+      }
+    ],
+    "includes": {
+      "users": [
+        {
+          "id": "u9",
+          "username": "sofia_sol",
+          "public_metrics": {
+            "followers_count": 7800
+          }
+        }
+      ]
+    },
+    "meta": {
+      "newest_id": "1847000000000014000",
+      "oldest_id": "1847000000000014000",
+      "result_count": 1
+    }
+  },
+  "memecoin loss": {
+    "data": [
+      {
+        "id": "1847000000000007000",
+        "text": "Lost half my savings on a memecoin this week. Never again.",
+        "author_id": "u10",
+        "created_at": "2026-10-18T09:57:00.000Z",
+        "entities": {}
+      }
+    ],
+    "includes": {
+      "users": [
+        {
+          "id": "u10",
+          "username": "degen_dave",
+          "public_metrics": {
+            "followers_count": 4100
+          }
+        }
+      ]
+    },
+    "meta": {
+      "newest_id": "1847000000000007000",
+      "oldest_id": "1847000000000007000",
+      "result_count": 1
+    }
+  },
+  "Robinhood Social": {
+    "data": [
+      {
+        "id": "1847000000000003000",
+        "text": "Robinhood Social feels like a scoreboard. Why would I copy strangers?",
+        "author_id": "u11",
+        "created_at": "2026-10-18T09:53:00.000Z",
+        "entities": {}
+      }
+    ],
+    "includes": {
+      "users": [
+        {
+          "id": "u11",
+          "username": "quietmoney",
+          "public_metrics": {
+            "followers_count": 31000
+          }
+        }
+      ]
+    },
+    "meta": {
+      "newest_id": "1847000000000003000",
+      "oldest_id": "1847000000000003000",
+      "result_count": 1
+    }
+  },
+  "copy trading": {
+    "data": [
+      {
+        "id": "1847000000000002000",
+        "text": "Copy trading fees explained in four charts https://t.co/x13",
+        "author_id": "u13",
+        "created_at": "2026-10-18T09:35:00.000Z",
+        "entities": {
+          "urls": [
+            {
+              "url": "https://t.co/x13",
+              "expanded_url": "https://bigfund.example/fees"
+            }
+          ]
+        }
+      },
+      {
+        "id": "1847000000000001000",
+        "text": "Copy trading is paying someone else to be wrong with your money https://t.co/x12",
+        "author_id": "u12",
+        "created_at": "2026-10-18T08:30:00.000Z",
+        "entities": {
+          "urls": [
+            {
+              "url": "https://t.co/x12",
+              "expanded_url": "https://etfellie.example/copy-trading"
+            }
+          ]
+        }
+      }
+    ],
+    "includes": {
+      "users": [
+        {
+          "id": "u13",
+          "username": "bigfund",
+          "public_metrics": {
+            "followers_count": 210000
+          }
+        },
+        {
+          "id": "u12",
+          "username": "etf_ellie",
+          "public_metrics": {
+            "followers_count": 420
+          }
+        }
+      ]
+    },
+    "meta": {
+      "newest_id": "1847000000000002000",
+      "oldest_id": "1847000000000001000",
+      "result_count": 2
+    }
+  },
+  "day trading discord": {
+    "data": [
+      {
+        "id": "1847000000000005000",
+        "text": "Anyone in a day trading discord that isn't just pumping coins?",
+        "author_id": "u14",
+        "created_at": "2026-10-18T09:55:00.000Z",
+        "entities": {}
+      }
+    ],
+    "includes": {
+      "users": [
+        {
+          "id": "u14",
+          "username": "nightowl",
+          "public_metrics": {
+            "followers_count": 5300
+          }
+        }
+      ]
+    },
+    "meta": {
+      "newest_id": "1847000000000005000",
+      "oldest_id": "1847000000000005000",
+      "result_count": 1
+    }
+  }
+}
