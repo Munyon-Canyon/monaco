@@ -74,7 +74,7 @@ struct CabalHoldingsSection: View {
             MonacoGroupedList { cashRow(summary.cash, yield: summary.cashYield) }
             note(Self.cashOnlyNote(canPropose: canPropose), id: "cabal-holdings-nothing-bought")
         case .invested:
-            AllocationBar(legend: summary.legend, tint: .forGroupId(cabalID))
+            HoldingsMixBar(legend: summary.legend, tint: .forGroupId(cabalID))
                 .padding(.horizontal, MonacoTheme.Space.gutter)
                 .padding(.bottom, MonacoTheme.Space.xs)
             MonacoGroupedList {
@@ -147,7 +147,7 @@ private struct HoldingRow: View {
     }
 }
 
-private struct AllocationBar: View {
+private struct HoldingsMixBar: View {
     let legend: [CabalPotSummary.Segment]
     let tint: MonacoTheme.CabalTint
 
