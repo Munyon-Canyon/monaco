@@ -72,6 +72,7 @@ func F32SetNotificationPreferencesRateLimited(s *scenario.Scenario) {
 	s.Given(scenario.SeededUser("alice", "active"), scenario.AsUser("alice")).
 		When(steps...).
 		Then(
+			bucketsDrained(),
 			scenario.Put(notificationPreferences, `{"decision_requests":true,"replies_and_mentions":true}`),
 			scenario.ExpectProblem(errs.CodeRateLimited),
 		)
@@ -90,6 +91,17 @@ func F32SetNotificationPreferencesCrashBeforeCommit(s *scenario.Scenario) {
 			scenario.ExpectJSON("decision_requests", false),
 			scenario.ExpectJSON("replies_and_mentions", false),
 		)
+}
+
+func bucketsDrained() scenario.Step {
+	return func(s *scenario.Scenario) {
+		s.Helper()
+		_, err := s.DB().Exec(s.Context(),
+			`UPDATE rate_limit_buckets SET tokens_milli = 0, updated_at = now() + interval '1 hour'`)
+		if err != nil {
+			s.Fatalf("flows: drain rate limit buckets: %v", err)
+		}
+	}
 }
 
 func preferencesRolledBack() scenario.Step {
