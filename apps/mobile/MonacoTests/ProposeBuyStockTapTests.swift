@@ -22,9 +22,7 @@ struct ProposeBuyStockTapTests {
         defer { window.isHidden = true }
         try #require(await Self.eventually { !model.rows.isEmpty }, "the list never loaded")
 
-        let field = try #require(Self.first(UITextField.self, in: window), "no search field")
-        field.becomeFirstResponder()
-        field.insertText("GOOGL")
+        model.setQuery("GOOGL")
         try #require(await Self.eventually { model.isSearching }, "typing never reached the query")
         try #require(await Self.eventually { model.phase == .loaded && !model.rows.isEmpty }, "no search results")
         let found = await Self.eventually(every: 500) { Self.element("propose-buy-stock-GOOGLx", in: window) != nil }

@@ -21,10 +21,10 @@ struct ProposeFromAssetScreen: View {
     var body: some View {
         Group {
             switch model?.state ?? .loading {
-            case .idle, .loading: framed { MonacoRowSkeleton(rows: 3, markShape: .tile, hasTrailing: false) }
+            case .idle, .loading: framed { MonacoRowSkeleton(rows: 4, markShape: .tile, hasTrailing: false) }
             case .failed:
                 framed {
-                    MonacoErrorRow(thing: "cabals", identifier: "propose-from-asset-error") {
+                    EmptyState.loadFailed(identifier: "propose-from-asset-error") {
                         Task { await model?.load(kind: kind, symbol: symbol) }
                     }
                 }
@@ -50,7 +50,9 @@ struct ProposeFromAssetScreen: View {
         if model?.destination == .votersOnly {
             EmptyState(title: "Only voters can propose")
         } else {
-            EmptyState(title: "Join a cabal first", actionTitle: "Browse cabals") {
+            EmptyState(
+                title: "Join a cabal first", actionTitle: "Find a cabal", systemImage: MonacoIcon.cabals.symbol
+            ) {
                 let tab = hostMainTab ?? environment.navigator.selectedTab
                 environment.navigator.closeProposeFlow(in: tab)
                 environment.navigator.selectedTab = .cabals
@@ -62,7 +64,7 @@ struct ProposeFromAssetScreen: View {
         content()
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .monacoCanvas()
-            .navigationTitle("Pick a cabal")
+            .navigationTitle(ProposeFlowCopy.chooseCabalTitle)
             .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -71,7 +73,7 @@ struct ProposeFromAssetScreen: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                     Text(pickTitle)
-                        .font(MonacoTheme.Typo.title)
+                        .font(MonacoTheme.Typo.section)
                         .foregroundStyle(MonacoTheme.ink)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, MonacoTheme.Space.gutter)
@@ -88,13 +90,14 @@ struct ProposeFromAssetScreen: View {
                         }
                     }
                 }
-                .padding(.top, MonacoTheme.Space.s)
+                .padding(.top, MonacoTheme.Space.m)
             }
         }
     }
 
     private var pickTitle: String {
-        "Which cabal should \(kind == .buy ? "buy" : "sell") \(AssetSymbolFormatter.display(symbol))?"
+        ProposeFlowCopy.chooseCabalQuestion(
+            verb: kind == .buy ? "buy" : "sell", ticker: AssetSymbolFormatter.display(symbol))
     }
 
     @ViewBuilder
@@ -121,12 +124,12 @@ struct ProposeFromAssetScreen: View {
                 stock: ProposeStock(holding: holding), trade: .sell(holding))
         } else if case .failed = pot?.state {
             framed {
-                MonacoErrorRow(thing: "holdings", identifier: "propose-sell-error") { Task { await pot?.load() } }
+                EmptyState.loadFailed(identifier: "propose-sell-error") { Task { await pot?.load() } }
             }
         } else if case .loaded = pot?.state {
-            framed { EmptyState(title: "Nothing to sell yet") }
+            framed { EmptyState(title: ProposeFlowCopy.noHoldingsToSell, systemImage: MonacoIcon.wallet.symbol) }
         } else {
-            framed { MonacoRowSkeleton(rows: 3, markShape: .tile, hasTrailing: false) }
+            framed { MonacoRowSkeleton(rows: 4, markShape: .tile, hasTrailing: false) }
         }
     }
 }
@@ -136,15 +139,14 @@ private struct ProposePickCabalRow: View {
     let isLast: Bool
 
     var body: some View {
-        MonacoRow(title: cabal.name, chevron: true, isLast: isLast) {
-            CabalMark(groupId: cabal.id, name: cabal.name, pictureUrl: cabal.pictureUrl)
-        } trailing: {
-            CabalPotModelHost(cabalID: cabal.id) { pot in
-                if let summary = pot?.summary {
-                    Text(summary.potValue).font(MonacoTheme.Typo.caption).foregroundStyle(MonacoTheme.muted)
-                } else {
-                    SkeletonBlock(width: 56, height: 12)
-                }
+        CabalPotModelHost(cabalID: cabal.id) { pot in
+            MonacoRow(
+                title: cabal.name, subtitle: pot?.summary.map { "\($0.cash) cash" }, chevron: true,
+                isLast: isLast
+            ) {
+                CabalMark(
+                    groupId: cabal.id, name: cabal.name, size: MonacoRowLayout.baseMarkSize,
+                    pictureUrl: cabal.pictureUrl)
             }
         }
     }
