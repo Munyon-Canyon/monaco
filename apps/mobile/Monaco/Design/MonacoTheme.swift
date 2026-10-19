@@ -167,8 +167,8 @@ enum MonacoTheme {
 
     static let allocationTints: [Color] = [
         brand,
-        Color.adaptive(light: 0x7B91A7, dark: 0x7B91A7),
-        Color.adaptive(light: 0x9A83B4, dark: 0x9A83B4),
+        Color.adaptive(light: 0x6F8296, dark: 0x7B91A7),
+        Color.adaptive(light: 0x8C77A4, dark: 0x9A83B4),
         border,
     ]
 

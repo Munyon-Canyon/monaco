@@ -436,3 +436,139 @@ struct MonacoContrastTests {
         }
     }
 }
+
+extension MonacoContrastTests {
+    private static let bothSchemes: [UIUserInterfaceStyle] = [.light, .dark]
+
+    private static func schemeName(_ scheme: UIUserInterfaceStyle) -> String {
+        scheme == .light ? "light" : "dark"
+    }
+
+    private static let paper: [Color] = [MonacoTheme.canvas, MonacoTheme.surface]
+
+    private static var coverBases: [(label: String, layers: [Color])] {
+        [("white", [Color.white])]
+            + MonacoTheme.CabalTint.allCases.map { ("\($0) fill", [$0.fill]) }
+    }
+
+    private static func textStops(_ scrim: MonacoTheme.CoverScrim) -> [MonacoTheme.CoverScrimStop] {
+        scrim.stops.filter { $0.alpha >= 0.85 }
+    }
+
+    private static var coverPairs: [Pair] {
+        var pairs: [Pair] = []
+        for scrim in MonacoTheme.CoverScrim.allCases {
+            for stop in textStops(scrim) {
+                let layer = Color(hex: stop.hex, alpha: stop.alpha)
+                for base in coverBases {
+                    for (label, color) in [
+                        ("onCover", MonacoTheme.onCover), ("onCoverMuted", MonacoTheme.onCoverMuted),
+                        ("profitOnCover", MonacoTheme.profitOnCover), ("lossOnCover", MonacoTheme.lossOnCover),
+                    ] {
+                        pairs.append(
+                            Pair(
+                                "\(label) on \(scrim) at \(stop.location) over \(base.label)", color,
+                                on: base.layers + [layer]))
+                    }
+                }
+            }
+        }
+        return pairs
+    }
+
+    private static var v3TextPairs: [Pair] {
+        var pairs = coverPairs
+        for surface in paper {
+            pairs.append(Pair("muted", MonacoTheme.muted, on: [surface]))
+            pairs.append(Pair("brand on brandSoft", MonacoTheme.brand, on: [surface, MonacoTheme.brandSoft]))
+            pairs.append(
+                Pair(
+                    "secondaryButtonLabel on secondaryButtonFill", MonacoTheme.secondaryButtonLabel,
+                    on: [surface, MonacoTheme.secondaryButtonFill]))
+            for tone in StatusBadge.Tone.allCases {
+                pairs.append(Pair("StatusBadge \(tone)", tone.label, on: [surface, tone.fill]))
+            }
+            for kind in EventPill.Kind.allCases {
+                pairs.append(Pair("EventPill \(kind)", kind.label, on: [surface, kind.fill]))
+            }
+            for (name, wash) in [
+                ("buyWash", MonacoTheme.buyWash), ("sellWash", MonacoTheme.sellWash),
+                ("priceWash", MonacoTheme.priceWash),
+            ] {
+                for (label, color) in [
+                    ("primaryText", MonacoTheme.primaryText), ("bodyText", MonacoTheme.bodyText),
+                    ("secondaryText", MonacoTheme.secondaryText),
+                ] {
+                    pairs.append(Pair("\(label) on \(name)", color, on: [surface, wash]))
+                }
+            }
+            pairs.append(Pair("profit on buyWash", MonacoTheme.profit, on: [surface, MonacoTheme.buyWash]))
+            pairs.append(Pair("loss on sellWash", MonacoTheme.loss, on: [surface, MonacoTheme.sellWash]))
+        }
+        return pairs
+    }
+
+    private static var v3MarkPairs: [Pair] {
+        var pairs: [Pair] = []
+        for surface in paper {
+            for (label, color) in [
+                ("profitVivid", MonacoTheme.profitVivid), ("lossVivid", MonacoTheme.lossVivid),
+                ("tertiaryText sparkline", MonacoTheme.tertiaryText),
+            ] {
+                pairs.append(Pair("chart \(label)", color, on: [surface], minimum: 3))
+            }
+            for tint in MonacoTheme.CabalTint.allCases {
+                pairs.append(Pair("chart \(tint) stroke", tint.stroke, on: [surface], minimum: 3))
+            }
+        }
+        for (label, color) in [("yes", MonacoTheme.profitVivid), ("no", MonacoTheme.lossVivid)] {
+            pairs.append(Pair("VoteBar \(label) against its track", color, on: [MonacoTheme.border], minimum: 3))
+            pairs.append(Pair("VoteBar \(label) against canvas", color, on: [MonacoTheme.canvas], minimum: 3))
+        }
+        for (index, color) in MonacoTheme.allocationTints.dropLast().enumerated() {
+            pairs.append(
+                Pair("AllocationBar segment \(index) against canvas", color, on: [MonacoTheme.canvas], minimum: 3))
+            pairs.append(
+                Pair(
+                    "AllocationBar segment \(index) against its cash track", color, on: [MonacoTheme.border], minimum: 3
+                ))
+        }
+        return pairs
+    }
+
+    private static func failures(_ pairs: [Pair]) -> [String] {
+        var failed: [String] = []
+        for pair in pairs {
+            for scheme in bothSchemes {
+                let ratio = WCAGContrast.ratio(pair.foreground, on: pair.backgrounds, scheme)
+                if ratio < pair.minimum {
+                    failed.append("\(pair.label) in \(schemeName(scheme)) is \(ratio), below \(pair.minimum)")
+                }
+            }
+        }
+        return failed
+    }
+
+    @Test func v3TextPairsClearAAInBothSchemes() {
+        #expect(Self.failures(Self.v3TextPairs).isEmpty, "\(Self.failures(Self.v3TextPairs))")
+    }
+
+    @Test func v3MarksClearTheGraphicalMinimumInBothSchemes() {
+        #expect(Self.failures(Self.v3MarkPairs).isEmpty, "\(Self.failures(Self.v3MarkPairs))")
+    }
+
+    @Test func hairlineStaysVisibleOnTheCanvas() {
+        for scheme in Self.bothSchemes {
+            let ratio = WCAGContrast.ratio(MonacoTheme.hairline, on: [MonacoTheme.canvas], scheme)
+            #expect(ratio >= 1.1, "hairline in \(Self.schemeName(scheme)) is \(ratio) on canvas")
+        }
+    }
+
+    @Test func reduceTransparencyDrawsTheSolidScrimOnEveryCover() {
+        let styles: [CabalCover<EmptyView>.Style] = [.hero, .heroTall, .card, .memberCard]
+        for style in styles {
+            #expect(CabalCover<EmptyView>.scrim(for: style, reduceTransparency: true) == .solid)
+        }
+        #expect(CabalCover<EmptyView>.scrim(for: .thumb(40), reduceTransparency: true) == nil)
+    }
+}

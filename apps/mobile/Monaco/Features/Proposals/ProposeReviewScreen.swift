@@ -5,6 +5,7 @@ struct ProposeReviewScreen: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.hostMainTab) private var hostMainTab
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var model: MonacoCore.ProposeReviewModel?
     @State private var cabalFailed = false
     @Binding private var isSending: Bool
@@ -146,7 +147,7 @@ struct ProposeReviewScreen: View {
         .padding(.top, MonacoTheme.Space.sm)
         .padding(.bottom, MonacoTheme.Space.s)
         .frame(maxWidth: .infinity)
-        .background(.regularMaterial)
+        .background(reduceTransparency ? AnyShapeStyle(MonacoTheme.surface) : AnyShapeStyle(.regularMaterial))
         .overlay(alignment: .top) { MonacoRule() }
     }
 
