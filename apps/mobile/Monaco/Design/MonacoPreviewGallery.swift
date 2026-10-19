@@ -33,14 +33,12 @@ private struct MonacoDesignGalleryRoot: View {
     @State var selection: GalleryTab
 
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
             if selection.wrapsInNavigation {
                 NavigationStack { selection.page }
             } else {
                 selection.page
             }
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
             GalleryTabBar(selection: $selection)
         }
         .defaultScrollAnchor(SampleScrollAnchor.requested(by: SampleScrollAnchor.flag))

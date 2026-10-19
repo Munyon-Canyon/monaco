@@ -63,13 +63,19 @@ struct GalleryStockSamples: View {
 struct GalleryCabalMarkSamples: View {
     var body: some View {
         GalleryGroup(title: "Cabal marks") {
-            GalleryGrid(minimum: 72) {
-                ForEach(GalleryFixtures.cabalNames, id: \.id) { cabal in
-                    GalleryCase(caption: "Tile") { CabalMark(groupId: cabal.id, name: cabal.name, size: 44) }
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+                GalleryCase(caption: "Tile") {
+                    GalleryGrid(minimum: 72) {
+                        ForEach(GalleryFixtures.cabalNames, id: \.id) { cabal in
+                            CabalMark(groupId: cabal.id, name: cabal.name, size: 44)
+                        }
+                    }
                 }
-                ForEach(GalleryFixtures.cabalNames, id: \.id) { cabal in
-                    GalleryCase(caption: "Circle") {
-                        CabalMark(groupId: cabal.id, name: cabal.name, size: 44, shape: .circle)
+                GalleryCase(caption: "Circle") {
+                    GalleryGrid(minimum: 72) {
+                        ForEach(GalleryFixtures.cabalNames, id: \.id) { cabal in
+                            CabalMark(groupId: cabal.id, name: cabal.name, size: 44, shape: .circle)
+                        }
                     }
                 }
             }
