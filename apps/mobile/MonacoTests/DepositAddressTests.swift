@@ -74,7 +74,7 @@ struct DepositContentLayoutTests {
     }
 
     @Test func theBalanceComesBeforeTheAddressAndTheStepper() {
-        #expect(DepositContent.order == [.balance, .address, .howItWorks])
+        #expect(DepositContent.order == [.head, .address, .notices, .howItWorks])
     }
 
     @Test func theStepperIsThreeShortSteps() {

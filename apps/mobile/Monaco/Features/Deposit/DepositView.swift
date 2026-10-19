@@ -9,42 +9,45 @@ struct DepositView: View {
     let cabalID: String?
 
     @Environment(AppEnvironment.self) private var environment
-    @Environment(ToastCenter.self) private var toasts
     @State private var addresses: DepositAddressesSource?
 
     var body: some View {
-        @Bindable var deposit = environment.cardDeposit
         DepositChooser(
-            creating: deposit.isCreating,
+            state: environment.balance.state,
             networks: DepositAddressesSource.offered(
                 addresses?.state ?? .idle, solanaAddress: environment.sessionStore.profile?.memberWalletAddress),
-            onCard: { Task { await deposit.start(suggestedMicros: prefillMicros, cabalID: cabalID) } }
+            cardStartFailed: Self.cardStartFailed(environment.cardDeposit.state),
+            cardRoute: CardFundingRoute(prefillMicros: prefillMicros, cabalID: cabalID),
+            onRetryBalance: { Task { await environment.balance.load() } }
         )
         .task(id: environment.sessionStore.profile?.userID) {
             let source = DepositAddressesSource(api: environment.api)
             addresses = source
             await source.load()
         }
-        .fullScreenCover(
-            item: Binding(get: { deposit.page }, set: { if $0 == nil { deposit.browserClosed() } })
-        ) { page in
-            SafariView(url: page.url)
-                .ignoresSafeArea()
+        .task {
+            await environment.balance.load()
         }
-        .onChange(of: deposit.messageTick) { _, _ in
-            guard let message = deposit.message else { return }
-            toasts.current = MonacoToast(message: message)
-        }
+    }
+
+    static func cardStartFailed(_ state: CardDepositState) -> Bool {
+        if case .failed(nil, _) = state { return true }
+        return false
     }
 }
 
 struct DepositChooser: View {
-    let creating: Bool
+    let state: LoadState<AccountBalance>
     var networks = [DepositNetwork(id: DepositNetwork.solanaID, address: "")]
-    let onCard: () -> Void
+    var cardStartFailed = false
+    var cardRoute = CardFundingRoute(prefillMicros: nil, cabalID: nil)
+    var onRetryBalance: () -> Void = {}
 
-    static let cardHint = "Card or Apple Pay. You choose the amount next."
+    static let cardTitle = "Card or Apple Pay"
+    static let cardHint = "Continue to the deposit provider"
     static let cryptoTitle = "Send crypto"
+    static let unavailableNotice = "Some funding methods may be unavailable in your location or account state."
+    static let arrivalNotice = "Money arrives in your cash balance. Funding a cabal is a separate step."
 
     static func cryptoHint(_ networks: [DepositNetwork]) -> String {
         let names = networks.map(\.displayName)
@@ -61,39 +64,80 @@ struct DepositChooser: View {
     enum Row: Hashable { case onramp, crypto }
     static let order: [Row] = [.onramp, .crypto]
 
+    private var display: HomeBalanceDisplay { .resolve(state) }
+
     var body: some View {
         ScrollView {
-            MonacoGroupedList {
-                ForEach(Self.order, id: \.self) { row in
-                    switch row {
-                    case .onramp: onrampRow
-                    case .crypto: cryptoRow
+            VStack(alignment: .leading, spacing: 0) {
+                hero
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .padding(.top, MonacoTheme.Space.m)
+                if case .failed = state {
+                    MonacoErrorRow(thing: "your balance", identifier: "deposit-balance-error", retry: onRetryBalance)
+                }
+                MonacoSectionHeader("How would you like to deposit?")
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .padding(.top, MonacoTheme.Space.section)
+                    .padding(.bottom, MonacoTheme.Space.s)
+                MonacoGroupedList {
+                    ForEach(Self.order, id: \.self) { row in
+                        switch row {
+                        case .onramp: onrampRow
+                        case .crypto: cryptoRow
+                        }
                     }
                 }
+                VStack(spacing: MonacoTheme.Space.sm) {
+                    if cardStartFailed {
+                        MonacoNotice(.warn, message: Self.unavailableNotice)
+                            .accessibilityIdentifier("deposit-unavailable-notice")
+                    }
+                    MonacoNotice(.info, message: Self.arrivalNotice)
+                }
+                .padding(.horizontal, MonacoTheme.Space.gutter)
+                .padding(.vertical, MonacoTheme.Space.sm)
             }
-            .disabled(creating)
-            .padding(.top, MonacoTheme.Space.m)
+            .padding(.bottom, MonacoTheme.Space.l)
         }
         .monacoCanvas()
-        .navigationTitle("Add money")
+        .navigationTitle("Deposit")
         .navigationBarTitleDisplayMode(.inline)
     }
 
+    private var hero: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+            Text("Your cash")
+                .font(MonacoTheme.Typo.captionStrong)
+                .foregroundStyle(MonacoTheme.muted)
+            switch display {
+            case .loading:
+                SkeletonBlock(width: 132, height: 36)
+                    .accessibilityIdentifier("platform-balance-loading")
+            case .amount(let micros):
+                MoneyText(micros: UsdAmountFormatter.flooredToCents(micros), style: .large)
+                    .foregroundStyle(MonacoTheme.ink)
+                    .accessibilityIdentifier("deposit-screen-balance-value")
+            case .unavailable:
+                Text("—")
+                    .moneyFont(.large)
+                    .foregroundStyle(MonacoTheme.muted)
+                    .accessibilityLabel("Account balance unavailable")
+                    .accessibilityIdentifier("platform-balance-unavailable")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private var onrampRow: some View {
-        Button(action: onCard) {
-            MonacoRow(title: "Card", subtitle: Self.cardHint, chevron: !creating) {
+        NavigationLink(value: AnyAppRoute(cardRoute)) {
+            MonacoRow(title: Self.cardTitle, subtitle: Self.cardHint, chevron: true) {
                 SunkenGlyphMark(systemImage: "creditcard")
-            } trailing: {
-                if creating {
-                    ProgressView()
-                        .accessibilityIdentifier("deposit-card-spinner")
-                }
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.monacoRow)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Card")
+        .accessibilityLabel(Self.cardTitle)
         .accessibilityHint(Self.cardHint)
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("deposit-card-row")
@@ -101,8 +145,8 @@ struct DepositChooser: View {
 
     private var cryptoRow: some View {
         NavigationLink(value: Self.cryptoRoute(networks)) {
-            MonacoRow(title: Self.cryptoTitle, subtitle: Self.cryptoHint(networks), chevron: true, isLast: true) {
-                StockMark(symbol: "USDC")
+            MonacoRow(title: Self.cryptoTitle, subtitle: "USDC on a supported network", chevron: true, isLast: true) {
+                SunkenGlyphMark(systemImage: "wallet.bifold")
             }
             .contentShape(Rectangle())
         }
@@ -129,28 +173,47 @@ struct DepositNetworksView: View {
     let networks: [DepositNetwork]
 
     static let title = "Choose a network"
+    static let helper =
+        "Choose the network you will send USDC from. Use only the matching address provided for that network."
+    static let warning = "Do not send unsupported assets or use a different network for the address."
+    static let solanaSubtitle = "Direct USDC deposit"
+
+    static func subtitle(for network: DepositNetwork) -> String? {
+        network.isSolana ? solanaSubtitle : DepositAddressCard.arrivalNote(for: network)
+    }
 
     var body: some View {
         ScrollView {
-            MonacoGroupedList {
-                ForEach(Array(networks.enumerated()), id: \.element.id) { index, network in
-                    NavigationLink(value: AnyAppRoute(DepositAddressRoute(network: network))) {
-                        MonacoRow(
-                            title: network.displayName, subtitle: DepositAddressCard.arrivalNote(for: network),
-                            chevron: true, isLast: index == networks.count - 1
-                        ) {
-                            DepositNetworkMark(network: network)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(Self.helper)
+                    .font(MonacoTheme.Typo.body)
+                    .foregroundStyle(MonacoTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .padding(.vertical, MonacoTheme.Space.m)
+                MonacoGroupedList {
+                    ForEach(Array(networks.enumerated()), id: \.element.id) { index, network in
+                        NavigationLink(value: AnyAppRoute(DepositAddressRoute(network: network))) {
+                            MonacoRow(
+                                title: network.displayName, subtitle: Self.subtitle(for: network),
+                                chevron: true, isLast: index == networks.count - 1
+                            ) {
+                                DepositNetworkMark(network: network)
+                            }
+                            .contentShape(Rectangle())
                         }
-                        .contentShape(Rectangle())
+                        .buttonStyle(.monacoRow)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(network.displayName)
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityIdentifier("deposit-network-\(network.id)")
                     }
-                    .buttonStyle(.monacoRow)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(network.displayName)
-                    .accessibilityAddTraits(.isButton)
-                    .accessibilityIdentifier("deposit-network-\(network.id)")
                 }
+                MonacoNotice(.info, message: Self.warning)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .padding(.vertical, MonacoTheme.Space.sm)
             }
-            .padding(.top, MonacoTheme.Space.m)
+            .padding(.bottom, MonacoTheme.Space.l)
         }
         .monacoCanvas()
         .navigationTitle(Self.title)
@@ -173,6 +236,7 @@ struct DepositAddressView: View {
     @Environment(ToastCenter.self) private var toasts
     @State private var addressAttempts = 0
     @State private var addressRetry = 0
+    @State private var received: Int64?
 
     private static let maxAddressAttempts = 5
 
@@ -195,8 +259,19 @@ struct DepositAddressView: View {
                 addressAttempts = 0
                 addressRetry += 1
             },
-            onRetryBalance: { Task { await environment.balance.load() } }
+            onRetryBalance: { Task { await environment.balance.load() } },
+            receivedMicros: received,
+            onFundCabal: { environment.navigator.selectedTab = .cabals },
+            onHome: {
+                environment.navigator.homePath = []
+                environment.navigator.selectedTab = .home
+            }
         )
+        .onChange(of: environment.balance.balance) { previous, current in
+            guard let current, case .deposited(let micros)? = BalanceChange.detect(previous: previous, current: current)
+            else { return }
+            received = micros
+        }
         .id(DepositAddressKey(userID: environment.sessionStore.profile?.userID, network: shown.id))
         .refreshable {
             await environment.sessionStore.reloadProfile(auth: environment.auth)
@@ -232,11 +307,15 @@ struct DepositContent: View {
     let onCopy: (String) -> Void
     let onRetryAddress: () -> Void
     let onRetryBalance: () -> Void
+    var receivedMicros: Int64?
+    var onFundCabal: () -> Void = {}
+    var onHome: () -> Void = {}
 
-    enum Section: Hashable { case balance, address, howItWorks }
-    static let order: [Section] = [.balance, .address, .howItWorks]
+    enum Section: Hashable { case head, address, notices, howItWorks }
+    static let order: [Section] = [.head, .address, .notices, .howItWorks]
 
     static let steps = steps(on: "Solana")
+    static let waitingNotice = "Waiting for network confirmation. Your balance hasn't been credited yet."
 
     static func steps(on network: String) -> [String] {
         ["Send USDC on \(network)", "It lands in your balance", "Fund a cabal"]
@@ -246,20 +325,38 @@ struct DepositContent: View {
         "Send USDC on \(network)"
     }
 
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    static func headTitle(on network: String) -> String {
+        "USDC on \(network)"
+    }
+
+    static func warning(on network: String) -> String {
+        "Send only USDC on \(network). Transfers on other networks can't be recovered."
+    }
+
+    private var arrivingMicros: Int64 {
+        if case .loaded(let balance) = state { return balance.arrivingMicros }
+        return 0
+    }
 
     var body: some View {
+        Group {
+            if let receivedMicros {
+                received(receivedMicros)
+            } else {
+                entry
+            }
+        }
+        .navigationTitle("Receive USDC")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var entry: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
                 ForEach(Self.order, id: \.self) { section in
                     switch section {
-                    case .balance:
-                        MonacoGroupedList {
-                            PlatformBalanceCard(state: state, valueIdentifier: "deposit-screen-balance-value")
-                            if case .failed = state {
-                                balanceFailure
-                            }
-                        }
+                    case .head:
+                        head
                     case .address:
                         let content = DepositAddressCard.Content.resolve(address: address, gaveUp: gaveUp)
                         if content == .unavailable {
@@ -270,60 +367,103 @@ struct DepositContent: View {
                             DepositAddressCard(content: content, network: network, onCopy: onCopy)
                                 .padding(.horizontal, MonacoTheme.Space.gutter)
                         }
+                    case .notices:
+                        notices
+                            .padding(.horizontal, MonacoTheme.Space.gutter)
                     case .howItWorks:
                         howItWorks
                     }
                 }
             }
-            .padding(.top, MonacoTheme.Space.m)
+            .padding(.top, MonacoTheme.Space.s)
             .padding(.bottom, MonacoTheme.Space.xl)
         }
         .monacoCanvas()
-        .navigationTitle(Self.title(on: network.displayName))
-        .navigationBarTitleDisplayMode(.inline)
     }
 
-    private var balanceFailure: some View {
-        MonacoErrorRow(thing: "your balance", identifier: "deposit-balance-error", retry: onRetryBalance)
+    private func received(_ micros: Int64) -> some View {
+        MoneyOutcome(
+            tone: .done, title: "Deposit received",
+            message: "\(UsdAmountFormatter.format(micros: micros)) is now available in your account.",
+            rows: [
+                MoneyKeyRow(label: "Asset", value: .words("USDC")),
+                MoneyKeyRow(label: "Network", value: .words(network.displayName)),
+                MoneyKeyRow(label: "Destination", value: .words("Cash")),
+                MoneyKeyRow(label: "Amount", value: .data(UsdAmountFormatter.format(micros: micros))),
+            ],
+            identifier: "deposit-received"
+        ) {
+            Button("Fund a cabal", action: onFundCabal)
+                .buttonStyle(.monacoPrimary)
+                .accessibilityIdentifier("deposit-received-fund-button")
+            Button("Back to Home", action: onHome)
+                .buttonStyle(.monacoOutline)
+                .accessibilityIdentifier("deposit-received-home-button")
+        }
+    }
+
+    private var head: some View {
+        HStack(spacing: MonacoTheme.Space.s) {
+            Text(Self.headTitle(on: network.displayName))
+                .font(MonacoTheme.Typo.section)
+                .foregroundStyle(MonacoTheme.ink)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityAddTraits(.isHeader)
+            StatusBadge("Deposit", tone: .positive)
+        }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.vertical, MonacoTheme.Space.m)
+    }
+
+    @ViewBuilder
+    private var notices: some View {
+        if case .failed = state {
+            MonacoErrorRow(thing: "your balance", identifier: "deposit-balance-error", retry: onRetryBalance)
+        }
+        if arrivingMicros > 0 {
+            MonacoNotice(.warn, message: Self.waitingNotice)
+                .accessibilityIdentifier("platform-balance-arriving")
+        } else {
+            MonacoNotice(.info, message: Self.warning(on: network.displayName))
+                .accessibilityIdentifier("deposit-network-warning")
+        }
+        if let arrival = DepositAddressCard.arrivalNote(for: network) {
+            MonacoNotice(.info, message: arrival)
+                .accessibilityIdentifier("deposit-arrival-note")
+        }
+        if let fee = DepositAddressCard.feeNote(for: network) {
+            MonacoNotice(.info, message: fee)
+                .accessibilityIdentifier("deposit-fee-note")
+        }
     }
 
     private var howItWorks: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
             MonacoSectionHeader("How it works")
-            let layout =
-                dynamicTypeSize.isAccessibilitySize
-                ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.s))
-                : AnyLayout(HStackLayout(alignment: .top, spacing: MonacoTheme.Space.s))
-            layout {
-                ForEach(Array(Self.steps(on: network.displayName).enumerated()), id: \.offset) { index, step in
-                    stepView(number: index + 1, label: step)
-                }
+            ForEach(Array(Self.steps(on: network.displayName).enumerated()), id: \.offset) { index, step in
+                stepView(number: index + 1, label: step)
             }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.top, MonacoTheme.Space.s)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("deposit-how-it-works")
     }
 
     private func stepView(number: Int, label: String) -> some View {
-        let stacked = dynamicTypeSize.isAccessibilitySize
-        let inner =
-            (stacked
-                ? AnyLayout(HStackLayout(alignment: .center, spacing: MonacoTheme.Space.sm))
-                : AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.xs)))
-        return inner {
+        HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.sm) {
             Text("\(number)")
                 .font(MonacoTheme.Typo.captionStrong)
-                .foregroundStyle(MonacoTheme.ink)
-                .frame(width: 24, height: 24)
-                .background(Circle().fill(MonacoTheme.surfaceSunken))
+                .foregroundStyle(MonacoTheme.brand)
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(MonacoTheme.brandSoft))
                 .accessibilityHidden(true)
             Text(label)
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.muted)
+                .font(MonacoTheme.Typo.body)
+                .foregroundStyle(MonacoTheme.ink)
                 .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Step \(number): \(label)")
     }
@@ -365,79 +505,51 @@ struct DepositAddressCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-            Text("Your deposit address")
-                .font(MonacoTheme.Typo.captionStrong)
-                .foregroundStyle(MonacoTheme.muted)
-
-            switch content {
-            case .loading:
-                loading
-            case .ready(let address):
-                ready(address)
-            case .unavailable:
-                EmptyView()
+        MonacoCard {
+            VStack(spacing: MonacoTheme.Space.m) {
+                Text("Your deposit address")
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.muted)
+                    .frame(maxWidth: .infinity)
+                switch content {
+                case .loading:
+                    loading
+                case .ready(let address):
+                    ready(address)
+                case .unavailable:
+                    EmptyView()
+                }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .monacoActionCard()
     }
 
     private func ready(_ address: String) -> some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+        VStack(spacing: MonacoTheme.Space.m) {
             DepositQRCode(address: address, showsSolanaMark: network.isSolana, onCopy: onCopy)
+                .padding(.vertical, MonacoTheme.Space.m)
                 .frame(maxWidth: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: MonacoTheme.Radius.cardTight, style: .continuous)
+                        .fill(MonacoTheme.surfaceSunken))
 
-            MonacoWalletAddressText(address: address)
+            MonacoWalletAddressText(address: address, textStyle: .footnote)
+                .padding(.vertical, MonacoTheme.Space.sm)
+                .padding(.horizontal, MonacoTheme.Space.sm)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: MonacoTheme.Radius.field, style: .continuous)
+                        .fill(MonacoTheme.surfaceSunken)
+                )
                 .accessibilityIdentifier(addressIdentifier)
                 .onTapGesture {
                     onCopy(address)
                 }
 
-            VStack(spacing: MonacoTheme.Space.s) {
-                Button("Copy address") {
-                    onCopy(address)
-                }
-                .buttonStyle(.monacoPrimary)
-                .accessibilityIdentifier(copyIdentifier)
-
-                HStack(spacing: MonacoTheme.Space.s) {
-                    if network.isSolana {
-                        Image("SolanaMark")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 20)
-                            .accessibilityHidden(true)
-                    } else {
-                        Image(systemName: "exclamationmark.triangle")
-                            .foregroundStyle(MonacoTheme.muted)
-                            .accessibilityHidden(true)
-                    }
-                    Text(Self.networkNote(on: network.displayName))
-                        .font(MonacoTheme.Typo.caption)
-                        .foregroundStyle(MonacoTheme.muted)
-                        .multilineTextAlignment(.leading)
-                        .accessibilityIdentifier("deposit-network-warning")
-                }
-                .frame(maxWidth: .infinity)
-
-                if let arrival = Self.arrivalNote(for: network) {
-                    Text(arrival)
-                        .font(MonacoTheme.Typo.caption)
-                        .foregroundStyle(MonacoTheme.muted)
-                        .frame(maxWidth: .infinity)
-                        .accessibilityIdentifier("deposit-arrival-note")
-                }
-
-                if let fee = Self.feeNote(for: network) {
-                    Text(fee)
-                        .font(MonacoTheme.Typo.caption)
-                        .foregroundStyle(MonacoTheme.muted)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                        .accessibilityIdentifier("deposit-fee-note")
-                }
+            Button("Copy address") {
+                onCopy(address)
             }
+            .buttonStyle(.monacoPrimary)
+            .accessibilityIdentifier(copyIdentifier)
         }
     }
 

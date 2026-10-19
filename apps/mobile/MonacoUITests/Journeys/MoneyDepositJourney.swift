@@ -2,7 +2,7 @@ import XCTest
 
 enum MoneyDepositJourney {
     static let id = "money/deposit"
-    static let version = 2
+    static let version = 3
 
     static let screenTimeout: TimeInterval = 15
 
@@ -37,7 +37,7 @@ enum MoneyDepositJourney {
         XCTAssertTrue(link.waitForExistence(timeout: screenTimeout), "\(step): no Add money on Home")
         link.tap()
         XCTAssertTrue(
-            app.navigationBars["Add money"].waitForExistence(timeout: screenTimeout),
+            app.navigationBars["Deposit"].waitForExistence(timeout: screenTimeout),
             "\(step): the Add money screen did not show within \(Int(screenTimeout)) s"
         )
     }
@@ -57,7 +57,7 @@ enum MoneyDepositJourney {
         XCTAssertTrue(row.waitForExistence(timeout: screenTimeout), "\(step): no \(name) in the network list")
         row.tap()
         XCTAssertTrue(
-            app.navigationBars["Send USDC on \(name)"].waitForExistence(timeout: screenTimeout),
+            app.navigationBars["Receive USDC"].waitForExistence(timeout: screenTimeout),
             "\(step): Send USDC on \(name) did not show within \(Int(screenTimeout)) s"
         )
         XCTAssertTrue(
@@ -79,7 +79,8 @@ enum MoneyDepositJourney {
     static func expectWarning(_ app: XCUIApplication, on name: String, step: String) {
         let warning = app.element("deposit-network-warning")
         XCTAssertEqual(
-            warning.label, "Only send USDC on \(name) to this address.", "\(step): the network note under the address")
+            warning.label, "Send only USDC on \(name). Transfers on other networks can't be recovered.",
+            "\(step): the network note under the address")
     }
 
     static func copySolana(_ app: XCUIApplication, recorder: JourneyRecorder) {
@@ -97,9 +98,10 @@ enum MoneyDepositJourney {
             let crypto = app.element("deposit-crypto-row")
             XCTAssertTrue(card.waitForExistence(timeout: screenTimeout), "S1.2: no Card on Add money")
             XCTAssertTrue(crypto.waitForExistence(timeout: screenTimeout), "S1.2: no Send crypto on Add money")
-            XCTAssertEqual(card.label, "Card", "S1.2: the card row's label")
+            XCTAssertEqual(card.label, "Card or Apple Pay", "S1.2: the card row's label")
             XCTAssertEqual(crypto.label, "Send crypto", "S1.2: the crypto row's label")
             XCTAssertLessThan(card.frame.minY, crypto.frame.minY, "S1.2: Card is not above Send crypto")
+            XCTAssertTrue(app.element("deposit-screen-balance-value").exists, "S1.2: no balance on Deposit")
         }
 
         recorder.step("S1.3", "Send crypto lists Solana first, then Base") {
@@ -135,7 +137,6 @@ enum MoneyDepositJourney {
                         .waitForExistence(timeout: 10),
                     "S1.6: no step \"\(line)\"")
             }
-            XCTAssertTrue(app.element("deposit-screen-balance-value").exists, "S1.6: no balance row on Add money")
         }
     }
 
