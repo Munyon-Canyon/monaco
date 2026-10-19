@@ -329,9 +329,9 @@ type countingHistory struct {
 
 func (c *countingHistory) Configured() bool { return !c.off }
 
-func (c *countingHistory) MarketChart(context.Context, domain.Mint, int) ([]app.Sample, error) {
+func (c *countingHistory) MarketChart(context.Context, domain.Mint, int) (app.History, error) {
 	c.calls.Add(1)
-	return c.samples, c.err
+	return app.History{Prices: c.samples}, c.err
 }
 
 func historyMint(t *testing.T) domain.Mint {
@@ -352,7 +352,7 @@ func TestHistory_aDayIsCachedForFiveMinutesAndLongerRangesForAnHour(t *testing.T
 	ask := func(days int) {
 		t.Helper()
 		got, err := cached.MarketChart(t.Context(), mint, days)
-		if err != nil || len(got) != 1 {
+		if err != nil || len(got.Prices) != 1 {
 			t.Fatalf("days %d = %v err %v", days, got, err)
 		}
 	}

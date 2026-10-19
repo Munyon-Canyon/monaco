@@ -383,7 +383,7 @@ type AssetChartRange string
 
 // AssetDetail One asset, the list fields plus the chain facts and the other listings.
 //
-// Examples: {"attribution":"Data provided by CoinGecko","change_bps":1000,"decimals":8,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","other_listings":[],"price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx","tradable":true,"ui_multiplier":{"den":1,"num":1}}
+// Examples: {"attribution":"Data provided by CoinGecko","change_bps":1000,"decimals":8,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","other_listings":[],"price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx","tradable":true,"ui_multiplier":{"den":1,"num":1},"volume_24h_as_of":"2026-03-04T05:00:00Z","volume_24h_micros":2500000000000}
 type AssetDetail struct {
 	// Attribution The data source line the asset screen shows.
 	//
@@ -464,6 +464,16 @@ type AssetDetail struct {
 	//
 	// Examples: {"den":1,"num":1}
 	UiMultiplier UiMultiplier `json:"ui_multiplier"`
+
+	// Volume24hAsOf When that reading was taken. Null when `volume_24h_micros` is null.
+	//
+	// Examples: 2026-03-04T05:00:00Z
+	Volume24hAsOf *time.Time `json:"volume_24h_as_of"`
+
+	// Volume24hMicros The token's trading volume over the last 24 hours in USD micros, as CoinGecko reports it across the venues it tracks. Null when there is no reading from the last 36 hours.
+	//
+	// Examples: 2500000000000
+	Volume24hMicros *int64 `json:"volume_24h_micros"`
 }
 
 // AssetIssuer The firm that issues the tokenized stock.
@@ -478,7 +488,7 @@ type AssetKind string
 
 // AssetList One page of the tradable catalog.
 //
-// Examples: {"assets":[{"change_bps":1000,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx"}],"next_cursor":null}
+// Examples: {"assets":[{"change_bps":1000,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx","volume_24h_as_of":"2026-03-04T05:00:00Z","volume_24h_micros":2500000000000}],"next_cursor":null}
 type AssetList struct {
 	// Assets The page, in the filter's order.
 	//
@@ -528,7 +538,7 @@ type AssetListing struct {
 
 // AssetSummary One tradable asset as the list draws it, with the price already chosen.
 //
-// Examples: {"change_bps":1000,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx","tradable":true}
+// Examples: {"change_bps":1000,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx","tradable":true,"volume_24h_as_of":"2026-03-04T05:00:00Z","volume_24h_micros":2500000000000}
 type AssetSummary struct {
 	// ChangeBps The move in basis points against the last US close for an equity, or against the first sample of the UTC day for a pre-IPO token. Null when that reference does not exist.
 	//
@@ -589,6 +599,16 @@ type AssetSummary struct {
 	//
 	// Examples: true
 	Tradable *bool `json:"tradable,omitempty"`
+
+	// Volume24hAsOf When that reading was taken. Null when `volume_24h_micros` is null.
+	//
+	// Examples: 2026-03-04T05:00:00Z
+	Volume24hAsOf *time.Time `json:"volume_24h_as_of"`
+
+	// Volume24hMicros The token's trading volume over the last 24 hours in USD micros, as CoinGecko reports it across the venues it tracks. Null when there is no reading from the last 36 hours.
+	//
+	// Examples: 2500000000000
+	Volume24hMicros *int64 `json:"volume_24h_micros"`
 }
 
 // ChartPoint One bucket of open, high, low and close, in USD micros.

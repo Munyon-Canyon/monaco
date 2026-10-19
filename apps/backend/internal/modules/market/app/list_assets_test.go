@@ -54,6 +54,7 @@ type reader struct {
 	newest func() ([]sqlc.NewestSamplesRow, error)
 	first  func() ([]sqlc.FirstSamplesSinceRow, error)
 	spark  func() ([]sqlc.SparklineClosesRow, error)
+	vols   func(sqlc.VolumesByMintsParams) ([]sqlc.VolumesByMintsRow, error)
 }
 
 func (r reader) ListAssetsBySymbol(context.Context, sqlc.ListAssetsBySymbolParams) ([]sqlc.Asset, error) {
@@ -84,6 +85,13 @@ func (r reader) FirstSamplesSince(context.Context, sqlc.FirstSamplesSinceParams)
 	return r.first()
 }
 
+func (r reader) VolumesByMints(_ context.Context, p sqlc.VolumesByMintsParams) ([]sqlc.VolumesByMintsRow, error) {
+	if r.vols == nil {
+		return []sqlc.VolumesByMintsRow{}, nil
+	}
+	return r.vols(p)
+}
+
 func (r reader) SparklineCloses(context.Context, sqlc.SparklineClosesParams) ([]sqlc.SparklineClosesRow, error) {
 	if r.spark == nil {
 		return []sqlc.SparklineClosesRow{}, nil
@@ -109,7 +117,7 @@ func appleRow(t *testing.T, kind string) sqlc.Asset {
 func (r reader) list(t *testing.T, req ListRequest) (Page, error) {
 	t.Helper()
 	clk := testkit.NewClock(time.Date(2026, 3, 4, 15, 0, 0, 0, time.UTC))
-	return (&ListAssets{read: r, clock: clk}).Handle(t.Context(), req)
+	return (&ListAssets{read: r, volumes: r, clock: clk}).Handle(t.Context(), req)
 }
 
 func TestListAssets_reportsEachReadFailure(t *testing.T) {
@@ -213,5 +221,52 @@ func TestGroupSpark_keepsTheBucketSoAHeldSpikeCannotCrossIt(t *testing.T) {
 	})
 	if len(got) != 2 || got[0].Uint64() != 300 || got[1].Uint64() != 100 {
 		t.Fatalf("sparkline = %v", got)
+	}
+}
+
+func TestListAssets_makesOneVolumeQueryForTheWholePage(t *testing.T) {
+	t.Parallel()
+	when := time.Date(2026, 3, 4, 15, 0, 0, 0, time.UTC)
+	apple := appleRow(t, "equity")
+	other := apple
+	other.ID, other.Symbol = testkit.NewIDs(2).NewV7(), "TSLAx"
+	other.Mint = "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB"
+	var asks []sqlc.VolumesByMintsParams
+	r := reader{
+		symbol: func() ([]sqlc.Asset, error) { return []sqlc.Asset{apple, other}, nil },
+		vols: func(p sqlc.VolumesByMintsParams) ([]sqlc.VolumesByMintsRow, error) {
+			asks = append(asks, p)
+			return []sqlc.VolumesByMintsRow{{Mint: other.Mint, Volume24hMicros: 42, AsOf: when.Add(-time.Hour)}}, nil
+		},
+	}
+	page, err := r.list(t, ListRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(asks) != 1 || len(asks[0].Mints) != 2 || !asks[0].Since.Equal(when.Add(-VolumeMaxAge)) {
+		t.Fatalf("volume queries = %+v, want one for both mints since now-36h", asks)
+	}
+	second := page.Items[1].Volume
+	if page.Items[0].Volume != nil || second == nil || second.USD != money.MicrosFromUint64(42) ||
+		!second.At.Equal(when.Add(-time.Hour)) {
+		t.Fatalf("items = %+v, want the volume on the second only", page.Items)
+	}
+}
+
+func TestListAssets_reportsAVolumeReadFailureAndAVolumeThatDoesNotDecode(t *testing.T) {
+	t.Parallel()
+	apple := appleRow(t, "equity")
+	one := func() ([]sqlc.Asset, error) { return []sqlc.Asset{apple}, nil }
+	for want, vols := range map[errs.Code]func(sqlc.VolumesByMintsParams) ([]sqlc.VolumesByMintsRow, error){
+		errs.CodeInternal: func(sqlc.VolumesByMintsParams) ([]sqlc.VolumesByMintsRow, error) {
+			return nil, errs.New(errs.CodeInternal, "market.test")
+		},
+		errs.CodeDecodeFailed: func(sqlc.VolumesByMintsParams) ([]sqlc.VolumesByMintsRow, error) {
+			return []sqlc.VolumesByMintsRow{{Mint: apple.Mint, Volume24hMicros: -1}}, nil
+		},
+	} {
+		if _, err := (reader{symbol: one, vols: vols}).list(t, ListRequest{}); errs.CodeOf(err) != want {
+			t.Fatalf("err = %v, want %s", err, want)
+		}
 	}
 }

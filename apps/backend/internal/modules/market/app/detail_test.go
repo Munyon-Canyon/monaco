@@ -65,7 +65,7 @@ func TestDetail_reportsAMissingAssetAndABadListing(t *testing.T) {
 		},
 	}
 	for i, tc := range cases {
-		d := &Detail{list: &ListAssets{read: tc.list, clock: testkit.NewClock(when)}, read: tc.read}
+		d := &Detail{list: &ListAssets{read: tc.list, volumes: tc.list, clock: testkit.NewClock(when)}, read: tc.read}
 		if _, err := d.Handle(t.Context(), "AAPLx"); errs.CodeOf(err) != tc.code {
 			t.Fatalf("case %d = %v, want %s", i, err, tc.code)
 		}

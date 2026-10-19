@@ -143,6 +143,13 @@ func wantSamples(t *testing.T, got []app.Sample, firstMs, stepMs int64, want []m
 	}
 }
 
+func wantVolume(t *testing.T, got *app.Volume, ms int64, want uint64) {
+	t.Helper()
+	if got == nil || !got.At.Equal(time.UnixMilli(ms).UTC()) || got.USD != money.MicrosFromUint64(want) {
+		t.Fatalf("volume = %+v, want %d micros at %d", got, want, ms)
+	}
+}
+
 func wantCode(t *testing.T, err error, code errs.Code) {
 	t.Helper()
 	if errs.CodeOf(err) != code {
@@ -171,7 +178,10 @@ func TestCoinGecko_readsEveryRecordedMintAtEveryDays(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%s days=%d: %v", tc.raw, tc.days, err)
 			}
-			wantSamples(t, got, tc.first, tc.step, tc.want)
+			wantSamples(t, got.Prices, tc.first, tc.step, tc.want)
+			if tc.days == 1 {
+				wantVolume(t, got.Volume24h, 1790553607000, 1_500_000_500_000)
+			}
 		}
 		last := u.requests()[len(u.requests())-1]
 		if last.path != "/coingecko/coins/solana/contract/"+anduril+"/market_chart" ||
@@ -188,8 +198,8 @@ func TestCoinGecko_unlistedMintIsNotFound(t *testing.T) {
 		script(t, srv, fakes.Step{Route: chartRoute, Action: fakes.ActionFail, Status: http.StatusNotFound})
 		got, err := c.MarketChart(t.Context(), mint(t, aaplx), 1)
 		wantCode(t, err, errs.CodeNotFound)
-		if got != nil {
-			t.Fatalf("scripted 404 answered %v, want no samples", got)
+		if got.Prices != nil || got.Volume24h != nil {
+			t.Fatalf("scripted 404 answered %v, want nothing", got)
 		}
 		_, err = c.MarketChart(t.Context(), mint(t, unlisted), 365)
 		wantCode(t, err, errs.CodeNotFound)
@@ -231,8 +241,8 @@ func TestCoinGecko_pricesRoundDownAndNeverUseFloats(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantSamples(t, got[:3], 1790553600000, 300000, micros(999999, 150000000, 1234567123456))
-	if len(got) != 4 || got[3].Price != money.MicrosFromUint64(9007199254740993) {
+	wantSamples(t, got.Prices[:3], 1790553600000, 300000, micros(999999, 150000000, 1234567123456))
+	if len(got.Prices) != 4 || got.Prices[3].Price != money.MicrosFromUint64(9007199254740993) {
 		t.Fatalf("samples = %+v, want the sub-micro price dropped and the 2^53+1 price exact", got)
 	}
 }
@@ -243,7 +253,7 @@ func TestCoinGecko_countsTheSubMicroPricesItDropsInTheLog(t *testing.T) {
 	ctx := observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, &logs))
 	body := `{"prices":[[1790553600000,0.0000004],[1790553900000,2],[1790554200000,0.0000009]]}`
 	c, _ := clientOver(replying(http.StatusOK, body), "k")
-	if got, err := c.MarketChart(ctx, mint(t, aaplx), 90); err != nil || len(got) != 1 {
+	if got, err := c.MarketChart(ctx, mint(t, aaplx), 90); err != nil || len(got.Prices) != 1 {
 		t.Fatalf("MarketChart = %v, %v, want the one whole-micro price", got, err)
 	}
 	want := `"msg":"market.coingecko.sub_micro_dropped"`
@@ -299,7 +309,7 @@ func TestCoinGecko_429BacksOff(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		wantSamples(t, got, 1790553607000, 300000, micros(275525925, 276930000, 273615000, 278459999))
+		wantSamples(t, got.Prices, 1790553607000, 300000, micros(275525925, 276930000, 273615000, 278459999))
 		reqs := u.requests()
 		if len(reqs) != 2 || reqs[1].at.Sub(reqs[0].at) != 2*time.Second {
 			t.Fatalf("requests = %+v, want two calls 2s apart, the Retry-After the 429 named", reqs)
@@ -412,10 +422,71 @@ func TestCoinGecko_maxAsksForTheWholeHistory(t *testing.T) {
 	t.Parallel()
 	c, u := clientOver(replying(http.StatusOK, `{"prices":[[1790553641000,270.5]]}`), "demo-key")
 	got, err := c.MarketChart(t.Context(), mint(t, aaplx), app.HistoryMaxDays)
-	if err != nil || len(got) != 1 {
+	if err != nil || len(got.Prices) != 1 {
 		t.Fatalf("max = %v err %v", got, err)
 	}
 	if reqs := u.requests(); len(reqs) != 1 || reqs[0].query != "days=max&vs_currency=usd" {
 		t.Fatalf("requests = %+v", reqs)
 	}
+}
+
+func TestCoinGecko_volumeIsTheNewestTotalVolumesPointFlooredToMicros(t *testing.T) {
+	t.Parallel()
+	body := `{"prices":[[1790553600000,2]],"total_volumes":[[1790553900000,5],` +
+		`[1790554500000,1234567.1234569],[1790554200000,9]]}`
+	c, _ := clientOver(replying(http.StatusOK, body), "k")
+	got, err := c.MarketChart(t.Context(), mint(t, aaplx), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantVolume(t, got.Volume24h, 1790554500000, 1234567123456)
+}
+
+func TestCoinGecko_noVolumeSeriesGivesNilVolumeAndKeepsThePrices(t *testing.T) {
+	t.Parallel()
+	for name, body := range map[string]string{
+		"absent": `{"prices":[[1790553600000,2]]}`,
+		"empty":  `{"prices":[[1790553600000,2]],"total_volumes":[]}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			c, _ := clientOver(replying(http.StatusOK, body), "k")
+			got, err := c.MarketChart(t.Context(), mint(t, aaplx), 1)
+			if err != nil || got.Volume24h != nil || len(got.Prices) != 1 {
+				t.Fatalf("MarketChart = %+v, %v, want one price and no volume", got, err)
+			}
+		})
+	}
+}
+
+func TestCoinGecko_aBadNewestVolumeGivesNilVolumeAndNeverFailsThePrices(t *testing.T) {
+	t.Parallel()
+	for name, volume := range map[string]string{
+		"zero":      `[1790554500000,0]`,
+		"sub micro": `[1790554500000,0.0000004]`,
+		"negative":  `[1790554500000,-5]`,
+		"too large": `[1790554500000,9223372036855]`,
+		"null":      `[1790554500000,null]`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			body := `{"prices":[[1790553600000,2]],"total_volumes":[[1790553900000,5],` + volume + `]}`
+			c, _ := clientOver(replying(http.StatusOK, body), "k")
+			got, err := c.MarketChart(t.Context(), mint(t, aaplx), 1)
+			if err != nil || got.Volume24h != nil || len(got.Prices) != 1 {
+				t.Fatalf("MarketChart = %+v, %v, want one price and no volume", got, err)
+			}
+		})
+	}
+}
+
+func TestCoinGecko_aVolumePointWithoutAnIntegerTimestampIsSkipped(t *testing.T) {
+	t.Parallel()
+	body := `{"prices":[[1790553600000,2]],"total_volumes":[[1790553900000,5],[1.5,9],[1790554200000,7]]}`
+	c, _ := clientOver(replying(http.StatusOK, body), "k")
+	got, err := c.MarketChart(t.Context(), mint(t, aaplx), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantVolume(t, got.Volume24h, 1790554200000, 7_000_000)
 }

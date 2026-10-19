@@ -56,6 +56,18 @@ func (b *PriceBook) PricesAsOf(
 	return b.accepted(ctx, "market.PriceBook.PricesAsOf", sqlc.RecentPriceSamplesParams{At: at, Ids: assetUUIDs(ids)})
 }
 
+func (b *PriceBook) Volume24h(ctx context.Context, mint string, now time.Time) (*money.Micros, error) {
+	got, err := volumesOf(ctx, b.q, []string{mint}, now)
+	if err != nil {
+		return nil, err
+	}
+	var out *money.Micros
+	if v, ok := got[mint]; ok {
+		out = &v.USD
+	}
+	return out, nil
+}
+
 func (b *PriceBook) PointsCount(ctx context.Context) (int64, error) {
 	n, err := b.q.CountPricePoints(ctx)
 	if err != nil {

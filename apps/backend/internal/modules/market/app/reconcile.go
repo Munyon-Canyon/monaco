@@ -95,7 +95,7 @@ func (r *Reconcile) nightly(ctx context.Context) ([]domain.Asset, error) {
 func (r *Reconcile) fill(ctx context.Context, mint domain.Mint) (int, error) {
 	const op = "market.Reconcile.fill"
 	window := historyWindow{days: 2, bucket: time.Hour}
-	samples, err := r.history.MarketChart(ctx, mint, window.days)
+	history, err := r.history.MarketChart(ctx, mint, window.days)
 	if errs.CodeOf(err) == errs.CodeNotFound {
 		return 0, nil
 	}
@@ -104,14 +104,23 @@ func (r *Reconcile) fill(ctx context.Context, mint domain.Mint) (int, error) {
 	}
 	var rows int64
 	err = r.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		q := sqlc.New(tx.Queries())
 		var err error
-		rows, err = sqlc.New(tx.Queries()).InsertReconciledPricePoints(ctx, insertParams(mint, window, samples))
-		return err
+		rows, err = q.InsertReconciledPricePoints(ctx, insertParams(mint, window, history.Prices))
+		if err != nil || history.Volume24h == nil {
+			return err
+		}
+		return q.UpsertAssetVolume(ctx, volumeParams(mint, *history.Volume24h, r.clock.Now()))
 	})
 	if err != nil {
 		return 0, errs.Wrap(err, errs.CodeOf(err), op, slog.String("mint", mint.String()))
 	}
 	return int(rows), nil
+}
+
+func volumeParams(mint domain.Mint, v Volume, now time.Time) sqlc.UpsertAssetVolumeParams {
+	micros, _ := storableMicros(v.USD)
+	return sqlc.UpsertAssetVolumeParams{Mint: mint.String(), Volume24hMicros: micros, AsOf: v.At, UpdatedAt: now}
 }
 
 type historyWindow struct {

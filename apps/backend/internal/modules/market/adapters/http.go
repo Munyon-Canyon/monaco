@@ -155,6 +155,15 @@ func wireSummary(item app.Summary, now time.Time) (api.AssetSummary, error) {
 		LogoUrl: present(item.Asset.LogoURL), Session: wireSession(item.Session), Tradable: &tradable,
 		Quotable: item.Asset.Quotable(now),
 	}
+	if item.Volume != nil {
+		volume, err := int64Micros(item.Volume.USD)
+		if err != nil {
+			return api.AssetSummary{}, err
+		}
+		asOf := item.Volume.At.UTC()
+		out.Volume24hMicros = &volume
+		out.Volume24hAsOf = &asOf
+	}
 	if !item.Priced {
 		return out, nil
 	}
@@ -190,6 +199,8 @@ func wireDetail(view app.AssetView, now time.Time) (api.AssetDetail, error) {
 		PriceAsOf:       summary.PriceAsOf,
 		ChangeBps:       summary.ChangeBps,
 		SparklineMicros: summary.SparklineMicros,
+		Volume24hMicros: summary.Volume24hMicros,
+		Volume24hAsOf:   summary.Volume24hAsOf,
 		Session:         summary.Session,
 		Quotable:        summary.Quotable,
 		Decimals:        int(view.Summary.Asset.Decimals),

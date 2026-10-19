@@ -17,6 +17,7 @@ type quotes struct {
 	opened      map[string][]domain.Sample
 	openedSince time.Time
 	spark       map[string][]domain.Sample
+	volumes     map[string]Volume
 }
 
 func (l *ListAssets) load(
@@ -47,7 +48,34 @@ func (l *ListAssets) load(
 	if err != nil {
 		return quotes{}, err
 	}
-	return quotes{newest: newest, closed: closed, opened: opened, openedSince: openedSince, spark: spark}, nil
+	volumes, err := volumesOf(ctx, l.volumes, mints, now)
+	if err != nil {
+		return quotes{}, err
+	}
+	return quotes{
+		newest: newest, closed: closed, opened: opened, openedSince: openedSince, spark: spark, volumes: volumes,
+	}, nil
+}
+
+type volumeReader interface {
+	VolumesByMints(context.Context, sqlc.VolumesByMintsParams) ([]sqlc.VolumesByMintsRow, error)
+}
+
+func volumesOf(ctx context.Context, read volumeReader, mints []string, now time.Time) (map[string]Volume, error) {
+	rows, err := read.VolumesByMints(ctx, sqlc.VolumesByMintsParams{Mints: mints, Since: now.Add(-VolumeMaxAge)})
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), "market.VolumesByMints")
+	}
+	out := make(map[string]Volume, len(rows))
+	for _, row := range rows {
+		usd, err := money.SignedMicrosFromInt64(row.Volume24hMicros).Micros()
+		if err != nil {
+			return nil, errs.Wrap(err, errs.CodeDecodeFailed, "market.VolumesByMints",
+				slog.String("mint", row.Mint), slog.Int64("volume_24h_micros", row.Volume24hMicros))
+		}
+		out[row.Mint] = Volume{At: row.AsOf, USD: usd}
+	}
+	return out, nil
 }
 
 func (l *ListAssets) newest(
@@ -72,6 +100,9 @@ func (l *ListAssets) sparkline(
 
 func summary(asset domain.Asset, session domain.SessionInfo, book quotes) Summary {
 	out := Summary{Asset: asset, Session: session}
+	if v, ok := book.volumes[asset.Mint.String()]; ok {
+		out.Volume = &v
+	}
 	newest := book.newest[asset.Mint.String()]
 	accepted, ok := domain.Accept(newest)
 	if !ok {

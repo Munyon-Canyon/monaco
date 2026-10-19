@@ -44,6 +44,7 @@ type Summary struct {
 	Price     domain.Sample
 	Change    *int32
 	Sparkline []money.Micros
+	Volume    *Volume
 }
 
 type Page struct {
@@ -68,12 +69,14 @@ var _ Lister = (*ListAssets)(nil)
 var _ catalogReader = (*sqlc.Queries)(nil)
 
 type ListAssets struct {
-	read  catalogReader
-	clock clock.Clock
+	read    catalogReader
+	volumes volumeReader
+	clock   clock.Clock
 }
 
 func NewListAssets(db sqlc.DBTX, c clock.Clock) *ListAssets {
-	return &ListAssets{read: sqlc.New(db), clock: c}
+	queries := sqlc.New(db)
+	return &ListAssets{read: queries, volumes: queries, clock: c}
 }
 
 type listQuery struct {

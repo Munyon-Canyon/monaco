@@ -69,7 +69,11 @@ func (p *SamplePrices) recordMove(
 ) error {
 	eventID := p.ids.NewV7()
 	change := domain.ChangeBps(ref.Micros, mark.Micros)
-	err := p.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+	volume, err := p.volume.Volume24h(ctx, a.Mint.String(), p.clock.Now())
+	if err != nil {
+		return errs.Wrap(err, errs.CodeOf(err), "market.SamplePrices.recordMove", slog.String("symbol", a.Symbol))
+	}
+	err = p.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		n, err := sqlc.New(tx.Queries()).InsertAssetPriceMove(ctx, sqlc.InsertAssetPriceMoveParams{
 			AssetID: a.ID.UUID(), ThresholdBps: int64(th), TradingDay: day.String(),
 			EventID: eventID, CreatedAt: p.clock.Now(),
@@ -84,7 +88,7 @@ func (p *SamplePrices) recordMove(
 			V: 1, AssetID: a.ID.UUID(), Symbol: a.Symbol,
 			AssetName:    domain.DisplayName(a.Issuer, a.DisplayName, a.Symbol),
 			ThresholdBps: int64(th), ChangeBps: change, MarkMicros: mark.Micros, PrevCloseMicros: ref.Micros,
-			TradingDay: day.String(), ObservedAt: mark.ObservedAt,
+			TradingDay: day.String(), ObservedAt: mark.ObservedAt, Volume24hMicros: volume,
 		}
 		if err := tx.Events.Append(ctx, moved); err != nil {
 			return err
