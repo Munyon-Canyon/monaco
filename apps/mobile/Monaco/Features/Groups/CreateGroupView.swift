@@ -190,8 +190,9 @@ struct CreateGroupView: View {
             Text(CabalRulesCopy.coverTitle)
                 .font(MonacoTheme.Typo.captionStrong)
                 .foregroundStyle(MonacoTheme.primaryText)
+            let preview = coverImage
             PhotosPicker(selection: $cover, matching: .images, photoLibrary: .shared()) {
-                CreateCoverPreview(image: coverImage)
+                CreateCoverPreview(image: preview)
             }
             .buttonStyle(.plain)
             .contextMenu {
