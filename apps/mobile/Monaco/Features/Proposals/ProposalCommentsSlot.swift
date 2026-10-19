@@ -20,7 +20,6 @@ private struct ProposalCommentsSlotView: View {
     var body: some View {
         if let model {
             CommentThreadView(model: model)
-                .padding(.vertical, MonacoTheme.Space.m)
                 .onChange(of: model.lastPostedID) { _, id in
                     guard let id else { return }
                     withAnimation { scroll?.scrollTo(id, anchor: .center) }
