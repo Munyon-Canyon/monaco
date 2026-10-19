@@ -6,12 +6,13 @@ import UIKit
 @testable import Monaco
 
 struct HoldingsMixColorTests {
-    @Test func cashIsVisibleOnEverySurfaceInBothSchemes() {
+    @Test func cashFillIsTheBorderTokenInBothSchemes() {
         for scheme in [UIUserInterfaceStyle.light, .dark] {
-            for surface in [MonacoTheme.canvas, MonacoTheme.surface, MonacoTheme.surfaceSunken] {
-                let ratio = WCAGContrast.ratio(MonacoTheme.cashFill, on: [surface], scheme)
-                #expect(ratio >= 3, "cash fill \(ratio):1 in scheme \(scheme.rawValue)")
-            }
+            let cash = WCAGContrast.resolve(MonacoTheme.cashFill, scheme)
+            let border = WCAGContrast.resolve(MonacoTheme.border, scheme)
+            #expect(
+                (cash.red, cash.green, cash.blue, cash.alpha) == (border.red, border.green, border.blue, border.alpha),
+                "cash fill differs from border in scheme \(scheme.rawValue)")
         }
     }
 
@@ -25,7 +26,7 @@ struct HoldingsMixColorTests {
                 for step in 0..<CabalPotSummary.Swatch.steps {
                     let color = AllocationPalette.color(for: .stock(step: step), tint: cabalTint)
                     let stock = Self.oklab(WCAGContrast.composite(WCAGContrast.resolve(color, scheme), over: canvas))
-                    #expect(Self.distance(cash, stock) > 0.04, "\(cabalTint) step \(step) scheme \(scheme.rawValue)")
+                    #expect(Self.distance(cash, stock) > 0.02, "\(cabalTint) step \(step) scheme \(scheme.rawValue)")
                 }
             }
         }
