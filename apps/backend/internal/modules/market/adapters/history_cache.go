@@ -18,7 +18,7 @@ const (
 )
 
 type historyBox struct {
-	samples []app.Sample
+	history app.History
 	missing bool
 }
 
@@ -33,7 +33,7 @@ func CacheHistory(next app.PriceHistory, cache *Cache) *CachedHistory {
 
 func (h *CachedHistory) Configured() bool { return h.next.Configured() }
 
-func (h *CachedHistory) MarketChart(ctx context.Context, mint domain.Mint, days int) ([]app.Sample, error) {
+func (h *CachedHistory) MarketChart(ctx context.Context, mint domain.Mint, days int) (app.History, error) {
 	key := fmt.Sprintf("history\x00%s\x00%d", mint, days)
 	got, err, _ := h.cache.flight.Do(key, func() (any, error) {
 		if value, ok := h.cache.hit(key); ok {
@@ -41,7 +41,7 @@ func (h *CachedHistory) MarketChart(ctx context.Context, mint domain.Mint, days 
 		}
 		loadCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), loadBudget)
 		defer cancel()
-		samples, loadErr := h.next.MarketChart(loadCtx, mint, days)
+		history, loadErr := h.next.MarketChart(loadCtx, mint, days)
 		switch {
 		case errs.CodeOf(loadErr) == errs.CodeNotFound:
 			h.cache.keep(key, historyBox{missing: true}, historyMissTTL)
@@ -49,18 +49,19 @@ func (h *CachedHistory) MarketChart(ctx context.Context, mint domain.Mint, days 
 		case loadErr != nil:
 			return nil, loadErr
 		}
-		box := historyBox{samples: samples}
+		box := historyBox{history: history}
 		h.cache.keep(key, box, historyTTL(days))
 		return box, nil
 	})
 	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeOf(err), "market.CachedHistory", slog.String("mint", mint.String()))
+		return app.History{}, errs.Wrap(err, errs.CodeOf(err), "market.CachedHistory",
+			slog.String("mint", mint.String()))
 	}
 	box := got.(historyBox)
 	if box.missing {
-		return nil, errs.New(errs.CodeNotFound, "market.CachedHistory", slog.String("mint", mint.String()))
+		return app.History{}, errs.New(errs.CodeNotFound, "market.CachedHistory", slog.String("mint", mint.String()))
 	}
-	return box.samples, nil
+	return box.history, nil
 }
 
 func historyTTL(days int) time.Duration {

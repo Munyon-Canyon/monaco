@@ -23,11 +23,11 @@ type fakeHistory struct {
 
 func (f *fakeHistory) Configured() bool { return !f.off }
 
-func (f *fakeHistory) MarketChart(_ context.Context, _ domain.Mint, days int) ([]Sample, error) {
+func (f *fakeHistory) MarketChart(_ context.Context, _ domain.Mint, days int) (History, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.days = append(f.days, days)
-	return f.samples, f.err
+	return History{Prices: f.samples}, f.err
 }
 
 func (f *fakeHistory) calls() []int {

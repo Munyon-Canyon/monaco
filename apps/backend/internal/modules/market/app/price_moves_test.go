@@ -100,3 +100,28 @@ func equityOpenAt(t *testing.T, from time.Time) time.Time {
 	t.Fatal("no open equity session")
 	return time.Time{}
 }
+
+type failingVolume struct{ err error }
+
+func (f failingVolume) Volume24h(context.Context, string, time.Time) (*money.Micros, error) {
+	return nil, f.err
+}
+
+func TestRecordMoves_reportsAVolumeReadFailure(t *testing.T) {
+	t.Parallel()
+	at := equityOpenAt(t, clock.Real{}.Now())
+	id := domain.NewAssetID(testkit.NewIDs(9))
+	asset := domain.Asset{ID: id, Kind: domain.KindEquity, Symbol: "AAPLx"}
+	ref := domain.Sample{Micros: money.MicrosFromUint64(200_000_000), ObservedAt: at.Add(-time.Hour)}
+	mark := domain.Sample{Micros: money.MicrosFromUint64(220_000_000), ObservedAt: at}
+	p := &SamplePrices{
+		book:   fakeBook{asOf: map[domain.AssetID]domain.Sample{id: ref}},
+		volume: failingVolume{err: errs.New(errs.CodeDBUnavailable, "test.volume")},
+		ids:    testkit.NewIDs(3),
+		clock:  testkit.NewClock(at),
+	}
+	err := p.recordMoves(t.Context(), []domain.Asset{asset}, at, map[domain.AssetID]domain.Sample{id: mark})
+	if errs.CodeOf(err) != errs.CodeDBUnavailable {
+		t.Fatalf("recordMoves = %v, want db_unavailable", err)
+	}
+}

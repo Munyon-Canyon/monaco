@@ -415,3 +415,94 @@ func wantMove(
 			got, a.Symbol, threshold, change, day, observed.Format(time.RFC3339))
 	}
 }
+
+func (s *sampleRig) volume(t *testing.T, mint string, ago time.Duration, micros int64) {
+	t.Helper()
+	_, err := s.pool.Exec(t.Context(),
+		`INSERT INTO asset_volumes (mint, volume_24h_micros, as_of, updated_at) VALUES ($1, $2, $3, $3)`,
+		mint, micros, s.clock.Now().Add(-ago))
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func movedPayloads(t *testing.T, pool *pgxpool.Pool) []string {
+	t.Helper()
+	rows, err := pool.Query(t.Context(),
+		`SELECT payload::text FROM events WHERE type = 'asset.price_moved' ORDER BY created_at, id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var payload string
+		if err := rows.Scan(&payload); err != nil {
+			t.Fatal(err)
+		}
+		out = append(out, payload)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+func TestPriceMoved_carriesTheFreshVolume(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx()
+	rig, q := newMoveRig(t, openInstant(t, clock.Real{}.Now()), aapl)
+	info := equitySession(t, rig.clock.Now())
+	seedPrice(t, rig.pool, aapl.Mint.String(), info.LastClose, 200_000_000)
+	rig.volume(t, aapl.Mint.String(), 3*time.Hour, 2_500_000_000_000)
+	q.quote(aapl, 220_000_000)
+	if _, err := rig.poller.Tick(pollerCtx(t)); err != nil {
+		t.Fatal(err)
+	}
+	got := movedEvents(t, rig.pool)
+	if len(got) != 2 {
+		t.Fatalf("events = %d, want +500 and +1000", len(got))
+	}
+	for _, ev := range got {
+		if ev.V != 1 || ev.Volume24hMicros == nil || *ev.Volume24hMicros != usd(2_500_000_000_000) {
+			t.Fatalf("event = %+v, want v1 with volume_24h_micros 2.5e12", ev)
+		}
+	}
+	for _, payload := range movedPayloads(t, rig.pool) {
+		if !strings.Contains(payload, `"volume_24h_micros": "2500000000000"`) {
+			t.Fatalf("payload = %s, want volume_24h_micros", payload)
+		}
+	}
+}
+
+func TestPriceMoved_omitsTheVolumeKeyWithoutAFreshReading(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx()
+	rig, q := newMoveRig(t, openInstant(t, clock.Real{}.Now()), aapl)
+	info := equitySession(t, rig.clock.Now())
+	seedPrice(t, rig.pool, aapl.Mint.String(), info.LastClose, 200_000_000)
+	rig.volume(t, aapl.Mint.String(), app.VolumeMaxAge+time.Minute, 2_500_000_000_000)
+	q.quote(aapl, 220_000_000)
+	if _, err := rig.poller.Tick(pollerCtx(t)); err != nil {
+		t.Fatal(err)
+	}
+	payloads := movedPayloads(t, rig.pool)
+	if len(payloads) != 2 {
+		t.Fatalf("events = %d, want +500 and +1000", len(payloads))
+	}
+	for _, payload := range payloads {
+		if strings.Contains(payload, "volume_24h_micros") {
+			t.Fatalf("payload = %s, want no volume_24h_micros key", payload)
+		}
+	}
+}
+
+func TestPriceBook_reportsAVolumeReadFailure(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	book := app.NewPriceBook(pool, testkit.NewClock(marketWhen()))
+	pool.Close()
+	if _, err := book.Volume24h(t.Context(), marketfake.AAPLx().Mint.String(), marketWhen()); err == nil {
+		t.Fatal("Volume24h on a closed pool = nil error")
+	}
+}

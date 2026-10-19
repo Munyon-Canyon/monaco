@@ -287,6 +287,7 @@ func checkAssetPriceMoved(t *testing.T, moved Entry) {
 		{"prev_close_micros", "money.Micros"},
 		{"trading_day", "string"},
 		{"observed_at", "time.Time"},
+		{"volume_24h_micros", "*money.Micros"},
 	}
 	if moved.Type != TypeAssetPriceMoved || moved.Subject != "events.asset.price_moved" || moved.Core ||
 		moved.Version != 1 || !slices.Equal(moved.Fields, fields) {

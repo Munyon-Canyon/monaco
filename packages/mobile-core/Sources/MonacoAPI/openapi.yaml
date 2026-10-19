@@ -6963,6 +6963,8 @@ components:
           price_as_of: "2026-03-04T14:30:00Z"
           change_bps: 1000
           sparkline_micros: [100000000, 110000000]
+          volume_24h_micros: 2500000000000
+          volume_24h_as_of: "2026-03-04T05:00:00Z"
           quotable: true
           session:
             state: open
@@ -6988,6 +6990,8 @@ components:
         - price_as_of
         - change_bps
         - sparkline_micros
+        - volume_24h_micros
+        - volume_24h_as_of
         - session
         - quotable
         - decimals
@@ -7042,6 +7046,18 @@ components:
             format: int64
             examples: [110000000]
           examples: [[100000000, 110000000]]
+        volume_24h_micros:
+          type: [integer, "null"]
+          format: int64
+          description: >-
+            The token's trading volume over the last 24 hours in USD micros, as CoinGecko reports it
+            across the venues it tracks. Null when there is no reading from the last 36 hours.
+          examples: [2500000000000]
+        volume_24h_as_of:
+          type: [string, "null"]
+          format: date-time
+          description: When that reading was taken. Null when `volume_24h_micros` is null.
+          examples: ["2026-03-04T05:00:00Z"]
         quotable:
           type: boolean
           description: >-
@@ -7114,6 +7130,8 @@ components:
               price_as_of: "2026-03-04T14:30:00Z"
               change_bps: 1000
               sparkline_micros: [100000000, 110000000]
+              volume_24h_micros: 2500000000000
+              volume_24h_as_of: "2026-03-04T05:00:00Z"
               quotable: true
               session:
                 state: open
@@ -7184,6 +7202,8 @@ components:
           price_as_of: "2026-03-04T14:30:00Z"
           change_bps: 1000
           sparkline_micros: [100000000, 110000000]
+          volume_24h_micros: 2500000000000
+          volume_24h_as_of: "2026-03-04T05:00:00Z"
           quotable: true
           session:
             state: open
@@ -7203,6 +7223,8 @@ components:
         - price_as_of
         - change_bps
         - sparkline_micros
+        - volume_24h_micros
+        - volume_24h_as_of
         - session
         - quotable
       properties:
@@ -7252,6 +7274,18 @@ components:
             format: int64
             examples: [110000000]
           examples: [[100000000, 110000000]]
+        volume_24h_micros:
+          type: [integer, "null"]
+          format: int64
+          description: >-
+            The token's trading volume over the last 24 hours in USD micros, as CoinGecko reports it
+            across the venues it tracks. Null when there is no reading from the last 36 hours.
+          examples: [2500000000000]
+        volume_24h_as_of:
+          type: [string, "null"]
+          format: date-time
+          description: When that reading was taken. Null when `volume_24h_micros` is null.
+          examples: ["2026-03-04T05:00:00Z"]
         quotable:
           type: boolean
           description: >-

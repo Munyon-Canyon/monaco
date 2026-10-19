@@ -359,3 +359,119 @@ func TestReconcile_aTickCancelledInACooldownStopsWaiting(t *testing.T) {
 			err, len(r.history.Calls()))
 	}
 }
+
+type volumeRow struct {
+	micros int64
+	asOf   time.Time
+}
+
+func storedVolumes(t *testing.T, r *historyRig, mint market.Mint) []volumeRow {
+	t.Helper()
+	rows, err := r.pool.Query(t.Context(),
+		`SELECT volume_24h_micros, as_of FROM asset_volumes WHERE mint = $1`, mint.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var out []volumeRow
+	for rows.Next() {
+		var v volumeRow
+		if err := rows.Scan(&v.micros, &v.asOf); err != nil {
+			t.Fatal(err)
+		}
+		v.asOf = v.asOf.UTC()
+		out = append(out, v)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+func TestReconcile_aTickStoresTheVolumeBesideThePricePointsWithNoExtraCall(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx()
+	r := newReconcileRig(t, aapl)
+	readAt := r.clock.Now().Add(-2 * time.Hour).Truncate(time.Second)
+	r.history.Put(aapl.Mint, 2, sample(r.day.Add(5*time.Hour), 105_000_000))
+	r.history.PutVolume(aapl.Mint, 2, app.Volume{At: readAt, USD: usd(2_500_000_000_000)})
+
+	if _, err := r.tick(t); err != nil {
+		t.Fatal(err)
+	}
+	if calls := r.history.Calls(); len(calls) != 1 {
+		t.Fatalf("calls = %v, want the one days=2 call it always made", calls)
+	}
+	got := storedVolumes(t, r.historyRig, aapl.Mint)
+	if len(got) != 1 || got[0].micros != 2_500_000_000_000 || !got[0].asOf.Equal(readAt) {
+		t.Fatalf("volumes = %+v, want one row of 2.5e12 micros as of %s", got, readAt)
+	}
+	if len(r.points(t, aapl.Mint)) != 1 {
+		t.Fatal("the price point was not stored beside the volume")
+	}
+}
+
+func TestReconcile_aVolumeThatFailsToStoreRollsBackThePricePoints(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx()
+	r := newReconcileRig(t, aapl)
+	r.exec(t, `ALTER TABLE asset_volumes ADD CONSTRAINT never CHECK (volume_24h_micros < 0)`)
+	r.history.Put(aapl.Mint, 2, sample(r.day.Add(5*time.Hour), 105_000_000))
+	r.history.PutVolume(aapl.Mint, 2, app.Volume{At: r.clock.Now(), USD: usd(1_000_000)})
+
+	if _, err := r.tick(t); err == nil {
+		t.Fatal("tick = nil error, want the volume write to fail")
+	}
+	if n := len(r.points(t, aapl.Mint)); n != 0 {
+		t.Fatalf("price points = %d, want none after the rolled back transaction", n)
+	}
+}
+
+func TestReconcile_anOlderVolumeNeverReplacesANewerOne(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx()
+	r := newReconcileRig(t, aapl)
+	newer := r.clock.Now().Add(-1 * time.Hour).Truncate(time.Second)
+	older := newer.Add(-6 * time.Hour)
+	r.history.PutVolume(aapl.Mint, 2, app.Volume{At: newer, USD: usd(900_000_000)})
+	if _, err := r.tick(t); err != nil {
+		t.Fatal(err)
+	}
+	r.history.PutVolume(aapl.Mint, 2, app.Volume{At: older, USD: usd(100_000_000)})
+	if _, err := r.tick(t); err != nil {
+		t.Fatal(err)
+	}
+	got := storedVolumes(t, r.historyRig, aapl.Mint)
+	if len(got) != 1 || got[0].micros != 900_000_000 || !got[0].asOf.Equal(newer) {
+		t.Fatalf("volumes = %+v, want the newer reading kept", got)
+	}
+	later := newer.Add(time.Hour)
+	r.history.PutVolume(aapl.Mint, 2, app.Volume{At: later, USD: usd(950_000_000)})
+	if _, err := r.tick(t); err != nil {
+		t.Fatal(err)
+	}
+	got = storedVolumes(t, r.historyRig, aapl.Mint)
+	if len(got) != 1 || got[0].micros != 950_000_000 || !got[0].asOf.Equal(later) {
+		t.Fatalf("volumes = %+v, want the later reading to replace it", got)
+	}
+}
+
+func TestReconcile_aResponseWithoutVolumesLeavesTheRowAlone(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx()
+	r := newReconcileRig(t, aapl)
+	readAt := r.clock.Now().Add(-1 * time.Hour).Truncate(time.Second)
+	r.history.PutVolume(aapl.Mint, 2, app.Volume{At: readAt, USD: usd(900_000_000)})
+	if _, err := r.tick(t); err != nil {
+		t.Fatal(err)
+	}
+	r.history.Put(aapl.Mint, 2, sample(r.day.Add(5*time.Hour), 105_000_000))
+	r.history.ClearVolume(aapl.Mint, 2)
+	if _, err := r.tick(t); err != nil {
+		t.Fatal(err)
+	}
+	got := storedVolumes(t, r.historyRig, aapl.Mint)
+	if len(got) != 1 || got[0].micros != 900_000_000 || !got[0].asOf.Equal(readAt) {
+		t.Fatalf("volumes = %+v, want the earlier row untouched", got)
+	}
+}

@@ -29,6 +29,10 @@ type priceReader interface {
 	DaySamples(context.Context, domain.AssetID, time.Time, time.Time) ([]domain.Sample, error)
 }
 
+type volumeBook interface {
+	Volume24h(ctx context.Context, mint string, now time.Time) (*money.Micros, error)
+}
+
 type CorePublisher interface {
 	PublishCore(ctx context.Context, m events.Core) error
 }
@@ -39,6 +43,7 @@ type SamplePrices struct {
 	clock    clock.Clock
 	catalog  *Catalog
 	book     priceReader
+	volume   volumeBook
 	source   PriceSource
 	ticks    CorePublisher
 	interval time.Duration
@@ -64,7 +69,7 @@ func NewSamplePrices(
 ) *SamplePrices {
 	book := NewPriceBook(reads, c)
 	return &SamplePrices{
-		uow: uow, ids: g, clock: c, catalog: NewCatalog(reads), book: book, source: source,
+		uow: uow, ids: g, clock: c, catalog: NewCatalog(reads), book: book, volume: book, source: source,
 		ticks: ticks, interval: interval, hot: hot, listings: book,
 	}
 }

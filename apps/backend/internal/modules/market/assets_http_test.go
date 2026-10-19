@@ -364,6 +364,12 @@ func TestAssets_aPricePastInt64DoesNotReachTheClient(t *testing.T) {
 	if _, err := h.GetAssets(user, api.GetAssetsRequestObject{}); errs.CodeOf(err) != errs.CodeDecodeFailed {
 		t.Fatalf("huge sparkline = %v", err)
 	}
+	h.List = hugeList{page: app.Page{Items: []app.Summary{{
+		Asset: asset, Session: session, Volume: &app.Volume{At: when, USD: huge},
+	}}}}
+	if _, err := h.GetAssets(user, api.GetAssetsRequestObject{}); errs.CodeOf(err) != errs.CodeDecodeFailed {
+		t.Fatalf("huge volume = %v", err)
+	}
 }
 
 type hugeList struct{ page app.Page }
@@ -978,5 +984,68 @@ func TestChart_weeklyBarsStartOnMondayAndPageBack(t *testing.T) {
 	}
 	if rec := s.get(t, "/v1/assets/AAPLx/chart?range=1M&interval=1w"); rec.Code != http.StatusBadRequest {
 		t.Fatalf("1M weekly = %d", rec.Code)
+	}
+}
+
+func (s marketAPI) volume(t *testing.T, mint string, offset time.Duration, micros int64) {
+	t.Helper()
+	_, err := s.pool.Exec(t.Context(),
+		`INSERT INTO asset_volumes (mint, volume_24h_micros, as_of, updated_at) VALUES ($1, $2, $3, $3)`,
+		mint, micros, s.when.Add(offset))
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertVolume(t *testing.T, name string, micros *int64, asOf *time.Time, want int64, wantAsOf time.Time) {
+	t.Helper()
+	if micros == nil || *micros != want || asOf == nil || !asOf.Equal(wantAsOf) {
+		t.Fatalf("%s volume = %v as of %v, want %d as of %s", name, micros, asOf, want, wantAsOf)
+	}
+}
+
+func TestAssets_volumeIsServedOnTheListAndTheDetailForAFreshReading(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.seedFixtures(t)
+	aapl := marketfake.AAPLx().Mint.String()
+	s.price(t, aapl, -30*time.Minute, 110_000_000)
+	s.volume(t, aapl, -35*time.Hour, 2_500_000_000_000)
+	var apple api.AssetSummary
+	for _, a := range pageOf(t, s.get(t, "/v1/assets")).Assets {
+		if a.Symbol == "AAPLx" {
+			apple = a
+		}
+	}
+	wantAsOf := s.when.Add(-35 * time.Hour)
+	assertVolume(t, "list", apple.Volume24hMicros, apple.Volume24hAsOf, 2_500_000_000_000, wantAsOf)
+	detail := detailOf(t, s.get(t, "/v1/assets/AAPLx"))
+	assertVolume(t, "detail", detail.Volume24hMicros, detail.Volume24hAsOf, 2_500_000_000_000, wantAsOf)
+}
+
+func TestAssets_aVolumeOlderThanThirtySixHoursIsNullAndSoIsAMintWithNoRow(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.seedFixtures(t)
+	aapl, tsla := marketfake.AAPLx().Mint.String(), marketfake.TSLAx().Mint.String()
+	s.price(t, aapl, -30*time.Minute, 110_000_000)
+	s.volume(t, aapl, -36*time.Hour-time.Second, 2_500_000_000_000)
+	for _, rec := range []*httptest.ResponseRecorder{s.get(t, "/v1/assets"), s.get(t, "/v1/assets/AAPLx")} {
+		body := rec.Body.String()
+		if strings.Count(body, `"volume_24h_micros":null`) == 0 || strings.Contains(body, `"volume_24h_micros":2`) ||
+			strings.Contains(body, `"volume_24h_as_of":"`) {
+			t.Fatalf("body = %s, want null volume and as_of for a stale reading", body)
+		}
+	}
+	for _, a := range pageOf(t, s.get(t, "/v1/assets")).Assets {
+		if a.Volume24hMicros != nil || a.Volume24hAsOf != nil {
+			t.Fatalf("%s volume = %v as of %v, want null for both", a.Symbol, a.Volume24hMicros, a.Volume24hAsOf)
+		}
+	}
+	s.volume(t, tsla, -time.Hour, 7_000_000)
+	got := detailOf(t, s.get(t, "/v1/assets/AAPLx"))
+	if got.Volume24hMicros != nil || got.Volume24hAsOf != nil {
+		t.Fatalf("detail volume = %v as of %v, want null while another mint has a reading",
+			got.Volume24hMicros, got.Volume24hAsOf)
 	}
 }

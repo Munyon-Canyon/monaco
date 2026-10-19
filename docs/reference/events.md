@@ -81,6 +81,7 @@ Subject `events.asset.price_moved`, version 1.
 | `prev_close_micros` | `money.Micros` |
 | `trading_day` | `string` |
 | `observed_at` | `time.Time` |
+| `volume_24h_micros` | `*money.Micros` |
 
 ## `block.created`
 

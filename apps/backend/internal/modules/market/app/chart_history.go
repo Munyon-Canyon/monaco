@@ -33,8 +33,8 @@ func (c *AssetChart) fromHistory(
 	if c.hist == nil || !c.hist.Configured() {
 		return Chart{}, false, nil
 	}
-	samples, err := c.hist.MarketChart(ctx, asset.Mint, historyDays(span))
-	if err != nil || len(samples) == 0 {
+	history, err := c.hist.MarketChart(ctx, asset.Mint, historyDays(span))
+	if err != nil || len(history.Prices) == 0 {
 		if errs.CodeOf(err) != errs.CodeNotFound {
 			observability.Degraded(ctx, observability.MarketChartHistoryFailed,
 				slog.String("mint", asset.Mint.String()),
@@ -44,7 +44,7 @@ func (c *AssetChart) fromHistory(
 	}
 	width := interval.Duration()
 	since, until := chartWindow(asset, req, span, width, now)
-	points, older := bucketHistory(samples, width, since, until, limit)
+	points, older := bucketHistory(history.Prices, width, since, until, limit)
 	out := Chart{Range: span, Interval: interval, Bucket: width, Points: points, Empty: len(points) == 0}
 	if older {
 		oldest := points[0].At

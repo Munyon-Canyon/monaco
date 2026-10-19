@@ -19,14 +19,14 @@ func TestPriceHistoryFake_answersWhatWasPutPerMintAndDaysAndRecordsCalls(t *test
 	var f marketfake.PriceHistoryFake
 	f.Put(aapl, 90, sample)
 	got, err := f.MarketChart(t.Context(), aapl, 90)
-	if err != nil || len(got) != 1 || got[0] != sample {
+	if err != nil || len(got.Prices) != 1 || got.Prices[0] != sample {
 		t.Fatalf("MarketChart(AAPLx, 90) = %v, %v, want the put sample", got, err)
 	}
 	for _, other := range []struct {
 		mint market.Mint
 		days int
 	}{{aapl, 1}, {tsla, 90}} {
-		if got, err := f.MarketChart(t.Context(), other.mint, other.days); err != nil || len(got) != 0 {
+		if got, err := f.MarketChart(t.Context(), other.mint, other.days); err != nil || len(got.Prices) != 0 {
 			t.Fatalf("MarketChart(%v, %d) = %v, %v, want an empty answer", other.mint, other.days, got, err)
 		}
 	}

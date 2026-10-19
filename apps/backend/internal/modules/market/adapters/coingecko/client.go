@@ -53,13 +53,15 @@ func New(c *httpclient.Client, apiKey string) *Client {
 func (c *Client) Configured() bool { return c.key != "" }
 
 type chartWire struct {
-	Prices [][2]json.Number `json:"prices"`
+	Prices       [][2]json.Number `json:"prices"`
+	TotalVolumes [][2]json.Number `json:"total_volumes"`
 }
 
-func (c *Client) MarketChart(ctx context.Context, mint domain.Mint, days int) ([]app.Sample, error) {
+func (c *Client) MarketChart(ctx context.Context, mint domain.Mint, days int) (app.History, error) {
 	const op = "coingecko.Client.MarketChart"
 	if !c.Configured() || (days < 1 && days != app.HistoryMaxDays) {
-		return nil, errs.New(errs.CodeInvalidInput, op, slog.Bool("keyed", c.Configured()), slog.Int("days", days))
+		return app.History{}, errs.New(errs.CodeInvalidInput, op,
+			slog.Bool("keyed", c.Configured()), slog.Int("days", days))
 	}
 	query := url.Values{"vs_currency": {"usd"}, "days": {daysParam(days)}}
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet,
@@ -67,7 +69,7 @@ func (c *Client) MarketChart(ctx context.Context, mint domain.Mint, days int) ([
 	req.Header.Set(keyHeader, c.key)
 	req.Header.Set("Accept", "application/json")
 	if err := c.limit.Wait(ctx); err != nil {
-		return nil, errs.Wrap(err, errs.CodeUpstreamUnavailable, op, slog.Int("days", days))
+		return app.History{}, errs.Wrap(err, errs.CodeUpstreamUnavailable, op, slog.Int("days", days))
 	}
 	resp, err := c.http.Do(ctx, req)
 	if err != nil {
@@ -75,26 +77,34 @@ func (c *Client) MarketChart(ctx context.Context, mint domain.Mint, days int) ([
 		if rateLimited(err) {
 			code = errs.CodeCoinGeckoRateLimited
 		}
-		return nil, errs.Wrap(err, code, op, slog.Int("days", days))
+		return app.History{}, errs.Wrap(err, code, op, slog.Int("days", days))
 	}
 	defer func() { _ = resp.Body.Close() }()
 	switch resp.StatusCode {
 	case http.StatusOK:
 	case http.StatusNotFound:
-		return nil, errs.New(errs.CodeNotFound, op, slog.Int("days", days))
+		return app.History{}, errs.New(errs.CodeNotFound, op, slog.Int("days", days))
 	default:
-		return nil, errs.New(errs.CodeUpstreamUnavailable, op, slog.Int("status", resp.StatusCode))
+		return app.History{}, errs.New(errs.CodeUpstreamUnavailable, op, slog.Int("status", resp.StatusCode))
 	}
+	return decodeHistory(ctx, resp.Body, mint, days)
+}
+
+func decodeHistory(ctx context.Context, body io.Reader, mint domain.Mint, days int) (app.History, error) {
+	const op = "coingecko.Client.MarketChart"
 	var w chartWire
-	if err := json.NewDecoder(io.LimitReader(resp.Body, maxBody)).Decode(&w); err != nil {
-		return nil, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.Int("days", days))
+	if err := json.NewDecoder(io.LimitReader(body, maxBody)).Decode(&w); err != nil {
+		return app.History{}, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.Int("days", days))
 	}
 	out, dropped, err := samples(w, op)
 	if dropped > 0 {
 		observability.Degraded(ctx, observability.MarketCoinGeckoSubMicroDropped,
 			slog.String("mint", mint.String()), slog.Int("days", days), slog.Int("dropped", dropped))
 	}
-	return out, err
+	if err != nil {
+		return app.History{}, err
+	}
+	return app.History{Prices: out, Volume24h: newestVolume(w.TotalVolumes)}, nil
 }
 
 func daysParam(days int) string {
@@ -132,6 +142,28 @@ func samples(w chartWire, op string) ([]app.Sample, int, error) {
 		out = append(out, app.Sample{At: time.UnixMilli(ms).UTC(), Price: price})
 	}
 	return out, dropped, nil
+}
+
+func newestVolume(series [][2]json.Number) *app.Volume {
+	var newest *app.Volume
+	for _, p := range series {
+		ms, err := p[0].Int64()
+		if err != nil {
+			continue
+		}
+		at := time.UnixMilli(ms).UTC()
+		if newest != nil && !at.After(newest.At) {
+			continue
+		}
+		newest = &app.Volume{At: at}
+		if usd, ok := parsePrice(p[1]); ok {
+			newest.USD = usd
+		}
+	}
+	if newest == nil || newest.USD.IsZero() {
+		return nil
+	}
+	return newest
 }
 
 var decimalNumber = regexp.MustCompile(`^[0-9]{1,40}(\.[0-9]{1,40})?([eE][-+]?[0-9]{1,3})?$`)
