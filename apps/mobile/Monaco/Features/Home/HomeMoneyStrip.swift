@@ -56,7 +56,8 @@ struct HomeMoneyStrip: View {
     }
 
     private var netWorth: some View {
-        metric("Net worth", identifier: "home-net-worth") {
+        let text = netWorthMicros.map { Self.spoken($0) }
+        return metric("Net worth", spoken: text ?? Self.unavailableText, identifier: "home-net-worth") {
             switch display {
             case .loading: placeholderBar
             case .amount, .unavailable:
@@ -70,17 +71,28 @@ struct HomeMoneyStrip: View {
     }
 
     private var cash: some View {
-        metric("Cash", identifier: "home-cash") {
-            switch display {
-            case .loading:
-                placeholderBar.accessibilityIdentifier("platform-balance-loading")
-            case .amount(let micros):
-                MoneyText(micros: UsdAmountFormatter.flooredToCents(micros), style: .row)
-                    .accessibilityIdentifier("platform-balance-value")
-            case .unavailable:
-                unavailable.accessibilityIdentifier("platform-balance-unavailable")
-            }
+        switch display {
+        case .loading:
+            return AnyView(
+                metric("Cash", spoken: Self.loadingText, identifier: "platform-balance-loading") { placeholderBar })
+        case .amount(let micros):
+            return AnyView(
+                metric("Cash", spoken: Self.spoken(micros), identifier: "platform-balance-value") {
+                    MoneyText(micros: UsdAmountFormatter.flooredToCents(micros), style: .row)
+                })
+        case .unavailable:
+            return AnyView(
+                metric("Cash", spoken: Self.unavailableText, identifier: "platform-balance-unavailable") {
+                    unavailable
+                })
         }
+    }
+
+    private static let unavailableText = "unavailable"
+    private static let loadingText = "loading"
+
+    private static func spoken(_ micros: Int64) -> String {
+        UsdAmountFormatter.format(micros: UsdAmountFormatter.flooredToCents(micros))
     }
 
     private var placeholderBar: some View {
@@ -91,11 +103,10 @@ struct HomeMoneyStrip: View {
         Text("—")
             .moneyFont(.row)
             .foregroundStyle(MonacoTheme.muted)
-            .accessibilityLabel("unavailable")
     }
 
     private func metric<Value: View>(
-        _ label: String, identifier: String, @ViewBuilder value: () -> Value
+        _ label: String, spoken: String, identifier: String, @ViewBuilder value: () -> Value
     ) -> some View {
         NavigationLink(value: AnyAppRoute(WithdrawRoute())) {
             VStack(alignment: .leading, spacing: 0) {
@@ -111,7 +122,9 @@ struct HomeMoneyStrip: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(spoken)
         .accessibilityIdentifier(identifier)
     }
 

@@ -65,7 +65,9 @@ struct HomeBalanceLayoutTests {
         defer { window.isHidden = true }
 
         let deposit = try await Self.element("home-add-money-link", in: window).accessibilityFrame
-        let cash = try await Self.element("platform-balance-value", in: window).accessibilityFrame
+        let cashElement = try await Self.element("platform-balance-value", in: window)
+        let cash = cashElement.accessibilityFrame
+        #expect(cashElement.accessibilityValue == "$500.00")
         #expect(deposit.height >= 44, "Deposit is \(deposit.height)pt tall")
         #expect(deposit.width >= 82, "Deposit is \(deposit.width)pt wide")
         #expect(

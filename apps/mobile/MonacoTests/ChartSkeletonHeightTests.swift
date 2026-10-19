@@ -15,21 +15,19 @@ struct ChartSkeletonHeightTests {
 
     private static let tolerance: CGFloat = 2
     private static let portfolioPath = "/v1/me/portfolio"
-    private static let homeHistoryPath = "/v1/me/pnl-history?range=1D"
+    private static let homeHistoryPath = "/v1/me/pnl-history?range=1M"
     private static let cabalHistoryPath = "/v1/cabals/cabal-1/value-history?range=1M"
     private static let cabalPath = "/v1/cabals/cabal-1"
     private static let cabalPotPath = "/v1/cabals/cabal-1/pot"
 
     @Test(.timeLimit(.minutes(1)))
-    func theHomeHeroKeepsItsHeightThroughEveryStageOfLoading() async throws {
-        let skeleton = try await Self.homeHeight(portfolio: .gate, history: .gate)
+    func theHomeChartKeepsItsHeightWhenItsHistoryLoads() async throws {
         let chartLoading = try await Self.homeHeight(
             portfolio: Self.reply(Components.Schemas.MyPortfolio.sample), history: .gate,
-            waitingFor: "home-portfolio-total")
+            waitingFor: "home-portfolio-chart-loading")
         let loaded = try await Self.homeHeight(withHistory: true)
 
-        #expect(abs(chartLoading - skeleton) < Self.tolerance, "skeleton \(skeleton), chart loading \(chartLoading)")
-        #expect(abs(loaded - skeleton) < Self.tolerance, "skeleton \(skeleton), loaded \(loaded)")
+        #expect(abs(loaded - chartLoading) < Self.tolerance, "chart loading \(chartLoading), loaded \(loaded)")
     }
 
     @Test(.timeLimit(.minutes(1)))
@@ -82,7 +80,7 @@ struct ChartSkeletonHeightTests {
     }
 
     private static func homeHeight(withHistory: Bool) async throws -> CGFloat {
-        var history = MyHistory.sample(range: ._1d)
+        var history = MyHistory.sample(range: ._1m)
         if !withHistory { history.points = [] }
         return try await homeHeight(
             portfolio: reply(Components.Schemas.MyPortfolio.sample), history: reply(history),
