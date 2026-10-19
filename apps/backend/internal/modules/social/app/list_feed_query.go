@@ -60,6 +60,9 @@ type FeedItem struct {
 	TokenDecimals *uint8
 	PriceMicros   money.Micros
 	ShareOfPotBps int64
+	ChangeBps     *int64
+	MarkMicros    money.Micros
+	PrevClose     money.Micros
 	ProposalID    uuid.UUID
 	CommentCount  int32
 	LikeCount     int32
@@ -145,6 +148,10 @@ func feedItemOf(row sqlc.ListFeedRow) (FeedItem, error) {
 	}
 	if kind == feed.KindTrade {
 		item.PriceMicros = payload.PriceMicros
+	}
+	if kind == feed.KindPriceMove {
+		item.ChangeBps = &payload.ChangeBps
+		item.MarkMicros, item.PrevClose = payload.MarkMicros, payload.PrevClose
 	}
 	if kind == feed.KindProposal {
 		item.ShareOfPotBps = payload.ShareOfPotBps

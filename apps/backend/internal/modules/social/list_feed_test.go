@@ -2,6 +2,7 @@ package social_test
 
 import (
 	"context"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -185,8 +186,10 @@ func TestFeedQuery_rendersEachItemFromItsSnapshot(t *testing.T) {
 		Symbol: "TSLAx", AssetName: "Tesla", Title: "Tesla is down 5.07% today",
 		Detail: "$250.00, previous close $263.40", Body: "why",
 		Tone: feed.ToneNegative, CreatedAt: f.clock.Now(), UpdatedAt: f.clock.Now(),
+		ChangeBps: ptr(int64(-507)), MarkMicros: money.MicrosFromUint64(250_000_000),
+		PrevClose: money.MicrosFromUint64(263_400_000),
 	}
-	if len(got) != 1 || got[0] != want {
+	if len(got) != 1 || !reflect.DeepEqual(got[0], want) {
 		t.Fatalf("items = %+v, want [%+v]", got, want)
 	}
 }
