@@ -1,7 +1,7 @@
 ---
 id: chat/talk-it-over
 title: Talk it over
-version: 2
+version: 3
 milestone: M19
 requires: [auth/sign-in]
 actors: [A, B]
@@ -33,7 +33,7 @@ One simulator runs every actor, and each switch signs one member out and the nex
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap, type, tap, then tap | the Cabals tab, `cabals-search-field`, the `cabals-search-result-<id>`, then `cabal-action-chat` | `QA {QA.run}` | `chat-title` reads `QA {QA.run}`. `chat-empty` reads "No messages yet" over "Say hi, or float a stock idea." The composer's placeholder is "Message your cabal" and `chat-send` is disabled, all within 15 s (screens.md Chat) |
+| S1.1 | A | tap, type, tap, then tap | the Cabals tab, `cabals-search-field`, the `cabals-search-result-<id>`, then `cabal-action-chat` | `QA {QA.run}` | `chat-title` reads `QA {QA.run}`. `chat-empty` reads "Start the conversation" over "Messages here stay with your cabal. Proposal-specific discussion stays attached to the proposal." The composer's placeholder is "Message your cabal" and `chat-send` is disabled, all within 15 s (screens.md Chat) |
 
 ### S2 Send, and the other member sees it
 
@@ -77,6 +77,6 @@ None.
 
 ## Not covered
 
-- An empty chat as B, which S1.1 already covers for the same screen. "Not sent · Retry", which needs the network cut during a run, the "Seen by" sheet, @mentions (#2147), and the closed composer after leaving.
+- An empty chat as B, which S1.1 already covers for the same screen. "Not sent" with "Retry", which needs the network cut during a run, the "Seen by" sheet, @mentions (#2147), and the closed composer after leaving.
 - "Also post in the cabal chat" turned on. #3238 adds the toggle's channel copy, so S3.2 only checks that a reply sent with it off stays out of the channel.
 - Live delivery with both members on screen. One simulator holds one signed-in member, so S2.2 and S3.3 check that a message is there after a member opens the chat, which the backend and the chat realtime channel already serve.

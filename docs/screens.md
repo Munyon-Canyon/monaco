@@ -355,7 +355,43 @@ States. Loading is a skeleton. No comments: "No replies yet" / "Start the discus
 
 ## Chat (`ChatRoute`, #676)
 
-Title is the cabal tile and name. Empty: the tile, the name, then "No messages yet" over "Say hi, or float a stock idea." Day dividers in mono. Others' messages on the left with the author's avatar (opens `UserProfileRoute`) and name over the first of a run; mine on the right in ink. A failed send shows "Not sent · Retry" under the bubble. Composer "Message your cabal" with a send disc. A non-member or removed member sees the composer replaced by "You're not in this cabal anymore." #703 adds threads and delete, #704 "Seen by N" and unread badges, #2147 @mentions.
+Toolbar: the back button on the left, the cabal name centred in `Typo.headline` (one line, `chat-title`) and an info round on the right (`chat-info`, "Cabal information") that opens the same "Cabal details" sheet as the cabal screen's "i". No tab bar. The timeline sits on the cabal canvas.
+
+- **Day label.** A centred caption ("Today", "Yesterday" or the date), with no rule.
+- **Their messages.** A 26pt avatar (opens `UserProfileRoute`) on the first message of a run, with a spacer on the rest. The bubble is `surfaceSunken` with no stroke, 87% of the content width at most, a 4pt tail on the top-leading corner and 17pt on the others. The author's name sits inside the bubble over the first message of a run. The time sits under the bubble.
+- **My messages.** `brandSoft` bubble with `primaryText`, the 4pt tail on the top-trailing corner. The status line under it reads "10:25 · Sent", "Sending…" while the post is in flight, or "Not sent" with a "Retry" text button after a failure (long-press: Retry or Delete). The "Seen by N" label joins the status line of the newest message.
+- **Proposal card.** A message with a `proposal_id` renders `ChatProposalCard` between the bubbles: the proposer's 38pt avatar, "Mia proposed NVIDIA" (or "proposed selling" for a sell), "$1,200.00 from the cabal pot", "Big Ballers · 2 hr ago" and a small "Review" button that opens `ProposalRoute`. A footer row under a rule shows the reply count and opens the thread. Once the vote has passed the title reads "Proposal approved", the button reads "Status" and the footer reads "Execution pending · Not completed". The proposal is fetched once per id per session; while it loads the card is a skeleton, and if the fetch fails the card reads "A proposal" with Review still on. The reply faces from the design are not drawn: a message carries only its reply count.
+- **Offline.** A warn notice above the timeline, "You're offline. Messages can be drafted but won't send yet." (`chat-offline-notice`), shown while `NetworkPathModel` reports no network path. The composer stays on; a send while offline ends in the failed state with Retry.
+- **Composer.** "Message your cabal" in a sunken capsule that grows to a rounded field after one line, and a 44pt send disc (`chat-send`, "Send message"). The @mention picker is a card of `MonacoRow`s above the composer.
+- **States.** Loading is five skeleton rows. Empty: a chat tile, "Start the conversation" over "Messages here stay with your cabal. Proposal-specific discussion stays attached to the proposal." First-load failure: "Couldn't load messages." with "Try again". A non-member or removed member sees the composer replaced by an info notice, "You're not in this cabal anymore."
+
+Threads (`ChatThreadRoute`), delete, "Seen by N" (#704) and @mentions (#2147) keep their behaviour. The thread screen uses the same bubbles and composer, with the parent message over a rule and an "Also post in the cabal chat" switch.
+
+## Cabal holding (`CabalHoldingRoute`)
+
+`CabalHoldingRoute(cabalID:symbol:)`: one cabal's position in one stock. It keeps the tab bar. The title is "NVIDIA holding", or "Cabal asset holding" while loading and on an error. The holdings rows on the cabal screen still open `AssetRoute` until S9 wires the push.
+
+| Order | Section | Shows |
+| --- | --- | --- |
+| 1 | Asset header | 47pt `StockMark`, the asset name and "NVDA · Big Ballers". One VoiceOver element |
+| 2 | Stale notice | A warn notice, "Holding value last updated 14 minutes ago.", when the price read is ten minutes old or more |
+| 3 | Performance | "Position value", the value in `moneyFont(.hero)`, and the return with "Position P&L · All time" |
+| 4 | Chart | The position's value line with the 1W 1M 3M 1Y All periods, or `QuietChart` "Position chart opens soon" while there is no series. No position: "No position yet" / "Completed trades in this cabal appear here." |
+| 5 | Stat grid | Units, Average buy, Average sell, Cost basis, Realized P&L · total, Unrealized P&L. A missing figure reads "—", with "Average prices and realized P&L open soon." under the grid |
+| 6 | Trade history | "Cabal · Times shown in UTC", then a row per confirmed buy or sell of the symbol: sign tile, "Buy · 24.4444 units", the UTC date, the unit price and the total. A row opens `TransactionRoute`. "Show older trades" pages on. A failed read shows "Couldn't load trade history." with "Try again" in this section only |
+| 7 | Related proposals | Up to two open proposals of this cabal on the symbol, drawn by `ProposalCard`, or "No open proposals for NVDA" |
+| 8 | Position details | A disclosure: Asset, Scope, Average buy, P&L scope, and "View token market", which pushes `AssetRoute` |
+
+States: loading skeleton (`holding-loading`); error (`holding-error`, "Couldn't load this view" with "Try again"); a reload that fails with data on screen keeps the data and shows the toast "Couldn't refresh this holding."; empty; loss (the return, chart and Unrealized cell in the loss colour); stale; not a member ("This holding is private").
+
+Data. `GET /v1/cabals/{id}/pot` gives the units, price, value, cost basis and unrealized P&L of the holding and the price time; `GET /v1/cabals/{id}` the cabal name; `GET /v1/assets/{symbol}` the name, logo and token decimals; `GET /v1/cabals/{id}/activity` the trades (confirmed buys and sells of the symbol, filtered on the client, up to three pages of 100 per load); `GET /v1/cabals/{id}/proposals?filter=open` the related proposals. The backend has none of these (D7), so they render "—" or the fallback in production and come from `CabalHoldingFixture` only in the DEBUG harness:
+
+1. Average buy and average sell price per cabal holding.
+2. Realized and unrealized P&L split per cabal holding (only unrealized exists).
+3. A position value series per cabal holding and range (1W, 1M, 3M, 1Y, All).
+4. Period P&L for the holding.
+5. A `symbol` filter on `GET /v1/cabals/{id}/activity`.
+6. A per-trade unit price (today `usdc_micros / units`).
 
 ## Profile tab
 

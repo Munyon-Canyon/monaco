@@ -2,9 +2,10 @@ import XCTest
 
 enum ChatCabalChatJourney {
     static let id = "chat/cabal-chat"
-    static let version = 3
-    static let emptyTitle = "No messages yet"
-    static let emptyHint = "Say hi, or float a stock idea."
+    static let version = 4
+    static let emptyTitle = "Start the conversation"
+    static let emptyHint =
+        "Messages here stay with your cabal. Proposal-specific discussion stays attached to the proposal."
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -42,7 +43,7 @@ enum ChatCabalChatJourney {
             XCTAssertTrue(
                 JoinJourney.waitForLabel(app.element("chat-empty"), containing: emptyTitle, timeout: 10)
                     && JoinJourney.waitForLabel(app.element("chat-empty"), containing: emptyHint, timeout: 10),
-                "S1.2: no 'No messages yet' empty state within 10 s (known failure, #676)"
+                "S1.2: no 'Start the conversation' empty state within 10 s (known failure, #676)"
             )
         }
 

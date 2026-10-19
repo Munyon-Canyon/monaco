@@ -64,6 +64,10 @@ struct ChatThreadView: View {
     }
 }
 
+enum ChatThreadMetrics {
+    static let toggleRowHeight: CGFloat = 63
+}
+
 struct ChatThreadScreen: View {
     let thread: ThreadSession?
     var loadingParent: ChatMessage?
@@ -137,11 +141,12 @@ struct ChatThreadScreen: View {
         } else if let parent = state?.parent, !parent.deleted {
             VStack(spacing: 0) {
                 Toggle(ChatThreadCopy.alsoInChannel, isOn: $alsoInChannel)
-                    .font(MonacoTheme.Typo.callout)
-                    .foregroundStyle(MonacoTheme.ink)
-                    .tint(MonacoTheme.accent)
+                    .font(MonacoTheme.Typo.subhead)
+                    .foregroundStyle(MonacoTheme.primaryText)
+                    .tint(MonacoTheme.primaryButtonFill)
                     .padding(.horizontal, MonacoTheme.Space.gutter)
-                    .padding(.vertical, MonacoTheme.Space.s)
+                    .frame(minHeight: ChatThreadMetrics.toggleRowHeight)
+                    .overlay(alignment: .bottom) { MonacoRule() }
                     .accessibilityIdentifier("chat-thread-also-in-channel")
                 ChatComposerBar(
                     focus: $composerFocused, placeholder: ChatThreadCopy.composerPlaceholder,
@@ -154,7 +159,7 @@ struct ChatThreadScreen: View {
             }
         } else if state?.parent != nil {
             Text(ChatThreadCopy.parentDeleted)
-                .font(MonacoTheme.Typo.callout)
+                .font(MonacoTheme.Typo.subhead)
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, MonacoTheme.Space.m)
@@ -217,10 +222,10 @@ struct ChatThreadList: View {
         } content: {
             if rows.isEmpty {
                 Text(ChatThreadCopy.noReplies)
-                    .font(MonacoTheme.Typo.callout)
+                    .font(MonacoTheme.Typo.subhead)
                     .foregroundStyle(MonacoTheme.secondaryText)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 24)
+                    .padding(.vertical, MonacoTheme.Space.l)
                     .accessibilityIdentifier("chat-thread-empty")
             }
             ForEach(rows) { row in
@@ -250,8 +255,8 @@ struct ChatThreadParent: View {
                         photoURL: parent.author.photoUrl, displayName: parent.author.displayName, size: 32,
                         seed: parent.author.id)
                     Text(parent.author.displayName)
-                        .font(MonacoTheme.Typo.bodyStrong)
-                        .foregroundStyle(MonacoTheme.ink)
+                        .font(MonacoTheme.Typo.subheadStrong)
+                        .foregroundStyle(MonacoTheme.primaryText)
                         .lineLimit(1)
                 }
                 .frame(minHeight: 44)
@@ -272,16 +277,16 @@ struct ChatThreadParent: View {
     @ViewBuilder private var parentBody: some View {
         if parent.deleted {
             Text(GroupChatCopy.deleted)
-                .font(MonacoTheme.Typo.body)
+                .font(MonacoTheme.Typo.subhead)
                 .italic()
-                .foregroundStyle(MonacoTheme.muted)
+                .foregroundStyle(MonacoTheme.secondaryText)
         } else {
             ChatMessageText(
-                text: parent.body ?? "", members: members, color: MonacoTheme.ink,
+                text: parent.body ?? "", members: members, color: MonacoTheme.bodyText,
                 mentionColor: MonacoTheme.brand, openProfile: openProfile)
             Text(parent.createdAt, format: .dateTime.hour().minute())
-                .font(MonacoTheme.Typo.stamp)
-                .foregroundStyle(MonacoTheme.tertiaryText)
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.secondaryText)
                 .accessibilityIdentifier("chat-thread-parent-time")
         }
     }

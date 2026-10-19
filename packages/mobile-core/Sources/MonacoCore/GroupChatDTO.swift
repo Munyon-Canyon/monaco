@@ -35,13 +35,26 @@ public enum GroupChatDraft {
 
 public enum GroupChatCopy {
     public static let title = "Cabal chat"
-    public static let emptyTitle = "No messages yet"
-    public static let emptyHint = "Say hi, or float a stock idea."
+    public static let emptyTitle = "Start the conversation"
+    public static let emptyHint =
+        "Messages here stay with your cabal. Proposal-specific discussion stays attached to the proposal."
     public static let composerPlaceholder = "Message your cabal"
     public static let loadEarlier = "Load earlier messages"
     public static let loadFailure = "Couldn't load messages."
     public static let closed = "You're not in this cabal anymore."
-    public static let notSent = "Not sent · Retry"
+    public static let notSent = "Not sent"
+    public static let retry = "Retry"
+    public static let discuss = "Discuss"
+    public static let sent = "Sent"
+    public static let sending = "Sending…"
+    public static let offline = "You're offline. Messages can be drafted but won't send yet."
+    public static let infoLabel = "Cabal information"
+    public static let sendLabel = "Send message"
+    public static let review = "Review"
+    public static let status = "Status"
+    public static let executionPending = "Execution pending · Not completed"
+    public static let unknownProposal = "A proposal"
+    public static let approved = "Proposal approved"
     public static let deleted = "Message deleted"
     public static let copy = "Copy"
 
@@ -52,6 +65,18 @@ public enum GroupChatCopy {
 
     public static func newMessagesPill(count: Int) -> String {
         count == 1 ? "1 new message" : "\(count) new messages"
+    }
+
+    public static func proposed(_ name: String, _ asset: String, isSell: Bool = false) -> String {
+        isSell ? "\(name) proposed selling \(asset)" : "\(name) proposed \(asset)"
+    }
+
+    public static func fromPot(_ amount: String) -> String {
+        "\(amount) from the cabal pot"
+    }
+
+    public static func statusLine(time: String, status: String) -> String {
+        "\(time) · \(status)"
     }
 
     public static func replies(_ count: Int) -> String {

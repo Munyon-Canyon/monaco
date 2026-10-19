@@ -16,7 +16,7 @@ enum ChatMention {
         body: String, members: [Components.Schemas.CabalMember], color: Color
     ) -> AttributedString {
         var text = AttributedString(body)
-        text.font = MonacoTheme.Typo.body
+        text.font = MonacoTheme.Typo.subhead
         let whole = NSRange(body.startIndex..., in: body)
         for match in linkDetector?.matches(in: body, range: whole) ?? [] {
             guard let url = match.url, let range = Range(match.range, in: body),
@@ -29,7 +29,7 @@ enum ChatMention {
             guard let lower = AttributedString.Index(range.lowerBound, within: text),
                 let upper = AttributedString.Index(range.upperBound, within: text)
             else { continue }
-            text[lower..<upper].font = MonacoTheme.Typo.bodyStrong
+            text[lower..<upper].font = MonacoTheme.Typo.subheadStrong
             text[lower..<upper].foregroundColor = color
             text[lower..<upper].link = URL(string: "\(scheme)://\(userID)")
         }

@@ -8,10 +8,14 @@ struct GroupChatScreen: View {
     let cabal: Components.Schemas.Cabal?
     var reporter: ChatSeenReporter?
     var viewerID = ""
+    var proposals: ChatProposalStore?
+    var network: NetworkPathModel?
     let openProfile: (String) -> Void
     let openThread: (String) -> Void
+    var openProposal: (String) -> Void = { _ in }
 
     @State private var seenTarget: SeenTarget?
+    @State private var showsDetails = false
     @State private var chat: ChatSession.State?
     @Environment(ToastCenter.self) private var toasts
     @State private var messageToDelete: String?
@@ -28,15 +32,25 @@ struct GroupChatScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if network?.isOnline == false { ChatOfflineNotice() }
             messagesArea
             bottomBar
         }
-        .background(MonacoTheme.background)
+        .monacoCanvas()
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .principal) { titleView }
+            ToolbarItem(placement: .topBarTrailing) {
+                MonacoGlassButton(
+                    systemImage: MonacoIcon.info.symbol, accessibilityLabel: GroupChatCopy.infoLabel,
+                    style: .quiet, placement: .toolbar
+                ) { showsDetails = true }
+                .accessibilityIdentifier("chat-info")
+            }
         }
+        .sheet(isPresented: $showsDetails) { ChatCabalDetailsSheet(cabalID: cabalID) }
+        .task { network?.start() }
         .task(id: sessionID) { await observe() }
         .task(id: sessionID) { await session?.open() }
         .task(id: reporterID) { await reporter?.setScreenVisible(true) }
@@ -58,23 +72,19 @@ struct GroupChatScreen: View {
     }
 
     private var titleView: some View {
-        HStack(spacing: 8) {
-            CabalMark(groupId: cabalID, name: title, size: 28, pictureUrl: cabal?.pictureUrl)
-                .accessibilityHidden(true)
-            Text(title)
-                .font(MonacoTheme.Typo.bodyStrong)
-                .foregroundStyle(MonacoTheme.ink)
-                .lineLimit(1)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isHeader)
-        .accessibilityIdentifier("chat-title")
+        Text(title)
+            .font(MonacoTheme.Typo.headline)
+            .foregroundStyle(MonacoTheme.primaryText)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityIdentifier("chat-title")
     }
 
     @ViewBuilder private var messagesArea: some View {
         if let chat, chat.timeline.hasLoadedNewest {
             if chat.timeline.rows.isEmpty {
-                GroupChatEmptyView(cabalID: cabalID, title: title, pictureUrl: cabal?.pictureUrl)
+                GroupChatEmptyView()
                     .contentShape(Rectangle())
                     .onTapGesture { composerFocused = true }
             } else {
@@ -94,6 +104,9 @@ struct GroupChatScreen: View {
         GroupChatThreadView(
             rows: chat.timeline.rows,
             members: cabal?.members ?? [],
+            cabalName: cabal?.name ?? "",
+            proposals: proposals,
+            openProposal: openProposal,
             hasOlder: chat.timeline.hasOlder,
             isLoadingOlder: chat.isLoadingOlder,
             openProfile: openProfile,

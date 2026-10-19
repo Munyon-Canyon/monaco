@@ -2,151 +2,250 @@ import MonacoAPI
 import MonacoCore
 import SwiftUI
 
+enum ChatBubbleMetrics {
+    static let tailRadius: CGFloat = 4
+    static let avatarSize: CGFloat = 26
+    static let avatarHitInset: CGFloat = -9
+    static let widthFraction: CGFloat = 0.87
+    static let sentOpacity: Double = 1
+    static let pendingOpacity: Double = 0.5
+}
+
+nonisolated struct ChatBubbleShape: Shape {
+    let isMine: Bool
+    let radius: CGFloat
+    let tail: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        UnevenRoundedRectangle(
+            topLeadingRadius: isMine ? radius : tail,
+            bottomLeadingRadius: radius,
+            bottomTrailingRadius: radius,
+            topTrailingRadius: isMine ? tail : radius,
+            style: .continuous
+        ).path(in: rect)
+    }
+}
+
 struct GroupChatRowView: View {
     let row: ChatRow
     let now: Date
     var members: [Components.Schemas.CabalMember] = []
+    var cabalName = ""
+    var proposals: ChatProposalStore?
     let openProfile: (String) -> Void
     let retry: (String) -> Void
     var discard: ((String) -> Void)?
     var openThread: ((String) -> Void)?
+    var openProposal: ((String) -> Void)?
     var replyHere: (() -> Void)?
     var requestDelete: ((String) -> Void)?
     var seenLabel: String?
     var openSeen: (() -> Void)?
 
     @Environment(ToastCenter.self) private var toasts
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var reporting: ReportTarget?
 
     private var message: ChatMessage { row.message }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+        VStack(spacing: 0) {
             if let label = row.dayLabel(now: now) {
-                ChatDayRule(label: label)
-                    .padding(.top, 16)
-                    .padding(.bottom, 4)
+                ChatDayLabel(label: label)
                     .accessibilityIdentifier("chat-day-\(row.id)")
             }
-            HStack(alignment: .top, spacing: 0) {
-                if row.isMine { Spacer(minLength: 56) }
-                VStack(alignment: row.isMine ? .trailing : .leading, spacing: 4) {
-                    if row.startsRun && !row.isMine { authorHeader }
-                    threadHeader
-                    bubble
-                        .modifier(
-                            ChatMessageMenu(
-                                enabled: canOpenMenu,
-                                reply: replyHere ?? { openThread?(rootID) },
-                                copy: {
-                                    UIPasteboard.general.string = message.body
-                                    toasts.show(success: "Copied")
-                                },
-                                delete: row.isMine ? requestDelete.map { request in { request(row.id) } } : nil,
-                                report: row.isMine
-                                    ? nil : { reporting = ReportTarget(kind: .message, targetID: row.id) })
-                        )
-                        .reportSheet($reporting)
-                        .modifier(
-                            ChatFailedMenu(
-                                enabled: row.delivery == .failed, retry: { retry(row.id) },
-                                discard: discard.map { discard in { discard(row.id) } }))
-                    footer
-                    seenFooter
-                }
-                if !row.isMine { Spacer(minLength: 56) }
+            if let proposalID = message.proposalId, let proposals {
+                ChatProposalCard(
+                    message: message, proposalID: proposalID, store: proposals, members: members,
+                    cabalName: cabalName, now: now, openProposal: { openProposal?(proposalID) },
+                    openThread: openThread.map { open in { open(message.id) } })
+            } else {
+                messageRow
+                    .padding(.top, row.startsRun && !row.startsDay ? MonacoTheme.Space.sm : 0)
             }
-            .padding(.top, row.startsRun && !row.startsDay ? 10 : 0)
         }
+        .frame(maxWidth: .infinity)
     }
 
-    private var authorHeader: some View {
-        let author = message.author
-        let named = !author.displayName.isEmpty
-        return Button {
-            openProfile(author.id)
-        } label: {
-            HStack(spacing: MonacoTheme.Space.s) {
-                MonacoAvatar(photoURL: author.photoUrl, displayName: author.displayName, size: 24, seed: author.id)
-                if named {
-                    Text(author.displayName)
-                        .font(MonacoTheme.Typo.captionStrong)
-                        .foregroundStyle(MonacoTheme.muted)
-                        .lineLimit(1)
-                }
+    private var messageRow: some View {
+        HStack(alignment: .top, spacing: MonacoTheme.Space.s) {
+            if !row.isMine { avatarColumn }
+            VStack(alignment: row.isMine ? .trailing : .leading, spacing: MonacoTheme.Space.xs) {
+                threadHeader
+                bubble
+                    .modifier(
+                        ChatMessageMenu(
+                            enabled: canOpenMenu,
+                            reply: replyHere ?? { openThread?(rootID) },
+                            copy: {
+                                UIPasteboard.general.string = message.body
+                                toasts.show(success: "Copied")
+                            },
+                            delete: row.isMine ? requestDelete.map { request in { request(row.id) } } : nil,
+                            report: row.isMine
+                                ? nil : { reporting = ReportTarget(kind: .message, targetID: row.id) })
+                    )
+                    .reportSheet($reporting)
+                    .modifier(
+                        ChatFailedMenu(
+                            enabled: row.delivery == .failed, retry: { retry(row.id) },
+                            discard: discard.map { discard in { discard(row.id) } }))
+                statusLine
+                if message.replyCount > 0 { repliesRow }
             }
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
+            .containerRelativeFrame(.horizontal, alignment: row.isMine ? .trailing : .leading) { length, _ in
+                bubbleWidth(in: length)
+            }
         }
-        .buttonStyle(.plain)
-        .disabled(!named)
-        .accessibilityLabel(named ? "\(author.displayName), open profile" : "Former member")
-        .accessibilityIdentifier("chat-author-\(row.id)")
+        .frame(maxWidth: .infinity, alignment: row.isMine ? .trailing : .leading)
+    }
+
+    private func bubbleWidth(in length: CGFloat) -> CGFloat {
+        let content = length - MonacoTheme.Space.gutter * 2
+        let avatar = row.isMine ? 0 : ChatBubbleMetrics.avatarSize + MonacoTheme.Space.s
+        return max(content * ChatBubbleMetrics.widthFraction - avatar, 0)
+    }
+
+    @ViewBuilder private var avatarColumn: some View {
+        let author = message.author
+        if row.startsRun {
+            Button {
+                openProfile(author.id)
+            } label: {
+                MonacoAvatar(
+                    photoURL: author.photoUrl, displayName: author.displayName, size: ChatBubbleMetrics.avatarSize,
+                    seed: author.id)
+            }
+            .buttonStyle(.plain)
+            .contentShape(Circle().inset(by: ChatBubbleMetrics.avatarHitInset))
+            .disabled(author.displayName.isEmpty)
+            .accessibilityLabel(
+                author.displayName.isEmpty ? "Former member" : "\(author.displayName), open profile"
+            )
+            .accessibilityIdentifier("chat-avatar-\(row.id)")
+        } else {
+            Color.clear.frame(width: ChatBubbleMetrics.avatarSize, height: ChatBubbleMetrics.avatarSize)
+        }
     }
 
     private var bubble: some View {
-        bubbleText
-            .padding(.horizontal, MonacoTheme.Space.m)
-            .padding(.vertical, MonacoTheme.Space.sm)
-            .background(bubbleShape.fill(onBrand ? MonacoTheme.brandFill : MonacoTheme.surface))
-            .overlay {
-                if !onBrand { bubbleShape.strokeBorder(MonacoTheme.hairline, lineWidth: 1) }
-            }
-            .opacity(row.delivery == .pending ? 0.5 : 1)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(accessibilityText)
-            .accessibilityIdentifier("chat-message-\(row.id)")
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+            if row.startsRun && !row.isMine { authorLine }
+            bubbleText
+        }
+        .padding(.horizontal, MonacoTheme.Space.sm)
+        .padding(.vertical, MonacoTheme.Space.s)
+        .background(
+            ChatBubbleShape(isMine: row.isMine, radius: MonacoTheme.Radius.bubble, tail: ChatBubbleMetrics.tailRadius)
+                .fill(fill)
+        )
+        .opacity(row.delivery == .pending ? ChatBubbleMetrics.pendingOpacity : ChatBubbleMetrics.sentOpacity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityText)
+        .accessibilityIdentifier("chat-message-\(row.id)")
+    }
+
+    private var fill: Color {
+        row.isMine ? MonacoTheme.brandSoft : MonacoTheme.surfaceSunken
+    }
+
+    @ViewBuilder private var authorLine: some View {
+        let author = message.author
+        let named = !author.displayName.isEmpty
+        Button {
+            openProfile(author.id)
+        } label: {
+            Text(named ? author.displayName : "Former member")
+                .font(MonacoTheme.Typo.captionStrong)
+                .foregroundStyle(MonacoTheme.secondaryText)
+                .lineLimit(1)
+        }
+        .buttonStyle(.plain)
+        .disabled(!named)
+        .accessibilityHidden(true)
+        .accessibilityIdentifier("chat-author-\(row.id)")
     }
 
     @ViewBuilder private var bubbleText: some View {
         if message.deleted {
             Text(GroupChatCopy.deleted)
-                .font(MonacoTheme.Typo.body)
+                .font(MonacoTheme.Typo.subhead)
                 .italic()
-                .foregroundStyle(textColor)
+                .foregroundStyle(MonacoTheme.secondaryText)
         } else {
             ChatMessageText(
-                text: message.body ?? "", members: members, color: textColor,
-                mentionColor: row.isMine ? nil : MonacoTheme.brand, openProfile: openProfile)
+                text: message.body ?? "", members: members,
+                color: row.isMine ? MonacoTheme.primaryText : MonacoTheme.bodyText,
+                mentionColor: MonacoTheme.brand, openProfile: openProfile)
         }
     }
+}
 
-    @ViewBuilder private var footer: some View {
-        if row.delivery == .failed {
-            Button {
-                retry(row.id)
-            } label: {
+extension GroupChatRowView {
+    @ViewBuilder private var statusLine: some View {
+        switch row.delivery {
+        case .failed:
+            HStack(spacing: MonacoTheme.Space.sm) {
                 Text(GroupChatCopy.notSent)
-                    .font(MonacoTheme.Typo.captionStrong)
-                    .foregroundStyle(MonacoTheme.destructive)
-                    .frame(minHeight: 44)
-                    .contentShape(Rectangle())
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                Button {
+                    retry(row.id)
+                } label: {
+                    Text(GroupChatCopy.retry)
+                        .font(MonacoTheme.Typo.captionStrong)
+                        .foregroundStyle(MonacoTheme.brand)
+                        .frame(minWidth: MonacoButtonMetrics.hitTarget, minHeight: MonacoButtonMetrics.hitTarget)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("chat-retry-\(row.id)")
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("chat-retry-\(row.id)")
-        } else {
-            if row.endsRun && row.delivery == .sent { timeStamp }
-            if message.replyCount > 0 { repliesRow }
+        case .pending:
+            if row.isMine {
+                caption(GroupChatCopy.sending)
+                    .accessibilityIdentifier("chat-time-\(row.id)")
+            }
+        case .sent:
+            if row.endsRun { sentLine }
         }
     }
 
-    private var timeStamp: some View {
-        Text(row.date, format: .dateTime.hour().minute())
-            .font(MonacoTheme.Typo.stamp)
-            .foregroundStyle(MonacoTheme.tertiaryText)
-            .accessibilityHidden(true)
-            .accessibilityIdentifier("chat-time-\(row.id)")
+    @ViewBuilder private var sentLine: some View {
+        HStack(spacing: 0) {
+            Text(timeText)
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.secondaryText)
+                .accessibilityHidden(true)
+                .accessibilityIdentifier("chat-time-\(row.id)")
+            seenFooter
+        }
     }
 
-    private var onBrand: Bool { row.isMine && !message.deleted }
+    private var timeText: String {
+        let time = row.date.formatted(.dateTime.hour().minute())
+        return row.isMine ? GroupChatCopy.statusLine(time: time, status: GroupChatCopy.sent) : time
+    }
+
+    private func caption(_ text: String) -> some View {
+        Text(text)
+            .font(MonacoTheme.Typo.caption)
+            .foregroundStyle(MonacoTheme.secondaryText)
+            .accessibilityHidden(true)
+    }
 
     @ViewBuilder private var seenFooter: some View {
         if let seenLabel, let openSeen {
+            Text(" · ")
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.secondaryText)
+                .accessibilityHidden(true)
             Button(action: openSeen) {
                 Text(seenLabel)
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.secondaryText)
-                    .frame(minHeight: 44)
+                    .frame(minHeight: MonacoButtonMetrics.hitTarget)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -165,13 +264,13 @@ struct GroupChatRowView: View {
             Button {
                 openThread(parentID)
             } label: {
-                HStack(spacing: 4) {
+                HStack(spacing: MonacoTheme.Space.xs) {
                     Image(systemName: "arrowshape.turn.up.left")
                     Text(ChatThreadCopy.header(parentBody: row.parentBody)).lineLimit(1)
                 }
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.secondaryText)
-                .frame(minHeight: 44)
+                .frame(minHeight: MonacoButtonMetrics.hitTarget)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -186,66 +285,53 @@ struct GroupChatRowView: View {
             Button {
                 openThread(message.id)
             } label: {
-                HStack(spacing: 4) {
+                HStack(spacing: MonacoTheme.Space.xs) {
                     Text(summary)
-                    Image(systemName: "chevron.right").font(.caption2.weight(.semibold))
+                    Image(systemName: "chevron.right").accessibilityHidden(true)
                 }
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.secondaryText)
-                .frame(minHeight: 44)
+                .font(MonacoTheme.Typo.captionStrong)
+                .foregroundStyle(MonacoTheme.brand)
+                .frame(minHeight: MonacoButtonMetrics.hitTarget)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("chat-replies-\(row.id)")
         } else {
             Text(summary)
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.secondaryText)
+                .font(MonacoTheme.Typo.captionStrong)
+                .foregroundStyle(MonacoTheme.brand)
                 .accessibilityIdentifier("chat-replies-\(row.id)")
         }
-    }
-
-    private var textColor: Color {
-        if message.deleted { return MonacoTheme.muted }
-        return row.isMine ? MonacoTheme.onBrand : MonacoTheme.ink
-    }
-
-    private var bubbleShape: UnevenRoundedRectangle {
-        let radius = MonacoTheme.Radius.bubble
-        let tail: CGFloat = row.endsRun ? 6 : radius
-        return UnevenRoundedRectangle(
-            topLeadingRadius: radius,
-            bottomLeadingRadius: row.isMine ? radius : tail,
-            bottomTrailingRadius: row.isMine ? tail : radius,
-            topTrailingRadius: radius,
-            style: .continuous
-        )
     }
 
     private var accessibilityText: String {
         let who = row.isMine ? "You" : message.author.displayName
         let body = message.deleted ? GroupChatCopy.deleted : (message.body ?? "")
         let time = row.date.formatted(date: .omitted, time: .shortened)
-        return who.isEmpty ? "\(time): \(body)" : "\(who), \(time): \(body)"
+        let state: String
+        switch row.delivery {
+        case .pending: state = " \(GroupChatCopy.sending)"
+        case .failed: state = " \(GroupChatCopy.notSent)"
+        case .sent: state = row.isMine && row.endsRun ? " \(GroupChatCopy.sent)" : ""
+        }
+        return who.isEmpty ? "\(time): \(body).\(state)" : "\(who), \(time): \(body).\(state)"
     }
 }
 
-struct ChatDayRule: View {
+struct ChatDayLabel: View {
     let label: String
 
     var body: some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
-            MonacoRule()
-            Text(label)
-                .font(MonacoTheme.Typo.stamp)
-                .foregroundStyle(MonacoTheme.tertiaryText)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .layoutPriority(1)
-            MonacoRule()
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(label)
+        Text(label)
+            .font(MonacoTheme.Typo.caption)
+            .foregroundStyle(MonacoTheme.secondaryText)
+            .multilineTextAlignment(.center)
+            .lineLimit(2)
+            .frame(maxWidth: .infinity)
+            .padding(.top, MonacoTheme.Space.sm)
+            .padding(.bottom, MonacoTheme.Space.l)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(label)
     }
 }
 
@@ -258,7 +344,7 @@ struct ChatFailedMenu: ViewModifier {
         if enabled, let discard {
             content.contextMenu {
                 Button(action: retry) {
-                    Label("Retry", systemImage: "arrow.clockwise")
+                    Label(GroupChatCopy.retry, systemImage: "arrow.clockwise")
                 }
                 Button(role: .destructive, action: discard) {
                     Label(ChatThreadCopy.delete, systemImage: "trash")

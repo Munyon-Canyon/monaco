@@ -15,6 +15,8 @@ public struct ChatSampleScenario: Sendable, Equatable {
     public var failFirstSend = false
     public var closedOnSend = false
     public var threaded = false
+    public var neverPosts = false
+    public var proposalCard = false
 
     public init(
         startEmpty: Bool = false,
@@ -24,7 +26,9 @@ public struct ChatSampleScenario: Sendable, Equatable {
         neverAnswers: Bool = false,
         failFirstSend: Bool = false,
         closedOnSend: Bool = false,
-        threaded: Bool = false
+        threaded: Bool = false,
+        neverPosts: Bool = false,
+        proposalCard: Bool = false
     ) {
         self.startEmpty = startEmpty
         self.failSends = failSends
@@ -34,12 +38,15 @@ public struct ChatSampleScenario: Sendable, Equatable {
         self.failFirstSend = failFirstSend
         self.closedOnSend = closedOnSend
         self.threaded = threaded
+        self.neverPosts = neverPosts
+        self.proposalCard = proposalCard
     }
 }
 
 extension ChatSession {
     public static let sampleCabalID = "00000000-0000-4000-8000-000000000166"
     public static let sampleViewerID = "u-me"
+    public static let sampleProposalID = "00000000-0000-4000-8000-000000000501"
 
     public static func sample(_ scenario: ChatSampleScenario, now: @escaping @Sendable () -> Date) -> ChatSession {
         let store = SampleChatStore(scenario: scenario)
@@ -78,7 +85,7 @@ private actor SampleChatStore {
         if scenario.threaded {
             messages = [Self.message(Self.threadRootID, "u-ana", "Ana", "Apple reports Thursday.", minutesAgo: 10)]
         } else {
-            messages = scenario.startEmpty ? [] : Self.thread(busy: scenario.busy)
+            messages = scenario.startEmpty ? [] : Self.thread(busy: scenario.busy, proposalCard: scenario.proposalCard)
         }
     }
 
@@ -103,6 +110,7 @@ private actor SampleChatStore {
     }
 
     func post(body: String, parentID: String?, alsoInChannel: Bool) async throws -> ChatMessage {
+        if scenario.neverPosts { try await Task.sleep(for: .seconds(3600)) }
         try await Task.sleep(for: .milliseconds(300))
         postCalls += 1
         if scenario.closedOnSend { throw SampleChatRefusal() }
@@ -142,7 +150,7 @@ private actor SampleChatStore {
         return message
     }
 
-    private static func thread(busy: Bool) -> [ChatMessage] {
+    private static func thread(busy: Bool, proposalCard: Bool) -> [ChatMessage] {
         let me = ChatSession.sampleViewerID
         var thread = [
             message("s1", "u-ana", "Ana", "Apple reports Thursday. Anyone want in before?", minutesAgo: 1_210),
@@ -154,6 +162,12 @@ private actor SampleChatStore {
             message("s7", me, "You", "Voted yes.", minutesAgo: 9),
             message("s8", me, "You", "Leo, you're the last vote.", minutesAgo: 9),
         ]
+        if proposalCard {
+            var card = message("s5p", "u-mia", "Mia", "", minutesAgo: 80)
+            card.proposalId = ChatSession.sampleProposalID
+            card.replyCount = 8
+            thread.insert(card, at: 5)
+        }
         if busy {
             thread += (1...60).map { index in
                 let body = "Backlog line \(index) about the Apple buy."
