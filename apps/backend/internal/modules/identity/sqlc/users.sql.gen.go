@@ -538,6 +538,25 @@ func (q *Queries) RestoreDevUser(ctx context.Context, arg RestoreDevUserParams) 
 	return result.RowsAffected(), nil
 }
 
+const setBio = `-- name: SetBio :execrows
+UPDATE users SET bio = NULLIF($1::text, ''), updated_at = $2
+WHERE id = $3 AND bio IS DISTINCT FROM NULLIF($1::text, '')
+`
+
+type SetBioParams struct {
+	Bio string
+	Now time.Time
+	ID  uuid.UUID
+}
+
+func (q *Queries) SetBio(ctx context.Context, arg SetBioParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setBio, arg.Bio, arg.Now, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setDisplayName = `-- name: SetDisplayName :execrows
 UPDATE users SET display_name = $1, updated_at = $2
 WHERE id = $3 AND display_name IS DISTINCT FROM $1

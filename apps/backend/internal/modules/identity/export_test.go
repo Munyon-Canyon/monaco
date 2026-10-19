@@ -8,3 +8,5 @@ func (m *Module) EnsuredPrivy() any {
 }
 
 func (m *Module) Follows() any { return m.follows }
+
+func (m *Module) Cabals() any { return m.cabals }

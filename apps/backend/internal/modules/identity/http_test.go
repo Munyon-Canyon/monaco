@@ -586,6 +586,9 @@ func TestProfileUpdates_surfaceDatabaseFailures(t *testing.T) {
 		"share performance": func(f httpFixture, id ids.UserID) *httptest.ResponseRecorder {
 			return f.updateProfile(t, id, `{"share_performance":false}`)
 		},
+		"bio": func(f httpFixture, id ids.UserID) *httptest.ResponseRecorder {
+			return f.updateProfile(t, id, `{"bio":"hi"}`)
+		},
 		"photo": func(f httpFixture, id ids.UserID) *httptest.ResponseRecorder {
 			return f.uploadPhoto(t, id, []byte("\x89PNG\r\n\x1a\nphoto"))
 		},
@@ -610,6 +613,9 @@ func TestProfileUpdates_surfaceEventFailures(t *testing.T) {
 		},
 		"share performance": func(f httpFixture, id ids.UserID) *httptest.ResponseRecorder {
 			return f.updateProfile(t, id, `{"share_performance":false}`)
+		},
+		"bio": func(f httpFixture, id ids.UserID) *httptest.ResponseRecorder {
+			return f.updateProfile(t, id, `{"bio":"hi"}`)
 		},
 		"photo": func(f httpFixture, id ids.UserID) *httptest.ResponseRecorder {
 			return f.uploadPhoto(t, id, []byte("\x89PNG\r\n\x1a\nphoto"))

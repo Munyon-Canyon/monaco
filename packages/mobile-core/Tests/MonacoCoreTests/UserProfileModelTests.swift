@@ -474,8 +474,9 @@ private enum UserProfileSupport {
     static func profile(followers: Int, following: Int, followed: Bool) -> Components.Schemas.PublicProfile {
         Components.Schemas.PublicProfile(
             id: userID, handle: "maya", displayName: "Maya Angelou",
-            photoUrl: "https://cdn.example.com/photos/maya.jpg", followerCount: followers, followingCount: following,
-            followedByMe: followed, blockedByMe: false
+            photoUrl: "https://cdn.example.com/photos/maya.jpg", bio: nil,
+            createdAt: Date(timeIntervalSince1970: 1_759_233_600), cabalCount: 0, followerCount: followers,
+            followingCount: following, followedByMe: followed, blockedByMe: false
         )
     }
 
@@ -491,7 +492,9 @@ private enum UserProfileSupport {
 
 extension StubTransport.Reply {
     fileprivate static func profile(_ profile: Components.Schemas.PublicProfile) throws -> Self {
-        .json(.ok, String(decoding: try JSONEncoder().encode(profile), as: UTF8.self))
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return .json(.ok, String(decoding: try encoder.encode(profile), as: UTF8.self))
     }
 
     fileprivate static func page(_ page: Components.Schemas.FollowsPage) throws -> Self {
