@@ -51,13 +51,29 @@ func (c Config) Score(h Hit, now time.Time) Scored {
 		heaviest = max(heaviest, r.Weight)
 	}
 	total := w.Recency*fresh +
-		w.Followers*flag(inBand) +
-		w.Question*flag(strings.Contains(h.Post.Text, "?")) +
-		w.NoLink*flag(!h.Post.Link) +
+		w.Followers*unit(inBand) +
+		w.Question*unit(strings.Contains(h.Post.Text, "?")) +
+		w.NoLink*unit(!h.Post.Link) +
 		w.Keyword*heaviest
 	return Scored{
 		Post: h.Post, Rules: names, Score: math.Round(total*100) / 100, Angle: c.Angle(h.Post.Text),
 	}
+}
+
+func (c Config) Skipped(p x.Post, now time.Time) string {
+	if now.Sub(p.CreatedAt) > time.Duration(c.Weights.RecencyMinutes)*time.Minute {
+		return "older than the recency window"
+	}
+	return c.Excluded(p)
+}
+
+func (c Config) Select(scored []Scored, room int) (chosen, rest []Scored) {
+	Rank(scored)
+	n := 0
+	for n < len(scored) && n < room && scored[n].Score >= c.MinScore {
+		n++
+	}
+	return scored[:n], scored[n:]
 }
 
 func Rank(scored []Scored) {
@@ -70,7 +86,7 @@ func Rank(scored []Scored) {
 	})
 }
 
-func flag(on bool) float64 {
+func unit(on bool) float64 {
 	if on {
 		return 1
 	}
