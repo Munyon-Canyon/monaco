@@ -1,7 +1,7 @@
 ---
 id: cabals/invite
 title: Invite a member
-version: 5
+version: 6
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -13,7 +13,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/InviteJourney.swift, apps/mobile/M
 
 A member answers an invite from the Cabals tab, then invites someone else to the same cabal by handle. The invitee sees the invite on their Cabals tab and answers it. The rules are [Cabals](../../architecture/cabals.md#invites).
 
-The copy is the Cabals tab's `CabalsInvitesSlot` and the details sheet's `CabalInviteMemberSlot` in [screens.md](../../screens.md#cabal-screen-cabalroute).
+The copy is the Cabals tab's `CabalsInvitesSlot` and the information screen's `CabalInfoLinksSlot` in [screens.md](../../screens.md#cabal-screen-cabalroute).
 
 The old app (`c838bd24`) had no invites by handle, so their Expect cells say "Old app: none".
 
@@ -37,8 +37,8 @@ The setup runs before every scenario, because S1 uses up the invite it makes. It
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap | the Cabals tab | | `cabals-invites` shows one `cabal-invite-row` within 10 s, naming `QA pot` and reading "invited you". screens.md: `CabalsInvitesSlot`, "Cabal invites". Old app: none, invites are new in #696 |
 | S1.2 | A | tap | `cabal-invite-accept` | | The toast "You're in." shows within 10 s, and `cabal-details-button` shows within 15 s. Old app: none, invites are new in #696 |
-| S1.3 | A | tap | `cabal-details-button` | | Once the toast goes and the push pre-prompt is answered "Not now" if it shows, the Cabal details sheet (`cabal-details-done`) shows within 10 s and `cabal-invite-member-row` shows within 10 s. screens.md: `CabalInviteMemberSlot`, "Invite someone". Old app: none |
-| S1.4 | A | tap | `cabal-invite-member-row` | | `invite-member-handle-field` and `invite-member-pending-empty` show within 10 s. Old app: none, invites are new in #696 |
+| S1.3 | A | tap | `cabal-details-button` | | Once the toast goes and the push pre-prompt is answered "Not now" if it shows, the Cabal information screen shows within 10 s (`cabal-members-row`) and `cabal-invite-member-row` shows within 10 s. screens.md: `CabalInfoLinksSlot`, "Invite to this cabal". Old app: none |
+| S1.4 | A | tap, then tap | `cabal-invite-member-row`, then `cabal-invite-handle-row` in the "Share cabal" sheet | | `invite-member-handle-field` and `invite-member-pending-empty` show within 10 s. Old app: none, invites are new in #696 |
 | S1.5 | A | type, then tap | `invite-member-handle-field`, then `invite-member-send-button` | `@nobody_zz` | The toast "No one on Monaco has that handle." shows within 10 s. Old app: none, invites are new in #696 |
 | S1.6 | A | clear, type, then tap | `invite-member-handle-field`, then `invite-member-send-button` | `@QA_B` | The toast "Invite sent." shows within 10 s. One `invite-member-pending-row` reads "@qa_b" and "Expires in 7 days". Old app: none, invites are new in #696 |
 | S1.7 | A | tap | `invite-member-revoke-button` | | The toast "Invite revoked." shows within 10 s, and `invite-member-pending-empty` shows. Old app: none, invites are new in #696 |
@@ -56,6 +56,6 @@ None known.
 
 ## Not covered
 
-- The creator of a request cabal inviting, and a member of a request cabal not seeing "Invite someone". `CabalInviteTests` and `InviteMemberModelTests` cover both rules on the host.
+- The creator of a request cabal inviting, and a member of a request cabal not seeing "Invite by handle". `CabalInviteTests` and `InviteMemberModelTests` cover both rules on the host.
 - An invite that expires before it is answered. `CabalInvitesModelTests` covers `invite_expired`.
 - Pull to refresh on the Cabals tab.

@@ -81,10 +81,10 @@ nonisolated final class PnlChartSampleUITests: XCTestCase {
 
     @MainActor
     func testCabalValueChartHoldsAndPinches() throws {
-        let app = launch("-MonacoGroupDetailSample", "populated")
+        let app = launch("-MonacoGroupDetailSample", "ready")
         exercise(app, chartID: "cabal-value-chart", prefix: "pnl-cabal")
         app.terminate()
-        let relaunched = launch("-MonacoGroupDetailSample", "populated")
+        let relaunched = launch("-MonacoGroupDetailSample", "ready")
         let chart = element(relaunched, "cabal-value-chart")
         XCTAssertTrue(chart.waitForExistence(timeout: 30), "no cabal chart after relaunch")
         bringIntoView(relaunched, chart)

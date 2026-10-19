@@ -2,7 +2,7 @@ import XCTest
 
 enum InviteJourney {
     static let id = "cabals/invite"
-    static let version = 5
+    static let version = 6
 
     static let cabalName = "QA pot"
     static let inviteeHandle = "qa_b"
@@ -59,9 +59,16 @@ enum InviteJourney {
         app.dismissPushPrePromptIfShown()
         app.buttons["cabal-details-button"].tap()
         XCTAssertTrue(
-            app.element("cabal-details-done").waitForExistence(timeout: 10),
-            "S1.3: the Cabal details sheet did not show within 10 s"
+            app.element("cabal-members-row").waitForExistence(timeout: 10),
+            "S1.3: the Cabal information screen did not show within 10 s"
         )
+    }
+
+    static func openHandleForm(_ app: XCUIApplication) {
+        app.element("cabal-invite-member-row").tap()
+        let byHandle = app.element("cabal-invite-handle-row")
+        XCTAssertTrue(byHandle.waitForExistence(timeout: 10), "S1.4: the invite sheet has no Invite by handle row")
+        byHandle.tap()
     }
 
     static func acceptAndInvite(_ app: XCUIApplication, recorder: JourneyRecorder) {
@@ -81,7 +88,7 @@ enum InviteJourney {
             waitForToast(app, "You're in.", step: "S1.2")
             XCTAssertTrue(
                 app.buttons["cabal-details-button"].waitForExistence(timeout: 15),
-                "S1.2: the cabal screen's Details button did not show within 15 s"
+                "S1.2: the cabal screen's information button did not show within 15 s"
             )
         }
 
@@ -89,12 +96,12 @@ enum InviteJourney {
             openDetailsAfterToast(app)
             XCTAssertTrue(
                 app.element("cabal-invite-member-row").waitForExistence(timeout: 10),
-                "S1.3: no Invite someone row in the details within 10 s"
+                "S1.3: no Invite to this cabal row in the information screen within 10 s"
             )
         }
 
         recorder.step("S1.4", "open Invite someone") {
-            app.element("cabal-invite-member-row").tap()
+            openHandleForm(app)
             XCTAssertTrue(
                 app.textFields["invite-member-handle-field"].waitForExistence(timeout: 10),
                 "S1.4: the handle field did not show within 10 s"

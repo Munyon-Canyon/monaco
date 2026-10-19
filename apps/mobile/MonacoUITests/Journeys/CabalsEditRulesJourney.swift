@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsEditRulesJourney {
     static let id = "cabals/edit-rules"
-    static let version = 5
+    static let version = 6
 
     static let memberKey = "member-id"
     static let screenTimeout: TimeInterval = 15
@@ -35,13 +35,12 @@ enum CabalsEditRulesJourney {
             JoinJourney.openBySearch(app, seededName(run: run), step: "S1.1")
         }
 
-        recorder.step("S1.2", "open details and read the rules") {
+        recorder.step("S1.2", "open the information screen and read the rules") {
             app.buttons["cabal-details-button"].tap()
             app.scrollIntoReach(app.element("cabal-rules"))
             XCTAssertTrue(app.element("cabal-rules").waitForExistence(timeout: 10), "S1.2: no Rules within 10 s")
-            assertRule(app, "name", reads: seededName(run: run), step: "S1.2")
-            assertRule(app, "voters", reads: "Every member", step: "S1.2")
-            assertRule(app, "threshold", reads: "Majority", step: "S1.2")
+            assertRule(app, "voters", reads: "Everyone", step: "S1.2")
+            assertRule(app, "threshold", reads: "2 of 2 eligible voters", step: "S1.2")
             assertRule(app, "expiry", reads: "1 day", step: "S1.2")
             JoinJourney.snap(app, "S1-A-rules-before")
         }
@@ -118,14 +117,14 @@ enum CabalsEditRulesJourney {
 
         recorder.step("S1.9", "go back to the rules") {
             app.navigationBars.buttons.firstMatch.tap()
-            assertRule(app, "threshold", reads: "Everyone agrees", step: "S1.9")
+            assertRule(app, "threshold", reads: "2 of 2 eligible voters", step: "S1.9")
             assertRule(app, "expiry", reads: "1 week", step: "S1.9")
-            assertRule(app, "voters", reads: member, step: "S1.9")
+            assertRule(app, "voters", reads: "People I pick", step: "S1.9")
             JoinJourney.snap(app, "S1-A-rules-after")
         }
 
-        recorder.step("S1.10", "close details and see the new name") {
-            app.buttons["cabal-details-done"].tap()
+        recorder.step("S1.10", "close the information screen and see the new name") {
+            app.navigationBars.buttons.firstMatch.tap()
             XCTAssertTrue(
                 JoinJourney.waitForLabel(app.element("cabal-header-name"), containing: name, timeout: 10),
                 "S1.10: the hero does not read \(name): \(app.element("cabal-header-name").label)"

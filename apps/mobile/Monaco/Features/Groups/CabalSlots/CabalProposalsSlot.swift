@@ -15,6 +15,7 @@ struct CabalProposals: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(\.cabalModel) private var cabalModel
+    @Environment(\.cabalPotModel) private var potModel
     @Environment(\.hostMainTab) private var hostMainTab
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @State private var model: ProposalListModel?
@@ -41,7 +42,10 @@ struct CabalProposals: View {
                     ProposalCardSkeleton()
                         .padding(.horizontal, MonacoTheme.Space.gutter)
                 case .failed where model.pager.items.isEmpty:
-                    MonacoErrorRow(thing: "votes", identifier: "cabal-votes-error") { Task { await model.load() } }
+                    MonacoErrorRow(
+                        thing: "proposals", identifier: "cabal-votes-error", inset: false, style: .card
+                    ) { Task { await model.load() } }
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                 default:
                     if !model.pager.items.isEmpty, context?.hasLoaded != true {
                         ProposalCardSkeleton()
@@ -79,10 +83,13 @@ struct CabalProposals: View {
         let inProgress = model.trading
         let recent = model.recentOutcomes(now: .now)
         if section == nil && inProgress.isEmpty && recent.isEmpty {
-            MonacoSectionHeader("Proposals", trailing: model.pager.items.isEmpty ? nil : "See all", action: openAll)
-            let canPropose = cabalModel?.cabal?.me?.canVote == true
-            EmptyState(title: "No open votes", message: canPropose ? "Propose the first buy." : nil)
-                .accessibilityIdentifier("cabal-proposals-empty")
+            if hasNoPositions {
+                Color.clear.frame(height: 0)
+            } else {
+                MonacoSectionHeader(
+                    "Proposals", trailing: model.pager.items.isEmpty ? nil : "See all", action: openAll)
+                emptyLine
+            }
         } else {
             let split = Self.split(section?.proposals ?? [])
             let hidden = split.rest.count + inProgress.count + recent.count
@@ -93,7 +100,7 @@ struct CabalProposals: View {
                     inProgress: inProgress.count, closed: recent.count)
             )
             .font(MonacoTheme.Typo.caption)
-            .foregroundStyle(MonacoTheme.muted)
+            .foregroundStyle(MonacoTheme.secondaryText)
             .lineLimit(1)
             .accessibilityIdentifier("cabal-proposals-context")
             if let section {
@@ -114,6 +121,29 @@ struct CabalProposals: View {
         }
     }
 
+    private var hasNoPositions: Bool {
+        guard let state = potModel?.summary?.state else { return false }
+        return state != .invested
+    }
+
+    @ViewBuilder private var emptyLine: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+            MonacoQuietEmpty(CabalCopy.noProposalsLine, systemImage: "checkmark.circle")
+            Text(CabalCopy.proposalHistoryHelper)
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.secondaryText)
+            if cabalModel?.cabal?.me?.canVote == true {
+                Button("Propose the first buy.") {
+                    environment.navigator.open(
+                        ProposeRoute(cabalID: cabalID), in: hostMainTab ?? environment.navigator.selectedTab)
+                }
+                .buttonStyle(.monacoText)
+                .accessibilityIdentifier("cabal-proposals-propose-first")
+            }
+        }
+        .accessibilityIdentifier("cabal-proposals-empty")
+    }
+
     private func disclosure(hidden: Int) -> some View {
         Button {
             withAnimation(reduceMotion ? nil : .snappy) { expanded.toggle() }
@@ -125,7 +155,7 @@ struct CabalProposals: View {
                     .accessibilityHidden(true)
                 Spacer(minLength: 0)
             }
-            .font(MonacoTheme.Typo.calloutStrong)
+            .font(MonacoTheme.Typo.captionStrong)
             .foregroundStyle(MonacoTheme.brand)
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .contentShape(Rectangle())
@@ -160,7 +190,7 @@ struct CabalProposals: View {
         if let label {
             Text(label)
                 .font(MonacoTheme.Typo.captionStrong)
-                .foregroundStyle(MonacoTheme.tertiaryText)
+                .foregroundStyle(MonacoTheme.secondaryText)
                 .padding(.top, MonacoTheme.Space.s)
                 .accessibilityAddTraits(.isHeader)
         }
@@ -296,14 +326,16 @@ private struct CabalProposalSegmentList: View {
 
 private struct ProposalCardSkeleton: View {
     var body: some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
-            SkeletonBlock(width: 36, height: 36, radius: 36 * MonacoTheme.Radius.tile / MonacoRowLayout.baseMarkSize)
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                SkeletonBlock(width: 120, height: 14)
-                SkeletonBlock(width: 64, height: 11)
+        MonacoCard {
+            HStack(spacing: MonacoTheme.Space.sm) {
+                SkeletonBlock(
+                    width: 36, height: 36, radius: 36 * MonacoTheme.Radius.tile / MonacoRowLayout.baseMarkSize)
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                    SkeletonBlock(width: 120, height: 14)
+                    SkeletonBlock(width: 64, height: 11)
+                }
             }
         }
-        .monacoActionCard()
         .accessibilityHidden(true)
     }
 }

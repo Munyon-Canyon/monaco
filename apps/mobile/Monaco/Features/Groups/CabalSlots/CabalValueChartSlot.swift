@@ -4,11 +4,17 @@ import SwiftUI
 
 enum CabalValueChartSlot: CabalSection {
     static let isLive = true
-    static let ranges: [LeaderboardRange] = [.oneDay, .oneWeek, .oneMonth, .all]
+    static let ranges: [LeaderboardRange] = LeaderboardRange.homePeriods
 
     static func body(for context: CabalContext) -> some View {
         CabalValueChart(cabalID: context.cabalID)
     }
+}
+
+enum CabalChartMetrics {
+    static let returnGap: CGFloat = MonacoTheme.Space.s
+    static let chartGap: CGFloat = MonacoTheme.Space.sm
+    static let periodsGap: CGFloat = MonacoTheme.Space.sm
 }
 
 private struct CabalValueChart: View {
@@ -17,19 +23,23 @@ private struct CabalValueChart: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(\.cabalRetry) private var retry
+    @Environment(\.cabalPotModel) private var pot
     @State private var model: ValueChartModel?
     @State private var selection: Int?
     @State private var refreshedTick = 0
 
+    private var hasNoPositions: Bool {
+        guard let state = pot?.summary?.state else { return false }
+        return state != .invested
+    }
+
     var body: some View {
-        CabalInkBand {
-            Rectangle()
-                .fill(MonacoTheme.onHeroHairline)
-                .frame(height: 1)
-                .padding(.bottom, MonacoTheme.Space.s)
-                .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 0) {
             content
         }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.top, -(SectionStackMetrics.spacing - CabalChartMetrics.returnGap))
+        .frame(maxWidth: .infinity, alignment: .leading)
         .task(id: retry.tick) {
             let model = prepared()
             let pulled = retry.tick > refreshedTick
@@ -67,34 +77,92 @@ private struct CabalValueChart: View {
     }
 
     @ViewBuilder private var skeleton: some View {
-        CurveChangeLine(curve: nil, plot: .nav)
-        CurveScrubChartFrame { SkeletonBlock(height: nil, radius: 12) }
-            .accessibilityIdentifier("cabal-value-chart-loading")
-        MonacoRangeChipsSkeleton(ranges: CabalValueChartSlot.ranges)
+        Text(" ").moneyFont(.row).skeletonBar(width: 140, radius: MonacoTheme.Radius.chip)
+        chartSkeleton.padding(.top, CabalChartMetrics.chartGap)
+        MonacoRangeChipsSkeleton(ranges: CabalValueChartSlot.ranges).padding(.top, CabalChartMetrics.periodsGap)
+    }
+
+    private var chartSkeleton: some View {
+        CurveScrubChartFrame(height: CurveScrubChart.smallHeight) {
+            SkeletonBlock(height: nil, radius: MonacoTheme.Radius.cardTight)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading the chart")
+        .accessibilityIdentifier("cabal-value-chart-loading")
     }
 
     @ViewBuilder private func loaded(_ model: ValueChartModel) -> some View {
         let shown = model.shownRange ?? model.range
-        CurveChangeLine(curve: model.curve, plot: .nav, range: shown, selection: selection)
-        if let curve = model.curve, curve.hasEnoughHistory {
-            CurveScrubChart(
-                curve: curve, plot: .nav, range: shown, selection: $selection, identifier: "cabal-value-chart")
+        let curve = model.curve.flatMap { $0.hasEnoughHistory ? $0 : nil }
+        returnLine(curve, range: shown)
+        if hasNoPositions {
+            QuietChart(message: "No positions yet")
+                .padding(.top, CabalChartMetrics.chartGap)
         } else {
-            CurveScrubChartFrame {
-                VStack(alignment: .leading, spacing: HeroRhythm.withinChart) {
-                    Rectangle()
-                        .fill(MonacoTheme.onHeroHairline)
-                        .frame(height: 1)
-                        .accessibilityHidden(true)
-                    CabalInkCaption(shown.shortHistoryLine, id: "cabal-value-chart-short")
-                }
+            plot(curve, range: shown)
+                .padding(.top, CabalChartMetrics.chartGap)
+            MonacoRangeChips(
+                ranges: model.ranges, selection: model.range, identifierPrefix: "cabal-value-chart"
+            ) { range in
+                selection = nil
+                Task { await model.select(range) }
+            }
+            .padding(.top, CabalChartMetrics.periodsGap)
+        }
+    }
+
+    private func change(_ curve: ValueCurve?) -> ValueCurve.Change? {
+        guard let curve, !hasNoPositions else { return nil }
+        guard let selection else { return curve.change(.nav) }
+        return curve.change(.nav, to: min(selection, max(curve.plotted(.nav).count - 1, 0)))
+    }
+
+    private func returnLine(_ curve: ValueCurve?, range: LeaderboardRange) -> some View {
+        let change = change(curve)
+        let percent = change?.percentText ?? (hasNoPositions ? "0.00%" : "—")
+        let color: Color =
+            switch change?.direction ?? .flat {
+            case .up: MonacoTheme.profit
+            case .down: MonacoTheme.loss
+            case .flat: MonacoTheme.secondaryText
+            }
+        return ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.sm) {
+                returnParts(percent, color: color, range: range)
+            }
+            VStack(alignment: .leading, spacing: 0) {
+                returnParts(percent, color: color, range: range)
             }
         }
-        MonacoRangeChips(
-            ranges: model.ranges, selection: model.range, identifierPrefix: "cabal-value-chart"
-        ) { range in
-            selection = nil
-            Task { await model.select(range) }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(PnLSpeech.percent(percent)), \(range.returnPeriodPhrase)")
+        .accessibilityValue(percent)
+        .accessibilityIdentifier("cabal-pot-all-time")
+    }
+
+    @ViewBuilder private func returnParts(_ percent: String, color: Color, range: LeaderboardRange) -> some View {
+        Text(percent)
+            .moneyFont(.row)
+            .foregroundStyle(color)
+            .lineLimit(1)
+            .fixedSize()
+        Text(range.returnPeriodPhrase)
+            .font(MonacoTheme.Typo.caption)
+            .foregroundStyle(MonacoTheme.secondaryText)
+            .lineLimit(1)
+    }
+
+    @ViewBuilder private func plot(_ curve: ValueCurve?, range: LeaderboardRange) -> some View {
+        if let curve {
+            CurveScrubChart(
+                curve: curve, plot: .nav, range: range, height: CurveScrubChart.smallHeight, selection: $selection,
+                identifier: "cabal-value-chart")
+        } else {
+            CurveScrubChartFrame(height: CurveScrubChart.smallHeight) {
+                QuietChart(message: range.shortHistoryLine)
+                    .frame(maxHeight: .infinity)
+                    .accessibilityIdentifier("cabal-value-chart-short")
+            }
         }
     }
 

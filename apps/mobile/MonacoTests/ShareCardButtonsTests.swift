@@ -7,31 +7,27 @@ import Testing
 struct ShareCardButtonsTests {
     private static let summary = PortfolioSummary(Components.Schemas.MyPortfolio.sample)
 
-    @Test func aMemberOfAnActiveCabalWithALoadedPotCanShare() {
+    @Test func aMemberOfAnActiveCabalCanShare() {
         let cabal = Components.Schemas.Cabal.sample(role: "member")
 
-        #expect(CabalScreen.canShare(cabal: cabal, potState: .loaded(Self.pot)))
+        #expect(CabalScreen.canShare(cabal: cabal))
     }
 
     @Test func aNonMemberCannotShareACabal() {
         let cabal = Components.Schemas.Cabal.sample(role: nil)
 
-        #expect(!CabalScreen.canShare(cabal: cabal, potState: .loaded(Self.pot)))
+        #expect(!CabalScreen.canShare(cabal: cabal))
     }
 
     @Test func aClosedCabalCannotBeShared() {
         var cabal = Components.Schemas.Cabal.sample(role: "member")
         cabal.status = "banned"
 
-        #expect(!CabalScreen.canShare(cabal: cabal, potState: .loaded(Self.pot)))
+        #expect(!CabalScreen.canShare(cabal: cabal))
     }
 
-    @Test func aCabalWhoseFiguresAreStillLoadingCannotBeShared() {
-        let cabal = Components.Schemas.Cabal.sample(role: "creator")
-
-        #expect(!CabalScreen.canShare(cabal: cabal, potState: .loading))
-        #expect(!CabalScreen.canShare(cabal: cabal, potState: .idle))
-        #expect(!CabalScreen.canShare(cabal: nil, potState: .loaded(Self.pot)))
+    @Test func aCabalThatHasNotLoadedCannotBeShared() {
+        #expect(!CabalScreen.canShare(cabal: nil))
     }
 
     @Test func yourReturnCanBeSharedOnceYouAreSignedInAndTheFiguresLoaded() {

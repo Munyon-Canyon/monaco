@@ -5,15 +5,15 @@ The dialog's Leave cabal does nothing. S1.4 waits for the toast "You left …", 
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalLeaveSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalLeaveSlot.swift
-index 512450b4..c544ed29 100644
+index 3218d4a59..e1bf05278 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalLeaveSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalLeaveSlot.swift
-@@ -74,7 +74,7 @@ struct CabalLeaveSection: View {
-             .accessibilityIdentifier("cabalLeaveButton")
-             .confirmationDialog("Leave \(standing.cabalName)?", isPresented: $confirming, titleVisibility: .visible) {
-                 Button("Leave cabal", role: .destructive) {
--                    Task { await leave() }
-+                    confirming = false
-                 }
-                 .accessibilityIdentifier("cabalLeaveConfirmButton")
+@@ -106,7 +106,7 @@ struct CabalLeaveSection: View {
+         .accessibilityIdentifier("cabalLeaveButton")
+         .confirmationDialog("Leave \(standing.cabalName)?", isPresented: $confirming, titleVisibility: .visible) {
+             Button("Leave cabal", role: .destructive) {
+-                Task { await leave() }
++                confirming = false
              }
+             .accessibilityIdentifier("cabalLeaveConfirmButton")
+         }

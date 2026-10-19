@@ -3,7 +3,7 @@ import XCTest
 
 enum CreateCabalJourney {
     static let id = "cabals/create-cabal"
-    static let version = 9
+    static let version = 10
 
     private static let listTimeout: TimeInterval = 15
     private static let formTimeout: TimeInterval = 10
@@ -193,7 +193,7 @@ enum CreateCabalJourney {
                 app, "Request sent. You'll be in once the creator says yes.", step: "S4.4")
             XCTAssertTrue(
                 app.element("cabal-join-requested").waitForExistence(timeout: listTimeout),
-                "S4.4: the cabal does not read Request sent for the user who asked"
+                "S4.4: the cabal does not read Request pending for the user who asked"
             )
         }
     }
@@ -203,10 +203,12 @@ enum CreateCabalJourney {
 
         recorder.step("S4.5", "approve the friend and find them on the member board") {
             JoinJourney.openBySearch(app, name, step: "S4.5")
+            JoinJourney.openRequests(app, step: "S4.5")
+            JoinJourney.decide(app, approve: true, step: "S4.5")
             XCTAssertTrue(
-                app.buttons["cabal-join-approve"].firstMatch.waitForExistence(timeout: listTimeout),
-                "S4.5: no request to approve")
-            app.buttons["cabal-join-approve"].firstMatch.tap()
+                app.element("members-requests-empty").waitForExistence(timeout: listTimeout),
+                "S4.5: the request is still on the Members screen")
+            app.navigationBars.buttons.firstMatch.tap()
             XCTAssertTrue(
                 JoinJourney.waitForLabel(
                     app.element("cabal-member-count"), containing: "2 members", timeout: listTimeout),

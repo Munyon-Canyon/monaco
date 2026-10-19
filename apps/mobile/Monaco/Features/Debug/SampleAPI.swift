@@ -41,6 +41,11 @@ nonisolated struct SampleAPIScript: Sendable {
     var invites: [Components.Schemas.CabalInvite] = []
     var accessRequests: [Components.Schemas.CabalAccessRequest] = []
     var viewerCanVote = false
+    var proposalStatus = Components.Schemas.ProposalStatus.open
+    var hidesProposals = false
+    var accessRequest: (direction: String, status: String)?
+    var joinMode: String?
+    var unreadCount = 0
     var includesPausedStock = false
     var portfolio: Components.Schemas.MyPortfolio?
     var pnlHistory: Components.Schemas.MyPnlHistory?
@@ -431,7 +436,8 @@ nonisolated extension SampleAPIProtocol {
         Components.Schemas.MyCabal(
             id: id, name: name, pictureUrl: script.pictureURL, role: script.role ?? "member", canVote: true,
             memberCount: 3,
-            joinedAt: Date(timeIntervalSince1970: 1_790_000_000), pendingRequestCount: 0, unreadCount: 0)
+            joinedAt: Date(timeIntervalSince1970: 1_790_000_000), pendingRequestCount: 0,
+            unreadCount: script.unreadCount)
     }
 
     private static func proposeReply(
@@ -458,6 +464,10 @@ nonisolated extension SampleAPIProtocol {
         if let invite = script.invites.first(where: { $0.cabal.id == id }) {
             cabal.myAccessRequest = .init(id: invite.requestId, direction: "invite", status: "pending")
         }
+        if let request = script.accessRequest {
+            cabal.myAccessRequest = .init(id: "sample-request", direction: request.direction, status: request.status)
+        }
+        if let joinMode = script.joinMode { cabal.rules.joinMode = joinMode }
         if id == CabalsTabSampleData.createdCabalID, let name = createdName.withLock({ $0 }) { cabal.name = name }
         return cabal
     }
@@ -470,9 +480,11 @@ nonisolated extension SampleAPIProtocol {
         case "pot":
             return potReply(id: id, script: script)
         case "proposals":
-            var proposal = Components.Schemas.Proposal.sample()
+            var proposal = Components.Schemas.Proposal.sample(status: script.proposalStatus)
             proposal.canVote = script.viewerCanVote
-            return json(Components.Schemas.ProposalList(proposals: empty ? [] : [proposal], nextCursor: nil))
+            return json(
+                Components.Schemas.ProposalList(
+                    proposals: empty || script.hidesProposals ? [] : [proposal], nextCursor: nil))
         case "activity":
             return json(empty ? Components.Schemas.CabalActivityPage.sampleEmpty : .sampleFirst)
         case "leaderboard":
@@ -486,6 +498,8 @@ nonisolated extension SampleAPIProtocol {
             return json(script.cashOut)
         case "access-requests":
             return json(script.accessRequests)
+        case "messages":
+            return json(Components.Schemas.ChatChannelPage(messages: empty ? [] : [Self.sampleChatMessage]))
         case "invites":
             return raw("[]")
         case "picture":
@@ -496,6 +510,14 @@ nonisolated extension SampleAPIProtocol {
         default:
             return problem(404, "not_found", "Not in the sample data.")
         }
+    }
+
+    private static var sampleChatMessage: Components.Schemas.ChatMessage {
+        Components.Schemas.ChatMessage(
+            id: "sample-message",
+            author: .init(id: "sample-author", handle: "alex", displayName: "Alex", photoUrl: nil),
+            body: "What\u{2019}s everyone watching this week?",
+            createdAt: Date(timeIntervalSinceNow: -720), alsoInChannel: false, replyCount: 0, deleted: false)
     }
 }
 #endif

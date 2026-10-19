@@ -4,16 +4,34 @@ expect-fail: S5
 The Chat button loses cabal-action-chat. S5.1 taps it, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
-index adde7c05c..5346f2bc7 100644
---- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
-+++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
-@@ -95,7 +95,7 @@ struct CabalActionsRow: View {
-                     .disabled(!canPropose)
-                 action("Cash out", "arrow.down.left", id: "cabal-action-cash-out", CashOutRoute(cabalID: cabalID))
-                 action(
--                    "Chat", "bubble.left", id: "cabal-action-chat", ChatRoute(cabalID: cabalID),
-+                    "Chat", "bubble.left", id: "cabal-action-talk", ChatRoute(cabalID: cabalID),
-                     unread: model?.hasUnreadChat == true)
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalChatPreviewSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalChatPreviewSlot.swift
+index 7d1520fef..62c27e8ad 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalChatPreviewSlot.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalChatPreviewSlot.swift
+@@ -180,7 +180,7 @@ struct CabalChatPreview: View {
+                 }
              }
-             if !canPropose {
+             .buttonStyle(.monacoRow)
+-            .accessibilityIdentifier("cabal-action-chat")
++            .accessibilityIdentifier("cabal-action-talk")
+         case .empty:
+             Button(action: openChat) {
+                 MonacoCard(style: .tight) {
+@@ -196,7 +196,7 @@ struct CabalChatPreview: View {
+             }
+             .buttonStyle(.plain)
+             .accessibilityElement(children: .combine)
+-            .accessibilityIdentifier("cabal-action-chat")
++            .accessibilityIdentifier("cabal-action-talk")
+         case .loaded(let message):
+             Button(action: openChat) {
+                 messageCard(message)
+@@ -206,7 +206,7 @@ struct CabalChatPreview: View {
+             .accessibilityLabel(spoken(message))
+             .accessibilityHint("Opens chat")
+             .accessibilityAddTraits(.isButton)
+-            .accessibilityIdentifier("cabal-action-chat")
++            .accessibilityIdentifier("cabal-action-talk")
+         }
+     }
+ 

@@ -11,10 +11,10 @@ enum CabalRulesSlot: CabalSection {
 }
 
 enum CabalRulesSlotCopy {
-    static let header = "Rules"
+    static let header = "The rules"
     static let failedThing = "the rules"
     static let loading = "Loading the rules"
-    static let edit = "Edit rules"
+    static let edit = "Edit"
 
     static var auditedStrings: [String] { [header, loading] }
 }
@@ -24,21 +24,22 @@ private struct CabalRulesLive: View {
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
+    @Environment(\.cabalEditModel) private var shared
     @State private var model: CabalEditModel?
 
     var body: some View {
         CabalRulesView(
-            model: model,
+            model: shared ?? model,
             pictureWriter: { LiveCabalPictureWriter(api: environment.api) },
             onReloadFailure: { toasts.show($0) }
         )
         .task {
-            let model = preparedModel()
+            let model = shared ?? preparedModel()
             await model.load()
             await model.observe()
         }
         .onScreenVisibilityChange { visible in
-            model?.setVisible(visible)
+            (shared ?? model)?.setVisible(visible)
         }
     }
 
@@ -55,12 +56,14 @@ struct CabalRulesView: View {
     let pictureWriter: () -> any CabalPictureWriting
     let onReloadFailure: (APIError) -> Void
 
+    @State private var editing = false
+
     var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            MonacoSectionHeader(CabalRulesSlotCopy.header)
-                .padding(.horizontal, MonacoTheme.Space.gutter)
+        VStack(alignment: .leading, spacing: 0) {
+            header
             content
         }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("cabal-rules")
         .onChange(of: model?.failureTick) { _, _ in
@@ -69,96 +72,56 @@ struct CabalRulesView: View {
         }
     }
 
+    @ViewBuilder private var header: some View {
+        if model?.isCreator == true, case .loaded(let cabal)? = model?.state, let model {
+            MonacoSectionHeader(
+                CabalRulesSlotCopy.header, trailing: CabalRulesSlotCopy.edit, actionIdentifier: "cabal-rules-edit"
+            ) { editing = true }
+            .navigationDestination(isPresented: $editing) {
+                EditCabalView(model: model, cabal: cabal, pictureWriter: pictureWriter())
+            }
+        } else {
+            MonacoSectionHeader(CabalRulesSlotCopy.header)
+        }
+    }
+
     @ViewBuilder private var content: some View {
         switch model?.state ?? .loading {
         case .idle, .loading:
-            MonacoRowSkeleton(rows: 4, markShape: .none)
+            SkeletonBlock(height: CabalRulesMetrics.skeletonHeight, radius: MonacoTheme.Radius.card)
                 .accessibilityElement()
                 .accessibilityLabel(CabalRulesSlotCopy.loading)
                 .accessibilityIdentifier("cabal-rules-loading")
         case .failed:
-            MonacoErrorRow(thing: CabalRulesSlotCopy.failedThing, identifier: "cabal-rules-failed") {
+            MonacoErrorRow(
+                thing: CabalRulesSlotCopy.failedThing, identifier: "cabal-rules-failed", inset: false
+            ) {
                 Task { await model?.load() }
             }
         case .loaded(let cabal):
-            if let model {
-                rows(CabalRulesSummary(cabal), cabal: cabal, model: model)
-            }
+            rows(cabal)
         }
     }
 
-    private func rows(
-        _ summary: CabalRulesSummary,
-        cabal: Components.Schemas.Cabal,
-        model: CabalEditModel
-    ) -> some View {
-        MonacoGroupedList {
-            ForEach(summary.rows) { row in
-                CabalRuleSummaryRow(row: row, isLast: !model.isCreator && row.id == summary.rows.last?.id)
-                    .accessibilityIdentifier("cabal-rules-\(row.id)")
-            }
-            if model.isCreator {
-                NavigationLink {
-                    EditCabalView(model: model, cabal: cabal, pictureWriter: pictureWriter())
-                } label: {
-                    CabalRuleEditRow()
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("cabal-rules-edit")
+    private func rows(_ cabal: Components.Schemas.Cabal) -> some View {
+        let summary = CabalRulesSummary(cabal)
+        return MonacoCard(style: .inset) {
+            MonacoKeyRows {
+                ReceiptLine(label: summary.join.title, value: .words(summary.join.value))
+                    .accessibilityIdentifier("cabal-rules-join")
+                ReceiptLine(label: summary.voters.title, value: .words(CabalCopy.whoVotes(cabal)))
+                    .accessibilityIdentifier("cabal-rules-voters")
+                ReceiptLine(label: summary.expiry.title, value: .words(summary.expiry.value))
+                    .accessibilityIdentifier("cabal-rules-expiry")
+                ReceiptLine(label: "Current threshold", value: .words(CabalCopy.thresholdLine(cabal)), isLast: true)
+                    .accessibilityIdentifier("cabal-rules-threshold")
             }
         }
     }
 }
 
-private struct CabalRuleSummaryRow: View {
-    let row: CabalRulesSummary.Row
-    let isLast: Bool
-
-    var body: some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                Text(row.title)
-                    .font(MonacoTheme.Typo.rowTitle)
-                    .foregroundStyle(MonacoTheme.ink)
-                Text(row.value)
-                    .font(MonacoTheme.Typo.callout)
-                    .foregroundStyle(MonacoTheme.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.vertical, MonacoTheme.Space.s)
-        .frame(minHeight: MonacoRowLayout.minHeight)
-        .overlay(alignment: .bottom) {
-            if !isLast {
-                MonacoRule()
-                    .padding(.leading, MonacoTheme.Space.gutter)
-            }
-        }
-        .accessibilityElement(children: .combine)
-    }
-}
-
-private struct CabalRuleEditRow: View {
-    var body: some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
-            Text(CabalRulesSlotCopy.edit)
-                .font(MonacoTheme.Typo.rowTitle)
-                .foregroundStyle(MonacoTheme.ink)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Image(systemName: "chevron.right")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(MonacoTheme.tertiaryText)
-                .accessibilityHidden(true)
-        }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.vertical, MonacoTheme.Space.sm)
-        .frame(minHeight: MonacoRowLayout.minHeight)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
-    }
+enum CabalRulesMetrics {
+    static let skeletonHeight: CGFloat = 196
 }
 
 #if DEBUG

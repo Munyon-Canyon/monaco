@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsLeaveJourney {
     static let id = "cabals/leave"
-    static let version = 3
+    static let version = 4
 
     static let screenTimeout: TimeInterval = 15
 
@@ -18,11 +18,12 @@ enum CabalsLeaveJourney {
         app.buttons["cabal-details-button"].tap()
         let target = app.element(identifier)
         XCTAssertTrue(
-            app.element("cabal-details-done").waitForExistence(timeout: 10),
-            "\(step): the Cabal details sheet did not show within 10 s"
+            app.element("cabal-members-row").waitForExistence(timeout: 10),
+            "\(step): the Cabal information screen did not show within 10 s"
         )
         app.scrollIntoReach(target)
-        XCTAssertTrue(target.waitForExistence(timeout: 10), "\(step): no \(identifier) in the details within 10 s")
+        XCTAssertTrue(
+            target.waitForExistence(timeout: 10), "\(step): no \(identifier) in the information screen within 10 s")
         return target
     }
 

@@ -2,6 +2,8 @@ import Combine
 import Foundation
 import MonacoAPI
 import MonacoCore
+import PhotosUI
+import SwiftUI
 
 /// How a cabal picture write ended.
 enum CabalPictureOutcome: Equatable {
@@ -121,5 +123,37 @@ struct LiveCabalPictureWriter: CabalPictureWriting {
 
     func removePicture(groupId: String) async throws -> String? {
         try await uploads.removePicture(cabalID: groupId)
+    }
+}
+
+extension CabalPictureEditor {
+    func upload(_ item: PhotosPickerItem) async -> MonacoToast {
+        let data: Data?
+        do {
+            data = try await item.loadTransferable(type: Data.self)
+        } catch {
+            data = nil
+        }
+        guard let data else { return MonacoToast(message: "Couldn't read that picture.", isSuccess: false) }
+        let prepared: ProfilePhotoUploadPreparer.Prepared
+        switch await ProfilePhotoUploadPreparer.prepared(from: data) {
+        case .success(let ready):
+            prepared = ready
+        case .failure(.unreadable):
+            return MonacoToast(message: "That picture could not be opened. Try another.", isSuccess: false)
+        case .failure(.tooLarge):
+            return MonacoToast(message: "That picture is too big to upload. Try another.", isSuccess: false)
+        }
+        switch await setPicture(imageData: prepared.data, mimeType: prepared.mimeType) {
+        case .saved: return MonacoToast(message: "Picture updated.", isSuccess: true)
+        case .failed(let message): return MonacoToast(message: message, isSuccess: false)
+        }
+    }
+
+    func remove() async -> MonacoToast {
+        switch await removePicture() {
+        case .saved: MonacoToast(message: "Picture removed.", isSuccess: true)
+        case .failed(let message): MonacoToast(message: message, isSuccess: false)
+        }
     }
 }

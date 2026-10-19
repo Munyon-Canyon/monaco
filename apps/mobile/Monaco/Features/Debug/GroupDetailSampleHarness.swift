@@ -4,9 +4,15 @@ import MonacoCore
 import SwiftUI
 
 enum GroupDetailSampleScenario: String, CaseIterable {
-    case populated
+    case ready
+    case noShare
+    case cashOnly
+    case noProposals
+    case executing
+    case completed
     case empty
     case loading
+    case error
     case picture
     case noPicture
     case pictureNotCreator
@@ -14,9 +20,22 @@ enum GroupDetailSampleScenario: String, CaseIterable {
     case paused
     case outsider
     case invited
-    case requests
-    case cashOnly
     case votes
+    case publicPreview
+    case publicPending
+    case publicMember
+    case publicPrivate
+    case info
+    case infoAdmin
+    case infoSaving
+    case members
+    case voters
+    case requests
+    case requestsEmpty
+    case invite
+    case invitePreview
+    case inviteInvalid
+    case invitePending
 
     static let launchArgument = "-MonacoGroupDetailSample"
 
@@ -32,26 +51,67 @@ extension GroupDetailSampleScenario {
     @MainActor
     var script: SampleAPIScript {
         switch self {
-        case .populated: SampleAPIScript(role: "member")
+        case .ready, .invite, .invitePreview, .inviteInvalid, .invitePending:
+            SampleAPIScript(role: "member", unreadCount: 3)
+        case .noShare: SampleAPIScript(role: "member", pot: .noShare)
+        case .cashOnly: SampleAPIScript(role: "member", pot: .sampleCashOnly)
+        case .noProposals: SampleAPIScript(role: "member", hidesProposals: true)
+        case .executing: SampleAPIScript(role: "member", proposalStatus: .passed)
+        case .completed: SampleAPIScript(role: "member", proposalStatus: .executed)
         case .empty: SampleAPIScript(mode: .empty, role: "creator")
         case .loading: SampleAPIScript(mode: .hang, role: "member")
+        case .error: SampleAPIScript(mode: .offline, role: "member")
         case .picture: SampleAPIScript(role: "creator", pictureURL: GroupDetailSampleData.pictureURL)
         case .noPicture: SampleAPIScript(role: "creator")
         case .pictureNotCreator: SampleAPIScript(role: "member", pictureURL: GroupDetailSampleData.pictureURL)
         case .pictureUploadFailure:
             SampleAPIScript(role: "creator", pictureURL: GroupDetailSampleData.pictureURL, pictureWriteFails: true)
         case .paused: SampleAPIScript(role: "member", cashOut: .sampleOpsPause)
-        case .outsider: SampleAPIScript(role: nil, cabalCount: 0, pot: .sampleOutsider)
+        case .outsider, .publicPreview:
+            SampleAPIScript(role: nil, cabalCount: 0, pot: .sampleOutsider)
         case .invited:
             SampleAPIScript(role: nil, cabalCount: 0, pot: .sampleOutsider, invites: [GroupDetailSampleData.invite])
+        case .publicPending:
+            SampleAPIScript(role: nil, cabalCount: 0, pot: .sampleOutsider, accessRequest: ("request", "pending"))
+        case .publicMember, .publicPrivate:
+            SampleAPIScript(role: "member")
+        case .info, .members, .voters: SampleAPIScript(role: "member")
+        case .infoAdmin, .infoSaving:
+            SampleAPIScript(role: "creator", accessRequests: Components.Schemas.CabalAccessRequest.samples)
         case .requests:
             SampleAPIScript(role: "creator", accessRequests: Components.Schemas.CabalAccessRequest.samples)
-        case .cashOnly: SampleAPIScript(role: "member", pot: .sampleCashOnly)
+        case .requestsEmpty: SampleAPIScript(role: "creator")
         case .votes:
             SampleAPIScript(
                 role: "member", proposal: .sample(canVote: true),
                 pendingVotes: [Components.Schemas.PendingVote.samples[0]], viewerCanVote: true)
         }
+    }
+
+    var routes: [any AppRoute] {
+        let id = GroupDetailSampleData.cabalID
+        switch self {
+        case .info, .infoAdmin: return [CabalInfoRoute(cabalID: id)]
+        case .infoSaving: return [CabalSampleRoute(kind: .infoSaving)]
+        case .members: return [MembersRoute(cabalID: id, tab: .members)]
+        case .voters: return [MembersRoute(cabalID: id, tab: .voters)]
+        case .requests, .requestsEmpty: return [MembersRoute(cabalID: id, tab: .requests)]
+        case .publicMember: return [CabalSampleRoute(kind: .publicMember)]
+        case .publicPrivate: return [CabalSampleRoute(kind: .publicPrivate)]
+        case .invite: return [CabalSampleRoute(kind: .invite(.share))]
+        case .invitePreview: return [CabalSampleRoute(kind: .invite(.invited))]
+        case .inviteInvalid: return [CabalSampleRoute(kind: .invite(.unavailable))]
+        case .invitePending: return [CabalSampleRoute(kind: .invite(.requested))]
+        default: return [CabalRoute(id: id)]
+        }
+    }
+}
+
+extension Components.Schemas.CabalPot {
+    static var noShare: Self {
+        var pot = Self.sampleInvested
+        pot.me = .init(shareUnits: 0, valueMicros: 0, sliceBps: 0, netContributedMicros: 0, pnlMicros: 0)
+        return pot
     }
 }
 
@@ -105,7 +165,7 @@ struct GroupDetailSampleHarness: View {
 
     var body: some View {
         SampleAppFrame(
-            auth: auth, tab: .cabals, routes: [CabalRoute(id: GroupDetailSampleData.cabalID)],
+            auth: auth, tab: .cabals, routes: scenario.routes,
             session: scenario == .loading ? SampleAppFrame.loading : SampleAppFrame.signedIn)
     }
 }
@@ -116,6 +176,53 @@ final class GroupDetailSampleHarnessEntry: SampleHarnessEntry {
         guard let scenario = GroupDetailSampleScenario.matching(arguments) else { return nil }
         SampleAPIProtocol.install(scenario.script)
         return AnyView(GroupDetailSampleHarness(scenario: scenario, auth: auth))
+    }
+}
+
+nonisolated struct CabalSampleRoute: AppRoute {
+    enum Kind: Hashable, Sendable {
+        case publicMember
+        case publicPrivate
+        case infoSaving
+        case invite(CabalInviteMode)
+    }
+
+    let kind: Kind
+
+    @MainActor func destination() -> some View {
+        CabalSampleHost(kind: kind)
+    }
+}
+
+private struct CabalSampleHost: View {
+    let kind: CabalSampleRoute.Kind
+
+    @Environment(AppEnvironment.self) private var environment
+    @State private var models = CabalScreenModels()
+
+    private var cabalID: String { GroupDetailSampleData.cabalID }
+
+    var body: some View {
+        let (cabal, _) = models.prepared(cabalID: cabalID, environment: environment)
+        content(cabal)
+            .task { await cabal.load() }
+    }
+
+    @ViewBuilder private func content(_ cabal: CabalModel) -> some View {
+        switch kind {
+        case .publicMember:
+            PublicCabalView(cabal: cabal, retry: {})
+        case .publicPrivate:
+            PublicCabalView(cabal: cabal, isPrivate: true, retry: {})
+        case .infoSaving:
+            CabalInfoView(cabalID: cabalID, savingPreview: true)
+        case .invite(let mode):
+            CabalScreen(cabalID: cabalID)
+                .sheet(isPresented: .constant(true)) {
+                    CabalInviteSheet(
+                        cabal: .sample(role: "member"), mode: mode, link: URL(string: "https://monaco.app/i/alex"))
+                }
+        }
     }
 }
 #endif

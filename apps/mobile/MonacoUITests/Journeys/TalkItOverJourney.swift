@@ -2,7 +2,7 @@ import XCTest
 
 enum TalkItOverJourney {
     static let id = "chat/talk-it-over"
-    static let version = 3
+    static let version = 4
     static let emptyTitle = "Start the conversation"
     static let emptyHint =
         "Messages here stay with your cabal. Proposal-specific discussion stays attached to the proposal."
@@ -265,7 +265,7 @@ extension TalkItOverJourney {
             let chat = app.element("cabal-action-chat")
             app.scrollIntoReach(chat)
             XCTAssertTrue(chat.waitForExistence(timeout: 15), "S5.3: no Chat action on the cabal screen")
-            XCTAssertEqual(chat.label, "Chat, unread messages", "S5.3: Chat shows no unread dot")
+            XCTAssertTrue(chat.label.contains("unread message"), "S5.3: Chat shows no unread count: \(chat.label)")
             openChat(app, run: run, step: "S5.3", from: .here)
             wait(
                 for: message(app, containing: "two \(run)"), timeout: 10,
@@ -282,10 +282,10 @@ extension TalkItOverJourney {
             let chat = app.element("cabal-action-chat")
             XCTAssertTrue(chat.waitForExistence(timeout: 10), "S5.4: no Chat action after backing out")
             let deadline = Date().addingTimeInterval(10)
-            while chat.label != "Chat" && Date() < deadline {
+            while chat.label.contains("unread message") && Date() < deadline {
                 RunLoop.current.run(until: Date().addingTimeInterval(0.3))
             }
-            XCTAssertEqual(chat.label, "Chat", "S5.4: Chat still shows an unread dot")
+            XCTAssertFalse(chat.label.contains("unread message"), "S5.4: Chat still shows unread: \(chat.label)")
             app.tapBack()
             let found = reachCard(app, run: run, step: "S5.4")
             XCTAssertFalse(found.label.contains("unread"), "S5.4: the card still shows unread: \(found.label)")

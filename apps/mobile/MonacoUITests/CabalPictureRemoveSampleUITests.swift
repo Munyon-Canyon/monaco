@@ -38,16 +38,14 @@ nonisolated final class CabalPictureRemoveSampleUITests: XCTestCase {
     }
 
     @MainActor
-    func testTheHeroKeepsItsIdentityRowOnTheGutterAndAsksBeforeRemovingThePicture() {
+    func testTheCoverSitsOnTheGutterAndAsksBeforeRemovingThePicture() {
         let app = launch("picture")
         let mark = element(app, "cabal-header-picture")
         XCTAssertTrue(mark.waitForExistence(timeout: 40), "the creator's hero shows the mark")
 
         XCTAssertFalse(
             element(app, "cabal-picture-remove-button").exists, "no red button sits under the mark in the hero")
-        XCTAssertEqual(mark.frame.minX, 16, accuracy: 0.5, "the mark starts on the gutter")
-        XCTAssertEqual(
-            element(app, "cabal-header-name").frame.minX, 76, accuracy: 0.5, "the name sits 12 pt after the mark")
+        XCTAssertEqual(mark.frame.minX, 20, accuracy: 0.5, "the cover starts on the gutter")
         screenshot(app, "hero")
 
         askToRemove(app, mark)
@@ -70,7 +68,7 @@ nonisolated final class CabalPictureRemoveSampleUITests: XCTestCase {
     func testCabalSettingsKeepsItsRemoveButtonAndAsksBeforeUsingIt() {
         let app = launch("picture")
         let details = element(app, "cabal-details-button")
-        XCTAssertTrue(details.waitForExistence(timeout: 40), "the hero opens Cabal details")
+        XCTAssertTrue(details.waitForExistence(timeout: 40), "the toolbar opens Cabal information")
         details.tap()
         let edit = element(app, "cabal-rules-edit")
         app.scrollIntoReach(edit)

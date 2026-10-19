@@ -45,22 +45,17 @@ struct CabalPotBand: View {
     let model: CabalPotModel?
 
     var body: some View {
-        CabalInkBand {
-            Text("In the pot")
-                .font(MonacoTheme.Typo.callout)
-                .fixedSize(horizontal: false, vertical: true)
-                .foregroundStyle(MonacoTheme.secondaryText)
-                .accessibilityAddTraits(.isHeader)
-            content
-        }
+        content
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .padding(.top, -(SectionStackMetrics.spacing - MonacoTheme.Space.gutter))
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder private var content: some View {
         switch model?.state ?? .loading {
         case .idle, .loading:
             Text("$0.00").moneyFont(.hero).skeletonBar(width: 180)
-            Text(" ").moneyFont(.caption).skeletonBar(width: 120, radius: 12)
-            Text(" ").font(MonacoTheme.Typo.callout).skeletonBar(width: 220)
+                .accessibilityIdentifier("cabal-pot-loading")
         case .failed:
             MonacoErrorRow(thing: "the pot", identifier: "cabal-pot-failed", inset: false) {
                 Task { await model?.load() }
@@ -68,74 +63,12 @@ struct CabalPotBand: View {
         case .loaded(let summary):
             Text(summary.potValue)
                 .moneyFont(.hero)
-                .foregroundStyle(MonacoTheme.onHero)
+                .foregroundStyle(MonacoTheme.primaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
+                .accessibilityLabel("In the pot, \(summary.potValue)")
                 .accessibilityIdentifier("cabal-pot-value")
-            AllTimeChip(allTime: summary.allTime, allTimeReturn: summary.allTimeReturn)
-            if summary.state != .zero {
-                CabalInkCaption(
-                    ["\(summary.invested) in stocks", "\(summary.cash) cash", summary.cashYield].compactMap { $0 }
-                        .joined(separator: " · "),
-                    id: "cabal-pot-split")
-            }
         }
-    }
-}
-
-private struct AllTimeChip: View {
-    let allTime: String
-    let allTimeReturn: String?
-
-    private var label: String { PnLBadge.label(dollarPnl: allTime, percentReturn: allTimeReturn) }
-
-    var body: some View {
-        (Text(label).foregroundStyle(PnLTone(dollarPnl: allTime, percentReturn: allTimeReturn).color)
-            + Text(" All time").foregroundStyle(MonacoTheme.secondaryText))
-            .moneyFont(.caption)
-            .lineLimit(2)
-            .fixedSize(horizontal: false, vertical: true)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("All-time gain")
-            .accessibilityValue(label)
-            .accessibilityIdentifier("cabal-pot-all-time")
-    }
-}
-
-struct CabalInkBand<Content: View>: View {
-    static var rhythm: CGFloat { MonacoTheme.Space.m }
-
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            content
-        }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.bottom, Self.rhythm)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            MonacoTheme.heroInk.padding(.top, -1)
-        }
-        .padding(.top, -SectionStackMetrics.spacing)
-    }
-}
-
-struct CabalInkCaption: View {
-    let text: String
-    let id: String
-
-    init(_ text: String, id: String) {
-        self.text = text
-        self.id = id
-    }
-
-    var body: some View {
-        Text(text)
-            .font(MonacoTheme.Typo.callout)
-            .foregroundStyle(MonacoTheme.onHeroMuted)
-            .fixedSize(horizontal: false, vertical: true)
-            .accessibilityIdentifier(id)
     }
 }
 

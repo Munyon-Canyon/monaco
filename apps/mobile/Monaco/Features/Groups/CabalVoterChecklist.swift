@@ -37,13 +37,11 @@ struct CabalVoterChecklist: View {
             title: member.shownName, subtitle: subtitle, isLast: isLast,
             leading: {
                 MonacoAvatar(
-                    photoURL: member.photoUrl, displayName: member.shownName, seed: member.userId)
+                    photoURL: member.photoUrl, displayName: member.shownName, size: .row, seed: member.userId)
             },
             trailing: {
-                Image(systemName: isPicked ? "checkmark.circle.fill" : "circle")
-                    .font(MonacoTheme.Typo.calloutStrong)
-                    .foregroundStyle(
-                        isCreator ? MonacoTheme.muted : isPicked ? MonacoTheme.brandFill : MonacoTheme.tertiaryText)
+                MonacoSelectionTick(isSelected: isPicked)
+                    .opacity(isCreator ? 0.5 : 1)
             }
         )
         return Group {

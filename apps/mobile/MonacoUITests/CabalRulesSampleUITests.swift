@@ -4,7 +4,7 @@ nonisolated final class CabalRulesSampleUITests: XCTestCase {
     private static let creatorID = "01890a5d-ac96-774b-bcce-b302099a8058"
     private static let jordanID = "01890a5d-ac96-774b-bcce-b302099a8061"
     private static let rows = [
-        "cabal-rules-name", "cabal-rules-join", "cabal-rules-voters", "cabal-rules-threshold", "cabal-rules-expiry",
+        "cabal-rules-join", "cabal-rules-voters", "cabal-rules-expiry", "cabal-rules-threshold",
     ]
 
     nonisolated override func setUpWithError() throws {
@@ -38,7 +38,7 @@ nonisolated final class CabalRulesSampleUITests: XCTestCase {
 
     @MainActor
     private func assertRuleValues(_ app: XCUIApplication) {
-        let values = ["QA pot", "Approval required", "Every member", "Everyone agrees", "1 day"]
+        let values = ["Approval required", "Everyone", "1 day", "eligible voters"]
         for (identifier, value) in zip(Self.rows, values) {
             let row = element(app, identifier)
             XCTAssertTrue(row.waitForExistence(timeout: 15), "\(identifier) shows")
@@ -84,7 +84,7 @@ nonisolated final class CabalRulesSampleUITests: XCTestCase {
         let rulesVoters = element(app, "cabal-rules-voters")
         XCTAssertTrue(rulesVoters.waitForExistence(timeout: 5), "the rules sheet shows again after the save")
         XCTAssertTrue(
-            rulesVoters.label.contains("Kai and Jordan"), "Who votes names the creator first, got \(rulesVoters.label)")
+            rulesVoters.label.contains("People I pick"), "Who votes reads People I pick, got \(rulesVoters.label)")
         screenshot(app, "3-rules-after-save")
     }
 

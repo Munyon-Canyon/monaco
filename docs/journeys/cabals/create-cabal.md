@@ -1,7 +1,7 @@
 ---
 id: cabals/create-cabal
 title: Create a cabal
-version: 9
+version: 10
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -68,8 +68,8 @@ A creates a cabal, B finds it by name and asks to join, A approves, and A finds 
 | S4.1 | A | tap | the Cabals tab, then `cabals-new-button` | | "Start a cabal" shows `create-group-name` within 10 s. Old app: Cabals "+", then "Start a cabal" pushed `CreateGroupView` |
 | S4.2 | A | type, tap, then tap | `create-group-name`, then `create-group-submit` | `QA duo {QA.run}` | `cabal-header-name` reads `QA duo {QA.run}` within 20 s, and the toast "Cabal created." shows within 20 s of the tap, read first because it stays up 2.5 s. Old app: Create in `CreateGroupView` pushed `GroupDetailView` |
 | S4.3 | B | tap, type, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA duo {QA.run}` | `cabal-header-name` reads `QA duo {QA.run}` and `cabal-join-button` shows within 15 s. screens.md: `CabalJoinSlot`, "Request to join" |
-| S4.4 | B | tap | `cabal-join-button` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s, and `cabal-join-requested` reads "Request sent" within 15 s. B is not a member yet. |
-| S4.5 | A | tap, type, tap, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, the `cabals-search-result-<id>`, then `cabal-join-approve` | `QA duo {QA.run}` | `cabal-member-count` reads "2 members" within 15 s, and a `cabal-member-<id>` row on the "Leaderboard" (`CabalMemberBoardSlot`) names B within 15 s. Old app: `GroupDetailView`'s `MemberBoardSection` |
+| S4.4 | B | tap | `cabal-join-button` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s, and `cabal-join-requested` reads "Request pending" within 15 s. B is not a member yet. |
+| S4.5 | A | tap, type, tap, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, the `cabals-search-result-<id>`, `cabal-join-requests-heading`, `cabal-join-review`, then `cabal-join-approve` in the dialog | `QA duo {QA.run}` | After the back button `cabal-member-count` reads "2 members" within 15 s, and a `cabal-member-<id>` row on the "Member standings" (`CabalMemberBoardSlot`) names B within 15 s. Old app: `GroupDetailView`'s `MemberBoardSection` |
 
 ## Ground truth
 

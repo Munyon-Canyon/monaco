@@ -2,7 +2,7 @@ import XCTest
 
 enum RankingLeaderboardsJourney {
     static let id = "ranking/leaderboards"
-    static let version = 3
+    static let version = 4
 
     struct Seed {
         let cabalID: String
@@ -72,14 +72,14 @@ enum RankingLeaderboardsJourney {
             JoinJourney.openBySearch(app, seed.cabalName, step: "S2.1")
         }
 
-        recorder.step("S2.2", "the Leaderboard lists three members with You") {
-            let header = text(app, "Leaderboard")
+        recorder.step("S2.2", "the Member standings list three members with You") {
+            let header = text(app, "Member standings")
             app.scrollIntoReach(header)
-            XCTAssertTrue(header.waitForExistence(timeout: 15), "S2.2: no \"Leaderboard\" within 15 s")
+            XCTAssertTrue(header.waitForExistence(timeout: 15), "S2.2: no \"Member standings\" within 15 s")
             app.scrollIntoReach(memberRow)
             XCTAssertTrue(
                 ProfileOverviewJourney.waitUntil(15) { memberRows.count == 3 },
-                "S2.2: the Leaderboard has \(memberRows.count) member rows, want 3")
+                "S2.2: the Member standings have \(memberRows.count) member rows, want 3")
             XCTAssertTrue(
                 memberRows.matching(NSPredicate(format: "label CONTAINS 'You'")).firstMatch.exists,
                 "S2.2: no member row labelled \"You\"")

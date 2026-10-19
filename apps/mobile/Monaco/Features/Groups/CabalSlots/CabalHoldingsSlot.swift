@@ -52,7 +52,7 @@ struct CabalHoldingsSection: View {
     @ViewBuilder private var content: some View {
         switch model?.state ?? .loading {
         case .idle, .loading:
-            StockRowSkeleton(rows: 1)
+            MonacoRowSkeleton(rows: 3, markShape: .tile, hasTrailing: true)
                 .accessibilityElement()
                 .accessibilityLabel("Loading holdings")
                 .accessibilityIdentifier("cabal-holdings-loading")
@@ -74,14 +74,15 @@ struct CabalHoldingsSection: View {
             MonacoGroupedList { cashRow(summary.cash, yield: summary.cashYield) }
             note(Self.cashOnlyNote(canPropose: canPropose), id: "cabal-holdings-nothing-bought")
         case .invested:
-            HoldingsMixBar(legend: summary.legend, tint: .forGroupId(cabalID))
+            AllocationBar(slices: Self.slices(summary.legend))
                 .padding(.horizontal, MonacoTheme.Space.gutter)
                 .padding(.bottom, MonacoTheme.Space.xs)
+                .accessibilityIdentifier("cabal-holdings-mix")
             MonacoGroupedList {
                 ForEach(summary.holdings) { row in
                     Button {
                         Haptics.selection()
-                        open(AssetRoute(symbol: row.symbol))
+                        open(CabalHoldingRoute(cabalID: cabalID, symbol: row.symbol))
                     } label: {
                         HoldingRow(row: row)
                     }
@@ -93,6 +94,11 @@ struct CabalHoldingsSection: View {
         }
     }
 
+    static func slices(_ legend: [CabalPotSummary.Segment]) -> [AllocationBar.Slice] {
+        legend.filter { $0.basisPoints > 0 }
+            .map { AllocationBar.Slice(label: $0.label, fraction: Double($0.basisPoints) / 10_000, isCash: $0.isCash) }
+    }
+
     private static func zeroPotNote(canPropose: Bool) -> String {
         canPropose ? "Fund, then propose the first buy." : "Nothing in the pot yet."
     }
@@ -102,29 +108,35 @@ struct CabalHoldingsSection: View {
     }
 
     private func cashRow(_ cash: String, yield: String?) -> some View {
-        MonacoRow(title: "Cash", isLast: true) {
-            StockMark(symbol: "USDC")
-        } trailing: {
-            Text(cash)
-                .moneyFont(.row)
-                .foregroundStyle(MonacoTheme.ink)
-                .lineLimit(1)
-            if let yield {
-                Text(yield)
-                    .moneyFont(.caption)
-                    .foregroundStyle(MonacoTheme.profit)
+        Button {
+            Haptics.selection()
+            open(GroupCashRoute(cabalID: cabalID, cabalName: cabalModel?.cabal?.name ?? ""))
+        } label: {
+            MonacoRow(title: "Cash", subtitle: "USDC", chevron: true, isLast: true) {
+                SunkenGlyphMark(icon: .wallet)
+            } trailing: {
+                Text(cash)
+                    .moneyFont(.row)
+                    .foregroundStyle(MonacoTheme.primaryText)
                     .lineLimit(1)
-                    .accessibilityIdentifier("cabal-holdings-cash-yield")
+                if let yield {
+                    Text(yield)
+                        .moneyFont(.caption)
+                        .foregroundStyle(MonacoTheme.profit)
+                        .lineLimit(1)
+                        .accessibilityIdentifier("cabal-holdings-cash-yield")
+                }
             }
         }
+        .buttonStyle(.monacoRow)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("cabal-holdings-cash")
     }
 
     private func note(_ text: String, id: String) -> some View {
         Text(text)
-            .font(MonacoTheme.Typo.callout)
-            .foregroundStyle(MonacoTheme.muted)
+            .font(MonacoTheme.Typo.subhead)
+            .foregroundStyle(MonacoTheme.secondaryText)
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .accessibilityIdentifier(id)
     }
@@ -143,82 +155,6 @@ private struct HoldingRow: View {
                 .foregroundStyle(MonacoTheme.ink)
                 .lineLimit(1)
             PnLText(dollarPnl: row.gain, style: .caption)
-        }
-    }
-}
-
-private struct HoldingsMixBar: View {
-    let legend: [CabalPotSummary.Segment]
-    let tint: MonacoTheme.CabalTint
-
-    private static let gap: CGFloat = 2
-
-    private var drawn: [CabalPotSummary.Segment] { legend.filter { $0.basisPoints > 0 } }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            GeometryReader { geometry in
-                let width = geometry.size.width - CGFloat(max(drawn.count - 1, 0)) * Self.gap
-                HStack(spacing: Self.gap) {
-                    ForEach(drawn) { segment in
-                        Rectangle()
-                            .fill(color(for: segment))
-                            .frame(width: max(2, width * CGFloat(segment.basisPoints) / 10000))
-                    }
-                }
-            }
-            .frame(height: 8)
-            .clipShape(Capsule())
-            FlowingLegend(legend: legend, color: color(for:))
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Pot mix")
-        .accessibilityValue(legend.map { "\($0.label) \($0.percent)" }.joined(separator: ", "))
-        .accessibilityIdentifier("cabal-holdings-mix")
-    }
-
-    private func color(for segment: CabalPotSummary.Segment) -> Color {
-        AllocationPalette.color(for: segment.swatch, tint: tint)
-    }
-}
-
-enum AllocationPalette {
-    static let opacities: [Double] = [1, 0.7, 0.5, 0.36, 0.26]
-
-    static func opacity(forStep step: Int) -> Double {
-        opacities[min(max(step, 0), opacities.count - 1)]
-    }
-
-    static func color(for swatch: CabalPotSummary.Swatch, tint: MonacoTheme.CabalTint) -> Color {
-        switch swatch {
-        case .cash: return MonacoTheme.cashFill
-        case .stock(let step): return tint.fill.opacity(opacity(forStep: step))
-        }
-    }
-}
-
-private struct FlowingLegend: View {
-    let legend: [CabalPotSummary.Segment]
-    let color: (CabalPotSummary.Segment) -> Color
-
-    var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: MonacoTheme.Space.sm) { entries }
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) { entries }
-        }
-    }
-
-    private var entries: some View {
-        ForEach(legend) { segment in
-            HStack(spacing: MonacoTheme.Space.xs) {
-                Circle()
-                    .fill(color(segment))
-                    .frame(width: 7, height: 7)
-                Text("\(segment.label) \(segment.percent)")
-                    .font(MonacoTheme.Typo.dataCaption)
-                    .foregroundStyle(MonacoTheme.muted)
-                    .lineLimit(1)
-            }
         }
     }
 }

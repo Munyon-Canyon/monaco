@@ -60,14 +60,18 @@ Feed ──── item ──▶ ProposalRoute | TransactionRoute | AssetRoute |
 Cabals ┬─ + ──▶ Start a cabal ──▶ create ──▶ CabalRoute
        ├─ empty state "Explore cabals" | no-match "Search public cabals" ──▶ DiscoverCabalsRoute ──▶ CabalRoute
        ├─ card / leaderboard row ──▶ CabalRoute
-CabalRoute ─┬─ i ──▶ Cabal details sheet (rules, treasury, edit, leave)
-            ├─ share ──▶ Share sheet (the gain card, Share, Copy link), members only
-            ├─ Fund ───────▶ FundRoute
+CabalRoute ─┬─ non-member ──▶ Public cabal (join, request, accept an invite)
+            ├─ i, Rules & members ──▶ CabalInfoRoute ─┬─ Members & voters ──▶ MembersRoute ──▶ UserProfileRoute
+            │                                         ├─ Invite ──▶ Share cabal sheet
+            │                                         └─ Edit ──▶ Cabal settings
+            ├─ share ──▶ Share cabal sheet (link, Share link, Copy link, Invite by handle, gain image), members only
+            ├─ Deposit ────▶ FundRoute
             ├─ Propose ────▶ ProposeRoute ──▶ Buy | Sell
             ├─ Cash out ───▶ CashOutRoute
-            ├─ Chat ───────▶ ChatRoute
+            ├─ Chat preview ▶ ChatRoute
             ├─ proposal ───▶ ProposalRoute
-            ├─ holding ────▶ AssetRoute
+            ├─ holding ────▶ CabalHoldingRoute
+            ├─ Cash row ───▶ GroupCashRoute
             └─ activity row ▶ TransactionRoute
 Stocks ── row ──▶ AssetRoute ── Propose buy ──▶ Pick a cabal ──▶ Amount ──▶ Review
 Profile ┬─ Followers / Following ──▶ FollowListRoute
@@ -201,33 +205,40 @@ Missing APIs: rank movement against the previous snapshot, a cabal member count 
 
 ## Cabal screen (`CabalRoute`)
 
-Toolbar: back on the left, and an "i" button on the right that opens the details sheet. The title is empty over the hero and shows the cabal name once scrolled (#2134). While loading, a skeleton of the hero, four action circles and three rows. Load error: "Couldn't load this cabal." with "Try again".
+Toolbar: the system back button, the cabal name centred and always shown, and two glass rounds on the right: share (`cabal-share-button`, "Share cabal invitation") and information (`cabal-details-button`, "Cabal information"), which pushes `CabalInfoRoute`. Members only; a non-member gets the Public cabal screen below. While loading: a hero skeleton, the pot figure and chart blocks and three action circles. Load error: the full-screen "Couldn’t load this view" with "Try again" (`cabal-failed`). The slots sit on the cream canvas, a hero first and then rules and tiles, with no ink band.
 
-| Order | Slot | Owner | Member | Non-member | Shows |
-| --- | --- | --- | --- | --- | --- |
-| 1 | `CabalHeaderSlot` | #606 | yes | yes | Hero, ink: tile (creator can tap to change the picture, #647), name in `Typo.title`, up to five stacked member faces and "3 members". Faces open the member board |
-| 2 | `CabalClosedSlot` | #2146 | yes | yes | Inline warning row under the header when `status` is `banned`: `exclamationmark.octagon` in the loss colour and "Monaco closed this cabal. Everyone's slice is being cashed out to their account balance." Nothing while active, loading or failed. A banned cabal also hides `CabalActionsSlot`, and wind-down cash outs read "Closed by Monaco" in the activity |
-| 3 | `CabalPotSlot` | #2137 | yes | yes | Hero, ink: "In the pot", pot value from `GET /v1/cabals/{id}/pot` (#2136), and the all-time chip "▲ $0.73 · all time" |
-| 4 | `CabalValueChartSlot` | #660 | yes | yes | Hero, ink: the pot's value line from `GET /v1/cabals/{id}/value-history`, drawn and held like Home's chart, chips 1D 1W 1M All (default 1M). Short history: a hairline with "Not enough history for the last month yet" |
-| 5 | `CabalSliceSlot` | #2137 | yes | hidden | Hero, ink, under a hairline: "Your slice", its value, and on the right "38% of the pot" over your gain or loss. No stake: "$0.00" with "Fund to get a slice" |
-| 6 | `CabalPauseSlot` | #657 | yes | yes | A warning row when the cabal is paused, with the reason and "Funding, cash outs and trades resume once it's back." (external deposit) or "…when the pause is lifted." (Monaco pause). Hidden otherwise |
-| 7 | `CabalJoinSlot` | #646 | creator only | yes | Non-member: a line naming the policy ("Open: anyone can join." or "Approval required: the creator reviews each request."), then "Join" on an Open cabal or "Request to join" on an Approval required one, or "Request sent" as a warning status row with a text "Cancel request" beneath it, never a disabled primary. After a denial, a "Request declined" row with "Ask again" (or "Join" if the cabal has since opened). Creator: "2 people want to join" with Approve and Deny per row, plus a "Can vote" switch (off by default) on each row when the cabal picks its voters; approving with it on adds the member to the voters in the same tap. Hidden otherwise |
-| 8 | `CabalActionsSlot` | #2134 | yes | hidden | Four round ink buttons, equal width: "Fund" (`plus`, `FundRoute`), "Propose" (`arrow.up.right`, `ProposeRoute(cabalID:)`, #613), "Cash out" (`arrow.down.left`, `CashOutRoute`), "Chat" (`bubble.left`, `ChatRoute`, with an unread dot from #704). Propose is disabled with the caption "Only voters can propose" when `me.can_vote` is false. When the actions read fails after the cabal loaded, the buttons give way to "Couldn't load the cabal actions." with "Try again". While the cabal is paused the buttons stay enabled, and Fund and Cash out show the pause on their own screens (#651, #657) |
-| 9 | `CabalProposalsSlot` | #612 | yes | yes, read-only | "Needs your vote" with a count badge and "See all" (the full open and closed list). Open proposal cards, newest first. Passed proposals whose trade has not finished sit under "In progress" until the trade is bought, sold or failed. Each section is hidden when empty. Empty: "No open votes", plus "Propose the first buy." only for a voter. When a trade the viewer voted on settles, a toast says so: "Bought $250.00 of Alphabet", "Sold 0.2161 shares of Alphabet", or "Couldn't buy: …" / "Couldn't sell: …" when it is blocked |
-| 10 | `CabalHoldingsSlot` | #2137 | yes | yes | "Holdings": an allocation bar with a legend ("● GOOGL 25%  Cash 75%"), then one row per holding (logo, ticker, "0.73 shares · $341.58", or "0.73 tokens" for a pre-IPO holding, value over its gain or loss) and a "Cash" row. Rows open `AssetRoute`. Empty pot: the Cash row and "No stocks right now. Propose a buy to put the cash to work." (non-voters: "No stocks right now."). Zero pot: "Fund, then propose the first buy." (non-voters: "Nothing in the pot yet."). |
-| 11 | `CabalMemberBoardSlot` | #699 | yes | yes | "Leaderboard": ranked members with the viewer's row washed and labelled "You", then "Updated …" under the list. Rows open `UserProfileRoute` |
-| 12 | `CabalActivitySlot` | #654 | yes | hidden | "Activity" with "See all" past five rows. Rows: glyph, title ("Bought Alphabet", "Money added", "Cashed out"), age plus a status in amber ("Pending") or red ("Failed · Retry"), amount. Rows open `TransactionRoute`. Empty: "Nothing yet" / "Money added and trades show up here." |
+| Order | Slot | Member | Non-member | Shows |
+| --- | --- | --- | --- | --- |
+| 1 | `CabalHeaderSlot` | yes | | Cover hero (`CabalCover`: the cabal tint, its picture under the scrim): name, "8 members" and a share disc that opens the invite sheet. The creator taps the cover to change the picture or long-presses it to remove it |
+| 2 | `CabalClosedSlot` | yes | | Error notice when `status` is `banned`: "Monaco closed this cabal. Everyone's slice is being cashed out to their account balance." A banned cabal also hides the actions and the chat preview |
+| 3 | `CabalPotSlot` | yes | | The pot value in `moneyFont(.hero)`. The "Prices delayed" notice stays hidden until the API sends a valuation time |
+| 4 | `CabalValueChartSlot` | yes | | The return line (signed percent and "past month"), the small `CurveScrubChart` (crosshair, pinch, tooltip pill), start and end dates and the periods `1W 1M All` (default 1M). A cash-only pot shows the quiet chart "No positions yet" and no periods; short history shows "Not enough history for the last month yet" |
+| 5 | `CabalSliceSlot` | yes | | Two stats between hairlines: "Your share" (`$0.00` with no stake, `cabal-slice-none`) and "Cash". They stack at accessibility sizes |
+| 6 | `CabalPauseSlot` | yes | | Warning notice while the cabal is paused |
+| 7 | `CabalJoinSlot` | creator only | fallback | Creator: one row "Join requests" / "2 requests to review" that opens Members & voters on Requests (`cabal-join-requests-heading`). Non-member fallback: the join, pending, declined and invite buttons used by the Public cabal screen |
+| 8 | `CabalActionsSlot` | yes | | Three soft tiles: "Deposit" (`FundRoute`), "Propose" and "Cash out". Cash out is disabled with no share and an info notice says so; Propose is disabled for a non-voter with "Only voters can propose" |
+| 9 | `CabalChatPreviewSlot` | yes | | "Chat" with "Open chat". A card holds the newest message, its author and age, "Cabal name · 3 new messages" and an unread pill. No messages: "No messages yet". A failed read leaves an "Open chat" row |
+| 10 | `CabalProposalsSlot` | yes | read-only | "Proposals" with a count and "See all", then the proposal cards. Empty: "No proposals need your attention." with "Closed decisions remain in proposal history." and, for a voter, "Propose the first buy." Hidden on a cash-only cabal with no proposals. A failed read shows a partial-error card. Settlement toasts are unchanged |
+| 11 | `CabalHoldingsSlot` | yes | | "Holdings": the allocation bar and legend, one row per holding (opens `CabalHoldingRoute`) and a "Cash" row (opens `GroupCashRoute`). Empty pot copy is unchanged |
+| 12 | `CabalMemberBoardSlot` | yes | | "Member standings" with "Within Big Ballers · Share return · 1M", compact rows (rank, avatar, name, signed return, "—" without a stake) and the viewer's row washed with a "You" badge. Hidden on a cash-only cabal |
+| 13 | `CabalActivitySlot` | yes | | "Group activity" with "See all" past five rows and the helper "Decisions and transactions in this pot". Hidden on a cash-only cabal while empty |
+| 14 | `CabalRulesRowSlot` | yes | | A "Rules & members" row that pushes Cabal information (`cabal-rules-row`) |
 
-**Share sheet.** A share button sits left of "i" for members of an open cabal once the pot has loaded (id `cabal-share-button`). The same sheet opens from the Profile identity card ("Share your return", `profile-share-button`) and from the share button beside Home's portfolio chip (`home-share-button`). Title "Share", "Done" at the top right. It shows the card as a 4:5 dark image (1080 × 1350 px when shared): the all-time gain and return, the gain curve, three stats ("Put in", "In the pot", "Members" for a cabal; "Put in", "In cabals", "Cabals" for you) and the sharer's invite link. "Share" opens the system sheet with the image and the link; "Copy link" copies the link and shows the toast "Link copied.". It carries only the viewer's own figures and own cabals.
+The trading-bot slot and its route are not on the screen: the agent feature was removed in #5493.
 
-**Cabal details sheet** ("i"). Title "Cabal details", "Done" at the top right. Detents medium and large.
+**Share cabal sheet** (`CabalInviteSheet`). Opens from the toolbar share, the hero disc and Cabal information. Title "Share cabal", detents medium and large. It shows a cover, "Share a link with your friends.", the link box with "Cabal links open soon" under it while the link is the viewer's own invite link, "Share link" (`share-card-share`) and "Copy link" (`share-card-copy`, toast "Link copied."), then rows "Invite by handle" (the handle form) and "Share your gain as an image" (the gain card sheet: a 4:5 dark image of the all-time gain and return, the gain curve, three stats and the sharer's invite link; `share-card-image`). The invitee side of the sheet reads "You’re invited", "Request sent" or "Invitation unavailable".
 
-| Order | Slot | Owner | Shows |
-| --- | --- | --- | --- |
-| 1 | `CabalInviteMemberSlot` | #696 | Row "Invite someone" that pushes the invite-by-handle screen |
-| 2 | `CabalRulesSlot` | #2135 | "Rules", read-only for everyone: the cabal name, who votes (with the voter names when it is a list), what passes, how long votes stay open. The creator's rows, including Name, open "Cabal settings" (#647), where "Who votes" is a rule like the others: "Everyone" / "People I pick" with the member checklist beneath, saved by the one Save in one PATCH |
-| 3 | `CabalTreasurySlot` | #651 | "Cabal treasury", the warning "Do not send funds here. Transfers are returned.", the address, and "View on Solscan". No copy button |
-| 4 | `CabalLeaveSlot` | #697 | Destructive "Leave cabal" with the confirm dialog |
+## Public cabal (`CabalRoute`, non-member)
+
+Title is the cabal name. A tall cover hero with the name and member count, a return block ("—" with "Returns open soon" until the API exposes a non-member return), a "Membership" card (Joining, Voting, Voting window) and one call to action: "Join", "Request to join", a disabled "Request pending" with "Cancel request", "Ask again" after a denial, "Accept invite" with "Decline", or "Open your cabal". The private state ("This cabal is private" with "Back") is built and unreachable until the API reports a private cabal. The About block stays hidden until a cabal has a description.
+
+## Cabal information (`CabalInfoRoute`)
+
+Pushed from the toolbar information button and the Rules & members row. Title "Cabal information". A short cover ("You’re a member" or "You’re an administrator"), "The rules" (a card with Who can join, Who votes, Votes stay open and Current threshold, and an "Edit" link for the creator that opens Cabal settings), rows "Members & voters", "Invite to this cabal" and, for the creator, "Join requests", then "Cabal treasury" (the warning, the address, "View on Solscan"), a "Saving your changes…" notice while a save runs, an outline "View your share" (members with a share) and the destructive-outline "Leave cabal" with its confirm dialog. The chat screen’s details sheet reuses the same sections.
+
+## Members & voters (`MembersRoute`)
+
+Title "Members & voters" with the segments Members, Voters and, for the creator, Requests. Members: "8 members · 8 eligible voters" and a row per member with "Admin" or "Member", opening the profile. Voters: a "Voter" or "Not voting" badge per member, and for a creator who picks voters a "Choose voters" button that opens the "Eligible voters" sheet (tick rows, a pinned "Save voters", toast "Voters saved."). Requests: an info notice when voters are picked, a row per request with a "Review" button that opens a dialog (Approve, Approve and let them vote, Deny, Cancel), and the empty state "No pending requests".
 
 ### Proposal card
 

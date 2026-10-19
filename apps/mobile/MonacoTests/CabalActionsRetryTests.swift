@@ -14,9 +14,7 @@ struct CabalActionsRetryTests {
     func joiningInPlaceShowsTheMemberActions() async throws {
         let transport = StubTransport(scripted: [
             try Self.reply(.sample(role: nil)),
-            Self.noUnread,
             try Self.reply(.sample(role: "member", canVote: true)),
-            Self.noUnread,
         ])
         let model = CabalActionsModel(
             cabalID: "cabal-1",
@@ -27,14 +25,14 @@ struct CabalActionsRetryTests {
         let window = try Self.window(hosting: RetryHost(tick: tick, model: model))
         defer { window.isHidden = true }
         await Self.until { model.actions == .hidden }
-        await transport.waitForRequests(2)
+        await transport.waitForRequests(1)
 
         tick.value += 1
 
-        await transport.waitForRequests(4)
+        await transport.waitForRequests(2)
         let paths = await transport.sent.map { $0.path ?? "?" }
         #expect(
-            paths == ["/v1/cabals/cabal-1", "/v1/me/cabals", "/v1/cabals/cabal-1", "/v1/me/cabals"],
+            paths == ["/v1/cabals/cabal-1", "/v1/cabals/cabal-1"],
             "requests sent: \(paths), actions = \(model.actions)")
         await Self.until { model.actions == .member(canPropose: true) }
     }
@@ -43,9 +41,7 @@ struct CabalActionsRetryTests {
     func aFailedReadShowsTryAgainAndTryAgainBringsTheActionsBack() async throws {
         let transport = StubTransport(scripted: [
             .failure(URLError(.notConnectedToInternet)),
-            Self.noUnread,
             try Self.reply(.sample(role: "member", canVote: true)),
-            Self.noUnread,
         ])
         let model = CabalActionsModel(
             cabalID: "cabal-1",
@@ -67,9 +63,6 @@ struct CabalActionsRetryTests {
         await Self.until { model.actions == .member(canPropose: true) }
         #expect(await Self.element("cabal-action-fund", in: window) != nil, "buttons did not come back")
     }
-
-    private static let noUnread = StubTransport.Reply.response(
-        status: .ok, contentType: "application/json", body: Data("[]".utf8))
 
     private static func reply(_ cabal: Components.Schemas.Cabal) throws -> StubTransport.Reply {
         .response(status: .ok, contentType: "application/json", body: try JSONEncoder().encode(cabal))

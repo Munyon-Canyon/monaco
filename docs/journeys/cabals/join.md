@@ -1,7 +1,7 @@
 ---
 id: cabals/join
 title: Join a cabal
-version: 7
+version: 8
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -40,9 +40,9 @@ The setup creates both cabals through the API, so this journey does not depend o
 | S1.3 | A | none | | | There is no `cabal-join-requests-heading`. A new request cabal has no pending requests |
 | S1.4 | B | tap, type, then tap | the Cabals tab, `cabals-filter-field`, then `cabals-search-public` | `zzqq` | Discover cabals shows `cabals-search-empty` "No matching cabals" / "Try another name." within 10 s. Old app: the "No cabal called" search line in `CabalsTabView` |
 | S1.5 | B | clear, type, then tap | `cabals-search-field`, then the `cabals-search-result-<id>` | `QA pot {QA.run}` | `cabal-header-name` reads `QA pot {QA.run}` and `cabal-join-button` shows within 15 s. screens.md: `CabalJoinSlot`, "Request to join" |
-| S1.6 | B | tap | `cabal-join-button` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s. `cabal-join-requested` reads "Request sent" next to `cabal-join-cancel` within 15 s |
-| S1.7 | A | tap, type, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA pot {QA.run}` | `cabal-join-requests-heading` reads "1 person wants to join" within 2 s of `cabal-header-name` showing, with one `cabal-join-request-row` naming B. screens.md: `CabalJoinSlot`, "2 people want to join" with Approve and Deny. Old app: the join requests on `GroupDetailView` |
-| S1.8 | A | tap | `cabal-join-approve` | | The toast "Approved." shows within 10 s. `cabal-join-requests-heading` is gone, and `cabal-member-count` reads "2 members" within 10 s. Old app: Approve on `GroupDetailView` toasted "<name> is in"; staging toasts "Approved." |
+| S1.6 | B | tap | `cabal-join-button` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s. `cabal-join-requested` reads "Request pending" next to `cabal-join-cancel` within 15 s |
+| S1.7 | A | tap, type, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA pot {QA.run}` | `cabal-join-requests-heading` reads "1 request to review" within 15 s of `cabal-header-name` showing. Tapping it opens Members & voters on its Requests tab with one `cabal-join-request-row` naming B. screens.md: `CabalJoinSlot` and `MembersView`, Requests. Old app: the join requests on `GroupDetailView` |
+| S1.8 | A | tap, then tap | `cabal-join-review`, then `cabal-join-approve` in the dialog | | The toast "Approved." shows within 10 s. `members-requests-empty` shows, and after the back button `cabal-member-count` reads "2 members" within 10 s. Old app: Approve on `GroupDetailView` toasted "<name> is in"; staging toasts "Approved." |
 | S1.9 | B | tap, type, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA pot {QA.run}` | `cabal-action-fund` shows within 15 s, and there is no `cabal-join-requested` or `cabal-join-button`. screens.md: `CabalActionsSlot` for a member. Old app: `GroupDetailView`'s member action row |
 
 ### S2 Join an open cabal
@@ -57,10 +57,10 @@ The setup creates both cabals through the API, so this journey does not depend o
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | B | open, then tap | the cabal `QA gate {QA.run}`, then `cabal-join-button` | | `cabal-join-policy` reads "Approval required: the creator reviews each request.". The toast "Request sent. You'll be in once the creator says yes." shows, and `cabal-join-requested` reads "Request sent" |
-| S3.2 | A | open, then tap | the cabal `QA gate {QA.run}`, then `cabal-join-deny` | | The toast "Denied." shows |
+| S3.1 | B | open, then tap | the cabal `QA gate {QA.run}`, then `cabal-join-button` | | `cabal-join-policy` reads "Approval required: the creator reviews each request.". The toast "Request sent. You'll be in once the creator says yes." shows, and `cabal-join-requested` reads "Request pending" |
+| S3.2 | A | open, then tap | the cabal `QA gate {QA.run}`, `cabal-join-requests-heading`, `cabal-join-review`, then `cabal-join-deny` in the dialog | | The toast "Denied." shows |
 | S3.3 | B | open | the cabal `QA gate {QA.run}` | | `cabal-join-declined` reads "Request declined" and `cabal-join-button` reads "Ask again" within 15 s |
-| S3.4 | B | tap | `cabal-join-button` | | The toast "Request sent. You'll be in once the creator says yes." shows, and `cabal-join-requested` reads "Request sent" |
+| S3.4 | B | tap | `cabal-join-button` | | The toast "Request sent. You'll be in once the creator says yes." shows, and `cabal-join-requested` reads "Request pending" |
 
 If the creator changes the policy between taps, the app takes the other route once: an open join refused with `join_needs_request` sends a request, and a request refused with `request_not_needed` joins.
 

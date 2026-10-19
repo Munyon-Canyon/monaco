@@ -34,26 +34,10 @@ struct CabalClosedRow: View {
 
     var body: some View {
         if isClosed {
-            VStack(spacing: 0) {
-                MonacoRule()
-                HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.sm) {
-                    Image(systemName: "exclamationmark.octagon")
-                        .font(.body)
-                        .foregroundStyle(MonacoTheme.loss)
-                        .accessibilityHidden(true)
-                    Text(CabalClosedModel.message)
-                        .font(MonacoTheme.Typo.callout)
-                        .foregroundStyle(MonacoTheme.ink)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(minHeight: MonacoRowLayout.minHeight)
-                MonacoRule()
-            }
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.top, MonacoTheme.Space.m)
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("cabal-closed-row")
+            MonacoNotice(.error, message: CabalClosedModel.message)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("cabal-closed-row")
         } else {
             Color.clear.frame(height: 0)
         }

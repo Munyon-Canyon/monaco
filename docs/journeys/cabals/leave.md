@@ -1,7 +1,7 @@
 ---
 id: cabals/leave
 title: Leave a cabal
-version: 3
+version: 4
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -34,7 +34,7 @@ Discover cabals is where `cabals-search-field` lives. A step that says "Discover
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | B | tap, type, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA leave {QA.run}` | `cabal-header-name` reads `QA leave {QA.run}` and `cabal-member-count` reads "2 members" within 15 s |
-| S1.2 | B | tap, then scroll to | `cabal-details-button`, then `cabalLeaveButton` | | The "Cabal details" sheet shows, and `cabalLeaveButton` reads "Leave cabal" within 10 s |
+| S1.2 | B | tap, then scroll to | `cabal-details-button`, then `cabalLeaveButton` | | The Cabal information screen shows, and `cabalLeaveButton` reads "Leave cabal" within 10 s |
 | S1.3 | B | tap | `cabalLeaveButton` | | The dialog "Leave QA leave {QA.run}?" shows `cabalLeaveConfirmButton` "Leave cabal" within 5 s |
 | S1.4 | B | tap | `cabalLeaveConfirmButton` | | The toast "You left QA leave {QA.run}." shows within 10 s, and the Cabals tab (`cabals-root`) shows within 10 s |
 | S1.5 | B | tap, then type | the Cabals tab and Discover cabals, then `cabals-search-field` | `QA leave {QA.run}` | The `cabals-search-enter-<id>` for `QA leave {QA.run}` is labelled "Join QA leave {QA.run}" within 10 s, with no `cabals-search-joined` badge: B is no longer a member |
