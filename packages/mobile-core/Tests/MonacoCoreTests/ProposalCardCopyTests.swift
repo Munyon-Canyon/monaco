@@ -18,13 +18,9 @@ final class ProposalCardCopyTests: XCTestCase {
     }
 
     func testVoteCopy() {
-        XCTAssertEqual(ProposalCardCopy.tracker(voted: 1, voters: 3, needed: 2), "1 of 3 voted · 2 yes to pass")
         XCTAssertEqual(ProposalCardCopy.voter("Priya", choice: "yes"), "Priya voted yes")
         XCTAssertEqual(ProposalCardCopy.voter("Priya", choice: "no"), "Priya voted no")
         XCTAssertEqual(ProposalCardCopy.voter("Priya", choice: nil), "Priya hasn't voted")
-        XCTAssertEqual(ProposalCardCopy.viewerVote("yes"), "✓ You voted yes")
-        XCTAssertEqual(ProposalCardCopy.viewerVote("no"), "✓ You voted no")
-        XCTAssertNil(ProposalCardCopy.viewerVote(nil))
     }
 
     func testSellAmountUsesSharesOrTokens() {

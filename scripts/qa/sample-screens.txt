@@ -371,6 +371,12 @@ proposal-votes-expanded       -MonacoProposalSample votesExpanded
 proposal-votes-loading        -MonacoProposalSample votesLoading
 proposal-votes-error          -MonacoProposalSample votesError
 proposal-votes-open-dark      -MonacoProposalSample votesOpen -AppleInterfaceStyle Dark
+proposal-all-open             -MonacoProposalSample allOpen
+proposal-all-closed           -MonacoProposalSample allClosed
+proposal-all-empty            -MonacoProposalSample allEmpty
+proposal-all-loading          -MonacoProposalSample allLoading
+proposal-all-error            -MonacoProposalSample allError
+proposal-all-open-dark        -MonacoProposalSample allOpen -AppleInterfaceStyle Dark
 
 # Harnesses that take a `-…Harness` flag; the word after it is the mode.
 feed-items                    -feedHarness items

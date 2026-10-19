@@ -202,14 +202,75 @@ Toolbar: back on the left, and an "i" button on the right that opens the details
 
 ### Proposal card
 
-Used by Home's "Needs your vote", the cabal's proposals and the proposals list (#612). Top row: asset logo, ticker, "Buy" or "Sell", and on the right "Closes in 23h" while open or a status chip once closed ("Bought", "Buying", "Didn't pass", "Expired", "Withdrawn", "Voided by Monaco", "Couldn't buy", "Couldn't sell"). The amount in `moneyFont(.large)`. Proposer avatar, name and age. The reason, up to three lines. The vote tracker: one dot per voter, filled as votes arrive, and "1 of 3 voted · 2 yes to pass". For a voter who has not voted: "Yes" (primary) and "No" (secondary). After voting: "✓ You voted yes" with "Change" (`POST /v1/proposals/{id}/votes` changes a ballot). Toast "Vote recorded.". A paused cabal adds the caption "Trading is paused. If this passes, it won't buy until trading resumes."
+Used by Home's "Needs your vote", the cabal's proposals and [All proposals](#all-proposals-pendingvotesroute) (#612). The design is `docs/design/v3/`; the card has no template of its own, so compare it with Home's Proposals section. It is a `MonacoCard`. Nothing on it casts a vote: members vote on the proposal screen. Every badge, button title, note and footer string comes from `ProposalBadge` and `ProposalCardCopy` in MonacoCore, keyed by `ProposalState`.
+
+| Part | Shows |
+| --- | --- |
+| Top row | The proposer's avatar and the cabal name (the proposer's name when the caller passes none), and the status badge on the right (`proposal-status-chip`) |
+| Instrument row | `StockMark`, "Buy NVIDIA" or "Sell NVIDIA", "$400.00 from the cabal pot" (a sell reads "0.6 shares from the cabal's holding"), and one small button that opens the proposal. At accessibility sizes the button drops below the text |
+| Note | One line, "5 yes votes needed · Closes in 8h" while open (`proposal-closes-in`), a sentence about the outcome once closed. A paused cabal adds "Trading is paused. If this passes, it won't buy until trading resumes." (`proposal-paused-caption`) |
+| Footer | A ruled row that opens the proposal: an icon, the tally "3 yes · 1 no · 4 not voted" while open or the outcome line, and a chevron |
+
+| State | Badge | Button | Footer |
+| --- | --- | --- | --- |
+| Open, can vote, no ballot | "Needs your vote" | "Review" (primary) | Tally, muted |
+| Open, voted | "You voted Yes" or "You voted No" | "Review vote" | Tally, muted |
+| Open, cannot vote | "Voting open" | "Review" | Tally, muted |
+| Passed | "Execution pending" (warn) | "View status" | "Approved by the cabal · Not completed", warn |
+| Executed | "Executed" | "View trade" | "Trade confirmed · View the original decision", gain |
+| Expired | "Expired" | "View decision" | "Voting closed · No trade placed", muted |
+| Trade blocked or swap failed | "Trade not completed" (negative) | "View status" | "Decision retained · No completed trade", loss |
+| Did not pass | "Not approved" | "View decision" | "Voting closed · No trade placed", muted |
+| Withdrawn, voided | "Withdrawn", "Voided by Monaco" | "View decision" | "Voting closed · No trade placed", muted |
+
+The card is one VoiceOver element, "<cabal>: <badge>. Buy NVIDIA, <amount line>. <note>", with the button and the footer as actions.
 
 ## Proposal screen (`ProposalRoute`)
 
 | Order | Slot | Owner | Shows |
 | --- | --- | --- | --- |
-| 1 | `ProposalDetailSlot` | #612 | The card's header and amount. "Proposed by Jordan · 33m". The tracker, then each voter's line ("Priya voted yes"). Voting buttons as on the card. "Why buy" with the reason in a ruled section. "Expected" with `quote_out_amount` as "about 0.73 shares at $341.57". A "Status" stepper "Voting", "Buying", "Done" that marks the reached step; a failed trade shows "Couldn't buy" at the last step with `swap.failure_message`, a "Retry" button when `retryable`, and a link to its `TransactionRoute`. The proposer sees "Withdraw proposal" while it is open (confirm "Withdraw this proposal?" / "Votes so far are dropped.", toast "Proposal withdrawn."). A gold coin burst plays once when a buy reaches Done |
+| 1 | `ProposalDetailSlot` | #612 | The sections below, top to bottom |
 | 2 | `ProposalCommentsSlot` | #711 | "Discussion", the thread, and a composer pinned at the bottom, "Add a comment". Empty: "No replies yet" / "Start the discussion." |
+
+| Section | Shows |
+| --- | --- |
+| Hero | `StockMark`, the status badge (`proposal-status-chip`: "Voting open", "You voted Yes", "View only", "Approved · Executing", "Executed", "Expired", "Not executed", "Not approved", "Withdrawn", "Voided by Monaco"), "Buy NVIDIA" or "Sell NVIDIA", the amount (a sell shows its shares and "About $139.00"), the proposer (opens their profile) and "Your cabal · 2h ago". The proposer's return pill is not drawn yet: the API has no return on a proposal |
+| Thesis | "Thesis" and the reason as prose (`proposal-reason`). Omitted without a reason |
+| Votes | "Votes" with "See all", which opens the votes sheet, then the vote bar: "5 yes votes to pass" (or "Voting closed"), the bar and "3 yes · 1 no · 4 not voted" (`proposal-votes`) |
+| Expected | "Cabal gets", "about 0.73 shares at $341.57", while open or passed (`proposal-expected`) |
+| Network and price | The chain and, when its live quote is missing, the reason (`proposal-chain-row`), then the best price (`best-price-loading` while it is found), while open or passed |
+| Status | Once voting is over: a notice (warn "The vote passed. Execution is pending.", info "The trade is confirmed.", info "Voting closed without enough yes votes. No trade was placed.", error "The trade did not go through." with the failure message, info "The proposal did not pass.", info for withdrawn and voided), the price-moved rows (`proposal-price-moved`), "Retry" or "Buy at current price" when the trade can be retried (`proposal-retry`), and for passed, executed and blocked proposals the "Execution details" disclosure: Status, Executed price ("Not confirmed", or "Opens soon" for an executed trade until the API carries it), Units (executed only, "Opens soon"), Network and the "Transaction record" row that opens `TransactionRoute`. The section reads as the `ProposalStepper` label for VoiceOver (`proposal-tracker`) |
+| Withdraw | The proposer sees "Withdraw proposal" while it is open (confirm "Withdraw this proposal?" / "Votes so far are dropped.", toast "Proposal withdrawn.") |
+
+The dock above the tab bar sits over the composer "Add a comment":
+
+| State | Dock |
+| --- | --- |
+| Open, can vote | "Vote No" (`proposal-vote-no`) and "Vote Yes" (`proposal-vote-yes`). Toast "Vote recorded." |
+| Open, voted | "Change vote" (`proposal-change-vote`), which asks "Your current vote: Yes" with "Vote Yes", "Vote No" and Cancel |
+| Open, cannot vote | "View-only · Voting is restricted to eligible members" (`proposal-view-only`) |
+| Closed | The composer only |
+
+| State | Shows |
+| --- | --- |
+| Loading | Skeletons for the hero, the title, the amount, a block and three rows |
+| Error | "Couldn't load this view", "Your existing information hasn't been changed. Try again when your connection is available." and "Try again" (`proposal-detail-error`) |
+| Vote, retry or withdraw failed | An error toast, with the content kept |
+
+### Votes sheet
+
+"See all" under Votes opens `ProposalVotesSheet` at the medium detent, which drags to large and opens at large at accessibility sizes. The header is "Votes" with a close button. A pinned strip reads "3 yes", "1 no", "4 not voted". One row per voter, yes then no then not voted: avatar, name and a "Yes", "No" or "Not voted" badge, opening their profile (`proposal-voter-<id>`). Loading is a strip and four row skeletons. An error reads "Votes couldn't load. Try again." over "Retry". Tallies stay live while the sheet is open.
+
+## All proposals (`PendingVotesRoute`)
+
+Opened from Home's "See all". The title is "All proposals" over an "Open" / "Closed" control (`proposals-segment-open`, `proposals-segment-closed`).
+
+| Segment | Shows |
+| --- | --- |
+| Open | A [proposal card](#proposal-card) for each proposal that needs or has your vote, then a row for each passed proposal whose trade has not finished: the stock and amount, the status line and a badge ("Pending"), with a chevron. Empty: "No open proposals" / "New ideas will appear here. Closed decisions remain in the cabal history." with "Choose a proposal", which opens the Cabals tab (`pending-votes-empty`) |
+| Closed | "Closed proposals show up here soon." The API lists open votes only. Each closed row will carry "Pending", "Expired", "Blocked", "Not approved", "Withdrawn" or "Voided" |
+
+Loading is skeletons ("Loading proposals"). Error is "Couldn't load this view" with "Try again" (`pending-votes-error`). Pull to refresh.
 
 ## Propose (#613)
 

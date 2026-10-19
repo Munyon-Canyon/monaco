@@ -40,37 +40,42 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
     }
 
     @MainActor
-    func testNeedsVote_voteFromCard_thenCommentAndReplyInThread() throws {
+    private func openProposal(from card: XCUIElement) {
+        card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 1)).withOffset(CGVector(dx: 0, dy: -22)).tap()
+    }
+
+    @MainActor
+    func testNeedsVote_reviewFromTheCard_voteFromTheDock_thenCommentAndReplyInThread() throws {
         launch("needsVote")
+        XCTAssertTrue(app.navigationBars["All proposals"].waitForExistence(timeout: 10), "the list never drew")
         let first = element("proposal-card-proposal-1")
         XCTAssertTrue(first.waitForExistence(timeout: 10), "the first vote card never drew")
-        let yes = first.buttons["Yes"]
-        XCTAssertTrue(yes.exists, "the first card should offer Yes")
-        XCTAssertTrue(first.buttons["No"].exists, "the first card should offer No")
-        XCTAssertTrue(first.staticTexts["Buy"].exists, "the card should say which way the trade goes")
-        capture("01-votes")
+        XCTAssertTrue(first.label.contains("Needs your vote"), "the card should say it needs a vote: \(first.label)")
+        XCTAssertTrue(first.label.contains("Buy Alphabet"), "the card should say which way the trade goes")
+        XCTAssertFalse(app.buttons["Yes"].exists, "a card offers no inline Yes")
+        XCTAssertFalse(app.buttons["No"].exists, "a card offers no inline No")
+        capture("01-all-proposals")
+
+        openProposal(from: first)
+        let yes = app.buttons["Vote Yes"]
+        XCTAssertTrue(yes.waitForExistence(timeout: 10), "the dock never offered Vote Yes")
+        XCTAssertTrue(app.buttons["Vote No"].exists, "the dock should offer Vote No")
+        XCTAssertTrue(element("proposal-reason").exists, "the thesis block is missing")
+        capture("02-proposal-dock")
 
         yes.tap()
         XCTAssertTrue(app.staticTexts["Vote recorded."].waitForExistence(timeout: 5), "no toast after voting")
-        XCTAssertTrue(first.buttons["Change"].waitForExistence(timeout: 5), "the card should offer Change after a vote")
-        XCTAssertFalse(first.buttons["Yes"].exists, "Yes should be gone once voted")
-        capture("02-after-card-vote")
+        XCTAssertTrue(
+            element("proposal-change-vote").waitForExistence(timeout: 5), "the dock should offer Change vote")
+        XCTAssertFalse(app.buttons["Vote Yes"].exists, "Vote Yes should be gone once voted")
+        capture("03-after-vote")
 
-        let last = element("proposal-card-proposal-2")
-        var swipes = 0
-        while !last.exists && swipes < 6 {
-            app.swipeUp()
-            swipes += 1
-        }
-        XCTAssertTrue(last.exists, "the second open card never rendered")
-        capture("03-votes-scrolled")
-        while !first.isHittable && swipes > 0 {
-            app.swipeDown()
-            swipes -= 1
-        }
+        element("proposal-change-vote").tap()
+        let no = app.buttons["Vote No"]
+        XCTAssertTrue(no.waitForExistence(timeout: 5), "Change vote never offered Vote No")
+        no.tap()
+        XCTAssertTrue(app.staticTexts["Vote recorded."].waitForExistence(timeout: 5), "no toast after changing")
 
-        first.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: 120, dy: 40)).tap()
-        XCTAssertTrue(element("proposal-reason").waitForExistence(timeout: 10), "the thesis block is missing")
         XCTAssertTrue(element("comment-thread").waitForExistence(timeout: 10), "the thread never drew")
         let quotes = app.staticTexts.matching(NSPredicate(format: "label == %@", "Earnings next week."))
         XCTAssertEqual(quotes.count, 1, "the thesis should be quoted once")
@@ -132,15 +137,68 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
     }
 
     @MainActor
-    func testReadOnlyProposal_showsTallyWithoutButtons() throws {
+    func testReadOnlyProposal_showsTallyAndTheViewOnlyDockWithoutVoteButtons() throws {
         launch("readOnly")
-        let card = element("proposal-card-proposal-1")
-        XCTAssertTrue(card.waitForExistence(timeout: 10), "the proposal card never drew")
         XCTAssertTrue(element("proposal-votes").waitForExistence(timeout: 10), "the votes block never drew")
+        let bar = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS %@", "1 yes, 0 no, 2 not voted")).firstMatch
+        XCTAssertTrue(bar.exists, "the vote bar is missing or reads the wrong tally")
+        XCTAssertTrue(element("proposal-view-only").exists, "the view-only caption is missing")
+        XCTAssertFalse(app.buttons["Vote Yes"].exists, "a read-only proposal must not offer Vote Yes")
+        XCTAssertFalse(app.buttons["Vote No"].exists, "a read-only proposal must not offer Vote No")
+        XCTAssertFalse(element("proposal-change-vote").exists, "a read-only proposal must not offer Change vote")
+    }
+
+    @MainActor
+    func testSeeAll_opensTheVotesSheetWithEveryVoter() throws {
+        launch("open")
+        let seeAll = element("proposal-votes-see-all")
+        XCTAssertTrue(seeAll.waitForExistence(timeout: 10), "See all never drew")
+        seeAll.tap()
+        XCTAssertTrue(element("proposal-voters").waitForExistence(timeout: 5), "the votes sheet never opened")
+        let voters = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'proposal-voter-'"))
+        XCTAssertEqual(voters.count, 3, "the sheet should list the three voters")
         XCTAssertTrue(
-            app.staticTexts["1 yes · 0 no · 2 not voted"].exists, "the tally line is missing or wrong")
-        XCTAssertFalse(card.buttons["Yes"].exists, "a read-only proposal must not offer Yes")
-        XCTAssertFalse(card.buttons["No"].exists, "a read-only proposal must not offer No")
+            app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Kai voted yes")).firstMatch
+                .exists,
+            "Kai's yes is missing")
+        capture("07-votes-sheet")
+        app.buttons["Close"].tap()
+        XCTAssertTrue(app.buttons["Vote Yes"].waitForExistence(timeout: 5), "Close should return to the proposal")
+    }
+
+    @MainActor
+    func testAllProposals_switchesBetweenOpenAndClosed() throws {
+        launch("allOpen")
+        XCTAssertTrue(element("proposal-card-proposal-1").waitForExistence(timeout: 10), "the open card never drew")
+        element("proposals-segment-closed").tap()
+        XCTAssertTrue(
+            app.staticTexts["Closed proposals show up here soon."].waitForExistence(timeout: 5),
+            "Closed should say it shows up soon")
+        XCTAssertFalse(element("proposal-card-proposal-1").exists, "Closed should not list the open card")
+        element("proposals-segment-open").tap()
+        XCTAssertTrue(element("proposal-card-proposal-1").waitForExistence(timeout: 5), "Open lost its card")
+    }
+
+    @MainActor
+    func testAllProposals_closedRowsCarryTheirStatusBadge() throws {
+        launch("allClosed")
+        let pending = element("proposal-row-closed-1")
+        XCTAssertTrue(pending.waitForExistence(timeout: 10), "the first closed row never drew")
+        XCTAssertTrue(pending.label.contains("Pending"), "the approved row should read Pending: \(pending.label)")
+        XCTAssertTrue(element("proposal-row-closed-2").label.contains("Expired"), "the expired row is missing")
+        XCTAssertTrue(element("proposal-row-closed-3").label.contains("Blocked"), "the blocked row is missing")
+    }
+
+    @MainActor
+    func testAllProposals_emptyOffersTheCabalsTab() throws {
+        launch("allEmpty")
+        XCTAssertTrue(app.staticTexts["No open proposals"].waitForExistence(timeout: 10), "the empty state never drew")
+        app.buttons["Choose a proposal"].tap()
+        XCTAssertTrue(
+            app.navigationBars["All proposals"].waitForNonExistence(timeout: 5),
+            "Choose a proposal should leave the list")
     }
 }
 
