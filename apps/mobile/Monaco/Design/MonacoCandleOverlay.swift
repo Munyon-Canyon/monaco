@@ -26,11 +26,14 @@ struct MonacoCandleOverlay: View {
     let baseline: Double?
     let tagTint: Color?
     let showsLastPriceRule: Bool
+    let showsEndDot: Bool
+    let selectionStyle: MonacoChartSelectionStyle
     let isLive: Bool
     let isAtLatest: Bool
     let selection: Int?
     let intervalSeconds: Int
     let valueText: ((Double) -> String)?
+    let tooltipAmount: ((Int) -> String?)?
     let onJump: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -136,6 +139,10 @@ struct MonacoCandleOverlay: View {
             .accessibilityHidden(true)
     }
 
+    private var endDotDiameter: CGFloat {
+        showsEndDot ? MonacoLineStyle.endDotRadius * 2 : 8
+    }
+
     @ViewBuilder
     private var lineDot: some View {
         if style == .line, selection == nil, let last = bars.last, bars.count > 1 {
@@ -155,7 +162,7 @@ struct MonacoCandleOverlay: View {
                                 }
                         }
                     }
-                    Circle().fill(tint).frame(width: 8, height: 8)
+                    Circle().fill(tint).frame(width: endDotDiameter, height: endDotDiameter)
                 }
                 .position(position)
                 .allowsHitTesting(false)
@@ -169,10 +176,10 @@ struct MonacoCandleOverlay: View {
             let bar = bars[selection]
             let position = CGPoint(x: x(bar.date), y: min(max(y(bar.close), plot.minY), plot.maxY))
             ZStack(alignment: .topLeading) {
-                if style == .line {
-                    lineCrosshair(bar, at: position)
-                } else {
-                    candleCrosshair(bar, at: position)
+                switch (style, selectionStyle) {
+                case (.line, .tooltipPill): tooltipCrosshair(bar, index: selection, at: position)
+                case (.line, .axisTag): lineCrosshair(bar, at: position)
+                case (.candles, _): candleCrosshair(bar, at: position)
                 }
             }
             .allowsHitTesting(false)
@@ -214,6 +221,14 @@ struct MonacoCandleOverlay: View {
         }
     }
 
+    private func tooltipCrosshair(_ bar: PlottedBar, index: Int, at position: CGPoint) -> some View {
+        let date = ChartCrosshairLabel.text(
+            bar.date, visibleSeconds: window.visibleSeconds, intervalSeconds: intervalSeconds)
+        return ChartTooltip(
+            position: position, plot: plot, tint: tint,
+            text: [date, tooltipAmount?(index)].compactMap { $0 }.joined(separator: " · "))
+    }
+
     private func timePill(_ date: Date) -> some View {
         let text = ChartCrosshairLabel.text(
             date, visibleSeconds: window.visibleSeconds, intervalSeconds: intervalSeconds)
@@ -244,5 +259,54 @@ struct MonacoCandleOverlay: View {
             .position(x: plot.maxX - 30, y: plot.maxY - 30)
             .transition(.opacity)
         }
+    }
+}
+
+private struct ChartTooltip: View {
+    let position: CGPoint
+    let plot: CGRect
+    let tint: Color
+    let text: String
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            Path { path in
+                path.move(to: CGPoint(x: position.x, y: plot.minY))
+                path.addLine(to: CGPoint(x: position.x, y: plot.maxY))
+            }
+            .stroke(MonacoTheme.border, style: StrokeStyle(lineWidth: ChartMetrics.crosshairWidth))
+            Circle()
+                .fill(tint)
+                .frame(width: MonacoLineStyle.endDotRadius * 2, height: MonacoLineStyle.endDotRadius * 2)
+                .position(position)
+            TooltipPillLayout(centerX: position.x, top: plot.minY) {
+                Text(text)
+                    .font(MonacoTheme.Typo.captionStrong)
+                    .foregroundStyle(MonacoTheme.background)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.vertical, MonacoTheme.Space.xs)
+                    .padding(.horizontal, MonacoTheme.Space.s)
+                    .background(
+                        RoundedRectangle(cornerRadius: ChartMetrics.tooltipRadius, style: .continuous)
+                            .fill(MonacoTheme.primaryText))
+            }
+        }
+    }
+}
+
+private struct TooltipPillLayout: Layout {
+    let centerX: CGFloat
+    let top: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        proposal.replacingUnspecifiedDimensions(by: .zero)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard let pill = subviews.first else { return }
+        let size = pill.sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
+        let x = min(max(bounds.minX + centerX, bounds.minX + size.width / 2), bounds.maxX - size.width / 2)
+        pill.place(at: CGPoint(x: x, y: bounds.minY + top), anchor: .top, proposal: ProposedViewSize(size))
     }
 }

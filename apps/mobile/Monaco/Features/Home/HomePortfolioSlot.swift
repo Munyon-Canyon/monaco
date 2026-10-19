@@ -156,7 +156,7 @@ private struct HomePortfolioHero: View {
         switch chart.state {
         case .idle, .loading:
             CurveChangeLine(curve: nil, plot: .pnl)
-            SkeletonBlock(height: 160, radius: 12)
+            CurveScrubChartFrame { SkeletonBlock(height: nil, radius: 12) }
                 .accessibilityIdentifier("home-portfolio-chart-loading")
             rangeChips(chart)
         case .failed:
@@ -170,14 +170,15 @@ private struct HomePortfolioHero: View {
                 CurveScrubChart(
                     curve: curve, plot: .pnl, range: shown, selection: $selection, identifier: "home-pnl-chart")
             } else {
-                VStack(alignment: .leading, spacing: HeroRhythm.withinChart) {
-                    hairline
-                    Text(shown.shortHistoryLine)
-                        .font(MonacoTheme.Typo.caption)
-                        .foregroundStyle(MonacoTheme.muted)
-                        .accessibilityIdentifier("home-portfolio-short")
+                CurveScrubChartFrame {
+                    VStack(alignment: .leading, spacing: HeroRhythm.withinChart) {
+                        hairline
+                        Text(shown.shortHistoryLine)
+                            .font(MonacoTheme.Typo.caption)
+                            .foregroundStyle(MonacoTheme.muted)
+                            .accessibilityIdentifier("home-portfolio-short")
+                    }
                 }
-                .frame(height: 160, alignment: .center)
             }
             rangeChips(chart)
         }
@@ -223,7 +224,7 @@ struct HomePortfolioSkeleton: View {
             }
             VStack(alignment: .leading, spacing: HeroRhythm.withinChart) {
                 CurveChangeLine(curve: nil, plot: .pnl)
-                SkeletonBlock(height: 160, radius: 12)
+                CurveScrubChartFrame { SkeletonBlock(height: nil, radius: 12) }
                 MonacoRangeChipsSkeleton(ranges: LeaderboardRange.allCases)
             }
         }

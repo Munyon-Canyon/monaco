@@ -67,6 +67,20 @@ struct ChartSkeletonHeightTests {
         #expect(abs(loaded - skeleton) < Self.tolerance, "skeleton \(skeleton), loaded \(loaded)")
     }
 
+    @Test
+    func aCurveChartIsItsPlotPlusTheDateRow() {
+        func hostedHeight(_ view: some View) -> CGFloat {
+            UIHostingController(rootView: view)
+                .sizeThatFits(in: CGSize(width: 390, height: CGFloat.greatestFiniteMagnitude)).height
+        }
+        let row = hostedHeight(MonacoChartDateRow(first: " ", last: " "))
+
+        for plot in [CurveScrubChart.defaultHeight, CurveScrubChart.smallHeight] {
+            let chart = hostedHeight(CurveChartHost(height: plot))
+            #expect(abs(chart - (plot + row)) < 0.5, "plot \(plot): chart \(chart), date row \(row)")
+        }
+    }
+
     private static func homeHeight(withHistory: Bool) async throws -> CGFloat {
         var history = MyHistory.sample(range: ._1d)
         if !withHistory { history.points = [] }

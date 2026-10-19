@@ -2,10 +2,13 @@ import MonacoCore
 import SwiftUI
 
 struct CurveScrubChart: View {
+    static let defaultHeight: CGFloat = 170
+    static let smallHeight: CGFloat = 148
+
     let curve: ValueCurve
     let plot: ValueCurve.Plot
     let range: LeaderboardRange
-    var height: CGFloat = 160
+    var height: CGFloat = CurveScrubChart.defaultHeight
     @Binding var selection: Int?
     let identifier: String
 
@@ -27,17 +30,16 @@ struct CurveScrubChart: View {
         NSDecimalNumber(value: micros).dividing(by: NSDecimalNumber(value: 1_000_000)).doubleValue
     }
 
-    private func pillTint(_ direction: PortfolioSummary.Direction) -> Color {
-        switch direction {
-        case .up: MonacoTheme.profitVivid
-        case .down: MonacoTheme.lossVivid
-        case .flat: MonacoTheme.tertiaryText
-        }
+    static func tooltipAmount(_ change: ValueCurve.Change?) -> String? {
+        change?.amountText ?? change?.percentText
+    }
+
+    private func change(at index: Int) -> ValueCurve.Change? {
+        curve.change(plot, to: min(index, curve.plotted(plot).count - 1))
     }
 
     var body: some View {
         let points = points
-        let pill = curve.pill(plot)
         let bars = points.map { point -> PlottedBar in
             let value = Self.units(point.value)
             return PlottedBar(date: point.at, open: value, high: value, low: value, close: value)
@@ -48,17 +50,18 @@ struct CurveScrubChart: View {
             intervalSeconds: curve.slotSeconds,
             style: .line,
             tint: tint,
-            lastPrice: pill == nil ? nil : bars.last?.close,
+            lastPrice: nil,
             isLive: range == .oneHour || range == .oneDay,
             fixedDomain: Self.units(domain.lowerBound)...Self.units(domain.upperBound),
-            baseline: bars.first?.close,
-            tagTint: pill.map { pillTint($0.direction) },
             showsLastPriceRule: false,
+            showsEndDot: true,
+            selectionStyle: .tooltipPill,
+            showsDateRange: true,
             resetKey: range.rawValue,
             hasOlder: false,
             initialVisibleBars: bars.count,
-            valueText: { _ in pill?.text ?? "" },
-            gutter: 88,
+            tooltipAmount: { Self.tooltipAmount(change(at: $0)) },
+            gutter: 0,
             height: height,
             selection: $selection,
             onNeedOlder: {},
@@ -69,12 +72,23 @@ struct CurveScrubChart: View {
                 }
             },
             describeBar: { index in
-                let at = min(index, curve.plotted(plot).count - 1)
-                let change = curve.change(plot, to: at)
-                return [change?.amountText, change?.percentText].compactMap { $0 }.joined(separator: " ")
+                let moved = change(at: index)
+                return [moved?.amountText, moved?.percentText].compactMap { $0 }.joined(separator: " ")
             },
             accessibilityIdentifier: identifier
         )
+    }
+}
+
+struct CurveScrubChartFrame<Content: View>: View {
+    var height: CGFloat = CurveScrubChart.defaultHeight
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(spacing: 0) {
+            content.frame(height: height)
+            MonacoChartDateRow(first: " ", last: " ").hidden()
+        }
     }
 }
 
