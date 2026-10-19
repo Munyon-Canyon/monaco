@@ -1,0 +1,117 @@
+# Rules for `monacoctl marketing watch`, the read-only X reply-finder (docs/how-to/reply-finder.md).
+# The watcher only reads X and a person writes every reply. An unknown key fails the load.
+
+# Alerts per UTC day. Each poll sends its best posts until the cap is reached.
+daily_cap = 30
+
+# What X reads may cost per UTC day, in dollars. X bills $0.005 a post and $0.010 an author it returns,
+# and the watcher counts both. 5 dollars a day is the plan's $150 a month.
+daily_spend_usd = 5.0
+
+# A post that scores below this never alerts. The top score is the sum of the [score] weights.
+min_score = 5.0
+
+languages = ["en", "es"]
+
+# Shown when no [[angle]] matches the post.
+default_angle = "No match in the reply bank. Read the thread and answer in your own words, without a pitch."
+
+[exclude]
+# These become search operators, so X never returns the posts.
+retweets = true
+replies = true
+terms = ["giveaway", "giveaways"]
+# These run on the results.
+cashtag_only = true
+min_followers = 200
+
+[score]
+recency = 3.0
+followers = 2.0
+question = 1.5
+no_link = 1.5
+keyword = 2.0
+# A post loses its recency points evenly over this many minutes.
+recency_minutes = 120
+# An author inside this follower band earns the followers points.
+follower_min = 500
+follower_max = 200000
+
+# One X search per rule. The weight, from 0 to 1, scales the keyword points.
+[[rule]]
+name = "group chat investing"
+query = '"group chat" (stocks OR invest OR portfolio)'
+weight = 1.0
+
+[[rule]]
+name = "investment club"
+query = '"investment club"'
+weight = 0.9
+
+[[rule]]
+name = "tokenized stocks"
+query = '"tokenized stocks"'
+weight = 0.8
+
+[[rule]]
+name = "xStocks"
+query = '"xStocks"'
+weight = 0.7
+
+[[rule]]
+name = "FOMO app"
+query = '"FOMO app"'
+weight = 0.8
+
+[[rule]]
+name = "memecoin loss"
+query = 'lost memecoin'
+weight = 0.6
+
+[[rule]]
+name = "Robinhood Social"
+query = '"Robinhood Social"'
+weight = 0.8
+
+[[rule]]
+name = "copy trading"
+query = '"copy trading"'
+weight = 0.5
+
+[[rule]]
+name = "day trading discord"
+query = '"day trading" discord'
+weight = 0.4
+
+# The reply bank. The first entry whose keywords appear in the post gives the suggested angle.
+[[angle]]
+keywords = ["memecoin", "memecoins", "rekt", "rugged"]
+text = "Rough week, no pitch. Only if the tone allows it: the Recovering Degens vote on one stock a month now."
+
+[[angle]]
+keywords = ["copy trading", "copytrading", "etoro", "fomo app"]
+text = "Copy trading copies one person. A cabal votes. Different thing."
+
+[[angle]]
+keywords = ["hedge fund"]
+text = "It's your friends voting on what to buy, together. The hedge fund is the joke you tell at dinner."
+
+[[angle]]
+keywords = ["who holds", "custody", "custodial"]
+text = "Use the product truth answer on custody, written once with counsel. Do not improvise."
+
+[[angle]]
+keywords = ["in the us", "us persons", "us residents"]
+text = "Use the product truth answer on availability. The first reply is written with counsel."
+
+[[angle]]
+keywords = ["fee", "fees", "commission"]
+text = "Use the product truth answer on fees, with the number."
+
+[[angle]]
+keywords = ["robinhood social", "public.com"]
+text = "A feed of other people's trades is a scoreboard. We built the locker room."
+
+[[angle]]
+keywords = ["group chat"]
+text = "This is the whole product. Pick a cabal: [link]."
