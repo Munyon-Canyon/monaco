@@ -101,6 +101,7 @@ struct MonacoDisclosureStyle: DisclosureGroupStyle {
             if configuration.isExpanded {
                 configuration.content
                     .padding(.horizontal, MonacoTheme.Space.m)
+                    .padding(.bottom, MonacoTheme.Space.m)
                     .environment(\.monacoKeyRowsInset, true)
             }
         }
