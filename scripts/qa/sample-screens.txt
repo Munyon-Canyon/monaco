@@ -44,6 +44,19 @@ home-v3-loss-cabals           -MonacoHomeSample loss -MonacoSampleScroll 0.6
 home-v3-loss-lower            -MonacoHomeSample loss -MonacoSampleScroll 1
 home-v3-loss-ax5              -MonacoHomeSample loss -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityXXXL
 
+balances-ready                -balancesHarness ready
+balances-ready-dark           -balancesHarness ready -AppleInterfaceStyle Dark
+balances-cash-only            -balancesHarness cashOnly
+balances-loading              -balancesHarness loading
+balances-error                -balancesHarness error
+activity-feed-unread          -activityFeedHarness unread
+activity-feed-unread-dark     -activityFeedHarness unread -AppleInterfaceStyle Dark
+activity-feed-read            -activityFeedHarness read
+activity-feed-empty           -activityFeedHarness empty
+activity-feed-loading         -activityFeedHarness loading
+activity-feed-error           -activityFeedHarness error
+activity-feed-live            -activityFeedHarness live
+
 cabals-tab                    -MonacoCabalsTabSample
 
 cabal-leave-member            -MonacoCabalLeaveSample member
