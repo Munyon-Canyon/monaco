@@ -114,3 +114,59 @@ func wantPriceMovePayload(t *testing.T, raw json.RawMessage) {
 		t.Fatalf("payload = %s, want %v", raw, want)
 	}
 }
+
+func TestGetFeed_aPriceMoveCarriesItsFigures(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name      string
+		change    int64
+		prevClose uint64
+		tone      string
+		wantPrev  *int64
+	}{
+		{"up", 1000, 193_100_000, "positive", ptr(int64(193_100_000))},
+		{"down", -850, 193_100_000, "negative", ptr(int64(193_100_000))},
+		{"flat", 0, 212_400_000, "neutral", ptr(int64(212_400_000))},
+		{"no previous close", 1000, 0, "positive", nil},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			r := newProposalRig(t)
+			e := r.moved()
+			e.ChangeBps, e.PrevCloseMicros = c.change, money.MicrosFromUint64(c.prevClose)
+			if err := r.deliverMove(t, e); err != nil {
+				t.Fatal(err)
+			}
+			f := feedFixture{pool: r.pool, gen: r.gen, clock: r.clock}
+			got := f.getFeed(t, ids.NewUserID(r.gen), api.GetFeedParams{Symbol: ptr("aaplx")})
+			if len(got.Items) != 1 {
+				t.Fatalf("items = %+v, want the price move", got.Items)
+			}
+			item := got.Items[0]
+			gotFigures := []any{item.ChangeBps, item.MarkMicros, item.PrevCloseMicros, item.Tone}
+			wantFigures := []any{ptr(c.change), ptr(int64(212_400_000)), c.wantPrev, c.tone}
+			if !reflect.DeepEqual(gotFigures, wantFigures) {
+				t.Fatalf("change, mark, previous close, tone = %v, want %v", gotFigures, wantFigures)
+			}
+		})
+	}
+}
+
+func TestGetFeed_aTradeCarriesNoPriceMoveFigures(t *testing.T) {
+	t.Parallel()
+	r := newProposalRig(t)
+	if err := r.deliverTrade(t, r.confirmed("buy", "proposal")); err != nil {
+		t.Fatal(err)
+	}
+	f := feedFixture{pool: r.pool, gen: r.gen, clock: r.clock}
+	viewer := ids.NewUserID(r.gen)
+	f.membership(t, ids.CabalIDFrom(r.cabal), viewer, true)
+	got := f.getFeed(t, viewer, api.GetFeedParams{Symbol: ptr("aaplx")})
+	if len(got.Items) != 1 || got.Items[0].Kind != "trade" {
+		t.Fatalf("items = %+v, want the trade", got.Items)
+	}
+	if item := got.Items[0]; item.ChangeBps != nil || item.MarkMicros != nil || item.PrevCloseMicros != nil {
+		t.Fatalf("figures = %v %v %v, want all null", item.ChangeBps, item.MarkMicros, item.PrevCloseMicros)
+	}
+}

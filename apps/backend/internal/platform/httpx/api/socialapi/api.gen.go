@@ -663,6 +663,11 @@ type FeedItem struct {
 	// Examples: Alpha Cabal
 	CabalName *string `json:"cabal_name"`
 
+	// ChangeBps A price move's change since the previous close, in signed basis points; 0 for a flat move. Null on every other kind.
+	//
+	// Examples: 1000
+	ChangeBps *int64 `json:"change_bps"`
+
 	// CommentCount The number of comments.
 	//
 	// Examples: 0
@@ -697,6 +702,16 @@ type FeedItem struct {
 	//
 	// Examples: true
 	LikedByMe bool `json:"liked_by_me"`
+
+	// MarkMicros A price move's latest price in USDC micros. Null on every other kind.
+	//
+	// Examples: 212400000
+	MarkMicros *int64 `json:"mark_micros"`
+
+	// PrevCloseMicros A price move's previous close in USDC micros. Null on every other kind and when the move has no previous close.
+	//
+	// Examples: 193100000
+	PrevCloseMicros *int64 `json:"prev_close_micros"`
 
 	// PriceMicros USDC micros per whole token a trade filled at. Null unless the item is a trade.
 	//

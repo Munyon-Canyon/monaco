@@ -8122,7 +8122,7 @@ components:
       type: object
       description: One feed item with its display strings rendered.
       additionalProperties: false
-      required: [id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, actor_name, actor_photo_url, asset_id, symbol, title, detail, body, status, tone, action, usdc_micros, asset_name, token_amount, token_decimals, price_micros, share_of_pot_bps, proposal_id, comment_count, like_count, liked_by_me, return_1m_bps, return_private, created_at, updated_at]
+      required: [id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, actor_name, actor_photo_url, asset_id, symbol, title, detail, body, status, tone, action, usdc_micros, asset_name, token_amount, token_decimals, price_micros, share_of_pot_bps, change_bps, mark_micros, prev_close_micros, proposal_id, comment_count, like_count, liked_by_me, return_1m_bps, return_private, created_at, updated_at]
       properties:
         id: {type: string, format: uuid, description: "The item's id.", examples: ["01920000-0000-7000-8000-000000000007"]}
         kind:
@@ -8197,6 +8197,21 @@ components:
           format: int64
           description: "A proposal's amount as basis points of the cabal pot when it was made. Null on other kinds and on proposals made before this field shipped."
           examples: [1000]
+        change_bps:
+          type: [integer, "null"]
+          format: int64
+          description: "A price move's change since the previous close, in signed basis points; 0 for a flat move. Null on every other kind."
+          examples: [1000]
+        mark_micros:
+          type: [integer, "null"]
+          format: int64
+          description: "A price move's latest price in USDC micros. Null on every other kind."
+          examples: [212400000]
+        prev_close_micros:
+          type: [integer, "null"]
+          format: int64
+          description: "A price move's previous close in USDC micros. Null on every other kind and when the move has no previous close."
+          examples: [193100000]
         proposal_id:
           type: [string, "null"]
           format: uuid

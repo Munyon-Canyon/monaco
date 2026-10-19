@@ -164,8 +164,11 @@ func wireFeedItem(item app.FeedItem) api.FeedItem {
 		PriceMicros: optionalWireAmount(
 			item.PriceMicros.Uint64(),
 		), ShareOfPotBps: optionalWirePositive(item.ShareOfPotBps),
-		ProposalId:   optionalWireID(item.ProposalID),
-		CommentCount: item.CommentCount, LikeCount: item.LikeCount, LikedByMe: item.LikedByMe,
+		ChangeBps:       item.ChangeBps,
+		MarkMicros:      optionalWireAmount(item.MarkMicros.Uint64()),
+		PrevCloseMicros: optionalWireAmount(item.PrevClose.Uint64()),
+		ProposalId:      optionalWireID(item.ProposalID),
+		CommentCount:    item.CommentCount, LikeCount: item.LikeCount, LikedByMe: item.LikedByMe,
 		CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt,
 	}
 }

@@ -65,7 +65,8 @@ func TestGetFeed_pagesNewestFirstWithAnOpaqueCursor(t *testing.T) {
 	first := f.getFeed(t, viewer, api.GetFeedParams{Limit: ptr(1), Sort: ptr(api.GetFeedParamsSort("new"))})
 	want := api.FeedItem{
 		Id: newer, Kind: "price_move", RefType: "asset_price_moves", RefId: move, Symbol: ptr("AAPLx"),
-		Title: "AAPLx is flat today", Tone: "neutral", CreatedAt: f.clock.Now(), UpdatedAt: f.clock.Now(),
+		Title: "AAPLx is flat today", Tone: "neutral", ChangeBps: ptr(int64(0)),
+		CreatedAt: f.clock.Now(), UpdatedAt: f.clock.Now(),
 	}
 	if len(first.Items) != 1 || !reflect.DeepEqual(first.Items[0], want) || first.NextCursor == nil {
 		t.Fatalf("first page = %+v, want [%+v] and a cursor", first, want)
