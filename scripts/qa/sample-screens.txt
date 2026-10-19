@@ -3,11 +3,116 @@
 # `scripts/qa/screens.sh --check` fails when a harness flag or scenario in the app is missing here,
 # and when a line launches a flag or scenario that no harness reads.
 
-design-gallery-primitives     -MonacoDesignGallery -MonacoDesignGalleryTab primitives
-design-gallery-money          -MonacoDesignGallery -MonacoDesignGalleryTab money
-design-gallery-controls       -MonacoDesignGallery -MonacoDesignGalleryTab controls
-design-gallery-toast          -MonacoDesignGallery -MonacoDesignGalleryTab toast
-design-gallery-share-card     -MonacoDesignGallery -MonacoDesignGalleryTab shareCard
+design-gallery-tokens                 -MonacoDesignGallery -MonacoDesignGalleryTab tokens
+design-gallery-tokens-dark            -MonacoDesignGallery -MonacoDesignGalleryTab tokens -MonacoDesignGalleryAppearance dark
+design-gallery-tokens-14              -MonacoDesignGallery -MonacoDesignGalleryTab tokens -MonacoSampleScroll 0.14
+design-gallery-tokens-14-dark         -MonacoDesignGallery -MonacoDesignGalleryTab tokens -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.14
+design-gallery-tokens-29              -MonacoDesignGallery -MonacoDesignGalleryTab tokens -MonacoSampleScroll 0.29
+design-gallery-tokens-29-dark         -MonacoDesignGallery -MonacoDesignGalleryTab tokens -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.29
+design-gallery-tokens-43              -MonacoDesignGallery -MonacoDesignGalleryTab tokens -MonacoSampleScroll 0.43
+design-gallery-tokens-43-dark         -MonacoDesignGallery -MonacoDesignGalleryTab tokens -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.43
+design-gallery-tokens-57              -MonacoDesignGallery -MonacoDesignGalleryTab tokens -MonacoSampleScroll 0.57
+design-gallery-tokens-57-dark         -MonacoDesignGallery -MonacoDesignGalleryTab tokens -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.57
+design-gallery-tokens-71              -MonacoDesignGallery -MonacoDesignGalleryTab tokens -MonacoSampleScroll 0.71
+design-gallery-tokens-71-dark         -MonacoDesignGallery -MonacoDesignGalleryTab tokens -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.71
+design-gallery-tokens-86              -MonacoDesignGallery -MonacoDesignGalleryTab tokens -MonacoSampleScroll 0.86
+design-gallery-tokens-86-dark         -MonacoDesignGallery -MonacoDesignGalleryTab tokens -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.86
+design-gallery-tokens-bottom          -MonacoDesignGallery -MonacoDesignGalleryTab tokens -MonacoSampleScroll bottom
+design-gallery-tokens-bottom-dark     -MonacoDesignGallery -MonacoDesignGalleryTab tokens -MonacoDesignGalleryAppearance dark -MonacoSampleScroll bottom
+design-gallery-type                   -MonacoDesignGallery -MonacoDesignGalleryTab type
+design-gallery-type-dark              -MonacoDesignGallery -MonacoDesignGalleryTab type -MonacoDesignGalleryAppearance dark
+design-gallery-type-bottom            -MonacoDesignGallery -MonacoDesignGalleryTab type -MonacoSampleScroll bottom
+design-gallery-type-bottom-dark       -MonacoDesignGallery -MonacoDesignGalleryTab type -MonacoDesignGalleryAppearance dark -MonacoSampleScroll bottom
+design-gallery-controls               -MonacoDesignGallery -MonacoDesignGalleryTab controls
+design-gallery-controls-dark          -MonacoDesignGallery -MonacoDesignGalleryTab controls -MonacoDesignGalleryAppearance dark
+design-gallery-controls-20            -MonacoDesignGallery -MonacoDesignGalleryTab controls -MonacoSampleScroll 0.2
+design-gallery-controls-20-dark       -MonacoDesignGallery -MonacoDesignGalleryTab controls -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.2
+design-gallery-controls-40            -MonacoDesignGallery -MonacoDesignGalleryTab controls -MonacoSampleScroll 0.4
+design-gallery-controls-40-dark       -MonacoDesignGallery -MonacoDesignGalleryTab controls -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.4
+design-gallery-controls-60            -MonacoDesignGallery -MonacoDesignGalleryTab controls -MonacoSampleScroll 0.6
+design-gallery-controls-60-dark       -MonacoDesignGallery -MonacoDesignGalleryTab controls -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.6
+design-gallery-controls-80            -MonacoDesignGallery -MonacoDesignGalleryTab controls -MonacoSampleScroll 0.8
+design-gallery-controls-80-dark       -MonacoDesignGallery -MonacoDesignGalleryTab controls -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.8
+design-gallery-controls-bottom        -MonacoDesignGallery -MonacoDesignGalleryTab controls -MonacoSampleScroll bottom
+design-gallery-controls-bottom-dark   -MonacoDesignGallery -MonacoDesignGalleryTab controls -MonacoDesignGalleryAppearance dark -MonacoSampleScroll bottom
+design-gallery-chrome                 -MonacoDesignGallery -MonacoDesignGalleryTab chrome
+design-gallery-chrome-dark            -MonacoDesignGallery -MonacoDesignGalleryTab chrome -MonacoDesignGalleryAppearance dark
+design-gallery-chrome-bottom          -MonacoDesignGallery -MonacoDesignGalleryTab chrome -MonacoSampleScroll bottom
+design-gallery-chrome-bottom-dark     -MonacoDesignGallery -MonacoDesignGalleryTab chrome -MonacoDesignGalleryAppearance dark -MonacoSampleScroll bottom
+design-gallery-surfaces               -MonacoDesignGallery -MonacoDesignGalleryTab surfaces
+design-gallery-surfaces-dark          -MonacoDesignGallery -MonacoDesignGalleryTab surfaces -MonacoDesignGalleryAppearance dark
+design-gallery-surfaces-14            -MonacoDesignGallery -MonacoDesignGalleryTab surfaces -MonacoSampleScroll 0.14
+design-gallery-surfaces-14-dark       -MonacoDesignGallery -MonacoDesignGalleryTab surfaces -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.14
+design-gallery-surfaces-29            -MonacoDesignGallery -MonacoDesignGalleryTab surfaces -MonacoSampleScroll 0.29
+design-gallery-surfaces-29-dark       -MonacoDesignGallery -MonacoDesignGalleryTab surfaces -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.29
+design-gallery-surfaces-43            -MonacoDesignGallery -MonacoDesignGalleryTab surfaces -MonacoSampleScroll 0.43
+design-gallery-surfaces-43-dark       -MonacoDesignGallery -MonacoDesignGalleryTab surfaces -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.43
+design-gallery-surfaces-57            -MonacoDesignGallery -MonacoDesignGalleryTab surfaces -MonacoSampleScroll 0.57
+design-gallery-surfaces-57-dark       -MonacoDesignGallery -MonacoDesignGalleryTab surfaces -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.57
+design-gallery-surfaces-71            -MonacoDesignGallery -MonacoDesignGalleryTab surfaces -MonacoSampleScroll 0.71
+design-gallery-surfaces-71-dark       -MonacoDesignGallery -MonacoDesignGalleryTab surfaces -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.71
+design-gallery-surfaces-86            -MonacoDesignGallery -MonacoDesignGalleryTab surfaces -MonacoSampleScroll 0.86
+design-gallery-surfaces-86-dark       -MonacoDesignGallery -MonacoDesignGalleryTab surfaces -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.86
+design-gallery-surfaces-bottom        -MonacoDesignGallery -MonacoDesignGalleryTab surfaces -MonacoSampleScroll bottom
+design-gallery-surfaces-bottom-dark   -MonacoDesignGallery -MonacoDesignGalleryTab surfaces -MonacoDesignGalleryAppearance dark -MonacoSampleScroll bottom
+design-gallery-marks                  -MonacoDesignGallery -MonacoDesignGalleryTab marks
+design-gallery-marks-dark             -MonacoDesignGallery -MonacoDesignGalleryTab marks -MonacoDesignGalleryAppearance dark
+design-gallery-marks-12               -MonacoDesignGallery -MonacoDesignGalleryTab marks -MonacoSampleScroll 0.12
+design-gallery-marks-12-dark          -MonacoDesignGallery -MonacoDesignGalleryTab marks -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.12
+design-gallery-marks-25               -MonacoDesignGallery -MonacoDesignGalleryTab marks -MonacoSampleScroll 0.25
+design-gallery-marks-25-dark          -MonacoDesignGallery -MonacoDesignGalleryTab marks -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.25
+design-gallery-marks-38               -MonacoDesignGallery -MonacoDesignGalleryTab marks -MonacoSampleScroll 0.38
+design-gallery-marks-38-dark          -MonacoDesignGallery -MonacoDesignGalleryTab marks -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.38
+design-gallery-marks-50               -MonacoDesignGallery -MonacoDesignGalleryTab marks -MonacoSampleScroll 0.5
+design-gallery-marks-50-dark          -MonacoDesignGallery -MonacoDesignGalleryTab marks -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.5
+design-gallery-marks-62               -MonacoDesignGallery -MonacoDesignGalleryTab marks -MonacoSampleScroll 0.62
+design-gallery-marks-62-dark          -MonacoDesignGallery -MonacoDesignGalleryTab marks -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.62
+design-gallery-marks-75               -MonacoDesignGallery -MonacoDesignGalleryTab marks -MonacoSampleScroll 0.75
+design-gallery-marks-75-dark          -MonacoDesignGallery -MonacoDesignGalleryTab marks -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.75
+design-gallery-marks-88               -MonacoDesignGallery -MonacoDesignGalleryTab marks -MonacoSampleScroll 0.88
+design-gallery-marks-88-dark          -MonacoDesignGallery -MonacoDesignGalleryTab marks -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.88
+design-gallery-marks-bottom           -MonacoDesignGallery -MonacoDesignGalleryTab marks -MonacoSampleScroll bottom
+design-gallery-marks-bottom-dark      -MonacoDesignGallery -MonacoDesignGalleryTab marks -MonacoDesignGalleryAppearance dark -MonacoSampleScroll bottom
+design-gallery-charts                 -MonacoDesignGallery -MonacoDesignGalleryTab charts
+design-gallery-charts-dark            -MonacoDesignGallery -MonacoDesignGalleryTab charts -MonacoDesignGalleryAppearance dark
+design-gallery-charts-25              -MonacoDesignGallery -MonacoDesignGalleryTab charts -MonacoSampleScroll 0.25
+design-gallery-charts-25-dark         -MonacoDesignGallery -MonacoDesignGalleryTab charts -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.25
+design-gallery-charts-50              -MonacoDesignGallery -MonacoDesignGalleryTab charts -MonacoSampleScroll 0.5
+design-gallery-charts-50-dark         -MonacoDesignGallery -MonacoDesignGalleryTab charts -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.5
+design-gallery-charts-75              -MonacoDesignGallery -MonacoDesignGalleryTab charts -MonacoSampleScroll 0.75
+design-gallery-charts-75-dark         -MonacoDesignGallery -MonacoDesignGalleryTab charts -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.75
+design-gallery-charts-bottom          -MonacoDesignGallery -MonacoDesignGalleryTab charts -MonacoSampleScroll bottom
+design-gallery-charts-bottom-dark     -MonacoDesignGallery -MonacoDesignGalleryTab charts -MonacoDesignGalleryAppearance dark -MonacoSampleScroll bottom
+design-gallery-cards                  -MonacoDesignGallery -MonacoDesignGalleryTab cards
+design-gallery-cards-dark             -MonacoDesignGallery -MonacoDesignGalleryTab cards -MonacoDesignGalleryAppearance dark
+design-gallery-cards-14               -MonacoDesignGallery -MonacoDesignGalleryTab cards -MonacoSampleScroll 0.14
+design-gallery-cards-14-dark          -MonacoDesignGallery -MonacoDesignGalleryTab cards -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.14
+design-gallery-cards-29               -MonacoDesignGallery -MonacoDesignGalleryTab cards -MonacoSampleScroll 0.29
+design-gallery-cards-29-dark          -MonacoDesignGallery -MonacoDesignGalleryTab cards -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.29
+design-gallery-cards-43               -MonacoDesignGallery -MonacoDesignGalleryTab cards -MonacoSampleScroll 0.43
+design-gallery-cards-43-dark          -MonacoDesignGallery -MonacoDesignGalleryTab cards -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.43
+design-gallery-cards-57               -MonacoDesignGallery -MonacoDesignGalleryTab cards -MonacoSampleScroll 0.57
+design-gallery-cards-57-dark          -MonacoDesignGallery -MonacoDesignGalleryTab cards -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.57
+design-gallery-cards-71               -MonacoDesignGallery -MonacoDesignGalleryTab cards -MonacoSampleScroll 0.71
+design-gallery-cards-71-dark          -MonacoDesignGallery -MonacoDesignGalleryTab cards -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.71
+design-gallery-cards-86               -MonacoDesignGallery -MonacoDesignGalleryTab cards -MonacoSampleScroll 0.86
+design-gallery-cards-86-dark          -MonacoDesignGallery -MonacoDesignGalleryTab cards -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.86
+design-gallery-cards-bottom           -MonacoDesignGallery -MonacoDesignGalleryTab cards -MonacoSampleScroll bottom
+design-gallery-cards-bottom-dark      -MonacoDesignGallery -MonacoDesignGalleryTab cards -MonacoDesignGalleryAppearance dark -MonacoSampleScroll bottom
+design-gallery-money                  -MonacoDesignGallery -MonacoDesignGalleryTab money
+design-gallery-money-dark             -MonacoDesignGallery -MonacoDesignGalleryTab money -MonacoDesignGalleryAppearance dark
+design-gallery-money-bottom           -MonacoDesignGallery -MonacoDesignGalleryTab money -MonacoSampleScroll bottom
+design-gallery-money-bottom-dark      -MonacoDesignGallery -MonacoDesignGalleryTab money -MonacoDesignGalleryAppearance dark -MonacoSampleScroll bottom
+design-gallery-toast                  -MonacoDesignGallery -MonacoDesignGalleryTab toast
+design-gallery-toast-dark             -MonacoDesignGallery -MonacoDesignGalleryTab toast -MonacoDesignGalleryAppearance dark
+design-gallery-toast-bottom           -MonacoDesignGallery -MonacoDesignGalleryTab toast -MonacoSampleScroll bottom
+design-gallery-toast-bottom-dark      -MonacoDesignGallery -MonacoDesignGalleryTab toast -MonacoDesignGalleryAppearance dark -MonacoSampleScroll bottom
+design-gallery-share-card             -MonacoDesignGallery -MonacoDesignGalleryTab shareCard
+design-gallery-share-card-dark        -MonacoDesignGallery -MonacoDesignGalleryTab shareCard -MonacoDesignGalleryAppearance dark
+design-gallery-share-card-50          -MonacoDesignGallery -MonacoDesignGalleryTab shareCard -MonacoSampleScroll 0.5
+design-gallery-share-card-50-dark     -MonacoDesignGallery -MonacoDesignGalleryTab shareCard -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.5
+design-gallery-share-card-bottom      -MonacoDesignGallery -MonacoDesignGalleryTab shareCard -MonacoSampleScroll bottom
+design-gallery-share-card-bottom-dark -MonacoDesignGallery -MonacoDesignGalleryTab shareCard -MonacoDesignGalleryAppearance dark -MonacoSampleScroll bottom
 
 share-card-cabal-gain         -MonacoShareCardSample cabalGain
 share-card-cabal-loss         -MonacoShareCardSample cabalLoss
