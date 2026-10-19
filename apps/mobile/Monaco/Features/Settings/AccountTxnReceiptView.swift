@@ -1,3 +1,4 @@
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -12,44 +13,75 @@ nonisolated struct AccountTxnReceiptRoute: AppRoute {
 struct AccountTxnReceiptView: View {
     let row: AccountActivityRow
 
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(\.dismiss) private var dismiss
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
-                Text(row.amount)
-                    .moneyFont(.large)
-                    .foregroundStyle(MonacoTheme.ink)
-                    .lineLimit(1)
-                    .minimumScaleFactor(MoneyStyle.large.minimumScaleFactor)
-                    .padding(.horizontal, MonacoTheme.Space.gutter)
-                    .accessibilityIdentifier("account-txn-receipt-amount")
-                MonacoGroupedList {
-                    ReceiptLine(label: "Status", value: .words(row.status.receiptLabel))
-                        .accessibilityIdentifier("account-txn-receipt-status")
-                    ReceiptLine(
-                        label: "When", value: .data(row.fullDate), isLast: row.cabal == nil && row.solscanURL == nil
-                    )
-                    .accessibilityIdentifier("account-txn-receipt-time")
-                    if let cabal = row.cabal {
-                        cabalRow(cabal)
-                    }
-                    if let url = row.solscanURL {
-                        SolscanLinkRow(url: url, identifier: "account-txn-receipt-solscan")
-                    }
-                }
-            }
-            .padding(.top, MonacoTheme.Space.m)
-        }
-        .monacoCanvas()
-        .navigationTitle(row.title)
-        .navigationBarTitleDisplayMode(.inline)
+        ReceiptView(ReceiptContent(row), openAccountActivity: openAccountActivity)
     }
 
-    private func cabalRow(_ cabal: AccountActivityRow.Cabal) -> some View {
-        NavigationLink(value: AnyAppRoute(CabalRoute(id: cabal.id))) {
-            ReceiptLine(label: "Cabal", value: .words(cabal.name), isLast: row.solscanURL == nil)
-                .contentShape(Rectangle())
+    private func openAccountActivity() {
+        let navigator = environment.navigator
+        if navigator.path(for: navigator.selectedTab).contains(AnyAppRoute(AccountActivityRoute())) {
+            dismiss()
+        } else {
+            navigator.open(AccountActivityRoute(), in: navigator.selectedTab)
         }
-        .buttonStyle(.monacoRow)
-        .accessibilityIdentifier("account-txn-receipt-cabal")
     }
 }
+
+#if DEBUG
+final class ReceiptSampleHarnessEntry: SampleHarnessEntry {
+    @MainActor
+    override class func root(arguments: [String], auth _: PrivyAuthService) -> AnyView? {
+        guard let flag = arguments.firstIndex(of: "-receiptHarness") else { return nil }
+        let mode = arguments.indices.contains(flag + 1) ? arguments[flag + 1] : "completed"
+        return AnyView(ReceiptHarnessScreen(mode: mode))
+    }
+}
+
+private struct ReceiptHarnessScreen: View {
+    let mode: String
+
+    @State private var path: [AnyAppRoute] = []
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            screen
+                .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
+        }
+    }
+
+    @ViewBuilder private var screen: some View {
+        switch mode {
+        case "error":
+            ReceiptView(phase: .failed, reload: {})
+        case "loading":
+            ReceiptView(phase: .loading, reload: {})
+        case "trade":
+            ReceiptView(.sampleTrade(status: .completed))
+        case "trade-pending":
+            ReceiptView(.sampleTrade(status: .pending))
+        case "pending":
+            ReceiptView(sample(.pending))
+        case "failed":
+            ReceiptView(sample(.failed))
+        case "unknown":
+            ReceiptView(sample(.settled).with(status: .unknown))
+        default:
+            ReceiptView(sample(.settled))
+        }
+    }
+
+    private func sample(_ status: Components.Schemas.UserTxn.StatusPayload) -> ReceiptContent {
+        let created = Date(timeIntervalSince1970: 1_790_996_400)
+        let txn = Components.Schemas.UserTxn(
+            id: "01890a5d-ac96-774b-bcce-b302099a8001", kind: .deposit, status: status, usdcMicros: "100000000",
+            cabal: nil, txSignature: status == .pending ? nil : "sample-signature-1", createdAt: created)
+        guard let row = try? AccountActivityRow(txn, now: created) else {
+            return ReceiptContent.sampleTrade(status: .unknown)
+        }
+        return ReceiptContent(row)
+    }
+}
+#endif

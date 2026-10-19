@@ -281,3 +281,18 @@ flow-20a-rate-limited         -MonacoFlow 20a rateLimited
 flow-20a-unauthorized         -MonacoFlow 20a unauthorized
 flow-20a-interrupted          -MonacoFlow 20a interrupted
 # END generated flow scenarios
+account-activity-ready        -accountActivityHarness ready
+account-activity-pending      -accountActivityHarness pending
+account-activity-empty        -accountActivityHarness empty
+account-activity-loading      -accountActivityHarness loading
+account-activity-error        -accountActivityHarness error
+receipt-completed             -receiptHarness completed
+receipt-trade                 -receiptHarness trade
+receipt-pending               -receiptHarness pending
+receipt-failed                -receiptHarness failed
+receipt-unknown               -receiptHarness unknown
+receipt-error                 -receiptHarness error
+group-cash-ready              -groupCashHarness ready
+group-cash-unavailable        -groupCashHarness unavailable
+group-cash-loading            -groupCashHarness loading
+group-cash-error              -groupCashHarness error
