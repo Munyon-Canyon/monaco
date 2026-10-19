@@ -102,19 +102,34 @@ struct AccountActivityList: View {
                 .foregroundStyle(MonacoTheme.ink)
                 .accessibilityAddTraits(.isHeader)
             MonacoSegmented(
-                [AccountActivityModel.Filter.all, .pending],
-                selection: Binding(
-                    get: { model?.filter ?? .all },
-                    set: { selected in
-                        model?.filter = selected
-                        Task { await model?.fillFilter() }
-                    }),
-                identifier: { $0 == .all ? "account-activity-filter-all" : "account-activity-filter-pending" }
-            ) { $0 == .all ? "All" : "Pending" }
+                filterOptions,
+                selection: filterSelection,
+                identifier: filterIdentifier,
+                label: filterLabel
+            )
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.top, MonacoTheme.Space.m)
         .padding(.bottom, MonacoTheme.Space.l)
+    }
+
+    private var filterOptions: [AccountActivityModel.Filter] { [.all, .pending] }
+
+    private var filterSelection: Binding<AccountActivityModel.Filter> {
+        Binding(
+            get: { model?.filter ?? .all },
+            set: { selected in
+                model?.filter = selected
+                Task { await model?.fillFilter() }
+            })
+    }
+
+    private func filterIdentifier(_ filter: AccountActivityModel.Filter) -> String {
+        filter == .all ? "account-activity-filter-all" : "account-activity-filter-pending"
+    }
+
+    private func filterLabel(_ filter: AccountActivityModel.Filter) -> String {
+        filter == .all ? "All" : "Pending"
     }
 
     @ViewBuilder private var list: some View {
