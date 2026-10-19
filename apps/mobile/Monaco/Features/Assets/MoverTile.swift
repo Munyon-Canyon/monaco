@@ -18,11 +18,14 @@ struct MoverTile: View {
 
     private var name: String { AssetDisplayName.format(catalogName: asset.name, kind: asset.kind) }
 
+    private var volumeText: String? { asset.volume24hMicros.map(UsdAmountFormatter.compact(micros:)) }
+
     private var spokenLabel: String {
         let change = asset.changeBasisPoints.map {
             PnLSpeech.percent(PercentFormatter.format(basisPoints: $0, signed: true))
         }
-        return "\(name), \(asset.ticker), 24 hour price change \(change ?? "unavailable"), volume opens soon"
+        let volume = volumeText ?? "unavailable"
+        return "\(name), \(asset.ticker), 24 hour price change \(change ?? "unavailable"), 24 hour volume \(volume)"
     }
 
     var body: some View {
@@ -41,7 +44,7 @@ struct MoverTile: View {
             HStack {
                 Text("24h volume").font(MonacoTheme.Typo.caption).foregroundStyle(MonacoTheme.secondaryText)
                 Spacer(minLength: MonacoTheme.Space.xs)
-                MonacoOpensSoon()
+                Text(volumeText ?? "—").font(MonacoTheme.Typo.caption).foregroundStyle(MonacoTheme.secondaryText)
             }
         }
         .padding(MonacoTheme.Space.m)

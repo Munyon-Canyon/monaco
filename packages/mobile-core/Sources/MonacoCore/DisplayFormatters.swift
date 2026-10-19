@@ -394,6 +394,13 @@ public enum TokenQuantityFormatter {
 }
 
 extension UsdAmountFormatter {
+    public static func compact(micros: Int64) -> String {
+        let sign = micros < 0 ? "-" : ""
+        let magnitude = micros.magnitude
+        let fraction = String(format: "%06llu", magnitude % 1_000_000)
+        return compact(decimalString: "\(sign)\(magnitude / 1_000_000).\(fraction)")
+    }
+
     /// "$124.5K" / "$1.2M" at ≥ $100,000 (strip cards); below that, the full "$12,431.80".
     public static func compact(decimalString: String) -> String {
         let posix = Locale(identifier: "en_US_POSIX")

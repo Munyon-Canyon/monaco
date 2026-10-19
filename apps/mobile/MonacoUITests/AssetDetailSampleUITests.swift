@@ -173,7 +173,7 @@ nonisolated final class AssetDetailSampleUITests: XCTestCase {
         waitForScreen(app, "open")
 
         scrollTo(app, app.staticTexts["Market stats"], "Market stats")
-        scrollTo(app, app.staticTexts["Market cap, volume and supply open soon."], "the opens-soon line")
+        scrollTo(app, app.staticTexts["Market cap and supply open soon."], "the opens-soon line")
         XCTAssertTrue(app.staticTexts["Company profile opens soon."].exists || anyElement(app, "asset-about").exists)
         attachScreenshot(app, name: "stock-stats")
     }

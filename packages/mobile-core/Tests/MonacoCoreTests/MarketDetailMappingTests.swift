@@ -36,6 +36,19 @@ final class MarketDetailMappingTests: XCTestCase {
         XCTAssertEqual(chart.points[0].lowUsdcMicros, 99_000_000)
     }
 
+    func testDetailMapsTheVolumeWhenTheBackendSendsOne() {
+        var wire = Components.Schemas.AssetDetail.googl
+        wire.volume24hMicros = 1_500_000_500_000
+        wire.volume24hAsOf = sampledAt
+
+        XCTAssertEqual(MarketMapping.detail(wire).asset.volume24hMicros, 1_500_000_500_000)
+
+        wire.volume24hMicros = nil
+        wire.volume24hAsOf = nil
+
+        XCTAssertNil(MarketMapping.detail(wire).asset.volume24hMicros)
+    }
+
     func testChartMapsThePreviousCloseWhenTheBackendSendsIt() {
         let chart = MarketMapping.chart(chartWire(previousCloseMicros: 108_000_000))
 
