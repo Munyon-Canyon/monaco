@@ -135,18 +135,24 @@ enum HomeSampleData {
         case .empty:
             return .sampleEmpty
         }
-        let total = values.reduce(0, +)
-        let rows = zip(cabals, zip(values, pnls)).map { cabal, figure in
-            Components.Schemas.PortfolioCabal(
+        let total: Int64 = values.reduce(0, +)
+        let totalPnl: Int64 = pnls.reduce(0, +)
+        let totalNetContributed: Int64 = total - totalPnl
+        let totalReturnBps: Int64? = total == 0 ? nil : totalPnl * 10_000 / max(totalNetContributed, 1)
+        let rows: [Components.Schemas.PortfolioCabal] = zip(cabals, zip(values, pnls)).map { cabal, figure in
+            let value: Int64 = figure.0
+            let pnl: Int64 = figure.1
+            let netContributed: Int64 = value - pnl
+            let returnBps: Int64? = value == 0 ? nil : pnl * 10_000 / max(netContributed, 1)
+            let sliceBps: Int64 = total == 0 ? 0 : value * 10_000 / total
+            return Components.Schemas.PortfolioCabal(
                 cabal: Components.Schemas.CabalRef(id: cabal.id, name: cabal.name, pictureUrl: nil),
-                valueMicros: figure.0, shareUnits: figure.0, netContributedMicros: figure.0 - figure.1,
-                pnlMicros: figure.1, returnBps: figure.0 == 0 ? nil : figure.1 * 10_000 / max(figure.0 - figure.1, 1),
-                sliceBps: total == 0 ? 0 : figure.0 * 10_000 / total)
+                valueMicros: value, shareUnits: value, netContributedMicros: netContributed, pnlMicros: pnl,
+                returnBps: returnBps, sliceBps: sliceBps)
         }
         return Components.Schemas.MyPortfolio(
-            totalValueMicros: total, pnlMicros: pnls.reduce(0, +),
-            returnBps: total == 0 ? nil : pnls.reduce(0, +) * 10_000 / max(total - pnls.reduce(0, +), 1),
-            computedAt: .now, pricesAsOf: .now, cabals: rows)
+            totalValueMicros: total, pnlMicros: totalPnl, returnBps: totalReturnBps, computedAt: .now,
+            pricesAsOf: .now, cabals: rows)
     }
 
     private static func history(_ figures: Figures) -> Components.Schemas.MyPnlHistory {
