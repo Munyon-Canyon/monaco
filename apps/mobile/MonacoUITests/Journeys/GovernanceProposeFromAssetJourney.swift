@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceProposeFromAssetJourney {
     static let id = "governance/propose-from-asset"
-    static let version = 5
+    static let version = 6
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -16,7 +16,7 @@ enum GovernanceProposeFromAssetJourney {
 
         recorder.step("S1.1", "open GOOGL from the Markets tab") {
             app.tab("Markets").tap()
-            let field = app.textFields["Search stocks or tickers"].firstMatch
+            let field = app.textFields["monaco-search-field"].firstMatch
             XCTAssertTrue(field.waitForExistence(timeout: 10), "S1.1: no stock search on the Markets tab")
             field.tap()
             field.typeText("GOOGL")
@@ -35,7 +35,7 @@ enum GovernanceProposeFromAssetJourney {
         recorder.step("S1.2", "pick a cabal") {
             app.scrollIntoReach(app.buttons["asset-detail-propose-buy"])
             app.buttons["asset-detail-propose-buy"].tap()
-            buy.expectTitle(app, "Pick a cabal", step: "S1.2")
+            buy.expectTitle(app, "Choose a cabal", step: "S1.2")
             buy.expectText(app, "Which cabal should buy GOOGL?", step: "S1.2")
         }
 
@@ -44,15 +44,18 @@ enum GovernanceProposeFromAssetJourney {
             app.scrollIntoReach(row)
             XCTAssertTrue(row.waitForExistence(timeout: 10), "S1.3: no \(name) in the picker")
             row.tap()
-            buy.expectTitle(app, "Buy GOOGL", step: "S1.3")
+            buy.expectTitle(app, "Buy Alphabet", step: "S1.3")
+            for chip in ["$25", "$50", "$100", "Max"] {
+                XCTAssertTrue(
+                    app.buttons[chip].firstMatch.waitForExistence(timeout: 10), "S1.3: no \(chip) chip on Amount")
+            }
+            XCTAssertFalse(app.element("monaco-search-field").exists, "S1.3: Amount asks for a stock again")
         }
 
-        recorder.step("S1.4", "review $25 of GOOGL") {
-            buy.review(app, chip: "$25", reads: "Buy $25.00 of GOOGL", step: "S1.4")
-        }
-
-        recorder.step("S1.5", "send to the cabal") {
-            buy.send(app, to: name, step: "S1.5")
+        recorder.step("S1.4", "an amount over the empty pot is refused") {
+            MoneyFundCabalJourney.typeAmount(app, "5")
+            buy.expectLabel(app, "Amount exceeds the cash balance.", step: "S1.4")
+            XCTAssertFalse(app.buttons["propose-amount-review"].isEnabled, "S1.4: Review is enabled over the pot")
         }
     }
 }

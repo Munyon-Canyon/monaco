@@ -14,7 +14,7 @@ members="$(qa_sql -F ' ' -v name="$name" -v a="$a" -v b="$b" <<<"SELECT count(*)
 if [[ "$members" == "0 0" ]]; then
   echo "ok: the run never created $name"
 elif [[ "$members" == "2 2" ]]; then
-  echo "ok: $name has exactly A and B; no chat message table to read until #676"
+  echo "ok: $name has exactly A and B"
 else
   echo "$name members (all, A or B): got '$members', want '2 2'"
   exit 1

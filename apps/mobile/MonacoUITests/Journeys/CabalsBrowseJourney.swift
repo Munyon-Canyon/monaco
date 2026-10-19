@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsBrowseJourney {
     static let id = "cabals/browse"
-    static let version = 5
+    static let version = 6
 
     static let screenTimeout: TimeInterval = 15
 
@@ -82,10 +82,15 @@ enum CabalsBrowseJourney {
             app.scrollIntoReach(board)
             XCTAssertTrue(board.waitForExistence(timeout: screenTimeout), "S3.1: no Cabal leaderboard section")
             XCTAssertTrue(app.staticTexts["Cabal leaderboard"].exists, "S3.1: no Cabal leaderboard header")
-            XCTAssertFalse(
-                app.element("cabals-board-coming").exists,
-                "S3.1: the leaderboard reads Rankings show up here soon. (known failure, #699 and #617)"
+            XCTAssertTrue(app.staticTexts["Public"].exists, "S3.1: the leaderboard is not marked Public")
+            let list = app.element("cabals-board-list")
+            let empty = app.element("cabals-board-empty")
+            XCTAssertNotNil(
+                app.waitForFirst(of: [list, empty], timeout: screenTimeout),
+                "S3.1: the leaderboard shows neither ranked cabals nor the empty state within \(Int(screenTimeout)) s"
             )
+            let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'cabals-board-row-'"))
+            XCTAssertLessThanOrEqual(rows.count, 3, "S3.1: the leaderboard lists more than three rows")
         }
     }
 }

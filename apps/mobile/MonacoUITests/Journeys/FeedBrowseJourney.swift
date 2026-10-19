@@ -16,6 +16,7 @@ enum FeedBrowseJourney {
 
     static func joinedCabal(run: String) -> String { "QA feed \(run)" }
     static func ownCabal(run: String) -> String { "QA own \(run)" }
+    static func thesis(run: String) -> String { "QA proposal \(run)" }
 
     static func text(_ app: XCUIApplication, containing fragment: String) -> XCUIElement {
         app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", fragment)).firstMatch
@@ -119,10 +120,11 @@ enum FeedBrowseJourney {
 
         recorder.step("S2.2", "Following with no follows says how to fix it") {
             XCTAssertTrue(
-                JoinJourney.waitForLabel(
-                    app.element("feed-empty"), containing: "Follow people to see what they do.", timeout: 10),
-                "S2.2: no 'Follow people to see what they do.' within 10 s (known failure, #671)"
+                app.staticTexts["Follow people to see what they do."].firstMatch.waitForExistence(timeout: 10),
+                "S2.2: no 'Follow people to see what they do.' within 10 s"
             )
+            XCTAssertEqual(
+                app.element("feed-find-friends").label, "Find friends", "S2.2: no 'Find friends' under the message")
         }
     }
 
@@ -145,12 +147,15 @@ enum FeedBrowseJourney {
             choose(app, "feed-chip-Cabal activity", "feed-chip-Proposals")
             let cell = app.descendants(matching: .any)
                 .matching(NSPredicate(format: "identifier BEGINSWITH 'feed-cell-'")).firstMatch
-            XCTAssertTrue(
-                cell.waitForExistence(timeout: 15), "S3.2: no proposal cell within 15 s (known failure, #612)")
+            XCTAssertTrue(cell.waitForExistence(timeout: 15), "S3.2: no proposal cell within 15 s")
             cell.tap()
             XCTAssertTrue(
-                app.element("proposal-detail").waitForExistence(timeout: 15),
-                "S3.2: the proposal did not open within 15 s (known failure, #612)"
+                app.element("proposal-votes").waitForExistence(timeout: 15),
+                "S3.2: the proposal did not open within 15 s"
+            )
+            XCTAssertTrue(
+                text(app, containing: thesis(run: run)).waitForExistence(timeout: 10),
+                "S3.2: the proposal does not read '\(thesis(run: run))'"
             )
         }
 

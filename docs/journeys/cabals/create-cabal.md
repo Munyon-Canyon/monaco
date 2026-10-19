@@ -1,7 +1,7 @@
 ---
 id: cabals/create-cabal
 title: Create a cabal
-version: 10
+version: 11
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/CreateCabalJourney.swift, apps/mob
 
 # Create a cabal
 
-A signed-in member opens the Cabals tab, starts a cabal with a name, an optional cover and three rules, and lands on the new cabal's screen. A friend then finds a new cabal by name and asks to join, and the creator sees them on the member board. The rules are [Cabals](../../architecture/cabals.md#rules). The copy is [Start a cabal](../../screens.md#cabals-tab) in `screens.md`; B finds the cabal on Discover cabals, which the same section describes.
+A signed-in member opens the Cabals tab, starts a cabal with a name, an optional cover and three rules, and lands on the new cabal's screen. A friend then finds a new cabal by name and asks to join, and the creator sees them on Members & voters. The rules are [Cabals](../../architecture/cabals.md#rules). The copy is [Start a cabal](../../screens.md#cabals-tab) in `screens.md`; B finds the cabal on Discover cabals, which the same section describes.
 
 The old app (`c838bd24`) took the same path: the Cabals tab "+" (`Groups/CabalsTabView.swift`) opened the New cabal sheet, "Start a cabal" pushed `Groups/CreateGroupView.swift` with the name and the rules, and Create pushed `GroupDetailView` with the toast. On staging the "+" pushes the form directly (the sheet is gone) and the form is `CreateCabalRoute`, which draws the UI v3 `CreateGroupView`. Each Expect cell ends with the old-app tap it matches.
 
@@ -44,11 +44,11 @@ Starts on the form (S1).
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
 | S2.1 | type | `create-group-name` | `QA pot <run>`, where `<run>` makes the name unique to the run | `create-group-submit` ("Create cabal") is enabled. Old app: the "Cabal name" field in `CreateGroupView` |
-| S2.2 | tap | "People I pick" in `create-rule-voters`, "1 hour" in `create-rule-expiry` | | Each choice is selected. Old app: the four segmented rules in `CreateGroupView` |
+| S2.2 | tap | "Approval required" in `create-rule-join`, "People I pick" in `create-rule-voters`, "1 hour" in `create-rule-expiry` | | Each choice is selected. The journey picks the join rule itself, so it does not depend on which choice the form starts on. Old app: the four segmented rules in `CreateGroupView` |
 | S2.3 | tap twice | `create-group-submit` | | The cabal screen shows within 20 s: `cabal-header-name` is the typed name, and the form is gone. The second tap proves "Creating…" holds off a duplicate. Old app: Create pushed `GroupDetailView` |
 | S2.4 | wait | the toast | | "Cabal created." shows within 20 s of the S2.3 tap, read while the cabal screen loads because the toast stays up 2.5 s. Old app: the same toast over `GroupDetailView` |
 | S2.5 | wait | `cabal-member-count` | | Reads "1 member", the `CabalHeaderSlot` count. Old app: the member count on `GroupDetailView`'s header |
-| S2.6 | tap | Back | | Once the toast goes, the push pre-prompt (`push-pre-prompt`) is answered "Not now" if it shows.  The Cabals tab shows `cabals-list` ("Your cabals") within 10 s, and exactly one `cabals-list-card-<id>` in it is named the typed name. Old app: Back to `CabalsTabView`'s cabals strip |
+| S2.6 | tap | Back | | Once the toast goes, the push pre-prompt (`push-pre-prompt`) is answered "Not now" if it shows.  The Cabals tab shows `cabals-list` ("Your cabals") within 10 s, and exactly one `cabal-cover-card-<id>` button in it is named the typed name. Old app: Back to `CabalsTabView`'s cabals strip |
 
 ### S3 A blank name cannot be submitted
 
@@ -61,15 +61,15 @@ Starts on the form (S1).
 
 ### S4 A friend asks to join
 
-A creates a cabal, B finds it by name and asks to join, A approves, and A finds B on the member board.
+A creates a cabal, B finds it by name and asks to join, A approves, and A finds B on Members & voters.
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S4.1 | A | tap | the Cabals tab, then `cabals-new-button` | | "Start a cabal" shows `create-group-name` within 10 s. Old app: Cabals "+", then "Start a cabal" pushed `CreateGroupView` |
-| S4.2 | A | type, tap, then tap | `create-group-name`, then `create-group-submit` | `QA duo {QA.run}` | `cabal-header-name` reads `QA duo {QA.run}` within 20 s, and the toast "Cabal created." shows within 20 s of the tap, read first because it stays up 2.5 s. Old app: Create in `CreateGroupView` pushed `GroupDetailView` |
+| S4.2 | A | type, tap "Approval required" in `create-rule-join`, then tap | `create-group-name`, then `create-group-submit` | `QA duo {QA.run}` | `cabal-header-name` reads `QA duo {QA.run}` within 20 s, and the toast "Cabal created." shows within 20 s of the tap, read first because it stays up 2.5 s. Old app: Create in `CreateGroupView` pushed `GroupDetailView` |
 | S4.3 | B | tap, type, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA duo {QA.run}` | `cabal-header-name` reads `QA duo {QA.run}` and `cabal-join-button` shows within 15 s. screens.md: `CabalJoinSlot`, "Request to join" |
 | S4.4 | B | tap | `cabal-join-button` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s, and `cabal-join-requested` reads "Request pending" within 15 s. B is not a member yet. |
-| S4.5 | A | tap, type, tap, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, the `cabals-search-result-<id>`, `cabal-join-requests-heading`, `cabal-join-review`, then `cabal-join-approve` in the dialog | `QA duo {QA.run}` | After the back button `cabal-member-count` reads "2 members" within 15 s, and a `cabal-member-<id>` row on the "Member standings" (`CabalMemberBoardSlot`) names B within 15 s. Old app: `GroupDetailView`'s `MemberBoardSection` |
+| S4.5 | A | tap, type, tap, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, the `cabals-search-result-<id>`, `cabal-join-requests-heading`, `cabal-join-review`, then `cabal-join-approve` in the dialog | `QA duo {QA.run}` | The toast "Approved." shows and `members-requests-empty` shows. Then tapping `members-tab-members` lists a `members-list` row that names B within 15 s, and after the back button `cabal-member-count` reads "2 members" within 15 s. The cabal screen's "Member standings" (`CabalMemberBoardSlot`) is not used: it stays hidden while the pot has no stake. Old app: `GroupDetailView`'s `MemberBoardSection` |
 
 ## Ground truth
 

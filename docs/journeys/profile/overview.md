@@ -1,7 +1,7 @@
 ---
 id: profile/overview
 title: Your profile
-version: 6
+version: 7
 milestone: M9
 requires: [auth/sign-in]
 actors: [A]
@@ -85,12 +85,12 @@ Starts signed in (auth/sign-in).
 
 ### S7 Totals and pot values
 
-Starts signed in (auth/sign-in). Every step here fails on staging until the routes land (Known failures).
+Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S7.1 | tap | the Profile tab | | Within 15 s, `profile-stat-in-cabals` and `profile-stat-return` read a figure, not "Not available yet", and `profile-stats-coming` does not show | The old header's portfolio total |
-| S7.2 | scroll to | `cabal-row-{cabalID}` | | The row shows the cabal's value, and `profile-cabals-coming` ("Pot values show up here soon.") does not show | `ProfileCabalsSection` row value |
+| S7.1 | tap | the Profile tab | | Within 15 s, `profile-stat-in-cabals` ("Positions value") and `profile-stat-return` ("Total P&L · All time") read a figure, not "loading" or "unavailable": "Positions value" in dollars | The old header's portfolio total |
+| S7.2 | scroll to | `cabal-cover-card-{cabalID}` | | The card reads a share in dollars ("your share $") and does not read "no share" | `ProfileCabalsSection` row value |
 
 ## Ground truth
 
@@ -98,10 +98,7 @@ Signing out ends the session the run opened, and nothing on A's account changes.
 
 ## Known failures on staging
 
-| Step | What fails | Blocked by |
-| --- | --- | --- |
-| S7.1 | "In cabals" and "Return" show "—" with "Your totals show up here soon.", because no route serves the member's totals | #2140 |
-| S7.2 | Your cabals rows show no value, with "Pot values show up here soon.", because no route serves the pot or the member's slice | #2140, #2136 |
+None known.
 
 ## Not covered
 

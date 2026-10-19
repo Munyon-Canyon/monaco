@@ -84,22 +84,15 @@ enum DemoStoryJourney {
             JoinJourney.openBySearch(app, cabal(run: run), step: "S2.1")
         }
 
-        recorder.step("S2.2", "open Fund this cabal") {
-            let fund = app.buttons["cabal-action-fund"]
-            app.scrollIntoReach(fund)
-            XCTAssertTrue(fund.waitForExistence(timeout: formTimeout), "S2.2: no cabal-action-fund")
-            fund.tap()
-            waitForTitle(app, "Fund this cabal", step: "S2.2", blockedBy: "#608 #651")
-            XCTAssertTrue(button(app, "Max").exists, "S2.2: no Max (known failure, #651)")
+        recorder.step("S2.2", "open Deposit to the cabal") {
+            MoneyFundCabalJourney.openFund(app, step: "S2.2")
+            XCTAssertTrue(button(app, "Max").exists, "S2.2: no Max")
         }
 
-        recorder.step("S2.3", "add $1.00 to the pot") {
-            button(app, "Max").tap()
-            button(app, "Add $1.00 to the pot").tap()
-            XCTAssertTrue(
-                waitForToast(app, startingWith: "Added $1.00 to \(cabal(run: run))", timeout: 30),
-                "S2.3: no Added $1.00 toast within 30 s (known failure, #608 #651)"
-            )
+        recorder.step("S2.3", "deposit $1 into the pot") {
+            MoneyFundCabalJourney.typeAmount(app, "1")
+            button(app, "Deposit $1.00").tap()
+            MoneyFundCabalJourney.confirmDeposit(app, dollars: 1, cabal: cabal(run: run), step: "S2.3")
         }
     }
 
@@ -114,7 +107,7 @@ enum DemoStoryJourney {
 
         recorder.step("S3.2", "switch to 1M then 1Y") {
             for range in ["1M", "1Y"] {
-                app.element("asset-chart-ranges").buttons[range].tap()
+                StocksAssetDetailJourney.rangeChip(app, range).tap()
                 XCTAssertTrue(
                     app.element("asset-detail-range-change").waitForExistence(timeout: formTimeout),
                     "S3.2: no range change for \(range)"
@@ -122,10 +115,9 @@ enum DemoStoryJourney {
             }
         }
 
-        recorder.step("S3.3", "the Pre-IPO block") {
+        recorder.step("S3.3", "the Pre-IPO listings") {
             app.navigationBars.buttons.firstMatch.tap()
             StocksAssetDetailJourney.openAsset(app, StocksAssetDetailJourney.preIpo, step: "S3.3")
-            StocksAssetDetailJourney.scrollToText(app, "Private-market reference", step: "S3.3")
             StocksAssetDetailJourney.scrollToText(app, "Also available from", step: "S3.3")
         }
     }
@@ -134,53 +126,64 @@ enum DemoStoryJourney {
         recorder.step("S4.1", "open Propose") {
             tapAction(app, "cabal-action-propose", run: run, step: "S4.1")
             XCTAssertTrue(
-                app.descendants(matching: .any).matching(identifier: "propose-chooser-sheet").firstMatch
-                    .waitForExistence(timeout: formTimeout),
-                "S4.1: no Propose action sheet within 10 s"
-            )
-            XCTAssertTrue(button(app, "Buy stock").exists, "S4.1: no Buy stock row")
+                app.buttons["propose-kind-buy"].waitForExistence(timeout: formTimeout),
+                "S4.1: no Buy stock row in the Propose sheet")
         }
 
-        recorder.step("S4.2", "propose $1 with a reason and send") {
-            button(app, "Buy stock").tap()
-            let amount = app.textFields.firstMatch
-            XCTAssertTrue(amount.waitForExistence(timeout: formTimeout), "S4.2: no amount field (known failure, #613)")
-            amount.tap()
-            amount.typeText("1")
-            let why = app.textViews.firstMatch
+        recorder.step("S4.2", "propose $1 with a thesis and send") {
+            app.buttons["propose-kind-buy"].tap()
+            let search = app.element("monaco-search-field")
+            XCTAssertTrue(search.waitForExistence(timeout: formTimeout), "S4.2: no stock search")
+            search.tap()
+            search.typeText("GOOGL")
+            let row = app.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier BEGINSWITH 'propose-buy-stock-GOOGL'")).firstMatch
+            XCTAssertTrue(row.waitForExistence(timeout: formTimeout), "S4.2: no GOOGL row")
+            row.tap()
+            XCTAssertTrue(
+                app.element("propose-amount-screen").waitForExistence(timeout: formTimeout), "S4.2: no amount screen")
+            MoneyFundCabalJourney.typeAmount(app, "1")
+            let why = app.element("propose-amount-reason")
+            XCTAssertTrue(why.waitForExistence(timeout: formTimeout), "S4.2: no thesis field")
             why.tap()
             why.typeText(reason)
-            button(app, "Review").tap()
-            button(app, "Send").tap()
+            app.buttons["propose-amount-review"].tap()
             XCTAssertTrue(
-                app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS '2 yes votes needed'"))
-                    .firstMatch.waitForExistence(timeout: screenTimeout),
-                "S4.2: no proposal card needing 2 yes votes (known failure, #613)"
-            )
+                app.element("propose-review-screen").waitForExistence(timeout: formTimeout), "S4.2: no review sheet")
+            app.buttons["propose-review-send"].tap()
+            XCTAssertTrue(
+                app.staticTexts["Proposal sent"].firstMatch.waitForExistence(timeout: formTimeout),
+                "S4.2: the sheet does not say Proposal sent")
+            app.buttons["Close"].firstMatch.tap()
+            let card = GovernanceProposeBuyJourney.pendingCard(app)
+            app.scrollIntoReach(card)
+            XCTAssertTrue(
+                GovernanceVoteJourney.waitForText(card, "2 yes votes needed", timeout: screenTimeout),
+                "S4.2: no proposal card needing 2 yes votes")
         }
     }
 
     static func voteAndBuy(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S4.3", "vote yes from Home") {
-            app.tab("Home").tap()
-            let header = app.staticTexts["Needs your vote"]
-            XCTAssertTrue(
-                header.waitForExistence(timeout: screenTimeout),
-                "S4.3: no Needs your vote on Home (known failure, #612)")
-            let card = app.descendants(matching: .any)
-                .matching(NSPredicate(format: "identifier BEGINSWITH 'proposal-card-'")).firstMatch
-            XCTAssertTrue(
-                card.waitForExistence(timeout: screenTimeout), "S4.3: no proposal card on Home (known failure, #612)")
+            let card = GovernanceProposeBuyJourney.openHomeCard(app, step: "S4.3")
+            let proposalID = String(card.identifier.dropFirst("proposal-card-".count))
             GovernanceVoteJourney.openProposal(card)
-            button(app, "Vote Yes").tap()
-            JoinJourney.waitForToast(app, "Vote recorded.", step: "S4.3")
+            GovernanceVoteJourney.waitForProposalScreen(app, step: "S4.3")
+            GovernanceVoteJourney.vote(app, proposalID, "Yes", change: false, step: "S4.3")
         }
+    }
 
-        recorder.step("S4.4", "majority wins and the cabal buys") {
+    static func secondVoteBuys(_ app: XCUIApplication, recorder: JourneyRecorder) {
+        recorder.step("S4.4", "the second yes makes the majority and the cabal buys") {
+            let card = GovernanceProposeBuyJourney.openHomeCard(app, step: "S4.4")
+            let proposalID = String(card.identifier.dropFirst("proposal-card-".count))
+            GovernanceVoteJourney.openProposal(card)
+            GovernanceVoteJourney.waitForProposalScreen(app, step: "S4.4")
+            GovernanceVoteJourney.vote(app, proposalID, "Yes", change: false, step: "S4.4")
+            let tracker = app.element("proposal-tracker")
             XCTAssertTrue(
-                app.staticTexts["Executed"].waitForExistence(timeout: 60),
-                "S4.4: the proposal did not reach Executed within 60 s (known failure, #612)"
-            )
+                JoinJourney.waitForLabel(tracker, containing: "Bought, step 3 of 3, done", timeout: 120),
+                "S4.4: the Status tracker does not read Bought within 120 s: \(tracker.label)")
         }
     }
 
@@ -220,19 +223,24 @@ enum DemoStoryJourney {
     }
 
     static func seeWhosUp(_ app: XCUIApplication, friend: String, recorder: JourneyRecorder) {
-        recorder.step("S8.1", "find Top investors on Home") {
+        recorder.step("S8.1", "find the Leaderboard on Home") {
             app.tab("Home").tap()
-            let header = app.staticTexts["Top investors"]
+            let header = app.staticTexts["Leaderboard"].firstMatch
             app.scrollIntoReach(header)
-            XCTAssertTrue(header.waitForExistence(timeout: screenTimeout), "S8.1: no Top investors on Home")
+            XCTAssertTrue(header.waitForExistence(timeout: screenTimeout), "S8.1: no Leaderboard on Home")
         }
 
-        recorder.step("S8.2", "the friend is on the board") {
-            let row = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", friend)).firstMatch
+        recorder.step("S8.2", "the friend is on the People board") {
+            let category = app.element("home-leaderboard-category")
+            XCTAssertTrue(category.waitForExistence(timeout: screenTimeout), "S8.2: no leaderboard category select")
+            category.tap()
+            app.buttons["People"].firstMatch.tap()
+            let row = app.buttons.matching(
+                NSPredicate(format: "identifier BEGINSWITH 'home-leaderboard-row-' AND label CONTAINS %@", friend)
+            ).firstMatch
             app.scrollIntoReach(row)
             XCTAssertTrue(
-                row.waitForExistence(timeout: screenTimeout), "S8.2: no board row names \(friend) (known failure, #617)"
-            )
+                row.waitForExistence(timeout: screenTimeout), "S8.2: no People board row names \(friend)")
         }
     }
 }

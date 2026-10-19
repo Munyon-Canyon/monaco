@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileFollowListsJourney {
     static let id = "profile/follow-lists"
-    static let version = 1
+    static let version = 2
 
     static let memberName = "Bartholomez"
 
@@ -19,8 +19,7 @@ enum ProfileFollowListsJourney {
     }
 
     static func openList(
-        _ app: XCUIApplication, link: String, title: String, coming: String, steps: (String, String, String),
-        recorder: JourneyRecorder
+        _ app: XCUIApplication, link: String, title: String, steps: (String, String, String), recorder: JourneyRecorder
     ) {
         let (open, tapLink, read) = steps
         recorder.step(open, "open Profile and find the follow links") {
@@ -39,25 +38,20 @@ enum ProfileFollowListsJourney {
         }
 
         recorder.step(read, "find the member in \(title)") {
-            XCTAssertFalse(
-                app.element("follow-list-coming").waitForExistence(timeout: 5),
-                "\(read): the list shows '\(coming)' (#620)")
             XCTAssertTrue(
                 app.staticTexts[memberName].firstMatch.waitForExistence(timeout: 15),
-                "\(read): no row for '\(memberName)' (#620)")
+                "\(read): no row for '\(memberName)'")
         }
     }
 
     static func followers(_ app: XCUIApplication, recorder: JourneyRecorder) {
         openList(
-            app, link: "profile-followers", title: "Followers", coming: "Followers show up here soon.",
-            steps: ("S1.1", "S1.2", "S1.3"), recorder: recorder)
+            app, link: "profile-followers", title: "Followers", steps: ("S1.1", "S1.2", "S1.3"), recorder: recorder)
     }
 
     static func following(_ app: XCUIApplication, recorder: JourneyRecorder) {
         openList(
-            app, link: "profile-following", title: "Following", coming: "People you follow show up here soon.",
-            steps: ("S2.1", "S2.2", "S2.3"), recorder: recorder)
+            app, link: "profile-following", title: "Following", steps: ("S2.1", "S2.2", "S2.3"), recorder: recorder)
     }
 
     static func counts(_ app: XCUIApplication, recorder: JourneyRecorder) {
@@ -68,10 +62,10 @@ enum ProfileFollowListsJourney {
             XCTAssertTrue(followers.waitForExistence(timeout: 15), "S3.1: no 'Followers' link on Profile")
             XCTAssertTrue(
                 waitUntil(15) { (count(followers.label) ?? 0) >= 1 },
-                "S3.1: the link reads '\(followers.label)', not a count and 'followers' (#620)")
+                "S3.1: the link reads '\(followers.label)', not a count and 'followers'")
             XCTAssertTrue(
                 (count(following.label) ?? 0) >= 1,
-                "S3.1: the link reads '\(following.label)', not a count and 'following' (#620)")
+                "S3.1: the link reads '\(following.label)', not a count and 'following'")
         }
     }
 }

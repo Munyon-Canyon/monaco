@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/CabalsApproveRequestJourney.swift,
 
 # Ask to join, cancel, and the creator's answer
 
-A member who is not in a request cabal asks to join from the cabal screen, changes their mind, and asks again. The creator sees the request on the cabal screen and denies it. In a second scenario the creator approves a request the setup made. The rules are [Cabals](../../architecture/cabals.md#join-and-access-requests). `cabals/join` covers asking by invite code; this journey covers the cabal screen's own buttons, Cancel and Deny.
+A member who is not in a request cabal asks to join from the cabal screen, changes their mind, and asks again. The creator sees the request on the cabal screen and denies it. In a second scenario the creator approves a request the setup made. The rules are [Cabals](../../architecture/cabals.md#join-and-access-requests). `cabals/join` covers asking after a Discover cabals search; this journey covers the cabal screen's own buttons, Cancel and Deny.
 
 Old app (`c838bd24`): Cabal (non-member) -> "Request to join" -> "Request sent" -> Cancel (`JoinGroupView.swift`); creator: `GroupDetailView.swift` "N people want to join" -> Approve or Deny. Spec: `CabalJoinSlot` in [screens.md](../../screens.md#cabal-screen-cabalroute).
 

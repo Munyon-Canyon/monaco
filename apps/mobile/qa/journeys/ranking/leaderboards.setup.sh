@@ -18,7 +18,7 @@ ready_actor() {
 }
 
 case "$scenario" in
-  S1 | S2 | S3) ;;
+  S1 | S2 | S3 | S4) ;;
   *)
     echo "no setup for scenario $scenario" >&2
     exit 1

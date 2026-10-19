@@ -1,0 +1,18 @@
+journey: cabals/discover
+expect-fail: S2
+
+The pending notice above the Discover list drops the cabal's name. S2.4 expects Your request to join the cabal is pending., so S2 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+diff --git a/apps/mobile/Monaco/Features/Groups/DiscoverCabalsView.swift b/apps/mobile/Monaco/Features/Groups/DiscoverCabalsView.swift
+index 8c303453e..05bee2e42 100644
+--- a/apps/mobile/Monaco/Features/Groups/DiscoverCabalsView.swift
++++ b/apps/mobile/Monaco/Features/Groups/DiscoverCabalsView.swift
+@@ -129,7 +129,7 @@ private struct DiscoverCabalsContent: View {
+         case .rows(let rows):
+             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+                 if let pending = rows.first(where: { $0.action == .requested }) {
+-                    MonacoNotice(.warn, message: "Your request to join \(pending.name) is pending.")
++                    MonacoNotice(.warn, message: "Your request is pending.")
+                         .padding(.horizontal, MonacoTheme.Space.gutter)
+                         .accessibilityIdentifier("cabals-search-pending-notice")
+                 }

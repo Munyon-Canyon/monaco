@@ -41,7 +41,11 @@ nonisolated final class DemoStoryJourneyUITests: XCTestCase {
 
             try session.act(as: "A")
             DemoStoryJourney.voteAndBuy(app, recorder: recorder)
-            attachScreenshot(of: app, named: "S4-A-bought")
+            attachScreenshot(of: app, named: "S4-A-voted")
+
+            try session.act(as: "B")
+            DemoStoryJourney.secondVoteBuys(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S4-B-bought")
         }
 
         try session.scenario("S5") {

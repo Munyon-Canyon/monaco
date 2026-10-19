@@ -58,9 +58,12 @@ enum JoinJourney {
             filter.tap()
             filter.typeText("zzqq nobody")
         }
-        let link = app.buttons["cabals-search-public"]
-        XCTAssertTrue(link.waitForExistence(timeout: 10), "\(step): no Search public cabals link within 10 s")
-        link.tap()
+        let entries = [app.buttons["cabals-search-public"], app.buttons["Explore cabals"]]
+        guard let entry = app.waitForFirst(of: entries, timeout: 10) else {
+            XCTFail("\(step): no Search public cabals link or Explore cabals within 10 s")
+            return
+        }
+        entries[entry].tap()
         XCTAssertTrue(searchField(app).waitForExistence(timeout: 10), "\(step): Discover cabals did not open")
     }
 
@@ -110,6 +113,8 @@ enum JoinJourney {
                 "S1.1: no search result named \(name) within 10 s"
             )
             XCTAssertEqual(result(app, named: name).count, 1, "S1.1: \(name) is in the results more than once")
+            XCTAssertTrue(
+                app.element("cabals-search-joined").exists, "S1.1: the creator's result has no Joined badge")
         }
 
         recorder.step("S1.2", "open it as its creator") {
@@ -254,7 +259,6 @@ extension JoinJourney {
             XCTAssertTrue(app.buttons["edit-cabal-save"].isEnabled, "S2.1: Save is not enabled after the change")
             app.buttons["edit-cabal-save"].tap()
             waitForToast(app, "Cabal updated.", step: "S2.1")
-            app.navigationBars.buttons.firstMatch.tap()
             CabalsEditRulesJourney.assertRule(app, "join", reads: "Open", step: "S2.1")
             app.navigationBars.buttons.firstMatch.tap()
         }

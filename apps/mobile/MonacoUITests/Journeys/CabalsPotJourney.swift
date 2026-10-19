@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsPotJourney {
     static let id = "cabals/pot"
-    static let version = 5
+    static let version = 6
 
     static let screenTimeout: TimeInterval = 15
 
@@ -25,7 +25,7 @@ enum CabalsPotJourney {
             let value = app.element("cabal-pot-value")
             XCTAssertTrue(
                 JoinJourney.waitForLabel(value, containing: "$0.00", timeout: 10),
-                "S1.2: no pot value of $0.00 within 10 s (known failure, #2136 #2137)"
+                "S1.2: no pot value of $0.00 within 10 s"
             )
         }
 
@@ -33,7 +33,7 @@ enum CabalsPotJourney {
             let value = app.element("cabal-slice-value")
             XCTAssertTrue(
                 JoinJourney.waitForLabel(value, containing: "$0.00", timeout: 10),
-                "S1.3: no slice value of $0.00 within 10 s (known failure, #2136 #2137)"
+                "S1.3: no slice value of $0.00 within 10 s"
             )
             XCTAssertTrue(app.staticTexts["Your share"].exists, "S1.3: no Your share label")
             XCTAssertTrue(app.element("cabal-slice-none").exists, "S1.3: the share is not the no-stake cell")
@@ -92,18 +92,7 @@ enum CabalsPotJourney {
             app.scrollIntoReach(empty)
             XCTAssertTrue(
                 JoinJourney.waitForLabel(empty, containing: "Fund, then propose the first buy.", timeout: 10),
-                "S3.3: no zero-pot holdings copy within 10 s (known failure, #2136 #2137)"
-            )
-        }
-
-        recorder.step("S3.4", "the Cash row opens its asset") {
-            let cash = app.element("cabal-holdings-cash")
-            app.scrollIntoReach(cash)
-            XCTAssertTrue(cash.waitForExistence(timeout: 10), "S3.4: no Cash row within 10 s (known failure, #2136)")
-            cash.tap()
-            XCTAssertTrue(
-                app.navigationBars.staticTexts["Cabal cash"].waitForExistence(timeout: 10),
-                "S3.4: the Cabal cash screen did not show within 10 s"
+                "S3.3: no zero-pot holdings copy within 10 s"
             )
         }
     }

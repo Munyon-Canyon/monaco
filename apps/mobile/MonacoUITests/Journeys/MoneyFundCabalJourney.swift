@@ -2,7 +2,7 @@ import XCTest
 
 enum MoneyFundCabalJourney {
     static let id = "money/fund-cabal"
-    static let version = 6
+    static let version = 7
 
     static let screenTimeout: TimeInterval = 15
 
@@ -24,6 +24,20 @@ enum MoneyFundCabalJourney {
         XCTAssertTrue(
             app.element("amount-entry-field").waitForExistence(timeout: screenTimeout),
             "\(step): no amount field within \(Int(screenTimeout)) s: is A funded?"
+        )
+    }
+
+    static func confirmDeposit(_ app: XCUIApplication, dollars: Int, cabal: String, step: String) {
+        let sheet = app.element("fund-cabal-success-sheet")
+        XCTAssertTrue(
+            sheet.waitForExistence(timeout: 120), "\(step): the Deposit confirmed sheet did not show within 120 s")
+        XCTAssertTrue(
+            app.staticTexts["Deposit confirmed"].firstMatch.exists, "\(step): the sheet is not titled Deposit confirmed"
+        )
+        app.buttons["fund-cabal-done-button"].tap()
+        XCTAssertTrue(
+            app.staticTexts["Added $\(dollars) to \(cabal)."].firstMatch.waitForExistence(timeout: 120),
+            "\(step): the toast \"Added $\(dollars) to \(cabal).\" did not show within 120 s"
         )
     }
 
@@ -112,11 +126,7 @@ enum MoneyFundCabalJourney {
 
         recorder.step("S2.3", "add it to the pot") {
             app.buttons["Deposit $1.00"].tap()
-            JoinJourney.waitForToast(app, "Funding this cabal…", step: "S2.3")
-            XCTAssertTrue(
-                app.staticTexts["Added $1 to \(name)."].firstMatch.waitForExistence(timeout: 120),
-                "S2.3: the toast \"Added $1 to \(name).\" did not show within 120 s"
-            )
+            confirmDeposit(app, dollars: 1, cabal: name, step: "S2.3")
         }
     }
 }

@@ -3,7 +3,7 @@ import XCTest
 
 enum CreateCabalJourney {
     static let id = "cabals/create-cabal"
-    static let version = 10
+    static let version = 11
 
     private static let listTimeout: TimeInterval = 15
     private static let formTimeout: TimeInterval = 10
@@ -56,9 +56,10 @@ enum CreateCabalJourney {
             XCTAssertTrue(submit.isEnabled, "S2.1: Create cabal stayed disabled for '\(name)'")
         }
 
-        recorder.step("S2.2", "pick People I pick and 1 hour") {
+        recorder.step("S2.2", "pick Approval required, People I pick and 1 hour") {
             for (rule, label) in [
-                ("create-rule-voters", "People I pick"), ("create-rule-expiry", "1 hour"),
+                ("create-rule-join", "Approval required"), ("create-rule-voters", "People I pick"),
+                ("create-rule-expiry", "1 hour"),
             ] {
                 let choice = app.element(rule).buttons[label]
                 app.scrollIntoReach(choice)
@@ -161,6 +162,10 @@ enum CreateCabalJourney {
             let field = app.textFields["create-group-name"]
             field.tap()
             field.typeText(name + "\n")
+            let approval = app.element("create-rule-join").buttons["Approval required"]
+            app.scrollIntoReach(approval)
+            approval.tap()
+            XCTAssertTrue(approval.isSelected, "S4.2: 'Approval required' is not selected in create-rule-join")
             app.scrollIntoReach(submit)
             submit.tap()
             XCTAssertTrue(
@@ -201,24 +206,23 @@ enum CreateCabalJourney {
     static func creatorSeesTheFriend(_ app: XCUIApplication, run: String, friend: String, recorder: JourneyRecorder) {
         let name = duoCabal(run: run)
 
-        recorder.step("S4.5", "approve the friend and find them on the member board") {
+        recorder.step("S4.5", "approve the friend and find them on Members & voters") {
             JoinJourney.openBySearch(app, name, step: "S4.5")
             JoinJourney.openRequests(app, step: "S4.5")
             JoinJourney.decide(app, approve: true, step: "S4.5")
+            JoinJourney.waitForToast(app, "Approved.", step: "S4.5")
             XCTAssertTrue(
                 app.element("members-requests-empty").waitForExistence(timeout: listTimeout),
                 "S4.5: the request is still on the Members screen")
+            app.element("members-tab-members").tap()
+            let row = CabalsInfoAndMembersJourney.memberRow(app, label: "CONTAINS", friend)
+            XCTAssertTrue(row.waitForExistence(timeout: listTimeout), "S4.5: no Members row names \(friend)")
             app.navigationBars.buttons.firstMatch.tap()
             XCTAssertTrue(
                 JoinJourney.waitForLabel(
                     app.element("cabal-member-count"), containing: "2 members", timeout: listTimeout),
                 "S4.5: the hero does not read 2 members: \(app.element("cabal-member-count").label)"
             )
-            let row = app.buttons.matching(
-                NSPredicate(format: "identifier BEGINSWITH 'cabal-member-' AND label CONTAINS %@", friend)
-            ).firstMatch
-            app.scrollIntoReach(row, maxSwipes: 12)
-            XCTAssertTrue(row.waitForExistence(timeout: listTimeout), "S4.5: no member board row names \(friend)")
         }
     }
 }

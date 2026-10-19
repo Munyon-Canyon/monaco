@@ -1,7 +1,7 @@
 journey: feed/browse
 expect-fail: S2
 
-The Everyone / Following toggle never leaves Everyone. S2.1 expects no cell from someone A does not follow under Following, so it must fail.
+The From menu never leaves Everyone, so picking Following changes nothing. S2.1 expects no cell from someone A does not follow under Following, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Feed/FeedView.swift b/apps/mobile/Monaco/Features/Feed/FeedView.swift

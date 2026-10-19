@@ -78,7 +78,7 @@ Starts with a new dev user at `AWAITING_SOCIALS` (P7). The app launches with `MO
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S5.1 | launch, then sign out | the app, then `profile-settings-row` and `profileSignOutButton` when C is still signed in | | `devSignInButton` shows on the login form within 30 s | None, new in spec (#694) |
+| S5.1 | launch, then sign out | the app, then, when C is still signed in, `profile-settings-row`, `profileSignOutButton` and `profile-sign-out-confirm` as in [auth/sign-in](../auth/sign-in.md) S3 | | `devSignInButton` shows on the login form within 30 s | None, new in spec (#694) |
 | S5.2 | tap | `devSignInButton` | | The tab bar shows on Home within 30 s, and `onboarding-nudge` reads "Connect X to find people you follow" | None, new in spec (#694) |
 | S5.3 | tap | `onboarding-nudge-open` | | A sheet shows `onboarding-socials-step` within 5 s with "Connect X", and `socials-step-skip` reads "Not now" | None, new in spec (#694) |
 | S5.4 | tap | `socials-step-connect` | | The sheet closes within 20 s with no web sheet, `monaco-toast-banner` reads "X connected.", and `onboarding-nudge` does not show on Home | None, new in spec (#694) |

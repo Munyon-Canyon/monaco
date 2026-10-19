@@ -1,0 +1,18 @@
+journey: feed/browse
+expect-fail: S3
+
+A proposal card opens nothing. S3.2 expects the card to open the Proposal screen, so S3 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+diff --git a/packages/mobile-core/Sources/MonacoCore/Feed/FeedDestination.swift b/packages/mobile-core/Sources/MonacoCore/Feed/FeedDestination.swift
+index 4bc2997..42e1295 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Feed/FeedDestination.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Feed/FeedDestination.swift
+@@ -9,7 +9,7 @@ public enum FeedDestination: Equatable, Sendable {
+     public init?(_ item: Components.Schemas.FeedItem) {
+         switch FeedKind(rawValue: item.kind) {
+         case .proposal:
+-            self = .proposal(id: item.refId)
++            return nil
+         case .trade:
+             guard let cabalID = item.cabalId else { return nil }
+             self = .transaction(cabalID: cabalID, transactionID: item.refId)

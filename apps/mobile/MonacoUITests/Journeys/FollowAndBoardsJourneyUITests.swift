@@ -15,21 +15,20 @@ nonisolated final class FollowAndBoardsJourneyUITests: XCTestCase {
             let seed = try FollowAndBoardsJourney.Seed.handedOff()
             try session.act(as: "A")
             FollowAndBoardsJourney.bothRank(app, seed: seed, recorder: recorder)
-            attachScreenshot(of: app, named: "S1 Top investors")
+            attachScreenshot(of: app, named: "S1 People board")
         }
 
         try session.scenario("S2") {
-            let seed = try FollowAndBoardsJourney.Seed.handedOff()
             try session.act(as: "A")
-            FollowAndBoardsJourney.friendsWithNoFollows(app, seed: seed, recorder: recorder)
-            attachScreenshot(of: app, named: "S2 Everyone again")
+            FollowAndBoardsJourney.followingWithNoFollows(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S2 Following is empty")
         }
 
         try session.scenario("S3") {
             let seed = try FollowAndBoardsJourney.Seed.handedOff()
             try session.act(as: "A")
             FollowAndBoardsJourney.followFromBoard(app, seed: seed, recorder: recorder)
-            attachScreenshot(of: app, named: "S3 Friends after the follow")
+            attachScreenshot(of: app, named: "S3 Following after the follow")
         }
 
         try session.scenario("S4") {
@@ -43,7 +42,7 @@ nonisolated final class FollowAndBoardsJourneyUITests: XCTestCase {
             let seed = try FollowAndBoardsJourney.Seed.handedOff()
             try session.act(as: "A")
             FollowAndBoardsJourney.unfollow(app, seed: seed, recorder: recorder)
-            attachScreenshot(of: app, named: "S5 Friends after the unfollow")
+            attachScreenshot(of: app, named: "S5 Following after the unfollow")
         }
     }
 }

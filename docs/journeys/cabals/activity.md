@@ -1,7 +1,7 @@
 ---
 id: cabals/activity
 title: Cabal activity
-version: 7
+version: 8
 milestone: M14
 requires: [auth/sign-in]
 actors: [A]
@@ -37,9 +37,9 @@ The rows come from SQL because no route writes `cabal_activity` without a real s
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap, type, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA activity {QA.run}` | `cabal-header-name` reads `QA activity {QA.run}` within 15 s |
 | S1.2 | A | scroll to | `cabal-activity` | | The section header reads "Group activity" with "See all" (`cabal-activity-see-all`), and the newest row `cabal-activity-row-{failed_trade}` reads "Bought Apple" with the red status "Failed" within 15 s |
-| S1.3 | A | tap | `cabal-activity-see-all` | | The "Activity" screen lists all six rows (`cabal-activity-row-<id>`), "Money added" among them, within 10 s |
+| S1.3 | A | tap | `cabal-activity-see-all` | | The "Group activity" screen lists all six rows (`cabal-activity-row-<id>`), "Money added" among them, within 10 s |
 | S1.4 | A | tap | `cabal-activity-row-{confirmed_trade}` | | The "Transaction" receipt shows within 10 s: `cabal-txn-amount` "$25.00", `cabal-txn-status` "Done", and `cabal-txn-solscan` "View on Solscan" |
-| S1.5 | A | tap the back button of the "Transaction" bar, then of the "Activity" bar | | | The "Activity" list shows, then `cabal-header-name` within 10 s each |
+| S1.5 | A | tap the back button of the "Transaction" bar, then of the "Group activity" bar | | | The "Group activity" list shows, then `cabal-header-name` within 10 s each |
 | S1.6 | A | scroll to, then tap | a "Money added" row in `cabal-activity` | | The "Transaction" receipt shows within 10 s |
 | S1.7 | A | tap | the back button of the "Transaction" bar | | `cabal-header-name` shows within 10 s, the receipt is gone, and no sheet, alert, popover or menu is up |
 | S1.8 | A | tap | a "Money added" row in `cabal-activity` again | | The "Transaction" receipt shows within 10 s |
@@ -51,8 +51,8 @@ The rows come from SQL because no route writes `cabal_activity` without a real s
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | tap, type, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA activity {QA.run}` | `cabal-header-name` reads `QA activity {QA.run}` within 15 s |
-| S2.2 | A | scroll to, then tap the leading glyph of | `cabal-activity-row-{failed_trade}`, clear of its inline "Retry" | | The "Transaction" receipt shows `cabal-txn-status` "Failed" within 10 s |
-| S2.3 | A | tap | "Retry" | | The receipt offers "Retry" on the failed trade within 5 s (old app: `TransactionDetailView.swift` `transaction-detail-retry`; screens.md: "Failed · Retry") |
+| S2.2 | A | scroll to, then tap | `cabal-activity-row-{failed_trade}` | | The "Transaction" receipt shows `cabal-txn-status` "Failed" within 10 s |
+| S2.3 | A | wait | `cabal-txn-retry` | | The receipt offers "Retry" on the failed trade within 5 s (screens.md: "Failed · Retry") |
 
 ## Ground truth
 
@@ -60,7 +60,7 @@ The rows come from SQL because no route writes `cabal_activity` without a real s
 
 ## Known failures on staging
 
-- S2.3: the receipt has no "Retry", and the activity row reads "Failed" without "· Retry". Retrying a failed trade is blocked by #654.
+- S2.3: the receipt has no "Retry" (`cabal-txn-retry`), and the activity row reads "Failed" without "· Retry". The app shows Retry only for a swap that `GET /v1/swaps/{id}` reports as `retryable`, and the seeded failed row has no swap behind it. Retrying a failed trade is blocked by #654.
 
 ## Not covered
 

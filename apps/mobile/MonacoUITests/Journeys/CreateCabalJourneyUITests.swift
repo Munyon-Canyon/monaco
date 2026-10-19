@@ -45,7 +45,7 @@ nonisolated final class CreateCabalJourneyUITests: XCTestCase {
 
             try session.act(as: "A")
             CreateCabalJourney.creatorSeesTheFriend(app, run: run, friend: friend.name, recorder: recorder)
-            attachScreenshot(of: app, named: "S4-A-member-board")
+            attachScreenshot(of: app, named: "S4-A-members")
         }
     }
 }

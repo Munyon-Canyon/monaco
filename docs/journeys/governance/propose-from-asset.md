@@ -1,7 +1,7 @@
 ---
 id: governance/propose-from-asset
 title: Propose a buy from a stock
-version: 5
+version: 6
 milestone: M13
 requires: [auth/sign-in]
 actors: [A]
@@ -11,9 +11,9 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/GovernanceProposeFromAssetJourney.
 
 # Propose a buy from a stock
 
-A voter opens GOOGL on the Markets tab, taps "Propose a buy", picks a cabal, enters $25, reviews and sends the proposal. The rules are [Proposals](../../architecture/proposals.md).
+A voter opens GOOGL on the Markets tab, taps "Propose a buy", picks a cabal and reaches the Amount screen, where an amount over the cabal's empty pot is refused. The rules are [Proposals](../../architecture/proposals.md).
 
-Old app (`c838bd24`): Asset `AssetTradeBar` "Propose buy" -> `GroupPickerForProposalView` -> `ProposeAmountView` -> `ProposeReviewView` -> Send -> toast. Spec: "From a stock" under "Propose" and "Stock screen" in [screens.md](../../screens.md#propose-613).
+Old app (`c838bd24`): Asset `AssetTradeBar` "Propose buy" -> `GroupPickerForProposalView` -> `ProposeAmountView` -> `ProposeReviewView` -> Send -> toast. Spec: "Choose a cabal" and "Amount" under "Propose" and "Stock screen" in [screens.md](../../screens.md#propose-613).
 
 The format of this doc is in [App journeys](../README.md).
 
@@ -32,22 +32,20 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap, type, then tap | the Markets tab, the search "Search stocks or tickers", then `assets-row-GOOGL…` | `GOOGL` | `asset-detail-root` shows, and `asset-detail-propose-buy` reads "Propose a buy" over "Your cabal votes before anything is bought", within 15 s |
-| S1.2 | A | tap | `asset-detail-propose-buy` | | The picker titled "Pick a cabal" asks "Which cabal should buy GOOGL?" and lists `QA asset {QA.run}` within 10 s (old app: `GroupPickerForProposalView`) |
-| S1.3 | A | tap | the `QA asset {QA.run}` row | | The screen titled "Buy GOOGL" shows the chips "$25", "$50", "$100", "Max" within 10 s, with no Buy search step (old app: `ProposeAmountView`) |
-| S1.4 | A | tap, then tap | "$25", then "Review" | | The screen titled "Review" reads "Buy $25.00 of GOOGL" within 10 s (old app: `ProposeReviewView`) |
-| S1.5 | A | tap | "Send to cabal" | | The toast "Proposal sent to QA asset {QA.run}" shows and the flow closes within 10 s |
+| S1.2 | A | tap | `asset-detail-propose-buy` | | The picker titled "Choose a cabal" asks "Which cabal should buy GOOGL?" (`propose-pick-cabal-question`) and lists `QA asset {QA.run}` within 10 s (old app: `GroupPickerForProposalView`) |
+| S1.3 | A | tap | the `QA asset {QA.run}` row (`propose-pick-cabal-<id>`) | | The screen titled "Buy Alphabet" shows the chips "$25", "$50", "$100", "Max" within 10 s, with no Buy search step (old app: `ProposeAmountView`) |
+| S1.4 | A | type | `amount-entry-field` | `5` | The message "Amount exceeds the cash balance." shows within 10 s, and `propose-amount-review` is disabled (screens.md Amount: "An amount over the limit shows an error notice") |
 
 ## Ground truth
 
-`apps/mobile/qa/journeys/governance/propose-from-asset.truth.sh` reads `proposals`. After S1, `QA asset {QA.run}` has one `buy` proposal for GOOGL by A worth 25 USDC. It skips the check when the run never created the cabal.
+`apps/mobile/qa/journeys/governance/propose-from-asset.truth.sh` reads `proposals`. After S1, `QA asset {QA.run}` has no proposal, because the screens refused the amount and sent nothing. It skips the check when the run never created the cabal.
 
 ## Known failures on staging
 
-- S1.2 to S1.5: `ProposeFromAssetRoute` shows "Propose is on its way" The cabal picker and every later step are blocked by #613.
-- S1.4: the pot is empty, so "Review" stays disabled with "More than the pot has" even once #613 lands. Seeding a funded pot without real USDC needs a testkit loader that does not exist yet.
+None known.
 
 ## Not covered
 
-- Every target past S1.1 is a label, not an accessibility identifier: the screens do not exist yet, and their identifiers come with #613 (`apps/mobile/Monaco/Features/Proposals/ProposeFromAssetRoute.swift`). The Markets search field has no identifier of its own either (`apps/mobile/Monaco/Features/Assets/StocksTabView.swift`, `MonacoSearchField`), so S1.1 finds it by its placeholder.
+- Review and Send. The cabal `QA asset {QA.run}` has an empty pot, and seeding cash needs real USDC, so the Review sheet cannot open here. [governance/propose-buy](propose-buy.md) funds a pot and covers the thesis, Review proposal, Send proposal and the vote.
 - One cabal (straight to Amount) and no cabal (the sheet "Join a cabal first" with "Find a cabal"). The QA account votes in many cabals, so neither state is reachable without a fresh account.
 - "Can't buy right now" for a stock that cannot trade.

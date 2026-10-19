@@ -1,7 +1,7 @@
 ---
 id: profile/follow-lists
 title: Followers and following
-version: 1
+version: 2
 milestone: M17
 requires: [auth/sign-in]
 actors: [A]
@@ -33,7 +33,7 @@ Starts signed in (auth/sign-in).
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | tap | the Profile tab | | Within 15 s, `profile-followers` and `profile-following` show, reading "followers" and "following" | The counts under the Profile header |
 | S1.2 | tap | `profile-followers` | | The "Followers" screen shows within 10 s | The followers count opens the followers list |
-| S1.3 | read | the list | | A row reading "Bartholomez" shows within 15 s, and `follow-list-coming` ("Followers show up here soon.") does not show | The followers list rows |
+| S1.3 | read | the list | | A row reading "Bartholomez" shows within 15 s | The followers list rows |
 
 ### S2 Following
 
@@ -43,11 +43,11 @@ Starts signed in (auth/sign-in).
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | tap | the Profile tab | | `profile-following` shows within 15 s | The counts under the Profile header |
 | S2.2 | tap | `profile-following` | | The "Following" screen shows within 10 s | The following count opens the following list |
-| S2.3 | read | the list | | A row reading "Bartholomez" shows within 15 s, and `follow-list-coming` ("People you follow show up here soon.") does not show | The following list rows |
+| S2.3 | read | the list | | A row reading "Bartholomez" shows within 15 s | The following list rows |
 
 ### S3 The counts
 
-Starts signed in (auth/sign-in). Fails on staging until the route lands (Known failures).
+Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
@@ -59,14 +59,10 @@ The journey only reads. `apps/mobile/qa/journeys/profile/follow-lists.truth.sh` 
 
 ## Known failures on staging
 
-| Step | What fails | Blocked by |
-| --- | --- | --- |
-| S1.3 | The list shows "Followers show up here soon.", because no route lists a user's followers | #620 |
-| S2.3 | The list shows "People you follow show up here soon.", because no route lists who a user follows | #620 |
-| S3.1 | The links read "followers" and "following" with no numbers, because no route serves the counts | #620 |
+None known.
 
 ## Not covered
 
 - An empty list. P3 seeds both directions, and removing them would change the starting state of [profile/user-profile](user-profile.md).
-- Tapping a row in a list to open that member's profile. The list has no rows on staging, so `FollowListView.swift` has no row identifier yet. #620 should give each row `follow-list-row-{userID}`.
+- Tapping a row in a list to open that member's profile, and the Follow toggle on a row (`follow-list-follow-{userID}`). Each row is `follow-list-row-{userID}`; [profile/user-profile](user-profile.md) covers following and unfollowing.
 - The counts and lists on another member's profile (`user-profile-followers`, `user-profile-following`). They open the same `FollowListRoute`.

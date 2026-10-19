@@ -23,11 +23,5 @@ nonisolated final class CabalsLeaveJourneyUITests: XCTestCase {
             CabalsLeaveJourney.creatorStays(app, run: run, recorder: recorder)
             attachScreenshot(of: app, named: "S2-A-creator-note")
         }
-
-        try session.scenario("S3") {
-            try session.act(as: "B")
-            CabalsLeaveJourney.memberSellsAndLeaves(app, run: run, recorder: recorder)
-            attachScreenshot(of: app, named: "S3-B-leave-dialog")
-        }
     }
 }

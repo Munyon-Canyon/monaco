@@ -5,7 +5,6 @@ cd "$(git rev-parse --show-toplevel)"
 run="${MONACO_QA_RUN:?journey.py sets MONACO_QA_RUN}"
 # shellcheck disable=SC1091
 source scripts/qa/seed.sh
-a="$(apps/mobile/qa/journeys/privy-user-id.sh A)"
 name="QA asset $run"
 
 if [[ "$(qa_sql -v name="$name" <<<"SELECT count(*) FROM cabals WHERE name = :'name'")" != 1 ]]; then
@@ -13,12 +12,9 @@ if [[ "$(qa_sql -v name="$name" <<<"SELECT count(*) FROM cabals WHERE name = :'n
   exit 0
 fi
 
-got="$(qa_sql -F ' ' -v name="$name" -v a="$a" <<<"SELECT count(*), max(p.kind), regexp_replace(max(p.symbol), 'x$', ''), max(p.usdc_micros)
-  FROM proposals p JOIN cabals c ON c.id = p.cabal_id JOIN users u ON u.id = p.proposer_id
-  WHERE c.name = :'name' AND u.privy_user_id = :'a'")"
-want="1 buy GOOGL 25000000"
-if [[ "$got" != "$want" ]]; then
-  echo "A's proposal in $name: got '$got', want '$want'"
+got="$(qa_sql -v name="$name" <<<"SELECT count(*) FROM proposals p JOIN cabals c ON c.id = p.cabal_id WHERE c.name = :'name'")"
+if [[ "$got" != 0 ]]; then
+  echo "$name has $got proposals, want 0: the empty pot refuses the amount"
   exit 1
 fi
-echo "ok: A proposed a buy of GOOGL in $name"
+echo "ok: $name has no proposal"
