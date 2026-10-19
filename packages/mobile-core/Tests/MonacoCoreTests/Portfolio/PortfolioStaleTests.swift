@@ -2,19 +2,13 @@ import Foundation
 import MonacoAPI
 import MonacoTestSupport
 import XCTest
-import os
 
 @testable import MonacoCore
 
 @MainActor
 final class PortfolioStaleTests: XCTestCase {
-    private struct Clock: Sendable {
-        private let stored = OSAllocatedUnfairLock(initialState: Date(timeIntervalSince1970: 1_800_000_000))
-
-        var date: Date {
-            get { stored.withLock { $0 } }
-            nonmutating set { stored.withLock { $0 = newValue } }
-        }
+    @MainActor private final class Clock {
+        var date = Date(timeIntervalSince1970: 1_800_000_000)
     }
 
     func testALoadedPortfolioIsFreshAndStampsTheTime() async throws {
@@ -108,6 +102,6 @@ final class PortfolioStaleTests: XCTestCase {
     private func make(_ script: [Script], clock: Clock) throws -> PortfolioModel {
         let transport = StubTransport(scripted: try script.map { try $0.reply() })
         let api = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
-        return PortfolioModel(api: api, hints: FakeHintStream(), now: { clock.date })
+        return PortfolioModel(api: api, hints: FakeHintStream(), now: { MainActor.assumeIsolated { clock.date } })
     }
 }
