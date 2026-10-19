@@ -204,4 +204,16 @@ public enum MemberSinceFormatter {
         formatter.setLocalizedDateFormatFromTemplate("MMM yyyy")
         return "Member since \(formatter.string(from: date))"
     }
+
+    public static func joined(
+        _ date: Date,
+        timeZone: TimeZone = .current,
+        locale: Locale = .current
+    ) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.timeZone = timeZone
+        formatter.setLocalizedDateFormatFromTemplate("MMMM yyyy")
+        return "Joined \(formatter.string(from: date))"
+    }
 }

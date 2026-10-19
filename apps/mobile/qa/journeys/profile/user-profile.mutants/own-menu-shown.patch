@@ -5,11 +5,10 @@ Your own profile shows the "…" menu. S5.1 needs it hidden, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift b/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
-index 4cc5f8c64..6674b43fa 100644
 --- a/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
 +++ b/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
-@@ -39,7 +39,7 @@ private struct UserProfileHeader: View {
-         .padding(.top, MonacoTheme.Space.m)
+@@ -70,7 +70,7 @@
+         }
          .frame(maxWidth: .infinity)
          .toolbar {
 -            if model?.phase == .loaded, !isViewer {

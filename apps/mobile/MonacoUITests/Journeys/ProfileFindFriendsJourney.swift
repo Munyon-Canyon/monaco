@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileFindFriendsJourney {
     static let id = "profile/find-friends"
-    static let version = 3
+    static let version = 4
 
     static let memberName = "Bartholomez"
     static let explainer =
@@ -32,8 +32,8 @@ enum ProfileFindFriendsJourney {
         XCTAssertTrue(row.waitForExistence(timeout: 15), "\(step): no 'Find friends' row on Profile")
         row.tap()
         XCTAssertTrue(
-            app.navigationBars["Friends on Monaco"].waitForExistence(timeout: 10),
-            "\(step): 'Friends on Monaco' did not open")
+            app.navigationBars["Find friends"].waitForExistence(timeout: 10),
+            "\(step): 'Find friends' did not open")
     }
 
     static func openSearch(_ app: XCUIApplication, step: String) -> XCUIElement {
@@ -61,8 +61,8 @@ enum ProfileFindFriendsJourney {
         recorder.step("S1.2", "open Find friends") {
             app.element("profile-find-friends").tap()
             XCTAssertTrue(
-                app.navigationBars["Friends on Monaco"].waitForExistence(timeout: 10),
-                "S1.2: 'Friends on Monaco' did not open")
+                app.navigationBars["Find friends"].waitForExistence(timeout: 10),
+                "S1.2: 'Find friends' did not open")
             XCTAssertTrue(app.staticTexts[explainer].exists, "S1.2: the contacts explainer copy is missing")
         }
 
@@ -103,7 +103,7 @@ enum ProfileFindFriendsJourney {
         let result = app.element("friends-search-\(member.handle)")
 
         recorder.step("S3.1", "open the search again") {
-            app.navigationBars["Friends on Monaco"].buttons.element(boundBy: 0).tap()
+            app.navigationBars["Find friends"].buttons.element(boundBy: 0).tap()
             XCTAssertTrue(
                 app.element("profile-header").waitForExistence(timeout: 10),
                 "S3.1: the back button did not return to Profile")

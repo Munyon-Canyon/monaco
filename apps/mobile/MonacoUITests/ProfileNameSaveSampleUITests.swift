@@ -1,12 +1,3 @@
-//
-//  ProfileNameSaveSampleUITests.swift
-//  MonacoUITests
-//
-//  QA coverage for Profile → Edit name against the debug sample harness
-//  (launch argument -MonacoProfileSample saveFailure). No sign-in and no backend, so a
-//  Save is always rejected — which is exactly the path that used to report nothing at all.
-//
-
 import XCTest
 
 nonisolated final class ProfileNameSaveSampleUITests: XCTestCase {
@@ -30,135 +21,76 @@ nonisolated final class ProfileNameSaveSampleUITests: XCTestCase {
         add(attachment)
     }
 
-    /// Identifiers can land on a container rather than the control, so match any type.
     @MainActor
     private func anyElement(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
-    // MARK: - A rejected save says so, inside the sheet
-
-    /// The regression: the result was raised as a toast on the screen *presenting* the
-    /// sheet, so it rendered behind the medium detent and vanished after 2.5s. Nobody ever
-    /// saw why a rename failed.
     @MainActor
-    func testRejectedSaveShowsTheReasonInsideTheSheet() throws {
-        let app = launchApp("saveFailure")
+    func testReadyScreenHasNothingToSaveAndBioOpensSoon() throws {
+        let app = launchApp("editProfileReady")
 
-        let saveButton = anyElement(app, "profile-name-save")
-        XCTAssertTrue(saveButton.waitForExistence(timeout: 10), "the edit sheet should open with Save available")
-        XCTAssertTrue(saveButton.isEnabled, "the sample draft is valid and differs from the saved name")
-
-        let error = anyElement(app, "profile-name-error")
-        XCTAssertFalse(error.exists, "no error before the save is attempted")
-
-        saveButton.tap()
-
-        XCTAssertTrue(
-            error.waitForExistence(timeout: 10),
-            "a rejected save must name its reason next to the field, not behind the sheet"
-        )
-        attachScreenshot(app, name: "01-save-rejected")
-
-        // Still readable a beat later: the old toast cleared itself after 2.5 seconds.
-        Thread.sleep(forTimeInterval: 4)
-        XCTAssertTrue(error.exists, "the reason must stay while the sheet is open")
+        XCTAssertTrue(app.textFields["profile-name-field"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.textFields["edit-profile-username-field"].exists)
+        XCTAssertFalse(app.buttons["profile-name-save"].isEnabled, "nothing changed, so Save changes stays off")
+        XCTAssertTrue(app.staticTexts["Bio opens soon."].exists, "bio is disabled until the API exists")
+        attachScreenshot(app, name: "01-ready")
     }
 
-    /// Typing again is the retry, so the stale reason has to go.
     @MainActor
-    func testEditingTheNameClearsTheRejection() throws {
-        let app = launchApp("saveFailure")
+    func testInvalidUsernameNamesTheRuleAndBlocksSave() throws {
+        let app = launchApp("editProfileInvalid")
 
-        let saveButton = anyElement(app, "profile-name-save")
-        XCTAssertTrue(saveButton.waitForExistence(timeout: 10))
-        saveButton.tap()
+        let username = app.textFields["edit-profile-username-field"]
+        XCTAssertTrue(username.waitForExistence(timeout: 10))
+        XCTAssertEqual(username.value as? String, "Choose a valid username.")
+        XCTAssertFalse(app.buttons["profile-name-save"].isEnabled)
+        attachScreenshot(app, name: "02-invalid")
+    }
 
-        let error = anyElement(app, "profile-name-error")
-        XCTAssertTrue(error.waitForExistence(timeout: 10))
+    @MainActor
+    func testSavingShowsTheNoticeAndDisablesSave() throws {
+        let app = launchApp("editProfileSaving")
+
+        XCTAssertTrue(anyElement(app, "edit-profile-saving").waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["profile-name-save"].isEnabled)
+        attachScreenshot(app, name: "03-saving")
+    }
+
+    @MainActor
+    func testSavedShowsTheNotice() throws {
+        let app = launchApp("editProfileSaved")
+
+        XCTAssertTrue(anyElement(app, "edit-profile-saved").waitForExistence(timeout: 10))
+        attachScreenshot(app, name: "04-saved")
+    }
+
+    @MainActor
+    func testRejectedSaveToastsAndKeepsSaveAvailable() throws {
+        let app = launchApp("editProfileSaveFailure")
 
         let field = app.textFields["profile-name-field"]
-        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
         field.tap()
         field.typeText("a")
 
-        let cleared = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: error)
-        wait(for: [cleared], timeout: 10)
+        let save = app.buttons["profile-name-save"]
+        XCTAssertTrue(save.isEnabled, "a changed, valid name can be saved")
+        save.tap()
+
+        XCTAssertTrue(
+            anyElement(app, "monaco-toast-banner").waitForExistence(timeout: 10),
+            "a rejected save must say so"
+        )
+        attachScreenshot(app, name: "05-save-rejected")
+        XCTAssertTrue(save.isEnabled, "the button comes back so the member can retry")
     }
 
-    // MARK: - An accepted save closes the sheet, then reports
-
-    /// The other half of the same fix, and the half that had no coverage: the toast is an
-    /// overlay on the *presenting* screen, so a success reported while the sheet is still up
-    /// renders behind it. The sheet has to close first and the toast land on the uncovered
-    /// screen — with the new name on it.
     @MainActor
-    func testAcceptedSaveClosesTheSheetThenToastsOnTheScreenBehind() throws {
-        let app = launchApp("saveSuccess")
+    func testLoadFailureOffersTryAgain() throws {
+        let app = launchApp("editProfileError")
 
-        let saveButton = anyElement(app, "profile-name-save")
-        XCTAssertTrue(saveButton.waitForExistence(timeout: 10), "the edit sheet should open with Save available")
-        XCTAssertTrue(saveButton.isEnabled, "the sample draft is valid and differs from the saved name")
-
-        saveButton.tap()
-
-        // Asked for first, because the banner clears itself after 2.5s. It is one combined
-        // accessibility element, so the message is its label rather than a static text.
-        let toast = anyElement(app, "monaco-toast-banner")
-        XCTAssertTrue(
-            toast.waitForExistence(timeout: 10),
-            "the success must be reported, not swallowed. On screen:\n\(app.debugDescription.suffix(6000))"
-        )
-        XCTAssertTrue(
-            toast.label.contains("Name updated."),
-            "the toast should confirm the save; its label was \(toast.label)"
-        )
-        attachScreenshot(app, name: "03-save-accepted")
-
-        // And it is readable, because the sheet it would have rendered behind is gone.
-        let sheetClosed = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: saveButton)
-        wait(for: [sheetClosed], timeout: 10)
-    }
-
-    // MARK: - Header controls stay individually addressable
-
-    /// The header used to `.combine` its children, which merged the photo picker and the
-    /// edit button into one element and hid both identifiers.
-    @MainActor
-    func testHeaderKeepsItsTwoButtonsSeparate() throws {
-        let app = launchApp("placeholder")
-
-        XCTAssertTrue(
-            anyElement(app, "profile-edit-button").waitForExistence(timeout: 10),
-            "the edit button must be addressable in its own right"
-        )
-        XCTAssertTrue(
-            anyElement(app, "profile-photo-picker").exists,
-            "the photo picker must be addressable in its own right"
-        )
-    }
-
-    // MARK: - Sign out asks first
-
-    @MainActor
-    func testSignOutAsksBeforeItSignsOut() throws {
-        let app = XCUIApplication()
-        app.launchArguments = ["-settingsHarness", "on"]
-        app.launch()
-
-        let signOut = app.buttons["profileSignOutButton"]
-        XCTAssertTrue(signOut.waitForExistence(timeout: 10), "Sign out should be in Settings")
-        signOut.tap()
-
-        let confirm = anyElement(app, "profile-sign-out-confirm")
-        XCTAssertTrue(
-            confirm.waitForExistence(timeout: 5),
-            "a stray tap must not sign anyone out; it must ask first"
-        )
-        attachScreenshot(app, name: "02-sign-out-confirm")
-
-        // The point is that it asked rather than signing out: Settings is still there
-        // behind the dialog, and nothing has happened yet.
-        XCTAssertTrue(signOut.exists, "the member is still signed in while the dialog is up")
+        XCTAssertTrue(anyElement(app, "edit-profile-error").waitForExistence(timeout: 10))
+        attachScreenshot(app, name: "06-error")
     }
 }

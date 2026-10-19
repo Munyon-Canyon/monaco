@@ -1,18 +1,17 @@
 journey: profile/edit
 expect-fail: S1
 
-The rename toast says "Name saved." S1.3 expects "Name updated.", so S1 must fail.
+The save toast says "Saved." S1.3 expects "Profile saved.", so S1 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
-diff --git a/apps/mobile/Monaco/Features/Profile/ProfileHeaderSlot.swift b/apps/mobile/Monaco/Features/Profile/ProfileHeaderSlot.swift
-index ab9316c7e..1e7d807f1 100644
---- a/apps/mobile/Monaco/Features/Profile/ProfileHeaderSlot.swift
-+++ b/apps/mobile/Monaco/Features/Profile/ProfileHeaderSlot.swift
-@@ -68,7 +68,7 @@ struct ProfileHeader: View {
-                         savesOnOpen: presets.savesOnOpen
-                     ) {
-                         showEditProfile = false
--                        toasts.show(success: "Name updated.")
-+                        toasts.show(success: "Name saved.")
-                     }
-                 }
-                 .monacoSheet(title: "Edit name")
+diff --git a/apps/mobile/Monaco/Features/Profile/EditProfileView.swift b/apps/mobile/Monaco/Features/Profile/EditProfileView.swift
+--- a/apps/mobile/Monaco/Features/Profile/EditProfileView.swift
++++ b/apps/mobile/Monaco/Features/Profile/EditProfileView.swift
+@@ -30,7 +30,7 @@
+ enum EditProfileCopy {
+     static let title = "Edit profile"
+     static let invalidUsername = "Choose a valid username."
+-    static let saved = "Profile saved."
++    static let saved = "Saved."
+     static let saving = "Saving…"
+     static let save = "Save changes"
+     static let bioHelper = "Bio opens soon."

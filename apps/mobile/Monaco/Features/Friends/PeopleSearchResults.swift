@@ -3,7 +3,7 @@ import MonacoCore
 import SwiftUI
 
 struct PeopleSearchResults: View {
-    let model: PeopleSearchModel
+    @Bindable var model: PeopleSearchModel
 
     @Environment(AppEnvironment.self) private var environment
 
@@ -15,22 +15,15 @@ struct PeopleSearchResults: View {
     @ViewBuilder private var results: some View {
         switch model.state {
         case .idle, .loading:
-            MonacoRowSkeleton(markShape: .circle)
+            MonacoRowSkeleton(rows: 4, markShape: .circle)
                 .accessibilityIdentifier("friends-search-loading")
         case .loaded(let users) where users.isEmpty:
-            EmptyState(title: "No one called \u{201C}\(model.query)\u{201D}")
+            FriendsNoResults { model.query = "" }
                 .accessibilityIdentifier("friends-search-empty")
         case .loaded(let users):
-            MonacoGroupedList {
-                ForEach(Array(users.enumerated()), id: \.element.userId) { index, user in
-                    NavigationLink(
-                        value: AnyAppRoute(
-                            UserProfileRoute(
-                                userID: user.userId,
-                                preview: UserPreview(
-                                    displayName: user.displayName, handle: user.handle, photoURL: user.photoUrl)
-                            ))
-                    ) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+                MonacoGroupedList {
+                    ForEach(Array(users.enumerated()), id: \.element.userId) { index, user in
                         PeopleSearchRow(
                             user: user,
                             isViewer: user.userId == environment.viewer?.userID,
@@ -40,14 +33,13 @@ struct PeopleSearchResults: View {
                             Task { await model.toggleFollow(user.userId) }
                         }
                     }
-                    .buttonStyle(.monacoRow)
-                    .accessibilityIdentifier("friends-search-\(user.handle)")
                 }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("friends-search-results")
+                FriendsSearchNotice()
             }
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("friends-search-results")
         case .failed:
-            MonacoErrorRow(thing: "people", identifier: "friends-search-error", retry: model.retry)
+            EmptyState.loadFailed(identifier: "friends-search-error", retry: model.retry)
         }
     }
 }
@@ -59,22 +51,15 @@ private struct PeopleSearchRow: View {
     let isToggling: Bool
     let toggle: () -> Void
 
-    private var name: String { user.displayName.isEmpty ? user.handle : user.displayName }
-
     var body: some View {
-        MonacoRow(
-            title: name,
-            subtitle: "@\(user.handle)",
-            isLast: isLast,
-            trailingIsInteractive: true,
-            leading: { MonacoAvatar(photoURL: user.photoUrl, displayName: name, seed: user.userId) },
-            trailing: {
-                if !isViewer {
-                    FollowToggle(
-                        isFollowing: user.followedByMe, isBusy: isToggling, action: toggle,
-                        identifier: "friends-search-follow-\(user.userId)")
-                }
-            }
+        FriendsPersonRow(
+            person: FriendsPerson(user),
+            accessory: isViewer
+                ? .plain
+                : .follow(
+                    isBusy: isToggling, identifier: "friends-search-follow-\(user.userId)", action: toggle),
+            isLast: isLast
         )
+        .accessibilityIdentifier("friends-search-\(user.handle)")
     }
 }

@@ -7,7 +7,7 @@ scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Settings/SettingsView.swift b/apps/mobile/Monaco/Features/Settings/SettingsView.swift
 --- a/apps/mobile/Monaco/Features/Settings/SettingsView.swift
 +++ b/apps/mobile/Monaco/Features/Settings/SettingsView.swift
-@@ -111,8 +111,7 @@
+@@ -250,8 +250,7 @@
              if await authorization.request() { register() }
              await readNotifications()
          case .denied, .authorized:
@@ -16,4 +16,4 @@ diff --git a/apps/mobile/Monaco/Features/Settings/SettingsView.swift b/apps/mobi
 +            return
          }
      }
- 
+ }

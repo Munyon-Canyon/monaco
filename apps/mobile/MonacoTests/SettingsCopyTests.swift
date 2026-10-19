@@ -11,8 +11,22 @@ struct SettingsCopyTests {
     @Test func theRowsReadInScreenOrder() {
         #expect(
             SettingsRow.allCases.map(\.title) == [
-                "Notifications", "Activity", "Withdraw", "Blocked people", "Block explorers", "Delete account",
+                "Notifications", "Edit profile", "Account activity", "Withdraw", "Blocked people", "Block explorers",
+                "Sign out", "Delete account",
             ])
+    }
+
+    @Test func theAccountGroupEndsWithSignOutAndDeleteStandsApart() {
+        #expect(SettingsRow.accountRows.last == .signOut)
+        #expect(!SettingsRow.accountRows.contains(.deleteAccount))
+    }
+
+    @Test func theSignOutPanelCopy() {
+        #expect(SettingsCopy.signOutTitle == "Sign out of Monaco?")
+        #expect(
+            SettingsCopy.signOutMessage
+                == "You can sign back in with your existing account. This does not withdraw funds or leave your cabals."
+        )
     }
 
     @Test func theBlockedPeopleRowOpensItsScreen() {

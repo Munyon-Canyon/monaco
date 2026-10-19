@@ -6,17 +6,17 @@ struct ProfileScreen: View {
     static let sections: [any ProfileSection.Type] = [
         ProfileHeaderSlot.self,
         ProfileFollowCountsSlot.self,
-        ProfileStatsSlot.self,
         ProfileBalanceSlot.self,
         ProfileCabalsSlot.self,
         ProfileLinksSlot.self,
     ]
 
+    @EnvironmentObject private var auth: PrivyAuthService
     @Environment(AppEnvironment.self) private var environment
+    @Environment(AppSessionStore.self) private var session
     @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @State private var portfolio: PortfolioModel?
-    @State private var showsShare = false
     let sections: [any ProfileSection.Type]
 
     init(sections: [any ProfileSection.Type] = Self.sections) {
@@ -29,8 +29,12 @@ struct ProfileScreen: View {
         return ShareCardAccess.canShareMe(hasProfile: profile != nil, portfolioLoaded: loaded)
     }
 
+    static func showsLoadFailure(profile: SessionProfile?, isLoading: Bool) -> Bool {
+        profile == nil && !isLoading
+    }
+
     var body: some View {
-        SectionStack(context: (), sections: sections.map { $0.erased })
+        content
             .environment(portfolio)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .task {
@@ -48,26 +52,38 @@ struct ProfileScreen: View {
                 portfolio?.dismissToast()
             }
             .toolbar {
-                if Self.canShare(profile: environment.sessionStore.profile, portfolioState: portfolio?.state) {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            showsShare = true
-                        } label: {
-                            Image(systemName: "square.and.arrow.up")
-                                .frame(width: 44, height: 44)
-                                .contentShape(Rectangle())
-                        }
-                        .accessibilityLabel("Share your return")
-                        .accessibilityIdentifier("profile-share-button")
+                ToolbarItem(placement: .topBarTrailing) {
+                    MonacoGlassButton(
+                        icon: .settings, accessibilityLabel: "Settings", style: .quiet, placement: .toolbar
+                    ) {
+                        environment.navigator.open(SettingsRoute(), in: .profile)
+                    }
+                    .accessibilityIdentifier("profile-settings-row")
+                }
+                .withoutGlass()
+            }
+    }
+
+    @ViewBuilder private var content: some View {
+        if Self.showsLoadFailure(profile: session.profile, isLoading: session.isLoading) {
+            ScrollView {
+                EmptyState(
+                    title: EditProfileCopy.failedTitle, message: EditProfileCopy.failedMessage,
+                    actionTitle: "Try again", actionIdentifier: "profile-header-error",
+                    systemImage: MonacoIcon.offline.symbol
+                ) {
+                    Task {
+                        await session.reloadProfile(auth: auth)
+                        await portfolio?.load()
                     }
                 }
             }
-            .sheet(isPresented: $showsShare) {
-                if let profile = environment.sessionStore.profile {
-                    ShareCardHost(api: environment.api) { await $0.loadMe(profile: profile) }
-                        .monacoToastCenter(toasts)
-                }
-            }
+            .monacoCanvas()
+        } else if session.profile == nil {
+            ProfileLoadingSkeleton()
+        } else {
+            SectionStack(context: (), sections: sections.map { $0.erased })
+        }
     }
 
     private func preparedPortfolio() -> PortfolioModel {
@@ -75,5 +91,34 @@ struct ProfileScreen: View {
         let created = PortfolioModel(api: environment.api, hints: environment.hints)
         portfolio = created
         return created
+    }
+}
+
+private struct ProfileLoadingSkeleton: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+                SkeletonBar(width: 168)
+                SkeletonCardBlock()
+                MonacoRowSkeleton(rows: 4, markShape: .circle)
+                    .padding(.horizontal, -MonacoTheme.Space.gutter)
+            }
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+        }
+        .monacoCanvas()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading your profile")
+        .accessibilityIdentifier("profile-header-loading")
+    }
+}
+
+extension ToolbarContent {
+    @ToolbarContentBuilder
+    fileprivate func withoutGlass() -> some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            sharedBackgroundVisibility(.hidden)
+        } else {
+            self
+        }
     }
 }

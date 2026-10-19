@@ -81,6 +81,7 @@ struct UserProfileMoreMenu: View {
             }
         } label: {
             Image(systemName: "ellipsis")
+                .monacoToolbarIcon()
                 .frame(minWidth: 44, minHeight: 44)
         }
         .accessibilityLabel("More")
@@ -101,23 +102,5 @@ enum UserProfileBlockRunner {
         } else {
             toasts.current = MonacoToast(message: message)
         }
-    }
-}
-
-struct UserProfileUnblockButton: View {
-    let model: UserProfileModel
-
-    @Environment(AppEnvironment.self) private var environment
-    @Environment(ToastCenter.self) private var toasts
-
-    var body: some View {
-        Button("Unblock") {
-            Task {
-                let flow = Flow20aReportBlockModel(api: environment.api, hints: environment.hints)
-                await UserProfileBlockRunner.run(false, flow: flow, model: model, toasts: toasts)
-            }
-        }
-        .buttonStyle(.monacoSecondary)
-        .accessibilityIdentifier("user-profile-unblock-button")
     }
 }

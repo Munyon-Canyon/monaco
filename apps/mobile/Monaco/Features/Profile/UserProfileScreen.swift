@@ -27,6 +27,8 @@ struct UserProfileScreen: View {
                 SectionStack(context: context, sections: sections)
             }
         }
+        .navigationTitle(model?.displayName ?? "")
+        .navigationBarTitleDisplayMode(.inline)
         .environment(refresh)
         .environment(model)
         .task(id: context.userID) {

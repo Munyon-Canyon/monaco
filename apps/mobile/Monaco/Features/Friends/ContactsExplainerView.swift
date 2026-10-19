@@ -6,16 +6,14 @@ struct ContactsExplainerView: View {
     let isDenied: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
             if isDenied {
-                Text(Self.deniedNotice)
-                    .font(MonacoTheme.Typo.callout)
-                    .foregroundStyle(MonacoTheme.secondaryText)
+                MonacoNotice(.warn, message: Self.deniedNotice)
                     .accessibilityIdentifier("friends-contacts-off")
             }
             Text(Self.explainer)
-                .font(MonacoTheme.Typo.body)
-                .foregroundStyle(MonacoTheme.ink)
+                .font(MonacoTheme.Typo.subhead)
+                .foregroundStyle(MonacoTheme.secondaryText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, MonacoTheme.Space.gutter)
@@ -41,9 +39,7 @@ struct ContactsFirstRunHeader: View {
                 .foregroundStyle(MonacoTheme.ink)
                 .accessibilityAddTraits(.isHeader)
             if isDenied {
-                Text(ContactsExplainerView.deniedNotice)
-                    .font(MonacoTheme.Typo.callout)
-                    .foregroundStyle(MonacoTheme.secondaryText)
+                MonacoNotice(.warn, message: ContactsExplainerView.deniedNotice)
                     .accessibilityIdentifier("friends-contacts-off")
             }
             if showsExplainer {

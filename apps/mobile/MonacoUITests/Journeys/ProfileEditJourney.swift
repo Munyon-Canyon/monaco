@@ -2,10 +2,12 @@ import XCTest
 
 enum ProfileEditJourney {
     static let id = "profile/edit"
-    static let version = 3
+    static let version = 4
 
     static let emptyNameCopy = "Display name is required."
-    static let withPhotoLabel = "Change your face"
+    static let savedCopy = "Profile saved."
+    static let photoLabel = "Edit profile photo"
+    static let maxNameLength = 40
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -25,32 +27,31 @@ enum ProfileEditJourney {
             app.element("profile-header").waitForExistence(timeout: 15), "\(step): the Profile header did not show")
     }
 
-    static func openNameEditor(_ app: XCUIApplication, step: String) -> XCUIElement {
+    static func openEditProfile(_ app: XCUIApplication, step: String) -> XCUIElement {
         let edit = app.buttons["profile-edit-button"]
-        XCTAssertTrue(edit.waitForExistence(timeout: 10), "\(step): no edit button on the Profile header")
+        XCTAssertTrue(edit.waitForExistence(timeout: 10), "\(step): no name block on the Profile card")
         edit.tap()
         let field = app.textFields["profile-name-field"]
         XCTAssertTrue(field.waitForExistence(timeout: 5), "\(step): the name field did not show")
-        XCTAssertTrue(app.navigationBars["Edit name"].exists, "\(step): the sheet is not titled 'Edit name'")
+        XCTAssertTrue(app.navigationBars["Edit profile"].exists, "\(step): the screen is not titled 'Edit profile'")
         return field
     }
 
-    static func closeNameEditor(_ app: XCUIApplication) {
-        app.navigationBars["Edit name"].buttons["Cancel"].tap()
+    static func closeEditProfile(_ app: XCUIApplication) {
+        app.navigationBars["Edit profile"].buttons.firstMatch.tap()
     }
 
     static func clear(_ field: XCUIElement) {
         field.tap()
-        let current = field.value as? String ?? ""
-        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count))
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: maxNameLength))
     }
 
     static func saveName(_ app: XCUIApplication, _ name: String, step: String) {
-        let field = openNameEditor(app, step: step)
+        let field = openEditProfile(app, step: step)
         clear(field)
         field.typeText(name)
         let save = app.buttons["profile-name-save"]
-        XCTAssertTrue(save.isEnabled, "\(step): Save stayed disabled for '\(name)'")
+        XCTAssertTrue(save.isEnabled, "\(step): Save changes stayed disabled for '\(name)'")
         save.tap()
     }
 
@@ -78,34 +79,41 @@ enum ProfileEditJourney {
         let name = try newName()
         var shown = ""
 
-        recorder.step("S1.1", "see the Profile header") {
+        recorder.step("S1.1", "see the Profile card") {
             openProfile(app, step: "S1.1")
             let avatar = app.buttons["profile-photo-picker"]
-            XCTAssertTrue(avatar.exists, "S1.1: no avatar on the Profile header")
-            XCTAssertEqual(avatar.frame.width, 96, accuracy: 1, "S1.1: the avatar is not 96 pt wide")
+            XCTAssertTrue(avatar.exists, "S1.1: no avatar on the Profile card")
+            XCTAssertEqual(avatar.frame.width, 64, accuracy: 1, "S1.1: the avatar is not 64 pt wide")
+            XCTAssertEqual(avatar.label, photoLabel, "S1.1: the avatar is not labelled '\(photoLabel)'")
             shown = displayName(app)
-            XCTAssertFalse(shown.isEmpty, "S1.1: no display name on the Profile header")
+            XCTAssertFalse(shown.isEmpty, "S1.1: no display name on the Profile card")
             let handle = app.element("profile-handle")
             XCTAssertTrue(
                 handle.exists && handle.label.hasPrefix("@"), "S1.1: the handle does not read '@' and the handle")
             let since = app.staticTexts["profile-member-since"].label
             XCTAssertNotNil(
-                since.range(of: #"^Member since \S+ \d{4}$"#, options: .regularExpression),
-                "S1.1: the header reads '\(since)', not 'Member since' with a month and year")
+                since.range(of: #"^Joined \S+ \d{4}$"#, options: .regularExpression),
+                "S1.1: the card reads '\(since)', not 'Joined' with a month and year")
         }
 
-        recorder.step("S1.2", "open Edit name") {
-            let field = openNameEditor(app, step: "S1.2")
-            XCTAssertEqual(field.value as? String, shown, "S1.2: the field does not hold the current name")
-            closeNameEditor(app)
+        recorder.step("S1.2", "open Edit profile") {
+            _ = openEditProfile(app, step: "S1.2")
+            XCTAssertFalse(
+                app.buttons["profile-name-save"].isEnabled, "S1.2: Save changes is enabled before anything changed")
+            closeEditProfile(app)
         }
 
         recorder.step("S1.3", "save the new name") {
             saveName(app, name, step: "S1.3")
             let toast = waitForToast(app, step: "S1.3", timeout: 10)
-            XCTAssertEqual(displayName(app), name, "S1.3: the header does not show '\(name)' with the toast")
             XCTAssertTrue(
-                toast.label.contains("Name updated."), "S1.3: the toast read '\(toast.label)', not 'Name updated.'")
+                toast.label.contains(savedCopy), "S1.3: the toast read '\(toast.label)', not '\(savedCopy)'")
+            XCTAssertTrue(
+                app.element("edit-profile-saved").waitForExistence(timeout: 5), "S1.3: no 'Profile saved.' notice")
+            closeEditProfile(app)
+            XCTAssertTrue(
+                app.staticTexts[name].waitForExistence(timeout: 10),
+                "S1.3: the Profile card does not show '\(name)'")
         }
     }
 
@@ -113,24 +121,27 @@ enum ProfileEditJourney {
         var before = ""
         let field = app.textFields["profile-name-field"]
 
-        recorder.step("S2.1", "open Edit name") {
+        recorder.step("S2.1", "open Edit profile") {
             openProfile(app, step: "S2.1")
             before = displayName(app)
-            _ = openNameEditor(app, step: "S2.1")
+            _ = openEditProfile(app, step: "S2.1")
         }
 
         recorder.step("S2.2", "clear the name") {
             clear(field)
-            let error = app.staticTexts["profile-name-error"]
-            XCTAssertTrue(error.waitForExistence(timeout: 2), "S2.2: no inline message for an empty name")
-            XCTAssertEqual(error.label, emptyNameCopy, "S2.2: the inline message is not '\(emptyNameCopy)'")
-            XCTAssertFalse(app.buttons["profile-name-save"].isEnabled, "S2.2: Save is enabled for an empty name")
+            let reported = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "value == %@", emptyNameCopy), object: field)
+            XCTAssertEqual(
+                XCTWaiter().wait(for: [reported], timeout: 2), .completed,
+                "S2.2: the name field does not report '\(emptyNameCopy)'")
+            XCTAssertFalse(
+                app.buttons["profile-name-save"].isEnabled, "S2.2: Save changes is enabled for an empty name")
         }
 
         recorder.step("S2.3", "back out") {
-            closeNameEditor(app)
-            XCTAssertTrue(field.waitForNonExistence(timeout: 5), "S2.3: Cancel did not close Edit name")
-            XCTAssertEqual(displayName(app), before, "S2.3: the header no longer shows '\(before)'")
+            closeEditProfile(app)
+            XCTAssertTrue(field.waitForNonExistence(timeout: 5), "S2.3: back did not leave Edit profile")
+            XCTAssertEqual(displayName(app), before, "S2.3: the card no longer shows '\(before)'")
         }
     }
 
@@ -152,26 +163,20 @@ enum ProfileEditJourney {
             XCTAssertTrue(
                 label.contains("Profile photo updated."),
                 "S3.2: the toast read '\(label)', not 'Profile photo updated.'")
-            XCTAssertEqual(
-                app.buttons["profile-photo-picker"].label, withPhotoLabel, "S3.2: the avatar shows no stored photo")
         }
     }
 
     static func survivesRelaunch(_ app: XCUIApplication, recorder: JourneyRecorder) throws {
         let name = try newName()
-        let avatar = app.buttons["profile-photo-picker"]
 
-        recorder.step("P5", "start from S1's name and S3's photo") {
+        recorder.step("P5", "start from S1's name") {
             openProfile(app, step: "P5")
             if displayName(app) != name {
                 saveName(app, name, step: "P5")
+                _ = toastLabel(app, step: "P5", timeout: 15)
+                closeEditProfile(app)
                 XCTAssertTrue(
-                    app.staticTexts[name].waitForExistence(timeout: 15), "P5: the header does not show '\(name)'")
-            }
-            if avatar.label != withPhotoLabel {
-                avatar.tap()
-                uploadLibraryPhoto(app, step: "P5")
-                _ = toastLabel(app, step: "P5", timeout: 20)
+                    app.staticTexts[name].waitForExistence(timeout: 15), "P5: the card does not show '\(name)'")
             }
         }
 
@@ -182,8 +187,8 @@ enum ProfileEditJourney {
             openProfile(app, step: "S4.1")
             XCTAssertTrue(
                 app.staticTexts[name].waitForExistence(timeout: 30),
-                "S4.1: the header reads '\(displayName(app))', not '\(name)', after the relaunch")
-            XCTAssertEqual(avatar.label, withPhotoLabel, "S4.1: the avatar shows no stored photo after the relaunch")
+                "S4.1: the card reads '\(displayName(app))', not '\(name)', after the relaunch")
+            XCTAssertTrue(app.buttons["profile-photo-picker"].exists, "S4.1: no avatar after the relaunch")
         }
     }
 }

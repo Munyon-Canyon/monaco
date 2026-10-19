@@ -2,11 +2,12 @@ import XCTest
 
 enum ProfileOverviewJourney {
     static let id = "profile/overview"
-    static let version = 5
+    static let version = 6
 
     static let notYet = "Not available yet"
     static let signOutTitle = "Sign out of Monaco?"
-    static let signOutMessage = "Your money stays where it is. You'll need a new code to sign back in."
+    static let signOutMessage =
+        "You can sign back in with your existing account. This does not withdraw funds or leave your cabals."
 
     struct Cabal {
         let id: String
@@ -50,19 +51,21 @@ enum ProfileOverviewJourney {
                 handle.exists && handle.label.hasPrefix("@"), "S1.1: the handle does not read '@' and the handle")
             let since = app.staticTexts["profile-member-since"].label
             XCTAssertNotNil(
-                since.range(of: #"^Member since \S+ \d{4}$"#, options: .regularExpression),
-                "S1.1: the header reads '\(since)', not 'Member since' with a month and year")
+                since.range(of: #"^Joined \S+ \d{4}$"#, options: .regularExpression),
+                "S1.1: the header reads '\(since)', not 'Joined' with a month and year")
         }
 
-        recorder.step("S1.2", "read the stats band") {
+        recorder.step("S1.2", "read the identity card stats") {
             XCTAssertTrue(
                 waitUntil(15) { (cabalsCount(app) ?? 0) >= 1 },
                 "S1.2: 'Cabals' reads '\(app.element("profile-stat-cabals").label)', not a count of 1 or more")
             XCTAssertTrue(
-                app.element("profile-stat-in-cabals").label.contains("In cabals"), "S1.2: no 'In cabals' column")
-            XCTAssertTrue(app.element("profile-stat-return").label.contains("Return"), "S1.2: no 'Return' column")
+                app.element("profile-stat-in-cabals").label.contains("Positions value"),
+                "S1.2: no 'Positions value' column")
             XCTAssertTrue(
-                app.element("profile-stat-cabals").label.contains("Cabal"), "S1.2: no 'Cabal' or 'Cabals' column")
+                app.element("profile-stat-return").label.contains("Total P&L"), "S1.2: no 'Total P&L' column")
+            XCTAssertTrue(
+                app.element("profile-stat-cabals").label.contains("cabal"), "S1.2: no 'cabal' or 'cabals' count")
         }
 
         recorder.step("S1.3", "find the cabal under Your cabals") {
@@ -70,16 +73,16 @@ enum ProfileOverviewJourney {
             app.scrollIntoReach(cabalRow)
             XCTAssertTrue(cabalRow.waitForExistence(timeout: 10), "S1.3: no row for '\(cabal.name)' under Your cabals")
             XCTAssertTrue(app.staticTexts["Your cabals"].exists, "S1.3: no 'Your cabals' header")
+            let card = app.element("cabal-cover-card-\(cabal.id)")
             XCTAssertTrue(
-                cabalRow.label.contains(cabal.name), "S1.3: the row reads '\(cabalRow.label)', not '\(cabal.name)'")
+                card.label.contains(cabal.name), "S1.3: the card reads '\(card.label)', not '\(cabal.name)'")
         }
 
-        recorder.step("S1.4", "find the Settings row") {
+        recorder.step("S1.4", "find the Settings button") {
             let settings = app.element("profile-settings-row")
-            app.scrollIntoReach(settings)
-            XCTAssertTrue(settings.exists, "S1.4: no Settings row on Profile")
+            XCTAssertTrue(settings.waitForExistence(timeout: 5), "S1.4: no Settings button on Profile")
             XCTAssertTrue(
-                settings.label.contains("Settings"), "S1.4: the row reads '\(settings.label)', not 'Settings'")
+                settings.label.contains("Settings"), "S1.4: the button reads '\(settings.label)', not 'Settings'")
         }
     }
 
@@ -126,17 +129,19 @@ enum ProfileOverviewJourney {
         recorder.step("S4.1", "open Settings") {
             openProfile(app, step: "S4.1")
             let settings = app.element("profile-settings-row")
-            app.scrollIntoReach(settings)
             settings.tap()
             XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10), "S4.1: Settings did not open")
+            app.scrollIntoReach(advanced)
             XCTAssertTrue(
-                advanced.label.contains("Advanced") && advanced.label.contains("Block explorers"),
-                "S4.1: the row reads '\(advanced.label)', not 'Advanced' and 'Block explorers'")
+                advanced.label.contains("Block explorers"),
+                "S4.1: the row reads '\(advanced.label)', not 'Block explorers'")
         }
 
         recorder.step("S4.2", "open Advanced") {
             advanced.tap()
-            XCTAssertTrue(app.navigationBars["Advanced"].waitForExistence(timeout: 5), "S4.2: Advanced did not open")
+            XCTAssertTrue(
+                app.navigationBars["Block explorers"].waitForExistence(timeout: 5),
+                "S4.2: Block explorers did not open")
             XCTAssertTrue(solscan.label.contains("Solscan explorer"), "S4.2: no 'Solscan explorer' row")
         }
 
@@ -176,12 +181,12 @@ enum ProfileOverviewJourney {
 
     static func signOut(_ app: XCUIApplication, recorder: JourneyRecorder) {
         let button = app.buttons["profileSignOutButton"]
-        let confirm = app.confirmDialogButton("profile-sign-out-confirm")
+        let confirm = app.buttons["profile-sign-out-confirm"]
+        let stay = app.buttons["profile-sign-out-cancel"]
 
         recorder.step("S6.1", "ask to sign out") {
             openProfile(app, step: "S6.1")
             let settings = app.element("profile-settings-row")
-            app.scrollIntoReach(settings, maxSwipes: 30)
             settings.tap()
             XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10), "S6.1: Settings did not open")
             app.scrollIntoReach(button)
@@ -191,9 +196,10 @@ enum ProfileOverviewJourney {
             XCTAssertTrue(app.staticTexts[signOutMessage].exists, "S6.1: the confirm does not read '\(signOutMessage)'")
         }
 
-        recorder.step("S6.2", "tap outside the confirm") {
-            app.dismissConfirmDialog(title: signOutTitle)
-            XCTAssertTrue(confirm.waitForNonExistence(timeout: 5), "S6.2: a tap outside did not close the confirm")
+        recorder.step("S6.2", "stay signed in") {
+            XCTAssertTrue(stay.exists, "S6.2: the confirm has no 'Stay signed in' button")
+            stay.tap()
+            XCTAssertTrue(confirm.waitForNonExistence(timeout: 5), "S6.2: 'Stay signed in' did not close the confirm")
             XCTAssertTrue(
                 app.navigationBars["Settings"].exists, "S6.2: Settings is gone after the confirm closed")
         }

@@ -71,9 +71,15 @@ CabalRoute ─┬─ i ──▶ Cabal details sheet (rules, treasury, edit, lea
             └─ activity row ▶ TransactionRoute
 Stocks ── row ──▶ AssetRoute ── Propose buy ──▶ Pick a cabal ──▶ Amount ──▶ Review
 Profile ┬─ Followers / Following ──▶ FollowListRoute
+        ├─ Name block ──────▶ EditProfileRoute
+        ├─ Net worth / Cash ▶ BalancesRoute
+        ├─ Account activity ▶ AccountActivityRoute
         ├─ Invite friends ──▶ InviteRoute
-        ├─ Find friends ────▶ Friends on Monaco (#663, search from #2142)
-        └─ Settings ────────▶ SettingsRoute ─┬─ Notifications
+        ├─ Find friends ────▶ Find friends (#663, search from #2142)
+        ├─ View as others ──▶ UserProfileRoute (your own)
+        ├─ Withdraw ────────▶ WithdrawRoute
+        └─ Settings round ──▶ SettingsRoute ─┬─ Edit profile ──▶ EditProfileRoute
+                                             ├─ Notifications
                                              ├─ Activity ──▶ AccountActivityRoute
                                              ├─ Withdraw ──▶ WithdrawRoute
                                              ├─ Blocked people
@@ -189,7 +195,7 @@ Toolbar: back on the left, and an "i" button on the right that opens the details
 | 11 | `CabalMemberBoardSlot` | #699 | yes | yes | "Leaderboard": ranked members with the viewer's row washed and labelled "You", then "Updated …" under the list. Rows open `UserProfileRoute` |
 | 12 | `CabalActivitySlot` | #654 | yes | hidden | "Activity" with "See all" past five rows. Rows: glyph, title ("Bought Alphabet", "Money added", "Cashed out"), age plus a status in amber ("Pending") or red ("Failed · Retry"), amount. Rows open `TransactionRoute`. Empty: "Nothing yet" / "Money added and trades show up here." |
 
-**Share sheet.** A share button sits left of "i" for members of an open cabal once the pot has loaded (id `cabal-share-button`). The same sheet opens from the Profile toolbar ("Share your return", `profile-share-button`) and from the share button beside Home's portfolio chip (`home-share-button`). Title "Share", "Done" at the top right. It shows the card as a 4:5 dark image (1080 × 1350 px when shared): the all-time gain and return, the gain curve, three stats ("Put in", "In the pot", "Members" for a cabal; "Put in", "In cabals", "Cabals" for you) and the sharer's invite link. "Share" opens the system sheet with the image and the link; "Copy link" copies the link and shows the toast "Link copied.". It carries only the viewer's own figures and own cabals.
+**Share sheet.** A share button sits left of "i" for members of an open cabal once the pot has loaded (id `cabal-share-button`). The same sheet opens from the Profile identity card ("Share your return", `profile-share-button`) and from the share button beside Home's portfolio chip (`home-share-button`). Title "Share", "Done" at the top right. It shows the card as a 4:5 dark image (1080 × 1350 px when shared): the all-time gain and return, the gain curve, three stats ("Put in", "In the pot", "Members" for a cabal; "Put in", "In cabals", "Cabals" for you) and the sharer's invite link. "Share" opens the system sheet with the image and the link; "Copy link" copies the link and shows the toast "Link copied.". It carries only the viewer's own figures and own cabals.
 
 **Cabal details sheet** ("i"). Title "Cabal details", "Done" at the top right. Detents medium and large.
 
@@ -395,20 +401,23 @@ Data. `GET /v1/cabals/{id}/pot` gives the units, price, value, cost basis and un
 
 ## Profile tab
 
-Pull to refresh, like Home. Toolbar: a share button at the top right opens the Share sheet with the viewer's return card.
+Pull to refresh, like Home. Title "Profile" with a glass round "Settings" (`gearshape`, `profile-settings-row`) that opens `SettingsRoute`. The share round now sits in the identity card.
 
 | Order | Slot | Owner | Shows |
 | --- | --- | --- | --- |
-| 1 | `ProfileHeaderSlot` | #644 | Centred: the photo picker (96 pt avatar with a camera badge, opens "Your face": eight animals and "Choose a photo"), the name, centred under the avatar, with a pencil beside it that opens "Edit name" (a sheet with "Cancel"), "@handle" with a pencil (opens `HandleEditRoute`), "Member since Sep 2026" |
-| 2 | `ProfileFollowCountsSlot` | #620 | "12 followers · 8 following" ("1 follower" for one, thousands separated: "12,400 followers"), each opening the follow list |
-| 3 | `ProfileStatsSlot` | #2140 | Three columns between rules: "In cabals" (total slice value), "Return" (dollars over percent, current holdings only), "Cabal" or "Cabals" by count (#3939). Rules run full width. At accessibility text sizes the cells become label and value rows |
-| 4 | `ProfileBalanceSlot` | #610 | The same balance row as Home, with "Add money" and "Withdraw" |
-| 5 | `ProfileCabalsSlot` | #2140 | "Your cabals", the same rows as Home's. Empty: "No money in a cabal yet" / "Fund a cabal to see it here." with "Browse cabals", which opens the Cabals tab |
-| 6 | `ProfileLinksSlot` | #682, #663, #2139 | One list of three rows: "Invite friends", "Find friends" (contacts, plus search by name or handle from #2142) and "Settings" |
+| 1 | `ProfileHeaderSlot` | #644, #5571 | The identity card (`IdentityCard`): a dark `identityFill` card with the 64 pt photo and a pencil badge (opens "Your face": eight animals and "Choose a photo"; VoiceOver "Edit profile photo"), the name, "@handle" and "Joined October 2026". The whole name block opens `EditProfileRoute`. A share round (`profile-share-button`, "Share your return") sits at the right. Below a rule: "Positions value" (the total slice value) and "Total P&L · All time" (dollars over percent in `profitOnIdentity` / `lossOnIdentity`). A bio line shows only when the API returns one. At accessibility sizes the two stats stack. Loading is one card-sized skeleton. A failed profile load replaces the screen with "Couldn't load this view" and "Try again" |
+| 2 | `ProfileFollowCountsSlot` | #620, #5571 | One row, left, centre and right: "12 followers", "8 following" (each opens the follow list) and "3 cabals" (static) |
+| 3 | `ProfileBalanceSlot` | #610, #5571 | `ProfileMoneyStrip`: "Net worth" and "Cash" (each opens `BalancesRoute`) and a compact "Deposit" button, under a hairline, with "Account balances are visible only to you." beneath. At accessibility sizes the Deposit button drops to its own full-width row. A card deposit in flight keeps its "arriving" line |
+| 4 | `ProfileCabalsSlot` | #2140, #5571 | "Your cabals" with "See all" (opens the Cabals tab) over a horizontal rail of `CabalCoverCard`s (share disc opens the Share sheet). Hidden when empty or failed; two skeleton cards while loading |
+| 5 | `ProfileLinksSlot` | #682, #663, #2139, #5571 | One list: "Account activity", "Find friends", "Invite friends", "View as others" and "Withdraw", each with a `brandSoft` glyph tile and a subtitle |
 
-**Settings** (`SettingsRoute`, #2139). Title "Settings". Rows: "Notifications" (On or Off; while permission is undecided a tap asks for it, otherwise it opens iOS notification settings, #2143), "Activity" (`AccountActivityRoute`), "Withdraw" (`WithdrawRoute`), "Blocked people", "Advanced" / "Block explorers", "Terms" and "Privacy" (open in Safari), and destructive "Delete account" (`DeleteAccountRoute`, #695). Blocked people lists who the viewer blocks (`GET /v1/me/blocks`): avatar, name and "@handle", and "No one blocked" / "People you block show up here." when empty. Last, in its own group, a destructive "Sign out" row with the confirm "Sign out of Monaco?" / "Your money stays where it is. You'll need a new code to sign back in." Footer: app version.
+**Edit profile** (`EditProfileRoute`, new). Pushed from the identity card's name block, the Settings "Edit profile" row and `HandleEditRoute` (the Username field focused). A centred 76 pt photo with a pencil badge, then Name, Username (availability check, the 30-day change cooldown, "Choose a valid username.") and Bio (disabled with "Bio opens soon." until the API exists). A notice slot reads "Saving…" or "Profile saved.", then a full-width "Save changes", disabled when nothing changed, a field is invalid or a save is in flight. A load failure shows "Couldn't load this view" with "Try again".
 
-**User profile** (`UserProfileRoute`). Header (#620): avatar, name, "@handle", follower counts, "Follow" or "Following", and a "…" menu with "Report" and "Block" (#2145). Hidden on your own profile: the Follow button and the menu. Then "Cabals you share" (#660): rows with pot figures. Empty: "No cabals in common" / "You and Maya aren't in a cabal together yet." A banned or deleted user: "This account isn't available."
+**Settings** (`SettingsRoute`, #2139, #5571). Title "Settings". Section "Notifications": one row (On or Off; while permission is undecided a tap asks for it, otherwise it opens iOS notification settings, #2143). Section "Account": "Edit profile", "Account activity" (`AccountActivityRoute`), "Withdraw" (`WithdrawRoute`), "Blocked people", "Block explorers", and "Sign out" with a confirm card in place ("Sign out of Monaco?" / "You can sign back in with your existing account. This does not withdraw funds or leave your cabals." with "Sign out" and "Stay signed in"). In its own group, a destructive "Delete account" (`DeleteAccountRoute`, #695). Blocked people lists who the viewer blocks (`GET /v1/me/blocks`): avatar, name and "@handle", and "No one blocked" / "People you block show up here." when empty. Footer: app version. States: ready, saving (info notice), error ("Couldn't load this view").
+
+**Find friends** (`FriendsRoute`, #663, #2142, #5571). A search box ("Search people by name or handle"), a Discover / Following segmented control (not shown in the first-run contacts step), and person rows (avatar, name, "@handle", chevron). Discover shows search results with a Follow toggle each, or the contacts matches or explainer. Following lists the people the viewer follows, each with a "Following" badge. An info notice reads "Search is explicit. Monaco never follows anyone for you." States: loading skeleton rows; "No people found" with "Clear search"; "You're not following anyone yet"; error with "Try again".
+
+**User profile** (`UserProfileRoute`). The identity card without the pencil or the Positions value (name, "@handle", a joined line and bio when the API returns them, and Total P&L, which shows "—" with "Shared performance opens soon." until the API exists), then the counts row, a full-width "Follow" or "Following" button (#620), and a "…" menu with "Report" and "Block" (#2145). On your own profile ("View as others") the button and the menu give way to the notice "This is how your profile appears to others. Your account balances stay private." A private profile shows "Performance is private". Then "Cabals you share" (#660): rows with pot figures. Empty: "No cabals in common" / "You and Maya aren't in a cabal together yet." A banned or deleted user: "Profile not found" with "Find people".
 
 ## Who builds what
 
@@ -422,7 +431,7 @@ The slot tables above name each owner. Screens and controls added by this map:
 | #2137 | `CabalPotSlot`, `CabalSliceSlot`, `CabalHoldingsSlot` |
 | #2138 | Account activity |
 | #2139 | Settings and the "Settings" row of `ProfileLinksSlot` |
-| #2140 | `ProfileStatsSlot`, `ProfileCabalsSlot` |
+| #2140 | `ProfileCabalsSlot` |
 | #2141, #2142 | People search |
 | #2143 | The push pre-prompt and the Notifications row |
 | #2144, #2145 | Report and block |

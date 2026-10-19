@@ -1,7 +1,7 @@
 ---
 id: profile/nudge
 title: Profile nudge and limits
-version: 2
+version: 3
 milestone: M9
 requires: [auth/sign-in]
 actors: [A]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/ProfileNudgeJourney.swift, apps/mo
 
 # Profile nudge and limits
 
-A signed-in member hits the photo rate limit, sees the onboarding nudge for the step they skipped, sees it on Home only, sees no nudge once onboarding is complete, and opens the handle editor from the Profile tab's header. These scenarios were S5 to S8 of [profile/edit](edit.md) until that journey outgrew the runner's 300 s budget. The design is [Flow 23](../../architecture/auth.md#handle), and the banner copy comes from [`auth_state`](../../architecture/auth.md#auth_state).
+A signed-in member hits the photo rate limit, sees the onboarding nudge for the step they skipped, sees it on Home only, sees no nudge once onboarding is complete, and opens Edit profile, where the username is, from the Profile tab's identity card. These scenarios were S5 to S8 of [profile/edit](edit.md) until that journey outgrew the runner's 300 s budget. The design is [Flow 23](../../architecture/auth.md#handle), and the banner copy comes from [`auth_state`](../../architecture/auth.md#auth_state).
 
 The format of this doc is in [App journeys](../README.md).
 
@@ -54,13 +54,13 @@ Starts signed in (auth/sign-in), with A at `ONBOARDING_COMPLETED` (P3).
 | S3.1 | tap | the Profile tab | | `profile-header` shows within 15 s and `onboarding-nudge` does not |
 | S3.2 | tap | the Home tab | | `onboarding-nudge` does not show within 5 s |
 
-### S4 Open the handle editor
+### S4 Open Edit profile from the handle
 
 Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S4.1 | tap | the Profile tab, then `profile-handle` | | `handle-step-field` shows within 5 s, holding the handle `profile-handle` showed without the "@" |
+| S4.1 | tap | the Profile tab, then `profile-handle` | | "Edit profile" shows within 5 s as the screen title, with `edit-profile-username-field` and `profile-name-save` disabled because nothing has changed |
 
 ## Not covered
 

@@ -1,7 +1,7 @@
 ---
 id: profile/user-profile
 title: Another member's profile
-version: 2
+version: 3
 milestone: M17
 requires: [auth/sign-in]
 actors: [A]
@@ -34,7 +34,7 @@ Starts signed in (auth/sign-in).
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | tap, then tap | the Profile tab, then `cabal-row-{cabalID}` | | The cabal screen shows within 15 s, with `cabal-details-button` | A leaderboard or Groups row opens the cabal |
 | S1.2 | scroll to, then tap | `cabal-member-{memberID}` | | `user-profile-header` shows within 15 s | A member row opens the profile (`UserProfileRoute`) |
-| S1.3 | read | `user-profile-header` | | `user-profile-name` reads "Bartholomez", and the header shows "followers" (`user-profile-followers`) and "following" (`user-profile-following`), as screens.md's header "avatar, name, "@handle", follower counts" | The profile header: avatar, name, "@handle", counts |
+| S1.3 | read | `user-profile-header` | | `user-profile-name` reads "Bartholomez", and the counts row below the identity card shows "followers" (`user-profile-followers`) and "following" (`user-profile-following`), as screens.md's header "avatar, name, "@handle", follower counts" | The profile header: avatar, name, "@handle", counts |
 | S1.4 | read | `user-profile-more` | | The "…" menu shows in the toolbar, labelled "More" | The report and block menu |
 
 ### S2 Follow, then unfollow

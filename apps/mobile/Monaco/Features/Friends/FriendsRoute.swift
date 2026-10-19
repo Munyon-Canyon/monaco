@@ -8,12 +8,16 @@ nonisolated struct FriendsRoute: AppRoute {
 }
 
 struct FriendsScreen: View {
+    static let title = "Find friends"
+
     var onSkip: (() -> Void)?
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(\.scenePhase) private var scenePhase
     @State private var model: FriendsOnMonacoModel?
     @State private var search: PeopleSearchModel?
+    @State private var tab: FriendsTab = .discover
+    @State private var following: UserProfileModel?
 
     var body: some View {
         Group {
@@ -24,7 +28,7 @@ struct FriendsScreen: View {
             }
         }
         .monacoCanvas()
-        .navigationTitle(onSkip == nil ? ContactsExplainerView.title : "")
+        .navigationTitle(onSkip == nil ? Self.title : "")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { skip }
         .task {
@@ -37,6 +41,7 @@ struct FriendsScreen: View {
                     now: { Date() }
                 )
                 search = PeopleSearchModel(api: environment.api, clock: ContinuousClock())
+                following = environment.viewer.map { UserProfileModel(userID: $0.userID, api: environment.api) }
             }
             await model?.loadIfGranted()
         }
@@ -61,13 +66,12 @@ struct FriendsScreen: View {
                     ContactsFirstRunHeader(
                         showsExplainer: model.access != .granted, isDenied: model.access == .denied)
                 }
-                PeopleSearchField(model: search)
-                if search.isSearching {
-                    PeopleSearchResults(model: search)
-                } else if model.access == .granted {
-                    FriendsOnMonacoView(model: model)
-                } else if onSkip == nil {
-                    ContactsExplainerView(isDenied: model.access == .denied)
+                FriendsPeopleFrame(query: Bindable(search).query, tab: $tab, showsTabs: onSkip == nil) {
+                    if onSkip == nil && tab == .following {
+                        followingContent(search: search)
+                    } else {
+                        discoverContent(model: model, search: search)
+                    }
                 }
             }
             .padding(.vertical, MonacoTheme.Space.m)
@@ -78,6 +82,29 @@ struct FriendsScreen: View {
             } else if let onSkip {
                 ContactsDoneBar(done: onSkip)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func discoverContent(model: FriendsOnMonacoModel, search: PeopleSearchModel) -> some View {
+        if search.isSearching {
+            PeopleSearchResults(model: search)
+        } else if model.access == .granted {
+            FriendsOnMonacoView(model: model)
+        } else if onSkip == nil {
+            ContactsExplainerView(isDenied: model.access == .denied)
+        }
+    }
+
+    @ViewBuilder
+    private func followingContent(search: PeopleSearchModel) -> some View {
+        if let following {
+            FriendsFollowingList(model: following, filter: search.normalized) {
+                search.query = ""
+            }
+        } else {
+            FriendsFollowingEmpty()
+                .accessibilityIdentifier("friends-following-empty")
         }
     }
 
@@ -93,22 +120,18 @@ struct FriendsScreen: View {
     }
 }
 
-private struct PeopleSearchField: View {
-    @Bindable var model: PeopleSearchModel
-
-    var body: some View {
-        MonacoSearchField(placeholder: "Search by name or @handle", text: $model.query)
-            .textInputAutocapitalization(.never)
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            .accessibilityIdentifier("friends-search-field")
-    }
-}
-
 #if DEBUG
 final class FriendsSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth _: PrivyAuthService) -> AnyView? {
-        guard arguments.contains("-friendsHarness") else { return nil }
+        guard let flag = arguments.firstIndex(of: "-friendsHarness") else { return nil }
+        let states: [String: FriendsSampleState] = [
+            "results": .results, "following": .following, "followingEmpty": .followingEmpty,
+            "noResults": .noResults, "loading": .loading, "error": .error,
+        ]
+        if arguments.indices.contains(flag + 1), let state = states[arguments[flag + 1]] {
+            return AnyView(FriendsSampleScreen(state: state))
+        }
         return AnyView(FriendsHarness())
     }
 }

@@ -216,25 +216,14 @@ private struct FollowListPersonRow: View {
     let isToggling: Bool
     let toggle: () -> Void
 
-    private var name: String { user.displayName.isEmpty ? user.handle : user.displayName }
-
-    private var preview: UserPreview {
-        UserPreview(displayName: user.displayName, handle: user.handle, photoURL: user.photoURL)
-    }
-
     var body: some View {
-        NavigationLink(value: AnyAppRoute(UserProfileRoute(userID: user.id, preview: preview))) {
-            MonacoRow(title: name, subtitle: "@\(user.handle)", isLast: isLast, trailingIsInteractive: true) {
-                MonacoAvatar(photoURL: user.photoURL, displayName: name, seed: user.id)
-            } trailing: {
-                if !isViewer {
-                    FollowToggle(
-                        isFollowing: user.followedByMe, isBusy: isToggling, action: toggle,
-                        identifier: "follow-list-follow-\(user.id)")
-                }
-            }
-        }
-        .buttonStyle(.monacoRow)
+        FriendsPersonRow(
+            person: FriendsPerson(user),
+            accessory: isViewer
+                ? .plain
+                : .follow(isBusy: isToggling, identifier: "follow-list-follow-\(user.id)", action: toggle),
+            isLast: isLast
+        )
         .accessibilityIdentifier("follow-list-open-\(user.id)")
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("follow-list-row-\(user.id)")

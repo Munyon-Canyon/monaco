@@ -4,32 +4,116 @@ import MonacoCore
 import SwiftUI
 import UIKit
 
-/// Debug-only: renders Profile from canned `AppSessionStore` data so QA can screenshot
-/// each state without Privy or a backend. Launch with
-/// `-MonacoProfileSample <placeholder|photo|facePicker|validation|saveFailure|saveSuccess|cabals|empty|loading|error>`.
-/// `cabals` and `empty` open scrolled to the bottom so the cabal list is on screen.
 enum ProfileSampleScenario: String, CaseIterable {
     case placeholder
     case photo
-    /// The face sheet open over the placeholder, so the grid and its ring can be screenshotted.
+    case ready
     case facePicker
-    case validation
-    /// Edit name open on a valid new name. There is no session here, so tapping Save is
-    /// a rejected save — which is how the failure is meant to be readable inside the sheet.
-    case saveFailure
-    /// The same sheet with a store that accepts the save, so the other half of the fix — the
-    /// sheet closing first and the toast landing on the uncovered screen — can be seen.
-    case saveSuccess
     case cabals
     case empty
     case loading
     case error
+    case personPublic
+    case personFollowing
+    case personPrivate
+    case personNotFound
+    case personError
+    case editProfileReady
+    case editProfileInvalid
+    case editProfileSaving
+    case editProfileSaved
+    case editProfileSaveFailure
+    case editProfileError
 
     static func matching(_ arguments: [String]) -> ProfileSampleScenario? {
         guard let flag = arguments.firstIndex(of: "-MonacoProfileSample"),
             arguments.indices.contains(flag + 1)
         else { return nil }
         return ProfileSampleScenario(rawValue: arguments[flag + 1])
+    }
+
+    var personState: UserProfileSampleState? {
+        switch self {
+        case .personPublic: .publicProfile
+        case .personFollowing: .following
+        case .personPrivate: .privateProfile
+        case .personNotFound: .notFound
+        case .personError: .error
+        default: nil
+        }
+    }
+
+    var editPresets: EditProfilePresets? {
+        let bio = "Building things. Asking better questions."
+        var presets = EditProfilePresets(bioDraft: bio, bioEnabled: true, sessions: .handlePreview(.available))
+        switch self {
+        case .editProfileReady: break
+        case .editProfileInvalid: presets.handleDraft = "a!"
+        case .editProfileSaving:
+            presets.nameDraft = "Logan N"
+            presets.phase = .saving
+        case .editProfileSaved: presets.phase = .saved
+        case .editProfileSaveFailure:
+            presets.nameDraft = "Logan N"
+            presets.saveName = RejectingNameStore()
+        case .editProfileError: presets.loadFailed = true
+        default: return nil
+        }
+        return presets
+    }
+}
+
+private struct RejectingNameStore: DisplayNameSaving {
+    func saveDisplayName(_ draft: String) async -> ProfileSaveOutcome {
+        .failed("Couldn't save your name. Try again.")
+    }
+}
+
+enum UserProfileSampleState {
+    case publicProfile, following, privateProfile, notFound, error
+}
+
+struct UserProfileSampleScreen: View {
+    let state: UserProfileSampleState
+
+    private var fixture: UserProfileFixture {
+        UserProfileFixture(
+            bio: "Curious about good ideas and better questions.",
+            performance: state == .privateProfile
+                ? .hidden : .figure(dollars: "+$984.00", percent: "+8.2%"),
+            periodText: "1M", joinedText: "Joined October 2026", showsPublicActivity: true)
+    }
+
+    private var data: UserProfileContentData {
+        UserProfileContentData(
+            userID: "sample-mia", title: "Mia Chen", handle: "mia", photoURL: nil, followers: 12, following: 8,
+            followedByMe: state == .following)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: MonacoTheme.Space.m) {
+                    content
+                }
+                .padding(.top, MonacoTheme.Space.m)
+            }
+            .monacoCanvas()
+            .navigationTitle("Mia Chen")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
+        }
+    }
+
+    @ViewBuilder private var content: some View {
+        switch state {
+        case .notFound:
+            UserProfileNotFound {}
+        case .error:
+            UserProfileLoadFailed {}
+        default:
+            UserProfileContent(data: data, fixture: fixture, actions: UserProfileActions())
+        }
     }
 }
 
@@ -39,39 +123,17 @@ struct ProfileSampleHarness: View {
     @State private var store = AppSessionStore()
 
     var body: some View {
-        SampleAppFrame(auth: auth, tab: .profile, store: store) { Self.fill($0, for: scenario) }
-            .environment(\.profileHeaderPresets, presets)
+        SampleAppFrame(
+            auth: auth, tab: .profile, routes: scenario.editPresets == nil ? [] : [EditProfileRoute()], store: store
+        ) { Self.fill($0, for: scenario) }
+        .environment(\.profileHeaderPresets, presets)
+        .environment(\.editProfilePresets, scenario.editPresets ?? EditProfilePresets())
     }
 
     private var presets: ProfileHeaderPresets {
         ProfileHeaderPresets(
-            nameDraft: Self.nameDraft(for: scenario),
-            showsEditProfile: scenario == .validation || scenario == .saveFailure || scenario == .saveSuccess,
             showsFacePicker: scenario == .facePicker,
-            saveName: saveNameOverride,
-            savesOnOpen: savesOnOpen
-        )
-    }
-
-    private var savesOnOpen: Bool {
-        (scenario == .saveFailure || scenario == .saveSuccess)
-            && ProcessInfo.processInfo.arguments.contains(SampleHarnessRegistry.actArgument)
-    }
-
-    private var saveNameOverride: (any DisplayNameSaving)? {
-        scenario == .saveSuccess ? AcceptingNameStore(session: store) : nil
-    }
-
-    private static func nameDraft(for scenario: ProfileSampleScenario) -> String? {
-        switch scenario {
-        // Over the 32-character limit: the field shows the broken rule and Save stays off.
-        case .validation: return "Logan Norman of the Weekend Investors"
-        // Valid and different from the saved name, so Save is live and can be rejected.
-        case .saveFailure: return "Logan N"
-        // Valid and different, and this scenario's store accepts it.
-        case .saveSuccess: return "Logan N"
-        default: return nil
-        }
+            bio: scenario == .ready || scenario == .photo ? "Building things. Asking better questions." : nil)
     }
 
     private static func fill(_ session: AppSessionStore, for scenario: ProfileSampleScenario) {
@@ -87,11 +149,12 @@ struct ProfileSampleHarness: View {
             break
         }
 
+        let hasPhoto = scenario == .photo || scenario == .ready || scenario == .cabals
         session.profile = sampleProfile(
             userID: "sample-user",
             displayName: "Logan Norman",
-            photoURL: scenario == .photo || scenario == .cabals ? samplePhotoURL : nil,
-            createdAt: ISO8601DateFormatter().date(from: "2026-09-01T14:30:00Z")
+            photoURL: hasPhoto ? samplePhotoURL : nil,
+            createdAt: ISO8601DateFormatter().date(from: "2026-10-01T14:30:00Z")
         )
 
         session.hasLoaded = true
@@ -111,28 +174,11 @@ struct ProfileSampleHarness: View {
     static let samplePhotoURL = SampleImage.flat(.plum, name: "avatar")
 }
 
-/// A store that accepts the save, standing in for the profile endpoint. Writes the name back
-/// to the session, so the screen behind the sheet really does show it afterwards.
-private struct AcceptingNameStore: DisplayNameSaving {
-    let session: AppSessionStore
-
-    func saveDisplayName(_ draft: String) async -> ProfileSaveOutcome {
-        guard case .success(let normalized) = DisplayNameRules.normalize(draft) else {
-            return .failed("That name can't be used.")
-        }
-        guard let current = session.profile else {
-            return .failed("Couldn't save your name. Your profile is still loading.")
-        }
-        guard normalized != current.displayName else { return .unchanged }
-        session.profile = current.withDisplayName(normalized)
-        return .saved
-    }
-}
-
 private func apiMode(for scenario: ProfileSampleScenario) -> SampleAPIScript.Mode {
     switch scenario {
     case .empty: return .empty
     case .loading: return .hang
+    case .error: return .offline
     default: return .populated
     }
 }
@@ -142,6 +188,9 @@ final class ProfileSampleHarnessEntry: SampleHarnessEntry {
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
         guard let scenario = ProfileSampleScenario.matching(arguments) else { return nil }
         SampleAPIProtocol.install(SampleAPIScript(mode: apiMode(for: scenario)))
+        if let state = scenario.personState {
+            return AnyView(UserProfileSampleScreen(state: state))
+        }
         return AnyView(ProfileSampleHarness(scenario: scenario, auth: auth))
     }
 }

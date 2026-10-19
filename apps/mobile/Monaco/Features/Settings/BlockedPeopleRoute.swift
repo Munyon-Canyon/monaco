@@ -49,8 +49,11 @@ struct BlockedPeopleView: View {
             }
         case .loaded(let people):
             if people.isEmpty {
-                EmptyState(title: "No one blocked", message: "People you block show up here.")
-                    .accessibilityIdentifier("blocked-people-empty")
+                EmptyState(
+                    title: "No one blocked", message: "People you block show up here.",
+                    systemImage: "hand.raised"
+                )
+                .accessibilityIdentifier("blocked-people-empty")
             } else {
                 list(people)
             }

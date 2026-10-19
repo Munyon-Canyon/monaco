@@ -21,7 +21,7 @@ nonisolated final class FeedSampleUITests: XCTestCase {
         screenshot(app, "feed-follows-nobody")
 
         app.buttons["feed-find-friends"].tap()
-        let friends = app.navigationBars["Friends on Monaco"]
+        let friends = app.navigationBars["Find friends"]
         XCTAssertTrue(friends.waitForExistence(timeout: 10), "Find friends opens Friends")
         screenshot(app, "feed-find-friends")
     }

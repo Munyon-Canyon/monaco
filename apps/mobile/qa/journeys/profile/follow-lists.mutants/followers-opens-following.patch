@@ -4,16 +4,15 @@ expect-fail: S1
 "Followers" opens the following list. S1.2 waits for the "Followers" screen, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift b/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift
-index 5d7895475..f385cb7ed 100644
---- a/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift
-+++ b/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift
-@@ -65,7 +65,7 @@ private struct ProfileFollowCountLinks: View {
-         let followerCount = model?.followerCount ?? 0
-         let followers = link(
-             FollowCountFormatter.count(followerCount), FollowCountFormatter.followersNoun(followerCount),
--            .followers, id: "profile-followers")
-+            .following, id: "profile-followers")
-         let following = link(
-             FollowCountFormatter.count(model?.followingCount ?? 0), "following", .following, id: "profile-following")
-         return ViewThatFits(in: .horizontal) {
+diff --git a/apps/mobile/Monaco/Features/Profile/SocialCounts.swift b/apps/mobile/Monaco/Features/Profile/SocialCounts.swift
+--- a/apps/mobile/Monaco/Features/Profile/SocialCounts.swift
++++ b/apps/mobile/Monaco/Features/Profile/SocialCounts.swift
+@@ -36,7 +36,7 @@
+     private var followersItem: some View {
+         link(
+             FollowCountFormatter.count(model.followers), FollowCountFormatter.followersNoun(model.followers),
+-            .followers, id: "\(identifierPrefix)-followers")
++            .following, id: "\(identifierPrefix)-followers")
+     }
+ 
+     private var followingItem: some View {
