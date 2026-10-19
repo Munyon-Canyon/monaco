@@ -24,20 +24,21 @@ SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.t
     NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AND fc.hidden_at IS NOT NULL)
     AND (cardinality($2::text[]) = 0 OR f.kind = ANY($2::text[]))
     AND ($3::uuid = '00000000-0000-0000-0000-000000000000' OR f.cabal_id IS NOT DISTINCT FROM $3::uuid)
-    AND ($4::text = '' OR lower(coalesce(f.symbol, '')) = lower($4::text))
+    AND ($4::uuid = '00000000-0000-0000-0000-000000000000' OR f.actor_id IS NOT DISTINCT FROM $4::uuid)
+    AND ($5::text = '' OR lower(coalesce(f.symbol, '')) = lower($5::text))
     AND (
-      $5::text = ''
-      OR f.search @@ websearch_to_tsquery('english', $5::text)
-      OR f.search @@ websearch_to_tsquery('simple', $5::text)
+      $6::text = ''
+      OR f.search @@ websearch_to_tsquery('english', $6::text)
+      OR f.search @@ websearch_to_tsquery('simple', $6::text)
     )
     AND (
-      NOT $6::bool
+      NOT $7::bool
       OR coalesce(f.actor_id IN (
         SELECT followee_id FROM follows WHERE follower_id = $1::uuid AND deleted_at IS NULL
       ), false)
     )
     AND (
-      NOT $7::bool
+      NOT $8::bool
       OR (
         f.kind <> 'price_move'
         AND EXISTS (
@@ -68,13 +69,14 @@ SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.t
     )
   )::bool AS visible
 FROM feed_objects f
-WHERE f.id = $8
+WHERE f.id = $9
 `
 
 type GetFeedItemParams struct {
 	Viewer    uuid.UUID
 	Kinds     []string
 	CabalID   uuid.UUID
+	ActorID   uuid.UUID
 	Symbol    string
 	Q         string
 	Following bool
@@ -109,6 +111,7 @@ func (q *Queries) GetFeedItem(ctx context.Context, arg GetFeedItemParams) (GetFe
 		arg.Viewer,
 		arg.Kinds,
 		arg.CabalID,
+		arg.ActorID,
 		arg.Symbol,
 		arg.Q,
 		arg.Following,
@@ -171,20 +174,21 @@ FROM feed_objects f
 WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AND fc.hidden_at IS NOT NULL)
   AND (cardinality($2::text[]) = 0 OR f.kind = ANY($2::text[]))
   AND ($3::uuid = '00000000-0000-0000-0000-000000000000' OR f.cabal_id = $3::uuid)
-  AND ($4::text = '' OR lower(f.symbol) = lower($4::text))
+  AND ($4::uuid = '00000000-0000-0000-0000-000000000000' OR f.actor_id = $4::uuid)
+  AND ($5::text = '' OR lower(f.symbol) = lower($5::text))
   AND (
-    $5::text = ''
-    OR f.search @@ websearch_to_tsquery('english', $5::text)
-    OR f.search @@ websearch_to_tsquery('simple', $5::text)
+    $6::text = ''
+    OR f.search @@ websearch_to_tsquery('english', $6::text)
+    OR f.search @@ websearch_to_tsquery('simple', $6::text)
   )
   AND (
-    NOT $6::bool
+    NOT $7::bool
     OR f.actor_id IN (
       SELECT followee_id FROM follows WHERE follower_id = $1::uuid AND deleted_at IS NULL
     )
   )
   AND (
-    NOT $7::bool
+    NOT $8::bool
     OR (
       f.kind <> 'price_move'
       AND EXISTS (
@@ -214,17 +218,18 @@ WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AN
     WHERE m.user_id = $1::uuid AND m.target_type = 'item' AND m.target_id = f.id::text
   )
   AND (
-    NOT $8::bool
-    OR (f.created_at, f.id) < ($9::timestamptz, $10::uuid)
+    NOT $9::bool
+    OR (f.created_at, f.id) < ($10::timestamptz, $11::uuid)
   )
 ORDER BY f.created_at DESC, f.id DESC
-LIMIT $11::int
+LIMIT $12::int
 `
 
 type ListFeedParams struct {
 	Viewer    uuid.UUID
 	Kinds     []string
 	CabalID   uuid.UUID
+	ActorID   uuid.UUID
 	Symbol    string
 	Q         string
 	Following bool
@@ -261,6 +266,7 @@ func (q *Queries) ListFeed(ctx context.Context, arg ListFeedParams) ([]ListFeedR
 		arg.Viewer,
 		arg.Kinds,
 		arg.CabalID,
+		arg.ActorID,
 		arg.Symbol,
 		arg.Q,
 		arg.Following,
@@ -318,20 +324,21 @@ FROM feed_objects f
 WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AND fc.hidden_at IS NOT NULL)
   AND (cardinality($2::text[]) = 0 OR f.kind = ANY($2::text[]))
   AND ($3::uuid = '00000000-0000-0000-0000-000000000000' OR f.cabal_id = $3::uuid)
-  AND ($4::text = '' OR lower(f.symbol) = lower($4::text))
+  AND ($4::uuid = '00000000-0000-0000-0000-000000000000' OR f.actor_id = $4::uuid)
+  AND ($5::text = '' OR lower(f.symbol) = lower($5::text))
   AND (
-    $5::text = ''
-    OR f.search @@ websearch_to_tsquery('english', $5::text)
-    OR f.search @@ websearch_to_tsquery('simple', $5::text)
+    $6::text = ''
+    OR f.search @@ websearch_to_tsquery('english', $6::text)
+    OR f.search @@ websearch_to_tsquery('simple', $6::text)
   )
   AND (
-    NOT $6::bool
+    NOT $7::bool
     OR f.actor_id IN (
       SELECT followee_id FROM follows WHERE follower_id = $1::uuid AND deleted_at IS NULL
     )
   )
   AND (
-    NOT $7::bool
+    NOT $8::bool
     OR (
       f.kind <> 'price_move'
       AND EXISTS (
@@ -360,20 +367,21 @@ WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AN
     SELECT 1 FROM feed_mutes m
     WHERE m.user_id = $1::uuid AND m.target_type = 'item' AND m.target_id = f.id::text
   )
-  AND f.created_at >= $8::timestamptz
+  AND f.created_at >= $9::timestamptz
   AND (
-    NOT $9::bool
+    NOT $10::bool
     OR (f.comment_count, f.created_at, f.id)
-      < ($10::int, $11::timestamptz, $12::uuid)
+      < ($11::int, $12::timestamptz, $13::uuid)
   )
 ORDER BY f.comment_count DESC, f.created_at DESC, f.id DESC
-LIMIT $13::int
+LIMIT $14::int
 `
 
 type ListTopFeedParams struct {
 	Viewer     uuid.UUID
 	Kinds      []string
 	CabalID    uuid.UUID
+	ActorID    uuid.UUID
 	Symbol     string
 	Q          string
 	Following  bool
@@ -412,6 +420,7 @@ func (q *Queries) ListTopFeed(ctx context.Context, arg ListTopFeedParams) ([]Lis
 		arg.Viewer,
 		arg.Kinds,
 		arg.CabalID,
+		arg.ActorID,
 		arg.Symbol,
 		arg.Q,
 		arg.Following,

@@ -23,6 +23,7 @@ const (
 type FeedFilter struct {
 	Kinds   []feed.Kind
 	CabalID ids.CabalID
+	ActorID ids.UserID
 	Symbol  string
 	Q       string
 	Scope   feed.Scope
@@ -112,9 +113,9 @@ func fetchFeed(ctx context.Context, reads *sqlc.Queries, q FeedQuery, rowLimit i
 		return reads.ListFeed(ctx, params)
 	}
 	top := sqlc.ListTopFeedParams{
-		Kinds: params.Kinds, CabalID: params.CabalID, Symbol: params.Symbol, Q: params.Q, Following: params.Following,
-		Viewer: params.Viewer, Mine: params.Mine, Since: q.Now.Add(-feed.TopWindow), HasCursor: params.HasCursor,
-		AfterAt: params.AfterAt, AfterID: params.AfterID, RowLimit: params.RowLimit,
+		Kinds: params.Kinds, CabalID: params.CabalID, ActorID: params.ActorID, Symbol: params.Symbol, Q: params.Q,
+		Following: params.Following, Viewer: params.Viewer, Mine: params.Mine, Since: q.Now.Add(-feed.TopWindow),
+		HasCursor: params.HasCursor, AfterAt: params.AfterAt, AfterID: params.AfterID, RowLimit: params.RowLimit,
 	}
 	if q.After != nil {
 		top.AfterCount = q.After.Count
@@ -162,7 +163,7 @@ func feedItemOf(row sqlc.ListFeedRow) (FeedItem, error) {
 
 func filterParams(viewer ids.UserID, f FeedFilter) sqlc.ListFeedParams {
 	return sqlc.ListFeedParams{
-		Kinds: kindStrings(f.Kinds), CabalID: f.CabalID.UUID(), Symbol: f.Symbol, Q: f.Q,
+		Kinds: kindStrings(f.Kinds), CabalID: f.CabalID.UUID(), ActorID: f.ActorID.UUID(), Symbol: f.Symbol, Q: f.Q,
 		Following: f.Scope == feed.ScopeFollowing, Mine: f.Scope == feed.ScopeMine, Viewer: viewer.UUID(),
 	}
 }
