@@ -96,4 +96,14 @@ final class AvatarInitialsTests: XCTestCase {
             MemberSinceFormatter.format(date, timeZone: TimeZone(identifier: "America/Los_Angeles")!, locale: locale),
             "Member since Aug 2026")
     }
+
+    func testJoined_namesTheFullMonthInTheViewerTimeZone() throws {
+        let date = Date(timeIntervalSince1970: 1_788_228_000)
+        let locale = Locale(identifier: "en_US")
+        let losAngeles = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
+
+        XCTAssertEqual(MemberSinceFormatter.joined(date, timeZone: .gmt, locale: locale), "Joined September 2026")
+        XCTAssertEqual(
+            MemberSinceFormatter.joined(date, timeZone: losAngeles, locale: locale), "Joined August 2026")
+    }
 }

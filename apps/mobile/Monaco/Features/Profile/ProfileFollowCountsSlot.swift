@@ -1,3 +1,4 @@
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -25,11 +26,13 @@ private struct ProfileFollowCountLinks: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @Environment(ToastCenter.self) private var toasts
+    @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
     @State private var model: UserProfileModel?
 
     var body: some View {
         content
             .frame(maxWidth: .infinity)
+            .padding(.top, MonacoTheme.Space.m - SectionStackMetrics.spacing)
             .task(id: userID) {
                 let model = prepared()
                 refresh?.register("profile-follow-counts") { await model.refresh() }
@@ -62,39 +65,17 @@ private struct ProfileFollowCountLinks: View {
     }
 
     private var countLinks: some View {
-        let followerCount = model?.followerCount ?? 0
-        let followers = link(
-            FollowCountFormatter.count(followerCount), FollowCountFormatter.followersNoun(followerCount),
-            .followers, id: "profile-followers")
-        let following = link(
-            FollowCountFormatter.count(model?.followingCount ?? 0), "following", .following, id: "profile-following")
-        return ViewThatFits(in: .horizontal) {
-            HStack(spacing: MonacoTheme.Space.m) {
-                followers
-                Text("·")
-                    .font(MonacoTheme.Typo.callout)
-                    .foregroundStyle(MonacoTheme.tertiaryText)
-                    .accessibilityHidden(true)
-                following
-            }
-            VStack(spacing: 0) {
-                followers
-                following
-            }
-        }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
+        SocialCounts(
+            model: SocialCountsModel(
+                userID: userID, followers: model?.followerCount ?? 0, following: model?.followingCount ?? 0,
+                cabals: cabalCount)
+        )
     }
 
-    private func link(_ count: String, _ word: String, _ kind: FollowListKind, id: String) -> some View {
-        NavigationLink(value: AnyAppRoute(FollowListRoute(userID: userID, kind: kind))) {
-            Text(
-                "\(Text(count).font(MonacoTheme.Typo.rowTitle).foregroundStyle(MonacoTheme.ink)) \(Text(word).font(MonacoTheme.Typo.callout).foregroundStyle(MonacoTheme.secondaryText))"
-            )
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(minHeight: 44)
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(id)
+    private var cabalCount: Int? {
+        guard let state = portfolio?.state else { return nil }
+        if case .loaded(let summary) = state { return summary.rows.count }
+        return nil
     }
 
     private func prepared() -> UserProfileModel {

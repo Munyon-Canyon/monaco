@@ -4,16 +4,15 @@ expect-fail: S4
 The handle is a dead button. S4.1 expects the handle editor, so S4 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Profile/ProfileHeaderSlot.swift b/apps/mobile/Monaco/Features/Profile/ProfileHeaderSlot.swift
-index f596d2d8a..c64eed330 100644
---- a/apps/mobile/Monaco/Features/Profile/ProfileHeaderSlot.swift
-+++ b/apps/mobile/Monaco/Features/Profile/ProfileHeaderSlot.swift
-@@ -131,7 +131,7 @@ struct ProfileHeader: View {
-                 .padding(.horizontal, Self.pencilTarget)
+diff --git a/apps/mobile/Monaco/Features/Profile/IdentityCard.swift b/apps/mobile/Monaco/Features/Profile/IdentityCard.swift
+--- a/apps/mobile/Monaco/Features/Profile/IdentityCard.swift
++++ b/apps/mobile/Monaco/Features/Profile/IdentityCard.swift
+@@ -95,7 +95,7 @@
  
-             if let handle = session.profile?.handle {
--                NavigationLink(value: AnyAppRoute(HandleEditRoute())) {
-+                Button {} label: {
-                     HStack(spacing: MonacoTheme.Space.xs) {
-                         Text("@\(handle)")
-                             .font(MonacoTheme.Typo.rowTitle)
+     @ViewBuilder private var nameBlock: some View {
+         if let editRoute {
+-            NavigationLink(value: editRoute) {
++            Button {} label: {
+                 names.accessibilityElement(children: .contain)
+             }
+             .buttonStyle(.plain)

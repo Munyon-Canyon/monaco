@@ -5,15 +5,14 @@ Settings has no Withdraw row. S2.1 waits for settings-withdraw, so S2 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Settings/SettingsView.swift b/apps/mobile/Monaco/Features/Settings/SettingsView.swift
-index 5dc48f8b..dabf8d18 100644
 --- a/apps/mobile/Monaco/Features/Settings/SettingsView.swift
 +++ b/apps/mobile/Monaco/Features/Settings/SettingsView.swift
-@@ -37,7 +37,7 @@ enum SettingsRow: CaseIterable, Identifiable {
-         switch self {
+@@ -55,7 +55,7 @@
          case .notifications: "settings-notifications"
+         case .editProfile: "settings-edit-profile"
          case .activity: "settings-activity"
 -        case .withdraw: "settings-withdraw"
 +        case .withdraw: "settings-withdraw-gone"
          case .blockedPeople: "settings-blocked-people"
          case .advanced: "settings-advanced"
-         case .deleteAccount: "settings-delete-account"
+         case .signOut: "profileSignOutButton"

@@ -4,17 +4,15 @@ expect-fail: S1
 The stats band calls its count column "Groups". S1.2 reads "Cabal" or "Cabals", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Profile/ProfileStatsSlot.swift b/apps/mobile/Monaco/Features/Profile/ProfileStatsSlot.swift
-diff --git a/apps/mobile/Monaco/Features/Profile/ProfileStatsSlot.swift b/apps/mobile/Monaco/Features/Profile/ProfileStatsSlot.swift
-index 35ce92f21..e2898e5d7 100644
---- a/apps/mobile/Monaco/Features/Profile/ProfileStatsSlot.swift
-+++ b/apps/mobile/Monaco/Features/Profile/ProfileStatsSlot.swift
-@@ -63,7 +63,7 @@ struct ProfileStatsBand: View {
-                 tone: PnLTone(dollarPnl: stats.returnDollars).color, stacked: stacked
-             )
-             .accessibilityIdentifier("profile-stat-return")
--            ProfileStatColumn(value: stats.cabals, detail: nil, label: stats.cabalsLabel, tone: nil, stacked: stacked)
-+            ProfileStatColumn(value: stats.cabals, detail: nil, label: "Groups", tone: nil, stacked: stacked)
-                 .accessibilityIdentifier("profile-stat-cabals")
+diff --git a/apps/mobile/Monaco/Features/Profile/SocialCounts.swift b/apps/mobile/Monaco/Features/Profile/SocialCounts.swift
+--- a/apps/mobile/Monaco/Features/Profile/SocialCounts.swift
++++ b/apps/mobile/Monaco/Features/Profile/SocialCounts.swift
+@@ -45,7 +45,7 @@
+ 
+     @ViewBuilder private var cabalsItem: some View {
+         if let cabals = model.cabals {
+-            item(FollowCountFormatter.count(cabals), cabals == 1 ? "cabal" : "cabals")
++            item(FollowCountFormatter.count(cabals), cabals == 1 ? "group" : "groups")
+                 .accessibilityIdentifier("\(identifierPrefix)-stat-cabals")
          }
      }

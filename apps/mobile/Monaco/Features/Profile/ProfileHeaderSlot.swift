@@ -1,3 +1,4 @@
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -10,11 +11,8 @@ enum ProfileHeaderSlot: ProfileSection {
 }
 
 struct ProfileHeaderPresets {
-    var nameDraft: String?
-    var showsEditProfile = false
     var showsFacePicker = false
-    var saveName: (any DisplayNameSaving)?
-    var savesOnOpen = false
+    var bio: String?
 }
 
 extension EnvironmentValues {
@@ -23,81 +21,31 @@ extension EnvironmentValues {
 
 struct ProfileHeader: View {
     @EnvironmentObject private var auth: PrivyAuthService
+    @Environment(AppEnvironment.self) private var environment
     @Environment(AppSessionStore.self) private var session
     @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
+    @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
     @Environment(\.profileHeaderPresets) private var presets
 
-    @State private var showEditProfile = false
-
-    private static let pencilTarget: CGFloat = 44
-
-    private var displayName: String {
-        let name = session.profile?.displayName.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return name.isEmpty ? "Member" : name
-    }
-
-    private var memberSince: String {
-        guard let createdAt = session.profile?.createdAt else { return "Your profile" }
-        return MemberSinceFormatter.format(createdAt)
-    }
+    @State private var showsShare = false
 
     var body: some View {
-        VStack(spacing: MonacoTheme.Space.m) {
-            if session.profile != nil {
-                identity
+        VStack(spacing: 0) {
+            if let profile = session.profile {
+                identity(profile)
             } else if session.isLoading {
-                skeleton
+                IdentityCardSkeleton(identifier: "profile-header-loading", label: "Loading your profile")
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
             } else {
                 loadFailure
             }
         }
-        .padding(.top, MonacoTheme.Space.m)
         .task {
             refresh?.register("profile-header") { [session, auth] in
                 await session.reloadProfile(auth: auth)
             }
         }
-        .sheet(isPresented: $showEditProfile) {
-            NavigationStack {
-                ScrollView {
-                    ProfileNameEditor(
-                        auth: auth,
-                        initialDraft: presets.nameDraft,
-                        saveName: presets.saveName,
-                        savesOnOpen: presets.savesOnOpen
-                    ) {
-                        showEditProfile = false
-                        toasts.show(success: "Name updated.")
-                    }
-                }
-                .monacoSheet(title: "Edit name")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") { showEditProfile = false }
-                    }
-                }
-            }
-            .presentationDetents([.medium])
-        }
-        .onAppear {
-            if presets.showsEditProfile { showEditProfile = true }
-        }
-    }
-
-    private var skeleton: some View {
-        VStack(spacing: MonacoTheme.Space.s) {
-            SkeletonBlock(width: 96, height: 96, radius: 48)
-            SkeletonBlock(width: 168, height: 28)
-            SkeletonBlock(width: 96, height: 16)
-                .frame(minHeight: 44)
-            SkeletonBlock(width: 112, height: 14)
-        }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Loading your profile")
-        .accessibilityIdentifier("profile-header-loading")
     }
 
     private var loadFailure: some View {
@@ -106,63 +54,54 @@ struct ProfileHeader: View {
         }
     }
 
-    private var identity: some View {
+    private func identity(_ profile: SessionProfile) -> some View {
         VStack(spacing: MonacoTheme.Space.s) {
-            ProfilePhotoPicker(auth: auth, size: 96, initiallyOpen: presets.showsFacePicker) {
-                toasts.current = $0
-            }
-
-            Text(displayName)
-                .font(MonacoTheme.Typo.display)
-                .foregroundStyle(MonacoTheme.ink)
-                .lineLimit(2)
-                .minimumScaleFactor(0.7)
-                .multilineTextAlignment(.center)
-                .accessibilityIdentifier("profile-display-name")
-                .overlay(alignment: .trailing) {
-                    Button {
-                        showEditProfile = true
-                    } label: {
-                        Image(systemName: "pencil")
-                            .font(MonacoTheme.Typo.captionStrong)
-                            .foregroundStyle(MonacoTheme.muted)
-                            .frame(width: Self.pencilTarget, height: Self.pencilTarget)
-                    }
-                    .accessibilityLabel("Edit name")
-                    .accessibilityIdentifier("profile-edit-button")
-                    .offset(x: Self.pencilTarget)
+            IdentityCard(
+                model: Self.model(for: profile, portfolio: portfolio?.state ?? .loading, bio: presets.bio),
+                editRoute: AnyAppRoute(EditProfileRoute())
+            ) {
+                ProfilePhotoPicker(
+                    auth: auth, size: 64, badge: .pencil(ring: MonacoTheme.identityFill), avatarRing: .identity,
+                    initiallyOpen: presets.showsFacePicker
+                ) {
+                    toasts.current = $0
                 }
-                .padding(.horizontal, Self.pencilTarget)
-
-            if let handle = session.profile?.handle {
-                NavigationLink(value: AnyAppRoute(HandleEditRoute())) {
-                    HStack(spacing: MonacoTheme.Space.xs) {
-                        Text("@\(handle)")
-                            .font(MonacoTheme.Typo.rowTitle)
-                            .foregroundStyle(MonacoTheme.brand)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                        Image(systemName: "pencil")
-                            .font(MonacoTheme.Typo.captionStrong)
-                            .foregroundStyle(MonacoTheme.muted)
-                            .accessibilityHidden(true)
-                    }
-                    .frame(minHeight: 44)
+            } share: {
+                if ProfileScreen.canShare(profile: profile, portfolioState: portfolio?.state) {
+                    IdentityShareButton(accessibilityLabel: "Share your return") { showsShare = true }
+                        .accessibilityIdentifier("profile-share-button")
                 }
-                .buttonStyle(.plain)
-                .accessibilityHint("Edit your handle")
-                .accessibilityIdentifier("profile-handle")
             }
-
-            Text(memberSince)
-                .font(MonacoTheme.Typo.callout)
-                .foregroundStyle(MonacoTheme.tertiaryText)
-                .multilineTextAlignment(.center)
-                .accessibilityIdentifier("profile-member-since")
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            if case .failed = portfolio?.state {
+                MonacoErrorRow(thing: "your portfolio", identifier: "profile-stats-retry") {
+                    Task { await portfolio?.load() }
+                }
+            }
         }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("profile-header")
+        .sheet(isPresented: $showsShare) {
+            ShareCardHost(api: environment.api) { await $0.loadMe(profile: profile) }
+                .monacoToastCenter(toasts)
+        }
+    }
+
+    static func model(
+        for profile: SessionProfile, portfolio: LoadState<PortfolioSummary>, bio: String?
+    ) -> IdentityCardModel {
+        let name = profile.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        var model = IdentityCardModel(
+            displayName: name.isEmpty ? "Member" : name, handle: profile.handle,
+            joinedText: MemberSinceFormatter.joined(profile.createdAt), bio: bio, positionsValue: IdentityCardCopy.zero,
+            performance: .loading, periodText: IdentityCardCopy.allTime)
+        switch portfolio {
+        case .idle, .loading:
+            break
+        case .failed:
+            model.performance = .failed
+        case .loaded(let summary):
+            model.positionsValue = summary.stats.inCabals
+            model.performance = IdentityPerformance(stats: summary.stats)
+        }
+        return model
     }
 }

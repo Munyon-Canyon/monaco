@@ -7,12 +7,12 @@ scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift b/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
 --- a/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
 +++ b/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
-@@ -148,7 +148,7 @@
-                     .buttonStyle(.monacoSecondary)
-                     .accessibilityIdentifier("user-profile-follow")
-             } else {
--                Button("Follow") { Task { await model.follow(userID: model.userID) } }
-+                Button("Follow") {}
-                     .buttonStyle(.monacoPrimary)
-                     .accessibilityIdentifier("user-profile-follow")
-             }
+@@ -227,7 +227,7 @@
+                 .padding(.horizontal, MonacoTheme.Space.gutter)
+                 .accessibilityIdentifier("user-profile-follow")
+         } else {
+-            Button("Follow", action: actions.follow)
++            Button("Follow") {}
+                 .buttonStyle(.monacoPrimary)
+                 .disabled(data.isBusy)
+                 .padding(.horizontal, MonacoTheme.Space.gutter)

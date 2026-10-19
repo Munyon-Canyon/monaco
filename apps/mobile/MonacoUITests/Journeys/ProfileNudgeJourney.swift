@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileNudgeJourney {
     static let id = "profile/nudge"
-    static let version = 2
+    static let version = 3
 
     static let nudgeCopy = "Connect X to find people you follow"
     static let rateLimitCopy = "Too many requests. Try again in a moment."
@@ -88,11 +88,13 @@ enum ProfileNudgeJourney {
         recorder.step("S4.1", "tap the handle") {
             ProfileEditJourney.openProfile(app, step: "S4.1")
             let row = app.element("profile-handle")
-            let handle = String(row.label.dropFirst())
+            XCTAssertTrue(row.label.hasPrefix("@"), "S4.1: the handle does not read '@' and the handle")
             row.tap()
-            let field = app.textFields["handle-step-field"]
-            XCTAssertTrue(field.waitForExistence(timeout: 5), "S4.1: the handle editor did not open")
-            XCTAssertEqual(field.value as? String, handle, "S4.1: the handle field does not hold '\(handle)'")
+            let field = app.textFields["edit-profile-username-field"]
+            XCTAssertTrue(field.waitForExistence(timeout: 5), "S4.1: Edit profile did not open with a Username field")
+            XCTAssertTrue(app.navigationBars["Edit profile"].exists, "S4.1: the screen is not titled 'Edit profile'")
+            XCTAssertFalse(
+                app.buttons["profile-name-save"].isEnabled, "S4.1: Save changes is enabled before anything changed")
         }
     }
 }

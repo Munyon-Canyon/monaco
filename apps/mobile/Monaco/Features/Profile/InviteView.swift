@@ -62,7 +62,7 @@ struct InviteContent: View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                 Text(InviteCopy.body)
-                    .font(MonacoTheme.Typo.callout)
+                    .font(MonacoTheme.Typo.subhead)
                     .foregroundStyle(MonacoTheme.muted)
                     .fixedSize(horizontal: false, vertical: true)
                 content
@@ -82,7 +82,7 @@ struct InviteContent: View {
     @ViewBuilder private var content: some View {
         switch state {
         case .idle, .loading, .pending:
-            SkeletonBlock(height: 120, radius: MonacoTheme.Radius.card)
+            SkeletonBlock(height: SkeletonMetrics.cardHeight, radius: MonacoTheme.Radius.card)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Loading your invite link")
         case .failed:
@@ -124,7 +124,7 @@ private struct InviteLinkCard: View {
                 Button(action: copy) {
                     Label(InviteCopy.copy, systemImage: "doc.on.doc")
                 }
-                .buttonStyle(.monacoSecondary)
+                .buttonStyle(.monacoOutline)
                 .accessibilityIdentifier("invite-copy")
             }
             .padding(.top, MonacoTheme.Space.xs)
@@ -166,7 +166,7 @@ private struct InviteUnlockPrompt: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("invite-unlock")
             NavigationLink(InviteCopy.deposit, value: AnyAppRoute(DepositRoute()))
-                .buttonStyle(.monacoSecondary)
+                .buttonStyle(.monacoOutline)
                 .accessibilityIdentifier("invite-deposit")
         }
         .padding(.top, MonacoTheme.Space.s)

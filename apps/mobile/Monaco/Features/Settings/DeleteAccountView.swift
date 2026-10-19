@@ -51,10 +51,9 @@ struct DeleteAccountContent: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
-                Text(AccountCopy.explainer)
-                    .font(MonacoTheme.Typo.body)
-                    .foregroundStyle(MonacoTheme.ink)
-                    .fixedSize(horizontal: false, vertical: true)
+                MonacoNotice(.info, message: AccountCopy.explainer)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(AccountCopy.explainer)
                     .padding(.horizontal, MonacoTheme.Space.gutter)
                     .accessibilityIdentifier("delete-account-explainer")
                 checklist
@@ -184,7 +183,7 @@ private struct ChecklistStep<Content: View>: View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             HStack(spacing: MonacoTheme.Space.s) {
                 Image(systemName: isDone ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isDone ? MonacoTheme.ink : stepColor)
+                    .foregroundStyle(isDone ? MonacoTheme.brand : stepColor)
                     .accessibilityHidden(true)
                 Text(title)
                     .font(MonacoTheme.Typo.section)
@@ -194,10 +193,10 @@ private struct ChecklistStep<Content: View>: View {
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
             if isHighlighted {
-                Text("Do this first.")
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.secondaryText)
+                MonacoNotice(.info, message: "Do this first.")
                     .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Do this first.")
                     .accessibilityIdentifier("delete-account-step-highlight")
             }
             content

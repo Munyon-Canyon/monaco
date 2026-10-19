@@ -10,42 +10,96 @@ enum ProfileCabalsSlot: ProfileSection {
     }
 }
 
+private struct ProfileCabalShareTarget: Identifiable {
+    let id: String
+}
+
+extension CabalCoverCardModel {
+    init(profileRow row: PortfolioSummary.Row) {
+        let funded = row.valueMicros > 0
+        let direction: PnLTone =
+            switch row.direction {
+            case .up: .profit
+            case .down: .loss
+            case .flat: .flat
+            }
+        self.init(
+            id: row.id, name: row.name, memberCountText: "Cabal",
+            shareText: UsdAmountFormatter.format(micros: row.valueMicros), ownershipText: row.slice,
+            pnl: funded ? Figure(amountText: row.pnl, percentText: row.returnText, direction: direction) : nil,
+            pnlUnavailableReason: funded ? nil : "Not funded",
+            tint: MonacoTheme.CabalTint.forGroupId(row.id), pictureURL: row.pictureURL)
+    }
+}
+
 struct ProfileCabals: View {
     @Environment(AppEnvironment.self) private var environment
+    @Environment(ToastCenter.self) private var toasts
     @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
+    @State private var sharing: ProfileCabalShareTarget?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            MonacoSectionHeader("Your cabals")
-                .padding(.horizontal, MonacoTheme.Space.gutter)
+        VStack(alignment: .leading, spacing: 0) {
             content
+        }
+        .sheet(item: $sharing) { target in
+            ShareCardHost(api: environment.api) { await loadShare(target, into: $0) }
+                .monacoToastCenter(toasts)
         }
     }
 
     @ViewBuilder private var content: some View {
         switch portfolio?.state ?? .loading {
         case .idle, .loading:
-            MonacoRowSkeleton(rows: 3, markShape: .tile)
-                .accessibilityElement()
+            section {
+                CabalCoverRail {
+                    CabalCoverCardSkeleton()
+                    CabalCoverCardSkeleton()
+                }
+                .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Loading your cabals")
                 .accessibilityIdentifier("profile-cabals-loading")
+            }
         case .failed:
             EmptyView()
         case .loaded(let summary) where summary.isEmpty:
-            EmptyState(
-                title: "No money in a cabal yet",
-                message: "Fund a cabal to see it here.",
-                actionTitle: "Browse cabals"
-            ) {
-                environment.navigator.selectedTab = .cabals
-            }
-            .accessibilityIdentifier("profile-cabals-empty")
+            EmptyView()
         case .loaded(let summary):
-            MonacoGroupedList {
-                ForEach(summary.rows) { row in
-                    CabalPortfolioRow(row: row, isLast: row.id == summary.rows.last?.id)
+            section {
+                CabalCoverRail {
+                    ForEach(summary.rows) { row in
+                        CabalCoverCard(
+                            model: CabalCoverCardModel(profileRow: row),
+                            onOpen: { environment.navigator.open(CabalRoute(id: row.id), in: .profile) },
+                            onShare: { sharing = ProfileCabalShareTarget(id: row.id) }
+                        )
+                        .accessibilityElement(children: .contain)
+                        .accessibilityIdentifier("cabal-row-\(row.id)")
+                    }
                 }
             }
+        }
+    }
+
+    private func section<Body: View>(@ViewBuilder _ body: () -> Body) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            MonacoSectionHeader("Your cabals", trailing: "See all") {
+                environment.navigator.selectedTab = .cabals
+            }
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            body()
+        }
+    }
+
+    private func loadShare(_ target: ProfileCabalShareTarget, into model: ShareCardModel) async {
+        do {
+            let cabal = try await environment.api.read {
+                try await $0.getCabal(path: .init(id: target.id)).ok.body.json
+            }
+            await model.loadCabal(cabalID: target.id, cabal: cabal)
+        } catch {
+            sharing = nil
+            toasts.current = MonacoToast(message: "Couldn't open sharing. Try again.")
         }
     }
 }

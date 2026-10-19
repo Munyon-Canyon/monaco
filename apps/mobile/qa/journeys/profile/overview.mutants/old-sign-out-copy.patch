@@ -7,12 +7,12 @@ scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Settings/SettingsView.swift b/apps/mobile/Monaco/Features/Settings/SettingsView.swift
 --- a/apps/mobile/Monaco/Features/Settings/SettingsView.swift
 +++ b/apps/mobile/Monaco/Features/Settings/SettingsView.swift
-@@ -48,7 +48,7 @@
- enum SettingsCopy {
+@@ -68,7 +68,7 @@
      static let signOut = "Sign out"
      static let signOutTitle = "Sign out of Monaco?"
--    static let signOutMessage = "Your money stays where it is. You'll need a new code to sign back in."
-+    static let signOutMessage = "Your money stays where it is. You'll need a new code by text to sign back in."
- 
-     static func version(info: [String: Any]) -> String {
-         let release = info["CFBundleShortVersionString"] as? String ?? ""
+     static let signOutMessage =
+-        "You can sign back in with your existing account. This does not withdraw funds or leave your cabals."
++        "Your money stays where it is. You'll need a new code by text to sign back in."
+     static let stayLabel = "Stay signed in"
+     static let saving = "Saving…"
+     static let categoriesCaption = "Notification choices open soon."

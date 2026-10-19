@@ -1,7 +1,7 @@
 ---
 id: profile/overview
 title: Your profile
-version: 5
+version: 6
 milestone: M9
 requires: [auth/sign-in]
 actors: [A]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/ProfileOverviewJourney.swift, apps
 
 # Your profile
 
-A signed-in member opens the Profile tab, reads their stats band and their cabals, pulls to refresh, opens a cabal from the list, opens a block explorer, and signs out. The design is the [Profile tab](../../screens.md#profile-tab). The old app's version is `Profile/ProfileTabView.swift` at `c838bd24`.
+A signed-in member opens the Profile tab, reads their identity card and their cabals, pulls to refresh, opens a cabal from the list, opens a block explorer, and signs out. The design is the [Profile tab](../../screens.md#profile-tab). The old app's version is `Profile/ProfileTabView.swift` at `c838bd24`.
 
 The format of this doc is in [App journeys](../README.md). The Old app column names the old app's tap or element for each step, or says the step is new in the spec.
 
@@ -31,10 +31,10 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | tap | the Profile tab | | Within 15 s, `profile-header` shows with `profile-display-name`, `profile-handle` reading "@" and the handle, and `profile-member-since` reading "Member since" with a month and year | `profile-root`, then `profile-header` |
-| S1.2 | wait | `profile-stat-cabals` | | Within 15 s, the band shows three columns, "In cabals", "Return" and "Cabal" or "Cabals" by count. `profile-stat-cabals` reads a whole number of 1 or more | The count badge on "Your cabals" (`cabalRows.count`) |
+| S1.1 | tap | the Profile tab | | Within 15 s, `profile-header` shows with `profile-display-name`, `profile-handle` reading "@" and the handle, and `profile-member-since` reading "Joined" with a month and year | `profile-root`, then `profile-header` |
+| S1.2 | wait | `profile-stat-cabals` | | Within 15 s, the identity card shows the stats "Positions value" (`profile-stat-in-cabals`) and "Total P&L · All time" (`profile-stat-return`), and the counts row ends with "cabal" or "cabals" by count. `profile-stat-cabals` reads a whole number of 1 or more | The count badge on "Your cabals" (`cabalRows.count`) |
 | S1.3 | scroll to | `cabal-row-{cabalID}` | | "Your cabals" shows, with the row for `cabalName` | `ProfileCabalsSection` rows |
-| S1.4 | scroll to | `profile-settings-row` | | The row reads "Settings" | None, new in spec ("Settings" row) |
+| S1.4 | find | `profile-settings-row` | | The round button in the title bar reads "Settings" | None, new in spec ("Settings" row) |
 
 ### S2 Pull to refresh
 
@@ -59,8 +59,8 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S4.1 | tap, then tap | the Profile tab, then `profile-settings-row` | | The "Settings" screen shows within 10 s, with `settings-advanced` reading "Advanced" and "Block explorers" | `profile-advanced-link` ("Advanced", "Block explorers") on the Profile tab |
-| S4.2 | tap | `settings-advanced` | | The "Advanced" screen shows within 5 s, with `settings-explorer-solscan` reading "Solscan explorer" | The Advanced screen's explorer list |
+| S4.1 | tap, then tap | the Profile tab, then `profile-settings-row` | | The "Settings" screen shows within 10 s, with `settings-advanced` reading "Block explorers" | `profile-advanced-link` ("Advanced", "Block explorers") on the Profile tab |
+| S4.2 | tap | `settings-advanced` | | The "Block explorers" screen shows within 5 s, with `settings-explorer-solscan` reading "Solscan explorer" | The Advanced screen's explorer list |
 | S4.3 | tap | `settings-explorer-solscan` | | Safari is in the foreground within 15 s | The Solscan row opens Safari |
 
 ### S5 Share your return
@@ -69,7 +69,7 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S5.1 | tap | the Profile tab, then `profile-share-button` | | Within 15 s the sheet "Share" shows the return card as `share-card-image` (screens.md: the share button in the Profile toolbar) | New in the spec |
+| S5.1 | tap | the Profile tab, then `profile-share-button` | | Within 15 s the sheet "Share" shows the return card as `share-card-image` (screens.md: the share round in the identity card) | New in the spec |
 | S5.2 | tap | `share-card-copy` | | The toast "Link copied." shows within 5 s. The journey does not open the system share sheet, which XCUITest cannot dismiss reliably | New in the spec |
 | S5.3 | tap | `share-card-done` | | The sheet closes and `profile-header` still shows within 5 s | New in the spec |
 
@@ -79,8 +79,8 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S6.1 | tap, tap, then scroll to and tap | the Profile tab, `profile-settings-row`, then `profileSignOutButton` in Settings | | Within 5 s the confirm shows "Sign out of Monaco?" and "Your money stays where it is. You'll need a new code to sign back in." | `profile-sign-out`, with "Sign out of Monaco?" |
-| S6.2 | tap | outside the dialog | | The confirm closes within 5 s, and the "Settings" screen still shows. On iOS 27 the confirm is a popover with no Cancel button | "Cancel" |
+| S6.1 | tap, tap, then scroll to and tap | the Profile tab, `profile-settings-row`, then `profileSignOutButton` in Settings | | Within 5 s the confirm panel shows "Sign out of Monaco?" and "You can sign back in with your existing account. This does not withdraw funds or leave your cabals." | `profile-sign-out`, with "Sign out of Monaco?" |
+| S6.2 | tap | `profile-sign-out-cancel` ("Stay signed in") | | The confirm panel closes within 5 s, and the "Settings" screen still shows | "Cancel" |
 | S6.3 | tap, then tap | `profileSignOutButton`, then `profile-sign-out-confirm` | | The login form shows within 15 s, and the tab bar does not | `profile-sign-out-confirm` |
 
 ### S7 Totals and pot values
@@ -105,7 +105,7 @@ Signing out ends the session the run opened, and nothing on A's account changes.
 
 ## Not covered
 
-- The error state "Couldn't load your portfolio." with "Try again" (old app: `profile-error`). `ProfileScreen` owns one `PortfolioModel` that `ProfileStatsSlot` and `ProfileCabalsSlot` read, so a failed read draws one row in the stats slot and nothing in the cabals slot. The local backend cannot be made to fail one read on cue; `PortfolioModelTests` covers the failed state.
+- The error state "Couldn't load your portfolio." with "Try again" (old app: `profile-error`). `ProfileScreen` owns one `PortfolioModel` that the identity card and `ProfileCabalsSlot` read, so a failed read draws "—" in the card, one error row under it and nothing in the cabals slot. The local backend cannot be made to fail one read on cue; `PortfolioModelTests` covers the failed state.
 - A value that changes between two loads on pull to refresh. Steps run one at a time, so nothing writes to the backend while the scenario runs. S2 proves the refresh keeps every section on screen.
 - "Your cabals" when empty ("No cabals yet" / "Start a cabal or join one from the Cabals tab."). P3 makes A a member, and A cannot leave every cabal without changing other journeys' starting state.
-- The follow counts, the balance row, "Invite friends" and "Find friends". Their own journeys cover them.
+- The follow counts, the money strip, "Invite friends" and "Find friends". Their own journeys cover them.

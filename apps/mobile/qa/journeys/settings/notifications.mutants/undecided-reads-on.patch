@@ -5,15 +5,14 @@ The Notifications row reads "On" before anyone asked. S1.2 reads "Off", so it mu
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Settings/SettingsView.swift b/apps/mobile/Monaco/Features/Settings/SettingsView.swift
-index 11ce52539..715b7e20e 100644
 --- a/apps/mobile/Monaco/Features/Settings/SettingsView.swift
 +++ b/apps/mobile/Monaco/Features/Settings/SettingsView.swift
-@@ -126,7 +126,7 @@ struct SettingsList: View {
-                     title: row.title,
-                     leading: { SunkenGlyphMark(systemImage: row.systemImage) },
-                     trailing: {
--                        Text(status.map { $0 == .authorized ? "On" : "Off" } ?? "")
-+                        Text(status.map { $0 == .denied ? "Off" : "On" } ?? "")
-                             .font(MonacoTheme.Typo.body)
-                             .foregroundStyle(MonacoTheme.muted)
-                     }
+@@ -212,7 +212,7 @@
+                 } label: {
+                     MonacoRow(
+                         title: SettingsRow.notifications.title,
+-                        subtitle: status.map { $0 == .authorized ? "On" : "Off" },
++                        subtitle: status.map { $0 == .denied ? "Off" : "On" },
+                         chevron: true,
+                         isLast: !showsCategorySwitches,
+                         leading: { SunkenGlyphMark(systemImage: SettingsRow.notifications.systemImage) }

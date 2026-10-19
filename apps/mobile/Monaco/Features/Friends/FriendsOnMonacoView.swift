@@ -43,6 +43,7 @@ struct FriendsOnMonacoView: View {
         case .loaded:
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 MonacoSectionHeader("From your contacts")
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                 MonacoGroupedList {
                     ForEach(Array(model.friends.enumerated()), id: \.element.id) { index, friend in
                         FriendMatchRow(
@@ -60,6 +61,8 @@ struct FriendsOnMonacoView: View {
                         }
                     }
                 }
+                FriendsSearchNotice()
+                    .padding(.top, MonacoTheme.Space.s)
             }
         }
     }
@@ -71,26 +74,13 @@ private struct FriendMatchRow: View {
     let isToggling: Bool
     let toggle: () -> Void
 
-    private var name: String { friend.displayName.isEmpty ? friend.handle : friend.displayName }
-
     var body: some View {
-        NavigationLink(
-            value: AnyAppRoute(
-                UserProfileRoute(
-                    userID: friend.id,
-                    preview: UserPreview(displayName: name, handle: friend.handle, photoURL: friend.photoURL)
-                ))
-        ) {
-            MonacoRow(title: name, subtitle: "@\(friend.handle)", isLast: isLast, trailingIsInteractive: true) {
-                MonacoAvatar(photoURL: friend.photoURL, displayName: name, seed: friend.id)
-            } trailing: {
-                FollowToggle(
-                    isFollowing: friend.followedByMe, isBusy: isToggling,
-                    action: toggle,
-                    identifier: "friends-follow-\(friend.handle)")
-            }
-        }
-        .buttonStyle(.monacoRow)
+        FriendsPersonRow(
+            person: FriendsPerson(friend),
+            accessory: .follow(
+                isBusy: isToggling, identifier: "friends-follow-\(friend.handle)", action: toggle),
+            isLast: isLast
+        )
         .accessibilityIdentifier("friends-row-\(friend.handle)")
     }
 }

@@ -217,12 +217,23 @@ group-detail-paused-center    -MonacoGroupDetailSample paused -MonacoSampleScrol
 
 profile-placeholder           -MonacoProfileSample placeholder
 profile-photo                 -MonacoProfileSample photo
+profile-ready                 -MonacoProfileSample ready
 profile-face-picker           -MonacoProfileSample facePicker
-profile-validation            -MonacoProfileSample validation
 profile-cabals                -MonacoProfileSample cabals -MonacoSampleScroll bottom
 profile-empty                 -MonacoProfileSample empty -MonacoSampleScroll bottom
 profile-loading               -MonacoProfileSample loading
 profile-error                 -MonacoProfileSample error
+profile-person-public         -MonacoProfileSample personPublic
+profile-person-following      -MonacoProfileSample personFollowing
+profile-person-private        -MonacoProfileSample personPrivate
+profile-person-not-found      -MonacoProfileSample personNotFound
+profile-person-error          -MonacoProfileSample personError
+profile-edit-ready            -MonacoProfileSample editProfileReady
+profile-edit-invalid          -MonacoProfileSample editProfileInvalid
+profile-edit-saving           -MonacoProfileSample editProfileSaving
+profile-edit-saved            -MonacoProfileSample editProfileSaved
+profile-edit-save-failure     -MonacoProfileSample editProfileSaveFailure
+profile-edit-error            -MonacoProfileSample editProfileError
 
 chat-thread                   -MonacoChatSampleQA -MonacoChatSampleProposal
 chat-empty                    -MonacoChatSampleQA -MonacoChatSampleEmpty
@@ -239,8 +250,6 @@ chat-closed-first-load        -MonacoChatSampleQA -MonacoChatSampleClosedFirstLo
 chat-closed-on-send           -MonacoChatSampleQA -MonacoChatSampleClosedOnSend
 chat-flaky                    -MonacoChatSampleQA -MonacoChatSampleFlaky
 
-profile-save-failure          -MonacoProfileSample saveFailure
-profile-save-success          -MonacoProfileSample saveSuccess
 
 handle-first-run              -MonacoHandleSample firstRun
 handle-revoked                -MonacoHandleSample revoked
@@ -414,6 +423,10 @@ feed-post-unavailable         -feedPostHarness unavailable
 feed-post-ready-large-text    -feedPostHarness ready -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 settings                      -settingsHarness
 settings-on                   -settingsHarness on
+settings-saving               -settingsHarness on saving
+settings-error                -settingsHarness on error
+settings-sign-out             -settingsHarness on signOut
+settings-categories           -settingsHarness on categories
 cash-out-slice                -cashOutHarness slice
 cash-out-deposit              -cashOutHarness deposit
 cash-out-none                 -cashOutHarness none
@@ -429,14 +442,18 @@ cabal-pot-invested            -cabalPotHarness invested
 cabal-pot-cash-only           -cabalPotHarness cashOnly
 cabal-pot-outsider            -cabalPotHarness outsider
 cabal-pot-zero                -cabalPotHarness zero
-profile-portfolio-two         -profilePortfolioHarness two
-profile-portfolio-none        -profilePortfolioHarness none
 cabal-actions                 -cabalActionsHarness
 cabal-closed-banned                 -cabalClosedHarness banned
 cabal-closed-active                 -cabalClosedHarness active
 cabal-rules                   -cabalRulesHarness
 account-activity              -accountActivityHarness
 friends                       -friendsHarness
+friends-results               -friendsHarness results
+friends-following             -friendsHarness following
+friends-following-empty       -friendsHarness followingEmpty
+friends-no-results            -friendsHarness noResults
+friends-loading               -friendsHarness loading
+friends-error                 -friendsHarness error
 system-ping                   -systemPingHarness
 
 # BEGIN generated flow scenarios

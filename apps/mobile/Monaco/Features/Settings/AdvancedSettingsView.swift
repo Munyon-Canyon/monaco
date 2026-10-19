@@ -1,10 +1,9 @@
 import SwiftUI
 
-/// Block-explorer links, reachable from Settings.
 struct AdvancedSettingsView: View {
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                 MonacoGroupedList {
                     ForEach(SettingsAdvancedLinks.explorerLinks) { link in
                         Link(destination: link.url) {
@@ -25,10 +24,10 @@ struct AdvancedSettingsView: View {
                         .accessibilityIdentifier("settings-explorer-\(link.id)")
                     }
                 }
-                Text("Opens in Safari. Monaco never asks you to sign anything there.")
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.muted)
+                MonacoNotice(.info, message: "Opens in Safari. Monaco never asks you to sign anything there.")
                     .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .padding(.top, MonacoTheme.Space.s)
+                    .accessibilityIdentifier("settings-explorers-notice")
             }
             .padding(.vertical, MonacoTheme.Space.m)
         }

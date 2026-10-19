@@ -30,7 +30,7 @@ nonisolated final class ProfileShellTests: XCTestCase {
         XCTAssertEqual(SettingsCopy.signOutTitle, "Sign out of Monaco?")
         XCTAssertEqual(
             SettingsCopy.signOutMessage,
-            "Your money stays where it is. You'll need a new code to sign back in."
+            "You can sign back in with your existing account. This does not withdraw funds or leave your cabals."
         )
     }
 }

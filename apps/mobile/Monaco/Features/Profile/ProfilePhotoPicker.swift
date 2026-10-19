@@ -3,6 +3,11 @@ import MonacoCore
 import PhotosUI
 import SwiftUI
 
+enum ProfilePhotoBadge {
+    case camera
+    case pencil(ring: Color)
+}
+
 /// Avatar that opens the face sheet on tap: the eight pixel animals, or the photo library.
 /// Either way the pick is uploaded as the signed-in member's profile photo. The one place
 /// faces are changed; Profile and the first-run screen embed it.
@@ -13,6 +18,8 @@ struct ProfilePhotoPicker: View {
     var size: CGFloat = 96
     /// Overridden by the first-run screen, which QA drives as `onboarding-photo`.
     var accessibilityID: String = "profile-photo-picker"
+    var badge: ProfilePhotoBadge = .camera
+    var avatarRing: MonacoAvatarRing? = nil
     /// Debug sample harness only: open the face sheet once the screen is up.
     var initiallyOpen = false
     /// Reports upload results so the host screen can toast them.
@@ -31,7 +38,8 @@ struct ProfilePhotoPicker: View {
                     photoURL: session.profile?.photoURL?.absoluteString,
                     displayName: session.profile?.displayName ?? "",
                     size: size,
-                    seed: session.profile?.userID
+                    seed: session.profile?.userID,
+                    ring: avatarRing
                 )
                 .overlay {
                     if uploads.isUploading {
@@ -42,12 +50,14 @@ struct ProfilePhotoPicker: View {
                     }
                 }
 
-                CameraBadgeMark(diameter: max(24, size * 0.3), ring: 2)
+                badgeView
             }
+            .frame(minWidth: Self.minimumTarget, minHeight: Self.minimumTarget)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(uploads.isUploading || (auth.accessToken == nil && !initiallyOpen))
-        .accessibilityLabel(session.profile?.photoURL == nil ? "Choose your face" : "Change your face")
+        .accessibilityLabel(accessibilityTitle)
         .accessibilityIdentifier(accessibilityID)
         .sheet(isPresented: $showFaces) {
             FacePickerSheet(
@@ -64,6 +74,35 @@ struct ProfilePhotoPicker: View {
         }
         .onAppear {
             if initiallyOpen { showFaces = true }
+        }
+    }
+
+    private static let minimumTarget: CGFloat = 44
+    private static let pencilDiameter: CGFloat = 28
+    private static let pencilRing: CGFloat = 2
+    private static let edgeFraction: CGFloat = 0.146
+
+    private var accessibilityTitle: String {
+        switch badge {
+        case .camera: session.profile?.photoURL == nil ? "Choose your face" : "Change your face"
+        case .pencil: "Edit profile photo"
+        }
+    }
+
+    @ViewBuilder private var badgeView: some View {
+        switch badge {
+        case .camera:
+            CameraBadgeMark(diameter: max(24, size * 0.3), ring: 2)
+        case .pencil(let ring):
+            let nudge = Self.pencilDiameter / 2 - size * Self.edgeFraction
+            Image(systemName: MonacoIcon.edit.symbol)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(MonacoTheme.identityFill)
+                .frame(width: Self.pencilDiameter, height: Self.pencilDiameter)
+                .background(MonacoTheme.pencilFill, in: Circle())
+                .overlay { Circle().strokeBorder(ring, lineWidth: Self.pencilRing) }
+                .offset(x: nudge, y: nudge)
+                .accessibilityHidden(true)
         }
     }
 
