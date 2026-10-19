@@ -165,7 +165,8 @@ extension Components.Schemas.ProposalDetail.SwapPayload {
     fileprivate static func sample(_ status: StatusPayload) -> Self {
         .init(
             swapId: "swap-1", status: status, failureCode: status == .failed ? "jupiter_failed" : nil,
-            failureMessage: nil, txSignature: status == .confirmed ? "sample-signature" : nil, retryable: false)
+            failureMessage: nil, txSignature: status == .confirmed ? "sample-signature" : nil, retryable: false,
+            tokenDecimals: 8)
     }
 }
 

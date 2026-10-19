@@ -11,6 +11,7 @@ import (
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/governanceapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 )
 
 func TestHTTP_PostCabalProposal_refusesBeforeAndAfterTheCommand(t *testing.T) {
@@ -49,7 +50,10 @@ func TestHTTP_PostCabalProposal_refusesBeforeAndAfterTheCommand(t *testing.T) {
 	} {
 		adapter := adapters.HTTP{
 			Propose: h.handler(h.d.ids),
-			Reads:   app.NewProposalReads(h.d.pool, fakes.NewTrading(), h.w.cabals.current.Load()),
+			Reads: app.NewProposalReads(
+				h.d.pool, fakes.NewTrading(), h.w.cabals.current.Load(),
+				marketfake.NewCatalog(marketfake.Fixtures()...),
+			),
 		}
 		req := api.PostCabalProposalRequestObject{Id: h.w.cabal.UUID(), Body: &tc.body}
 		got, err := adapter.PostCabalProposal(tc.caller(), req)

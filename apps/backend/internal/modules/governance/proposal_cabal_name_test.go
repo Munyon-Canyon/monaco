@@ -17,6 +17,7 @@ import (
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/governanceapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 )
 
 type namedCabals struct {
@@ -206,7 +207,9 @@ func TestHTTP_PostCabalProposal_CabalReadFailure(t *testing.T) {
 	usdc := int64(5_000_000)
 	adapter := adapters.HTTP{
 		Propose: h.handler(h.d.ids),
-		Reads:   app.NewProposalReads(h.d.pool, fakes.NewTrading(), h.w.cabals.current.Load()),
+		Reads: app.NewProposalReads(
+			h.d.pool, fakes.NewTrading(), h.w.cabals.current.Load(), marketfake.NewCatalog(marketfake.Fixtures()...),
+		),
 	}
 	_, err := adapter.PostCabalProposal(member, api.PostCabalProposalRequestObject{
 		Id: h.w.cabal.UUID(), Body: &api.ProposeTradeRequest{Kind: "buy", Symbol: "AAPLx", UsdcMicros: &usdc},

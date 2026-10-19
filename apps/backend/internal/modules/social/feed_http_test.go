@@ -283,7 +283,7 @@ func TestGetFeed_sendsTheFiguresOfProposalsAndTrades(t *testing.T) {
 		return feed.Payload{
 			Symbol: "AAPLx", AssetName: "Apple", Action: action, USDCMicros: money.MicrosFromUint64(usdc),
 			TokenAmount: tokens, TokenDecimals: 8, ProposalID: proposal,
-			PriceMicros: feed.FillPrice(money.MicrosFromUint64(usdc), tokens, 8),
+			PriceMicros: money.PricePerUnit(money.MicrosFromUint64(usdc), tokens, 8),
 		}
 	}
 	for name, tc := range map[string]struct {

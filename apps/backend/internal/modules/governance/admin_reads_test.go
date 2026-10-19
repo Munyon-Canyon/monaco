@@ -14,6 +14,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 )
 
 type stubReads struct {
@@ -51,7 +52,9 @@ func TestAdminReads_PassOnEveryPortFailure(t *testing.T) {
 		"the admin actions":     {actions: boom},
 	} {
 		reads := app.NewAdminReads(
-			app.NewProposalReads(d.pool, fakes.NewTrading(), fakes.NewCabal(nil, nil)),
+			app.NewProposalReads(
+				d.pool, fakes.NewTrading(), fakes.NewCabal(nil, nil), marketfake.NewCatalog(marketfake.Fixtures()...),
+			),
 			tc,
 			tc,
 			tc,
@@ -63,7 +66,9 @@ func TestAdminReads_PassOnEveryPortFailure(t *testing.T) {
 	}
 	failing := stubReads{cabal: boom}
 	reads := app.NewAdminReads(
-		app.NewProposalReads(d.pool, fakes.NewTrading(), fakes.NewCabal(nil, nil)),
+		app.NewProposalReads(
+			d.pool, fakes.NewTrading(), fakes.NewCabal(nil, nil), marketfake.NewCatalog(marketfake.Fixtures()...),
+		),
 		failing,
 		failing,
 		failing,

@@ -884,7 +884,7 @@ components:
           examples: [null]
           x-go-type-name: LinkedSwap
           additionalProperties: false
-          required: [swap_id, status, failure_code, failure_message, tx_signature, retryable]
+          required: [swap_id, status, failure_code, failure_message, tx_signature, retryable, usdc_micros, token_amount, token_decimals, price_micros]
           properties:
             swap_id: {type: string, format: uuid, description: The swap id., examples: [01890a5d-ac96-774b-bcce-b302099a8060]}
             status:
@@ -905,6 +905,24 @@ components:
               description: The Solana transaction signature. Null before the trade is submitted.
               examples: [null]
             retryable: {type: boolean, description: Whether a failed trade can be retried., examples: [false]}
+            usdc_micros:
+              type: [integer, "null"]
+              format: int64
+              description: USDC spent or received, in micros. Null until a sell confirms.
+              examples: [25000000]
+            token_amount:
+              type: [integer, "null"]
+              format: int64
+              description: Token base units bought or sold. Null until a buy confirms.
+              examples: [12500000]
+            token_decimals: {type: integer, minimum: 0, maximum: 255, description: Decimals of `token_amount`., examples: [8]}
+            price_micros:
+              type: [integer, "null"]
+              format: int64
+              description: >-
+                USDC micros per whole token, the floor of `usdc_micros` ÷ the whole units in `token_amount`.
+                Null until `status` is `confirmed`.
+              examples: [200000000]
     PendingVote:
       type: object
       description: An open proposal that still needs the caller's ballot.

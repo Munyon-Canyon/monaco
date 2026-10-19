@@ -280,8 +280,25 @@ func (h HTTP) detail(ctx context.Context, id ids.ProposalID, user ids.UserID) (a
 		if s.Status == "failed" && retryable {
 			out.Swap.FailureMessage = ptr(errs.SwapFailureMessage(string(s.FailureCode)))
 		}
+		wireFill(out.Swap, got.Fill)
 	}
 	return out, nil
+}
+
+func wireFill(out *api.LinkedSwap, f app.Fill) {
+	out.UsdcMicros, out.TokenAmount = baseAmount(f.USDCMicros), baseAmount(f.TokenAmount)
+	out.TokenDecimals = int(f.TokenDecimals)
+	if f.Confirmed {
+		out.PriceMicros = baseAmount(f.PriceMicros)
+	}
+}
+
+func baseAmount(n uint64) *int64 {
+	if n == 0 || n > math.MaxInt64 {
+		return nil
+	}
+	v := int64(n)
+	return &v
 }
 
 func (h HTTP) GetMyPendingVotes(

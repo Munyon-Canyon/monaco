@@ -82,10 +82,11 @@ type ProposalReads struct {
 	q      *sqlc.Queries
 	swaps  Swaps
 	cabals cabalport.ViewReader
+	assets Assets
 }
 
-func NewProposalReads(db sqlc.DBTX, s Swaps, c cabalport.ViewReader) *ProposalReads {
-	return &ProposalReads{q: sqlc.New(db), swaps: s, cabals: c}
+func NewProposalReads(db sqlc.DBTX, s Swaps, c cabalport.ViewReader, a Assets) *ProposalReads {
+	return &ProposalReads{q: sqlc.New(db), swaps: s, cabals: c, assets: a}
 }
 
 func (r *ProposalReads) CabalName(ctx context.Context, id ids.CabalID) (string, error) {

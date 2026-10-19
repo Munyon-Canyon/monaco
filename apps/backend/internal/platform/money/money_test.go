@@ -274,3 +274,23 @@ func TestOneWhole_isTenToTheDecimals(t *testing.T) {
 		}
 	}
 }
+
+func TestPricePerUnit(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		usdc     uint64
+		tokens   uint64
+		decimals uint8
+		want     uint64
+	}{
+		"whole price":      {500_000_000, 250_000_000, 8, 200_000_000},
+		"truncates micros": {10_000_000, 3_000_000_000, 8, 333_333},
+		"no tokens":        {1, 0, 8, 0},
+		"decimals too big": {1, 1, 20, 0},
+		"overflow":         {1 << 63, 1, 19, 0},
+	} {
+		if got := money.PricePerUnit(money.MicrosFromUint64(tc.usdc), tc.tokens, tc.decimals).Uint64(); got != tc.want {
+			t.Errorf("%s: PricePerUnit = %d, want %d", name, got, tc.want)
+		}
+	}
+}

@@ -37,6 +37,13 @@ func (d readsDB) proposedBy(t *testing.T, proposer uuid.UUID, voters ...uuid.UUI
 	return p.ID
 }
 
+func (d readsDB) setMint(t *testing.T, id uuid.UUID, mint string) {
+	t.Helper()
+	if _, err := d.pool.Exec(t.Context(), `UPDATE proposals SET mint = $2 WHERE id = $1`, id, mint); err != nil {
+		t.Fatal(err)
+	}
+}
+
 type permissions struct{ vote, withdraw bool }
 
 func can(got app.ProposalDetail) permissions { return permissions{got.CanVote, got.CanWithdraw} }
@@ -149,6 +156,17 @@ func TestProposals_Detail_failures(t *testing.T) {
 	if _, err := d.reads().Get(t.Context(), req); errs.CodeOf(err) != errs.CodeDBUnavailable {
 		t.Errorf("Get whose swap read fails err = %v, want db_unavailable", err)
 	}
+	d.setMint(t, p, "not-a-mint")
+	d.swaps.Put(trading.SwapView{ID: ids.SwapIDFrom(d.ids.NewV7()), Source: trading.Source{Kind: "proposal", ID: p}})
+	if _, err := d.reads().Get(t.Context(), req); err == nil {
+		t.Error("Get of a proposal with a malformed mint err = nil, want an error")
+	}
+	d.setMint(t, p, aaplxMint)
+	d.assets.Fail("AssetByMint", errs.New(errs.CodeDBUnavailable, "t"))
+	d.swaps.Put(trading.SwapView{ID: ids.SwapIDFrom(d.ids.NewV7()), Source: trading.Source{Kind: "proposal", ID: p}})
+	if _, err := d.reads().Get(t.Context(), req); errs.CodeOf(err) != errs.CodeDBUnavailable {
+		t.Errorf("Get whose asset read fails err = %v, want db_unavailable", err)
+	}
 	d.setStatus(t, p, "gremlins", "")
 	if _, err := d.reads().Get(t.Context(), req); errs.CodeOf(err) != errs.CodeDecodeFailed {
 		t.Errorf("Get of an unknown stored status err = %v, want decode_failed", err)
@@ -207,7 +225,7 @@ func TestHTTP_GetProposal(t *testing.T) {
 	})
 	wantSwap := api.LinkedSwap{
 		SwapId: failed.ID.UUID(), Status: "failed", FailureCode: ptr("jupiter_failed"),
-		FailureMessage: ptr(errs.Message(errs.CodeSwapFailed)), Retryable: true,
+		FailureMessage: ptr(errs.Message(errs.CodeSwapFailed)), Retryable: true, TokenDecimals: 8,
 	}
 	type summary struct {
 		id             uuid.UUID
@@ -228,7 +246,9 @@ func TestHTTP_GetProposal(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("GetProposal after a confirmed retry = %#v, %v", res, err)
 	}
-	wantRetry := api.LinkedSwap{SwapId: retried.Swap.SwapId, Status: "confirmed", TxSignature: ptr("sig-1")}
+	wantRetry := api.LinkedSwap{
+		SwapId: retried.Swap.SwapId, Status: "confirmed", TxSignature: ptr("sig-1"), TokenDecimals: 8,
+	}
 	if !reflect.DeepEqual(*retried.Swap, wantRetry) {
 		t.Errorf("swap after a confirmed retry = %+v, want %+v", *retried.Swap, wantRetry)
 	}
@@ -297,5 +317,54 @@ func TestHTTP_GetProposal_refusals(t *testing.T) {
 	if _, err := h.GetProposal(ctx, api.GetProposalRequestObject{Id: d.ids.NewV7()}); errs.CodeOf(
 		err) != errs.CodeProposalNotFound {
 		t.Errorf("GetProposal of an unknown proposal err = %v, want proposal_not_found", err)
+	}
+}
+
+func TestHTTP_GetProposal_swapFill(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		swap trading.SwapView
+		want api.LinkedSwap
+	}{
+		"confirmed buy": {
+			trading.SwapView{Action: "buy", Status: "confirmed", InAmount: 25_000_000, OutAmount: 12_500_000},
+			api.LinkedSwap{
+				UsdcMicros: ptr(int64(25_000_000)), TokenAmount: ptr(int64(12_500_000)), PriceMicros: ptr(int64(200_000_000)),
+			},
+		},
+		"confirmed sell floors the price": {
+			trading.SwapView{Action: "sell", Status: "confirmed", InAmount: 3_000_000_000, OutAmount: 10_000_000},
+			api.LinkedSwap{
+				UsdcMicros: ptr(int64(10_000_000)), TokenAmount: ptr(int64(3_000_000_000)), PriceMicros: ptr(int64(333_333)),
+			},
+		},
+		"submitted buy": {
+			trading.SwapView{Action: "buy", Status: "submitted", InAmount: 25_000_000},
+			api.LinkedSwap{UsdcMicros: ptr(int64(25_000_000))},
+		},
+		"failed sell": {
+			trading.SwapView{Action: "sell", Status: "failed", InAmount: 3_000_000_000, FailureCode: "jupiter_failed"},
+			api.LinkedSwap{TokenAmount: ptr(int64(3_000_000_000)), FailureCode: ptr("jupiter_failed")},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			d := newReadsDB(t)
+			p := d.proposedBy(t, d.caller)
+			tc.swap.ID, tc.swap.CreatedAt = ids.SwapIDFrom(d.ids.NewV7()), d.now
+			tc.swap.Source = trading.Source{Kind: "proposal", ID: p}
+			d.swaps.Put(tc.swap)
+			ctx := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: d.caller.String()})
+			res, err := adapters.HTTP{Reads: d.reads()}.GetProposal(ctx, api.GetProposalRequestObject{Id: p})
+			got, ok := res.(api.GetProposal200JSONResponse)
+			if err != nil || !ok || got.Swap == nil {
+				t.Fatalf("GetProposal = %#v, %v, want a swap", res, err)
+			}
+			tc.want.SwapId, tc.want.TokenDecimals = tc.swap.ID.UUID(), 8
+			tc.want.Status = api.ProposalDetailSwapStatus(tc.swap.Status)
+			if !reflect.DeepEqual(*got.Swap, tc.want) {
+				t.Errorf("swap = %+v, want %+v", *got.Swap, tc.want)
+			}
+		})
 	}
 }
