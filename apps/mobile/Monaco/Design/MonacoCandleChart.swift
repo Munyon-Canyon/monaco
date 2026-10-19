@@ -32,11 +32,15 @@ struct MonacoCandleChart: View {
     var baseline: Double?
     var tagTint: Color?
     var showsLastPriceRule = true
+    var showsEndDot = false
+    var selectionStyle: MonacoChartSelectionStyle = .axisTag
+    var showsDateRange = false
     var resetKey: AnyHashable
     var hasOlder: Bool
     var retryToken = 0
     var initialVisibleBars: Int?
     var valueText: ((Double) -> String)?
+    var tooltipAmount: ((Int) -> String?)?
     var gutter: CGFloat = 56
     var height: CGFloat = 216
     @Binding var selection: Int?
@@ -76,11 +80,15 @@ struct MonacoCandleChart: View {
         baseline: Double? = nil,
         tagTint: Color? = nil,
         showsLastPriceRule: Bool = true,
+        showsEndDot: Bool = false,
+        selectionStyle: MonacoChartSelectionStyle = .axisTag,
+        showsDateRange: Bool = false,
         resetKey: AnyHashable,
         hasOlder: Bool,
         retryToken: Int = 0,
         initialVisibleBars: Int? = nil,
         valueText: ((Double) -> String)? = nil,
+        tooltipAmount: ((Int) -> String?)? = nil,
         gutter: CGFloat = 56,
         height: CGFloat = 216,
         selection: Binding<Int?>,
@@ -100,11 +108,15 @@ struct MonacoCandleChart: View {
         self.baseline = baseline
         self.tagTint = tagTint
         self.showsLastPriceRule = showsLastPriceRule
+        self.showsEndDot = showsEndDot
+        self.selectionStyle = selectionStyle
+        self.showsDateRange = showsDateRange
         self.resetKey = resetKey
         self.hasOlder = hasOlder
         self.retryToken = retryToken
         self.initialVisibleBars = initialVisibleBars
         self.valueText = valueText
+        self.tooltipAmount = tooltipAmount
         self.gutter = gutter
         self.height = height
         _selection = selection
@@ -148,6 +160,29 @@ struct MonacoCandleChart: View {
     }
 
     var body: some View {
+        VStack(spacing: 0) {
+            plotArea
+            if let dates = visibleDates {
+                MonacoChartDateRow(first: dates.first, last: dates.last)
+            }
+        }
+        .opacity(appeared ? 1 : 0)
+        .onAppear {
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { appeared = true }
+            checkOlder()
+        }
+        .onChange(of: bars) { _, new in store = MonacoBarStore(new) }
+        .onChange(of: retryToken) { _, _ in
+            requestedBefore = nil
+            checkOlder()
+        }
+        .onChange(of: resetKey) { _, _ in reset() }
+        .onChange(of: bars.last?.date) { old, _ in followLatest(previousLast: old) }
+        .onChange(of: bars.first?.date) { _, _ in requestedBefore = nil }
+        .onChange(of: window) { _, _ in checkOlder() }
+    }
+
+    private var plotArea: some View {
         ZStack(alignment: .topLeading) {
             MonacoCandleSeries(
                 intervalSeconds: intervalSeconds,
@@ -186,11 +221,14 @@ struct MonacoCandleChart: View {
                     baseline: baseline,
                     tagTint: tagTint,
                     showsLastPriceRule: showsLastPriceRule,
+                    showsEndDot: showsEndDot,
+                    selectionStyle: selectionStyle,
                     isLive: isLive,
                     isAtLatest: isAtLatest,
                     selection: selection,
                     intervalSeconds: intervalSeconds,
                     valueText: valueText,
+                    tooltipAmount: tooltipAmount,
                     onJump: jumpToLatest
                 )
             }
@@ -201,20 +239,6 @@ struct MonacoCandleChart: View {
             chartWidth = $0
         }
         .frame(height: height)
-        .opacity(appeared ? 1 : 0)
-        .onAppear {
-            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { appeared = true }
-            checkOlder()
-        }
-        .onChange(of: bars) { _, new in store = MonacoBarStore(new) }
-        .onChange(of: retryToken) { _, _ in
-            requestedBefore = nil
-            checkOlder()
-        }
-        .onChange(of: resetKey) { _, _ in reset() }
-        .onChange(of: bars.last?.date) { old, _ in followLatest(previousLast: old) }
-        .onChange(of: bars.first?.date) { _, _ in requestedBefore = nil }
-        .onChange(of: window) { _, _ in checkOlder() }
         .simultaneousGesture(pinch)
         .background(
             MonacoChartHold(onBegan: beginHold, onMoved: moveCrosshair, onEnded: endHold)
@@ -265,6 +289,11 @@ extension MonacoCandleChart {
             window = target
             scrollRevision += 1
         }
+    }
+
+    private var visibleDates: (first: String, last: String)? {
+        guard showsDateRange else { return nil }
+        return MonacoChartDateRow.labels(bars: bars, window: window, intervalSeconds: intervalSeconds)
     }
 
     private func date(atX x: CGFloat) -> Date {
@@ -320,5 +349,42 @@ extension MonacoCandleChart {
     private var voiceOverValue: String {
         guard !bars.isEmpty else { return "No price history" }
         return describeBar(selection ?? bars.count - 1)
+    }
+}
+
+struct MonacoChartDateRow: View {
+    let first: String
+    let last: String
+
+    static func labels(
+        bars: [PlottedBar], window: ChartWindow, intervalSeconds: Int,
+        locale: Locale = .autoupdatingCurrent, timeZone: TimeZone = .autoupdatingCurrent
+    ) -> (first: String, last: String)? {
+        let range = window.visibleRange(of: bars)
+        guard let first = range.first, let last = range.last else { return nil }
+        func text(_ date: Date) -> String {
+            ChartCrosshairLabel.text(
+                date, visibleSeconds: window.visibleSeconds, intervalSeconds: intervalSeconds, locale: locale,
+                timeZone: timeZone)
+        }
+        func weekdayText(_ date: Date) -> String {
+            ChartScrubLabel.caption(for: date, range: .oneDay, locale: locale, timeZone: timeZone)
+        }
+        let dates = (bars[first].date, bars[last].date)
+        guard text(dates.0) == text(dates.1), dates.0 != dates.1 else { return (text(dates.0), text(dates.1)) }
+        return (weekdayText(dates.0), weekdayText(dates.1))
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: MonacoTheme.Space.s) {
+            Text(first)
+            Spacer(minLength: 0)
+            Text(last).multilineTextAlignment(.trailing)
+        }
+        .font(MonacoTheme.Typo.caption)
+        .foregroundStyle(MonacoTheme.secondaryText)
+        .padding(.top, MonacoTheme.Space.xs)
+        .padding(.bottom, MonacoTheme.Space.s)
+        .accessibilityHidden(true)
     }
 }

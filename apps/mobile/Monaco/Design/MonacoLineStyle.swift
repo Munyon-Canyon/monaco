@@ -2,10 +2,12 @@ import MonacoCore
 import SwiftUI
 
 enum MonacoLineStyle {
-    static let stroke = StrokeStyle(lineWidth: 2.75, lineCap: .round, lineJoin: .round)
+    static let stroke = StrokeStyle(lineWidth: 1.7, lineCap: .round, lineJoin: .round)
+
+    static let endDotRadius: CGFloat = 3.5
 
     static func fillGradient(_ tint: Color) -> Gradient {
-        Gradient(colors: [tint.opacity(0.25), tint.opacity(0)])
+        Gradient(colors: [tint.opacity(0.14), tint.opacity(0)])
     }
 
     static func fillShading(_ tint: Color, top: CGFloat, bottom: CGFloat) -> GraphicsContext.Shading {
@@ -30,4 +32,15 @@ enum MonacoLineStyle {
         fill.closeSubpath()
         return (line, fill)
     }
+}
+
+enum ChartMetrics {
+    static let tooltipRadius: CGFloat = 9
+    static let quietHeight: CGFloat = 104
+    static let crosshairWidth: CGFloat = 1
+}
+
+enum MonacoChartSelectionStyle {
+    case axisTag
+    case tooltipPill
 }

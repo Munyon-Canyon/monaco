@@ -68,7 +68,7 @@ private struct CabalValueChart: View {
 
     @ViewBuilder private var skeleton: some View {
         CurveChangeLine(curve: nil, plot: .nav)
-        SkeletonBlock(height: 160, radius: 12)
+        CurveScrubChartFrame { SkeletonBlock(height: nil, radius: 12) }
             .accessibilityIdentifier("cabal-value-chart-loading")
         MonacoRangeChipsSkeleton(ranges: CabalValueChartSlot.ranges)
     }
@@ -80,14 +80,15 @@ private struct CabalValueChart: View {
             CurveScrubChart(
                 curve: curve, plot: .nav, range: shown, selection: $selection, identifier: "cabal-value-chart")
         } else {
-            VStack(alignment: .leading, spacing: HeroRhythm.withinChart) {
-                Rectangle()
-                    .fill(MonacoTheme.onHeroHairline)
-                    .frame(height: 1)
-                    .accessibilityHidden(true)
-                CabalInkCaption(shown.shortHistoryLine, id: "cabal-value-chart-short")
+            CurveScrubChartFrame {
+                VStack(alignment: .leading, spacing: HeroRhythm.withinChart) {
+                    Rectangle()
+                        .fill(MonacoTheme.onHeroHairline)
+                        .frame(height: 1)
+                        .accessibilityHidden(true)
+                    CabalInkCaption(shown.shortHistoryLine, id: "cabal-value-chart-short")
+                }
             }
-            .frame(height: 160, alignment: .center)
         }
         MonacoRangeChips(
             ranges: model.ranges, selection: model.range, identifierPrefix: "cabal-value-chart"
