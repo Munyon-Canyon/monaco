@@ -12,6 +12,7 @@ public final class ProposeAmountModel {
     public private(set) var previewFailed = false
     public private(set) var isLoading = false
     public private(set) var thesis = ""
+    public private(set) var showsThesisRequired = false
     public private(set) var trade: ProposeTrade
     public private(set) var bestChain: AssetBestChain?
     public private(set) var previewBestChain: AssetBestChain?
@@ -67,7 +68,7 @@ public final class ProposeAmountModel {
     }
 
     public var reviewTitle: String {
-        amountMicros > 0 ? "Review \(UsdAmountFormatter.format(micros: amountMicros))" : "Review"
+        ProposeFlowCopy.reviewProposal
     }
 
     public var isOverLimit: Bool {
@@ -112,7 +113,21 @@ public final class ProposeAmountModel {
         return previewBestChain.map { "\(label) on \($0.chainName)" } ?? label
     }
 
-    public func setThesis(_ text: String) { thesis = ProposeReasonRules.limited(text) }
+    public func setThesis(_ text: String) {
+        thesis = ProposeReasonRules.limited(text)
+        if hasThesis { showsThesisRequired = false }
+    }
+
+    public var hasThesis: Bool { !thesis.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+    public func requestReview(assetName: String) -> Bool {
+        guard reviewEnabled(assetName: assetName) else { return false }
+        guard hasThesis else {
+            showsThesisRequired = true
+            return false
+        }
+        return true
+    }
 
     public func resolveAsset(kind: AssetKind, decimals: Int) {
         guard case .buy(let symbol, _, _) = trade else { return }

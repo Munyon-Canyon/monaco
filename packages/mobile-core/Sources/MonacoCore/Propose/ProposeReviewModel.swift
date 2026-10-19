@@ -121,9 +121,18 @@ public final class ProposeReviewModel {
     public var destination: String { "to \(cabal.name)" }
     public var voteCaption: String { "\(cabal.voters) will vote on this proposal." }
 
-    public var reasonTitle: String { trade.isSell ? "Why sell" : "Why buy" }
+    public var reasonTitle: String { ProposeFlowCopy.thesisTitle }
 
-    public var rows: [Row] {
+    public var rows: [Row] { ruleRows + tradeRows }
+
+    private var ruleRows: [Row] {
+        [
+            Row(label: ProposeFlowCopy.votingWindowRow, value: cabal.votingWindow),
+            Row(label: ProposeFlowCopy.votesToPassRow, value: cabal.votesToPass),
+        ].filter { !$0.value.isEmpty }
+    }
+
+    private var tradeRows: [Row] {
         guard case .sell(let holding) = trade else { return buyRows }
         var rows: [Row] = []
         if let out = preview.quoteOutAmount, out > 0 {
@@ -199,8 +208,30 @@ public final class ProposeReviewModel {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    public var sendTitle: String { isSending ? "Sending…" : "Send to cabal" }
+    public var sendTitle: String { isSending ? ProposeFlowCopy.sending : ProposeFlowCopy.sendProposal }
     public var successToast: String { "Proposal sent to \(cabal.name)" }
+    public var assetDisplayName: String {
+        switch trade {
+        case .sell(let holding): holding.name
+        case .buy: buyName ?? assetName
+        }
+    }
+    public var symbol: String {
+        switch trade {
+        case .sell(let holding): holding.symbol
+        case .buy(let symbol, _, _): symbol
+        }
+    }
+    public var assetKind: AssetKind {
+        switch trade {
+        case .sell(let holding): holding.kind
+        case .buy(_, let kind, _): kind
+        }
+    }
+    public var operationLine: String { "\(operation) \(assetDisplayName)" }
+    public var heroAccessibilityLabel: String { "\(operationLine), \(heroAmount), \(cabal.name)" }
+    public var sentMessage: String { "\(operationLine) · \(cabal.name)" }
+    public var errorNotice: String { ProposeFlowCopy.sendFailedNotice }
 
     public func send() async {
         guard canSend else { return }

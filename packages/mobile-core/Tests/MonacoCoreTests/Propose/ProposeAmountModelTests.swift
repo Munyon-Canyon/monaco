@@ -57,7 +57,7 @@ final class ProposeAmountModelTests: XCTestCase {
         XCTAssertEqual(model.maxMicros, 278_470_000)
         XCTAssertEqual(model.helperText, "The cabal holds 1.2034 shares · $278.47")
         XCTAssertNil(model.sellQuantityNote)
-        XCTAssertEqual(model.reviewTitle, "Review")
+        XCTAssertEqual(model.reviewTitle, "Review proposal")
         XCTAssertEqual(model.overLimitHelper, "More than the cabal holds")
         model.setAmount(micros: 278_470_000)
         await settle()
@@ -85,7 +85,7 @@ final class ProposeAmountModelTests: XCTestCase {
         model.setAmount(micros: 25_000_000)
 
         XCTAssertEqual(model.sellQuantityNote, "About 0.25 shares")
-        XCTAssertEqual(model.reviewTitle, "Review $25.00")
+        XCTAssertEqual(model.reviewTitle, "Review proposal")
     }
 
     func testUnpricedHoldingSaysSoAndCannotBeReviewed() async {

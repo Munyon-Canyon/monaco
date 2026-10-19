@@ -226,7 +226,59 @@ public enum ProposeFlowCopy {
         }
     }
 
+    public static let chooserBuy = "Buy stock"
+    public static let chooserSell = "Sell a holding"
+    public static let chooserCancel = "Cancel"
+    public static let noHoldingsToSell = "No holdings to sell"
+    public static let botOpensSoon = "Trading bots open soon."
+    public static let joinFirstTitle = "Join this cabal first"
+    public static let joinFirstMessage = "Membership is required to propose."
+    public static let onlyVoters = "Only voters can propose"
+    public static let fallbackBuyDetail = "Choose an investment and an amount"
+    public static let fallbackSellDetail = "Choose from the cabal’s holdings"
+    public static let fallbackBotDetail = "Propose a capped budget from the pot"
+    public static let buyListTitle = "Buy stock"
+    public static let sellListTitle = "Sell a holding"
+    public static let buySearchPlaceholder = "Search stocks or tickers"
+    public static let sellSearchPlaceholder = "Search holdings"
+    public static let sortVolume = "Volume"
+    public static let sortName = "Name A–Z"
+    public static let sortChange = "Price change"
+    public static let filterAll = "All"
+    public static let filterPopular = "Popular"
+    public static let filterPreIpo = "Pre-IPO"
+    public static let noStocksTitle = "No stocks found"
+    public static let noStocksMessage = "Try another search or filter."
+    public static let noPositionsMessage = "This cabal has no stock positions."
+    public static let backToCabal = "Back to cabal"
+    public static let buyAmountEyebrow = "Buy amount"
+    public static let sellAmountEyebrow = "Sale amount"
+    public static let overCash = "Amount exceeds the cash balance."
+    public static let overHolding = "Amount exceeds this holding’s value."
+    public static let thesisTitle = "Thesis"
+    public static let thesisPlaceholder = "Why should the cabal make this trade?"
+    public static let thesisRequired = "Add a thesis before sending your proposal."
+    public static let reviewProposal = "Review proposal"
+    public static let votingWindowRow = "Voting window"
+    public static let votesToPassRow = "Votes to pass"
+    public static let sendProposal = "Send proposal"
+    public static let sending = "Sending…"
+    public static let sendFailedNotice = "Couldn’t send your proposal. Your draft is saved here."
+    public static let proposalSentTitle = "Proposal sent"
+    public static let viewProposal = "View proposal"
+    public static let chooseCabalTitle = "Choose a cabal"
+    public static func chooseCabalQuestion(verb: String, ticker: String) -> String {
+        "Which cabal should \(verb) \(ticker)?"
+    }
+
     public static let auditedStrings: [String] = [
+        chooserBuy, chooserSell, chooserCancel, noHoldingsToSell, botOpensSoon, joinFirstTitle, joinFirstMessage,
+        onlyVoters, fallbackBuyDetail, fallbackSellDetail, fallbackBotDetail, buyListTitle, sellListTitle,
+        buySearchPlaceholder, sellSearchPlaceholder, sortVolume, sortName, sortChange, filterAll, filterPopular,
+        filterPreIpo, noStocksTitle, noStocksMessage, noPositionsMessage, backToCabal, buyAmountEyebrow,
+        sellAmountEyebrow, overCash, overHolding, thesisTitle, thesisPlaceholder, thesisRequired, reviewProposal,
+        votingWindowRow, votesToPassRow, sendProposal, sending, sendFailedNotice, proposalSentTitle, viewProposal,
+        chooseCabalTitle, chooseCabalQuestion(verb: "buy", ticker: "NVDA"),
         chooserTitle, buyRow, buyRowDetail, sellRow, sellRowEmpty, addBotRow, addBotRowDetail,
         pauseBotRow, resumeBotRow, removeBotRow,
         buyTitle, searchPlaceholder, popularTitle, resultsTitle, cantBuy, stocksLoadFailed, noMatches("Apple"),

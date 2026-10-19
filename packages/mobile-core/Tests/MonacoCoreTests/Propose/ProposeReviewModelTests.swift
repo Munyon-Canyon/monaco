@@ -65,11 +65,24 @@ final class ProposeReviewModelTests: XCTestCase {
             ])
     }
 
+    func testTheVotingRulesLeadTheRowsAndWhoVotesStaysLast() {
+        let ruled = makeModel(
+            kind: .stock, service: ReviewService(),
+            cabal: .init(
+                name: "Sunday Investors", voters: "All 3 members", votingWindow: "1 day", votesToPass: "Majority"))
+
+        XCTAssertEqual(ruled.rows.first, .init(label: "Voting window", value: "1 day"))
+        XCTAssertEqual(ruled.rows[1], .init(label: "Votes to pass", value: "Majority"))
+        XCTAssertEqual(ruled.rows.last?.label, "Who votes")
+        XCTAssertEqual(ruled.operationLine, "Buy Alphabet")
+        XCTAssertEqual(ruled.sentMessage, "Buy Alphabet · Sunday Investors")
+    }
+
     func testSendReturnsTheProposalAndNamesTheCabal() async {
         let service = ReviewService()
         let model = makeModel(kind: .stock, service: service)
 
-        XCTAssertEqual(model.sendTitle, "Send to cabal")
+        XCTAssertEqual(model.sendTitle, "Send proposal")
         await model.send()
 
         XCTAssertEqual(model.proposalID, "proposal-1")
@@ -163,7 +176,7 @@ final class ProposeReviewModelTests: XCTestCase {
                 .init(label: "Cabal keeps", value: "0.6017 shares"),
                 .init(label: "Who votes", value: "All 3 members"),
             ])
-        XCTAssertEqual(model.reasonTitle, "Why sell")
+        XCTAssertEqual(model.reasonTitle, "Thesis")
     }
 
     func testPreIpoSellSaysTokens() {
@@ -239,14 +252,15 @@ final class ProposeReviewModelTests: XCTestCase {
     private func makeModel(
         kind: AssetKind, service: ReviewService, thesis: String = "Earnings next week.",
         quoteOut: Int64 = 73_000_000, tokenDecimals: Int? = 8, amount: Int64 = 250_000_000,
-        pot: Int64 = 500_000_000, comparison: Components.Schemas.PriceComparison? = nil
+        pot: Int64 = 500_000_000, comparison: Components.Schemas.PriceComparison? = nil,
+        cabal: ProposeCabalInfo = .init(name: "Sunday Investors", voters: "All 3 members")
     ) -> ProposeReviewModel {
         let preview = ProposePreview(
             .init(
                 priceComparison: comparison, quoteOutAmount: quoteOut, advisoryCode: nil, advisoryMessage: nil,
                 potValueMicros: pot))
         return ProposeReviewModel(
-            service: service, cabalID: "cabal", cabal: .init(name: "Sunday Investors", voters: "All 3 members"),
+            service: service, cabalID: "cabal", cabal: cabal,
             draft: .buy(symbol: "GOOGL", usdcMicros: amount, thesis: thesis), preview: preview,
             trade: .buy(symbol: "GOOGL", kind: kind, tokenDecimals: tokenDecimals), buyName: "Alphabet")
     }
