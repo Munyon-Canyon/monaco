@@ -1,7 +1,7 @@
 ---
 id: feed/browse
 title: Browse the feed
-version: 3
+version: 4
 milestone: M18
 requires: [auth/sign-in]
 actors: [A]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/FeedBrowseJourney.swift, apps/mobi
 
 # Browse the feed
 
-The Feed tab lists what happens across Monaco: cabals started, members joining, proposals, trades and price moves. A member narrows it with chips, switches between everyone and the people they follow, searches it, and taps a cell to open what it is about.
+The Feed tab lists what happens across Monaco as event cards: cabals started, members joining, proposals, trades and price moves. A member narrows it with the filter menu, switches between everyone and the people they follow in the same menu, searches it, and taps a card to open what it is about.
 
 Old app (`c838bd24`): the Feed tab, its chips, the "Everyone" / "Following" toggle, search, and cells that open the proposal. Spec: [Feed tab](../../screens.md#feed-tab).
 
@@ -31,25 +31,25 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap | the Feed tab | | `feed-root` shows within 15 s with `monaco-search-field` ("Search the feed"), `feed-scope` and the chips `feed-chip-All`, `feed-chip-Proposals`, `feed-chip-Trades`, `feed-chip-Price moves`, `feed-chip-Cabals` (screens.md Feed tab: "chips "All", "Proposals", "Trades", "Price moves", "Cabals"; an "Everyone" / "Following" toggle; search"; old app: Feed tab chips and toggle) |
-| S1.2 | A | swipe the chip row until on screen, then tap | `feed-chip-Cabals` | | A cell reads "started QA feed {QA.run}" within 15 s (screens.md: "cells with the actor's avatar (opens `UserProfileRoute`), title, detail, time and comment count"; old app: Feed tab cells) |
-| S1.3 | A | type | `monaco-search-field` | `QA feed {QA.run}` | A cell reads "joined QA feed {QA.run}" within 10 s, and no cell reads "started QA own {QA.run}" (screens.md: "search"; old app: Feed tab search) |
-| S1.4 | A | replace text | `monaco-search-field` | `nomatch {QA.run}` | `feed-empty` reads "Nothing matches" within 10 s (screens.md: "Empty: "Nothing here yet.""; the app quotes the query) |
+| S1.1 | A | tap, then tap | the Feed tab, then `feed-filter` | | `feed-root` shows within 15 s with `monaco-search-field` ("Search the feed"), and the open filter menu offers `feed-scope-Everyone`, `feed-scope-My cabals`, `feed-scope-Following`, `feed-chip-All`, `feed-chip-Proposals`, `feed-chip-Trades`, `feed-chip-Price moves`, `feed-chip-Cabals` and `feed-muted-link` (screens.md Feed tab: the filter menu; old app: Feed tab chips and toggle) |
+| S1.2 | A | tap, tap, then tap outside the menu | `feed-filter`, `feed-chip-Cabals`, then the screen below the menu | | A card reads "started QA feed {QA.run}" within 15 s (screens.md: a cabal block reads the item's title; old app: Feed tab cells) |
+| S1.3 | A | type | `monaco-search-field` | `QA feed {QA.run}` | A card reads "joined QA feed {QA.run}" within 10 s, and no card reads "started QA own {QA.run}" (screens.md: "search"; old app: Feed tab search) |
+| S1.4 | A | replace text | `monaco-search-field` | `nomatch {QA.run}` | `feed-empty` reads "No matching updates" within 10 s (screens.md: "No matching updates" with a search or filter) |
 
 ### S2 Following shows only people A follows
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, then tap | the Feed tab, then the `feed-scope` button labelled "Following" | | No cell reads "started QA feed {QA.run}" after 5 s (screens.md: "an "Everyone" / "Following" toggle"; old app: Feed tab "Following") |
+| S2.1 | A | tap, tap, tap, then tap outside the menu | the Feed tab, `feed-filter`, `feed-scope-Following`, then the screen below the menu | | No card reads "started QA feed {QA.run}" after 5 s (screens.md: the filter menu's "From" picks; old app: Feed tab "Following") |
 | S2.2 | A | wait | `feed-empty` | | Reads "Follow people to see what they do." within 10 s (screens.md: "Following with no follows: "Follow people to see what they do." with "Find friends"") |
 
 ### S3 A cell opens what it is about
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | A | tap, swipe the chip row and tap, then tap | the Feed tab, `feed-chip-Cabals`, then the cell reading "started QA feed {QA.run}" | | `cabal-header-name` reads `QA feed {QA.run}` within 15 s (old app: a feed cell opens its subject) |
-| S3.2 | A | tap back, swipe the chip row and tap, then tap | `feed-chip-Proposals`, then the first `feed-cell-<id>` | | `proposal-detail` shows within 15 s (old app: Feed cell -> proposal; screens.md Proposal screen `ProposalDetailSlot`) |
-| S3.3 | A | press and hold, then tap | the cell reading "started QA feed {QA.run}", then "Hide" | | The cell is gone within 5 s (screens.md: "#702 adds hide and mute") |
+| S3.1 | A | tap, pick `feed-scope-Everyone` and `feed-chip-Cabals` from `feed-filter` (closing the menu after each), then tap | the Feed tab, then the card reading "started QA feed {QA.run}" | | `cabal-header-name` reads `QA feed {QA.run}` within 15 s (old app: a feed cell opens its subject) |
+| S3.2 | A | tap back, pick `feed-chip-Proposals` from `feed-filter`, then tap | the first `feed-cell-<id>` | | `proposal-detail` shows within 15 s (old app: Feed cell -> proposal; screens.md Proposal screen `ProposalDetailSlot`) |
+| S3.3 | A | press and hold, then tap | the card reading "started QA feed {QA.run}", then "Hide this post" | | The card is gone within 5 s (screens.md: a long-press mutes or hides) |
 
 ## Ground truth
 
@@ -59,13 +59,11 @@ The format of this doc is in [App journeys](../README.md).
 
 - S2.2: the Following scope with no follows shows "Nothing here yet.", not "Follow people to see what they do." with "Find friends". Blocked by #671.
 - S3.2: no proposal cell to tap. The setup cannot seed a proposal (creating one needs a live Jupiter quote), and the proposal routes move to the generated client in #612. Blocked by #612.
-- S3.3: no hide or mute action on a cell. Blocked by #702.
 
 ## Not covered
 
-- The chip row scrolls sideways and "Cabals" starts past the right edge, so the steps swipe the row until the chip is on screen. `feed-scope` is a segmented control whose identifier sits on both its "Everyone" and "Following" buttons, so the steps pick the button by label.
-
-- Feed cells have no stable per-run identifier: `feed-cell-<id>` carries the server's feed item id, so the steps find a cell by its title text.
-- `Hide` and `Mute` have no identifiers yet. #702 adds them in `apps/mobile/Monaco/Features/Feed/FeedItemCell.swift`; this ticket does not touch app code.
-- "Find friends" on the empty Following scope (#671) and the actor avatar opening `UserProfileRoute`, which `profile/overview` covers.
-- The Trades and Price moves chips: no trade or price move can be seeded without a swap or a price feed.
+- The filter menu stays open after each pick (every pick applies at once), so each step taps the screen below the menu to close it before it goes on. The options are picked by their `feed-scope-<title>` and `feed-chip-<title>` identifiers.
+- Feed cards have no stable per-run identifier: `feed-cell-<id>` carries the server's feed item id, so the steps find a card by its title text. A cabal card's block reads the item's title to VoiceOver.
+- "Hide this post" and the mute items are context-menu items with no identifiers, found by label.
+- "Find friends" on the empty Following scope (#671) and the author avatar opening `UserProfileRoute`, which `profile/overview` covers.
+- The Trades and Price moves options: no trade or price move can be seeded without a swap or a price feed.

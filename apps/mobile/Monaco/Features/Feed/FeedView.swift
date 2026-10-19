@@ -17,24 +17,11 @@ struct FeedView: View {
             if let model {
                 FeedScreen(model: model)
             } else {
-                MonacoRowSkeleton(rows: 5, markShape: .circle)
+                FeedSkeleton()
                     .frame(maxHeight: .infinity, alignment: .top)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("Loading the feed")
-                    .accessibilityIdentifier("feed-loading")
             }
         }
         .monacoTopLevelHeader(title: FeedTab.title)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink(value: AnyAppRoute(FeedMutesRoute())) {
-                    Image(systemName: "speaker.slash")
-                        .frame(width: 44, height: 44)
-                }
-                .accessibilityLabel("Muted")
-                .accessibilityIdentifier("feed-muted-link")
-            }
-        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("feed-root")
         .task { await start() }
@@ -64,27 +51,38 @@ struct FeedView: View {
     }
 }
 
+struct FeedSkeleton: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+            SkeletonTitle()
+            SkeletonFraction(0.4) { SkeletonBar() }
+            SkeletonBlock(height: SkeletonMetrics.cardHeight, radius: MonacoTheme.Radius.cardTight)
+            MonacoRowSkeleton(rows: 4, markShape: .circle)
+                .monacoBleed()
+        }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.vertical, MonacoTheme.Space.m)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading the feed")
+        .accessibilityIdentifier("feed-loading")
+    }
+}
+
 private struct FeedScreen: View {
     let model: FeedModel
 
     @Environment(ToastCenter.self) private var toasts
+    @Environment(\.feedOpensSoon) private var opensSoon
     @State private var search = ""
     @State private var readingID: Components.Schemas.FeedItem.ID?
+    @State private var showsActivity = false
+    @State private var showsMuted = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                 MonacoSearchField(placeholder: "Search the feed", text: $search)
                     .padding(.horizontal, MonacoTheme.Space.gutter)
-                MonacoChipBar(
-                    items: FeedChip.allCases, selected: model.query.chip, title: \.title, identifierPrefix: "feed-chip"
-                ) { chip in
-                    readingID = nil
-                    Task { await model.select(chip) }
-                }
-                MonacoSegmented(FeedScope.allCases, selection: scope, label: \.title)
-                    .padding(.horizontal, MonacoTheme.Space.gutter)
-                    .accessibilityIdentifier("feed-scope")
                 content
             }
             .padding(.vertical, MonacoTheme.Space.m)
@@ -93,14 +91,83 @@ private struct FeedScreen: View {
         .scrollDismissesKeyboard(.interactively)
         .refreshable { await model.refresh() }
         .monacoCanvas()
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { bell }
+            if #available(iOS 26, *) {
+                ToolbarSpacer(.fixed, placement: .topBarTrailing)
+            }
+            ToolbarItem(placement: .topBarTrailing) { filter }
+        }
+        .navigationDestination(isPresented: $showsActivity) { NotMigratedView(screen: "Activity") }
+        .navigationDestination(isPresented: $showsMuted) { FeedMutesView() }
         .onChange(of: search) { _, text in
             readingID = nil
             model.setSearch(text)
         }
         .onChange(of: model.failureTick) { _, _ in
-            guard let error = model.lastError else { return }
+            guard !model.loadMoreFailed, let error = model.lastError else { return }
             toasts.show(error)
         }
+    }
+
+    private var bell: some View {
+        MonacoGlassButton(
+            icon: .bell, accessibilityLabel: "Activity notifications", placement: .toolbar
+        ) {
+            showsActivity = true
+        }
+        .overlay(alignment: .topTrailing) {
+            if opensSoon.hasUnreadActivity {
+                Circle()
+                    .fill(MonacoTheme.brand)
+                    .frame(width: FeedScreenMetrics.unreadDot, height: FeedScreenMetrics.unreadDot)
+                    .padding(FeedScreenMetrics.unreadInset)
+                    .accessibilityHidden(true)
+            }
+        }
+        .accessibilityIdentifier("feed-bell")
+    }
+
+    private var filter: some View {
+        Menu {
+            Section("From") {
+                Picker("From", selection: scope) {
+                    ForEach(FeedScope.allCases, id: \.self) { scope in
+                        Text(scope.title).tag(scope).accessibilityIdentifier("feed-scope-\(scope.title)")
+                    }
+                }
+                .pickerStyle(.inline)
+                .accessibilityIdentifier("feed-scope")
+            }
+            Section("Show") {
+                Picker("Show", selection: chip) {
+                    ForEach(FeedChip.allCases, id: \.self) { chip in
+                        Text(chip.title).tag(chip).accessibilityIdentifier("feed-chip-\(chip.title)")
+                    }
+                }
+                .pickerStyle(.inline)
+            }
+            Section {
+                Button("Muted") { showsMuted = true }
+                    .accessibilityIdentifier("feed-muted-link")
+            }
+        } label: {
+            MonacoGlassButton(
+                icon: .filter, accessibilityLabel: "Filter feed", style: isFiltered ? .selected : .glass,
+                placement: .toolbar
+            ) {}
+        }
+        .menuActionDismissBehavior(.disabled)
+        .accessibilityLabel("Filter feed")
+        .accessibilityIdentifier("feed-filter")
+    }
+
+    private var isFiltered: Bool {
+        model.query.scope != .everyone || model.query.chip != .all
+    }
+
+    private var isNarrowed: Bool {
+        isFiltered || !model.query.trimmedSearch.isEmpty
     }
 
     private func mute(_ option: FeedMuteOption) {
@@ -122,39 +189,65 @@ private struct FeedScreen: View {
         )
     }
 
+    private var chip: Binding<FeedChip> {
+        Binding(
+            get: { model.query.chip },
+            set: { next in
+                readingID = nil
+                Task { await model.select(next) }
+            }
+        )
+    }
+
     @ViewBuilder private var content: some View {
         switch model.phase {
         case .loading:
-            MonacoRowSkeleton(rows: 5, markShape: .circle)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Loading the feed")
-                .accessibilityIdentifier("feed-loading")
-        case .empty(let query):
-            EmptyState(title: query.map { "Nothing matches “\($0)”" } ?? "Nothing here yet.")
-                .accessibilityIdentifier("feed-empty")
+            FeedSkeleton()
+        case .empty:
+            emptyState
         case .followsNobody:
             VStack(spacing: 0) {
-                EmptyState(title: "Follow people to see what they do.")
+                EmptyState(title: "Follow people to see what they do.", systemImage: MonacoIcon.profile.symbol)
                 NavigationLink("Find friends", value: AnyAppRoute(FriendsRoute()))
                     .buttonStyle(.monacoSecondary)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                     .accessibilityIdentifier("feed-find-friends")
             }
             .frame(maxWidth: .infinity)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("feed-follow-nobody")
         case .failed:
-            MonacoErrorRow(thing: "the feed", identifier: "feed-error") {
-                Task { await model.reload() }
-            }
+            EmptyState(
+                title: "Couldn’t load this view",
+                message: "Your existing information hasn’t been changed. Try again when your connection is available.",
+                actionTitle: "Try again", actionIdentifier: "feed-error", systemImage: MonacoIcon.offline.symbol,
+                action: { Task { await model.reload() } }
+            )
         case .loaded:
-            cells
+            cards
         }
     }
 
-    private var cells: some View {
+    @ViewBuilder private var emptyState: some View {
+        if isNarrowed {
+            EmptyState(
+                title: "No matching updates", message: "Change the filter to see more activity.",
+                systemImage: MonacoIcon.filter.symbol
+            )
+            .accessibilityIdentifier("feed-empty")
+        } else {
+            EmptyState(
+                title: "No updates yet", message: "Proposals, trades and conversations will appear here.",
+                systemImage: MonacoIcon.feed.symbol
+            )
+            .accessibilityIdentifier("feed-empty")
+        }
+    }
+
+    private var cards: some View {
         let items = model.items
-        return MonacoGroupedList {
-            LazyVStack(spacing: 0) {
+        return VStack(spacing: MonacoTheme.Space.sm) {
+            LazyVStack(spacing: MonacoTheme.Space.sm) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     FeedItemCell(item: item)
                         .contextMenu {
@@ -162,23 +255,42 @@ private struct FeedScreen: View {
                                 Button(option.menuTitle) { mute(option) }
                             }
                         }
-                        .overlay(alignment: .bottom) {
-                            if index < items.count - 1 {
-                                MonacoRule().padding(.leading, FeedItemCell.separatorLeadingInset(for: item))
-                            }
-                        }
                         .onAppear {
-                            guard index >= items.count - 5 else { return }
+                            guard index >= items.count - 5, !model.loadMoreFailed else { return }
                             Task { await model.loadMore() }
                         }
                 }
-                if model.isLoadingMore {
-                    MonacoRowSkeleton(rows: 1, markShape: .circle)
-                }
             }
             .scrollTargetLayout()
+            footer
+        }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+    }
+
+    @ViewBuilder private var footer: some View {
+        if model.isLoadingMore {
+            SkeletonBlock(height: SkeletonMetrics.cardHeight, radius: MonacoTheme.Radius.cardTight)
+        } else if model.loadMoreFailed {
+            VStack(spacing: MonacoTheme.Space.sm) {
+                MonacoNotice(.warn, message: "Older updates couldn’t load. The items above are still here.")
+                Button("Retry older updates") { Task { await model.loadMore() } }
+                    .buttonStyle(.monacoOutline)
+                    .accessibilityIdentifier("feed-load-more-retry")
+            }
+        } else if model.pager.phase == .exhausted {
+            Text(isNarrowed ? "No more matching updates" : "You’re caught up")
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.secondaryText)
+                .frame(maxWidth: .infinity, minHeight: FeedScreenMetrics.footerHeight)
+                .accessibilityIdentifier("feed-caught-up")
         }
     }
+}
+
+enum FeedScreenMetrics {
+    static let unreadDot: CGFloat = 6
+    static let unreadInset: CGFloat = 7
+    static let footerHeight: CGFloat = 48
 }
 
 #if DEBUG
@@ -201,6 +313,11 @@ private struct FeedHarnessScreen: View {
             FeedView(makeModel: { _ in .preview(mode, clock: ContinuousClock()) })
                 .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
         }
+        .environment(
+            \.feedOpensSoon,
+            FeedOpensSoonData(figures: FeedModel.previewFigures(mode), hasUnreadActivity: true)
+        )
+        .defaultScrollAnchor(SampleScrollAnchor.requested(by: SampleScrollAnchor.flag))
     }
 }
 #endif

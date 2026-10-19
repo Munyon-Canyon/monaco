@@ -1,7 +1,7 @@
 ---
 id: governance/comments
 title: Comment on a proposal
-version: 2
+version: 3
 milestone: M18
 requires: [auth/sign-in]
 actors: [A]
@@ -31,7 +31,7 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap, tap, then tap | the Feed tab, `feed-chip-Proposals`, then the first `feed-cell-<id>` | | `proposal-detail` shows within 15 s (old app: Proposal detail; screens.md `ProposalDetailSlot`) |
+| S1.1 | A | tap, pick, then tap | the Feed tab, `feed-chip-Proposals` from `feed-filter`, then the first `feed-cell-<id>` | | `proposal-detail` shows within 15 s (old app: Proposal detail; screens.md `ProposalDetailSlot`) |
 | S1.2 | A | wait | `comment-thread` | | The thread reads "Comments" and `comment-thread-empty` reads "No comments yet" within 10 s (screens.md `ProposalCommentsSlot`: ""Comments", the thread ... Empty: "No comments yet""; old app: `CommentThreadView` read) |
 | S1.3 | A | type, then tap | `comment-composer-field`, then `comment-composer-send` | `QA comment {QA.run}` | The field's placeholder was "Add a comment", and a `comment-row-<id>` reads `QA comment {QA.run}` within 10 s (screens.md: "a composer pinned at the bottom, "Add a comment""; old app: `CommentThreadView` post) |
 
@@ -39,7 +39,7 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, tap, then tap | the Feed tab, `feed-chip-Proposals`, then the first `feed-cell-<id>` | | `proposal-detail` shows within 15 s |
+| S2.1 | A | tap, pick, then tap | the Feed tab, `feed-chip-Proposals` from `feed-filter`, then the first `feed-cell-<id>` | | `proposal-detail` shows within 15 s |
 | S2.2 | A | type, then tap | `comment-composer-field`, then `comment-composer-send` | `QA ask {QA.run}` | A `comment-row-<id>` reads `QA ask {QA.run}` within 10 s |
 | S2.3 | A | tap | `comment-reply-<id>` on the row reading `QA ask {QA.run}` | | `comment-composer-cancel-reply` shows within 5 s (old app: `CommentThreadView` reply) |
 | S2.4 | A | type, then tap | `comment-composer-field`, then `comment-composer-send` | `QA answer {QA.run}` | A `comment-row-<id>` reads `QA answer {QA.run}` within 10 s, below the comment it answers |

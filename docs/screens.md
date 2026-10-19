@@ -184,7 +184,25 @@ Large title "Markets". Search "Search Apple, Tesla, NVDA…"; results replace th
 
 ## Feed tab
 
-#671 owns it: chips "All", "Proposals", "Trades", "Price moves", "Cabals"; an "Everyone" / "Following" toggle; search; cells with the actor's avatar (opens `UserProfileRoute`), title, detail, time and comment count. Empty: "Nothing here yet." Following with no follows: "Follow people to see what they do." with "Find friends". #702 adds hide and mute, #711 the item detail with comments.
+Large title "Feed" with two 44pt glass rounds, then the search field "Search the feed" and a list of compact event cards. Pull to refresh; the last five cards load the next page. #671 built the feed, #702 mute and hide, #711 the post, and the UI v3 redesign the layout below.
+
+| Part | Shows |
+| --- | --- |
+| Bell | "Activity notifications". Pushes the Activity screen, a "on its way" placeholder until that screen ships. The brand dot for unread activity waits for the API |
+| Filter | "Filter feed", a menu that applies each pick at once and stays open. "From": "Everyone", "My cabals", "Following". "Show": "All", "Proposals", "Trades", "Price moves", "Cabals". Then "Muted", which opens the muted list. The round fills when either pick differs from the default |
+| Card | A bordered card: author row, one event block, reactions row. Long-press mutes or hides, with a toast and "Undo" |
+| Author row | Avatar (opens `UserProfileRoute`), name, event pill, then "<cabal> · <time>". A price move has no person, so it shows a market glyph and "Market" |
+| Event pill | "Proposal" and "Buy" (green), "Propose sell" and "Sell" (red), "Price move" and "Approved" (amber), "Discussion" (violet), "Cabal" (green) |
+| Asset block | Proposals, trades and approvals. Ticker, status ("Voting open", "Executed", "Execution pending"), the thesis on two lines. Opens `ProposalRoute`, `TransactionRoute` or `AssetRoute` |
+| Price block | A price move: ticker, the change the title states, and "24h token volume" with "Opens soon" |
+| Cabal block | A started or joined cabal: its tint tile, name, "New public cabal". Opens `CabalRoute` |
+| Reactions | A heart (toast "Likes open soon."), the comment count (opens the post), and share (toast "Sharing opens soon.") |
+
+States. Loading is a skeleton under the live title and search. Empty: "No updates yet" / "Proposals, trades and conversations will appear here."; with a search or filter, "No matching updates" / "Change the filter to see more activity." Following with no follows: "Follow people to see what they do." with "Find friends". Error: "Couldn’t load this view" with "Try again". A page that fails to load under cards shows "Older updates couldn’t load. The items above are still here." with "Retry older updates", and no toast. The end of the list reads "You’re caught up", or "No more matching updates".
+
+**Opens soon.** The feed API sends no likes, no author one-month return ("+8.2% · 1M", or "P&L private"), no structured amounts, no 24h figures, no reply or approval items and only one kind filter. The app draws those only from the Debug sample harnesses (`-feedHarness`, `-feedPostHarness`), never from live data, and each needs a backend ticket: feed likes, the author return and its permission, structured trade and proposal figures (amount, share of the pot, units, average price, buy or sell), price-move figures, reply and outcome item kinds, and a multi-kind filter. Until the figures exist, a proposal or trade is drawn as a buy.
+
+**Muted** (`FeedMutesRoute`). Title "Muted". One 72pt row per mute with an icon, its label and "Unmute". Empty: "Nothing muted" / "Press and hold a post in your feed to mute its cabal, stock or person. They'll show up here."
 
 ## Chat (`ChatRoute`, #676)
 

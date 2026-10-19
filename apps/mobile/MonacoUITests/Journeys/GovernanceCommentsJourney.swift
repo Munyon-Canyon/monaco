@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceCommentsJourney {
     static let id = "governance/comments"
-    static let version = 2
+    static let version = 3
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -20,7 +20,7 @@ enum GovernanceCommentsJourney {
 
     static func openProposal(_ app: XCUIApplication, step: String) {
         FeedBrowseJourney.openFeed(app, step: step)
-        app.element("feed-chip-Proposals").tap()
+        FeedBrowseJourney.choose(app, "feed-chip-Proposals")
         let cell = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier BEGINSWITH 'feed-cell-'")).firstMatch
         XCTAssertTrue(cell.waitForExistence(timeout: 15), "\(step): no proposal cell within 15 s (known failure, #612)")

@@ -4,116 +4,56 @@ import SwiftUI
 
 struct FeedItemCell: View {
     let item: Components.Schemas.FeedItem
-    var opensComments = true
 
-    static func separatorLeadingInset(for item: Components.Schemas.FeedItem) -> CGFloat {
-        let stripe = MonacoTheme.Space.m + 3 + MonacoTheme.Space.sm
-        return item.actorId == nil ? stripe : stripe + MonacoRowLayout.baseMarkSize + MonacoTheme.Space.sm
-    }
+    @Environment(\.feedOpensSoon) private var opensSoon
 
     var body: some View {
-        HStack(alignment: .top, spacing: MonacoTheme.Space.sm) {
-            Capsule()
-                .fill(stripeColor)
-                .frame(width: 3)
-                .frame(maxHeight: .infinity)
-                .accessibilityHidden(true)
-            if let actorID = item.actorId {
-                NavigationLink(value: AnyAppRoute(UserProfileRoute(userID: actorID))) {
-                    MonacoAvatar(photoURL: item.actorPhotoUrl, displayName: item.actorName ?? "", seed: actorID)
-                        .frame(width: MonacoRowLayout.baseMarkSize, height: MonacoRowLayout.baseMarkSize)
-                        .contentShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Open profile")
-                .accessibilityIdentifier("feed-actor-\(item.id)")
+        let figures = opensSoon.figures[item.id]
+        let event = FeedEvent(item, figures: figures)
+        MonacoCard(style: .tight) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                FeedAuthorRow(item: item, event: event, authorReturn: FeedReturnFacts(figures?.authorReturn))
+                block(for: event, figures: figures)
+                FeedReactionsRow(item: item, likes: figures?.likes)
             }
-            column
         }
-        .fixedSize(horizontal: false, vertical: true)
-        .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.vertical, MonacoTheme.Space.sm)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("feed-cell-\(item.id)")
     }
 
-    private var isProposal: Bool {
-        FeedKind(rawValue: item.kind) == .proposal
-    }
-
-    private var column: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-            if isProposal || !opensComments {
-                destination {
-                    text
-                    footer(commentsLink: false)
-                }
-            } else {
-                destination { text }
-                footer(commentsLink: true)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    @ViewBuilder private func destination(@ViewBuilder _ label: () -> some View) -> some View {
-        let label = VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) { label() }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-        if let route = FeedDestination(item)?.route {
-            NavigationLink(value: route) { label }
-                .buttonStyle(.plain)
-        } else {
-            label
+    @ViewBuilder private func block(for event: FeedEvent, figures: FeedFigures?) -> some View {
+        switch event.block {
+        case .asset(let side):
+            let facts = FeedAssetFacts(item, figures: figures, event: event)
+            FeedAssetBlock(
+                tone: side == .buy ? .buy : .sell, symbol: item.symbol ?? "", ticker: facts.ticker,
+                company: facts.company,
+                trailing: facts.amount.map { .init(text: $0, color: MonacoTheme.primaryText) },
+                line: .init(
+                    leading: facts.detail, trailing: facts.status,
+                    trailingColor: event.statusColor),
+                thesis: facts.thesis, route: item.opensRoute, spoken: facts.spoken(event))
+        case .price:
+            let facts = FeedPriceFacts(item, figures: figures)
+            FeedAssetBlock(
+                tone: .price, symbol: item.symbol ?? "", ticker: facts.ticker, company: facts.company,
+                trailing: facts.change.map {
+                    .init(text: $0, color: MonacoTheme.signed($0), caption: "24h change")
+                },
+                line: .init(leading: "24h token volume", trailing: facts.volume ?? "Opens soon"),
+                route: item.opensRoute, spoken: facts.spoken)
+        case .quote:
+            FeedReplyBlock(
+                caption: figures?.detail ?? item.detail, quote: item.body ?? item.title, route: item.opensRoute)
+        case .cabal:
+            FeedCabalBlock(item: item, route: item.opensRoute)
         }
     }
+}
 
-    @ViewBuilder private var text: some View {
-        Text(item.title)
-            .font(MonacoTheme.Typo.rowTitle)
-            .foregroundStyle(MonacoTheme.ink)
-            .fixedSize(horizontal: false, vertical: true)
-        if let detail = item.detail, !detail.isEmpty {
-            Text(detail)
-                .font(MonacoTheme.Typo.callout)
-                .foregroundStyle(MonacoTheme.muted)
-        }
-        if let body = item.body, !body.isEmpty {
-            Text(body)
-                .font(MonacoTheme.Typo.callout)
-                .foregroundStyle(MonacoTheme.ink)
-                .lineLimit(3)
-        }
-    }
-
-    private func footer(commentsLink: Bool) -> some View {
-        HStack(spacing: MonacoTheme.Space.s) {
-            Text(item.createdAt, format: .relative(presentation: .named, unitsStyle: .abbreviated))
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.muted)
-            Spacer(minLength: 0)
-            if commentsLink {
-                NavigationLink(value: AnyAppRoute(FeedItemRoute(itemID: item.id))) { commentCount }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("feed-comments-\(item.id)")
-            } else {
-                commentCount
-                    .accessibilityIdentifier("feed-comments-\(item.id)")
-            }
-        }
-    }
-
-    private var commentCount: some View {
-        Label("\(item.commentCount)", systemImage: "bubble.left")
-            .font(MonacoTheme.Typo.caption)
-            .foregroundStyle(MonacoTheme.muted)
-            .frame(minWidth: 44, minHeight: 44, alignment: .trailing)
-            .contentShape(Rectangle())
-            .accessibilityLabel(item.commentCount == 1 ? "1 comment" : "\(item.commentCount) comments")
-    }
-
-    private var stripeColor: Color {
-        item.cabalId.map { MonacoTheme.CabalTint.forGroupId($0).fill } ?? .clear
+extension Components.Schemas.FeedItem {
+    var opensRoute: AnyAppRoute {
+        FeedDestination(self)?.route ?? AnyAppRoute(FeedItemRoute(itemID: id))
     }
 }
 
