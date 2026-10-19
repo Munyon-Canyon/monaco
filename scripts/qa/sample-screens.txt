@@ -210,6 +210,9 @@ feed-loading                  -feedHarness loading
 feed-items-large-text         -feedHarness items -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 feed-post-ready               -feedPostHarness ready
 feed-post-empty               -feedPostHarness empty
+feed-post-replying            -feedPostHarness replying
+feed-post-sending             -feedPostHarness sending
+feed-post-failed              -feedPostHarness failed
 feed-post-unavailable         -feedPostHarness unavailable
 feed-post-ready-large-text    -feedPostHarness ready -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 settings                      -settingsHarness

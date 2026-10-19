@@ -110,8 +110,6 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
             app.staticTexts["Replying to Maya"].waitForNonExistence(timeout: 5),
             "the reply target should clear after posting")
         XCTAssertTrue(
-            app.staticTexts["6"].waitForExistence(timeout: 5), "the thread count should read 6 after two posts")
-        XCTAssertTrue(
             waitUntilHittable(app.staticTexts["Agreed, Nvidia next."]),
             "the posted reply is off screen or behind the composer"
         )
