@@ -86,6 +86,37 @@ func (h HTTP) GetCabalProposals(
 	return out, nil
 }
 
+func (h HTTP) GetMyProposals(
+	ctx context.Context, req api.GetMyProposalsRequestObject,
+) (api.GetMyProposalsResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	list := app.ListMyProposals{Caller: user}
+	if req.Params.Filter != nil {
+		list.Filter = app.Filter(*req.Params.Filter)
+	}
+	if req.Params.Limit != nil {
+		list.Limit = *req.Params.Limit
+	}
+	if req.Params.Cursor != nil {
+		list.Cursor = *req.Params.Cursor
+	}
+	page, err := h.Reads.ListMine(ctx, list)
+	if err != nil {
+		return nil, err
+	}
+	out := api.GetMyProposals200JSONResponse{Proposals: make([]api.Proposal, len(page.Items))}
+	for i, v := range page.Items {
+		out.Proposals[i] = wireProposal(v)
+	}
+	if page.NextCursor != "" {
+		out.NextCursor = &page.NextCursor
+	}
+	return out, nil
+}
+
 func (h HTTP) GetProposal(
 	ctx context.Context, req api.GetProposalRequestObject,
 ) (api.GetProposalResponseObject, error) {

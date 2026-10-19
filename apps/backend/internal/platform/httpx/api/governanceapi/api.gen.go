@@ -241,6 +241,27 @@ func (e GetCabalProposalsParamsFilter) Valid() bool {
 	}
 }
 
+// Defines values for GetMyProposalsParamsFilter.
+const (
+	GetMyProposalsParamsFilterAll    GetMyProposalsParamsFilter = "all"
+	GetMyProposalsParamsFilterClosed GetMyProposalsParamsFilter = "closed"
+	GetMyProposalsParamsFilterOpen   GetMyProposalsParamsFilter = "open"
+)
+
+// Valid indicates whether the value is a known member of the GetMyProposalsParamsFilter enum.
+func (e GetMyProposalsParamsFilter) Valid() bool {
+	switch e {
+	case GetMyProposalsParamsFilterAll:
+		return true
+	case GetMyProposalsParamsFilterClosed:
+		return true
+	case GetMyProposalsParamsFilterOpen:
+		return true
+	default:
+		return false
+	}
+}
+
 // AdminProposal One proposal as the admin panel shows it.
 type AdminProposal struct {
 	// CabalId The cabal id.
@@ -732,7 +753,7 @@ type LinkedSwap struct {
 // Examples: buy
 type ProposalKind string
 
-// ProposalList One page of a cabal's proposals.
+// ProposalList One page of proposals.
 type ProposalList struct {
 	// NextCursor The cursor for the next page. Null on the last page.
 	//
@@ -984,6 +1005,21 @@ type GetCabalProposalPreviewParams struct {
 	Network *externalRef0.Network `form:"network,omitempty" json:"network,omitempty"`
 }
 
+// GetMyProposalsParams defines parameters for GetMyProposals.
+type GetMyProposalsParams struct {
+	// Filter Which proposals to return.
+	Filter *GetMyProposalsParamsFilter `form:"filter,omitempty" json:"filter,omitempty"`
+
+	// Limit Page size. Defaults to 20 and cannot exceed 50.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor The `next_cursor` from the previous page. Absent reads the first page.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// GetMyProposalsParamsFilter defines parameters for GetMyProposals.
+type GetMyProposalsParamsFilter string
+
 // DeleteProposalParams defines parameters for DeleteProposal.
 type DeleteProposalParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -1031,6 +1067,9 @@ type ServerInterface interface {
 	// GetMyPendingVotes List the open proposals waiting on the caller's ballot.
 	// (GET /v1/me/pending-votes)
 	GetMyPendingVotes(w http.ResponseWriter, r *http.Request)
+	// GetMyProposals List the caller's proposals across every cabal.
+	// (GET /v1/me/proposals)
+	GetMyProposals(w http.ResponseWriter, r *http.Request, params GetMyProposalsParams)
 	// DeleteProposal Withdraw the caller's proposal.
 	// (DELETE /v1/proposals/{id})
 	DeleteProposal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DeleteProposalParams)
@@ -1464,6 +1503,65 @@ func (siw *ServerInterfaceWrapper) GetMyPendingVotes(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
+// GetMyProposals operation middleware
+func (siw *ServerInterfaceWrapper) GetMyProposals(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMyProposalsParams
+
+	// ------------- Optional query parameter "filter" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "filter", r.URL.Query(), &params.Filter, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "filter"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "filter", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMyProposals(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeleteProposal operation middleware
 func (siw *ServerInterfaceWrapper) DeleteProposal(w http.ResponseWriter, r *http.Request) {
 
@@ -1726,6 +1824,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/proposals/preview", wrapper.GetCabalProposalPreview)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/proposals/{proposal_id}/price-comparison", wrapper.GetCabalProposalPriceComparison)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/pending-votes", wrapper.GetMyPendingVotes)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/proposals", wrapper.GetMyProposals)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/proposals/{id}", wrapper.DeleteProposal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/proposals/{id}", wrapper.GetProposal)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/proposals/{id}/votes", wrapper.PostProposalVote)
@@ -2052,6 +2151,45 @@ func (response GetMyPendingVotesdefaultApplicationProblemPlusJSONResponse) Visit
 	return err
 }
 
+type GetMyProposalsRequestObject struct {
+	Params GetMyProposalsParams
+}
+
+type GetMyProposalsResponseObject interface {
+	VisitGetMyProposalsResponse(w http.ResponseWriter) error
+}
+
+type GetMyProposals200JSONResponse ProposalList
+
+func (response GetMyProposals200JSONResponse) VisitGetMyProposalsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyProposalsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetMyProposalsdefaultApplicationProblemPlusJSONResponse) VisitGetMyProposalsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteProposalRequestObject struct {
 	Id     openapi_types.UUID `json:"id"`
 	Params DeleteProposalParams
@@ -2198,6 +2336,9 @@ type StrictServerInterface interface {
 	// GetMyPendingVotes List the open proposals waiting on the caller's ballot.
 	// (GET /v1/me/pending-votes)
 	GetMyPendingVotes(ctx context.Context, request GetMyPendingVotesRequestObject) (GetMyPendingVotesResponseObject, error)
+	// GetMyProposals List the caller's proposals across every cabal.
+	// (GET /v1/me/proposals)
+	GetMyProposals(ctx context.Context, request GetMyProposalsRequestObject) (GetMyProposalsResponseObject, error)
 	// DeleteProposal Withdraw the caller's proposal.
 	// (DELETE /v1/proposals/{id})
 	DeleteProposal(ctx context.Context, request DeleteProposalRequestObject) (DeleteProposalResponseObject, error)
@@ -2467,6 +2608,32 @@ func (sh *strictHandler) GetMyPendingVotes(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMyPendingVotesResponseObject); ok {
 		if err := validResponse.VisitGetMyPendingVotesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMyProposals operation middleware
+func (sh *strictHandler) GetMyProposals(w http.ResponseWriter, r *http.Request, params GetMyProposalsParams) {
+	var request GetMyProposalsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMyProposals(ctx, request.(GetMyProposalsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMyProposals")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMyProposalsResponseObject); ok {
+		if err := validResponse.VisitGetMyProposalsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
