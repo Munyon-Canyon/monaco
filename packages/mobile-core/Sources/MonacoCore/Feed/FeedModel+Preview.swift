@@ -209,7 +209,7 @@ enum FeedPreviewFixtures {
             actorName: actor.map { actorNames[$0 - 1] }, actorPhotoUrl: nil,
             assetId: symbol.map { _ in String(format: "00000000-0000-7000-8000-0000000fd%03d", number) },
             symbol: symbol, title: title, detail: detail, body: body, status: nil, tone: tone,
-            commentCount: comments, createdAt: created, updatedAt: created)
+            commentCount: comments, likeCount: 0, likedByMe: false, createdAt: created, updatedAt: created)
         return Entry(item: item, figures: figures)
     }
 }

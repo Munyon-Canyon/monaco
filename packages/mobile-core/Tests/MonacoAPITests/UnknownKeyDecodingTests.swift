@@ -15,7 +15,7 @@ final class UnknownKeyDecodingTests: XCTestCase {
             + ##""ref_id":"01920000-0000-7000-8000-000000000008","cabal_id":null,"cabal_name":null,"##
             + ##""actor_id":null,"actor_name":null,"actor_photo_url":null,"asset_id":null,"symbol":"AAPLx","##
             + ##""title":"Alpha Cabal bought $500 of AAPLx","detail":null,"body":null,"status":null,"##
-            + ##""tone":"neutral","comment_count":0,"created_at":"2026-10-03T08:00:00Z","##
+            + ##""tone":"neutral","comment_count":0,"like_count":0,"liked_by_me":false,"created_at":"2026-10-03T08:00:00Z","##
             + ##""updated_at":"2026-10-03T08:00:00Z","added_next_release":{"nested":[1,2]}}"##
 
         let item = try decode(Components.Schemas.FeedItem.self, raw)
