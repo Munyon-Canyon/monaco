@@ -155,6 +155,7 @@ struct CommentRow: View {
                     photoURL: row.comment.author.photoUrl, displayName: row.authorName,
                     size: CommentThreadLayout.avatarSize, seed: row.authorID)
             }
+            .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 byline
                 Text(bodyText)

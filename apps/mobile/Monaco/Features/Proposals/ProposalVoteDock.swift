@@ -67,6 +67,7 @@ struct ProposalVoteDock: View {
         Task {
             if await model.vote(choice) {
                 analytics.step(.vote(.voteCast))
+                Haptics.success()
                 toasts.show(success: "Vote recorded.")
             } else if let message = model.errorMessage {
                 toasts.current = MonacoToast(message: message)
