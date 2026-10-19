@@ -3,6 +3,7 @@ package adapters
 import (
 	"context"
 	"errors"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,13 +17,18 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
-const proposalSource = "proposal"
+const (
+	proposalSource = "proposal"
+	bpsOfWhole     = 10_000
+)
 
 type ProposalCard struct {
 	ProposerName string
 	Asset        app.AssetCard
+	Pot          money.Micros
 }
 
 func (h Feed) FetchProposal(ctx context.Context, e events.ProposalCreated) (ProposalCard, error) {
@@ -35,7 +41,25 @@ func (h Feed) FetchProposal(ctx context.Context, e events.ProposalCreated) (Prop
 	if err != nil {
 		return ProposalCard{}, err
 	}
-	return ProposalCard{ProposerName: feedName(cards[proposer].DisplayName, cards[proposer].Handle), Asset: asset}, nil
+	pot, err := h.Treasury.PotValue(ctx, ids.CabalIDFrom(e.CabalID))
+	if err != nil && errs.Retryable(errs.CodeOf(err)) {
+		return ProposalCard{}, err
+	}
+	return ProposalCard{
+		ProposerName: feedName(cards[proposer].DisplayName, cards[proposer].Handle), Asset: asset, Pot: pot,
+	}, nil
+}
+
+func shareOfPotBps(e events.ProposalCreated, pot money.Micros) int64 {
+	amount := e.USDCMicros.Uint64()
+	if e.Kind == string(feed.ActionSell) {
+		amount = e.QuoteOutAmount
+	}
+	bps, err := money.MulDiv(amount, bpsOfWhole, pot.Uint64())
+	if err != nil || bps > math.MaxInt64 {
+		return 0
+	}
+	return int64(bps)
 }
 
 func (h Feed) ApplyProposal(
@@ -52,7 +76,7 @@ func (h Feed) ApplyProposal(
 	payload := feed.Payload{
 		CabalName: cabal, ActorName: card.ProposerName, Symbol: e.Symbol, AssetName: card.Asset.Name,
 		Action: feed.Action(e.Kind), USDCMicros: e.USDCMicros, TokenAmount: e.TokenAmount,
-		Status: string(feed.StatusOpen), ExpiresAt: e.ExpiresAt,
+		Status: string(feed.StatusOpen), ExpiresAt: e.ExpiresAt, ShareOfPotBps: shareOfPotBps(e, card.Pot),
 	}
 	if err := q.InsertFeedConsumerItem(ctx, sqlc.InsertFeedConsumerItemParams{
 		ID: eventID(ctx), Kind: string(feed.KindProposal), RefType: string(feed.RefProposals), RefID: e.ProposalID,

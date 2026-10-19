@@ -618,6 +618,11 @@ type CreateCommentRequest struct {
 
 // FeedItem One feed item with its display strings rendered.
 type FeedItem struct {
+	// Action `buy` or `sell` for a proposal or trade. Null for any other kind.
+	//
+	// Examples: buy
+	Action *string `json:"action"`
+
 	// ActorId The user who acted. Null for a system item.
 	//
 	// Examples: null
@@ -637,6 +642,11 @@ type FeedItem struct {
 	//
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
 	AssetId *openapi_types.UUID `json:"asset_id"`
+
+	// AssetName The stock's display name. Null when the item is not about a stock.
+	//
+	// Examples: Apple
+	AssetName *string `json:"asset_name"`
 
 	// Body Free text, such as a proposal's thesis.
 	//
@@ -688,6 +698,16 @@ type FeedItem struct {
 	// Examples: true
 	LikedByMe bool `json:"liked_by_me"`
 
+	// PriceMicros USDC micros per whole token a trade filled at. Null unless the item is a trade.
+	//
+	// Examples: 200000000
+	PriceMicros *int64 `json:"price_micros"`
+
+	// ProposalId The proposal a proposal or trade item is about. Null on other kinds.
+	//
+	// Examples: 01920000-0000-7000-8000-000000000009
+	ProposalId *openapi_types.UUID `json:"proposal_id"`
+
 	// RefId The source row's id.
 	//
 	// Examples: 01920000-0000-7000-8000-000000000008
@@ -708,7 +728,12 @@ type FeedItem struct {
 	// Examples: false
 	ReturnPrivate bool `json:"return_private"`
 
-	// Status The source's status, for proposals.
+	// ShareOfPotBps A proposal's amount as basis points of the cabal pot when it was made. Null on other kinds and on proposals made before this field shipped.
+	//
+	// Examples: 1000
+	ShareOfPotBps *int64 `json:"share_of_pot_bps"`
+
+	// Status The source's status, for proposals: `open`, `passed`, `execution_failed`, `failed`, `expired`, `withdrawn`, `voided`, `executed` or `execution_blocked`.
 	//
 	// Examples: null
 	Status *string `json:"status"`
@@ -723,6 +748,16 @@ type FeedItem struct {
 	// Examples: Alpha Cabal bought $500 of AAPLx
 	Title string `json:"title"`
 
+	// TokenAmount Token base units: a sell proposal's amount or a trade's fill. Null when the item has none.
+	//
+	// Examples: 250000000
+	TokenAmount *int64 `json:"token_amount"`
+
+	// TokenDecimals Decimals of `token_amount`. Null when `token_amount` is null.
+	//
+	// Examples: 8
+	TokenDecimals *int `json:"token_decimals"`
+
 	// Tone `neutral`, `positive` or `negative`, so the app can color the item without reading amounts.
 	//
 	// Examples: neutral
@@ -732,6 +767,11 @@ type FeedItem struct {
 	//
 	// Examples: 2026-10-03T08:00:00Z
 	UpdatedAt time.Time `json:"updated_at"`
+
+	// UsdcMicros A proposal's buy amount, or the USDC a trade spent or received, in micros. Null when the item has none.
+	//
+	// Examples: 500000000
+	UsdcMicros *int64 `json:"usdc_micros"`
 }
 
 // FeedItemDetail One feed item, whether it passes the request's filters and whether the caller can comment on it.

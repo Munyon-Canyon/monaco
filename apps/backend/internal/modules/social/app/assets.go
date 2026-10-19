@@ -4,6 +4,9 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type AssetCard struct {
@@ -11,6 +14,10 @@ type AssetCard struct {
 	Symbol   string
 	Name     string
 	Decimals uint8
+}
+
+type Treasury interface {
+	PotValue(ctx context.Context, cabalID ids.CabalID) (money.Micros, error)
 }
 
 type Assets interface {

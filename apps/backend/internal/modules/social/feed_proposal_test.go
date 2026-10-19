@@ -3,6 +3,8 @@ package social_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"math"
 	"slices"
 	"testing"
 	"time"
@@ -29,6 +31,7 @@ type proposalRig struct {
 	conn     testkit.Bus
 	cabal    uuid.UUID
 	proposal uuid.UUID
+	treasury *fakes.Treasury
 	feed     adapters.Feed
 }
 
@@ -36,18 +39,22 @@ func newProposalRig(t *testing.T) proposalRig {
 	t.Helper()
 	f := newFixture(t)
 	b := testkit.NATS(t)
+	treasury := fakes.NewTreasury()
 	r := proposalRig{
 		fixture:  f,
 		conn:     b,
 		proposal: f.gen.NewV7(),
+		treasury: treasury,
 		feed: adapters.Feed{
-			Bus:    b.Conn,
-			Users:  f.users,
-			Assets: social.NewAssets(marketfake.NewCatalog(marketfake.AAPLx())),
-			IDs:    f.gen,
+			Bus:      b.Conn,
+			Users:    f.users,
+			Assets:   social.NewAssets(marketfake.NewCatalog(marketfake.AAPLx())),
+			Treasury: treasury,
+			IDs:      f.gen,
 		},
 	}
 	r.cabal = createFeedCabal(t, f)
+	treasury.SetPotValue(ids.CabalIDFrom(r.cabal), money.MicrosFromUint64(5_000_000_000))
 	return r
 }
 
@@ -373,7 +380,12 @@ func TestFeedProposal_theModuleReadsAssetsFromItsOption(t *testing.T) {
 		{"known mint", marketfake.NewCatalog(marketfake.AAPLx()), false},
 		{"empty catalog", marketfake.NewCatalog(), true},
 	} {
-		m := social.New(module.Deps{}, social.WithUsers(f.users), social.WithAssets(tc.catalog))
+		m := social.New(
+			module.Deps{},
+			social.WithUsers(f.users),
+			social.WithAssets(tc.catalog),
+			social.WithTreasury(fakes.NewTreasury()),
+		)
 		for _, c := range m.Consumers() {
 			for _, h := range c.Handlers {
 				if h.Name != "social.feed.proposal_created" {
@@ -463,5 +475,68 @@ func TestFeedProposal_anExpiryBeforeTheCreateNaksThenConverges(t *testing.T) {
 	}
 	if got := r.row(t).Status; got != "expired" {
 		t.Fatalf("status = %s, want expired", got)
+	}
+}
+
+func TestFeedProposal_recordsTheShareOfThePotInBasisPoints(t *testing.T) {
+	t.Parallel()
+	sell := func(e *events.ProposalCreated) {
+		e.Kind, e.USDCMicros, e.TokenAmount, e.QuoteOutAmount = "sell", money.Micros{}, 7, 250_000_000
+	}
+	for name, tc := range map[string]struct {
+		edit func(*events.ProposalCreated)
+		pot  uint64
+		want string
+	}{
+		"a buy is its amount over the pot": {func(*events.ProposalCreated) {}, 5_000_000_000, "1000"},
+		"a sell is its quoted USDC out":    {sell, 5_000_000_000, "500"},
+		"an empty pot leaves it out":       {func(*events.ProposalCreated) {}, 0, "<nil>"},
+		"a share past int64 leaves it out": {
+			func(e *events.ProposalCreated) { e.USDCMicros = money.MicrosFromUint64(math.MaxUint64) }, 10_000, "<nil>",
+		},
+		"a share past uint64 leaves it out": {
+			func(e *events.ProposalCreated) { e.USDCMicros = money.MicrosFromUint64(math.MaxUint64) }, 1, "<nil>",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			r := newProposalRig(t)
+			r.treasury.SetPotValue(ids.CabalIDFrom(r.cabal), money.MicrosFromUint64(tc.pot))
+			e := r.created()
+			tc.edit(&e)
+			if err := r.deliver(t, func(ctx context.Context, tx db.Tx) error {
+				card, err := r.feed.FetchProposal(ctx, e)
+				if err != nil {
+					return err
+				}
+				return r.feed.ApplyProposal(ctx, tx, e, card, r.clock.Now())
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if got := fmt.Sprint(r.row(t).Payload["share_of_pot_bps"]); got != tc.want {
+				t.Fatalf("share_of_pot_bps = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestFeedProposal_fetchSkipsTheShareWhenThePotReadFailsForGood(t *testing.T) {
+	t.Parallel()
+	r := newProposalRig(t)
+	r.treasury.Fail("PotValue", errs.New(errs.CodeInvalidInput, "test"))
+	if err := r.create(t); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := r.row(t).Payload["share_of_pot_bps"]; ok {
+		t.Fatal("share_of_pot_bps was written without a pot")
+	}
+}
+
+func TestFeedProposal_fetchRetriesWhenThePotReadIsUnavailable(t *testing.T) {
+	t.Parallel()
+	r := newProposalRig(t)
+	r.treasury.Fail("PotValue", errs.New(errs.CodeDBUnavailable, "test"))
+	if got := errs.CodeOf(r.create(t)); got != errs.CodeDBUnavailable {
+		t.Fatalf("create = %s, want %s", got, errs.CodeDBUnavailable)
 	}
 }

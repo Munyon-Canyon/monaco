@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 const (
@@ -37,26 +38,34 @@ type FeedQuery struct {
 }
 
 type FeedItem struct {
-	ID           uuid.UUID
-	Kind         feed.Kind
-	RefType      feed.RefType
-	RefID        uuid.UUID
-	CabalID      ids.CabalID
-	ActorID      ids.UserID
-	AssetID      uuid.UUID
-	CabalName    string
-	ActorName    string
-	Symbol       string
-	Title        string
-	Detail       string
-	Body         string
-	Status       string
-	Tone         feed.Tone
-	CommentCount int32
-	LikeCount    int32
-	LikedByMe    bool
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID            uuid.UUID
+	Kind          feed.Kind
+	RefType       feed.RefType
+	RefID         uuid.UUID
+	CabalID       ids.CabalID
+	ActorID       ids.UserID
+	AssetID       uuid.UUID
+	CabalName     string
+	ActorName     string
+	Symbol        string
+	Title         string
+	Detail        string
+	Body          string
+	Status        string
+	Tone          feed.Tone
+	Action        feed.Action
+	USDCMicros    money.Micros
+	AssetName     string
+	TokenAmount   uint64
+	TokenDecimals *uint8
+	PriceMicros   money.Micros
+	ShareOfPotBps int64
+	ProposalID    uuid.UUID
+	CommentCount  int32
+	LikeCount     int32
+	LikedByMe     bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type FeedPage struct {
@@ -121,15 +130,27 @@ func feedItemOf(row sqlc.ListFeedRow) (FeedItem, error) {
 		return FeedItem{}, err
 	}
 	kind := feed.Kind(row.Kind)
-	return FeedItem{
+	item := FeedItem{
 		ID: row.ID, Kind: kind, RefType: feed.RefType(row.RefType), RefID: row.RefID,
 		CabalID: ids.CabalIDFrom(row.CabalID.Bytes), ActorID: ids.UserIDFrom(row.ActorID.Bytes),
 		AssetID: row.AssetID.Bytes, CabalName: row.CabalName.String, ActorName: payload.ActorName,
 		Symbol: row.Symbol.String, Title: row.Title, Detail: feed.RenderDetail(kind, payload), Body: row.Body.String,
 		Status: row.Status.String, Tone: feed.RenderTone(kind, payload), CommentCount: row.CommentCount,
 		LikeCount: row.LikeCount, LikedByMe: row.LikedByMe, CreatedAt: row.CreatedAt.UTC(),
-		UpdatedAt: row.UpdatedAt.UTC(),
-	}, nil
+		UpdatedAt: row.UpdatedAt.UTC(), Action: payload.Action, USDCMicros: payload.USDCMicros,
+		AssetName: payload.AssetName, TokenAmount: payload.TokenAmount, ProposalID: payload.ProposalID,
+	}
+	if payload.TokenAmount != 0 {
+		item.TokenDecimals = &payload.TokenDecimals
+	}
+	if kind == feed.KindTrade {
+		item.PriceMicros = payload.PriceMicros
+	}
+	if kind == feed.KindProposal {
+		item.ShareOfPotBps = payload.ShareOfPotBps
+		item.ProposalID = row.RefID
+	}
+	return item, nil
 }
 
 func filterParams(viewer ids.UserID, f FeedFilter) sqlc.ListFeedParams {
