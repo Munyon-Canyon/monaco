@@ -7,6 +7,7 @@ enum MonacoSegmentedMetrics {
     static let periodsMinHeight: CGFloat = 44
     static let hitOutset: CGFloat = 4
     static let borderWidth: CGFloat = 1
+    static let stackedOptionLimit = 3
 }
 
 struct MonacoSegmentedLayout: Equatable {
@@ -42,20 +43,43 @@ struct MonacoSegmented<T: Hashable>: View {
     }
 
     var body: some View {
-        HStack(spacing: MonacoSegmentedMetrics.spacing) {
-            ForEach(options, id: \.self) { option in
-                segment(option)
+        segments
+            .padding(MonacoSegmentedMetrics.inset)
+            .frame(maxWidth: .infinity, minHeight: layout.minHeight)
+            .background(trackShape.fill(MonacoTheme.surfaceSunken))
+            .overlay {
+                trackShape.strokeBorder(MonacoTheme.border, lineWidth: MonacoSegmentedMetrics.borderWidth)
             }
-        }
-        .padding(MonacoSegmentedMetrics.inset)
-        .frame(maxWidth: .infinity, minHeight: layout.minHeight)
-        .background(Capsule().fill(MonacoTheme.surfaceSunken))
-        .overlay {
-            Capsule().strokeBorder(MonacoTheme.border, lineWidth: MonacoSegmentedMetrics.borderWidth)
+    }
+
+    private var trackShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: layout.minHeight / 2)
+    }
+
+    @ViewBuilder private var segments: some View {
+        if dynamicTypeSize >= .xxLarge {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: MonacoSegmentedMetrics.spacing) { segmentViews(keepsWidth: true) }
+                if options.count > MonacoSegmentedMetrics.stackedOptionLimit {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: MonacoSegmentedMetrics.spacing) { segmentViews(keepsWidth: true) }
+                    }
+                } else {
+                    VStack(spacing: MonacoSegmentedMetrics.spacing) { segmentViews(keepsWidth: false) }
+                }
+            }
+        } else {
+            HStack(spacing: MonacoSegmentedMetrics.spacing) { segmentViews(keepsWidth: false) }
         }
     }
 
-    private func segment(_ option: T) -> some View {
+    private func segmentViews(keepsWidth: Bool) -> some View {
+        ForEach(options, id: \.self) { option in
+            segment(option, keepsWidth: keepsWidth)
+        }
+    }
+
+    private func segment(_ option: T, keepsWidth: Bool) -> some View {
         let isSelected = option == selection
         return Button {
             guard option != selection else { return }
@@ -69,13 +93,14 @@ struct MonacoSegmented<T: Hashable>: View {
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 .minimumScaleFactor(0.8)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: keepsWidth, vertical: false)
                 .foregroundStyle(isSelected ? MonacoTheme.onBrand : MonacoTheme.secondaryText)
                 .padding(.horizontal, MonacoTheme.Space.sm)
                 .padding(.vertical, MonacoTheme.Space.xs)
                 .frame(maxWidth: .infinity, minHeight: layout.minHeight - 2 * MonacoSegmentedMetrics.inset)
                 .background {
                     if isSelected {
-                        Capsule()
+                        RoundedRectangle(cornerRadius: layout.minHeight / 2 - MonacoSegmentedMetrics.inset)
                             .fill(MonacoTheme.brandFill)
                             .matchedGeometryEffect(id: "thumb", in: thumb)
                     }
