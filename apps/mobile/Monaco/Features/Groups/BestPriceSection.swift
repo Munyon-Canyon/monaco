@@ -95,7 +95,7 @@ struct BestPriceSheet: View {
         }
         let unavailable = bestPrice.unavailable.map {
             Row(
-                id: $0.id, name: $0.name, network: $0.network.rawValue, figure: $0.reason, isWinner: false,
+                id: $0.id, name: $0.name, network: $0.network, figure: $0.reason, isWinner: false,
                 isUnavailable: true)
         }
         return quoted + unavailable

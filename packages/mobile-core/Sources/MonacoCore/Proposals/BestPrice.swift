@@ -14,7 +14,7 @@ public struct BestPrice: Equatable, Sendable {
     public struct UnavailableVenue: Equatable, Sendable, Identifiable {
         public let id: String
         public let name: String
-        public let network: Components.Schemas.Network
+        public let network: String
         public let reason: String
     }
 
@@ -41,12 +41,18 @@ public struct BestPrice: Equatable, Sendable {
         }
         self.venues = venues
         var networks = Set(venues.map(\.network))
-        unavailable = comparison.unavailable.compactMap { venue -> UnavailableVenue? in
+        var unavailable = comparison.unavailable.compactMap { venue -> UnavailableVenue? in
             guard networks.insert(venue.network).inserted else { return nil }
             return UnavailableVenue(
-                id: venue.listingId, name: Self.chainName(venue.network), network: venue.network,
+                id: venue.listingId, name: Self.chainName(venue.network), network: venue.network.rawValue,
                 reason: Self.reasonText(venue.reason, detail: venue.reasonDetail))
         }
+        if !isSell {
+            unavailable.append(
+                UnavailableVenue(
+                    id: "demo-\(DemoMonad.id)", name: DemoMonad.name, network: DemoMonad.id, reason: "No price yet"))
+        }
+        self.unavailable = unavailable
         self.isSell = isSell
     }
 

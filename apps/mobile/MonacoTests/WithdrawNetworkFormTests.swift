@@ -24,8 +24,8 @@ struct WithdrawNetworkFormTests {
             balance: balance)
     }
 
-    @Test func thePickerOffersSolanaBaseArbitrumAndEthereum() {
-        #expect(WithdrawNetwork.allCases.map(\.name) == ["Solana", "Base", "Arbitrum", "Ethereum"])
+    @Test func thePickerOffersSolanaBaseArbitrumEthereumAndMonad() {
+        #expect(WithdrawNetwork.allCases.map(\.name) == ["Solana", "Base", "Arbitrum", "Ethereum", "Monad"])
     }
 
     @Test func eachEVMNetworkTakesAnEVMAddressAndRefusesASolanaOne() {

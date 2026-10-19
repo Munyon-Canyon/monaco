@@ -8,7 +8,8 @@ struct ProposeChainSection: View {
 
     var body: some View {
         let options = model.chainOptions
-        if let current = options.first(where: { $0.chain == model.chain }) ?? options.first {
+        let choices = options.filter(\.isAvailable)
+        if let current = choices.first(where: { $0.chain == model.chain }) ?? choices.first {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 MonacoSectionHeader("Chain")
                     .padding(.horizontal, MonacoTheme.Space.gutter)
@@ -17,7 +18,7 @@ struct ProposeChainSection: View {
                         choosing = true
                     } label: {
                         HStack(spacing: MonacoTheme.Space.sm) {
-                            ChainMark(network: current.network?.rawValue ?? "")
+                            ChainMark(network: current.networkID)
                             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                                 Text(current.title)
                                     .font(MonacoTheme.Typo.headline)
@@ -66,6 +67,7 @@ struct ProposeChainSheet: View {
         let figure: String
         let caption: String
         let isSelected: Bool
+        var isAvailable = true
     }
 
     let options: [MonacoCore.ProposeChainOption]
@@ -76,12 +78,12 @@ struct ProposeChainSheet: View {
     static func rows(_ options: [MonacoCore.ProposeChainOption], selected: MonacoCore.ProposeChain) -> [Row] {
         options.map { option in
             Row(
-                id: "propose-chain-\(option.id)", chain: option.chain, network: option.network?.rawValue ?? "",
+                id: "propose-chain-\(option.id)", chain: option.chain, network: option.networkID,
                 title: option.title, figure: option.figure,
                 caption: option.isBest
                     ? "The cabal buys wherever the price is best when the trade runs"
                     : "The cabal buys only on \(option.title)",
-                isSelected: option.chain == selected)
+                isSelected: option.chain == selected, isAvailable: option.isAvailable)
         }
     }
 
@@ -98,6 +100,7 @@ struct ProposeChainSheet: View {
                             ProposeChainRow(row: row, isLast: index == rows.count - 1)
                         }
                         .buttonStyle(.monacoRow)
+                        .disabled(!row.isAvailable)
                         .accessibilityElement(children: .combine)
                         .accessibilityAddTraits(row.isSelected ? .isSelected : [])
                         .accessibilityIdentifier(row.id)
@@ -139,13 +142,14 @@ private struct ProposeChainRow: View {
             Spacer(minLength: MonacoTheme.Space.sm)
             Text(row.figure)
                 .font(MonacoTheme.Typo.dataStrong)
-                .foregroundStyle(MonacoTheme.ink)
+                .foregroundStyle(row.isAvailable ? MonacoTheme.ink : MonacoTheme.secondaryText)
             Image(systemName: "checkmark")
                 .font(MonacoTheme.Typo.calloutStrong)
                 .foregroundStyle(MonacoTheme.brand)
                 .opacity(row.isSelected ? 1 : 0)
                 .accessibilityHidden(true)
         }
+        .opacity(row.isAvailable ? 1 : 0.5)
         .padding(MonacoTheme.Space.m)
         .frame(minHeight: 44)
         .contentShape(Rectangle())

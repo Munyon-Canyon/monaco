@@ -29,10 +29,16 @@ final class DepositAddressesSourceTests: XCTestCase {
         await source.load()
 
         let networks = try XCTUnwrap(source.networks)
-        XCTAssertEqual(networks.map(\.id), ["solana", "base"])
-        XCTAssertEqual(networks.map(\.displayName), ["Solana", "Base"])
+        XCTAssertEqual(networks.map(\.id), ["solana", "base", "monad"])
+        XCTAssertEqual(networks.map(\.displayName), ["Solana", "Base", "Monad"])
         XCTAssertEqual(networks[1].address, evm)
         XCTAssertEqual(networks[1].isEVM, true)
+    }
+
+    func testNoEVMNetworkMeansNoMonadEntry() throws {
+        let json = #"{"addresses":[{"network":"solana","address":"\#(solana)","asset":"USDC"}]}"#
+
+        XCTAssertEqual(try DepositNetwork.list(json: Data(json.utf8)).map(\.id), ["solana"])
     }
 
     func testAnUnknownNetworkStillShowsUnderItsOwnName() async throws {
@@ -64,7 +70,7 @@ final class DepositAddressesSourceTests: XCTestCase {
 
         let networks = try DepositNetwork.list(json: Data(json.utf8))
 
-        XCTAssertEqual(networks.map(\.estimatedFeeMicros), [nil, 163_098, nil])
+        XCTAssertEqual(networks.map(\.estimatedFeeMicros), [nil, 163_098, nil, 163_098])
     }
 
     func testAMalformedFeeIsNilAndKeepsTheAddress() async throws {
@@ -73,7 +79,8 @@ final class DepositAddressesSourceTests: XCTestCase {
 
         let networks = try DepositNetwork.list(json: Data(json.utf8))
 
-        XCTAssertEqual(networks, [DepositNetwork(id: "base", address: evm)])
+        XCTAssertEqual(
+            networks, [DepositNetwork(id: "base", address: evm), DepositNetwork(id: "monad", address: evm)])
         XCTAssertNil(networks.first?.estimatedFeeMicros)
     }
 
