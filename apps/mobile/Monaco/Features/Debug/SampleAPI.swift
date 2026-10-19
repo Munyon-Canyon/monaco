@@ -367,12 +367,13 @@ nonisolated extension SampleAPIProtocol {
         }
         switch tail.count {
         case 0:
-            if !script.catalog.isEmpty {
-                return json(Components.Schemas.AssetList(assets: script.catalog, nextCursor: nil))
-            }
-            return json(assetList(query: query, empty: script.mode == .empty, paused: script.includesPausedStock))
+            return json(
+                assetList(
+                    query: query, empty: script.mode == .empty, paused: script.includesPausedStock, script: script))
         case 1:
-            return json(script.assets[tail[0]] ?? script.asset)
+            if let detail = script.assets[tail[0]] { return json(detail) }
+            let listed = script.catalog.first { $0.symbol == tail[0] }
+            return json(listed.map(Components.Schemas.AssetDetail.init(listing:)) ?? script.asset)
         case 2 where tail[1] == "chart":
             return json(
                 chartReply(script.chart, query: query, candleCount: script.candleCount, sparse: script.sparseCandles))
@@ -411,11 +412,12 @@ nonisolated extension SampleAPIProtocol {
     }
 
     private static func assetList(
-        query: [String: String], empty: Bool, paused: Bool = false
+        query: [String: String], empty: Bool, paused: Bool = false, script: SampleAPIScript
     ) -> Components.Schemas.AssetList {
         if empty { return .init(assets: [], nextCursor: nil) }
         let catalog: [Components.Schemas.AssetSummary] =
-            paused ? [.paused, .googl, .spaceX, .unpriced] : [.googl, .spaceX, .unpriced]
+            script.catalog.isEmpty
+            ? (paused ? [.paused, .googl, .spaceX, .unpriced] : [.googl, .spaceX, .unpriced]) : script.catalog
         if let text = query["q"], !text.isEmpty {
             let matches = catalog.filter {
                 $0.symbol.localizedCaseInsensitiveContains(text)
@@ -424,6 +426,7 @@ nonisolated extension SampleAPIProtocol {
             return .init(assets: matches, nextCursor: nil)
         }
         switch query["filter"] {
+        case "popular" where !script.catalog.isEmpty: return .init(assets: catalog, nextCursor: nil)
         case "popular": return paused ? .init(assets: [.paused, .googl], nextCursor: nil) : .popularSample
         case "pre_ipo": return .preIpoSample
         default: return .init(assets: catalog, nextCursor: nil)
