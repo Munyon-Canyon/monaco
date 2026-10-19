@@ -10,6 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters/ably"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
@@ -26,6 +27,7 @@ type Module struct {
 	cabals   app.Cabals
 	realtime app.Realtime
 	assets   app.Assets
+	treasury app.Treasury
 }
 
 type Option func(*Module)
@@ -40,6 +42,10 @@ func WithReturns(returns app.Returns) Option {
 
 func WithCabals(cabals app.Cabals) Option {
 	return func(m *Module) { m.cabals = cabals }
+}
+
+func WithTreasury(treasury app.Treasury) Option {
+	return func(m *Module) { m.treasury = treasury }
 }
 
 func WithAssets(catalog market.Catalog) Option {
@@ -78,6 +84,9 @@ func New(d module.Deps, opts ...Option) *Module {
 	}
 	if m.assets == nil {
 		m.assets = NewAssets(market.New(d).Catalog())
+	}
+	if m.treasury == nil {
+		m.treasury = treasury.New(d).Queries()
 	}
 	m.useDefaultRealtime()
 	queries := cabal.New(d).Queries()
@@ -179,7 +188,8 @@ func (m *Module) http() adapters.HTTP {
 
 func (m *Module) Consumers() []bus.Consumer {
 	feed := adapters.Feed{
-		Bus: m.deps.Bus, Users: m.users, Cabals: m.cabals, Assets: m.assets, IDs: m.deps.IDs, UoW: m.deps.UoW,
+		Bus: m.deps.Bus, Users: m.users, Cabals: m.cabals, Assets: m.assets, Treasury: m.treasury,
+		IDs: m.deps.IDs, UoW: m.deps.UoW,
 	}
 	referrals := adapters.ReferralFollows{Users: m.users, IDs: m.deps.IDs}
 	return []bus.Consumer{

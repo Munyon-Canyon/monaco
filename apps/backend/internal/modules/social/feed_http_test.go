@@ -2,6 +2,7 @@ package social_test
 
 import (
 	"context"
+	"math"
 	"reflect"
 	"testing"
 	"time"
@@ -17,6 +18,8 @@ import (
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
@@ -71,8 +74,8 @@ func TestGetFeed_pagesNewestFirstWithAnOpaqueCursor(t *testing.T) {
 	want = api.FeedItem{
 		Id: older, Kind: "trade", RefType: "swaps", RefId: trade, CabalId: ptr(cabal.UUID()),
 		CabalName: ptr("Alpha Cabal"), ActorId: ptr(viewer.UUID()), Symbol: ptr("AAPLx"),
-		Title: "Alpha Cabal bought $500 of Apple",
-		Tone:  "neutral", CreatedAt: olderAt, UpdatedAt: olderAt,
+		Title: "Alpha Cabal bought $500 of Apple", Action: ptr("buy"), UsdcMicros: ptr(int64(500_000_000)),
+		AssetName: ptr("Apple"), Tone: "neutral", CreatedAt: olderAt, UpdatedAt: olderAt,
 	}
 	if len(second.Items) != 1 || !reflect.DeepEqual(second.Items[0], want) || second.NextCursor != nil {
 		t.Fatalf("second page = %+v, want [%+v] and no cursor", second, want)
@@ -248,5 +251,113 @@ func TestGetFeed_keepsAPlainAndARankedCursorApart(t *testing.T) {
 		if errs.CodeOf(err) != errs.CodeInvalidInput {
 			t.Errorf("%s: err = %v, want invalid_input", name, err)
 		}
+	}
+}
+
+func (f feedFixture) wireItem(t *testing.T, edit func(*feed.Item)) api.FeedItem {
+	t.Helper()
+	viewer := ids.NewUserID(f.gen)
+	id := f.item(t, edit)
+	for _, item := range f.getFeed(t, viewer, api.GetFeedParams{}).Items {
+		if item.Id == id {
+			return item
+		}
+	}
+	t.Fatalf("item %s is not in the feed", id)
+	return api.FeedItem{}
+}
+
+func TestGetFeed_sendsTheFiguresOfProposalsAndTrades(t *testing.T) {
+	t.Parallel()
+	gen := testkit.NewIDs(5613)
+	proposal, ref := gen.NewV7(), gen.NewV7()
+	buy := feed.Payload{
+		Symbol: "AAPLx", AssetName: "Apple", Action: feed.ActionBuy, USDCMicros: money.MicrosFromUint64(500_000_000),
+		ShareOfPotBps: 1000, Status: "open",
+	}
+	sell := feed.Payload{
+		Symbol: "AAPLx", AssetName: "Apple", Action: feed.ActionSell, TokenAmount: 7, TokenDecimals: 8,
+		ShareOfPotBps: 250, Status: "open",
+	}
+	trade := func(action feed.Action, usdc, tokens uint64) feed.Payload {
+		return feed.Payload{
+			Symbol: "AAPLx", AssetName: "Apple", Action: action, USDCMicros: money.MicrosFromUint64(usdc),
+			TokenAmount: tokens, TokenDecimals: 8, ProposalID: proposal,
+			PriceMicros: feed.FillPrice(money.MicrosFromUint64(usdc), tokens, 8),
+		}
+	}
+	for name, tc := range map[string]struct {
+		kind    feed.Kind
+		payload feed.Payload
+		want    func(api.FeedItem) api.FeedItem
+	}{
+		"a buy proposal": {feed.KindProposal, buy, func(i api.FeedItem) api.FeedItem {
+			i.Action, i.UsdcMicros, i.AssetName = ptr("buy"), ptr(int64(500_000_000)), ptr("Apple")
+			i.ShareOfPotBps, i.ProposalId = ptr(int64(1000)), ptr(ref)
+			return i
+		}},
+		"a sell proposal": {feed.KindProposal, sell, func(i api.FeedItem) api.FeedItem {
+			i.Action, i.AssetName, i.TokenAmount, i.TokenDecimals = ptr("sell"), ptr("Apple"), ptr(int64(7)), ptr(8)
+			i.ShareOfPotBps, i.ProposalId = ptr(int64(250)), ptr(ref)
+			return i
+		}},
+		"a buy trade": {feed.KindTrade, trade(feed.ActionBuy, 500_000_000, 250_000_000), func(i api.FeedItem) api.FeedItem {
+			i.Action, i.UsdcMicros, i.AssetName = ptr("buy"), ptr(int64(500_000_000)), ptr("Apple")
+			i.TokenAmount, i.TokenDecimals, i.PriceMicros = ptr(int64(250_000_000)), ptr(8), ptr(int64(200_000_000))
+			i.ProposalId = ptr(proposal)
+			return i
+		}},
+		"a sell trade": {feed.KindTrade, trade(feed.ActionSell, 300_000_000, 100_000_000), func(i api.FeedItem) api.FeedItem {
+			i.Action, i.UsdcMicros, i.AssetName = ptr("sell"), ptr(int64(300_000_000)), ptr("Apple")
+			i.TokenAmount, i.TokenDecimals, i.PriceMicros = ptr(int64(100_000_000)), ptr(8), ptr(int64(300_000_000))
+			i.ProposalId = ptr(proposal)
+			return i
+		}},
+		"a proposal stored before the share shipped": {
+			feed.KindProposal,
+			feed.Payload{Symbol: "AAPLx", AssetName: "Apple", Action: feed.ActionBuy, Status: "open"},
+			func(i api.FeedItem) api.FeedItem {
+				i.Action, i.AssetName, i.ProposalId = ptr("buy"), ptr("Apple"), ptr(ref)
+				return i
+			},
+		},
+		"a price move": {
+			feed.KindPriceMove,
+			feed.Payload{Symbol: "AAPLx", AssetName: "Apple"},
+			func(i api.FeedItem) api.FeedItem { i.AssetName = ptr("Apple"); return i },
+		},
+		"a cabal created": {feed.KindCabalCreated, feed.Payload{CabalName: "Alpha"}, func(i api.FeedItem) api.FeedItem { return i }},
+		"a member joined": {feed.KindMemberJoined, feed.Payload{CabalName: "Alpha"}, func(i api.FeedItem) api.FeedItem { return i }},
+		"an oversize fill": {feed.KindTrade, trade(feed.ActionBuy, 1, math.MaxUint64), func(i api.FeedItem) api.FeedItem {
+			i.Action, i.UsdcMicros, i.AssetName = ptr("buy"), ptr(int64(1)), ptr("Apple")
+			i.ProposalId = ptr(proposal)
+			return i
+		}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := newFeedFixture(t)
+			got := f.wireItem(t, func(it *feed.Item) { it.Kind, it.RefID, it.Payload = tc.kind, ref, tc.payload })
+			assertFigures(t, got, tc.want(api.FeedItem{}))
+		})
+	}
+}
+
+func assertFigures(t *testing.T, got, want api.FeedItem) {
+	t.Helper()
+	type figures struct {
+		Action, AssetName                                   *string
+		UsdcMicros, TokenAmount, PriceMicros, ShareOfPotBps *int64
+		TokenDecimals                                       *int
+		ProposalID                                          *uuid.UUID
+	}
+	pick := func(i api.FeedItem) figures {
+		return figures{
+			i.Action, i.AssetName, i.UsdcMicros, i.TokenAmount, i.PriceMicros, i.ShareOfPotBps, i.TokenDecimals,
+			i.ProposalId,
+		}
+	}
+	if !reflect.DeepEqual(pick(got), pick(want)) {
+		t.Fatalf("figures = %+v, want %+v", pick(got), pick(want))
 	}
 }

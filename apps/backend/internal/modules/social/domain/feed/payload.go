@@ -26,6 +26,7 @@ type Payload struct {
 	USDCMicros    money.Micros `json:"usdc_micros,omitzero"`
 	PriceMicros   money.Micros `json:"price_micros,omitzero"`
 	ThresholdBps  int64        `json:"threshold_bps,omitzero"`
+	ShareOfPotBps int64        `json:"share_of_pot_bps,omitzero"`
 	ChangeBps     int64        `json:"change_bps,omitzero"`
 	MarkMicros    money.Micros `json:"mark_micros,omitzero"`
 	PrevClose     money.Micros `json:"prev_close_micros,omitzero"`

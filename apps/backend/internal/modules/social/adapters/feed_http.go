@@ -3,6 +3,7 @@ package adapters
 import (
 	"context"
 	"log/slog"
+	"math"
 	"slices"
 	"strings"
 
@@ -150,13 +151,20 @@ func wireFeedItems(
 }
 
 func wireFeedItem(item app.FeedItem) api.FeedItem {
+	tokens := optionalWireAmount(item.TokenAmount)
 	return api.FeedItem{
 		Id: item.ID, Kind: string(item.Kind), RefType: string(item.RefType), RefId: item.RefID,
 		CabalId: optionalWireID(item.CabalID.UUID()), CabalName: optionalWireText(item.CabalName),
 		ActorId: optionalWireID(item.ActorID.UUID()), ActorName: optionalWireText(item.ActorName),
 		AssetId: optionalWireID(item.AssetID), Symbol: optionalWireText(item.Symbol), Title: item.Title,
 		Detail: optionalWireText(item.Detail), Body: optionalWireText(item.Body),
-		Status: optionalWireText(item.Status), Tone: string(item.Tone),
+		Status: optionalWireText(item.Status), Tone: string(item.Tone), Action: optionalWireText(string(item.Action)),
+		UsdcMicros: optionalWireAmount(item.USDCMicros.Uint64()), AssetName: optionalWireText(item.AssetName),
+		TokenAmount: tokens, TokenDecimals: optionalWireDecimals(item.TokenDecimals, tokens != nil),
+		PriceMicros: optionalWireAmount(
+			item.PriceMicros.Uint64(),
+		), ShareOfPotBps: optionalWirePositive(item.ShareOfPotBps),
+		ProposalId:   optionalWireID(item.ProposalID),
 		CommentCount: item.CommentCount, LikeCount: item.LikeCount, LikedByMe: item.LikedByMe,
 		CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt,
 	}
@@ -174,6 +182,28 @@ func optionalWireID(id uuid.UUID) *uuid.UUID {
 		return nil
 	}
 	return &id
+}
+
+func optionalWireAmount(n uint64) *int64 {
+	if n > math.MaxInt64 {
+		return nil
+	}
+	return optionalWirePositive(int64(n))
+}
+
+func optionalWirePositive(n int64) *int64 {
+	if n <= 0 {
+		return nil
+	}
+	return &n
+}
+
+func optionalWireDecimals(d *uint8, withAmount bool) *int {
+	if d == nil || !withAmount {
+		return nil
+	}
+	v := int(*d)
+	return &v
 }
 
 func optionalWireText(s string) *string {
