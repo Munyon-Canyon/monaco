@@ -261,6 +261,7 @@ func (h HTTP) detail(ctx context.Context, id ids.ProposalID, user ids.UserID) (a
 		ExpiresAt: p.ExpiresAt, CreatedAt: p.CreatedAt, Tally: p.Tally, MyBallot: p.MyBallot,
 		Voters: make([]api.ProposalVoter, len(got.Voters)), CanVote: got.CanVote, CanWithdraw: got.CanWithdraw,
 		PriceComparison: p.PriceComparison, Network: p.Network,
+		ProposerReturn1mBps: got.ProposerReturnBps, ProposerReturnPrivate: got.ProposerReturnPrivate,
 	}
 	for i, v := range got.Voters {
 		out.Voters[i] = api.ProposalVoter{UserId: v.UserID.UUID()}

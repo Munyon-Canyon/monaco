@@ -654,6 +654,16 @@ type ProposalDetail struct {
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
 	ProposerId openapi_types.UUID `json:"proposer_id"`
 
+	// ProposerReturn1mBps The proposer's one-month return in basis points, from the people board's `1M` range as of the last valuation run, not a live figure. Null when the proposer hides it or has no ranked row.
+	//
+	// Examples: 820
+	ProposerReturn1mBps *int64 `json:"proposer_return_1m_bps"`
+
+	// ProposerReturnPrivate True only when the proposer chose to hide their return. False for a proposer with no ranked row.
+	//
+	// Examples: false
+	ProposerReturnPrivate bool `json:"proposer_return_private"`
+
 	// QuoteOutAmount The quoted output, in the output asset's base units, when the proposal opened.
 	//
 	// Examples: 105000000

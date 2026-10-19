@@ -33,7 +33,8 @@ extension Components.Schemas.ProposalDetail {
         }
         return .init(
             id: "proposal-1", cabalId: Components.Schemas.Cabal.sample(role: nil).id,
-            cabalName: Components.Schemas.Cabal.sample(role: nil).name, proposerId: members[1].userId, kind: kind,
+            cabalName: Components.Schemas.Cabal.sample(role: nil).name, proposerId: members[1].userId,
+            proposerReturn1mBps: 820, proposerReturnPrivate: false, kind: kind,
             symbol: "GOOGLx", usdcMicros: isSell ? nil : 25_000_000,
             tokenAmount: isSell ? 150_000_000 : nil,
             quoteOutAmount: isSell ? 25_000_000 : 14_250_000, thesis: "Earnings next week.", status: status,
