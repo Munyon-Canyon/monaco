@@ -180,7 +180,9 @@ func optionalWireText(s string) *string {
 	return &s
 }
 
-func (h HTTP) PutFeedLike(ctx context.Context, req api.PutFeedLikeRequestObject) (api.PutFeedLikeResponseObject, error) {
+func (h HTTP) PutFeedLike(
+	ctx context.Context, req api.PutFeedLikeRequestObject,
+) (api.PutFeedLikeResponseObject, error) {
 	me, err := caller(ctx)
 	if err != nil {
 		return nil, err
