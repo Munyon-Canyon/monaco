@@ -149,9 +149,9 @@ enum DemoStoryJourney {
             button(app, "Review").tap()
             button(app, "Send").tap()
             XCTAssertTrue(
-                app.staticTexts.matching(NSPredicate(format: "label CONTAINS '1 of 2 voted'")).firstMatch
-                    .waitForExistence(timeout: screenTimeout),
-                "S4.2: no proposal card with 1 of 2 voted (known failure, #613)"
+                app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS '2 yes votes needed'"))
+                    .firstMatch.waitForExistence(timeout: screenTimeout),
+                "S4.2: no proposal card needing 2 yes votes (known failure, #613)"
             )
         }
     }
@@ -163,14 +163,19 @@ enum DemoStoryJourney {
             XCTAssertTrue(
                 header.waitForExistence(timeout: screenTimeout),
                 "S4.3: no Needs your vote on Home (known failure, #612)")
-            button(app, "Yes").tap()
+            let card = app.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier BEGINSWITH 'proposal-card-'")).firstMatch
+            XCTAssertTrue(
+                card.waitForExistence(timeout: screenTimeout), "S4.3: no proposal card on Home (known failure, #612)")
+            GovernanceVoteJourney.openProposal(card)
+            button(app, "Vote Yes").tap()
             JoinJourney.waitForToast(app, "Vote recorded.", step: "S4.3")
         }
 
         recorder.step("S4.4", "majority wins and the cabal buys") {
             XCTAssertTrue(
-                app.staticTexts["Bought"].waitForExistence(timeout: 60),
-                "S4.4: the proposal did not reach Bought within 60 s (known failure, #612)"
+                app.staticTexts["Executed"].waitForExistence(timeout: 60),
+                "S4.4: the proposal did not reach Executed within 60 s (known failure, #612)"
             )
         }
     }

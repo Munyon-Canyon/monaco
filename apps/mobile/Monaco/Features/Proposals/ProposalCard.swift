@@ -6,16 +6,14 @@ struct ProposalCard: View {
     let asset: ProposalAsset?
     let members: [ProposalMember]
     private let paused: Bool
-    private let showsThesis: Bool
-    private let isDetail: Bool
-    private let showsTracker: Bool
+    private let cabalName: String?
     private let openRoute: AnyAppRoute?
-    private let vote: (String) -> Void
-
-    @State private var changing = false
+    @Environment(AppEnvironment.self) private var environment: AppEnvironment?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(
         proposal: ProposalSummary, asset: ProposalAsset?, members: [ProposalMember], paused: Bool = false,
+        cabalName: String? = nil,
         showsThesis: Bool = true,
         isDetail: Bool = false,
         showsTracker: Bool = true,
@@ -26,223 +24,199 @@ struct ProposalCard: View {
         self.asset = asset
         self.members = members
         self.paused = paused
-        self.showsThesis = showsThesis
-        self.isDetail = isDetail
-        self.showsTracker = showsTracker
+        self.cabalName = cabalName
         self.openRoute = openRoute
-        self.vote = vote
     }
 
     init(
         proposal: ProposalDetail, asset: ProposalAsset?, members: [ProposalMember], paused: Bool = false,
+        cabalName: String? = nil,
         showsThesis: Bool = true,
         isDetail: Bool = false,
         showsTracker: Bool = true,
         openRoute: AnyAppRoute? = nil,
         vote: @escaping (String) -> Void = { _ in }
     ) {
-        summary = proposal.summary
-        self.asset = asset
-        self.members = members
-        self.paused = paused
-        self.showsThesis = showsThesis
-        self.isDetail = isDetail
-        self.showsTracker = showsTracker
-        self.openRoute = openRoute
-        self.vote = vote
+        self.init(
+            proposal: proposal.summary, asset: asset, members: members, paused: paused, cabalName: cabalName,
+            openRoute: openRoute)
     }
 
+    private var state: ProposalState { summary.state(now: .now) }
     private var isSell: Bool { summary.kind == "sell" }
-    private var voter: ProposalMember? { members.first { $0.id == summary.proposerID } }
-    private var canVote: Bool { summary.status == .open && summary.canVote && summary.expiresAt > .now }
-    private var ballot: String? { summary.myBallot }
+    private var proposerName: String { members.first { $0.id == summary.proposerID }?.name ?? "Member" }
+    private var headline: String { cabalName ?? proposerName }
+    private var action: ProposalCardCopy.Action { ProposalCardCopy.button(state) }
+    private var note: String {
+        ProposalCardCopy.note(
+            state, needed: summary.tally.needed, expiresAt: summary.expiresAt, statusMessage: summary.statusMessage,
+            now: .now)
+    }
+    private var footer: ProposalCardCopy.Footer { ProposalCardCopy.footer(state, tally: summary.tally) }
+
+    private var amountLine: String {
+        if isSell { return "\(Self.shareLabel(summary: summary, asset: asset)) from the cabal's holding" }
+        guard let micros = summary.usdcMicros else { return "From the cabal pot" }
+        return "\(UsdAmountFormatter.format(micros: micros)) from the cabal pot"
+    }
+
+    private var spokenLabel: String {
+        "\(headline): \(ProposalBadge.card(state).label). \(summary.title(asset: asset)), \(amountLine). \(note)"
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-            header
-            amount
-            meta
-            if showsThesis, let thesis = summary.thesis, !thesis.isEmpty {
-                Text(thesis)
-                    .font(MonacoTheme.Typo.callout)
-                    .foregroundStyle(MonacoTheme.muted)
-                    .lineLimit(3)
-            }
-            if showsTracker { tracker }
-            if paused && summary.status == .open {
-                Text(ProposalCardCopy.pausedCaption(isSell: isSell))
+        MonacoCard(style: .inset) {
+            VStack(alignment: .leading, spacing: 0) {
+                topRow
+                    .padding(.top, MonacoTheme.Space.sm)
+                instrumentRow
+                    .padding(.top, MonacoTheme.Space.sm)
+                Text(note)
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.muted)
-                    .accessibilityIdentifier("proposal-paused-caption")
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, MonacoTheme.Space.sm)
+                    .padding(.bottom, MonacoTheme.Space.s)
+                    .accessibilityIdentifier(state.isOpen ? "proposal-closes-in" : "proposal-card-note")
+                if paused && state.isOpen {
+                    Text(ProposalCardCopy.pausedCaption(isSell: isSell))
+                        .font(MonacoTheme.Typo.caption)
+                        .foregroundStyle(MonacoTheme.muted)
+                        .padding(.bottom, MonacoTheme.Space.s)
+                        .accessibilityIdentifier("proposal-paused-caption")
+                }
+                footerLink
             }
-            actions
         }
-        .monacoActionCard(isCard: !isDetail)
-        .accessibilityElement(children: .contain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(spokenLabel)
+        .accessibilityAction(named: action.title) { open() }
+        .accessibilityAction(named: "Open proposal") { open() }
         .accessibilityIdentifier("proposal-card-\(summary.id)")
     }
 
-    @ViewBuilder private var header: some View {
-        if let openRoute {
-            NavigationLink(value: openRoute) { headerRow }.buttonStyle(.plain)
-        } else {
-            headerRow
+    private var topRow: some View {
+        let stacked = dynamicTypeSize.isAccessibilitySize
+        let layout =
+            stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.s))
+            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.s))
+        return layout {
+            HStack(spacing: MonacoTheme.Space.s) {
+                MonacoAvatar(
+                    photoURL: members.first { $0.id == summary.proposerID }?.photoURL?.absoluteString,
+                    displayName: proposerName, size: 24, seed: summary.proposerID)
+                Text(headline)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.muted)
+                    .lineLimit(stacked ? 2 : 1)
+                    .truncationMode(.tail)
+            }
+            if !stacked {
+                Spacer(minLength: MonacoTheme.Space.s)
+            }
+            StatusBadge(proposal: .card(state))
+                .layoutPriority(1)
+                .accessibilityIdentifier("proposal-status-chip")
         }
     }
 
-    private var headerRow: some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
-            StockMark(
-                symbol: summary.symbol,
-                displayName: asset?.displayName,
-                assetKind: asset?.kind ?? .stock,
-                size: 40,
-                logoURL: asset?.logoURL
-            )
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                directionPill
-                Text(
-                    AssetDisplayName.format(
-                        catalogName: asset?.displayName ?? summary.symbol, kind: asset?.kind ?? .stock)
-                )
-                .font(MonacoTheme.Typo.rowTitle)
-                .foregroundStyle(MonacoTheme.ink)
-                .lineLimit(1)
-                .truncationMode(.tail)
+    private var instrumentRow: some View {
+        let layout =
+            dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.sm))
+            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
+        return layout {
+            HStack(spacing: MonacoTheme.Space.sm) {
+                StockMark(
+                    symbol: summary.symbol, displayName: asset?.displayName, assetKind: asset?.kind ?? .stock,
+                    size: .card, logoURL: asset?.logoURL)
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                    Text(summary.title(asset: asset))
+                        .font(MonacoTheme.Typo.headline)
+                        .foregroundStyle(MonacoTheme.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(amountLine)
+                        .font(MonacoTheme.Typo.caption)
+                        .foregroundStyle(MonacoTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Spacer(minLength: MonacoTheme.Space.s)
-            if summary.status != .open,
-                let label = ProposalChip.label(
-                    status: summary.status, isSell: isSell, swapFailed: summary.swap?.status == "failed")
-            {
-                Text(label)
-                    .font(MonacoTheme.Typo.micro)
-                    .foregroundStyle(Self.chipColor(label))
-                    .lineLimit(1)
-                    .padding(.horizontal, MonacoTheme.Space.sm)
-                    .padding(.vertical, MonacoTheme.Space.xs)
-                    .background(Capsule().fill(MonacoTheme.surfaceSunken))
-                    .accessibilityIdentifier("proposal-status-chip")
+            if let openRoute {
+                reviewButton(openRoute)
             }
         }
+    }
+
+    @ViewBuilder private func reviewButton(_ route: AnyAppRoute) -> some View {
+        let link = NavigationLink(value: route) { Text(action.title) }
+        if action.isPrimary {
+            link.buttonStyle(.monacoCompactProminent)
+        } else {
+            link.buttonStyle(.monacoCompact)
+        }
+    }
+
+    private var footerLink: some View {
+        VStack(spacing: 0) {
+            MonacoRule()
+            if let openRoute {
+                NavigationLink(value: openRoute) { footerRow }
+                    .buttonStyle(.plain)
+            } else {
+                footerRow
+            }
+        }
+    }
+
+    private var footerRow: some View {
+        HStack(spacing: MonacoTheme.Space.s) {
+            Image(monaco: footer.icon.monacoIcon)
+                .accessibilityHidden(true)
+            Text(footer.text)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+            MonacoRowChevron()
+        }
+        .font(MonacoTheme.Typo.caption)
+        .foregroundStyle(footer.tone.color)
+        .padding(.vertical, MonacoTheme.Space.s)
+        .frame(minHeight: MonacoButtonMetrics.hitTarget)
         .contentShape(Rectangle())
     }
 
-    private var directionPill: some View {
-        Text(isSell ? "Sell" : "Buy")
-            .font(MonacoTheme.Typo.micro)
-            .foregroundStyle(isSell ? MonacoTheme.lossOnWash : MonacoTheme.profitOnWash)
-            .padding(.horizontal, MonacoTheme.Space.s)
-            .padding(.vertical, MonacoTheme.Space.xs)
-            .background(Capsule().fill(isSell ? MonacoTheme.lossWash : MonacoTheme.profitWash))
+    private func open() {
+        guard openRoute != nil, let navigator = environment?.navigator else { return }
+        navigator.open(ProposalRoute(proposalID: summary.id), in: navigator.selectedTab)
     }
-
-    private var meta: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-            if summary.status == .open {
-                Text(ProposalCardCopy.closes(at: summary.expiresAt, now: .now))
-                    .font(MonacoTheme.Typo.stamp)
-                    .foregroundStyle(MonacoTheme.warning)
-                    .accessibilityIdentifier("proposal-closes-in")
-            }
-            proposer
-        }
-    }
-
-    @ViewBuilder private var amount: some View {
-        if isSell {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                Text(shareLabel)
-                    .moneyFont(.large)
-                    .foregroundStyle(summary.status == .open ? MonacoTheme.ink : MonacoTheme.muted)
-                if summary.quoteOutAmount > 0 {
-                    Text("About \(UsdAmountFormatter.format(micros: summary.quoteOutAmount))")
-                        .font(MonacoTheme.Typo.caption)
-                        .foregroundStyle(MonacoTheme.muted)
-                }
-            }
-        } else if let micros = summary.usdcMicros {
-            MoneyText(micros: micros, style: .large)
-        }
-    }
-
-    private var proposer: some View {
-        NavigationLink(value: AnyAppRoute(UserProfileRoute(userID: summary.proposerID))) {
-            HStack(spacing: MonacoTheme.Space.s) {
-                MonacoAvatar(
-                    photoURL: voter?.photoURL?.absoluteString, displayName: voter?.name ?? "Member", size: 20,
-                    seed: summary.proposerID)
-                Text("Proposed by \(voter?.name ?? "Member") · \(ageLabel)")
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.muted)
-                    .lineLimit(1)
-            }
-            .frame(minHeight: 44, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var tracker: some View {
-        let needed = max(summary.tally.needed, 1)
-        return VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-            ProgressView(value: CGFloat(min(summary.tally.yes, needed)), total: CGFloat(needed))
-                .tint(MonacoTheme.brandFill)
-                .accessibilityHidden(true)
-            Text(
-                ProposalCardCopy.tracker(
-                    voted: summary.tally.yes + summary.tally.no, voters: summary.tally.voters,
-                    needed: summary.tally.needed)
-            )
-            .font(MonacoTheme.Typo.caption)
-            .foregroundStyle(MonacoTheme.muted)
-        }
-    }
-
-    @ViewBuilder private var actions: some View {
-        if canVote {
-            if let ballot, !changing {
-                HStack {
-                    Label("You voted \(ballot.capitalized)", systemImage: "checkmark")
-                        .font(MonacoTheme.Typo.calloutStrong)
-                        .foregroundStyle(MonacoTheme.brand)
-                    Spacer()
-                    Button("Change") { changing = true }.buttonStyle(.monacoSecondary).monacoFullWidthButtons(false)
-                }
-            } else {
-                HStack(spacing: MonacoTheme.Space.s) {
-                    Button("Yes") {
-                        vote("yes")
-                        changing = false
-                    }.buttonStyle(.monacoPrimary)
-                        .accessibilityAddTraits(ballot == "yes" ? .isSelected : [])
-                    Button("No") {
-                        vote("no")
-                        changing = false
-                    }.buttonStyle(.monacoSecondary)
-                        .accessibilityAddTraits(ballot == "no" ? .isSelected : [])
-                }
-            }
-        }
-    }
-
-    private static func chipColor(_ label: String) -> Color {
-        switch label {
-        case "Buying", "Selling": MonacoTheme.warning
-        case "Couldn't buy", "Couldn't sell": MonacoTheme.loss
-        case "Bought", "Sold": MonacoTheme.ink
-        default: MonacoTheme.muted
-        }
-    }
-
-    private var ageLabel: String { ProposalCardCopy.age(since: summary.createdAt, now: .now) }
-
-    private var shareLabel: String { Self.shareLabel(summary: summary, asset: asset) }
 
     static func shareLabel(summary: ProposalSummary, asset: ProposalAsset?) -> String {
         guard let amount = summary.tokenAmount else { return "0 shares" }
         return TokenQuantityFormatter.label(
             fromAtomics: String(amount), decimals: asset?.decimals ?? AssetCatalogDefaults.decimals,
             kind: asset?.kind ?? .stock)
+    }
+}
+
+extension ProposalCardCopy.FooterIcon {
+    fileprivate var monacoIcon: MonacoIcon {
+        switch self {
+        case .chat: .chat
+        case .clock: .clock
+        case .done: .checkCircle
+        case .warning: .alert
+        }
+    }
+}
+
+extension ProposalCardCopy.FooterTone {
+    fileprivate var color: Color {
+        switch self {
+        case .muted: MonacoTheme.muted
+        case .warning: MonacoTheme.warning
+        case .gain: MonacoTheme.profit
+        case .loss: MonacoTheme.loss
+        }
     }
 }

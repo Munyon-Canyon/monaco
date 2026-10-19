@@ -125,17 +125,9 @@ public enum ProposalCardCopy {
 
     private static func sentence(_ text: String) -> String { text.hasSuffix(".") ? text : text + "." }
 
-    public static func tracker(voted: Int, voters: Int, needed: Int) -> String {
-        "\(voted) of \(voters) voted · \(needed) yes to pass"
-    }
-
     public static func voter(_ name: String, choice: String?) -> String {
         guard let choice else { return "\(name) hasn't voted" }
         return "\(name) voted \(choice)"
-    }
-
-    public static func viewerVote(_ choice: String?) -> String? {
-        choice.map { "✓ You voted \($0)" }
     }
 
     public static func sellAmount(atomics: String, decimals: Int, kind: AssetKind) -> String {

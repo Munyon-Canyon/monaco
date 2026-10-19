@@ -27,6 +27,11 @@ enum ProposalSampleScenario: String, CaseIterable {
     case votesExpanded
     case votesLoading
     case votesError
+    case allOpen
+    case allClosed
+    case allEmpty
+    case allLoading
+    case allError
 
     static let launchArgument = "-MonacoProposalSample"
 
@@ -40,6 +45,8 @@ enum ProposalSampleScenario: String, CaseIterable {
     var route: any AppRoute {
         switch self {
         case .needsVote, .needsVoteEmpty: PendingVotesRoute()
+        case .allOpen, .allEmpty, .allLoading, .allError: PendingVotesSampleRoute(showsClosed: false)
+        case .allClosed: PendingVotesSampleRoute(showsClosed: true)
         case .votesOpen, .votesRecorded, .votesEmpty, .votesLoading, .votesError:
             ProposalSampleRoute(votes: .medium)
         case .votesExpanded: ProposalSampleRoute(votes: .large)
@@ -74,6 +81,13 @@ enum ProposalSampleScenario: String, CaseIterable {
         case .votesEmpty: script.proposal = .sample(canVote: true).withoutBallots()
         case .votesLoading: script.mode = .hang
         case .votesError: break
+        case .allOpen:
+            script.proposal = .sample(canVote: true)
+            script.pendingVotes = Components.Schemas.PendingVote.samples
+        case .allClosed: script.proposal = .sample(canVote: true)
+        case .allEmpty: break
+        case .allLoading: script.mode = .hang
+        case .allError: script.pendingVotesFail = true
         }
         return script
     }
@@ -99,6 +113,31 @@ nonisolated struct ProposalSampleRoute: AppRoute {
         case .medium: .medium
         case .large: .large
         }
+    }
+}
+
+nonisolated struct PendingVotesSampleRoute: AppRoute {
+    let showsClosed: Bool
+
+    @MainActor func destination() -> some View {
+        PendingVotesScreen(segment: showsClosed ? .closed : .open, closed: showsClosed ? ClosedFixture.rows : [])
+    }
+}
+
+private enum ClosedFixture {
+    static let rows = [
+        row("closed-1", "NVDAx", "NVIDIA", "$400.00", .approved),
+        row("closed-2", "MSFTx", "Microsoft", "$250.00", .expired),
+        row("closed-3", "AAPLx", "Apple", "$150.00", .blocked),
+    ]
+
+    private static func row(_ id: String, _ symbol: String, _ name: String, _ amount: String, _ state: ProposalState)
+        -> ProposalListRow
+    {
+        ProposalListRow(
+            id: id, symbol: symbol, assetName: name, title: "\(name) · \(amount)",
+            subtitle: ProposalCardCopy.rowSubtitle(state, proposer: "Mia", statusMessage: nil),
+            badge: .listRow(state))
     }
 }
 

@@ -1,7 +1,7 @@
 ---
 id: governance/vote
 title: Vote on a proposal
-version: 3
+version: 4
 milestone: M13
 requires: [auth/sign-in]
 actors: [A, B]
@@ -13,7 +13,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/GovernanceVoteJourney.swift, apps/
 
 Two members of a cabal vote on a buy that a third member proposed. A votes from Home's "Needs your vote", changes the ballot twice, and B's yes makes the majority. The rules are [Proposals](../../architecture/proposals.md).
 
-The old app (`c838bd24`) did this from the cabal screen: the "Needs your vote" card (`ProposalHistorySection`, `ProposalCardView`) with "Yes" / "No" and the toast "Vote recorded.", the card opening `ProposalDetailView` with the same buttons and "Change", and "See all" to the open and closed list. Copy in Expect quotes [screens.md](../../screens.md): `HomePendingVotesSlot`, `CabalProposalsSlot`, the Proposal card and `ProposalDetailSlot`.
+Members vote on the Proposal screen, not on the card. The "Needs your vote" card (`ProposalCard`) offers "Review" and a footer that open it, and the dock above the composer carries "Vote No" and "Vote Yes", then "Change vote". Copy in Expect quotes [screens.md](../../screens.md): `HomePendingVotesSlot`, `CabalProposalsSlot`, the Proposal card and `ProposalDetailSlot`.
 
 The format of this doc is in [App journeys](../README.md).
 
@@ -33,13 +33,13 @@ The setup seeds the proposal, so this journey does not depend on the propose scr
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap | the Home tab | | "Needs your vote" shows with `proposal-card-<proposalID>` within 15 s. The card reads "Closes in", "0 of 3 voted · 2 yes to pass", "Yes" and "No" |
-| S1.2 | A | tap | `proposal-card-<proposalID>` | | The Proposal screen shows "Votes", "Why buy" and "QA vote {QA.run}" within 15 s |
-| S1.3 | A | tap | "Yes" on `proposal-card-<proposalID>` | | The toast "Vote recorded." shows within 10 s. The card reads "✓ You voted yes" and "Change", and "1 of 3 voted · 2 yes to pass" within 10 s |
-| S1.4 | A | tap, then tap | "Change", then "No" | | The toast "Vote recorded." shows within 10 s, and the card reads "✓ You voted no" within 10 s |
-| S1.5 | A | tap, then tap | "Change", then "Yes" | | The toast "Vote recorded." shows within 10 s, and the card reads "✓ You voted yes" within 10 s |
-| S1.6 | B | tap, then tap, then tap | the Home tab, `proposal-card-<proposalID>`, then `proposal-votes-see-all` | | The Proposal screen shows "1 yes · 0 no · 2 not voted" within 15 s, and the Votes list shows "Alfred" and "Voted yes" within 15 s |
-| S1.7 | B | tap | "Yes" on `proposal-card-<proposalID>` | | The toast "Vote recorded." shows within 10 s. Within 15 s the card no longer reads "Closes in" and shows no "Yes", "No" or "Change": the majority closed the vote |
+| S1.1 | A | tap | the Home tab | | "Needs your vote" shows with `proposal-card-<proposalID>` within 15 s. The card reads "Needs your vote", "2 yes votes needed" and "Closes in" |
+| S1.2 | A | tap | the footer of `proposal-card-<proposalID>` | | The Proposal screen shows "Votes", "Thesis" and "QA vote {QA.run}" within 15 s |
+| S1.3 | A | tap | "Vote Yes" in the dock | | The toast "Vote recorded." shows within 10 s. The dock shows `proposal-change-vote`, and the vote bar reads "1 yes, 0 no, 2 not voted" within 10 s |
+| S1.4 | A | tap, then tap | "Change vote", then "Vote No" | | The toast "Vote recorded." shows within 10 s, and the vote bar reads "0 yes, 1 no, 2 not voted" within 10 s |
+| S1.5 | A | tap, then tap | "Change vote", then "Vote Yes" | | The toast "Vote recorded." shows within 10 s, and the vote bar reads "1 yes, 0 no, 2 not voted" within 10 s |
+| S1.6 | B | tap, then tap, then tap | the Home tab, the footer of `proposal-card-<proposalID>`, then `proposal-votes-see-all` | | The Proposal screen shows the vote bar "1 yes, 0 no, 2 not voted" within 15 s, and the Votes sheet shows "Alfred voted yes" within 15 s. "Close" dismisses it |
+| S1.7 | B | tap | "Vote Yes" in the dock | | The toast "Vote recorded." shows within 10 s. Within 15 s the dock shows no "Vote Yes", "Vote No" or "Change vote": the majority closed the vote |
 | S1.8 | A | relaunch, then tap | the Home tab | | `proposal-card-<proposalID>` is not under "Needs your vote" within 15 s |
 
 ### S2 Vote on the cabal's card
@@ -47,15 +47,15 @@ The setup seeds the proposal, so this journey does not depend on the propose scr
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `{cabalName}` | `cabal-header-name` reads `{cabalName}` within 15 s. "Needs your vote" shows with `proposal-card-<proposalID>` and "See all" within 15 s |
-| S2.2 | A | tap | "Yes" on `proposal-card-<proposalID>` | | The toast "Vote recorded." shows within 10 s, and the card reads "✓ You voted yes" within 10 s |
-| S2.3 | A | tap | `proposal-card-<proposalID>` | | The Proposal screen shows "Votes" and "Why buy" within 15 s |
+| S2.2 | A | tap | the footer of `proposal-card-<proposalID>` | | The Proposal screen shows "Votes" and "Thesis" within 15 s |
+| S2.3 | A | tap | "Vote Yes" in the dock | | The toast "Vote recorded." shows within 10 s, and the dock shows `proposal-change-vote` within 10 s |
 
 ### S3 See all with the closed history
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S3.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `{cabalName}` | "Needs your vote" shows with `proposal-card-<proposalID>` and "See all" within 15 s |
-| S3.2 | A | tap, then tap | "See all", then "Failed" | | `proposal-card-<proposalID>` shows under Open, and `proposal-card-<closedProposalID>` shows under Failed, both within 15 s. The closed card shows its status chip ("Expired") and no "Yes" or "No" |
+| S3.2 | A | tap, then tap | "See all", then "Failed" | | `proposal-card-<proposalID>` shows under Open, and `proposal-card-<closedProposalID>` shows under Failed, both within 15 s. The closed card reads "Expired" and "Voting ended without enough yes votes." |
 
 ## Ground truth
 
@@ -68,6 +68,6 @@ None.
 ## Not covered
 
 - The Proposal screen refreshing while it is open when B votes. The test signs A out while B acts and signs A in again after, so A never has the screen open while B votes. S1.8 checks the result after a relaunch. The gap is listed under Known failures with #612.
-- Accessibility identifiers on the vote buttons. "Yes", "No" and "Change" in `apps/mobile/Monaco/Features/Proposals/ProposalCard.swift`, and "Needs your vote" and "See all" in `apps/mobile/Monaco/Features/Home/HomePendingVotesSlot.swift` and `apps/mobile/Monaco/Features/Groups/CabalSlots/CabalProposalsSlot.swift`, have no identifier. The test finds them by label inside `proposal-card-<proposalID>`. Adding identifiers is #612's, because `Features/Proposals` is outside this ticket.
+- Accessibility identifiers on "Needs your vote" and "See all" in `apps/mobile/Monaco/Features/Home/HomePendingVotesSlot.swift` and `apps/mobile/Monaco/Features/Groups/CabalSlots/CabalProposalsSlot.swift`. The test finds them by label. The dock buttons carry `proposal-vote-yes`, `proposal-vote-no` and `proposal-change-vote`.
 - The paused-cabal caption and the trade that runs after the vote passes. `trading/execute` covers the trade.
 - A vote refused because the proposal closed or the member is not a voter. The flow layer covers those outcomes (flow 10).

@@ -35,10 +35,12 @@ extension ProposalCardCopy.NoticeTone {
 }
 
 extension ProposalSummary {
-    func title(asset: ProposalAsset?) -> String {
-        let name =
-            asset.map { AssetDisplayName.format(catalogName: $0.displayName, kind: $0.kind) }
+    func assetName(asset: ProposalAsset?) -> String {
+        asset.map { AssetDisplayName.format(catalogName: $0.displayName, kind: $0.kind) }
             ?? AssetSymbolFormatter.display(symbol, kind: .stock)
-        return "\(kind == "sell" ? "Sell" : "Buy") \(name)"
+    }
+
+    func title(asset: ProposalAsset?) -> String {
+        "\(kind == "sell" ? "Sell" : "Buy") \(assetName(asset: asset))"
     }
 }
