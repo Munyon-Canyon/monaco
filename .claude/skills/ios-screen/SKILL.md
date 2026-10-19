@@ -1,11 +1,20 @@
 ---
 name: ios-screen
-description: Says what a good Monaco iOS screen looks like, from colour, type, touch targets and accessibility to toasts and product copy. Use when asked to design a screen, build the UI for a feature, make this look right, or change the layout of a SwiftUI view under apps/mobile.
+description: Says what a good Monaco iOS screen looks like, from colour, type, touch targets and accessibility to toasts and product copy. Use when asked to design a screen, build the UI for a feature, make this look right, change the layout of a SwiftUI view under apps/mobile, match the v3 design, or restyle to v3.
 ---
 
 # iOS screen
 
 Where code goes and how state flows is `docs/architecture/ios.md`. Read it first; this skill does not restate it. This skill covers how the screen looks and reads.
+
+## Look (v3)
+
+- Follow `docs/design.md`. References are in `docs/design/v3/screens/`; open a state with `docs/design/v3/monaco-ui-v3.html#screen=<template>&state=<state>`.
+- Build with the shared components, once the F tickets land: `MonacoCard`, `MonacoNotice`, `StatusBadge` / `PnLPill`, `OutcomeView`, `MonacoGlassButton`, `MonacoSheetHeading`, `CabalCover` / `CabalCoverCard`, `VoteBar`, `AllocationBar`, `StatGrid`, `QuietChart`, `MonacoMenuSelect`, `.monacoOutline`. Don't re-create one inside a feature folder.
+- 15pt floor: never shrink text to match a reference. A 10–13px caption in the design is `Typo.caption`.
+- Glass: only `MonacoGlassButton`, the system tab bar, sheets and `BottomCTA` are glass. Every glass surface must honour Reduce Transparency.
+- Backend gaps: build the UI against a fixture, show "Opens soon" where data is missing, and name the missing API in the PR.
+- Covers: use `CabalCover` (tint gradient + uploaded picture + scrim). Never bundle photos.
 
 ## HIG
 
@@ -26,4 +35,8 @@ Where code goes and how state flows is `docs/architecture/ios.md`. Read it first
 
 ## Check
 
-Before the PR, preview the screen at the largest accessibility text size in both light and dark appearance.
+Before the PR:
+
+- Compare your screenshot with the reference for every state the ticket lists, in Light and Dark.
+- Preview the screen at the largest accessibility text size, and with Reduce Transparency on.
+- Keep `docs/screens.md` in step.
