@@ -1,18 +1,19 @@
 journey: social/follow-and-boards
 expect-fail: S2
 
-The empty Friends board says "No friends yet" instead of "Follow people to see how they do.". S2.1 reads the exact copy, so it must fail.
+The empty people board says "Nobody yet" instead of "No investors yet". The journey step that reads the exact copy must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift b/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
---- a/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
-+++ b/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
-@@ -69,7 +69,7 @@
+diff --git a/apps/mobile/Monaco/Features/Home/HomeLeaderboardSlot.swift b/apps/mobile/Monaco/Features/Home/HomeLeaderboardSlot.swift
+index e6c4bd8b1..55f0dd164 100644
+--- a/apps/mobile/Monaco/Features/Home/HomeLeaderboardSlot.swift
++++ b/apps/mobile/Monaco/Features/Home/HomeLeaderboardSlot.swift
+@@ -199,7 +199,7 @@ private struct HomeLeaderboardRows: View {
+     @ViewBuilder private var empty: some View {
+         switch category {
+         case .people:
+-            EmptyState(title: "No investors yet", message: "Fund a cabal to get on the board.")
++            EmptyState(title: "Nobody yet", message: "Fund a cabal to get on the board.")
                  .accessibilityIdentifier("home-leaderboard-empty")
-         case .friends:
+         case .cabals:
              EmptyState(
--                title: "Follow people to see how they do.", actionTitle: "Find friends",
-+                title: "No friends yet", actionTitle: "Find friends",
-                 actionIdentifier: "home-leaderboard-find-friends"
-             ) {
-                 environment.navigator.open(FriendsRoute(), in: .home)
