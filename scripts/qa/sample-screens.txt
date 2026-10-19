@@ -360,6 +360,17 @@ proposal-needs-vote           -MonacoProposalSample needsVote
 proposal-needs-vote-empty     -MonacoProposalSample needsVoteEmpty
 proposal-open-bottom          -MonacoProposalSample open -MonacoSampleScroll bottom
 proposal-open-large-text      -MonacoProposalSample open -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
+proposal-not-voter            -MonacoProposalSample notVoter
+proposal-rejected             -MonacoProposalSample rejected
+proposal-blocked              -MonacoProposalSample blocked
+proposal-open-dark            -MonacoProposalSample open -AppleInterfaceStyle Dark
+proposal-votes-open           -MonacoProposalSample votesOpen
+proposal-votes-recorded       -MonacoProposalSample votesRecorded
+proposal-votes-empty          -MonacoProposalSample votesEmpty
+proposal-votes-expanded       -MonacoProposalSample votesExpanded
+proposal-votes-loading        -MonacoProposalSample votesLoading
+proposal-votes-error          -MonacoProposalSample votesError
+proposal-votes-open-dark      -MonacoProposalSample votesOpen -AppleInterfaceStyle Dark
 
 # Harnesses that take a `-…Harness` flag; the word after it is the mode.
 feed-items                    -feedHarness items

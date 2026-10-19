@@ -11,6 +11,7 @@ struct ProposalScreen: View {
     let sections: [any ProposalSection.Type]
     @Environment(AppEnvironment.self) private var environment
     @State private var comments: CommentsModel?
+    @State private var detail = ProposalDetailBox()
     @State private var refresh = ScreenRefresh()
 
     init(proposalID: String, sections: [any ProposalSection.Type] = Self.sections) {
@@ -23,12 +24,14 @@ struct ProposalScreen: View {
         if SectionStack<ProposalContext>.live(sections).isEmpty {
             NotMigratedView(screen: "Proposal")
         } else {
+            let model = detail.model(proposalID: context.proposalID, environment: environment)
             SectionStack(context: context, sections: sections)
                 .environment(\.proposalComments, comments)
+                .environment(\.proposalDetail, model)
                 .environment(refresh)
                 .refreshable { await refresh.run() }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if let comments { CommentComposerBar(model: comments) }
+                    ProposalVoteDock(model: model, comments: comments)
                 }
                 .task {
                     let model = preparedComments()
