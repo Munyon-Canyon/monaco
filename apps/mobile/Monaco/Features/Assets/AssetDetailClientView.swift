@@ -82,7 +82,9 @@ struct AssetDetailClientView: View {
                 AssetDetailChartSection(
                     detail: detail, model: model, scrubbedIndex: $scrubbedIndex, style: chartStyle)
                 AssetDetailActions(detail: detail, canSell: model.heldByVotingCabal, propose: propose)
-                AssetMarketStats(stats: model.stats, attribution: detail.attribution, priceMicros: detail.priceMicros)
+                AssetMarketStats(
+                    stats: model.stats, attribution: detail.attribution, priceMicros: detail.priceMicros,
+                    volume24hMicros: detail.market.volume24hMicros)
                 AssetAbout(detail: detail)
                 AssetCabalHoldings(ticker: detail.ticker, positions: model.positions) {
                     environment.navigator.open(CabalRoute(id: $0.cabalID), in: tab)

@@ -23,7 +23,8 @@ public enum MarketMapping {
             status: status(summary.session, session: session),
             showsSessionChip: !summary.session.continuous,
             isTradable: summary.tradable ?? false,
-            isQuotable: summary.quotable
+            isQuotable: summary.quotable,
+            volume24hMicros: summary.volume24hMicros
         )
     }
 
@@ -52,7 +53,8 @@ public enum MarketMapping {
             status: status(value.session, session: session),
             showsSessionChip: !value.session.continuous,
             isTradable: value.tradable,
-            isQuotable: value.quotable
+            isQuotable: value.quotable,
+            volume24hMicros: value.volume24hMicros
         )
         return MarketAssetDetail(asset: asset, otherListings: value.otherListings.map(listing))
     }

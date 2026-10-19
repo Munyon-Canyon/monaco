@@ -5,6 +5,13 @@ struct AssetMarketStats: View {
     let stats: AssetStats?
     let attribution: String
     let priceMicros: Int64?
+    let volume24hMicros: Int64?
+
+    private var items: [StatItem] {
+        let cells = stats?.cells.map { StatItem(label: $0.label, value: $0.value) } ?? []
+        guard let volume24hMicros else { return cells }
+        return cells + [StatItem(label: "24h volume", value: UsdAmountFormatter.compact(micros: volume24hMicros))]
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -13,10 +20,10 @@ struct AssetMarketStats: View {
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .padding(.bottom, MonacoTheme.Space.s)
-            if let stats {
-                StatGrid(items: stats.cells.map { StatItem(label: $0.label, value: $0.value) })
+            if !items.isEmpty {
+                StatGrid(items: items)
             }
-            Text("Market cap, volume and supply open soon.")
+            Text("Market cap and supply open soon.")
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .padding(.top, MonacoTheme.Space.sm)

@@ -17,6 +17,36 @@ final class MarketMappingTests: XCTestCase {
         XCTAssertTrue(MarketMapping.detail(.googl).asset.isQuotable)
     }
 
+    func testVolumeMapsFromAFreshReadingAndIsNilWithoutOne() {
+        let withVolume = MarketMapping.asset(
+            summary(
+                symbol: "AAPLx", displayName: "Apple xStock", issuer: .xstocks, kind: .equity, logoUrl: nil,
+                priceMicros: 110_000_000, priceAsOf: sampledAt, changeBps: 1_000,
+                sparklineMicros: [100_000_000, 110_000_000],
+                session: session(state: .open),
+                volume24hMicros: 2_500_000_000_000, volume24hAsOf: sampledAt
+            )
+        )
+        let without = MarketMapping.asset(
+            summary(
+                symbol: "AAPLx", displayName: "Apple xStock", issuer: .xstocks, kind: .equity, logoUrl: nil,
+                priceMicros: nil, priceAsOf: nil, changeBps: nil, sparklineMicros: nil,
+                session: session(state: .open)
+            )
+        )
+
+        XCTAssertEqual(withVolume.volume24hMicros, 2_500_000_000_000)
+        XCTAssertNil(without.volume24hMicros)
+    }
+
+    func testCompactMicrosReadsAVolumeTheWayTheTilesDraw() {
+        XCTAssertEqual(UsdAmountFormatter.compact(micros: 1_500_000_500_000), "$1.5M")
+        XCTAssertEqual(UsdAmountFormatter.compact(micros: 2_500_000_000_000), "$2.5M")
+        XCTAssertEqual(UsdAmountFormatter.compact(micros: 124_500_000_000), "$124.5K")
+        XCTAssertEqual(UsdAmountFormatter.compact(micros: 12_431_800_000), "$12,431.80")
+        XCTAssertEqual(UsdAmountFormatter.compact(micros: 3_100_000_000_000_000), "$3.1B")
+    }
+
     func testPausedLastKeepsEachGroupInItsOrder() {
         let rows = [
             MarketMapping.asset(.paused), MarketMapping.asset(.googl),
@@ -199,6 +229,7 @@ extension MarketMappingTests {
         XCTAssertEqual(detail.asset.name, "SpaceX")
         XCTAssertEqual(detail.asset.issuer, .tessera)
         XCTAssertEqual(detail.asset.kind, .preIpo)
+        XCTAssertNil(detail.asset.volume24hMicros)
         XCTAssertEqual(detail.asset.priceText, "$42.00")
         XCTAssertEqual(detail.asset.changeText, "+1.25%")
         XCTAssertEqual(detail.asset.sparkline?.lastUsdcMicros, 42_000_000)
@@ -292,7 +323,9 @@ extension MarketMappingTests {
         changeBps: Int32?,
         sparklineMicros: [Int64]?,
         session: Components.Schemas.MarketSession,
-        tradable: Bool = true
+        tradable: Bool = true,
+        volume24hMicros: Int64? = nil,
+        volume24hAsOf: Date? = nil
     ) -> Components.Schemas.AssetSummary {
         Components.Schemas.AssetSummary(
             symbol: symbol,
@@ -304,6 +337,8 @@ extension MarketMappingTests {
             priceAsOf: priceAsOf,
             changeBps: changeBps,
             sparklineMicros: sparklineMicros,
+            volume24hMicros: volume24hMicros,
+            volume24hAsOf: volume24hAsOf,
             quotable: true,
             session: session,
             tradable: tradable
