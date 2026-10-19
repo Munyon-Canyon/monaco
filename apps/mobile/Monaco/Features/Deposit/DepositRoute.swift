@@ -34,3 +34,13 @@ nonisolated struct DepositAddressRoute: AppRoute {
             .analyticsScreen("deposit_address", step: .cryptoDeposit(.depositOpened))
     }
 }
+
+nonisolated struct CardFundingRoute: AppRoute {
+    let prefillMicros: Int64?
+    let cabalID: String?
+
+    @MainActor func destination() -> some View {
+        CardFundingView(prefillMicros: prefillMicros, cabalID: cabalID)
+            .analyticsScreen("card_funding")
+    }
+}
