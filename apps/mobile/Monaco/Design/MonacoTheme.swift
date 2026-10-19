@@ -10,64 +10,66 @@ import UIKit
 enum MonacoTheme {
     // MARK: Surfaces
 
-    /// Every screen, the tab bar, and the nav bar once content scrolls under it.
-    static let background = Color.adaptive(light: 0xFFFFFF, dark: 0x0B0F0D)
+    static let background = Color.adaptive(light: 0xFAF7F0, dark: 0x03130F)
 
     static let canvas = background
 
-    /// Sheets and menus. The same as the canvas in light, on purpose.
-    static let surface = Color.adaptive(light: 0xFFFFFF, dark: 0x131816)
+    static let surface = Color.adaptive(light: 0xF6F7F2, dark: 0x0A2119)
 
-    /// Fields, chips at rest, cards, the secondary button, skeletons, pressed rows.
-    static let surfaceSunken = Color.adaptive(light: 0xF2F4F2, dark: 0x1B211E)
+    static let surfaceSunken = Color.adaptive(light: 0xEDEFE7, dark: 0x102A20)
 
     static let cashFill = Color.adaptive(light: 0x76837B, dark: 0x7A8B80)
 
-    static let primaryText = Color.adaptive(light: 0x0E1512, dark: 0xF2F4F2)
+    static let primaryText = Color.adaptive(light: 0x0C3526, dark: 0xF5F8F4)
 
     static let ink = primaryText
 
-    /// Subtitles and labels under figures.
-    static let secondaryText = Color.adaptive(light: 0x5E6963, dark: 0x9AA59E)
+    static let bodyText = Color.adaptive(light: 0x172C24, dark: 0xE6EFEB)
+
+    static let secondaryText = Color.adaptive(light: 0x646D67, dark: 0x9EAFA5)
 
     static let muted = secondaryText
 
-    /// Timestamps, ranks, attribution. Light is a step darker than the spec's `#6E7872`, which is
-    /// 4.1:1 on `surfaceSunken`: a proposal card's "Closes in 2d" sits there and has to clear AA.
-    ///
-    /// Not for disabled controls or placeholders: see `disabledLabel`.
-    static let tertiaryText = Color.adaptive(light: 0x68716C, dark: 0x86908A)
+    static let tertiaryText = Color.adaptive(light: 0x646D67, dark: 0x8E9E95)
 
-    /// Disabled control labels and field placeholders. Below AA on purpose (WCAG 1.4.3 exempts
-    /// disabled controls, and unavailable has to look unavailable), but held at 2.5:1 or more so it
-    /// stays legible; light is a step darker than the spec's `#A3ABA6` (2.1:1 on sunken) for that.
-    static let disabledLabel = Color.adaptive(light: 0x949C97, dark: 0x626B66)
+    static let disabledLabel = Color.adaptive(light: 0x8F9791, dark: 0x5E6B63)
 
-    /// 1px separators, never 1pt.
-    static let border = Color.adaptive(light: 0xE8EBE8, dark: 0x242B27)
+    static let border = Color.adaptive(light: 0xE5E7DF, dark: 0x18342A)
 
     static let hairline = border
 
     // MARK: Brand
 
-    /// The accent as text and glyphs: text links, the focus ring. 8.1:1 light, 11:1 dark.
-    static let brand = Color.adaptive(light: 0x1F5A3D, dark: 0x9ED5B3)
+    static let brand = Color.adaptive(light: 0x07643E, dark: 0x60EFAA)
 
-    /// Primary button, selected chip and segment, my chat bubble. Light is the logo's forest.
-    static let brandFill = Color.adaptive(light: 0x0F291C, dark: 0xEDF2EF)
+    static let brandFill = Color.adaptive(light: 0x0D5C3A, dark: 0x66EFAB)
 
-    static let onBrand = Color.adaptive(light: 0xFFFFFF, dark: 0x0F291C)
+    static let onBrand = Color.adaptive(light: 0xFFFFFF, dark: 0x072219)
 
-    /// The viewer's own row on a board, and the "You" tag behind it.
-    static let brandWash = Color.adaptive(light: 0x0F291C, lightAlpha: 0.08, dark: 0x9ED5B3, darkAlpha: 0.14)
+    static let brandSoft = Color.adaptive(light: 0xE8F0E7, dark: 0x14372A)
 
-    /// Brand text on `brandWash`.
+    static let brandWash = brandSoft
+
     static let brandOnWash = brand
+
+    static let warningWash = Color.adaptive(light: 0xF3ECD8, dark: 0x2C2819)
+
+    // MARK: Glass and sheets
+
+    static let glassFill = Color.adaptive(light: 0xFBFCF7, lightAlpha: 0.86, dark: 0x0C231B, darkAlpha: 0.85)
+
+    static let glassStroke = Color.adaptive(light: 0xFFFFFF, lightAlpha: 0.98, dark: 0xB0EAC8, darkAlpha: 0.20)
+
+    static let sheetGlass = Color.adaptive(light: 0xF8FAF5, lightAlpha: 0.90, dark: 0x11291F, darkAlpha: 0.94)
+
+    static let sheetStroke = Color.adaptive(light: 0xFFFFFF, lightAlpha: 0.95, dark: 0xA8E3C2, darkAlpha: 0.21)
+
+    static let sheetDim = Color.adaptive(light: 0x000E08, lightAlpha: 0.30, dark: 0x000604, darkAlpha: 0.48)
+
+    static let scrim = Color.adaptive(light: 0x01150E, lightAlpha: 0.33, dark: 0x000000, darkAlpha: 0.73)
 
     // MARK: Retired hero band
 
-    /// The dark hero band is gone. These alias the canvas and its text until their call sites
-    /// move, so a screen that still draws a "hero" draws it on the canvas.
     static let heroInk = canvas
 
     static let onHero = primaryText
@@ -78,19 +80,15 @@ enum MonacoTheme {
 
     // MARK: Money
 
-    /// Signed P&L text. Clears AA on `canvas`, `surface` and `surfaceSunken`.
-    static let profit = Color.adaptive(light: 0x0A7F46, dark: 0x2EDB8A)
+    static let profit = Color.adaptive(light: 0x0F7A4E, dark: 0x68EBAB)
 
-    static let loss = Color.adaptive(light: 0xD0342C, dark: 0xFF6B5E)
+    static let loss = Color.adaptive(light: 0xB54647, dark: 0xF1807F)
 
-    /// Chart strokes and the live dot only.
-    static let profitVivid = Color.adaptive(light: 0x12B76A, dark: 0x2EDB8A)
+    static let profitVivid = Color.adaptive(light: 0x108153, dark: 0x68EBAB)
     static let onVivid = Color.adaptive(light: 0x0E1512, dark: 0x0E1512)
 
-    static let lossVivid = Color.adaptive(light: 0xE5484D, dark: 0xFF6B5E)
+    static let lossVivid = Color.adaptive(light: 0xBD5455, dark: 0xF1807F)
 
-    /// Nothing draws a P&L wash any more: a gain or a loss is coloured text. These stay clear,
-    /// with the bare money colours on them, until the badges that read them are text.
     static let profitWash = Color.clear
 
     static let lossWash = Color.clear
@@ -107,23 +105,134 @@ enum MonacoTheme {
 
     static let lossOnHero = loss
 
+    static let buyWash = Color.adaptive(light: 0xE9F4EC, dark: 0x0E3022)
+
+    static let sellWash = Color.adaptive(light: 0xF8ECE9, dark: 0x30201F)
+
+    static let priceWash = Color.adaptive(light: 0xEDF0F9, dark: 0x13232B)
+
     // MARK: Toast
 
-    /// The toast inverts the scheme: a dark panel in light, a light one in dark. Never the brand
-    /// fill, or it reads as a second primary button (`theToastIsNotTheBrandFill`).
-    static let toastFill = Color.adaptive(light: 0x33413A, dark: 0xF2F4F2)
+    static let toastFill = Color.adaptive(light: 0x0C3526, dark: 0xF5F8F4)
 
-    /// Hairline on the toast. Carries the capsule's edge in dark, where the drop shadow is invisible.
-    static let toastStroke = Color.adaptive(light: 0x33413A, lightAlpha: 0, dark: 0xFFFFFF, darkAlpha: 0.10)
+    static let toastStroke = Color.clear
 
-    static let toastLabel = Color.adaptive(light: 0xFFFFFF, dark: 0x0E1512)
+    static let toastLabel = Color.adaptive(light: 0xFAF7F0, dark: 0x03130F)
 
-    /// State glyphs on `toastFill`. The panel is the other scheme's surface, so the glyphs take
-    /// the other scheme's money colours: the dark-mode green and the spec's `#FF8A7A` on the dark
-    /// panel, the light-mode `profit` and `loss` on the light one. 4.5:1 or more in both.
-    static let toastSuccessGlyph = Color.adaptive(light: 0x2EDB8A, dark: 0x0A7F46)
+    static let toastSuccessGlyph = Color.adaptive(light: 0x68EBAB, dark: 0x0F7A4E)
 
-    static let toastErrorGlyph = Color.adaptive(light: 0xFF8A7A, dark: 0xD0342C)
+    static let toastErrorGlyph = Color.adaptive(light: 0xFFAAAA, dark: 0xB54647)
+
+    // MARK: Identity card
+
+    static let identityFill = Color.adaptive(light: 0x0C3828, dark: 0x0D2C21)
+
+    static let onIdentity = Color.adaptive(light: 0xF8FAF5, dark: 0xF5FAF6)
+
+    static let onIdentityMuted = Color.adaptive(light: 0xB6D5C3, dark: 0xB6D5C3)
+
+    static let onIdentityBody = Color.adaptive(light: 0xE0EEE3, dark: 0xE0EEE3)
+
+    static let profitOnIdentity = Color.adaptive(light: 0x81E8B1, dark: 0x81E8B1)
+
+    static let lossOnIdentity = Color.adaptive(light: 0xFFAAAA, dark: 0xFFAAAA)
+
+    static let pencilFill = Color.adaptive(light: 0xE6F5E8, dark: 0xE6F5E8)
+
+    // MARK: Covers
+
+    static let onCover = Color.adaptive(light: 0xFFFFFF, dark: 0xFFFFFF)
+
+    static let onCoverMuted = Color.adaptive(light: 0xC5D1CB, dark: 0xC5D1CB)
+
+    static let profitOnCover = Color.adaptive(light: 0x83F1B9, dark: 0x83F1B9)
+
+    static let lossOnCover = Color.adaptive(light: 0xFFB2B0, dark: 0xFFB2B0)
+
+    static let onCoverGlass = Color.adaptive(light: 0xFFFFFF, lightAlpha: 0.09, dark: 0xFFFFFF, darkAlpha: 0.09)
+
+    static let onCoverGlassStroke = Color.adaptive(
+        light: 0xFFFFFF, lightAlpha: 0.14, dark: 0xFFFFFF, darkAlpha: 0.14)
+
+    static let coverStroke = Color.adaptive(light: 0xFFFFFF, lightAlpha: 0.07, dark: 0xFFFFFF, darkAlpha: 0.07)
+
+    static let voteNeededFill = Color.adaptive(light: 0xC8F7CF, dark: 0xC8F7CF)
+
+    static let voteNeededLabel = Color.adaptive(light: 0x083123, dark: 0x083123)
+
+    static let discussionTint = Color.adaptive(light: 0x535AAE, dark: 0xC7B9F7)
+
+    static let discussionWash = Color.adaptive(
+        light: 0x676BDD, lightAlpha: 0.075, dark: 0xBCA4FF, darkAlpha: 0.10)
+
+    static let allocationTints: [Color] = [
+        brand,
+        Color.adaptive(light: 0x7B91A7, dark: 0x7B91A7),
+        Color.adaptive(light: 0x9A83B4, dark: 0x9A83B4),
+        border,
+    ]
+
+    struct CoverScrimStop: Equatable {
+        let hex: UInt32
+        let alpha: Double
+        let location: Double
+    }
+
+    struct ShadowLayer {
+        let color: Color
+        let radius: CGFloat
+        let y: CGFloat
+    }
+
+    enum CoverScrim: CaseIterable {
+        case card, memberCard, hero, solid
+
+        var stops: [CoverScrimStop] {
+            switch self {
+            case .card:
+                return [
+                    CoverScrimStop(hex: 0x00170C, alpha: 0.10, location: 0.10),
+                    CoverScrimStop(hex: 0x001109, alpha: 0.07, location: 0.30),
+                    CoverScrimStop(hex: 0x000C08, alpha: 0.93, location: 1.0),
+                ]
+            case .memberCard:
+                return [
+                    CoverScrimStop(hex: 0x00150C, alpha: 0.15, location: 0),
+                    CoverScrimStop(hex: 0x00130B, alpha: 0.85, location: 0.42),
+                    CoverScrimStop(hex: 0x000C09, alpha: 0.96, location: 1.0),
+                ]
+            case .hero:
+                return [
+                    CoverScrimStop(hex: 0x011A17, alpha: 0, location: 0),
+                    CoverScrimStop(hex: 0x011A17, alpha: 0.85, location: 1.0),
+                ]
+            case .solid:
+                return [
+                    CoverScrimStop(hex: 0x00130B, alpha: 0.91, location: 0),
+                    CoverScrimStop(hex: 0x00130B, alpha: 0.91, location: 1.0),
+                ]
+            }
+        }
+
+        var gradient: Gradient {
+            Gradient(
+                stops: stops.map {
+                    Gradient.Stop(color: Color(hex: $0.hex, alpha: $0.alpha), location: $0.location)
+                })
+        }
+    }
+
+    enum Shadow {
+        static let floating = ShadowLayer(
+            color: Color.adaptive(light: 0x112E21, lightAlpha: 0.07, dark: 0x000000, darkAlpha: 0.20),
+            radius: 24,
+            y: 8)
+
+        static let sheet = ShadowLayer(
+            color: Color.adaptive(light: 0x001A15, lightAlpha: 0.25, dark: 0x000000, darkAlpha: 0.50),
+            radius: 72,
+            y: 22)
+    }
 
     // MARK: Roles
 
@@ -131,13 +240,13 @@ enum MonacoTheme {
 
     static let primaryButtonLabel = onBrand
 
-    static let secondaryButtonFill = surfaceSunken
+    static let secondaryButtonFill = brandSoft
 
-    static let secondaryButtonLabel = primaryText
+    static let secondaryButtonLabel = brand
 
     static let destructive = loss
 
-    static let onDestructive = Color.white
+    static let onDestructive = Color.adaptive(light: 0xFAF7F0, dark: 0x03130F)
 
     static let accent = brand
 
@@ -145,18 +254,14 @@ enum MonacoTheme {
 
     static let success = profit
 
-    /// Pending, paused, after hours.
-    static let warning = Color.adaptive(light: 0x8A5A16, dark: 0xE5B26A)
+    static let warning = Color.adaptive(light: 0x866017, dark: 0xE6C477)
 
     // MARK: Gold
 
-    /// Retired with the board's rank caption; kept until its last row moves.
     static let gold = Color.adaptive(light: 0x7A5C12, dark: 0xE2B04A)
 
-    /// The rank-1 crown glyph, and nothing else.
     static let goldGlyph = Color.adaptive(light: 0xC9A24A, dark: 0xD9B85A)
 
-    /// Retired with the leader's row wash; kept until its last two users move.
     static let goldWash = Color.adaptive(light: 0xC9A24A, lightAlpha: 0.16, dark: 0xD9B85A, darkAlpha: 0.16)
 
     /// Green for gains, red for losses, muted for zero / missing.
@@ -254,8 +359,8 @@ enum MonacoTheme {
     /// matching style and pre-scale with `scaled`. Figures add `.monospacedDigit()`; nothing sets
     /// letter-spacing, because SF Pro's optical tracking is the tracking.
     enum Typo {
-        /// 36 bold: tab root titles, the sign-in wordmark, a profile name.
-        static var display: Font { scaled(size: 36, weight: .bold, relativeTo: .largeTitle) }
+        /// 30 bold: tab root titles, the sign-in wordmark, a profile name.
+        static var display: Font { scaled(size: 30, weight: .bold, relativeTo: .largeTitle) }
         /// 28 semibold: headings set in content, a stock name, keypad digits.
         static let title = Font.title.weight(.semibold)
         /// 22 semibold: section titles.
@@ -306,13 +411,19 @@ enum MonacoTheme {
     /// acts on and want to sit flat, not float.
     enum Radius {
         static let chip: CGFloat = 12
-        static let card: CGFloat = 16
+        static let card: CGFloat = 20
+        static let cardTight: CGFloat = 18
+        static let search: CGFloat = 16
+        static let notice: CGFloat = 15
+        static let badge: CGFloat = 8
+        static let pill: CGFloat = 6
+        static let identity: CGFloat = 22
         static let sheet: CGFloat = 24
         /// `CabalMark` at 40pt; marks scale this proportionally (size × 0.3).
         static let tile: CGFloat = 12
-        static let field: CGFloat = 12
-        static let bubble: CGFloat = 18
-        static let toast: CGFloat = 14
+        static let field: CGFloat = 15
+        static let bubble: CGFloat = 17
+        static let toast: CGFloat = 15
     }
 
     enum Space {
@@ -322,8 +433,9 @@ enum MonacoTheme {
         static let m: CGFloat = 16
         static let l: CGFloat = 24
         static let xl: CGFloat = 32
+        static let section: CGFloat = 24
         /// Screen side padding, and the only horizontal inset.
-        static let gutter: CGFloat = 16
+        static let gutter: CGFloat = 20
     }
 }
 
