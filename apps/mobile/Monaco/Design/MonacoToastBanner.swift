@@ -43,7 +43,7 @@ struct MonacoToastBanner: View {
                 .foregroundStyle(isSuccess ? MonacoTheme.toastSuccessGlyph : MonacoTheme.toastErrorGlyph)
                 .accessibilityHidden(true)
             Text(message)
-                .font(MonacoTheme.Typo.calloutStrong)
+                .font(MonacoTheme.Typo.subhead)
                 .foregroundStyle(MonacoTheme.toastLabel)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
@@ -71,9 +71,16 @@ struct MonacoToastBanner: View {
         .background(
             MonacoTheme.toastFill, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.toast, style: .continuous)
         )
+        .shadow(MonacoTheme.Shadow.floating)
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .accessibilityElement(children: link == nil && action == nil ? .combine : .contain)
         .accessibilityIdentifier("monaco-toast-banner")
+    }
+}
+
+extension View {
+    fileprivate func shadow(_ layer: MonacoTheme.ShadowLayer) -> some View {
+        shadow(color: layer.color, radius: layer.radius, x: 0, y: layer.y)
     }
 }
 
