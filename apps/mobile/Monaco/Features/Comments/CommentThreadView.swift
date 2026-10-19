@@ -155,7 +155,6 @@ struct CommentRow: View {
                     photoURL: row.comment.author.photoUrl, displayName: row.authorName,
                     size: CommentThreadLayout.avatarSize, seed: row.authorID)
             }
-            // The name beside it opens the same profile, so VoiceOver reads one link, not two.
             .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 byline
