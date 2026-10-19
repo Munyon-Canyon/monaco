@@ -92,7 +92,7 @@ final class FeedModelTests: XCTestCase {
         XCTAssertEqual(model.failureTick, 0)
     }
 
-    func testAFailedNextPageKeepsTheItemsAndBumpsTheTick() async throws {
+    func testAFailedNextPageKeepsTheItemsAndLeavesTheTickToTheInlineNotice() async throws {
         let transport = StubTransport(scripted: [
             .json(.ok, try Self.page(Array(samples.prefix(2)), next: "c2")),
             .failure(URLError(.notConnectedToInternet)),
@@ -102,7 +102,7 @@ final class FeedModelTests: XCTestCase {
         await model.loadMore()
         XCTAssertEqual(model.phase, .loaded)
         XCTAssertEqual(model.items.count, 2)
-        XCTAssertEqual(model.failureTick, 1)
+        XCTAssertEqual(model.failureTick, 0)
         XCTAssertEqual(model.lastError.map(ToastCopy.message(for:)), "You're offline. Try again.")
     }
 
