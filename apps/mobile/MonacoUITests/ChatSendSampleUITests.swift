@@ -42,8 +42,8 @@ nonisolated final class ChatSendSampleUITests: XCTestCase {
         send("offline", in: app)
 
         let retry = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "chat-retry-")).firstMatch
-        XCTAssertTrue(retry.waitForExistence(timeout: 20), "a failed send should offer Not sent · Retry")
-        XCTAssertEqual(retry.label, "Not sent · Retry")
+        XCTAssertTrue(retry.waitForExistence(timeout: 20), "a failed send should offer Retry")
+        XCTAssertEqual(retry.label, "Retry")
         attachScreenshot(app, name: "01-not-sent")
 
         retry.tap()

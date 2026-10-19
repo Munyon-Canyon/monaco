@@ -11,16 +11,19 @@ enum ChatSampleQA {
     @MainActor static func screen(arguments: [String]) -> some View {
         let scenario = ChatSampleScenario(
             startEmpty: arguments.contains("-MonacoChatSampleEmpty"),
-            failSends: arguments.contains("-MonacoChatSampleOffline"),
+            failSends: arguments.contains("-MonacoChatSampleFailed"),
             busy: arguments.contains("-MonacoChatSampleBusy"),
             closedFirstLoad: arguments.contains("-MonacoChatSampleClosedFirstLoad"),
             neverAnswers: arguments.contains("-MonacoChatSampleLoading"),
             failFirstSend: arguments.contains("-MonacoChatSampleFlaky"),
-            closedOnSend: arguments.contains("-MonacoChatSampleClosedOnSend")
+            closedOnSend: arguments.contains("-MonacoChatSampleClosedOnSend"),
+            neverPosts: arguments.contains("-MonacoChatSampleSending"),
+            proposalCard: arguments.contains("-MonacoChatSampleProposal")
         )
         let acts = arguments.contains(SampleHarnessRegistry.actArgument)
+        let offline = arguments.contains("-MonacoChatSampleOffline")
         return OpensOnceActive {
-            ChatSampleHost(scenario: scenario, acts: acts)
+            ChatSampleHost(scenario: scenario, acts: acts, offline: offline)
         }
     }
 }
@@ -29,11 +32,20 @@ private struct ChatSampleHost: View {
     @State private var session: ChatSession
     @State private var openedProfile: String?
     @State private var sent = false
+    @State private var proposals = ChatProposalStore { id in
+        ChatProposalFacts(
+            proposalID: id, proposerID: "u-mia", assetName: "NVIDIA", isSell: false, amountMicros: 1_200_000_000,
+            createdAt: Date(), phase: .open)
+    }
+    @State private var network: NetworkPathModel
     private let sendsOnLaunch: Bool
 
-    init(scenario: ChatSampleScenario, acts: Bool) {
-        sendsOnLaunch = acts && (scenario.failSends || scenario.failFirstSend || scenario.closedOnSend)
+    init(scenario: ChatSampleScenario, acts: Bool, offline: Bool) {
+        sendsOnLaunch =
+            acts
+            && (scenario.failSends || scenario.failFirstSend || scenario.closedOnSend || scenario.neverPosts)
         _session = State(initialValue: ChatSession.sample(scenario) { Date() })
+        _network = State(initialValue: NetworkPathModel(forcedOffline: offline))
     }
 
     var body: some View {
@@ -41,6 +53,8 @@ private struct ChatSampleHost: View {
             cabalID: ChatSession.sampleCabalID,
             session: session,
             cabal: .sample(role: "member"),
+            proposals: proposals,
+            network: network,
             openProfile: { openedProfile = $0 },
             openThread: { _ in }
         )

@@ -5,6 +5,9 @@ import SwiftUI
 struct GroupChatThreadView: View {
     let rows: [ChatRow]
     var members: [Components.Schemas.CabalMember] = []
+    var cabalName = ""
+    var proposals: ChatProposalStore?
+    var openProposal: ((String) -> Void)?
     let hasOlder: Bool
     let isLoadingOlder: Bool
     let openProfile: (String) -> Void
@@ -29,8 +32,9 @@ struct GroupChatThreadView: View {
         } content: {
             ForEach(rows) { row in
                 GroupChatRowView(
-                    row: row, now: now, members: members, openProfile: openProfile, retry: retry,
-                    discard: discard, openThread: openThread, requestDelete: requestDelete,
+                    row: row, now: now, members: members, cabalName: cabalName, proposals: proposals,
+                    openProfile: openProfile, retry: retry, discard: discard, openThread: openThread,
+                    openProposal: openProposal, requestDelete: requestDelete,
                     seenLabel: row.id == seen?.messageID
                         ? seen.flatMap { ChatSeenCopy.label(count: $0.count) } : nil,
                     openSeen: { openSeen(row.id) }

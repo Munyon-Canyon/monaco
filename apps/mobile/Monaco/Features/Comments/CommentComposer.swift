@@ -171,14 +171,14 @@ struct ComposerSendDisc: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(MonacoTheme.brandFill)
+                .fill(MonacoTheme.primaryButtonFill)
             if isSending {
                 ProgressView()
                     .tint(MonacoTheme.onBrand)
             } else {
                 Image(monaco: .up)
                     .font(MonacoTheme.Typo.subheadStrong)
-                    .foregroundStyle(MonacoTheme.onBrand)
+                    .foregroundStyle(MonacoTheme.primaryButtonLabel)
             }
         }
         .frame(width: CommentRowMetrics.replyTarget, height: CommentRowMetrics.replyTarget)
@@ -186,5 +186,5 @@ struct ComposerSendDisc: View {
         .animation(.easeOut(duration: 0.15), value: isLive)
     }
 
-    static let idleOpacity = 0.45
+    static let idleOpacity = MonacoButtonMetrics.disabledFillOpacity
 }

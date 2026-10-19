@@ -224,7 +224,7 @@ profile-empty                 -MonacoProfileSample empty -MonacoSampleScroll bot
 profile-loading               -MonacoProfileSample loading
 profile-error                 -MonacoProfileSample error
 
-chat-thread                   -MonacoChatSampleQA
+chat-thread                   -MonacoChatSampleQA -MonacoChatSampleProposal
 chat-empty                    -MonacoChatSampleQA -MonacoChatSampleEmpty
 chat-offline                  -MonacoChatSampleQA -MonacoChatSampleOffline
 
@@ -438,3 +438,18 @@ group-cash-ready              -groupCashHarness ready
 group-cash-unavailable        -groupCashHarness unavailable
 group-cash-loading            -groupCashHarness loading
 group-cash-error              -groupCashHarness error
+chat-sending                  -MonacoChatSampleQA -MonacoChatSampleSending
+chat-failed                   -MonacoChatSampleQA -MonacoChatSampleFailed
+cabal-holding-ready           -MonacoCabalHoldingSample ready
+cabal-holding-loss            -MonacoCabalHoldingSample loss
+cabal-holding-empty           -MonacoCabalHoldingSample empty
+cabal-holding-loading         -MonacoCabalHoldingSample loading
+cabal-holding-stale           -MonacoCabalHoldingSample stale
+cabal-holding-error           -MonacoCabalHoldingSample error
+cabal-holding-not-member      -MonacoCabalHoldingSample notMember
+cabal-holding-production-gaps -MonacoCabalHoldingSample productionGaps
+cabal-holding-trades-failed   -MonacoCabalHoldingSample tradesFailed
+chat-thread-dark              -MonacoChatSampleQA -MonacoChatSampleProposal -AppleInterfaceStyle Dark
+chat-thread-ax                -MonacoChatSampleQA -MonacoChatSampleProposal -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityXXXL
+cabal-holding-ready-dark      -MonacoCabalHoldingSample ready -AppleInterfaceStyle Dark
+cabal-holding-ready-ax        -MonacoCabalHoldingSample ready -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityXXXL

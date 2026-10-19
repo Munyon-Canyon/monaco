@@ -3,24 +3,10 @@ import MonacoCore
 import SwiftUI
 
 struct GroupChatEmptyView: View {
-    let cabalID: String
-    let title: String
-    let pictureUrl: String?
-
     var body: some View {
-        VStack(spacing: 12) {
-            CabalMark(groupId: cabalID, name: title, size: 56, pictureUrl: pictureUrl)
-            Text(GroupChatCopy.emptyTitle)
-                .font(MonacoTheme.Typo.section)
-                .foregroundStyle(MonacoTheme.ink)
-                .multilineTextAlignment(.center)
-            Text(GroupChatCopy.emptyHint)
-                .font(MonacoTheme.Typo.callout)
-                .foregroundStyle(MonacoTheme.secondaryText)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(24)
+        EmptyState(
+            title: GroupChatCopy.emptyTitle, message: GroupChatCopy.emptyHint, systemImage: MonacoIcon.chat.symbol
+        )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("chat-empty")
@@ -32,50 +18,61 @@ struct GroupChatLoadFailureView: View {
     let retry: () -> Void
 
     var body: some View {
-        VStack(spacing: 12) {
-            Text(message)
-                .font(MonacoTheme.Typo.body)
-                .foregroundStyle(MonacoTheme.ink)
-                .multilineTextAlignment(.center)
-                .accessibilityIdentifier("chat-error")
-            Button("Try again", action: retry)
-                .buttonStyle(.monacoSecondary)
-                .accessibilityIdentifier("chat-retry")
-        }
-        .padding(24)
+        EmptyState(
+            title: message, actionTitle: "Try again", actionIdentifier: "chat-retry",
+            systemImage: MonacoIcon.offline.symbol, action: retry
+        )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("chat-error")
     }
 }
 
 struct GroupChatClosedNotice: View {
     var body: some View {
-        Text(GroupChatCopy.closed)
-            .font(MonacoTheme.Typo.callout)
-            .foregroundStyle(MonacoTheme.muted)
-            .multilineTextAlignment(.center)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity)
+        MonacoNotice(.info, message: GroupChatCopy.closed)
             .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.vertical, MonacoTheme.Space.m)
+            .padding(.vertical, MonacoTheme.Space.s)
+            .frame(maxWidth: .infinity)
             .background(MonacoTheme.background)
             .overlay(alignment: .top) { MonacoRule() }
             .accessibilityIdentifier("chat-closed")
     }
 }
 
+struct ChatOfflineNotice: View {
+    var body: some View {
+        MonacoNotice(.warn, message: GroupChatCopy.offline)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .padding(.top, MonacoTheme.Space.s)
+            .accessibilityIdentifier("chat-offline-notice")
+    }
+}
+
 struct ChatSkeleton: View {
     var bottomAligned = true
-    private let bubbles: [(mine: Bool, width: CGFloat)] = [(false, 188), (true, 152), (false, 216)]
+    private let rows = 5
 
     var body: some View {
-        VStack(spacing: MonacoTheme.Space.s) {
+        VStack(spacing: MonacoTheme.Space.sm) {
             if bottomAligned { Spacer(minLength: 0) }
-            ForEach(Array(bubbles.enumerated()), id: \.offset) { _, bubble in
-                HStack(spacing: 0) {
-                    if bubble.mine { Spacer(minLength: 56) }
-                    SkeletonBlock(width: bubble.width, height: 38, radius: MonacoTheme.Radius.bubble)
-                    if !bubble.mine { Spacer(minLength: 56) }
+            ForEach(0..<rows, id: \.self) { index in
+                if index.isMultiple(of: 2) {
+                    HStack(alignment: .top, spacing: MonacoTheme.Space.s) {
+                        SkeletonBlock(
+                            width: ChatBubbleMetrics.avatarSize, height: ChatBubbleMetrics.avatarSize,
+                            radius: ChatBubbleMetrics.avatarSize / 2)
+                        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                            SkeletonBar(width: 120)
+                            SkeletonBar(width: 200)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                } else {
+                    HStack(spacing: 0) {
+                        Spacer(minLength: 0)
+                        SkeletonBar(width: 160)
+                    }
                 }
             }
             if !bottomAligned { Spacer(minLength: 0) }
@@ -99,13 +96,10 @@ struct ChatLoadEarlierButton: View {
             if isLoading {
                 ProgressView().tint(MonacoTheme.accent)
             } else {
-                Text(GroupChatCopy.loadEarlier).font(MonacoTheme.Typo.calloutStrong)
+                Text(GroupChatCopy.loadEarlier)
             }
         }
-        .buttonStyle(.borderless)
-        .foregroundStyle(MonacoTheme.brand)
-        .frame(maxWidth: .infinity, minHeight: 44)
-        .contentShape(Rectangle())
+        .buttonStyle(.monacoLoadMore)
         .disabled(isLoading)
         .accessibilityIdentifier(identifier)
     }
@@ -228,14 +222,14 @@ struct ChatList<Header: View, Content: View>: View {
             scrollToBottomRequests += 1
         } label: {
             HStack(spacing: MonacoTheme.Space.s) {
-                Image(systemName: "arrow.down").font(.caption.weight(.bold))
+                Image(systemName: "arrow.down").accessibilityHidden(true)
                 Text(GroupChatCopy.newMessagesPill(count: unreadCount))
-                    .font(MonacoTheme.Typo.captionStrong)
             }
-            .foregroundStyle(MonacoTheme.primaryButtonLabel)
+            .font(MonacoTheme.Typo.captionStrong)
+            .foregroundStyle(MonacoTheme.brand)
             .padding(.horizontal, MonacoTheme.Space.m)
             .padding(.vertical, MonacoTheme.Space.sm)
-            .background(Capsule().fill(MonacoTheme.primaryButtonFill))
+            .background(Capsule().fill(MonacoTheme.brandSoft))
             .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
@@ -267,6 +261,10 @@ struct ChatComposerBar: View {
         return draft.distance(from: draft.startIndex, to: range.upperBound)
     }
 
+    private var fieldGrown: Bool {
+        draft.contains("\n") || draft.count > ChatComposerShape.singleLineCharacters
+    }
+
     private var trimmedCount: Int {
         draft.trimmingCharacters(in: .whitespacesAndNewlines).unicodeScalars.count
     }
@@ -283,14 +281,14 @@ struct ChatComposerBar: View {
     }
 
     private var composer: some View {
-        VStack(alignment: .trailing, spacing: 4) {
+        VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
             HStack(alignment: .bottom, spacing: MonacoTheme.Space.s) {
                 field
                 sendButton
             }
             if trimmedCount > GroupChatDraft.maxCharacters - 200 {
                 Text("\(trimmedCount)/\(GroupChatDraft.maxCharacters)")
-                    .font(MonacoTheme.Typo.stamp)
+                    .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(
                         trimmedCount > GroupChatDraft.maxCharacters
                             ? MonacoTheme.destructive : MonacoTheme.secondaryText
@@ -298,14 +296,15 @@ struct ChatComposerBar: View {
                     .accessibilityIdentifier("chat-char-count")
             }
         }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.horizontal, MonacoTheme.Space.m)
         .padding(.vertical, MonacoTheme.Space.s)
         .background(MonacoTheme.background)
         .overlay(alignment: .top) { MonacoRule() }
     }
 
     private var field: some View {
-        TextField(
+        let shape = ChatComposerShape(grown: fieldGrown, grownRadius: MonacoTheme.Radius.bubble)
+        return TextField(
             placeholder,
             text: $draft,
             selection: $selection,
@@ -313,17 +312,15 @@ struct ChatComposerBar: View {
             axis: .vertical
         )
         .font(MonacoTheme.Typo.body)
-        .foregroundStyle(MonacoTheme.ink)
-        .tint(MonacoTheme.ink)
+        .foregroundStyle(MonacoTheme.primaryText)
+        .tint(MonacoTheme.brand)
         .lineLimit(1...5)
         .focused(focus)
-        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.horizontal, MonacoTheme.Space.sm)
         .padding(.vertical, MonacoTheme.Space.sm)
-        .frame(minHeight: 44)
-        .background(
-            MonacoTheme.surfaceSunken,
-            in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.field, style: .continuous)
-        )
+        .frame(minHeight: MonacoButtonMetrics.hitTarget)
+        .background(shape.fill(MonacoTheme.surfaceSunken))
+        .overlay(shape.stroke(MonacoTheme.hairline, lineWidth: 1))
         .accessibilityIdentifier("chat-composer")
     }
 
@@ -336,7 +333,7 @@ struct ChatComposerBar: View {
         }
         .buttonStyle(.plain)
         .disabled(!canSend)
-        .accessibilityLabel("Send message")
+        .accessibilityLabel(GroupChatCopy.sendLabel)
         .accessibilityIdentifier("chat-send")
     }
 
@@ -352,5 +349,19 @@ struct ChatComposerBar: View {
         selection = nil
         draft = ""
         send(body)
+    }
+}
+
+nonisolated struct ChatComposerShape: Shape {
+    static let singleLineCharacters = 34
+
+    let grown: Bool
+    let grownRadius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        if grown {
+            return RoundedRectangle(cornerRadius: grownRadius, style: .continuous).path(in: rect)
+        }
+        return Capsule(style: .continuous).path(in: rect)
     }
 }

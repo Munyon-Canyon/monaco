@@ -10,6 +10,8 @@ struct GroupChatView: View {
     @State private var session: ChatSession?
     @State private var cabal: CabalModel?
     @State private var reporter: ChatSeenReporter?
+    @State private var proposals: ChatProposalStore?
+    @State private var network = NetworkPathModel()
 
     var body: some View {
         GroupChatScreen(
@@ -18,12 +20,18 @@ struct GroupChatView: View {
             cabal: cabal?.cabal,
             reporter: reporter,
             viewerID: environment.viewer?.userID ?? "",
+            proposals: preparedProposals(),
+            network: network,
             openProfile: { userID in
                 environment.navigator.open(UserProfileRoute(userID: userID), in: environment.navigator.selectedTab)
             },
             openThread: { parentID in
                 environment.navigator.open(
                     ChatThreadRoute(cabalID: cabalID, parentID: parentID), in: environment.navigator.selectedTab)
+            },
+            openProposal: { proposalID in
+                environment.navigator.open(
+                    ProposalRoute(proposalID: proposalID), in: environment.navigator.selectedTab)
             }
         )
         .analyticsScreen("chat", step: .chat(.chatOpened))
@@ -32,6 +40,13 @@ struct GroupChatView: View {
             _ = preparedSession()
             await model.load()
         }
+    }
+
+    private func preparedProposals() -> ChatProposalStore {
+        if let proposals { return proposals }
+        let created = ChatProposalStore(api: environment.api)
+        proposals = created
+        return created
     }
 
     private func preparedCabal() -> CabalModel {
@@ -57,5 +72,57 @@ struct GroupChatView: View {
         ChatSessionRegistry.register(created)
         session = created
         return created
+    }
+}
+
+private final class ChatDetailsModels {
+    private var cabal: CabalModel?
+    private var pot: CabalPotModel?
+
+    func prepared(cabalID: String, environment: AppEnvironment) -> (CabalModel, CabalPotModel) {
+        let cabal = self.cabal ?? CabalModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
+        let pot =
+            self.pot
+            ?? CabalPotModel(
+                cabalID: cabalID, api: environment.api, hints: environment.hints, logoStore: environment.assetLogos)
+        self.cabal = cabal
+        self.pot = pot
+        return (cabal, pot)
+    }
+}
+
+struct ChatCabalDetailsSheet: View {
+    let cabalID: String
+
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(ToastCenter.self) private var toasts
+    @Environment(\.dismiss) private var dismiss
+    @State private var models = ChatDetailsModels()
+
+    var body: some View {
+        let (cabal, pot) = models.prepared(cabalID: cabalID, environment: environment)
+        NavigationStack {
+            SectionStack(
+                context: CabalContext(cabalID: cabalID), sections: CabalScreen.detailsSections.map { $0.erased }
+            )
+            .environment(\.cabalModel, cabal)
+            .environment(\.cabalPotModel, pot)
+            .monacoSheet(title: "Cabal details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                        .accessibilityIdentifier("chat-details-done")
+                }
+            }
+            .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
+        }
+        .presentationDetents([.medium, .large])
+        .monacoToastCenter(toasts)
+        .task {
+            async let loadedCabal: Void = cabal.load()
+            async let loadedPot: Void = pot.load()
+            _ = await (loadedCabal, loadedPot)
+        }
     }
 }
