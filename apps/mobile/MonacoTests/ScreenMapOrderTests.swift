@@ -10,7 +10,7 @@ struct ScreenMapOrderTests {
         #expect(
             names(HomeScreen.sections) == [
                 "HomeNudgeSlot", "HomePortfolioSlot", "HomeBalanceSlot", "HomePendingVotesSlot", "HomeCabalsSlot",
-                "HomePeopleBoardSlot",
+                "HomeLeaderboardSlot", "HomeMarketUpdatesSlot",
             ])
     }
 

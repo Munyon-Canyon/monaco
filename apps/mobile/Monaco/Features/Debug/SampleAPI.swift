@@ -13,6 +13,7 @@ nonisolated struct SampleAPIScript: Sendable {
         case assetsUnavailable
         case chartUnavailable
         case potUnavailable
+        case offline
     }
 
     var mode = Mode.populated
@@ -33,6 +34,17 @@ nonisolated struct SampleAPIScript: Sendable {
     var accessRequests: [Components.Schemas.CabalAccessRequest] = []
     var viewerCanVote = false
     var includesPausedStock = false
+    var portfolio: Components.Schemas.MyPortfolio?
+    var pnlHistory: Components.Schemas.MyPnlHistory?
+    var homeCabals: [Components.Schemas.MyCabal] = []
+    var ownershipBps: [String: Int32] = [:]
+    var proposals: [String: Components.Schemas.ProposalDetail] = [:]
+    var assets: [String: Components.Schemas.AssetDetail] = [:]
+    var cabalBoard: [Components.Schemas.LeaderboardRow] = []
+    var portfolioReadsBeforeFailing: Int?
+    var pendingVotesFail = false
+    var pendingVotesHang = false
+    var catalog: [Components.Schemas.AssetSummary] = []
 }
 
 nonisolated final class SampleAPIProtocol: URLProtocol {
@@ -41,6 +53,7 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
     private static let createdName = Mutex<String?>(nil)
     private static let castChoice = Mutex<String?>(nil)
     private static let postedComments = Mutex<[Components.Schemas.Comment]>([])
+    private static let portfolioReads = Mutex(0)
 
     static func install(_ next: SampleAPIScript) {
         script.withLock { $0 = next }
@@ -62,6 +75,11 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
     override func startLoading() {
         let script = Self.script.withLock { $0 }
         guard script.mode != .hang, let url = request.url else { return }
+        if script.pendingVotesHang, url.path == "/v1/me/pending-votes" { return }
+        if script.mode == .offline {
+            client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
+            return
+        }
         let method = request.httpMethod ?? "GET"
         if method == "POST", url.path == "/v1/cabals" {
             Self.createdName.withLock { $0 = requestObject()?["name"] as? String }
@@ -158,6 +176,11 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
         }
         if path.hasPrefix("/v1/me") { return meReply(path: path, script: script) }
         switch path {
+        case "/v1/leaderboards/cabals" where !script.cabalBoard.isEmpty:
+            var page = Components.Schemas.LeaderboardPage.samplePeople(count: 0)
+            page.board = "cabals"
+            page.rows = script.cabalBoard
+            return json(page)
         case "/v1/leaderboards/people", "/v1/leaderboards/cabals":
             return json(Components.Schemas.LeaderboardPage.samplePeople(count: empty ? 0 : 3))
         case "/v1/feed":
@@ -183,25 +206,54 @@ nonisolated extension SampleAPIProtocol {
         case "/v1/me":
             return json(Components.Schemas.Me.sample)
         case "/v1/me/cabals":
-            return empty ? raw("[]") : json(myCabals(script))
+            return myCabalsReply(script)
         case "/v1/me/balance":
             return script.mode == .balanceFails
                 ? problem(503, "unavailable", "The balance can't be read right now.") : json(script.balance)
         case "/v1/me/referral-code":
             return json(Components.Schemas.MyReferralCode.sample)
         case "/v1/me/portfolio":
-            return json(empty ? Components.Schemas.MyPortfolio.sampleEmpty : .sample)
+            return portfolioReply(script)
         case "/v1/me/pnl-history":
-            return json(empty ? Components.Schemas.MyPnlHistory.sampleEmpty : .sampleCurve())
+            return json(script.pnlHistory ?? (empty ? Components.Schemas.MyPnlHistory.sampleEmpty : .sampleCurve()))
         case "/v1/me/txns":
             return json(empty ? Components.Schemas.UserTxnPage.sampleEmpty : .sampleFirst)
         case "/v1/me/pending-votes":
-            return json(script.pendingVotes)
+            return pendingVotesReply(script)
         case "/v1/me/cabal-invites":
             return json(script.invites)
         default:
             return problem(404, "not_found", "Not in the sample data.")
         }
+    }
+
+    private static func myCabalsReply(_ script: SampleAPIScript) -> Reply {
+        if !script.homeCabals.isEmpty { return json(script.homeCabals) }
+        return script.mode == .empty ? raw("[]") : json(myCabals(script))
+    }
+
+    private static func portfolioReply(_ script: SampleAPIScript) -> Reply {
+        let reads = portfolioReads.withLock { count in
+            count += 1
+            return count
+        }
+        if let allowed = script.portfolioReadsBeforeFailing, reads > allowed {
+            return problem(503, "unavailable", "The portfolio can't be read right now.")
+        }
+        return json(script.portfolio ?? (script.mode == .empty ? .sampleEmpty : .sample))
+    }
+
+    private static func pendingVotesReply(_ script: SampleAPIScript) -> Reply {
+        if script.pendingVotesFail { return problem(503, "unavailable", "Proposals can't be read right now.") }
+        return json(script.pendingVotes)
+    }
+
+    private static func potReply(id: String, script: SampleAPIScript) -> Reply {
+        if script.mode == .potUnavailable { return problem(503, "unavailable", "The pot can't be read right now.") }
+        var pot = script.mode == .empty ? Components.Schemas.CabalPot.sampleZero : script.pot
+        pot.cabalId = id
+        if let bps = script.ownershipBps[id] { pot.me?.sliceBps = bps }
+        return json(pot)
     }
 
     private static func myCabals(_ script: SampleAPIScript) -> [Components.Schemas.MyCabal] {
@@ -213,7 +265,7 @@ nonisolated extension SampleAPIProtocol {
     }
 
     private static func proposalReply(id: String, tail: [String], method: String, script: SampleAPIScript) -> Reply {
-        guard var proposal = script.proposal else {
+        guard var proposal = script.proposals[id] ?? script.proposal else {
             return problem(503, "unavailable", "Proposals can't be read right now.")
         }
         proposal.id = id
@@ -281,9 +333,12 @@ nonisolated extension SampleAPIProtocol {
         }
         switch tail.count {
         case 0:
+            if !script.catalog.isEmpty {
+                return json(Components.Schemas.AssetList(assets: script.catalog, nextCursor: nil))
+            }
             return json(assetList(query: query, empty: script.mode == .empty, paused: script.includesPausedStock))
         case 1:
-            return json(script.asset)
+            return json(script.assets[tail[0]] ?? script.asset)
         case 2 where tail[1] == "chart":
             return json(
                 chartReply(script.chart, query: query, candleCount: script.candleCount, sparse: script.sparseCandles))
@@ -384,10 +439,7 @@ nonisolated extension SampleAPIProtocol {
         case nil:
             return json(cabalRead(id: id, script: script))
         case "pot":
-            if script.mode == .potUnavailable { return problem(503, "unavailable", "The pot can't be read right now.") }
-            var pot = empty ? Components.Schemas.CabalPot.sampleZero : script.pot
-            pot.cabalId = id
-            return json(pot)
+            return potReply(id: id, script: script)
         case "proposals":
             var proposal = Components.Schemas.Proposal.sample()
             proposal.canVote = script.viewerCanVote

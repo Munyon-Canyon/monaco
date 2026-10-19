@@ -1,19 +1,19 @@
 journey: demo/story
 expect-fail: S8
 
-The Home board is headed "Leaders". S8.1 scrolls to "Top investors", so it must fail.
+The Home board is headed "Leaders". The journey step that scrolls to the board header must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift b/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
-index a79a7c246..ec0e7b44a 100644
---- a/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
-+++ b/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
-@@ -18,7 +18,7 @@ private struct HomePeopleBoard: View {
+diff --git a/apps/mobile/Monaco/Features/Home/HomeLeaderboardSlot.swift b/apps/mobile/Monaco/Features/Home/HomeLeaderboardSlot.swift
+index e6c4bd8b1..6e5b56669 100644
+--- a/apps/mobile/Monaco/Features/Home/HomeLeaderboardSlot.swift
++++ b/apps/mobile/Monaco/Features/Home/HomeLeaderboardSlot.swift
+@@ -91,7 +91,7 @@ private struct HomeLeaderboard: View {
      var body: some View {
-         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
--                MonacoSectionHeader("Top investors")
-+                MonacoSectionHeader("Leaders")
-                 LeaderboardFreshnessText(loader: loader, identifier: "home-leaderboard-freshness")
+         let gate = HomeGate(portfolio: portfolio, reads: reads, balance: environment.balance.state)
+         VStack(alignment: .leading, spacing: 0) {
+-            MonacoSectionHeader("Leaderboard", trailing: "View all") {
++            MonacoSectionHeader("Leaders", trailing: "View all") {
+                 environment.navigator.open(HomeLeaderboardStubRoute(), in: .home)
              }
              .padding(.horizontal, MonacoTheme.Space.gutter)

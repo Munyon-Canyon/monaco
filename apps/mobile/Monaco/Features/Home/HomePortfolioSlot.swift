@@ -6,18 +6,34 @@ enum HomePortfolioSlot: HomeSection {
     static let isLive = true
 
     static func body(for context: Void) -> some View {
-        VStack(spacing: 0) {
-            HomeSharedErrorRow()
-            HomePortfolioHero()
-        }
+        HomePortfolioHero()
     }
 }
 
-enum HeroRhythm {
-    static let titleToBalance = MonacoTheme.Space.xs
-    static let balanceToChip = MonacoTheme.Space.s
-    static let chipToChart = MonacoTheme.Space.m
-    static let withinChart = MonacoTheme.Space.s
+enum HomeHeroMetrics {
+    static let skeletonFigureWidth: CGFloat = 180
+    static let skeletonReturnWidth: CGFloat = 140
+    static let skeletonBarFraction: CGFloat = 0.43
+}
+
+struct HomeHeroFigures: Equatable {
+    let amount: String
+    let percent: String?
+    let direction: PortfolioSummary.Direction
+    let period: String
+
+    static func resolve(
+        summary: PortfolioSummary, change: ValueCurve.Change?, range: LeaderboardRange
+    ) -> HomeHeroFigures {
+        guard let change else {
+            return HomeHeroFigures(
+                amount: summary.pnl, percent: summary.returnText == "—" ? nil : summary.returnText,
+                direction: summary.direction, period: LeaderboardRange.all.returnPeriodPhrase)
+        }
+        return HomeHeroFigures(
+            amount: change.amountText ?? UsdAmountFormatter.format(micros: 0), percent: change.percentText,
+            direction: change.direction, period: range.returnPeriodPhrase)
+    }
 }
 
 private struct HomePortfolioHero: View {
@@ -26,20 +42,26 @@ private struct HomePortfolioHero: View {
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
     @Environment(\.homeReads) private var reads
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var chart: ValueChartModel?
     @State private var selection: Int?
-    @State private var showsShare = false
 
     var body: some View {
         Group {
-            switch portfolio?.state ?? .loading {
-            case .idle, .loading:
-                HomePortfolioSkeleton()
-            case .failed, .loaded:
-                content
-                    .padding(.horizontal, MonacoTheme.Space.gutter)
-                    .padding(.top, MonacoTheme.Space.sm)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            if reads?.plan.showsSharedRow == true {
+                HomeSharedErrorState()
+            } else {
+                switch portfolio?.state ?? .loading {
+                case .idle, .loading:
+                    HomePageSkeleton()
+                case .failed:
+                    failed
+                case .loaded(let summary):
+                    loaded(summary)
+                        .padding(.horizontal, MonacoTheme.Space.gutter)
+                        .padding(.top, MonacoTheme.Space.m)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         }
         .accessibilityElement(children: .contain)
@@ -63,128 +85,188 @@ private struct HomePortfolioHero: View {
         }
     }
 
-    @ViewBuilder private var content: some View {
-        switch portfolio?.state ?? .loading {
-        case .idle, .loading:
-            EmptyView()
-        case .failed:
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                HomePortfolioTitle()
-                if reads.showsOwnRow(.portfolio) {
-                    MonacoErrorRow(thing: "your portfolio", identifier: "home-portfolio-failed", inset: false) {
-                        Task { await portfolio?.load() }
-                    }
-                }
+    @ViewBuilder private var failed: some View {
+        if reads.showsOwnRow(.portfolio) {
+            MonacoErrorRow(thing: "your portfolio", identifier: "home-portfolio-failed") {
+                Task { await portfolio?.load() }
             }
-        case .loaded(let summary):
-            VStack(alignment: .leading, spacing: HeroRhythm.chipToChart) {
-                VStack(alignment: .leading, spacing: HeroRhythm.balanceToChip) {
-                    VStack(alignment: .leading, spacing: HeroRhythm.titleToBalance) {
-                        HomePortfolioTitle()
-                        MoneyText(micros: summary.totalMicros, style: .hero)
-                            .accessibilityIdentifier("home-portfolio-total")
-                    }
-                    HStack(spacing: MonacoTheme.Space.s) {
-                        chip(summary)
-                        Spacer(minLength: 0)
-                        shareButton
-                    }
-                }
-                if !summary.isEmpty {
-                    curve
-                }
+            .padding(.top, MonacoTheme.Space.m)
+        }
+    }
+
+    private var cashMicros: Int64 {
+        if case .loaded(let balance) = environment.balance.state { return balance.availableMicros }
+        return 0
+    }
+
+    @ViewBuilder private func loaded(_ summary: PortfolioSummary) -> some View {
+        let variant = HomeVariant(summary: summary, cashMicros: cashMicros)
+        VStack(alignment: .leading, spacing: 0) {
+            stale
+            switch variant {
+            case .invested: invested(summary)
+            case .cashOnly: cashOnly
+            case .empty: empty
             }
         }
     }
 
-    @ViewBuilder private var shareButton: some View {
-        if ProfileScreen.canShare(profile: environment.sessionStore.profile, portfolioState: portfolio?.state) {
-            Button {
-                showsShare = true
-            } label: {
-                Image(systemName: "square.and.arrow.up")
-                    .font(MonacoTheme.Typo.subheadStrong)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+    @ViewBuilder private var stale: some View {
+        if portfolio?.isStale == true {
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                MonacoNotice(
+                    .warn, title: PortfolioStaleCopy.title,
+                    message: PortfolioStaleCopy.line(lastUpdated: portfolio?.lastUpdated, now: context.date)
+                )
+                .padding(.bottom, MonacoTheme.Space.m)
             }
-            .accessibilityLabel("Share your return")
-            .accessibilityIdentifier("home-share-button")
-            .sheet(isPresented: $showsShare) {
-                if let profile = environment.sessionStore.profile {
-                    ShareCardHost(api: environment.api) { await $0.loadMe(profile: profile) }
-                        .monacoToastCenter(toasts)
-                }
-            }
+            .accessibilityIdentifier("home-portfolio-stale")
         }
     }
 
-    @ViewBuilder private func chip(_ summary: PortfolioSummary) -> some View {
-        if summary.isEmpty {
-            Text("\(summary.chip) (0.0%) All time")
-                .moneyFont(.caption)
-                .foregroundStyle(MonacoTheme.secondaryText)
+    private func figure(_ text: String, color: Color = MonacoTheme.ink) -> some View {
+        Text(text)
+            .moneyFont(.hero)
+            .foregroundStyle(color)
+            .lineLimit(1)
+            .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
+            .contentTransition(reduceMotion ? .identity : .numericText())
+            .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: text)
+            .accessibilityIdentifier("home-portfolio-total")
+    }
+
+    private var emptyFigure: String { UsdAmountFormatter.format(micros: 0) }
+
+    private var empty: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+            figure(emptyFigure)
+            Text("No investment history yet")
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.muted)
                 .accessibilityIdentifier("home-portfolio-chip")
-        } else {
-            HStack(spacing: MonacoTheme.Space.s) {
-                PnLBadge(dollarPnl: summary.pnl, percentReturn: summary.returnText)
-                    .accessibilityIdentifier("home-portfolio-chip")
-                Text("All time")
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.muted)
-            }
         }
     }
 
-    private var hairline: some View {
-        Rectangle()
-            .fill(MonacoTheme.hairline)
-            .frame(height: 1)
-            .accessibilityHidden(true)
-            .accessibilityIdentifier("home-portfolio-flat")
+    private var cashOnly: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            figure(emptyFigure)
+            Text("No positions yet")
+                .font(MonacoTheme.Typo.subheadStrong)
+                .foregroundStyle(MonacoTheme.ink)
+                .padding(.top, MonacoTheme.Space.xs)
+                .accessibilityIdentifier("home-portfolio-chip")
+            QuietChart(message: "No investment history")
+                .padding(.top, MonacoTheme.Space.m)
+        }
     }
 
-    @ViewBuilder private var curve: some View {
+    @ViewBuilder private func invested(_ summary: PortfolioSummary) -> some View {
         if let chart {
-            VStack(alignment: .leading, spacing: HeroRhythm.withinChart) {
-                curveRows(chart)
+            VStack(alignment: .leading, spacing: 0) {
+                investedRows(summary, chart)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                figuresSkeleton
+                chartSkeleton
             }
         }
     }
 
-    @ViewBuilder private func curveRows(_ chart: ValueChartModel) -> some View {
+    @ViewBuilder private func investedRows(_ summary: PortfolioSummary, _ chart: ValueChartModel) -> some View {
         switch chart.state {
         case .idle, .loading:
-            CurveChangeLine(curve: nil, plot: .pnl)
-            CurveScrubChartFrame { SkeletonBlock(height: nil, radius: 12) }
-                .accessibilityIdentifier("home-portfolio-chart-loading")
-            rangeChips(chart)
+            figuresSkeleton
+            chartSkeleton
+            MonacoRangeChipsSkeleton(ranges: LeaderboardRange.homePeriods)
         case .failed:
+            figures(HomeHeroFigures.resolve(summary: summary, change: nil, range: chart.range))
             MonacoErrorRow(thing: "the chart", identifier: "home-portfolio-chart-failed", inset: false) {
                 Task { await chart.load() }
             }
+            .padding(.top, MonacoTheme.Space.m)
         case .loaded:
             let shown = chart.shownRange ?? chart.range
-            CurveChangeLine(curve: chart.curve, plot: .pnl, range: shown, selection: selection)
-            if let curve = chart.curve, curve.hasEnoughHistory {
-                CurveScrubChart(
-                    curve: curve, plot: .pnl, range: shown, selection: $selection, identifier: "home-pnl-chart")
-            } else {
-                CurveScrubChartFrame {
-                    VStack(alignment: .leading, spacing: HeroRhythm.withinChart) {
-                        hairline
-                        Text(shown.shortHistoryLine)
-                            .font(MonacoTheme.Typo.caption)
-                            .foregroundStyle(MonacoTheme.muted)
-                            .accessibilityIdentifier("home-portfolio-short")
-                    }
-                }
-            }
-            rangeChips(chart)
+            let curve = chart.curve.flatMap { $0.hasEnoughHistory ? $0 : nil }
+            figures(HomeHeroFigures.resolve(summary: summary, change: change(curve), range: shown))
+            plot(curve, range: shown)
+                .padding(.top, MonacoTheme.Space.m)
+            periods(chart)
         }
     }
 
-    private func rangeChips(_ chart: ValueChartModel) -> some View {
+    private func change(_ curve: ValueCurve?) -> ValueCurve.Change? {
+        guard let curve else { return nil }
+        guard let selection else { return curve.change(.pnl) }
+        return curve.change(.pnl, to: min(selection, max(curve.plotted(.pnl).count - 1, 0)))
+    }
+
+    private func color(_ direction: PortfolioSummary.Direction) -> Color {
+        switch direction {
+        case .up: MonacoTheme.profit
+        case .down: MonacoTheme.loss
+        case .flat: MonacoTheme.muted
+        }
+    }
+
+    @ViewBuilder private func figures(_ figures: HomeHeroFigures) -> some View {
+        figure(figures.amount)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: MonacoTheme.Space.s) { returnParts(figures) }
+            VStack(alignment: .leading, spacing: 0) { returnParts(figures) }
+        }
+        .padding(.top, MonacoTheme.Space.xs)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("home-portfolio-chip")
+    }
+
+    @ViewBuilder private func returnParts(_ figures: HomeHeroFigures) -> some View {
+        if let percent = figures.percent {
+            Text(percent)
+                .moneyFont(.row)
+                .foregroundStyle(color(figures.direction))
+                .lineLimit(1)
+                .fixedSize()
+        }
+        Text(figures.period)
+            .font(MonacoTheme.Typo.caption)
+            .foregroundStyle(MonacoTheme.muted)
+            .lineLimit(1)
+    }
+
+    private var figuresSkeleton: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+            Text(emptyFigure).moneyFont(.hero).skeletonBar(width: HomeHeroMetrics.skeletonFigureWidth)
+            Text(" ").moneyFont(.row)
+                .skeletonBar(width: HomeHeroMetrics.skeletonReturnWidth, radius: MonacoTheme.Radius.chip)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var chartSkeleton: some View {
+        CurveScrubChartFrame { SkeletonBlock(height: nil, radius: MonacoTheme.Radius.cardTight) }
+            .padding(.top, MonacoTheme.Space.m)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Loading the chart")
+            .accessibilityIdentifier("home-portfolio-chart-loading")
+    }
+
+    @ViewBuilder private func plot(_ curve: ValueCurve?, range: LeaderboardRange) -> some View {
+        if let curve {
+            CurveScrubChart(
+                curve: curve, plot: .pnl, range: range, selection: $selection, identifier: "home-pnl-chart")
+        } else {
+            CurveScrubChartFrame {
+                Text(range.shortHistoryLine)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.muted)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .accessibilityIdentifier("home-portfolio-short")
+            }
+        }
+    }
+
+    private func periods(_ chart: ValueChartModel) -> some View {
         MonacoRangeChips(
             ranges: chart.ranges, selection: chart.range, identifierPrefix: "home-portfolio"
         ) { range in
@@ -196,43 +278,29 @@ private struct HomePortfolioHero: View {
     private func preparedChart() -> ValueChartModel {
         if let chart { return chart }
         let chart = ValueChartModel(
-            subjects: [.me], ranges: LeaderboardRange.allCases, range: .oneDay, api: environment.api,
+            subjects: [.me], ranges: LeaderboardRange.homePeriods, range: .oneMonth, api: environment.api,
             hints: environment.hints)
         self.chart = chart
         return chart
     }
 }
 
-private struct HomePortfolioTitle: View {
+struct HomePageSkeleton: View {
     var body: some View {
-        Text("Your money in cabals")
-            .font(MonacoTheme.Typo.callout)
-            .foregroundStyle(MonacoTheme.muted)
-            .accessibilityAddTraits(.isHeader)
-    }
-}
-
-struct HomePortfolioSkeleton: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: HeroRhythm.chipToChart) {
-            VStack(alignment: .leading, spacing: HeroRhythm.balanceToChip) {
-                VStack(alignment: .leading, spacing: HeroRhythm.titleToBalance) {
-                    HomePortfolioTitle().skeletonBar(width: 140)
-                    MoneyText(micros: 0, style: .hero).skeletonBar(width: 180)
-                }
-                Text(" ").moneyFont(.caption).skeletonBar(width: 120, radius: 12)
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+                SkeletonTitle()
+                SkeletonFraction(HomeHeroMetrics.skeletonBarFraction) { SkeletonBar() }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                SkeletonCardBlock()
             }
-            VStack(alignment: .leading, spacing: HeroRhythm.withinChart) {
-                CurveChangeLine(curve: nil, plot: .pnl)
-                CurveScrubChartFrame { SkeletonBlock(height: nil, radius: 12) }
-                MonacoRangeChipsSkeleton(ranges: LeaderboardRange.allCases)
-            }
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            MonacoRowSkeleton(rows: 4, markShape: .circle, hasTrailing: false)
         }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.top, MonacoTheme.Space.sm)
+        .padding(.top, MonacoTheme.Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement()
-        .accessibilityLabel("Loading your money in cabals")
+        .accessibilityLabel("Loading Home")
         .accessibilityIdentifier("home-portfolio-loading")
     }
 }

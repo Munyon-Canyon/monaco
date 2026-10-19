@@ -63,6 +63,10 @@ public struct PortfolioSummary: Equatable, Sendable {
 
     public var isEmpty: Bool { rows.isEmpty }
 
+    public func netWorthMicros(cashMicros: Int64) -> Int64 {
+        totalMicros + cashMicros
+    }
+
     public init(_ portfolio: Components.Schemas.MyPortfolio) {
         rows = portfolio.cabals.map { Row($0, cabalCount: portfolio.cabals.count) }
         stats = ProfileStats(portfolio)

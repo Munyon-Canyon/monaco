@@ -1,3 +1,4 @@
+import Foundation
 import MonacoAPI
 import Observation
 
@@ -6,16 +7,20 @@ import Observation
 public final class PortfolioModel {
     public private(set) var state: LoadState<PortfolioSummary> = .idle
     public private(set) var toast: String?
+    public private(set) var lastUpdated: Date?
+    public private(set) var isStale = false
 
     private let api: APIClient
     private let hints: any HintSource
+    private let now: @Sendable () -> Date
     private var generation = 0
 
     @ObservationIgnored private lazy var refresher = HintRefresher { [weak self] in await self?.load() }
 
-    public init(api: APIClient, hints: any HintSource) {
+    public init(api: APIClient, hints: any HintSource, now: @escaping @Sendable () -> Date = PortfolioClock.system) {
         self.api = api
         self.hints = hints
+        self.now = now
     }
 
     public var summary: PortfolioSummary? {
@@ -31,13 +36,18 @@ public final class PortfolioModel {
             let portfolio = try await api.read { try await $0.getMyPortfolio().ok.body.json }
             guard issued == generation else { return }
             state = .loaded(PortfolioSummary(portfolio))
+            lastUpdated = now()
+            isStale = false
         } catch {
             guard issued == generation, !Task.isCancelled else { return }
             let error = APIError(error)
             if summary == nil {
                 state = .failed(error)
-            } else if !BackgroundRefresh.isActive {
-                toast = ToastCopy.message(for: error)
+            } else {
+                isStale = true
+                if !BackgroundRefresh.isActive {
+                    toast = ToastCopy.message(for: error)
+                }
             }
         }
     }

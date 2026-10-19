@@ -7,7 +7,8 @@ struct HomeSlotsTests {
     @Test func theHeroCabalsAndBoardSlotsAreLive() {
         #expect(HomePortfolioSlot.isLive)
         #expect(HomeCabalsSlot.isLive)
-        #expect(HomePeopleBoardSlot.isLive)
+        #expect(HomeLeaderboardSlot.isLive)
+        #expect(HomeMarketUpdatesSlot.isLive)
     }
 
     @Test func homeKeepsItsSectionOrder() {
@@ -18,7 +19,8 @@ struct HomeSlotsTests {
             HomeBalanceSlot.self,
             HomePendingVotesSlot.self,
             HomeCabalsSlot.self,
-            HomePeopleBoardSlot.self,
+            HomeLeaderboardSlot.self,
+            HomeMarketUpdatesSlot.self,
         ]
         #expect(order == expected.map { ObjectIdentifier($0) })
     }

@@ -20,16 +20,20 @@ struct MonacoBarTests {
     @Test func segmentsShareTheWidthByWeightAndKeepTheirGaps() {
         let widths = SegmentedBar.widths([3, 1, 4], in: 350, gap: 3)
 
-        #expect(abs(widths.reduce(0, +) + 2 * 3 - 350) < 0.001)
-        #expect(abs(widths[0] / widths[1] - 3) < 0.001)
-        #expect(abs(widths[2] / widths[1] - 4) < 0.001)
+        let total: CGFloat = widths.reduce(0, +) + 6
+        let first: CGFloat = widths[0] / widths[1]
+        let third: CGFloat = widths[2] / widths[1]
+        #expect(abs(total - 350) < 0.001)
+        #expect(abs(first - 3) < 0.001)
+        #expect(abs(third - 4) < 0.001)
     }
 
     @Test func aSegmentWithNoWeightTakesNoWidthAndNoGap() {
         let widths = SegmentedBar.widths([3, 0, 1], in: 100, gap: 3)
 
         #expect(widths[1] == 0)
-        #expect(abs(widths[0] + widths[2] + 3 - 100) < 0.001)
+        let total: CGFloat = widths[0] + widths[2] + 3
+        #expect(abs(total - 100) < 0.001)
     }
 
     @Test func aBarWithNoWeightDrawsNothing() {

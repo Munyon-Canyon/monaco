@@ -56,6 +56,26 @@ struct HomeBalanceLayoutTests {
         }
     }
 
+    @Test(.timeLimit(.minutes(1)), arguments: Phone.allCases)
+    func theMoneyStripKeepsDepositAtTheTrailingGutterWithAFullHitTarget(phone: Phone) async throws {
+        try ProposeAmountKeypadTests.setAutomation(enabled: true)
+        defer { try? ProposeAmountKeypadTests.setAutomation(enabled: false) }
+        let strip = HomeMoneyStrip(netWorthMicros: 11_582_320_000, display: .amount(500_000_000))
+        let window = try Self.window(strip, size: phone.size)
+        defer { window.isHidden = true }
+
+        let deposit = try await Self.element("home-add-money-link", in: window).accessibilityFrame
+        let cashElement = try await Self.element("platform-balance-value", in: window)
+        let cash = cashElement.accessibilityFrame
+        #expect(cashElement.accessibilityValue == "$500.00")
+        #expect(deposit.height >= 44, "Deposit is \(deposit.height)pt tall")
+        #expect(deposit.width >= 82, "Deposit is \(deposit.width)pt wide")
+        #expect(
+            abs(deposit.maxX - (phone.size.width - MonacoTheme.Space.gutter)) < 0.5,
+            "Deposit ends at \(deposit.maxX), not on the gutter")
+        #expect(cash.maxX <= deposit.minX, "Cash \(cash.maxX) runs under Deposit \(deposit.minX)")
+    }
+
     private static func buttons(in window: UIWindow) async throws -> (add: CGRect, withdraw: CGRect) {
         let add = try await element("home-add-money-link", in: window).accessibilityFrame
         let withdraw = try await element("home-withdraw-link", in: window).accessibilityFrame
@@ -70,7 +90,7 @@ struct HomeBalanceLayoutTests {
         return try #require(ProposeAmountKeypadTests.element(identifier, in: window))
     }
 
-    private static func window(_ summary: HomeBalanceSummary, size: CGSize) throws -> UIWindow {
+    private static func window(_ summary: some View, size: CGSize) throws -> UIWindow {
         let scene = try #require(
             UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first,
             "the test host has no window scene")
