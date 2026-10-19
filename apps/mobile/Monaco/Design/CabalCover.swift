@@ -69,13 +69,20 @@ struct CabalCover<Overlay: View>: View {
     private var sized: some View {
         switch style {
         case .hero:
-            overlay.frame(maxWidth: .infinity, minHeight: Self.heroHeight, alignment: .bottomLeading)
+            clearBaseWithOverlay.frame(maxWidth: .infinity, minHeight: Self.heroHeight, alignment: .bottomLeading)
         case .heroTall:
-            overlay.frame(maxWidth: .infinity, minHeight: Self.heroTallHeight, alignment: .bottomLeading)
+            clearBaseWithOverlay.frame(maxWidth: .infinity, minHeight: Self.heroTallHeight, alignment: .bottomLeading)
         case .card, .memberCard:
-            overlay.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            clearBaseWithOverlay.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         case .thumb(let size):
             Color.clear.frame(width: size, height: size)
+        }
+    }
+
+    private var clearBaseWithOverlay: some View {
+        ZStack(alignment: .bottomLeading) {
+            Color.clear
+            overlay
         }
     }
 
