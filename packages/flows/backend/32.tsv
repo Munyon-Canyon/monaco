@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+32	Notification preferences	notify	PUT /v1/me/notification-preferences	SetNotificationPreferences			ok;InvalidInput;Unauthorized;RateLimited;crash:before-commit	built	docs/architecture/notifications.md#preferences

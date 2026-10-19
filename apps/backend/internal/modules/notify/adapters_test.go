@@ -44,6 +44,14 @@ func TestHTTP_refusesCallersThatAreNotAUser(t *testing.T) {
 		) != tc.want {
 			t.Errorf("%s: DeleteDevice err = %v, want %s", name, err, tc.want)
 		}
+		get := api.GetNotificationPreferencesRequestObject{}
+		if _, err := h.GetNotificationPreferences(ctx, get); errs.CodeOf(err) != tc.want {
+			t.Errorf("%s: GetNotificationPreferences err = %v, want %s", name, err, tc.want)
+		}
+		put := api.PutNotificationPreferencesRequestObject{Body: &api.NotificationPreferences{}}
+		if _, err := h.PutNotificationPreferences(ctx, put); errs.CodeOf(err) != tc.want {
+			t.Errorf("%s: PutNotificationPreferences err = %v, want %s", name, err, tc.want)
+		}
 	}
 }
 
