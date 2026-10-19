@@ -154,7 +154,8 @@ func wireFeedItem(item app.FeedItem) api.FeedItem {
 		AssetId: optionalWireID(item.AssetID), Symbol: optionalWireText(item.Symbol), Title: item.Title,
 		Detail: optionalWireText(item.Detail), Body: optionalWireText(item.Body),
 		Status: optionalWireText(item.Status), Tone: string(item.Tone),
-		CommentCount: item.CommentCount, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt,
+		CommentCount: item.CommentCount, LikeCount: item.LikeCount, LikedByMe: item.LikedByMe,
+		CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt,
 	}
 }
 
@@ -177,4 +178,28 @@ func optionalWireText(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+func (h HTTP) PutFeedLike(ctx context.Context, req api.PutFeedLikeRequestObject) (api.PutFeedLikeResponseObject, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.LikeFeedItem.Handle(ctx, app.LikeFeedItem{FeedObjectID: req.Id, Viewer: me}); err != nil {
+		return nil, err
+	}
+	return api.PutFeedLike204Response{}, nil
+}
+
+func (h HTTP) DeleteFeedLike(
+	ctx context.Context, req api.DeleteFeedLikeRequestObject,
+) (api.DeleteFeedLikeResponseObject, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.UnlikeFeedItem.Handle(ctx, app.UnlikeFeedItem{FeedObjectID: req.Id, Viewer: me}); err != nil {
+		return nil, err
+	}
+	return api.DeleteFeedLike204Response{}, nil
 }

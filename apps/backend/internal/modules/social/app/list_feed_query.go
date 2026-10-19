@@ -53,6 +53,8 @@ type FeedItem struct {
 	Status       string
 	Tone         feed.Tone
 	CommentCount int32
+	LikeCount    int32
+	LikedByMe    bool
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -125,7 +127,8 @@ func feedItemOf(row sqlc.ListFeedRow) (FeedItem, error) {
 		AssetID: row.AssetID.Bytes, CabalName: row.CabalName.String, ActorName: payload.ActorName,
 		Symbol: row.Symbol.String, Title: row.Title, Detail: feed.RenderDetail(kind, payload), Body: row.Body.String,
 		Status: row.Status.String, Tone: feed.RenderTone(kind, payload), CommentCount: row.CommentCount,
-		CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC(),
+		LikeCount: row.LikeCount, LikedByMe: row.LikedByMe, CreatedAt: row.CreatedAt.UTC(),
+		UpdatedAt: row.UpdatedAt.UTC(),
 	}, nil
 }
 
