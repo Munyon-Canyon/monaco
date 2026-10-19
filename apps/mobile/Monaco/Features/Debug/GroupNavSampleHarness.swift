@@ -8,7 +8,6 @@ enum GroupNavSampleEntry: String, CaseIterable {
     case list
     case create
     case start
-    case newCabal
 
     static let launchArgument = "-MonacoGroupNavSample"
 
@@ -31,7 +30,6 @@ extension GroupNavSampleEntry {
         case .root, .list: [cabal]
         case .create: [CreateCabalRoute(), cabal]
         case .start: [CreateCabalRoute()]
-        case .newCabal: []
         }
     }
 }
@@ -41,9 +39,7 @@ struct GroupNavSampleHarness: View {
     @ObservedObject var auth: PrivyAuthService
 
     var body: some View {
-        SampleAppFrame(
-            auth: auth, tab: entry.tab, routes: entry.routes,
-            sheet: entry == .newCabal ? { AnyView(NewCabalSheet(onCreate: {})) } : nil)
+        SampleAppFrame(auth: auth, tab: entry.tab, routes: entry.routes)
     }
 }
 

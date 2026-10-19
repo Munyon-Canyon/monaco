@@ -89,12 +89,12 @@ enum TalkItOverJourney {
 
     static func card(_ app: XCUIApplication, run: String) -> XCUIElement {
         app.buttons.matching(
-            NSPredicate(format: "identifier BEGINSWITH 'cabals-list-card-' AND label CONTAINS %@", cabal(run: run))
+            NSPredicate(format: "identifier BEGINSWITH 'cabal-cover-card-' AND label CONTAINS %@", cabal(run: run))
         ).firstMatch
     }
 
     static func clearSearch(_ app: XCUIApplication) {
-        let field = JoinJourney.searchField(app)
+        let field = app.textFields["cabals-filter-field"]
         guard field.waitForExistence(timeout: 5), let text = field.value as? String, !text.isEmpty,
             text != field.placeholderValue
         else { return }
@@ -115,7 +115,7 @@ enum TalkItOverJourney {
         _ = list.waitForExistence(timeout: 10)
         var swipes = 0
         while !found.waitForExistence(timeout: 3) && swipes < 6 {
-            if list.exists { list.swipeLeft() }
+            if list.exists { list.swipeUp() }
             swipes += 1
         }
         XCTAssertTrue(found.exists, "\(step): no card for \(cabal(run: run)) on the Cabals tab")

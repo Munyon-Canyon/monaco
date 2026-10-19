@@ -14,27 +14,28 @@ struct CabalsTabComingSlotsTests {
 
     @Test(.timeLimit(.minutes(1)))
     func emptyListOffersToStartACabal() async throws {
-        let labels = try await Self.labels(restricted: false, body: "[]", until: "No cabals yet")
+        let labels = try await Self.labels(restricted: false, body: "[]", until: "Your cabal starts here")
 
-        #expect(labels.contains("Start a cabal"))
-        #expect(labels.contains("Start one with friends, or search above to find one."))
+        #expect(labels.contains("Create a cabal"))
+        #expect(labels.contains("Explore cabals"))
+        #expect(labels.contains("Create a cabal or open a shared invitation."))
     }
 
     @Test(.timeLimit(.minutes(1)))
     func restrictedEmptyListHasNoActionToStartACabal() async throws {
-        let labels = try await Self.labels(restricted: true, body: "[]", until: "No cabals yet")
+        let labels = try await Self.labels(restricted: true, body: "[]", until: "Your cabal starts here")
 
-        #expect(!labels.contains("Start a cabal"))
-        #expect(labels.contains("Search above to find one."))
+        #expect(!labels.contains("Create a cabal"))
+        #expect(!labels.contains("Explore cabals"))
+        #expect(labels.contains("Open a shared invitation to join a cabal."))
     }
 
     @Test(.timeLimit(.minutes(1)))
-    func listShowsTheNewCabalCardOnlyToAnUnrestrictedMember() async throws {
-        let open = try await Self.labels(restricted: false, body: Self.oneCabal, until: "Weekend pot")
-        let restricted = try await Self.labels(restricted: true, body: Self.oneCabal, until: "Weekend pot")
+    func listDrawsOneCoverCardAndNoDashedNewCabalCard() async throws {
+        let labels = try await Self.labels(restricted: false, body: Self.oneCabal, until: "Weekend pot")
 
-        #expect(open.contains("New cabal"))
-        #expect(!restricted.contains("New cabal"))
+        #expect(labels.contains { $0.hasPrefix("Weekend pot") })
+        #expect(!labels.contains("New cabal"))
     }
 
     private static let oneCabal = """

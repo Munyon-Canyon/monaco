@@ -3,7 +3,7 @@ import XCTest
 
 enum CreateCabalJourney {
     static let id = "cabals/create-cabal"
-    static let version = 8
+    static let version = 9
 
     private static let listTimeout: TimeInterval = 15
     private static let formTimeout: TimeInterval = 10
@@ -19,7 +19,6 @@ enum CreateCabalJourney {
 
     static func openForm(_ app: XCUIApplication, recorder: JourneyRecorder) {
         let plus = app.buttons["cabals-new-button"]
-        let start = app.buttons["new-cabal-create-row"]
 
         recorder.step("S1.1", "open the Cabals tab") {
             app.tab("Cabals").tap()
@@ -29,20 +28,17 @@ enum CreateCabalJourney {
             )
         }
 
-        recorder.step("S1.2", "open the New cabal sheet") {
+        recorder.step("S1.2", "open the create form from the +") {
             plus.tap()
-            XCTAssertTrue(start.waitForExistence(timeout: formTimeout), "S1.2: the sheet has no Start a cabal row")
-            XCTAssertFalse(
-                app.buttons["new-cabal-join-row"].exists, "S1.2: the sheet still offers to join with a code")
-        }
-
-        recorder.step("S1.3", "open the create form") {
-            start.tap()
             XCTAssertTrue(
                 app.textFields["create-group-name"].waitForExistence(timeout: formTimeout),
-                "S1.3: the name field did not show within \(Int(formTimeout)) s"
+                "S1.2: the + did not open Start a cabal within \(Int(formTimeout)) s"
             )
-            for rule in ["create-rule-voters", "create-rule-threshold", "create-rule-expiry"] {
+            XCTAssertFalse(app.buttons["new-cabal-create-row"].exists, "S1.2: the New cabal sheet still shows")
+        }
+
+        recorder.step("S1.3", "see the rule blocks") {
+            for rule in ["create-rule-join", "create-rule-voters", "create-rule-expiry"] {
                 XCTAssertTrue(app.element(rule).exists, "S1.3: the form has no \(rule)")
             }
             let week = app.element("create-rule-expiry").buttons["1 week"]
@@ -60,10 +56,9 @@ enum CreateCabalJourney {
             XCTAssertTrue(submit.isEnabled, "S2.1: Create cabal stayed disabled for '\(name)'")
         }
 
-        recorder.step("S2.2", "pick People I pick, Everyone agrees and 1 hour") {
+        recorder.step("S2.2", "pick People I pick and 1 hour") {
             for (rule, label) in [
-                ("create-rule-voters", "People I pick"),
-                ("create-rule-threshold", "Everyone agrees"), ("create-rule-expiry", "1 hour"),
+                ("create-rule-voters", "People I pick"), ("create-rule-expiry", "1 hour"),
             ] {
                 let choice = app.element(rule).buttons[label]
                 app.scrollIntoReach(choice)
@@ -118,21 +113,11 @@ enum CreateCabalJourney {
             XCTAssertTrue(list.waitForExistence(timeout: formTimeout), "S2.6: Back did not land on the Cabals list")
             let named = app.buttons.matching(
                 NSPredicate(
-                    format: "identifier BEGINSWITH 'cabals-list-card-' AND (label == %@ OR label BEGINSWITH %@)",
+                    format: "identifier BEGINSWITH 'cabal-cover-card-' AND (label == %@ OR label BEGINSWITH %@)",
                     name, name + ","))
             XCTAssertTrue(
                 named.firstMatch.waitForExistence(timeout: formTimeout), "S2.6: '\(name)' is not on the Cabals list")
             XCTAssertEqual(named.count, 1, "S2.6: '\(name)' is on the Cabals list \(named.count) times")
-            let newCard = app.buttons["cabals-list-new"]
-            swipeUntilHittable(newCard, in: list)
-            XCTAssertTrue(newCard.exists, "S2.6: no + New cabal card on the Cabals list")
-        }
-    }
-
-    private static func swipeUntilHittable(_ element: XCUIElement, in list: XCUIElement) {
-        let deadline = Date().addingTimeInterval(10)
-        while !element.isHittable && Date() < deadline {
-            list.swipeLeft(velocity: .fast)
         }
     }
 
@@ -166,9 +151,6 @@ enum CreateCabalJourney {
             let plus = app.buttons["cabals-new-button"]
             XCTAssertTrue(plus.waitForExistence(timeout: listTimeout), "S4.1: no + on the Cabals tab")
             plus.tap()
-            let start = app.buttons["new-cabal-create-row"]
-            XCTAssertTrue(start.waitForExistence(timeout: formTimeout), "S4.1: the sheet has no Start a cabal row")
-            start.tap()
             XCTAssertTrue(
                 app.textFields["create-group-name"].waitForExistence(timeout: formTimeout),
                 "S4.1: the name field did not show within \(Int(formTimeout)) s"

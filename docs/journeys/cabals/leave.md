@@ -1,7 +1,7 @@
 ---
 id: cabals/leave
 title: Leave a cabal
-version: 2
+version: 3
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -17,6 +17,8 @@ Old app (`c838bd24`): `GroupDetailView.swift` -> "Leave cabal" -> the dialog "Le
 
 The format of this doc is in [App journeys](../README.md).
 
+Discover cabals is where `cabals-search-field` lives. A step that says "Discover cabals" reaches it from the Cabals tab by typing a name the actor has no cabal called, such as `zzqq`, in `cabals-filter-field` ("Find your cabals"), then tapping `cabals-search-public` ("Search public cabals"), which pushes Discover cabals with that text in `cabals-search-field`; an actor with no cabals taps "Explore cabals" instead. The step then replaces the text in `cabals-search-field`.
+
 ## Preconditions
 
 | Id | What must be true |
@@ -31,24 +33,24 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | B | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA leave {QA.run}` | `cabal-header-name` reads `QA leave {QA.run}` and `cabal-member-count` reads "2 members" within 15 s |
+| S1.1 | B | tap, type, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA leave {QA.run}` | `cabal-header-name` reads `QA leave {QA.run}` and `cabal-member-count` reads "2 members" within 15 s |
 | S1.2 | B | tap, then scroll to | `cabal-details-button`, then `cabalLeaveButton` | | The "Cabal details" sheet shows, and `cabalLeaveButton` reads "Leave cabal" within 10 s |
 | S1.3 | B | tap | `cabalLeaveButton` | | The dialog "Leave QA leave {QA.run}?" shows `cabalLeaveConfirmButton` "Leave cabal" within 5 s |
 | S1.4 | B | tap | `cabalLeaveConfirmButton` | | The toast "You left QA leave {QA.run}." shows within 10 s, and the Cabals tab (`cabals-root`) shows within 10 s |
-| S1.5 | B | type | `cabals-search-field` | `QA leave {QA.run}` | The `cabals-search-enter-<id>` for `QA leave {QA.run}` is labelled "Join QA leave {QA.run}" within 10 s: B is no longer a member |
+| S1.5 | B | tap, then type | the Cabals tab and Discover cabals, then `cabals-search-field` | `QA leave {QA.run}` | The `cabals-search-enter-<id>` for `QA leave {QA.run}` is labelled "Join QA leave {QA.run}" within 10 s, with no `cabals-search-joined` badge: B is no longer a member |
 
 ### S2 The creator cannot leave while others remain
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA stay {QA.run}` | `cabal-member-count` reads "2 members" within 15 s |
+| S2.1 | A | tap, type, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA stay {QA.run}` | `cabal-member-count` reads "2 members" within 15 s |
 | S2.2 | A | tap, then scroll to | `cabal-details-button`, then `cabalLeaveCreatorNote` | | `cabalLeaveCreatorNote` reads "You can leave once everyone else has left." within 10 s, and there is no `cabalLeaveButton` |
 
 ### S3 Sell and leave
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | B | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA sell {QA.run}` | `cabal-header-name` reads `QA sell {QA.run}` within 15 s |
+| S3.1 | B | tap, type, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA sell {QA.run}` | `cabal-header-name` reads `QA sell {QA.run}` within 15 s |
 | S3.2 | B | tap, scroll to, then tap | `cabal-details-button`, then `cabalLeaveButton` | | The dialog "Leave QA sell {QA.run}?" offers "Sell and leave" next to "Leave cabal" within 5 s (old app: `GroupDetailView.swift` "Sell and leave") |
 
 ## Ground truth

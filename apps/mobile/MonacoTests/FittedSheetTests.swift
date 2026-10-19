@@ -10,12 +10,6 @@ import UIKit
 @Suite(.serialized)
 struct FittedSheetTests {
     @Test(.timeLimit(.minutes(1)))
-    func theNewCabalSheetShowsItsTitleAndStartRowWhole() async throws {
-        try await Self.expectWhole(
-            "new-cabal-create-row", titled: "New cabal", in: AnyView(NewCabalSheet(onCreate: {})))
-    }
-
-    @Test(.timeLimit(.minutes(1)))
     func theFacePickerShowsItsPhotoButtonWhole() async throws {
         let sheet = FacePickerSheet(currentAnimal: nil, onPickAnimal: { _ in }, onPickPhoto: { _ in })
         try await Self.expectWhole("face-choose-photo", titled: "Your face", in: AnyView(sheet))
