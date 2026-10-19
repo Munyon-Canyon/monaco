@@ -15,7 +15,7 @@ final class NullableReferenceDecodingTests: XCTestCase {
     }
 
     private func proposal(myBallot: String) -> String {
-        ##"{"id":"01890a5d-ac96-774b-bcce-b302099a8057","cabal_id":"\##(cabalID)","##
+        ##"{"id":"01890a5d-ac96-774b-bcce-b302099a8057","cabal_id":"\##(cabalID)","cabal_name":"Cabal","##
             + ##""proposer_id":"01890a5d-ac96-774b-bcce-b302099a8059","kind":"buy","symbol":"AAPLx","##
             + ##""usdc_micros":25000000,"token_amount":null,"quote_out_amount":105000000,"thesis":null,"##
             + ##""status":"open","status_reason":null,"status_message":null,"##

@@ -49,7 +49,7 @@ func TestHTTP_PostCabalProposal_refusesBeforeAndAfterTheCommand(t *testing.T) {
 	} {
 		adapter := adapters.HTTP{
 			Propose: h.handler(h.d.ids),
-			Reads:   app.NewProposalReads(h.d.pool, fakes.NewTrading()),
+			Reads:   app.NewProposalReads(h.d.pool, fakes.NewTrading(), h.w.cabals.current.Load()),
 		}
 		req := api.PostCabalProposalRequestObject{Id: h.w.cabal.UUID(), Body: &tc.body}
 		got, err := adapter.PostCabalProposal(tc.caller(), req)
@@ -66,6 +66,6 @@ func TestHTTP_PostCabalProposal_refusesBeforeAndAfterTheCommand(t *testing.T) {
 }
 
 func openedProposal(created api.PostCabalProposal201JSONResponse, voters int) bool {
-	return created.Status == api.ProposalStatusOpen && created.Tally.Voters == voters && created.CanVote &&
-		created.CanWithdraw && len(created.Voters) == voters
+	return created.CabalName == "Friends pot" && created.Status == api.ProposalStatusOpen &&
+		created.Tally.Voters == voters && created.CanVote && created.CanWithdraw && len(created.Voters) == voters
 }

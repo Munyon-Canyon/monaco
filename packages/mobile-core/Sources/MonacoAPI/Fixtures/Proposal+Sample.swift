@@ -5,8 +5,8 @@ extension Components.Schemas.Proposal {
         status: Components.Schemas.ProposalStatus = .open, kind: Components.Schemas.ProposalKind = .buy
     ) -> Self {
         .init(
-            id: "proposal-1", cabalId: "cabal-1", proposerId: "user-1", kind: kind, symbol: "AAPLx",
-            usdcMicros: 1_000_000,
+            id: "proposal-1", cabalId: "cabal-1", cabalName: "Friday Night Lights", proposerId: "user-1", kind: kind,
+            symbol: "AAPLx", usdcMicros: 1_000_000,
             quoteOutAmount: 1, status: status, expiresAt: .now.addingTimeInterval(86_400), createdAt: .now,
             tally: .init(yes: 0, no: 0, voters: 3, needed: 2), canVote: false)
     }
@@ -32,8 +32,9 @@ extension Components.Schemas.ProposalDetail {
                 castAt: choices[index] == nil ? nil : .now.addingTimeInterval(castOffsets[index]))
         }
         return .init(
-            id: "proposal-1", cabalId: Components.Schemas.Cabal.sample(role: nil).id, proposerId: members[1].userId,
-            kind: kind, symbol: "GOOGLx", usdcMicros: isSell ? nil : 25_000_000,
+            id: "proposal-1", cabalId: Components.Schemas.Cabal.sample(role: nil).id,
+            cabalName: Components.Schemas.Cabal.sample(role: nil).name, proposerId: members[1].userId, kind: kind,
+            symbol: "GOOGLx", usdcMicros: isSell ? nil : 25_000_000,
             tokenAmount: isSell ? 150_000_000 : nil,
             quoteOutAmount: isSell ? 25_000_000 : 14_250_000, thesis: "Earnings next week.", status: status,
             statusReason: nil, statusMessage: nil,
@@ -61,11 +62,13 @@ extension Components.Schemas.ProposalDetail {
 extension Components.Schemas.PendingVote {
     public static let samples: [Self] = [
         .init(
-            proposalId: "proposal-1", cabalId: Components.Schemas.Cabal.sample(role: nil).id, kind: .buy,
-            symbol: "GOOGLx", expiresAt: .now.addingTimeInterval(43_200)),
+            proposalId: "proposal-1", cabalId: Components.Schemas.Cabal.sample(role: nil).id,
+            cabalName: Components.Schemas.Cabal.sample(role: nil).name, kind: .buy, symbol: "GOOGLx",
+            expiresAt: .now.addingTimeInterval(43_200)),
         .init(
-            proposalId: "proposal-2", cabalId: Components.Schemas.Cabal.sample(role: nil).id, kind: .buy,
-            symbol: "GOOGLx", expiresAt: .now.addingTimeInterval(86_400)),
+            proposalId: "proposal-2", cabalId: Components.Schemas.Cabal.sample(role: nil).id,
+            cabalName: Components.Schemas.Cabal.sample(role: nil).name, kind: .buy, symbol: "GOOGLx",
+            expiresAt: .now.addingTimeInterval(86_400)),
     ]
 }
 

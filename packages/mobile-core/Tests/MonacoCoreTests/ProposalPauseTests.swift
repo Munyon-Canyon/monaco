@@ -73,7 +73,7 @@ final class ProposalPauseModelTests: XCTestCase {
 @MainActor
 final class PendingVotesPauseTests: XCTestCase {
     private let vote =
-        #"[{"proposal_id":"p","cabal_id":"c","kind":"buy","symbol":"AAPLx","expires_at":"2026-01-01T00:00:00Z"}]"#
+        #"[{"proposal_id":"p","cabal_id":"c","cabal_name":"Cabal","kind":"buy","symbol":"AAPLx","expires_at":"2026-01-01T00:00:00Z"}]"#
     private let paused =
         #"{"slice_micros":"1","share_units":"1","min_micros":"1","pause":{"reasons":["ops"],"since":"2026-01-01T00:00:00Z"}}"#
 

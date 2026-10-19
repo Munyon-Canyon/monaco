@@ -50,13 +50,25 @@ func TestAdminReads_PassOnEveryPortFailure(t *testing.T) {
 		"the status history":    {events: boom},
 		"the admin actions":     {actions: boom},
 	} {
-		reads := app.NewAdminReads(app.NewProposalReads(d.pool, fakes.NewTrading()), tc, tc, tc, tc)
+		reads := app.NewAdminReads(
+			app.NewProposalReads(d.pool, fakes.NewTrading(), fakes.NewCabal(nil, nil)),
+			tc,
+			tc,
+			tc,
+			tc,
+		)
 		if _, err := reads.Proposal(t.Context(), ids.ProposalIDFrom(p.ID)); errs.CodeOf(err) != errs.CodeDBUnavailable {
 			t.Errorf("%s: Proposal = %v, want db_unavailable", name, err)
 		}
 	}
 	failing := stubReads{cabal: boom}
-	reads := app.NewAdminReads(app.NewProposalReads(d.pool, fakes.NewTrading()), failing, failing, failing, failing)
+	reads := app.NewAdminReads(
+		app.NewProposalReads(d.pool, fakes.NewTrading(), fakes.NewCabal(nil, nil)),
+		failing,
+		failing,
+		failing,
+		failing,
+	)
 	if _, err := reads.CabalProposals(
 		t.Context(),
 		ids.CabalIDFrom(p.CabalID),

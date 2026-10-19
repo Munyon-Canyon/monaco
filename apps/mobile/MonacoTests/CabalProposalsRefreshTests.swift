@@ -112,7 +112,7 @@ struct CabalProposalsRefreshTests {
     }
 
     private static func proposalJSON(status: String) -> String {
-        #"{"id":"p","cabal_id":"cabal-1","proposer_id":"u","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"\#(status)","status_reason":null,"status_message":null,"expires_at":"2099-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":1,"no":0,"voters":1,"needed":1},"my_ballot":"yes","can_vote":true}"#
+        #"{"id":"p","cabal_id":"cabal-1","cabal_name":"Cabal","proposer_id":"u","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"\#(status)","status_reason":null,"status_message":null,"expires_at":"2099-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":1,"no":0,"voters":1,"needed":1},"my_ballot":"yes","can_vote":true}"#
     }
 
     private func listRequests(_ transport: StubTransport) async -> Int {
