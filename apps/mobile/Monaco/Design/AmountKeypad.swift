@@ -9,9 +9,14 @@ struct AmountKeypad: View {
     }
 }
 
+enum AmountKeypadMetrics {
+    static let keyHeight: CGFloat = 48
+}
+
 private struct AmountKeypadGrid: View {
     @Binding var amountText: String
-    @ScaledMetric(relativeTo: .title) private var rowHeight: CGFloat = 56
+    @ScaledMetric(relativeTo: .title) private var rowHeight: CGFloat = AmountKeypadMetrics.keyHeight
+    @State private var pressedKey: AmountKey?
 
     private static let rows: [[AmountKey]] = [
         [.digit(1), .digit(2), .digit(3)],
@@ -21,7 +26,7 @@ private struct AmountKeypadGrid: View {
     ]
 
     var body: some View {
-        Grid(horizontalSpacing: MonacoTheme.Space.xs, verticalSpacing: MonacoTheme.Space.xs) {
+        Grid(horizontalSpacing: MonacoTheme.Space.s, verticalSpacing: MonacoTheme.Space.s) {
             ForEach(Array(Self.rows.enumerated()), id: \.offset) { _, row in
                 GridRow {
                     ForEach(row, id: \.self) { key in
@@ -36,14 +41,28 @@ private struct AmountKeypadGrid: View {
 
     private func keyView(_ key: AmountKey) -> some View {
         face(key)
-            .frame(maxWidth: .infinity, minHeight: max(rowHeight, 44))
+            .frame(maxWidth: .infinity, minHeight: max(rowHeight, MonacoButtonMetrics.hitTarget))
+            .background(
+                RoundedRectangle(cornerRadius: MonacoTheme.Radius.field, style: .continuous)
+                    .fill(pressedKey == key ? MonacoTheme.surfaceSunken : MonacoTheme.surface)
+            )
             .contentShape(Rectangle())
             .onTapGesture { press(key) }
-            .onLongPressGesture(minimumDuration: 0.5) {
-                guard key == .delete, !amountText.isEmpty else { return }
-                Haptics.selection()
-                amountText = ""
-            }
+            .onLongPressGesture(
+                minimumDuration: 0.5,
+                perform: {
+                    guard key == .delete, !amountText.isEmpty else { return }
+                    Haptics.selection()
+                    amountText = ""
+                },
+                onPressingChanged: { pressed in
+                    if pressed {
+                        pressedKey = key
+                    } else if pressedKey == key {
+                        pressedKey = nil
+                    }
+                }
+            )
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(label(key))
             .accessibilityIdentifier(identifier(key))
@@ -62,7 +81,7 @@ private struct AmountKeypadGrid: View {
         case .dot:
             Text(".").font(MonacoTheme.Typo.title).foregroundStyle(MonacoTheme.ink)
         case .delete:
-            Image(systemName: "delete.left").font(MonacoTheme.Typo.section).foregroundStyle(MonacoTheme.ink)
+            Image(systemName: "delete.left").font(MonacoTheme.Typo.title).foregroundStyle(MonacoTheme.ink)
         }
     }
 
