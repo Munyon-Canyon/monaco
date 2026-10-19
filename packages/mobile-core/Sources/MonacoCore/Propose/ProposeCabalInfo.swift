@@ -3,15 +3,23 @@ import MonacoAPI
 public struct ProposeCabalInfo: Equatable, Sendable {
     public let name: String
     public let voters: String
+    public let votingWindow: String
+    public let votesToPass: String
 
-    public init(name: String, voters: String) {
+    public init(name: String, voters: String, votingWindow: String = "", votesToPass: String = "") {
         self.name = name
         self.voters = voters
+        self.votingWindow = votingWindow
+        self.votesToPass = votesToPass
     }
 
     public init(_ cabal: Components.Schemas.Cabal) {
         let voting = cabal.members.filter(\.canVote)
         name = cabal.name
+        votingWindow =
+            CabalProposalExpiry(rawValue: cabal.rules.proposalExpirySeconds)?.label
+            ?? CabalRulesSummary.durationLabel(seconds: cabal.rules.proposalExpirySeconds)
+        votesToPass = CabalThreshold(rawValue: cabal.rules.threshold)?.label ?? cabal.rules.threshold
         if voting.count == cabal.members.count, voting.count > 1 {
             voters = "All \(voting.count) members"
         } else {

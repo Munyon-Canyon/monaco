@@ -12,6 +12,18 @@ final class ProposeCabalInfoTests: XCTestCase {
         XCTAssertEqual(info.voters, "All 3 members")
     }
 
+    func testTheCabalRulesBecomeTheVotingWindowAndVotesToPassLabels() {
+        var cabal = Components.Schemas.Cabal.sampleWithMembers(role: "creator")
+        cabal.rules.threshold = "majority"
+        XCTAssertEqual(ProposeCabalInfo(cabal).votingWindow, "1 day")
+        XCTAssertEqual(ProposeCabalInfo(cabal).votesToPass, "Majority")
+
+        cabal.rules.proposalExpirySeconds = 7_200
+        cabal.rules.threshold = "unanimous"
+        XCTAssertEqual(ProposeCabalInfo(cabal).votingWindow, "2 hours")
+        XCTAssertEqual(ProposeCabalInfo(cabal).votesToPass, "Everyone agrees")
+    }
+
     func testAListOfVotersNamesThem() {
         var cabal = Components.Schemas.Cabal.sampleWithMembers(role: "creator")
         cabal.members[2].canVote = false
@@ -46,6 +58,9 @@ final class ProposeCabalInfoTests: XCTestCase {
 
         let info = try await ProposeCabalInfo.load(api: api, cabalID: "cabal-1")
 
-        XCTAssertEqual(info, ProposeCabalInfo(name: "QA pot", voters: "All 3 members"))
+        XCTAssertEqual(
+            info,
+            ProposeCabalInfo(
+                name: "QA pot", voters: "All 3 members", votingWindow: "1 day", votesToPass: "Everyone agrees"))
     }
 }
