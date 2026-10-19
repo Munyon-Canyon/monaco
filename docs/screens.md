@@ -73,7 +73,8 @@ CabalRoute ─┬─ non-member ──▶ Public cabal (join, request, accept an
             ├─ holding ────▶ CabalHoldingRoute
             ├─ Cash row ───▶ GroupCashRoute
             └─ activity row ▶ TransactionRoute
-Stocks ── row ──▶ AssetRoute ── Propose buy ──▶ Pick a cabal ──▶ Amount ──▶ Review
+Markets ┬─ row / mover tile ──▶ AssetRoute ── Propose buy ──▶ Pick a cabal ──▶ Amount ──▶ Review
+        └─ Manage / Add ──────▶ WatchlistRoute ── row ──▶ AssetRoute
 Profile ┬─ Followers / Following ──▶ FollowListRoute
         ├─ Name block ──────▶ EditProfileRoute
         ├─ Net worth / Cash ▶ BalancesRoute
@@ -354,9 +355,26 @@ Every propose screen sits on the v3 parts (`MonacoRow`, `MonacoCard`, `MonacoNot
 
 **Cabal cash** (`GroupCashRoute`, `GroupCashView`). Inline title "Cabal cash". Reads `GET /v1/cabals/{id}/pot`. The eyebrow "<cabal> · Cash", the cash figure and "Unallocated USDC in the cabal pot"; an "Idle cash" card with Asset, Cash in the cabal and Yield status; an info notice, "Current yield details are not available. The provider, rate and applicable terms will appear when confirmed."; then "Use cabal cash" with "Propose an investment" (hidden when the viewer cannot propose) and "Return to holdings". Yield status is "Rate requires live confirmation" today and never the asserted `CabalYield.apy`; it shows a rate only once the pot read carries one, and "Rate unavailable" in a warn notice when it reports cash without yield information. Missing API: the provider, rate and terms of the yield on a cabal's idle USDC. Until Lane B wires the holdings Cash row to `GroupCashRoute(cabalID:cabalName:)`, the screen is reachable only from `-groupCashHarness`.
 
-## Stocks tab
+## Markets tab
 
-Large title "Markets". Search "Search Apple, Tesla, NVDA…"; results replace the list, and no match shows "No stocks match “<q>”". A chip bar under the search field, "All" (`filter=all`, the default), "Popular" (`filter=popular`) and "Pre-IPO" (`filter=pre_ipo`), filters one paged list. Search keeps the chip, sending `q` and `filter` together. Rows: logo, ticker over name, a moon glyph when the home market is closed, price, day change chip. #577 owns the tab; it is the only live tab today.
+Large title "Markets". The tab was "Stocks", and its code and identifiers keep `StocksTab`, `tab-assets` and `assets-root`. Top to bottom:
+
+- **Search.** "Search stocks or tickers". Typing switches the whole screen to search mode (below); clearing returns to browse. The 300 ms debounce sends `q` and `filter` together.
+- **Stale notice.** The warn notice "Prices delayed · 14 minutes ago." (`markets-stale`) when the last refresh failed while rows from an earlier load are still on screen. The minutes count from the last good load, "1 minute ago" in the singular and "Prices delayed · just now." under a minute. The error toast still fires.
+- **Top movers.** The line "24h token price change" and a rail of up to four `MoverTile`s (logo, name over ticker, signed day change, "24h volume" over "Opens soon"; `markets-mover-<symbol>`). The rail ranks the first `filter=popular` page by the size of the day change, up or down, and hides with fewer than two stocks that have a change. At accessibility text sizes the tiles stack.
+- **Watchlist.** "Manage" opens `WatchlistRoute`. The first three watched stocks in the order they were added, quoted with `GET /v1/assets/{symbol}`, as stock rows (`markets-watchlist-row-<symbol>`). A quote that fails keeps its row with "—". With no stars the card "Your market, at a glance" / "Add stocks to your watchlist." with "Add" (`markets-watchlist-add`).
+- **Popular now.** "Most popular on Monaco" and the first three rows of the popular page in server order (`markets-popular-row-<symbol>`).
+- **All stocks.** Two menu selects. Sort (`stocks-sort`) offers "Default"; "Volume", "Trade count", "Name A–Z" and "Price change" are disabled under "More sorts open soon". Filter (`stocks-filter`) is "All" (`filter=all`, the default), "Popular" (`filter=popular`) or "Pre-IPO" (`filter=pre_ipo`). Under them the paged rows (`assets-row-<symbol>`).
+
+Rows are logo, name over ticker, price over day change and a chevron. A moon glyph shows while the home market is closed, "Paused" when the stock is tradable but not quotable, "—" stands for a missing price or change, and an untradable stock sits at 45% with "Can't buy right now".
+
+**Search mode.** The sections under the search field give way to "Search results", the same two selects and the rows (`assets-grid-search`). No match is "No matching stocks" / "Try a company name, ticker or another filter." (`assets-search-empty`).
+
+**States.** Loading is the skeleton shapes of the screen. An empty catalogue is "No stocks to show", and an empty filter is "No stocks in this filter" / "Try a different category.". A first load that fails is the full-screen "Couldn't load this view" with "Try again" (`assets-failed`). A refresh that fails with rows on screen keeps them and shows the stale notice and the error toast. Pull to refresh reloads the list, the popular page and the watchlist quotes, and a price hint refreshes all three while the tab is visible.
+
+**Opens soon.** The API does not serve a stock's 24h volume or trade count, a movers ordering, the other sorts or a sector filter. The tab shows "Opens soon" and the disabled sorts until it does.
+
+## Stock screen
 
 **Asset screen** (`AssetRoute`, #577). Title is the ticker. Name and ticker, price in `moneyFont(.hero)`, the change chip for the selected range ("Past day · GOOGL"), market session chip ("Market closed"), "Trading 24/7 on Solana", a candlestick chart (a toggle switches it to a line) with a price axis on the right, a time axis at the bottom, a dotted last-price rule with a green tag on the axis, an interval picker ("5m", "15m", "1h"… offered per range), chips 1D 1W 1M 3M 6M 1Y ALL, two-finger pinch to zoom around the fingers, one-finger horizontal drag to pan back in time (older bars load as the left edge nears), a "»" button that jumps back to the latest bar once scrolled away, and press-and-hold for a crosshair that the price above follows, then "Stats" (open, day high and low, previous close, 52-week high and low, read off the day and year candles and the quote's move; a row the candles cannot give is left out) and the 52-week range bar. The buy premium waits for the API to send it. Pre-IPO adds "Private-market reference" with the premium or discount, "Also available from" issuers, and "About <token>". When one of the viewer's cabals holds it: "Your cabals' position" with one row per cabal. Pinned CTA "Propose buy" with the caption "Your cabal votes before anything is bought", plus "Propose sell" when a cabal holds it. Short history: "Price history builds up over time." / "The curve draws as the token trades."
 

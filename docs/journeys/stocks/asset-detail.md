@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/StocksAssetDetailJourney.swift, ap
 
 # Look at a stock
 
-A signed-in member opens a stock from the Markets tab and reads its screen: the hero with price and session, the chart (candles or a line, with a bar interval picker and range chips), the Stats card with the 52-week bar, and the Propose buy button, which opens Pick a cabal and then Amount. On a Pre-IPO token they also read the private-market reference, About and "Also available from". When one of their cabals holds the stock, they see "Your cabals' position" and Propose sell. The spec is [Stocks: Asset screen](../../screens.md#stocks-tab). The old app's screen is `apps/mobile/Monaco/Features/Assets/AssetDetailView.swift` at `c838bd24`, which every step cites as "old app".
+A signed-in member opens a stock from the Markets tab and reads its screen: the hero with price and session, the chart (candles or a line, with a bar interval picker and range chips), the Stats card with the 52-week bar, and the Propose buy button, which opens Pick a cabal and then Amount. On a Pre-IPO token they also read the private-market reference, About and "Also available from". When one of their cabals holds the stock, they see "Your cabals' position" and Propose sell. The spec is [Stocks: Asset screen](../../screens.md#stock-screen). The old app's screen is `apps/mobile/Monaco/Features/Assets/AssetDetailView.swift` at `c838bd24`, which every step cites as "old app".
 
 The format of this doc is in [App journeys](../README.md).
 

@@ -1,19 +1,18 @@
 journey: stocks/browse
 expect-fail: S2
 
-A search with no match reads "No results". S2.2 expects "No stocks match “<q>”", so S2 must fail.
+A search with no match reads "No results". S2.2 expects "No matching stocks", so S2 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
-
-diff --git a/apps/mobile/Monaco/Features/Assets/StocksTabView.swift b/apps/mobile/Monaco/Features/Assets/StocksTabView.swift
-index 806ce14fa..b8057a18c 100644
---- a/apps/mobile/Monaco/Features/Assets/StocksTabView.swift
-+++ b/apps/mobile/Monaco/Features/Assets/StocksTabView.swift
-@@ -102,7 +102,7 @@ private struct StocksTabScreen: View {
-     }
- 
-     private var searchEmptyTitle: String {
--        guard model.browse != .all else { return "No stocks match “\(query)”" }
-+        guard model.browse != .all else { return "No results" }
-         return "No \(model.browse.title) stocks match “\(query)”"
-     }
- 
+diff --git a/apps/mobile/Monaco/Features/Assets/MarketsSections.swift b/apps/mobile/Monaco/Features/Assets/MarketsSections.swift
+index f14538bf6..4b298e353 100644
+--- a/apps/mobile/Monaco/Features/Assets/MarketsSections.swift
++++ b/apps/mobile/Monaco/Features/Assets/MarketsSections.swift
+@@ -216,7 +216,7 @@ struct MarketsAllStocks: View {
+         case .loaded:
+             if model.isSearching {
+                 EmptyState(
+-                    title: "No matching stocks", message: "Try a company name, ticker or another filter.",
++                    title: "No results", message: "Try a company name, ticker or another filter.",
+                     systemImage: "magnifyingglass"
+                 )
+                 .accessibilityIdentifier("assets-search-empty")

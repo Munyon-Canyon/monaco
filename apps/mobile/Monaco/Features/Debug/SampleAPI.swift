@@ -58,6 +58,7 @@ nonisolated struct SampleAPIScript: Sendable {
     var pendingVotesFail = false
     var pendingVotesHang = false
     var catalog: [Components.Schemas.AssetSummary] = []
+    var failsAfterAssetReads: Int?
 }
 
 nonisolated final class SampleAPIProtocol: URLProtocol {
@@ -67,6 +68,7 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
     private static let castChoice = Mutex<String?>(nil)
     private static let postedComments = Mutex<[Components.Schemas.Comment]>([])
     private static let portfolioReads = Mutex(0)
+    private static let assetReads = Mutex(0)
 
     static func install(_ next: SampleAPIScript) {
         script.withLock { $0 = next }
@@ -362,7 +364,14 @@ nonisolated extension SampleAPIProtocol {
 
     private static func assetReply(tail: [String], query: [String: String], script: SampleAPIScript) -> Reply {
         let chartOnly = script.mode == .chartUnavailable && tail.last == "chart"
-        if script.mode == .assetsUnavailable || chartOnly {
+        let exhausted = script.failsAfterAssetReads.map { limit in
+            tail.count <= 1
+                && assetReads.withLock { reads in
+                    reads += 1
+                    return reads > limit
+                }
+        }
+        if script.mode == .assetsUnavailable || chartOnly || exhausted == true {
             return problem(503, "unavailable", "Stocks can't be read right now.")
         }
         switch tail.count {

@@ -6,18 +6,25 @@ struct StocksTabView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @State private var model: MonacoCore.StocksTabModel?
+    @State private var query: String
     private let makeModel: @MainActor (AppEnvironment) -> MonacoCore.StocksTabModel
 
-    init(makeModel: @escaping @MainActor (AppEnvironment) -> MonacoCore.StocksTabModel = StocksTabView.liveModel) {
+    init(
+        query: String = "",
+        makeModel: @escaping @MainActor (AppEnvironment) -> MonacoCore.StocksTabModel = StocksTabView.liveModel
+    ) {
+        _query = State(initialValue: query)
         self.makeModel = makeModel
     }
 
     var body: some View {
         ZStack {
             if let model {
-                StocksTabScreen(model: model, open: open)
+                StocksTabScreen(
+                    model: model, query: $query, open: { openSymbol($0.symbol) }, openSymbol: openSymbol,
+                    openWatchlist: { environment.navigator.open(WatchlistRoute(), in: .stocks) })
             } else {
-                StockRowSkeleton().frame(maxHeight: .infinity, alignment: .top)
+                ScrollView { MarketsLoading() }
             }
         }
         .monacoTopLevelHeader(title: StocksTab.title)
@@ -29,12 +36,19 @@ struct StocksTabView: View {
             guard let error = model?.lastError else { return }
             toasts.show(error)
         }
+        .onChange(of: environment.watchlist.symbols) { _, _ in
+            Task { await model?.quotes?.load() }
+        }
     }
 
     private func start() async {
-        let model = preparedModel()
-        if model.rows.isEmpty { await model.load() }
-        await model.observe()
+        let created = preparedModel()
+        if !query.isEmpty {
+            created.setQuery(query)
+        } else if created.rows.isEmpty {
+            await created.loadMarkets()
+        }
+        await created.observe()
     }
 
     private func preparedModel() -> MonacoCore.StocksTabModel {
@@ -45,119 +59,104 @@ struct StocksTabView: View {
     }
 
     static func liveModel(_ environment: AppEnvironment) -> MonacoCore.StocksTabModel {
-        MonacoCore.StocksTabModel(api: environment.api, hints: environment.hints, clock: ContinuousClock())
+        MonacoCore.StocksTabModel(
+            api: environment.api, hints: environment.hints, clock: ContinuousClock(),
+            watchlist: environment.watchlist)
     }
 
-    private func open(_ asset: MarketAsset) {
+    private func openSymbol(_ symbol: String) {
         Haptics.selection()
-        environment.navigator.open(AssetRoute(symbol: asset.symbol), in: .stocks)
+        environment.navigator.open(AssetRoute(symbol: symbol), in: .stocks)
     }
 }
 
 private struct StocksTabScreen: View {
     let model: MonacoCore.StocksTabModel
+    @Binding var query: String
     let open: (MarketAsset) -> Void
-    @State private var query = ""
+    let openSymbol: (String) -> Void
+    let openWatchlist: () -> Void
+
+    private enum Stage {
+        case loading, failed, empty, browse, search
+    }
+
+    private var stage: Stage {
+        if model.isSearching { return .search }
+        guard model.browse == .all, model.rows.isEmpty else { return .browse }
+        switch model.phase {
+        case .idle, .loading: return .loading
+        case .failed: return .failed
+        case .loaded: return .empty
+        }
+    }
+
+    private var popularIsLoading: Bool {
+        guard model.popular.rows.isEmpty else { return false }
+        switch model.popular.phase {
+        case .idle, .loading: return true
+        case .loaded, .failed: return false
+        }
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-            MonacoSearchField(placeholder: "Search Apple, Tesla, NVDA…", text: $query)
-                .padding(.horizontal, MonacoTheme.Space.gutter)
-            MonacoChipBar(
-                items: MonacoCore.StocksTabModel.Browse.allCases, selected: model.browse, title: \.title,
-                identifierPrefix: "stocks-chip"
-            ) { browse in
-                Task { await model.show(browse) }
-            }
-            ScrollView { content }
-                .scrollDismissesKeyboard(.interactively)
-                .refreshable { await model.load() }
-                .accessibilityIdentifier(model.isSearching ? "assets-grid-search" : "assets-grid")
-        }
-        .padding(.vertical, MonacoTheme.Space.m)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .monacoCanvas()
-        .foregroundStyle(MonacoTheme.ink)
-        .onChange(of: query) { _, value in model.setQuery(value) }
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .monacoCanvas()
+            .foregroundStyle(MonacoTheme.primaryText)
+            .onChange(of: query) { _, value in model.setQuery(value) }
     }
 
     @ViewBuilder private var content: some View {
-        if !model.rows.isEmpty {
-            rows(model.rows, loadsMore: model.hasMore)
-        } else {
-            switch model.phase {
-            case .idle, .loading:
-                StockRowSkeleton()
-            case .failed:
-                MonacoErrorRow(thing: "stocks", identifier: "assets-failed") { Task { await model.load() } }
-            case .loaded:
-                if model.isSearching {
-                    EmptyState(title: searchEmptyTitle)
-                        .accessibilityIdentifier("assets-search-empty")
-                } else {
-                    EmptyState(title: "No stocks to show")
+        switch stage {
+        case .loading:
+            ScrollView { MarketsLoading() }
+        case .failed:
+            AssetsLoadFailure(identifier: "assets-failed") { Task { await model.loadMarkets() } }
+        case .empty, .browse, .search:
+            ScrollView {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.section) {
+                    header
+                    sections
                 }
+                .padding(.top, MonacoTheme.Space.s)
+                .padding(.bottom, MonacoTheme.Space.l)
             }
+            .scrollDismissesKeyboard(.interactively)
+            .refreshable { await model.loadMarkets() }
+            .accessibilityIdentifier(model.isSearching ? "assets-grid-search" : "assets-grid")
         }
     }
 
-    private var searchEmptyTitle: String {
-        guard model.browse != .all else { return "No stocks match “\(query)”" }
-        return "No \(model.browse.title) stocks match “\(query)”"
-    }
-
-    private func rows(_ assets: [MarketAsset], loadsMore: Bool = false) -> some View {
-        VStack(spacing: MonacoTheme.Space.s) {
-            LazyVStack(spacing: 0) {
-                ForEach(assets) { asset in
-                    Button {
-                        open(asset)
-                    } label: {
-                        StocksAssetRow(asset: asset, isLast: asset.id == assets.last?.id)
-                    }
-                    .buttonStyle(.monacoRow)
-                    .accessibilityIdentifier("assets-row-\(asset.symbol)")
-                    .onAppear {
-                        guard loadsMore, asset.id == assets.last?.id else { return }
-                        Task { await model.loadMore() }
-                    }
-                }
+    private var header: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+            MonacoSearchField(placeholder: "Search stocks or tickers", text: $query)
+            if let minutes = model.staleMinutes {
+                MonacoNotice(.warn, message: MarketStaleness.pricesDelayed(minutes: minutes))
+                    .accessibilityIdentifier("markets-stale")
             }
-            .frame(maxWidth: .infinity)
         }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
     }
-}
 
-private struct StocksAssetRow: View {
-    let asset: MarketAsset
-    var isLast = false
-
-    var body: some View {
-        MarketStockRow(
-            name: AssetDisplayName.format(catalogName: asset.name, kind: asset.kind),
-            subtitle: asset.ticker,
-            mark: StockMark(
-                symbol: asset.symbol, displayName: asset.name, assetKind: asset.kind, logoURL: asset.logoURL),
-            isAvailable: asset.isTradable,
-            isLast: isLast
-        ) {
-            if asset.isPaused { PausedTag() }
-            HStack(spacing: MonacoTheme.Space.xs) {
-                if !asset.session.isRegularSession {
-                    Image(systemName: "moon.fill").font(MonacoTheme.Typo.caption)
-                        .foregroundStyle(MonacoTheme.warning).accessibilityLabel("Market closed")
-                }
-                if let micros = asset.priceMicros {
-                    MoneyText(micros: micros, style: .row)
-                } else {
-                    Text("—").font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.muted)
-                }
+    @ViewBuilder private var sections: some View {
+        switch stage {
+        case .search:
+            MarketsAllStocks(model: model, title: "Search results", open: open)
+        case .empty:
+            EmptyState(title: "No stocks to show", systemImage: "chart.line.uptrend.xyaxis")
+                .accessibilityIdentifier("assets-empty")
+        case .browse:
+            if popularIsLoading || !model.topMovers.isEmpty {
+                MarketsMoversSection(movers: model.topMovers, isLoading: popularIsLoading, open: open)
             }
-            if let basisPoints = asset.changeBasisPoints {
-                PercentText(basisPoints: basisPoints, style: .caption)
-            } else {
-                Text("—").font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.muted)
+            MarketsWatchlistSection(rows: model.quotes?.rows ?? [], open: openSymbol, manage: openWatchlist)
+            if popularIsLoading || !model.popularNow.isEmpty {
+                MarketsPopularSection(rows: model.popularNow, isLoading: popularIsLoading, open: open)
             }
+            MarketsAllStocks(model: model, title: "All stocks", open: open)
+        case .loading, .failed:
+            EmptyView()
         }
     }
 }

@@ -3,9 +3,8 @@ expect-fail: S3
 
 The Markets tab loses tab-assets. S3.1 opens Markets through it, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
-
 diff --git a/apps/mobile/Monaco/Features/Assets/StocksTab.swift b/apps/mobile/Monaco/Features/Assets/StocksTab.swift
-index e20caa833..4f159c7c4 100644
+index db0793797..2af91fa11 100644
 --- a/apps/mobile/Monaco/Features/Assets/StocksTab.swift
 +++ b/apps/mobile/Monaco/Features/Assets/StocksTab.swift
 @@ -3,7 +3,7 @@ import SwiftUI
@@ -15,5 +14,5 @@ index e20caa833..4f159c7c4 100644
 -    static let accessibilityIdentifier = "tab-assets"
 +    static let accessibilityIdentifier = "tab-stocks"
  
-     static func root() -> some View {
-         StocksTabView()
+     #if DEBUG
+     @MainActor static var sampleQuery = ""
