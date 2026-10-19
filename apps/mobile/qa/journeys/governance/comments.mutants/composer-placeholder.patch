@@ -5,13 +5,12 @@ The comment composer reads "Say something". S1.3 checks the spec's "Add a commen
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/packages/mobile-core/Sources/MonacoCore/Comments/CommentThread.swift b/packages/mobile-core/Sources/MonacoCore/Comments/CommentThread.swift
-index e45a82357..7e07438ab 100644
 --- a/packages/mobile-core/Sources/MonacoCore/Comments/CommentThread.swift
 +++ b/packages/mobile-core/Sources/MonacoCore/Comments/CommentThread.swift
-@@ -65,7 +65,7 @@ public enum CommentsCopy {
-     public static let title = "Comments"
-     public static let empty = "No comments yet"
-     public static let emptyMessage = "Be the first to comment."
+@@ -71,7 +71,7 @@
+     public static let title = "Discussion"
+     public static let empty = "No replies yet"
+     public static let emptyMessage = "Start the discussion."
 -    public static let placeholder = "Add a comment"
 +    public static let placeholder = "Say something"
      public static let membersOnly = "Only members of this cabal can comment."

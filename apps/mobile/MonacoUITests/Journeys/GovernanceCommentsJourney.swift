@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceCommentsJourney {
     static let id = "governance/comments"
-    static let version = 3
+    static let version = 4
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -53,11 +53,11 @@ enum GovernanceCommentsJourney {
             let thread = app.element("comment-thread")
             app.scrollIntoReach(thread)
             XCTAssertTrue(thread.waitForExistence(timeout: 10), "S1.2: no comment thread (known failure, #711)")
-            XCTAssertTrue(app.staticTexts["Comments"].exists, "S1.2: the thread is not headed 'Comments' (#711)")
+            XCTAssertTrue(app.staticTexts["Discussion"].exists, "S1.2: the thread is not headed 'Discussion' (#711)")
             XCTAssertTrue(
                 JoinJourney.waitForLabel(
-                    app.element("comment-thread-empty"), containing: "No comments yet", timeout: 10),
-                "S1.2: no 'No comments yet' within 10 s (known failure, #711)"
+                    app.element("comment-thread-empty"), containing: "No replies yet", timeout: 10),
+                "S1.2: no 'No replies yet' within 10 s (known failure, #711)"
             )
         }
 

@@ -148,7 +148,7 @@ Used by Home's "Needs your vote", the cabal's proposals and the proposals list (
 | Order | Slot | Owner | Shows |
 | --- | --- | --- | --- |
 | 1 | `ProposalDetailSlot` | #612 | The card's header and amount. "Proposed by Jordan · 33m". The tracker, then each voter's line ("Priya voted yes"). Voting buttons as on the card. "Why buy" with the reason in a ruled section. "Expected" with `quote_out_amount` as "about 0.73 shares at $341.57". A "Status" stepper "Voting", "Buying", "Done" that marks the reached step; a failed trade shows "Couldn't buy" at the last step with `swap.failure_message`, a "Retry" button when `retryable`, and a link to its `TransactionRoute`. The proposer sees "Withdraw proposal" while it is open (confirm "Withdraw this proposal?" / "Votes so far are dropped.", toast "Proposal withdrawn."). A gold coin burst plays once when a buy reaches Done |
-| 2 | `ProposalCommentsSlot` | #711 | "Comments", the thread, and a composer pinned at the bottom, "Add a comment". Empty: "No comments yet" |
+| 2 | `ProposalCommentsSlot` | #711 | "Discussion", the thread, and a composer pinned at the bottom, "Add a comment". Empty: "No replies yet" / "Start the discussion." |
 
 ## Propose (#613)
 
@@ -203,6 +203,17 @@ States. Loading is a skeleton under the live title and search. Empty: "No update
 **Opens soon.** The feed API sends no likes, no author one-month return ("+8.2% · 1M", or "P&L private"), no structured amounts, no 24h figures, no reply or approval items and only one kind filter. The app draws those only from the Debug sample harnesses (`-feedHarness`, `-feedPostHarness`), never from live data, and each needs a backend ticket: feed likes, the author return and its permission, structured trade and proposal figures (amount, share of the pot, units, average price, buy or sell), price-move figures, reply and outcome item kinds, and a multi-kind filter. Until the figures exist, a proposal or trade is drawn as a buy.
 
 **Muted** (`FeedMutesRoute`). Title "Muted". One 72pt row per mute with an icon, its label and "Unmute". Empty: "Nothing muted" / "Press and hold a post in your feed to mute its cabal, stock or person. They'll show up here."
+
+**Post and comments** (`FeedItemRoute`, #711). Title "Post & comments", pushed inside the Feed tab.
+
+| Part | Shows |
+| --- | --- |
+| Author | Avatar (opens `UserProfileRoute`), name, "<time> · <cabal>" ("Public" with no cabal). The one-month return pill waits for the API. A market item shows "Market update" instead |
+| Summary card | The item title, its thesis or detail, and for a stock a row with its logo, name, cabal and a chevron that opens the item's destination |
+| Discussion | "Discussion", then comments: 30pt avatar, name, time and "Reply", with replies indented one step |
+| Composer | "Add a comment" field and a send disc pinned above the tab bar. "Replying to <name>" with a cancel button while replying. "Sending…" while the comment posts, and "Your reply wasn’t sent. Your text is still here." after a failure |
+
+States. Loading is a skeleton. No comments: "No replies yet" / "Start the discussion.", composer kept. A post the viewer cannot read (404 or 403): "This update isn’t available" / "It may have been removed, or you may no longer have permission to view it." with "Back to feed", and no composer. Any other failure: "Couldn’t load this view" with "Try again". Comments that fail to load show a "Couldn't load comments." notice with "Try again". A non-member sees "Only members of this cabal can comment." in place of the field. `CommentThreadView` and `CommentComposerBar` are shared with the proposal screen.
 
 ## Chat (`ChatRoute`, #676)
 

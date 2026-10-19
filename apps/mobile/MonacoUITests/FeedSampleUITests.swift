@@ -90,6 +90,20 @@ nonisolated final class FeedSampleUITests: XCTestCase {
     }
 
     @MainActor
+    func testAFailedSendKeepsTheTextAndShowsTheNotice() {
+        let app = launch("-feedPostHarness", "failed")
+        let field = app.textFields["comment-composer-field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 15), "no composer field")
+        field.tap()
+        field.typeText("Count me in.")
+        app.buttons["comment-composer-send"].tap()
+        XCTAssertTrue(
+            app.staticTexts["Your reply wasn’t sent. Your text is still here."].waitForExistence(timeout: 10),
+            "no failure notice")
+        XCTAssertEqual(field.value as? String, "Count me in.", "the draft was lost")
+    }
+
+    @MainActor
     func testAnUnavailablePostHidesTheComposerAndGoesBackToTheFeed() {
         let app = launch("-feedPostHarness", "unavailable")
         let back = app.buttons["Back to feed"]
