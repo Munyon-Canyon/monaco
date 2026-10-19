@@ -25,6 +25,7 @@ type Me struct {
 	MemberWalletAddress chain.SolanaAddress
 	PhoneLinked         bool
 	XUsername           string
+	SharePerformance    bool
 	HandleChangeableAt  *time.Time
 	CreatedAt           time.Time
 }
@@ -39,11 +40,18 @@ func GetMe(ctx context.Context, q sqlc.DBTX, id ids.UserID) (Me, error) {
 		return Me{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	me := Me{
-		ID: id, Handle: row.Handle.String, DisplayName: cmp.Or(row.DisplayName, row.Handle.String),
-		PhotoURL: row.PhotoUrl.String, AuthState: domain.AuthState(row.AuthState),
-		AccountStatus: domain.AccountStatus(row.AccountStatus), LoginProvider: domain.LoginProvider(row.LoginProvider),
+		ID:                  id,
+		Handle:              row.Handle.String,
+		DisplayName:         cmp.Or(row.DisplayName, row.Handle.String),
+		PhotoURL:            row.PhotoUrl.String,
+		AuthState:           domain.AuthState(row.AuthState),
+		AccountStatus:       domain.AccountStatus(row.AccountStatus),
+		LoginProvider:       domain.LoginProvider(row.LoginProvider),
 		MemberWalletAddress: chain.SolanaAddress(row.Address),
-		PhoneLinked:         row.PhoneLinked, XUsername: row.XUsername.String, CreatedAt: row.CreatedAt.UTC(),
+		PhoneLinked:         row.PhoneLinked,
+		SharePerformance:    row.SharePerformance,
+		XUsername:           row.XUsername.String,
+		CreatedAt:           row.CreatedAt.UTC(),
 	}
 	if row.HandleChangedAt.Valid {
 		at := row.HandleChangedAt.Time.UTC().Add(domain.HandleChangeInterval)

@@ -189,7 +189,9 @@ func (h HTTP) PatchMe(ctx context.Context, req api.PatchMeRequestObject) (api.Pa
 	if req.Body == nil {
 		return nil, errs.New(errs.CodeInvalidInput, "identity.PatchMe")
 	}
-	me, err := h.Update.Handle(ctx, user, req.Body.DisplayName)
+	me, err := h.Update.Handle(ctx, user, app.ProfileChanges{
+		DisplayName: req.Body.DisplayName, SharePerformance: req.Body.SharePerformance,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -243,11 +245,21 @@ func caller(ctx context.Context) (ids.UserID, error) {
 
 func wireMe(m app.Me) api.Me {
 	return api.Me{
-		Id: m.ID.UUID(), Handle: present(m.Handle), DisplayName: m.DisplayName, PhotoUrl: present(m.PhotoURL),
-		AuthState: api.AuthState(m.AuthState), AccountStatus: api.AccountStatus(m.AccountStatus),
-		LoginProvider:       api.LoginProvider(m.LoginProvider),
-		MemberWalletAddress: string(m.MemberWalletAddress), PhoneLinked: m.PhoneLinked,
-		XUsername: present(m.XUsername), HandleChangeableAt: m.HandleChangeableAt, CreatedAt: m.CreatedAt,
+		Id:            m.ID.UUID(),
+		Handle:        present(m.Handle),
+		DisplayName:   m.DisplayName,
+		PhotoUrl:      present(m.PhotoURL),
+		AuthState:     api.AuthState(m.AuthState),
+		AccountStatus: api.AccountStatus(m.AccountStatus),
+		LoginProvider: api.LoginProvider(m.LoginProvider),
+		MemberWalletAddress: string(
+			m.MemberWalletAddress,
+		),
+		PhoneLinked:        m.PhoneLinked,
+		SharePerformance:   m.SharePerformance,
+		XUsername:          present(m.XUsername),
+		HandleChangeableAt: m.HandleChangeableAt,
+		CreatedAt:          m.CreatedAt,
 	}
 }
 

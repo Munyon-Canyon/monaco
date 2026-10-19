@@ -598,6 +598,25 @@ func (q *Queries) SetPhotoURL(ctx context.Context, arg SetPhotoURLParams) (int64
 	return result.RowsAffected(), nil
 }
 
+const setSharePerformance = `-- name: SetSharePerformance :execrows
+UPDATE users SET share_performance = $1, updated_at = $2
+WHERE id = $3 AND share_performance IS DISTINCT FROM $1
+`
+
+type SetSharePerformanceParams struct {
+	SharePerformance bool
+	Now              time.Time
+	ID               uuid.UUID
+}
+
+func (q *Queries) SetSharePerformance(ctx context.Context, arg SetSharePerformanceParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setSharePerformance, arg.SharePerformance, arg.Now, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setUserEmail = `-- name: SetUserEmail :exec
 UPDATE users SET email = $1, updated_at = $2
 WHERE id = $3 AND email IS DISTINCT FROM $1

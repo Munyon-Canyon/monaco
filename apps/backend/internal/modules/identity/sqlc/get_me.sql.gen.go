@@ -15,25 +15,26 @@ import (
 
 const getMe = `-- name: GetMe :one
 SELECT u.id, u.handle, u.handle_changed_at, u.display_name, u.photo_url, u.auth_state, u.account_status, u.login_provider,
-  (u.phone_verified_at IS NOT NULL)::boolean AS phone_linked, u.x_username, u.created_at, w.address
+  (u.phone_verified_at IS NOT NULL)::boolean AS phone_linked, u.x_username, u.created_at, w.address, u.share_performance
 FROM users u
 JOIN user_wallets w ON w.user_id = u.id
 WHERE u.id = $1 AND u.deleted_at IS NULL
 `
 
 type GetMeRow struct {
-	ID              uuid.UUID
-	Handle          pgtype.Text
-	HandleChangedAt pgtype.Timestamptz
-	DisplayName     string
-	PhotoUrl        pgtype.Text
-	AuthState       string
-	AccountStatus   string
-	LoginProvider   string
-	PhoneLinked     bool
-	XUsername       pgtype.Text
-	CreatedAt       time.Time
-	Address         string
+	ID               uuid.UUID
+	Handle           pgtype.Text
+	HandleChangedAt  pgtype.Timestamptz
+	DisplayName      string
+	PhotoUrl         pgtype.Text
+	AuthState        string
+	AccountStatus    string
+	LoginProvider    string
+	PhoneLinked      bool
+	XUsername        pgtype.Text
+	CreatedAt        time.Time
+	Address          string
+	SharePerformance bool
 }
 
 func (q *Queries) GetMe(ctx context.Context, id uuid.UUID) (GetMeRow, error) {
@@ -52,6 +53,7 @@ func (q *Queries) GetMe(ctx context.Context, id uuid.UUID) (GetMeRow, error) {
 		&i.XUsername,
 		&i.CreatedAt,
 		&i.Address,
+		&i.SharePerformance,
 	)
 	return i, err
 }

@@ -95,7 +95,7 @@ SELECT id, handle, display_name, photo_url, auth_state, account_status,
   (phone_verified_at IS NOT NULL)::boolean AS phone_verified,
   (x_user_id IS NOT NULL)::boolean AS x_linked,
   auth_state_changed_at, created_at, first_deposit_at,
-  (deleted_at IS NOT NULL)::boolean AS deleted
+  (deleted_at IS NOT NULL)::boolean AS deleted, share_performance
 FROM users
 WHERE handle = $1::text AND deleted_at IS NULL
 `
@@ -113,6 +113,7 @@ type UserCardByHandleRow struct {
 	CreatedAt          time.Time
 	FirstDepositAt     pgtype.Timestamptz
 	Deleted            bool
+	SharePerformance   bool
 }
 
 func (q *Queries) UserCardByHandle(ctx context.Context, handle string) (UserCardByHandleRow, error) {
@@ -131,6 +132,7 @@ func (q *Queries) UserCardByHandle(ctx context.Context, handle string) (UserCard
 		&i.CreatedAt,
 		&i.FirstDepositAt,
 		&i.Deleted,
+		&i.SharePerformance,
 	)
 	return i, err
 }
@@ -140,7 +142,7 @@ SELECT id, handle, display_name, photo_url, auth_state, account_status,
   (phone_verified_at IS NOT NULL)::boolean AS phone_verified,
   (x_user_id IS NOT NULL)::boolean AS x_linked,
   auth_state_changed_at, created_at, first_deposit_at,
-  (deleted_at IS NOT NULL)::boolean AS deleted
+  (deleted_at IS NOT NULL)::boolean AS deleted, share_performance
 FROM users
 WHERE id = ANY($1::uuid[])
 `
@@ -158,6 +160,7 @@ type UserCardsByIDRow struct {
 	CreatedAt          time.Time
 	FirstDepositAt     pgtype.Timestamptz
 	Deleted            bool
+	SharePerformance   bool
 }
 
 func (q *Queries) UserCardsByID(ctx context.Context, userIds []uuid.UUID) ([]UserCardsByIDRow, error) {
@@ -182,6 +185,7 @@ func (q *Queries) UserCardsByID(ctx context.Context, userIds []uuid.UUID) ([]Use
 			&i.CreatedAt,
 			&i.FirstDepositAt,
 			&i.Deleted,
+			&i.SharePerformance,
 		); err != nil {
 			return nil, err
 		}

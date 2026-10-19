@@ -48,6 +48,10 @@ WHERE id = sqlc.arg(id);
 UPDATE users SET display_name = sqlc.arg(display_name), updated_at = sqlc.arg(now)
 WHERE id = sqlc.arg(id) AND display_name IS DISTINCT FROM sqlc.arg(display_name);
 
+-- name: SetSharePerformance :execrows
+UPDATE users SET share_performance = sqlc.arg(share_performance), updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id) AND share_performance IS DISTINCT FROM sqlc.arg(share_performance);
+
 -- name: SetPhotoURL :execrows
 UPDATE users SET photo_url = sqlc.arg(photo_url)::text, updated_at = sqlc.arg(now)
 WHERE id = sqlc.arg(id) AND photo_url IS DISTINCT FROM sqlc.arg(photo_url)::text;

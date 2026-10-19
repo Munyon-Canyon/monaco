@@ -340,7 +340,7 @@ nonisolated extension SampleAPIProtocol {
             id: id, parentCommentId: parent,
             author: .init(
                 id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: "kaicenat", displayName: "Kai Cenat",
-                photoUrl: nil),
+                photoUrl: nil, returnPrivate: false),
             replyToHandle: nil, body: body, bodyDisplay: body, isMine: true, createdAt: .now)
         postedComments.withLock { $0.append(comment) }
     }

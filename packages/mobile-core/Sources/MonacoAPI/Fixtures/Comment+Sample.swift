@@ -9,7 +9,8 @@ extension Components.Schemas.Comment {
         Self(
             id: id, parentCommentId: parent,
             author: .init(
-                id: "author-\(author.lowercased())", handle: author.lowercased(), displayName: author, photoUrl: nil),
+                id: "author-\(author.lowercased())", handle: author.lowercased(), displayName: author, photoUrl: nil,
+                returnPrivate: false),
             replyToHandle: replyTo, body: body ?? "Comment \(id)",
             bodyDisplay: body ?? "Comment \(id)", isMine: mine,
             createdAt: Date(timeIntervalSinceNow: -minutesAgo * 60))

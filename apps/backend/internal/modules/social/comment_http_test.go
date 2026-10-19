@@ -31,7 +31,10 @@ func newCommentRoutes(t *testing.T) commentRoutes {
 	t.Helper()
 	f := commentRoutes{commentFixture: newCommentFixture(t)}
 	users := fakes.NewIdentity([]identity.UserCard{
-		{ID: f.cabal.Members[0].ID, Handle: "kai", DisplayName: "Kai", PhotoURL: "https://cdn.example.com/kai.jpg"},
+		{
+			ID: f.cabal.Members[0].ID, Handle: "kai", DisplayName: "Kai", PhotoURL: "https://cdn.example.com/kai.jpg",
+			SharePerformance: true,
+		},
 		{ID: f.cabal.Members[1].ID, Handle: "gone", DisplayName: "Gone", Deleted: true},
 		{ID: f.outsider, Handle: "mia", DisplayName: "Mia"},
 	}, nil)

@@ -45,7 +45,7 @@ func (h HTTP) GetFeed(ctx context.Context, req api.GetFeedRequestObject) (api.Ge
 	if err != nil {
 		return nil, err
 	}
-	items, err := wireFeedItems(ctx, h.Users, page.Items)
+	items, err := wireFeedItems(ctx, h.Users, h.Returns, page.Items)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func (h HTTP) GetFeedItem(
 	if err != nil {
 		return nil, err
 	}
-	items, err := wireFeedItems(ctx, h.Users, []app.FeedItem{view.Item})
+	items, err := wireFeedItems(ctx, h.Users, h.Returns, []app.FeedItem{view.Item})
 	if err != nil {
 		return nil, err
 	}
@@ -125,23 +125,26 @@ func feedFilter(kinds *string, cabal *uuid.UUID, symbol, q, scope *string) (app.
 	return f, nil
 }
 
-func wireFeedItems(ctx context.Context, users app.Users, items []app.FeedItem) ([]api.FeedItem, error) {
+func wireFeedItems(
+	ctx context.Context, users app.Users, returns app.Returns, items []app.FeedItem,
+) ([]api.FeedItem, error) {
 	var actors []ids.UserID
 	for _, item := range items {
 		if item.ActorID.UUID() != uuid.Nil && !slices.Contains(actors, item.ActorID) {
 			actors = append(actors, item.ActorID)
 		}
 	}
-	cards, err := users.UsersByID(ctx, actors)
+	who, err := loadPeople(ctx, users, returns, actors, "social.wireFeedItems")
 	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeOf(err), "social.wireFeedItems")
+		return nil, err
 	}
 	out := make([]api.FeedItem, len(items))
 	for i, item := range items {
 		out[i] = wireFeedItem(item)
-		if card, ok := cards[item.ActorID]; ok && !card.Deleted {
+		if card, ok := who.cards[item.ActorID]; ok && !card.Deleted {
 			out[i].ActorPhotoUrl = optionalWireText(card.PhotoURL)
 		}
+		out[i].Return1mBps, out[i].ReturnPrivate = who.authorReturn(item.ActorID)
 	}
 	return out, nil
 }

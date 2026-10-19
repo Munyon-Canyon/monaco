@@ -18,6 +18,7 @@ import (
 	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/analyticsapi"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
@@ -36,6 +37,12 @@ func (probe) PlatformBalanceTotal(context.Context) (money.Micros, error) { retur
 func (probe) LatestRun(context.Context) (rankingport.Run, error) { return rankingport.Run{}, nil }
 
 func (probe) LatestCabalValues(context.Context) ([]rankingport.CabalValue, error) { return nil, nil }
+
+func (probe) PeopleReturns(
+	context.Context, rankingport.Range, []ids.UserID,
+) (map[ids.UserID]rankingport.PersonReturn, error) {
+	return map[ids.UserID]rankingport.PersonReturn{}, nil
+}
 
 func probeMoney(pool *pgxpool.Pool, timeout time.Duration, run func(context.Context, dbsqlc.DBTX) error) app.Money {
 	return app.Money{

@@ -233,7 +233,7 @@ type LoginProvider string
 
 // Me The signed-in user's own account, as the app needs it to route and to draw the profile. It carries no email and no phone number.
 //
-// Examples: {"account_status":"active","auth_state":"ONBOARDING_COMPLETED","created_at":"2026-09-30T12:00:00Z","display_name":"Kai Cenat","handle":"kaicenat","handle_changeable_at":"2026-10-30T12:00:00Z","id":"01890a5d-ac96-774b-bcce-b302099a8058","login_provider":"sms","member_wallet_address":"Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf","phone_linked":true,"x_username":"kaicenat"}
+// Examples: {"account_status":"active","auth_state":"ONBOARDING_COMPLETED","created_at":"2026-09-30T12:00:00Z","display_name":"Kai Cenat","handle":"kaicenat","handle_changeable_at":"2026-10-30T12:00:00Z","id":"01890a5d-ac96-774b-bcce-b302099a8058","login_provider":"sms","member_wallet_address":"Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf","phone_linked":true,"share_performance":true,"x_username":"kaicenat"}
 type Me struct {
 	// AccountStatus The user's standing.
 	//
@@ -289,6 +289,11 @@ type Me struct {
 	//
 	// Examples: https://cdn.example.com/photos/kai.jpg
 	PhotoUrl *string `json:"photo_url,omitempty"`
+
+	// SharePerformance True (the default) when the user's one-month return shows on their feed posts and comments, false when they hide it.
+	//
+	// Examples: true
+	SharePerformance bool `json:"share_performance"`
 
 	// XUsername The linked X username. Absent when no X account is linked.
 	//
@@ -367,14 +372,19 @@ type SkipOnboardingStep struct {
 // SkipOnboardingStepStep Examples: phone
 type SkipOnboardingStepStep string
 
-// UpdateProfileRequest The profile fields a signed-in user may update.
+// UpdateProfileRequest The profile fields a signed-in user may update. Send at least one field, or the call is `invalid_input`.
 //
-// Examples: {"display_name":"Kai Cenat"}
+// Examples: {"display_name":"Kai Cenat"}, {"share_performance":false}
 type UpdateProfileRequest struct {
-	// DisplayName The caller's display name, normalized before it is stored.
+	// DisplayName The caller's display name, normalized before it is stored. Omit it to leave the name alone.
 	//
 	// Examples: Kai Cenat
-	DisplayName string `json:"display_name"`
+	DisplayName *string `json:"display_name,omitempty"`
+
+	// SharePerformance Whether the caller's one-month return shows on their feed posts and comments. Omit it to leave the setting alone.
+	//
+	// Examples: false
+	SharePerformance *bool `json:"share_performance,omitempty"`
 }
 
 // UserSearchResult The people matching a search, with handle-prefix matches first.
