@@ -4,8 +4,11 @@ import MonacoCore
 import SwiftUI
 
 enum StocksTabSampleScenario: String, CaseIterable {
-    case full
+    case ready
+    case watchlistEmpty
+    case noResults
     case loading
+    case stale
     case failed
     case empty
     case paused
@@ -20,14 +23,50 @@ enum StocksTabSampleScenario: String, CaseIterable {
     }
 
     var script: SampleAPIScript {
+        var script = SampleAPIScript(catalog: MarketsSampleCatalog.assets)
         switch self {
-        case .full: SampleAPIScript()
-        case .loading: SampleAPIScript(mode: .hang)
-        case .failed: SampleAPIScript(mode: .assetsUnavailable)
-        case .empty: SampleAPIScript(mode: .empty)
-        case .paused: SampleAPIScript(includesPausedStock: true)
+        case .ready, .watchlistEmpty, .noResults: break
+        case .loading: script.mode = .hang
+        case .stale: script.failsAfterAssetReads = 2 + StocksTabSampleScenario.watchedCount
+        case .failed: script.mode = .assetsUnavailable
+        case .empty: script.mode = .empty
+        case .paused: script = SampleAPIScript(includesPausedStock: true)
+        }
+        return script
+    }
+
+    var watched: [String] {
+        switch self {
+        case .ready, .stale: MarketsSampleCatalog.watched
+        case .watchlistEmpty, .noResults, .loading, .failed, .empty, .paused: []
         }
     }
+
+    var query: String { self == .noResults ? "zzzz" : "" }
+
+    var hints: any HintConnecting {
+        self == .stale ? SampleTickHints(after: .seconds(2)) : SampleSilentHints()
+    }
+
+    private static let watchedCount = MarketsSampleCatalog.watched.count
+}
+
+nonisolated struct SampleTickHints: HintConnecting {
+    let after: Duration
+
+    func hints(matching filter: HintFilter) -> AsyncStream<Hint> {
+        let hint = Hint.changed(.global, what: "prices_updated", id: "sample")
+        return AsyncStream { continuation in
+            let tick = Task {
+                try? await Task.sleep(for: after)
+                if filter.matches(hint) { continuation.yield(hint) }
+            }
+            continuation.onTermination = { _ in tick.cancel() }
+        }
+    }
+
+    func start() async {}
+    func stop() async {}
 }
 
 final class StocksTabSampleHarnessEntry: SampleHarnessEntry {
@@ -35,7 +74,9 @@ final class StocksTabSampleHarnessEntry: SampleHarnessEntry {
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
         guard let scenario = StocksTabSampleScenario.matching(arguments) else { return nil }
         SampleAPIProtocol.install(scenario.script)
-        return AnyView(SampleAppFrame(auth: auth, tab: .stocks))
+        MarketsSampleCatalog.install(watched: scenario.watched)
+        StocksTab.sampleQuery = scenario.query
+        return AnyView(SampleAppFrame(auth: auth, tab: .stocks, hints: scenario.hints))
     }
 }
 #endif

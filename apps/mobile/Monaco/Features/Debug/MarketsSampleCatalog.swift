@@ -19,8 +19,12 @@ enum MarketsSampleCatalog {
 
     static let watched = ["AAPLx", "NVDAx", "MSFTx"]
 
+    @MainActor private static var installed = false
+
     @MainActor
     static func install(watched symbols: [String]) {
+        guard !installed else { return }
+        installed = true
         WatchlistModels.shared = WatchlistModels(store: InMemoryWatchlistStore([userID: symbols]))
     }
 

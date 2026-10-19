@@ -290,12 +290,15 @@ cabal-no-picture              -MonacoGroupDetailSample noPicture
 cabal-picture-not-creator     -MonacoGroupDetailSample pictureNotCreator
 cabal-picture-upload-failure  -MonacoGroupDetailSample pictureUploadFailure
 
-stocks-tab-full               -MonacoStocksTabSample full
-stocks-tab-paused             -MonacoStocksTabSample paused
+stocks-tab-ready              -MonacoStocksTabSample ready
+stocks-tab-watchlist-empty    -MonacoStocksTabSample watchlistEmpty
+stocks-tab-no-results         -MonacoStocksTabSample noResults
 stocks-tab-loading            -MonacoStocksTabSample loading
+stocks-tab-stale              -MonacoStocksTabSample stale
 stocks-tab-failed             -MonacoStocksTabSample failed
 stocks-tab-empty              -MonacoStocksTabSample empty
-stocks-tab-full-large-text    -MonacoStocksTabSample full -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
+stocks-tab-paused             -MonacoStocksTabSample paused
+stocks-tab-ready-large-text   -MonacoStocksTabSample ready -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 asset-open                    -MonacoAssetDetailSample open
 asset-candles                 -MonacoAssetDetailSample candles
 asset-candles-long            -MonacoAssetDetailSample candlesLong
