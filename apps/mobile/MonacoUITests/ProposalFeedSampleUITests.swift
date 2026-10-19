@@ -246,7 +246,7 @@ nonisolated final class ProposeFlowSampleUITests: XCTestCase {
 
     @MainActor
     func testBuy_threeSteps_sendsToCabal() throws {
-        launch("chooser")
+        launch("chooserPushed")
         let buy = element("propose-kind-buy")
         XCTAssertTrue(buy.waitForExistence(timeout: 10), "the chooser never drew")
         sleep(1)
@@ -269,15 +269,13 @@ nonisolated final class ProposeFlowSampleUITests: XCTestCase {
         sleep(1)
         capture("12-amount")
 
-        element("amount-keypad-0").tap()
-        element("amount-keypad-0").tap()
+        element("amount-entry-field").typeText("00")
         XCTAssertTrue(
-            app.staticTexts["More than the pot has"].waitForExistence(timeout: 5),
+            app.staticTexts["Amount exceeds the cash balance."].waitForExistence(timeout: 5),
             "$5,000 should read as more than the pot has")
         capture("13-amount-over")
         preset.tap()
 
-        element("propose-amount-add-reason").tap()
         let thesis = element("propose-amount-reason")
         XCTAssertTrue(thesis.waitForExistence(timeout: 3), "the reason field never drew")
         thesis.typeText("Earnings Thursday.")
@@ -290,21 +288,21 @@ nonisolated final class ProposeFlowSampleUITests: XCTestCase {
         review.tap()
         let send = element("propose-review-send")
         XCTAssertTrue(send.waitForExistence(timeout: 5), "the review screen never drew")
-        XCTAssertEqual(send.label, "Send to cabal", "the send button should say where it goes")
+        XCTAssertEqual(send.label, "Send proposal", "the send button should say what it does")
         XCTAssertTrue(app.staticTexts["Earnings Thursday."].exists, "the thesis should repeat on the receipt")
         sleep(1)
         capture("14-review")
         send.tap()
 
-        let sent = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Proposal sent to")).firstMatch
-        XCTAssertTrue(sent.waitForExistence(timeout: 5), "no toast after sending")
+        let sent = app.staticTexts["Proposal sent"]
+        XCTAssertTrue(sent.waitForExistence(timeout: 5), "no outcome after sending")
         capture("15-sent")
     }
 
     @MainActor
     func testFlow_keepsSheetFullHeightWhenDragged() throws {
         launch("amount")
-        let addReason = element("propose-amount-add-reason")
+        let addReason = element("propose-amount-reason")
         XCTAssertTrue(addReason.waitForExistence(timeout: 10), "the amount step never drew")
         sleep(1)
 
@@ -319,13 +317,13 @@ nonisolated final class ProposeFlowSampleUITests: XCTestCase {
         capture("16-flow-after-drag")
         XCTAssertTrue(title.exists, "the screen closed")
         XCTAssertEqual(title.frame.minY, before, accuracy: 2, "the screen dropped from full height")
-        XCTAssertTrue(addReason.isHittable, "Add a reason slid out of reach")
+        XCTAssertTrue(addReason.isHittable, "the thesis field slid out of reach")
         XCTAssertTrue(element("propose-amount-review").isHittable, "Review slid out of reach")
     }
 
     @MainActor
     func testSell_dollarsToShares_reviewShowsEstimate() throws {
-        launch("chooser")
+        launch("chooserPushed")
         let sell = element("propose-kind-sell")
         XCTAssertTrue(sell.waitForExistence(timeout: 10), "the chooser never drew a sell row")
         sell.tap()
@@ -339,7 +337,6 @@ nonisolated final class ProposeFlowSampleUITests: XCTestCase {
         let half = app.buttons["50%"]
         XCTAssertTrue(half.waitForExistence(timeout: 5), "the sell amount step never drew its presets")
         half.tap()
-        element("propose-amount-add-reason").tap()
         let thesis = element("propose-amount-reason")
         XCTAssertTrue(thesis.waitForExistence(timeout: 3), "the reason field never drew")
         thesis.typeText("Take some profit before earnings.")
@@ -358,8 +355,8 @@ nonisolated final class ProposeFlowSampleUITests: XCTestCase {
         sleep(1)
         capture("22-sell-review")
         send.tap()
-        let sent = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Proposal sent to")).firstMatch
-        XCTAssertTrue(sent.waitForExistence(timeout: 5), "no toast after sending")
+        let sent = app.staticTexts["Proposal sent"]
+        XCTAssertTrue(sent.waitForExistence(timeout: 5), "no outcome after sending")
     }
 }
 
