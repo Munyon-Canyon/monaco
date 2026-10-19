@@ -5,15 +5,15 @@ The member board lists only the viewer, not every member. S4.7 looks for B on A'
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Design/MonacoBoardList.swift b/apps/mobile/Monaco/Design/MonacoBoardList.swift
-index 1d8ab798b..fa83236f1 100644
+index 4b88b1362..838802154 100644
 --- a/apps/mobile/Monaco/Design/MonacoBoardList.swift
 +++ b/apps/mobile/Monaco/Design/MonacoBoardList.swift
-@@ -98,7 +98,7 @@ struct LeaderboardBoardList<Empty: View, RowContent: View>: View {
+@@ -227,7 +227,7 @@ struct LeaderboardBoardList<Empty: View, RowContent: View>: View {
      }
  
      private var rows: some View {
 -        let rows = loader.rows
 +        let rows = loader.rows.filter(\.isViewer)
          let pinned = loader.pinnedMe
-         return MonacoGroupedList {
-             ForEach(rows) { row in
+         return VStack(spacing: 0) {
+             MonacoGroupedList {

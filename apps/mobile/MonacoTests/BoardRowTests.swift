@@ -50,4 +50,23 @@ struct BoardRowTests {
         #expect(
             BoardRow<EmptyView>.spoken(viewer, figure: .pnl) == "Rank 2, Ana, You, up 4.50 percent, up 2 dollars")
     }
+
+    @Test func movementUpIsSpokenWithPlaces() {
+        #expect(
+            BoardRow<EmptyView>.spoken(row(rank: 1), figure: .pnl, movement: 4)
+                == "First, Ana, up 4.50 percent, up 2 dollars, up 4 places")
+    }
+
+    @Test func movementDownByOneIsSpokenInTheSingular() {
+        #expect(
+            BoardRow<EmptyView>.spoken(row(rank: 3), figure: .pnl, movement: -1)
+                == "Rank 3, Ana, up 4.50 percent, up 2 dollars, down 1 place")
+    }
+
+    @Test func noMovementSaysNothingExtra() {
+        #expect(
+            BoardRow<EmptyView>.spoken(row(rank: 3), figure: .pnl, movement: nil)
+                == BoardRow<EmptyView>.spoken(row(rank: 3), figure: .pnl))
+        #expect(BoardRow<EmptyView>.spoken(row(rank: 3), figure: .pnl, movement: 0).hasSuffix("unchanged"))
+    }
 }
