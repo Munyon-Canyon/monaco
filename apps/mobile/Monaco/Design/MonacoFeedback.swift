@@ -44,6 +44,74 @@ struct SkeletonBlock: View {
     }
 }
 
+enum SkeletonMetrics {
+    static let titleHeight: CGFloat = 42
+    static let titleWidthFraction: CGFloat = 0.7
+    static let titleRadius: CGFloat = 6
+    static let barHeight: CGFloat = 16
+    static let barRadius: CGFloat = 6
+    static let cardHeight: CGFloat = 126
+    static let lineHeight: CGFloat = 14
+    static let lineRadius: CGFloat = 5
+    static let rowTitleFraction: CGFloat = 0.6
+    static let rowSubtitleFraction: CGFloat = 0.4
+    static let rowTrailingWidth: CGFloat = 56
+}
+
+struct SkeletonFraction<Content: View>: View {
+    private let fraction: CGFloat
+    private let content: Content
+
+    init(_ fraction: CGFloat, @ViewBuilder content: () -> Content) {
+        self.fraction = fraction
+        self.content = content()
+    }
+
+    var body: some View {
+        FractionLayout(fraction: fraction) { content }
+    }
+}
+
+private struct FractionLayout: Layout {
+    let fraction: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let subview = subviews.first else { return .zero }
+        guard let width = proposal.width else { return subview.sizeThatFits(.unspecified) }
+        let scaled = width * fraction
+        return CGSize(width: scaled, height: subview.sizeThatFits(ProposedViewSize(width: scaled, height: nil)).height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(
+            at: bounds.origin, anchor: .topLeading,
+            proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
+    }
+}
+
+struct SkeletonTitle: View {
+    var body: some View {
+        SkeletonFraction(SkeletonMetrics.titleWidthFraction) {
+            SkeletonBlock(height: SkeletonMetrics.titleHeight, radius: SkeletonMetrics.titleRadius)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct SkeletonBar: View {
+    var width: CGFloat?
+
+    var body: some View {
+        SkeletonBlock(width: width, height: SkeletonMetrics.barHeight, radius: SkeletonMetrics.barRadius)
+    }
+}
+
+struct SkeletonCardBlock: View {
+    var body: some View {
+        SkeletonBlock(height: SkeletonMetrics.cardHeight, radius: MonacoTheme.Radius.card)
+    }
+}
+
 extension View {
     func skeletonBar(width: CGFloat, radius: CGFloat = MonacoTheme.Radius.field) -> some View {
         hidden().lineLimit(1).frame(width: width).overlay { SkeletonBlock(width: width, height: nil, radius: radius) }

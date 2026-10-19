@@ -1,5 +1,11 @@
 import SwiftUI
 
+enum SectionHeaderMetrics {
+    static let countSize: CGFloat = 24
+    static let chevronSize: CGFloat = 13
+    static let hitHeight: CGFloat = 44
+}
+
 /// Sentence-case section title with an optional trailing text button ("See all").
 struct MonacoSectionHeader: View {
     private let title: String
@@ -27,45 +33,55 @@ struct MonacoSectionHeader: View {
         self.action = action
     }
 
+    @ScaledMetric(relativeTo: .subheadline) private var countSize = SectionHeaderMetrics.countSize
+    @ScaledMetric(relativeTo: .subheadline) private var chevronSize = SectionHeaderMetrics.chevronSize
+
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
-            Text(title)
-                .font(MonacoTheme.Typo.section)
-                .foregroundStyle(MonacoTheme.ink)
-                .lineLimit(2)
-                .accessibilityAddTraits(.isHeader)
-            if let count, count > 0 {
-                Text("\(count)")
-                    .font(MonacoTheme.Typo.captionStrong.monospacedDigit())
-                    .foregroundStyle(MonacoTheme.onBrand)
-                    .padding(.horizontal, MonacoTheme.Space.s)
-                    .frame(minWidth: 20, minHeight: 20)
-                    .background(Capsule().fill(MonacoTheme.brandFill))
-                    .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 5 }
-                    .accessibilityLabel("\(count)")
+        HStack(spacing: 0) {
+            HStack(spacing: MonacoTheme.Space.s) {
+                Text(title)
+                    .font(MonacoTheme.Typo.section)
+                    .foregroundStyle(MonacoTheme.primaryText)
+                    .lineLimit(2)
+                    .accessibilityAddTraits(.isHeader)
+                if let count, count > 0 {
+                    Text("\(count)")
+                        .font(MonacoTheme.Typo.captionStrong.monospacedDigit())
+                        .foregroundStyle(MonacoTheme.brand)
+                        .padding(.horizontal, count > 9 ? MonacoTheme.Space.xs : 0)
+                        .frame(minWidth: countSize, minHeight: countSize)
+                        .background(Capsule().fill(MonacoTheme.brandSoft))
+                        .accessibilityLabel("\(count)")
+                }
             }
             Spacer(minLength: MonacoTheme.Space.s)
             if let trailing {
                 if let action {
                     Button(action: action) {
-                        Text(trailing)
-                            .font(MonacoTheme.Typo.subheadStrong)
-                            .foregroundStyle(MonacoTheme.brand)
-                            .lineLimit(1)
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
+                        HStack(spacing: MonacoTheme.Space.xs) {
+                            Text(trailing)
+                                .font(MonacoTheme.Typo.captionStrong)
+                                .lineLimit(1)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: chevronSize, weight: .semibold))
+                                .accessibilityHidden(true)
+                        }
+                        .foregroundStyle(MonacoTheme.brand)
+                        .frame(minHeight: SectionHeaderMetrics.hitHeight)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier(actionIdentifier ?? "")
                 } else {
                     Text(trailing)
-                        .font(MonacoTheme.Typo.subhead)
-                        .foregroundStyle(MonacoTheme.muted)
+                        .font(MonacoTheme.Typo.caption)
+                        .foregroundStyle(MonacoTheme.secondaryText)
                         .lineLimit(1)
                 }
             }
         }
-        .frame(minHeight: action == nil ? nil : 44)
+        .frame(minHeight: SectionHeaderMetrics.hitHeight)
+        .padding(.bottom, MonacoTheme.Space.sm)
     }
 }
 
@@ -88,7 +104,7 @@ struct MonacoGroupedList<Content: View>: View {
 
 /// A one-pixel hairline, full width: 0.5pt on 2x, 0.33pt on 3x.
 struct MonacoRule: View {
-    var color: Color = MonacoTheme.hairline
+    var color: Color = MonacoTheme.border
     @Environment(\.displayScale) private var displayScale
 
     var body: some View {
@@ -99,7 +115,7 @@ struct MonacoRule: View {
     }
 }
 
-/// Leading 40pt mark, title over subtitle, trailing figures. Wrap in a `Button` or `NavigationLink`
+/// Leading 44pt mark, title over subtitle, trailing figures. Wrap in a `Button` or `NavigationLink`
 /// with `.buttonStyle(.monacoRow)` for the pressed state.
 struct MonacoRow<Leading: View, Trailing: View>: View {
     private let title: String
@@ -118,9 +134,9 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
     init(
         title: String,
         titleFont: Font = MonacoTheme.Typo.rowTitle,
-        titleColor: Color = MonacoTheme.ink,
+        titleColor: Color = MonacoTheme.primaryText,
         subtitle: String? = nil,
-        subtitleColor: Color = MonacoTheme.muted,
+        subtitleColor: Color = MonacoTheme.secondaryText,
         chevron: Bool = false,
         isLast: Bool = false,
         trailingIsInteractive: Bool = false,
@@ -199,12 +215,14 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
     var body: some View {
         content
             .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.vertical, MonacoTheme.Space.s)
+            .padding(.vertical, MonacoTheme.Space.sm)
             .frame(minHeight: MonacoRowLayout.minHeight)
             .contentShape(Rectangle())
             .overlay(alignment: .bottom) {
                 if !isLast {
-                    MonacoRule().padding(.leading, layout.separatorLeadingInset)
+                    MonacoRule()
+                        .padding(.leading, layout.separatorLeadingInset)
+                        .padding(.horizontal, MonacoTheme.Space.gutter)
                 }
             }
             .accessibilityElement(children: trailingIsInteractive ? .contain : .combine)
@@ -214,9 +232,9 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
 struct MonacoRowLabels<Extra: View>: View {
     let title: String
     var titleFont: Font = MonacoTheme.Typo.rowTitle
-    var titleColor: Color = MonacoTheme.ink
+    var titleColor: Color = MonacoTheme.primaryText
     var subtitle: String?
-    var subtitleColor: Color = MonacoTheme.muted
+    var subtitleColor: Color = MonacoTheme.secondaryText
     let layout: MonacoRowLayout
     @ViewBuilder var extra: Extra
 
@@ -230,7 +248,7 @@ struct MonacoRowLabels<Extra: View>: View {
             extra
             if let subtitle, !subtitle.isEmpty {
                 Text(subtitle)
-                    .font(MonacoTheme.Typo.subhead)
+                    .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(subtitleColor)
                     .lineLimit(layout.subtitleLineLimit)
                     .truncationMode(.tail)
@@ -241,10 +259,12 @@ struct MonacoRowLabels<Extra: View>: View {
 }
 
 struct MonacoRowChevron: View {
+    @ScaledMetric(relativeTo: .body) private var size: CGFloat = MonacoRowLayout.chevronSize
+
     var body: some View {
         Image(systemName: "chevron.right")
-            .font(.footnote.weight(.semibold))
-            .foregroundStyle(MonacoTheme.tertiaryText)
+            .font(.system(size: size, weight: .semibold))
+            .foregroundStyle(MonacoTheme.secondaryText)
             .accessibilityHidden(true)
     }
 }
@@ -280,21 +300,17 @@ struct MonacoRowLayout: Equatable {
     /// 96pt is about five characters at that size, so a row with a wide figure went on truncating.
     var minimumTitleWidth: CGFloat? { isStacked ? nil : scaledTitleWidthFloor }
 
-    /// The mark size `separatorLeadingInset` is tuned for: `MonacoRow` draws a 40pt one.
-    static let baseMarkSize: CGFloat = 40
+    static let baseMarkSize: CGFloat = 44
 
-    static let minHeight: CGFloat = 64
+    static let minHeight: CGFloat = 72
 
-    /// The separator lines up under the labels in the inline layout, and runs the full width
-    /// of a stacked row, where the figures sit below the mark.
-    var separatorLeadingInset: CGFloat { separatorLeadingInset(markSize: MonacoRowLayout.baseMarkSize) }
+    static let chevronSize: CGFloat = 16
 
-    /// The same inset for a row whose mark is not 40pt.
-    ///
-    /// It is derived rather than written down because a hard-coded 72 is only right
-    /// for one mark size: `StockListRow` draws a 40pt mark, so its text starts at
-    /// 68pt while its separator started at 72pt. Four points, and exactly the four
-    /// points that show when the Stocks list sits next to the cabal list.
+    /// The rule spans the row's content width, from the left gutter to the right one.
+    var separatorLeadingInset: CGFloat { 0 }
+
+    /// The inset for a row that still starts its rule under the labels, such as the stock and
+    /// board rows: derived from the mark size rather than written down.
     func separatorLeadingInset(markSize: CGFloat) -> CGFloat {
         guard !isStacked else { return MonacoTheme.Space.gutter }
         return MonacoTheme.Space.gutter + markSize + MonacoTheme.Space.sm
@@ -305,9 +321,9 @@ extension MonacoRow where Trailing == EmptyView {
     init(
         title: String,
         titleFont: Font = MonacoTheme.Typo.rowTitle,
-        titleColor: Color = MonacoTheme.ink,
+        titleColor: Color = MonacoTheme.primaryText,
         subtitle: String? = nil,
-        subtitleColor: Color = MonacoTheme.muted,
+        subtitleColor: Color = MonacoTheme.secondaryText,
         chevron: Bool = false,
         isLast: Bool = false,
         @ViewBuilder leading: () -> Leading
@@ -350,37 +366,37 @@ struct MonacoRowSkeleton: View {
     var markShape: MarkShape = .tile
     var hasTrailing: Bool = true
 
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    private var ruleInset: CGFloat {
-        let layout = MonacoRowLayout(dynamicTypeSize: dynamicTypeSize)
-        guard markShape != .none else { return MonacoTheme.Space.gutter }
-        return layout.separatorLeadingInset
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             ForEach(0..<rows, id: \.self) { index in
                 HStack(spacing: MonacoTheme.Space.sm) {
                     mark
                     VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                        SkeletonBlock(width: 132, height: 14)
-                        SkeletonBlock(width: 72, height: 11)
+                        SkeletonFraction(SkeletonMetrics.rowTitleFraction) { line }
+                        SkeletonFraction(SkeletonMetrics.rowSubtitleFraction) { line }
                     }
-                    Spacer(minLength: MonacoTheme.Space.s)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     if hasTrailing {
-                        SkeletonBlock(width: 56, height: 14)
+                        SkeletonBlock(
+                            width: SkeletonMetrics.rowTrailingWidth, height: SkeletonMetrics.lineHeight,
+                            radius: SkeletonMetrics.lineRadius)
                     }
                 }
                 .padding(.horizontal, MonacoTheme.Space.gutter)
                 .padding(.vertical, MonacoTheme.Space.sm)
                 .frame(minHeight: MonacoRowLayout.minHeight)
                 .overlay(alignment: .bottom) {
-                    if index < rows - 1 { MonacoRule().padding(.leading, ruleInset) }
+                    if index < rows - 1 {
+                        MonacoRule().padding(.horizontal, MonacoTheme.Space.gutter)
+                    }
                 }
             }
         }
         .accessibilityHidden(true)
+    }
+
+    private var line: some View {
+        SkeletonBlock(height: SkeletonMetrics.lineHeight, radius: SkeletonMetrics.lineRadius)
     }
 
     @ViewBuilder private var mark: some View {
@@ -393,8 +409,16 @@ struct MonacoRowSkeleton: View {
     }
 }
 
-/// Empty state without an icon: a 17pt title, one secondary line, an optional compact action.
-/// Centred, 32 above when it is the only content and 24 inside a section; neither line truncates.
+enum EmptyStateMetrics {
+    static let tile: CGFloat = 68
+    static let tileRadius: CGFloat = 24
+    static let glyph: CGFloat = 30
+    static let messageWidth: CGFloat = 280
+    static let readableWidth: CGFloat = 480
+}
+
+/// Empty state: an optional 68pt icon tile, a 22pt title, a muted message and up to two full-width
+/// buttons. Centred; neither line truncates.
 ///
 /// No accessibility container on purpose: call sites put their identifier on this view and UI
 /// tests find the retry button by it, which only works while the identifier reaches the button.
@@ -404,61 +428,114 @@ struct EmptyState: View {
     private let actionTitle: String?
     private let actionIdentifier: String?
     private let action: (() -> Void)?
-    private let isOnlyContent: Bool
-
-    private static let readableWidth: CGFloat = 480
+    private let systemImage: String?
+    private let secondaryActionTitle: String?
+    private let secondaryAction: (() -> Void)?
 
     init(
         title: String, message: String? = nil, actionTitle: String? = nil, actionIdentifier: String? = nil,
-        isOnlyContent: Bool = false, action: (() -> Void)? = nil
+        isOnlyContent: Bool = false, systemImage: String? = nil, secondaryActionTitle: String? = nil,
+        action: (() -> Void)? = nil, secondaryAction: (() -> Void)? = nil
     ) {
-        self.isOnlyContent = isOnlyContent
         self.title = title
         self.message = message
         self.actionTitle = actionTitle
         self.actionIdentifier = actionIdentifier
         self.action = action
+        self.systemImage = systemImage
+        self.secondaryActionTitle = secondaryActionTitle
+        self.secondaryAction = secondaryAction
+    }
+
+    static func loadFailed(identifier: String, retry: @escaping () -> Void) -> EmptyState {
+        EmptyState(
+            title: "Couldn't load this view",
+            message: "Check your connection and try again.",
+            actionTitle: "Try again",
+            actionIdentifier: identifier,
+            systemImage: "wifi.exclamationmark",
+            action: retry
+        )
+    }
+
+    @ScaledMetric(relativeTo: .title2) private var glyphSize = EmptyStateMetrics.glyph
+
+    private var tile: some View {
+        Image(systemName: systemImage ?? "")
+            .font(.system(size: glyphSize, weight: .semibold))
+            .foregroundStyle(MonacoTheme.brand)
+            .frame(width: EmptyStateMetrics.tile, height: EmptyStateMetrics.tile)
+            .background(
+                RoundedRectangle(cornerRadius: EmptyStateMetrics.tileRadius, style: .continuous)
+                    .fill(MonacoTheme.brandSoft)
+            )
+            .accessibilityHidden(true)
+    }
+
+    @ViewBuilder private var primaryButton: some View {
+        if let actionTitle, let action {
+            let button = Button(actionTitle, action: action)
+                .buttonStyle(.monacoPrimary)
+            if let actionIdentifier {
+                button.accessibilityIdentifier(actionIdentifier)
+            } else {
+                button
+            }
+        }
     }
 
     var body: some View {
-        VStack(spacing: MonacoTheme.Space.s) {
+        VStack(spacing: 0) {
+            if systemImage != nil {
+                tile.padding(.bottom, MonacoTheme.Space.m)
+            }
             Text(title)
-                .font(MonacoTheme.Typo.headline)
-                .foregroundStyle(MonacoTheme.ink)
+                .font(MonacoTheme.Typo.section)
+                .foregroundStyle(MonacoTheme.primaryText)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
 
             if let message, !message.isEmpty {
                 Text(message)
                     .font(MonacoTheme.Typo.subhead)
-                    .foregroundStyle(MonacoTheme.muted)
+                    .foregroundStyle(MonacoTheme.secondaryText)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
-            }
-            if let actionTitle, let action {
-                let button = Button(actionTitle, action: action)
-                    .buttonStyle(.monacoCompact)
+                    .frame(maxWidth: EmptyStateMetrics.messageWidth)
                     .padding(.top, MonacoTheme.Space.s)
-                if let actionIdentifier {
-                    button.accessibilityIdentifier(actionIdentifier)
-                } else {
-                    button
+            }
+            if actionTitle != nil, action != nil {
+                VStack(spacing: MonacoTheme.Space.sm) {
+                    primaryButton
+                    if let secondaryActionTitle, let secondaryAction {
+                        Button(secondaryActionTitle, action: secondaryAction)
+                            .buttonStyle(.monacoSecondary)
+                    }
                 }
+                .padding(.top, MonacoTheme.Space.l)
             }
         }
-        .frame(maxWidth: Self.readableWidth)
+        .frame(maxWidth: EmptyStateMetrics.readableWidth)
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, MonacoTheme.Space.l)
-        .padding(.top, isOnlyContent ? MonacoTheme.Space.xl : MonacoTheme.Space.l)
-        .padding(.bottom, MonacoTheme.Space.l)
+        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.top, MonacoTheme.Space.xl)
+        .padding(.bottom, MonacoTheme.Space.xl)
     }
 }
 
 /// "Couldn't load holdings." with a trailing "Try again", for a slot that has nothing on screen.
+/// The default style is an error notice; `.card` is the partial-error card for a section whose
+/// siblings still show.
 struct MonacoErrorRow: View {
+    enum Style {
+        case notice
+        case card
+    }
+
     let thing: String
     let identifier: String
     var inset = true
+    var style: Style = .notice
     let retry: () -> Void
 
     private var retryIdentifier: String {
@@ -467,23 +544,59 @@ struct MonacoErrorRow: View {
         return "\(stem)-retry"
     }
 
+    private var containerIdentifier: String {
+        identifier == retryIdentifier ? "\(identifier.dropLast(6))-error" : identifier
+    }
+
+    @ScaledMetric(relativeTo: .title3) private var cardGlyph = MonacoErrorMetrics.cardGlyph
+
     var body: some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
-            Text("Couldn't load \(thing).")
-                .font(MonacoTheme.Typo.subhead)
-                .foregroundStyle(MonacoTheme.ink)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Button("Try again", action: retry)
-                .buttonStyle(.monacoText)
-                .accessibilityIdentifier(retryIdentifier)
+        Group {
+            switch style {
+            case .notice: notice
+            case .card: card
+            }
         }
         .padding(.horizontal, inset ? MonacoTheme.Space.gutter : 0)
-        .padding(.vertical, MonacoTheme.Space.sm)
-        .frame(minHeight: MonacoRowLayout.minHeight)
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier(identifier == retryIdentifier ? "\(identifier.dropLast(6))-error" : identifier)
+        .accessibilityIdentifier(containerIdentifier)
     }
+
+    private var notice: some View {
+        MonacoNotice(
+            .error, message: "Couldn't load \(thing).", action: ("Try again", retry),
+            actionIdentifier: retryIdentifier
+        )
+        .padding(.vertical, MonacoTheme.Space.s)
+    }
+
+    private var card: some View {
+        MonacoCard {
+            VStack(spacing: MonacoTheme.Space.s) {
+                Image(systemName: "wifi.exclamationmark")
+                    .font(.system(size: cardGlyph, weight: .semibold))
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .accessibilityHidden(true)
+                Text("Couldn't load \(thing)")
+                    .font(MonacoTheme.Typo.headline)
+                    .foregroundStyle(MonacoTheme.primaryText)
+                    .multilineTextAlignment(.center)
+                Text("Your other sections are still up to date.")
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .multilineTextAlignment(.center)
+                Button("Try again", action: retry)
+                    .buttonStyle(.monacoCompact)
+                    .accessibilityIdentifier(retryIdentifier)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .padding(.vertical, MonacoTheme.Space.s)
+    }
+}
+
+enum MonacoErrorMetrics {
+    static let cardGlyph: CGFloat = 22
 }
 
 struct SolscanLinkRow: View {
