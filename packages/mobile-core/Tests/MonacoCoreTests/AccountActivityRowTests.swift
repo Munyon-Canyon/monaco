@@ -10,9 +10,9 @@ final class AccountActivityRowTests: XCTestCase {
 
     func testEachKindGetsItsTitleAndGlyph() throws {
         let expected: [(Components.Schemas.UserTxn.KindPayload, String, String)] = [
-            (.deposit, "Deposit", "arrow.down.to.line"),
+            (.deposit, "Deposit received", "arrow.down"),
             (.withdrawal, "Withdrawal", "arrow.up.right"),
-            (.fund, "Funded Sunday Investors", "plus"),
+            (.fund, "Deposit to Sunday Investors", "person.3"),
             (.cashOut, "Cashed out of Sunday Investors", "arrow.down.left"),
         ]
         for (kind, title, glyph) in expected {
@@ -23,7 +23,7 @@ final class AccountActivityRowTests: XCTestCase {
     }
 
     func testAFundOrCashOutWithoutACabalSaysACabal() throws {
-        XCTAssertEqual(try makeRow(kind: .fund, cabal: nil).title, "Funded a cabal")
+        XCTAssertEqual(try makeRow(kind: .fund, cabal: nil).title, "Deposit to a cabal")
         XCTAssertEqual(try makeRow(kind: .cashOut, cabal: nil).title, "Cashed out of a cabal")
     }
 
@@ -48,7 +48,7 @@ final class AccountActivityRowTests: XCTestCase {
     func testTheReceiptCallsASettledRowDone() throws {
         XCTAssertEqual(try makeRow(status: .pending).status.receiptLabel, "Pending")
         XCTAssertEqual(try makeRow(status: .settled).status.receiptLabel, "Done")
-        XCTAssertEqual(try makeRow(status: .failed).status.receiptLabel, "Failed")
+        XCTAssertEqual(try makeRow(status: .failed).status.receiptLabel, "Not completed")
     }
 
     func testAmountsCarryTheirSignAndATypographicMinus() throws {
@@ -98,6 +98,54 @@ final class AccountActivityRowTests: XCTestCase {
         XCTAssertNil(try makeRow(signature: nil).solscanURL)
     }
 
+    func testEachKindGetsItsSubtitleLeadAndKind() throws {
+        let expected: [(Components.Schemas.UserTxn.KindPayload, AccountActivityRow.Kind, String)] = [
+            (.deposit, .deposit, "USDC · Oct 3 at 3:00\u{202F}PM"),
+            (.withdrawal, .withdrawal, "USDC · Oct 3 at 3:00\u{202F}PM"),
+            (.fund, .fund, "From cash · Oct 3 at 3:00\u{202F}PM"),
+            (.cashOut, .cashOut, "To cash · Oct 3 at 3:00\u{202F}PM"),
+        ]
+        for (payload, kind, subtitle) in expected {
+            let row = try makeRow(kind: payload, cabal: Self.sundayInvestors)
+            XCTAssertEqual(row.kind, kind, "\(payload)")
+            XCTAssertEqual(row.subtitle, subtitle, "\(payload)")
+        }
+    }
+
+    @MainActor
+    func testThePendingFilterKeepsOnlyPendingRowsAndAllShowsEveryRow() async {
+        let model = AccountActivityModel.preview(.pending, clock: { Date(timeIntervalSince1970: 1_790_996_400) })
+        await model.load()
+
+        XCTAssertEqual(model.filter, .all, "All is the default")
+        XCTAssertEqual(model.visibleRows.count, 3)
+        model.filter = .pending
+        XCTAssertEqual(model.visibleRows.map(\.title), ["Withdrawal"])
+        XCTAssertFalse(model.isFilterEmpty)
+    }
+
+    @MainActor
+    func testThePendingFilterSaysNoneOnlyOnceTheHistoryIsExhausted() async {
+        let model = AccountActivityModel.preview(.ready, clock: { Date(timeIntervalSince1970: 1_790_996_400) })
+        await model.load()
+        model.filter = .pending
+        await model.fillFilter()
+
+        XCTAssertTrue(model.visibleRows.isEmpty)
+        XCTAssertTrue(model.isFilterEmpty)
+    }
+
+    @MainActor
+    func testThePendingFilterKeepsLoadingPagesUntilARowMatches() async {
+        let model = AccountActivityModel.preview(.full, clock: { Date(timeIntervalSince1970: 1_790_996_400) })
+        await model.load()
+        model.filter = .pending
+        await model.fillFilter()
+
+        XCTAssertFalse(model.visibleRows.isEmpty)
+        XCTAssertTrue(model.visibleRows.allSatisfy { $0.status == .pending })
+    }
+
     func testTheSamplePagesMapToTheRowsTheQAScriptExpects() throws {
         let zone = try Self.zone(hours: 0)
         let now = try Self.date(Self.now)
@@ -108,7 +156,7 @@ final class AccountActivityRowTests: XCTestCase {
             try AccountActivityRow($0, now: now, timeZone: zone, locale: Locale(identifier: "en_US_POSIX"))
         }
 
-        XCTAssertEqual(first.prefix(3).map(\.title), ["Deposit", "Funded QA pot", "Withdrawal"])
+        XCTAssertEqual(first.prefix(3).map(\.title), ["Deposit received", "Deposit to QA pot", "Withdrawal"])
         XCTAssertEqual(first.prefix(3).map(\.amount), ["+$25.00", "\u{2212}$10.00", "\u{2212}$5.00"])
         XCTAssertEqual(first[2].status, .pending)
         XCTAssertTrue(second.contains { $0.date.hasSuffix(", 2025") })
