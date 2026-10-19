@@ -57,36 +57,66 @@ nonisolated final class V3AccessibilityAuditUITests: XCTestCase {
     /// Audit findings accepted on purpose: screen id, element identifier, audit type, reason.
     /// Every entry needs a reason; an entry without one fails the test.
     private static let allowed: [(screen: String, identifier: String, type: String, reason: String)] = [
-        ("cabals__cabal__ready", "cabal-slice-cash", "desc",
-         "figure reads as typed; the audit's text heuristic flags a currency string, and the label wording is a follow-up in accessibility.md"),
-        ("cabals__cabal__ready", "cabal-slice-value", "desc",
-         "figure reads as typed; the audit's text heuristic flags a currency string, and the label wording is a follow-up in accessibility.md"),
-        ("cabals__invite__share", "cabal-invite-link", "desc",
-         "the invite URL reads as typed; the heuristic flags a link string"),
-        ("home__home__loss", "home-portfolio-total", "desc",
-         "figure reads as typed; the audit's text heuristic flags a currency string, and the label wording is a follow-up in accessibility.md"),
-        ("markets__instrument__ready", "asset-detail-price", "desc",
-         "figure reads as typed; the audit's text heuristic flags a currency string, and the label wording is a follow-up in accessibility.md"),
-        ("money__add-money__ready", "deposit-screen-balance-value", "desc",
-         "figure reads as typed; the audit's text heuristic flags a currency string, and the label wording is a follow-up in accessibility.md"),
-        ("money__transaction__completed", "account-txn-receipt-amount", "desc",
-         "figure reads as typed; the audit's text heuristic flags a currency string, and the label wording is a follow-up in accessibility.md"),
-        ("proposals__proposal__open", "", "desc",
-         "figure reads as typed; the audit's text heuristic flags a currency string, and the label wording is a follow-up in accessibility.md"),
-        ("cabals__chat__ready", "chat-day-s5", "hit",
-         "the day separator is a static label, not a control; the audit reads it as a hit region"),
-        ("cabals__holding__ready", "", "detect",
-         "an unidentified text run the audit cannot map to an element; tracked in accessibility.md"),
-        ("home__home__loss", "", "detect",
-         "an unidentified text run the audit cannot map to an element; tracked in accessibility.md"),
-        ("markets__instrument__ready", "", "detect",
-         "an unidentified text run the audit cannot map to an element; tracked in accessibility.md"),
-        ("profile__person__public", "", "detect",
-         "an unidentified text run the audit cannot map to an element; tracked in accessibility.md"),
-        ("proposals__proposal__open", "", "detect",
-         "an unidentified text run the audit cannot map to an element; tracked in accessibility.md"),
-        ("proposals__votes__open", "", "detect",
-         "an unidentified text run the audit cannot map to an element; tracked in accessibility.md"),
+        (
+            "cabals__cabal__ready", "cabal-slice-cash", "desc",
+            "figure reads as typed; the audit's text heuristic flags a currency string, and the label wording is a follow-up in accessibility.md"
+        ),
+        (
+            "cabals__cabal__ready", "cabal-slice-value", "desc",
+            "figure reads as typed; the audit's text heuristic flags a currency string, and the label wording is a follow-up in accessibility.md"
+        ),
+        (
+            "cabals__invite__share", "cabal-invite-link", "desc",
+            "the invite URL reads as typed; the heuristic flags a link string"
+        ),
+        (
+            "home__home__loss", "home-portfolio-total", "desc",
+            "figure reads as typed; the audit's text heuristic flags a currency string, and the label wording is a follow-up in accessibility.md"
+        ),
+        (
+            "markets__instrument__ready", "asset-detail-price", "desc",
+            "figure reads as typed; the audit's text heuristic flags a currency string, and the label wording is a follow-up in accessibility.md"
+        ),
+        (
+            "money__add-money__ready", "deposit-screen-balance-value", "desc",
+            "figure reads as typed; the audit's text heuristic flags a currency string, and the label wording is a follow-up in accessibility.md"
+        ),
+        (
+            "money__transaction__completed", "account-txn-receipt-amount", "desc",
+            "figure reads as typed; the audit's text heuristic flags a currency string, and the label wording is a follow-up in accessibility.md"
+        ),
+        (
+            "proposals__proposal__open", "", "desc",
+            "figure reads as typed; the audit's text heuristic flags a currency string, and the label wording is a follow-up in accessibility.md"
+        ),
+        (
+            "cabals__chat__ready", "chat-day-s5", "hit",
+            "the day separator is a static label, not a control; the audit reads it as a hit region"
+        ),
+        (
+            "cabals__holding__ready", "", "detect",
+            "an unidentified text run the audit cannot map to an element; tracked in accessibility.md"
+        ),
+        (
+            "home__home__loss", "", "detect",
+            "an unidentified text run the audit cannot map to an element; tracked in accessibility.md"
+        ),
+        (
+            "markets__instrument__ready", "", "detect",
+            "an unidentified text run the audit cannot map to an element; tracked in accessibility.md"
+        ),
+        (
+            "profile__person__public", "", "detect",
+            "an unidentified text run the audit cannot map to an element; tracked in accessibility.md"
+        ),
+        (
+            "proposals__proposal__open", "", "detect",
+            "an unidentified text run the audit cannot map to an element; tracked in accessibility.md"
+        ),
+        (
+            "proposals__votes__open", "", "detect",
+            "an unidentified text run the audit cannot map to an element; tracked in accessibility.md"
+        ),
     ]
 
     private static let minimumTarget: CGFloat = 44
@@ -327,10 +357,15 @@ nonisolated final class V3AccessibilityAuditUITests: XCTestCase {
     /// Reduce Motion: the four screens the ticket names still draw with the system flag on.
     @MainActor
     func testReduceMotionScreensDraw() async throws {
-        for id in ["home__home__loss", "cabals__cabal__ready", "proposals__review-proposal__ready", "money__fund-cabal__ready"] {
-            guard let screen = Self.screens.first(where: { $0.id == id }) else { return XCTFail("no launch line for \(id)") }
+        for id in [
+            "home__home__loss", "cabals__cabal__ready", "proposals__review-proposal__ready", "money__fund-cabal__ready",
+        ] {
+            guard let screen = Self.screens.first(where: { $0.id == id }) else {
+                return XCTFail("no launch line for \(id)")
+            }
             let app = XCUIApplication()
-            app.launchArguments = screen.arguments.split(separator: " ").map(String.init)
+            app.launchArguments =
+                screen.arguments.split(separator: " ").map(String.init)
                 + ["-MonacoSampleAct", "-UIAccessibilityReduceMotionEnabled", "YES"]
             app.launch()
             let first = app.descendants(matching: .any).matching(NSPredicate(format: "label != ''")).firstMatch
@@ -406,10 +441,14 @@ nonisolated final class V3AccessibilityAuditUITests: XCTestCase {
                 labels.append(node.label)
                 if seen.insert(key).inserted {
                     let selected = node.isSelected ? "selected" : ""
-                    print("a11y|\(id)|\(pass)|type \(kind)|\(node.identifier)|\(node.label)|\(node.value ?? "")|\(selected)|\(Int(frame.width))x\(Int(frame.height))")
+                    print(
+                        "a11y|\(id)|\(pass)|type \(kind)|\(node.identifier)|\(node.label)|\(node.value ?? "")|\(selected)|\(Int(frame.width))x\(Int(frame.height))"
+                    )
                     let small = frame.width < Self.minimumTarget || frame.height < Self.minimumTarget
                     if interactive.contains(node.elementType), small, frame.width > 0 {
-                        print("small|\(id)|type \(kind)|\(node.identifier)|\(node.label)|\(Int(frame.width))x\(Int(frame.height))")
+                        print(
+                            "small|\(id)|type \(kind)|\(node.identifier)|\(node.label)|\(Int(frame.width))x\(Int(frame.height))"
+                        )
                     }
                 }
             }
