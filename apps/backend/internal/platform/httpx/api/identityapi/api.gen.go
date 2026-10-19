@@ -131,6 +131,21 @@ func (e LoginProvider) Valid() bool {
 	}
 }
 
+// Defines values for PublicProfileReturnPeriod.
+const (
+	N1M PublicProfileReturnPeriod = "1M"
+)
+
+// Valid indicates whether the value is a known member of the PublicProfileReturnPeriod enum.
+func (e PublicProfileReturnPeriod) Valid() bool {
+	switch e {
+	case N1M:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SkipOnboardingStepStep.
 const (
 	Phone   SkipOnboardingStepStep = "phone"
@@ -309,7 +324,7 @@ type Me struct {
 	XUsername *string `json:"x_username,omitempty"`
 }
 
-// PublicProfile A user's public profile with their bio, join date, cabal count and follow counts.
+// PublicProfile A user's public profile with their bio, join date, cabal count, follow counts and one-month return. The return and P&L come from the 1M people board as of the last valuation run and are null unless the user shares performance and is ranked.
 type PublicProfile struct {
 	// Bio The user's bio, up to 160 characters with newlines kept, or null when there is none.
 	//
@@ -366,7 +381,32 @@ type PublicProfile struct {
 	//
 	// Examples: null
 	PhotoUrl *string `json:"photo_url"`
+
+	// Pnl1mMicros The user's one-month profit and loss in micro-USDC, negative for a loss, from the same board row. Null when they hide it, are not ranked, or the caller blocks them.
+	//
+	// Examples: -250000000
+	Pnl1mMicros *int64 `json:"pnl_1m_micros"`
+
+	// Return1mBps The user's one-month return in basis points, from the 1M people board as of the last valuation run. Null when they hide it, are not ranked, have no return on their row, or the caller blocks them.
+	//
+	// Examples: 820
+	Return1mBps *int64 `json:"return_1m_bps"`
+
+	// ReturnPeriod The window of the return and P&L, always 1M, so the card's label is server-driven.
+	//
+	// Examples: 1M
+	ReturnPeriod PublicProfileReturnPeriod `json:"return_period"`
+
+	// ReturnPrivate True only when the user chose to hide their performance, whatever the board says.
+	//
+	// Examples: false
+	ReturnPrivate bool `json:"return_private"`
 }
+
+// PublicProfileReturnPeriod The window of the return and P&L, always 1M, so the card's label is server-driven.
+//
+// Examples: 1M
+type PublicProfileReturnPeriod string
 
 // ReassignHandleBody The user who receives a handle, and why.
 type ReassignHandleBody struct {

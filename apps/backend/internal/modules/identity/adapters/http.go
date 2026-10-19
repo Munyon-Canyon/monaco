@@ -31,6 +31,7 @@ type HTTP struct {
 	Cards     app.UserCards
 	Follows   app.FollowCounts
 	Cabals    app.CabalCounts
+	Returns   app.Returns
 	Deposits  DepositAddresses
 }
 
@@ -148,7 +149,7 @@ func (h HTTP) GetUser(ctx context.Context, req api.GetUserRequestObject) (api.Ge
 	if err != nil {
 		return nil, err
 	}
-	user, err := app.GetUser(ctx, h.Cards, h.Follows, h.Cabals, viewer, ids.UserIDFrom(req.Id))
+	user, err := app.GetUser(ctx, h.Cards, h.Follows, h.Cabals, h.Returns, viewer, ids.UserIDFrom(req.Id))
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +157,8 @@ func (h HTTP) GetUser(ctx context.Context, req api.GetUserRequestObject) (api.Ge
 		Id: user.ID.UUID(), Handle: user.Handle, DisplayName: user.DisplayName, PhotoUrl: present(user.PhotoURL),
 		Bio: present(user.Bio), CreatedAt: user.CreatedAt.UTC(), CabalCount: user.CabalCount,
 		FollowerCount: user.FollowerCount, FollowingCount: user.FollowingCount, FollowedByMe: user.FollowedByMe,
-		BlockedByMe: user.BlockedByMe,
+		BlockedByMe: user.BlockedByMe, Return1mBps: user.Return1MBps, Pnl1mMicros: user.PnL1MMicros,
+		ReturnPeriod: api.N1M, ReturnPrivate: user.ReturnPrivate,
 	}, nil
 }
 

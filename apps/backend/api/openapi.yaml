@@ -2331,7 +2331,10 @@ paths:
       description: >-
         Returns the user's handle, display name, photo and bio with the date they joined, the number of
         cabals they belong to today, and their follower and following counts, and whether the caller
-        follows and blocks them. The counts are of live follows and include members who were banned or
+        follows and blocks them. It also returns their one-month return and P&L from the 1M people board as
+        of the last valuation run. Both are null when the user hides performance, is not ranked, or the
+        caller blocks them, and a ranked row with no return gives a null return and still sets the P&L.
+        return_private is true only when the user chose to hide it. The counts are of live follows and include members who were banned or
         deleted after following. blocked_by_me says nothing about whether they block the caller. An
         unknown, banned or deleted user is user_not_found.
       parameters:
@@ -2354,6 +2357,10 @@ paths:
                 following_count: 7
                 followed_by_me: true
                 blocked_by_me: false
+                return_1m_bps: 820
+                pnl_1m_micros: 41250000
+                return_period: 1M
+                return_private: false
         default: {$ref: "#/components/responses/Problem"}
   # api/spec/market.yaml
   /v1/assets:
@@ -6957,7 +6964,10 @@ components:
           examples: ["2026-09-30T12:00:00Z"]
     PublicProfile:
       type: object
-      description: A user's public profile with their bio, join date, cabal count and follow counts.
+      description: >-
+        A user's public profile with their bio, join date, cabal count, follow counts and one-month
+        return. The return and P&L come from the 1M people board as of the last valuation run and are
+        null unless the user shares performance and is ranked.
       required:
         - id
         - handle
@@ -6970,6 +6980,10 @@ components:
         - following_count
         - followed_by_me
         - blocked_by_me
+        - return_1m_bps
+        - pnl_1m_micros
+        - return_period
+        - return_private
       properties:
         id: {type: string, format: uuid, description: "The user's id.", examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
         handle: {type: string, description: "The user's handle.", examples: [maya]}
@@ -6982,6 +6996,10 @@ components:
         following_count: {type: integer, minimum: 0, description: "How many users they follow.", examples: [7]}
         followed_by_me: {type: boolean, description: "Whether the caller follows them. False for the caller's own profile.", examples: [true]}
         blocked_by_me: {type: boolean, description: "Whether the caller blocks them. False for the caller's own profile. It says nothing about whether they block the caller.", examples: [false]}
+        return_1m_bps: {type: [integer, "null"], format: int64, description: "The user's one-month return in basis points, from the 1M people board as of the last valuation run. Null when they hide it, are not ranked, have no return on their row, or the caller blocks them.", examples: [820]}
+        pnl_1m_micros: {type: [integer, "null"], format: int64, description: "The user's one-month profit and loss in micro-USDC, negative for a loss, from the same board row. Null when they hide it, are not ranked, or the caller blocks them.", examples: [-250000000]}
+        return_period: {type: string, enum: ["1M"], description: "The window of the return and P&L, always 1M, so the card's label is server-driven.", examples: ["1M"]}
+        return_private: {type: boolean, description: "True only when the user chose to hide their performance, whatever the board says.", examples: [false]}
     ReassignHandleBody:
       type: object
       description: The user who receives a handle, and why.

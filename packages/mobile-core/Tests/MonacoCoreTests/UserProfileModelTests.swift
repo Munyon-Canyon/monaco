@@ -476,7 +476,8 @@ private enum UserProfileSupport {
             id: userID, handle: "maya", displayName: "Maya Angelou",
             photoUrl: "https://cdn.example.com/photos/maya.jpg", bio: nil,
             createdAt: Date(timeIntervalSince1970: 1_759_233_600), cabalCount: 0, followerCount: followers,
-            followingCount: following, followedByMe: followed, blockedByMe: false
+            followingCount: following, followedByMe: followed, blockedByMe: false, returnPeriod: ._1m,
+            returnPrivate: false
         )
     }
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -13,11 +14,14 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/ranking"
+	rankingport "github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/identityapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
@@ -45,6 +49,27 @@ type stubCabals struct {
 
 func (s stubCabals) CabalsOf(context.Context, ids.UserID) ([]ids.CabalID, error) {
 	return s.memberships, s.err
+}
+
+type stubReturns struct {
+	byUser map[ids.UserID]rankingport.PersonReturn
+	err    error
+	calls  *[]rankingport.Range
+}
+
+func (s stubReturns) PeopleReturns(
+	_ context.Context, rng rankingport.Range, users []ids.UserID,
+) (map[ids.UserID]rankingport.PersonReturn, error) {
+	if s.calls != nil {
+		*s.calls = append(*s.calls, rng)
+	}
+	out := map[ids.UserID]rankingport.PersonReturn{}
+	for _, id := range users {
+		if row, ok := s.byUser[id]; ok {
+			out[id] = row
+		}
+	}
+	return out, s.err
 }
 
 func stubMemberships(n int) stubCabals {
@@ -81,7 +106,7 @@ func TestGetUser_SocialFields(t *testing.T) {
 	f.follow(t, bob.ID, alice.ID)
 	routes := adapters.HTTP{
 		Cards: adapters.NewQueries(f.pool), Follows: social.New(module.Deps{Pool: f.pool}).FollowCounts(),
-		Cabals: stubMemberships(3),
+		Cabals: stubMemberships(3), Returns: stubReturns{},
 	}
 	other := getUser(t, routes, alice.ID, bob.ID)
 	if other.Handle != "bob" || other.DisplayName != "Bob" || other.PhotoUrl == nil {
@@ -135,7 +160,9 @@ func TestGetUser_hidesBannedDeletedAndUnknownUsers(t *testing.T) {
 	viewer := f.seed(t, portSeed{handle: "viewer"})
 	banned := f.seed(t, portSeed{handle: "banned", status: "banned"})
 	deleted := f.seed(t, portSeed{handle: "gone", softDeleted: true})
-	routes := adapters.HTTP{Cards: adapters.NewQueries(f.pool), Follows: stubFollows{}, Cabals: stubCabals{}}
+	routes := adapters.HTTP{
+		Cards: adapters.NewQueries(f.pool), Follows: stubFollows{}, Cabals: stubCabals{}, Returns: stubReturns{},
+	}
 	for _, id := range []ids.UserID{banned.ID, deleted.ID, f.newID(t)} {
 		if _, err := routes.GetUser(asUser(t, viewer.ID), api.GetUserRequestObject{Id: id.UUID()}); errs.CodeOf(
 			err,
@@ -160,7 +187,7 @@ func TestGetUser_failures(t *testing.T) {
 		"unwired": app.UnwiredFollowCounts{}, "counts": stubFollows{countsErr: down},
 		"followed": stubFollows{followedErr: down}, "blocked": stubFollows{blockedErr: down},
 	} {
-		routes := adapters.HTTP{Cards: cards, Follows: follows, Cabals: stubCabals{}}
+		routes := adapters.HTTP{Cards: cards, Follows: follows, Cabals: stubCabals{}, Returns: stubReturns{}}
 		if _, err := routes.GetUser(asUser(t, viewer), api.GetUserRequestObject{Id: target.UUID()}); err == nil {
 			t.Fatalf("%s: GetUser succeeded", name)
 		}
@@ -182,7 +209,7 @@ func TestGetUser_failures(t *testing.T) {
 	for name, cabals := range map[string]app.CabalCounts{
 		"unwired": app.UnwiredCabalCounts{}, "down": stubCabals{err: down},
 	} {
-		routes := adapters.HTTP{Cards: cards, Follows: stubFollows{}, Cabals: cabals}
+		routes := adapters.HTTP{Cards: cards, Follows: stubFollows{}, Cabals: cabals, Returns: stubReturns{}}
 		if _, err := routes.GetUser(asUser(t, viewer), api.GetUserRequestObject{Id: target.UUID()}); err == nil {
 			t.Fatalf("cabals %s: GetUser succeeded", name)
 		}
@@ -193,7 +220,7 @@ func TestGetUser_failures(t *testing.T) {
 		t.Fatalf("unwired cabals = %v, want upstream_unavailable", err)
 	}
 	cards.Fail("UsersByID", down)
-	routes := adapters.HTTP{Cards: cards, Follows: stubFollows{}, Cabals: stubCabals{}}
+	routes := adapters.HTTP{Cards: cards, Follows: stubFollows{}, Cabals: stubCabals{}, Returns: stubReturns{}}
 	if _, err := routes.GetUser(asUser(t, viewer), api.GetUserRequestObject{Id: target.UUID()}); err == nil {
 		t.Fatal("GetUser succeeded with the user lookup down")
 	}
@@ -223,7 +250,8 @@ func TestModule_wireTakesFollowCountsFromSocialInTheBuiltSet(t *testing.T) {
 func TestGetUser_overHTTPServesAnotherMembersProfile(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixtureIn(t, config.EnvTest, config.EnvTest,
-		identity.WithFollowCounts(stubFollows{}), identity.WithCabalCounts(stubCabals{}))
+		identity.WithFollowCounts(stubFollows{}), identity.WithCabalCounts(stubCabals{}),
+		identity.WithReturns(stubReturns{}))
 	viewer := f.seed(t, portSeed{handle: "viewer"})
 	other := f.seed(t, portSeed{handle: "other", name: "Other"})
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/users/"+other.ID.String(), nil)
@@ -247,7 +275,7 @@ func TestGetUser_servesTheBioJoinedDateAndCabalCount(t *testing.T) {
 		t.Fatal(err)
 	}
 	routes := adapters.HTTP{
-		Cards: adapters.NewQueries(f.pool), Follows: stubFollows{}, Cabals: stubMemberships(4),
+		Cards: adapters.NewQueries(f.pool), Follows: stubFollows{}, Cabals: stubMemberships(4), Returns: stubReturns{},
 	}
 	got := getUser(t, routes, viewer.ID, bob.ID)
 	if got.Bio == nil || *got.Bio != "Building in public.\nNYC" || got.CabalCount != 4 ||
@@ -278,5 +306,132 @@ func TestModule_wireTakesCabalCountsFromCabalInTheBuiltSet(t *testing.T) {
 	module.NewSet(winner, cabal.New(d))
 	if _, ok := winner.Cabals().(stubCabals); !ok {
 		t.Fatalf("cabals = %T, want the injected stub", winner.Cabals())
+	}
+}
+
+func TestGetUser_failuresInTheReturnsPort(t *testing.T) {
+	t.Parallel()
+	gen := testkit.NewIDs(588)
+	viewer, target := ids.NewUserID(gen), ids.NewUserID(gen)
+	cards := fakes.NewIdentity([]app.UserCard{{ID: target, Handle: "target", SharePerformance: true}}, nil)
+	down := errs.New(errs.CodeInternal, "test")
+	for name, returns := range map[string]app.Returns{"unwired": app.UnwiredReturns{}, "down": stubReturns{err: down}} {
+		routes := adapters.HTTP{Cards: cards, Follows: stubFollows{}, Cabals: stubCabals{}, Returns: returns}
+		if _, err := routes.GetUser(asUser(t, viewer), api.GetUserRequestObject{Id: target.UUID()}); err == nil {
+			t.Fatalf("returns %s: GetUser succeeded", name)
+		}
+	}
+	_, err := (app.UnwiredReturns{}).PeopleReturns(t.Context(), rankingport.Range1M, nil)
+	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
+		t.Fatalf("unwired returns = %v, want upstream_unavailable", err)
+	}
+}
+
+func TestGetUser_servesTheOneMonthReturnAndItsPrivacyFlag(t *testing.T) {
+	t.Parallel()
+	gen := testkit.NewIDs(589)
+	viewer := ids.NewUserID(gen)
+	bps := int64(820)
+	row := func(r *int64, pnl int64) *rankingport.PersonReturn {
+		return &rankingport.PersonReturn{ReturnBps: r, PnlMicros: money.SignedMicrosFromInt64(pnl)}
+	}
+	type served struct {
+		bps, pnl string
+		private  bool
+	}
+	show := func(v *int64) string {
+		if v == nil {
+			return "null"
+		}
+		return strconv.FormatInt(*v, 10)
+	}
+	for name, tc := range map[string]struct {
+		share bool
+		row   *rankingport.PersonReturn
+		want  served
+	}{
+		"shared and ranked":       {true, row(&bps, -250_000_000), served{"820", "-250000000", false}},
+		"hidden":                  {false, row(&bps, 5_000_000), served{"null", "null", true}},
+		"unranked":                {true, nil, served{"null", "null", false}},
+		"ranked without a return": {true, row(nil, 40_000_000), served{"null", "40000000", false}},
+	} {
+		target := ids.NewUserID(gen)
+		cards := fakes.NewIdentity([]app.UserCard{{ID: target, Handle: "target", SharePerformance: tc.share}}, nil)
+		byUser := map[ids.UserID]rankingport.PersonReturn{}
+		if tc.row != nil {
+			byUser[target] = *tc.row
+		}
+		var calls []rankingport.Range
+		routes := adapters.HTTP{
+			Cards: cards, Follows: stubFollows{}, Cabals: stubCabals{},
+			Returns: stubReturns{byUser: byUser, calls: &calls},
+		}
+		p := getUser(t, routes, viewer, target)
+		if len(calls) != 1 || calls[0] != rankingport.Range1M || p.ReturnPeriod != api.N1M {
+			t.Fatalf("%s: PeopleReturns calls = %v, return_period = %q, want one 1M read", name, calls, p.ReturnPeriod)
+		}
+		if got := (served{show(p.Return1mBps), show(p.Pnl1mMicros), p.ReturnPrivate}); got != tc.want {
+			t.Fatalf("%s: served %+v, want %+v", name, got, tc.want)
+		}
+	}
+}
+
+func TestGetUser_nullsTheReturnWhenTheCallerBlocksThem(t *testing.T) {
+	t.Parallel()
+	f := newPortFixture(t)
+	viewer := f.seed(t, portSeed{handle: "viewer"})
+	bob := f.seed(t, portSeed{handle: "bob", name: "Bob"})
+	bps := int64(820)
+	returns := stubReturns{byUser: map[ids.UserID]rankingport.PersonReturn{
+		bob.ID: {ReturnBps: &bps, PnlMicros: money.SignedMicrosFromInt64(1_000_000)},
+	}}
+	routes := adapters.HTTP{
+		Cards: adapters.NewQueries(f.pool), Follows: social.New(module.Deps{Pool: f.pool}).FollowCounts(),
+		Cabals: stubCabals{}, Returns: returns,
+	}
+	if got := getUser(t, routes, viewer.ID, bob.ID); got.Return1mBps == nil || got.Pnl1mMicros == nil {
+		t.Fatalf("before the block = %v / %v, want both figures", got.Return1mBps, got.Pnl1mMicros)
+	}
+	f.block(t, viewer.ID, bob.ID)
+	got := getUser(t, routes, viewer.ID, bob.ID)
+	if got.Return1mBps != nil || got.Pnl1mMicros != nil || got.ReturnPrivate || !got.BlockedByMe {
+		t.Fatalf("after the block = %+v, want null figures, not private, blocked_by_me", got)
+	}
+}
+
+func TestGetUser_unknownUserMakesNoReturnsCall(t *testing.T) {
+	t.Parallel()
+	gen := testkit.NewIDs(590)
+	viewer, missing := ids.NewUserID(gen), ids.NewUserID(gen)
+	var calls []rankingport.Range
+	routes := adapters.HTTP{
+		Cards: fakes.NewIdentity(nil, nil), Follows: stubFollows{}, Cabals: stubCabals{},
+		Returns: stubReturns{calls: &calls},
+	}
+	if _, err := routes.GetUser(asUser(t, viewer), api.GetUserRequestObject{Id: missing.UUID()}); errs.CodeOf(
+		err,
+	) != errs.CodeUserNotFound || len(calls) != 0 {
+		t.Fatalf("unknown user: err = %v, PeopleReturns calls = %d, want user_not_found and none", err, len(calls))
+	}
+}
+
+func TestModule_wireTakesReturnsFromRankingInTheBuiltSet(t *testing.T) {
+	t.Parallel()
+	d := module.Deps{}
+	id := identity.New(d)
+	module.NewSet(id, ranking.New(d))
+	if _, unwired := id.Returns().(app.UnwiredReturns); unwired {
+		t.Fatal("returns stayed unwired with ranking in the set")
+	}
+	alone := identity.New(d)
+	module.NewSet(alone)
+	if _, unwired := alone.Returns().(app.UnwiredReturns); !unwired {
+		t.Fatal("returns were wired without ranking in the set")
+	}
+	injected := stubReturns{}
+	winner := identity.New(d, identity.WithReturns(injected))
+	module.NewSet(winner, ranking.New(d))
+	if _, ok := winner.Returns().(stubReturns); !ok {
+		t.Fatalf("returns = %T, want the injected stub", winner.Returns())
 	}
 }
