@@ -121,9 +121,16 @@ group-nav-start               -MonacoGroupNavSample start
 group-nav-new-cabal           -MonacoGroupNavSample newCabal
 
 login-signed-out              -MonacoWelcomeSample signedOut
+login-phone                   -MonacoWelcomeSample signInPhone
+login-email                   -MonacoWelcomeSample signInEmail
+login-address-invalid         -MonacoWelcomeSample addressInvalid
+login-sending                 -MonacoWelcomeSample sending
+login-send-offline            -MonacoWelcomeSample sendOffline
 login-code                    -MonacoWelcomeSample code
 login-email-code              -MonacoWelcomeSample emailCode
 login-code-rejected           -MonacoWelcomeSample codeRejected
+login-verifying               -MonacoWelcomeSample verifying
+login-verify-offline          -MonacoWelcomeSample verifyOffline
 gate-restoring                -MonacoWelcomeSample restoring
 gate-restore-failed           -MonacoWelcomeSample restoreFailed
 gate-loading                  -MonacoWelcomeSample gateLoading

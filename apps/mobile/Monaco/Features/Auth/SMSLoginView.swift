@@ -5,15 +5,17 @@ import SwiftUI
 struct SMSLoginView: View {
     @ObservedObject var auth: PrivyAuthService
     let scroll: ScrollViewProxy
-    /// Debug harness only: the code the form opens with.
+    /// Debug harness only: the code and the address the form opens with.
     var initialCode = ""
+    var initialAddress = ""
 
     var body: some View {
         OTPLoginForm(
             auth: auth,
             destination: .sms,
             scroll: scroll,
-            initialCode: initialCode
+            initialCode: initialCode,
+            initialAddress: initialAddress
         )
     }
 }
@@ -21,12 +23,14 @@ struct SMSLoginView: View {
 extension OTPDestination {
     static let sms = OTPDestination(
         channel: .sms,
-        caption: "We'll text you a code to sign in.",
+        caption: "We'll send a code to sign you in.",
         prompt: "Phone number",
+        placeholder: "+1 (202) 555-0100",
         keyboardType: .phonePad,
         contentType: .telephoneNumber,
         invalidHint: "Enter your full mobile number.",
         changeLabel: "Change number",
+        verifyTitle: "Check your messages.",
         addressFieldIdentifier: "smsPhoneField",
         identifierPrefix: "sms",
         normalize: { E164PhoneNumber($0)?.value },

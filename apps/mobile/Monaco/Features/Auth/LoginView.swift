@@ -24,42 +24,68 @@ enum LoginMethod: String, CaseIterable, Identifiable {
     }
 }
 
-/// Sign-in, as one composition from the top of the screen down: the brand, then the method, the
-/// field and the button. The form keeps its button above the keyboard while a field is in use,
-/// so the phone pad (which has no return key) never hides the only way forward.
+/// Sign-in, as two layouts over one form. The address step runs from the wordmark down: the intro,
+/// the method, the field and the button, then the cover card. The code step swaps all of that for
+/// its own bar and boxes. The form keeps its button above the keyboard while a field is in use, so
+/// the phone pad (which has no return key) never hides the only way forward.
 struct LoginView: View {
     @ObservedObject var auth: PrivyAuthService
 
     private let methods: [LoginMethod]
-    /// Debug harness only: the code the form opens with, to shoot a typed code.
+    /// Debug harness only: the code and the address the form opens with, to shoot them typed.
     private let initialCode: String
+    private let initialAddress: String
 
     @State private var selectedMethod: LoginMethod
     @Environment(ToastCenter.self) private var toasts
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(
         auth: PrivyAuthService,
         methods: [LoginMethod] = LoginMethod.configured,
         initialMethod: LoginMethod? = nil,
-        initialCode: String = ""
+        initialCode: String = "",
+        initialAddress: String = ""
     ) {
         self.auth = auth
         self.methods = methods
         self.initialCode = initialCode
+        self.initialAddress = initialAddress
         _selectedMethod = State(initialValue: initialMethod ?? methods.first ?? .sms)
     }
+
+    private var onAddressStep: Bool { !auth.flow.isOnCodeStep }
+
+    private var showsAddressChrome: Bool { onAddressStep && !auth.flow.isOffline }
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    LaunchScreenView()
+                    if onAddressStep {
+                        LaunchScreenView()
+                            .padding(.bottom, MonacoTheme.Space.l)
+                            .authStepTransition(reduceMotion: reduceMotion)
+                        if let reason = auth.lastSignOutReason {
+                            signOutNotice(reason)
+                        }
+                    }
+                    if showsAddressChrome, methods.count > 1 {
+                        methodPicker
+                    }
                     form(scroll: proxy)
-                        .padding(.top, MonacoTheme.Space.xl)
+                    if showsAddressChrome {
+                        AuthCoverCard()
+                            .authStepTransition(reduceMotion: reduceMotion)
+                        #if DEBUG
+                        DevSignInButton()
+                        #endif
+                    }
                 }
                 .padding(.horizontal, MonacoTheme.Space.gutter)
-                .padding(.top, MonacoTheme.Space.xl * 2)
                 .padding(.bottom, MonacoTheme.Space.l)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: auth.flow.isOnCodeStep)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: auth.flow.isOffline)
             }
             .scrollBounceBehavior(.basedOnSize)
             .scrollDismissesKeyboard(.interactively)
@@ -75,41 +101,37 @@ struct LoginView: View {
             guard let message else { return }
             toasts.current = MonacoToast(message: message)
         }
+        .onChange(of: auth.flow.isOffline) { _, offline in
+            guard offline else { return }
+            toasts.current = MonacoToast(message: OTPCode.offlineMessage)
+        }
     }
 
+    private func signOutNotice(_ reason: String) -> some View {
+        MonacoNotice(.info, message: reason)
+            .accessibilityIdentifier("signOutReasonNotice")
+            .padding(.bottom, MonacoTheme.Space.sm)
+    }
+
+    private var methodPicker: some View {
+        MonacoSegmented(methods, selection: $selectedMethod) { $0.rawValue }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Sign-in method")
+            // Switching method mid-send would leave the in-flight request to report
+            // success against the other form: an email screen showing a code step
+            // whose code was texted to a phone number.
+            .disabled(auth.flow.isBusy)
+            .padding(.bottom, MonacoTheme.Space.m)
+            .authStepTransition(reduceMotion: reduceMotion)
+    }
+
+    @ViewBuilder
     private func form(scroll: ScrollViewProxy) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            #if DEBUG
-            DevSignInButton()
-            #endif
-            // Why the member is here without having signed out: a quiet line over the form,
-            // not a banner, gone with the next code they ask for.
-            if let reason = auth.lastSignOutReason {
-                Text(reason)
-                    .font(MonacoTheme.Typo.callout)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("signOutReasonNotice")
-                    .padding(.bottom, MonacoTheme.Space.sm)
-            }
-
-            if methods.count > 1 {
-                MonacoSegmented(methods, selection: $selectedMethod) { $0.rawValue }
-                    .accessibilityElement(children: .contain)
-                    .accessibilityLabel("Sign-in method")
-                    // Switching method mid-send would leave the in-flight request to report
-                    // success against the other form: an email screen showing a code step
-                    // whose code was texted to a phone number.
-                    .disabled(auth.flow.isBusy)
-                    .padding(.bottom, MonacoTheme.Space.l)
-            }
-
-            switch effectiveMethod {
-            case .sms:
-                SMSLoginView(auth: auth, scroll: scroll, initialCode: initialCode)
-            case .email:
-                EmailLoginView(auth: auth, scroll: scroll, initialCode: initialCode)
-            }
+        switch effectiveMethod {
+        case .sms:
+            SMSLoginView(auth: auth, scroll: scroll, initialCode: initialCode, initialAddress: initialAddress)
+        case .email:
+            EmailLoginView(auth: auth, scroll: scroll, initialCode: initialCode, initialAddress: initialAddress)
         }
     }
 

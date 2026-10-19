@@ -4,15 +4,17 @@ import SwiftUI
 struct EmailLoginView: View {
     @ObservedObject var auth: PrivyAuthService
     let scroll: ScrollViewProxy
-    /// Debug harness only: the code the form opens with.
+    /// Debug harness only: the code and the address the form opens with.
     var initialCode = ""
+    var initialAddress = ""
 
     var body: some View {
         OTPLoginForm(
             auth: auth,
             destination: .email,
             scroll: scroll,
-            initialCode: initialCode
+            initialCode: initialCode,
+            initialAddress: initialAddress
         )
     }
 }
@@ -20,12 +22,14 @@ struct EmailLoginView: View {
 extension OTPDestination {
     static let email = OTPDestination(
         channel: .email,
-        caption: "We'll email you a one-time code. Check spam if it doesn't arrive.",
+        caption: "We'll send a code to sign you in.",
         prompt: "Email address",
+        placeholder: "you@example.com",
         keyboardType: .emailAddress,
         contentType: .emailAddress,
         invalidHint: "Enter an email address, like you@example.com.",
         changeLabel: "Change email",
+        verifyTitle: "Check your email.",
         addressFieldIdentifier: "emailAddressField",
         identifierPrefix: "email",
         normalize: OTPDestination.normalizedEmail,

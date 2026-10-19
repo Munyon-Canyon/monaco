@@ -14,4 +14,16 @@ extension View {
     func authScreenBackground() -> some View {
         monacoCanvas()
     }
+
+    func authHeadline() -> some View {
+        font(MonacoTheme.Typo.display)
+            .foregroundStyle(MonacoTheme.ink)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: 290, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    func authStepTransition(reduceMotion: Bool) -> some View {
+        transition(reduceMotion ? .identity : .move(edge: .trailing).combined(with: .opacity))
+    }
 }
