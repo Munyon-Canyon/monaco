@@ -12,7 +12,7 @@ final class MainFlowCopyAuditTests: XCTestCase {
 
         // Assert
         XCTAssertTrue(clean)
-        for name in ["Home", "Profile", "Cabals", "Stocks", "Settings"] {
+        for name in ["Home", "Profile", "Cabals", "Markets", "Settings"] {
             XCTAssertTrue(strings.contains(name), "missing tab label \(name)")
         }
     }
