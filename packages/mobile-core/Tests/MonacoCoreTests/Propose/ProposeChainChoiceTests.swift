@@ -9,10 +9,11 @@ final class ProposeChainChoiceTests: XCTestCase {
 
         XCTAssertEqual(options.map(\.title), ["Best price", "Base", "Solana", "Ethereum", "Monad"])
         XCTAssertEqual(
-            options.map(\.chain), [.best, .network(.base), .network(.solana), .network(.ethereum), .network(.monad)])
+            options.map(\.chain),
+            [.best, .network(.base), .network(.solana), .network(.ethereum), .unavailable("monad")])
         XCTAssertEqual(
             options.map(\.figure), ["0.4012 shares", "0.4012 shares", "0.4000 shares", "0.3980 shares", "No price yet"])
-        XCTAssertEqual(options.map(\.network), [.base, .base, .solana, .ethereum, .monad])
+        XCTAssertEqual(options.map(\.networkID), ["base", "base", "solana", "ethereum", "monad"])
         XCTAssertEqual(options.map(\.isBest), [true, false, false, false, false])
     }
 

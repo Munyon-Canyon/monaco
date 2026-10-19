@@ -18,7 +18,7 @@ struct ProposeChainSection: View {
                         choosing = true
                     } label: {
                         HStack(spacing: MonacoTheme.Space.sm) {
-                            ChainMark(network: current.network?.rawValue ?? "")
+                            ChainMark(network: current.networkID)
                             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                                 Text(current.title)
                                     .font(MonacoTheme.Typo.headline)
@@ -78,7 +78,7 @@ struct ProposeChainSheet: View {
     static func rows(_ options: [MonacoCore.ProposeChainOption], selected: MonacoCore.ProposeChain) -> [Row] {
         options.map { option in
             Row(
-                id: "propose-chain-\(option.id)", chain: option.chain, network: option.network?.rawValue ?? "",
+                id: "propose-chain-\(option.id)", chain: option.chain, network: option.networkID,
                 title: option.title, figure: option.figure,
                 caption: option.isBest
                     ? "The cabal buys wherever the price is best when the trade runs"

@@ -115,7 +115,7 @@ final class BestPriceTests: XCTestCase {
         XCTAssertNil(best.advantage)
         XCTAssertEqual(best.unavailable.map(\.id), ["b", "c", "d", "e", "demo-monad"])
         XCTAssertEqual(best.unavailable.map(\.name), ["Base", "Ethereum", "Arbitrum", "Robinhood Chain", "Monad"])
-        XCTAssertEqual(best.unavailable.map(\.network), [.base, .ethereum, .arbitrum, .robinhood, .monad])
+        XCTAssertEqual(best.unavailable.map(\.network), ["base", "ethereum", "arbitrum", "robinhood", "monad"])
         XCTAssertEqual(
             best.unavailable.map(\.reason),
             [
@@ -179,7 +179,7 @@ final class BestPriceTests: XCTestCase {
             return try XCTUnwrap(BestPrice(compared, isSell: false)).winner.name
         }
 
-        XCTAssertEqual(labels, ["Solana", "Base", "Arbitrum", "Ethereum", "Robinhood Chain", "Monad"])
+        XCTAssertEqual(labels, ["Solana", "Base", "Arbitrum", "Ethereum", "Robinhood Chain"])
     }
 
     func testEveryUnavailableReasonHasText() {

@@ -5245,7 +5245,7 @@ components:
   # api/spec/base.yaml
     Network:
       type: string
-      enum: [solana, base, arbitrum, ethereum, robinhood, monad]
+      enum: [solana, base, arbitrum, ethereum, robinhood]
       description: The chain a wallet, listing or step lives on.
       examples: [solana]
     PriceComparison:
