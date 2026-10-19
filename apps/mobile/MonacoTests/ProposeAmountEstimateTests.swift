@@ -18,10 +18,7 @@ extension ProposeAmountKeypadTests {
         let (window, _) = try Self.window(service: service, bestChains: store)
         defer { window.isHidden = true }
         func note() -> String? { Self.element("propose-amount-quantity", in: window)?.accessibilityLabel }
-        #expect(await Self.eventually(within: 10) { Self.element("amount-keypad-1", in: window) != nil })
-
-        let one = try #require(Self.element("amount-keypad-1", in: window))
-        #expect(one.accessibilityActivate())
+        try await ProposeAmountKeypadTests.typeOne(in: window)
 
         #expect(await Self.eventually(within: 10) { note() == "Estimate: about 0.004 shares on Base" })
         #expect(await service.answered == false)
@@ -43,8 +40,7 @@ extension ProposeAmountKeypadTests {
         func helper() -> String? { Self.element("amount-entry-helper", in: window)?.accessibilityLabel }
         #expect(await Self.eventually(within: 10) { helper() == "The cabal can spend $500.00" })
 
-        let one = try #require(Self.element("amount-keypad-1", in: window))
-        #expect(one.accessibilityActivate())
+        try await ProposeAmountKeypadTests.typeOne(in: window)
 
         #expect(await Self.eventually(within: 10) { helper() == "Finding the best price…" })
         while await !service.isAsked() { await Task.yield() }

@@ -17,25 +17,9 @@ struct ProposeChainSection: View {
                     Button {
                         choosing = true
                     } label: {
-                        HStack(spacing: MonacoTheme.Space.sm) {
-                            ChainMark(network: current.networkID)
-                            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                                Text(current.title)
-                                    .font(MonacoTheme.Typo.headline)
-                                    .foregroundStyle(MonacoTheme.ink)
-                                Text(current.figure)
-                                    .font(MonacoTheme.Typo.subhead)
-                                    .foregroundStyle(MonacoTheme.secondaryText)
-                            }
-                            Spacer(minLength: MonacoTheme.Space.sm)
-                            Image(systemName: "chevron.right")
-                                .font(MonacoTheme.Typo.caption)
-                                .foregroundStyle(MonacoTheme.secondaryText)
-                                .accessibilityHidden(true)
+                        MonacoRow(title: current.title, subtitle: current.figure, chevron: true, isLast: true) {
+                            ChainMark(network: current.networkID, size: MonacoRowLayout.baseMarkSize)
                         }
-                        .padding(MonacoTheme.Space.m)
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.monacoRow)
                     .accessibilityElement(children: .combine)
@@ -88,37 +72,26 @@ struct ProposeChainSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                MonacoGroupedList {
-                    let rows = Self.rows(options, selected: selected)
-                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                        Button {
-                            choose(row.chain)
-                            dismiss()
-                        } label: {
-                            ProposeChainRow(row: row, isLast: index == rows.count - 1)
-                        }
-                        .buttonStyle(.monacoRow)
-                        .disabled(!row.isAvailable)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityAddTraits(row.isSelected ? .isSelected : [])
-                        .accessibilityIdentifier(row.id)
+        ScrollView {
+            MonacoGroupedList {
+                let rows = Self.rows(options, selected: selected)
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                    Button {
+                        choose(row.chain)
+                        dismiss()
+                    } label: {
+                        ProposeChainRow(row: row, isLast: index == rows.count - 1)
                     }
-                }
-                .padding(.vertical, MonacoTheme.Space.m)
-            }
-            .monacoCanvas()
-            .navigationTitle("Choose a chain")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                        .accessibilityIdentifier("propose-chain-cancel")
+                    .buttonStyle(.monacoRow)
+                    .disabled(!row.isAvailable)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(row.isSelected ? .isSelected : [])
+                    .accessibilityIdentifier(row.id)
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .scrollBounceBehavior(.basedOnSize)
+        .monacoSheet(title: "Choose a chain", detents: .votes, showsClose: true)
         .accessibilityIdentifier("propose-chain-sheet")
     }
 }
@@ -128,31 +101,20 @@ private struct ProposeChainRow: View {
     let isLast: Bool
 
     var body: some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
-            ChainMark(network: row.network, size: 32)
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                Text(row.title)
-                    .font(MonacoTheme.Typo.headline)
-                    .foregroundStyle(MonacoTheme.ink)
-                Text(row.caption)
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+        MonacoRow(title: row.title, subtitle: row.caption, chevron: false, isLast: isLast) {
+            ChainMark(network: row.network, size: MonacoRowLayout.baseMarkSize)
+        } trailing: {
+            HStack(spacing: MonacoTheme.Space.s) {
+                Text(row.figure)
+                    .font(MonacoTheme.Typo.dataStrong)
+                    .foregroundStyle(row.isAvailable ? MonacoTheme.ink : MonacoTheme.secondaryText)
+                Image(systemName: "checkmark")
+                    .font(MonacoTheme.Typo.calloutStrong)
+                    .foregroundStyle(MonacoTheme.brand)
+                    .opacity(row.isSelected ? 1 : 0)
+                    .accessibilityHidden(true)
             }
-            Spacer(minLength: MonacoTheme.Space.sm)
-            Text(row.figure)
-                .font(MonacoTheme.Typo.dataStrong)
-                .foregroundStyle(row.isAvailable ? MonacoTheme.ink : MonacoTheme.secondaryText)
-            Image(systemName: "checkmark")
-                .font(MonacoTheme.Typo.calloutStrong)
-                .foregroundStyle(MonacoTheme.brand)
-                .opacity(row.isSelected ? 1 : 0)
-                .accessibilityHidden(true)
         }
-        .opacity(row.isAvailable ? 1 : 0.5)
-        .padding(MonacoTheme.Space.m)
-        .frame(minHeight: 44)
-        .contentShape(Rectangle())
-        .overlay(alignment: .bottom) { if !isLast { MonacoRule() } }
+        .opacity(row.isAvailable ? 1 : 0.45)
     }
 }

@@ -83,14 +83,15 @@ enum GovernanceProposeBuyJourney {
 
     static func review(_ app: XCUIApplication, chip: String, reads summary: String, step: String) {
         tapLabel(app, chip, step: step)
-        tapLabel(app, "Review", step: step)
-        expectTitle(app, "Review", step: step)
+        tapLabel(app, "Review proposal", step: step)
+        expectLabel(app, "Review proposal", step: step)
         expectText(app, summary, step: step)
     }
 
     static func send(_ app: XCUIApplication, to cabal: String, step: String) {
-        tapLabel(app, "Send to cabal", step: step)
-        JoinJourney.waitForToast(app, "Proposal sent to \(cabal)", step: step)
+        tapLabel(app, "Send proposal", step: step)
+        expectLabel(app, "Proposal sent", step: step)
+        expectLabel(app, cabal, step: step)
     }
 
     static func openCabalAsVoter(_ app: XCUIApplication, _ name: String, step: String) {
@@ -112,20 +113,20 @@ enum GovernanceProposeBuyJourney {
 
         recorder.step("S2.2", "open the Propose chooser") {
             openChooser(app, step: "S2.2")
-            expectLabels(app, ["Buy a stock", "Your cabal votes on it first", "Nothing to sell yet"], step: "S2.2")
+            expectLabels(
+                app, ["Buy a stock", "Choose an investment and an amount", "No holdings to sell"], step: "S2.2")
             let sell = app.element("propose-kind-sell")
             XCTAssertTrue(
-                JoinJourney.waitForLabel(sell, containing: "Sell something the cabal owns", timeout: checkTimeout),
-                "S2.2: no \"Sell something the cabal owns\" row")
+                JoinJourney.waitForLabel(sell, containing: "Sell a holding", timeout: checkTimeout),
+                "S2.2: no \"Sell a holding\" row")
             XCTAssertFalse(
                 app.buttons["propose-kind-sell"].exists,
-                "S2.2: \"Sell something the cabal owns\" can be tapped with nothing to sell")
+                "S2.2: \"Sell a holding\" can be tapped with nothing to sell")
         }
 
         recorder.step("S2.3", "pick GOOGL") {
             tap(app, "propose-kind-buy", step: "S2.3")
-            expectTitle(app, "Buy", step: "S2.3")
-            expectLabel(app, "Popular", step: "S2.3")
+            expectTitle(app, "Buy stock", step: "S2.3")
             let field = app.element("monaco-search-field")
             XCTAssertTrue(field.waitForExistence(timeout: checkTimeout), "S2.3: no stock search")
             field.tap()
@@ -142,15 +143,14 @@ enum GovernanceProposeBuyJourney {
         }
 
         recorder.step("S2.4", "an amount over the pot is refused") {
-            MoneyFundCabalJourney.typeKeypadAmount(app, "5")
-            expectLabel(app, "More than the pot has", timeout: 5, step: "S2.4")
+            MoneyFundCabalJourney.typeAmount(app, "5")
+            expectLabel(app, "Amount exceeds the cash balance.", timeout: 5, step: "S2.4")
             XCTAssertFalse(app.buttons["propose-amount-review"].isEnabled, "S2.4: Review is enabled over the pot")
         }
 
         recorder.step("S2.5", "review $1 of GOOGL with a reason") {
-            MoneyFundCabalJourney.typeKeypadAmount(app, "1")
+            MoneyFundCabalJourney.typeAmount(app, "1")
             expectHelper(app, "The pot has $3.00", timeout: checkTimeout, step: "S2.5")
-            tap(app, "propose-amount-add-reason", step: "S2.5")
             let why = app.element("propose-amount-reason")
             XCTAssertTrue(why.waitForExistence(timeout: checkTimeout), "S2.5: no reason field")
             why.tap()
@@ -161,13 +161,18 @@ enum GovernanceProposeBuyJourney {
                 "S2.5: no Review screen within \(Int(checkTimeout)) s"
             )
             expectLabels(
-                app, ["Buy $1.00 of GOOGL", "Cabal gets", "Price", "Pot", "Who votes", "Why buy", reason(run: run)],
+                app,
+                [
+                    "Buy GOOGL", "$1.00", "Voting window", "Cabal gets", "Price", "Pot", "Who votes", "Thesis",
+                    reason(run: run),
+                ],
                 step: "S2.5")
         }
 
         recorder.step("S2.6", "send to the cabal") {
             tap(app, "propose-review-send", step: "S2.6")
-            JoinJourney.waitForToast(app, "Proposal sent to \(cabal)", step: "S2.6")
+            expectLabel(app, "Proposal sent", step: "S2.6")
+            tapLabel(app, "Close", step: "S2.6")
             XCTAssertTrue(
                 JoinJourney.waitForLabel(app.element("cabal-header-name"), containing: cabal, timeout: checkTimeout),
                 "S2.6: the flow did not close back to the cabal screen"

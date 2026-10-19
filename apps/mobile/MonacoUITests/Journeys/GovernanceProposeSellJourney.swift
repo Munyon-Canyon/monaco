@@ -23,13 +23,12 @@ enum GovernanceProposeSellJourney {
             let sell = app.buttons["propose-kind-sell"].firstMatch
             XCTAssertTrue(sell.waitForExistence(timeout: 10), "S1.2: no propose-kind-sell")
             XCTAssertTrue(sell.isEnabled, "S1.2: the sell row is disabled")
-            XCTAssertFalse(app.staticTexts["Nothing to sell yet"].exists, "S1.2: the cabal has nothing to sell")
+            XCTAssertFalse(app.staticTexts["No holdings to sell"].exists, "S1.2: the cabal has nothing to sell")
         }
 
         recorder.step("S1.3", "pick Sell") {
             buy.tapLabel(app, "propose-kind-sell", step: "S1.3")
-            buy.expectTitle(app, "Sell", step: "S1.3")
-            buy.expectText(app, "What the cabal owns", step: "S1.3")
+            buy.expectTitle(app, "Sell a holding", step: "S1.3")
         }
 
         recorder.step("S1.4", "pick AAPL") {
@@ -45,18 +44,22 @@ enum GovernanceProposeSellJourney {
 
         recorder.step("S1.5", "review 25%") {
             buy.tapLabel(app, "25%", step: "S1.5")
+            let thesis = app.element("propose-amount-reason")
+            XCTAssertTrue(thesis.waitForExistence(timeout: 10), "S1.5: no thesis field")
+            thesis.tap()
+            thesis.typeText("Journey sell \(run)")
             tapID(app, "propose-amount-review", step: "S1.5")
-            buy.expectTitle(app, "Review", step: "S1.5")
-            let summary = app.staticTexts.matching(
-                NSPredicate(format: "label BEGINSWITH 'Sell ' AND label ENDSWITH ' of AAPL'")
+            buy.expectLabel(app, "Review proposal", step: "S1.5")
+            let summary = app.descendants(matching: .any).matching(
+                NSPredicate(format: "label BEGINSWITH 'Sell ' AND label CONTAINS 'AAPL'")
             ).firstMatch
-            XCTAssertTrue(summary.waitForExistence(timeout: 10), "S1.5: no Sell … of AAPL")
+            XCTAssertTrue(summary.waitForExistence(timeout: 10), "S1.5: no Sell AAPL line")
             buy.expectTexts(app, ["Raises", "Cabal keeps", "Who votes"], step: "S1.5")
         }
 
         recorder.step("S1.6", "send to the cabal") {
             tapID(app, "propose-review-send", step: "S1.6")
-            JoinJourney.waitForToast(app, "Proposal sent to \(name)", step: "S1.6")
+            buy.expectLabel(app, "Proposal sent", step: "S1.6")
         }
     }
 
