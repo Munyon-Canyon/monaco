@@ -22,6 +22,7 @@ public final class FeedModel {
     public private(set) var pager: CursorPager<Components.Schemas.FeedItem>
     public private(set) var failureTick = 0
     public private(set) var lastError: APIError?
+    public private(set) var loadMoreFailed = false
     private var viewerFollowsNobody = false
     private var checkingFollows = false
 
@@ -104,6 +105,7 @@ public final class FeedModel {
     public func reload() async {
         let pager = pager
         await pager.loadFirst()
+        loadMoreFailed = false
         noteFailure(of: pager)
         await checkFollows(after: pager)
     }
@@ -111,14 +113,22 @@ public final class FeedModel {
     public func refresh() async {
         let pager = pager
         await pager.refreshFirstPage()
+        if !pager.phase.isFailed { loadMoreFailed = false }
         noteFailure(of: pager)
         await checkFollows(after: pager)
     }
 
     public func loadMore() async {
         let pager = pager
+        let before = pager.phase
         await pager.loadMore()
         noteFailure(of: pager)
+        guard pager === self.pager else { return }
+        switch pager.phase {
+        case .idle, .exhausted: loadMoreFailed = false
+        case .failed: if !before.isFailed { loadMoreFailed = true }
+        case .loadingFirst, .loadingMore: break
+        }
     }
 
     public func observe() async {
@@ -163,6 +173,7 @@ public final class FeedModel {
     private func apply(_ next: FeedQuery) async {
         query = next
         let candidate = Self.pager(api: api, query: next)
+        loadMoreFailed = false
         guard !pager.items.isEmpty else {
             pager = candidate
             await reload()
@@ -206,4 +217,11 @@ public final class FeedModel {
 public struct FeedMuteReceipt: Equatable, Sendable {
     public let target: FeedMuteTarget
     public let message: String
+}
+
+extension PagerPhase {
+    fileprivate var isFailed: Bool {
+        if case .failed = self { return true }
+        return false
+    }
 }
