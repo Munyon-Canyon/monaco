@@ -2,7 +2,7 @@
 //  StocksTabSampleUITests.swift
 //  MonacoUITests
 //
-//  QA coverage for the live Stocks tab against the debug sample harness
+//  QA coverage for the live Markets tab against the debug sample harness
 //  (-MonacoStocksTabSample full|loading|failed|empty). No sign-in and no backend:
 //  the harness answers the asset reads from sample data (Alphabet, T-SpaceX and
 //  Newco), so every state the tab can be in is screenshottable here.
@@ -50,8 +50,8 @@ nonisolated final class StocksTabSampleUITests: XCTestCase {
     @MainActor
     private func waitForTab(_ app: XCUIApplication, _ context: String) {
         XCTAssertTrue(
-            app.navigationBars["Stocks"].waitForExistence(timeout: 30),
-            "\(context) never drew the Stocks tab"
+            app.navigationBars["Markets"].waitForExistence(timeout: 30),
+            "\(context) never drew the Markets tab"
         )
     }
 
@@ -249,7 +249,7 @@ nonisolated final class StocksTabSampleUITests: XCTestCase {
         row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
 
         let leftTheTab = NSPredicate(format: "exists == false")
-        expectation(for: leftTheTab, evaluatedWith: app.navigationBars["Stocks"])
+        expectation(for: leftTheTab, evaluatedWith: app.navigationBars["Markets"])
         waitForExpectations(timeout: 25)
     }
 
@@ -266,7 +266,7 @@ nonisolated final class StocksTabSampleUITests: XCTestCase {
         row.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.5)).tap()
 
         let leftTheTab = NSPredicate(format: "exists == false")
-        expectation(for: leftTheTab, evaluatedWith: app.navigationBars["Stocks"])
+        expectation(for: leftTheTab, evaluatedWith: app.navigationBars["Markets"])
         waitForExpectations(timeout: 25)
     }
 }

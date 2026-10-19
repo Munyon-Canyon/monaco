@@ -153,7 +153,7 @@ enum SignInJourney {
         }
 
         recorder.step("S1.6", "the tab bar has every tab") {
-            for title in ["Home", "Feed", "Cabals", "Stocks", "Profile"] {
+            for title in ["Home", "Cabals", "Markets", "Feed", "Profile"] {
                 XCTAssertTrue(app.tab(title).exists, "S1.6: no \(title) tab")
             }
         }

@@ -2,7 +2,7 @@ import XCTest
 
 enum StocksAssetDetailJourney {
     static let id = "stocks/asset-detail"
-    static let version = 7
+    static let version = 8
 
     static let alpha = StocksBrowseJourney.alpha
     static let preIpo = StocksBrowseJourney.preIpo
@@ -19,7 +19,7 @@ enum StocksAssetDetailJourney {
         StocksBrowseJourney.openStocks(app, step: step)
         XCTAssertTrue(
             StocksBrowseJourney.searchField(app).waitForExistence(timeout: 15),
-            "\(step): no search field on the Stocks tab")
+            "\(step): no search field on the Markets tab")
         StocksBrowseJourney.replaceQuery(app, with: asset.ticker)
         let row = StocksBrowseJourney.row(app, asset)
         XCTAssertTrue(

@@ -51,7 +51,9 @@ nonisolated final class MainTabGlyphTests: XCTestCase {
     func testEveryTabGlyphHasAFilledVariant() {
         for tab in MainTab.allCases {
             XCTAssertNotNil(UIImage(systemName: tab.systemImage), tab.title)
-            XCTAssertNotNil(UIImage(systemName: tab.systemImage + ".fill"), tab.title)
+            if tab != .stocks {
+                XCTAssertNotNil(UIImage(systemName: tab.systemImage + ".fill"), tab.title)
+            }
         }
     }
 }

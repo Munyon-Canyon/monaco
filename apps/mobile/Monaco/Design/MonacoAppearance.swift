@@ -6,17 +6,18 @@ enum MonacoAppearance {
     static func configureUIKit() {
         let canvas = UIColor(MonacoTheme.canvas)
         let primaryText = UIColor(MonacoTheme.primaryText)
-        let muted = UIColor(MonacoTheme.muted)
-        let hairline = UIColor(MonacoTheme.hairline)
+        let secondaryText = UIColor(MonacoTheme.secondaryText)
+        let brand = UIColor(MonacoTheme.brand)
+        let border = UIColor(MonacoTheme.border)
         let titleFont = UIFont.systemFont(ofSize: 17, weight: .semibold)
-        let largeTitleFont = UIFont.systemFont(ofSize: 36, weight: .bold)
+        let largeTitleFont = UIFont.systemFont(ofSize: 30, weight: .bold)
         let titleAttributes: [NSAttributedString.Key: Any] = [
             .foregroundColor: primaryText,
             .font: UIFontMetrics(forTextStyle: .headline).scaledFont(for: titleFont, maximumPointSize: 22),
         ]
         let largeTitleAttributes: [NSAttributedString.Key: Any] = [
             .foregroundColor: primaryText,
-            .font: UIFontMetrics(forTextStyle: .largeTitle).scaledFont(for: largeTitleFont, maximumPointSize: 44),
+            .font: UIFontMetrics(forTextStyle: .largeTitle).scaledFont(for: largeTitleFont, maximumPointSize: 36),
         ]
 
         // Chevron-only back button: the title is drawn clear and at a near-zero size so it takes no width.
@@ -34,7 +35,7 @@ enum MonacoAppearance {
         let standard = UINavigationBarAppearance()
         standard.configureWithOpaqueBackground()
         standard.backgroundColor = canvas
-        standard.shadowColor = hairline
+        standard.shadowColor = border
         standard.titleTextAttributes = titleAttributes
         standard.largeTitleTextAttributes = largeTitleAttributes
         standard.backButtonAppearance = backButton
@@ -56,30 +57,29 @@ enum MonacoAppearance {
         navigationBar.tintColor = primaryText
         navigationBar.prefersLargeTitles = false
 
-        // Tab bar: opaque canvas, hairline top edge, the selected item in ink.
+        // Tab bar: the system material, which goes opaque under Reduce Transparency; the selected item in brand.
         let tabBar = UITabBarAppearance()
-        tabBar.configureWithOpaqueBackground()
-        tabBar.backgroundColor = canvas
-        tabBar.shadowColor = hairline
+        tabBar.configureWithDefaultBackground()
+        tabBar.shadowColor = border
         let tabItem = UITabBarItemAppearance()
         let tabFont = UIFontMetrics(forTextStyle: .caption2)
             .scaledFont(for: .systemFont(ofSize: 11, weight: .medium), maximumPointSize: 15)
-        tabItem.normal.iconColor = muted
-        tabItem.normal.titleTextAttributes = [.foregroundColor: muted, .font: tabFont]
-        tabItem.selected.iconColor = primaryText
-        tabItem.selected.titleTextAttributes = [.foregroundColor: primaryText, .font: tabFont]
+        tabItem.normal.iconColor = secondaryText
+        tabItem.normal.titleTextAttributes = [.foregroundColor: secondaryText, .font: tabFont]
+        tabItem.selected.iconColor = brand
+        tabItem.selected.titleTextAttributes = [.foregroundColor: brand, .font: tabFont]
 
         tabBar.stackedLayoutAppearance = tabItem
         tabBar.inlineLayoutAppearance = tabItem
         tabBar.compactInlineLayoutAppearance = tabItem
         UITabBar.appearance().standardAppearance = tabBar
         UITabBar.appearance().scrollEdgeAppearance = tabBar
-        UITabBar.appearance().tintColor = primaryText
-        UITabBar.appearance().unselectedItemTintColor = muted
+        UITabBar.appearance().tintColor = brand
+        UITabBar.appearance().unselectedItemTintColor = secondaryText
 
         // Legacy Form / List screens until they migrate to MonacoGroupedList.
         UITableView.appearance().backgroundColor = .clear
-        UITableView.appearance().separatorColor = hairline
+        UITableView.appearance().separatorColor = border
 
         // No global UITextField / UISegmentedControl appearance: it leaked into Privy's sheets.
         // Use MonacoTextField and MonacoSegmented instead.
@@ -113,7 +113,7 @@ extension View {
     func monacoActionCard(
         isCard: Bool = true,
         fill: Color = MonacoTheme.surface,
-        border: Color = MonacoTheme.hairline,
+        border: Color = MonacoTheme.border,
         isDashed: Bool = false,
         inset: CGFloat = MonacoTheme.Space.m,
         fillsWidth: Bool = true
@@ -132,24 +132,31 @@ extension View {
         }
     }
 
-    func monacoSheet(title: String, titleIdentifier: String? = nil) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            MonacoSheetHeading(title: title, identifier: titleIdentifier)
-            self
-                .environment(\.insideMonacoSheet, true)
-        }
-        .monacoSheetChrome()
+    func monacoSheet(
+        title: String,
+        titleIdentifier: String? = nil,
+        detents: MonacoSheetDetents? = nil,
+        showsClose: Bool = false
+    ) -> some View {
+        MonacoSheetFrame(
+            title: title, titleIdentifier: titleIdentifier, kind: detents, showsClose: showsClose, scrolls: false,
+            content: self)
     }
 
-    func monacoFittedSheet(title: String, titleIdentifier: String? = nil) -> some View {
-        MonacoFittedSheet(title: title, titleIdentifier: titleIdentifier, content: self)
+    func monacoFittedSheet(
+        title: String,
+        titleIdentifier: String? = nil,
+        detents: MonacoSheetDetents = .fitted,
+        showsClose: Bool = false
+    ) -> some View {
+        MonacoSheetFrame(
+            title: title, titleIdentifier: titleIdentifier, kind: detents, showsClose: showsClose, scrolls: true,
+            content: self)
     }
 
     func monacoTopLevelHeader(title: String) -> some View {
         navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(MonacoTheme.canvas, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
+            .navigationBarTitleDisplayMode(.large)
     }
 
     func monacoBleed() -> some View {
@@ -189,43 +196,94 @@ extension View {
 
 }
 
-private struct MonacoSheetHeading: View {
-    let title: String
-    let identifier: String?
+enum MonacoSheetDetents {
+    case review, votes, result, fitted
 
-    var body: some View {
-        let heading = Text(title)
-            .font(MonacoTheme.Typo.title)
-            .foregroundStyle(MonacoTheme.ink)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.top, MonacoTheme.Space.m)
-            .padding(.bottom, MonacoTheme.Space.s)
-            .accessibilityAddTraits(.isHeader)
-        if let identifier {
-            heading.accessibilityIdentifier(identifier)
-        } else {
-            heading
+    fileprivate func detents(fittedHeight: CGFloat, accessibilitySize: Bool) -> [PresentationDetent] {
+        if accessibilitySize { return [.large] }
+        switch self {
+        case .review: return [.fraction(0.66), .large]
+        case .votes: return [.medium, .large]
+        case .result: return [.height(310), .large]
+        case .fitted: return fittedHeight > 0 ? [.height(fittedHeight)] : [.medium]
         }
     }
 }
 
-private struct MonacoFittedSheet<Content: View>: View {
+struct MonacoSheetHeading: View {
+    let title: String
+    let identifier: String?
+    var showsExpand = false
+    var showsClose = false
+    var expand: () -> Void = {}
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        HStack(spacing: MonacoTheme.Space.s) {
+            titleText
+            if showsExpand {
+                MonacoGlassButton(systemImage: "arrow.up", accessibilityLabel: "Expand", style: .quiet, action: expand)
+            }
+            if showsClose {
+                MonacoGlassButton(systemImage: "xmark", accessibilityLabel: "Close", style: .quiet) { dismiss() }
+            }
+        }
+        .frame(minHeight: 48)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.top, MonacoTheme.Space.s)
+        .padding(.bottom, MonacoTheme.Space.sm)
+    }
+
+    @ViewBuilder
+    private var titleText: some View {
+        let text = Text(title)
+            .font(MonacoTheme.Typo.section)
+            .foregroundStyle(MonacoTheme.primaryText)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
+        if let identifier {
+            text.accessibilityIdentifier(identifier)
+        } else {
+            text
+        }
+    }
+}
+
+private struct MonacoSheetFrame<Content: View>: View {
     let title: String
     let titleIdentifier: String?
+    let kind: MonacoSheetDetents?
+    let showsClose: Bool
+    let scrolls: Bool
     let content: Content
 
+    @State private var selection: PresentationDetent?
     @State private var headingHeight: CGFloat = 0
     @State private var contentHeight: CGFloat = 0
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            MonacoSheetHeading(title: title, identifier: titleIdentifier)
-                .onGeometryChange(for: CGFloat.self) {
-                    $0.size.height
-                } action: {
-                    headingHeight = $0
-                }
+            MonacoSheetHeading(
+                title: title, identifier: titleIdentifier, showsExpand: showsExpand, showsClose: showsClose
+            ) {
+                selection = .large
+            }
+            .onGeometryChange(for: CGFloat.self) {
+                $0.size.height
+            } action: {
+                headingHeight = $0
+            }
+            sheetContent
+        }
+        .monacoSheetChrome()
+        .presentationDetents(Set(available), selection: current)
+    }
+
+    @ViewBuilder
+    private var sheetContent: some View {
+        if scrolls {
             ScrollView {
                 content
                     .environment(\.insideMonacoSheet, true)
@@ -236,18 +294,57 @@ private struct MonacoFittedSheet<Content: View>: View {
                     }
             }
             .scrollBounceBehavior(.basedOnSize)
+        } else {
+            content
+                .environment(\.insideMonacoSheet, true)
         }
-        .monacoSheetChrome()
-        .presentationDetents(
-            headingHeight > 0 && contentHeight > 0 ? [.height(headingHeight + contentHeight)] : [.medium])
+    }
+
+    private var available: [PresentationDetent] {
+        guard let kind else { return [.large] }
+        return kind.detents(
+            fittedHeight: headingHeight > 0 && contentHeight > 0 ? headingHeight + contentHeight : 0,
+            accessibilitySize: dynamicTypeSize.isAccessibilitySize)
+    }
+
+    private var current: Binding<PresentationDetent> {
+        Binding(
+            get: {
+                let list = available
+                if let selection, list.contains(selection) { return selection }
+                return list.first ?? .large
+            },
+            set: { selection = $0 }
+        )
+    }
+
+    private var showsExpand: Bool {
+        available.contains(.large) && current.wrappedValue != .large
     }
 }
 
 extension View {
     fileprivate func monacoSheetChrome() -> some View {
-        background(MonacoTheme.surface)
-            .presentationBackground(MonacoTheme.surface)
-            .presentationCornerRadius(MonacoTheme.Radius.sheet)
+        modifier(MonacoSheetChrome())
+    }
+}
+
+private struct MonacoSheetChrome: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        let base =
+            content
             .presentationDragIndicator(.visible)
+            .presentationContentInteraction(.scrolls)
+            .presentationBackgroundInteraction(.disabled)
+        if reduceTransparency {
+            base.presentationBackground(MonacoTheme.background)
+        } else if #available(iOS 26, *) {
+            base
+        } else {
+            base.presentationBackground(.regularMaterial)
+        }
     }
 }
