@@ -17,6 +17,120 @@ public enum ProposalChip {
     }
 }
 
+public enum ProposalBallot: String, Equatable, Sendable {
+    case yes
+    case no
+
+    public var label: String { rawValue.capitalized }
+}
+
+public enum ProposalState: Equatable, Sendable {
+    case open
+    case voted(ProposalBallot)
+    case viewOnly
+    case approved
+    case executed
+    case expired
+    case blocked
+    case rejected
+    case withdrawn
+    case voided
+
+    public init(status: ProposalStatus, ballot: String?, canVote: Bool, swapFailed: Bool) {
+        if swapFailed {
+            self = .blocked
+            return
+        }
+        switch status {
+        case .open:
+            if let ballot = ballot.flatMap(ProposalBallot.init(rawValue:)) {
+                self = .voted(ballot)
+            } else {
+                self = canVote ? .open : .viewOnly
+            }
+        case .passed: self = .approved
+        case .executed: self = .executed
+        case .failed: self = .rejected
+        case .expired: self = .expired
+        case .withdrawn: self = .withdrawn
+        case .voided: self = .voided
+        case .executionBlocked: self = .blocked
+        }
+    }
+
+    public var isOpen: Bool {
+        switch self {
+        case .open, .voted, .viewOnly: true
+        default: false
+        }
+    }
+}
+
+extension ProposalSummary {
+    public func state(now: Date) -> ProposalState {
+        ProposalState(
+            status: status, ballot: myBallot, canVote: canVote && expiresAt > now, swapFailed: swap?.status == "failed")
+    }
+}
+
+public struct ProposalBadge: Equatable, Sendable {
+    public enum Tone: Equatable, Sendable { case brand, warn, negative, neutral }
+
+    public let label: String
+    public let tone: Tone
+
+    private init(_ label: String, _ tone: Tone) {
+        self.label = label
+        self.tone = tone
+    }
+
+    public static func hero(_ state: ProposalState) -> Self {
+        switch state {
+        case .open: Self("Voting open", .brand)
+        case .voted(let ballot): Self("You voted \(ballot.label)", .brand)
+        case .viewOnly: Self("View only", .neutral)
+        case .approved: Self("Approved · Executing", .warn)
+        case .executed: Self("Executed", .brand)
+        case .expired: Self("Expired", .neutral)
+        case .blocked: Self("Not executed", .negative)
+        case .rejected: Self("Not approved", .neutral)
+        case .withdrawn: Self("Withdrawn", .neutral)
+        case .voided: Self("Voided by Monaco", .neutral)
+        }
+    }
+
+    public static func card(_ state: ProposalState) -> Self {
+        switch state {
+        case .open: Self("Needs your vote", .brand)
+        case .viewOnly: Self("Voting open", .brand)
+        case .approved: Self("Execution pending", .warn)
+        case .blocked: Self("Trade not completed", .negative)
+        case .voted, .executed, .expired, .rejected, .withdrawn, .voided: hero(state)
+        }
+    }
+
+    public static func listRow(_ state: ProposalState) -> Self {
+        switch state {
+        case .open, .voted, .viewOnly: Self("Open", .brand)
+        case .approved: Self("Pending", .warn)
+        case .executed: Self("Executed", .brand)
+        case .expired: Self("Expired", .negative)
+        case .blocked: Self("Blocked", .negative)
+        case .rejected: Self("Not approved", .neutral)
+        case .withdrawn: Self("Withdrawn", .neutral)
+        case .voided: Self("Voided", .neutral)
+        }
+    }
+
+    public static func ballot(_ ballot: ProposalBallot?) -> Self {
+        switch ballot {
+        case .yes: Self("Yes", .brand)
+        case .no: Self("No", .negative)
+        case nil: Self("Not voted", .neutral)
+        }
+    }
+}
+
 public struct ProposalStepper: Equatable, Sendable {
     public enum Mark: Equatable, Sendable { case done, active, pending, failed }
 

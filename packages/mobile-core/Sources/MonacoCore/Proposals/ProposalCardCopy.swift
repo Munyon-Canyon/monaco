@@ -9,6 +9,122 @@ public enum ProposalCardCopy {
         ProposalTimeFormatter.closesLabel(expiry: expiry, now: now)
     }
 
+    public struct Action: Equatable, Sendable {
+        public let title: String
+        public let isPrimary: Bool
+    }
+
+    public enum FooterIcon: Equatable, Sendable { case chat, clock, done, warning }
+
+    public enum FooterTone: Equatable, Sendable { case muted, warning, gain, loss }
+
+    public struct Footer: Equatable, Sendable {
+        public let icon: FooterIcon
+        public let text: String
+        public let tone: FooterTone
+    }
+
+    public enum NoticeTone: Equatable, Sendable { case info, warn, error }
+
+    public struct Notice: Equatable, Sendable {
+        public let tone: NoticeTone
+        public let message: String
+    }
+
+    public static func button(_ state: ProposalState) -> Action {
+        switch state {
+        case .open: Action(title: "Review", isPrimary: true)
+        case .voted: Action(title: "Review vote", isPrimary: false)
+        case .viewOnly: Action(title: "Review", isPrimary: false)
+        case .approved, .blocked: Action(title: "View status", isPrimary: false)
+        case .executed: Action(title: "View trade", isPrimary: false)
+        case .expired, .rejected, .withdrawn, .voided: Action(title: "View decision", isPrimary: false)
+        }
+    }
+
+    public static func neededLabel(_ count: Int) -> String {
+        count == 1 ? "1 yes vote needed" : "\(count) yes votes needed"
+    }
+
+    public static func note(
+        _ state: ProposalState, needed: Int, expiresAt: Date, statusMessage: String?, now: Date
+    ) -> String {
+        switch state {
+        case .open, .voted, .viewOnly: "\(neededLabel(needed)) · \(closes(at: expiresAt, now: now))"
+        case .approved: "The cabal passed this proposal."
+        case .executed: "The trade is complete."
+        case .expired: "Voting ended without enough yes votes."
+        case .blocked: "Execution was blocked. Review the status."
+        case .rejected: "The proposal did not pass."
+        case .withdrawn: "The proposer withdrew this proposal."
+        case .voided: nonEmpty(statusMessage) ?? "Monaco voided this proposal."
+        }
+    }
+
+    public static func tallyLine(_ tally: ProposalTally) -> String {
+        "\(tally.yes) yes · \(tally.no) no · \(max(tally.voters - tally.yes - tally.no, 0)) not voted"
+    }
+
+    public static func footer(_ state: ProposalState, tally: ProposalTally) -> Footer {
+        switch state {
+        case .open, .voted, .viewOnly: Footer(icon: .chat, text: tallyLine(tally), tone: .muted)
+        case .approved:
+            Footer(icon: .clock, text: "Approved by the cabal · Not completed", tone: .warning)
+        case .executed:
+            Footer(icon: .done, text: "Trade confirmed · View the original decision", tone: .gain)
+        case .blocked:
+            Footer(icon: .warning, text: "Decision retained · No completed trade", tone: .loss)
+        case .expired, .rejected, .withdrawn, .voided:
+            Footer(icon: .clock, text: "Voting closed · No trade placed", tone: .muted)
+        }
+    }
+
+    public static func rowSubtitle(_ state: ProposalState, proposer: String, statusMessage: String?) -> String {
+        switch state {
+        case .open, .voted, .viewOnly: "\(proposer) · Voting open"
+        case .approved: "Approved · execution pending"
+        case .executed: "Trade confirmed"
+        case .expired: "Voting ended without enough yes votes"
+        case .blocked: "The trade did not go through"
+        case .rejected: "The proposal did not pass"
+        case .withdrawn: "The proposer withdrew this proposal"
+        case .voided: nonEmpty(statusMessage) ?? "Monaco voided this proposal"
+        }
+    }
+
+    public static func statusNotice(_ state: ProposalState, failureMessage: String?, statusMessage: String?)
+        -> Notice?
+    {
+        switch state {
+        case .open, .voted, .viewOnly:
+            return nil
+        case .approved:
+            return Notice(tone: .warn, message: "The vote passed. Execution is pending.")
+        case .executed:
+            return Notice(tone: .info, message: "The trade is confirmed.")
+        case .expired:
+            return Notice(tone: .info, message: "Voting closed without enough yes votes. No trade was placed.")
+        case .blocked:
+            let lead = "The trade did not go through."
+            let detail = (nonEmpty(failureMessage) ?? nonEmpty(statusMessage)).map(sentence)
+            let message = detail.flatMap { $0 == lead ? nil : "\(lead) \($0)" } ?? lead
+            return Notice(tone: .error, message: message)
+        case .rejected:
+            return Notice(tone: .info, message: "The proposal did not pass.")
+        case .withdrawn, .voided:
+            let badge = ProposalBadge.hero(state).label
+            let detail = nonEmpty(statusMessage).map(sentence)
+            return Notice(tone: .info, message: ["\(badge).", detail].compactMap { $0 }.joined(separator: " "))
+        }
+    }
+
+    private static func nonEmpty(_ text: String?) -> String? {
+        guard let text, !text.isEmpty else { return nil }
+        return text
+    }
+
+    private static func sentence(_ text: String) -> String { text.hasSuffix(".") ? text : text + "." }
+
     public static func tracker(voted: Int, voters: Int, needed: Int) -> String {
         "\(voted) of \(voters) voted · \(needed) yes to pass"
     }
@@ -33,6 +149,11 @@ public enum ProposalCardCopy {
         if minutes < 60 { return "\(minutes)m" }
         if minutes < 1440 { return "\(minutes / 60)h" }
         return "\(minutes / 1440)d"
+    }
+
+    public static func ago(since created: Date, now: Date) -> String {
+        let label = age(since: created, now: now)
+        return label == "now" ? "Just now" : "\(label) ago"
     }
 
     public static func expected(
