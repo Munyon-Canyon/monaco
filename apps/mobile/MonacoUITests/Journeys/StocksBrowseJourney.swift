@@ -2,7 +2,7 @@ import XCTest
 
 enum StocksBrowseJourney {
     static let id = "stocks/browse"
-    static let version = 2
+    static let version = 3
 
     static let searchPlaceholder = "Search Apple, Tesla, NVDA…"
     static let alpha = SeededAsset(symbol: "JRNYAx", ticker: "JRNYA", name: "Journey Alpha", price: "$123.45")
@@ -32,14 +32,14 @@ enum StocksBrowseJourney {
 
     static func openStocks(_ app: XCUIApplication, step: String) {
         app.element("tab-assets").tap()
-        XCTAssertTrue(app.element("assets-root").waitForExistence(timeout: 15), "\(step): the Stocks tab did not open")
-        XCTAssertTrue(app.navigationBars["Stocks"].exists, "\(step): the Stocks tab is not titled 'Stocks'")
+        XCTAssertTrue(app.element("assets-root").waitForExistence(timeout: 15), "\(step): the Markets tab did not open")
+        XCTAssertTrue(app.navigationBars["Markets"].exists, "\(step): the Markets tab is not titled 'Markets'")
     }
 
     static func waitForRow(_ app: XCUIApplication, _ asset: SeededAsset, step: String, timeout: TimeInterval) {
         XCTAssertTrue(
             row(app, asset).waitForExistence(timeout: timeout),
-            "\(step): no \(asset.rowID) within \(Int(timeout)) s (the Stocks tab is blank on staging, #577)")
+            "\(step): no \(asset.rowID) within \(Int(timeout)) s (the Markets tab is blank on staging, #577)")
     }
 
     static func assertRowReads(_ app: XCUIApplication, _ asset: SeededAsset, price: Bool, step: String) {
@@ -75,10 +75,10 @@ enum StocksBrowseJourney {
     }
 
     static func browseSections(_ app: XCUIApplication, recorder: JourneyRecorder) {
-        recorder.step("S1.1", "open the Stocks tab") {
+        recorder.step("S1.1", "open the Markets tab") {
             openStocks(app, step: "S1.1")
             let field = searchField(app)
-            XCTAssertTrue(field.waitForExistence(timeout: 15), "S1.1: no search field on the Stocks tab")
+            XCTAssertTrue(field.waitForExistence(timeout: 15), "S1.1: no search field on the Markets tab")
             XCTAssertEqual(
                 field.placeholderValue, searchPlaceholder, "S1.1: the search field's placeholder is not the spec's")
         }
@@ -119,7 +119,7 @@ enum StocksBrowseJourney {
         recorder.step("S2.1", "search by name") {
             openStocks(app, step: "S2.1")
             let field = searchField(app)
-            XCTAssertTrue(field.waitForExistence(timeout: 15), "S2.1: no search field on the Stocks tab")
+            XCTAssertTrue(field.waitForExistence(timeout: 15), "S2.1: no search field on the Markets tab")
             replaceQuery(app, with: alpha.name)
             let results = app.element("assets-grid-search")
             XCTAssertTrue(results.waitForExistence(timeout: 10), "S2.1: results did not replace the list")
@@ -145,7 +145,7 @@ enum StocksBrowseJourney {
     }
 
     static func pullToRefresh(_ app: XCUIApplication, recorder: JourneyRecorder) {
-        recorder.step("S3.1", "open the Stocks tab") {
+        recorder.step("S3.1", "open the Markets tab") {
             openStocks(app, step: "S3.1")
             waitForRow(app, alpha, step: "S3.1", timeout: 15)
         }

@@ -1,7 +1,7 @@
 ---
 id: stocks/asset-detail
 title: Look at a stock
-version: 7
+version: 8
 milestone: M11
 requires: [auth/sign-in, stocks/browse]
 actors: [A]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/StocksAssetDetailJourney.swift, ap
 
 # Look at a stock
 
-A signed-in member opens a stock from the Stocks tab and reads its screen: the hero with price and session, the chart (candles or a line, with a bar interval picker and range chips), the Stats card with the 52-week bar, and the Propose buy button, which opens Pick a cabal and then Amount. On a Pre-IPO token they also read the private-market reference, About and "Also available from". When one of their cabals holds the stock, they see "Your cabals' position" and Propose sell. The spec is [Stocks: Asset screen](../../screens.md#stocks-tab). The old app's screen is `apps/mobile/Monaco/Features/Assets/AssetDetailView.swift` at `c838bd24`, which every step cites as "old app".
+A signed-in member opens a stock from the Markets tab and reads its screen: the hero with price and session, the chart (candles or a line, with a bar interval picker and range chips), the Stats card with the 52-week bar, and the Propose buy button, which opens Pick a cabal and then Amount. On a Pre-IPO token they also read the private-market reference, About and "Also available from". When one of their cabals holds the stock, they see "Your cabals' position" and Propose sell. The spec is [Stocks: Asset screen](../../screens.md#stocks-tab). The old app's screen is `apps/mobile/Monaco/Features/Assets/AssetDetailView.swift` at `c838bd24`, which every step cites as "old app".
 
 The format of this doc is in [App journeys](../README.md).
 
@@ -19,7 +19,7 @@ The format of this doc is in [App journeys](../README.md).
 
 | Id | What must be true |
 | --- | --- |
-| P1 | Everything [auth/sign-in](../auth/sign-in.md) needs, and the Stocks tab [stocks/browse](browse.md) opens |
+| P1 | Everything [auth/sign-in](../auth/sign-in.md) needs, and the Markets tab [stocks/browse](browse.md) opens |
 | P2 | Before each scenario, `scripts/qa/journey.py` runs `apps/mobile/qa/journeys/stocks/asset-detail.setup.sh` with the scenario id. It runs `apps/mobile/qa/journeys/stocks/browse.setup.sh`, which upserts the catalogue rows of [stocks/browse](browse.md) (P3 there), among them `JRNYQx`, a second `pre_ipo` listing of "Journey Private" from issuer `tessera`, with the same `company_key` as `JRNYPx`. Each row gets two `price_points` samples, stamped twelve hours ago and now, and `JRNYAx` gets 120 more at five-minute spacing ending at now, so its chart has bars to draw, pinch and pan. The setup then lowers the older `JRNYAx` sample (twelve hours ago) to $120.00, so the year range has a width and the 52-week bar draws (it needs a high above the low). No step taps to create them |
 | P3 | `JRNYAx` is `issuer_tradable`, so its Propose buy is enabled |
 | P4 | S5 needs a cabal of A's that holds `JRNYAx`. A treasury position comes only from a confirmed trade, and the trade path is #2136's, so the setup script seeds no holding and S5 runs against a member with none |
@@ -34,7 +34,7 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S1.1 | tap, type, then tap | the Stocks tab `tab-assets`, then `monaco-search-field`, then `assets-row-JRNYAx` | `JRNYA` | Within 15 s of typing, `assets-row-JRNYAx` shows, because the Stocks tab lists the whole catalogue a page at a time and renders only the rows in view. Within 15 s of the tap, `asset-detail-root` shows under the inline title "JRNYA". Old app: a Stocks row pushed `AssetDetailView` (`asset-detail-root`). screens.md: Title is the ticker |
+| S1.1 | tap, type, then tap | the Markets tab `tab-assets`, then `monaco-search-field`, then `assets-row-JRNYAx` | `JRNYA` | Within 15 s of typing, `assets-row-JRNYAx` shows, because the Markets tab lists the whole catalogue a page at a time and renders only the rows in view. Within 15 s of the tap, `asset-detail-root` shows under the inline title "JRNYA". Old app: a Stocks row pushed `AssetDetailView` (`asset-detail-root`). screens.md: Title is the ticker |
 | S1.2 | wait | `asset-detail-name`, `asset-detail-price` | | `asset-detail-name` reads "Journey Alpha", `asset-detail-price` reads "$123.45", and "Trading 24/7 on Solana" shows. Old app: the hero's name, ticker and price. screens.md: Name and ticker, price in `moneyFont(.hero)`, "Trading 24/7 on Solana" |
 | S1.3 | wait | `asset-detail-range-change`, `asset-chart-ranges` | | Within 15 s, `asset-detail-range-change` reads "Past day · JRNYA", and `asset-chart-ranges` holds "1D", "1W", "1M", "3M", "6M", "1Y" and "ALL" with "1D" selected. Old app: the range chips under the chart. screens.md: the change chip for the selected range ("Past day · GOOGL"), chips 1D 1W 1M 3M 6M 1Y ALL |
 | S1.4 | wait | `asset-detail-chart` | | Within 15 s, `asset-detail-chart` shows the seeded bars. Old app: the scrub chart. screens.md: a candlestick chart |
@@ -50,7 +50,7 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S2.1 | tap, type, then tap | the Stocks tab `tab-assets`, then `monaco-search-field`, then `assets-row-JRNYAx` | `JRNYA` | Within 15 s, `asset-detail-root` shows |
+| S2.1 | tap, type, then tap | the Markets tab `tab-assets`, then `monaco-search-field`, then `assets-row-JRNYAx` | `JRNYA` | Within 15 s, `asset-detail-root` shows |
 | S2.2 | scroll to | `asset-stats` | | Within 10 s, `asset-stats` shows the Stats card: open, day high and low, previous close, and 52-week high and low, leaving out a row the candles cannot give. Old app: the Stats card. screens.md: "Stats" (open, day high and low, previous close, 52-week high and low). The buy premium waits for the API, so the card has no row for it |
 | S2.3 | scroll to | `asset-year-range` | | Within 10 s, `asset-year-range` shows under the Stats rows, and its label starts with "52-week range". The bar is one accessibility element, so its label reads "52-week range, $x to $y". Old app: the 52-week bar. screens.md: the 52-week range bar |
 
@@ -60,7 +60,7 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S3.1 | tap, type, then tap | the Stocks tab `tab-assets`, then `monaco-search-field`, then `assets-row-JRNYPx` | `JRNYPx` | Within 15 s, `asset-detail-root` shows and `asset-detail-name` reads "Journey Private". Old app: a Pre-IPO row pushed `AssetDetailView`. screens.md: Stocks: Asset screen |
+| S3.1 | tap, type, then tap | the Markets tab `tab-assets`, then `monaco-search-field`, then `assets-row-JRNYPx` | `JRNYPx` | Within 15 s, `asset-detail-root` shows and `asset-detail-name` reads "Journey Private". Old app: a Pre-IPO row pushed `AssetDetailView`. screens.md: Stocks: Asset screen |
 | S3.2 | scroll to | `asset-other-listings` | | Within 10 s, "Also available from" shows with `asset-other-listing-JRNYQx`. Old app: "Also available from" issuers. screens.md: "Also available from" issuers |
 | S3.3 | tap | `asset-other-listing-JRNYQx` | | Within 10 s, `asset-detail-root` shows for that listing, titled "JRNYQx". Old app: an issuer row opened that listing's asset screen. screens.md: "Also available from" issuers |
 
@@ -70,7 +70,7 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S4.1 | tap, type, then tap | the Stocks tab `tab-assets`, then `monaco-search-field`, then `assets-row-JRNYAx` | `JRNYA` | Within 15 s, `asset-detail-root` shows and `asset-detail-chart` shows within 15 s, with the interval picker `asset-chart-interval` and the candle or line toggle `asset-chart-style` above it. screens.md: an interval picker and a candle or line toggle |
+| S4.1 | tap, type, then tap | the Markets tab `tab-assets`, then `monaco-search-field`, then `assets-row-JRNYAx` | `JRNYA` | Within 15 s, `asset-detail-root` shows and `asset-detail-chart` shows within 15 s, with the interval picker `asset-chart-interval` and the candle or line toggle `asset-chart-style` above it. screens.md: an interval picker and a candle or line toggle |
 | S4.2 | pinch | `asset-detail-chart` | scale 2 | The chart is still on screen and still answers to its identifier. screens.md: two-finger pinch zooms |
 | S4.3 | swipe right | `asset-detail-chart` | | Within 10 s, `asset-chart-jump` shows, because dragging a finger right moves back in time and the newest bar leaves the view. screens.md: one-finger horizontal drag pans back in time |
 | S4.4 | tap | `asset-chart-jump` | | Within 10 s, `asset-chart-jump` is gone and the chart shows the newest bar again. screens.md: the "»" button jumps to the latest bar |
@@ -81,7 +81,7 @@ Starts signed in (auth/sign-in), with a cabal of A's holding `JRNYAx` (P4).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S5.1 | tap, type, then tap | the Stocks tab `tab-assets`, then `monaco-search-field`, then `assets-row-JRNYAx` | `JRNYA` | Within 15 s, `asset-detail-root` shows |
+| S5.1 | tap, type, then tap | the Markets tab `tab-assets`, then `monaco-search-field`, then `assets-row-JRNYAx` | `JRNYA` | Within 15 s, `asset-detail-root` shows |
 | S5.2 | scroll to | `asset-cabal-positions` | | Within 10 s, `asset-cabal-positions` ("Your cabals' position") shows one `asset-position-<cabal id>` row per cabal that holds it. Old app: the position card. screens.md: When one of the viewer's cabals holds it: "Your cabals' position" with one row per cabal |
 | S5.3 | tap | `asset-detail-propose-sell` | | Within 10 s, the propose screen opens with "Propose sell". Old app: Propose sell from the position card. screens.md: plus "Propose sell" when a cabal holds it |
 

@@ -32,7 +32,7 @@ struct MainTabView: View {
                 .environment(\.hostMainTab, tab)
             }
         }
-        .tint(MonacoTheme.ink)
+        .tint(MonacoTheme.brand)
         .modifier(AccountBalanceHost())
         .preference(key: TabToastHostKey.self, value: true)
         // Each stack knows its tab (`hostMainTab`) and which one is showing, so screens in a tab

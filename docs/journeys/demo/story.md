@@ -111,7 +111,7 @@ Beat 22.
 | Step | Why | Blocking ticket |
 | --- | --- | --- |
 | S2.2, S2.3 | Fund the pot: `FundRoute` is a stub with no amount entry, and the fund route is missing | #608, #651 |
-| S3.1, S3.2, S3.3 | The Stocks tab is blank on staging, so no stock opens; the Pre-IPO block is dropped | #577 |
+| S3.1, S3.2, S3.3 | The Markets tab is blank on staging, so no stock opens; the Pre-IPO block is dropped | #577 |
 | S4.1, S4.2 | Propose opens a stub, not the propose flow | #613 |
 | S4.3, S4.4 | No "Needs your vote", no vote, no majority buy | #612 |
 | S5.1, S5.2 | Chat is a stub with no composer | #623 |

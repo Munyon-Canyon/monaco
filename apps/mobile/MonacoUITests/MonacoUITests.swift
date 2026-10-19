@@ -156,7 +156,7 @@ nonisolated final class MonacoUITests: XCTestCase {
         ).element(boundBy: 0)
         XCTAssertTrue(popularChip.waitForExistence(timeout: 30), "popular strip with prices")
 
-        // The design system names the field; the Stocks tab does not re-name it.
+        // The design system names the field; the Markets tab does not re-name it.
         // One identifier, stated once — the fallback branch this used to carry was
         // the only thing keeping a dead identifier looking alive.
         let search = app.textFields["monaco-search-field"]

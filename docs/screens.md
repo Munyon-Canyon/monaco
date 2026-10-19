@@ -45,7 +45,7 @@ The demo film (`docs/demo/storyboard.md`) and the last pre-rewrite build (`01544
 
 ## Navigation
 
-Five tabs, left to right: "Home" (`house`), "Feed" (`newspaper`), "Cabals" (`person.3`), "Stocks" (`chart.line.uptrend.xyaxis.circle`), "Profile" (`person.crop.circle`). The tab bar stays visible on pushed screens. The demo film shows four tabs because it predates the feed (M18).
+Five tabs, left to right: "Home" (`house`), "Cabals" (`person.3`), "Markets" (`chart.line.uptrend.xyaxis`), "Feed" (`newspaper`), "Profile" (`person.crop.circle`). The tab bar stays visible on pushed screens. The demo film shows four tabs because it predates the feed (M18).
 
 Before the tabs, the session gate runs sign-in, then the first-run steps: handle (#693), phone (#694), X (#694), and later find friends (#663). Each step has a working primary button that calls its route and moves the gate forward. No step may leave the user on a screen whose button does nothing.
 
@@ -178,7 +178,7 @@ Used by Home's "Needs your vote", the cabal's proposals and the proposals list (
 
 ## Stocks tab
 
-Large title "Stocks". Search "Search Apple, Tesla, NVDA…"; results replace the list, and no match shows "No stocks match “<q>”". A chip bar under the search field, "All" (`filter=all`, the default), "Popular" (`filter=popular`) and "Pre-IPO" (`filter=pre_ipo`), filters one paged list. Search keeps the chip, sending `q` and `filter` together. Rows: logo, ticker over name, a moon glyph when the home market is closed, price, day change chip. #577 owns the tab; it is the only live tab today.
+Large title "Markets". Search "Search Apple, Tesla, NVDA…"; results replace the list, and no match shows "No stocks match “<q>”". A chip bar under the search field, "All" (`filter=all`, the default), "Popular" (`filter=popular`) and "Pre-IPO" (`filter=pre_ipo`), filters one paged list. Search keeps the chip, sending `q` and `filter` together. Rows: logo, ticker over name, a moon glyph when the home market is closed, price, day change chip. #577 owns the tab; it is the only live tab today.
 
 **Asset screen** (`AssetRoute`, #577). Title is the ticker. Name and ticker, price in `moneyFont(.hero)`, the change chip for the selected range ("Past day · GOOGL"), market session chip ("Market closed"), "Trading 24/7 on Solana", a candlestick chart (a toggle switches it to a line) with a price axis on the right, a time axis at the bottom, a dotted last-price rule with a green tag on the axis, an interval picker ("5m", "15m", "1h"… offered per range), chips 1D 1W 1M 3M 6M 1Y ALL, two-finger pinch to zoom around the fingers, one-finger horizontal drag to pan back in time (older bars load as the left edge nears), a "»" button that jumps back to the latest bar once scrolled away, and press-and-hold for a crosshair that the price above follows, then "Stats" (open, day high and low, previous close, 52-week high and low, read off the day and year candles and the quote's move; a row the candles cannot give is left out) and the 52-week range bar. The buy premium waits for the API to send it. Pre-IPO adds "Private-market reference" with the premium or discount, "Also available from" issuers, and "About <token>". When one of the viewer's cabals holds it: "Your cabals' position" with one row per cabal. Pinned CTA "Propose buy" with the caption "Your cabal votes before anything is bought", plus "Propose sell" when a cabal holds it. Short history: "Price history builds up over time." / "The curve draws as the token trades."
 

@@ -58,7 +58,7 @@ public enum MainFlowCopyManifest {
             "Home",
             "Profile",
             "Cabals",
-            "Stocks",
+            "Markets",
             "Assets",
             "Settings",
             "Join a cabal to see members on the leaderboard.",
