@@ -66,6 +66,9 @@ func (m *Module) Mount(r api.Mount) {
 	notifyapi.Mount(adapters.HTTP{
 		Register:   app.NewRegisterDeviceHandler(m.deps.UoW, m.users, m.deps.IDs, m.deps.Clock),
 		Unregister: app.NewUnregisterDeviceHandler(m.deps.UoW),
+		SetPrefs:   app.NewSetNotificationPreferencesHandler(m.deps.UoW, m.users, m.deps.Clock),
+		Reads:      m.deps.Pool,
+		Users:      m.users,
 	}, r)
 }
 

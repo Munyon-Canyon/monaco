@@ -2564,6 +2564,55 @@ paths:
           description: The caller no longer has this token registered.
         default:
           $ref: "#/components/responses/Problem"
+  /v1/me/notification-preferences:
+    get:
+      operationId: getNotificationPreferences
+      tags: [notify]
+      summary: Read the caller's notification preferences.
+      description: >-
+        Returns whether each push category is on. A category the caller never set is on. Kinds
+        outside both categories (deposits, follows, nudges, access requests) are always on. A
+        deleted account is unauthorized.
+      responses:
+        "200":
+          description: The caller's preferences.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPreferences"
+        default:
+          $ref: "#/components/responses/Problem"
+    put:
+      operationId: putNotificationPreferences
+      tags: [notify]
+      x-idempotent: true
+      x-rate-limit:
+        actor:
+          rate: 30
+          per: 1m
+          burst: 30
+      summary: Replace the caller's notification preferences.
+      description: >-
+        Stores both categories at once and returns what was stored. A body missing either field or
+        carrying another field is invalid input. A deleted account is unauthorized.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: Whether each push category is on.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationPreferences"
+      responses:
+        "200":
+          description: The stored preferences.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPreferences"
+        default:
+          $ref: "#/components/responses/Problem"
   # api/spec/platform.yaml
   /healthz:
     get:
@@ -7536,6 +7585,21 @@ components:
           examples: ["0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0"]
         environment:
           $ref: "#/components/schemas/DeviceEnvironment"
+    NotificationPreferences:
+      type: object
+      description: Whether each push category is on for the caller.
+      additionalProperties: false
+      required: [decision_requests, replies_and_mentions]
+      examples:
+        - decision_requests: false
+          replies_and_mentions: true
+      properties:
+        decision_requests:
+          type: boolean
+          description: Proposals, trades and pauses in the caller's cabals.
+        replies_and_mentions:
+          type: boolean
+          description: Replies to the caller's comments, chat mentions and chat thread replies.
   # api/spec/ranking.yaml
     CabalRef:
       type: object

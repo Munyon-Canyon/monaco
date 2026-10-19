@@ -75,6 +75,23 @@ func (n Notify[E]) Handle(ctx context.Context, d bus.Delivery, e E) error {
 	if err != nil {
 		return err
 	}
+	prefs, err := n.Pusher.preferences(ctx, everyone)
+	if err != nil {
+		return err
+	}
+	notes, err := n.notes(ctx, e, recipients, func(i int, to ids.UserID) bool {
+		category, categorised := domain.CategoryOf(n.Kinds[i].Name())
+		return eligible[to] && (!categorised || prefs[to].Enabled(category))
+	})
+	if err != nil {
+		return err
+	}
+	return n.Pusher.Push(ctx, d, notes)
+}
+
+func (n Notify[E]) notes(
+	ctx context.Context, e E, recipients [][]ids.UserID, wanted func(kind int, to ids.UserID) bool,
+) ([]Notification, error) {
 	var notes []Notification
 	for i, k := range n.Kinds {
 		limit := 0
@@ -82,17 +99,17 @@ func (n Notify[E]) Handle(ctx context.Context, d bus.Delivery, e E) error {
 			limit = c.DailyCap()
 		}
 		for _, to := range recipients[i] {
-			if !eligible[to] {
+			if !wanted(i, to) {
 				continue
 			}
 			msg, err := k.Render(ctx, e, to)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			notes = append(notes, Notification{Kind: k.Name(), UserID: to, Message: msg, Cap: limit})
 		}
 	}
-	return n.Pusher.Push(ctx, d, notes)
+	return notes, nil
 }
 
 type Pusher struct {
@@ -131,6 +148,37 @@ func (p *Pusher) eligible(ctx context.Context, event ids.EventID, users []ids.Us
 		eligible[id] = !card.Deleted && id.String() != causing
 	}
 	return eligible, nil
+}
+
+func (p *Pusher) preferences(ctx context.Context, users []ids.UserID) (map[ids.UserID]domain.Preferences, error) {
+	if len(users) == 0 {
+		return map[ids.UserID]domain.Preferences{}, nil
+	}
+	seen := make(map[ids.UserID]bool, len(users))
+	distinct := make([]uuid.UUID, 0, len(users))
+	for _, u := range users {
+		if !seen[u] {
+			seen[u] = true
+			distinct = append(distinct, u.UUID())
+		}
+	}
+	rows, err := sqlc.New(p.uow.Reads()).GetPreferences(ctx, distinct)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeDBUnavailable, opPush)
+	}
+	enabled := make(map[ids.UserID]map[domain.Category]bool, len(rows))
+	for _, r := range rows {
+		u := ids.UserIDFrom(r.UserID)
+		if enabled[u] == nil {
+			enabled[u] = map[domain.Category]bool{}
+		}
+		enabled[u][domain.Category(r.Category)] = r.Enabled
+	}
+	prefs := make(map[ids.UserID]domain.Preferences, len(distinct))
+	for u := range seen {
+		prefs[u] = domain.PreferencesFrom(enabled[u])
+	}
+	return prefs, nil
 }
 
 func (p *Pusher) causingUser(ctx context.Context, event ids.EventID) (string, error) {

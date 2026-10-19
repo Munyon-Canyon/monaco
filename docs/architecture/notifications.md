@@ -132,9 +132,24 @@ apns2 brings its own HTTP/2 client, so the adapter is an exception to the rule t
 
 Copy follows [product.md](../product.md): "cabal", not group; a human-readable stock name, never a mint address; no "xStock" branding.
 
+### Preferences
+
+A member can turn two push categories off. A missing row means on, so nobody has to opt in.
+
+| Category | Kinds |
+| --- | --- |
+| `decision_requests` | `proposal_created`, `proposal_passed`, `trade_filled`, `trade_failed`, `trade_blocked`, `cabal_paused`, `cabal_resumed` |
+| `replies_and_mentions` | `comment_reply`, `chat_mention`, `chat_thread_reply` |
+| Always on | `deposit_credited`, `new_follower`, `notify.follow_digest`, `nudge`, `cabal_access_requested`, `cabal_access_approved`, `test` |
+
+- `GET /v1/me/notification-preferences` returns `{decision_requests, replies_and_mentions}`. `PUT` replaces both in one `uow.Do`, appends no event and returns what it stored. A deleted account is unauthorized.
+- The table is `notification_preferences (user_id, category, enabled, updated_at)`, keyed on `(user_id, category)`.
+- `Notify.Handle` makes one `GetPreferences` read for the distinct recipients of the event, after `Pusher.eligible`. It skips a recipient whose category for the kind is off, so no `notifications` row is written, as for an ineligible recipient. A kind with no category is never filtered. A table test fails when a kind `Name()` in `app/` is in no bucket.
+- Daily caps and batching (`stateFor`) are unchanged. There are no per-cabal or per-kind switches and no quiet hours.
+
 ### What notifies (MVP)
 
-Push only for MVP (default 2026-09-27). There is no in-app notification list and no app badge; the app never sets `badge` in the payload. There are no per-user mute settings, so `notification_preferences` is not built. Nobody is pushed about their own action: the handler drops any recipient equal to the event's `actor_id`.
+Push only for MVP (default 2026-09-27). There is no in-app notification list and no app badge; the app never sets `badge` in the payload. The only per-user mute settings are the two [preferences](#preferences) categories. Nobody is pushed about their own action: the handler drops any recipient equal to the event's `actor_id`.
 
 | Push | Subject | Recipients | Copy | Source |
 | --- | --- | --- | --- | --- |
