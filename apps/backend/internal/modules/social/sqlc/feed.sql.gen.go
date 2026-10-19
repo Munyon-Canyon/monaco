@@ -16,20 +16,24 @@ import (
 const getFeedItem = `-- name: GetFeedItem :one
 SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
   f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at,
+  (SELECT count(*) FROM feed_likes l WHERE l.feed_object_id = f.id)::int AS like_count,
+  EXISTS (
+    SELECT 1 FROM feed_likes l WHERE l.feed_object_id = f.id AND l.user_id = $1::uuid
+  ) AS liked_by_me,
   (
     NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AND fc.hidden_at IS NOT NULL)
-    AND (cardinality($1::text[]) = 0 OR f.kind = ANY($1::text[]))
-    AND ($2::uuid = '00000000-0000-0000-0000-000000000000' OR f.cabal_id IS NOT DISTINCT FROM $2::uuid)
-    AND ($3::text = '' OR lower(coalesce(f.symbol, '')) = lower($3::text))
+    AND (cardinality($2::text[]) = 0 OR f.kind = ANY($2::text[]))
+    AND ($3::uuid = '00000000-0000-0000-0000-000000000000' OR f.cabal_id IS NOT DISTINCT FROM $3::uuid)
+    AND ($4::text = '' OR lower(coalesce(f.symbol, '')) = lower($4::text))
     AND (
-      $4::text = ''
-      OR f.search @@ websearch_to_tsquery('english', $4::text)
-      OR f.search @@ websearch_to_tsquery('simple', $4::text)
+      $5::text = ''
+      OR f.search @@ websearch_to_tsquery('english', $5::text)
+      OR f.search @@ websearch_to_tsquery('simple', $5::text)
     )
     AND (
-      NOT $5::bool
+      NOT $6::bool
       OR coalesce(f.actor_id IN (
-        SELECT followee_id FROM follows WHERE follower_id = $6::uuid AND deleted_at IS NULL
+        SELECT followee_id FROM follows WHERE follower_id = $1::uuid AND deleted_at IS NULL
       ), false)
     )
     AND (
@@ -38,29 +42,29 @@ SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.t
         f.kind <> 'price_move'
         AND EXISTS (
         SELECT 1 FROM feed_memberships fm
-        WHERE fm.user_id = $6::uuid AND fm.active AND fm.cabal_id = f.cabal_id
+        WHERE fm.user_id = $1::uuid AND fm.active AND fm.cabal_id = f.cabal_id
       )
       )
     )
     AND NOT EXISTS (
       SELECT 1 FROM feed_mutes m
-      WHERE m.user_id = $6::uuid AND m.target_type = 'kind' AND m.target_id = f.kind
+      WHERE m.user_id = $1::uuid AND m.target_type = 'kind' AND m.target_id = f.kind
     )
     AND NOT EXISTS (
       SELECT 1 FROM feed_mutes m
-      WHERE m.user_id = $6::uuid AND m.target_type = 'cabal' AND m.target_id = f.cabal_id::text
+      WHERE m.user_id = $1::uuid AND m.target_type = 'cabal' AND m.target_id = f.cabal_id::text
     )
     AND NOT EXISTS (
       SELECT 1 FROM feed_mutes m
-      WHERE m.user_id = $6::uuid AND m.target_type = 'asset' AND m.target_id = f.asset_id::text
+      WHERE m.user_id = $1::uuid AND m.target_type = 'asset' AND m.target_id = f.asset_id::text
     )
     AND NOT EXISTS (
       SELECT 1 FROM feed_mutes m
-      WHERE m.user_id = $6::uuid AND m.target_type = 'user' AND m.target_id = f.actor_id::text
+      WHERE m.user_id = $1::uuid AND m.target_type = 'user' AND m.target_id = f.actor_id::text
     )
     AND NOT EXISTS (
       SELECT 1 FROM feed_mutes m
-      WHERE m.user_id = $6::uuid AND m.target_type = 'item' AND m.target_id = f.id::text
+      WHERE m.user_id = $1::uuid AND m.target_type = 'item' AND m.target_id = f.id::text
     )
   )::bool AS visible
 FROM feed_objects f
@@ -68,12 +72,12 @@ WHERE f.id = $8
 `
 
 type GetFeedItemParams struct {
+	Viewer    uuid.UUID
 	Kinds     []string
 	CabalID   uuid.UUID
 	Symbol    string
 	Q         string
 	Following bool
-	Viewer    uuid.UUID
 	Mine      bool
 	ID        uuid.UUID
 }
@@ -95,17 +99,19 @@ type GetFeedItemRow struct {
 	CommentCount int32
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+	LikeCount    int32
+	LikedByMe    bool
 	Visible      bool
 }
 
 func (q *Queries) GetFeedItem(ctx context.Context, arg GetFeedItemParams) (GetFeedItemRow, error) {
 	row := q.db.QueryRow(ctx, getFeedItem,
+		arg.Viewer,
 		arg.Kinds,
 		arg.CabalID,
 		arg.Symbol,
 		arg.Q,
 		arg.Following,
-		arg.Viewer,
 		arg.Mine,
 		arg.ID,
 	)
@@ -127,28 +133,54 @@ func (q *Queries) GetFeedItem(ctx context.Context, arg GetFeedItemParams) (GetFe
 		&i.CommentCount,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LikeCount,
+		&i.LikedByMe,
 		&i.Visible,
 	)
 	return i, err
 }
 
+const likeFeedItem = `-- name: LikeFeedItem :execrows
+INSERT INTO feed_likes (feed_object_id, user_id, created_at)
+VALUES ($1, $2, $3)
+ON CONFLICT (feed_object_id, user_id) DO NOTHING
+`
+
+type LikeFeedItemParams struct {
+	FeedObjectID uuid.UUID
+	UserID       uuid.UUID
+	CreatedAt    time.Time
+}
+
+func (q *Queries) LikeFeedItem(ctx context.Context, arg LikeFeedItemParams) (int64, error) {
+	result, err := q.db.Exec(ctx, likeFeedItem, arg.FeedObjectID, arg.UserID, arg.CreatedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const listFeed = `-- name: ListFeed :many
 SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
-  f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at
+  f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at,
+  (SELECT count(*) FROM feed_likes l WHERE l.feed_object_id = f.id)::int AS like_count,
+  EXISTS (
+    SELECT 1 FROM feed_likes l WHERE l.feed_object_id = f.id AND l.user_id = $1::uuid
+  ) AS liked_by_me
 FROM feed_objects f
 WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AND fc.hidden_at IS NOT NULL)
-  AND (cardinality($1::text[]) = 0 OR f.kind = ANY($1::text[]))
-  AND ($2::uuid = '00000000-0000-0000-0000-000000000000' OR f.cabal_id = $2::uuid)
-  AND ($3::text = '' OR lower(f.symbol) = lower($3::text))
+  AND (cardinality($2::text[]) = 0 OR f.kind = ANY($2::text[]))
+  AND ($3::uuid = '00000000-0000-0000-0000-000000000000' OR f.cabal_id = $3::uuid)
+  AND ($4::text = '' OR lower(f.symbol) = lower($4::text))
   AND (
-    $4::text = ''
-    OR f.search @@ websearch_to_tsquery('english', $4::text)
-    OR f.search @@ websearch_to_tsquery('simple', $4::text)
+    $5::text = ''
+    OR f.search @@ websearch_to_tsquery('english', $5::text)
+    OR f.search @@ websearch_to_tsquery('simple', $5::text)
   )
   AND (
-    NOT $5::bool
+    NOT $6::bool
     OR f.actor_id IN (
-      SELECT followee_id FROM follows WHERE follower_id = $6::uuid AND deleted_at IS NULL
+      SELECT followee_id FROM follows WHERE follower_id = $1::uuid AND deleted_at IS NULL
     )
   )
   AND (
@@ -157,29 +189,29 @@ WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AN
       f.kind <> 'price_move'
       AND EXISTS (
         SELECT 1 FROM feed_memberships fm
-        WHERE fm.user_id = $6::uuid AND fm.active AND fm.cabal_id = f.cabal_id
+        WHERE fm.user_id = $1::uuid AND fm.active AND fm.cabal_id = f.cabal_id
       )
     )
   )
   AND NOT EXISTS (
     SELECT 1 FROM feed_mutes m
-    WHERE m.user_id = $6::uuid AND m.target_type = 'kind' AND m.target_id = f.kind
+    WHERE m.user_id = $1::uuid AND m.target_type = 'kind' AND m.target_id = f.kind
   )
   AND NOT EXISTS (
     SELECT 1 FROM feed_mutes m
-    WHERE m.user_id = $6::uuid AND m.target_type = 'cabal' AND m.target_id = f.cabal_id::text
+    WHERE m.user_id = $1::uuid AND m.target_type = 'cabal' AND m.target_id = f.cabal_id::text
   )
   AND NOT EXISTS (
     SELECT 1 FROM feed_mutes m
-    WHERE m.user_id = $6::uuid AND m.target_type = 'asset' AND m.target_id = f.asset_id::text
+    WHERE m.user_id = $1::uuid AND m.target_type = 'asset' AND m.target_id = f.asset_id::text
   )
   AND NOT EXISTS (
     SELECT 1 FROM feed_mutes m
-    WHERE m.user_id = $6::uuid AND m.target_type = 'user' AND m.target_id = f.actor_id::text
+    WHERE m.user_id = $1::uuid AND m.target_type = 'user' AND m.target_id = f.actor_id::text
   )
   AND NOT EXISTS (
     SELECT 1 FROM feed_mutes m
-    WHERE m.user_id = $6::uuid AND m.target_type = 'item' AND m.target_id = f.id::text
+    WHERE m.user_id = $1::uuid AND m.target_type = 'item' AND m.target_id = f.id::text
   )
   AND (
     NOT $8::bool
@@ -190,12 +222,12 @@ LIMIT $11::int
 `
 
 type ListFeedParams struct {
+	Viewer    uuid.UUID
 	Kinds     []string
 	CabalID   uuid.UUID
 	Symbol    string
 	Q         string
 	Following bool
-	Viewer    uuid.UUID
 	Mine      bool
 	HasCursor bool
 	AfterAt   time.Time
@@ -220,16 +252,18 @@ type ListFeedRow struct {
 	CommentCount int32
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+	LikeCount    int32
+	LikedByMe    bool
 }
 
 func (q *Queries) ListFeed(ctx context.Context, arg ListFeedParams) ([]ListFeedRow, error) {
 	rows, err := q.db.Query(ctx, listFeed,
+		arg.Viewer,
 		arg.Kinds,
 		arg.CabalID,
 		arg.Symbol,
 		arg.Q,
 		arg.Following,
-		arg.Viewer,
 		arg.Mine,
 		arg.HasCursor,
 		arg.AfterAt,
@@ -260,6 +294,8 @@ func (q *Queries) ListFeed(ctx context.Context, arg ListFeedParams) ([]ListFeedR
 			&i.CommentCount,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.LikeCount,
+			&i.LikedByMe,
 		); err != nil {
 			return nil, err
 		}
@@ -273,21 +309,25 @@ func (q *Queries) ListFeed(ctx context.Context, arg ListFeedParams) ([]ListFeedR
 
 const listTopFeed = `-- name: ListTopFeed :many
 SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
-  f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at
+  f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at,
+  (SELECT count(*) FROM feed_likes l WHERE l.feed_object_id = f.id)::int AS like_count,
+  EXISTS (
+    SELECT 1 FROM feed_likes l WHERE l.feed_object_id = f.id AND l.user_id = $1::uuid
+  ) AS liked_by_me
 FROM feed_objects f
 WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AND fc.hidden_at IS NOT NULL)
-  AND (cardinality($1::text[]) = 0 OR f.kind = ANY($1::text[]))
-  AND ($2::uuid = '00000000-0000-0000-0000-000000000000' OR f.cabal_id = $2::uuid)
-  AND ($3::text = '' OR lower(f.symbol) = lower($3::text))
+  AND (cardinality($2::text[]) = 0 OR f.kind = ANY($2::text[]))
+  AND ($3::uuid = '00000000-0000-0000-0000-000000000000' OR f.cabal_id = $3::uuid)
+  AND ($4::text = '' OR lower(f.symbol) = lower($4::text))
   AND (
-    $4::text = ''
-    OR f.search @@ websearch_to_tsquery('english', $4::text)
-    OR f.search @@ websearch_to_tsquery('simple', $4::text)
+    $5::text = ''
+    OR f.search @@ websearch_to_tsquery('english', $5::text)
+    OR f.search @@ websearch_to_tsquery('simple', $5::text)
   )
   AND (
-    NOT $5::bool
+    NOT $6::bool
     OR f.actor_id IN (
-      SELECT followee_id FROM follows WHERE follower_id = $6::uuid AND deleted_at IS NULL
+      SELECT followee_id FROM follows WHERE follower_id = $1::uuid AND deleted_at IS NULL
     )
   )
   AND (
@@ -296,29 +336,29 @@ WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AN
       f.kind <> 'price_move'
       AND EXISTS (
         SELECT 1 FROM feed_memberships fm
-        WHERE fm.user_id = $6::uuid AND fm.active AND fm.cabal_id = f.cabal_id
+        WHERE fm.user_id = $1::uuid AND fm.active AND fm.cabal_id = f.cabal_id
       )
     )
   )
   AND NOT EXISTS (
     SELECT 1 FROM feed_mutes m
-    WHERE m.user_id = $6::uuid AND m.target_type = 'kind' AND m.target_id = f.kind
+    WHERE m.user_id = $1::uuid AND m.target_type = 'kind' AND m.target_id = f.kind
   )
   AND NOT EXISTS (
     SELECT 1 FROM feed_mutes m
-    WHERE m.user_id = $6::uuid AND m.target_type = 'cabal' AND m.target_id = f.cabal_id::text
+    WHERE m.user_id = $1::uuid AND m.target_type = 'cabal' AND m.target_id = f.cabal_id::text
   )
   AND NOT EXISTS (
     SELECT 1 FROM feed_mutes m
-    WHERE m.user_id = $6::uuid AND m.target_type = 'asset' AND m.target_id = f.asset_id::text
+    WHERE m.user_id = $1::uuid AND m.target_type = 'asset' AND m.target_id = f.asset_id::text
   )
   AND NOT EXISTS (
     SELECT 1 FROM feed_mutes m
-    WHERE m.user_id = $6::uuid AND m.target_type = 'user' AND m.target_id = f.actor_id::text
+    WHERE m.user_id = $1::uuid AND m.target_type = 'user' AND m.target_id = f.actor_id::text
   )
   AND NOT EXISTS (
     SELECT 1 FROM feed_mutes m
-    WHERE m.user_id = $6::uuid AND m.target_type = 'item' AND m.target_id = f.id::text
+    WHERE m.user_id = $1::uuid AND m.target_type = 'item' AND m.target_id = f.id::text
   )
   AND f.created_at >= $8::timestamptz
   AND (
@@ -331,12 +371,12 @@ LIMIT $13::int
 `
 
 type ListTopFeedParams struct {
+	Viewer     uuid.UUID
 	Kinds      []string
 	CabalID    uuid.UUID
 	Symbol     string
 	Q          string
 	Following  bool
-	Viewer     uuid.UUID
 	Mine       bool
 	Since      time.Time
 	HasCursor  bool
@@ -363,16 +403,18 @@ type ListTopFeedRow struct {
 	CommentCount int32
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+	LikeCount    int32
+	LikedByMe    bool
 }
 
 func (q *Queries) ListTopFeed(ctx context.Context, arg ListTopFeedParams) ([]ListTopFeedRow, error) {
 	rows, err := q.db.Query(ctx, listTopFeed,
+		arg.Viewer,
 		arg.Kinds,
 		arg.CabalID,
 		arg.Symbol,
 		arg.Q,
 		arg.Following,
-		arg.Viewer,
 		arg.Mine,
 		arg.Since,
 		arg.HasCursor,
@@ -405,6 +447,8 @@ func (q *Queries) ListTopFeed(ctx context.Context, arg ListTopFeedParams) ([]Lis
 			&i.CommentCount,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.LikeCount,
+			&i.LikedByMe,
 		); err != nil {
 			return nil, err
 		}
@@ -414,6 +458,24 @@ func (q *Queries) ListTopFeed(ctx context.Context, arg ListTopFeedParams) ([]Lis
 		return nil, err
 	}
 	return items, nil
+}
+
+const unlikeFeedItem = `-- name: UnlikeFeedItem :execrows
+DELETE FROM feed_likes
+WHERE feed_object_id = $1 AND user_id = $2
+`
+
+type UnlikeFeedItemParams struct {
+	FeedObjectID uuid.UUID
+	UserID       uuid.UUID
+}
+
+func (q *Queries) UnlikeFeedItem(ctx context.Context, arg UnlikeFeedItemParams) (int64, error) {
+	result, err := q.db.Exec(ctx, unlikeFeedItem, arg.FeedObjectID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const upsertFeedItem = `-- name: UpsertFeedItem :one

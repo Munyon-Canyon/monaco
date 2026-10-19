@@ -668,6 +668,16 @@ type FeedItem struct {
 	// Examples: trade
 	Kind string `json:"kind"`
 
+	// LikeCount The number of users who like the item.
+	//
+	// Examples: 3
+	LikeCount int32 `json:"like_count"`
+
+	// LikedByMe True when the caller likes the item.
+	//
+	// Examples: true
+	LikedByMe bool `json:"liked_by_me"`
+
 	// RefId The source row's id.
 	//
 	// Examples: 01920000-0000-7000-8000-000000000008
@@ -1007,6 +1017,18 @@ type DeleteFeedCommentParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// DeleteFeedLikeParams defines parameters for DeleteFeedLike.
+type DeleteFeedLikeParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// PutFeedLikeParams defines parameters for PutFeedLike.
+type PutFeedLikeParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // GetFeedItemParams defines parameters for GetFeedItem.
 type GetFeedItemParams struct {
 	// Kind A comma-separated list of kinds to include: `proposal`, `trade`, `price_move`, `cabal_created` and `member_joined`. Absent includes every kind.
@@ -1198,6 +1220,12 @@ type ServerInterface interface {
 	// DeleteFeedComment Delete your comment.
 	// (DELETE /v1/feed/comments/{comment_id})
 	DeleteFeedComment(w http.ResponseWriter, r *http.Request, commentId openapi_types.UUID, params DeleteFeedCommentParams)
+	// DeleteFeedLike Unlike a feed item.
+	// (DELETE /v1/feed/likes/{id})
+	DeleteFeedLike(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DeleteFeedLikeParams)
+	// PutFeedLike Like a feed item.
+	// (PUT /v1/feed/likes/{id})
+	PutFeedLike(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PutFeedLikeParams)
 	// GetFeedItem Read one feed item.
 	// (GET /v1/feed/{id})
 	GetFeedItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetFeedItemParams)
@@ -1893,6 +1921,114 @@ func (siw *ServerInterfaceWrapper) DeleteFeedComment(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeleteFeedComment(w, r, commentId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteFeedLike operation middleware
+func (siw *ServerInterfaceWrapper) DeleteFeedLike(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteFeedLikeParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteFeedLike(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutFeedLike operation middleware
+func (siw *ServerInterfaceWrapper) PutFeedLike(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PutFeedLikeParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutFeedLike(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2987,6 +3123,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}/thread", wrapper.GetChatThread)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed", wrapper.GetFeed)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/feed/comments/{comment_id}", wrapper.DeleteFeedComment)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/feed/likes/{id}", wrapper.DeleteFeedLike)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/feed/likes/{id}", wrapper.PutFeedLike)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed/{id}", wrapper.GetFeedItem)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed/{id}/comments", wrapper.GetFeedComments)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/feed/{id}/comments", wrapper.PostFeedComment)
@@ -3383,6 +3521,74 @@ type DeleteFeedCommentdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response DeleteFeedCommentdefaultApplicationProblemPlusJSONResponse) VisitDeleteFeedCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFeedLikeRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params DeleteFeedLikeParams
+}
+
+type DeleteFeedLikeResponseObject interface {
+	VisitDeleteFeedLikeResponse(w http.ResponseWriter) error
+}
+
+type DeleteFeedLike204Response struct {
+}
+
+func (response DeleteFeedLike204Response) VisitDeleteFeedLikeResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteFeedLikedefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response DeleteFeedLikedefaultApplicationProblemPlusJSONResponse) VisitDeleteFeedLikeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutFeedLikeRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params PutFeedLikeParams
+}
+
+type PutFeedLikeResponseObject interface {
+	VisitPutFeedLikeResponse(w http.ResponseWriter) error
+}
+
+type PutFeedLike204Response struct {
+}
+
+func (response PutFeedLike204Response) VisitPutFeedLikeResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type PutFeedLikedefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response PutFeedLikedefaultApplicationProblemPlusJSONResponse) VisitPutFeedLikeResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -4160,6 +4366,12 @@ type StrictServerInterface interface {
 	// DeleteFeedComment Delete your comment.
 	// (DELETE /v1/feed/comments/{comment_id})
 	DeleteFeedComment(ctx context.Context, request DeleteFeedCommentRequestObject) (DeleteFeedCommentResponseObject, error)
+	// DeleteFeedLike Unlike a feed item.
+	// (DELETE /v1/feed/likes/{id})
+	DeleteFeedLike(ctx context.Context, request DeleteFeedLikeRequestObject) (DeleteFeedLikeResponseObject, error)
+	// PutFeedLike Like a feed item.
+	// (PUT /v1/feed/likes/{id})
+	PutFeedLike(ctx context.Context, request PutFeedLikeRequestObject) (PutFeedLikeResponseObject, error)
 	// GetFeedItem Read one feed item.
 	// (GET /v1/feed/{id})
 	GetFeedItem(ctx context.Context, request GetFeedItemRequestObject) (GetFeedItemResponseObject, error)
@@ -4535,6 +4747,60 @@ func (sh *strictHandler) DeleteFeedComment(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DeleteFeedCommentResponseObject); ok {
 		if err := validResponse.VisitDeleteFeedCommentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteFeedLike operation middleware
+func (sh *strictHandler) DeleteFeedLike(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DeleteFeedLikeParams) {
+	var request DeleteFeedLikeRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteFeedLike(ctx, request.(DeleteFeedLikeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteFeedLike")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteFeedLikeResponseObject); ok {
+		if err := validResponse.VisitDeleteFeedLikeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutFeedLike operation middleware
+func (sh *strictHandler) PutFeedLike(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PutFeedLikeParams) {
+	var request PutFeedLikeRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutFeedLike(ctx, request.(PutFeedLikeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutFeedLike")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutFeedLikeResponseObject); ok {
+		if err := validResponse.VisitPutFeedLikeResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

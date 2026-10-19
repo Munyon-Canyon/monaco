@@ -36,7 +36,8 @@ func GetFeedItem(
 		ID: row.ID, Kind: row.Kind, RefType: row.RefType, RefID: row.RefID, CabalID: row.CabalID,
 		ActorID: row.ActorID, Symbol: row.Symbol, Title: row.Title, Body: row.Body, Payload: row.Payload,
 		Status: row.Status, AssetID: row.AssetID, CabalName: row.CabalName,
-		CommentCount: row.CommentCount, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		CommentCount: row.CommentCount, LikeCount: row.LikeCount, LikedByMe: row.LikedByMe,
+		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	})
 	if err != nil {
 		return FeedItemView{}, err

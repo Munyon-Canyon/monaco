@@ -16,7 +16,11 @@ RETURNING id;
 
 -- name: ListFeed :many
 SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
-  f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at
+  f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at,
+  (SELECT count(*) FROM feed_likes l WHERE l.feed_object_id = f.id)::int AS like_count,
+  EXISTS (
+    SELECT 1 FROM feed_likes l WHERE l.feed_object_id = f.id AND l.user_id = sqlc.arg(viewer)::uuid
+  ) AS liked_by_me
 FROM feed_objects f
 WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AND fc.hidden_at IS NOT NULL)
   AND (cardinality(sqlc.arg(kinds)::text[]) = 0 OR f.kind = ANY(sqlc.arg(kinds)::text[]))
@@ -72,7 +76,11 @@ LIMIT sqlc.arg(row_limit)::int;
 
 -- name: ListTopFeed :many
 SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
-  f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at
+  f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at,
+  (SELECT count(*) FROM feed_likes l WHERE l.feed_object_id = f.id)::int AS like_count,
+  EXISTS (
+    SELECT 1 FROM feed_likes l WHERE l.feed_object_id = f.id AND l.user_id = sqlc.arg(viewer)::uuid
+  ) AS liked_by_me
 FROM feed_objects f
 WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AND fc.hidden_at IS NOT NULL)
   AND (cardinality(sqlc.arg(kinds)::text[]) = 0 OR f.kind = ANY(sqlc.arg(kinds)::text[]))
@@ -131,6 +139,10 @@ LIMIT sqlc.arg(row_limit)::int;
 -- name: GetFeedItem :one
 SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
   f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at,
+  (SELECT count(*) FROM feed_likes l WHERE l.feed_object_id = f.id)::int AS like_count,
+  EXISTS (
+    SELECT 1 FROM feed_likes l WHERE l.feed_object_id = f.id AND l.user_id = sqlc.arg(viewer)::uuid
+  ) AS liked_by_me,
   (
     NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AND fc.hidden_at IS NOT NULL)
     AND (cardinality(sqlc.arg(kinds)::text[]) = 0 OR f.kind = ANY(sqlc.arg(kinds)::text[]))
@@ -180,3 +192,12 @@ SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.t
   )::bool AS visible
 FROM feed_objects f
 WHERE f.id = sqlc.arg(id);
+
+-- name: LikeFeedItem :execrows
+INSERT INTO feed_likes (feed_object_id, user_id, created_at)
+VALUES (sqlc.arg(feed_object_id), sqlc.arg(user_id), sqlc.arg(created_at))
+ON CONFLICT (feed_object_id, user_id) DO NOTHING;
+
+-- name: UnlikeFeedItem :execrows
+DELETE FROM feed_likes
+WHERE feed_object_id = sqlc.arg(feed_object_id) AND user_id = sqlc.arg(user_id);

@@ -132,6 +132,7 @@ func (m *Module) http() adapters.HTTP {
 		UoW: m.deps.UoW, Reads: m.deps.Pool, Members: m.members, IDs: m.deps.IDs, Clock: m.deps.Clock,
 		Hints: m.deps.Bus,
 	}
+	likes := app.LikeDeps{UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, Hints: m.deps.Bus}
 	return adapters.HTTP{
 		Follow: app.NewFollowHandler(app.FollowDeps{
 			UoW: m.deps.UoW, Users: m.users, IDs: m.deps.IDs, Clock: m.deps.Clock,
@@ -145,15 +146,17 @@ func (m *Module) http() adapters.HTTP {
 			UoW: m.deps.UoW, Reads: m.deps.Pool, Users: m.users, Cabals: m.cabals, Members: m.members,
 			IDs: m.deps.IDs, Clock: m.deps.Clock,
 		}),
-		Mute:          app.NewMuteHandler(m.deps.UoW, m.deps.Clock),
-		Unmute:        app.NewUnmuteHandler(m.deps.UoW),
-		PostChat:      app.NewPostChatMessageHandler(chat),
-		DeleteChat:    app.NewDeleteChatMessageHandler(chat),
-		MarkSeen:      app.NewMarkChatSeenHandler(chat),
-		Token:         app.NewRealtimeTokenHandler(m.members, m.realtime),
-		CreateComment: app.NewCreateCommentHandler(comments),
-		DeleteComment: app.NewDeleteCommentHandler(comments),
-		Removal:       app.NewRemoveCommentHandler(comments),
+		Mute:           app.NewMuteHandler(m.deps.UoW, m.deps.Clock),
+		Unmute:         app.NewUnmuteHandler(m.deps.UoW),
+		PostChat:       app.NewPostChatMessageHandler(chat),
+		DeleteChat:     app.NewDeleteChatMessageHandler(chat),
+		MarkSeen:       app.NewMarkChatSeenHandler(chat),
+		Token:          app.NewRealtimeTokenHandler(m.members, m.realtime),
+		CreateComment:  app.NewCreateCommentHandler(comments),
+		DeleteComment:  app.NewDeleteCommentHandler(comments),
+		Removal:        app.NewRemoveCommentHandler(comments),
+		LikeFeedItem:   app.NewLikeFeedItemHandler(likes),
+		UnlikeFeedItem: app.NewUnlikeFeedItemHandler(likes),
 		Match: app.NewMatchContactsHandler(app.MatchContactsDeps{
 			UoW: m.deps.UoW, Users: m.users, Clock: m.deps.Clock,
 		}),

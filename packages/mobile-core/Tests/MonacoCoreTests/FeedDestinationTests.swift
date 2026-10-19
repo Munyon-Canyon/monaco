@@ -33,6 +33,7 @@ final class FeedDestinationTests: XCTestCase {
             id: "00000000-0000-7000-8000-0000000fe001", kind: kind, refType: "x", refId: ref,
             cabalId: cabal, cabalName: nil, actorId: nil, actorName: nil, actorPhotoUrl: nil, assetId: nil,
             symbol: symbol, title: "t", detail: nil, body: nil,
-            status: nil, tone: "neutral", commentCount: 0, createdAt: Date(), updatedAt: Date())
+            status: nil, tone: "neutral", commentCount: 0, likeCount: 0, likedByMe: false,
+            createdAt: Date(), updatedAt: Date())
     }
 }

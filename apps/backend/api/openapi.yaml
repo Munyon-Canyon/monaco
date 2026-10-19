@@ -3210,6 +3210,51 @@ paths:
           description: The comment is deleted.
         default:
           $ref: "#/components/responses/Problem"
+  /v1/feed/likes/{id}:
+    put:
+      operationId: putFeedLike
+      tags: [social]
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 30, per: 1m, burst: 10}, ip: {rate: 60, per: 1m, burst: 60}}
+      summary: Like a feed item.
+      description: >-
+        Adds the caller's like, which raises the item's `like_count` by one and sets its `liked_by_me`.
+        Liking an item the caller already likes changes nothing and returns 204. An item the caller cannot
+        see, or an unknown one, is feed_item_not_found. The path puts `likes` before the id so it cannot
+        overlap `DELETE /v1/feed/comments/{comment_id}`.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: id
+          in: path
+          required: true
+          description: The feed item's id.
+          schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
+      responses:
+        "204":
+          description: The item is liked.
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteFeedLike
+      tags: [social]
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 30, per: 1m, burst: 10}, ip: {rate: 60, per: 1m, burst: 60}}
+      summary: Unlike a feed item.
+      description: >-
+        Removes the caller's like. Unliking an item the caller does not like changes nothing and returns
+        204. An item the caller cannot see, or an unknown one, is feed_item_not_found.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: id
+          in: path
+          required: true
+          description: The feed item's id.
+          schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
+      responses:
+        "204":
+          description: The item is not liked.
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/feed/{id}:
     get:
       operationId: getFeedItem
@@ -8008,7 +8053,7 @@ components:
       type: object
       description: One feed item with its display strings rendered.
       additionalProperties: false
-      required: [id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, actor_name, actor_photo_url, asset_id, symbol, title, detail, body, status, tone, comment_count, created_at, updated_at]
+      required: [id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, actor_name, actor_photo_url, asset_id, symbol, title, detail, body, status, tone, comment_count, like_count, liked_by_me, created_at, updated_at]
       properties:
         id: {type: string, format: uuid, description: "The item's id.", examples: ["01920000-0000-7000-8000-000000000007"]}
         kind:
@@ -8048,6 +8093,8 @@ components:
           description: "`neutral`, `positive` or `negative`, so the app can color the item without reading amounts."
           examples: [neutral]
         comment_count: {type: integer, format: int32, description: "The number of comments.", examples: [0]}
+        like_count: {type: integer, format: int32, description: "The number of users who like the item.", examples: [3]}
+        liked_by_me: {type: boolean, description: "True when the caller likes the item.", examples: [true]}
         created_at: {type: string, format: date-time, description: "When the item was created.", examples: ["2026-10-03T08:00:00Z"]}
         updated_at: {type: string, format: date-time, description: "When the item last changed.", examples: ["2026-10-03T08:00:00Z"]}
     FeedItemDetail:
