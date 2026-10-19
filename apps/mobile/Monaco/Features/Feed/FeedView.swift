@@ -105,7 +105,7 @@ private struct FeedScreen: View {
             model.setSearch(text)
         }
         .onChange(of: model.failureTick) { _, _ in
-            guard !model.loadMoreFailed, let error = model.lastError else { return }
+            guard let error = model.lastError else { return }
             toasts.show(error)
         }
     }

@@ -122,7 +122,7 @@ public final class FeedModel {
         let pager = pager
         let before = pager.phase
         await pager.loadMore()
-        noteFailure(of: pager)
+        noteFailure(of: pager, raisesToast: false)
         guard pager === self.pager else { return }
         switch pager.phase {
         case .idle, .exhausted: loadMoreFailed = false
@@ -198,10 +198,10 @@ public final class FeedModel {
         viewerFollowsNobody = profile?.followingCount == 0
     }
 
-    private func noteFailure(of pager: CursorPager<Components.Schemas.FeedItem>) {
+    private func noteFailure(of pager: CursorPager<Components.Schemas.FeedItem>, raisesToast: Bool = true) {
         guard pager === self.pager, case .failed(let error) = pager.phase else { return }
         lastError = error
-        if !pager.items.isEmpty, !BackgroundRefresh.isActive { failureTick += 1 }
+        if raisesToast, !pager.items.isEmpty, !BackgroundRefresh.isActive { failureTick += 1 }
     }
 
     private static func pager(api: APIClient, query: FeedQuery) -> CursorPager<Components.Schemas.FeedItem> {

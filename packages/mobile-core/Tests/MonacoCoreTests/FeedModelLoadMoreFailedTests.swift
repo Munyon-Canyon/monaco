@@ -40,6 +40,34 @@ final class FeedModelLoadMoreFailedTests: XCTestCase {
         XCTAssertFalse(model.loadMoreFailed)
     }
 
+    func testAFailedNextPageRaisesNoToast() async throws {
+        let transport = StubTransport(scripted: [
+            .json(.ok, try Self.page(Array(samples.prefix(2)), next: "c2")),
+            .failure(URLError(.notConnectedToInternet)),
+        ])
+        let model = makeModel(transport)
+        await model.load()
+        await model.loadMore()
+        XCTAssertTrue(model.loadMoreFailed)
+        XCTAssertEqual(model.failureTick, 0, "the inline notice shows a failed next page, not a toast")
+    }
+
+    func testAFailedMuteStillRaisesAToastWhileTheNextPageNoticeShows() async throws {
+        let transport = StubTransport(scripted: [
+            .json(.ok, try Self.page(Array(samples.prefix(2)), next: "c2")),
+            .failure(URLError(.notConnectedToInternet)),
+            .failure(URLError(.notConnectedToInternet)),
+        ])
+        let model = makeModel(transport)
+        await model.load()
+        await model.loadMore()
+        XCTAssertTrue(model.loadMoreFailed)
+        let receipt = await model.mute(.hide(samples[0]))
+        XCTAssertNil(receipt)
+        XCTAssertEqual(model.failureTick, 1)
+        XCTAssertNotNil(model.lastError)
+    }
+
     func testChangingTheFilterClearsALoadMoreFailure() async throws {
         let transport = StubTransport(scripted: [
             .json(.ok, try Self.page(Array(samples.prefix(2)), next: "c2")),
