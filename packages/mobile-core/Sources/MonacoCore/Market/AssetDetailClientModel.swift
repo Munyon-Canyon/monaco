@@ -8,6 +8,7 @@ public struct AssetDetailPresentation: Equatable, Sendable {
     public let name: String
     public let kind: AssetKind
     public let priceMicros: Int64?
+    public let priceAsOf: Date?
     public let changeBasisPoints: Int64?
     public let attribution: String
     public let session: MarketSession
@@ -18,6 +19,20 @@ public struct AssetDetailPresentation: Equatable, Sendable {
 }
 
 public typealias AssetListingPresentation = MarketListing
+
+public enum AssetNotice: Equatable, Sendable {
+    case stale(minutes: Int)
+    case unavailable
+    case paused
+
+    public var text: String {
+        switch self {
+        case .stale(let minutes): MarketStaleness.tokenPriceDelayed(minutes: minutes)
+        case .unavailable: "This stock is unavailable for new proposals."
+        case .paused: "Trading paused right now."
+        }
+    }
+}
 
 public struct AssetRangeChange: Equatable, Sendable {
     public let basisPoints: Int64?
@@ -47,6 +62,8 @@ public final class AssetDetailClientModel {
     public private(set) var failureTick = 0
     public private(set) var positions: [AssetCabalPosition] = []
     public private(set) var stats: AssetStats?
+    public private(set) var refreshFailed = false
+    private(set) var lastLoadedAt: Date?
     var chartGeneration = 0
     var selectionGeneration = 0
     public static let maximumBars = 4_000
@@ -55,6 +72,7 @@ public final class AssetDetailClientModel {
     let symbol: String
     let barCap: Int
     private let hints: (any HintSource)?
+    let now: @Sendable () -> Date
     private let refresher: HintRefresher
 
     public var phase: Phase { detailPhase }
@@ -74,11 +92,15 @@ public final class AssetDetailClientModel {
         return chart.points.count < 2
     }
 
-    public init(api: APIClient, symbol: String, hints: any HintSource, barCap: Int = maximumBars) {
+    public init(
+        api: APIClient, symbol: String, hints: any HintSource, barCap: Int = maximumBars,
+        now: @escaping @Sendable () -> Date = WallClock.now
+    ) {
         self.api = api
         self.symbol = symbol
         self.barCap = barCap
         self.hints = hints
+        self.now = now
         let hook = ReloadHook()
         refresher = HintRefresher { await hook.run?() }
         hook.run = { [weak self] in
@@ -92,12 +114,14 @@ public final class AssetDetailClientModel {
         chart: AssetChartSeries?,
         selectedRange: AssetChartRange = .oneDay,
         selectedInterval: ChartInterval? = nil,
-        chartPhase: Phase = .loaded
+        chartPhase: Phase = .loaded,
+        now: @escaping @Sendable () -> Date = WallClock.now
     ) {
         api = nil
         symbol = sampleDetail?.symbol ?? ""
         barCap = Self.maximumBars
         hints = nil
+        self.now = now
         refresher = HintRefresher {}
         detail = sampleDetail.map(Self.presentation)
         detailPhase = sampleDetail == nil ? .loading : .loaded
@@ -118,11 +142,13 @@ public final class AssetDetailClientModel {
             detail = Self.presentation(response)
             detailPhase = .loaded
             lastError = nil
+            noteFresh()
             await loadChart(range: selectedRange, interval: selectedInterval)
         } catch {
             let error = APIError(error)
             lastError = error
             failureTick += 1
+            refreshFailed = detail != nil
             if detail == nil { detailPhase = .failed(error) }
         }
     }
@@ -223,11 +249,18 @@ public final class AssetDetailClientModel {
             detail = Self.presentation(response)
             detailPhase = .loaded
             lastError = nil
+            noteFresh()
             if chartPhase != .loading { await refreshChart() }
         } catch {
             lastError = APIError(error)
+            refreshFailed = detail != nil
             if !BackgroundRefresh.isActive { failureTick += 1 }
         }
+    }
+
+    private func noteFresh() {
+        lastLoadedAt = now()
+        refreshFailed = false
     }
 
     private static func presentation(_ detail: Components.Schemas.AssetDetail) -> AssetDetailPresentation {
@@ -239,6 +272,7 @@ public final class AssetDetailClientModel {
             name: market.name,
             kind: market.kind,
             priceMicros: detail.priceMicros,
+            priceAsOf: detail.priceAsOf,
             changeBasisPoints: detail.changeBps.map(Int64.init),
             attribution: detail.attribution,
             session: market.session,

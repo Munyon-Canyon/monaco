@@ -15,6 +15,14 @@ public final class StocksTabModel {
             case .preIpo: "Pre-IPO"
             }
         }
+
+        public var identifier: String {
+            switch self {
+            case .all: "all"
+            case .popular: "popular"
+            case .preIpo: "pre_ipo"
+            }
+        }
     }
     public enum Section: Equatable, Sendable { case popular, preIpo, all, search }
     public enum Phase: Equatable, Sendable {
@@ -38,6 +46,9 @@ public final class StocksTabModel {
     public private(set) var failureTick = 0
     public private(set) var isLoadingMore = false
     public private(set) var browse: Browse = .all
+    public private(set) var lastLoadedAt: Date?
+    public private(set) var isStale = false
+    public let quotes: WatchlistQuotes?
     public var rows: [MarketAsset] { isSearching ? search.rows : self[browsedSection].rows }
     public var phase: Phase { isSearching ? search.phase : self[browsedSection].phase }
     public var nextCursor: String? { self[isSearching ? .search : browsedSection].nextCursor }
@@ -48,15 +59,21 @@ public final class StocksTabModel {
     private let api: APIClient
     private let hints: any HintSource
     private let clock: any Clock<Duration>
+    let now: @Sendable () -> Date
     private let refresher: HintRefresher
     private var generation = 0
     private var searchTask: Task<Void, Never>?
     private var replacementGenerations: Set<Int> = []
 
-    public init(api: APIClient, hints: any HintSource, clock: any Clock<Duration>) {
+    public init(
+        api: APIClient, hints: any HintSource, clock: any Clock<Duration>, watchlist: WatchlistModel? = nil,
+        now: @escaping @Sendable () -> Date = WallClock.now
+    ) {
         self.api = api
         self.hints = hints
         self.clock = clock
+        self.now = now
+        quotes = watchlist.map { WatchlistQuotes(api: api, watchlist: $0) }
         let hook = ReloadHook()
         refresher = HintRefresher { await hook.run?() }
         hook.run = { [weak self] in await self?.refreshPrices() }
@@ -76,15 +93,23 @@ public final class StocksTabModel {
             note(APIError(error), section: .popular, empty: popular.rows.isEmpty)
         }
     }
+    public func loadMarkets() async {
+        async let browsed: Void = load()
+        async let popular: Void = loadPopularUnlessBrowsed()
+        async let watched: Void = loadQuotes()
+        _ = await (browsed, popular, watched)
+    }
     public func show(_ next: Browse) async {
         searchTask?.cancel()
         searchTask = nil
         browse = next
+        isStale = false
         if isSearching { search = .init(phase: .loading) }
         await load()
     }
     public func setQuery(_ text: String) {
         query = text
+        isStale = false
         searchTask?.cancel()
         generation += 1
         let issued = generation
@@ -134,6 +159,8 @@ public final class StocksTabModel {
         replacementGenerations.insert(issued)
         defer { replacementGenerations.remove(issued) }
         await refresh(isSearching ? .search : browsedSection, issued: issued)
+        if browse != .popular, !popular.rows.isEmpty { await refresh(.popular, issued: issued) }
+        await loadQuotes()
     }
     private func replace(_ section: Section?, issued: Int) async {
         guard issued == generation else { return }
@@ -142,9 +169,10 @@ public final class StocksTabModel {
             let page = try await page(section, cursor: nil)
             guard issued == generation else { return }
             self[section] = .init(rows: page.assets, phase: .loaded, nextCursor: page.nextCursor, cursors: [nil])
+            settle(section)
         } catch {
             guard issued == generation else { return }
-            note(APIError(error), section: section, empty: self[section].rows.isEmpty)
+            note(APIError(error), section: section, empty: self[section].rows.isEmpty, refreshing: true)
         }
     }
     private func refresh(_ section: Section?, issued: Int) async {
@@ -158,9 +186,10 @@ public final class StocksTabModel {
             self[section].nextCursor = pages.last?.nextCursor
             self[section].cursors = cursors
             self[section].phase = .loaded
+            settle(section)
         } catch {
             guard issued == generation else { return }
-            note(APIError(error), section: section, empty: self[section].rows.isEmpty)
+            note(APIError(error), section: section, empty: self[section].rows.isEmpty, refreshing: true)
         }
     }
     private func page(_ section: Section?, cursor: String?) async throws -> MarketAssetPage {
@@ -208,11 +237,23 @@ public final class StocksTabModel {
             }
         }
     }
-    private func note(_ error: APIError, section: Section?, empty: Bool) {
+    private func note(_ error: APIError, section: Section?, empty: Bool, refreshing: Bool = false) {
         lastError = error
         if !empty, !BackgroundRefresh.isActive { failureTick += 1 }
         self[section].phase = empty ? .failed(error) : .loaded
+        if refreshing, !empty, section == currentSection { isStale = true }
     }
+    private func settle(_ section: Section?) {
+        guard section == currentSection else { return }
+        lastLoadedAt = now()
+        isStale = false
+    }
+    private var currentSection: Section { isSearching ? .search : browsedSection }
+    private func loadPopularUnlessBrowsed() async {
+        guard browse != .popular else { return }
+        await loadPopular()
+    }
+    private func loadQuotes() async { await quotes?.load() }
     private static func trimmed(_ text: String) -> String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
 }
 private final class ReloadHook { var run: (@MainActor () async -> Void)? }
