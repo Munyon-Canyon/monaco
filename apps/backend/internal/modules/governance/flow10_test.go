@@ -12,12 +12,15 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
 func withGovernance() scenario.Option {
 	return scenario.WithModules(func(d module.Deps) module.Module {
-		return governance.New(d, governance.WithPorts(governance.Ports{Cabals: cabal.New(d).Queries()}))
+		return governance.New(d, governance.WithPorts(governance.Ports{
+			Cabals: cabal.New(d).Queries(), Assets: marketfake.NewCatalog(marketfake.Fixtures()...),
+		}))
 	})
 }
 

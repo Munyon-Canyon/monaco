@@ -7,8 +7,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type Swaps interface {
@@ -32,6 +34,15 @@ type ProposalDetail struct {
 	CanVote     bool
 	CanWithdraw bool
 	Swap        *trading.SwapView
+	Fill        Fill
+}
+
+type Fill struct {
+	USDCMicros    uint64
+	TokenAmount   uint64
+	TokenDecimals uint8
+	PriceMicros   uint64
+	Confirmed     bool
 }
 
 func (r *ProposalReads) Get(ctx context.Context, req GetProposal) (ProposalDetail, error) {
@@ -46,7 +57,7 @@ func (r *ProposalReads) Get(ctx context.Context, req GetProposal) (ProposalDetai
 	}
 	voters, tally, isVoter, othersVoted := tallyVoters(ballots, req.Caller)
 	tally.Needed = domain.ThresholdRule(row.Threshold).Needed(tally.Voters)
-	view, err := proposalView(sqlc.ListProposalsRow(row), tally)
+	view, err := proposalView(listRow(row), tally)
 	if err != nil {
 		return ProposalDetail{}, err
 	}
@@ -65,8 +76,37 @@ func (r *ProposalReads) Get(ctx context.Context, req GetProposal) (ProposalDetai
 	}
 	if found {
 		out.Swap = &swap
+		mint, err := market.ParseMint(row.Mint)
+		if err != nil {
+			return ProposalDetail{}, err
+		}
+		asset, err := r.assets.AssetByMint(ctx, mint)
+		if err != nil {
+			return ProposalDetail{}, err
+		}
+		out.Fill = fillOf(swap, asset.Decimals)
 	}
 	return out, nil
+}
+
+func fillOf(s trading.SwapView, decimals uint8) Fill {
+	f := Fill{USDCMicros: s.InAmount, TokenAmount: s.OutAmount, TokenDecimals: decimals}
+	if string(s.Action) == string(domain.KindSell) {
+		f.USDCMicros, f.TokenAmount = f.TokenAmount, f.USDCMicros
+	}
+	if f.Confirmed = s.Status == "confirmed"; f.Confirmed {
+		f.PriceMicros = money.PricePerUnit(money.MicrosFromUint64(f.USDCMicros), f.TokenAmount, decimals).Uint64()
+	}
+	return f
+}
+
+func listRow(r sqlc.GetProposalRow) sqlc.ListProposalsRow {
+	return sqlc.ListProposalsRow{
+		ID: r.ID, CabalID: r.CabalID, ProposerID: r.ProposerID, Kind: r.Kind, Symbol: r.Symbol,
+		UsdcMicros: r.UsdcMicros, TokenAmount: r.TokenAmount, QuoteOutAmount: r.QuoteOutAmount, Thesis: r.Thesis,
+		Threshold: r.Threshold, Status: r.Status, StatusReason: r.StatusReason, ExpiresAt: r.ExpiresAt,
+		CreatedAt: r.CreatedAt, MyBallot: r.MyBallot, PriceComparison: r.PriceComparison, Network: r.Network,
+	}
 }
 
 func tallyVoters(rows []sqlc.ProposalVotersRow, caller ids.UserID) ([]Voter, Tally, bool, bool) {

@@ -55,7 +55,7 @@ extension Components.Schemas.ProposalDetail {
             status: .passed,
             swap: .init(
                 swapId: "swap-1", status: .failed, failureCode: failureCode,
-                failureMessage: failureMessage, txSignature: nil, retryable: retryable))
+                failureMessage: failureMessage, txSignature: nil, retryable: retryable, tokenDecimals: 8))
     }
 }
 

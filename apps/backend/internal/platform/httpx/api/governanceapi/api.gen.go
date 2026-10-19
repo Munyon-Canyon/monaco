@@ -727,6 +727,11 @@ type LinkedSwap struct {
 	// Examples: null
 	FailureMessage *string `json:"failure_message"`
 
+	// PriceMicros USDC micros per whole token, the floor of `usdc_micros` ÷ the whole units in `token_amount`. Null until `status` is `confirmed`.
+	//
+	// Examples: 200000000
+	PriceMicros *int64 `json:"price_micros"`
+
 	// Retryable Whether a failed trade can be retried.
 	//
 	// Examples: false
@@ -742,10 +747,25 @@ type LinkedSwap struct {
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8060
 	SwapId openapi_types.UUID `json:"swap_id"`
 
+	// TokenAmount Token base units bought or sold. Null until a buy confirms.
+	//
+	// Examples: 12500000
+	TokenAmount *int64 `json:"token_amount"`
+
+	// TokenDecimals Decimals of `token_amount`.
+	//
+	// Examples: 8
+	TokenDecimals int `json:"token_decimals"`
+
 	// TxSignature The Solana transaction signature. Null before the trade is submitted.
 	//
 	// Examples: null
 	TxSignature *string `json:"tx_signature"`
+
+	// UsdcMicros USDC spent or received, in micros. Null until a sell confirms.
+	//
+	// Examples: 25000000
+	UsdcMicros *int64 `json:"usdc_micros"`
 }
 
 // ProposalKind Whether the proposal spends USDC on the token or sells the token for USDC.

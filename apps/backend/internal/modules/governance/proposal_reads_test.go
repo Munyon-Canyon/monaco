@@ -20,6 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 )
 
 type readsDB struct {
@@ -28,6 +29,7 @@ type readsDB struct {
 	caller uuid.UUID
 	swaps  *fakes.Trading
 	names  *namedCabals
+	assets *marketfake.CatalogFake
 }
 
 func newReadsDB(t *testing.T) readsDB {
@@ -39,11 +41,12 @@ func newReadsDB(t *testing.T) readsDB {
 		caller:     d.ids.NewV7(),
 		swaps:      fakes.NewTrading(),
 		names:      &namedCabals{},
+		assets:     marketfake.NewCatalog(marketfake.Fixtures()...),
 	}
 }
 
 func (d readsDB) reads() *app.ProposalReads {
-	return app.NewProposalReads(d.pool, d.swaps, d.names)
+	return app.NewProposalReads(d.pool, d.swaps, d.names, d.assets)
 }
 
 func (d readsDB) seed(t *testing.T, at time.Time, voters ...uuid.UUID) uuid.UUID {

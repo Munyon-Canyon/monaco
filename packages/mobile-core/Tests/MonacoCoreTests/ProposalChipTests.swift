@@ -39,7 +39,7 @@ final class ProposalChipTests: XCTestCase {
                 ProposalSwap(
                     Components.Schemas.ProposalDetail.SwapPayload(
                         swapId: "swap-1", status: $0, failureCode: nil, failureMessage: nil, txSignature: nil,
-                        retryable: false))
+                        retryable: false, tokenDecimals: 8))
             })
     }
 

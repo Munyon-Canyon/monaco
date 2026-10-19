@@ -162,6 +162,23 @@ func MulDiv(a, b, c uint64) (uint64, error) {
 	return q.Uint64(), nil
 }
 
+const maxPow10Decimals = 19
+
+func PricePerUnit(usdc Micros, tokenAmount uint64, decimals uint8) Micros {
+	if tokenAmount == 0 || decimals > maxPow10Decimals {
+		return Micros{}
+	}
+	unit := uint64(1)
+	for range decimals {
+		unit *= 10
+	}
+	price, err := MulDiv(usdc.Uint64(), unit, tokenAmount)
+	if err != nil {
+		return Micros{}
+	}
+	return MicrosFromUint64(price)
+}
+
 func MulDivCeil(a, b, c uint64) (uint64, error) {
 	if c == 0 {
 		return 0, errs.New(errs.CodeInvalidInput, "money.MulDivCeil", slog.Uint64("a", a), slog.Uint64("b", b))

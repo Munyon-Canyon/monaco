@@ -15,6 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func (h Feed) FetchTrade(ctx context.Context, e events.TradeConfirmed) (app.AssetCard, error) {
@@ -46,7 +47,7 @@ func (h Feed) ApplyTrade(
 	_, tokens := tradeLeg(e)
 	payload := feed.Payload{
 		CabalName: cabal, Symbol: symbol, AssetName: asset.Name, Action: feed.Action(e.Action),
-		USDCMicros: e.USDCMicros, PriceMicros: feed.FillPrice(e.USDCMicros, tokens, asset.Decimals),
+		USDCMicros: e.USDCMicros, PriceMicros: money.PricePerUnit(e.USDCMicros, tokens, asset.Decimals),
 		TokenAmount: tokens, TokenDecimals: asset.Decimals, ProposalID: e.Source.ID,
 	}
 	if err := q.InsertFeedConsumerItem(ctx, sqlc.InsertFeedConsumerItemParams{

@@ -51,20 +51,3 @@ func ParsePayload(raw []byte) (Payload, error) {
 	}
 	return p, nil
 }
-
-const maxPow10Decimals = 19
-
-func FillPrice(usdc money.Micros, tokenAmount uint64, decimals uint8) money.Micros {
-	if tokenAmount == 0 || decimals > maxPow10Decimals {
-		return money.Micros{}
-	}
-	unit := uint64(1)
-	for range decimals {
-		unit *= 10
-	}
-	price, err := money.MulDiv(usdc.Uint64(), unit, tokenAmount)
-	if err != nil {
-		return money.Micros{}
-	}
-	return money.MicrosFromUint64(price)
-}
