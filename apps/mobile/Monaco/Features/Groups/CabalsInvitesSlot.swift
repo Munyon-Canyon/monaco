@@ -23,14 +23,16 @@ struct CabalInvitesSection: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+        VStack(alignment: .leading, spacing: 0) {
             if let model, case .failed = model.state {
                 MonacoErrorRow(thing: "your invites", identifier: "cabals-invites-failed") {
                     Task { await model.load() }
                 }
+                .padding(.top, MonacoTheme.Space.l)
             } else if let model, showsInvites, !model.invites.isEmpty {
                 MonacoSectionHeader("Cabal invites", count: model.invites.count)
                     .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .padding(.top, MonacoTheme.Space.l)
                 MonacoGroupedList {
                     ForEach(model.invites) { invite in
                         CabalInviteRow(
@@ -102,16 +104,10 @@ private struct CabalInviteRow: View {
             CabalMark(groupId: invite.cabalID, name: invite.cabalName, pictureUrl: invite.pictureURL)
         } trailing: {
             HStack(spacing: MonacoTheme.Space.s) {
-                Button(action: decline) {
-                    Text("Decline")
-                        .font(MonacoTheme.Typo.calloutStrong)
-                        .foregroundStyle(MonacoTheme.muted)
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Decline the invite to \(invite.cabalName)")
-                .accessibilityIdentifier("cabal-invite-decline")
+                Button("Decline", action: decline)
+                    .buttonStyle(.monacoCompact)
+                    .accessibilityLabel("Decline the invite to \(invite.cabalName)")
+                    .accessibilityIdentifier("cabal-invite-decline")
                 Button("Accept", action: accept)
                     .buttonStyle(.monacoCompactProminent)
                     .accessibilityLabel("Accept the invite to \(invite.cabalName)")

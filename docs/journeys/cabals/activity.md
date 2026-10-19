@@ -1,7 +1,7 @@
 ---
 id: cabals/activity
 title: Cabal activity
-version: 5
+version: 6
 milestone: M14
 requires: [auth/sign-in]
 actors: [A]
@@ -16,6 +16,8 @@ A member reads a cabal's Activity section, opens "See all", opens the receipt of
 Old app (`c838bd24`): the cabal screen's `GroupActivitySection.swift` -> "See all" -> `GroupActivityListView.swift` -> a row -> `TransactionDetailView.swift` with "Retry" on a failed trade. Spec: `CabalActivitySlot` in [screens.md](../../screens.md#cabal-screen-cabalroute), slot 12, and its rows open `TransactionRoute`.
 
 The format of this doc is in [App journeys](../README.md).
+
+Discover cabals is where `cabals-search-field` lives. A step that says "Discover cabals" reaches it from the Cabals tab by typing a name the actor has no cabal called, such as `zzqq`, in `cabals-filter-field` ("Find your cabals"), then tapping `cabals-search-public` ("Search public cabals"), which pushes Discover cabals with that text in `cabals-search-field`; an actor with no cabals taps "Explore cabals" instead. The step then replaces the text in `cabals-search-field`.
 
 ## Preconditions
 
@@ -33,7 +35,7 @@ The rows come from SQL because no route writes `cabal_activity` without a real s
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA activity {QA.run}` | `cabal-header-name` reads `QA activity {QA.run}` within 15 s |
+| S1.1 | A | tap, type, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA activity {QA.run}` | `cabal-header-name` reads `QA activity {QA.run}` within 15 s |
 | S1.2 | A | scroll to | `cabal-activity` | | The section header reads "Activity" with "See all" (`cabal-activity-see-all`), and the newest row `cabal-activity-row-{failed_trade}` reads "Bought Apple" with the red status "Failed" within 15 s |
 | S1.3 | A | tap | `cabal-activity-see-all` | | The "Activity" screen lists all six rows (`cabal-activity-row-<id>`), "Money added" among them, within 10 s |
 | S1.4 | A | tap | `cabal-activity-row-{confirmed_trade}` | | The "Transaction" receipt shows within 10 s: `cabal-txn-amount` "$25.00", `cabal-txn-status` "Done", and `cabal-txn-solscan` "View on Solscan" |
@@ -42,13 +44,13 @@ The rows come from SQL because no route writes `cabal_activity` without a real s
 | S1.7 | A | tap | the back button of the "Transaction" bar | | `cabal-header-name` shows within 10 s, the receipt is gone, and no sheet, alert, popover or menu is up |
 | S1.8 | A | tap | a "Money added" row in `cabal-activity` again | | The "Transaction" receipt shows within 10 s |
 | S1.9 | A | tap | the back button of the "Transaction" bar | | The same as S1.7: the cabal, no prompt |
-| S1.10 | A | tap | the back button of the cabal screen | | `cabals-search-field` shows within 10 s and no `cabal-header-name` is left, so there was one cabal screen on the path |
+| S1.10 | A | tap | the back button of the cabal screen | | `cabals-search-field` shows within 10 s on Discover cabals and no `cabal-header-name` is left, so there was one cabal screen on the path |
 
 ### S2 Retry a failed trade
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA activity {QA.run}` | `cabal-header-name` reads `QA activity {QA.run}` within 15 s |
+| S2.1 | A | tap, type, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA activity {QA.run}` | `cabal-header-name` reads `QA activity {QA.run}` within 15 s |
 | S2.2 | A | scroll to, then tap the leading glyph of | `cabal-activity-row-{failed_trade}`, clear of its inline "Retry" | | The "Transaction" receipt shows `cabal-txn-status` "Failed" within 10 s |
 | S2.3 | A | tap | "Retry" | | The receipt offers "Retry" on the failed trade within 5 s (old app: `TransactionDetailView.swift` `transaction-detail-retry`; screens.md: "Failed · Retry") |
 

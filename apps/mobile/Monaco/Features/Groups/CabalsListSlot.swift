@@ -14,23 +14,40 @@ private struct MyCabalsList: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
+    @Environment(\.cabalsFilter) private var filter
     @State private var model: MonacoCore.CabalsTabModel?
-    @State private var showsNewCabal = false
+    @State private var details: HomeCabalContextModel?
+    @State private var voteCounts: [String: Int] = [:]
+
+    private var cabalIDs: [String] {
+        guard case .loaded(let cabals) = model?.state else { return [] }
+        return cabals.map(\.id)
+    }
 
     var body: some View {
-        MyCabalsContent(model: model, standings: model?.standings ?? [:], open: open, create: { showsNewCabal = true })
-            .task {
-                let model = preparedModel()
-                refresh?.register("cabals-list") { await model.load(withStandings: true) }
-                await model.load(withStandings: true)
-            }
-            .onScreenVisibilityChange { model?.setVisible($0) }
-            .task { await preparedModel().observe(hints: environment.hints) }
-            .newCabalSheet(isPresented: $showsNewCabal)
-            .onChange(of: model?.failureTick) { _, _ in
-                guard case .loaded = model?.state, let error = model?.lastError else { return }
-                toasts.show(error)
-            }
+        MyCabalsContent(
+            model: model, standings: model?.standings ?? [:], contexts: details?.contexts ?? [:],
+            voteCounts: voteCounts, query: filter.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines),
+            open: open, share: share,
+            create: { environment.navigator.open(CreateCabalRoute(), in: .cabals) },
+            discover: { environment.navigator.open(DiscoverCabalsRoute(query: $0), in: .cabals) }
+        )
+        .task {
+            let model = preparedModel()
+            refresh?.register("cabals-list") { await reload(model) }
+            await reload(model)
+        }
+        .onScreenVisibilityChange { model?.setVisible($0) }
+        .task { await preparedModel().observe(hints: environment.hints) }
+        .task(id: cabalIDs) {
+            let details = self.details ?? HomeCabalContextModel(api: environment.api)
+            self.details = details
+            await details.load(cabalIDs: cabalIDs)
+        }
+        .onChange(of: model?.failureTick) { _, _ in
+            guard case .loaded = model?.state, let error = model?.lastError else { return }
+            toasts.show(error)
+        }
     }
 
     private func preparedModel() -> MonacoCore.CabalsTabModel {
@@ -40,30 +57,71 @@ private struct MyCabalsList: View {
         return created
     }
 
+    private func reload(_ model: MonacoCore.CabalsTabModel) async {
+        await model.load(withStandings: true)
+        await loadVotes()
+    }
+
+    private func loadVotes() async {
+        guard let pending = try? await ProposalsRepository(api: environment.api).pendingVotes() else { return }
+        voteCounts = Dictionary(grouping: pending, by: \.cabalID).mapValues(\.count)
+    }
+
     private func open(_ cabal: Components.Schemas.MyCabal) {
         Haptics.selection()
         environment.navigator.open(CabalRoute(id: cabal.id), in: .cabals)
+    }
+
+    private func share(_ cabal: Components.Schemas.MyCabal) {
+        let standing = CabalInviteStanding(role: cabal.role == "creator" ? .creator : .member)
+        environment.navigator.open(InviteMemberRoute(cabalID: cabal.id, standing: standing), in: .cabals)
+    }
+}
+
+extension CabalCoverCardModel {
+    init(
+        cabal: Components.Schemas.MyCabal, standing: PortfolioSummary.Row?, context: HomeCabalContext?,
+        votesNeeded: Int
+    ) {
+        let funded = (standing?.valueMicros ?? 0) > 0
+        var figure: Figure?
+        var unavailable: String? = standing == nil || funded ? "Unavailable" : "Not funded"
+        if funded, let standing, standing.returnBps != nil {
+            figure = Figure(
+                amountText: standing.pnl, percentText: standing.returnText, direction: standing.direction.pnlTone)
+            unavailable = nil
+        }
+        self.init(
+            id: cabal.id, name: cabal.name, memberCountText: CabalCopy.memberCount(cabal.memberCount),
+            votesNeededText: funded && votesNeeded > 0
+                ? (votesNeeded == 1 ? "1 vote needed" : "\(votesNeeded) votes needed") : nil,
+            shareText: standing.map { UsdAmountFormatter.format(micros: $0.valueMicros) },
+            ownershipText: context?.ownershipText ?? (standing != nil && !funded ? "0.00%" : nil),
+            pnl: figure, pnlUnavailableReason: unavailable,
+            groupReturn: GroupReturn(periodText: "1M", percentText: "— Return opens soon", direction: .flat),
+            tint: MonacoTheme.CabalTint.forGroupId(cabal.id), pictureURL: cabal.pictureUrl)
     }
 }
 
 struct MyCabalsContent: View {
     let model: MonacoCore.CabalsTabModel?
     let standings: [String: PortfolioSummary.Row]
+    var contexts: [String: HomeCabalContext] = [:]
+    var voteCounts: [String: Int] = [:]
+    var query = ""
     let open: (Components.Schemas.MyCabal) -> Void
+    var share: (Components.Schemas.MyCabal) -> Void = { _ in }
     let create: () -> Void
+    var discover: (String) -> Void = { _ in }
 
     @Environment(\.accountRestricted) private var accountRestricted
-    @ScaledMetric(relativeTo: .body) private var cardWidth: CGFloat = 168
-
-    static let cardHeight: CGFloat = 128
-    private var cardSize: CGSize { CGSize(width: cardWidth, height: Self.cardHeight) }
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            MonacoSectionHeader("Your cabals")
-                .padding(.horizontal, MonacoTheme.Space.gutter)
+        VStack(alignment: .leading, spacing: 0) {
             content
         }
+        .padding(.top, MonacoTheme.Space.l)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("cabals-list")
     }
@@ -73,139 +131,84 @@ struct MyCabalsContent: View {
         case .idle, .loading:
             placeholders
         case .failed:
-            MonacoErrorRow(thing: "your cabals", identifier: "cabals-list-failed") {
-                Task { await model?.load() }
-            }
+            EmptyState(
+                title: "Couldn't load this view",
+                message: "Your existing information hasn't been changed. Try again when your connection is available.",
+                actionTitle: "Try again", actionIdentifier: "cabals-list-retry",
+                systemImage: MonacoIcon.offline.symbol,
+                action: { Task { await model?.load(withStandings: true) } }
+            )
         case .loaded(let cabals) where cabals.isEmpty:
             EmptyState(
-                title: "No cabals yet",
+                title: "Your cabal starts here",
                 message: accountRestricted
-                    ? "Search above to find one." : "Start one with friends, or search above to find one.",
-                actionTitle: accountRestricted ? nil : "Start a cabal",
-                action: accountRestricted ? nil : create
+                    ? "Open a shared invitation to join a cabal." : "Create a cabal or open a shared invitation.",
+                actionTitle: accountRestricted ? nil : "Create a cabal",
+                systemImage: MonacoIcon.cabals.symbol,
+                secondaryActionTitle: accountRestricted ? nil : "Explore cabals",
+                action: accountRestricted ? nil : create,
+                secondaryAction: accountRestricted ? nil : { discover("") }
             )
             .accessibilityIdentifier("cabals-list-empty")
         case .loaded(let cabals):
-            cards(cabals)
+            cards(cabals.filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) })
         }
     }
 
-    private func cards(_ cabals: [Components.Schemas.MyCabal]) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(spacing: MonacoTheme.Space.s) {
-                ForEach(cabals, id: \.id) { cabal in
-                    Button {
-                        open(cabal)
-                    } label: {
-                        MyCabalCard(cabal: cabal, standing: standings[cabal.id], size: cardSize)
+    private func cards(_ shown: [Components.Schemas.MyCabal]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            MonacoSectionHeader("Your cabals", count: shown.count)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
+            if shown.isEmpty {
+                EmptyState(
+                    title: "No matching cabals", message: "Try another name.", systemImage: MonacoIcon.search.symbol
+                )
+                .accessibilityIdentifier("cabals-list-no-match")
+                Button("Search public cabals") { discover(query) }
+                    .buttonStyle(.monacoText)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityIdentifier("cabals-search-public")
+            } else {
+                LazyVStack(spacing: MonacoTheme.Space.sm) {
+                    ForEach(shown, id: \.id) { cabal in
+                        card(cabal)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("cabals-list-card-\(cabal.id)")
                 }
-                if !accountRestricted {
-                    Button(action: create) {
-                        NewCabalCard(size: cardSize)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("cabals-list-new")
-                }
+                .padding(.horizontal, MonacoTheme.Space.gutter)
             }
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.vertical, MonacoTheme.Space.xs)
         }
+    }
+
+    private func card(_ cabal: Components.Schemas.MyCabal) -> some View {
+        CabalCoverCard(
+            model: CabalCoverCardModel(
+                cabal: cabal, standing: standings[cabal.id], context: contexts[cabal.id],
+                votesNeeded: voteCounts[cabal.id] ?? 0),
+            layout: .list,
+            onOpen: { open(cabal) },
+            onShare: { share(cabal) }
+        )
+        .accessibilityValue(Self.spokenBadges(cabal))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("cabals-list-card-\(cabal.id)")
+    }
+
+    static func spokenBadges(_ cabal: Components.Schemas.MyCabal) -> String {
+        [
+            cabal.unreadCount > 0 ? CabalCopy.unreadLabel(cabal.unreadCount) : nil,
+            CabalCopy.requestBadge(cabal).map(CabalCopy.requestCount),
+        ]
+        .compactMap { $0 }
+        .joined(separator: ", ")
     }
 
     private var placeholders: some View {
-        HStack(spacing: MonacoTheme.Space.s) {
-            ForEach(0..<2, id: \.self) { _ in
-                SkeletonBlock(
-                    width: cardSize.width, height: cardSize.height, radius: MonacoTheme.Radius.card)
-            }
-            Spacer(minLength: 0)
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+            CabalCoverCardSkeleton(layout: .list)
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.vertical, MonacoTheme.Space.xs)
         .accessibilityElement()
         .accessibilityLabel("Loading your cabals")
         .accessibilityIdentifier("cabals-list-loading")
-    }
-}
-
-private struct MyCabalCard: View {
-    let cabal: Components.Schemas.MyCabal
-    let standing: PortfolioSummary.Row?
-    let size: CGSize
-
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    private var tint: MonacoTheme.CabalTint { .forGroupId(cabal.id) }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-            HStack(alignment: .top) {
-                CabalMark(groupId: cabal.id, name: cabal.name, size: 36, pictureUrl: cabal.pictureUrl)
-                Spacer(minLength: 0)
-                if let unread = CabalCopy.unreadBadge(cabal.unreadCount) {
-                    Text(unread)
-                        .font(MonacoTheme.Typo.dataMicro)
-                        .foregroundStyle(MonacoTheme.onBrand)
-                        .padding(.horizontal, MonacoTheme.Space.s)
-                        .frame(minWidth: 22, minHeight: 22)
-                        .background(Capsule().fill(MonacoTheme.brandFill))
-                        .accessibilityLabel(CabalCopy.unreadLabel(cabal.unreadCount))
-                        .accessibilityIdentifier("cabals-list-card-unread")
-                }
-                if let requests = CabalCopy.requestBadge(cabal) {
-                    Text("\(requests)")
-                        .font(MonacoTheme.Typo.captionStrong.monospacedDigit())
-                        .foregroundStyle(MonacoTheme.onBrand)
-                        .padding(.horizontal, MonacoTheme.Space.s)
-                        .frame(minWidth: 22, minHeight: 22)
-                        .background(Capsule().fill(MonacoTheme.brandFill))
-                        .accessibilityLabel(CabalCopy.requestCount(requests))
-                        .accessibilityIdentifier("cabals-list-card-requests")
-                }
-            }
-            Text(cabal.name)
-                .font(MonacoTheme.Typo.rowTitle)
-                .foregroundStyle(MonacoTheme.ink)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, MonacoTheme.Space.xs)
-            if let standing {
-                MoneyText(micros: standing.valueMicros, style: .row)
-                    .accessibilityIdentifier("cabals-list-card-pot")
-                if let bps = standing.returnBps {
-                    PnLBadge(signedMicros: standing.pnlMicros, basisPoints: bps)
-                        .accessibilityIdentifier("cabals-list-card-return")
-                }
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(MonacoTheme.Space.m)
-        .frame(width: size.width, alignment: .topLeading)
-        .frame(minHeight: size.height, alignment: .topLeading)
-        .monacoActionCard(fill: tint.soft, border: tint.fill.opacity(0.22), inset: 0, fillsWidth: false)
-        .accessibilityElement(children: .combine)
-    }
-}
-
-private struct NewCabalCard: View {
-    let size: CGSize
-
-    var body: some View {
-        VStack(spacing: MonacoTheme.Space.s) {
-            Image(systemName: "plus")
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(MonacoTheme.muted)
-            Text("New cabal")
-                .font(MonacoTheme.Typo.calloutStrong)
-                .foregroundStyle(MonacoTheme.muted)
-        }
-        .frame(width: size.width, height: size.height)
-        .monacoActionCard(fill: .clear, isDashed: true, inset: 0, fillsWidth: false)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("New cabal")
     }
 }

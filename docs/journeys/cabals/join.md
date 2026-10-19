@@ -1,7 +1,7 @@
 ---
 id: cabals/join
 title: Join a cabal
-version: 6
+version: 7
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -16,6 +16,8 @@ Another member finds a cabal by search and joins it. An Open cabal takes them in
 The copy is [Join a cabal](../../screens.md#cabals-tab) and the [Cabal screen](../../screens.md#cabal-screen-cabalroute) in `screens.md`. Each Expect cell ends with the old-app tap it matches where the old app had one.
 
 The format of this doc is in [App journeys](../README.md).
+
+Discover cabals is where `cabals-search-field` lives. A step that says "Discover cabals" reaches it from the Cabals tab by typing a name the actor has no cabal called, such as `zzqq`, in `cabals-filter-field` ("Find your cabals"), then tapping `cabals-search-public` ("Search public cabals"), which pushes Discover cabals with that text in `cabals-search-field`; an actor with no cabals taps "Explore cabals" instead. The step then replaces the text in `cabals-search-field`.
 
 ## Preconditions
 
@@ -33,22 +35,22 @@ The setup creates both cabals through the API, so this journey does not depend o
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap, then type | the Cabals tab, then `cabals-search-field` | `QA pot {QA.run}` | One `cabals-search-result-<id>` names `QA pot {QA.run}` within 10 s. Old app: the "Find a cabal by name" search in `CabalsTabView` |
+| S1.1 | A | tap, then type | the Cabals tab and Discover cabals, then `cabals-search-field` | `QA pot {QA.run}` | One `cabals-search-result-<id>` names `QA pot {QA.run}`, with the badge `cabals-search-joined` "Joined", within 10 s. Old app: the "Find a cabal by name" search in `CabalsTabView` |
 | S1.2 | A | tap | the `cabals-search-result-<id>` | | `cabal-header-name` reads `QA pot {QA.run}` and `cabal-member-count` reads "1 member" within 15 s. Old app: a search result pushed `GroupDetailView` |
 | S1.3 | A | none | | | There is no `cabal-join-requests-heading`. A new request cabal has no pending requests |
-| S1.4 | B | tap, then type | the Cabals tab, then `cabals-search-field` | `zzqq` | `cabals-search-empty` reads "No cabal called “zzqq”" within 10 s. Old app: the same empty search line in `CabalsTabView` |
+| S1.4 | B | tap, type, then tap | the Cabals tab, `cabals-filter-field`, then `cabals-search-public` | `zzqq` | Discover cabals shows `cabals-search-empty` "No matching cabals" / "Try another name." within 10 s. Old app: the "No cabal called" search line in `CabalsTabView` |
 | S1.5 | B | clear, type, then tap | `cabals-search-field`, then the `cabals-search-result-<id>` | `QA pot {QA.run}` | `cabal-header-name` reads `QA pot {QA.run}` and `cabal-join-button` shows within 15 s. screens.md: `CabalJoinSlot`, "Request to join" |
 | S1.6 | B | tap | `cabal-join-button` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s. `cabal-join-requested` reads "Request sent" next to `cabal-join-cancel` within 15 s |
-| S1.7 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA pot {QA.run}` | `cabal-join-requests-heading` reads "1 person wants to join" within 2 s of `cabal-header-name` showing, with one `cabal-join-request-row` naming B. screens.md: `CabalJoinSlot`, "2 people want to join" with Approve and Deny. Old app: the join requests on `GroupDetailView` |
+| S1.7 | A | tap, type, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA pot {QA.run}` | `cabal-join-requests-heading` reads "1 person wants to join" within 2 s of `cabal-header-name` showing, with one `cabal-join-request-row` naming B. screens.md: `CabalJoinSlot`, "2 people want to join" with Approve and Deny. Old app: the join requests on `GroupDetailView` |
 | S1.8 | A | tap | `cabal-join-approve` | | The toast "Approved." shows within 10 s. `cabal-join-requests-heading` is gone, and `cabal-member-count` reads "2 members" within 10 s. Old app: Approve on `GroupDetailView` toasted "<name> is in"; staging toasts "Approved." |
-| S1.9 | B | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA pot {QA.run}` | `cabal-action-fund` shows within 15 s, and there is no `cabal-join-requested` or `cabal-join-button`. screens.md: `CabalActionsSlot` for a member. Old app: `GroupDetailView`'s member action row |
+| S1.9 | B | tap, type, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA pot {QA.run}` | `cabal-action-fund` shows within 15 s, and there is no `cabal-join-requested` or `cabal-join-button`. screens.md: `CabalActionsSlot` for a member. Old app: `GroupDetailView`'s member action row |
 
 ### S2 Join an open cabal
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | tap, then edit | the cabal `QA open {QA.run}`, then `cabal-rules-edit` and its `edit-rule-join` row | Open | Save enables, and after Save the toast "Cabal updated." shows. The `cabal-rules-join` row reads "Open" |
-| S2.2 | B | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA open {QA.run}` | The row reads "Open", and `cabal-join-policy` reads "Open: anyone can join." `cabal-join-button` reads "Join" |
+| S2.2 | B | tap, type, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA open {QA.run}` | The row reads "Open" and shows a "Join" button (`cabals-search-enter-<id>`), and `cabal-join-policy` reads "Open: anyone can join." `cabal-join-button` reads "Join" |
 | S2.3 | B | tap | `cabal-join-button` | | The toast "You're in." shows, no request is sent, and `cabal-action-fund` shows within 15 s. There is no `cabal-join-button` |
 
 ### S3 Request declined, then ask again

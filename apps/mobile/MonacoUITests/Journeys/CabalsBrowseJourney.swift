@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsBrowseJourney {
     static let id = "cabals/browse"
-    static let version = 4
+    static let version = 5
 
     static let screenTimeout: TimeInterval = 15
 
@@ -19,6 +19,12 @@ enum CabalsBrowseJourney {
         ).firstMatch
     }
 
+    static func card(_ app: XCUIApplication, named name: String) -> XCUIElement {
+        app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'cabal-cover-card-' AND label CONTAINS %@", name)
+        ).firstMatch
+    }
+
     static func assertResult(_ app: XCUIApplication, named name: String, reads caption: String, step: String) {
         let row = JoinJourney.result(app, named: name).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 10), "\(step): no search result named \(name) within 10 s")
@@ -31,20 +37,17 @@ enum CabalsBrowseJourney {
         recorder.step("S1.1", "open the Cabals tab and see your cards") {
             app.tab("Cabals").tap()
             XCTAssertTrue(
-                JoinJourney.searchField(app).waitForExistence(timeout: screenTimeout), "S1.1: no search field")
-            let card = app.buttons.matching(
-                NSPredicate(format: "identifier BEGINSWITH 'cabals-list-card-' AND label CONTAINS %@", mine(run: run))
-            ).firstMatch
+                app.textFields["cabals-filter-field"].waitForExistence(timeout: screenTimeout),
+                "S1.1: no filter field")
             XCTAssertTrue(
-                card.waitForExistence(timeout: screenTimeout), "S1.1: no Your cabals card for \(mine(run: run))")
+                card(app, named: mine(run: run)).waitForExistence(timeout: screenTimeout),
+                "S1.1: no Your cabals card for \(mine(run: run))")
             XCTAssertTrue(app.staticTexts["Your cabals"].exists, "S1.1: no Your cabals header")
             JoinJourney.snap(app, "S1-A-cabals-tab")
         }
 
         recorder.step("S1.2", "open a card") {
-            app.buttons.matching(
-                NSPredicate(format: "identifier BEGINSWITH 'cabals-list-card-' AND label CONTAINS %@", mine(run: run))
-            ).firstMatch.tap()
+            card(app, named: mine(run: run)).tap()
             XCTAssertTrue(
                 JoinJourney.waitForLabel(
                     app.element("cabal-header-name"), containing: mine(run: run), timeout: screenTimeout),
@@ -57,13 +60,13 @@ enum CabalsBrowseJourney {
             JoinJourney.search(app, for: ask(run: run), step: "S1.3")
             assertResult(app, named: ask(run: run), reads: "1 member · Approval required", step: "S1.3")
             XCTAssertTrue(
-                enterButton(app, label: "Ask to join \(ask(run: run))").waitForExistence(timeout: 10),
+                enterButton(app, label: "Request to join \(ask(run: run))").waitForExistence(timeout: 10),
                 "S1.3: no Request on the request cabal's row"
             )
         }
 
         recorder.step("S1.4", "ask from the row") {
-            enterButton(app, label: "Ask to join \(ask(run: run))").tap()
+            enterButton(app, label: "Request to join \(ask(run: run))").tap()
             JoinJourney.waitForToast(app, "Request sent. You'll be in once the creator says yes.", step: "S1.4")
             XCTAssertTrue(
                 app.element("cabals-search-requested").waitForExistence(timeout: 10),
@@ -73,15 +76,15 @@ enum CabalsBrowseJourney {
     }
 
     static func seesTopCabals(_ app: XCUIApplication, recorder: JourneyRecorder) {
-        recorder.step("S3.1", "Top cabals lists ranked cabals") {
+        recorder.step("S3.1", "the leaderboard lists ranked cabals") {
             app.tab("Cabals").tap()
             let board = app.element("cabals-board")
             app.scrollIntoReach(board)
-            XCTAssertTrue(board.waitForExistence(timeout: screenTimeout), "S3.1: no Top cabals section")
-            XCTAssertTrue(app.staticTexts["Top cabals"].exists, "S3.1: no Top cabals header")
+            XCTAssertTrue(board.waitForExistence(timeout: screenTimeout), "S3.1: no Cabal leaderboard section")
+            XCTAssertTrue(app.staticTexts["Cabal leaderboard"].exists, "S3.1: no Cabal leaderboard header")
             XCTAssertFalse(
                 app.element("cabals-board-coming").exists,
-                "S3.1: Top cabals reads Rankings show up here soon. (known failure, #699 and #617)"
+                "S3.1: the leaderboard reads Rankings show up here soon. (known failure, #699 and #617)"
             )
         }
     }

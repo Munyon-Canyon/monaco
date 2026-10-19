@@ -1,18 +1,18 @@
 journey: cabals/create-cabal
 expect-fail: S2
 
-Creating a cabal no longer says "Cabal created." S2.4 waits for that toast, so S2 must fail.
+Creating a cabal no longer says "Cabal created.". S2.4 waits for that toast, so S2 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CreateGroupView.swift b/apps/mobile/Monaco/Features/Groups/CreateGroupView.swift
-index 6fdc9454..0604eb7b 100644
+index b10bd1d..db1c5ce 100644
 --- a/apps/mobile/Monaco/Features/Groups/CreateGroupView.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CreateGroupView.swift
-@@ -129,7 +129,6 @@ struct CreateGroupView: View {
-         defer { isCreating = false }
-         do {
-             let cabal = try await actions.createCabal(input, submission: submission)
--            toasts?.show(success: CabalRulesCopy.created)
+@@ -286,7 +286,6 @@ struct CreateGroupView: View {
+             if await uploadCover(for: cabal) {
+                 toasts?.current = MonacoToast(message: CabalRulesCopy.createdWithoutCover, isSuccess: false)
+             } else {
+-                toasts?.show(success: CabalRulesCopy.created)
+             }
              if let onCreated {
                  onCreated(cabal)
-             } else {

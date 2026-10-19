@@ -1,0 +1,19 @@
+journey: ranking/leaderboards
+expect-fail: S3
+
+The Cabal leaderboard loses its "Cabal P&L · 1M" context line. S3.1 reads it, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalsBoardSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalsBoardSlot.swift
+index 91ed2bb..5abf0c7 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalsBoardSlot.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalsBoardSlot.swift
+@@ -155,7 +155,7 @@ private struct CabalsBoard: View {
+ 
+     private var contextLine: some View {
+         HStack(spacing: MonacoTheme.Space.s) {
+-            Text("Cabal P&L · \(loader.range.label)")
++            Text("")
+                 .font(MonacoTheme.Typo.caption)
+                 .foregroundStyle(MonacoTheme.secondaryText)
+             Spacer(minLength: MonacoTheme.Space.s)

@@ -1,6 +1,10 @@
 import MonacoCore
 import SwiftUI
 
+extension EnvironmentValues {
+    @Entry var cabalsFilter: Binding<String> = .constant("")
+}
+
 struct CabalsTabScreen: View {
     static let sections: [any CabalsTabSection.Type] = [
         CabalsJoinSlot.self,
@@ -10,27 +14,29 @@ struct CabalsTabScreen: View {
     ]
 
     let sections: [any CabalsTabSection.Type]
-    @State private var search = CabalsSearchFocus()
+    @State private var filter = ""
 
     init(sections: [any CabalsTabSection.Type] = Self.sections) {
         self.sections = sections
     }
 
-    static func visible(_ sections: [any CabalsTabSection.Type], searching: Bool) -> [any CabalsTabSection.Type] {
-        guard searching else { return sections }
-        return sections.filter { ObjectIdentifier($0) == ObjectIdentifier(CabalsJoinSlot.self) }
-    }
-
     var body: some View {
-        let sections = Self.visible(sections, searching: search.isSearching).map { $0.erased }
+        let live = SectionStack<Void>.live(sections.map { $0.erased })
         Group {
-            if SectionStack<Void>.live(sections).isEmpty {
+            if live.isEmpty {
                 NotMigratedView(screen: "Cabals")
             } else {
-                SectionStack(context: (), sections: sections)
-                    .scrollDismissesKeyboard(.interactively)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(live.enumerated()), id: \.offset) { _, section in
+                            AnyView(section.body(for: ()))
+                        }
+                    }
+                    .padding(.bottom, MonacoTheme.Space.l)
+                }
+                .scrollDismissesKeyboard(.interactively)
             }
         }
-        .environment(search)
+        .environment(\.cabalsFilter, $filter)
     }
 }

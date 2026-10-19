@@ -2,7 +2,7 @@ import XCTest
 
 enum RankingLeaderboardsJourney {
     static let id = "ranking/leaderboards"
-    static let version = 2
+    static let version = 3
 
     struct Seed {
         let cabalID: String
@@ -107,20 +107,21 @@ enum RankingLeaderboardsJourney {
     static func topCabals(_ app: XCUIApplication, recorder: JourneyRecorder) {
         let board = app.element("cabals-board")
 
-        recorder.step("S3.1", "the Cabals tab shows Top cabals") {
+        recorder.step("S3.1", "the Cabals tab shows the Cabal leaderboard") {
             app.tab("Cabals").tap()
             app.scrollIntoReach(board)
-            XCTAssertTrue(board.waitForExistence(timeout: 15), "S3.1: no Top cabals board within 15 s")
-            XCTAssertTrue(text(app, "Top cabals").exists, "S3.1: no \"Top cabals\" header")
+            XCTAssertTrue(board.waitForExistence(timeout: 15), "S3.1: no Cabal leaderboard within 15 s")
+            XCTAssertTrue(text(app, "Cabal leaderboard").exists, "S3.1: no \"Cabal leaderboard\" header")
             XCTAssertTrue(
-                text(app, "Ranked by return across everyone on Monaco").exists,
-                "S3.1: no \"Ranked by return across everyone on Monaco\"")
+                text(app, "Cabal P&L \u{00B7} 1M").exists,
+                "S3.1: no \"Cabal P&L \u{00B7} 1M\" context line")
         }
 
-        recorder.step("S3.2", "Top cabals ranks cabals or says none has funded") {
+        recorder.step("S3.2", "the leaderboard ranks cabals or says none is public") {
             XCTAssertTrue(
                 ProfileOverviewJourney.waitUntil(10) { !app.element("cabals-board-coming").exists },
-                "S3.2: Top cabals says rankings come soon, with no rows and no empty copy (known failure, #617 #619)")
+                "S3.2: the leaderboard says rankings come soon, with no rows and no empty copy "
+                    + "(known failure, #617 #619)")
         }
     }
 }

@@ -163,6 +163,32 @@ activity-feed-error           -activityFeedHarness error
 activity-feed-live            -activityFeedHarness live
 
 cabals-tab                    -MonacoCabalsTabSample
+cabals-ready                  -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario ready
+cabals-ready-dark             -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario ready -AppleInterfaceStyle Dark
+cabals-no-action              -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario noAction
+cabals-empty                  -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario empty
+cabals-filtered               -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario filtered -MonacoSampleScroll bottom
+cabals-no-share               -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario noShare
+cabals-pnl-unavailable        -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario pnlUnavailable
+cabals-rank-loading           -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario rankLoading -MonacoSampleScroll bottom
+cabals-rank-error             -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario rankError -MonacoSampleScroll bottom
+cabals-rank-empty             -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario rankEmpty -MonacoSampleScroll bottom
+cabals-ready-large-text       -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario ready -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
+discover-results              -MonacoDiscoverSample results
+discover-results-dark         -MonacoDiscoverSample results -AppleInterfaceStyle Dark
+discover-no-results           -MonacoDiscoverSample noResults
+discover-request-pending      -MonacoDiscoverSample requestPending
+discover-loading              -MonacoDiscoverSample loading
+discover-error                -MonacoDiscoverSample error
+discover-browse               -MonacoDiscoverSample browse
+discover-results-large-text   -MonacoDiscoverSample results -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
+create-cabal-ready            -MonacoCreateCabalSample ready
+create-cabal-ready-dark       -MonacoCreateCabalSample ready -AppleInterfaceStyle Dark
+create-cabal-invalid          -MonacoCreateCabalSample invalid
+create-cabal-selected-voters  -MonacoCreateCabalSample selectedVoters
+create-cabal-creating         -MonacoCreateCabalSample creating
+create-cabal-error            -MonacoCreateCabalSample error
+create-cabal-ready-large-text -MonacoCreateCabalSample ready -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 
 cabal-leave-member            -MonacoCabalLeaveSample member
 cabal-leave-creator           -MonacoCabalLeaveSample creator
@@ -205,7 +231,6 @@ chat-offline                  -MonacoChatSampleQA -MonacoChatSampleOffline
 cabals-tab-unavailable        -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario cabalsUnavailable
 cabals-tab-loading            -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario cabalsLoading
 cabal-invites                 -MonacoCabalInvitesSample
-cabals-search                 -MonacoCabalsSearchSample
 cabal-join-request            -MonacoCabalJoinSample request
 cabal-join-creator            -MonacoCabalJoinSample creator
 
@@ -254,9 +279,8 @@ asset-open-bottom             -MonacoAssetDetailSample open -MonacoSampleScroll 
 asset-pre-ipo-bottom          -MonacoAssetDetailSample preIpo -MonacoSampleScroll bottom
 asset-open-large-text         -MonacoAssetDetailSample open -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 
-# Screens around the cabal screen: start, join, and the New cabal sheet.
+# Screens around the cabal screen: start and join.
 group-nav-start               -MonacoGroupNavSample start
-group-nav-new-cabal           -MonacoGroupNavSample newCabal
 
 login-signed-out              -MonacoWelcomeSample signedOut
 login-phone                   -MonacoWelcomeSample signInPhone

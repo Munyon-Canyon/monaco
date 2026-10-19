@@ -72,7 +72,8 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
             anyElement(app, "cabals-list-card-\(qaPotID)").waitForExistence(timeout: 5),
             "the QA pot card should exist in your cabals"
         )
-        XCTAssertTrue(anyElement(app, "cabals-list-new").exists, "the New cabal card should sit after the cabals")
+        XCTAssertFalse(anyElement(app, "cabals-list-new").exists, "the dashed New cabal card is gone")
+        XCTAssertTrue(anyElement(app, "cabals-filter-field").exists, "the tab filters your own cabals")
 
         XCTAssertTrue(reveal(app, "cabals-board").waitForExistence(timeout: 10), "the board should exist")
 
@@ -106,10 +107,10 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
         XCTAssertTrue(root.waitForExistence(timeout: 10), "cabals-root should exist after launch")
 
         XCTAssertTrue(
-            anyElement(app, "cabals-list-failed").waitForExistence(timeout: 10),
-            "an unloaded cabals list should say it failed"
+            app.buttons["cabals-list-retry"].waitForExistence(timeout: 10),
+            "an unloaded cabals list should say it failed and offer a retry"
         )
-        XCTAssertTrue(app.buttons["cabals-list-retry"].exists, "an unloaded cabals list should offer a retry")
+        XCTAssertTrue(app.staticTexts["Couldn't load this view"].exists, "the failure is spelled out")
         XCTAssertFalse(
             anyElement(app, "cabals-list-empty").exists,
             "an unloaded cabals list must not claim 'No cabals yet'"
@@ -156,7 +157,7 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
             anyElement(app, "cabals-list-loading").waitForExistence(timeout: 10),
             "a cabals list that has not arrived yet should show placeholder cards"
         )
-        XCTAssertFalse(anyElement(app, "cabals-list-failed").exists, "nothing has failed yet")
+        XCTAssertFalse(app.buttons["cabals-list-retry"].exists, "nothing has failed yet")
         XCTAssertFalse(anyElement(app, "cabals-list-empty").exists, "the list is unknown, not empty")
 
         XCTAssertTrue(
@@ -173,14 +174,10 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
     func testCreatingACabalReplacesTheFormWithTheNewCabal() throws {
         let app = launchApp()
 
-        let newCard = anyElement(app, "cabals-list-new")
-        XCTAssertTrue(newCard.waitForExistence(timeout: 10), "the New cabal card should exist")
-        XCTAssertTrue(newCard.isHittable, "the New cabal card should be reachable")
-        newCard.tap()
-
-        let startRow = anyElement(app, "new-cabal-create-row")
-        XCTAssertTrue(startRow.waitForExistence(timeout: 8), "the New cabal sheet should offer to start a cabal")
-        startRow.tap()
+        let plus = app.buttons["cabals-new-button"]
+        XCTAssertTrue(plus.waitForExistence(timeout: 10), "the + button should exist")
+        plus.tap()
+        XCTAssertFalse(anyElement(app, "new-cabal-create-row").exists, "the + opens the form, not a sheet")
 
         let nameField = app.textFields["create-group-name"]
         XCTAssertTrue(nameField.waitForExistence(timeout: 10), "the Start a cabal form should be pushed")
@@ -230,5 +227,47 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
         let header = anyElement(app, "cabal-header-name")
         XCTAssertTrue(header.waitForExistence(timeout: 10), "the detail screen should show the cabal it opened")
         XCTAssertEqual(header.label, "QA pot", "the detail screen should be the card's cabal")
+    }
+
+    @MainActor
+    func testFilterWithNoMatchOffersPublicSearch() throws {
+        let app = launchApp()
+
+        let filter = app.textFields["cabals-filter-field"]
+        XCTAssertTrue(filter.waitForExistence(timeout: 10), "the tab should filter your cabals")
+        filter.tap()
+        filter.typeText("zzzz")
+
+        XCTAssertTrue(anyElement(app, "cabals-list-no-match").waitForExistence(timeout: 5), "no cabal matches zzzz")
+        let link = app.buttons["cabals-search-public"]
+        XCTAssertTrue(link.waitForExistence(timeout: 5), "a no-match filter offers a public search")
+        link.tap()
+
+        let field = app.textFields["cabals-search-field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 8), "Discover cabals should open")
+        XCTAssertEqual(field.value as? String, "zzzz", "Discover keeps the typed text")
+        attachScreenshot(app, name: "10-discover")
+    }
+
+    @MainActor
+    func testLeaderboardFilterSheetAndRankInfo() throws {
+        let app = launchApp()
+
+        let filter = reveal(app, "cabals-board-filter")
+        XCTAssertTrue(filter.waitForExistence(timeout: 10), "the leaderboard has a filter round")
+        filter.tap()
+        XCTAssertTrue(
+            app.staticTexts["Filters open soon. Rankings use return % for now."].waitForExistence(timeout: 5),
+            "the filter sheet says filters open soon"
+        )
+        app.buttons["cabals-board-filter-apply"].tap()
+        XCTAssertFalse(
+            app.staticTexts["Filters open soon. Rankings use return % for now."].waitForExistence(timeout: 2),
+            "Apply closes the filter sheet"
+        )
+
+        let info = reveal(app, "cabals-board-rank-info")
+        info.tap()
+        XCTAssertTrue(app.staticTexts["About this ranking"].waitForExistence(timeout: 5), "the rank info sheet opens")
     }
 }

@@ -1,7 +1,7 @@
 ---
 id: ranking/leaderboards
 title: The leaderboards
-version: 2
+version: 3
 milestone: M16
 requires: [auth/sign-in]
 actors: [A]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/RankingLeaderboardsJourney.swift, 
 
 # The leaderboards
 
-Monaco ranks people and cabals by return. Home has "Top investors" across everyone, each cabal has a "Leaderboard" of its members, and the Cabals tab has "Top cabals". A row opens that person's profile. The copy is in [screens.md](../../screens.md#home) (Home slot 6), `CabalMemberBoardSlot` on the [cabal screen](../../screens.md#cabal-screen-cabalroute) and `CabalsBoardSlot` on the [Cabals tab](../../screens.md#cabals-tab).
+Monaco ranks people and cabals by return. Home has "Top investors" across everyone, each cabal has a "Leaderboard" of its members, and the Cabals tab has the "Cabal leaderboard". A row opens that person's profile. The copy is in [screens.md](../../screens.md#home) (Home slot 6), `CabalMemberBoardSlot` on the [cabal screen](../../screens.md#cabal-screen-cabalroute) and `CabalsBoardSlot` on the [Cabals tab](../../screens.md#cabals-tab).
 
 Old app (`c838bd24`): `Home/HomeLeaderboardSection.swift` (Top investors, "Everyone" / "Friends", range chips), a row opening the profile with the cabals you share (now `UserProfileRoute`), the member board on `GroupDetailView` opening a profile, and Top cabals on the Cabals tab.
 
@@ -45,12 +45,12 @@ The format of this doc is in [App journeys](../README.md).
 | S2.3 | A | tap | `cabal-member-<B id>` | | `user-profile-name` reads B's display name within 15 s (screens.md `CabalMemberBoardSlot`: "Rows open `UserProfileRoute`"; old app: member row opens the profile) |
 | S2.4 | A | go back, then read | the member board | | Each member row shows a return, and `cabal-member-board-coming` "Rankings show up here soon." is gone within 10 s (screens.md `CabalMemberBoardSlot`: "ranked members"; old app: `GroupDetailView` member board ranked by P&L) |
 
-### S3 Top cabals on the Cabals tab
+### S3 Cabal leaderboard on the Cabals tab
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | A | tap | the Cabals tab | | `cabals-board` shows "Top cabals" and "Ranked by return across everyone on Monaco" within 15 s (screens.md `CabalsBoardSlot`: ""Top cabals" / "Ranked by return across everyone on Monaco""; old app: Cabals tab Top cabals) |
-| S3.2 | A | read | `cabals-board` | | Ranked rows or the empty copy "No cabal has put money in yet" replace `cabals-board-coming` "Rankings show up here soon." within 10 s (screens.md `CabalsBoardSlot`: "Rows: rank, tile, name, return over pot value. Empty: "No cabal has put money in yet" / "The first one to fund takes the top spot.""; old app: Cabals tab Top cabals rows) |
+| S3.1 | A | tap | the Cabals tab | | `cabals-board` shows "Cabal leaderboard" and the context line "Cabal P&L · 1M" within 15 s (screens.md `CabalsBoardSlot`; old app: Cabals tab Top cabals) |
+| S3.2 | A | read | `cabals-board` | | Ranked rows or the empty copy "No public rankings for this period." replace `cabals-board-coming` "Rankings show up here soon." within 10 s (screens.md `CabalsBoardSlot`: rows with rank, tile, name and P&L; old app: Cabals tab Top cabals rows) |
 
 ## Ground truth
 

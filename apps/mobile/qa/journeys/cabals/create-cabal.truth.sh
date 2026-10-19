@@ -65,7 +65,7 @@ print(rows[0]["id"])
 import json, sys
 cabal = json.load(sys.stdin)
 rules = cabal["rules"]
-want = {"join_mode": "request", "voter_mode": "list", "threshold": "unanimous", "proposal_expiry_seconds": 3600}
+want = {"join_mode": "request", "voter_mode": "list", "threshold": "majority", "proposal_expiry_seconds": 3600}
 wrong = {k: rules[k] for k in want if rules[k] != want[k]}
 if wrong:
     sys.exit("rules are %s, want %s" % (wrong, want))

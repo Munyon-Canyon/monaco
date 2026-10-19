@@ -22,6 +22,15 @@ enum CabalsTabSampleData {
         /// No read has answered yet, so the list, the chart and the board show
         /// their placeholders.
         case cabalsLoading
+        case ready
+        case noAction
+        case empty
+        case filtered
+        case noShare
+        case pnlUnavailable
+        case rankLoading
+        case rankError
+        case rankEmpty
     }
 
     static func matches(_ arguments: [String]) -> Bool {
@@ -37,12 +46,53 @@ enum CabalsTabSampleData {
         return scenario
     }
 
+    @MainActor
     static var script: SampleAPIScript {
         switch scenario {
         case .normal: SampleAPIScript()
         case .cabalsUnavailable: SampleAPIScript(mode: .cabalsUnavailable)
         case .cabalsLoading: SampleAPIScript(mode: .hang)
+        case .ready, .filtered: HomeSampleData.script(.loss, proposals: [.needsVote])
+        case .noAction: HomeSampleData.script(.loss, proposals: [])
+        case .empty: emptyScript
+        case .noShare: unfundedScript
+        case .pnlUnavailable: noReturnScript
+        case .rankLoading: ready(board: .hanging)
+        case .rankError: ready(board: .failing)
+        case .rankEmpty: ready(board: .empty)
         }
+    }
+
+    @MainActor
+    private static var emptyScript: SampleAPIScript {
+        var script = HomeSampleData.script(.empty, proposals: [])
+        script.mode = .empty
+        return script
+    }
+
+    @MainActor
+    private static var unfundedScript: SampleAPIScript {
+        var script = HomeSampleData.script(.loss, proposals: [.needsVote])
+        script.portfolio?.cabals[0].valueMicros = 0
+        script.portfolio?.cabals[0].pnlMicros = 0
+        script.portfolio?.cabals[0].returnBps = nil
+        script.portfolio?.cabals[0].sliceBps = 0
+        script.ownershipBps[HomeSampleData.bigBallers] = 0
+        return script
+    }
+
+    @MainActor
+    private static var noReturnScript: SampleAPIScript {
+        var script = HomeSampleData.script(.loss, proposals: [.needsVote])
+        script.portfolio?.cabals[0].returnBps = nil
+        return script
+    }
+
+    @MainActor
+    private static func ready(board: SampleAPIScript.CabalBoardMode) -> SampleAPIScript {
+        var script = HomeSampleData.script(.loss, proposals: [.needsVote])
+        script.cabalBoardMode = board
+        return script
     }
 
     nonisolated static let createdCabalID = "5b1f0c9e-0007-4c55-9a51-000000000007"
@@ -78,6 +128,37 @@ final class CabalsTabSampleHarnessEntry: SampleHarnessEntry {
         guard CabalsTabSampleData.matches(arguments) else { return nil }
         SampleAPIProtocol.install(CabalsTabSampleData.script)
         return AnyView(CabalsTabSampleHarness(auth: auth))
+    }
+}
+extension CabalsBoardFilters {
+    static var initial: CabalsBoardFilters {
+        guard CabalsTabSampleData.matches(ProcessInfo.processInfo.arguments), CabalsTabSampleData.scenario == .filtered
+        else { return .standard }
+        return CabalsBoardFilters(sort: .pnlAmount)
+    }
+}
+
+final class CreateCabalSampleHarnessEntry: SampleHarnessEntry {
+    static let launchArgument = "-MonacoCreateCabalSample"
+
+    @MainActor
+    override class func root(arguments: [String], auth _: PrivyAuthService) -> AnyView? {
+        guard let flag = arguments.firstIndex(of: launchArgument) else { return nil }
+        let state = arguments.indices.contains(flag + 1) ? arguments[flag + 1] : "ready"
+        let tooLong = String(repeating: "Sunday ", count: 6)
+        let form: CreateCabalForm
+        switch state {
+        case "invalid": form = CreateCabalForm(name: tooLong)
+        case "selectedVoters": form = CreateCabalForm(name: "Sunday Investors", voterMode: .picked)
+        default: form = CreateCabalForm(name: "Sunday Investors", joinPolicy: .request, expiry: .oneDay)
+        }
+        return AnyView(
+            NavigationStack {
+                CreateGroupView(
+                    actions: CabalsTabSampleData.Actions(), form: form, isCreating: state == "creating",
+                    submitFailed: state == "error", autofocus: false)
+            }
+        )
     }
 }
 #endif

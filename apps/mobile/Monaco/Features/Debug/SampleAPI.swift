@@ -16,7 +16,15 @@ nonisolated struct SampleAPIScript: Sendable {
         case offline
     }
 
+    enum CabalBoardMode: Sendable {
+        case rows
+        case empty
+        case failing
+        case hanging
+    }
+
     var mode = Mode.populated
+    var cabalBoardMode = CabalBoardMode.rows
     var role: String? = "creator"
     var pictureURL: String?
     var pictureWriteFails = false
@@ -75,7 +83,7 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
     override func startLoading() {
         let script = Self.script.withLock { $0 }
         guard script.mode != .hang, let url = request.url else { return }
-        if script.pendingVotesHang, url.path == "/v1/me/pending-votes" { return }
+        if Self.hangs(url.path, script) { return }
         if script.mode == .offline {
             client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
             return
@@ -92,7 +100,9 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
         }
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         let query = Dictionary(items.compactMap { item in item.value.map { (item.name, $0) } }) { first, _ in first }
-        let reply = Self.reply(path: url.path, method: method, query: query, script: script)
+        let reply =
+            Self.cabalBoardModeReply(url.path, script)
+            ?? Self.reply(path: url.path, method: method, query: query, script: script)
         let response = HTTPURLResponse(
             url: url, statusCode: reply.status, httpVersion: "HTTP/1.1",
             headerFields: ["Content-Type": reply.contentType]
@@ -101,6 +111,25 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: reply.body)
         client?.urlProtocolDidFinishLoading(self)
+    }
+
+    private static func hangs(_ path: String, _ script: SampleAPIScript) -> Bool {
+        (script.pendingVotesHang && path == "/v1/me/pending-votes")
+            || (script.cabalBoardMode == .hanging && path == "/v1/leaderboards/cabals")
+    }
+
+    private static func cabalBoardModeReply(_ path: String, _ script: SampleAPIScript) -> Reply? {
+        guard path == "/v1/leaderboards/cabals" else { return nil }
+        switch script.cabalBoardMode {
+        case .failing:
+            return problem(503, "unavailable", "Rankings can't be read right now.")
+        case .empty:
+            var page = Components.Schemas.LeaderboardPage.samplePeople(count: 0)
+            page.board = "cabals"
+            return json(page)
+        case .rows, .hanging:
+            return nil
+        }
     }
 
     private func requestObject() -> [String: Any]? {

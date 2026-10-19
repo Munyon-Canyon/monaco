@@ -3,7 +3,7 @@ import XCTest
 
 enum JoinJourney {
     static let id = "cabals/join"
-    static let version = 6
+    static let version = 7
 
     static let screenTimeout: TimeInterval = 15
 
@@ -45,13 +45,29 @@ enum JoinJourney {
 
     static func searchField(_ app: XCUIApplication) -> XCUIElement {
         app.textFields.matching(
-            NSPredicate(format: "identifier == 'cabals-search-field' OR label == 'Find a cabal by name'")
+            NSPredicate(format: "identifier == 'cabals-search-field' OR label == 'Search cabals'")
         ).firstMatch
     }
 
+    static func openDiscover(_ app: XCUIApplication, step: String) {
+        if searchField(app).waitForExistence(timeout: 2) { return }
+        let filter = app.textFields["cabals-filter-field"]
+        XCTAssertTrue(filter.waitForExistence(timeout: 10), "\(step): no filter field or Discover on the Cabals tab")
+        let held = filter.value as? String ?? ""
+        if held.isEmpty || held == filter.placeholderValue {
+            filter.tap()
+            filter.typeText("zzqq nobody")
+        }
+        let link = app.buttons["cabals-search-public"]
+        XCTAssertTrue(link.waitForExistence(timeout: 10), "\(step): no Search public cabals link within 10 s")
+        link.tap()
+        XCTAssertTrue(searchField(app).waitForExistence(timeout: 10), "\(step): Discover cabals did not open")
+    }
+
     static func search(_ app: XCUIApplication, for query: String, step: String) {
+        openDiscover(app, step: step)
         let field = searchField(app)
-        XCTAssertTrue(field.waitForExistence(timeout: 10), "\(step): no search field on the Cabals tab")
+        XCTAssertTrue(field.waitForExistence(timeout: 10), "\(step): no search field on Discover cabals")
         app.waitForToastGone()
         if let text = field.value as? String, !text.isEmpty, text != field.placeholderValue {
             field.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.5)).tap()
@@ -125,8 +141,8 @@ enum JoinJourney {
             let empty = app.element("cabals-search-empty")
             XCTAssertTrue(empty.waitForExistence(timeout: 10), "S1.4: no empty search state within 10 s")
             XCTAssertTrue(
-                app.staticTexts["No cabal called \u{201C}zzqq\u{201D}"].exists,
-                "S1.4: the empty state does not read No cabal called \u{201C}zzqq\u{201D}"
+                app.staticTexts["No matching cabals"].exists,
+                "S1.4: the empty state does not read No matching cabals"
             )
         }
 
