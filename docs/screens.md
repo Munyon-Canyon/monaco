@@ -170,6 +170,29 @@ Large title "Cabals" (`Typo.display`) with the glass "+" on the right ("Create a
 
 Create then pushes `CabalRoute` with the toast "Cabal created.". A failed create keeps the form and shows the error notice "Couldn't create your cabal. Your choices are still here." (`create-group-failed`) above the button, plus the error toast; the notice clears on the next edit.
 
+## Leaderboard (`LeaderboardRoute`)
+
+Pushed as `AnyAppRoute` from any tab; `LeaderboardRoute(board:range:)` defaults to Cabals and 1M. Home's "View all" opens it once S2 swaps its stub. The page shows one board at a time, built from `BoardRow` and a `LeaderboardPageModel` that owns one `LeaderboardLoader` per board, so switching back does not reload.
+
+| # | Section | What it shows |
+| --- | --- | --- |
+| 1 | Tools (`leaderboard-category`, `leaderboard-period`, `leaderboard-filter`) | Category menu "Leaderboard category" (Cabals / People), period menu "Leaderboard period" (1H / 1D / 1W / 1M / All; 3M waits on the API) and a round filter button "Filter and sort leaderboard" with a brand dot and the value "Filters on" while any filter differs from its default |
+| 2 | Context line | "Cabal P&L · 1M · Rank change vs previous snapshot" or "Shared personal P&L · 1M · …". Live data has no snapshot movement, so the tail reads "Rank change opens soon". The info button "About this ranking" (`leaderboard-info`) opens a sheet with two paragraphs |
+| 3 | Rows (`leaderboard-row-<id>`) | Rank with ↑n / ↓n / – / "New" under it when the row carries movement, 36pt mark, name, "12 members" or "@handle", signed P&L over signed percent, chevron. Cabals open `CabalRoute`, people `UserProfileRoute`. Under a sort other than "Return %" the movement cell shows – and VoiceOver says "Rank movement not compared for this sort". Reaching the last row loads the next page, and "All <n> eligible cabals shown" (or "people") ends the list |
+
+States and exact copy:
+
+- Loading: tools and context stay; six row skeletons.
+- Empty: "No eligible rankings" / "No public data for this period." People you follow: "Follow people to see how they do." with "Find friends".
+- Filtered empty: "No matching rankings" / "Try removing a filter." with the outline "Reset filters".
+- Stale (every row's prices delayed): the warn notice "Rankings paused while valuations update." and no rows.
+- First load failed: the tools hide; "Couldn’t load this view" / "Your existing information hasn’t been changed. Try again when your connection is available." with "Try again" (`leaderboard-error`).
+- A refresh or switch that fails with rows on screen shows the loader's error toast.
+
+The filter sheet "Leaderboard filters" holds "Sort by" (Return % / P&L amount / Name A–Z), "Membership" (All / Accepting requests / Open / Approval) and "Minimum members" (Any cabal size / 5+ members / 10+ members) for cabals, and "Show" (Everyone / People you follow) for people, with "Apply filters" and "Reset". Closing without Apply drops the draft. Live, only "Show" works; the other three render disabled above "Sorting and filters open soon.".
+
+Missing APIs: rank movement against the previous snapshot, a cabal member count on a board row, a sort parameter, a membership filter, a minimum-members filter and the 3M range. The sample harness (`-MonacoLeaderboardSample <cabals|people|filtered|empty|loading|stale|error>`) drives all of it from fixtures.
+
 ## Cabal screen (`CabalRoute`)
 
 Toolbar: back on the left, and an "i" button on the right that opens the details sheet. The title is empty over the hero and shows the cabal name once scrolled (#2134). While loading, a skeleton of the hero, four action circles and three rows. Load error: "Couldn't load this cabal." with "Try again".

@@ -488,3 +488,11 @@ chat-thread-dark              -MonacoChatSampleQA -MonacoChatSampleProposal -App
 chat-thread-ax                -MonacoChatSampleQA -MonacoChatSampleProposal -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityXXXL
 cabal-holding-ready-dark      -MonacoCabalHoldingSample ready -AppleInterfaceStyle Dark
 cabal-holding-ready-ax        -MonacoCabalHoldingSample ready -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityXXXL
+leaderboard-cabals            -MonacoLeaderboardSample cabals
+leaderboard-cabals-dark       -MonacoLeaderboardSample cabals -AppleInterfaceStyle Dark
+leaderboard-people            -MonacoLeaderboardSample people
+leaderboard-filtered          -MonacoLeaderboardSample filtered
+leaderboard-empty             -MonacoLeaderboardSample empty
+leaderboard-loading           -MonacoLeaderboardSample loading
+leaderboard-stale             -MonacoLeaderboardSample stale
+leaderboard-error             -MonacoLeaderboardSample error
