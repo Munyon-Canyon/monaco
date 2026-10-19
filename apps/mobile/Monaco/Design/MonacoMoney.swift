@@ -3,13 +3,14 @@ import SwiftUI
 
 /// Size role for every figure that renders `$`, `%` or a share count.
 enum MoneyStyle {
-    case hero, large, row, caption
+    case hero, large, card, row, caption
 
     /// Design size at the default text size.
     var baseSize: CGFloat {
         switch self {
-        case .hero: return 48
-        case .large: return 32
+        case .hero: return 44
+        case .large: return 35
+        case .card: return 22
         case .row: return 18
         case .caption: return 15
         }
@@ -20,6 +21,7 @@ enum MoneyStyle {
         switch self {
         case .hero: return .largeTitle
         case .large: return .title
+        case .card: return .title2
         case .row: return .body
         case .caption: return .subheadline
         }
@@ -27,7 +29,7 @@ enum MoneyStyle {
 
     var weight: Font.Weight {
         switch self {
-        case .hero, .large: return .bold
+        case .hero, .large, .card: return .bold
         case .row, .caption: return .semibold
         }
     }
@@ -38,6 +40,7 @@ enum MoneyStyle {
         switch self {
         case .hero: return 0.5
         case .large: return 0.6
+        case .card: return 0.7
         case .row, .caption: return 0.8
         }
     }
@@ -55,6 +58,7 @@ struct MoneyFont: ViewModifier {
     // so the two cannot drift; the text styles are asserted against it in `MoneyStyleScalingTests`.
     @ScaledMetric(relativeTo: .largeTitle) private var hero = MoneyStyle.hero.baseSize
     @ScaledMetric(relativeTo: .title) private var large = MoneyStyle.large.baseSize
+    @ScaledMetric(relativeTo: .title2) private var card = MoneyStyle.card.baseSize
     @ScaledMetric(relativeTo: .body) private var row = MoneyStyle.row.baseSize
     @ScaledMetric(relativeTo: .subheadline) private var caption = MoneyStyle.caption.baseSize
 
@@ -62,6 +66,7 @@ struct MoneyFont: ViewModifier {
         switch style {
         case .hero: return hero
         case .large: return large
+        case .card: return card
         case .row: return row
         case .caption: return caption
         }

@@ -41,7 +41,7 @@ Tokens live in `apps/mobile/Monaco/Design/MonacoTheme.swift`; feature code uses 
 | Loss vivid | `lossVivid` | `#BD5455` | `#F1807F` | chart stroke and fill |
 | Warning | `warning` | `#866017` | `#E6C477` | pending, stale, warning badge text |
 | Warning wash | `warningWash` | `#F3ECD8` | `#2C2819` | warning badge and notice fill |
-| Scrim | `scrim` | `#01150E55` | `#000000BB` | batch-sheet overlay |
+| Scrim | `scrim` | `#01150E` at 0.33 | `#000000` at 0.73 | batch-sheet overlay |
 | Glass | `glassFill` | `rgba(251,252,247,.86)` | `rgba(12,35,27,.85)` | tab bar, round toolbar buttons, dock (design intent; see Glass) |
 | Glass stroke | `glassStroke` | `rgba(255,255,255,.98)` | `rgba(176,234,200,.2)` | tab bar edge |
 | Sheet glass | `sheetGlass` | `rgba(248,250,245,.90)` | `rgba(17,41,31,.94)` | sheet fill (design intent) |
@@ -51,26 +51,28 @@ Tokens live in `apps/mobile/Monaco/Design/MonacoTheme.swift`; feature code uses 
 | Sell wash | `sellWash` | `#F8ECE9` | `#30201F` | feed sell block, trade-history sell tile |
 | Price wash | `priceWash` | `#EDF0F9` | `#13232B` | price-move block (border only today) |
 | Vote needed | `voteNeededLabel` on `voteNeededFill` | `#083123` on `#C8F7CF` | same | "1 vote needed" badge on cover cards |
-| Discussion | `discussionTint` on `discussionWash` | `#535AAE` on `#676BDD13` | `#C7B9F7` on `#BCA4FF1A` | feed "Discussion" pill |
-| Allocation | `allocationTints` | `#7B91A7`, `#9A83B4` | same | allocation bar segments 2 and 3 (segment 1 is `brand`, segment 4 `hairline`) |
+| Discussion | `discussionTint` on `discussionWash` | `#535AAE` on `#676BDD` at 0.075 | `#C7B9F7` on `#BCA4FF` at 0.10 | feed "Discussion" pill |
+| Allocation | `allocationTints` | `brand`, `#7B91A7`, `#9A83B4`, `border` | same | allocation bar segments 1 to 4 |
 | Toast | `toastFill` / `toastLabel` | `#0C3526` / `#FAF7F0` | `#F5F8F4` / `#03130F` | the toast and the chart tooltip pill invert the scheme |
 | Identity card | `identityFill` | `#0C3828` | `#0D2C21` | Profile identity card |
 | On identity | `onIdentity` | `#F8FAF5` | `#F5FAF6` | name and figures on the identity card |
 | On identity, muted | `onIdentityMuted` | `#B6D5C3` | same | handle, stat labels, joined date |
 | On identity, body | `onIdentityBody` | `#E0EEE3` | same | bio |
 | P&L on identity | `profitOnIdentity` / `lossOnIdentity` | `#81E8B1` / `#FFAAAA` | same | P&L on the identity card |
-| Pencil badge | `pencilFill` | `#E6F5E8` (glyph `#0C3828`) | same | edit badge on the identity avatar, 2pt ring in `identityFill` |
+| Pencil badge | `pencilFill` | `#E6F5E8` (glyph `identityFill`) | same | edit badge on the identity avatar, 2pt ring in `identityFill` |
 | On cover | `onCover` | `#FFFFFF` | same | text on a cover picture |
-| On cover, muted | `onCoverMuted` | `#C4D7CB` to `#E2ECE5` | same | members line, labels, captions; F1 picks one value from the family |
-| On cover, glass | `onCoverGlass` | `#FFFFFF18`, border `#FFFFFF24` | same | share disc on a cover |
+| On cover, muted | `onCoverMuted` | `#C5D1CB` | same | members line, labels, "—" on covers |
+| On cover, glass | `onCoverGlass` | `#FFFFFF` at 0.09, border at 0.14 | same | share disc on a cover |
 | P&L on cover | `profitOnCover` / `lossOnCover` | `#83F1B9` / `#FFB2B0` | same | P&L on a cover card |
-| Cover stroke | `coverStroke` | inset `#FFFFFF12` | same | cover card inner stroke |
-| Cover scrim | `CoverScrim` | `.memberCard`, `.card`, `.hero`, `.solid` | same | gradients under cover text; `.solid` is flat `#00130BE8` under Reduce Transparency (stops in [tokens.md](design/v3/tokens.md)) |
+| Cover stroke | `coverStroke` | inset `#FFFFFF` at 0.07 | same | cover card inner stroke |
+| Cover scrim | `CoverScrim` | `.memberCard`, `.card`, `.hero`, `.solid` | same | gradients under cover text; `.solid` is flat `#00130B` at 0.91 under Reduce Transparency; `.memberCard` ends `#000C09` at 0.96 (all stops in `MonacoTheme.CoverScrim`) |
 | Cabal tints | `CabalTint` ×5 | pine, ochre, plum, indigo, moss | | marks, cover gradients, chart lines, allocation bar |
 
-† The package's light values for these three are `#6B746E`, `#108153` and `#BD5455`. They fail AA on `surfaceSunken` (4.16, 4.22 and 3.97 : 1), so ticket F1 darkened them one step. F1 owns the final hex values and updates this table if its contrast test lands on different numbers. The vivid chart colours are not text and keep the package values.
+† The package's light values for these three are `#6B746E`, `#108153` and `#BD5455`. They fail AA on `surfaceSunken` (4.16, 4.22 and 3.97 : 1; `loss` also fails on `canvas` and `surface`), so they are darkened one step to 4.61, 4.62 and 4.60 : 1 on `surfaceSunken` (5.00, 5.01 and 4.99 on `canvas`). The vivid chart colours are not text and keep the package values.
 
-`tertiaryText`, `disabledLabel` and `goldGlyph` keep today's roles (timestamps and ranks, placeholders and disabled labels, the rank-1 crown); F1 retunes their values to the new surfaces and records them here.
+`tertiaryText` is `#646D67` light (equal to `secondaryText`: there is no AA room to be quieter) and `#8E9E95` dark. `disabledLabel` is `#8F9791` light and `#5E6B63` dark, held in [2.5, 4.5) on all three surfaces. `gold` and `goldGlyph` are unchanged. `cashFill` keeps `#76837B` / `#7A8B80`: the holdings tests need 3:1 against every surface, which the package's `border` value cannot give. `toastStroke` is clear.
+
+`profit` and `brand` share a family on purpose in v3, so `profitAndLossCannotBeConfused` only holds profit apart from loss (hue gap at least 90°, ΔE OKLab at least 0.2); the old brand-versus-profit gate was replaced under decision 1.
 
 Ticker tiles keep the issuer logo, with a `surfaceSunken` tile and `ink` text as the fallback. Do not copy the prototype's per-ticker tints.
 
@@ -82,10 +84,10 @@ One family, SF Pro, at the size floor #4110 set after hands-on QA found text too
 
 | Role | Token | Size | Weight | Used for |
 | --- | --- | --- | --- | --- |
-| Hero number | `moneyFont(.hero)` | 44 (was 48) | Bold | portfolio total, pot value, stock price, amount entry |
-| Large title | `Typo.display` | 30 (was 36) | Bold | tab root titles, sign-in wordmark, profile name |
-| Large number | `moneyFont(.large)` | 35 (was 32) | Bold | proposal amount, your slice, review figure |
-| Card number | `moneyFont(.card)` | 22, new | Bold | card share figures, identity stats, two-stats cells |
+| Hero number | `moneyFont(.hero)` | 44 | Bold | portfolio total, pot value, stock price, amount entry |
+| Large title | `Typo.display` | 30 | Bold | tab root titles, sign-in wordmark, profile name |
+| Large number | `moneyFont(.large)` | 35 | Bold | proposal amount, your slice, review figure |
+| Card number | `moneyFont(.card)` | 22 | Bold | card share figures, identity stats, two-stats cells |
 | Title | `Typo.title` | 28 | Semibold | headings in content, stock name, keypad digits |
 | Section | `Typo.section` | 22 | Semibold | section titles, sheet titles |
 | Headline | `Typo.headline` | 18 | Semibold | row titles, button labels, card headlines |
@@ -96,7 +98,7 @@ One family, SF Pro, at the size floor #4110 set after hands-on QA found text too
 | Small number | `moneyFont(.caption)` | 15 | Semibold | day change, return under a value |
 | Caption | `Typo.caption` / `Typo.captionStrong` | 15 | Medium / Semibold | timestamps, pills, tab labels, chart dates, attribution |
 
-The four retuned sizes (`Typo.display`, `moneyFont(.hero)`, `moneyFont(.large)` and the new `moneyFont(.card)`) are F1's; line heights follow the system style. Everything else keeps its current size.
+`moneyFont(.card)` scales against `.title2` with a 0.7 minimum scale factor. Line heights follow the system style. Everything else keeps its size.
 
 Design role to app role, for reading a reference:
 
@@ -130,7 +132,7 @@ Tickers set in `Typo.subhead` secondary. Wallet addresses are the one monospaced
   | avatars, round toolbar buttons | circle |
   | sheets | the system radius |
 
-- Elevation: cards are flat, a `surface` fill with a 1px `hairline` border and no shadow. Only the tab bar and the toast carry the soft floating shadow (`0 8 24`, 7% green-black in light, 20% black in dark). Sheets use the system's own.
+- Elevation: cards are flat, a `surface` fill with a 1px `hairline` border and no shadow. Only the tab bar and the toast carry the soft floating shadow (`MonacoTheme.Shadow.floating`: `0 8 24`, 7% green-black in light, 20% black in dark). `Shadow.sheet` (`0 22 72`, 25% in light, 50% black in dark) is the sheet's; iOS 26 sheets keep the system's own.
 
 ## Glass and transparency
 

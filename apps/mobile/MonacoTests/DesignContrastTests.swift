@@ -175,6 +175,46 @@ struct MonacoContrastTests {
             // the crown is decoration beside a rank the row also prints, so it is exempt.
             pairs.append(Pair("gold", MonacoTheme.gold, on: [surface]))
             pairs.append(Pair("gold on wash", MonacoTheme.gold, on: [surface, MonacoTheme.goldWash]))
+            pairs.append(Pair("bodyText", MonacoTheme.bodyText, on: [surface]))
+        }
+
+        let memberCardEnd = MonacoTheme.CoverScrim.memberCard.stops.last
+        let scrimEnd = Color(hex: memberCardEnd?.hex ?? 0, alpha: memberCardEnd?.alpha ?? 1)
+        pairs.append(Pair("brand on brandSoft", MonacoTheme.brand, on: [MonacoTheme.canvas, MonacoTheme.brandSoft]))
+        pairs.append(
+            Pair(
+                "secondaryText on brandSoft", MonacoTheme.secondaryText,
+                on: [MonacoTheme.canvas, MonacoTheme.brandSoft]))
+        pairs.append(
+            Pair(
+                "secondaryText on warningWash", MonacoTheme.secondaryText,
+                on: [MonacoTheme.canvas, MonacoTheme.warningWash]))
+        pairs.append(
+            Pair("warning on warningWash", MonacoTheme.warning, on: [MonacoTheme.canvas, MonacoTheme.warningWash]))
+        pairs.append(Pair("profit on buyWash", MonacoTheme.profit, on: [MonacoTheme.canvas, MonacoTheme.buyWash]))
+        pairs.append(Pair("loss on sellWash", MonacoTheme.loss, on: [MonacoTheme.canvas, MonacoTheme.sellWash]))
+        pairs.append(
+            Pair(
+                "discussionTint on surface", MonacoTheme.discussionTint,
+                on: [MonacoTheme.surface]))
+        pairs.append(
+            Pair(
+                "discussionTint on discussionWash", MonacoTheme.discussionTint,
+                on: [MonacoTheme.surface, MonacoTheme.discussionWash]))
+        pairs.append(Pair("voteNeededLabel", MonacoTheme.voteNeededLabel, on: [MonacoTheme.voteNeededFill]))
+        pairs.append(Pair("onDestructive", MonacoTheme.onDestructive, on: [MonacoTheme.destructive]))
+        for (label, color) in [
+            ("onIdentity", MonacoTheme.onIdentity), ("onIdentityMuted", MonacoTheme.onIdentityMuted),
+            ("onIdentityBody", MonacoTheme.onIdentityBody), ("profitOnIdentity", MonacoTheme.profitOnIdentity),
+            ("lossOnIdentity", MonacoTheme.lossOnIdentity),
+        ] {
+            pairs.append(Pair(label, color, on: [MonacoTheme.identityFill]))
+        }
+        for (label, color) in [
+            ("onCover", MonacoTheme.onCover), ("onCoverMuted", MonacoTheme.onCoverMuted),
+            ("profitOnCover", MonacoTheme.profitOnCover), ("lossOnCover", MonacoTheme.lossOnCover),
+        ] {
+            pairs.append(Pair(label, color, on: [Color.white, scrimEnd]))
         }
 
         pairs.append(Pair("onBrand", MonacoTheme.onBrand, on: [MonacoTheme.brandFill]))
@@ -278,72 +318,15 @@ struct MonacoContrastTests {
         }
     }
 
-    /// The rule the whole palette is built around: **green means "this went up"**.
-    ///
-    /// The brand is a forest and `profit` is a green, so they share a hue. Hue cannot separate
-    /// them and this test does not pretend it can. What separates them is that the brand reads as
-    /// *ink* and profit reads as *colour*: profit sits further from the text's lightness and
-    /// carries more chroma, in both schemes.
-    ///
-    /// Measured today, with the floors this asserts in brackets:
-    ///
-    /// | scheme | pair             | ΔL*           | chroma ratio  | ΔE OKLab      |
-    /// |--------|------------------|---------------|---------------|---------------|
-    /// | light  | brand vs profit  | 0.104 (≥0.03) | 1.65 (≥1.6)   | 0.116 (≥0.10) |
-    /// | light  | fill  vs profit  | 0.269 (≥0.09) | 3.16 (≥1.9)   | 0.283 (≥0.13) |
-    /// | dark   | brand vs profit  | 0.037 (≥0.03) | 2.39 (≥1.6)   | 0.110 (≥0.10) |
-    /// | dark   | fill  vs profit  | 0.168 (≥0.09) | 26.8 (≥1.9)   | 0.240 (≥0.13) |
-    ///
-    /// For scale: a just-noticeable difference in OKLab is about 0.02, so the closest pair is five
-    /// JNDs apart. The fill keeps the floors it always had. The text `brand` gets lower ones: the
-    /// redesign lifts it to a mint in dark (11:1 on the canvas) and only ever sets it as a text
-    /// link, never as a figure, so a link sits nearer profit than the fill does. These floors are
-    /// where a retune would start making a link look like a gain.
-    @Test func brandAndProfitCannotBeConfused() {
+    @Test func profitAndLossCannotBeConfused() {
         for scheme in [UIUserInterfaceStyle.light, .dark] {
             let name = scheme == .light ? "light" : "dark"
-            let profit = OKLCh.value(MonacoTheme.profit, scheme)
-            let text = OKLCh.value(MonacoTheme.primaryText, scheme)
-            let floors = [
-                ("brand", MonacoTheme.brand, (lightness: 0.03, chroma: 1.6, delta: 0.10)),
-                ("brandFill", MonacoTheme.brandFill, (lightness: 0.09, chroma: 1.9, delta: 0.13)),
-            ]
-            for (label, token, floor) in floors {
-                let brand = OKLCh.value(token, scheme)
-                let deltaLightness = abs(profit.lightness - brand.lightness)
-                // Which side the brand sits on flips with the scheme — it is ink on cream in light
-                // and cream on ink in dark, because it follows the surfaces. What does not flip is
-                // that it stays on the *text's* side of profit. Asserting "brand is darker than
-                // profit" would only have been true in light mode.
-                #expect(
-                    abs(brand.lightness - text.lightness) < abs(profit.lightness - text.lightness),
-                    "\(label) in \(name) is further from primaryText than profit is: it reads as money"
-                )
-                #expect(
-                    deltaLightness >= floor.lightness,
-                    "\(label) vs profit in \(name): ΔL* is \(deltaLightness), under \(floor.lightness)"
-                )
-                #expect(
-                    profit.chroma / brand.chroma >= floor.chroma,
-                    "\(label) vs profit in \(name): profit is only \(profit.chroma / brand.chroma)× its chroma"
-                )
-                let delta = OKLCh.distance(token, MonacoTheme.profit, scheme)
-                #expect(
-                    delta >= floor.delta, "\(label) vs profit in \(name): ΔE OKLab is \(delta), under \(floor.delta)")
-            }
-            // And the two money colours from each other. Here hue *is* the separator — and it has
-            // to stay one, because red/green is the pair a member reads fastest and the pair a
-            // deuteranopic member reads slowest.
             let hueGap = abs(
                 OKLCh.value(MonacoTheme.profit, scheme).hue - OKLCh.value(MonacoTheme.loss, scheme).hue
             )
             #expect(min(hueGap, 360 - hueGap) >= 90, "profit and loss in \(name) are \(hueGap)° apart")
             let moneyDelta = OKLCh.distance(MonacoTheme.profit, MonacoTheme.loss, scheme)
             #expect(moneyDelta >= 0.2, "profit vs loss in \(name): ΔE OKLab is \(moneyDelta)")
-            // The "You" tag must not look like a gain either. The P&L washes are clear now, so the
-            // pair is `brand` against bare `profit`, held to the text brand's floor.
-            let onWash = OKLCh.distance(MonacoTheme.brandOnWash, MonacoTheme.profitOnWash, scheme)
-            #expect(onWash >= 0.10, "brandOnWash vs profitOnWash in \(name): ΔE OKLab is \(onWash)")
         }
     }
 
