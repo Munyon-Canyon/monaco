@@ -222,20 +222,23 @@ final class AssetDetailClientModelPagingTests: XCTestCase {
     }
 
     func testAFullPresetWindowFirstPageFitsUnderTheCapAndStillPagesOlder() async throws {
-        let cursor = Date(timeIntervalSince1970: TimeInterval(start + 2_200 * 3_600))
+        let cap = 60
+        let window = cap - 5
+        let cursor = Date(timeIntervalSince1970: TimeInterval(start + Int64(window) * 3_600))
         let transport = StubTransport(scripted: [
-            try reply(page(range: ._3m, interval: ._1d, step: 86_400, from: 0, count: 2_200, nextBefore: cursor)),
-            try reply(page(range: ._3m, interval: ._1d, step: 86_400, from: 2_200, count: 500)),
+            try reply(page(range: ._3m, interval: ._1d, step: 86_400, from: 0, count: window, nextBefore: cursor)),
+            try reply(page(range: ._3m, interval: ._1d, step: 86_400, from: window, count: 10)),
         ])
-        let model = makeModel(transport)
+        let model = makeModel(transport, barCap: cap)
         await model.loadChart(range: .threeMonths)
 
-        XCTAssertEqual(model.chart?.bars.count, 2_200)
+        XCTAssertEqual(model.chart?.bars.count, window)
         await model.loadOlder()
 
-        XCTAssertEqual(model.chart?.bars.count, 2_700)
+        XCTAssertEqual(model.chart?.bars.count, window + 10)
         let sent = await paths(transport)
         XCTAssertEqual(sent.first, "/v1/assets/AAPLx/chart?range=3M&interval=1d")
+        XCTAssertEqual(sent.count, 2)
     }
 
     func testAFailedOlderRequestFreesTheModelCountsTheFailureAndAllowsARetry() async throws {
