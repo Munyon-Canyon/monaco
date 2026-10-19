@@ -24,6 +24,9 @@
 #
 # MONACO_QA_SCREEN_TIMEOUT: seconds to wait for the marker after launch (default 20).
 # MONACO_QA_SCREEN_SETTLE: seconds to wait after the screen drew before the shot (default 3).
+# MONACO_QA_SCREEN_ONLY: extended regex; capture shoots only the manifest lines whose name matches
+# it, and --check still checks the whole manifest. `scripts/qa/parity.py defaults --regex` prints
+# the one that picks the 43 v3 default states.
 set -uo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -32,9 +35,14 @@ app_src="$root/apps/mobile/Monaco"
 core_src="$root/packages/mobile-core/Sources"
 settle="${MONACO_QA_SCREEN_SETTLE:-3}"
 timeout="${MONACO_QA_SCREEN_TIMEOUT:-20}"
+only="${MONACO_QA_SCREEN_ONLY:-}"
 
 entries() { # name<TAB>args, comments and blank lines dropped
   sed -E 's/#.*//' "$manifest" | awk 'NF { name=$1; $1=""; sub(/^ +/, ""); print name "\t" $0 }'
+}
+
+selected() { # entries, narrowed to the names matching MONACO_QA_SCREEN_ONLY when it is set
+  if [[ -n "$only" ]]; then entries | awk -F'\t' -v re="$only" '$1 ~ re'; else entries; fi
 }
 
 in_manifest() { # every argument appears, in order, on one manifest line
@@ -197,7 +205,7 @@ capture() {
       echo "screens: $name crashed after it drew"
       failed=$((failed + 1))
     fi
-  done < <(entries)
+  done < <(selected)
   xcrun simctl terminate "$sim" "$bundle" </dev/null >/dev/null 2>&1
 
   echo "screens: $shot shot, $failed failed, in $dir"
@@ -233,7 +241,7 @@ same_pictures() {
 
 case "${1:-}" in
   --check) check ;;
-  -h|--help|"") sed -n '2,26p' "$0"; [[ -n "${1:-}" ]] ;;
+  -h|--help|"") sed -n '2,29p' "$0"; [[ -n "${1:-}" ]] ;;
   *)
     [[ $# -eq 3 ]] || { echo "usage: $0 --check | <sim udid> <Monaco.app> <out dir>" >&2; exit 2; }
     capture "$@"
