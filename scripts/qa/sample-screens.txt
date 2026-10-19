@@ -23,6 +23,26 @@ home-nudge-x-empty            -MonacoHomeSample nudgeXEmpty -MonacoFeatureConnec
 home-nudge-sheet              -MonacoHomeSample nudgeX -MonacoNudgeSheetOpen -MonacoFeatureConnectX YES
 home-push-pre-prompt          -MonacoHomeSample prePrompt
 home-votes                    -MonacoHomeSample votes -MonacoSampleScroll 0.35
+home-v3-loss                  -MonacoHomeSample loss
+home-v3-gain                  -MonacoHomeSample gain
+home-v3-empty                 -MonacoHomeSample empty
+home-v3-cash-only             -MonacoHomeSample cashOnly
+home-v3-multiple-proposals    -MonacoHomeSample multipleProposals
+home-v3-voted                 -MonacoHomeSample voted
+home-v3-executing             -MonacoHomeSample executing
+home-v3-completed             -MonacoHomeSample completed
+home-v3-expired               -MonacoHomeSample expired
+home-v3-blocked               -MonacoHomeSample blocked
+home-v3-no-proposals          -MonacoHomeSample noProposals
+home-v3-proposals-loading     -MonacoHomeSample proposalsLoading
+home-v3-proposals-error       -MonacoHomeSample proposalsError
+home-v3-loading               -MonacoHomeSample loading
+home-v3-stale                 -MonacoHomeSample stale
+home-v3-error                 -MonacoHomeSample error
+home-v3-loss-dark             -MonacoHomeSample loss -AppleInterfaceStyle Dark
+home-v3-loss-cabals           -MonacoHomeSample loss -MonacoSampleScroll 0.6
+home-v3-loss-lower            -MonacoHomeSample loss -MonacoSampleScroll 1
+home-v3-loss-ax5              -MonacoHomeSample loss -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityXXXL
 
 cabals-tab                    -MonacoCabalsTabSample
 

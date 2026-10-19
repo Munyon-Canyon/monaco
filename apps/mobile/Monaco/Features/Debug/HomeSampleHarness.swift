@@ -3,9 +3,6 @@ import MonacoAPI
 import MonacoCore
 import SwiftUI
 
-/// Debug-only: renders Home from canned `AppSessionStore` data so QA can screenshot
-/// each state without Privy or a backend. Launch with
-/// `-MonacoHomeSample <populated|empty|loading>`.
 enum HomeSampleScenario: String, CaseIterable {
     case populated
     case empty
@@ -14,6 +11,20 @@ enum HomeSampleScenario: String, CaseIterable {
     case nudgeXEmpty
     case prePrompt
     case votes
+    case loss
+    case gain
+    case cashOnly
+    case multipleProposals
+    case voted
+    case executing
+    case completed
+    case expired
+    case blocked
+    case noProposals
+    case proposalsLoading
+    case proposalsError
+    case stale
+    case error
 
     static func matching(_ arguments: [String]) -> HomeSampleScenario? {
         guard let flag = arguments.firstIndex(of: "-MonacoHomeSample"),
@@ -27,7 +38,7 @@ extension HomeSampleScenario {
     var script: SampleAPIScript {
         switch self {
         case .populated: SampleAPIScript()
-        case .empty: SampleAPIScript(mode: .empty)
+        case .empty: HomeSampleData.script(.empty, proposals: [])
         case .loading: SampleAPIScript(mode: .hang)
         case .nudgeX: SampleAPIScript()
         case .nudgeXEmpty: SampleAPIScript(mode: .empty)
@@ -36,7 +47,198 @@ extension HomeSampleScenario {
             SampleAPIScript(
                 proposal: .sample(canVote: true), pendingVotes: Components.Schemas.PendingVote.samples,
                 viewerCanVote: true)
+        case .loss: HomeSampleData.script(.loss, proposals: [.needsVote])
+        case .gain: HomeSampleData.script(.gain, proposals: [.needsVote])
+        case .cashOnly: HomeSampleData.script(.cashOnly, proposals: [])
+        case .multipleProposals: HomeSampleData.script(.loss, proposals: [.needsVote, .second])
+        case .voted: HomeSampleData.script(.loss, proposals: [.voted])
+        case .executing: HomeSampleData.script(.loss, proposals: [.executing])
+        case .completed: HomeSampleData.script(.loss, proposals: [.completed])
+        case .expired: HomeSampleData.script(.loss, proposals: [.expired])
+        case .blocked: HomeSampleData.script(.loss, proposals: [.blocked])
+        case .noProposals: HomeSampleData.script(.loss, proposals: [])
+        case .proposalsLoading: HomeSampleData.script(.loss, proposals: [.needsVote], pendingVotesHang: true)
+        case .proposalsError: HomeSampleData.script(.loss, proposals: [], pendingVotesFail: true)
+        case .stale: HomeSampleData.script(.loss, proposals: [.needsVote], portfolioReadsBeforeFailing: 1)
+        case .error: SampleAPIScript(mode: .offline)
         }
+    }
+
+    var hints: any HintConnecting {
+        self == .stale ? SampleResyncHints(delay: .seconds(2)) : SampleSilentHints()
+    }
+}
+
+enum HomeSampleData {
+    enum Figures {
+        case loss, gain, cashOnly, empty
+    }
+
+    enum Proposal {
+        case needsVote, second, voted, executing, completed, expired, blocked
+    }
+
+    static let bigBallers = "0f1d6a52-0001-7000-8000-000000000001"
+    static let techCrew = "0f1d6a52-0001-7000-8000-000000000002"
+    static let underwater = "0f1d6a52-0001-7000-8000-000000000003"
+
+    private static let cabals: [(id: String, name: String, members: Int32, ownershipBps: Int32)] = [
+        (bigBallers, "Big Ballers", 8, 3_500), (techCrew, "Tech Crew", 5, 1_400), (underwater, "Underwater", 9, 650),
+    ]
+
+    @MainActor
+    static func script(
+        _ figures: Figures, proposals: [Proposal], pendingVotesHang: Bool = false, pendingVotesFail: Bool = false,
+        portfolioReadsBeforeFailing: Int? = nil
+    ) -> SampleAPIScript {
+        var script = SampleAPIScript()
+        script.portfolio = portfolio(figures)
+        script.pnlHistory = history(figures)
+        script.balance = balance(micros: figures == .empty ? 0 : 500_000_000)
+        script.homeCabals = figures == .empty ? [] : cabals.map(myCabal)
+        script.ownershipBps = Dictionary(
+            uniqueKeysWithValues: cabals.map { ($0.id, figures == .cashOnly ? 0 : $0.ownershipBps) })
+        script.cabalBoard = cabalBoard
+        script.pendingVotes = proposals.map(pending)
+        script.proposals = Dictionary(uniqueKeysWithValues: proposals.map { (pending($0).proposalId, detail($0)) })
+        script.assets = [
+            "NVDAx": asset("NVDAx", "NVIDIA", changeBps: 418), "MSFTx": asset("MSFTx", "Microsoft", changeBps: 96),
+        ]
+        script.catalog = [
+            catalogEntry("NVDAx", "NVIDIA", changeBps: 418), catalogEntry("MSFTx", "Microsoft", changeBps: 96), .googl,
+        ]
+        script.pendingVotesHang = pendingVotesHang
+        script.pendingVotesFail = pendingVotesFail
+        script.portfolioReadsBeforeFailing = portfolioReadsBeforeFailing
+        return script
+    }
+
+    private static func balance(micros: Int64) -> Components.Schemas.Balance {
+        Components.Schemas.Balance(
+            availableMicros: "\(micros)", onChainMicros: "\(micros)", inFlightMicros: "0", depositAddress: "wallet-1",
+            asOf: .now)
+    }
+
+    private static func portfolio(_ figures: Figures) -> Components.Schemas.MyPortfolio {
+        let values: [Int64]
+        let pnls: [Int64]
+        switch figures {
+        case .loss:
+            values = [7_000_000_000, 2_782_320_000, 1_300_000_000]
+            pnls = [-300_000_000, 50_000_000, -167_680_000]
+        case .gain:
+            values = [8_500_000_000, 3_182_320_000, 1_300_000_000]
+            pnls = [1_100_000_000, 300_000_000, 82_320_000]
+        case .cashOnly:
+            values = [0, 0, 0]
+            pnls = [0, 0, 0]
+        case .empty:
+            return .sampleEmpty
+        }
+        let total = values.reduce(0, +)
+        let rows = zip(cabals, zip(values, pnls)).map { cabal, figure in
+            Components.Schemas.PortfolioCabal(
+                cabal: Components.Schemas.CabalRef(id: cabal.id, name: cabal.name, pictureUrl: nil),
+                valueMicros: figure.0, shareUnits: figure.0, netContributedMicros: figure.0 - figure.1,
+                pnlMicros: figure.1, returnBps: figure.0 == 0 ? nil : figure.1 * 10_000 / max(figure.0 - figure.1, 1),
+                sliceBps: total == 0 ? 0 : figure.0 * 10_000 / total)
+        }
+        return Components.Schemas.MyPortfolio(
+            totalValueMicros: total, pnlMicros: pnls.reduce(0, +),
+            returnBps: total == 0 ? nil : pnls.reduce(0, +) * 10_000 / max(total - pnls.reduce(0, +), 1),
+            computedAt: .now, pricesAsOf: .now, cabals: rows)
+    }
+
+    private static func history(_ figures: Figures) -> Components.Schemas.MyPnlHistory {
+        let target: Int64
+        switch figures {
+        case .loss: target = -417_680_000
+        case .gain: target = 1_482_320_000
+        case .cashOnly, .empty: return .sampleEmpty
+        }
+        let count = 31
+        let wobbles: [Int64] = [0, 18, -12, 25, -20, 10, -25, 15]
+        let start = Date.now.addingTimeInterval(-30 * 86_400)
+        let points = (0..<count).map { index -> Components.Schemas.PnlPoint in
+            let last = Int64(count - 1)
+            let wobble = wobbles[index % wobbles.count] * 1_000_000 * (last - Int64(index)) / last
+            let pnl = target * Int64(index) / last + wobble
+            return Components.Schemas.PnlPoint(
+                at: start.addingTimeInterval(TimeInterval(index) * 86_400), equityMicros: 12_000_000_000 + pnl,
+                pnlMicros: pnl)
+        }
+        return Components.Schemas.MyPnlHistory(range: ._1m, points: points)
+    }
+
+    private static func myCabal(_ cabal: (id: String, name: String, members: Int32, ownershipBps: Int32))
+        -> Components.Schemas.MyCabal
+    {
+        Components.Schemas.MyCabal(
+            id: cabal.id, name: cabal.name, pictureUrl: nil, role: "member", canVote: true, memberCount: cabal.members,
+            joinedAt: Date(timeIntervalSince1970: 1_790_000_000), pendingRequestCount: 0, unreadCount: 0)
+    }
+
+    private static var cabalBoard: [Components.Schemas.LeaderboardRow] {
+        [
+            row(1, "ape-society", "Ape Society", pnl: 12_690_000_000, bps: 4_210),
+            row(2, "quant-kids", "Quant Kids", pnl: 7_420_000_000, bps: 3_710),
+            row(3, "dip-buyers", "Dip Buyers", pnl: 3_180_000_000, bps: 1_960),
+        ]
+    }
+
+    private static func row(_ rank: Int32, _ id: String, _ name: String, pnl: Int64, bps: Int64)
+        -> Components.Schemas.LeaderboardRow
+    {
+        .sample(
+            rank: rank, id: id, name: name, kind: .cabal, valueMicros: pnl * 3, pnlMicros: pnl, returnBps: bps)
+    }
+
+    private static func pending(_ proposal: Proposal) -> Components.Schemas.PendingVote {
+        let second = proposal == .second
+        return Components.Schemas.PendingVote(
+            proposalId: "home-proposal-\(second ? 2 : 1)", cabalId: second ? techCrew : bigBallers, kind: .buy,
+            symbol: second ? "MSFTx" : "NVDAx", expiresAt: .now.addingTimeInterval(8 * 3_600))
+    }
+
+    private static func detail(_ proposal: Proposal) -> Components.Schemas.ProposalDetail {
+        var detail = Components.Schemas.ProposalDetail.sample(
+            status: status(proposal), myBallot: proposal == .voted ? .yes : nil, canVote: true)
+        let second = proposal == .second
+        detail.cabalId = second ? techCrew : bigBallers
+        detail.symbol = second ? "MSFTx" : "NVDAx"
+        detail.usdcMicros = second ? 250_000_000 : 400_000_000
+        detail.tally = .init(yes: 3, no: 1, voters: 8, needed: 5)
+        return detail
+    }
+
+    private static func status(_ proposal: Proposal) -> Components.Schemas.ProposalStatus {
+        switch proposal {
+        case .needsVote, .second, .voted: .open
+        case .executing: .passed
+        case .completed: .executed
+        case .expired: .expired
+        case .blocked: .executionBlocked
+        }
+    }
+
+    private static func catalogEntry(
+        _ symbol: String, _ name: String, changeBps: Int32
+    ) -> Components.Schemas.AssetSummary {
+        var entry = Components.Schemas.AssetSummary.googl
+        entry.symbol = symbol
+        entry.displayName = name
+        entry.logoUrl = nil
+        entry.changeBps = changeBps
+        return entry
+    }
+
+    private static func asset(_ symbol: String, _ name: String, changeBps: Int32) -> Components.Schemas.AssetDetail {
+        var asset = Components.Schemas.AssetDetail.googl
+        asset.symbol = symbol
+        asset.displayName = name
+        asset.logoUrl = nil
+        asset.changeBps = changeBps
+        return asset
     }
 }
 
@@ -59,7 +261,7 @@ struct HomeSampleHarness: View {
     @ObservedObject var auth: PrivyAuthService
 
     var body: some View {
-        SampleAppFrame(auth: auth, tab: .home, session: session, sheet: sheet)
+        SampleAppFrame(auth: auth, tab: .home, session: session, sheet: sheet, hints: scenario.hints)
     }
 
     private var sheet: (() -> AnyView)? {

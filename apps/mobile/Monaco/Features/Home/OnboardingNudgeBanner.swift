@@ -45,40 +45,28 @@ struct OnboardingNudgeBanner: View {
     @ViewBuilder
     private var content: some View {
         if let current {
-            MonacoGroupedList {
-                HStack(spacing: 0) {
-                    Button {
-                        opened = current
-                    } label: {
-                        HStack(spacing: MonacoTheme.Space.sm) {
-                            Text(current.message)
-                                .font(MonacoTheme.Typo.rowTitle)
-                                .foregroundStyle(MonacoTheme.ink)
-                                .multilineTextAlignment(.leading)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            MonacoRowChevron()
-                        }
-                        .padding(.leading, MonacoTheme.Space.gutter)
-                        .padding(.vertical, MonacoTheme.Space.sm)
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.monacoRow)
-                    .accessibilityIdentifier("onboarding-nudge-open")
-
-                    Button {
-                        session.nudgeDismissed = true
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(MonacoTheme.Typo.captionStrong)
-                            .foregroundStyle(MonacoTheme.muted)
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .accessibilityLabel("Hide")
-                    .accessibilityIdentifier("onboarding-nudge-close")
+            HStack(spacing: MonacoTheme.Space.s) {
+                Button {
+                    opened = current
+                } label: {
+                    MonacoNotice(.info, message: current.message)
                 }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("onboarding-nudge-open")
+
+                Button {
+                    session.nudgeDismissed = true
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(MonacoTheme.Typo.captionStrong)
+                        .foregroundStyle(MonacoTheme.muted)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("Hide")
+                .accessibilityIdentifier("onboarding-nudge-close")
             }
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("onboarding-nudge")
         }

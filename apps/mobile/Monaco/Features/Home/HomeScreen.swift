@@ -8,7 +8,8 @@ struct HomeScreen: View {
         HomeBalanceSlot.self,
         HomePendingVotesSlot.self,
         HomeCabalsSlot.self,
-        HomePeopleBoardSlot.self,
+        HomeLeaderboardSlot.self,
+        HomeMarketUpdatesSlot.self,
     ]
 
     @Environment(AppEnvironment.self) private var environment
@@ -16,6 +17,7 @@ struct HomeScreen: View {
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @State private var portfolio: PortfolioModel?
     @State private var reads = HomeReads()
+    @State private var voteNeeds = HomeVoteNeeds()
     let sections: [any HomeSection.Type]
 
     init(sections: [any HomeSection.Type] = Self.sections) {
@@ -27,9 +29,10 @@ struct HomeScreen: View {
         let live = SectionStack<Void>.live(sections)
         Group {
             if live.contains(where: { ObjectIdentifier($0) != ObjectIdentifier(HomeNudgeSlot.self) }) {
-                SectionStack(context: (), sections: sections)
+                HomeSectionStack(sections: sections)
                     .environment(portfolio)
                     .environment(\.homeReads, reads)
+                    .environment(\.homeVoteNeeds, voteNeeds)
             } else {
                 VStack(spacing: 0) {
                     if !live.isEmpty {
@@ -42,9 +45,19 @@ struct HomeScreen: View {
             }
         }
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                MonacoWordmark(.toolbar, isTitle: true)
+                    .fixedSize()
+            }
+            .withoutGlass()
+            ToolbarItem(placement: .topBarTrailing) {
+                notificationsButton
+            }
+            .withoutGlass()
             ToolbarItem(placement: .topBarTrailing) {
                 profileButton
             }
+            .withoutGlass()
         }
         .task {
             let portfolio = preparedPortfolio()
@@ -69,6 +82,16 @@ struct HomeScreen: View {
         return created
     }
 
+    private var notificationsButton: some View {
+        MonacoGlassButton(
+            systemImage: MonacoIcon.bell.symbol, accessibilityLabel: "Notifications", style: .quiet,
+            placement: .toolbar
+        ) {
+            environment.navigator.open(HomeActivityStubRoute(), in: .home)
+        }
+        .accessibilityIdentifier("home-notifications-button")
+    }
+
     private var profileButton: some View {
         let profile = environment.sessionStore.profile
         return Button {
@@ -86,5 +109,37 @@ struct HomeScreen: View {
         .buttonStyle(.plain)
         .accessibilityLabel("Profile")
         .accessibilityIdentifier("home-profile-button")
+    }
+}
+
+private struct HomeSectionStack: View {
+    let sections: [any ScreenSection<Void>.Type]
+    @Environment(\.insideMonacoSheet) private var insideSheet
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                SectionStackLayout(spacing: MonacoTheme.Space.section) {
+                    ForEach(Array(SectionStack<Void>.live(sections).enumerated()), id: \.offset) { _, section in
+                        AnyView(section.body(for: ()))
+                    }
+                }
+            }
+            .contentMargins(.bottom, MonacoTheme.Space.l, for: .scrollContent)
+            .scrollDismissesKeyboard(.interactively)
+            .environment(\.sectionScrollProxy, proxy)
+            .background { if !insideSheet { MonacoCanvasBackground() } }
+        }
+    }
+}
+
+extension ToolbarContent {
+    @ToolbarContentBuilder
+    fileprivate func withoutGlass() -> some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            sharedBackgroundVisibility(.hidden)
+        } else {
+            self
+        }
     }
 }

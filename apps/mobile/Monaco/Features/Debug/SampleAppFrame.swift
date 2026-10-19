@@ -11,6 +11,7 @@ struct SampleAppFrame: View {
     private let routes: [any AppRoute]
     private let store: AppSessionStore
     private let session: @MainActor (AppSessionStore) -> Void
+    private let hints: any HintConnecting
     @State private var environment: AppEnvironment?
     @State private var showsSheet: Bool
 
@@ -20,8 +21,10 @@ struct SampleAppFrame: View {
         routes: [any AppRoute] = [],
         store: AppSessionStore = AppSessionStore(),
         session: @escaping @MainActor (AppSessionStore) -> Void = SampleAppFrame.signedIn,
-        sheet: (() -> AnyView)? = nil
+        sheet: (() -> AnyView)? = nil,
+        hints: any HintConnecting = SampleSilentHints()
     ) {
+        self.hints = hints
         self.auth = auth
         self.tab = tab
         self.routes = routes
@@ -57,7 +60,7 @@ struct SampleAppFrame: View {
         let made = AppEnvironment(
             auth: auth,
             tokens: SessionTokens(privyToken: { "sample-token" }, refresh: { _ in nil }),
-            hints: SampleSilentHints(),
+            hints: hints,
             sessionStore: store,
             isAuthenticated: { true },
             endAuthSession: {}
@@ -96,6 +99,24 @@ private struct SampleScrollModifier: ViewModifier {
 
 nonisolated struct SampleSilentHints: HintConnecting {
     func hints(matching _: HintFilter) -> AsyncStream<Hint> { AsyncStream { $0.finish() } }
+    func start() async {}
+    func stop() async {}
+}
+
+nonisolated struct SampleResyncHints: HintConnecting {
+    let delay: Duration
+
+    func hints(matching _: HintFilter) -> AsyncStream<Hint> {
+        AsyncStream { continuation in
+            let task = Task {
+                try? await Task.sleep(for: delay)
+                continuation.yield(.resync)
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
     func start() async {}
     func stop() async {}
 }
