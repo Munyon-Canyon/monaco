@@ -2,7 +2,7 @@ import XCTest
 
 enum MoneyFundCabalJourney {
     static let id = "money/fund-cabal"
-    static let version = 5
+    static let version = 6
 
     static let screenTimeout: TimeInterval = 15
 
@@ -17,8 +17,9 @@ enum MoneyFundCabalJourney {
         XCTAssertTrue(fund.waitForExistence(timeout: screenTimeout), "\(step): no Add money on the cabal screen")
         fund.tap()
         XCTAssertTrue(
-            app.navigationBars["Fund this cabal"].waitForExistence(timeout: screenTimeout),
-            "\(step): the Fund this cabal screen did not show within \(Int(screenTimeout)) s"
+            app.navigationBars.matching(NSPredicate(format: "identifier BEGINSWITH 'Deposit to'")).firstMatch
+                .waitForExistence(timeout: screenTimeout),
+            "\(step): the Deposit to screen did not show within \(Int(screenTimeout)) s"
         )
         XCTAssertTrue(
             app.element("amount-entry-field").waitForExistence(timeout: screenTimeout),
@@ -87,8 +88,8 @@ enum MoneyFundCabalJourney {
         recorder.step("S1.5", "the button reads the amount") {
             typeAmount(app, "1")
             XCTAssertTrue(
-                app.buttons["Add $1 to the pot"].waitForExistence(timeout: 5),
-                "S1.5: no button reading Add $1 to the pot within 5 s"
+                app.buttons["Deposit $1.00"].waitForExistence(timeout: 5),
+                "S1.5: no button reading Deposit $1.00 within 5 s"
             )
             JoinJourney.snap(app, "S1-A-amount")
         }
@@ -104,13 +105,13 @@ enum MoneyFundCabalJourney {
         recorder.step("S2.2", "enter $1") {
             openFund(app, step: "S2.2")
             typeAmount(app, "1")
-            let add = app.buttons["Add $1 to the pot"]
-            XCTAssertTrue(add.waitForExistence(timeout: screenTimeout), "S2.2: no Add $1 to the pot")
-            XCTAssertTrue(add.isEnabled, "S2.2: Add $1 to the pot is disabled (known failure, #608 and #651)")
+            let add = app.buttons["Deposit $1.00"]
+            XCTAssertTrue(add.waitForExistence(timeout: screenTimeout), "S2.2: no Deposit $1.00")
+            XCTAssertTrue(add.isEnabled, "S2.2: Deposit $1.00 is disabled (known failure, #608 and #651)")
         }
 
         recorder.step("S2.3", "add it to the pot") {
-            app.buttons["Add $1 to the pot"].tap()
+            app.buttons["Deposit $1.00"].tap()
             JoinJourney.waitForToast(app, "Funding this cabal…", step: "S2.3")
             XCTAssertTrue(
                 app.staticTexts["Added $1 to \(name)."].firstMatch.waitForExistence(timeout: 120),

@@ -1,7 +1,7 @@
 ---
 id: money/cash-out
 title: Cash out
-version: 2
+version: 3
 milestone: M15
 requires: [auth/sign-in]
 actors: [A]
@@ -35,17 +35,17 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | wait | `platform-balance-value` on Home | | The account balance reads more than "$0.00" within 60 s: the run is funded |
-| S1.2 | A | tap, type, tap, then tap | the Cabals tab, `cabals-search-field`, the `cabals-search-result-<id>`, then `cabal-action-cash-out` | `QA cash out {QA.run}` | The "Cash out" screen shows `cash-out-amount` with "25%", "50%" and "All", and `cash-out-explainer` reads "We sell this much of your slice and move the cash to your account balance. You stay in the cabal." within 10 s |
-| S1.3 | A | wait | the helper under `cash-out-amount` | | The helper reads "Your slice is worth $…" within 10 s |
-| S1.4 | A | tap | "25%" | | `cash-out-submit` is enabled and reads "Cash out $…" within 5 s |
-| S1.5 | A | tap | `cash-out-submit` | | The toast "Cashing out $…. It lands in your balance in about a minute" shows and the cabal screen (`cabal-header-name`) is back within 10 s |
+| S1.2 | A | tap, type, tap, then tap | the Cabals tab, `cabals-search-field`, the `cabals-search-result-<id>`, then `cabal-action-cash-out` | `QA cash out {QA.run}` | The "Cash out your share" screen shows `cash-out-amount` with "25%", "50%" and "All", and `cash-out-explainer` reads "We sell this much of your slice and move the cash to your account balance. You stay in the cabal." within 10 s |
+| S1.3 | A | wait | the helper under `cash-out-amount` | | The helper reads "$… current share value" within 10 s |
+| S1.4 | A | tap | "25%" | | `cash-out-review` is enabled and reads "Review cash-out" within 5 s |
+| S1.5 | A | tap, then tap | `cash-out-review`, then `cash-out-submit` | | The toast "Cashing out $…. It lands in your balance in about a minute" shows and the outcome page (`cash-out-progress`) shows within 10 s |
 
 ### S2 Withdraw to a wallet
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | tap, tap, then tap | the Profile tab, `profile-settings-row`, then `settings-withdraw` | | The "Withdraw" screen shows `withdraw-address-field` "USDC address on Solana" and `withdraw-continue-button` "Continue" within 10 s |
-| S2.2 | A | tap, type, then tap | "Max", `withdraw-address-field`, then `withdraw-continue-button` | `{QA.refund_address}` | The confirm screen reads "You're withdrawing" within 10 s |
+| S2.2 | A | tap, type, then tap | "Max", `withdraw-address-field`, then `withdraw-continue-button` | `{QA.refund_address}` | The confirm screen reads "Review withdrawal" within 10 s |
 | S2.3 | A | tap | "Withdraw" | | The toast "Withdrawing $…. It lands in about a minute." shows within 10 s |
 
 ## Ground truth

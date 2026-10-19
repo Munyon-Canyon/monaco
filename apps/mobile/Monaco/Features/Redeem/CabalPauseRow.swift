@@ -5,7 +5,8 @@ struct CabalPauseRow: View {
     let pause: CabalPause
 
     var body: some View {
-        WarningNoticeRow(message: pause.message, identifier: "cabal-pause-banner")
+        MonacoNotice(.warn, message: pause.message)
+            .accessibilityIdentifier("cabal-pause-banner")
     }
 }
 

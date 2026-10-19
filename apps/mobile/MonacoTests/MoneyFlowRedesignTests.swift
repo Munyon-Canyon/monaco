@@ -33,14 +33,14 @@ struct FundCabalFormTests {
     @Test func theButtonReadsTheAmountOnceThereIsOne() {
         #expect(FundCabalForm(amountText: "", balance: Fixture.balance(248_500_000)).ctaTitle == "Enter an amount")
         #expect(FundCabalForm(amountText: "0", balance: Fixture.balance(248_500_000)).ctaTitle == "Enter an amount")
-        #expect(FundCabalForm(amountText: "50", balance: Fixture.balance(248_500_000)).ctaTitle == "Add $50 to the pot")
+        #expect(FundCabalForm(amountText: "50", balance: Fixture.balance(248_500_000)).ctaTitle == "Deposit $50.00")
     }
 
     @Test func maxReadsTheAmountWithCents() {
         let balance = Fixture.balance(248_500_000)
         let max = FundCabalForm(amountText: "", balance: balance).maxDollars.map(AmountEntryText.plain) ?? ""
-        #expect(FundCabalForm(amountText: max, balance: balance).ctaTitle == "Add $248.50 to the pot")
-        #expect(FundCabalForm(amountText: "500", balance: balance).ctaTitle == "Add $500 to the pot")
+        #expect(FundCabalForm(amountText: max, balance: balance).ctaTitle == "Deposit $248.50")
+        #expect(FundCabalForm(amountText: "500", balance: balance).ctaTitle == "Deposit $500.00")
     }
 
     @Test func theButtonIsLiveOnlyForAnAmountWithinTheBalance() {
