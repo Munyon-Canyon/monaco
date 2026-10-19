@@ -156,10 +156,11 @@ func TestQueries_usersByIDCarriesEveryFieldOfTheCard(t *testing.T) {
 		ID: full.ID, Handle: "kaicenat", DisplayName: "Kai Cenat", PhotoURL: "https://img.example/kai.png",
 		AuthState: identity.AuthOnboardingCompleted, AccountStatus: identity.AccountSuspended, PhoneVerified: true,
 		XLinked: true, AuthStateChangedAt: f.created(), CreatedAt: f.created(), FirstDepositAt: &deposit,
+		SharePerformance: true,
 	})
 	portSameCard(t, cards[bare.ID], identity.UserCard{
 		ID: bare.ID, AuthState: identity.AuthCreated, AccountStatus: identity.AccountActive,
-		AuthStateChangedAt: f.created(), CreatedAt: f.created(),
+		AuthStateChangedAt: f.created(), CreatedAt: f.created(), SharePerformance: true,
 	})
 }
 

@@ -17,6 +17,7 @@ final class SessionProfileTests: XCTestCase {
             loginProvider: .email,
             memberWalletAddress: "wallet-1",
             phoneLinked: true,
+            sharePerformance: true,
             xUsername: "kaicenat",
             handleChangeableAt: changeableAt,
             createdAt: createdAt
@@ -52,6 +53,7 @@ final class SessionProfileTests: XCTestCase {
                 loginProvider: provider,
                 memberWalletAddress: "wallet-1",
                 phoneLinked: false,
+                sharePerformance: true,
                 createdAt: createdAt
             )
         }

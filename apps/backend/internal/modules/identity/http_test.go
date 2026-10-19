@@ -239,7 +239,7 @@ func (f httpFixture) updateProfile(t *testing.T, user ids.UserID, body string) *
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, "/v1/me", strings.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+f.verifier.Mint(user.String(), f.now.Add(time.Hour)))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Idempotency-Key", "profile-1")
+	req.Header.Set("Idempotency-Key", "profile-"+strconv.Itoa(len(body)))
 	rec := httptest.NewRecorder()
 	f.handler.ServeHTTP(rec, req)
 	return rec
@@ -306,7 +306,7 @@ func TestGetMe_overHTTPServesTheAccount(t *testing.T) {
 		AuthState: api.AuthState(domain.AuthAwaitingSocials), AccountStatus: api.AccountStatus(domain.AccountActive),
 		LoginProvider:       api.LoginProvider(domain.LoginSMS),
 		MemberWalletAddress: string(u.Address), PhoneLinked: true, XUsername: &x, HandleChangeableAt: &changeable,
-		CreatedAt: f.created(),
+		SharePerformance: true, CreatedAt: f.created(),
 	}
 	got := decodeMe(t, rec)
 	if rec.Code != http.StatusOK || !reflect.DeepEqual(normalized(got), normalized(want)) {
@@ -367,6 +367,67 @@ func TestFlow23_UpdateProfile_OK(t *testing.T) {
 	}
 	if got := f.hints.sent(); !reflect.DeepEqual(got, []string{"user." + u.ID.String() + ".me_changed"}) {
 		t.Fatalf("hints = %v", got)
+	}
+}
+
+func TestUpdateProfile_sharePerformanceFlipsAndLeavesTheNameAlone(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
+	if me := decodeMe(t, f.getMe(t, u.ID)); !me.SharePerformance {
+		t.Fatalf("new account share_performance = %v, want the default true", me.SharePerformance)
+	}
+	rec := f.updateProfile(t, u.ID, `{"share_performance":false}`)
+	if me := decodeMe(t, rec); rec.Code != http.StatusOK || me.SharePerformance || me.DisplayName != "Kai" {
+		t.Fatalf("update = %d %s", rec.Code, rec.Body)
+	}
+	if got := profileEvents(t, f); len(got) != 1 || !reflect.DeepEqual(got[0].Fields, []string{"share_performance"}) {
+		t.Fatalf("profile events = %+v", got)
+	}
+	if me := decodeMe(t, f.getMe(t, u.ID)); me.SharePerformance {
+		t.Fatalf("GET /v1/me share_performance = %v, want false", me.SharePerformance)
+	}
+}
+
+func TestUpdateProfile_changesBothFieldsInOneEvent(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
+	if rec := f.updateProfile(t, u.ID, `{"share_performance":false}`); rec.Code != http.StatusOK {
+		t.Fatalf("update = %d %s", rec.Code, rec.Body)
+	}
+	rec := f.updateProfile(t, u.ID, `{"share_performance":true,"display_name":"Kai Q"}`)
+	if me := decodeMe(t, rec); rec.Code != http.StatusOK || !me.SharePerformance || me.DisplayName != "Kai Q" {
+		t.Fatalf("update = %d %s", rec.Code, rec.Body)
+	}
+	if got := profileEvents(t, f); len(got) != 2 ||
+		!reflect.DeepEqual(got[1].Fields, []string{"display_name", "share_performance"}) {
+		t.Fatalf("profile events = %+v", got)
+	}
+}
+
+func TestUpdateProfile_anEmptyBodyIsInvalid(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
+	rec := f.updateProfile(t, u.ID, `{}`)
+	if rec.Code != http.StatusBadRequest || decodeProblem(t, rec).Code != apibase.InvalidInput {
+		t.Fatalf("update = %d %s", rec.Code, rec.Body)
+	}
+	if got := profileEvents(t, f); len(got) != 0 {
+		t.Fatalf("profile events = %+v", got)
+	}
+}
+
+func TestUpdateProfile_sharePerformanceUnchangedIsANoop(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
+	if rec := f.updateProfile(t, u.ID, `{"share_performance":true}`); rec.Code != http.StatusOK {
+		t.Fatalf("update = %d %s", rec.Code, rec.Body)
+	}
+	if got := profileEvents(t, f); len(got) != 0 {
+		t.Fatalf("profile events = %+v", got)
 	}
 }
 
@@ -522,6 +583,9 @@ func TestProfileUpdates_surfaceDatabaseFailures(t *testing.T) {
 		"display name": func(f httpFixture, id ids.UserID) *httptest.ResponseRecorder {
 			return f.updateProfile(t, id, `{"display_name":"Kai Q"}`)
 		},
+		"share performance": func(f httpFixture, id ids.UserID) *httptest.ResponseRecorder {
+			return f.updateProfile(t, id, `{"share_performance":false}`)
+		},
 		"photo": func(f httpFixture, id ids.UserID) *httptest.ResponseRecorder {
 			return f.uploadPhoto(t, id, []byte("\x89PNG\r\n\x1a\nphoto"))
 		},
@@ -543,6 +607,9 @@ func TestProfileUpdates_surfaceEventFailures(t *testing.T) {
 	for name, request := range map[string]func(httpFixture, ids.UserID) *httptest.ResponseRecorder{
 		"display name": func(f httpFixture, id ids.UserID) *httptest.ResponseRecorder {
 			return f.updateProfile(t, id, `{"display_name":"Kai Q"}`)
+		},
+		"share performance": func(f httpFixture, id ids.UserID) *httptest.ResponseRecorder {
+			return f.updateProfile(t, id, `{"share_performance":false}`)
 		},
 		"photo": func(f httpFixture, id ids.UserID) *httptest.ResponseRecorder {
 			return f.uploadPhoto(t, id, []byte("\x89PNG\r\n\x1a\nphoto"))

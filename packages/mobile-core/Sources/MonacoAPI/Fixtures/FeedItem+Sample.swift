@@ -43,7 +43,7 @@ extension Components.Schemas.FeedItem {
             assetId: symbol.map { _ in String(format: "00000000-0000-7000-8000-0000000fd%03d", number) },
             symbol: symbol,
             title: title, detail: detail, body: body, status: status, tone: tone, commentCount: comments,
-            likeCount: 0, likedByMe: false,
+            likeCount: 0, likedByMe: false, returnPrivate: false,
             createdAt: created, updatedAt: created)
     }
 }

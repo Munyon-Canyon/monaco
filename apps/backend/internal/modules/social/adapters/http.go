@@ -38,6 +38,7 @@ type HTTP struct {
 	Reads          sqlc.DBTX
 	Clock          clock.Clock
 	Users          app.Users
+	Returns        app.Returns
 }
 
 func (h HTTP) GetUserFollowers(

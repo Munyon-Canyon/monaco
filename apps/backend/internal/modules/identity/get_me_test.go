@@ -50,7 +50,7 @@ func TestGetMe_carriesEveryFieldOfTheAccount(t *testing.T) {
 		AuthState: domain.AuthAwaitingSocials, AccountStatus: domain.AccountSuspended,
 		LoginProvider:       domain.LoginEmail,
 		MemberWalletAddress: u.Address, PhoneLinked: true, XUsername: "kai_on_x", HandleChangeableAt: &changeable,
-		CreatedAt: f.created(),
+		SharePerformance: true, CreatedAt: f.created(),
 	})
 }
 
@@ -64,8 +64,8 @@ func TestGetMe_aNewUserHasNoHandleNameOrLinks(t *testing.T) {
 	}
 	sameMe(t, got, app.Me{
 		ID: u.ID, AuthState: domain.AuthCreated, AccountStatus: domain.AccountActive, LoginProvider: domain.LoginSMS,
-		MemberWalletAddress: u.Address,
-		CreatedAt:           f.created(),
+		MemberWalletAddress: u.Address, SharePerformance: true,
+		CreatedAt: f.created(),
 	})
 }
 

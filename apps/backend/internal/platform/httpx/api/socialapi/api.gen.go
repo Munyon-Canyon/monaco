@@ -532,6 +532,16 @@ type CommentAuthor struct {
 	//
 	// Examples: null
 	PhotoUrl *string `json:"photo_url"`
+
+	// Return1mBps The author's one-month return in basis points, from the people board's `1M` range as of the last valuation run, not a live figure. Null when the author hides it or has no ranked row.
+	//
+	// Examples: 820
+	Return1mBps *int64 `json:"return_1m_bps"`
+
+	// ReturnPrivate True only when the author chose to hide their return. False for an author with no ranked row.
+	//
+	// Examples: false
+	ReturnPrivate bool `json:"return_private"`
 }
 
 // CommentPage One page of comment threads, oldest first.
@@ -687,6 +697,16 @@ type FeedItem struct {
 	//
 	// Examples: swaps
 	RefType string `json:"ref_type"`
+
+	// Return1mBps The author's one-month return in basis points, from the people board's `1M` range as of the last valuation run, not a live figure. Null when the author hides it, has no ranked row, or the item is a system item.
+	//
+	// Examples: 820
+	Return1mBps *int64 `json:"return_1m_bps"`
+
+	// ReturnPrivate True only when the author chose to hide their return. False for a system item or an author with no ranked row.
+	//
+	// Examples: false
+	ReturnPrivate bool `json:"return_private"`
 
 	// Status The source's status, for proposals.
 	//

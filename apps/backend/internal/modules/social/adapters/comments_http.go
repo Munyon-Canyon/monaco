@@ -41,7 +41,7 @@ func (h HTTP) PostFeedComment(
 	if err != nil {
 		return nil, err
 	}
-	wire, err := wireComments(ctx, h.Users, me, []app.Comment{created})
+	wire, err := wireComments(ctx, h.Users, h.Returns, me, []app.Comment{created})
 	if err != nil {
 		return nil, err
 	}
@@ -49,15 +49,15 @@ func (h HTTP) PostFeedComment(
 }
 
 func wireComments(
-	ctx context.Context, users app.Users, viewer ids.UserID, comments []app.Comment,
+	ctx context.Context, users app.Users, returns app.Returns, viewer ids.UserID, comments []app.Comment,
 ) ([]api.Comment, error) {
-	cards, err := users.UsersByID(ctx, commentPeople(comments))
+	who, err := loadPeople(ctx, users, returns, commentPeople(comments), "social.wireComments")
 	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeOf(err), "social.wireComments")
+		return nil, err
 	}
 	out := make([]api.Comment, len(comments))
 	for i, c := range comments {
-		out[i] = wireComment(c, viewer, cards)
+		out[i] = wireComment(c, viewer, who)
 	}
 	return out, nil
 }
@@ -74,17 +74,18 @@ func commentPeople(comments []app.Comment) []ids.UserID {
 	return people
 }
 
-func wireComment(c app.Comment, viewer ids.UserID, cards map[ids.UserID]app.UserCard) api.Comment {
+func wireComment(c app.Comment, viewer ids.UserID, who people) api.Comment {
 	author := api.CommentAuthor{Id: c.AuthorID.UUID()}
-	if card, ok := cards[c.AuthorID]; ok && !card.Deleted {
+	if card, ok := who.cards[c.AuthorID]; ok && !card.Deleted {
 		author.Handle, author.DisplayName = optionalWireText(card.Handle), card.DisplayName
 		author.PhotoUrl = optionalWireText(card.PhotoURL)
 	}
+	author.Return1mBps, author.ReturnPrivate = who.authorReturn(c.AuthorID)
 	out := api.Comment{
 		Id: c.ID, ParentCommentId: optionalWireID(c.ParentID), Author: author, IsMine: c.AuthorID == viewer,
 		CreatedAt: c.CreatedAt, BodyDisplay: c.Body,
 	}
-	if card, ok := cards[c.ReplyToUserID]; ok && !card.Deleted {
+	if card, ok := who.cards[c.ReplyToUserID]; ok && !card.Deleted {
 		out.ReplyToHandle = optionalWireText(card.Handle)
 	}
 	switch {
@@ -165,7 +166,7 @@ func (h HTTP) commentPage(
 		flat = append(flat, thread.Comment)
 		flat = append(flat, thread.Replies...)
 	}
-	wire, err := wireComments(ctx, h.Users, me, flat)
+	wire, err := wireComments(ctx, h.Users, h.Returns, me, flat)
 	if err != nil {
 		return api.CommentPage{}, err
 	}

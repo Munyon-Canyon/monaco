@@ -6,6 +6,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
+	"github.com/monaco/monaco/apps/backend/internal/modules/ranking"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters/ably"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
@@ -20,6 +21,7 @@ import (
 type Module struct {
 	deps     module.Deps
 	users    app.Users
+	returns  app.Returns
 	members  app.ChatMembers
 	cabals   app.Cabals
 	realtime app.Realtime
@@ -30,6 +32,10 @@ type Option func(*Module)
 
 func WithUsers(users app.Users) Option {
 	return func(m *Module) { m.users = users }
+}
+
+func WithReturns(returns app.Returns) Option {
+	return func(m *Module) { m.returns = returns }
 }
 
 func WithCabals(cabals app.Cabals) Option {
@@ -66,6 +72,9 @@ func New(d module.Deps, opts ...Option) *Module {
 	}
 	if m.users == nil {
 		m.users = identity.New(d).Queries()
+	}
+	if m.returns == nil {
+		m.returns = ranking.New(d).Queries()
 	}
 	if m.assets == nil {
 		m.assets = NewAssets(market.New(d).Catalog())
@@ -164,6 +173,7 @@ func (m *Module) http() adapters.HTTP {
 		Reads:   m.deps.Pool,
 		Clock:   m.deps.Clock,
 		Users:   m.users,
+		Returns: m.returns,
 	}
 }
 

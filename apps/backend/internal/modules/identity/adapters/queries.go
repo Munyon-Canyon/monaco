@@ -212,6 +212,7 @@ func cardOf(id ids.UserID, row sqlc.UserCardsByIDRow) port.UserCard {
 		ID: id, AuthState: domain.AuthState(row.AuthState), AccountStatus: domain.AccountStatus(row.AccountStatus),
 		PhoneVerified: row.PhoneVerified, XLinked: row.XLinked, AuthStateChangedAt: row.AuthStateChangedAt.UTC(),
 		CreatedAt: row.CreatedAt.UTC(), Deleted: row.Deleted,
+		SharePerformance: row.SharePerformance,
 	}
 	if row.FirstDepositAt.Valid {
 		at := row.FirstDepositAt.Time.UTC()

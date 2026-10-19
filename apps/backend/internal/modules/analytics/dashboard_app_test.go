@@ -13,6 +13,7 @@ import (
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bucket"
 	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
@@ -44,6 +45,12 @@ func (f valuationFake) LatestRun(context.Context) (rankingport.Run, error) { ret
 
 func (f valuationFake) LatestCabalValues(context.Context) ([]rankingport.CabalValue, error) {
 	return f.values, f.valuesErr
+}
+
+func (f valuationFake) PeopleReturns(
+	context.Context, rankingport.Range, []ids.UserID,
+) (map[ids.UserID]rankingport.PersonReturn, error) {
+	return map[ids.UserID]rankingport.PersonReturn{}, nil
 }
 
 func fakeMoney(l ledgerFake, v valuationFake) app.Money {

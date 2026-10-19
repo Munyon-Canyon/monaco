@@ -545,11 +545,13 @@ components:
           phone_linked: true
           x_username: kaicenat
           handle_changeable_at: "2026-10-30T12:00:00Z"
+          share_performance: true
           created_at: "2026-09-30T12:00:00Z"
       additionalProperties: false
       required:
         - id
         - display_name
+        - share_performance
         - auth_state
         - account_status
         - login_provider
@@ -596,6 +598,12 @@ components:
           type: boolean
           description: True once the user's phone is verified and stored.
           examples: [true]
+        share_performance:
+          type: boolean
+          description: >-
+            True (the default) when the user's one-month return shows on their feed posts and
+            comments, false when they hide it.
+          examples: [true]
         x_username:
           type: string
           description: The linked X username. Absent when no X account is linked.
@@ -612,15 +620,22 @@ components:
           examples: ["2026-09-30T12:00:00Z"]
     UpdateProfileRequest:
       type: object
-      description: The profile fields a signed-in user may update.
-      examples: [{display_name: Kai Cenat}]
+      description: >-
+        The profile fields a signed-in user may update. Send at least one field, or the call is
+        `invalid_input`.
+      examples: [{display_name: Kai Cenat}, {share_performance: false}]
       additionalProperties: false
-      required: [display_name]
       properties:
         display_name:
           type: string
-          description: The caller's display name, normalized before it is stored.
+          description: The caller's display name, normalized before it is stored. Omit it to leave the name alone.
           examples: [Kai Cenat]
+        share_performance:
+          type: boolean
+          description: >-
+            Whether the caller's one-month return shows on their feed posts and comments. Omit it to
+            leave the setting alone.
+          examples: [false]
     HandleAvailability:
       type: object
       description: Whether the caller can claim a handle, and the reason when they cannot.
