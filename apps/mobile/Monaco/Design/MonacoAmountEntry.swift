@@ -25,6 +25,7 @@ struct AmountEntry<Accessory: View>: View {
     private let accessory: Accessory
     private let max: Decimal?
     private let presets: [AmountPreset]
+    private let caption: String?
     private let helper: String?
     private let overLimitHelper: String
     private let problem: String?
@@ -43,6 +44,7 @@ struct AmountEntry<Accessory: View>: View {
         amountText: Binding<String>,
         max: Decimal? = nil,
         presets: [AmountPreset] = [],
+        caption: String? = nil,
         helper: String? = nil,
         overLimitHelper: String = "More than you have",
         problem: String? = nil,
@@ -56,6 +58,7 @@ struct AmountEntry<Accessory: View>: View {
         self.accessory = accessory()
         self.max = max
         self.presets = presets
+        self.caption = caption
         self.helper = helper
         self.overLimitHelper = overLimitHelper
         self.problem = problem
@@ -75,11 +78,16 @@ struct AmountEntry<Accessory: View>: View {
     }
 
     var body: some View {
-        VStack(spacing: usesKeypad ? MonacoTheme.Space.m : MonacoTheme.Space.l) {
-            figure
-            if !presets.isEmpty {
-                presetRow
+        VStack(spacing: 0) {
+            if let caption {
+                Text(caption)
+                    .font(MonacoTheme.Typo.captionStrong)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .padding(.bottom, MonacoTheme.Space.gutter)
+                    .accessibilityIdentifier("amount-entry-caption")
             }
+            figure
             if let helperLine {
                 HStack(spacing: MonacoTheme.Space.xs) {
                     if isLoading && !hasProblem {
@@ -88,16 +96,22 @@ struct AmountEntry<Accessory: View>: View {
                             .accessibilityIdentifier("amount-entry-spinner")
                     }
                     Text(helperLine)
-                        .font(MonacoTheme.Typo.callout)
-                        .foregroundStyle(hasProblem ? MonacoTheme.loss : MonacoTheme.muted)
+                        .font(MonacoTheme.Typo.caption)
+                        .foregroundStyle(hasProblem ? MonacoTheme.loss : MonacoTheme.secondaryText)
                         .multilineTextAlignment(.center)
                         .contentTransition(.opacity)
                         .animation(reduceMotion ? nil : .snappy, value: helperLine)
                         .accessibilityIdentifier("amount-entry-helper")
                 }
+                .padding(.top, MonacoTheme.Space.s)
+            }
+            if !presets.isEmpty {
+                presetRow
+                    .padding(.top, MonacoTheme.Space.sm)
             }
             accessory
         }
+        .padding(.top, MonacoTheme.Space.l)
         .frame(maxWidth: .infinity)
         .task {
             guard !usesKeypad else { return }
@@ -265,6 +279,7 @@ extension AmountEntry where Accessory == EmptyView {
         amountText: Binding<String>,
         max: Decimal? = nil,
         presets: [AmountPreset] = [],
+        caption: String? = nil,
         helper: String? = nil,
         overLimitHelper: String = "More than you have",
         problem: String? = nil,
@@ -273,7 +288,7 @@ extension AmountEntry where Accessory == EmptyView {
         onPreset: @escaping (AmountPreset) -> Void = { _ in }
     ) {
         self.init(
-            amountText: amountText, max: max, presets: presets, helper: helper,
+            amountText: amountText, max: max, presets: presets, caption: caption, helper: helper,
             overLimitHelper: overLimitHelper, problem: problem, input: input,
             onPreset: onPreset
         ) { EmptyView() }
@@ -311,6 +326,7 @@ struct AmountEntryNote: View {
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity)
             .padding(.horizontal, MonacoTheme.Space.sm)
+            .padding(.top, MonacoTheme.Space.sm)
     }
 }
 
@@ -320,17 +336,22 @@ struct AmountEntrySkeleton: View {
     var presetCount = 4
 
     var body: some View {
-        VStack(spacing: MonacoTheme.Space.l) {
+        VStack(spacing: 0) {
             SkeletonBlock(width: 132, height: 48)
                 .frame(minHeight: 72)
+            SkeletonBlock(width: 168, height: 14)
+                .padding(.top, MonacoTheme.Space.s)
             HStack(spacing: MonacoTheme.Space.s) {
                 ForEach(0..<presetCount, id: \.self) { _ in
-                    SkeletonBlock(width: 56, height: 34, radius: 17)
-                        .padding(.vertical, MonacoTheme.Space.xs)
+                    SkeletonBlock(
+                        width: 56, height: MonacoChipLabel.capsuleHeight, radius: MonacoChipLabel.capsuleHeight / 2
+                    )
+                    .frame(minHeight: MonacoButtonMetrics.hitTarget)
                 }
             }
-            SkeletonBlock(width: 168, height: 14)
+            .padding(.top, MonacoTheme.Space.sm)
         }
+        .padding(.top, MonacoTheme.Space.l)
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Loading")

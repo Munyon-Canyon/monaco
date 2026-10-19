@@ -1,38 +1,36 @@
 import SwiftUI
 import UIKit
 
-/// The one field anatomy: 56pt on `surfaceSunken`, a 1pt ink focus stroke, a 1pt `loss` stroke
-/// when invalid. `isOutlined` adds a 1pt `secondaryText` stroke at rest and 2pt focus or `loss`.
-/// `MonacoTextField` uses it; the sign-in and display-name fields apply it directly.
 struct MonacoFieldChrome: ViewModifier {
     let isFocused: Bool
     var isInvalid = false
     var isOutlined = false
+    var minHeight = MonacoFieldChrome.height
     let focus: () -> Void
 
-    static let height: CGFloat = 56
+    static let height: CGFloat = 48
+    static let multilineHeight: CGFloat = 92
+    static let borderWidth: CGFloat = 1
 
     private var shape: RoundedRectangle {
         RoundedRectangle(cornerRadius: MonacoTheme.Radius.field, style: .continuous)
     }
 
-    private var strokeWidth: CGFloat {
-        if isInvalid || isFocused { return isOutlined ? 2 : 1 }
-        return isOutlined ? 1 : 0
+    private var stroke: Color {
+        if isInvalid { return MonacoTheme.loss }
+        return isFocused ? MonacoTheme.brand : MonacoTheme.border
     }
 
     func body(content: Content) -> some View {
         content
             .padding(.horizontal, MonacoTheme.Space.m)
-            .frame(minHeight: Self.height)
-            .background(shape.fill(MonacoTheme.surfaceSunken))
+            .padding(.vertical, MonacoTheme.Space.sm)
+            .frame(minHeight: minHeight)
+            .background(shape.fill(MonacoTheme.surface))
             .contentShape(Rectangle())
             .simultaneousGesture(TapGesture().onEnded { focus() })
             .overlay {
-                shape.strokeBorder(
-                    isInvalid ? MonacoTheme.loss : (isFocused ? MonacoTheme.ink : MonacoTheme.secondaryText),
-                    lineWidth: strokeWidth
-                )
+                shape.strokeBorder(stroke, lineWidth: Self.borderWidth)
             }
             .animation(.easeOut(duration: 0.15), value: isFocused)
             .animation(.easeOut(duration: 0.15), value: isInvalid)
@@ -45,14 +43,47 @@ extension View {
         isFocused: Bool,
         isInvalid: Bool = false,
         isOutlined: Bool = false,
+        minHeight: CGFloat = MonacoFieldChrome.height,
         focus: @escaping () -> Void
     ) -> some View {
-        modifier(MonacoFieldChrome(isFocused: isFocused, isInvalid: isInvalid, isOutlined: isOutlined, focus: focus))
+        modifier(
+            MonacoFieldChrome(
+                isFocused: isFocused, isInvalid: isInvalid, isOutlined: isOutlined, minHeight: minHeight, focus: focus))
     }
 }
 
-/// 56pt field on `surfaceSunken`. `isOutlined`: `secondaryText` placeholder, 50% when disabled.
-/// `errorMessage` is the accessibility value while `isInvalid`.
+private struct MonacoFieldFrame<Field: View>: View {
+    let label: String?
+    let helper: String?
+    let error: String?
+    @ViewBuilder let field: Field
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let label {
+                Text(label)
+                    .font(MonacoTheme.Typo.captionStrong)
+                    .foregroundStyle(MonacoTheme.primaryText)
+                    .padding(.bottom, MonacoTheme.Space.s)
+                    .accessibilityHidden(true)
+            }
+            field
+            if let error, !error.isEmpty {
+                Text(error)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.loss)
+                    .padding(.top, MonacoTheme.Space.xs)
+                    .accessibilityHidden(true)
+            } else if let helper {
+                Text(helper)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .padding(.top, MonacoTheme.Space.s)
+            }
+        }
+    }
+}
+
 struct MonacoTextField: View {
     private let placeholder: String
     @Binding private var text: String
@@ -64,6 +95,9 @@ struct MonacoTextField: View {
     private let autofocus: Bool
     private let capitalization: TextInputAutocapitalization?
     private let autocorrects: Bool?
+    private let label: String?
+    private let helper: String?
+    private let isMultiline: Bool
 
     @FocusState private var focused: Bool
     @Environment(\.isEnabled) private var isEnabled
@@ -78,7 +112,10 @@ struct MonacoTextField: View {
         errorMessage: String? = nil,
         autofocus: Bool = false,
         capitalization: TextInputAutocapitalization? = nil,
-        autocorrects: Bool? = nil
+        autocorrects: Bool? = nil,
+        label: String? = nil,
+        helper: String? = nil,
+        isMultiline: Bool = false
     ) {
         self.placeholder = placeholder
         _text = text
@@ -90,29 +127,44 @@ struct MonacoTextField: View {
         self.autofocus = autofocus
         self.capitalization = capitalization
         self.autocorrects = autocorrects
+        self.label = label
+        self.helper = helper
+        self.isMultiline = isMultiline
     }
 
     var body: some View {
-        TextField(
-            "",
-            text: $text,
-            prompt: Text(placeholder).foregroundStyle(placeholderColor)
-        )
-        .font(MonacoTheme.Typo.body)
-        .foregroundStyle(MonacoTheme.ink)
-        .tint(MonacoTheme.ink)
-        .keyboardType(keyboard)
-        .textContentType(contentType)
-        .textInputAutocapitalization(autocapitalization)
-        .autocorrectionDisabled(disablesAutocorrection)
-        .focused($focused)
-        .task {
-            if autofocus { focused = true }
+        MonacoFieldFrame(label: label, helper: helper, error: isInvalid ? errorMessage : nil) {
+            input
+                .font(MonacoTheme.Typo.body)
+                .foregroundStyle(MonacoTheme.ink)
+                .tint(MonacoTheme.ink)
+                .keyboardType(keyboard)
+                .textContentType(contentType)
+                .textInputAutocapitalization(autocapitalization)
+                .autocorrectionDisabled(disablesAutocorrection)
+                .focused($focused)
+                .task {
+                    if autofocus { focused = true }
+                }
+                .monacoFieldChrome(
+                    isFocused: focused, isInvalid: isInvalid, isOutlined: isOutlined,
+                    minHeight: isMultiline ? MonacoFieldChrome.multilineHeight : MonacoFieldChrome.height,
+                    focus: { focused = true }
+                )
+                .opacity(isOutlined && !isEnabled ? 0.5 : 1)
+                .accessibilityLabel(label ?? placeholder)
+                .accessibilityValue(isInvalid ? (errorMessage ?? "") : "")
         }
-        .monacoFieldChrome(isFocused: focused, isInvalid: isInvalid, isOutlined: isOutlined, focus: { focused = true })
-        .opacity(isOutlined && !isEnabled ? 0.5 : 1)
-        .accessibilityLabel(placeholder)
-        .accessibilityValue(isInvalid ? (errorMessage ?? "") : "")
+    }
+
+    @ViewBuilder
+    private var input: some View {
+        if isMultiline {
+            TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(placeholderColor), axis: .vertical)
+                .lineLimit(4...8)
+        } else {
+            TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(placeholderColor))
+        }
     }
 
     private var placeholderColor: Color {
@@ -143,6 +195,9 @@ struct MonacoAddressField: View {
     let placeholder: String
     @Binding var text: String
     var isInvalid = false
+    var label: String?
+    var helper: String?
+    var errorMessage: String?
     /// Set on the text view itself: a modifier on the wrapper does not reach the element the UI
     /// tests type into.
     var accessibilityIdentifier: String?
@@ -151,23 +206,24 @@ struct MonacoAddressField: View {
     @State private var focusRequests = 0
 
     var body: some View {
-        ZStack(alignment: .leading) {
-            if text.isEmpty {
-                Text(placeholder)
-                    .font(MonacoTheme.Typo.body)
-                    .foregroundStyle(MonacoTheme.disabledLabel)
-                    .accessibilityHidden(true)
+        MonacoFieldFrame(label: label, helper: helper, error: isInvalid ? errorMessage : nil) {
+            ZStack(alignment: .leading) {
+                if text.isEmpty {
+                    Text(placeholder)
+                        .font(MonacoTheme.Typo.body)
+                        .foregroundStyle(MonacoTheme.disabledLabel)
+                        .accessibilityHidden(true)
+                }
+                CharacterWrappingTextView(
+                    text: $text,
+                    isFocused: $isFocused,
+                    focusRequests: focusRequests,
+                    placeholder: placeholder,
+                    accessibilityIdentifier: accessibilityIdentifier
+                )
             }
-            CharacterWrappingTextView(
-                text: $text,
-                isFocused: $isFocused,
-                focusRequests: focusRequests,
-                placeholder: placeholder,
-                accessibilityIdentifier: accessibilityIdentifier
-            )
+            .monacoFieldChrome(isFocused: isFocused, isInvalid: isInvalid, focus: { focusRequests += 1 })
         }
-        .padding(.vertical, MonacoTheme.Space.sm)
-        .monacoFieldChrome(isFocused: isFocused, isInvalid: isInvalid, focus: { focusRequests += 1 })
     }
 }
 

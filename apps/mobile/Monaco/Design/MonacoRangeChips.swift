@@ -2,7 +2,8 @@ import MonacoCore
 import SwiftUI
 
 struct MonacoChipLabel: ViewModifier {
-    static let capsuleHeight: CGFloat = 32
+    static let capsuleHeight: CGFloat = 36
+    static let borderWidth: CGFloat = 1
 
     let isSelected: Bool
     var isPreset = false
@@ -11,27 +12,27 @@ struct MonacoChipLabel: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .font(MonacoTheme.Typo.subheadStrong)
+            .font(isSelected ? MonacoTheme.Typo.captionStrong : MonacoTheme.Typo.caption)
             .foregroundStyle(foreground)
             .lineLimit(1)
             .minimumScaleFactor(0.8)
-            .padding(.horizontal, isPreset ? MonacoTheme.Space.m : MonacoTheme.Space.sm)
-            .frame(minHeight: isPreset ? 36 : Self.capsuleHeight)
-            .background(Capsule().fill(fill))
-            .frame(minHeight: 44)
+            .padding(.horizontal, MonacoTheme.Space.m)
+            .frame(minHeight: Self.capsuleHeight)
+            .background {
+                if isSelected {
+                    Capsule().fill(MonacoTheme.brandSoft)
+                } else {
+                    Capsule().strokeBorder(MonacoTheme.border, lineWidth: Self.borderWidth)
+                }
+            }
+            .frame(minHeight: MonacoButtonMetrics.hitTarget)
             .contentShape(Rectangle())
             .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85), value: isSelected)
     }
 
     private var foreground: Color {
         if !isEnabled { return MonacoTheme.disabledLabel }
-        if isSelected { return MonacoTheme.onBrand }
-        return isPreset ? MonacoTheme.ink : MonacoTheme.secondaryText
-    }
-
-    private var fill: Color {
-        if isSelected { return MonacoTheme.brandFill }
-        return isPreset ? MonacoTheme.surfaceSunken : .clear
+        return isSelected ? MonacoTheme.brand : MonacoTheme.secondaryText
     }
 }
 
@@ -62,26 +63,14 @@ struct MonacoRangeChips<Range: Hashable>: View {
     }
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: MonacoTheme.Space.s) {
-                ForEach(ranges, id: \.self) { range in
-                    let isSelected = range == selection
-                    Button {
-                        guard !isSelected else { return }
-                        Haptics.selection()
-                        onSelect(range)
-                    } label: {
-                        Text(label(range)).monacoChipLabel(isSelected: isSelected)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(accessibilityName(range))
-                    .accessibilityAddTraits(isSelected ? [.isSelected] : [])
-                    .accessibilityIdentifier(identifier(range))
-                }
-            }
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-        }
-        .padding(.horizontal, -MonacoTheme.Space.gutter)
+        MonacoSegmented(
+            ranges,
+            selection: Binding(get: { selection }, set: { onSelect($0) }),
+            layout: .periods,
+            accessibilityName: accessibilityName,
+            identifier: identifier,
+            label: label
+        )
     }
 }
 
@@ -89,14 +78,10 @@ struct MonacoRangeChipsSkeleton: View {
     let ranges: [LeaderboardRange]
 
     var body: some View {
-        HStack(spacing: MonacoTheme.Space.s) {
-            ForEach(ranges, id: \.self) { range in
-                Text(range.label).monacoChipLabel(isSelected: false).hidden().overlay {
-                    SkeletonBlock(height: MonacoChipLabel.capsuleHeight, radius: MonacoChipLabel.capsuleHeight / 2)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        SkeletonBlock(
+            height: MonacoSegmentedMetrics.periodsMinHeight, radius: MonacoSegmentedMetrics.periodsMinHeight / 2
+        )
+        .frame(maxWidth: .infinity)
         .accessibilityHidden(true)
     }
 }

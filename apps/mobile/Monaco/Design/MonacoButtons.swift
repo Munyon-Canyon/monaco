@@ -31,40 +31,98 @@ extension View {
     }
 }
 
-/// Shared button geometry. `MonacoToastPlacement` sizes its inset against this, so the bar height
-/// and the toast's idea of the bar height cannot drift apart.
 enum MonacoButtonMetrics {
-    static let minimumHeight: CGFloat = 56
-
-    static let compactHeight: CGFloat = 36
-
-    /// A disabled button is the same fill at under half its strength, its label at 90%.
+    static let minimumHeight: CGFloat = 48
+    static let horizontalPadding: CGFloat = 18
+    static let verticalPadding: CGFloat = 10
+    static let iconSize: CGFloat = 16
+    static let iconGap: CGFloat = 8
+    static let smallHeight: CGFloat = 38
+    static let compactHeight: CGFloat = smallHeight
+    static let compactProminentHeight: CGFloat = 32
+    static let compactMinWidth: CGFloat = 82
+    static let hitTarget: CGFloat = 44
+    static let borderWidth: CGFloat = 1
     static let disabledFillOpacity = 0.45
+}
+
+private enum MonacoButtonKind {
+    case regular
+    case small
+    case deposit
+
+    var visualHeight: CGFloat {
+        switch self {
+        case .regular: MonacoButtonMetrics.minimumHeight
+        case .small: MonacoButtonMetrics.smallHeight
+        case .deposit: MonacoButtonMetrics.compactProminentHeight
+        }
+    }
+
+    var horizontalPadding: CGFloat {
+        switch self {
+        case .regular: MonacoButtonMetrics.horizontalPadding
+        case .small: MonacoTheme.Space.sm
+        case .deposit: MonacoTheme.Space.m
+        }
+    }
+
+    var verticalPadding: CGFloat {
+        self == .regular ? MonacoButtonMetrics.verticalPadding : MonacoTheme.Space.xs
+    }
+
+    var font: Font {
+        self == .regular ? MonacoTheme.Typo.headline : MonacoTheme.Typo.captionStrong
+    }
+}
+
+private struct MonacoButtonLabelStyle: LabelStyle {
+    @ScaledMetric(relativeTo: .body) private var iconSize = MonacoButtonMetrics.iconSize
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: MonacoButtonMetrics.iconGap) {
+            configuration.icon.font(.system(size: iconSize, weight: .semibold))
+            configuration.title
+        }
+    }
 }
 
 private struct MonacoButtonChrome: ViewModifier {
     let fill: Color
     let label: Color
     let isPressed: Bool
-    var isCompact = false
+    var kind = MonacoButtonKind.regular
+    var stroke: Color?
     var tapsOnPress = false
 
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.monacoButtonFullWidth) private var fullWidth
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     func body(content: Content) -> some View {
         content
-            .font(isCompact ? MonacoTheme.Typo.subheadStrong : MonacoTheme.Typo.headline)
-            .lineLimit(1)
+            .labelStyle(MonacoButtonLabelStyle())
+            .font(kind.font)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
             .minimumScaleFactor(0.9)
+            .multilineTextAlignment(.center)
             .foregroundStyle(label.opacity(isEnabled ? 1 : 0.9))
-            .padding(.horizontal, isCompact ? MonacoTheme.Space.m : MonacoTheme.Space.l)
+            .padding(.horizontal, kind.horizontalPadding)
+            .padding(.vertical, kind.verticalPadding)
             .frame(
-                maxWidth: fullWidth && !isCompact ? .infinity : nil,
-                minHeight: isCompact ? MonacoButtonMetrics.compactHeight : MonacoButtonMetrics.minimumHeight
+                minWidth: kind == .deposit ? MonacoButtonMetrics.compactMinWidth : nil,
+                maxWidth: fullWidth && kind == .regular ? .infinity : nil,
+                minHeight: kind.visualHeight
             )
-            .background(Capsule().fill(fill.opacity(isEnabled ? 1 : MonacoButtonMetrics.disabledFillOpacity)))
-            .frame(minHeight: 44)
+            .background {
+                Capsule().fill(fill.opacity(isEnabled ? 1 : MonacoButtonMetrics.disabledFillOpacity))
+                if let stroke {
+                    Capsule().strokeBorder(
+                        stroke.opacity(isEnabled ? 1 : MonacoButtonMetrics.disabledFillOpacity),
+                        lineWidth: MonacoButtonMetrics.borderWidth)
+                }
+            }
+            .frame(minHeight: MonacoButtonMetrics.hitTarget)
             .contentShape(Rectangle())
             .modifier(MonacoPressEffect(isPressed: isPressed))
             .sensoryFeedback(.impact(weight: .light), trigger: isPressed) { _, pressed in tapsOnPress && pressed }
@@ -89,15 +147,23 @@ struct MonacoSecondaryButtonStyle: ButtonStyle {
     }
 }
 
+struct MonacoOutlineButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.modifier(
+            MonacoButtonChrome(
+                fill: .clear, label: MonacoTheme.primaryText, isPressed: configuration.isPressed,
+                stroke: MonacoTheme.border))
+    }
+}
+
 struct MonacoDestructiveButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.modifier(
             MonacoButtonChrome(
-                fill: MonacoTheme.surfaceSunken, label: MonacoTheme.destructive, isPressed: configuration.isPressed))
+                fill: MonacoTheme.destructive, label: MonacoTheme.onDestructive, isPressed: configuration.isPressed))
     }
 }
 
-/// Content width, 36pt visible on a 44pt target; the prominent one is a row's single compact primary.
 struct MonacoCompactButtonStyle: ButtonStyle {
     var isProminent = false
 
@@ -106,7 +172,7 @@ struct MonacoCompactButtonStyle: ButtonStyle {
             MonacoButtonChrome(
                 fill: isProminent ? MonacoTheme.primaryButtonFill : MonacoTheme.secondaryButtonFill,
                 label: isProminent ? MonacoTheme.primaryButtonLabel : MonacoTheme.secondaryButtonLabel,
-                isPressed: configuration.isPressed, isCompact: true))
+                isPressed: configuration.isPressed, kind: isProminent ? .deposit : .small))
     }
 }
 
@@ -116,6 +182,10 @@ extension ButtonStyle where Self == MonacoPrimaryButtonStyle {
 
 extension ButtonStyle where Self == MonacoSecondaryButtonStyle {
     static var monacoSecondary: MonacoSecondaryButtonStyle { MonacoSecondaryButtonStyle() }
+}
+
+extension ButtonStyle where Self == MonacoOutlineButtonStyle {
+    static var monacoOutline: MonacoOutlineButtonStyle { MonacoOutlineButtonStyle() }
 }
 
 extension ButtonStyle where Self == MonacoDestructiveButtonStyle {
@@ -128,20 +198,49 @@ extension ButtonStyle where Self == MonacoCompactButtonStyle {
 }
 
 struct MonacoTextButtonStyle: ButtonStyle {
+    var showsChevron = false
+
     @Environment(\.isEnabled) private var isEnabled
+    @ScaledMetric(relativeTo: .footnote) private var chevronSize: CGFloat = 13
 
     func makeBody(configuration: ButtonStyleConfiguration) -> some View {
-        configuration.label
-            .font(MonacoTheme.Typo.subheadStrong)
-            .foregroundStyle(isEnabled ? MonacoTheme.brand : MonacoTheme.disabledLabel)
-            .frame(minWidth: 44, minHeight: 44)
-            .contentShape(Rectangle())
-            .opacity(configuration.isPressed ? 0.6 : 1)
+        HStack(spacing: MonacoTheme.Space.xs) {
+            configuration.label
+            if showsChevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: chevronSize, weight: .semibold))
+                    .accessibilityHidden(true)
+            }
+        }
+        .font(MonacoTheme.Typo.captionStrong)
+        .foregroundStyle(isEnabled ? MonacoTheme.brand : MonacoTheme.disabledLabel)
+        .frame(minWidth: MonacoButtonMetrics.hitTarget, minHeight: MonacoButtonMetrics.hitTarget)
+        .contentShape(Rectangle())
+        .opacity(configuration.isPressed ? 0.6 : 1)
     }
 }
 
 extension ButtonStyle where Self == MonacoTextButtonStyle {
     static var monacoText: MonacoTextButtonStyle { MonacoTextButtonStyle() }
+    static func monacoText(chevron: Bool) -> MonacoTextButtonStyle { MonacoTextButtonStyle(showsChevron: chevron) }
+}
+
+struct MonacoLoadMoreButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: ButtonStyleConfiguration) -> some View {
+        configuration.label
+            .font(MonacoTheme.Typo.caption)
+            .foregroundStyle(isEnabled ? MonacoTheme.secondaryText : MonacoTheme.disabledLabel)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity, minHeight: MonacoButtonMetrics.minimumHeight)
+            .contentShape(Rectangle())
+            .opacity(configuration.isPressed ? 0.6 : 1)
+    }
+}
+
+extension ButtonStyle where Self == MonacoLoadMoreButtonStyle {
+    static var monacoLoadMore: MonacoLoadMoreButtonStyle { MonacoLoadMoreButtonStyle() }
 }
 
 struct SubmitLabel: View {
@@ -168,15 +267,30 @@ struct SubmitLabel: View {
     }
 }
 
-/// Pinned action bar. Use inside `.safeAreaInset(edge: .bottom) { BottomCTA { … } }` so it rides above the keyboard.
-/// One primary, or a primary and a secondary side by side; they stack at accessibility sizes.
+private struct MonacoDockBackground: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    @ViewBuilder
+    var body: some View {
+        if reduceTransparency {
+            Rectangle().fill(MonacoTheme.surface)
+        } else if #available(iOS 26, *) {
+            Color.clear.glassEffect(.regular, in: .rect)
+        } else {
+            Rectangle().fill(.ultraThinMaterial)
+        }
+    }
+}
+
 struct BottomCTA<Content: View>: View {
+    private let caption: String?
     private let content: Content
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.displayScale) private var displayScale
     @Environment(ToastCenter.self) private var toasts: ToastCenter?
 
-    init(@ViewBuilder content: () -> Content) {
+    init(caption: String? = nil, @ViewBuilder content: () -> Content) {
+        self.caption = caption
         self.content = content()
     }
 
@@ -185,17 +299,26 @@ struct BottomCTA<Content: View>: View {
             dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(spacing: MonacoTheme.Space.s))
             : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
-        layout {
-            content
+        VStack(spacing: MonacoTheme.Space.s) {
+            layout {
+                content
+            }
+            if let caption {
+                Text(caption)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.top, MonacoTheme.Space.sm)
         .padding(.bottom, MonacoTheme.Space.s)
-        .background { MonacoTheme.canvas.ignoresSafeArea(edges: .bottom) }
+        .background { MonacoDockBackground().ignoresSafeArea(edges: .bottom) }
         .overlay(alignment: .top) {
             Rectangle()
-                .fill(MonacoTheme.hairline)
+                .fill(MonacoTheme.border)
                 .frame(height: 1 / displayScale)
         }
         .onAppear { toasts?.bottomCTAs += 1 }
@@ -205,40 +328,36 @@ struct BottomCTA<Content: View>: View {
 
 /// Ceilings for `CircleAction`'s disc and glyph.
 ///
-/// The disc is a container, not type, and it shares a row with three others: `GroupActionRow` puts
-/// four `CircleAction`s in an `HStack(spacing: 0)` with each in a `.frame(maxWidth: .infinity)`
-/// column — about 97pt on a 390pt screen. Scaled without a ceiling, a 56pt disc reaches ~99pt at
-/// AX1 and ~189pt at AX5, so the four main money actions draw over each other from AX1 upwards.
-/// A 2x2 grid would only raise the column to ~195pt, so it does not remove the need for a ceiling.
-///
-/// The glyph keeps scaling up to its own ceiling, so the control still grows with Dynamic Type —
-/// it just stops growing before it outgrows the space it has. Past the ceiling the label below,
-/// which is uncapped, carries the rest of the size increase.
 enum CircleActionMetrics {
-    /// Fits the ~97pt column the four-across row gives each action on the narrowest phone.
-    static let maximumDiscSize: CGFloat = 88
+    static let baseDiscSize: CGFloat = 44
 
-    /// Keeps the symbol proportionate inside a capped disc (20/56 of the disc, as at the base size).
+    static let baseGlyphSize: CGFloat = 22
+
+    static let maximumDiscSize: CGFloat = 64
+
     static let maximumGlyphSize: CGFloat = 30
+
+    static let minimumTileWidth: CGFloat = 66
+
+    static let minimumTileHeight: CGFloat = 72
+
+    static let disabledOpacity = 0.35
+
+    static let maximumLabelSize = DynamicTypeSize.accessibility2
 
     static func discSize(scaled: CGFloat) -> CGFloat { min(scaled, maximumDiscSize) }
 
     static func glyphSize(scaled: CGFloat) -> CGFloat { min(scaled, maximumGlyphSize) }
 }
 
-/// Brand-tinted disc with a symbol and a footnote label below (Group detail action row).
-/// A wash rather than a solid fill: four solid brand discs in a row would spend the accent.
-/// The disc, the glyph and the label all scale with Dynamic Type — these are the main money
-/// actions, and they used to stay at 13pt while every label around them grew. The disc and the
-/// glyph stop at `CircleActionMetrics`' ceilings so they stay inside their column; the label does not.
 struct CircleAction: View {
     private let title: String
     private let systemImage: String
     private let action: () -> Void
 
     @Environment(\.isEnabled) private var isEnabled
-    @ScaledMetric(relativeTo: .footnote) private var scaledDiscSize: CGFloat = 56
-    @ScaledMetric(relativeTo: .footnote) private var scaledGlyphSize: CGFloat = 20
+    @ScaledMetric(relativeTo: .footnote) private var scaledDiscSize = CircleActionMetrics.baseDiscSize
+    @ScaledMetric(relativeTo: .footnote) private var scaledGlyphSize = CircleActionMetrics.baseGlyphSize
 
     private var discSize: CGFloat { CircleActionMetrics.discSize(scaled: scaledDiscSize) }
 
@@ -257,23 +376,23 @@ struct CircleAction: View {
         } label: {
             VStack(spacing: MonacoTheme.Space.s) {
                 Image(systemName: systemImage)
-                    .font(.system(size: glyphSize, weight: .semibold))
-                    // Filled, not washed. The brand is monochrome now, so a low-alpha brand tint
-                    // over cream has no colour left in it — the disc came out a flat sage-grey and
-                    // the row read as four disabled controls. A solid disc carries the affordance
-                    // the way the saturated blue glyph used to.
-                    .foregroundStyle(isEnabled ? MonacoTheme.onBrand : MonacoTheme.disabledLabel)
+                    .font(.system(size: glyphSize, weight: .medium))
+                    .foregroundStyle(MonacoTheme.brand)
                     .frame(width: discSize, height: discSize)
-                    .background(Circle().fill(isEnabled ? MonacoTheme.brandFill : MonacoTheme.surfaceSunken))
+                    .background(Circle().fill(MonacoTheme.brandSoft))
                 Text(title)
                     .font(MonacoTheme.Typo.caption)
-
-                    .foregroundStyle(isEnabled ? MonacoTheme.ink : MonacoTheme.disabledLabel)
+                    .foregroundStyle(MonacoTheme.primaryText)
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
                     .minimumScaleFactor(0.8)
+                    .dynamicTypeSize(...CircleActionMetrics.maximumLabelSize)
             }
-            .frame(minWidth: 64)
+            .frame(
+                minWidth: CircleActionMetrics.minimumTileWidth,
+                minHeight: CircleActionMetrics.minimumTileHeight
+            )
+            .opacity(isEnabled ? 1 : CircleActionMetrics.disabledOpacity)
             .contentShape(Rectangle())
         }
         .buttonStyle(CircleActionPressStyle())
