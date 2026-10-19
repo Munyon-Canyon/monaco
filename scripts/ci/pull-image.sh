@@ -14,7 +14,15 @@ fi
 retry="$(dirname "${BASH_SOURCE[0]}")/retry.sh"
 mirror="mirror.gcr.io/library/${image#"$prefix"}"
 
-"$retry" docker pull -q "$image" && exit 0
+attempts="${RETRY_ATTEMPTS:-5}"
+if out="$(docker pull -q "$image" 2>&1)"; then
+  echo "$out"
+  exit 0
+fi
+echo "$out" >&2
+if [[ "$out" != *toomanyrequests* ]] && ((attempts > 1)); then
+  RETRY_ATTEMPTS=$((attempts - 1)) "$retry" docker pull -q "$image" && exit 0
+fi
 echo "pull-image: $image failed, pulling $mirror instead" >&2
 if "$retry" docker pull -q "$mirror" && docker tag "$mirror" "$image"; then
   exit 0

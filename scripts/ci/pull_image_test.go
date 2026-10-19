@@ -18,11 +18,16 @@ const (
 // of an image whose name contains failing.
 func runPullImage(t *testing.T, failing string, args ...string) (int, string, string) {
 	t.Helper()
+	return runPullImageFailingWith(t, failing, "toomanyrequests: Rate exceeded", args...)
+}
+
+func runPullImageFailingWith(t *testing.T, failing, message string, args ...string) (int, string, string) {
+	t.Helper()
 	dir := t.TempDir()
 	calls := filepath.Join(dir, "calls")
 	script := "#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" >> " + calls + "\n" +
 		"if [[ -n '" + failing + "' && \"$1\" == pull && \"$*\" == *'" + failing + "'* ]]; then\n" +
-		"  echo 'toomanyrequests: Rate exceeded' >&2\n  exit 1\nfi\n"
+		"  echo '" + message + "' >&2\n  exit 1\nfi\n"
 	writeExecutable(t, filepath.Join(dir, "bin", "docker"), script)
 	cmd := exec.Command("bash", append([]string{"pull-image.sh"}, args...)...)
 	cmd.Env = append(os.Environ(), "PATH="+filepath.Join(dir, "bin")+":"+os.Getenv("PATH"), "RETRY_ATTEMPTS=2", "RETRY_SLEEP=0")
@@ -62,6 +67,34 @@ func TestPullImage_fallsBackToTheMirrorAndTagsTheECRName(t *testing.T) {
 		if !strings.Contains(log, want) {
 			t.Fatalf("docker calls = %q, missing %q", log, want)
 		}
+	}
+}
+
+func TestPullImage_skipsECRRetriesWhenECRRateLimits(t *testing.T) {
+	t.Parallel()
+	code, log, _ := runPullImageFailingWith(t, "public.ecr.aws", "toomanyrequests: Data limit exceeded", ecrPostgres)
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0", code)
+	}
+	if got := strings.Count(log, "pull -q "+ecrPostgres+"\n"); got != 1 {
+		t.Fatalf("ECR pulls = %d, want 1: %q", got, log)
+	}
+	if want := "pull -q " + mirrorPostgres + "\n"; !strings.Contains(log, want) {
+		t.Fatalf("docker calls = %q, missing %q", log, want)
+	}
+}
+
+func TestPullImage_retriesECRBeforeTheMirrorOnOtherFailures(t *testing.T) {
+	t.Parallel()
+	code, log, _ := runPullImageFailingWith(t, "public.ecr.aws", "connection reset by peer", ecrPostgres)
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0", code)
+	}
+	if got := strings.Count(log, "pull -q "+ecrPostgres+"\n"); got != 2 {
+		t.Fatalf("ECR pulls = %d, want 2 (RETRY_ATTEMPTS): %q", got, log)
+	}
+	if want := "tag " + mirrorPostgres + " " + ecrPostgres + "\n"; !strings.Contains(log, want) {
+		t.Fatalf("docker calls = %q, missing %q", log, want)
 	}
 }
 
