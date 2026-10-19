@@ -204,6 +204,14 @@ feed-items                    -feedHarness items
 feed-empty                    -feedHarness empty
 feed-failed                   -feedHarness failed
 feed-follows-nobody           -feedHarness followsNobody
+feed-load-more-failed         -feedHarness loadMoreFailed -MonacoSampleScroll bottom
+feed-pnl-private              -feedHarness pnlPrivate
+feed-loading                  -feedHarness loading
+feed-items-large-text         -feedHarness items -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
+feed-post-ready               -feedPostHarness ready
+feed-post-empty               -feedPostHarness empty
+feed-post-unavailable         -feedPostHarness unavailable
+feed-post-ready-large-text    -feedPostHarness ready -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 settings                      -settingsHarness
 settings-on                   -settingsHarness on
 cash-out-slice                -cashOutHarness slice

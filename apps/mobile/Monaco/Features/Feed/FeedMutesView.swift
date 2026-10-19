@@ -65,7 +65,7 @@ struct FeedMutesList: View {
             EmptyState(
                 title: "Nothing muted",
                 message: "Press and hold a post in your feed to mute its cabal, stock or person. They'll show up here.",
-                isOnlyContent: true
+                systemImage: MonacoIcon.feed.symbol
             )
             .accessibilityIdentifier("feed-muted-empty")
         case .failed:
@@ -75,33 +75,44 @@ struct FeedMutesList: View {
         case .loaded(let mutes):
             LazyVStack(spacing: 0) {
                 ForEach(Array(mutes.enumerated()), id: \.element.id) { index, mute in
-                    row(mute)
-                        .overlay(alignment: .bottom) {
-                            if index < mutes.count - 1 { MonacoRule().padding(.leading, MonacoTheme.Space.gutter) }
-                        }
+                    row(mute, isLast: index == mutes.count - 1)
                 }
             }
         }
     }
 
-    private func row(_ mute: Components.Schemas.FeedMute) -> some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
-            Text(FeedMutesModel.label(mute))
-                .font(MonacoTheme.Typo.rowTitle)
-                .foregroundStyle(MonacoTheme.ink)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Button("Unmute") {
-                Task {
-                    guard let message = await model.unmute(mute) else { return }
-                    toasts.show(success: message)
+    private func row(_ mute: Components.Schemas.FeedMute, isLast: Bool) -> some View {
+        MonacoRow(
+            title: FeedMutesModel.label(mute), isLast: isLast, trailingIsInteractive: true,
+            leading: {
+                Image(monaco: Self.icon(for: mute))
+                    .font(MonacoTheme.Typo.headline)
+                    .foregroundStyle(MonacoTheme.brand)
+                    .frame(width: MonacoRowLayout.baseMarkSize, height: MonacoRowLayout.baseMarkSize)
+                    .background(Circle().fill(MonacoTheme.brandSoft))
+                    .accessibilityHidden(true)
+            },
+            trailing: {
+                Button("Unmute") {
+                    Task {
+                        guard let message = await model.unmute(mute) else { return }
+                        toasts.show(success: message)
+                    }
                 }
+                .buttonStyle(.monacoCompact)
+                .accessibilityIdentifier("feed-unmute-\(mute.id)")
             }
-            .buttonStyle(.monacoSecondary)
-            .accessibilityIdentifier("feed-unmute-\(mute.id)")
-        }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.vertical, MonacoTheme.Space.sm)
+        )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("feed-muted-row-\(mute.id)")
+    }
+
+    private static func icon(for mute: Components.Schemas.FeedMute) -> MonacoIcon {
+        switch FeedMuteTarget.Kind(rawValue: mute.targetType) {
+        case .user: .profile
+        case .cabal: .cabals
+        case .asset: .markets
+        case .kind, .item, nil: .feed
+        }
     }
 }
