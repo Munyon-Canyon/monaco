@@ -2,15 +2,15 @@ import XCTest
 
 enum MoneyWithdrawJourney {
     static let id = "money/withdraw"
-    static let version = 3
+    static let version = 4
 
     static let screenTimeout: TimeInterval = 15
     static let badAddress = "not a solana address"
     static let badBaseAddress = "not a base address"
     static let baseAddress = "0x000000000000000000000000000000000000dEaD"
     static let confirmCopy = [
-        "You're withdrawing", "To", "Network", "From", "Account balance", "Arrives", "About a minute",
-        "Double-check the address. Transfers can't be undone.",
+        "Review withdrawal", "Destination", "Network", "From", "Your cash", "Arrives", "About a minute",
+        "Double-check the address and network. Transfers can't be undone.",
     ]
 
     static func recorder() -> JourneyRecorder {
@@ -36,7 +36,7 @@ enum MoneyWithdrawJourney {
             XCTAssertTrue(link.waitForExistence(timeout: screenTimeout), "S1.1: no Withdraw on Home")
             link.tap()
             XCTAssertTrue(
-                app.navigationBars["Withdraw"].waitForExistence(timeout: screenTimeout),
+                app.navigationBars["Withdraw to wallet"].waitForExistence(timeout: screenTimeout),
                 "S1.1: the Withdraw screen did not show within 15 s"
             )
             let helper = app.element("amount-entry-helper")
@@ -49,7 +49,8 @@ enum MoneyWithdrawJourney {
 
         recorder.step("S1.2", "a bad address is refused inline") {
             XCTAssertTrue(
-                networkSegment(app, "Solana").isSelected, "S1.2: the network picker does not start on Solana")
+                app.buttons["withdraw-network-picker"].label.contains("Solana"),
+                "S1.2: the network picker does not start on Solana")
             field.tap()
             field.typeText(badAddress)
             XCTAssertTrue(problem.waitForExistence(timeout: 5), "S1.2: no inline address error within 5 s")
@@ -73,7 +74,8 @@ enum MoneyWithdrawJourney {
         recorder.step("S1.4", "Confirm shows the withdrawal") {
             continueButton.tap()
             XCTAssertTrue(
-                app.navigationBars["Confirm"].waitForExistence(timeout: 10), "S1.4: Confirm did not show within 10 s")
+                app.navigationBars["Withdraw to wallet"].waitForExistence(timeout: 10),
+                "S1.4: Confirm did not show within 10 s")
             for text in confirmCopy {
                 XCTAssertTrue(
                     app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch.exists,
@@ -99,8 +101,9 @@ enum MoneyWithdrawJourney {
         }
     }
 
-    static func networkSegment(_ app: XCUIApplication, _ name: String) -> XCUIElement {
-        app.segmentedControls["withdraw-network-picker"].buttons[name]
+    static func networkOption(_ app: XCUIApplication, _ name: String) -> XCUIElement {
+        app.buttons["withdraw-network-picker"].tap()
+        return app.buttons[name]
     }
 
     static func confirmShows(_ app: XCUIApplication, _ text: String) -> Bool {
@@ -118,7 +121,7 @@ enum MoneyWithdrawJourney {
             XCTAssertTrue(link.waitForExistence(timeout: screenTimeout), "S2.1: no Withdraw on Home")
             link.tap()
             XCTAssertTrue(
-                app.navigationBars["Withdraw"].waitForExistence(timeout: screenTimeout),
+                app.navigationBars["Withdraw to wallet"].waitForExistence(timeout: screenTimeout),
                 "S2.1: the Withdraw screen did not show within 15 s"
             )
             let helper = app.element("amount-entry-helper")
@@ -127,7 +130,7 @@ enum MoneyWithdrawJourney {
                 "S2.1: no balance helper within 15 s"
             )
             XCTAssertFalse(helper.label.hasPrefix("$0.00"), "S2.1: the account is not funded: \(helper.label)")
-            let base = networkSegment(app, "Base")
+            let base = networkOption(app, "Base")
             XCTAssertTrue(base.waitForExistence(timeout: 5), "S2.1: no Base in the network picker")
             base.tap()
             XCTAssertTrue(
@@ -166,7 +169,8 @@ enum MoneyWithdrawJourney {
         recorder.step("S2.4", "Confirm names Base and B does not send") {
             continueButton.tap()
             XCTAssertTrue(
-                app.navigationBars["Confirm"].waitForExistence(timeout: 10), "S2.4: Confirm did not show within 10 s")
+                app.navigationBars["Withdraw to wallet"].waitForExistence(timeout: 10),
+                "S2.4: Confirm did not show within 10 s")
             XCTAssertTrue(confirmShows(app, baseAddress), "S2.4: Confirm does not show the whole address")
             XCTAssertTrue(confirmShows(app, "Network"), "S2.4: Confirm has no Network row")
             XCTAssertTrue(confirmShows(app, "Base"), "S2.4: Confirm does not name Base")

@@ -15,6 +15,7 @@ struct WithdrawView: View {
     @State private var showConfirm = false
     @State private var frozen: WithdrawAmount.Frozen?
     @State private var estimate: WithdrawEstimate?
+    @State private var outcome: WithdrawOutcomeSummary?
 
     private var trimmedAddress: String {
         destinationAddress.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -54,7 +55,9 @@ struct WithdrawView: View {
         .onChange(of: destinationAddress) { _, _ in refusedAddress = nil }
         .onChange(of: network) { _, _ in refusedAddress = nil }
         .onChange(of: showConfirm) { _, shown in
-            if !shown { frozen = nil }
+            guard !shown else { return }
+            frozen = nil
+            if outcome != nil { dismiss() }
         }
         .task(id: previewRequest) {
             guard let previewRequest else { return }
@@ -69,8 +72,13 @@ struct WithdrawView: View {
                 amountText: amount.text,
                 amountLabel: UsdAmountFormatter.format(flooredMicros: frozen?.micros ?? 0),
                 fullBalanceMicros: frozen?.fullBalanceLabel != nil ? frozen?.micros : nil,
+                networkCost: networkCost,
+                outcome: outcome,
                 isSubmitting: withdrawing?.isSubmitting ?? false,
-                onWithdraw: { Task { await withdraw() } }
+                onWithdraw: { Task { await withdraw() } },
+                onViewTransaction: {
+                    environment.navigator.open(AccountActivityRoute(), in: environment.navigator.selectedTab)
+                }
             )
         }
         .task {
@@ -81,21 +89,32 @@ struct WithdrawView: View {
         }
     }
 
+    private var networkCost: String? {
+        guard network.isEVM, let micros = frozen?.micros,
+            let receive = estimate?.receiveMicros(for: previewRequest, at: Date()), micros > receive
+        else { return nil }
+        return UsdAmountFormatter.format(micros: micros - receive)
+    }
+
     private func withdraw() async {
         guard let withdrawing, let frozen, frozen.micros > 0 else { return }
         let micros = frozen.micros
         let fullBalanceLabel = frozen.fullBalanceLabel
         switch await withdrawing.submit(micros: micros, toAddress: trimmedAddress, network: network) {
-        case .accepted:
+        case .accepted(let accepted):
             Haptics.success()
             if let line = Self.message(for: withdrawing.progress, fullBalanceLabel: fullBalanceLabel) {
                 toasts.show(success: line)
             }
-            showConfirm = false
-            dismiss()
+            outcome = WithdrawOutcomeSummary(
+                amountLabel: UsdAmountFormatter.format(micros: accepted.amountMicros), status: .pending)
             Task { [toasts] in
                 let settled = await withdrawing.settle()
                 guard settled.isSettled else { return }
+                switch settled {
+                case .confirmed: outcome?.status = .completed
+                default: outcome?.status = .failed
+                }
                 toasts.current = Self.toast(for: settled, fullBalanceLabel: fullBalanceLabel)
             }
         case .refused(.address(let message)):
@@ -320,10 +339,6 @@ struct WithdrawEstimate: Equatable {
     }
 }
 
-/// Withdraw's entry layout: the amount as the hero, the address it goes to in the market's
-/// voice, and the two things to know about that address as captions under it.
-///
-/// Pure: what the screen knows comes in, what the member does goes out.
 struct WithdrawContent: View {
     let state: LoadState<AccountBalance>
     @Binding var amountText: String
@@ -336,6 +351,10 @@ struct WithdrawContent: View {
     var onAddMoney: () -> Void = {}
     let onRetry: () -> Void
 
+    static let helper =
+        "Move available USDC to your own wallet. To withdraw money held in a cabal, first cash out your share."
+    static let insufficientNotice = "The amount exceeds your available balance."
+
     private var form: WithdrawForm {
         let balance: AccountBalance? = if case .loaded(let balance) = state { balance } else { nil }
         return WithdrawForm(
@@ -343,97 +362,112 @@ struct WithdrawContent: View {
             estimatedReceiveMicros: estimatedReceiveMicros, balance: balance)
     }
 
-    /// The amount pad, the destination field and the button belong together: whenever one is on
-    /// screen, so are the others. A reload never takes them away mid-entry.
     private var showsForm: Bool {
         if case .loaded = state { return !form.hasNothingToWithdraw }
         return false
     }
 
+    private var amountNotice: String? {
+        guard let problem = form.problem else { return nil }
+        return problem == WithdrawForm.overBalance ? Self.insufficientNotice : problem
+    }
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
                 switch state {
                 case .idle, .loading:
                     AmountEntrySkeleton(presetCount: 1)
                         .padding(.horizontal, MonacoTheme.Space.gutter)
                         .accessibilityIdentifier("withdraw-loading")
                 case .failed:
-                    MonacoErrorRow(thing: "your balance", identifier: "withdraw-balance-error", retry: onRetry)
+                    MoneyLoadFailure(identifier: "withdraw-balance-error", retry: onRetry)
                 case .loaded where form.hasNothingToWithdraw:
                     EmptyState(
                         title: "Nothing to withdraw yet", message: "Add money first. Your balance shows up here.",
-                        actionTitle: "Add money", action: onAddMoney)
+                        actionTitle: "Add money", systemImage: "wallet.bifold", action: onAddMoney)
                 case .loaded:
-                    AmountEntry(
-                        amountText: $amountText,
-                        max: form.maxDollars,
-                        presets: [.fraction(1, label: "Max")],
-                        helper: form.balanceHelper,
-                        problem: form.problem,
-                        onPreset: { _ in onMax() }
-                    )
-                    .padding(.horizontal, MonacoTheme.Space.gutter)
-
-                    if let receiveLine = form.receiveLine {
-                        Text(receiveLine)
-                            .font(MonacoTheme.Typo.subheadStrong)
-                            .foregroundStyle(MonacoTheme.ink)
-                            .frame(maxWidth: .infinity)
-                            .padding(.horizontal, MonacoTheme.Space.gutter)
-                            .accessibilityIdentifier("withdraw-receive")
-                    }
-
+                    helper
+                    amount
                     destination
                 }
             }
-            .padding(.top, MonacoTheme.Space.xl)
+            .padding(.top, MonacoTheme.Space.s)
             .padding(.bottom, MonacoTheme.Space.xl)
         }
-        // The decimal pad covers the destination field, and a decimal pad has no return key:
-        // dragging the list is the member's way back to the address.
         .scrollDismissesKeyboard(.interactively)
         .monacoCanvas()
         .safeAreaInset(edge: .bottom) {
             if showsForm {
                 BottomCTA {
-                    Button("Continue", action: onContinue)
+                    Button("Review withdrawal", action: onContinue)
                         .buttonStyle(.monacoPrimary)
                         .disabled(!form.canContinue || refusedAddress != nil)
                         .accessibilityIdentifier("withdraw-continue-button")
                 }
             }
         }
-        .navigationTitle("Withdraw")
+        .navigationTitle("Withdraw to wallet")
         .navigationBarTitleDisplayMode(.inline)
     }
 
+    private var helper: some View {
+        Text(Self.helper)
+            .font(MonacoTheme.Typo.body)
+            .foregroundStyle(MonacoTheme.muted)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .padding(.vertical, MonacoTheme.Space.m)
+    }
+
+    private var amount: some View {
+        VStack(spacing: MonacoTheme.Space.sm) {
+            AmountEntry(
+                amountText: $amountText,
+                max: form.maxDollars,
+                presets: [.fraction(1, label: "Max")],
+                caption: "Withdrawal",
+                helper: form.balanceHelper,
+                overLimitHelper: form.balanceHelper,
+                onPreset: { _ in onMax() }
+            ) {
+                if let receiveLine = form.receiveLine {
+                    Text(receiveLine)
+                        .font(MonacoTheme.Typo.captionStrong)
+                        .foregroundStyle(MonacoTheme.ink)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, MonacoTheme.Space.sm)
+                        .accessibilityIdentifier("withdraw-receive")
+                }
+            }
+            if let amountNotice {
+                MonacoNotice(.error, message: amountNotice)
+            }
+        }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+    }
+
+    private var addressProblem: String? { refusedAddress ?? form.addressProblem }
+
     private var destination: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            HStack {
-                MonacoSectionHeader("Send to")
-                Spacer()
-                PasteButton(payloadType: String.self) { strings in
-                    guard let first = strings.first else { return }
-                    destinationAddress = first.trimmingCharacters(in: .whitespacesAndNewlines)
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                HStack {
+                    Text("Wallet address")
+                        .font(MonacoTheme.Typo.captionStrong)
+                        .foregroundStyle(MonacoTheme.ink)
+                    Spacer()
+                    PasteButton(payloadType: String.self) { strings in
+                        guard let first = strings.first else { return }
+                        destinationAddress = first.trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                    .labelStyle(.titleOnly)
+                    .buttonBorderShape(.capsule)
+                    .tint(MonacoTheme.brand)
                 }
-                .labelStyle(.titleOnly)
-                .buttonBorderShape(.capsule)
-                .tint(MonacoTheme.brand)
-            }
-
-            Picker("Network", selection: $network) {
-                ForEach(WithdrawNetwork.allCases) { network in
-                    Text(network.name).tag(network)
-                }
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("withdraw-network-picker")
-
-            WithdrawAddressField(text: $destinationAddress, placeholder: network.placeholder)
-
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                if let problem = refusedAddress ?? form.addressProblem {
+                WithdrawAddressField(
+                    text: $destinationAddress, placeholder: network.placeholder, isInvalid: addressProblem != nil)
+                if let problem = addressProblem {
                     Text(problem)
                         .font(MonacoTheme.Typo.caption)
                         .foregroundStyle(MonacoTheme.loss)
@@ -445,6 +479,16 @@ struct WithdrawContent: View {
                     .foregroundStyle(MonacoTheme.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                Text("Network")
+                    .font(MonacoTheme.Typo.captionStrong)
+                    .foregroundStyle(MonacoTheme.ink)
+                MonacoMenuSelect(
+                    title: "Network", selection: $network, options: WithdrawNetwork.allCases, label: { $0.name }
+                )
+                .fillsWidth()
+                .accessibilityIdentifier("withdraw-network-picker")
+            }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
     }
@@ -455,9 +499,11 @@ struct WithdrawContent: View {
 private struct WithdrawAddressField: View {
     @Binding var text: String
     let placeholder: String
+    var isInvalid = false
 
     var body: some View {
         MonacoAddressField(
-            placeholder: placeholder, text: $text, accessibilityIdentifier: "withdraw-address-field")
+            placeholder: placeholder, text: $text, isInvalid: isInvalid,
+            accessibilityIdentifier: "withdraw-address-field")
     }
 }

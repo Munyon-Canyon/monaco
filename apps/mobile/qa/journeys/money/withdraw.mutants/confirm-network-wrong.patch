@@ -5,15 +5,15 @@ Confirm names Solana for every network. S2.4 waits for "Base" on Confirm, so it 
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Settings/WithdrawConfirmView.swift b/apps/mobile/Monaco/Features/Settings/WithdrawConfirmView.swift
-index 35c9bc38e..ca4a0941a 100644
+index 476fc36f7..c7b8bad9b 100644
 --- a/apps/mobile/Monaco/Features/Settings/WithdrawConfirmView.swift
 +++ b/apps/mobile/Monaco/Features/Settings/WithdrawConfirmView.swift
-@@ -40,7 +40,7 @@ struct WithdrawConfirmView: View {
-                 VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
-                     MonacoGroupedList {
-                         ReceiptLine(label: "To", value: .address(destinationAddress))
--                        ReceiptLine(label: "Network", value: .words(network.name))
-+                        ReceiptLine(label: "Network", value: .words("Solana"))
-                         ReceiptLine(label: "From", value: .words("Account balance"))
-                         ReceiptLine(label: "Arrives", value: .words("About a minute"), isLast: true)
-                     }
+@@ -63,7 +63,7 @@ struct WithdrawConfirmView: View {
+                     MoneyKeyRow(label: "From", value: .words("Your cash")),
+                     MoneyKeyRow(label: "Asset", value: .words("USDC")),
+                     MoneyKeyRow(label: "Amount", value: .data(displayAmount)),
+-                    MoneyKeyRow(label: "Network", value: .words(network.name)),
++                    MoneyKeyRow(label: "Network", value: .words("Solana")),
+                     MoneyKeyRow(label: "Destination", value: .address(destinationAddress)),
+                     MoneyKeyRow(label: "Arrives", value: .words("About a minute")),
+                     MoneyKeyRow(label: "Network costs", value: .words(networkCost ?? "Included")),
