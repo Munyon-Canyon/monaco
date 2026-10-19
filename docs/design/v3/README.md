@@ -7,7 +7,7 @@ v3 is the design the iOS app is being rebuilt to match: a cream-paper, forest-gr
 | [README.md](README.md) | This page: how to open the prototype, image naming, index of every screen and state |
 | [tokens.md](tokens.md) | Colours, type, spacing, radii, shadows and motion with exact values and SwiftUI names |
 | [components.md](components.md) | Every component: anatomy, sizes, states, tokens, screens, planned SwiftUI file |
-| [decisions.md](decisions.md) | The nine founder decisions and risks R1–R5 |
+| [decisions.md](decisions.md) | The eleven founder decisions and risks R1–R5 |
 | [monaco-ui-v3.html](monaco-ui-v3.html) | The self-contained interactive prototype (works offline) |
 | `screens/` | 298 reference renders, JPG, 402×874 pt at 3x |
 | `contact-sheets/` | One overview sheet per area |

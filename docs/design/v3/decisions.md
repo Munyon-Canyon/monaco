@@ -1,6 +1,6 @@
 # v3 decisions and risks
 
-Nine founder decisions, all adopted and final, then the five risks the design review found. Tickets apply these and do not reopen them. Tokens are in [tokens.md](tokens.md), components in [components.md](components.md), screens in the [README](README.md) index.
+Eleven founder decisions, all adopted and final, then the five risks the design review found. Tickets apply these and do not reopen them. Tokens are in [tokens.md](tokens.md), components in [components.md](components.md), screens in the [README](README.md) index.
 
 ## Decisions
 
@@ -30,7 +30,7 @@ The deployment target is iOS 18, where the system tab bar and sheets get Liquid 
 
 ### 7. Build against fixtures where the backend has no data
 
-The design shows things the backend cannot serve yet: the notifications list, balances detail, group-cash yield, cabal holding cost basis (average buy and sell, realized and unrealized), feed likes, profile bio, the pnl-private permission, rank movement, card-funding return status, and a watchlist (a local store is fine). Each screen is built against fixtures with an "opens soon" caption where data is missing, so the UI ships and is reviewed now. The ticket's Context section lists the missing API so a backend ticket can be filed. Figures such as a yield are never asserted without an API value. The `network` chooser (Base, Arbitrum, Ethereum) stays out because the app is Solana-only.
+The design shows things the backend cannot serve yet: the notifications list, balances detail, group-cash yield, cabal holding cost basis (average buy and sell, realized and unrealized), feed likes, profile bio, the pnl-private permission, rank movement, card-funding return status, and a watchlist (a local store is fine). Each screen is built against fixtures with an "opens soon" caption where data is missing, so the UI ships and is reviewed now. The ticket's Context section lists the missing API so a backend ticket can be filed. Figures such as a yield are never asserted without an API value. The `network` chooser is built (decision 10).
 
 ### 8. Cabal covers: tint gradient and uploaded picture, no stock photos
 
@@ -39,6 +39,14 @@ The three cover JPEGs in the design package have no recorded licence or provenan
 ### 9. Wordmark in SF Pro Bold until a vector arrives
 
 The design's wordmark is a 154×37 raster PNG, too small to ship crisply at 3x. Until the designer sends a vector or a @3x export, "monaco" is set in SF Pro Bold as `Auth/MonacoMark.swift` does today. The font itself is not a licensing issue: the design is SF Pro (the system font), and "Inter" in the CSS stack is a web fallback only. The vector wordmark is a follow-up, as an asset-catalog image set with light and dark appearances.
+
+### 10. Keep the network chooser: the app is multichain
+
+The `network` template ("Choose a network") ships as the deposit and withdraw network chooser. Deposits and withdrawals take USDC on Solana, Base, Arbitrum and Ethereum (#5450). Stocks trade on Solana, Base and Robinhood Chain only (#5492). Monad appears as a display-only network in deposit, withdraw and best price (#5487). The rows use chain logos where the reference draws letter tiles.
+
+### 11. "Cabal", never "group"
+
+The reference still says "group" in places (Group trades, from the group pot, Join a group, Group · 1M). The app says "cabal" everywhere, and parity review counts that wording as a match, not a difference.
 
 ## Risks
 
