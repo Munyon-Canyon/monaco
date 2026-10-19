@@ -31,6 +31,7 @@ type UserCard struct {
 	FirstDepositAt     *time.Time
 	Deleted            bool
 	SharePerformance   bool
+	Bio                string
 }
 
 type MemberWallet struct {

@@ -2330,10 +2330,11 @@ paths:
       tags: [identity]
       summary: Read a user's public profile.
       description: >-
-        Returns the user's handle, display name and photo with their follower and following counts, and
-        whether the caller follows and blocks them. The counts are of live follows and include members
-        who were banned or deleted after following. blocked_by_me says nothing about whether they block
-        the caller. An unknown, banned or deleted user is user_not_found.
+        Returns the user's handle, display name, photo and bio with the date they joined, the number of
+        cabals they belong to today, and their follower and following counts, and whether the caller
+        follows and blocks them. The counts are of live follows and include members who were banned or
+        deleted after following. blocked_by_me says nothing about whether they block the caller. An
+        unknown, banned or deleted user is user_not_found.
       parameters:
         - $ref: "#/components/parameters/UserId"
       responses:
@@ -2347,6 +2348,9 @@ paths:
                 handle: maya
                 display_name: Maya Angelou
                 photo_url: https://img.example/maya.png
+                bio: "Poet.\nSan Francisco"
+                created_at: "2026-09-30T12:00:00Z"
+                cabal_count: 3
                 follower_count: 12
                 following_count: 7
                 followed_by_me: true
@@ -6772,6 +6776,7 @@ components:
           phone_linked: true
           x_username: kaicenat
           handle_changeable_at: "2026-10-30T12:00:00Z"
+          bio: "Building in public.\nNYC"
           share_performance: true
           created_at: "2026-09-30T12:00:00Z"
       required:
@@ -6824,6 +6829,11 @@ components:
           type: boolean
           description: True once the user's phone is verified and stored.
           examples: [true]
+        bio:
+          type: [string, "null"]
+          maxLength: 160
+          description: The profile bio, up to 160 characters with newlines kept. Null when the user has none.
+          examples: ["Building in public.\nNYC"]
         share_performance:
           type: boolean
           description: >-
@@ -6846,13 +6856,27 @@ components:
           examples: ["2026-09-30T12:00:00Z"]
     PublicProfile:
       type: object
-      description: A user's public profile with their follow counts.
-      required: [id, handle, display_name, photo_url, follower_count, following_count, followed_by_me, blocked_by_me]
+      description: A user's public profile with their bio, join date, cabal count and follow counts.
+      required:
+        - id
+        - handle
+        - display_name
+        - photo_url
+        - bio
+        - created_at
+        - cabal_count
+        - follower_count
+        - following_count
+        - followed_by_me
+        - blocked_by_me
       properties:
         id: {type: string, format: uuid, description: "The user's id.", examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
         handle: {type: string, description: "The user's handle.", examples: [maya]}
         display_name: {type: string, description: "The user's display name.", examples: [Maya Angelou]}
         photo_url: {type: [string, "null"], description: "The profile photo, or null when there is none.", examples: [null]}
+        bio: {type: [string, "null"], maxLength: 160, description: "The user's bio, up to 160 characters with newlines kept, or null when there is none.", examples: ["Poet.\nSan Francisco"]}
+        created_at: {type: string, format: date-time, description: "When the account was created.", examples: ["2026-09-30T12:00:00Z"]}
+        cabal_count: {type: integer, minimum: 0, description: "How many cabals the user is a member of today.", examples: [3]}
         follower_count: {type: integer, minimum: 0, description: "How many users follow them.", examples: [12]}
         following_count: {type: integer, minimum: 0, description: "How many users they follow.", examples: [7]}
         followed_by_me: {type: boolean, description: "Whether the caller follows them. False for the caller's own profile.", examples: [true]}
@@ -6897,12 +6921,22 @@ components:
       description: >-
         The profile fields a signed-in user may update. Send at least one field, or the call is
         `invalid_input`.
-      examples: [{display_name: Kai Cenat}, {share_performance: false}]
+      examples: [{display_name: Kai Cenat}, {share_performance: false}, {bio: "Building in public.\nNYC"}]
       properties:
         display_name:
           type: string
           description: The caller's display name, normalized before it is stored. Omit it to leave the name alone.
           examples: [Kai Cenat]
+        bio:
+          type: [string, "null"]
+          x-go-type: rawjson.RawMessage
+          x-go-type-import: {name: rawjson, path: encoding/json}
+          x-go-type-skip-optional-pointer: true
+          description: >-
+            The caller's bio, up to 160 characters once trimmed. Newlines are kept and other control
+            characters are `invalid_input`. Send null or an empty string to clear it, and omit it to
+            leave the bio alone.
+          examples: ["Building in public.\nNYC"]
         share_performance:
           type: boolean
           description: >-

@@ -26,6 +26,7 @@ type Me struct {
 	PhoneLinked         bool
 	XUsername           string
 	SharePerformance    bool
+	Bio                 string
 	HandleChangeableAt  *time.Time
 	CreatedAt           time.Time
 }
@@ -50,6 +51,7 @@ func GetMe(ctx context.Context, q sqlc.DBTX, id ids.UserID) (Me, error) {
 		MemberWalletAddress: chain.SolanaAddress(row.Address),
 		PhoneLinked:         row.PhoneLinked,
 		SharePerformance:    row.SharePerformance,
+		Bio:                 row.Bio.String,
 		XUsername:           row.XUsername.String,
 		CreatedAt:           row.CreatedAt.UTC(),
 	}

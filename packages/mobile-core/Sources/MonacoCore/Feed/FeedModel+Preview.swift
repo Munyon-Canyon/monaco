@@ -262,7 +262,8 @@ private struct FeedPreviewTransport: ClientTransport {
 
     private static let profile = Components.Schemas.PublicProfile(
         id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: "maya", displayName: "Maya Angelou",
-        photoUrl: nil, followerCount: 0, followingCount: 0, followedByMe: false, blockedByMe: false)
+        photoUrl: nil, bio: nil, createdAt: Date(timeIntervalSince1970: 1_759_233_600), cabalCount: 0,
+        followerCount: 0, followingCount: 0, followedByMe: false, blockedByMe: false)
 
     fileprivate static func reply(_ value: some Encodable) throws -> (HTTPResponse, HTTPBody?) {
         let encoder = JSONEncoder()

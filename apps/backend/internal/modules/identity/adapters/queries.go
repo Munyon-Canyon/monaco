@@ -219,7 +219,7 @@ func cardOf(id ids.UserID, row sqlc.UserCardsByIDRow) port.UserCard {
 		card.FirstDepositAt = &at
 	}
 	if !row.Deleted {
-		card.Handle, card.PhotoURL = row.Handle.String, row.PhotoUrl.String
+		card.Handle, card.PhotoURL, card.Bio = row.Handle.String, row.PhotoUrl.String, row.Bio.String
 		card.DisplayName = cmp.Or(row.DisplayName, row.Handle.String)
 	}
 	return card

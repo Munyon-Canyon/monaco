@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/domain"
@@ -13,6 +14,10 @@ type FollowCounts = interface {
 	FollowedByMe(context.Context, ids.UserID, ids.UserID) (bool, error)
 	FollowedAmong(context.Context, ids.UserID, []ids.UserID) (map[ids.UserID]bool, error)
 	BlockedByMe(context.Context, ids.UserID, ids.UserID) (bool, error)
+}
+
+type CabalCounts = interface {
+	CabalsOf(ctx context.Context, user ids.UserID) ([]ids.CabalID, error)
 }
 
 type UserCards interface {
@@ -39,18 +44,31 @@ func (UnwiredFollowCounts) BlockedByMe(context.Context, ids.UserID, ids.UserID) 
 	return false, errs.New(errs.CodeUpstreamUnavailable, "identity.UnwiredFollowCounts.BlockedByMe")
 }
 
+type UnwiredCabalCounts struct{}
+
+var _ CabalCounts = UnwiredCabalCounts{}
+
+func (UnwiredCabalCounts) CabalsOf(context.Context, ids.UserID) ([]ids.CabalID, error) {
+	return nil, errs.New(errs.CodeUpstreamUnavailable, "identity.UnwiredCabalCounts.CabalsOf")
+}
+
 type PublicUser struct {
 	ID             ids.UserID
 	Handle         string
 	DisplayName    string
 	PhotoURL       string
+	Bio            string
+	CreatedAt      time.Time
+	CabalCount     int
 	FollowerCount  int
 	FollowingCount int
 	FollowedByMe   bool
 	BlockedByMe    bool
 }
 
-func GetUser(ctx context.Context, cards UserCards, follows FollowCounts, viewer, id ids.UserID) (PublicUser, error) {
+func GetUser(
+	ctx context.Context, cards UserCards, follows FollowCounts, cabals CabalCounts, viewer, id ids.UserID,
+) (PublicUser, error) {
 	const op = "identity.GetUser"
 	found, err := cards.UsersByID(ctx, []ids.UserID{id})
 	if err != nil {
@@ -72,8 +90,13 @@ func GetUser(ctx context.Context, cards UserCards, follows FollowCounts, viewer,
 	if err != nil {
 		return PublicUser{}, errs.Wrap(err, errs.CodeOf(err), op)
 	}
+	memberships, err := cabals.CabalsOf(ctx, id)
+	if err != nil {
+		return PublicUser{}, errs.Wrap(err, errs.CodeOf(err), op)
+	}
 	return PublicUser{
 		ID: id, Handle: card.Handle, DisplayName: card.DisplayName, PhotoURL: card.PhotoURL,
+		Bio: card.Bio, CreatedAt: card.CreatedAt, CabalCount: len(memberships),
 		FollowerCount: followers, FollowingCount: following, FollowedByMe: followed, BlockedByMe: blocked,
 	}, nil
 }

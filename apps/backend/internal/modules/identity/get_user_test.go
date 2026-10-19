@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
@@ -37,6 +38,24 @@ func (s stubFollows) BlockedByMe(context.Context, ids.UserID, ids.UserID) (bool,
 	return false, s.blockedErr
 }
 
+type stubCabals struct {
+	memberships []ids.CabalID
+	err         error
+}
+
+func (s stubCabals) CabalsOf(context.Context, ids.UserID) ([]ids.CabalID, error) {
+	return s.memberships, s.err
+}
+
+func stubMemberships(n int) stubCabals {
+	gen := testkit.NewIDs(900)
+	out := make([]ids.CabalID, n)
+	for i := range out {
+		out[i] = ids.CabalIDFrom(gen.NewV7())
+	}
+	return stubCabals{memberships: out}
+}
+
 func (f portFixture) block(t *testing.T, blocker, blocked ids.UserID) {
 	t.Helper()
 	_, err := f.pool.Exec(t.Context(), `INSERT INTO user_blocks (id, blocker_id, blocked_id, created_at)
@@ -62,6 +81,7 @@ func TestGetUser_SocialFields(t *testing.T) {
 	f.follow(t, bob.ID, alice.ID)
 	routes := adapters.HTTP{
 		Cards: adapters.NewQueries(f.pool), Follows: social.New(module.Deps{Pool: f.pool}).FollowCounts(),
+		Cabals: stubMemberships(3),
 	}
 	other := getUser(t, routes, alice.ID, bob.ID)
 	if other.Handle != "bob" || other.DisplayName != "Bob" || other.PhotoUrl == nil {
@@ -115,7 +135,7 @@ func TestGetUser_hidesBannedDeletedAndUnknownUsers(t *testing.T) {
 	viewer := f.seed(t, portSeed{handle: "viewer"})
 	banned := f.seed(t, portSeed{handle: "banned", status: "banned"})
 	deleted := f.seed(t, portSeed{handle: "gone", softDeleted: true})
-	routes := adapters.HTTP{Cards: adapters.NewQueries(f.pool), Follows: stubFollows{}}
+	routes := adapters.HTTP{Cards: adapters.NewQueries(f.pool), Follows: stubFollows{}, Cabals: stubCabals{}}
 	for _, id := range []ids.UserID{banned.ID, deleted.ID, f.newID(t)} {
 		if _, err := routes.GetUser(asUser(t, viewer.ID), api.GetUserRequestObject{Id: id.UUID()}); errs.CodeOf(
 			err,
@@ -140,7 +160,7 @@ func TestGetUser_failures(t *testing.T) {
 		"unwired": app.UnwiredFollowCounts{}, "counts": stubFollows{countsErr: down},
 		"followed": stubFollows{followedErr: down}, "blocked": stubFollows{blockedErr: down},
 	} {
-		routes := adapters.HTTP{Cards: cards, Follows: follows}
+		routes := adapters.HTTP{Cards: cards, Follows: follows, Cabals: stubCabals{}}
 		if _, err := routes.GetUser(asUser(t, viewer), api.GetUserRequestObject{Id: target.UUID()}); err == nil {
 			t.Fatalf("%s: GetUser succeeded", name)
 		}
@@ -159,8 +179,21 @@ func TestGetUser_failures(t *testing.T) {
 	) != errs.CodeUpstreamUnavailable {
 		t.Fatalf("unwired blocked = %v, want upstream_unavailable", err)
 	}
+	for name, cabals := range map[string]app.CabalCounts{
+		"unwired": app.UnwiredCabalCounts{}, "down": stubCabals{err: down},
+	} {
+		routes := adapters.HTTP{Cards: cards, Follows: stubFollows{}, Cabals: cabals}
+		if _, err := routes.GetUser(asUser(t, viewer), api.GetUserRequestObject{Id: target.UUID()}); err == nil {
+			t.Fatalf("cabals %s: GetUser succeeded", name)
+		}
+	}
+	if _, err := (app.UnwiredCabalCounts{}).CabalsOf(t.Context(), target); errs.CodeOf(
+		err,
+	) != errs.CodeUpstreamUnavailable {
+		t.Fatalf("unwired cabals = %v, want upstream_unavailable", err)
+	}
 	cards.Fail("UsersByID", down)
-	routes := adapters.HTTP{Cards: cards, Follows: stubFollows{}}
+	routes := adapters.HTTP{Cards: cards, Follows: stubFollows{}, Cabals: stubCabals{}}
 	if _, err := routes.GetUser(asUser(t, viewer), api.GetUserRequestObject{Id: target.UUID()}); err == nil {
 		t.Fatal("GetUser succeeded with the user lookup down")
 	}
@@ -189,7 +222,8 @@ func TestModule_wireTakesFollowCountsFromSocialInTheBuiltSet(t *testing.T) {
 
 func TestGetUser_overHTTPServesAnotherMembersProfile(t *testing.T) {
 	t.Parallel()
-	f := newHTTPFixtureIn(t, config.EnvTest, config.EnvTest, identity.WithFollowCounts(stubFollows{}))
+	f := newHTTPFixtureIn(t, config.EnvTest, config.EnvTest,
+		identity.WithFollowCounts(stubFollows{}), identity.WithCabalCounts(stubCabals{}))
 	viewer := f.seed(t, portSeed{handle: "viewer"})
 	other := f.seed(t, portSeed{handle: "other", name: "Other"})
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/users/"+other.ID.String(), nil)
@@ -199,5 +233,50 @@ func TestGetUser_overHTTPServesAnotherMembersProfile(t *testing.T) {
 	var got api.GetUser200JSONResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil || rec.Code != http.StatusOK || got.Handle != "other" {
 		t.Fatalf("GET /v1/users/{id} = %d %s, want 200 for @other (err %v)", rec.Code, rec.Body, err)
+	}
+}
+
+func TestGetUser_servesTheBioJoinedDateAndCabalCount(t *testing.T) {
+	t.Parallel()
+	f := newPortFixture(t)
+	viewer := f.seed(t, portSeed{handle: "viewer"})
+	bob := f.seed(t, portSeed{handle: "bob", name: "Bob"})
+	bare := f.seed(t, portSeed{handle: "bare", name: "Bare"})
+	if _, err := f.pool.Exec(t.Context(), `UPDATE users SET bio = $2 WHERE id = $1`,
+		bob.ID.UUID(), "Building in public.\nNYC"); err != nil {
+		t.Fatal(err)
+	}
+	routes := adapters.HTTP{
+		Cards: adapters.NewQueries(f.pool), Follows: stubFollows{}, Cabals: stubMemberships(4),
+	}
+	got := getUser(t, routes, viewer.ID, bob.ID)
+	if got.Bio == nil || *got.Bio != "Building in public.\nNYC" || got.CabalCount != 4 ||
+		!got.CreatedAt.Equal(f.created()) || got.CreatedAt.Location() != time.UTC {
+		t.Fatalf("profile = bio %v, cabals %d, created %s", got.Bio, got.CabalCount, got.CreatedAt)
+	}
+	routes.Cabals = stubCabals{}
+	if none := getUser(t, routes, viewer.ID, bare.ID); none.Bio != nil || none.CabalCount != 0 {
+		t.Fatalf("profile without a bio or cabals = bio %v, cabals %d", none.Bio, none.CabalCount)
+	}
+}
+
+func TestModule_wireTakesCabalCountsFromCabalInTheBuiltSet(t *testing.T) {
+	t.Parallel()
+	d := module.Deps{}
+	id := identity.New(d)
+	module.NewSet(id, cabal.New(d))
+	if _, unwired := id.Cabals().(app.UnwiredCabalCounts); unwired {
+		t.Fatal("cabal counts stayed unwired with cabal in the set")
+	}
+	alone := identity.New(d)
+	module.NewSet(alone)
+	if _, unwired := alone.Cabals().(app.UnwiredCabalCounts); !unwired {
+		t.Fatal("cabal counts were wired without cabal in the set")
+	}
+	injected := stubCabals{}
+	winner := identity.New(d, identity.WithCabalCounts(injected))
+	module.NewSet(winner, cabal.New(d))
+	if _, ok := winner.Cabals().(stubCabals); !ok {
+		t.Fatalf("cabals = %T, want the injected stub", winner.Cabals())
 	}
 }

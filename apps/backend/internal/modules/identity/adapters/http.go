@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -29,6 +30,7 @@ type HTTP struct {
 	Clock     clock.Clock
 	Cards     app.UserCards
 	Follows   app.FollowCounts
+	Cabals    app.CabalCounts
 	Deposits  DepositAddresses
 }
 
@@ -146,12 +148,13 @@ func (h HTTP) GetUser(ctx context.Context, req api.GetUserRequestObject) (api.Ge
 	if err != nil {
 		return nil, err
 	}
-	user, err := app.GetUser(ctx, h.Cards, h.Follows, viewer, ids.UserIDFrom(req.Id))
+	user, err := app.GetUser(ctx, h.Cards, h.Follows, h.Cabals, viewer, ids.UserIDFrom(req.Id))
 	if err != nil {
 		return nil, err
 	}
 	return api.GetUser200JSONResponse{
 		Id: user.ID.UUID(), Handle: user.Handle, DisplayName: user.DisplayName, PhotoUrl: present(user.PhotoURL),
+		Bio: present(user.Bio), CreatedAt: user.CreatedAt.UTC(), CabalCount: user.CabalCount,
 		FollowerCount: user.FollowerCount, FollowingCount: user.FollowingCount, FollowedByMe: user.FollowedByMe,
 		BlockedByMe: user.BlockedByMe,
 	}, nil
@@ -189,8 +192,14 @@ func (h HTTP) PatchMe(ctx context.Context, req api.PatchMeRequestObject) (api.Pa
 	if req.Body == nil {
 		return nil, errs.New(errs.CodeInvalidInput, "identity.PatchMe")
 	}
+	var bio *string
+	if len(req.Body.Bio) > 0 {
+		if bio, err = wireBio(req.Body.Bio); err != nil {
+			return nil, err
+		}
+	}
 	me, err := h.Update.Handle(ctx, user, app.ProfileChanges{
-		DisplayName: req.Body.DisplayName, SharePerformance: req.Body.SharePerformance,
+		DisplayName: req.Body.DisplayName, Bio: bio, SharePerformance: req.Body.SharePerformance,
 	})
 	if err != nil {
 		return nil, err
@@ -256,6 +265,7 @@ func wireMe(m app.Me) api.Me {
 			m.MemberWalletAddress,
 		),
 		PhoneLinked:        m.PhoneLinked,
+		Bio:                present(m.Bio),
 		SharePerformance:   m.SharePerformance,
 		XUsername:          present(m.XUsername),
 		HandleChangeableAt: m.HandleChangeableAt,
@@ -271,6 +281,17 @@ func wireAvailability(a app.Availability) api.HandleAvailability {
 	reason := api.HandleAvailabilityReason(a.Reason)
 	out.Reason = &reason
 	return out
+}
+
+func wireBio(raw json.RawMessage) (*string, error) {
+	var bio *string
+	if err := json.Unmarshal(raw, &bio); err != nil {
+		return nil, errs.Wrap(err, errs.CodeInvalidInput, "identity.PatchMe")
+	}
+	if bio == nil {
+		bio = new(string)
+	}
+	return bio, nil
 }
 
 func present(s string) *string {

@@ -16,6 +16,8 @@ import (
 	"net/http"
 	"time"
 
+	rawjson "encoding/json"
+
 	externalRef0 "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -233,7 +235,7 @@ type LoginProvider string
 
 // Me The signed-in user's own account, as the app needs it to route and to draw the profile. It carries no email and no phone number.
 //
-// Examples: {"account_status":"active","auth_state":"ONBOARDING_COMPLETED","created_at":"2026-09-30T12:00:00Z","display_name":"Kai Cenat","handle":"kaicenat","handle_changeable_at":"2026-10-30T12:00:00Z","id":"01890a5d-ac96-774b-bcce-b302099a8058","login_provider":"sms","member_wallet_address":"Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf","phone_linked":true,"share_performance":true,"x_username":"kaicenat"}
+// Examples: {"account_status":"active","auth_state":"ONBOARDING_COMPLETED","bio":"Building in public.\nNYC","created_at":"2026-09-30T12:00:00Z","display_name":"Kai Cenat","handle":"kaicenat","handle_changeable_at":"2026-10-30T12:00:00Z","id":"01890a5d-ac96-774b-bcce-b302099a8058","login_provider":"sms","member_wallet_address":"Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf","phone_linked":true,"share_performance":true,"x_username":"kaicenat"}
 type Me struct {
 	// AccountStatus The user's standing.
 	//
@@ -244,6 +246,12 @@ type Me struct {
 	//
 	// Examples: CREATED
 	AuthState AuthState `json:"auth_state"`
+
+	// Bio The profile bio, up to 160 characters with newlines kept. Null when the user has none.
+	//
+	// Examples: Building in public.
+	// NYC
+	Bio *string `json:"bio,omitempty"`
 
 	// CreatedAt When the account was created.
 	//
@@ -301,12 +309,28 @@ type Me struct {
 	XUsername *string `json:"x_username,omitempty"`
 }
 
-// PublicProfile A user's public profile with their follow counts.
+// PublicProfile A user's public profile with their bio, join date, cabal count and follow counts.
 type PublicProfile struct {
+	// Bio The user's bio, up to 160 characters with newlines kept, or null when there is none.
+	//
+	// Examples: Poet.
+	// San Francisco
+	Bio *string `json:"bio"`
+
 	// BlockedByMe Whether the caller blocks them. False for the caller's own profile. It says nothing about whether they block the caller.
 	//
 	// Examples: false
 	BlockedByMe bool `json:"blocked_by_me"`
+
+	// CabalCount How many cabals the user is a member of today.
+	//
+	// Examples: 3
+	CabalCount int `json:"cabal_count"`
+
+	// CreatedAt When the account was created.
+	//
+	// Examples: 2026-09-30T12:00:00Z
+	CreatedAt time.Time `json:"created_at"`
 
 	// DisplayName The user's display name.
 	//
@@ -374,8 +398,14 @@ type SkipOnboardingStepStep string
 
 // UpdateProfileRequest The profile fields a signed-in user may update. Send at least one field, or the call is `invalid_input`.
 //
-// Examples: {"display_name":"Kai Cenat"}, {"share_performance":false}
+// Examples: {"display_name":"Kai Cenat"}, {"share_performance":false}, {"bio":"Building in public.\nNYC"}
 type UpdateProfileRequest struct {
+	// Bio The caller's bio, up to 160 characters once trimmed. Newlines are kept and other control characters are `invalid_input`. Send null or an empty string to clear it, and omit it to leave the bio alone.
+	//
+	// Examples: Building in public.
+	// NYC
+	Bio rawjson.RawMessage `json:"bio,omitempty"`
+
 	// DisplayName The caller's display name, normalized before it is stored. Omit it to leave the name alone.
 	//
 	// Examples: Kai Cenat

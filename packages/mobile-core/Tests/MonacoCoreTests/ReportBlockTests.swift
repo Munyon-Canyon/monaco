@@ -181,8 +181,9 @@ final class ReportBlockTests: XCTestCase {
 
     func testTheProfileReadsBlockedByMe() async {
         let body =
-            #"{"id":"u-1","handle":"qa_b","display_name":"QA Bea","photo_url":null,"follower_count":0,"#
-            + #""following_count":0,"followed_by_me":false,"blocked_by_me":true}"#
+            #"{"id":"u-1","handle":"qa_b","display_name":"QA Bea","photo_url":null,"bio":null,"#
+            + #""created_at":"2026-09-30T12:00:00Z","cabal_count":0,"follower_count":0,"following_count":0,"#
+            + #""followed_by_me":false,"blocked_by_me":true}"#
         let transport = StubTransport(scripted: [.json(.ok, body)])
         let api = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
         let profile = UserProfileModel(userID: "u-1", api: api)

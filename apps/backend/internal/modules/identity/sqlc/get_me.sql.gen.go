@@ -15,7 +15,7 @@ import (
 
 const getMe = `-- name: GetMe :one
 SELECT u.id, u.handle, u.handle_changed_at, u.display_name, u.photo_url, u.auth_state, u.account_status, u.login_provider,
-  (u.phone_verified_at IS NOT NULL)::boolean AS phone_linked, u.x_username, u.created_at, w.address, u.share_performance
+  (u.phone_verified_at IS NOT NULL)::boolean AS phone_linked, u.x_username, u.created_at, w.address, u.share_performance, u.bio
 FROM users u
 JOIN user_wallets w ON w.user_id = u.id
 WHERE u.id = $1 AND u.deleted_at IS NULL
@@ -35,6 +35,7 @@ type GetMeRow struct {
 	CreatedAt        time.Time
 	Address          string
 	SharePerformance bool
+	Bio              pgtype.Text
 }
 
 func (q *Queries) GetMe(ctx context.Context, id uuid.UUID) (GetMeRow, error) {
@@ -54,6 +55,7 @@ func (q *Queries) GetMe(ctx context.Context, id uuid.UUID) (GetMeRow, error) {
 		&i.CreatedAt,
 		&i.Address,
 		&i.SharePerformance,
+		&i.Bio,
 	)
 	return i, err
 }
