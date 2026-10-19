@@ -1,6 +1,7 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"log/slog"
@@ -41,6 +42,13 @@ type ListProposals struct {
 	Filter  Filter
 	Limit   int
 	Cursor  string
+}
+
+type ListMyProposals struct {
+	Caller ids.UserID
+	Filter Filter
+	Limit  int
+	Cursor string
 }
 
 type ProposalView struct {
@@ -124,6 +132,37 @@ func (r *ProposalReads) List(ctx context.Context, req ListProposals) (ProposalPa
 	if err != nil {
 		return ProposalPage{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
+	return r.page(ctx, req.Caller, rows, limit)
+}
+
+func (r *ProposalReads) ListMine(ctx context.Context, req ListMyProposals) (ProposalPage, error) {
+	const op = "governance.ListMyProposals"
+	filter, limit, cursor, err := parseList(ListProposals{
+		Filter: cmp.Or(req.Filter, FilterClosed), Limit: req.Limit, Cursor: req.Cursor,
+	})
+	if err != nil {
+		return ProposalPage{}, err
+	}
+	if filter != FilterAll && filter != FilterOpen && filter != FilterClosed {
+		return ProposalPage{}, errs.New(errs.CodeInvalidInput, op, slog.String("field", "filter"))
+	}
+	rows, err := r.q.ListMyProposals(ctx, sqlc.ListMyProposalsParams{
+		CallerID: req.Caller.UUID(), Filter: string(filter),
+		HasCursor: cursor.ok, CursorCreatedAt: cursor.createdAt, CursorID: cursor.id, RowLimit: limit + 1,
+	})
+	if err != nil {
+		return ProposalPage{}, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	converted := make([]sqlc.ListProposalsRow, len(rows))
+	for i, row := range rows {
+		converted[i] = sqlc.ListProposalsRow(row)
+	}
+	return r.page(ctx, req.Caller, converted, limit)
+}
+
+func (r *ProposalReads) page(
+	ctx context.Context, caller ids.UserID, rows []sqlc.ListProposalsRow, limit int32,
+) (ProposalPage, error) {
 	page := ProposalPage{Items: []ProposalView{}}
 	if len(rows) > int(limit) {
 		rows = rows[:limit]
@@ -133,7 +172,7 @@ func (r *ProposalReads) List(ctx context.Context, req ListProposals) (ProposalPa
 	if len(rows) == 0 {
 		return page, nil
 	}
-	tallies, err := r.tallies(ctx, req.Caller, rows)
+	tallies, err := r.tallies(ctx, caller, rows)
 	if err != nil {
 		return ProposalPage{}, err
 	}
