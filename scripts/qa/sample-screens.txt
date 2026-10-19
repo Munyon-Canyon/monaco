@@ -139,6 +139,25 @@ money-fund-empty              -MonacoMoneyFlowSample fundCabalEmpty
 money-fund-loading            -MonacoMoneyFlowSample fundCabalLoading
 money-withdraw                -MonacoMoneyFlowSample withdraw
 money-withdraw-failed         -MonacoMoneyFlowSample withdrawFailed
+money-fund-failed             -MonacoMoneyFlowSample fundCabalFailed
+money-fund-insufficient       -MonacoMoneyFlowSample fundCabalInsufficient
+money-fund-submitting         -MonacoMoneyFlowSample fundCabalSubmitting
+money-fund-confirmed          -MonacoMoneyFlowSample fundCabalConfirmed
+money-add-unavailable         -MonacoMoneyFlowSample addMoneyUnavailable
+money-card-handoff            -MonacoMoneyFlowSample cardFunding
+money-card-working            -MonacoMoneyFlowSample cardFundingWorking
+money-card-returned           -MonacoMoneyFlowSample cardFundingReturned
+money-card-received           -MonacoMoneyFlowSample cardFundingReceived
+money-card-cancelled          -MonacoMoneyFlowSample cardFundingCancelled
+money-networks                -MonacoMoneyFlowSample networks
+money-deposit-address         -MonacoMoneyFlowSample depositAddress
+money-deposit-waiting         -MonacoMoneyFlowSample depositWaiting
+money-deposit-received        -MonacoMoneyFlowSample depositReceived
+money-withdraw-invalid        -MonacoMoneyFlowSample withdrawInvalid
+money-withdraw-insufficient   -MonacoMoneyFlowSample withdrawInsufficient
+money-withdraw-review         -MonacoMoneyFlowSample withdrawReview
+money-withdraw-processing     -MonacoMoneyFlowSample withdrawProcessing
+money-withdraw-completed      -MonacoMoneyFlowSample withdrawCompleted
 
 chat-loading                      -MonacoChatSampleQA -MonacoChatSampleLoading
 
@@ -184,6 +203,11 @@ cash-out-slice                -cashOutHarness slice
 cash-out-deposit              -cashOutHarness deposit
 cash-out-none                 -cashOutHarness none
 cash-out-paused               -cashOutHarness paused
+cash-out-insufficient         -cashOutHarness slice 8000
+cash-out-review               -cashOutHarness review 250
+cash-out-processing           -cashOutHarness processing
+cash-out-completed            -cashOutHarness completed
+cash-out-error                -cashOutHarness error
 invite-locked                 -inviteHarness locked
 invite-unlocked               -inviteHarness unlocked
 cabal-pot-invested            -cabalPotHarness invested
