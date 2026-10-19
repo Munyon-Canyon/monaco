@@ -1,0 +1,69 @@
+import Foundation
+import MonacoAPI
+import MonacoCore
+import MonacoTestClock
+import MonacoTestSupport
+import XCTest
+
+@MainActor
+final class FeedModelLoadMoreFailedTests: XCTestCase {
+    private let samples = Components.Schemas.FeedItem.samples
+
+    func testAFailedNextPageIsLoadMoreFailedUntilARetrySucceeds() async throws {
+        let transport = StubTransport(scripted: [
+            .json(.ok, try Self.page(Array(samples.prefix(2)), next: "c2")),
+            .failure(URLError(.notConnectedToInternet)),
+            .failure(URLError(.notConnectedToInternet)),
+            .json(.ok, try Self.page(Array(samples.suffix(3)))),
+        ])
+        let model = makeModel(transport)
+        await model.load()
+        XCTAssertFalse(model.loadMoreFailed)
+        await model.loadMore()
+        XCTAssertTrue(model.loadMoreFailed)
+        await model.loadMore()
+        XCTAssertTrue(model.loadMoreFailed, "a retry that fails again keeps the failure")
+        await model.loadMore()
+        XCTAssertFalse(model.loadMoreFailed)
+        XCTAssertEqual(model.items.count, 5)
+    }
+
+    func testAFailedRefreshIsNotALoadMoreFailure() async throws {
+        let transport = StubTransport(scripted: [
+            .json(.ok, try Self.page(Array(samples.prefix(2)), next: "c2")),
+            .failure(URLError(.notConnectedToInternet)),
+        ])
+        let model = makeModel(transport)
+        await model.load()
+        await model.refresh()
+        XCTAssertEqual(model.failureTick, 1)
+        XCTAssertFalse(model.loadMoreFailed)
+    }
+
+    func testChangingTheFilterClearsALoadMoreFailure() async throws {
+        let transport = StubTransport(scripted: [
+            .json(.ok, try Self.page(Array(samples.prefix(2)), next: "c2")),
+            .failure(URLError(.notConnectedToInternet)),
+            .json(.ok, try Self.page([samples[1]])),
+        ])
+        let model = makeModel(transport)
+        await model.load()
+        await model.loadMore()
+        XCTAssertTrue(model.loadMoreFailed)
+        await model.select(.trades)
+        XCTAssertFalse(model.loadMoreFailed)
+    }
+
+    private func makeModel(_ transport: StubTransport) -> FeedModel {
+        FeedModel(
+            api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport),
+            viewerID: nil, hints: FakeHintStream(), clock: TestClock())
+    }
+
+    private static func page(_ items: [Components.Schemas.FeedItem], next: String? = nil) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let page = Components.Schemas.FeedPage(items: items, nextCursor: next)
+        return String(decoding: try encoder.encode(page), as: UTF8.self)
+    }
+}

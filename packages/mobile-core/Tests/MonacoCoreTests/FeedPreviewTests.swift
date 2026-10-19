@@ -5,17 +5,49 @@ import XCTest
 
 @MainActor
 final class FeedPreviewTests: XCTestCase {
-    private let samples = Components.Schemas.FeedItem.samples
-
     func testTheItemsHarnessNarrowsByChipAndSearch() async {
         let model = FeedModel.preview(.items, clock: TestClock())
         await model.load()
-        XCTAssertEqual(model.items.map(\.id), samples.map(\.id))
+        let all = model.items.map(\.id)
+        XCTAssertEqual(
+            Set(model.items.map(\.kind)),
+            ["proposal", "trade", "price_move", "reply", "threshold", "cabal_created"])
         await model.select(.cabals)
-        XCTAssertEqual(model.items.map(\.kind), ["cabal_created", "member_joined"])
+        XCTAssertEqual(model.items.map(\.kind), ["cabal_created"])
+        await model.select(.proposals)
+        XCTAssertEqual(model.items.map(\.kind), ["proposal", "proposal"])
         await model.select(.all)
         await model.select(.following)
-        XCTAssertEqual(model.items.count, samples.count)
+        XCTAssertEqual(model.items.map(\.id), all)
+    }
+
+    func testEveryHarnessItemHasFigures() async {
+        let model = FeedModel.preview(.items, clock: TestClock())
+        await model.load()
+        let figures = FeedModel.previewFigures(.items)
+        XCTAssertTrue(model.items.allSatisfy { figures[$0.id] != nil })
+    }
+
+    func testThePnlPrivateHarnessHidesEveryPersonsReturn() async {
+        let model = FeedModel.preview(.pnlPrivate, clock: TestClock())
+        await model.load()
+        let figures = FeedModel.previewFigures(.pnlPrivate)
+        for item in model.items {
+            let hidden = figures[item.id]?.authorReturn == .hidden
+            XCTAssertEqual(hidden, item.actorId != nil, item.title)
+        }
+    }
+
+    func testTheLoadMoreFailedHarnessFailsTheFirstRetryOnlyOnce() async {
+        let model = FeedModel.preview(.loadMoreFailed, clock: TestClock())
+        await model.load()
+        let first = model.items.count
+        await model.loadMore()
+        XCTAssertTrue(model.loadMoreFailed)
+        XCTAssertEqual(model.items.count, first)
+        await model.loadMore()
+        XCTAssertFalse(model.loadMoreFailed)
+        XCTAssertEqual(model.items.count, first + 1)
     }
 
     func testTheEmptyAndFailedHarnessesShowTheirStates() async {
@@ -33,5 +65,38 @@ final class FeedPreviewTests: XCTestCase {
         XCTAssertEqual(model.phase, .empty(query: nil))
         await model.select(.following)
         XCTAssertEqual(model.phase, .followsNobody)
+    }
+}
+
+@MainActor
+final class FeedItemDetailPreviewTests: XCTestCase {
+    func testTheReadyHarnessLoadsThePostAndItsDiscussion() async {
+        let model = FeedItemDetailModel.preview(.ready, clock: TestClock())
+        await model.load()
+        XCTAssertEqual(model.item?.title, "Proposed a buy")
+        XCTAssertEqual(model.comments.rows.map(\.id), ["c1", "c2"])
+        XCTAssertTrue(model.comments.canComment)
+    }
+
+    func testTheEmptyHarnessHasNoComments() async {
+        let model = FeedItemDetailModel.preview(.empty, clock: TestClock())
+        await model.load()
+        XCTAssertEqual(model.comments.phase, .empty)
+    }
+
+    func testTheUnavailableHarnessIsA404() async {
+        let model = FeedItemDetailModel.preview(.unavailable, clock: TestClock())
+        await model.load()
+        guard case .problem(let problem) = model.itemError else {
+            return XCTFail("expected a problem, got \(String(describing: model.itemError))")
+        }
+        XCTAssertEqual(problem.status, 404)
+    }
+
+    func testTheFailedHarnessRefusesAPost() async {
+        let model = FeedItemDetailModel.preview(.failed, clock: TestClock())
+        await model.load()
+        let posted = await model.comments.post("Count me in.")
+        XCTAssertFalse(posted)
     }
 }
