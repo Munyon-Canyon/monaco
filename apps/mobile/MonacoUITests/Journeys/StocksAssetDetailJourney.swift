@@ -2,7 +2,7 @@ import XCTest
 
 enum StocksAssetDetailJourney {
     static let id = "stocks/asset-detail"
-    static let version = 8
+    static let version = 9
 
     static let alpha = StocksBrowseJourney.alpha
     static let preIpo = StocksBrowseJourney.preIpo
@@ -71,8 +71,8 @@ enum StocksAssetDetailJourney {
     static func heroChartAndBuy(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S1.1", "open Journey Alpha") {
             openAsset(app, alpha, step: "S1.1")
-            let title = app.navigationBars[alpha.ticker]
-            XCTAssertTrue(title.exists, "S1.1: the asset screen is not titled '\(alpha.ticker)'")
+            let title = app.navigationBars[alpha.name]
+            XCTAssertTrue(title.exists, "S1.1: the asset screen is not titled '\(alpha.name)'")
         }
 
         recorder.step("S1.2", "read the hero") {
@@ -116,20 +116,21 @@ enum StocksAssetDetailJourney {
             XCTAssertTrue(year.isSelected, "S1.6: '1Y' is not selected")
         }
 
-        recorder.step("S1.7", "read Propose buy") {
+        recorder.step("S1.7", "read Propose a buy") {
             let buy = app.buttons["asset-detail-propose-buy"]
-            XCTAssertTrue(buy.waitForExistence(timeout: 15), "S1.7: no Propose buy")
-            XCTAssertEqual(buy.label, "Propose buy", "S1.7: the CTA reads '\(buy.label)', not 'Propose buy'")
-            XCTAssertTrue(buy.isEnabled, "S1.7: Propose buy is disabled for a tradable asset")
-            XCTAssertTrue(app.staticTexts[buyCaption].exists, "S1.7: no '\(buyCaption)' under Propose buy")
+            XCTAssertTrue(buy.waitForExistence(timeout: 15), "S1.7: no Propose a buy")
+            app.scrollIntoReach(buy)
+            XCTAssertEqual(buy.label, "Propose a buy", "S1.7: the CTA reads '\(buy.label)', not 'Propose a buy'")
+            XCTAssertTrue(buy.isEnabled, "S1.7: Propose a buy is disabled for a tradable asset")
+            XCTAssertTrue(app.staticTexts[buyCaption].exists, "S1.7: no '\(buyCaption)' under Propose a buy")
         }
 
-        recorder.step("S1.8", "tap Propose buy") {
+        recorder.step("S1.8", "tap Propose a buy") {
             app.buttons["asset-detail-propose-buy"].tap()
             let question = "Which cabal should buy \(alpha.ticker)?"
             XCTAssertTrue(
                 app.navigationBars["Pick a cabal"].waitForExistence(timeout: 10),
-                "S1.8: Propose buy did not open the cabal picker titled 'Pick a cabal' (#613)")
+                "S1.8: Propose a buy did not open the cabal picker titled 'Pick a cabal' (#613)")
             expectPicker(app, asking: question)
         }
 
@@ -176,15 +177,8 @@ enum StocksAssetDetailJourney {
 
         recorder.step("S3.3", "open the other listing") {
             let listing = app.element(otherListingID)
-            let bar = app.buttons["asset-detail-propose-buy"]
-            var swipes = 0
-            while listing.frame.midY > bar.frame.minY - 20 && swipes < 4 {
-                let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.78))
-                from.press(
-                    forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)))
-                swipes += 1
-            }
-            listing.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)).tap()
+            app.scrollIntoReach(listing)
+            listing.tap()
             XCTAssertTrue(
                 app.navigationBars[otherListingTicker].waitForExistence(timeout: 10),
                 "S3.3: the listing did not open an asset screen titled '\(otherListingTicker)')")
@@ -197,16 +191,17 @@ enum StocksAssetDetailJourney {
             openAsset(app, alpha, step: "S5.1")
         }
 
-        recorder.step("S5.2", "see Your cabals' position") {
+        recorder.step("S5.2", "see Cabals holding the stock") {
             scrollTo(app, app.element("asset-cabal-positions"), named: "asset-cabal-positions", step: "S5.2")
             let holding = app.descendants(matching: .any)
                 .matching(NSPredicate(format: "identifier BEGINSWITH 'asset-position-'")).firstMatch
-            XCTAssertTrue(holding.exists, "S5.2: no cabal row under 'Your cabals' position'")
+            XCTAssertTrue(holding.exists, "S5.2: no cabal row under 'Cabals holding \(alpha.ticker)'")
         }
 
-        recorder.step("S5.3", "tap Propose sell") {
+        recorder.step("S5.3", "tap Propose a sell") {
             let sell = app.buttons["asset-detail-propose-sell"]
-            XCTAssertTrue(sell.waitForExistence(timeout: 5), "S5.3: no Propose sell")
+            XCTAssertTrue(sell.waitForExistence(timeout: 5), "S5.3: no Propose a sell")
+            app.scrollIntoReach(sell)
             sell.tap()
             XCTAssertTrue(
                 app.navigationBars["Propose sell"].waitForExistence(timeout: 10),

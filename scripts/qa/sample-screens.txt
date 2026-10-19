@@ -300,16 +300,19 @@ stocks-tab-empty              -MonacoStocksTabSample empty
 stocks-tab-paused             -MonacoStocksTabSample paused
 stocks-tab-ready-large-text   -MonacoStocksTabSample ready -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 asset-open                    -MonacoAssetDetailSample open
+asset-loss                    -MonacoAssetDetailSample loss
 asset-candles                 -MonacoAssetDetailSample candles
 asset-candles-long            -MonacoAssetDetailSample candlesLong
 asset-candles-sparse          -MonacoAssetDetailSample candlesSparse
-asset-not-held                -MonacoAssetDetailSample notHeld
+asset-no-holders              -MonacoAssetDetailSample noHolders
+asset-no-proposals            -MonacoAssetDetailSample noProposals
 asset-pre-market              -MonacoAssetDetailSample preMarket
 asset-after-hours             -MonacoAssetDetailSample afterHours
 asset-closed                  -MonacoAssetDetailSample closed
 asset-pre-ipo                 -MonacoAssetDetailSample preIpo
 asset-paused                  -MonacoAssetDetailSample paused
 asset-untradable              -MonacoAssetDetailSample untradable
+asset-stale                   -MonacoAssetDetailSample stale
 asset-empty-chart             -MonacoAssetDetailSample emptyChart
 asset-chart-failed            -MonacoAssetDetailSample chartFailed
 asset-loading                 -MonacoAssetDetailSample loading

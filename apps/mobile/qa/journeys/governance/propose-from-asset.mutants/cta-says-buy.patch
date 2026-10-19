@@ -1,18 +1,18 @@
 journey: governance/propose-from-asset
 expect-fail: S1
 
-The asset screen's CTA reads "Buy", the old direct-buy wording. S1.1 checks it reads "Propose buy", so it must fail.
+The asset screen's CTA reads "Buy", the old direct-buy wording. S1.1 checks it reads "Propose a buy", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
-diff --git a/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift b/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift
-index 32afdc220..96979b5af 100644
---- a/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift
-+++ b/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift
-@@ -385,7 +385,7 @@ private struct YearRangeBar: View {
+diff --git a/apps/mobile/Monaco/Features/Assets/AssetDetailActions.swift b/apps/mobile/Monaco/Features/Assets/AssetDetailActions.swift
+index 08fbd6107..0e7f503b0 100644
+--- a/apps/mobile/Monaco/Features/Assets/AssetDetailActions.swift
++++ b/apps/mobile/Monaco/Features/Assets/AssetDetailActions.swift
+@@ -34,7 +34,7 @@ struct AssetDetailActions: View {
  
  enum AssetDetailBuyCTA {
      static func title(tradable: Bool) -> String {
--        tradable ? "Propose buy" : "Can't buy right now"
-+        tradable ? "Buy" : "Can't buy right now"
+-        tradable ? "Propose a buy" : "Unavailable"
++        tradable ? "Buy" : "Unavailable"
      }
  
      static func canBuy(tradable: Bool, quotable: Bool) -> Bool { tradable && quotable }
