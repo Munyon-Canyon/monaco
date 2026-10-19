@@ -84,7 +84,7 @@ struct MonacoStatTests {
         #expect(accessible > normal + 44, "normal \(normal), accessible \(accessible)")
     }
 
-    @Test func theStripKeepsTheDepositHitAreaAtLeastFortyFourBySeventyEight() async throws {
+    @Test func theStripKeepsTheDepositHitAreaAtLeastFortyFourByEightyTwo() async throws {
         try AccessibilityTree.setAutomation(enabled: true)
         defer { try? AccessibilityTree.setAutomation(enabled: false) }
         let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
@@ -96,7 +96,7 @@ struct MonacoStatTests {
 
         let frame = try #require(Self.frame(ofLabel: "Deposit", in: window))
 
-        #expect(frame.height >= 44 && frame.width >= 78, "deposit hit area \(frame)")
+        #expect(frame.height >= 44 && frame.width >= 82, "deposit hit area \(frame)")
     }
 
     @Test func theStripMetricsReadAsOneElementEach() async throws {
