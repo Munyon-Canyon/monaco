@@ -5,15 +5,15 @@ A withdrawal row reads "Withdraw". S3.1 waits for "Withdrawal", so it must fail 
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/packages/mobile-core/Sources/MonacoCore/Treasury/AccountActivityRow.swift b/packages/mobile-core/Sources/MonacoCore/Treasury/AccountActivityRow.swift
-index 2fd4ffdf..9032d430 100644
+index 6a0b5fba6..c616d028b 100644
 --- a/packages/mobile-core/Sources/MonacoCore/Treasury/AccountActivityRow.swift
 +++ b/packages/mobile-core/Sources/MonacoCore/Treasury/AccountActivityRow.swift
-@@ -62,7 +62,7 @@ public struct AccountActivityRow: Identifiable, Equatable, Sendable {
-     ) -> (title: String, glyph: String) {
+@@ -77,7 +77,7 @@ public struct AccountActivityRow: Identifiable, Hashable, Sendable {
+     ) -> (title: String, glyph: String, subtitleLead: String) {
          switch kind {
-         case .deposit: ("Deposit", "arrow.down.to.line")
--        case .withdrawal: ("Withdrawal", "arrow.up.right")
-+        case .withdrawal: ("Withdraw", "arrow.up.right")
-         case .fund: ("Funded \(cabalName)", "plus")
-         case .cashOut: ("Cashed out of \(cabalName)", "arrow.down.left")
+         case .deposit: ("Deposit received", "arrow.down", "USDC")
+-        case .withdrawal: ("Withdrawal", "arrow.up.right", "USDC")
++        case .withdrawal: ("Withdraw", "arrow.up.right", "USDC")
+         case .fund: ("Deposit to \(cabalName)", "person.3", "From cash")
+         case .cashOut: ("Cashed out of \(cabalName)", "arrow.down.left", "To cash")
          }

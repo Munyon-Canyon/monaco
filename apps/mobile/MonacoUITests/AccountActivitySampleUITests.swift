@@ -36,13 +36,13 @@ nonisolated final class AccountActivitySampleUITests: XCTestCase {
     func testTheFullHarnessListsItsRowsAndLoadsTheSecondPageAtTheBottom() {
         let app = launch("full")
         XCTAssertTrue(row(app, containing: "Deposit").waitForExistence(timeout: 15), "the first page loads")
-        XCTAssertTrue(app.navigationBars["Activity"].exists)
+        XCTAssertTrue(app.navigationBars["Account activity"].exists)
         XCTAssertTrue(row(app, containing: "+$25.00").exists, "a deposit is signed with a plus")
         XCTAssertTrue(row(app, containing: "\u{2212}$10.00").exists, "a fund is signed with a typographic minus")
         XCTAssertTrue(row(app, containing: "Pending").exists, "a pending row says so")
         screenshot(app, "account-activity-full")
 
-        let secondPage = row(app, containing: "Funded a cabal")
+        let secondPage = row(app, containing: "Deposit to a cabal")
         var swipes = 0
         while !secondPage.exists && swipes < 12 {
             app.swipeUp()
@@ -50,6 +50,18 @@ nonisolated final class AccountActivitySampleUITests: XCTestCase {
         }
         XCTAssertTrue(secondPage.waitForExistence(timeout: 10), "the second page loads at the bottom")
         screenshot(app, "account-activity-second-page")
+    }
+
+    @MainActor
+    func testThePendingSegmentKeepsOnlyPendingRows() {
+        let app = launch("full")
+        XCTAssertTrue(row(app, containing: "Deposit").waitForExistence(timeout: 15))
+        app.buttons["account-activity-filter-pending"].tap()
+
+        XCTAssertTrue(row(app, containing: "Pending").waitForExistence(timeout: 10))
+        XCTAssertFalse(row(app, containing: "+$25.00").exists, "a settled deposit is filtered out")
+        app.buttons["account-activity-filter-all"].tap()
+        XCTAssertTrue(row(app, containing: "+$25.00").waitForExistence(timeout: 10))
     }
 
     @MainActor
@@ -68,7 +80,7 @@ nonisolated final class AccountActivitySampleUITests: XCTestCase {
         XCTAssertFalse(element(app, "account-txn-receipt-cabal").exists, "a deposit names no cabal")
         screenshot(app, "account-activity-receipt")
 
-        app.navigationBars.buttons["Activity"].tap()
+        app.navigationBars.buttons["Account activity"].tap()
         XCTAssertTrue(amount.waitForNonExistence(timeout: 10), "Back returns to the list")
     }
 
@@ -81,14 +93,16 @@ nonisolated final class AccountActivitySampleUITests: XCTestCase {
 
         XCTAssertTrue(element(app, "account-txn-receipt-amount").waitForExistence(timeout: 10))
         XCTAssertTrue(element(app, "account-txn-receipt-status").label.contains("Pending"))
-        XCTAssertFalse(element(app, "account-txn-receipt-solscan").exists, "nothing was sent yet")
+        let explorer = element(app, "account-txn-receipt-solscan")
+        XCTAssertTrue(explorer.exists)
+        XCTAssertFalse(explorer.isEnabled, "nothing was sent yet")
         screenshot(app, "account-activity-receipt-pending")
     }
 
     @MainActor
     func testAFundReceiptPushesItsCabalOverTheReceipt() {
         let app = launch("full")
-        let fund = row(app, containing: "Funded QA pot")
+        let fund = row(app, containing: "Deposit to QA pot")
         XCTAssertTrue(fund.waitForExistence(timeout: 15))
         fund.tap()
 
@@ -99,16 +113,17 @@ nonisolated final class AccountActivitySampleUITests: XCTestCase {
         cabal.tap()
 
         XCTAssertTrue(
-            app.navigationBars.buttons["Funded QA pot"].waitForExistence(timeout: 10),
+            app.navigationBars.buttons["Transaction receipt"].waitForExistence(timeout: 10),
             "the cabal opens over the receipt")
         screenshot(app, "account-activity-cabal-opened")
     }
 
     @MainActor
-    func testTheEmptyHarnessSaysNoActivityYet() {
+    func testTheEmptyHarnessSaysNoTransactionsYet() {
         let app = launch("empty")
-        XCTAssertTrue(app.staticTexts["No activity yet"].waitForExistence(timeout: 15))
-        XCTAssertTrue(app.staticTexts["Deposits, withdrawals and cabal moves show up here."].exists)
+        XCTAssertTrue(app.staticTexts["No transactions yet"].waitForExistence(timeout: 15))
+        XCTAssertTrue(
+            app.staticTexts["Personal deposits, deposits, redemptions and withdrawals will appear here."].exists)
         screenshot(app, "account-activity-empty")
     }
 }

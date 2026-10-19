@@ -2,7 +2,7 @@ import XCTest
 
 enum MoneyActivityJourney {
     static let id = "money/activity"
-    static let version = 2
+    static let version = 3
 
     static let screenTimeout: TimeInterval = 15
     static let depositKey = "deposit-txn"
@@ -24,8 +24,8 @@ enum MoneyActivityJourney {
         app.scrollIntoReach(activity)
         activity.tap()
         XCTAssertTrue(
-            app.navigationBars["Activity"].waitForExistence(timeout: screenTimeout),
-            "\(step): the Activity screen did not show within \(Int(screenTimeout)) s"
+            app.navigationBars["Account activity"].waitForExistence(timeout: screenTimeout),
+            "\(step): the Account activity screen did not show within \(Int(screenTimeout)) s"
         )
     }
 
@@ -41,7 +41,8 @@ enum MoneyActivityJourney {
         recorder.step("S1.1", "the seeded deposit is listed") {
             openActivity(app, step: "S1.1")
             XCTAssertTrue(row.waitForExistence(timeout: screenTimeout), "S1.1: no row for the seeded deposit")
-            XCTAssertTrue(row.label.contains("Deposit"), "S1.1: the row does not read Deposit: \(row.label)")
+            XCTAssertTrue(
+                row.label.contains("Deposit received"), "S1.1: the row does not read Deposit received: \(row.label)")
             XCTAssertTrue(row.label.contains("$1.23"), "S1.1: the row does not read $1.23: \(row.label)")
         }
 
@@ -49,7 +50,8 @@ enum MoneyActivityJourney {
             row.tap()
             let amount = app.element("account-txn-receipt-amount")
             XCTAssertTrue(amount.waitForExistence(timeout: 10), "S1.2: the receipt did not show within 10 s")
-            XCTAssertTrue(app.navigationBars["Deposit"].exists, "S1.2: the receipt is not titled Deposit")
+            XCTAssertTrue(
+                app.navigationBars["Transaction receipt"].exists, "S1.2: the receipt is not titled Transaction receipt")
             XCTAssertTrue(amount.label.contains("$1.23"), "S1.2: the receipt amount: \(amount.label)")
             XCTAssertTrue(
                 app.element("account-txn-receipt-status").label.contains("Done"),
@@ -57,13 +59,13 @@ enum MoneyActivityJourney {
             )
             XCTAssertTrue(app.element("account-txn-receipt-time").exists, "S1.2: no time on the receipt")
             let solscan = app.element("account-txn-receipt-solscan")
-            XCTAssertTrue(solscan.exists, "S1.2: no View on Solscan")
-            XCTAssertTrue(solscan.label.contains("View on Solscan"), "S1.2: the Solscan link: \(solscan.label)")
+            XCTAssertTrue(solscan.exists, "S1.2: no View on explorer")
+            XCTAssertTrue(solscan.label.contains("View on explorer"), "S1.2: the explorer link: \(solscan.label)")
             JoinJourney.snap(app, "S1-A-receipt")
         }
 
         recorder.step("S1.3", "go back from the receipt") {
-            app.navigationBars.buttons["Activity"].tap()
+            app.navigationBars.buttons["Account activity"].tap()
             let gone = NSPredicate(format: "exists == false")
             let closed = XCTNSPredicateExpectation(predicate: gone, object: app.element("account-txn-receipt-amount"))
             XCTAssertEqual(XCTWaiter().wait(for: [closed], timeout: 5), .completed, "S1.3: Back did not pop")
@@ -73,13 +75,13 @@ enum MoneyActivityJourney {
 
     static func cabalMove(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         let name = cabal(run: run)
-        let funded = row(app, titled: "Funded \(name)")
+        let funded = row(app, titled: "Deposit to \(name)")
 
         recorder.step("S2.1", "the fund is listed") {
             openActivity(app, step: "S2.1")
             XCTAssertTrue(
                 funded.waitForExistence(timeout: screenTimeout),
-                "S2.1: no row Funded \(name) within \(Int(screenTimeout)) s (known failure, #651)"
+                "S2.1: no row Deposit to \(name) within \(Int(screenTimeout)) s (known failure, #651)"
             )
         }
 
