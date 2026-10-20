@@ -61,8 +61,7 @@ struct FundCabalView: View {
     }
 
     private func openDeposit(prefillMicros: Int64?) {
-        environment.navigator.open(
-            DepositRoute(prefillMicros: prefillMicros, cabalID: cabalID), in: environment.navigator.selectedTab)
+        environment.navigator.presentDeposit(prefillMicros: prefillMicros, cabalID: cabalID)
     }
 
     private func fund() async {

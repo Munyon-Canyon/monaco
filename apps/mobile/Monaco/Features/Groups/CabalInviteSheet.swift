@@ -31,7 +31,7 @@ struct CabalInviteSheet: View {
             content
                 .monacoSheet(
                     title: "Share cabal", titleIdentifier: "cabal-invite-title",
-                    detents: dynamicTypeSize.isAccessibilitySize ? nil : .votes, showsClose: true
+                    detents: .votes, showsClose: true
                 )
                 .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: AnyAppRoute.self) { $0.destination() }

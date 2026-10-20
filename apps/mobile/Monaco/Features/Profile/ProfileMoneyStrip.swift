@@ -21,6 +21,7 @@ struct ProfileMoneyStrip: View {
     var arrivingMicros: Int64 = 0
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.depositNavigator) private var depositNavigator
     @Environment(\.displayScale) private var displayScale
 
     var body: some View {
@@ -110,7 +111,9 @@ struct ProfileMoneyStrip: View {
     }
 
     private func deposit(fillsWidth: Bool) -> some View {
-        NavigationLink(value: AnyAppRoute(DepositRoute())) {
+        Button {
+            depositNavigator?.presentDeposit()
+        } label: {
             Text("Deposit").frame(maxWidth: fillsWidth ? .infinity : nil)
         }
         .buttonStyle(.monacoCompactProminent)

@@ -24,7 +24,6 @@ enum ProposalSampleScenario: String, CaseIterable {
     case votesOpen
     case votesRecorded
     case votesEmpty
-    case votesExpanded
     case votesLoading
     case votesError
     case allOpen
@@ -51,8 +50,7 @@ enum ProposalSampleScenario: String, CaseIterable {
         case .allOpen, .allEmpty, .allLoading, .allError: PendingVotesSampleRoute(showsClosed: false)
         case .allClosed, .closedEmpty, .closedLoading, .closedError: PendingVotesSampleRoute(showsClosed: true)
         case .votesOpen, .votesRecorded, .votesEmpty, .votesLoading, .votesError:
-            ProposalSampleRoute(votes: .medium)
-        case .votesExpanded: ProposalSampleRoute(votes: .large)
+            ProposalSampleRoute(votes: .open)
         default: ProposalSampleRoute(votes: .closed)
         }
     }
@@ -79,7 +77,7 @@ enum ProposalSampleScenario: String, CaseIterable {
         case .notVoter: script.proposal = .sample()
         case .rejected: script.proposal = .sample(status: .failed)
         case .blocked: script.proposal = .sample(status: .executionBlocked, swap: .sample(.failed))
-        case .votesOpen, .votesExpanded: script.proposal = .sample(canVote: true)
+        case .votesOpen: script.proposal = .sample(canVote: true)
         case .votesRecorded: script.proposal = .sample(myBallot: .yes, canVote: true)
         case .votesEmpty: script.proposal = .sample(canVote: true).withoutBallots()
         case .votesLoading: script.mode = .hang
@@ -105,23 +103,14 @@ enum ProposalSampleScenario: String, CaseIterable {
 nonisolated struct ProposalSampleRoute: AppRoute {
     enum Votes: Hashable, Sendable {
         case closed
-        case medium
-        case large
+        case open
     }
 
     let votes: Votes
 
     @MainActor func destination() -> some View {
         ProposalScreen(proposalID: "proposal-1", sections: [ProposalSampleDetailSlot.self, ProposalCommentsSlot.self])
-            .environment(\.presentedProposalVotes, detent)
-    }
-
-    private var detent: PresentationDetent? {
-        switch votes {
-        case .closed: nil
-        case .medium: .medium
-        case .large: .large
-        }
+            .environment(\.presentsProposalVotes, votes == .open)
     }
 }
 

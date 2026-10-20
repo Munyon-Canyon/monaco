@@ -46,8 +46,7 @@ struct WithdrawView: View {
                 showConfirm = true
             },
             onAddMoney: {
-                environment.navigator.open(
-                    DepositRoute(prefillMicros: nil, cabalID: nil), in: environment.navigator.selectedTab)
+                environment.navigator.presentDeposit()
             },
             onRetry: { Task { await environment.balance.load() } }
         )

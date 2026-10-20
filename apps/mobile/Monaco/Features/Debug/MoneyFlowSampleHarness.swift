@@ -55,19 +55,18 @@ struct MoneyFlowSampleHarness: View {
             .tint(MonacoTheme.ink)
         } else {
             SampleAppFrame(
-                auth: auth, tab: .home, routes: [route],
+                auth: auth, tab: .home, routes: routes, presentsDeposit: scenario == .addMoney,
                 session: SampleAppFrame.signedIn)
         }
     }
 
-    private var route: any AppRoute {
+    private var routes: [any AppRoute] {
         switch scenario {
-        case .addMoney: DepositRoute()
-        case .addMoneyLoading, .addMoneyFailed: DepositAddressRoute()
+        case .addMoneyLoading, .addMoneyFailed: [DepositAddressRoute()]
         case .fundCabal, .fundCabalFunding, .fundCabalEmpty, .fundCabalLoading, .fundCabalFailed:
-            FundRoute(cabalID: GroupDetailSampleData.cabalID)
-        case .withdraw, .withdrawFailed: WithdrawRoute()
-        default: DepositRoute()
+            [FundRoute(cabalID: GroupDetailSampleData.cabalID)]
+        case .withdraw, .withdrawFailed: [WithdrawRoute()]
+        default: []
         }
     }
 }

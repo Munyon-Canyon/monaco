@@ -18,8 +18,10 @@ struct DepositView: View {
                 addresses?.state ?? .idle, solanaAddress: environment.sessionStore.profile?.memberWalletAddress),
             cardStartFailed: Self.cardStartFailed(environment.cardDeposit.state),
             cardRoute: CardFundingRoute(prefillMicros: prefillMicros, cabalID: cabalID),
-            onRetryBalance: { Task { await environment.balance.load() } }
+            onRetryBalance: { Task { await environment.balance.load() } },
+            onChoose: { environment.navigator.continueDeposit(with: $0) }
         )
+        .monacoSheet(title: "Deposit", titleIdentifier: "deposit-sheet-title", detents: .votes, showsClose: true)
         .task(id: environment.sessionStore.profile?.userID) {
             let source = DepositAddressesSource(api: environment.api)
             addresses = source
@@ -42,6 +44,7 @@ struct DepositChooser: View {
     var cardStartFailed = false
     var cardRoute = CardFundingRoute(prefillMicros: nil, cabalID: nil)
     var onRetryBalance: () -> Void = {}
+    var onChoose: (AnyAppRoute) -> Void = { _ in }
 
     static let cardTitle = "Card or Apple Pay"
     static let cardHint = "Continue to the deposit provider"
@@ -99,9 +102,6 @@ struct DepositChooser: View {
             }
             .padding(.bottom, MonacoTheme.Space.l)
         }
-        .monacoCanvas()
-        .navigationTitle("Deposit")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var hero: some View {
@@ -129,7 +129,9 @@ struct DepositChooser: View {
     }
 
     private var onrampRow: some View {
-        NavigationLink(value: AnyAppRoute(cardRoute)) {
+        Button {
+            onChoose(AnyAppRoute(cardRoute))
+        } label: {
             MonacoRow(title: Self.cardTitle, subtitle: Self.cardHint, chevron: true) {
                 SunkenGlyphMark(systemImage: "creditcard")
             }
@@ -144,7 +146,9 @@ struct DepositChooser: View {
     }
 
     private var cryptoRow: some View {
-        NavigationLink(value: Self.cryptoRoute(networks)) {
+        Button {
+            onChoose(Self.cryptoRoute(networks))
+        } label: {
             MonacoRow(title: Self.cryptoTitle, subtitle: "USDC on a supported network", chevron: true, isLast: true) {
                 SunkenGlyphMark(systemImage: "wallet.bifold")
             }

@@ -9,6 +9,7 @@ final class AppNavigator {
     var cabalsPath: [AnyAppRoute] = []
     var stocksPath: [AnyAppRoute] = []
     var profilePath: [AnyAppRoute] = []
+    var deposit: DepositRequest?
 
     func reset() {
         selectedTab = .home
@@ -17,6 +18,7 @@ final class AppNavigator {
         cabalsPath = []
         stocksPath = []
         profilePath = []
+        deposit = nil
     }
 
     func path(for tab: MainTab) -> [AnyAppRoute] {
@@ -35,6 +37,17 @@ final class AppNavigator {
         let wrapped = AnyAppRoute(route)
         guard path.wrappedValue.last != wrapped else { return }
         path.wrappedValue.append(wrapped)
+    }
+
+    func presentDeposit(prefillMicros: Int64? = nil, cabalID: String? = nil) {
+        deposit = DepositRequest(prefillMicros: prefillMicros, cabalID: cabalID)
+    }
+
+    func continueDeposit(with route: AnyAppRoute) {
+        deposit = nil
+        let path = binding(for: selectedTab)
+        guard path.wrappedValue.last != route else { return }
+        path.wrappedValue.append(route)
     }
 
     func open(cabalID: String, then route: some AppRoute, in tab: MainTab) {

@@ -7,12 +7,12 @@ scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Home/HomeBalanceRowSection.swift b/apps/mobile/Monaco/Features/Home/HomeBalanceRowSection.swift
 --- a/apps/mobile/Monaco/Features/Home/HomeBalanceRowSection.swift
 +++ b/apps/mobile/Monaco/Features/Home/HomeBalanceRowSection.swift
-@@ -135,7 +135,7 @@
-             ? AnyLayout(VStackLayout(spacing: MonacoTheme.Space.s))
-             : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
-         return layout {
--            link("Add money", DepositRoute(), id: "\(identifierPrefix)-add-money-link")
-+            link("Add money", DepositRoute(), id: "\(identifierPrefix)-add-cash-link")
+@@ -140,7 +140,7 @@
+                 Text("Add money").frame(maxWidth: .infinity)
+             }
+             .buttonStyle(.monacoCompact)
+-            .accessibilityIdentifier("\(identifierPrefix)-add-money-link")
++            .accessibilityIdentifier("\(identifierPrefix)-add-cash-link")
              link("Withdraw", WithdrawRoute(), id: "\(identifierPrefix)-withdraw-link")
          }
      }

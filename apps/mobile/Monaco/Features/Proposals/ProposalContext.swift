@@ -7,7 +7,7 @@ nonisolated struct ProposalContext: Sendable, Hashable {
 
 extension EnvironmentValues {
     @Entry var proposalDetail: ProposalDetailModel? = nil
-    @Entry var presentedProposalVotes: PresentationDetent? = nil
+    @Entry var presentsProposalVotes = false
 }
 
 @MainActor

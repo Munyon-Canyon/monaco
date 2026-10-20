@@ -156,6 +156,7 @@ private struct InviteCodeLinkRow: View {
 }
 
 private struct InviteUnlockPrompt: View {
+    @Environment(\.depositNavigator) private var depositNavigator
     let handle: String?
 
     var body: some View {
@@ -165,7 +166,7 @@ private struct InviteUnlockPrompt: View {
                 .foregroundStyle(MonacoTheme.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("invite-unlock")
-            NavigationLink(InviteCopy.deposit, value: AnyAppRoute(DepositRoute()))
+            Button(InviteCopy.deposit) { depositNavigator?.presentDeposit() }
                 .buttonStyle(.monacoOutline)
                 .accessibilityIdentifier("invite-deposit")
         }

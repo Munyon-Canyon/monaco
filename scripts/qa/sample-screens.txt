@@ -434,7 +434,6 @@ proposal-open-dark            -MonacoProposalSample open -AppleInterfaceStyle Da
 proposal-votes-open           -MonacoProposalSample votesOpen
 proposal-votes-recorded       -MonacoProposalSample votesRecorded
 proposal-votes-empty          -MonacoProposalSample votesEmpty
-proposal-votes-expanded       -MonacoProposalSample votesExpanded
 proposal-votes-loading        -MonacoProposalSample votesLoading
 proposal-votes-error          -MonacoProposalSample votesError
 proposal-votes-open-dark      -MonacoProposalSample votesOpen -AppleInterfaceStyle Dark
@@ -795,7 +794,6 @@ proposals__trade-amount__sell                      -MonacoProposeSample amountSe
 proposals__votes__closed                           -MonacoParitySample votes-closed
 proposals__votes__empty                            -MonacoProposalSample votesEmpty
 proposals__votes__error                            -MonacoProposalSample votesError
-proposals__votes__expanded                         -MonacoProposalSample votesExpanded
 proposals__votes__expired                          -MonacoParitySample votes-expired
 proposals__votes__loading                          -MonacoProposalSample votesLoading
 proposals__votes__open                             -MonacoProposalSample votesOpen
