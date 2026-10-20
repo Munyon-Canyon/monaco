@@ -1,3 +1,4 @@
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -9,18 +10,6 @@ enum UserProfileHeaderSlot: UserProfileSection {
     }
 }
 
-struct UserProfileFixture: Equatable {
-    var bio: String?
-    var performance = IdentityPerformance.unavailable
-    var periodText = "1M"
-    var joinedText: String?
-    var showsPublicActivity = false
-}
-
-extension EnvironmentValues {
-    @Entry var userProfileFixture = UserProfileFixture()
-}
-
 enum UserProfileCopy {
     static let ownNotice = "This is how your profile appears to others. Your account balances stay private."
     static let blockedNotice = "You blocked this member. They can't follow you, and you won't see their messages."
@@ -28,6 +17,8 @@ enum UserProfileCopy {
     static let privateMessage = "Following does not reveal private balances or conversations."
     static let notFoundTitle = "Profile not found"
     static let notFoundMessage = "This profile isn't available."
+    static let activityTitle = "Public activity"
+    static let noActivity = "No public activity yet."
 }
 
 struct UserProfileNotFound: View {
@@ -128,13 +119,18 @@ struct UserProfileContentData: Equatable {
     var followedByMe = false
     var blockedByMe = false
     var isBusy = false
+    var bio: String?
+    var joinedText: String?
+    var cabals: Int?
+    var performance = IdentityPerformance.loading
+    var activity: [Components.Schemas.FeedItem] = []
+    var activityLoaded = false
 }
 
 struct UserProfileActions {
     var follow: () -> Void = {}
     var unfollow: () -> Void = {}
     var unblock: () -> Void = {}
-    var openPublicActivity: () -> Void = {}
 }
 
 private struct UserProfileLoaded: View {
@@ -144,10 +140,23 @@ private struct UserProfileLoaded: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(UserProfileModel.self) private var model: UserProfileModel?
-    @Environment(\.userProfileFixture) private var fixture
+    @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
+    @State private var activity: PublicActivityModel?
 
     var body: some View {
-        UserProfileContent(data: data, fixture: fixture, actions: actions)
+        UserProfileContent(data: data, actions: actions)
+            .task(id: userID) {
+                let activity = prepared()
+                refresh?.register("user-profile-activity") { await activity.load() }
+                await activity.load()
+            }
+    }
+
+    private func prepared() -> PublicActivityModel {
+        if let activity, activity.userID == userID { return activity }
+        let created = PublicActivityModel(userID: userID, api: environment.api)
+        activity = created
+        return created
     }
 
     private var data: UserProfileContentData {
@@ -158,7 +167,10 @@ private struct UserProfileLoaded: View {
             handle: handle.isEmpty ? nil : handle, photoURL: model?.photoURL,
             followers: model?.followerCount ?? 0, following: model?.followingCount ?? 0, isViewer: isViewer,
             followedByMe: model?.followedByMe ?? false, blockedByMe: model?.blockedByMe ?? false,
-            isBusy: model?.isToggling(userID) ?? false)
+            isBusy: model?.isToggling(userID) ?? false, bio: model?.bio,
+            joinedText: model?.joinedAt.map { MemberSinceFormatter.joined($0) }, cabals: model?.cabalCount,
+            performance: model?.performance.map(IdentityPerformance.init) ?? .loading,
+            activity: activity?.items ?? [], activityLoaded: activity?.phase == .loaded)
     }
 
     private var actions: UserProfileActions {
@@ -171,14 +183,12 @@ private struct UserProfileLoaded: View {
                     let flow = Flow20aReportBlockModel(api: environment.api, hints: environment.hints)
                     await UserProfileBlockRunner.run(false, flow: flow, model: model, toasts: toasts)
                 }
-            },
-            openPublicActivity: { environment.navigator.selectedTab = .feed })
+            })
     }
 }
 
 struct UserProfileContent: View {
     let data: UserProfileContentData
-    let fixture: UserProfileFixture
     let actions: UserProfileActions
 
     var body: some View {
@@ -192,7 +202,7 @@ struct UserProfileContent: View {
             .padding(.horizontal, MonacoTheme.Space.gutter)
             SocialCounts(
                 model: SocialCountsModel(
-                    userID: data.userID, followers: data.followers, following: data.following, cabals: nil),
+                    userID: data.userID, followers: data.followers, following: data.following, cabals: data.cabals),
                 identifierPrefix: "user-profile"
             )
             action
@@ -203,8 +213,8 @@ struct UserProfileContent: View {
     private var cardModel: IdentityCardModel {
         IdentityCardModel(
             displayName: data.title, handle: data.handle == data.title ? nil : data.handle,
-            joinedText: fixture.joinedText, bio: fixture.bio, positionsValue: nil, performance: fixture.performance,
-            periodText: fixture.periodText)
+            joinedText: data.joinedText, bio: data.bio, positionsValue: nil, performance: data.performance,
+            periodText: PublicPerformance.periodLabel)
     }
 
     @ViewBuilder private var action: some View {
@@ -237,21 +247,44 @@ struct UserProfileContent: View {
 
     @ViewBuilder private var extras: some View {
         if !data.blockedByMe {
-            if fixture.performance == .hidden {
+            if data.performance == .hidden {
                 EmptyState(
                     title: UserProfileCopy.privateTitle, message: UserProfileCopy.privateMessage,
                     systemImage: MonacoIcon.lock.symbol
                 )
                 .accessibilityIdentifier("user-profile-private")
-            } else if fixture.showsPublicActivity {
-                Button(action: actions.openPublicActivity) {
-                    MonacoRow(
-                        title: "Public activity", subtitle: "Latest proposals and discussions", chevron: true,
-                        isLast: true, leading: { SunkenGlyphMark(icon: .news) })
-                }
-                .buttonStyle(.monacoRow)
-                .accessibilityIdentifier("user-profile-public-activity")
             }
+            publicActivity
         }
+    }
+
+    @ViewBuilder private var publicActivity: some View {
+        if !data.activity.isEmpty {
+            VStack(spacing: 0) {
+                MonacoSectionHeader(UserProfileCopy.activityTitle)
+                ForEach(data.activity) { item in
+                    NavigationLink(value: item.opensRoute) {
+                        MonacoRow(
+                            title: item.title, subtitle: Self.subtitle(item), chevron: true,
+                            isLast: item.id == data.activity.last?.id,
+                            leading: { SunkenGlyphMark(icon: .news) })
+                    }
+                    .buttonStyle(.monacoRow)
+                    .accessibilityIdentifier("user-profile-activity-\(item.id)")
+                }
+            }
+            .accessibilityIdentifier("user-profile-public-activity")
+        } else if data.activityLoaded {
+            Text(UserProfileCopy.noActivity)
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.muted)
+                .accessibilityIdentifier("user-profile-no-activity")
+        }
+    }
+
+    static func subtitle(_ item: Components.Schemas.FeedItem) -> String {
+        let age = RelativeTimeFormatter.label(date: item.createdAt, now: Date())
+        guard let detail = item.detail, !detail.isEmpty else { return age }
+        return "\(detail) · \(age)"
     }
 }

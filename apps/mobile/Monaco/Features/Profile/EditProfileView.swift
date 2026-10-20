@@ -14,8 +14,6 @@ enum EditProfilePhase {
 struct EditProfilePresets {
     var nameDraft: String?
     var handleDraft: String?
-    var bioDraft: String?
-    var bioEnabled = false
     var phase: EditProfilePhase?
     var loadFailed = false
     var showsFacePicker = false
@@ -33,7 +31,9 @@ enum EditProfileCopy {
     static let saved = "Profile saved."
     static let saving = "Saving…"
     static let save = "Save changes"
-    static let bioHelper = "Bio opens soon."
+    static let bioHelper = "Up to \(ProfileBioRules.maxScalars) characters."
+    static let shareTitle = "Show my 1M return"
+    static let shareHelper = "Your one-month return shows on your profile, posts and comments."
     static let failedTitle = "Couldn't load this view"
     static let failedMessage =
         "Your existing information hasn't been changed. Try again when your connection is available."
@@ -73,11 +73,13 @@ private struct EditProfileForm: View {
     @State private var nameDraft = ""
     @State private var handleDraft = ""
     @State private var bioDraft = ""
+    @State private var shareDraft = true
     @State private var nameSaveError: String?
     @State private var isSaving = false
     @State private var savedSnapshot: String?
     @State private var confirmingHandle: String?
     @State private var nameSubmission = IdempotentSubmission()
+    @State private var profileSubmission = IdempotentSubmission()
     @State private var handleSubmissions: [String: IdempotentSubmission] = [:]
 
     init(focus: EditProfileFocus?, presets: EditProfilePresets, sessions: SessionAPI) {
@@ -102,6 +104,14 @@ private struct EditProfileForm: View {
     private var nameError: String? {
         DisplayNameRules.validationMessage(for: nameDraft) ?? nameSaveError
     }
+
+    private var normalizedBio: String { ProfileBioRules.normalized(bioDraft) }
+
+    private var bioError: String? { ProfileBioRules.validationMessage(for: bioDraft) }
+
+    private var bioChanged: Bool { bioError == nil && normalizedBio != (profile?.bio ?? "") }
+
+    private var shareChanged: Bool { shareDraft != (profile?.sharePerformance ?? true) }
 
     private var normalizedHandle: String { HandleInput.normalize(handleDraft) }
 
@@ -148,15 +158,17 @@ private struct EditProfileForm: View {
     }
 
     private var fingerprint: String {
-        "\(normalizedName ?? nameDraft)|\(normalizedHandle)|\(bioDraft)"
+        "\(normalizedName ?? nameDraft)|\(normalizedHandle)|\(bioDraft)|\(shareDraft)"
     }
 
     private var canSave: Bool {
         guard profile != nil, !showsSaving else { return false }
-        guard DisplayNameRules.validationMessage(for: nameDraft) == nil, handleError == nil, handleReady else {
+        guard DisplayNameRules.validationMessage(for: nameDraft) == nil, handleError == nil, handleReady,
+            bioError == nil
+        else {
             return false
         }
-        return nameChanged || handleChanged
+        return nameChanged || handleChanged || bioChanged || shareChanged
     }
 
     var body: some View {
@@ -202,6 +214,7 @@ private struct EditProfileForm: View {
                     nameField
                     usernameField
                     bioField
+                    shareToggle
                     notice
                 }
                 saveButton
@@ -255,6 +268,7 @@ private struct EditProfileForm: View {
                 return
             }
         }
+        guard await saveProfileFields() else { return }
         savedSnapshot = fingerprint
         toasts.show(success: EditProfileCopy.saved)
         AccessibilityNotification.Announcement(EditProfileCopy.saved).post()
@@ -262,6 +276,24 @@ private struct EditProfileForm: View {
 }
 
 extension EditProfileForm {
+    private func saveProfileFields() async -> Bool {
+        guard bioChanged || shareChanged else { return true }
+        let update = ProfileUpdate(
+            bio: bioChanged ? normalizedBio : nil, sharePerformance: shareChanged ? shareDraft : nil)
+        switch await session.updateProfile(update, auth: auth, submission: profileSubmission) {
+        case .saved:
+            bioDraft = profile?.bio ?? ""
+            shareDraft = profile?.sharePerformance ?? true
+            profileSubmission = IdempotentSubmission()
+        case .unchanged:
+            break
+        case .failed(let message):
+            toasts.current = MonacoToast(message: message)
+            return false
+        }
+        return true
+    }
+
     private var photo: some View {
         ProfilePhotoPicker(
             auth: auth,
@@ -314,12 +346,34 @@ extension EditProfileForm {
         MonacoTextField(
             "",
             text: $bioDraft,
+            isInvalid: bioError != nil,
+            errorMessage: bioError,
+            capitalization: .sentences,
             label: "Bio",
-            helper: presets.bioEnabled ? nil : EditProfileCopy.bioHelper,
+            helper: EditProfileCopy.bioHelper,
             isMultiline: true
         )
-        .disabled(!presets.bioEnabled)
         .accessibilityIdentifier("edit-profile-bio-field")
+    }
+
+    private var shareToggle: some View {
+        HStack(spacing: MonacoTheme.Space.sm) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                Text(EditProfileCopy.shareTitle)
+                    .font(MonacoTheme.Typo.headline)
+                    .foregroundStyle(MonacoTheme.primaryText)
+                Text(EditProfileCopy.shareHelper)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Toggle(EditProfileCopy.shareTitle, isOn: $shareDraft)
+                .labelsHidden()
+                .monacoSwitch()
+        }
+        .frame(minHeight: MonacoButtonMetrics.hitTarget)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("edit-profile-share-performance")
     }
 
     @ViewBuilder private var notice: some View {
@@ -378,7 +432,8 @@ extension EditProfileForm {
         guard let profile else { return }
         nameDraft = presets.nameDraft ?? profile.displayName
         handleDraft = presets.handleDraft ?? profile.handle ?? ""
-        bioDraft = presets.bioDraft ?? ""
+        bioDraft = profile.bio ?? ""
+        shareDraft = profile.sharePerformance
         nameSaveError = nil
         savedSnapshot = nil
     }

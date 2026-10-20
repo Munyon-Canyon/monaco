@@ -17,6 +17,7 @@ struct ProfileScreen: View {
     @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @State private var portfolio: PortfolioModel?
+    @State private var selfProfile: UserProfileModel?
     let sections: [any ProfileSection.Type]
 
     init(sections: [any ProfileSection.Type] = Self.sections) {
@@ -36,6 +37,7 @@ struct ProfileScreen: View {
     var body: some View {
         content
             .environment(portfolio)
+            .environment(selfProfile)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .task {
                 let portfolio = preparedPortfolio()
@@ -43,6 +45,15 @@ struct ProfileScreen: View {
                 await withTaskGroup(of: Void.self) { group in
                     group.addTask { await portfolio.load() }
                     group.addTask { await portfolio.observe() }
+                }
+            }
+            .task(id: environment.viewer?.userID) {
+                guard let model = preparedSelfProfile() else { return }
+                refresh?.register("profile-follow-counts") { await model.refresh() }
+                if model.profile == nil {
+                    await model.load()
+                } else {
+                    await model.refresh()
                 }
             }
             .onScreenVisibilityChange { portfolio?.setVisible($0) }
@@ -84,6 +95,14 @@ struct ProfileScreen: View {
         } else {
             SectionStack(context: (), sections: sections.map { $0.erased })
         }
+    }
+
+    private func preparedSelfProfile() -> UserProfileModel? {
+        guard let userID = environment.viewer?.userID else { return nil }
+        if let selfProfile, selfProfile.userID == userID { return selfProfile }
+        let created = UserProfileModel(userID: userID, api: environment.api)
+        selfProfile = created
+        return created
     }
 
     private func preparedPortfolio() -> PortfolioModel {

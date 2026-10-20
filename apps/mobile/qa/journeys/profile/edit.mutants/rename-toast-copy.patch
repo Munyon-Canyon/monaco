@@ -4,9 +4,10 @@ expect-fail: S1
 The save toast says "Saved." S1.3 expects "Profile saved.", so S1 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Profile/EditProfileView.swift b/apps/mobile/Monaco/Features/Profile/EditProfileView.swift
+index 6aaa49565..1cb1d264e 100644
 --- a/apps/mobile/Monaco/Features/Profile/EditProfileView.swift
 +++ b/apps/mobile/Monaco/Features/Profile/EditProfileView.swift
-@@ -30,7 +30,7 @@
+@@ -28,7 +28,7 @@ extension EnvironmentValues {
  enum EditProfileCopy {
      static let title = "Edit profile"
      static let invalidUsername = "Choose a valid username."
@@ -14,4 +15,4 @@ diff --git a/apps/mobile/Monaco/Features/Profile/EditProfileView.swift b/apps/mo
 +    static let saved = "Saved."
      static let saving = "Saving…"
      static let save = "Save changes"
-     static let bioHelper = "Bio opens soon."
+     static let bioHelper = "Up to \(ProfileBioRules.maxScalars) characters."

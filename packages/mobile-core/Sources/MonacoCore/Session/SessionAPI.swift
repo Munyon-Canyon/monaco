@@ -33,6 +33,17 @@ public struct SessionAPI: Sendable {
         return try SessionProfile(json: data)
     }
 
+    public func updateProfile(_ update: ProfileUpdate, submission: IdempotentSubmission) async throws
+        -> SessionProfile
+    {
+        let request = Components.Schemas.UpdateProfileRequest(
+            bio: update.bio.map { ProfileBioRules.normalized($0) }, sharePerformance: update.sharePerformance)
+        let data = try await api.sessionSubmit(submission, payload: request, operation: "patchMe") { client, key in
+            _ = try await client.patchMe(.init(headers: .init(idempotencyKey: key), body: .json(request))).ok
+        }
+        return try SessionProfile(json: data)
+    }
+
     public func handleAvailability(_ handle: String) async throws -> HandleStatus {
         let reply = try await api.read { client in
             try await client.getHandleAvailability(path: .init(handle: handle)).ok.body.json
@@ -70,6 +81,16 @@ public struct SessionAPI: Sendable {
         try await api.submit(submission, payload: "", operation: "deleteMe") { client, key in
             _ = try await client.deleteMe(.init(headers: .init(idempotencyKey: key))).noContent
         }
+    }
+}
+
+public struct ProfileUpdate: Equatable, Sendable {
+    public var bio: String?
+    public var sharePerformance: Bool?
+
+    public init(bio: String? = nil, sharePerformance: Bool? = nil) {
+        self.bio = bio
+        self.sharePerformance = sharePerformance
     }
 }
 

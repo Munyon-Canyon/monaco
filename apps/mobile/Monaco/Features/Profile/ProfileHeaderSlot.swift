@@ -12,7 +12,22 @@ enum ProfileHeaderSlot: ProfileSection {
 
 struct ProfileHeaderPresets {
     var showsFacePicker = false
-    var bio: String?
+}
+
+enum IdentityOneMonth: Equatable {
+    case loading
+    case failed
+    case loaded(PublicPerformance)
+
+    init(_ model: UserProfileModel) {
+        if let performance = model.performance {
+            self = .loaded(performance)
+        } else if model.phase == .failed || model.phase == .unavailable {
+            self = .failed
+        } else {
+            self = .loading
+        }
+    }
 }
 
 extension EnvironmentValues {
@@ -26,6 +41,7 @@ struct ProfileHeader: View {
     @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
+    @Environment(UserProfileModel.self) private var selfProfile: UserProfileModel?
     @Environment(\.profileHeaderPresets) private var presets
 
     @State private var showsShare = false
@@ -48,6 +64,11 @@ struct ProfileHeader: View {
         }
     }
 
+    private var oneMonth: IdentityOneMonth? {
+        if let selfProfile { return IdentityOneMonth(selfProfile) }
+        return environment.viewer == nil ? nil : .loading
+    }
+
     private var loadFailure: some View {
         MonacoErrorRow(thing: "your profile", identifier: "profile-header-error") {
             Task { await session.reloadProfile(auth: auth) }
@@ -57,7 +78,8 @@ struct ProfileHeader: View {
     private func identity(_ profile: SessionProfile) -> some View {
         VStack(spacing: MonacoTheme.Space.s) {
             IdentityCard(
-                model: Self.model(for: profile, portfolio: portfolio?.state ?? .loading, bio: presets.bio),
+                model: Self.model(
+                    for: profile, portfolio: portfolio?.state ?? .loading, oneMonth: oneMonth),
                 editRoute: AnyAppRoute(EditProfileRoute())
             ) {
                 ProfilePhotoPicker(
@@ -86,21 +108,31 @@ struct ProfileHeader: View {
     }
 
     static func model(
-        for profile: SessionProfile, portfolio: LoadState<PortfolioSummary>, bio: String?
+        for profile: SessionProfile, portfolio: LoadState<PortfolioSummary>, oneMonth: IdentityOneMonth? = nil
     ) -> IdentityCardModel {
         let name = profile.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         var model = IdentityCardModel(
             displayName: name.isEmpty ? "Member" : name, handle: profile.handle,
-            joinedText: MemberSinceFormatter.joined(profile.createdAt), bio: bio, positionsValue: IdentityCardCopy.zero,
-            performance: .loading, periodText: IdentityCardCopy.allTime)
+            joinedText: MemberSinceFormatter.joined(profile.createdAt), bio: profile.bio,
+            positionsValue: IdentityCardCopy.zero, performance: .loading, periodText: IdentityCardCopy.allTime,
+            positionsPhase: .loading)
         switch portfolio {
         case .idle, .loading:
             break
         case .failed:
             model.performance = .failed
+            model.positionsPhase = .failed
         case .loaded(let summary):
             model.positionsValue = summary.stats.inCabals
             model.performance = IdentityPerformance(stats: summary.stats)
+            model.positionsPhase = .loaded
+        }
+        guard let oneMonth else { return model }
+        model.periodText = PublicPerformance.periodLabel
+        switch oneMonth {
+        case .loading: model.performance = .loading
+        case .failed: model.performance = .failed
+        case .loaded(let performance): model.performance = IdentityPerformance(performance)
         }
         return model
     }

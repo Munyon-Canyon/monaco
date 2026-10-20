@@ -29,7 +29,7 @@ struct ProfileIdentityTests {
     }
 
     @Test func theCardNamesTheMemberAndTheAllTimePeriod() {
-        let model = ProfileHeader.model(for: profile(), portfolio: .loaded(summary(.sample)), bio: nil)
+        let model = ProfileHeader.model(for: profile(), portfolio: .loaded(summary(.sample)))
         #expect(model.displayName == "Alex")
         #expect(model.periodText == "All time")
         #expect(model.positionsValue == "$1,000.00")
@@ -38,11 +38,43 @@ struct ProfileIdentityTests {
     }
 
     @Test func theCardShowsLoadingAndFailureWithoutInventingFigures() {
-        let loading = ProfileHeader.model(for: profile(), portfolio: .loading, bio: nil)
+        let loading = ProfileHeader.model(for: profile(), portfolio: .loading)
         #expect(loading.performance == .loading)
-        let failed = ProfileHeader.model(for: profile(), portfolio: .failed(.signedOut), bio: "Hi")
+        var withBio = profile()
+        withBio.bio = "Hi"
+        let failed = ProfileHeader.model(for: withBio, portfolio: .failed(.signedOut))
         #expect(failed.performance == .failed)
         #expect(failed.bio == "Hi")
+    }
+
+    @Test func theOwnCardShowsTheRealBioAndTheOneMonthFigure() {
+        var member = profile()
+        member.bio = "Building in public.\nNYC"
+        let model = ProfileHeader.model(
+            for: member, portfolio: .loaded(summary(.sample)),
+            oneMonth: .loaded(.figure(pnlMicros: -417_680_000, returnBps: -348)))
+        #expect(model.bio == "Building in public.\nNYC")
+        #expect(model.periodText == "1M")
+        #expect(model.performance == .figure(dollars: "−$417.68", percent: "−3.48%"))
+        #expect(model.positionsValue == "$1,000.00")
+        #expect(model.positionsPhase == .loaded)
+    }
+
+    @Test func theOwnCardKeepsPositionsWhenOnlyTheOneMonthFigureFails() {
+        let model = ProfileHeader.model(for: profile(), portfolio: .loaded(summary(.sample)), oneMonth: .failed)
+        #expect(model.performance == .failed)
+        #expect(model.positionsPhase == .loaded)
+        let waiting = ProfileHeader.model(for: profile(), portfolio: .loaded(summary(.sample)), oneMonth: .loading)
+        #expect(waiting.performance == .loading)
+        #expect(waiting.positionsValue == "$1,000.00")
+    }
+
+    @Test func aPublicReturnDrawsAFigureThePrivateStateOrNoReturn() {
+        #expect(
+            IdentityPerformance(.figure(pnlMicros: 984_000_000, returnBps: 820))
+                == .figure(dollars: "+$984.00", percent: "+8.20%"))
+        #expect(IdentityPerformance(.hidden) == .hidden)
+        #expect(IdentityPerformance(.unavailable) == .notRanked)
     }
 
     @Test func theFullScreenErrorNeedsNoProfileAndNoLoadInFlight() {
