@@ -19,7 +19,7 @@ public enum FeedDestination: Equatable, Sendable {
         case .cabalCreated, .memberJoined:
             guard let cabalID = item.cabalId else { return nil }
             self = .cabal(id: cabalID)
-        case nil:
+        case .reply, .threshold, nil:
             return nil
         }
     }

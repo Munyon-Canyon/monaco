@@ -13,7 +13,7 @@ nonisolated final class FeedSampleUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["No updates yet"].waitForExistence(timeout: 15), "Everyone is plain empty")
         app.buttons["feed-filter"].tap()
-        app.buttons["feed-scope-Following"].tap()
+        FeedBrowseJourney.menuItem(app, "feed-scope-Following").tap()
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)).tap()
         XCTAssertTrue(
             app.staticTexts["Follow people to see what they do."].waitForExistence(timeout: 10),
@@ -27,19 +27,20 @@ nonisolated final class FeedSampleUITests: XCTestCase {
     }
 
     @MainActor
-    func testFilterMenuAppliesEachPickAtOnceAndStaysOpen() {
+    func testFilterMenuAppliesEachToggleAtOnceAndStaysOpen() {
         let app = launch("-feedHarness", "items")
         let filter = app.buttons["feed-filter"]
         XCTAssertTrue(filter.waitForExistence(timeout: 15), "the filter round is missing")
         filter.tap()
-        let trades = app.buttons["feed-chip-Trades"]
+        let trades = FeedBrowseJourney.menuItem(app, "feed-chip-Completed trades")
         XCTAssertTrue(trades.waitForExistence(timeout: 5), "the menu did not open: \(app.debugDescription)")
         trades.tap()
-        XCTAssertTrue(app.buttons["feed-chip-Price moves"].exists, "the menu closed after one pick")
-        XCTAssertTrue(app.buttons["feed-muted-link"].exists, "the menu has no Muted item")
-        app.buttons["feed-scope-Following"].tap()
-        XCTAssertTrue(app.buttons["feed-chip-Cabals"].exists, "the menu closed after the second pick")
-        app.buttons["feed-muted-link"].tap()
+        XCTAssertTrue(FeedBrowseJourney.menuItem(app, "feed-chip-Price moves").exists, "the menu closed after one pick")
+        XCTAssertTrue(FeedBrowseJourney.menuItem(app, "feed-muted-link").exists, "the menu has no Muted item")
+        FeedBrowseJourney.menuItem(app, "feed-scope-Following").tap()
+        XCTAssertTrue(
+            FeedBrowseJourney.menuItem(app, "feed-chip-Cabal activity").exists, "the menu closed after the second pick")
+        FeedBrowseJourney.menuItem(app, "feed-muted-link").tap()
         XCTAssertTrue(app.navigationBars["Muted"].waitForExistence(timeout: 5), "Muted did not open")
     }
 

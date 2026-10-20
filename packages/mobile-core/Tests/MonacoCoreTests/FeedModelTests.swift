@@ -9,7 +9,7 @@ import XCTest
 final class FeedModelTests: XCTestCase {
     private let samples = Components.Schemas.FeedItem.samples
 
-    func testAChipBuildsANewPagerThatSendsItsKind() async throws {
+    func testAKindBuildsANewPagerThatSendsIt() async throws {
         let transport = StubTransport(scripted: [
             .json(.ok, try Self.page(samples)),
             .json(.ok, try Self.page([samples[0]])),
@@ -18,7 +18,7 @@ final class FeedModelTests: XCTestCase {
         await model.load()
         let first = model.pager
         XCTAssertEqual(model.items.count, samples.count)
-        await model.select(.proposals)
+        await model.toggle(.proposals)
         XCTAssertFalse(model.pager === first)
         XCTAssertEqual(model.items.map(\.id), [samples[0].id])
         let sent = await queries(transport)
@@ -27,14 +27,29 @@ final class FeedModelTests: XCTestCase {
         XCTAssertEqual(sent[1]["kind"], "proposal")
     }
 
-    func testTheScopeKeepsTheChip() async throws {
+    func testTheScopeKeepsTheKinds() async throws {
         let transport = StubTransport(.json(.ok, try Self.page(samples)))
         let model = makeModel(transport)
-        await model.select(.cabals)
+        await model.toggle(.cabalActivity)
         await model.select(.following)
         let last = await queries(transport).last
         XCTAssertEqual(last?["kind"], "cabal_created,member_joined")
         XCTAssertEqual(last?["scope"], "following")
+    }
+
+    func testKindsCombineAndClearingSendsNoKind() async throws {
+        let transport = StubTransport(.json(.ok, try Self.page(samples)))
+        let model = makeModel(transport)
+        await model.toggle(.proposals)
+        await model.toggle(.repliesAndVotes)
+        XCTAssertEqual(model.query.kinds, [.proposals, .repliesAndVotes])
+        await model.toggle(.proposals)
+        XCTAssertEqual(model.query.kinds, [.repliesAndVotes])
+        await model.toggle(.proposalOutcomes)
+        await model.clearKinds()
+        XCTAssertTrue(model.query.kinds.isEmpty)
+        let sent = await queries(transport)
+        XCTAssertEqual(sent.map { $0["kind"] ?? nil }, ["proposal", "proposal,reply", "reply", "reply,threshold", nil])
     }
 
     func testSearchWaitsForTheDebounceAndSendsOnlyTheLastText() async throws {

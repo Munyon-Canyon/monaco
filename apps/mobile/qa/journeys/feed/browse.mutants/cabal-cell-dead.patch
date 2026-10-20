@@ -5,7 +5,7 @@ A cabal cell opens nothing. S3.1 expects the cell to open the cabal screen, so i
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/packages/mobile-core/Sources/MonacoCore/Feed/FeedDestination.swift b/packages/mobile-core/Sources/MonacoCore/Feed/FeedDestination.swift
-index 4bc299750..fd8c98eec 100644
+index b8864c5b4..f2a875860 100644
 --- a/packages/mobile-core/Sources/MonacoCore/Feed/FeedDestination.swift
 +++ b/packages/mobile-core/Sources/MonacoCore/Feed/FeedDestination.swift
 @@ -18,7 +18,7 @@ public enum FeedDestination: Equatable, Sendable {
@@ -14,6 +14,6 @@ index 4bc299750..fd8c98eec 100644
              guard let cabalID = item.cabalId else { return nil }
 -            self = .cabal(id: cabalID)
 +            return nil
-         case nil:
+         case .reply, .threshold, nil:
              return nil
          }

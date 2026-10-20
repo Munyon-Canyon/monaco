@@ -5,18 +5,21 @@ import XCTest
 
 @MainActor
 final class FeedPreviewTests: XCTestCase {
-    func testTheItemsHarnessNarrowsByChipAndSearch() async {
+    func testTheItemsHarnessNarrowsByKindsAndSearch() async {
         let model = FeedModel.preview(.items, clock: TestClock())
         await model.load()
         let all = model.items.map(\.id)
         XCTAssertEqual(
             Set(model.items.map(\.kind)),
             ["proposal", "trade", "price_move", "reply", "threshold", "cabal_created"])
-        await model.select(.cabals)
+        await model.toggle(.cabalActivity)
         XCTAssertEqual(model.items.map(\.kind), ["cabal_created"])
-        await model.select(.proposals)
+        await model.clearKinds()
+        await model.toggle(.proposals)
         XCTAssertEqual(model.items.map(\.kind), ["proposal", "proposal"])
-        await model.select(.all)
+        await model.toggle(.repliesAndVotes)
+        XCTAssertEqual(Set(model.items.map(\.kind)), ["proposal", "reply"])
+        await model.clearKinds()
         await model.select(.following)
         XCTAssertEqual(model.items.map(\.id), all)
     }

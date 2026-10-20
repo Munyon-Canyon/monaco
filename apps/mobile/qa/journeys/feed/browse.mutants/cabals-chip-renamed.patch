@@ -1,19 +1,19 @@
 journey: feed/browse
 expect-fail: S1 S3
 
-The Cabals chip reads "Groups". S1.1 checks every spec chip and S3.1 taps feed-chip-Cabals, so both must fail.
+The Cabal activity toggle reads "Groups". S1.1 checks every spec toggle and S1.2 taps feed-chip-Cabal activity, and S3.1 needs that toggle left on, so S1 and S3 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/packages/mobile-core/Sources/MonacoCore/Feed/FeedQuery.swift b/packages/mobile-core/Sources/MonacoCore/Feed/FeedQuery.swift
-index fbff3de08..6674ce03b 100644
+index 0f36b8042..9bf14e58e 100644
 --- a/packages/mobile-core/Sources/MonacoCore/Feed/FeedQuery.swift
 +++ b/packages/mobile-core/Sources/MonacoCore/Feed/FeedQuery.swift
-@@ -21,7 +21,7 @@ public enum FeedChip: CaseIterable, Hashable, Sendable {
-         case .proposals: "Proposals"
-         case .trades: "Trades"
+@@ -25,7 +25,7 @@ public enum FeedKindGroup: CaseIterable, Hashable, Sendable {
          case .priceMoves: "Price moves"
--        case .cabals: "Cabals"
-+        case .cabals: "Groups"
+         case .repliesAndVotes: "Replies & votes"
+         case .proposalOutcomes: "Proposal outcomes"
+-        case .cabalActivity: "Cabal activity"
++        case .cabalActivity: "Groups"
          }
      }
  

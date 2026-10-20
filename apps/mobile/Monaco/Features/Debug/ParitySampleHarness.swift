@@ -24,11 +24,11 @@ enum ParitySampleScenario: String, CaseIterable {
         return ParitySampleScenario(rawValue: arguments[flag + 1])
     }
 
-    var feedChip: FeedChip? {
+    var feedGroup: FeedKindGroup? {
         switch self {
         case .feedPriceMoves: .priceMoves
         case .feedProposals: .proposals
-        case .feedTrades: .trades
+        case .feedTrades: .completedTrades
         default: nil
         }
     }
@@ -67,7 +67,7 @@ enum ParitySampleScenario: String, CaseIterable {
 }
 
 private struct ParityFeedScreen: View {
-    let chip: FeedChip
+    let group: FeedKindGroup
 
     @State private var path: [AnyAppRoute] = []
 
@@ -75,7 +75,7 @@ private struct ParityFeedScreen: View {
         NavigationStack(path: $path) {
             FeedView(makeModel: { _ in
                 let model = FeedModel.preview(.items, clock: ContinuousClock())
-                Task { await model.select(chip) }
+                Task { await model.toggle(group) }
                 return model
             })
             .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
@@ -92,7 +92,7 @@ final class ParitySampleHarnessEntry: SampleHarnessEntry {
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
         guard let scenario = ParitySampleScenario.matching(arguments) else { return nil }
         SampleAPIProtocol.install(scenario.script)
-        if let chip = scenario.feedChip { return AnyView(ParityFeedScreen(chip: chip)) }
+        if let group = scenario.feedGroup { return AnyView(ParityFeedScreen(group: group)) }
         return AnyView(SampleAppFrame(auth: auth, tab: scenario.tab, routes: scenario.routes))
     }
 }

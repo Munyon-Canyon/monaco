@@ -61,9 +61,21 @@ public final class FeedModel {
         }
     }
 
-    public func select(_ chip: FeedChip) async {
+    public func toggle(_ group: FeedKindGroup) async {
         var next = query
-        next.chip = chip
+        if next.kinds.contains(group) {
+            next.kinds.remove(group)
+        } else {
+            next.kinds.insert(group)
+        }
+        next.search = typedSearch
+        searchTask?.cancel()
+        await apply(next)
+    }
+
+    public func clearKinds() async {
+        var next = query
+        next.kinds = []
         next.search = typedSearch
         searchTask?.cancel()
         await apply(next)
