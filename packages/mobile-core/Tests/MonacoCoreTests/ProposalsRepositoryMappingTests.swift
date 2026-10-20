@@ -11,6 +11,7 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
         let summary = ProposalSummary(proposal, canVote: true, canWithdraw: true)
         XCTAssertEqual(summary.id, "proposal-1")
         XCTAssertEqual(summary.cabalID, "cabal-1")
+        XCTAssertEqual(summary.cabalName, "Friday Night Lights")
         XCTAssertEqual(summary.kind, "sell")
         XCTAssertEqual(summary.symbol, "AAPLx")
         XCTAssertEqual(summary.status, .executed)
@@ -28,6 +29,7 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
             .init(proposalId: "p", cabalId: "c", cabalName: "Cabal", kind: .buy, symbol: "TSLAx", expiresAt: .now))
         XCTAssertEqual(pending.id, "p")
         XCTAssertEqual(pending.cabalID, "c")
+        XCTAssertEqual(pending.cabalName, "Cabal")
         XCTAssertEqual(pending.kind, "buy")
         XCTAssertEqual(pending.symbol, "TSLAx")
     }

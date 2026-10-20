@@ -32,6 +32,9 @@ enum ProposalSampleScenario: String, CaseIterable {
     case allEmpty
     case allLoading
     case allError
+    case closedEmpty
+    case closedLoading
+    case closedError
 
     static let launchArgument = "-MonacoProposalSample"
 
@@ -46,7 +49,7 @@ enum ProposalSampleScenario: String, CaseIterable {
         switch self {
         case .needsVote, .needsVoteEmpty: PendingVotesRoute()
         case .allOpen, .allEmpty, .allLoading, .allError: PendingVotesSampleRoute(showsClosed: false)
-        case .allClosed: PendingVotesSampleRoute(showsClosed: true)
+        case .allClosed, .closedEmpty, .closedLoading, .closedError: PendingVotesSampleRoute(showsClosed: true)
         case .votesOpen, .votesRecorded, .votesEmpty, .votesLoading, .votesError:
             ProposalSampleRoute(votes: .medium)
         case .votesExpanded: ProposalSampleRoute(votes: .large)
@@ -84,7 +87,13 @@ enum ProposalSampleScenario: String, CaseIterable {
         case .allOpen:
             script.proposal = .sample(canVote: true)
             script.pendingVotes = Components.Schemas.PendingVote.samples
-        case .allClosed: script.proposal = .sample(canVote: true)
+        case .allClosed:
+            script.proposal = .sample(canVote: true)
+            script.closedProposals = ClosedFixture.proposals
+            script.assets = ClosedFixture.assets
+        case .closedEmpty: break
+        case .closedLoading: script.closedProposalsHang = true
+        case .closedError: script.closedProposalsFail = true
         case .allEmpty: break
         case .allLoading: script.mode = .hang
         case .allError: script.pendingVotesFail = true
@@ -120,24 +129,36 @@ nonisolated struct PendingVotesSampleRoute: AppRoute {
     let showsClosed: Bool
 
     @MainActor func destination() -> some View {
-        PendingVotesScreen(segment: showsClosed ? .closed : .open, closed: showsClosed ? ClosedFixture.rows : [])
+        PendingVotesScreen(segment: showsClosed ? .closed : .open)
     }
 }
 
 private enum ClosedFixture {
-    static let rows = [
-        row("closed-1", "NVDAx", "NVIDIA", "$400.00", .approved),
-        row("closed-2", "MSFTx", "Microsoft", "$250.00", .expired),
-        row("closed-3", "AAPLx", "Apple", "$150.00", .blocked),
+    static let proposals = [
+        proposal("closed-1", "NVDAx", 400_000_000, .passed),
+        proposal("closed-2", "MSFTx", 250_000_000, .expired),
+        proposal("closed-3", "AAPLx", 150_000_000, .executionBlocked),
     ]
 
-    private static func row(_ id: String, _ symbol: String, _ name: String, _ amount: String, _ state: ProposalState)
-        -> ProposalListRow
-    {
-        ProposalListRow(
-            id: id, symbol: symbol, assetName: name, title: "\(name) · \(amount)",
-            subtitle: ProposalCardCopy.rowSubtitle(state, proposer: "Mia", statusMessage: nil),
-            badge: .listRow(state))
+    static let assets = [
+        "NVDAx": asset("NVDAx", "NVIDIA"), "MSFTx": asset("MSFTx", "Microsoft"), "AAPLx": asset("AAPLx", "Apple"),
+    ]
+
+    private static func proposal(
+        _ id: String, _ symbol: String, _ usdcMicros: Int64, _ status: Components.Schemas.ProposalStatus
+    ) -> Components.Schemas.Proposal {
+        var proposal = Components.Schemas.Proposal.sample(status: status)
+        proposal.id = id
+        proposal.symbol = symbol
+        proposal.usdcMicros = usdcMicros
+        return proposal
+    }
+
+    private static func asset(_ symbol: String, _ name: String) -> Components.Schemas.AssetDetail {
+        var detail = Components.Schemas.AssetDetail.googl
+        detail.symbol = symbol
+        detail.displayName = name
+        return detail
     }
 }
 
@@ -145,10 +166,7 @@ private enum ProposalSampleDetailSlot: ProposalSection {
     static let isLive = true
 
     static func body(for context: ProposalContext) -> some View {
-        ProposalDetailSlotView(
-            proposalID: context.proposalID,
-            authorReturn: ProposalAuthorReturn(text: "+8.2% · 1M", tone: .gain),
-            executionFacts: ProposalExecutionFacts(price: "$182.40", units: "2.1930"))
+        ProposalDetailSlotView(proposalID: context.proposalID)
     }
 }
 
@@ -166,7 +184,8 @@ extension Components.Schemas.ProposalDetail.SwapPayload {
         .init(
             swapId: "swap-1", status: status, failureCode: status == .failed ? "jupiter_failed" : nil,
             failureMessage: nil, txSignature: status == .confirmed ? "sample-signature" : nil, retryable: false,
-            tokenDecimals: 8)
+            usdcMicros: status == .confirmed ? 400_000_000 : nil, tokenAmount: status == .confirmed ? 219_300_000 : nil,
+            tokenDecimals: 8, priceMicros: status == .confirmed ? 182_400_000 : nil)
     }
 }
 

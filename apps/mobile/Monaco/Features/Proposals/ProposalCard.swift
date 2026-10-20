@@ -6,14 +6,12 @@ struct ProposalCard: View {
     let asset: ProposalAsset?
     let members: [ProposalMember]
     private let paused: Bool
-    private let cabalName: String?
     private let openRoute: AnyAppRoute?
     @Environment(AppEnvironment.self) private var environment: AppEnvironment?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(
         proposal: ProposalSummary, asset: ProposalAsset?, members: [ProposalMember], paused: Bool = false,
-        cabalName: String? = nil,
         showsThesis: Bool = true,
         isDetail: Bool = false,
         showsTracker: Bool = true,
@@ -24,13 +22,11 @@ struct ProposalCard: View {
         self.asset = asset
         self.members = members
         self.paused = paused
-        self.cabalName = cabalName
         self.openRoute = openRoute
     }
 
     init(
         proposal: ProposalDetail, asset: ProposalAsset?, members: [ProposalMember], paused: Bool = false,
-        cabalName: String? = nil,
         showsThesis: Bool = true,
         isDetail: Bool = false,
         showsTracker: Bool = true,
@@ -38,14 +34,13 @@ struct ProposalCard: View {
         vote: @escaping (String) -> Void = { _ in }
     ) {
         self.init(
-            proposal: proposal.summary, asset: asset, members: members, paused: paused, cabalName: cabalName,
-            openRoute: openRoute)
+            proposal: proposal.summary, asset: asset, members: members, paused: paused, openRoute: openRoute)
     }
 
     private var state: ProposalState { summary.state(now: .now) }
     private var isSell: Bool { summary.kind == "sell" }
     private var proposerName: String { members.first { $0.id == summary.proposerID }?.name ?? "Member" }
-    private var headline: String { cabalName ?? proposerName }
+    private var headline: String { summary.cabalName.isEmpty ? proposerName : summary.cabalName }
     private var action: ProposalCardCopy.Action { ProposalCardCopy.button(state) }
     private var note: String {
         ProposalCardCopy.note(

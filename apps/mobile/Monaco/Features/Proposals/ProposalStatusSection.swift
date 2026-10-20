@@ -1,15 +1,9 @@
 import MonacoCore
 import SwiftUI
 
-struct ProposalExecutionFacts: Equatable {
-    let price: String
-    let units: String
-}
-
 struct ProposalStatusSection: View {
     let model: ProposalDetailModel
     let summary: ProposalSummary
-    var facts: ProposalExecutionFacts?
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
 
@@ -39,7 +33,7 @@ struct ProposalStatusSection: View {
                     retryButton
                 }
                 if ProposalExecutionDetails.applies(to: state) {
-                    ProposalExecutionDetails(summary: summary, state: state, facts: facts)
+                    ProposalExecutionDetails(summary: summary, state: state, kind: model.asset?.kind ?? .stock)
                 }
             }
         }
@@ -87,7 +81,7 @@ struct ProposalStatusSection: View {
 struct ProposalExecutionDetails: View {
     let summary: ProposalSummary
     let state: ProposalState
-    var facts: ProposalExecutionFacts?
+    var kind: AssetKind = .stock
     @State private var expanded = false
 
     static func applies(to state: ProposalState) -> Bool {
@@ -107,8 +101,9 @@ struct ProposalExecutionDetails: View {
                 MonacoRule()
                 ReceiptLine(label: "Status", value: .words(ProposalBadge.hero(state).label))
                 if state == .executed {
-                    ReceiptLine(label: "Executed price", value: .words(facts?.price ?? "Opens soon"))
-                    ReceiptLine(label: "Units", value: .words(facts?.units ?? "Opens soon"))
+                    let facts = summary.swap?.executionFigures(kind: kind)
+                    ReceiptLine(label: "Executed price", value: .words(facts?.price ?? "Not available"))
+                    ReceiptLine(label: "Units", value: .words(facts?.units ?? "Not available"))
                 } else {
                     ReceiptLine(label: "Executed price", value: .words("Not confirmed"))
                 }

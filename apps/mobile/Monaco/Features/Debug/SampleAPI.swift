@@ -57,6 +57,9 @@ nonisolated struct SampleAPIScript: Sendable {
     var portfolioReadsBeforeFailing: Int?
     var pendingVotesFail = false
     var pendingVotesHang = false
+    var closedProposals: [Components.Schemas.Proposal] = []
+    var closedProposalsFail = false
+    var closedProposalsHang = false
     var catalog: [Components.Schemas.AssetSummary] = []
     var failsAfterAssetReads: Int?
 }
@@ -122,6 +125,7 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
 
     private static func hangs(_ path: String, _ script: SampleAPIScript) -> Bool {
         (script.pendingVotesHang && path == "/v1/me/pending-votes")
+            || (script.closedProposalsHang && path == "/v1/me/proposals")
             || (script.cabalBoardMode == .hanging && path == "/v1/leaderboards/cabals")
     }
 
@@ -256,6 +260,8 @@ nonisolated extension SampleAPIProtocol {
             return json(empty ? Components.Schemas.UserTxnPage.sampleEmpty : .sampleFirst)
         case "/v1/me/pending-votes":
             return pendingVotesReply(script)
+        case "/v1/me/proposals":
+            return closedProposalsReply(script)
         case "/v1/me/cabal-invites":
             return json(script.invites)
         default:
@@ -282,6 +288,11 @@ nonisolated extension SampleAPIProtocol {
     private static func pendingVotesReply(_ script: SampleAPIScript) -> Reply {
         if script.pendingVotesFail { return problem(503, "unavailable", "Proposals can't be read right now.") }
         return json(script.pendingVotes)
+    }
+
+    private static func closedProposalsReply(_ script: SampleAPIScript) -> Reply {
+        if script.closedProposalsFail { return problem(503, "unavailable", "Proposals can't be read right now.") }
+        return json(Components.Schemas.ProposalList(proposals: script.closedProposals, nextCursor: nil))
     }
 
     private static func potReply(id: String, script: SampleAPIScript) -> Reply {

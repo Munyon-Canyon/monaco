@@ -174,8 +174,8 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
         XCTAssertTrue(element("proposal-card-proposal-1").waitForExistence(timeout: 10), "the open card never drew")
         element("proposals-segment-closed").tap()
         XCTAssertTrue(
-            app.staticTexts["Closed proposals show up here soon."].waitForExistence(timeout: 5),
-            "Closed should say it shows up soon")
+            app.staticTexts["No closed proposals yet."].waitForExistence(timeout: 5),
+            "Closed should say there are none yet")
         XCTAssertFalse(element("proposal-card-proposal-1").exists, "Closed should not list the open card")
         element("proposals-segment-open").tap()
         XCTAssertTrue(element("proposal-card-proposal-1").waitForExistence(timeout: 5), "Open lost its card")
