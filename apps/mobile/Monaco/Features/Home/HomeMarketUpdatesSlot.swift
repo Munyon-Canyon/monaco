@@ -53,7 +53,7 @@ private struct HomeMarketUpdates: View {
     private func moverRow(_ asset: MarketAsset) -> some View {
         let tone = PnLTone(dollarPnl: asset.changeText)
         let color = tone == .loss ? MonacoTheme.loss : MonacoTheme.profit
-        return NavigationLink(value: AnyAppRoute(AssetRoute(symbol: asset.symbol))) {
+        return NavigationLink(value: AnyAppRoute(AssetRoute(symbol: asset.symbol, seed: AssetSeed(asset)))) {
             HomeMarketRow(isLast: false) {
                 StockMark(
                     symbol: asset.symbol, displayName: asset.name, assetKind: asset.kind, size: .row,

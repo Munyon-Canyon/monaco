@@ -21,7 +21,7 @@ struct StocksTabView: View {
         ZStack {
             if let model {
                 StocksTabScreen(
-                    model: model, query: $query, open: { openSymbol($0.symbol) }, openSymbol: openSymbol,
+                    model: model, query: $query, open: openAsset, openSymbol: openSymbol,
                     openWatchlist: { environment.navigator.open(WatchlistRoute(), in: .stocks) })
             } else {
                 ScrollView { MarketsLoading() }
@@ -62,6 +62,11 @@ struct StocksTabView: View {
         MonacoCore.StocksTabModel(
             api: environment.api, hints: environment.hints, clock: ContinuousClock(),
             watchlist: environment.watchlist)
+    }
+
+    private func openAsset(_ asset: MarketAsset) {
+        Haptics.selection()
+        environment.navigator.open(AssetRoute(symbol: asset.symbol, seed: AssetSeed(asset)), in: .stocks)
     }
 
     private func openSymbol(_ symbol: String) {

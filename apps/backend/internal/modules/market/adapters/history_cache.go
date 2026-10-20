@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	historyShortTTL = 5 * time.Minute
+	historyShortTTL = 15 * time.Minute
 	historyLongTTL  = time.Hour
 	historyMissTTL  = 24 * time.Hour
 )

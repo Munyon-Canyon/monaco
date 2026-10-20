@@ -68,7 +68,7 @@ struct WatchlistView: View {
 
     private func open(_ asset: MarketAsset) {
         Haptics.selection()
-        environment.navigator.open(AssetRoute(symbol: asset.symbol), in: hostMainTab ?? .stocks)
+        environment.navigator.open(AssetRoute(symbol: asset.symbol, seed: AssetSeed(asset)), in: hostMainTab ?? .stocks)
     }
 
     private func toggle(_ asset: MarketAsset) {
