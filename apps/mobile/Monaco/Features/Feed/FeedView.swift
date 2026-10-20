@@ -140,6 +140,8 @@ private struct FeedScreen: View {
                 .accessibilityIdentifier("feed-scope")
             }
             Section("Show") {
+                Toggle("All", isOn: allBinding)
+                    .accessibilityIdentifier("feed-chip-All")
                 ForEach(FeedKindGroup.allCases, id: \.self) { group in
                     Toggle(group.title, isOn: kindBinding(group))
                         .accessibilityIdentifier("feed-chip-\(group.title)")
@@ -161,7 +163,7 @@ private struct FeedScreen: View {
     }
 
     private var isFiltered: Bool {
-        model.query.scope != .everyone || !model.query.kinds.isEmpty
+        model.query.scope != .everyone || !model.query.showsAll
     }
 
     private var isNarrowed: Bool {
@@ -183,6 +185,17 @@ private struct FeedScreen: View {
             set: { next in
                 readingID = nil
                 Task { await model.select(next) }
+            }
+        )
+    }
+
+    private var allBinding: Binding<Bool> {
+        Binding(
+            get: { model.query.showsAll },
+            set: { _ in
+                guard !model.query.showsAll else { return }
+                readingID = nil
+                Task { await model.clearKinds() }
             }
         )
     }

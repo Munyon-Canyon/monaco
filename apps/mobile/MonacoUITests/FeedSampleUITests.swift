@@ -34,12 +34,17 @@ nonisolated final class FeedSampleUITests: XCTestCase {
         filter.tap()
         let trades = FeedBrowseJourney.menuItem(app, "feed-chip-Completed trades")
         XCTAssertTrue(trades.waitForExistence(timeout: 5), "the menu did not open: \(app.debugDescription)")
+        XCTAssertTrue(FeedBrowseJourney.menuItem(app, "feed-chip-All").isSelected, "All is not checked by default")
         trades.tap()
+        XCTAssertFalse(FeedBrowseJourney.menuItem(app, "feed-chip-All").isSelected, "All stayed checked after a pick")
         XCTAssertTrue(FeedBrowseJourney.menuItem(app, "feed-chip-Price moves").exists, "the menu closed after one pick")
         XCTAssertTrue(FeedBrowseJourney.menuItem(app, "feed-muted-link").exists, "the menu has no Muted item")
         FeedBrowseJourney.menuItem(app, "feed-scope-Following").tap()
         XCTAssertTrue(
             FeedBrowseJourney.menuItem(app, "feed-chip-Cabal activity").exists, "the menu closed after the second pick")
+        FeedBrowseJourney.menuItem(app, "feed-chip-All").tap()
+        XCTAssertFalse(trades.isSelected, "All left a group checked")
+        XCTAssertTrue(FeedBrowseJourney.menuItem(app, "feed-chip-All").isSelected, "All did not check")
         FeedBrowseJourney.menuItem(app, "feed-muted-link").tap()
         XCTAssertTrue(app.navigationBars["Muted"].waitForExistence(timeout: 5), "Muted did not open")
     }

@@ -2,12 +2,12 @@ import XCTest
 
 enum FeedBrowseJourney {
     static let id = "feed/browse"
-    static let version = 5
+    static let version = 6
     static let searchPlaceholder = "Search the feed"
     static let filterOptions = [
         "feed-scope-Everyone", "feed-scope-My cabals", "feed-scope-Following",
-        "feed-chip-Proposals", "feed-chip-Completed trades", "feed-chip-Price moves", "feed-chip-Replies & votes",
-        "feed-chip-Proposal outcomes", "feed-chip-Cabal activity", "feed-muted-link",
+        "feed-chip-All", "feed-chip-Proposals", "feed-chip-Completed trades", "feed-chip-Price moves",
+        "feed-chip-Replies & votes", "feed-chip-Proposal outcomes", "feed-chip-Cabal activity", "feed-muted-link",
     ]
 
     static func recorder() -> JourneyRecorder {
@@ -75,7 +75,7 @@ enum FeedBrowseJourney {
             for option in filterOptions {
                 XCTAssertTrue(menuItem(app, option).waitForExistence(timeout: 5), "S1.1: no \(option) in the menu")
             }
-            XCTAssertFalse(menuItem(app, "feed-chip-All").exists, "S1.1: the menu offers an All toggle")
+            XCTAssertTrue(menuItem(app, "feed-chip-All").isSelected, "S1.1: All is not checked by default")
             closeFilter(app)
         }
 

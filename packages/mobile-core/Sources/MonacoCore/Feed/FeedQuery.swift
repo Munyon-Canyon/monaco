@@ -76,6 +76,8 @@ public struct FeedQuery: Equatable, Sendable {
         self.search = search
     }
 
+    public var showsAll: Bool { kinds.isEmpty }
+
     public var trimmedSearch: String {
         search.trimmingCharacters(in: .whitespacesAndNewlines)
     }

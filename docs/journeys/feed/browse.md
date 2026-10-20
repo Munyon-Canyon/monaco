@@ -1,7 +1,7 @@
 ---
 id: feed/browse
 title: Browse the feed
-version: 5
+version: 6
 milestone: M18
 requires: [auth/sign-in]
 actors: [A]
@@ -31,7 +31,7 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap, then tap | the Feed tab, then `feed-filter` | | `feed-root` shows within 15 s with `monaco-search-field` ("Search the feed"), and the open filter menu offers `feed-scope-Everyone`, `feed-scope-My cabals`, `feed-scope-Following`, `feed-chip-Proposals`, `feed-chip-Completed trades`, `feed-chip-Price moves`, `feed-chip-Replies & votes`, `feed-chip-Proposal outcomes`, `feed-chip-Cabal activity` and `feed-muted-link`, and no `feed-chip-All` (screens.md Feed tab: the filter menu; old app: Feed tab chips and toggle) |
+| S1.1 | A | tap, then tap | the Feed tab, then `feed-filter` | | `feed-root` shows within 15 s with `monaco-search-field` ("Search the feed"), and the open filter menu offers `feed-scope-Everyone`, `feed-scope-My cabals`, `feed-scope-Following`, `feed-chip-All` (checked), `feed-chip-Proposals`, `feed-chip-Completed trades`, `feed-chip-Price moves`, `feed-chip-Replies & votes`, `feed-chip-Proposal outcomes`, `feed-chip-Cabal activity` and `feed-muted-link` (screens.md Feed tab: the filter menu; old app: Feed tab chips and toggle) |
 | S1.2 | A | tap, tap, then tap outside the menu | `feed-filter`, `feed-chip-Cabal activity`, then the left margin beside the menu | | A card reads "started QA feed {QA.run}" within 15 s (screens.md: a cabal block reads the item's title; old app: Feed tab cells) |
 | S1.3 | A | type | `monaco-search-field` | `QA feed {QA.run}` | A card reads "joined QA feed {QA.run}" within 10 s, and no card reads "started QA own {QA.run}" (screens.md: "search"; old app: Feed tab search) |
 | S1.4 | A | replace text | `monaco-search-field` | `nomatch {QA.run}` | `feed-empty` reads "No matching updates" within 10 s (screens.md: "No matching updates" with a search or filter) |
@@ -61,7 +61,7 @@ None known.
 
 ## Not covered
 
-- The filter menu stays open after each pick (every pick applies at once), so each step taps the left margin beside the menu to close it before it goes on. The options are picked by their `feed-scope-<title>` and `feed-chip-<title>` identifiers. The kind options are toggles that stay on until tapped again, so S3 relies on S1.2 having left `feed-chip-Cabal activity` on and on S2 having left only the scope changed; an empty set shows everything.
+- The filter menu stays open after each pick (every pick applies at once), so each step taps the left margin beside the menu to close it before it goes on. The options are picked by their `feed-scope-<title>` and `feed-chip-<title>` identifiers. The kind options are toggles that stay on until tapped again, so S3 relies on S1.2 having left `feed-chip-Cabal activity` on and on S2 having left only the scope changed; `feed-chip-All` is checked while no kind is, and choosing a kind unchecks it.
 - Feed cards have no stable per-run identifier: `feed-cell-<id>` carries the server's feed item id, so the steps find a card by its title text. A cabal card's block reads the item's title to VoiceOver.
 - "Hide this post" and the mute items are context-menu items with no identifiers, found by label.
 - "Find friends" on the empty Following scope (#671) and the author avatar opening `UserProfileRoute`, which `profile/overview` covers.

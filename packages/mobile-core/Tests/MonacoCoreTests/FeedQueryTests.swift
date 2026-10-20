@@ -31,6 +31,13 @@ final class FeedQueryTests: XCTestCase {
         XCTAssertNil(FeedQuery(kinds: []).parameters(cursor: nil, limit: 30).kind)
     }
 
+    func testAllIsOnOnlyWhenNoGroupIsChosen() {
+        XCTAssertTrue(FeedQuery().showsAll)
+        XCTAssertTrue(FeedQuery(scope: .following).showsAll)
+        XCTAssertFalse(FeedQuery(kinds: [.proposals]).showsAll)
+        XCTAssertFalse(FeedQuery(kinds: Set(FeedKindGroup.allCases)).showsAll)
+    }
+
     func testEachScopeSendsItsWireValue() {
         XCTAssertEqual(FeedQuery(scope: .everyone).parameters(cursor: nil, limit: 30).scope, .all)
         XCTAssertEqual(FeedQuery(scope: .mine).parameters(cursor: nil, limit: 30).scope, .mine)
