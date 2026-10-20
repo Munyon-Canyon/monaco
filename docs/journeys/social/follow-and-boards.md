@@ -77,7 +77,7 @@ None.
 
 ## Not covered
 
-- A Friends board on Home. The v3 Home Leaderboard has only the Cabals / People select and the 1W / 1M / All select, so "Friends" with "Follow people to see how they do." and "Find friends" is gone from Home. screens.md says the Leaderboard page has a "People you follow" filter, but nothing opens that page yet ("View all" pushes `HomeLeaderboardStubRoute`). S2.1, S3.3 and S5.2 read the Following list on Find friends instead.
+- A Friends board on Home. The v3 Home Leaderboard has only the Cabals / People select and the 1W / 1M / All select, so "Friends" with "Follow people to see how they do." and "Find friends" is gone from Home. screens.md says the Leaderboard page has a "People you follow" filter, but its "People you follow" filter is not covered here. S2.1, S3.3 and S5.2 read the Following list on Find friends instead.
 - The avatar on B's profile. `MonacoAvatar` is hidden from accessibility, so no identifier can reach it. S3.1 reads the name, the handle and the counts around it.
 - The exact "@handle". It is `qa_<name>` plus a suffix when another user holds that handle, so it differs across databases. S3.1 requires an "@" and a name.
 - The range options other than "All" and the ranked order after a trade. A trade needs a funded treasury; `ranking/leaderboards` covers the other boards.

@@ -68,7 +68,7 @@ enum RankingLeaderboardsJourney {
             viewAll.tap()
             XCTAssertTrue(
                 app.element("leaderboard-page").waitForExistence(timeout: 15),
-                "S4.1: View all did not open the Leaderboard page (known failure: Home pushes HomeLeaderboardStubRoute)"
+                "S4.1: View all did not open the Leaderboard page"
             )
         }
 

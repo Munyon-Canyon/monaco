@@ -61,7 +61,7 @@ Home ──┬─ avatar button ───────────────▶
        ├─ Leaderboard "View all" ──────▶ LeaderboardRoute
        └─ Market updates row ──────────▶ AssetRoute
 Feed ──┬─ item ──▶ ProposalRoute | TransactionRoute | AssetRoute | CabalRoute | FeedItemRoute
-       └─ bell ──▶ ActivityFeedRoute (a "not migrated" placeholder today)
+       └─ bell ──▶ ActivityFeedRoute
 Cabals ┬─ + ──▶ Start a cabal ──▶ create ──▶ CabalRoute
        ├─ empty state "Explore cabals" | no-match "Search public cabals" ──▶ DiscoverCabalsRoute ──▶ CabalRoute
        ├─ card / leaderboard row ──▶ CabalRoute
@@ -186,7 +186,7 @@ Create then pushes `CabalRoute` with the toast "Cabal created.". A failed create
 
 ## Leaderboard (`LeaderboardRoute`)
 
-Pushed as `AnyAppRoute` from any tab; `LeaderboardRoute(board:range:)` defaults to Cabals and 1M. Nothing in the app opens it yet: Home's "View all" still pushes `HomeLeaderboardStubRoute`, a "not migrated" placeholder, and the swap to this route is the open follow-up. The page shows one board at a time, built from `BoardRow` and a `LeaderboardPageModel` that owns one `LeaderboardLoader` per board, so switching back does not reload.
+Pushed as `AnyAppRoute` from any tab; `LeaderboardRoute(board:range:)` defaults to Cabals and 1M. Home's "View all" opens it. The page shows one board at a time, built from `BoardRow` and a `LeaderboardPageModel` that owns one `LeaderboardLoader` per board, so switching back does not reload.
 
 | # | Section | What it shows |
 | --- | --- | --- |

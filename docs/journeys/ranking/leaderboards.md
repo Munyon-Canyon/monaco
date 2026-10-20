@@ -56,7 +56,7 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Known failures on staging
 
-- S4.1 to S4.2: Home's "View all" pushes `HomeLeaderboardStubRoute`, a "not migrated" placeholder, and nothing else in the app opens `LeaderboardRoute`, so the Leaderboard page cannot be reached. Blocked by #5576.
+None.
 
 ## Not covered
 
