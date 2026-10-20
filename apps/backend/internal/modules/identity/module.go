@@ -14,6 +14,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
+	rankingport "github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
@@ -58,6 +59,7 @@ type Module struct {
 	balances   app.Balances
 	follows    app.FollowCounts
 	cabals     app.CabalCounts
+	returns    app.Returns
 	meters     metric.MeterProvider
 }
 
@@ -89,6 +91,10 @@ func WithCabalCounts(cabals app.CabalCounts) Option {
 	return func(m *Module) { m.cabals = cabals }
 }
 
+func WithReturns(returns app.Returns) Option {
+	return func(m *Module) { m.returns = returns }
+}
+
 func WithDepositWallets(wallets adapters.DepositWallets) Option {
 	return func(m *Module) { m.multichain.depositWallets = wallets }
 }
@@ -101,7 +107,7 @@ func New(d module.Deps, opts ...Option) *Module {
 	m := &Module{
 		multichain: newMultichain(d), deps: d, meters: otel.GetMeterProvider(),
 		stakes: app.UnwiredHoldings{}, balances: app.UnwiredHoldings{}, follows: app.UnwiredFollowCounts{},
-		cabals: app.UnwiredCabalCounts{},
+		cabals: app.UnwiredCabalCounts{}, returns: app.UnwiredReturns{},
 	}
 	for _, opt := range opts {
 		opt(m)
@@ -128,6 +134,7 @@ func (m *Module) wireProvider(mod module.Module) {
 	_, stakesUnwired := m.stakes.(app.UnwiredHoldings)
 	_, followsUnwired := m.follows.(app.UnwiredFollowCounts)
 	_, cabalsUnwired := m.cabals.(app.UnwiredCabalCounts)
+	_, returnsUnwired := m.returns.(app.UnwiredReturns)
 	switch provider := mod.(type) {
 	case interface{ Balances() fundingport.Balances }:
 		if balancesUnwired {
@@ -140,6 +147,10 @@ func (m *Module) wireProvider(mod module.Module) {
 	case interface{ Queries() cabalport.Queries }:
 		if cabalsUnwired {
 			m.cabals = provider.Queries()
+		}
+	case interface{ Queries() rankingport.Queries }:
+		if returnsUnwired {
+			m.returns = provider.Queries()
 		}
 	case interface{ Queries() treasuryport.Queries }:
 		if stakesUnwired {
@@ -160,7 +171,7 @@ func (m *Module) Mount(r api.Mount) {
 	m.ensurePrivy()
 	identityapi.Mount(adapters.HTTP{
 		Open: m.openSession(), Reads: m.deps.Pool, Clock: m.deps.Clock,
-		Cards: adapters.NewQueries(m.deps.Pool), Follows: m.follows, Cabals: m.cabals,
+		Cards: adapters.NewQueries(m.deps.Pool), Follows: m.follows, Cabals: m.cabals, Returns: m.returns,
 		Deposits: adapters.DepositAddresses{
 			Members: adapters.NewQueries(m.deps.Pool), EVM: m.multichain.depositWallets, Fees: m.multichain.depositFees,
 			Networks: m.deps.Config.Funding.EVMDepositNetworks,

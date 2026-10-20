@@ -6,7 +6,8 @@ extension Components.Schemas.PublicProfile {
         id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: "maya", displayName: "Maya Angelou",
         photoUrl: "https://cdn.example.com/photos/maya.jpg", bio: "Poet.\nSan Francisco",
         createdAt: Date(timeIntervalSince1970: 1_759_233_600), cabalCount: 3, followerCount: 12, followingCount: 8,
-        followedByMe: false, blockedByMe: false
+        followedByMe: false, blockedByMe: false, return1mBps: 820, pnl1mMicros: 41_250_000, returnPeriod: ._1m,
+        returnPrivate: false
     )
 }
 
