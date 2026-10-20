@@ -12,7 +12,6 @@ struct ShareCardCurve: View {
     var body: some View {
         Canvas { context, size in
             guard points.count >= 2 else { return }
-            let plot = Self.plot(in: size)
             let xs = points.indices.map { Double(Self.plotPoint(for: $0, of: points, baseline: baseline, in: size).x) }
             let ys = points.indices.map { Double(Self.plotPoint(for: $0, of: points, baseline: baseline, in: size).y) }
             if let baseline, let zero = Self.y(of: baseline, points: points, baseline: baseline, in: size) {
@@ -23,9 +22,8 @@ struct ShareCardCurve: View {
                     rule, with: .color(MonacoTheme.ShareCard.hairline),
                     style: StrokeStyle(lineWidth: 1, dash: [3, 4]))
             }
-            guard let paths = MonacoLineStyle.paths(xs: xs, ys: ys, floorY: plot.maxY) else { return }
-            context.fill(paths.fill, with: MonacoLineStyle.fillShading(tint, top: plot.minY, bottom: plot.maxY))
-            context.stroke(paths.line, with: .color(tint), style: MonacoLineStyle.stroke)
+            guard let line = MonacoLineStyle.line(xs: xs, ys: ys) else { return }
+            context.stroke(line, with: .color(tint), style: MonacoLineStyle.stroke)
             if let x = xs.last, let y = ys.last {
                 let radius = Self.dotRadius
                 context.fill(

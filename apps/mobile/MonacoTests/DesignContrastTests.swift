@@ -178,8 +178,6 @@ struct MonacoContrastTests {
             pairs.append(Pair("bodyText", MonacoTheme.bodyText, on: [surface]))
         }
 
-        let memberCardEnd = MonacoTheme.CoverScrim.memberCard.stops.last
-        let scrimEnd = Color(hex: memberCardEnd?.hex ?? 0, alpha: memberCardEnd?.alpha ?? 1)
         pairs.append(Pair("brand on brandSoft", MonacoTheme.brand, on: [MonacoTheme.canvas, MonacoTheme.brandSoft]))
         pairs.append(
             Pair(
@@ -214,7 +212,7 @@ struct MonacoContrastTests {
             ("onCover", MonacoTheme.onCover), ("onCoverMuted", MonacoTheme.onCoverMuted),
             ("profitOnCover", MonacoTheme.profitOnCover), ("lossOnCover", MonacoTheme.lossOnCover),
         ] {
-            pairs.append(Pair(label, color, on: [Color.white, scrimEnd]))
+            pairs.append(Pair(label, color, on: [Color.white, MonacoTheme.coverOverlay]))
         }
 
         pairs.append(Pair("onBrand", MonacoTheme.onBrand, on: [MonacoTheme.brandFill]))
@@ -451,25 +449,18 @@ extension MonacoContrastTests {
             + MonacoTheme.CabalTint.allCases.map { ("\($0) fill", [$0.fill]) }
     }
 
-    private static func textStops(_ scrim: MonacoTheme.CoverScrim) -> [MonacoTheme.CoverScrimStop] {
-        scrim.stops.filter { $0.alpha >= 0.85 }
-    }
-
     private static var coverPairs: [Pair] {
         var pairs: [Pair] = []
-        for scrim in MonacoTheme.CoverScrim.allCases {
-            for stop in textStops(scrim) {
-                let layer = Color(hex: stop.hex, alpha: stop.alpha)
-                for base in coverBases {
-                    for (label, color) in [
-                        ("onCover", MonacoTheme.onCover), ("onCoverMuted", MonacoTheme.onCoverMuted),
-                        ("profitOnCover", MonacoTheme.profitOnCover), ("lossOnCover", MonacoTheme.lossOnCover),
-                    ] {
-                        pairs.append(
-                            Pair(
-                                "\(label) on \(scrim) at \(stop.location) over \(base.label)", color,
-                                on: base.layers + [layer]))
-                    }
+        for (overlayLabel, overlay) in [
+            ("coverOverlay", MonacoTheme.coverOverlay), ("coverOverlayReduced", MonacoTheme.coverOverlayReduced),
+        ] {
+            for base in coverBases {
+                for (label, color) in [
+                    ("onCover", MonacoTheme.onCover), ("onCoverMuted", MonacoTheme.onCoverMuted),
+                    ("profitOnCover", MonacoTheme.profitOnCover), ("lossOnCover", MonacoTheme.lossOnCover),
+                ] {
+                    pairs.append(
+                        Pair("\(label) on \(overlayLabel) over \(base.label)", color, on: base.layers + [overlay]))
                 }
             }
         }
@@ -564,11 +555,12 @@ extension MonacoContrastTests {
         }
     }
 
-    @Test func reduceTransparencyDrawsTheSolidScrimOnEveryCover() {
+    @Test func reduceTransparencyDrawsTheMoreOpaqueOverlayOnEveryCover() {
         let styles: [CabalCover<EmptyView>.Style] = [.hero, .heroTall, .card, .memberCard]
         for style in styles {
-            #expect(CabalCover<EmptyView>.scrim(for: style, reduceTransparency: true) == .solid)
+            #expect(
+                CabalCover<EmptyView>.overlay(for: style, reduceTransparency: true) == MonacoTheme.coverOverlayReduced)
         }
-        #expect(CabalCover<EmptyView>.scrim(for: .thumb(40), reduceTransparency: true) == nil)
+        #expect(CabalCover<EmptyView>.overlay(for: .thumb(40), reduceTransparency: true) == nil)
     }
 }

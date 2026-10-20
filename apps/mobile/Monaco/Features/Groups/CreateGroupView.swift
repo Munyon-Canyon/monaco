@@ -332,8 +332,7 @@ private struct CreateCoverPreview: View {
                 Color.clear
                     .overlay { Image(uiImage: image).resizable().scaledToFill() }
                     .clipped()
-                LinearGradient(
-                    gradient: MonacoTheme.CoverScrim.card.gradient, startPoint: .top, endPoint: .bottom)
+                MonacoTheme.coverOverlay
                 Image(systemName: MonacoIcon.check.symbol)
                     .font(MonacoTheme.Typo.captionStrong)
                     .foregroundStyle(MonacoTheme.onBrand)

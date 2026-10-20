@@ -103,25 +103,21 @@ struct MonacoCandleCanvas: View {
     ) {
         let xs = visible.map { Double(metrics.x($0.date)) }
         let ys = visible.map { Double(metrics.y($0.close)) }
-        guard let paths = MonacoLineStyle.paths(xs: xs, ys: ys, floorY: metrics.plot.maxY) else { return }
-        let shading = MonacoLineStyle.fillShading(tint, top: metrics.plot.minY, bottom: metrics.plot.maxY)
+        guard let line = MonacoLineStyle.line(xs: xs, ys: ys) else { return }
         guard let held else {
-            context.fill(paths.fill, with: shading)
-            context.stroke(paths.line, with: .color(tint), style: MonacoLineStyle.stroke)
+            context.stroke(line, with: .color(tint), style: MonacoLineStyle.stroke)
             return
         }
         let split = min(max(held, metrics.plot.minX), metrics.plot.maxX)
         let plot = metrics.plot
         context.drawLayer { layer in
             layer.clip(to: Path(CGRect(x: plot.minX, y: plot.minY, width: split - plot.minX, height: plot.height)))
-            layer.fill(paths.fill, with: shading)
-            layer.stroke(paths.line, with: .color(tint), style: MonacoLineStyle.stroke)
+            layer.stroke(line, with: .color(tint), style: MonacoLineStyle.stroke)
         }
         context.drawLayer { layer in
             layer.opacity = 0.3
             layer.clip(to: Path(CGRect(x: split, y: plot.minY, width: plot.maxX - split, height: plot.height)))
-            layer.fill(paths.fill, with: shading)
-            layer.stroke(paths.line, with: .color(tint), style: MonacoLineStyle.stroke)
+            layer.stroke(line, with: .color(tint), style: MonacoLineStyle.stroke)
         }
     }
 

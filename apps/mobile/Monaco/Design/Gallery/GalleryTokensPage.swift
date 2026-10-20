@@ -191,16 +191,13 @@ struct GalleryTokenRow: View {
 
 struct GalleryScrimSamples: View {
     var body: some View {
-        GalleryGroup(title: "Cover scrims over a tint gradient") {
+        GalleryGroup(title: "Cover overlay over a tint") {
             GalleryGrid(minimum: 150) {
-                ForEach(Array(MonacoTheme.CoverScrim.allCases.enumerated()), id: \.offset) { index, scrim in
-                    GalleryCase(caption: "CoverScrim.\(String(describing: scrim))") {
-                        let tint = MonacoTheme.CabalTint.allCases[index]
+                ForEach(Array(MonacoTheme.CabalTint.allCases.prefix(2).enumerated()), id: \.offset) { index, tint in
+                    GalleryCase(caption: index == 0 ? "coverOverlay" : "coverOverlayReduced") {
                         ZStack {
-                            LinearGradient(
-                                colors: [tint.fill, tint.fill.opacity(0.6)], startPoint: .topLeading,
-                                endPoint: .bottomTrailing)
-                            LinearGradient(gradient: scrim.gradient, startPoint: .top, endPoint: .bottom)
+                            tint.fill
+                            index == 0 ? MonacoTheme.coverOverlay : MonacoTheme.coverOverlayReduced
                         }
                         .frame(height: 112)
                         .clipShape(RoundedRectangle(cornerRadius: MonacoTheme.Radius.cardTight, style: .continuous))
