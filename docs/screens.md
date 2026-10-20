@@ -247,7 +247,7 @@ Used by Home's "Needs your vote", the cabal's proposals and [All proposals](#all
 
 | Part | Shows |
 | --- | --- |
-| Top row | The proposer's avatar and the cabal name (the proposer's name when the caller passes none), and the status badge on the right (`proposal-status-chip`) |
+| Top row | The proposer's avatar and the cabal name from `cabal_name` (the proposer's name when it is empty), and the status badge on the right (`proposal-status-chip`) |
 | Instrument row | `StockMark`, "Buy NVIDIA" or "Sell NVIDIA", "$400.00 from the cabal pot" (a sell reads "0.6 shares from the cabal's holding"), and one small button that opens the proposal. At accessibility sizes the button drops below the text |
 | Note | One line, "5 yes votes needed · Closes in 8h" while open (`proposal-closes-in`), a sentence about the outcome once closed. A paused cabal adds "Trading is paused. If this passes, it won't buy until trading resumes." (`proposal-paused-caption`) |
 | Footer | A ruled row that opens the proposal: an icon, the tally "3 yes · 1 no · 4 not voted" while open or the outcome line, and a chevron |
@@ -275,12 +275,12 @@ The card is one VoiceOver element, "<cabal>: <badge>. Buy NVIDIA, <amount line>.
 
 | Section | Shows |
 | --- | --- |
-| Hero | `StockMark`, the status badge (`proposal-status-chip`: "Voting open", "You voted Yes", "View only", "Approved · Executing", "Executed", "Expired", "Not executed", "Not approved", "Withdrawn", "Voided by Monaco"), "Buy NVIDIA" or "Sell NVIDIA", the amount (a sell shows its shares and "About $139.00"), the proposer (opens their profile) and "Your cabal · 2h ago". The proposer's return pill is not drawn yet: the API has no return on a proposal |
+| Hero | `StockMark`, the status badge (`proposal-status-chip`: "Voting open", "You voted Yes", "View only", "Approved · Executing", "Executed", "Expired", "Not executed", "Not approved", "Withdrawn", "Voided by Monaco"), "Buy NVIDIA" or "Sell NVIDIA", the amount (a sell shows its shares and "About $139.00"), the proposer (opens their profile) with their one-month return pill ("+8.2% · 1M", or "P&L private" when they hide it; no pill for an unranked proposer) from `proposer_return_1m_bps` and `proposer_return_private`, and the cabal's name with the age ("Big Ballers · 2h ago", from `cabal_name`) |
 | Thesis | "Thesis" and the reason as prose (`proposal-reason`). Omitted without a reason |
 | Votes | "Votes" with "See all", which opens the votes sheet, then the vote bar: "5 yes votes to pass" (or "Voting closed"), the bar and "3 yes · 1 no · 4 not voted" (`proposal-votes`) |
 | Expected | "Cabal gets", "about 0.73 shares at $341.57", while open or passed (`proposal-expected`) |
 | Network and price | The chain and, when its live quote is missing, the reason (`proposal-chain-row`), then the best price (`best-price-loading` while it is found), while open or passed |
-| Status | Once voting is over: a notice (warn "The vote passed. Execution is pending.", info "The trade is confirmed.", info "Voting closed without enough yes votes. No trade was placed.", error "The trade did not go through." with the failure message, info "The proposal did not pass.", info for withdrawn and voided), the price-moved rows (`proposal-price-moved`), "Retry" or "Buy at current price" when the trade can be retried (`proposal-retry`), and for passed, executed and blocked proposals the "Execution details" disclosure: Status, Executed price ("Not confirmed", or "Opens soon" for an executed trade until the API carries it), Units (executed only, "Opens soon"), Network and the "Transaction record" row that opens `TransactionRoute`. The section reads as the `ProposalStepper` label for VoiceOver (`proposal-tracker`) |
+| Status | Once voting is over: a notice (warn "The vote passed. Execution is pending.", info "The trade is confirmed.", info "Voting closed without enough yes votes. No trade was placed.", error "The trade did not go through." with the failure message, info "The proposal did not pass.", info for withdrawn and voided), the price-moved rows (`proposal-price-moved`), "Retry" or "Buy at current price" when the trade can be retried (`proposal-retry`), and for passed, executed and blocked proposals the "Execution details" disclosure: Status, Executed price (`price_micros` of the linked swap, "Not confirmed" before the trade confirms), Units (executed only, `token_amount` over `token_decimals`; both read "Not available" when the swap carries no figures), Network and the "Transaction record" row that opens `TransactionRoute`. The section reads as the `ProposalStepper` label for VoiceOver (`proposal-tracker`) |
 | Withdraw | The proposer sees "Withdraw proposal" while it is open (confirm "Withdraw this proposal?" / "Votes so far are dropped.", toast "Proposal withdrawn.") |
 
 The dock above the tab bar sits over the composer "Add a comment":
@@ -309,7 +309,7 @@ Opened from Home's "See all". The title is "All proposals" over an "Open" / "Clo
 | Segment | Shows |
 | --- | --- |
 | Open | A [proposal card](#proposal-card) for each proposal that needs or has your vote, then a row for each passed proposal whose trade has not finished: the stock and amount, the status line and a badge ("Pending"), with a chevron. Empty: "No open proposals" / "New ideas will appear here. Closed decisions remain in the cabal history." with "Choose a proposal", which opens the Cabals tab (`pending-votes-empty`) |
-| Closed | "Closed proposals show up here soon." The API lists open votes only. Each closed row will carry "Pending", "Expired", "Blocked", "Not approved", "Withdrawn" or "Voided" |
+| Closed | `GET /v1/me/proposals` (default filter `closed`), read when the segment first opens and paged as the last row appears. Each row carries "Pending", "Expired", "Blocked", "Not approved", "Withdrawn" or "Voided". Loading: four row skeletons (`Loading closed proposals`). Failed: "Couldn't load this view" with "Try again" (`closed-proposals-error`). Empty: "No closed proposals yet." (`closed-proposals-empty`) |
 
 Loading is skeletons ("Loading proposals"). Error is "Couldn't load this view" with "Try again" (`pending-votes-error`). Pull to refresh.
 

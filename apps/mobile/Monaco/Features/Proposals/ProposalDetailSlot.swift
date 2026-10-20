@@ -12,8 +12,6 @@ enum ProposalDetailSlot: ProposalSection {
 
 struct ProposalDetailSlotView: View {
     let proposalID: String
-    var authorReturn: ProposalAuthorReturn?
-    var executionFacts: ProposalExecutionFacts?
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
@@ -24,13 +22,8 @@ struct ProposalDetailSlotView: View {
     @State private var showsVotes = false
     @State private var confirmingWithdrawal = false
 
-    init(
-        proposalID: String, model: ProposalDetailModel? = nil, authorReturn: ProposalAuthorReturn? = nil,
-        executionFacts: ProposalExecutionFacts? = nil
-    ) {
+    init(proposalID: String, model: ProposalDetailModel? = nil) {
         self.proposalID = proposalID
-        self.authorReturn = authorReturn
-        self.executionFacts = executionFacts
         _owned = State(initialValue: model)
     }
 
@@ -85,7 +78,7 @@ struct ProposalDetailSlotView: View {
         return VStack(alignment: .leading, spacing: MonacoTheme.Space.section) {
             ProposalHero(
                 summary: summary, asset: model.asset, members: model.members, paused: pause?.isPaused == true,
-                authorReturn: authorReturn
+                authorReturn: detail.proposerReturn
             )
             .padding(.horizontal, MonacoTheme.Space.gutter)
             if let thesis = summary.thesis, !thesis.isEmpty {
@@ -99,7 +92,7 @@ struct ProposalDetailSlotView: View {
             }
             ProposalBestPrice(summary: summary, model: model)
             if !state.isOpen {
-                ProposalStatusSection(model: model, summary: summary, facts: executionFacts)
+                ProposalStatusSection(model: model, summary: summary)
             }
             if model.canWithdraw { withdrawButton }
         }

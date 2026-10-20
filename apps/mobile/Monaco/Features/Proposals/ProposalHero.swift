@@ -1,9 +1,14 @@
 import MonacoCore
 import SwiftUI
 
-struct ProposalAuthorReturn: Equatable {
-    let text: String
-    let tone: PnLPill.Tone
+extension ProposerReturn.Tone {
+    fileprivate var pill: PnLPill.Tone {
+        switch self {
+        case .gain: .gain
+        case .loss: .loss
+        case .muted: .muted
+        }
+    }
 }
 
 struct ProposalHero: View {
@@ -11,12 +16,13 @@ struct ProposalHero: View {
     let asset: ProposalAsset?
     let members: [ProposalMember]
     let paused: Bool
-    var authorReturn: ProposalAuthorReturn?
+    var authorReturn: ProposerReturn?
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var state: ProposalState { summary.state(now: .now) }
     private var proposer: ProposalMember? { members.first { $0.id == summary.proposerID } }
+    private var cabalLabel: String { summary.cabalName.isEmpty ? "Your cabal" : summary.cabalName }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -37,7 +43,7 @@ struct ProposalHero: View {
                 .padding(.top, MonacoTheme.Space.s)
             author
                 .padding(.top, MonacoTheme.Space.m)
-            Text("Your cabal · \(ProposalCardCopy.ago(since: summary.createdAt, now: .now))")
+            Text("\(cabalLabel) · \(ProposalCardCopy.ago(since: summary.createdAt, now: .now))")
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.muted)
                 .padding(.top, MonacoTheme.Space.xs)
@@ -84,7 +90,7 @@ struct ProposalHero: View {
                         .lineLimit(stacked ? nil : 1)
                 }
                 if let authorReturn {
-                    PnLPill(text: authorReturn.text, tone: authorReturn.tone)
+                    PnLPill(text: authorReturn.text, tone: authorReturn.tone.pill)
                 }
             }
             .frame(minHeight: MonacoButtonMetrics.hitTarget, alignment: .leading)

@@ -13,17 +13,16 @@ struct PendingVotesScreen: View {
 
     @Environment(AppEnvironment.self) private var environment
     @State private var model: PendingVotesModel?
+    @State private var closedModel: ClosedProposalsModel?
     @State private var voting: ProposalVoteModel?
     @State private var segment: Segment
-    private let closed: [ProposalListRow]
     private let makeModel: @MainActor (AppEnvironment) -> PendingVotesModel
 
     init(
         makeModel: @escaping @MainActor (AppEnvironment) -> PendingVotesModel = PendingVotesScreen.liveModel,
-        segment: Segment = .open, closed: [ProposalListRow] = []
+        segment: Segment = .open
     ) {
         self.makeModel = makeModel
-        self.closed = closed
         _segment = State(initialValue: segment)
     }
 
@@ -36,7 +35,14 @@ struct PendingVotesScreen: View {
                 await model.load()
                 await model.observe()
             }
-            .onScreenVisibilityChange { model?.setVisible($0) }
+            .task {
+                _ = preparedModel()
+                await closedModel?.observe()
+            }
+            .onScreenVisibilityChange {
+                model?.setVisible($0)
+                closedModel?.setVisible($0)
+            }
     }
 
     @ViewBuilder private var content: some View {
@@ -44,16 +50,20 @@ struct PendingVotesScreen: View {
         case .loading:
             skeleton
         case .failed:
-            EmptyState(
-                title: "Couldn't load this view",
-                message: "Your existing information hasn't been changed. Try again when your connection is available.",
-                actionTitle: "Try again", systemImage: MonacoIcon.offline.symbol
-            ) {
-                Task { await model?.load() }
-            }
-            .accessibilityIdentifier("pending-votes-error")
+            loadFailed { await model?.load() }
+                .accessibilityIdentifier("pending-votes-error")
         case .loaded:
             loaded
+        }
+    }
+
+    private func loadFailed(retry: @escaping () async -> Void) -> some View {
+        EmptyState(
+            title: "Couldn't load this view",
+            message: "Your existing information hasn't been changed. Try again when your connection is available.",
+            actionTitle: "Try again", systemImage: MonacoIcon.offline.symbol
+        ) {
+            Task { await retry() }
         }
     }
 
@@ -88,7 +98,10 @@ struct PendingVotesScreen: View {
             }
             .padding(.top, MonacoTheme.Space.m)
         }
-        .refreshable { await model?.load() }
+        .refreshable {
+            await model?.load()
+            await closedModel?.refreshIfStarted()
+        }
     }
 
     @ViewBuilder private var openProposals: some View {
@@ -120,14 +133,40 @@ struct PendingVotesScreen: View {
     }
 
     @ViewBuilder private var closedProposals: some View {
-        if closed.isEmpty {
-            MonacoQuietEmpty("Closed proposals show up here soon.", systemImage: MonacoIcon.clock.symbol)
-                .padding(.horizontal, MonacoTheme.Space.gutter)
-        } else {
-            VStack(spacing: 0) {
-                ForEach(closed) { row in
-                    ProposalListRowView(row: row, isLast: row.id == closed.last?.id)
+        Group {
+            switch closedModel?.phase ?? .loading {
+            case .loading:
+                MonacoRowSkeleton(rows: 4)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Loading closed proposals")
+            case .failed:
+                loadFailed { await closedModel?.load() }
+                    .accessibilityIdentifier("closed-proposals-error")
+            case .loaded:
+                if let closedModel, !closedModel.pager.items.isEmpty {
+                    closedRows(closedModel)
+                } else {
+                    MonacoQuietEmpty("No closed proposals yet.", systemImage: MonacoIcon.clock.symbol)
+                        .padding(.horizontal, MonacoTheme.Space.gutter)
+                        .accessibilityIdentifier("closed-proposals-empty")
                 }
+            }
+        }
+        .task { await closedModel?.refresh() }
+    }
+
+    private func closedRows(_ model: ClosedProposalsModel) -> some View {
+        let rows = model.pager.items.map { summary in
+            ProposalListRow(
+                summary: summary, asset: model.assets[summary.symbol], proposer: model.proposerName(of: summary),
+                now: .now)
+        }
+        return VStack(spacing: 0) {
+            ForEach(rows) { row in
+                ProposalListRowView(row: row, isLast: row.id == rows.last?.id)
+                    .onAppear {
+                        if row.id == rows.last?.id, model.canLoadMore { Task { await model.loadMore() } }
+                    }
             }
         }
     }
@@ -155,7 +194,9 @@ struct PendingVotesScreen: View {
     private func preparedModel() -> PendingVotesModel {
         if let model { return model }
         let created = makeModel(environment)
-        voting = ProposalVoteModel(repository: ProposalsRepository(api: environment.api))
+        let repository = ProposalsRepository(api: environment.api)
+        voting = ProposalVoteModel(repository: repository)
+        closedModel = ClosedProposalsModel(repository: repository, hints: environment.hints)
         model = created
         return created
     }

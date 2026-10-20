@@ -7,12 +7,11 @@ struct ProposalVoteCard: View {
     var asset: ProposalAsset?
     var members: [ProposalMember] = []
     var paused = false
-    var cabalName: String?
     var onVoted: () async -> Void = {}
 
     var body: some View {
         ProposalCard(
             proposal: voting.applying(proposal), asset: asset, members: members, paused: paused,
-            cabalName: cabalName, openRoute: AnyAppRoute(ProposalRoute(proposalID: proposal.id)))
+            openRoute: AnyAppRoute(ProposalRoute(proposalID: proposal.id)))
     }
 }

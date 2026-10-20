@@ -369,26 +369,11 @@ public final class PendingVotesModel {
     }
 
     private func loadCardContext(for summaries: [ProposalSummary]) async {
-        let symbols = Set(summaries.map(\.symbol)).subtracting(assets.keys)
-        let cabalIDs = Set(summaries.map(\.cabalID)).subtracting(members.keys)
-        async let fetchedAssets = withTaskGroup(of: (String, ProposalAsset?).self) { group in
-            for symbol in symbols {
-                group.addTask { (symbol, try? await self.repository.asset(symbol: symbol)) }
-            }
-            var pairs: [String: ProposalAsset] = [:]
-            for await (symbol, asset) in group { if let asset { pairs[symbol] = asset } }
-            return pairs
-        }
-        async let fetchedMembers = withTaskGroup(of: (String, [ProposalMember]?).self) { group in
-            for id in cabalIDs {
-                group.addTask { (id, try? await self.repository.members(cabalID: id)) }
-            }
-            var pairs: [String: [ProposalMember]] = [:]
-            for await (id, people) in group { if let people { pairs[id] = people } }
-            return pairs
-        }
-        assets.merge(await fetchedAssets) { _, new in new }
-        members.merge(await fetchedMembers) { _, new in new }
+        let context = await repository.cardContext(
+            symbols: Set(summaries.map(\.symbol)).subtracting(assets.keys),
+            cabalIDs: Set(summaries.map(\.cabalID)).subtracting(members.keys))
+        assets.merge(context.assets) { _, new in new }
+        members.merge(context.members) { _, new in new }
     }
 
     private func pausedAmong(_ cabalIDs: Set<String>) async -> Set<String> {

@@ -7,6 +7,10 @@ public struct ProposalSwap: Equatable, Sendable {
     public let failureCode: String?
     public let failureMessage: String?
     public let retryable: Bool
+    public let usdcMicros: Int64?
+    public let tokenAmount: Int64?
+    public let tokenDecimals: Int?
+    public let priceMicros: Int64?
 
     public static let priceMovedCode = "price_moved"
     public var isPriceMoved: Bool { status == "failed" && failureCode == Self.priceMovedCode }
@@ -17,12 +21,36 @@ public struct ProposalSwap: Equatable, Sendable {
         failureCode = swap?.failureCode
         failureMessage = swap?.failureMessage
         retryable = swap?.retryable ?? false
+        usdcMicros = swap?.usdcMicros
+        tokenAmount = swap?.tokenAmount
+        tokenDecimals = swap?.tokenDecimals
+        priceMicros = swap?.priceMicros
+    }
+
+    public func executionFigures(kind: AssetKind) -> ProposalExecutionFigures? {
+        guard status == "confirmed", let priceMicros, let tokenAmount, let tokenDecimals,
+            let quantity = TokenQuantityFormatter.quantity(fromAtomics: String(tokenAmount), decimals: tokenDecimals)
+        else { return nil }
+        return ProposalExecutionFigures(
+            price: UsdAmountFormatter.format(micros: priceMicros),
+            units: TokenQuantityFormatter.label(quantity: quantity, kind: kind))
+    }
+}
+
+public struct ProposalExecutionFigures: Equatable, Sendable {
+    public let price: String
+    public let units: String
+
+    public init(price: String, units: String) {
+        self.price = price
+        self.units = units
     }
 }
 
 public struct ProposalSummary: Identifiable, Equatable, Sendable {
     public let id: String
     public let cabalID: String
+    public let cabalName: String
     public let kind: String
     public let symbol: String
     public let proposerID: String
@@ -48,8 +76,8 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
 
     init(retrying other: ProposalSummary) {
         self.init(
-            id: other.id, cabalID: other.cabalID, kind: other.kind, symbol: other.symbol,
-            proposerID: other.proposerID, thesis: other.thesis, usdcMicros: other.usdcMicros,
+            id: other.id, cabalID: other.cabalID, cabalName: other.cabalName, kind: other.kind,
+            symbol: other.symbol, proposerID: other.proposerID, thesis: other.thesis, usdcMicros: other.usdcMicros,
             tokenAmount: other.tokenAmount, quoteOutAmount: other.quoteOutAmount, createdAt: other.createdAt,
             tally: other.tally, myBallot: other.myBallot, status: .passed, statusMessage: other.statusMessage,
             expiresAt: other.expiresAt, canVote: other.canVote, canWithdraw: other.canWithdraw, swap: nil,
@@ -58,20 +86,23 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
 
     private func replacing(ballot: String, tally: ProposalTally) -> ProposalSummary {
         ProposalSummary(
-            id: id, cabalID: cabalID, kind: kind, symbol: symbol, proposerID: proposerID, thesis: thesis,
-            usdcMicros: usdcMicros, tokenAmount: tokenAmount, quoteOutAmount: quoteOutAmount, createdAt: createdAt,
-            tally: tally, myBallot: ballot, status: status, statusMessage: statusMessage, expiresAt: expiresAt,
+            id: id, cabalID: cabalID, cabalName: cabalName, kind: kind, symbol: symbol, proposerID: proposerID,
+            thesis: thesis, usdcMicros: usdcMicros, tokenAmount: tokenAmount, quoteOutAmount: quoteOutAmount,
+            createdAt: createdAt, tally: tally, myBallot: ballot, status: status, statusMessage: statusMessage,
+            expiresAt: expiresAt,
             canVote: canVote, canWithdraw: canWithdraw, swap: swap, bestPrice: bestPrice, network: network)
     }
 
     private init(
-        id: String, cabalID: String, kind: String, symbol: String, proposerID: String, thesis: String?,
-        usdcMicros: Int64?, tokenAmount: Int64?, quoteOutAmount: Int64, createdAt: Date, tally: ProposalTally,
-        myBallot: String?, status: ProposalStatus, statusMessage: String?, expiresAt: Date, canVote: Bool,
+        id: String, cabalID: String, cabalName: String, kind: String, symbol: String, proposerID: String,
+        thesis: String?, usdcMicros: Int64?, tokenAmount: Int64?, quoteOutAmount: Int64, createdAt: Date,
+        tally: ProposalTally, myBallot: String?, status: ProposalStatus, statusMessage: String?, expiresAt: Date,
+        canVote: Bool,
         canWithdraw: Bool, swap: ProposalSwap?, bestPrice: BestPrice?, network: Components.Schemas.Network?
     ) {
         self.id = id
         self.cabalID = cabalID
+        self.cabalName = cabalName
         self.kind = kind
         self.symbol = symbol
         self.proposerID = proposerID
@@ -100,6 +131,7 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
     ) {
         id = proposal.id
         cabalID = proposal.cabalId
+        cabalName = proposal.cabalName
         kind = proposal.kind.rawValue
         symbol = proposal.symbol
         proposerID = proposal.proposerId
@@ -124,11 +156,13 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
 public struct ProposalDetail: Identifiable, Equatable, Sendable {
     public let summary: ProposalSummary
     public let voters: [ProposalVoter]
+    public let proposerReturn: ProposerReturn?
     public var id: String { summary.id }
 
-    init(summary: ProposalSummary, voters: [ProposalVoter]) {
+    init(summary: ProposalSummary, voters: [ProposalVoter], proposerReturn: ProposerReturn? = nil) {
         self.summary = summary
         self.voters = voters
+        self.proposerReturn = proposerReturn
     }
 
     init(_ value: Components.Schemas.ProposalDetail) {
@@ -144,7 +178,8 @@ public struct ProposalDetail: Identifiable, Equatable, Sendable {
         self.init(
             summary: ProposalSummary(
                 proposal, canVote: value.canVote, canWithdraw: value.canWithdraw, swap: ProposalSwap(value.swap)),
-            voters: value.voters.map(ProposalVoter.init))
+            voters: value.voters.map(ProposalVoter.init),
+            proposerReturn: ProposerReturn(bps: value.proposerReturn1mBps, isPrivate: value.proposerReturnPrivate))
     }
 }
 
@@ -218,6 +253,7 @@ public struct ProposalAsset: Equatable, Sendable {
 public struct PendingVote: Identifiable, Equatable, Sendable {
     public let id: String
     public let cabalID: String
+    public let cabalName: String
     public let kind: String
     public let symbol: String
     public let expiresAt: Date
@@ -225,6 +261,7 @@ public struct PendingVote: Identifiable, Equatable, Sendable {
     init(_ value: Components.Schemas.PendingVote) {
         id = value.proposalId
         cabalID = value.cabalId
+        cabalName = value.cabalName
         kind = value.kind.rawValue
         symbol = value.symbol
         expiresAt = value.expiresAt
@@ -338,11 +375,43 @@ public struct ProposalsRepository: Sendable {
         }
     }
 
+    func cardContext(symbols: Set<String>, cabalIDs: Set<String>) async -> ProposalCardContextPairs {
+        async let assets = withTaskGroup(of: (String, ProposalAsset?).self) { group in
+            for symbol in symbols {
+                group.addTask { (symbol, try? await self.asset(symbol: symbol)) }
+            }
+            var pairs: [String: ProposalAsset] = [:]
+            for await (symbol, asset) in group { if let asset { pairs[symbol] = asset } }
+            return pairs
+        }
+        async let members = withTaskGroup(of: (String, [ProposalMember]?).self) { group in
+            for id in cabalIDs {
+                group.addTask { (id, try? await self.members(cabalID: id)) }
+            }
+            var pairs: [String: [ProposalMember]] = [:]
+            for await (id, people) in group { if let people { pairs[id] = people } }
+            return pairs
+        }
+        return await ProposalCardContextPairs(assets: assets, members: members)
+    }
+
+    public func closedProposals(cursor: String?) async throws -> (items: [ProposalSummary], nextCursor: String?) {
+        try await api.read { client in
+            let response = try await client.getMyProposals(query: .init(filter: .closed, cursor: cursor)).ok.body.json
+            return (response.proposals.map { ProposalSummary($0) }, response.nextCursor)
+        }
+    }
+
     public func pendingVotes() async throws -> [PendingVote] {
         try await api.read { client in
             try await client.getMyPendingVotes().ok.body.json.map(PendingVote.init)
         }
     }
+}
+
+struct ProposalCardContextPairs: Sendable {
+    let assets: [String: ProposalAsset]
+    let members: [String: [ProposalMember]]
 }
 
 private struct SwapRetryPayload: Encodable, Sendable {
