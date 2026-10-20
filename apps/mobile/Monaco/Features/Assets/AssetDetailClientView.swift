@@ -7,13 +7,15 @@ struct AssetDetailClientView: View {
     @Environment(ToastCenter.self) private var toasts
     @Environment(\.hostMainTab) private var hostMainTab
     let symbol: String
+    let seed: AssetSeed?
     @State private var model: AssetDetailClientModel?
     @State private var scrubbedIndex: Int?
     @AppStorage("asset-chart-style") private var storedStyle = MonacoChartStyle.candles.rawValue
     @State private var priceTick: MonacoPriceTick?
 
-    init(symbol: String, model: AssetDetailClientModel? = nil) {
+    init(symbol: String, seed: AssetSeed? = nil, model: AssetDetailClientModel? = nil) {
         self.symbol = symbol
+        self.seed = seed
         _model = State(initialValue: model)
     }
 
@@ -21,7 +23,7 @@ struct AssetDetailClientView: View {
 
     var body: some View {
         content
-            .navigationTitle(model?.detail?.name ?? "")
+            .navigationTitle(model?.detail?.name ?? seed?.name ?? "")
             .navigationBarTitleDisplayMode(.inline)
             .task {
                 await start()
@@ -60,7 +62,12 @@ struct AssetDetailClientView: View {
     private var loading: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-                AssetDetailHeroSkeleton()
+                if let seed {
+                    AssetDetailSeedHeader(symbol: symbol, seed: seed)
+                    SkeletonCardBlock()
+                } else {
+                    AssetDetailHeroSkeleton()
+                }
                 MonacoRowSkeleton(rows: 4, markShape: .circle, hasTrailing: false)
                     .monacoBleed()
             }

@@ -52,7 +52,11 @@ struct FeedItemCell: View {
 
 extension Components.Schemas.FeedItem {
     var opensRoute: AnyAppRoute {
-        FeedDestination(self)?.route ?? AnyAppRoute(FeedItemRoute(itemID: id))
+        guard let destination = FeedDestination(self) else { return AnyAppRoute(FeedItemRoute(itemID: id)) }
+        if case .asset(let symbol) = destination {
+            return AnyAppRoute(AssetRoute(symbol: symbol, seed: AssetSeed(self)))
+        }
+        return destination.route
     }
 }
 

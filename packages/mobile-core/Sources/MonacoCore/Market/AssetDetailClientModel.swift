@@ -133,7 +133,13 @@ public final class AssetDetailClientModel {
     #endif
 
     public func load() async {
-        guard let api else { return }
+        guard await loadDetail() else { return }
+        await loadChart(range: selectedRange, interval: selectedInterval)
+    }
+
+    @discardableResult
+    private func loadDetail() async -> Bool {
+        guard let api else { return false }
         if detail == nil { detailPhase = .loading }
         do {
             let response = try await api.read { client in
@@ -143,20 +149,24 @@ public final class AssetDetailClientModel {
             detailPhase = .loaded
             lastError = nil
             noteFresh()
-            await loadChart(range: selectedRange, interval: selectedInterval)
+            return true
         } catch {
             let error = APIError(error)
             lastError = error
             failureTick += 1
             refreshFailed = detail != nil
             if detail == nil { detailPhase = .failed(error) }
+            return false
         }
     }
 
     public func start() async {
         async let cabalPositions: Void = loadCabalPositions()
-        await load()
-        await loadStats()
+        async let year = loadYearSeries()
+        async let drawn: Void = loadChart(range: selectedRange, interval: selectedInterval)
+        await loadDetail()
+        await drawn
+        await loadStats(year: await year)
         await cabalPositions
     }
 
@@ -203,11 +213,19 @@ public final class AssetDetailClientModel {
     }
 
     public func loadStats() async {
+        await loadStats(year: await loadYearSeries())
+    }
+
+    private func loadYearSeries() async -> AssetChartSeries? {
+        guard let api else { return nil }
+        return try? await chartSeries(api: api, range: .oneYear)
+    }
+
+    private func loadStats(year: AssetChartSeries?) async {
         guard let api, let detail else { return }
-        async let day = try? await chartSeries(api: api, range: .oneDay)
-        async let year = try? await chartSeries(api: api, range: .oneYear)
+        let day = try? await chartSeries(api: api, range: .oneDay)
         let built = AssetStats(
-            day: await day, year: await year, priceMicros: detail.priceMicros,
+            day: day, year: year, priceMicros: detail.priceMicros,
             changeBasisPoints: detail.changeBasisPoints)
         stats = built.isEmpty ? nil : built
     }

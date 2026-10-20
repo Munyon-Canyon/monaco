@@ -343,7 +343,7 @@ func historyMint(t *testing.T) domain.Mint {
 	return m
 }
 
-func TestHistory_aDayIsCachedForFiveMinutesAndLongerRangesForAnHour(t *testing.T) {
+func TestHistory_aDayIsCachedForFifteenMinutesAndLongerRangesForAnHour(t *testing.T) {
 	t.Parallel()
 	clk := testkit.NewClock(marketWhen())
 	fake := &countingHistory{samples: []app.Sample{{At: marketWhen()}}}
@@ -364,11 +364,17 @@ func TestHistory_aDayIsCachedForFiveMinutesAndLongerRangesForAnHour(t *testing.T
 	if fake.calls.Load() != 3 {
 		t.Fatalf("calls = %d, want one per (mint, days)", fake.calls.Load())
 	}
-	clk.Advance(6 * time.Minute)
+	clk.Advance(14 * time.Minute)
+	ask(1)
+	ask(7)
+	if fake.calls.Load() != 3 {
+		t.Fatalf("calls = %d after 14 minutes, want the day still cached", fake.calls.Load())
+	}
+	clk.Advance(2 * time.Minute)
 	ask(1)
 	ask(7)
 	if fake.calls.Load() != 4 {
-		t.Fatalf("calls = %d after 6 minutes, want only the day refetched", fake.calls.Load())
+		t.Fatalf("calls = %d after 16 minutes, want only the day refetched", fake.calls.Load())
 	}
 	clk.Advance(time.Hour)
 	ask(7)
