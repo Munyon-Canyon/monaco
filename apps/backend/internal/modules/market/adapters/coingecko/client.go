@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -30,7 +31,10 @@ const (
 	maxBody        = 8 << 20
 )
 
-var _ app.PriceHistory = (*Client)(nil)
+var (
+	_ app.PriceHistory = (*Client)(nil)
+	_ app.VolumeSource = (*Client)(nil)
+)
 
 type Client struct {
 	http  *httpclient.Client
@@ -64,12 +68,60 @@ func (c *Client) MarketChart(ctx context.Context, mint domain.Mint, days int) (a
 			slog.Bool("keyed", c.Configured()), slog.Int("days", days))
 	}
 	query := url.Values{"vs_currency": {"usd"}, "days": {daysParam(days)}}
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet,
-		"/coins/solana/contract/"+url.PathEscape(mint.String())+"/market_chart?"+query.Encode(), nil)
+	resp, err := c.get(ctx, op, "/coins/solana/contract/"+url.PathEscape(mint.String())+"/market_chart?"+query.Encode(),
+		slog.Int("days", days))
+	if err != nil {
+		return app.History{}, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	return decodeHistory(ctx, resp.Body, mint, days)
+}
+
+type volumeWire map[string]struct {
+	USD24hVol *json.Number `json:"usd_24h_vol"`
+}
+
+func (c *Client) Volumes(ctx context.Context, mints []domain.Mint) (map[domain.Mint]money.Micros, error) {
+	const op = "coingecko.Client.Volumes"
+	if !c.Configured() || len(mints) == 0 || len(mints) > app.VolumeBatch {
+		return nil, errs.New(errs.CodeInvalidInput, op,
+			slog.Bool("keyed", c.Configured()), slog.Int("mints", len(mints)))
+	}
+	addresses := make([]string, len(mints))
+	for i, m := range mints {
+		addresses[i] = m.String()
+	}
+	query := url.Values{
+		"contract_addresses": {strings.Join(addresses, ",")}, "vs_currencies": {"usd"}, "include_24hr_vol": {"true"},
+	}
+	resp, err := c.get(ctx, op, "/simple/token_price/solana?"+query.Encode(), slog.Int("mints", len(mints)))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	var w volumeWire
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxBody)).Decode(&w); err != nil {
+		return nil, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.Int("mints", len(mints)))
+	}
+	out := make(map[domain.Mint]money.Micros, len(mints))
+	for _, m := range mints {
+		entry, ok := w[m.String()]
+		if !ok || entry.USD24hVol == nil {
+			continue
+		}
+		if usd, ok := parsePrice(*entry.USD24hVol); ok && !usd.IsZero() {
+			out[m] = usd
+		}
+	}
+	return out, nil
+}
+
+func (c *Client) get(ctx context.Context, op, target string, attrs ...slog.Attr) (*http.Response, error) {
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	req.Header.Set(keyHeader, c.key)
 	req.Header.Set("Accept", "application/json")
 	if err := c.limit.Wait(ctx); err != nil {
-		return app.History{}, errs.Wrap(err, errs.CodeUpstreamUnavailable, op, slog.Int("days", days))
+		return nil, errs.Wrap(err, errs.CodeUpstreamUnavailable, op, attrs...)
 	}
 	resp, err := c.http.Do(ctx, req)
 	if err != nil {
@@ -77,17 +129,18 @@ func (c *Client) MarketChart(ctx context.Context, mint domain.Mint, days int) (a
 		if rateLimited(err) {
 			code = errs.CodeCoinGeckoRateLimited
 		}
-		return app.History{}, errs.Wrap(err, code, op, slog.Int("days", days))
+		return nil, errs.Wrap(err, code, op, attrs...)
 	}
-	defer func() { _ = resp.Body.Close() }()
 	switch resp.StatusCode {
 	case http.StatusOK:
+		return resp, nil
 	case http.StatusNotFound:
-		return app.History{}, errs.New(errs.CodeNotFound, op, slog.Int("days", days))
+		_ = resp.Body.Close()
+		return nil, errs.New(errs.CodeNotFound, op, attrs...)
 	default:
-		return app.History{}, errs.New(errs.CodeUpstreamUnavailable, op, slog.Int("status", resp.StatusCode))
+		_ = resp.Body.Close()
+		return nil, errs.New(errs.CodeUpstreamUnavailable, op, append(attrs, slog.Int("status", resp.StatusCode))...)
 	}
-	return decodeHistory(ctx, resp.Body, mint, days)
 }
 
 func decodeHistory(ctx context.Context, body io.Reader, mint domain.Mint, days int) (app.History, error) {

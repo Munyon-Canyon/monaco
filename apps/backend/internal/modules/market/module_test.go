@@ -58,7 +58,7 @@ func moduleConfig() config.Config {
 func TestModule_pollsTheCatalogHourly(t *testing.T) {
 	t.Parallel()
 	pollers := market.New(module.Deps{Config: moduleConfig(), HTTPClient: httpclient.New}).Pollers()
-	if len(pollers) != 4 || pollers[0].Name() != "market.catalog" || pollers[0].Interval() != time.Hour {
+	if len(pollers) != 5 || pollers[0].Name() != "market.catalog" || pollers[0].Interval() != time.Hour {
 		t.Fatalf("Pollers = %v, want market.catalog every hour first", pollers)
 	}
 }
@@ -119,6 +119,14 @@ func TestModule_retriesXStocksThreeTimesWithinTheBackoffCeilings(t *testing.T) {
 	})
 }
 
+func TestModule_pollsVolumeHourlyOnTheReconcileClientAndCooldown(t *testing.T) {
+	t.Parallel()
+	pollers := market.New(module.Deps{Config: moduleConfig(), HTTPClient: httpclient.New}).Pollers()
+	if volume := pollers[4]; len(pollers) != 5 || volume.Name() != "market.volume" || volume.Interval() != time.Hour {
+		t.Fatalf("Pollers = %v, want market.volume every hour last", pollers)
+	}
+}
+
 func TestModule_reconcilesDailyOnOneCoinGeckoClient(t *testing.T) {
 	t.Parallel()
 	built := 0
@@ -133,7 +141,7 @@ func TestModule_reconcilesDailyOnOneCoinGeckoClient(t *testing.T) {
 	}
 	pollers := market.New(deps).Pollers()
 	reconcile := pollers[3]
-	if len(pollers) != 4 || reconcile.Name() != "market.reconcile" || reconcile.Interval() != 24*time.Hour {
+	if len(pollers) != 5 || reconcile.Name() != "market.reconcile" || reconcile.Interval() != 24*time.Hour {
 		t.Fatalf("Pollers = %v, want market.reconcile every 24h after the first three", pollers)
 	}
 	if built != 1 {

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -489,4 +490,86 @@ func TestCoinGecko_aVolumePointWithoutAnIntegerTimestampIsSkipped(t *testing.T) 
 		t.Fatal(err)
 	}
 	wantVolume(t, got.Volume24h, 1790554200000, 7_000_000)
+}
+
+const volumeBody = `{
+  "` + aaplx + `": {"usd": 275.5, "usd_24h_vol": 181232010.10689816},
+  "` + tspacex + `": {"usd": 10, "usd_24h_vol": null},
+  "` + anduril + `": {"usd": 3, "usd_24h_vol": 0}
+}`
+
+func TestCoinGecko_volumesAskForEveryMintInOneCallAndFloorToMicros(t *testing.T) {
+	t.Parallel()
+	c, u := clientOver(replying(http.StatusOK, volumeBody), "demo-key")
+	asked := []domain.Mint{mint(t, aaplx), mint(t, tspacex), mint(t, anduril), mint(t, unlisted)}
+	got, err := c.Volumes(t.Context(), asked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[mint(t, aaplx)] != money.MicrosFromUint64(181232010106898) {
+		t.Fatalf("volumes = %v, want only the aapl reading: null, zero and missing are left out", got)
+	}
+	reqs := u.requests()
+	if len(reqs) != 1 || reqs[0].path != "/coingecko/simple/token_price/solana" || reqs[0].apiKey != "demo-key" {
+		t.Fatalf("requests = %+v, want one keyed call to simple/token_price/solana", reqs)
+	}
+	q, err := url.ParseQuery(reqs[0].query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if q.Get("contract_addresses") != aaplx+","+tspacex+","+anduril+","+unlisted ||
+		q.Get("include_24hr_vol") != "true" || q.Get("vs_currencies") != "usd" {
+		t.Fatalf("query = %v, want all four addresses with volume on, in usd", q)
+	}
+}
+
+func TestCoinGecko_volumesRefuseNoKeyAnEmptyListAndATooBigBatch(t *testing.T) {
+	t.Parallel()
+	keyed, u := clientOver(replying(http.StatusOK, "{}"), "demo-key")
+	if _, err := keyed.Volumes(t.Context(), nil); errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("empty list err = %v, want invalid_input", err)
+	}
+	big := make([]domain.Mint, app.VolumeBatch+1)
+	for i := range big {
+		big[i] = mint(t, aaplx)
+	}
+	if _, err := keyed.Volumes(t.Context(), big); errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("oversized batch err = %v, want invalid_input", err)
+	}
+	keyless, ku := clientOver(replying(http.StatusOK, "{}"), "")
+	_, err := keyless.Volumes(t.Context(), []domain.Mint{mint(t, aaplx)})
+	if errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("keyless err = %v, want invalid_input", err)
+	}
+	if len(u.requests())+len(ku.requests()) != 0 {
+		t.Fatal("a refused call reached the upstream")
+	}
+}
+
+func TestCoinGecko_aVolumesAnswerThatIsNotJSONIsADecodeFailure(t *testing.T) {
+	t.Parallel()
+	c, _ := clientOver(replying(http.StatusOK, "<html>"), "demo-key")
+	_, err := c.Volumes(t.Context(), []domain.Mint{mint(t, aaplx)})
+	wantCode(t, err, errs.CodeDecodeFailed)
+}
+
+func TestCoinGecko_aVolumesCallThatIsRateLimitedIsRetryable(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		c, _ := clientOver(replying(http.StatusTooManyRequests, "{}"), "demo-key")
+		_, err := c.Volumes(t.Context(), []domain.Mint{mint(t, aaplx)})
+		wantCode(t, err, errs.CodeCoinGeckoRateLimited)
+		if !errs.Retryable(errs.CodeOf(err)) {
+			t.Fatal("rate limit is not retryable")
+		}
+	})
+}
+
+func TestCoinGecko_aDownVolumesCallIsUnavailable(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		c, _ := clientOver(replying(http.StatusBadGateway, "{}"), "demo-key")
+		_, err := c.Volumes(t.Context(), []domain.Mint{mint(t, aaplx)})
+		wantCode(t, err, errs.CodeUpstreamUnavailable)
+	})
 }
