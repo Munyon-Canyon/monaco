@@ -24,21 +24,23 @@ final class FeedPreviewTests: XCTestCase {
         XCTAssertEqual(model.items.map(\.id), all)
     }
 
-    func testEveryHarnessItemHasFigures() async {
-        let model = FeedModel.preview(.items, clock: TestClock())
-        await model.load()
-        let figures = FeedModel.previewFigures(.items)
-        XCTAssertTrue(model.items.allSatisfy { figures[$0.id] != nil })
-    }
-
     func testThePnlPrivateHarnessHidesEveryPersonsReturn() async {
         let model = FeedModel.preview(.pnlPrivate, clock: TestClock())
         await model.load()
-        let figures = FeedModel.previewFigures(.pnlPrivate)
         for item in model.items {
-            let hidden = figures[item.id]?.authorReturn == .hidden
-            XCTAssertEqual(hidden, item.actorId != nil, item.title)
+            XCTAssertEqual(item.returnPrivate, item.actorId != nil, item.title)
+            if item.returnPrivate { XCTAssertNil(item.return1mBps, item.title) }
         }
+    }
+
+    func testTheItemsHarnessLikesAnItemThroughTheStubbedEndpoint() async {
+        let model = FeedModel.preview(.items, clock: TestClock())
+        await model.load()
+        let item = model.items[0]
+        await model.toggleLike(item)
+        XCTAssertEqual(model.items[0].likedByMe, true)
+        XCTAssertEqual(model.items[0].likeCount, item.likeCount + 1)
+        XCTAssertEqual(model.failureTick, 0)
     }
 
     func testTheLoadMoreFailedHarnessFailsTheFirstRetryOnlyOnce() async {

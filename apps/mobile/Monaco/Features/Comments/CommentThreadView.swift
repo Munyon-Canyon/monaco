@@ -132,13 +132,12 @@ struct CommentRow: View {
     var onDelete: (() -> Void)?
     var onReport: (() -> Void)?
 
-    @Environment(\.feedOpensSoon) private var opensSoon
     @ScaledMetric(relativeTo: .callout) private var nameLineHeight: CGFloat = 20
 
     private var level: Int { row.indentLevel }
 
     private var authorReturn: FeedReturnFacts? {
-        FeedReturnFacts(opensSoon.commentReturns[row.authorID])
+        FeedReturnFacts(FeedFigureFormat.authorReturn(row.comment.author))
     }
 
     private var time: String {

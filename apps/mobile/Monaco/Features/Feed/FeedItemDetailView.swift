@@ -145,8 +145,6 @@ private struct FeedPostSkeleton: View {
 private struct FeedPostHeader: View {
     let item: Components.Schemas.FeedItem
 
-    @Environment(\.feedOpensSoon) private var opensSoon
-
     private var name: String {
         item.actorName.flatMap { $0.isEmpty ? nil : $0 } ?? CommentsCopy.unknownAuthor
     }
@@ -199,7 +197,7 @@ private struct FeedPostHeader: View {
     }
 
     @ViewBuilder private var returnPill: some View {
-        if let facts = FeedReturnFacts(opensSoon.figures[item.id]?.authorReturn) {
+        if let facts = FeedReturnFacts(FeedFigureFormat.authorReturn(item)) {
             FeedReturnPill(facts: facts)
         }
     }
@@ -207,8 +205,6 @@ private struct FeedPostHeader: View {
 
 private struct FeedPostSummary: View {
     let item: Components.Schemas.FeedItem
-
-    @Environment(\.feedOpensSoon) private var opensSoon
 
     private var summaryText: String? {
         [item.body, item.detail, item.status].compactMap { $0 }.first { !$0.isEmpty }
@@ -244,14 +240,13 @@ private struct FeedPostSummary: View {
     }
 
     private func assetRow(_ symbol: String) -> some View {
-        let figures = opensSoon.figures[item.id]
-        return NavigationLink(value: item.opensRoute) {
+        NavigationLink(value: item.opensRoute) {
             MonacoRow(
-                title: figures?.company ?? AssetSymbolFormatter.display(symbol), titleFont: MonacoTheme.Typo.headline,
+                title: item.assetName ?? AssetSymbolFormatter.display(symbol), titleFont: MonacoTheme.Typo.headline,
                 subtitle: item.cabalName ?? "Token market", chevron: true, isLast: true,
                 leading: { StockMark(symbol: symbol, size: .row) },
                 trailing: {
-                    if let amount = figures?.amount {
+                    if let amount = FeedFigureFormat.amount(item) {
                         Text(amount)
                             .font(MonacoTheme.Typo.subhead)
                             .foregroundStyle(MonacoTheme.primaryText)
@@ -301,11 +296,6 @@ private struct FeedPostHarnessScreen: View {
                     }
                 }
         }
-        .environment(
-            \.feedOpensSoon,
-            FeedOpensSoonData(
-                figures: FeedModel.previewFigures(.items), commentReturns: FeedItemDetailModel.previewCommentReturns)
-        )
         .task { await act() }
     }
 

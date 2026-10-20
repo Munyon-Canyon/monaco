@@ -369,10 +369,9 @@ struct FeedCabalBlock: View {
 
 struct FeedReactionsRow: View {
     let item: Components.Schemas.FeedItem
-    let likes: Int?
+    let onLike: () -> Void
 
     @Environment(ToastCenter.self) private var toasts
-    @State private var liked = false
 
     private var commentLabel: String {
         item.commentCount == 1 ? "1 comment" : "\(item.commentCount) comments"
@@ -402,20 +401,16 @@ struct FeedReactionsRow: View {
 
     private var likeButton: some View {
         Button {
-            guard likes != nil else {
-                toasts.show(success: "Likes open soon.")
-                return
-            }
-            liked.toggle()
             Haptics.selection()
+            onLike()
         } label: {
             glyphLabel(
-                .heart, filled: liked, tint: liked ? MonacoTheme.brand : MonacoTheme.secondaryText,
-                count: likes.map { $0 + (liked ? 1 : 0) })
+                .heart, filled: item.likedByMe, tint: item.likedByMe ? MonacoTheme.brand : MonacoTheme.secondaryText,
+                count: Int(item.likeCount))
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Like \(item.title)")
-        .accessibilityAddTraits(liked ? .isSelected : [])
+        .accessibilityAddTraits(item.likedByMe ? .isSelected : [])
         .accessibilityIdentifier("feed-like-\(item.id)")
     }
 

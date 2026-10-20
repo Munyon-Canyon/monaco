@@ -247,7 +247,7 @@ private struct FeedScreen: View {
         return VStack(spacing: MonacoTheme.Space.sm) {
             LazyVStack(spacing: MonacoTheme.Space.sm) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    FeedItemCell(item: item)
+                    FeedItemCell(item: item) { Task { await model.toggleLike(item) } }
                         .contextMenu {
                             ForEach(model.muteOptions(for: item)) { option in
                                 Button(option.menuTitle) { mute(option) }
@@ -313,7 +313,7 @@ private struct FeedHarnessScreen: View {
         }
         .environment(
             \.feedOpensSoon,
-            FeedOpensSoonData(figures: FeedModel.previewFigures(mode), hasUnreadActivity: true)
+            FeedOpensSoonData(hasUnreadActivity: true)
         )
         .defaultScrollAnchor(SampleScrollAnchor.requested(by: SampleScrollAnchor.flag))
     }
