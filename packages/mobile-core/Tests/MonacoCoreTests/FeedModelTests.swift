@@ -52,6 +52,21 @@ final class FeedModelTests: XCTestCase {
         XCTAssertEqual(sent.map { $0["kind"] ?? nil }, ["proposal", "proposal,reply", "reply", "reply,threshold", nil])
     }
 
+    func testAllIsOnByDefaultAndOffWhileAGroupIsChosenAndUncheckingTheLastReturnsToIt() async throws {
+        let transport = StubTransport(.json(.ok, try Self.page(samples)))
+        let model = makeModel(transport)
+        XCTAssertTrue(model.query.showsAll)
+        await model.toggle(.proposals)
+        XCTAssertFalse(model.query.showsAll)
+        await model.toggle(.proposals)
+        XCTAssertTrue(model.query.showsAll)
+        await model.toggle(.priceMoves)
+        await model.clearKinds()
+        XCTAssertTrue(model.query.showsAll)
+        let sent = await queries(transport)
+        XCTAssertEqual(sent.map { $0["kind"] ?? nil }, ["proposal", nil, "price_move", nil])
+    }
+
     func testSearchWaitsForTheDebounceAndSendsOnlyTheLastText() async throws {
         let transport = StubTransport(scripted: [
             .json(.ok, try Self.page(samples)),
