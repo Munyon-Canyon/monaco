@@ -11,7 +11,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
-const hoursPerDay = 24
+const (
+	hoursPerDay = 24
+	coldSlack   = 2 * time.Hour
+)
 
 func historyDays(span domain.ChartRange) int {
 	window, bounded := span.Window()
@@ -32,6 +35,9 @@ func (c *AssetChart) fromHistory(
 ) (Chart, bool, error) {
 	if c.hist == nil || !c.hist.Configured() {
 		return Chart{}, false, nil
+	}
+	if out, served, err := c.fromColdStart(ctx, asset, req, span, interval, limit, now); served || err != nil {
+		return out, served, err
 	}
 	history, err := c.hist.MarketChart(ctx, asset.Mint, historyDays(span))
 	if err != nil || len(history.Prices) == 0 {
@@ -56,6 +62,37 @@ func (c *AssetChart) fromHistory(
 		return out, true, prevErr
 	}
 	return out, true, nil
+}
+
+func (c *AssetChart) fromColdStart(
+	ctx context.Context,
+	asset domain.Asset,
+	req ChartRequest,
+	span domain.ChartRange,
+	interval domain.ChartInterval,
+	limit int,
+	now time.Time,
+) (Chart, bool, error) {
+	peeker, ok := c.hist.(HistoryPeeker)
+	if !ok || req.Before != nil {
+		return Chart{}, false, nil
+	}
+	if _, found, _ := peeker.Peek(ctx, asset.Mint, historyDays(span)); found {
+		return Chart{}, false, nil
+	}
+	out, err := c.fromPricePoints(ctx, asset, req, span, interval, limit, now)
+	if err != nil {
+		return Chart{}, false, err
+	}
+	return out, coversWindow(out, asset, req, span, now), nil
+}
+
+func coversWindow(chart Chart, asset domain.Asset, req ChartRequest, span domain.ChartRange, now time.Time) bool {
+	if len(chart.Points) == 0 {
+		return false
+	}
+	since, _ := chartWindow(asset, req, span, chart.Bucket, now)
+	return !since.IsZero() && chart.Points[0].At.Sub(since) <= max(coldSlack, 2*chart.Bucket)
 }
 
 func chartWindow(

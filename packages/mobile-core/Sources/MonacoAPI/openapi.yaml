@@ -2454,8 +2454,9 @@ paths:
         Quotes a $1 buy of the asset on every enabled listing and returns the winner with every chain's
         figures. The answer is shared by every member and kept per symbol: a figure under 20 seconds old
         is served as is, one under 60 seconds old is served while a refresh runs, and an older one is
-        refreshed before the answer. The figure is for display and for choosing the chain to pin a
-        preview to; a trade quotes again when it runs. An unknown symbol is `asset_not_found`, one that
+        refreshed before the answer, for at most about a second: when the refresh is slower or fails, the
+        last good answer under an hour old is returned with `stale` true. The figure is for display and
+        for choosing the chain to pin a preview to; a trade quotes again when it runs. An unknown symbol is `asset_not_found`, one that
         cannot be bought is `asset_untradable`, and no chain to quote is `no_route` or
         `quote_unavailable`.
       parameters:
@@ -7044,6 +7045,7 @@ components:
         net_share_nanos: {type: string, pattern: "^[0-9]+$", description: "Underlying shares $1 buys on the winning chain after every cost, in billionths of a share.", examples: ["4000000"]}
         quoted_at: {type: string, format: date-time, description: When the chains were quoted., examples: ["2026-10-11T12:00:00Z"]}
         price_comparison: {$ref: "#/components/schemas/PriceComparison"}
+        stale: {type: boolean, description: "True when the figures are the last good answer, served because a fresh quote did not arrive in about a second.", examples: [false]}
     AssetChart:
       type: object
       description: The buckets for one asset and one range.

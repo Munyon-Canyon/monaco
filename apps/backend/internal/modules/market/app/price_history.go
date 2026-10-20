@@ -31,3 +31,8 @@ type PriceHistory interface {
 	Configured() bool
 	MarketChart(ctx context.Context, mint domain.Mint, days int) (History, error)
 }
+
+type HistoryPeeker interface {
+	PriceHistory
+	Peek(ctx context.Context, mint domain.Mint, days int) (History, bool, error)
+}
