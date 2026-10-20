@@ -36,4 +36,26 @@ nonisolated final class SettingsNotificationsSampleUITests: XCTestCase {
             "iOS Settings should open on Monaco's notification page, not its root"
         )
     }
+
+    @MainActor
+    func testCategorySwitchesSaveAndKeepTheOtherOne() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-settingsHarness", "on", "categories"]
+        app.launch()
+
+        let decisions = app.switches["settings-category-decisions-switch"]
+        let replies = app.switches["settings-category-replies-switch"]
+        XCTAssertTrue(decisions.waitForExistence(timeout: 10), "Settings should show the Decision requests switch")
+        XCTAssertTrue(replies.exists, "Settings should show the Replies and mentions switch")
+        XCTAssertFalse(app.staticTexts["Notification choices open soon."].exists, "the caption should be gone")
+        let unlocked = NSPredicate(format: "isEnabled == true")
+        expectation(for: unlocked, evaluatedWith: decisions)
+        waitForExpectations(timeout: 10)
+
+        decisions.tap()
+        let off = NSPredicate(format: "value == '0'")
+        expectation(for: off, evaluatedWith: decisions)
+        waitForExpectations(timeout: 10)
+        XCTAssertEqual(replies.value as? String, "1", "turning one category off should leave the other on")
+    }
 }

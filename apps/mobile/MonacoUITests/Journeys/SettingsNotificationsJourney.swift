@@ -2,7 +2,7 @@ import XCTest
 
 enum SettingsNotificationsJourney {
     static let id = "settings/notifications"
-    static let version = 4
+    static let version = 5
 
     static let title = "Know when your cabal votes and trades"
     static let body = "We'll tell you when a vote opens or passes, when a trade fills, and when a cabal lets you in."
@@ -88,6 +88,41 @@ enum SettingsNotificationsJourney {
             let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
             XCTAssertTrue(settings.wait(for: .runningForeground, timeout: 15), "S3.2: iOS Settings did not open")
             app.activate()
+        }
+    }
+
+    static func switchReads(_ app: XCUIApplication, _ identifier: String, _ value: String, step: String) {
+        let toggle = app.switches[identifier]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 10), "\(step): no switch '\(identifier)'")
+        XCTAssertTrue(
+            waitUntil(10) { toggle.isEnabled && (toggle.value as? String) == value },
+            "\(step): '\(identifier)' reads '\(toggle.value as? String ?? "nothing")', not '\(value)'")
+    }
+
+    static func categorySwitchSaves(_ app: XCUIApplication, recorder: JourneyRecorder) {
+        let decisions = "settings-category-decisions-switch"
+        let replies = "settings-category-replies-switch"
+
+        recorder.step("S4.1", "both switches read on") {
+            openSettings(app, step: "S4.1")
+            switchReads(app, decisions, "1", step: "S4.1")
+            switchReads(app, replies, "1", step: "S4.1")
+            XCTAssertFalse(
+                app.staticTexts["Notification choices open soon."].exists,
+                "S4.1: Settings still reads 'Notification choices open soon.'")
+        }
+
+        recorder.step("S4.2", "turn Decision requests off") {
+            app.switches[decisions].tap()
+            switchReads(app, decisions, "0", step: "S4.2")
+            switchReads(app, replies, "1", step: "S4.2")
+        }
+
+        recorder.step("S4.3", "leave and come back") {
+            app.navigationBars.buttons.firstMatch.tap()
+            openSettings(app, step: "S4.3")
+            switchReads(app, decisions, "0", step: "S4.3")
+            switchReads(app, replies, "1", step: "S4.3")
         }
     }
 }

@@ -19,3 +19,19 @@ if [[ "$member" != t ]]; then
   exit 1
 fi
 echo "actor B joined '$name'"
+
+query="SELECT COALESCE((SELECT enabled FROM notification_preferences p JOIN users u ON u.id = p.user_id
+  WHERE u.privy_user_id = :'did' AND p.category = 'decision_requests'), true),
+  COALESCE((SELECT enabled FROM notification_preferences p JOIN users u ON u.id = p.user_id
+  WHERE u.privy_user_id = :'did' AND p.category = 'replies_and_mentions'), true)"
+if ! choices="$(printf '%s\n' "$query" | scripts/with-dotenv-local.sh apps/mobile/qa/journeys/psql.sh \
+  -v ON_ERROR_STOP=1 -v did="$did" -tA 2>"$error_file")"; then
+  grep -v -e '^with-dotenv-local:' -e 'injected env' "$error_file" >&2 || true
+  echo "database cannot be reached" >&2
+  exit 2
+fi
+if [[ "$choices" != "f|t" ]]; then
+  echo "actor B's choices are '$choices', not decision_requests off and replies_and_mentions on (f|t)"
+  exit 1
+fi
+echo "actor B turned Decision requests off and left Replies and mentions on"

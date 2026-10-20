@@ -7,6 +7,7 @@ import UIKit
 
 @testable import Monaco
 
+@Suite(.serialized)
 @MainActor
 struct ProposalDetailBestPriceTests {
     private let now = Date(timeIntervalSince1970: 1_791_100_800)

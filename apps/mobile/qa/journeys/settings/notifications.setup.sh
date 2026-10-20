@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # journey.py runs this before each scenario. It completes actor B's onboarding, and before S2 it clears
-# B's pending invites and has a dev host invite B to a new cabal (P3), handing the test its name.
+# B's pending invites and has a dev host invite B to a new cabal (P3), handing the test its name. Before S4 it clears
+# B's saved notification choices, so both categories start on.
 set -euo pipefail
 
 scenario="${1:?usage: notifications.setup.sh <scenario>}"
@@ -50,6 +51,10 @@ row="$(sql -F ' ' -v did="$did" <<<"UPDATE users SET auth_state = 'ONBOARDING_CO
 read -r user_id handle <<<"$row"
 [[ -n "$user_id" && -n "$handle" ]] || fail "actor B has no users row or no handle. Run auth/sign-in as B first"
 echo "$scenario: actor B (@$handle) is ONBOARDING_COMPLETED"
+if [[ "$scenario" == S4 ]]; then
+  sql -v uid="$user_id" <<<"DELETE FROM notification_preferences WHERE user_id = :'uid'" >/dev/null
+  echo "$scenario: actor B's notification choices are cleared"
+fi
 [[ "$scenario" == S2 ]] || exit 0
 
 token_b="$(dev_token "$user_id")"

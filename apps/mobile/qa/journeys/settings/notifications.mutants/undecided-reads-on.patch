@@ -7,12 +7,12 @@ scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Settings/SettingsView.swift b/apps/mobile/Monaco/Features/Settings/SettingsView.swift
 --- a/apps/mobile/Monaco/Features/Settings/SettingsView.swift
 +++ b/apps/mobile/Monaco/Features/Settings/SettingsView.swift
-@@ -212,7 +212,7 @@
+@@ -224,7 +224,7 @@ struct SettingsList: View {
                  } label: {
                      MonacoRow(
                          title: SettingsRow.notifications.title,
 -                        subtitle: status.map { $0 == .authorized ? "On" : "Off" },
 +                        subtitle: status.map { $0 == .denied ? "Off" : "On" },
                          chevron: true,
-                         isLast: !showsCategorySwitches,
+                         isLast: preferences == nil,
                          leading: { SunkenGlyphMark(systemImage: SettingsRow.notifications.systemImage) }

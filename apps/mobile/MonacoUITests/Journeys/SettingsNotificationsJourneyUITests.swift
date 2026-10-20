@@ -29,5 +29,11 @@ nonisolated final class SettingsNotificationsJourneyUITests: XCTestCase {
             SettingsNotificationsJourney.onAndOpensSettings(app, recorder: recorder)
             attachScreenshot(of: app, named: "S3 back from iOS Settings")
         }
+
+        try session.scenario("S4") {
+            try session.act(as: "B")
+            SettingsNotificationsJourney.categorySwitchSaves(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S4 Decision requests off")
+        }
     }
 }
