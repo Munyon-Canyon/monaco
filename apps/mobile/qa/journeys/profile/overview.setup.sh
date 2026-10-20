@@ -42,10 +42,16 @@ token="$(scripts/qa/monacoctl.sh dev token --user "$user_id" --ttl 1h 2>"$log")"
   fail "monacoctl dev token for actor A failed: $(grep -v 'injected env' "$log")"
 
 held="$(curl -fsS "$api/v1/me/portfolio" -H "Authorization: Bearer $token" |
-  python3 -c 'import json, sys
+  API="$api" TOKEN="$token" python3 -c 'import json, os, sys, urllib.request
 cabals = json.load(sys.stdin)["cabals"]
-if cabals:
-    print(cabals[0]["cabal"]["id"] + "|" + cabals[0]["cabal"]["name"])')" || fail "could not read actor A's portfolio"
+for item in cabals:
+    request = urllib.request.Request(
+        os.environ["API"] + "/v1/cabals/" + item["cabal"]["id"],
+        headers={"Authorization": "Bearer " + os.environ["TOKEN"]})
+    with urllib.request.urlopen(request) as response:
+        if json.load(response).get("me"):
+            print(item["cabal"]["id"] + "|" + item["cabal"]["name"])
+            break')" || fail "could not read actor A's portfolio"
 if [[ -n "$held" ]]; then
   cabal_id="${held%%|*}"
   name="${held#*|}"
