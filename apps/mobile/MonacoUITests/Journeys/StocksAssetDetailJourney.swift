@@ -2,7 +2,7 @@ import XCTest
 
 enum StocksAssetDetailJourney {
     static let id = "stocks/asset-detail"
-    static let version = 10
+    static let version = 11
 
     static let alpha = StocksBrowseJourney.alpha
     static let preIpo = StocksBrowseJourney.preIpo
@@ -137,10 +137,10 @@ enum StocksAssetDetailJourney {
         recorder.step("S1.8", "tap Propose a buy") {
             app.buttons["asset-detail-propose-buy"].tap()
             let question = "Which cabal should buy \(alpha.ticker)?"
-            XCTAssertTrue(
-                app.navigationBars["Choose a cabal"].waitForExistence(timeout: 10),
-                "S1.8: Propose a buy did not open the cabal picker titled 'Choose a cabal'")
             expectPicker(app, asking: question)
+            XCTAssertEqual(
+                app.element("propose-pick-cabal-sheet").label, "Choose a cabal",
+                "S1.8: the cabal picker sheet is not titled 'Choose a cabal'")
         }
 
         recorder.step("S1.9", "pick a cabal and reach Amount") {
