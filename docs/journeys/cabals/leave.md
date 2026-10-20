@@ -36,8 +36,8 @@ Discover cabals is where `cabals-search-field` lives. A step that says "Discover
 | S1.1 | B | tap, type, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA leave {QA.run}` | `cabal-header-name` reads `QA leave {QA.run}` and `cabal-member-count` reads "2 members" within 15 s |
 | S1.2 | B | tap, then scroll to | `cabal-details-button`, then `cabalLeaveButton` | | The Cabal information screen shows, and `cabalLeaveButton` reads "Leave cabal" within 10 s |
 | S1.3 | B | tap | `cabalLeaveButton` | | The dialog "Leave QA leave {QA.run}?" shows `cabalLeaveConfirmButton` "Leave cabal" within 5 s |
-| S1.4 | B | tap | `cabalLeaveConfirmButton` | | The toast "You left QA leave {QA.run}." shows within 10 s, and the Cabals tab (`cabals-root`) shows within 10 s |
-| S1.5 | B | tap, then type | the Cabals tab and Discover cabals (B has no cabal left, so B taps "Explore cabals"), then `cabals-search-field` | `QA leave {QA.run}` | The `cabals-search-enter-<id>` for `QA leave {QA.run}` is labelled "Request to join QA leave {QA.run}" within 10 s, with no `cabals-search-joined` badge: B is no longer a member |
+| S1.4 | B | tap | `cabalLeaveConfirmButton` | | The toast "You left QA leave {QA.run}." shows within 10 s, and the cabal screens close back to the screen B opened the cabal from: `cabal-header-name` is gone and the Discover cabals search field (`cabals-search-field`) shows within 10 s |
+| S1.5 | B | type | `cabals-search-field` on the Discover cabals screen S1.4 returned to | `QA leave {QA.run}` | The `cabals-search-enter-<id>` for `QA leave {QA.run}` is labelled "Request to join QA leave {QA.run}" within 10 s, with no `cabals-search-joined` badge: B is no longer a member |
 
 ### S2 The creator cannot leave while others remain
 

@@ -57,9 +57,10 @@ enum CabalsLeaveJourney {
             app.buttons["cabalLeaveConfirmButton"].firstMatch.tap()
             JoinJourney.waitForToast(app, "You left \(name).", step: "S1.4")
             XCTAssertTrue(
-                app.element("cabals-root").waitForExistence(timeout: 10),
-                "S1.4: the Cabals tab did not show within 10 s"
+                JoinJourney.searchField(app).waitForExistence(timeout: 10),
+                "S1.4: the leave did not close back to Discover cabals within 10 s"
             )
+            XCTAssertFalse(app.element("cabal-header-name").exists, "S1.4: the cabal screen is still open")
         }
 
         recorder.step("S1.5", "search shows the cabal as one to join") {

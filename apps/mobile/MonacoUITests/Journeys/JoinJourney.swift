@@ -272,7 +272,10 @@ extension JoinJourney {
             search(app, for: name, step: "S2.2")
             let row = result(app, named: name).firstMatch
             XCTAssertTrue(row.waitForExistence(timeout: 10), "S2.2: no search result named \(name) within 10 s")
-            XCTAssertTrue(row.label.contains("Open"), "S2.2: the row does not read Open: \(row.label)")
+            let join = app.buttons.matching(
+                NSPredicate(format: "identifier BEGINSWITH 'cabals-search-enter-' AND label == %@", "Join \(name)")
+            ).firstMatch
+            XCTAssertTrue(join.waitForExistence(timeout: 10), "S2.2: no Join \(name) button on the row: \(row.label)")
             row.tap()
             XCTAssertTrue(
                 waitForLabel(
