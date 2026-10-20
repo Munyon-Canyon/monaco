@@ -276,26 +276,27 @@ The card is one VoiceOver element, "<cabal>: <badge>. Buy NVIDIA, <amount line>.
 | Order | Slot | Owner | Shows |
 | --- | --- | --- | --- |
 | 1 | `ProposalDetailSlot` | #612 | The sections below, top to bottom |
-| 2 | `ProposalCommentsSlot` | #711 | "Discussion", the thread, and a composer pinned at the bottom, "Add a comment". Empty: "No replies yet" / "Start the discussion." |
+| 2 | `ProposalCommentsSlot` | #711 | "Discussion", the thread, and the only thing pinned at the bottom, the composer "Add a comment". Empty: "No replies yet" / "Start the discussion." |
 
 | Section | Shows |
 | --- | --- |
 | Hero | `StockMark`, the status badge (`proposal-status-chip`: "Voting open", "You voted Yes", "View only", "Approved · Executing", "Executed", "Expired", "Not executed", "Not approved", "Withdrawn", "Voided by Monaco"), "Buy NVIDIA" or "Sell NVIDIA", the amount (a sell shows its shares and "About $139.00"), the proposer (opens their profile) with their one-month return pill ("+8.2% · 1M", or "P&L private" when they hide it; no pill for an unranked proposer) from `proposer_return_1m_bps` and `proposer_return_private`, and the cabal's name with the age ("Big Ballers · 2h ago", from `cabal_name`) |
 | Thesis | "Thesis" and the reason as prose (`proposal-reason`). Omitted without a reason |
 | Votes | "Votes" with "See all", which opens the votes sheet, then the vote bar: "5 yes votes to pass" (or "Voting closed"), the bar and "3 yes · 1 no · 4 not voted" (`proposal-votes`) |
+| Your vote | `ProposalVoteSection`, right after Votes and before Discussion; it scrolls with the content. Header "Your vote" (`proposal-vote`) and a caption "2 of 5 yes votes · Closes in 8h" (`proposal-vote-progress`). States are in the table below |
 | Expected | "Cabal gets", "about 0.73 shares at $341.57", while open or passed (`proposal-expected`) |
 | Network and price | The chain and, when its live quote is missing, the reason (`proposal-chain-row`), then the best price (`best-price-loading` while it is found), while open or passed |
 | Status | Once voting is over: a notice (warn "The vote passed. Execution is pending.", info "The trade is confirmed.", info "Voting closed without enough yes votes. No trade was placed.", error "The trade did not go through." with the failure message, info "The proposal did not pass.", info for withdrawn and voided), the price-moved rows (`proposal-price-moved`), "Retry" or "Buy at current price" when the trade can be retried (`proposal-retry`), and for passed, executed and blocked proposals the "Execution details" disclosure: Status, Executed price (`price_micros` of the linked swap, "Not confirmed" before the trade confirms), Units (executed only, `token_amount` over `token_decimals`; both read "Not available" when the swap carries no figures), Network and the "Transaction record" row that opens `TransactionRoute`. The section reads as the `ProposalStepper` label for VoiceOver (`proposal-tracker`) |
 | Withdraw | The proposer sees "Withdraw proposal" while it is open (confirm "Withdraw this proposal?" / "Votes so far are dropped.", toast "Proposal withdrawn.") |
 
-The dock above the tab bar sits over the composer "Add a comment":
+The "Your vote" section holds the vote; nothing but the composer floats at the bottom:
 
-| State | Dock |
+| State | Your vote |
 | --- | --- |
-| Open, can vote | "Vote No" (`proposal-vote-no`) and "Vote Yes" (`proposal-vote-yes`). Toast "Vote recorded." |
-| Open, voted | "Change vote" (`proposal-change-vote`), which asks "Your current vote: Yes" with "Vote Yes", "Vote No" and Cancel |
+| Open, can vote | "Vote Yes" (`proposal-vote-yes`) and "Vote No" (`proposal-vote-no`) side by side at equal width, stacked at accessibility sizes. Toast "Vote recorded." Both disable while a vote is being sent |
+| Open, voted | "You voted Yes" (`proposal-voted`) over "Change vote" (`proposal-change-vote`), which asks "Your current vote: Yes" with "Vote Yes", "Vote No" and Cancel |
 | Open, cannot vote | "View-only · Voting is restricted to eligible members" (`proposal-view-only`) |
-| Closed | The composer only |
+| Closed (passed, executed, expired, not approved, blocked, withdrawn, voided) | Header "Result" and one sentence (`proposal-vote-result`), "You voted Yes. The proposal did not pass." when the viewer voted. No buttons or caption |
 
 | State | Shows |
 | --- | --- |

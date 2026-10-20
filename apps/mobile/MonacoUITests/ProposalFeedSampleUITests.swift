@@ -4,10 +4,10 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
     @MainActor private var app: XCUIApplication!
 
     @MainActor
-    private func launch(_ scenario: String) {
+    private func launch(_ scenario: String, arguments: [String] = []) {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments = ["-MonacoProposalSample", scenario]
+        app.launchArguments = ["-MonacoProposalSample", scenario] + arguments
         app.launch()
     }
 
@@ -40,12 +40,17 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
     }
 
     @MainActor
+    private func scrollAboveComposer(_ element: XCUIElement) {
+        app.scroll(element, above: self.element("comment-composer-field"))
+    }
+
+    @MainActor
     private func openProposal(from card: XCUIElement) {
         card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 1)).withOffset(CGVector(dx: 0, dy: -22)).tap()
     }
 
     @MainActor
-    func testNeedsVote_reviewFromTheCard_voteFromTheDock_thenCommentAndReplyInThread() throws {
+    func testNeedsVote_reviewFromTheCard_voteInTheContent_thenCommentAndReplyInThread() throws {
         launch("needsVote")
         XCTAssertTrue(app.navigationBars["All proposals"].waitForExistence(timeout: 10), "the list never drew")
         let first = element("proposal-card-proposal-1")
@@ -58,15 +63,15 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
 
         openProposal(from: first)
         let yes = app.buttons["Vote Yes"]
-        XCTAssertTrue(yes.waitForExistence(timeout: 10), "the dock never offered Vote Yes")
-        XCTAssertTrue(app.buttons["Vote No"].exists, "the dock should offer Vote No")
+        XCTAssertTrue(yes.waitForExistence(timeout: 10), "the proposal never offered Vote Yes")
+        XCTAssertTrue(app.buttons["Vote No"].exists, "the proposal should offer Vote No")
         XCTAssertTrue(element("proposal-reason").exists, "the thesis block is missing")
-        capture("02-proposal-dock")
+        capture("02-proposal-vote")
 
         yes.tap()
         XCTAssertTrue(app.staticTexts["Vote recorded."].waitForExistence(timeout: 5), "no toast after voting")
         XCTAssertTrue(
-            element("proposal-change-vote").waitForExistence(timeout: 5), "the dock should offer Change vote")
+            element("proposal-change-vote").waitForExistence(timeout: 5), "the vote section should offer Change vote")
         XCTAssertFalse(app.buttons["Vote Yes"].exists, "Vote Yes should be gone once voted")
         capture("03-after-vote")
 
@@ -122,6 +127,72 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
     }
 
     @MainActor
+    func testOpen_voteSitsInTheContent_andTheBottomHoldsOnlyTheComposer() throws {
+        launch("open")
+        let yes = app.buttons["Vote Yes"]
+        let no = app.buttons["Vote No"]
+        XCTAssertTrue(yes.waitForExistence(timeout: 10), "Vote Yes never drew")
+        XCTAssertTrue(no.exists, "Vote No never drew")
+        let before = yes.frame.minY
+        XCTAssertEqual(yes.frame.width, no.frame.width, accuracy: 1, "Yes and No should share the row equally")
+        XCTAssertEqual(yes.frame.minY, no.frame.minY, accuracy: 1, "Yes and No should sit side by side")
+        XCTAssertTrue(element("proposal-vote-progress").exists, "votes so far and time left are missing")
+        let field = element("comment-composer-field")
+        XCTAssertTrue(field.waitForExistence(timeout: 10), "the composer never drew")
+        XCTAssertLessThan(yes.frame.maxY, field.frame.minY, "the vote should sit above the composer")
+        scrollAboveComposer(yes)
+        capture("30-vote-open")
+
+        scrollIntoReach(element("comment-row-c1"))
+        XCTAssertLessThan(yes.frame.minY, before, "the vote should scroll with the content, not float")
+        XCTAssertTrue(field.isHittable, "the composer should stay reachable at the bottom")
+    }
+
+    @MainActor
+    func testOpen_atTheLargestTextSize_stacksYesOverNo() throws {
+        launch("open", arguments: ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"])
+        let yes = app.buttons["Vote Yes"]
+        let no = app.buttons["Vote No"]
+        XCTAssertTrue(yes.waitForExistence(timeout: 10), "Vote Yes never drew")
+        scrollAboveComposer(no)
+        XCTAssertLessThan(
+            no.frame.maxY, element("comment-composer-field").frame.minY, "Vote No is under the composer")
+        XCTAssertLessThan(yes.frame.maxY, no.frame.minY, "Yes and No should stack at accessibility sizes")
+        XCTAssertEqual(yes.frame.width, no.frame.width, accuracy: 1, "stacked buttons should match widths")
+        capture("34-vote-largest-text")
+    }
+
+    @MainActor
+    func testVoted_showsYouVotedAndChangeVote() throws {
+        launch("voted")
+        let voted = element("proposal-voted")
+        XCTAssertTrue(voted.waitForExistence(timeout: 10), "the voted line never drew")
+        XCTAssertEqual(voted.label, "You voted Yes", "the voted line should name the ballot")
+        XCTAssertTrue(app.buttons["Change vote"].exists, "Change vote is missing")
+        XCTAssertFalse(app.buttons["Vote Yes"].exists, "Vote Yes should be gone once voted")
+        XCTAssertFalse(app.buttons["Vote No"].exists, "Vote No should be gone once voted")
+        scrollAboveComposer(element("proposal-change-vote"))
+        capture("31-vote-voted")
+        element("proposal-change-vote").tap()
+        sleep(1)
+        capture("32-vote-change")
+        XCTAssertTrue(app.buttons["Vote No"].waitForExistence(timeout: 5), "Change vote never offered Vote No")
+    }
+
+    @MainActor
+    func testClosed_showsTheResultInPlaceOfButtons() throws {
+        launch("rejected")
+        let result = element("proposal-vote-result")
+        XCTAssertTrue(result.waitForExistence(timeout: 10), "the result never drew")
+        XCTAssertTrue(result.label.contains("did not pass"), "the result should say the proposal did not pass")
+        XCTAssertFalse(app.buttons["Vote Yes"].exists, "a closed proposal must not offer Vote Yes")
+        XCTAssertFalse(app.buttons["Vote No"].exists, "a closed proposal must not offer Vote No")
+        XCTAssertFalse(element("proposal-change-vote").exists, "a closed proposal must not offer Change vote")
+        XCTAssertTrue(element("comment-composer-field").exists, "the composer should stay")
+        capture("33-vote-closed")
+    }
+
+    @MainActor
     func testComposer_whitespaceOnly_keepsPostDisabled() throws {
         launch("open")
         let field = element("comment-composer-field")
@@ -137,7 +208,7 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
     }
 
     @MainActor
-    func testReadOnlyProposal_showsTallyAndTheViewOnlyDockWithoutVoteButtons() throws {
+    func testReadOnlyProposal_showsTallyAndTheViewOnlyLineWithoutVoteButtons() throws {
         launch("readOnly")
         XCTAssertTrue(element("proposal-votes").waitForExistence(timeout: 10), "the votes block never drew")
         let bar = app.descendants(matching: .any)
@@ -199,6 +270,21 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
         XCTAssertTrue(
             app.navigationBars["All proposals"].waitForNonExistence(timeout: 5),
             "Choose a proposal should leave the list")
+    }
+}
+
+extension XCUIApplication {
+    private static let composerBarPadding: CGFloat = 24
+
+    @MainActor
+    fileprivate func scroll(_ element: XCUIElement, above composer: XCUIElement, maxDrags: Int = 6) {
+        var drags = 0
+        while element.frame.maxY > composer.frame.minY - Self.composerBarPadding && drags < maxDrags {
+            let from = windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
+            let to = windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45))
+            from.press(forDuration: 0.1, thenDragTo: to)
+            drags += 1
+        }
     }
 }
 

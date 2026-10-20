@@ -31,7 +31,7 @@ struct ProposalScreen: View {
                 .environment(refresh)
                 .refreshable { await refresh.run() }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    ProposalVoteDock(model: model, comments: comments)
+                    if let comments { CommentComposerBar(model: comments) }
                 }
                 .task {
                     let model = preparedComments()
