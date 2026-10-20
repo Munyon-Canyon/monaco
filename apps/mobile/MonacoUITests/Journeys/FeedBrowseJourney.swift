@@ -42,7 +42,7 @@ enum FeedBrowseJourney {
     }
 
     static func closeFilter(_ app: XCUIApplication) {
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)).tap()
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.6)).tap()
     }
 
     static func choose(_ app: XCUIApplication, _ options: String...) {
@@ -131,6 +131,9 @@ enum FeedBrowseJourney {
     static func cellTaps(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S3.1", "a cabal cell opens the cabal") {
             openFeed(app, step: "S3.1")
+            let clear = app.buttons["Clear search"]
+            if clear.exists { clear.tap() }
+            app.dismissKeyboard()
             choose(app, "feed-scope-Everyone")
             let cell = text(app, containing: "started \(joinedCabal(run: run))")
             XCTAssertTrue(cell.waitForExistence(timeout: 15), "S3.1: no 'started \(joinedCabal(run: run))' cell")

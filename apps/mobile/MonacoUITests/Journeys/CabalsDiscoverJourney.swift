@@ -79,9 +79,18 @@ enum CabalsDiscoverJourney {
 
         recorder.step("S2.4", "back on Discover the row is pending") {
             app.waitForToastGone()
+            app.dismissPushPrePromptIfShown(timeout: 5)
             app.tapBack()
+            let pending = app.element("cabals-search-requested")
+            if !pending.waitForExistence(timeout: 3) {
+                let list = app.element("cabals-search")
+                list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+                    .press(
+                        forDuration: 0.1,
+                        thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)))
+            }
             XCTAssertTrue(
-                app.element("cabals-search-requested").waitForExistence(timeout: 10),
+                pending.waitForExistence(timeout: 10),
                 "S2.4: the row does not read Request pending")
             let notice = app.element("cabals-search-pending-notice")
             XCTAssertTrue(notice.waitForExistence(timeout: 10), "S2.4: no pending notice above the list")

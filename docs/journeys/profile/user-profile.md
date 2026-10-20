@@ -21,7 +21,7 @@ The format of this doc is in [App journeys](../README.md). The Old app column na
 | --- | --- |
 | P1 | Actors A and B have each signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | Before each scenario, `apps/mobile/qa/journeys/profile/user-profile.setup.sh` marks A and B as done with onboarding and sets B's display name to "Bartholomez" |
-| P3 | The setup script has A create the cabal `QA profile {QA.run}` and B join it through the API, unless both already are members. It hands the test `cabalID`, `cabalName`, `meID` (A's user id) and `memberID` (B's user id) |
+| P3 | The setup script reads the cabals A and B share (`GET /v1/users/{id}/shared-cabals`, which leaves out a cabal the ranking run has not valued yet) and picks the first. When they share none, it has A create the cabal `QA profile {QA.run}` and B join it through the API, and S3.2 fails because the list leaves that cabal out. It hands the test `cabalID`, `cabalName`, `meID` (A's user id) and `memberID` (B's user id) |
 | P4 | Before S2, the setup script ends any follow of B by A through `DELETE /v1/users/{id}/follow`, and hands the truth check `followRowsBefore`, the count of A-to-B rows in `follows` |
 
 ## Scenarios
@@ -54,8 +54,8 @@ Starts signed in (auth/sign-in).
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
 | S3.1 | tap, tap, tap, tap, search, then tap | the Cabals tab, a search for `cabalName`, its result row, `cabal-details-button`, `cabal-members-row`, then the member's row in `members-list` (B's name, "Bartholomez") | | `user-profile-header` shows within 15 s | A member row opens the profile (`UserProfileRoute`) |
-| S3.2 | scroll to | "Cabals you share" | | "Cabals you share" lists `shared-cabal-row-{cabalID}`, reading `cabalName`, within 15 s | The profile lists the shared groups (`UserProfileSharedCabalsSlot`) |
-| S3.3 | tap | `shared-cabal-row-{cabalID}` | | The cabal screen shows within 15 s, with `cabal-details-button` | A shared group row opens the group |
+| S3.2 | scroll to | "Cabals you share" | | "Cabals you share" lists a row reading `cabalName` and its pot, within 15 s (the row's `shared-cabal-row-{cabalID}` identifier is shadowed by `user-profile-shared`, so the step finds it by label) | The profile lists the shared groups (`UserProfileSharedCabalsSlot`) |
+| S3.3 | tap | the row reading `cabalName` | | The cabal screen shows within 15 s, with `cabal-details-button` | A shared group row opens the group |
 
 ### S4 Report and block
 
@@ -86,5 +86,5 @@ None known.
 
 - The "@handle" line. `UserProfileHeaderSlot.swift` shows `user-profile-handle` only when it differs from the name, and B's handle is not fixed across databases.
 - The follower and following numbers. S1.3 reads the words only. `profile/follow-lists` covers the counts and lists.
-- The empty "No cabals in common" / "You and Maya aren't in a cabal together yet." P3 puts A and B in one cabal, so the shared list is never empty.
+- The empty "No cabals in common" / "You and Maya aren't in a cabal together yet." P3 picks a cabal A and B share, so the shared list is never empty.
 - "Profile not found" / "This profile isn't available." for a banned or deleted user (`user-profile-unavailable`). No journey actor can be banned or deleted without breaking every other journey.

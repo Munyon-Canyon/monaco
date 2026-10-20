@@ -141,18 +141,25 @@ enum StocksAssetDetailJourney {
         }
 
         recorder.step("S1.9", "pick a cabal and reach Amount") {
-            cabalRows(app).firstMatch.tap()
-            XCTAssertTrue(
-                app.element("propose-amount-screen").waitForExistence(timeout: 10),
-                "S1.9: the cabal row did not open the Amount screen")
-            XCTAssertTrue(
-                app.navigationBars["Buy \(alpha.ticker)"].exists, "S1.9: the screen is not titled 'Buy \(alpha.ticker)'"
-            )
-            let stockRow = app.staticTexts.matching(
-                NSPredicate(format: "label CONTAINS %@ OR label == %@", alpha.name, alpha.ticker))
-            XCTAssertTrue(
-                stockRow.firstMatch.waitForExistence(timeout: 5), "S1.9: no \(alpha.ticker) row on Amount")
+            reachAmount(app)
         }
+    }
+
+    static func reachAmount(_ app: XCUIApplication) {
+        cabalRows(app).firstMatch.tap()
+        XCTAssertTrue(
+            app.element("propose-amount-screen").waitForExistence(timeout: 10),
+            "S1.9: the cabal row did not open the Amount screen")
+        XCTAssertTrue(
+            app.navigationBars["Buy \(alpha.ticker)"].exists, "S1.9: the screen is not titled 'Buy \(alpha.ticker)'")
+        let header = app.element("propose-amount-operation")
+        for _ in 0..<10 where !header.exists {
+            let retry = app.buttons["propose-amount-cash-error"]
+            if retry.waitForExistence(timeout: 4) { retry.tap() }
+        }
+        XCTAssertTrue(header.waitForExistence(timeout: 5), "S1.9: no stock header on Amount")
+        XCTAssertTrue(
+            header.label.contains(alpha.name), "S1.9: the Amount header reads '\(header.label)', not \(alpha.name)")
     }
 
     static func stats(_ app: XCUIApplication, recorder: JourneyRecorder) {
