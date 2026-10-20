@@ -39,6 +39,17 @@ final class SessionProfileTests: XCTestCase {
         XCTAssertEqual(profile.createdAt, createdAt)
     }
 
+    func testTheBioAndTheSharePerformanceSettingComeFromMe() {
+        var me = Components.Schemas.Me.sample
+        XCTAssertNil(SessionProfile(me).bio)
+        XCTAssertTrue(SessionProfile(me).sharePerformance)
+        me.bio = "Building in public.\nNYC"
+        me.sharePerformance = false
+        let profile = SessionProfile(me)
+        XCTAssertEqual(profile.bio, "Building in public.\nNYC")
+        XCTAssertFalse(profile.sharePerformance)
+    }
+
     func testMappingCoversEveryNamedState() {
         let createdAt = Date(timeIntervalSince1970: 1_759_233_600)
         func me(

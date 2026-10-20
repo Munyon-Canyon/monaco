@@ -37,6 +37,8 @@ public struct SessionProfile: Equatable, Sendable {
     public var xUsername: String?
     public var handleChangeableAt: Date?
     public var createdAt: Date
+    public var bio: String?
+    public var sharePerformance: Bool
 
     public init(
         userID: String,
@@ -50,7 +52,9 @@ public struct SessionProfile: Equatable, Sendable {
         phoneLinked: Bool,
         xUsername: String?,
         handleChangeableAt: Date?,
-        createdAt: Date
+        createdAt: Date,
+        bio: String? = nil,
+        sharePerformance: Bool = true
     ) {
         self.userID = userID
         self.handle = handle
@@ -64,6 +68,8 @@ public struct SessionProfile: Equatable, Sendable {
         self.xUsername = xUsername
         self.handleChangeableAt = handleChangeableAt
         self.createdAt = createdAt
+        self.bio = bio
+        self.sharePerformance = sharePerformance
     }
 
     public func withDisplayName(_ name: String) -> SessionProfile {
@@ -85,7 +91,9 @@ public struct SessionProfile: Equatable, Sendable {
             phoneLinked: me.phoneLinked,
             xUsername: me.xUsername,
             handleChangeableAt: me.handleChangeableAt,
-            createdAt: me.createdAt
+            createdAt: me.createdAt,
+            bio: me.bio,
+            sharePerformance: me.sharePerformance
         )
     }
 
@@ -120,7 +128,9 @@ public struct SessionProfile: Equatable, Sendable {
             phoneLinked: wire.phoneLinked,
             xUsername: wire.xUsername,
             handleChangeableAt: handleChangeableAt,
-            createdAt: createdAt
+            createdAt: createdAt,
+            bio: wire.bio,
+            sharePerformance: wire.sharePerformance ?? true
         )
     }
 
@@ -204,6 +214,8 @@ private struct WireMe: Decodable {
     var xUsername: String?
     var handleChangeableAt: String?
     var createdAt: String
+    var bio: String?
+    var sharePerformance: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -218,5 +230,7 @@ private struct WireMe: Decodable {
         case xUsername = "x_username"
         case handleChangeableAt = "handle_changeable_at"
         case createdAt = "created_at"
+        case bio
+        case sharePerformance = "share_performance"
     }
 }

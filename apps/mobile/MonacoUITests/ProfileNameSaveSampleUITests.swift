@@ -27,13 +27,14 @@ nonisolated final class ProfileNameSaveSampleUITests: XCTestCase {
     }
 
     @MainActor
-    func testReadyScreenHasNothingToSaveAndBioOpensSoon() throws {
+    func testReadyScreenHasNothingToSaveAndShowsTheBio() throws {
         let app = launchApp("editProfileReady")
 
         XCTAssertTrue(app.textFields["profile-name-field"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.textFields["edit-profile-username-field"].exists)
         XCTAssertFalse(app.buttons["profile-name-save"].isEnabled, "nothing changed, so Save changes stays off")
-        XCTAssertTrue(app.staticTexts["Bio opens soon."].exists, "bio is disabled until the API exists")
+        XCTAssertTrue(anyElement(app, "edit-profile-bio-field").exists, "the bio field is live")
+        XCTAssertTrue(anyElement(app, "edit-profile-share-performance").exists, "the 1M toggle is live")
         attachScreenshot(app, name: "01-ready")
     }
 

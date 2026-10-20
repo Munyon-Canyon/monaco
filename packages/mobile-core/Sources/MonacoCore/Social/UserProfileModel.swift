@@ -357,3 +357,13 @@ extension UserProfileModel {
         }
     }
 }
+
+extension UserProfileModel {
+    public var bio: String? { profile?.bio }
+
+    public var joinedAt: Date? { profile?.createdAt }
+
+    public var cabalCount: Int? { profile?.cabalCount }
+
+    public var performance: PublicPerformance? { profile.map(PublicPerformance.init) }
+}

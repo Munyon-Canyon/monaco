@@ -74,6 +74,33 @@ extension AppSessionStore {
             signedOut: "Sign in again to edit your profile.")
     }
 
+    func updateProfile(
+        _ update: ProfileUpdate,
+        auth: SessionAuthenticating,
+        submission: IdempotentSubmission
+    ) async -> ProfileSaveOutcome {
+        guard let current = profile else {
+            return .failed("Couldn't save your profile. It is still loading.")
+        }
+        guard let sessions else {
+            return .failed("Couldn't save your profile. Try again.")
+        }
+        guard let token = await accessToken(auth: auth) else {
+            return .failed("Sign in again to edit your profile.")
+        }
+        noteProfileWrite()
+        let writeGeneration = profileWriteGenerationValue()
+        let saved: SessionProfile
+        do {
+            saved = try await sessions.updateProfile(update, submission: submission)
+        } catch {
+            return await failure(for: error, auth: auth, rejectedToken: token)
+        }
+        return await adopt(
+            saved, startedAs: current.userID, atGeneration: writeGeneration, auth: auth,
+            signedOut: "Sign in again to edit your profile.")
+    }
+
     func saveProfilePhoto(
         _ photo: Data,
         auth: SessionAuthenticating,

@@ -4,7 +4,7 @@ import SwiftUI
 enum IdentityPerformance: Equatable {
     case figure(dollars: String, percent: String)
     case hidden
-    case unavailable
+    case notRanked
     case loading
     case failed
 }
@@ -17,11 +17,19 @@ struct IdentityCardModel: Equatable {
     var positionsValue: String?
     var performance: IdentityPerformance
     var periodText: String
+    var positionsPhase = IdentityPositionsPhase.loaded
+}
+
+enum IdentityPositionsPhase: Equatable {
+    case loaded
+    case loading
+    case failed
 }
 
 enum IdentityCardCopy {
     static let zero = "$0.00"
     static let allTime = "All time"
+    static let notRanked = "No return yet."
 }
 
 enum IdentityCardMetrics {
@@ -44,6 +52,19 @@ extension IdentityPerformance {
     }
 
     static let empty = IdentityPerformance.figure(dollars: "+$0.00", percent: "0.00%")
+
+    init(_ performance: PublicPerformance) {
+        switch performance {
+        case .figure(let pnlMicros, let returnBps):
+            self = .figure(
+                dollars: UsdAmountFormatter.format(signedMicros: pnlMicros),
+                percent: PercentFormatter.format(basisPoints: returnBps, signed: true))
+        case .hidden:
+            self = .hidden
+        case .unavailable:
+            self = .notRanked
+        }
+    }
 }
 
 struct IdentityCard<Photo: View, Share: View>: View {
@@ -161,12 +182,12 @@ private struct IdentityStats: View {
     }
 
     @ViewBuilder private func positionsFigure(_ positions: String) -> some View {
-        switch model.performance {
+        switch model.positionsPhase {
         case .loading:
             skeleton
         case .failed:
             dash
-        default:
+        case .loaded:
             Text(positions)
                 .moneyFont(.card)
                 .foregroundStyle(MonacoTheme.onIdentity)
@@ -176,10 +197,10 @@ private struct IdentityStats: View {
     }
 
     private func positionsSpoken(_ positions: String) -> String {
-        switch model.performance {
+        switch model.positionsPhase {
         case .loading: "loading"
         case .failed: "unavailable"
-        default: positions
+        case .loaded: positions
         }
     }
 
@@ -216,10 +237,10 @@ private struct IdentityStats: View {
                     .foregroundStyle(MonacoTheme.profitOnIdentity)
                     .lineLimit(1)
             }
-        case .unavailable:
-            IdentityStatColumn(label: label, spoken: "Unavailable. Shared performance opens soon.") {
+        case .notRanked:
+            IdentityStatColumn(label: label, spoken: "Unavailable. \(IdentityCardCopy.notRanked)") {
                 dash
-                Text("Shared performance opens soon.")
+                Text(IdentityCardCopy.notRanked)
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.onIdentityMuted)
             }

@@ -32,6 +32,18 @@ enum ProfileSampleScenario: String, CaseIterable {
         return ProfileSampleScenario(rawValue: arguments[flag + 1])
     }
 
+    static let sampleBio = "Building things. Asking better questions."
+
+    var showsBio: Bool {
+        switch self {
+        case .ready, .photo, .editProfileReady, .editProfileInvalid, .editProfileSaving, .editProfileSaved,
+            .editProfileSaveFailure:
+            true
+        default:
+            false
+        }
+    }
+
     var personState: UserProfileSampleState? {
         switch self {
         case .personPublic: .publicProfile
@@ -44,8 +56,7 @@ enum ProfileSampleScenario: String, CaseIterable {
     }
 
     var editPresets: EditProfilePresets? {
-        let bio = "Building things. Asking better questions."
-        var presets = EditProfilePresets(bioDraft: bio, bioEnabled: true, sessions: .handlePreview(.available))
+        var presets = EditProfilePresets(sessions: .handlePreview(.available))
         switch self {
         case .editProfileReady: break
         case .editProfileInvalid: presets.handleDraft = "a!"
@@ -76,18 +87,14 @@ enum UserProfileSampleState {
 struct UserProfileSampleScreen: View {
     let state: UserProfileSampleState
 
-    private var fixture: UserProfileFixture {
-        UserProfileFixture(
-            bio: "Curious about good ideas and better questions.",
-            performance: state == .privateProfile
-                ? .hidden : .figure(dollars: "+$984.00", percent: "+8.2%"),
-            periodText: "1M", joinedText: "Joined October 2026", showsPublicActivity: true)
-    }
-
     private var data: UserProfileContentData {
         UserProfileContentData(
             userID: "sample-mia", title: "Mia Chen", handle: "mia", photoURL: nil, followers: 12, following: 8,
-            followedByMe: state == .following)
+            followedByMe: state == .following, bio: "Curious about good ideas and better questions.",
+            joinedText: "Joined October 2026", cabals: 3,
+            performance: state == .privateProfile
+                ? .hidden : .figure(dollars: "+$984.00", percent: "+8.2%"),
+            activity: [], activityLoaded: true)
     }
 
     var body: some View {
@@ -112,7 +119,7 @@ struct UserProfileSampleScreen: View {
         case .error:
             UserProfileLoadFailed {}
         default:
-            UserProfileContent(data: data, fixture: fixture, actions: UserProfileActions())
+            UserProfileContent(data: data, actions: UserProfileActions())
         }
     }
 }
@@ -132,8 +139,7 @@ struct ProfileSampleHarness: View {
 
     private var presets: ProfileHeaderPresets {
         ProfileHeaderPresets(
-            showsFacePicker: scenario == .facePicker,
-            bio: scenario == .ready || scenario == .photo ? "Building things. Asking better questions." : nil)
+            showsFacePicker: scenario == .facePicker)
     }
 
     private static func fill(_ session: AppSessionStore, for scenario: ProfileSampleScenario) {
@@ -156,6 +162,7 @@ struct ProfileSampleHarness: View {
             photoURL: hasPhoto ? samplePhotoURL : nil,
             createdAt: ISO8601DateFormatter().date(from: "2026-10-01T14:30:00Z")
         )
+        if scenario.showsBio { session.profile?.bio = ProfileSampleScenario.sampleBio }
 
         session.hasLoaded = true
     }

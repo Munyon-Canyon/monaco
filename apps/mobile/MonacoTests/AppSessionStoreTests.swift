@@ -5,6 +5,7 @@ import Testing
 
 import enum MonacoCore.FirstRunGate
 import enum MonacoCore.LoginFailureCopy
+import struct MonacoCore.ProfileUpdate
 import struct MonacoCore.SessionAPI
 import struct MonacoCore.SessionProfile
 
@@ -234,6 +235,50 @@ struct AppSessionStoreBootstrapTests {
         let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: String])
         #expect(json["display_name"] == "New name")
         #expect(store.profile?.displayName == "Kai Cenat")
+    }
+
+    @Test func aBioAndSharingSaveAdoptsTheServerCopy() async throws {
+        let saved = SessionWire.me.replacingOccurrences(
+            of: #""created_at""#, with: #""bio":"Building in public.\nNYC","share_performance":false,"created_at""#)
+        let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), .json(.ok, saved)])
+        let store = AppSessionStore(sessions: sessionAPI(transport))
+        let auth = StubAuth()
+        await store.bootstrap(auth: auth)
+        #expect(store.profile?.bio == nil)
+        #expect(store.profile?.sharePerformance == true)
+
+        let outcome = await store.updateProfile(
+            ProfileUpdate(bio: "Building in public.\nNYC", sharePerformance: false), auth: auth,
+            submission: IdempotentSubmission())
+
+        let bodies = await transport.sentBodies
+        let body = try #require(bodies.last ?? nil)
+        let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(outcome == .saved)
+        #expect(json["bio"] as? String == "Building in public.\nNYC")
+        #expect(json["share_performance"] as? Bool == false)
+        #expect(store.profile?.bio == "Building in public.\nNYC")
+        #expect(store.profile?.sharePerformance == false)
+    }
+
+    @Test func aRejectedBioSaveKeepsTheProfileAndReportsTheFailure() async throws {
+        let problem = Components.Schemas.Problem(
+            _type: .about_colon_blank, title: "Bad Request", status: 400, code: .invalidInput,
+            message: "Bio is too long.", traceId: "trace", retryable: false
+        )
+        let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), try .problem(problem)])
+        let store = AppSessionStore(sessions: sessionAPI(transport))
+        let auth = StubAuth()
+        await store.bootstrap(auth: auth)
+
+        let outcome = await store.updateProfile(
+            ProfileUpdate(bio: "x"), auth: auth, submission: IdempotentSubmission())
+
+        guard case .failed = outcome else {
+            Issue.record("expected a failure, got \(outcome)")
+            return
+        }
+        #expect(store.profile?.bio == nil)
     }
 
     @Test func aNameSave4xxShowsTheProblemMessageWithoutEndingTheSession() async throws {

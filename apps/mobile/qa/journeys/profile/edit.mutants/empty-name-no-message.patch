@@ -5,9 +5,10 @@ An emptied name field shows no rule. S2.2 expects the field to report "Display n
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Profile/EditProfileView.swift b/apps/mobile/Monaco/Features/Profile/EditProfileView.swift
+index 6aaa49565..67bebc5a3 100644
 --- a/apps/mobile/Monaco/Features/Profile/EditProfileView.swift
 +++ b/apps/mobile/Monaco/Features/Profile/EditProfileView.swift
-@@ -100,7 +100,7 @@
+@@ -102,7 +102,7 @@ private struct EditProfileForm: View {
      private var nameChanged: Bool { normalizedName.map { $0 != savedName } ?? false }
  
      private var nameError: String? {
@@ -15,4 +16,4 @@ diff --git a/apps/mobile/Monaco/Features/Profile/EditProfileView.swift b/apps/mo
 +        nameDraft.isEmpty ? nameSaveError : DisplayNameRules.validationMessage(for: nameDraft) ?? nameSaveError
      }
  
-     private var normalizedHandle: String { HandleInput.normalize(handleDraft) }
+     private var normalizedBio: String { ProfileBioRules.normalized(bioDraft) }
