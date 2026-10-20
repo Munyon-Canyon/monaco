@@ -197,7 +197,7 @@ private struct ProposeReviewHero: View {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(model.operationLine).font(MonacoTheme.Typo.body).foregroundStyle(MonacoTheme.ink)
                 Text(model.heroAmount)
-                    .moneyFont(.large)
+                    .moneyFigure(.large)
                     .foregroundStyle(MonacoTheme.ink)
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)

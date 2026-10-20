@@ -258,6 +258,7 @@ struct ChatThreadParent: View {
                         .font(MonacoTheme.Typo.subheadStrong)
                         .foregroundStyle(MonacoTheme.primaryText)
                         .lineLimit(1)
+                        .monacoPrivate()
                 }
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())

@@ -106,6 +106,7 @@ struct ProposalCard: View {
                     .foregroundStyle(MonacoTheme.muted)
                     .lineLimit(stacked ? 2 : 1)
                     .truncationMode(.tail)
+                    .monacoPrivate()
             }
             if !stacked {
                 Spacer(minLength: MonacoTheme.Space.s)
@@ -132,6 +133,7 @@ struct ProposalCard: View {
                         .foregroundStyle(MonacoTheme.ink)
                         .fixedSize(horizontal: false, vertical: true)
                     Text(amountLine)
+                        .monacoPrivate()
                         .font(MonacoTheme.Typo.caption)
                         .foregroundStyle(MonacoTheme.muted)
                         .fixedSize(horizontal: false, vertical: true)

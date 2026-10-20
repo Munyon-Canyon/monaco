@@ -246,7 +246,7 @@ private struct CabalActivityRowView: View {
     @ViewBuilder private var amountText: some View {
         if let amount = row.amount {
             Text(amount)
-                .moneyFont(.row)
+                .moneyFigure(.row)
                 .foregroundStyle(MonacoTheme.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(MoneyStyle.row.minimumScaleFactor)

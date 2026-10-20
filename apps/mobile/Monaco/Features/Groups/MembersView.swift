@@ -153,7 +153,7 @@ struct MembersView: View {
                     ) {
                         MonacoRow(
                             title: member.shownName, subtitle: role(member), chevron: true,
-                            isLast: member.userId == cabal.members.last?.userId
+                            isLast: member.userId == cabal.members.last?.userId, isPrivate: true
                         ) {
                             MonacoAvatar(
                                 photoURL: member.photoUrl, displayName: member.shownName, size: .row,
@@ -175,7 +175,7 @@ struct MembersView: View {
                 ForEach(cabal.members, id: \.userId) { member in
                     MonacoRow(
                         title: member.shownName, subtitle: role(member),
-                        isLast: member.userId == cabal.members.last?.userId
+                        isLast: member.userId == cabal.members.last?.userId, isPrivate: true
                     ) {
                         MonacoAvatar(
                             photoURL: member.photoUrl, displayName: member.shownName, size: .row, seed: member.userId)
@@ -264,6 +264,7 @@ private struct RequestRow: View {
     var body: some View {
         MonacoRow(
             title: request.name, subtitle: "Requested to join", isLast: isLast, trailingIsInteractive: true,
+            isPrivate: true,
             leading: { token },
             trailing: {
                 Button("Review", action: review)

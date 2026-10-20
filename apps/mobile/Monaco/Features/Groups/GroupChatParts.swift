@@ -322,6 +322,7 @@ struct ChatComposerBar: View {
         .background(shape.fill(MonacoTheme.surfaceSunken))
         .overlay(shape.stroke(MonacoTheme.hairline, lineWidth: 1))
         .accessibilityIdentifier("chat-composer")
+        .monacoPrivate()
     }
 
     private var sendButton: some View {

@@ -142,7 +142,7 @@ private struct CabalValueChart: View {
 
     @ViewBuilder private func returnParts(_ percent: String, color: Color, range: LeaderboardRange) -> some View {
         Text(percent)
-            .moneyFont(.row)
+            .moneyFigure(.row)
             .foregroundStyle(color)
             .lineLimit(1)
             .fixedSize()

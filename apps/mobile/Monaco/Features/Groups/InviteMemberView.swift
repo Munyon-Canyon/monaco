@@ -95,6 +95,7 @@ private struct InviteMemberContent: View {
                 .onSubmit { send() }
                 .accessibilityLabel("Handle")
                 .accessibilityIdentifier("invite-member-handle-field")
+                .monacoPrivate()
             }
             .monacoFieldChrome(isFocused: fieldFocused, focus: { fieldFocused = true })
 

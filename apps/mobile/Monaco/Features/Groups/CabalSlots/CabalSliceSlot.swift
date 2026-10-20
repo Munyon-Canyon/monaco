@@ -73,7 +73,7 @@ struct CabalSliceBand: View {
 
     private func figure(_ text: String, id: String) -> some View {
         Text(text)
-            .moneyFont(.card)
+            .moneyFigure(.card)
             .foregroundStyle(MonacoTheme.primaryText)
             .lineLimit(1)
             .minimumScaleFactor(MoneyStyle.card.minimumScaleFactor)

@@ -136,6 +136,7 @@ struct IdentityCard<Photo: View, Share: View>: View {
                 .minimumScaleFactor(0.7)
                 .multilineTextAlignment(.leading)
                 .accessibilityIdentifier(identifierPrefix == "profile" ? "profile-display-name" : "user-profile-name")
+                .monacoPrivate()
             if let handle = model.handle, !handle.isEmpty {
                 Text("@\(handle)")
                     .font(MonacoTheme.Typo.caption)
@@ -143,6 +144,7 @@ struct IdentityCard<Photo: View, Share: View>: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .accessibilityIdentifier(identifierPrefix == "profile" ? "profile-handle" : "user-profile-handle")
+                    .monacoPrivate()
             }
             if let joined = model.joinedText {
                 Text(joined)
@@ -189,7 +191,7 @@ private struct IdentityStats: View {
             dash
         case .loaded:
             Text(positions)
-                .moneyFont(.card)
+                .moneyFigure(.card)
                 .foregroundStyle(MonacoTheme.onIdentity)
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
@@ -268,13 +270,13 @@ private struct IdentityPerformanceLine: View {
 
     @ViewBuilder private var figures: some View {
         Text(dollars)
-            .moneyFont(.card)
+            .moneyFigure(.card)
             .foregroundStyle(tone)
             .lineLimit(1)
             .minimumScaleFactor(0.5)
             .layoutPriority(1)
         Text(percent)
-            .moneyFont(.caption)
+            .moneyFigure(.caption)
             .foregroundStyle(tone)
             .lineLimit(1)
             .minimumScaleFactor(0.5)

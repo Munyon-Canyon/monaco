@@ -15,7 +15,7 @@ struct ChatMentionPicker: View {
                     } label: {
                         MonacoRow(
                             title: member.displayName, titleFont: MonacoTheme.Typo.subheadStrong,
-                            subtitle: "@\(member.handle ?? "")", isLast: index == matches.count - 1
+                            subtitle: "@\(member.handle ?? "")", isLast: index == matches.count - 1, isPrivate: true
                         ) {
                             MonacoAvatar(
                                 photoURL: member.photoUrl, displayName: member.displayName, size: 32,

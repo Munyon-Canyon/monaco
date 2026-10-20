@@ -60,7 +60,7 @@ struct CabalCover<Overlay: View>: View {
 
     var body: some View {
         sized
-            .background { layers }
+            .background { layers.monacoPrivate() }
             .clipShape(shape)
             .task(id: pictureURL) { await loadPicture() }
     }

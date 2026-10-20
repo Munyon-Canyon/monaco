@@ -160,6 +160,7 @@ struct GroupChatRowView: View {
                 .font(MonacoTheme.Typo.captionStrong)
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .lineLimit(1)
+                .monacoPrivate()
         }
         .buttonStyle(.plain)
         .disabled(!named)

@@ -199,6 +199,8 @@ struct OTPLoginForm: View {
                 addressStep
             }
         }
+        .monacoPrivate()
+        .pausesSessionReplay(isCodeStep)
         .revealsWhileActive(
             OTPCode.actionsAnchor,
             isActive: focusedField != nil,

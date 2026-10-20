@@ -96,7 +96,7 @@ struct CabalTransactionView: View {
                     .frame(maxWidth: .infinity)
                 if let amount = swap?.amount ?? row.amount {
                     Text(amount)
-                        .moneyFont(.hero)
+                        .moneyFigure(.hero)
                         .foregroundStyle(MonacoTheme.ink)
                         .lineLimit(1)
                         .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)

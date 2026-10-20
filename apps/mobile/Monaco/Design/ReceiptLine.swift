@@ -76,6 +76,7 @@ struct ReceiptLine: View {
                 .font(MonacoTheme.Typo.subheadStrong.monospacedDigit())
                 .foregroundStyle(MonacoTheme.primaryText)
                 .multilineTextAlignment(alignment)
+                .monacoPrivate()
         case .words(let text):
             Text(text)
                 .font(MonacoTheme.Typo.subheadStrong)

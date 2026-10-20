@@ -66,6 +66,7 @@ struct MonacoAvatar: View {
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
+        .monacoPrivate()
         .overlay {
             if let ring {
                 Circle().strokeBorder(ring.color, lineWidth: MonacoAvatarRing.width)

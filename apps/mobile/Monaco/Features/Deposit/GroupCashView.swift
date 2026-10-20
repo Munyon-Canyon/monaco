@@ -96,7 +96,7 @@ struct GroupCashView: View {
                 .font(MonacoTheme.Typo.captionStrong)
                 .foregroundStyle(MonacoTheme.muted)
             Text(summary.cash)
-                .moneyFont(.hero)
+                .moneyFigure(.hero)
                 .foregroundStyle(MonacoTheme.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)

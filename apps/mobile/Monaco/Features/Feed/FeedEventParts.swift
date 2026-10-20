@@ -86,6 +86,7 @@ struct FeedAuthorRow: View {
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
+                    .monacoPrivate()
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -115,6 +116,7 @@ struct FeedAuthorRow: View {
         let text = Text(name)
             .font(MonacoTheme.Typo.subheadStrong)
             .foregroundStyle(MonacoTheme.primaryText)
+            .monacoPrivate()
         if let actorID = item.actorId {
             NavigationLink(value: AnyAppRoute(UserProfileRoute(userID: actorID))) {
                 text
@@ -136,6 +138,7 @@ struct FeedAuthorRow: View {
                 .foregroundStyle(authorReturn.color)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityLabel(authorReturn.spoken)
+                .monacoPrivate()
         }
     }
 }
@@ -249,7 +252,7 @@ struct FeedAssetBlock: View {
         if let trailing {
             VStack(alignment: .trailing, spacing: 0) {
                 Text(trailing.text)
-                    .moneyFont(.row)
+                    .moneyFigure(.row)
                     .foregroundStyle(trailing.color)
                 if let caption = trailing.caption {
                     Text(caption)

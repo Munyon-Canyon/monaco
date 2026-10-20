@@ -47,6 +47,7 @@ struct ProposeContextCard: View {
 
     private func caption(_ text: String) -> some View {
         Text(text).font(MonacoTheme.Typo.caption).foregroundStyle(MonacoTheme.muted)
+            .monacoPrivate()
     }
 }
 

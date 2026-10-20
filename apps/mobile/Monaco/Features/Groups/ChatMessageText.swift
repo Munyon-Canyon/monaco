@@ -47,6 +47,7 @@ struct ChatMessageText: View {
     var body: some View {
         Text(ChatMention.attributed(body: text, members: members, color: mentionColor ?? color))
             .foregroundStyle(color)
+            .monacoPrivate()
             .tint(mentionColor ?? color)
             .environment(
                 \.openURL,

@@ -53,7 +53,7 @@ struct HoldingStatGrid: View {
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.secondaryText)
             Text(stat.value)
-                .moneyFont(.row)
+                .moneyFigure(.row)
                 .foregroundStyle(stat.tone.color)
                 .lineLimit(1)
                 .minimumScaleFactor(MoneyStyle.row.minimumScaleFactor)

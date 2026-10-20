@@ -105,7 +105,7 @@ private struct ReceiptBody: View {
                 .multilineTextAlignment(.center)
                 .padding(.top, MonacoTheme.Space.sm)
             Text(content.amount)
-                .moneyFont(.hero)
+                .moneyFigure(.hero)
                 .foregroundStyle(MonacoTheme.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)

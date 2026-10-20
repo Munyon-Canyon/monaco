@@ -95,6 +95,7 @@ private struct CabalStandingRow: View {
                 .foregroundStyle(MonacoTheme.primaryText)
                 .lineLimit(1)
                 .truncationMode(.tail)
+                .monacoPrivate()
             if row.isViewer {
                 StatusBadge(BoardRow<EmptyView>.viewerLabel, tone: .positive)
             }

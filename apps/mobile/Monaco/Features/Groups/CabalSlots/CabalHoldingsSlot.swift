@@ -116,12 +116,12 @@ struct CabalHoldingsSection: View {
                 SunkenGlyphMark(icon: .wallet)
             } trailing: {
                 Text(cash)
-                    .moneyFont(.row)
+                    .moneyFigure(.row)
                     .foregroundStyle(MonacoTheme.primaryText)
                     .lineLimit(1)
                 if let yield {
                     Text(yield)
-                        .moneyFont(.caption)
+                        .moneyFigure(.caption)
                         .foregroundStyle(MonacoTheme.profit)
                         .lineLimit(1)
                         .accessibilityIdentifier("cabal-holdings-cash-yield")
@@ -151,7 +151,7 @@ private struct HoldingRow: View {
             mark: StockMark(symbol: row.symbol, displayName: row.name, logoURL: row.logoURL)
         ) {
             Text(row.value)
-                .moneyFont(.row)
+                .moneyFigure(.row)
                 .foregroundStyle(MonacoTheme.ink)
                 .lineLimit(1)
             PnLText(dollarPnl: row.gain, style: .caption)

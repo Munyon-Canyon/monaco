@@ -56,7 +56,16 @@ Metrics that need history (e.g. "members per cabal last month") come from the `e
 - Screen views on every screen (`$screen`).
 - One event per step of every flow, named `<flow>_<step>`, with a shared `flow_id` per attempt so funnels do not mix attempts.
 - `rage_tap`: emitted by the app when the same control is tapped 4+ times within 1 second, with the control's identifier and screen. Also `dead_tap` when a tap on a non-interactive element repeats. Built as a small tap tracker in the app rather than relying on autocapture.
-- Session replay is off (default 2026-09-27). These are money screens.
+- Session replay: on in staging builds only. The Info.plist key `POSTHOG_SESSION_REPLAY` (written by `scripts/ensure-ios-privy-config.sh`, `true` unless `.env.local` sets it to `false`) enables it, and the app records only when the build's environment is `staging`, so a production build never records. Production stays off until the founder enables it in the app's `PostHogAnalyticsSink.recordsSessions` and updates the privacy policy and the App Store privacy labels. The founder also turns on Settings → Session replay → "Record user sessions" in the PostHog project.
+
+**Session replay privacy.** The SDK runs in screenshot mode, which SwiftUI needs. It masks all text inputs, all images and all sandboxed views (system pickers, the share sheet, Privy views). Network capture and console logs are off, so request and response bodies never leave the phone. It does not record while the app is in the background. Replay attaches to the already identified user id only and adds no person property. The app also masks these regions through the one shared modifier `.monacoPrivate()` (it wraps the SDK's `.postHogMask()`):
+
+- Every money amount, balance, share count and P&L: `MoneyText`, `PnLText`, `PercentText`, `PnLBadge`, `MoneyHero`, `moneyFigure(_:)`, the amount entry, receipt lines and outcome messages.
+- People's names, handles, avatars, cabal pictures, chat message bodies, comments and the profile fields.
+- Phone numbers, wallet and deposit addresses and their QR code, the invite code and link, and the referral code field.
+- The sign-in OTP screens: replay pauses while a code is entered (`.pausesSessionReplay()`), and the whole form is masked.
+
+Public market data (stock prices, charts, tickers, day change) stays visible, so those figures use `moneyFont(_:)`, not `moneyFigure(_:)`. `PrivateDataMaskRulesTests` fails when a known money or identity view loses its mask. A new view that shows a private value adds itself to that list.
 
 **Server events** (backend, PostHog server API, sent by the `analytics` module's consumer on the event bus, with the event id as PostHog's `uuid` so redeliveries dedupe). These are the authoritative "it happened" for funnels that end in money or social actions. Each comes from one subject in the `events` registry:
 

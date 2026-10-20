@@ -166,6 +166,7 @@ private struct InviteUnlockPrompt: View {
                 .foregroundStyle(MonacoTheme.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("invite-unlock")
+                .monacoPrivate()
             Button(InviteCopy.deposit) { depositNavigator?.presentDeposit() }
                 .buttonStyle(.monacoOutline)
                 .accessibilityIdentifier("invite-deposit")
@@ -187,6 +188,7 @@ private struct InviteLinkText: View {
             .minimumScaleFactor(0.8)
             .truncationMode(.middle)
             .textSelection(.enabled)
+            .monacoPrivate()
     }
 }
 

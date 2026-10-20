@@ -84,6 +84,7 @@ struct DisplayNameField<Trailing: View>: View {
                     focus: { focus.wrappedValue = true }
                 )
                 .accessibilityIdentifier("\(identifierPrefix)-field")
+                .monacoPrivate()
 
                 trailing()
             }

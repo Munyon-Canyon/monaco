@@ -72,7 +72,10 @@ struct BlockedPeopleView: View {
     private func row(_ person: BlockedPerson, isLast: Bool) -> some View {
         let preview = UserPreview(displayName: person.displayName, handle: person.handle, photoURL: person.photoURL)
         return NavigationLink(value: AnyAppRoute(UserProfileRoute(userID: person.id, preview: preview))) {
-            MonacoRow(title: person.title, subtitle: person.subtitle, isLast: isLast, trailingIsInteractive: true) {
+            MonacoRow(
+                title: person.title, subtitle: person.subtitle, isLast: isLast, trailingIsInteractive: true,
+                isPrivate: true
+            ) {
                 MonacoAvatar(photoURL: person.photoURL, displayName: person.displayName, seed: person.id)
             } trailing: {
                 Button("Unblock") { Task { await unblock(person) } }

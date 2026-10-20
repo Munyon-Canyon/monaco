@@ -180,6 +180,7 @@ private struct HandleStepForm: View {
                 .accessibilityIdentifier("handle-step-field")
         }
         .monacoFieldChrome(isFocused: isFocused, isInvalid: isInvalid, focus: { isFocused = true })
+        .monacoPrivate()
         .disabled(isLocked || isSaving)
     }
 

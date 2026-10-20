@@ -193,7 +193,7 @@ private struct AccountActivityRowView: View {
 
     private var amount: some View {
         Text(row.amount)
-            .moneyFont(.row)
+            .moneyFigure(.row)
             .foregroundStyle(MonacoTheme.ink)
             .lineLimit(1)
             .minimumScaleFactor(MoneyStyle.row.minimumScaleFactor)
