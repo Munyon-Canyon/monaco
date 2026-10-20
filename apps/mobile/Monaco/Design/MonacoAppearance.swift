@@ -136,11 +136,12 @@ extension View {
         title: String,
         titleIdentifier: String? = nil,
         detents: MonacoSheetDetents? = nil,
-        showsClose: Bool = false
+        showsClose: Bool = false,
+        closeIdentifier: String? = nil
     ) -> some View {
         MonacoSheetFrame(
-            title: title, titleIdentifier: titleIdentifier, kind: detents, showsClose: showsClose, scrolls: false,
-            content: self)
+            title: title, titleIdentifier: titleIdentifier, kind: detents, showsClose: showsClose,
+            closeIdentifier: closeIdentifier, scrolls: false, content: self)
     }
 
     func monacoFittedSheet(
@@ -150,8 +151,8 @@ extension View {
         showsClose: Bool = false
     ) -> some View {
         MonacoSheetFrame(
-            title: title, titleIdentifier: titleIdentifier, kind: detents, showsClose: showsClose, scrolls: true,
-            content: self)
+            title: title, titleIdentifier: titleIdentifier, kind: detents, showsClose: showsClose,
+            closeIdentifier: nil, scrolls: true, content: self)
     }
 
     func monacoTopLevelHeader(title: String) -> some View {
@@ -215,6 +216,7 @@ struct MonacoSheetHeading: View {
     let title: String
     let identifier: String?
     var showsClose = false
+    var closeIdentifier: String?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -222,13 +224,23 @@ struct MonacoSheetHeading: View {
         HStack(spacing: MonacoTheme.Space.s) {
             titleText
             if showsClose {
-                MonacoGlassButton(systemImage: "xmark", accessibilityLabel: "Close", style: .quiet) { dismiss() }
+                closeButton
             }
         }
         .frame(minHeight: 48)
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.top, MonacoTheme.Space.s)
         .padding(.bottom, MonacoTheme.Space.sm)
+    }
+
+    @ViewBuilder
+    private var closeButton: some View {
+        let button = MonacoGlassButton(systemImage: "xmark", accessibilityLabel: "Close", style: .quiet) { dismiss() }
+        if let closeIdentifier {
+            button.accessibilityIdentifier(closeIdentifier)
+        } else {
+            button
+        }
     }
 
     @ViewBuilder
@@ -251,6 +263,7 @@ private struct MonacoSheetFrame<Content: View>: View {
     let titleIdentifier: String?
     let kind: MonacoSheetDetents?
     let showsClose: Bool
+    let closeIdentifier: String?
     let scrolls: Bool
     let content: Content
 
@@ -259,12 +272,14 @@ private struct MonacoSheetFrame<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            MonacoSheetHeading(title: title, identifier: titleIdentifier, showsClose: showsClose)
-                .onGeometryChange(for: CGFloat.self) {
-                    $0.size.height
-                } action: {
-                    headingHeight = $0
-                }
+            MonacoSheetHeading(
+                title: title, identifier: titleIdentifier, showsClose: showsClose, closeIdentifier: closeIdentifier
+            )
+            .onGeometryChange(for: CGFloat.self) {
+                $0.size.height
+            } action: {
+                headingHeight = $0
+            }
             sheetContent
         }
         .monacoSheetChrome()

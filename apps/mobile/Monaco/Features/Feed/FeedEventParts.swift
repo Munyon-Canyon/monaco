@@ -371,8 +371,6 @@ struct FeedReactionsRow: View {
     let item: Components.Schemas.FeedItem
     let onLike: () -> Void
 
-    @Environment(ToastCenter.self) private var toasts
-
     private var commentLabel: String {
         item.commentCount == 1 ? "1 comment" : "\(item.commentCount) comments"
     }
@@ -387,12 +385,9 @@ struct FeedReactionsRow: View {
             .accessibilityLabel(commentLabel)
             .accessibilityIdentifier("feed-comments-\(item.id)")
             Spacer(minLength: 0)
-            Button {
-                toasts.show(success: "Sharing opens soon.")
-            } label: {
+            FeedShareButton(item: item) {
                 glyphLabel(.share, count: nil)
             }
-            .buttonStyle(.plain)
             .accessibilityLabel("Share this update")
             .accessibilityIdentifier("feed-share-\(item.id)")
         }
