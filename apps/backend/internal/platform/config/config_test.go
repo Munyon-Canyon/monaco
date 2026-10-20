@@ -64,7 +64,11 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 			PriceBaseURL: "https://api.jup.ag/price/v3",
 			RateLimit:    8,
 		},
-		CoinGecko: config.CoinGecko{BaseURL: "https://api.coingecko.com/api/v3"},
+		CoinGecko: config.CoinGecko{
+			Plan:          config.CoinGeckoDemo,
+			BaseURL:       "https://api.coingecko.com/api/v3",
+			MonthlyBudget: 10000,
+		},
 		XStocks:   config.XStocks{BaseURL: "https://api.xstocks.fi"},
 		Tessera:   config.Tessera{BaseURL: "https://rest-api.tessera.pe"},
 		PreStocks: config.PreStocks{BaseURL: "https://prestocks.com"},
@@ -165,6 +169,8 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"COINGECKO_BASE_URL=http://fakes/coingecko",
 		"COINGECKO_API_KEY=cg-secret",
 		"MARKET_HISTORY_ENABLED=false",
+		"COINGECKO_MONTHLY_BUDGET=4000",
+		"COINGECKO_PLAN=pro",
 		"XSTOCKS_BASE_URL=http://fakes/xstocks",
 		"TESSERA_API_BASE_URL=http://fakes/tessera",
 		"PRESTOCKS_API_BASE_URL=http://fakes/prestocks",
@@ -272,7 +278,12 @@ func TestLoadReadsEveryKey(t *testing.T) {
 			APIKey:       "jup-secret",
 			RateLimit:    40,
 		},
-		CoinGecko: config.CoinGecko{BaseURL: "http://fakes/coingecko", APIKey: "cg-secret"},
+		CoinGecko: config.CoinGecko{
+			Plan:          config.CoinGeckoPro,
+			BaseURL:       "http://fakes/coingecko",
+			APIKey:        "cg-secret",
+			MonthlyBudget: 4000,
+		},
 		XStocks:   config.XStocks{BaseURL: "http://fakes/xstocks"},
 		Tessera:   config.Tessera{BaseURL: "http://fakes/tessera"},
 		PreStocks: config.PreStocks{BaseURL: "http://fakes/prestocks"},
@@ -595,6 +606,8 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"COINGECKO_API_KEY", "***"},
 		{"COINGECKO_BASE_URL", "https://api.coingecko.com/api/v3"},
 		{"MARKET_HISTORY_ENABLED", "true"},
+		{"COINGECKO_MONTHLY_BUDGET", "10000"},
+		{"COINGECKO_PLAN", "demo"},
 		{"MONACO_TIMEOUT_COINGECKO", "15s"},
 		{"MONACO_JUPITER_SWAP_BASE_URL", "https://api.jup.ag/swap/v2"},
 		{"MONACO_JUPITER_PRICE_BASE_URL", "https://api.jup.ag/price/v3"},
@@ -741,6 +754,49 @@ func TestEVMRPCURLNamesEachNetworkAndNoneForSolana(t *testing.T) {
 	} {
 		if got := e.RPCURL(n); got != want {
 			t.Errorf("RPCURL(%s) = %q, want %q", n, got, want)
+		}
+	}
+}
+
+func TestLoadCoinGeckoPlanPicksTheHostHeaderAndBudget(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		extra   []string
+		plan    config.CoinGeckoPlan
+		baseURL string
+		header  string
+		budget  int32
+	}{
+		{"demo", nil, config.CoinGeckoDemo, "https://api.coingecko.com/api/v3", "x-cg-demo-api-key", 10000},
+		{
+			"pro",
+			[]string{"COINGECKO_PLAN=pro"},
+			config.CoinGeckoPro,
+			"https://pro-api.coingecko.com/api/v3", "x-cg-pro-api-key", 0,
+		},
+		{
+			"zero turns the guard off",
+			[]string{"COINGECKO_MONTHLY_BUDGET=0"},
+			config.CoinGeckoDemo,
+			"https://api.coingecko.com/api/v3", "x-cg-demo-api-key", 0,
+		},
+		{
+			"pro with a budget and a host",
+			[]string{"COINGECKO_PLAN=pro", "COINGECKO_MONTHLY_BUDGET=500", "COINGECKO_BASE_URL=http://x"},
+			config.CoinGeckoPro, "http://x", "x-cg-pro-api-key", 500,
+		},
+	} {
+		cfg, err := config.Load(append(required(), tc.extra...))
+		cg := cfg.CoinGecko
+		if err != nil || cg.Plan != tc.plan || cg.BaseURL != tc.baseURL || cg.Plan.KeyHeader() != tc.header ||
+			cg.MonthlyBudget != tc.budget {
+			t.Fatalf("%s: %+v, %v, want %s %s %s %d", tc.name, cg, err, tc.plan, tc.baseURL, tc.header, tc.budget)
+		}
+	}
+	for _, bad := range []string{"COINGECKO_PLAN=free", "COINGECKO_MONTHLY_BUDGET=-1"} {
+		if _, err := config.Load(append(required(), bad)); err == nil {
+			t.Fatalf("%s loaded, want an error", bad)
 		}
 	}
 }

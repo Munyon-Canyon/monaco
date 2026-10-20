@@ -8,6 +8,7 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 
 ### Added
 
+- `COINGECKO_MONTHLY_BUDGET` caps CoinGecko credits per month: the volume poll and the cold reconcile slice stop at 80%, every call at 95%, and `monacoctl market coingecko-usage` prints the count. `COINGECKO_PLAN=pro` picks the Pro host and key header and turns the cap off; `COINGECKO_MONTHLY_BUDGET=0` turns it off on any plan.
 - `NATS_CREDS` names a NATS `.creds` file the api, worker and monacoctl connect with, as Synadia Cloud requires.
 - The `agents` module.
 - The `ranking` module values every cabal on a 1 s poller, `ranking.valuation`, that runs every 2 minutes and 1 s after a

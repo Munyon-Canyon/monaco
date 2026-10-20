@@ -30,6 +30,7 @@ type Volumes struct {
 	source  VolumeSource
 	clock   clock.Clock
 	cool    *Cooldown
+	budget  *Budget
 }
 
 func NewVolumes(uow *db.UnitOfWork, reads sqlc.DBTX, c clock.Clock, source VolumeSource) *Volumes {
@@ -38,6 +39,11 @@ func NewVolumes(uow *db.UnitOfWork, reads sqlc.DBTX, c clock.Clock, source Volum
 
 func (v *Volumes) WithCooldown(c *Cooldown) *Volumes {
 	v.cool = c
+	return v
+}
+
+func (v *Volumes) WithBudget(b *Budget) *Volumes {
+	v.budget = b
 	return v
 }
 
@@ -63,7 +69,7 @@ func (v *Volumes) Tick(ctx context.Context) (poller.Report, error) {
 	var failed []error
 	calls := 0
 	for len(mints) > 0 {
-		if v.cool.Active() {
+		if v.cool.Active() || v.budget.Level(ctx) >= BudgetSoft {
 			break
 		}
 		n := min(len(mints), VolumeBatch)

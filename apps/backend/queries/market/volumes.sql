@@ -12,3 +12,16 @@ WHERE asset_volumes.as_of < excluded.as_of;
 SELECT mint, volume_24h_micros, as_of
 FROM asset_volumes
 WHERE mint = ANY (sqlc.arg(mints)::text[]) AND as_of >= sqlc.arg(since)::timestamptz;
+
+-- name: RecordCoinGeckoCall :one
+INSERT INTO coingecko_usage (month, calls, updated_at)
+VALUES (date_trunc('month', sqlc.arg(at)::timestamptz AT TIME ZONE 'UTC')::date, 1, sqlc.arg(at)::timestamptz)
+ON CONFLICT (month) DO UPDATE SET
+  calls = coingecko_usage.calls + 1,
+  updated_at = excluded.updated_at
+RETURNING calls;
+
+-- name: CoinGeckoCalls :one
+SELECT coalesce(max(calls), 0)::integer AS calls
+FROM coingecko_usage
+WHERE month = date_trunc('month', sqlc.arg(at)::timestamptz AT TIME ZONE 'UTC')::date;

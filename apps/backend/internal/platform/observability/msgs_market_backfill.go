@@ -22,3 +22,13 @@ var MarketChartHistoryFailed = Msg{
 	Name:     "market.chart.history_failed",
 	Required: []string{"mint", "code", "err"},
 }
+
+var MarketCoinGeckoBudget = Msg{
+	Name:     "market.coingecko.budget",
+	Required: []string{"percent", "calls", "limit"},
+}
+
+var MarketCoinGeckoUsageFailed = Msg{
+	Name:     "market.coingecko.usage_failed",
+	Required: []string{"err"},
+}

@@ -1,4 +1,4 @@
-h1:ObEuKmcDKyl7lhRB4nHilHXKYsQGewkg4vKeH7DO1oI=
+h1:jG6melBhxex7OLO2lAECHQ4IHEeJdLRJ2QzuBV1aU14=
 20260927140427_platform.sql h1:dpKT9ALI2RTf1SBI4IzLY9kt47VTa8+JAziYaHsX5Jw=
 20260927185159_idempotency.sql h1:iYIp5Y5kBuPj5UJGcOifMeosr8qf0tj17c+5bmF37zE=
 20260929120000_system.sql h1:m6n0Y3tCc4MlfYNzi6Fh01YnogvlBbpQb1/X4WCtW40=
@@ -108,3 +108,4 @@ h1:ObEuKmcDKyl7lhRB4nHilHXKYsQGewkg4vKeH7DO1oI=
 20261019225904_identity_bio.sql h1:ZXfCs7u7DDKYckF8H/hu9sYHbea8yvABMWsmHoMtjaA=
 20261019233812_social_feed_actor_index.sql h1:I4TZmbe+ZGuqEjd0RkBPAGUQIs2UxEHvY1z/JCGOQ1s=
 20261020002836_social_reply_threshold_kinds.sql h1:KbqDRGtg8ZqY6aFO4SkV4IP3Jv9R9iM7JZK6D0vUr1o=
+20261020155821_market_coingecko_usage.sql h1:6+AEciwlYIsXwtYnL6LGhc0DlWyfjaS0/mqAxLGdPgs=
