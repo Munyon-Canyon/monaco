@@ -162,11 +162,13 @@ public final class AssetDetailClientModel {
 
     public func start() async {
         async let cabalPositions: Void = loadCabalPositions()
-        async let year = loadYearSeries()
+        async let year = loadSeries(.oneYear)
         async let drawn: Void = loadChart(range: selectedRange, interval: selectedInterval)
         await loadDetail()
         await drawn
-        await loadStats(year: await year)
+        let day = await loadSeries(.oneDay)
+        publishStats(day: day, year: nil)
+        publishStats(day: day, year: await year)
         await cabalPositions
     }
 
@@ -213,17 +215,16 @@ public final class AssetDetailClientModel {
     }
 
     public func loadStats() async {
-        await loadStats(year: await loadYearSeries())
+        publishStats(day: await loadSeries(.oneDay), year: await loadSeries(.oneYear))
     }
 
-    private func loadYearSeries() async -> AssetChartSeries? {
+    private func loadSeries(_ range: AssetChartRange) async -> AssetChartSeries? {
         guard let api else { return nil }
-        return try? await chartSeries(api: api, range: .oneYear)
+        return try? await chartSeries(api: api, range: range)
     }
 
-    private func loadStats(year: AssetChartSeries?) async {
-        guard let api, let detail else { return }
-        let day = try? await chartSeries(api: api, range: .oneDay)
+    private func publishStats(day: AssetChartSeries?, year: AssetChartSeries?) {
+        guard let detail else { return }
         let built = AssetStats(
             day: day, year: year, priceMicros: detail.priceMicros,
             changeBasisPoints: detail.changeBasisPoints)

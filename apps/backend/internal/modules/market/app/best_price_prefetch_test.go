@@ -191,10 +191,46 @@ func TestBestChainsKeepsTheStaleAnswerWhenItsRefreshFails(t *testing.T) {
 		}
 		w.f.clk.Advance(app.BestChainServed - 30*time.Second)
 		got, err := w.best.Get(w.context(t), "AAPLx")
-		if errs.CodeOf(err) != errs.CodeJupiterUnavailable || !got.QuotedAt.IsZero() {
-			t.Fatalf("a minute later: Get = %v, %v, want the refresh error, not the stale answer", got.QuotedAt, err)
+		if err != nil || !got.Stale || !got.QuotedAt.Equal(first.QuotedAt) {
+			t.Fatalf("a minute later: Get = %v stale %v, %v, want the last good answer marked stale",
+				got.QuotedAt, got.Stale, err)
 		}
-		w.expectFailedRefreshes(t, 2)
+		w.expectFailedRefreshes(t, 3)
+	})
+}
+
+func TestBestChainsReturnsTheLastGoodAnswerStaleWhenTheRefreshIsSlow(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		w := newPrefetchWorld(t, marketfake.NewCatalog(marketfake.AAPLx()))
+		first := w.get(t)
+		if first.Stale {
+			t.Fatal("a fresh quote is marked stale")
+		}
+		w.quoter.gate = make(chan struct{})
+		w.f.clk.Advance(app.BestChainServed)
+		got := w.get(t)
+		if !got.Stale || !got.QuotedAt.Equal(first.QuotedAt) {
+			t.Fatalf("got %v stale %v, want the last good answer marked stale", got.QuotedAt, got.Stale)
+		}
+		close(w.quoter.gate)
+		synctest.Wait()
+		if fresh := w.get(t); fresh.Stale || !fresh.QuotedAt.Equal(first.QuotedAt.Add(app.BestChainServed)) {
+			t.Fatalf("after the refresh landed: %v stale %v", fresh.QuotedAt, fresh.Stale)
+		}
+	})
+}
+
+func TestBestChainsWaitsForARefreshWhenTheLastGoodAnswerIsTooOld(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		w := newPrefetchWorld(t, marketfake.NewCatalog(marketfake.AAPLx()))
+		w.get(t)
+		w.f.listingsErr = errs.New(errs.CodeJupiterUnavailable, "test")
+		w.f.clk.Advance(app.BestChainKept)
+		if got, err := w.best.Get(w.context(t), "AAPLx"); errs.CodeOf(err) != errs.CodeJupiterUnavailable {
+			t.Fatalf("Get = %v, %v, want the refresh error", got.QuotedAt, err)
+		}
 	})
 }
 
@@ -258,5 +294,30 @@ func TestBestChainsStopsWaitingWhenTheCallerGoes(t *testing.T) {
 		synctest.Wait()
 		w.get(t)
 		w.expectQuotes(t, 2, "the abandoned refresh still lands")
+	})
+}
+
+func TestBestChainsStopsWaitingOnAStaleAnswerWhenTheCallerGoes(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		w := newPrefetchWorld(t, marketfake.NewCatalog(marketfake.AAPLx()))
+		w.get(t)
+		w.quoter.gate = make(chan struct{})
+		w.f.clk.Advance(app.BestChainServed)
+		ctx, cancel := context.WithCancel(w.context(t))
+		var abandoned error
+		var group errgroup.Group
+		group.Go(func() error {
+			_, abandoned = w.best.Get(ctx, "AAPLx")
+			return nil
+		})
+		synctest.Wait()
+		cancel()
+		_ = group.Wait()
+		if !errors.Is(abandoned, context.Canceled) {
+			t.Fatalf("Get err = %v, want canceled", abandoned)
+		}
+		close(w.quoter.gate)
+		synctest.Wait()
 	})
 }

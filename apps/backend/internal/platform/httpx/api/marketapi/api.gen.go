@@ -310,6 +310,11 @@ type AssetBestChain struct {
 	// Examples: 2026-10-11T12:00:00Z
 	QuotedAt time.Time `json:"quoted_at"`
 
+	// Stale True when the figures are the last good answer, served because a fresh quote did not arrive in about a second.
+	//
+	// Examples: false
+	Stale *bool `json:"stale,omitempty"`
+
 	// Symbol The ticker asked for.
 	//
 	// Examples: AAPLx

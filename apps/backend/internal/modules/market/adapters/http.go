@@ -313,7 +313,7 @@ func wireBestChain(b app.BestChain) api.AssetBestChain {
 		Symbol: b.Symbol, AmountMicros: b.Amount.String(), Network: wire.Network(winner.Network),
 		Venue: api.AssetBestChainVenue(winner.Venue), ListingId: winner.ListingID.UUID(),
 		NetShareNanos: shareNanos(winner.NetShares), QuotedAt: b.QuotedAt.UTC(),
-		PriceComparison: wireComparison(b.Comparison),
+		PriceComparison: wireComparison(b.Comparison), Stale: &b.Stale,
 	}
 }
 

@@ -20,6 +20,8 @@ const (
 	bestChainOp     = "market.BestChains"
 	BestChainFresh  = 20 * time.Second
 	BestChainServed = 60 * time.Second
+	BestChainWait   = time.Second
+	BestChainKept   = time.Hour
 	bestChainBudget = 10 * time.Second
 	bestChainProbe  = 1_000_000
 )
@@ -39,6 +41,7 @@ type BestChain struct {
 	Amount     money.Micros
 	QuotedAt   time.Time
 	Comparison multichain.Comparison
+	Stale      bool
 }
 
 func (b BestChain) Winner() multichain.Quote { return b.Comparison.Ranked[0] }
@@ -59,13 +62,34 @@ func NewBestChains(assets BestChainAssets, router multichain.Router, clk clock.C
 }
 
 func (b *BestChains) Get(ctx context.Context, symbol string) (BestChain, error) {
-	if got, ok := b.cached(ctx, symbol); ok {
-		return got, nil
+	held, ok := b.lastGood(symbol)
+	age := b.clock.Now().Sub(held.QuotedAt)
+	switch {
+	case ok && age < BestChainFresh:
+		return held, nil
+	case ok && age < BestChainServed:
+		b.flight.DoChan(symbol, b.refreshBehind(ctx, symbol))
+		return held, nil
 	}
+	ch := b.flight.DoChan(symbol, b.refresh(ctx, symbol))
+	if !ok || age >= BestChainKept {
+		return awaitBestChain(ctx, ch)
+	}
+	return b.awaitOrStale(ctx, symbol, held, ch)
+}
+
+func (b *BestChains) lastGood(symbol string) (BestChain, bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	got, ok := b.held[symbol]
+	return got, ok
+}
+
+func awaitBestChain(ctx context.Context, ch <-chan singleflight.Result) (BestChain, error) {
 	select {
 	case <-ctx.Done():
 		return BestChain{}, errs.Wrap(ctx.Err(), errs.CodeInternal, bestChainOp)
-	case res := <-b.flight.DoChan(symbol, b.refresh(ctx, symbol)):
+	case res := <-ch:
 		if res.Err != nil {
 			return BestChain{}, res.Err
 		}
@@ -73,19 +97,25 @@ func (b *BestChains) Get(ctx context.Context, symbol string) (BestChain, error) 
 	}
 }
 
-func (b *BestChains) cached(ctx context.Context, symbol string) (BestChain, bool) {
-	now := b.clock.Now()
-	b.mu.Lock()
-	got, ok := b.held[symbol]
-	b.mu.Unlock()
-	age := now.Sub(got.QuotedAt)
-	switch {
-	case !ok || age >= BestChainServed:
-		return BestChain{}, false
-	case age >= BestChainFresh:
-		b.flight.DoChan(symbol, b.refreshBehind(ctx, symbol))
+func (b *BestChains) awaitOrStale(
+	ctx context.Context, symbol string, held BestChain, ch <-chan singleflight.Result,
+) (BestChain, error) {
+	wait := time.NewTimer(BestChainWait)
+	defer wait.Stop()
+	held.Stale = true
+	select {
+	case <-ctx.Done():
+		return BestChain{}, errs.Wrap(ctx.Err(), errs.CodeInternal, bestChainOp)
+	case <-wait.C:
+		return held, nil
+	case res := <-ch:
+		if res.Err != nil {
+			observability.Degraded(ctx, observability.MarketBestChainRefreshFailed, slog.String("symbol", symbol),
+				slog.String("error", res.Err.Error()), slog.String("code", string(errs.CodeOf(res.Err))))
+			return held, nil
+		}
+		return res.Val.(BestChain), nil
 	}
-	return got, true
 }
 
 func (b *BestChains) refreshBehind(ctx context.Context, symbol string) func() (any, error) {

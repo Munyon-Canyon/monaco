@@ -11,7 +11,9 @@ Two writers feed the table:
 1. **Jupiter Price API v3** samples the live price of every catalog token on every tick of the one `market` price poller. It is already integrated, takes 50 mints per call, and is free. This is the intraday history going forward.
 2. **CoinGecko** backfills the past when a token joins the catalog (one time, three calls per token) and reconciles gaps once a night. Reconcile covers the hot mints every night and a rotating slice of the rest, so it fits the free Demo key's 10,000 credits a month (see Budget).
 
-Charts are bucketed at read time and cached in memory per symbol and range, with a short TTL that matches the sampler cadence. Every range asks CoinGecko `market_chart` first (`days` is the range span rounded up, `max` for All) through an in-process cache keyed by mint and days: 15 minutes for `days` 1, 1 hour otherwise, and a `not_found` is remembered for 24 hours so an uncovered mint does not call again. The samples are bucketed in Go with the same interval and OHLC rules. When the history is not configured, or returns `not_found` or an upstream error, the chart is bucketed from `price_points` instead. Freshness is two minutes, which is what the product needs: the chart is not a trading terminal.
+Charts are bucketed at read time and cached in memory per symbol and range, with a short TTL that matches the sampler cadence. Every range asks CoinGecko `market_chart` first (`days` is the range span rounded up, `max` for All) through an in-process cache keyed by mint and days: 15 minutes for `days` 1, 1 hour otherwise, and a `not_found` is remembered for 24 hours so an uncovered mint does not call again. The samples are bucketed in Go with the same interval and OHLC rules. When the history is not configured, or returns `not_found` or an upstream error, the chart is bucketed from `price_points` instead.
+
+A chart read never waits on a cold history call when `price_points` can answer it (decided 2026-10-20, #5797). The read first peeks at the history cache. On a miss it starts the same single-flight load in the background and buckets the chart from `price_points` at once, if the oldest bar it finds is within two hours (or two bars) of the range's window start. The next open, once the load has landed, gets the full series. A range the table does not cover (`ALL`, a long range of a mint kept only 7 days, a new listing) and a page with `before` still wait for the history as before. The background load is the call the read made before, keyed by mint and days, so it adds no CoinGecko credits: one call per cold key, and none when the cache is warm. Freshness is two minutes, which is what the product needs: the chart is not a trading terminal.
 
 Pyth is out, for charts and for leaderboards (default 2026-09-27). Jupiter's undocumented `datapi.jup.ag` candle endpoint is out. Yahoo is out: the rewrite ports no Yahoo adapter, and the CoinGecko backfill runs before iOS cuts over, so the table already has history on day one (default 2026-09-27).
 
@@ -151,7 +153,7 @@ CoinGecko, at 1,300 listed mints and 30 nights a month:
 
 The steady-state total leaves 3,310 credits under the cap at the worst case of every mint tradable, room for chart history and reconcile on the same key; at 500 tradable mints the volume poll is 2 calls every 3 hours, 480 credits, and the total is 5,730. Raise or lower `reconcileColdPerTick` against this table: each slot mint costs 30 credits a month.
 
-User traffic adds nothing to the Jupiter row. It adds nothing to the CoinGecko row, except a chart read that misses the history cache.
+User traffic adds nothing to the Jupiter row. It adds nothing to the CoinGecko row, except a chart read that misses the history cache, which starts one call per mint and `days` key whether the read waits for it or not.
 
 ### The monthly credit guard
 

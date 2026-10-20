@@ -90,12 +90,28 @@ func TestGetAssetBestChainAnswersTheWinnerAndEveryChain(t *testing.T) {
 		`"unavailable":[{"listing_id":"` + u.ListingID.String() + `","network":"arbitrum",` +
 		`"reason":"simulation_failed","reason_detail":"not set up on this chain yet","venue":"uniswap"}],` +
 		`"winner_listing_id":"` + r[0].ListingID.String() + `"},` +
-		`"quoted_at":"2026-10-11T12:00:00Z","symbol":"AAPLx","venue":"jupiter"}`
+		`"quoted_at":"2026-10-11T12:00:00Z","stale":false,"symbol":"AAPLx","venue":"jupiter"}`
 	if string(raw) != want {
 		t.Fatalf("body =\n%s\nwant\n%s", raw, want)
 	}
 	if len(fake.asked) != 1 || fake.asked[0] != "AAPLx" {
 		t.Fatalf("asked = %v", fake.asked)
+	}
+}
+
+func TestGetAssetBestChainMarksTheLastGoodAnswerStale(t *testing.T) {
+	t.Parallel()
+	best := bestChainFixture()
+	best.Stale = true
+	user := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: testkit.NewIDs(1).NewV7().String()})
+	got, err := HTTP{BestChain: &scriptedBestChain{best: best}, Clock: clock.Real{}}.GetAssetBestChain(user,
+		api.GetAssetBestChainRequestObject{Symbol: "AAPLx"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, ok := got.(api.GetAssetBestChain200JSONResponse)
+	if !ok || body.Stale == nil || !*body.Stale {
+		t.Fatalf("response = %+v, want stale true", got)
 	}
 }
 
