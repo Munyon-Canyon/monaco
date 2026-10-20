@@ -93,6 +93,16 @@ enum ChatCabalChatJourney {
         }
     }
 
+    static func leaveChat(_ app: XCUIApplication) {
+        app.element("chat-thread").tap()
+        for _ in 0..<4 {
+            if app.tab("Home").exists { return }
+            let back = app.buttons["BackButton"].firstMatch
+            guard back.waitForExistence(timeout: 2) else { return }
+            back.tap()
+        }
+    }
+
     static func bReceives(_ app: XCUIApplication, run: String, sender: String, recorder: JourneyRecorder) {
         recorder.step("S1.4", "B sees A's message") {
             openChat(app, run: run, step: "S1.4")
