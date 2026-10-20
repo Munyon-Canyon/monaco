@@ -17,6 +17,7 @@ struct GroupCashView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
     @Environment(\.cabalModel) private var cabalModel
+    @State private var showsProposeChooser = false
 
     private var canPropose: Bool {
         cabalModel.map { $0.cabal?.me?.canVote == true } ?? true
@@ -115,12 +116,15 @@ struct GroupCashView: View {
     private var actions: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
             if canPropose {
-                NavigationLink(value: AnyAppRoute(ProposeRoute(cabalID: cabalID))) {
+                Button {
+                    showsProposeChooser = true
+                } label: {
                     Text("Propose an investment")
                 }
                 .buttonStyle(.monacoPrimary)
                 .padding(.horizontal, MonacoTheme.Space.gutter)
                 .accessibilityIdentifier("group-cash-propose")
+                .proposeChooser(isPresented: $showsProposeChooser, cabalID: cabalID)
             }
             Button(action: returnToHoldings) {
                 MonacoRow(

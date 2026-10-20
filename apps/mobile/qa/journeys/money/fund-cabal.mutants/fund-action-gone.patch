@@ -5,15 +5,14 @@ The cabal's Fund action loses its identifier. S1.2 and S2.2 tap cabal-action-fun
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
-index 6ffdda18b..66fca244b 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
-@@ -129,7 +129,7 @@ struct CabalActionsRow: View {
+@@ -130,7 +130,7 @@
  
      @ViewBuilder private func tiles(cabalID: String, canPropose: Bool) -> some View {
          let fund = action(
 -            CabalCopy.depositLabel, MonacoIcon.deposit.symbol, id: "cabal-action-fund", FundRoute(cabalID: cabalID))
 +            CabalCopy.depositLabel, MonacoIcon.deposit.symbol, id: "cabal-action-add", FundRoute(cabalID: cabalID))
-         let propose = action(
-             "Propose", MonacoIcon.propose.symbol, id: "cabal-action-propose", ProposeRoute(cabalID: cabalID)
-         )
+         let propose = CircleAction("Propose", systemImage: MonacoIcon.propose.symbol) { showsProposeChooser = true }
+             .frame(maxWidth: .infinity)
+             .accessibilityIdentifier("cabal-action-propose")

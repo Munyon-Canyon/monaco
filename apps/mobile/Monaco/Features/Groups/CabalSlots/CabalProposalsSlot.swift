@@ -23,6 +23,7 @@ struct CabalProposals: View {
     @State private var voting: ProposalVoteModel?
     @State private var context: ProposalCardContext?
     @State private var expanded = false
+    @State private var showsProposeChooser = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let makeModel: @MainActor (AppEnvironment, String) -> ProposalListModel
 
@@ -133,12 +134,10 @@ struct CabalProposals: View {
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.secondaryText)
             if cabalModel?.cabal?.me?.canVote == true {
-                Button("Propose the first buy.") {
-                    environment.navigator.open(
-                        ProposeRoute(cabalID: cabalID), in: hostMainTab ?? environment.navigator.selectedTab)
-                }
-                .buttonStyle(.monacoText)
-                .accessibilityIdentifier("cabal-proposals-propose-first")
+                Button("Propose the first buy.") { showsProposeChooser = true }
+                    .buttonStyle(.monacoText)
+                    .accessibilityIdentifier("cabal-proposals-propose-first")
+                    .proposeChooser(isPresented: $showsProposeChooser, cabalID: cabalID)
             }
         }
         .accessibilityIdentifier("cabal-proposals-empty")

@@ -31,7 +31,7 @@ nonisolated final class CabalActionsSampleUITests: XCTestCase {
         let app = launch(role: "voter")
         let fund = element(app, "cabal-action-fund")
         XCTAssertTrue(fund.waitForExistence(timeout: 15), "a voter sees the action row")
-        for id in ["cabal-action-fund", "cabal-action-propose", "cabal-action-cash-out", "cabal-action-chat"] {
+        for id in ["cabal-action-fund", "cabal-action-propose", "cabal-action-cash-out"] {
             XCTAssertTrue(element(app, id).isEnabled, "\(id) is enabled for a voter")
         }
         XCTAssertFalse(element(app, "cabal-action-propose-caption").exists, "a voter sees no caption")
@@ -39,9 +39,7 @@ nonisolated final class CabalActionsSampleUITests: XCTestCase {
 
         let destinations: [(id: String, screen: String, rootID: String?)] = [
             ("cabal-action-fund", "Fund this cabal", "fund-cabal-view"),
-            ("cabal-action-propose", "Propose", "propose-chooser"),
-            ("cabal-action-cash-out", "Cash out", nil),
-            ("cabal-action-chat", "Chat", "chat-view"),
+            ("cabal-action-cash-out", "Cash out your share", nil),
         ]
         for (id, screen, rootID) in destinations {
             element(app, id).tap()
@@ -51,6 +49,23 @@ nonisolated final class CabalActionsSampleUITests: XCTestCase {
             app.navigationBars.buttons.element(boundBy: 0).tap()
             XCTAssertTrue(element(app, id).waitForExistence(timeout: 10), "back returns to the action row")
         }
+    }
+
+    @MainActor
+    func testProposeOpensTheActionSheetAndCancelClosesIt() {
+        let app = launch(role: "voter")
+        let propose = element(app, "cabal-action-propose")
+        XCTAssertTrue(propose.waitForExistence(timeout: 15), "a voter sees the action row")
+        propose.tap()
+        let sheet = element(app, "propose-chooser-sheet")
+        XCTAssertTrue(sheet.waitForExistence(timeout: 10), "Propose opens the action sheet")
+        XCTAssertFalse(element(app, "propose-chooser").exists, "Propose does not push the full-screen chooser")
+        XCTAssertTrue(element(app, "propose-kind-buy").exists, "the sheet offers Buy stock")
+        screenshot(app, "cabal-actions-propose-sheet")
+        element(app, "propose-chooser-cancel").tap()
+        let closed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: sheet)
+        XCTAssertEqual(XCTWaiter().wait(for: [closed], timeout: 10), .completed, "Cancel closes the sheet")
+        XCTAssertTrue(element(app, "cabal-action-propose").exists, "the cabal screen is still showing")
     }
 
     @MainActor

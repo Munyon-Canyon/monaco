@@ -60,6 +60,7 @@ struct CabalActionsRow: View {
     @Environment(\.cabalModel) private var cabalModel
     @Environment(\.cabalPotModel) private var potModel
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var showsProposeChooser = false
 
     private var hasNoShare: Bool { potModel?.summary?.slice == CabalPotSummary.Slice.none }
 
@@ -130,10 +131,11 @@ struct CabalActionsRow: View {
     @ViewBuilder private func tiles(cabalID: String, canPropose: Bool) -> some View {
         let fund = action(
             CabalCopy.depositLabel, MonacoIcon.deposit.symbol, id: "cabal-action-fund", FundRoute(cabalID: cabalID))
-        let propose = action(
-            "Propose", MonacoIcon.propose.symbol, id: "cabal-action-propose", ProposeRoute(cabalID: cabalID)
-        )
-        .disabled(!canPropose)
+        let propose = CircleAction("Propose", systemImage: MonacoIcon.propose.symbol) { showsProposeChooser = true }
+            .frame(maxWidth: .infinity)
+            .accessibilityIdentifier("cabal-action-propose")
+            .disabled(!canPropose)
+            .proposeChooser(isPresented: $showsProposeChooser, cabalID: cabalID)
         let cashOut = action(
             "Cash out", MonacoIcon.cashOut.symbol, id: "cabal-action-cash-out", CashOutRoute(cabalID: cabalID)
         )

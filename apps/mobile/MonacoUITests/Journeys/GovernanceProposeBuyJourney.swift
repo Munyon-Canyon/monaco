@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceProposeBuyJourney {
     static let id = "governance/propose-buy"
-    static let version = 6
+    static let version = 7
 
     static let screenTimeout: TimeInterval = 15
     static let checkTimeout: TimeInterval = 10
@@ -78,7 +78,10 @@ enum GovernanceProposeBuyJourney {
 
     static func openChooser(_ app: XCUIApplication, step: String) {
         app.buttons["cabal-action-propose"].tap()
-        expectTitle(app, "Propose", step: step)
+        XCTAssertTrue(
+            app.element("propose-chooser-sheet").waitForExistence(timeout: checkTimeout),
+            "\(step): no Propose action sheet within \(Int(checkTimeout)) s"
+        )
     }
 
     static func review(_ app: XCUIApplication, chip: String, reads summary: String, step: String) {
@@ -114,7 +117,7 @@ enum GovernanceProposeBuyJourney {
         recorder.step("S2.2", "open the Propose chooser") {
             openChooser(app, step: "S2.2")
             expectLabels(
-                app, ["Buy a stock", "Choose an investment and an amount", "No holdings to sell"], step: "S2.2")
+                app, ["Buy stock", "No holdings to sell"], step: "S2.2")
             let sell = app.element("propose-kind-sell")
             XCTAssertTrue(
                 JoinJourney.waitForLabel(sell, containing: "Sell a holding", timeout: checkTimeout),

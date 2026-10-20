@@ -2,7 +2,7 @@ import XCTest
 
 enum DemoStoryJourney {
     static let id = "demo/story"
-    static let version = 4
+    static let version = 5
 
     static let screenTimeout: TimeInterval = 15
     static let formTimeout: TimeInterval = 10
@@ -133,12 +133,16 @@ enum DemoStoryJourney {
     static func proposeABuy(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S4.1", "open Propose") {
             tapAction(app, "cabal-action-propose", run: run, step: "S4.1")
-            waitForTitle(app, "Propose", step: "S4.1", blockedBy: "#613")
-            XCTAssertTrue(button(app, "Buy a stock").exists, "S4.1: no Buy a stock row (known failure, #613)")
+            XCTAssertTrue(
+                app.descendants(matching: .any).matching(identifier: "propose-chooser-sheet").firstMatch
+                    .waitForExistence(timeout: formTimeout),
+                "S4.1: no Propose action sheet within 10 s"
+            )
+            XCTAssertTrue(button(app, "Buy stock").exists, "S4.1: no Buy stock row")
         }
 
         recorder.step("S4.2", "propose $1 with a reason and send") {
-            button(app, "Buy a stock").tap()
+            button(app, "Buy stock").tap()
             let amount = app.textFields.firstMatch
             XCTAssertTrue(amount.waitForExistence(timeout: formTimeout), "S4.2: no amount field (known failure, #613)")
             amount.tap()
