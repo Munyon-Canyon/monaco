@@ -45,7 +45,7 @@ nonisolated final class FeedSampleUITests: XCTestCase {
     }
 
     @MainActor
-    func testLikeTogglesLocallyAndShareExplainsItself() {
+    func testLikeTogglesLocallyAndShareOpensTheSystemSheet() {
         let app = launch("-feedHarness", "items")
         let like = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'feed-like-'")).firstMatch
         XCTAssertTrue(like.waitForExistence(timeout: 15), "no like button")
@@ -54,7 +54,7 @@ nonisolated final class FeedSampleUITests: XCTestCase {
         XCTAssertTrue(like.isSelected, "the like did not stick")
         let share = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'feed-share-'")).firstMatch
         share.tap()
-        XCTAssertTrue(app.staticTexts["Sharing opens soon."].waitForExistence(timeout: 5), "no share toast")
+        XCTAssertTrue(app.otherElements["ActivityListView"].waitForExistence(timeout: 15), "no system share sheet")
     }
 
     @MainActor
