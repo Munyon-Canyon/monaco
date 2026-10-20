@@ -1,15 +1,14 @@
 journey: governance/vote
 expect-fail: S1
 
-The Proposal screen's vote dock toast reads "Voted" instead of "Vote recorded.". S1.3 waits for "Vote recorded.", so it must fail.
+The Proposal screen's vote section toast reads "Voted" instead of "Vote recorded.". S1.3 waits for "Vote recorded.", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Proposals/ProposalVoteDock.swift b/apps/mobile/Monaco/Features/Proposals/ProposalVoteDock.swift
-index 036640df2..2219f2bc9 100644
---- a/apps/mobile/Monaco/Features/Proposals/ProposalVoteDock.swift
-+++ b/apps/mobile/Monaco/Features/Proposals/ProposalVoteDock.swift
-@@ -67,8 +67,8 @@ struct ProposalVoteDock: View {
-         Task {
+diff --git a/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift b/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift
+index 63801485b..e31e5ca2d 100644
+--- a/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift
++++ b/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift
+@@ -108,7 +108,7 @@ struct ProposalVoteSection: View {
              if await model.vote(choice) {
                  analytics.step(.vote(.voteCast))
                  Haptics.success()

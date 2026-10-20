@@ -59,8 +59,8 @@ With two voters and "Majority", a buy needs both yes votes.
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S3.1 | B | tap | the Home tab | | Under "Proposals", a `proposal-card-<id>` reads "Needs your vote", "2 yes votes needed" and "Closes in" within 10 s |
-| S3.2 | B | tap, then tap | the `proposal-card-<id>`, then "Vote Yes" in the dock | | The Proposal screen shows "Votes", "Thesis" and `Journey buy {QA.run}`; the toast "Vote recorded." shows and the vote bar reads "1 yes, 0 no, 1 not voted" within 10 s |
-| S3.3 | A | tap, then tap, then tap | the Home tab and the `proposal-card-<id>`, `proposal-votes-see-all`, then "Vote Yes" in the dock | | The vote bar reads "1 yes, 0 no, 1 not voted" and the Votes sheet shows "<B's name> voted yes" within 15 s. After Close, the toast "Vote recorded." shows |
+| S3.2 | B | tap, then tap | the `proposal-card-<id>`, then "Vote Yes" in "Your vote" | | The Proposal screen shows "Votes", "Thesis" and `Journey buy {QA.run}`; the toast "Vote recorded." shows and the vote bar reads "1 yes, 0 no, 1 not voted" within 10 s |
+| S3.3 | A | tap, then tap, then tap | the Home tab and the `proposal-card-<id>`, `proposal-votes-see-all`, then "Vote Yes" in "Your vote" | | The vote bar reads "1 yes, 0 no, 1 not voted" and the Votes sheet shows "<B's name> voted yes" within 15 s. After Close, the toast "Vote recorded." shows |
 | S3.4 | A | wait | `proposal-tracker` | | The Status tracker reads "Bought, step 3 of 3, done" and the `proposal-status-chip` reads "Bought" within 120 s |
 
 ### S4 See the trade

@@ -85,6 +85,7 @@ struct ProposalDetailSlotView: View {
                 ProposalReasonSection(title: "Thesis", text: thesis)
             }
             votes(detail, model)
+            ProposalVoteSection(model: model, summary: summary)
             expected(summary, model)
             if let network = summary.network, summary.status == .open || summary.status == .passed {
                 ProposalChainSection(
