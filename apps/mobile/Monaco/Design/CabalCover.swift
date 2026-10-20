@@ -143,6 +143,7 @@ extension CabalCover where Overlay == EmptyView {
 
 struct CoverShareDisc: View {
     let cabalName: String
+    var isBusy = false
     let action: () -> Void
 
     private static let diameter: CGFloat = 40
@@ -153,9 +154,7 @@ struct CoverShareDisc: View {
 
     var body: some View {
         Button(action: action) {
-            Image(monaco: .share)
-                .font(.system(size: Self.glyph, weight: .medium))
-                .foregroundStyle(MonacoTheme.onCover)
+            mark
                 .frame(width: Self.diameter, height: Self.diameter)
                 .background(MonacoTheme.onCoverGlass, in: Circle())
                 .overlay { Circle().strokeBorder(MonacoTheme.onCoverGlassStroke, lineWidth: 1 / displayScale) }
@@ -163,6 +162,17 @@ struct CoverShareDisc: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .disabled(isBusy)
         .accessibilityLabel("Share \(cabalName)")
+    }
+
+    @ViewBuilder private var mark: some View {
+        if isBusy {
+            ProgressView().tint(MonacoTheme.onCover)
+        } else {
+            Image(monaco: .share)
+                .font(.system(size: Self.glyph, weight: .medium))
+                .foregroundStyle(MonacoTheme.onCover)
+        }
     }
 }

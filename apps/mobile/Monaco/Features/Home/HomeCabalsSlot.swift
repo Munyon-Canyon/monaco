@@ -10,10 +10,6 @@ enum HomeCabalsSlot: HomeSection {
     }
 }
 
-private struct HomeCabalShareTarget: Identifiable {
-    let id: String
-}
-
 extension CabalCoverCardModel {
     init(row: PortfolioSummary.Row, context: HomeCabalContext?, votesNeededText: String?) {
         let funded = row.valueMicros > 0
@@ -45,7 +41,7 @@ private struct HomeCabals: View {
     @Environment(\.homeReads) private var reads
     @Environment(\.homeVoteNeeds) private var voteNeeds
     @State private var details: HomeCabalContextModel?
-    @State private var sharing: HomeCabalShareTarget?
+    @State private var sharing: String?
 
     var body: some View {
         let gate = HomeGate(portfolio: portfolio, reads: reads, balance: environment.balance.state)
@@ -59,10 +55,6 @@ private struct HomeCabals: View {
             }
         }
         .homeSlotHidden(!gate.shows { _ in true })
-        .sheet(item: $sharing) { target in
-            ShareCardHost(api: environment.api) { await loadShare(target, into: $0) }
-                .monacoToastCenter(toasts)
-        }
     }
 
     private var startWithPeople: some View {
@@ -88,8 +80,14 @@ private struct HomeCabals: View {
                     CabalCoverCard(
                         model: CabalCoverCardModel(
                             row: row, context: details?.contexts[row.id], votesNeededText: voteNeeds?.text(for: row.id)),
+                        isSharing: sharing == row.id,
                         onOpen: { environment.navigator.open(CabalRoute(id: row.id), in: .home) },
-                        onShare: { sharing = HomeCabalShareTarget(id: row.id) }
+                        onShare: {
+                            Task {
+                                await ShareCardLauncher.shareCabal(
+                                    id: row.id, api: environment.api, toasts: toasts, busy: $sharing)
+                            }
+                        }
                     )
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("cabal-row-\(row.id)")
@@ -100,18 +98,6 @@ private struct HomeCabals: View {
             let model = details ?? HomeCabalContextModel(api: environment.api)
             details = model
             await model.load(cabalIDs: summary.rows.map(\.id))
-        }
-    }
-
-    private func loadShare(_ target: HomeCabalShareTarget, into model: ShareCardModel) async {
-        do {
-            let cabal = try await environment.api.read {
-                try await $0.getCabal(path: .init(id: target.id)).ok.body.json
-            }
-            await model.loadCabal(cabalID: target.id, cabal: cabal)
-        } catch {
-            sharing = nil
-            toasts.current = MonacoToast(message: "Couldn't open sharing. Try again.")
         }
     }
 }

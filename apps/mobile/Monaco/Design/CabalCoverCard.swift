@@ -94,6 +94,7 @@ enum CabalCoverCardLayout: Equatable {
 struct CabalCoverCard: View {
     let model: CabalCoverCardModel
     var layout: CabalCoverCardLayout = .rail
+    var isSharing = false
     let onOpen: () -> Void
     let onShare: () -> Void
 
@@ -122,7 +123,7 @@ struct CabalCoverCard: View {
             GeometryReader { proxy in
                 if let anchor {
                     let frame = proxy[anchor]
-                    CoverShareDisc(cabalName: model.name, action: onShare)
+                    CoverShareDisc(cabalName: model.name, isBusy: isSharing, action: onShare)
                         .position(x: frame.midX, y: frame.midY)
                 }
             }

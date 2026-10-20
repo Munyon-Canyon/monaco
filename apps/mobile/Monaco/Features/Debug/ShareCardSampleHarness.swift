@@ -31,18 +31,26 @@ enum ShareCardSampleScenario: String, CaseIterable {
 
 private struct ShareCardSampleHarness: View {
     let scenario: ShareCardSampleScenario
-    @State private var model: ShareCardModel
-
-    init(scenario: ShareCardSampleScenario) {
-        self.scenario = scenario
-        _model = State(initialValue: ShareCardModel.preview(scenario.content))
-    }
+    @State private var image: UIImage?
 
     var body: some View {
         MonacoTheme.canvas
             .ignoresSafeArea()
-            .sheet(isPresented: .constant(true)) {
-                ShareCardSheet(model: model) {}
+            .overlay {
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(ShareCardView.size.width / ShareCardView.size.height, contentMode: .fit)
+                        .padding(MonacoTheme.Space.gutter)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(scenario.content.spoken)
+                        .accessibilityIdentifier("share-card-image")
+                }
+            }
+            .task {
+                let content = scenario.content
+                let face = await ShareCardRenderer.face(for: content.faceURL)
+                image = ShareCardRenderer.render(content, face: face)
             }
     }
 }

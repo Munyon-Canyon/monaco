@@ -44,7 +44,7 @@ struct ProfileHeader: View {
     @Environment(UserProfileModel.self) private var selfProfile: UserProfileModel?
     @Environment(\.profileHeaderPresets) private var presets
 
-    @State private var showsShare = false
+    @State private var sharing: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -90,8 +90,15 @@ struct ProfileHeader: View {
                 }
             } share: {
                 if ProfileScreen.canShare(profile: profile, portfolioState: portfolio?.state) {
-                    IdentityShareButton(accessibilityLabel: "Share your return") { showsShare = true }
-                        .accessibilityIdentifier("profile-share-button")
+                    IdentityShareButton(
+                        accessibilityLabel: "Share your return", isBusy: sharing == ShareCardLauncher.meKey
+                    ) {
+                        Task {
+                            await ShareCardLauncher.shareMe(
+                                profile: profile, api: environment.api, toasts: toasts, busy: $sharing)
+                        }
+                    }
+                    .accessibilityIdentifier("profile-share-button")
                 }
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
@@ -100,10 +107,6 @@ struct ProfileHeader: View {
                     Task { await portfolio?.load() }
                 }
             }
-        }
-        .sheet(isPresented: $showsShare) {
-            ShareCardHost(api: environment.api) { await $0.loadMe(profile: profile) }
-                .monacoToastCenter(toasts)
         }
     }
 

@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileOverviewJourney {
     static let id = "profile/overview"
-    static let version = 7
+    static let version = 8
 
     static let signOutTitle = "Sign out of Monaco?"
     static let signOutMessage =
@@ -172,28 +172,22 @@ enum ProfileOverviewJourney {
     }
 
     static func shareReturn(_ app: XCUIApplication, recorder: JourneyRecorder) {
-        recorder.step("S5.1", "open the return card") {
+        recorder.step("S5.1", "open the system share sheet") {
             openProfile(app, step: "S5.1")
             let button = app.buttons["profile-share-button"]
             XCTAssertTrue(button.waitForExistence(timeout: 15), "S5.1: no share button within 15 s")
             button.tap()
             XCTAssertTrue(
-                app.element("share-card-image").waitForExistence(timeout: 15),
-                "S5.1: the share sheet drew no card within 15 s")
+                app.otherElements["ActivityListView"].waitForExistence(timeout: 15),
+                "S5.1: the system share sheet did not open within 15 s")
         }
 
-        recorder.step("S5.2", "copy the link") {
-            app.buttons["share-card-copy"].tap()
-            XCTAssertTrue(
-                app.staticTexts["Link copied."].waitForExistence(timeout: 5), "S5.2: no 'Link copied.' toast within 5 s"
-            )
-        }
-
-        recorder.step("S5.3", "close the sheet") {
-            app.buttons["share-card-done"].tap()
+        recorder.step("S5.2", "close the system share sheet") {
+            let close = app.buttons["Close"]
+            if close.waitForExistence(timeout: 3) { close.tap() } else { app.swipeDown() }
             XCTAssertTrue(
                 app.element("profile-header").waitForExistence(timeout: 5),
-                "S5.3: the Profile tab did not come back within 5 s")
+                "S5.2: the Profile tab did not come back within 5 s")
         }
     }
 

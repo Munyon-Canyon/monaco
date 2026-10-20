@@ -10,10 +10,6 @@ enum ProfileCabalsSlot: ProfileSection {
     }
 }
 
-private struct ProfileCabalShareTarget: Identifiable {
-    let id: String
-}
-
 extension CabalCoverCardModel {
     init(profileRow row: PortfolioSummary.Row) {
         let funded = row.valueMicros > 0
@@ -36,15 +32,11 @@ struct ProfileCabals: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
-    @State private var sharing: ProfileCabalShareTarget?
+    @State private var sharing: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             content
-        }
-        .sheet(item: $sharing) { target in
-            ShareCardHost(api: environment.api) { await loadShare(target, into: $0) }
-                .monacoToastCenter(toasts)
         }
     }
 
@@ -70,8 +62,14 @@ struct ProfileCabals: View {
                     ForEach(summary.rows) { row in
                         CabalCoverCard(
                             model: CabalCoverCardModel(profileRow: row),
+                            isSharing: sharing == row.id,
                             onOpen: { environment.navigator.open(CabalRoute(id: row.id), in: .profile) },
-                            onShare: { sharing = ProfileCabalShareTarget(id: row.id) }
+                            onShare: {
+                                Task {
+                                    await ShareCardLauncher.shareCabal(
+                                        id: row.id, api: environment.api, toasts: toasts, busy: $sharing)
+                                }
+                            }
                         )
                         .accessibilityElement(children: .contain)
                         .accessibilityIdentifier("cabal-row-\(row.id)")
@@ -88,18 +86,6 @@ struct ProfileCabals: View {
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
             body()
-        }
-    }
-
-    private func loadShare(_ target: ProfileCabalShareTarget, into model: ShareCardModel) async {
-        do {
-            let cabal = try await environment.api.read {
-                try await $0.getCabal(path: .init(id: target.id)).ok.body.json
-            }
-            await model.loadCabal(cabalID: target.id, cabal: cabal)
-        } catch {
-            sharing = nil
-            toasts.current = MonacoToast(message: "Couldn't open sharing. Try again.")
         }
     }
 }

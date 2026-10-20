@@ -2,7 +2,7 @@ import XCTest
 
 enum InviteJourney {
     static let id = "cabals/invite"
-    static let version = 7
+    static let version = 8
 
     static let cabalName = "QA pot"
 

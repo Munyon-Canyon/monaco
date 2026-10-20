@@ -67,9 +67,9 @@ Cabals ┬─ + ──▶ Start a cabal ──▶ create ──▶ CabalRoute
        ├─ card / leaderboard row ──▶ CabalRoute
 CabalRoute ─┬─ non-member ──▶ Public cabal (join, request, accept an invite)
             ├─ i, Rules & members ──▶ CabalInfoRoute ─┬─ Members & voters ──▶ MembersRoute ──▶ UserProfileRoute
-            │                                         ├─ Invite ──▶ Share cabal sheet
+            │                                         ├─ Invite ──▶ Invite to cabal sheet
             │                                         └─ Edit ──▶ Cabal settings
-            ├─ share ──▶ Share cabal sheet (link, Share link, Copy link, Invite by handle, gain image), members only
+            ├─ share ──▶ iOS system share sheet (cabal card preview and invite link), members only
             ├─ Deposit ────▶ FundRoute
             ├─ Propose ────▶ action sheet ──▶ ProposeRoute ──▶ Buy | Sell ──▶ Amount ──▶ Review sheet
             ├─ Cash out ───▶ CashOutRoute
@@ -209,11 +209,11 @@ Missing APIs: rank movement against the previous snapshot, a cabal member count 
 
 ## Cabal screen (`CabalRoute`)
 
-Toolbar: the system back button, the cabal name centred and always shown, and two glass rounds on the right: share (`cabal-share-button`, "Share cabal invitation") and information (`cabal-details-button`, "Cabal information"), which pushes `CabalInfoRoute`. Members only; a non-member gets the Public cabal screen below. While loading: a hero skeleton, the pot figure and chart blocks and three action circles. Load error: the full-screen "Couldn’t load this view" with "Try again" (`cabal-failed`). The slots sit on the cream canvas, a hero first and then rules and tiles, with no ink band.
+Toolbar: the system back button, the cabal name centred and always shown, and two glass rounds on the right: share (`cabal-share-button`, "Share cabal", opens the iOS system share sheet in one tap) and information (`cabal-details-button`, "Cabal information"), which pushes `CabalInfoRoute`. Members only; a non-member gets the Public cabal screen below. While loading: a hero skeleton, the pot figure and chart blocks and three action circles. Load error: the full-screen "Couldn’t load this view" with "Try again" (`cabal-failed`). The slots sit on the cream canvas, a hero first and then rules and tiles, with no ink band.
 
 | Order | Slot | Member | Non-member | Shows |
 | --- | --- | --- | --- | --- |
-| 1 | `CabalHeaderSlot` | yes | | Cover hero (`CabalCover`: the cabal tint, its picture under the scrim): name, "8 members" and a share disc that opens the invite sheet. The creator taps the cover to change the picture or long-presses it to remove it |
+| 1 | `CabalHeaderSlot` | yes | | Cover hero (`CabalCover`: the cabal tint, its picture under the scrim): name, "8 members" and a share disc (`cabal-hero-share`) that opens the iOS system share sheet in one tap; on Cabal information it opens the invite sheet. The creator taps the cover to change the picture or long-presses it to remove it |
 | 2 | `CabalClosedSlot` | yes | | Error notice when `status` is `banned`: "Monaco closed this cabal. Everyone's slice is being cashed out to their account balance." A banned cabal also hides the actions and the chat preview |
 | 3 | `CabalPotSlot` | yes | | The pot value in `moneyFont(.hero)`. The "Prices delayed" notice stays hidden until the API sends a valuation time |
 | 4 | `CabalValueChartSlot` | yes | | The return line (signed percent and "past month"), the small `CurveScrubChart` (crosshair, pinch, tooltip pill), start and end dates and the periods `1W 1M All` (default 1M). A cash-only pot shows the quiet chart "No positions yet" and no periods; short history shows "Not enough history for the last month yet" |
@@ -230,7 +230,9 @@ Toolbar: the system back button, the cabal name centred and always shown, and tw
 
 The trading-bot slot and its route are not on the screen: the agent feature was removed in #5493.
 
-**Share cabal sheet** (`CabalInviteSheet`). Opens from the toolbar share, the hero disc and Cabal information. Title "Share cabal", one half-height detent (0.55) with no expand. It shows a cover, "Share a link with your friends.", the link box with "Cabal links open soon" under it while the link is the viewer's own invite link, "Share link" (`share-card-share`) and "Copy link" (`share-card-copy`, toast "Link copied."), then rows "Invite by handle" (the handle form) and "Share your gain as an image" (the gain card sheet at the same half height: the 4:5 card as a 220 pt preview beside its title, "Share" and "Copy link", with a close button `share-card-done`; the card is a dark image of the all-time gain and return, the gain curve, three stats and the sharer's invite link; `share-card-image`). The invitee side of the sheet reads "You’re invited", "Request sent" or "Invitation unavailable".
+**Invite to cabal sheet** (`CabalInviteSheet`). Opens from Cabal information ("Invite to this cabal"). Title "Invite to cabal", one half-height detent (0.55) with no expand. It shows a cover, "Share a link with your friends.", the link box with "Cabal links open soon" under it while the link is the viewer's own invite link, "Share link" (`share-card-share`, opens the iOS system share sheet) and "Copy link" (`share-card-copy`, toast "Link copied."), then rows "Invite by handle" (the handle form) and "Share your gain as an image" (opens the iOS system share sheet with the gain card as the preview). The invitee side of the sheet reads "You’re invited", "Request sent" or "Invitation unavailable".
+
+**System share (cabal, profile, feed).** Every Share button (the cabal toolbar and hero disc, the cabal cover disc on Home and Profile, the Profile identity round and a feed item) opens the iOS share sheet directly, with no Monaco sheet before it, at a half-height detent. The button shows a spinner while the app loads the card data and the invite link. The sheet gets one link: the sharer's invite link (`/r/<code>`), or the website link when the invite link is not available. The preview is the 4:5 card, a dark image of the all-time gain and return, the gain curve, three stats and the sharer's invite link, drawn by `ShareCardRenderer`; a feed item has no card and previews its headline. If the card data cannot load, the toast "Couldn’t open sharing. Try again." shows and nothing opens.
 
 ## Public cabal (`CabalRoute`, non-member)
 
@@ -477,14 +479,14 @@ Data. `GET /v1/cabals/{id}/pot` gives the units, price, value, cost basis and un
 
 ## Profile tab
 
-Pull to refresh, like Home. Title "Profile" with a glass round "Settings" (`gearshape`, `profile-settings-row`) that opens `SettingsRoute`. The share round now sits in the identity card.
+Pull to refresh, like Home. Title "Profile" with a glass round "Settings" (`gearshape`, `profile-settings-row`) that opens `SettingsRoute`. The share round sits in the identity card and opens the iOS system share sheet in one tap.
 
 | Order | Slot | Owner | Shows |
 | --- | --- | --- | --- |
 | 1 | `ProfileHeaderSlot` | #644, #5571 | The identity card (`IdentityCard`): a dark `identityFill` card with the 64 pt photo and a pencil badge (opens "Your face": eight animals and "Choose a photo"; VoiceOver "Edit profile photo"), the name, "@handle" and "Joined October 2026". The whole name block opens `EditProfileRoute`. A share round (`profile-share-button`, "Share your return") sits at the right. Below a rule: "Positions value" (the total slice value) and "Total P&L · All time" (dollars over percent in `profitOnIdentity` / `lossOnIdentity`). A bio line shows only when the API returns one. At accessibility sizes the two stats stack. Loading is one card-sized skeleton. A failed profile load replaces the screen with "Couldn't load this view" and "Try again" |
 | 2 | `ProfileFollowCountsSlot` | #620, #5571 | One row, left, centre and right: "12 followers", "8 following" (each opens the follow list) and "3 cabals" (static) |
 | 3 | `ProfileBalanceSlot` | #610, #5571 | `ProfileMoneyStrip`: "Net worth" and "Cash" (each opens `BalancesRoute`) and a compact "Deposit" button, under a hairline, with "Account balances are visible only to you." beneath. At accessibility sizes the Deposit button drops to its own full-width row. A card deposit in flight keeps its "arriving" line |
-| 4 | `ProfileCabalsSlot` | #2140, #5571 | "Your cabals" with "See all" (opens the Cabals tab) over a horizontal rail of `CabalCoverCard`s (share disc opens the Share sheet). Hidden when empty or failed; two skeleton cards while loading |
+| 4 | `ProfileCabalsSlot` | #2140, #5571 | "Your cabals" with "See all" (opens the Cabals tab) over a horizontal rail of `CabalCoverCard`s (the share disc opens the iOS system share sheet). Hidden when empty or failed; two skeleton cards while loading |
 | 5 | `ProfileLinksSlot` | #682, #663, #2139, #5571 | One list: "Account activity", "Find friends", "Invite friends", "View as others" and "Withdraw", each with a `brandSoft` glyph tile and a subtitle |
 
 **Edit profile** (`EditProfileRoute`, new). Pushed from the identity card's name block, the Settings "Edit profile" row and `HandleEditRoute` (the Username field focused). A centred 76 pt photo with a pencil badge, then Name, Username (availability check, the 30-day change cooldown, "Choose a valid username.") and Bio (disabled with "Bio opens soon." until the API exists). A notice slot reads "Saving…" or "Profile saved.", then a full-width "Save changes", disabled when nothing changed, a field is invalid or a save is in flight. A load failure shows "Couldn't load this view" with "Try again".

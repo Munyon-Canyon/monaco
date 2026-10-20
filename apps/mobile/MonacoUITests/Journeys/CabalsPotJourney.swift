@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsPotJourney {
     static let id = "cabals/pot"
-    static let version = 6
+    static let version = 7
 
     static let screenTimeout: TimeInterval = 15
 
@@ -45,33 +45,22 @@ enum CabalsPotJourney {
             JoinJourney.openBySearch(app, cabal(run: run), step: "S2.1")
         }
 
-        recorder.step("S2.2", "the share button shows the gain card") {
+        recorder.step("S2.2", "the share button opens the system share sheet") {
             let button = app.buttons["cabal-share-button"]
             XCTAssertTrue(button.waitForExistence(timeout: screenTimeout), "S2.2: no share button within 15 s")
             button.tap()
-            let gain = app.element("cabal-invite-gain-row")
-            XCTAssertTrue(gain.waitForExistence(timeout: screenTimeout), "S2.2: the invite sheet has no gain row")
-            gain.tap()
             XCTAssertTrue(
-                app.element("share-card-image").waitForExistence(timeout: screenTimeout),
-                "S2.2: the share sheet drew no card within 15 s"
+                app.otherElements["ActivityListView"].waitForExistence(timeout: screenTimeout),
+                "S2.2: the system share sheet did not open within 15 s"
             )
         }
 
-        recorder.step("S2.3", "copy the link") {
-            app.buttons["share-card-copy"].tap()
-            XCTAssertTrue(
-                app.staticTexts["Link copied."].waitForExistence(timeout: 5),
-                "S2.3: no 'Link copied.' toast within 5 s"
-            )
-        }
-
-        recorder.step("S2.4", "close the sheet") {
-            app.buttons["share-card-done"].tap()
-            app.buttons["Close"].tap()
+        recorder.step("S2.3", "close the system share sheet") {
+            let close = app.buttons["Close"]
+            if close.waitForExistence(timeout: 3) { close.tap() } else { app.swipeDown() }
             XCTAssertTrue(
                 app.element("cabal-header-name").waitForExistence(timeout: 5),
-                "S2.4: the cabal screen did not come back within 5 s"
+                "S2.3: the cabal screen did not come back within 5 s"
             )
         }
     }

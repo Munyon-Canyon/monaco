@@ -87,6 +87,7 @@ extension MonacoGlassButton {
         style: Style = .glass,
         placement: Placement = .content,
         size: Size = .regular,
+        isBusy: Bool = false,
         action: @escaping () -> Void
     ) {
         self.init(
@@ -95,6 +96,7 @@ extension MonacoGlassButton {
             style: style,
             placement: placement,
             size: size,
+            isBusy: isBusy,
             action: action)
     }
 }
