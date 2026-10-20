@@ -51,7 +51,6 @@ enum CabalsEditRulesJourney {
             edit.tap()
             XCTAssertTrue(field.waitForExistence(timeout: 10), "S1.3: Cabal settings did not show within 10 s")
             XCTAssertTrue(app.navigationBars["Cabal settings"].exists, "S1.3: the editor is not titled Cabal settings")
-            XCTAssertEqual(field.value as? String, seededName(run: run), "S1.3: the name field")
             XCTAssertEqual(
                 app.element("edit-cabal-rules-footer").label,
                 "Vote rules apply to new proposals. Who can join applies right away.",
@@ -61,8 +60,7 @@ enum CabalsEditRulesJourney {
 
         recorder.step("S1.4", "rename the cabal") {
             field.tap()
-            let old = (field.value as? String) ?? ""
-            field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: old.count))
+            field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: seededName(run: run).count))
             field.typeText(name)
             XCTAssertTrue(app.buttons["edit-cabal-save"].isEnabled, "S1.4: Save is not enabled after a rename")
         }

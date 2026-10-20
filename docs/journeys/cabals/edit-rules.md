@@ -4,7 +4,7 @@ title: Edit a cabal's rules and name
 version: 7
 milestone: M10
 requires: [auth/sign-in]
-actors: [A]
+actors: [A, B]
 flows: []
 xcuitest: [apps/mobile/MonacoUITests/Journeys/CabalsEditRulesJourney.swift, apps/mobile/MonacoUITests/Journeys/CabalsEditRulesJourneyUITests.swift]
 ---
@@ -33,7 +33,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA rules {QA.run}` | `cabal-header-name` reads `QA rules {QA.run}` within 15 s |
 | S1.2 | A | tap, then scroll to | `cabal-details-button`, then `cabal-rules` | | `cabal-rules-voters` reads "Who votes" "Everyone", `cabal-rules-threshold` "Current threshold" "2 of 2 eligible voters" and `cabal-rules-expiry` "Votes stay open" "1 day" within 10 s |
-| S1.3 | A | tap | `cabal-rules-edit` | | The "Cabal settings" screen shows `edit-cabal-name` holding `QA rules {QA.run}` and `edit-cabal-rules-footer` reading "Vote rules apply to new proposals. Who can join applies right away." within 10 s |
+| S1.3 | A | tap | `cabal-rules-edit` | | The "Cabal settings" screen shows `edit-cabal-name` and `edit-cabal-rules-footer` reading "Vote rules apply to new proposals. Who can join applies right away." within 10 s |
 | S1.4 | A | clear, then type | `edit-cabal-name` | `QA renamed {QA.run}` | `edit-cabal-save` "Save" is enabled |
 | S1.5 | A | tap, then tap | "Everyone agrees" in `edit-rule-threshold`, then "1 week" in `edit-rule-expiry` | | `edit-rule-threshold` reads "Passes only if every voter says yes." and `edit-rule-expiry` reads "A vote that hasn't passed closes after 1 week." |
 | S1.6 | A | tap | "People I pick" in `edit-rule-voters` | | `edit-rule-voters` first showed "Everyone" selected, and now `edit-cabal-voters` lists the members within 10 s |
@@ -52,6 +52,7 @@ None known.
 
 ## Not covered
 
+- The text in `edit-cabal-name` before and after typing. `MonacoTextField` sets `accessibilityValue` to an empty string, so the field's text is not readable by XCUITest or VoiceOver. S1.4 deletes as many characters as `QA rules {QA.run}` has, and the ground truth check reads the renamed cabal, which proves the field took the typing.
 - Changing the picture. `cabal-picture-picker` opens the system photo picker, which the journey does not drive (`apps/mobile/Monaco/Features/Groups/CabalPicturePicker.swift`). `CabalPictureEditorTests` covers the upload on the host.
 - The "Who can join" rule (`edit-rule-join`). `cabals/join` S2.1 changes it, and `cabals/approve-request` covers requests.
 - A non-creator's rules rows, which are read-only. `cabals/join` opens a cabal as a member but does not open its details.
