@@ -19,6 +19,7 @@ struct ProposeFromAssetScreen: View {
     @State private var model: ProposeFromAssetModel?
     @State private var pickedCabal: Components.Schemas.MyCabal?
     @State private var showsPicker = false
+    @State private var logoURL: URL?
 
     var body: some View {
         Group {
@@ -48,6 +49,7 @@ struct ProposeFromAssetScreen: View {
         .sheet(isPresented: $showsPicker, onDismiss: pickerDismissed) {
             if case .loaded(let cabals) = model?.state { picker(cabals) }
         }
+        .task { logoURL = await environment.assetLogos.logos(for: [symbol])[symbol] }
         .task {
             let created = model ?? ProposeFromAssetModel(api: environment.api)
             model = created
@@ -123,7 +125,7 @@ struct ProposeFromAssetScreen: View {
         case .buy:
             ProposeAmountScreen(
                 service: MonacoCore.LiveProposeService(api: environment.api), cabalID: cabal.id,
-                stock: ProposeStock(symbol: symbol), bestChains: environment.bestChains)
+                stock: ProposeStock(symbol: symbol, logoURL: logoURL), bestChains: environment.bestChains)
         case .sell:
             CabalPotModelHost(cabalID: cabal.id) { pot in
                 sellAmount(cabal, pot: pot)
@@ -138,7 +140,7 @@ struct ProposeFromAssetScreen: View {
         }) {
             ProposeAmountScreen(
                 service: MonacoCore.LiveProposeService(api: environment.api), cabalID: cabal.id,
-                stock: ProposeStock(holding: holding), trade: .sell(holding))
+                stock: ProposeStock(holding: holding, logoURL: logoURL), trade: .sell(holding))
         } else if case .failed = pot?.state {
             framed {
                 EmptyState.loadFailed(identifier: "propose-sell-error") { Task { await pot?.load() } }

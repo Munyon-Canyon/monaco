@@ -12,6 +12,7 @@ struct ProposeStock: Hashable, Identifiable {
     var isQuotable = true
     var assetKind: AssetKind = .stock
     var tokenDecimals: Int?
+    var logoURL: URL?
 
     var id: String { symbol }
 
@@ -32,7 +33,8 @@ struct ProposeStock: Hashable, Identifiable {
         isTradable: Bool = true,
         isQuotable: Bool = true,
         assetKind: AssetKind = .stock,
-        tokenDecimals: Int? = nil
+        tokenDecimals: Int? = nil,
+        logoURL: URL? = nil
     ) {
         self.symbol = symbol
         self.name = name
@@ -42,18 +44,20 @@ struct ProposeStock: Hashable, Identifiable {
         self.isQuotable = isQuotable
         self.assetKind = assetKind
         self.tokenDecimals = tokenDecimals
+        self.logoURL = logoURL
     }
 
     static func displayName(symbol: String, catalogName: String? = nil, kind: AssetKind = .stock) -> String {
         AssetCatalogDisplayName.format(catalogName: catalogName ?? "", symbol: symbol, kind: kind)
     }
 
-    init(symbol: String, kind: AssetKind = .stock, tokenDecimals: Int? = nil) {
+    init(symbol: String, kind: AssetKind = .stock, tokenDecimals: Int? = nil, logoURL: URL? = nil) {
         self.init(
             symbol: symbol,
             name: Self.displayName(symbol: symbol, kind: kind),
             assetKind: kind,
-            tokenDecimals: tokenDecimals
+            tokenDecimals: tokenDecimals,
+            logoURL: logoURL
         )
     }
 }

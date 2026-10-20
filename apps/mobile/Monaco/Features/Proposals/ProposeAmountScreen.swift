@@ -89,8 +89,8 @@ struct ProposeAmountScreen: View {
                 ProposeReviewSheet(
                     service: MonacoCore.LiveProposeService(api: environment.api), cabalID: cabalID,
                     draft: model.draft, preview: preview, trade: model.trade,
-                    buyName: displayName, bestChain: model.previewBestChain, memory: reviewMemory,
-                    sendsOnAppear: seed.sendsReview)
+                    buyName: displayName, bestChain: model.previewBestChain, logoURL: stock.logoURL,
+                    memory: reviewMemory, sendsOnAppear: seed.sendsReview)
             }
         }
     }
@@ -113,7 +113,8 @@ struct ProposeAmountScreen: View {
     private var header: some View {
         HStack(spacing: MonacoTheme.Space.sm) {
             StockMark(
-                symbol: stock.symbol, displayName: stock.name, assetKind: stock.assetKind, size: Self.markSize)
+                symbol: stock.symbol, displayName: stock.name, assetKind: stock.assetKind, size: Self.markSize,
+                logoURL: stock.logoURL)
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(displayName).font(MonacoTheme.Typo.section).foregroundStyle(MonacoTheme.ink)
                 Text(stock.ticker).font(MonacoTheme.Typo.caption).foregroundStyle(MonacoTheme.muted)
