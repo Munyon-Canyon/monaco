@@ -25,6 +25,10 @@ type boardRow struct {
 	bps     *int64
 	value   int64
 	handle  *string
+	name    string
+	pnl     int64
+	join    *string
+	members int
 }
 
 func seedBoard(tb testing.TB, pool *pgxpool.Pool, at time.Time, rows []boardRow) uuid.UUID {
@@ -44,12 +48,19 @@ func seedBoardRun(tb testing.TB, pool *pgxpool.Pool, at time.Time, run uuid.UUID
 	}
 	wire := make([]map[string]any, 0, len(rows))
 	for _, r := range rows {
+		name, pnl := r.name, r.pnl
+		if name == "" {
+			name = "Subject"
+		}
+		if pnl == 0 {
+			pnl = -5
+		}
 		wire = append(wire, map[string]any{
 			"board": r.board, "range": "ALL", "rank": r.rank, "subject_id": r.subject.String(),
-			"subject_name": "Subject", "subject_handle": r.handle, "subject_created_at": at.Format(time.RFC3339Nano),
-			"value_micros": r.value, "pnl_micros": -5, "return_bps": r.bps,
+			"subject_name": name, "subject_handle": r.handle, "subject_created_at": at.Format(time.RFC3339Nano),
+			"value_micros": r.value, "pnl_micros": pnl, "return_bps": r.bps,
 			"prices_as_of": at.Format(time.RFC3339Nano), "computed_at": at.Format(time.RFC3339Nano),
-			"flags": []string{"unpriced_assets"},
+			"flags": []string{"unpriced_assets"}, "join_mode": r.join, "member_count": r.members,
 		})
 	}
 	raw, err := json.Marshal(wire)

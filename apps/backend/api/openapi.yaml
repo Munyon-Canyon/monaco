@@ -2743,12 +2743,18 @@ paths:
       description: >-
         Returns one page of cabals ranked by return, best first, from the latest finished run. Before
         the first run `run_id` is null and `rows` is empty. A range with no rows yet also returns an
-        empty page. An unknown range, a limit outside 1 to 50 or a cursor the server did not write is
-        invalid_input. `me` is always null on this board.
+        empty page. An unknown range, sort or membership, a min_members outside 0 to 10000, a limit
+        outside 1 to 50 or a cursor the server did not write is invalid_input. `me` is always null on
+        this board. With `sort` other than `return_pct`, or with `membership` or `min_members` set,
+        the board holds the cabals that pass the filters in that order, and `rank`, the cursor and
+        `me` use the position in that board. Ties break by return rank.
       parameters:
         - $ref: "#/components/parameters/LeaderboardRange"
         - $ref: "#/components/parameters/LeaderboardCursor"
         - $ref: "#/components/parameters/LeaderboardLimit"
+        - $ref: "#/components/parameters/LeaderboardSort"
+        - $ref: "#/components/parameters/LeaderboardMembership"
+        - $ref: "#/components/parameters/LeaderboardMinMembers"
       responses:
         "200":
           description: One page of the board.
@@ -2768,8 +2774,10 @@ paths:
         Returns one page of people ranked by return, best first, from the latest finished run, and
         the caller's own row in `me` whatever page is read. `me` is null when the caller has no
         ranked row. Before the first run `run_id` is null and `rows` is empty. An unknown range, a
-        limit outside 1 to 50, a cursor the server did not write or a filter other than `all` and
-        `friends` is invalid_input. With `filter=friends` the board holds the people the caller
+        limit outside 1 to 50, a cursor the server did not write, a sort other than `return_pct`,
+        `pnl` and `name` or a filter other than `all` and `friends` is invalid_input. With `sort`
+        other than `return_pct`, `rank`, the cursor and `me` use the position in that order, and ties
+        break by return rank. With `filter=friends` the board holds the people the caller
         follows and the caller, ranked densely from 1 in board order, and `rank`, the cursor and
         `me` all use that friends rank. A caller who follows nobody gets their own row only, or an
         empty page when they are not ranked.
@@ -2778,6 +2786,7 @@ paths:
         - $ref: "#/components/parameters/LeaderboardCursor"
         - $ref: "#/components/parameters/LeaderboardLimit"
         - $ref: "#/components/parameters/LeaderboardFilter"
+        - $ref: "#/components/parameters/LeaderboardSort"
       responses:
         "200":
           description: One page of the board.
@@ -4368,12 +4377,36 @@ components:
       required: false
       description: Page size. Defaults to 20 and cannot exceed 50.
       schema: {type: integer, minimum: 1, maximum: 50, default: 20, examples: [20]}
+    LeaderboardMembership:
+      name: membership
+      in: query
+      required: false
+      description: >-
+        Keeps the cabals by how people join. `all` keeps every cabal, `accepting_requests` keeps the cabals
+        that take new members, open or by request, `open` keeps the cabals anyone can join and
+        `approval` keeps the cabals that approve each request.
+      schema:
+        {type: string, enum: [all, accepting_requests, open, approval], default: all, examples: [open]}
+    LeaderboardMinMembers:
+      name: min_members
+      in: query
+      required: false
+      description: Keeps the cabals with at least this many members. Defaults to 0.
+      schema: {type: integer, minimum: 0, maximum: 10000, default: 0, examples: [5]}
     LeaderboardRange:
       name: range
       in: query
       required: false
       description: The window the return is measured over. Defaults to `ALL`.
       schema: {type: string, enum: ["1H", "1D", "1W", "1M", ALL], default: ALL, examples: [ALL]}
+    LeaderboardSort:
+      name: sort
+      in: query
+      required: false
+      description: >-
+        The order of the board. `return_pct` is best return first, `pnl` is largest P&L first and
+        `name` is A to Z.
+      schema: {type: string, enum: [return_pct, pnl, name], default: return_pct, examples: [pnl]}
     ValueHistoryRange:
       name: range
       in: query

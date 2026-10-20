@@ -34,6 +34,18 @@ func (s stubBoards) Page(context.Context, string, domain.Range, int, int) ([]dom
 	return s.entries, s.err
 }
 
+func (s stubBoards) ViewPage(
+	ctx context.Context, board string, rng domain.Range, _ domain.View, after, limit int,
+) ([]domain.Entry, error) {
+	return s.Page(ctx, board, rng, after, limit)
+}
+
+func (s stubBoards) ViewRow(
+	ctx context.Context, board string, rng domain.Range, _ domain.View, subject uuid.UUID,
+) (domain.Entry, bool, error) {
+	return s.Row(ctx, board, rng, subject)
+}
+
 func (s stubBoards) Row(context.Context, string, domain.Range, uuid.UUID) (domain.Entry, bool, error) {
 	if s.me == nil {
 		return domain.Entry{}, false, nil
@@ -224,5 +236,23 @@ func TestGetPeopleLeaderboard_filterSelectsTheFriendsBoardAndRejectsOthers(t *te
 	})
 	if errs.CodeOf(err) != errs.CodeInvalidInput {
 		t.Errorf("filter enemies: err = %v, want invalid_input", err)
+	}
+}
+
+func TestGetCabalsLeaderboard_rejectsBadViewParams(t *testing.T) {
+	t.Parallel()
+	h := adapters.HTTP{Boards: stubBoards{run: true}}
+	low := -1
+	sort := api.GetCabalsLeaderboardParamsSort("size")
+	membership := api.GetCabalsLeaderboardParamsMembership("closed")
+	for name, params := range map[string]api.GetCabalsLeaderboardParams{
+		"sort":        {Sort: &sort},
+		"membership":  {Membership: &membership},
+		"min members": {MinMembers: &low},
+	} {
+		_, err := h.GetCabalsLeaderboard(t.Context(), api.GetCabalsLeaderboardRequestObject{Params: params})
+		if errs.CodeOf(err) != errs.CodeInvalidInput {
+			t.Errorf("%s: err = %v, want invalid_input", name, err)
+		}
 	}
 }

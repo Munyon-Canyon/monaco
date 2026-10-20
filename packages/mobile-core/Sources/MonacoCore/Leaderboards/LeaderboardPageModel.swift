@@ -1,4 +1,5 @@
 import Foundation
+import MonacoAPI
 import Observation
 
 public enum LeaderboardBoardKind: String, CaseIterable, Hashable, Sendable {
@@ -30,6 +31,14 @@ public enum LeaderboardSort: CaseIterable, Hashable, Sendable {
         case .name: "Name A–Z"
         }
     }
+
+    var generated: Components.Parameters.LeaderboardSort? {
+        switch self {
+        case .returnPercent: nil
+        case .pnlAmount: .pnl
+        case .name: .name
+        }
+    }
 }
 
 public enum LeaderboardMembership: CaseIterable, Hashable, Sendable {
@@ -41,6 +50,15 @@ public enum LeaderboardMembership: CaseIterable, Hashable, Sendable {
         case .acceptingRequests: "Accepting requests"
         case .open: "Open"
         case .approval: "Approval"
+        }
+    }
+
+    var generated: Components.Parameters.LeaderboardMembership? {
+        switch self {
+        case .all: nil
+        case .acceptingRequests: .acceptingRequests
+        case .open: .open
+        case .approval: .approval
         }
     }
 }
@@ -63,6 +81,8 @@ public enum LeaderboardMinimumMembers: CaseIterable, Hashable, Sendable {
         case .ten: 10
         }
     }
+
+    var generated: Int? { floor == 0 ? nil : floor }
 }
 
 public enum LeaderboardPeopleScope: CaseIterable, Hashable, Sendable {
@@ -75,7 +95,7 @@ public enum LeaderboardPeopleScope: CaseIterable, Hashable, Sendable {
         }
     }
 
-    var filter: LeaderboardFilter {
+    public var filter: LeaderboardFilter {
         switch self {
         case .everyone: .everyone
         case .following: .friends
@@ -188,13 +208,13 @@ public final class LeaderboardPageModel {
 
     @ObservationIgnored private let fixture: LeaderboardFixture?
     @ObservationIgnored private let makeLoader:
-        (@MainActor (LeaderboardBoard, LeaderboardRange, LeaderboardFilter) -> LeaderboardLoader)?
+        (@MainActor (LeaderboardBoard, LeaderboardRange, LeaderboardFilters) -> LeaderboardLoader)?
     private var loaders: [LeaderboardBoardKind: LeaderboardLoader] = [:]
 
     public init(
         board: LeaderboardBoardKind = .cabals, range: LeaderboardRange = .oneMonth,
         filters: LeaderboardFilters = .standard, fixture: LeaderboardFixture? = nil,
-        makeLoader: (@MainActor (LeaderboardBoard, LeaderboardRange, LeaderboardFilter) -> LeaderboardLoader)? = nil
+        makeLoader: (@MainActor (LeaderboardBoard, LeaderboardRange, LeaderboardFilters) -> LeaderboardLoader)? = nil
     ) {
         category = board
         self.range = range
@@ -205,8 +225,6 @@ public final class LeaderboardPageModel {
     }
 
     public var isFixture: Bool { fixture != nil }
-
-    public var supportsFullFilters: Bool { isFixture }
 
     public var hasMovement: Bool { isFixture }
 
@@ -221,7 +239,7 @@ public final class LeaderboardPageModel {
     public var liveLoader: LeaderboardLoader? {
         guard !isFixture, let makeLoader else { return nil }
         if let existing = loaders[category] { return existing }
-        let created = makeLoader(category.board, range, category == .people ? appliedFilters.scope.filter : .everyone)
+        let created = makeLoader(category.board, range, appliedFilters)
         loaders[category] = created
         return created
     }
@@ -303,7 +321,7 @@ public final class LeaderboardPageModel {
     private func commit(_ filters: LeaderboardFilters) {
         appliedFilters = filters
         draftFilters = filters
-        loaders[.people]?.select(filter: filters.scope.filter)
+        for loader in loaders.values { loader.select(filters: filters) }
     }
 
     public static func isStale(_ rows: [LeaderboardRowView]) -> Bool {

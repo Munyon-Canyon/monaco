@@ -34,6 +34,8 @@ type LeaderboardEntry struct {
 	PricesAsOf        time.Time
 	ComputedAt        time.Time
 	Flags             []string
+	JoinMode          pgtype.Text
+	MemberCount       int32
 }
 
 type LeaderboardRun struct {

@@ -250,3 +250,58 @@ func TestBuildEntries_refusesWhatCannotBeStored(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildEntries_carriesTheJoinModeAndMemberCountOnCabalRowsOnly(t *testing.T) {
+	t.Parallel()
+	r := newBoardRig()
+	alpha, beta := r.input.views[r.alpha], r.input.views[r.bet]
+	alpha.JoinMode, alpha.MemberCount = "open", 1
+	beta.JoinMode, beta.MemberCount = "request", 3
+	r.input.views[r.alpha], r.input.views[r.bet] = alpha, beta
+	entries, err := buildEntries(r.input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	open, request := "open", "request"
+	for _, entry := range entries {
+		var wantMode *string
+		wantCount := 0
+		if entry.Board == cabalsBoard {
+			switch entry.SubjectID {
+			case r.alpha.UUID():
+				wantMode, wantCount = &open, 1
+			case r.bet.UUID():
+				wantMode, wantCount = &request, 3
+			}
+		}
+		if !reflect.DeepEqual(entry.JoinMode, wantMode) || entry.MemberCount != wantCount {
+			t.Errorf("%s %s join %v members %d, want %v %d",
+				entry.Board, entry.SubjectName, entry.JoinMode, entry.MemberCount, wantMode, wantCount)
+		}
+	}
+}
+
+func TestBuildEntries_refreshesACarriedCabalRowFromItsCurrentView(t *testing.T) {
+	t.Parallel()
+	r := newBoardRig()
+	stale, bps := "open", int64(0)
+	r.input.valued = r.input.valued[:1]
+	r.input.flagged = []CabalValue{{CabalID: r.bet, Flags: []domain.Flag{domain.FlagStalePrices}}}
+	r.input.previous = []Entry{{
+		Board: cabalsBoard, Range: allRange, Rank: 2, SubjectID: r.bet.UUID(), SubjectName: "Beta",
+		SubjectCreatedAt: r.at, ValueMicros: 1, ReturnBps: &bps, JoinMode: &stale, MemberCount: 9,
+	}}
+	beta := r.input.views[r.bet]
+	beta.JoinMode, beta.MemberCount = "request", 3
+	r.input.views[r.bet] = beta
+	entries, err := buildEntries(r.input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.Board == cabalsBoard && entry.SubjectID == r.bet.UUID() &&
+			(entry.JoinMode == nil || *entry.JoinMode != "request" || entry.MemberCount != 3) {
+			t.Fatalf("carried row join %v members %d, want request 3", entry.JoinMode, entry.MemberCount)
+		}
+	}
+}

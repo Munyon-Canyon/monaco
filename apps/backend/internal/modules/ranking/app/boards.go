@@ -62,6 +62,8 @@ type subject struct {
 	handle    *string
 	picture   *string
 	createdAt time.Time
+	joinMode  *string
+	members   int
 }
 
 type person struct {
@@ -135,6 +137,7 @@ func (b *boardBuilder) valued(cabal CabalValue, stakes []treasury.MemberStake) e
 	view := b.in.views[cabal.CabalID]
 	b.subject[view.ID.UUID().String()] = subject{
 		id: view.ID.UUID(), name: view.Name, picture: optional(view.PictureURL), createdAt: view.CreatedAt,
+		joinMode: optional(string(view.JoinMode)), members: view.MemberCount,
 	}
 	holders, net := map[ids.UserID]held{}, new(big.Int)
 	for _, stake := range stakes {
@@ -254,6 +257,12 @@ func (b *boardBuilder) carryCabalRow(previous Entry, flags []string) error {
 	b.subject[previous.SubjectID.String()] = subject{
 		id: previous.SubjectID, name: previous.SubjectName, handle: previous.SubjectHandle,
 		picture: previous.SubjectPictureURL, createdAt: previous.SubjectCreatedAt,
+		joinMode: previous.JoinMode, members: previous.MemberCount,
+	}
+	if view, ok := b.in.views[ids.CabalIDFrom(previous.SubjectID)]; ok {
+		current := b.subject[previous.SubjectID.String()]
+		current.joinMode, current.members = optional(string(view.JoinMode)), view.MemberCount
+		b.subject[previous.SubjectID.String()] = current
 	}
 	b.cabals[previous.Range] = append(b.cabals[previous.Range], previousCandidate(previous, uint64(value), flags))
 	return nil
@@ -293,6 +302,10 @@ func (b *boardBuilder) emit(board, rng string, rows []domain.Row) error {
 			ValueMicros: int64(value), PnLMicros: row.PnL.Int64(), ReturnBps: returnBps,
 			PricesAsOf: b.in.at, ComputedAt: b.in.at, Flags: fromFlags(row.Flags),
 		})
+		if board == cabalsBoard {
+			last := &b.entries[len(b.entries)-1]
+			last.JoinMode, last.MemberCount = subject.joinMode, subject.members
+		}
 	}
 	return nil
 }

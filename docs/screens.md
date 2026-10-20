@@ -203,9 +203,9 @@ States and exact copy:
 - First load failed: the tools hide; "Couldn’t load this view" / "Your existing information hasn’t been changed. Try again when your connection is available." with "Try again" (`leaderboard-error`).
 - A refresh or switch that fails with rows on screen shows the loader's error toast.
 
-The filter sheet "Leaderboard filters" holds "Sort by" (Return % / P&L amount / Name A–Z), "Membership" (All / Accepting requests / Open / Approval) and "Minimum members" (Any cabal size / 5+ members / 10+ members) for cabals, and "Show" (Everyone / People you follow) for people, with "Apply filters" and "Reset". Closing without Apply drops the draft. Live, only "Show" works; the other three render disabled above "Sorting and filters open soon.".
+The filter sheet "Leaderboard filters" holds "Sort by" (Return % / P&L amount / Name A–Z), "Membership" (All / Accepting requests / Open / Approval) and "Minimum members" (Any cabal size / 5+ members / 10+ members) for cabals, and "Show" (Everyone / People you follow) for people, with "Apply filters" and "Reset". Closing without Apply drops the draft. Live, Apply sends `sort` to both boards and `membership` and `min_members` to the cabals board, and "Show" sends `filter=friends`. The board then holds the matching rows in that order, ranked from 1.
 
-Missing APIs: rank movement against the previous snapshot, a cabal member count on a board row, a sort parameter, a membership filter, a minimum-members filter and the 3M range. The sample harness (`-MonacoLeaderboardSample <cabals|people|filtered|empty|loading|stale|error>`) drives all of it from fixtures.
+Missing APIs: rank movement against the previous snapshot, a cabal member count on a board row and the 3M range. The sample harness (`-MonacoLeaderboardSample <cabals|people|filtered|empty|loading|stale|error>`) drives all of it from fixtures.
 
 ## Cabal screen (`CabalRoute`)
 

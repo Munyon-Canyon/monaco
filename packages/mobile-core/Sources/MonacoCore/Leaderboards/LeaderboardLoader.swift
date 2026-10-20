@@ -17,6 +17,24 @@ public struct LeaderboardQuery: Hashable, Sendable {
     public var board: LeaderboardBoard
     public var range: LeaderboardRange
     public var filter: LeaderboardFilter
+    public var sort = LeaderboardSort.returnPercent
+    public var membership = LeaderboardMembership.all
+    public var minimumMembers = LeaderboardMinimumMembers.any
+}
+
+extension LeaderboardQuery {
+    mutating func apply(_ filters: LeaderboardFilters, scoped: Bool = true) {
+        sort = filters.sort
+        switch board {
+        case .cabals:
+            membership = filters.membership
+            minimumMembers = filters.minimumMembers
+        case .people:
+            if scoped { filter = filters.scope.filter }
+        case .cabalMembers:
+            break
+        }
+    }
 }
 
 @Observable
@@ -55,9 +73,11 @@ public final class LeaderboardLoader {
 
     public init(
         board: LeaderboardBoard, range: LeaderboardRange = .all, filter: LeaderboardFilter = .everyone,
-        api: APIClient, hints: any HintSource
+        filters: LeaderboardFilters = .standard, api: APIClient, hints: any HintSource
     ) {
-        query = LeaderboardQuery(board: board, range: range, filter: filter)
+        var initial = LeaderboardQuery(board: board, range: range, filter: filter)
+        initial.apply(filters, scoped: false)
+        query = initial
         self.api = api
         self.hints = hints
     }
@@ -130,6 +150,14 @@ public final class LeaderboardLoader {
     public func select(filter: LeaderboardFilter) {
         guard filter != query.filter || isFailed else { return }
         query.filter = filter
+        replaceRows()
+    }
+
+    public func select(filters: LeaderboardFilters) {
+        var next = query
+        next.apply(filters)
+        guard next != query || isFailed else { return }
+        query = next
         replaceRows()
     }
 
@@ -210,13 +238,16 @@ public final class LeaderboardLoader {
         try await api.read { client in
             switch query.board {
             case .cabals:
-                try await client.getCabalsLeaderboard(query: .init(range: query.range.generated, cursor: cursor))
-                    .ok.body.json
+                try await client.getCabalsLeaderboard(
+                    query: .init(
+                        range: query.range.generated, cursor: cursor, sort: query.sort.generated,
+                        membership: query.membership.generated, minMembers: query.minimumMembers.generated)
+                ).ok.body.json
             case .people:
                 try await client.getPeopleLeaderboard(
                     query: .init(
                         range: query.range.generated, cursor: cursor,
-                        filter: query.filter == .friends ? .friends : .all)
+                        filter: query.filter == .friends ? .friends : .all, sort: query.sort.generated)
                 ).ok.body.json
             case .cabalMembers(let id):
                 try await client.getCabalLeaderboard(

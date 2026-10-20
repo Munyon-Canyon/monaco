@@ -55,6 +55,8 @@ type Entry struct {
 	PricesAsOf        time.Time `json:"prices_as_of"`
 	ComputedAt        time.Time `json:"computed_at"`
 	Flags             []string  `json:"flags"`
+	JoinMode          *string   `json:"join_mode"`
+	MemberCount       int       `json:"member_count"`
 }
 
 type RunValuation struct {

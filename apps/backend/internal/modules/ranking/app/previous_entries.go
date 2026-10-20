@@ -53,5 +53,9 @@ func entryOf(row sqlc.LeaderboardEntry) Entry {
 	if row.ReturnBps.Valid {
 		entry.ReturnBps = &row.ReturnBps.Int64
 	}
+	if row.JoinMode.Valid {
+		entry.JoinMode = &row.JoinMode.String
+	}
+	entry.MemberCount = int(row.MemberCount)
 	return entry
 }
