@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -190,5 +191,62 @@ func TestHoldRetention_reportsAClosedPool(t *testing.T) {
 	held, release, err := holdRetention(t.Context(), closed)
 	if held || release != nil || err == nil {
 		t.Fatalf("holdRetention held=%v release=%t err=%v, want an error and no lock", held, release != nil, err)
+	}
+}
+
+func TestMarketCoinGeckoUsage_printsTheMonthsCallsAndLevel(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	clk := testkit.NewClock(time.Date(2026, time.October, 20, 12, 0, 0, 0, time.UTC))
+	_, err := pool.Exec(t.Context(), `INSERT INTO coingecko_usage (month, calls, updated_at)
+		VALUES ('2026-09-01', 9900, now()), ('2026-10-01', 8100, now())`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	environ := []string{
+		"MONACO_ENV=test", "DATABASE_URL=" + pool.Config().ConnString(), "NATS_URL=nats://unused",
+		"COINGECKO_MONTHLY_BUDGET=10000",
+	}
+	var stdout, stderr bytes.Buffer
+	if code := marketTool(environ, clk)([]string{"coingecko-usage"}, &stdout, &stderr); code != 0 ||
+		stdout.String() != "month=2026-10\tcalls=8100\tbudget=10000\tlevel=soft\n" {
+		t.Fatalf("coingecko-usage = %d, stdout %q, stderr %q, want October's 8100 calls at the soft cap",
+			code, stdout.String(), stderr.String())
+	}
+	stdout.Reset()
+	off := slices.Concat(environ, []string{"COINGECKO_MONTHLY_BUDGET=0"})
+	if code := marketTool(off, clk)([]string{"coingecko-usage"}, &stdout, &stderr); code != 0 ||
+		stdout.String() != "month=2026-10\tcalls=8100\tbudget=off\tlevel=off\n" {
+		t.Fatalf("coingecko-usage with the guard off = %d, stdout %q", code, stdout.String())
+	}
+	stdout.Reset()
+	if code := marketTool(environ, clk)([]string{"coingecko-usage", "now"}, &stdout, &stderr); code != 2 {
+		t.Fatalf("coingecko-usage with an argument = %d, want 2", code)
+	}
+}
+
+func TestMarketCoinGeckoUsage_reportsAnUnreachableDatabaseAndAMissingTable(t *testing.T) {
+	t.Parallel()
+	down := []string{
+		"MONACO_ENV=test", "DATABASE_URL=postgres://127.0.0.1:1/monaco?connect_timeout=1",
+		"NATS_URL=nats://unused", "COINGECKO_MONTHLY_BUDGET=10000",
+	}
+	var stdout, stderr bytes.Buffer
+	if code := marketTool(down, clock.Real{})([]string{"coingecko-usage"}, &stdout, &stderr); code != 1 ||
+		!strings.Contains(stderr.String(), "db_unavailable") {
+		t.Fatalf("unreachable database = %d, stderr %q, want 1 and db_unavailable", code, stderr.String())
+	}
+	pool := testkit.DB(t)
+	if _, err := pool.Exec(t.Context(), `DROP TABLE coingecko_usage`); err != nil {
+		t.Fatal(err)
+	}
+	environ := []string{
+		"MONACO_ENV=test", "DATABASE_URL=" + pool.Config().ConnString(), "NATS_URL=nats://unused",
+		"COINGECKO_MONTHLY_BUDGET=10000",
+	}
+	stderr.Reset()
+	code := marketTool(environ, clock.Real{})([]string{"coingecko-usage"}, &stdout, &stderr)
+	if code != 1 || stderr.Len() == 0 {
+		t.Fatalf("missing table = %d, stderr %q, want 1 and an error", code, stderr.String())
 	}
 }

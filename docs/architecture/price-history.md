@@ -151,7 +151,23 @@ CoinGecko, at 1,300 listed mints and 30 nights a month:
 
 The steady-state total leaves 3,310 credits under the cap at the worst case of every mint tradable, room for chart history and reconcile on the same key; at 500 tradable mints the volume poll is 2 calls every 3 hours, 480 credits, and the total is 5,730. Raise or lower `reconcileColdPerTick` against this table: each slot mint costs 30 credits a month.
 
-User traffic adds nothing to the Jupiter row. It adds nothing to the CoinGecko row.
+User traffic adds nothing to the Jupiter row. It adds nothing to the CoinGecko row, except a chart read that misses the history cache.
+
+### The monthly credit guard
+
+`COINGECKO_PLAN` (`demo` by default, or `pro`) picks the key header and the default host: `demo` sends `x-cg-demo-api-key` to `https://api.coingecko.com/api/v3`, `pro` sends `x-cg-pro-api-key` to `https://pro-api.coingecko.com/api/v3`. `COINGECKO_BASE_URL` still overrides the host. The client's limiter (25 calls a minute) does not change with the plan.
+
+To remove the cap when we pay for CoinGecko, set `COINGECKO_PLAN=pro`, or set `COINGECKO_MONTHLY_BUDGET=0` on any plan. A budget of 0 turns the guard off entirely: nothing is counted, no poller stops, the client never refuses a call, and `monacoctl market coingecko-usage` prints `budget=off`. Unset, the budget is 10,000 on `demo` and 0 on `pro`.
+
+The table is an estimate. The guard enforces it. Every CoinGecko request, from the api or the worker, adds one to `coingecko_usage` (one row per UTC month, upserted in Postgres, so the two processes share one count) before it is sent. A request the client retries on its own counts once, so the count can run a little under CoinGecko's. `COINGECKO_MONTHLY_BUDGET` (default 10,000 on the Demo plan) is the cap; the thresholds are fixed fractions of it.
+
+| Share of the budget | What stops | What still runs |
+| --- | --- | --- |
+| Under 80% | Nothing | Everything |
+| 80% (soft cap) | `market.volume`, and the cold slice of `market.reconcile` | Reconcile of the hot mints, and chart history reads that miss the cache |
+| 95% (hard cap) | Every CoinGecko call, so `market.reconcile` makes none and chart reads stop refreshing history | Charts and prices from the cache and from the stored price points |
+
+A user request never fails because of the cap. The client refuses a call at the hard cap before it is sent, the chart read falls back to the stored price points as it does for any CoinGecko failure, and the cached chart and list answers keep serving until their TTL. Each stopped poller reports the mints it left in `skipped`, and the next month starts again from zero. If the count cannot be read or written, the guard fails open and logs `market.coingecko.usage_failed`: a broken counter never blocks work. `market.coingecko.budget` is logged once as the count reaches 50%, 80% and 95%, and `monacoctl market coingecko-usage` prints the month, the calls, the budget and the level (`open`, `soft` or `hard`).
 
 ## Alternatives considered
 

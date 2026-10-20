@@ -135,10 +135,40 @@ type Jupiter struct {
 	RateLimit    int32
 }
 
+type CoinGeckoPlan string
+
+const (
+	CoinGeckoDemo CoinGeckoPlan = "demo"
+	CoinGeckoPro  CoinGeckoPlan = "pro"
+)
+
+func (p CoinGeckoPlan) KeyHeader() string {
+	if p == CoinGeckoPro {
+		return "x-cg-pro-api-key"
+	}
+	return "x-cg-demo-api-key"
+}
+
+func (p CoinGeckoPlan) baseURL() string {
+	if p == CoinGeckoPro {
+		return "https://pro-api.coingecko.com/api/v3"
+	}
+	return "https://api.coingecko.com/api/v3"
+}
+
+func (p CoinGeckoPlan) monthlyBudget() int32 {
+	if p == CoinGeckoPro {
+		return 0
+	}
+	return 10000
+}
+
 type CoinGecko struct {
+	Plan           CoinGeckoPlan
 	BaseURL        string
 	APIKey         string
 	HistoryEnabled bool
+	MonthlyBudget  int32
 }
 
 type XStocks struct {
@@ -388,10 +418,12 @@ func marketFields() []field {
 			func(c *Config) *string { return &c.Jupiter.PriceBaseURL }),
 		text("JUPITER_API_KEY", "", func(c *Config) *string { return &c.Jupiter.APIKey }).secret(),
 		count("MONACO_JUPITER_RATE_LIMIT", 8, func(c *Config) *int32 { return &c.Jupiter.RateLimit }),
-		text("COINGECKO_BASE_URL", "https://api.coingecko.com/api/v3",
+		coinGeckoPlan("COINGECKO_PLAN", func(c *Config) *CoinGeckoPlan { return &c.CoinGecko.Plan }),
+		coinGeckoDefault("COINGECKO_BASE_URL", CoinGeckoPlan.baseURL,
 			func(c *Config) *string { return &c.CoinGecko.BaseURL }),
 		text("COINGECKO_API_KEY", "", func(c *Config) *string { return &c.CoinGecko.APIKey }).secret(),
 		deployedByDefault("MARKET_HISTORY_ENABLED", func(c *Config) *bool { return &c.CoinGecko.HistoryEnabled }),
+		coinGeckoBudget("COINGECKO_MONTHLY_BUDGET", func(c *Config) *int32 { return &c.CoinGecko.MonthlyBudget }),
 		text("XSTOCKS_BASE_URL", "https://api.xstocks.fi", func(c *Config) *string { return &c.XStocks.BaseURL }),
 		text("TESSERA_API_BASE_URL", "https://rest-api.tessera.pe",
 			func(c *Config) *string { return &c.Tessera.BaseURL }),
@@ -613,6 +645,52 @@ func count(key string, fallback int32, at func(*Config) *int32) field {
 			n, err := strconv.ParseInt(v, 10, 32)
 			*at(c) = int32(n)
 			return err == nil && n > 0
+		},
+		get: func(c *Config) string { return strconv.Itoa(int(*at(c))) },
+	}
+}
+
+func coinGeckoPlan(key string, at func(*Config) *CoinGeckoPlan) field {
+	return field{
+		key:      key,
+		fallback: string(CoinGeckoDemo),
+		want:     "demo or pro",
+		set: func(c *Config, v string) bool {
+			*at(c) = CoinGeckoPlan(v)
+			return v == string(CoinGeckoDemo) || v == string(CoinGeckoPro)
+		},
+		get: func(c *Config) string { return string(*at(c)) },
+	}
+}
+
+func coinGeckoDefault(key string, byPlan func(CoinGeckoPlan) string, at func(*Config) *string) field {
+	return field{
+		key:      key,
+		fallback: "default",
+		set: func(c *Config, v string) bool {
+			if v == "default" {
+				v = byPlan(c.CoinGecko.Plan)
+			}
+			*at(c) = v
+			return true
+		},
+		get: func(c *Config) string { return *at(c) },
+	}
+}
+
+func coinGeckoBudget(key string, at func(*Config) *int32) field {
+	return field{
+		key:      key,
+		fallback: "default",
+		want:     "integer from 0 (guard off)",
+		set: func(c *Config, v string) bool {
+			if v == "default" {
+				*at(c) = c.CoinGecko.Plan.monthlyBudget()
+				return true
+			}
+			n, err := strconv.ParseInt(v, 10, 32)
+			*at(c) = int32(n)
+			return err == nil && n >= 0
 		},
 		get: func(c *Config) string { return strconv.Itoa(int(*at(c))) },
 	}

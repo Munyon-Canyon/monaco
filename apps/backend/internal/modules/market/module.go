@@ -213,9 +213,11 @@ func (m *Module) Pollers() []poller.Poller {
 		return pollers
 	}
 	cooldown := app.NewCooldown(m.deps.Clock)
+	budget := m.coinGeckoBudget()
 	return append(pollers,
-		app.NewReconcile(m.deps.UoW, m.deps.Pool, m.deps.Clock, history, m.hot...).WithCooldown(cooldown),
-		app.NewVolumes(m.deps.UoW, m.deps.Pool, m.deps.Clock, history).WithCooldown(cooldown),
+		app.NewReconcile(m.deps.UoW, m.deps.Pool, m.deps.Clock, history, m.hot...).
+			WithCooldown(cooldown).WithBudget(budget),
+		app.NewVolumes(m.deps.UoW, m.deps.Pool, m.deps.Clock, history).WithCooldown(cooldown).WithBudget(budget),
 	)
 }
 
@@ -225,7 +227,12 @@ func (m *Module) Retention() *app.Retention {
 
 func (m *Module) priceHistory() *coingecko.Client {
 	cfg := m.deps.Config
-	return coingecko.New(m.deps.HTTPClient("coingecko", coingecko.Options(cfg)...), cfg.CoinGecko.APIKey)
+	return coingecko.New(m.deps.HTTPClient("coingecko", coingecko.Options(cfg)...), cfg.CoinGecko.APIKey).
+		WithPlan(cfg.CoinGecko.Plan).WithBudget(m.coinGeckoBudget())
+}
+
+func (m *Module) coinGeckoBudget() *app.Budget {
+	return app.NewBudget(m.deps.Pool, m.deps.Clock, int(m.deps.Config.CoinGecko.MonthlyBudget))
 }
 
 func (m *Module) PriceHints(ctx context.Context, meter metric.Meter) (func(), error) {

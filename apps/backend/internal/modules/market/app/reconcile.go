@@ -26,6 +26,7 @@ type Reconcile struct {
 	clock   clock.Clock
 	hot     []HotMints
 	cool    *Cooldown
+	budget  *Budget
 }
 
 func NewReconcile(
@@ -36,6 +37,11 @@ func NewReconcile(
 
 func (r *Reconcile) WithCooldown(c *Cooldown) *Reconcile {
 	r.cool = c
+	return r
+}
+
+func (r *Reconcile) WithBudget(b *Budget) *Reconcile {
+	r.budget = b
 	return r
 }
 
@@ -54,12 +60,17 @@ func (r *Reconcile) Tick(ctx context.Context) (poller.Report, error) {
 	}
 	var report poller.Report
 	var failed []error
+	skipped := 0
 	for _, a := range assets {
+		if r.overBudget(ctx, a.cold) {
+			skipped++
+			continue
+		}
 		if err := r.cool.Wait(ctx); err != nil {
 			failed = append(failed, err)
 			break
 		}
-		rows, err := r.fill(ctx, a.Mint)
+		rows, err := r.fill(ctx, a.asset.Mint)
 		report.Scanned++
 		report.Changed += rows
 		if err != nil {
@@ -67,11 +78,23 @@ func (r *Reconcile) Tick(ctx context.Context) (poller.Report, error) {
 		}
 		r.cool.Trip(ctx, r.Name(), err)
 	}
-	report.Attrs = []slog.Attr{slog.Int("calls", report.Scanned), slog.Int("failed", len(failed))}
+	report.Attrs = []slog.Attr{
+		slog.Int("calls", report.Scanned), slog.Int("failed", len(failed)), slog.Int("skipped", skipped),
+	}
 	return report, errors.Join(failed...)
 }
 
-func (r *Reconcile) nightly(ctx context.Context) ([]domain.Asset, error) {
+func (r *Reconcile) overBudget(ctx context.Context, cold bool) bool {
+	level := r.budget.Level(ctx)
+	return level == BudgetHard || (level == BudgetSoft && cold)
+}
+
+type reconcileAsset struct {
+	asset domain.Asset
+	cold  bool
+}
+
+func (r *Reconcile) nightly(ctx context.Context) ([]reconcileAsset, error) {
 	all, err := r.catalog.ListAll(ctx)
 	if err != nil {
 		return nil, err
@@ -80,16 +103,20 @@ func (r *Reconcile) nightly(ctx context.Context) ([]domain.Asset, error) {
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeOf(err), "market.Reconcile.nightly")
 	}
-	var out, cold []domain.Asset
+	var out []reconcileAsset
+	var cold []domain.Asset
 	for _, a := range all {
 		switch {
 		case hot[a.Mint.Address()]:
-			out = append(out, a)
+			out = append(out, reconcileAsset{asset: a})
 		case a.Tradable():
 			cold = append(cold, a)
 		}
 	}
-	return append(out, coldSlot(cold, r.clock.Now(), ReconcileInterval, reconcileColdPerTick)...), nil
+	for _, a := range coldSlot(cold, r.clock.Now(), ReconcileInterval, reconcileColdPerTick) {
+		out = append(out, reconcileAsset{asset: a, cold: true})
+	}
+	return out, nil
 }
 
 func (r *Reconcile) fill(ctx context.Context, mint domain.Mint) (int, error) {

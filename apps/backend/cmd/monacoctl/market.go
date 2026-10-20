@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strconv"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -19,7 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 )
 
-const marketUsage = "usage: monacoctl market tradable <symbol> on|off|auto | thin-prices | simulation-account"
+const marketUsage = "usage: monacoctl market tradable <symbol> on|off|auto | thin-prices | simulation-account | coingecko-usage"
 
 type retentionLock func(context.Context, *pgxpool.Pool) (bool, func(), error)
 
@@ -70,6 +71,7 @@ func marketToolWithLock(environ []string, clk clock.Clock, lock retentionLock) t
 	return func(args []string, stdout, stderr io.Writer) int {
 		return run(map[string]command{
 			"tradable": tradable, "thin-prices": thin, "simulation-account": simulationAccount(clk),
+			"coingecko-usage": coinGeckoUsage(clk),
 		}, nil, environ, args, stdout, stderr)
 	}
 }
@@ -103,4 +105,30 @@ func thinPrices(clk clock.Clock, lock retentionLock, cfg config.Config, args []s
 	}
 	_, _ = fmt.Fprintf(stdout, "deleted=%d\n", report.Changed)
 	return 0
+}
+
+func coinGeckoUsage(clk clock.Clock) command {
+	return func(cfg config.Config, args []string, stdout, stderr io.Writer) int {
+		if len(args) != 0 {
+			_, _ = fmt.Fprintln(stderr, marketUsage)
+			return 2
+		}
+		ctx := context.Background()
+		pool, err := db.Open(ctx, cfg.DB)
+		if err != nil {
+			return fail(stderr, err)
+		}
+		defer pool.Close()
+		usage, err := app.NewBudget(pool, clk, int(cfg.CoinGecko.MonthlyBudget)).Usage(ctx)
+		if err != nil {
+			return fail(stderr, err)
+		}
+		budget, level := strconv.Itoa(usage.Limit), usage.Level.String()
+		if usage.Limit <= 0 {
+			budget, level = "off", "off"
+		}
+		_, _ = fmt.Fprintf(stdout, "month=%s\tcalls=%d\tbudget=%s\tlevel=%s\n",
+			usage.Month.Format("2006-01"), usage.Calls, budget, level)
+		return 0
+	}
 }

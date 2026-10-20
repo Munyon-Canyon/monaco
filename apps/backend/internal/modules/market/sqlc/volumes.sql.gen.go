@@ -10,6 +10,35 @@ import (
 	"time"
 )
 
+const coinGeckoCalls = `-- name: CoinGeckoCalls :one
+SELECT coalesce(max(calls), 0)::integer AS calls
+FROM coingecko_usage
+WHERE month = date_trunc('month', $1::timestamptz AT TIME ZONE 'UTC')::date
+`
+
+func (q *Queries) CoinGeckoCalls(ctx context.Context, at time.Time) (int32, error) {
+	row := q.db.QueryRow(ctx, coinGeckoCalls, at)
+	var calls int32
+	err := row.Scan(&calls)
+	return calls, err
+}
+
+const recordCoinGeckoCall = `-- name: RecordCoinGeckoCall :one
+INSERT INTO coingecko_usage (month, calls, updated_at)
+VALUES (date_trunc('month', $1::timestamptz AT TIME ZONE 'UTC')::date, 1, $1::timestamptz)
+ON CONFLICT (month) DO UPDATE SET
+  calls = coingecko_usage.calls + 1,
+  updated_at = excluded.updated_at
+RETURNING calls
+`
+
+func (q *Queries) RecordCoinGeckoCall(ctx context.Context, at time.Time) (int32, error) {
+	row := q.db.QueryRow(ctx, recordCoinGeckoCall, at)
+	var calls int32
+	err := row.Scan(&calls)
+	return calls, err
+}
+
 const upsertAssetVolume = `-- name: UpsertAssetVolume :exec
 INSERT INTO asset_volumes (mint, volume_24h_micros, as_of, updated_at)
 VALUES ($1::text, $2::bigint, $3::timestamptz,

@@ -26,7 +26,6 @@ import (
 
 const (
 	upstream       = "coingecko"
-	keyHeader      = "x-cg-demo-api-key"
 	callsPerMinute = 25
 	maxBody        = 8 << 20
 )
@@ -39,7 +38,9 @@ var (
 type Client struct {
 	http  *httpclient.Client
 	key   string
+	plan  config.CoinGeckoPlan
 	limit *rate.Limiter
+	spend *app.Budget
 }
 
 func Options(cfg config.Config) []httpclient.Option {
@@ -52,6 +53,16 @@ func Options(cfg config.Config) []httpclient.Option {
 
 func New(c *httpclient.Client, apiKey string) *Client {
 	return &Client{http: c, key: apiKey, limit: rate.NewLimiter(rate.Every(time.Minute/callsPerMinute), 1)}
+}
+
+func (c *Client) WithPlan(p config.CoinGeckoPlan) *Client {
+	c.plan = p
+	return c
+}
+
+func (c *Client) WithBudget(b *app.Budget) *Client {
+	c.spend = b
+	return c
 }
 
 func (c *Client) Configured() bool { return c.key != "" }
@@ -118,11 +129,15 @@ func (c *Client) Volumes(ctx context.Context, mints []domain.Mint) (map[domain.M
 
 func (c *Client) get(ctx context.Context, op, target string, attrs ...slog.Attr) (*http.Response, error) {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
-	req.Header.Set(keyHeader, c.key)
+	req.Header.Set(c.plan.KeyHeader(), c.key)
 	req.Header.Set("Accept", "application/json")
+	if c.spend.Level(ctx) == app.BudgetHard {
+		return nil, errs.New(errs.CodeCoinGeckoRateLimited, op, append(attrs, slog.Bool("budget", true))...)
+	}
 	if err := c.limit.Wait(ctx); err != nil {
 		return nil, errs.Wrap(err, errs.CodeUpstreamUnavailable, op, attrs...)
 	}
+	c.spend.Spend(ctx)
 	resp, err := c.http.Do(ctx, req)
 	if err != nil {
 		code := errs.CodeOf(err)

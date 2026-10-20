@@ -573,3 +573,25 @@ func TestCoinGecko_aDownVolumesCallIsUnavailable(t *testing.T) {
 		wantCode(t, err, errs.CodeUpstreamUnavailable)
 	})
 }
+
+func TestCoinGecko_theProPlanSendsItsOwnKeyHeader(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		var header string
+		rt := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			header = r.Header.Get(config.CoinGeckoPro.KeyHeader())
+			rec := httptest.NewRecorder()
+			replying(http.StatusOK, `{"prices":[[1700000000000,1.5]],"total_volumes":[]}`).ServeHTTP(rec, r)
+			return rec.Result(), nil
+		})
+		opts := append(coingecko.Options(testConfig("pro-key")), httpclient.WithTransport(rt))
+		c := coingecko.New(httpclient.New("coingecko", opts...), "pro-key").WithPlan(config.CoinGeckoPro)
+		if _, err := c.MarketChart(t.Context(), mint(t, aaplx), 1); err != nil || header != "pro-key" {
+			t.Fatalf("MarketChart = %v with header %q, want pro-key in x-cg-pro-api-key", err, header)
+		}
+	})
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }

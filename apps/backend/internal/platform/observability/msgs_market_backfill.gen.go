@@ -9,5 +9,7 @@ func init() {
 		MarketHistoryDisabled,
 		MarketHistoryCooldown,
 		MarketChartHistoryFailed,
+		MarketCoinGeckoBudget,
+		MarketCoinGeckoUsageFailed,
 	)
 }
