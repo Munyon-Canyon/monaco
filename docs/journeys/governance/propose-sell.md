@@ -44,7 +44,7 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Known failures on staging
 
-- S1.5 to S1.6: the seeded AAPLx holding exists only in the ledger, and propose-time checks the treasury's on-chain balance (`cabal_shares_short`), so the amount screen shows "The cabal doesn't hold that many shares." and `propose-amount-review` stays disabled. A real holding needs real tokens. Blocked by #3687.
+None.
 
 ## Not covered
 
