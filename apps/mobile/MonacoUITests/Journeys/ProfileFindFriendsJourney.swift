@@ -41,7 +41,7 @@ enum ProfileFindFriendsJourney {
         let field = app.element("friends-search-field")
         XCTAssertTrue(field.waitForExistence(timeout: 10), "\(step): no search field on Find friends")
         XCTAssertTrue(field.isEnabled, "\(step): the search field is disabled")
-        let text = app.staticTexts[explainer]
+        let text = app.staticTexts.matching(NSPredicate(format: "label == %@", explainer)).firstMatch
         XCTAssertTrue(text.exists, "\(step): the contacts explainer is missing under the search field")
         XCTAssertLessThanOrEqual(
             field.frame.maxY, text.frame.minY, "\(step): the search field is not above the contacts explainer")
@@ -63,7 +63,9 @@ enum ProfileFindFriendsJourney {
             XCTAssertTrue(
                 app.navigationBars["Find friends"].waitForExistence(timeout: 10),
                 "S1.2: 'Find friends' did not open")
-            XCTAssertTrue(app.staticTexts[explainer].exists, "S1.2: the contacts explainer copy is missing")
+            XCTAssertTrue(
+                app.staticTexts.matching(NSPredicate(format: "label == %@", explainer)).firstMatch.exists,
+                "S1.2: the contacts explainer copy is missing")
         }
 
         recorder.step("S1.3", "back out with Not now") {
