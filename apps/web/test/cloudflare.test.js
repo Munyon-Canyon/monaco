@@ -21,9 +21,9 @@ function stubFetch({ result = "ok", status = 200 } = {}) {
 }
 
 function post(body, headers = {}) {
-  return new Request("https://trymonaco.xyz/api/waitlist", {
+  return new Request("https://monacolabs.xyz/api/waitlist", {
     method: "POST",
-    headers: { "content-type": "application/json", origin: "https://trymonaco.xyz", ...headers },
+    headers: { "content-type": "application/json", origin: "https://monacolabs.xyz", ...headers },
     body: JSON.stringify(body),
   });
 }
@@ -47,7 +47,7 @@ test("a POST reaches handleSignup with the body, method and headers intact", asy
 });
 
 test("the request method is passed through, so a GET is still a 405", async () => {
-  const res = await waitlist({ request: new Request("https://trymonaco.xyz/api/waitlist"), env });
+  const res = await waitlist({ request: new Request("https://monacolabs.xyz/api/waitlist"), env });
   assert.equal(res.status, 405);
   assert.equal(calls.length, 0);
 });
@@ -84,14 +84,14 @@ test("errors from the shared library keep their status and JSON", async () => {
 
 test("health returns its JSON with a no-store header", async () => {
   stubFetch({ result: true });
-  const res = await health({ request: new Request("https://trymonaco.xyz/api/health"), env });
+  const res = await health({ request: new Request("https://monacolabs.xyz/api/health"), env });
   assert.equal(res.status, 200);
   assert.equal(res.headers.get("content-type"), "application/json");
   assert.equal(res.headers.get("cache-control"), "no-store");
   assert.deepEqual(await res.json(), { status: "ok", dependencies: { supabase: "ok", ipHashSalt: "ok" } });
 
   stubFetch({ result: false });
-  const bad = await health({ request: new Request("https://trymonaco.xyz/api/health"), env: {} });
+  const bad = await health({ request: new Request("https://monacolabs.xyz/api/health"), env: {} });
   assert.equal(bad.status, 503);
   assert.equal((await bad.json()).dependencies.ipHashSalt, "missing");
 });
