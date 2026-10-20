@@ -262,6 +262,7 @@ struct UserProfileContent: View {
         if !data.activity.isEmpty {
             VStack(spacing: 0) {
                 MonacoSectionHeader(UserProfileCopy.activityTitle)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                 ForEach(data.activity) { item in
                     NavigationLink(value: item.opensRoute) {
                         MonacoRow(
