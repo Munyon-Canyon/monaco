@@ -5,15 +5,15 @@ The identity card reads "unavailable" for Positions value even when the portfoli
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Profile/IdentityCard.swift b/apps/mobile/Monaco/Features/Profile/IdentityCard.swift
-index 3c19217..4999eab 100644
+index 80b4bc9e3..732cb0f75 100644
 --- a/apps/mobile/Monaco/Features/Profile/IdentityCard.swift
 +++ b/apps/mobile/Monaco/Features/Profile/IdentityCard.swift
-@@ -179,7 +179,7 @@ private struct IdentityStats: View {
-         switch model.performance {
+@@ -200,7 +200,7 @@ private struct IdentityStats: View {
+         switch model.positionsPhase {
          case .loading: "loading"
          case .failed: "unavailable"
--        default: positions
-+        default: "unavailable"
+-        case .loaded: positions
++        case .loaded: "unavailable"
          }
      }
  
