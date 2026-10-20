@@ -4,27 +4,26 @@ import SwiftUI
 
 struct FeedItemCell: View {
     let item: Components.Schemas.FeedItem
-
-    @Environment(\.feedOpensSoon) private var opensSoon
+    let onLike: () -> Void
 
     var body: some View {
-        let figures = opensSoon.figures[item.id]
-        let event = FeedEvent(item, figures: figures)
+        let event = FeedEvent(item)
         MonacoCard(style: .tight) {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                FeedAuthorRow(item: item, event: event, authorReturn: FeedReturnFacts(figures?.authorReturn))
-                block(for: event, figures: figures)
-                FeedReactionsRow(item: item, likes: figures?.likes)
+                FeedAuthorRow(
+                    item: item, event: event, authorReturn: FeedReturnFacts(FeedFigureFormat.authorReturn(item)))
+                block(for: event)
+                FeedReactionsRow(item: item, onLike: onLike)
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("feed-cell-\(item.id)")
     }
 
-    @ViewBuilder private func block(for event: FeedEvent, figures: FeedFigures?) -> some View {
+    @ViewBuilder private func block(for event: FeedEvent) -> some View {
         switch event.block {
         case .asset(let side):
-            let facts = FeedAssetFacts(item, figures: figures, event: event)
+            let facts = FeedAssetFacts(item, event: event)
             FeedAssetBlock(
                 tone: side == .buy ? .buy : .sell, symbol: item.symbol ?? "", ticker: facts.ticker,
                 company: facts.company,
@@ -34,17 +33,17 @@ struct FeedItemCell: View {
                     trailingColor: event.statusColor),
                 thesis: facts.thesis, route: item.opensRoute, spoken: facts.spoken(event))
         case .price:
-            let facts = FeedPriceFacts(item, figures: figures)
+            let facts = FeedPriceFacts(item)
             FeedAssetBlock(
                 tone: .price, symbol: item.symbol ?? "", ticker: facts.ticker, company: facts.company,
                 trailing: facts.change.map {
                     .init(text: $0, color: MonacoTheme.signed($0), caption: "24h change")
                 },
-                line: .init(leading: "24h token volume", trailing: facts.volume ?? "Opens soon"),
+                line: .init(leading: "24h token volume", trailing: "Opens soon"),
                 route: item.opensRoute, spoken: facts.spoken)
         case .quote:
             FeedReplyBlock(
-                caption: figures?.detail ?? item.detail, quote: item.body ?? item.title, route: item.opensRoute)
+                caption: item.detail, quote: item.body ?? item.title, route: item.opensRoute)
         case .cabal:
             FeedCabalBlock(item: item, route: item.opensRoute)
         }

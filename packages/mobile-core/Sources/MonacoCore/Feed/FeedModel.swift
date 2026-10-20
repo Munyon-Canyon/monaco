@@ -23,11 +23,13 @@ public final class FeedModel {
     public private(set) var failureTick = 0
     public private(set) var lastError: APIError?
     public private(set) var loadMoreFailed = false
+    private var likesInFlight: Set<String> = []
     private var viewerFollowsNobody = false
     private var checkingFollows = false
 
     private let api: APIClient
     private let mutes: FeedMuteService
+    private let likes: FeedLikeService
     private let viewerID: String?
     private let hints: any HintSource
     private let clock: any Clock<Duration>
@@ -38,6 +40,7 @@ public final class FeedModel {
     public init(api: APIClient, viewerID: String?, hints: any HintSource, clock: any Clock<Duration>) {
         self.api = api
         mutes = FeedMuteService(api: api)
+        likes = FeedLikeService(api: api)
         self.viewerID = viewerID
         self.hints = hints
         self.clock = clock
@@ -175,6 +178,25 @@ public final class FeedModel {
             return
         }
         await reload()
+    }
+
+    public func toggleLike(_ item: Components.Schemas.FeedItem) async {
+        let id = item.id
+        guard likesInFlight.insert(id).inserted else { return }
+        defer { likesInFlight.remove(id) }
+        let pager = pager
+        let before = pager.items.first { $0.id == id } ?? item
+        let liking = !before.likedByMe
+        pager.update(id: id) { $0.setLike(liking, from: before) }
+        do {
+            try await likes.set(liking, itemID: id)
+        } catch {
+            pager.update(id: id) {
+                $0.likedByMe = before.likedByMe
+                $0.likeCount = before.likeCount
+            }
+            fail(APIError(error))
+        }
     }
 
     private func fail(_ error: APIError) {

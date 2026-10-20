@@ -413,7 +413,7 @@ Large title "Feed" with two 44pt glass rounds, then the search field "Search the
 | Asset block | Proposals, trades and approvals. Ticker, status ("Voting open", "Executed", "Execution pending"), the thesis on two lines. Opens `ProposalRoute`, `TransactionRoute` or `AssetRoute` |
 | Price block | A price move: ticker, the change the title states, and "24h token volume" with "Opens soon" |
 | Cabal block | A started or joined cabal: its tint tile, name, "New public cabal". Opens `CabalRoute` |
-| Reactions | A heart (toast "Likes open soon."), the comment count (opens the post), and share (toast "Sharing opens soon.") |
+| Reactions | A heart (likes and unlikes, with the count from the API), the comment count (opens the post), and share (toast "Sharing opens soon.") |
 
 States. Loading is a skeleton under the live title and search. Empty: "No updates yet" / "Proposals, trades and conversations will appear here."; with a search or filter, "No matching updates" / "Change the filter to see more activity." Following with no follows: "Follow people to see what they do." with "Find friends". Error: "Couldn’t load this view" with "Try again". A page that fails to load under cards shows "Older updates couldn’t load. The items above are still here." with "Retry older updates", and no toast. The end of the list reads "You’re caught up", or "No more matching updates".
 

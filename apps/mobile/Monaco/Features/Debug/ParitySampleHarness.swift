@@ -82,7 +82,7 @@ private struct ParityFeedScreen: View {
         }
         .environment(
             \.feedOpensSoon,
-            FeedOpensSoonData(figures: FeedModel.previewFigures(.items), hasUnreadActivity: true)
+            FeedOpensSoonData(hasUnreadActivity: true)
         )
     }
 }

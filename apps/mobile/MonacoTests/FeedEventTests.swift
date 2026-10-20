@@ -15,33 +15,32 @@ struct FeedEventTests {
         return model.items
     }
 
-    private func pill(_ item: Item, figures: FeedFigures?) -> String {
-        let event = FeedEvent(item, figures: figures)
+    private func pill(_ item: Item) -> String {
+        let event = FeedEvent(item)
         return "\(event.pillLabel)/\(event.pillTone)"
     }
 
     @Test func everyCardVariantNamesItselfWithItsOwnPill() async {
-        let figures = FeedModel.previewFigures(.items)
         let items = await loadedItems()
-        let pills = items.map { pill($0, figures: figures[$0.id]) }
         #expect(
-            pills == [
+            items.map(pill) == [
                 "Proposal/positive", "Sell/negative", "Price move/warn", "Discussion/discussion",
                 "Propose sell/negative", "Approved/warn", "Cabal/positive",
             ])
     }
 
-    @Test func aLiveTradeWithNoFiguresDefaultsToBuy() async throws {
+    @Test func aTradeWithNoActionDefaultsToBuy() async throws {
         let items = await loadedItems()
-        let sold = try #require(items.first { $0.kind == FeedKind.trade.rawValue })
-        #expect(FeedEvent(sold, figures: nil) == .trade(.buy))
+        var item = try #require(items.first { $0.kind == FeedKind.trade.rawValue })
+        item.action = nil
+        #expect(FeedEvent(item) == .trade(.buy))
     }
 
     @Test func aKindFromANewerBackendIsAPlainUpdate() async throws {
         let items = await loadedItems()
         var item = try #require(items.first)
         item.kind = "something_new"
-        let event = FeedEvent(item, figures: nil)
+        let event = FeedEvent(item)
         #expect(event == .update)
         #expect(event.block == .quote)
         #expect(event.pillLabel == "Update")
@@ -56,50 +55,57 @@ struct FeedEventTests {
         #expect(FeedEvent.discussion.block == .quote)
     }
 
-    @Test func aLiveTradeReadsItsDetailAndIsExecuted() async throws {
+    @Test func aTradeFillsTheBlockFromTheWireFigures() async throws {
         let items = await loadedItems()
         let item = try #require(items.first { $0.kind == FeedKind.trade.rawValue })
-        let facts = FeedAssetFacts(item, figures: nil, event: FeedEvent(item, figures: nil))
+        let facts = FeedAssetFacts(item, event: FeedEvent(item))
         #expect(facts.ticker == "AAPL")
-        #expect(facts.detail == "Filled at $240.00")
+        #expect(facts.amount == "$480.00")
+        #expect(facts.detail == "Sold 2 units · Avg $240.00")
+        #expect(facts.company == "Apple")
         #expect(facts.status == "Executed")
+    }
+
+    @Test func aTradeWithNoFiguresFallsBackToTheRenderedDetail() async throws {
+        let items = await loadedItems()
+        var item = try #require(items.first { $0.kind == FeedKind.trade.rawValue })
+        item.usdcMicros = nil
+        item.tokenAmount = nil
+        item.tokenDecimals = nil
+        item.priceMicros = nil
+        item.assetName = nil
+        let facts = FeedAssetFacts(item, event: FeedEvent(item))
+        #expect(facts.detail == "Filled at $240.00")
         #expect(facts.amount == nil)
         #expect(facts.company == nil)
     }
 
-    @Test func aLiveProposalReadsItsStatusFromTheRenderedDetail() async throws {
+    @Test func aProposalReadsItsShareOfThePotAndItsStatus() async throws {
         let items = await loadedItems()
         let item = try #require(items.first { $0.kind == FeedKind.proposal.rawValue })
-        let facts = FeedAssetFacts(item, figures: nil, event: FeedEvent(item, figures: nil))
+        let facts = FeedAssetFacts(item, event: FeedEvent(item))
         #expect(facts.status == "Voting open")
-        #expect(facts.detail == nil)
+        #expect(facts.amount == "$400.00")
+        #expect(facts.detail == "2.00% of Big Ballers’s pot")
         #expect(facts.thesis?.hasPrefix("A small position") == true)
     }
 
-    @Test func fixtureFiguresFillTheBlockWithoutTouchingTheItem() async throws {
+    @Test func aProposalMadeBeforeTheShareShippedHasNoShareLine() async throws {
         let items = await loadedItems()
-        let figures = FeedModel.previewFigures(.items)
-        let item = try #require(items.first { $0.kind == FeedKind.trade.rawValue })
-        let facts = FeedAssetFacts(
-            item, figures: figures[item.id], event: FeedEvent(item, figures: figures[item.id]))
-        #expect(facts.amount == "$480.00")
-        #expect(facts.detail == "Sold 2 units · Avg $240.00")
-        #expect(facts.company == "Apple")
+        var item = try #require(items.first { $0.kind == FeedKind.proposal.rawValue })
+        item.shareOfPotBps = nil
+        #expect(FeedAssetFacts(item, event: FeedEvent(item)).detail == nil)
     }
 
-    @Test func aPriceMoveShowsTheChangeTheTitleStates() async throws {
+    @Test func aPriceMoveShowsTheChangeTheWireStates() async throws {
         let items = await loadedItems()
         var item = try #require(items.first { $0.kind == FeedKind.priceMove.rawValue })
-        item.title = "NVIDIA is up 4.18% today"
-        item.tone = "positive"
-        #expect(FeedPriceFacts.change(in: item) == "+4.18%")
-        item.title = "Tesla is down 6.2% today"
-        item.tone = "negative"
-        #expect(FeedPriceFacts.change(in: item) == "\u{2212}6.2%")
-        item.title = "Tesla is flat today"
-        item.tone = "neutral"
-        #expect(FeedPriceFacts.change(in: item) == nil)
-        #expect(FeedPriceFacts(item, figures: nil).volume == nil)
+        #expect(FeedPriceFacts(item).change == "+4.18%")
+        #expect(FeedPriceFacts(item).company == "NVIDIA")
+        item.changeBps = -620
+        #expect(FeedPriceFacts(item).change == "\u{2212}6.20%")
+        item.changeBps = nil
+        #expect(FeedPriceFacts(item).change == nil)
     }
 
     @Test func aReturnReadsAsOneMonthAndAHiddenOneAsPrivate() throws {

@@ -4,15 +4,15 @@ import SwiftUI
 
 enum FeedEvent: Equatable {
     enum Block: Equatable {
-        case asset(FeedFigures.Side)
+        case asset(FeedSide)
         case price
         case quote
         case cabal
     }
 
-    case proposal(FeedFigures.Side)
-    case trade(FeedFigures.Side)
-    case outcome(FeedFigures.Side)
+    case proposal(FeedSide)
+    case trade(FeedSide)
+    case outcome(FeedSide)
     case priceMove
     case cabal
     case discussion
@@ -21,8 +21,8 @@ enum FeedEvent: Equatable {
     static let discussionKind = "reply"
     static let outcomeKind = "threshold"
 
-    init(_ item: Components.Schemas.FeedItem, figures: FeedFigures?) {
-        let side = figures?.side ?? .buy
+    init(_ item: Components.Schemas.FeedItem) {
+        let side = FeedFigureFormat.side(item)
         switch item.kind {
         case FeedKind.proposal.rawValue: self = .proposal(side)
         case FeedKind.trade.rawValue: self = .trade(side)
@@ -91,16 +91,16 @@ struct FeedAssetFacts: Equatable {
     let status: String?
     let thesis: String?
 
-    init(_ item: Components.Schemas.FeedItem, figures: FeedFigures?, event: FeedEvent) {
+    init(_ item: Components.Schemas.FeedItem, event: FeedEvent) {
         ticker = AssetSymbolFormatter.display(item.symbol ?? "")
-        company = figures?.company
-        amount = figures?.amount
+        company = item.assetName
+        amount = FeedFigureFormat.amount(item)
         thesis = item.body.flatMap { $0.isEmpty ? nil : $0 }
         if case .trade = event {
-            detail = figures?.detail ?? item.detail.flatMap { $0.isEmpty ? nil : $0 }
+            detail = FeedFigureFormat.detail(item) ?? item.detail.flatMap { $0.isEmpty ? nil : $0 }
             status = "Executed"
         } else {
-            detail = figures?.detail
+            detail = FeedFigureFormat.detail(item)
             status = item.detail.flatMap { $0.isEmpty ? nil : $0 }
         }
     }
@@ -115,28 +115,15 @@ struct FeedPriceFacts: Equatable {
     let ticker: String
     let company: String?
     let change: String?
-    let volume: String?
 
-    init(_ item: Components.Schemas.FeedItem, figures: FeedFigures?) {
+    init(_ item: Components.Schemas.FeedItem) {
         ticker = AssetSymbolFormatter.display(item.symbol ?? "")
-        company = figures?.company
-        change = figures?.change ?? Self.change(in: item)
-        volume = figures?.volume
+        company = item.assetName
+        change = FeedFigureFormat.change(item)
     }
 
     var spoken: String {
-        [ticker, company, change.map { "\($0) in 24 hours" }, volume.map { "24 hour token volume \($0)" }]
-            .compactMap { $0 }.joined(separator: ", ")
-    }
-
-    static func change(in item: Components.Schemas.FeedItem) -> String? {
-        guard let range = item.title.range(of: #"\d+(\.\d+)?%"#, options: .regularExpression) else { return nil }
-        let percent = String(item.title[range])
-        switch item.tone {
-        case "positive": return "+" + percent
-        case "negative": return "\u{2212}" + percent
-        default: return nil
-        }
+        [ticker, company, change.map { "\($0) in 24 hours" }].compactMap { $0 }.joined(separator: ", ")
     }
 }
 
@@ -146,7 +133,7 @@ struct FeedReturnFacts: Equatable {
     let isPrivate: Bool
     let color: Color
 
-    init?(_ authorReturn: FeedFigures.AuthorReturn?) {
+    init?(_ authorReturn: FeedAuthorReturn?) {
         switch authorReturn {
         case .percent(let percent):
             text = "\(percent) · 1M"
@@ -165,8 +152,6 @@ struct FeedReturnFacts: Equatable {
 }
 
 struct FeedOpensSoonData {
-    var figures: [String: FeedFigures] = [:]
-    var commentReturns: [String: FeedFigures.AuthorReturn] = [:]
     var hasUnreadActivity = false
 
     static let none = FeedOpensSoonData()
