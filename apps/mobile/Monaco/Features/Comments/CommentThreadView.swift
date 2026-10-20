@@ -162,6 +162,7 @@ struct CommentRow: View {
                     .foregroundStyle(row.isDeleted ? MonacoTheme.secondaryText : MonacoTheme.bodyText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("comment-body-\(row.id)")
+                    .monacoPrivate()
                 if !row.isDeleted { replyButton }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -210,6 +211,7 @@ struct CommentRow: View {
                 .font(MonacoTheme.Typo.subheadStrong)
                 .foregroundStyle(MonacoTheme.primaryText)
                 .lineLimit(1)
+                .monacoPrivate()
         }
     }
 

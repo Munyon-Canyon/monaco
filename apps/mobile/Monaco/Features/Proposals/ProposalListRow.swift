@@ -47,7 +47,7 @@ struct ProposalListRowView: View {
     var body: some View {
         NavigationLink(value: AnyAppRoute(ProposalRoute(proposalID: row.id))) {
             MonacoRow(
-                title: row.title, subtitle: row.subtitle, chevron: true, isLast: isLast,
+                title: row.title, subtitle: row.subtitle, chevron: true, isLast: isLast, isPrivate: true,
                 leading: {
                     StockMark(
                         symbol: row.symbol, displayName: row.assetName, assetKind: row.kind,

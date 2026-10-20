@@ -62,7 +62,7 @@ struct CabalPotBand: View {
             }
         case .loaded(let summary):
             Text(summary.potValue)
-                .moneyFont(.hero)
+                .moneyFigure(.hero)
                 .foregroundStyle(MonacoTheme.primaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)

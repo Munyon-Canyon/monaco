@@ -85,6 +85,12 @@ extension View {
     }
 }
 
+extension View {
+    func moneyFigure(_ style: MoneyStyle, weight: Font.Weight? = nil) -> some View {
+        moneyFont(style, weight: weight).monacoPrivateFigure()
+    }
+}
+
 /// "$1,248.50" in tabular SF Pro. Rolls digits on change unless Reduce Motion is on.
 struct MoneyText: View {
     private let text: String
@@ -206,7 +212,7 @@ struct PnLBadge: View {
 
     var body: some View {
         Text(Self.label(dollarPnl: dollarPnl, percentReturn: percentReturn))
-            .moneyFont(style)
+            .moneyFigure(style)
             .foregroundStyle(PnLTone(dollarPnl: dollarPnl, percentReturn: percentReturn).color)
             .lineLimit(1)
             .minimumScaleFactor(0.8)
@@ -238,7 +244,7 @@ struct MoneyHero: View {
                 .font(MonacoTheme.Typo.subhead)
                 .foregroundStyle(MonacoTheme.secondaryText)
             Text(value)
-                .moneyFont(.hero)
+                .moneyFigure(.hero)
                 .foregroundStyle(MonacoTheme.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
@@ -247,7 +253,7 @@ struct MoneyHero: View {
                 .modifier(HeroTypeCap(isHero: true))
             (Text(change).foregroundStyle(PnLTone(dollarPnl: dollarChange ?? "0", percentReturn: percentChange).color)
                 + Text(" \(period)").foregroundStyle(MonacoTheme.secondaryText))
-                .moneyFont(.caption)
+                .moneyFigure(.caption)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
@@ -275,6 +281,7 @@ private struct MoneyFigure: View {
             .contentTransition(reduceMotion || value == nil ? .identity : .numericText(value: value ?? 0))
             .animation(reduceMotion ? nil : .snappy, value: text)
             .modifier(HeroTypeCap(isHero: style == .hero))
+            .monacoPrivateFigure()
     }
 }
 

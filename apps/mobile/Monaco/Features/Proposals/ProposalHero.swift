@@ -59,7 +59,7 @@ struct ProposalHero: View {
         if summary.kind == "sell" {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(ProposalCard.shareLabel(summary: summary, asset: asset))
-                    .moneyFont(.large)
+                    .moneyFigure(.large)
                     .foregroundStyle(MonacoTheme.ink)
                 if summary.quoteOutAmount > 0 {
                     Text("About \(UsdAmountFormatter.format(micros: summary.quoteOutAmount))")

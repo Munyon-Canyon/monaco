@@ -77,6 +77,7 @@ struct OutcomeView<Content: View>: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: OutcomeMetrics.messageWidth)
                 .padding(.top, MonacoTheme.Space.s)
+                .monacoPrivate()
             content
                 .frame(maxWidth: .infinity)
                 .padding(.top, MonacoTheme.Space.l)

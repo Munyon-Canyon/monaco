@@ -126,6 +126,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
     private let chevron: Bool
     private let isLast: Bool
     private let trailingIsInteractive: Bool
+    private let isPrivate: Bool
     private let leading: Leading
     private let trailing: Trailing
 
@@ -140,6 +141,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
         chevron: Bool = false,
         isLast: Bool = false,
         trailingIsInteractive: Bool = false,
+        isPrivate: Bool = false,
         @ViewBuilder leading: () -> Leading,
         @ViewBuilder trailing: () -> Trailing
     ) {
@@ -151,6 +153,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
         self.chevron = chevron
         self.isLast = isLast
         self.trailingIsInteractive = trailingIsInteractive
+        self.isPrivate = isPrivate
         self.leading = leading()
         self.trailing = trailing()
     }
@@ -171,6 +174,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
             title: title, titleFont: titleFont, titleColor: titleColor, subtitle: subtitle,
             subtitleColor: subtitleColor, layout: layout
         ) {}
+        .monacoPrivate(isPrivate)
     }
 
     /// Mark, then title over subtitle, then the figures. At accessibility text sizes the figures
@@ -326,6 +330,7 @@ extension MonacoRow where Trailing == EmptyView {
         subtitleColor: Color = MonacoTheme.secondaryText,
         chevron: Bool = false,
         isLast: Bool = false,
+        isPrivate: Bool = false,
         @ViewBuilder leading: () -> Leading
     ) {
         self.init(
@@ -337,6 +342,7 @@ extension MonacoRow where Trailing == EmptyView {
             subtitleColor: subtitleColor,
             chevron: chevron,
             isLast: isLast,
+            isPrivate: isPrivate,
             leading: leading,
             trailing: { EmptyView() }
         )

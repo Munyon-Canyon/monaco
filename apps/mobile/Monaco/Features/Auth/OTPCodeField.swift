@@ -37,6 +37,7 @@ struct OTPCodeField: View {
         }
         .contentShape(Rectangle())
         .onTapGesture { focus() }
+        .monacoPrivate()
         .onChange(of: code) { _, newValue in
             let sanitized = String(newValue.filter(\.isASCIIDigit).prefix(OTPCode.length))
             guard sanitized == newValue else {

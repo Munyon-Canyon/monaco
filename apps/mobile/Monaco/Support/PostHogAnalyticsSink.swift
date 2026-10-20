@@ -9,13 +9,31 @@ struct PostHogAnalyticsSink: AnalyticsSink {
         ["env": environment.rawValue]
     }
 
-    init(apiKey: String, environment: MonacoEnvironment) {
-        let config = PostHogConfig(projectToken: apiKey, host: Self.host)
+    static func recordsSessions(environment: MonacoEnvironment, replayEnabled: Bool) -> Bool {
+        replayEnabled && environment == .staging
+    }
+
+    static func makeConfig(apiKey: String, environment: MonacoEnvironment, replayEnabled: Bool) -> PostHogConfig {
+        let config = PostHogConfig(projectToken: apiKey, host: host)
         config.captureApplicationLifecycleEvents = true
         config.captureScreenViews = false
         config.captureElementInteractions = false
-        config.sessionReplay = false
+        config.sessionReplay = recordsSessions(environment: environment, replayEnabled: replayEnabled)
+        config.sessionReplayConfig.screenshotMode = true
+        config.sessionReplayConfig.screenshotModeBackgroundCapture = false
+        config.sessionReplayConfig.maskAllTextInputs = true
+        config.sessionReplayConfig.maskAllImages = true
+        config.sessionReplayConfig.maskAllSandboxedViews = true
+        config.sessionReplayConfig.captureNetworkTelemetry = false
+        config.sessionReplayConfig.captureLogs = false
         config.personProfiles = .identifiedOnly
+        return config
+    }
+
+    @MainActor
+    init(apiKey: String, environment: MonacoEnvironment, replayEnabled: Bool) {
+        let config = Self.makeConfig(apiKey: apiKey, environment: environment, replayEnabled: replayEnabled)
+        SessionReplayGate.isRecording = config.sessionReplay
         PostHogSDK.shared.setup(config)
         PostHogSDK.shared.register(Self.superProperties(for: environment))
     }
@@ -45,5 +63,22 @@ extension AnalyticsValue {
         case .double(let value): value
         case .bool(let value): value
         }
+    }
+}
+
+enum SessionReplayGate {
+    static var isRecording = false
+    private static var pauseDepth = 0
+
+    static func pause() {
+        pauseDepth += 1
+        guard isRecording, pauseDepth == 1 else { return }
+        PostHogSDK.shared.stopSessionRecording()
+    }
+
+    static func resume() {
+        pauseDepth = max(0, pauseDepth - 1)
+        guard isRecording, pauseDepth == 0 else { return }
+        PostHogSDK.shared.startSessionRecording(resumeCurrent: true)
     }
 }

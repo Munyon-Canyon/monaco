@@ -65,6 +65,7 @@ struct FriendsPersonRow: View {
                 chevron: true,
                 isLast: isLast,
                 trailingIsInteractive: isInteractive,
+                isPrivate: true,
                 leading: { MonacoAvatar(photoURL: person.photoURL, displayName: person.name, seed: person.id) },
                 trailing: { trailing }
             )

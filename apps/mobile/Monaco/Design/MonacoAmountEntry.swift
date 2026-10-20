@@ -86,6 +86,7 @@ struct AmountEntry<Accessory: View>: View {
                     .multilineTextAlignment(.center)
                     .padding(.bottom, MonacoTheme.Space.gutter)
                     .accessibilityIdentifier("amount-entry-caption")
+                    .monacoPrivate()
             }
             figure
             if let helperLine {
@@ -102,6 +103,7 @@ struct AmountEntry<Accessory: View>: View {
                         .contentTransition(.opacity)
                         .animation(reduceMotion ? nil : .snappy, value: helperLine)
                         .accessibilityIdentifier("amount-entry-helper")
+                        .monacoPrivate()
                 }
                 .padding(.top, MonacoTheme.Space.s)
             }
@@ -160,7 +162,7 @@ struct AmountEntry<Accessory: View>: View {
 
     private var keypadFigure: some View {
         Text(AmountEntryText.display(amountText))
-            .moneyFont(.hero)
+            .moneyFigure(.hero)
             .foregroundStyle(figureColor)
             .lineLimit(1)
             .minimumScaleFactor(0.4)
@@ -180,7 +182,7 @@ struct AmountEntry<Accessory: View>: View {
                 // `moneyFont` scales inside the view tree, so the cap below reaches the figure;
                 // a pre-scaled font would ignore it.
                 Text(AmountEntryText.display(amountText))
-                    .moneyFont(.hero)
+                    .moneyFigure(.hero)
                     .foregroundStyle(figureColor)
                     .lineLimit(1)
                     .minimumScaleFactor(0.4)

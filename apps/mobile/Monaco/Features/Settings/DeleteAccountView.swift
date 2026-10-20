@@ -134,7 +134,7 @@ struct DeleteAccountContent: View {
                             leading: { SunkenGlyphMark(systemImage: "arrow.up.right") },
                             trailing: {
                                 Text(amount)
-                                    .moneyFont(.row)
+                                    .moneyFigure(.row)
                                     .foregroundStyle(MonacoTheme.ink)
                             }
                         )

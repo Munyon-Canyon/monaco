@@ -182,9 +182,11 @@ private struct FeedPostHeader: View {
                     Text(name)
                         .font(MonacoTheme.Typo.headline)
                         .foregroundStyle(MonacoTheme.primaryText)
+                        .monacoPrivate()
                     Text(byline)
                         .font(MonacoTheme.Typo.caption)
                         .foregroundStyle(MonacoTheme.secondaryText)
+                        .monacoPrivate()
                 }
             }
             .frame(minHeight: FeedCardMetrics.authorRow)
@@ -250,6 +252,7 @@ private struct FeedPostSummary: View {
                         Text(amount)
                             .font(MonacoTheme.Typo.subhead)
                             .foregroundStyle(MonacoTheme.primaryText)
+                            .monacoPrivate()
                     }
                 })
         }

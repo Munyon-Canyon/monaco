@@ -437,6 +437,7 @@ struct WithdrawContent: View {
                         .frame(maxWidth: .infinity)
                         .padding(.top, MonacoTheme.Space.sm)
                         .accessibilityIdentifier("withdraw-receive")
+                        .monacoPrivate()
                 }
             }
             if let amountNotice {

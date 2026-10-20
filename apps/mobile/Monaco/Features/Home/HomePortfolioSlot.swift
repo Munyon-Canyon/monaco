@@ -126,7 +126,7 @@ private struct HomePortfolioHero: View {
 
     private func figure(_ text: String, color: Color = MonacoTheme.ink) -> some View {
         Text(text)
-            .moneyFont(.hero)
+            .moneyFigure(.hero)
             .foregroundStyle(color)
             .lineLimit(1)
             .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
@@ -223,7 +223,7 @@ private struct HomePortfolioHero: View {
     @ViewBuilder private func returnParts(_ figures: HomeHeroFigures) -> some View {
         if let percent = figures.percent {
             Text(percent)
-                .moneyFont(.row)
+                .moneyFigure(.row)
                 .foregroundStyle(color(figures.direction))
                 .lineLimit(1)
                 .fixedSize()

@@ -15,6 +15,11 @@ enum Config {
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
+    static var postHogSessionReplay: Bool {
+        let raw = Bundle.main.object(forInfoDictionaryKey: "POSTHOG_SESSION_REPLAY") as? String
+        return raw?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "true"
+    }
+
     static var isRunningTests: Bool {
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }

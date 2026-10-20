@@ -142,6 +142,7 @@ struct CommentComposer: View {
         .background(shape.fill(MonacoTheme.surfaceSunken))
         .overlay(shape.strokeBorder(MonacoTheme.border, lineWidth: 1))
         .accessibilityIdentifier("comment-composer-field")
+        .monacoPrivate()
     }
 
     private var sendButton: some View {

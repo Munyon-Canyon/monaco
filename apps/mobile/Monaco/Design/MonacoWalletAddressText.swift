@@ -52,6 +52,7 @@ struct MonacoWalletAddressText: View {
         .accessibilityElement()
         .accessibilityLabel(address)
         .accessibilityAddTraits(.isStaticText)
+        .monacoPrivate()
     }
 }
 

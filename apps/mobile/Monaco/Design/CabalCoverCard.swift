@@ -213,7 +213,7 @@ struct CabalCoverCard: View {
 
     private func figure(_ text: String?, style: MoneyStyle) -> some View {
         Text(text ?? "—")
-            .moneyFont(style)
+            .moneyFigure(style)
             .foregroundStyle(text == nil ? MonacoTheme.onCoverMuted : MonacoTheme.onCover)
             .lineLimit(1)
             .minimumScaleFactor(style.minimumScaleFactor)
@@ -253,12 +253,12 @@ struct CabalCoverCard: View {
         if let pnl = model.pnl {
             HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.xs) {
                 Text(pnl.amountText)
-                    .moneyFont(.row)
+                    .moneyFigure(.row)
                     .foregroundStyle(pnl.direction.onCoverColor)
                     .lineLimit(1)
                     .minimumScaleFactor(MoneyStyle.row.minimumScaleFactor)
                 Text(pnl.percentText)
-                    .moneyFont(.caption)
+                    .moneyFigure(.caption)
                     .foregroundStyle(pnl.direction.onCoverColor)
                     .lineLimit(1)
                     .minimumScaleFactor(MoneyStyle.caption.minimumScaleFactor)

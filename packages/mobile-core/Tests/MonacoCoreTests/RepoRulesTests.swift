@@ -284,6 +284,8 @@ enum RepoRules {
         DesignTokenRules.rowHeight,
         DesignTokenRules.compactTarget,
         DesignTokenRules.noWeightOnRole,
+        DesignTokenRules.unmaskedMoneyFont,
+        DesignTokenRules.directPostHogMask,
         RepoRule(
             name: "flow-switch",
             roots: productCode,
@@ -815,5 +817,26 @@ enum DesignTokenRules {
             ".font(MonacoTheme.Typo.subhead.weight(.bold).monospacedDigit())",
         ],
         passing: [".font(MonacoTheme.Typo.captionStrong)", ".font(.subheadline.weight(.semibold))"]
+    )
+
+    static let unmaskedMoneyFont = RepoRule(
+        name: "unmasked-money-font",
+        roots: ["apps/mobile/Monaco"],
+        pattern: #"\.moneyFont\("#,
+        message:
+            "A money figure uses moneyFigure(_:) so session replay masks it. moneyFont(_:) is for public market data, skeletons and dashes, and the row only shrinks.",
+        failing: [".moneyFont(.row)", "Text(value).moneyFont(.hero, weight: .bold)"],
+        passing: [".moneyFigure(.row)", "func moneyFont(_ style: MoneyStyle) -> some View {"],
+        applies: { path, _ in !path.hasPrefix("apps/mobile/Monaco/Design/") }
+    )
+
+    static let directPostHogMask = RepoRule(
+        name: "direct-posthog-mask",
+        roots: ["apps/mobile/Monaco"],
+        pattern: #"\.postHogMask\("#,
+        message: "Mask through .monacoPrivate() so one modifier owns what session replay hides.",
+        failing: [".postHogMask()", "SecretView().postHogMask(true)"],
+        passing: [".monacoPrivate()", "postHogMaskReporter"],
+        applies: { path, _ in !path.hasSuffix("/Design/MonacoPrivateData.swift") }
     )
 }

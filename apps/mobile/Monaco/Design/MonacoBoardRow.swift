@@ -146,6 +146,7 @@ struct BoardRow<Leading: View>: View {
                     .foregroundStyle(MonacoTheme.brandOnWash)
             }
         }
+        .monacoPrivate()
     }
 
     private var subline: String? {

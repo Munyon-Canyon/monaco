@@ -154,6 +154,7 @@ struct MonacoTextField: View {
                 .opacity(isOutlined && !isEnabled ? 0.5 : 1)
                 .accessibilityLabel(label ?? placeholder)
                 .accessibilityValue(isInvalid ? (errorMessage ?? "") : "")
+                .monacoPrivate()
         }
     }
 
@@ -223,6 +224,7 @@ struct MonacoAddressField: View {
                 )
             }
             .monacoFieldChrome(isFocused: isFocused, isInvalid: isInvalid, focus: { focusRequests += 1 })
+            .monacoPrivate()
         }
     }
 }

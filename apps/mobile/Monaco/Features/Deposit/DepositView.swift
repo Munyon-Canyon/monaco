@@ -530,6 +530,7 @@ struct DepositAddressCard: View {
     private func ready(_ address: String) -> some View {
         VStack(spacing: MonacoTheme.Space.m) {
             DepositQRCode(address: address, showsSolanaMark: network.isSolana, onCopy: onCopy)
+                .monacoPrivate()
                 .padding(.vertical, MonacoTheme.Space.m)
                 .frame(maxWidth: .infinity)
                 .background(

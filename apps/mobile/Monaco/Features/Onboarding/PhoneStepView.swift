@@ -121,6 +121,7 @@ private struct PhoneStepForm: View {
                             Task { await link() }
                         }
                         .focused($focused, equals: .code)
+                        .pausesSessionReplay()
                     } else {
                         numberField
                     }
@@ -166,6 +167,7 @@ private struct PhoneStepForm: View {
                 .font(MonacoTheme.Typo.callout)
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .accessibilityIdentifier("phone-step-sent-to")
+                .monacoPrivate()
         } else {
             Text(LinkCopy.phoneSubtext)
                 .font(MonacoTheme.Typo.callout)
@@ -190,6 +192,7 @@ private struct PhoneStepForm: View {
         )
         .disabled(model.isBusy)
         .accessibilityIdentifier("phone-step-number-field")
+        .monacoPrivate()
     }
 
     private var primaryAction: PhoneStepPrimary {

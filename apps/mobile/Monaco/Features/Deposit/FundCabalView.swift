@@ -351,6 +351,7 @@ struct FundCabalContent: View {
                             .font(MonacoTheme.Typo.caption)
                             .foregroundStyle(MonacoTheme.muted)
                             .accessibilityIdentifier("fund-cabal-cash-line")
+                            .monacoPrivate()
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
