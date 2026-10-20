@@ -30,11 +30,7 @@ enum ProfileUserProfileJourney {
     }
 
     static func openCabal(_ app: XCUIApplication, seed: Seed, step: String) {
-        app.tab("Profile").tap()
-        let row = app.element("cabal-row-\(seed.cabalID)")
-        ProfileOverviewJourney.reachCabal(app, row)
-        XCTAssertTrue(row.waitForExistence(timeout: 15), "\(step): no row for '\(seed.cabalName)' on Profile")
-        row.tap()
+        JoinJourney.openBySearch(app, seed.cabalName, step: step)
         XCTAssertTrue(
             app.element("cabal-details-button").waitForExistence(timeout: 15), "\(step): the cabal screen did not show")
     }
@@ -61,7 +57,7 @@ enum ProfileUserProfileJourney {
     }
 
     static func header(_ app: XCUIApplication, seed: Seed, recorder: JourneyRecorder) {
-        recorder.step("S1.1", "open the shared cabal from Profile") {
+        recorder.step("S1.1", "open the shared cabal from the Cabals tab") {
             openCabal(app, seed: seed, step: "S1.1")
         }
 

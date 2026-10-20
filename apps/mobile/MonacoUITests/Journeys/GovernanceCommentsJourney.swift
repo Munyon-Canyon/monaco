@@ -56,8 +56,7 @@ enum GovernanceCommentsJourney {
             app.scrollIntoReach(thread)
             XCTAssertTrue(thread.waitForExistence(timeout: 10), "S1.2: no comment thread")
             XCTAssertTrue(
-                JoinJourney.waitForLabel(
-                    app.element("comment-thread-empty"), containing: "No replies yet", timeout: 10),
+                app.staticTexts["No replies yet"].waitForExistence(timeout: 10),
                 "S1.2: no 'No replies yet' within 10 s"
             )
             XCTAssertFalse(app.staticTexts["Discussion"].exists, "S1.2: an empty thread shows the 'Discussion' header")

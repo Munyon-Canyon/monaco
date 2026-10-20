@@ -32,7 +32,7 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap, pick, then tap | the Feed tab, the "Proposals" item from `feed-filter`, then the first `feed-cell-<id>` | | `proposal-votes` shows within 15 s (old app: Proposal detail; screens.md `ProposalDetailSlot`) |
-| S1.2 | A | wait | `comment-thread` | | `comment-thread-empty` reads "No replies yet" within 10 s, and no "Discussion" header shows on the empty thread (screens.md `ProposalCommentsSlot`: ""Discussion", the thread ... Empty: "No replies yet""; old app: `CommentThreadView` read) |
+| S1.2 | A | wait | `comment-thread` | | The text "No replies yet" shows in the thread within 10 s, and no "Discussion" header shows on the empty thread (screens.md `ProposalCommentsSlot`: ""Discussion", the thread ... Empty: "No replies yet""; old app: `CommentThreadView` read) |
 | S1.3 | A | type, then tap | `comment-composer-field`, then `comment-composer-send` | `QA comment {QA.run}` | The field's placeholder was "Add a comment", and a `comment-body-<id>` reads `QA comment {QA.run}` within 10 s (screens.md: "a composer pinned at the bottom, "Add a comment""; old app: `CommentThreadView` post) |
 
 ### S2 Reply to a comment

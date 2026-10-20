@@ -79,7 +79,7 @@ enum CabalsDiscoverJourney {
 
         recorder.step("S2.4", "back on Discover the row is pending") {
             app.waitForToastGone()
-            app.buttons["BackButton"].tap()
+            app.tapBack()
             XCTAssertTrue(
                 app.element("cabals-search-requested").waitForExistence(timeout: 10),
                 "S2.4: the row does not read Request pending")

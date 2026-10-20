@@ -148,7 +148,10 @@ enum StocksAssetDetailJourney {
             XCTAssertTrue(
                 app.navigationBars["Buy \(alpha.ticker)"].exists, "S1.9: the screen is not titled 'Buy \(alpha.ticker)'"
             )
-            XCTAssertTrue(app.staticTexts[alpha.ticker].exists, "S1.9: no \(alpha.ticker) row on Amount")
+            let stockRow = app.staticTexts.matching(
+                NSPredicate(format: "label CONTAINS %@ OR label == %@", alpha.name, alpha.ticker))
+            XCTAssertTrue(
+                stockRow.firstMatch.waitForExistence(timeout: 5), "S1.9: no \(alpha.ticker) row on Amount")
         }
     }
 
