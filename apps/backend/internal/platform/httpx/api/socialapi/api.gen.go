@@ -688,7 +688,7 @@ type FeedItem struct {
 	// Examples: 01920000-0000-7000-8000-000000000007
 	Id openapi_types.UUID `json:"id"`
 
-	// Kind `proposal`, `trade`, `price_move`, `cabal_created` or `member_joined`.
+	// Kind `proposal`, `trade`, `price_move`, `cabal_created`, `member_joined`, `reply` or `threshold`. A `reply` is a comment on a proposal's feed item, with the comment text as `body` and the commenter as the actor. A `threshold` is a proposal that passed and awaits execution.
 	//
 	// Examples: trade
 	Kind string `json:"kind"`
@@ -718,7 +718,7 @@ type FeedItem struct {
 	// Examples: 200000000
 	PriceMicros *int64 `json:"price_micros"`
 
-	// ProposalId The proposal a proposal or trade item is about. Null on other kinds.
+	// ProposalId The proposal a proposal, trade, reply or threshold item is about. Null on other kinds.
 	//
 	// Examples: 01920000-0000-7000-8000-000000000009
 	ProposalId *openapi_types.UUID `json:"proposal_id"`
@@ -728,7 +728,7 @@ type FeedItem struct {
 	// Examples: 01920000-0000-7000-8000-000000000008
 	RefId openapi_types.UUID `json:"ref_id"`
 
-	// RefType The source the item points at, such as `swaps` for a trade.
+	// RefType The source the item points at, such as `swaps` for a trade, `feed_comments` for a reply (`ref_id` is the comment's id) or `proposals` for a proposal or a threshold item.
 	//
 	// Examples: swaps
 	RefType string `json:"ref_type"`
@@ -743,7 +743,7 @@ type FeedItem struct {
 	// Examples: false
 	ReturnPrivate bool `json:"return_private"`
 
-	// ShareOfPotBps A proposal's amount as basis points of the cabal pot when it was made. Null on other kinds and on proposals made before this field shipped.
+	// ShareOfPotBps A proposal's amount as basis points of the cabal pot when it was made, on a proposal, reply or threshold item. Null on other kinds and on proposals made before this field shipped.
 	//
 	// Examples: 1000
 	ShareOfPotBps *int64 `json:"share_of_pot_bps"`
@@ -791,7 +791,7 @@ type FeedItem struct {
 
 // FeedItemDetail One feed item, whether it passes the request's filters and whether the caller can comment on it.
 type FeedItemDetail struct {
-	// CanComment False on a proposal of a cabal the caller is not in, which only members can comment on. True otherwise.
+	// CanComment False on a proposal of a cabal the caller is not in, which only members can comment on, and on a reply or threshold item, which open the proposal instead. True otherwise.
 	//
 	// Examples: true
 	CanComment bool `json:"can_comment"`
@@ -1055,7 +1055,7 @@ type GetChatThreadParams struct {
 
 // GetFeedParams defines parameters for GetFeed.
 type GetFeedParams struct {
-	// Kind A comma-separated list of kinds to include: `proposal`, `trade`, `price_move`, `cabal_created` and `member_joined`. Absent includes every kind.
+	// Kind A comma-separated list of kinds to include: `proposal`, `trade`, `price_move`, `cabal_created`, `member_joined`, `reply` and `threshold`. Absent includes every kind.
 	Kind *string `form:"kind,omitempty" json:"kind,omitempty"`
 
 	// CabalId Include only items about this cabal.
@@ -1109,7 +1109,7 @@ type PutFeedLikeParams struct {
 
 // GetFeedItemParams defines parameters for GetFeedItem.
 type GetFeedItemParams struct {
-	// Kind A comma-separated list of kinds to include: `proposal`, `trade`, `price_move`, `cabal_created` and `member_joined`. Absent includes every kind.
+	// Kind A comma-separated list of kinds to include: `proposal`, `trade`, `price_move`, `cabal_created`, `member_joined`, `reply` and `threshold`. Absent includes every kind.
 	Kind *string `form:"kind,omitempty" json:"kind,omitempty"`
 
 	// CabalId Include only items about this cabal.

@@ -16,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
@@ -23,8 +24,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/feedtest"
 )
 
@@ -34,6 +37,7 @@ type commentFixture struct {
 	clock    *testkit.Clock
 	uow      *db.UnitOfWork
 	hints    *hintLog
+	users    *fakes.Identity
 	create   *app.CreateCommentHandler
 	remove   *app.DeleteCommentHandler
 	cabal    testkit.SeededCabal
@@ -47,14 +51,21 @@ func newCommentFixture(t *testing.T) commentFixture {
 	clk := testkit.NewClock(clock.Real{}.Now().UTC().Truncate(time.Microsecond))
 	uow := db.New(pool, g, clk)
 	hints := &hintLog{}
+	seeded := testkit.NewCabal(t, pool, testkit.WithMembers(2))
+	outsider := testkit.SeedUser(t, pool, testkit.UserOpts{}).ID
+	users := fakes.NewIdentity([]identity.UserCard{
+		{ID: seeded.Members[0].ID, Handle: "kai", DisplayName: "Kai"},
+		{ID: seeded.Members[1].ID, Handle: "lee"},
+		{ID: outsider, Handle: "mia", DisplayName: "Mia"},
+	}, nil)
 	deps := app.CommentDeps{
-		UoW: uow, Reads: pool, Members: cabal.New(module.Deps{Pool: pool}).Queries(), IDs: g, Clock: clk, Hints: hints,
+		UoW: uow, Reads: pool, Members: cabal.New(module.Deps{Pool: pool}).Queries(), Users: users, IDs: g,
+		Clock: clk, Hints: hints,
 	}
 	return commentFixture{
-		pool: pool, gen: g, clock: clk, uow: uow, hints: hints,
+		pool: pool, gen: g, clock: clk, uow: uow, hints: hints, users: users,
 		create: app.NewCreateCommentHandler(deps), remove: app.NewDeleteCommentHandler(deps),
-		cabal:    testkit.NewCabal(t, pool, testkit.WithMembers(2)),
-		outsider: testkit.SeedUser(t, pool, testkit.UserOpts{}).ID,
+		cabal: seeded, outsider: outsider,
 	}
 }
 
@@ -64,7 +75,9 @@ func (f commentFixture) item(t *testing.T, kind feed.Kind) uuid.UUID {
 		it.Kind, it.CabalID, it.ActorID = kind, f.cabal.ID, f.cabal.Creator.ID
 		if kind == feed.KindProposal {
 			it.Payload = feed.Payload{
-				CabalName: "Alpha Cabal", Symbol: "AAPLx", AssetName: "Apple", Action: feed.ActionBuy,
+				CabalName: "Alpha Cabal", ActorName: "Ada", Symbol: "AAPLx", AssetName: "Apple", Action: feed.ActionBuy,
+				USDCMicros: money.MicrosFromUint64(250_000_000), TokenAmount: 1_500_000, TokenDecimals: 6,
+				ShareOfPotBps: 1000,
 			}
 		}
 	})
@@ -260,7 +273,8 @@ func TestCreateComment_passesAMembershipLookupFailureThrough(t *testing.T) {
 	f := newCommentFixture(t)
 	boom := errs.New(errs.CodeUpstreamUnavailable, "test")
 	h := app.NewCreateCommentHandler(app.CommentDeps{
-		UoW: f.uow, Reads: f.pool, Members: failingMembers{boom}, IDs: f.gen, Clock: f.clock, Hints: f.hints,
+		UoW: f.uow, Reads: f.pool, Members: failingMembers{boom}, Users: f.users, IDs: f.gen, Clock: f.clock,
+		Hints: f.hints,
 	})
 	body, _ := domain.ParseCommentBody("hi")
 	_, err := h.Handle(t.Context(), app.CreateComment{

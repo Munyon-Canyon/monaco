@@ -154,8 +154,10 @@ func feedItemOf(row sqlc.ListFeedRow) (FeedItem, error) {
 		item.ChangeBps = &payload.ChangeBps
 		item.MarkMicros, item.PrevClose = payload.MarkMicros, payload.PrevClose
 	}
-	if kind == feed.KindProposal {
+	if kind == feed.KindProposal || kind == feed.KindReply || kind == feed.KindThreshold {
 		item.ShareOfPotBps = payload.ShareOfPotBps
+	}
+	if kind == feed.KindProposal || kind == feed.KindThreshold {
 		item.ProposalID = row.RefID
 	}
 	return item, nil

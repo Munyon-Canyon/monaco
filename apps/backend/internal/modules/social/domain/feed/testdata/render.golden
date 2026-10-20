@@ -20,4 +20,8 @@ cabal_created	alice started Alpha Cabal		neutral
 cabal_created_no_actor	Alpha Cabal is a new cabal		neutral
 member_joined	bob joined Alpha Cabal		neutral
 member_joined_no_actor	A new member joined Alpha Cabal		neutral
+reply	bob replied to alice's proposal	AAPLx · Replied to the proposal	neutral
+reply_no_names	A member replied to A member's proposal	Replied to the proposal	neutral
+threshold_buy	alice's proposal to buy $250.00 of Microsoft was approved	Execution pending	neutral
+threshold_sell_no_actor	A member's proposal to sell NVDAx was approved	Execution pending	neutral
 unknown_kind			neutral

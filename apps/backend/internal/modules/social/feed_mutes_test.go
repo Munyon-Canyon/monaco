@@ -92,8 +92,11 @@ func TestFeedQuery_ScopeMine(t *testing.T) {
 	mine := f.item(t, in(alpha))
 	elsewhere := f.item(t, in(bravo))
 	f.item(t, in(alpha), func(it *feed.Item) { it.Kind = feed.KindPriceMove })
+	kindIn := func(k feed.Kind) func(*feed.Item) { return func(it *feed.Item) { it.Kind = k } }
+	reply := f.item(t, in(alpha), kindIn(feed.KindReply))
+	threshold := f.item(t, in(alpha), kindIn(feed.KindThreshold))
 	noCabal := f.item(t)
-	all := []uuid.UUID{mine, elsewhere, noCabal}
+	all := []uuid.UUID{mine, elsewhere, noCabal, reply, threshold}
 	filter := app.FeedFilter{Scope: feed.ScopeMine}
 	check := func(step string, want []uuid.UUID) {
 		t.Helper()
@@ -104,7 +107,7 @@ func TestFeedQuery_ScopeMine(t *testing.T) {
 	}
 	check("before joining", nil)
 	f.membership(t, alpha, viewer, true)
-	check("after a join", []uuid.UUID{mine})
+	check("after a join", []uuid.UUID{mine, reply, threshold})
 	f.membership(t, alpha, viewer, false)
 	check("after a leave", nil)
 }

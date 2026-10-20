@@ -127,13 +127,13 @@ func (q *Queries) HideFeedCabal(ctx context.Context, arg HideFeedCabalParams) (i
 
 const insertFeedConsumerItem = `-- name: InsertFeedConsumerItem :exec
 INSERT INTO feed_objects (
-  id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, asset_id, symbol, title, payload, status,
+  id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, asset_id, symbol, title, body, payload, status,
   created_at, updated_at
 )
 VALUES (
   $1, $2, $3, $4, $5, $6,
-  $7, $8, $9, $10, $11,
-  $12, $13, $13
+  $7, $8, $9, $10, $11, $12,
+  $13, $14, $14
 )
 ON CONFLICT (ref_type, ref_id, kind) DO NOTHING
 `
@@ -149,6 +149,7 @@ type InsertFeedConsumerItemParams struct {
 	AssetID   pgtype.UUID
 	Symbol    pgtype.Text
 	Title     string
+	Body      pgtype.Text
 	Payload   []byte
 	Status    pgtype.Text
 	At        time.Time
@@ -166,6 +167,7 @@ func (q *Queries) InsertFeedConsumerItem(ctx context.Context, arg InsertFeedCons
 		arg.AssetID,
 		arg.Symbol,
 		arg.Title,
+		arg.Body,
 		arg.Payload,
 		arg.Status,
 		arg.At,

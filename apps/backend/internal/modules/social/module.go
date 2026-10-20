@@ -147,8 +147,8 @@ func (m *Module) http() adapters.HTTP {
 		Publish: app.NewChatPublisher(m.realtime, adapters.ChatWire(m.users)),
 	}
 	comments := app.CommentDeps{
-		UoW: m.deps.UoW, Reads: m.deps.Pool, Members: m.members, IDs: m.deps.IDs, Clock: m.deps.Clock,
-		Hints: m.deps.Bus,
+		UoW: m.deps.UoW, Reads: m.deps.Pool, Members: m.members, Users: m.users, IDs: m.deps.IDs,
+		Clock: m.deps.Clock, Hints: m.deps.Bus,
 	}
 	likes := app.LikeDeps{UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, Hints: m.deps.Bus}
 	return adapters.HTTP{

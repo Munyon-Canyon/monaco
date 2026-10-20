@@ -94,6 +94,18 @@ func renderCases() []renderCase {
 		{"cabal_created_no_actor", feed.KindCabalCreated, feed.Payload{CabalName: alpha}},
 		{"member_joined", feed.KindMemberJoined, feed.Payload{CabalName: alpha, ActorName: "bob"}},
 		{"member_joined_no_actor", feed.KindMemberJoined, feed.Payload{CabalName: alpha}},
+		{"reply", feed.KindReply, feed.Payload{
+			CabalName: alpha, ActorName: "bob", ProposerName: "alice", Symbol: "AAPLx", AssetName: "Apple",
+			Action: feed.ActionBuy, USDCMicros: usd(500_000_000),
+		}},
+		{"reply_no_names", feed.KindReply, feed.Payload{CabalName: alpha}},
+		{"threshold_buy", feed.KindThreshold, feed.Payload{
+			CabalName: alpha, ActorName: "alice", Symbol: "MSFTx", AssetName: "Microsoft", Action: feed.ActionBuy,
+			USDCMicros: usd(250_000_000), Status: "passed",
+		}},
+		{"threshold_sell_no_actor", feed.KindThreshold, feed.Payload{
+			CabalName: alpha, Symbol: "NVDAx", Action: feed.ActionSell,
+		}},
 		{"unknown_kind", feed.Kind("news"), feed.Payload{Symbol: "AAPLx", ChangeBps: 100}},
 	}
 }

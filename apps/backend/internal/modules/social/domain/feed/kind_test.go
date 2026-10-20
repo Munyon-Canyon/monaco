@@ -30,6 +30,8 @@ func TestKindRefType_namesTheSourceTableOfEachKind(t *testing.T) {
 		feed.KindPriceMove:    feed.RefAssetPriceMoves,
 		feed.KindCabalCreated: feed.RefCabals,
 		feed.KindMemberJoined: feed.RefCabalMembers,
+		feed.KindReply:        feed.RefFeedComments,
+		feed.KindThreshold:    feed.RefProposals,
 	}
 	if len(want) != len(feed.Kinds()) {
 		t.Fatalf("table covers %d kinds, want %d", len(want), len(feed.Kinds()))
