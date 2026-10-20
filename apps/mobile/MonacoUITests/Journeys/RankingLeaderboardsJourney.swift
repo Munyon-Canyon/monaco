@@ -58,6 +58,8 @@ enum RankingLeaderboardsJourney {
     }
 
     static func viewAll(_ app: XCUIApplication, recorder: JourneyRecorder) {
+        var homeCategory = ""
+        var homePeriod = ""
         recorder.step("S4.1", "View all opens the Leaderboard") {
             app.tab("Home").tap()
             let header = text(app, "Leaderboard")
@@ -65,6 +67,8 @@ enum RankingLeaderboardsJourney {
             XCTAssertTrue(header.waitForExistence(timeout: 15), "S4.1: no \"Leaderboard\" on Home within 15 s")
             let viewAll = app.buttons["View all"].firstMatch
             XCTAssertTrue(viewAll.waitForExistence(timeout: 10), "S4.1: no \"View all\" under the Leaderboard")
+            homeCategory = app.element("home-leaderboard-category").label
+            homePeriod = app.element("home-leaderboard-period").label
             viewAll.tap()
             XCTAssertTrue(
                 app.element("leaderboard-page").waitForExistence(timeout: 15),
@@ -75,12 +79,16 @@ enum RankingLeaderboardsJourney {
         recorder.step("S4.2", "the Leaderboard tools and rows") {
             XCTAssertTrue(
                 app.element("leaderboard-category").waitForExistence(timeout: 10), "S4.2: no leaderboard-category")
-            XCTAssertTrue(
-                app.element("leaderboard-category").label.contains("Cabals"), "S4.2: the category is not Cabals")
-            XCTAssertTrue(app.element("leaderboard-period").label.contains("1M"), "S4.2: the period is not 1M")
+            let board = app.element("leaderboard-category").label
+            let range = app.element("leaderboard-period").label
+            XCTAssertTrue(board == homeCategory, "S4.2: the page reads '\(board)', Home read '\(homeCategory)'")
+            XCTAssertTrue(range == homePeriod, "S4.2: the page reads '\(range)', Home read '\(homePeriod)'")
             let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'leaderboard-row-'"))
+            let outcomes = [app.element("leaderboard-empty"), app.element("leaderboard-stale")]
             XCTAssertTrue(
-                ProfileOverviewJourney.waitUntil(15) { rows.count > 0 || app.element("leaderboard-empty").exists },
+                ProfileOverviewJourney.waitUntil(15) {
+                    rows.count > 0 || outcomes.contains { $0.exists }
+                },
                 "S4.2: the Leaderboard shows no rows and no empty copy")
         }
     }

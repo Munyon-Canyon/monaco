@@ -48,7 +48,7 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S4.1 | A | tap | the Home tab, then "View all" under "Leaderboard" | | `leaderboard-page` shows within 15 s, with the inline title "Leaderboard" (screens.md Leaderboard: the standalone page; Home's "View all" opens it) |
-| S4.2 | A | read | `leaderboard-category`, `leaderboard-period` | | The category menu reads "Cabals" and the period menu reads "1M" within 10 s, and ranked `leaderboard-row-<id>` rows show, or `leaderboard-empty` "No eligible rankings" does (screens.md Leaderboard: tools, rows and the empty state) |
+| S4.2 | A | read | `leaderboard-category`, `leaderboard-period` | | The category menu and the period menu read what Home's Leaderboard card read when "View all" was tapped (`home-leaderboard-category`, `home-leaderboard-period`) within 10 s, and ranked `leaderboard-row-<id>` rows show, or `leaderboard-empty` "No eligible rankings" or `leaderboard-stale` "Rankings paused while valuations update." does (screens.md Leaderboard: tools, rows and the empty state) |
 
 ## Ground truth
 
