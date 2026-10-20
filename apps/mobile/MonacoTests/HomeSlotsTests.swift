@@ -1,3 +1,4 @@
+import MonacoCore
 import Testing
 
 @testable import Monaco
@@ -23,5 +24,14 @@ struct HomeSlotsTests {
             HomeMarketUpdatesSlot.self,
         ]
         #expect(order == expected.map { ObjectIdentifier($0) })
+    }
+
+    @Test func viewAllOpensTheLeaderboardOnTheCardsBoardAndRange() {
+        #expect(
+            HomeLeaderboardCategory.cabals.viewAllRoute(range: .oneWeek)
+                == LeaderboardRoute(board: .cabals, range: .oneWeek))
+        #expect(
+            HomeLeaderboardCategory.people.viewAllRoute(range: .all)
+                == LeaderboardRoute(board: .people, range: .all))
     }
 }

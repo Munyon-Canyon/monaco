@@ -14,6 +14,6 @@ index e6c4bd8b1..6e5b56669 100644
          VStack(alignment: .leading, spacing: 0) {
 -            MonacoSectionHeader("Leaderboard", trailing: "View all") {
 +            MonacoSectionHeader("Leaders", trailing: "View all") {
-                 environment.navigator.open(HomeLeaderboardStubRoute(), in: .home)
+                 environment.navigator.open(category.viewAllRoute(range: range), in: .home)
              }
              .padding(.horizontal, MonacoTheme.Space.gutter)

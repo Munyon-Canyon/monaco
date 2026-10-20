@@ -33,6 +33,13 @@ enum HomeLeaderboardCategory: Hashable, CaseIterable {
         case .people: "Personal P&L"
         }
     }
+
+    func viewAllRoute(range: LeaderboardRange) -> LeaderboardRoute {
+        switch self {
+        case .cabals: LeaderboardRoute(board: .cabals, range: range)
+        case .people: LeaderboardRoute(board: .people, range: range)
+        }
+    }
 }
 
 enum HomeLeaderboardMetrics {
@@ -92,7 +99,7 @@ private struct HomeLeaderboard: View {
         let gate = HomeGate(portfolio: portfolio, reads: reads, balance: environment.balance.state)
         VStack(alignment: .leading, spacing: 0) {
             MonacoSectionHeader("Leaderboard", trailing: "View all") {
-                environment.navigator.open(HomeLeaderboardStubRoute(), in: .home)
+                environment.navigator.open(category.viewAllRoute(range: range), in: .home)
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
             tools
