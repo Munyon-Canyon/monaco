@@ -2,6 +2,7 @@ import MonacoAPI
 import MonacoCore
 import SwiftUI
 import Testing
+import UIKit
 
 @testable import Monaco
 
@@ -75,6 +76,25 @@ struct ProfileIdentityTests {
                 == .figure(dollars: "+$984.00", percent: "+8.20%"))
         #expect(IdentityPerformance(.hidden) == .hidden)
         #expect(IdentityPerformance(.unavailable) == .notRanked)
+    }
+
+    private func cardHeight(_ performance: IdentityPerformance, positions: String?) -> CGFloat {
+        let model = IdentityCardModel(
+            displayName: "Alex", positionsValue: positions, performance: performance, periodText: "1M")
+        let card = IdentityCard(model: model) {
+            Color.clear.frame(width: 64, height: 64)
+        } share: {
+            EmptyView()
+        }
+        return UIHostingController(rootView: card)
+            .sizeThatFits(in: CGSize(width: 358, height: CGFloat.greatestFiniteMagnitude)).height
+    }
+
+    @Test func theOneMonthDollarsAndPercentShareALine() {
+        let figure = IdentityPerformance.figure(dollars: "+$1,234.56", percent: "+12.30%")
+        for positions in [nil, "$12,345.67"] {
+            #expect(cardHeight(figure, positions: positions) == cardHeight(.hidden, positions: positions))
+        }
     }
 
     @Test func theFullScreenErrorNeedsNoProfileAndNoLoadInFlight() {

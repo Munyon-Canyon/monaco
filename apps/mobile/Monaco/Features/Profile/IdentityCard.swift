@@ -220,15 +220,7 @@ private struct IdentityStats: View {
         case .figure(let dollars, let percent):
             let tone = dollars.hasPrefix("−") ? MonacoTheme.lossOnIdentity : MonacoTheme.profitOnIdentity
             IdentityStatColumn(label: label, spoken: "\(PnLSpeech.dollars(dollars)), \(PnLSpeech.percent(percent))") {
-                Text(dollars)
-                    .moneyFont(.card)
-                    .foregroundStyle(tone)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.5)
-                Text(percent)
-                    .moneyFont(.caption)
-                    .foregroundStyle(MonacoTheme.onIdentityMuted)
-                    .lineLimit(1)
+                IdentityPerformanceLine(dollars: dollars, percent: percent, tone: tone)
             }
         case .hidden:
             IdentityStatColumn(label: label, spoken: "Private") {
@@ -249,6 +241,43 @@ private struct IdentityStats: View {
         case .failed:
             IdentityStatColumn(label: label, spoken: "unavailable") { dash }
         }
+    }
+}
+
+private struct IdentityPerformanceLine: View {
+    let dollars: String
+    let percent: String
+    let tone: Color
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            ViewThatFits(in: .horizontal) {
+                line
+                VStack(alignment: .leading, spacing: 0) { figures }
+            }
+        } else {
+            line
+        }
+    }
+
+    private var line: some View {
+        HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.xs) { figures }
+    }
+
+    @ViewBuilder private var figures: some View {
+        Text(dollars)
+            .moneyFont(.card)
+            .foregroundStyle(tone)
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+            .layoutPriority(1)
+        Text(percent)
+            .moneyFont(.caption)
+            .foregroundStyle(tone)
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
     }
 }
 
