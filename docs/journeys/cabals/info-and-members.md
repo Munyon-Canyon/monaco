@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/CabalsInfoAndMembersJourney.swift,
 
 # Cabal information and Members & voters
 
-A cabal's creator taps the information round on the cabal screen, opens Members & voters from the information screen, reads who is in and who votes, then picks the second member as a voter and saves. [cabals/edit-rules](edit-rules.md) covers the rules on the information screen and picking voters inside Cabal settings, so this journey is the Members & voters screen and its "Choose voters" sheet. The spec is [Cabal information](../../screens.md#cabal-information-cabalinforoute) and [Members & voters](../../screens.md#members--voters-membersroute). The rules are [Cabals](../../architecture/cabals.md#rules).
+A cabal's creator taps the information round on the cabal screen, opens Members & voters from the information screen, reads who is in and who votes, then picks the second member as a voter and saves. [cabals/edit-rules](edit-rules.md) covers the rules on the information screen and picking voters inside Cabal settings, so this journey is the Members & voters screen and its "Choose voters" sheet. The spec is [Cabal information](../../screens.md#cabal-information-cabalinforoute) and [Members & voters](../../screens.md#members-voters-membersroute). The rules are [Cabals](../../architecture/cabals.md#rules).
 
 The format of this doc is in [App journeys](../README.md).
 
