@@ -119,10 +119,14 @@ private struct ProposeSampleScreen: View {
     private func amount(seed: ProposeAmountSeed) -> some View {
         var screen = ProposeAmountScreen(
             service: MonacoCore.LiveProposeService(api: environment.api), cabalID: GroupDetailSampleData.cabalID,
-            stock: ProposeStock(symbol: "GOOGLx"), bestChains: environment.bestChains)
+            stock: ProposeStock(symbol: "GOOGLx", logoURL: ProposeSampleLogo.url), bestChains: environment.bestChains)
         screen.seed = seed
         return screen
     }
+}
+
+private enum ProposeSampleLogo {
+    static let url = URL(string: "https://logos.example/GOOGLx.png")
 }
 
 final class ProposeSampleHarnessEntry: SampleHarnessEntry {
@@ -177,7 +181,8 @@ struct ProposeReviewSample: View {
                 ProposeReviewSheet(
                     service: service, cabalID: GroupDetailSampleData.cabalID, draft: draft,
                     preview: MonacoCore.ProposePreview(.proposalPreviewClean), trade: trade,
-                    buyName: kind == .buy ? "Alphabet" : nil, memory: memory, sendsOnAppear: sends)
+                    buyName: kind == .buy ? "Alphabet" : nil, logoURL: ProposeSampleLogo.url, memory: memory,
+                    sendsOnAppear: sends)
             }
     }
 

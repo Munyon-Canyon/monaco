@@ -118,7 +118,7 @@ struct ProposeBuyStockView: View {
                     ProposeBuyStockSelection.select(asset, pick: { picked = $0 })
                 } label: {
                     ProposeStockRow(
-                        stock: ProposeStock(listing: asset), logoURL: asset.logoURL,
+                        stock: ProposeStock(listing: asset),
                         isLast: index == assets.count - 1)
                 }
                 .buttonStyle(.monacoRow)
@@ -136,7 +136,8 @@ enum ProposeBuyStockSelection {
         pick(
             ProposeStock(
                 symbol: asset.symbol, name: asset.name, priceMicros: asset.priceMicros,
-                isTradable: asset.isTradable, isQuotable: asset.isQuotable, assetKind: asset.kind
+                isTradable: asset.isTradable, isQuotable: asset.isQuotable, assetKind: asset.kind,
+                logoURL: asset.logoURL
             ))
     }
 }
@@ -146,7 +147,8 @@ extension ProposeStock {
         self.init(
             symbol: asset.symbol, name: asset.name, priceMicros: asset.priceMicros,
             change24h: asset.changeBasisPoints.map(Self.ratio(basisPoints:)),
-            isTradable: asset.isTradable, isQuotable: asset.isQuotable, assetKind: asset.kind)
+            isTradable: asset.isTradable, isQuotable: asset.isQuotable, assetKind: asset.kind,
+            logoURL: asset.logoURL)
     }
 
     private static func ratio(basisPoints: Int64) -> String {

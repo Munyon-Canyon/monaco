@@ -16,17 +16,19 @@ struct ProposeReviewScreen: View {
     private let trade: MonacoCore.ProposeTrade
     private let buyName: String?
     private let bestChain: MonacoCore.AssetBestChain?
+    private let logoURL: URL?
     private let memory: MonacoCore.ProposeReviewMemory
     private let sendsOnAppear: Bool
 
     init(
         service: MonacoCore.ProposeService, cabalID: String, draft: MonacoCore.ProposalDraft,
         preview: MonacoCore.ProposePreview, trade: MonacoCore.ProposeTrade, buyName: String? = nil,
-        bestChain: MonacoCore.AssetBestChain? = nil, memory: MonacoCore.ProposeReviewMemory,
+        bestChain: MonacoCore.AssetBestChain? = nil, logoURL: URL? = nil, memory: MonacoCore.ProposeReviewMemory,
         isSending: Binding<Bool> = .constant(false), sendsOnAppear: Bool = false
     ) {
         self.buyName = buyName
         self.bestChain = bestChain
+        self.logoURL = logoURL
         self.memory = memory
         self.sendsOnAppear = sendsOnAppear
         self.service = service
@@ -86,7 +88,7 @@ struct ProposeReviewScreen: View {
     private func form(_ model: MonacoCore.ProposeReviewModel) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-                ProposeReviewHero(model: model, markSize: ProposeAmountScreen.markSize)
+                ProposeReviewHero(model: model, markSize: ProposeAmountScreen.markSize, logoURL: logoURL)
                 Text(model.cabal.name)
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.brand)
@@ -189,11 +191,13 @@ struct ProposeReviewScreen: View {
 private struct ProposeReviewHero: View {
     let model: MonacoCore.ProposeReviewModel
     let markSize: CGFloat
+    let logoURL: URL?
 
     var body: some View {
         HStack(spacing: MonacoTheme.Space.sm) {
             StockMark(
-                symbol: model.symbol, displayName: model.assetDisplayName, assetKind: model.assetKind, size: markSize)
+                symbol: model.symbol, displayName: model.assetDisplayName, assetKind: model.assetKind, size: markSize,
+                logoURL: logoURL)
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(model.operationLine).font(MonacoTheme.Typo.body).foregroundStyle(MonacoTheme.ink)
                 Text(model.heroAmount)

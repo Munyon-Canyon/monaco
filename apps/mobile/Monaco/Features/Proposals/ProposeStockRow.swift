@@ -2,7 +2,6 @@ import SwiftUI
 
 struct ProposeStockRow: View {
     let stock: ProposeStock
-    var logoURL: URL?
     var isLast = false
 
     var body: some View {
@@ -12,7 +11,7 @@ struct ProposeStockRow: View {
         ) {
             StockMark(
                 symbol: stock.symbol, displayName: stock.name, assetKind: stock.assetKind,
-                size: MonacoRowLayout.baseMarkSize, logoURL: logoURL)
+                size: MonacoRowLayout.baseMarkSize, logoURL: stock.logoURL)
         } trailing: {
             if stock.isPaused { PausedTag() }
         }

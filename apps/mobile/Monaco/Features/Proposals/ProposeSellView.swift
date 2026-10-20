@@ -10,6 +10,7 @@ struct ProposeSellView: View {
     @Environment(\.hostMainTab) private var hostMainTab
     @State private var context = MonacoCore.ProposeCabalContext()
     @State private var picked: ProposeHolding?
+    @State private var logos: [String: URL] = [:]
     @State private var didOpenInitialSymbol = false
     @State private var query = ""
     @State private var sort = ProposeSort.volume
@@ -28,7 +29,7 @@ struct ProposeSellView: View {
             if let pot {
                 ProposeAmountScreen(
                     service: LiveProposeService(api: environment.api), cabalID: pot.cabalID,
-                    stock: ProposeStock(holding: holding), trade: .sell(holding))
+                    stock: ProposeStock(holding: holding, logoURL: logos[holding.symbol]), trade: .sell(holding))
             }
         }
         .onChange(of: pot?.summary?.sellable, initial: true) { _, holdings in
@@ -37,6 +38,10 @@ struct ProposeSellView: View {
             picked = holdings.first { $0.symbol.caseInsensitiveCompare(initialSymbol) == .orderedSame }
         }
         .task { await context.load(api: environment.api, cabalID: pot?.cabalID ?? "") }
+        .task(id: pot?.summary?.sellable) {
+            guard let holdings = pot?.summary?.sellable else { return }
+            logos = await environment.assetLogos.logos(for: holdings.map(\.symbol))
+        }
         .accessibilityIdentifier("propose-sell")
     }
 
@@ -87,7 +92,9 @@ struct ProposeSellView: View {
                                 Button {
                                     picked = holding
                                 } label: {
-                                    ProposeHoldingRow(holding: holding, isLast: holding.id == shown.last?.id)
+                                    ProposeHoldingRow(
+                                        holding: holding, logoURL: logos[holding.symbol],
+                                        isLast: holding.id == shown.last?.id)
                                 }
                                 .buttonStyle(.monacoRow)
                                 .accessibilityIdentifier("propose-sell-\(holding.symbol)")
@@ -112,6 +119,7 @@ struct ProposeSellView: View {
 
 private struct ProposeHoldingRow: View {
     let holding: ProposeHolding
+    let logoURL: URL?
     let isLast: Bool
 
     var body: some View {
@@ -121,14 +129,15 @@ private struct ProposeHoldingRow: View {
         ) {
             StockMark(
                 symbol: holding.symbol, displayName: holding.name, assetKind: holding.kind,
-                size: MonacoRowLayout.baseMarkSize)
+                size: MonacoRowLayout.baseMarkSize, logoURL: logoURL)
         }
     }
 }
 
 extension ProposeStock {
-    init(holding: ProposeHolding) {
+    init(holding: ProposeHolding, logoURL: URL? = nil) {
         self.init(
-            symbol: holding.symbol, name: holding.name, priceMicros: holding.priceMicros, assetKind: holding.kind)
+            symbol: holding.symbol, name: holding.name, priceMicros: holding.priceMicros, assetKind: holding.kind,
+            logoURL: logoURL)
     }
 }

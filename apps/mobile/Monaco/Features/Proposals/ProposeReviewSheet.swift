@@ -10,13 +10,14 @@ struct ProposeReviewSheet: View {
     private let trade: MonacoCore.ProposeTrade
     private let buyName: String?
     private let bestChain: MonacoCore.AssetBestChain?
+    private let logoURL: URL?
     private let memory: MonacoCore.ProposeReviewMemory
     private let sendsOnAppear: Bool
 
     init(
         service: MonacoCore.ProposeService, cabalID: String, draft: MonacoCore.ProposalDraft,
         preview: MonacoCore.ProposePreview, trade: MonacoCore.ProposeTrade, buyName: String? = nil,
-        bestChain: MonacoCore.AssetBestChain? = nil, memory: MonacoCore.ProposeReviewMemory,
+        bestChain: MonacoCore.AssetBestChain? = nil, logoURL: URL? = nil, memory: MonacoCore.ProposeReviewMemory,
         sendsOnAppear: Bool = false
     ) {
         self.service = service
@@ -26,6 +27,7 @@ struct ProposeReviewSheet: View {
         self.trade = trade
         self.buyName = buyName
         self.bestChain = bestChain
+        self.logoURL = logoURL
         self.memory = memory
         self.sendsOnAppear = sendsOnAppear
     }
@@ -33,7 +35,7 @@ struct ProposeReviewSheet: View {
     var body: some View {
         ProposeReviewScreen(
             service: service, cabalID: cabalID, draft: draft, preview: preview, trade: trade, buyName: buyName,
-            bestChain: bestChain, memory: memory, isSending: $isSending, sendsOnAppear: sendsOnAppear
+            bestChain: bestChain, logoURL: logoURL, memory: memory, isSending: $isSending, sendsOnAppear: sendsOnAppear
         )
         .monacoSheet(
             title: ProposeFlowCopy.reviewProposal, titleIdentifier: "propose-review-sheet", detents: .review,
