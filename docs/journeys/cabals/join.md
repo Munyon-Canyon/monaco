@@ -17,7 +17,7 @@ The copy is [Join a cabal](../../screens.md#cabals-tab) and the [Cabal screen](.
 
 The format of this doc is in [App journeys](../README.md).
 
-Discover cabals is where `cabals-search-field` lives. A step that says "Discover cabals" reaches it from the Cabals tab by typing a name the actor has no cabal called, such as `zzqq`, in `cabals-filter-field` ("Find your cabals"), then tapping `cabals-search-public` ("Search public cabals"), which pushes Discover cabals with that text in `cabals-search-field`; an actor with no cabals taps "Explore cabals" instead. The step then replaces the text in `cabals-search-field`.
+Discover cabals is where `cabals-search-field` lives. A step that says "Discover cabals" reaches it from the Cabals tab by typing a name the actor has no cabal called, such as `zzqq`, in `cabals-filter-field` ("Find or search cabals"), then tapping `cabals-search-public` ("Search public cabals for …") or pressing the keyboard Search key, which pushes Discover cabals with that text in `cabals-search-field`; an actor with no cabals taps "Explore cabals" instead. The step then replaces the text in `cabals-search-field`.
 
 ## Preconditions
 

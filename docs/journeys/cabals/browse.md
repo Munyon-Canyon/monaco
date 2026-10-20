@@ -1,7 +1,7 @@
 ---
 id: cabals/browse
 title: Browse and search cabals
-version: 6
+version: 7
 milestone: M10
 requires: [auth/sign-in]
 actors: [A]
@@ -17,7 +17,7 @@ Old app (`c838bd24`): the Cabals tab (`Groups/CabalsTabView.swift`): "Your cabal
 
 The format of this doc is in [App journeys](../README.md).
 
-Discover cabals is where `cabals-search-field` lives. A step that says "Discover cabals" reaches it from the Cabals tab by typing a name the actor has no cabal called, such as `zzqq`, in `cabals-filter-field` ("Find your cabals"), then tapping `cabals-search-public` ("Search public cabals"), which pushes Discover cabals with that text in `cabals-search-field`; an actor with no cabals taps "Explore cabals" instead. The step then replaces the text in `cabals-search-field`.
+Discover cabals is where `cabals-search-field` lives. A step that says "Discover cabals" reaches it from the Cabals tab by typing a name the actor has no cabal called, such as `zzqq`, in `cabals-filter-field` ("Find or search cabals"), then tapping `cabals-search-public` ("Search public cabals for …") or pressing the keyboard Search key, which pushes Discover cabals with that text in `cabals-search-field`; an actor with no cabals taps "Explore cabals" instead. The step then replaces the text in `cabals-search-field`.
 
 ## Preconditions
 
@@ -33,7 +33,7 @@ Discover cabals is where `cabals-search-field` lives. A step that says "Discover
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap | the Cabals tab | | `cabals-filter-field` reads "Find your cabals", `cabals-list` has the header "Your cabals" with a `cabal-cover-card-<id>` card button naming `QA mine {QA.run}` within 15 s |
+| S1.1 | A | tap | the Cabals tab | | `cabals-filter-field` reads "Find or search cabals", `cabals-list` has the header "Your cabals" with a `cabal-cover-card-<id>` card button naming `QA mine {QA.run}` within 15 s |
 | S1.2 | A | tap | the `cabal-cover-card-<id>` for `QA mine {QA.run}` | | `cabal-header-name` reads `QA mine {QA.run}` within 15 s |
 | S1.3 | A | wait for the toast to close, go back, open Discover cabals, clear the field, then type | `cabals-search-field` | `QA ask {QA.run}` | One `cabals-search-result-<id>` names `QA ask {QA.run}` with "1 member", and its `cabals-search-enter-<id>` reads "Request" and is labelled "Request to join QA ask {QA.run}" within 10 s |
 | S1.4 | A | tap | the `cabals-search-enter-<id>` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s, and the row shows `cabals-search-requested` "Request pending", with the notice "Your request to join QA ask {QA.run} is pending." above the list |

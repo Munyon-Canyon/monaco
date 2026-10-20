@@ -164,10 +164,6 @@ struct MyCabalsContent: View {
                     title: "No matching cabals", message: "Try another name.", systemImage: MonacoIcon.search.symbol
                 )
                 .accessibilityIdentifier("cabals-list-no-match")
-                Button("Search public cabals") { discover(query) }
-                    .buttonStyle(.monacoText)
-                    .frame(maxWidth: .infinity)
-                    .accessibilityIdentifier("cabals-search-public")
             } else {
                 LazyVStack(spacing: MonacoTheme.Space.sm) {
                     ForEach(shown, id: \.id) { cabal in
@@ -175,6 +171,15 @@ struct MyCabalsContent: View {
                     }
                 }
                 .padding(.horizontal, MonacoTheme.Space.gutter)
+            }
+            if !accountRestricted {
+                Button(query.isEmpty ? "Search public cabals" : "Search public cabals for “\(query)”") {
+                    discover(query)
+                }
+                .buttonStyle(.monacoText)
+                .frame(maxWidth: .infinity)
+                .padding(.top, MonacoTheme.Space.m)
+                .accessibilityIdentifier("cabals-search-public")
             }
         }
     }

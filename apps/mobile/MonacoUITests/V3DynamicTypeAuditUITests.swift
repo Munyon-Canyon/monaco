@@ -74,7 +74,7 @@ nonisolated final class V3DynamicTypeAuditUITests: XCTestCase {
     private static let allowed: [AllowedIssue] =
         rows(
             [
-                ("cabals__cabals__ready", "Find your cabals"),
+                ("cabals__cabals__ready", "Find or search cabals"),
                 ("cabals__create-cabal__ready", "Cabal name"),
                 ("cabals__discover__results", "Search cabals"),
                 ("feed__feed__all", "Search the feed"),
