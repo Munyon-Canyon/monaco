@@ -43,11 +43,11 @@ enum ParitySampleScenario: String, CaseIterable {
     var routes: [any AppRoute] {
         let id = GroupDetailSampleData.cabalID
         switch self {
-        case .addMoneyError: return [DepositRoute()]
+        case .addMoneyError: return []
         case .cabalInfoError: return [CabalInfoRoute(cabalID: id)]
         case .membersError: return [MembersRoute(cabalID: id, tab: .members)]
         case .publicCabalError: return [CabalSampleRoute(kind: .publicMember)]
-        case .votesClosed, .votesExpired, .votesRejected: return [ProposalSampleRoute(votes: .medium)]
+        case .votesClosed, .votesExpired, .votesRejected: return [ProposalSampleRoute(votes: .open)]
         case .feedPriceMoves, .feedProposals, .feedTrades: return []
         }
     }
@@ -93,7 +93,9 @@ final class ParitySampleHarnessEntry: SampleHarnessEntry {
         guard let scenario = ParitySampleScenario.matching(arguments) else { return nil }
         SampleAPIProtocol.install(scenario.script)
         if let group = scenario.feedGroup { return AnyView(ParityFeedScreen(group: group)) }
-        return AnyView(SampleAppFrame(auth: auth, tab: scenario.tab, routes: scenario.routes))
+        return AnyView(
+            SampleAppFrame(
+                auth: auth, tab: scenario.tab, routes: scenario.routes, presentsDeposit: scenario == .addMoneyError))
     }
 }
 #endif

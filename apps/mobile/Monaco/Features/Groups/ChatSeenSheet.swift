@@ -15,10 +15,9 @@ struct ChatSeenSheet: View {
         NavigationStack {
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .monacoSheet(title: ChatSeenCopy.sheetTitle)
+                .monacoSheet(title: ChatSeenCopy.sheetTitle, detents: .votes)
                 .toolbar(.hidden, for: .navigationBar)
         }
-        .presentationDetents([.medium, .large])
         .task {
             let model = preparedModel()
             await model.load()

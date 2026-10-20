@@ -8,6 +8,7 @@ enum ShareCardCopy {
     static let copyLink = "Copy link"
     static let copied = "Link copied."
     static let thing = "the card"
+    static let previewHeight: CGFloat = 260
 }
 
 enum ShareCardAccess {
@@ -46,7 +47,7 @@ struct ShareCardSheet: View {
     var body: some View {
         NavigationStack {
             content
-                .monacoSheet(title: ShareCardCopy.title)
+                .monacoSheet(title: ShareCardCopy.title, detents: .votes)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
@@ -55,14 +56,13 @@ struct ShareCardSheet: View {
                     }
                 }
         }
-        .presentationDetents([.large])
         .task { if model.content == nil { await load() } }
     }
 
     @ViewBuilder private var content: some View {
         switch model.state {
         case .idle, .loading:
-            SkeletonBlock(width: nil, height: 375, radius: MonacoTheme.Radius.card)
+            SkeletonBlock(width: nil, height: ShareCardCopy.previewHeight, radius: MonacoTheme.Radius.card)
                 .padding(.horizontal, MonacoTheme.Space.gutter)
                 .accessibilityIdentifier("share-card-loading")
         case .failed:
@@ -106,7 +106,7 @@ struct ShareCardSheet: View {
         .sheet(isPresented: $showsActivity) {
             if let image {
                 ActivitySheet(items: [image, content.shareURL]) { showsActivity = false }
-                    .presentationDetents([.medium, .large])
+                    .presentationDetents([.fraction(MonacoSheetDetents.halfFraction)])
             }
         }
     }
@@ -116,12 +116,13 @@ struct ShareCardSheet: View {
             Image(uiImage: image)
                 .resizable()
                 .aspectRatio(ShareCardView.size.width / ShareCardView.size.height, contentMode: .fit)
+                .frame(maxHeight: ShareCardCopy.previewHeight)
                 .clipShape(RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous))
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(content.spoken)
                 .accessibilityIdentifier("share-card-image")
         } else {
-            SkeletonBlock(width: nil, height: 375, radius: MonacoTheme.Radius.card)
+            SkeletonBlock(width: nil, height: ShareCardCopy.previewHeight, radius: MonacoTheme.Radius.card)
                 .accessibilityIdentifier("share-card-rendering")
         }
     }

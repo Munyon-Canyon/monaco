@@ -33,6 +33,7 @@ struct MainTabView: View {
             }
         }
         .tint(MonacoTheme.brand)
+        .environment(\.depositNavigator, navigator)
         .modifier(AccountBalanceHost())
         .preference(key: TabToastHostKey.self, value: true)
         // Each stack knows its tab (`hostMainTab`) and which one is showing, so screens in a tab
@@ -40,6 +41,10 @@ struct MainTabView: View {
         .environment(\.selectedMainTab, navigator.selectedTab)
         .onChange(of: navigator.selectedTab) { _, _ in
             Haptics.selection()
+        }
+        .sheet(item: $navigator.deposit) { request in
+            DepositView(prefillMicros: request.prefillMicros, cabalID: request.cabalID)
+                .analyticsScreen("deposit")
         }
         .sheet(isPresented: $pushPrePrompt.isPresented, onDismiss: pushPrePrompt.notNow) {
             PushPrePromptSheet(prompt: pushPrePrompt)

@@ -2,19 +2,14 @@ import MonacoAnalytics
 import MonacoCore
 import SwiftUI
 
-nonisolated struct DepositRoute: AppRoute {
+extension EnvironmentValues {
+    @Entry var depositNavigator: AppNavigator?
+}
+
+nonisolated struct DepositRequest: Identifiable, Hashable, Sendable {
+    let id = UUID()
     let prefillMicros: Int64?
     let cabalID: String?
-
-    init(prefillMicros: Int64? = nil, cabalID: String? = nil) {
-        self.prefillMicros = prefillMicros
-        self.cabalID = cabalID
-    }
-
-    @MainActor func destination() -> some View {
-        DepositView(prefillMicros: prefillMicros, cabalID: cabalID)
-            .analyticsScreen("deposit")
-    }
 }
 
 nonisolated struct DepositNetworksRoute: AppRoute {

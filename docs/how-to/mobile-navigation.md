@@ -232,7 +232,7 @@ exists, are declared ahead of time so an opener never waits on the screen's buil
 | `ProposeRoute(cabalID:)` | `Features/Proposals/ProposeRoute.swift` | #613 | #612, #2134 |
 | `TransactionRoute(cabalID:transactionID:)` | `Features/Groups/TransactionRoute.swift` | #654 | #671, #705 |
 | `AssetRoute(symbol:)` | `Features/Assets/AssetRoute.swift` | #577 | #671 |
-| `DepositRoute(prefillMicros: Int64? = nil, cabalID: String? = nil)` | `Features/Deposit/DepositRoute.swift` | #610, then #650 | #610, #651, #682 |
+| `DepositRequest(prefillMicros:cabalID:)` (a half sheet, `navigator.presentDeposit`) | `Features/Deposit/DepositRoute.swift` | #610, then #650, #5762 | #610, #651, #682 |
 | `WithdrawRoute()` | `Features/Settings/WithdrawRoute.swift` | #652 | #610, #643 |
 | `CashOutRoute(cabalID:)` | `Features/Redeem/CashOutRoute.swift` | #657 | #697, #2134 |
 | `HandleEditRoute()` | `Features/Onboarding/HandleEditRoute.swift` | #693 | #644 |

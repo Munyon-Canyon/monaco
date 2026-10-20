@@ -156,7 +156,11 @@ struct BalancesContent: View {
 
     private var actions: some View {
         HStack(alignment: .top, spacing: 0) {
-            tile("Deposit", MonacoIcon.deposit.symbol, DepositRoute(), identifier: "balances-deposit")
+            CircleAction("Deposit", systemImage: MonacoIcon.deposit.symbol) {
+                environment.navigator.presentDeposit()
+            }
+            .frame(maxWidth: .infinity)
+            .accessibilityIdentifier("balances-deposit")
             tile("Withdraw", "arrow.up.right", WithdrawRoute(), identifier: "balances-withdraw")
             tile("Activity", MonacoIcon.receipt.symbol, AccountActivityRoute(), identifier: "balances-activity")
         }
@@ -212,7 +216,9 @@ struct BalancesContent: View {
     }
 
     private func cashRow(_ model: BalancesModel) -> some View {
-        NavigationLink(value: AnyAppRoute(DepositRoute())) {
+        Button {
+            environment.navigator.presentDeposit()
+        } label: {
             MonacoRow(title: "Cash", subtitle: "Not allocated to a cabal", chevron: true, isLast: true) {
                 SunkenGlyphMark(icon: .wallet)
             } trailing: {

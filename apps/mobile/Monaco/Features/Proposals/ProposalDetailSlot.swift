@@ -16,7 +16,7 @@ struct ProposalDetailSlotView: View {
     @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @Environment(\.proposalDetail) private var shared
-    @Environment(\.presentedProposalVotes) private var presentedVotes
+    @Environment(\.presentsProposalVotes) private var presentsVotes
     @State private var owned: ProposalDetailModel?
     @State private var pause: ProposalPauseModel?
     @State private var showsVotes = false
@@ -38,9 +38,9 @@ struct ProposalDetailSlotView: View {
                 model?.setVisible($0)
                 pause?.setVisible($0)
             }
-            .onAppear { if presentedVotes != nil { showsVotes = true } }
+            .onAppear { if presentsVotes { showsVotes = true } }
             .sheet(isPresented: $showsVotes) {
-                ProposalVotesSheet(model: model, detent: presentedVotes ?? .medium)
+                ProposalVotesSheet(model: model)
             }
             .confirmationDialog(
                 "Withdraw this proposal?", isPresented: $confirmingWithdrawal, titleVisibility: .visible

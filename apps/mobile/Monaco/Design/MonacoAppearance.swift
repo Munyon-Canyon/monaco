@@ -199,13 +199,14 @@ extension View {
 enum MonacoSheetDetents {
     case review, votes, result, fitted
 
-    fileprivate func detents(fittedHeight: CGFloat, accessibilitySize: Bool) -> [PresentationDetent] {
-        if accessibilitySize { return [.large] }
+    static let halfFraction: CGFloat = 0.55
+    static let resultHeight: CGFloat = 310
+
+    func detents(fittedHeight: CGFloat) -> [PresentationDetent] {
         switch self {
-        case .review: return [.fraction(0.66), .large]
-        case .votes: return [.fraction(0.53), .large]
-        case .result: return [.height(310), .large]
-        case .fitted: return fittedHeight > 0 ? [.height(fittedHeight)] : [.medium]
+        case .review, .votes: return [.fraction(Self.halfFraction)]
+        case .result: return [.height(Self.resultHeight)]
+        case .fitted: return fittedHeight > 0 ? [.height(fittedHeight)] : [.fraction(Self.halfFraction)]
         }
     }
 }
@@ -213,18 +214,13 @@ enum MonacoSheetDetents {
 struct MonacoSheetHeading: View {
     let title: String
     let identifier: String?
-    var showsExpand = false
     var showsClose = false
-    var expand: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         HStack(spacing: MonacoTheme.Space.s) {
             titleText
-            if showsExpand {
-                MonacoGlassButton(systemImage: "arrow.up", accessibilityLabel: "Expand", style: .quiet, action: expand)
-            }
             if showsClose {
                 MonacoGlassButton(systemImage: "xmark", accessibilityLabel: "Close", style: .quiet) { dismiss() }
             }
@@ -258,27 +254,21 @@ private struct MonacoSheetFrame<Content: View>: View {
     let scrolls: Bool
     let content: Content
 
-    @State private var selection: PresentationDetent?
     @State private var headingHeight: CGFloat = 0
     @State private var contentHeight: CGFloat = 0
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            MonacoSheetHeading(
-                title: title, identifier: titleIdentifier, showsExpand: showsExpand, showsClose: showsClose
-            ) {
-                selection = .large
-            }
-            .onGeometryChange(for: CGFloat.self) {
-                $0.size.height
-            } action: {
-                headingHeight = $0
-            }
+            MonacoSheetHeading(title: title, identifier: titleIdentifier, showsClose: showsClose)
+                .onGeometryChange(for: CGFloat.self) {
+                    $0.size.height
+                } action: {
+                    headingHeight = $0
+                }
             sheetContent
         }
         .monacoSheetChrome()
-        .presentationDetents(Set(available), selection: current)
+        .presentationDetents(Set(available))
     }
 
     @ViewBuilder
@@ -302,24 +292,7 @@ private struct MonacoSheetFrame<Content: View>: View {
 
     private var available: [PresentationDetent] {
         guard let kind else { return [.large] }
-        return kind.detents(
-            fittedHeight: headingHeight > 0 && contentHeight > 0 ? headingHeight + contentHeight : 0,
-            accessibilitySize: dynamicTypeSize.isAccessibilitySize)
-    }
-
-    private var current: Binding<PresentationDetent> {
-        Binding(
-            get: {
-                let list = available
-                if let selection, list.contains(selection) { return selection }
-                return list.first ?? .large
-            },
-            set: { selection = $0 }
-        )
-    }
-
-    private var showsExpand: Bool {
-        available.contains(.large) && current.wrappedValue != .large
+        return kind.detents(fittedHeight: headingHeight > 0 && contentHeight > 0 ? headingHeight + contentHeight : 0)
     }
 }
 

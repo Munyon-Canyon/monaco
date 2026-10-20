@@ -64,6 +64,7 @@ struct HomeBalanceSummary: View {
     var retry: (() -> Void)?
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.depositNavigator) private var depositNavigator
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
@@ -135,7 +136,13 @@ struct HomeBalanceSummary: View {
             ? AnyLayout(VStackLayout(spacing: MonacoTheme.Space.s))
             : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
         return layout {
-            link("Add money", DepositRoute(), id: "\(identifierPrefix)-add-money-link")
+            Button {
+                depositNavigator?.presentDeposit()
+            } label: {
+                Text("Add money").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.monacoCompact)
+            .accessibilityIdentifier("\(identifierPrefix)-add-money-link")
             link("Withdraw", WithdrawRoute(), id: "\(identifierPrefix)-withdraw-link")
         }
     }

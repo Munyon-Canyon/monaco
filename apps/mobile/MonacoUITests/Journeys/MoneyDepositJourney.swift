@@ -2,7 +2,7 @@ import XCTest
 
 enum MoneyDepositJourney {
     static let id = "money/deposit"
-    static let version = 3
+    static let version = 4
 
     static let screenTimeout: TimeInterval = 15
 
@@ -37,8 +37,8 @@ enum MoneyDepositJourney {
         XCTAssertTrue(link.waitForExistence(timeout: screenTimeout), "\(step): no Add money on Home")
         link.tap()
         XCTAssertTrue(
-            app.navigationBars["Deposit"].waitForExistence(timeout: screenTimeout),
-            "\(step): the Add money screen did not show within \(Int(screenTimeout)) s"
+            app.element("deposit-sheet-title").waitForExistence(timeout: screenTimeout),
+            "\(step): the Add money sheet did not show within \(Int(screenTimeout)) s"
         )
     }
 

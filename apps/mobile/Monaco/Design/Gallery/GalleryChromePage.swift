@@ -135,8 +135,8 @@ struct GallerySheetSamples: View {
     var body: some View {
         GalleryGroup(title: "Sheet") {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-                GalleryCase(caption: "Sheet heading with expand and close") {
-                    MonacoSheetHeading(title: "Review proposal", identifier: nil, showsExpand: true, showsClose: true)
+                GalleryCase(caption: "Sheet heading with close") {
+                    MonacoSheetHeading(title: "Review proposal", identifier: nil, showsClose: true)
                         .monacoBleed()
                 }
                 GalleryCase(caption: "Sheets by detent kind: review, votes, result") {
