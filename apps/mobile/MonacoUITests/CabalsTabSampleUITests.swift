@@ -73,7 +73,7 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
             "the QA pot card should exist in your cabals"
         )
         XCTAssertFalse(anyElement(app, "cabals-list-new").exists, "the dashed New cabal card is gone")
-        XCTAssertTrue(anyElement(app, "cabals-filter-field").exists, "the tab filters your own cabals")
+        XCTAssertTrue(anyElement(app, "cabals-filter-field").exists, "the tab has a search field")
 
         XCTAssertTrue(reveal(app, "cabals-board").waitForExistence(timeout: 10), "the board should exist")
 
@@ -247,6 +247,35 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 8), "Discover cabals should open")
         XCTAssertEqual(field.value as? String, "zzzz", "Discover keeps the typed text")
         attachScreenshot(app, name: "10-discover")
+    }
+
+    @MainActor
+    func testPublicSearchLinkIsAlwaysVisible() throws {
+        let app = launchApp()
+
+        let link = app.buttons["cabals-search-public"]
+        XCTAssertTrue(link.waitForExistence(timeout: 10), "the tab always offers the public search")
+        XCTAssertEqual(link.label, "Search public cabals", "an empty field offers the plain public search")
+
+        let filter = app.textFields["cabals-filter-field"]
+        filter.tap()
+        filter.typeText("QA")
+        XCTAssertTrue(link.waitForExistence(timeout: 5), "the public search stays while the filter matches")
+        XCTAssertEqual(link.label, "Search public cabals for “QA”", "the link carries the typed text")
+    }
+
+    @MainActor
+    func testSearchKeyOpensPublicSearch() throws {
+        let app = launchApp()
+
+        let filter = app.textFields["cabals-filter-field"]
+        XCTAssertTrue(filter.waitForExistence(timeout: 10), "the tab has a search field")
+        filter.tap()
+        filter.typeText("zzzz\n")
+
+        let field = app.textFields["cabals-search-field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 8), "the Search key opens Discover cabals")
+        XCTAssertEqual(field.value as? String, "zzzz", "Discover keeps the typed text")
     }
 
     @MainActor

@@ -30,7 +30,12 @@ struct CabalsHeaderSection: View {
                 }
             }
             .padding(.vertical, MonacoTheme.Space.m)
-            MonacoSearchField(placeholder: "Find your cabals", text: filter)
+            MonacoSearchField(placeholder: "Find or search cabals", text: filter)
+                .onSubmit {
+                    guard !accountRestricted else { return }
+                    let query = filter.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                    environment.navigator.open(DiscoverCabalsRoute(query: query), in: .cabals)
+                }
                 .accessibilityIdentifier("cabals-filter-field")
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)

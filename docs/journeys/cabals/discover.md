@@ -15,7 +15,7 @@ A member opens Discover cabals from the Cabals tab, reads what it shows with not
 
 The format of this doc is in [App journeys](../README.md).
 
-Discover cabals is reached the way [cabals/browse](browse.md) reaches it: type a name A has no cabal called in `cabals-filter-field`, then tap `cabals-search-public` ("Search public cabals"). The Discover search field then holds that text.
+Discover cabals is reached the way [cabals/browse](browse.md) reaches it: type a name A has no cabal called in `cabals-filter-field`, then tap `cabals-search-public` ("Search public cabals for …") or press the keyboard Search key. The Discover search field then holds that text.
 
 ## Preconditions
 
@@ -33,7 +33,7 @@ Starts signed in (auth/sign-in).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap, type, then tap | the Cabals tab, `cabals-filter-field`, then `cabals-search-public` | `zzqq nobody` | Within 10 s, `cabals-search-field` holds the typed text and `cabals-search-empty` reads "No matching cabals". screens.md: "Search public cabals" pushes Discover cabals with the typed text; no match is "No matching cabals" / "Try another name." |
+| S1.1 | A | tap, type, then tap | the Cabals tab, `cabals-filter-field`, then `cabals-search-public` | `zzqq nobody` | Within 10 s, `cabals-search-field` holds the typed text and `cabals-search-empty` reads "No matching cabals". screens.md: "Search public cabals" and the keyboard Search key push Discover cabals with the typed text; no match is "No matching cabals" / "Try another name." |
 | S1.2 | A | clear | `cabals-search-field` | | Within 10 s, `cabals-search-empty` is gone and `cabals-browse-coming` reads "Browsing every public cabal opens soon. Search by name to find more.". screens.md: an empty query shows the public cabal board's rows and that caption, because the API has no list of every public cabal |
 
 ### S2 Open a public cabal and ask
