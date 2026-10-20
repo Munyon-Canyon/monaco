@@ -1,7 +1,7 @@
 ---
 id: stocks/asset-detail
 title: Look at a stock
-version: 10
+version: 11
 milestone: M11
 requires: [auth/sign-in, stocks/browse]
 actors: [A]
@@ -40,8 +40,8 @@ Starts signed in (auth/sign-in).
 | S1.4 | wait | `asset-detail-chart` | | Within 15 s, `asset-detail-chart` shows the seeded bars. Old app: the scrub chart. screens.md: a candlestick chart |
 | S1.5 | tap | "1W" in `asset-chart-ranges` | | Within 10 s, "1W" is selected and `asset-detail-range-change` reads "Past week · JRNYA". Old app: a range chip reloaded the series. screens.md: chips 1D 1W 1M 3M 6M 1Y ALL |
 | S1.6 | tap | "1Y" in `asset-chart-ranges` | | Within 10 s, "1Y" is selected and `asset-detail-range-change` reads "Past year · JRNYA". Old app: a range chip reloaded the series. screens.md: chips 1D 1W 1M 3M 6M 1Y ALL |
-| S1.7 | scroll to | `asset-detail-propose-buy` | | `asset-detail-propose-buy` reads "Propose a buy", is enabled, and "Your cabal votes before anything is bought" shows under it. Old app: the pinned Propose buy CTA. screens.md: "Propose a buy" with the caption "Your cabal votes before anything is bought" |
-| S1.8 | tap | `asset-detail-propose-buy` | | Within 10 s, the cabal picker shows titled "Choose a cabal", `propose-pick-cabal-question` asks "Which cabal should buy JRNYA?", and at least two cabal rows follow. Old app: Propose buy opened the cabal picker. screens.md: Propose from a stock (#613) |
+| S1.7 | scroll to | `asset-detail-propose-buy` | | `asset-detail-propose-buy` reads "Propose a buy", is enabled and "Your cabal votes before anything is bought" shows under it. Old app: the pinned Propose buy CTA. screens.md: "Propose a buy" with the caption "Your cabal votes before anything is bought" |
+| S1.8 | tap | `asset-detail-propose-buy` | | Within 10 s, the cabal picker shows as a half sheet titled "Choose a cabal", `propose-pick-cabal-question` asks "Which cabal should buy JRNYA?", and at least two cabal rows follow. Old app: Propose buy opened the cabal picker. screens.md: Propose from a stock (#613) |
 | S1.9 | tap | the first cabal row | | Within 10 s, `propose-amount-screen` shows titled "Buy JRNYA" with the header `propose-amount-operation` reading "Buy Journey Alpha". A backs out without proposing. Old app: the picker opened the amount screen. screens.md: Propose from a stock (#613) |
 
 ### S2 Market stats and the 52-week bar

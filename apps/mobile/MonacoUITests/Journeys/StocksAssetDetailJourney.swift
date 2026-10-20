@@ -45,6 +45,9 @@ enum StocksAssetDetailJourney {
     }
 
     static func expectPicker(_ app: XCUIApplication, asking question: String) {
+        XCTAssertTrue(
+            app.element("propose-pick-cabal-sheet").waitForExistence(timeout: 10),
+            "S1.8: the cabal picker did not open as a sheet")
         let asked = app.element("propose-pick-cabal-question")
         XCTAssertTrue(asked.waitForExistence(timeout: 10), "S1.8: the cabal picker never showed its question")
         XCTAssertEqual(asked.label, question, "S1.8: the cabal picker does not ask '\(question)'")
