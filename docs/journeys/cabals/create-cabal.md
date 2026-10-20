@@ -77,9 +77,7 @@ After S2, `apps/mobile/qa/journeys/cabals/create-cabal.truth.sh` reads `GET /v1/
 
 ## Known failures on staging
 
-Every step's route, `POST /v1/cabals`, is live. The setup script removes actor A from every earlier `QA pot` and `QA duo` cabal before S2 and S4, so the Cabals list stays short. One step still depends on services outside the repo:
-
-- S2.3: creating a cabal depends on Privy treasury creation and public mainnet RPC, so the cabal screen can take longer than 20 s. On failure the journey attaches `app.debugDescription` and the last 50 lines of the api log (when `journey.py` started the backend) to the result.
+None. The setup script removes actor A from every earlier `QA pot` and `QA duo` cabal before S2 and S4, so the Cabals list stays short.
 
 ## Not covered
 

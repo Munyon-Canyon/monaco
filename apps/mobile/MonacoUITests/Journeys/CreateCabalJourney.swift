@@ -18,6 +18,7 @@ enum CreateCabalJourney {
     }
 
     static func openForm(_ app: XCUIApplication, recorder: JourneyRecorder) {
+        if app.textFields["create-group-name"].exists { return }
         let plus = app.buttons["cabals-new-button"]
 
         recorder.step("S1.1", "open the Cabals tab") {
@@ -76,11 +77,7 @@ enum CreateCabalJourney {
 
         recorder.step("S2.3", "double-tap Create cabal and land on the cabal") {
             app.scrollIntoReach(submit)
-            let frame = submit.frame
-            let spot = app.coordinate(withNormalizedOffset: .zero)
-                .withOffset(CGVector(dx: frame.midX, dy: frame.midY))
-            submit.tap()
-            spot.tap()
+            submit.doubleTap()
             let toast = app.element("monaco-toast-banner")
             if toast.waitForExistence(timeout: createdTimeout) {
                 createdToastLabel = toast.label
@@ -150,6 +147,7 @@ enum CreateCabalJourney {
         recorder.step("S4.1", "open the create form") {
             app.tab("Cabals").tap()
             let plus = app.buttons["cabals-new-button"]
+            if !plus.exists, app.buttons["BackButton"].exists { app.buttons["BackButton"].tap() }
             XCTAssertTrue(plus.waitForExistence(timeout: listTimeout), "S4.1: no + on the Cabals tab")
             plus.tap()
             XCTAssertTrue(
