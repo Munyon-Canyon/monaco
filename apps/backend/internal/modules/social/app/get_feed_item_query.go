@@ -23,8 +23,8 @@ func GetFeedItem(
 	const op = "social.GetFeedItem"
 	f := filterParams(viewer, filter)
 	row, err := sqlc.New(db).GetFeedItem(ctx, sqlc.GetFeedItemParams{
-		Kinds: f.Kinds, CabalID: f.CabalID, Symbol: f.Symbol, Q: f.Q, Following: f.Following, Mine: f.Mine,
-		Viewer: f.Viewer, ID: id,
+		Kinds: f.Kinds, CabalID: f.CabalID, ActorID: f.ActorID, Symbol: f.Symbol, Q: f.Q, Following: f.Following,
+		Mine: f.Mine, Viewer: f.Viewer, ID: id,
 	})
 	switch {
 	case errors.Is(err, sql.ErrNoRows):

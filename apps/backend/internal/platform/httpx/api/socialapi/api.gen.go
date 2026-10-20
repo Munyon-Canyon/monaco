@@ -1061,6 +1061,9 @@ type GetFeedParams struct {
 	// CabalId Include only items about this cabal.
 	CabalId *openapi_types.UUID `form:"cabal_id,omitempty" json:"cabal_id,omitempty"`
 
+	// ActorId Include only items whose actor is this user.
+	ActorId *openapi_types.UUID `form:"actor_id,omitempty" json:"actor_id,omitempty"`
+
 	// Symbol Include only items about this stock symbol, ignoring case.
 	Symbol *string `form:"symbol,omitempty" json:"symbol,omitempty"`
 
@@ -1111,6 +1114,9 @@ type GetFeedItemParams struct {
 
 	// CabalId Include only items about this cabal.
 	CabalId *openapi_types.UUID `form:"cabal_id,omitempty" json:"cabal_id,omitempty"`
+
+	// ActorId Include only items whose actor is this user.
+	ActorId *openapi_types.UUID `form:"actor_id,omitempty" json:"actor_id,omitempty"`
 
 	// Symbol Include only items about this stock symbol, ignoring case.
 	Symbol *string `form:"symbol,omitempty" json:"symbol,omitempty"`
@@ -1862,6 +1868,19 @@ func (siw *ServerInterfaceWrapper) GetFeed(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// ------------- Optional query parameter "actor_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "actor_id", r.URL.Query(), &params.ActorId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "actor_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "actor_id", Err: err})
+		}
+		return
+	}
+
 	// ------------- Optional query parameter "symbol" -------------
 
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "symbol", r.URL.Query(), &params.Symbol, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
@@ -2153,6 +2172,19 @@ func (siw *ServerInterfaceWrapper) GetFeedItem(w http.ResponseWriter, r *http.Re
 			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cabal_id"})
 		} else {
 			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cabal_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "actor_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "actor_id", r.URL.Query(), &params.ActorId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "actor_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "actor_id", Err: err})
 		}
 		return
 	}

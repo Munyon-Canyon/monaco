@@ -24,7 +24,7 @@ func (h HTTP) GetFeed(ctx context.Context, req api.GetFeedRequestObject) (api.Ge
 	}
 	p := req.Params
 	q := app.FeedQuery{Viewer: me, Limit: app.FeedPageDefault}
-	q.Filter, err = feedFilter(p.Kind, p.CabalId, p.Symbol, p.Q, (*string)(p.Scope))
+	q.Filter, err = feedFilter(p.Kind, p.CabalId, p.ActorId, p.Symbol, p.Q, (*string)(p.Scope))
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func (h HTTP) GetFeedItem(
 		return nil, err
 	}
 	p := req.Params
-	filter, err := feedFilter(p.Kind, p.CabalId, p.Symbol, p.Q, (*string)(p.Scope))
+	filter, err := feedFilter(p.Kind, p.CabalId, p.ActorId, p.Symbol, p.Q, (*string)(p.Scope))
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func (h HTTP) GetFeedItem(
 	}), nil
 }
 
-func feedFilter(kinds *string, cabal *uuid.UUID, symbol, q, scope *string) (app.FeedFilter, error) {
+func feedFilter(kinds *string, cabal, actor *uuid.UUID, symbol, q, scope *string) (app.FeedFilter, error) {
 	var f app.FeedFilter
 	var err error
 	if f.Scope, err = feed.ParseScope(deref(scope)); err != nil {
@@ -121,6 +121,9 @@ func feedFilter(kinds *string, cabal *uuid.UUID, symbol, q, scope *string) (app.
 	}
 	if cabal != nil {
 		f.CabalID = ids.CabalIDFrom(*cabal)
+	}
+	if actor != nil {
+		f.ActorID = ids.UserIDFrom(*actor)
 	}
 	f.Symbol, f.Q = strings.TrimSpace(deref(symbol)), strings.TrimSpace(deref(q))
 	return f, nil

@@ -139,17 +139,18 @@ func TestGetFeedItem_failsWhenTheUserLookupFails(t *testing.T) {
 func TestGetFeed_appliesTheFiltersItParses(t *testing.T) {
 	t.Parallel()
 	f := newFeedFixture(t)
-	viewer, cabal := ids.NewUserID(f.gen), ids.CabalIDFrom(f.gen.NewV7())
-	want := f.item(t, func(it *feed.Item) { it.Kind, it.CabalID = feed.KindProposal, cabal })
+	viewer, actor, cabal := ids.NewUserID(f.gen), ids.NewUserID(f.gen), ids.CabalIDFrom(f.gen.NewV7())
+	want := f.item(t, func(it *feed.Item) { it.Kind, it.CabalID, it.ActorID = feed.KindProposal, cabal, actor })
 	f.item(t)
+	f.item(t, func(it *feed.Item) { it.Kind, it.CabalID = feed.KindProposal, cabal })
 	page := f.getFeed(t, viewer, api.GetFeedParams{
 		Kind: ptr(" proposal , trade"), CabalId: ptr(cabal.UUID()), Symbol: ptr(" aaplx "), Q: ptr(" alpha "),
-		Scope: ptr(api.GetFeedParamsScope("all")),
+		Scope: ptr(api.GetFeedParamsScope("all")), ActorId: ptr(actor.UUID()),
 	})
 	if len(page.Items) != 1 || page.Items[0].Id != want {
 		t.Fatalf("page = %+v, want only %s", page, want)
 	}
-	if empty := f.getFeed(t, viewer, api.GetFeedParams{Kind: ptr("")}); len(empty.Items) != 2 {
+	if empty := f.getFeed(t, viewer, api.GetFeedParams{Kind: ptr("")}); len(empty.Items) != 3 {
 		t.Fatalf("kind= read %d items, want every item", len(empty.Items))
 	}
 }
