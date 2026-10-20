@@ -37,6 +37,18 @@ func (f fakeBoards) Page(_ context.Context, _ string, _ domain.Range, after, lim
 	return rest[:min(limit, len(rest))], nil
 }
 
+func (f fakeBoards) ViewPage(
+	ctx context.Context, board string, rng domain.Range, _ domain.View, after, limit int,
+) ([]domain.Entry, error) {
+	return f.Page(ctx, board, rng, after, limit)
+}
+
+func (f fakeBoards) ViewRow(
+	ctx context.Context, board string, rng domain.Range, _ domain.View, subject uuid.UUID,
+) (domain.Entry, bool, error) {
+	return f.Row(ctx, board, rng, subject)
+}
+
 func (f fakeBoards) Row(context.Context, string, domain.Range, uuid.UUID) (domain.Entry, bool, error) {
 	if f.failing == "row" {
 		return domain.Entry{}, false, errs.New(errs.CodeInternal, "test")

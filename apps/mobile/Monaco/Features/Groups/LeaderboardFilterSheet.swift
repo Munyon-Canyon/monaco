@@ -15,7 +15,6 @@ struct LeaderboardFilterSheet: View {
                 )
                 .fillsWidth()
             }
-            .full(model.supportsFullFilters)
             if model.category == .cabals {
                 field(LeaderboardCopy.membershipTitle) {
                     MonacoMenuSelect(
@@ -24,7 +23,6 @@ struct LeaderboardFilterSheet: View {
                     )
                     .fillsWidth()
                 }
-                .full(model.supportsFullFilters)
                 field(LeaderboardCopy.minimumMembersTitle) {
                     MonacoMenuSelect(
                         title: LeaderboardCopy.minimumMembersTitle, selection: $model.draftFilters.minimumMembers,
@@ -32,7 +30,6 @@ struct LeaderboardFilterSheet: View {
                     )
                     .fillsWidth()
                 }
-                .full(model.supportsFullFilters)
             } else {
                 field(LeaderboardCopy.scopeTitle) {
                     MonacoMenuSelect(
@@ -41,11 +38,6 @@ struct LeaderboardFilterSheet: View {
                     )
                     .fillsWidth()
                 }
-            }
-            if !model.supportsFullFilters {
-                Text(LeaderboardCopy.filtersOpenSoon)
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.secondaryText)
             }
             VStack(spacing: MonacoTheme.Space.s) {
                 Button(LeaderboardCopy.apply) {
@@ -77,7 +69,6 @@ struct LeaderboardFilterSheet: View {
 private struct LeaderboardField<Control: View>: View {
     let title: String
     let control: Control
-    var enabled = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
@@ -85,15 +76,7 @@ private struct LeaderboardField<Control: View>: View {
                 .font(MonacoTheme.Typo.captionStrong)
                 .foregroundStyle(MonacoTheme.primaryText)
             control
-                .disabled(!enabled)
-                .opacity(enabled ? 1 : LeaderboardMetrics.disabledOpacity)
         }
-    }
-
-    func full(_ enabled: Bool) -> Self {
-        var copy = self
-        copy.enabled = enabled
-        return copy
     }
 }
 

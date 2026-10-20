@@ -58,6 +58,55 @@ func (b Boards) Page(
 	return entries, nil
 }
 
+func (b Boards) ViewPage(
+	ctx context.Context, board string, rng domain.Range, view domain.View, after, limit int,
+) ([]domain.Entry, error) {
+	const op = "ranking.Boards.ViewPage"
+	if after < 0 || after > math.MaxInt32 || limit < 1 || limit > math.MaxInt32 ||
+		view.MinMembers < 0 || view.MinMembers > math.MaxInt32 {
+		return nil, errs.New(errs.CodeInvalidInput, op, slog.Int("after", after), slog.Int("limit", limit))
+	}
+	rows, err := sqlc.New(b.DB).BoardViewPage(ctx, sqlc.BoardViewPageParams{
+		Sort: sortOf(view.Sort), Board: board, Range: string(rng), JoinModes: view.Membership.JoinModes(),
+		MinMembers: int32(view.MinMembers), AfterPosition: int32(after), RowLimit: int32(limit),
+	})
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	entries := make([]domain.Entry, 0, len(rows))
+	for _, row := range rows {
+		entry, err := entryFrom(sqlc.LeaderboardEntry(row))
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, entry)
+	}
+	return entries, nil
+}
+
+func (b Boards) ViewRow(
+	ctx context.Context, board string, rng domain.Range, view domain.View, subject uuid.UUID,
+) (domain.Entry, bool, error) {
+	row, err := sqlc.New(b.DB).BoardViewRowFor(ctx, sqlc.BoardViewRowForParams{
+		Sort: sortOf(view.Sort), Board: board, Range: string(rng), SubjectID: subject,
+	})
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return domain.Entry{}, false, nil
+	case err != nil:
+		return domain.Entry{}, false, errs.Wrap(err, errs.CodeInternal, "ranking.Boards.ViewRow")
+	}
+	entry, err := entryFrom(sqlc.LeaderboardEntry(row))
+	return entry, err == nil, err
+}
+
+func sortOf(sort domain.Sort) string {
+	if sort == "" {
+		return string(domain.SortReturn)
+	}
+	return string(sort)
+}
+
 func (b Boards) Row(
 	ctx context.Context, board string, rng domain.Range, subject uuid.UUID,
 ) (domain.Entry, bool, error) {

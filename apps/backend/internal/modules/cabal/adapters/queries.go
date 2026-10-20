@@ -270,7 +270,8 @@ func viewOf(op string, row sqlc.FindCabalRow) (port.CabalView, error) {
 	}
 	return port.CabalView{
 		ID: id, Name: row.Name, PictureURL: row.PictureUrl.String, CreatorID: creator,
-		Status: port.Status(row.Status), MemberCount: int(row.MemberCount), CreatedAt: row.CreatedAt.UTC(),
+		Status: port.Status(row.Status), MemberCount: int(row.MemberCount), JoinMode: domain.JoinMode(row.JoinMode),
+		CreatedAt: row.CreatedAt.UTC(),
 	}, nil
 }
 

@@ -32,6 +32,7 @@ func (r ReadBoard) friendsPage(ctx context.Context, boards Boards, run domain.Ru
 	if err != nil {
 		return domain.BoardPage{}, err
 	}
+	domain.SortEntries(rows, r.View.Sort)
 	var me *domain.Entry
 	for i := range rows {
 		rows[i].Rank = i + 1

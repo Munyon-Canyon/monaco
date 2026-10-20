@@ -13,7 +13,6 @@ public enum LeaderboardCopy {
     public static let scopeTitle = "Show"
     public static let apply = "Apply filters"
     public static let reset = "Reset"
-    public static let filtersOpenSoon = "Sorting and filters open soon."
 
     public static let aboutPrimary =
         "The arrow compares this rank with the preceding snapshot using the same period, category and sort. A change from fifth to first is ↑ 4. Missing history shows New, not an invented movement."

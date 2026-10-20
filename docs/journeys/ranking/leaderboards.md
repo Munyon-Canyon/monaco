@@ -62,6 +62,6 @@ None.
 
 - A cabal's "Member standings" (the former S2). The board is hidden while the cabal holds no position, and the journey's cabal is unfunded, so a run cannot show it without moving money.
 - The rank-change glyph and "Rank change" on the boards. The backend serves no rank movement.
-- The leaderboard filter sheet and the 3M period. The API has no filters and no 3M range yet, so the selects are disabled.
+- The leaderboard filter sheet (sort, membership and minimum members) is covered by unit tests, not by this journey. The 3M period is missing because the API has no 3M range yet.
 - Ranks that change after a trade. That needs a funded cabal and a confirmed trade (`funds:`), which belongs to the trade journeys.
 - A ranked People row for B. Personal ranking needs funded positions, so S1.4 accepts the empty copy "No investors yet".

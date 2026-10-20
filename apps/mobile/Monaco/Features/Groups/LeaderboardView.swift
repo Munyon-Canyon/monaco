@@ -5,7 +5,6 @@ enum LeaderboardMetrics {
     static let skeletonRows = 6
     static let footerHeight: CGFloat = 48
     static let filterDot: CGFloat = 6
-    static let disabledOpacity = 0.45
 }
 
 struct LeaderboardView: View {
@@ -48,8 +47,10 @@ struct LeaderboardView: View {
         let api = environment.api
         let hints = environment.hints
         return LeaderboardPageModel(board: board, range: range, filters: filters, fixture: fixture) {
-            kind, range, filter in
-            LeaderboardLoader(board: kind, range: range, filter: filter, api: api, hints: hints)
+            kind, range, filters in
+            LeaderboardLoader(
+                board: kind, range: range, filter: kind == .people ? filters.scope.filter : .everyone,
+                filters: filters, api: api, hints: hints)
         }
     }
 

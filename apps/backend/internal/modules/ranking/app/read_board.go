@@ -8,7 +8,17 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/domain"
 )
 
+type ViewBoards interface {
+	ViewPage(
+		ctx context.Context, board string, rng domain.Range, view domain.View, after, limit int,
+	) ([]domain.Entry, error)
+	ViewRow(
+		ctx context.Context, board string, rng domain.Range, view domain.View, subject uuid.UUID,
+	) (domain.Entry, bool, error)
+}
+
 type Boards interface {
+	ViewBoards
 	LatestRun(context.Context) (domain.Run, bool, error)
 	Page(ctx context.Context, board string, rng domain.Range, after, limit int) ([]domain.Entry, error)
 	Row(ctx context.Context, board string, rng domain.Range, subject uuid.UUID) (domain.Entry, bool, error)
@@ -20,6 +30,7 @@ type PageKey struct {
 	Rev    int32
 	Board  string
 	Range  domain.Range
+	View   domain.View
 	Cursor int
 	Limit  int
 }
@@ -31,6 +42,7 @@ type PageLoader interface {
 type ReadBoard struct {
 	Board   string
 	Range   domain.Range
+	View    domain.View
 	Cursor  int
 	Limit   int
 	Viewer  *uuid.UUID
@@ -62,14 +74,16 @@ func (r ReadBoard) pageOf(ctx context.Context, boards Boards, run domain.Run) (d
 	if r.Pages == nil {
 		return r.PageAt(ctx, boards, run)
 	}
-	key := PageKey{RunID: run.ID, Rev: run.Rev, Board: r.Board, Range: r.Range, Cursor: r.Cursor, Limit: r.Limit}
+	key := PageKey{
+		RunID: run.ID, Rev: run.Rev, Board: r.Board, Range: r.Range, View: r.View, Cursor: r.Cursor, Limit: r.Limit,
+	}
 	return r.Pages.Load(ctx, key, func(ctx context.Context) (domain.BoardPage, error) {
 		return r.PageAt(ctx, boards, run)
 	})
 }
 
 func (r ReadBoard) PageAt(ctx context.Context, boards Boards, run domain.Run) (domain.BoardPage, error) {
-	rows, err := boards.Page(ctx, r.Board, r.Range, r.Cursor, r.Limit+1)
+	rows, err := r.pageRows(ctx, boards)
 	if err != nil {
 		return domain.BoardPage{}, err
 	}
@@ -85,8 +99,22 @@ func (r ReadBoard) PageAt(ctx context.Context, boards Boards, run domain.Run) (d
 	return page, nil
 }
 
+func (r ReadBoard) pageRows(ctx context.Context, boards Boards) ([]domain.Entry, error) {
+	if r.View.IsDefault() {
+		return boards.Page(ctx, r.Board, r.Range, r.Cursor, r.Limit+1)
+	}
+	return boards.ViewPage(ctx, r.Board, r.Range, r.View, r.Cursor, r.Limit+1)
+}
+
 func (r ReadBoard) MeFor(ctx context.Context, boards Boards, viewer uuid.UUID) (*domain.Entry, error) {
-	entry, ok, err := boards.Row(ctx, r.Board, r.Range, viewer)
+	var entry domain.Entry
+	var ok bool
+	var err error
+	if r.View.Sort == "" || r.View.Sort == domain.SortReturn {
+		entry, ok, err = boards.Row(ctx, r.Board, r.Range, viewer)
+	} else {
+		entry, ok, err = boards.ViewRow(ctx, r.Board, r.Range, r.View, viewer)
+	}
 	if err != nil || !ok {
 		return nil, err
 	}

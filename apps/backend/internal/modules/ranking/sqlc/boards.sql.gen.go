@@ -7,13 +7,15 @@ package sqlc
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const boardPage = `-- name: BoardPage :many
 SELECT board, range, rank, subject_id, subject_name, subject_handle, subject_picture_url, subject_created_at,
-  value_micros, pnl_micros, return_bps, prices_as_of, computed_at, flags
+  value_micros, pnl_micros, return_bps, prices_as_of, computed_at, flags, join_mode, member_count
 FROM leaderboard_entries
 WHERE board = $1 AND range = $2 AND rank > $3
 ORDER BY rank
@@ -56,6 +58,8 @@ func (q *Queries) BoardPage(ctx context.Context, arg BoardPageParams) ([]Leaderb
 			&i.PricesAsOf,
 			&i.ComputedAt,
 			&i.Flags,
+			&i.JoinMode,
+			&i.MemberCount,
 		); err != nil {
 			return nil, err
 		}
@@ -69,7 +73,7 @@ func (q *Queries) BoardPage(ctx context.Context, arg BoardPageParams) ([]Leaderb
 
 const boardRowFor = `-- name: BoardRowFor :one
 SELECT board, range, rank, subject_id, subject_name, subject_handle, subject_picture_url, subject_created_at,
-  value_micros, pnl_micros, return_bps, prices_as_of, computed_at, flags
+  value_micros, pnl_micros, return_bps, prices_as_of, computed_at, flags, join_mode, member_count
 FROM leaderboard_entries
 WHERE board = $1 AND range = $2 AND subject_id = $3
 `
@@ -98,13 +102,15 @@ func (q *Queries) BoardRowFor(ctx context.Context, arg BoardRowForParams) (Leade
 		&i.PricesAsOf,
 		&i.ComputedAt,
 		&i.Flags,
+		&i.JoinMode,
+		&i.MemberCount,
 	)
 	return i, err
 }
 
 const boardRowsForSubjects = `-- name: BoardRowsForSubjects :many
 SELECT board, range, rank, subject_id, subject_name, subject_handle, subject_picture_url, subject_created_at,
-  value_micros, pnl_micros, return_bps, prices_as_of, computed_at, flags
+  value_micros, pnl_micros, return_bps, prices_as_of, computed_at, flags, join_mode, member_count
 FROM leaderboard_entries
 WHERE board = $1 AND range = $2 AND subject_id = ANY($3::uuid[])
 ORDER BY rank
@@ -140,6 +146,8 @@ func (q *Queries) BoardRowsForSubjects(ctx context.Context, arg BoardRowsForSubj
 			&i.PricesAsOf,
 			&i.ComputedAt,
 			&i.Flags,
+			&i.JoinMode,
+			&i.MemberCount,
 		); err != nil {
 			return nil, err
 		}
@@ -149,4 +157,171 @@ func (q *Queries) BoardRowsForSubjects(ctx context.Context, arg BoardRowsForSubj
 		return nil, err
 	}
 	return items, nil
+}
+
+const boardViewPage = `-- name: BoardViewPage :many
+SELECT board, range, position::int AS rank, subject_id, subject_name, subject_handle, subject_picture_url,
+  subject_created_at, value_micros, pnl_micros, return_bps, prices_as_of, computed_at, flags, join_mode, member_count
+FROM (
+  SELECT e.board, e.range, e.rank, e.subject_id, e.subject_name, e.subject_handle, e.subject_picture_url,
+    e.subject_created_at, e.value_micros, e.pnl_micros, e.return_bps, e.prices_as_of, e.computed_at, e.flags,
+    e.join_mode, e.member_count, row_number() OVER (
+    ORDER BY (CASE WHEN $1::text = 'pnl' THEN e.pnl_micros END) DESC NULLS LAST,
+      (CASE WHEN $1::text = 'name' THEN lower(e.subject_name) END) ASC NULLS LAST,
+      e.rank
+  ) AS position
+  FROM leaderboard_entries e
+  WHERE e.board = $2 AND e.range = $3
+    AND (cardinality($4::text[]) = 0 OR e.join_mode = ANY($4::text[]))
+    AND e.member_count >= $5::int
+) viewed
+WHERE position > $6::int
+ORDER BY position
+LIMIT $7
+`
+
+type BoardViewPageParams struct {
+	Sort          string
+	Board         string
+	Range         string
+	JoinModes     []string
+	MinMembers    int32
+	AfterPosition int32
+	RowLimit      int32
+}
+
+type BoardViewPageRow struct {
+	Board             string
+	Range             string
+	Rank              int32
+	SubjectID         uuid.UUID
+	SubjectName       string
+	SubjectHandle     pgtype.Text
+	SubjectPictureUrl pgtype.Text
+	SubjectCreatedAt  time.Time
+	ValueMicros       int64
+	PnlMicros         int64
+	ReturnBps         pgtype.Int8
+	PricesAsOf        time.Time
+	ComputedAt        time.Time
+	Flags             []string
+	JoinMode          pgtype.Text
+	MemberCount       int32
+}
+
+func (q *Queries) BoardViewPage(ctx context.Context, arg BoardViewPageParams) ([]BoardViewPageRow, error) {
+	rows, err := q.db.Query(ctx, boardViewPage,
+		arg.Sort,
+		arg.Board,
+		arg.Range,
+		arg.JoinModes,
+		arg.MinMembers,
+		arg.AfterPosition,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []BoardViewPageRow
+	for rows.Next() {
+		var i BoardViewPageRow
+		if err := rows.Scan(
+			&i.Board,
+			&i.Range,
+			&i.Rank,
+			&i.SubjectID,
+			&i.SubjectName,
+			&i.SubjectHandle,
+			&i.SubjectPictureUrl,
+			&i.SubjectCreatedAt,
+			&i.ValueMicros,
+			&i.PnlMicros,
+			&i.ReturnBps,
+			&i.PricesAsOf,
+			&i.ComputedAt,
+			&i.Flags,
+			&i.JoinMode,
+			&i.MemberCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const boardViewRowFor = `-- name: BoardViewRowFor :one
+SELECT board, range, position::int AS rank, subject_id, subject_name, subject_handle, subject_picture_url,
+  subject_created_at, value_micros, pnl_micros, return_bps, prices_as_of, computed_at, flags, join_mode, member_count
+FROM (
+  SELECT e.board, e.range, e.rank, e.subject_id, e.subject_name, e.subject_handle, e.subject_picture_url,
+    e.subject_created_at, e.value_micros, e.pnl_micros, e.return_bps, e.prices_as_of, e.computed_at, e.flags,
+    e.join_mode, e.member_count, row_number() OVER (
+    ORDER BY (CASE WHEN $1::text = 'pnl' THEN e.pnl_micros END) DESC NULLS LAST,
+      (CASE WHEN $1::text = 'name' THEN lower(e.subject_name) END) ASC NULLS LAST,
+      e.rank
+  ) AS position
+  FROM leaderboard_entries e
+  WHERE e.board = $2 AND e.range = $3
+) viewed
+WHERE subject_id = $4
+`
+
+type BoardViewRowForParams struct {
+	Sort      string
+	Board     string
+	Range     string
+	SubjectID uuid.UUID
+}
+
+type BoardViewRowForRow struct {
+	Board             string
+	Range             string
+	Rank              int32
+	SubjectID         uuid.UUID
+	SubjectName       string
+	SubjectHandle     pgtype.Text
+	SubjectPictureUrl pgtype.Text
+	SubjectCreatedAt  time.Time
+	ValueMicros       int64
+	PnlMicros         int64
+	ReturnBps         pgtype.Int8
+	PricesAsOf        time.Time
+	ComputedAt        time.Time
+	Flags             []string
+	JoinMode          pgtype.Text
+	MemberCount       int32
+}
+
+func (q *Queries) BoardViewRowFor(ctx context.Context, arg BoardViewRowForParams) (BoardViewRowForRow, error) {
+	row := q.db.QueryRow(ctx, boardViewRowFor,
+		arg.Sort,
+		arg.Board,
+		arg.Range,
+		arg.SubjectID,
+	)
+	var i BoardViewRowForRow
+	err := row.Scan(
+		&i.Board,
+		&i.Range,
+		&i.Rank,
+		&i.SubjectID,
+		&i.SubjectName,
+		&i.SubjectHandle,
+		&i.SubjectPictureUrl,
+		&i.SubjectCreatedAt,
+		&i.ValueMicros,
+		&i.PnlMicros,
+		&i.ReturnBps,
+		&i.PricesAsOf,
+		&i.ComputedAt,
+		&i.Flags,
+		&i.JoinMode,
+		&i.MemberCount,
+	)
+	return i, err
 }

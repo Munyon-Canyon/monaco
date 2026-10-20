@@ -24,6 +24,7 @@ type CabalView struct {
 	CreatorID   ids.UserID
 	Status      Status
 	MemberCount int
+	JoinMode    domain.JoinMode
 	CreatedAt   time.Time
 }
 

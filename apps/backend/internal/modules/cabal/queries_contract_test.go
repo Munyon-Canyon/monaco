@@ -68,6 +68,7 @@ func newContractWorld(t *testing.T) contractWorld {
 		w.cabals[key] = contractCabal{
 			view: cabal.View{
 				ID: id, Name: name, PictureURL: picture, CreatorID: creator, Status: status, CreatedAt: created,
+				JoinMode: rules.JoinMode,
 			},
 			rules: rules,
 			wallet: cabal.TreasuryWallet{

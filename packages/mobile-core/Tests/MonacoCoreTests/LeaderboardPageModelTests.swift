@@ -150,11 +150,6 @@ final class LeaderboardPageModelTests: XCTestCase {
         XCTAssertEqual(page.entries.map(\.subtitle), ["1 member", "8 members"])
     }
 
-    func testOnlyTheShowFilterIsLiveOutsideFixtures() async {
-        XCTAssertFalse(model().supportsFullFilters)
-        XCTAssertTrue(model(fixture: LeaderboardFixture()).supportsFullFilters)
-    }
-
     func testMovementIsSpokenInPlaces() async {
         XCTAssertEqual(LeaderboardCopy.spoken(.up(4)), "Up 4 places from the previous snapshot")
         XCTAssertEqual(LeaderboardCopy.spoken(.down(1)), "Down 1 place from the previous snapshot")
@@ -184,8 +179,10 @@ final class LeaderboardPageModelLiveTests: XCTestCase {
         let api = APIClient(
             serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
         let hints = FakeHintStream()
-        let model = LeaderboardPageModel(board: board) { kind, range, filter in
-            LeaderboardLoader(board: kind, range: range, filter: filter, api: api, hints: hints)
+        let model = LeaderboardPageModel(board: board) { kind, range, filters in
+            LeaderboardLoader(
+                board: kind, range: range, filter: kind == .people ? filters.scope.filter : .everyone,
+                filters: filters, api: api, hints: hints)
         }
         return (model, transport)
     }
@@ -256,6 +253,65 @@ final class LeaderboardPageModelLiveTests: XCTestCase {
         XCTAssertEqual(model.pageState, .empty)
         let paths = await transport.sent.map(\.path)
         XCTAssertEqual(paths.last, "/v1/leaderboards/people?range=1M&filter=friends")
+    }
+
+    private func waitForRequests(_ count: Int, on transport: StubTransport) async {
+        for _ in 0..<5_000 {
+            if await transport.sent.count >= count { return }
+            await Task.yield()
+        }
+    }
+
+    func testTheCabalFiltersAreSentOnApplyAndDroppedOnReset() async throws {
+        let (model, transport) = live(
+            [try reply(.samplePeople()), try reply(.samplePeople()), try reply(.samplePeople())])
+        await model.liveLoader?.load()
+        model.beginEditingFilters()
+        model.draftFilters.sort = .pnlAmount
+        model.draftFilters.membership = .acceptingRequests
+        model.draftFilters.minimumMembers = .ten
+
+        model.applyDraft()
+        await waitForRequests(2, on: transport)
+        XCTAssertTrue(model.hasFiltersApplied)
+        model.resetFilters()
+        await waitForRequests(3, on: transport)
+
+        let paths = await transport.sent.map(\.path)
+        XCTAssertEqual(
+            paths,
+            [
+                "/v1/leaderboards/cabals?range=1M",
+                "/v1/leaderboards/cabals?range=1M&sort=pnl&membership=accepting_requests&min_members=10",
+                "/v1/leaderboards/cabals?range=1M",
+            ])
+    }
+
+    func testThePeopleSortIsSentAndTheCabalOnlyFiltersAreNot() async throws {
+        let (model, transport) = live([try reply(.samplePeople()), try reply(.samplePeople())], board: .people)
+        await model.liveLoader?.load()
+        model.beginEditingFilters()
+        model.draftFilters.sort = .name
+        model.draftFilters.membership = .open
+
+        model.applyDraft()
+        await waitForRequests(2, on: transport)
+
+        let paths = await transport.sent.map(\.path)
+        XCTAssertEqual(paths.last, "/v1/leaderboards/people?range=1M&filter=all&sort=name")
+    }
+
+    func testAFilterThatMatchesNothingIsTheFilteredEmptyState() async throws {
+        let (model, transport) = live([try reply(.samplePeople()), try reply(.sampleEmpty)])
+        await model.liveLoader?.load()
+        model.beginEditingFilters()
+        model.draftFilters.minimumMembers = .ten
+
+        model.applyDraft()
+        await waitForRequests(2, on: transport)
+        for _ in 0..<5_000 where model.pageState != .filteredEmpty { await Task.yield() }
+
+        XCTAssertEqual(model.pageState, .filteredEmpty)
     }
 
     func testAFailedFirstLoadIsFailedAndRetryReads() async throws {

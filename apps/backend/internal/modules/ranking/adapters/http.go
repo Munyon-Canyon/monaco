@@ -32,7 +32,11 @@ var _ api.StrictServerInterface = HTTP{}
 func (h HTTP) GetCabalsLeaderboard(
 	ctx context.Context, req api.GetCabalsLeaderboardRequestObject,
 ) (api.GetCabalsLeaderboardResponseObject, error) {
-	board := boardRef{key: string(domain.BoardCabals), kind: api.Cabal}
+	view, err := cabalsView(req.Params)
+	if err != nil {
+		return nil, err
+	}
+	board := boardRef{key: string(domain.BoardCabals), kind: api.Cabal, view: view}
 	page, err := h.serve(ctx, board, textOf(req.Params.Range), req.Params.Cursor, req.Params.Limit)
 	if err != nil {
 		return nil, err
@@ -53,8 +57,13 @@ func (h HTTP) GetPeopleLeaderboard(
 			return nil, err
 		}
 	}
+	sort, err := parseSort(textOf(req.Params.Sort))
+	if err != nil {
+		return nil, err
+	}
 	board := boardRef{
 		key: string(domain.BoardPeople), kind: api.User, viewer: &viewer, friends: filter == domain.FilterFriends,
+		view: domain.View{Sort: sort},
 	}
 	page, err := h.serve(ctx, board, textOf(req.Params.Range), req.Params.Cursor, req.Params.Limit)
 	if err != nil {
@@ -251,6 +260,7 @@ type boardRef struct {
 	viewer     *ids.UserID
 	unrankedMe bool
 	friends    bool
+	view       domain.View
 }
 
 func (h HTTP) serve(
@@ -261,6 +271,7 @@ func (h HTTP) serve(
 		return api.LeaderboardPage{}, err
 	}
 	in.Pages = h.Pages
+	in.View = board.view
 	if board.friends {
 		in.Friends = h.Follows
 	}
@@ -374,4 +385,29 @@ func wireRow(entry domain.Entry, kind api.LeaderboardSubjectKind) (api.Leaderboa
 		row.ReturnBps = &bps
 	}
 	return row, nil
+}
+
+func parseSort(raw *string) (domain.Sort, error) {
+	if raw == nil {
+		return domain.SortReturn, nil
+	}
+	return domain.ParseSort(*raw)
+}
+
+func cabalsView(params api.GetCabalsLeaderboardParams) (domain.View, error) {
+	sort, err := parseSort(textOf(params.Sort))
+	if err != nil {
+		return domain.View{}, err
+	}
+	membership := domain.MembershipAll
+	if params.Membership != nil {
+		if membership, err = domain.ParseMembership(string(*params.Membership)); err != nil {
+			return domain.View{}, err
+		}
+	}
+	floor, err := domain.ParseMinMembers(params.MinMembers)
+	if err != nil {
+		return domain.View{}, err
+	}
+	return domain.View{Sort: sort, Membership: membership, MinMembers: floor}, nil
 }

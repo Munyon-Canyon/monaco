@@ -154,6 +154,30 @@ func (e LeaderboardFilter) Valid() bool {
 	}
 }
 
+// Defines values for LeaderboardMembership.
+const (
+	LeaderboardMembershipAcceptingRequests LeaderboardMembership = "accepting_requests"
+	LeaderboardMembershipAll               LeaderboardMembership = "all"
+	LeaderboardMembershipApproval          LeaderboardMembership = "approval"
+	LeaderboardMembershipOpen              LeaderboardMembership = "open"
+)
+
+// Valid indicates whether the value is a known member of the LeaderboardMembership enum.
+func (e LeaderboardMembership) Valid() bool {
+	switch e {
+	case LeaderboardMembershipAcceptingRequests:
+		return true
+	case LeaderboardMembershipAll:
+		return true
+	case LeaderboardMembershipApproval:
+		return true
+	case LeaderboardMembershipOpen:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for LeaderboardRange.
 const (
 	LeaderboardRangeALL LeaderboardRange = "ALL"
@@ -175,6 +199,27 @@ func (e LeaderboardRange) Valid() bool {
 	case LeaderboardRangeN1M:
 		return true
 	case LeaderboardRangeN1W:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LeaderboardSort.
+const (
+	LeaderboardSortName      LeaderboardSort = "name"
+	LeaderboardSortPnl       LeaderboardSort = "pnl"
+	LeaderboardSortReturnPct LeaderboardSort = "return_pct"
+)
+
+// Valid indicates whether the value is a known member of the LeaderboardSort enum.
+func (e LeaderboardSort) Valid() bool {
+	switch e {
+	case LeaderboardSortName:
+		return true
+	case LeaderboardSortPnl:
+		return true
+	case LeaderboardSortReturnPct:
 		return true
 	default:
 		return false
@@ -289,6 +334,51 @@ func (e GetCabalsLeaderboardParamsRange) Valid() bool {
 	}
 }
 
+// Defines values for GetCabalsLeaderboardParamsSort.
+const (
+	GetCabalsLeaderboardParamsSortName      GetCabalsLeaderboardParamsSort = "name"
+	GetCabalsLeaderboardParamsSortPnl       GetCabalsLeaderboardParamsSort = "pnl"
+	GetCabalsLeaderboardParamsSortReturnPct GetCabalsLeaderboardParamsSort = "return_pct"
+)
+
+// Valid indicates whether the value is a known member of the GetCabalsLeaderboardParamsSort enum.
+func (e GetCabalsLeaderboardParamsSort) Valid() bool {
+	switch e {
+	case GetCabalsLeaderboardParamsSortName:
+		return true
+	case GetCabalsLeaderboardParamsSortPnl:
+		return true
+	case GetCabalsLeaderboardParamsSortReturnPct:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetCabalsLeaderboardParamsMembership.
+const (
+	GetCabalsLeaderboardParamsMembershipAcceptingRequests GetCabalsLeaderboardParamsMembership = "accepting_requests"
+	GetCabalsLeaderboardParamsMembershipAll               GetCabalsLeaderboardParamsMembership = "all"
+	GetCabalsLeaderboardParamsMembershipApproval          GetCabalsLeaderboardParamsMembership = "approval"
+	GetCabalsLeaderboardParamsMembershipOpen              GetCabalsLeaderboardParamsMembership = "open"
+)
+
+// Valid indicates whether the value is a known member of the GetCabalsLeaderboardParamsMembership enum.
+func (e GetCabalsLeaderboardParamsMembership) Valid() bool {
+	switch e {
+	case GetCabalsLeaderboardParamsMembershipAcceptingRequests:
+		return true
+	case GetCabalsLeaderboardParamsMembershipAll:
+		return true
+	case GetCabalsLeaderboardParamsMembershipApproval:
+		return true
+	case GetCabalsLeaderboardParamsMembershipOpen:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetPeopleLeaderboardParamsRange.
 const (
 	GetPeopleLeaderboardParamsRangeALL GetPeopleLeaderboardParamsRange = "ALL"
@@ -328,6 +418,27 @@ func (e GetPeopleLeaderboardParamsFilter) Valid() bool {
 	case GetPeopleLeaderboardParamsFilterAll:
 		return true
 	case GetPeopleLeaderboardParamsFilterFriends:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetPeopleLeaderboardParamsSort.
+const (
+	GetPeopleLeaderboardParamsSortName      GetPeopleLeaderboardParamsSort = "name"
+	GetPeopleLeaderboardParamsSortPnl       GetPeopleLeaderboardParamsSort = "pnl"
+	GetPeopleLeaderboardParamsSortReturnPct GetPeopleLeaderboardParamsSort = "return_pct"
+)
+
+// Valid indicates whether the value is a known member of the GetPeopleLeaderboardParamsSort enum.
+func (e GetPeopleLeaderboardParamsSort) Valid() bool {
+	switch e {
+	case GetPeopleLeaderboardParamsSortName:
+		return true
+	case GetPeopleLeaderboardParamsSortPnl:
+		return true
+	case GetPeopleLeaderboardParamsSortReturnPct:
 		return true
 	default:
 		return false
@@ -688,8 +799,17 @@ type LeaderboardFilter string
 // LeaderboardLimit Examples: 20
 type LeaderboardLimit = int
 
+// LeaderboardMembership Examples: open
+type LeaderboardMembership string
+
+// LeaderboardMinMembers Examples: 5
+type LeaderboardMinMembers = int
+
 // LeaderboardRange Examples: ALL
 type LeaderboardRange string
+
+// LeaderboardSort Examples: pnl
+type LeaderboardSort string
 
 // ValueHistoryRange Examples: ALL
 type ValueHistoryRange string
@@ -728,10 +848,25 @@ type GetCabalsLeaderboardParams struct {
 
 	// Limit Page size. Defaults to 20 and cannot exceed 50.
 	Limit *LeaderboardLimit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Sort The order of the board. `return_pct` is best return first, `pnl` is largest P&L first and `name` is A to Z.
+	Sort *GetCabalsLeaderboardParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+
+	// Membership Keeps the cabals by how people join. `all` keeps every cabal, `accepting_requests` keeps the cabals that take new members, open or by request, `open` keeps the cabals anyone can join and `approval` keeps the cabals that approve each request.
+	Membership *GetCabalsLeaderboardParamsMembership `form:"membership,omitempty" json:"membership,omitempty"`
+
+	// MinMembers Keeps the cabals with at least this many members. Defaults to 0.
+	MinMembers *LeaderboardMinMembers `form:"min_members,omitempty" json:"min_members,omitempty"`
 }
 
 // GetCabalsLeaderboardParamsRange defines parameters for GetCabalsLeaderboard.
 type GetCabalsLeaderboardParamsRange string
+
+// GetCabalsLeaderboardParamsSort defines parameters for GetCabalsLeaderboard.
+type GetCabalsLeaderboardParamsSort string
+
+// GetCabalsLeaderboardParamsMembership defines parameters for GetCabalsLeaderboard.
+type GetCabalsLeaderboardParamsMembership string
 
 // GetPeopleLeaderboardParams defines parameters for GetPeopleLeaderboard.
 type GetPeopleLeaderboardParams struct {
@@ -746,6 +881,9 @@ type GetPeopleLeaderboardParams struct {
 
 	// Filter `all` reads the whole board. `friends` reads the people the caller follows and the caller.
 	Filter *GetPeopleLeaderboardParamsFilter `form:"filter,omitempty" json:"filter,omitempty"`
+
+	// Sort The order of the board. `return_pct` is best return first, `pnl` is largest P&L first and `name` is A to Z.
+	Sort *GetPeopleLeaderboardParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
 }
 
 // GetPeopleLeaderboardParamsRange defines parameters for GetPeopleLeaderboard.
@@ -753,6 +891,9 @@ type GetPeopleLeaderboardParamsRange string
 
 // GetPeopleLeaderboardParamsFilter defines parameters for GetPeopleLeaderboard.
 type GetPeopleLeaderboardParamsFilter string
+
+// GetPeopleLeaderboardParamsSort defines parameters for GetPeopleLeaderboard.
+type GetPeopleLeaderboardParamsSort string
 
 // GetMyPnlHistoryParams defines parameters for GetMyPnlHistory.
 type GetMyPnlHistoryParams struct {
@@ -955,6 +1096,45 @@ func (siw *ServerInterfaceWrapper) GetCabalsLeaderboard(w http.ResponseWriter, r
 		return
 	}
 
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", r.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "membership" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "membership", r.URL.Query(), &params.Membership, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "membership"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "membership", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "min_members" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "min_members", r.URL.Query(), &params.MinMembers, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "min_members"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "min_members", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetCabalsLeaderboard(w, r, params)
 	}))
@@ -1023,6 +1203,19 @@ func (siw *ServerInterfaceWrapper) GetPeopleLeaderboard(w http.ResponseWriter, r
 			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "filter"})
 		} else {
 			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "filter", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", r.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort", Err: err})
 		}
 		return
 	}
