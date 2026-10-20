@@ -15,4 +15,4 @@ diff --git a/apps/mobile/Monaco/Features/Settings/SettingsView.swift b/apps/mobi
 +        "Your money stays where it is. You'll need a new code by text to sign back in."
      static let stayLabel = "Stay signed in"
      static let saving = "Saving…"
-     static let categoriesCaption = "Notification choices open soon."
+     static let errorTitle = "Couldn't load this view"

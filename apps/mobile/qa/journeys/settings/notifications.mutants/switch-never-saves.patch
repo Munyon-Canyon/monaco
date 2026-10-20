@@ -1,0 +1,18 @@
+journey: settings/notifications
+expect-fail: S4
+
+The category switches take a tap but never save it. S4.2 expects the switch to stay off and S4.3 expects it off after a reopen, so S4 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Settings/SettingsView.swift b/apps/mobile/Monaco/Features/Settings/SettingsView.swift
+--- a/apps/mobile/Monaco/Features/Settings/SettingsView.swift
++++ b/apps/mobile/Monaco/Features/Settings/SettingsView.swift
+@@ -281,7 +281,7 @@ extension SettingsList {
+                 title,
+                 isOn: Binding(
+                     get: { preferences.choices?[category] ?? true },
+-                    set: { enabled in Task { await save(category, enabled, in: preferences) } })
++                    set: { _ in })
+             )
+             .labelsHidden()
+             .tint(MonacoTheme.brandFill)

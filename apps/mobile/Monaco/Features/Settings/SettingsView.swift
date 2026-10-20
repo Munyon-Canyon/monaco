@@ -1,3 +1,4 @@
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 import UIKit
@@ -71,7 +72,6 @@ enum SettingsCopy {
         "You can sign back in with your existing account. This does not withdraw funds or leave your cabals."
     static let stayLabel = "Stay signed in"
     static let saving = "Saving…"
-    static let categoriesCaption = "Notification choices open soon."
     static let errorTitle = "Couldn't load this view"
     static let errorMessage =
         "Your existing information hasn't been changed. Try again when your connection is available."
@@ -96,11 +96,14 @@ enum SettingsScreenState: Equatable {
 
 struct SettingsView: View {
     @Environment(AppEnvironment.self) private var environment
+    @Environment(ToastCenter.self) private var toasts
 
     var body: some View {
         SettingsList(
             authorization: LiveNotificationAuthorizing(), register: environment.registerForPush,
             signOut: { await environment.signOut() },
+            preferences: { NotificationPreferencesModel(api: environment.api) },
+            showError: { toasts.show($0) },
             open: { route in environment.navigator.open(route, in: environment.navigator.selectedTab) })
     }
 }
@@ -109,7 +112,7 @@ struct SettingsList: View {
     let authorization: any NotificationAuthorizing
     let register: () -> Void
     let signOut: () async -> Void
-    let showsCategorySwitches: Bool
+    let showError: (APIError) -> Void
     let open: (any AppRoute) -> Void
 
     @Environment(\.openURL) private var openURL
@@ -117,6 +120,7 @@ struct SettingsList: View {
     @State private var status: PushAuthorization?
     @State private var phase: SettingsScreenState
     @State private var isSigningOut = false
+    @State private var preferences: NotificationPreferencesModel?
     @AccessibilityFocusState private var panelTitleFocused: Bool
 
     init(
@@ -124,15 +128,17 @@ struct SettingsList: View {
         register: @escaping () -> Void,
         signOut: @escaping () async -> Void = {},
         state: SettingsScreenState = .ready,
-        showsCategorySwitches: Bool = false,
+        preferences: () -> NotificationPreferencesModel? = { nil },
+        showError: @escaping (APIError) -> Void = { _ in },
         open: @escaping (any AppRoute) -> Void
     ) {
         self.authorization = authorization
         self.register = register
         self.signOut = signOut
-        self.showsCategorySwitches = showsCategorySwitches
+        self.showError = showError
         self.open = open
         _phase = State(initialValue: state)
+        _preferences = State(initialValue: preferences())
     }
 
     var body: some View {
@@ -150,10 +156,16 @@ struct SettingsList: View {
                     .accessibilityIdentifier("settings-saving")
             }
         }
-        .task { await readNotifications() }
+        .task {
+            await readNotifications()
+            await preferences?.load()
+        }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
-            Task { await readNotifications() }
+            Task {
+                await readNotifications()
+                await preferences?.load()
+            }
         }
     }
 
@@ -214,28 +226,22 @@ struct SettingsList: View {
                         title: SettingsRow.notifications.title,
                         subtitle: status.map { $0 == .authorized ? "On" : "Off" },
                         chevron: true,
-                        isLast: !showsCategorySwitches,
+                        isLast: preferences == nil,
                         leading: { SunkenGlyphMark(systemImage: SettingsRow.notifications.systemImage) }
                     )
                 }
                 .buttonStyle(.monacoRow)
                 .accessibilityIdentifier(SettingsRow.notifications.identifier)
-                if showsCategorySwitches {
+                if let preferences {
                     categoryRow(
                         "Decision requests", subtitle: "Votes and important state changes",
-                        identifier: "settings-category-decisions")
+                        identifier: "settings-category-decisions", category: .decisionRequests,
+                        preferences: preferences)
                     categoryRow(
                         "Replies and mentions", subtitle: "Updates directed at you",
-                        identifier: "settings-category-replies", isLast: true)
+                        identifier: "settings-category-replies", category: .repliesAndMentions,
+                        preferences: preferences, isLast: true)
                 }
-            }
-            if showsCategorySwitches {
-                Text(SettingsCopy.categoriesCaption)
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.muted)
-                    .padding(.horizontal, MonacoTheme.Space.gutter)
-                    .padding(.top, MonacoTheme.Space.s)
-                    .accessibilityIdentifier("settings-categories-caption")
             }
         }
     }
@@ -258,7 +264,8 @@ struct SettingsList: View {
 
 extension SettingsList {
     private func categoryRow(
-        _ title: String, subtitle: String, identifier: String, isLast: Bool = false
+        _ title: String, subtitle: String, identifier: String, category: NotificationCategory,
+        preferences: NotificationPreferencesModel, isLast: Bool = false
     ) -> some View {
         HStack(spacing: MonacoTheme.Space.sm) {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
@@ -270,10 +277,16 @@ extension SettingsList {
                     .foregroundStyle(MonacoTheme.secondaryText)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Toggle(title, isOn: .constant(true))
-                .labelsHidden()
-                .tint(MonacoTheme.brandFill)
-                .disabled(true)
+            Toggle(
+                title,
+                isOn: Binding(
+                    get: { preferences.choices?[category] ?? true },
+                    set: { enabled in Task { await save(category, enabled, in: preferences) } })
+            )
+            .labelsHidden()
+            .tint(MonacoTheme.brandFill)
+            .disabled(!preferences.canChange)
+            .accessibilityIdentifier("\(identifier)-switch")
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.vertical, MonacoTheme.Space.sm)
@@ -285,6 +298,12 @@ extension SettingsList {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(identifier)
+    }
+
+    private func save(
+        _ category: NotificationCategory, _ enabled: Bool, in preferences: NotificationPreferencesModel
+    ) async {
+        if let error = await preferences.set(category, to: enabled) { showError(error) }
     }
 
     private var signOutPanel: some View {
@@ -445,7 +464,7 @@ private struct SettingsHarnessScreen: View {
         NavigationStack(path: $path) {
             SettingsList(
                 authorization: FixedAuthorization(current: authorized ? .authorized : .denied), register: {},
-                state: state, showsCategorySwitches: showsCategorySwitches
+                state: state, preferences: { showsCategorySwitches ? .preview() : nil }
             ) {
                 path.append(AnyAppRoute($0))
             }
