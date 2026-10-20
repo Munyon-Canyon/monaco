@@ -96,7 +96,7 @@ No poller backfills long-range history. Charts for ranges beyond one hour read C
 
 **Reconcile** runs nightly. One `days=2` hourly call fills any hole the sampler left (deploys, outages), for every hot mint plus a rotating slot of 150 listed, non-hot mints (`reconcileColdPerTick`). Hot is what `SamplePrices` prices every tick: mints a treasury holds or an open proposal names, and every asset with a popular rank. The slot is a mint-ordered rotation, stepped once a night, so 1,300 listed mints are all reconciled within 9 nights. Listed means `Asset.Tradable()`; unlisted rows are reconciled only when hot.
 
-The same call also carries `total_volumes`. Reconcile stores its newest point in `asset_volumes` (one row per mint: `volume_24h_micros`, `as_of`, `updated_at`) in the same transaction as the price points, and a reading never replaces a newer one. No call is added, so the Budget table does not change. Reads serve it on `AssetSummary`, `AssetDetail` and `asset.price_moved` under a 36-hour rule (`VolumeMaxAge`): a reading older than that is served as null, never shown stale. Hot mints, which include every mover, are refreshed each night; a cold-slot mint has a reading for about a day and a half after its night in the rotation.
+The same call also carries `total_volumes`. Reconcile stores its newest point in `asset_volumes` (one row per mint: `volume_24h_micros`, `as_of`, `updated_at`) in the same transaction as the price points, and a reading never replaces a newer one. Reconcile runs once a night, so `market.volume` keeps the table fresh: every 3 hours (well inside the 36-hour rule) it asks `/simple/token_price/solana` with `include_24hr_vol=true` for every tradable mint, 250 addresses a call, and upserts each answer as of the tick time through the same query. A mint the answer leaves out, or reports with a null or zero volume, keeps its earlier row. A rate limit trips the shared cooldown and ends the tick; the next tick starts after the cooldown. Reads serve it on `AssetSummary`, `AssetDetail` and `asset.price_moved` under a 36-hour rule (`VolumeMaxAge`): a reading older than that is served as null, never shown stale.
 
 CoinGecko is called with the Demo key (`COINGECKO_API_KEY` in encrypted `.env.production`, read once by `platform/config`; header `x-cg-demo-api-key`, host `api.coingecko.com`). The client is a `market` adapter: an anti-corruption layer with functional options, a circuit breaker and a client-side limiter that holds every call to well under the plan rate ([Patterns](backend-platform.md#patterns-and-where-each-earns-its-place)). A 429 records the attempt on the mint and starts one module-wide cooldown shared by reconcile and the chart history reads: no CoinGecko call until `now + max(Retry-After, 60 s)`, logged as `market.history.cooldown`. A new 429 can only lengthen the cooldown, never shorten it. Reconcile checks it before every call, not only at the start of a tick: it waits out the cooldown, including one its own 429 starts, and then carries on with the same night's list, so a cooldown never skips a night. `MARKET_HISTORY_ENABLED` (default on in staging and production, off elsewhere) decides whether the reconcile poller is registered at all; when off the worker logs `market.history.disabled`, and each environment needs its own `COINGECKO_API_KEY`. Missing key means reconcile is skipped and logged, never that the keyless API is polled.
 
@@ -138,7 +138,7 @@ Size budget: under 100 MB steady state for about 1,500 mints. A mint keeps about
 | Vendor | Calls | Per month |
 | --- | --- | --- |
 | Jupiter Price v3 | Every listed mint, so about 26 calls per 120 s tick (50 mints a call), sent in a burst of up to 40 s | ~560k. The free tier allows 60 requests a minute in a 60-second sliding window, and Price, Swap and Token calls share one bucket ([Jupiter rate limits](https://developers.jup.ag/docs/portal/rate-limits), read 2026-09-27; the [pricing page](https://developers.jup.ag/pricing) states 1 request a second). The api and the worker each hold their own limiter (8 per 10 s each), so the key's budget is shared by two processes that do not see each other. In the worst 60 s window the tick sends 26 of the 60 calls, which leaves about 34 for quotes, orders and token lookups. The real limit of the production key is unconfirmed; `MONACO_JUPITER_RATE_LIMIT` is left at its default until it is. No monthly cap is published for the free tier. |
-| CoinGecko Demo | 3 per hot mint once, 1 per hot mint nightly, 1 per slot mint nightly | Under the 10k Demo cap and the 8k target at 1,300 listed mints. See the table below. |
+| CoinGecko Demo | 3 per hot mint once, 1 per hot mint nightly, 1 per slot mint nightly, 1 per 250 tradable mints every 3 hours | Under the 10k Demo cap and the 8k target at 1,300 listed mints. See the table below. |
 
 CoinGecko, at 1,300 listed mints and 30 nights a month:
 
@@ -146,9 +146,10 @@ CoinGecko, at 1,300 listed mints and 30 nights a month:
 | --- | --- | --- |
 | Hot reconcile | about 25 hot mints (17 popular plus held or proposed) x 30 nights | 750 |
 | Slot reconcile | 150 slot mints x 30 nights | 4,500 |
-| **Total, steady state** | | **5,250** |
+| Volume poll | 6 calls every 3 hours (1,300 tradable mints at 250 a call) x 240 ticks | 1,440 |
+| **Total, steady state** | | **6,690** |
 
-The steady-state total leaves 4,750 credits under the cap. Raise or lower `reconcileColdPerTick` against this table: each slot mint costs 30 credits a month.
+The steady-state total leaves 3,310 credits under the cap at the worst case of every mint tradable, room for chart history and reconcile on the same key; at 500 tradable mints the volume poll is 2 calls every 3 hours, 480 credits, and the total is 5,730. Raise or lower `reconcileColdPerTick` against this table: each slot mint costs 30 credits a month.
 
 User traffic adds nothing to the Jupiter row. It adds nothing to the CoinGecko row.
 

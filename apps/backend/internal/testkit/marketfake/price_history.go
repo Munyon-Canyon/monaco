@@ -6,10 +6,14 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
-var _ app.PriceHistory = (*PriceHistoryFake)(nil)
+var (
+	_ app.PriceHistory = (*PriceHistoryFake)(nil)
+	_ app.VolumeSource = (*PriceHistoryFake)(nil)
+)
 
 type HistoryCall struct {
 	Mint domain.Mint
@@ -24,6 +28,8 @@ type PriceHistoryFake struct {
 	charts  map[HistoryCall][]app.Sample
 	volumes map[HistoryCall]app.Volume
 	calls   []HistoryCall
+	spot    map[domain.Mint]money.Micros
+	batches [][]domain.Mint
 	during  func()
 }
 
@@ -92,6 +98,39 @@ func (f *PriceHistoryFake) MarketChart(_ context.Context, mint domain.Mint, days
 	out := app.History{Prices: append([]app.Sample(nil), f.charts[call]...)}
 	if v, ok := f.volumes[call]; ok {
 		out.Volume24h = &v
+	}
+	return out, nil
+}
+
+func (f *PriceHistoryFake) PutSpotVolume(mint domain.Mint, usd money.Micros) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.spot == nil {
+		f.spot = map[domain.Mint]money.Micros{}
+	}
+	f.spot[mint] = usd
+}
+
+func (f *PriceHistoryFake) VolumeBatches() [][]domain.Mint {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([][]domain.Mint(nil), f.batches...)
+}
+
+func (f *PriceHistoryFake) Volumes(_ context.Context, mints []domain.Mint) (map[domain.Mint]money.Micros, error) {
+	f.mu.Lock()
+	f.batches = append(f.batches, append([]domain.Mint(nil), mints...))
+	f.mu.Unlock()
+	if err := f.Check("Volumes"); err != nil {
+		return nil, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := map[domain.Mint]money.Micros{}
+	for _, m := range mints {
+		if v, ok := f.spot[m]; ok {
+			out[m] = v
+		}
 	}
 	return out, nil
 }

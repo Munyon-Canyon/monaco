@@ -203,7 +203,7 @@ func (m *Module) Pollers() []poller.Poller {
 	)
 	facts := mintfacts.New(solana.New(cfg, m.deps.Clock))
 	history := m.priceHistory()
-	pollers := make([]poller.Poller, 0, 4)
+	pollers := make([]poller.Poller, 0, 5)
 	pollers = append(pollers,
 		m.catalogPoller(providers, facts, xs),
 		m.samplePrices(),
@@ -215,6 +215,7 @@ func (m *Module) Pollers() []poller.Poller {
 	cooldown := app.NewCooldown(m.deps.Clock)
 	return append(pollers,
 		app.NewReconcile(m.deps.UoW, m.deps.Pool, m.deps.Clock, history, m.hot...).WithCooldown(cooldown),
+		app.NewVolumes(m.deps.UoW, m.deps.Pool, m.deps.Clock, history).WithCooldown(cooldown),
 	)
 }
 
