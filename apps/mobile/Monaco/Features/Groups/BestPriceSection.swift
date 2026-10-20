@@ -132,7 +132,7 @@ struct BestPriceSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.fraction(MonacoSheetDetents.halfFraction)])
         .accessibilityIdentifier("best-price-sheet")
     }
 }

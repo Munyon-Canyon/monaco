@@ -107,7 +107,7 @@ struct ChatCabalDetailsSheet: View {
             )
             .environment(\.cabalModel, cabal)
             .environment(\.cabalPotModel, pot)
-            .monacoSheet(title: "Cabal details")
+            .monacoSheet(title: "Cabal details", detents: .votes)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -117,7 +117,6 @@ struct ChatCabalDetailsSheet: View {
             }
             .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
         }
-        .presentationDetents([.medium, .large])
         .monacoToastCenter(toasts)
         .task {
             async let loadedCabal: Void = cabal.load()

@@ -56,7 +56,7 @@ struct CabalInviteSheet: View {
         .sheet(isPresented: $showsActivity) {
             if let shareURL {
                 ActivitySheet(items: [shareURL]) { showsActivity = false }
-                    .presentationDetents([.medium, .large])
+                    .presentationDetents([.fraction(MonacoSheetDetents.halfFraction)])
             }
         }
     }
