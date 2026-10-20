@@ -156,6 +156,10 @@ enum MonacoTheme {
 
     static let coverStroke = Color.adaptive(light: 0xFFFFFF, lightAlpha: 0.07, dark: 0xFFFFFF, darkAlpha: 0.07)
 
+    static let coverOverlay = Color.adaptive(light: 0x00130B, lightAlpha: 0.80, dark: 0x00130B, darkAlpha: 0.80)
+
+    static let coverOverlayReduced = Color.adaptive(light: 0x00130B, lightAlpha: 0.91, dark: 0x00130B, darkAlpha: 0.91)
+
     static let voteNeededFill = Color.adaptive(light: 0xC8F7CF, dark: 0xC8F7CF)
 
     static let voteNeededLabel = Color.adaptive(light: 0x083123, dark: 0x083123)
@@ -172,54 +176,10 @@ enum MonacoTheme {
         border,
     ]
 
-    struct CoverScrimStop: Equatable {
-        let hex: UInt32
-        let alpha: Double
-        let location: Double
-    }
-
     struct ShadowLayer {
         let color: Color
         let radius: CGFloat
         let y: CGFloat
-    }
-
-    enum CoverScrim: CaseIterable {
-        case card, memberCard, hero, solid
-
-        var stops: [CoverScrimStop] {
-            switch self {
-            case .card:
-                return [
-                    CoverScrimStop(hex: 0x00170C, alpha: 0.10, location: 0.10),
-                    CoverScrimStop(hex: 0x001109, alpha: 0.07, location: 0.30),
-                    CoverScrimStop(hex: 0x000C08, alpha: 0.93, location: 1.0),
-                ]
-            case .memberCard:
-                return [
-                    CoverScrimStop(hex: 0x00150C, alpha: 0.15, location: 0),
-                    CoverScrimStop(hex: 0x00130B, alpha: 0.85, location: 0.42),
-                    CoverScrimStop(hex: 0x000C09, alpha: 0.96, location: 1.0),
-                ]
-            case .hero:
-                return [
-                    CoverScrimStop(hex: 0x011A17, alpha: 0, location: 0),
-                    CoverScrimStop(hex: 0x011A17, alpha: 0.85, location: 1.0),
-                ]
-            case .solid:
-                return [
-                    CoverScrimStop(hex: 0x00130B, alpha: 0.91, location: 0),
-                    CoverScrimStop(hex: 0x00130B, alpha: 0.91, location: 1.0),
-                ]
-            }
-        }
-
-        var gradient: Gradient {
-            Gradient(
-                stops: stops.map {
-                    Gradient.Stop(color: Color(hex: $0.hex, alpha: $0.alpha), location: $0.location)
-                })
-        }
     }
 
     enum Shadow {

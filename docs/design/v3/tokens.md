@@ -67,7 +67,7 @@ Ticker tiles: the prototype tints only NVDA (`#C7F69F` on `#1A3614`), MSFT (`#F0
 | pencil badge | glyph `#0C3828` on `#E6F5E8`, 2pt ring in `identityFill` | same | `pencilFill` **new** |
 | card edge | 1pt `#FFFFFF19` | same | inside `identityFill` card |
 
-### Cover cards (text and scrims sit on a picture, so they do not change with appearance)
+### Cover cards (text and the overlay sit on a picture, so they do not change with appearance)
 
 | Rule | Value | SwiftUI |
 | --- | --- | --- |
@@ -76,12 +76,10 @@ Ticker tiles: the prototype tints only NVDA (`#C7F69F` on `#1A3614`), MSFT (`#F0
 | P&L on cover | gain `#83F1B9`, loss `#FFB2B0` | `profitOnCover`, `lossOnCover` **new** |
 | share disc on cover | fill `#FFFFFF18`, border `#FFFFFF24` | `onCoverGlass` **new** |
 | card inner stroke (v1.5.1) | inset `#FFFFFF12` | `coverStroke` **new** |
-| Member card scrim 300×218 (winning) | `linear-gradient(180deg, #00150C26, #00130BD9 42%, #000C09F5 100%)` | `CoverScrim.memberCard` |
-| Cover card scrim 214×138 | `linear-gradient(180deg, #00170C1A 10%, #00110912 30%, #000C08ED 100%)` | `CoverScrim.card` |
-| Cover hero scrim | `linear-gradient(transparent, #011A17D9)` | `CoverScrim.hero` |
-| Reduce transparency | flat `#00130BE8` | `CoverScrim.solid` |
+| Cover overlay (all cover styles, no gradient) | flat `#00130B` at 80% | `coverOverlay` |
+| Cover overlay, Reduce Transparency | flat `#00130B` at 91% | `coverOverlayReduced` |
 
-The design's cover photos are not shipped (decision 8). The app draws the cabal's tint gradient plus its uploaded picture under these scrims.
+The design's cover photos are not shipped (decision 8). The app draws the cabal's solid tint plus its uploaded picture under the flat cover overlay. Nothing in the app is a gradient (decision 12).
 
 ### Chart and state
 
@@ -205,7 +203,7 @@ Cards, decision cards, event cards and mover tiles have **no shadow**; only a 1p
 | Sheet | `sheetGlass` | 1pt `sheetStroke` + inset top `#FFFFFF25` | 32, saturate 1.35 | `0 22 72` `#001A1540` light / `#00000080` dark (`Shadow.sheet`) | `canvas`, overlay `rgba(0,0,0,.55)` |
 | Expanded sheet | `canvas` opaque | none | | | |
 | Toast | `toastFill` | | | `Shadow.floating` | |
-| Cover text | | | | `0 1 8 #00000066` | use the scrim instead |
+| Cover text | | | | `0 1 8 #00000066` | use the cover overlay instead |
 | Switch knob | white | | | `0 1 3 #00000020` | |
 
 Native mapping (decision 6): keep the system `TabView`. Round buttons are `Circle().fill(.ultraThinMaterial)` plus a hairline on iOS 18 and `glassEffect(.regular, in: .circle)` on iOS 26. Sheets use `.presentationBackground(.regularMaterial)` on 18 and the system background on 26. `accessibilityReduceTransparency` swaps every glass fill for `surface` / `canvas`. Do not draw the status bar, home indicator or blur compositor.

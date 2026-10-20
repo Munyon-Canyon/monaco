@@ -32,9 +32,9 @@ The deployment target is iOS 18, where the system tab bar and sheets get Liquid 
 
 The design shows things the backend cannot serve yet: the notifications list, balances detail, group-cash yield, cabal holding cost basis (average buy and sell, realized and unrealized), feed likes, profile bio, the pnl-private permission, rank movement, card-funding return status, and a watchlist (a local store is fine). Each screen is built against fixtures with an "opens soon" caption where data is missing, so the UI ships and is reviewed now. The ticket's Context section lists the missing API so a backend ticket can be filed. Figures such as a yield are never asserted without an API value. The `network` chooser is built (decision 10).
 
-### 8. Cabal covers: tint gradient and uploaded picture, no stock photos
+### 8. Cabal covers: solid tint and uploaded picture, no stock photos
 
-The three cover JPEGs in the design package have no recorded licence or provenance, so they are not shipped, and the 3D-character avatars are fixtures too. A cabal cover is drawn from the cabal's own tint gradient plus its uploaded picture when there is one, under the `CoverScrim` gradients, so white text stays readable on any picture. Default avatars stay as today (photo, initials, pixel animals). A curated default cover set can be added later without changing the card.
+The three cover JPEGs in the design package have no recorded licence or provenance, so they are not shipped, and the 3D-character avatars are fixtures too. A cabal cover is drawn from the cabal's own solid tint plus its uploaded picture when there is one, under one flat `coverOverlay`, so white text stays readable on any picture (decision 12). Default avatars stay as today (photo, initials, pixel animals). A curated default cover set can be added later without changing the card.
 
 ### 9. Wordmark in SF Pro Bold until a vector arrives
 
@@ -47,6 +47,10 @@ The `network` template ("Choose a network") ships as the deposit and withdraw ne
 ### 11. "Cabal", never "group"
 
 The reference still says "group" in places (Group trades, from the group pot, Join a group, Group · 1M). The app says "cabal" everywhere, and parity review counts that wording as a match, not a difference.
+
+### 12. No gradients anywhere in the app (founder, 2026-10-20)
+
+Covers use one flat `coverOverlay` colour (`coverOverlayReduced` under Reduce Transparency) over a solid cabal tint and the uploaded picture. Charts draw the line only, with no fill under the price, performance or sparkline curves. The `CoverScrim` gradients and every gradient helper are deleted, and a RepoRulesTests rule fails on `LinearGradient`, `RadialGradient`, `AngularGradient`, `EllipticalGradient`, `.linearGradient(` and `Gradient(` in the app and in `packages/mobile-core`. This supersedes the tint gradient and scrims in decision 8 and the gradient fill in the chart specs.
 
 ## Risks
 
@@ -65,7 +69,7 @@ Light `muted` (4.51:1 on `canvas`, 4.16:1 on `surfaceSunken`), `loss` (4.30:1) a
 
 ### R3. What native cannot or should not do
 
-`backdrop-filter: saturate()` is approximated with a material. `color-mix` washes are precomputed hex in [tokens.md](tokens.md). Variable font weights 550–690 map to `.medium`, `.semibold`, `.bold`. Cover `text-shadow` is replaced by the scrim. The sheet "expand arrow" becomes detents and drag. Browser `<select>` becomes a menu `Picker`. The Apply-draft filter sheet becomes a `Menu` of toggles that apply instantly, as the component contract already says.
+`backdrop-filter: saturate()` is approximated with a material. `color-mix` washes are precomputed hex in [tokens.md](tokens.md). Variable font weights 550–690 map to `.medium`, `.semibold`, `.bold`. Cover `text-shadow` is replaced by the flat cover overlay. The sheet "expand arrow" becomes detents and drag. Browser `<select>` becomes a menu `Picker`. The Apply-draft filter sheet becomes a `Menu` of toggles that apply instantly, as the component contract already says.
 
 ### R4. Parallelism
 

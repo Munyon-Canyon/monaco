@@ -18,8 +18,6 @@ struct CabalCover<Overlay: View>: View {
 
     private static var heroHeight: CGFloat { 132 }
     private static var heroTallHeight: CGFloat { 172 }
-    private static var gradientDarkening: CGFloat { 0.55 }
-    private static var gradientEnd: Color { Color(hex: 0x000C08) }
 
     init(
         cabalId: String,
@@ -44,14 +42,9 @@ struct CabalCover<Overlay: View>: View {
         }
     }
 
-    static func scrim(for style: Style, reduceTransparency: Bool) -> MonacoTheme.CoverScrim? {
-        switch style {
-        case .thumb: return nil
-        case _ where reduceTransparency: return .solid
-        case .hero, .heroTall: return .hero
-        case .card: return .card
-        case .memberCard: return .memberCard
-        }
+    static func overlay(for style: Style, reduceTransparency: Bool) -> Color? {
+        if case .thumb = style { return nil }
+        return reduceTransparency ? MonacoTheme.coverOverlayReduced : MonacoTheme.coverOverlay
     }
 
     private var shape: RoundedRectangle {
@@ -88,10 +81,7 @@ struct CabalCover<Overlay: View>: View {
 
     private var layers: some View {
         ZStack {
-            LinearGradient(
-                colors: [tint.fill, tint.fill.mix(with: Self.gradientEnd, by: Self.gradientDarkening)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing)
+            tint.fill
             Color.clear.overlay {
                 if let picture = loadedPicture ?? cachedPicture {
                     Image(uiImage: picture)
@@ -100,8 +90,8 @@ struct CabalCover<Overlay: View>: View {
                 }
             }
             .clipped()
-            if let scrim = Self.scrim(for: style, reduceTransparency: reduceTransparency) {
-                LinearGradient(gradient: scrim.gradient, startPoint: .top, endPoint: .bottom)
+            if let overlay = Self.overlay(for: style, reduceTransparency: reduceTransparency) {
+                overlay
             }
             if style.drawsStroke {
                 shape.strokeBorder(MonacoTheme.coverStroke, lineWidth: 1 / displayScale)

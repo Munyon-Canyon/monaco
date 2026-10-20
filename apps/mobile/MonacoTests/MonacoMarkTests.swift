@@ -100,13 +100,12 @@ struct CabalCoverTests {
         #expect(size(of: .thumb(34), url: nil) == CGSize(width: 34, height: 34))
     }
 
-    @Test func thumbHasNoScrimAndReduceTransparencyPicksTheSolidOne() {
-        #expect(CabalCover<EmptyView>.scrim(for: .thumb(34), reduceTransparency: true) == nil)
-        #expect(CabalCover<EmptyView>.scrim(for: .hero, reduceTransparency: false) == .hero)
-        #expect(CabalCover<EmptyView>.scrim(for: .card, reduceTransparency: false) == .card)
-        #expect(CabalCover<EmptyView>.scrim(for: .memberCard, reduceTransparency: false) == .memberCard)
+    @Test func thumbHasNoOverlayAndReduceTransparencyPicksTheMoreOpaqueOne() {
+        #expect(CabalCover<EmptyView>.overlay(for: .thumb(34), reduceTransparency: true) == nil)
         for style: CabalCover<EmptyView>.Style in [.hero, .heroTall, .card, .memberCard] {
-            #expect(CabalCover<EmptyView>.scrim(for: style, reduceTransparency: true) == .solid)
+            #expect(CabalCover<EmptyView>.overlay(for: style, reduceTransparency: false) == MonacoTheme.coverOverlay)
+            #expect(
+                CabalCover<EmptyView>.overlay(for: style, reduceTransparency: true) == MonacoTheme.coverOverlayReduced)
         }
     }
 }

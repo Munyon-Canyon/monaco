@@ -42,27 +42,14 @@ struct Sparkline: View {
     var body: some View {
         SparklineShape(heights: series.heights, inset: lineWidth / 2)
             .stroke(stroke, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
-            .background {
-                SparklineShape(heights: series.heights, inset: lineWidth / 2, closed: true)
-                    .fill(
-                        LinearGradient(
-                            colors: [stroke.opacity(0.22), stroke.opacity(0)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-            }
             .frame(width: width, height: height)
             .accessibilityHidden(true)
     }
 }
 
-/// The path itself. `closed` drops the line to the baseline and back so the same
-/// geometry can be filled as an area under the curve.
 nonisolated struct SparklineShape: Shape {
     let heights: [Double]
     var inset: CGFloat = 0
-    var closed = false
 
     func path(in rect: CGRect) -> Path {
         var path = Path()
@@ -81,11 +68,6 @@ nonisolated struct SparklineShape: Shape {
         path.move(to: points[0])
         for point in points.dropFirst() {
             path.addLine(to: point)
-        }
-        if closed {
-            path.addLine(to: CGPoint(x: points[points.count - 1].x, y: rect.maxY))
-            path.addLine(to: CGPoint(x: points[0].x, y: rect.maxY))
-            path.closeSubpath()
         }
         return path
     }
