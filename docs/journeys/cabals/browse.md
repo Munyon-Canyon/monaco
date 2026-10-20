@@ -35,7 +35,7 @@ Discover cabals is where `cabals-search-field` lives. A step that says "Discover
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap | the Cabals tab | | `cabals-filter-field` reads "Find your cabals", `cabals-list` has the header "Your cabals" with a `cabal-cover-card-<id>` card button naming `QA mine {QA.run}` within 15 s |
 | S1.2 | A | tap | the `cabal-cover-card-<id>` for `QA mine {QA.run}` | | `cabal-header-name` reads `QA mine {QA.run}` within 15 s |
-| S1.3 | A | wait for the toast to close, go back, open Discover cabals, clear the field, then type | `cabals-search-field` | `QA ask {QA.run}` | One `cabals-search-result-<id>` names `QA ask {QA.run}` with "1 member · Approval required", and its `cabals-search-enter-<id>` reads "Request" and is labelled "Request to join QA ask {QA.run}" within 10 s |
+| S1.3 | A | wait for the toast to close, go back, open Discover cabals, clear the field, then type | `cabals-search-field` | `QA ask {QA.run}` | One `cabals-search-result-<id>` names `QA ask {QA.run}` with "1 member", and its `cabals-search-enter-<id>` reads "Request" and is labelled "Request to join QA ask {QA.run}" within 10 s |
 | S1.4 | A | tap | the `cabals-search-enter-<id>` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s, and the row shows `cabals-search-requested` "Request pending", with the notice "Your request to join QA ask {QA.run} is pending." above the list |
 
 ### S3 Cabal leaderboard

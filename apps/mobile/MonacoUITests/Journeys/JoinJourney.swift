@@ -236,7 +236,7 @@ extension JoinJourney {
         let review = app.buttons["cabal-join-review"].firstMatch
         XCTAssertTrue(review.waitForExistence(timeout: 10), "\(step): no Review button within 10 s")
         review.tap()
-        let choice = app.buttons[approve ? "cabal-join-approve" : "cabal-join-deny"]
+        let choice = app.buttons[approve ? "cabal-join-approve" : "cabal-join-deny"].firstMatch
         XCTAssertTrue(
             choice.waitForExistence(timeout: 5), "\(step): the review dialog has no \(approve ? "Approve" : "Deny")")
         choice.tap()

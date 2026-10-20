@@ -54,7 +54,7 @@ enum CabalsLeaveJourney {
         }
 
         recorder.step("S1.4", "confirm") {
-            app.buttons["cabalLeaveConfirmButton"].tap()
+            app.buttons["cabalLeaveConfirmButton"].firstMatch.tap()
             JoinJourney.waitForToast(app, "You left \(name).", step: "S1.4")
             XCTAssertTrue(
                 app.element("cabals-root").waitForExistence(timeout: 10),

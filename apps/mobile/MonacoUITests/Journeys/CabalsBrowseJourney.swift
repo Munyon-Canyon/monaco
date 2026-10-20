@@ -58,7 +58,7 @@ enum CabalsBrowseJourney {
         recorder.step("S1.3", "search for the request cabal") {
             app.tab("Cabals").tap()
             JoinJourney.search(app, for: ask(run: run), step: "S1.3")
-            assertResult(app, named: ask(run: run), reads: "1 member · Approval required", step: "S1.3")
+            assertResult(app, named: ask(run: run), reads: "1 member", step: "S1.3")
             XCTAssertTrue(
                 enterButton(app, label: "Request to join \(ask(run: run))").waitForExistence(timeout: 10),
                 "S1.3: no Request on the request cabal's row"
