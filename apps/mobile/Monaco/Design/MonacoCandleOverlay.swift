@@ -14,12 +14,24 @@ enum MonacoChartPrice {
     }
 }
 
+enum MonacoChartPriceTag {
+    nonisolated static let minWidth: CGFloat = 44
+    nonisolated static let height: CGFloat = 20
+
+    nonisolated static func maxWidth(gutter: CGFloat) -> CGFloat { max(gutter - 2, minWidth) }
+
+    nonisolated static func leading(plotMaxX: CGFloat, width: CGFloat, chartWidth: CGFloat) -> CGFloat {
+        max(min(plotMaxX + 2, chartWidth - width), 0)
+    }
+}
+
 struct MonacoCandleOverlay: View {
     let store: MonacoBarStore
     let window: ChartWindow
     let domain: ClosedRange<Double>
     let plot: CGRect
     let chartWidth: CGFloat
+    let gutter: CGFloat
     let style: MonacoChartStyle
     let tint: Color
     let lastPrice: Double?
@@ -39,8 +51,6 @@ struct MonacoCandleOverlay: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var bars: [PlottedBar] { store.bars }
-
-    private var tagWidth: CGFloat { max(chartWidth - plot.maxX - 2, 44) }
 
     private func x(_ date: Date) -> CGFloat {
         guard window.visibleSeconds > 0 else { return plot.minX }
@@ -132,9 +142,14 @@ struct MonacoCandleOverlay: View {
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .padding(.horizontal, MonacoTheme.Space.xs)
-            .frame(width: tagWidth, height: 20)
+            .frame(minWidth: MonacoChartPriceTag.minWidth)
+            .frame(height: MonacoChartPriceTag.height)
             .background(Capsule().fill(fill))
-            .position(x: plot.maxX + tagWidth / 2 + 2, y: yPosition)
+            .modifier(
+                PriceTagPlacement(
+                    plotMaxX: plot.maxX, centerY: yPosition, chartWidth: chartWidth,
+                    maxWidth: MonacoChartPriceTag.maxWidth(gutter: gutter))
+            )
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
@@ -259,6 +274,40 @@ struct MonacoCandleOverlay: View {
             .position(x: plot.maxX - 30, y: plot.maxY - 30)
             .transition(.opacity)
         }
+    }
+}
+
+private struct PriceTagPlacement: ViewModifier {
+    let plotMaxX: CGFloat
+    let centerY: CGFloat
+    let chartWidth: CGFloat
+    let maxWidth: CGFloat
+
+    func body(content: Content) -> some View {
+        PriceTagLayout(plotMaxX: plotMaxX, centerY: centerY, chartWidth: chartWidth, maxWidth: maxWidth) {
+            content
+        }
+    }
+}
+
+private struct PriceTagLayout: Layout {
+    let plotMaxX: CGFloat
+    let centerY: CGFloat
+    let chartWidth: CGFloat
+    let maxWidth: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        proposal.replacingUnspecifiedDimensions(by: .zero)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard let tag = subviews.first else { return }
+        let size = tag.sizeThatFits(ProposedViewSize(width: maxWidth, height: MonacoChartPriceTag.height))
+        let width = min(size.width, max(maxWidth, MonacoChartPriceTag.minWidth))
+        let x = MonacoChartPriceTag.leading(plotMaxX: plotMaxX, width: width, chartWidth: chartWidth)
+        tag.place(
+            at: CGPoint(x: bounds.minX + x, y: bounds.minY + centerY), anchor: .leading,
+            proposal: ProposedViewSize(width: width, height: MonacoChartPriceTag.height))
     }
 }
 
