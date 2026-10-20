@@ -77,6 +77,9 @@ enum CabalsBrowseJourney {
 
     static func seesTopCabals(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S3.1", "the leaderboard lists ranked cabals") {
+            app.dismissKeyboard()
+            let back = app.buttons["BackButton"].firstMatch
+            if back.waitForExistence(timeout: 2) { back.tap() }
             app.tab("Cabals").tap()
             let board = app.element("cabals-board")
             app.scrollIntoReach(board)
