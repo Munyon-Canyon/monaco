@@ -38,6 +38,23 @@ struct ShareCardRendererTests {
         }
     }
 
+    @Test func theCanvasIsTheIdentityGreen() {
+        let canvas = WCAGContrast.resolve(MonacoTheme.ShareCard.canvas, .dark)
+
+        #expect(abs(canvas.red - 12.0 / 255) < 0.005)
+        #expect(abs(canvas.green - 56.0 / 255) < 0.005)
+        #expect(abs(canvas.blue - 40.0 / 255) < 0.005)
+    }
+
+    @Test func everyShareCardLabelClearsAAOnTheCanvasAndThePanel() {
+        let card = MonacoTheme.ShareCard.self
+        for background in [card.canvas, card.surface] {
+            for label in [card.ink, card.muted, card.profit, card.loss, card.brand] {
+                #expect(WCAGContrast.ratio(label, on: [background], .dark) >= 4.5)
+            }
+        }
+    }
+
     @Test func aGainCurveEndsOnAProfitDot() throws {
         let points = ShareCardSamples.me(.gain).points
 
