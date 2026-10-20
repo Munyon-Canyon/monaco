@@ -73,10 +73,10 @@ IP_HASH_SALT=local
 ALLOWED_ORIGINS=http://localhost:5173
 ```
 
-Run `cd apps/web && npx vite`, open `http://localhost:5173/?ref=test`, sign up, and read the row back:
+Run `cd apps/web && npx vite`, open `http://localhost:5173/?cabal=cavemen&ref=test`, and sign up: email, then the cabal (Cavemen is already chosen, because `?cabal=` chooses a row), then a handle. `?ref=` or `?utm_source=` is stored as `source`. Read the row back:
 
 ```bash
-docker exec supabase_db_waitlist-dev psql -U postgres -c "select email, twitter, source from waitlist"
+docker exec supabase_db_waitlist-dev psql -U postgres -c "select email, twitter, cabal, source from waitlist"
 ```
 
 `supabase db reset --workdir "$WL"` replays the migrations after you pull new ones, and `supabase stop --workdir "$WL" --no-backup` removes the containers and the data.

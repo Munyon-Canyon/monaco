@@ -53,7 +53,7 @@ main { width: 100%; margin: 0 auto; padding: calc(var(--s4) + env(safe-area-inse
 h1 { margin: clamp(var(--s2), 3dvh, 28px) 0 0; font-weight: 300; font-size: clamp(52px, 15vw, 80px); line-height: 1; letter-spacing: -.02em; font-variation-settings: "opsz" 144; }
 .lede { margin: 12px 0 0; white-space: nowrap; color: var(--ink); font-size: clamp(14px, 4.4vw, 22px); line-height: 1.35; font-variation-settings: "opsz" 24; }
 
-/* The sign-up: one control that steps through join -> email -> handle -> done. */
+/* The sign-up: one control that steps through join -> email -> cabal -> handle -> done. */
 form { margin-top: clamp(var(--s3), 4dvh, var(--s4)); width: 100%; max-width: 400px; }
 .bar { position: relative; display: flex; align-items: center; height: 54px; border: 1px solid var(--rule-strong); border-radius: var(--r); background: var(--field); transition: border-color var(--fast); }
 .bar:focus-within { border-color: var(--ink); }
@@ -72,13 +72,30 @@ button[disabled] { cursor: progress; background: var(--ink-soft); }
 .start:hover i, .go:hover i { transform: translateX(3px); }
 .bar[data-step="0"] { border-color: transparent; background: none; }
 .bar[data-step="0"] .f, .bar[data-step="0"] .go, .bar:not([data-step="0"]) .start,
-.bar[data-step="1"] .h, .bar[data-step="2"] .e { display: none; }
+.bar[data-step="1"] .h, .bar[data-step="3"] .e { display: none; }
 @keyframes in { from { opacity: 0; transform: translateX(6px); } }
-@media (prefers-reduced-motion: reduce) { .f, .go { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .f, .go, .pick { animation: none; } }
 .st { margin: 12px 0 0; color: var(--ink); }
 .st:empty { display: none; }
 .st.ok { color: var(--ink); }
 .st.err { color: var(--error); }
+/* The cabal question: five ruled rows stand in for the bar, then a Continue button. */
+.pick { display: none; }
+.bar[data-step="2"] { display: none; }
+.bar[data-step="2"] ~ .pick { display: block; animation: in var(--fast) both; }
+.rows { border: 1px solid var(--rule-strong); border-radius: var(--r); text-align: left; }
+.rows > * { margin: 0; padding: 8px 16px; }
+.rows > * + * { border-top: 1px solid var(--rule); }
+.rows label { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; font-weight: 300; line-height: 1.3; color: var(--ink-faint); font-variation-settings: "opsz" 14; }
+.rows label:hover, .rows label:has(:checked) { color: var(--ink); }
+.rows span { text-wrap: pretty; }
+.rows b { font-weight: 400; color: var(--ink); }
+.rows input { flex: none; width: 14px; height: 14px; margin: 5px 0 0; padding: 0; appearance: none; -webkit-appearance: none; border: 1px solid var(--rule-strong); border-radius: 2px; }
+.rows input:checked { border-color: var(--ink); background: var(--ink); box-shadow: inset 0 0 0 2px var(--paper); }
+.rows input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.next { display: flex; align-items: center; justify-content: center; gap: .6em; width: 100%; height: 54px; margin-top: 12px; border-radius: var(--r); font-size: 17px; }
+.next i { font-style: normal; display: inline-block; transition: transform var(--fast); }
+.next:hover i { transform: translateX(3px); }
 form.done .bar { display: none; }
 form.done .st { margin: 0; }
 .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
@@ -112,6 +129,17 @@ footer a { display: inline-flex; align-items: center; min-height: 48px; }
         <label class="f e"><span class="sr">Email</span><input name="email" type="email" inputmode="email" autocomplete="email" enterkeyhint="next" placeholder="Your email" required></label>
         <label class="f h"><span class="sr">Twitter handle (optional)</span><input name="twitter" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send" maxlength="16" placeholder="Twitter @handle (optional)"></label>
         <button class="go" type="submit" aria-label="Continue"><i aria-hidden="true">→</i></button>
+      </div>
+      <div class="pick">
+        <div class="rows" role="radiogroup" aria-labelledby="pick-q">
+          <p class="mono" id="pick-q">Which cabal are you?</p>
+          <label><input type="radio" name="cabal" value="cavemen"><span><b>Cavemen,</b> never sell</span></label>
+          <label><input type="radio" name="cabal" value="pilates"><span><b>Pilates,</b> buy what you use</span></label>
+          <label><input type="radio" name="cabal" value="cadena"><span><b>La Cadena,</b> deposit on the 1st</span></label>
+          <label><input type="radio" name="cabal" value="degens"><span><b>Degens in recovery,</b> one stock a month</span></label>
+          <label><input type="radio" name="cabal" value="undecided"><span><b>Undecided</b></span></label>
+        </div>
+        <button class="next mono" type="submit">Continue <i aria-hidden="true">→</i></button>
       </div>
       <div class="hp" aria-hidden="true"><label>Company<input name="company" tabindex="-1" autocomplete="off"></label></div>
       <p class="st mono" aria-live="polite"></p>
@@ -245,22 +273,29 @@ footer a { display: inline-flex; align-items: center; min-height: 48px; }
   run();
 })();
 
-// The waitlist: one control that steps join -> email -> handle -> done. Same endpoint, fields and messages as before.
+// The waitlist: one control that steps join -> email -> cabal -> handle -> done. Same endpoint and messages as before, plus the cabal.
 (function () {
   var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/, TWITTER = /^[A-Za-z0-9_]{1,15}$/;
   function handle(v) { v = v.trim().replace(/^@/, ""); return v === "" ? "" : TWITTER.test(v) ? v : null; }
   var form = document.querySelector("form[data-waitlist]"), bar = form.querySelector(".bar"), start = form.querySelector(".start"), go = form.querySelector(".go");
   var email = form.email, tw = form.twitter, trap = form.company, st = form.querySelector(".st");
+  var rows = form.querySelector(".rows"), picks = rows.querySelectorAll("input"), q = new URLSearchParams(location.search);
   function say(t, k) { st.textContent = t; st.className = "st mono" + (k ? " " + k : ""); }
   function flag(el, bad) { el.setAttribute("aria-invalid", bad ? "true" : "false"); el.parentNode.classList.toggle("bad", bad); }
   function step(n) {
     bar.dataset.step = n; say("");
-    go.setAttribute("aria-label", n === 2 ? "Join the waitlist" : "Continue");
-    if (n) (n === 1 ? email : tw).focus();
+    go.setAttribute("aria-label", n === 3 ? "Join the waitlist" : "Continue");
+    if (n === 2) (rows.querySelector(":checked") || picks[0]).focus();
+    else if (n) (n === 1 ? email : tw).focus();
   }
+  // ?cabal= chooses a row ahead of time. The visitor still reaches the question, sees the choice and presses Continue.
+  var want = (q.get("cabal") || "").trim().toLowerCase();
+  picks.forEach(function (r) { r.checked = r.value === want; });
   start.addEventListener("click", function () { step(1); });
-  // Escape on the handle goes back to the email, in case it needs fixing.
-  tw.addEventListener("keydown", function (e) { if (e.key === "Escape") step(1); });
+  // Escape goes back one step, in case the answer before it needs fixing.
+  tw.addEventListener("keydown", function (e) { if (e.key === "Escape") step(2); });
+  rows.addEventListener("keydown", function (e) { if (e.key === "Escape") step(1); });
+  rows.addEventListener("change", function () { say(""); });
   email.addEventListener("input", function () { if (email.getAttribute("aria-invalid") === "true") { flag(email, false); say(""); } });
   tw.addEventListener("input", function () { if (tw.getAttribute("aria-invalid") === "true" && handle(tw.value) !== null) { flag(tw, false); say(""); } });
 
@@ -272,12 +307,16 @@ footer a { display: inline-flex; align-items: center; min-height: 48px; }
       if (!EMAIL.test(email.value.trim())) { flag(email, true); say("Enter a valid email, like you@email.com.", "err"); return email.focus(); }
       flag(email, false); return step(2);
     }
+    if (n === 2) {
+      if (!form.cabal.value) { say("Pick a cabal, or Undecided.", "err"); return picks[0].focus(); }
+      return step(3);
+    }
     if (handle(tw.value) === null) { flag(tw, true); say("Enter a valid Twitter handle, like @monaco, or leave it blank.", "err"); return tw.focus(); }
     go.disabled = true; say("Adding you…");
-    var q = new URLSearchParams(location.search), ctrl = new AbortController(), timer = setTimeout(function () { ctrl.abort(); }, 10000);
+    var ctrl = new AbortController(), timer = setTimeout(function () { ctrl.abort(); }, 10000);
     fetch("/api/waitlist", {
       method: "POST", headers: { "Content-Type": "application/json" }, signal: ctrl.signal,
-      body: JSON.stringify({ email: email.value.trim(), twitter: handle(tw.value), company: trap.value, source: q.get("ref") || q.get("utm_source") || "" })
+      body: JSON.stringify({ email: email.value.trim(), twitter: handle(tw.value), cabal: form.cabal.value, company: trap.value, source: q.get("ref") || q.get("utm_source") || "" })
     }).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (body) { return { ok: res.ok, status: res.status, body: body }; });
     }).then(function (r) {
