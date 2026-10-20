@@ -19,7 +19,8 @@ enum CabalsPauseJourney {
         recorder.step("S1.2", "the pause warning says when it resumes") {
             let banner = app.element("cabal-pause-banner")
             XCTAssertTrue(
-                JoinJourney.waitForLabel(banner, containing: "Funding, cash outs and trades resume", timeout: 10),
+                JoinJourney.waitForLabel(
+                    banner.staticTexts.firstMatch, containing: "Funding, cash outs and trades resume", timeout: 10),
                 "S1.2: no pause warning within 10 s"
             )
         }

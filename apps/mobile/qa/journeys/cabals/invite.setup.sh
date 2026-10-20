@@ -117,6 +117,9 @@ case "$scenario" in
     echo "seeded: $name, request, invites @$handle_a; @$handle_b has no pending invites"
     ;;
   S2)
+    printf '%s\n' "DELETE FROM cabal_members m USING cabals c WHERE m.cabal_id = c.id AND m.user_id = :'id' AND c.name LIKE 'QA mine %'" |
+      scripts/with-dotenv-local.sh apps/mobile/qa/journeys/psql.sh -v ON_ERROR_STOP=1 -v id="$(user_id A)" -tA \
+        2> >(grep -v -e '^with-dotenv-local:' -e 'injected env' >&2) >/dev/null
     name="QA mine $run"
     call POST /v1/cabals "$token_a" \
       "{\"name\":\"$name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" >/dev/null
