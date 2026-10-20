@@ -23,7 +23,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- |
 | P1 | Actors A and C have signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
-| P3 | `apps/mobile/qa/journeys/home/dashboard.setup.sh` ran right before the scenario. It marks the actor as done with onboarding and sets their display name. For S1, A creates the cabal `QA home {QA.run}` through the API, and the setup hands its id to the test. For S2, C leaves every cabal C belongs to through the API, so C has none |
+| P3 | `apps/mobile/qa/journeys/home/dashboard.setup.sh` ran right before the scenario. It marks the actor as done with onboarding and sets their display name. For S1, the setup reads A's portfolio (`GET /v1/me/portfolio`), because Your cabals lists only cabals the member holds shares in, and hands the test A's largest cabal's id and name. When A holds none, A creates `QA home {QA.run}` through the API and the setup hands that over, and S1.3 fails because Home lists no unfunded cabal. For S2, C leaves every cabal C belongs to through the API, so C has none |
 
 ## Scenarios
 
@@ -33,9 +33,9 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap | the Home tab | | `home-portfolio-total` shows a dollar total within 15 s (screens.md `HomePortfolioSlot`: "the signed P&L for the selected period in `moneyFont(.hero)`"; old app: Home tab, `HomeView` net-worth hero) |
 | S1.2 | A | read | the money strip | | `home-net-worth` reads "Net worth", `platform-balance-value` reads "Cash" with a dollar amount, and `home-add-money-link` reads "Deposit", within 10 s (screens.md `HomeBalanceSlot`: "Net worth ... and Cash from `GET /v1/me/balance` ... and a compact "Deposit" capsule"; old app: `HomeView` balance row) |
-| S1.3 | A | scroll to | "Your cabals" | | The header "Your cabals" and `cabal-row-<id>` for `QA home {QA.run}` show within 15 s, scrolling the rail sideways when the card is off screen (screens.md `HomeCabalsSlot`: "A horizontal rail of `CabalCoverCard`s from `GET /v1/me/portfolio`"; old app: `HomeView` Your cabals) |
-| S1.4 | A | pull down | the Home screen | | After the refresh, "Your cabals" and the card for `QA home {QA.run}` are still there within 15 s (screens.md Home: "Pull to refresh."; old app: `HomeView` `.refreshable`) |
-| S1.5 | A | tap | `cabal-row-<id>` | | `cabal-header-name` reads `QA home {QA.run}` within 15 s (screens.md `HomeCabalsSlot`: "A card opens `CabalRoute`"; old app: `HomeView` cabal row opens `GroupDetailView`) |
+| S1.3 | A | scroll to | "Your cabals" | | The header "Your cabals" and `cabal-row-<id>` for `cabalName` show within 15 s, scrolling the rail sideways when the card is off screen (screens.md `HomeCabalsSlot`: "A horizontal rail of `CabalCoverCard`s from `GET /v1/me/portfolio`"; old app: `HomeView` Your cabals) |
+| S1.4 | A | pull down | the Home screen | | After the refresh, "Your cabals" and the card for `cabalName` are still there within 15 s (screens.md Home: "Pull to refresh."; old app: `HomeView` `.refreshable`) |
+| S1.5 | A | tap | `cabal-row-<id>` | | `cabal-header-name` reads `cabalName` within 15 s (screens.md `HomeCabalsSlot`: "A card opens `CabalRoute`"; old app: `HomeView` cabal row opens `GroupDetailView`) |
 | S1.6 | A | tap | the Home tab, then `home-profile-button` | | The Profile tab is selected and `profile-header` shows within 15 s (screens.md Home: "the viewer's avatar, which opens the Profile tab"; old app: `HomeView` avatar opens Profile) |
 | S1.7 | A | tap, then read | the Home tab, then the hero | | `home-portfolio-chip` shows under the total within 10 s (screens.md `HomePortfolioSlot`: "under it the signed percent in profit or loss and the period"; "Cash only: ... "No positions yet""; old app: `HomeView` gain chip) |
 
@@ -48,7 +48,7 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Ground truth
 
-`apps/mobile/qa/journeys/home/dashboard.truth.sh` reads `cabals` and `cabal_members`. `QA home {QA.run}` exists with A as its only member, so reading Home and pulling to refresh wrote nothing. C belongs to no cabal.
+`apps/mobile/qa/journeys/home/dashboard.truth.sh` reads `cabals` and `cabal_members`. `QA home {QA.run}` either does not exist (A held a cabal) or has A as its only member, so reading Home and pulling to refresh wrote nothing. C belongs to no cabal.
 
 ## Known failures on staging
 
