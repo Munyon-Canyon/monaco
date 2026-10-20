@@ -94,9 +94,10 @@ enum CabalsDiscoverJourney {
                 "S2.4: the row does not read Request pending")
             let notice = app.element("cabals-search-pending-notice")
             XCTAssertTrue(notice.waitForExistence(timeout: 10), "S2.4: no pending notice above the list")
+            let text = notice.staticTexts.firstMatch
             XCTAssertTrue(
-                notice.label.contains("Your request to join \(name) is pending."),
-                "S2.4: the notice reads '\(notice.label)'")
+                JoinJourney.waitForLabel(text, containing: "Your request to join \(name) is pending.", timeout: 5),
+                "S2.4: the notice reads '\(text.label)'")
         }
     }
 }
