@@ -643,6 +643,11 @@ type FeedItem struct {
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
 	AssetId *openapi_types.UUID `json:"asset_id"`
 
+	// AssetLogoUrl The stock's logo URL. Null when the item is not about a stock or the stock has no logo.
+	//
+	// Examples: null
+	AssetLogoUrl *string `json:"asset_logo_url"`
+
 	// AssetName The stock's display name. Null when the item is not about a stock.
 	//
 	// Examples: Apple
@@ -662,6 +667,11 @@ type FeedItem struct {
 	//
 	// Examples: Alpha Cabal
 	CabalName *string `json:"cabal_name"`
+
+	// CabalPictureUrl The cabal's current picture URL. Null for a price move or a cabal with no picture.
+	//
+	// Examples: null
+	CabalPictureUrl *string `json:"cabal_picture_url"`
 
 	// ChangeBps A price move's change since the previous close, in signed basis points; 0 for a flat move. Null on every other kind.
 	//

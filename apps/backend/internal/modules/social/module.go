@@ -3,6 +3,9 @@ package social
 import (
 	"context"
 
+	"github.com/google/uuid"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
@@ -27,6 +30,8 @@ type Module struct {
 	cabals   app.Cabals
 	realtime app.Realtime
 	assets   app.Assets
+	logos    app.AssetLogos
+	pictures app.CabalPictures
 	treasury app.Treasury
 }
 
@@ -44,12 +49,19 @@ func WithCabals(cabals app.Cabals) Option {
 	return func(m *Module) { m.cabals = cabals }
 }
 
+func WithCabalPictures(pictures app.CabalPictures) Option {
+	return func(m *Module) { m.pictures = pictures }
+}
+
 func WithTreasury(treasury app.Treasury) Option {
 	return func(m *Module) { m.treasury = treasury }
 }
 
 func WithAssets(catalog market.Catalog) Option {
-	return func(m *Module) { m.assets = NewAssets(catalog) }
+	return func(m *Module) {
+		assets := NewAssets(catalog)
+		m.assets, m.logos = assets, assets
+	}
 }
 
 type CatalogAssets struct{ catalog market.Catalog }
@@ -65,6 +77,21 @@ func (c CatalogAssets) AssetByMint(ctx context.Context, raw string) (app.AssetCa
 	return app.AssetCard{
 		ID: asset.ID.UUID(), Symbol: asset.Symbol, Name: asset.DisplayName, Decimals: asset.Decimals,
 	}, err
+}
+
+func (c CatalogAssets) AssetLogos(ctx context.Context, assetIDs []uuid.UUID) (map[uuid.UUID]string, error) {
+	logos := make(map[uuid.UUID]string, len(assetIDs))
+	for _, id := range assetIDs {
+		asset, err := c.catalog.AssetByID(ctx, market.AssetIDFrom(id))
+		switch {
+		case errs.CodeOf(err) == errs.CodeAssetNotFound:
+			continue
+		case err != nil:
+			return nil, err
+		}
+		logos[id] = asset.LogoURL
+	}
+	return logos, nil
 }
 
 func WithRealtime(realtime app.Realtime) Option {
@@ -83,7 +110,8 @@ func New(d module.Deps, opts ...Option) *Module {
 		m.returns = ranking.New(d).Queries()
 	}
 	if m.assets == nil {
-		m.assets = NewAssets(market.New(d).Catalog())
+		assets := NewAssets(market.New(d).Catalog())
+		m.assets, m.logos = assets, assets
 	}
 	if m.treasury == nil {
 		m.treasury = treasury.New(d).Queries()
@@ -93,6 +121,9 @@ func New(d module.Deps, opts ...Option) *Module {
 	m.members = queries
 	if m.cabals == nil {
 		m.cabals = queries
+	}
+	if m.pictures == nil {
+		m.pictures = queries
 	}
 	return m
 }
@@ -183,6 +214,7 @@ func (m *Module) http() adapters.HTTP {
 		Clock:   m.deps.Clock,
 		Users:   m.users,
 		Returns: m.returns,
+		Logos:   m.logos, Pictures: m.pictures,
 	}
 }
 

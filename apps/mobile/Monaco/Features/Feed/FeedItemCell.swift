@@ -31,7 +31,8 @@ struct FeedItemCell: View {
                 line: .init(
                     leading: facts.detail, trailing: facts.status,
                     trailingColor: event.statusColor),
-                thesis: facts.thesis, route: item.opensRoute, spoken: facts.spoken(event))
+                thesis: facts.thesis, logoURL: item.assetLogoURL, route: item.opensRoute,
+                spoken: facts.spoken(event))
         case .price:
             let facts = FeedPriceFacts(item)
             FeedAssetBlock(
@@ -40,7 +41,7 @@ struct FeedItemCell: View {
                     .init(text: $0, color: MonacoTheme.signed($0), caption: "24h change")
                 },
                 line: .init(leading: "24h token volume", trailing: "Opens soon"),
-                route: item.opensRoute, spoken: facts.spoken)
+                logoURL: item.assetLogoURL, route: item.opensRoute, spoken: facts.spoken)
         case .quote:
             FeedReplyBlock(
                 caption: item.detail, quote: item.body ?? item.title, route: item.opensRoute)
@@ -51,6 +52,9 @@ struct FeedItemCell: View {
 }
 
 extension Components.Schemas.FeedItem {
+    var assetLogoURL: URL? { CabalMark.resolvedURL(assetLogoUrl) }
+    var cabalPictureURL: URL? { CabalMark.resolvedURL(cabalPictureUrl) }
+
     var opensRoute: AnyAppRoute {
         guard let destination = FeedDestination(self) else { return AnyAppRoute(FeedItemRoute(itemID: id)) }
         if case .asset(let symbol) = destination {
