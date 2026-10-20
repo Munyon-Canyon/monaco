@@ -5,12 +5,11 @@ The Cash out action opens Chat. S1.2 waits for the Cash out screen, so S1 must f
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
-index 6ffdda18b..c0961bc69 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
-@@ -135,7 +135,7 @@ struct CabalActionsRow: View {
-         )
-         .disabled(!canPropose)
+@@ -137,7 +137,7 @@
+             .disabled(!canPropose)
+             .proposeChooser(isPresented: $showsProposeChooser, cabalID: cabalID)
          let cashOut = action(
 -            "Cash out", MonacoIcon.cashOut.symbol, id: "cabal-action-cash-out", CashOutRoute(cabalID: cabalID)
 +            "Cash out", MonacoIcon.cashOut.symbol, id: "cabal-action-cash-out", ChatRoute(cabalID: cabalID)

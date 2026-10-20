@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceProposeSellJourney {
     static let id = "governance/propose-sell"
-    static let version = 3
+    static let version = 4
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)

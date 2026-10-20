@@ -1,7 +1,7 @@
 ---
 id: demo/story
 title: The demo story
-version: 4
+version: 5
 milestone: M8.5
 requires: [auth/sign-in, cabals/create-cabal, stocks/asset-detail]
 actors: [A, B]
@@ -70,8 +70,8 @@ Beats 11 to 13.
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S4.1 | B | open, then tap | `QA story {QA.run}`, then `cabal-action-propose` | | The title "Propose" and the row "Buy a stock" show within 10 s (beat 11 "Propose a buy"; old app: `ProposeTradeView`; screens.md Propose chooser) |
-| S4.2 | B | tap, type, then tap | "Buy a stock", the amount, the reason, "Review", "Send" | `$1`, "Super bullish. This stock will only keep growing." | The proposal card reads "2 yes votes needed" within 15 s (screens.md proposal card) |
+| S4.1 | B | open, then tap | `QA story {QA.run}`, then `cabal-action-propose` | | The Propose action sheet (`propose-chooser-sheet`) and its row "Buy stock" show within 10 s (beat 11 "Propose a buy"; screens.md Propose chooser) |
+| S4.2 | B | tap, type, then tap | "Buy stock", the amount, the reason, "Review", "Send" | `$1`, "Super bullish. This stock will only keep growing." | The proposal card reads "2 yes votes needed" within 15 s (screens.md proposal card) |
 | S4.3 | A | tap | Home "Needs your vote", the card's footer, then "Vote Yes" in the dock | | The toast "Vote recorded." within 10 s (beat 12 "Everyone votes"; screens.md `HomePendingVotesSlot` and the proposal screen) |
 | S4.4 | A | wait | the proposal screen's status badge | | The badge reads "Executed" within 60 s (beat 13 "Majority wins, the cabal buys"; screens.md `ProposalDetailSlot`) |
 

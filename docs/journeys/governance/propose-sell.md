@@ -1,7 +1,7 @@
 ---
 id: governance/propose-sell
 title: Propose a sell
-version: 3
+version: 4
 milestone: M13
 requires: [auth/sign-in]
 actors: [A]
@@ -32,7 +32,7 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA sell {QA.run}` | `cabal-header-name` reads `QA sell {QA.run}`, and `cabal-action-propose` "Propose" is enabled within 15 s |
-| S1.2 | A | tap | `cabal-action-propose` | | The chooser titled "Propose" shows `propose-kind-sell` within 10 s, and it is enabled, not "Nothing to sell yet" (old app: `ProposeChooserView`) |
+| S1.2 | A | tap | `cabal-action-propose` | | The Propose action sheet (`propose-chooser-sheet`) shows `propose-kind-sell` within 10 s, and it is enabled, not "No holdings to sell" |
 | S1.3 | A | tap | `propose-kind-sell` | | The screen titled "Sell" shows the header "What the cabal owns" and the AAPL row within 10 s (old app: `ProposeSellView`) |
 | S1.4 | A | tap | `propose-sell-<symbol>` for AAPL | | The amount screen shows the chips "25%", "50%", "All" and the helper "The cabal holds …" within 10 s |
 | S1.5 | A | tap, then tap | "25%", then `propose-amount-review` "Review" | | The screen titled "Review" reads "Sell … of AAPL" with the rows "Raises", "Cabal keeps" and "Who votes" within 10 s |

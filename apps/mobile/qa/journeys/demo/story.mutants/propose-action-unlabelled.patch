@@ -5,15 +5,14 @@ The Propose button loses cabal-action-propose. S4.1 taps it, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
-index 6ffdda18b..e802b0366 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
-@@ -131,7 +131,7 @@ struct CabalActionsRow: View {
-         let fund = action(
+@@ -133,7 +133,7 @@
              CabalCopy.depositLabel, MonacoIcon.deposit.symbol, id: "cabal-action-fund", FundRoute(cabalID: cabalID))
-         let propose = action(
--            "Propose", MonacoIcon.propose.symbol, id: "cabal-action-propose", ProposeRoute(cabalID: cabalID)
-+            "Propose", MonacoIcon.propose.symbol, id: "cabal-action-suggest", ProposeRoute(cabalID: cabalID)
-         )
-         .disabled(!canPropose)
+         let propose = CircleAction("Propose", systemImage: MonacoIcon.propose.symbol) { showsProposeChooser = true }
+             .frame(maxWidth: .infinity)
+-            .accessibilityIdentifier("cabal-action-propose")
++            .accessibilityIdentifier("cabal-action-suggest")
+             .disabled(!canPropose)
+             .proposeChooser(isPresented: $showsProposeChooser, cabalID: cabalID)
          let cashOut = action(

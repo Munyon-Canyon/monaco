@@ -9,11 +9,13 @@ struct ProposalVotesSheet: View {
 
     init(model: ProposalDetailModel?, detent: PresentationDetent = .medium) {
         self.model = model
-        _selection = State(initialValue: detent)
+        _selection = State(initialValue: detent == .large ? .large : Self.partial)
     }
 
+    private static let partial = PresentationDetent.fraction(0.53)
+
     private var detents: [PresentationDetent] {
-        dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large]
+        dynamicTypeSize.isAccessibilitySize ? [.large] : [Self.partial, .large]
     }
 
     private var current: Binding<PresentationDetent> {
@@ -26,7 +28,10 @@ struct ProposalVotesSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                MonacoSheetHeading(title: "Votes", identifier: nil, showsClose: true)
+                MonacoSheetHeading(
+                    title: "Votes", identifier: nil, showsExpand: detents.count > 1 && current.wrappedValue != .large,
+                    showsClose: true
+                ) { selection = .large }
                 ProposalVotersView(model: model)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

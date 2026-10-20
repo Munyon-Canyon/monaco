@@ -203,7 +203,7 @@ enum MonacoSheetDetents {
         if accessibilitySize { return [.large] }
         switch self {
         case .review: return [.fraction(0.66), .large]
-        case .votes: return [.medium, .large]
+        case .votes: return [.fraction(0.53), .large]
         case .result: return [.height(310), .large]
         case .fitted: return fittedHeight > 0 ? [.height(fittedHeight)] : [.medium]
         }

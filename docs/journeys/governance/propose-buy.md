@@ -1,7 +1,7 @@
 ---
 id: governance/propose-buy
 title: Propose, vote and trade
-version: 6
+version: 7
 milestone: M14
 requires: [auth/sign-in]
 actors: [A, B]
@@ -48,7 +48,7 @@ With two voters and "Majority", a buy needs both yes votes.
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `{cabalName}` | `cabal-header-name` reads `{cabalName}`, and `cabal-action-propose` is enabled with no "Only voters can propose" caption, within 15 s |
-| S2.2 | A | tap | `cabal-action-propose` | | The chooser titled "Propose" shows `propose-kind-buy` "Buy a stock" with "Your cabal votes on it first", and "Sell something the cabal owns" with "Nothing to sell yet", within 10 s |
+| S2.2 | A | tap | `cabal-action-propose` | | The Propose action sheet (`propose-chooser-sheet`) shows `propose-kind-buy` "Buy stock" and "Sell a holding" with "No holdings to sell", within 10 s |
 | S2.3 | A | tap, type, then tap | `propose-kind-buy`, `monaco-search-field`, then the `propose-buy-stock-<symbol>` row for GOOGL | `GOOGL` | The screen titled "Buy" shows "Search Apple, Tesla, NVDA…" and "Popular" within 10 s. Then `propose-amount-screen` shows within 10 s. The helper stays empty until an amount is typed |
 | S2.4 | A | type | `amount-entry-field` | `5` | the message "More than the pot has" shows under the field within 5 s, and `propose-amount-review` is disabled |
 | S2.5 | A | type, tap, type, then tap | `amount-entry-field`, `propose-amount-add-reason`, `propose-amount-reason`, then `propose-amount-review` | `1`, then `Journey buy {QA.run}` | After the `1`, `amount-entry-helper` reads "The pot has $3.00" within 10 s. After the reason and Review, the screen titled "Review" (`propose-review-screen`) reads "Buy $1.00 of GOOGL" with the rows "Cabal gets", "Price", "Pot" and "Who votes", and the section "Why buy" with `Journey buy {QA.run}`, within 10 s |
