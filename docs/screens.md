@@ -230,7 +230,7 @@ Toolbar: the system back button, the cabal name centred and always shown, and tw
 
 The trading-bot slot and its route are not on the screen: the agent feature was removed in #5493.
 
-**Share cabal sheet** (`CabalInviteSheet`). Opens from the toolbar share, the hero disc and Cabal information. Title "Share cabal", one half-height detent (0.55) with no expand. It shows a cover, "Share a link with your friends.", the link box with "Cabal links open soon" under it while the link is the viewer's own invite link, "Share link" (`share-card-share`) and "Copy link" (`share-card-copy`, toast "Link copied."), then rows "Invite by handle" (the handle form) and "Share your gain as an image" (the gain card sheet: a 4:5 dark image of the all-time gain and return, the gain curve, three stats and the sharer's invite link; `share-card-image`). The invitee side of the sheet reads "You’re invited", "Request sent" or "Invitation unavailable".
+**Share cabal sheet** (`CabalInviteSheet`). Opens from the toolbar share, the hero disc and Cabal information. Title "Share cabal", one half-height detent (0.55) with no expand. It shows a cover, "Share a link with your friends.", the link box with "Cabal links open soon" under it while the link is the viewer's own invite link, "Share link" (`share-card-share`) and "Copy link" (`share-card-copy`, toast "Link copied."), then rows "Invite by handle" (the handle form) and "Share your gain as an image" (the gain card sheet at the same half height: the 4:5 card as a 220 pt preview beside its title, "Share" and "Copy link", with a close button `share-card-done`; the card is a dark image of the all-time gain and return, the gain curve, three stats and the sharer's invite link; `share-card-image`). The invitee side of the sheet reads "You’re invited", "Request sent" or "Invitation unavailable".
 
 ## Public cabal (`CabalRoute`, non-member)
 
@@ -416,7 +416,7 @@ Large title "Feed" with two 44pt glass rounds, then the search field "Search the
 | Asset block | Proposals, trades and approvals. Ticker, status ("Voting open", "Executed", "Execution pending"), the thesis on two lines. Opens `ProposalRoute`, `TransactionRoute` or `AssetRoute` |
 | Price block | A price move: ticker, the change the title states, and "24h token volume" with "Opens soon" |
 | Cabal block | A started or joined cabal: its tint tile, name, "New public cabal". Opens `CabalRoute` |
-| Reactions | A heart (likes and unlikes, with the count from the API), the comment count (opens the post), and share (toast "Sharing opens soon.") |
+| Reactions | A heart (likes and unlikes, with the count from the API), the comment count (opens the post), and share (opens the system share sheet with the item headline and your invite link) |
 
 States. Loading is a skeleton under the live title and search. Empty: "No updates yet" / "Proposals, trades and conversations will appear here."; with a search or filter, "No matching updates" / "Change the filter to see more activity." Following with no follows: "Follow people to see what they do." with "Find friends". Error: "Couldn’t load this view" with "Try again". A page that fails to load under cards shows "Older updates couldn’t load. The items above are still here." with "Retry older updates", and no toast. The end of the list reads "You’re caught up", or "No more matching updates".
 
