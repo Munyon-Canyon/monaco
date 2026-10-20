@@ -2,6 +2,8 @@
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
+run="${MONACO_QA_RUN:?journey.py sets MONACO_QA_RUN}"
+scenario="${1:?journey.py passes the scenario id}"
 api="${MONACO_API_BASE_URL:-http://127.0.0.1:8080}"
 accounts="${QA_ACCOUNTS_FILE:-apps/mobile/qa/journeys/accounts.tsv}"
 
@@ -103,12 +105,25 @@ fi
 decline_all "$token_a"
 decline_all "$token_b"
 
-host_token="$(token new --pool invite-host)"
-call PATCH /v1/me "$host_token" '{"display_name":"QA host"}' >/dev/null
-name="QA pot $(date +%H%M%S)"
-cabal="$(call POST /v1/cabals "$host_token" \
-  "{\"name\":\"$name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
-  field id)"
-call POST "/v1/cabals/$cabal/invites" "$host_token" "{\"handle\":\"$handle_a\"}" >/dev/null
-
-echo "seeded: $name, open, invites @$handle_a; @$handle_b has no pending invites"
+case "$scenario" in
+  S1)
+    host_token="$(token new --pool invite-host)"
+    call PATCH /v1/me "$host_token" '{"display_name":"QA host"}' >/dev/null
+    name="QA pot $(date +%H%M%S)"
+    cabal="$(call POST /v1/cabals "$host_token" \
+      "{\"name\":\"$name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
+      field id)"
+    call POST "/v1/cabals/$cabal/invites" "$host_token" "{\"handle\":\"$handle_a\"}" >/dev/null
+    echo "seeded: $name, request, invites @$handle_a; @$handle_b has no pending invites"
+    ;;
+  S2)
+    name="QA mine $run"
+    call POST /v1/cabals "$token_a" \
+      "{\"name\":\"$name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" >/dev/null
+    echo "seeded: $name, created by @$handle_a; @$handle_b has no pending invites"
+    ;;
+  *)
+    echo "no setup for scenario $scenario" >&2
+    exit 1
+    ;;
+esac
