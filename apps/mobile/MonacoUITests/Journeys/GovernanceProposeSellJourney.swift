@@ -43,7 +43,19 @@ enum GovernanceProposeSellJourney {
         }
 
         recorder.step("S1.5", "review 25%") {
-            buy.tapLabel(app, "25%", step: "S1.5")
+            let amount = app.element("amount-entry-field")
+            let chip = app.buttons["25%"].firstMatch
+            let done = app.buttons["propose-amount-reason-done"].firstMatch
+            if done.waitForExistence(timeout: 3) { done.tap() }
+            _ = app.keyboards.firstMatch.waitForNonExistence(timeout: 3)
+            XCTAssertTrue(
+                ProfileOverviewJourney.waitUntil(15) {
+                    if (amount.value as? String) != "$0" { return true }
+                    if chip.isEnabled { chip.tap() }
+                    return false
+                },
+                "S1.5: the 25% chip left the amount at \(amount.value as? String ?? "nil"), enabled \(chip.isEnabled)"
+            )
             let thesis = app.element("propose-amount-reason")
             XCTAssertTrue(thesis.waitForExistence(timeout: 10), "S1.5: no thesis field")
             thesis.tap()
