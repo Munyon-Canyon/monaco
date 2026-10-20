@@ -46,12 +46,17 @@ into the green, never a second green, so nothing can read as a shade off.
   through it, and they scatter from a pointer (30fps, paused off-screen or in a hidden tab); button
   hover. Honors `prefers-reduced-motion`, which also switches the pointer response off.
 - Layout: phones get one centred column: icon, "Monaco", the line, then the sign-up bar, with a
-  centred footer; it fits a 375x812 phone without scrolling. From 820px the icon and the copy form
-  one lockup centred in the window (icon left, copy left-aligned beside it, sharing a vertical
-  centre), so there is no dead band between them.
+  centred footer; it fits a 375x812 phone without scrolling, the cabal question included. From 820px
+  the icon and the copy form one lockup centred in the window (icon left, copy left-aligned beside it,
+  sharing a vertical centre), so there is no dead band between them.
 - Form: one control that steps through the sign-up. "Join the waitlist →" opens an email field with
-  an → button; that checks the email and swaps in the optional Twitter handle with a final →;
-  submitting replaces it with "You're on the list." Escape on the handle steps back to the email.
+  an → button; that checks the email and swaps the bar for the cabal question, "Which cabal are you?",
+  five ruled rows in one outlined box, each a cabal's name and its rule, with a Continue → button below;
+  that swaps in the optional Twitter handle with a final →; submitting replaces it with "You're on the
+  list." Escape steps back one step. A row is a square stamp, filled when chosen, and the chosen row's rule
+  reads in full cream like its name; `?cabal=` chooses a row before the visitor gets there, and the visitor
+  still presses Continue. No row is chosen otherwise, because the count of cabals is only worth anything if
+  people pick.
 
 ## Rejected defaults
 - Centered full-viewport hero with one line and one CTA.
