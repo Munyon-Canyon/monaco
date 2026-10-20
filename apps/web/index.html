@@ -79,6 +79,8 @@ button[disabled] { cursor: progress; background: var(--ink-soft); }
 .st:empty { display: none; }
 .st.ok { color: var(--ink); }
 .st.err { color: var(--error); }
+.elig { max-width: 400px; margin: var(--s2) 0 0; text-wrap: balance; }
+.bar[data-step="2"] ~ .elig { display: none; } /* the cabal question needs the height */
 /* The cabal question: five ruled rows stand in for the bar, then a Continue button. */
 .pick { display: none; }
 .bar[data-step="2"] { display: none; }
@@ -143,6 +145,7 @@ footer a { display: inline-flex; align-items: center; min-height: 48px; }
       </div>
       <div class="hp" aria-hidden="true"><label>Company<input name="company" tabindex="-1" autocomplete="off"></label></div>
       <p class="st mono" aria-live="polite"></p>
+      <!--eligibility-->
     </form>
   </div>
 </main>

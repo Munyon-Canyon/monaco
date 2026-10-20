@@ -4,8 +4,9 @@ Waitlist landing page, the `/r/<code>` invite page, and serverless functions. Vi
 
 | Path | What it is |
 |---|---|
-| `index.html` | The waitlist page. The build copies it to `dist/` unchanged |
+| `index.html` | The waitlist page. The build copies it to `dist/`, writing the eligibility line into it |
 | `vite.config.ts` | The build: one HTML input per page, hashed bundles under `/_app/` |
+| `eligibility.js` | Writes `WAITLIST_ELIGIBILITY_LINE` into `index.html` at build time, escaped, or drops its marker when the variable is empty |
 | `dev-api.js` | Dev only: `npx vite` serves `api/waitlist.js`, `api/health.js` and `api/harbor.js` through it. Production never loads it |
 | `lib/waitlist.js` | Signup, health and cabal counter logic, tested in `test/` |
 | `lib/referral.js` | The `/r/<code>` invite page: lookup and HTML, tested in `test/referral.test.js` |
@@ -127,6 +128,7 @@ does not depend on dashboard state.
 | `APP_STORE_URL` | Where "Get Monaco" goes: the App Store listing once it exists, the TestFlight public link until then. Unset, the button goes to `/` |
 | `POSTHOG_KEY` | Optional. The PostHog project key. The invite page sends `referral_page_viewed` and `referral_get_tapped` only when it is set |
 | `ALLOWED_ORIGINS` | Optional. Defaults to monacolabs.xyz, with and without `www`. Set it to the preview URL on Preview |
+| `WAITLIST_ELIGIBILITY_LINE` | Optional, read when the page is built, so a change takes a redeploy. One line under the sign-up form, such as who may join. Empty or unset shows nothing |
 
 The fund page also needs three build-time variables (see `.env.example`). Vite inlines them, so
 none is secret:
