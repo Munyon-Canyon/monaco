@@ -5,6 +5,7 @@ import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { onRequest as waitlist } from "../functions/api/waitlist.js";
 import { onRequest as health } from "../functions/api/health.js";
+import { onRequest as harbor } from "../functions/api/harbor.js";
 import { clientIp, hashIp } from "../lib/waitlist.js";
 
 const env = { SUPABASE_URL: "https://db.test", SUPABASE_ANON_KEY: "anon", IP_HASH_SALT: "salt" };
@@ -110,4 +111,29 @@ test("clientIp prefers cf-connecting-ip and leaves the other hosts' headers work
   assert.equal(clientIp({ "x-forwarded-for": "9.9.9.9" }), "9.9.9.9");
   assert.equal(clientIp({ "x-real-ip": "8.8.8.8" }), "8.8.8.8");
   assert.equal(clientIp({}), "unknown");
+});
+
+// handleHarbor keeps its count in memory for a minute, and the adapter uses the library's own memo, so only the
+// first of these reads the database. The library's tests cover the cache window and the database failures.
+test("harbor returns the counts as JSON, with the library's cache and CORS headers", async () => {
+  const counts = { cavemen: 12, pilates: 7, cadena: 5, degens: 9, undecided: 3, total: 36 };
+  stubFetch({ result: counts });
+  const res = await harbor({ request: new Request("https://monacolabs.xyz/api/harbor", { headers: { origin: "https://www.monacolabs.xyz" } }), env });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("content-type"), "application/json");
+  assert.equal(res.headers.get("cache-control"), "public, max-age=60");
+  assert.equal(res.headers.get("vary"), "Origin");
+  assert.equal(res.headers.get("access-control-allow-origin"), "https://www.monacolabs.xyz");
+  assert.deepEqual(await res.json(), counts);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "https://db.test/rest/v1/rpc/waitlist_harbor");
+});
+
+test("harbor passes the method and the Origin header through, so a POST is a 405 and a foreign origin a 403", async () => {
+  const post405 = await harbor({ request: new Request("https://monacolabs.xyz/api/harbor", { method: "POST" }), env });
+  assert.equal(post405.status, 405);
+  const foreign = await harbor({ request: new Request("https://monacolabs.xyz/api/harbor", { headers: { origin: "https://evil.example" } }), env });
+  assert.equal(foreign.status, 403);
+  assert.equal(foreign.headers.get("access-control-allow-origin"), null);
+  assert.equal(foreign.headers.get("cache-control"), "no-store");
 });

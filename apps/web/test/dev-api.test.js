@@ -6,6 +6,7 @@ import { createServer as createHttpServer } from "node:http";
 import { createServer } from "vite";
 
 // A fake PostgREST: records every RPC and answers the way the real functions do.
+const counts = { cavemen: 12, pilates: 7, cadena: 5, degens: 9, undecided: 3, total: 36 };
 const rpcs = [];
 const supabase = createHttpServer((req, res) => {
   let raw = "";
@@ -14,7 +15,7 @@ const supabase = createHttpServer((req, res) => {
     const name = req.url.replace("/rest/v1/rpc/", "");
     rpcs.push({ name, apikey: req.headers.apikey, args: raw ? JSON.parse(raw) : null });
     res.setHeader("content-type", "application/json");
-    res.end(name === "waitlist_ready" ? "true" : '"ok"');
+    res.end(name === "waitlist_ready" ? "true" : name === "waitlist_harbor" ? JSON.stringify(counts) : '"ok"');
   });
 });
 await new Promise((resolve) => supabase.listen(0, "127.0.0.1", resolve));
@@ -64,6 +65,17 @@ test("health asks the database and reports it", async () => {
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { status: "ok", dependencies: { supabase: "ok", ipHashSalt: "ok" } });
   assert.deepEqual(rpcs.map((r) => r.name), ["waitlist_ready"]);
+});
+
+test("the counter is served too, with its cache and CORS headers", async () => {
+  rpcs.length = 0;
+  const res = await fetch(`${base}/api/harbor`, { headers: { origin: base } });
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), counts);
+  assert.equal(res.headers.get("cache-control"), "public, max-age=60");
+  assert.equal(res.headers.get("access-control-allow-origin"), base);
+  assert.deepEqual(rpcs.map((r) => r.name), ["waitlist_harbor"]);
+  assert.equal((await fetch(`${base}/api/harbor`, { headers: { origin: "https://evil.example" } })).status, 403);
 });
 
 test("everything outside /api is still the page", async () => {

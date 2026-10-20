@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { CABALS } from "../lib/waitlist.js";
 
 const migration = readFileSync(new URL("../migrations/000030_waitlist_cabal.sql", import.meta.url), "utf8");
+const harbor = readFileSync(new URL("../migrations/000031_waitlist_harbor.sql", import.meta.url), "utf8");
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 
 test("the migration's constraint and function accept exactly the cabals the API does", () => {
@@ -34,4 +35,9 @@ test("each row reads as the copy the founders gave, and the question and its err
 
 test("the sign-up request carries the chosen cabal next to the source", () => {
   assert.match(html, /JSON\.stringify\(\{[^}]*cabal: form\.cabal\.value[^}]*source: q\.get\("ref"\)/);
+});
+
+test("the counter's SQL reports every cabal and the total, in the order the API publishes them", () => {
+  const keys = [...harbor.matchAll(/^\s+'([a-z]+)',/gm)].map((m) => m[1]);
+  assert.deepEqual(keys, [...CABALS, "total"]);
 });

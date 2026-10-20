@@ -1,5 +1,6 @@
 // Waitlist signup: validation and origin checks here; the rate limit and write
-// happen atomically in the join_waitlist() database function.
+// happen atomically in the join_waitlist() database function. The cabal counter reads
+// waitlist_harbor() the same way.
 // Pure logic with injected fetch/env/clock so every unhappy path is testable.
 
 import { createHash } from "node:crypto";
@@ -154,6 +155,55 @@ export async function handleSignup({ method, headers, body, env, fetch, log = co
   log.info(JSON.stringify({ event: "waitlist_signup", source: source || null, cabal, hasTwitter: Boolean(twitter) }));
   // Same response for new and existing emails, so the endpoint doesn't reveal who signed up.
   return { status: 200, body: { ok: true } };
+}
+
+const HARBOR_TTL_MS = 60_000;
+const HARBOR_KEYS = [...CABALS, "total"];
+// The counts one warm instance last read. Tests pass their own, so none leaks between them.
+const harborMemo = {};
+
+// Publish the six counts and nothing else; anything the database sends that is not a count is a fault, not a page.
+function harborCounts(raw) {
+  const counts = {};
+  for (const key of HARBOR_KEYS) {
+    if (!Number.isSafeInteger(raw?.[key]) || raw[key] < 0) throw new Error("waitlist_harbor returned an unexpected shape");
+    counts[key] = raw[key];
+  }
+  return counts;
+}
+
+// GET /api/harbor: how many people signed up as each cabal. Returns { status, headers, body } for the HTTP layer.
+// The database is read at most once a minute per warm instance, and browsers keep the answer for the same minute.
+export async function handleHarbor({ method, headers, env, fetch, now = Date.now, memo = harborMemo, log = console }) {
+  const noStore = { "Cache-Control": "no-store" };
+  if (method !== "GET") return { status: 405, headers: noStore, body: { error: "Use GET." } };
+
+  const origin = headers.origin;
+  if (origin && !allowedOrigins(env).includes(origin)) {
+    return { status: 403, headers: noStore, body: { error: "The harbor is only shown to monacolabs.xyz." } };
+  }
+
+  if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
+    log.error(JSON.stringify({ event: "harbor_misconfigured" }));
+    return { status: 500, headers: noStore, body: { error: "The harbor is not configured." } };
+  }
+
+  if (!memo.counts || now() - memo.at >= HARBOR_TTL_MS) {
+    try {
+      memo.counts = harborCounts(await rpc({ fetch, env, name: "waitlist_harbor", args: {} }));
+      memo.at = now();
+    } catch (err) {
+      log.error(JSON.stringify({ event: "harbor_read_failed", message: String(err && err.message || err) }));
+      return { status: 502, headers: noStore, body: { error: "The harbor is having trouble right now. Try again in a minute." } };
+    }
+  }
+
+  return {
+    status: 200,
+    // The origin is echoed, never "*", so the allow-list above is what limits who can read it in a browser.
+    headers: { "Cache-Control": "public, max-age=60", Vary: "Origin", ...(origin ? { "Access-Control-Allow-Origin": origin } : {}) },
+    body: memo.counts,
+  };
 }
 
 export async function checkHealth({ env, fetch }) {
