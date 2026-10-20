@@ -144,6 +144,8 @@ home-v3-proposals-error       -MonacoHomeSample proposalsError
 home-v3-loading               -MonacoHomeSample loading
 home-v3-stale                 -MonacoHomeSample stale
 home-v3-error                 -MonacoHomeSample error
+home-v3-not-funded            -MonacoHomeSample notFunded
+home-v3-partly-funded         -MonacoHomeSample partlyFunded
 home-v3-loss-dark             -MonacoHomeSample loss -AppleInterfaceStyle Dark
 home-v3-loss-cabals           -MonacoHomeSample loss -MonacoSampleScroll 0.6
 home-v3-loss-lower            -MonacoHomeSample loss -MonacoSampleScroll 1
