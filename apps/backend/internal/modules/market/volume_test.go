@@ -111,7 +111,7 @@ func TestVolumes_aLaterTickReplacesTheReadingAndAnOlderOneNeverDoes(t *testing.T
 	if got := storedVolumes(t, r.historyRig, aapl.Mint); len(got) != 1 || got[0].micros != 900 {
 		t.Fatalf("volumes = %+v, want the newer reading kept", got)
 	}
-	r.clock.Advance(time.Hour)
+	r.clock.Advance(app.VolumeInterval)
 	if _, err := r.tick(t); err != nil {
 		t.Fatal(err)
 	}

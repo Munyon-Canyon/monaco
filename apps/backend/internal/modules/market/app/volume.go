@@ -15,7 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
-const VolumeInterval = time.Hour
+const VolumeInterval = 3 * time.Hour
 
 const VolumeBatch = 250
 

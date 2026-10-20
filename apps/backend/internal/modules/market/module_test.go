@@ -119,11 +119,11 @@ func TestModule_retriesXStocksThreeTimesWithinTheBackoffCeilings(t *testing.T) {
 	})
 }
 
-func TestModule_pollsVolumeHourlyOnTheReconcileClientAndCooldown(t *testing.T) {
+func TestModule_pollsVolumeEveryThreeHoursOnTheReconcileClientAndCooldown(t *testing.T) {
 	t.Parallel()
 	pollers := market.New(module.Deps{Config: moduleConfig(), HTTPClient: httpclient.New}).Pollers()
-	if volume := pollers[4]; len(pollers) != 5 || volume.Name() != "market.volume" || volume.Interval() != time.Hour {
-		t.Fatalf("Pollers = %v, want market.volume every hour last", pollers)
+	if volume := pollers[4]; len(pollers) != 5 || volume.Name() != "market.volume" || volume.Interval() != 3*time.Hour {
+		t.Fatalf("Pollers = %v, want market.volume every 3 hours last", pollers)
 	}
 }
 
