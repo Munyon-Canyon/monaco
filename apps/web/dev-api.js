@@ -1,10 +1,11 @@
 // Dev only. `npx vite` serves static files, so /api/* would 404 on a laptop. This mounts the same
 // Vercel handlers that api/ ships, so a sign-up in the dev server runs the code production runs.
 
+import harbor from "./api/harbor.js";
 import health from "./api/health.js";
 import waitlist from "./api/waitlist.js";
 
-const routes = { "/api/health": health, "/api/waitlist": waitlist };
+const routes = { "/api/harbor": harbor, "/api/health": health, "/api/waitlist": waitlist };
 
 // Vercel hands a handler a parsed body and a res with .status() and .json(); Vite's connect gives plain Node objects.
 async function run(handler, req, res) {

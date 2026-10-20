@@ -6,11 +6,11 @@ Waitlist landing page, the `/r/<code>` invite page, and serverless functions. Vi
 |---|---|
 | `index.html` | The waitlist page. The build copies it to `dist/` unchanged |
 | `vite.config.ts` | The build: one HTML input per page, hashed bundles under `/_app/` |
-| `dev-api.js` | Dev only: `npx vite` serves `api/waitlist.js` and `api/health.js` through it. Production never loads it |
-| `lib/waitlist.js` | Signup and health logic, tested in `test/` |
+| `dev-api.js` | Dev only: `npx vite` serves `api/waitlist.js`, `api/health.js` and `api/harbor.js` through it. Production never loads it |
+| `lib/waitlist.js` | Signup, health and cabal counter logic, tested in `test/` |
 | `lib/referral.js` | The `/r/<code>` invite page: lookup and HTML, tested in `test/referral.test.js` |
-| `functions/api/waitlist.js`, `functions/api/health.js`, `functions/r/[code].js` | Cloudflare Pages adapters |
-| `api/waitlist.js`, `api/health.js`, `api/r/[code].js` | Vercel adapters. `vercel.json` rewrites `/r/:code` to `/api/r/:code` |
+| `functions/api/waitlist.js`, `functions/api/health.js`, `functions/api/harbor.js`, `functions/r/[code].js` | Cloudflare Pages adapters |
+| `api/waitlist.js`, `api/health.js`, `api/harbor.js`, `api/r/[code].js` | Vercel adapters. `vercel.json` rewrites `/r/:code` to `/api/r/:code` |
 | `public/.well-known/apple-app-site-association` | Lists `/r/*` for the iOS app's Universal Links. Served as `application/json` by `public/_headers` and `vercel.json` |
 | `public/_headers`, `wrangler.toml` | Cloudflare config |
 | `vercel.json` | Vercel config |
@@ -20,7 +20,7 @@ Waitlist landing page, the `/r/<code>` invite page, and serverless functions. Vi
 
 `api/` and `functions/` are two thin adapters over the same functions in
 `lib/waitlist.js` — `handleSignup()` and `checkHealth()`, both returning
-`{ status, body }` — and `lib/referral.js`, whose `handleReferral()` returns
+`{ status, body }`, and `handleHarbor()`, which returns `{ status, headers, body }` — and `lib/referral.js`, whose `handleReferral()` also returns
 `{ status, headers, body }`. Both hosts are live on purpose so the domain can move without
 downtime. Once `monacolabs.xyz` points at Cloudflare, delete `api/`, `vercel.json`
 and the `dev` script.
@@ -44,7 +44,7 @@ npx wrangler pages dev --binding SUPABASE_URL=… SUPABASE_ANON_KEY=… IP_HASH_
 
 ### Try a sign-up locally
 
-`npx vite` serves the page, and `dev-api.js` serves `/api/waitlist` and `/api/health` from it with the handlers Vercel runs. They need a Supabase to write to. The Supabase CLI runs one in Docker over this folder's migrations, from a project folder outside the repo. Run this from the repo root; the ports avoid Compose Postgres (54322) and the test databases (54323, 54324):
+`npx vite` serves the page, and `dev-api.js` serves `/api/waitlist`, `/api/health` and `/api/harbor` from it with the handlers Vercel runs. They need a Supabase to write to. The Supabase CLI runs one in Docker over this folder's migrations, from a project folder outside the repo. Run this from the repo root; the ports avoid Compose Postgres (54322) and the test databases (54323, 54324):
 
 ```bash
 WL=$(mktemp -d) && mkdir "$WL/supabase"
@@ -99,11 +99,12 @@ CORS needs no setup. `WEB_ALLOWED_ORIGINS` already allows `http://localhost:5173
 
 ## Deploy to Cloudflare Pages
 
-Apply the waitlist migrations (`apps/web/migrations/000026`–`000030`, in order) to the hosted
+Apply the waitlist migrations (`apps/web/migrations/000026`–`000031`, in order) to the hosted
 database first. Without them `join_waitlist()` does not exist, `/api/health` reports
 `supabase: "waitlist table missing"`, and signups return a 502 rather than storing
 anything. Signups call the six-argument `join_waitlist()` that `000030` adds, so a database that
 stops at `000029` answers the same 502: apply `000030` before the deploy that carries it.
+`000031` only adds the counter, so without it signups still work and `/api/harbor` answers 502.
 
 | Setting | Value |
 |---|---|
@@ -204,6 +205,22 @@ To add it back:
    click, so the third party is not contacted by visitors who never press play.
 
 `public/assets/video-poster.png` is already in the repo for this.
+
+## The cabal counter
+
+`GET /api/harbor` says how many people signed up as each cabal:
+
+```json
+{ "cavemen": 12, "pilates": 7, "cadena": 5, "degens": 9, "undecided": 3, "total": 36 }
+```
+
+| | |
+|---|---|
+| Counts | From `waitlist_harbor()` (`000031`), the only way the anon key sees a count. A signup with no cabal counts as `undecided`, so the five add up to `total` |
+| Cache | The database is read once a minute per warm instance, and `Cache-Control: public, max-age=60` lets browsers keep the answer for the same minute |
+| CORS | A request whose `Origin` is in `ALLOWED_ORIGINS` (default monacolabs.xyz and `www`) gets that origin back in `Access-Control-Allow-Origin`, with `Vary: Origin`. Any other `Origin` gets a 403. A request with no `Origin`, such as a same-origin page or `curl`, gets no CORS headers |
+| Methods | `GET` only, so no preflight |
+| Failures | 502 when the database cannot answer, 500 when `SUPABASE_URL` or `SUPABASE_ANON_KEY` is unset. Both carry `no-store` |
 
 ## Data
 
