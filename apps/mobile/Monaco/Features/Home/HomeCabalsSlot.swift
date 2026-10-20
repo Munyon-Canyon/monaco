@@ -11,16 +11,22 @@ enum HomeCabalsSlot: HomeSection {
 }
 
 extension CabalCoverCardModel {
-    init(row: PortfolioSummary.Row, context: HomeCabalContext?, votesNeededText: String?) {
-        let funded = row.valueMicros > 0
+    init(item: HomeCabalItem, context: HomeCabalContext?, votesNeededText: String?) {
+        let funded = item.isFunded
+        let standing = item.standing
         self.init(
-            id: row.id, name: row.name, memberCountText: context?.memberCountText ?? "Cabal",
-            votesNeededText: votesNeededText, shareText: UsdAmountFormatter.format(micros: row.valueMicros),
-            ownershipText: context?.ownershipText,
+            id: item.id, name: item.name,
+            memberCountText: item.memberCount.map { CabalCopy.memberCount(Int32(clamping: $0)) }
+                ?? context?.memberCountText ?? "Cabal",
+            votesNeededText: funded ? votesNeededText : nil,
+            shareText: UsdAmountFormatter.format(micros: standing?.valueMicros ?? 0),
+            ownershipText: context?.ownershipText ?? (funded ? nil : "0.00%"),
             pnl: funded
-                ? Figure(amountText: row.pnl, percentText: row.returnText, direction: row.direction.pnlTone) : nil,
+                ? standing.map {
+                    Figure(amountText: $0.pnl, percentText: $0.returnText, direction: $0.direction.pnlTone)
+                } : nil,
             pnlUnavailableReason: funded ? nil : "Not funded", groupReturn: nil,
-            tint: MonacoTheme.CabalTint.forGroupId(row.id), pictureURL: row.pictureURL)
+            tint: MonacoTheme.CabalTint.forGroupId(item.id), pictureURL: item.pictureURL)
     }
 }
 
@@ -38,6 +44,7 @@ private struct HomeCabals: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
+    @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @Environment(\.homeReads) private var reads
     @Environment(\.homeVoteNeeds) private var voteNeeds
     @State private var details: HomeCabalContextModel?
@@ -47,14 +54,32 @@ private struct HomeCabals: View {
         let gate = HomeGate(portfolio: portfolio, reads: reads, balance: environment.balance.state)
         VStack(alignment: .leading, spacing: 0) {
             if let summary = gate.summary {
-                if summary.isEmpty {
+                switch HomeCabalList.state(portfolio: summary, memberships: details?.memberships) {
+                case .loading:
+                    EmptyView()
+                case .empty:
                     startWithPeople
-                } else {
-                    rail(summary)
+                case .cabals(let items):
+                    rail(items)
                 }
             }
         }
         .homeSlotHidden(!gate.shows { _ in true })
+        .task(id: gate.summary) {
+            let summary = gate.summary
+            refresh?.register("home-cabals") { await sync(summary: summary, refreshing: true) }
+            await sync(summary: summary, refreshing: false)
+            await details?.observe(hints: environment.hints)
+        }
+    }
+
+    private func sync(summary: PortfolioSummary?, refreshing: Bool) async {
+        let model = details ?? HomeCabalContextModel(api: environment.api)
+        details = model
+        await model.loadMemberships(refreshing: refreshing)
+        guard let summary else { return }
+        let items = HomeCabalList.items(portfolio: summary, memberships: model.memberships)
+        await model.load(cabalIDs: items.map(\.id))
     }
 
     private var startWithPeople: some View {
@@ -69,35 +94,31 @@ private struct HomeCabals: View {
         .accessibilityIdentifier("home-cabals-empty")
     }
 
-    private func rail(_ summary: PortfolioSummary) -> some View {
+    private func rail(_ items: [HomeCabalItem]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             MonacoSectionHeader("Your cabals", trailing: "See all") {
                 environment.navigator.selectedTab = .cabals
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
             CabalCoverRail {
-                ForEach(summary.rows) { row in
+                ForEach(items) { item in
                     CabalCoverCard(
                         model: CabalCoverCardModel(
-                            row: row, context: details?.contexts[row.id], votesNeededText: voteNeeds?.text(for: row.id)),
-                        isSharing: sharing == row.id,
-                        onOpen: { environment.navigator.open(CabalRoute(id: row.id), in: .home) },
+                            item: item, context: details?.contexts[item.id],
+                            votesNeededText: voteNeeds?.text(for: item.id)),
+                        isSharing: sharing == item.id,
+                        onOpen: { environment.navigator.open(CabalRoute(id: item.id), in: .home) },
                         onShare: {
                             Task {
                                 await ShareCardLauncher.shareCabal(
-                                    id: row.id, api: environment.api, toasts: toasts, busy: $sharing)
+                                    id: item.id, api: environment.api, toasts: toasts, busy: $sharing)
                             }
                         }
                     )
                     .accessibilityElement(children: .contain)
-                    .accessibilityIdentifier("cabal-row-\(row.id)")
+                    .accessibilityIdentifier("cabal-row-\(item.id)")
                 }
             }
-        }
-        .task(id: summary.rows.map(\.id)) {
-            let model = details ?? HomeCabalContextModel(api: environment.api)
-            details = model
-            await model.load(cabalIDs: summary.rows.map(\.id))
         }
     }
 }

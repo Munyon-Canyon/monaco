@@ -14,6 +14,8 @@ enum HomeSampleScenario: String, CaseIterable {
     case loss
     case gain
     case cashOnly
+    case notFunded
+    case partlyFunded
     case multipleProposals
     case voted
     case executing
@@ -50,6 +52,8 @@ extension HomeSampleScenario {
         case .loss: HomeSampleData.script(.loss, proposals: [.needsVote])
         case .gain: HomeSampleData.script(.gain, proposals: [.needsVote])
         case .cashOnly: HomeSampleData.script(.cashOnly, proposals: [])
+        case .notFunded: HomeSampleData.script(.unfunded, proposals: [])
+        case .partlyFunded: HomeSampleData.script(.partlyFunded, proposals: [])
         case .multipleProposals: HomeSampleData.script(.loss, proposals: [.needsVote, .second])
         case .voted: HomeSampleData.script(.loss, proposals: [.voted])
         case .executing: HomeSampleData.script(.loss, proposals: [.executing])
@@ -71,7 +75,7 @@ extension HomeSampleScenario {
 
 enum HomeSampleData {
     enum Figures {
-        case loss, gain, cashOnly, empty
+        case loss, gain, cashOnly, unfunded, partlyFunded, empty
     }
 
     enum Proposal {
@@ -91,13 +95,13 @@ enum HomeSampleData {
         _ figures: Figures, proposals: [Proposal], pendingVotesHang: Bool = false, pendingVotesFail: Bool = false,
         portfolioReadsBeforeFailing: Int? = nil
     ) -> SampleAPIScript {
-        var script = SampleAPIScript()
+        var script = SampleAPIScript(mode: figures == .empty ? .empty : .populated)
         script.portfolio = portfolio(figures)
         script.pnlHistory = history(figures)
         script.balance = balance(micros: figures == .empty ? 0 : 500_000_000)
         script.homeCabals = figures == .empty ? [] : cabals.map(myCabal)
         script.ownershipBps = Dictionary(
-            uniqueKeysWithValues: cabals.map { ($0.id, figures == .cashOnly ? 0 : $0.ownershipBps) })
+            uniqueKeysWithValues: cabals.map { ($0.id, ownershipBps(figures, $0)) })
         script.cabalBoard = cabalBoard
         script.pendingVotes = proposals.map(pending)
         script.proposals = Dictionary(uniqueKeysWithValues: proposals.map { (pending($0).proposalId, detail($0)) })
@@ -111,6 +115,18 @@ enum HomeSampleData {
         script.pendingVotesFail = pendingVotesFail
         script.portfolioReadsBeforeFailing = portfolioReadsBeforeFailing
         return script
+    }
+
+    private static func ownershipBps(
+        _ figures: Figures, _ cabal: (id: String, name: String, members: Int32, ownershipBps: Int32)
+    )
+        -> Int32
+    {
+        switch figures {
+        case .cashOnly, .unfunded: 0
+        case .partlyFunded: cabal.id == bigBallers ? cabal.ownershipBps : 0
+        case .loss, .gain, .empty: cabal.ownershipBps
+        }
     }
 
     private static func balance(micros: Int64) -> Components.Schemas.Balance {
@@ -132,14 +148,19 @@ enum HomeSampleData {
         case .cashOnly:
             values = [0, 0, 0]
             pnls = [0, 0, 0]
-        case .empty:
+        case .partlyFunded:
+            values = [7_000_000_000, 0, 0]
+            pnls = [-300_000_000, 0, 0]
+        case .unfunded, .empty:
             return .sampleEmpty
         }
         let total: Int64 = values.reduce(0, +)
         let totalPnl: Int64 = pnls.reduce(0, +)
         let totalNetContributed: Int64 = total - totalPnl
         let totalReturnBps: Int64? = total == 0 ? nil : totalPnl * 10_000 / max(totalNetContributed, 1)
-        let rows: [Components.Schemas.PortfolioCabal] = zip(cabals, zip(values, pnls)).map { cabal, figure in
+        let paired = Array(zip(cabals, zip(values, pnls)))
+        let shown = figures == .partlyFunded ? paired.filter { $0.1.0 > 0 } : paired
+        let rows: [Components.Schemas.PortfolioCabal] = shown.map { cabal, figure in
             let value: Int64 = figure.0
             let pnl: Int64 = figure.1
             let netContributed: Int64 = value - pnl
@@ -158,9 +179,9 @@ enum HomeSampleData {
     private static func history(_ figures: Figures) -> Components.Schemas.MyPnlHistory {
         let target: Int64
         switch figures {
-        case .loss: target = -417_680_000
+        case .loss, .partlyFunded: target = -417_680_000
         case .gain: target = 1_482_320_000
-        case .cashOnly, .empty: return .sampleEmpty
+        case .cashOnly, .unfunded, .empty: return .sampleEmpty
         }
         let count = 31
         let wobbles: [Int64] = [0, 18, -12, 25, -20, 10, -25, 15]

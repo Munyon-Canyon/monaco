@@ -26,11 +26,34 @@ public final class HomeCabalContextModel {
     public static let maximumCabals = 12
 
     public private(set) var contexts: [String: HomeCabalContext] = [:]
+    public private(set) var memberships: [Components.Schemas.MyCabal]?
 
     private let api: APIClient
+    private var membershipsRead = false
 
     public init(api: APIClient) {
         self.api = api
+    }
+
+    private static func members(known: [Components.Schemas.MyCabal]?, reading: Bool, api: APIClient) async
+        -> [Components.Schemas.MyCabal]?
+    {
+        guard reading else { return known }
+        return try? await api.read { try await $0.getMyCabals().ok.body.json }
+    }
+
+    public func loadMemberships(refreshing: Bool = false) async {
+        guard refreshing || !membershipsRead else { return }
+        let fetched = try? await api.read { try await $0.getMyCabals().ok.body.json }
+        guard !Task.isCancelled else { return }
+        if let fetched { memberships = fetched }
+        membershipsRead = true
+    }
+
+    public func observe(hints: any HintSource) async {
+        for await _ in hints.hints(matching: .user(what: "cabals")) {
+            await loadMemberships(refreshing: true)
+        }
     }
 
     public func load(cabalIDs: [String]) async {
@@ -40,7 +63,9 @@ public final class HomeCabalContextModel {
             return
         }
         let api = api
-        async let members = try? await api.read { try await $0.getMyCabals().ok.body.json }
+        let known = membershipsRead ? memberships : nil
+        let reads = !membershipsRead
+        async let members = Self.members(known: known, reading: reads, api: api)
         let ownership = await withTaskGroup(of: (String, Int64?).self) { group in
             for id in ids {
                 group.addTask {

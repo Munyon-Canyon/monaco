@@ -8,9 +8,9 @@ diff --git a/apps/mobile/Monaco/Features/Home/HomeCabalsSlot.swift b/apps/mobile
 index 6de94999d..c9785e4de 100644
 --- a/apps/mobile/Monaco/Features/Home/HomeCabalsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Home/HomeCabalsSlot.swift
-@@ -79,7 +79,7 @@ private struct HomeCabals: View {
+@@ -98,7 +98,7 @@ private struct HomeCabals: View {
  
-     private func rail(_ summary: PortfolioSummary) -> some View {
+     private func rail(_ items: [HomeCabalItem]) -> some View {
          VStack(alignment: .leading, spacing: 0) {
 -            MonacoSectionHeader("Your cabals", trailing: "See all") {
 +            MonacoSectionHeader("My cabals", trailing: "See all") {
