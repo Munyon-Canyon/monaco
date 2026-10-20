@@ -10,3 +10,7 @@ import (
 type Cabals interface {
 	Cabal(ctx context.Context, id ids.CabalID) (port.CabalView, error)
 }
+
+type CabalPictures interface {
+	Cabals(ctx context.Context, cabalIDs []ids.CabalID) (map[ids.CabalID]port.CabalView, error)
+}

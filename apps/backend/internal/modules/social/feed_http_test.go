@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters"
@@ -21,6 +22,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 )
 
 func (f feedFixture) routes() adapters.HTTP { return f.routesWith(nil) }
@@ -30,8 +32,12 @@ func (f feedFixture) routesWith(cards []identity.UserCard) adapters.HTTP {
 }
 
 func (f feedFixture) routesUsing(users *fakes.Identity) adapters.HTTP {
+	return f.routesOptions(social.WithUsers(users))
+}
+
+func (f feedFixture) routesOptions(opts ...social.Option) adapters.HTTP {
 	deps := module.Deps{Pool: f.pool, UoW: db.New(f.pool, f.gen, f.clock), IDs: f.gen, Clock: f.clock}
-	return social.HTTPOf(social.New(deps, social.WithUsers(users)))
+	return social.HTTPOf(social.New(deps, opts...))
 }
 
 func ptr[T any](v T) *T { return &v }
@@ -112,6 +118,83 @@ func TestGetFeed_returnsTheActorsCurrentPhotoOrNull(t *testing.T) {
 	if got[bareItem] != nil || got[systemItem] != nil {
 		t.Fatalf("photoless photos = %v and %v, want null", got[bareItem], got[systemItem])
 	}
+}
+
+func (f feedFixture) imageFields(t *testing.T, catalog *marketfake.CatalogFake) (logo, picture map[uuid.UUID]*string) {
+	t.Helper()
+	res, err := f.routesOptions(social.WithAssets(catalog)).GetFeed(
+		asUser(t.Context(), ids.NewUserID(f.gen)), api.GetFeedRequestObject{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	logo, picture = map[uuid.UUID]*string{}, map[uuid.UUID]*string{}
+	for _, item := range api.FeedPage(res.(api.GetFeed200JSONResponse)).Items {
+		logo[item.Id], picture[item.Id] = item.AssetLogoUrl, item.CabalPictureUrl
+	}
+	return logo, picture
+}
+
+func TestGetFeed_returnsTheAssetLogoAndTheCabalPictureOrNull(t *testing.T) {
+	t.Parallel()
+	f := newFeedFixture(t)
+	apple := marketfake.AAPLx()
+	cabal := testkit.NewCabal(t, f.pool)
+	const cover = "https://img.example/alpha.jpg"
+	set := `UPDATE cabals SET picture_url = $2 WHERE id = $1`
+	if _, err := f.pool.Exec(t.Context(), set, cabal.ID.UUID(), cover); err != nil {
+		t.Fatal(err)
+	}
+	trade := f.item(t, func(it *feed.Item) { it.CabalID, it.AssetID = cabal.ID, apple.ID.UUID() })
+	f.clock.Advance(time.Millisecond)
+	move := f.item(t, func(it *feed.Item) {
+		it.Kind, it.RefID, it.AssetID = feed.KindPriceMove, f.gen.NewV7(), apple.ID.UUID()
+		it.Payload = feed.Payload{Symbol: "AAPLx"}
+	})
+	f.clock.Advance(time.Millisecond)
+	unlisted := f.item(t, func(it *feed.Item) {
+		it.Kind, it.RefID, it.AssetID = feed.KindPriceMove, f.gen.NewV7(), f.gen.NewV7()
+		it.Payload = feed.Payload{Symbol: "GONEx"}
+	})
+	logo, picture := f.imageFields(t, marketfake.NewCatalog(apple))
+	hasLogo := func(id uuid.UUID) bool { return logo[id] != nil && *logo[id] == apple.LogoURL }
+	if len(logo) != 3 || !hasLogo(trade) || !hasLogo(move) {
+		t.Fatalf("logos = %v, want the asset's logo on %v and %v", logo, trade, move)
+	}
+	if logo[unlisted] != nil {
+		t.Fatalf("unlisted logo = %v, want null", logo[unlisted])
+	}
+	if picture[trade] == nil || *picture[trade] != cover || picture[move] != nil || picture[unlisted] != nil {
+		t.Fatalf("pictures = %v, want the cabal's picture on the trade only", picture)
+	}
+}
+
+func TestGetFeed_failsWhenTheAssetLookupFails(t *testing.T) {
+	t.Parallel()
+	f := newFeedFixture(t)
+	viewer := ids.NewUserID(f.gen)
+	apple := marketfake.AAPLx()
+	f.item(t, func(it *feed.Item) { it.AssetID = apple.ID.UUID() })
+	catalog := marketfake.NewCatalog(apple)
+	catalog.Fail("AssetByID", errs.New(errs.CodeUpstreamUnavailable, "test"))
+	routes := f.routesOptions(social.WithAssets(catalog))
+	_, err := routes.GetFeed(asUser(t.Context(), viewer), api.GetFeedRequestObject{})
+	wantCode(t, err, errs.CodeUpstreamUnavailable)
+}
+
+type failingPictures struct{}
+
+func (failingPictures) Cabals(context.Context, []ids.CabalID) (map[ids.CabalID]cabalport.CabalView, error) {
+	return nil, errs.New(errs.CodeUpstreamUnavailable, "test")
+}
+
+func TestGetFeed_failsWhenTheCabalPictureLookupFails(t *testing.T) {
+	t.Parallel()
+	f := newFeedFixture(t)
+	viewer := ids.NewUserID(f.gen)
+	f.item(t, func(it *feed.Item) { it.CabalID = testkit.NewCabal(t, f.pool).ID })
+	routes := f.routesOptions(social.WithCabalPictures(failingPictures{}))
+	_, err := routes.GetFeed(asUser(t.Context(), viewer), api.GetFeedRequestObject{})
+	wantCode(t, err, errs.CodeUpstreamUnavailable)
 }
 
 func TestGetFeed_failsWhenTheUserLookupFails(t *testing.T) {

@@ -39,6 +39,8 @@ type HTTP struct {
 	Clock          clock.Clock
 	Users          app.Users
 	Returns        app.Returns
+	Logos          app.AssetLogos
+	Pictures       app.CabalPictures
 }
 
 func (h HTTP) GetUserFollowers(

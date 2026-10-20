@@ -46,7 +46,7 @@ func (h HTTP) GetFeed(ctx context.Context, req api.GetFeedRequestObject) (api.Ge
 	if err != nil {
 		return nil, err
 	}
-	items, err := wireFeedItems(ctx, h.Users, h.Returns, page.Items)
+	items, err := h.wireFeedItems(ctx, page.Items)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func (h HTTP) GetFeedItem(
 	if err != nil {
 		return nil, err
 	}
-	items, err := wireFeedItems(ctx, h.Users, h.Returns, []app.FeedItem{view.Item})
+	items, err := h.wireFeedItems(ctx, []app.FeedItem{view.Item})
 	if err != nil {
 		return nil, err
 	}
@@ -129,17 +129,54 @@ func feedFilter(kinds *string, cabal, actor *uuid.UUID, symbol, q, scope *string
 	return f, nil
 }
 
-func wireFeedItems(
-	ctx context.Context, users app.Users, returns app.Returns, items []app.FeedItem,
-) ([]api.FeedItem, error) {
-	var actors []ids.UserID
+type feedRefs struct {
+	actors []ids.UserID
+	assets []uuid.UUID
+	cabals []ids.CabalID
+	logos  map[uuid.UUID]string
+	covers map[ids.CabalID]string
+}
+
+func collectFeedRefs(items []app.FeedItem) feedRefs {
+	var r feedRefs
 	for _, item := range items {
-		if item.ActorID.UUID() != uuid.Nil && !slices.Contains(actors, item.ActorID) {
-			actors = append(actors, item.ActorID)
+		if item.ActorID.UUID() != uuid.Nil && !slices.Contains(r.actors, item.ActorID) {
+			r.actors = append(r.actors, item.ActorID)
+		}
+		if item.AssetID != uuid.Nil && !slices.Contains(r.assets, item.AssetID) {
+			r.assets = append(r.assets, item.AssetID)
+		}
+		if item.CabalID.UUID() != uuid.Nil && !slices.Contains(r.cabals, item.CabalID) {
+			r.cabals = append(r.cabals, item.CabalID)
 		}
 	}
-	who, err := loadPeople(ctx, users, returns, actors, "social.wireFeedItems")
+	return r
+}
+
+func (h HTTP) loadFeedImages(ctx context.Context, r *feedRefs) error {
+	const op = "social.wireFeedItems"
+	logos, err := h.Logos.AssetLogos(ctx, r.assets)
 	if err != nil {
+		return errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	views, err := h.Pictures.Cabals(ctx, r.cabals)
+	if err != nil {
+		return errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	r.logos, r.covers = logos, make(map[ids.CabalID]string, len(views))
+	for id, view := range views {
+		r.covers[id] = view.PictureURL
+	}
+	return nil
+}
+
+func (h HTTP) wireFeedItems(ctx context.Context, items []app.FeedItem) ([]api.FeedItem, error) {
+	refs := collectFeedRefs(items)
+	who, err := loadPeople(ctx, h.Users, h.Returns, refs.actors, "social.wireFeedItems")
+	if err != nil {
+		return nil, err
+	}
+	if err := h.loadFeedImages(ctx, &refs); err != nil {
 		return nil, err
 	}
 	out := make([]api.FeedItem, len(items))
@@ -148,6 +185,8 @@ func wireFeedItems(
 		if card, ok := who.cards[item.ActorID]; ok && !card.Deleted {
 			out[i].ActorPhotoUrl = optionalWireText(card.PhotoURL)
 		}
+		out[i].AssetLogoUrl = optionalWireText(refs.logos[item.AssetID])
+		out[i].CabalPictureUrl = optionalWireText(refs.covers[item.CabalID])
 		out[i].Return1mBps, out[i].ReturnPrivate = who.authorReturn(item.ActorID)
 	}
 	return out, nil

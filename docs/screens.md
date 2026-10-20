@@ -413,9 +413,9 @@ Large title "Feed" with two 44pt glass rounds, then the search field "Search the
 | Card | A bordered card: author row, one event block, reactions row. Long-press mutes or hides, with a toast and "Undo" |
 | Author row | Avatar (opens `UserProfileRoute`), name, event pill, then "<cabal> · <time>". A price move has no person, so it shows a market glyph and "Market" |
 | Event pill | "Proposal" and "Buy" (green), "Propose sell" and "Sell" (red), "Price move" and "Approved" (amber), "Discussion" (violet), "Cabal" (green) |
-| Asset block | Proposals, trades and approvals. Ticker, status ("Voting open", "Executed", "Execution pending"), the thesis on two lines. Opens `ProposalRoute`, `TransactionRoute` or `AssetRoute` |
-| Price block | A price move: ticker, the change the title states, and "24h token volume" with "Opens soon" |
-| Cabal block | A started or joined cabal: its tint tile, name, "New public cabal". Opens `CabalRoute` |
+| Asset block | Proposals, trades and approvals. The company logo (a lettered square when the stock has none), ticker, status ("Voting open", "Executed", "Execution pending"), the thesis on two lines. Opens `ProposalRoute`, `TransactionRoute` or `AssetRoute` |
+| Price block | A price move: the company logo, ticker, the change the title states, and "24h token volume" with "Opens soon" |
+| Cabal block | A started or joined cabal: its picture (its tint tile and initials when it has none), name, "New public cabal". Opens `CabalRoute` |
 | Reactions | A heart (likes and unlikes, with the count from the API), the comment count (opens the post), and share (opens the system share sheet with the item headline and your invite link) |
 
 States. Loading is a skeleton under the live title and search. Empty: "No updates yet" / "Proposals, trades and conversations will appear here."; with a search or filter, "No matching updates" / "Change the filter to see more activity." Following with no follows: "Follow people to see what they do." with "Find friends". Error: "Couldn’t load this view" with "Try again". A page that fails to load under cards shows "Older updates couldn’t load. The items above are still here." with "Retry older updates", and no toast. The end of the list reads "You’re caught up", or "No more matching updates".

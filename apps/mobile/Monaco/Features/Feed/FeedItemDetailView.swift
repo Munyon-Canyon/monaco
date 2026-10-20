@@ -244,7 +244,7 @@ private struct FeedPostSummary: View {
             MonacoRow(
                 title: item.assetName ?? AssetSymbolFormatter.display(symbol), titleFont: MonacoTheme.Typo.headline,
                 subtitle: item.cabalName ?? "Token market", chevron: true, isLast: true,
-                leading: { StockMark(symbol: symbol, size: .row) },
+                leading: { StockMark(symbol: symbol, size: .row, logoURL: item.assetLogoURL) },
                 trailing: {
                     if let amount = FeedFigureFormat.amount(item) {
                         Text(amount)

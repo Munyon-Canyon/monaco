@@ -23,3 +23,7 @@ type Treasury interface {
 type Assets interface {
 	AssetByMint(ctx context.Context, mint string) (AssetCard, error)
 }
+
+type AssetLogos interface {
+	AssetLogos(ctx context.Context, assetIDs []uuid.UUID) (map[uuid.UUID]string, error)
+}

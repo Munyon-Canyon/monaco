@@ -29,6 +29,24 @@ struct FeedEventTests {
             ])
     }
 
+    @Test func aCardDrawsTheLogoAndPictureTheFeedSends() async throws {
+        let items = await loadedItems()
+        var item = try #require(items.first)
+        item.assetLogoUrl = " https://cdn.example/AAPLx.png "
+        item.cabalPictureUrl = "https://cdn.example/alpha.jpg"
+        #expect(item.assetLogoURL == URL(string: "https://cdn.example/AAPLx.png"))
+        #expect(item.cabalPictureURL == URL(string: "https://cdn.example/alpha.jpg"))
+    }
+
+    @Test func aCardWithNoLogoOrPictureKeepsItsFallback() async throws {
+        let items = await loadedItems()
+        var item = try #require(items.first)
+        item.assetLogoUrl = nil
+        item.cabalPictureUrl = ""
+        #expect(item.assetLogoURL == nil)
+        #expect(item.cabalPictureURL == nil)
+    }
+
     @Test func aTradeWithNoActionDefaultsToBuy() async throws {
         let items = await loadedItems()
         var item = try #require(items.first { $0.kind == FeedKind.trade.rawValue })

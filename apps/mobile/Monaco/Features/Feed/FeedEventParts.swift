@@ -182,6 +182,7 @@ struct FeedAssetBlock: View {
     let trailing: Trailing?
     let line: Line
     var thesis: String?
+    var logoURL: URL?
     let route: AnyAppRoute
     let spoken: String
 
@@ -218,14 +219,14 @@ struct FeedAssetBlock: View {
     private var headline: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: MonacoTheme.Space.s) {
-                StockMark(symbol: symbol, size: .feed)
+                StockMark(symbol: symbol, size: .feed, logoURL: logoURL)
                 HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) { names }
                 Spacer(minLength: MonacoTheme.Space.s)
                 trailingLabel
             }
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 HStack(spacing: MonacoTheme.Space.s) {
-                    StockMark(symbol: symbol, size: .feed)
+                    StockMark(symbol: symbol, size: .feed, logoURL: logoURL)
                     VStack(alignment: .leading, spacing: 0) { names }
                 }
                 trailingLabel
@@ -339,7 +340,8 @@ struct FeedCabalBlock: View {
         NavigationLink(value: route) {
             HStack(spacing: MonacoTheme.Space.sm) {
                 CabalCover(
-                    cabalId: item.cabalId ?? item.id, tint: .forGroupId(item.cabalId ?? item.id), pictureURL: nil,
+                    cabalId: item.cabalId ?? item.id, tint: .forGroupId(item.cabalId ?? item.id),
+                    pictureURL: item.cabalPictureURL,
                     style: .thumb(FeedCardMetrics.cabalThumb))
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                     Text(name)
