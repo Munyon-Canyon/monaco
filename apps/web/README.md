@@ -99,10 +99,11 @@ CORS needs no setup. `WEB_ALLOWED_ORIGINS` already allows `http://localhost:5173
 
 ## Deploy to Cloudflare Pages
 
-Apply the waitlist migrations (`apps/web/migrations/000026`–`000029`, in order) to the hosted
+Apply the waitlist migrations (`apps/web/migrations/000026`–`000030`, in order) to the hosted
 database first. Without them `join_waitlist()` does not exist, `/api/health` reports
 `supabase: "waitlist table missing"`, and signups return a 502 rather than storing
-anything.
+anything. Signups call the six-argument `join_waitlist()` that `000030` adds, so a database that
+stops at `000029` answers the same 502: apply `000030` before the deploy that carries it.
 
 | Setting | Value |
 |---|---|
@@ -207,4 +208,9 @@ To add it back:
 ## Data
 
 Signups are in the `waitlist` table. Export with the Supabase table editor or
-`select email, twitter, source, created_at from waitlist order by created_at`.
+`select email, twitter, cabal, source, created_at from waitlist order by created_at`.
+
+`cabal` is `cavemen`, `pilates`, `cadena`, `degens` or `undecided`, or null for a signup that
+never answered: every row from before `000030`, and any caller that skips the page.
+Signing up again with another cabal replaces the first answer, as a new handle does; `source`
+keeps the first visit's.
