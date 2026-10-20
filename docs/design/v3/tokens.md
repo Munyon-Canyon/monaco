@@ -67,6 +67,21 @@ Ticker tiles: the prototype tints only NVDA (`#C7F69F` on `#1A3614`), MSFT (`#F0
 | pencil badge | glyph `#0C3828` on `#E6F5E8`, 2pt ring in `identityFill` | same | `pencilFill` **new** |
 | card edge | 1pt `#FFFFFF19` | same | inside `identityFill` card |
 
+### Share card
+
+The shared image is drawn dark and opaque on the identity green, flat fills only. The values do not change with appearance. Contrast is measured by `ShareCardRendererTests`.
+
+| Role | Value | On `canvas` | On `surface` | SwiftUI |
+| --- | --- | --- | --- | --- |
+| canvas | `#0C3828` (`--identity`) | | | `ShareCard.canvas` |
+| panel and stat tiles | `#104530` | | | `ShareCard.surface` |
+| title, figures | `#F2F4F2` | 11.79 | 9.92 | `ShareCard.ink` |
+| labels, dates | `#B6D5C3` (`onIdentityMuted`) | 8.25 | 6.94 | `ShareCard.muted` |
+| gain | `#81E8B1` (`profitOnIdentity`) | 8.75 | 7.36 | `ShareCard.profit` |
+| loss | `#FFAAAA` (`lossOnIdentity`) | 7.19 | 6.05 | `ShareCard.loss` |
+| footer link | `#9ED5B3` | 7.83 | 6.59 | `ShareCard.brand` |
+| rules | `#2D5F49` | | | `ShareCard.hairline` |
+
 ### Cover cards (text and the overlay sit on a picture, so they do not change with appearance)
 
 | Rule | Value | SwiftUI |
