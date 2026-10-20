@@ -17,9 +17,11 @@ enum SettingsNotificationsJourney {
 
     static func openSettings(_ app: XCUIApplication, step: String) {
         app.tab("Profile").tap()
+        if app.navigationBars["Settings"].waitForExistence(timeout: 3) { return }
         let settings = app.element("profile-settings-row")
+        _ = app.element("profile-header").waitForExistence(timeout: 10)
+        app.scrollIntoReach(settings, maxSwipes: 30)
         XCTAssertTrue(settings.waitForExistence(timeout: 15), "\(step): no Settings row on Profile")
-        app.scrollIntoReach(settings)
         settings.tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10), "\(step): Settings did not open")
     }
@@ -59,7 +61,7 @@ enum SettingsNotificationsJourney {
             XCTAssertTrue(
                 app.staticTexts["You're in."].firstMatch.waitForExistence(timeout: 10), "S2.2: no 'You're in.' toast")
             XCTAssertTrue(sheet.waitForExistence(timeout: 15), "S2.2: the pre-prompt did not show after the join")
-            XCTAssertEqual(app.element("push-pre-prompt-title").label, title, "S2.2: the pre-prompt title is wrong")
+            XCTAssertTrue(app.staticTexts[title].exists, "S2.2: the pre-prompt title is not '\(title)'")
             XCTAssertTrue(app.staticTexts[body].exists, "S2.2: the pre-prompt does not read '\(body)'")
             XCTAssertEqual(
                 app.buttons["push-pre-prompt-turn-on"].label, "Turn on notifications",

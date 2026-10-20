@@ -1,0 +1,18 @@
+journey: auth/sign-in
+expect-fail: S1
+
+The tab bar keeps the old order Home, Feed, Cabals, Markets, Profile. S1.6 expects Home, Cabals, Markets, Feed, Profile left to right, so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+diff --git a/apps/mobile/Monaco/Features/Shell/MainTab.swift b/apps/mobile/Monaco/Features/Shell/MainTab.swift
+index b00b562..965919d 100644
+--- a/apps/mobile/Monaco/Features/Shell/MainTab.swift
++++ b/apps/mobile/Monaco/Features/Shell/MainTab.swift
+@@ -9,7 +9,7 @@ protocol TabContent {
+ }
+ 
+ enum MainTab: Hashable, CaseIterable, Identifiable {
+-    case home, cabals, stocks, feed, profile
++    case home, feed, cabals, stocks, profile
+ 
+     var id: Self { self }
+ 

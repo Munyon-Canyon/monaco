@@ -1,0 +1,18 @@
+journey: feed/browse
+expect-fail: S2
+
+Following with no follows reads "Nothing here yet." instead of "Follow people to see what they do.". S2.2 expects the spec copy, so S2 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+diff --git a/apps/mobile/Monaco/Features/Feed/FeedView.swift b/apps/mobile/Monaco/Features/Feed/FeedView.swift
+index 661160c..177443a 100644
+--- a/apps/mobile/Monaco/Features/Feed/FeedView.swift
++++ b/apps/mobile/Monaco/Features/Feed/FeedView.swift
+@@ -207,7 +207,7 @@ private struct FeedScreen: View {
+             emptyState
+         case .followsNobody:
+             VStack(spacing: 0) {
+-                EmptyState(title: "Follow people to see what they do.", systemImage: MonacoIcon.profile.symbol)
++                EmptyState(title: "Nothing here yet.", systemImage: MonacoIcon.profile.symbol)
+                 NavigationLink("Find friends", value: AnyAppRoute(FriendsRoute()))
+                     .buttonStyle(.monacoSecondary)
+                     .padding(.horizontal, MonacoTheme.Space.gutter)

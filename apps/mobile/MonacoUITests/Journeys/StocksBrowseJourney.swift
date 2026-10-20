@@ -2,7 +2,7 @@ import XCTest
 
 enum StocksBrowseJourney {
     static let id = "stocks/browse"
-    static let version = 4
+    static let version = 5
 
     static let searchPlaceholder = "Search stocks or tickers"
     static let alpha = SeededAsset(symbol: "JRNYAx", ticker: "JRNYA", name: "Journey Alpha", price: "$123.45")
@@ -16,6 +16,7 @@ enum StocksBrowseJourney {
         let price: String
 
         var rowID: String { "assets-row-\(symbol)" }
+        var popularRowID: String { "markets-popular-row-\(symbol)" }
     }
 
     static func recorder() -> JourneyRecorder {
@@ -30,6 +31,10 @@ enum StocksBrowseJourney {
         app.element(asset.rowID)
     }
 
+    static func popularRow(_ app: XCUIApplication, _ asset: SeededAsset) -> XCUIElement {
+        app.element(asset.popularRowID)
+    }
+
     static func openStocks(_ app: XCUIApplication, step: String) {
         app.element("tab-assets").tap()
         XCTAssertTrue(app.element("assets-root").waitForExistence(timeout: 15), "\(step): the Markets tab did not open")
@@ -39,15 +44,19 @@ enum StocksBrowseJourney {
     static func waitForRow(_ app: XCUIApplication, _ asset: SeededAsset, step: String, timeout: TimeInterval) {
         XCTAssertTrue(
             scrollTo(app, row(app, asset), timeout: timeout),
-            "\(step): no \(asset.rowID) within \(Int(timeout)) s (the Markets tab is blank on staging, #577)")
+            "\(step): no \(asset.rowID) within \(Int(timeout)) s")
     }
 
-    static func assertRowReads(_ app: XCUIApplication, _ asset: SeededAsset, price: Bool, step: String) {
-        let label = row(app, asset).label
-        XCTAssertTrue(label.contains(asset.ticker), "\(step): \(asset.rowID) reads '\(label)', not '\(asset.ticker)'")
-        XCTAssertTrue(label.contains(asset.name), "\(step): \(asset.rowID) reads '\(label)', not '\(asset.name)'")
+    static func assertRowReads(
+        _ app: XCUIApplication, _ asset: SeededAsset, price: Bool, step: String, popular: Bool = false
+    ) {
+        let element = popular ? popularRow(app, asset) : row(app, asset)
+        let id = popular ? asset.popularRowID : asset.rowID
+        let label = element.label
+        XCTAssertTrue(label.contains(asset.ticker), "\(step): \(id) reads '\(label)', not '\(asset.ticker)'")
+        XCTAssertTrue(label.contains(asset.name), "\(step): \(id) reads '\(label)', not '\(asset.name)'")
         if price {
-            XCTAssertTrue(label.contains(asset.price), "\(step): \(asset.rowID) reads '\(label)', not '\(asset.price)'")
+            XCTAssertTrue(label.contains(asset.price), "\(step): \(id) reads '\(label)', not '\(asset.price)'")
         }
     }
 
@@ -56,11 +65,10 @@ enum StocksBrowseJourney {
         var swipes = 0
         while Date() < deadline {
             if element.exists && element.isHittable { return true }
-            let grid = app.element("assets-grid-search").exists ? "assets-grid-search" : "assets-grid"
             if swipes % 24 < 12 {
-                app.element(grid).swipeUp()
+                app.element("assets-root").swipeUp()
             } else {
-                app.element(grid).swipeDown()
+                app.element("assets-root").swipeDown()
             }
             swipes += 1
         }
@@ -108,6 +116,7 @@ enum StocksBrowseJourney {
         }
 
         recorder.step("S1.2", "see the selects and All") {
+            replaceQuery(app, with: "Journey")
             waitForRow(app, alpha, step: "S1.2", timeout: 15)
             XCTAssertTrue(app.element("stocks-sort").exists, "S1.2: no stocks-sort")
             XCTAssertTrue(filter(app).exists, "S1.2: no stocks-filter")
@@ -144,8 +153,9 @@ enum StocksBrowseJourney {
             let field = searchField(app)
             XCTAssertTrue(field.waitForExistence(timeout: 15), "S2.1: no search field on the Markets tab")
             replaceQuery(app, with: alpha.name)
-            let results = app.element("assets-grid-search")
-            XCTAssertTrue(results.waitForExistence(timeout: 10), "S2.1: results did not replace the list")
+            XCTAssertTrue(
+                app.staticTexts["Search results"].waitForExistence(timeout: 10),
+                "S2.1: results did not replace the list")
             waitForRow(app, alpha, step: "S2.1", timeout: 10)
             XCTAssertFalse(row(app, zulu).exists, "S2.1: \(zulu.rowID) shows for '\(alpha.name)'")
         }
@@ -159,9 +169,10 @@ enum StocksBrowseJourney {
 
         recorder.step("S2.3", "clear the search") {
             replaceQuery(app, with: "")
-            let sections = app.element("assets-grid")
-            XCTAssertTrue(sections.waitForExistence(timeout: 10), "S2.3: the list did not come back")
-            waitForRow(app, alpha, step: "S2.3", timeout: 10)
+            XCTAssertTrue(
+                app.staticTexts["Search results"].waitForNonExistence(timeout: 10), "S2.3: the list did not come back")
+            XCTAssertTrue(
+                popularRow(app, alpha).waitForExistence(timeout: 10), "S2.3: no \(alpha.popularRowID) under Popular")
             XCTAssertTrue(waitForFilter(app, "All"), "S2.3: the filter is not back on All after clearing")
         }
     }
@@ -169,14 +180,16 @@ enum StocksBrowseJourney {
     static func pullToRefresh(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S3.1", "open the Markets tab") {
             openStocks(app, step: "S3.1")
-            waitForRow(app, alpha, step: "S3.1", timeout: 15)
+            XCTAssertTrue(
+                popularRow(app, alpha).waitForExistence(timeout: 15), "S3.1: no \(alpha.popularRowID) under Popular")
         }
 
         recorder.step("S3.2", "pull to refresh") {
-            for _ in 0..<6 { app.element("assets-grid").swipeDown() }
-            app.element("assets-grid").swipeDown(velocity: .slow)
-            waitForRow(app, alpha, step: "S3.2", timeout: 15)
-            assertRowReads(app, alpha, price: true, step: "S3.2")
+            for _ in 0..<6 { app.element("assets-root").swipeDown() }
+            app.element("assets-root").swipeDown(velocity: .slow)
+            XCTAssertTrue(
+                popularRow(app, alpha).waitForExistence(timeout: 15), "S3.2: no \(alpha.popularRowID) under Popular")
+            assertRowReads(app, alpha, price: true, step: "S3.2", popular: true)
             XCTAssertFalse(app.element("assets-failed").exists, "S3.2: 'Couldn't load this view' after a refresh")
             XCTAssertFalse(app.element("monaco-toast-banner").exists, "S3.2: a toast showed after a refresh")
         }

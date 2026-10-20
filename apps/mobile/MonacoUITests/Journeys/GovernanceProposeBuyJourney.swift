@@ -114,17 +114,20 @@ enum GovernanceProposeBuyJourney {
             openCabalAsVoter(app, cabal, step: "S2.1")
         }
 
-        recorder.step("S2.2", "open the Propose chooser") {
-            openChooser(app, step: "S2.2")
-            expectLabels(
-                app, ["Buy stock", "No holdings to sell"], step: "S2.2")
+        recorder.step("S2.2", "open the Propose sheet") {
+            app.buttons["cabal-action-propose"].tap()
+            let buy = app.buttons["propose-kind-buy"]
+            XCTAssertTrue(buy.waitForExistence(timeout: checkTimeout), "S2.2: no \"Buy stock\" in the Propose sheet")
+            XCTAssertTrue(buy.label.contains("Buy stock"), "S2.2: the buy row reads \(buy.label)")
             let sell = app.element("propose-kind-sell")
             XCTAssertTrue(
                 JoinJourney.waitForLabel(sell, containing: "Sell a holding", timeout: checkTimeout),
                 "S2.2: no \"Sell a holding\" row")
-            XCTAssertFalse(
-                app.buttons["propose-kind-sell"].exists,
-                "S2.2: \"Sell a holding\" can be tapped with nothing to sell")
+            XCTAssertTrue(
+                JoinJourney.waitForLabel(sell, containing: "No holdings to sell", timeout: checkTimeout),
+                "S2.2: the sell row does not say \"No holdings to sell\"")
+            XCTAssertFalse(sell.isEnabled, "S2.2: \"Sell a holding\" can be tapped with nothing to sell")
+            XCTAssertTrue(app.buttons["propose-chooser-cancel"].exists, "S2.2: no Cancel in the Propose sheet")
         }
 
         recorder.step("S2.3", "pick GOOGL") {
@@ -153,7 +156,7 @@ enum GovernanceProposeBuyJourney {
 
         recorder.step("S2.5", "review $1 of GOOGL with a reason") {
             MoneyFundCabalJourney.typeAmount(app, "1")
-            expectHelper(app, "The pot has $3.00", timeout: checkTimeout, step: "S2.5")
+            expectHelper(app, "The cabal can spend $3.00", timeout: checkTimeout, step: "S2.5")
             let why = app.element("propose-amount-reason")
             XCTAssertTrue(why.waitForExistence(timeout: checkTimeout), "S2.5: no reason field")
             why.tap()
@@ -166,7 +169,7 @@ enum GovernanceProposeBuyJourney {
             expectLabels(
                 app,
                 [
-                    "Buy GOOGL", "$1.00", "Voting window", "Cabal gets", "Price", "Pot", "Who votes", "Thesis",
+                    "Voting window", "Votes to pass", "Cabal gets", "Price", "Pot", "Who votes", "Thesis",
                     reason(run: run),
                 ],
                 step: "S2.5")
@@ -196,7 +199,7 @@ enum GovernanceProposeBuyJourney {
         app.tab("Home").tap()
         XCTAssertTrue(
             GovernanceVoteJourney.waitForText(app, "Needs your vote", timeout: checkTimeout),
-            "\(step): Home shows no \"Needs your vote\" within \(Int(checkTimeout)) s"
+            "\(step): Home shows no proposal needing a vote within \(Int(checkTimeout)) s"
         )
         let card = pendingCard(app)
         app.scrollIntoReach(card)
@@ -206,19 +209,21 @@ enum GovernanceProposeBuyJourney {
     }
 
     static func secondVoterVotes(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
-        recorder.step("S3.1", "Home lists the buy under Needs your vote") {
+        recorder.step("S3.1", "Home lists the buy as needing a vote") {
             let card = openHomeCard(app, step: "S3.1")
-            for text in ["GOOGL", "Closes in", reason(run: run), "0 of 2 voted · 2 yes to pass"] {
+            for text in ["Needs your vote", "2 yes votes needed", "Closes in"] {
                 GovernanceVoteJourney.expectText(card, text, step: "S3.1")
             }
         }
 
-        recorder.step("S3.2", "vote yes") {
+        recorder.step("S3.2", "open the proposal and vote yes") {
             let card = pendingCard(app)
             let proposalID = String(card.identifier.dropFirst("proposal-card-".count))
+            GovernanceVoteJourney.openProposal(card)
+            GovernanceVoteJourney.waitForProposalScreen(app, step: "S3.2")
+            expectLabel(app, reason(run: run), timeout: screenTimeout, step: "S3.2")
             GovernanceVoteJourney.vote(app, proposalID, "Yes", change: false, step: "S3.2")
-            GovernanceVoteJourney.expectText(card, "✓ You voted yes", step: "S3.2")
-            GovernanceVoteJourney.expectText(card, "1 of 2 voted · 2 yes to pass", step: "S3.2")
+            GovernanceVoteJourney.expectVoteBar(app, "1 yes, 0 no, 1 not voted", step: "S3.2")
         }
     }
 
@@ -228,12 +233,15 @@ enum GovernanceProposeBuyJourney {
         recorder.step("S3.3", "A sees B's ballot and votes yes") {
             let card = openHomeCard(app, step: "S3.3")
             let proposalID = String(card.identifier.dropFirst("proposal-card-".count))
-            let header = card.descendants(matching: .any).matching(identifier: "proposal-closes-in").firstMatch
-            XCTAssertTrue(header.waitForExistence(timeout: checkTimeout), "S3.3: the card has no header to tap")
-            header.tap()
+            GovernanceVoteJourney.openProposal(card)
             GovernanceVoteJourney.waitForProposalScreen(app, step: "S3.3")
-            expectLabel(app, "Proposed by \(proposer)", timeout: screenTimeout, step: "S3.3")
+            GovernanceVoteJourney.expectVoteBar(app, "1 yes, 0 no, 1 not voted", step: "S3.3")
+            let seeAll = app.buttons["proposal-votes-see-all"].firstMatch
+            XCTAssertTrue(
+                seeAll.waitForExistence(timeout: screenTimeout), "S3.3: the Proposal screen shows no \"See all\"")
+            seeAll.tap()
             expectLabel(app, "\(voter) voted yes", timeout: screenTimeout, step: "S3.3")
+            app.buttons["Close"].firstMatch.tap()
             GovernanceVoteJourney.vote(app, proposalID, "Yes", change: false, step: "S3.3")
         }
 
@@ -258,11 +266,8 @@ extension GovernanceProposeBuyJourney {
         JoinJourney.openBySearch(app, cabal, step: step)
         MoneyFundCabalJourney.openFund(app, step: step)
         MoneyFundCabalJourney.typeAmount(app, "\(dollars)")
-        tapLabel(app, "Add $\(dollars) to the pot", step: step)
-        XCTAssertTrue(
-            app.staticTexts["Added $\(dollars) to \(cabal)."].firstMatch.waitForExistence(timeout: potTimeout),
-            "\(step): the toast \"Added $\(dollars) to \(cabal).\" did not show within \(Int(potTimeout)) s"
-        )
+        tapLabel(app, "Deposit $\(dollars).00", step: step)
+        MoneyFundCabalJourney.confirmDeposit(app, dollars: dollars, cabal: cabal, step: step)
     }
 
     static func fillThePotAsA(_ app: XCUIApplication, cabal: String, recorder: JourneyRecorder) {

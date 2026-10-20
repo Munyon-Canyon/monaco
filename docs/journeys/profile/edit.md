@@ -1,7 +1,7 @@
 ---
 id: profile/edit
 title: Edit your profile
-version: 4
+version: 5
 milestone: M9
 requires: [auth/sign-in]
 actors: [A]
@@ -71,5 +71,6 @@ After a run, A's `users` row has `display_name = 'Alfred {QA.run}'` and a `photo
 ## Not covered
 
 - Telling a library photo from an animal on the avatar. An animal is stored as a photo too, and the avatar always reads "Edit profile photo". The toast in S3.2 says which one was picked.
-- Saving a new username, and the username and bio fields. A handle is unique and can change only once per period, so a run would use up actor A's next change. `HandleAvailabilityCheckerTests` covers the checks, and the Edit profile sample scenarios cover the field states. Bio opens soon and is disabled.
+- Saving a new username. A handle is unique and can change only once per period, so a run would use up actor A's next change. `HandleAvailabilityCheckerTests` covers the checks, and the Edit profile sample scenarios cover the field states.
+- Saving the bio and the "Show my 1M return" toggle. The journey leaves both alone so A's profile stays the same across runs. `ProfileBioRulesTests` and `AppSessionStoreTests` cover the limit and the save.
 - A name the server rejects after the field accepts it. `SessionAPITests` covers the `display_name_invalid` mapping.

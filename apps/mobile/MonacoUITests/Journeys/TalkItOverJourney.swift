@@ -2,7 +2,7 @@ import XCTest
 
 enum TalkItOverJourney {
     static let id = "chat/talk-it-over"
-    static let version = 4
+    static let version = 5
     static let emptyTitle = "Start the conversation"
     static let emptyHint =
         "Messages here stay with your cabal. Proposal-specific discussion stays attached to the proposal."
@@ -94,6 +94,13 @@ enum TalkItOverJourney {
         ).firstMatch
     }
 
+    static func spoken(_ app: XCUIApplication, _ card: XCUIElement) -> String {
+        let listID = card.identifier.replacingOccurrences(of: "cabal-cover-card-", with: "cabals-list-card-")
+        return [card, app.element(listID)].filter(\.exists)
+            .map { "\($0.label) \($0.value as? String ?? "")" }
+            .joined(separator: " ")
+    }
+
     static func clearSearch(_ app: XCUIApplication) {
         let field = app.textFields["cabals-filter-field"]
         guard field.waitForExistence(timeout: 5), let text = field.value as? String, !text.isEmpty,
@@ -155,10 +162,9 @@ enum TalkItOverJourney {
             let received = message(app, containing: gm(run: run))
             wait(for: received, timeout: 15, "S2.2: no message reading \(gm(run: run)) within 15 s")
             XCTAssertLessThan(received.frame.midX, app.frame.midX, "S2.2: A's message is not on the left")
-            let author = app.buttons.matching(
-                NSPredicate(format: "identifier BEGINSWITH 'chat-author-' AND label CONTAINS %@", sender)
-            ).firstMatch
-            XCTAssertTrue(author.exists, "S2.2: no author name \(sender) over the message")
+            XCTAssertTrue(
+                received.label.hasPrefix(sender),
+                "S2.2: the message does not start with the author \(sender): \(received.label)")
         }
     }
 
@@ -249,12 +255,12 @@ extension TalkItOverJourney {
         recorder.step("S5.2", "B sees 2 unread on the card") {
             let found = reachCard(app, run: run, step: "S5.2")
             let deadline = Date().addingTimeInterval(10)
-            while !found.label.contains("2 unread messages") && Date() < deadline {
+            while !spoken(app, found).contains("2 unread messages") && Date() < deadline {
                 RunLoop.current.run(until: Date().addingTimeInterval(0.3))
             }
             XCTAssertTrue(
-                found.label.contains("2 unread messages"),
-                "S5.2: the card reads '\(found.label)', not '2 unread messages'"
+                spoken(app, found).contains("2 unread messages"),
+                "S5.2: the card reads '\(spoken(app, found))', not '2 unread messages'"
             )
         }
     }
@@ -288,7 +294,8 @@ extension TalkItOverJourney {
             XCTAssertFalse(chat.label.contains("unread message"), "S5.4: Chat still shows unread: \(chat.label)")
             app.tapBack()
             let found = reachCard(app, run: run, step: "S5.4")
-            XCTAssertFalse(found.label.contains("unread"), "S5.4: the card still shows unread: \(found.label)")
+            XCTAssertFalse(
+                spoken(app, found).contains("unread"), "S5.4: the card still shows unread: \(spoken(app, found))")
         }
     }
 }

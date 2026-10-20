@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsActivityJourney {
     static let id = "cabals/activity"
-    static let version = 7
+    static let version = 8
 
     static let screenTimeout: TimeInterval = 15
 
@@ -52,13 +52,14 @@ enum CabalsActivityJourney {
             XCTAssertTrue(seeAll.isHittable, "S1.3: See all is not tappable")
             seeAll.tap()
             XCTAssertTrue(
-                app.navigationBars["Activity"].waitForExistence(timeout: 10), "S1.3: no Activity screen within 10 s")
+                app.navigationBars["Group activity"].waitForExistence(timeout: 10),
+                "S1.3: no Group activity screen within 10 s")
             let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'cabal-activity-row-'"))
             let deadline = Date().addingTimeInterval(10)
             while rows.count < 6 && Date() < deadline {
                 RunLoop.current.run(until: Date().addingTimeInterval(0.25))
             }
-            XCTAssertEqual(rows.count, 6, "S1.3: the Activity screen's rows")
+            XCTAssertEqual(rows.count, 6, "S1.3: the Group activity screen's rows")
             XCTAssertTrue(
                 app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Money added'")).firstMatch.exists,
                 "S1.3: no Money added row"
@@ -87,8 +88,9 @@ enum CabalsActivityJourney {
     static func backOutOfReceipts(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S1.5", "Back from the receipt returns to the full list") {
             app.navigationBars["Transaction"].buttons.element(boundBy: 0).tap()
-            XCTAssertTrue(app.navigationBars["Activity"].waitForExistence(timeout: 10), "S1.5: no Activity list")
-            app.navigationBars["Activity"].buttons.element(boundBy: 0).tap()
+            XCTAssertTrue(
+                app.navigationBars["Group activity"].waitForExistence(timeout: 10), "S1.5: no Group activity list")
+            app.navigationBars["Group activity"].buttons.element(boundBy: 0).tap()
             XCTAssertTrue(app.element("cabal-header-name").waitForExistence(timeout: 10), "S1.5: no cabal")
         }
 
@@ -111,8 +113,8 @@ enum CabalsActivityJourney {
         recorder.step("S1.10", "Back from the cabal reaches the Cabals list") {
             app.navigationBars.buttons.element(boundBy: 0).tap()
             XCTAssertTrue(
-                app.element("cabals-filter-field").waitForExistence(timeout: 10),
-                "S1.10: Back from the cabal did not reach the Cabals list")
+                JoinJourney.searchField(app).waitForExistence(timeout: 10),
+                "S1.10: Back from the cabal did not reach Discover cabals")
             XCTAssertFalse(app.element("cabal-header-name").exists, "S1.10: a second cabal screen was under the first")
         }
     }
@@ -128,8 +130,7 @@ enum CabalsActivityJourney {
             let target = row(app, failed)
             app.scrollIntoReach(target)
             XCTAssertTrue(target.waitForExistence(timeout: screenTimeout), "S2.2: no row for the failed trade")
-            let glyphClearOfInlineRetry = target.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.5))
-            glyphClearOfInlineRetry.tap()
+            target.tap()
             XCTAssertTrue(
                 JoinJourney.waitForLabel(app.element("cabal-txn-status"), containing: "Failed", timeout: 10),
                 "S2.2: the status is not Failed"
@@ -138,7 +139,7 @@ enum CabalsActivityJourney {
 
         recorder.step("S2.3", "the receipt offers Retry") {
             XCTAssertTrue(
-                app.buttons["Retry"].waitForExistence(timeout: 5),
+                app.buttons["cabal-txn-retry"].waitForExistence(timeout: 5),
                 "S2.3: the failed trade's receipt has no Retry (known failure, #654)"
             )
         }

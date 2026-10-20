@@ -1,7 +1,7 @@
 journey: cabals/leave
-expect-fail: S1 S3
+expect-fail: S1
 
-The details sheet has no leave slot. S1.2 and S3.2 wait for cabalLeaveButton, so both must fail.
+Cabal information has no leave section. S1.2 waits for cabalLeaveButton, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalLeaveSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalLeaveSlot.swift

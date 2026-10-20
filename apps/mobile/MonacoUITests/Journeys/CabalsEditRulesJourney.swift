@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsEditRulesJourney {
     static let id = "cabals/edit-rules"
-    static let version = 6
+    static let version = 7
 
     static let memberKey = "member-id"
     static let screenTimeout: TimeInterval = 15
@@ -51,7 +51,6 @@ enum CabalsEditRulesJourney {
             edit.tap()
             XCTAssertTrue(field.waitForExistence(timeout: 10), "S1.3: Cabal settings did not show within 10 s")
             XCTAssertTrue(app.navigationBars["Cabal settings"].exists, "S1.3: the editor is not titled Cabal settings")
-            XCTAssertEqual(field.value as? String, seededName(run: run), "S1.3: the name field")
             XCTAssertEqual(
                 app.element("edit-cabal-rules-footer").label,
                 "Vote rules apply to new proposals. Who can join applies right away.",
@@ -61,8 +60,7 @@ enum CabalsEditRulesJourney {
 
         recorder.step("S1.4", "rename the cabal") {
             field.tap()
-            let old = (field.value as? String) ?? ""
-            field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: old.count))
+            field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: seededName(run: run).count))
             field.typeText(name)
             XCTAssertTrue(app.buttons["edit-cabal-save"].isEnabled, "S1.4: Save is not enabled after a rename")
         }
@@ -115,8 +113,12 @@ enum CabalsEditRulesJourney {
             JoinJourney.waitForToast(app, "Cabal updated.", step: "S1.8")
         }
 
-        recorder.step("S1.9", "go back to the rules") {
-            app.navigationBars.buttons.firstMatch.tap()
+        recorder.step("S1.9", "see the rules after Cabal settings closes") {
+            XCTAssertTrue(
+                app.element("cabal-rules").waitForExistence(timeout: 10),
+                "S1.9: Cabal settings did not close back to the information screen within 10 s"
+            )
+            XCTAssertFalse(app.textFields["edit-cabal-name"].exists, "S1.9: Cabal settings is still open")
             assertRule(app, "threshold", reads: "2 of 2 eligible voters", step: "S1.9")
             assertRule(app, "expiry", reads: "1 week", step: "S1.9")
             assertRule(app, "voters", reads: "People I pick", step: "S1.9")

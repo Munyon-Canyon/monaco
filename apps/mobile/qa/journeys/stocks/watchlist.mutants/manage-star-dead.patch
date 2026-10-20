@@ -1,0 +1,18 @@
+journey: stocks/watchlist
+expect-fail: S1
+
+A star on Manage your watchlist toggles nothing. S1.4 expects the star to read Remove and the count to read 1 stock selected, so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+diff --git a/apps/mobile/Monaco/Features/Assets/WatchlistView.swift b/apps/mobile/Monaco/Features/Assets/WatchlistView.swift
+index a9c243127..3cee027a3 100644
+--- a/apps/mobile/Monaco/Features/Assets/WatchlistView.swift
++++ b/apps/mobile/Monaco/Features/Assets/WatchlistView.swift
+@@ -73,7 +73,7 @@ struct WatchlistView: View {
+ 
+     private func toggle(_ asset: MarketAsset) {
+         Haptics.selection()
+-        if environment.watchlist.toggle(asset.symbol) == .full {
++        if asset.symbol.isEmpty, environment.watchlist.toggle(asset.symbol) == .full {
+             toasts.current = MonacoToast(message: WatchlistCopy.fullMessage)
+         }
+     }

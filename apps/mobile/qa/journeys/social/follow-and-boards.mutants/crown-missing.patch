@@ -1,7 +1,7 @@
 journey: social/follow-and-boards
 expect-fail: S1
 
-The first row on Top investors reads "Rank 1" with no crown, because the leader test looks for rank 0. S1.1 needs the first row to read "First", so it must fail.
+The first row on the Home People board reads "Rank 1" with no crown, because the leader test looks for rank 0. S1.1 needs the first row to read "First", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Design/MonacoBoardRow.swift b/apps/mobile/Monaco/Design/MonacoBoardRow.swift

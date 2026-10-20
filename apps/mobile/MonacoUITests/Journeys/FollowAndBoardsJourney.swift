@@ -2,7 +2,7 @@ import XCTest
 
 enum FollowAndBoardsJourney {
     static let id = "social/follow-and-boards"
-    static let version = 1
+    static let version = 2
 
     struct Seed {
         let meID: String
@@ -31,11 +31,6 @@ enum FollowAndBoardsJourney {
         app.element("home-leaderboard-row-\(userID)")
     }
 
-    static func ownRow(_ app: XCUIApplication, _ seed: Seed) -> XCUIElement {
-        let listed = row(app, seed.meID)
-        return listed.exists ? listed : app.element("home-leaderboard-me")
-    }
-
     static func boardRows(_ app: XCUIApplication) -> XCUIElementQuery {
         app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier BEGINSWITH 'home-leaderboard-row-'"))
@@ -45,33 +40,38 @@ enum FollowAndBoardsJourney {
         element.exists && element.label.contains("percent") && !element.label.contains("no return yet")
     }
 
+    static func choose(_ app: XCUIApplication, menu: XCUIElement, option: String, step: String) {
+        if menu.label.contains(option) { return }
+        menu.tap()
+        let item = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier == ''", option)).firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 10), "\(step): no \"\(option)\" option in the menu")
+        item.tap()
+        XCTAssertTrue(
+            waitUntil(10) { menu.label.contains(option) },
+            "\(step): the menu reads '\(menu.label)', not \"\(option)\"")
+    }
+
     static func openBoard(_ app: XCUIApplication, step: String) {
         app.tab("Home").tap()
-        let header = app.staticTexts["Top investors"].firstMatch
-        app.scrollIntoReach(header)
-        XCTAssertTrue(header.waitForExistence(timeout: 15), "\(step): no \"Top investors\" on Home within 15 s")
+        let header = app.staticTexts["Leaderboard"].firstMatch
+        XCTAssertTrue(header.waitForExistence(timeout: 15), "\(step): no \"Leaderboard\" on Home within 15 s")
+        let category = app.element("home-leaderboard-category")
+        app.scrollIntoReach(category)
+        XCTAssertTrue(category.waitForExistence(timeout: 10), "\(step): no Cabals / People menu")
+        choose(app, menu: category, option: "People", step: step)
+        choose(app, menu: app.element("home-leaderboard-period"), option: "All", step: step)
     }
 
-    static func choose(_ app: XCUIApplication, segment: String, step: String) {
-        let filter = app.element("home-leaderboard-filter")
-        app.scrollIntoReach(filter)
-        XCTAssertTrue(filter.waitForExistence(timeout: 10), "\(step): no \"Everyone\" / \"Friends\" segment")
-        let button = app.buttons[segment].firstMatch
-        XCTAssertTrue(button.waitForExistence(timeout: 5), "\(step): no \"\(segment)\" segment")
-        button.tap()
-    }
-
-    static func friendsEmpty(_ app: XCUIApplication, step: String) {
-        XCTAssertTrue(
-            app.element("home-leaderboard-friends-empty").waitForExistence(timeout: 10),
-            "\(step): Friends does not show the empty state within 10 s")
-        XCTAssertTrue(
-            app.staticTexts["Follow people to see how they do."].firstMatch.exists,
-            "\(step): no \"Follow people to see how they do.\"")
-        XCTAssertTrue(
-            app.buttons["home-leaderboard-find-friends"].exists,
-            "\(step): no \"Find friends\" on the empty Friends board"
-        )
+    static func openFollowing(_ app: XCUIApplication, step: String) {
+        app.tab("Profile").tap()
+        app.popToRoot()
+        let link = app.element("profile-find-friends")
+        app.scrollIntoReach(link)
+        XCTAssertTrue(link.waitForExistence(timeout: 15), "\(step): no 'Find friends' row on Profile")
+        link.tap()
+        let following = app.element("friends-tab-following")
+        XCTAssertTrue(following.waitForExistence(timeout: 10), "\(step): no Following segment on Find friends")
+        following.tap()
     }
 
     static func label(_ app: XCUIApplication, _ identifier: String) -> String {
@@ -79,12 +79,16 @@ enum FollowAndBoardsJourney {
         return element.exists ? element.label : ""
     }
 
+    static func count(_ app: XCUIApplication, _ identifier: String) -> String {
+        label(app, identifier).replacingOccurrences(of: ",", with: "")
+    }
+
     static func openMember(_ app: XCUIApplication, seed: Seed, step: String) {
         let member = row(app, seed.memberID)
         app.scrollIntoReach(member)
         XCTAssertTrue(
             member.waitForExistence(timeout: 30),
-            "\(step): no row for \(seed.memberName) on Top investors within 30 s")
+            "\(step): no row for \(seed.memberName) on the People board within 30 s")
         app.scrollIntoReach(member)
         member.tap()
         XCTAssertTrue(
@@ -93,11 +97,8 @@ enum FollowAndBoardsJourney {
     }
 
     static func bothRank(_ app: XCUIApplication, seed: Seed, recorder: JourneyRecorder) {
-        recorder.step("S1.1", "Top investors ranks A and B with a crown on first") {
+        recorder.step("S1.1", "the People board ranks A and B with a crown on first") {
             openBoard(app, step: "S1.1")
-            let all = app.element("home-leaderboard-range-ALL")
-            XCTAssertTrue(all.waitForExistence(timeout: 10), "S1.1: no \"All\" range chip")
-            XCTAssertTrue(all.isSelected, "S1.1: \"All\" is not the selected range")
             let me = row(app, seed.meID)
             let member = row(app, seed.memberID)
             XCTAssertTrue(
@@ -111,25 +112,21 @@ enum FollowAndBoardsJourney {
         }
     }
 
-    static func friendsWithNoFollows(_ app: XCUIApplication, seed: Seed, recorder: JourneyRecorder) {
-        recorder.step("S2.1", "Friends with no follows is empty") {
-            choose(app, segment: "Friends", step: "S2.1")
-            friendsEmpty(app, step: "S2.1")
-        }
-
-        recorder.step("S2.2", "Everyone ranks again") {
-            choose(app, segment: "Everyone", step: "S2.2")
+    static func followingWithNoFollows(_ app: XCUIApplication, recorder: JourneyRecorder) {
+        recorder.step("S2.1", "Following with no follows is empty") {
+            openFollowing(app, step: "S2.1")
             XCTAssertTrue(
-                waitUntil(10) { row(app, seed.meID).exists && row(app, seed.memberID).exists },
-                "S2.2: Everyone did not rank A and B again within 10 s")
-            XCTAssertFalse(
-                app.element("home-leaderboard-friends-empty").exists,
-                "S2.2: Everyone still shows the Friends empty state")
+                app.element("friends-following-empty").waitForExistence(timeout: 10),
+                "S2.1: Following does not show the empty state within 10 s")
+            XCTAssertTrue(
+                app.staticTexts["You're not following anyone yet"].firstMatch.exists,
+                "S2.1: no \"You're not following anyone yet\"")
         }
     }
 
     static func followFromBoard(_ app: XCUIApplication, seed: Seed, recorder: JourneyRecorder) {
         recorder.step("S3.1", "the member's profile shows Follow and no followers") {
+            openBoard(app, step: "S3.1")
             openMember(app, seed: seed, step: "S3.1")
             XCTAssertTrue(
                 JoinJourney.waitForLabel(app.element("user-profile-name"), containing: seed.memberName, timeout: 10),
@@ -138,10 +135,10 @@ enum FollowAndBoardsJourney {
                 label(app, "user-profile-handle").hasPrefix("@"),
                 "S3.1: the handle reads '\(label(app, "user-profile-handle"))', not an @handle")
             XCTAssertEqual(
-                label(app, "user-profile-followers"), "0 followers",
+                count(app, "user-profile-followers"), "0 followers",
                 "S3.1: the followers link does not read \"0 followers\"")
             XCTAssertEqual(
-                label(app, "user-profile-following"), "0 following",
+                count(app, "user-profile-following"), "0 following",
                 "S3.1: the following link does not read \"0 following\"")
             XCTAssertEqual(
                 label(app, "user-profile-follow"), "Follow", "S3.1: the button does not read \"Follow\"")
@@ -152,27 +149,26 @@ enum FollowAndBoardsJourney {
             XCTAssertTrue(
                 waitUntil(5) {
                     label(app, "user-profile-follow") == "Following"
-                        && label(app, "user-profile-followers") == "1 follower"
+                        && count(app, "user-profile-followers") == "1 follower"
                 },
-                "S3.2: after Follow the button reads '\(label(app, "user-profile-follow"))' and the followers link '\(label(app, "user-profile-followers"))', not \"Following\" and \"1 follower\""
+                "S3.2: after Follow the button reads '\(label(app, "user-profile-follow"))' and the followers link '\(count(app, "user-profile-followers"))', not \"Following\" and \"1 follower\""
             )
             XCTAssertEqual(
-                label(app, "user-profile-following"), "0 following",
+                count(app, "user-profile-following"), "0 following",
                 "S3.2: the following link does not read \"0 following\"")
         }
 
-        recorder.step("S3.3", "Friends ranks the member and A's own row") {
-            app.tapBack()
-            choose(app, segment: "Friends", step: "S3.3")
+        recorder.step("S3.3", "Following lists the member") {
+            openFollowing(app, step: "S3.3")
+            let listed = app.element("friends-following-row-\(seed.memberID)")
             XCTAssertTrue(
-                waitUntil(10) {
-                    row(app, seed.memberID).exists && ownRow(app, seed).exists
-                        && !app.element("home-leaderboard-friends-empty").exists
-                },
-                "S3.3: Friends did not show \(seed.memberName) and A's own row within 10 s")
+                listed.waitForExistence(timeout: 15),
+                "S3.3: no row for \(seed.memberName) under Following within 15 s")
             XCTAssertTrue(
-                ownRow(app, seed).label.contains("You"),
-                "S3.3: A's own row reads '\(ownRow(app, seed).label)', not labelled \"You\"")
+                listed.label.contains(seed.memberName),
+                "S3.3: the row reads '\(listed.label)', not \(seed.memberName)")
+            XCTAssertFalse(
+                app.element("friends-following-empty").exists, "S3.3: Following still shows the empty state")
         }
     }
 
@@ -181,9 +177,9 @@ enum FollowAndBoardsJourney {
             app.tab("Profile").tap()
             XCTAssertTrue(
                 waitUntil(15) {
-                    label(app, "profile-followers") == "1 follower" && label(app, "profile-following") == "0 following"
+                    count(app, "profile-followers") == "1 follower" && count(app, "profile-following") == "0 following"
                 },
-                "S4.1: Profile reads '\(label(app, "profile-followers"))' and '\(label(app, "profile-following"))', not \"1 follower\" and \"0 following\""
+                "S4.1: Profile reads '\(count(app, "profile-followers"))' and '\(count(app, "profile-following"))', not \"1 follower\" and \"0 following\""
             )
         }
 
@@ -217,19 +213,20 @@ enum FollowAndBoardsJourney {
             XCTAssertTrue(
                 waitUntil(5) {
                     label(app, "user-profile-follow") == "Follow"
-                        && label(app, "user-profile-followers") == "0 followers"
+                        && count(app, "user-profile-followers") == "0 followers"
                 },
-                "S5.1: after Following the button reads '\(label(app, "user-profile-follow"))' and the followers link '\(label(app, "user-profile-followers"))', not \"Follow\" and \"0 followers\""
+                "S5.1: after Following the button reads '\(label(app, "user-profile-follow"))' and the followers link '\(count(app, "user-profile-followers"))', not \"Follow\" and \"0 followers\""
             )
             XCTAssertEqual(
-                label(app, "user-profile-following"), "0 following",
+                count(app, "user-profile-following"), "0 following",
                 "S5.1: the following link does not read \"0 following\"")
         }
 
-        recorder.step("S5.2", "Friends is empty again") {
-            app.tapBack()
-            choose(app, segment: "Friends", step: "S5.2")
-            friendsEmpty(app, step: "S5.2")
+        recorder.step("S5.2", "Following is empty again") {
+            openFollowing(app, step: "S5.2")
+            XCTAssertTrue(
+                app.element("friends-following-empty").waitForExistence(timeout: 10),
+                "S5.2: Following does not show the empty state within 10 s")
         }
     }
 }

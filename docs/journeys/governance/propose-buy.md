@@ -48,19 +48,19 @@ With two voters and "Majority", a buy needs both yes votes.
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `{cabalName}` | `cabal-header-name` reads `{cabalName}`, and `cabal-action-propose` is enabled with no "Only voters can propose" caption, within 15 s |
-| S2.2 | A | tap | `cabal-action-propose` | | The Propose action sheet (`propose-chooser-sheet`) shows `propose-kind-buy` "Buy stock" and "Sell a holding" with "No holdings to sell", within 10 s |
-| S2.3 | A | tap, type, then tap | `propose-kind-buy`, `monaco-search-field`, then the `propose-buy-stock-<symbol>` row for GOOGL | `GOOGL` | The screen titled "Buy" shows "Search Apple, Tesla, NVDA…" and "Popular" within 10 s. Then `propose-amount-screen` shows within 10 s. The helper stays empty until an amount is typed |
-| S2.4 | A | type | `amount-entry-field` | `5` | the message "More than the pot has" shows under the field within 5 s, and `propose-amount-review` is disabled |
-| S2.5 | A | type, tap, type, then tap | `amount-entry-field`, `propose-amount-add-reason`, `propose-amount-reason`, then `propose-amount-review` | `1`, then `Journey buy {QA.run}` | After the `1`, `amount-entry-helper` reads "The pot has $3.00" within 10 s. After the reason and Review, the screen titled "Review" (`propose-review-screen`) reads "Buy $1.00 of GOOGL" with the rows "Cabal gets", "Price", "Pot" and "Who votes", and the section "Why buy" with `Journey buy {QA.run}`, within 10 s |
-| S2.6 | A | tap | `propose-review-send` | | The button reads "Sending…", then the flow closes back to the cabal screen (`cabal-header-name` reads `{cabalName}`) and the toast "Proposal sent to {cabalName}" shows, within 10 s |
+| S2.2 | A | tap | `cabal-action-propose` | | The Propose action sheet (`propose-chooser-sheet`) shows `propose-kind-buy` "Buy stock", `propose-kind-sell` "Sell a holding" with "No holdings to sell" and disabled, and `propose-chooser-cancel` "Cancel", within 10 s (screens.md: Propose chooser) |
+| S2.3 | A | tap, type, then tap | `propose-kind-buy`, `monaco-search-field`, then the `propose-buy-stock-<symbol>` row for GOOGL | `GOOGL` | The screen titled "Buy stock" shows the search field within 10 s. Then `propose-amount-screen` shows within 10 s |
+| S2.4 | A | type | `amount-entry-field` | `5` | the message "Amount exceeds the cash balance." shows within 5 s, and `propose-amount-review` is disabled |
+| S2.5 | A | type, tap, type, then tap | `amount-entry-field`, the thesis field `propose-amount-reason`, then `propose-amount-review` | `1`, then `Journey buy {QA.run}` | After the `1`, `amount-entry-helper` reads "The cabal can spend $3.00" within 10 s. After the thesis and Review proposal, the sheet `propose-review-screen` (titled "Review proposal") shows the rows "Voting window", "Votes to pass", "Cabal gets", "Price", "Pot" and "Who votes", and "Thesis" with `Journey buy {QA.run}`, within 10 s |
+| S2.6 | A | tap | `propose-review-send` | | The sheet shows "Proposal sent" within 10 s. Close returns to the cabal screen (`cabal-header-name` reads `{cabalName}`) within 10 s |
 
 ### S3 The cabal votes it through
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | B | tap | the Home tab | | "Needs your vote" shows a `proposal-card-<id>` for GOOGL that reads "Closes in", `Journey buy {QA.run}` and "0 of 2 voted · 2 yes to pass" within 10 s |
-| S3.2 | B | tap | "Yes" on the card | | The toast "Vote recorded." shows. The card reads "✓ You voted yes" and "1 of 2 voted · 2 yes to pass" within 10 s |
-| S3.3 | A | tap, then tap | the Home tab, then the header of the `proposal-card-<id>` (its `proposal-closes-in` row) | | The Proposal screen shows "Votes", "Proposed by" with A's name and "<B's name> voted yes" within 15 s. A taps "Yes" on the card and the toast "Vote recorded." shows |
+| S3.1 | B | tap | the Home tab | | Under "Proposals", a `proposal-card-<id>` reads "Needs your vote", "2 yes votes needed" and "Closes in" within 10 s |
+| S3.2 | B | tap, then tap | the `proposal-card-<id>`, then "Vote Yes" in the dock | | The Proposal screen shows "Votes", "Thesis" and `Journey buy {QA.run}`; the toast "Vote recorded." shows and the vote bar reads "1 yes, 0 no, 1 not voted" within 10 s |
+| S3.3 | A | tap, then tap, then tap | the Home tab and the `proposal-card-<id>`, `proposal-votes-see-all`, then "Vote Yes" in the dock | | The vote bar reads "1 yes, 0 no, 1 not voted" and the Votes sheet shows "<B's name> voted yes" within 15 s. After Close, the toast "Vote recorded." shows |
 | S3.4 | A | wait | `proposal-tracker` | | The Status tracker reads "Bought, step 3 of 3, done" and the `proposal-status-chip` reads "Bought" within 120 s |
 
 ### S4 See the trade
@@ -97,3 +97,4 @@ None known.
 - A trade that fails or is blocked ("Couldn't buy"). It needs a failing swap, which the live engine does not give on demand.
 - The cash-out and withdrawn amounts. They follow the GOOGL price, so the steps read them from the screen and the ground truth checks the zero balances.
 - The chain side of the refund. `money/withdraw` covers the withdrawal; this journey checks the balances in the app.
+- Cabal holding (`CabalHoldingRoute`). No journey covers it yet: it needs per-holding average buy and sell prices, realized and unrealized P&L, a position value series, period P&L, a `symbol` filter on `GET /v1/cabals/{id}/activity` and a per-trade unit price, none of which the backend serves. S4 checks the Holdings rows on the cabal screen only.

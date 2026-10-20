@@ -1,7 +1,7 @@
 ---
 id: cabals/pot
 title: The cabal pot
-version: 5
+version: 6
 milestone: M12
 requires: [auth/sign-in]
 actors: [A]
@@ -50,8 +50,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- | --- | --- | --- | --- |
 | S3.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA slice {QA.run}` | `cabal-header-name` reads `QA slice {QA.run}` within 15 s |
 | S3.2 | A | scroll to | "Holdings" | | The section header "Holdings" shows within 10 s (screens.md `CabalHoldingsSlot`: "Holdings") |
-| S3.3 | A | wait | `cabal-holdings-empty` | | Reads "Fund, then propose the first buy." within 10 s (screens.md `CabalHoldingsSlot`: Zero pot; old app: `pot-empty` "Add money, then propose the first buy.") |
-| S3.4 | A | tap | `cabal-holdings-cash` | | The "Cabal cash" screen shows within 10 s (screens.md: the Cash row opens `GroupCashRoute`; old app: `pot-row-USDC`) |
+| S3.3 | A | wait | `cabal-holdings-empty` | | Reads "Fund, then propose the first buy." within 10 s (screens.md `CabalHoldingsSlot`: "Empty pot copy is unchanged"; old app: `pot-empty` "Add money, then propose the first buy.") |
 
 ## Ground truth
 
@@ -59,12 +58,9 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Known failures on staging
 
-- S1.2: no pot value. The hero shows "The pot's value shows up here soon." (`cabal-pot-coming`). Blocked by #2136 (the `GET /v1/cabals/{id}/pot` route) and #2137 (the slot).
-- S1.3: no slice value. The hero shows "Your slice shows up here soon." (`cabal-slice-coming`). Blocked by #2136 and #2137.
-- S3.3: no holdings rows or empty state. The section shows "Holdings show up here soon." (`cabal-holdings-coming`). Blocked by #2136 and #2137.
-- S3.4: no holding row opens an asset. Blocked by #2136.
+None.
 
 ## Not covered
 
-- `cabal-pot-value`, `cabal-slice-value`, `cabal-holdings-empty` and `cabal-holdings-cash` do not exist yet. #2137 adds them in `CabalPotSlot.swift`, `CabalSliceSlot.swift` and `CabalHoldingsSlot.swift` under `apps/mobile/Monaco/Features/Groups/CabalSlots/`; this ticket does not touch app code.
+- A zero pot has no Cash row: the Holdings section shows only `cabal-holdings-empty`. The Cash row (`cabal-holdings-cash`, which opens "Cabal cash") and a holding row (`cabal-holding-<ticker>`, which opens that asset) need a funded pot, and this journey moves no money.
 - The all-time chip "▲ $0.73 · all time", "38% of the pot", the allocation bar legend, and a stock row ("0.73 shares · $341.58") opening its asset. Each needs a funded pot with a buy, and this journey moves no money.

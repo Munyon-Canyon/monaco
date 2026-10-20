@@ -1,7 +1,7 @@
 ---
 id: governance/comments
 title: Comment on a proposal
-version: 5
+version: 6
 milestone: M18
 requires: [auth/sign-in]
 actors: [A]
@@ -23,7 +23,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- |
 | P1 | Actor A has signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
-| P3 | `apps/mobile/qa/journeys/governance/comments.setup.sh` ran right before the scenario. It marks A as done with onboarding, sets A's display name, and creates the cabal `QA comments {QA.run}` as A. It cannot seed the open proposal the scenarios start from: creating one needs a live Jupiter quote, and no flow or testkit scenario seeds one as the QA accounts. Once #612 or #711 lands a seed path, the setup seeds the proposal and its feed item there |
+| P3 | `apps/mobile/qa/journeys/governance/comments.setup.sh` ran right before the scenario. S1 marks A as done with onboarding, sets A's display name, and creates the cabal `QA comments {QA.run}` as A. Each scenario then writes one open buy proposal by A in that cabal with the thesis `QA proposal {QA.run} <scenario>`, so it is the newest on the Feed. The rows are written the way `governance/vote` writes its proposal, because creating one through the API needs a live Jupiter quote. The feed consumer turns the proposal's event into the Feed card the scenarios open |
 
 ## Scenarios
 
@@ -31,30 +31,29 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap, pick, then tap | the Feed tab, `feed-chip-Proposals` from `feed-filter`, then the first `feed-cell-<id>` | | `proposal-detail` shows within 15 s (old app: Proposal detail; screens.md `ProposalDetailSlot`) |
-| S1.2 | A | wait | `comment-thread` | | `comment-thread-empty` reads "No replies yet" within 10 s, and no "Discussion" header shows on the empty thread (screens.md `ProposalCommentsSlot`: ""Discussion", the thread ... Empty: "No replies yet""; old app: `CommentThreadView` read) |
-| S1.3 | A | type, then tap | `comment-composer-field`, then `comment-composer-send` | `QA comment {QA.run}` | The field's placeholder was "Add a comment", and a `comment-row-<id>` reads `QA comment {QA.run}` within 10 s (screens.md: "a composer pinned at the bottom, "Add a comment""; old app: `CommentThreadView` post) |
+| S1.1 | A | tap, pick, then tap | the Feed tab, the "Proposals" item from `feed-filter`, then the first `feed-cell-<id>` | | `proposal-votes` shows within 15 s (old app: Proposal detail; screens.md `ProposalDetailSlot`) |
+| S1.2 | A | wait | `comment-thread` | | The text "No replies yet" shows in the thread within 10 s, and no "Discussion" header shows on the empty thread (screens.md `ProposalCommentsSlot`: ""Discussion", the thread ... Empty: "No replies yet""; old app: `CommentThreadView` read) |
+| S1.3 | A | type, then tap | `comment-composer-field`, then `comment-composer-send` | `QA comment {QA.run}` | The field's placeholder was "Add a comment", and a `comment-body-<id>` reads `QA comment {QA.run}` within 10 s (screens.md: "a composer pinned at the bottom, "Add a comment""; old app: `CommentThreadView` post) |
 
 ### S2 Reply to a comment
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, pick, then tap | the Feed tab, `feed-chip-Proposals` from `feed-filter`, then the first `feed-cell-<id>` | | `proposal-detail` shows within 15 s |
-| S2.2 | A | type, then tap | `comment-composer-field`, then `comment-composer-send` | `QA ask {QA.run}` | A `comment-row-<id>` reads `QA ask {QA.run}` within 10 s |
-| S2.3 | A | tap | `comment-reply-<id>` on the row reading `QA ask {QA.run}` | | `comment-composer-cancel-reply` shows within 5 s (old app: `CommentThreadView` reply) |
-| S2.4 | A | type, then tap | `comment-composer-field`, then `comment-composer-send` | `QA answer {QA.run}` | A `comment-row-<id>` reads `QA answer {QA.run}` within 10 s, below the comment it answers |
+| S2.1 | A | tap, pick, then tap | the Feed tab, the "Proposals" item from `feed-filter`, then the first `feed-cell-<id>` | | `proposal-votes` shows within 15 s |
+| S2.2 | A | type, then tap | `comment-composer-field`, then `comment-composer-send` | `QA ask {QA.run}` | A `comment-body-<id>` reads `QA ask {QA.run}` within 10 s |
+| S2.3 | A | tap | the `comment-reply-<id>` with the id of the `comment-body-<id>` reading `QA ask {QA.run}` | | `comment-composer-cancel-reply` shows within 5 s (old app: `CommentThreadView` reply) |
+| S2.4 | A | type, then tap | `comment-composer-field`, then `comment-composer-send` | `QA answer {QA.run}` | A `comment-body-<id>` reads `QA answer {QA.run}` within 10 s, below the comment it answers |
 
 ## Ground truth
 
-`apps/mobile/qa/journeys/governance/comments.truth.sh` reads `feed_comments`. `QA comment {QA.run}` and `QA ask {QA.run}` are top-level comments by A, and `QA answer {QA.run}` has `QA ask {QA.run}` as its parent. A run that wrote none of them passes with a note, since every step is a known failure until #711.
+`apps/mobile/qa/journeys/governance/comments.truth.sh` reads `feed_comments`. `QA comment {QA.run}` and `QA ask {QA.run}` are top-level comments by A, and `QA answer {QA.run}` has `QA ask {QA.run}` as its parent. A run that stopped before it wrote any of them passes with a note.
 
 ## Known failures on staging
 
-- S1.1 and S2.1: no proposal cell to open, because the setup cannot seed a proposal. Blocked by #612.
-- S1.2, S1.3, S2.2, S2.3 and S2.4 read the live `ProposalCommentsSlot` (#711) and pass once S1.1 and S2.1 can open a proposal.
+None known.
 
 ## Not covered
 
-- Comments on other feed items (trades, price moves). #711 moves comments onto every feed item; this journey covers the proposal, the old app's only thread.
+- Comments on other feed items (trades, price moves). Every feed item has a thread; this journey covers the proposal, the old app's only thread.
 - Deleting a comment and the 1000-character cap (`comment-composer-too-long`).
 - A second member reading the comment live. That needs realtime (#623).

@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsBrowseJourney {
     static let id = "cabals/browse"
-    static let version = 5
+    static let version = 6
 
     static let screenTimeout: TimeInterval = 15
 
@@ -58,7 +58,7 @@ enum CabalsBrowseJourney {
         recorder.step("S1.3", "search for the request cabal") {
             app.tab("Cabals").tap()
             JoinJourney.search(app, for: ask(run: run), step: "S1.3")
-            assertResult(app, named: ask(run: run), reads: "1 member · Approval required", step: "S1.3")
+            assertResult(app, named: ask(run: run), reads: "1 member", step: "S1.3")
             XCTAssertTrue(
                 enterButton(app, label: "Request to join \(ask(run: run))").waitForExistence(timeout: 10),
                 "S1.3: no Request on the request cabal's row"
@@ -77,15 +77,23 @@ enum CabalsBrowseJourney {
 
     static func seesTopCabals(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S3.1", "the leaderboard lists ranked cabals") {
+            app.dismissKeyboard()
+            let back = app.buttons["BackButton"].firstMatch
+            if back.waitForExistence(timeout: 2) { back.tap() }
             app.tab("Cabals").tap()
             let board = app.element("cabals-board")
             app.scrollIntoReach(board)
             XCTAssertTrue(board.waitForExistence(timeout: screenTimeout), "S3.1: no Cabal leaderboard section")
             XCTAssertTrue(app.staticTexts["Cabal leaderboard"].exists, "S3.1: no Cabal leaderboard header")
-            XCTAssertFalse(
-                app.element("cabals-board-coming").exists,
-                "S3.1: the leaderboard reads Rankings show up here soon. (known failure, #699 and #617)"
+            XCTAssertTrue(app.staticTexts["Public"].exists, "S3.1: the leaderboard is not marked Public")
+            let list = app.element("cabals-board-list")
+            let empty = app.element("cabals-board-empty")
+            XCTAssertNotNil(
+                app.waitForFirst(of: [list, empty], timeout: screenTimeout),
+                "S3.1: the leaderboard shows neither ranked cabals nor the empty state within \(Int(screenTimeout)) s"
             )
+            let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'cabals-board-row-'"))
+            XCTAssertLessThanOrEqual(rows.count, 3, "S3.1: the leaderboard lists more than three rows")
         }
     }
 }

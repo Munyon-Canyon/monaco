@@ -64,3 +64,4 @@ The format of this doc is in [App journeys](../README.md).
 - Pending and failed rows ("Pending" amber, "Failed" red). No route reaches those states without moving money; `AccountActivityRowTests` covers the labels.
 - The empty state "No transactions yet". A's history is never empty after the deposit S1 seeds.
 - Paging past 30 rows.
+- Your money and Cabal cash. No journey covers them yet: both screens are built against fixtures where the backend has no data. Your money (the Home money strip's Net worth and Cash) waits on a balances detail API beyond `GET /v1/me/portfolio` and `GET /v1/me/balance`. Cabal cash (`GroupCashRoute`) waits on the provider, rate and terms of the yield on a cabal's idle USDC, which `GET /v1/cabals/{id}/pot` does not carry.

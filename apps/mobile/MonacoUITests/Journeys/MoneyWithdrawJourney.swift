@@ -2,7 +2,7 @@ import XCTest
 
 enum MoneyWithdrawJourney {
     static let id = "money/withdraw"
-    static let version = 4
+    static let version = 5
 
     static let screenTimeout: TimeInterval = 15
     static let badAddress = "not a solana address"
@@ -25,16 +25,22 @@ enum MoneyWithdrawJourney {
         return address
     }
 
+    static func openWithdraw(_ app: XCUIApplication, step: String) {
+        app.popToRoot()
+        app.tab("Profile").tap()
+        let row = app.element("profile-withdraw-row")
+        app.scrollIntoReach(row)
+        XCTAssertTrue(row.waitForExistence(timeout: screenTimeout), "\(step): no Withdraw row on Profile")
+        row.tap()
+    }
+
     static func withdrawAll(_ app: XCUIApplication, to address: String, recorder: JourneyRecorder) {
         let field = app.element("withdraw-address-field")
         let problem = app.element("withdraw-address-problem")
         let continueButton = app.buttons["withdraw-continue-button"]
 
-        recorder.step("S1.1", "open Withdraw from Home") {
-            app.tab("Home").tap()
-            let link = app.element("home-withdraw-link")
-            XCTAssertTrue(link.waitForExistence(timeout: screenTimeout), "S1.1: no Withdraw on Home")
-            link.tap()
+        recorder.step("S1.1", "open Withdraw from Profile") {
+            openWithdraw(app, step: "S1.1")
             XCTAssertTrue(
                 app.navigationBars["Withdraw to wallet"].waitForExistence(timeout: screenTimeout),
                 "S1.1: the Withdraw screen did not show within 15 s"
@@ -116,10 +122,7 @@ enum MoneyWithdrawJourney {
         let continueButton = app.buttons["withdraw-continue-button"]
 
         recorder.step("S2.1", "open Withdraw and pick Base") {
-            app.tab("Home").tap()
-            let link = app.element("home-withdraw-link")
-            XCTAssertTrue(link.waitForExistence(timeout: screenTimeout), "S2.1: no Withdraw on Home")
-            link.tap()
+            openWithdraw(app, step: "S2.1")
             XCTAssertTrue(
                 app.navigationBars["Withdraw to wallet"].waitForExistence(timeout: screenTimeout),
                 "S2.1: the Withdraw screen did not show within 15 s"

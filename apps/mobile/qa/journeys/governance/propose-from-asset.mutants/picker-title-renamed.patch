@@ -1,0 +1,18 @@
+journey: governance/propose-from-asset
+expect-fail: S1
+
+The cabal picker is titled "Pick a cabal". S1.2 expects the spec title "Choose a cabal", so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+diff --git a/packages/mobile-core/Sources/MonacoCore/ProposalFeedCopy.swift b/packages/mobile-core/Sources/MonacoCore/ProposalFeedCopy.swift
+index e6cab80..ec5af70 100644
+--- a/packages/mobile-core/Sources/MonacoCore/ProposalFeedCopy.swift
++++ b/packages/mobile-core/Sources/MonacoCore/ProposalFeedCopy.swift
+@@ -266,7 +266,7 @@ public enum ProposeFlowCopy {
+     public static let sendFailedNotice = "Couldn’t send your proposal. Your draft is saved here."
+     public static let proposalSentTitle = "Proposal sent"
+     public static let viewProposal = "View proposal"
+-    public static let chooseCabalTitle = "Choose a cabal"
++    public static let chooseCabalTitle = "Pick a cabal"
+     public static func chooseCabalQuestion(verb: String, ticker: String) -> String {
+         "Which cabal should \(verb) \(ticker)?"
+     }

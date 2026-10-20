@@ -25,6 +25,7 @@ check() {
 
 check "QA feed $run" cabal_created
 check "QA feed $run" member_joined
+check "QA feed $run" proposal
 check "QA own $run" cabal_created
 
 a="$(qa_user_id A)"

@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileUserProfileJourney {
     static let id = "profile/user-profile"
-    static let version = 3
+    static let version = 4
 
     static let memberName = "Bartholomez"
 
@@ -30,36 +30,43 @@ enum ProfileUserProfileJourney {
     }
 
     static func openCabal(_ app: XCUIApplication, seed: Seed, step: String) {
-        app.tab("Profile").tap()
-        let row = app.element("cabal-row-\(seed.cabalID)")
-        app.scrollIntoReach(row)
-        XCTAssertTrue(row.waitForExistence(timeout: 15), "\(step): no row for '\(seed.cabalName)' on Profile")
-        row.tap()
+        app.tab("Cabals").tap()
+        app.popToRoot()
+        let clear = app.buttons["Clear search"]
+        if clear.exists { clear.tap() }
+        JoinJourney.openBySearch(app, seed.cabalName, step: step)
         XCTAssertTrue(
             app.element("cabal-details-button").waitForExistence(timeout: 15), "\(step): the cabal screen did not show")
     }
 
-    static func openMember(_ app: XCUIApplication, userID: String, step: String) {
-        let row = app.element("cabal-member-\(userID)")
+    static func openMember(_ app: XCUIApplication, name: String, step: String) {
+        let details = app.element("cabal-details-button")
+        XCTAssertTrue(details.waitForExistence(timeout: 15), "\(step): no Cabal information button")
+        details.tap()
+        let members = app.element("cabal-members-row")
+        app.scrollIntoReach(members)
+        XCTAssertTrue(members.waitForExistence(timeout: 15), "\(step): no Members & voters row")
+        members.tap()
+        let row = CabalsInfoAndMembersJourney.memberRow(app, label: "BEGINSWITH", name)
         app.scrollIntoReach(row)
-        XCTAssertTrue(row.waitForExistence(timeout: 15), "\(step): no member board row for \(userID)")
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "\(step): no member row for \(name)")
         row.tap()
         XCTAssertTrue(
             app.element("user-profile-header").waitForExistence(timeout: 15), "\(step): the profile did not show")
     }
 
-    static func openProfile(_ app: XCUIApplication, seed: Seed, userID: String, step: String) {
+    static func openProfile(_ app: XCUIApplication, seed: Seed, name: String, step: String) {
         openCabal(app, seed: seed, step: step)
-        openMember(app, userID: userID, step: step)
+        openMember(app, name: name, step: step)
     }
 
     static func header(_ app: XCUIApplication, seed: Seed, recorder: JourneyRecorder) {
-        recorder.step("S1.1", "open the shared cabal from Profile") {
+        recorder.step("S1.1", "open the shared cabal from the Cabals tab") {
             openCabal(app, seed: seed, step: "S1.1")
         }
 
         recorder.step("S1.2", "open the member's profile from the member board") {
-            openMember(app, userID: seed.memberID, step: "S1.2")
+            openMember(app, name: memberName, step: "S1.2")
         }
 
         recorder.step("S1.3", "read the header") {
@@ -84,7 +91,7 @@ enum ProfileUserProfileJourney {
         let button = app.buttons["user-profile-follow"]
 
         recorder.step("S2.1", "open the member's profile") {
-            openProfile(app, seed: seed, userID: seed.memberID, step: "S2.1")
+            openProfile(app, seed: seed, name: memberName, step: "S2.1")
             XCTAssertTrue(
                 waitUntil(15) { button.exists && button.label == "Follow" },
                 "S2.1: the button reads '\(button.label)', not 'Follow'")
@@ -107,32 +114,33 @@ enum ProfileUserProfileJourney {
 
     static func sharedCabals(_ app: XCUIApplication, seed: Seed, recorder: JourneyRecorder) {
         let shared = app.staticTexts["Cabals you share"]
-        let row = app.buttons.containing(NSPredicate(format: "label CONTAINS %@", seed.cabalName)).firstMatch
+        let row = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label BEGINSWITH %@", "\(seed.cabalName), Pot"))
+            .firstMatch
 
         recorder.step("S3.1", "open the member's profile") {
-            openProfile(app, seed: seed, userID: seed.memberID, step: "S3.1")
+            openProfile(app, seed: seed, name: memberName, step: "S3.1")
         }
 
         recorder.step("S3.2", "read Cabals you share") {
             app.scrollIntoReach(shared)
             XCTAssertTrue(shared.waitForExistence(timeout: 15), "S3.2: no 'Cabals you share' header")
-            XCTAssertFalse(
-                app.element("user-profile-shared-coming").exists,
-                "S3.2: 'Shared cabals show up here soon.' shows (#2145)")
-            XCTAssertTrue(row.waitForExistence(timeout: 15), "S3.2: no row for '\(seed.cabalName)' (#2145)")
+            app.scrollIntoReach(row)
+            XCTAssertTrue(row.waitForExistence(timeout: 15), "S3.2: no row for '\(seed.cabalName)'")
+            XCTAssertTrue(row.label.contains(seed.cabalName), "S3.2: the row reads '\(row.label)'")
         }
 
         recorder.step("S3.3", "open the shared cabal") {
             row.tap()
             XCTAssertTrue(
                 app.element("cabal-details-button").waitForExistence(timeout: 15),
-                "S3.3: the shared cabal did not open (#2145)")
+                "S3.3: the shared cabal did not open")
         }
     }
 
     static func reportAndBlock(_ app: XCUIApplication, seed: Seed, recorder: JourneyRecorder) {
         recorder.step("S4.1", "open the member's profile") {
-            openProfile(app, seed: seed, userID: seed.memberID, step: "S4.1")
+            openProfile(app, seed: seed, name: memberName, step: "S4.1")
             XCTAssertTrue(app.element("user-profile-more").waitForExistence(timeout: 15), "S4.1: no '…' menu")
         }
 
@@ -142,14 +150,14 @@ enum ProfileUserProfileJourney {
             let block = app.buttons["Block"]
             XCTAssertTrue(report.waitForExistence(timeout: 5), "S4.2: the menu has no 'Report'")
             XCTAssertTrue(block.exists, "S4.2: the menu has no 'Block'")
-            XCTAssertTrue(report.isEnabled, "S4.2: 'Report' is disabled (#2144, #2145)")
-            XCTAssertTrue(block.isEnabled, "S4.2: 'Block' is disabled (#2144, #2145)")
+            XCTAssertTrue(report.isEnabled, "S4.2: 'Report' is disabled")
+            XCTAssertTrue(block.isEnabled, "S4.2: 'Block' is disabled")
         }
     }
 
     static func ownRow(_ app: XCUIApplication, seed: Seed, recorder: JourneyRecorder) {
         recorder.step("S5.1", "open your own row") {
-            openProfile(app, seed: seed, userID: seed.meID, step: "S5.1")
+            openProfile(app, seed: seed, name: "Alfred", step: "S5.1")
             XCTAssertFalse(
                 app.element("user-profile-follow").exists, "S5.1: your own profile shows a Follow button")
             XCTAssertFalse(app.element("user-profile-more").exists, "S5.1: your own profile shows the '…' menu")

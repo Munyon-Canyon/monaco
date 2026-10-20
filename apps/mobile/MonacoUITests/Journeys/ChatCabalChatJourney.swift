@@ -2,7 +2,7 @@ import XCTest
 
 enum ChatCabalChatJourney {
     static let id = "chat/cabal-chat"
-    static let version = 4
+    static let version = 5
     static let emptyTitle = "Start the conversation"
     static let emptyHint =
         "Messages here stay with your cabal. Proposal-specific discussion stays attached to the proposal."
@@ -27,11 +27,13 @@ enum ChatCabalChatJourney {
     }
 
     static func messageText(_ app: XCUIApplication, run: String) -> XCUIElement {
-        app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", message(run: run))).firstMatch
+        text(app, containing: message(run: run))
     }
 
     static func text(_ app: XCUIApplication, containing text: String) -> XCUIElement {
-        app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
+        app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'chat-message-' AND label CONTAINS %@", text)
+        ).firstMatch
     }
 
     static func aSends(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
@@ -43,7 +45,7 @@ enum ChatCabalChatJourney {
             XCTAssertTrue(
                 JoinJourney.waitForLabel(app.element("chat-empty"), containing: emptyTitle, timeout: 10)
                     && JoinJourney.waitForLabel(app.element("chat-empty"), containing: emptyHint, timeout: 10),
-                "S1.2: no 'Start the conversation' empty state within 10 s (known failure, #676)"
+                "S1.2: no 'Start the conversation' empty state within 10 s"
             )
         }
 
@@ -52,13 +54,13 @@ enum ChatCabalChatJourney {
             XCTAssertTrue(composer.waitForExistence(timeout: 5), "S1.3: no chat composer")
             XCTAssertEqual(
                 composer.placeholderValue, "Message your cabal", "S1.3: the composer placeholder is not the spec's")
-            XCTAssertTrue(composer.isEnabled, "S1.3: the composer is disabled (known failure, #676 and #623)")
+            XCTAssertTrue(composer.isEnabled, "S1.3: the composer is disabled")
             composer.tap()
             composer.typeText(message(run: run))
             app.element("chat-send").tap()
             XCTAssertTrue(
                 messageText(app, run: run).waitForExistence(timeout: 10),
-                "S1.3: no message reading \(message(run: run)) within 10 s (known failure, #676)"
+                "S1.3: no message reading \(message(run: run)) within 10 s"
             )
         }
 
@@ -70,7 +72,7 @@ enum ChatCabalChatJourney {
                 app.element("chat-send").tap()
                 XCTAssertTrue(
                     text(app, containing: "QA \(word) \(run)").waitForExistence(timeout: 10),
-                    "S1.3b: no message reading QA \(word) \(run) within 10 s (known failure, #3467)"
+                    "S1.3b: no message reading QA \(word) \(run) within 10 s"
                 )
             }
             composer.tap()
@@ -84,10 +86,20 @@ enum ChatCabalChatJourney {
             app.element("chat-send").tap()
             XCTAssertTrue(
                 text(app, containing: "QA mention \(run) @").waitForExistence(timeout: 10),
-                "S1.3b: no mention message within 10 s (known failure, #3467)"
+                "S1.3b: no mention message within 10 s"
             )
             XCTAssertTrue(messageText(app, run: run).exists, "S1.3b: the first message vanished after the sends")
             XCTAssertTrue(app.element("chat-thread").exists, "S1.3b: the chat thread is gone after the sends")
+        }
+    }
+
+    static func leaveChat(_ app: XCUIApplication) {
+        app.element("chat-thread").tap()
+        for _ in 0..<4 {
+            if app.tab("Home").exists { return }
+            let back = app.buttons["BackButton"].firstMatch
+            guard back.waitForExistence(timeout: 2) else { return }
+            back.tap()
         }
     }
 
@@ -96,9 +108,11 @@ enum ChatCabalChatJourney {
             openChat(app, run: run, step: "S1.4")
             XCTAssertTrue(
                 messageText(app, run: run).waitForExistence(timeout: 15),
-                "S1.4: no message reading \(message(run: run)) within 15 s (known failure, #623 and #676)"
+                "S1.4: no message reading \(message(run: run)) within 15 s"
             )
-            XCTAssertTrue(app.staticTexts[sender].exists, "S1.4: no author name \(sender) over the message")
+            let label = messageText(app, run: run).label
+            XCTAssertTrue(
+                label.hasPrefix(sender), "S1.4: the message does not start with the author \(sender): \(label)")
         }
     }
 }

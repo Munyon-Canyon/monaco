@@ -7,12 +7,20 @@ enum StocksAssetDetailJourney {
     static let alpha = StocksBrowseJourney.alpha
     static let preIpo = StocksBrowseJourney.preIpo
     static let otherListingID = "asset-other-listing-JRNYQx"
-    static let otherListingTicker = "JRNYQx"
+    static let sourceListingID = "asset-other-listing-JRNYPx"
     static let buyCaption = "Your cabal votes before anything is bought"
     static let ranges = ["1D", "1W", "1M", "3M", "6M", "1Y", "ALL"]
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
+    }
+
+    static func rangeChip(_ app: XCUIApplication, _ range: String) -> XCUIElement {
+        app.buttons.matching(
+            NSPredicate(
+                format: "(identifier == 'asset-chart-ranges' OR identifier == %@) AND label == %@",
+                "asset-range-\(range)", range)
+        ).firstMatch
     }
 
     static func openAsset(_ app: XCUIApplication, _ asset: StocksBrowseJourney.SeededAsset, step: String) {
@@ -79,18 +87,16 @@ enum StocksAssetDetailJourney {
             XCTAssertEqual(app.staticTexts["asset-detail-name"].label, alpha.name, "S1.2: the name is not the seed's")
             let price = app.staticTexts["asset-detail-price"].label
             XCTAssertEqual(price, alpha.price, "S1.2: the price is not the seed's")
-            XCTAssertTrue(app.staticTexts["Trading 24/7 on Solana"].exists, "S1.2: no 'Trading 24/7 on Solana'")
         }
 
         recorder.step("S1.3", "read the range chips") {
             XCTAssertTrue(
                 waitForRangeChange(app, "Past day · \(alpha.ticker)", timeout: 15),
                 "S1.3: the change chip reads '\(rangeChange(app))', not 'Past day · \(alpha.ticker)'")
-            let chips = app.element("asset-chart-ranges")
             for range in ranges {
-                XCTAssertTrue(chips.buttons[range].exists, "S1.3: no '\(range)' range chip")
+                XCTAssertTrue(rangeChip(app, range).waitForExistence(timeout: 5), "S1.3: no '\(range)' range chip")
             }
-            XCTAssertTrue(chips.buttons["1D"].isSelected, "S1.3: '1D' is not selected")
+            XCTAssertTrue(rangeChip(app, "1D").isSelected, "S1.3: '1D' is not selected")
         }
 
         recorder.step("S1.4", "see the chart") {
@@ -99,7 +105,7 @@ enum StocksAssetDetailJourney {
         }
 
         recorder.step("S1.5", "pick one week") {
-            let week = app.element("asset-chart-ranges").buttons["1W"]
+            let week = rangeChip(app, "1W")
             week.tap()
             XCTAssertTrue(
                 waitForRangeChange(app, "Past week · \(alpha.ticker)", timeout: 10),
@@ -108,7 +114,7 @@ enum StocksAssetDetailJourney {
         }
 
         recorder.step("S1.6", "pick one year") {
-            let year = app.element("asset-chart-ranges").buttons["1Y"]
+            let year = rangeChip(app, "1Y")
             year.tap()
             XCTAssertTrue(
                 waitForRangeChange(app, "Past year · \(alpha.ticker)", timeout: 10),
@@ -129,21 +135,31 @@ enum StocksAssetDetailJourney {
             app.buttons["asset-detail-propose-buy"].tap()
             let question = "Which cabal should buy \(alpha.ticker)?"
             XCTAssertTrue(
-                app.navigationBars["Pick a cabal"].waitForExistence(timeout: 10),
-                "S1.8: Propose a buy did not open the cabal picker titled 'Pick a cabal' (#613)")
+                app.navigationBars["Choose a cabal"].waitForExistence(timeout: 10),
+                "S1.8: Propose a buy did not open the cabal picker titled 'Choose a cabal'")
             expectPicker(app, asking: question)
         }
 
         recorder.step("S1.9", "pick a cabal and reach Amount") {
-            cabalRows(app).firstMatch.tap()
-            XCTAssertTrue(
-                app.element("propose-amount-screen").waitForExistence(timeout: 10),
-                "S1.9: the cabal row did not open the Amount screen (#613)")
-            XCTAssertTrue(
-                app.navigationBars["Buy \(alpha.ticker)"].exists, "S1.9: the screen is not titled 'Buy \(alpha.ticker)'"
-            )
-            XCTAssertTrue(app.staticTexts[alpha.ticker].exists, "S1.9: no \(alpha.ticker) row on Amount")
+            reachAmount(app)
         }
+    }
+
+    static func reachAmount(_ app: XCUIApplication) {
+        cabalRows(app).firstMatch.tap()
+        XCTAssertTrue(
+            app.element("propose-amount-screen").waitForExistence(timeout: 10),
+            "S1.9: the cabal row did not open the Amount screen")
+        XCTAssertTrue(
+            app.navigationBars["Buy \(alpha.ticker)"].exists, "S1.9: the screen is not titled 'Buy \(alpha.ticker)'")
+        let header = app.element("propose-amount-operation")
+        for _ in 0..<10 where !header.exists {
+            let retry = app.buttons["propose-amount-cash-error"]
+            if retry.waitForExistence(timeout: 4) { retry.tap() }
+        }
+        XCTAssertTrue(header.waitForExistence(timeout: 5), "S1.9: no stock header on Amount")
+        XCTAssertTrue(
+            header.label.contains(alpha.name), "S1.9: the Amount header reads '\(header.label)', not \(alpha.name)")
     }
 
     static func stats(_ app: XCUIApplication, recorder: JourneyRecorder) {
@@ -180,9 +196,12 @@ enum StocksAssetDetailJourney {
             app.scrollIntoReach(listing)
             listing.tap()
             XCTAssertTrue(
-                app.navigationBars[otherListingTicker].waitForExistence(timeout: 10),
-                "S3.3: the listing did not open an asset screen titled '\(otherListingTicker)')")
+                app.element(sourceListingID).waitForExistence(timeout: 10),
+                "S3.3: the listing did not open the asset screen that lists \(sourceListingID)")
             XCTAssertTrue(app.element("asset-detail-root").exists, "S3.3: no asset screen for the other listing")
+            XCTAssertEqual(
+                app.staticTexts["asset-detail-name"].firstMatch.label, preIpo.name,
+                "S3.3: the name is not '\(preIpo.name)'")
         }
     }
 

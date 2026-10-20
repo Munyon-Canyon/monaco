@@ -16,6 +16,7 @@ nonisolated final class ChatCabalChatJourneyUITests: XCTestCase {
             let sender = try session.act(as: "A")
             ChatCabalChatJourney.aSends(app, run: run, recorder: recorder)
             attachScreenshot(of: app, named: "S1-A-sent")
+            ChatCabalChatJourney.leaveChat(app)
             try session.act(as: "B")
             ChatCabalChatJourney.bReceives(app, run: run, sender: sender.name, recorder: recorder)
             attachScreenshot(of: app, named: "S1-B-received")

@@ -16,6 +16,7 @@ enum FeedBrowseJourney {
 
     static func joinedCabal(run: String) -> String { "QA feed \(run)" }
     static func ownCabal(run: String) -> String { "QA own \(run)" }
+    static func thesis(run: String) -> String { "QA proposal \(run)" }
 
     static func text(_ app: XCUIApplication, containing fragment: String) -> XCUIElement {
         app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", fragment)).firstMatch
@@ -41,7 +42,7 @@ enum FeedBrowseJourney {
     }
 
     static func closeFilter(_ app: XCUIApplication) {
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)).tap()
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.6)).tap()
     }
 
     static func choose(_ app: XCUIApplication, _ options: String...) {
@@ -119,16 +120,20 @@ enum FeedBrowseJourney {
 
         recorder.step("S2.2", "Following with no follows says how to fix it") {
             XCTAssertTrue(
-                JoinJourney.waitForLabel(
-                    app.element("feed-empty"), containing: "Follow people to see what they do.", timeout: 10),
-                "S2.2: no 'Follow people to see what they do.' within 10 s (known failure, #671)"
+                app.staticTexts["Follow people to see what they do."].firstMatch.waitForExistence(timeout: 10),
+                "S2.2: no 'Follow people to see what they do.' within 10 s"
             )
+            XCTAssertEqual(
+                app.element("feed-find-friends").label, "Find friends", "S2.2: no 'Find friends' under the message")
         }
     }
 
     static func cellTaps(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S3.1", "a cabal cell opens the cabal") {
             openFeed(app, step: "S3.1")
+            let clear = app.buttons["Clear search"]
+            if clear.exists { clear.tap() }
+            app.dismissKeyboard()
             choose(app, "feed-scope-Everyone")
             let cell = text(app, containing: "started \(joinedCabal(run: run))")
             XCTAssertTrue(cell.waitForExistence(timeout: 15), "S3.1: no 'started \(joinedCabal(run: run))' cell")
@@ -145,12 +150,15 @@ enum FeedBrowseJourney {
             choose(app, "feed-chip-Cabal activity", "feed-chip-Proposals")
             let cell = app.descendants(matching: .any)
                 .matching(NSPredicate(format: "identifier BEGINSWITH 'feed-cell-'")).firstMatch
-            XCTAssertTrue(
-                cell.waitForExistence(timeout: 15), "S3.2: no proposal cell within 15 s (known failure, #612)")
+            XCTAssertTrue(cell.waitForExistence(timeout: 15), "S3.2: no proposal cell within 15 s")
             cell.tap()
             XCTAssertTrue(
-                app.element("proposal-detail").waitForExistence(timeout: 15),
-                "S3.2: the proposal did not open within 15 s (known failure, #612)"
+                app.element("proposal-votes").waitForExistence(timeout: 15),
+                "S3.2: the proposal did not open within 15 s"
+            )
+            XCTAssertTrue(
+                text(app, containing: thesis(run: run)).waitForExistence(timeout: 10),
+                "S3.2: the proposal does not read '\(thesis(run: run))'"
             )
         }
 

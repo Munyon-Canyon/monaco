@@ -1,7 +1,7 @@
 ---
 id: ranking/leaderboards
 title: The leaderboards
-version: 4
+version: 6
 milestone: M16
 requires: [auth/sign-in]
 actors: [A]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/RankingLeaderboardsJourney.swift, 
 
 # The leaderboards
 
-Monaco ranks people and cabals by return. Home has "Top investors" across everyone, each cabal has "Member standings", and the Cabals tab has the "Cabal leaderboard". A row opens that person's profile. The copy is in [screens.md](../../screens.md#home) (Home slot 6), `CabalMemberBoardSlot` on the [cabal screen](../../screens.md#cabal-screen-cabalroute) and `CabalsBoardSlot` on the [Cabals tab](../../screens.md#cabals-tab).
+Monaco ranks people and cabals by return. Home has a "Leaderboard" of cabals or people, and the Cabals tab has the "Cabal leaderboard". A row opens that person's profile. The copy is in [screens.md](../../screens.md#home) (Home slot 6) and the [Leaderboard](../../screens.md#leaderboard-leaderboardroute) page, `CabalMemberBoardSlot` on the [cabal screen](../../screens.md#cabal-screen-cabalroute) and `CabalsBoardSlot` on the [Cabals tab](../../screens.md#cabals-tab).
 
 Old app (`c838bd24`): `Home/HomeLeaderboardSection.swift` (Top investors, "Everyone" / "Friends", range chips), a row opening the profile with the cabals you share (now `UserProfileRoute`), the member board on `GroupDetailView` opening a profile, and Top cabals on the Cabals tab.
 
@@ -27,23 +27,14 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Scenarios
 
-### S1 Top investors on Home
+### S1 The Home leaderboard
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap, then scroll | the Home tab, then "Top investors" | | The header "Top investors" shows within 15 s (screens.md `HomePeopleBoardSlot`: ""Top investors""; old app: `HomeLeaderboardSection` header) |
-| S1.2 | A | read | the range chips | | The chips "1H", "1D", "1W", "1M" and "All" show within 10 s (screens.md `HomePeopleBoardSlot`: "chips 1H 1D 1W 1M All (default All)"; old app: `HomeLeaderboardSection` range chips) |
-| S1.3 | A | read | the board segment | | "Everyone" and "Friends" show within 10 s (screens.md `HomePeopleBoardSlot`: "the "Everyone" / "Friends" segment (Friends after #658)"; old app: `HomeLeaderboardSection` Everyone / Friends) |
-| S1.4 | A | tap | `home-leaderboard-row-<B id>` | | A ranked row for B shows; tapping it opens B's profile with `user-profile-group-<cabal id>` for `QA ranks {QA.run}` within 15 s (screens.md `HomePeopleBoardSlot`: "ranked rows (crown for first, then numbers, avatar, name, return over gain or loss)"; old app: `HomeLeaderboardSection` row opens the profile, now `UserProfileRoute`) |
-
-### S2 A cabal's member board
-
-| Step | Actor | Action | Target | Input | Expect |
-| --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA ranks {QA.run}` | `cabal-header-name` reads `QA ranks {QA.run}` within 15 s |
-| S2.2 | A | scroll | "Member standings" | | The header "Member standings" and three `cabal-member-<user id>` rows show within 15 s, A's labelled "You" (screens.md `CabalMemberBoardSlot`: ""Leaderboard": ranked members with the viewer's row washed and labelled "You""; old app: `GroupDetailView` member board) |
-| S2.3 | A | tap | `cabal-member-<B id>` | | `user-profile-name` reads B's display name within 15 s (screens.md `CabalMemberBoardSlot`: "Rows open `UserProfileRoute`"; old app: member row opens the profile) |
-| S2.4 | A | go back, then read | the member board | | Each member row shows a return, and `cabal-member-board-coming` "Rankings show up here soon." is gone within 10 s (screens.md `CabalMemberBoardSlot`: "ranked members"; old app: `GroupDetailView` member board ranked by P&L) |
+| S1.1 | A | tap, then scroll | the Home tab, then "Leaderboard" | | The header "Leaderboard" with "View all" and `home-people-board` show within 15 s (screens.md Home slot 6: "Leaderboard" and "View all") |
+| S1.2 | A | read | `home-leaderboard-category`, `home-leaderboard-period` | | The category select reads "Cabals", the period select reads "1M" and the line "Cabal P&L · 1M" shows within 10 s (screens.md: a Cabals / People menu select and a 1W / 1M / All menu select, default Cabals, 1M) |
+| S1.3 | A | tap | `home-leaderboard-category`, then "People" | | The select reads "People" and the line "Personal P&L · 1M" shows within 10 s (screens.md: the line "Cabal P&L · 1M" or "Personal P&L · 1M") |
+| S1.4 | A | read | `home-people-board` | | Ranked `home-leaderboard-row-<id>` rows show, or the empty copy `home-leaderboard-empty` "No investors yet" does, within 15 s, and `home-leaderboard-loading` is gone (screens.md: the top three `BoardRow`s; empty: "No investors yet" / "Fund a cabal to get on the board.") |
 
 ### S3 Cabal leaderboard on the Cabals tab
 
@@ -52,20 +43,25 @@ The format of this doc is in [App journeys](../README.md).
 | S3.1 | A | tap | the Cabals tab | | `cabals-board` shows "Cabal leaderboard" and the context line "Cabal P&L · 1M" within 15 s (screens.md `CabalsBoardSlot`; old app: Cabals tab Top cabals) |
 | S3.2 | A | read | `cabals-board` | | Ranked rows or the empty copy "No public rankings for this period." replace `cabals-board-coming` "Rankings show up here soon." within 10 s (screens.md `CabalsBoardSlot`: rows with rank, tile, name and P&L; old app: Cabals tab Top cabals rows) |
 
+### S4 View all opens the Leaderboard
+
+| Step | Actor | Action | Target | Input | Expect |
+| --- | --- | --- | --- | --- | --- |
+| S4.1 | A | tap | the Home tab, then "View all" under "Leaderboard" | | `leaderboard-page` shows within 15 s, with the inline title "Leaderboard" (screens.md Leaderboard: the standalone page; Home's "View all" opens it) |
+| S4.2 | A | read | `leaderboard-category`, `leaderboard-period` | | The category menu and the period menu read what Home's Leaderboard card read when "View all" was tapped (`home-leaderboard-category`, `home-leaderboard-period`) within 10 s, and ranked `leaderboard-row-<id>` rows show, or `leaderboard-empty` "No eligible rankings" or `leaderboard-stale` "Rankings paused while valuations update." does (screens.md Leaderboard: tools, rows and the empty state) |
+
 ## Ground truth
 
 `apps/mobile/qa/journeys/ranking/leaderboards.truth.sh` reads `cabal_members`. `QA ranks {QA.run}` has three members, A as creator and B and C as members, so reading the boards and opening a profile wrote nothing.
 
 ## Known failures on staging
 
-- S1.2: `HomePeopleBoardSlot` shows "Rankings show up here soon." with no range chips. Blocked by #617 and #619 (ranked boards with P&L) and #699 (the slot).
-- S1.3: no "Everyone" / "Friends" segment. Blocked by #658.
-- S1.4: no ranked rows, so no row to tap. Blocked by #617 and #619. Opening the cabals you share from the row is blocked by #699.
-- S2.4: member rows carry no return and the board still shows "Rankings show up here soon.". Blocked by #617 and #619.
-- S3.2: `CabalsBoardSlot` shows "Rankings show up here soon." with no rows and no empty copy. Blocked by #617 and #619.
+None.
 
 ## Not covered
 
-- The crown for first place, numbered ranks and the viewer's row pinned at the bottom of Top investors. They need ranked rows (#617, #619) and identifiers on rank and pin that `apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift` does not have yet; this ticket does not touch app code.
-- The range chips on the live board have no identifiers. S1.2 matches them by label. #699 should add `home-leaderboard-range-<range>` as the old `HomeLeaderboardSection` had.
-- Ranks that change after a trade. That needs a funded cabal and a confirmed trade (`funds:`), which belongs to the trade journeys once #617 lands.
+- A cabal's "Member standings" (the former S2). The board is hidden while the cabal holds no position, and the journey's cabal is unfunded, so a run cannot show it without moving money.
+- The rank-change glyph and "Rank change" on the boards. The backend serves no rank movement.
+- The leaderboard filter sheet and the 3M period. The API has no filters and no 3M range yet, so the selects are disabled.
+- Ranks that change after a trade. That needs a funded cabal and a confirmed trade (`funds:`), which belongs to the trade journeys.
+- A ranked People row for B. Personal ranking needs funded positions, so S1.4 accepts the empty copy "No investors yet".

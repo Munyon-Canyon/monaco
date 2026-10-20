@@ -1,7 +1,7 @@
 ---
 id: home/dashboard
 title: The Home dashboard
-version: 3
+version: 4
 milestone: M16
 requires: [auth/sign-in]
 actors: [A, C]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/HomeDashboardJourney.swift, apps/m
 
 # The Home dashboard
 
-Home is the first tab a member sees. It shows what they have in cabals, their account balance, the votes waiting on them and their cabals. A member with no cabal gets a button that takes them to the Cabals tab. The slot order and copy are in [Home](../../screens.md#home).
+Home is the first tab a member sees. It shows their return in the hero, what they have in cabals and in cash, the votes waiting on them, their cabals and the Leaderboard. A member with no cabal gets a card that sends them to create one or explore the Cabals tab. The slot order and copy are in [Home](../../screens.md#home).
 
 Old app (`c838bd24`): `Home/HomeView.swift`. The net-worth hero with its gain chip, the P&L chart with range chips, the balance row, "Your cabals" with a row per cabal that opens the cabal, the empty "Browse cabals" state, pending votes, pull to refresh, and the avatar that opens Profile.
 
@@ -23,7 +23,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- |
 | P1 | Actors A and C have signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
-| P3 | `apps/mobile/qa/journeys/home/dashboard.setup.sh` ran right before the scenario. It marks the actor as done with onboarding and sets their display name. For S1, A creates the cabal `QA home {QA.run}` through the API, and the setup hands its id to the test. For S2, C leaves every cabal C belongs to through the API, so C has none |
+| P3 | `apps/mobile/qa/journeys/home/dashboard.setup.sh` ran right before the scenario. It marks the actor as done with onboarding and sets their display name. For S1, the setup reads A's portfolio (`GET /v1/me/portfolio`), because Your cabals lists only cabals the member holds shares in, and hands the test A's largest cabal's id and name. When A holds none, A creates `QA home {QA.run}` through the API and the setup hands that over, and S1.3 fails because Home lists no unfunded cabal. For S2, C leaves every cabal C belongs to through the API, so C has none |
 
 ## Scenarios
 
@@ -31,35 +31,36 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap | the Home tab | | The hero reads "Your money in cabals" within 15 s (screens.md `HomePortfolioSlot`: "The ink hero: "Your money in cabals""; old app: Home tab, `HomeView` net-worth hero) |
-| S1.2 | A | read | the balance row | | "Account balance" shows with its amount `platform-balance-value`, and `home-add-money-link` "Add money" and `home-withdraw-link` "Withdraw" sit under it (screens.md `HomeBalanceSlot`: "A row with the coin glyph, "Account balance" and the amount", "two text buttons, "Add money" … and "Withdraw""; old app: `HomeView` balance row) |
-| S1.3 | A | scroll | "Your cabals" | | The header "Your cabals" and `cabal-row-<id>` for `QA home {QA.run}` show within 15 s (screens.md `HomeCabalsSlot`: ""Your cabals". One row per cabal"; old app: `HomeView` Your cabals) |
-| S1.4 | A | pull down | the Home screen | | After the refresh, "Your cabals" and the row for `QA home {QA.run}` are still there within 15 s (screens.md Home: "Pull to refresh."; old app: `HomeView` `.refreshable`) |
-| S1.5 | A | tap | `cabal-row-<id>` | | `cabal-header-name` reads `QA home {QA.run}` within 15 s (screens.md `HomeCabalsSlot`: "Row opens `CabalRoute`"; old app: `HomeView` cabal row opens `GroupDetailView`) |
-| S1.6 | A | tap | the Home tab, then `home-profile-button` | | The Profile tab is selected and `profile-header` shows within 15 s (screens.md Home: "the viewer's avatar at the top right opens the Profile tab"; old app: `HomeView` avatar opens Profile) |
-| S1.7 | A | tap, then read | the Home tab, then the hero | | The hero shows a total in dollars and the chip's "All time" within 10 s (screens.md `HomePortfolioSlot`: "the total in `moneyFont(.hero)`", "a chip "▲ $0.14 · 0.1%" and "All time""; old app: `HomeView` hero total and gain chip) |
-| S1.8 | A | read | the hero chart | | `home-pnl-chart` and the range chip "1D" show within 10 s (screens.md `HomePortfolioSlot`: "an area chart of `GET /v1/me/pnl-history` with range chips 1H to All (default 1D)"; old app: `HomeView` P&L chart and range chips) |
+| S1.1 | A | tap | the Home tab | | `home-portfolio-total` shows a dollar total within 15 s (screens.md `HomePortfolioSlot`: "the signed P&L for the selected period in `moneyFont(.hero)`"; old app: Home tab, `HomeView` net-worth hero) |
+| S1.2 | A | read | the money strip | | `home-net-worth` reads "Net worth", `platform-balance-value` reads "Cash" with a dollar amount, and `home-add-money-link` reads "Deposit", within 10 s (screens.md `HomeBalanceSlot`: "Net worth ... and Cash from `GET /v1/me/balance` ... and a compact "Deposit" capsule"; old app: `HomeView` balance row) |
+| S1.3 | A | scroll to | "Your cabals" | | The header "Your cabals" and `cabal-row-<id>` for `cabalName` show within 15 s, scrolling the rail sideways when the card is off screen (screens.md `HomeCabalsSlot`: "A horizontal rail of `CabalCoverCard`s from `GET /v1/me/portfolio`"; old app: `HomeView` Your cabals) |
+| S1.4 | A | pull down | the Home screen | | After the refresh, "Your cabals" and the card for `cabalName` are still there within 15 s (screens.md Home: "Pull to refresh."; old app: `HomeView` `.refreshable`) |
+| S1.5 | A | tap | `cabal-row-<id>` | | `cabal-header-name` reads `cabalName` within 15 s (screens.md `HomeCabalsSlot`: "A card opens `CabalRoute`"; old app: `HomeView` cabal row opens `GroupDetailView`) |
+| S1.6 | A | tap | the Home tab, then `home-profile-button` | | The Profile tab is selected and `profile-header` shows within 15 s (screens.md Home: "the viewer's avatar, which opens the Profile tab"; old app: `HomeView` avatar opens Profile) |
+| S1.7 | A | tap, then read | the Home tab, then the hero | | `home-portfolio-chip` shows under the total within 10 s (screens.md `HomePortfolioSlot`: "under it the signed percent in profit or loss and the period"; "Cash only: ... "No positions yet""; old app: `HomeView` gain chip) |
 
-### S2 A member with no cabal is sent to browse
+### S2 A member with no cabal is sent to Cabals
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | C | tap | the Home tab | | `home-cabals-empty` shows "No money in a cabal yet" and "Cabals you fund show up here with their value. Fund one you're in, or find one to join." within 15 s (screens.md `HomeCabalsSlot`: "Empty: "No money in a cabal yet" / "Cabals you fund show up here with their value. Fund one you're in, or find one to join.""; old app: `HomeView` empty state) |
-| S2.2 | C | tap | "Go to Cabals" | | The Cabals tab is selected and `cabals-root` shows within 10 s (screens.md `HomeCabalsSlot`: "an outline button "Go to Cabals" that selects the Cabals tab"; old app: `HomeView` "Browse cabals") |
+| S2.1 | C | tap | the Home tab | | `home-cabals-empty` shows "Start with your people" and "Create a cabal or open an invitation from a friend." with a "Create a cabal" button within 15 s (screens.md `HomeCabalsSlot`: "No cabals: "Start with your people" / "Create a cabal or open an invitation from a friend." with "Create a cabal" and an outline "Explore cabals""; old app: `HomeView` empty state) |
+| S2.2 | C | tap | "Explore cabals" | | The Cabals tab is selected and `cabals-root` shows within 10 s (screens.md `HomeCabalsSlot`: "an outline "Explore cabals" that selects the Cabals tab"; old app: `HomeView` "Browse cabals") |
 
 ## Ground truth
 
-`apps/mobile/qa/journeys/home/dashboard.truth.sh` reads `cabals` and `cabal_members`. `QA home {QA.run}` exists with A as its only member, so reading Home and pulling to refresh wrote nothing. C belongs to no cabal.
+`apps/mobile/qa/journeys/home/dashboard.truth.sh` reads `cabals` and `cabal_members`. `QA home {QA.run}` either does not exist (A held a cabal) or has A as its only member, so reading Home and pulling to refresh wrote nothing. C belongs to no cabal.
 
 ## Known failures on staging
 
-- S1.7: the hero shows "Your total shows up here soon." with no total and no chip. `HomePortfolioSlot` waits on `GET /v1/me/portfolio` and `GET /v1/me/pnl-history`. Blocked by #660.
-- S1.8: no P&L chart and no range chips in the hero. Blocked by #660.
+None known.
 
 ## Not covered
 
-- The hero, chip, chart and range chips have no accessibility identifiers on the live `HomePortfolioSlot` (`apps/mobile/Monaco/Features/Home/HomePortfolioSlot.swift`). S1.7 and S1.8 match by label and by `home-pnl-chart` from the old `HomePnLChartSection`. #660 should add `home-portfolio-total`, `home-portfolio-chip` and `home-pnl-range-<range>`; this ticket does not touch app code.
-- "Needs your vote" (`HomePendingVotesSlot`). A pending vote needs an open proposal, and a proposal needs a funded treasury. The proposal journeys cover it with a `funds:` block.
-- The pot value and slice on a Home cabal row ("Pot $950.69"). Blocked by #660; the cabal pot journey (`cabals/pot`) covers the same numbers on the cabal screen.
-- The onboarding nudge (`HomeNudgeSlot`). `onboarding/first-run` covers it.
-- "$50.00 pending" under the balance. That needs money moving; the fund journey covers it.
+- The hero chart and its period chips (`home-pnl-chart`, `home-portfolio-range-<range>`). They show only for an account with money in a cabal; S1's cabal is unfunded, and A's other cabals are not a fixed state. Without money the hero shows "$0.00" and "No positions yet" with a quiet chart. The funded-cabal journeys move real USDC.
+- The bell (`home-notifications-button`) is [home/activity](activity.md). "Withdraw" is no longer on Home: it is a row on Profile and a tile on Your money.
+- The Leaderboard slot with its Cabals / People and 1W / 1M / All menus and "View all". [ranking/leaderboards](../ranking/leaderboards.md) covers it, and [social/follow-and-boards](../social/follow-and-boards.md) uses the People board.
+- "Proposals" (`HomePendingVotesSlot`). A pending vote needs an open proposal, and a proposal needs a funded treasury. The proposal journeys cover it with a `funds:` block.
+- "Market updates" (`HomeMarketUpdatesSlot`). It needs the catalogue to be loaded and has no fixed mover.
+- The pot value and share on a Home card. The cabal pot journey (`cabals/pot`) covers the same numbers on the cabal screen.
+- The onboarding nudge (`HomeNudgeSlot`). `profile/nudge` and `onboarding/first-run` cover it.
+- "$50.00 pending" under the money strip. That needs money moving; the fund journey covers it.

@@ -47,10 +47,9 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Known failures on staging
 
-- S1.2: no warning row. `CabalPauseSlot` is not live and draws nothing, and the app has no route to read a cabal's pause. Blocked by #657.
+None.
 
 ## Not covered
 
-- `cabal-pause-banner` does not exist yet. #657 adds it in `apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPauseSlot.swift`; this ticket does not touch app code.
-- The pause shown on the fund and cash out screens (#651, #657), and the paused caption on a proposal card. Those belong to the fund, cash out and proposal journeys.
+- The pause shown on the fund and cash out screens, and the paused caption on a proposal card. Those belong to the fund, cash out and proposal journeys.
 - Resuming a cabal. That is an operator command (`monacoctl ops resume`), not a member action.

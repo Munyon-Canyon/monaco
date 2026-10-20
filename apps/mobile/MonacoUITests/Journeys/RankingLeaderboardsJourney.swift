@@ -2,22 +2,7 @@ import XCTest
 
 enum RankingLeaderboardsJourney {
     static let id = "ranking/leaderboards"
-    static let version = 4
-
-    struct Seed {
-        let cabalID: String
-        let cabalName: String
-        let memberID: String
-        let memberName: String
-
-        static func handedOff() throws -> Seed {
-            Seed(
-                cabalID: try JourneyHandoff.read("cabalID"),
-                cabalName: try JourneyHandoff.read("cabalName"),
-                memberID: try JourneyHandoff.read("memberID"),
-                memberName: try JourneyHandoff.read("memberName"))
-        }
-    }
+    static let version = 6
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -27,80 +12,84 @@ enum RankingLeaderboardsJourney {
         app.staticTexts[label].firstMatch
     }
 
-    static func topInvestors(_ app: XCUIApplication, seed: Seed, recorder: JourneyRecorder) {
-        recorder.step("S1.1", "Home shows Top investors") {
+    static func homeLeaderboard(_ app: XCUIApplication, recorder: JourneyRecorder) {
+        let category = app.element("home-leaderboard-category")
+        let period = app.element("home-leaderboard-period")
+
+        recorder.step("S1.1", "Home shows the Leaderboard") {
             app.tab("Home").tap()
-            let header = text(app, "Top investors")
+            let header = text(app, "Leaderboard")
             app.scrollIntoReach(header)
-            XCTAssertTrue(header.waitForExistence(timeout: 15), "S1.1: no \"Top investors\" on Home within 15 s")
+            XCTAssertTrue(header.waitForExistence(timeout: 15), "S1.1: no \"Leaderboard\" on Home within 15 s")
+            XCTAssertTrue(app.element("home-people-board").exists, "S1.1: no home-people-board")
+            XCTAssertTrue(app.buttons["View all"].firstMatch.exists, "S1.1: no \"View all\" under the Leaderboard")
         }
 
-        recorder.step("S1.2", "the range chips 1H to All") {
-            for range in ["1H", "1D", "1W", "1M", "All"] {
-                XCTAssertTrue(
-                    app.buttons[range].firstMatch.waitForExistence(timeout: 10),
-                    "S1.2: no \"\(range)\" chip on Top investors (known failure, #617 #619 #699)")
-            }
+        recorder.step("S1.2", "the Cabals board for 1M") {
+            XCTAssertTrue(category.waitForExistence(timeout: 10), "S1.2: no home-leaderboard-category")
+            XCTAssertTrue(category.label.contains("Cabals"), "S1.2: the category reads '\(category.label)'")
+            XCTAssertTrue(period.label.contains("1M"), "S1.2: the period reads '\(period.label)'")
+            XCTAssertTrue(
+                text(app, "Cabal P&L \u{00B7} 1M").waitForExistence(timeout: 10),
+                "S1.2: no \"Cabal P&L \u{00B7} 1M\" context line")
         }
 
-        recorder.step("S1.3", "the Everyone and Friends segment") {
+        recorder.step("S1.3", "switch to People") {
+            category.tap()
+            let people = app.buttons["People"].firstMatch
+            XCTAssertTrue(people.waitForExistence(timeout: 10), "S1.3: no People option in the category menu")
+            people.tap()
             XCTAssertTrue(
-                app.buttons["Everyone"].firstMatch.waitForExistence(timeout: 10)
-                    && app.buttons["Friends"].firstMatch.exists,
-                "S1.3: no \"Everyone\" / \"Friends\" segment (known failure, #658)")
+                text(app, "Personal P&L \u{00B7} 1M").waitForExistence(timeout: 10),
+                "S1.3: no \"Personal P&L \u{00B7} 1M\" context line after choosing People")
+            XCTAssertTrue(category.label.contains("People"), "S1.3: the category reads '\(category.label)'")
         }
 
-        recorder.step("S1.4", "a ranked row opens the shared cabals") {
-            let row = app.element("home-leaderboard-row-\(seed.memberID)")
-            app.scrollIntoReach(row)
+        recorder.step("S1.4", "the People board ranks investors or says none is ranked") {
+            let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'home-leaderboard-row-'"))
             XCTAssertTrue(
-                row.waitForExistence(timeout: 10),
-                "S1.4: no ranked row for \(seed.memberName) (known failure, #617 #619)")
-            row.tap()
-            XCTAssertTrue(
-                app.element("user-profile-group-\(seed.cabalID)").waitForExistence(timeout: 15),
-                "S1.4: the profile does not list \(seed.cabalName) as shared (known failure, #699)")
+                ProfileOverviewJourney.waitUntil(15) {
+                    rows.count > 0 || app.element("home-leaderboard-empty").exists
+                },
+                "S1.4: the People board shows no rows and no empty copy")
+            XCTAssertFalse(
+                app.element("home-leaderboard-loading").exists, "S1.4: the People board is still loading")
         }
     }
 
-    static func memberBoard(_ app: XCUIApplication, seed: Seed, recorder: JourneyRecorder) {
-        let memberRows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'cabal-member-'"))
-            .matching(NSPredicate(format: "NOT (identifier BEGINSWITH 'cabal-member-board')"))
-        let memberRow = app.element("cabal-member-\(seed.memberID)")
-
-        recorder.step("S2.1", "open the seeded cabal") {
-            JoinJourney.openBySearch(app, seed.cabalName, step: "S2.1")
-        }
-
-        recorder.step("S2.2", "the Member standings list three members with You") {
-            let header = text(app, "Member standings")
+    static func viewAll(_ app: XCUIApplication, recorder: JourneyRecorder) {
+        var homeCategory = ""
+        var homePeriod = ""
+        recorder.step("S4.1", "View all opens the Leaderboard") {
+            app.tab("Home").tap()
+            let header = text(app, "Leaderboard")
             app.scrollIntoReach(header)
-            XCTAssertTrue(header.waitForExistence(timeout: 15), "S2.2: no \"Member standings\" within 15 s")
-            app.scrollIntoReach(memberRow)
+            XCTAssertTrue(header.waitForExistence(timeout: 15), "S4.1: no \"Leaderboard\" on Home within 15 s")
+            let viewAll = app.buttons["View all"].firstMatch
+            XCTAssertTrue(viewAll.waitForExistence(timeout: 10), "S4.1: no \"View all\" under the Leaderboard")
+            homeCategory = app.element("home-leaderboard-category").label
+            homePeriod = app.element("home-leaderboard-period").label
+            viewAll.tap()
             XCTAssertTrue(
-                ProfileOverviewJourney.waitUntil(15) { memberRows.count == 3 },
-                "S2.2: the Member standings have \(memberRows.count) member rows, want 3")
-            XCTAssertTrue(
-                memberRows.matching(NSPredicate(format: "label CONTAINS 'You'")).firstMatch.exists,
-                "S2.2: no member row labelled \"You\"")
+                app.element("leaderboard-page").waitForExistence(timeout: 15),
+                "S4.1: View all did not open the Leaderboard page"
+            )
         }
 
-        recorder.step("S2.3", "a member row opens their profile") {
-            memberRow.tap()
+        recorder.step("S4.2", "the Leaderboard tools and rows") {
             XCTAssertTrue(
-                JoinJourney.waitForLabel(app.element("user-profile-name"), containing: seed.memberName, timeout: 15),
-                "S2.3: the profile for \(seed.memberName) did not show within 15 s")
-        }
-
-        recorder.step("S2.4", "the members are ranked by return") {
-            app.navigationBars.buttons.element(boundBy: 0).tap()
-            app.scrollIntoReach(memberRow)
-            XCTAssertTrue(memberRow.waitForExistence(timeout: 10), "S2.4: the member board was gone after going back")
+                app.element("leaderboard-category").waitForExistence(timeout: 10), "S4.2: no leaderboard-category")
+            let board = app.element("leaderboard-category").label
+            let range = app.element("leaderboard-period").label
+            XCTAssertTrue(board == homeCategory, "S4.2: the page reads '\(board)', Home read '\(homeCategory)'")
+            XCTAssertTrue(range == homePeriod, "S4.2: the page reads '\(range)', Home read '\(homePeriod)'")
+            let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'leaderboard-row-'"))
+            let outcomes = [app.element("leaderboard-empty"), app.element("leaderboard-stale")]
             XCTAssertTrue(
-                ProfileOverviewJourney.waitUntil(10) {
-                    !app.element("cabal-member-board-coming").exists && memberRow.label.contains("%")
+                ProfileOverviewJourney.waitUntil(15) {
+                    rows.count > 0 || outcomes.contains { $0.exists }
                 },
-                "S2.4: the members carry no return and the board says rankings come soon (known failure, #617 #619)")
+                "S4.2: the Leaderboard shows no rows and no empty copy")
         }
     }
 
@@ -120,8 +109,7 @@ enum RankingLeaderboardsJourney {
         recorder.step("S3.2", "the leaderboard ranks cabals or says none is public") {
             XCTAssertTrue(
                 ProfileOverviewJourney.waitUntil(10) { !app.element("cabals-board-coming").exists },
-                "S3.2: the leaderboard says rankings come soon, with no rows and no empty copy "
-                    + "(known failure, #617 #619)")
+                "S3.2: the leaderboard says rankings come soon, with no rows and no empty copy")
         }
     }
 }

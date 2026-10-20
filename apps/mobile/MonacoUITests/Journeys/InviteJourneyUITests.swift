@@ -11,14 +11,22 @@ nonisolated final class InviteJourneyUITests: XCTestCase {
         let app = session.app
         let recorder = InviteJourney.recorder()
 
+        let run = try JourneyRun.id()
+
         try session.scenario("S1") {
             try session.act(as: "A")
             InviteJourney.acceptAndInvite(app, recorder: recorder)
             attachScreenshot(of: app, named: "S1-A-invited")
+        }
+
+        try session.scenario("S2") {
+            try session.act(as: "A")
+            InviteJourney.creatorInvites(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-A-invited")
 
             try session.act(as: "B")
-            InviteJourney.decline(app, recorder: recorder)
-            attachScreenshot(of: app, named: "S1-B-declined")
+            InviteJourney.decline(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-B-declined")
         }
     }
 }

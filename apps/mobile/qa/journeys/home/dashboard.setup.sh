@@ -32,11 +32,20 @@ case "$scenario" in
   S1)
     ready_actor A
     name="QA home $run"
-    cabal="$(qa_api A POST /v1/cabals \
-      "{\"name\":\"$name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
-      python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
+    held="$(qa_api A GET /v1/me/portfolio | python3 -c 'import json,sys
+cabals = json.load(sys.stdin)["cabals"]
+if cabals:
+    print(cabals[0]["cabal"]["id"] + "|" + cabals[0]["cabal"]["name"])')"
+    if [[ -n "$held" ]]; then
+      cabal="${held%%|*}"
+      name="${held#*|}"
+    else
+      cabal="$(qa_api A POST /v1/cabals \
+        "{\"name\":\"$name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
+        python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
+    fi
     hand_off cabalID "$cabal" cabalName "$name"
-    echo "seeded: A created the cabal '$name'"
+    echo "seeded: A's cabal is '$name'"
     ;;
   S2)
     ready_actor C

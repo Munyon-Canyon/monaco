@@ -35,7 +35,7 @@ The format of this doc is in [App journeys](../README.md).
 | S1.2 | A | tap | `cabal-action-propose` | | The Propose action sheet (`propose-chooser-sheet`) shows `propose-kind-sell` within 10 s, and it is enabled, not "No holdings to sell" |
 | S1.3 | A | tap | `propose-kind-sell` | | The screen titled "Sell" shows the header "What the cabal owns" and the AAPL row within 10 s (old app: `ProposeSellView`) |
 | S1.4 | A | tap | `propose-sell-<symbol>` for AAPL | | The amount screen shows the chips "25%", "50%", "All" and the helper "The cabal holds …" within 10 s |
-| S1.5 | A | tap, then tap | "25%", then `propose-amount-review` "Review" | | The screen titled "Review" reads "Sell … of AAPL" with the rows "Raises", "Cabal keeps" and "Who votes" within 10 s |
+| S1.5 | A | tap, tap, then tap | `propose-amount-reason-done` "Done" (the amount keypad hides the chips), "25%", then `propose-amount-review` "Review proposal" | | The amount reads a figure, not $0, and the sheet titled "Review proposal" reads "Sell … of AAPL" with the rows "Raises", "Cabal keeps" and "Who votes" within 10 s |
 | S1.6 | A | tap | `propose-review-send` "Send to cabal" | | The toast "Proposal sent to QA sell {QA.run}" shows and the flow closes back to the cabal screen within 10 s |
 
 ## Ground truth

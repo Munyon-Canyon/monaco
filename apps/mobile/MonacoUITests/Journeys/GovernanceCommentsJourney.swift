@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceCommentsJourney {
     static let id = "governance/comments"
-    static let version = 5
+    static let version = 6
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -12,9 +12,11 @@ enum GovernanceCommentsJourney {
     static func ask(run: String) -> String { "QA ask \(run)" }
     static func answer(run: String) -> String { "QA answer \(run)" }
 
+    static let bodyPrefix = "comment-body-"
+
     static func row(_ app: XCUIApplication, reading body: String) -> XCUIElement {
         app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier BEGINSWITH 'comment-row-' AND label CONTAINS %@", body))
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", bodyPrefix, body))
             .firstMatch
     }
 
@@ -23,24 +25,24 @@ enum GovernanceCommentsJourney {
         FeedBrowseJourney.choose(app, "feed-chip-Proposals")
         let cell = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier BEGINSWITH 'feed-cell-'")).firstMatch
-        XCTAssertTrue(cell.waitForExistence(timeout: 15), "\(step): no proposal cell within 15 s (known failure, #612)")
+        XCTAssertTrue(cell.waitForExistence(timeout: 15), "\(step): no proposal cell within 15 s")
         cell.tap()
         XCTAssertTrue(
-            app.element("proposal-detail").waitForExistence(timeout: 15),
-            "\(step): the proposal did not open within 15 s (known failure, #612)"
+            app.element("proposal-votes").waitForExistence(timeout: 15),
+            "\(step): the proposal did not open within 15 s"
         )
     }
 
     static func post(_ app: XCUIApplication, _ body: String, step: String) {
         let field = app.element("comment-composer-field")
         app.scrollIntoReach(field)
-        XCTAssertTrue(field.waitForExistence(timeout: 10), "\(step): no comment composer (known failure, #711)")
+        XCTAssertTrue(field.waitForExistence(timeout: 10), "\(step): no comment composer")
         field.tap()
         field.typeText(body)
         app.element("comment-composer-send").tap()
         XCTAssertTrue(
             row(app, reading: body).waitForExistence(timeout: 10),
-            "\(step): no comment reading \(body) within 10 s (known failure, #711)"
+            "\(step): no comment reading \(body) within 10 s"
         )
     }
 
@@ -52,18 +54,17 @@ enum GovernanceCommentsJourney {
         recorder.step("S1.2", "read the empty thread") {
             let thread = app.element("comment-thread")
             app.scrollIntoReach(thread)
-            XCTAssertTrue(thread.waitForExistence(timeout: 10), "S1.2: no comment thread (known failure, #711)")
+            XCTAssertTrue(thread.waitForExistence(timeout: 10), "S1.2: no comment thread")
             XCTAssertTrue(
-                JoinJourney.waitForLabel(
-                    app.element("comment-thread-empty"), containing: "No replies yet", timeout: 10),
-                "S1.2: no 'No replies yet' within 10 s (known failure, #711)"
+                app.staticTexts["No replies yet"].waitForExistence(timeout: 10),
+                "S1.2: no 'No replies yet' within 10 s"
             )
             XCTAssertFalse(app.staticTexts["Discussion"].exists, "S1.2: an empty thread shows the 'Discussion' header")
         }
 
         recorder.step("S1.3", "post a comment") {
             let field = app.element("comment-composer-field")
-            XCTAssertTrue(field.waitForExistence(timeout: 10), "S1.3: no comment composer (known failure, #711)")
+            XCTAssertTrue(field.waitForExistence(timeout: 10), "S1.3: no comment composer")
             XCTAssertEqual(field.placeholderValue, "Add a comment", "S1.3: the composer placeholder is not the spec's")
             post(app, comment(run: run), step: "S1.3")
         }
@@ -80,13 +81,13 @@ enum GovernanceCommentsJourney {
 
         recorder.step("S2.3", "tap Reply on it") {
             let asked = row(app, reading: ask(run: run))
-            let reply = asked.descendants(matching: .any)
-                .matching(NSPredicate(format: "identifier BEGINSWITH 'comment-reply-'")).firstMatch
-            XCTAssertTrue(reply.waitForExistence(timeout: 5), "S2.3: no Reply on the comment (known failure, #711)")
+            XCTAssertTrue(asked.waitForExistence(timeout: 5), "S2.3: no comment reading \(ask(run: run))")
+            let reply = app.element("comment-reply-\(asked.identifier.dropFirst(bodyPrefix.count))")
+            XCTAssertTrue(reply.waitForExistence(timeout: 5), "S2.3: no Reply on the comment")
             reply.tap()
             XCTAssertTrue(
                 app.element("comment-composer-cancel-reply").waitForExistence(timeout: 5),
-                "S2.3: the composer is not replying (known failure, #711)"
+                "S2.3: the composer is not replying"
             )
         }
 

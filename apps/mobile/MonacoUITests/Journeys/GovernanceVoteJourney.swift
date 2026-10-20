@@ -63,6 +63,11 @@ enum GovernanceVoteJourney {
             "\(step): Home shows no \"Needs your vote\" within \(Int(screenTimeout)) s")
         let target = card(app, proposalID)
         app.scrollIntoReach(target)
+        var lifts = 0
+        while target.exists, target.frame.maxY > 770, lifts < 4 {
+            app.swipeUp()
+            lifts += 1
+        }
         XCTAssertTrue(
             target.waitForExistence(timeout: screenTimeout),
             "\(step): proposal-card-\(proposalID) is not under \"Needs your vote\" within \(Int(screenTimeout)) s")

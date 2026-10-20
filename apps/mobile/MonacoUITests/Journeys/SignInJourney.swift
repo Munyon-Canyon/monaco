@@ -2,7 +2,7 @@ import XCTest
 
 enum SignInJourney {
     static let id = "auth/sign-in"
-    static let version = 8
+    static let version = 9
 
     private static let launchTimeout: TimeInterval = 30
     private static let codeSentTimeout: TimeInterval = 20
@@ -153,9 +153,12 @@ enum SignInJourney {
         }
 
         recorder.step("S1.6", "the tab bar has every tab") {
-            for title in ["Home", "Cabals", "Markets", "Feed", "Profile"] {
+            let titles = ["Home", "Cabals", "Markets", "Feed", "Profile"]
+            for title in titles {
                 XCTAssertTrue(app.tab(title).exists, "S1.6: no \(title) tab")
             }
+            let leftToRight = titles.sorted { app.tab($0).frame.minX < app.tab($1).frame.minX }
+            XCTAssertEqual(leftToRight, titles, "S1.6: the tabs are not Home, Cabals, Markets, Feed, Profile in order")
         }
     }
 

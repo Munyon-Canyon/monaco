@@ -29,7 +29,7 @@ The format of this doc is in [App journeys](../README.md).
 | P1 | Actors A and B have signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
 | P3 | `apps/mobile/qa/journeys/demo/story.setup.sh` ran right before the scenario. It marks A and B done with onboarding and sets their display names. For S2 to S8, A creates the cabal `QA story {QA.run}` through the API and B joins it. S3 also seeds the journey stock catalogue (`stocks/browse.setup.sh`) |
-| P4 | Before the run, the runner sends A 3 USDC and B 1 USDC from the QA pot (`monacoctl qa fund`) or the Phantom MCP agent wallet (`funds`). No step moves money on staging, because every money beat is a known failure |
+| P4 | Before the run, the runner sends A 3 USDC and B 1 USDC from the QA pot (`monacoctl qa fund`) or the Phantom MCP agent wallet (`funds`). The test moves no money: S2 deposits from B's funded balance, S4 buys with that deposit, and S7 cashes out; the runner withdraws what is left after the run |
 
 ## Scenarios
 
@@ -51,8 +51,8 @@ Beat 6.
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | B | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA story {QA.run}` | `cabal-header-name` reads `QA story {QA.run}` within 15 s (old app: Cabals list row; screens.md Cabal screen) |
-| S2.2 | B | tap | `cabal-action-fund` | | The title "Fund this cabal" and "Max" show within 10 s (beat 6 "Fund the pot"; old app: `FundGroupView`; screens.md Fund this cabal) |
-| S2.3 | B | tap, then tap | "Max", then "Add $1.00 to the pot" | | The toast "Added $1.00 to QA story {QA.run}." within 30 s (screens.md Fund this cabal toasts) |
+| S2.2 | B | tap | `cabal-action-fund` | | The screen titled "Deposit to QA story {QA.run}" shows `amount-entry-field` and "Max" within 15 s (beat 6 "Fund the pot"; screens.md Deposit to <cabal>) |
+| S2.3 | B | type, tap, then tap | `amount-entry-field`, "Deposit $1.00", then `fund-cabal-done-button` | `1` | The sheet "Deposit confirmed" shows within 120 s, Done closes it, and the toast "Added $1 to QA story {QA.run}." shows within 120 s (screens.md Deposit to <cabal>) |
 
 ### S3 Browse stocks and Pre-IPO
 
@@ -62,7 +62,7 @@ Beats 10 and 16.
 | --- | --- | --- | --- | --- | --- |
 | S3.1 | B | run | `StocksAssetDetailJourney.openAsset` | Journey Alpha | `asset-detail-root` shows and `asset-detail-name` reads "Journey Alpha" within 15 s (beat 10 "Browse real stocks"; old app: Stocks row to `AssetDetailView`; screens.md Stocks: Asset screen) |
 | S3.2 | B | tap | the 1M then 1Y range chips | | `asset-detail-range-change` shows for each (screens.md: chips 1D 1W 1M 3M 1Y ALL) |
-| S3.3 | B | run | `StocksAssetDetailJourney.openAsset`, then scroll to | Journey Private, "Private-market reference" | "Private-market reference" and "Also available from" show within 10 s (beat 16 "Pre-IPO too"; old app: the Pre-IPO block; screens.md: Pre-IPO adds "Private-market reference", "Also available from") |
+| S3.3 | B | run | `StocksAssetDetailJourney.openAsset`, then scroll to | Journey Private, "Also available from" | "Also available from" shows within 10 s (beat 16 "Pre-IPO too"; screens.md: "Also available from" issuers) |
 
 ### S4 Propose a buy and vote
 
@@ -70,10 +70,10 @@ Beats 11 to 13.
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S4.1 | B | open, then tap | `QA story {QA.run}`, then `cabal-action-propose` | | The Propose action sheet (`propose-chooser-sheet`) and its row "Buy stock" show within 10 s (beat 11 "Propose a buy"; screens.md Propose chooser) |
-| S4.2 | B | tap, type, then tap | "Buy stock", the amount, the reason, "Review", "Send" | `$1`, "Super bullish. This stock will only keep growing." | The proposal card reads "2 yes votes needed" within 15 s (screens.md proposal card) |
-| S4.3 | A | tap | Home "Needs your vote", the card's footer, then "Vote Yes" in the dock | | The toast "Vote recorded." within 10 s (beat 12 "Everyone votes"; screens.md `HomePendingVotesSlot` and the proposal screen) |
-| S4.4 | A | wait | the proposal screen's status badge | | The badge reads "Executed" within 60 s (beat 13 "Majority wins, the cabal buys"; screens.md `ProposalDetailSlot`) |
+| S4.1 | B | open, then tap | `QA story {QA.run}`, then `cabal-action-propose` | | The Propose sheet shows `propose-kind-buy` "Buy stock" within 10 s (beat 11 "Propose a buy"; screens.md Propose chooser) |
+| S4.2 | B | tap, type, then tap | `propose-kind-buy`, the GOOGL row, the amount `1`, the thesis "Super bullish. This stock will only keep growing.", `propose-amount-review`, then `propose-review-send` | | The sheet reads "Proposal sent"; after Close the cabal's proposal card reads "2 yes votes needed" within 15 s (screens.md Review sheet and proposal card) |
+| S4.3 | A | tap, then tap | the Home tab's `proposal-card-<id>`, then "Vote Yes" in the dock | | The toast "Vote recorded." within 10 s (beat 12 "Everyone votes"; screens.md `HomePendingVotesSlot` and the proposal screen) |
+| S4.4 | B | tap, then tap | the Home tab's `proposal-card-<id>`, then "Vote Yes" in the dock | | The toast "Vote recorded." shows, and `proposal-tracker` reads "Bought, step 3 of 3, done" within 120 s (beat 13 "Majority wins, the cabal buys"; screens.md `ProposalDetailSlot`) |
 
 ### S5 Talk it over
 
@@ -99,8 +99,8 @@ Beat 22.
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S8.1 | A | tap, then scroll to | the Home tab, then "Top investors" | | The header "Top investors" shows within 15 s (beat 22 "See who's up"; old app: Home leaderboard; screens.md `HomePeopleBoardSlot`: "Top investors") |
-| S8.2 | A | wait | a ranked row | | A row names B within 15 s (screens.md `HomePeopleBoardSlot`: ranked rows with avatar, name, return) |
+| S8.1 | A | tap, then scroll to | the Home tab, then "Leaderboard" | | The header "Leaderboard" shows within 15 s (beat 22 "See who's up"; screens.md Home slot 6: "Leaderboard") |
+| S8.2 | A | tap, then wait | `home-leaderboard-category`, "People", then a `home-leaderboard-row-<id>` | | A row names B within 15 s (screens.md Home slot 6: the People board's `BoardRow`s) |
 
 ## Ground truth
 
@@ -108,15 +108,7 @@ Beat 22.
 
 ## Known failures on staging
 
-| Step | Why | Blocking ticket |
-| --- | --- | --- |
-| S2.2, S2.3 | Fund the pot: `FundRoute` is a stub with no amount entry, and the fund route is missing | #608, #651 |
-| S3.1, S3.2, S3.3 | The Markets tab is blank on staging, so no stock opens; the Pre-IPO block is dropped | #577 |
-| S4.1, S4.2 | Propose opens a stub, not the propose flow | #613 |
-| S4.3, S4.4 | No "Needs your vote", no vote, no majority buy | #612 |
-| S5.1, S5.2 | Chat is a stub with no composer | #623 |
-| S7.1, S7.2 | Cash out is a stub with no amount entry | #657 |
-| S8.2 | The people board has no ranked rows | #617 |
+None known.
 
 ## Not covered
 

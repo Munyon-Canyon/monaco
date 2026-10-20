@@ -51,12 +51,17 @@ Before the tabs, the session gate runs sign-in, then the first-run steps: handle
 
 ```text
 Home ──┬─ avatar button ───────────────▶ Profile tab
-       ├─ Add money ───────────────────▶ Deposit half sheet
-       ├─ Withdraw ────────────────────▶ WithdrawRoute
-       ├─ Needs your vote row ─────────▶ ProposalRoute
-       ├─ Your cabals row ─────────────▶ CabalRoute
-       └─ Top investors row ───────────▶ UserProfileRoute
-Feed ──── item ──▶ ProposalRoute | TransactionRoute | AssetRoute | CabalRoute | FeedItemDetail
+       ├─ bell ────────────────────────▶ ActivityFeedRoute
+       ├─ Net worth / Cash ────────────▶ BalancesRoute
+       ├─ Deposit ─────────────────────▶ Deposit half sheet
+       ├─ Proposals card ──────────────▶ ProposalRoute
+       ├─ Proposals "See all" ─────────▶ PendingVotesRoute
+       ├─ Your cabals card ────────────▶ CabalRoute
+       ├─ Leaderboard row ─────────────▶ CabalRoute | UserProfileRoute
+       ├─ Leaderboard "View all" ──────▶ LeaderboardRoute
+       └─ Market updates row ──────────▶ AssetRoute
+Feed ──┬─ item ──▶ ProposalRoute | TransactionRoute | AssetRoute | CabalRoute | FeedItemRoute
+       └─ bell ──▶ ActivityFeedRoute
 Cabals ┬─ + ──▶ Start a cabal ──▶ create ──▶ CabalRoute
        ├─ empty state "Explore cabals" | no-match "Search public cabals" ──▶ DiscoverCabalsRoute ──▶ CabalRoute
        ├─ card / leaderboard row ──▶ CabalRoute
@@ -66,7 +71,7 @@ CabalRoute ─┬─ non-member ──▶ Public cabal (join, request, accept an
             │                                         └─ Edit ──▶ Cabal settings
             ├─ share ──▶ Share cabal sheet (link, Share link, Copy link, Invite by handle, gain image), members only
             ├─ Deposit ────▶ FundRoute
-            ├─ Propose ────▶ Propose action sheet ──▶ ProposeRoute (Buy | Sell)
+            ├─ Propose ────▶ action sheet ──▶ ProposeRoute ──▶ Buy | Sell ──▶ Amount ──▶ Review sheet
             ├─ Cash out ───▶ CashOutRoute
             ├─ Chat preview ▶ ChatRoute
             ├─ proposal ───▶ ProposalRoute
@@ -92,8 +97,6 @@ Profile ┬─ Followers / Following ──▶ FollowListRoute
                                              ├─ Delete account ──▶ DeleteAccountRoute
                                              └─ Sign out
 ```
-
-#2134 adds the slots and route stubs this page names that do not exist yet: `HomeCabalsSlot`, `CabalSliceSlot`, `CabalValueChartSlot`, `CabalActionsSlot`, `CabalHoldingsSlot`, `CabalRulesSlot`, `ProfileStatsSlot`, `ProfileCabalsSlot`, and the routes `JoinRoute()`, `FundRoute(cabalID:)`, `ChatRoute(cabalID:)`, `SettingsRoute()`, `AccountActivityRoute()`, `ProposeFromAssetRoute(symbol:kind:)`. It removes the `CabalCashOutSlot`, `CabalChatSlot` and `ProfileDeleteAccountSlot` stubs, whose jobs move to the action row and Settings.
 
 ## Sign in
 
@@ -167,7 +170,7 @@ Large title "Cabals" (`Typo.display`) with the glass "+" on the right ("Create a
 | --- | --- | --- | --- |
 | 1 | `CabalsJoinSlot` | #646 | The title row and the filter field "Find your cabals" (`cabals-filter-field`). The field filters your own cabals by name as you type (case-insensitive contains) and the "Your cabals" count follows the matches. It does not search public cabals |
 | 2 | `CabalsInvitesSlot` | #696 | "Cabal invites" with a count: a row per invite with the cabal tile, name, the inviter, and small "Decline" and "Accept" buttons. Accept opens `CabalRoute`. Hidden when empty |
-| 3 | `CabalsListSlot` | #606 | "Your cabals" with a count, then one full-width `CabalCoverCard` per cabal (`cabals-list-card-<id>`): the tint gradient and uploaded picture under a scrim, the name over "8 members", then "Your share" (`MoneyText`, `cabals-list-card-pot`) and "Ownership" (for example "35.00%"), then "Your P&L · All time" with the signed amount and percent (`cabals-list-card-return`). Share, ownership and P&L are joined from `GET /v1/me/portfolio` by cabal id. A round share button opens the invite share (no figures), and the footer reads "Cabal · 1M" with a chevron; the whole card opens `CabalRoute`. A badge "1 vote needed" / "2 votes needed" shows at the top right when the count is above zero and the viewer has a funded share. The count comes from the existing `GET /v1/me/pending-votes` read, grouped by cabal id. Unread and request counts are not drawn; the card's VoiceOver value reads them out ("3 unread", "2 requests"). No share: "—" and "Not funded". No return yet: "—" and "Unavailable". The cabal's own 1M return shows "— Return opens soon" until the API ships it. Loading: a card skeleton labelled "Loading your cabals" (`cabals-list-loading`). Failed: "Couldn't load this view" / "Your existing information hasn't been changed. Try again when your connection is available." with "Try again"; a failed refresh over cards shows the error toast instead. Empty (`cabals-list-empty`): "Your cabal starts here" / "Create a cabal or open a shared invitation." with a primary "Create a cabal" (Start a cabal) and an outline "Explore cabals" (Discover cabals). Under review: "Open a shared invitation to join a cabal." with no buttons. A filter with no match: "No matching cabals" / "Try another name." and a text link "Search public cabals" (`cabals-search-public`) that pushes Discover cabals with the typed text |
+| 3 | `CabalsListSlot` | #606 | "Your cabals" with a count, then one full-width `CabalCoverCard` per cabal (`cabals-list-card-<id>`): the tint gradient and uploaded picture under a scrim, the name over "8 members", then "Your share" (`MoneyText`) and "Ownership" (for example "35.00%"), then "Your P&L · All time" with the signed amount and percent . Share, ownership and P&L are joined from `GET /v1/me/portfolio` by cabal id. A round share button opens the invite share (no figures), and the footer reads "Cabal · 1M" with a chevron; the whole card opens `CabalRoute`. A badge "1 vote needed" / "2 votes needed" shows at the top right when the count is above zero and the viewer has a funded share. The count comes from the existing `GET /v1/me/pending-votes` read, grouped by cabal id. Unread and request counts are not drawn; the card's VoiceOver value reads them out ("3 unread", "2 requests"). No share: "—" and "Not funded". No return yet: "—" and "Unavailable". The cabal's own 1M return shows "— Return opens soon" until the API ships it. Loading: a card skeleton labelled "Loading your cabals" (`cabals-list-loading`). Failed: "Couldn't load this view" / "Your existing information hasn't been changed. Try again when your connection is available." with "Try again"; a failed refresh over cards shows the error toast instead. Empty (`cabals-list-empty`): "Your cabal starts here" / "Create a cabal or open a shared invitation." with a primary "Create a cabal" (Start a cabal) and an outline "Explore cabals" (Discover cabals). Under review: "Open a shared invitation to join a cabal." with no buttons. A filter with no match: "No matching cabals" / "Try another name." and a text link "Search public cabals" (`cabals-search-public`) that pushes Discover cabals with the typed text |
 | 4 | `CabalsBoardSlot` | #699 | "Cabal leaderboard" (`cabals-board`) with "Public" on the right, under a hairline. A tools row: "Cabals", the period menu "Leaderboard period" (`cabals-board-period`) and a round filter button "Filter and sort cabal leaderboard" (`cabals-board-filter`). The context line reads "Cabal P&L · 1M" (the period follows the menu) beside a "Rank change" button that opens the sheet "About this ranking". Rows (`cabals-board-row-<id>`): rank with its movement (↑n, ↓n, – or "New"), tile, name, signed P&L over signed percent, chevron; each opens `CabalRoute`. Three rows show first, "Load more rankings" reveals three more ("Loading more rankings…" while it fetches), and "All <n> eligible cabals shown" ends the list. Loading: three row skeletons labelled "Loading rankings". Empty: "No public rankings for this period." Failed: "Rankings couldn't load." with "Retry rankings". The filter sheet "Leaderboard filters" holds three selects ("Sort by": Return % / P&L amount / Name A–Z; "Membership": All / Accepting requests / Open / Approval; "Minimum members": Any cabal size / 5+ members / 10+ members) with "Apply filters" and "Reset". Closing without Apply drops the draft, and the filter button is highlighted while any filter differs from its default. The API has no filters yet, so the selects are disabled and the sheet shows the info notice "Filters open soon. Rankings use return % for now." Member counts under the row names and the 3M period wait on the API too |
 
 **Discover cabals** (`DiscoverCabalsRoute(query:)`, `DiscoverCabalsView`). Pushed from "Explore cabals" or "Search public cabals" on the Cabals tab, with the nav title "Discover cabals" and the tab bar still showing. Large title "Find a cabal", then the search field "Search cabals" (`cabals-search-field`), prefilled from `query`. Results update after a short pause and replace everything below. Rows (`cabals-search-result-<id>`): tile, name, "3 members · Open" or "· Approval required", a chevron, and on the right "Join" (Open) or "Request" (Approval required) (`cabals-search-enter-<id>`), the warn badge "Request pending" (`cabals-search-requested`) or the badge "Joined" (`cabals-search-joined`). A row tap opens `CabalRoute`, which shows the public cabal to a non-member. While a request is pending, a warn notice "Your request to join <name> is pending." sits above the list. No match (`cabals-search-empty`): "No matching cabals" / "Try another name." Loading: a block and four row skeletons (`cabals-search-loading`). Failed: "Couldn't load this view" with "Try again" (`cabals-search-error`); join and request failures use the error toast. Empty query: the public cabal board's rows (tile, name, chevron) and the caption "Browsing every public cabal opens soon. Search by name to find more." (`cabals-browse-coming`), because the API has no list of every public cabal. Harness: `-MonacoDiscoverSample <results|requestPending|noResults|loading|error|browse>`.
@@ -183,7 +186,7 @@ Create then pushes `CabalRoute` with the toast "Cabal created.". A failed create
 
 ## Leaderboard (`LeaderboardRoute`)
 
-Pushed as `AnyAppRoute` from any tab; `LeaderboardRoute(board:range:)` defaults to Cabals and 1M. Home's "View all" opens it once S2 swaps its stub. The page shows one board at a time, built from `BoardRow` and a `LeaderboardPageModel` that owns one `LeaderboardLoader` per board, so switching back does not reload.
+Pushed as `AnyAppRoute` from any tab; `LeaderboardRoute(board:range:)` defaults to Cabals and 1M. Home's "View all" opens it. The page shows one board at a time, built from `BoardRow` and a `LeaderboardPageModel` that owns one `LeaderboardLoader` per board, so switching back does not reload.
 
 | # | Section | What it shows |
 | --- | --- | --- |
@@ -368,7 +371,7 @@ Large title "Markets". The tab was "Stocks", and its code and identifiers keep `
 
 Rows are logo, name over ticker, price over day change and a chevron. A moon glyph shows while the home market is closed, "Paused" when the stock is tradable but not quotable, "—" stands for a missing price or change, and an untradable stock sits at 45% with "Can't buy right now".
 
-**Search mode.** The sections under the search field give way to "Search results", the same two selects and the rows (`assets-grid-search`). No match is "No matching stocks" / "Try a company name, ticker or another filter." (`assets-search-empty`).
+**Search mode.** The sections under the search field give way to "Search results", the same two selects and the rows. No match is "No matching stocks" / "Try a company name, ticker or another filter." (`assets-search-empty`).
 
 **States.** Loading is the skeleton shapes of the screen. An empty catalogue is "No stocks to show", and an empty filter is "No stocks in this filter" / "Try a different category.". A first load that fails is the full-screen "Couldn't load this view" with "Try again" (`assets-failed`). A refresh that fails with rows on screen keeps them and shows the stale notice and the error toast. Pull to refresh reloads the list, the popular page and the watchlist quotes, and a price hint refreshes all three while the tab is visible.
 
@@ -498,7 +501,7 @@ The slot tables above name each owner. Screens and controls added by this map:
 
 | Ticket | Builds |
 | --- | --- |
-| #2134 | The slots and routes above that do not exist yet, the live `CabalActionsSlot`, the Home avatar button |
+| #2134 | The slots and routes this map named before they existed, the live `CabalActionsSlot`, the Home avatar button |
 | #2135 | `CabalRulesSlot` and the voter picker in the cabal editor (inline on Cabal settings since #3463) |
 | #2136 | `GET /v1/cabals/{id}/pot` |
 | #2137 | `CabalPotSlot`, `CabalSliceSlot`, `CabalHoldingsSlot` |
@@ -511,3 +514,6 @@ The slot tables above name each owner. Screens and controls added by this map:
 | #2146 | A banned cabal's state |
 | #2147 | @mentions in chat |
 | #2133 | The journey that walks the demo story through all of the above |
+| #5558 to #5571 | The UI v3 screens: sign in, Home, Your money and Activity, the money flows, account activity and Cabal cash, Propose, the proposal screen, the Cabals tab and Discover, the cabal screens, chat and Cabal holding, Markets, the stock screen and the watchlist, Feed, the Leaderboard and Profile with Settings |
+| #5572 to #5575 | The screen parity gallery, and the Dark, Dynamic Type and accessibility checks of every v3 screen |
+| #5576 | This page's tab order, the Markets tab, Propose and the new screens, and the journeys: `home/activity`, `stocks/watchlist`, `cabals/discover`, `cabals/info-and-members` and the Home and Leaderboard steps of `ranking/leaderboards` |

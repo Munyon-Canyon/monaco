@@ -2,7 +2,7 @@ import XCTest
 
 enum HomeDashboardJourney {
     static let id = "home/dashboard"
-    static let version = 3
+    static let version = 4
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -18,41 +18,50 @@ enum HomeDashboardJourney {
 
     static func readsHome(_ app: XCUIApplication, cabalID: String, cabalName: String, recorder: JourneyRecorder) {
         let row = app.element("cabal-row-\(cabalID)")
+        let total = app.element("home-portfolio-total")
 
-        recorder.step("S1.1", "the hero names your money in cabals") {
+        recorder.step("S1.1", "the hero shows the total") {
             openHome(app)
-            XCTAssertTrue(
-                text(app, "Your money in cabals").waitForExistence(timeout: 15),
-                "S1.1: no \"Your money in cabals\" hero within 15 s")
+            XCTAssertTrue(total.waitForExistence(timeout: 15), "S1.1: no total in the hero within 15 s")
+            XCTAssertTrue(total.label.contains("$"), "S1.1: the hero total reads '\(total.label)', not dollars")
         }
 
-        recorder.step("S1.2", "the balance row with Add money and Withdraw") {
+        recorder.step("S1.2", "the money strip with Net worth, Cash and Deposit") {
+            let netWorth = app.element("home-net-worth")
+            XCTAssertTrue(netWorth.waitForExistence(timeout: 10), "S1.2: no \"Net worth\" in the money strip")
+            XCTAssertEqual(netWorth.label, "Net worth", "S1.2: the net worth metric reads '\(netWorth.label)'")
+            let cash = app.element("platform-balance-value")
+            XCTAssertTrue(cash.waitForExistence(timeout: 10), "S1.2: no \"Cash\" amount in the money strip")
+            XCTAssertEqual(cash.label, "Cash", "S1.2: the cash metric reads '\(cash.label)'")
             XCTAssertTrue(
-                text(app, "Account balance").waitForExistence(timeout: 10), "S1.2: no \"Account balance\" row")
-            XCTAssertTrue(
-                app.element("platform-balance-value").waitForExistence(timeout: 10), "S1.2: no balance amount")
-            XCTAssertTrue(app.element("home-add-money-link").exists, "S1.2: no \"Add money\" under the balance")
-            XCTAssertTrue(app.element("home-withdraw-link").exists, "S1.2: no \"Withdraw\" under the balance")
+                (cash.value as? String)?.hasPrefix("$") == true,
+                "S1.2: the cash amount reads '\(cash.value as? String ?? "")', not dollars")
+            let deposit = app.element("home-add-money-link")
+            XCTAssertTrue(deposit.exists, "S1.2: no \"Deposit\" in the money strip")
+            XCTAssertEqual(deposit.label, "Deposit", "S1.2: the deposit button reads '\(deposit.label)'")
         }
 
         recorder.step("S1.3", "Your cabals lists the seeded cabal") {
-            app.scrollIntoReach(row)
-            XCTAssertTrue(text(app, "Your cabals").exists, "S1.3: no \"Your cabals\" header")
-            XCTAssertTrue(row.waitForExistence(timeout: 15), "S1.3: no Home row for \(cabalName) within 15 s")
+            let header = text(app, "Your cabals")
+            app.scrollIntoReach(header)
+            XCTAssertTrue(header.waitForExistence(timeout: 10), "S1.3: no \"Your cabals\" header")
+            ProfileOverviewJourney.reachCabal(app, row)
+            XCTAssertTrue(row.waitForExistence(timeout: 15), "S1.3: no Home card for \(cabalName) within 15 s")
         }
 
         recorder.step("S1.4", "pull to refresh keeps the cabals") {
             app.swipeDown()
             app.swipeDown()
-            let start = text(app, "Your money in cabals").coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            let start = total.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
             start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 400)))
-            app.scrollIntoReach(row)
+            ProfileOverviewJourney.reachCabal(app, row)
             XCTAssertTrue(
                 ProfileOverviewJourney.waitUntil(15) { row.exists && text(app, "Your cabals").exists },
-                "S1.4: Your cabals or the row for \(cabalName) was gone after the refresh")
+                "S1.4: Your cabals or the card for \(cabalName) was gone after the refresh")
         }
 
-        recorder.step("S1.5", "the row opens the cabal") {
+        recorder.step("S1.5", "the card opens the cabal") {
+            ProfileOverviewJourney.reachCabal(app, row)
             row.tap()
             XCTAssertTrue(
                 JoinJourney.waitForLabel(app.element("cabal-header-name"), containing: cabalName, timeout: 15),
@@ -68,37 +77,29 @@ enum HomeDashboardJourney {
             XCTAssertTrue(app.tab("Profile").isSelected, "S1.6: the Profile tab is not selected")
         }
 
-        recorder.step("S1.7", "the hero shows the total and the all-time chip") {
+        recorder.step("S1.7", "the hero shows the return chip") {
             openHome(app)
             app.swipeDown()
             XCTAssertTrue(
-                text(app, "All time").waitForExistence(timeout: 10),
-                "S1.7: no total or \"All time\" chip in the hero within 10 s (known failure, #660)")
-        }
-
-        recorder.step("S1.8", "the hero shows the P&L chart and its range chips") {
-            XCTAssertTrue(
-                app.element("home-pnl-chart").waitForExistence(timeout: 10),
-                "S1.8: no P&L chart in the hero within 10 s (known failure, #660)")
-            XCTAssertTrue(app.buttons["1D"].firstMatch.exists, "S1.8: no \"1D\" range chip (known failure, #660)")
+                app.element("home-portfolio-chip").waitForExistence(timeout: 10),
+                "S1.7: no return chip under the hero total within 10 s")
         }
     }
 
     static func emptySendsToBrowse(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S2.1", "no cabal shows the empty state") {
             openHome(app)
-            let title = text(app, "No money in a cabal yet")
+            let title = text(app, "Start with your people")
             app.scrollIntoReach(title)
-            XCTAssertTrue(title.waitForExistence(timeout: 15), "S2.1: no \"No money in a cabal yet\" within 15 s")
+            XCTAssertTrue(title.waitForExistence(timeout: 15), "S2.1: no \"Start with your people\" within 15 s")
             XCTAssertTrue(
-                text(
-                    app, "Cabals you fund show up here with their value. Fund one you're in, or find one to join."
-                ).exists,
-                "S2.1: no \"Cabals you fund show up here with their value. Fund one you're in, or find one to join.\"")
+                text(app, "Create a cabal or open an invitation from a friend.").exists,
+                "S2.1: no \"Create a cabal or open an invitation from a friend.\"")
+            XCTAssertTrue(app.buttons["Create a cabal"].firstMatch.exists, "S2.1: no \"Create a cabal\" button")
         }
 
-        recorder.step("S2.2", "Go to Cabals selects the Cabals tab") {
-            let browse = app.buttons["Go to Cabals"].firstMatch
+        recorder.step("S2.2", "Explore cabals selects the Cabals tab") {
+            let browse = app.buttons["Explore cabals"].firstMatch
             app.scrollIntoReach(browse)
             browse.tap()
             XCTAssertTrue(app.element("cabals-root").waitForExistence(timeout: 10), "S2.2: the Cabals tab did not show")

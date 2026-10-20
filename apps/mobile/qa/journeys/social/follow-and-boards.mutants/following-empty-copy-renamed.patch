@@ -1,0 +1,19 @@
+journey: social/follow-and-boards
+expect-fail: S2
+
+The empty Following list says "Nobody yet" instead of "You're not following anyone yet". S2.1 reads the exact copy, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Friends/FriendsPersonRow.swift b/apps/mobile/Monaco/Features/Friends/FriendsPersonRow.swift
+index d2e7d20..d726b67 100644
+--- a/apps/mobile/Monaco/Features/Friends/FriendsPersonRow.swift
++++ b/apps/mobile/Monaco/Features/Friends/FriendsPersonRow.swift
+@@ -147,7 +147,7 @@ struct FriendsNoResults: View {
+ struct FriendsFollowingEmpty: View {
+     var body: some View {
+         EmptyState(
+-            title: "You're not following anyone yet",
++            title: "Nobody yet",
+             message: "Search for people you know.",
+             systemImage: "person.2"
+         )

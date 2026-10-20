@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileEditJourney {
     static let id = "profile/edit"
-    static let version = 4
+    static let version = 5
 
     static let emptyNameCopy = "Display name is required."
     static let savedCopy = "Profile saved."

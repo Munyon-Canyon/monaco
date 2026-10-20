@@ -17,7 +17,7 @@ row="$(qa_sql -F $'\t' -v a="$a" -v comment="QA comment $run" -v ask="QA ask $ru
 IFS=$'\t' read -r comment ask answer total <<<"$row"
 
 if [[ "$total" == 0 ]]; then
-  echo "ok: the run wrote no comments (every step is a known failure until #711)"
+  echo "ok: the run wrote no comments"
   exit 0
 fi
 fail=0

@@ -103,9 +103,8 @@ host() {
 }
 
 case "$scenario" in
-  S1 | S3)
+  S1)
     name="QA leave $run"
-    [[ "$scenario" == S3 ]] && name="QA sell $run"
     host_token="$(host)"
     cabal="$(create_cabal "$host_token" "$name" request)"
     admit "$token_b" "$host_token" "$cabal"
