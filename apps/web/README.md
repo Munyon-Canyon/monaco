@@ -83,7 +83,7 @@ does not depend on dashboard state.
 | `MONACO_API_URL` | The API base URL the invite page looks referrers up on and posts taps to. The deployed web origins in the API's CORS list must include the page's host, `www` too |
 | `APP_STORE_URL` | Where "Get Monaco" goes: the App Store listing once it exists, the TestFlight public link until then. Unset, the button goes to `/` |
 | `POSTHOG_KEY` | Optional. The PostHog project key. The invite page sends `referral_page_viewed` and `referral_get_tapped` only when it is set |
-| `ALLOWED_ORIGINS` | Optional. Defaults to monacolabs.xyz and trymonaco.xyz (with and without `www`). Set it to the preview URL on Preview |
+| `ALLOWED_ORIGINS` | Optional. Defaults to monacolabs.xyz, with and without `www`. Set it to the preview URL on Preview |
 
 The fund page also needs three build-time variables (see `.env.example`). Vite inlines them, so
 none is secret:

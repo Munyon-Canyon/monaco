@@ -10,10 +10,7 @@ const MAX_EMAIL = 254;
 const TWITTER = /^[A-Za-z0-9_]{1,15}$/;
 const MAX_SOURCE = 64;
 const BAD_TWITTER = "Enter a valid Twitter handle, like @monaco, or leave it blank.";
-const DEFAULT_ORIGINS = [
-  "https://monacolabs.xyz", "https://www.monacolabs.xyz",
-  "https://trymonaco.xyz", "https://www.trymonaco.xyz",
-];
+const DEFAULT_ORIGINS = ["https://monacolabs.xyz", "https://www.monacolabs.xyz"];
 
 export function allowedOrigins(env) {
   const raw = (env.ALLOWED_ORIGINS || "").trim();

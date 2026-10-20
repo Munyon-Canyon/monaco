@@ -4,7 +4,7 @@ import { handleSignup, checkHealth, normalizeEmail, clientIp } from "../lib/wait
 
 const env = { SUPABASE_URL: "https://db.test", SUPABASE_ANON_KEY: "anon", IP_HASH_SALT: "salt" };
 const quiet = { info() {}, warn() {}, error() {} };
-const headers = { origin: "https://trymonaco.xyz", "x-forwarded-for": "1.2.3.4, 10.0.0.1", "user-agent": "test" };
+const headers = { origin: "https://monacolabs.xyz", "x-forwarded-for": "1.2.3.4, 10.0.0.1", "user-agent": "test" };
 
 // Fake PostgREST: records calls and answers RPCs with a fixed result.
 function fakeFetch({ result = "ok", status = 200, throws = false } = {}) {
@@ -64,8 +64,11 @@ test("only POST is allowed", async () => {
 });
 
 test("rejects foreign origins, allows no origin and configured origins", async () => {
-  assert.equal((await run({ headers: { ...headers, origin: "https://evil.example" } })).status, 403);
-  for (const allowed of ["https://monacolabs.xyz", "https://www.monacolabs.xyz", "https://trymonaco.xyz"]) {
+  // trymonaco.xyz lapsed to a for-sale page, so whoever owns it must not be able to post signups.
+  for (const foreign of ["https://evil.example", "https://trymonaco.xyz", "https://www.trymonaco.xyz"]) {
+    assert.equal((await run({ headers: { ...headers, origin: foreign } })).status, 403, foreign);
+  }
+  for (const allowed of ["https://monacolabs.xyz", "https://www.monacolabs.xyz"]) {
     assert.equal((await run({ headers: { ...headers, origin: allowed } })).status, 200, allowed);
   }
   const { origin, ...noOrigin } = headers;
