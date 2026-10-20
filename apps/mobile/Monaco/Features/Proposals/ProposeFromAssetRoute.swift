@@ -17,6 +17,8 @@ struct ProposeFromAssetScreen: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.hostMainTab) private var hostMainTab
     @State private var model: ProposeFromAssetModel?
+    @State private var pickedCabal: Components.Schemas.MyCabal?
+    @State private var showsPicker = false
 
     var body: some View {
         Group {
@@ -33,10 +35,18 @@ struct ProposeFromAssetScreen: View {
                     framed { emptyState }
                 } else if cabals.count == 1 {
                     amount(cabals[0])
+                } else if let pickedCabal {
+                    amount(pickedCabal)
                 } else {
-                    pick(cabals)
+                    framed { Color.clear }
                 }
             }
+        }
+        .onChange(of: model?.destination == .pick) { _, picking in
+            if picking { showsPicker = true }
+        }
+        .sheet(isPresented: $showsPicker, onDismiss: pickerDismissed) {
+            if case .loaded(let cabals) = model?.state { picker(cabals) }
         }
         .task {
             let created = model ?? ProposeFromAssetModel(api: environment.api)
@@ -68,31 +78,38 @@ struct ProposeFromAssetScreen: View {
             .navigationBarTitleDisplayMode(.inline)
     }
 
-    private func pick(_ cabals: [Components.Schemas.MyCabal]) -> some View {
-        framed {
-            ScrollView {
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-                    Text(pickTitle)
-                        .font(MonacoTheme.Typo.section)
-                        .foregroundStyle(MonacoTheme.ink)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, MonacoTheme.Space.gutter)
-                        .accessibilityIdentifier("propose-pick-cabal-question")
-                    MonacoGroupedList {
-                        ForEach(cabals, id: \.id) { cabal in
-                            NavigationLink {
-                                amount(cabal)
-                            } label: {
-                                ProposePickCabalRow(cabal: cabal, isLast: cabal.id == cabals.last?.id)
-                            }
-                            .buttonStyle(.monacoRow)
-                            .accessibilityIdentifier("propose-pick-cabal-\(cabal.id)")
+    private func picker(_ cabals: [Components.Schemas.MyCabal]) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+                Text(pickTitle)
+                    .font(MonacoTheme.Typo.headline)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .accessibilityIdentifier("propose-pick-cabal-question")
+                MonacoGroupedList {
+                    ForEach(cabals, id: \.id) { cabal in
+                        Button {
+                            pickedCabal = cabal
+                            showsPicker = false
+                        } label: {
+                            ProposePickCabalRow(cabal: cabal, isLast: cabal.id == cabals.last?.id)
                         }
+                        .buttonStyle(.monacoRow)
+                        .accessibilityIdentifier("propose-pick-cabal-\(cabal.id)")
                     }
                 }
-                .padding(.top, MonacoTheme.Space.m)
             }
         }
+        .scrollBounceBehavior(.basedOnSize)
+        .monacoSheet(
+            title: ProposeFlowCopy.chooseCabalTitle, titleIdentifier: "propose-pick-cabal-sheet", detents: .votes,
+            showsClose: true)
+    }
+
+    private func pickerDismissed() {
+        guard pickedCabal == nil else { return }
+        environment.navigator.closeProposeFlow(in: hostMainTab ?? environment.navigator.selectedTab)
     }
 
     private var pickTitle: String {

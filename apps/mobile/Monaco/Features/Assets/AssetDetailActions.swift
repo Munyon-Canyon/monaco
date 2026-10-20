@@ -6,9 +6,15 @@ struct AssetDetailActions: View {
     let canSell: Bool
     let propose: (ProposeKind) -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
+        let layout =
+            dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: MonacoTheme.Space.sm))
+            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
         VStack(spacing: MonacoTheme.Space.s) {
-            VStack(spacing: MonacoTheme.Space.sm) {
+            layout {
                 Button(AssetDetailBuyCTA.title(tradable: detail.isTradable)) { propose(.buy) }
                     .buttonStyle(.monacoPrimary)
                     .disabled(!AssetDetailBuyCTA.canBuy(tradable: detail.isTradable, quotable: detail.isQuotable))
