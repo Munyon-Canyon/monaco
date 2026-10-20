@@ -27,7 +27,15 @@ nonisolated final class ShareCardSampleUITests: XCTestCase {
     }
 
     @MainActor
-    func testEverySampleCardRendersInTheSheet() throws {
+    private func assertSystemShareSheet(_ app: XCUIApplication, _ message: String) {
+        let sheet = element(app, "ActivityListView")
+        XCTAssertTrue(sheet.waitForExistence(timeout: 30), message)
+        XCTAssertFalse(element(app, "share-card-title").exists, "a Monaco sheet opened before the system sheet")
+        attach(app.screenshot(), "system-share-sheet")
+    }
+
+    @MainActor
+    func testEverySampleCardRenders() throws {
         let names = [
             "cabalGain": "share-card-cabal",
             "cabalLoss": "share-card-cabal-loss",
@@ -41,36 +49,17 @@ nonisolated final class ShareCardSampleUITests: XCTestCase {
             XCTAssertTrue(card.waitForExistence(timeout: 30), "\(scenario): no card")
             _ = XCTWaiter().wait(for: [XCTestExpectation()], timeout: 1.5)
             attach(card.screenshot(), name)
-            attach(app.screenshot(), "\(name)-sheet")
-            XCTAssertTrue(app.buttons["share-card-share"].exists, "\(scenario): no Share button")
-            XCTAssertTrue(app.buttons["share-card-copy"].exists, "\(scenario): no Copy link button")
             app.terminate()
         }
     }
 
     @MainActor
-    func testTheCabalScreenSharesItsGainAndCopiesTheLink() throws {
+    func testTheCabalScreenOpensTheSystemShareSheetInOneTap() throws {
         let app = launch(["-MonacoGroupDetailSample", "ready"])
         let button = app.buttons["cabal-share-button"]
         XCTAssertTrue(button.waitForExistence(timeout: 30), "no share button on a member's cabal")
         button.tap()
-        let gain = element(app, "cabal-invite-gain-row")
-        XCTAssertTrue(gain.waitForExistence(timeout: 15), "the invite sheet has no gain row")
-        gain.tap()
-        let shown = element(app, "share-card-image").waitForExistence(timeout: 30)
-        attach(app.screenshot(), "share-cabal-sheet")
-        let tree = XCTAttachment(string: app.debugDescription)
-        tree.name = "tree"
-        tree.lifetime = .keepAlways
-        add(tree)
-        XCTAssertTrue(shown, "no card in the sheet")
-
-        app.buttons["share-card-copy"].tap()
-
-        XCTAssertTrue(app.staticTexts["Link copied."].waitForExistence(timeout: 5), "no toast after Copy link")
-        app.buttons["share-card-done"].tap()
-        XCTAssertTrue(
-            element(app, "cabal-invite-gain-row").waitForExistence(timeout: 5), "the gain sheet did not close")
+        assertSystemShareSheet(app, "the cabal Share did not open the system share sheet")
     }
 
     @MainActor
@@ -82,24 +71,12 @@ nonisolated final class ShareCardSampleUITests: XCTestCase {
     }
 
     @MainActor
-    func testHomeSharesTheReturnFromBesideThePortfolioChip() throws {
-        let app = launch(["-MonacoHomeSample", "populated"])
-        let button = app.buttons["home-share-button"]
-        XCTAssertTrue(button.waitForExistence(timeout: 30), "no share button beside the portfolio chip")
-        attach(app.screenshot(), "share-home-button")
-        button.tap()
-        XCTAssertTrue(element(app, "share-card-image").waitForExistence(timeout: 30), "no card in the sheet")
-        attach(app.screenshot(), "share-home-sheet")
-    }
-
-    @MainActor
-    func testProfileSharesTheReturnFromItsToolbar() throws {
+    func testProfileOpensTheSystemShareSheetInOneTap() throws {
         let app = launch(["-MonacoProfileSample", "cabals"])
         let button = app.buttons["profile-share-button"]
         XCTAssertTrue(button.waitForExistence(timeout: 30), "no share button on Profile")
         attach(app.screenshot(), "share-profile-button")
         button.tap()
-        XCTAssertTrue(element(app, "share-card-image").waitForExistence(timeout: 30), "no card in the sheet")
-        attach(app.screenshot(), "share-profile-sheet")
+        assertSystemShareSheet(app, "the Profile Share did not open the system share sheet")
     }
 }

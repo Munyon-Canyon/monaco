@@ -57,6 +57,7 @@ private struct CabalHeader: View {
                 cabal: cabal,
                 pictureWriter: LiveCabalPictureWriter(api: environment.api),
                 share: share?.open,
+                shareBusy: share?.isBusy ?? false,
                 pictureResult: { toast in
                     toasts.current = toast
                     guard toast.isSuccess else { return }
@@ -72,6 +73,7 @@ struct CabalHeroCover: View {
     var tall = false
     var pictureWriter: (any CabalPictureWriting)?
     var share: (() -> Void)?
+    var shareBusy = false
     var pictureResult: (MonacoToast) -> Void = { _ in }
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -85,6 +87,7 @@ struct CabalHeroCover: View {
         tall: Bool = false,
         pictureWriter: (any CabalPictureWriting)? = nil,
         share: (() -> Void)? = nil,
+        shareBusy: Bool = false,
         pictureResult: @escaping (MonacoToast) -> Void = { _ in }
     ) {
         self.cabal = cabal
@@ -92,6 +95,7 @@ struct CabalHeroCover: View {
         self.tall = tall
         self.pictureWriter = pictureWriter
         self.share = share
+        self.shareBusy = shareBusy
         self.pictureResult = pictureResult
         _editor = StateObject(
             wrappedValue: CabalPictureEditor(
@@ -171,10 +175,10 @@ struct CabalHeroCover: View {
     }
 
     private func disc(_ action: @escaping () -> Void) -> some View {
-        CoverShareDisc(cabalName: cabal.name, action: action)
+        CoverShareDisc(cabalName: cabal.name, isBusy: shareBusy, action: action)
             .padding(.leading, CabalHeroMetrics.discLeading)
             .padding(.bottom, CabalHeroMetrics.discBottom)
-            .accessibilityLabel("Share cabal invitation")
+            .accessibilityLabel("Share cabal")
             .accessibilityIdentifier("cabal-hero-share")
     }
 }

@@ -21,8 +21,7 @@ struct CabalInviteSheet: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var links: InviteLinkModel?
     @State private var access: CabalInviteAccessModel?
-    @State private var showsActivity = false
-    @State private var showsGain = false
+    @State private var sharing: String?
 
     private var shareURL: URL? { link ?? links?.links?.shareURL }
 
@@ -30,7 +29,7 @@ struct CabalInviteSheet: View {
         NavigationStack {
             content
                 .monacoSheet(
-                    title: "Share cabal", titleIdentifier: "cabal-invite-title",
+                    title: "Invite to cabal", titleIdentifier: "cabal-invite-title",
                     detents: .votes, showsClose: true
                 )
                 .toolbar(.hidden, for: .navigationBar)
@@ -48,16 +47,6 @@ struct CabalInviteSheet: View {
             let access = self.access ?? CabalInviteAccessModel(cabalID: cabal.id, api: environment.api)
             self.access = access
             await access.load()
-        }
-        .sheet(isPresented: $showsGain) {
-            ShareCardHost(api: environment.api) { await $0.loadCabal(cabalID: cabal.id, cabal: cabal) }
-                .monacoToastCenter(toasts)
-        }
-        .sheet(isPresented: $showsActivity) {
-            if let shareURL {
-                ActivitySheet(items: [shareURL]) { showsActivity = false }
-                    .presentationDetents([.fraction(MonacoSheetDetents.halfFraction)])
-            }
         }
     }
 
@@ -160,10 +149,12 @@ struct CabalInviteSheet: View {
 
     private var buttons: some View {
         VStack(spacing: MonacoTheme.Space.sm) {
-            Button("Share link") { showsActivity = true }
-                .buttonStyle(.monacoPrimary)
-                .disabled(shareURL == nil)
-                .accessibilityIdentifier("share-card-share")
+            Button("Share link") {
+                if let shareURL { SystemShare.present(SharePayload(title: cabal.name, url: shareURL)) }
+            }
+            .buttonStyle(.monacoPrimary)
+            .disabled(shareURL == nil)
+            .accessibilityIdentifier("share-card-share")
             Button("Copy link") { copy() }
                 .buttonStyle(.monacoOutline)
                 .disabled(shareURL == nil)
@@ -190,13 +181,14 @@ struct CabalInviteSheet: View {
                 .accessibilityIdentifier("cabal-invite-handle-row")
             }
             Button {
-                showsGain = true
+                Task { await ShareCardLauncher.shareCabal(cabal, api: environment.api, toasts: toasts, busy: $sharing) }
             } label: {
                 MonacoRow(title: "Share your gain as an image", chevron: true, isLast: true) {
                     SunkenGlyphMark(systemImage: "photo")
                 }
             }
             .buttonStyle(.monacoRow)
+            .disabled(sharing != nil)
             .accessibilityIdentifier("cabal-invite-gain-row")
         }
         .padding(.horizontal, -MonacoTheme.Space.gutter)

@@ -1,7 +1,7 @@
 ---
 id: cabals/pot
 title: The cabal pot
-version: 6
+version: 7
 milestone: M12
 requires: [auth/sign-in]
 actors: [A]
@@ -40,9 +40,8 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA slice {QA.run}` | `cabal-header-name` reads `QA slice {QA.run}` within 15 s |
-| S2.2 | A | tap | `cabal-share-button` | | The sheet "Share cabal" shows within 15 s. Tapping its row `cabal-invite-gain-row` shows the gain card as `share-card-image` within 15 s (screens.md: the share button next to the cabal's information button; members of an open cabal only) |
-| S2.3 | A | tap | `share-card-copy` | | The toast "Link copied." shows within 5 s. The journey does not open the system share sheet, which XCUITest cannot dismiss reliably |
-| S2.4 | A | tap | `share-card-done` | | The gain sheet closes, then the "Close" button closes the invite sheet, and `cabal-header-name` still reads `QA slice {QA.run}` within 5 s |
+| S2.2 | A | tap | `cabal-share-button` | | The iOS system share sheet (`ActivityListView`) shows within 15 s, with no Monaco sheet before it (screens.md: the share button next to the cabal's information button; members of an open cabal only) |
+| S2.3 | A | tap | the system sheet's "Close" button | | The system share sheet closes and `cabal-header-name` still reads `QA slice {QA.run}` within 5 s |
 
 ### S3 Holdings
 

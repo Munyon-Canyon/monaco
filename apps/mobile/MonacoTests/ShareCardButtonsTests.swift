@@ -43,13 +43,3 @@ struct ShareCardButtonsTests {
         CabalPotSummary(Components.Schemas.CabalPot.sampleInvested)
     }
 }
-
-struct ShareCardSheetCopyTests {
-    @Test func theSheetSpeaksInTheWordsOfTheInviteScreen() {
-        #expect(ShareCardCopy.title == "Share")
-        #expect(ShareCardCopy.share == "Share")
-        #expect(ShareCardCopy.copyLink == "Copy link")
-        #expect(ShareCardCopy.copied == InviteCopy.copied)
-        #expect(ShareCardCopy.copied == "Link copied.")
-    }
-}

@@ -33,7 +33,8 @@ struct CabalScreen: View {
     let sections: [any CabalSection.Type]
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.hostMainTab) private var hostMainTab
-    @State private var showsInvite = false
+    @Environment(ToastCenter.self) private var toasts
+    @State private var sharing: String?
     @State private var models = CabalScreenModels()
     @State private var retryTick = 0
     @State private var refresh = ScreenRefresh()
@@ -73,7 +74,10 @@ struct CabalScreen: View {
             }
         }
         .environment(\.cabalRetry, CabalRetry(tick: retryTick) { retryTick += 1 })
-        .environment(\.cabalShare, CabalShare { showsInvite = true })
+        .environment(
+            \.cabalShare,
+            CabalShare(open: { share(cabal.cabal) }, isBusy: sharing == context.cabalID)
+        )
         .navigationTitle(cabal.cabal?.name ?? "")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: retryTick) {
@@ -94,9 +98,9 @@ struct CabalScreen: View {
                     HStack(spacing: MonacoTheme.Space.s) {
                         if Self.canShare(cabal: loaded) {
                             MonacoGlassButton(
-                                icon: .share, accessibilityLabel: "Share cabal invitation", style: .quiet,
-                                placement: .toolbar
-                            ) { showsInvite = true }
+                                icon: .share, accessibilityLabel: "Share cabal", style: .quiet,
+                                placement: .toolbar, isBusy: sharing == context.cabalID
+                            ) { share(loaded) }
                             .accessibilityIdentifier("cabal-share-button")
                         }
                         MonacoGlassButton(
@@ -112,11 +116,11 @@ struct CabalScreen: View {
                 }
             }
         }
-        .sheet(isPresented: $showsInvite) {
-            if let shared = cabal.cabal {
-                CabalInviteSheet(cabal: shared)
-            }
-        }
+    }
+
+    private func share(_ cabal: Components.Schemas.Cabal?) {
+        guard let cabal else { return }
+        Task { await ShareCardLauncher.shareCabal(cabal, api: environment.api, toasts: toasts, busy: $sharing) }
     }
 
     private static func showsPublicLayout(_ sections: [any CabalSection.Type]) -> Bool {
@@ -172,6 +176,7 @@ struct CabalRetry {
 
 struct CabalShare {
     var open: () -> Void
+    var isBusy = false
 }
 
 extension EnvironmentValues {

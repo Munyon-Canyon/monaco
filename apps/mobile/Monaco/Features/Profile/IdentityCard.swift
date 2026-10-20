@@ -303,13 +303,12 @@ private struct IdentityStatColumn<Value: View>: View {
 
 struct IdentityShareButton: View {
     let accessibilityLabel: String
+    var isBusy = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: MonacoIcon.share.symbol)
-                .font(.body.weight(.medium))
-                .foregroundStyle(MonacoTheme.onIdentity)
+            glyph
                 .frame(width: IdentityCardMetrics.shareVisual, height: IdentityCardMetrics.shareVisual)
                 .background(Circle().fill(MonacoTheme.onIdentity.opacity(IdentityCardMetrics.shareFillOpacity)))
                 .overlay(
@@ -320,7 +319,18 @@ struct IdentityShareButton: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .disabled(isBusy)
         .accessibilityLabel(accessibilityLabel)
+    }
+
+    @ViewBuilder private var glyph: some View {
+        if isBusy {
+            ProgressView().tint(MonacoTheme.onIdentity)
+        } else {
+            Image(systemName: MonacoIcon.share.symbol)
+                .font(.body.weight(.medium))
+                .foregroundStyle(MonacoTheme.onIdentity)
+        }
     }
 }
 

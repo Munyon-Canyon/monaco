@@ -1,7 +1,7 @@
 ---
 id: profile/overview
 title: Your profile
-version: 7
+version: 8
 milestone: M9
 requires: [auth/sign-in]
 actors: [A]
@@ -69,9 +69,8 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S5.1 | tap | the Profile tab, then `profile-share-button` | | Within 15 s the sheet "Share" shows the return card as `share-card-image` (screens.md: the share round in the identity card) | New in the spec |
-| S5.2 | tap | `share-card-copy` | | The toast "Link copied." shows within 5 s. The journey does not open the system share sheet, which XCUITest cannot dismiss reliably | New in the spec |
-| S5.3 | tap | `share-card-done` | | The sheet closes and `profile-header` still shows within 5 s | New in the spec |
+| S5.1 | tap | the Profile tab, then `profile-share-button` | | Within 15 s the iOS system share sheet (`ActivityListView`) shows, with no Monaco sheet before it (screens.md: the share round in the identity card) | New in the spec |
+| S5.2 | tap | the system sheet's "Close" button | | The system share sheet closes and `profile-header` still shows within 5 s | New in the spec |
 
 ### S6 Sign out
 

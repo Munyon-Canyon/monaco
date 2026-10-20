@@ -18,6 +18,7 @@ struct MonacoGlassButton: View {
     var style: Style
     var placement: Placement
     var size: Size
+    var isBusy: Bool
     let action: () -> Void
 
     @ScaledMetric(relativeTo: .body) private var regularDiameter: CGFloat = 44
@@ -30,6 +31,7 @@ struct MonacoGlassButton: View {
         style: Style = .glass,
         placement: Placement = .content,
         size: Size = .regular,
+        isBusy: Bool = false,
         action: @escaping () -> Void
     ) {
         self.systemImage = systemImage
@@ -37,23 +39,33 @@ struct MonacoGlassButton: View {
         self.style = style
         self.placement = placement
         self.size = size
+        self.isBusy = isBusy
         self.action = action
     }
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.system(size: min(glyphSize, 26), weight: .medium))
-                .symbolVariant(style == .selected ? .fill : .none)
-                .symbolRenderingMode(.monochrome)
-                .foregroundStyle(glyphColor)
+            mark
                 .frame(width: diameter, height: diameter)
                 .modifier(MonacoGlassFill(style: style, drawsCircle: drawsCircle))
                 .frame(width: hitSide, height: hitSide)
                 .contentShape(Circle())
         }
         .buttonStyle(MonacoGlassPressStyle())
+        .disabled(isBusy)
         .accessibilityLabel(accessibilityLabel)
+    }
+
+    @ViewBuilder private var mark: some View {
+        if isBusy {
+            ProgressView().tint(glyphColor)
+        } else {
+            Image(systemName: systemImage)
+                .font(.system(size: min(glyphSize, 26), weight: .medium))
+                .symbolVariant(style == .selected ? .fill : .none)
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(glyphColor)
+        }
     }
 
     private var diameter: CGFloat {
