@@ -54,6 +54,7 @@ func TestAdminReads_PassOnEveryPortFailure(t *testing.T) {
 		reads := app.NewAdminReads(
 			app.NewProposalReads(
 				d.pool, fakes.NewTrading(), fakes.NewCabal(nil, nil), marketfake.NewCatalog(marketfake.Fixtures()...),
+				&cardBook{}, &returnBook{},
 			),
 			tc,
 			tc,
@@ -68,6 +69,7 @@ func TestAdminReads_PassOnEveryPortFailure(t *testing.T) {
 	reads := app.NewAdminReads(
 		app.NewProposalReads(
 			d.pool, fakes.NewTrading(), fakes.NewCabal(nil, nil), marketfake.NewCatalog(marketfake.Fixtures()...),
+			&cardBook{}, &returnBook{},
 		),
 		failing,
 		failing,

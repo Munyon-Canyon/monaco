@@ -53,6 +53,7 @@ func TestHTTP_PostCabalProposal_refusesBeforeAndAfterTheCommand(t *testing.T) {
 			Reads: app.NewProposalReads(
 				h.d.pool, fakes.NewTrading(), h.w.cabals.current.Load(),
 				marketfake.NewCatalog(marketfake.Fixtures()...),
+				&cardBook{}, &returnBook{},
 			),
 		}
 		req := api.PostCabalProposalRequestObject{Id: h.w.cabal.UUID(), Body: &tc.body}

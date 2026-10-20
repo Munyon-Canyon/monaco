@@ -46,7 +46,7 @@ func newReadsDB(t *testing.T) readsDB {
 }
 
 func (d readsDB) reads() *app.ProposalReads {
-	return app.NewProposalReads(d.pool, d.swaps, d.names, d.assets)
+	return app.NewProposalReads(d.pool, d.swaps, d.names, d.assets, &cardBook{}, &returnBook{})
 }
 
 func (d readsDB) seed(t *testing.T, at time.Time, voters ...uuid.UUID) uuid.UUID {

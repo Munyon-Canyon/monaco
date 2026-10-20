@@ -8,6 +8,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
+	rankingport "github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -35,6 +36,9 @@ type ProposalDetail struct {
 	CanWithdraw bool
 	Swap        *trading.SwapView
 	Fill        Fill
+
+	ProposerReturnBps     *int64
+	ProposerReturnPrivate bool
 }
 
 type Fill struct {
@@ -69,24 +73,35 @@ func (r *ProposalReads) Get(ctx context.Context, req GetProposal) (ProposalDetai
 	if err != nil {
 		return ProposalDetail{}, err
 	}
+	bps, private, err := r.proposerReturn(ctx, view.ProposerID)
+	if err != nil {
+		return ProposalDetail{}, err
+	}
 	open := view.Status == domain.StatusOpen
 	out := ProposalDetail{
 		Proposal: view, Voters: voters, CanVote: open && isVoter,
-		CanWithdraw: open && view.ProposerID == req.Caller && !othersVoted,
+		CanWithdraw:       open && view.ProposerID == req.Caller && !othersVoted,
+		ProposerReturnBps: bps, ProposerReturnPrivate: private,
 	}
 	if found {
 		out.Swap = &swap
-		mint, err := market.ParseMint(row.Mint)
-		if err != nil {
+		if out.Fill, err = r.fill(ctx, row.Mint, swap); err != nil {
 			return ProposalDetail{}, err
 		}
-		asset, err := r.assets.AssetByMint(ctx, mint)
-		if err != nil {
-			return ProposalDetail{}, err
-		}
-		out.Fill = fillOf(swap, asset.Decimals)
 	}
 	return out, nil
+}
+
+func (r *ProposalReads) fill(ctx context.Context, rawMint string, swap trading.SwapView) (Fill, error) {
+	mint, err := market.ParseMint(rawMint)
+	if err != nil {
+		return Fill{}, err
+	}
+	asset, err := r.assets.AssetByMint(ctx, mint)
+	if err != nil {
+		return Fill{}, err
+	}
+	return fillOf(swap, asset.Decimals), nil
 }
 
 func fillOf(s trading.SwapView, decimals uint8) Fill {
@@ -107,6 +122,27 @@ func listRow(r sqlc.GetProposalRow) sqlc.ListProposalsRow {
 		Threshold: r.Threshold, Status: r.Status, StatusReason: r.StatusReason, ExpiresAt: r.ExpiresAt,
 		CreatedAt: r.CreatedAt, MyBallot: r.MyBallot, PriceComparison: r.PriceComparison, Network: r.Network,
 	}
+}
+
+func (r *ProposalReads) proposerReturn(ctx context.Context, id ids.UserID) (*int64, bool, error) {
+	const op = "governance.GetProposal"
+	who := []ids.UserID{id}
+	cards, err := r.users.UsersByID(ctx, who)
+	if err != nil {
+		return nil, false, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	found, err := r.rets.PeopleReturns(ctx, rankingport.Range1M, who)
+	if err != nil {
+		return nil, false, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	card, ok := cards[id]
+	switch {
+	case !ok || card.Deleted:
+		return nil, false, nil
+	case !card.SharePerformance:
+		return nil, true, nil
+	}
+	return found[id].ReturnBps, false, nil
 }
 
 func tallyVoters(rows []sqlc.ProposalVotersRow, caller ids.UserID) ([]Voter, Tally, bool, bool) {

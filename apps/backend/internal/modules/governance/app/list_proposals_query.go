@@ -15,6 +15,7 @@ import (
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
+	rankingport "github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -83,10 +84,14 @@ type ProposalReads struct {
 	swaps  Swaps
 	cabals cabalport.ViewReader
 	assets Assets
+	users  Handles
+	rets   rankingport.Queries
 }
 
-func NewProposalReads(db sqlc.DBTX, s Swaps, c cabalport.ViewReader, a Assets) *ProposalReads {
-	return &ProposalReads{q: sqlc.New(db), swaps: s, cabals: c, assets: a}
+func NewProposalReads(
+	db sqlc.DBTX, s Swaps, c cabalport.ViewReader, a Assets, users Handles, returns rankingport.Queries,
+) *ProposalReads {
+	return &ProposalReads{q: sqlc.New(db), swaps: s, cabals: c, assets: a, users: users, rets: returns}
 }
 
 func (r *ProposalReads) CabalName(ctx context.Context, id ids.CabalID) (string, error) {
