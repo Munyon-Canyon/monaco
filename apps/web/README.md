@@ -6,6 +6,7 @@ Waitlist landing page, the `/r/<code>` invite page, and serverless functions. Vi
 |---|---|
 | `index.html` | The waitlist page. The build copies it to `dist/` unchanged |
 | `vite.config.ts` | The build: one HTML input per page, hashed bundles under `/_app/` |
+| `dev-api.js` | Dev only: `npx vite` serves `api/waitlist.js` and `api/health.js` through it. Production never loads it |
 | `lib/waitlist.js` | Signup and health logic, tested in `test/` |
 | `lib/referral.js` | The `/r/<code>` invite page: lookup and HTML, tested in `test/referral.test.js` |
 | `functions/api/waitlist.js`, `functions/api/health.js`, `functions/r/[code].js` | Cloudflare Pages adapters |
@@ -30,6 +31,7 @@ and the `dev` script.
 cd apps/web && npm ci                          # once, and after package.json changes
 cd apps/web && npm test                        # both adapters and the shared logic
 cd apps/web && npm run build                   # writes dist/
+cd apps/web && npx vite                         # the page and /api/waitlist on :5173, see below
 cd apps/web && npx wrangler pages dev dist      # Cloudflare, serves /api/* for real
 cd apps/web && npx vercel dev                   # Vercel
 ```
@@ -39,6 +41,45 @@ cd apps/web && npx vercel dev                   # Vercel
 ```bash
 npx wrangler pages dev --binding SUPABASE_URL=… SUPABASE_ANON_KEY=… IP_HASH_SALT=local ALLOWED_ORIGINS=http://127.0.0.1:8788
 ```
+
+### Try a sign-up locally
+
+`npx vite` serves the page, and `dev-api.js` serves `/api/waitlist` and `/api/health` from it with the handlers Vercel runs. They need a Supabase to write to. The Supabase CLI runs one in Docker over this folder's migrations, from a project folder outside the repo. Run this from the repo root; the ports avoid Compose Postgres (54322) and the test databases (54323, 54324):
+
+```bash
+WL=$(mktemp -d) && mkdir "$WL/supabase"
+cat > "$WL/supabase/config.toml" <<'EOF'
+project_id = "waitlist-dev"
+[api]
+port = 54331
+[db]
+port = 54332
+shadow_port = 54330
+major_version = 17
+[studio]
+enabled = false
+EOF
+ln -s "$PWD/apps/web/migrations" "$WL/supabase/migrations"
+supabase start --workdir "$WL" -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+supabase status --workdir "$WL" -o env | grep -E '^(API_URL|ANON_KEY)='
+```
+
+Put those two values in `apps/web/.env.local` (git-ignored). Point it at this local stack only: the dev server writes real rows to whatever `SUPABASE_URL` names. The salt is any string, and `ALLOWED_ORIGINS` is the dev server's own origin, because a browser sends `Origin` on a POST and the handler refuses one it does not know:
+
+```
+SUPABASE_URL=<API_URL>
+SUPABASE_ANON_KEY=<ANON_KEY>
+IP_HASH_SALT=local
+ALLOWED_ORIGINS=http://localhost:5173
+```
+
+Run `cd apps/web && npx vite`, open `http://localhost:5173/?ref=test`, sign up, and read the row back:
+
+```bash
+docker exec supabase_db_waitlist-dev psql -U postgres -c "select email, twitter, source from waitlist"
+```
+
+`supabase db reset --workdir "$WL"` replays the migrations after you pull new ones, and `supabase stop --workdir "$WL" --no-backup` removes the containers and the data.
 
 ### Fund page against a local backend
 
