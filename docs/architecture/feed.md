@@ -21,6 +21,8 @@ The feed is a fifth bottom tab, **Feed**, between Home and Cabals (default 2026-
 | `price_move` | `market` module | A stock's change since the previous close crosses a threshold (e.g. AAPL +10% on the day). | Yes |
 | `cabal_created` | `cabal` events | A cabal is created. | Yes |
 | `member_joined` | `cabal` events | A user joins a cabal. | Yes |
+| `reply` | `social` comments | A comment, top-level or nested, is posted on a `proposal` item. Written in the comment's own transaction and deleted with the comment. Comments on other kinds make none. | Yes |
+| `threshold` | `governance` events | A proposal passes (`proposal.passed`). It stays "Execution pending" after the trade executes, because the `proposal` item, not this one, advances. | Yes |
 | `news` | News provider | A news item tagged to a stock in the catalog. | No, deferred |
 
 **Every cabal is public in the feed** (decided 2026-09-27). There is no private-cabal flag. Proposals and trades from all cabals appear, not only cabals the viewer belongs to. `cabal_created` and `member_joined` items carry no money amounts, and funding and cash-outs never become feed items (default 2026-09-27), so the feed does not show what a member put in or took out.
@@ -30,8 +32,8 @@ The feed is a fifth bottom tab, **Feed**, between Home and Cabals (default 2026-
 ```
 feed_objects
   id             uuid      UUIDv7
-  kind           text      trade | proposal | cabal_created | member_joined | price_move
-  ref_type       text      swaps | proposals | cabals | cabal_members | asset_price_moves, one per kind
+  kind           text      trade | proposal | cabal_created | member_joined | price_move | reply | threshold
+  ref_type       text      swaps | proposals | cabals | cabal_members | asset_price_moves | feed_comments, one per kind
   ref_id         uuid      source row
   cabal_id       uuid?     null for price_move and news
   cabal_name     text?     snapshot, for search
@@ -71,6 +73,7 @@ All through the `feed` consumer on the event bus. Each source module appends its
 - **Price move** → the `market` price poller (flow 18, every 120 s) compares each asset's new sample with its previous close on every tick. There is no second poller. The window is the change since the previous close only, with no rolling intraday window (default 2026-09-27). Crossing a threshold (proposal: ±5% and ±10%) appends an `asset.price_moved` event, once per asset, per threshold, per day (dedupe key `(asset_id, threshold, trading_day)`). The `feed` consumer inserts the item. It sends no push for MVP ([notifications.md](notifications.md#what-notifies-mvp)). This event must be stored, because a feed item is durable work. The `price.tick` message is core NATS only (flow 18) and cannot drive it. `asset.price_moved` is in flow 18's row of the flows table (market → social feed).
 - **Cabal created** → `cabal.created` (flow 2) → insert `cabal_created` item.
 - **Member joined** → `cabal.member_joined` (flow 3) → insert `member_joined` item.
+- **Proposal passed** → `proposal.passed` (flow 10) → `social.feed.proposal_passed` advances the `proposal` item and inserts one `threshold` item for the proposal. A redelivery, or a reopened proposal that passes again, inserts none.
 - **News** (deferred) → an ingest job pulls from a provider and inserts items tagged by `asset_id`.
 
 The RFC also routes `cabal.member_left`, `cabal.funded`, `cashout.*` and `user.profile_updated` to the feed (flows 4, 7, 14, 23). None of them creates an item. Profile and cabal-name changes refresh the snapshots in `title`, `payload` and `search`; the rest keep the viewer's cabal list current for `scope=mine`.
@@ -105,6 +108,7 @@ Indexes: `(created_at desc, id)`, `(cabal_id, created_at desc)`, `(asset_id, cre
 - A reply's parent must belong to the same feed item (composite key, same pattern as today's `proposal_comments`).
 - `CreateComment` is a command with an `Idempotency-Key`, like every mutating call ([Thin client](backend-platform.md#thin-client)). One `uow.Do` inserts the comment, increments `feed_objects.comment_count` and appends `comment.created`. Its consumers are `notify`, `analytics` and the live hint (flow 21).
 - Refusals are `errs` codes, and each is an outcome in flow 21's file, `packages/flows/backend/21.tsv` ([Errors](backend-platform.md#errors)): an empty or over-long body, an unknown feed item, a parent on another item.
+- A comment on a `proposal` item also inserts a `reply` item in the same transaction (flow 21's `CreateComment`): the actor is the commenter, `body` is the comment text, `ref_id` is the comment id, and the payload carries the proposal's figures and `proposal_id`. `reply` and `threshold` items take no comments (`can_comment` is false); the app opens the proposal. Deleting or removing the comment deletes its `reply` item and the item's likes. Older comments and already-passed proposals are not backfilled.
 - Authors can delete their own comments. Deletion is soft (`deleted_at`) so reply threads keep their shape; the body renders as "deleted".
 - **Moderation** ships before non-member commenting opens (default 2026-09-27). Users can report a comment. Admins remove it through an audited `admin.action` (flow 26). Each user has a comment rate limit. Blocking users ships with it ([followers.md](followers.md)).
 - A reply to your comment, or a comment on your proposal, is a notification candidate (see below).

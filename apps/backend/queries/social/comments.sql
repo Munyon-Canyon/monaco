@@ -1,5 +1,5 @@
 -- name: GetCommentItem :one
-SELECT id, kind, ref_type, ref_id, cabal_id, actor_id
+SELECT id, kind, ref_type, ref_id, cabal_id, actor_id, payload
 FROM feed_objects
 WHERE id = sqlc.arg(id);
 
@@ -7,6 +7,32 @@ WHERE id = sqlc.arg(id);
 SELECT id
 FROM feed_objects
 WHERE ref_type = 'proposals' AND ref_id = sqlc.arg(proposal_id)::uuid AND kind = 'proposal';
+
+-- name: GetProposalFeedSource :one
+SELECT cabal_id, cabal_name, actor_id, asset_id, symbol, body, payload
+FROM feed_objects
+WHERE ref_type = 'proposals' AND ref_id = sqlc.arg(proposal_id)::uuid AND kind = 'proposal';
+
+-- name: InsertFeedReply :exec
+INSERT INTO feed_objects (
+  id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, asset_id, symbol, title, body, payload,
+  created_at, updated_at
+)
+SELECT
+  sqlc.arg(id)::uuid, 'reply', 'feed_comments', sqlc.arg(comment_id)::uuid, o.cabal_id, o.cabal_name,
+  sqlc.arg(actor_id)::uuid, o.asset_id, o.symbol, sqlc.arg(title)::text, sqlc.arg(body)::text,
+  sqlc.arg(payload)::jsonb, sqlc.arg(at)::timestamptz, sqlc.arg(at)::timestamptz
+FROM feed_objects o
+WHERE o.id = sqlc.arg(feed_object_id)::uuid
+ON CONFLICT (ref_type, ref_id, kind) DO NOTHING;
+
+-- name: DeleteFeedCommentItem :execrows
+WITH item AS (
+  SELECT id FROM feed_objects WHERE ref_type = 'feed_comments' AND ref_id = sqlc.arg(comment_id)::uuid
+), unliked AS (
+  DELETE FROM feed_likes WHERE feed_object_id IN (SELECT id FROM item)
+)
+DELETE FROM feed_objects WHERE id IN (SELECT id FROM item);
 
 -- name: GetCommentTarget :one
 SELECT id, author_id, parent_comment_id, (deleted_at IS NOT NULL)::bool AS deleted

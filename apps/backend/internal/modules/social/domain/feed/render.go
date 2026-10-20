@@ -25,6 +25,10 @@ func RenderTitle(k Kind, p Payload) string {
 			return "A new member joined " + p.CabalName
 		}
 		return p.ActorName + " joined " + p.CabalName
+	case KindReply:
+		return replyTitle(p)
+	case KindThreshold:
+		return thresholdTitle(p)
 	default:
 		return ""
 	}
@@ -41,6 +45,10 @@ func RenderDetail(k Kind, p Payload) string {
 		return "Filled at " + priceOf(p.PriceMicros)
 	case KindPriceMove:
 		return priceMoveDetail(p)
+	case KindReply:
+		return join(" · ", p.Symbol, "Replied to the proposal")
+	case KindThreshold:
+		return "Execution pending"
 	case KindCabalCreated, KindMemberJoined:
 		return ""
 	default:
@@ -60,15 +68,36 @@ func RenderTone(k Kind, p Payload) Tone {
 }
 
 func proposalTitle(p Payload) string {
-	verb := "buying"
+	return memberOr(p.ActorName) + " proposed " + tradeVerb(p) + " " + exactAmountOf(p) + " in " + p.CabalName
+}
+
+func replyTitle(p Payload) string {
+	return memberOr(p.ActorName) + " replied to " + memberOr(p.ProposerName) + "'s proposal"
+}
+
+func thresholdTitle(p Payload) string {
+	return memberOr(p.ActorName) + "'s proposal to " + tradeVerbBare(p) + " " + exactAmountOf(p) + " was approved"
+}
+
+func memberOr(name string) string {
+	if name == "" {
+		return "A member"
+	}
+	return name
+}
+
+func tradeVerb(p Payload) string {
 	if p.Action == ActionSell {
-		verb = "selling"
+		return "selling"
 	}
-	proposer := p.ActorName
-	if proposer == "" {
-		proposer = "A member"
+	return "buying"
+}
+
+func tradeVerbBare(p Payload) string {
+	if p.Action == ActionSell {
+		return "sell"
 	}
-	return proposer + " proposed " + verb + " " + exactAmountOf(p) + " in " + p.CabalName
+	return "buy"
 }
 
 func tradeTitle(p Payload) string {

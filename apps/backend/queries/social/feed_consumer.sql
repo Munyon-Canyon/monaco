@@ -28,12 +28,12 @@ SELECT name FROM feed_cabals WHERE cabal_id = sqlc.arg(cabal_id);
 
 -- name: InsertFeedConsumerItem :exec
 INSERT INTO feed_objects (
-  id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, asset_id, symbol, title, payload, status,
+  id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, asset_id, symbol, title, body, payload, status,
   created_at, updated_at
 )
 VALUES (
   sqlc.arg(id), sqlc.arg(kind), sqlc.arg(ref_type), sqlc.arg(ref_id), sqlc.arg(cabal_id), sqlc.arg(cabal_name),
-  sqlc.arg(actor_id), sqlc.narg(asset_id), sqlc.narg(symbol), sqlc.arg(title), sqlc.arg(payload),
+  sqlc.arg(actor_id), sqlc.narg(asset_id), sqlc.narg(symbol), sqlc.arg(title), sqlc.narg(body), sqlc.arg(payload),
   sqlc.narg(status), sqlc.arg(at), sqlc.arg(at)
 )
 ON CONFLICT (ref_type, ref_id, kind) DO NOTHING;

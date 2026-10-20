@@ -3236,7 +3236,7 @@ paths:
           required: false
           description: >-
             A comma-separated list of kinds to include: `proposal`, `trade`, `price_move`,
-            `cabal_created` and `member_joined`. Absent includes every kind.
+            `cabal_created`, `member_joined`, `reply` and `threshold`. Absent includes every kind.
           schema: {type: string, maxLength: 128, examples: ["proposal,trade"]}
         - name: cabal_id
           in: query
@@ -3379,7 +3379,7 @@ paths:
           required: false
           description: >-
             A comma-separated list of kinds to include: `proposal`, `trade`, `price_move`,
-            `cabal_created` and `member_joined`. Absent includes every kind.
+            `cabal_created`, `member_joined`, `reply` and `threshold`. Absent includes every kind.
           schema: {type: string, maxLength: 128, examples: ["proposal,trade"]}
         - name: cabal_id
           in: query
@@ -8287,11 +8287,16 @@ components:
         id: {type: string, format: uuid, description: "The item's id.", examples: ["01920000-0000-7000-8000-000000000007"]}
         kind:
           type: string
-          description: "`proposal`, `trade`, `price_move`, `cabal_created` or `member_joined`."
+          description: >-
+            `proposal`, `trade`, `price_move`, `cabal_created`, `member_joined`, `reply` or `threshold`.
+            A `reply` is a comment on a proposal's feed item, with the comment text as `body` and the
+            commenter as the actor. A `threshold` is a proposal that passed and awaits execution.
           examples: [trade]
         ref_type:
           type: string
-          description: The source the item points at, such as `swaps` for a trade.
+          description: >-
+            The source the item points at, such as `swaps` for a trade, `feed_comments` for a reply
+            (`ref_id` is the comment's id) or `proposals` for a proposal or a threshold item.
           examples: [swaps]
         ref_id: {type: string, format: uuid, description: "The source row's id.", examples: ["01920000-0000-7000-8000-000000000008"]}
         cabal_id:
@@ -8355,7 +8360,7 @@ components:
         share_of_pot_bps:
           type: [integer, "null"]
           format: int64
-          description: "A proposal's amount as basis points of the cabal pot when it was made. Null on other kinds and on proposals made before this field shipped."
+          description: "A proposal's amount as basis points of the cabal pot when it was made, on a proposal, reply or threshold item. Null on other kinds and on proposals made before this field shipped."
           examples: [1000]
         change_bps:
           type: [integer, "null"]
@@ -8375,7 +8380,7 @@ components:
         proposal_id:
           type: [string, "null"]
           format: uuid
-          description: "The proposal a proposal or trade item is about. Null on other kinds."
+          description: "The proposal a proposal, trade, reply or threshold item is about. Null on other kinds."
           examples: ["01920000-0000-7000-8000-000000000009"]
         comment_count: {type: integer, format: int32, description: "The number of comments.", examples: [0]}
         like_count: {type: integer, format: int32, description: "The number of users who like the item.", examples: [3]}
@@ -8399,7 +8404,8 @@ components:
         can_comment:
           type: boolean
           description: >-
-            False on a proposal of a cabal the caller is not in, which only members can comment on. True otherwise.
+            False on a proposal of a cabal the caller is not in, which only members can comment on, and on a reply or
+            threshold item, which open the proposal instead. True otherwise.
           examples: [true]
     FeedMute:
       type: object

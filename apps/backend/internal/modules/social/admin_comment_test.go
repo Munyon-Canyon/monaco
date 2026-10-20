@@ -77,6 +77,25 @@ func TestAdminRemoveComment_RendersRemovedByMonaco(t *testing.T) {
 	f.expectRemovalEvents(t, top.Id, item)
 }
 
+func TestAdminRemoveComment_deletesTheCommentsReplyItem(t *testing.T) {
+	t.Parallel()
+	f := newCommentRoutes(t)
+	item := f.item(t, feed.KindProposal)
+	kai := f.cabal.Members[0].ID
+	top := f.say(t, item, kai, "secret abuse", nil)
+	kept := f.say(t, item, kai, "fine", nil)
+	if got := f.replyItems(t); len(got) != 2 {
+		t.Fatalf("%d reply items before the removal, want 2", len(got))
+	}
+	if err := f.removeAs(asAdmin(t), top.Id, "abuse"); err != nil {
+		t.Fatalf("RemoveComment = %v, want nil", err)
+	}
+	got := f.replyItems(t)
+	if len(got) != 1 || got[0].RefID != kept.Id {
+		t.Fatalf("reply items = %+v, want only the item of comment %s", got, kept.Id)
+	}
+}
+
 func (f commentRoutes) expectRemovalEvents(t *testing.T, comment, item uuid.UUID) {
 	t.Helper()
 	got := f.deleted(t)
@@ -162,7 +181,7 @@ func TestAdminRemoveComment_NeedsAReason(t *testing.T) {
 }
 
 func (f commentFixture) deps() app.CommentDeps {
-	return app.CommentDeps{UoW: f.uow, Reads: f.pool, IDs: f.gen, Clock: f.clock, Hints: f.hints}
+	return app.CommentDeps{UoW: f.uow, Reads: f.pool, Users: f.users, IDs: f.gen, Clock: f.clock, Hints: f.hints}
 }
 
 func TestAdminRemoveComment_RollsBackWhenAWriteFails(t *testing.T) {
@@ -171,6 +190,7 @@ func TestAdminRemoveComment_RollsBackWhenAWriteFails(t *testing.T) {
 		"the lock":   `ALTER TABLE feed_comments RENAME COLUMN deleted_at TO gone_at`,
 		"the update": `ALTER TABLE feed_comments ADD CONSTRAINT never_removed CHECK (deleted_by_kind <> 'admin') NOT VALID`,
 		"the count":  `ALTER TABLE feed_objects RENAME COLUMN comment_count TO comments`,
+		"the item":   `ALTER TABLE feed_likes RENAME TO feed_likes_gone`,
 		"the event":  `ALTER TABLE events ADD CONSTRAINT no_event CHECK (type <> 'comment.deleted') NOT VALID`,
 		"the audit":  `ALTER TABLE events ADD CONSTRAINT no_audit CHECK (type <> 'admin.action') NOT VALID`,
 	} {

@@ -56,6 +56,9 @@ func (h *DeleteCommentHandler) Handle(ctx context.Context, cmd DeleteComment) er
 		if _, err := q.BumpCommentCount(ctx, sqlc.BumpCommentCountParams{Delta: -1, ID: row.FeedObjectID}); err != nil {
 			return errs.Wrap(err, errs.CodeInternal, op)
 		}
+		if _, err := q.DeleteFeedCommentItem(ctx, row.ID); err != nil {
+			return errs.Wrap(err, errs.CodeInternal, op)
+		}
 		tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, FeedHint, nil) })
 		return tx.Events.Append(ctx, events.CommentDeleted{
 			V: 1, CommentID: row.ID, FeedObjectID: row.FeedObjectID, DeletedBy: cmd.Caller.UUID(),

@@ -16,10 +16,12 @@ const (
 	KindPriceMove    Kind = "price_move"
 	KindCabalCreated Kind = "cabal_created"
 	KindMemberJoined Kind = "member_joined"
+	KindReply        Kind = "reply"
+	KindThreshold    Kind = "threshold"
 )
 
 func Kinds() []Kind {
-	return []Kind{KindProposal, KindTrade, KindPriceMove, KindCabalCreated, KindMemberJoined}
+	return []Kind{KindProposal, KindTrade, KindPriceMove, KindCabalCreated, KindMemberJoined, KindReply, KindThreshold}
 }
 
 func ParseKind(raw string) (Kind, error) {
@@ -37,11 +39,12 @@ const (
 	RefAssetPriceMoves RefType = "asset_price_moves"
 	RefCabals          RefType = "cabals"
 	RefCabalMembers    RefType = "cabal_members"
+	RefFeedComments    RefType = "feed_comments"
 )
 
 func (k Kind) RefType() RefType {
 	switch k {
-	case KindProposal:
+	case KindProposal, KindThreshold:
 		return RefProposals
 	case KindTrade:
 		return RefSwaps
@@ -51,6 +54,8 @@ func (k Kind) RefType() RefType {
 		return RefCabals
 	case KindMemberJoined:
 		return RefCabalMembers
+	case KindReply:
+		return RefFeedComments
 	default:
 		return ""
 	}

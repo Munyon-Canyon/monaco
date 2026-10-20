@@ -92,7 +92,34 @@ func (h Feed) ApplyProposal(
 }
 
 func (h Feed) ProposalPassed(ctx context.Context, tx db.Tx, e events.ProposalPassed, at time.Time) error {
-	return h.advance(ctx, tx, e.ProposalID, feed.StatusPassed, "", at)
+	if err := h.advance(ctx, tx, e.ProposalID, feed.StatusPassed, "", at); err != nil {
+		return err
+	}
+	return h.insertThreshold(ctx, tx, e, at)
+}
+
+func (h Feed) insertThreshold(ctx context.Context, tx db.Tx, e events.ProposalPassed, at time.Time) error {
+	q := sqlc.New(tx.Queries())
+	source, err := q.GetProposalFeedSource(ctx, e.ProposalID)
+	if err != nil {
+		return err
+	}
+	proposal, err := feed.ParsePayload(source.Payload)
+	if err != nil {
+		return err
+	}
+	payload := feed.Payload{
+		CabalName: proposal.CabalName, ActorName: proposal.ActorName, Symbol: proposal.Symbol,
+		AssetName: proposal.AssetName, Action: proposal.Action, USDCMicros: proposal.USDCMicros,
+		TokenAmount: proposal.TokenAmount, TokenDecimals: proposal.TokenDecimals,
+		ShareOfPotBps: proposal.ShareOfPotBps, ProposalID: e.ProposalID,
+	}
+	return q.InsertFeedConsumerItem(ctx, sqlc.InsertFeedConsumerItemParams{
+		ID: eventID(ctx), Kind: string(feed.KindThreshold), RefType: string(feed.RefProposals), RefID: e.ProposalID,
+		CabalID: source.CabalID, CabalName: source.CabalName, ActorID: source.ActorID, AssetID: source.AssetID,
+		Symbol: source.Symbol, Title: feed.RenderTitle(feed.KindThreshold, payload), Body: source.Body,
+		Payload: payload.JSON(), At: at,
+	})
 }
 
 func (h Feed) ProposalFailed(ctx context.Context, tx db.Tx, e events.ProposalFailed, at time.Time) error {

@@ -20,6 +20,7 @@ const (
 type Payload struct {
 	CabalName     string       `json:"cabal_name,omitempty"`
 	ActorName     string       `json:"actor_name,omitempty"`
+	ProposerName  string       `json:"proposer_name,omitempty"`
 	Symbol        string       `json:"symbol,omitempty"`
 	AssetName     string       `json:"asset_name,omitempty"`
 	Action        Action       `json:"action,omitempty"`

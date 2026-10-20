@@ -27,8 +27,27 @@ func chaosCabal(i int) uuid.UUID { return uuid.NewSHA1(uuid.Nil, []byte(strconv.
 
 func chaosCreator(i int) uuid.UUID { return uuid.NewSHA1(uuid.Nil, []byte("creator"+strconv.Itoa(i))) }
 
+func chaosProposal() uuid.UUID { return uuid.NewSHA1(uuid.Nil, []byte("proposal")) }
+
+func seedChaosProposal(t *testing.T, h testkit.Harness) {
+	t.Helper()
+	payload := feed.Payload{
+		CabalName: "Alpha", ActorName: "Old 2", Symbol: "AAPLx", Action: feed.ActionBuy, Status: "open",
+	}
+	_, err := h.Pool.Exec(t.Context(), `INSERT INTO feed_objects
+		(id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, symbol, title, payload, status, created_at,
+		updated_at)
+		VALUES ($1, 'proposal', 'proposals', $2, $3, 'Alpha', $4, 'AAPLx', $5, $6, 'open', now(), now())`,
+		h.IDs.NewV7(), chaosProposal(), chaosCabal(2), chaosCreator(2), feed.RenderTitle(feed.KindProposal, payload),
+		payload.JSON())
+	if err != nil {
+		t.Fatalf("seed proposal: %v", err)
+	}
+}
+
 func seedStaleFeed(t *testing.T, h testkit.Harness) {
 	t.Helper()
+	seedChaosProposal(t, h)
 	for c := range chaosCabals {
 		for p := range chaosCabals {
 			payload := feed.Payload{CabalName: "Old " + strconv.Itoa(c), ActorName: "Old " + strconv.Itoa(p)}
@@ -73,7 +92,7 @@ func chaosEvent(_ *rand.Rand, i int) events.Event {
 	renames := []events.Event{
 		profileUpdated(chaosCreator(0), "", "display_name"),
 		cabalRenamed(chaosCabal(1), chaosCreator(0), "Renamed 1"),
-		profileUpdated(chaosCreator(2), "", "photo"),
+		events.ProposalPassed{V: 1, ProposalID: chaosProposal(), CabalID: chaosCabal(2)},
 		events.CabalUpdated{
 			V: 1, CabalID: chaosCabal(3), ActorID: chaosCreator(3), Changes: events.CabalChanges{PictureURL: &picture},
 		},

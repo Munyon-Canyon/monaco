@@ -32,6 +32,23 @@ func (q *Queries) BumpCommentCount(ctx context.Context, arg BumpCommentCountPara
 	return result.RowsAffected(), nil
 }
 
+const deleteFeedCommentItem = `-- name: DeleteFeedCommentItem :execrows
+WITH item AS (
+  SELECT id FROM feed_objects WHERE ref_type = 'feed_comments' AND ref_id = $1::uuid
+), unliked AS (
+  DELETE FROM feed_likes WHERE feed_object_id IN (SELECT id FROM item)
+)
+DELETE FROM feed_objects WHERE id IN (SELECT id FROM item)
+`
+
+func (q *Queries) DeleteFeedCommentItem(ctx context.Context, commentID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteFeedCommentItem, commentID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getComment = `-- name: GetComment :one
 SELECT c.id, o.kind, o.cabal_id
 FROM feed_comments c
@@ -53,7 +70,7 @@ func (q *Queries) GetComment(ctx context.Context, id uuid.UUID) (GetCommentRow, 
 }
 
 const getCommentItem = `-- name: GetCommentItem :one
-SELECT id, kind, ref_type, ref_id, cabal_id, actor_id
+SELECT id, kind, ref_type, ref_id, cabal_id, actor_id, payload
 FROM feed_objects
 WHERE id = $1
 `
@@ -65,6 +82,7 @@ type GetCommentItemRow struct {
 	RefID   uuid.UUID
 	CabalID pgtype.UUID
 	ActorID pgtype.UUID
+	Payload []byte
 }
 
 func (q *Queries) GetCommentItem(ctx context.Context, id uuid.UUID) (GetCommentItemRow, error) {
@@ -77,6 +95,7 @@ func (q *Queries) GetCommentItem(ctx context.Context, id uuid.UUID) (GetCommentI
 		&i.RefID,
 		&i.CabalID,
 		&i.ActorID,
+		&i.Payload,
 	)
 	return i, err
 }
@@ -122,6 +141,37 @@ func (q *Queries) GetProposalFeedItem(ctx context.Context, proposalID uuid.UUID)
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const getProposalFeedSource = `-- name: GetProposalFeedSource :one
+SELECT cabal_id, cabal_name, actor_id, asset_id, symbol, body, payload
+FROM feed_objects
+WHERE ref_type = 'proposals' AND ref_id = $1::uuid AND kind = 'proposal'
+`
+
+type GetProposalFeedSourceRow struct {
+	CabalID   pgtype.UUID
+	CabalName pgtype.Text
+	ActorID   pgtype.UUID
+	AssetID   pgtype.UUID
+	Symbol    pgtype.Text
+	Body      pgtype.Text
+	Payload   []byte
+}
+
+func (q *Queries) GetProposalFeedSource(ctx context.Context, proposalID uuid.UUID) (GetProposalFeedSourceRow, error) {
+	row := q.db.QueryRow(ctx, getProposalFeedSource, proposalID)
+	var i GetProposalFeedSourceRow
+	err := row.Scan(
+		&i.CabalID,
+		&i.CabalName,
+		&i.ActorID,
+		&i.AssetID,
+		&i.Symbol,
+		&i.Body,
+		&i.Payload,
+	)
+	return i, err
 }
 
 const insertComment = `-- name: InsertComment :one
@@ -170,6 +220,45 @@ func (q *Queries) InsertComment(ctx context.Context, arg InsertCommentParams) (F
 		&i.DeletedByKind,
 	)
 	return i, err
+}
+
+const insertFeedReply = `-- name: InsertFeedReply :exec
+INSERT INTO feed_objects (
+  id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, asset_id, symbol, title, body, payload,
+  created_at, updated_at
+)
+SELECT
+  $1::uuid, 'reply', 'feed_comments', $2::uuid, o.cabal_id, o.cabal_name,
+  $3::uuid, o.asset_id, o.symbol, $4::text, $5::text,
+  $6::jsonb, $7::timestamptz, $7::timestamptz
+FROM feed_objects o
+WHERE o.id = $8::uuid
+ON CONFLICT (ref_type, ref_id, kind) DO NOTHING
+`
+
+type InsertFeedReplyParams struct {
+	ID           uuid.UUID
+	CommentID    uuid.UUID
+	ActorID      uuid.UUID
+	Title        string
+	Body         string
+	Payload      []byte
+	At           time.Time
+	FeedObjectID uuid.UUID
+}
+
+func (q *Queries) InsertFeedReply(ctx context.Context, arg InsertFeedReplyParams) error {
+	_, err := q.db.Exec(ctx, insertFeedReply,
+		arg.ID,
+		arg.CommentID,
+		arg.ActorID,
+		arg.Title,
+		arg.Body,
+		arg.Payload,
+		arg.At,
+		arg.FeedObjectID,
+	)
+	return err
 }
 
 const listCommentThreads = `-- name: ListCommentThreads :many

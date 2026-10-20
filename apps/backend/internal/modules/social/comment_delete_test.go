@@ -125,6 +125,7 @@ func TestDeleteComment_failsWithInternalWhenTheStoreFails(t *testing.T) {
 			"the count bump fails",
 			`ALTER TABLE feed_objects ADD CONSTRAINT no_drops CHECK (comment_count > 0) NOT VALID`,
 		},
+		{"the reply item cannot be deleted", `ALTER TABLE feed_likes RENAME TO feed_likes_gone`},
 		{"the event cannot be appended", `DROP TABLE events CASCADE`},
 	}
 	for _, tt := range tests {

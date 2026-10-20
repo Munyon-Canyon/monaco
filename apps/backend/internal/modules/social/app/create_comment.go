@@ -43,6 +43,7 @@ type CommentDeps struct {
 	UoW     *db.UnitOfWork
 	Reads   sqlc.DBTX
 	Members Members
+	Users   Users
 	IDs     ids.Generator
 	Clock   clock.Clock
 	Hints   Hints
@@ -86,27 +87,15 @@ func (h *CreateCommentHandler) Handle(ctx context.Context, cmd CreateComment) (C
 			slog.String("feed_object_id", cmd.FeedObjectID.String()),
 		)
 	}
+	reply, err := h.replyDraft(ctx, item, cmd)
+	if err != nil {
+		return Comment{}, err
+	}
 	var created Comment
 	err = h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		q := sqlc.New(tx.Queries())
-		target, place, err := loadParent(ctx, q, cmd)
-		if err != nil {
-			return err
-		}
-		row, err := q.InsertComment(ctx, sqlc.InsertCommentParams{
-			ID: h.d.IDs.NewV7(), FeedObjectID: cmd.FeedObjectID, AuthorID: cmd.Author.UUID(),
-			ParentCommentID: place.ParentID, ReplyToUserID: place.ReplyToID, Body: cmd.Body.String(),
-			CreatedAt: h.d.Clock.Now().UTC(),
-		})
-		if err != nil {
-			return errs.Wrap(err, errs.CodeInternal, op)
-		}
-		if _, err := q.BumpCommentCount(ctx, sqlc.BumpCommentCountParams{Delta: 1, ID: cmd.FeedObjectID}); err != nil {
-			return errs.Wrap(err, errs.CodeInternal, op)
-		}
-		created = commentOf(row)
-		tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, FeedHint, nil) })
-		return tx.Events.Append(ctx, createdEvent(item, row, target, cmd.Body))
+		var err error
+		created, err = h.store(ctx, tx, item, cmd, reply)
+		return err
 	})
 	if err != nil {
 		return Comment{}, err
@@ -114,6 +103,79 @@ func (h *CreateCommentHandler) Handle(ctx context.Context, cmd CreateComment) (C
 	observability.Info(ctx, observability.SocialCommentCreated,
 		slog.String("comment_id", created.ID.String()), slog.String("feed_object_id", created.FeedObjectID.String()))
 	return created, nil
+}
+
+func (h *CreateCommentHandler) store(
+	ctx context.Context, tx db.Tx, item sqlc.GetCommentItemRow, cmd CreateComment, reply replyDraft,
+) (Comment, error) {
+	const op = "social.CreateComment"
+	q := sqlc.New(tx.Queries())
+	target, place, err := loadParent(ctx, q, cmd)
+	if err != nil {
+		return Comment{}, err
+	}
+	row, err := q.InsertComment(ctx, sqlc.InsertCommentParams{
+		ID: h.d.IDs.NewV7(), FeedObjectID: cmd.FeedObjectID, AuthorID: cmd.Author.UUID(),
+		ParentCommentID: place.ParentID, ReplyToUserID: place.ReplyToID, Body: cmd.Body.String(),
+		CreatedAt: h.d.Clock.Now().UTC(),
+	})
+	if err != nil {
+		return Comment{}, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	if _, err := q.BumpCommentCount(ctx, sqlc.BumpCommentCountParams{Delta: 1, ID: cmd.FeedObjectID}); err != nil {
+		return Comment{}, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	if err := reply.insert(ctx, q, h.d.IDs.NewV7(), row); err != nil {
+		return Comment{}, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, FeedHint, nil) })
+	return commentOf(row), tx.Events.Append(ctx, createdEvent(item, row, target, cmd.Body))
+}
+
+type replyDraft struct {
+	feedObjectID uuid.UUID
+	payload      feed.Payload
+	title        string
+}
+
+func (h *CreateCommentHandler) replyDraft(
+	ctx context.Context, item sqlc.GetCommentItemRow, cmd CreateComment,
+) (replyDraft, error) {
+	if feed.Kind(item.Kind) != feed.KindProposal {
+		return replyDraft{}, nil
+	}
+	proposal, err := feed.ParsePayload(item.Payload)
+	if err != nil {
+		return replyDraft{}, err
+	}
+	cards, err := h.d.Users.UsersByID(ctx, []ids.UserID{cmd.Author})
+	if err != nil {
+		return replyDraft{}, errs.Wrap(err, errs.CodeOf(err), "social.CreateComment")
+	}
+	card := cards[cmd.Author]
+	name := card.DisplayName
+	if name == "" {
+		name = card.Handle
+	}
+	payload := feed.Payload{
+		CabalName: proposal.CabalName, ActorName: name, ProposerName: proposal.ActorName, Symbol: proposal.Symbol,
+		AssetName: proposal.AssetName, Action: proposal.Action, USDCMicros: proposal.USDCMicros,
+		TokenAmount: proposal.TokenAmount, TokenDecimals: proposal.TokenDecimals,
+		ShareOfPotBps: proposal.ShareOfPotBps, ProposalID: item.RefID,
+	}
+	return replyDraft{
+		feedObjectID: item.ID, payload: payload, title: feed.RenderTitle(feed.KindReply, payload),
+	}, nil
+}
+
+func (d replyDraft) insert(ctx context.Context, q *sqlc.Queries, id uuid.UUID, comment sqlc.FeedComment) error {
+	if d.title == "" {
+		return nil
+	}
+	return q.InsertFeedReply(ctx, sqlc.InsertFeedReplyParams{
+		ID: id, FeedObjectID: d.feedObjectID, CommentID: comment.ID, ActorID: comment.AuthorID, Title: d.title,
+		Body: comment.Body, Payload: d.payload.JSON(), At: comment.CreatedAt,
+	})
 }
 
 func createdEvent(
@@ -144,6 +206,9 @@ func commentOf(row sqlc.FeedComment) Comment {
 func CanComment(
 	ctx context.Context, members Members, kind feed.Kind, cabal ids.CabalID, user ids.UserID,
 ) (bool, error) {
+	if kind == feed.KindReply || kind == feed.KindThreshold {
+		return false, nil
+	}
 	if kind != feed.KindProposal {
 		return true, nil
 	}
