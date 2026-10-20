@@ -56,7 +56,9 @@ into the green, never a second green, so nothing can read as a shade off.
   list." Escape steps back one step. A row is a square stamp, filled when chosen, and the chosen row's rule
   reads in full cream like its name; `?cabal=` chooses a row before the visitor gets there, and the visitor
   still presses Continue. No row is chosen otherwise, because the count of cabals is only worth anything if
-  people pick.
+  people pick. Under the bar, an eligibility line in the message type (`WAITLIST_ELIGIBILITY_LINE`, set at
+  build time) says who may join; with no value there is no line. It steps aside while the cabal question
+  is open, so that step keeps fitting a phone.
 
 ## Rejected defaults
 - Centered full-viewport hero with one line and one CTA.

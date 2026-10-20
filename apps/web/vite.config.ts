@@ -4,6 +4,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import { fundCSP } from "./csp";
 import { waitlistDevApi } from "./dev-api.js";
+import { withEligibility } from "./eligibility.js";
 
 // The API origin differs per deploy, and _headers and vercel.json are static, so the full policy
 // is a meta tag written at build time. The header keeps frame-ancestors, which a meta tag cannot set.
@@ -37,11 +38,17 @@ function fundDevRewrite(): Plugin {
   };
 }
 
+// The line under the sign-up form is operator copy from the build env, so changing it takes a redeploy.
+function eligibilityLine(env: Record<string, string>): Plugin {
+  return { name: "eligibility-line", transformIndexHtml: (html) => withEligibility(html, env.WAITLIST_ELIGIBILITY_LINE) };
+}
+
 export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     fundDevRewrite(),
     waitlistDevApi(loadEnv(mode, import.meta.dirname, "")),
+    eligibilityLine(loadEnv(mode, import.meta.dirname, "")),
     fundPolicy(loadEnv(mode, import.meta.dirname).VITE_MONACO_API_URL || "http://localhost:8080"),
   ],
   // node --test runs test/*.test.js; Vitest takes only the fund page's TypeScript tests.
