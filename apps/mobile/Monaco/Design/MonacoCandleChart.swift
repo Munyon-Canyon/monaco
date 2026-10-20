@@ -215,6 +215,7 @@ struct MonacoCandleChart: View {
                     domain: domain,
                     plot: plot,
                     chartWidth: chartWidth,
+                    gutter: gutter,
                     style: style,
                     tint: tint,
                     lastPrice: lastPrice,
