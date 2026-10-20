@@ -33,9 +33,9 @@ after(async () => { await vite.close(); supabase.close(); });
 const signup = (body, headers = {}) =>
   fetch(`${base}/api/waitlist`, { method: "POST", headers: { "content-type": "application/json", origin: base, ...headers }, body: JSON.stringify(body) });
 
-test("a sign-up posted to the dev server reaches the database with its email, handle and source", async () => {
+test("a sign-up posted to the dev server reaches the database with its email, handle, cabal and source", async () => {
   rpcs.length = 0;
-  const res = await signup({ email: " You@Email.com ", twitter: "@ada", source: "test" });
+  const res = await signup({ email: " You@Email.com ", twitter: "@ada", cabal: "Cavemen", source: "test" });
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { ok: true });
   assert.equal(res.headers.get("cache-control"), "no-store");
@@ -44,6 +44,7 @@ test("a sign-up posted to the dev server reaches the database with its email, ha
   assert.equal(rpcs[0].apikey, "anon");
   assert.equal(rpcs[0].args.p_email, "you@email.com");
   assert.equal(rpcs[0].args.p_twitter, "ada");
+  assert.equal(rpcs[0].args.p_cabal, "cavemen");
   assert.equal(rpcs[0].args.p_source, "test");
 });
 
@@ -52,6 +53,7 @@ test("the handlers' own checks run in dev: method, origin and body", async () =>
   assert.equal((await fetch(`${base}/api/waitlist`)).status, 405);
   assert.equal((await signup({ email: "you@email.com" }, { origin: "https://evil.example" })).status, 403);
   assert.equal((await signup({ email: "nope" })).status, 400);
+  assert.equal((await signup({ email: "you@email.com", cabal: "hodlers" })).status, 400);
   assert.equal((await fetch(`${base}/api/waitlist`, { method: "POST", body: "{not json", headers: { origin: base } })).status, 400);
   assert.equal(rpcs.length, 0);
 });

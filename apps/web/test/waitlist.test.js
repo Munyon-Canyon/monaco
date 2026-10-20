@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { handleSignup, checkHealth, normalizeEmail, clientIp } from "../lib/waitlist.js";
+import { handleSignup, checkHealth, normalizeEmail, normalizeCabal, clientIp, CABALS } from "../lib/waitlist.js";
 
 const env = { SUPABASE_URL: "https://db.test", SUPABASE_ANON_KEY: "anon", IP_HASH_SALT: "salt" };
 const quiet = { info() {}, warn() {}, error() {} };
@@ -163,4 +163,56 @@ test("the signup log records that a twitter handle was given, never the handle",
   const line = lines.find((l) => l.includes("waitlist_signup"));
   assert.ok(line.includes('"hasTwitter":true'));
   assert.ok(!line.includes("adalovelace"));
+});
+
+test("a cabal is trimmed, lowercased and sent as p_cabal, and the source still goes with it", async () => {
+  for (const [input, sent] of [["cavemen", "cavemen"], [" Pilates ", "pilates"], ["CADENA", "cadena"], ["degens", "degens"], ["undecided", "undecided"]]) {
+    const fetch = fakeFetch();
+    const r = await run({ fetch, body: { email: "you@email.com", cabal: input, source: "test" } });
+    assert.equal(r.status, 200, input);
+    const args = JSON.parse(fetch.calls[0].init.body);
+    assert.equal(args.p_cabal, sent);
+    assert.equal(args.p_source, "test");
+  }
+});
+
+test("no cabal is absent, not an empty string, and never blocks the signup", async () => {
+  for (const cabal of [undefined, "", "   ", null]) {
+    const fetch = fakeFetch();
+    const r = await run({ fetch, body: { email: "you@email.com", cabal } });
+    assert.equal(r.status, 200, `cabal ${JSON.stringify(cabal)} should still sign up`);
+    assert.equal(JSON.parse(fetch.calls[0].init.body).p_cabal, null);
+  }
+});
+
+test("an unknown cabal is rejected without touching the database", async () => {
+  const bad = ["hodlers", "la cadena", "cavemen,pilates", "cavemen\r\nBcc: someone@else.com", "__proto__", "caveman", 42, true, {}, ["cavemen"]];
+  for (const cabal of bad) {
+    const fetch = fakeFetch();
+    const r = await run({ fetch, body: { email: "you@email.com", cabal } });
+    assert.equal(r.status, 400, `cabal ${JSON.stringify(cabal)}`);
+    assert.match(r.body.error, /cabal/);
+    assert.equal(fetch.calls.length, 0);
+  }
+});
+
+test("the database rejecting a cabal is a 400, not a server error", async () => {
+  const r = await run({ fetch: fakeFetch({ result: "invalid_cabal" }), body: { email: "you@email.com", cabal: "cavemen" } });
+  assert.equal(r.status, 400);
+  assert.match(r.body.error, /cabal/);
+});
+
+test("the signup log records the cabal", async () => {
+  const lines = [];
+  await run({ body: { email: "you@email.com", cabal: "Degens" }, log: { ...quiet, info: (l) => lines.push(l) } });
+  assert.ok(lines.find((l) => l.includes("waitlist_signup")).includes('"cabal":"degens"'));
+});
+
+test("normalizeCabal knows season 1 and nothing else", () => {
+  assert.deepEqual(CABALS, ["cavemen", "pilates", "cadena", "degens", "undecided"]);
+  assert.equal(normalizeCabal(" CaveMen "), "cavemen");
+  assert.equal(normalizeCabal(undefined), null);
+  assert.equal(normalizeCabal("  "), null);
+  assert.equal(normalizeCabal("hodlers"), undefined);
+  assert.equal(normalizeCabal(7), undefined);
 });

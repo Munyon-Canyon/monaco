@@ -32,7 +32,7 @@ beforeEach(() => stubFetch());
 afterEach(() => { globalThis.fetch = realFetch; });
 
 test("a POST reaches handleSignup with the body, method and headers intact", async () => {
-  const res = await waitlist({ request: post({ email: " You@Email.com ", twitter: "@ada", source: "x" }), env });
+  const res = await waitlist({ request: post({ email: " You@Email.com ", twitter: "@ada", cabal: "Cavemen", source: "x" }), env });
   assert.equal(res.status, 200);
   assert.equal(res.headers.get("content-type"), "application/json");
   assert.equal(res.headers.get("cache-control"), "no-store");
@@ -43,7 +43,15 @@ test("a POST reaches handleSignup with the body, method and headers intact", asy
   const args = JSON.parse(calls[0].init.body);
   assert.equal(args.p_email, "you@email.com");
   assert.equal(args.p_twitter, "ada");
+  assert.equal(args.p_cabal, "cavemen");
   assert.equal(args.p_source, "x");
+});
+
+test("an unknown cabal is a 400 with the library's message, and the database is never called", async () => {
+  const res = await waitlist({ request: post({ email: "you@email.com", cabal: "hodlers" }), env });
+  assert.equal(res.status, 400);
+  assert.match((await res.json()).error, /cabal/);
+  assert.equal(calls.length, 0);
 });
 
 test("the request method is passed through, so a GET is still a 405", async () => {

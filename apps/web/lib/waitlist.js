@@ -10,6 +10,9 @@ const MAX_EMAIL = 254;
 const TWITTER = /^[A-Za-z0-9_]{1,15}$/;
 const MAX_SOURCE = 64;
 const BAD_TWITTER = "Enter a valid Twitter handle, like @monaco, or leave it blank.";
+// Season 1. Keep in sync with index.html and waitlist_cabal_check in migrations/000030 (test/cabals.test.js checks).
+export const CABALS = ["cavemen", "pilates", "cadena", "degens", "undecided"];
+const BAD_CABAL = "Pick one of the cabals, or undecided.";
 const DEFAULT_ORIGINS = ["https://monacolabs.xyz", "https://www.monacolabs.xyz"];
 
 export function allowedOrigins(env) {
@@ -32,6 +35,16 @@ export function normalizeTwitter(value) {
   const handle = value.trim().replace(/^@/, "");
   if (handle === "") return null;
   return TWITTER.test(handle) ? handle : undefined;
+}
+
+// Optional like the handle: absent or blank is null, a known cabal comes back lowercase,
+// anything else is undefined so the caller can reject it.
+export function normalizeCabal(value) {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string") return undefined;
+  const cabal = value.trim().toLowerCase();
+  if (cabal === "") return null;
+  return CABALS.includes(cabal) ? cabal : undefined;
 }
 
 export function clientIp(headers) {
@@ -100,10 +113,12 @@ export async function handleSignup({ method, headers, body, env, fetch, log = co
   const email = normalizeEmail(payload.email);
   if (!email) return { status: 400, body: { error: "Enter a valid email, like you@email.com." } };
 
-  // Optional, but if given it must be a real handle. The database enforces the same rule
-  // for callers that skip this page.
+  // Optional, but if given the handle must be a real one and the cabal a known one. The database
+  // enforces the same rules for callers that skip this page.
   const twitter = normalizeTwitter(payload.twitter);
   if (twitter === undefined) return { status: 400, body: { error: BAD_TWITTER } };
+  const cabal = normalizeCabal(payload.cabal);
+  if (cabal === undefined) return { status: 400, body: { error: BAD_CABAL } };
   const source = typeof payload.source === "string" ? payload.source.trim().slice(0, MAX_SOURCE) : "";
   const ua = typeof headers["user-agent"] === "string" ? headers["user-agent"].slice(0, 256) : null;
   const ipHash = hashIp(clientIp(headers), env.IP_HASH_SALT);
@@ -112,7 +127,7 @@ export async function handleSignup({ method, headers, body, env, fetch, log = co
   try {
     result = await rpc({
       fetch, env, name: "join_waitlist",
-      args: { p_email: email, p_twitter: twitter, p_source: source || null, p_ip_hash: ipHash, p_user_agent: ua },
+      args: { p_email: email, p_cabal: cabal, p_twitter: twitter, p_source: source || null, p_ip_hash: ipHash, p_user_agent: ua },
     });
   } catch (err) {
     log.error(JSON.stringify({ event: "waitlist_store_failed", message: String(err && err.message || err) }));
@@ -129,13 +144,14 @@ export async function handleSignup({ method, headers, body, env, fetch, log = co
   }
   if (result === "invalid_email") return { status: 400, body: { error: "Enter a valid email, like you@email.com." } };
   if (result === "invalid_twitter") return { status: 400, body: { error: BAD_TWITTER } };
+  if (result === "invalid_cabal") return { status: 400, body: { error: BAD_CABAL } };
   if (result !== "ok") {
     // invalid_request or anything unexpected: our request or the database is wrong, not the visitor.
     log.error(JSON.stringify({ event: "waitlist_rejected_by_db", result }));
     return { status: 500, body: { error: "The waitlist is having trouble right now. Try again in a minute." } };
   }
 
-  log.info(JSON.stringify({ event: "waitlist_signup", source: source || null, hasTwitter: Boolean(twitter) }));
+  log.info(JSON.stringify({ event: "waitlist_signup", source: source || null, cabal, hasTwitter: Boolean(twitter) }));
   // Same response for new and existing emails, so the endpoint doesn't reveal who signed up.
   return { status: 200, body: { ok: true } };
 }
