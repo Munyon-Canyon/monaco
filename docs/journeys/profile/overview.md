@@ -21,7 +21,7 @@ The format of this doc is in [App journeys](../README.md). The Old app column na
 | --- | --- |
 | P1 | Everything [auth/sign-in](../auth/sign-in.md) needs |
 | P2 | Before each scenario, `apps/mobile/qa/journeys/profile/overview.setup.sh` sets A's `auth_state` to `ONBOARDING_COMPLETED`, so no nudge banner sits above the header |
-| P3 | Before each scenario, the setup script makes A a member of a cabal named `QA overview {QA.run}` through the API, unless A already is one. It hands the test the cabal's id as `cabalID` and its name as `cabalName` |
+| P3 | Before each scenario, the setup script reads A's portfolio (`GET /v1/me/portfolio`), because Your cabals lists only cabals A holds shares in, and hands the test its largest cabal's id as `cabalID` and its name as `cabalName`. When A holds none, it creates a cabal named `QA overview {QA.run}` and hands that over, and S1.3 fails because the app lists no unfunded cabal |
 
 ## Scenarios
 
@@ -81,7 +81,7 @@ Starts signed in (auth/sign-in).
 | --- | --- | --- | --- | --- | --- |
 | S6.1 | tap, tap, then scroll to and tap | the Profile tab, `profile-settings-row`, then `profileSignOutButton` in Settings | | Within 5 s the confirm panel shows "Sign out of Monaco?" and "You can sign back in with your existing account. This does not withdraw funds or leave your cabals." | `profile-sign-out`, with "Sign out of Monaco?" |
 | S6.2 | tap | `profile-sign-out-cancel` ("Stay signed in") | | The confirm panel closes within 5 s, and the "Settings" screen still shows | "Cancel" |
-| S6.3 | tap, then tap | `profileSignOutButton`, then `profile-sign-out-confirm` | | The login form shows within 15 s, and the tab bar does not | `profile-sign-out-confirm` |
+| S6.3 | tap, then tap | `profileSignOutButton`, then `profile-sign-out-confirm` | | Within 15 s the tab bar is gone. The invite gate (`invite-paste-screen`) shows first and is skipped with `invite-skip-button`, then the login form shows | `profile-sign-out-confirm` |
 
 ### S7 Totals and pot values
 

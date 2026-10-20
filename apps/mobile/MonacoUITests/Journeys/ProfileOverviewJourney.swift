@@ -228,6 +228,9 @@ enum ProfileOverviewJourney {
             XCTAssertTrue(confirm.waitForExistence(timeout: 5), "S6.3: Sign out did not ask to confirm")
             confirm.tap()
             XCTAssertTrue(app.tab("Home").waitForNonExistence(timeout: 15), "S6.3: the tab bar stayed after sign-out")
+            if SignInJourney.currentScreen(app) == .invite {
+                app.buttons["invite-skip-button"].tap()
+            }
             XCTAssertEqual(SignInJourney.currentScreen(app), .login, "S6.3: the login form did not show")
         }
     }
