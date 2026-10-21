@@ -61,6 +61,11 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 - `analytics.CheckNoPII` also refuses a transaction signature by value, wherever it sits in a capture. It used to refuse one only under the keys `signature` and `tx_signature`.
 - `monacoctl replay` rebuilds only the projections `projectionDurables` (`cmd/monacoctl/replay.go`) names; every other consumer stays out (#3100).
 
+### Security
+
+- `POST /v1/me/sessions/revoke` ends the caller's session (`this_session`) or every session (`all_sessions`), and the verifier refuses a Privy token whose session was revoked or issued before that. The app calls it on sign-out. Banned and suspended users can call it.
+- `POST /v1/me/withdrawals/authorizations` confirms one exact withdrawal for five minutes, and `POST /v1/me/withdrawals` needs the `Withdrawal-Authorization` header for an address the caller has not received funds at or for 1,000 USDC or more (`step_up_required`, `step_up_mismatch`, `reauth_required`). Privy tokens must carry `sid` and `iat`.
+
 ## [checkpoint 4] - 2026-09-29
 
 ### Changed

@@ -11,6 +11,8 @@ final class Flow15WithdrawModelTests: XCTestCase {
                 "That's your own deposit address. Paste the address you want to send to."),
             .insufficientFunds: .toast("Not enough in your account balance."),
             .privyUnavailable: .toast("Server says no."),
+            .stepUpRequired: .toast("Server says no."),
+            .stepUpMismatch: .toast("Server says no."),
         ]
         for outcome in Flow15Outcome.allCases {
             guard let code = outcome.code else { continue }
@@ -50,6 +52,13 @@ final class Flow15WithdrawModelTests: XCTestCase {
                 XCTAssertEqual(attempt, .refused(.toast("Not enough in your account balance.")))
             case .privyUnavailable:
                 XCTAssertEqual(attempt, .unconfirmed(retryMessage: "Wallet signing is down. Try again."))
+            case .stepUpRequired:
+                XCTAssertEqual(attempt, .refused(.toast("Confirm this withdrawal to continue.")))
+            case .stepUpMismatch:
+                XCTAssertEqual(
+                    attempt,
+                    .refused(
+                        .toast("The amount or address changed after you confirmed. Confirm the withdrawal again.")))
             case .interrupted:
                 guard case .unconfirmed = attempt else {
                     XCTFail("expected an unconfirmed attempt, got \(attempt)")

@@ -193,7 +193,8 @@ func (m *Module) Mount(r api.Mount) {
 			UoW: m.deps.UoW, Users: adapters.Users{}, Balances: m.balances, Stakes: m.stakes, Clock: m.deps.Clock,
 			Hints: hints,
 		}),
-		DevX: m.devXLink(),
+		Revoke: app.NewRevokeSessionsHandler(app.RevokeSessionsDeps{UoW: m.deps.UoW, Clock: m.deps.Clock}),
+		DevX:   m.devXLink(),
 		Handles: app.NewAdminHandles(app.AdminHandlesDeps{
 			UoW: m.deps.UoW, Users: adapters.Users{}, IDs: m.deps.IDs, Clock: m.deps.Clock, Hints: hints,
 		}),

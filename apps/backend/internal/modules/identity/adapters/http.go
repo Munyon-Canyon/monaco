@@ -23,6 +23,7 @@ type HTTP struct {
 	Update    app.UpdateProfileHandler
 	Photo     app.UploadProfilePhotoHandler
 	Delete    *app.DeleteAccount
+	Revoke    *app.RevokeSessionsHandler
 	DevX      *app.DevXLink
 	Status    *app.AdminAccountStatus
 	Handles   *app.AdminHandles
@@ -218,6 +219,23 @@ func (h HTTP) DeleteMe(ctx context.Context, _ api.DeleteMeRequestObject) (api.De
 		return nil, err
 	}
 	return api.DeleteMe204Response{}, nil
+}
+
+func (h HTTP) RevokeSessions(
+	ctx context.Context, req api.RevokeSessionsRequestObject,
+) (api.RevokeSessionsResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	actor, _ := auth.ActorFrom(ctx)
+	err = h.Revoke.Handle(ctx, app.RevokeSessions{
+		UserID: user, SessionID: actor.SessionID, Scope: app.RevokeScope(req.Body.Scope),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return api.RevokeSessions204Response{}, nil
 }
 
 func (h HTTP) PostProfilePhoto(

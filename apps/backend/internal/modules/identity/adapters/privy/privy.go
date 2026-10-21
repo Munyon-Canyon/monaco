@@ -25,11 +25,16 @@ type Users struct {
 }
 
 func (u Users) Verify(ctx context.Context, raw string) (app.PrivyUserID, error) {
-	id, err := u.Client.VerifyAccessToken(ctx, raw)
+	session, err := u.VerifySession(ctx, raw)
+	return session.UserID, err
+}
+
+func (u Users) VerifySession(ctx context.Context, raw string) (app.PrivySession, error) {
+	session, err := u.Client.VerifySession(ctx, raw)
 	if err != nil {
-		return "", err
+		return app.PrivySession{}, err
 	}
-	return app.PrivyUserID(id), nil
+	return app.PrivySession{UserID: app.PrivyUserID(session.UserID), ID: session.ID, IssuedAt: session.IssuedAt}, nil
 }
 
 func (u Users) Create(ctx context.Context, email string) (app.PrivyUserID, error) {

@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -88,10 +90,14 @@ func (h *OpenSessionHandler) Handle(ctx context.Context, cmd OpenSession) (Me, e
 }
 
 func (h *OpenSessionHandler) introduce(ctx context.Context, token string) (session, error) {
-	privyID, err := h.d.Privy.Verify(ctx, token)
+	verified, err := h.d.Privy.VerifySession(ctx, token)
 	if err != nil {
 		return session{}, err
 	}
+	if err := h.refuseEnded(ctx, verified); err != nil {
+		return session{}, err
+	}
+	privyID := verified.UserID
 	user, err := h.d.Privy.User(ctx, privyID)
 	if errs.CodeOf(err) == errs.CodeNotFound {
 		return session{}, errs.Wrap(err, errs.CodeUnauthorized, "identity.OpenSession")
@@ -112,6 +118,22 @@ func (h *OpenSessionHandler) introduce(ctx context.Context, token string) (sessi
 		return session{}, err
 	}
 	return session{privyID: privyID, user: user, provider: provider, wallet: wallet, known: known}, nil
+}
+
+func (h *OpenSessionHandler) refuseEnded(ctx context.Context, s PrivySession) error {
+	const op = "identity.OpenSession"
+	row, err := sqlc.New(h.d.Reads).ActorByPrivyUserID(ctx, sqlc.ActorByPrivyUserIDParams{
+		PrivyUserID: string(s.UserID), PrivySessionID: s.ID, IssuedAt: s.IssuedAt,
+	})
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return nil
+	case err != nil:
+		return errs.Wrap(err, errs.CodeDBUnavailable, op)
+	case row.SessionEnded:
+		return errs.New(errs.CodeUnauthorized, op, slog.String("reason", "session_revoked"))
+	}
+	return nil
 }
 
 func (h *OpenSessionHandler) stored(ctx context.Context, privyID PrivyUserID) (*domain.Wallet, bool, error) {

@@ -47,6 +47,12 @@ Then the app calls `POST /v1/auth/session` with the Privy access token. The rout
 
 In the rewrite this is [flow 1](backend-platform.md#flows), owned by the `identity` module. A first sign-in appends `user.created`; every state change appends `user.auth_state_changed`. Both go through `uow.Do` in the same transaction as the row ([Patterns](backend-platform.md#patterns-and-where-each-earns-its-place)). The `analytics`, `referrals` and `social` consumers react.
 
+### Ending a session
+
+The backend checks every Privy access token offline, so a signature, issuer, audience and expiry alone cannot end a session the server already accepted. Two records make the end visible to the server. `revoked_sessions` holds the Privy session id (`sid`) of every session the user signed out of, and `users.sessions_valid_after` holds the moment the user (or an operator) ended all of their sessions. `ActorByPrivyUserID` reads both in the one query it already makes per request, and refuses a token whose `sid` is revoked or whose `iat` is at or before `sessions_valid_after` with `unauthorized` (reason `session_revoked`). `POST /v1/auth/session` makes the same check, so a revoked token cannot open a session either.
+
+`POST /v1/me/sessions/revoke` writes them. `scope: this_session` revokes the caller's `sid`; `scope: all_sessions` moves `sessions_valid_after` to now, which is the emergency control after a token is lost. The route is `x-allow-restricted`: ending a session never depends on standing, and moderation is not an incident control (a banned or suspended user can still withdraw). The app calls it on sign-out, before it asks Privy to log out. Dev tokens (outside production) carry no `sid`, so `this_session` has nothing to end for them. A token is only as revocable as the app's call: if the device is offline at sign-out, the call is lost and the copied token lives until it expires (an hour at most); the user ends it with `all_sessions` from the next signed-in device.
+
 Privy dashboard: enable SMS, email, Apple and Google as **login** methods on both Privy apps. Bundle `xyz.monacolabs.app` stays on both Privy iOS clients, and each iOS client allows the `monaco` app URL scheme, which the Apple and Google sheets redirect to.
 
 ## Onboarding

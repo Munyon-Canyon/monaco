@@ -14,3 +14,8 @@ var FundingWithdrawalNeedsSupport = Msg{
 	Name:     "funding.withdrawal.needs_support",
 	Required: []string{"withdrawal_id", "privy_action_id"},
 }
+
+var FundingWithdrawalAuthorized = Msg{
+	Name:     "funding.withdrawal.authorized",
+	Required: []string{"authorization_id", "user_id", "amount_micros", "network"},
+}

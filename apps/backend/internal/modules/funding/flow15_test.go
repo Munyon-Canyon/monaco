@@ -59,10 +59,20 @@ func TestWithdraw_aBannedMemberCanStillWithdraw(t *testing.T) {
 		member.ID.UUID()); err != nil {
 		t.Fatal(err)
 	}
+	body := `{"amount_micros":"2000000","to_address":"` + string(withdrawTo) + `"}`
 	s.Given(scenario.AsSeededUser("member", member.ID)).
-		When(scenario.Post("/v1/me/withdrawals",
-			`{"amount_micros":"2000000","to_address":"`+string(withdrawTo)+`"}`)).
+		When(flows.AuthorizeWithdrawal(body), flows.WithdrawAuthorized(body)).
 		Then(scenario.ExpectStatus(http.StatusAccepted), scenario.ExpectEvents(events.TypeWithdrawalSubmitted, 1))
+}
+
+func TestFlow15_Withdraw_StepUpRequired(t *testing.T) {
+	t.Parallel()
+	flows.F15WithdrawStepUpRequired(flow15Scenario(t))
+}
+
+func TestFlow15_Withdraw_StepUpMismatch(t *testing.T) {
+	t.Parallel()
+	flows.F15WithdrawStepUpMismatch(flow15Scenario(t))
 }
 
 func flow15Scenario(t *testing.T, extra ...scenario.Option) *scenario.Scenario {

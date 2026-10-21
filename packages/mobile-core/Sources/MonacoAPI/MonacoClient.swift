@@ -12,7 +12,18 @@ import FoundationNetworking
 #endif
 
 struct HeadersMiddleware: ClientMiddleware {
+    static let freshOperations: Set<String> = [Operations.AuthorizeWithdrawal.id]
+
     let accessToken: @Sendable () async throws -> String?
+    let freshAccessToken: @Sendable () async throws -> String?
+
+    init(
+        accessToken: @escaping @Sendable () async throws -> String?,
+        freshAccessToken: (@Sendable () async throws -> String?)? = nil
+    ) {
+        self.accessToken = accessToken
+        self.freshAccessToken = freshAccessToken ?? accessToken
+    }
 
     func intercept(
         _ request: HTTPRequest,
@@ -23,7 +34,8 @@ struct HeadersMiddleware: ClientMiddleware {
     ) async throws -> (HTTPResponse, HTTPBody?) {
         var request = request
         if operationID != Operations.GetHealthz.id {
-            guard let token = try await accessToken(), !token.isEmpty else {
+            let source = Self.freshOperations.contains(operationID) ? freshAccessToken : accessToken
+            guard let token = try await source(), !token.isEmpty else {
                 #if canImport(os)
                 Logger(subsystem: "xyz.monacolabs.app", category: "api").error(
                     "Refusing unsigned API request operation=\(operationID, privacy: .public)"

@@ -38,6 +38,8 @@ func TestVerifyAccessToken_acceptsAFixtureToken(t *testing.T) {
 			"iss": "privy.io",
 			"aud": []string{"other", appID},
 			"sub": "s",
+			"sid": "session-s",
+			"iat": now.Unix(),
 			"exp": now.Add(time.Minute).Unix(),
 		},
 	)
@@ -46,12 +48,26 @@ func TestVerifyAccessToken_acceptsAFixtureToken(t *testing.T) {
 	}
 }
 
+func TestVerifySession_namesTheSessionAndWhenItWasIssued(t *testing.T) {
+	t.Parallel()
+	issued := clock.Real{}.Now().Truncate(time.Second)
+	got, err := client(nil).VerifySession(t.Context(),
+		fakes.PrivyAccessToken(appID, "did:privy:member", issued, time.Hour))
+	want := privy.Session{UserID: "did:privy:member", ID: "session-did:privy:member", IssuedAt: issued.UTC()}
+	if err != nil || got != want {
+		t.Fatalf("VerifySession = %+v, %v, want %+v", got, err, want)
+	}
+}
+
 func TestVerifyAccessToken_refusals(t *testing.T) {
 	t.Parallel()
 	clk := testkit.NewClock(clock.Real{}.Now())
 	now := clk.Now()
 	ok := func(edit func(map[string]any)) string {
-		c := map[string]any{"iss": "privy.io", "aud": appID, "sub": "did:privy:x", "exp": now.Add(time.Hour).Unix()}
+		c := map[string]any{
+			"iss": "privy.io", "aud": appID, "sub": "did:privy:x", "sid": "session-x", "iat": now.Unix(),
+			"exp": now.Add(time.Hour).Unix(),
+		}
 		edit(c)
 		return token(c)
 	}
@@ -64,6 +80,9 @@ func TestVerifyAccessToken_refusals(t *testing.T) {
 		"other audience":  ok(func(c map[string]any) { c["aud"] = "other-app" }),
 		"audience number": ok(func(c map[string]any) { c["aud"] = 7 }),
 		"no subject":      ok(func(c map[string]any) { c["sub"] = "" }),
+		"no session":      ok(func(c map[string]any) { delete(c, "sid") }),
+		"no issued at":    ok(func(c map[string]any) { delete(c, "iat") }),
+		"issued ahead":    ok(func(c map[string]any) { c["iat"] = now.Add(time.Minute).Unix() }),
 		"other key":       fakes.SignES256(other, `{"alg":"ES256"}`, `{"iss":"privy.io","aud":"app-fixture","sub":"x","exp":9999999999}`),
 		"hs256":           fakes.SignES256(fakes.PrivyTokenKey(), `{"alg":"HS256"}`, `{"sub":"x"}`),
 		"claims not json": fakes.SignES256(fakes.PrivyTokenKey(), `{"alg":"ES256"}`, `not json`),

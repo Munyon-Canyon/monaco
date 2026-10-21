@@ -24,6 +24,34 @@ struct SessionTokensTests {
         #expect(try await tokens.accessToken() == "privy-token")
     }
 
+    @Test func aFreshTokenComesFromThePrivyRefreshAndAFreshSessionNeverHidesBehindTheCachedOne() async throws {
+        let tokens = SessionTokens(
+            privyToken: { "cached-token" },
+            refresh: { _ in "refreshed" },
+            fresh: { "minted-token" }
+        )
+
+        #expect(try await tokens.accessToken() == "cached-token")
+        #expect(try await tokens.freshAccessToken() == "minted-token")
+    }
+
+    @Test func withoutARefreshHookTheFreshTokenIsTheCachedOne() async throws {
+        let tokens = SessionTokens(privyToken: { "cached-token" }, refresh: { _ in nil })
+
+        #expect(try await tokens.freshAccessToken() == "cached-token")
+    }
+
+    @Test func aDevSessionIsItsOwnFreshToken() async throws {
+        let tokens = SessionTokens(
+            privyToken: { "cached-token" },
+            refresh: { _ in nil },
+            fresh: { "minted-token" }
+        )
+        tokens.use(DevSession(token: "dev-token", userID: "u-1"))
+
+        #expect(try await tokens.freshAccessToken() == "dev-token")
+    }
+
     @Test func refreshedTokenReturningNilFiresTheSignedOutHandler() async throws {
         let tokens = SessionTokens(
             privyToken: { "stale-token" },

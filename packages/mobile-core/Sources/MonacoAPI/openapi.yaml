@@ -1255,9 +1255,13 @@ paths:
         then broadcasts it. The withdrawal confirms later. A replay with the same Idempotency-Key returns
         the first response and sends nothing new. A banned or suspended user can still withdraw. A caller is
         limited per minute, and may send to at most five new Solana addresses in 24 hours: past either limit
-        the answer is rate_limited and nothing is signed.
+        the answer is rate_limited and nothing is signed. An address the caller has not received funds at, or an
+        amount of 1,000 USDC or more, also needs the `Withdrawal-Authorization` header from
+        `POST /v1/me/withdrawals/authorizations` for the same amount, network and address: without it the call is
+        `step_up_required`, and with a different amount, network or address it is `step_up_mismatch`.
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/WithdrawalAuthorizationId"
       requestBody:
         description: The amount and the destination address.
         required: true
@@ -1272,6 +1276,37 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/WithdrawAccepted"}
               example: {withdrawal_id: 01890a5d-ac96-774b-bcce-b302099a8057, status: submitted, tx_signature: 5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW}
+        default: {$ref: "#/components/responses/Problem"}
+  /v1/me/withdrawals/authorizations:
+    post:
+      operationId: authorizeWithdrawal
+      tags: [funding]
+      x-idempotent: false
+      x-allow-restricted: true
+      summary: Confirm one exact withdrawal before sending it.
+      description: >-
+        Records a single-use confirmation for this amount, network and address, tied to the session that asks.
+        Send its `authorization_id` in the `Withdrawal-Authorization` header of `POST /v1/me/withdrawals`. A withdrawal to an address the caller has not
+        yet received funds at, or of 1,000 USDC or more, is `step_up_required` without one. The confirmation lasts
+        five minutes and works once. Changing the amount, the network or the address after confirming is
+        `step_up_mismatch`, and a confirmation from another session is `step_up_required`. The caller's access
+        token must have been issued in the last two minutes, so a token copied earlier is `reauth_required`; the
+        app refreshes the session first. Validates the request like `POST /v1/me/withdrawals` and moves nothing.
+        A banned or suspended user can still confirm and withdraw.
+      requestBody:
+        description: The exact withdrawal to confirm.
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/WithdrawRequest"}
+            example: {amount_micros: "2000000", to_address: 9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P}
+      responses:
+        "201":
+          description: The confirmation, valid until `expires_at`.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/WithdrawalAuthorization"}
+              example: {authorization_id: 01890a5d-ac96-774b-bcce-b302099a8059, expires_at: "2026-10-21T12:05:00Z"}
         default: {$ref: "#/components/responses/Problem"}
   /v1/me/withdrawals/preview:
     post:
@@ -2305,6 +2340,35 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/Me"}
         default: {$ref: "#/components/responses/Problem"}
+  /v1/me/sessions/revoke:
+    post:
+      operationId: revokeSessions
+      tags: [identity]
+      x-idempotent: true
+      x-allow-restricted: true
+      summary: End the caller's session, or every session.
+      description: >-
+        Makes the server refuse tokens that were issued for the ended session. `this_session` ends the session
+        of the token in the Authorization header, so a copy of that token is unauthorized from then on.
+        `all_sessions` ends every session the caller has now, on every device, and is the emergency control
+        after a token is lost or stolen. Neither depends on the account's standing, so a banned or suspended user
+        can end a session and still withdraw. Calling it again changes nothing. The app calls it on sign-out,
+        before it asks Privy to log out.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: Which sessions to end.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RevokeSessionsRequest"
+            example: {scope: this_session}
+      responses:
+        "204":
+          description: The sessions are ended.
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/users:
     get:
       operationId: searchUsers
@@ -4367,6 +4431,19 @@ components:
         type: string
         format: uuid
         examples: [01890a5d-ac96-774b-bcce-b302099a8057]
+    WithdrawalAuthorizationId:
+      name: Withdrawal-Authorization
+      in: header
+      required: false
+      description: >-
+        The `authorization_id` from `POST /v1/me/withdrawals/authorizations` for exactly this amount, network and
+        address. Required for an address the caller has not received funds at, or for 1,000 USDC or more, and
+        checked whenever it is sent. It is a header, so a retry with the same Idempotency-Key can carry a fresh
+        one.
+      schema:
+        type: string
+        format: uuid
+        examples: [01890a5d-ac96-774b-bcce-b302099a8059]
   # api/spec/ranking.yaml
     LeaderboardCursor:
       name: cursor
@@ -5900,6 +5977,7 @@ components:
         - ranking_runs_stalled
         - rate_limited
         - reason_required
+        - reauth_required
         - referral_already_attached
         - referral_code_pending
         - referral_code_unknown
@@ -5914,6 +5992,8 @@ components:
         - same_approver
         - session_required
         - slippage_exceeded
+        - step_up_mismatch
+        - step_up_required
         - storage_unavailable
         - stranded_cash_taken
         - swap_failed
@@ -6187,6 +6267,21 @@ components:
           format: date-time
           description: When the withdrawal confirmed or failed. Null while it is in flight.
           examples: ["2026-10-04T15:00:10Z"]
+    WithdrawalAuthorization:
+      type: object
+      description: A single-use confirmation of one exact withdrawal.
+      required: [authorization_id, expires_at]
+      properties:
+        authorization_id:
+          type: string
+          format: uuid
+          description: The id to send in the `Withdrawal-Authorization` header.
+          examples: [01890a5d-ac96-774b-bcce-b302099a8059]
+        expires_at:
+          type: string
+          format: date-time
+          description: When the confirmation stops working.
+          examples: ["2026-10-21T12:05:00Z"]
     WithdrawalPreview:
       type: object
       description: What a withdrawal would deliver to its destination.
@@ -6982,6 +7077,18 @@ components:
             Free text. The server trims it and requires 3 to 500 characters, otherwise it answers
             reason_required.
           examples: [verified owner]
+    RevokeSessionsRequest:
+      type: object
+      description: Which of the caller's sessions to end.
+      required: [scope]
+      properties:
+        scope:
+          type: string
+          enum: [this_session, all_sessions]
+          description: >-
+            `this_session` ends the session of the token that made the call. `all_sessions` ends every session
+            the caller has, including this one.
+          examples: [this_session]
     SetHandle:
       type: object
       description: A handle to claim for the caller.

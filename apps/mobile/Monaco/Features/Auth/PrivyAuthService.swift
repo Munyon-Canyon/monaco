@@ -22,6 +22,10 @@ class PrivyAuthService: ObservableObject {
 
     private var sessionStore = MonacoSessionStore()
     private let tokenRefresh = SingleFlight<String?>()
+    private let freshTokenRefresh = SingleFlight<String?>()
+    var revokeSession: @Sendable (String) async -> Void = { token in
+        await SessionRevoker(serverURL: Config.api.baseURL).revoke(token: token)
+    }
     private var isRestoreInFlight = false
     /// The access tokens this sign-in has used. A 401 for a token that is not in here
     /// belongs to a session that has already ended, so it must neither mint a token nor
@@ -35,6 +39,7 @@ class PrivyAuthService: ObservableObject {
     #if DEBUG
     func adoptDevAccessToken(_ token: String) {
         sessionStore.clear()
+        isSigningOut = false
         adoptAccessToken(token)
     }
     #endif
@@ -163,6 +168,22 @@ class PrivyAuthService: ObservableObject {
         if let fresh, fresh != rejectedToken, accessToken != nil {
             adoptAccessToken(fresh)
         }
+        return fresh
+    }
+
+    func freshSessionToken() async throws -> String? {
+        guard accessToken != nil else { return nil }
+        let privy = self.privy
+        let fresh = try await freshTokenRefresh.run {
+            guard let user = await privy.getUser() else { return nil }
+            do {
+                try await user.refresh()
+                return try await user.getAccessToken()
+            } catch  where PrivyAuthService.isSignedOutError(error) {
+                return nil
+            }
+        }
+        if let fresh, accessToken != nil { adoptAccessToken(fresh) }
         return fresh
     }
 
@@ -323,13 +344,16 @@ class PrivyAuthService: ObservableObject {
     private func performLogout(reason: String?) {
         guard !isSigningOut else { return }
         isSigningOut = true
+        let tokenToRevoke = reason == nil ? accessToken : nil
         endSession(reason: reason)
         onSessionEnded?()
         Task { await SafariPrivyLogin.clearOnSignOut() }
 
         let privy = self.privy
         let epoch = signInEpoch
+        let revokeSession = self.revokeSession
         pendingRevoke.start { [self] in
+            if let tokenToRevoke { await revokeSession(tokenToRevoke) }
             // Someone has signed in since this revoke was scheduled: the session it was told
             // to end is no longer the one Privy holds, and revoking now would tear down the
             // session that replaced it. This is what makes giving up on the wait safe.
@@ -341,7 +365,7 @@ class PrivyAuthService: ObservableObject {
     /// Lets a new sign-in wait out a revoke that is still in flight, so a late
     /// `user.logout()` cannot tear down the session it is about to create — but only
     /// briefly. See `PendingRevoke` for why the bound matters.
-    private func awaitPendingRevoke() async {
+    func awaitPendingRevoke() async {
         await pendingRevoke.wait(atMost: Self.revokeWait)
     }
 
@@ -561,6 +585,10 @@ class PrivyAuthService: ObservableObject {
 extension PrivyAuthService: nonisolated MonacoAPI.AccessTokenProvider {
     func accessToken() async throws -> String? {
         accessToken
+    }
+
+    func freshAccessToken() async throws -> String? {
+        try await freshSessionToken()
     }
 
     func refreshedToken(replacing stale: String) async throws -> String? {

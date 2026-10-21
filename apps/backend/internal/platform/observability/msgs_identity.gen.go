@@ -12,6 +12,7 @@ func init() {
 		IdentityXConflict,
 		IdentityAccountDeleted,
 		IdentitySessionOpened,
+		IdentitySessionsRevoked,
 		IdentityOnboardingAdvanced,
 		IdentityFirstDepositBelowThreshold,
 		IdentityFirstDepositAlreadySet,

@@ -550,3 +550,24 @@ func (q *Queries) UserSubmittedWithdrawals(ctx context.Context, userID uuid.UUID
 	}
 	return items, nil
 }
+
+const withdrewToBefore = `-- name: WithdrewToBefore :one
+SELECT EXISTS (
+  SELECT 1 FROM withdrawals
+  WHERE user_id = $1 AND network = $2::text AND to_address = $3::text
+    AND status = 'confirmed'
+)::boolean AS known
+`
+
+type WithdrewToBeforeParams struct {
+	UserID    uuid.UUID
+	Network   string
+	ToAddress string
+}
+
+func (q *Queries) WithdrewToBefore(ctx context.Context, arg WithdrewToBeforeParams) (bool, error) {
+	row := q.db.QueryRow(ctx, withdrewToBefore, arg.UserID, arg.Network, arg.ToAddress)
+	var known bool
+	err := row.Scan(&known)
+	return known, err
+}

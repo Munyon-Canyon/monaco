@@ -127,6 +127,7 @@ extension Components.Schemas.ErrorCode {
         case .rankingRunsStalled: true
         case .rateLimited: true
         case .reasonRequired: true
+        case .reauthRequired: true
         case .referralAlreadyAttached: true
         case .referralCodePending: true
         case .referralCodeUnknown: true
@@ -141,6 +142,8 @@ extension Components.Schemas.ErrorCode {
         case .sameApprover: true
         case .sessionRequired: true
         case .slippageExceeded: true
+        case .stepUpMismatch: true
+        case .stepUpRequired: true
         case .storageUnavailable: true
         case .strandedCashTaken: true
         case .swapFailed: true

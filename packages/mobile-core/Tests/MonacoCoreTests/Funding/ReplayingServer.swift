@@ -21,6 +21,11 @@ actor ReplayingServer: ClientTransport {
         _ request: HTTPRequest, body _: HTTPBody?, baseURL _: URL, operationID _: String
     ) async throws -> (HTTPResponse, HTTPBody?) {
         let path = request.path.flatMap { URLComponents(string: $0)?.path } ?? ""
+        if path == "/v1/me/withdrawals/authorizations" {
+            return Self.reply(
+                .created,
+                #"{"authorization_id":"01890a5d-ac96-774b-bcce-b302099a8059","expires_at":"2026-10-21T12:05:00Z"}"#)
+        }
         guard request.method == .post else {
             guard let read = reads[path] else { return Self.reply(.notFound, "{}") }
             return Self.reply(.ok, read)

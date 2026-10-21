@@ -135,6 +135,7 @@ const (
 	RankingRunsStalled ErrorCode = "ranking_runs_stalled"
 	RateLimited ErrorCode = "rate_limited"
 	ReasonRequired ErrorCode = "reason_required"
+	ReauthRequired ErrorCode = "reauth_required"
 	ReferralAlreadyAttached ErrorCode = "referral_already_attached"
 	ReferralCodePending ErrorCode = "referral_code_pending"
 	ReferralCodeUnknown ErrorCode = "referral_code_unknown"
@@ -149,6 +150,8 @@ const (
 	SameApprover ErrorCode = "same_approver"
 	SessionRequired ErrorCode = "session_required"
 	SlippageExceeded ErrorCode = "slippage_exceeded"
+	StepUpMismatch ErrorCode = "step_up_mismatch"
+	StepUpRequired ErrorCode = "step_up_required"
 	StorageUnavailable ErrorCode = "storage_unavailable"
 	StrandedCashTaken ErrorCode = "stranded_cash_taken"
 	SwapFailed ErrorCode = "swap_failed"
@@ -425,6 +428,8 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case ReasonRequired:
 		return true
+	case ReauthRequired:
+		return true
 	case ReferralAlreadyAttached:
 		return true
 	case ReferralCodePending:
@@ -452,6 +457,10 @@ func (e ErrorCode) Valid() bool {
 	case SessionRequired:
 		return true
 	case SlippageExceeded:
+		return true
+	case StepUpMismatch:
+		return true
+	case StepUpRequired:
 		return true
 	case StorageUnavailable:
 		return true

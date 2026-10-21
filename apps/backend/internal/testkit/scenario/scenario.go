@@ -108,6 +108,7 @@ type response struct {
 
 type request struct {
 	method, path, body, key, token, contentType string
+	header, headerValue                         string
 }
 
 type Step func(s *Scenario)
@@ -261,6 +262,18 @@ func (s *Scenario) path(p string) string {
 	return p
 }
 
+func (req request) setHeaders(r *http.Request) {
+	if req.token != "" {
+		r.Header.Set("Authorization", "Bearer "+req.token)
+	}
+	if req.key != "" {
+		r.Header.Set("Idempotency-Key", req.key)
+	}
+	if req.header != "" {
+		r.Header.Set(req.header, req.headerValue)
+	}
+}
+
 func (s *Scenario) send(req request) {
 	s.t.Helper()
 	r, err := http.NewRequestWithContext(s.t.Context(), req.method, s.app.baseURL+req.path,
@@ -272,12 +285,7 @@ func (s *Scenario) send(req request) {
 		req.contentType = "application/json"
 	}
 	r.Header.Set("Content-Type", req.contentType)
-	if req.token != "" {
-		r.Header.Set("Authorization", "Bearer "+req.token)
-	}
-	if req.key != "" {
-		r.Header.Set("Idempotency-Key", req.key)
-	}
+	req.setHeaders(r)
 	if s.app.clientIP != "" {
 		r.Header.Set("X-Forwarded-For", s.app.clientIP)
 	}

@@ -62,8 +62,8 @@ final class WithdrawProgressTests: XCTestCase {
         XCTAssertEqual(withdrawal(.confirmed).solscanURL?.absoluteString, "https://solscan.io/tx/\(signature)")
     }
 
-    func testSubmitPostsTheAmountAndAddressUnderAKey() async throws {
-        let transport = StubTransport(.json(.accepted, accepted))
+    func testSubmitConfirmsTheExactWithdrawalThenPostsItUnderAKey() async throws {
+        let transport = StubTransport(scripted: [granted, .json(.accepted, accepted)])
         let withdrawing = Withdrawing(source: WithdrawSource(api: api(transport)), hints: FakeHintStream())
 
         let attempt = await withdrawing.submit(micros: 2_000_000, toAddress: address)
@@ -71,13 +71,36 @@ final class WithdrawProgressTests: XCTestCase {
         XCTAssertEqual(attempt, .accepted(withdrawal(.submitted)))
         XCTAssertEqual(withdrawing.progress, .submitted(withdrawal(.submitted)))
         let sent = await transport.sent
-        XCTAssertEqual(sent.map(\.method), [.post])
-        XCTAssertEqual(sent.first?.path, "/v1/me/withdrawals")
-        XCTAssertNotNil(sent.first?.headerFields[try keyHeader()])
+        XCTAssertEqual(sent.map(\.method), [.post, .post])
+        XCTAssertEqual(sent.map(\.path), ["/v1/me/withdrawals/authorizations", "/v1/me/withdrawals"])
+        XCTAssertNil(sent[0].headerFields[try keyHeader()])
+        XCTAssertNotNil(sent[1].headerFields[try keyHeader()])
+        XCTAssertEqual(sent[1].headerFields[try authorizationHeader()], authorization)
         let bodies = await transport.sentBodies
-        let body = try XCTUnwrap(bodies.first ?? nil)
-        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
-        XCTAssertEqual(json, ["amount_micros": "2000000", "to_address": address])
+        for sentBody in bodies {
+            let body = try XCTUnwrap(sentBody)
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
+            XCTAssertEqual(json, ["amount_micros": "2000000", "to_address": address])
+        }
+    }
+
+    func testAnAuthorizationRefusalShowsTheServersLineAndSendsNothingElse() async throws {
+        for (code, line) in [
+            (Components.Schemas.ErrorCode.reauthRequired, "Sign in again to confirm this withdrawal."),
+            (.stepUpMismatch, "The amount or address changed after you confirmed. Confirm the withdrawal again."),
+            (.stepUpRequired, "Confirm this withdrawal to continue."),
+        ] {
+            let transport = try StubTransport.problem(problem(422, code, message: line))
+            let withdrawing = withdrawing(transport)
+
+            let attempt = await withdrawing.submit(micros: 2_000_000, toAddress: address)
+
+            XCTAssertEqual(attempt, .refused(.toast(line)), "\(code)")
+            XCTAssertEqual(withdrawing.progress, .idle)
+            let paths = await transport.sent.map(\.path)
+            XCTAssertEqual(
+                paths, ["/v1/me/withdrawals/authorizations"], "nothing is sent once the confirmation is refused")
+        }
     }
 
     func testAnAddressRefusalReturnsTheInlineCopy() async throws {
@@ -94,7 +117,7 @@ final class WithdrawProgressTests: XCTestCase {
 
     func testAnUnknownOutcomeResendsTheSameKey() async throws {
         let transport = StubTransport(scripted: [
-            .failure(URLError(.timedOut)), .json(.accepted, accepted),
+            granted, .failure(URLError(.timedOut)), granted, .json(.accepted, accepted),
         ])
         let withdrawing = Withdrawing(source: WithdrawSource(api: api(transport)), hints: FakeHintStream())
 
@@ -104,8 +127,7 @@ final class WithdrawProgressTests: XCTestCase {
         let second = await withdrawing.submit(micros: 2_000_000, toAddress: address)
 
         XCTAssertEqual(second, .accepted(withdrawal(.submitted)))
-        let header = try keyHeader()
-        let keys = await transport.sent.map { $0.headerFields[header] }
+        let keys = try await withdrawKeys(transport)
         XCTAssertEqual(keys.count, 2)
         XCTAssertEqual(keys[0], keys[1])
     }
@@ -113,7 +135,8 @@ final class WithdrawProgressTests: XCTestCase {
     func testAnAnswerlessSubmitSaysToCheckTheBalanceFirst() async throws {
         let inFlight = try StubTransport.Reply.problem(problem(409, .idempotencyInFlight))
         let answerless: [[StubTransport.Reply]] = [
-            [.failure(URLError(.networkConnectionLost))], [.json(.accepted, "{")], Array(repeating: inFlight, count: 4),
+            [granted, .failure(URLError(.networkConnectionLost))], [granted, .json(.accepted, "{")],
+            Array(repeating: [granted, inFlight], count: 4).flatMap { $0 },
         ]
         for replies in answerless {
             let withdrawing = withdrawing(StubTransport(scripted: replies))
@@ -134,7 +157,9 @@ final class WithdrawProgressTests: XCTestCase {
     }
 
     func testAChangedAmountOrAddressWhileUnconfirmedSendsNothingAndTheSamePayloadKeepsTheKey() async throws {
-        let transport = StubTransport(scripted: [.failure(URLError(.timedOut)), .json(.accepted, accepted)])
+        let transport = StubTransport(scripted: [
+            granted, .failure(URLError(.timedOut)), granted, .json(.accepted, accepted),
+        ])
         let withdrawing = withdrawing(transport)
         _ = await withdrawing.submit(micros: 2_000_000, toAddress: address)
 
@@ -144,19 +169,18 @@ final class WithdrawProgressTests: XCTestCase {
         XCTAssertEqual(changedAmount, .unconfirmed(retryMessage: MoneyFlowCopy.unconfirmed.summary))
         XCTAssertEqual(changedAddress, .unconfirmed(retryMessage: MoneyFlowCopy.unconfirmed.summary))
         let afterChange = await transport.sent.count
-        XCTAssertEqual(afterChange, 1)
+        XCTAssertEqual(afterChange, 2)
         let same = await withdrawing.submit(micros: 2_000_000, toAddress: address)
         XCTAssertEqual(same, .accepted(withdrawal(.submitted)))
-        let header = try keyHeader()
-        let keys = await transport.sent.map { $0.headerFields[header] }
+        let keys = try await withdrawKeys(transport)
         XCTAssertEqual(keys.count, 2)
         XCTAssertEqual(keys[0], keys[1])
     }
 
     func testAFinalAnswerLetsADifferentAddressGoOut() async throws {
         let transport = StubTransport(scripted: [
-            .failure(URLError(.timedOut)), try .problem(problem(400, .withdrawToOwnWallet)),
-            .json(.accepted, accepted),
+            granted, .failure(URLError(.timedOut)), granted, try .problem(problem(400, .withdrawToOwnWallet)),
+            granted, .json(.accepted, accepted),
         ])
         let withdrawing = withdrawing(transport)
         _ = await withdrawing.submit(micros: 2_000_000, toAddress: address)
@@ -165,15 +189,14 @@ final class WithdrawProgressTests: XCTestCase {
         let corrected = await withdrawing.submit(micros: 2_000_000, toAddress: otherAddress)
 
         XCTAssertEqual(corrected, .accepted(withdrawal(.submitted)))
-        let header = try keyHeader()
-        let keys = await transport.sent.map { $0.headerFields[header] }
+        let keys = try await withdrawKeys(transport)
         XCTAssertEqual(keys.count, 3)
         XCTAssertNotEqual(keys[1], keys[2])
     }
 
     func testInFlightRetriesWithTheSameKey() async throws {
         let transport = StubTransport(scripted: [
-            try .problem(problem(409, .idempotencyInFlight)), .json(.accepted, accepted),
+            granted, try .problem(problem(409, .idempotencyInFlight)), granted, .json(.accepted, accepted),
         ])
         let withdrawing = Withdrawing(
             source: WithdrawSource(api: api(transport)), hints: FakeHintStream(), inFlightRetryDelay: .zero)
@@ -181,15 +204,14 @@ final class WithdrawProgressTests: XCTestCase {
         let attempt = await withdrawing.submit(micros: 2_000_000, toAddress: address)
 
         XCTAssertEqual(attempt, .accepted(withdrawal(.submitted)))
-        let header = try keyHeader()
-        let keys = await transport.sent.map { $0.headerFields[header] }
+        let keys = try await withdrawKeys(transport)
         XCTAssertEqual(keys.count, 2)
         XCTAssertEqual(keys[0], keys[1])
     }
 
     func testSettleReadsOnEveryBalanceHintUntilItConfirms() async {
         let transport = StubTransport(scripted: [
-            .json(.accepted, accepted), .json(.ok, read("submitted")), .json(.ok, read("submitted")),
+            granted, .json(.accepted, accepted), .json(.ok, read("submitted")), .json(.ok, read("submitted")),
             .json(.ok, read("confirmed")),
         ])
         let hints = FakeHintStream()
@@ -200,10 +222,10 @@ final class WithdrawProgressTests: XCTestCase {
         _ = await waitUntil {
             let subscribed = await hints.subscriberCount == 1
             let reads = await transport.sent.count
-            return subscribed && reads == 2
+            return subscribed && reads == 3
         }
         await hints.send(.changed(.user(other), what: "balance_changed", id: "1"))
-        _ = await waitUntil { await transport.sent.count == 3 }
+        _ = await waitUntil { await transport.sent.count == 4 }
         await hints.send(.resync)
 
         let progress = await settled.value
@@ -213,7 +235,7 @@ final class WithdrawProgressTests: XCTestCase {
     }
 
     func testSettleEndsAtOnceWhenTheFirstReadFailed() async {
-        let transport = StubTransport(scripted: [.json(.accepted, accepted), .json(.ok, read("failed"))])
+        let transport = StubTransport(scripted: [granted, .json(.accepted, accepted), .json(.ok, read("failed"))])
         let withdrawing = Withdrawing(source: WithdrawSource(api: api(transport)), hints: FakeHintStream())
         _ = await withdrawing.submit(micros: 2_000_000, toAddress: address)
 
@@ -238,14 +260,31 @@ final class WithdrawProgressTests: XCTestCase {
             + #""created_at":"2025-10-04T12:00:00Z","completed_at":null}"#
     }
 
-    private func problem(_ status: Int, _ code: Components.Schemas.ErrorCode) -> Components.Schemas.Problem {
+    private func problem(
+        _ status: Int, _ code: Components.Schemas.ErrorCode, message: String = "Server says no."
+    ) -> Components.Schemas.Problem {
         Components.Schemas.Problem(
-            _type: .about_colon_blank, title: "Refused", status: status, code: code, message: "Server says no.",
+            _type: .about_colon_blank, title: "Refused", status: status, code: code, message: message,
             traceId: "4bf92f3577b34da6a3ce929d0e0e4736", retryable: false)
     }
 
     private func keyHeader() throws -> HTTPField.Name {
         try XCTUnwrap(HTTPField.Name(IdempotentSubmission.keyHeader))
+    }
+
+    private func authorizationHeader() throws -> HTTPField.Name {
+        try XCTUnwrap(HTTPField.Name("Withdrawal-Authorization"))
+    }
+
+    private func withdrawKeys(_ transport: StubTransport) async throws -> [String?] {
+        let header = try keyHeader()
+        return await transport.sent.filter { $0.path == "/v1/me/withdrawals" }.map { $0.headerFields[header] }
+    }
+
+    private let authorization = "01890a5d-ac96-774b-bcce-b302099a8059"
+
+    private var granted: StubTransport.Reply {
+        .json(.created, #"{"authorization_id":"\#(authorization)","expires_at":"2026-10-21T12:05:00Z"}"#)
     }
 
     private func withdrawing(_ transport: StubTransport) -> Withdrawing {

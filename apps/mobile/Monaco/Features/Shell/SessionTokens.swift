@@ -4,6 +4,7 @@ import Synchronization
 nonisolated final class SessionTokens: AccessTokenProvider, Sendable {
     private let privyToken: @Sendable () async -> String?
     private let refresh: @Sendable (String) async throws -> String?
+    private let fresh: @Sendable () async throws -> String?
     private let signedOutHandler = Mutex<(@Sendable () -> Void)?>(nil)
     private let accountDeletedHandler = Mutex<(@Sendable () -> Void)?>(nil)
     #if DEBUG
@@ -13,16 +14,19 @@ nonisolated final class SessionTokens: AccessTokenProvider, Sendable {
     convenience init(auth: PrivyAuthService) {
         self.init(
             privyToken: { await auth.accessToken },
-            refresh: { try await auth.refreshedAccessToken(replacing: $0) }
+            refresh: { try await auth.refreshedAccessToken(replacing: $0) },
+            fresh: { try await auth.freshSessionToken() }
         )
     }
 
     init(
         privyToken: @escaping @Sendable () async -> String?,
-        refresh: @escaping @Sendable (String) async throws -> String?
+        refresh: @escaping @Sendable (String) async throws -> String?,
+        fresh: (@Sendable () async throws -> String?)? = nil
     ) {
         self.privyToken = privyToken
         self.refresh = refresh
+        self.fresh = fresh ?? { await privyToken() }
     }
 
     #if DEBUG
@@ -44,6 +48,13 @@ nonisolated final class SessionTokens: AccessTokenProvider, Sendable {
         if let token = devSession.withLock({ $0?.token }) { return token }
         #endif
         return await privyToken()
+    }
+
+    func freshAccessToken() async throws -> String? {
+        #if DEBUG
+        if let token = devSession.withLock({ $0?.token }) { return token }
+        #endif
+        return try await fresh()
     }
 
     func endSession() async {

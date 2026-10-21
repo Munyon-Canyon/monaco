@@ -113,7 +113,8 @@ func TestHTTPWithdraw_IsRateLimitedPerActor(t *testing.T) {
 	member := flows.SeedWithdrawer(s)
 	s.Given(scenario.AsSeededUser("member", member.ID)).
 		When(
-			scenario.Post("/v1/me/withdrawals", `{"amount_micros":"2000000","to_address":"`+string(withdrawTo)+`"}`),
+			flows.AuthorizeWithdrawal(`{"amount_micros":"2000000","to_address":"`+string(withdrawTo)+`"}`),
+			flows.WithdrawAuthorized(`{"amount_micros":"2000000","to_address":"`+string(withdrawTo)+`"}`),
 			scenario.ExpectStatus(http.StatusAccepted),
 			drainRateLimitBuckets(),
 			scenario.Post("/v1/me/withdrawals", `{"amount_micros":"2000000","to_address":"`+string(withdrawTo)+`"}`),
