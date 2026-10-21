@@ -68,6 +68,7 @@ type WithdrawDeps struct {
 	USDC       chain.Mint
 
 	FreshDestinationsPerDay int
+	Sponsor                 relayer.SponsorBudgets
 }
 
 type WithdrawHandler struct{ d WithdrawDeps }
@@ -93,7 +94,7 @@ func (h *WithdrawHandler) Handle(ctx context.Context, cmd Withdraw) (WithdrawRes
 	if err != nil {
 		return WithdrawResult{}, err
 	}
-	prior, replayed, err := h.create(ctx, cmd)
+	prior, plan, replayed, err := h.create(ctx, cmd)
 	if err != nil {
 		return WithdrawResult{}, err
 	}
@@ -105,7 +106,7 @@ func (h *WithdrawHandler) Handle(ctx context.Context, cmd Withdraw) (WithdrawRes
 	}
 	signed, err := transfers.Build(ctx, relayer.TransferSpec{
 		FromWallet: wallet, To: cmd.Request.To, Mint: h.d.USDC,
-		Amount: money.NewBaseUnits(cmd.Request.Amount.Uint64(), h.d.USDC.Decimals),
+		Amount: money.NewBaseUnits(cmd.Request.Amount.Uint64(), h.d.USDC.Decimals), SkipCreate: !plan.CreateAccount,
 	})
 	if err != nil {
 		return WithdrawResult{}, h.failUnsent(ctx, cmd, err)
@@ -145,12 +146,11 @@ func replayResult(row sqlc.GetWithdrawalRow) WithdrawResult {
 
 func (h *WithdrawHandler) create(
 	ctx context.Context, cmd Withdraw,
-) (prior sqlc.GetWithdrawalRow, replayed bool, err error) {
+) (prior sqlc.GetWithdrawalRow, plan relayer.SponsorPlan, replayed bool, err error) {
 	obs, observeErr := h.d.Balances.Observe(ctx, cmd.UserID)
 	err = h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		prior, replayed = sqlc.GetWithdrawalRow{}, false
-		q := sqlc.New(tx.Queries())
-		if err := q.LockWalletOutflow(ctx, cmd.UserID.UUID()); err != nil {
+		prior, plan, replayed = sqlc.GetWithdrawalRow{}, relayer.SponsorPlan{}, false
+		if err := sqlc.New(tx.Queries()).LockWalletOutflow(ctx, cmd.UserID.UUID()); err != nil {
 			return err
 		}
 		bound, again, err := cmd.Intent.Bind(ctx, tx.Queries(), cmd.ID, h.d.Clock.Now())
@@ -159,43 +159,79 @@ func (h *WithdrawHandler) create(
 		}
 		if again {
 			replayed = true
-			prior, err = GetWithdrawal(ctx, tx.Queries(), bound, cmd.UserID)
+			prior, plan, err = h.resume(ctx, tx, cmd, bound)
 			return err
 		}
-		if err := h.admit(ctx, tx, cmd, obs, observeErr); err != nil {
-			return err
-		}
-		if err := q.InsertWithdrawal(ctx, insertParams(cmd, h.d.Clock.Now())); err != nil {
-			return err
-		}
-		h.afterCommit(tx, cmd, "", domain.WithdrawalCreated)
-		return nil
+		plan, err = h.open(ctx, tx, cmd, obs, observeErr)
+		return err
 	})
-	return prior, replayed, err
+	return prior, plan, replayed, err
+}
+
+func (h *WithdrawHandler) resume(
+	ctx context.Context, tx db.Tx, cmd Withdraw, bound uuid.UUID,
+) (prior sqlc.GetWithdrawalRow, plan relayer.SponsorPlan, err error) {
+	prior, err = GetWithdrawal(ctx, tx.Queries(), bound, cmd.UserID)
+	if err != nil || domain.WithdrawalStatus(prior.Status) != domain.WithdrawalCreated {
+		return prior, plan, err
+	}
+	plan, err = h.reserve(ctx, tx, cmd, prior.ID, true)
+	return prior, plan, err
+}
+
+func (h *WithdrawHandler) open(
+	ctx context.Context, tx db.Tx, cmd Withdraw, obs port.Observation, observeErr error,
+) (relayer.SponsorPlan, error) {
+	landed, err := h.admit(ctx, tx, cmd, obs, observeErr)
+	if err != nil {
+		return relayer.SponsorPlan{}, err
+	}
+	if err := sqlc.New(tx.Queries()).InsertWithdrawal(ctx, insertParams(cmd, h.d.Clock.Now())); err != nil {
+		return relayer.SponsorPlan{}, err
+	}
+	plan, err := h.reserve(ctx, tx, cmd, cmd.ID, !landed)
+	if err != nil {
+		return relayer.SponsorPlan{}, err
+	}
+	h.afterCommit(tx, cmd, "", domain.WithdrawalCreated)
+	return plan, nil
+}
+
+func (h *WithdrawHandler) reserve(
+	ctx context.Context, tx db.Tx, cmd Withdraw, ref uuid.UUID, canCreate bool,
+) (relayer.SponsorPlan, error) {
+	if cmd.Request.Kind() == domain.DestinationEVM {
+		return relayer.SponsorPlan{}, nil
+	}
+	return h.d.Sponsor.Reserve(ctx, tx.Queries(), relayer.SponsorRequest{
+		Ref: ref, User: cmd.UserID, Destination: cmd.Request.To, CanCreate: canCreate, Now: h.d.Clock.Now(),
+	})
 }
 
 func (h *WithdrawHandler) admit(
 	ctx context.Context, tx db.Tx, cmd Withdraw, obs port.Observation, observeErr error,
-) error {
+) (landed bool, err error) {
 	const op = "funding.Withdraw.admit"
-	if err := h.refuseFreshDestinationFlood(ctx, sqlc.New(tx.Queries()), cmd); err != nil {
-		return err
+	if landed, err = h.refuseFreshDestinationFlood(ctx, sqlc.New(tx.Queries()), cmd); err != nil {
+		return false, err
 	}
 	if observeErr != nil {
-		return observeErr
+		return false, observeErr
 	}
 	balance, err := h.d.Balances.AvailableIn(ctx, tx.Queries(), obs)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if balance.AvailableMicros.Cmp(cmd.Request.Amount) < 0 {
-		return errs.New(errs.CodeInsufficientFunds, op, slog.String("available_micros",
+		return false, errs.New(errs.CodeInsufficientFunds, op, slog.String("available_micros",
 			balance.AvailableMicros.String()), slog.String("amount_micros", cmd.Request.Amount.String()))
 	}
-	return nil
+	return landed, nil
 }
 
-func (h *WithdrawHandler) refuseFreshDestinationFlood(ctx context.Context, q *sqlc.Queries, cmd Withdraw) error {
+func (h *WithdrawHandler) refuseFreshDestinationFlood(
+	ctx context.Context, q *sqlc.Queries, cmd Withdraw,
+) (landed bool, err error) {
 	const op = "funding.Withdraw.refuseFreshDestinationFlood"
 	limit := cmp.Or(h.d.FreshDestinationsPerDay, FreshDestinationsPerDay)
 	seen, err := q.FreshWithdrawalDestinations(ctx, sqlc.FreshWithdrawalDestinationsParams{
@@ -203,13 +239,13 @@ func (h *WithdrawHandler) refuseFreshDestinationFlood(ctx context.Context, q *sq
 		Since: h.d.Clock.Now().Add(-freshDestinationWindow),
 	})
 	if err != nil {
-		return err
+		return false, err
 	}
 	if !seen.DestinationKnown && seen.FreshToday >= int64(limit) {
-		return errs.New(errs.CodeRateLimited, op, slog.String("reason", "fresh_destinations"),
+		return false, errs.New(errs.CodeRateLimited, op, slog.String("reason", "fresh_destinations"),
 			slog.String("user_id", cmd.UserID.String()), slog.Int64("fresh_today", seen.FreshToday))
 	}
-	return nil
+	return seen.DestinationLanded, nil
 }
 
 func insertParams(cmd Withdraw, now time.Time) sqlc.InsertWithdrawalParams {
@@ -232,6 +268,9 @@ func (h *WithdrawHandler) failUnsent(ctx context.Context, cmd Withdraw, cause er
 			ID: cmd.ID, FailCode: string(code), CompletedAt: h.d.Clock.Now(),
 		})
 		if err != nil || moved == 0 {
+			return err
+		}
+		if err := h.d.Sponsor.Release(ctx, tx.Queries(), cmd.ID, h.d.Clock.Now()); err != nil {
 			return err
 		}
 		err = db.UnbindIntent(ctx, tx.Queries(), WithdrawOperation, cmd.ID)

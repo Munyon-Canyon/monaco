@@ -26,6 +26,7 @@ type TransferSpec struct {
 	To         chain.SolanaAddress
 	Mint       chain.Mint
 	Amount     money.BaseUnits
+	SkipCreate bool
 }
 
 type SignedTx struct {
@@ -136,8 +137,12 @@ func TransferMessage(
 	}
 	msg = append(msg, blockhash[:]...)
 	amount := binary.LittleEndian.AppendUint64([]byte{transferChecked}, spec.Amount.Uint64())
-	msg = append(msg, 2)
-	msg = append(msg, instruction(7+f, []byte{0, 2 + f, 3 + f, 4 + f, 5 + f, 6 + f}, []byte{createIdempotent})...)
+	if spec.SkipCreate {
+		msg = append(msg, 1)
+	} else {
+		msg = append(msg, 2)
+		msg = append(msg, instruction(7+f, []byte{0, 2 + f, 3 + f, 4 + f, 5 + f, 6 + f}, []byte{createIdempotent})...)
+	}
 	return append(msg, instruction(6+f, []byte{1 + f, 4 + f, 2 + f, f}, append(amount, spec.Mint.Decimals))...)
 }
 
