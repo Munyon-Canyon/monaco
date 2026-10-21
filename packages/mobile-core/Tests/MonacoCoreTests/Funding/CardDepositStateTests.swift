@@ -2,6 +2,7 @@ import Foundation
 import MonacoAPI
 import MonacoCore
 import MonacoTestSupport
+import Observation
 import Synchronization
 import XCTest
 
@@ -185,11 +186,11 @@ final class CardDepositTests: XCTestCase {
         await deposit.start(suggestedMicros: nil, cabalID: nil)
         let observer = Task { await deposit.observe() }
         addTeardownBlock { observer.cancel() }
-        _ = await waitUntil { await hints.subscriberCount == 1 }
+        await hints.waitForSubscribers(2)
 
         await hints.send(.changed(.user(userID), what: "onramp_changed", id: "1"))
 
-        let processing = await waitUntil { deposit.isProcessing }
+        let processing = await eventArrives(within: 60) { await Self.becomes { deposit.isProcessing } }
         XCTAssertTrue(processing)
         XCTAssertNil(deposit.page)
     }
@@ -336,6 +337,18 @@ final class CardDepositTests: XCTestCase {
 
     private func api(_ transport: StubTransport) -> APIClient {
         APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
+    }
+
+    private static func becomes(_ predicate: @MainActor () -> Bool) async {
+        while !predicate() {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                withObservationTracking {
+                    _ = predicate()
+                } onChange: {
+                    continuation.resume()
+                }
+            }
+        }
     }
 
     private func waitUntil(_ predicate: @escaping () async -> Bool) async -> Bool {
