@@ -5,6 +5,8 @@ import (
 	"crypto/ed25519"
 	"net/http"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
@@ -20,6 +22,57 @@ import (
 )
 
 const fundBody = `{"amount_micros":"5000000"}`
+
+func (defined) SeedsF07() map[string]Seeder {
+	return map[string]Seeder{
+		"F07FundCabalOK":                  seedFunder(nil),
+		"F07FundCabalCrashBeforeCommit":   seedFunder(nil),
+		"F07FundCabalCrashAfterSign":      seedFunder(nil),
+		"F07FundCabalCrashAfterBroadcast": seedFunder(nil),
+		"F07FundCabalInvalidInput":        seedFunder(nil),
+		"F07FundCabalNotCabalMember":      seedFundOutsider,
+		"F07FundCabalInsufficientFunds":   seedFunder(nil),
+		"F07FundCabalCabalPaused":         seedFunder(pausedCabal),
+		"F07FundCabalPotValueZero":        seedFunderOfDrainedPot,
+		"F07FundCabalPrivyUnavailable":    seedFunder(nil),
+	}
+}
+
+func seedFunder(arrange func(t testkit.SeedT, pool *pgxpool.Pool, cabal ids.CabalID)) Seeder {
+	return seedSignedInWith(func(t testkit.SeedT, pool *pgxpool.Pool, member ids.UserID) map[string]string {
+		cabal := testkit.NewCabal(t, pool, testkit.WithCreator(member))
+		if arrange != nil {
+			arrange(t, pool, cabal.ID)
+		}
+		return map[string]string{"cabal": cabal.ID.String()}
+	})
+}
+
+func seedFunderOfDrainedPot(ctx context.Context, env SeedEnv) (SeedResult, error) {
+	return seedSignedInWith(func(t testkit.SeedT, pool *pgxpool.Pool, member ids.UserID) map[string]string {
+		cabal := testkit.NewCabal(t, pool, testkit.WithCreator(member))
+		drainedPot(t, pool, cabal.ID, member)
+		return map[string]string{"cabal": cabal.ID.String()}
+	})(ctx, env)
+}
+
+func seedFundOutsider(ctx context.Context, env SeedEnv) (SeedResult, error) {
+	return seedSignedInWith(func(t testkit.SeedT, pool *pgxpool.Pool, _ ids.UserID) map[string]string {
+		return map[string]string{"cabal": testkit.NewCabal(t, pool).ID.String()}
+	})(ctx, env)
+}
+
+func pausedCabal(t testkit.SeedT, pool *pgxpool.Pool, cabal ids.CabalID) {
+	if _, err := pool.Exec(t.Context(), `INSERT INTO cabal_pauses (id, cabal_id, reason, created_at)
+		VALUES (gen_random_uuid(), $1, 'ops', now())`, cabal.UUID()); err != nil {
+		t.Fatalf("flows: pause cabal: %v", err)
+	}
+}
+
+func drainedPot(t testkit.SeedT, pool *pgxpool.Pool, cabal ids.CabalID, member ids.UserID) {
+	testkit.NewLedger(t, pool).WithFundedMember(member, cabal, money.MicrosFromUint64(1_000_000))
+	drainPot(t, pool, cabal, 1_000_000)
+}
 
 type fundSeed struct {
 	member testkit.SeededUser
@@ -148,10 +201,7 @@ func F07FundCabalInsufficientFunds(s *scenario.Scenario) {
 
 func F07FundCabalCabalPaused(s *scenario.Scenario) {
 	f := seedFund(s)
-	if _, err := s.DB().Exec(s.Context(), `INSERT INTO cabal_pauses (id, cabal_id, reason, created_at)
-		VALUES (gen_random_uuid(), $1, 'ops', now())`, f.cabal.ID.UUID()); err != nil {
-		s.Fatalf("flows: pause cabal: %v", err)
-	}
+	pausedCabal(seedT{s}, s.DB(), f.cabal.ID)
 	s.Given(scenario.AsSeededUser("member", f.member.ID)).
 		When(scenario.Post(f.path(), fundBody)).
 		Then(scenario.ExpectProblem(errs.CodeCabalPaused), scenario.ExpectEvents(events.TypeFundSubmitted, 0))
@@ -159,14 +209,13 @@ func F07FundCabalCabalPaused(s *scenario.Scenario) {
 
 func F07FundCabalPotValueZero(s *scenario.Scenario) {
 	f := seedFund(s)
-	testkit.NewLedger(seedT{s}, s.DB()).WithFundedMember(f.member.ID, f.cabal.ID, money.MicrosFromUint64(1_000_000))
-	drainPot(s, f.cabal.ID, 1_000_000)
+	drainedPot(seedT{s}, s.DB(), f.cabal.ID, f.member.ID)
 	s.Given(scenario.AsSeededUser("member", f.member.ID)).
 		When(scenario.Post(f.path(), fundBody)).
 		Then(scenario.ExpectProblem(errs.CodePotValueZero), scenario.ExpectEvents(events.TypeFundSubmitted, 0))
 }
 
-func drainPot(s *scenario.Scenario, cabal ids.CabalID, micros int64) {
+func drainPot(t testkit.SeedT, pool *pgxpool.Pool, cabal ids.CabalID, micros int64) {
 	usdc := domain.MintAsset(testkit.USDCMint)
 	out, err := domain.NewCabalTxn(domain.CabalTxnHeader{
 		ID: ids.Real{}.NewV7(), CabalID: cabal, Kind: domain.CabalSwap, Status: domain.TxnSettled,
@@ -177,12 +226,12 @@ func drainPot(s *scenario.Scenario, cabal ids.CabalID, micros int64) {
 	})
 	if err == nil {
 		ledger := app.NewLedger(testkit.USDCMint, clock.Real{})
-		err = db.New(s.DB(), ids.Real{}, clock.Real{}).Do(s.Context(), func(ctx context.Context, tx db.Tx) error {
+		err = db.New(pool, ids.Real{}, clock.Real{}).Do(t.Context(), func(ctx context.Context, tx db.Tx) error {
 			return ledger.PostCabalTxn(ctx, tx, out)
 		})
 	}
 	if err != nil {
-		s.Fatalf("flows: drain the pot: %v", err)
+		t.Fatalf("flows: drain the pot: %v", err)
 	}
 }
 

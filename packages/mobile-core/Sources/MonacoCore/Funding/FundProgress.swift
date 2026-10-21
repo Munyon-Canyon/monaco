@@ -1,5 +1,6 @@
 import Foundation
 import MonacoAPI
+import MonacoTreasury
 import Observation
 
 public enum FundProgress: Equatable, Sendable {

@@ -45,11 +45,12 @@ Each backend flow file, `packages/flows/backend/<id>.tsv`, has one app registry 
 | `MonacoCabal` | `MonacoIdentity` |
 | `MonacoSocial` | `MonacoIdentity`, `MonacoCabal` |
 | `MonacoTreasury` | `MonacoCabal` |
+| `MonacoFunding` | none |
 | `MonacoTrading` | `MonacoTreasury`, `MonacoMarket` |
 | `MonacoGovernance` | `MonacoCabal`, `MonacoTreasury` |
 | `MonacoRanking` | `MonacoCabal`, `MonacoMarket`, `MonacoTrading` |
 
-No module target imports `MonacoCore`. `MonacoCore` depends on all twelve and re-exports them in `Sources/MonacoCore/Modules.swift`, so the app and the tests keep one `import MonacoCore`.
+No module target imports `MonacoCore`. `MonacoCore` depends on all thirteen and re-exports them in `Sources/MonacoCore/Modules.swift`, so the app and the tests keep one `import MonacoCore`.
 
 A flow's model goes in `Sources/Monaco<Module>/Flow<id><Name>Model.swift`, where `<Module>` is the `module` column of the flow's row in `packages/flows/backend/<id>.tsv`. `monacoctl flows check` fails an app row with status `built` or `verified` that has no `Flow<id>*.swift` in that directory. Legacy files in `Sources/MonacoCore` move only when a rewire touches them.
 

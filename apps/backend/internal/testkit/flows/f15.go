@@ -19,6 +19,20 @@ const (
 	withdrawPoller    = "funding.withdrawals"
 )
 
+func (defined) SeedsF15() map[string]Seeder {
+	return map[string]Seeder{
+		"F15WithdrawOK":                  seedSignedIn,
+		"F15WithdrawCrashBeforeCommit":   seedSignedIn,
+		"F15WithdrawCrashAfterSign":      seedSignedIn,
+		"F15WithdrawCrashAfterBroadcast": seedSignedIn,
+		"F15WithdrawInvalidInput":        seedSignedIn,
+		"F15WithdrawInvalidAddress":      seedSignedIn,
+		"F15WithdrawWithdrawToOwnWallet": seedSignedIn,
+		"F15WithdrawInsufficientFunds":   seedSignedIn,
+		"F15WithdrawPrivyUnavailable":    seedSignedIn,
+	}
+}
+
 func SeedWithdrawer(s *scenario.Scenario) testkit.SeededUser {
 	member := testkit.SeedUser(seedT{s}, s.DB(), testkit.UserOpts{WithWallet: true})
 	member.Address = chain.AddressOf(fakes.PrivyWalletKey(member.PrivyWalletID).Public().(ed25519.PublicKey))

@@ -1,6 +1,7 @@
 import Foundation
 import MonacoAPI
 import MonacoFlows
+import MonacoTreasury
 import Observation
 
 public enum CashOutSubmitResult: Equatable, Sendable {
@@ -114,23 +115,21 @@ public final class CashOutModel {
     }
 
     private func refusal(_ error: APIError) async -> String {
-        switch Flow14Outcome(error) {
-        case .cabalPaused:
+        switch CashOutRefusal(error) {
+        case .paused:
             await load()
             return (preview?.pause ?? CabalPause(cause: .ops)).message
-        case .cashOutInProgress:
+        case .inProgress:
             return Self.inProgress
-        case .potValueChanged, .insufficientShares, .priceUnavailable:
+        case .sliceChanged:
             await load()
             return Self.sliceChanged
-        case .invalidInput:
+        case .invalidRequest:
             return Self.invalidRequest
-        case .privyUnavailable, .rPCUnavailable, .saleShort, .ok, .interrupted, nil:
-            switch error {
-            case .transport, .decoding, .cancelled: return MoneyFlowCopy.unconfirmed.summary
-            case .problem, .signedOut, .missingAccessToken, .accountDeleted, .inFlight:
-                return ToastCopy.message(for: error)
-            }
+        case .unconfirmed:
+            return MoneyFlowCopy.unconfirmed.summary
+        case .message(let message):
+            return message
         }
     }
 }
