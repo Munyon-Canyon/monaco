@@ -52,10 +52,11 @@ func (w signingWallet) SigningWallet(context.Context, ids.UserID) (chain.Wallet,
 
 type chainBalance struct{ micros uint64 }
 
-func (b chainBalance) TokenBalanceAt(
+func (b chainBalance) TokenBalancesAt(
 	context.Context, chain.SolanaAddress, chain.Mint, string,
-) (uint64, money.BaseUnits, error) {
-	return 0, money.NewBaseUnits(b.micros, 6), nil
+) (solana.TokenBalances, error) {
+	held := money.NewBaseUnits(b.micros, 6)
+	return solana.TokenBalances{Total: held, Spendable: held, Unspendable: money.NewBaseUnits(0, 6)}, nil
 }
 
 func (chainBalance) SignatureStatuses(context.Context, []chain.Signature) ([]solana.Status, error) {

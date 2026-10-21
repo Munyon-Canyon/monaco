@@ -32,11 +32,12 @@ import (
 
 type gatedChain struct{ gate *testkit.Gate }
 
-func (c gatedChain) TokenBalanceAt(
+func (c gatedChain) TokenBalancesAt(
 	context.Context, chain.SolanaAddress, chain.Mint, string,
-) (uint64, money.BaseUnits, error) {
+) (solana.TokenBalances, error) {
 	c.gate.Arrive()
-	return 0, money.NewBaseUnits(50_000_000, 6), nil
+	held := money.NewBaseUnits(50_000_000, 6)
+	return solana.TokenBalances{Total: held, Spendable: held, Unspendable: money.NewBaseUnits(0, 6)}, nil
 }
 
 func (gatedChain) SignatureStatuses(context.Context, []chain.Signature) ([]solana.Status, error) {
@@ -138,7 +139,8 @@ func TestWiredBalancesReadTheOutflowsThroughTheTransaction(t *testing.T) {
 	uow := db.New(pool, testkit.NewIDs(5), clk)
 	balances := funding.New(module.Deps{Pool: pool, Clock: clk, Config: testkit.Config()}).Balances()
 	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
-	obs := port.Observation{User: user.ID, OnChainMicros: money.MicrosFromUint64(5), At: clk.Now()}
+	five := money.MicrosFromUint64(5)
+	obs := port.Observation{User: user.ID, OnChainMicros: five, SpendableMicros: five, At: clk.Now()}
 	var got port.Balance
 	err := uow.Do(t.Context(), func(ctx context.Context, tx db.Tx) error {
 		var err error

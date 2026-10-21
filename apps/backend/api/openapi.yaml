@@ -6011,6 +6011,14 @@ components:
             USDC deposited on another chain and still being forwarded to Solana, in micros. Not spendable
             and not part of available_micros. Absent until the multichain deposit work lands.
           examples: ["0"]
+        unspendable_micros:
+          type: string
+          pattern: "^[0-9]+$"
+          description: >-
+            USDC the member wallet received in a token account other than its associated token account.
+            It is part of on_chain_micros and not part of available_micros, because sends and withdrawals
+            spend only from the associated account. Absent when there is none. Support recovers it.
+          examples: ["5000000"]
         available_micros: {type: string, pattern: "^[0-9]+$", examples: ["22500000"]}
         on_chain_micros: {type: string, pattern: "^[0-9]+$", examples: ["25000000"]}
         in_flight_micros: {type: string, pattern: "^[0-9]+$", examples: ["2500000"]}

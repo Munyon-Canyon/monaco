@@ -21,9 +21,9 @@ import (
 )
 
 type ChainReads interface {
-	TokenBalanceAt(
+	TokenBalancesAt(
 		ctx context.Context, owner chain.SolanaAddress, mint chain.Mint, commitment string,
-	) (uint64, money.BaseUnits, error)
+	) (solana.TokenBalances, error)
 	app.SignatureStatuses
 }
 
@@ -79,9 +79,11 @@ const (
 )
 
 type reading struct {
-	onChain money.Micros
-	slot    uint64
-	at      time.Time
+	onChain     money.Micros
+	spendable   money.Micros
+	unspendable money.Micros
+	slot        uint64
+	at          time.Time
 }
 
 type outflowReading struct {
@@ -114,17 +116,24 @@ func (b *Balances) observe(ctx context.Context, user ids.UserID) (port.Observati
 	}
 	flows := outflowReading{funds: funds, sent: sent, read: true}
 	b.once.Do(func() { b.rpc = b.newRPC() })
-	slot, onChain, err := b.rpc.TokenBalanceAt(ctx, address, b.usdc, inFlightEndsAt)
+	got, err := b.rpc.TokenBalancesAt(ctx, address, b.usdc, inFlightEndsAt)
 	if err != nil {
 		return port.Observation{}, flows, errs.Wrap(err, errs.CodeOf(err), op)
 	}
-	if onChain.Decimals() != b.usdc.Decimals {
+	if got.Total.Decimals() != b.usdc.Decimals || got.Spendable.Decimals() != b.usdc.Decimals ||
+		got.Unspendable.Decimals() != b.usdc.Decimals {
 		return port.Observation{}, flows, errs.New(errs.CodeDecodeFailed, op)
 	}
-	r := reading{onChain: onChainMicros(onChain), slot: slot, at: b.clock.Now()}
+	r := reading{
+		onChain: onChainMicros(got.Total), spendable: onChainMicros(got.Spendable),
+		unspendable: onChainMicros(got.Unspendable),
+		slot:        got.Slot, at: b.clock.Now(),
+	}
 	b.record(user, r)
 	obs := port.Observation{
-		User: user, OnChainMicros: r.onChain, Slot: r.slot, At: r.at, Signatures: b.landed(ctx, r.slot, funds, sent),
+		User: user, OnChainMicros: r.onChain, SpendableMicros: r.spendable, UnspendableMicros: r.unspendable,
+		Slot: r.slot, At: r.at,
+		Signatures: b.landed(ctx, r.slot, funds, sent),
 	}
 	return obs, flows, nil
 }
@@ -162,7 +171,10 @@ func (b *Balances) ForDisplay(ctx context.Context, user ids.UserID) (port.Balanc
 			return port.Balance{}, err
 		}
 	}
-	cached := port.Observation{User: user, OnChainMicros: last.onChain, Slot: last.slot, At: last.at}
+	cached := port.Observation{
+		User: user, OnChainMicros: last.onChain, SpendableMicros: last.spendable,
+		UnspendableMicros: last.unspendable, Slot: last.slot, At: last.at,
+	}
 	return b.compose(ctx, cached, flows.funds, flows.sent), nil
 }
 
@@ -181,7 +193,7 @@ func (b *Balances) lastReading(user ids.UserID) (reading, bool) {
 
 func (b *Balances) compose(ctx context.Context, obs port.Observation, funds, sent inFlight) port.Balance {
 	fund, withdrawals := funds.without(obs.Signatures), sent.without(obs.Signatures)
-	available, err := spendable(obs.OnChainMicros, fund, withdrawals)
+	available, err := spendable(obs.SpendableMicros, fund, withdrawals)
 	if err != nil {
 		observability.Degraded(ctx, observability.FundingBalanceClamped,
 			slog.String("user_id", obs.User.String()), slog.String("on_chain_micros", obs.OnChainMicros.String()),
@@ -190,7 +202,7 @@ func (b *Balances) compose(ctx context.Context, obs port.Observation, funds, sen
 	}
 	return port.Balance{
 		OnChainMicros: obs.OnChainMicros, InFlightFundMicros: fund, InFlightWithdrawalMicros: withdrawals,
-		AvailableMicros: available, AsOf: obs.At,
+		AvailableMicros: available, UnspendableMicros: obs.UnspendableMicros, AsOf: obs.At,
 	}
 }
 

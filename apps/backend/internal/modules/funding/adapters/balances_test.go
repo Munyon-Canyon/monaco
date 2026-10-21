@@ -106,10 +106,16 @@ type balanceRPC struct {
 	err    error
 }
 
-func (r balanceRPC) TokenBalanceAt(
+func (r balanceRPC) TokenBalancesAt(
 	context.Context, chain.SolanaAddress, chain.Mint, string,
-) (uint64, money.BaseUnits, error) {
-	return 0, r.amount, r.err
+) (solana.TokenBalances, error) {
+	return heldOnlyInTheAssociatedAccount(r.amount), r.err
+}
+
+func heldOnlyInTheAssociatedAccount(amount money.BaseUnits) solana.TokenBalances {
+	return solana.TokenBalances{
+		Total: amount, Spendable: amount, Unspendable: money.NewBaseUnits(0, amount.Decimals()),
+	}
 }
 
 type balanceOutflows struct {
@@ -234,12 +240,12 @@ func (r *flakyRPC) fail(err error) {
 	r.err = err
 }
 
-func (r *flakyRPC) TokenBalanceAt(
+func (r *flakyRPC) TokenBalancesAt(
 	context.Context, chain.SolanaAddress, chain.Mint, string,
-) (uint64, money.BaseUnits, error) {
+) (solana.TokenBalances, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return 0, r.amount, r.err
+	return heldOnlyInTheAssociatedAccount(r.amount), r.err
 }
 
 type mutableOutflows struct {
@@ -426,10 +432,10 @@ func TestBalance_ForDisplayServesTheReadingOnlyWhenNoOutflowMovedSince(t *testin
 
 type commitmentRPC map[string]money.BaseUnits
 
-func (r commitmentRPC) TokenBalanceAt(
+func (r commitmentRPC) TokenBalancesAt(
 	_ context.Context, _ chain.SolanaAddress, _ chain.Mint, commitment string,
-) (uint64, money.BaseUnits, error) {
-	return 0, r[commitment], nil
+) (solana.TokenBalances, error) {
+	return heldOnlyInTheAssociatedAccount(r[commitment]), nil
 }
 
 func (commitmentRPC) SignatureStatuses(context.Context, []chain.Signature) ([]solana.Status, error) {
@@ -500,10 +506,12 @@ type landingRPC struct {
 	calls     int
 }
 
-func (r *landingRPC) TokenBalanceAt(
+func (r *landingRPC) TokenBalancesAt(
 	context.Context, chain.SolanaAddress, chain.Mint, string,
-) (uint64, money.BaseUnits, error) {
-	return r.slot, money.NewBaseUnits(r.onChain, 6), nil
+) (solana.TokenBalances, error) {
+	got := heldOnlyInTheAssociatedAccount(money.NewBaseUnits(r.onChain, 6))
+	got.Slot = r.slot
+	return got, nil
 }
 
 func (r *landingRPC) SignatureStatuses(_ context.Context, sigs []chain.Signature) ([]solana.Status, error) {
@@ -675,5 +683,127 @@ func TestBalance_AvailableNeverOverstatesWhenThePollerConfirmsMidRead(t *testing
 		Available(t.Context(), ids.UserIDFrom(ids.Real{}.NewV7()))
 	if err != nil || got.AvailableMicros.Uint64() > 10_000_000 {
 		t.Fatalf("Available = %+v, %v, want at most the 10 USDC left after the 50 still created", got, err)
+	}
+}
+
+type splitRPC struct {
+	noStatuses
+	balances solana.TokenBalances
+}
+
+func (r splitRPC) TokenBalancesAt(
+	context.Context, chain.SolanaAddress, chain.Mint, string,
+) (solana.TokenBalances, error) {
+	return r.balances, nil
+}
+
+func splitBalances(spendable, stranded uint64, funds, withdrawals money.Micros) *adapters.Balances {
+	return adapters.NewBalances(
+		balanceWallets{address: "wallet"},
+		func() adapters.ChainReads {
+			return splitRPC{balances: solana.TokenBalances{
+				Total:       money.NewBaseUnits(spendable+stranded, 6),
+				Spendable:   money.NewBaseUnits(spendable, 6),
+				Unspendable: money.NewBaseUnits(stranded, 6),
+			}}
+		},
+		adapters.Outflows{Funds: balanceOutflows{amount: funds}, Withdrawals: balanceOutflows{amount: withdrawals}},
+		testkit.NewClock(time.Date(2026, 10, 20, 0, 0, 0, 0, time.UTC)), chain.Mint{Address: "usdc", Decimals: 6},
+	)
+}
+
+func TestBalance_FundsOnlyInAnotherAccountAreNotAvailable(t *testing.T) {
+	t.Parallel()
+	user := ids.UserIDFrom(ids.Real{}.NewV7())
+	b := splitBalances(0, 40_000_000, money.Micros{}, money.Micros{})
+	got, err := b.Available(t.Context(), user)
+	if err != nil || got.OnChainMicros.String() != "40000000" || got.UnspendableMicros.String() != "40000000" ||
+		!got.AvailableMicros.IsZero() {
+		t.Fatalf("Available = %+v, %v, want 40 USDC received and none available", got, err)
+	}
+}
+
+func TestBalance_SplitAcrossTwoAccountsShowsTheSplit(t *testing.T) {
+	t.Parallel()
+	user := ids.UserIDFrom(ids.Real{}.NewV7())
+	b := splitBalances(25_000_000, 15_000_000, money.MicrosFromUint64(5_000_000), money.MicrosFromUint64(2_000_000))
+	got, err := b.Available(t.Context(), user)
+	if err != nil || got.OnChainMicros.String() != "40000000" || got.UnspendableMicros.String() != "15000000" ||
+		got.AvailableMicros.String() != "18000000" {
+		t.Fatalf("Available = %+v, %v, want 40 received, 15 unspendable, 18 available", got, err)
+	}
+}
+
+func TestBalance_AvailableNeverCountsUnspendableFunds(t *testing.T) {
+	t.Parallel()
+	user := ids.UserIDFrom(ids.Real{}.NewV7())
+	rapid.Check(t, func(rt *rapid.T) {
+		spendable := rapid.Uint64Range(0, 1_000_000_000).Draw(rt, "spendable")
+		stranded := rapid.Uint64Range(0, 1_000_000_000).Draw(rt, "stranded")
+		fund := rapid.Uint64Range(0, 1_000_000_000).Draw(rt, "fund")
+		b := splitBalances(spendable, stranded, money.MicrosFromUint64(fund), money.Micros{})
+		got, err := b.Available(rt.Context(), user)
+		if err != nil {
+			rt.Fatalf("Available error = %v", err)
+		}
+		want := uint64(0)
+		if spendable > fund {
+			want = spendable - fund
+		}
+		if got.AvailableMicros != money.MicrosFromUint64(want) ||
+			got.OnChainMicros != money.MicrosFromUint64(spendable+stranded) ||
+			got.UnspendableMicros != money.MicrosFromUint64(stranded) {
+			rt.Fatalf("Available = %+v for spendable %d, stranded %d, fund %d", got, spendable, stranded, fund)
+		}
+	})
+}
+
+func TestBalance_RejectsASpendableAmountInOtherDecimals(t *testing.T) {
+	t.Parallel()
+	b := adapters.NewBalances(
+		balanceWallets{address: "wallet"},
+		func() adapters.ChainReads {
+			return splitRPC{balances: solana.TokenBalances{
+				Total:       money.NewBaseUnits(1, 6),
+				Spendable:   money.NewBaseUnits(1, 9),
+				Unspendable: money.NewBaseUnits(0, 6),
+			}}
+		},
+		adapters.Outflows{Funds: balanceOutflows{}, Withdrawals: balanceOutflows{}},
+		testkit.NewClock(time.Time{}), chain.Mint{Address: "usdc", Decimals: 6},
+	)
+	_, err := b.Available(t.Context(), ids.UserIDFrom(ids.Real{}.NewV7()))
+	if errs.CodeOf(err) != errs.CodeDecodeFailed {
+		t.Fatalf("Available error = %v, want decode_failed", err)
+	}
+}
+
+func TestHTTPGetMyBalance_reportsUnspendableFundsOnlyWhenThereAreSome(t *testing.T) {
+	t.Parallel()
+	user := ids.UserIDFrom(ids.Real{}.NewV7())
+	ctx := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: user.String()})
+	seven := "7"
+	for name, tc := range map[string]struct {
+		held money.Micros
+		want *string
+	}{
+		"none": {held: money.Micros{}},
+		"some": {held: money.MicrosFromUint64(7), want: &seven},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h := adapters.HTTP{
+				Balances: fixedBalances{balance: port.Balance{UnspendableMicros: tc.held}},
+				Wallets:  balanceWallets{address: "wallet"},
+			}
+			got, err := h.GetMyBalance(ctx, api.GetMyBalanceRequestObject{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			have := got.(api.GetMyBalance200JSONResponse).UnspendableMicros
+			if (have == nil) != (tc.want == nil) || (have != nil && *have != *tc.want) {
+				t.Fatalf("UnspendableMicros = %v, want %v", have, tc.want)
+			}
+		})
 	}
 }

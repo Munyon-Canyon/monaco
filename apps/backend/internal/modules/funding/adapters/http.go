@@ -141,8 +141,16 @@ func (h HTTP) GetMyBalance(
 	return api.GetMyBalance200JSONResponse(api.Balance{
 		AvailableMicros: balance.AvailableMicros.String(), OnChainMicros: balance.OnChainMicros.String(),
 		InFlightMicros: inFlight.String(), DepositAddress: string(address), AsOf: balance.AsOf,
-		ArrivingMicros: h.arrivingMicros(ctx, user),
+		ArrivingMicros: h.arrivingMicros(ctx, user), UnspendableMicros: unspendable(balance),
 	}), nil
+}
+
+func unspendable(balance port.Balance) *string {
+	if balance.UnspendableMicros.IsZero() {
+		return nil
+	}
+	value := balance.UnspendableMicros.String()
+	return &value
 }
 
 func (h HTTP) CreateOnrampSession(

@@ -61,8 +61,42 @@ func (t *Transfers) Build(ctx context.Context, spec TransferSpec) (SignedTx, err
 		return SignedTx{}, err
 	}
 	msg := TransferMessage(t.relayer.address, spec, mint.TokenProgram, hash.Hash)
+	return t.sign(ctx, op, spec.FromWallet.ID, msg, hash.LastValidBlockHeight)
+}
+
+type ConsolidationSpec struct {
+	Wallet chain.Wallet
+	Source chain.SolanaAddress
+	Mint   chain.Mint
+	Amount money.BaseUnits
+}
+
+func (t *Transfers) BuildConsolidation(ctx context.Context, spec ConsolidationSpec) (SignedTx, error) {
+	const op = "relayer.Transfers.BuildConsolidation"
+	mint, err := t.relayer.rpc.MintConfig(ctx, spec.Mint.Address)
+	if err != nil {
+		return SignedTx{}, err
+	}
+	canonical, err := validateConsolidation(op, t.relayer.address, spec, mint.TokenProgram)
+	if err != nil {
+		return SignedTx{}, err
+	}
+	if mint.Mint.Decimals != spec.Mint.Decimals {
+		return SignedTx{}, errs.New(errs.CodeInvalidInput, op, slog.String("reason", "mint decimals"))
+	}
+	hash, err := t.relayer.rpc.LatestBlockhash(ctx)
+	if err != nil {
+		return SignedTx{}, err
+	}
+	msg := ConsolidationMessage(t.relayer.address, spec, canonical, mint.TokenProgram, hash.Hash)
+	return t.sign(ctx, op, spec.Wallet.ID, msg, hash.LastValidBlockHeight)
+}
+
+func (t *Transfers) sign(
+	ctx context.Context, op, walletID string, msg []byte, lastValidBlockHeight uint64,
+) (SignedTx, error) {
 	unsigned := chain.Transaction{Signatures: [][]byte{make([]byte, 64), make([]byte, 64)}, Message: msg}
-	raw, err := t.signer.SignTransaction(ctx, spec.FromWallet.ID, unsigned.Encode())
+	raw, err := t.signer.SignTransaction(ctx, walletID, unsigned.Encode())
 	if err != nil {
 		return SignedTx{}, err
 	}
@@ -72,7 +106,7 @@ func (t *Transfers) Build(ctx context.Context, spec TransferSpec) (SignedTx, err
 			errs.CodeInternal,
 			op,
 			slog.String("reason", "wallet signature does not cover the built message"),
-			slog.String("wallet_id", spec.FromWallet.ID),
+			slog.String("wallet_id", walletID),
 		)
 	}
 	if err := tx.Sign(t.relayer.key); err != nil {
@@ -81,7 +115,7 @@ func (t *Transfers) Build(ctx context.Context, spec TransferSpec) (SignedTx, err
 	return SignedTx{
 		Bytes:                tx.Encode(),
 		Signature:            chain.SignatureOf(tx.Signatures[0]),
-		LastValidBlockHeight: hash.LastValidBlockHeight,
+		LastValidBlockHeight: lastValidBlockHeight,
 	}, nil
 }
 
@@ -112,6 +146,45 @@ func validate(op string, payer chain.SolanaAddress, spec TransferSpec) error {
 		return errs.New(errs.CodeInvalidInput, op, slog.String("reason", "amount, decimals or recipient"))
 	}
 	return nil
+}
+
+func validateConsolidation(
+	op string, payer chain.SolanaAddress, spec ConsolidationSpec, program chain.SolanaAddress,
+) (chain.SolanaAddress, error) {
+	for _, a := range []chain.SolanaAddress{spec.Wallet.Address, spec.Source, spec.Mint.Address} {
+		if _, err := chain.ParseAddress(string(a)); err != nil {
+			return "", errs.Wrap(err, errs.CodeInvalidAddress, op)
+		}
+	}
+	canonical, _ := chain.AssociatedTokenAccount(spec.Wallet.Address, spec.Mint.Address, program)
+	if spec.Amount.IsZero() || spec.Amount.Decimals() != spec.Mint.Decimals ||
+		spec.Wallet.Address == payer || spec.Source == canonical {
+		return "", errs.New(errs.CodeInvalidInput, op, slog.String("reason", "amount, wallet or source"))
+	}
+	return canonical, nil
+}
+
+func ConsolidationMessage(
+	payer chain.SolanaAddress,
+	spec ConsolidationSpec,
+	canonical chain.SolanaAddress,
+	program chain.SolanaAddress,
+	blockhash [32]byte,
+) []byte {
+	keys := []chain.SolanaAddress{
+		payer, spec.Wallet.Address, spec.Source, canonical,
+		spec.Mint.Address, chain.SystemProgram, program, chain.ATAProgram,
+	}
+	msg := slices.Concat([]byte{2, 1, 4}, chain.CompactU16(len(keys)))
+	for _, k := range keys {
+		b, _ := k.Bytes()
+		msg = append(msg, b...)
+	}
+	msg = append(msg, blockhash[:]...)
+	amount := binary.LittleEndian.AppendUint64([]byte{transferChecked}, spec.Amount.Uint64())
+	msg = append(msg, 2)
+	msg = append(msg, instruction(7, []byte{0, 3, 1, 4, 5, 6}, []byte{createIdempotent})...)
+	return append(msg, instruction(6, []byte{2, 4, 3, 1}, append(amount, spec.Mint.Decimals))...)
 }
 
 func TransferMessage(
