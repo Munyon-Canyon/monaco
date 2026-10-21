@@ -19,11 +19,11 @@ type lossyStore struct {
 	failComplete atomic.Bool
 }
 
-func (s *lossyStore) Complete(ctx context.Context, actor, key string, resp db.StoredResponse) error {
+func (s *lossyStore) Complete(ctx context.Context, ref db.ClaimRef, resp db.StoredResponse) error {
 	if s.failComplete.Load() {
 		return dbDown()
 	}
-	return s.IdempotencyStore.Complete(ctx, actor, key, resp)
+	return s.IdempotencyStore.Complete(ctx, ref, resp)
 }
 
 type moneyProbe struct {

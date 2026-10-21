@@ -20,4 +20,5 @@ type IdempotencyKey struct {
 	ResponseHeaders []byte
 	CreatedAt       time.Time
 	CompletedAt     pgtype.Timestamptz
+	ClaimGeneration int64
 }

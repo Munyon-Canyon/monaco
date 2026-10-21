@@ -31,8 +31,8 @@ const (
 
 type IdempotencyStore interface {
 	Begin(ctx context.Context, actorKey, key string, requestHash []byte) (db.Claim, error)
-	Complete(ctx context.Context, actorKey, key string, resp db.StoredResponse) error
-	Release(ctx context.Context, actorKey, key string) error
+	Complete(ctx context.Context, ref db.ClaimRef, resp db.StoredResponse) error
+	Release(ctx context.Context, ref db.ClaimRef) error
 }
 
 func Idempotency(store IdempotencyStore) func(http.Handler) http.Handler {
@@ -142,7 +142,7 @@ func (c claimed) serve(ctx context.Context, next http.Handler) {
 	attr := slog.String("idempotency_key", c.key)
 	switch claim.Outcome {
 	case db.ClaimOwned:
-		c.execute(ctx, next)
+		c.execute(ctx, next, claim.Ref)
 	case db.ClaimInFlight:
 		Problem(c.w, c.r, errs.New(errs.CodeIdempotencyInFlight, op, attr))
 	case db.ClaimMismatch:
@@ -172,12 +172,12 @@ func IntentKey(ctx context.Context, operation string) db.IntentKey {
 	return db.IntentKey{ActorKey: scope.actor, Key: scope.key, Operation: operation, RequestHash: scope.hash}
 }
 
-func (c claimed) execute(ctx context.Context, next http.Handler) {
+func (c claimed) execute(ctx context.Context, next http.Handler, ref db.ClaimRef) {
 	rec := &capture{header: http.Header{}}
 	finished := false
 	defer func() {
 		if !finished {
-			_ = c.release(ctx)
+			_ = c.release(ctx, ref)
 		}
 	}()
 	scope := intentScope{actor: c.actor, key: c.key, hash: c.hash}
@@ -187,23 +187,23 @@ func (c claimed) execute(ctx context.Context, next http.Handler) {
 	if resp.Status >= http.StatusInternalServerError {
 		observability.Info(ctx, observability.HTTPIdempotencyReleased,
 			slog.String("idempotency_key", c.key), slog.Int("status", resp.Status))
-		c.logStoreFailure(ctx, c.release(ctx), resp.Status)
+		c.logStoreFailure(ctx, c.release(ctx, ref), resp.Status)
 	} else {
-		c.logStoreFailure(ctx, c.complete(ctx, resp), resp.Status)
+		c.logStoreFailure(ctx, c.complete(ctx, ref, resp), resp.Status)
 	}
 	writeStored(c.w, resp)
 }
 
-func (c claimed) release(ctx context.Context) error {
+func (c claimed) release(ctx context.Context, ref db.ClaimRef) error {
 	ctx, cancel := storeContext(ctx)
 	defer cancel()
-	return c.store.Release(ctx, c.actor, c.key)
+	return c.store.Release(ctx, ref)
 }
 
-func (c claimed) complete(ctx context.Context, resp db.StoredResponse) error {
+func (c claimed) complete(ctx context.Context, ref db.ClaimRef, resp db.StoredResponse) error {
 	ctx, cancel := storeContext(ctx)
 	defer cancel()
-	return c.store.Complete(ctx, c.actor, c.key, resp)
+	return c.store.Complete(ctx, ref, resp)
 }
 
 func (c claimed) logStoreFailure(ctx context.Context, err error, status int) {

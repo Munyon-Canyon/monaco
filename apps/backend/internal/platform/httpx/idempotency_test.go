@@ -23,8 +23,8 @@ import (
 
 type stubStore struct {
 	begin    func(ctx context.Context, actor, key string, hash []byte) (db.Claim, error)
-	complete func(ctx context.Context, actor, key string, resp db.StoredResponse) error
-	release  func(ctx context.Context, actor, key string) error
+	complete func(ctx context.Context, ref db.ClaimRef, resp db.StoredResponse) error
+	release  func(ctx context.Context, ref db.ClaimRef) error
 }
 
 func (s stubStore) Begin(ctx context.Context, actor, key string, hash []byte) (db.Claim, error) {
@@ -34,18 +34,18 @@ func (s stubStore) Begin(ctx context.Context, actor, key string, hash []byte) (d
 	return s.begin(ctx, actor, key, hash)
 }
 
-func (s stubStore) Complete(ctx context.Context, actor, key string, resp db.StoredResponse) error {
+func (s stubStore) Complete(ctx context.Context, ref db.ClaimRef, resp db.StoredResponse) error {
 	if s.complete == nil {
 		return errs.New(errs.CodeInternal, "stubStore.Complete")
 	}
-	return s.complete(ctx, actor, key, resp)
+	return s.complete(ctx, ref, resp)
 }
 
-func (s stubStore) Release(ctx context.Context, actor, key string) error {
+func (s stubStore) Release(ctx context.Context, ref db.ClaimRef) error {
 	if s.release == nil {
 		return errs.New(errs.CodeInternal, "stubStore.Release")
 	}
-	return s.release(ctx, actor, key)
+	return s.release(ctx, ref)
 }
 
 func realStore(t *testing.T, h *harness) *db.IdempotencyStore {
@@ -519,7 +519,7 @@ func TestIdempotency_storeFailure_completeFailsAfterTheHandlerRan(t *testing.T) 
 	t.Parallel()
 	h := newHarness(t)
 	next := &countingHandler{serve: createsThing}
-	store := stubStore{begin: owned, complete: func(context.Context, string, string, db.StoredResponse) error {
+	store := stubStore{begin: owned, complete: func(context.Context, db.ClaimRef, db.StoredResponse) error {
 		return dbDown()
 	}}
 	rec := send(t, idempotent(h, store, next), http.MethodPost, "/v1/things", "k1", `{}`)
@@ -539,7 +539,7 @@ func TestIdempotency_storeFailure_releaseFailsAfterA5xx(t *testing.T) {
 	next := &countingHandler{serve: func(w http.ResponseWriter, r *http.Request) {
 		Problem(w, r, errs.New(errs.CodeInternal, "x.Y"))
 	}}
-	store := stubStore{begin: owned, release: func(context.Context, string, string) error { return dbDown() }}
+	store := stubStore{begin: owned, release: func(context.Context, db.ClaimRef) error { return dbDown() }}
 	rec := send(t, idempotent(h, store, next), http.MethodPost, "/v1/things", "k1", `{}`)
 	failed := linesNamed(h.logs.lines(t), "http.idempotency.store_failed")
 	if rec.Code != 500 || len(failed) != 1 || failed[0]["status"] != 500.0 {
