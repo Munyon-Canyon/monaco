@@ -1,5 +1,6 @@
 import Foundation
 import MonacoAPI
+import MonacoFunding
 import Observation
 
 public enum WithdrawProgress: Equatable, Sendable {

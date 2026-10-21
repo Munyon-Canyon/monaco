@@ -1,6 +1,7 @@
 package flows
 
 import (
+	"context"
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
@@ -10,11 +11,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/chainfake"
@@ -30,6 +34,74 @@ const (
 	f14Stake       = 2_000_000
 	rpcAttempts    = 3
 )
+
+func (defined) SeedsF14() map[string]Seeder {
+	return map[string]Seeder{
+		"F14CashOutOK":                           seedCashOuter(nil),
+		"F14CashOutInvalidInput":                 seedCashOuter(nil),
+		"F14CashOutPotValueChanged":              seedCashOuter(otherMemberReserved),
+		"F14CashOutInsufficientShares":           seedCashOuterWithoutStake,
+		"F14CashOutCashOutInProgress":            seedCashOuter(nil),
+		"F14CashOutCabalPaused":                  seedCashOuter(pausedCabal),
+		"F14CashOutPriceUnavailable":             seedCashOuter(heldUnpriced),
+		"F14CashOutPayoutsPrivyUnavailable":      seedCashOuter(nil),
+		"F14CashOutPayoutsRPCUnavailable":        seedCashOuter(nil),
+		"F14CashOutPayoutsSaleShort":             seedCashOuter(heldStock("short")),
+		"F14CashOutPayoutsCrashAfterSellRequest": seedCashOuter(heldStock("sellcrash")),
+		"F14CashOutPayoutsCrashAfterSellConfirm": seedCashOuter(heldStock("confirmcrash")),
+		"F14CashOutPayoutsCrashAfterSign":        seedCashOuter(nil),
+		"F14CashOutPayoutsCrashAfterBroadcast":   seedCashOuter(nil),
+		"F14CashOutPayoutsCrashBeforeCommit":     seedCashOuter(nil),
+	}
+}
+
+func seedCashOuterWithoutStake(ctx context.Context, env SeedEnv) (SeedResult, error) {
+	return seedSignedInWith(func(t testkit.SeedT, pool *pgxpool.Pool, member ids.UserID) map[string]string {
+		return map[string]string{"cabal": testkit.NewCabal(t, pool, testkit.WithCreator(member)).ID.String()}
+	})(ctx, env)
+}
+
+func seedCashOuter(arrange func(t testkit.SeedT, pool *pgxpool.Pool, cabal ids.CabalID)) Seeder {
+	return seedSignedInWith(func(t testkit.SeedT, pool *pgxpool.Pool, member ids.UserID) map[string]string {
+		cabal := testkit.NewCabal(t, pool, testkit.WithCreator(member))
+		testkit.NewLedger(t, pool).WithFundedMember(member, cabal.ID, money.MicrosFromUint64(f14Stake))
+		if arrange != nil {
+			arrange(t, pool, cabal.ID)
+		}
+		return map[string]string{"cabal": cabal.ID.String()}
+	})
+}
+
+func otherMemberReserved(t testkit.SeedT, pool *pgxpool.Pool, cabal ids.CabalID) {
+	now := time.Now().UTC()
+	if _, err := pool.Exec(t.Context(), `INSERT INTO cash_out_jobs
+		(id, cabal_id, user_id, share_units, payout_micros, slice_micros, status, created_at, updated_at)
+		VALUES (gen_random_uuid(), $1, gen_random_uuid(), 1, $2, $2, 'started', $3, $3)`,
+		cabal.UUID(), f14Stake+1, now); err != nil {
+		t.Fatalf("flows: reserve another member's cash out: %v", err)
+	}
+}
+
+func heldUnpriced(t testkit.SeedT, pool *pgxpool.Pool, cabal ids.CabalID) {
+	testkit.NewLedger(t, pool).WithHolding(cabal, unpricedMint, money.NewBaseUnits(1, 6))
+}
+
+func heldStock(script string) func(t testkit.SeedT, pool *pgxpool.Pool, cabal ids.CabalID) {
+	return func(t testkit.SeedT, pool *pgxpool.Pool, cabal ids.CabalID) {
+		mint, now := f14Stock(script), time.Now().UTC()
+		if _, err := pool.Exec(t.Context(), `INSERT INTO assets (
+			id, symbol, mint, decimals, issuer, kind, display_name, issuer_tradable, company_key, first_seen_at, updated_at, chain_checked_at)
+			VALUES ($4, $1, $2, 8, 'xstocks', 'equity', $1, true, $1, $3, $3, $3)`,
+			"F14"+script+"x", string(mint), now, uuid.Must(uuid.NewV7())); err != nil {
+			t.Fatalf("flows: seed the held stock: %v", err)
+		}
+		if _, err := pool.Exec(t.Context(), `INSERT INTO price_points (mint, ts, price_micros, source)
+			VALUES ($1, $2, 100000000, 'jupiter')`, string(mint), now); err != nil {
+			t.Fatalf("flows: price the held stock: %v", err)
+		}
+		testkit.NewLedger(t, pool).WithHolding(cabal, mint, money.NewBaseUnits(f14StockUnits, 6))
+	}
+}
 
 func (defined) WorkerEnvF14() []string { return []string{"RELAYER_PRIVATE_KEY=" + CashOutRelayerKey()} }
 
@@ -227,13 +299,7 @@ func F14CashOutInvalidInput(s *scenario.Scenario) {
 
 func F14CashOutPotValueChanged(s *scenario.Scenario) {
 	s.Given(append(f14Staked("potmoved"), func(s *scenario.Scenario) {
-		now := time.Now().UTC()
-		if _, err := s.DB().Exec(s.Context(), `INSERT INTO cash_out_jobs
-			(id, cabal_id, user_id, share_units, payout_micros, slice_micros, status, created_at, updated_at)
-			VALUES (gen_random_uuid(), $1, gen_random_uuid(), 1, $2, $2, 'started', $3, $3)`,
-			s.Recall("cabal"), f14Stake+1, now); err != nil {
-			s.Fatalf("flows: reserve another member's cash out: %v", err)
-		}
+		otherMemberReserved(seedT{s}, s.DB(), cabalIn(s))
 	})...).
 		When(scenario.Post(cashOutsPath, cashOutOf("1000000"))).
 		Then(append(cashOutRefused(errs.CodePotValueChanged), sharesHeld("2000000"))...)
@@ -262,10 +328,7 @@ func F14CashOutCashOutInProgress(s *scenario.Scenario) {
 
 func F14CashOutCabalPaused(s *scenario.Scenario) {
 	s.Given(append(f14Staked("paused"), func(s *scenario.Scenario) {
-		if _, err := s.DB().Exec(s.Context(), `INSERT INTO cabal_pauses (id, cabal_id, reason, created_at)
-			VALUES (gen_random_uuid(), $1, 'ops', $2)`, s.Recall("cabal"), time.Now().UTC()); err != nil {
-			s.Fatalf("flows: pause the cabal: %v", err)
-		}
+		pausedCabal(seedT{s}, s.DB(), cabalIn(s))
 	})...).
 		When(scenario.Post(cashOutsPath, cashOutOf("1000000"))).
 		Then(append(cashOutRefused(errs.CodeCabalPaused), sharesHeld("2000000"))...)
@@ -318,20 +381,7 @@ func f14Stock(script string) chain.SolanaAddress {
 }
 
 func stockHeld(script string) scenario.Step {
-	return func(s *scenario.Scenario) {
-		mint, now := f14Stock(script), time.Now().UTC()
-		if _, err := s.DB().Exec(s.Context(), `INSERT INTO assets (
-			id, symbol, mint, decimals, issuer, kind, display_name, issuer_tradable, company_key, first_seen_at, updated_at, chain_checked_at)
-			VALUES ($4, $1, $2, 8, 'xstocks', 'equity', $1, true, $1, $3, $3, $3)`,
-			"F14"+script+"x", string(mint), now, uuid.Must(uuid.NewV7())); err != nil {
-			s.Fatalf("flows: seed the held stock: %v", err)
-		}
-		if _, err := s.DB().Exec(s.Context(), `INSERT INTO price_points (mint, ts, price_micros, source)
-			VALUES ($1, $2, 100000000, 'jupiter')`, string(mint), now); err != nil {
-			s.Fatalf("flows: price the held stock: %v", err)
-		}
-		holding(mint, f14StockUnits)(s)
-	}
+	return func(s *scenario.Scenario) { heldStock(script)(seedT{s}, s.DB(), cabalIn(s)) }
 }
 
 func jupiterSells(script string, raised string) scenario.Step {

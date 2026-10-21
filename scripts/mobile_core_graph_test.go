@@ -23,6 +23,7 @@ var allowedGraph = map[string][]string{
 	"MonacoCabal":      {"MonacoIdentity"},
 	"MonacoSocial":     {"MonacoIdentity", "MonacoCabal"},
 	"MonacoTreasury":   {"MonacoCabal"},
+	"MonacoFunding":    {},
 	"MonacoTrading":    {"MonacoTreasury", "MonacoMarket"},
 	"MonacoGovernance": {"MonacoCabal", "MonacoTreasury"},
 	"MonacoRanking":    {"MonacoCabal", "MonacoMarket", "MonacoTrading"},

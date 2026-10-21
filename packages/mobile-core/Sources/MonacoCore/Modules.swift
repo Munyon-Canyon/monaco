@@ -1,5 +1,6 @@
 @_exported import MonacoAnalytics
 @_exported import MonacoCabal
+@_exported import MonacoFunding
 @_exported import MonacoGovernance
 @_exported import MonacoIdentity
 @_exported import MonacoMarket

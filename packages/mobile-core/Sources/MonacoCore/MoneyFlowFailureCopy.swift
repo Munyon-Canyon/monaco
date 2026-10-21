@@ -1,15 +1,7 @@
 import Foundation
 import MonacoAPI
-
-public enum WithdrawFailure: Equatable, Sendable {
-    case address(String)
-    case toast(String)
-}
-
-public enum FundFailure: Equatable, Sendable {
-    case needsMoney(String)
-    case toast(String)
-}
+import MonacoFunding
+import MonacoTreasury
 
 /// What the screen should offer after a money request failed.
 public enum FlowRecovery: Equatable, Sendable {
@@ -107,17 +99,7 @@ public struct FlowErrorInput: Equatable, Sendable {
 /// Failure copy for the money flows.
 public enum MoneyFlowCopy {
     public static func withdrawFailure(_ error: APIError) -> WithdrawFailure {
-        guard case .problem(let problem) = error, case .known(let code) = problem.code else {
-            return .toast(ToastCopy.message(for: error))
-        }
-        switch code {
-        case .invalidAddress: return .address("Paste a wallet address. That one can't receive USDC from here.")
-        case .withdrawToOwnWallet:
-            return .address("That's your own deposit address. Paste the address you want to send to.")
-        case .insufficientFunds: return .toast("Not enough in your account balance.")
-        case .invalidInput: return .toast("The minimum is $1.")
-        default: return .toast(ToastCopy.message(for: error))
-        }
+        WithdrawFailure(error)
     }
 
     public static func pendingKeyLine(_ error: APIError) -> String {
@@ -129,19 +111,10 @@ public enum MoneyFlowCopy {
 
     // MARK: - Fund a cabal (POST /v1/cabals/{id}/fund)
 
-    public static let notEnoughBalance = "Not enough in your account balance."
+    public static let notEnoughBalance = FundFailure.notEnoughBalance
 
     public static func fundCabalFailure(_ error: APIError) -> FundFailure {
-        guard case .problem(let problem) = error, case .known(let code) = problem.code else {
-            return .toast(ToastCopy.message(for: error))
-        }
-        switch code {
-        case .insufficientFunds: return .needsMoney(notEnoughBalance)
-        case .cabalPaused: return .toast("Trading in this cabal is paused. You can fund it again once it resumes.")
-        case .notCabalMember: return .toast("Join this cabal to fund it.")
-        case .invalidInput: return .toast("The minimum is $1.")
-        default: return .toast(ToastCopy.message(for: error))
-        }
+        FundFailure(error)
     }
 
     // MARK: - Cash out of a cabal to the account balance

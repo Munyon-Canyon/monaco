@@ -67,6 +67,33 @@ struct SampleHarnessRegistryTests {
         #expect(root != nil)
     }
 
+    @Test(arguments: Flow07Scenario.allCases.map(\.rawValue))
+    func fundFlowScenarioLaunchFlagReturnsTheFlowHarness(scenario: String) {
+        expectFlowHarness("07", scenario)
+    }
+
+    @Test(arguments: Flow14Scenario.allCases.map(\.rawValue))
+    func cashOutFlowScenarioLaunchFlagReturnsTheFlowHarness(scenario: String) {
+        expectFlowHarness("14", scenario)
+    }
+
+    @Test(arguments: Flow15Scenario.allCases.map(\.rawValue))
+    func withdrawFlowScenarioLaunchFlagReturnsTheFlowHarness(scenario: String) {
+        expectFlowHarness("15", scenario)
+    }
+
+    private func expectFlowHarness(_ id: String, _ scenario: String) {
+        let root = withConflictHook { tripped in
+            let root = SampleHarnessRegistry.requestedRoot(
+                arguments: ["-MonacoFlow", id, scenario],
+                auth: auth()
+            )
+            #expect(!tripped())
+            return root
+        }
+        #expect(root != nil)
+    }
+
     @Test func homeLaunchFlagReturnsTheHomeHarness() {
         let root = SampleHarnessRegistry.requestedRoot(
             arguments: ["-MonacoHomeSample", "populated"],
