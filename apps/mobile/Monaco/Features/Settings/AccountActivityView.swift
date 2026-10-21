@@ -166,7 +166,7 @@ struct AccountActivityList: View {
     }
 }
 
-private struct AccountActivityRowView: View {
+struct AccountActivityRowView: View {
     let row: AccountActivityRow
     let isLast: Bool
 
@@ -174,16 +174,17 @@ private struct AccountActivityRowView: View {
         MonacoRow(title: row.title, subtitle: row.subtitle, chevron: true, isLast: isLast) {
             SunkenGlyphMark(systemImage: row.glyph)
         } trailing: {
-            trailing
+            amount
+            status
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(spokenLabel)
+        .accessibilityLabel(Self.spokenLabel(for: row))
     }
 
-    @ViewBuilder private var trailing: some View {
+    @ViewBuilder private var status: some View {
         switch row.status {
         case .settled:
-            amount
+            EmptyView()
         case .pending:
             StatusBadge("Pending", tone: .warn)
         case .failed:
@@ -194,14 +195,17 @@ private struct AccountActivityRowView: View {
     private var amount: some View {
         Text(row.amount)
             .moneyFigure(.row)
-            .foregroundStyle(MonacoTheme.ink)
+            .foregroundStyle(row.status == .failed ? MonacoTheme.secondaryText : MonacoTheme.ink)
             .lineLimit(1)
             .minimumScaleFactor(MoneyStyle.row.minimumScaleFactor)
     }
 
-    private var spokenLabel: String {
-        let status = row.status.rowLabel.map { ", \($0)" } ?? ""
-        return "\(row.title), \(row.subtitle), \(row.amount)\(status)"
+    static func visibleText(for row: AccountActivityRow) -> [String] {
+        [row.title, row.subtitle, row.amount] + (row.status.rowLabel.map { [$0] } ?? [])
+    }
+
+    static func spokenLabel(for row: AccountActivityRow) -> String {
+        visibleText(for: row).joined(separator: ", ")
     }
 }
 
