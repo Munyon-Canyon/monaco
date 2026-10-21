@@ -22,7 +22,7 @@ The model imports neither SwiftUI nor Privy. The view calls no `APIClient` metho
 - `load()` does one `GET` through `api.read`.
 - `observe()` iterates `hints.hints(matching:)` and calls `load()` on each match and on `.resync`. The view runs it from `.task`. The model is the only hint subscriber for the screen. Views never subscribe, and there is no hint-refresh view modifier.
 - A screen that must coalesce bursts, or refresh only while visible, passes the stream to `HintRefresher` (#945) instead of calling `load()` per hint, and exposes `setVisible(_:)`, which the view calls through `.onScreenVisibilityChange`. System ping needs neither.
-- A write uses one `IdempotentSubmission` owned by the model, through `api.submit`.
+- A write uses one `IdempotentSubmission` owned by the model, through `api.submit`. A money write (fund, withdraw, cash out) takes it from `environment.moneySubmission(slot:)`, which keeps the key in the on-disk `PendingIntentJournal` for the signed-in account, so a retry after the screen closed or the app restarted reuses it. Following the result to the end belongs to the account-level `SettlementWatcher` or `CashOutJobWatcher`, never to a task the view starts.
 - Show failures with `ToastCopy.message(for:)`. Switch on `ProblemError.code` only where the flow branches.
 
 One GET per screen. A hint means re-fetch, not a patch applied on the client.

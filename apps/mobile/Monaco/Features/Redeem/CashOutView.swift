@@ -36,7 +36,11 @@ struct CashOutView: View {
         )
         .analyticsScreen("cash_out", step: .cashOut(.cashOutOpened))
         .task {
-            let model = self.model ?? CashOutModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
+            let model =
+                self.model
+                ?? CashOutModel(
+                    cabalID: cabalID, api: environment.api, hints: environment.hints,
+                    submission: environment.moneySubmission(slot: CashOutModel.slot(cabalID: cabalID)))
             self.model = model
             await model.load()
             await model.observe()

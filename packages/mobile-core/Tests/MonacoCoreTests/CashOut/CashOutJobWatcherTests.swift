@@ -40,6 +40,44 @@ final class CashOutJobWatcherTests: XCTestCase {
         XCTAssertEqual(paths, [jobPath, jobPath])
     }
 
+    func testARunningJobIsResumedForItsAccountAfterRelaunch() async throws {
+        let journal = PendingIntentJournal()
+        let first = makeWatcher(StubTransport(.hang), hints: FakeHintStream(), journal: journal)
+        first.bind(accountID: "a")
+        first.track(started)
+        first.reset()
+        XCTAssertEqual(journal.intents(accountID: "a").count, 1)
+
+        let transport = StubTransport(scripted: [
+            try CashOutModelTests.json(.ok, Components.Schemas.CashOutJob.sample(status: .selling))
+        ])
+        let other = makeWatcher(transport, hints: FakeHintStream(), journal: journal)
+        other.bind(accountID: "b")
+        XCTAssertNil(other.job(for: started.cabalID))
+
+        let relaunched = makeWatcher(transport, hints: FakeHintStream(), journal: journal)
+        relaunched.bind(accountID: "a")
+
+        let resumed = await waitUntil { relaunched.job(for: self.started.cabalID)?.status == .selling }
+        XCTAssertTrue(resumed)
+    }
+
+    func testAFinishedJobLeavesTheJournal() async throws {
+        let journal = PendingIntentJournal()
+        let transport = StubTransport(scripted: [
+            try CashOutModelTests.json(.ok, Components.Schemas.CashOutJob.sample(status: .completed))
+        ])
+        let watcher = makeWatcher(transport, hints: FakeHintStream(), journal: journal)
+        watcher.bind(accountID: "a")
+
+        watcher.track(started)
+        XCTAssertEqual(journal.intents(accountID: "a").count, 1)
+
+        let done = await waitUntil { watcher.notice != nil }
+        XCTAssertTrue(done)
+        XCTAssertTrue(journal.intents(accountID: "a").isEmpty)
+    }
+
     func testOtherUserHintsDoNotReadTheJob() async throws {
         let transport = StubTransport(scripted: [
             try CashOutModelTests.json(.ok, Components.Schemas.CashOutJob.sample(status: .started))
@@ -178,12 +216,14 @@ final class CashOutJobWatcherTests: XCTestCase {
     }
 
     private func makeWatcher(
-        _ transport: StubTransport, hints: FakeHintStream, clock: any Clock<Duration> = TestClock()
+        _ transport: StubTransport, hints: FakeHintStream, clock: any Clock<Duration> = TestClock(),
+        journal: PendingIntentJournal? = nil
     ) -> CashOutJobWatcher {
         CashOutJobWatcher(
             api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport),
             hints: hints,
-            clock: clock
+            clock: clock,
+            journal: journal
         )
     }
 

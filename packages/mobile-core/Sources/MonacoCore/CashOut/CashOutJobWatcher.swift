@@ -1,3 +1,4 @@
+import Foundation
 import MonacoAPI
 import Observation
 
@@ -13,13 +14,31 @@ public final class CashOutJobWatcher {
     private let api: APIClient
     private let hints: any HintSource
     private let clock: any Clock<Duration>
+    private let journal: PendingIntentJournal?
+    @ObservationIgnored private var accountID: String?
     @ObservationIgnored private var observer: Task<Void, Never>?
     @ObservationIgnored private var poller: Task<Void, Never>?
 
-    public init(api: APIClient, hints: any HintSource, clock: any Clock<Duration> = CashOutJobWatcher.systemClock) {
+    public init(
+        api: APIClient, hints: any HintSource, clock: any Clock<Duration> = CashOutJobWatcher.systemClock,
+        journal: PendingIntentJournal? = nil
+    ) {
         self.api = api
         self.hints = hints
         self.clock = clock
+        self.journal = journal
+    }
+
+    public func bind(accountID: String) {
+        guard self.accountID != accountID else { return }
+        reset()
+        self.accountID = accountID
+        for intent in journal?.intents(accountID: accountID) ?? [] where intent.slot.hasPrefix(Self.slotPrefix) {
+            guard let jobID = intent.resourceID,
+                let cabalID = intent.context.flatMap({ String(data: $0, encoding: .utf8) })
+            else { continue }
+            track(CashOutJob(id: jobID, cabalID: cabalID, status: .started, payoutMicros: 0, resultCode: nil))
+        }
     }
 
     public func job(for cabalID: String) -> CashOutJob? {
@@ -66,6 +85,7 @@ public final class CashOutJobWatcher {
         poller = nil
         running = [:]
         notice = nil
+        accountID = nil
     }
 
     private func refresh() async {
@@ -78,12 +98,32 @@ public final class CashOutJobWatcher {
         }
     }
 
+    private static let slotPrefix = "cashOutJob:"
+
+    private func slot(_ job: CashOutJob) -> String { "\(Self.slotPrefix)\(job.cabalID)" }
+
     private func settle(_ job: CashOutJob) {
         if job.isRunning {
             running[job.cabalID] = job
+            remember(job)
         } else {
             running[job.cabalID] = nil
+            forget(job)
             notice = job.outcome
         }
+    }
+
+    private func remember(_ job: CashOutJob) {
+        guard let journal, let accountID else { return }
+        let slot = slot(job)
+        guard journal.intent(accountID: accountID, slot: slot)?.resourceID != job.id else { return }
+        journal.save(
+            PendingIntent(
+                accountID: accountID, slot: slot, context: Data(job.cabalID.utf8), resourceID: job.id))
+    }
+
+    private func forget(_ job: CashOutJob) {
+        guard let journal, let accountID else { return }
+        journal.remove(accountID: accountID, slot: slot(job))
     }
 }

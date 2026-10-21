@@ -19,6 +19,8 @@ final class AppEnvironment {
     let cardDeposit: CardDeposit
     let balance: BalanceSource
     let cashOuts: CashOutJobWatcher
+    let settlements: SettlementWatcher
+    let pendingIntents: PendingIntentJournal
     let sessionStore: AppSessionStore
     let push: PushRegistrar
     let referrals: ReferralAttacher
@@ -50,6 +52,7 @@ final class AppEnvironment {
         tokens: SessionTokens? = nil,
         api: APIClient? = nil,
         hints: any HintConnecting,
+        pendingIntents: PendingIntentJournal = PendingIntentJournal(),
         sessionStore: AppSessionStore? = nil,
         analytics: Analytics? = nil,
         isAuthenticated: (@MainActor () -> Bool)? = nil,
@@ -67,7 +70,9 @@ final class AppEnvironment {
         self.chatRealtime = SharedChatRealtime { AblyChatRealtime(api: api) }
         self.cardDeposit = CardDeposit(source: OnrampSource(api: api), hints: hints, now: { Date() })
         self.balance = BalanceSource(api: api, hints: hints)
-        self.cashOuts = CashOutJobWatcher(api: api, hints: hints)
+        self.pendingIntents = pendingIntents
+        self.cashOuts = CashOutJobWatcher(api: api, hints: hints, journal: pendingIntents)
+        self.settlements = SettlementWatcher(api: api, hints: hints, journal: pendingIntents)
         let push = PushRegistrar(
             service: DeviceAPI(api: api),
             environment: PushEnvironment(
@@ -132,7 +137,23 @@ final class AppEnvironment {
                 await tokens.endSession(rejectedToken: rejectedToken)
             }
         )
-        self.init(auth: auth, tokens: tokens, hints: LiveHintConnection(stream))
+        self.init(
+            auth: auth, tokens: tokens, hints: LiveHintConnection(stream), pendingIntents: Self.onDiskJournal())
+    }
+
+    private static func onDiskJournal() -> PendingIntentJournal {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        return PendingIntentJournal(fileURL: base?.appendingPathComponent("Monaco/pending-intents.json"))
+    }
+
+    func moneySubmission(slot: String) -> IdempotentSubmission {
+        guard let accountID = viewer?.userID else { return IdempotentSubmission() }
+        return IdempotentSubmission(journal: pendingIntents, accountID: accountID, slot: slot)
+    }
+
+    private func resumePendingMoney(for viewer: Viewer) {
+        cashOuts.bind(accountID: viewer.userID)
+        settlements.bind(accountID: viewer.userID)
     }
 
     func sceneDidChange(_ phase: ScenePhase) async {
@@ -164,6 +185,7 @@ final class AppEnvironment {
         auth.adoptDevAccessToken(session.token)
         devSessionActive = true
         viewer = Viewer(userID: session.userID, handle: nil)
+        if let viewer { resumePendingMoney(for: viewer) }
         registerForPush()
         await hints.start()
         AppLogger.session.info("hint stream started")
@@ -200,7 +222,8 @@ final class AppEnvironment {
     private func sessionDidChange(_ profile: SessionProfile?) {
         let wasOpen = viewer != nil
         viewer = profile.map(Viewer.init)
-        guard viewer != nil, !wasOpen else { return }
+        guard let viewer, !wasOpen else { return }
+        resumePendingMoney(for: viewer)
         registerForPush()
         guard sceneIsActive else { return }
         Task {
@@ -219,6 +242,7 @@ final class AppEnvironment {
         cardDeposit.reset()
         balance.reset()
         cashOuts.reset()
+        settlements.reset()
         sessionStore.reset()
         bestChains.reset()
         #if DEBUG

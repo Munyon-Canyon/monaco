@@ -22,16 +22,28 @@ public final class CashOutModel {
 
     private let api: APIClient
     private let hints: any HintSource
-    private let submission = IdempotentSubmission()
+    private let submission: IdempotentSubmission
     private var generation = 0
-    @ObservationIgnored private var unconfirmed: (enteredMicros: Int64, request: Components.Schemas.CashOutRequest)?
+
+    private struct Pending: Codable {
+        let enteredMicros: Int64
+        let request: Components.Schemas.CashOutRequest
+    }
+
+    private var unconfirmed: Pending? { submission.pending(Pending.self) }
+
+    public static func slot(cabalID: String) -> String { "cashOut:\(cabalID)" }
 
     @ObservationIgnored private lazy var refresher = HintRefresher { [weak self] in await self?.load() }
 
-    public init(cabalID: String, api: APIClient, hints: any HintSource) {
+    public init(
+        cabalID: String, api: APIClient, hints: any HintSource,
+        submission: IdempotentSubmission = IdempotentSubmission()
+    ) {
         self.cabalID = cabalID
         self.api = api
         self.hints = hints
+        self.submission = submission
     }
 
     public var preview: CashOutPreview? {
@@ -82,6 +94,7 @@ public final class CashOutModel {
             let verdict = preview.verdict(enteredMicros: enteredMicros)
             guard let sale = CashOutAmountRule.sale(for: verdict, enteredMicros: enteredMicros) else { return nil }
             request = sale.request
+            submission.stage(Pending(enteredMicros: enteredMicros, request: request))
         }
         isSubmitting = true
         defer { isSubmitting = false }
@@ -94,10 +107,8 @@ public final class CashOutModel {
                     body: .json(request)
                 ).accepted.body.json
             }
-            unconfirmed = nil
             return .started(CashOutJob(job))
         } catch {
-            unconfirmed = submission.hasPendingKey ? (enteredMicros, request) : nil
             return .refused(await refusal(APIError(error)))
         }
     }
