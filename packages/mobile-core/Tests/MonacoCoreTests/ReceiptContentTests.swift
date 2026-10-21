@@ -78,6 +78,53 @@ final class ReceiptContentTests: XCTestCase {
         XCTAssertNil(ReceiptContent(try row(kind: .withdrawal)).cabal)
     }
 
+    func testTheReceiptTitleFollowsTheStatusForEveryKind() throws {
+        let statuses: [(Components.Schemas.UserTxn.StatusPayload, ReceiptContent.Status)] = [
+            (.settled, .completed), (.pending, .pending), (.failed, .failed),
+        ]
+        let titles: [Components.Schemas.UserTxn.KindPayload: [ReceiptContent.Status: String]] = [
+            .deposit: [
+                .completed: "Deposit received", .pending: "Deposit pending", .failed: "Deposit not completed",
+                .unknown: "Checking deposit status",
+            ],
+            .cashOut: [
+                .completed: "Cashed out of Big Ballers", .pending: "Cash-out pending",
+                .failed: "Cash-out not completed", .unknown: "Checking cash-out status",
+            ],
+        ]
+        for (kind, byStatus) in titles {
+            for (payload, status) in statuses {
+                XCTAssertEqual(ReceiptContent(try row(kind: kind, status: payload)).eyebrow, byStatus[status])
+            }
+            XCTAssertEqual(ReceiptContent(try row(kind: kind), status: .unknown).eyebrow, byStatus[.unknown])
+        }
+    }
+
+    func testAFailedOrUnknownReceiptNeverReadsReceivedOrCashedOut() throws {
+        let kinds: [Components.Schemas.UserTxn.KindPayload] = [.deposit, .cashOut]
+        for kind in kinds {
+            let failed = ReceiptContent(try row(kind: kind, status: .failed))
+            let unknown = ReceiptContent(try row(kind: kind), status: .unknown)
+            for content in [failed, unknown] {
+                XCTAssertFalse(content.eyebrow.contains("received"), content.eyebrow)
+                XCTAssertFalse(content.eyebrow.hasPrefix("Cashed out"), content.eyebrow)
+                XCTAssertEqual(content.amount, "+$25.00")
+            }
+            XCTAssertEqual(unknown.badgeText, "Status unconfirmed")
+            XCTAssertEqual(failed.badgeText, "Not completed")
+        }
+    }
+
+    func testAnUnsettledAmountIsLabelledExpectedOrRequested() throws {
+        XCTAssertNil(ReceiptContent(try row(kind: .deposit, status: .settled)).amountCaption)
+        XCTAssertEqual(ReceiptContent(try row(kind: .deposit, status: .pending)).amountCaption, "Expected amount")
+        XCTAssertEqual(ReceiptContent(try row(kind: .deposit, status: .failed)).amountCaption, "Requested amount")
+        XCTAssertEqual(ReceiptContent(try row(kind: .deposit), status: .unknown).amountCaption, "Requested amount")
+        XCTAssertNotNil(ReceiptContent(try row(kind: .deposit), status: .unknown).notice)
+        XCTAssertEqual(
+            value(ReceiptContent(try row(kind: .deposit, status: .failed)), .requestedAmount), "+$25.00")
+    }
+
     func testTheExplorerNeedsASignature() throws {
         XCTAssertTrue(ReceiptContent(try row(kind: .deposit, signature: "abc")).canOpenExplorer)
         XCTAssertFalse(ReceiptContent(try row(kind: .deposit, signature: nil)).canOpenExplorer)

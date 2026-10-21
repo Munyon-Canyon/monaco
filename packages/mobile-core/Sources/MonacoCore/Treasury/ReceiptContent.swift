@@ -72,13 +72,17 @@ public struct ReceiptContent: Equatable, Sendable {
     }
 
     public init(_ row: AccountActivityRow) {
+        self.init(row, status: Status(row.status))
+    }
+
+    public init(_ row: AccountActivityRow, status: Status) {
         let ends = Self.ends(row)
         self.init(
-            mark: .glyph(row.glyph), eyebrow: row.title, amount: row.amount, status: Status(row.status),
+            mark: .glyph(row.glyph), eyebrow: row.title(for: status), amount: row.amount, status: status,
             isPersonal: true,
             keyRows: Self.keyRows(
                 from: ends.from, to: ends.to, asset: "USDC", amount: row.amount, when: row.fullDate,
-                status: Status(row.status), recordID: row.id),
+                status: status, recordID: row.id),
             cabal: row.kind == .fund || row.kind == .cashOut ? row.cabal : nil, related: .accountActivity,
             explorerURL: row.solscanURL)
     }
@@ -108,6 +112,8 @@ public struct ReceiptContent: Equatable, Sendable {
     }
 
     public var badgeText: String { status.badgeText(isPersonal: isPersonal) }
+
+    public var amountCaption: String? { status.amountCaption }
 
     public var badgeTone: Tone { status.tone }
 
@@ -139,6 +145,14 @@ extension ReceiptContent.Status {
         case .completed: .brand
         case .pending, .unknown: .warn
         case .failed: .negative
+        }
+    }
+
+    public var amountCaption: String? {
+        switch self {
+        case .completed: nil
+        case .pending: "Expected amount"
+        case .failed, .unknown: "Requested amount"
         }
     }
 
