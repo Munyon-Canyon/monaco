@@ -85,13 +85,13 @@ func (f verifierFixture) privyToken(sub string) string {
 	return fakes.PrivyAccessToken(privyAppID, sub, f.clock.Now(), time.Hour)
 }
 
-func (f verifierFixture) devToken(t *testing.T) string {
+func (f verifierFixture) devToken(t *testing.T, sub string) string {
 	t.Helper()
 	dev, err := auth.NewDevVerifier(verifierConfig(config.EnvLocal), f.clock)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return dev.Mint("u-dev", f.clock.Now().Add(time.Hour))
+	return dev.Mint(sub, f.clock.Now().Add(time.Hour))
 }
 
 func (f verifierFixture) signed(t *testing.T, key *ecdsa.PrivateKey, header, sub string) string {
@@ -142,11 +142,18 @@ func TestVerifier_routesEachTokenByAlgorithmAndLooksTheUserUpOnce(t *testing.T) 
 	}
 	known := auth.Actor{Kind: auth.ActorUser, ID: user.ID.String(), Standing: auth.StandingActive}
 	signedIn := verdict{actor: known, queries: 1}
-	devUser := verdict{actor: auth.Actor{Kind: auth.ActorUser, ID: "u-dev", Standing: auth.StandingActive}}
+	strangerID := testkit.NewIDs(1).NewV7().String()
+	stranger := verdict{actor: auth.Actor{Kind: auth.ActorUser, ID: strangerID, Standing: auth.StandingActive}}
+	suspended := testkit.SeedUser(t, f.pool, testkit.UserOpts{AccountStatus: "suspended"})
+	banned := testkit.SeedUser(t, f.pool, testkit.UserOpts{AccountStatus: "banned"})
+	deleted := testkit.SeedUser(t, f.pool, testkit.UserOpts{AccountStatus: "deleted"})
+	standing := func(u testkit.SeededUser, s auth.Standing) verdict {
+		return verdict{actor: auth.Actor{Kind: auth.ActorUser, ID: u.ID.String(), Standing: s}, queries: 1}
+	}
 	noSession := verdict{code: errs.CodeSessionRequired, queries: 1}
 	refused := verdict{code: errs.CodeUnauthorized}
 	sub := user.PrivyUserID
-	dev, prod := config.EnvLocal, config.EnvProduction
+	dev, prod, staging, test := config.EnvLocal, config.EnvProduction, config.EnvStaging, config.EnvTest
 	for name, tc := range map[string]struct {
 		env   config.Env
 		token string
@@ -162,10 +169,19 @@ func TestVerifier_routesEachTokenByAlgorithmAndLooksTheUserUpOnce(t *testing.T) 
 		"wrong alg": {
 			dev, f.signed(t, fakes.PrivyTokenKey(), `{"alg":"ES384","typ":"JWT"}`, sub), refused,
 		},
-		"alg none":                {dev, unsigned(`{"alg":"none","typ":"JWT"}`, sub), refused},
-		"not a jwt":               {dev, "opaque-token", refused},
-		"dev token":               {dev, f.devToken(t), devUser},
-		"dev token in production": {prod, f.devToken(t), refused},
+		"alg none":                                    {dev, unsigned(`{"alg":"none","typ":"JWT"}`, sub), refused},
+		"not a jwt":                                   {dev, "opaque-token", refused},
+		"dev token for a known user":                  {dev, f.devToken(t, user.ID.String()), signedIn},
+		"dev token for a known user in test":          {test, f.devToken(t, user.ID.String()), signedIn},
+		"dev token for a known user in staging":       {staging, f.devToken(t, user.ID.String()), signedIn},
+		"dev token for a suspended user":              {dev, f.devToken(t, suspended.ID.String()), standing(suspended, auth.StandingSuspended)},
+		"dev token for a banned user":                 {staging, f.devToken(t, banned.ID.String()), standing(banned, auth.StandingBanned)},
+		"dev token for a deleted user":                {test, f.devToken(t, deleted.ID.String()), standing(deleted, auth.StandingDeleted)},
+		"dev token for an unknown user":               {dev, f.devToken(t, strangerID), noSession},
+		"dev token for an unknown user in staging":    {staging, f.devToken(t, strangerID), noSession},
+		"dev token for an unknown user in test":       {test, f.devToken(t, strangerID), verdict{actor: stranger.actor, queries: 1}},
+		"dev token with a subject that is no user id": {dev, f.devToken(t, "u-dev"), refused},
+		"dev token in production":                     {prod, f.devToken(t, user.ID.String()), refused},
 		"HS256 keyed with the privy public key": {
 			dev, keyedWithPublicKey.Mint(sub, f.clock.Now().Add(time.Hour)), refused,
 		},
@@ -206,6 +222,9 @@ func TestVerifier_aDatabaseFailureIsUnavailableNotUnauthorized(t *testing.T) {
 	if got := f.verify(t, v, f.privyToken("did:privy:anyone")); got.code != errs.CodeDBUnavailable {
 		t.Fatalf("Verify on a closed pool = %+v, want db_unavailable", got)
 	}
+	if got := f.verify(t, v, f.devToken(t, testkit.NewIDs(1).NewV7().String())); got.code != errs.CodeDBUnavailable {
+		t.Fatalf("Verify of a dev token on a closed pool = %+v, want db_unavailable", got)
+	}
 }
 
 func TestVerifier_verifyPrivyNamesTheSubjectWithoutAUserRow(t *testing.T) {
@@ -216,7 +235,7 @@ func TestVerifier_verifyPrivyNamesTheSubjectWithoutAUserRow(t *testing.T) {
 	if err != nil || id != "did:privy:first-sign-in" || f.tracer.Queries() != 0 {
 		t.Fatalf("VerifyPrivy = %q, %v after %d queries", id, err, f.tracer.Queries())
 	}
-	if _, err := v.VerifyPrivy(t.Context(), f.devToken(t)); errs.CodeOf(err) != errs.CodeUnauthorized {
+	if _, err := v.VerifyPrivy(t.Context(), f.devToken(t, "u-dev")); errs.CodeOf(err) != errs.CodeUnauthorized {
 		t.Fatalf("VerifyPrivy(dev token) = %v, want unauthorized", err)
 	}
 }
@@ -293,6 +312,7 @@ func TestVerifier_behindTheAuthMiddlewarePutsTheStandingInContextAndLogsNoToken(
 	t.Parallel()
 	f := newVerifierFixture(t)
 	banned := testkit.SeedUser(t, f.pool, testkit.UserOpts{AccountStatus: "banned"})
+	active := testkit.SeedUser(t, f.pool, testkit.UserOpts{})
 	logs := &testkit.Logs{}
 	logger := observability.NewLogger(config.Config{Env: config.EnvTest}, logs)
 	probe := &actorProbe{}
@@ -319,7 +339,9 @@ func TestVerifier_behindTheAuthMiddlewarePutsTheStandingInContextAndLogsNoToken(
 	}{
 		{http.MethodGet, "/v1/me", f.privyToken(banned.PrivyUserID), http.StatusNotFound},
 		{http.MethodGet, ping, f.privyToken(banned.PrivyUserID), http.StatusForbidden},
-		{http.MethodGet, ping, f.devToken(t), http.StatusNotFound},
+		{http.MethodGet, ping, f.devToken(t, active.ID.String()), http.StatusNotFound},
+		{http.MethodGet, ping, f.devToken(t, banned.ID.String()), http.StatusForbidden},
+		{http.MethodGet, ping, f.devToken(t, "u-dev"), http.StatusUnauthorized},
 		{http.MethodGet, ping, f.privyToken("did:privy:unknown"), http.StatusUnauthorized},
 		{http.MethodGet, ping, unsigned(`{"alg":"none"}`, banned.PrivyUserID), http.StatusUnauthorized},
 		{http.MethodGet, ping, expired, http.StatusUnauthorized},
@@ -335,7 +357,7 @@ func TestVerifier_behindTheAuthMiddlewarePutsTheStandingInContextAndLogsNoToken(
 	}
 	want := []auth.Actor{
 		{Kind: auth.ActorUser, ID: banned.ID.String(), Standing: auth.StandingBanned},
-		{Kind: auth.ActorUser, ID: "u-dev", Standing: auth.StandingActive},
+		{Kind: auth.ActorUser, ID: active.ID.String(), Standing: auth.StandingActive},
 	}
 	if !reflect.DeepEqual(probe.seen, want) {
 		t.Fatalf("handler saw actors %+v, want %+v", probe.seen, want)
