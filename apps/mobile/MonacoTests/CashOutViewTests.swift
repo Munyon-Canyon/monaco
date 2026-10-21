@@ -33,6 +33,15 @@ struct CashOutViewTests {
         #expect(message.contains("starts at $0.10"))
     }
 
+    @Test func theReviewPointsAtNoQuoteItDoesNotShow() {
+        let copy = (CashOutContent.finalProceedsValue + CashOutContent.reviewNotice).lowercased()
+        #expect(!copy.contains("quote"))
+        #expect(!copy.contains("estimate"))
+        #expect(copy.contains("can change what you receive"))
+        #expect(copy.contains("known when"))
+        #expect(copy.contains("stay in the cabal"))
+    }
+
     @Test func aPausedCabalOffersNoAmountEntryOrSubmitBar() {
         let pause = CabalPause(cause: .ops)
         let open = CashOutPreview(sliceMicros: 10_500_000, shareUnits: 1, minMicros: 1_000_000, pause: nil)
