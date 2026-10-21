@@ -15,6 +15,7 @@ struct FundCabalView: View {
     @State private var cabal: CabalActionsModel?
     @State private var pauseState: CashOutModel?
     @State private var funding: Funding?
+    @State private var watchedTransferID: String?
     @State private var amountText = ""
     @State private var confirmation: FundConfirmation?
     @State private var opensActivity = false
@@ -38,7 +39,7 @@ struct FundCabalView: View {
         .sheet(item: $confirmation, onDismiss: leaveFund) { confirmation in
             if let funding {
                 FundOutcomeSheet(
-                    funding: funding, confirmation: confirmation,
+                    progress: sheetProgress(funding), confirmation: confirmation,
                     onActivity: {
                         opensActivity = true
                         self.confirmation = nil
@@ -47,7 +48,9 @@ struct FundCabalView: View {
         }
         .task {
             if funding == nil {
-                funding = Funding(cabalID: cabalID, source: FundSource(api: environment.api), hints: environment.hints)
+                funding = Funding(
+                    cabalID: cabalID, source: FundSource(api: environment.api), hints: environment.hints,
+                    submission: environment.moneySubmission(slot: Funding.slot(cabalID: cabalID)))
             }
             let cabal =
                 self.cabal ?? CabalActionsModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
@@ -72,7 +75,12 @@ struct FundCabalView: View {
         environment.navigator.presentDeposit(prefillMicros: prefillMicros, cabalID: cabalID)
     }
 
+    private func sheetProgress(_ funding: Funding) -> FundProgress {
+        watchedTransferID.flatMap { environment.settlements.fund[$0] } ?? funding.progress
+    }
+
     private func leaveFund() {
+        if let watchedTransferID { environment.settlements.dismiss(watchedTransferID) }
         guard opensActivity else {
             dismiss()
             return
@@ -91,26 +99,20 @@ struct FundCabalView: View {
         guard let funding, let micros = AmountEntryText.micros(amountText), micros > 0 else { return }
         let cabalName = cabal?.cabalName
         switch await funding.submit(micros: micros) {
-        case .accepted:
+        case .accepted(let transfer):
             if isVisible {
                 confirmation = FundConfirmation(micros: micros, cabalName: cabalName)
+                watchedTransferID = transfer.transferID
+                environment.settlements.present(transfer.transferID)
             } else {
                 if let line = funding.progress.toast(cabalName: cabalName) {
                     toasts.current = MonacoToast(message: line)
                 }
                 dismiss()
             }
-            Task { [toasts] in
-                let settled = await funding.settle()
-                guard settled.isSettled else { return }
-                if case .settled = settled {
-                    Haptics.success()
-                    if let line = settled.toast(cabalName: cabalName) { toasts.show(success: line) }
-                } else if confirmation == nil, let line = settled.toast(cabalName: cabalName) {
-                    Haptics.warning()
-                    toasts.current = MonacoToast(message: line)
-                }
-            }
+            environment.settlements.watch(
+                SettlementTicket(
+                    kind: .fund, resourceID: transfer.transferID, cabalID: cabalID, cabalName: cabalName))
         case .refused(.needsMoney(let message)):
             let shortfall = max(micros - (environment.balance.balance?.availableMicros ?? 0), 0)
             toasts.current = MonacoToast(
@@ -233,14 +235,14 @@ struct FundConfirmation: Identifiable, Equatable {
 }
 
 struct FundOutcomeSheet: View {
-    let funding: Funding
+    let progress: FundProgress
     let confirmation: FundConfirmation
     var onActivity: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        if let outcome = funding.progress.outcome(
+        if let outcome = progress.outcome(
             requestedMicros: confirmation.micros, cabalName: confirmation.cabalName)
         {
             FundOutcomeContent(outcome: outcome, onActivity: onActivity, onDone: { dismiss() })

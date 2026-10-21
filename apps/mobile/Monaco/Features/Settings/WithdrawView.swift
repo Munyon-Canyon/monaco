@@ -16,6 +16,7 @@ struct WithdrawView: View {
     @State private var frozen: WithdrawAmount.Frozen?
     @State private var estimate: WithdrawEstimate?
     @State private var outcome: WithdrawOutcomeSummary?
+    @State private var watchedWithdrawalID: String?
 
     private var trimmedAddress: String {
         destinationAddress.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -58,6 +59,13 @@ struct WithdrawView: View {
             frozen = nil
             if outcome != nil { dismiss() }
         }
+        .onChange(of: watchedWithdrawalID.flatMap { environment.settlements.withdrawals[$0] }) { _, progress in
+            switch progress {
+            case .confirmed: outcome?.status = .completed
+            case .failed: outcome?.status = .failed
+            case .idle, .submitting, .submitted, nil: break
+            }
+        }
         .task(id: previewRequest) {
             guard let previewRequest else { return }
             await WithdrawEstimate.follow(previewRequest, from: WithdrawSource(api: environment.api)) {
@@ -82,7 +90,9 @@ struct WithdrawView: View {
         }
         .task {
             if withdrawing == nil {
-                withdrawing = Withdrawing(source: WithdrawSource(api: environment.api), hints: environment.hints)
+                withdrawing = Withdrawing(
+                    source: WithdrawSource(api: environment.api), hints: environment.hints,
+                    submission: environment.moneySubmission(slot: Withdrawing.slot))
             }
             await environment.balance.load()
         }
@@ -107,15 +117,10 @@ struct WithdrawView: View {
             }
             outcome = WithdrawOutcomeSummary(
                 amountLabel: UsdAmountFormatter.format(micros: accepted.amountMicros), status: .pending)
-            Task { [toasts] in
-                let settled = await withdrawing.settle()
-                guard settled.isSettled else { return }
-                switch settled {
-                case .confirmed: outcome?.status = .completed
-                default: outcome?.status = .failed
-                }
-                toasts.current = Self.toast(for: settled, fullBalanceLabel: fullBalanceLabel)
-            }
+            watchedWithdrawalID = accepted.withdrawalID
+            environment.settlements.watch(
+                SettlementTicket(
+                    kind: .withdraw, resourceID: accepted.withdrawalID, fullBalanceLabel: fullBalanceLabel))
         case .refused(.address(let message)):
             refusedAddress = message
             showConfirm = false

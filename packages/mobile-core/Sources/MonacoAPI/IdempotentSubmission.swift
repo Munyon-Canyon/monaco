@@ -18,10 +18,58 @@ public final class IdempotentSubmission: @unchecked Sendable {
     private let makeKey: @Sendable () -> String
     private var key: String?
     private var fingerprint: Data?
+    private var context: Data?
+    private let journal: Slot?
+
+    private struct Slot {
+        let store: PendingIntentJournal
+        let accountID: String
+        let slot: String
+
+        func save(key: String, fingerprint: Data, context: Data?) {
+            store.save(
+                PendingIntent(
+                    accountID: accountID, slot: slot, key: key, fingerprint: fingerprint, context: context))
+        }
+
+        func clear() {
+            store.remove(accountID: accountID, slot: slot)
+        }
+    }
 
     /// - Parameter makeKey: key source, replaced in tests for deterministic keys.
     public init(makeKey: @escaping @Sendable () -> String = { UUID().uuidString.lowercased() }) {
         self.makeKey = makeKey
+        journal = nil
+    }
+
+    public init(
+        journal: PendingIntentJournal, accountID: String, slot: String,
+        makeKey: @escaping @Sendable () -> String = { UUID().uuidString.lowercased() }
+    ) {
+        self.makeKey = makeKey
+        self.journal = Slot(store: journal, accountID: accountID, slot: slot)
+        if let saved = journal.intent(accountID: accountID, slot: slot), let savedKey = saved.key,
+            let savedFingerprint = saved.fingerprint
+        {
+            key = savedKey
+            fingerprint = savedFingerprint
+            context = saved.context
+        }
+    }
+
+    public func stage(_ value: some Encodable) {
+        let data = try? JSONEncoder().encode(value)
+        lock.lock()
+        defer { lock.unlock() }
+        context = data
+    }
+
+    public func pending<Value: Decodable>(_ type: Value.Type) -> Value? {
+        lock.lock()
+        let data = key == nil ? nil : context
+        lock.unlock()
+        return data.flatMap { try? JSONDecoder().decode(type, from: $0) }
     }
 
     /// True while a submission is waiting for a final answer. A retry of the same payload
@@ -50,6 +98,7 @@ public final class IdempotentSubmission: @unchecked Sendable {
         let fresh = makeKey()
         key = fresh
         fingerprint = requestFingerprint
+        journal?.save(key: fresh, fingerprint: requestFingerprint, context: context)
         return fresh
     }
 
@@ -63,5 +112,7 @@ public final class IdempotentSubmission: @unchecked Sendable {
         guard key == sentKey else { return }
         key = nil
         fingerprint = nil
+        context = nil
+        journal?.clear()
     }
 }

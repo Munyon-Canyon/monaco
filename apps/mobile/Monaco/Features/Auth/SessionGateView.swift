@@ -51,6 +51,10 @@ struct SessionGateView: View {
             await session.bootstrap(auth: environment.auth, devSession: environment.skipsSessionOpen)
             await attachReferral()
         }
+        .onChange(of: environment.settlements.notice) { _, notice in
+            guard let notice else { return }
+            showSettlement(notice)
+        }
         .onChange(of: environment.cashOuts.notice) { _, notice in
             guard let notice else { return }
             toasts.current = MonacoToast(message: notice.message, isSuccess: notice.isSuccess)
@@ -61,6 +65,22 @@ struct SessionGateView: View {
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             Task { await attachReferral() }
+        }
+    }
+
+    private func showSettlement(_ notice: SettlementNotice) {
+        switch notice.outcome {
+        case .fund(let progress):
+            guard let line = progress.toast(cabalName: notice.ticket.cabalName) else { return }
+            if case .settled = progress {
+                Haptics.success()
+                toasts.show(success: line)
+            } else {
+                Haptics.warning()
+                toasts.current = MonacoToast(message: line)
+            }
+        case .withdraw(let progress):
+            toasts.current = WithdrawView.toast(for: progress, fullBalanceLabel: notice.ticket.fullBalanceLabel)
         }
     }
 

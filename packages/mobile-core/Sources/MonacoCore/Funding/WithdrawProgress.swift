@@ -75,16 +75,27 @@ public final class Withdrawing {
     private let source: WithdrawSource
     private let hints: any HintSource
     private let inFlightRetryDelay: Duration
-    private let submission = IdempotentSubmission()
-    @ObservationIgnored private var unconfirmed: (micros: Int64, toAddress: String, network: WithdrawNetwork)?
+    private let submission: IdempotentSubmission
+
+    private struct Pending: Codable, Equatable {
+        let micros: Int64
+        let toAddress: String
+        let network: String
+    }
 
     static let inFlightRetries = 3
 
-    public init(source: WithdrawSource, hints: any HintSource, inFlightRetryDelay: Duration = .seconds(1)) {
+    public init(
+        source: WithdrawSource, hints: any HintSource, inFlightRetryDelay: Duration = .seconds(1),
+        submission: IdempotentSubmission = IdempotentSubmission()
+    ) {
         self.source = source
         self.hints = hints
         self.inFlightRetryDelay = inFlightRetryDelay
+        self.submission = submission
     }
+
+    public static let slot = "withdraw"
 
     public var isSubmitting: Bool { progress == .submitting }
 
@@ -95,9 +106,11 @@ public final class Withdrawing {
             if case .submitted(let withdrawal) = progress { return .accepted(withdrawal) }
             return .unconfirmed(retryMessage: ToastCopy.message(for: .inFlight))
         }
-        if submission.hasPendingKey, let pending = unconfirmed, pending != (micros, toAddress, network) {
+        let request = Pending(micros: micros, toAddress: toAddress, network: network.rawValue)
+        if submission.hasPendingKey, let pending = submission.pending(Pending.self), pending != request {
             return .unconfirmed(retryMessage: MoneyFlowCopy.unconfirmed.summary)
         }
+        submission.stage(request)
         progress = progress.applying(.start)
         var retries = 0
         while true {
@@ -115,12 +128,17 @@ public final class Withdrawing {
                 }
                 progress = progress.applying(.refused)
                 if submission.hasPendingKey {
-                    unconfirmed = (micros, toAddress, network)
                     return .unconfirmed(retryMessage: MoneyFlowCopy.pendingKeyLine(error))
                 }
                 return .refused(MoneyFlowCopy.withdrawFailure(error))
             }
         }
+    }
+
+    func resume(withdrawalID: String) {
+        guard progress == .idle else { return }
+        progress = .submitted(
+            Withdrawal(withdrawalID: withdrawalID, status: .submitted, amountMicros: 0, txSignature: nil))
     }
 
     public func settle() async -> WithdrawProgress {

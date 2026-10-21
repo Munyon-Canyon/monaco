@@ -123,20 +123,29 @@ public final class Funding {
     private let source: FundSource
     private let hints: any HintSource
     private let inFlightRetryDelay: Duration
-    private let submission = IdempotentSubmission()
-    @ObservationIgnored private var unconfirmedMicros: Int64?
+    private let submission: IdempotentSubmission
+
+    private struct Pending: Codable {
+        let micros: Int64
+    }
 
     static let inFlightRetries = 3
     public static let activityHint = "activity_changed"
 
     public init(
-        cabalID: String, source: FundSource, hints: any HintSource, inFlightRetryDelay: Duration = .seconds(1)
+        cabalID: String, source: FundSource, hints: any HintSource, inFlightRetryDelay: Duration = .seconds(1),
+        submission: IdempotentSubmission = IdempotentSubmission()
     ) {
         self.cabalID = cabalID
         self.source = source
         self.hints = hints
         self.inFlightRetryDelay = inFlightRetryDelay
+        self.submission = submission
     }
+
+    public static func slot(cabalID: String) -> String { "fund:\(cabalID)" }
+
+    private var unconfirmedMicros: Int64? { submission.pending(Pending.self)?.micros }
 
     public var isSubmitting: Bool { progress == .submitting }
 
@@ -148,6 +157,7 @@ public final class Funding {
         if submission.hasPendingKey, let pending = unconfirmedMicros, pending != micros {
             return .unconfirmed(retryMessage: MoneyFlowCopy.unconfirmed.summary)
         }
+        submission.stage(Pending(micros: micros))
         progress = progress.applying(.start)
         var retries = 0
         while true {
@@ -164,12 +174,16 @@ public final class Funding {
                 }
                 progress = progress.applying(.refused)
                 if submission.hasPendingKey {
-                    unconfirmedMicros = micros
                     return .unconfirmed(retryMessage: MoneyFlowCopy.pendingKeyLine(error))
                 }
                 return .refused(MoneyFlowCopy.fundCabalFailure(error))
             }
         }
+    }
+
+    func resume(transferID: String) {
+        guard progress == .idle else { return }
+        progress = .submitted(FundTransfer(transferID: transferID, status: .submitted, amountMicros: 0))
     }
 
     public func settle() async -> FundProgress {
