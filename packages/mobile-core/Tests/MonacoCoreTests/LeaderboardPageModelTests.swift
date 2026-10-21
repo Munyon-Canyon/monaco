@@ -1,5 +1,6 @@
 import MonacoAPI
 import MonacoTestSupport
+import Observation
 import XCTest
 
 @testable import MonacoCore
@@ -247,12 +248,25 @@ final class LeaderboardPageModelLiveTests: XCTestCase {
         model.draftFilters.scope = .following
 
         model.applyDraft()
-        await model.liveLoader?.load()
+        let settled = await eventArrives(within: 60) { await Self.becomes { model.pageState == .empty } }
 
+        XCTAssertTrue(settled)
         XCTAssertTrue(model.followingIsEmpty)
         XCTAssertEqual(model.pageState, .empty)
         let paths = await transport.sent.map(\.path)
         XCTAssertEqual(paths.last, "/v1/leaderboards/people?range=1M&filter=friends")
+    }
+
+    private static func becomes(_ predicate: @MainActor () -> Bool) async {
+        while !predicate() {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                withObservationTracking {
+                    _ = predicate()
+                } onChange: {
+                    continuation.resume()
+                }
+            }
+        }
     }
 
     private func waitForRequests(_ count: Int, on transport: StubTransport) async {
