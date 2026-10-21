@@ -96,7 +96,13 @@ struct ProposeReviewScreen: View {
                     .padding(.horizontal, MonacoTheme.Space.sm)
                     .background(MonacoTheme.brandSoft, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.chip))
                     .padding(.horizontal, MonacoTheme.Space.gutter)
-                if let reason = model.reason { thesis(model.reasonTitle, reason) }
+                Text(model.voteCaption)
+                    .font(MonacoTheme.Typo.callout)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .accessibilityIdentifier("propose-review-vote-caption")
                 MonacoKeyRows {
                     ForEach(Array(model.rows.enumerated()), id: \.offset) { index, row in
                         ReceiptLine(
@@ -110,6 +116,7 @@ struct ProposeReviewScreen: View {
                             bestPrice, caption: model.isEstimate ? MonacoCore.ProposeReviewModel.estimateCaption : nil))
                 }
                 ProposeChainSection(model: model)
+                if let reason = model.reason { thesis(model.reasonTitle, reason) }
             }
             .padding(.vertical, MonacoTheme.Space.s)
         }
@@ -134,12 +141,6 @@ struct ProposeReviewScreen: View {
     private func footer(_ model: MonacoCore.ProposeReviewModel) -> some View {
         VStack(spacing: MonacoTheme.Space.sm) {
             if model.errorMessage != nil { errorNotice(model) }
-            Text(model.voteCaption)
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.muted)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .accessibilityIdentifier("propose-review-vote-caption")
             Button(model.sendTitle) { Task { await model.send() } }
                 .buttonStyle(.monacoPrimary)
                 .disabled(!model.canSend)

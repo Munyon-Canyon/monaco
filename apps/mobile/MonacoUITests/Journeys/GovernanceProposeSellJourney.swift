@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceProposeSellJourney {
     static let id = "governance/propose-sell"
-    static let version = 4
+    static let version = 5
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -61,7 +61,7 @@ enum GovernanceProposeSellJourney {
             thesis.tap()
             thesis.typeText("Journey sell \(run)")
             tapID(app, "propose-amount-review", step: "S1.5")
-            buy.expectLabel(app, "Review proposal", step: "S1.5")
+            buy.expectTitle(sheet: app, step: "S1.5")
             let summary = app.descendants(matching: .any).matching(
                 NSPredicate(format: "label BEGINSWITH 'Sell ' AND label CONTAINS 'AAPL'")
             ).firstMatch

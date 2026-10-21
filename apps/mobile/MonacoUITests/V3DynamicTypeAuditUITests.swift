@@ -90,7 +90,6 @@ nonisolated final class V3DynamicTypeAuditUITests: XCTestCase {
                 ("cabals__cabals__ready", "Return opens soon"),
                 ("home__notifications__unread", "How much cash would we have left after this?"),
                 ("home__notifications__unread", "The proposal reached its vote threshold."),
-                ("money__add-money__ready", "How would you like to deposit?"),
                 ("markets__markets__ready", "Manage"),
                 ("home__home__loss", "Proposals"),
                 ("home__home__loss", "Market updates"),

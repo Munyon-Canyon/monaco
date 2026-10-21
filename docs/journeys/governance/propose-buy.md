@@ -1,7 +1,7 @@
 ---
 id: governance/propose-buy
 title: Propose, vote and trade
-version: 7
+version: 8
 milestone: M14
 requires: [auth/sign-in]
 actors: [A, B]
@@ -51,7 +51,7 @@ With two voters and "Majority", a buy needs both yes votes.
 | S2.2 | A | tap | `cabal-action-propose` | | The Propose action sheet (`propose-chooser-sheet`) shows `propose-kind-buy` "Buy stock", `propose-kind-sell` "Sell a holding" with "No holdings to sell" and disabled, and `propose-chooser-cancel` "Cancel", within 10 s (screens.md: Propose chooser) |
 | S2.3 | A | tap, type, then tap | `propose-kind-buy`, `monaco-search-field`, then the `propose-buy-stock-<symbol>` row for GOOGL | `GOOGL` | The screen titled "Buy stock" shows the search field within 10 s. Then `propose-amount-screen` shows within 10 s |
 | S2.4 | A | type | `amount-entry-field` | `5` | the message "Amount exceeds the cash balance." shows within 5 s, and `propose-amount-review` is disabled |
-| S2.5 | A | type, tap, type, then tap | `amount-entry-field`, the thesis field `propose-amount-reason`, then `propose-amount-review` | `1`, then `Journey buy {QA.run}` | After the `1`, `amount-entry-helper` reads "The cabal can spend $3.00" within 10 s. After the thesis and Review proposal, the sheet `propose-review-screen` (titled "Review proposal") shows the rows "Voting window", "Votes to pass", "Cabal gets", "Price", "Pot" and "Who votes", and "Thesis" with `Journey buy {QA.run}`, within 10 s |
+| S2.5 | A | type, tap, type, then tap | `amount-entry-field`, the thesis field `propose-amount-reason`, then `propose-amount-review` | `1`, then `Journey buy {QA.run}` | After the `1`, `amount-entry-helper` reads "The cabal can spend $3.00" within 10 s. After the thesis and Review proposal, the sheet `propose-review-screen` (titled "Review") shows the rows "Voting window", "Votes to pass", "Cabal gets", "Price", "Pot" and "Who votes", and "Thesis" with `Journey buy {QA.run}`, within 10 s |
 | S2.6 | A | tap | `propose-review-send` | | The sheet shows "Proposal sent" within 10 s. Close returns to the cabal screen (`cabal-header-name` reads `{cabalName}`) within 10 s |
 
 ### S3 The cabal votes it through

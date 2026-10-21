@@ -42,10 +42,8 @@ struct ReportReasonSheet: View {
                 .padding(MonacoTheme.Space.gutter)
                 .accessibilityIdentifier("report-cancel")
         }
-        .frame(maxHeight: .infinity, alignment: .top)
-        .monacoSheet(title: "Report", titleIdentifier: "report-title")
+        .monacoFittedSheet(title: "Report", titleIdentifier: "report-title", showsClose: true)
         .monacoToastCenter(toasts)
-        .presentationDetents([.medium])
     }
 
     private func send(_ reason: ReportReason) async {

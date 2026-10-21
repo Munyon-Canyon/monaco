@@ -38,7 +38,7 @@ struct ProposeReviewSheet: View {
             bestChain: bestChain, logoURL: logoURL, memory: memory, isSending: $isSending, sendsOnAppear: sendsOnAppear
         )
         .monacoSheet(
-            title: ProposeFlowCopy.reviewProposal, titleIdentifier: "propose-review-sheet", detents: .review,
+            title: "Review", titleIdentifier: "propose-review-sheet", detents: .review,
             showsClose: true
         )
         .interactiveDismissDisabled(isSending)

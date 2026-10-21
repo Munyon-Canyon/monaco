@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceProposeBuyJourney {
     static let id = "governance/propose-buy"
-    static let version = 7
+    static let version = 8
 
     static let screenTimeout: TimeInterval = 15
     static let checkTimeout: TimeInterval = 10
@@ -22,6 +22,13 @@ enum GovernanceProposeBuyJourney {
         XCTAssertTrue(
             labelled(app, containing: text).waitForExistence(timeout: timeout),
             "\(step): no \"\(text)\" within \(Int(timeout)) s"
+        )
+    }
+
+    static func expectTitle(sheet app: XCUIApplication, step: String) {
+        XCTAssertTrue(
+            app.element("propose-review-sheet").waitForExistence(timeout: checkTimeout),
+            "\(step): no Review sheet within \(Int(checkTimeout)) s"
         )
     }
 
@@ -87,7 +94,7 @@ enum GovernanceProposeBuyJourney {
     static func review(_ app: XCUIApplication, chip: String, reads summary: String, step: String) {
         tapLabel(app, chip, step: step)
         tapLabel(app, "Review proposal", step: step)
-        expectLabel(app, "Review proposal", step: step)
+        expectTitle(sheet: app, step: step)
         expectText(app, summary, step: step)
     }
 
