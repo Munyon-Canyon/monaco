@@ -199,8 +199,8 @@ func (r *Runner) attempt(ctx context.Context, p Poller, locks *db.Locks, retryIn
 		return outcomeFailed
 	}
 	if !held {
-		observability.Debug(ctx, observability.PollerSkipped, slog.String("poller", name))
 		r.markTick(name, r.clock.Now())
+		observability.Debug(ctx, observability.PollerSkipped, slog.String("poller", name))
 		return outcomeSkipped
 	}
 	start := r.clock.Now()
@@ -212,10 +212,11 @@ func (r *Runner) attempt(ctx context.Context, p Poller, locks *db.Locks, retryIn
 		r.fail(ctx, name, deadlineAsTimeout(err), retryIn)
 		return outcomeFailed
 	}
+	end := r.clock.Now()
+	r.markSuccess(name, end)
 	observability.Info(ctx, observability.PollerTick, slog.String("poller", name),
 		slog.Int("scanned", report.Scanned), slog.Int("changed", report.Changed),
-		slog.Int64("duration_ms", r.clock.Now().Sub(start).Milliseconds()), slog.GroupAttrs("detail", report.Attrs...))
-	r.markSuccess(name, r.clock.Now())
+		slog.Int64("duration_ms", end.Sub(start).Milliseconds()), slog.GroupAttrs("detail", report.Attrs...))
 	return outcomeOK
 }
 
