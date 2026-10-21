@@ -90,6 +90,7 @@ func (m *Module) Mount(r api.Mount) {
 		Reads:       m.deps.Pool,
 		IDs:         m.deps.IDs,
 		Withdrawals: app.NewWithdrawHandler(m.withdrawDeps(wallets)),
+		Authorize:   app.NewAuthorizeWithdrawalHandler(m.deps.UoW, m.deps.Clock),
 		Preview: app.PreviewWithdrawalHandler{
 			Wallets: wallets,
 			Quotes:  adapters.NewPrivyTransferQuotes(cfg, m.deps.Clock),

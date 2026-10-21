@@ -21,6 +21,27 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(sent.map { $0.headerFields[.authorization] }, [nil])
     }
 
+    func testOnlyTheWithdrawalConfirmationAsksForAFreshToken() async throws {
+        let transport = StubTransport(scripted: [
+            .json(
+                .created,
+                #"{"authorization_id":"01890a5d-ac96-774b-bcce-b302099a8059","expires_at":"2026-10-21T12:05:00Z"}"#),
+            Fixtures.ping,
+        ])
+        let tokens = FreshTokens(cached: "cached", fresh: "fresh")
+        let client = Fixtures.client(transport, tokens: tokens)
+        let body = Components.Schemas.WithdrawRequest(
+            amountMicros: "2000000", toAddress: "9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P")
+
+        _ = try await client.read { try await $0.authorizeWithdrawal(body: .json(body)).created }
+        _ = try await client.ping(IdempotentSubmission())
+
+        let sent = await transport.sent
+        XCTAssertEqual(sent.map { $0.headerFields[.authorization] }, ["Bearer fresh", "Bearer cached"])
+        let asked = await tokens.freshAsks
+        XCTAssertEqual(asked, 1)
+    }
+
     func testA401IsRetriedOnceWithTheRefreshedToken() async throws {
         let transport = StubTransport(scripted: [Fixtures.problem(401, "unauthorized"), Fixtures.ping])
         let tokens = StubTokenProvider(token: "stale", refreshes: ["fresh"])
@@ -174,6 +195,24 @@ private actor AccountDeletedRecorder: MonacoAPI.AccessTokenProvider {
     func accessToken() async throws -> String? { token }
     func refreshedToken(replacing _: String) async throws -> String? { nil }
     func accountDeleted(rejectedToken: String) { deleted.append(rejectedToken) }
+}
+
+private actor FreshTokens: MonacoAPI.AccessTokenProvider {
+    private let cached: String
+    private let fresh: String
+    private(set) var freshAsks = 0
+
+    init(cached: String, fresh: String) {
+        self.cached = cached
+        self.fresh = fresh
+    }
+
+    func accessToken() async throws -> String? { cached }
+    func freshAccessToken() async throws -> String? {
+        freshAsks += 1
+        return fresh
+    }
+    func refreshedToken(replacing _: String) async throws -> String? { nil }
 }
 
 private actor DefaultToken: MonacoAPI.AccessTokenProvider {

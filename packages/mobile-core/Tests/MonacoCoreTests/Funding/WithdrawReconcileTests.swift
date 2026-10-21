@@ -18,7 +18,7 @@ final class WithdrawReconcileTests: XCTestCase {
 
     func testAFinalHintWhoseReadFailsStillConfirmsOnTheRetryWithNoMoreHints() async {
         let transport = StubTransport(scripted: [
-            .json(.accepted, accepted), .json(.ok, read("submitted")), .failure(URLError(.timedOut)),
+            granted, .json(.accepted, accepted), .json(.ok, read("submitted")), .failure(URLError(.timedOut)),
             .failure(URLError(.notConnectedToInternet)), .json(.ok, read("confirmed")),
         ])
         let hints = FakeHintStream()
@@ -29,7 +29,7 @@ final class WithdrawReconcileTests: XCTestCase {
 
         let settled = Task { await withdrawing.settle() }
         await hints.waitForSubscribers(1)
-        await transport.waitForRequests(2)
+        await transport.waitForRequests(3)
         await hints.send(.changed(.user(other), what: "balance_changed", id: "1"))
         _ = await clock.state.until { $0.requested.contains(.seconds(1)) }
         clock.advance(by: .seconds(1))
@@ -44,7 +44,7 @@ final class WithdrawReconcileTests: XCTestCase {
 
     func testAnUnresolvedWithdrawalIsReadAgainOnTheIntervalWithNoHints() async {
         let transport = StubTransport(scripted: [
-            .json(.accepted, accepted), .json(.ok, read("submitted")), .json(.ok, read("confirmed")),
+            granted, .json(.accepted, accepted), .json(.ok, read("submitted")), .json(.ok, read("confirmed")),
         ])
         let clock = TestClock()
         let withdrawing = Withdrawing(
@@ -61,24 +61,26 @@ final class WithdrawReconcileTests: XCTestCase {
 
     func testABurstOfHintsDuringASlowReadQueuesOneMoreRead() async {
         let transport = StubTransport(scripted: [
-            .json(.accepted, accepted), .json(.ok, read("submitted")), .gate, .json(.ok, read("submitted")),
-            .json(.ok, read("confirmed")),
+            granted, .json(.accepted, accepted), .json(.ok, read("submitted")), .gate,
+            .json(.ok, read("submitted")), .json(.ok, read("confirmed")),
         ])
         let hints = FakeHintStream()
+        let counted = PullCountingHints(base: hints)
         let withdrawing = Withdrawing(
-            source: WithdrawSource(api: api(transport)), hints: hints, schedule: .standard(on: TestClock()))
+            source: WithdrawSource(api: api(transport)), hints: counted, schedule: .standard(on: TestClock()))
         _ = await withdrawing.submit(micros: 2_000_000, toAddress: address)
 
         let settled = Task { await withdrawing.settle() }
         await hints.waitForSubscribers(1)
-        await transport.waitForRequests(2)
-        await hints.send(.changed(.user(other), what: "balance_changed", id: "0"))
         await transport.waitForRequests(3)
+        await hints.send(.changed(.user(other), what: "balance_changed", id: "0"))
+        await transport.waitForRequests(4)
         for index in 1...50 {
             await hints.send(.changed(.user(other), what: "balance_changed", id: "\(index)"))
         }
+        await counted.pulls.waitFor(52)
         await transport.releaseGate(.json(.ok, read("submitted")))
-        await transport.waitForRequests(4)
+        await transport.waitForRequests(5)
         for _ in 0..<200 { await Task.yield() }
 
         let reads = await transport.sent.filter { $0.method == .get }.count
@@ -86,6 +88,58 @@ final class WithdrawReconcileTests: XCTestCase {
         await hints.send(.changed(.user(other), what: "balance_changed", id: "last"))
         let progress = await settled.value
         XCTAssertEqual(progress, .confirmed(withdrawal(.confirmed)))
+    }
+
+    private actor PullCount {
+        private var count = 0
+        private var waiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+
+        func record() {
+            count += 1
+            let ready = waiters.filter { count >= $0.count }
+            waiters.removeAll { count >= $0.count }
+            for waiter in ready { waiter.continuation.resume() }
+        }
+
+        func waitFor(_ target: Int) async {
+            if count >= target { return }
+            await withCheckedContinuation { waiters.append((target, $0)) }
+        }
+    }
+
+    private actor Relay {
+        private var upstream: AsyncStream<Hint>.Iterator?
+        private let pulls: PullCount
+
+        init(_ stream: AsyncStream<Hint>, pulls: PullCount) {
+            upstream = stream.makeAsyncIterator()
+            self.pulls = pulls
+        }
+
+        func next() async -> Hint? {
+            await pulls.record()
+            guard var iterator = upstream else { return nil }
+            upstream = nil
+            let hint = await iterator.next(isolation: self)
+            upstream = iterator
+            return hint
+        }
+    }
+
+    private struct PullCountingHints: HintSource {
+        let base: FakeHintStream
+        let pulls = PullCount()
+
+        func hints(matching filter: HintFilter) -> AsyncStream<Hint> {
+            let relay = Relay(base.hints(matching: filter), pulls: pulls)
+            return AsyncStream { await relay.next() }
+        }
+    }
+
+    private var granted: StubTransport.Reply {
+        .json(
+            .created,
+            #"{"authorization_id":"01890a5d-ac96-774b-bcce-b302099a8059","expires_at":"2026-10-21T12:05:00Z"}"#)
     }
 
     private var accepted: String {

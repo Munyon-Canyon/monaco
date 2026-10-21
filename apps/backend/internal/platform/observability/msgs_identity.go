@@ -9,6 +9,7 @@ var (
 	IdentityXConflict           = Msg{Name: "identity.x.conflict", Required: []string{"user_id"}}
 	IdentityAccountDeleted      = Msg{Name: "identity.account.deleted", Required: []string{"user_id"}}
 	IdentitySessionOpened       = Msg{Name: "identity.session.opened", Required: []string{"user_id", "created"}}
+	IdentitySessionsRevoked     = Msg{Name: "identity.sessions.revoked", Required: []string{"user_id", "scope"}}
 
 	IdentityOnboardingAdvanced = Msg{
 		Name: "identity.onboarding.advanced", Required: []string{"user_id", "from", "to", "cause"},

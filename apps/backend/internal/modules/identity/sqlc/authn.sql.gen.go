@@ -7,6 +7,7 @@ package sqlc
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -28,17 +29,29 @@ func (q *Queries) ActorByID(ctx context.Context, id uuid.UUID) (ActorByIDRow, er
 }
 
 const actorByPrivyUserID = `-- name: ActorByPrivyUserID :one
-SELECT id, account_status FROM users WHERE privy_user_id = $1
+SELECT u.id, u.account_status,
+  (EXISTS (SELECT 1 FROM revoked_sessions r WHERE r.privy_session_id = $1::text)
+    OR COALESCE(date_trunc('second', u.sessions_valid_after) >= $2::timestamptz, false))::boolean
+    AS session_ended
+FROM users u
+WHERE u.privy_user_id = $3::text
 `
+
+type ActorByPrivyUserIDParams struct {
+	PrivySessionID string
+	IssuedAt       time.Time
+	PrivyUserID    string
+}
 
 type ActorByPrivyUserIDRow struct {
 	ID            uuid.UUID
 	AccountStatus string
+	SessionEnded  bool
 }
 
-func (q *Queries) ActorByPrivyUserID(ctx context.Context, privyUserID string) (ActorByPrivyUserIDRow, error) {
-	row := q.db.QueryRow(ctx, actorByPrivyUserID, privyUserID)
+func (q *Queries) ActorByPrivyUserID(ctx context.Context, arg ActorByPrivyUserIDParams) (ActorByPrivyUserIDRow, error) {
+	row := q.db.QueryRow(ctx, actorByPrivyUserID, arg.PrivySessionID, arg.IssuedAt, arg.PrivyUserID)
 	var i ActorByPrivyUserIDRow
-	err := row.Scan(&i.ID, &i.AccountStatus)
+	err := row.Scan(&i.ID, &i.AccountStatus, &i.SessionEnded)
 	return i, err
 }

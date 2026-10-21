@@ -146,6 +146,24 @@ func (e PublicProfileReturnPeriod) Valid() bool {
 	}
 }
 
+// Defines values for RevokeSessionsRequestScope.
+const (
+	AllSessions RevokeSessionsRequestScope = "all_sessions"
+	ThisSession RevokeSessionsRequestScope = "this_session"
+)
+
+// Valid indicates whether the value is a known member of the RevokeSessionsRequestScope enum.
+func (e RevokeSessionsRequestScope) Valid() bool {
+	switch e {
+	case AllSessions:
+		return true
+	case ThisSession:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SkipOnboardingStepStep.
 const (
 	Phone   SkipOnboardingStepStep = "phone"
@@ -421,6 +439,19 @@ type ReassignHandleBody struct {
 	ToUserId openapi_types.UUID `json:"to_user_id"`
 }
 
+// RevokeSessionsRequest Which of the caller's sessions to end.
+type RevokeSessionsRequest struct {
+	// Scope `this_session` ends the session of the token that made the call. `all_sessions` ends every session the caller has, including this one.
+	//
+	// Examples: this_session
+	Scope RevokeSessionsRequestScope `json:"scope"`
+}
+
+// RevokeSessionsRequestScope `this_session` ends the session of the token that made the call. `all_sessions` ends every session the caller has, including this one.
+//
+// Examples: this_session
+type RevokeSessionsRequestScope string
+
 // SetHandle A handle to claim for the caller.
 type SetHandle struct {
 	// Handle Examples: kai_one
@@ -566,6 +597,12 @@ type PostProfilePhotoParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// RevokeSessionsParams defines parameters for RevokeSessions.
+type RevokeSessionsParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // SearchUsersParams defines parameters for SearchUsers.
 type SearchUsersParams struct {
 	// Query A handle prefix or display-name substring to find.
@@ -598,6 +635,9 @@ type PostOnboardingSkipJSONRequestBody = SkipOnboardingStep
 
 // PostProfilePhotoMultipartRequestBody defines body for PostProfilePhoto for multipart/form-data ContentType.
 type PostProfilePhotoMultipartRequestBody PostProfilePhotoMultipartBody
+
+// RevokeSessionsJSONRequestBody defines body for RevokeSessions for application/json ContentType.
+type RevokeSessionsJSONRequestBody = RevokeSessionsRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -652,6 +692,9 @@ type ServerInterface interface {
 	// PostProfilePhoto Upload a profile photo.
 	// (POST /v1/me/profile-photo)
 	PostProfilePhoto(w http.ResponseWriter, r *http.Request, params PostProfilePhotoParams)
+	// RevokeSessions End the caller's session, or every session.
+	// (POST /v1/me/sessions/revoke)
+	RevokeSessions(w http.ResponseWriter, r *http.Request, params RevokeSessionsParams)
 	// SearchUsers Search people by handle or display name.
 	// (GET /v1/users)
 	SearchUsers(w http.ResponseWriter, r *http.Request, params SearchUsersParams)
@@ -1385,6 +1428,51 @@ func (siw *ServerInterfaceWrapper) PostProfilePhoto(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r)
 }
 
+// RevokeSessions operation middleware
+func (siw *ServerInterfaceWrapper) RevokeSessions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RevokeSessionsParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RevokeSessions(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // SearchUsers operation middleware
 func (siw *ServerInterfaceWrapper) SearchUsers(w http.ResponseWriter, r *http.Request) {
 
@@ -1581,6 +1669,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/onboarding/skip", wrapper.PostOnboardingSkip)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/onboarding/socials", wrapper.PostOnboardingSocials)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/profile-photo", wrapper.PostProfilePhoto)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/sessions/revoke", wrapper.RevokeSessions)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/users", wrapper.SearchUsers)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/users/{id}", wrapper.GetUser)
 
@@ -2219,6 +2308,40 @@ func (response PostProfilePhotodefaultApplicationProblemPlusJSONResponse) VisitP
 	return err
 }
 
+type RevokeSessionsRequestObject struct {
+	Params RevokeSessionsParams
+	Body   *RevokeSessionsJSONRequestBody
+}
+
+type RevokeSessionsResponseObject interface {
+	VisitRevokeSessionsResponse(w http.ResponseWriter) error
+}
+
+type RevokeSessions204Response struct {
+}
+
+func (response RevokeSessions204Response) VisitRevokeSessionsResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type RevokeSessionsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response RevokeSessionsdefaultApplicationProblemPlusJSONResponse) VisitRevokeSessionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type SearchUsersRequestObject struct {
 	Params SearchUsersParams
 }
@@ -2350,6 +2473,9 @@ type StrictServerInterface interface {
 	// PostProfilePhoto Upload a profile photo.
 	// (POST /v1/me/profile-photo)
 	PostProfilePhoto(ctx context.Context, request PostProfilePhotoRequestObject) (PostProfilePhotoResponseObject, error)
+	// RevokeSessions End the caller's session, or every session.
+	// (POST /v1/me/sessions/revoke)
+	RevokeSessions(ctx context.Context, request RevokeSessionsRequestObject) (RevokeSessionsResponseObject, error)
 	// SearchUsers Search people by handle or display name.
 	// (GET /v1/users)
 	SearchUsers(ctx context.Context, request SearchUsersRequestObject) (SearchUsersResponseObject, error)
@@ -2898,6 +3024,39 @@ func (sh *strictHandler) PostProfilePhoto(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostProfilePhotoResponseObject); ok {
 		if err := validResponse.VisitPostProfilePhotoResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RevokeSessions operation middleware
+func (sh *strictHandler) RevokeSessions(w http.ResponseWriter, r *http.Request, params RevokeSessionsParams) {
+	var request RevokeSessionsRequestObject
+
+	request.Params = params
+
+	var body RevokeSessionsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RevokeSessions(ctx, request.(RevokeSessionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RevokeSessions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RevokeSessionsResponseObject); ok {
+		if err := validResponse.VisitRevokeSessionsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

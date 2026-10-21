@@ -537,6 +537,8 @@ flow-15-invalid-address       -MonacoFlow 15 invalidAddress
 flow-15-withdraw-to-own-wallet -MonacoFlow 15 withdrawToOwnWallet
 flow-15-insufficient-funds    -MonacoFlow 15 insufficientFunds
 flow-15-privy-unavailable     -MonacoFlow 15 privyUnavailable
+flow-15-step-up-required      -MonacoFlow 15 stepUpRequired
+flow-15-step-up-mismatch      -MonacoFlow 15 stepUpMismatch
 flow-15-interrupted           -MonacoFlow 15 interrupted
 flow-20a-cannot-block-self    -MonacoFlow 20a cannotBlockSelf
 flow-20a-user-not-found       -MonacoFlow 20a userNotFound

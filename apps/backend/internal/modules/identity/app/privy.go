@@ -3,6 +3,7 @@ package app
 import (
 	"cmp"
 	"context"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -34,8 +35,15 @@ type PrivyWallet struct {
 	HasAppSigner bool
 }
 
+type PrivySession struct {
+	UserID   PrivyUserID
+	ID       string
+	IssuedAt time.Time
+}
+
 type PrivyUsers interface {
 	Verify(ctx context.Context, raw string) (PrivyUserID, error)
+	VerifySession(ctx context.Context, raw string) (PrivySession, error)
 	User(ctx context.Context, id PrivyUserID) (PrivyUser, error)
 	Create(ctx context.Context, email string) (PrivyUserID, error)
 	ByEmail(ctx context.Context, email string) (PrivyUserID, bool, error)

@@ -49,7 +49,11 @@ public struct WithdrawSource: Sendable {
     ) async throws -> Withdrawal {
         let body = network.request(micros: micros, toAddress: toAddress)
         let accepted = try await api.submit(submission, payload: body, operation: "withdraw") { client, key in
-            try await client.withdraw(headers: .init(idempotencyKey: key), body: .json(body)).accepted.body.json
+            let authorization = try await client.authorizeWithdrawal(body: .json(body)).created.body.json
+            return try await client.withdraw(
+                headers: .init(idempotencyKey: key, withdrawalAuthorization: authorization.authorizationId),
+                body: .json(body)
+            ).accepted.body.json
         }
         return Withdrawal(
             withdrawalID: accepted.withdrawalId, status: accepted.status, amountMicros: micros,

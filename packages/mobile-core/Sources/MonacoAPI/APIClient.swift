@@ -24,7 +24,9 @@ public struct APIClient: Sendable {
             middlewares: [
                 SessionWireCaptureMiddleware(),
                 TimeoutMiddleware(clock: clock),
-                HeadersMiddleware(accessToken: { try await tokens.accessToken() }),
+                HeadersMiddleware(
+                    accessToken: { try await tokens.accessToken() },
+                    freshAccessToken: { try await tokens.freshAccessToken() }),
                 AccountDeletedMiddleware(tokens: tokens),
                 ProblemMiddleware(),
                 RefreshMiddleware(tokens: tokens),

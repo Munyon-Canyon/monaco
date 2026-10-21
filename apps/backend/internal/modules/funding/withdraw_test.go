@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -158,8 +159,21 @@ func (f *withdrawFixture) withdraw(t *testing.T) (app.WithdrawResult, error) {
 	return f.handle(f.ctx(t.Context()), withdrawTo)
 }
 
+func (f *withdrawFixture) send(ctx context.Context, cmd app.Withdraw) (app.WithdrawResult, error) {
+	if cmd.Authorization == uuid.Nil {
+		granted, err := app.NewAuthorizeWithdrawalHandler(f.uow, f.clock).Handle(ctx, app.AuthorizeWithdrawal{
+			ID: ids.Real{}.NewV7(), UserID: cmd.UserID, Request: cmd.Request,
+		})
+		if err != nil {
+			return app.WithdrawResult{}, err
+		}
+		cmd.Authorization = granted.ID
+	}
+	return f.handler.Handle(ctx, cmd)
+}
+
 func (f *withdrawFixture) handle(ctx context.Context, to chain.SolanaAddress) (app.WithdrawResult, error) {
-	return f.handler.Handle(ctx, app.Withdraw{
+	return f.send(ctx, app.Withdraw{
 		ID: ids.Real{}.NewV7(), UserID: f.user.ID,
 		Request: domain.WithdrawalRequest{Amount: money.MicrosFromUint64(withdrawMicros), To: to},
 	})

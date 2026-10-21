@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
@@ -66,6 +67,14 @@ func (u *Users) Verify(_ context.Context, raw string) (app.PrivyUserID, error) {
 		return "", errs.New(errs.CodeUnauthorized, "privyfake.Users.Verify", slog.String("reason", "unknown_user"))
 	}
 	return app.PrivyUserID(raw), nil
+}
+
+func (u *Users) VerifySession(ctx context.Context, raw string) (app.PrivySession, error) {
+	id, err := u.Verify(ctx, raw)
+	if err != nil {
+		return app.PrivySession{}, err
+	}
+	return app.PrivySession{UserID: id, ID: "session-" + string(id), IssuedAt: time.Now().UTC()}, nil
 }
 
 func (u *Users) Create(_ context.Context, email string) (app.PrivyUserID, error) {

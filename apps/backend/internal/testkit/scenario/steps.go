@@ -105,6 +105,16 @@ func Post(path, body string) Step {
 	}
 }
 
+func PostWithHeader(path, body, header, value string) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		s.send(request{
+			method: http.MethodPost, path: s.path(path), body: body, key: s.nextKey(), token: s.token(),
+			header: header, headerValue: s.path(value),
+		})
+	}
+}
+
 func Patch(path, body string) Step {
 	return func(s *Scenario) {
 		s.t.Helper()

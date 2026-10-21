@@ -81,7 +81,7 @@ func (f *withdrawFixture) withdrawEVM(ctx context.Context) (app.WithdrawResult, 
 	if err != nil {
 		return app.WithdrawResult{}, err
 	}
-	return f.handler.Handle(ctx, app.Withdraw{ID: ids.Real{}.NewV7(), UserID: f.user.ID, Request: request})
+	return f.send(ctx, app.Withdraw{ID: ids.Real{}.NewV7(), UserID: f.user.ID, Request: request})
 }
 
 func (f *withdrawFixture) evmPoller(actions *privyActions) *app.WithdrawalPoller {

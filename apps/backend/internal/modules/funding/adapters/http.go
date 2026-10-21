@@ -3,6 +3,7 @@ package adapters
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
@@ -29,6 +30,7 @@ type HTTP struct {
 	Exchange    *app.ExchangeOnrampTokenHandler
 	Report      *app.ReportOnrampStatusHandler
 	Withdrawals *app.WithdrawHandler
+	Authorize   *app.AuthorizeWithdrawalHandler
 	Preview     app.PreviewWithdrawalHandler
 	Pause       *app.PauseCabalHandler
 	Resume      *app.ResumeCabalHandler
@@ -47,14 +49,44 @@ func (h HTTP) Withdraw(ctx context.Context, req api.WithdrawRequestObject) (api.
 	if err != nil {
 		return nil, err
 	}
-	got, err := h.Withdrawals.Handle(ctx, app.Withdraw{
+	actor, _ := auth.ActorFrom(ctx)
+	cmd := app.Withdraw{
 		ID: h.IDs.NewV7(), UserID: user, Request: request, Intent: httpx.IntentKey(ctx, app.WithdrawOperation),
-	})
+		SessionID: actor.SessionID,
+	}
+	if req.Params.WithdrawalAuthorization != nil {
+		cmd.Authorization = *req.Params.WithdrawalAuthorization
+	}
+	got, err := h.Withdrawals.Handle(ctx, cmd)
 	if err != nil {
 		return nil, err
 	}
 	return api.Withdraw202JSONResponse(api.WithdrawAccepted{
 		WithdrawalId: got.ID, Status: api.WithdrawalStatus(got.Status), TxSignature: string(got.TxSignature),
+	}), nil
+}
+
+func (h HTTP) AuthorizeWithdrawal(
+	ctx context.Context, req api.AuthorizeWithdrawalRequestObject,
+) (api.AuthorizeWithdrawalResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	request, err := domain.ParseWithdrawalRequest(rawWithdrawal(*req.Body))
+	if err != nil {
+		return nil, err
+	}
+	actor, _ := auth.ActorFrom(ctx)
+	got, err := h.Authorize.Handle(ctx, app.AuthorizeWithdrawal{
+		ID: h.IDs.NewV7(), UserID: user, SessionID: actor.SessionID, IssuedAt: time.Unix(actor.IssuedAt, 0),
+		Request: request,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return api.AuthorizeWithdrawal201JSONResponse(api.WithdrawalAuthorization{
+		AuthorizationId: got.ID, ExpiresAt: got.ExpiresAt,
 	}), nil
 }
 

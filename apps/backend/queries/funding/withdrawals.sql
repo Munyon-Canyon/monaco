@@ -117,3 +117,10 @@ WHERE w.user_id = sqlc.arg(user_id)::uuid AND w.destination_kind = 'solana' AND 
     WHERE p.destination_kind = 'solana' AND p.to_address = w.to_address
       AND p.status IN ('submitted', 'confirmed') AND (p.created_at, p.id) < (w.created_at, w.id)
   );
+
+-- name: WithdrewToBefore :one
+SELECT EXISTS (
+  SELECT 1 FROM withdrawals
+  WHERE user_id = $1 AND network = sqlc.arg(network)::text AND to_address = sqlc.arg(to_address)::text
+    AND status = 'confirmed'
+)::boolean AS known;

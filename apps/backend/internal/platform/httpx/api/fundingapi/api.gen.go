@@ -441,6 +441,19 @@ type Withdrawal struct {
 	WithdrawalId openapi_types.UUID `json:"withdrawal_id"`
 }
 
+// WithdrawalAuthorization A single-use confirmation of one exact withdrawal.
+type WithdrawalAuthorization struct {
+	// AuthorizationId The id to send in the `Withdrawal-Authorization` header.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+	AuthorizationId openapi_types.UUID `json:"authorization_id"`
+
+	// ExpiresAt When the confirmation stops working.
+	//
+	// Examples: 2026-10-21T12:05:00Z
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
 // WithdrawalPreview What a withdrawal would deliver to its destination.
 type WithdrawalPreview struct {
 	// ExpiresAt When the EVM quote expires. Null for Solana, which has no quote.
@@ -459,6 +472,9 @@ type WithdrawalStatus string
 
 // OnrampSessionId Examples: 01890a5d-ac96-774b-bcce-b302099a8057
 type OnrampSessionId = openapi_types.UUID
+
+// WithdrawalAuthorizationId Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+type WithdrawalAuthorizationId = openapi_types.UUID
 
 // PauseAdminCabalParams defines parameters for PauseAdminCabal.
 type PauseAdminCabalParams struct {
@@ -494,6 +510,9 @@ type ResumeAdminAllParams struct {
 type WithdrawParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+
+	// WithdrawalAuthorization The `authorization_id` from `POST /v1/me/withdrawals/authorizations` for exactly this amount, network and address. Required for an address the caller has not received funds at, or for 1,000 USDC or more, and checked whenever it is sent. It is a header, so a retry with the same Idempotency-Key can carry a fresh one.
+	WithdrawalAuthorization *WithdrawalAuthorizationId `json:"Withdrawal-Authorization,omitempty"`
 }
 
 // CreateOnrampSessionParams defines parameters for CreateOnrampSession.
@@ -522,6 +541,9 @@ type ResumeAdminAllJSONRequestBody = externalRef0.ReasonBody
 
 // WithdrawJSONRequestBody defines body for Withdraw for application/json ContentType.
 type WithdrawJSONRequestBody = WithdrawRequest
+
+// AuthorizeWithdrawalJSONRequestBody defines body for AuthorizeWithdrawal for application/json ContentType.
+type AuthorizeWithdrawalJSONRequestBody = WithdrawRequest
 
 // PreviewWithdrawalJSONRequestBody defines body for PreviewWithdrawal for application/json ContentType.
 type PreviewWithdrawalJSONRequestBody = WithdrawRequest
@@ -558,6 +580,9 @@ type ServerInterface interface {
 	// Withdraw Send platform balance to a Solana address.
 	// (POST /v1/me/withdrawals)
 	Withdraw(w http.ResponseWriter, r *http.Request, params WithdrawParams)
+	// AuthorizeWithdrawal Confirm one exact withdrawal before sending it.
+	// (POST /v1/me/withdrawals/authorizations)
+	AuthorizeWithdrawal(w http.ResponseWriter, r *http.Request)
 	// PreviewWithdrawal Show what a withdrawal would deliver.
 	// (POST /v1/me/withdrawals/preview)
 	PreviewWithdrawal(w http.ResponseWriter, r *http.Request)
@@ -866,8 +891,41 @@ func (siw *ServerInterfaceWrapper) Withdraw(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// ------------- Optional header parameter "Withdrawal-Authorization" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Withdrawal-Authorization")]; found {
+		var WithdrawalAuthorization WithdrawalAuthorizationId
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Withdrawal-Authorization", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Withdrawal-Authorization", valueList[0], &WithdrawalAuthorization, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: "uuid"})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Withdrawal-Authorization", Err: err})
+			return
+		}
+
+		params.WithdrawalAuthorization = &WithdrawalAuthorization
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.Withdraw(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AuthorizeWithdrawal operation middleware
+func (siw *ServerInterfaceWrapper) AuthorizeWithdrawal(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AuthorizeWithdrawal(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1183,6 +1241,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/resume", wrapper.ResumeAdminAll)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/balance", wrapper.GetMyBalance)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/withdrawals", wrapper.Withdraw)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/withdrawals/authorizations", wrapper.AuthorizeWithdrawal)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/withdrawals/preview", wrapper.PreviewWithdrawal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/withdrawals/{id}", wrapper.GetMyWithdrawal)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/onramp/sessions", wrapper.CreateOnrampSession)
@@ -1472,6 +1531,45 @@ func (response WithdrawdefaultApplicationProblemPlusJSONResponse) VisitWithdrawR
 	return err
 }
 
+type AuthorizeWithdrawalRequestObject struct {
+	Body *AuthorizeWithdrawalJSONRequestBody
+}
+
+type AuthorizeWithdrawalResponseObject interface {
+	VisitAuthorizeWithdrawalResponse(w http.ResponseWriter) error
+}
+
+type AuthorizeWithdrawal201JSONResponse WithdrawalAuthorization
+
+func (response AuthorizeWithdrawal201JSONResponse) VisitAuthorizeWithdrawalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AuthorizeWithdrawaldefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response AuthorizeWithdrawaldefaultApplicationProblemPlusJSONResponse) VisitAuthorizeWithdrawalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PreviewWithdrawalRequestObject struct {
 	Body *PreviewWithdrawalJSONRequestBody
 }
@@ -1732,6 +1830,9 @@ type StrictServerInterface interface {
 	// Withdraw Send platform balance to a Solana address.
 	// (POST /v1/me/withdrawals)
 	Withdraw(ctx context.Context, request WithdrawRequestObject) (WithdrawResponseObject, error)
+	// AuthorizeWithdrawal Confirm one exact withdrawal before sending it.
+	// (POST /v1/me/withdrawals/authorizations)
+	AuthorizeWithdrawal(ctx context.Context, request AuthorizeWithdrawalRequestObject) (AuthorizeWithdrawalResponseObject, error)
 	// PreviewWithdrawal Show what a withdrawal would deliver.
 	// (POST /v1/me/withdrawals/preview)
 	PreviewWithdrawal(ctx context.Context, request PreviewWithdrawalRequestObject) (PreviewWithdrawalResponseObject, error)
@@ -2001,6 +2102,37 @@ func (sh *strictHandler) Withdraw(w http.ResponseWriter, r *http.Request, params
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(WithdrawResponseObject); ok {
 		if err := validResponse.VisitWithdrawResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AuthorizeWithdrawal operation middleware
+func (sh *strictHandler) AuthorizeWithdrawal(w http.ResponseWriter, r *http.Request) {
+	var request AuthorizeWithdrawalRequestObject
+
+	var body AuthorizeWithdrawalJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AuthorizeWithdrawal(ctx, request.(AuthorizeWithdrawalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AuthorizeWithdrawal")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AuthorizeWithdrawalResponseObject); ok {
+		if err := validResponse.VisitAuthorizeWithdrawalResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

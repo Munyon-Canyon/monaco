@@ -10,6 +10,7 @@ import (
 	"math/big"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
@@ -19,9 +20,17 @@ const issuer = "privy.io"
 type claims struct {
 	Iss string   `json:"iss"`
 	Sub string   `json:"sub"`
+	Sid string   `json:"sid"`
 	Aud audience `json:"aud"`
 	Exp int64    `json:"exp"`
 	Nbf int64    `json:"nbf"`
+	Iat int64    `json:"iat"`
+}
+
+type Session struct {
+	UserID   UserID
+	ID       string
+	IssuedAt time.Time
 }
 
 type audience []string
@@ -40,15 +49,20 @@ func (a *audience) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *Client) VerifyAccessToken(_ context.Context, raw string) (UserID, error) {
-	const op = "privy.VerifyAccessToken"
+func (c *Client) VerifyAccessToken(ctx context.Context, raw string) (UserID, error) {
+	session, err := c.VerifySession(ctx, raw)
+	return session.UserID, err
+}
+
+func (c *Client) VerifySession(_ context.Context, raw string) (Session, error) {
+	const op = "privy.VerifySession"
 	payload, reason := c.verified(raw)
 	if reason != "" {
-		return "", errs.New(errs.CodeUnauthorized, op, slog.String("reason", reason))
+		return Session{}, errs.New(errs.CodeUnauthorized, op, slog.String("reason", reason))
 	}
 	var cl claims
 	if err := json.Unmarshal(payload, &cl); err != nil {
-		return "", errs.New(errs.CodeUnauthorized, op, slog.String("reason", "claims"))
+		return Session{}, errs.New(errs.CodeUnauthorized, op, slog.String("reason", "claims"))
 	}
 	now := c.clock.Now().Unix()
 	switch {
@@ -62,10 +76,14 @@ func (c *Client) VerifyAccessToken(_ context.Context, raw string) (UserID, error
 		reason = "not yet valid"
 	case cl.Sub == "":
 		reason = "subject"
+	case cl.Sid == "":
+		reason = "session"
+	case cl.Iat <= 0 || cl.Iat > now:
+		reason = "issued_at"
 	default:
-		return UserID(cl.Sub), nil
+		return Session{UserID: UserID(cl.Sub), ID: cl.Sid, IssuedAt: time.Unix(cl.Iat, 0).UTC()}, nil
 	}
-	return "", errs.New(errs.CodeUnauthorized, op, slog.String("reason", reason))
+	return Session{}, errs.New(errs.CodeUnauthorized, op, slog.String("reason", reason))
 }
 
 func (c *Client) verified(raw string) ([]byte, string) {

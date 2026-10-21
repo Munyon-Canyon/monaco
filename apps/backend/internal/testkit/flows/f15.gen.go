@@ -12,6 +12,8 @@ func (defined) ScriptsF15() map[string]Script {
 		"F15WithdrawInvalidAddress":      F15WithdrawInvalidAddress,
 		"F15WithdrawWithdrawToOwnWallet": F15WithdrawWithdrawToOwnWallet,
 		"F15WithdrawInsufficientFunds":   F15WithdrawInsufficientFunds,
+		"F15WithdrawStepUpRequired":      F15WithdrawStepUpRequired,
+		"F15WithdrawStepUpMismatch":      F15WithdrawStepUpMismatch,
 		"F15WithdrawPrivyUnavailable":    F15WithdrawPrivyUnavailable,
 	}
 }

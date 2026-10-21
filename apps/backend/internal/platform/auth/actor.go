@@ -29,6 +29,9 @@ type Actor struct {
 	ID       string
 	Role     string
 	Standing Standing
+
+	SessionID string
+	IssuedAt  int64
 }
 
 func (a Actor) Key() string { return string(a.Kind) + ":" + a.ID }

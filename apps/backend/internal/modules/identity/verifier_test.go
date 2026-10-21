@@ -85,6 +85,13 @@ func (f verifierFixture) privyToken(sub string) string {
 	return fakes.PrivyAccessToken(privyAppID, sub, f.clock.Now(), time.Hour)
 }
 
+func (f verifierFixture) privyActor(u testkit.SeededUser, standing auth.Standing) auth.Actor {
+	return auth.Actor{
+		Kind: auth.ActorUser, ID: u.ID.String(), Standing: standing,
+		SessionID: "session-" + u.PrivyUserID, IssuedAt: f.clock.Now().Unix(),
+	}
+}
+
 func (f verifierFixture) devToken(t *testing.T, sub string) string {
 	t.Helper()
 	dev, err := auth.NewDevVerifier(verifierConfig(config.EnvLocal), f.clock)
@@ -97,7 +104,8 @@ func (f verifierFixture) devToken(t *testing.T, sub string) string {
 func (f verifierFixture) signed(t *testing.T, key *ecdsa.PrivateKey, header, sub string) string {
 	t.Helper()
 	claims, err := json.Marshal(map[string]any{
-		"iss": "privy.io", "aud": privyAppID, "sub": sub, "exp": f.clock.Now().Add(time.Hour).Unix(),
+		"iss": "privy.io", "aud": privyAppID, "sub": sub, "sid": "session-" + sub,
+		"iat": f.clock.Now().Unix(), "exp": f.clock.Now().Add(time.Hour).Unix(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -142,6 +150,7 @@ func TestVerifier_routesEachTokenByAlgorithmAndLooksTheUserUpOnce(t *testing.T) 
 	}
 	known := auth.Actor{Kind: auth.ActorUser, ID: user.ID.String(), Standing: auth.StandingActive}
 	signedIn := verdict{actor: known, queries: 1}
+	privySignedIn := verdict{actor: f.privyActor(user, auth.StandingActive), queries: 1}
 	strangerID := testkit.NewIDs(1).NewV7().String()
 	stranger := verdict{actor: auth.Actor{Kind: auth.ActorUser, ID: strangerID, Standing: auth.StandingActive}}
 	suspended := testkit.SeedUser(t, f.pool, testkit.UserOpts{AccountStatus: "suspended"})
@@ -159,8 +168,8 @@ func TestVerifier_routesEachTokenByAlgorithmAndLooksTheUserUpOnce(t *testing.T) 
 		token string
 		want  verdict
 	}{
-		"privy token for a known user": {dev, f.privyToken(sub), signedIn},
-		"privy token in production":    {prod, f.privyToken(sub), signedIn},
+		"privy token for a known user": {dev, f.privyToken(sub), privySignedIn},
+		"privy token in production":    {prod, f.privyToken(sub), privySignedIn},
 		"unknown sub":                  {dev, f.privyToken("did:privy:unknown"), noSession},
 		"expired": {
 			dev, fakes.PrivyAccessToken(privyAppID, sub, f.clock.Now().Add(-2*time.Hour), time.Hour), refused,
@@ -208,7 +217,7 @@ func TestVerifier_actorCarriesTheAccountStatusAsItsStanding(t *testing.T) {
 	} {
 		user := testkit.SeedUser(t, f.pool, testkit.UserOpts{AccountStatus: status})
 		got := f.verify(t, v, f.privyToken(user.PrivyUserID))
-		if got != (verdict{actor: auth.Actor{Kind: auth.ActorUser, ID: user.ID.String(), Standing: want}, queries: 1}) {
+		if got != (verdict{actor: f.privyActor(user, want), queries: 1}) {
 			t.Fatalf("%s user: Verify = %+v, want standing %s", status, got, want)
 		}
 	}
@@ -356,7 +365,7 @@ func TestVerifier_behindTheAuthMiddlewarePutsTheStandingInContextAndLogsNoToken(
 		}
 	}
 	want := []auth.Actor{
-		{Kind: auth.ActorUser, ID: banned.ID.String(), Standing: auth.StandingBanned},
+		f.privyActor(banned, auth.StandingBanned),
 		{Kind: auth.ActorUser, ID: active.ID.String(), Standing: auth.StandingActive},
 	}
 	if !reflect.DeepEqual(probe.seen, want) {

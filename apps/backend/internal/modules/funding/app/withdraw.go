@@ -47,6 +47,9 @@ type Withdraw struct {
 	UserID  ids.UserID
 	Request domain.WithdrawalRequest
 	Intent  db.IntentKey
+
+	SessionID     string
+	Authorization uuid.UUID
 }
 
 type WithdrawResult struct {
@@ -182,11 +185,18 @@ func (h *WithdrawHandler) resume(
 func (h *WithdrawHandler) open(
 	ctx context.Context, tx db.Tx, cmd Withdraw, obs port.Observation, observeErr error,
 ) (relayer.SponsorPlan, error) {
+	q := sqlc.New(tx.Queries())
+	if err := h.requireStepUp(ctx, q, cmd); err != nil {
+		return relayer.SponsorPlan{}, err
+	}
 	landed, err := h.admit(ctx, tx, cmd, obs, observeErr)
 	if err != nil {
 		return relayer.SponsorPlan{}, err
 	}
-	if err := sqlc.New(tx.Queries()).InsertWithdrawal(ctx, insertParams(cmd, h.d.Clock.Now())); err != nil {
+	if err := q.InsertWithdrawal(ctx, insertParams(cmd, h.d.Clock.Now())); err != nil {
+		return relayer.SponsorPlan{}, err
+	}
+	if err := h.consumeAuthorization(ctx, q, cmd); err != nil {
 		return relayer.SponsorPlan{}, err
 	}
 	plan, err := h.reserve(ctx, tx, cmd, cmd.ID, !landed)

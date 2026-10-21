@@ -14,6 +14,7 @@ import (
 
 const (
 	withdrawPath      = "/v1/me/withdrawals"
+	authorizePath     = withdrawPath + "/authorizations"
 	withdrawElsewhere = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
 	withdrawBody      = `{"amount_micros":"2000000","to_address":"` + withdrawElsewhere + `"}`
 	withdrawPoller    = "funding.withdrawals"
@@ -30,7 +31,21 @@ func (defined) SeedsF15() map[string]Seeder {
 		"F15WithdrawWithdrawToOwnWallet": seedSignedIn,
 		"F15WithdrawInsufficientFunds":   seedSignedIn,
 		"F15WithdrawPrivyUnavailable":    seedSignedIn,
+		"F15WithdrawStepUpRequired":      seedSignedIn,
+		"F15WithdrawStepUpMismatch":      seedSignedIn,
 	}
+}
+
+func AuthorizeWithdrawal(body string) scenario.Step {
+	return func(s *scenario.Scenario) {
+		scenario.Post(authorizePath, body)(s)
+		scenario.ExpectStatus(http.StatusCreated)(s)
+		scenario.Remember("authorization_id", "authorization")(s)
+	}
+}
+
+func WithdrawAuthorized(body string) scenario.Step {
+	return scenario.PostWithHeader(withdrawPath, body, "Withdrawal-Authorization", "{authorization}")
 }
 
 func SeedWithdrawer(s *scenario.Scenario) testkit.SeededUser {
@@ -66,7 +81,8 @@ func F15WithdrawOK(s *scenario.Scenario) {
 	member := SeedWithdrawer(s)
 	s.Given(scenario.AsSeededUser("member", member.ID)).
 		When(
-			scenario.Post(withdrawPath, withdrawBody),
+			AuthorizeWithdrawal(withdrawBody),
+			WithdrawAuthorized(withdrawBody),
 			scenario.ExpectStatus(http.StatusAccepted),
 			scenario.ExpectJSON("status", "submitted"),
 			scenario.Remember("withdrawal_id", "withdrawal"),
@@ -88,7 +104,8 @@ func F15WithdrawCrashBeforeCommit(s *scenario.Scenario) {
 	member := SeedWithdrawer(s)
 	s.Given(scenario.AsSeededUser("member", member.ID)).
 		When(
-			scenario.Post(withdrawPath, withdrawBody),
+			AuthorizeWithdrawal(withdrawBody),
+			WithdrawAuthorized(withdrawBody),
 			scenario.Retry(),
 			scenario.ExpectStatus(http.StatusAccepted),
 			scenario.AwaitTick(withdrawPoller),
@@ -102,7 +119,8 @@ func F15WithdrawCrashAfterSign(s *scenario.Scenario) {
 	member := SeedWithdrawer(s)
 	s.Given(scenario.AsSeededUser("member", member.ID)).
 		When(
-			scenario.Post(withdrawPath, withdrawBody),
+			AuthorizeWithdrawal(withdrawBody),
+			WithdrawAuthorized(withdrawBody),
 			scenario.Retry(),
 			scenario.ExpectStatus(http.StatusAccepted),
 			scenario.AwaitTick(withdrawPoller),
@@ -120,7 +138,8 @@ func F15WithdrawCrashAfterBroadcast(s *scenario.Scenario) {
 	member := SeedWithdrawer(s)
 	s.Given(scenario.AsSeededUser("member", member.ID)).
 		When(
-			scenario.Post(withdrawPath, withdrawBody),
+			AuthorizeWithdrawal(withdrawBody),
+			WithdrawAuthorized(withdrawBody),
 			scenario.Retry(),
 			scenario.ExpectStatus(http.StatusAccepted),
 			scenario.ExpectJSON("status", "submitted"),
@@ -154,8 +173,29 @@ func F15WithdrawWithdrawToOwnWallet(s *scenario.Scenario) {
 }
 
 func F15WithdrawInsufficientFunds(s *scenario.Scenario) {
-	refuseWithdrawal(s, `{"amount_micros":"900000000000","to_address":"`+withdrawElsewhere+`"}`,
-		errs.CodeInsufficientFunds)
+	body := `{"amount_micros":"900000000000","to_address":"` + withdrawElsewhere + `"}`
+	member := SeedWithdrawer(s)
+	s.Given(scenario.AsSeededUser("member", member.ID)).
+		When(AuthorizeWithdrawal(body), WithdrawAuthorized(body)).
+		Then(
+			scenario.ExpectProblem(errs.CodeInsufficientFunds),
+			scenario.ExpectEvents(events.TypeWithdrawalSubmitted, 0),
+		)
+}
+
+func F15WithdrawStepUpRequired(s *scenario.Scenario) {
+	refuseWithdrawal(s, withdrawBody, errs.CodeStepUpRequired)
+}
+
+func F15WithdrawStepUpMismatch(s *scenario.Scenario) {
+	changed := `{"amount_micros":"3000000","to_address":"` + withdrawElsewhere + `"}`
+	member := SeedWithdrawer(s)
+	s.Given(scenario.AsSeededUser("member", member.ID)).
+		When(AuthorizeWithdrawal(withdrawBody), WithdrawAuthorized(changed)).
+		Then(
+			scenario.ExpectProblem(errs.CodeStepUpMismatch),
+			scenario.ExpectEvents(events.TypeWithdrawalSubmitted, 0),
+		)
 }
 
 func F15WithdrawPrivyUnavailable(s *scenario.Scenario) {
@@ -167,7 +207,7 @@ func F15WithdrawPrivyUnavailable(s *scenario.Scenario) {
 			Times: 100, Reset: true,
 		}),
 	).
-		When(scenario.Post(withdrawPath, withdrawBody)).
+		When(AuthorizeWithdrawal(withdrawBody), WithdrawAuthorized(withdrawBody)).
 		Then(
 			scenario.ExpectProblem(errs.CodePrivyUnavailable),
 			scenario.ExpectEvents(events.TypeWithdrawalSubmitted, 0),

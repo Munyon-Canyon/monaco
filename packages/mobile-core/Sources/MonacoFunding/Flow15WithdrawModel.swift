@@ -21,7 +21,7 @@ public enum WithdrawFailure: Equatable, Sendable {
             self = .toast(Self.insufficientFunds)
         case .invalidInput:
             self = .toast(Self.invalidAmount)
-        case .privyUnavailable:
+        case .privyUnavailable, .stepUpRequired, .stepUpMismatch:
             self = .toast(serverMessage)
         case .ok, .interrupted, nil:
             self = .toast(serverMessage)

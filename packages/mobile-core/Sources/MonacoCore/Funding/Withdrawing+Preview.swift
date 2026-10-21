@@ -24,6 +24,12 @@ extension Flow15Scenario {
             .problem(status: 422, code: "insufficient_funds", message: "Not enough in your account balance.")
         case .privyUnavailable:
             .problem(status: 503, code: "privy_unavailable", message: "Wallet signing is down. Try again.")
+        case .stepUpRequired:
+            .problem(status: 422, code: "step_up_required", message: "Confirm this withdrawal to continue.")
+        case .stepUpMismatch:
+            .problem(
+                status: 422, code: "step_up_mismatch",
+                message: "The amount or address changed after you confirmed. Confirm the withdrawal again.")
         case .interrupted:
             .dropped
         }

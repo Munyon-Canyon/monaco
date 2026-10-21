@@ -20,7 +20,7 @@ func (f *withdrawFixture) withdrawKeyed(t *testing.T, hash string) (app.Withdraw
 }
 
 func (f *withdrawFixture) withdrawKeyedIn(ctx context.Context, hash string) (app.WithdrawResult, error) {
-	return f.handler.Handle(ctx, app.Withdraw{
+	return f.send(ctx, app.Withdraw{
 		ID: ids.Real{}.NewV7(), UserID: f.user.ID,
 		Request: domain.WithdrawalRequest{Amount: money.MicrosFromUint64(withdrawMicros), To: withdrawTo},
 		Intent: db.IntentKey{
@@ -173,7 +173,7 @@ func (f *withdrawFixture) withdrawEVMKeyed(t *testing.T) (app.WithdrawResult, er
 	if err != nil {
 		t.Fatal(err)
 	}
-	return f.handler.Handle(f.ctx(t.Context()), app.Withdraw{
+	return f.send(f.ctx(t.Context()), app.Withdraw{
 		ID: ids.Real{}.NewV7(), UserID: f.user.ID, Request: request,
 		Intent: db.IntentKey{
 			ActorKey: "user:" + f.user.ID.String(), Key: "k1", Operation: app.WithdrawOperation,

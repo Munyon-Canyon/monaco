@@ -61,6 +61,7 @@ type withdrawPressure struct {
 	pool    *pgxpool.Pool
 	guard   *db.NestedReadGuard
 	handler *app.WithdrawHandler
+	confirm *app.AuthorizeWithdrawalHandler
 	holders []testkit.SeededUser
 }
 
@@ -84,14 +85,15 @@ func newWithdrawPressure(t *testing.T) withdrawPressure {
 			},
 		},
 		clk, usdc)
+	uow := db.New(pool, testkit.NewIDs(5), clk)
 	handler := app.NewWithdrawHandler(app.WithdrawDeps{
-		UoW: db.New(pool, testkit.NewIDs(5), clk), Balances: balances, Wallets: signingWallet{wallet: wallet},
+		UoW: uow, Balances: balances, Wallets: signingWallet{wallet: wallet},
 		Treasuries: cabal.New(deps).Queries(),
 		Transfers:  func() (app.Transfers, error) { return &distinctTransfers{}, nil },
 		Hints:      quietHints{}, Clock: clk, USDC: usdc, TopUp: &topUpFake{},
 	})
 	return withdrawPressure{
-		pool: pool, guard: guard, handler: handler,
+		pool: pool, guard: guard, handler: handler, confirm: app.NewAuthorizeWithdrawalHandler(uow, clk),
 		holders: []testkit.SeededUser{
 			testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true}),
 			testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true}),
@@ -101,9 +103,16 @@ func newWithdrawPressure(t *testing.T) withdrawPressure {
 
 func (p withdrawPressure) withdraw(ctx context.Context, holder testkit.SeededUser) func() error {
 	return func() error {
-		_, err := p.handler.Handle(observability.WithActor(ctx, "user:"+holder.ID.String()), app.Withdraw{
-			ID: ids.Real{}.NewV7(), UserID: holder.ID,
-			Request: domain.WithdrawalRequest{Amount: money.MicrosFromUint64(withdrawMicros), To: withdrawTo},
+		ctx := observability.WithActor(ctx, "user:"+holder.ID.String())
+		request := domain.WithdrawalRequest{Amount: money.MicrosFromUint64(withdrawMicros), To: withdrawTo}
+		granted, err := p.confirm.Handle(ctx, app.AuthorizeWithdrawal{
+			ID: ids.Real{}.NewV7(), UserID: holder.ID, Request: request,
+		})
+		if err != nil {
+			return err
+		}
+		_, err = p.handler.Handle(ctx, app.Withdraw{
+			ID: ids.Real{}.NewV7(), UserID: holder.ID, Request: request, Authorization: granted.ID,
 		})
 		return err
 	}

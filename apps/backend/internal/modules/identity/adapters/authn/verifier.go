@@ -65,18 +65,26 @@ func (v *Verifier) VerifyPrivy(ctx context.Context, raw string) (app.PrivyUserID
 
 func (v *Verifier) privyActor(ctx context.Context, raw string) (auth.Actor, error) {
 	const op = "identity.Verifier.privyActor"
-	id, err := v.privy.Verify(ctx, raw)
+	session, err := v.privy.VerifySession(ctx, raw)
 	if err != nil {
 		return auth.Actor{}, err
 	}
-	row, err := v.queries.ActorByPrivyUserID(ctx, string(id))
+	row, err := v.queries.ActorByPrivyUserID(ctx, sqlc.ActorByPrivyUserIDParams{
+		PrivyUserID: string(session.UserID), PrivySessionID: session.ID, IssuedAt: session.IssuedAt,
+	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return auth.Actor{}, errs.New(errs.CodeSessionRequired, op)
 	}
 	if err != nil {
 		return auth.Actor{}, errs.Wrap(err, errs.CodeDBUnavailable, op)
 	}
-	return auth.Actor{Kind: auth.ActorUser, ID: row.ID.String(), Standing: auth.Standing(row.AccountStatus)}, nil
+	if row.SessionEnded {
+		return auth.Actor{}, errs.New(errs.CodeUnauthorized, op, slog.String("reason", "session_revoked"))
+	}
+	return auth.Actor{
+		Kind: auth.ActorUser, ID: row.ID.String(), Standing: auth.Standing(row.AccountStatus),
+		SessionID: session.ID, IssuedAt: session.IssuedAt.Unix(),
+	}, nil
 }
 
 func (v *Verifier) devActor(ctx context.Context, dev *auth.DevVerifier, raw string) (auth.Actor, error) {

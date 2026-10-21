@@ -16,9 +16,9 @@ enum Fixtures {
         return .response(status: .init(code: status), contentType: "application/problem+json", body: Data(body.utf8))
     }
 
-    static func client(_ transport: StubTransport, tokens: StubTokenProvider = StubTokenProvider(token: "token-1"))
-        -> APIClient
-    {
+    static func client(
+        _ transport: StubTransport, tokens: any AccessTokenProvider = StubTokenProvider(token: "token-1")
+    ) -> APIClient {
         APIClient(serverURL: testServerURL, tokens: tokens, transport: transport)
     }
 }
