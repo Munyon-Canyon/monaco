@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -36,7 +37,11 @@ func HandlerFor(d Deps, mount func(api.Mount), c *Contract) (http.Handler, error
 		Problem(w, r, errs.New(errs.CodeNotFound, "httpx.route"))
 	})
 	mount(api.Mount{Mux: mux, Middlewares: middlewares(d, c), InvalidRequest: invalidRequest, Problem: Problem})
-	return d.wrapContract(c.cors(d.WebOrigins)(mux)), nil
+	h := d.wrapContract(c.cors(d.WebOrigins)(mux))
+	if d.Ready != nil {
+		h = Ready(h, d.Ready, 0)
+	}
+	return h, nil
 }
 
 func middlewares(d Deps, c *Contract) []func(http.Handler) http.Handler {
@@ -76,6 +81,38 @@ func Serve(ctx context.Context, ln net.Listener, srv *http.Server, shutdownTimeo
 		return fmt.Errorf("shutdown: %w", err)
 	}
 	return nil
+}
+
+const readyTimeout = time.Second
+
+type Pinger interface {
+	Ping(ctx context.Context) error
+}
+
+func Ready(next http.Handler, pool Pinger, limit time.Duration) http.Handler {
+	if limit <= 0 {
+		limit = readyTimeout
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/readyz" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), limit)
+		defer cancel()
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		switch err := pool.Ping(ctx); {
+		case err == nil:
+			_, _ = io.WriteString(w, "ok\n")
+		case errors.Is(err, context.DeadlineExceeded):
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = io.WriteString(w, "db pool exhausted: no connection within "+limit.String()+"\n")
+		default:
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = io.WriteString(w, "db "+err.Error()+"\n")
+		}
+	})
 }
 
 type Health struct{}

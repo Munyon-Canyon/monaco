@@ -152,7 +152,10 @@ func startWork(
 		stopConsumers(ctx)
 		return errors.Join(stopPollers(), stopHints())
 	})
-	return health{connected: d.Bus.Connected, pool: d.Pool, ticks: runner, pollers: pollers, clock: d.Clock}, nil
+	return health{
+		connected: d.Bus.Connected, pool: d.Pool, ticks: runner, successes: runner, pollers: pollers, clock: d.Clock,
+		progress: newDBProgress(d.Pool, d.Bus, d.Clock),
+	}, nil
 }
 
 type priceHintLoop interface {

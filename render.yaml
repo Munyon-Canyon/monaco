@@ -26,6 +26,8 @@ services:
     plan: starter
     dockerfilePath: ./apps/backend/deployments/Dockerfile
     dockerContext: .
+    # Render restarts on this path, so it stays liveness. /readyz on the same port fails when the
+    # business pool hands out no connection within a second; point the uptime probe there, not here.
     healthCheckPath: /healthz
     # Render runs this without a shell, so the steps live in apps/backend/deployments/predeploy.sh.
     preDeployCommand: predeploy
@@ -50,6 +52,8 @@ services:
     dockerfilePath: ./apps/backend/deployments/Dockerfile
     dockerContext: .
     dockerCommand: worker
+    # The worker serves /healthz (liveness) and /readyz on MONACO_WORKER_HEALTH_ADDR. /readyz fails when a money
+    # poller has no successful run within three tick budgets and prints the progress signals.
     buildFilter:
       paths:
         - apps/backend/**

@@ -41,6 +41,7 @@ type Deps struct {
 	AdminVerifier auth.TokenVerifier
 	RateLimit     func(http.Handler) http.Handler
 	WebOrigins    []string
+	Ready         Pinger
 }
 
 func (d Deps) wrap(next http.Handler) http.Handler {

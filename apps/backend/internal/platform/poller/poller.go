@@ -59,8 +59,10 @@ type Runner struct {
 
 	maxBackoff time.Duration
 
-	mu   sync.Mutex
-	last map[string]time.Time
+	mu      sync.Mutex
+	last    map[string]time.Time
+	success map[string]time.Time
+	names   []string
 }
 
 func NewRunner(pool *pgxpool.Pool, c clock.Clock, meter metric.Meter) (*Runner, error) {
@@ -69,7 +71,40 @@ func NewRunner(pool *pgxpool.Pool, c clock.Clock, meter metric.Meter) (*Runner, 
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, "poller.NewRunner")
 	}
-	return &Runner{pool: pool, clock: c, errors: counter, maxBackoff: defaultMaxWait, last: map[string]time.Time{}}, nil
+	r := &Runner{
+		pool: pool, clock: c, errors: counter, maxBackoff: defaultMaxWait,
+		last: map[string]time.Time{}, success: map[string]time.Time{},
+	}
+	if err := r.exportSuccess(meter); err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+func (r *Runner) exportSuccess(meter metric.Meter) error {
+	const op = "poller.NewRunner"
+	gauge, err := meter.Int64ObservableGauge("poller_last_success_timestamp_seconds",
+		metric.WithUnit("s"),
+		metric.WithDescription("Unix time of the last tick of a poller that ran to completion; 0 before the first."))
+	if err != nil {
+		return errs.Wrap(err, errs.CodeInternal, op)
+	}
+	_, err = meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		for _, name := range r.names {
+			var at int64
+			if last := r.success[name]; !last.IsZero() {
+				at = last.Unix()
+			}
+			o.ObserveInt64(gauge, at, metric.WithAttributes(attribute.String("poller", name)))
+		}
+		return nil
+	}, gauge)
+	if err != nil {
+		return errs.Wrap(err, errs.CodeInternal, op)
+	}
+	return nil
 }
 
 func (r *Runner) WithBackoffMax(d time.Duration) *Runner {
@@ -85,6 +120,7 @@ func (r *Runner) Run(ctx context.Context, pollers ...Poller) error {
 		}
 		seen[p.Name()] = true
 	}
+	r.register(pollers)
 	locks := db.NewLocks(r.pool)
 	released := make([]error, len(pollers))
 	var wg sync.WaitGroup
@@ -95,10 +131,24 @@ func (r *Runner) Run(ctx context.Context, pollers ...Poller) error {
 	return errors.Join(released...)
 }
 
+func (r *Runner) register(pollers []Poller) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, p := range pollers {
+		r.names = append(r.names, p.Name())
+	}
+}
+
 func (r *Runner) LastTick(name string) time.Time {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.last[name]
+}
+
+func (r *Runner) LastSuccess(name string) time.Time {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.success[name]
 }
 
 func (r *Runner) loop(ctx context.Context, p Poller, locks *db.Locks) error {
@@ -141,7 +191,6 @@ func (r *Runner) attempt(ctx context.Context, p Poller, locks *db.Locks, retryIn
 	name := p.Name()
 	ctx = faultpoint.WithFlow(ctx, flow(name))
 	defer recoverAttempt(ctx, name)
-	r.mark(name, r.clock.Now())
 	lockCtx, cancelLock := context.WithTimeout(ctx, lockTimeout)
 	held, err := locks.Hold(lockCtx, lockKey(p))
 	cancelLock()
@@ -151,6 +200,7 @@ func (r *Runner) attempt(ctx context.Context, p Poller, locks *db.Locks, retryIn
 	}
 	if !held {
 		observability.Debug(ctx, observability.PollerSkipped, slog.String("poller", name))
+		r.markTick(name, r.clock.Now())
 		return outcomeSkipped
 	}
 	start := r.clock.Now()
@@ -165,6 +215,7 @@ func (r *Runner) attempt(ctx context.Context, p Poller, locks *db.Locks, retryIn
 	observability.Info(ctx, observability.PollerTick, slog.String("poller", name),
 		slog.Int("scanned", report.Scanned), slog.Int("changed", report.Changed),
 		slog.Int64("duration_ms", r.clock.Now().Sub(start).Milliseconds()), slog.GroupAttrs("detail", report.Attrs...))
+	r.markSuccess(name, r.clock.Now())
 	return outcomeOK
 }
 
@@ -182,6 +233,17 @@ func deadlineAsTimeout(err error) error {
 		return errs.Wrap(err, errs.CodeUpstreamTimeout, "poller.tick")
 	}
 	return err
+}
+
+func IsMoney(name string) bool {
+	switch name {
+	case "funding.deposit_watch", "funding.withdrawals", "funding.treasury-reconcile",
+		"funding.bounce-sweeper", "funding.evm_deposit_forward", "treasury.cashout-sweeper",
+		"treasury.fund-transfers", "trading.evm_trades", "ranking.valuation":
+		return true
+	default:
+		return false
+	}
 }
 
 func flow(poller string) string {
@@ -252,8 +314,15 @@ func (r *Runner) fail(ctx context.Context, name string, err error, retryIn time.
 	)
 }
 
-func (r *Runner) mark(name string, at time.Time) {
+func (r *Runner) markTick(name string, at time.Time) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.last[name] = at
+}
+
+func (r *Runner) markSuccess(name string, at time.Time) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.last[name] = at
+	r.success[name] = at
 }
