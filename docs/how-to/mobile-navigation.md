@@ -198,12 +198,12 @@ struct CabalScreen: View {
 | `Features/Groups/CabalScreen.swift`, `CabalContext(cabalID: String)`, body | `CabalHeaderSlot` | #606 |
 | | `CabalClosedSlot` | #2146 |
 | | `CabalPotSlot` | #2137 |
+| | `CabalActionsSlot` | #2134 |
+| | `CabalProposalsSlot` | #612 |
 | | `CabalValueChartSlot` | #660 |
 | | `CabalSliceSlot` | #2137 |
 | | `CabalPauseSlot` | #657 |
 | | `CabalJoinSlot` | #646 |
-| | `CabalActionsSlot` | #2134 |
-| | `CabalProposalsSlot` | #612 |
 | | `CabalHoldingsSlot` | #2137 |
 | | `CabalMemberBoardSlot` | #699 |
 | | `CabalActivitySlot` | #654 |

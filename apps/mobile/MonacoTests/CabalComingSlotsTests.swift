@@ -15,9 +15,8 @@ struct CabalComingSlotsTests {
     @Test func cabalScreenOrderIsUnchanged() {
         #expect(
             CabalScreen.sections.map { String(describing: $0) } == [
-                "CabalHeaderSlot", "CabalClosedSlot", "CabalPotSlot", "CabalValueChartSlot", "CabalSliceSlot",
-                "CabalPauseSlot",
-                "CabalJoinSlot", "CabalActionsSlot", "CabalChatPreviewSlot", "CabalProposalsSlot",
+                "CabalHeaderSlot", "CabalClosedSlot", "CabalPotSlot", "CabalActionsSlot", "CabalProposalsSlot",
+                "CabalValueChartSlot", "CabalSliceSlot", "CabalPauseSlot", "CabalJoinSlot", "CabalChatPreviewSlot",
                 "CabalHoldingsSlot", "CabalMemberBoardSlot", "CabalActivitySlot", "CabalRulesRowSlot",
             ])
     }
