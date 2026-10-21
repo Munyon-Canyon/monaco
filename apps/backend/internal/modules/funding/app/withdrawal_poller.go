@@ -35,16 +35,17 @@ type SignatureStatuses interface {
 }
 
 type WithdrawalPollerDeps struct {
-	UoW       *db.UnitOfWork
-	Reads     sqlc.DBTX
-	Clock     clock.Clock
-	Chain     SignatureStatuses
-	Transfers func() (Transfers, error)
-	Wallets   SigningWallets
-	Actions   multichain.WalletActions
-	TopUp     SOLTopUp
-	Hints     HintPublisher
-	UnsentAge time.Duration
+	UoW        *db.UnitOfWork
+	Reads      sqlc.DBTX
+	Clock      clock.Clock
+	Chain      SignatureStatuses
+	Transfers  func() (Transfers, error)
+	Wallets    SigningWallets
+	Actions    multichain.WalletActions
+	TopUp      SOLTopUp
+	Hints      HintPublisher
+	UnsentAge  time.Duration
+	ItemBudget time.Duration
 }
 
 type WithdrawalPoller struct {

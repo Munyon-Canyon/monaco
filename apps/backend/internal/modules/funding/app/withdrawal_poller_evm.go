@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -17,6 +20,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
+const evmItemBudget = 3 * time.Second
+
 func (p *WithdrawalPoller) tickEVM(
 	ctx context.Context, created []sqlc.ListStaleCreatedEVMWithdrawalsRow,
 	submitted []sqlc.ListSubmittedEVMWithdrawalsRow,
@@ -24,16 +29,48 @@ func (p *WithdrawalPoller) tickEVM(
 	changed := 0
 	failures := make([]error, 0, len(created)+len(submitted))
 	for _, row := range created {
-		moved, err := p.recoverEVM(ctx, row)
+		if ctx.Err() != nil {
+			return changed, errors.Join(failures...)
+		}
+		moved, err := p.attemptEVM(ctx, row.ID, func(ctx context.Context) (int, error) {
+			return p.recoverEVM(ctx, row)
+		})
 		changed += moved
 		failures = append(failures, err)
 	}
 	for _, row := range submitted {
-		moved, err := p.resolveEVM(ctx, row)
+		if ctx.Err() != nil {
+			return changed, errors.Join(failures...)
+		}
+		moved, err := p.attemptEVM(ctx, row.ID, func(ctx context.Context) (int, error) {
+			return p.resolveEVM(ctx, row)
+		})
 		changed += moved
 		failures = append(failures, err)
 	}
 	return changed, errors.Join(failures...)
+}
+
+func (p *WithdrawalPoller) attemptEVM(
+	ctx context.Context, id uuid.UUID, work func(context.Context) (int, error),
+) (int, error) {
+	err := sqlc.New(p.d.Reads).MarkEVMWithdrawalAttempted(ctx, sqlc.MarkEVMWithdrawalAttemptedParams{
+		ID: id, AttemptedAt: p.d.Clock.Now(),
+	})
+	if err != nil {
+		return 0, errs.Wrap(err, errs.CodeInternal, "funding.WithdrawalPoller.attemptEVM")
+	}
+	budget := p.d.ItemBudget
+	if budget <= 0 {
+		budget = evmItemBudget
+	}
+	itemCtx, cancel := context.WithTimeout(ctx, budget)
+	defer cancel()
+	moved, err := work(itemCtx)
+	if err != nil && ctx.Err() != nil {
+		return moved, nil
+	}
+	return moved, err
 }
 
 func (p *WithdrawalPoller) recoverEVM(ctx context.Context, row sqlc.ListStaleCreatedEVMWithdrawalsRow) (int, error) {

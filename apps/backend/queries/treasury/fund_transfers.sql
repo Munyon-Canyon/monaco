@@ -58,5 +58,9 @@ SELECT id, user_id, cabal_id, amount_micros::text AS amount_micros, status,
   COALESCE(last_valid_block_height, 0)::bigint AS last_valid_block_height
 FROM fund_transfers
 WHERE status IN ('submitted', 'landed')
-ORDER BY created_at, id
+ORDER BY last_attempt_at NULLS FIRST, created_at, id
 LIMIT sqlc.arg(row_limit);
+
+-- name: MarkFundTransfersAttempted :exec
+UPDATE fund_transfers SET last_attempt_at = sqlc.arg(attempted_at)::timestamptz
+WHERE id = ANY(sqlc.arg(ids)::uuid[]) AND status IN ('submitted', 'landed');

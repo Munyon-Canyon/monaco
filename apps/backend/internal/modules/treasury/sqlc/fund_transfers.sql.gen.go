@@ -171,7 +171,7 @@ SELECT id, user_id, cabal_id, amount_micros::text AS amount_micros, status,
   COALESCE(last_valid_block_height, 0)::bigint AS last_valid_block_height
 FROM fund_transfers
 WHERE status IN ('submitted', 'landed')
-ORDER BY created_at, id
+ORDER BY last_attempt_at NULLS FIRST, created_at, id
 LIMIT $1
 `
 
@@ -221,6 +221,21 @@ SELECT pg_advisory_xact_lock(hashtextextended('wallet-outflow:' || $1::uuid::tex
 
 func (q *Queries) LockWalletOutflow(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, lockWalletOutflow, userID)
+	return err
+}
+
+const markFundTransfersAttempted = `-- name: MarkFundTransfersAttempted :exec
+UPDATE fund_transfers SET last_attempt_at = $1::timestamptz
+WHERE id = ANY($2::uuid[]) AND status IN ('submitted', 'landed')
+`
+
+type MarkFundTransfersAttemptedParams struct {
+	AttemptedAt time.Time
+	Ids         []uuid.UUID
+}
+
+func (q *Queries) MarkFundTransfersAttempted(ctx context.Context, arg MarkFundTransfersAttemptedParams) error {
+	_, err := q.db.Exec(ctx, markFundTransfersAttempted, arg.AttemptedAt, arg.Ids)
 	return err
 }
 

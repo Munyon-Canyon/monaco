@@ -253,7 +253,7 @@ const listStaleCreatedEVMWithdrawals = `-- name: ListStaleCreatedEVMWithdrawals 
 SELECT id, user_id, amount_micros::text AS amount_micros, network, evm_address::text AS evm_address
 FROM withdrawals
 WHERE status = 'created' AND destination_kind = 'evm' AND created_at < $1::timestamptz
-ORDER BY created_at, id
+ORDER BY last_attempt_at NULLS FIRST, created_at, id
 LIMIT $2
 `
 
@@ -340,7 +340,7 @@ SELECT id, user_id, amount_micros::text AS amount_micros, evm_address::text AS e
   privy_action_id::text AS privy_action_id, COALESCE(tx_signature, '')::text AS tx_signature
 FROM withdrawals
 WHERE status = 'submitted' AND destination_kind = 'evm'
-ORDER BY submitted_at, id
+ORDER BY last_attempt_at NULLS FIRST, submitted_at, id
 LIMIT $1
 `
 
@@ -433,6 +433,21 @@ SELECT pg_advisory_xact_lock(hashtextextended('wallet-outflow:' || $1::uuid::tex
 
 func (q *Queries) LockWalletOutflow(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, lockWalletOutflow, userID)
+	return err
+}
+
+const markEVMWithdrawalAttempted = `-- name: MarkEVMWithdrawalAttempted :exec
+UPDATE withdrawals SET last_attempt_at = $2::timestamptz
+WHERE id = $1 AND status IN ('created', 'submitted') AND destination_kind = 'evm'
+`
+
+type MarkEVMWithdrawalAttemptedParams struct {
+	ID          uuid.UUID
+	AttemptedAt time.Time
+}
+
+func (q *Queries) MarkEVMWithdrawalAttempted(ctx context.Context, arg MarkEVMWithdrawalAttemptedParams) error {
+	_, err := q.db.Exec(ctx, markEVMWithdrawalAttempted, arg.ID, arg.AttemptedAt)
 	return err
 }
 
