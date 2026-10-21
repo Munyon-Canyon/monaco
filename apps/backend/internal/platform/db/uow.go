@@ -100,6 +100,7 @@ func (u *UnitOfWork) run(
 	if err != nil {
 		return committed{}, classify(err, opDo), nil
 	}
+	ctx = withHeldConn(ctx, pgtx.Conn())
 	var after []func(context.Context)
 	tx := Tx{tx: pgtx, Events: &Events{q: sqlc.New(pgtx), ids: u.ids, clock: u.clock}, after: &after}
 	defer func() {

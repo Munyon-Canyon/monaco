@@ -2,11 +2,13 @@ package funding_test
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -57,6 +59,37 @@ func TestWithdraw_aReplayWithTheSameKeyReturnsTheFirstWithdrawalAndSendsOnce(t *
 	}
 	if got := len(f.submittedEvents(t)); got != 1 || f.intents(t) != 1 {
 		t.Fatalf("submitted events = %d intents = %d, want 1 and 1", got, f.intents(t))
+	}
+}
+
+type observeSwitch struct {
+	port.Balances
+	down atomic.Bool
+}
+
+func (b *observeSwitch) Observe(ctx context.Context, user ids.UserID) (port.Observation, error) {
+	if b.down.Load() {
+		return port.Observation{}, errs.New(errs.CodeRPCUnavailable, "test")
+	}
+	return b.Balances.Observe(ctx, user)
+}
+
+func TestWithdraw_aReplayDoesNotNeedTheChainReadToSucceed(t *testing.T) {
+	t.Parallel()
+	var balances *observeSwitch
+	f := newWithdrawFixture(t, 9_000_000, func(d *app.WithdrawDeps) {
+		balances = &observeSwitch{Balances: d.Balances}
+		d.Balances = balances
+	})
+	first, err := f.withdrawKeyed(t, "h1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	balances.down.Store(true)
+	again, err := f.withdrawKeyed(t, "h1")
+	if err != nil || again.ID != first.ID || len(f.rows(t)) != 1 {
+		t.Fatalf("replay with the chain read down = %+v, %v rows = %d, want the first withdrawal %+v",
+			again, err, len(f.rows(t)), first)
 	}
 }
 

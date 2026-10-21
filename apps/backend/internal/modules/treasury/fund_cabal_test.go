@@ -24,6 +24,7 @@ import (
 	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 const (
@@ -45,6 +46,7 @@ type fundStubs struct {
 	reads       adapters.FundOutflows
 	ownedAtSend []bool
 	sent        int
+	gate        *testkit.Gate
 	owner       *adapters.Queries
 	failOn      string
 	onBuild     func()
@@ -95,6 +97,35 @@ func (s *fundStubs) Available(ctx context.Context, user ids.UserID) (fundingport
 	}
 	return fundingport.Balance{OnChainMicros: s.onChain, InFlightFundMicros: inFlight, AvailableMicros: available}, nil
 }
+
+func (s *fundStubs) Observe(_ context.Context, user ids.UserID) (fundingport.Observation, error) {
+	s.gate.Arrive()
+	if err := s.err("Available"); err != nil {
+		return fundingport.Observation{}, err
+	}
+	return fundingport.Observation{User: user}, nil
+}
+
+func (s *fundStubs) AvailableIn(
+	ctx context.Context,
+	q dbsqlc.DBTX,
+	obs fundingport.Observation,
+) (fundingport.Balance, error) {
+	if err := s.err("AvailableIn"); err != nil {
+		return fundingport.Balance{}, err
+	}
+	inFlight, err := adapters.NewFundOutflows(q).InFlightMicros(ctx, obs.User)
+	if err != nil {
+		return fundingport.Balance{}, err
+	}
+	available, err := s.onChain.Sub(inFlight)
+	if err != nil {
+		available = money.Micros{}
+	}
+	return fundingport.Balance{OnChainMicros: s.onChain, InFlightFundMicros: inFlight, AvailableMicros: available}, nil
+}
+
+func (s *fundStubs) PotBasis(context.Context, ids.CabalID) (string, error) { return "", nil }
 
 func (s *fundStubs) IsPaused(context.Context, ids.CabalID) (fundingport.Pause, error) {
 	return fundingport.Pause{Paused: s.paused}, s.err("IsPaused")
@@ -153,7 +184,11 @@ func newFundHarness(t *testing.T) *fundHarness {
 
 func newFundHarnessHinting(t *testing.T, sent *hints) *fundHarness {
 	t.Helper()
-	f := newFixture(t)
+	return newFundHarnessOn(t, newFixture(t), sent)
+}
+
+func newFundHarnessOn(t *testing.T, f fixture, sent *hints) *fundHarness {
+	t.Helper()
 	usdcAddress := chain.SolanaAddress(f.cfg.Solana.USDCMint)
 	s := &fundStubs{
 		member: true, lockMember: true, status: cabalport.StatusActive, onChain: money.MicrosFromUint64(100_000_000),
@@ -247,6 +282,12 @@ func TestFundCabal_refusals(t *testing.T) {
 		},
 		{"pause read fails", 5_000_000, func(s *fundStubs) { s.failOn = "IsPaused" }, errs.CodeInternal},
 		{"balance read fails", 5_000_000, func(s *fundStubs) { s.failOn = "Available" }, errs.CodeInternal},
+		{
+			"balance check at the lock fails",
+			5_000_000,
+			func(s *fundStubs) { s.failOn = "AvailableIn" },
+			errs.CodeInternal,
+		},
 		{"share read fails", 5_000_000, func(s *fundStubs) { s.failOn = "TotalShares" }, errs.CodeInternal},
 		{"pot read fails", 5_000_000, func(s *fundStubs) {
 			s.totalShares, s.potErr = money.SharesUnitsFromUint64(10), errs.New(errs.CodeInternal, "stub")

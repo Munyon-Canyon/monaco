@@ -48,6 +48,7 @@ type FundSettlerDeps struct {
 	Chain      FundChain
 	Transfers  FundBroadcaster
 	Pot        FundPot
+	PotOn      func(sqlc.DBTX) FundPotReads
 	Ledger     Ledger
 	USDC       domain.Asset
 	Hints      HintPublisher

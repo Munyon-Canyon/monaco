@@ -45,6 +45,21 @@ func TestFundCabal_aReplayWithTheSameKeyReturnsTheFirstTransferAndSendsOnce(t *t
 	}
 }
 
+func TestFundCabal_aReplayDoesNotNeedTheBalanceReadToSucceed(t *testing.T) {
+	t.Parallel()
+	h := newFundHarness(t)
+	first, err := h.fundKeyed(h.actorCtx(), "h1", 5_000_000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.stubs.failOn = "Available"
+	again, err := h.fundKeyed(h.actorCtx(), "h1", 5_000_000)
+	if err != nil || again != first || h.transferRows(t) != 1 {
+		t.Fatalf("replay with the balance read down = (%v, %v) rows = %d, want the first transfer %v",
+			again, err, h.transferRows(t), first)
+	}
+}
+
 func TestFundCabal_aReplayAfterACrashBeforeTheSignedBytesResumesTheSameRow(t *testing.T) {
 	t.Parallel()
 	h := newFundHarness(t)

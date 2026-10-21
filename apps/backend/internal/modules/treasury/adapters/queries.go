@@ -2,8 +2,11 @@ package adapters
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"log/slog"
 	"math/big"
 	"slices"
@@ -331,6 +334,15 @@ func valueWithMultiplier(units, price, multiplier, scale, divisor uint64) (uint6
 		return 0, errs.New(errs.CodeInvalidInput, "treasury.Queries.valueWithMultiplier")
 	}
 	return numerator.Uint64(), nil
+}
+
+func (q *Queries) PotBasis(ctx context.Context, cabalID ids.CabalID) (string, error) {
+	rows, err := q.transit.CabalValueRows(ctx, cabalID.UUID())
+	if err != nil {
+		return "", errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.PotBasis")
+	}
+	sum := sha256.Sum256([]byte(fmt.Sprintf("%v", rows)))
+	return hex.EncodeToString(sum[:]), nil
 }
 
 func (q *Queries) TotalShares(ctx context.Context, cabalID ids.CabalID) (money.SharesUnits, error) {

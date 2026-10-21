@@ -26,6 +26,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/fundingapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -286,6 +287,10 @@ func (m *Module) balanceReader() *adapters.Balances {
 		adapters.Outflows{
 			Funds:       treasury.New(m.deps).FundOutflows(),
 			Withdrawals: app.WithdrawalOutflows{Reads: m.deps.Pool},
+			FundsOn:     func(q dbsqlc.DBTX) app.Outflows { return treasury.New(m.deps).FundOutflowsOn(q) },
+			WithdrawalsOn: func(q dbsqlc.DBTX) app.Outflows {
+				return app.WithdrawalOutflows{Reads: q}
+			},
 		},
 		m.deps.Clock,
 		m.usdc(),
@@ -322,6 +327,7 @@ func (m *Module) SignatureOwner() adapters.BounceSignatures {
 type (
 	Balances        = port.Balances
 	Balance         = port.Balance
+	Observation     = port.Observation
 	Pauses          = port.Pauses
 	Pause           = port.Pause
 	OpenPause       = port.OpenPause
