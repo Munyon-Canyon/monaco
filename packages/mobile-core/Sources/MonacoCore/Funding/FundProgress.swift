@@ -65,6 +65,49 @@ public enum FundProgress: Equatable, Sendable {
     }
 }
 
+public struct FundOutcome: Equatable, Sendable {
+    public enum Phase: Equatable, Sendable {
+        case pending
+        case settled
+        case failed
+    }
+
+    public let phase: Phase
+    public let title: String
+    public let message: String
+
+    public static let settledTitle = "Deposit confirmed"
+    public static let failedTitle = "Funding didn't go through"
+    public static let failedMessage = "Your balance wasn't charged."
+}
+
+extension FundProgress {
+    public func outcome(requestedMicros: Int64, cabalName: String?) -> FundOutcome? {
+        let cabal = cabalName ?? "your cabal"
+        switch self {
+        case .idle, .submitting:
+            return nil
+        case .submitted(let transfer):
+            return FundOutcome(
+                phase: .pending, title: Self.funding,
+                message: "\(Self.display(transfer.amountMicros)) is on its way to \(cabal). "
+                    + "Your share updates once funding settles.")
+        case .settled(let transfer):
+            return FundOutcome(
+                phase: .settled, title: FundOutcome.settledTitle,
+                message: "\(Self.display(transfer.amountMicros)) added to your share in \(cabal)")
+        case .failed:
+            return FundOutcome(
+                phase: .failed, title: FundOutcome.failedTitle,
+                message: "\(Self.display(requestedMicros)) to \(cabal) wasn't sent. \(FundOutcome.failedMessage)")
+        }
+    }
+
+    private static func display(_ micros: Int64) -> String {
+        UsdAmountFormatter.format(micros: micros)
+    }
+}
+
 public enum FundAttempt: Equatable, Sendable {
     case accepted(FundTransfer)
     case refused(FundFailure)

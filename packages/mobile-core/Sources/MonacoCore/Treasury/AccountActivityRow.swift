@@ -38,7 +38,7 @@ public struct AccountActivityRow: Identifiable, Hashable, Sendable {
 
     public let id: String
     public let kind: Kind
-    public let title: String
+    private let settledTitle: String
     public let subtitle: String
     public let glyph: String
     public let date: String
@@ -60,7 +60,7 @@ public struct AccountActivityRow: Identifiable, Hashable, Sendable {
         let headline = Self.headline(txn.kind, cabalName: cabal?.name ?? "a cabal")
         self.id = txn.id
         self.kind = Kind(txn.kind)
-        self.title = headline.title
+        self.settledTitle = headline.title
         self.glyph = headline.glyph
         let short: SharedFormatters.DatePattern = sameYear ? .template("MMMdjmm") : .template("yMMMd")
         self.date = Self.string(txn.createdAt, short, calendar, locale)
@@ -70,6 +70,20 @@ public struct AccountActivityRow: Identifiable, Hashable, Sendable {
         self.amount = UsdAmountFormatter.format(signedMicros: micros)
         self.cabal = cabal
         self.solscanURL = txn.txSignature.flatMap { URL(string: "https://solscan.io/tx/\($0)") }
+    }
+
+    public var title: String { title(for: ReceiptContent.Status(status)) }
+
+    public func title(for status: ReceiptContent.Status) -> String {
+        switch (kind, status) {
+        case (.deposit, .pending): "Deposit pending"
+        case (.deposit, .failed): "Deposit not completed"
+        case (.deposit, .unknown): "Checking deposit status"
+        case (.cashOut, .pending): "Cash-out pending"
+        case (.cashOut, .failed): "Cash-out not completed"
+        case (.cashOut, .unknown): "Checking cash-out status"
+        default: settledTitle
+        }
     }
 
     private static func headline(

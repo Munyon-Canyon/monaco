@@ -67,13 +67,15 @@ private struct ReceiptHarnessScreen: View {
         case "failed":
             ReceiptView(sample(.failed))
         case "unknown":
-            ReceiptView(sample(.settled).with(status: .unknown))
+            ReceiptView(sample(.settled, shown: .unknown))
         default:
             ReceiptView(sample(.settled))
         }
     }
 
-    private func sample(_ status: Components.Schemas.UserTxn.StatusPayload) -> ReceiptContent {
+    private func sample(
+        _ status: Components.Schemas.UserTxn.StatusPayload, shown: ReceiptContent.Status? = nil
+    ) -> ReceiptContent {
         let created = Date(timeIntervalSince1970: 1_790_996_400)
         let txn = Components.Schemas.UserTxn(
             id: "01890a5d-ac96-774b-bcce-b302099a8001", kind: .deposit, status: status, usdcMicros: "100000000",
@@ -81,7 +83,7 @@ private struct ReceiptHarnessScreen: View {
         guard let row = try? AccountActivityRow(txn, now: created) else {
             return ReceiptContent.sampleTrade(status: .unknown)
         }
-        return ReceiptContent(row)
+        return shown.map { ReceiptContent(row, status: $0) } ?? ReceiptContent(row)
     }
 }
 #endif

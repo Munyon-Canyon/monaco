@@ -17,6 +17,7 @@ struct FundCabalView: View {
     @State private var funding: Funding?
     @State private var amountText = ""
     @State private var confirmation: FundConfirmation?
+    @State private var opensActivity = false
     @State private var isVisible = false
 
     var body: some View {
@@ -34,8 +35,15 @@ struct FundCabalView: View {
         )
         .onAppear { isVisible = true }
         .onDisappear { isVisible = false }
-        .sheet(item: $confirmation, onDismiss: { dismiss() }) { confirmation in
-            FundConfirmedSheet(confirmation: confirmation)
+        .sheet(item: $confirmation, onDismiss: leaveFund) { confirmation in
+            if let funding {
+                FundOutcomeSheet(
+                    funding: funding, confirmation: confirmation,
+                    onActivity: {
+                        opensActivity = true
+                        self.confirmation = nil
+                    })
+            }
         }
         .task {
             if funding == nil {
@@ -64,25 +72,42 @@ struct FundCabalView: View {
         environment.navigator.presentDeposit(prefillMicros: prefillMicros, cabalID: cabalID)
     }
 
+    private func leaveFund() {
+        guard opensActivity else {
+            dismiss()
+            return
+        }
+        opensActivity = false
+        let navigator = environment.navigator
+        let tab = navigator.selectedTab
+        let path = navigator.binding(for: tab)
+        if let index = path.wrappedValue.lastIndex(of: AnyAppRoute(FundRoute(cabalID: cabalID))) {
+            path.wrappedValue.removeSubrange(index...)
+        }
+        navigator.open(AccountActivityRoute(), in: tab)
+    }
+
     private func fund() async {
         guard let funding, let micros = AmountEntryText.micros(amountText), micros > 0 else { return }
         let cabalName = cabal?.cabalName
         switch await funding.submit(micros: micros) {
         case .accepted:
-            Haptics.success()
             if isVisible {
-                confirmation = FundConfirmation(
-                    amount: UsdAmountFormatter.format(micros: micros), cabalName: cabalName ?? "your cabal")
+                confirmation = FundConfirmation(micros: micros, cabalName: cabalName)
             } else {
-                if let line = funding.progress.toast(cabalName: cabalName) { toasts.show(success: line) }
+                if let line = funding.progress.toast(cabalName: cabalName) {
+                    toasts.current = MonacoToast(message: line)
+                }
                 dismiss()
             }
             Task { [toasts] in
                 let settled = await funding.settle()
-                guard settled.isSettled, let line = settled.toast(cabalName: cabalName) else { return }
+                guard settled.isSettled else { return }
                 if case .settled = settled {
-                    toasts.show(success: line)
-                } else {
+                    Haptics.success()
+                    if let line = settled.toast(cabalName: cabalName) { toasts.show(success: line) }
+                } else if confirmation == nil, let line = settled.toast(cabalName: cabalName) {
+                    Haptics.warning()
                     toasts.current = MonacoToast(message: line)
                 }
             }
@@ -203,29 +228,71 @@ struct FundCabalForm: Equatable {
 
 struct FundConfirmation: Identifiable, Equatable {
     let id = UUID()
-    let amount: String
-    let cabalName: String
+    let micros: Int64
+    let cabalName: String?
 }
 
-struct FundConfirmedSheet: View {
+struct FundOutcomeSheet: View {
+    let funding: Funding
     let confirmation: FundConfirmation
+    var onActivity: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        if let outcome = funding.progress.outcome(
+            requestedMicros: confirmation.micros, cabalName: confirmation.cabalName)
+        {
+            FundOutcomeContent(outcome: outcome, onActivity: onActivity, onDone: { dismiss() })
+        }
+    }
+}
+
+struct FundOutcomeContent: View {
+    let outcome: FundOutcome
+    var onActivity: () -> Void = {}
+    var onDone: () -> Void = {}
+
+    var body: some View {
         VStack(spacing: MonacoTheme.Space.l) {
-            OutcomeView(
-                tone: .done, title: "Deposit confirmed",
-                message: "\(confirmation.amount) added to your share in \(confirmation.cabalName)")
-            Button("Done") { dismiss() }
-                .buttonStyle(.monacoPrimary)
-                .accessibilityIdentifier("fund-cabal-done-button")
+            OutcomeView(tone: tone, title: outcome.title, message: outcome.message)
+                .id(outcome.phase)
+            VStack(spacing: MonacoTheme.Space.s) {
+                Button("Done", action: onDone)
+                    .buttonStyle(.monacoPrimary)
+                    .accessibilityIdentifier("fund-cabal-done-button")
+                if outcome.phase != .settled {
+                    Button("View activity", action: onActivity)
+                        .buttonStyle(.monacoOutline)
+                        .accessibilityIdentifier("fund-cabal-activity-button")
+                }
+            }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.top, MonacoTheme.Space.m)
         .frame(maxHeight: .infinity, alignment: .top)
-        .monacoSheet(title: "Deposit confirmed", detents: .result, showsClose: true)
-        .accessibilityIdentifier("fund-cabal-success-sheet")
+        .monacoSheet(title: sheetTitle, detents: .review, showsClose: true)
+        .accessibilityIdentifier(identifier)
+    }
+
+    private var tone: OutcomeView<EmptyView>.Tone {
+        switch outcome.phase {
+        case .pending: .pending
+        case .settled: .done
+        case .failed: .error
+        }
+    }
+
+    private var sheetTitle: String {
+        outcome.phase == .settled ? FundOutcome.settledTitle : "Fund this cabal"
+    }
+
+    private var identifier: String {
+        switch outcome.phase {
+        case .pending: "fund-cabal-pending-sheet"
+        case .settled: "fund-cabal-success-sheet"
+        case .failed: "fund-cabal-failed-sheet"
+        }
     }
 }
 

@@ -16,6 +16,8 @@ enum MoneyFlowSampleScenario: String, CaseIterable {
     case fundCabalInsufficient
     case fundCabalSubmitting
     case fundCabalConfirmed
+    case fundCabalPending
+    case fundCabalNotSent
     case fundCabalFailed
     case addMoneyUnavailable
     case cardFunding
@@ -113,7 +115,7 @@ private struct MoneyFlowContentSample: View {
         case .fundCabalInsufficient:
             _amount = State(initialValue: "750")
             _destination = State(initialValue: "")
-        case .fundCabalSubmitting, .fundCabalConfirmed:
+        case .fundCabalSubmitting, .fundCabalConfirmed, .fundCabalPending, .fundCabalNotSent:
             _amount = State(initialValue: "250")
             _destination = State(initialValue: "")
         case .withdrawInvalid:
@@ -135,7 +137,7 @@ private struct MoneyFlowContentSample: View {
     @ViewBuilder
     private var content: some View {
         switch scenario {
-        case .fundCabalInsufficient, .fundCabalSubmitting, .fundCabalConfirmed:
+        case .fundCabalInsufficient, .fundCabalSubmitting, .fundCabalConfirmed, .fundCabalPending, .fundCabalNotSent:
             fund
         case .addMoneyUnavailable:
             DepositChooser(state: .loaded(MoneyFlowContentFixture.balance()), cardStartFailed: true)
@@ -182,14 +184,31 @@ private struct MoneyFlowContentSample: View {
         }
     }
 
+    private var fundOutcome: FundOutcome? {
+        let transfer = FundTransfer(transferID: "sample", status: .submitted, amountMicros: 250_000_000)
+        switch scenario {
+        case .fundCabalPending:
+            return FundProgress.submitted(transfer).outcome(requestedMicros: 250_000_000, cabalName: "Big Ballers")
+        case .fundCabalConfirmed:
+            return FundProgress.settled(transfer).outcome(requestedMicros: 250_000_000, cabalName: "Big Ballers")
+        case .fundCabalNotSent:
+            return FundProgress.failed(code: "fund_not_sent")
+                .outcome(requestedMicros: 250_000_000, cabalName: "Big Ballers")
+        default:
+            return nil
+        }
+    }
+
     private var fund: some View {
         FundCabalContent(
             cabalID: GroupDetailSampleData.cabalID, cabalName: "Big Ballers",
             state: .loaded(MoneyFlowContentFixture.balance()), amountText: $amount,
             isSubmitting: scenario == .fundCabalSubmitting, onSubmit: {}, onRetry: {}, onAddMoney: {}
         )
-        .sheet(isPresented: .constant(scenario == .fundCabalConfirmed)) {
-            FundConfirmedSheet(confirmation: FundConfirmation(amount: "$250.00", cabalName: "Big Ballers"))
+        .sheet(isPresented: .constant(fundOutcome != nil)) {
+            if let fundOutcome {
+                FundOutcomeContent(outcome: fundOutcome)
+            }
         }
     }
 }

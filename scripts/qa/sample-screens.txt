@@ -363,6 +363,8 @@ money-fund-failed             -MonacoMoneyFlowSample fundCabalFailed
 money-fund-insufficient       -MonacoMoneyFlowSample fundCabalInsufficient
 money-fund-submitting         -MonacoMoneyFlowSample fundCabalSubmitting
 money-fund-confirmed          -MonacoMoneyFlowSample fundCabalConfirmed
+money-fund-pending            -MonacoMoneyFlowSample fundCabalPending
+money-fund-not-sent           -MonacoMoneyFlowSample fundCabalNotSent
 money-add-unavailable         -MonacoMoneyFlowSample addMoneyUnavailable
 money-card-handoff            -MonacoMoneyFlowSample cardFunding
 money-card-working            -MonacoMoneyFlowSample cardFundingWorking

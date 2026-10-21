@@ -22,6 +22,54 @@ final class AccountActivityRowTests: XCTestCase {
         }
     }
 
+    func testEveryKindTitlesItselfByStatus() throws {
+        typealias Status = ReceiptContent.Status
+        let expected: [(Components.Schemas.UserTxn.KindPayload, [Status: String])] = [
+            (
+                .deposit,
+                [
+                    .completed: "Deposit received", .pending: "Deposit pending", .failed: "Deposit not completed",
+                    .unknown: "Checking deposit status",
+                ]
+            ),
+            (
+                .withdrawal,
+                [.completed: "Withdrawal", .pending: "Withdrawal", .failed: "Withdrawal", .unknown: "Withdrawal"]
+            ),
+            (
+                .fund,
+                [
+                    .completed: "Deposit to Sunday Investors", .pending: "Deposit to Sunday Investors",
+                    .failed: "Deposit to Sunday Investors", .unknown: "Deposit to Sunday Investors",
+                ]
+            ),
+            (
+                .cashOut,
+                [
+                    .completed: "Cashed out of Sunday Investors", .pending: "Cash-out pending",
+                    .failed: "Cash-out not completed", .unknown: "Checking cash-out status",
+                ]
+            ),
+        ]
+        for (kind, titles) in expected {
+            let row = try makeRow(kind: kind, cabal: Self.sundayInvestors)
+            for status in [Status.completed, .pending, .failed, .unknown] {
+                XCTAssertEqual(row.title(for: status), titles[status], "\(kind) \(status)")
+            }
+        }
+    }
+
+    func testOnlyASettledDepositOrCashOutClaimsToBeReceived() throws {
+        let unfinished: [Components.Schemas.UserTxn.StatusPayload] = [.pending, .failed]
+        for status in unfinished {
+            let deposit = try makeRow(kind: .deposit, status: status, cabal: nil)
+            let cashOut = try makeRow(kind: .cashOut, status: status, cabal: Self.sundayInvestors)
+            XCTAssertNotEqual(deposit.title, "Deposit received", "\(status)")
+            XCTAssertFalse(cashOut.title.hasPrefix("Cashed out"), "\(status)")
+        }
+        XCTAssertEqual(try makeRow(kind: .deposit, status: .settled, cabal: nil).title, "Deposit received")
+    }
+
     func testAFundOrCashOutWithoutACabalSaysACabal() throws {
         XCTAssertEqual(try makeRow(kind: .fund, cabal: nil).title, "Deposit to a cabal")
         XCTAssertEqual(try makeRow(kind: .cashOut, cabal: nil).title, "Cashed out of a cabal")

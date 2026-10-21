@@ -111,6 +111,13 @@ private struct ReceiptBody: View {
                 .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
                 .padding(.top, MonacoTheme.Space.s)
                 .accessibilityIdentifier("account-txn-receipt-amount")
+            if let caption = content.amountCaption {
+                Text(caption)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.muted)
+                    .padding(.top, MonacoTheme.Space.xs)
+                    .accessibilityIdentifier("account-txn-receipt-amount-caption")
+            }
             StatusBadge(content.badgeText, tone: Self.badgeTone(content.badgeTone))
                 .padding(.top, MonacoTheme.Space.m)
         }
