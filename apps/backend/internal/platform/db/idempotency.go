@@ -43,8 +43,15 @@ const (
 	ClaimCompleted
 )
 
+type ClaimRef struct {
+	ActorKey   string
+	Key        string
+	Generation int64
+}
+
 type Claim struct {
 	Outcome  ClaimOutcome
+	Ref      ClaimRef
 	Response StoredResponse
 }
 
@@ -65,7 +72,7 @@ func (s *IdempotencyStore) Begin(ctx context.Context, actorKey, key string, requ
 			return Claim{}, classify(err, op)
 		}
 		if n == 1 {
-			return Claim{Outcome: ClaimOwned}, nil
+			return Claim{Outcome: ClaimOwned, Ref: ClaimRef{ActorKey: actorKey, Key: key, Generation: 1}}, nil
 		}
 		row, err := s.q.GetIdempotencyKey(ctx, sqlc.GetIdempotencyKeyParams{ActorKey: actorKey, Key: key})
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -77,25 +84,28 @@ func (s *IdempotencyStore) Begin(ctx context.Context, actorKey, key string, requ
 		if !abandoned(row, requestHash, now) {
 			return claimFrom(row, requestHash)
 		}
-		taken, err := s.takeOver(ctx, actorKey, key, now)
+		generation, err := s.takeOver(ctx, actorKey, key, now)
 		if err != nil {
 			return Claim{}, err
 		}
-		if taken {
-			return Claim{Outcome: ClaimOwned}, nil
+		if generation > 0 {
+			return Claim{Outcome: ClaimOwned, Ref: ClaimRef{ActorKey: actorKey, Key: key, Generation: generation}}, nil
 		}
 	}
 	return Claim{}, errs.New(errs.CodeInternal, op, slog.Int("attempts", claimAttempts))
 }
 
-func (s *IdempotencyStore) takeOver(ctx context.Context, actorKey, key string, now time.Time) (bool, error) {
-	taken, err := s.q.TakeOverIdempotencyKey(ctx, sqlc.TakeOverIdempotencyKeyParams{
+func (s *IdempotencyStore) takeOver(ctx context.Context, actorKey, key string, now time.Time) (int64, error) {
+	generation, err := s.q.TakeOverIdempotencyKey(ctx, sqlc.TakeOverIdempotencyKeyParams{
 		ActorKey: actorKey, Key: key, CreatedAt: now, CreatedAt_2: now.Add(-inFlightTakeover),
 	})
-	if err != nil {
-		return false, classify(err, "db.IdempotencyStore.Begin")
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, nil
 	}
-	return taken == 1, nil
+	if err != nil {
+		return 0, classify(err, "db.IdempotencyStore.Begin")
+	}
+	return generation, nil
 }
 
 func abandoned(row sqlc.IdempotencyKey, requestHash []byte, now time.Time) bool {
@@ -120,12 +130,13 @@ func claimFrom(row sqlc.IdempotencyKey, requestHash []byte) (Claim, error) {
 	}}, nil
 }
 
-func (s *IdempotencyStore) Complete(ctx context.Context, actorKey, key string, resp StoredResponse) error {
+func (s *IdempotencyStore) Complete(ctx context.Context, ref ClaimRef, resp StoredResponse) error {
 	const op = "db.IdempotencyStore.Complete"
 	header, _ := json.Marshal(resp.Header)
 	n, err := s.q.CompleteIdempotencyKey(ctx, sqlc.CompleteIdempotencyKeyParams{
-		ActorKey:        actorKey,
-		Key:             key,
+		ActorKey:        ref.ActorKey,
+		Key:             ref.Key,
+		ClaimGeneration: ref.Generation,
 		ResponseStatus:  pgtype.Int4{Int32: int32(resp.Status), Valid: true},
 		ResponseBody:    resp.Body,
 		ResponseHeaders: header,
@@ -135,15 +146,15 @@ func (s *IdempotencyStore) Complete(ctx context.Context, actorKey, key string, r
 		return classify(err, op)
 	}
 	if n != 1 {
-		return errs.New(errs.CodeInternal, op, slog.Int64("rows", n))
+		return errs.New(errs.CodeInternal, op, slog.Int64("rows", n), slog.Int64("generation", ref.Generation))
 	}
 	return nil
 }
 
-func (s *IdempotencyStore) Release(ctx context.Context, actorKey, key string) error {
+func (s *IdempotencyStore) Release(ctx context.Context, ref ClaimRef) error {
 	const op = "db.IdempotencyStore.Release"
 	if _, err := s.q.ReleaseIdempotencyKey(ctx, sqlc.ReleaseIdempotencyKeyParams{
-		ActorKey: actorKey, Key: key,
+		ActorKey: ref.ActorKey, Key: ref.Key, ClaimGeneration: ref.Generation,
 	}); err != nil {
 		return classify(err, op)
 	}

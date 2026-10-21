@@ -72,7 +72,7 @@ func (q *Queries) BindMoneyIntent(ctx context.Context, arg BindMoneyIntentParams
 const completeIdempotencyKey = `-- name: CompleteIdempotencyKey :execrows
 UPDATE idempotency_keys
 SET status = 2, response_status = $3, response_body = $4, response_headers = $5, completed_at = $6
-WHERE actor_key = $1 AND key = $2 AND status = 1
+WHERE actor_key = $1 AND key = $2 AND status = 1 AND claim_generation = $7
 `
 
 type CompleteIdempotencyKeyParams struct {
@@ -82,6 +82,7 @@ type CompleteIdempotencyKeyParams struct {
 	ResponseBody    []byte
 	ResponseHeaders []byte
 	CompletedAt     pgtype.Timestamptz
+	ClaimGeneration int64
 }
 
 func (q *Queries) CompleteIdempotencyKey(ctx context.Context, arg CompleteIdempotencyKeyParams) (int64, error) {
@@ -92,6 +93,7 @@ func (q *Queries) CompleteIdempotencyKey(ctx context.Context, arg CompleteIdempo
 		arg.ResponseBody,
 		arg.ResponseHeaders,
 		arg.CompletedAt,
+		arg.ClaimGeneration,
 	)
 	if err != nil {
 		return 0, err
@@ -112,7 +114,8 @@ func (q *Queries) DeleteIdempotencyKeysBefore(ctx context.Context, createdAt tim
 }
 
 const getIdempotencyKey = `-- name: GetIdempotencyKey :one
-SELECT actor_key, key, request_hash, status, response_status, response_body, response_headers, created_at, completed_at
+SELECT actor_key, key, request_hash, status, response_status, response_body, response_headers, created_at, completed_at,
+  claim_generation
 FROM idempotency_keys
 WHERE actor_key = $1 AND key = $2
 `
@@ -135,6 +138,7 @@ func (q *Queries) GetIdempotencyKey(ctx context.Context, arg GetIdempotencyKeyPa
 		&i.ResponseHeaders,
 		&i.CreatedAt,
 		&i.CompletedAt,
+		&i.ClaimGeneration,
 	)
 	return i, err
 }
@@ -164,25 +168,27 @@ func (q *Queries) GetMoneyIntent(ctx context.Context, arg GetMoneyIntentParams) 
 }
 
 const releaseIdempotencyKey = `-- name: ReleaseIdempotencyKey :execrows
-DELETE FROM idempotency_keys WHERE actor_key = $1 AND key = $2 AND status = 1
+DELETE FROM idempotency_keys WHERE actor_key = $1 AND key = $2 AND status = 1 AND claim_generation = $3
 `
 
 type ReleaseIdempotencyKeyParams struct {
-	ActorKey string
-	Key      string
+	ActorKey        string
+	Key             string
+	ClaimGeneration int64
 }
 
 func (q *Queries) ReleaseIdempotencyKey(ctx context.Context, arg ReleaseIdempotencyKeyParams) (int64, error) {
-	result, err := q.db.Exec(ctx, releaseIdempotencyKey, arg.ActorKey, arg.Key)
+	result, err := q.db.Exec(ctx, releaseIdempotencyKey, arg.ActorKey, arg.Key, arg.ClaimGeneration)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
 }
 
-const takeOverIdempotencyKey = `-- name: TakeOverIdempotencyKey :execrows
-UPDATE idempotency_keys SET created_at = $3
+const takeOverIdempotencyKey = `-- name: TakeOverIdempotencyKey :one
+UPDATE idempotency_keys SET created_at = $3, claim_generation = claim_generation + 1
 WHERE actor_key = $1 AND key = $2 AND status = 1 AND created_at < $4
+RETURNING claim_generation
 `
 
 type TakeOverIdempotencyKeyParams struct {
@@ -193,16 +199,15 @@ type TakeOverIdempotencyKeyParams struct {
 }
 
 func (q *Queries) TakeOverIdempotencyKey(ctx context.Context, arg TakeOverIdempotencyKeyParams) (int64, error) {
-	result, err := q.db.Exec(ctx, takeOverIdempotencyKey,
+	row := q.db.QueryRow(ctx, takeOverIdempotencyKey,
 		arg.ActorKey,
 		arg.Key,
 		arg.CreatedAt,
 		arg.CreatedAt_2,
 	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+	var claim_generation int64
+	err := row.Scan(&claim_generation)
+	return claim_generation, err
 }
 
 const unbindMoneyIntent = `-- name: UnbindMoneyIntent :execrows

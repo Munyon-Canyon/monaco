@@ -30,6 +30,10 @@ func storedOK() db.StoredResponse {
 	}
 }
 
+func firstRef(key string) db.ClaimRef {
+	return db.ClaimRef{ActorKey: "user:u1", Key: key, Generation: 1}
+}
+
 func mustBegin(t *testing.T, s *db.IdempotencyStore, actor, key string, hash []byte) db.Claim {
 	t.Helper()
 	claim, err := s.Begin(t.Context(), actor, key, hash)
@@ -62,7 +66,7 @@ func TestIdempotencyStore_beginAfterCompleteReturnsTheStoredResponse(t *testing.
 	t.Parallel()
 	s := db.NewIdempotencyStore(testkit.DB(t), testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)))
 	mustBegin(t, s, "user:u1", "k1", hashA())
-	if err := s.Complete(t.Context(), "user:u1", "k1", storedOK()); err != nil {
+	if err := s.Complete(t.Context(), firstRef("k1"), storedOK()); err != nil {
 		t.Fatal(err)
 	}
 	c := mustBegin(t, s, "user:u1", "k1", hashA())
@@ -82,28 +86,28 @@ func TestIdempotencyStore_releaseHandsTheKeyBackAndCompleteNeedsAnInFlightRow(t 
 	t.Parallel()
 	s := db.NewIdempotencyStore(testkit.DB(t), testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)))
 	mustBegin(t, s, "user:u1", "k1", hashA())
-	if err := s.Release(t.Context(), "user:u1", "k1"); err != nil {
+	if err := s.Release(t.Context(), firstRef("k1")); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Release(t.Context(), "user:u1", "k1"); err != nil {
+	if err := s.Release(t.Context(), firstRef("k1")); err != nil {
 		t.Fatalf("Release of an absent key = %v, want nil: release converges", err)
 	}
 	if c := mustBegin(t, s, "user:u1", "k1", hashB()); c.Outcome != db.ClaimOwned {
 		t.Fatalf("Begin after Release = %+v, want ClaimOwned with any hash", c)
 	}
-	if err := s.Complete(t.Context(), "user:u1", "k1", storedOK()); err != nil {
+	if err := s.Complete(t.Context(), firstRef("k1"), storedOK()); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Release(t.Context(), "user:u1", "k1"); err != nil {
+	if err := s.Release(t.Context(), firstRef("k1")); err != nil {
 		t.Fatal(err)
 	}
 	if c := mustBegin(t, s, "user:u1", "k1", hashB()); c.Outcome != db.ClaimCompleted {
 		t.Fatalf("Begin after Release of a completed key = %+v, want ClaimCompleted: only in-flight rows drop", c)
 	}
-	if err := s.Complete(t.Context(), "user:u1", "k1", storedOK()); errs.CodeOf(err) != errs.CodeInternal {
+	if err := s.Complete(t.Context(), firstRef("k1"), storedOK()); errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("Complete twice = %v, want internal", err)
 	}
-	if err := s.Complete(t.Context(), "user:u1", "never-begun", storedOK()); errs.CodeOf(err) != errs.CodeInternal {
+	if err := s.Complete(t.Context(), firstRef("never-begun"), storedOK()); errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("Complete without Begin = %v, want internal", err)
 	}
 }
@@ -115,7 +119,7 @@ func TestIdempotencyStore_deleteBeforeExpiresOldKeysOnly(t *testing.T) {
 	clk := testkit.NewClock(start)
 	s := db.NewIdempotencyStore(pool, clk)
 	mustBegin(t, s, "user:u1", "old", hashA())
-	if err := s.Complete(t.Context(), "user:u1", "old", storedOK()); err != nil {
+	if err := s.Complete(t.Context(), firstRef("old"), storedOK()); err != nil {
 		t.Fatal(err)
 	}
 	clk.Advance(25 * time.Hour)
@@ -175,10 +179,10 @@ func TestIdempotencyStore_closedPoolIsACodedError(t *testing.T) {
 	if _, err := s.Begin(ctx, "user:u1", "k1", hashA()); errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("Begin = %v, want internal", err)
 	}
-	if err := s.Complete(ctx, "user:u1", "k1", storedOK()); errs.CodeOf(err) != errs.CodeInternal {
+	if err := s.Complete(ctx, firstRef("k1"), storedOK()); errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("Complete = %v, want internal", err)
 	}
-	if err := s.Release(ctx, "user:u1", "k1"); errs.CodeOf(err) != errs.CodeInternal {
+	if err := s.Release(ctx, firstRef("k1")); errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("Release = %v, want internal", err)
 	}
 }
@@ -196,13 +200,14 @@ func TestIdempotencyStore_takesOverAnInFlightRowAbandonedForFiveMinutes(t *testi
 	if c := mustBegin(t, s, "user:u1", "k1", hashB()); c.Outcome != db.ClaimMismatch {
 		t.Fatalf("stale row with another hash = %+v, want ClaimMismatch: the key stays used", c)
 	}
-	if c := mustBegin(t, s, "user:u1", "k1", hashA()); c.Outcome != db.ClaimOwned {
-		t.Fatalf("Begin after 5m1s = %+v, want ClaimOwned", c)
+	taken := mustBegin(t, s, "user:u1", "k1", hashA())
+	if taken.Outcome != db.ClaimOwned || taken.Ref.Generation != 2 {
+		t.Fatalf("Begin after 5m1s = %+v, want ClaimOwned at generation 2", taken)
 	}
 	if c := mustBegin(t, s, "user:u1", "k1", hashA()); c.Outcome != db.ClaimInFlight {
 		t.Fatalf("Begin right after the takeover = %+v, want ClaimInFlight: created_at was reset", c)
 	}
-	if err := s.Complete(t.Context(), "user:u1", "k1", storedOK()); err != nil {
+	if err := s.Complete(t.Context(), taken.Ref, storedOK()); err != nil {
 		t.Fatal(err)
 	}
 	clk.Advance(time.Hour)
@@ -216,7 +221,7 @@ func TestIdempotencyStore_corruptStoredHeadersAreADecodeFailure(t *testing.T) {
 	pool := testkit.DB(t)
 	s := db.NewIdempotencyStore(pool, testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)))
 	mustBegin(t, s, "user:u1", "k1", hashA())
-	if err := s.Complete(t.Context(), "user:u1", "k1", storedOK()); err != nil {
+	if err := s.Complete(t.Context(), firstRef("k1"), storedOK()); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(t.Context(),
@@ -229,9 +234,10 @@ func TestIdempotencyStore_corruptStoredHeadersAreADecodeFailure(t *testing.T) {
 }
 
 type fakeDB struct {
-	exec func(sql string) (pgconn.CommandTag, error)
-	scan error
-	row  *sqlc.IdempotencyKey
+	exec     func(sql string) (pgconn.CommandTag, error)
+	scan     error
+	takeover error
+	row      *sqlc.IdempotencyKey
 }
 
 type fakeRow struct {
@@ -259,8 +265,21 @@ func (fakeDB) Query(context.Context, string, ...any) (pgx.Rows, error) {
 	return nil, errs.New(errs.CodeInternal, "fakeDB.Query")
 }
 
-func (f fakeDB) QueryRow(context.Context, string, ...any) pgx.Row {
+func (f fakeDB) QueryRow(_ context.Context, sql string, _ ...any) pgx.Row {
+	if strings.Contains(sql, "claim_generation + 1") {
+		return takeoverRow{err: f.takeover}
+	}
 	return fakeRow{err: f.scan, row: f.row}
+}
+
+type takeoverRow struct{ err error }
+
+func (r takeoverRow) Scan(dest ...any) error {
+	if r.err != nil {
+		return r.err
+	}
+	*dest[0].(*int64) = 2
+	return nil
 }
 
 func TestIdempotencyStore_givesUpWhenTheRowKeepsVanishing(t *testing.T) {
@@ -304,23 +323,13 @@ func TestIdempotencyStore_takeoverThatLosesOrFailsIsHandled(t *testing.T) {
 	stale := &sqlc.IdempotencyKey{
 		ActorKey: "user:u1", Key: "k1", RequestHash: hashA(), Status: 1, CreatedAt: now.Add(-time.Hour),
 	}
-	takeover := func(sql string) bool { return strings.Contains(sql, "SET created_at") }
-	lost := db.NewIdempotencyStore(fakeDB{row: stale, exec: func(sql string) (pgconn.CommandTag, error) {
-		if takeover(sql) {
-			return pgconn.NewCommandTag("UPDATE 0"), nil
-		}
-		return pgconn.NewCommandTag("INSERT 0 0"), nil
-	}}, testkit.NewClock(now))
+	conflict := func(string) (pgconn.CommandTag, error) { return pgconn.NewCommandTag("INSERT 0 0"), nil }
+	lost := db.NewIdempotencyStore(fakeDB{row: stale, exec: conflict, takeover: pgx.ErrNoRows}, testkit.NewClock(now))
 	if _, err := lost.Begin(t.Context(), "user:u1", "k1", hashA()); errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("Begin when every takeover loses = %v, want internal after the attempts run out", err)
 	}
 	boom := &pgconn.PgError{Code: "08006"}
-	failing := db.NewIdempotencyStore(fakeDB{row: stale, exec: func(sql string) (pgconn.CommandTag, error) {
-		if takeover(sql) {
-			return pgconn.CommandTag{}, boom
-		}
-		return pgconn.NewCommandTag("INSERT 0 0"), nil
-	}}, testkit.NewClock(now))
+	failing := db.NewIdempotencyStore(fakeDB{row: stale, exec: conflict, takeover: boom}, testkit.NewClock(now))
 	if _, err := failing.Begin(t.Context(), "user:u1", "k1", hashA()); errs.CodeOf(err) != errs.CodeDBUnavailable {
 		t.Fatalf("Begin with a failing takeover = %v, want db_unavailable", err)
 	}
@@ -430,3 +439,46 @@ func (f intentFake) QueryRow(context.Context, string, ...any) pgx.Row { return i
 type intentRow func(dest ...any) error
 
 func (r intentRow) Scan(dest ...any) error { return r(dest...) }
+
+func TestIdempotencyStore_anEarlierOwnerCannotCompleteOrReleaseTheReplacementsClaim(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	clk := testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))
+	s := db.NewIdempotencyStore(pool, clk)
+	original := mustBegin(t, s, "user:u1", "k1", hashA())
+	clk.Advance(5*time.Minute + time.Second)
+	replacement := mustBegin(t, s, "user:u1", "k1", hashA())
+	if original.Ref.Generation != 1 || replacement.Outcome != db.ClaimOwned || replacement.Ref.Generation != 2 {
+		t.Fatalf("original = %+v replacement = %+v, want generations 1 and 2", original, replacement)
+	}
+
+	if err := s.Complete(t.Context(), original.Ref, storedOK()); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("Complete by the earlier owner = %v, want it refused", err)
+	}
+	if err := s.Release(t.Context(), original.Ref); err != nil {
+		t.Fatalf("Release by the earlier owner = %v, want a quiet no-op", err)
+	}
+	if c := mustBegin(t, s, "user:u1", "k1", hashA()); c.Outcome != db.ClaimInFlight {
+		t.Fatalf("Begin after the earlier owner's calls = %+v, want the replacement's claim still in flight", c)
+	}
+
+	if err := s.Complete(t.Context(), replacement.Ref, storedOK()); err != nil {
+		t.Fatalf("Complete by the replacement = %v", err)
+	}
+	if c := mustBegin(t, s, "user:u1", "k1", hashA()); c.Outcome != db.ClaimCompleted {
+		t.Fatalf("Begin after the replacement completed = %+v, want ClaimCompleted", c)
+	}
+}
+
+func TestIdempotencyStore_everyTakeoverRaisesTheGeneration(t *testing.T) {
+	t.Parallel()
+	clk := testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))
+	s := db.NewIdempotencyStore(testkit.DB(t), clk)
+	for want := int64(1); want <= 3; want++ {
+		c := mustBegin(t, s, "user:u1", "k1", hashA())
+		if c.Outcome != db.ClaimOwned || c.Ref.Generation != want {
+			t.Fatalf("claim %d = %+v, want ClaimOwned at generation %d", want, c, want)
+		}
+		clk.Advance(5*time.Minute + time.Second)
+	}
+}
