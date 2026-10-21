@@ -106,14 +106,14 @@ struct ProposalDetailBestPriceTests {
         try AccessibilityTree.setAutomation(enabled: true)
         defer { try? AccessibilityTree.setAutomation(enabled: false) }
         let window = try Self.window(hosting: ProposalDetailSlotView(proposalID: detail.id, model: model), api: api)
-        defer { window.isHidden = true }
+        defer { Self.release(window) }
         let unavailable = "Unavailable: not set up on this chain yet"
         await ProposalTestWindow.until {
-            AccessibilityTree.labels(in: window).contains { $0.contains(unavailable) }
+            Self.labels(in: window).contains { $0.contains(unavailable) }
         }
         for _ in 0..<200 { await Task.yield() }
 
-        let labels = AccessibilityTree.labels(in: window)
+        let labels = Self.labels(in: window)
         #expect(labels.contains { $0.contains(unavailable) }, "labels: \(labels)")
         #expect(!labels.contains { $0.contains("Price when proposed") }, "labels: \(labels)")
         #expect(!labels.contains { $0.contains("a share") }, "labels: \(labels)")
@@ -156,14 +156,14 @@ struct ProposalDetailBestPriceTests {
         try AccessibilityTree.setAutomation(enabled: true)
         defer { try? AccessibilityTree.setAutomation(enabled: false) }
         let window = try Self.window(hosting: ProposalDetailSlotView(proposalID: detail.id, model: model), api: api)
-        defer { window.isHidden = true }
+        defer { Self.release(window) }
         let pinned = "$400.00 a share on Robinhood Chain"
         await ProposalTestWindow.until {
-            AccessibilityTree.labels(in: window).contains { $0.contains(pinned) }
+            Self.labels(in: window).contains { $0.contains(pinned) }
         }
         for _ in 0..<200 { await Task.yield() }
 
-        let labels = AccessibilityTree.labels(in: window)
+        let labels = Self.labels(in: window)
         #expect(labels.contains { $0.contains(pinned) }, "labels: \(labels)")
         #expect(!labels.contains { $0.contains("Best price across") }, "labels: \(labels)")
         #expect(!labels.contains { $0.contains("Solana") }, "labels: \(labels)")
@@ -192,14 +192,14 @@ struct ProposalDetailBestPriceTests {
         try AccessibilityTree.setAutomation(enabled: true)
         defer { try? AccessibilityTree.setAutomation(enabled: false) }
         let window = try Self.window(hosting: ProposalDetailSlotView(proposalID: detail.id, model: model), api: api)
-        defer { window.isHidden = true }
+        defer { Self.release(window) }
         let loading = ProposeAmountModel.findingPrice
         await ProposalTestWindow.until {
-            AccessibilityTree.labels(in: window).contains { $0.contains(loading) }
+            Self.labels(in: window).contains { $0.contains(loading) }
         }
         for _ in 0..<200 { await Task.yield() }
 
-        let labels = AccessibilityTree.labels(in: window)
+        let labels = Self.labels(in: window)
         #expect(model.livePrice.latest == nil)
         #expect(labels.contains { $0.contains(loading) }, "labels: \(labels)")
         #expect(!labels.contains { $0.contains("Price when proposed") }, "labels: \(labels)")
@@ -232,19 +232,28 @@ struct ProposalDetailBestPriceTests {
         try AccessibilityTree.setAutomation(enabled: true)
         defer { try? AccessibilityTree.setAutomation(enabled: false) }
         let window = try Self.window(hosting: ProposalDetailSlotView(proposalID: detail.id, model: model), api: api)
-        defer { window.isHidden = true }
+        defer { Self.release(window) }
         let loading = ProposeAmountModel.findingPrice
         await ProposalTestWindow.until {
-            AccessibilityTree.labels(in: window).contains { $0.contains(loading) }
+            Self.labels(in: window).contains { $0.contains(loading) }
         }
         for _ in 0..<200 { await Task.yield() }
 
-        let labels = AccessibilityTree.labels(in: window)
+        let labels = Self.labels(in: window)
         let age = try #require(model.livePrice.latest.map { Date().timeIntervalSince($0.quotedAt) })
         #expect(age > LiveBestPriceModel.staleAfter)
         #expect(labels.contains { $0.contains(loading) }, "labels: \(labels)")
         #expect(!labels.contains { $0.contains("Price when proposed") }, "labels: \(labels)")
         #expect(!labels.contains { $0.contains("a share") }, "labels: \(labels)")
+    }
+
+    private static func labels(in window: UIWindow) -> [String] {
+        AccessibilityTree.labels(in: window.rootViewController?.view ?? window)
+    }
+
+    private static func release(_ window: UIWindow) {
+        window.isHidden = true
+        window.rootViewController = nil
     }
 
     private static func window(hosting view: some View, api: APIClient) throws -> UIWindow {
