@@ -46,8 +46,8 @@ struct AssetDetailCopyOnceTests {
         let auth = PrivyAuthService.processInstance ?? PrivyAuthService()
         let environment = AppEnvironment(
             auth: auth, hints: FakeHintSource(), isAuthenticated: { true }, endAuthSession: {})
-        setAccessibilityAutomation(true)
-        defer { setAccessibilityAutomation(false) }
+        try AccessibilityTree.setAutomation(enabled: true)
+        defer { try? AccessibilityTree.setAutomation(enabled: false) }
         let window = UIWindow(windowScene: scene)
         window.frame = CGRect(x: 0, y: 0, width: 390, height: 1600)
         window.rootViewController = UIHostingController(
@@ -74,14 +74,6 @@ struct AssetDetailCopyOnceTests {
         await withCheckedContinuation { continuation in
             RunLoop.main.perform { continuation.resume() }
         }
-    }
-
-    private static func setAccessibilityAutomation(_ enabled: Bool) {
-        typealias SetAutomation = @convention(c) (Bool) -> Void
-        guard let handle = dlopen("/usr/lib/libAccessibility.dylib", RTLD_NOW),
-            let symbol = dlsym(handle, "_AXSSetAutomationEnabled")
-        else { return }
-        unsafeBitCast(symbol, to: SetAutomation.self)(enabled)
     }
 
     private static func accessibilityLabels(of root: NSObject) -> [String] {
