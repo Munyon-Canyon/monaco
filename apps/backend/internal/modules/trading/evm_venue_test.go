@@ -22,6 +22,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/evmcalls"
 )
 
 func venueNow() time.Time { return time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC) }
@@ -89,6 +90,10 @@ func quoteReply(out, minAmount, permit string) string {
 		`","minAmount":"` + minAmount + `"}]},"permitTransaction":` + permit + `}`
 }
 
+func buySwap() string {
+	return evmcalls.Hex(evmcalls.Honest(venueOwner, baseCash, venueToken, 9_992_500, 995_000))
+}
+
 func swapReply(tx string) string { return `{"requestId":"r3","swap":` + tx + `}` }
 
 func evmTxJSON(to, data, value string) string {
@@ -142,7 +147,7 @@ func TestEVMVenue_buildChecksTheApprovalQuotesAtTheFloorAndReturnsTheSwap(t *tes
 	e := newVenueEnv(t)
 	approveData := abiCall("095ea7b3", word(permit2), word("9992500"))
 	e.script(approvalReply(evmTxJSON(baseCash, approveData, "0x00")), quoteReply("1000000", "1000000", "null"),
-		quoteReply("1000100", "990200", "null"), swapReply(evmTxJSON(venueRouter, "0x3593564c", "0x0")))
+		quoteReply("1000100", "990200", "null"), swapReply(evmTxJSON(venueRouter, buySwap(), "0x0")))
 
 	plan, err := e.venue.Build(t.Context(), e.spec(t))
 	if err != nil {
@@ -154,8 +159,10 @@ func TestEVMVenue_buildChecksTheApprovalQuotesAtTheFloorAndReturnsTheSwap(t *tes
 			Network: chain.NetworkBase, To: evmAddress(t, baseCash), Data: approval, Value: new(big.Int),
 		}},
 		Swap: multichain.EVMTransaction{
-			Network: chain.NetworkBase, To: evmAddress(t, venueRouter), Data: []byte{0x35, 0x93, 0x56, 0x4c},
-			Value: new(big.Int),
+			Network: chain.NetworkBase,
+			To:      evmAddress(t, venueRouter),
+			Data:    evmcalls.Honest(venueOwner, baseCash, venueToken, 9_992_500, 995_000),
+			Value:   new(big.Int),
 		},
 		OutAmount: 1_000_100, MinOut: 990_200,
 	}
@@ -201,7 +208,7 @@ func TestEVMVenue_buildQuotesTheRouteTheRequoteChose(t *testing.T) {
 			t.Parallel()
 			e := newVenueEnv(t)
 			e.script(approvalReply("null"), quoteReply("990000", "990000", "null"),
-				quoteReply("990000", "990000", "null"), swapReply(evmTxJSON(venueRouter, "0x3593564c", "0x0")))
+				quoteReply("990000", "990000", "null"), swapReply(evmTxJSON(venueRouter, buySwap(), "0x0")))
 			spec := e.spec(t)
 			spec.Route.HooksOptions = hooks
 
@@ -224,7 +231,7 @@ func TestEVMVenue_buildAddsThePermitTransactionAndSkipsAnApprovedToken(t *testin
 	permit := evmTxJSON(permit2, abiCall("87517c45", word(baseCash), word(venueRouter), word("9992500"),
 		word(expiresIn(10*time.Minute))), "")
 	e.script(approvalReply("null"), quoteReply("990000", "990000", "null"), quoteReply("990000", "990000", permit),
-		swapReply(evmTxJSON(venueRouter, "0x3593564c", "0x0")))
+		swapReply(evmTxJSON(venueRouter, buySwap(), "0x0")))
 
 	plan, err := e.venue.Build(t.Context(), e.spec(t))
 	if err != nil || len(plan.Approvals) != 1 ||
@@ -256,7 +263,7 @@ func TestEVMVenue_buildMapsUpstreamErrors(t *testing.T) {
 	ok := approvalReply("null")
 	probe := quoteReply("1000000", "1000000", "null")
 	quote := quoteReply("1000000", "990000", "null")
-	swap := swapReply(evmTxJSON(venueRouter, "0x01", "0x0"))
+	swap := swapReply(evmTxJSON(venueRouter, buySwap(), "0x0"))
 	for name, tc := range map[string]struct {
 		approval, probe, quote, swap string
 		status                       map[string]int
@@ -447,7 +454,7 @@ func TestEVMVenue_buildRefusesAnApprovalItDidNotExpect(t *testing.T) {
 			t.Parallel()
 			e := newVenueEnv(t)
 			e.script(approvalReply(tc.approval), quoteReply("1000000", "1000000", "null"),
-				quoteReply("1000000", "990000", tc.permit), swapReply(evmTxJSON(venueRouter, "0x01", "0x0")))
+				quoteReply("1000000", "990000", tc.permit), swapReply(evmTxJSON(venueRouter, buySwap(), "0x0")))
 
 			if _, err := e.venue.Build(t.Context(), e.spec(t)); errs.CodeOf(err) != errs.CodeDecodeFailed {
 				t.Fatalf("Build err = %v, want decode_failed", err)
@@ -470,7 +477,7 @@ func TestEVMVenue_buildRefusesASwapToAnotherRouter(t *testing.T) {
 			t.Parallel()
 			e := newVenueEnv(t)
 			e.script(approvalReply("null"), quoteReply("1000000", "1000000", "null"),
-				quoteReply("1000000", "990000", "null"), swapReply(evmTxJSON(tc.router, "0x01", "0x0")))
+				quoteReply("1000000", "990000", "null"), swapReply(evmTxJSON(tc.router, buySwap(), "0x0")))
 			spec := e.spec(t)
 			spec.Network = tc.network
 
@@ -511,7 +518,7 @@ func TestEVMVenue_buildAcceptsEachNetworksUniversalRouter(t *testing.T) {
 			network, router := tc.network, tc.router
 			e := newVenueEnv(t)
 			e.script(approvalReply("null"), quoteReply("1000000", "1000000", "null"),
-				quoteReply("1000000", "990000", "null"), swapReply(evmTxJSON(router, "0x01", "0x0")))
+				quoteReply("1000000", "990000", "null"), swapReply(evmTxJSON(router, buySwap(), "0x0")))
 			spec := e.spec(t)
 			spec.Network = network
 
@@ -539,8 +546,16 @@ func TestEVMVenue_buildAcceptsANewerRouterAndHoldsThePermitToIt(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			e := newVenueEnv(t)
-			e.script(approvalReply("null"), quoteReply("1000000", "1000000", "null"),
-				quoteReply("1000000", "990000", permitTo(tc.spender)), swapReply(evmTxJSON(router212, "0x01", "0x0")))
+			e.script(
+				approvalReply("null"),
+				quoteReply("1000000", "1000000", "null"),
+				quoteReply(
+					"1000000",
+					"990000",
+					permitTo(tc.spender),
+				),
+				swapReply(evmTxJSON(router212, buySwap(), "0x0")),
+			)
 
 			plan, err := e.venue.Build(t.Context(), e.spec(t))
 			if tc.ok && (err != nil || plan.Swap.To != evmAddress(t, router212) || len(plan.Approvals) != 1) {
@@ -557,9 +572,42 @@ func TestEVMVenue_buildRefusesASwapThatSendsValue(t *testing.T) {
 	t.Parallel()
 	e := newVenueEnv(t)
 	e.script(approvalReply("null"), quoteReply("1000000", "1000000", "null"),
-		quoteReply("1000000", "990000", "null"), swapReply(evmTxJSON(venueRouter, "0x01", "0x1")))
+		quoteReply("1000000", "990000", "null"), swapReply(evmTxJSON(venueRouter, buySwap(), "0x1")))
 
 	if _, err := e.venue.Build(t.Context(), e.spec(t)); errs.CodeOf(err) != errs.CodeDecodeFailed {
 		t.Fatalf("Build err = %v, want decode_failed for a swap sending native value", err)
+	}
+}
+
+func TestEVMVenue_buildRefusesCalldataThatDoesNotDoWhatTheQuoteSays(t *testing.T) {
+	t.Parallel()
+	attacker := "0x00000000000000000000000000000000000000ee"
+	other := "0x00000000000000000000000000000000000000dd"
+	for name, data := range map[string][]byte{
+		"wrong recipient": evmcalls.Honest(attacker, baseCash, venueToken, 9_992_500, 995_000),
+		"wrong token out": evmcalls.Honest(venueOwner, baseCash, other, 9_992_500, 995_000),
+		"amount above":    evmcalls.Honest(venueOwner, baseCash, venueToken, 9_992_501, 995_000),
+		"min below floor": evmcalls.Honest(venueOwner, baseCash, venueToken, 9_992_500, 1),
+		"extra transfer": evmcalls.Execute([]byte{0x05, 0x00}, evmcalls.Sweep(baseCash, attacker, 9_992_500),
+			evmcalls.V3In(venueOwner, 9_992_500, 995_000, evmcalls.V3Path(baseCash, venueToken), true)),
+		"authority change": evmcalls.Execute([]byte{0x0a, 0x00}, make([]byte, 5*32),
+			evmcalls.V3In(venueOwner, 9_992_500, 995_000, evmcalls.V3Path(baseCash, venueToken), true)),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			e := newVenueEnv(t)
+			e.script(
+				approvalReply("null"),
+				quoteReply("990000", "990000", "null"),
+				quoteReply("1000100", "990200", "null"),
+				swapReply(evmTxJSON(venueRouter, evmcalls.Hex(data), "0x0")),
+			)
+
+			_, err := e.venue.Build(t.Context(), e.spec(t))
+
+			if errs.CodeOf(err) != errs.CodeDecodeFailed {
+				t.Fatalf("Build err = %v, want decode_failed for calldata the quote does not describe", err)
+			}
+		})
 	}
 }

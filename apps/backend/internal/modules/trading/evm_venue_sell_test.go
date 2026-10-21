@@ -12,17 +12,24 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/evmsim"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/evmcalls"
 )
 
 const (
-	defaultSwap  = "0x3593564c00"
-	hooklessSwap = "0x3593564c01"
-	otherRouter  = "0xfdf682f51fe81aa4898f0ae2163d8a55c127fbc7"
-	simMet       = `{"jsonrpc":"2.0","id":1,"result":"0x"}`
-	simReverted  = `{"jsonrpc":"2.0","id":1,"error":{"code":3,"data":"0x08c379a0"}}`
-	delegated    = `{"jsonrpc":"2.0","id":1,"result":"0xef0100d6cedde84be40893d153be9d467cd6ad37875b28"}`
-	undelegated  = `{"jsonrpc":"2.0","id":1,"result":"0x"}`
+	otherRouter = "0xfdf682f51fe81aa4898f0ae2163d8a55c127fbc7"
+	simMet      = `{"jsonrpc":"2.0","id":1,"result":"0x"}`
+	simReverted = `{"jsonrpc":"2.0","id":1,"error":{"code":3,"data":"0x08c379a0"}}`
+	delegated   = `{"jsonrpc":"2.0","id":1,"result":"0xef0100d6cedde84be40893d153be9d467cd6ad37875b28"}`
+	undelegated = `{"jsonrpc":"2.0","id":1,"result":"0x"}`
 )
+
+func defaultSwap() string {
+	return evmcalls.Hex(evmcalls.Honest(venueOwner, venueToken, baseCash, 9_992_500, 995_000))
+}
+
+func hooklessSwap() string {
+	return evmcalls.Hex(evmcalls.Honest(venueOwner, venueToken, baseCash, 9_992_500, 996_000))
+}
 
 func simShort(received int64) string {
 	w := func(v int64) string { return hex.EncodeToString(big.NewInt(v).FillBytes(make([]byte, 32))) }
@@ -71,10 +78,10 @@ func (e *venueEnv) scriptSell(r sellRoutes) {
 	}
 	e.uniswap.replies["/v1/swap"] = []string{
 		swapReply(
-			evmTxJSON(r.defaultRouter, defaultSwap, "0x0"),
+			evmTxJSON(r.defaultRouter, defaultSwap(), "0x0"),
 		),
-		swapReply(evmTxJSON(r.altRouter, hooklessSwap, "0x0")),
-		swapReply(evmTxJSON(r.finalRouter, defaultSwap, "0x0")),
+		swapReply(evmTxJSON(r.altRouter, hooklessSwap(), "0x0")),
+		swapReply(evmTxJSON(r.finalRouter, defaultSwap(), "0x0")),
 	}
 	e.rpc.replies["/rpc"] = []string{r.code, r.defaultSim, r.hooklessSim}
 }
@@ -158,7 +165,7 @@ func TestEVMVenue_anUndelegatedTreasurySimulatesItsSellAsADirectCall(t *testing.
 	}
 	e.wantSimulations(t, func(call map[string]any) bool {
 		return call["from"] == venueOwner && call["to"] == venueRouter &&
-			(call["data"] == defaultSwap || call["data"] == hooklessSwap)
+			(call["data"] == defaultSwap() || call["data"] == hooklessSwap())
 	})
 }
 
@@ -290,7 +297,7 @@ func TestEVMVenue_chooseRefusesWhatItCannotSimulateOrBuild(t *testing.T) {
 			e := newVenueEnv(t)
 			e.rpc.replies["/rpc"] = []string{c.code, c.sim}
 			e.uniswap.replies["/v1/quote"] = c.final
-			e.uniswap.replies["/v1/swap"] = []string{swapReply(evmTxJSON(c.router, "0x01", "0x0"))}
+			e.uniswap.replies["/v1/swap"] = []string{swapReply(evmTxJSON(c.router, defaultSwap(), "0x0"))}
 			spec := e.sellSpec(t)
 			spec.Network = c.network
 

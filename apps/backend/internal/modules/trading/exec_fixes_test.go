@@ -23,6 +23,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/evmcalls"
 )
 
 func TestExecuteTrade_feeHeadroomComesFromTheSolanaWinnersMint(t *testing.T) {
@@ -207,7 +208,9 @@ func TestEVMVenue_buildsARecordedSellWithAFloorFromTheQuoteAndTheSlippage(t *tes
 		t.Fatal(err)
 	}
 	e := newVenueEnv(t)
-	swap := swapReply(evmTxJSON(ethRoute, "0x3593564c", "0x0"))
+	swap := swapReply(
+		evmTxJSON(ethRoute, evmcalls.Hex(evmcalls.Honest(owner, aaplon, ethUSDC, amountIn, floor)), "0x0"),
+	)
 	e.uniswap.replies["/v1/check_approval"] = []string{approvalReply("null")}
 	e.uniswap.replies["/v1/quote"] = []string{quote, quote, quote, quote}
 	e.uniswap.replies["/v1/swap"] = []string{swap, swap, swap}
