@@ -52,8 +52,8 @@ struct CabalsTabComingSlotsTests {
             UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first,
             "the test host has no window scene"
         )
-        setAccessibilityAutomation(true)
-        defer { setAccessibilityAutomation(false) }
+        try AccessibilityTree.setAutomation(enabled: true)
+        defer { try? AccessibilityTree.setAutomation(enabled: false) }
         let window = UIWindow(windowScene: scene)
         window.frame = CGRect(x: 0, y: 0, width: 390, height: 800)
         window.rootViewController = UIHostingController(
@@ -75,14 +75,6 @@ struct CabalsTabComingSlotsTests {
             labels = next
         }
         return labels
-    }
-
-    private static func setAccessibilityAutomation(_ enabled: Bool) {
-        typealias SetAutomation = @convention(c) (Bool) -> Void
-        guard let handle = dlopen("/usr/lib/libAccessibility.dylib", RTLD_NOW),
-            let symbol = dlsym(handle, "_AXSSetAutomationEnabled")
-        else { return }
-        unsafeBitCast(symbol, to: SetAutomation.self)(enabled)
     }
 
     private static func accessibilityLabels(of root: NSObject) -> [String] {
