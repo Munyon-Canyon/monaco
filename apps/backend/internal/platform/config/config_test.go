@@ -2,10 +2,14 @@ package config_test
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -117,15 +121,61 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 	}
 }
 
-func TestLoadDefaultPoolLeavesConnectionFreeAfterWorkerPollersHoldTheirLocks(t *testing.T) {
-	t.Parallel()
-	cfg, err := config.Load(append(required(), "PATH=/usr/bin", "HOME=/home/monaco"))
+func deployedMaxConns(t *testing.T) map[string]string {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "..", "render.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	const workerPollers = 10
-	if cfg.DB.MaxConns <= workerPollers {
-		t.Fatalf("DB.MaxConns = %d, want more than %d worker pollers", cfg.DB.MaxConns, workerPollers)
+	var blueprint struct {
+		Services []struct {
+			Name    string `yaml:"name"`
+			EnvVars []struct {
+				Key   string `yaml:"key"`
+				Value string `yaml:"value"`
+			} `yaml:"envVars"`
+		} `yaml:"services"`
+	}
+	if err := yaml.Unmarshal(raw, &blueprint); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, svc := range blueprint.Services {
+		for _, env := range svc.EnvVars {
+			if env.Key == "MONACO_DB_MAX_CONNS" {
+				got[svc.Name] = env.Value
+			}
+		}
+	}
+	return got
+}
+
+func TestDeployedPoolHoldsATransactionAndItsNestedRead(t *testing.T) {
+	t.Parallel()
+	const minConns = 2
+	boot, err := os.ReadFile(filepath.Join("..", "..", "..", "cmd", "worker", "boot.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(boot), "locks, err := db.Open(ctx, config.DB{URL: d.Config.DB.URL, MaxConns: 1})") ||
+		!strings.Contains(string(boot), "poller.NewRunner(locks,") {
+		t.Fatal("worker pollers no longer lock on their own one-connection pool; " +
+			"MONACO_DB_MAX_CONNS must then also cover every poller's held lock connection")
+	}
+	deployed := deployedMaxConns(t)
+	for _, service := range []string{"monaco-api", "monaco-worker"} {
+		value, ok := deployed[service]
+		if !ok {
+			t.Fatalf("render.yaml sets no MONACO_DB_MAX_CONNS for %s", service)
+		}
+		cfg, err := config.Load(append(required(), "MONACO_DB_MAX_CONNS="+value, "PATH=/usr/bin", "HOME=/home/monaco"))
+		if err != nil {
+			t.Fatalf("%s: loading the deployed MONACO_DB_MAX_CONNS=%s: %v", service, value, err)
+		}
+		if cfg.DB.MaxConns < minConns {
+			t.Fatalf("%s deploys MONACO_DB_MAX_CONNS=%d, want at least %d: a transaction and its nested read",
+				service, cfg.DB.MaxConns, minConns)
+		}
 	}
 }
 
