@@ -76,6 +76,7 @@ type Server struct {
 	objects      map[string]storedObject
 	posthog      []PostHogCapture
 	ably         []AblyPublish
+	ablyRevoked  []AblyRevocation
 	balances     map[string]map[string]tokenBalance
 	swaps        map[string]SetSwap
 	orders       map[string]swapOrder
@@ -136,6 +137,7 @@ func newFrom(fsys fs.FS, root string) *Server {
 	s.live.HandleFunc("POST /apns/3/device/{token}", s.apnsPush)
 	s.live.HandleFunc("POST /posthog/batch/", s.posthogBatch)
 	s.live.HandleFunc("POST /ably/channels/{name}/messages", s.ablyPublish)
+	s.live.HandleFunc("POST /ably/keys/{key}/revokeTokens", s.ablyRevoke)
 	s.mountStorage()
 	for _, name := range s.upstreams {
 		replay := s.replay(name)

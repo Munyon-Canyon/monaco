@@ -1,6 +1,7 @@
 package ably
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -22,7 +23,10 @@ import (
 const upstream = "ably"
 
 type Client struct {
-	rest *ablysdk.REST
+	rest    *ablysdk.REST
+	http    *httpclient.Client
+	keyName string
+	secret  string
 }
 
 type transport struct{ http *httpclient.Client }
@@ -55,7 +59,8 @@ func New(cfg config.Config, newHTTP func(name string, opts ...httpclient.Option)
 	if err != nil {
 		return Client{}, errs.New(errs.CodeInvalidInput, op)
 	}
-	return Client{rest: rest}, nil
+	keyName, secret, _ := strings.Cut(cfg.Ably.APIKey, ":")
+	return Client{rest: rest, http: hc, keyName: keyName, secret: secret}, nil
 }
 
 func (c Client) Publish(ctx context.Context, channel string, name string, data any) error {
@@ -83,6 +88,24 @@ func (c Client) TokenRequest(
 	}, nil
 }
 
+func (c Client) RevokeTokens(ctx context.Context, clientID ids.UserID) error {
+	const op = "ably.Client.RevokeTokens"
+	body, _ := json.Marshal(map[string][]string{"targets": {"clientId:" + clientID.String()}})
+	path := "/keys/" + url.PathEscape(c.keyName) + "/revokeTokens"
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, path, bytes.NewReader(body))
+	req.SetBasicAuth(c.keyName, c.secret)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(ctx, req)
+	if err != nil {
+		return upstreamError(err, op)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return errs.New(errs.CodeUpstreamUnavailable, op, slog.Int("status", resp.StatusCode))
+	}
+	return nil
+}
+
 func upstreamError(err error, op string, attrs ...slog.Attr) error {
 	code := errs.CodeUpstreamUnavailable
 	var inner *errs.Error
@@ -93,6 +116,8 @@ func upstreamError(err error, op string, attrs ...slog.Attr) error {
 }
 
 type Noop struct{}
+
+func (Noop) RevokeTokens(context.Context, ids.UserID) error { return nil }
 
 func (Noop) Publish(context.Context, string, string, any) error { return nil }
 

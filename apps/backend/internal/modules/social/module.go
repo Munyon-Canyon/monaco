@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
@@ -224,6 +225,10 @@ func (m *Module) Consumers() []bus.Consumer {
 		IDs: m.deps.IDs, UoW: m.deps.UoW,
 	}
 	referrals := adapters.ReferralFollows{Users: m.users, IDs: m.deps.IDs}
+	revoke := adapters.RealtimeRevoke{Realtime: m.realtime}
+	leftSettled := adapters.Settled[events.CabalMemberLeft]
+	standingSettled := adapters.Settled[events.UserAccountStatusChanged]
+	deletedSettled := adapters.Settled[events.UserDeleted]
 	return []bus.Consumer{
 		{
 			Durable: "social_feed",
@@ -250,6 +255,14 @@ func (m *Module) Consumers() []bus.Consumer {
 		{
 			Durable:  "social_chat_seen_cleanup",
 			Handlers: []bus.HandlerSpec{bus.Handle("social.chat_seen_cleanup", adapters.ChatSeenCleanup{}.Handle)},
+		},
+		{
+			Durable: "social_realtime_revoke",
+			Handlers: []bus.HandlerSpec{
+				bus.HandleFetched("social.realtime_revoke.left", revoke.Left, leftSettled),
+				bus.HandleFetched("social.realtime_revoke.standing", revoke.Standing, standingSettled),
+				bus.HandleFetched("social.realtime_revoke.deleted", revoke.Deleted, deletedSettled),
+			},
 		},
 		{
 			Durable: "social_referral_follows",

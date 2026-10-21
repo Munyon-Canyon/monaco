@@ -3740,7 +3740,7 @@ paths:
       summary: Get a token request for live chat updates.
       description: >-
         Returns a signed Ably token request that lets the app subscribe, and only subscribe, to
-        the chat channel of every cabal the caller belongs to. The token request is valid for 15
+        the chat channel of every cabal the caller belongs to. The token request is valid for 5
         minutes and carries no presence or publish right. A caller in no cabal gets
         no_realtime_channels, because Ably rejects an empty capability. Send a new idempotency key
         with every call, because a replay returns the first token request.
