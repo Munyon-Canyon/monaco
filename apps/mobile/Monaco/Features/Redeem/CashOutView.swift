@@ -187,6 +187,13 @@ struct CashOutContent: View {
         .padding(.horizontal, MonacoTheme.Space.gutter)
     }
 
+    static let finalProceedsValue = "Known when it settles"
+
+    static let reviewNotice =
+        "Selling assets to fill this request can change what you receive. "
+        + "The final amount is known when the request settles, and no arrival time is promised. "
+        + "You stay in the cabal."
+
     static func belowMinimumMessage(_ preview: CashOutPreview) -> String {
         "Your slice is worth \(UsdAmountFormatter.format(flooredMicros: preview.sliceMicros)). "
             + "Cash out starts at \(UsdAmountFormatter.format(micros: preview.minMicros)), "
@@ -248,13 +255,10 @@ struct CashOutContent: View {
             MoneyKeyRowCard(rows: [
                 MoneyKeyRow(
                     label: "Requested amount", value: .data(UsdAmountFormatter.format(flooredMicros: requested))),
-                MoneyKeyRow(label: "Destination", value: .words("Your cash")),
-                MoneyKeyRow(label: "Final proceeds", value: .words("Confirmed at settlement")),
-                MoneyKeyRow(label: "Costs", value: .words("From the redemption quote")),
+                MoneyKeyRow(label: "Destination", value: .words("Your own cash")),
+                MoneyKeyRow(label: "Final proceeds", value: .words(Self.finalProceedsValue)),
             ])
-            MonacoNotice(
-                .warn,
-                message: "Review the live estimate before confirming. No immediate settlement time is promised.")
+            MonacoNotice(.warn, message: Self.reviewNotice)
         }
     }
 
