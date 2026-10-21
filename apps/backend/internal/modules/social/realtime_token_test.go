@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social"
@@ -54,13 +55,25 @@ func TestRealtimeToken_CapabilityPerCabal(t *testing.T) {
 	}
 	subscribeOnly(t, got.Capability, f.cabal.ID, third.ID)
 	if got.ClientId != f.member(0).String() || got.Ttl != app.RealtimeTokenTTL.Milliseconds() {
-		t.Fatalf("token = %+v, want client %s and a 15 minute ttl", got, f.member(0))
+		t.Fatalf("token = %+v, want client %s and a 5 minute ttl", got, f.member(0))
 	}
 	other, err := f.token(t, f.member(1))
 	if err != nil {
 		t.Fatal(err)
 	}
 	subscribeOnly(t, other.Capability, f.cabal.ID)
+}
+
+func TestRealtimeToken_ttlIsFiveMinutes(t *testing.T) {
+	t.Parallel()
+	if app.RealtimeTokenTTL != 5*time.Minute {
+		t.Fatalf("RealtimeTokenTTL = %s, want 5m0s", app.RealtimeTokenTTL)
+	}
+	f := newChatRoutes(t)
+	got, err := f.token(t, f.member(0))
+	if err != nil || got.Ttl != (5*time.Minute).Milliseconds() {
+		t.Fatalf("token ttl = %d ms, %v; want 300000", got.Ttl, err)
+	}
 }
 
 func TestRealtimeToken_aMemberWhoLeftIsAbsentFromTheNextToken(t *testing.T) {

@@ -93,6 +93,8 @@ func (commitProbe) TokenRequest(context.Context, ids.UserID, []string, time.Dura
 	return app.TokenRequest{}, nil
 }
 
+func (commitProbe) RevokeTokens(context.Context, ids.UserID) error { return nil }
+
 func TestPostChatMessage_publishesOnlyAfterTheRowIsCommitted(t *testing.T) {
 	t.Parallel()
 	f := newChatFixture(t)
@@ -253,6 +255,8 @@ func (p threadCountProbe) Publish(ctx context.Context, _ string, event string, _
 func (threadCountProbe) TokenRequest(context.Context, ids.UserID, []string, time.Duration) (app.TokenRequest, error) {
 	return app.TokenRequest{}, nil
 }
+
+func (threadCountProbe) RevokeTokens(context.Context, ids.UserID) error { return nil }
 
 func TestDeleteChatMessage_publishesTheThreadUpdateOnlyAfterTheCountIsCommitted(t *testing.T) {
 	t.Parallel()

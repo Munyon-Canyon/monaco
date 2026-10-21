@@ -8,7 +8,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
-const RealtimeTokenTTL = 15 * time.Minute
+const RealtimeTokenTTL = 5 * time.Minute
 
 type RealtimeTokenHandler struct {
 	members  Members

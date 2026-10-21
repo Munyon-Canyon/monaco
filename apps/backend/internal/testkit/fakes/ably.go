@@ -18,6 +18,11 @@ type AblyPublish struct {
 	Data    any
 }
 
+type AblyRevocation struct {
+	KeyName string
+	Targets []string
+}
+
 type ablyMessage struct {
 	Name     string `json:"name"`
 	Data     any    `json:"data"`
@@ -79,6 +84,32 @@ func (s *Server) ablyPublish(w http.ResponseWriter, r *http.Request) {
 	s.ably = append(s.ably, published...)
 	s.mu.Unlock()
 	s.serveFixture(w, []string{ablyFixture})
+}
+
+func (s *Server) ablyRevoke(w http.ResponseWriter, r *http.Request) {
+	if !strings.HasPrefix(r.Header.Get("Authorization"), "Basic ") {
+		http.Error(w, fieldError("authorization").Error(), http.StatusUnauthorized)
+		return
+	}
+	var body struct {
+		Targets []string `json:"targets"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || len(body.Targets) == 0 {
+		http.Error(w, fieldError("targets").Error(), http.StatusBadRequest)
+		return
+	}
+	s.mu.Lock()
+	s.ablyRevoked = append(s.ablyRevoked, AblyRevocation{KeyName: r.PathValue("key"), Targets: body.Targets})
+	s.mu.Unlock()
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]any{"targets": body.Targets, "appliesAt": 1})
+}
+
+func (s *Server) AblyRevocations() []AblyRevocation {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]AblyRevocation(nil), s.ablyRevoked...)
 }
 
 type AblyExpect struct {

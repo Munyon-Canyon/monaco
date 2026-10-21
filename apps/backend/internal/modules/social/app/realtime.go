@@ -10,6 +10,7 @@ import (
 type Realtime interface {
 	Publish(ctx context.Context, channel string, name string, data any) error
 	TokenRequest(ctx context.Context, clientID ids.UserID, channels []string, ttl time.Duration) (TokenRequest, error)
+	RevokeTokens(ctx context.Context, clientID ids.UserID) error
 }
 
 type TokenRequest struct {

@@ -171,3 +171,42 @@ func TestAblyExpect_countsThePublishesOfOneEventOnOneChannel(t *testing.T) {
 		}
 	}
 }
+
+func TestAblyRevoke_recordsTheTargetsAndRefusesWhatAblyWouldRefuse(t *testing.T) {
+	t.Parallel()
+	srv, base := ablyServer(t)
+	post := func(body string, authorized bool) int {
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
+			base+"/ably/keys/app.key/revokeTokens", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if authorized {
+			req.Header.Set("Authorization", "Basic a2V5OnNlY3JldA==")
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		return resp.StatusCode
+	}
+	for _, tt := range []struct {
+		body       string
+		authorized bool
+		status     int
+	}{
+		{`{"targets":["clientId:u1"]}`, false, http.StatusUnauthorized},
+		{`{"targets":[]}`, true, http.StatusBadRequest},
+		{`nope`, true, http.StatusBadRequest},
+		{`{"targets":["clientId:u1"]}`, true, http.StatusCreated},
+	} {
+		if got := post(tt.body, tt.authorized); got != tt.status {
+			t.Fatalf("POST %s authorized=%v = %d, want %d", tt.body, tt.authorized, got, tt.status)
+		}
+	}
+	want := []fakes.AblyRevocation{{KeyName: "app.key", Targets: []string{"clientId:u1"}}}
+	if got := srv.AblyRevocations(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("revocations = %+v, want %+v", got, want)
+	}
+}

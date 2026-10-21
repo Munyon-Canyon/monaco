@@ -267,3 +267,71 @@ func TestNoop_publishesNothingAndIssuesNoToken(t *testing.T) {
 		t.Fatalf("Noop token = %v, want upstream_unavailable", err)
 	}
 }
+
+func TestClient_RevokeTokens_revokesEveryTokenOfTheClientWithTheKey(t *testing.T) {
+	t.Parallel()
+	srv, ts := fakeServer(t)
+	user := ids.UserIDFrom(testkit.NewIDs(1).NewV7())
+	if err := newClient(t, ts.URL+"/ably", time.Minute).RevokeTokens(t.Context(), user); err != nil {
+		t.Fatal(err)
+	}
+	want := []fakes.AblyRevocation{{KeyName: keyName, Targets: []string{"clientId:" + user.String()}}}
+	if got := srv.AblyRevocations(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("revocations = %+v, want %+v", got, want)
+	}
+}
+
+func TestClient_RevokeTokens_mapsAFailureToUpstreamUnavailable(t *testing.T) {
+	t.Parallel()
+	statuses := []int{
+		http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusInternalServerError,
+	}
+	for _, status := range statuses {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			t.Parallel()
+			srv, ts := fakeServer(t)
+			script(t, ts.URL, fakes.Step{
+				Route: "/ably/keys/" + keyName + "/revokeTokens", Action: fakes.ActionFail, Status: status, Times: 1,
+				Body: json.RawMessage(`{"error":{"code":40160,"statusCode":401,"message":"not revocable"}}`),
+			})
+			user := ids.UserIDFrom(testkit.NewIDs(1).NewV7())
+			err := newClient(t, ts.URL+"/ably", time.Minute).RevokeTokens(t.Context(), user)
+			if errs.CodeOf(err) != errs.CodeUpstreamUnavailable || len(srv.AblyRevocations()) != 0 {
+				t.Fatalf("RevokeTokens = %v (%s) with %d recorded, want upstream_unavailable and none",
+					err, errs.CodeOf(err), len(srv.AblyRevocations()))
+			}
+		})
+	}
+}
+
+func TestClient_RevokeTokens_hitsTheDeadline(t *testing.T) {
+	t.Parallel()
+	_, ts := fakeServer(t)
+	script(t, ts.URL, fakes.Step{Route: "/ably/keys/" + keyName + "/revokeTokens", Action: fakes.ActionHang, Times: 1})
+	user := ids.UserIDFrom(testkit.NewIDs(1).NewV7())
+	err := newClient(t, ts.URL+"/ably", 50*time.Millisecond).RevokeTokens(t.Context(), user)
+	if errs.CodeOf(err) != errs.CodeUpstreamTimeout {
+		t.Fatalf("RevokeTokens = %v (%s), want upstream_timeout", err, errs.CodeOf(err))
+	}
+}
+
+func TestClient_RevokeTokens_neverLeaksTheKeySecret(t *testing.T) {
+	t.Parallel()
+	_, ts := fakeServer(t)
+	script(t, ts.URL, fakes.Step{
+		Route:  "/ably/keys/" + keyName + "/revokeTokens",
+		Action: fakes.ActionFail, Status: http.StatusUnauthorized, Times: 1,
+	})
+	user := ids.UserIDFrom(testkit.NewIDs(1).NewV7())
+	err := newClient(t, ts.URL+"/ably", time.Minute).RevokeTokens(t.Context(), user)
+	if err == nil || strings.Contains(fmt.Sprintf("%v %+v", err, errs.Detail(err)), keySecret) {
+		t.Fatalf("error %v carries the key secret or is nil", err)
+	}
+}
+
+func TestNoop_RevokeTokens_hasNothingToRevoke(t *testing.T) {
+	t.Parallel()
+	if err := (ably.Noop{}).RevokeTokens(t.Context(), ids.UserID{}); err != nil {
+		t.Fatalf("Noop.RevokeTokens = %v, want nil", err)
+	}
+}
