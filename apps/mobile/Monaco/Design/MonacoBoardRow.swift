@@ -17,6 +17,7 @@ struct BoardRow<Leading: View>: View {
     enum Figure {
         case pnl
         case value
+        case returnPercent
     }
 
     static var viewerLabel: String { "You" }
@@ -95,14 +96,22 @@ struct BoardRow<Leading: View>: View {
             switch figure {
             case .pnl:
                 PnLText(signedMicros: row.pnlMicros, style: .row)
+                returnText(.caption)
             case .value:
                 MoneyText(micros: row.valueMicros, style: .row, color: MonacoTheme.primaryText)
+                returnText(.caption)
+            case .returnPercent:
+                returnText(.row)
+                PnLText(signedMicros: row.pnlMicros, style: .caption)
             }
-            if let bps = row.returnBps {
-                PercentText(basisPoints: bps, style: .caption)
-            } else {
-                PercentText(percentReturn: nil, style: .caption)
-            }
+        }
+    }
+
+    @ViewBuilder private func returnText(_ style: MoneyStyle) -> some View {
+        if let bps = row.returnBps {
+            PercentText(basisPoints: bps, style: style)
+        } else {
+            PercentText(percentReturn: nil, style: style)
         }
     }
 
@@ -174,7 +183,7 @@ struct BoardRow<Leading: View>: View {
             sentence += ", no return yet"
         }
         switch figure {
-        case .pnl:
+        case .pnl, .returnPercent:
             sentence += ", \(PnLSpeech.dollars(UsdAmountFormatter.format(signedMicros: row.pnlMicros)))"
         case .value:
             sentence += ", pot \(UsdAmountFormatter.format(micros: row.valueMicros))"
