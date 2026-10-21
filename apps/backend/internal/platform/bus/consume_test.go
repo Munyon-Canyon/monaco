@@ -301,35 +301,229 @@ func TestDispatch_nakDelayFollowsTheScheduleAndTermCarriesTheCode(t *testing.T) 
 	}
 }
 
-func TestDispatch_deadLetterPublishFailureIsLoggedAndStillTerms(t *testing.T) {
-	t.Parallel()
-	h := newHarness(t)
-	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{h.recorder("notify.push")}})
+func (h *harness) badMsg(t *testing.T, header nats.Header) *fakeMsg {
+	t.Helper()
 	id, _ := h.appendPing(t)
-	msg := &fakeMsg{
-		subject: h.bus.Conn.Subject("events.system.pinged"),
-		header:  nats.Header{jetstream.MsgIDHeader: []string{id.String()}},
-		data:    []byte("nope"), meta: &jetstream.MsgMetadata{NumDelivered: 1},
+	header.Set(jetstream.MsgIDHeader, id.String())
+	return &fakeMsg{
+		subject: h.bus.Conn.Subject("events.system.pinged"), header: header,
+		data: []byte("nope"), meta: &jetstream.MsgMetadata{NumDelivered: 1},
 	}
+}
+
+func (h *harness) breakDeadLetter(t *testing.T) (restore func()) {
+	t.Helper()
 	ctx := h.ctx(t)
 	if err := h.bus.JS.DeleteStream(ctx, h.bus.DeadLetter); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		if _, err := h.bus.Conn.Apply(context.WithoutCancel(ctx)); err != nil {
-			t.Error(err)
-		}
-	})
+	var once sync.Once
+	restore = func() {
+		once.Do(func() {
+			if _, err := h.bus.Conn.Apply(context.WithoutCancel(ctx)); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	t.Cleanup(restore)
+	return restore
+}
 
-	reg.Dispatch(ctx, durable, msg)
-	if msg.verdict != "term" || msg.reason != "decode_failed" {
-		t.Fatalf("verdict %q reason %q, want term decode_failed", msg.verdict, msg.reason)
+func TestDispatch_deadLetterPublishFailureKeepsTheSourceUntilTheLetterIsStored(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{h.recorder("notify.push")}})
+	msg := h.badMsg(t, nats.Header{})
+	id := msg.header.Get(jetstream.MsgIDHeader)
+	restore := h.breakDeadLetter(t)
+
+	reg.Dispatch(h.ctx(t), durable, msg)
+	if msg.verdict != "nak" {
+		t.Fatalf("verdict %q with the dead letter unavailable, want nak so the source is kept", msg.verdict)
 	}
 	h.assertLines(
 		t,
 		"bus.deadletter_dropped",
-		map[string]any{"consumer": durable, "msg_id": id.String(), "level": "ERROR"},
+		map[string]any{"consumer": durable, "msg_id": id, "level": "ERROR"},
 	)
+
+	restore()
+	again := fromMsg(msg, 2)
+	reg.Dispatch(h.ctx(t), durable, again)
+	if again.verdict != "term" || again.reason != "decode_failed" {
+		t.Fatalf("verdict %q reason %q, want term decode_failed once the letter is stored", again.verdict, again.reason)
+	}
+	reg.Dispatch(h.ctx(t), durable, fromMsg(msg, 3))
+	got := h.deadLetters(t)
+	if len(got) != 1 || got[0].MsgID != id || got[0].Code != "decode_failed" || got[0].Delivery != 2 {
+		t.Fatalf("DEADLETTER = %+v, want exactly one decode_failed letter for %s from delivery 2", got, id)
+	}
+}
+
+func terminalOwn(h *harness, runs *atomic.Int32) bus.HandlerSpec {
+	return bus.HandleOwn("trading.engine", func(ctx context.Context, d bus.Delivery, _ events.SystemPinged) error {
+		if runs.Add(1) > 1 {
+			return nil
+		}
+		err := h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+			_, err := d.RecordAs(ctx, tx, string(errs.CodeInvalidInput))
+			return err
+		})
+		if err != nil {
+			return err
+		}
+		return errs.New(errs.CodeInvalidInput, "trading.Reject")
+	})
+}
+
+func TestDispatch_redeliveryAfterARecordedTerminalDeliveryWritesTheMissingLetter(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	var runs atomic.Int32
+	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{terminalOwn(h, &runs)}})
+	id, msg := h.pingMsg(t)
+	restore := h.breakDeadLetter(t)
+
+	reg.Dispatch(h.ctx(t), durable, msg)
+	if msg.verdict != "nak" {
+		t.Fatalf("verdict %q with the letter unavailable, want nak", msg.verdict)
+	}
+	want := []row{
+		{"trading.engine", id, "invalid_input"},
+		{"trading.engine/deadletter", id, "invalid_input"},
+	}
+	if got := h.deliveries(t); !slices.Equal(got, want) {
+		t.Fatalf("event_deliveries = %v, want %v: the held letter must survive the nak", got, want)
+	}
+
+	restore()
+	again := fromMsg(msg, 2)
+	reg.Dispatch(h.ctx(t), durable, again)
+	if again.verdict != "term" || again.reason != "invalid_input" || runs.Load() != 1 {
+		t.Fatalf("verdict %q reason %q after %d runs, want term invalid_input without rerunning the handler",
+			again.verdict, again.reason, runs.Load())
+	}
+	got := h.deadLetters(t)
+	if len(got) != 1 || got[0].Handler != "trading.engine" || got[0].Code != "invalid_input" || got[0].Delivery != 2 {
+		t.Fatalf("DEADLETTER = %+v, want one invalid_input letter for trading.engine", got)
+	}
+}
+
+func TestDispatch_redeliveryOfAnOwnHandlerWithNoHeldLetterRunsIt(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	var runs atomic.Int32
+	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{terminalOwn(h, &runs)}})
+	_, msg := h.pingMsg(t)
+	msg.meta.NumDelivered = 2
+
+	reg.Dispatch(h.ctx(t), durable, msg)
+	if msg.verdict != "term" || runs.Load() != 1 || len(h.deadLetters(t)) != 1 {
+		t.Fatalf("verdict %q after %d runs, want one run and a term into a letter", msg.verdict, runs.Load())
+	}
+}
+
+func TestDispatch_aFailedHoldStillNaksTheSource(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	var runs atomic.Int32
+	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{terminalOwn(h, &runs)}})
+	_, msg := h.pingMsg(t)
+	msg.header = nats.Header{jetstream.MsgIDHeader: []string{h.ids.NewV7().String()}}
+	h.breakDeadLetter(t)
+
+	reg.Dispatch(h.ctx(t), durable, msg)
+	if msg.verdict != "nak" {
+		t.Fatalf("verdict %q, want nak even when the held letter cannot be stored", msg.verdict)
+	}
+	h.assertLines(t, "bus.deadletter_dropped",
+		map[string]any{"consumer": durable, "level": "ERROR"},
+		map[string]any{"handler": "trading.engine", "phase": "hold", "level": "ERROR"},
+	)
+}
+
+func TestDispatch_aHeldLetterReadFailureNaksInsteadOfAcking(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	var runs atomic.Int32
+	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{terminalOwn(h, &runs)}})
+	_, msg := h.pingMsg(t)
+	msg.meta.NumDelivered = 2
+	h.pool.Close()
+
+	reg.Dispatch(h.ctx(t), durable, msg)
+	if msg.verdict != "nak" || runs.Load() != 0 {
+		t.Fatalf("verdict %q after %d runs, want nak without running the handler", msg.verdict, runs.Load())
+	}
+}
+
+func TestDispatch_aRedrivenSourceIsKeptUntilTheResolvedLetterIsStored(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{h.recorder("notify.push")}})
+	id, msg := h.pingMsg(t)
+	msg.header.Set(bus.RedrivenHeader, durable)
+	restore := h.breakDeadLetter(t)
+
+	reg.Dispatch(h.ctx(t), durable, msg)
+	if msg.verdict != "nak" {
+		t.Fatalf("verdict %q with the resolved letter unavailable, want nak", msg.verdict)
+	}
+
+	restore()
+	again := fromMsg(msg, 2)
+	reg.Dispatch(h.ctx(t), durable, again)
+	got := h.deadLetters(t)
+	if again.verdict != "ack" || len(got) != 1 || got[0].Code != bus.ResolvedCode || got[0].MsgID != id.String() {
+		t.Fatalf("verdict %q, DEADLETTER %+v; want ack after one resolved letter for %s", again.verdict, got, id)
+	}
+}
+
+func TestRegistry_aMaxDeliveriesAdvisoryIsRetriedUntilTheLetterIsStored(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	always := bus.Handle("notify.push", func(context.Context, db.Tx, events.SystemPinged, time.Time) error {
+		return errs.New(errs.CodeUpstreamUnavailable, "apns.Send")
+	})
+	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{always}, NakDelays: quick()})
+	restore := h.breakDeadLetter(t)
+	startRegistry(h.ctx(t), t, reg)
+
+	h.publishPing(t)
+	testkit.Eventually(t, func() bool { return len(h.lines(t, "bus.deadletter_dropped")) > 0 }, waitLong)
+	restore()
+	testkit.Eventually(t, func() bool {
+		h.clock.Advance(5 * time.Second)
+		return len(h.deadLetters(t)) > 0
+	}, waitLong)
+	got := h.deadLetters(t)
+	if len(got) != 1 || got[0].Advisory == nil || got[0].Consumer != durable {
+		t.Fatalf("DEADLETTER = %+v, want exactly one advisory letter once the stream is back", got)
+	}
+}
+
+func TestRegistry_aStoppedAdvisoryRetryGivesUp(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	always := bus.Handle("notify.push", func(context.Context, db.Tx, events.SystemPinged, time.Time) error {
+		return errs.New(errs.CodeUpstreamUnavailable, "apns.Send")
+	})
+	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{always}, NakDelays: quick()})
+	restore := h.breakDeadLetter(t)
+	ctx, cancel := context.WithCancel(h.ctx(t))
+	defer cancel()
+	startRegistry(ctx, t, reg)
+
+	h.publishPing(t)
+	testkit.Eventually(t, func() bool { return len(h.lines(t, "bus.deadletter_dropped")) > 0 }, waitLong)
+	cancel()
+	restore()
+	time.Sleep(200 * time.Millisecond)
+	h.clock.Advance(5 * time.Second)
+	time.Sleep(200 * time.Millisecond)
+	if got := h.deadLetters(t); len(got) != 0 {
+		t.Fatalf("DEADLETTER = %+v after the registry stopped, want none", got)
+	}
 }
 
 func TestRegistry_everyMaxDeliveriesAdvisoryLandsInDeadLetter(t *testing.T) {

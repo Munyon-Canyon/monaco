@@ -3,10 +3,12 @@ package bus
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"runtime/debug"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"go.opentelemetry.io/otel/attribute"
@@ -23,7 +25,11 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability/boundary"
 )
 
-const deliveryOK = "ok"
+const (
+	deliveryOK      = "ok"
+	heldLetterSlot  = "/deadletter"
+	letterRetryWait = 5 * time.Second
+)
 
 type Outcome string
 
@@ -39,6 +45,8 @@ type result struct {
 	outcome Outcome
 	code    string
 	err     error
+	own     bool
+	id      ids.EventID
 }
 
 func (r *Registry) Dispatch(ctx context.Context, durable string, msg jetstream.Msg) {
@@ -63,7 +71,7 @@ func (r *Registry) Dispatch(ctx context.Context, durable string, msg jetstream.M
 	default:
 		ctx = observability.WithEventID(ctx, id)
 		for _, h := range handlers {
-			results = append(results, r.handle(ctx, h, id, ev, delivery >= MaxDeliver))
+			results = append(results, r.attempt(ctx, h, id, ev, delivery))
 		}
 	}
 	r.respond(ctx, durable, msg, delivery, results)
@@ -177,6 +185,41 @@ func flow(handler string) string {
 	}
 }
 
+func (r *Registry) attempt(
+	ctx context.Context, h HandlerSpec, id ids.EventID, ev events.Event, delivery uint64,
+) result {
+	if h.own == nil || delivery < 2 {
+		return r.handle(ctx, h, id, ev, delivery >= MaxDeliver)
+	}
+	const op = "bus.Dispatch.heldLetter"
+	var res result
+	code, err := r.heldLetter(ctx, h.Name, id)
+	switch {
+	case err != nil:
+		res = failed(h.Name, err)
+	case code != "":
+		res = failed(h.Name, errs.New(errs.Code(code), op))
+	default:
+		return r.handle(ctx, h, id, ev, delivery >= MaxDeliver)
+	}
+	res.own, res.id = true, id
+	return res
+}
+
+func (r *Registry) heldLetter(ctx context.Context, handler string, id ids.EventID) (string, error) {
+	var code string
+	err := r.uow.Reads().QueryRow(ctx,
+		`SELECT code FROM event_deliveries WHERE handler = $1 AND event_id = $2`,
+		handler+heldLetterSlot, id.UUID()).Scan(&code)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", errs.Wrap(err, errs.CodeDBUnavailable, "bus.Dispatch.heldLetter")
+	}
+	return code, nil
+}
+
 func (r *Registry) handle(ctx context.Context, h HandlerSpec, id ids.EventID, ev events.Event, final bool) result {
 	began := r.clock.Now()
 	ctx = observability.WithActor(ctx, "system:"+h.Name)
@@ -189,6 +232,7 @@ func (r *Registry) handle(ctx context.Context, h HandlerSpec, id ids.EventID, ev
 	case duplicate:
 		res.outcome = OutcomeDuplicate
 	}
+	res.own, res.id = h.own != nil, id
 	r.durations.Record(ctx, r.clock.Now().Sub(began).Seconds(), metric.WithAttributes(
 		attribute.String("consumer", observability.ConsumerFrom(ctx)),
 		attribute.String("subject", h.typ.Subject()),
@@ -335,18 +379,25 @@ func (r *Registry) respond(
 			verdict, code = OutcomeNak, res.code
 		case res.outcome == OutcomeTerm && verdict != OutcomeNak:
 			verdict, code = OutcomeTerm, res.code
-			r.deadLetter(ctx, durable, DeadLetter{
-				Consumer: durable, Handler: res.handler, Subject: msg.Subject(),
-				MsgID: msg.Headers().Get(jetstream.MsgIDHeader), Delivery: delivery,
-				Code: res.code, Error: res.err.Error(), Headers: msg.Headers(), Data: rawJSON(msg.Data()),
-			}, res.handler)
+			if !r.termLetter(ctx, durable, msg, delivery, res) {
+				verdict, code = OutcomeNak, string(errs.CodeUpstreamUnavailable)
+			}
 		}
 	}
 	if verdict == OutcomeAck && msg.Headers().Get(RedrivenHeader) == durable {
-		r.deadLetter(ctx, durable, DeadLetter{
+		letter := DeadLetter{
 			Consumer: durable, Subject: msg.Subject(), MsgID: EventIDOf(msg.Headers()), Code: ResolvedCode,
-		}, "resolved/"+msg.Headers().Get(jetstream.MsgIDHeader))
+		}
+		if r.storeLetter(ctx, durable, letter, "resolved/"+msg.Headers().Get(jetstream.MsgIDHeader)) != nil {
+			verdict = OutcomeNak
+		}
 	}
+	r.answer(ctx, durable, msg, delivery, verdict, code)
+}
+
+func (r *Registry) answer(
+	ctx context.Context, durable string, msg jetstream.Msg, delivery uint64, verdict Outcome, code string,
+) {
 	var err error
 	switch verdict {
 	case OutcomeNak:
@@ -366,6 +417,37 @@ func (r *Registry) respond(
 	}
 }
 
+func (r *Registry) termLetter(
+	ctx context.Context, durable string, msg jetstream.Msg, delivery uint64, res result,
+) bool {
+	err := r.storeLetter(ctx, durable, DeadLetter{
+		Consumer: durable, Handler: res.handler, Subject: msg.Subject(),
+		MsgID: msg.Headers().Get(jetstream.MsgIDHeader), Delivery: delivery,
+		Code: res.code, Error: res.err.Error(), Headers: msg.Headers(), Data: rawJSON(msg.Data()),
+	}, res.handler)
+	if err != nil {
+		r.holdLetter(ctx, durable, res)
+	}
+	return err == nil
+}
+
+func (r *Registry) holdLetter(ctx context.Context, durable string, res result) {
+	if !res.own {
+		return
+	}
+	err := r.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		_, err := sqlc.New(tx.Queries()).InsertDelivery(ctx, sqlc.InsertDeliveryParams{
+			Handler: res.handler + heldLetterSlot, EventID: res.id.UUID(), Code: res.code, HandledAt: r.clock.Now(),
+		})
+		return err
+	})
+	if err != nil {
+		boundary.Error(ctx, observability.BusDeadLetterDropped,
+			slog.String("consumer", durable), slog.String("msg_id", res.id.String()),
+			slog.String("handler", res.handler), slog.String("phase", "hold"), slog.Any("err", err))
+	}
+}
+
 func rawJSON(data []byte) json.RawMessage {
 	if json.Valid(data) {
 		return data
@@ -374,7 +456,7 @@ func rawJSON(data []byte) json.RawMessage {
 	return quoted
 }
 
-func (r *Registry) deadLetter(ctx context.Context, consumer string, letter DeadLetter, dedupe string) {
+func (r *Registry) storeLetter(ctx context.Context, consumer string, letter DeadLetter, dedupe string) error {
 	body, _ := json.Marshal(letter)
 	subject := r.conn.ns.subject("deadletter." + consumer)
 	msgID := letter.MsgID + "/" + dedupe
@@ -382,6 +464,18 @@ func (r *Registry) deadLetter(ctx context.Context, consumer string, letter DeadL
 	if err != nil {
 		boundary.Error(ctx, observability.BusDeadLetterDropped,
 			slog.String("consumer", consumer), slog.String("msg_id", letter.MsgID), slog.Any("err", err))
+		return errs.Wrap(err, publishCode(err), "bus.storeLetter")
+	}
+	return nil
+}
+
+func (r *Registry) deadLetter(ctx context.Context, consumer string, letter DeadLetter, dedupe string) {
+	for r.storeLetter(ctx, consumer, letter, dedupe) != nil {
+		select {
+		case <-ctx.Done():
+			return
+		case <-r.clock.After(letterRetryWait):
+		}
 	}
 }
 
