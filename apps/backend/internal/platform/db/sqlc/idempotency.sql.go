@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -30,6 +31,36 @@ func (q *Queries) BeginIdempotencyKey(ctx context.Context, arg BeginIdempotencyK
 		arg.ActorKey,
 		arg.Key,
 		arg.RequestHash,
+		arg.CreatedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const bindMoneyIntent = `-- name: BindMoneyIntent :execrows
+INSERT INTO money_intents (actor_key, key, operation, request_hash, resource_id, created_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (actor_key, key) DO NOTHING
+`
+
+type BindMoneyIntentParams struct {
+	ActorKey    string
+	Key         string
+	Operation   string
+	RequestHash []byte
+	ResourceID  uuid.UUID
+	CreatedAt   time.Time
+}
+
+func (q *Queries) BindMoneyIntent(ctx context.Context, arg BindMoneyIntentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, bindMoneyIntent,
+		arg.ActorKey,
+		arg.Key,
+		arg.Operation,
+		arg.RequestHash,
+		arg.ResourceID,
 		arg.CreatedAt,
 	)
 	if err != nil {
@@ -108,6 +139,30 @@ func (q *Queries) GetIdempotencyKey(ctx context.Context, arg GetIdempotencyKeyPa
 	return i, err
 }
 
+const getMoneyIntent = `-- name: GetMoneyIntent :one
+SELECT operation, request_hash, resource_id
+FROM money_intents
+WHERE actor_key = $1 AND key = $2
+`
+
+type GetMoneyIntentParams struct {
+	ActorKey string
+	Key      string
+}
+
+type GetMoneyIntentRow struct {
+	Operation   string
+	RequestHash []byte
+	ResourceID  uuid.UUID
+}
+
+func (q *Queries) GetMoneyIntent(ctx context.Context, arg GetMoneyIntentParams) (GetMoneyIntentRow, error) {
+	row := q.db.QueryRow(ctx, getMoneyIntent, arg.ActorKey, arg.Key)
+	var i GetMoneyIntentRow
+	err := row.Scan(&i.Operation, &i.RequestHash, &i.ResourceID)
+	return i, err
+}
+
 const releaseIdempotencyKey = `-- name: ReleaseIdempotencyKey :execrows
 DELETE FROM idempotency_keys WHERE actor_key = $1 AND key = $2 AND status = 1
 `
@@ -144,6 +199,23 @@ func (q *Queries) TakeOverIdempotencyKey(ctx context.Context, arg TakeOverIdempo
 		arg.CreatedAt,
 		arg.CreatedAt_2,
 	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const unbindMoneyIntent = `-- name: UnbindMoneyIntent :execrows
+DELETE FROM money_intents WHERE operation = $1 AND resource_id = $2
+`
+
+type UnbindMoneyIntentParams struct {
+	Operation  string
+	ResourceID uuid.UUID
+}
+
+func (q *Queries) UnbindMoneyIntent(ctx context.Context, arg UnbindMoneyIntentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, unbindMoneyIntent, arg.Operation, arg.ResourceID)
 	if err != nil {
 		return 0, err
 	}

@@ -7,6 +7,7 @@ func (defined) ScriptsF15() map[string]Script {
 		"F15WithdrawOK":                  F15WithdrawOK,
 		"F15WithdrawCrashBeforeCommit":   F15WithdrawCrashBeforeCommit,
 		"F15WithdrawCrashAfterSign":      F15WithdrawCrashAfterSign,
+		"F15WithdrawCrashAfterBroadcast": F15WithdrawCrashAfterBroadcast,
 		"F15WithdrawInvalidInput":        F15WithdrawInvalidInput,
 		"F15WithdrawInvalidAddress":      F15WithdrawInvalidAddress,
 		"F15WithdrawWithdrawToOwnWallet": F15WithdrawWithdrawToOwnWallet,

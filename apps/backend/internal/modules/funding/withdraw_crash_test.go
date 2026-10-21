@@ -41,6 +41,30 @@ func TestFlow15_Withdraw_CrashAfterSign(t *testing.T) {
 	}
 }
 
+func TestFlow15_Withdraw_CrashAfterBroadcast(t *testing.T) {
+	t.Parallel()
+	f := newWithdrawFixture(t, 5_000_000)
+	crashed := func() (p any) {
+		defer func() { p = recover() }()
+		_, _ = f.withdrawKeyedIn(faultpoint.Armed(f.ctx(t.Context()), faultpoint.AfterBroadcast), "h1")
+		return nil
+	}()
+	if crashed != (faultpoint.Crash{Name: faultpoint.AfterBroadcast}) {
+		t.Fatalf("Handle did not crash at after-broadcast: %v", crashed)
+	}
+	if rows := f.rows(t); len(rows) != 1 || rows[0].status != "submitted" || len(f.transfers.sent) != 1 {
+		t.Fatalf("after the crash rows = %+v sent = %d, want one submitted row sent once", rows, len(f.transfers.sent))
+	}
+	got, err := f.withdrawKeyed(t, "h1")
+	if err != nil || got.TxSignature != withdrawSig {
+		t.Fatalf("retry = (%+v, %v), want the first withdrawal", got, err)
+	}
+	if rows := f.rows(t); len(rows) != 1 || len(f.transfers.sent) != 1 || len(f.transfers.builds) != 1 {
+		t.Fatalf("after the retry rows = %d sent = %d builds = %d, want 1, 1 and 1",
+			len(rows), len(f.transfers.sent), len(f.transfers.builds))
+	}
+}
+
 func TestFlow15_Withdraw_CrashBeforeCommit(t *testing.T) {
 	t.Parallel()
 	s := flow15Scenario(t)

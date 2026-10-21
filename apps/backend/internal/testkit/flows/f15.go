@@ -94,7 +94,26 @@ func F15WithdrawCrashAfterSign(s *scenario.Scenario) {
 			scenario.AwaitTick(withdrawPoller),
 			scenario.AwaitTick(withdrawPoller),
 			SettledWithdrawal(member),
-			UnsentRow("withdrawals", "user_id", member.ID.String(), "withdrawal_not_sent"),
+			OnlyRow("withdrawals", "user_id", member.ID.String()),
+		).
+		Then(
+			scenario.ExpectEvents(events.TypeWithdrawalSubmitted, 1),
+			scenario.ExpectEvents(events.TypeWithdrawalFailed, 0),
+		)
+}
+
+func F15WithdrawCrashAfterBroadcast(s *scenario.Scenario) {
+	member := SeedWithdrawer(s)
+	s.Given(scenario.AsSeededUser("member", member.ID)).
+		When(
+			scenario.Post(withdrawPath, withdrawBody),
+			scenario.Retry(),
+			scenario.ExpectStatus(http.StatusAccepted),
+			scenario.ExpectJSON("status", "submitted"),
+			scenario.AwaitTick(withdrawPoller),
+			scenario.AwaitTick(withdrawPoller),
+			SettledWithdrawal(member),
+			OnlyRow("withdrawals", "user_id", member.ID.String()),
 		).
 		Then(
 			scenario.ExpectEvents(events.TypeWithdrawalSubmitted, 1),

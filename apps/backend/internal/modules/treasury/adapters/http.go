@@ -11,6 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/treasuryapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -83,9 +84,9 @@ func (h HTTP) PostCashOut(
 		return nil, errs.New(errs.CodeInvalidInput, "treasury.PostCashOut")
 	}
 	cmd := app.CashOut{
-		CabalID:        ids.CabalIDFrom(req.Id),
-		UserID:         user,
-		IdempotencyKey: req.Params.IdempotencyKey,
+		CabalID: ids.CabalIDFrom(req.Id),
+		UserID:  user,
+		Intent:  httpx.IntentKey(ctx, app.CashOutOperation),
 	}
 	if req.Body.All != nil {
 		cmd.All = *req.Body.All

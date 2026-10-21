@@ -6,6 +6,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/treasuryapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
@@ -22,7 +23,10 @@ func (h HTTP) FundCabal(ctx context.Context, req api.FundCabalRequestObject) (ap
 	if err != nil {
 		return nil, err
 	}
-	id, err := h.Fund.Handle(ctx, app.FundCabal{CabalID: ids.CabalIDFrom(req.Id), UserID: user, Amount: amount})
+	id, err := h.Fund.Handle(ctx, app.FundCabal{
+		CabalID: ids.CabalIDFrom(req.Id), UserID: user, Amount: amount,
+		Intent: httpx.IntentKey(ctx, app.FundCabalOperation),
+	})
 	if err != nil {
 		return nil, err
 	}

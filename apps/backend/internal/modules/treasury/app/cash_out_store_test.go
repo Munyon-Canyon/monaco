@@ -68,7 +68,7 @@ func TestCashOut_queriesFail(t *testing.T) {
 		}
 	}
 	record := func() {
-		if _, err := h.record(t.Context(), db.Tx{}, q, cmd, units, payout); err == nil {
+		if _, err := h.record(t.Context(), db.Tx{}, q, cmd, ids.Real{}.NewV7(), units, payout); err == nil {
 			t.Fatal("record error = nil")
 		}
 	}

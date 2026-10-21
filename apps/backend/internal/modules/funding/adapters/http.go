@@ -10,6 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/fundingapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -46,7 +47,9 @@ func (h HTTP) Withdraw(ctx context.Context, req api.WithdrawRequestObject) (api.
 	if err != nil {
 		return nil, err
 	}
-	got, err := h.Withdrawals.Handle(ctx, app.Withdraw{ID: h.IDs.NewV7(), UserID: user, Request: request})
+	got, err := h.Withdrawals.Handle(ctx, app.Withdraw{
+		ID: h.IDs.NewV7(), UserID: user, Request: request, Intent: httpx.IntentKey(ctx, app.WithdrawOperation),
+	})
 	if err != nil {
 		return nil, err
 	}

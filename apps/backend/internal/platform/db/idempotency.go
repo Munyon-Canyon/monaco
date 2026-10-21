@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -145,6 +146,59 @@ func (s *IdempotencyStore) Release(ctx context.Context, actorKey, key string) er
 		ActorKey: actorKey, Key: key,
 	}); err != nil {
 		return classify(err, op)
+	}
+	return nil
+}
+
+type IntentKey struct {
+	ActorKey    string
+	Key         string
+	Operation   string
+	RequestHash []byte
+}
+
+func (k IntentKey) Bound() bool { return k.Key != "" }
+
+func (k IntentKey) Bind(
+	ctx context.Context, db sqlc.DBTX, resourceID uuid.UUID, now time.Time,
+) (uuid.UUID, bool, error) {
+	const op = "db.IntentKey.Bind"
+	if !k.Bound() {
+		return resourceID, false, nil
+	}
+	q := sqlc.New(db)
+	for range claimAttempts {
+		n, err := q.BindMoneyIntent(ctx, sqlc.BindMoneyIntentParams{
+			ActorKey: k.ActorKey, Key: k.Key, Operation: k.Operation, RequestHash: k.RequestHash,
+			ResourceID: resourceID, CreatedAt: now,
+		})
+		if err != nil {
+			return uuid.Nil, false, classify(err, op)
+		}
+		if n == 1 {
+			return resourceID, false, nil
+		}
+		row, err := q.GetMoneyIntent(ctx, sqlc.GetMoneyIntentParams{ActorKey: k.ActorKey, Key: k.Key})
+		if errors.Is(err, pgx.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return uuid.Nil, false, classify(err, op)
+		}
+		if row.Operation != k.Operation || !bytes.Equal(row.RequestHash, k.RequestHash) {
+			return uuid.Nil, false, errs.New(errs.CodeIdempotencyMismatch, op,
+				slog.String("idempotency_key", k.Key), slog.String("operation", k.Operation))
+		}
+		return row.ResourceID, true, nil
+	}
+	return uuid.Nil, false, errs.New(errs.CodeInternal, op, slog.Int("attempts", claimAttempts))
+}
+
+func UnbindIntent(ctx context.Context, q sqlc.DBTX, operation string, resourceID uuid.UUID) error {
+	if _, err := sqlc.New(q).UnbindMoneyIntent(ctx, sqlc.UnbindMoneyIntentParams{
+		Operation: operation, ResourceID: resourceID,
+	}); err != nil {
+		return classify(err, "db.UnbindIntent")
 	}
 	return nil
 }
