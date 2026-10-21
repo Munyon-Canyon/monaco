@@ -16,53 +16,10 @@ enum CabalsBoardMetrics {
     static let loadAreaHeight: CGFloat = 58
 }
 
-struct CabalsBoardFilters: Equatable {
-    enum Sort: CaseIterable {
-        case returnPercent, pnlAmount, name
-
-        var label: String {
-            switch self {
-            case .returnPercent: "Return %"
-            case .pnlAmount: "P&L amount"
-            case .name: "Name A–Z"
-            }
-        }
-    }
-
-    enum Membership: CaseIterable {
-        case all, acceptingRequests, open, approval
-
-        var label: String {
-            switch self {
-            case .all: "All"
-            case .acceptingRequests: "Accepting requests"
-            case .open: "Open"
-            case .approval: "Approval"
-            }
-        }
-    }
-
-    enum MinimumMembers: CaseIterable {
-        case any, five, ten
-
-        var label: String {
-            switch self {
-            case .any: "Any cabal size"
-            case .five: "5+ members"
-            case .ten: "10+ members"
-            }
-        }
-    }
-
-    var sort = Sort.returnPercent
-    var membership = Membership.all
-    var minimumMembers = MinimumMembers.any
-
-    static let standard = CabalsBoardFilters()
-
-    static var launchDefault: CabalsBoardFilters {
+extension LeaderboardFilters {
+    static var cabalsBoardLaunch: LeaderboardFilters {
         #if DEBUG
-        initial
+        cabalsTabSample
         #else
         standard
         #endif
@@ -75,14 +32,23 @@ private struct CabalsBoard: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var shown = CabalsBoardMetrics.pageSize
     @State private var seededRange = false
-    @State private var applied = CabalsBoardFilters.launchDefault
-    @State private var draft = CabalsBoardFilters.launchDefault
+    @State private var draft = LeaderboardFilters.standard
     @State private var showsFilters = false
     @State private var showsRankInfo = false
 
     private var range: Binding<LeaderboardRange> {
         Binding(get: { loader.range }, set: { loader.select(range: $0) })
     }
+
+    private var applied: LeaderboardFilters {
+        var filters = LeaderboardFilters.standard
+        filters.sort = loader.query.sort
+        filters.membership = loader.query.membership
+        filters.minimumMembers = loader.query.minimumMembers
+        return filters
+    }
+
+    private var hasFiltersApplied: Bool { applied != .standard }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -98,11 +64,12 @@ private struct CabalsBoard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("cabals-board")
-        .onChange(of: loader.range) { _, _ in shown = CabalsBoardMetrics.pageSize }
+        .onChange(of: loader.query) { _, _ in shown = CabalsBoardMetrics.pageSize }
         .task {
             guard !seededRange else { return }
             seededRange = true
             loader.select(range: .oneMonth)
+            loader.select(filters: .cabalsBoardLaunch)
         }
         .sheet(isPresented: $showsFilters) { filterSheet }
         .sheet(isPresented: $showsRankInfo) { rankInfoSheet }
@@ -141,11 +108,12 @@ private struct CabalsBoard: View {
                 .accessibilityIdentifier("cabals-board-period")
                 MonacoGlassButton(
                     systemImage: MonacoIcon.filter.symbol, accessibilityLabel: "Filter and sort cabal leaderboard",
-                    style: applied == .standard ? .glass : .selected
+                    style: hasFiltersApplied ? .selected : .glass
                 ) {
                     draft = applied
                     showsFilters = true
                 }
+                .accessibilityValue(hasFiltersApplied ? LeaderboardCopy.filtersOn : "")
                 .accessibilityIdentifier("cabals-board-filter")
             }
         }
@@ -188,14 +156,25 @@ private struct CabalsBoard: View {
                 .accessibilityLabel("Loading rankings")
                 .accessibilityIdentifier("cabals-board-list-loading")
         case .empty:
-            Text("No public rankings for this period.")
+            VStack(spacing: MonacoTheme.Space.s) {
+                Text(
+                    hasFiltersApplied
+                        ? "\(LeaderboardCopy.filteredEmptyTitle). \(LeaderboardCopy.filteredEmptyMessage)"
+                        : "No public rankings for this period."
+                )
                 .font(MonacoTheme.Typo.subhead)
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, MonacoTheme.Space.l)
-                .padding(.horizontal, MonacoTheme.Space.gutter)
                 .accessibilityIdentifier("cabals-board-empty")
+                if hasFiltersApplied {
+                    Button(LeaderboardCopy.resetFilters) { loader.select(filters: .standard) }
+                        .buttonStyle(.monacoText)
+                        .accessibilityIdentifier("cabals-board-empty-reset")
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, MonacoTheme.Space.l)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
         case .failed:
             VStack(spacing: MonacoTheme.Space.s) {
                 Text("Rankings couldn't load.")
@@ -275,42 +254,17 @@ private struct CabalsBoard: View {
     }
 
     private var filterSheet: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-            MonacoNotice(.info, message: "Filters open soon. Rankings use return % for now.")
-            MonacoMenuSelect(
-                title: "Sort by", selection: $draft.sort, options: CabalsBoardFilters.Sort.allCases, label: \.label
-            )
-            .fillsWidth()
-            .disabled(true)
-            MonacoMenuSelect(
-                title: "Membership", selection: $draft.membership,
-                options: CabalsBoardFilters.Membership.allCases, label: \.label
-            )
-            .fillsWidth()
-            .disabled(true)
-            MonacoMenuSelect(
-                title: "Minimum members", selection: $draft.minimumMembers,
-                options: CabalsBoardFilters.MinimumMembers.allCases, label: \.label
-            )
-            .fillsWidth()
-            .disabled(true)
-            VStack(spacing: MonacoTheme.Space.s) {
-                Button("Apply filters") {
-                    applied = draft
-                    showsFilters = false
-                }
-                .buttonStyle(.monacoPrimary)
-                .accessibilityIdentifier("cabals-board-filter-apply")
-                Button("Reset") { draft = .standard }
-                    .buttonStyle(.monacoOutline)
-                    .accessibilityIdentifier("cabals-board-filter-reset")
-            }
-            .padding(.top, MonacoTheme.Space.s)
-        }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.bottom, MonacoTheme.Space.m)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .monacoSheet(title: "Leaderboard filters", detents: .votes, showsClose: true)
+        CabalsBoardFilterSheet(
+            draft: $draft,
+            apply: {
+                loader.select(filters: draft)
+                showsFilters = false
+            },
+            reset: {
+                draft = .standard
+                loader.select(filters: .standard)
+                showsFilters = false
+            })
     }
 
     private var rankInfoSheet: some View {
@@ -327,5 +281,44 @@ private struct CabalsBoard: View {
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .monacoSheet(title: "About this ranking", detents: .votes, showsClose: true)
+    }
+}
+
+private struct CabalsBoardFilterSheet: View {
+    @Binding var draft: LeaderboardFilters
+    let apply: () -> Void
+    let reset: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+            MonacoMenuSelect(
+                title: LeaderboardCopy.sortTitle, selection: $draft.sort, options: LeaderboardSort.allCases,
+                label: \.label
+            )
+            .fillsWidth()
+            MonacoMenuSelect(
+                title: LeaderboardCopy.membershipTitle, selection: $draft.membership,
+                options: LeaderboardMembership.allCases, label: \.label
+            )
+            .fillsWidth()
+            MonacoMenuSelect(
+                title: LeaderboardCopy.minimumMembersTitle, selection: $draft.minimumMembers,
+                options: LeaderboardMinimumMembers.allCases, label: \.label
+            )
+            .fillsWidth()
+            VStack(spacing: MonacoTheme.Space.s) {
+                Button(LeaderboardCopy.apply, action: apply)
+                    .buttonStyle(.monacoPrimary)
+                    .accessibilityIdentifier("cabals-board-filter-apply")
+                Button(LeaderboardCopy.reset, action: reset)
+                    .buttonStyle(.monacoOutline)
+                    .accessibilityIdentifier("cabals-board-filter-reset")
+            }
+            .padding(.top, MonacoTheme.Space.s)
+        }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.bottom, MonacoTheme.Space.m)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .monacoSheet(title: LeaderboardCopy.filterSheetTitle, detents: .votes, showsClose: true)
     }
 }

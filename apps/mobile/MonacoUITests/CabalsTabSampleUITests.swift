@@ -279,21 +279,27 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
     }
 
     @MainActor
-    func testLeaderboardFilterSheetAndRankInfo() throws {
+    func testLeaderboardFiltersApplyAndResetThenRankInfo() throws {
         let app = launchApp()
 
         let filter = reveal(app, "cabals-board-filter")
         XCTAssertTrue(filter.waitForExistence(timeout: 10), "the leaderboard has a filter round")
         filter.tap()
+        let sort = app.buttons["Sort by, Return %"]
+        XCTAssertTrue(sort.waitForExistence(timeout: 5), "the sheet has a Sort by select")
         XCTAssertTrue(
-            app.staticTexts["Filters open soon. Rankings use return % for now."].waitForExistence(timeout: 5),
-            "the filter sheet says filters open soon"
-        )
+            sort.isEnabled && app.buttons["Membership, All"].isEnabled
+                && app.buttons["Minimum members, Any cabal size"].isEnabled, "the three selects are enabled")
+        sort.tap()
+        app.buttons["Name A–Z"].tap()
         app.buttons["cabals-board-filter-apply"].tap()
-        XCTAssertFalse(
-            app.staticTexts["Filters open soon. Rankings use return % for now."].waitForExistence(timeout: 2),
-            "Apply closes the filter sheet"
-        )
+        XCTAssertFalse(app.buttons["cabals-board-filter-apply"].waitForExistence(timeout: 2), "Apply closes the sheet")
+        XCTAssertEqual(filter.value as? String, "Filters on", "the filter round shows a filter is on")
+
+        filter.tap()
+        app.buttons["cabals-board-filter-reset"].tap()
+        XCTAssertFalse(app.buttons["cabals-board-filter-reset"].waitForExistence(timeout: 2), "Reset closes the sheet")
+        XCTAssertFalse((filter.value as? String ?? "").contains("Filters on"), "Reset clears the filters")
 
         let info = reveal(app, "cabals-board-rank-info")
         info.tap()

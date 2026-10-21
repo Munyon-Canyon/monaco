@@ -43,7 +43,7 @@ struct AccountActivityViewTests {
         let visible = AccountActivityRowView.visibleText(for: failed)
         #expect(visible.contains("+$250.00"))
         #expect(visible.contains("Failed"))
-        #expect(visible.contains("Cashed out of \(Self.longCabal.name)"))
+        #expect(visible.contains("Cash-out not completed"))
         #expect(visible.contains { $0.hasPrefix("To cash") })
     }
 
