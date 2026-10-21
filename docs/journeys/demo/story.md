@@ -1,7 +1,7 @@
 ---
 id: demo/story
 title: The demo story
-version: 5
+version: 6
 milestone: M8.5
 requires: [auth/sign-in, cabals/create-cabal, stocks/asset-detail]
 actors: [A, B]
@@ -51,8 +51,8 @@ Beat 6.
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | B | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA story {QA.run}` | `cabal-header-name` reads `QA story {QA.run}` within 15 s (old app: Cabals list row; screens.md Cabal screen) |
-| S2.2 | B | tap | `cabal-action-fund` | | The screen titled "Deposit to QA story {QA.run}" shows `amount-entry-field` and "Max" within 15 s (beat 6 "Fund the pot"; screens.md Deposit to <cabal>) |
-| S2.3 | B | type, tap, then tap | `amount-entry-field`, "Deposit $1.00", then `fund-cabal-done-button` | `1` | The sheet "Deposit confirmed" shows within 120 s, Done closes it, and the toast "Added $1 to QA story {QA.run}." shows within 120 s (screens.md Deposit to <cabal>) |
+| S2.2 | B | tap | `cabal-action-fund` | | The screen titled "Fund this cabal" shows `amount-entry-field` and "Max" within 15 s (beat 6 "Fund the pot"; screens.md Fund this cabal) |
+| S2.3 | B | type, tap, then tap | `amount-entry-field`, "Fund $1.00", then `fund-cabal-done-button` | `1` | The sheet "Funding confirmed" shows within 120 s, Done closes it, and the toast "Added $1 to QA story {QA.run}." shows within 120 s (screens.md Fund this cabal) |
 
 ### S3 Browse stocks and Pre-IPO
 

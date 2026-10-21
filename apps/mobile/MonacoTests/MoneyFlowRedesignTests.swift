@@ -33,14 +33,30 @@ struct FundCabalFormTests {
     @Test func theButtonReadsTheAmountOnceThereIsOne() {
         #expect(FundCabalForm(amountText: "", balance: Fixture.balance(248_500_000)).ctaTitle == "Enter an amount")
         #expect(FundCabalForm(amountText: "0", balance: Fixture.balance(248_500_000)).ctaTitle == "Enter an amount")
-        #expect(FundCabalForm(amountText: "50", balance: Fixture.balance(248_500_000)).ctaTitle == "Deposit $50.00")
+        #expect(FundCabalForm(amountText: "50", balance: Fixture.balance(248_500_000)).ctaTitle == "Fund $50.00")
     }
 
     @Test func maxReadsTheAmountWithCents() {
         let balance = Fixture.balance(248_500_000)
         let max = FundCabalForm(amountText: "", balance: balance).maxDollars.map(AmountEntryText.plain) ?? ""
-        #expect(FundCabalForm(amountText: max, balance: balance).ctaTitle == "Deposit $248.50")
-        #expect(FundCabalForm(amountText: "500", balance: balance).ctaTitle == "Deposit $500.00")
+        #expect(FundCabalForm(amountText: max, balance: balance).ctaTitle == "Fund $248.50")
+        #expect(FundCabalForm(amountText: "500", balance: balance).ctaTitle == "Fund $500.00")
+    }
+
+    @Test func theHelperShowsCashAfterFundingOnceThereIsAnAmountWithinTheBalance() {
+        let balance = Fixture.balance(248_500_000)
+        #expect(FundCabalForm(amountText: "", balance: balance).helper == "$248.50 available")
+        #expect(FundCabalForm(amountText: "50", balance: balance).helper == "Cash after funding $198.50")
+        #expect(FundCabalForm(amountText: "248.50", balance: balance).cashAfterMicros == 0)
+        #expect(FundCabalForm(amountText: "300", balance: balance).cashAfterLine == nil)
+        #expect(FundCabalForm(amountText: "300", balance: balance).helper == "$248.50 available")
+        #expect(FundCabalForm(amountText: "50", balance: nil).cashAfterLine == nil)
+    }
+
+    @Test func theNoticeForTooLittleCashSendsTheMemberToDeposit() {
+        #expect(
+            FundCabalForm(amountText: "750", balance: Fixture.balance(500_000_000)).noticeText
+                == "Not enough cash. Reduce the amount or deposit to your cash.")
     }
 
     @Test func theButtonIsLiveOnlyForAnAmountWithinTheBalance() {
@@ -280,6 +296,11 @@ struct MoneyFlowCopyTests {
                 CabalYield.fundNote,
                 FundCabalForm.overBalance,
                 FundCabalForm.belowMinimum,
+                FundCabalForm.insufficientNotice,
+                CabalCopy.noShareNotice,
+                CabalCopy.fundAmountCaption,
+                CabalCopy.fundFromCash,
+                CabalCopy.fundToPot,
                 WithdrawForm.caveat,
                 WithdrawForm.overBalance,
                 WithdrawForm.belowMinimum,

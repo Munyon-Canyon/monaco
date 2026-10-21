@@ -63,8 +63,26 @@ public enum CabalCopy {
     public static let loadFailedTitle = "Couldn’t load this view"
     public static let loadFailedBody =
         "Your existing information hasn’t been changed. Try again when your connection is available."
-    public static let depositLabel = "Deposit"
-    public static let noShareNotice = "You’re a member. Your share is $0.00 until you deposit."
+    public static let depositTerm = "Deposit"
+    public static let fundTerm = "Fund this cabal"
+    public static let cashOutTerm = "Cash out"
+    public static let withdrawTerm = "Withdraw"
+    public static let moneyTerms = [depositTerm, fundTerm, cashOutTerm, withdrawTerm]
+    public static let fundAmountCaption = "Amount to fund"
+    public static let fundSettledTitle = "Funding confirmed"
+    public static let fundFromLabel = "From"
+    public static let fundToLabel = "To"
+    public static let fundFromCash = "Your cash"
+    public static let fundToPot = "Shared pot"
+    public static let fundNeedsCash = "Not enough cash. Reduce the amount or deposit to your cash."
+    public static let depositToCash = "Deposit to your cash"
+    public static let noShareNotice = "You’re a member. Your share is $0.00 until you fund this cabal."
+
+    public static func fundAction(amount: String) -> String { "Fund \(amount)" }
+
+    public static func fundActivityTitle(cabalName: String) -> String { "Funding \(cabalName)" }
+
+    public static func cashAfterFunding(_ amount: String) -> String { "Cash after funding \(amount)" }
     public static let onlyVotersCaption = "Only voters can propose"
     public static let cashOutUnavailable = "Cash out unavailable: no funded share"
     public static let returnsOpenSoon = "Returns open soon"

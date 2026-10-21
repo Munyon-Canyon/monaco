@@ -130,7 +130,7 @@ struct CabalActionsRow: View {
 
     @ViewBuilder private func tiles(cabalID: String, canPropose: Bool) -> some View {
         let fund = action(
-            CabalCopy.depositLabel, MonacoIcon.deposit.symbol, id: "cabal-action-fund", FundRoute(cabalID: cabalID))
+            CabalCopy.fundTerm, MonacoIcon.deposit.symbol, id: "cabal-action-fund", FundRoute(cabalID: cabalID))
         let propose = CircleAction("Propose", systemImage: MonacoIcon.propose.symbol) { showsProposeChooser = true }
             .frame(maxWidth: .infinity)
             .accessibilityIdentifier("cabal-action-propose")

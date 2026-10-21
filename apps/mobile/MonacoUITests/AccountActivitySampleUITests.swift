@@ -42,7 +42,7 @@ nonisolated final class AccountActivitySampleUITests: XCTestCase {
         XCTAssertTrue(row(app, containing: "Pending").exists, "a pending row says so")
         screenshot(app, "account-activity-full")
 
-        let secondPage = row(app, containing: "Deposit to a cabal")
+        let secondPage = row(app, containing: "Funding a cabal")
         var swipes = 0
         while !secondPage.exists && swipes < 12 {
             app.swipeUp()
@@ -102,7 +102,7 @@ nonisolated final class AccountActivitySampleUITests: XCTestCase {
     @MainActor
     func testAFundReceiptPushesItsCabalOverTheReceipt() {
         let app = launch("full")
-        let fund = row(app, containing: "Deposit to QA pot")
+        let fund = row(app, containing: "Funding QA pot")
         XCTAssertTrue(fund.waitForExistence(timeout: 15))
         fund.tap()
 

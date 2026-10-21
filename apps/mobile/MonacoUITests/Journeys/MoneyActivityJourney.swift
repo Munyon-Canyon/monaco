@@ -2,7 +2,7 @@ import XCTest
 
 enum MoneyActivityJourney {
     static let id = "money/activity"
-    static let version = 3
+    static let version = 4
 
     static let screenTimeout: TimeInterval = 15
     static let depositKey = "deposit-txn"
@@ -75,13 +75,13 @@ enum MoneyActivityJourney {
 
     static func cabalMove(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         let name = cabal(run: run)
-        let funded = row(app, titled: "Deposit to \(name)")
+        let funded = row(app, titled: "Funding \(name)")
 
         recorder.step("S2.1", "the fund is listed") {
             openActivity(app, step: "S2.1")
             XCTAssertTrue(
                 funded.waitForExistence(timeout: screenTimeout),
-                "S2.1: no row Deposit to \(name) within \(Int(screenTimeout)) s (known failure, #651)"
+                "S2.1: no row Funding \(name) within \(Int(screenTimeout)) s (known failure, #651)"
             )
         }
 
