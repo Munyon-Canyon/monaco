@@ -129,14 +129,18 @@ paths:
         - name: token_amount
           in: query
           required: false
-          description: Token base units a sell spends.
+          description: >-
+            Token base units a sell spends. For a sell pinned to an EVM chain these are that listing's
+            token base units, as `token_amount` on the holding's listing reports them.
           schema: {type: integer, format: int64, minimum: 1, examples: [1000000]}
         - name: network
           in: query
           required: false
           description: >-
-            The chain a buy is pinned to. The quote is that chain's best listing, and a chain with no
-            listing quoted sets `advisory_code` to invalid_network. Absent means the best price on any chain.
+            The chain a trade is pinned to. A buy's quote is that chain's best listing, and a chain with no
+            listing quoted sets `advisory_code` to invalid_network. A sell's quote is the sale of the
+            cabal's holding on that chain, and a chain the cabal holds none on sets `advisory_code` to
+            invalid_network. Absent means the best price on any chain for a buy, and the holding for a sell.
           schema:
             $ref: "#/components/schemas/Network"
       responses:
@@ -602,13 +606,17 @@ components:
           type: integer
           format: int64
           minimum: 1
-          description: Token base units a sell spends.
+          description: >-
+            Token base units a sell spends. For a sell on an EVM chain these are that listing's token base
+            units.
           examples: [1000000]
         thesis: {type: string, maxLength: 280, description: "The proposer's reason, up to 280 characters.", examples: [earnings]}
         network:
           description: >-
-            The chain a buy executes on. It must have a listing in the comparison quoted now, and a sell
-            can't set it. Absent means the best price on any chain.
+            The chain the trade executes on. A buy must have a listing in the comparison quoted now. A sell
+            sells the cabal's holding on that chain and is refused when the cabal holds none there or the
+            sale has no route. Absent means the best price on any chain for a buy; a sell with no network
+            sells the Solana holding, or the only EVM holding when there is no Solana one.
           $ref: "#/components/schemas/Network"
           examples: [base]
     ProposalPriceComparison:
@@ -754,7 +762,7 @@ components:
           description: Whether the caller can vote on it now, which means it is open and they are one of its voters.
           examples: [true]
         network:
-          description: The chain the buy is pinned to. Absent when it takes the best price on any chain.
+          description: The chain the trade is pinned to. Absent when a buy takes the best price on any chain or a sell uses the Solana holding.
           $ref: "#/components/schemas/Network"
           examples: [base]
     ProposalList:
@@ -875,7 +883,7 @@ components:
             $ref: "#/components/schemas/ProposalVoter"
         can_vote: {type: boolean, description: "The caller is in the voter set and the proposal is open.", examples: [true]}
         network:
-          description: The chain the buy is pinned to. Absent when it takes the best price on any chain.
+          description: The chain the trade is pinned to. Absent when a buy takes the best price on any chain or a sell uses the Solana holding.
           $ref: "#/components/schemas/Network"
           examples: [base]
         can_withdraw:

@@ -61,6 +61,8 @@ type TradePorts struct {
 	Assets   Assets
 	Routes   market.Routes
 	Router   multichain.Router
+	Listings Listings
+	Quoter   multichain.Quoter
 	Treasury Treasury
 	Balances Balances
 	USDC     chain.Mint
@@ -145,27 +147,23 @@ func (h *ProposeTradeHandler) Open(ctx context.Context, cmd ProposeTrade) (Opene
 	if err != nil {
 		return OpenedProposal{}, err
 	}
-	asset, routed, comparison, err := h.assess(ctx, cmd)
+	a, err := h.assess(ctx, cmd)
 	if err != nil {
 		return OpenedProposal{}, err
 	}
 	now := h.clock.Now()
-	priced, err := pinned(comparison, cmd.Trade.Network)
-	if err != nil {
-		return OpenedProposal{}, err
-	}
 	p, err := domain.NewProposal(domain.Draft{
 		ID: ids.ProposalIDFrom(h.ids.NewV7()), CabalID: cmd.CabalID, ProposerID: cmd.ProposerID, Kind: cmd.Trade.Kind,
-		Symbol: asset.Symbol, Mint: asset.Mint.Address(), USDCMicros: cmd.Trade.USDCMicros,
-		TokenAmount: money.NewBaseUnits(cmd.Trade.TokenAmount, asset.Decimals), Thesis: cmd.Trade.Thesis,
-		QuoteOut:  displayQuote(asset, priced, routed, now),
-		ExpiresAt: now.Add(rules.ProposalExpiry), Network: cmd.Trade.Network,
+		Symbol: a.asset.Symbol, Mint: a.asset.Mint.Address(), USDCMicros: cmd.Trade.USDCMicros,
+		TokenAmount: money.NewBaseUnits(cmd.Trade.TokenAmount, a.decimals), Thesis: cmd.Trade.Thesis,
+		QuoteOut:  displayQuote(a.asset, a.priced, a.routed, now),
+		ExpiresAt: now.Add(rules.ProposalExpiry), Network: a.network,
 	})
 	if err != nil {
 		return OpenedProposal{}, err
 	}
 	err = h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		return store(ctx, tx, openParams(p.Draft(), rule, voters, now), comparison, created(p.Draft(), len(voters)))
+		return store(ctx, tx, openParams(p.Draft(), rule, voters, now), a.comparison, created(p.Draft(), len(voters)))
 	})
 	if err != nil {
 		return OpenedProposal{}, err
@@ -178,7 +176,7 @@ func (h *ProposeTradeHandler) Open(ctx context.Context, cmd ProposeTrade) (Opene
 	return OpenedProposal{
 		Draft: p.Draft(), Voters: voters, CreatedAt: now, Needed: rule.Needed(len(voters)), ProposerCanVote: canVote,
 		USDCMicros: decimal(p.Draft().USDCMicros.String()), TokenAmount: decimal(p.Draft().TokenAmount.String()),
-		QuoteOutAmount: decimal(strconv.FormatUint(p.Draft().QuoteOut, 10)), PriceComparison: comparison,
+		QuoteOutAmount: decimal(strconv.FormatUint(p.Draft().QuoteOut, 10)), PriceComparison: a.comparison,
 	}, nil
 }
 
@@ -202,27 +200,52 @@ func decimal(raw string) int64 {
 	return n
 }
 
-func (h *ProposeTradeHandler) assess(
-	ctx context.Context, cmd ProposeTrade,
-) (market.Asset, uint64, *multichain.Comparison, error) {
+type assessment struct {
+	asset      market.Asset
+	decimals   uint8
+	routed     uint64
+	comparison *multichain.Comparison
+	priced     *multichain.Comparison
+	network    chain.Network
+}
+
+func (h *ProposeTradeHandler) assess(ctx context.Context, cmd ProposeTrade) (assessment, error) {
 	asset, err := h.ports.Assets.AssetBySymbol(ctx, cmd.Trade.Symbol)
 	if err != nil {
-		return market.Asset{}, 0, nil, err
+		return assessment{}, err
 	}
-	var pot money.Micros
-	if cmd.Trade.Kind == domain.KindBuy {
-		if pot, err = h.ports.Treasury.PotValue(ctx, cmd.CabalID); err != nil {
-			return market.Asset{}, 0, nil, err
-		}
+	if cmd.Trade.Kind == domain.KindSell {
+		return h.assessSell(ctx, cmd, asset)
+	}
+	pot, err := h.ports.Treasury.PotValue(ctx, cmd.CabalID)
+	if err != nil {
+		return assessment{}, err
 	}
 	if err := funds(ctx, h.ports, cmd.CabalID, asset, cmd.Trade, pot); err != nil {
-		return market.Asset{}, 0, nil, err
+		return assessment{}, err
 	}
 	routed, comparison, err := h.route(ctx, asset, cmd.Trade)
 	if err != nil {
-		return market.Asset{}, 0, nil, err
+		return assessment{}, err
 	}
-	return asset, routed, comparison, nil
+	priced, err := pinned(comparison, cmd.Trade.Network)
+	return assessment{
+		asset: asset, decimals: asset.Decimals, routed: routed, comparison: comparison, priced: priced,
+		network: cmd.Trade.Network,
+	}, err
+}
+
+func (h *ProposeTradeHandler) assessSell(
+	ctx context.Context, cmd ProposeTrade, asset market.Asset,
+) (assessment, error) {
+	target, err := h.sellTarget(ctx, cmd.CabalID, asset, cmd.Trade)
+	if err != nil {
+		return assessment{}, err
+	}
+	if err := h.sellFunds(ctx, cmd.CabalID, asset, cmd.Trade, target); err != nil {
+		return assessment{}, err
+	}
+	return h.sellRoute(ctx, asset, cmd.Trade, target)
 }
 
 func notBanned(ctx context.Context, cabals Cabals, cabal ids.CabalID, op string) error {
@@ -250,29 +273,10 @@ func member(ctx context.Context, cabals Cabals, cabal ids.CabalID, user ids.User
 func funds(
 	ctx context.Context, p TradePorts, cabal ids.CabalID, asset market.Asset, trade domain.Trade, pot money.Micros,
 ) error {
-	const op = "governance.funds"
-	if trade.Kind == domain.KindBuy {
-		if trade.USDCMicros.Cmp(pot) > 0 {
-			return errs.New(errs.CodePotExceeded, op, slog.String("usdc_micros", trade.USDCMicros.String()))
-		}
-		return cashCovers(ctx, p, cabal, asset, trade)
+	if trade.USDCMicros.Cmp(pot) > 0 {
+		return errs.New(errs.CodePotExceeded, "governance.funds", slog.String("usdc_micros", trade.USDCMicros.String()))
 	}
-	if err := ledgerHolds(ctx, p.Treasury, cabal, asset, trade); err != nil {
-		return err
-	}
-	wallet, err := p.Cabals.TreasuryWallet(ctx, cabal)
-	if err != nil {
-		return err
-	}
-	mint := chain.Mint{Address: asset.Mint.Address(), Decimals: asset.Decimals}
-	have, err := p.Balances.TokenBalance(ctx, wallet.Address, mint)
-	if err != nil {
-		return err
-	}
-	if have.Uint64() < trade.TokenAmount {
-		return errs.New(errs.CodeCabalSharesShort, op, slog.String("symbol", asset.Symbol))
-	}
-	return nil
+	return cashCovers(ctx, p, cabal, asset, trade)
 }
 
 func cashCovers(
@@ -309,30 +313,6 @@ func spendableCash(
 		return money.Micros{}, solana.MintConfig{}, err
 	}
 	return money.MicrosFromUint64(cash.Uint64()), cfg, nil
-}
-
-func ledgerHolds(
-	ctx context.Context, t Treasury, cabal ids.CabalID, asset market.Asset, trade domain.Trade,
-) error {
-	const op = "governance.funds"
-	positions, err := t.SolanaPositions(ctx, cabal)
-	if err != nil {
-		return err
-	}
-	want := money.NewBaseUnits(trade.TokenAmount, asset.Decimals)
-	for _, p := range positions {
-		if p.Mint != asset.Mint.Address() {
-			continue
-		}
-		short, err := p.Units.Cmp(want)
-		if err != nil {
-			return errs.Wrap(err, errs.CodeInternal, op)
-		}
-		if short >= 0 {
-			return nil
-		}
-	}
-	return errs.New(errs.CodeCabalSharesShort, op, slog.String("symbol", asset.Symbol))
 }
 
 func (h *ProposeTradeHandler) route(

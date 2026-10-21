@@ -575,3 +575,18 @@ func TestCabalPositionsAtMarksACabalWithAnUnresolvableMintAndKeepsTheRest(t *tes
 		t.Fatal("CabalPositionsAt with the catalog down error = nil, want the tick to fail")
 	}
 }
+
+func TestEVMPositionsReadFailures(t *testing.T) {
+	t.Parallel()
+	prices := app.PriceReader(func(context.Context, []uuid.UUID, time.Time) (map[uuid.UUID]app.Price, error) {
+		return map[uuid.UUID]app.Price{}, nil
+	})
+	failing := stakeStore{positionsErr: errs.New(errs.CodeDBUnavailable, "test")}
+	if _, err := newTestQueries(failing, prices).EVMPositions(t.Context(), ids.CabalID{}); err == nil {
+		t.Fatal("EVMPositions query error = nil")
+	}
+	bad := stakeStore{positions: []sqlc.CabalPositionsRow{{Asset: "base:0xabc", Units: "bad", CostBasisMicros: "0"}}}
+	if _, err := newTestQueries(bad, prices).EVMPositions(t.Context(), ids.CabalID{}); err == nil {
+		t.Fatal("EVMPositions bad units error = nil")
+	}
+}

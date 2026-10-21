@@ -80,9 +80,6 @@ type Trade struct {
 }
 
 func NewTrade(t Trade) (Trade, error) {
-	if t.Kind == KindSell && t.Network != "" {
-		return Trade{}, errs.New(errs.CodeInvalidNetwork, "governance.NewTrade", slog.String("field", "network"))
-	}
 	field := tradeField(t.Kind, t.USDCMicros.Uint64(), t.TokenAmount, t.Thesis)
 	if field == "" && strings.TrimSpace(t.Symbol) == "" {
 		field = "symbol"

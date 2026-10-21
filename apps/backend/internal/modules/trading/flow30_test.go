@@ -9,7 +9,9 @@ import (
 	"testing"
 	"time"
 
+	cabalmod "github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	cabal "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/governance"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
@@ -165,38 +167,45 @@ func (*flowChain) Fill(
 	return app.EVMFill{State: app.FillSucceeded, Out: flows.RoutedSaleProceeds}, nil
 }
 
-func runFlow30Step(t *testing.T, name string) {
+func flow30Modules() []func(module.Deps) module.Module {
+	return []func(module.Deps) module.Module{
+		func(d module.Deps) module.Module {
+			fake := &flowChain{hashes: map[string]string{}}
+			d.Config.Solana.USDCMint, d.Config.Solana.RPCURL = string(testkit.USDCMint), "http://fakes/rpc/"
+			d.Config.Timeouts.RPC = time.Second
+			d.Config.Trade.SwapSweepInterval, d.Config.Trade.SwapSweepAge = time.Minute, app.SwapSweepAge
+			layer := newLayerEnvOn(d.Pool)
+			return trading.New(d,
+				trading.WithEnginePorts(app.EnginePorts{
+					Catalog: marketfake.NewCatalog(marketfake.Fixtures()...), Cabals: flowCabals{},
+					Pauses: fakes.NewPauses(), Proposals: fake, Balances: fake,
+				}),
+				trading.WithChain(layer.venue, layer.signer), trading.WithChainReader(layer.fills),
+				trading.WithRoutePorts(app.RoutePorts{
+					Listings:    fake,
+					TreasuryEVM: fake,
+					Quoter:      fake,
+					Actions:     fake,
+					Sender:      fake,
+					Venue:       fake,
+					Router:      fake,
+					TopUp:       fake,
+					Arrivals:    fake,
+					EVMArrivals: fake,
+					EVM:         true,
+				}),
+			)
+		},
+		func(d module.Deps) module.Module {
+			d.Config.Solana.USDCMint = string(testkit.USDCMint)
+			return treasury.New(d)
+		},
+	}
+}
+
+func runFlow30Step(t *testing.T, name string, modules ...func(module.Deps) module.Module) {
 	t.Helper()
-	s := scenario.New(t, scenario.WithModules(func(d module.Deps) module.Module {
-		fake := &flowChain{hashes: map[string]string{}}
-		d.Config.Solana.USDCMint, d.Config.Solana.RPCURL = string(testkit.USDCMint), "http://fakes/rpc/"
-		d.Config.Timeouts.RPC = time.Second
-		d.Config.Trade.SwapSweepInterval, d.Config.Trade.SwapSweepAge = time.Minute, app.SwapSweepAge
-		layer := newLayerEnvOn(d.Pool)
-		return trading.New(d,
-			trading.WithEnginePorts(app.EnginePorts{
-				Catalog: marketfake.NewCatalog(marketfake.Fixtures()...), Cabals: flowCabals{},
-				Pauses: fakes.NewPauses(), Proposals: fake, Balances: fake,
-			}),
-			trading.WithChain(layer.venue, layer.signer), trading.WithChainReader(layer.fills),
-			trading.WithRoutePorts(app.RoutePorts{
-				Listings:    fake,
-				TreasuryEVM: fake,
-				Quoter:      fake,
-				Actions:     fake,
-				Sender:      fake,
-				Venue:       fake,
-				Router:      fake,
-				TopUp:       fake,
-				Arrivals:    fake,
-				EVMArrivals: fake,
-				EVM:         true,
-			}),
-		)
-	}, func(d module.Deps) module.Module {
-		d.Config.Solana.USDCMint = string(testkit.USDCMint)
-		return treasury.New(d)
-	}))
+	s := scenario.New(t, scenario.WithModules(append(flow30Modules(), modules...)...))
 	for _, step := range flows.Steps() {
 		if step.Flow == "30" && step.Name == name {
 			step.Script(s)
@@ -214,4 +223,38 @@ func TestFlowStep30_RoutedBuyOnEVM(t *testing.T) {
 func TestFlowStep30_RoutedSell(t *testing.T) {
 	t.Parallel()
 	runFlow30Step(t, "Routed sell")
+}
+
+type aaplListings struct{}
+
+func (aaplListings) ListingByAsset(context.Context, string) (multichain.Listing, error) {
+	l := flows.RoutedListing()
+	l.StockID, l.Enabled = aaplStock(), true
+	return l, nil
+}
+
+func aaplStock() multichain.StockID {
+	var stock multichain.StockID
+	_ = stock.UnmarshalText([]byte(marketfake.AAPLx().ID.String()))
+	return stock
+}
+
+type unitQuoter struct{}
+
+func (unitQuoter) Quote(
+	_ context.Context, l multichain.Listing, _ multichain.Side, micros money.Micros,
+) (multichain.Quote, error) {
+	return multichain.Quote{ListingID: l.ID, GrossOutput: new(big.Int).SetUint64(micros.Uint64() * 2)}, nil
+}
+
+func TestFlowStep30_GovernedRoutedSell(t *testing.T) {
+	t.Parallel()
+	runFlow30Step(t, "Governed routed sell", func(d module.Deps) module.Module {
+		d.Config.Solana.USDCMint = string(testkit.USDCMint)
+		return governance.New(d, governance.WithPorts(governance.Ports{
+			Cabals: cabalmod.New(d).Queries(), Assets: marketfake.NewCatalog(marketfake.Fixtures()...),
+			Treasury: treasury.New(d).Queries(), Listings: aaplListings{}, Quoter: unitQuoter{},
+			Balances: &flowChain{hashes: map[string]string{}},
+		}))
+	})
 }

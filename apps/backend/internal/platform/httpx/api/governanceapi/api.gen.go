@@ -533,7 +533,7 @@ type Proposal struct {
 	// Examples: null
 	MyBallot *BallotChoice `json:"my_ballot"`
 
-	// Network The chain the buy is pinned to. Absent when it takes the best price on any chain.
+	// Network The chain the trade is pinned to. Absent when a buy takes the best price on any chain or a sell uses the Solana holding.
 	//
 	// Examples: base
 	Network *externalRef0.Network `json:"network,omitempty"`
@@ -639,7 +639,7 @@ type ProposalDetail struct {
 	// Examples: null
 	MyBallot *BallotChoice `json:"my_ballot"`
 
-	// Network The chain the buy is pinned to. Absent when it takes the best price on any chain.
+	// Network The chain the trade is pinned to. Absent when a buy takes the best price on any chain or a sell uses the Solana holding.
 	//
 	// Examples: base
 	Network *externalRef0.Network `json:"network,omitempty"`
@@ -844,7 +844,7 @@ type ProposeTradeRequest struct {
 	// Examples: buy
 	Kind ProposalKind `json:"kind"`
 
-	// Network The chain a buy executes on. It must have a listing in the comparison quoted now, and a sell can't set it. Absent means the best price on any chain.
+	// Network The chain the trade executes on. A buy must have a listing in the comparison quoted now. A sell sells the cabal's holding on that chain and is refused when the cabal holds none there or the sale has no route. Absent means the best price on any chain for a buy; a sell with no network sells the Solana holding, or the only EVM holding when there is no Solana one.
 	//
 	// Examples: base
 	Network *externalRef0.Network `json:"network,omitempty"`
@@ -859,7 +859,7 @@ type ProposeTradeRequest struct {
 	// Examples: earnings
 	Thesis *string `json:"thesis,omitempty"`
 
-	// TokenAmount Token base units a sell spends.
+	// TokenAmount Token base units a sell spends. For a sell on an EVM chain these are that listing's token base units.
 	//
 	// Examples: 1000000
 	TokenAmount *int64 `json:"token_amount,omitempty"`
@@ -1028,10 +1028,10 @@ type GetCabalProposalPreviewParams struct {
 	// UsdcMicros USDC a buy spends, in micros. A buy that leaves it out returns only the pot and the spendable cash.
 	UsdcMicros *int64 `form:"usdc_micros,omitempty" json:"usdc_micros,omitempty"`
 
-	// TokenAmount Token base units a sell spends.
+	// TokenAmount Token base units a sell spends. For a sell pinned to an EVM chain these are that listing's token base units, as `token_amount` on the holding's listing reports them.
 	TokenAmount *int64 `form:"token_amount,omitempty" json:"token_amount,omitempty"`
 
-	// Network The chain a buy is pinned to. The quote is that chain's best listing, and a chain with no listing quoted sets `advisory_code` to invalid_network. Absent means the best price on any chain.
+	// Network The chain a trade is pinned to. A buy's quote is that chain's best listing, and a chain with no listing quoted sets `advisory_code` to invalid_network. A sell's quote is the sale of the cabal's holding on that chain, and a chain the cabal holds none on sets `advisory_code` to invalid_network. Absent means the best price on any chain for a buy, and the holding for a sell.
 	Network *externalRef0.Network `form:"network,omitempty" json:"network,omitempty"`
 }
 

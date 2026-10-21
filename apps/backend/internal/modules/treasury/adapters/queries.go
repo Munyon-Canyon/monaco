@@ -188,6 +188,20 @@ func (q *Queries) SolanaPositions(ctx context.Context, cabalID ids.CabalID) ([]p
 	return positions, nil
 }
 
+func (q *Queries) EVMPositions(ctx context.Context, cabalID ids.CabalID) ([]port.ListingPosition, error) {
+	rows, err := q.q.CabalPositions(ctx, cabalID.UUID())
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.EVMPositions")
+	}
+	var held port.CabalPositions
+	for _, row := range rows {
+		if _, err := q.offSolanaPosition(&held, row.Asset, row.Units); err != nil {
+			return nil, err
+		}
+	}
+	return held.Listings, nil
+}
+
 func (q *Queries) PotValue(ctx context.Context, cabalID ids.CabalID) (money.Micros, error) {
 	rows, err := q.transit.CabalValueRows(ctx, cabalID.UUID())
 	if err != nil {
