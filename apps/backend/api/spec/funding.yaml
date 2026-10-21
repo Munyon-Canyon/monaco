@@ -131,11 +131,14 @@ paths:
       tags: [funding]
       x-idempotent: true
       x-allow-restricted: true
+      x-rate-limit: {actor: {rate: 10, per: 1m, burst: 5}}
       summary: Send platform balance to a Solana address.
       description: >-
         Signs a USDC transfer from the caller's member wallet to `to_address`, stores its signature,
         then broadcasts it. The withdrawal confirms later. A replay with the same Idempotency-Key returns
-        the first response and sends nothing new. A banned or suspended user can still withdraw.
+        the first response and sends nothing new. A banned or suspended user can still withdraw. A caller is
+        limited per minute, and may send to at most five new Solana addresses in 24 hours: past either limit
+        the answer is rate_limited and nothing is signed.
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:

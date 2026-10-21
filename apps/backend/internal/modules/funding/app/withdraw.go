@@ -37,6 +37,11 @@ type Transfers interface {
 
 const WithdrawOperation = "funding.withdraw"
 
+const (
+	FreshDestinationsPerDay = 5
+	freshDestinationWindow  = 24 * time.Hour
+)
+
 type Withdraw struct {
 	ID      uuid.UUID
 	UserID  ids.UserID
@@ -61,6 +66,8 @@ type WithdrawDeps struct {
 	Hints      HintPublisher
 	Clock      clock.Clock
 	USDC       chain.Mint
+
+	FreshDestinationsPerDay int
 }
 
 type WithdrawHandler struct{ d WithdrawDeps }
@@ -139,7 +146,6 @@ func replayResult(row sqlc.GetWithdrawalRow) WithdrawResult {
 func (h *WithdrawHandler) create(
 	ctx context.Context, cmd Withdraw,
 ) (prior sqlc.GetWithdrawalRow, replayed bool, err error) {
-	const op = "funding.Withdraw.create"
 	obs, observeErr := h.d.Balances.Observe(ctx, cmd.UserID)
 	err = h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		prior, replayed = sqlc.GetWithdrawalRow{}, false
@@ -156,16 +162,8 @@ func (h *WithdrawHandler) create(
 			prior, err = GetWithdrawal(ctx, tx.Queries(), bound, cmd.UserID)
 			return err
 		}
-		if observeErr != nil {
-			return observeErr
-		}
-		balance, err := h.d.Balances.AvailableIn(ctx, tx.Queries(), obs)
-		if err != nil {
+		if err := h.admit(ctx, tx, cmd, obs, observeErr); err != nil {
 			return err
-		}
-		if balance.AvailableMicros.Cmp(cmd.Request.Amount) < 0 {
-			return errs.New(errs.CodeInsufficientFunds, op, slog.String("available_micros",
-				balance.AvailableMicros.String()), slog.String("amount_micros", cmd.Request.Amount.String()))
 		}
 		if err := q.InsertWithdrawal(ctx, insertParams(cmd, h.d.Clock.Now())); err != nil {
 			return err
@@ -174,6 +172,44 @@ func (h *WithdrawHandler) create(
 		return nil
 	})
 	return prior, replayed, err
+}
+
+func (h *WithdrawHandler) admit(
+	ctx context.Context, tx db.Tx, cmd Withdraw, obs port.Observation, observeErr error,
+) error {
+	const op = "funding.Withdraw.admit"
+	if err := h.refuseFreshDestinationFlood(ctx, sqlc.New(tx.Queries()), cmd); err != nil {
+		return err
+	}
+	if observeErr != nil {
+		return observeErr
+	}
+	balance, err := h.d.Balances.AvailableIn(ctx, tx.Queries(), obs)
+	if err != nil {
+		return err
+	}
+	if balance.AvailableMicros.Cmp(cmd.Request.Amount) < 0 {
+		return errs.New(errs.CodeInsufficientFunds, op, slog.String("available_micros",
+			balance.AvailableMicros.String()), slog.String("amount_micros", cmd.Request.Amount.String()))
+	}
+	return nil
+}
+
+func (h *WithdrawHandler) refuseFreshDestinationFlood(ctx context.Context, q *sqlc.Queries, cmd Withdraw) error {
+	const op = "funding.Withdraw.refuseFreshDestinationFlood"
+	limit := cmp.Or(h.d.FreshDestinationsPerDay, FreshDestinationsPerDay)
+	seen, err := q.FreshWithdrawalDestinations(ctx, sqlc.FreshWithdrawalDestinationsParams{
+		UserID: cmd.UserID.UUID(), ToAddress: string(cmd.Request.To),
+		Since: h.d.Clock.Now().Add(-freshDestinationWindow),
+	})
+	if err != nil {
+		return err
+	}
+	if !seen.DestinationKnown && seen.FreshToday >= int64(limit) {
+		return errs.New(errs.CodeRateLimited, op, slog.String("reason", "fresh_destinations"),
+			slog.String("user_id", cmd.UserID.String()), slog.Int64("fresh_today", seen.FreshToday))
+	}
+	return nil
 }
 
 func insertParams(cmd Withdraw, now time.Time) sqlc.InsertWithdrawalParams {

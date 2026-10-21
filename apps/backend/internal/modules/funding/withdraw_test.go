@@ -2,8 +2,10 @@ package funding_test
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -72,6 +74,7 @@ type stubTransfers struct {
 func (s *stubTransfers) Build(_ context.Context, spec relayer.TransferSpec) (relayer.SignedTx, error) {
 	s.mu.Lock()
 	s.builds = append(s.builds, spec)
+	nth := len(s.builds)
 	s.mu.Unlock()
 	if s.beforeSign != nil {
 		s.beforeSign()
@@ -79,7 +82,12 @@ func (s *stubTransfers) Build(_ context.Context, spec relayer.TransferSpec) (rel
 	if s.buildErr != nil {
 		return relayer.SignedTx{}, s.buildErr
 	}
-	return relayer.SignedTx{Bytes: []byte{1, 2, 3}, Signature: withdrawSig, LastValidBlockHeight: 900}, nil
+	sig := withdrawSig
+	if spec.To != withdrawTo {
+		h := sha256.Sum256([]byte(strconv.Itoa(nth)))
+		sig = chain.Signature(chain.EncodeBase58(append(h[:], h[:]...)))
+	}
+	return relayer.SignedTx{Bytes: []byte{1, 2, 3}, Signature: sig, LastValidBlockHeight: 900}, nil
 }
 
 func (s *stubTransfers) Broadcast(_ context.Context, tx relayer.SignedTx) error {

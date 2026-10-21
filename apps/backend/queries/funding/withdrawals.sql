@@ -93,3 +93,19 @@ LIMIT sqlc.arg(max_rows);
 -- name: SetWithdrawalSourceSignature :execrows
 UPDATE withdrawals SET tx_signature = NULLIF(sqlc.arg(tx_signature)::text, '')
 WHERE id = $1 AND status = 'submitted' AND destination_kind = 'evm' AND tx_signature IS NULL;
+
+-- name: FreshWithdrawalDestinations :one
+SELECT count(*)::bigint AS fresh_today,
+  EXISTS (
+    SELECT 1 FROM withdrawals k
+    WHERE k.destination_kind = 'solana' AND k.to_address = sqlc.arg(to_address)::text
+      AND k.status IN ('submitted', 'confirmed')
+  ) AS destination_known
+FROM withdrawals w
+WHERE w.user_id = sqlc.arg(user_id)::uuid AND w.destination_kind = 'solana' AND w.status <> 'failed'
+  AND w.created_at >= sqlc.arg(since)::timestamptz
+  AND NOT EXISTS (
+    SELECT 1 FROM withdrawals p
+    WHERE p.destination_kind = 'solana' AND p.to_address = w.to_address
+      AND p.status IN ('submitted', 'confirmed') AND (p.created_at, p.id) < (w.created_at, w.id)
+  );
