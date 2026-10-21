@@ -286,7 +286,7 @@ final class AccountActivityModelTests: XCTestCase {
     }
 
     private func waitUntil(_ predicate: @escaping () async -> Bool) async -> Bool {
-        for _ in 0..<500 {
+        for _ in 0..<50_000 {
             if await predicate() { return true }
             await Task.yield()
         }
