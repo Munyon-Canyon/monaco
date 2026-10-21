@@ -235,6 +235,8 @@ A sale that can't start (the swap venue refuses the quote, or the last retry fai
 
 [Flow 15](backend-platform.md#flows), `funding` module: `Withdraw` sends platform balance to any Solana address the user pastes, or to an EVM address on Base, Arbitrum or Ethereum ([Withdraw to an EVM wallet](#withdraw-to-an-evm-wallet)), from `POST /v1/me/withdrawals` with an `Idempotency-Key`. Events `withdrawal.submitted`, then `withdrawal.confirmed` or `withdrawal.failed`. These replace `withdrawal.sent` in [event-bus.md](event-bus.md#who-publishes-who-subscribes). `treasury` consumes `withdrawal.confirmed` and writes the `user_txns` withdrawal entry.
 
+A Solana withdrawal is limited two ways, both before any signature. `POST /v1/me/withdrawals` has an actor rate limit in the spec (`x-rate-limit`), and `Withdraw` refuses with `rate_limited` once the caller has sent to 5 fresh Solana destinations in the last 24 hours. A destination is fresh when no earlier withdrawal to that address was submitted or confirmed, so a repeat to a known address, and a failed attempt, do not count. The cap is `app.FreshDestinationsPerDay`; `WithdrawDeps.FreshDestinationsPerDay` overrides it, and there is no config key yet. The limiter fails open on a limiter error, and a reserved fee and rent budget with fail-closed storage is a later ticket.
+
 Each move of a withdrawal (created, submitted, failed) publishes the user's `balance_changed` hint after commit, so Home drops the amount the moment the withdrawal is submitted. Fund-to-cabal ([flow 7](backend-platform.md#flows), `treasury` module) does the same at submit, from the transaction that appends `cabal.fund_submitted`, and again when the transfer settles.
 
 ### Withdraw to an EVM wallet

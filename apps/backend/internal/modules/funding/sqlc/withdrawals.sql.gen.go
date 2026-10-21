@@ -52,6 +52,41 @@ func (q *Queries) FailWithdrawal(ctx context.Context, arg FailWithdrawalParams) 
 	return result.RowsAffected(), nil
 }
 
+const freshWithdrawalDestinations = `-- name: FreshWithdrawalDestinations :one
+SELECT count(*)::bigint AS fresh_today,
+  EXISTS (
+    SELECT 1 FROM withdrawals k
+    WHERE k.destination_kind = 'solana' AND k.to_address = $1::text
+      AND k.status IN ('submitted', 'confirmed')
+  ) AS destination_known
+FROM withdrawals w
+WHERE w.user_id = $2::uuid AND w.destination_kind = 'solana' AND w.status <> 'failed'
+  AND w.created_at >= $3::timestamptz
+  AND NOT EXISTS (
+    SELECT 1 FROM withdrawals p
+    WHERE p.destination_kind = 'solana' AND p.to_address = w.to_address
+      AND p.status IN ('submitted', 'confirmed') AND (p.created_at, p.id) < (w.created_at, w.id)
+  )
+`
+
+type FreshWithdrawalDestinationsParams struct {
+	ToAddress string
+	UserID    uuid.UUID
+	Since     time.Time
+}
+
+type FreshWithdrawalDestinationsRow struct {
+	FreshToday       int64
+	DestinationKnown bool
+}
+
+func (q *Queries) FreshWithdrawalDestinations(ctx context.Context, arg FreshWithdrawalDestinationsParams) (FreshWithdrawalDestinationsRow, error) {
+	row := q.db.QueryRow(ctx, freshWithdrawalDestinations, arg.ToAddress, arg.UserID, arg.Since)
+	var i FreshWithdrawalDestinationsRow
+	err := row.Scan(&i.FreshToday, &i.DestinationKnown)
+	return i, err
+}
+
 const getWithdrawal = `-- name: GetWithdrawal :one
 SELECT id, user_id, amount_micros::text AS amount_micros, to_address, status,
   COALESCE(tx_signature, '')::text AS tx_signature, COALESCE(fail_code, '')::text AS fail_code,
