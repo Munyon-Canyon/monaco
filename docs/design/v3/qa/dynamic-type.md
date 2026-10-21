@@ -451,7 +451,7 @@ The unscrolled shots are in `.logs/qa/dynamic-type/run1/<size>/<name>.png` on th
 - Rows with a leading avatar and a trailing chevron stack their trailing content under the title at AX1 and AX5 on every list screen except where [FU4](#fu4) and [FU11](#fu11) say otherwise.
 - `StatGrid` and the two-stat rule stack at AX1 and AX5 and are side by side below that; no cell is narrower than its figure.
 - Full-width buttons, the Deposit capsule and the compact buttons kept a 44pt hit frame at every size (`DesignLayoutTests`).
-- Every sheet in the set (propose, review, votes, share) opened `.large` at AX1 and AX5 with its pinned footer visible. Below AX1 each opened at its design detent.
+- Every sheet in the set (propose, review, votes, share) opened `.large` at AX1 and AX5 with its pinned footer visible. Below AX1 each opened at its design detent. Superseded: every sheet now opens at one half-height detent at every size, also AX1 and AX5, and none opens full screen (#6075).
 - Toolbars: the title stayed on one line beside the 44pt round buttons at every size; large root titles wrapped.
 - The system tab bar followed iOS and nothing custom was drawn over it.
 
@@ -517,7 +517,7 @@ Money strip: Net worth, Cash and Deposit stay on one line at xxLarge and xxxLarg
 
 ### FU15
 
-`MonacoSheetDetents.detents(fittedHeight:accessibilitySize:)` is `fileprivate`, so `DesignLayoutTests` cannot pin that sheets return only `.large` at AX sizes; the shots show every sheet opening `.large`. Owner: F lane (`MonacoAppearance.swift`).
+`MonacoSheetDetents.detents(fittedHeight:accessibilitySize:)` is `fileprivate`, so `DesignLayoutTests` cannot pin that sheets return only `.large` at AX sizes; the shots show every sheet opening `.large`. Owner: F lane (`MonacoAppearance.swift`). Resolved by #6075: sheets are half-height at every size and `SheetDetentTests` pins it.
 
 ## Audit and unit tests
 

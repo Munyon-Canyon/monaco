@@ -24,7 +24,7 @@ The text pairs are: `muted`; `brand` on `brandSoft` over `canvas` and `surface`;
 
 All 43 default states were shot in Dark and laid beside `docs/design/v3/screens/<name>__dark.jpg`. Checked on each: canvas is `#03130F` and never pure black, cards are `surface` with a visible hairline, the accent is the mint `brand`, primary buttons are mint with a dark label, P&L is in the dark `profit` and `loss`, charts use the dark stroke, and toasts are the ink panel.
 
-No Dark-only defect was found. Every difference from the reference is sample data (names, amounts, dates), the iOS 27 system tab bar and sheet glass, or a harness choice (the tab bar shows Home selected under `leaderboard` and `cabals`). Two differences are by decision and not defects: `settings` has no Appearance or Reduce transparency rows (decisions.md, prototype-only toggles), and covers draw the cabal's tint gradient where the design used photos (decision 8).
+No Dark-only defect was found. Every difference from the reference is sample data (names, amounts, dates), the iOS 27 system tab bar and sheet glass, or a harness choice (the tab bar shows Home selected under `leaderboard` and `cabals`). Two differences are by decision and not defects: `settings` has no Appearance or Reduce transparency rows (decisions.md, prototype-only toggles), and covers draw the cabal's solid tint where the design used photos (decision 8).
 
 ## Reduce Transparency
 

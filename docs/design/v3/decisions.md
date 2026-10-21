@@ -1,6 +1,10 @@
 # v3 decisions and risks
 
-Eleven founder decisions, all adopted and final, then the five risks the design review found. Tickets apply these and do not reopen them. Tokens are in [tokens.md](tokens.md), components in [components.md](components.md), screens in the [README](README.md) index.
+Twelve founder decisions, all adopted and final, then the five risks the design review found. Tickets apply these and do not reopen them. Tokens are in [tokens.md](tokens.md), components in [components.md](components.md), screens in the [README](README.md) index.
+
+## Which source wins
+
+When the sources disagree, the first of these decides: founder constraints (every sheet opens at about half the screen and never expands, no gradients, no premature success), then the current product contract (`docs/screens.md` and the shipped behaviour it describes), then the current native layout, then the visual references (`screens/*.jpg` and the prototype). A reference image never overrides the other three: fix the image, not the app. Before a reference image counts as evidence in a parity review, open it and check that it shows the state its name says.
 
 ## Decisions
 

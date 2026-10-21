@@ -202,7 +202,7 @@ Touch targets stay 44pt: compact Deposit is 32pt visual in a 44pt hit box, chips
 | circle token, ticker tile | `size × 0.32` (44 → 14) | `MarkGeometry.radius(size)` |
 | empty icon tile, status orb | `size × 0.35` (68 → 23, 70 → 25) | |
 | toast | 15 | `Radius.toast` 14 → 15 |
-| sheet | 31; expanded `29 29 0 0` | system on iOS 26; `Radius.sheet` on 18 |
+| sheet | 31; expanded `29 29 0 0` (prototype only, native sheets never expand) | system on iOS 26; `Radius.sheet` on 18 |
 | chat bubble | `4 17 17 17` theirs, `17 4 17 17` mine | `Radius.bubble` 17 with a 4 tail corner |
 | allocation bar 8, vote bar 10, tooltip 9, skeleton 6 | | |
 
@@ -216,7 +216,7 @@ Cards, decision cards, event cards and mover tiles have **no shadow**; only a 1p
 | Round toolbar button | `glassFill` | 1pt `hairline` | none | none | `surface` |
 | Dock | `glassFill` | top 1pt `hairline` | 20 | none | `surface` |
 | Sheet | `sheetGlass` | 1pt `sheetStroke` + inset top `#FFFFFF25` | 32, saturate 1.35 | `0 22 72` `#001A1540` light / `#00000080` dark (`Shadow.sheet`) | `canvas`, overlay `rgba(0,0,0,.55)` |
-| Expanded sheet | `canvas` opaque | none | | | |
+| Expanded sheet (prototype only, native sheets never expand) | `canvas` opaque | none | | | |
 | Toast | `toastFill` | | | `Shadow.floating` | |
 | Cover text | | | | `0 1 8 #00000066` | use the cover overlay instead |
 | Switch knob | white | | | `0 1 3 #00000020` | |
