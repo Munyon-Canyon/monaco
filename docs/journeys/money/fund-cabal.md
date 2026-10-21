@@ -1,7 +1,7 @@
 ---
 id: money/fund-cabal
 title: Fund this cabal
-version: 7
+version: 8
 milestone: M12
 requires: [auth/sign-in]
 actors: [A]
@@ -13,7 +13,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/MoneyFundCabalJourney.swift, apps/
 
 # Fund this cabal
 
-A member opens a cabal, taps "Deposit", picks an amount from their account balance, and deposits it into the pot. The money rules are in [Architecture](../../architecture.md).
+A member opens a cabal, taps "Fund this cabal", picks an amount from their cash, and funds the pooled treasury with it. The money rules are in [Architecture](../../architecture.md).
 
 Old app (`c838bd24`): Cabal -> "Add money" -> `Deposit/FundCabalView.swift`: the amount, the presets, "Deposit $X.00", the toast, and the sweep status. Spec: **Fund this cabal** in [screens.md](../../screens.md) (Money).
 
@@ -35,18 +35,18 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA fund {QA.run}` | `cabal-header-name` reads `QA fund {QA.run}` within 15 s |
-| S1.2 | A | tap | `cabal-action-fund` "Deposit" | | The screen titled "Deposit to <cabal>" shows `amount-entry-field`, the presets "$25", "$50", "$100" and "Max", and `amount-entry-helper` reads "… available" within 15 s (old app: `FundCabalView.swift` amount and presets) |
+| S1.2 | A | tap | `cabal-action-fund` "Fund this cabal" | | The screen titled "Fund this cabal" shows From "Your cash" and To the cabal, `amount-entry-field`, the presets "$25", "$50", "$100" and "Max", and `amount-entry-helper` reads "… available" within 15 s (old app: `FundCabalView.swift` amount and presets) |
 | S1.3 | A | wait | `fund-cabal-yield-note` | | "Your cabal earns yield on its USDC. Cash it holds earns 3.5% APY." shows within 5 s |
 | S1.4 | A | tap | the preset "$100" | | `amount-entry-helper` reads "Not enough in your account balance." within 5 s |
-| S1.5 | A | tap, then type | `amount-entry-field` | clear, then `1` | The button reads "Deposit $1.00" within 5 s (screens.md: the primary reads "Deposit $250.00") |
+| S1.5 | A | tap, then type | `amount-entry-field` | clear, then `1` | The button reads "Fund $1.00" within 5 s (screens.md: the primary reads "Fund $250.00") |
 
 ### S2 Add to the pot
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA fund {QA.run}` | `cabal-header-name` reads `QA fund {QA.run}` within 15 s |
-| S2.2 | A | tap, tap, then type | `cabal-action-fund`, then `amount-entry-field` | `1` | The button "Deposit $1.00" is enabled within 15 s |
-| S2.3 | A | tap, then tap | "Deposit $1.00", then `fund-cabal-done-button` "Done" | | The sheet `fund-cabal-success-sheet` titled "Deposit confirmed" shows within 120 s; Done closes it and the cabal screen shows, then the toast "Added $1 to QA fund {QA.run}." within 120 s (screens.md: the glass sheet "Deposit confirmed" with "Done") |
+| S2.2 | A | tap, tap, then type | `cabal-action-fund`, then `amount-entry-field` | `1` | The button "Fund $1.00" is enabled within 15 s |
+| S2.3 | A | tap, then tap | "Fund $1.00", then `fund-cabal-done-button` "Done" | | The sheet `fund-cabal-success-sheet` titled "Funding confirmed" shows within 120 s; Done closes it and the cabal screen shows, then the toast "Added $1 to QA fund {QA.run}." within 120 s (screens.md: the glass sheet "Funding confirmed" with "Done") |
 
 ## Ground truth
 

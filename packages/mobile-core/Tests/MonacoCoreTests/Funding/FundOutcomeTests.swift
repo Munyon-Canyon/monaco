@@ -37,7 +37,7 @@ final class FundOutcomeTests: XCTestCase {
             requestedMicros: 5_000_000, cabalName: "Sunday Investors")
 
         XCTAssertEqual(outcome?.phase, .settled)
-        XCTAssertEqual(outcome?.title, "Deposit confirmed")
+        XCTAssertEqual(outcome?.title, "Funding confirmed")
         XCTAssertEqual(outcome?.message, "$5.00 added to your share in Sunday Investors")
         XCTAssertEqual(
             FundProgress.settled(transfer(.settled)).outcome(requestedMicros: 5_000_000, cabalName: nil)?.message,
@@ -74,7 +74,7 @@ final class FundOutcomeTests: XCTestCase {
 
         let progress = await settled.value
         XCTAssertEqual(progress.outcome(requestedMicros: 5_000_000, cabalName: nil)?.phase, .failed)
-        XCTAssertNotEqual(progress.outcome(requestedMicros: 5_000_000, cabalName: nil)?.title, "Deposit confirmed")
+        XCTAssertNotEqual(progress.outcome(requestedMicros: 5_000_000, cabalName: nil)?.title, "Funding confirmed")
     }
 
     func testAcceptedThenSettledShowsPendingThenConfirmed() async {
@@ -87,7 +87,7 @@ final class FundOutcomeTests: XCTestCase {
 
         let outcome = progress.outcome(requestedMicros: 5_000_000, cabalName: "Sunday Investors")
         XCTAssertEqual(outcome?.phase, .settled)
-        XCTAssertEqual(outcome?.title, "Deposit confirmed")
+        XCTAssertEqual(outcome?.title, "Funding confirmed")
     }
 
     func testAnUnknownResponseShowsNoOutcomeAtAll() async {

@@ -2,7 +2,7 @@ import XCTest
 
 enum DemoStoryJourney {
     static let id = "demo/story"
-    static let version = 5
+    static let version = 6
 
     static let screenTimeout: TimeInterval = 15
     static let formTimeout: TimeInterval = 10
@@ -84,14 +84,14 @@ enum DemoStoryJourney {
             JoinJourney.openBySearch(app, cabal(run: run), step: "S2.1")
         }
 
-        recorder.step("S2.2", "open Deposit to the cabal") {
+        recorder.step("S2.2", "open Fund this cabal") {
             MoneyFundCabalJourney.openFund(app, step: "S2.2")
             XCTAssertTrue(button(app, "Max").exists, "S2.2: no Max")
         }
 
-        recorder.step("S2.3", "deposit $1 into the pot") {
+        recorder.step("S2.3", "fund $1 into the pot") {
             MoneyFundCabalJourney.typeAmount(app, "1")
-            button(app, "Deposit $1.00").tap()
+            button(app, "Fund $1.00").tap()
             MoneyFundCabalJourney.confirmDeposit(app, dollars: 1, cabal: cabal(run: run), step: "S2.3")
         }
     }

@@ -8,7 +8,7 @@ diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swif
 --- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
 @@ -133,7 +133,7 @@
-             CabalCopy.depositLabel, MonacoIcon.deposit.symbol, id: "cabal-action-fund", FundRoute(cabalID: cabalID))
+             CabalCopy.fundTerm, MonacoIcon.deposit.symbol, id: "cabal-action-fund", FundRoute(cabalID: cabalID))
          let propose = CircleAction("Propose", systemImage: MonacoIcon.propose.symbol) { showsProposeChooser = true }
              .frame(maxWidth: .infinity)
 -            .accessibilityIdentifier("cabal-action-propose")

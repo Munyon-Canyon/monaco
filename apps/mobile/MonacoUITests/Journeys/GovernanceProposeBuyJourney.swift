@@ -266,7 +266,7 @@ extension GovernanceProposeBuyJourney {
         JoinJourney.openBySearch(app, cabal, step: step)
         MoneyFundCabalJourney.openFund(app, step: step)
         MoneyFundCabalJourney.typeAmount(app, "\(dollars)")
-        tapLabel(app, "Deposit $\(dollars).00", step: step)
+        tapLabel(app, "Fund $\(dollars).00", step: step)
         MoneyFundCabalJourney.confirmDeposit(app, dollars: dollars, cabal: cabal, step: step)
     }
 

@@ -76,7 +76,7 @@ public struct FundOutcome: Equatable, Sendable {
     public let title: String
     public let message: String
 
-    public static let settledTitle = "Deposit confirmed"
+    public static let settledTitle = CabalCopy.fundSettledTitle
     public static let failedTitle = "Funding didn't go through"
     public static let failedMessage = "Your balance wasn't charged."
 }

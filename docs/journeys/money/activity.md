@@ -1,7 +1,7 @@
 ---
 id: money/activity
 title: Account activity
-version: 3
+version: 4
 milestone: M12
 requires: [auth/sign-in]
 actors: [A]
@@ -39,8 +39,8 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, tap, then scroll to and tap | the Profile tab, `profile-settings-row`, then `settings-activity` | | A row "Deposit to QA activity {QA.run}" shows within 15 s |
-| S2.2 | A | tap | the row "Deposit to QA activity {QA.run}" | | The receipt shows `account-txn-receipt-cabal` with "QA activity {QA.run}" within 10 s |
+| S2.1 | A | tap, tap, then scroll to and tap | the Profile tab, `profile-settings-row`, then `settings-activity` | | A row "Funding QA activity {QA.run}" shows within 15 s |
+| S2.2 | A | tap | the row "Funding QA activity {QA.run}" | | The receipt shows `account-txn-receipt-cabal` with "QA activity {QA.run}" within 10 s |
 | S2.3 | A | tap | `account-txn-receipt-cabal` | | The cabal screen shows, and `cabal-header-name` reads `QA activity {QA.run}` within 15 s (old app: open the cabal from the receipt) |
 
 ### S3 See a withdrawal
@@ -55,7 +55,7 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Known failures on staging
 
-- S2.1 to S2.3: no route writes a `fund` row, so there is no "Deposit to …" row to open. Blocked by #651 (and the fund route, #608). Once it lands, the setup funds `QA activity {QA.run}` with $1 through the route, and the journey gains `funds: {A: 1}`.
+- S2.1 to S2.3: no route writes a `fund` row, so there is no "Funding …" row to open. Blocked by #651 (and the fund route, #608). Once it lands, the setup funds `QA activity {QA.run}` with $1 through the route, and the journey gains `funds: {A: 1}`.
 - S3.1: no route writes a `withdrawal` row. Blocked by #652.
 
 ## Not covered

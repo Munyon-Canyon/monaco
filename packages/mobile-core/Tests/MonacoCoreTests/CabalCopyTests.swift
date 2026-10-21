@@ -13,6 +13,44 @@ final class CabalCopyTests: XCTestCase {
         XCTAssertEqual(CabalCopy.memberName(member(displayName: "", handle: nil, role: "member")), "Member")
     }
 
+    func testTheFourMoneyTermsAreDistinct() {
+        XCTAssertEqual(CabalCopy.moneyTerms, ["Deposit", "Fund this cabal", "Cash out", "Withdraw"])
+        XCTAssertEqual(Set(CabalCopy.moneyTerms).count, 4)
+    }
+
+    func testOnlyDepositingNamesTheExternalToCashMovement() {
+        let cashToCabal = [
+            CabalCopy.fundTerm, CabalCopy.fundAction(amount: "$250.00"),
+            CabalCopy.fundActivityTitle(cabalName: "Sunday Investors"),
+            CabalCopy.fundActivityTitle(cabalName: "a cabal"),
+            CabalCopy.fundAmountCaption, CabalCopy.fundSettledTitle, CabalCopy.noShareNotice,
+            CabalCopy.cashAfterFunding("$250.00"), FundProgress.funding, FundOutcome.settledTitle,
+        ]
+        for line in cashToCabal {
+            XCTAssertFalse(line.localizedCaseInsensitiveContains("deposit"), line)
+        }
+        XCTAssertTrue(CabalCopy.depositToCash.hasPrefix(CabalCopy.depositTerm))
+        XCTAssertTrue(CabalCopy.fundNeedsCash.localizedCaseInsensitiveContains("deposit to your cash"))
+    }
+
+    func testTheNewFundingCopyPassesTheMainFlowAudit() {
+        XCTAssertTrue(
+            MainFlowCopyAudit.stringsAreClean([
+                CabalCopy.fundTerm, CabalCopy.fundAmountCaption, CabalCopy.fundSettledTitle, CabalCopy.fundFromCash,
+                CabalCopy.fundToPot, CabalCopy.fundNeedsCash, CabalCopy.depositToCash, CabalCopy.noShareNotice,
+                CabalCopy.cashAfterFunding("$1.00"), CabalCopy.fundActivityTitle(cabalName: "a cabal"),
+            ]))
+    }
+
+    func testFundingNamesWhereTheCashComesFromAndWhereItGoes() {
+        XCTAssertEqual(CabalCopy.fundFromLabel, "From")
+        XCTAssertEqual(CabalCopy.fundToLabel, "To")
+        XCTAssertEqual(CabalCopy.fundFromCash, "Your cash")
+        XCTAssertEqual(CabalCopy.fundToPot, "Shared pot")
+        XCTAssertEqual(CabalCopy.fundAction(amount: "$250.00"), "Fund $250.00")
+        XCTAssertEqual(CabalCopy.cashAfterFunding("$250.00"), "Cash after funding $250.00")
+    }
+
     func testOnlyTheCreatorSeesPendingRequests() {
         XCTAssertEqual(CabalCopy.requestBadge(myCabal(role: "creator", pending: 2)), 2)
         XCTAssertNil(CabalCopy.requestBadge(myCabal(role: "creator", pending: 0)))

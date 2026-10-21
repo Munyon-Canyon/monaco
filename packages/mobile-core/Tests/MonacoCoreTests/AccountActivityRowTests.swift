@@ -12,7 +12,7 @@ final class AccountActivityRowTests: XCTestCase {
         let expected: [(Components.Schemas.UserTxn.KindPayload, String, String)] = [
             (.deposit, "Deposit received", "arrow.down"),
             (.withdrawal, "Withdrawal", "arrow.up.right"),
-            (.fund, "Deposit to Sunday Investors", "person.3"),
+            (.fund, "Funding Sunday Investors", "person.3"),
             (.cashOut, "Cashed out of Sunday Investors", "arrow.down.left"),
         ]
         for (kind, title, glyph) in expected {
@@ -39,8 +39,8 @@ final class AccountActivityRowTests: XCTestCase {
             (
                 .fund,
                 [
-                    .completed: "Deposit to Sunday Investors", .pending: "Deposit to Sunday Investors",
-                    .failed: "Deposit to Sunday Investors", .unknown: "Deposit to Sunday Investors",
+                    .completed: "Funding Sunday Investors", .pending: "Funding Sunday Investors",
+                    .failed: "Funding Sunday Investors", .unknown: "Funding Sunday Investors",
                 ]
             ),
             (
@@ -71,7 +71,7 @@ final class AccountActivityRowTests: XCTestCase {
     }
 
     func testAFundOrCashOutWithoutACabalSaysACabal() throws {
-        XCTAssertEqual(try makeRow(kind: .fund, cabal: nil).title, "Deposit to a cabal")
+        XCTAssertEqual(try makeRow(kind: .fund, cabal: nil).title, "Funding a cabal")
         XCTAssertEqual(try makeRow(kind: .cashOut, cabal: nil).title, "Cashed out of a cabal")
     }
 
@@ -204,7 +204,7 @@ final class AccountActivityRowTests: XCTestCase {
             try AccountActivityRow($0, now: now, timeZone: zone, locale: Locale(identifier: "en_US_POSIX"))
         }
 
-        XCTAssertEqual(first.prefix(3).map(\.title), ["Deposit received", "Deposit to QA pot", "Withdrawal"])
+        XCTAssertEqual(first.prefix(3).map(\.title), ["Deposit received", "Funding QA pot", "Withdrawal"])
         XCTAssertEqual(first.prefix(3).map(\.amount), ["+$25.00", "\u{2212}$10.00", "\u{2212}$5.00"])
         XCTAssertEqual(first[2].status, .pending)
         XCTAssertTrue(second.contains { $0.date.hasSuffix(", 2025") })

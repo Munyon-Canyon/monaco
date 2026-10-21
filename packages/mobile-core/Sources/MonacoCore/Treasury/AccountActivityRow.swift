@@ -92,7 +92,7 @@ public struct AccountActivityRow: Identifiable, Hashable, Sendable {
         switch kind {
         case .deposit: ("Deposit received", "arrow.down", "USDC")
         case .withdrawal: ("Withdrawal", "arrow.up.right", "USDC")
-        case .fund: ("Deposit to \(cabalName)", "person.3", "From cash")
+        case .fund: (CabalCopy.fundActivityTitle(cabalName: cabalName), "person.3", "From cash")
         case .cashOut: ("Cashed out of \(cabalName)", "arrow.down.left", "To cash")
         }
     }

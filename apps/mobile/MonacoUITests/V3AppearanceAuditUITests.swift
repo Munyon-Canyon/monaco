@@ -98,7 +98,7 @@ nonisolated final class V3AppearanceAuditUITests: XCTestCase {
         ("cabals-ready", "−11.4%", Reason.cover),
         ("cabals-ready", "Cabal · 1M — Return opens soon", Reason.inactive),
         ("create-cabal-ready", "Passes once more than half the voters say yes.", Reason.token),
-        ("cabal-ready", "Deposit", Reason.chrome),
+        ("cabal-ready", "Fund this cabal", Reason.chrome),
         ("cabal-ready", "Propose", Reason.chrome),
         ("cabal-ready", "Cash out", Reason.chrome),
         ("cabal-ready", "Open chat", Reason.chrome),

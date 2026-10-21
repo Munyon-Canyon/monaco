@@ -133,7 +133,7 @@ final class ReceiptContentTests: XCTestCase {
     func testAFundReceiptCarriesItsEyebrowAmountAndPersonalMark() throws {
         let content = ReceiptContent(try row(kind: .fund, micros: "-250000000"))
 
-        XCTAssertEqual(content.eyebrow, "Deposit to Big Ballers")
+        XCTAssertEqual(content.eyebrow, "Funding Big Ballers")
         XCTAssertEqual(content.amount, "\u{2212}$250.00")
         XCTAssertEqual(content.mark, .glyph("person.3"))
         XCTAssertEqual(content.related, .accountActivity)

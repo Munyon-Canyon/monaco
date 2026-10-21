@@ -1,19 +1,18 @@
 journey: money/fund-cabal
 expect-fail: S1
 
-The button reads "Fund $1.00" instead of "Deposit $1.00". S1.5 waits for it, so it must fail.
+The button reads "Deposit $1.00" instead of "Fund $1.00". S1.5 waits for it, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Deposit/FundCabalView.swift b/apps/mobile/Monaco/Features/Deposit/FundCabalView.swift
 index b86d42ccf..6e3af4ef3 100644
 --- a/apps/mobile/Monaco/Features/Deposit/FundCabalView.swift
 +++ b/apps/mobile/Monaco/Features/Deposit/FundCabalView.swift
-@@ -163,7 +163,7 @@ struct FundCabalForm: Equatable {
+@@ -163,6 +163,6 @@ struct FundCabalForm: Equatable {
      var ctaTitle: String {
          guard let value = AmountEntryText.decimal(amountText), value > 0 else { return "Enter an amount" }
-         let amount = UsdAmountFormatter.format(decimal: value)
--        return "Deposit \(amount)"
-+        return "Fund \(amount)"
+-        return CabalCopy.fundAction(amount: UsdAmountFormatter.format(decimal: value))
++        return "Deposit \(UsdAmountFormatter.format(decimal: value))"
      }
  
      /// The line under the figure: what there is to fund with, and what is still on its way out (funds and withdrawals).
