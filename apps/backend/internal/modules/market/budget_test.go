@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -41,6 +42,13 @@ func (r *budgetRig) setCalls(t *testing.T, calls int) {
 		time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC), calls, now)
 }
 
+func (r *budgetRig) reserve(t *testing.T, b *app.Budget) {
+	t.Helper()
+	if err := b.Reserve(r.ctx(t)); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func (r *budgetRig) usage(t *testing.T) app.BudgetUsage {
 	t.Helper()
 	u, err := r.budget.Usage(r.ctx(t))
@@ -50,14 +58,14 @@ func (r *budgetRig) usage(t *testing.T) app.BudgetUsage {
 	return u
 }
 
-func TestBudget_everyCallCountsAndTwoClientsShareOneCount(t *testing.T) {
+func TestBudget_everyReservationCountsAndTwoClientsShareOneCount(t *testing.T) {
 	t.Parallel()
 	r := newBudgetRig(t)
 	other := app.NewBudget(r.pool, r.clock, budgetLimit)
 	ctx := r.ctx(t)
-	r.budget.Spend(ctx)
-	other.Spend(ctx)
-	r.budget.Spend(ctx)
+	r.reserve(t, r.budget)
+	r.reserve(t, other)
+	r.reserve(t, r.budget)
 	for name, b := range map[string]*app.Budget{"first": r.budget, "second": other} {
 		u, err := b.Usage(ctx)
 		if err != nil || u.Calls != 3 || u.Limit != budgetLimit || u.Level != app.BudgetOpen {
@@ -98,9 +106,9 @@ func TestBudget_aZeroLimitNeverLimitsAndANilBudgetNeverCounts(t *testing.T) {
 		t.Fatalf("level with no limit = %s, want open", got)
 	}
 	var none *app.Budget
-	none.Spend(ctx)
+	r.reserve(t, none)
 	off := app.NewBudget(r.pool, r.clock, 0)
-	off.Spend(ctx)
+	r.reserve(t, off)
 	if got := none.Level(ctx); got != app.BudgetOpen || r.usage(t).Calls != 5_000 {
 		t.Fatalf("nil budget level = %s, calls = %d, want open and untouched", got, r.usage(t).Calls)
 	}
@@ -117,7 +125,7 @@ func TestBudget_aNewMonthStartsFromZero(t *testing.T) {
 	if got := r.usage(t); got.Calls != 0 || got.Level != app.BudgetOpen {
 		t.Fatalf("usage next month = %+v, want 0 calls and open", got)
 	}
-	r.budget.Spend(r.ctx(t))
+	r.reserve(t, r.budget)
 	if got := r.usage(t); got.Calls != 1 {
 		t.Fatalf("calls after one spend next month = %d, want 1", got.Calls)
 	}
@@ -134,8 +142,10 @@ func TestBudget_warnsOnceAtEachOfFiftyEightyAndNinetyFivePercent(t *testing.T) {
 	r := newBudgetRig(t)
 	r.setCalls(t, 40)
 	ctx := r.ctx(t)
-	for range 60 {
-		r.budget.Spend(ctx)
+	for range 55 {
+		if err := r.budget.Reserve(ctx); err != nil {
+			t.Fatal(err)
+		}
 	}
 	got := r.logs.Lines("market.coingecko.budget", "percent", "calls")
 	want := []string{"50 50", "80 80", "95 95"}
@@ -144,14 +154,64 @@ func TestBudget_warnsOnceAtEachOfFiftyEightyAndNinetyFivePercent(t *testing.T) {
 	}
 }
 
-func TestBudget_aCounterThatCannotBeReadOrWrittenNeverStopsWork(t *testing.T) {
+func TestBudget_aReservationStopsAtTheHardCapAndLeavesTheCountThere(t *testing.T) {
+	t.Parallel()
+	r := newBudgetRig(t)
+	r.setCalls(t, 94)
+	r.reserve(t, r.budget)
+	err := r.budget.Reserve(r.ctx(t))
+	if errs.CodeOf(err) != errs.CodeCoinGeckoRateLimited || r.usage(t).Calls != 95 {
+		t.Fatalf("reserve at the hard cap = %v with %d counted, want a rate limit and 95", err, r.usage(t).Calls)
+	}
+	r.setCalls(t, 5_000)
+	err = r.budget.Reserve(r.ctx(t))
+	if errs.CodeOf(err) != errs.CodeCoinGeckoRateLimited || r.usage(t).Calls != 5_000 {
+		t.Fatalf("reserve far over the cap = %v with %d counted, want a rate limit and the count untouched",
+			err, r.usage(t).Calls)
+	}
+}
+
+func TestBudget_theHardCapHoldsWhenManyWorkersReserveAtOnce(t *testing.T) {
+	t.Parallel()
+	r := newBudgetRig(t)
+	r.setCalls(t, 40)
+	workers := make([]*app.Budget, 4)
+	for i := range workers {
+		workers[i] = app.NewBudget(r.pool, r.clock, budgetLimit)
+	}
+	var admitted, refused atomic.Int32
+	var wg sync.WaitGroup
+	for i := range 200 {
+		wg.Go(func() {
+			switch err := workers[i%len(workers)].Reserve(r.ctx(t)); {
+			case err == nil:
+				admitted.Add(1)
+			case errs.CodeOf(err) == errs.CodeCoinGeckoRateLimited:
+				refused.Add(1)
+			default:
+				t.Error(err)
+			}
+		})
+	}
+	wg.Wait()
+	got := r.usage(t)
+	if admitted.Load() != 55 || refused.Load() != 145 || got.Calls != 95 || got.Level != app.BudgetHard {
+		t.Fatalf("admitted %d, refused %d, usage %+v, want 55 and 145 and exactly 95 counted",
+			admitted.Load(), refused.Load(), got)
+	}
+}
+
+func TestBudget_aCounterThatCannotBeReadOrWrittenFailsClosed(t *testing.T) {
 	t.Parallel()
 	r := newBudgetRig(t)
 	r.exec(t, `ALTER TABLE coingecko_usage RENAME TO coingecko_usage_gone`)
 	ctx := r.ctx(t)
-	r.budget.Spend(ctx)
-	if got := r.budget.Level(ctx); got != app.BudgetOpen {
-		t.Fatalf("level = %s, want open when the count cannot be read", got)
+	err := r.budget.Reserve(ctx)
+	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
+		t.Fatalf("reserve = %v, want %s when the count cannot be written", err, errs.CodeUpstreamUnavailable)
+	}
+	if got := r.budget.Level(ctx); got != app.BudgetHard {
+		t.Fatalf("level = %s, want hard when the count cannot be read", got)
 	}
 	if n := len(r.logs.Lines("market.coingecko.usage_failed", "err")); n != 2 {
 		t.Fatalf("usage_failed logs = %d, want 2", n)

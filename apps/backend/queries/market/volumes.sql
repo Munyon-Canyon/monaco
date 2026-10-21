@@ -13,12 +13,13 @@ SELECT mint, volume_24h_micros, as_of
 FROM asset_volumes
 WHERE mint = ANY (sqlc.arg(mints)::text[]) AND as_of >= sqlc.arg(since)::timestamptz;
 
--- name: RecordCoinGeckoCall :one
+-- name: ReserveCoinGeckoCall :one
 INSERT INTO coingecko_usage (month, calls, updated_at)
 VALUES (date_trunc('month', sqlc.arg(at)::timestamptz AT TIME ZONE 'UTC')::date, 1, sqlc.arg(at)::timestamptz)
 ON CONFLICT (month) DO UPDATE SET
   calls = coingecko_usage.calls + 1,
   updated_at = excluded.updated_at
+WHERE coingecko_usage.calls < sqlc.arg(hard)::bigint
 RETURNING calls;
 
 -- name: CoinGeckoCalls :one

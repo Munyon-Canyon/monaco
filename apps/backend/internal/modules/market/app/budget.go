@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -88,19 +90,41 @@ func (b *Budget) Level(ctx context.Context) BudgetLevel {
 	usage, err := b.Usage(ctx)
 	if err != nil {
 		observability.Degraded(ctx, observability.MarketCoinGeckoUsageFailed, slog.Any("err", err))
-		return BudgetOpen
+		return BudgetHard
 	}
 	return usage.Level
 }
 
-func (b *Budget) Spend(ctx context.Context) {
+func (b *Budget) Check(ctx context.Context) error {
+	const op = "market.Budget.Check"
 	if b == nil || b.limit <= 0 {
-		return
+		return nil
 	}
-	calls, err := sqlc.New(b.reads).RecordCoinGeckoCall(ctx, b.clock.Now())
+	usage, err := b.Usage(ctx)
 	if err != nil {
 		observability.Degraded(ctx, observability.MarketCoinGeckoUsageFailed, slog.Any("err", err))
-		return
+		return errs.Wrap(err, errs.CodeUpstreamUnavailable, op)
+	}
+	if usage.Level == BudgetHard {
+		return errs.New(errs.CodeCoinGeckoRateLimited, op, slog.Bool("budget", true))
+	}
+	return nil
+}
+
+func (b *Budget) Reserve(ctx context.Context) error {
+	const op = "market.Budget.Reserve"
+	if b == nil || b.limit <= 0 {
+		return nil
+	}
+	calls, err := sqlc.New(b.reads).ReserveCoinGeckoCall(ctx, sqlc.ReserveCoinGeckoCallParams{
+		At: b.clock.Now(), Hard: int64(b.threshold(budgetHardPercent)),
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return errs.New(errs.CodeCoinGeckoRateLimited, op, slog.Bool("budget", true))
+	}
+	if err != nil {
+		observability.Degraded(ctx, observability.MarketCoinGeckoUsageFailed, slog.Any("err", err))
+		return errs.Wrap(err, errs.CodeUpstreamUnavailable, op)
 	}
 	for _, percent := range []int{50, budgetSoftPercent, budgetHardPercent} {
 		at := b.threshold(percent)
@@ -109,4 +133,5 @@ func (b *Budget) Spend(ctx context.Context) {
 				slog.Int("percent", percent), slog.Int("calls", int(calls)), slog.Int("limit", b.limit))
 		}
 	}
+	return nil
 }

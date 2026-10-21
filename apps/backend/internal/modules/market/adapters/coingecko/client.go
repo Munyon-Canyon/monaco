@@ -131,14 +131,16 @@ func (c *Client) get(ctx context.Context, op, target string, attrs ...slog.Attr)
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	req.Header.Set(c.plan.KeyHeader(), c.key)
 	req.Header.Set("Accept", "application/json")
-	if c.spend.Level(ctx) == app.BudgetHard {
-		return nil, errs.New(errs.CodeCoinGeckoRateLimited, op, append(attrs, slog.Bool("budget", true))...)
+	gate := func(ctx context.Context) error {
+		if err := c.spend.Check(ctx); err != nil {
+			return errs.Wrap(err, errs.CodeOf(err), op, attrs...)
+		}
+		if err := c.limit.Wait(ctx); err != nil {
+			return errs.Wrap(err, errs.CodeUpstreamUnavailable, op, attrs...)
+		}
+		return c.spend.Reserve(ctx)
 	}
-	if err := c.limit.Wait(ctx); err != nil {
-		return nil, errs.Wrap(err, errs.CodeUpstreamUnavailable, op, attrs...)
-	}
-	c.spend.Spend(ctx)
-	resp, err := c.http.Do(ctx, req)
+	resp, err := c.http.Do(httpclient.WithAttemptGate(ctx, gate), req)
 	if err != nil {
 		code := errs.CodeOf(err)
 		if rateLimited(err) {

@@ -102,39 +102,98 @@ func (c *Client) CloseIdleConnections() {
 	c.http.CloseIdleConnections()
 }
 
+func WithAttemptGate(ctx context.Context, gate func(context.Context) error) context.Context {
+	return context.WithValue(ctx, gateKey{}, gate)
+}
+
+type gateKey struct{}
+
+func gateFrom(ctx context.Context) func(context.Context) error {
+	gate, _ := ctx.Value(gateKey{}).(func(context.Context) error)
+	return gate
+}
+
+type outcome struct {
+	err    error
+	status int
+	resp   *http.Response
+}
+
 func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, error) {
 	if req.Body != nil && req.GetBody == nil {
 		return nil, errs.New(errs.CodeInvalidInput, "httpclient.Do", slog.String("upstream", c.name))
 	}
+	done, refused, err := c.admit(ctx)
+	if refused != nil {
+		return nil, refused
+	}
 	deadline := errs.New(errs.CodeUpstreamTimeout, "httpclient.deadline", slog.String("upstream", c.name))
 	ctx, cancel := context.WithTimeoutCause(ctx, c.timeout, deadline)
+	return c.run(ctx, cancel, req, deadline, done, err)
+}
+
+func (c *Client) run(
+	ctx context.Context, cancel context.CancelFunc, req *http.Request, deadline error, done func(error), err error,
+) (*http.Response, error) {
+	var last outcome
 	for attempt := 1; ; attempt++ {
-		resp, err := c.send(ctx, req, attempt, deadline)
-		if err == nil && (!retryable(resp.StatusCode) || slices.Contains(c.returned, resp.StatusCode)) {
+		var resp *http.Response
+		if attempt > 1 {
+			var refused error
+			if done, refused, err = c.admit(ctx); refused != nil {
+				failure := c.fail(ctx, last.err, last.status, attempt-1, last.resp)
+				cancel()
+				return nil, failure
+			}
+		}
+		if err == nil {
+			resp, err = c.send(ctx, req, attempt, deadline, done)
+		}
+		if c.accepted(resp, err) {
 			resp.Body = cancelBody{ReadCloser: resp.Body, cancel: cancel, upstream: c.name}
 			return resp, nil
 		}
-		status := 0
-		if resp != nil {
-			status = resp.StatusCode
-			drain(resp)
+		last = settle(resp, err)
+		if attempt >= c.attempts || ctx.Err() != nil || breakerOpen(err) || !c.wait(ctx, attempt, last.status, resp) {
+			cancel()
+			return nil, c.fail(ctx, err, last.status, attempt, resp)
 		}
-		if attempt < c.attempts && ctx.Err() == nil && !breakerOpen(err) && c.wait(ctx, attempt, status, resp) {
-			continue
-		}
-		cancel()
-		return nil, c.fail(ctx, err, status, attempt, resp)
 	}
 }
 
-func (c *Client) send(ctx context.Context, req *http.Request, attempt int, deadline error) (*http.Response, error) {
+func (c *Client) accepted(resp *http.Response, err error) bool {
+	return err == nil && (!retryable(resp.StatusCode) || slices.Contains(c.returned, resp.StatusCode))
+}
+
+func settle(resp *http.Response, err error) outcome {
+	if resp == nil {
+		return outcome{err: err}
+	}
+	drain(resp)
+	return outcome{err: err, status: resp.StatusCode, resp: resp}
+}
+
+func (c *Client) admit(ctx context.Context) (done func(error), refused, err error) {
+	done, err = c.breaker.Allow()
+	if err != nil {
+		return nil, nil, errs.Wrap(err, errs.CodeUpstreamUnavailable, "httpclient.send")
+	}
+	if gate := gateFrom(ctx); gate != nil {
+		if err := gate(ctx); err != nil {
+			done(c.callerGone)
+			return nil, err, nil
+		}
+	}
+	return done, nil, nil
+}
+
+func (c *Client) send(
+	ctx context.Context, req *http.Request, attempt int, deadline error, done func(error),
+) (*http.Response, error) {
 	r, err := c.outbound(req)
 	if err != nil {
+		done(c.callerGone)
 		return nil, err
-	}
-	done, err := c.breaker.Allow()
-	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeUpstreamUnavailable, "httpclient.send")
 	}
 	tp := otel.GetTracerProvider()
 	if parent := trace.SpanFromContext(ctx); parent.IsRecording() {
