@@ -6,6 +6,7 @@ import (
 
 	"github.com/nats-io/nats.go/jetstream"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
@@ -63,4 +64,19 @@ func fetchOne(t *testing.T, c jetstream.Consumer) func() error {
 		t.Fatalf("fetched %d messages, want 1", len(held))
 	}
 	return held[0].Ack
+}
+
+func TestConsumerBacklog_failsAsUnavailableWhenTheEventsStreamIsMissing(t *testing.T) {
+	t.Parallel()
+	b := testkit.NATS(t)
+	if err := b.JS.DeleteStream(t.Context(), b.Events); err != nil {
+		t.Fatal(err)
+	}
+	_, err := b.Conn.ConsumerBacklog(t.Context(), time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))
+	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
+		t.Fatalf("ConsumerBacklog without the stream = %v, want upstream_unavailable", err)
+	}
+	if _, err := b.Conn.Apply(t.Context()); err != nil {
+		t.Fatal(err)
+	}
 }

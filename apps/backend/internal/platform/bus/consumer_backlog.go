@@ -21,13 +21,16 @@ func (c *Conn) ConsumerBacklog(ctx context.Context, now time.Time) (ConsumerBack
 	if err != nil {
 		return ConsumerBacklog{}, errs.Wrap(err, errs.CodeUpstreamUnavailable, op)
 	}
-	lister := s.ListConsumers(ctx)
+	return backlogOf(s.ListConsumers(ctx), now)
+}
+
+func backlogOf(lister jetstream.ConsumerInfoLister, now time.Time) (ConsumerBacklog, error) {
 	var out ConsumerBacklog
 	for info := range lister.Info() {
 		out = out.merge(info, now)
 	}
 	if err := lister.Err(); err != nil {
-		return ConsumerBacklog{}, errs.Wrap(err, errs.CodeUpstreamUnavailable, op)
+		return ConsumerBacklog{}, errs.Wrap(err, errs.CodeUpstreamUnavailable, "bus.ConsumerBacklog")
 	}
 	return out, nil
 }

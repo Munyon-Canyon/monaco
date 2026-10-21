@@ -1,10 +1,13 @@
 package bus
 
 import (
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
 func TestConsumerBacklogMerge_takesTheOldestStalledAckFloorAndIgnoresDrainedConsumers(t *testing.T) {
@@ -25,5 +28,23 @@ func TestConsumerBacklogMerge_takesTheOldestStalledAckFloorAndIgnoresDrainedCons
 	}
 	if want := (ConsumerBacklog{Pending: 8, Oldest: 10 * time.Minute}); got != want {
 		t.Fatalf("merged backlog = %+v, want %+v", got, want)
+	}
+}
+
+type failingLister struct{ err error }
+
+func (l failingLister) Info() <-chan *jetstream.ConsumerInfo {
+	ch := make(chan *jetstream.ConsumerInfo)
+	close(ch)
+	return ch
+}
+
+func (l failingLister) Err() error { return l.err }
+
+func TestBacklogOf_failsAsUnavailableWhenTheListingBreaks(t *testing.T) {
+	t.Parallel()
+	got, err := backlogOf(failingLister{err: errors.New("connection closed")}, time.Time{})
+	if got != (ConsumerBacklog{}) || errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
+		t.Fatalf("backlogOf = %+v, %v; want zero and upstream_unavailable", got, err)
 	}
 }

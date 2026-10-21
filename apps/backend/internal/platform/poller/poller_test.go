@@ -648,3 +648,29 @@ func TestRunner_aConfiguredBackoffCapReplacesTheDefault(t *testing.T) {
 		h.clock.Advance(2 * time.Second)
 	}
 }
+
+type gaugeBreaksMeter struct{ noop.Meter }
+
+func (gaugeBreaksMeter) Int64ObservableGauge(
+	string, ...metric.Int64ObservableGaugeOption,
+) (metric.Int64ObservableGauge, error) {
+	return nil, errs.New(errs.CodeInternal, "test.gauge")
+}
+
+type callbackBreaksMeter struct{ noop.Meter }
+
+func (callbackBreaksMeter) RegisterCallback(metric.Callback, ...metric.Observable) (metric.Registration, error) {
+	return nil, errs.New(errs.CodeInternal, "test.callback")
+}
+
+func TestNewRunner_failsWhenTheSuccessGaugeCannotBeExported(t *testing.T) {
+	t.Parallel()
+	for name, meter := range map[string]metric.Meter{
+		"gauge": gaugeBreaksMeter{}, "callback": callbackBreaksMeter{},
+	} {
+		runner, err := poller.NewRunner(nil, testkit.NewClock(epoch()), meter)
+		if runner != nil || errs.CodeOf(err) != errs.CodeInternal {
+			t.Errorf("NewRunner with a broken %s = %v, %v; want nil and internal", name, runner, err)
+		}
+	}
+}
