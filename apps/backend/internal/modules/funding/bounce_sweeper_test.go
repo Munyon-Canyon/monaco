@@ -118,8 +118,8 @@ func TestBounceSweeper_FailsARejectedBounce(t *testing.T) {
 
 	f.tick(t)
 
-	if f.status(t, id) != "bounce_failed" || externalPauses(t, f.pool) != 1 {
-		t.Fatal("want bounce_failed with the pause kept")
+	if f.status(t, id) != "bounce_failed" || externalPauses(t, f.pool) != 0 || !f.resolved(t, id) {
+		t.Fatal("want bounce_failed, resolved and no pause")
 	}
 }
 

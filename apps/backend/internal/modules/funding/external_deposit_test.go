@@ -259,7 +259,7 @@ func detectedEvent(t *testing.T, pool *pgxpool.Pool) events.CabalExternalDeposit
 	return e
 }
 
-func TestDetectExternalDeposit_USDCFromMemberPausesTheCabal(t *testing.T) {
+func TestDetectExternalDeposit_USDCFromMemberRecordsWithoutPausingTheCabal(t *testing.T) {
 	t.Parallel()
 	member := identityport.MemberWallet{UserID: ids.UserIDFrom(ids.Real{}.NewV7()), Address: randomAddress(t)}
 	env := newWatchEnv(t, member)
@@ -274,7 +274,7 @@ func TestDetectExternalDeposit_USDCFromMemberPausesTheCabal(t *testing.T) {
 	if row.status != "detected" || row.source != "webhook" || row.amount != "25000000" || row.resolved {
 		t.Fatalf("row = %+v, want an open detected webhook row of 25000000", row)
 	}
-	assertPausedOnce(t, env)
+	assertNotPaused(t, env)
 	e := detectedEvent(t, env.pool)
 	want := events.CabalExternalDepositDetected{
 		V: 1, ExternalDepositID: res.ExternalDepositID, CabalID: env.cabal.ID.UUID(), Signature: sig,
@@ -291,13 +291,17 @@ func TestDetectExternalDeposit_USDCFromMemberPausesTheCabal(t *testing.T) {
 	}
 }
 
-func assertPausedOnce(t *testing.T, env *watchEnv) {
+func assertNotPaused(t *testing.T, env *watchEnv) {
 	t.Helper()
-	if externalPauses(t, env.pool) != 1 || countEvents(t, env.pool, events.TypeCabalPaused) != 1 {
-		t.Fatal("want one open external_deposit pause and one cabal.paused")
+	if externalPauses(t, env.pool) != 0 || countEvents(t, env.pool, events.TypeCabalPaused) != 0 {
+		t.Fatal("want no external_deposit pause and no cabal.paused")
 	}
-	if got := env.hints.all(); len(got) != 1 || got[0] != "cabal."+env.cabal.ID.String()+".pause_changed" {
-		t.Fatalf("hints = %v, want one pause_changed", got)
+	if got := env.hints.all(); len(got) != 0 {
+		t.Fatalf("hints = %v, want no pause_changed", got)
+	}
+	paused, err := adapters.NewPauses(env.pool).IsPaused(t.Context(), env.cabal.ID)
+	if err != nil || paused.Paused {
+		t.Fatalf("IsPaused = %+v, %v, want not paused", paused, err)
 	}
 }
 
@@ -316,9 +320,10 @@ func TestDetectExternalDeposit_RedeliveryAndPollerRecordOneRow(t *testing.T) {
 	if n := len(externalDeposits(t, env.pool)); n != 1 {
 		t.Fatalf("rows = %d, want 1", n)
 	}
-	if externalPauses(t, env.pool) != 1 || countEvents(t, env.pool, events.TypeCabalExternalDepositDetected) != 1 {
-		t.Fatal("want one pause and one detection event")
+	if countEvents(t, env.pool, events.TypeCabalExternalDepositDetected) != 1 {
+		t.Fatal("want one detection event")
 	}
+	assertNotPaused(t, env)
 }
 
 func TestDetectExternalDeposit_ConcurrentDeliveriesRecordOneRow(t *testing.T) {
@@ -339,10 +344,10 @@ func TestDetectExternalDeposit_ConcurrentDeliveriesRecordOneRow(t *testing.T) {
 	if err := g.Wait(); err != nil {
 		t.Fatal(err)
 	}
-	if recorded.Load() != 1 || externalPauses(t, env.pool) != 1 ||
-		countEvents(t, env.pool, events.TypeCabalExternalDepositDetected) != 1 {
-		t.Fatalf("recorded = %d, want one row, one pause and one event", recorded.Load())
+	if recorded.Load() != 1 || countEvents(t, env.pool, events.TypeCabalExternalDepositDetected) != 1 {
+		t.Fatalf("recorded = %d, want one row and one event", recorded.Load())
 	}
+	assertNotPaused(t, env)
 }
 
 func TestDetectExternalDeposit_OwnSignatureIsSkippedBeforeAnyChainRead(t *testing.T) {
@@ -447,8 +452,8 @@ func TestDetectExternalDeposit_StockPricing(t *testing.T) {
 
 			res := env.handle(t, sig, domain.SourceWebhook)
 
-			if res.Verdict != domain.VerdictDetected || externalPauses(t, env.pool) != 1 {
-				t.Fatalf("result = %+v, want a detection and a pause", res)
+			if res.Verdict != domain.VerdictDetected || externalPauses(t, env.pool) != 0 {
+				t.Fatalf("result = %+v, want a detection and no pause", res)
 			}
 			if e := detectedEvent(t, env.pool); e.AssetID == nil || *e.AssetID != env.stock.ID.UUID() {
 				t.Fatalf("event asset = %v, want %s", e.AssetID, env.stock.ID)
@@ -460,20 +465,16 @@ func TestDetectExternalDeposit_StockPricing(t *testing.T) {
 	}
 }
 
-func TestDetectExternalDeposit_SecondDetectionAddsAPauseRowButNoSecondPausedEvent(t *testing.T) {
+func TestDetectExternalDeposit_RepeatedDepositsNeverPauseTheCabal(t *testing.T) {
 	t.Parallel()
 	env := newWatchEnv(t)
 	env.handle(t, env.inbound(t, env.usdcMint(), 2_000_000, randomAddress(t)), domain.SourceWebhook)
 	env.handle(t, env.inbound(t, env.usdcMint(), 3_000_000, randomAddress(t)), domain.SourceReconcile)
 
-	if externalPauses(t, env.pool) != 2 || countEvents(t, env.pool, events.TypeCabalPaused) != 1 ||
-		countEvents(t, env.pool, events.TypeCabalExternalDepositDetected) != 2 {
-		t.Fatal("want two pause rows, one cabal.paused and two detections")
+	if countEvents(t, env.pool, events.TypeCabalExternalDepositDetected) != 2 {
+		t.Fatal("want two detections")
 	}
-	paused, err := adapters.NewPauses(env.pool).IsPaused(t.Context(), env.cabal.ID)
-	if err != nil || !paused.Paused {
-		t.Fatalf("IsPaused = %+v, %v, want paused", paused, err)
-	}
+	assertNotPaused(t, env)
 }
 
 func TestDetectExternalDeposit_NoInboundTransferRecordsNothing(t *testing.T) {

@@ -249,8 +249,8 @@ func TestTreasuryReconcile_SurplusRecordsOnlyTheStrayTransfer(t *testing.T) {
 	if len(rows) != 1 || rows[string(stray)].source != "reconcile" || rows[string(stray)].status != "detected" {
 		t.Fatalf("rows = %+v, want only the stray transfer from reconcile", rows)
 	}
-	if env.cursor(t) != string(stray) || externalPauses(t, env.pool) != 1 {
-		t.Fatalf("cursor = %q, want the newest signature %q and one pause", env.cursor(t), stray)
+	if env.cursor(t) != string(stray) || externalPauses(t, env.pool) != 0 {
+		t.Fatalf("cursor = %q, want the newest signature %q and no pause", env.cursor(t), stray)
 	}
 }
 

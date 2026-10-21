@@ -2,11 +2,9 @@ package flows
 
 import (
 	"crypto/ed25519"
-	"encoding/json"
 	"net/http"
 	"slices"
 
-	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
@@ -87,17 +85,6 @@ func bounceLands(landed bool) scenario.Step {
 	return scenario.FakeUpstream(step)
 }
 
-func pausedFor(reason string) scenario.Step {
-	return scenario.ExpectField("pause", func(s *scenario.Scenario, raw json.RawMessage) {
-		var pause struct {
-			Reasons []string `json:"reasons"`
-		}
-		if err := json.Unmarshal(raw, &pause); err != nil || !slices.Contains(pause.Reasons, reason) {
-			s.Fatalf("flows: preview pause %s, want reasons with %s", raw, reason)
-		}
-	})
-}
-
 func cabalEvents(cabal ids.CabalID, want map[events.Type]int) scenario.Step {
 	return func(s *scenario.Scenario) {
 		for typ, n := range want {
@@ -117,14 +104,13 @@ func cabalEvents(cabal ids.CabalID, want map[events.Type]int) scenario.Step {
 func sentBackOnce(cabal ids.CabalID) []scenario.Step {
 	return []scenario.Step{
 		scenario.EventuallyCabalEvent(cabal, events.TypeCabalExternalDepositBounced),
-		scenario.EventuallyCabalEvent(cabal, events.TypeCabalResumed),
 		scenario.ExpectEventPayload(events.TypeCabalExternalDepositBounced, map[string]any{
 			"cabal_id": cabal.String(), "recipient": reconcileSender, "mint": testkit.USDCMint,
 			"amount": "25000000",
 		}),
 		cabalEvents(cabal, map[events.Type]int{
 			events.TypeCabalExternalDepositDetected: 1, events.TypeCabalExternalDepositBounced: 1,
-			events.TypeCabalPaused: 1, events.TypeCabalResumed: 1,
+			events.TypeCabalPaused: 0, events.TypeCabalResumed: 0,
 		}),
 		func(s *scenario.Scenario) {
 			var sends int
@@ -146,13 +132,12 @@ func F08DetectExternalDepositOK(s *scenario.Scenario) {
 		When(append([]scenario.Step{
 			scenario.AwaitTick(reconcilePoller),
 			externalDepositIs(reconcileUSDCSig, "bouncing"),
-			scenario.Post(f.path(), fundBody),
-			scenario.ExpectProblem(errs.CodeCabalPaused),
-			scenario.Post("/v1/cabals/"+cabal.String()+"/cashouts", cashOutOf("1000000")),
-			scenario.ExpectProblem(errs.CodeCabalPaused),
 			scenario.Get(preview),
 			scenario.ExpectStatus(http.StatusOK),
-			pausedFor("external_deposit"),
+			scenario.ExpectJSON("pause", nil),
+			scenario.Post(f.path(), fundBody),
+			scenario.ExpectStatus(http.StatusAccepted),
+			scenario.ExpectJSON("status", "submitted"),
 			bounceLands(true),
 			externalDepositIs(reconcileUSDCSig, "returned"),
 		}, sentBackOnce(cabal)...)...).
@@ -160,9 +145,6 @@ func F08DetectExternalDepositOK(s *scenario.Scenario) {
 			scenario.Get(preview),
 			scenario.ExpectStatus(http.StatusOK),
 			scenario.ExpectJSON("pause", nil),
-			scenario.Post(f.path(), fundBody),
-			scenario.ExpectStatus(http.StatusAccepted),
-			scenario.ExpectJSON("status", "submitted"),
 		)
 }
 
@@ -199,7 +181,7 @@ func F08DetectExternalDepositBounceFailed(s *scenario.Scenario) {
 		).
 		Then(
 			cabalEvents(cabal, map[events.Type]int{
-				events.TypeCabalPaused: 1, events.TypeCabalResumed: 0, events.TypeCabalExternalDepositBounced: 0,
+				events.TypeCabalPaused: 0, events.TypeCabalResumed: 0, events.TypeCabalExternalDepositBounced: 0,
 			}),
 			signaturesListed(""),
 		)

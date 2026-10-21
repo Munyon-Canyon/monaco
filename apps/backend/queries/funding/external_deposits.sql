@@ -30,7 +30,8 @@ FROM external_deposits WHERE id = $1;
 -- name: StartBounce :execrows
 UPDATE external_deposits
 SET status = 'bouncing', bounce_signature = sqlc.arg(bounce_signature)::text,
-  bounce_signed_tx = sqlc.arg(bounce_signed_tx)::bytea, bounce_attempts = bounce_attempts + 1
+  bounce_signed_tx = sqlc.arg(bounce_signed_tx)::bytea, bounce_attempts = bounce_attempts + 1,
+  resolved_at = NULL
 WHERE id = sqlc.arg(id)::uuid AND status = sqlc.arg(from_status)::text;
 
 -- name: ReturnBounce :execrows
@@ -38,7 +39,7 @@ UPDATE external_deposits SET status = 'returned', resolved_at = sqlc.arg(resolve
 WHERE id = sqlc.arg(id)::uuid AND status = 'bouncing' AND bounce_signature = sqlc.arg(bounce_signature)::text;
 
 -- name: FailBounce :execrows
-UPDATE external_deposits SET status = 'bounce_failed'
+UPDATE external_deposits SET status = 'bounce_failed', resolved_at = sqlc.arg(resolved_at)::timestamptz
 WHERE id = sqlc.arg(id)::uuid AND status = sqlc.arg(from_status)::text;
 
 -- name: OpenExternalDepositPauses :many

@@ -24,7 +24,9 @@ func TestLedgerCheck_namesAPauseLeftOpenOnASettledDeposit(t *testing.T) {
 	if diffs, err := check.Check(t.Context(), f.pool); err != nil || len(diffs) != 0 {
 		t.Fatalf("returned deposit = %q, %v, want its pause resolved", diffs, err)
 	}
-	if _, err := f.pool.Exec(t.Context(), `UPDATE cabal_pauses SET resolved_at = NULL WHERE external_deposit_id = $1`,
+	if _, err := f.pool.Exec(t.Context(), `INSERT INTO cabal_pauses
+		(id, cabal_id, reason, created_at, external_deposit_id)
+		SELECT gen_random_uuid(), cabal_id, 'external_deposit', now(), id FROM external_deposits WHERE id = $1`,
 		id); err != nil {
 		t.Fatal(err)
 	}

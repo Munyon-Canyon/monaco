@@ -221,15 +221,16 @@ func resolveDepositPauses(ctx context.Context, tx db.Tx, at time.Time, hints Hin
 func (b *Bouncer) fail(ctx context.Context, row bounceRow, reason string) error {
 	moved := false
 	err := b.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		now := b.d.Clock.Now()
 		n, err := sqlc.New(tx.Queries()).FailBounce(ctx, sqlc.FailBounceParams{
-			ID: row.id, FromStatus: string(row.status),
+			ID: row.id, FromStatus: string(row.status), ResolvedAt: now,
 		})
 		if err != nil || n == 0 {
 			return err
 		}
 		moved = true
 		b.moved(tx, row, domain.ExternalBounceFailed)
-		return nil
+		return resolveDepositPauses(ctx, tx, now, b.d.Hints, row.id)
 	})
 	if err != nil || !moved {
 		return err

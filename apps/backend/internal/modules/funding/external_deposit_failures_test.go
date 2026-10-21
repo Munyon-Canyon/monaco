@@ -90,11 +90,6 @@ func TestDetectExternalDeposit_FailuresRecordNothing(t *testing.T) {
 			refuseInserts(t, e)
 			return actor(t), e.inbound(t, e.usdcMint(), 1, randomAddress(t))
 		},
-		"the pause write fails": func(t *testing.T, e *watchEnv) (context.Context, chain.Signature) {
-			t.Helper()
-			exec(t, e.pool, `ALTER TABLE cabal_pauses RENAME TO cabal_pauses_gone`)
-			return actor(t), usdc(t, e)
-		},
 		"the event append fails without an actor": func(t *testing.T, e *watchEnv) (context.Context, chain.Signature) {
 			t.Helper()
 			return t.Context(), usdc(t, e)

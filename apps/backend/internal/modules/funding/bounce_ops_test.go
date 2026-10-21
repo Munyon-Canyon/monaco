@@ -9,7 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/domain"
 )
 
-func TestBounceOps_HoldEndsThePauseWithoutABounce(t *testing.T) {
+func TestBounceOps_HoldResolvesTheRowWithoutABounce(t *testing.T) {
 	t.Parallel()
 	f := newBounceFixture(t)
 	id := f.detected(t, flow08USDCSig)
@@ -18,9 +18,9 @@ func TestBounceOps_HoldEndsThePauseWithoutABounce(t *testing.T) {
 		t.Fatal(err)
 	}
 	if f.status(t, id) != "held" || externalPauses(t, f.pool) != 0 ||
-		countEvents(t, f.pool, events.TypeCabalResumed) != 1 ||
+		countEvents(t, f.pool, events.TypeCabalResumed) != 0 || !f.resolved(t, id) ||
 		countEvents(t, f.pool, events.TypeCabalExternalDepositBounced) != 0 || f.ledgerRows(t) != 0 {
-		t.Fatal("want held, the pause ended, cabal.resumed, no bounce event and no ledger rows")
+		t.Fatal("want held and resolved with no pause, no bounce event and no ledger rows")
 	}
 	if err := f.bouncer.Start(bounceCtx(t), id); err != nil || len(f.transfers.builds) != 0 {
 		t.Fatalf("Start on a held deposit = %v with %d builds, want nothing sent", err, len(f.transfers.builds))
