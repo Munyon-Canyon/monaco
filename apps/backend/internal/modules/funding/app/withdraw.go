@@ -140,6 +140,7 @@ func (h *WithdrawHandler) create(
 	ctx context.Context, cmd Withdraw,
 ) (prior sqlc.GetWithdrawalRow, replayed bool, err error) {
 	const op = "funding.Withdraw.create"
+	obs, observeErr := h.d.Balances.Observe(ctx, cmd.UserID)
 	err = h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		prior, replayed = sqlc.GetWithdrawalRow{}, false
 		q := sqlc.New(tx.Queries())
@@ -155,7 +156,10 @@ func (h *WithdrawHandler) create(
 			prior, err = GetWithdrawal(ctx, tx.Queries(), bound, cmd.UserID)
 			return err
 		}
-		balance, err := h.d.Balances.Available(ctx, cmd.UserID)
+		if observeErr != nil {
+			return observeErr
+		}
+		balance, err := h.d.Balances.AvailableIn(ctx, tx.Queries(), obs)
 		if err != nil {
 			return err
 		}

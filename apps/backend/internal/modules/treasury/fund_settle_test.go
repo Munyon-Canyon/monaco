@@ -14,6 +14,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
@@ -31,6 +32,7 @@ type settleStubs struct {
 	reads        *adapters.Queries
 	pot          *money.Micros
 	potErr       error
+	readsErr     error
 	onTotal      func()
 	onStatuses   func()
 	hints        []string
@@ -73,6 +75,18 @@ func (s *settleStubs) TotalShares(ctx context.Context, cabal ids.CabalID) (money
 	return total, err
 }
 
+func (s *settleStubs) PotBasis(ctx context.Context, cabal ids.CabalID) (string, error) {
+	return s.reads.PotBasis(ctx, cabal)
+}
+
+type failingPotReads struct{ err error }
+
+func (r failingPotReads) TotalShares(context.Context, ids.CabalID) (money.SharesUnits, error) {
+	return money.SharesUnits{}, r.err
+}
+
+func (r failingPotReads) PotBasis(context.Context, ids.CabalID) (string, error) { return "", r.err }
+
 func (s *settleStubs) PublishHint(_ context.Context, key string, _ []byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -89,10 +103,20 @@ const fundSendWindow = 2 * time.Minute
 
 func newSettleHarness(t *testing.T) *settleHarness {
 	t.Helper()
-	h := newFundHarness(t)
+	return newSettleHarnessOn(t, newFundHarness(t))
+}
+
+func newSettleHarnessOn(t *testing.T, h *fundHarness) *settleHarness {
+	t.Helper()
 	s := &settleStubs{statuses: map[chain.Signature]solana.Status{}, reads: h.stubs.owner}
 	settler := app.NewFundSettler(app.FundSettlerDeps{
 		Reads: h.pool, UoW: h.uow, IDs: h.ids, Clock: h.clock, Chain: s, Transfers: s, Pot: s,
+		PotOn: func(db sqlc.DBTX) app.FundPotReads {
+			if s.readsErr != nil {
+				return failingPotReads{err: s.readsErr}
+			}
+			return s.reads.On(db)
+		},
 		Ledger: h.ledger, USDC: h.usdc(), Hints: s, SendWindow: fundSendWindow,
 	})
 	return &settleHarness{fundHarness: h, chain: s, settler: settler}
@@ -441,6 +465,46 @@ func TestFundSettler_mintsOnlyOnceWhenAnotherRunnerSettlesFirst(t *testing.T) {
 	h.tick(t)
 	if n := h.count(t, "user_txns"); n != 0 || h.events(t, "cabal.funded") != 0 {
 		t.Fatalf("user_txns = %d, want the other runner's settle to win", n)
+	}
+}
+
+func TestFundSettler_waitsWhenTheCabalMovesBetweenTheQuoteAndTheLock(t *testing.T) {
+	t.Parallel()
+	h := newSettleHarness(t)
+	id := h.landed(t, "5000000")
+	moved := false
+	h.chain.onTotal = func() {
+		if moved {
+			return
+		}
+		moved = true
+		_, err := h.pool.Exec(context.Background(), `INSERT INTO cabal_positions
+			(cabal_id, asset, units, cost_basis_micros, updated_at) VALUES ($1, $2, 1, 1, $3)`,
+			h.cabal.UUID(), h.cfg.Solana.USDCMint, h.clock.Now())
+		if err != nil {
+			t.Error(err)
+		}
+	}
+	if err := h.tickErr(); err != nil {
+		t.Fatalf("Tick after the cabal moved = %v, want nil", err)
+	}
+	if status, _, _ := h.status(t, id); status != "landed" || h.count(t, "user_txns") != 0 {
+		t.Fatalf("status after the cabal moved = %s, want landed with nothing posted", status)
+	}
+	h.tick(t)
+	if status, _, _ := h.status(t, id); status != "settled" {
+		t.Fatalf("status once the cabal holds still = %s, want settled", status)
+	}
+}
+
+func TestFundSettler_keepsTheTransferWhenTheLockedReadFails(t *testing.T) {
+	t.Parallel()
+	h := newSettleHarness(t)
+	id := h.landed(t, "5000000")
+	h.chain.readsErr = errs.New(errs.CodeInternal, "stub")
+	wantCode(t, h.tickErr(), errs.CodeInternal)
+	if status, _, _ := h.status(t, id); status != "landed" || h.count(t, "user_txns") != 0 {
+		t.Fatalf("status after the locked read failed = %s, want landed with nothing posted", status)
 	}
 }
 

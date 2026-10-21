@@ -24,6 +24,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -119,6 +120,10 @@ func newWithdrawFixture(t *testing.T, onChain uint64, opts ...func(*app.Withdraw
 			adapters.Outflows{
 				Funds:       treasury.New(module.Deps{Pool: pool}).FundOutflows(),
 				Withdrawals: app.WithdrawalOutflows{Reads: pool},
+				FundsOn: func(q dbsqlc.DBTX) app.Outflows {
+					return treasury.New(module.Deps{Pool: pool}).FundOutflowsOn(q)
+				},
+				WithdrawalsOn: func(q dbsqlc.DBTX) app.Outflows { return app.WithdrawalOutflows{Reads: q} },
 			},
 			clk, usdc),
 		Wallets:    signingWallet{wallet: chain.Wallet{ID: f.user.PrivyWalletID, Address: f.user.Address}},
@@ -373,6 +378,16 @@ func (t treasuriesErr) TreasuryWallets(context.Context) ([]cabalport.TreasuryWal
 type fixedBalancesErr struct{ err error }
 
 func (b fixedBalancesErr) Available(context.Context, ids.UserID) (funding.Balance, error) {
+	return funding.Balance{}, b.err
+}
+
+func (b fixedBalancesErr) Observe(context.Context, ids.UserID) (funding.Observation, error) {
+	return funding.Observation{}, b.err
+}
+
+func (b fixedBalancesErr) AvailableIn(
+	context.Context, dbsqlc.DBTX, funding.Observation,
+) (funding.Balance, error) {
 	return funding.Balance{}, b.err
 }
 

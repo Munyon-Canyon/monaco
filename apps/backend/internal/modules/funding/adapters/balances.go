@@ -14,6 +14,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
@@ -27,8 +28,21 @@ type ChainReads interface {
 }
 
 type Outflows struct {
-	Funds       app.Outflows
-	Withdrawals app.Outflows
+	Funds         app.Outflows
+	Withdrawals   app.Outflows
+	FundsOn       func(dbsqlc.DBTX) app.Outflows
+	WithdrawalsOn func(dbsqlc.DBTX) app.Outflows
+}
+
+func (o Outflows) on(q dbsqlc.DBTX) Outflows {
+	bound := Outflows{Funds: o.Funds, Withdrawals: o.Withdrawals}
+	if o.FundsOn != nil {
+		bound.Funds = o.FundsOn(q)
+	}
+	if o.WithdrawalsOn != nil {
+		bound.Withdrawals = o.WithdrawalsOn(q)
+	}
+	return bound
 }
 
 type Balances struct {
@@ -61,6 +75,7 @@ func NewBalances(
 const (
 	displayMaxAge  = 10 * time.Minute
 	inFlightEndsAt = "finalized"
+	observationTTL = 5 * time.Second
 )
 
 type reading struct {
@@ -69,29 +84,70 @@ type reading struct {
 	at      time.Time
 }
 
+type outflowReading struct {
+	funds, sent inFlight
+	read        bool
+}
+
 func (b *Balances) Available(ctx context.Context, user ids.UserID) (port.Balance, error) {
-	const op = "funding.Balances.Available"
-	address, err := b.wallets.MemberWalletAddress(ctx, user)
+	obs, flows, err := b.observe(ctx, user)
 	if err != nil {
 		return port.Balance{}, err
 	}
+	return b.compose(ctx, obs, flows.funds, flows.sent), nil
+}
+
+func (b *Balances) Observe(ctx context.Context, user ids.UserID) (port.Observation, error) {
+	obs, _, err := b.observe(ctx, user)
+	return obs, err
+}
+
+func (b *Balances) observe(ctx context.Context, user ids.UserID) (port.Observation, outflowReading, error) {
+	const op = "funding.Balances.Observe"
+	address, err := b.wallets.MemberWalletAddress(ctx, user)
+	if err != nil {
+		return port.Observation{}, outflowReading{}, err
+	}
+	funds, sent, err := readOutflows(ctx, b.outflows, user)
+	if err != nil {
+		return port.Observation{}, outflowReading{}, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	flows := outflowReading{funds: funds, sent: sent, read: true}
 	b.once.Do(func() { b.rpc = b.newRPC() })
 	slot, onChain, err := b.rpc.TokenBalanceAt(ctx, address, b.usdc, inFlightEndsAt)
 	if err != nil {
-		return port.Balance{}, errs.Wrap(err, errs.CodeOf(err), op)
+		return port.Observation{}, flows, errs.Wrap(err, errs.CodeOf(err), op)
 	}
 	if onChain.Decimals() != b.usdc.Decimals {
-		return port.Balance{}, errs.New(errs.CodeDecodeFailed, op)
+		return port.Observation{}, flows, errs.New(errs.CodeDecodeFailed, op)
 	}
 	r := reading{onChain: onChainMicros(onChain), slot: slot, at: b.clock.Now()}
 	b.record(user, r)
-	return b.compose(ctx, user, r)
+	obs := port.Observation{
+		User: user, OnChainMicros: r.onChain, Slot: r.slot, At: r.at, Signatures: b.landed(ctx, r.slot, funds, sent),
+	}
+	return obs, flows, nil
+}
+
+func (b *Balances) AvailableIn(ctx context.Context, q dbsqlc.DBTX, obs port.Observation) (port.Balance, error) {
+	const op = "funding.Balances.AvailableIn"
+	funds, sent, err := readOutflows(ctx, b.outflows.on(q), obs.User)
+	if err != nil {
+		return port.Balance{}, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	if b.clock.Now().Sub(obs.At) > observationTTL || settledSince(obs, funds, sent) {
+		return port.Balance{}, errs.New(errs.CodeRPCUnavailable, op, slog.String("reason", "balance_reading_stale"))
+	}
+	return b.compose(ctx, obs, funds, sent), nil
 }
 
 func (b *Balances) ForDisplay(ctx context.Context, user ids.UserID) (port.Balance, error) {
-	got, err := b.Available(ctx, user)
-	if err == nil || errs.CodeOf(err) != errs.CodeRPCUnavailable {
-		return got, err
+	obs, flows, err := b.observe(ctx, user)
+	if err == nil {
+		return b.compose(ctx, obs, flows.funds, flows.sent), nil
+	}
+	if errs.CodeOf(err) != errs.CodeRPCUnavailable || !flows.read {
+		return port.Balance{}, err
 	}
 	last, ok := b.lastReading(user)
 	if !ok || b.clock.Now().Sub(last.at) >= displayMaxAge {
@@ -106,7 +162,8 @@ func (b *Balances) ForDisplay(ctx context.Context, user ids.UserID) (port.Balanc
 			return port.Balance{}, err
 		}
 	}
-	return b.compose(ctx, user, last)
+	cached := port.Observation{User: user, OnChainMicros: last.onChain, Slot: last.slot, At: last.at}
+	return b.compose(ctx, cached, flows.funds, flows.sent), nil
 }
 
 func (b *Balances) record(user ids.UserID, r reading) {
@@ -122,29 +179,19 @@ func (b *Balances) lastReading(user ids.UserID) (reading, bool) {
 	return r, ok
 }
 
-func (b *Balances) compose(ctx context.Context, user ids.UserID, r reading) (port.Balance, error) {
-	const op = "funding.Balances.compose"
-	funds, err := readInFlight(ctx, b.outflows.Funds, user)
-	if err != nil {
-		return port.Balance{}, errs.Wrap(err, errs.CodeOf(err), op)
-	}
-	sent, err := readInFlight(ctx, b.outflows.Withdrawals, user)
-	if err != nil {
-		return port.Balance{}, errs.Wrap(err, errs.CodeOf(err), op)
-	}
-	landed := b.landed(ctx, r.slot, funds, sent)
-	fund, withdrawals := funds.without(landed), sent.without(landed)
-	available, err := spendable(r.onChain, fund, withdrawals)
+func (b *Balances) compose(ctx context.Context, obs port.Observation, funds, sent inFlight) port.Balance {
+	fund, withdrawals := funds.without(obs.Signatures), sent.without(obs.Signatures)
+	available, err := spendable(obs.OnChainMicros, fund, withdrawals)
 	if err != nil {
 		observability.Degraded(ctx, observability.FundingBalanceClamped,
-			slog.String("user_id", user.String()), slog.String("on_chain_micros", r.onChain.String()),
+			slog.String("user_id", obs.User.String()), slog.String("on_chain_micros", obs.OnChainMicros.String()),
 			slog.String("in_flight_fund_micros", fund.String()),
 			slog.String("in_flight_withdrawal_micros", withdrawals.String()))
 	}
 	return port.Balance{
-		OnChainMicros: r.onChain, InFlightFundMicros: fund, InFlightWithdrawalMicros: withdrawals,
-		AvailableMicros: available, AsOf: r.at,
-	}, nil
+		OnChainMicros: obs.OnChainMicros, InFlightFundMicros: fund, InFlightWithdrawalMicros: withdrawals,
+		AvailableMicros: available, AsOf: obs.At,
+	}
 }
 
 type inFlight struct {
@@ -161,23 +208,48 @@ func readInFlight(ctx context.Context, outflows app.Outflows, user ids.UserID) (
 	return inFlight{total: total, submitted: submitted}, err
 }
 
+func readOutflows(ctx context.Context, outflows Outflows, user ids.UserID) (funds, sent inFlight, err error) {
+	if funds, err = readInFlight(ctx, outflows.Funds, user); err != nil {
+		return inFlight{}, inFlight{}, err
+	}
+	if sent, err = readInFlight(ctx, outflows.Withdrawals, user); err != nil {
+		return inFlight{}, inFlight{}, err
+	}
+	return funds, sent, nil
+}
+
 func (b *Balances) landed(ctx context.Context, slot uint64, outflows ...inFlight) map[chain.Signature]bool {
 	var sigs []chain.Signature
 	for _, o := range outflows {
 		sigs = slices.AppendSeq(sigs, maps.Keys(o.submitted))
 	}
+	landed := make(map[chain.Signature]bool, len(sigs))
+	for _, sig := range sigs {
+		landed[sig] = false
+	}
 	if len(sigs) == 0 {
-		return nil
+		return landed
 	}
 	statuses, err := b.rpc.SignatureStatuses(ctx, sigs)
 	if err != nil {
-		return nil
+		return landed
 	}
-	landed := make(map[chain.Signature]bool, len(statuses))
 	for _, s := range statuses {
 		landed[s.Signature] = s.State == solana.StateFinalized && s.Slot <= slot
 	}
 	return landed
+}
+
+func settledSince(obs port.Observation, outflows ...inFlight) bool {
+	for sig, landed := range obs.Signatures {
+		if landed {
+			continue
+		}
+		if !slices.ContainsFunc(outflows, func(o inFlight) bool { _, ok := o.submitted[sig]; return ok }) {
+			return true
+		}
+	}
+	return false
 }
 
 func (o inFlight) without(landed map[chain.Signature]bool) money.Micros {

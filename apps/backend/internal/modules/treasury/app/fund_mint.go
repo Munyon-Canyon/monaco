@@ -33,11 +33,14 @@ func (s *FundSettler) mint(ctx context.Context, r openFund) (bool, error) {
 	m := fundMint{transfer: r, user: ids.UserIDFrom(r.UserID), cabal: ids.CabalIDFrom(r.CabalID), amount: amount}
 	var funded events.Funded
 	var settled bool
-	err = s.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		var err error
-		funded, settled, err = s.settle(ctx, tx, m)
-		return err
-	})
+	quote, err := s.quote(ctx, m.cabal)
+	if err == nil {
+		err = s.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+			var err error
+			funded, settled, err = s.settle(ctx, tx, m, quote)
+			return err
+		})
+	}
 	switch {
 	case err == nil && !settled:
 		return false, nil
@@ -63,13 +66,29 @@ func (s *FundSettler) mint(ctx context.Context, r openFund) (bool, error) {
 	return true, nil
 }
 
-func (s *FundSettler) settle(ctx context.Context, tx db.Tx, m fundMint) (events.Funded, bool, error) {
-	lockErr := s.d.Ledger.LockCabal(ctx, tx, m.cabal)
-	pot, potErr := s.d.Pot.PotValue(ctx, m.cabal)
-	total, totalErr := s.d.Pot.TotalShares(ctx, m.cabal)
-	if err := errors.Join(lockErr, potErr, totalErr); err != nil {
+type potQuote struct {
+	basis string
+	total money.SharesUnits
+	pot   money.Micros
+}
+
+func (s *FundSettler) quote(ctx context.Context, cabal ids.CabalID) (potQuote, error) {
+	basis, basisErr := s.d.Pot.PotBasis(ctx, cabal)
+	pot, potErr := s.d.Pot.PotValue(ctx, cabal)
+	total, totalErr := s.d.Pot.TotalShares(ctx, cabal)
+	if err := errors.Join(basisErr, potErr, totalErr); err != nil {
+		return potQuote{}, err
+	}
+	return potQuote{basis: basis, total: total, pot: pot}, nil
+}
+
+func (s *FundSettler) settle(
+	ctx context.Context, tx db.Tx, m fundMint, quote potQuote,
+) (events.Funded, bool, error) {
+	if err := errors.Join(s.d.Ledger.LockCabal(ctx, tx, m.cabal), s.revalidate(ctx, tx, m.cabal, quote)); err != nil {
 		return events.Funded{}, false, err
 	}
+	total, pot := quote.total, quote.pot
 	units, err := domain.MintShares(m.amount, total, pot)
 	if err != nil {
 		return events.Funded{}, false, err
@@ -95,6 +114,20 @@ func (s *FundSettler) settle(ctx context.Context, tx db.Tx, m fundMint) (events.
 		s.d.Hints.PublishHint(ctx, events.CabalActivityChangedHint(m.cabal), nil)
 	})
 	return funded, true, tx.Events.Append(ctx, funded)
+}
+
+func (s *FundSettler) revalidate(ctx context.Context, tx db.Tx, cabal ids.CabalID, quote potQuote) error {
+	reads := s.d.PotOn(tx.Queries())
+	basis, basisErr := reads.PotBasis(ctx, cabal)
+	total, totalErr := reads.TotalShares(ctx, cabal)
+	if err := errors.Join(basisErr, totalErr); err != nil {
+		return err
+	}
+	if basis != quote.basis || total.Cmp(quote.total) != 0 {
+		return errs.New(errs.CodePotValueChanged, "treasury.FundSettler.revalidate",
+			slog.String("cabal_id", cabal.String()))
+	}
+	return nil
 }
 
 func (s *FundSettler) post(ctx context.Context, tx db.Tx, m fundMint, units money.SharesUnits) error {

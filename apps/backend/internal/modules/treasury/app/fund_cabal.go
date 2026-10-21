@@ -45,9 +45,14 @@ type FundWallets interface {
 	MemberWallet(ctx context.Context, id ids.UserID) (identityport.MemberWallet, error)
 }
 
-type FundPot interface {
-	PotValue(ctx context.Context, cabalID ids.CabalID) (money.Micros, error)
+type FundPotReads interface {
 	TotalShares(ctx context.Context, cabalID ids.CabalID) (money.SharesUnits, error)
+	PotBasis(ctx context.Context, cabalID ids.CabalID) (string, error)
+}
+
+type FundPot interface {
+	FundPotReads
+	PotValue(ctx context.Context, cabalID ids.CabalID) (money.Micros, error)
 }
 
 type FundTransfers interface {
@@ -78,6 +83,12 @@ type fundRoute struct {
 	to   chain.SolanaAddress
 }
 
+type fundReads struct {
+	balance    fundingport.Observation
+	balanceErr error
+	potErr     error
+}
+
 func (h *FundCabalHandler) Handle(ctx context.Context, cmd FundCabal) (uuid.UUID, error) {
 	route, err := h.admit(ctx, cmd)
 	if err != nil {
@@ -86,9 +97,10 @@ func (h *FundCabalHandler) Handle(ctx context.Context, cmd FundCabal) (uuid.UUID
 	id := h.d.IDs.NewV7()
 	var prior sqlc.GetFundTransferRow
 	replayed := false
+	reads := h.read(ctx, cmd)
 	if err := h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		var err error
-		prior, replayed, err = h.create(ctx, tx, id, cmd, route)
+		prior, replayed, err = h.create(ctx, tx, id, cmd, route, reads)
 		return err
 	}); err != nil {
 		return uuid.Nil, err
@@ -163,8 +175,13 @@ func (h *FundCabalHandler) admit(ctx context.Context, cmd FundCabal) (fundRoute,
 	}, nil
 }
 
+func (h *FundCabalHandler) read(ctx context.Context, cmd FundCabal) fundReads {
+	obs, balanceErr := h.d.Balances.Observe(ctx, cmd.UserID)
+	return fundReads{balance: obs, balanceErr: balanceErr, potErr: h.checkPot(ctx, cmd.CabalID)}
+}
+
 func (h *FundCabalHandler) create(
-	ctx context.Context, tx db.Tx, id uuid.UUID, cmd FundCabal, route fundRoute,
+	ctx context.Context, tx db.Tx, id uuid.UUID, cmd FundCabal, route fundRoute, reads fundReads,
 ) (sqlc.GetFundTransferRow, bool, error) {
 	const op = "treasury.FundCabal"
 	member, err := h.d.Cabals.LockMember(ctx, tx.Queries(), cmd.CabalID, cmd.UserID)
@@ -189,11 +206,11 @@ func (h *FundCabalHandler) create(
 		prior, err := q.GetFundTransfer(ctx, bound)
 		return prior, true, err
 	}
-	return sqlc.GetFundTransferRow{}, false, h.insert(ctx, tx, q, id, cmd, route)
+	return sqlc.GetFundTransferRow{}, false, h.insert(ctx, tx, q, id, cmd, route, reads)
 }
 
 func (h *FundCabalHandler) insert(
-	ctx context.Context, tx db.Tx, q *sqlc.Queries, id uuid.UUID, cmd FundCabal, route fundRoute,
+	ctx context.Context, tx db.Tx, q *sqlc.Queries, id uuid.UUID, cmd FundCabal, route fundRoute, reads fundReads,
 ) error {
 	const op = "treasury.FundCabal"
 	pause, err := h.d.Pauses(tx).IsPaused(ctx, cmd.CabalID)
@@ -203,7 +220,10 @@ func (h *FundCabalHandler) insert(
 	if pause.Paused {
 		return errs.New(errs.CodeCabalPaused, op, slog.String("cabal_id", cmd.CabalID.String()))
 	}
-	balance, err := h.d.Balances.Available(ctx, cmd.UserID)
+	if reads.balanceErr != nil {
+		return reads.balanceErr
+	}
+	balance, err := h.d.Balances.AvailableIn(ctx, tx.Queries(), reads.balance)
 	if err != nil {
 		return err
 	}
@@ -215,8 +235,8 @@ func (h *FundCabalHandler) insert(
 			slog.String("amount_micros", cmd.Amount.String()),
 		)
 	}
-	if err := h.checkPot(ctx, cmd.CabalID); err != nil {
-		return err
+	if reads.potErr != nil {
+		return reads.potErr
 	}
 	return q.InsertFundTransfer(ctx, sqlc.InsertFundTransferParams{
 		ID: id, UserID: cmd.UserID.UUID(), CabalID: cmd.CabalID.UUID(), AmountMicros: cmd.Amount.String(),

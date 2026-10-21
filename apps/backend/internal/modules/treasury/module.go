@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
@@ -241,7 +242,8 @@ func (m *Module) Pollers() []poller.Poller {
 		adapters.FundPoller{Settler: app.NewFundSettler(app.FundSettlerDeps{
 			Reads: m.deps.Pool, UoW: m.deps.UoW, IDs: m.deps.IDs, Clock: m.deps.Clock,
 			Chain: adapters.NewStatuses(cfg, m.deps.Clock), Transfers: adapters.NewTransfers(cfg, m.deps.Clock),
-			Pot: m.reads(), Ledger: m.ledger(), USDC: usdc(cfg), Hints: m.deps.Bus,
+			Pot: m.reads(), PotOn: func(q sqlc.DBTX) app.FundPotReads { return m.reads().On(q) },
+			Ledger: m.ledger(), USDC: usdc(cfg), Hints: m.deps.Bus,
 			SendWindow: cfg.Worker.FundSendWindow,
 		})},
 		adapters.CashOutSweeper{Payouts: m.payouts()},
@@ -306,6 +308,10 @@ func (m *Module) SignatureOwner() *adapters.Queries { return m.reads() }
 func (m *Module) WalletLedger() *adapters.Queries { return m.reads() }
 
 func (m *Module) FundOutflows() adapters.FundOutflows { return adapters.NewFundOutflows(m.deps.Pool) }
+
+func (m *Module) FundOutflowsOn(q dbsqlc.DBTX) adapters.FundOutflows {
+	return adapters.NewFundOutflows(q)
+}
 
 func (m *Module) reads() *adapters.Queries {
 	marketModule := market.New(m.deps)

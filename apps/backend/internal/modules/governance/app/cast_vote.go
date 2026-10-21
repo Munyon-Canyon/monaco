@@ -49,12 +49,22 @@ func NewCastVoteHandler(uow *db.UnitOfWork, cabals Cabals, c clock.Clock, hints 
 	return &CastVoteHandler{uow: uow, cabals: cabals, clock: c, hints: hints}
 }
 
+func (h *CastVoteHandler) banned(ctx context.Context, proposal ids.ProposalID) error {
+	const op = "governance.CastVote"
+	cabal, err := sqlc.New(h.uow.Reads()).CabalOfProposal(ctx, proposal.UUID())
+	if err != nil {
+		return lookupFailed(err, op)
+	}
+	return notBanned(ctx, h.cabals, ids.CabalIDFrom(cabal), op)
+}
+
 func (h *CastVoteHandler) Handle(ctx context.Context, cmd CastVote) (CastVoteResult, error) {
 	var out CastVoteResult
 	var cabal uuid.UUID
+	banned := h.banned(ctx, cmd.ProposalID)
 	err := h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		var err error
-		out, err = h.vote(ctx, tx, cmd, &cabal)
+		out, err = h.vote(ctx, tx, cmd, banned, &cabal)
 		return err
 	})
 	if err != nil {
@@ -65,7 +75,7 @@ func (h *CastVoteHandler) Handle(ctx context.Context, cmd CastVote) (CastVoteRes
 }
 
 func (h *CastVoteHandler) vote(
-	ctx context.Context, tx db.Tx, cmd CastVote, cabal *uuid.UUID,
+	ctx context.Context, tx db.Tx, cmd CastVote, banned error, cabal *uuid.UUID,
 ) (CastVoteResult, error) {
 	const op = "governance.CastVote"
 	q := sqlc.New(tx.Queries())
@@ -78,8 +88,8 @@ func (h *CastVoteHandler) vote(
 		return CastVoteResult{}, err
 	}
 	*cabal = p.CabalID
-	if err := notBanned(ctx, h.cabals, ids.CabalIDFrom(p.CabalID), op); err != nil {
-		return CastVoteResult{}, err
+	if banned != nil {
+		return CastVoteResult{}, banned
 	}
 	rule := domain.ThresholdRule(p.Threshold)
 	n, err := q.CastBallot(ctx, sqlc.CastBallotParams{
