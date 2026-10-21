@@ -11,6 +11,22 @@ import (
 	"github.com/google/uuid"
 )
 
+const actorByID = `-- name: ActorByID :one
+SELECT id, account_status FROM users WHERE id = $1
+`
+
+type ActorByIDRow struct {
+	ID            uuid.UUID
+	AccountStatus string
+}
+
+func (q *Queries) ActorByID(ctx context.Context, id uuid.UUID) (ActorByIDRow, error) {
+	row := q.db.QueryRow(ctx, actorByID, id)
+	var i ActorByIDRow
+	err := row.Scan(&i.ID, &i.AccountStatus)
+	return i, err
+}
+
 const actorByPrivyUserID = `-- name: ActorByPrivyUserID :one
 SELECT id, account_status FROM users WHERE privy_user_id = $1
 `

@@ -62,32 +62,40 @@ func (v *DevVerifier) Mint(userID string, exp time.Time) string {
 	return signing + "." + encodeSegment(v.sign(signing))
 }
 
-func (v *DevVerifier) Verify(_ context.Context, raw string) (Actor, error) {
-	const op = "auth.DevVerifier.Verify"
+func (v *DevVerifier) Verify(ctx context.Context, raw string) (Actor, error) {
+	subject, err := v.Subject(ctx, raw)
+	if err != nil {
+		return Actor{}, err
+	}
+	return Actor{Kind: ActorUser, ID: subject, Standing: StandingActive}, nil
+}
+
+func (v *DevVerifier) Subject(_ context.Context, raw string) (string, error) {
+	const op = "auth.DevVerifier.Subject"
 	parts := strings.Split(raw, ".")
 	if len(parts) != 3 {
-		return Actor{}, errs.New(errs.CodeUnauthorized, op, slog.String("reason", "malformed"))
+		return "", errs.New(errs.CodeUnauthorized, op, slog.String("reason", "malformed"))
 	}
 	header, err := decodeSegment(parts[0])
 	if err != nil || string(header) != hs256Header {
-		return Actor{}, errs.New(errs.CodeUnauthorized, op, slog.String("reason", "unsupported_header"))
+		return "", errs.New(errs.CodeUnauthorized, op, slog.String("reason", "unsupported_header"))
 	}
 	sig, err := decodeSegment(parts[2])
 	if err != nil || !hmac.Equal(sig, v.sign(parts[0]+"."+parts[1])) {
-		return Actor{}, errs.New(errs.CodeUnauthorized, op, slog.String("reason", "bad_signature"))
+		return "", errs.New(errs.CodeUnauthorized, op, slog.String("reason", "bad_signature"))
 	}
 	payload, err := decodeSegment(parts[1])
 	if err != nil {
-		return Actor{}, errs.New(errs.CodeUnauthorized, op, slog.String("reason", "malformed"))
+		return "", errs.New(errs.CodeUnauthorized, op, slog.String("reason", "malformed"))
 	}
 	var claims devClaims
 	if err := json.Unmarshal(payload, &claims); err != nil || claims.Sub == "" {
-		return Actor{}, errs.New(errs.CodeUnauthorized, op, slog.String("reason", "no_subject"))
+		return "", errs.New(errs.CodeUnauthorized, op, slog.String("reason", "no_subject"))
 	}
 	if !v.clock.Now().Before(time.Unix(claims.Exp, 0)) {
-		return Actor{}, errs.New(errs.CodeUnauthorized, op, slog.String("reason", "expired"))
+		return "", errs.New(errs.CodeUnauthorized, op, slog.String("reason", "expired"))
 	}
-	return Actor{Kind: ActorUser, ID: claims.Sub, Standing: StandingActive}, nil
+	return claims.Sub, nil
 }
 
 func (v *DevVerifier) sign(signing string) []byte {

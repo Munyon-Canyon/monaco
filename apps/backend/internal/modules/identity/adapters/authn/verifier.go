@@ -16,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
 var _ auth.TokenVerifier = (*Verifier)(nil)
@@ -26,17 +27,21 @@ type Verifier struct {
 	privy   app.PrivyUsers
 	queries *sqlc.Queries
 	routes  map[string]route
+
+	unknownDevSubjects bool
 }
 
 func New(cfg config.Config, clk clock.Clock, privy app.PrivyUsers, db sqlc.DBTX) (*Verifier, error) {
-	v := &Verifier{privy: privy, queries: sqlc.New(db)}
+	v := &Verifier{privy: privy, queries: sqlc.New(db), unknownDevSubjects: cfg.Env == config.EnvTest}
 	v.routes = map[string]route{"ES256": v.privyActor}
 	if cfg.Env != config.EnvProduction {
 		dev, err := auth.NewDevVerifier(cfg, clk)
 		if err != nil {
 			return nil, err
 		}
-		v.routes["HS256"] = dev.Verify
+		v.routes["HS256"] = func(ctx context.Context, raw string) (auth.Actor, error) {
+			return v.devActor(ctx, dev, raw)
+		}
 	}
 	return v, nil
 }
@@ -65,6 +70,29 @@ func (v *Verifier) privyActor(ctx context.Context, raw string) (auth.Actor, erro
 		return auth.Actor{}, err
 	}
 	row, err := v.queries.ActorByPrivyUserID(ctx, string(id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return auth.Actor{}, errs.New(errs.CodeSessionRequired, op)
+	}
+	if err != nil {
+		return auth.Actor{}, errs.Wrap(err, errs.CodeDBUnavailable, op)
+	}
+	return auth.Actor{Kind: auth.ActorUser, ID: row.ID.String(), Standing: auth.Standing(row.AccountStatus)}, nil
+}
+
+func (v *Verifier) devActor(ctx context.Context, dev *auth.DevVerifier, raw string) (auth.Actor, error) {
+	const op = "identity.Verifier.devActor"
+	subject, err := dev.Subject(ctx, raw)
+	if err != nil {
+		return auth.Actor{}, err
+	}
+	id, err := ids.ParseUserID(subject)
+	if err != nil {
+		return auth.Actor{}, errs.New(errs.CodeUnauthorized, op, slog.String("reason", "subject"))
+	}
+	row, err := v.queries.ActorByID(ctx, id.UUID())
+	if errors.Is(err, pgx.ErrNoRows) && v.unknownDevSubjects {
+		return auth.Actor{Kind: auth.ActorUser, ID: id.String(), Standing: auth.StandingActive}, nil
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return auth.Actor{}, errs.New(errs.CodeSessionRequired, op)
 	}

@@ -57,6 +57,21 @@ func TestDevVerifier_acceptsItsOwnTokenUntilExpiry(t *testing.T) {
 	}
 }
 
+func TestDevVerifier_subjectNamesTheUserWithoutClaimingAStanding(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	v := devVerifier(t, "k1", now)
+	subject, err := v.Subject(t.Context(), v.Mint("u-1", now.Add(time.Minute)))
+	if err != nil || subject != "u-1" {
+		t.Fatalf("Subject = %q, %v, want u-1", subject, err)
+	}
+	other := devVerifier(t, "other", now)
+	subject, err = other.Subject(t.Context(), v.Mint("u-1", now.Add(time.Minute)))
+	if subject != "" || errs.CodeOf(err) != errs.CodeUnauthorized || reason(err) != "bad_signature" {
+		t.Fatalf("Subject with another key = %q, %v, want unauthorized bad_signature", subject, err)
+	}
+}
+
 func TestDevVerifier_rejectsEveryForgery(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
