@@ -124,6 +124,7 @@ public final class Funding {
     private let hints: any HintSource
     private let inFlightRetryDelay: Duration
     private let submission: IdempotentSubmission
+    private let schedule: ReconcileSchedule
 
     private struct Pending: Codable {
         let micros: Int64
@@ -134,13 +135,14 @@ public final class Funding {
 
     public init(
         cabalID: String, source: FundSource, hints: any HintSource, inFlightRetryDelay: Duration = .seconds(1),
-        submission: IdempotentSubmission = IdempotentSubmission()
+        submission: IdempotentSubmission = IdempotentSubmission(), schedule: ReconcileSchedule = .standard()
     ) {
         self.cabalID = cabalID
         self.source = source
         self.hints = hints
         self.inFlightRetryDelay = inFlightRetryDelay
         self.submission = submission
+        self.schedule = schedule
     }
 
     public static func slot(cabalID: String) -> String { "fund:\(cabalID)" }
@@ -188,27 +190,18 @@ public final class Funding {
 
     public func settle() async -> FundProgress {
         guard case .submitted(let sent) = progress else { return progress }
-        let (merged, signal) = AsyncStream.makeStream(of: Void.self)
-        let pumps = [
-            hints.hints(matching: .cabal(id: cabalID, what: Self.activityHint)),
-            hints.hints(matching: .user(what: BalanceSource.refreshingHint)),
-        ].map { stream in
-            Task {
-                for await _ in stream { signal.yield() }
-            }
-        }
-        defer { for pump in pumps { pump.cancel() } }
-        await read(sent.transferID)
-        guard !progress.isSettled else { return progress }
-        for await _ in merged {
-            await read(sent.transferID)
-            if progress.isSettled { break }
-        }
+        await SettlementReconciler.run(
+            hints: [
+                hints.hints(matching: .cabal(id: cabalID, what: Self.activityHint)),
+                hints.hints(matching: .user(what: BalanceSource.refreshingHint)),
+            ], schedule: schedule,
+            read: { await read(sent.transferID) }, isDone: { progress.isSettled })
         return progress
     }
 
-    private func read(_ id: String) async {
-        guard let transfer = try? await source.transfer(id: id) else { return }
+    private func read(_ id: String) async -> Bool {
+        guard let transfer = try? await source.transfer(id: id) else { return false }
         progress = progress.applying(.read(transfer))
+        return true
     }
 }

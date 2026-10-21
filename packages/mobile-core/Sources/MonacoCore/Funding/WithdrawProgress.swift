@@ -76,6 +76,7 @@ public final class Withdrawing {
     private let hints: any HintSource
     private let inFlightRetryDelay: Duration
     private let submission: IdempotentSubmission
+    private let schedule: ReconcileSchedule
 
     private struct Pending: Codable, Equatable {
         let micros: Int64
@@ -87,12 +88,13 @@ public final class Withdrawing {
 
     public init(
         source: WithdrawSource, hints: any HintSource, inFlightRetryDelay: Duration = .seconds(1),
-        submission: IdempotentSubmission = IdempotentSubmission()
+        submission: IdempotentSubmission = IdempotentSubmission(), schedule: ReconcileSchedule = .standard()
     ) {
         self.source = source
         self.hints = hints
         self.inFlightRetryDelay = inFlightRetryDelay
         self.submission = submission
+        self.schedule = schedule
     }
 
     public static let slot = "withdraw"
@@ -143,18 +145,15 @@ public final class Withdrawing {
 
     public func settle() async -> WithdrawProgress {
         guard case .submitted(let sent) = progress else { return progress }
-        let stream = hints.hints(matching: .user(what: BalanceSource.refreshingHint))
-        await read(sent.withdrawalID)
-        guard !progress.isSettled else { return progress }
-        for await _ in stream {
-            await read(sent.withdrawalID)
-            if progress.isSettled { break }
-        }
+        await SettlementReconciler.run(
+            hints: [hints.hints(matching: .user(what: BalanceSource.refreshingHint))], schedule: schedule,
+            read: { await read(sent.withdrawalID) }, isDone: { progress.isSettled })
         return progress
     }
 
-    private func read(_ id: String) async {
-        guard let withdrawal = try? await source.withdrawal(id: id) else { return }
+    private func read(_ id: String) async -> Bool {
+        guard let withdrawal = try? await source.withdrawal(id: id) else { return false }
         progress = progress.applying(.read(withdrawal))
+        return true
     }
 }

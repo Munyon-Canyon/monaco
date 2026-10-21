@@ -1,6 +1,7 @@
 import Foundation
 import MonacoAPI
 import MonacoCore
+import MonacoTestClock
 import MonacoTestSupport
 import XCTest
 
@@ -19,10 +20,11 @@ final class SettlementWatcherTests: XCTestCase {
     }
 
     private func watcher(
-        _ transport: StubTransport, hints: FakeHintStream = FakeHintStream(), journal: PendingIntentJournal
+        _ transport: StubTransport, hints: FakeHintStream = FakeHintStream(), journal: PendingIntentJournal,
+        schedule: ReconcileSchedule = .standard()
     ) -> SettlementWatcher {
         let api = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
-        return SettlementWatcher(api: api, hints: hints, journal: journal)
+        return SettlementWatcher(api: api, hints: hints, journal: journal, schedule: schedule)
     }
 
     private func waitUntil(_ predicate: @escaping () async -> Bool) async -> Bool {
@@ -54,6 +56,27 @@ final class SettlementWatcherTests: XCTestCase {
         XCTAssertEqual(watcher.notice?.ticket.cabalName, "Sunday Investors")
         XCTAssertTrue(journal.intents(accountID: "a").isEmpty)
         XCTAssertEqual(watcher.watchedCount, 0)
+    }
+
+    func testAFailedReadIsRetriedOnItsOwnAndStillEndsInANotice() async {
+        let journal = PendingIntentJournal()
+        let transport = StubTransport(scripted: [
+            .failure(URLError(.timedOut)), .json(.ok, read("settled")),
+        ])
+        let clock = TestClock()
+        let watcher = watcher(transport, journal: journal, schedule: .standard(on: clock))
+        watcher.bind(accountID: "a")
+
+        watcher.watch(fundTicket())
+        _ = await clock.state.until { $0.requested.contains(.seconds(1)) }
+        clock.advance(by: .seconds(1))
+
+        let done = await waitUntil { watcher.notice != nil }
+        XCTAssertTrue(done)
+        guard case .fund(.settled) = watcher.notice?.outcome else {
+            return XCTFail("\(String(describing: watcher.notice))")
+        }
+        XCTAssertTrue(journal.intents(accountID: "a").isEmpty)
     }
 
     func testSigningOutCancelsTheWatchersButKeepsTheIntent() async {

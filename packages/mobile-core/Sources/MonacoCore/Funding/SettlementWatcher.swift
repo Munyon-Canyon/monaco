@@ -48,15 +48,20 @@ public final class SettlementWatcher {
     private let withdrawSource: WithdrawSource
     private let hints: any HintSource
     private let journal: PendingIntentJournal
+    private let schedule: ReconcileSchedule
     @ObservationIgnored private var accountID: String?
     @ObservationIgnored private var tasks: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var onScreen: Set<String> = []
 
-    public init(api: APIClient, hints: any HintSource, journal: PendingIntentJournal) {
+    public init(
+        api: APIClient, hints: any HintSource, journal: PendingIntentJournal,
+        schedule: ReconcileSchedule = .standard()
+    ) {
         fundSource = FundSource(api: api)
         withdrawSource = WithdrawSource(api: api)
         self.hints = hints
         self.journal = journal
+        self.schedule = schedule
     }
 
     public var watchedCount: Int { tasks.count }
@@ -120,7 +125,8 @@ public final class SettlementWatcher {
         switch ticket.kind {
         case .fund:
             guard let cabalID = ticket.cabalID else { return nil }
-            let funding = Funding(cabalID: cabalID, source: fundSource, hints: hints)
+            let funding = Funding(
+                cabalID: cabalID, source: fundSource, hints: hints, schedule: schedule)
             funding.resume(transferID: ticket.resourceID)
             fund[ticket.resourceID] = funding.progress
             let settled = await funding.settle()
@@ -128,7 +134,8 @@ public final class SettlementWatcher {
             fund[ticket.resourceID] = settled
             return .fund(settled)
         case .withdraw:
-            let withdrawing = Withdrawing(source: withdrawSource, hints: hints)
+            let withdrawing = Withdrawing(
+                source: withdrawSource, hints: hints, schedule: schedule)
             withdrawing.resume(withdrawalID: ticket.resourceID)
             withdrawals[ticket.resourceID] = withdrawing.progress
             let settled = await withdrawing.settle()
