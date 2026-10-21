@@ -122,6 +122,16 @@ func TestPreview_advisesNoRouteWhenTheProbeFails(t *testing.T) {
 	).Then(scenario.ExpectEvents(events.TypeProposalCreated, 0))
 }
 
+func TestPreview_advisesNoRouteWhenASellProbeFails(t *testing.T) {
+	t.Parallel()
+	w := newTradeWorld(t)
+	w.routes.ProbeFails(marketfake.AAPLx().ID)
+	w.scenario(t).Given(w.asMember()).When(
+		scenario.Get(w.preview("kind=sell&symbol=AAPLx&token_amount=1000")), scenario.ExpectStatus(http.StatusOK),
+		scenario.ExpectJSON("advisory_code", "no_route"), scenario.ExpectJSON("quote_out_amount", nil),
+	).Then(scenario.ExpectEvents(events.TypeProposalCreated, 0))
+}
+
 func nflxShaped(t *testing.T) multichain.Comparison {
 	t.Helper()
 	g := testkit.NewIDs(5331)

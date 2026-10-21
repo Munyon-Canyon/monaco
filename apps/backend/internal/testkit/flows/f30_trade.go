@@ -121,7 +121,9 @@ func F30RoutedBuyOnEVM(s *scenario.Scenario) {
 	)
 }
 
-func f30Buy(s *scenario.Scenario) ids.CabalID {
+func f30Buy(s *scenario.Scenario) ids.CabalID { return f30Bought(s).ID }
+
+func f30Bought(s *scenario.Scenario) testkit.SeededCabal {
 	s.Helper()
 	cabal := testkit.NewCabal(s, s.DB())
 	testkit.NewLedger(s, s.DB()).WithFundedMember(cabal.Creator.ID, cabal.ID, money.MicrosFromUint64(f30FundedMicros))
@@ -140,7 +142,7 @@ func f30Buy(s *scenario.Scenario) ids.CabalID {
 		scenario.Eventually("the routed buy is confirmed", f30Swap(proposal, "confirmed")),
 		scenario.Eventually("the bought tokens are on the ledger", f30Held(cabal.ID)),
 	)
-	return cabal.ID
+	return cabal
 }
 
 func f30Pass(s *scenario.Scenario, ev events.ProposalPassed) uuid.UUID {

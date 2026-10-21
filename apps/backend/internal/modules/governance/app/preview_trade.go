@@ -48,6 +48,9 @@ func (h *ProposeTradeHandler) Preview(ctx context.Context, req ProposeTrade) (Tr
 			return out, nil
 		}
 	}
+	if req.Trade.Kind == domain.KindSell {
+		return h.previewSell(ctx, req, asset, out)
+	}
 	fundsErr := funds(ctx, h.ports, req.CabalID, asset, req.Trade, pot)
 	routed, comparison, routeErr := h.route(ctx, asset, req.Trade)
 	if market.ProbeFailed(routeErr) {
@@ -61,6 +64,30 @@ func (h *ProposeTradeHandler) Preview(ctx context.Context, req ProposeTrade) (Tr
 		out.QuoteOut = displayQuote(asset, priced, routed, h.clock.Now())
 	}
 	failed := slices.DeleteFunc([]error{fundsErr, routeErr, pinErr}, func(err error) bool { return err == nil })
+	for _, err := range failed {
+		if err := advise(&out, err); err != nil {
+			return TradePreview{}, err
+		}
+	}
+	return out, nil
+}
+
+func (h *ProposeTradeHandler) previewSell(
+	ctx context.Context, req ProposeTrade, asset market.Asset, out TradePreview,
+) (TradePreview, error) {
+	target, err := h.sellTarget(ctx, req.CabalID, asset, req.Trade)
+	if err != nil {
+		return out, advise(&out, err)
+	}
+	fundsErr := h.sellFunds(ctx, req.CabalID, asset, req.Trade, target)
+	a, routeErr := h.sellRoute(ctx, asset, req.Trade, target)
+	if market.ProbeFailed(routeErr) {
+		routeErr = errs.New(errs.CodeNoRoute, "governance.Preview")
+	}
+	if routeErr == nil {
+		out.QuoteOut = a.routed
+	}
+	failed := slices.DeleteFunc([]error{fundsErr, routeErr}, func(err error) bool { return err == nil })
 	for _, err := range failed {
 		if err := advise(&out, err); err != nil {
 			return TradePreview{}, err

@@ -20,7 +20,10 @@ func TestSteps_Flow30StepsHaveAScriptOnlyOnceReady(t *testing.T) {
 		}
 		got = append(got, s.Name)
 	}
-	want := []string{"EVM deposit credited", "Fund cabal", "Routed buy on EVM", "Routed sell", "EVM withdrawal"}
+	want := []string{
+		"EVM deposit credited", "Fund cabal", "Routed buy on EVM", "Routed sell", "Governed routed sell",
+		"EVM withdrawal",
+	}
 	if len(got) != len(want) {
 		t.Fatalf("flow 30 steps = %q, want %q", got, want)
 	}
