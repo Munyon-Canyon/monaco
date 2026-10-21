@@ -143,13 +143,14 @@ public final class ProposeAmountModel {
         guard amountMicros > 0 else { return }
         let draft = self.draft
         let amount = amountMicros
-        let pinned = bestChain?.network
+        let pinned = sellNetwork ?? bestChain?.network
+        let fallsBack = sellNetwork == nil
         previewTask = Task { [clock, service, cabalID] in
             do {
                 try await clock.sleep(for: .milliseconds(400))
                 guard !Task.isCancelled else { return }
                 let (preview, isPinned) = try await Self.preview(
-                    service, cabalID: cabalID, draft: draft, pinned: pinned)
+                    service, cabalID: cabalID, draft: draft, pinned: pinned, fallsBack: fallsBack)
                 guard !Task.isCancelled else { return }
                 self.preview = preview
                 self.previewBestChain = isPinned ? self.bestChain : nil
@@ -174,14 +175,31 @@ public final class ProposeAmountModel {
     private nonisolated static let unpinnedAdvisories: Set<String> = ["no_route", "invalid_network"]
 
     private nonisolated static func preview(
-        _ service: ProposeService, cabalID: String, draft: ProposalDraft, pinned: Components.Schemas.Network?
+        _ service: ProposeService, cabalID: String, draft: ProposalDraft, pinned: Components.Schemas.Network?,
+        fallsBack: Bool
     ) async throws -> (ProposePreview, isPinned: Bool) {
+        guard fallsBack else {
+            return (try await service.preview(cabalID: cabalID, draft: draft, network: pinned), true)
+        }
         if let pinned {
             let preview = try? await service.preview(cabalID: cabalID, draft: draft, network: pinned)
             try Task.checkCancellation()
             if let preview, !unpinnedAdvisories.contains(preview.advisoryCode ?? "") { return (preview, true) }
         }
         return (try await service.preview(cabalID: cabalID, draft: draft, network: nil), false)
+    }
+
+    private var sellNetwork: Components.Schemas.Network? {
+        guard case .sell(let holding) = trade else { return nil }
+        return holding.network
+    }
+
+    public func chooseLocation(_ network: Components.Schemas.Network) {
+        guard case .sell(let holding) = trade, holding.network != network else { return }
+        trade = .sell(holding.at(network))
+        preview = nil
+        previewAmountMicros = nil
+        setAmount(micros: 0)
     }
 
     public func useMax() {

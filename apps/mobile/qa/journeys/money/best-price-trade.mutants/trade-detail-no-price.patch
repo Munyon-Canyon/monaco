@@ -9,7 +9,7 @@ index 7d5ea9282..a29ca5eb8 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalTransactionView.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalTransactionView.swift
 @@ -136,9 +136,6 @@ struct CabalTransactionView: View {
-                     SolscanLinkRow(url: url, identifier: "cabal-txn-solscan")
+                     SolscanLinkRow(url: explorer.url, name: explorer.name, identifier: "cabal-txn-solscan")
                  }
              }
 -            if let bestPrice = swap?.bestPrice {

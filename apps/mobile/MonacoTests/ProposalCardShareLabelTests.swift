@@ -1,3 +1,4 @@
+import Foundation
 import MonacoAPI
 import Testing
 
@@ -21,5 +22,16 @@ struct ProposalCardShareLabelTests {
 
     @Test func oneWholeShareReadsAsOneShare() {
         #expect(ProposalCard.shareLabel(summary: Self.sell(atomics: 100_000_000), asset: Self.stock) == "1 share")
+    }
+
+    @Test func aSaleOnBaseReadsTheSharesTheComparisonSells() {
+        var proposal = Components.Schemas.Proposal.sample(kind: .sell)
+        proposal.tokenAmount = 4_011_999_999
+        proposal.priceComparison = BestPrice.sampleComparison(now: Date())
+        proposal.network = .base
+
+        let label = ProposalCard.shareLabel(summary: ProposalSummary(proposal, canVote: true), asset: Self.stock)
+
+        #expect(label == "0.0401 shares")
     }
 }

@@ -189,6 +189,9 @@ struct ProposalCard: View {
     }
 
     static func shareLabel(summary: ProposalSummary, asset: ProposalAsset?) -> String {
+        if let nanos = summary.routedSaleShareNanos {
+            return TokenQuantityFormatter.label(fromAtomics: String(nanos), decimals: 9, kind: asset?.kind ?? .stock)
+        }
         guard let amount = summary.tokenAmount else { return "0 shares" }
         return TokenQuantityFormatter.label(
             fromAtomics: String(amount), decimals: asset?.decimals ?? AssetCatalogDefaults.decimals,

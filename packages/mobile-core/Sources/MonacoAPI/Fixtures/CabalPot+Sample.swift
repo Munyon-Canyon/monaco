@@ -15,6 +15,27 @@ extension Components.Schemas.CabalPot {
             shareUnits: 380_000_000, valueMicros: 380_150_000, sliceBps: 3800, netContributedMicros: 380_000_000,
             pnlMicros: 150_000))
 
+    public static let sampleMultichain = sample(
+        potValueMicros: 1_547_935_100, cashMicros: 750_000_000, cashWeightBps: 4800, pnlMicros: 730_000,
+        returnBps: 7,
+        holdings: [
+            Components.Schemas.CabalHolding(
+                listings: [
+                    Components.Schemas.HoldingListing(
+                        listingId: "01928a6e-0000-7000-8000-000000000001", issuer: "xstocks", network: .solana,
+                        tokenAmount: "73000000", valueMicros: 249_983_100),
+                    Components.Schemas.HoldingListing(
+                        listingId: "01928a6e-0000-7000-8000-000000000002", issuer: "coinbase", network: .base,
+                        tokenAmount: "160000000", valueMicros: 547_952_000),
+                ],
+                symbol: "GOOGLx", displayName: "Alphabet", kind: .equity, units: "2.3300", tokenAmount: 73_000_000,
+                priceMicros: 342_470_000, valueMicros: 797_935_100, weightBps: 5200, costBasisMicros: 797_205_100,
+                pnlMicros: 730_000)
+        ],
+        me: MePayload(
+            shareUnits: 380_000_000, valueMicros: 380_150_000, sliceBps: 3800, netContributedMicros: 380_000_000,
+            pnlMicros: 150_000))
+
     public static let sampleCashOnly = sample(
         potValueMicros: 500_000_000, cashMicros: 500_000_000, cashWeightBps: 10000, pnlMicros: 0, holdings: [],
         me: MePayload(

@@ -607,12 +607,13 @@ enum MonacoErrorMetrics {
 
 struct SolscanLinkRow: View {
     let url: URL
+    var name = "Solscan"
     let identifier: String
 
     var body: some View {
         Link(destination: url) {
             HStack(spacing: MonacoTheme.Space.sm) {
-                Text("View on Solscan")
+                Text("View on \(name)")
                     .font(MonacoTheme.Typo.bodyStrong)
                     .foregroundStyle(MonacoTheme.ink)
                 Spacer(minLength: MonacoTheme.Space.sm)

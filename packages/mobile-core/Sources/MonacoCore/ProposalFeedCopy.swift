@@ -253,6 +253,8 @@ public enum ProposeFlowCopy {
     public static let backToCabal = "Back to cabal"
     public static let buyAmountEyebrow = "Buy amount"
     public static let sellAmountEyebrow = "Sale amount"
+    public static let sellFromTitle = "Sell from"
+    public static let sellFromHint = "Chooses where the cabal sells this stock"
     public static let overCash = "Amount exceeds the cash balance."
     public static let overHolding = "Amount exceeds this holding’s value."
     public static let thesisTitle = "Thesis"
@@ -276,7 +278,8 @@ public enum ProposeFlowCopy {
         onlyVoters, fallbackBuyDetail, fallbackSellDetail, fallbackBotDetail, buyListTitle, sellListTitle,
         buySearchPlaceholder, sellSearchPlaceholder, sortVolume, sortName, sortChange, filterAll, filterPopular,
         filterPreIpo, noStocksTitle, noStocksMessage, noPositionsMessage, backToCabal, buyAmountEyebrow,
-        sellAmountEyebrow, overCash, overHolding, thesisTitle, thesisPlaceholder, thesisRequired, reviewProposal,
+        sellAmountEyebrow, sellFromTitle, sellFromHint, overCash, overHolding, thesisTitle, thesisPlaceholder,
+        thesisRequired, reviewProposal,
         votingWindowRow, votesToPassRow, sendProposal, sending, sendFailedNotice, proposalSentTitle, viewProposal,
         chooseCabalTitle, chooseCabalQuestion(verb: "buy", ticker: "NVDA"),
         chooserTitle, buyRow, buyRowDetail, sellRow, sellRowEmpty, addBotRow, addBotRowDetail,

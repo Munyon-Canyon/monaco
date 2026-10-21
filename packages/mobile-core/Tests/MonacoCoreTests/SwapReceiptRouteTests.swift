@@ -5,9 +5,9 @@ import XCTest
 @testable import MonacoCore
 
 final class SwapReceiptRouteTests: XCTestCase {
-    private func swap(status: String, steps: String?, route: Bool = true, action: String = "buy") throws
-        -> Components.Schemas.SwapDetail
-    {
+    private func swap(
+        status: String, steps: String?, route: Bool = true, action: String = "buy", signature: String? = nil
+    ) throws -> Components.Schemas.SwapDetail {
         let now = ISO8601DateFormatter().string(from: Date())
         let routeJSON =
             route
@@ -24,7 +24,8 @@ final class SwapReceiptRouteTests: XCTestCase {
             {\(routeJSON) \(stepsJSON) "id": "swap-1", "cabal_id": "cabal-1",
              "source": {"kind": "proposal", "id": "proposal-1"}, "action": "\(action)", "symbol": "AAPLx",
              "asset_name": "Apple", "token_decimals": 8, "usdc_micros": 10000000, "token_amount": null,
-             "status": "\(status)", "failure_code": null, "failure_message": null, "tx_signature": null,
+             "status": "\(status)", "failure_code": null, "failure_message": null,
+             "tx_signature": \(signature.map { "\"\($0)\"" } ?? "null"),
              "created_at": "\(now)", "confirmed_at": null, "retryable": false}
             """
         let decoder = JSONDecoder()
@@ -68,5 +69,21 @@ final class SwapReceiptRouteTests: XCTestCase {
 
         XCTAssertNil(receipt.bestPrice)
         XCTAssertEqual(receipt.statusLabel, "Pending")
+    }
+
+    func testARoutedEVMTradeLinksItsHashToTheChainsExplorer() throws {
+        let hash = "0x3f1c9d0a7b5e4c2d8a6f1b0e9d7c5a3b1f2e4d6c8a0b9e7d5c3a1f2e4d6c8a0b"
+        let receipt = SwapReceipt(try swap(status: "confirmed", steps: nil, action: "sell", signature: hash))
+
+        XCTAssertEqual(receipt.explorer?.name, "Basescan")
+        XCTAssertEqual(receipt.explorer?.url.absoluteString, "https://basescan.org/tx/\(hash)")
+    }
+
+    func testASolanaSignatureLinksToSolscanAndAnUnroutedEVMHashToNothing() throws {
+        let solana = SwapReceipt(try swap(status: "confirmed", steps: nil, route: false, signature: "5VERv8N"))
+        let unrouted = SwapReceipt(try swap(status: "confirmed", steps: nil, route: false, signature: "0xabc"))
+
+        XCTAssertEqual(solana.explorer?.url.absoluteString, "https://solscan.io/tx/5VERv8N")
+        XCTAssertNil(unrouted.explorer)
     }
 }
