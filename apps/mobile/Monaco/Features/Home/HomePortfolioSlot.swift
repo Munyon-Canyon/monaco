@@ -22,6 +22,9 @@ struct HomeHeroFigures: Equatable {
     let direction: PortfolioSummary.Direction
     let period: String
 
+    var title: String { HomeHeroCopy.returnTitle(period: period) }
+    var spokenTitle: String { HomeHeroCopy.spokenReturnTitle(period: period) }
+
     static func resolve(
         summary: PortfolioSummary, change: ValueCurve.Change?, range: LeaderboardRange
     ) -> HomeHeroFigures {
@@ -36,13 +39,40 @@ struct HomeHeroFigures: Equatable {
     }
 }
 
+struct HomeHeroFigureText: View {
+    let text: String
+    var color: Color = MonacoTheme.ink
+    var identifier = "home-portfolio-total"
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Text(text)
+            .moneyFigure(.hero)
+            .foregroundStyle(color)
+            .lineLimit(1)
+            .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
+            .contentTransition(reduceMotion ? .identity : .numericText())
+            .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: text)
+            .accessibilityIdentifier(identifier)
+    }
+}
+
+struct HomeHeroSkeletonFigure: View {
+    var body: some View {
+        Text(UsdAmountFormatter.format(micros: 0))
+            .moneyFont(.hero)
+            .skeletonBar(width: HomeHeroMetrics.skeletonFigureWidth)
+            .accessibilityHidden(true)
+    }
+}
+
 private struct HomePortfolioHero: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
     @Environment(\.homeReads) private var reads
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var chart: ValueChartModel?
     @State private var selection: Int?
 
@@ -101,12 +131,14 @@ private struct HomePortfolioHero: View {
 
     @ViewBuilder private func loaded(_ summary: PortfolioSummary) -> some View {
         let variant = HomeVariant(summary: summary, cashMicros: cashMicros)
+        let display = HomeBalanceDisplay.resolve(environment.balance.state)
         VStack(alignment: .leading, spacing: 0) {
             stale
             switch variant {
             case .invested: invested(summary)
-            case .cashOnly: cashOnly
-            case .empty: empty
+            case .cashOnly: HomeCashOnlyHero(display: display)
+            case .empty:
+                if display == .loading { figuresSkeleton } else { HomeNoHistoryLine() }
             }
         }
     }
@@ -124,40 +156,8 @@ private struct HomePortfolioHero: View {
         }
     }
 
-    private func figure(_ text: String, color: Color = MonacoTheme.ink) -> some View {
-        Text(text)
-            .moneyFigure(.hero)
-            .foregroundStyle(color)
-            .lineLimit(1)
-            .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
-            .contentTransition(reduceMotion ? .identity : .numericText())
-            .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: text)
-            .accessibilityIdentifier("home-portfolio-total")
-    }
-
-    private var emptyFigure: String { UsdAmountFormatter.format(micros: 0) }
-
-    private var empty: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            figure(emptyFigure)
-            Text("No investment history yet")
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.muted)
-                .accessibilityIdentifier("home-portfolio-chip")
-        }
-    }
-
-    private var cashOnly: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            figure(emptyFigure)
-            Text("No positions yet")
-                .font(MonacoTheme.Typo.subheadStrong)
-                .foregroundStyle(MonacoTheme.ink)
-                .padding(.top, MonacoTheme.Space.xs)
-                .accessibilityIdentifier("home-portfolio-chip")
-            QuietChart(message: "No investment history")
-                .padding(.top, MonacoTheme.Space.m)
-        }
+    private func figure(_ text: String) -> some View {
+        HomeHeroFigureText(text: text)
     }
 
     @ViewBuilder private func invested(_ summary: PortfolioSummary) -> some View {
@@ -210,33 +210,43 @@ private struct HomePortfolioHero: View {
     }
 
     @ViewBuilder private func figures(_ figures: HomeHeroFigures) -> some View {
+        Text(figures.title)
+            .font(MonacoTheme.Typo.caption)
+            .foregroundStyle(MonacoTheme.muted)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityLabel(figures.spokenTitle)
+            .accessibilityIdentifier("home-portfolio-label")
         figure(figures.amount)
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: MonacoTheme.Space.s) { returnParts(figures) }
-            VStack(alignment: .leading, spacing: 0) { returnParts(figures) }
+            .padding(.top, MonacoTheme.Space.xs)
+        returnChip(figures)
+            .padding(.top, MonacoTheme.Space.xs)
+    }
+
+    @ViewBuilder private func returnChip(_ figures: HomeHeroFigures) -> some View {
+        Group {
+            if let percent = figures.percent {
+                Text(percent)
+                    .moneyFigure(.row)
+                    .foregroundStyle(color(figures.direction))
+                    .lineLimit(1)
+                    .fixedSize()
+                    .accessibilityLabel("\(PnLSpeech.percent(percent)), \(figures.period)")
+                    .accessibilityValue(percent)
+            } else {
+                Text(HomeHeroCopy.noReturn)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.muted)
+            }
         }
-        .padding(.top, MonacoTheme.Space.xs)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("home-portfolio-chip")
     }
 
-    @ViewBuilder private func returnParts(_ figures: HomeHeroFigures) -> some View {
-        if let percent = figures.percent {
-            Text(percent)
-                .moneyFigure(.row)
-                .foregroundStyle(color(figures.direction))
-                .lineLimit(1)
-                .fixedSize()
-        }
-        Text(figures.period)
-            .font(MonacoTheme.Typo.caption)
-            .foregroundStyle(MonacoTheme.muted)
-            .lineLimit(1)
-    }
-
     private var figuresSkeleton: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-            Text(emptyFigure).moneyFont(.hero).skeletonBar(width: HomeHeroMetrics.skeletonFigureWidth)
+            Text(" ").font(MonacoTheme.Typo.caption)
+                .skeletonBar(width: HomeHeroMetrics.skeletonReturnWidth, radius: MonacoTheme.Radius.chip)
+            HomeHeroSkeletonFigure()
             Text(" ").moneyFont(.row)
                 .skeletonBar(width: HomeHeroMetrics.skeletonReturnWidth, radius: MonacoTheme.Radius.chip)
         }
