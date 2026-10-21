@@ -255,6 +255,7 @@ type Timeouts struct {
 	Storage         time.Duration
 	HTTPServerRead  time.Duration
 	HTTPServerWrite time.Duration
+	IdempotentRun   time.Duration
 	Shutdown        time.Duration
 }
 
@@ -438,6 +439,8 @@ func pollerFields() []field {
 	return []field{
 		duration("MONACO_POLLER_BACKOFF_MAX", 5*time.Minute,
 			func(c *Config) *time.Duration { return &c.Worker.PollerBackoffMax }),
+		duration("MONACO_TIMEOUT_IDEMPOTENT_RUN", 25*time.Second,
+			func(c *Config) *time.Duration { return &c.Timeouts.IdempotentRun }),
 	}
 }
 

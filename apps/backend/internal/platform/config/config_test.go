@@ -61,6 +61,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 			Storage:         10 * time.Second,
 			HTTPServerRead:  10 * time.Second,
 			HTTPServerWrite: 30 * time.Second,
+			IdempotentRun:   25 * time.Second,
 			Shutdown:        10 * time.Second,
 		},
 		Jupiter: config.Jupiter{
@@ -211,6 +212,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"MONACO_TIMEOUT_ABLY=1500ms",
 		"MONACO_TIMEOUT_HTTP_SERVER_READ=5s",
 		"MONACO_TIMEOUT_HTTP_SERVER_WRITE=6s",
+		"MONACO_TIMEOUT_IDEMPOTENT_RUN=3s",
 		"MONACO_TIMEOUT_SHUTDOWN=7s",
 		"MONACO_JUPITER_SWAP_BASE_URL=http://fakes/jupiter/swap/v2",
 		"MONACO_JUPITER_PRICE_BASE_URL=http://fakes/jupiter/price/v3",
@@ -320,6 +322,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 			Storage:         4 * time.Second,
 			HTTPServerRead:  5 * time.Second,
 			HTTPServerWrite: 6 * time.Second,
+			IdempotentRun:   3 * time.Second,
 			Shutdown:        7 * time.Second,
 		},
 		Jupiter: config.Jupiter{
@@ -700,6 +703,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"FUNDING_EVM_FORWARD_INTERVAL", "10s"},
 		{"MONACO_TIMEOUT_HTTP_SERVER_READ", "10s"},
 		{"MONACO_TIMEOUT_HTTP_SERVER_WRITE", "30s"},
+		{"MONACO_TIMEOUT_IDEMPOTENT_RUN", "25s"},
 		{"MONACO_TIMEOUT_SHUTDOWN", "10s"},
 		{"PRIVY_APP_SECRET", "***"},
 		{"PRIVY_AUTHORIZATION_PRIVATE_KEY", "***"},

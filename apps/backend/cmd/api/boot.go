@@ -161,6 +161,7 @@ func newHandler(deps module.Deps, spec []byte, meters metric.MeterProvider) (htt
 		IDs:           ids.Real{},
 		MaxBodyBytes:  int64(deps.Config.HTTP.MaxBodyBytes),
 		Idempotency:   db.NewIdempotencyStore(deps.Pool, clock.Real{}),
+		IdempotentRun: deps.Config.Timeouts.IdempotentRun,
 		Verifier:      verifier,
 		AdminVerifier: adminauthn.NewAdminVerifier(verifier, deps.Pool),
 		RateLimit:     ratelimit.Middleware(limiter, policies, httpx.ActorKey, deps.Config.HTTP.TrustProxyHeaders),
