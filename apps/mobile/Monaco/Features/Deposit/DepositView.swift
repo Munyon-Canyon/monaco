@@ -315,8 +315,8 @@ struct DepositContent: View {
     var onFundCabal: () -> Void = {}
     var onHome: () -> Void = {}
 
-    enum Section: Hashable { case head, address, notices, howItWorks }
-    static let order: [Section] = [.head, .address, .notices, .howItWorks]
+    enum Section: Hashable { case head, networkWarning, address, notices, howItWorks }
+    static let order: [Section] = [.head, .networkWarning, .address, .notices, .howItWorks]
 
     static let steps = steps(on: "Solana")
     static let waitingNotice = "Waiting for network confirmation. Your balance hasn't been credited yet."
@@ -334,7 +334,7 @@ struct DepositContent: View {
     }
 
     static func warning(on network: String) -> String {
-        "Send only USDC on \(network). Transfers on other networks can't be recovered."
+        "Only USDC on \(network)"
     }
 
     private var arrivingMicros: Int64 {
@@ -361,6 +361,9 @@ struct DepositContent: View {
                     switch section {
                     case .head:
                         head
+                    case .networkWarning:
+                        networkWarning
+                            .padding(.horizontal, MonacoTheme.Space.gutter)
                     case .address:
                         let content = DepositAddressCard.Content.resolve(address: address, gaveUp: gaveUp)
                         if content == .unavailable {
@@ -419,6 +422,11 @@ struct DepositContent: View {
         .padding(.vertical, MonacoTheme.Space.m)
     }
 
+    private var networkWarning: some View {
+        MonacoNotice(.info, message: Self.warning(on: network.displayName))
+            .accessibilityIdentifier("deposit-network-warning")
+    }
+
     @ViewBuilder
     private var notices: some View {
         if case .failed = state {
@@ -427,9 +435,6 @@ struct DepositContent: View {
         if arrivingMicros > 0 {
             MonacoNotice(.warn, message: Self.waitingNotice)
                 .accessibilityIdentifier("platform-balance-arriving")
-        } else {
-            MonacoNotice(.info, message: Self.warning(on: network.displayName))
-                .accessibilityIdentifier("deposit-network-warning")
         }
         if let arrival = DepositAddressCard.arrivalNote(for: network) {
             MonacoNotice(.info, message: arrival)

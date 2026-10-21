@@ -42,7 +42,7 @@ The format of this doc is in [App journeys](../README.md).
 | S1.2 | A | tap | `home-add-money-link` "Add money" | | The half sheet titled "Deposit" (`deposit-sheet-title`) shows `deposit-card-row` "Card or Apple Pay" above `deposit-crypto-row` "Send crypto" and `deposit-screen-balance-value` within 15 s |
 | S1.3 | A | tap | `deposit-crypto-row` | | The screen titled "Choose a network" lists `deposit-network-solana` "Solana" first and `deposit-network-base` "Base" after it within 15 s |
 | S1.4 | A | tap | `deposit-network-solana` | | The screen titled "Receive USDC" shows "USDC on Solana", "Your deposit address" and `deposit-address-value` within 15 s, and no `deposit-arrival-note` |
-| S1.5 | A | tap | `deposit-address-copy-button` "Copy address" | | The toast "Address copied." shows within 5 s, and `deposit-network-warning` reads "Send only USDC on Solana. Transfers on other networks can't be recovered." (old app: `DepositView.swift` Copy and its toast) |
+| S1.5 | A | tap | `deposit-address-copy-button` "Copy address" | | The toast "Address copied." shows within 5 s, and `deposit-network-warning`, above the address, reads "Only USDC on Solana" (old app: `DepositView.swift` Copy and its toast) |
 | S1.6 | A | scroll to | "How it works" | | The steps "Send USDC on Solana", "It lands in your balance" and "Fund a cabal" show, show within 10 s (old app: `DepositView.swift` "How it works") |
 
 ### S2 Copy the Base deposit address
@@ -50,7 +50,7 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | tap, tap, then tap | the Home tab, `home-add-money-link`, then `deposit-crypto-row` | | "Choose a network" shows `deposit-network-base` "Base" within 15 s |
-| S2.2 | A | tap | `deposit-network-base` | | The screen titled "Receive USDC" shows "USDC on Base", `deposit-address-value` with an address that starts "0x" within 15 s. `deposit-network-warning` reads "Send only USDC on Base. Transfers on other networks can't be recovered." and `deposit-arrival-note` reads "Arrives in a few minutes" |
+| S2.2 | A | tap | `deposit-network-base` | | The screen titled "Receive USDC" shows "USDC on Base", `deposit-address-value` with an address that starts "0x" within 15 s. `deposit-network-warning`, above the address, reads "Only USDC on Base" and `deposit-arrival-note` reads "Arrives in a few minutes" |
 | S2.3 | A | tap | `deposit-address-copy-button` "Copy address" | | The toast "Address copied." shows within 5 s |
 
 ## Ground truth
