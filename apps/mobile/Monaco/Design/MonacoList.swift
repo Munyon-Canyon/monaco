@@ -42,7 +42,7 @@ struct MonacoSectionHeader: View {
                 Text(title)
                     .font(MonacoTheme.Typo.section)
                     .foregroundStyle(MonacoTheme.primaryText)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
                 if let count, count > 0 {
                     Text("\(count)")

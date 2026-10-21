@@ -47,10 +47,8 @@ struct ReferralCodeSheet: View {
             .accessibilityIdentifier("referral-code-submit")
         }
         .padding(MonacoTheme.Space.gutter)
-        .frame(maxHeight: .infinity, alignment: .top)
-        .monacoSheet(title: "Have an invite code?")
+        .monacoFittedSheet(title: "Have an invite code?", showsClose: true)
         .monacoToastCenter(toasts)
-        .presentationDetents([.medium])
         .onAppear { isFocused = true }
     }
 

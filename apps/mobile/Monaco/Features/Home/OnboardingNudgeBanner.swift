@@ -5,6 +5,7 @@ struct OnboardingNudgeBanner: View {
     @Environment(AppSessionStore.self) private var session
     @Environment(ToastCenter.self) private var toasts
     @State private var opened: OnboardingNudge?
+    @State private var pushesPhone = false
 
     private var current: OnboardingNudge? {
         guard !session.nudgeDismissed, let profile = session.profile else { return nil }
@@ -13,10 +14,6 @@ struct OnboardingNudgeBanner: View {
 
     private var isOpen: Binding<Bool> {
         Binding(get: { opened != nil }, set: { if !$0 { opened = nil } })
-    }
-
-    private var sheetTitle: String {
-        if case .linkX = opened { LinkCopy.xTitle } else { LinkCopy.phoneTitle }
     }
 
     init() {
@@ -30,16 +27,29 @@ struct OnboardingNudgeBanner: View {
     var body: some View {
         content
             .sheet(isPresented: isOpen) {
-                Group {
-                    switch opened {
-                    case .addPhone: NavigationStack { PhoneStepView(mode: .sheet) }
-                    case .linkX: NavigationStack { SocialsStepView(mode: .sheet) }
-                    case nil: EmptyView()
-                    }
-                }
-                .monacoSheet(title: sheetTitle)
-                .monacoToastCenter(toasts)
+                NavigationStack { SocialsStepView(mode: .sheet) }
+                    .monacoSheet(title: LinkCopy.xTitle, detents: .votes, showsClose: true)
+                    .monacoToastCenter(toasts)
             }
+            .navigationDestination(isPresented: $pushesPhone) {
+                PhoneStepView(mode: .sheet)
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        Text(LinkCopy.phoneTitle)
+                            .font(MonacoTheme.Typo.display)
+                            .foregroundStyle(MonacoTheme.ink)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, MonacoTheme.Space.gutter)
+                            .accessibilityAddTraits(.isHeader)
+                    }
+                    .monacoCanvas()
+            }
+    }
+
+    private func open(_ nudge: OnboardingNudge) {
+        switch nudge {
+        case .addPhone: pushesPhone = true
+        case .linkX: opened = nudge
+        }
     }
 
     @ViewBuilder
@@ -47,7 +57,7 @@ struct OnboardingNudgeBanner: View {
         if let current {
             HStack(spacing: MonacoTheme.Space.s) {
                 Button {
-                    opened = current
+                    open(current)
                 } label: {
                     MonacoNotice(.info, message: current.message)
                 }

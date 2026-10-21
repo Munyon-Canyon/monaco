@@ -10,8 +10,8 @@ struct SheetDetentTests {
     @Test func noSheetKindOffersTheLargeDetent() {
         for kind in kinds {
             for fitted in [0, 180, 900] as [CGFloat] {
-                #expect(!kind.detents(fittedHeight: fitted).contains(.large))
-                #expect(kind.detents(fittedHeight: fitted).count == 1)
+                #expect(!kind.detents(fittedHeight: fitted, screenHeight: 800).contains(.large))
+                #expect(kind.detents(fittedHeight: fitted, screenHeight: 800).count == 1)
             }
         }
     }
@@ -26,8 +26,19 @@ struct SheetDetentTests {
     }
 
     @Test func aFittedSheetUsesItsContentHeightOrHalfWhileMeasuring() {
-        #expect(MonacoSheetDetents.fitted.detents(fittedHeight: 240) == [.height(240)])
-        #expect(MonacoSheetDetents.fitted.detents(fittedHeight: 0) == [.fraction(0.55)])
+        #expect(MonacoSheetDetents.fitted.detents(fittedHeight: 240, screenHeight: 800) == [.height(240)])
+        #expect(MonacoSheetDetents.fitted.detents(fittedHeight: 0, screenHeight: 800) == [.fraction(0.55)])
+    }
+
+    @Test func aFittedSheetNeverGrowsPastHalfTheScreen() {
+        #expect(MonacoSheetDetents.fitted.detents(fittedHeight: 435, screenHeight: 800) == [.height(435)])
+        #expect(MonacoSheetDetents.fitted.detents(fittedHeight: 445, screenHeight: 800) == [.fraction(0.55)])
+        #expect(MonacoSheetDetents.fitted.detents(fittedHeight: 2_000, screenHeight: 800) == [.fraction(0.55)])
+    }
+
+    @Test func aSheetWithNoKindOpensAtHalfTheScreen() {
+        #expect(MonacoSheetDetents.half == [.fraction(0.55)])
+        #expect(!MonacoSheetDetents.half.contains(.large))
     }
 }
 

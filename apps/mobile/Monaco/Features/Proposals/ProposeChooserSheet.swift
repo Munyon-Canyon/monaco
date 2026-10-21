@@ -76,10 +76,8 @@ struct ProposeChooserSheet: View {
     }
 
     private var detents: Set<PresentationDetent> {
-        if dynamicTypeSize.isAccessibilitySize || fittedHeight == 0 {
-            return [.fraction(MonacoSheetDetents.halfFraction)]
-        }
-        return [.height(fittedHeight)]
+        if dynamicTypeSize.isAccessibilitySize { return Set(MonacoSheetDetents.half) }
+        return Set(MonacoSheetDetents.fitted.detents(fittedHeight: fittedHeight))
     }
 }
 

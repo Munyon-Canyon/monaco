@@ -78,7 +78,7 @@ struct DepositChooser: View {
                 if case .failed = state {
                     MonacoErrorRow(thing: "your balance", identifier: "deposit-balance-error", retry: onRetryBalance)
                 }
-                MonacoSectionHeader("How would you like to deposit?")
+                MonacoSectionHeader("Deposit method")
                     .padding(.horizontal, MonacoTheme.Space.gutter)
                     .padding(.top, MonacoTheme.Space.section)
                     .padding(.bottom, MonacoTheme.Space.s)

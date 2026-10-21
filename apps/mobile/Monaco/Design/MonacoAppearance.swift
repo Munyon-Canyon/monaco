@@ -203,11 +203,23 @@ enum MonacoSheetDetents {
     static let halfFraction: CGFloat = 0.55
     static let resultHeight: CGFloat = 310
 
-    func detents(fittedHeight: CGFloat) -> [PresentationDetent] {
+    static let half: [PresentationDetent] = [.fraction(halfFraction)]
+
+    @MainActor
+    static var screenHeight: CGFloat {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        return scenes.first?.screen.bounds.height ?? 0
+    }
+
+    @MainActor
+    func detents(fittedHeight: CGFloat, screenHeight: CGFloat = MonacoSheetDetents.screenHeight) -> [PresentationDetent]
+    {
         switch self {
-        case .review, .votes: return [.fraction(Self.halfFraction)]
+        case .review, .votes: return Self.half
         case .result: return [.height(Self.resultHeight)]
-        case .fitted: return fittedHeight > 0 ? [.height(fittedHeight)] : [.fraction(Self.halfFraction)]
+        case .fitted:
+            guard fittedHeight > 0, fittedHeight < screenHeight * Self.halfFraction else { return Self.half }
+            return [.height(fittedHeight)]
         }
     }
 }
@@ -306,7 +318,7 @@ private struct MonacoSheetFrame<Content: View>: View {
     }
 
     private var available: [PresentationDetent] {
-        guard let kind else { return [.large] }
+        guard let kind else { return MonacoSheetDetents.half }
         return kind.detents(fittedHeight: headingHeight > 0 && contentHeight > 0 ? headingHeight + contentHeight : 0)
     }
 }
