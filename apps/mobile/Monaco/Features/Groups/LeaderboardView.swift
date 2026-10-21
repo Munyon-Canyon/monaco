@@ -251,15 +251,15 @@ extension LeaderboardView {
                     preview: UserPreview(displayName: row.name, handle: row.handle, photoURL: row.pictureURL)))
         return NavigationLink(value: route) {
             BoardRow(
-                row: row, figure: .pnl, isLast: isLast, chevron: true, movement: entry.glyphMovement,
-                subtitle: entry.subtitle
+                row: row, figure: Self.figure(for: model.appliedFilters.sort), isLast: isLast, chevron: true,
+                movement: entry.glyphMovement, subtitle: entry.subtitle
             ) {
                 avatar(row, model.category)
             }
         }
         .buttonStyle(.monacoRow)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Self.spoken(entry, board: model.category))
+        .accessibilityLabel(Self.spoken(entry, board: model.category, sort: model.appliedFilters.sort))
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("leaderboard-row-\(row.id)")
         .onAppear {
@@ -289,7 +289,13 @@ extension LeaderboardView {
 }
 
 extension LeaderboardView {
-    static func spoken(_ entry: LeaderboardPageRow, board: LeaderboardBoardKind) -> String {
+    static func figure<Leading: View>(for sort: LeaderboardSort) -> BoardRow<Leading>.Figure {
+        sort == .pnlAmount ? .pnl : .returnPercent
+    }
+
+    static func spoken(
+        _ entry: LeaderboardPageRow, board: LeaderboardBoardKind, sort: LeaderboardSort = .returnPercent
+    ) -> String {
         let row = entry.row
         var parts = ["Rank \(row.rank)"]
         if !entry.comparesMovement {
@@ -304,12 +310,14 @@ extension LeaderboardView {
         } else if board == .people, let handle = row.handle {
             parts.append("@\(handle)")
         }
+        let returned: String
         if let bps = row.returnBps {
-            parts.append(PnLSpeech.percent(PercentFormatter.format(basisPoints: bps, signed: true)))
+            returned = PnLSpeech.percent(PercentFormatter.format(basisPoints: bps, signed: true))
         } else {
-            parts.append("no return yet")
+            returned = "no return yet"
         }
-        parts.append(PnLSpeech.dollars(UsdAmountFormatter.format(signedMicros: row.pnlMicros)))
+        let dollars = PnLSpeech.dollars(UsdAmountFormatter.format(signedMicros: row.pnlMicros))
+        parts += sort == .pnlAmount ? [dollars, returned] : [returned, dollars]
         if row.pricesDelayed { parts.append("prices delayed") }
         return parts.joined(separator: ", ")
     }
