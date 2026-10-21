@@ -136,7 +136,17 @@ struct CabalScreenLoadTests {
 
 @MainActor
 enum AccessibilityTree {
+    private static var holders = 0
+
     static func setAutomation(enabled: Bool) throws {
+        if enabled {
+            holders += 1
+            guard holders == 1 else { return }
+        } else {
+            guard holders > 0 else { return }
+            holders -= 1
+            guard holders == 0 else { return }
+        }
         let library = try #require(dlopen("/usr/lib/libAccessibility.dylib", RTLD_NOW))
         let symbol = try #require(dlsym(library, "_AXSSetAutomationEnabled"))
         unsafeBitCast(symbol, to: (@convention(c) (Int32) -> Void).self)(enabled ? 1 : 0)
