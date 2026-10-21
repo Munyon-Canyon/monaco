@@ -10,8 +10,10 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -122,6 +124,94 @@ func TestRunner_tickErrorIsLoggedWithItsAttrsAndCountedByCode(t *testing.T) {
 	out.expect(t, "poller.tick.failed")
 	if got := h.errorCount(t, "test.upstream", "upstream_unavailable"); got != 3 {
 		t.Fatalf("poller_errors_total{upstream_unavailable} = %d, want 3", got)
+	}
+}
+
+func (h *harness) successGauge(t *testing.T, name string) (int64, bool) {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := h.reader.Collect(t.Context(), &rm); err != nil {
+		t.Fatal(err)
+	}
+	want := attribute.NewSet(attribute.String("poller", name))
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			gauge, ok := m.Data.(metricdata.Gauge[int64])
+			if !ok || m.Name != "poller_last_success_timestamp_seconds" {
+				continue
+			}
+			for _, dp := range gauge.DataPoints {
+				if dp.Attributes.Equals(&want) {
+					return dp.Value, true
+				}
+			}
+		}
+	}
+	return 0, false
+}
+
+func TestRunner_aPollerThatKeepsFailingNeverLooksFreshUntilARunSucceeds(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t, testkit.DB(t), testkit.NewClock(epoch()))
+	const failures = 3
+	p := &fakePoller{name: "test.flaky", tick: func(n int32) (poller.Report, error) {
+		if n <= failures {
+			return poller.Report{}, errs.New(errs.CodeUpstreamUnavailable, "test.fetch")
+		}
+		return poller.Report{}, nil
+	}}
+	afters := make(chan time.Duration, 8)
+	h.clock.NotifyAfters(afters)
+	out, _ := h.start(t, p)
+	for i := range failures {
+		out.expect(t, "poller.tick.failed")
+		tick, success := h.runner.LastTick(p.name), h.runner.LastSuccess(p.name)
+		if !tick.IsZero() || !success.IsZero() {
+			t.Fatalf("after failure %d LastTick = %v LastSuccess = %v, want both zero", i+1, tick, success)
+		}
+		if got, ok := h.successGauge(t, p.name); !ok || got != 0 {
+			t.Fatalf("after failure %d last success gauge = %d, %v; want 0", i+1, got, ok)
+		}
+		h.clock.Advance(<-afters)
+	}
+	out.expect(t, "poller.tick")
+	want := h.clock.Now()
+	tick, success := h.runner.LastTick(p.name), h.runner.LastSuccess(p.name)
+	if !tick.Equal(want) || !success.Equal(want) {
+		t.Fatalf("after the run LastTick = %v LastSuccess = %v, want %v", tick, success, want)
+	}
+	if got, _ := h.successGauge(t, p.name); got != want.Unix() {
+		t.Fatalf("last success gauge = %d, want %d", got, want.Unix())
+	}
+}
+
+func TestRunner_aSkippedAttemptRefreshesTheTickButNotTheLastSuccess(t *testing.T) {
+	t.Parallel()
+	pool, clk := testkit.DB(t), testkit.NewClock(epoch())
+	a, b := newHarness(t, pool, clk), newHarness(t, pool, clk)
+	linesA, _ := a.start(t, &fakePoller{name: "test.held", tick: quiet})
+	linesA.expect(t, "poller.tick")
+	linesB, _ := b.start(t, &fakePoller{name: "test.held", tick: quiet})
+	linesB.expect(t, "poller.tick.skipped_locked")
+	tick, success := b.runner.LastTick("test.held"), b.runner.LastSuccess("test.held")
+	if !tick.Equal(clk.Now()) || !success.IsZero() {
+		t.Fatalf("follower LastTick = %v LastSuccess = %v, want a fresh tick and no success", tick, success)
+	}
+}
+
+func TestIsMoney_namesTheDepositWithdrawalReconcileAndValuationPollersOnly(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{
+		"funding.deposit_watch", "funding.withdrawals", "funding.treasury-reconcile", "ranking.valuation",
+	} {
+		if !poller.IsMoney(name) {
+			t.Errorf("IsMoney(%q) = false, want true", name)
+		}
+	}
+	for _, name := range []string{"platform.retention", "identity.nudges", "market.prices", ""} {
+		if poller.IsMoney(name) {
+			t.Errorf("IsMoney(%q) = true, want false", name)
+		}
 	}
 }
 
