@@ -27,6 +27,7 @@ const (
 	IdempotentExtension  = "x-idempotent"
 	maxIdempotencyKeyLen = 255
 	storeTimeout         = 10 * time.Second
+	defaultIdempotentRun = 25 * time.Second
 )
 
 type IdempotencyStore interface {
@@ -35,7 +36,10 @@ type IdempotencyStore interface {
 	Release(ctx context.Context, ref db.ClaimRef) error
 }
 
-func Idempotency(store IdempotencyStore) func(http.Handler) http.Handler {
+func Idempotency(store IdempotencyStore, run time.Duration) func(http.Handler) http.Handler {
+	if run <= 0 {
+		run = defaultIdempotentRun
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if !mutating(r.Method) || optedOut(r.Context()) {
@@ -56,7 +60,7 @@ func Idempotency(store IdempotencyStore) func(http.Handler) http.Handler {
 			r.Body = io.NopCloser(bytes.NewReader(body))
 			hash := requestHash(r, body)
 			claimed{
-				store: store, w: w, r: r, key: key, hash: hash,
+				store: store, run: run, w: w, r: r, key: key, hash: hash,
 				actor: actorKeyFrom(r.Context(), hash, r.Header.Get("Authorization")),
 			}.serve(r.Context(), next)
 		})
@@ -125,6 +129,7 @@ func idempotencyBody(r *http.Request, body []byte) []byte {
 
 type claimed struct {
 	store IdempotencyStore
+	run   time.Duration
 	w     http.ResponseWriter
 	r     *http.Request
 	key   string
@@ -181,8 +186,15 @@ func (c claimed) execute(ctx context.Context, next http.Handler, ref db.ClaimRef
 		}
 	}()
 	scope := intentScope{actor: c.actor, key: c.key, hash: c.hash}
-	next.ServeHTTP(rec, c.r.WithContext(context.WithValue(context.WithoutCancel(ctx), intentScopeKey{}, scope)))
+	runCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), c.run)
+	defer cancel()
+	next.ServeHTTP(rec, c.r.WithContext(context.WithValue(runCtx, intentScopeKey{}, scope)))
 	finished = true
+	if runCtx.Err() != nil && !successful(rec) {
+		rec = &capture{header: http.Header{}}
+		Problem(rec, c.r, errs.New(errs.CodeUpstreamTimeout, "httpx.Idempotency",
+			slog.String("idempotency_key", c.key), slog.Duration("run", c.run)))
+	}
 	resp := rec.stored()
 	if resp.Status >= http.StatusInternalServerError {
 		observability.Info(ctx, observability.HTTPIdempotencyReleased,
@@ -192,6 +204,10 @@ func (c claimed) execute(ctx context.Context, next http.Handler, ref db.ClaimRef
 		c.logStoreFailure(ctx, c.complete(ctx, ref, resp), resp.Status)
 	}
 	writeStored(c.w, resp)
+}
+
+func successful(rec *capture) bool {
+	return rec.status >= http.StatusOK && rec.status < http.StatusMultipleChoices
 }
 
 func (c claimed) release(ctx context.Context, ref db.ClaimRef) error {

@@ -3,6 +3,7 @@ package httpx
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -61,7 +62,7 @@ func asActor(a auth.Actor, next http.Handler) http.Handler {
 
 func idempotent(h *harness, store IdempotencyStore, next http.Handler) http.Handler {
 	mux := http.NewServeMux()
-	mux.Handle("/", Idempotency(store)(next))
+	mux.Handle("/", Idempotency(store, 0)(next))
 	return h.deps.wrap(asActor(auth.Actor{Kind: auth.ActorUser, ID: "u1"}, mux))
 }
 
@@ -145,7 +146,7 @@ func TestIdempotency_onlyAnOperationDeclaringXIdempotentFalseSkipsTheKey(t *test
 	} {
 		h := newHarness(t)
 		next := &countingHandler{serve: createsThing}
-		rec := send(t, h.deps.wrap(c.resolve(Idempotency(stubStore{})(next))), http.MethodPost, tc.path, "", `{}`)
+		rec := send(t, h.deps.wrap(c.resolve(Idempotency(stubStore{}, 0)(next))), http.MethodPost, tc.path, "", `{}`)
 		if rec.Code != tc.status || next.calls.Load() != tc.calls {
 			t.Errorf("%s: POST %s without a key = %d after %d handler calls, want %d and %d",
 				name, tc.path, rec.Code, next.calls.Load(), tc.status, tc.calls)
@@ -310,7 +311,7 @@ func TestIdempotency_keysAreScopedPerActor(t *testing.T) {
 	store := realStore(t, h)
 	next := &countingHandler{serve: createsThing}
 	mux := http.NewServeMux()
-	mux.Handle("/", Idempotency(store)(next))
+	mux.Handle("/", Idempotency(store, 0)(next))
 	for _, a := range []auth.Actor{
 		{Kind: auth.ActorUser, ID: "u1"}, {Kind: auth.ActorUser, ID: "u2"}, {Kind: auth.ActorService, ID: "u1"},
 	} {
@@ -566,7 +567,7 @@ func TestIdempotency_anonymousCallersNeverShareAKey(t *testing.T) {
 	h := newHarness(t)
 	next := &countingHandler{serve: createsThing}
 	mux := http.NewServeMux()
-	mux.Handle("/", Idempotency(realStore(t, h))(next))
+	mux.Handle("/", Idempotency(realStore(t, h), 0)(next))
 	handler := h.deps.wrap(mux)
 	first := send(t, handler, http.MethodPost, "/v1/session", "k1", `{"token":"alice"}`)
 	second := send(t, handler, http.MethodPost, "/v1/session", "k1", `{"token":"bob"}`)
@@ -660,5 +661,105 @@ func TestIdempotency_anAbandonedInFlightKeyIsTakenOverAfterFiveMinutes(t *testin
 	if rec := send(t, handler, http.MethodPost, "/v1/things", "k1", `{}`); rec.Code != http.StatusCreated ||
 		next.calls.Load() != 1 {
 		t.Fatalf("after the takeover age = %d with %d calls, want 201 and 1", rec.Code, next.calls.Load())
+	}
+}
+
+func idempotentRunning(h *harness, store IdempotencyStore, run time.Duration, next http.Handler) http.Handler {
+	mux := http.NewServeMux()
+	mux.Handle("/", Idempotency(store, run)(next))
+	return h.deps.wrap(asActor(auth.Actor{Kind: auth.ActorUser, ID: "u1"}, mux))
+}
+
+func TestIdempotency_aHandlerBlockedPastTheDeadlineIsCancelledAndItsKeyIsRetryable(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	pool := testkit.DB(t)
+	store := db.NewIdempotencyStore(pool, h.deps.Clock)
+	var blocking atomic.Bool
+	blocking.Store(true)
+	var cancelled atomic.Value
+	next := &countingHandler{serve: func(w http.ResponseWriter, r *http.Request) {
+		if blocking.Load() {
+			_, err := pool.Exec(r.Context(), "SELECT pg_sleep(60)")
+			cancelled.Store(r.Context().Err())
+			Problem(w, r, err)
+			return
+		}
+		createsThing(w, r)
+	}}
+	handler := idempotentRunning(h, store, 100*time.Millisecond, next)
+
+	rec := send(t, handler, http.MethodPost, "/v1/things", "k1", `{}`)
+	if p := decodeProblem(t, rec); rec.Code != http.StatusServiceUnavailable || p.Code != "upstream_timeout" {
+		t.Fatalf("blocked request = %d %+v, want 503 upstream_timeout", rec.Code, p)
+	}
+	if err, _ := cancelled.Load().(error); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("handler context = %v, want the deadline to have cut the 60s sleep", err)
+	}
+	testkit.EventuallyBeforeTestEnds(t, func() bool { return pool.Stat().AcquiredConns() == 0 })
+
+	blocking.Store(false)
+	retry := send(t, handler, http.MethodPost, "/v1/things", "k1", `{}`)
+	if retry.Code != http.StatusCreated || next.calls.Load() != 2 {
+		t.Fatalf("retry = %d after %d calls, want 201 and 2: the claim was released", retry.Code, next.calls.Load())
+	}
+	sameResponse(t, retry, send(t, handler, http.MethodPost, "/v1/things", "k1", `{}`))
+	if next.calls.Load() != 2 {
+		t.Fatalf("handler ran %d times, want 2: the retry's answer replays", next.calls.Load())
+	}
+}
+
+func TestIdempotency_aHandlerThatFinishesPastTheDeadlineWithASuccessKeepsItsAnswer(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	next := &countingHandler{serve: func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+		createsThing(w, r)
+	}}
+	handler := idempotentRunning(h, realStore(t, h), 20*time.Millisecond, next)
+	first := send(t, handler, http.MethodPost, "/v1/things", "k1", `{}`)
+	if first.Code != http.StatusCreated {
+		t.Fatalf("late success = %d, want the handler's 201: its side effect happened", first.Code)
+	}
+	sameResponse(t, first, send(t, handler, http.MethodPost, "/v1/things", "k1", `{}`))
+	if next.calls.Load() != 1 {
+		t.Fatalf("handler ran %d times, want 1: the retry replays the late success", next.calls.Load())
+	}
+}
+
+func TestIdempotency_aCallerWhoDisconnectsMidRequestNeverCausesASecondSideEffect(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	entered := make(chan struct{})
+	finish := make(chan struct{})
+	var effects atomic.Int32
+	next := &countingHandler{serve: func(w http.ResponseWriter, r *http.Request) {
+		effects.Add(1)
+		close(entered)
+		<-finish
+		createsThing(w, r)
+	}}
+	handler := idempotent(h, realStore(t, h), next)
+
+	ctx, hangUp := context.WithCancel(t.Context())
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/things", strings.NewReader(`{}`))
+	req.Header.Set(IdempotencyKeyHeader, "k1")
+	first := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		handler.ServeHTTP(first, req)
+	}()
+	<-entered
+	hangUp()
+	retry := send(t, handler, http.MethodPost, "/v1/things", "k1", `{}`)
+	if p := decodeProblem(t, retry); retry.Code != http.StatusConflict || p.Code != "idempotency_in_flight" {
+		t.Fatalf("retry during the work = %d %+v, want 409 idempotency_in_flight", retry.Code, p)
+	}
+	close(finish)
+	<-done
+	sameResponse(t, first, send(t, handler, http.MethodPost, "/v1/things", "k1", `{}`))
+	if effects.Load() != 1 {
+		t.Fatalf("side effect ran %d times, want 1", effects.Load())
 	}
 }

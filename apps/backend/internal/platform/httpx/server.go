@@ -45,7 +45,7 @@ func HandlerFor(d Deps, mount func(api.Mount), c *Contract) (http.Handler, error
 }
 
 func middlewares(d Deps, c *Contract) []func(http.Handler) http.Handler {
-	mws := []func(http.Handler) http.Handler{Idempotency(d.Idempotency), c.validate}
+	mws := []func(http.Handler) http.Handler{Idempotency(d.Idempotency, d.IdempotentRun), c.validate}
 	if d.RateLimit != nil {
 		mws = append(mws, d.RateLimit)
 	}

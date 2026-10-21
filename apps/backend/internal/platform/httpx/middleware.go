@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"runtime/debug"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -37,6 +38,7 @@ type Deps struct {
 	IDs           ids.Generator
 	MaxBodyBytes  int64
 	Idempotency   IdempotencyStore
+	IdempotentRun time.Duration
 	Verifier      auth.TokenVerifier
 	AdminVerifier auth.TokenVerifier
 	RateLimit     func(http.Handler) http.Handler

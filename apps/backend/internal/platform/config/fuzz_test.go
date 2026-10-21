@@ -28,7 +28,8 @@ func assertValid(t *testing.T, cfg config.Config) {
 	timeouts := []time.Duration{
 		cfg.Timeouts.RPC, cfg.Timeouts.Privy, cfg.Timeouts.APNs, cfg.Timeouts.JupiterQuote,
 		cfg.Timeouts.JupiterExecute, cfg.Timeouts.PostHog, cfg.Timeouts.Ably,
-		cfg.Timeouts.HTTPServerRead, cfg.Timeouts.HTTPServerWrite, cfg.Timeouts.Shutdown,
+		cfg.Timeouts.HTTPServerRead, cfg.Timeouts.HTTPServerWrite, cfg.Timeouts.IdempotentRun,
+		cfg.Timeouts.Shutdown,
 	}
 	for _, d := range timeouts {
 		if d <= 0 {
