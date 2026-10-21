@@ -413,3 +413,20 @@ func TestIdempotencyStore_aTakeoverNeverStealsARowAnotherTakerRefreshedAfterTheR
 		t.Fatalf("Begin on a row refreshed after the read = %+v (refreshed %v), want ClaimInFlight", c, refreshed)
 	}
 }
+
+type intentFake struct {
+	exec func() (pgconn.CommandTag, error)
+	row  func(dest ...any) error
+}
+
+func (f intentFake) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) { return f.exec() }
+
+func (intentFake) Query(context.Context, string, ...any) (pgx.Rows, error) {
+	return nil, errs.New(errs.CodeInternal, "intentFake.Query")
+}
+
+func (f intentFake) QueryRow(context.Context, string, ...any) pgx.Row { return intentRow(f.row) }
+
+type intentRow func(dest ...any) error
+
+func (r intentRow) Scan(dest ...any) error { return r(dest...) }

@@ -88,23 +88,38 @@ func F07FundCabalCrashAfterSign(s *scenario.Scenario) {
 			scenario.Get("/v1/fund-transfers/{transfer}"),
 			scenario.ExpectStatus(http.StatusOK),
 			scenario.ExpectJSON("status", "settled"),
-			UnsentRow("fund_transfers", "cabal_id", f.cabal.ID.String(), "fund_not_sent"),
+			OnlyRow("fund_transfers", "cabal_id", f.cabal.ID.String()),
 		).
-		Then(scenario.ExpectEvents(events.TypeFundSubmitted, 1))
+		Then(scenario.ExpectEvents(events.TypeFundSubmitted, 1), scenario.ExpectEvents(events.TypeFundFailed, 0))
 }
 
-func UnsentRow(table, key, id, code string) scenario.Step {
+func F07FundCabalCrashAfterBroadcast(s *scenario.Scenario) {
+	f := seedFund(s)
+	s.Given(scenario.AsSeededUser("member", f.member.ID)).
+		When(
+			scenario.Post(f.path(), fundBody),
+			scenario.Retry(),
+			scenario.ExpectStatus(http.StatusAccepted),
+			scenario.Remember("transfer_id", "transfer"),
+			scenario.AwaitTick("treasury.fund-transfers"),
+			scenario.AwaitTick("treasury.fund-transfers"),
+			scenario.Get("/v1/fund-transfers/{transfer}"),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("status", "settled"),
+			OnlyRow("fund_transfers", "cabal_id", f.cabal.ID.String()),
+		).
+		Then(scenario.ExpectEvents(events.TypeFundSubmitted, 1), scenario.ExpectEvents(events.TypeFundFailed, 0))
+}
+
+func OnlyRow(table, key, id string) scenario.Step {
 	return func(s *scenario.Scenario) {
-		var status, failCode string
-		scenario.Eventually(table+" row failed as "+code, func(*scenario.Scenario) bool {
-			if err := s.DB().QueryRow(s.Context(), `SELECT status, COALESCE(fail_code, '') FROM `+table+
-				` WHERE `+key+` = $1 ORDER BY created_at, id LIMIT 1`, id).Scan(&status, &failCode); err != nil {
-				s.Fatalf("flows: read the %s row: %v", table, err)
-			}
-			return status == "failed"
-		})(s)
-		if failCode != code {
-			s.Fatalf("flows: %s row failed as %q, want %q", table, failCode, code)
+		var n int
+		query := `SELECT count(*) FROM ` + table + ` WHERE ` + key + ` = $1`
+		if err := s.DB().QueryRow(s.Context(), query, id).Scan(&n); err != nil {
+			s.Fatalf("flows: count the %s rows: %v", table, err)
+		}
+		if n != 1 {
+			s.Fatalf("flows: %s rows for %s = %d, want the retry to resume the one row", table, id, n)
 		}
 	}
 }

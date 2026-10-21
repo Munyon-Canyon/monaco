@@ -23,13 +23,15 @@ import (
 
 const cashOutMinimumMicros = 100_000
 
+const CashOutOperation = "treasury.cash_out"
+
 type CashOut struct {
-	IdempotencyKey string
-	CabalID        ids.CabalID
-	UserID         ids.UserID
-	PayoutMicros   money.Micros
-	All            bool
-	Cause          domain.CashOutCause
+	Intent       db.IntentKey
+	CabalID      ids.CabalID
+	UserID       ids.UserID
+	PayoutMicros money.Micros
+	All          bool
+	Cause        domain.CashOutCause
 }
 type CashOutResult struct {
 	ID           uuid.UUID
@@ -218,6 +220,14 @@ func (h *CashOutHandler) start(ctx context.Context, tx db.Tx, cmd CashOut) (Cash
 	if err := h.locker(ctx, tx, cmd.CabalID); err != nil {
 		return CashOutResult{}, err
 	}
+	id := h.ids.NewV7()
+	bound, replayed, err := cmd.Intent.Bind(ctx, tx.Queries(), id, h.clock.Now())
+	if err != nil {
+		return CashOutResult{}, err
+	}
+	if replayed {
+		return h.replay(ctx, cmd, bound)
+	}
 	paused, err := h.pauses.IsPaused(ctx, cmd.CabalID)
 	if err != nil {
 		return CashOutResult{}, err
@@ -229,20 +239,28 @@ func (h *CashOutHandler) start(ctx context.Context, tx db.Tx, cmd CashOut) (Cash
 			slog.String("cabal_id", cmd.CabalID.String()),
 		)
 	}
-	return h.reserve(ctx, tx, cmd)
+	return h.reserve(ctx, tx, cmd, id)
+}
+
+func (h *CashOutHandler) replay(ctx context.Context, cmd CashOut, id uuid.UUID) (CashOutResult, error) {
+	job, err := h.Job(ctx, cmd.CabalID, cmd.UserID, id)
+	return CashOutResult{
+		ID: job.ID, ShareUnits: job.ShareUnits, PayoutMicros: job.PayoutMicros, CreatedAt: job.CreatedAt,
+	}, err
 }
 
 func (h *CashOutHandler) reserve(
 	ctx context.Context,
 	tx db.Tx,
 	cmd CashOut,
+	id uuid.UUID,
 ) (CashOutResult, error) {
 	q := sqlc.New(tx.Queries())
 	units, payout, err := h.amount(ctx, q, cmd)
 	if err != nil {
 		return CashOutResult{}, err
 	}
-	return h.record(ctx, tx, q, cmd, units, payout)
+	return h.record(ctx, tx, q, cmd, id, units, payout)
 }
 
 func (h *CashOutHandler) amount(
@@ -296,6 +314,7 @@ func (h *CashOutHandler) record(
 	tx db.Tx,
 	q cashOutRecordQueries,
 	cmd CashOut,
+	id uuid.UUID,
 	units money.SharesUnits,
 	payout money.Micros,
 ) (CashOutResult, error) {
@@ -316,7 +335,7 @@ func (h *CashOutHandler) record(
 		status = domain.CashOutCompleted
 	}
 	result := CashOutResult{
-		ID:           h.ids.NewV7(),
+		ID:           id,
 		ShareUnits:   units,
 		PayoutMicros: payout,
 		CreatedAt:    h.clock.Now(),
@@ -346,22 +365,26 @@ func (h *CashOutHandler) record(
 	if err := h.post(ctx, tx, txn); err != nil {
 		return CashOutResult{}, err
 	}
-	var event events.Event = events.CashOutStarted{
-		V: 1, JobID: result.ID, CabalID: cmd.CabalID.UUID(),
-		UserID: cmd.UserID.UUID(), ShareUnits: units.Uint64(), PayoutMicros: payout, SellUSDC: sell,
-		Cause: string(cmd.Cause.OrMember()),
-	}
-	if payout.IsZero() {
-		event = events.CashOutCompleted{
-			V: 1, JobID: result.ID, CabalID: cmd.CabalID.UUID(), UserID: cmd.UserID.UUID(),
-			ShareUnits: units.Uint64(), PayoutMicros: payout, Cause: string(cmd.Cause.OrMember()),
-		}
-	}
+	event := cashOutEvent(cmd, result, sell)
 	if err := tx.Events.Append(ctx, event); err != nil {
 		return result, err
 	}
 	h.hintStart(tx, cmd, result.ID)
 	return result, nil
+}
+
+func cashOutEvent(cmd CashOut, result CashOutResult, sell money.Micros) events.Event {
+	cause := string(cmd.Cause.OrMember())
+	if result.PayoutMicros.IsZero() {
+		return events.CashOutCompleted{
+			V: 1, JobID: result.ID, CabalID: cmd.CabalID.UUID(), UserID: cmd.UserID.UUID(),
+			ShareUnits: result.ShareUnits.Uint64(), PayoutMicros: result.PayoutMicros, Cause: cause,
+		}
+	}
+	return events.CashOutStarted{
+		V: 1, JobID: result.ID, CabalID: cmd.CabalID.UUID(), UserID: cmd.UserID.UUID(),
+		ShareUnits: result.ShareUnits.Uint64(), PayoutMicros: result.PayoutMicros, SellUSDC: sell, Cause: cause,
+	}
 }
 
 func (h *CashOutHandler) cashOutEntries(

@@ -156,6 +156,22 @@ func (c claimed) serve(ctx context.Context, next http.Handler) {
 	}
 }
 
+type intentScope struct {
+	actor string
+	key   string
+	hash  []byte
+}
+
+type intentScopeKey struct{}
+
+func IntentKey(ctx context.Context, operation string) db.IntentKey {
+	scope, ok := ctx.Value(intentScopeKey{}).(intentScope)
+	if !ok {
+		return db.IntentKey{}
+	}
+	return db.IntentKey{ActorKey: scope.actor, Key: scope.key, Operation: operation, RequestHash: scope.hash}
+}
+
 func (c claimed) execute(ctx context.Context, next http.Handler) {
 	rec := &capture{header: http.Header{}}
 	finished := false
@@ -164,7 +180,8 @@ func (c claimed) execute(ctx context.Context, next http.Handler) {
 			_ = c.release(ctx)
 		}
 	}()
-	next.ServeHTTP(rec, c.r.WithContext(context.WithoutCancel(ctx)))
+	scope := intentScope{actor: c.actor, key: c.key, hash: c.hash}
+	next.ServeHTTP(rec, c.r.WithContext(context.WithValue(context.WithoutCancel(ctx), intentScopeKey{}, scope)))
 	finished = true
 	resp := rec.stored()
 	if resp.Status >= http.StatusInternalServerError {

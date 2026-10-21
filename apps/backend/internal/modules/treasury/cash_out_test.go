@@ -83,7 +83,7 @@ func TestCashOut_debitsSharesAndReservesPayout(t *testing.T) {
 	cashOutFund(t, f, user, cabal, 100_000_000)
 	ctx := observability.WithActor(f.ctx(), "user:"+user.String())
 	result, err := cashOutHandler(f, false).Handle(ctx, app.CashOut{
-		IdempotencyKey: "cash-out-1", CabalID: cabal, UserID: user, PayoutMicros: money.MicrosFromUint64(10_000_000),
+		CabalID: cabal, UserID: user, PayoutMicros: money.MicrosFromUint64(10_000_000),
 	})
 	if err != nil || result.ShareUnits.Uint64() != 10 || result.PayoutMicros != money.MicrosFromUint64(10_000_000) {
 		t.Fatalf("CashOut = (%#v, %v)", result, err)

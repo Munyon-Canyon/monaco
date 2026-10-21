@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"strconv"
 
@@ -26,10 +25,13 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
+const FundCabalOperation = "treasury.fund_cabal"
+
 type FundCabal struct {
 	CabalID ids.CabalID
 	UserID  ids.UserID
 	Amount  money.Micros
+	Intent  db.IntentKey
 }
 
 type FundCabals interface {
@@ -82,10 +84,20 @@ func (h *FundCabalHandler) Handle(ctx context.Context, cmd FundCabal) (uuid.UUID
 		return uuid.Nil, err
 	}
 	id := h.d.IDs.NewV7()
+	var prior sqlc.GetFundTransferRow
+	replayed := false
 	if err := h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		return h.create(ctx, tx, id, cmd, route)
+		var err error
+		prior, replayed, err = h.create(ctx, tx, id, cmd, route)
+		return err
 	}); err != nil {
 		return uuid.Nil, err
+	}
+	if replayed {
+		if domain.FundStatus(prior.Status) != domain.FundCreated {
+			return prior.ID, nil
+		}
+		id = prior.ID
 	}
 	signed, err := h.d.Transfers.Build(ctx, relayer.TransferSpec{
 		FromWallet: route.from, To: route.to, Mint: h.d.USDC,
@@ -117,6 +129,7 @@ func (h *FundCabalHandler) Handle(ctx context.Context, cmd FundCabal) (uuid.UUID
 		observability.Info(ctx, observability.TreasuryFundBroadcastFailed, slog.String("transfer_id", id.String()),
 			slog.String("code", string(errs.CodeOf(err))))
 	}
+	faultpoint.Hit(ctx, faultpoint.AfterBroadcast)
 	return id, nil
 }
 
@@ -150,19 +163,41 @@ func (h *FundCabalHandler) admit(ctx context.Context, cmd FundCabal) (fundRoute,
 	}, nil
 }
 
-func (h *FundCabalHandler) create(ctx context.Context, tx db.Tx, id uuid.UUID, cmd FundCabal, route fundRoute) error {
+func (h *FundCabalHandler) create(
+	ctx context.Context, tx db.Tx, id uuid.UUID, cmd FundCabal, route fundRoute,
+) (sqlc.GetFundTransferRow, bool, error) {
 	const op = "treasury.FundCabal"
 	member, err := h.d.Cabals.LockMember(ctx, tx.Queries(), cmd.CabalID, cmd.UserID)
 	if err != nil {
-		return err
+		return sqlc.GetFundTransferRow{}, false, err
 	}
 	if !member {
-		return errs.New(errs.CodeNotCabalMember, op, slog.String("cabal_id", cmd.CabalID.String()))
+		return sqlc.GetFundTransferRow{}, false, errs.New(
+			errs.CodeNotCabalMember, op, slog.String("cabal_id", cmd.CabalID.String()))
 	}
 	q := sqlc.New(tx.Queries())
-	lockErr := q.LockWalletOutflow(ctx, cmd.UserID.UUID())
-	pause, pauseErr := h.d.Pauses(tx).IsPaused(ctx, cmd.CabalID)
-	if err := errors.Join(lockErr, pauseErr); err != nil {
+	var bound uuid.UUID
+	var again bool
+	err = q.LockWalletOutflow(ctx, cmd.UserID.UUID())
+	if err == nil {
+		bound, again, err = cmd.Intent.Bind(ctx, tx.Queries(), id, h.d.Clock.Now())
+	}
+	if err != nil {
+		return sqlc.GetFundTransferRow{}, false, err
+	}
+	if again {
+		prior, err := q.GetFundTransfer(ctx, bound)
+		return prior, true, err
+	}
+	return sqlc.GetFundTransferRow{}, false, h.insert(ctx, tx, q, id, cmd, route)
+}
+
+func (h *FundCabalHandler) insert(
+	ctx context.Context, tx db.Tx, q *sqlc.Queries, id uuid.UUID, cmd FundCabal, route fundRoute,
+) error {
+	const op = "treasury.FundCabal"
+	pause, err := h.d.Pauses(tx).IsPaused(ctx, cmd.CabalID)
+	if err != nil {
 		return err
 	}
 	if pause.Paused {
@@ -236,7 +271,10 @@ func (h *FundCabalHandler) submit(
 func (h *FundCabalHandler) failUnsent(ctx context.Context, id uuid.UUID, cause error) {
 	code := string(errs.CodeOf(cause))
 	err := h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		_, err := sqlc.New(tx.Queries()).FailFundTransfer(ctx, sqlc.FailFundTransferParams{ID: id, FailCode: code})
+		moved, err := sqlc.New(tx.Queries()).FailFundTransfer(ctx, sqlc.FailFundTransferParams{ID: id, FailCode: code})
+		if err == nil && moved > 0 {
+			err = db.UnbindIntent(ctx, tx.Queries(), FundCabalOperation, id)
+		}
 		return err
 	})
 	after := domain.FundFailed

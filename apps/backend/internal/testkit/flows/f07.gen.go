@@ -4,14 +4,15 @@ package flows
 
 func (defined) ScriptsF07() map[string]Script {
 	return map[string]Script{
-		"F07FundCabalOK":                F07FundCabalOK,
-		"F07FundCabalCrashBeforeCommit": F07FundCabalCrashBeforeCommit,
-		"F07FundCabalCrashAfterSign":    F07FundCabalCrashAfterSign,
-		"F07FundCabalInvalidInput":      F07FundCabalInvalidInput,
-		"F07FundCabalNotCabalMember":    F07FundCabalNotCabalMember,
-		"F07FundCabalInsufficientFunds": F07FundCabalInsufficientFunds,
-		"F07FundCabalCabalPaused":       F07FundCabalCabalPaused,
-		"F07FundCabalPotValueZero":      F07FundCabalPotValueZero,
-		"F07FundCabalPrivyUnavailable":  F07FundCabalPrivyUnavailable,
+		"F07FundCabalOK":                  F07FundCabalOK,
+		"F07FundCabalCrashBeforeCommit":   F07FundCabalCrashBeforeCommit,
+		"F07FundCabalCrashAfterSign":      F07FundCabalCrashAfterSign,
+		"F07FundCabalCrashAfterBroadcast": F07FundCabalCrashAfterBroadcast,
+		"F07FundCabalInvalidInput":        F07FundCabalInvalidInput,
+		"F07FundCabalNotCabalMember":      F07FundCabalNotCabalMember,
+		"F07FundCabalInsufficientFunds":   F07FundCabalInsufficientFunds,
+		"F07FundCabalCabalPaused":         F07FundCabalCabalPaused,
+		"F07FundCabalPotValueZero":        F07FundCabalPotValueZero,
+		"F07FundCabalPrivyUnavailable":    F07FundCabalPrivyUnavailable,
 	}
 }

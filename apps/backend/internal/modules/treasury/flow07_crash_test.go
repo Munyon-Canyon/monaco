@@ -46,6 +46,27 @@ func TestFlow07_FundCabal_CrashAfterSign(t *testing.T) {
 	}
 }
 
+func TestFlow07_FundCabal_CrashAfterBroadcast(t *testing.T) {
+	t.Parallel()
+	h := newFundHarness(t)
+	crashed := func() (p any) {
+		defer func() { p = recover() }()
+		_, _ = h.fundKeyed(faultpoint.Armed(h.actorCtx(), faultpoint.AfterBroadcast), "h1", 5_000_000)
+		return nil
+	}()
+	if crashed != (faultpoint.Crash{Name: faultpoint.AfterBroadcast}) {
+		t.Fatalf("Handle did not crash at after-broadcast: %v", crashed)
+	}
+	if h.transferRows(t) != 1 || h.stubs.sent != 1 {
+		t.Fatalf("after the crash rows = %d sent = %d, want 1 and 1", h.transferRows(t), h.stubs.sent)
+	}
+	id, err := h.fundKeyed(h.actorCtx(), "h1", 5_000_000)
+	if err != nil || h.transfer(t, id).Status != "submitted" || h.transferRows(t) != 1 || h.stubs.sent != 1 {
+		t.Fatalf("retry = (%v, %v) rows = %d sent = %d, want the first transfer and no second send",
+			id, err, h.transferRows(t), h.stubs.sent)
+	}
+}
+
 func TestFlow07_FundCabal_CrashBeforeCommit(t *testing.T) {
 	t.Parallel()
 	h := newSettleHarness(t)

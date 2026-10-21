@@ -35,10 +35,13 @@ type Transfers interface {
 	Broadcast(context.Context, relayer.SignedTx) error
 }
 
+const WithdrawOperation = "funding.withdraw"
+
 type Withdraw struct {
 	ID      uuid.UUID
 	UserID  ids.UserID
 	Request domain.WithdrawalRequest
+	Intent  db.IntentKey
 }
 
 type WithdrawResult struct {
@@ -83,8 +86,15 @@ func (h *WithdrawHandler) Handle(ctx context.Context, cmd Withdraw) (WithdrawRes
 	if err != nil {
 		return WithdrawResult{}, err
 	}
-	if err := h.create(ctx, cmd); err != nil {
+	prior, replayed, err := h.create(ctx, cmd)
+	if err != nil {
 		return WithdrawResult{}, err
+	}
+	if replayed {
+		if domain.WithdrawalStatus(prior.Status) != domain.WithdrawalCreated {
+			return replayResult(prior), nil
+		}
+		cmd.ID = prior.ID
 	}
 	signed, err := transfers.Build(ctx, relayer.TransferSpec{
 		FromWallet: wallet, To: cmd.Request.To, Mint: h.d.USDC,
@@ -101,6 +111,7 @@ func (h *WithdrawHandler) Handle(ctx context.Context, cmd Withdraw) (WithdrawRes
 		observability.Degraded(ctx, observability.FundingWithdrawalBroadcastFailed,
 			slog.String("withdrawal_id", cmd.ID.String()), slog.String("code", string(errs.CodeOf(err))))
 	}
+	faultpoint.Hit(ctx, faultpoint.AfterBroadcast)
 	return WithdrawResult{ID: cmd.ID, Status: domain.WithdrawalSubmitted, TxSignature: signed.Signature}, nil
 }
 
@@ -119,11 +130,29 @@ func (h *WithdrawHandler) refuseTreasury(ctx context.Context, to chain.SolanaAdd
 	return nil
 }
 
-func (h *WithdrawHandler) create(ctx context.Context, cmd Withdraw) error {
+func replayResult(row sqlc.GetWithdrawalRow) WithdrawResult {
+	return WithdrawResult{
+		ID: row.ID, Status: domain.WithdrawalStatus(row.Status), TxSignature: chain.Signature(row.TxSignature),
+	}
+}
+
+func (h *WithdrawHandler) create(
+	ctx context.Context, cmd Withdraw,
+) (prior sqlc.GetWithdrawalRow, replayed bool, err error) {
 	const op = "funding.Withdraw.create"
-	return h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+	err = h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		prior, replayed = sqlc.GetWithdrawalRow{}, false
 		q := sqlc.New(tx.Queries())
 		if err := q.LockWalletOutflow(ctx, cmd.UserID.UUID()); err != nil {
+			return err
+		}
+		bound, again, err := cmd.Intent.Bind(ctx, tx.Queries(), cmd.ID, h.d.Clock.Now())
+		if err != nil {
+			return err
+		}
+		if again {
+			replayed = true
+			prior, err = GetWithdrawal(ctx, tx.Queries(), bound, cmd.UserID)
 			return err
 		}
 		balance, err := h.d.Balances.Available(ctx, cmd.UserID)
@@ -140,6 +169,7 @@ func (h *WithdrawHandler) create(ctx context.Context, cmd Withdraw) error {
 		h.afterCommit(tx, cmd, "", domain.WithdrawalCreated)
 		return nil
 	})
+	return prior, replayed, err
 }
 
 func insertParams(cmd Withdraw, now time.Time) sqlc.InsertWithdrawalParams {
@@ -164,8 +194,11 @@ func (h *WithdrawHandler) failUnsent(ctx context.Context, cmd Withdraw, cause er
 		if err != nil || moved == 0 {
 			return err
 		}
-		h.afterCommit(tx, cmd, domain.WithdrawalCreated, domain.WithdrawalFailed)
-		return nil
+		err = db.UnbindIntent(ctx, tx.Queries(), WithdrawOperation, cmd.ID)
+		if err == nil {
+			h.afterCommit(tx, cmd, domain.WithdrawalCreated, domain.WithdrawalFailed)
+		}
+		return err
 	})
 	if err != nil {
 		return errors.Join(cause, err)
