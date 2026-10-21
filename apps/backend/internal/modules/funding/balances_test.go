@@ -14,6 +14,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -121,20 +122,28 @@ func TestBalance_RouteMatchesTheContractResponse(t *testing.T) {
 		scenario.Get("/v1/me/balance"),
 	).Then(
 		scenario.ExpectStatus(http.StatusOK),
-		scenario.ExpectJSON("available_micros", "25500000"),
+		scenario.ExpectJSON("available_micros", "25000000"),
 		scenario.ExpectJSON("on_chain_micros", "25500000"),
+		scenario.ExpectJSON("unspendable_micros", "500000"),
 		scenario.ExpectJSON("in_flight_micros", "0"),
 		scenario.ExpectJSON("deposit_address", user.Address),
 	)
 }
 
-func finalizedChain(t *testing.T, readingSlot, finalizedAt uint64) (string, func() []string) {
+func finalizedChain(
+	t *testing.T, owner chain.SolanaAddress, readingSlot, finalizedAt uint64,
+) (string, func() []string) {
 	t.Helper()
+	ata, err := chain.AssociatedTokenAccount(owner, testkit.USDCMint, chain.SPLProgram)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var mu sync.Mutex
 	var methods []string
 	results := map[string]string{
-		"getTokenAccountsByOwner": fmt.Sprintf(`{"context":{"slot":%d},"value":[{"account":{"data":{"parsed":`+
-			`{"info":{"tokenAmount":{"amount":"60000000","decimals":6}}}}}}]}`, readingSlot),
+		"getTokenAccountsByOwner": fmt.Sprintf(`{"context":{"slot":%d},"value":[{"pubkey":"%s","account":`+
+			`{"owner":"%s","data":{"parsed":{"info":{"tokenAmount":{"amount":"60000000","decimals":6}}}}}}]}`,
+			readingSlot, ata, chain.SPLProgram),
 		"getBlockHeight": `1`,
 		"getSignatureStatuses": fmt.Sprintf(`{"context":{"slot":%d},"value":[{"slot":%d,"confirmations":null,`+
 			`"err":null,"confirmationStatus":"finalized"}]}`, finalizedAt+30, finalizedAt),
@@ -187,7 +196,7 @@ func TestBalance_AvailableSubtractsAWithdrawalFinalizedBeforeThePollerTicksOnce(
 				ids.Real{}.NewV7(), user.ID.UUID(), 40_000_000, tc.status, clock.Real{}.Now()); err != nil {
 				t.Fatal(err)
 			}
-			url, methods := finalizedChain(t, reading, tc.finalizedAt)
+			url, methods := finalizedChain(t, user.Address, reading, tc.finalizedAt)
 			balances := funding.New(module.Deps{
 				Config: config.Config{
 					Solana:   config.Solana{RPCURL: url, USDCMint: string(testkit.USDCMint)},

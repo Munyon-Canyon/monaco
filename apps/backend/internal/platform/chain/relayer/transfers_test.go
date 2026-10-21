@@ -237,3 +237,140 @@ func TestTransfersBuild_skipCreateSendsOnlyTheTransfer(t *testing.T) {
 		t.Fatalf("instructions = %d, want only the TransferChecked and no ATA create", len(ixs))
 	}
 }
+
+const strandedAccount = treasury
+
+func consolidate(amount uint64) relayer.ConsolidationSpec {
+	return relayer.ConsolidationSpec{
+		Wallet: member(), Source: strandedAccount, Mint: usdc(), Amount: money.NewBaseUnits(amount, 6),
+	}
+}
+
+func TestTransfersBuildConsolidation_movesTheStrandedAccountIntoTheAssociatedOne(t *testing.T) {
+	t.Parallel()
+	s := overFakes(t, "relayer")
+	signed, err := s.transfers.BuildConsolidation(t.Context(), consolidate(15_000_000))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(s.rpc.calls(), "sendTransaction") {
+		t.Fatalf("BuildConsolidation called sendTransaction: %v", s.rpc.calls())
+	}
+	tx, err := chain.DecodeTransaction(signed.Bytes)
+	if err != nil || !tx.Signed(0) || !tx.Signed(1) || signed.Signature != chain.SignatureOf(tx.Signatures[0]) {
+		t.Fatalf("tx = %v, signature %s", err, signed.Signature)
+	}
+	if want := []chain.SolanaAddress{s.relayer.Address(), memberWallet}; !slices.Equal(tx.Signers, want) {
+		t.Fatalf("signers = %v, want the relayer as fee payer then the member", tx.Signers)
+	}
+	ata, _ := chain.AssociatedTokenAccount(memberWallet, usdcMint, chain.SPLProgram)
+	keys, ixs := compiled(t, tx.Message)
+	if len(ixs) != 2 {
+		t.Fatalf("%d instructions, want the ATA create then TransferChecked", len(ixs))
+	}
+	create, transfer := ixs[0], ixs[1]
+	wantKeys(t, map[string][2]chain.SolanaAddress{
+		"create program":   {keys[create.program], chain.ATAProgram},
+		"create payer":     {keys[create.accounts[0]], s.relayer.Address()},
+		"create ata":       {keys[create.accounts[1]], ata},
+		"create owner":     {keys[create.accounts[2]], memberWallet},
+		"create mint":      {keys[create.accounts[3]], usdcMint},
+		"create system":    {keys[create.accounts[4]], chain.SystemProgram},
+		"create token":     {keys[create.accounts[5]], chain.SPLProgram},
+		"transfer program": {keys[transfer.program], chain.SPLProgram},
+		"transfer source":  {keys[transfer.accounts[0]], strandedAccount},
+		"transfer mint":    {keys[transfer.accounts[1]], usdcMint},
+		"transfer dest":    {keys[transfer.accounts[2]], ata},
+		"transfer owner":   {keys[transfer.accounts[3]], memberWallet},
+	})
+	data := binary.LittleEndian.AppendUint64([]byte{12}, 15_000_000)
+	if !bytes.Contains(tx.Message, append(data, 6)) {
+		t.Fatal("message lacks TransferChecked for 15 USDC")
+	}
+	if got := slices.Compact(slices.Sorted(slices.Values(keys))); len(got) != len(keys) {
+		t.Fatalf("message repeats an account: %v", keys)
+	}
+}
+
+func wantKeys(t *testing.T, pairs map[string][2]chain.SolanaAddress) {
+	t.Helper()
+	for name, pair := range pairs {
+		if pair[0] != pair[1] {
+			t.Fatalf("%s = %s, want %s", name, pair[0], pair[1])
+		}
+	}
+}
+
+func TestTransfersBuildConsolidation_aRetryRebuildsTheSameTransactionAndRebroadcastsIt(t *testing.T) {
+	t.Parallel()
+	s := overFakes(t, "relayer")
+	first, err := s.transfers.BuildConsolidation(t.Context(), consolidate(15_000_000))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.transfers.Broadcast(t.Context(), first); err != nil {
+		t.Fatal(err)
+	}
+	again, err := s.transfers.BuildConsolidation(t.Context(), consolidate(15_000_000))
+	if err != nil || again.Signature != first.Signature || !bytes.Equal(again.Bytes, first.Bytes) {
+		t.Fatalf("rebuild = %s, %v, want the signature %s of the first build", again.Signature, err, first.Signature)
+	}
+	if err := s.transfers.Broadcast(t.Context(), first); err != nil {
+		t.Fatalf("rebroadcast of the stored transaction: %v", err)
+	}
+	if err := s.transfers.Broadcast(t.Context(), again); err != nil {
+		t.Fatalf("broadcast of the rebuilt transaction: %v", err)
+	}
+}
+
+func TestTransfersBuildConsolidation_refusesBadSpecs(t *testing.T) {
+	t.Parallel()
+	s := overFakes(t, "relayer")
+	ata, _ := chain.AssociatedTokenAccount(memberWallet, usdcMint, chain.SPLProgram)
+	edit := func(f func(*relayer.ConsolidationSpec)) relayer.ConsolidationSpec {
+		spec := consolidate(10)
+		f(&spec)
+		return spec
+	}
+	for name, tc := range map[string]struct {
+		spec relayer.ConsolidationSpec
+		want errs.Code
+	}{
+		"bad source":      {edit(func(s *relayer.ConsolidationSpec) { s.Source = "nope" }), errs.CodeInvalidAddress},
+		"bad wallet":      {edit(func(s *relayer.ConsolidationSpec) { s.Wallet.Address = "nope" }), errs.CodeInvalidAddress},
+		"zero amount":     {consolidate(0), errs.CodeInvalidInput},
+		"amount decimals": {edit(func(s *relayer.ConsolidationSpec) { s.Amount = money.NewBaseUnits(10, 9) }), errs.CodeInvalidInput},
+		"the associated account itself": {
+			edit(func(s *relayer.ConsolidationSpec) { s.Source = ata }), errs.CodeInvalidInput,
+		},
+		"the relayer's wallet": {
+			edit(func(spec *relayer.ConsolidationSpec) { spec.Wallet.Address = s.relayer.Address() }),
+			errs.CodeInvalidInput,
+		},
+		"mint decimals": {
+			edit(func(s *relayer.ConsolidationSpec) { s.Mint.Decimals, s.Amount = 9, money.NewBaseUnits(10, 9) }),
+			errs.CodeInvalidInput,
+		},
+	} {
+		_, err := s.transfers.BuildConsolidation(t.Context(), tc.spec)
+		if err == nil || errs.CodeOf(err) != tc.want {
+			t.Fatalf("%s: err = %v, want %s", name, err, tc.want)
+		}
+	}
+}
+
+func TestTransfersBuildConsolidation_upstreamFailures(t *testing.T) {
+	t.Parallel()
+	for _, route := range []string{"/rpc/getAccountInfo", "/rpc/getLatestBlockhash"} {
+		s := overFakes(t, "relayer")
+		script(t, s.srv, fakes.Step{Route: route, Action: fakes.ActionFail, Status: 400})
+		_, err := s.transfers.BuildConsolidation(t.Context(), consolidate(1))
+		wantCode(t, err, errs.CodeRPCUnavailable)
+	}
+	s := overFakes(t, "relayer")
+	down := signerFunc(func(context.Context, string, []byte) ([]byte, error) {
+		return nil, errs.New(errs.CodePrivyUnavailable, "test")
+	})
+	_, err := relayer.NewTransfers(s.relayer, down).BuildConsolidation(t.Context(), consolidate(1))
+	wantCode(t, err, errs.CodePrivyUnavailable)
+}

@@ -1,6 +1,7 @@
 package solana_test
 
 import (
+	"context"
 	"slices"
 	"strings"
 	"testing"
@@ -377,4 +378,119 @@ func TestSignatureStatuses_acceptsExactlyTheMostItAsksForAndRefusesOneMore(t *te
 	}
 	_, err = client(byMethod(body)).SignatureStatuses(t.Context(), make([]chain.Signature, most+1))
 	wantCode(t, err, errs.CodeInvalidInput)
+}
+
+func heldAccount(pubkey, program chain.SolanaAddress, state, amount, decimals string) string {
+	return `{"pubkey":"` + string(pubkey) + `","account":{"owner":"` + string(program) + `","data":{"parsed":{"info":` +
+		`{"state":"` + state + `","tokenAmount":{"amount":"` + amount + `","decimals":` + decimals + `}}}}}}`
+}
+
+func associated(t *testing.T, program chain.SolanaAddress) chain.SolanaAddress {
+	t.Helper()
+	ata, err := chain.AssociatedTokenAccount(member, usdcMint, program)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ata
+}
+
+func balancesOver(body string) (solana.TokenBalances, error) {
+	return client(result(`{"context":{"slot":77},"value":[`+body+`]}`)).
+		TokenBalancesAt(context.Background(), member, usdc(), "finalized")
+}
+
+func TestTokenBalancesAt_fundsOnlyInAnotherAccountAreNotSpendable(t *testing.T) {
+	t.Parallel()
+	got, err := balancesOver(heldAccount(sender, chain.SPLProgram, "initialized", "40000000", "6"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []solana.OwnedTokenAccount{{
+		Address: sender, Program: chain.SPLProgram, State: "initialized", Amount: money.NewBaseUnits(40_000_000, 6),
+	}}
+	if got.Slot != 77 || got.Total != money.NewBaseUnits(40_000_000, 6) || !got.Spendable.IsZero() ||
+		got.Unspendable != money.NewBaseUnits(40_000_000, 6) || !slices.Equal(got.Stranded, want) ||
+		!got.Stranded[0].Movable() {
+		t.Fatalf("TokenBalancesAt = %+v, want 40 USDC held and none spendable", got)
+	}
+}
+
+func TestTokenBalancesAt_splitsTheAssociatedAccountFromTheRest(t *testing.T) {
+	t.Parallel()
+	ata := associated(t, chain.SPLProgram)
+	got, err := balancesOver(
+		heldAccount(ata, chain.SPLProgram, "initialized", "25000000", "6") + "," +
+			heldAccount(sender, chain.SPLProgram, "initialized", "15000000", "6") + "," +
+			heldAccount(feeMint, chain.SPLProgram, "initialized", "0", "6"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Total != money.NewBaseUnits(40_000_000, 6) || got.Spendable != money.NewBaseUnits(25_000_000, 6) ||
+		got.Unspendable != money.NewBaseUnits(15_000_000, 6) || len(got.Stranded) != 1 ||
+		got.Stranded[0].Address != sender {
+		t.Fatalf("TokenBalancesAt = %+v, want 25 spendable and 15 in %s", got, sender)
+	}
+}
+
+func TestTokenBalancesAt_aFrozenAccountIsUnspendableAndNotMovable(t *testing.T) {
+	t.Parallel()
+	got, err := balancesOver(heldAccount(sender, chain.SPLProgram, "frozen", "9", "6"))
+	if err != nil || got.Unspendable != money.NewBaseUnits(9, 6) || got.Stranded[0].Movable() {
+		t.Fatalf("TokenBalancesAt = %+v, %v, want 9 held in an account that cannot move", got, err)
+	}
+	empty, err := balancesOver(heldAccount(sender, chain.SPLProgram, "initialized", "0", "6"))
+	if err != nil || len(empty.Stranded) != 0 {
+		t.Fatalf("an empty account = %+v, %v, want nothing stranded", empty, err)
+	}
+	if (solana.OwnedTokenAccount{State: "initialized"}).Movable() {
+		t.Fatal("an empty initialized account is movable")
+	}
+}
+
+func TestTokenBalancesAt_findsTheAssociatedAccountUnderTheAccountsOwnTokenProgram(t *testing.T) {
+	t.Parallel()
+	ata := associated(t, chain.SPL2022Program)
+	got, err := balancesOver(heldAccount(ata, chain.SPL2022Program, "initialized", "5", "6"))
+	if err != nil || got.Spendable != money.NewBaseUnits(5, 6) || !got.Unspendable.IsZero() {
+		t.Fatalf("TokenBalancesAt = %+v, %v, want the Token-2022 associated account spendable", got, err)
+	}
+	other, err := balancesOver(heldAccount(ata, chain.SPLProgram, "initialized", "5", "6"))
+	if err != nil || !other.Spendable.IsZero() || other.Unspendable != money.NewBaseUnits(5, 6) {
+		t.Fatalf("TokenBalancesAt = %+v, %v, want an account of another program stranded", other, err)
+	}
+}
+
+func TestTokenBalancesAt_readsAtTheCommitmentItWasGiven(t *testing.T) {
+	t.Parallel()
+	u := result(`{"context":{"slot":1},"value":[]}`)
+	got, err := client(u).TokenBalancesAt(t.Context(), member, usdc(), "finalized")
+	if err != nil || !got.Total.IsZero() || got.Total.Decimals() != 6 || got.Unspendable.Decimals() != 6 {
+		t.Fatalf("TokenBalancesAt = %+v, %v, want zero in 6 decimals", got, err)
+	}
+	if p := string(u.requests()[0].params[2]); p != `{"commitment":"finalized","encoding":"jsonParsed"}` {
+		t.Fatalf("options = %s", p)
+	}
+}
+
+func TestTokenBalancesAt_rejectsWhatItCannotRead(t *testing.T) {
+	t.Parallel()
+	ata := associated(t, chain.SPLProgram)
+	for name, body := range map[string]string{
+		"not a number":     heldAccount(ata, chain.SPLProgram, "initialized", "x", "6"),
+		"decimals differ":  heldAccount(ata, chain.SPLProgram, "initialized", "1", "9"),
+		"overflow the sum": heldAccount(ata, chain.SPLProgram, "initialized", "18446744073709551615", "6") + "," + heldAccount(sender, chain.SPLProgram, "initialized", "1", "6"),
+		"overflow strands": heldAccount(sender, chain.SPLProgram, "initialized", "18446744073709551615", "6") +
+			"," + heldAccount(feeMint, chain.SPLProgram, "initialized", "1", "6"),
+		"no token program": heldAccount(sender, "", "initialized", "1", "6"),
+	} {
+		got, err := balancesOver(body)
+		if err == nil || errs.CodeOf(err) != errs.CodeDecodeFailed || got.Slot != 0 || len(got.Stranded) != 0 {
+			t.Fatalf("%s: TokenBalancesAt = %+v, %v, want decode_failed and nothing", name, got, err)
+		}
+	}
+	_, err := client(replying(503, "")).TokenBalancesAt(t.Context(), member, usdc(), "finalized")
+	wantCode(t, err, errs.CodeRPCUnavailable)
+	_, err = client(result(`{}`)).TokenBalancesAt(t.Context(), "bad", usdc(), "finalized")
+	wantCode(t, err, errs.CodeInvalidAddress)
 }

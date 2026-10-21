@@ -183,6 +183,11 @@ type Balance struct {
 
 	// OnChainMicros Examples: 25000000
 	OnChainMicros string `json:"on_chain_micros"`
+
+	// UnspendableMicros USDC the member wallet received in a token account other than its associated token account. It is part of on_chain_micros and not part of available_micros, because sends and withdrawals spend only from the associated account. Absent when there is none. Support recovers it.
+	//
+	// Examples: 5000000
+	UnspendableMicros *string `json:"unspendable_micros,omitempty"`
 }
 
 // BounceQueue The pending bounces, oldest first.

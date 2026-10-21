@@ -74,10 +74,13 @@ type tokenAccountsWire struct {
 		Slot uint64 `json:"slot"`
 	} `json:"context"`
 	Value []struct {
+		Pubkey  chain.SolanaAddress `json:"pubkey"`
 		Account struct {
-			Data struct {
+			Owner chain.SolanaAddress `json:"owner"`
+			Data  struct {
 				Parsed struct {
 					Info struct {
+						State       string `json:"state"`
 						TokenAmount struct {
 							Amount   string `json:"amount"`
 							Decimals uint8  `json:"decimals"`
@@ -214,30 +217,104 @@ func (c *Client) TokenBalanceAt(
 ) (uint64, money.BaseUnits, error) {
 	const op = "solana.TokenBalance"
 	total := money.NewBaseUnits(0, mint.Decimals)
-	if err := addresses(op, owner, mint.Address); err != nil {
-		return 0, total, err
-	}
-	var w tokenAccountsWire
-	opts := map[string]string{"encoding": "jsonParsed", "commitment": level}
-	if err := c.call(
-		ctx,
-		"getTokenAccountsByOwner",
-		[]any{owner, map[string]any{"mint": mint.Address}, opts},
-		&w,
-	); err != nil {
+	w, err := c.ownedTokenAccounts(ctx, op, owner, mint, level)
+	if err != nil {
 		return 0, total, err
 	}
 	for _, acct := range w.Value {
-		amt := acct.Account.Data.Parsed.Info.TokenAmount
-		v, err := strconv.ParseUint(amt.Amount, 10, 64)
+		v, err := parseTokenAmount(op, acct.Account.Data.Parsed.Info.TokenAmount.Amount)
 		if err != nil {
-			return 0, total, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.String("amount", amt.Amount))
+			return 0, total, err
 		}
-		if total, err = total.Add(money.NewBaseUnits(v, amt.Decimals)); err != nil {
+		held := money.NewBaseUnits(v, acct.Account.Data.Parsed.Info.TokenAmount.Decimals)
+		if total, err = total.Add(held); err != nil {
 			return 0, money.NewBaseUnits(0, mint.Decimals), errs.Wrap(err, errs.CodeDecodeFailed, op)
 		}
 	}
 	return w.Context.Slot, total, nil
+}
+
+type OwnedTokenAccount struct {
+	Address chain.SolanaAddress
+	Program chain.SolanaAddress
+	State   string
+	Amount  money.BaseUnits
+}
+
+func (a OwnedTokenAccount) Movable() bool { return a.State == "initialized" && !a.Amount.IsZero() }
+
+type TokenBalances struct {
+	Slot        uint64
+	Total       money.BaseUnits
+	Spendable   money.BaseUnits
+	Stranded    []OwnedTokenAccount
+	Unspendable money.BaseUnits
+}
+
+func (c *Client) TokenBalancesAt(
+	ctx context.Context,
+	owner chain.SolanaAddress,
+	mint chain.Mint,
+	level string,
+) (TokenBalances, error) {
+	const op = "solana.TokenBalances"
+	zero := money.NewBaseUnits(0, mint.Decimals)
+	out := TokenBalances{Total: zero, Spendable: zero, Unspendable: zero}
+	w, err := c.ownedTokenAccounts(ctx, op, owner, mint, level)
+	if err != nil {
+		return TokenBalances{}, err
+	}
+	out.Slot = w.Context.Slot
+	for _, acct := range w.Value {
+		info := acct.Account.Data.Parsed.Info
+		v, err := parseTokenAmount(op, info.TokenAmount.Amount)
+		if err != nil {
+			return TokenBalances{}, err
+		}
+		held := money.NewBaseUnits(v, info.TokenAmount.Decimals)
+		canonical, err := chain.AssociatedTokenAccount(owner, mint.Address, acct.Account.Owner)
+		if err != nil {
+			return TokenBalances{}, errs.Wrap(err, errs.CodeDecodeFailed, op)
+		}
+		if acct.Pubkey == canonical {
+			out.Spendable = held
+		} else if !held.IsZero() {
+			if out.Unspendable, err = out.Unspendable.Add(held); err != nil {
+				return TokenBalances{}, errs.Wrap(err, errs.CodeDecodeFailed, op)
+			}
+			out.Stranded = append(out.Stranded, OwnedTokenAccount{
+				Address: acct.Pubkey, Program: acct.Account.Owner, State: info.State, Amount: held,
+			})
+		}
+		if out.Total, err = out.Total.Add(held); err != nil {
+			return TokenBalances{}, errs.Wrap(err, errs.CodeDecodeFailed, op)
+		}
+	}
+	return out, nil
+}
+
+func (c *Client) ownedTokenAccounts(
+	ctx context.Context,
+	op string,
+	owner chain.SolanaAddress,
+	mint chain.Mint,
+	level string,
+) (tokenAccountsWire, error) {
+	var w tokenAccountsWire
+	if err := addresses(op, owner, mint.Address); err != nil {
+		return w, err
+	}
+	opts := map[string]string{"encoding": "jsonParsed", "commitment": level}
+	err := c.call(ctx, "getTokenAccountsByOwner", []any{owner, map[string]any{"mint": mint.Address}, opts}, &w)
+	return w, err
+}
+
+func parseTokenAmount(op, amount string) (uint64, error) {
+	v, err := strconv.ParseUint(amount, 10, 64)
+	if err != nil {
+		return 0, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.String("amount", amount))
+	}
+	return v, nil
 }
 
 type statusWire struct {

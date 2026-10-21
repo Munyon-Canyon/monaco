@@ -17,11 +17,13 @@ type Balances interface {
 }
 
 type Observation struct {
-	User          ids.UserID
-	OnChainMicros money.Micros
-	Slot          uint64
-	At            time.Time
-	Signatures    map[chain.Signature]bool
+	User              ids.UserID
+	OnChainMicros     money.Micros
+	SpendableMicros   money.Micros
+	UnspendableMicros money.Micros
+	Slot              uint64
+	At                time.Time
+	Signatures        map[chain.Signature]bool
 }
 
 type DisplayBalances interface {
@@ -37,5 +39,6 @@ type Balance struct {
 	InFlightFundMicros       money.Micros
 	InFlightWithdrawalMicros money.Micros
 	AvailableMicros          money.Micros
+	UnspendableMicros        money.Micros
 	AsOf                     time.Time
 }

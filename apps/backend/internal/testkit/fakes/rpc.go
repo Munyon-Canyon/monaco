@@ -134,7 +134,7 @@ func (s *Server) tokenAccounts(w http.ResponseWriter, r *http.Request, keys []st
 	balance, ok := held[filter.Mint]
 	s.mu.Unlock()
 	if !set {
-		return s.fixtureTokenAccounts(w, call.ID, keys, filter.Mint)
+		return s.fixtureTokenAccounts(w, call.ID, keys, owner, filter.Mint)
 	}
 	accounts := []any{}
 	if ok {
@@ -160,7 +160,9 @@ func (s *Server) tokenAccounts(w http.ResponseWriter, r *http.Request, keys []st
 	return true
 }
 
-func (s *Server) fixtureTokenAccounts(w http.ResponseWriter, id json.RawMessage, keys []string, mint string) bool {
+func (s *Server) fixtureTokenAccounts(
+	w http.ResponseWriter, id json.RawMessage, keys []string, owner, mint string,
+) bool {
 	for _, key := range keys {
 		f, ok := s.fixtures[key]
 		if !ok {
@@ -179,7 +181,8 @@ func (s *Server) fixtureTokenAccounts(w http.ResponseWriter, id json.RawMessage,
 		for _, raw := range reply.Result.Value {
 			var acct struct {
 				Account struct {
-					Data struct {
+					Owner chain.SolanaAddress `json:"owner"`
+					Data  struct {
 						Parsed struct {
 							Info struct {
 								Mint string `json:"mint"`
@@ -188,12 +191,33 @@ func (s *Server) fixtureTokenAccounts(w http.ResponseWriter, id json.RawMessage,
 					} `json:"data"`
 				} `json:"account"`
 			}
-			if json.Unmarshal(raw, &acct) == nil && acct.Account.Data.Parsed.Info.Mint == mint {
-				accounts = append(accounts, raw)
+			if json.Unmarshal(raw, &acct) != nil || acct.Account.Data.Parsed.Info.Mint != mint {
+				continue
 			}
+			if len(accounts) == 0 {
+				raw = associatedPubkey(raw, owner, mint, acct.Account.Owner)
+			}
+			accounts = append(accounts, raw)
 		}
 		rpcReply(w, id, map[string]any{"context": reply.Result.Context, "value": accounts}, nil)
 		return true
 	}
 	return false
+}
+
+func associatedPubkey(raw json.RawMessage, owner, mint string, program chain.SolanaAddress) json.RawMessage {
+	ata, err := chain.AssociatedTokenAccount(chain.SolanaAddress(owner), chain.SolanaAddress(mint), program)
+	if err != nil {
+		return raw
+	}
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(raw, &fields) != nil {
+		return raw
+	}
+	fields["pubkey"], _ = json.Marshal(ata)
+	out, err := json.Marshal(fields)
+	if err != nil {
+		return raw
+	}
+	return out
 }
