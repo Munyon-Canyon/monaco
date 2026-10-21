@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/platformapi"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -104,5 +105,26 @@ func TestReady_followsARealPoolFromExhaustedToFree(t *testing.T) {
 	held.Release()
 	if code, body := probe(h, http.MethodGet, "/readyz"); code != http.StatusOK {
 		t.Fatalf("freed pool GET /readyz = %d %q, want 200", code, body)
+	}
+}
+
+func TestHandler_servesReadinessBesideLivenessOnlyWhenDepsAskForIt(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	live := healthz{fn: func(ctx context.Context) (platformapi.GetHealthzResponseObject, error) {
+		return Health{}.GetHealthz(ctx, platformapi.GetHealthzRequestObject{})
+	}}
+	without := mustHandler(t, h.deps, live)
+	if rec := serveRaw(t, without, http.MethodGet, "/readyz", nil); rec.Code != http.StatusNotFound {
+		t.Fatalf("GET /readyz without Deps.Ready = %d, want 404", rec.Code)
+	}
+	h.deps.Ready = pinger(func(context.Context) error { return errors.New("pool exhausted") })
+	served := mustHandler(t, h.deps, live)
+	rec := serveRaw(t, served, http.MethodGet, "/healthz", nil)
+	if rec.Code != http.StatusOK || rec.Body.String() != "ok\n" {
+		t.Fatalf("GET /healthz with an exhausted pool = %d %q, want 200 ok", rec.Code, rec.Body)
+	}
+	if rec = serveRaw(t, served, http.MethodGet, "/readyz", nil); rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("GET /readyz with an exhausted pool = %d, want 503", rec.Code)
 	}
 }

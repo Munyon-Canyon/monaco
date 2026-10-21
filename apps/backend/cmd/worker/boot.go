@@ -154,7 +154,7 @@ func startWork(
 	})
 	return health{
 		connected: d.Bus.Connected, pool: d.Pool, ticks: runner, successes: runner, pollers: pollers, clock: d.Clock,
-		progress: dbProgress{pool: d.Pool, bus: d.Bus, clock: d.Clock},
+		progress: newDBProgress(d.Pool, d.Bus, d.Clock),
 	}, nil
 }
 

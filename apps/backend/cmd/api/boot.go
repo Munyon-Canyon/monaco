@@ -153,7 +153,7 @@ func newHandler(deps module.Deps, spec []byte, meters metric.MeterProvider) (htt
 	if err != nil {
 		return nil, err
 	}
-	h, err := httpx.Handler(httpx.Deps{
+	return httpx.Handler(httpx.Deps{
 		Logger:        deps.Logger,
 		Env:           deps.Config.Env,
 		Tracer:        otel.GetTracerProvider(),
@@ -165,11 +165,8 @@ func newHandler(deps module.Deps, spec []byte, meters metric.MeterProvider) (htt
 		AdminVerifier: adminauthn.NewAdminVerifier(verifier, deps.Pool),
 		RateLimit:     ratelimit.Middleware(limiter, policies, httpx.ActorKey, deps.Config.HTTP.TrustProxyHeaders),
 		WebOrigins:    deps.Config.WebAllowedOrigins(),
+		Ready:         deps.Pool,
 	}, registered.Build(deps).Mount, spec)
-	if err != nil {
-		return nil, err
-	}
-	return httpx.Ready(h, deps.Pool, 0), nil
 }
 
 func listen(ctx context.Context, cfg config.Config) (net.Listener, error) {

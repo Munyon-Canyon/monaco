@@ -36,23 +36,41 @@ type progressReader interface {
 }
 
 type dbProgress struct {
-	pool  *pgxpool.Pool
-	bus   *bus.Conn
-	clock clock.Clock
+	clock     clock.Clock
+	intent    func(context.Context) (time.Time, error)
+	outbox    func(context.Context) (db.Backlog, error)
+	consumers func(context.Context, time.Time) (bus.ConsumerBacklog, error)
+}
+
+func newDBProgress(pool *pgxpool.Pool, conn *bus.Conn, c clock.Clock) dbProgress {
+	return dbProgress{
+		clock: c,
+		intent: func(ctx context.Context) (time.Time, error) {
+			var oldest *time.Time
+			if err := pool.QueryRow(ctx, oldestMoneyIntent).Scan(&oldest); err != nil {
+				return time.Time{}, errs.Wrap(err, errs.CodeInternal, "worker.progress")
+			}
+			if oldest == nil {
+				return time.Time{}, nil
+			}
+			return *oldest, nil
+		},
+		outbox:    db.NewOutbox(pool, c).Backlog,
+		consumers: conn.ConsumerBacklog,
+	}
 }
 
 func (p dbProgress) Progress(ctx context.Context) (progress, error) {
-	const op = "worker.progress"
 	now := p.clock.Now()
-	var oldest *time.Time
-	if err := p.pool.QueryRow(ctx, oldestMoneyIntent).Scan(&oldest); err != nil {
-		return progress{}, errs.Wrap(err, errs.CodeInternal, op)
-	}
-	backlog, err := db.NewOutbox(p.pool, p.clock).Backlog(ctx)
+	oldest, err := p.intent(ctx)
 	if err != nil {
 		return progress{}, err
 	}
-	consumers, err := p.bus.ConsumerBacklog(ctx, now)
+	backlog, err := p.outbox(ctx)
+	if err != nil {
+		return progress{}, err
+	}
+	consumers, err := p.consumers(ctx, now)
 	if err != nil {
 		return progress{}, err
 	}
@@ -60,8 +78,8 @@ func (p dbProgress) Progress(ctx context.Context) (progress, error) {
 		OutboxUnpublished: backlog.Unpublished, OutboxOldest: backlog.Lag,
 		ConsumerPending: consumers.Pending, ConsumerOldest: consumers.Oldest,
 	}
-	if oldest != nil {
-		out.MoneyIntentOldest = now.Sub(*oldest)
+	if !oldest.IsZero() {
+		out.MoneyIntentOldest = now.Sub(oldest)
 	}
 	return out, nil
 }

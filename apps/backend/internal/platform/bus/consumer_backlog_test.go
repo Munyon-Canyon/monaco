@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -78,5 +79,30 @@ func TestConsumerBacklog_failsAsUnavailableWhenTheEventsStreamIsMissing(t *testi
 	}
 	if _, err := b.Conn.Apply(t.Context()); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestDeadLetters_failAsUnavailableWhenTheDeadLetterStreamIsMissing(t *testing.T) {
+	t.Parallel()
+	b := testkit.NATS(t)
+	if err := b.JS.DeleteStream(t.Context(), b.DeadLetter); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Conn.DeadLetters(t.Context()); errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
+		t.Fatalf("DeadLetters without the stream = %v, want upstream_unavailable", err)
+	}
+	if _, err := b.Conn.Apply(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRedeliver_failsWhenNoStreamTakesTheSubject(t *testing.T) {
+	t.Parallel()
+	b := testkit.NATS(t)
+	letter := bus.DeadLetter{
+		Seq: 1, Consumer: "c", Subject: "nowhere.at.all", Data: []byte(`{}`), Headers: nats.Header{},
+	}
+	if err := b.Conn.Redeliver(t.Context(), letter, "redrive-1"); err == nil {
+		t.Fatal("Redeliver to a subject no stream takes = nil, want an error")
 	}
 }

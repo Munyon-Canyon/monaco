@@ -37,7 +37,11 @@ func HandlerFor(d Deps, mount func(api.Mount), c *Contract) (http.Handler, error
 		Problem(w, r, errs.New(errs.CodeNotFound, "httpx.route"))
 	})
 	mount(api.Mount{Mux: mux, Middlewares: middlewares(d, c), InvalidRequest: invalidRequest, Problem: Problem})
-	return d.wrapContract(c.cors(d.WebOrigins)(mux)), nil
+	h := d.wrapContract(c.cors(d.WebOrigins)(mux))
+	if d.Ready != nil {
+		h = Ready(h, d.Ready, 0)
+	}
+	return h, nil
 }
 
 func middlewares(d Deps, c *Contract) []func(http.Handler) http.Handler {
