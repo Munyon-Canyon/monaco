@@ -218,3 +218,22 @@ func TestTransfersBuild_relayerSignFailureReturnsNoBytes(t *testing.T) {
 		t.Fatalf("signed = %+v, want the zero SignedTx", signed)
 	}
 }
+
+func TestTransfersBuild_skipCreateSendsOnlyTheTransfer(t *testing.T) {
+	t.Parallel()
+	s := overFakes(t, "relayer")
+	spec := fund(25_000_000)
+	spec.SkipCreate = true
+	signed, err := s.transfers.Build(t.Context(), spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, err := chain.DecodeTransaction(signed.Bytes)
+	if err != nil || !tx.Signed(0) || !tx.Signed(1) {
+		t.Fatalf("tx = %v; relayer signed %v, member signed %v", err, tx.Signed(0), tx.Signed(1))
+	}
+	keys, ixs := compiled(t, tx.Message)
+	if len(ixs) != 1 || keys[ixs[0].program] != chain.SPLProgram {
+		t.Fatalf("instructions = %d, want only the TransferChecked and no ATA create", len(ixs))
+	}
+}

@@ -100,7 +100,11 @@ SELECT count(*)::bigint AS fresh_today,
     SELECT 1 FROM withdrawals k
     WHERE k.destination_kind = 'solana' AND k.to_address = sqlc.arg(to_address)::text
       AND k.status IN ('submitted', 'confirmed')
-  ) AS destination_known
+  ) AS destination_known,
+  EXISTS (
+    SELECT 1 FROM withdrawals k
+    WHERE k.destination_kind = 'solana' AND k.to_address = sqlc.arg(to_address)::text AND k.status = 'confirmed'
+  ) AS destination_landed
 FROM withdrawals w
 WHERE w.user_id = sqlc.arg(user_id)::uuid AND w.destination_kind = 'solana' AND w.status <> 'failed'
   AND w.created_at >= sqlc.arg(since)::timestamptz

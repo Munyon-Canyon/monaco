@@ -58,7 +58,11 @@ SELECT count(*)::bigint AS fresh_today,
     SELECT 1 FROM withdrawals k
     WHERE k.destination_kind = 'solana' AND k.to_address = $1::text
       AND k.status IN ('submitted', 'confirmed')
-  ) AS destination_known
+  ) AS destination_known,
+  EXISTS (
+    SELECT 1 FROM withdrawals k
+    WHERE k.destination_kind = 'solana' AND k.to_address = $1::text AND k.status = 'confirmed'
+  ) AS destination_landed
 FROM withdrawals w
 WHERE w.user_id = $2::uuid AND w.destination_kind = 'solana' AND w.status <> 'failed'
   AND w.created_at >= $3::timestamptz
@@ -76,14 +80,15 @@ type FreshWithdrawalDestinationsParams struct {
 }
 
 type FreshWithdrawalDestinationsRow struct {
-	FreshToday       int64
-	DestinationKnown bool
+	FreshToday        int64
+	DestinationKnown  bool
+	DestinationLanded bool
 }
 
 func (q *Queries) FreshWithdrawalDestinations(ctx context.Context, arg FreshWithdrawalDestinationsParams) (FreshWithdrawalDestinationsRow, error) {
 	row := q.db.QueryRow(ctx, freshWithdrawalDestinations, arg.ToAddress, arg.UserID, arg.Since)
 	var i FreshWithdrawalDestinationsRow
-	err := row.Scan(&i.FreshToday, &i.DestinationKnown)
+	err := row.Scan(&i.FreshToday, &i.DestinationKnown, &i.DestinationLanded)
 	return i, err
 }
 

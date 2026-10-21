@@ -19,7 +19,7 @@ type SOLTopUp interface {
 }
 
 func (h *WithdrawHandler) handleEVM(ctx context.Context, cmd Withdraw, wallet chain.Wallet) (WithdrawResult, error) {
-	prior, replayed, err := h.create(ctx, cmd)
+	prior, _, replayed, err := h.create(ctx, cmd)
 	if err != nil {
 		return WithdrawResult{}, err
 	}
