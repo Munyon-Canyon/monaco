@@ -96,9 +96,9 @@ func TestFlow08_DetectExternalDeposit_OK(t *testing.T) {
 		row.mint != string(testkit.USDCMint) {
 		t.Fatalf("row = %+v, want 25 USDC read from chain", row)
 	}
-	if externalPauses(t, f.pool) != 1 || countEvents(t, f.pool, events.TypeCabalPaused) != 1 ||
+	if externalPauses(t, f.pool) != 0 || countEvents(t, f.pool, events.TypeCabalPaused) != 0 ||
 		countEvents(t, f.pool, events.TypeCabalExternalDepositDetected) != 1 {
-		t.Fatal("want one pause, one cabal.paused and one cabal.external_deposit_detected")
+		t.Fatal("want no pause, no cabal.paused and one cabal.external_deposit_detected")
 	}
 	if e := detectedEvent(t, f.pool); e.Sender != flow08Sender || e.Amount != 25_000_000 {
 		t.Fatalf("event = %+v, want the chain's sender and amount", e)
@@ -118,9 +118,9 @@ func TestFlow08_DetectExternalDeposit_BounceFailed(t *testing.T) {
 		t.Fatalf("status = %s, builds = %d, want bounce_failed with no transfer", f.status(t, id),
 			len(f.transfers.builds))
 	}
-	if externalPauses(t, f.pool) != 1 || countEvents(t, f.pool, events.TypeCabalExternalDepositBounced) != 0 ||
+	if externalPauses(t, f.pool) != 0 || countEvents(t, f.pool, events.TypeCabalExternalDepositBounced) != 0 ||
 		f.ledgerRows(t) != 0 {
-		t.Fatal("a failed bounce ended the pause, emitted a bounced event or wrote ledger rows")
+		t.Fatal("a failed bounce paused the cabal, emitted a bounced event or wrote ledger rows")
 	}
 	open, err := f.funding.ExternalDeposits().UnresolvedExternalDeposits(t.Context())
 	if err != nil || len(open) != 1 {
@@ -170,8 +170,8 @@ func TestDetectExternalDeposit_ListedStockWithNoLivePriceIsDetected(t *testing.T
 		t.Fatal(err)
 	}
 	row := f.only(t, flow08StockSig)
-	if row.status != "detected" || row.assetID == nil || *row.assetID != asset || externalPauses(t, f.pool) != 1 {
-		t.Fatalf("row = %+v, want a detected AAPLx row and a pause", row)
+	if row.status != "detected" || row.assetID == nil || *row.assetID != asset || externalPauses(t, f.pool) != 0 {
+		t.Fatalf("row = %+v, want a detected AAPLx row and no pause", row)
 	}
 }
 
@@ -205,7 +205,7 @@ func TestDetectExternalDeposit_OwnTransfersNeverCreateARow(t *testing.T) {
 	}
 }
 
-func TestDetectExternalDeposit_PausesWhatFundCashOutAndTradingRead(t *testing.T) {
+func TestDetectExternalDeposit_LeavesWhatFundCashOutAndTradingReadOpen(t *testing.T) {
 	t.Parallel()
 	f := newFlow08(t)
 	if err := f.deliver(t, flow08USDCSig); err != nil {
@@ -213,13 +213,12 @@ func TestDetectExternalDeposit_PausesWhatFundCashOutAndTradingRead(t *testing.T)
 	}
 
 	pause, err := f.funding.Pauses().IsPaused(t.Context(), f.cabal.ID)
-	if err != nil || !pause.Paused || len(pause.Reasons) != 1 ||
-		pause.Reasons[0] != funding.PauseReasonExternalDeposit {
-		t.Fatalf("IsPaused = %+v, %v, want paused for external_deposit", pause, err)
+	if err != nil || pause.Paused || len(pause.Reasons) != 0 {
+		t.Fatalf("IsPaused = %+v, %v, want not paused", pause, err)
 	}
 	set, err := f.funding.Pauses().PausedCabals(t.Context())
-	if err != nil || len(set.Cabals[f.cabal.ID]) != 1 || set.Global {
-		t.Fatalf("PausedCabals = %+v, %v, want this cabal paused", set, err)
+	if err != nil || len(set.Cabals[f.cabal.ID]) != 0 || set.Global {
+		t.Fatalf("PausedCabals = %+v, %v, want this cabal open", set, err)
 	}
 }
 

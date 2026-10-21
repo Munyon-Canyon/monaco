@@ -78,17 +78,18 @@ func (q *Queries) ExternalDepositSeen(ctx context.Context, signature string) (bo
 }
 
 const failBounce = `-- name: FailBounce :execrows
-UPDATE external_deposits SET status = 'bounce_failed'
-WHERE id = $1::uuid AND status = $2::text
+UPDATE external_deposits SET status = 'bounce_failed', resolved_at = $1::timestamptz
+WHERE id = $2::uuid AND status = $3::text
 `
 
 type FailBounceParams struct {
+	ResolvedAt time.Time
 	ID         uuid.UUID
 	FromStatus string
 }
 
 func (q *Queries) FailBounce(ctx context.Context, arg FailBounceParams) (int64, error) {
-	result, err := q.db.Exec(ctx, failBounce, arg.ID, arg.FromStatus)
+	result, err := q.db.Exec(ctx, failBounce, arg.ResolvedAt, arg.ID, arg.FromStatus)
 	if err != nil {
 		return 0, err
 	}
@@ -328,7 +329,8 @@ func (q *Queries) SetBounceReturnAddress(ctx context.Context, arg SetBounceRetur
 const startBounce = `-- name: StartBounce :execrows
 UPDATE external_deposits
 SET status = 'bouncing', bounce_signature = $1::text,
-  bounce_signed_tx = $2::bytea, bounce_attempts = bounce_attempts + 1
+  bounce_signed_tx = $2::bytea, bounce_attempts = bounce_attempts + 1,
+  resolved_at = NULL
 WHERE id = $3::uuid AND status = $4::text
 `
 

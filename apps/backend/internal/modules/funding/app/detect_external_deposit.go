@@ -254,13 +254,6 @@ func (h *DetectExternalDepositHandler) detect(
 		if err != nil || inserted == 0 {
 			return err
 		}
-		pause := newPause{
-			id: h.d.IDs.NewV7(), scope: pauseScope{cabal: &cmd.CabalID}, reason: domain.PauseReasonExternalDeposit,
-			externalDeposit: id, at: now,
-		}
-		if err := writePause(ctx, tx, pause, h.d.Hints); err != nil {
-			return err
-		}
 		tx.AfterCommit(func(ctx context.Context) {
 			observability.Info(ctx, observability.FundingWatchDetected,
 				slog.String("external_deposit_id", id.String()), slog.String("cabal_id", cmd.CabalID.String()),

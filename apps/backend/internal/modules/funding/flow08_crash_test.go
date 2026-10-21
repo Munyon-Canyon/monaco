@@ -41,11 +41,11 @@ func crashThenReturn(t *testing.T, point faultpoint.Name) *bounceFixture {
 	if row := f.only(t, flow08USDCSig); row.status != "returned" {
 		t.Fatalf("row = %+v, want returned", row)
 	}
-	if externalPauses(t, f.pool) != 0 || countEvents(t, f.pool, events.TypeCabalPaused) != 1 ||
+	if externalPauses(t, f.pool) != 0 || countEvents(t, f.pool, events.TypeCabalPaused) != 0 ||
 		countEvents(t, f.pool, events.TypeCabalExternalDepositDetected) != 1 ||
 		countEvents(t, f.pool, events.TypeCabalExternalDepositBounced) != 1 ||
-		countEvents(t, f.pool, events.TypeCabalResumed) != 1 {
-		t.Fatal("after the crash and restart, want one pause opened and ended and one of each event")
+		countEvents(t, f.pool, events.TypeCabalResumed) != 0 {
+		t.Fatal("after the crash and restart, want no pause and one detection and one bounce event")
 	}
 	if f.ledgerRows(t) != 0 {
 		t.Fatal("the bounce wrote ledger rows")

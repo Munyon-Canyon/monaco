@@ -192,7 +192,7 @@ func (f *bounceFixture) ledgerRows(t *testing.T) int {
 	return n
 }
 
-func TestBounce_ReturnsTheDepositAndEndsThePause(t *testing.T) {
+func TestBounce_ReturnsTheDeposit(t *testing.T) {
 	t.Parallel()
 	f := newBounceFixture(t)
 	id := f.detected(t, flow08USDCSig)
@@ -206,9 +206,9 @@ func TestBounce_ReturnsTheDepositAndEndsThePause(t *testing.T) {
 		t.Fatalf("status = %s, want returned", got)
 	}
 	f.requireOneTransferBack(t)
-	if externalPauses(t, f.pool) != 0 || countEvents(t, f.pool, events.TypeCabalResumed) != 1 ||
-		countEvents(t, f.pool, events.TypeCabalExternalDepositBounced) != 1 {
-		t.Fatal("want the pause resolved, one cabal.resumed and one cabal.external_deposit_bounced")
+	if externalPauses(t, f.pool) != 0 || countEvents(t, f.pool, events.TypeCabalResumed) != 0 ||
+		countEvents(t, f.pool, events.TypeCabalExternalDepositBounced) != 1 || !f.resolved(t, id) {
+		t.Fatal("want a resolved row, no pause and one cabal.external_deposit_bounced")
 	}
 	if f.ledgerRows(t) != 0 {
 		t.Fatal("the bounce wrote ledger rows")
@@ -227,8 +227,8 @@ func TestBounce_ClosedRecipientAccountFailsWithoutSigning(t *testing.T) {
 	if got := f.status(t, id); got != "bounce_failed" || len(f.transfers.builds) != 0 {
 		t.Fatalf("status = %s, builds = %d, want bounce_failed with no transfer", got, len(f.transfers.builds))
 	}
-	if externalPauses(t, f.pool) != 1 || countEvents(t, f.pool, events.TypeCabalResumed) != 0 {
-		t.Fatal("a failed bounce ended the pause")
+	if externalPauses(t, f.pool) != 0 || countEvents(t, f.pool, events.TypeCabalPaused) != 0 || !f.resolved(t, id) {
+		t.Fatal("a failed bounce left the cabal paused or the row open")
 	}
 }
 
@@ -269,8 +269,8 @@ func TestBounce_ChainErrorFails(t *testing.T) {
 	if err := f.bouncer.Start(bounceCtx(t), id); err != nil {
 		t.Fatal(err)
 	}
-	if got := f.status(t, id); got != "bounce_failed" || externalPauses(t, f.pool) != 1 {
-		t.Fatalf("status = %s, want bounce_failed with the pause kept", got)
+	if got := f.status(t, id); got != "bounce_failed" || externalPauses(t, f.pool) != 0 || !f.resolved(t, id) {
+		t.Fatalf("status = %s, want bounce_failed, resolved and no pause", got)
 	}
 }
 
@@ -304,7 +304,7 @@ func TestBounce_RPCDownNaksAndARedeliveryLeavesItToTheSweeper(t *testing.T) {
 	}
 }
 
-func TestBounce_PauseEndsOnlyAfterTheLastStrayTransferReturns(t *testing.T) {
+func TestBounce_EachStrayTransferReturnsOnItsOwn(t *testing.T) {
 	t.Parallel()
 	f := newBounceFixture(t)
 	first, second := f.detected(t, flow08USDCSig), f.detected(t, flow08StockSigListed(t, f))
@@ -312,14 +312,14 @@ func TestBounce_PauseEndsOnlyAfterTheLastStrayTransferReturns(t *testing.T) {
 	if err := f.bouncer.Start(bounceCtx(t), first); err != nil {
 		t.Fatal(err)
 	}
-	if externalPauses(t, f.pool) != 1 || countEvents(t, f.pool, events.TypeCabalResumed) != 0 {
-		t.Fatal("the cabal resumed with a stray transfer still open")
+	if f.status(t, first) != "returned" || f.status(t, second) != "detected" || externalPauses(t, f.pool) != 0 {
+		t.Fatal("want the first returned, the second still open and no pause")
 	}
 	if err := f.bouncer.Start(bounceCtx(t), second); err != nil {
 		t.Fatal(err)
 	}
-	if externalPauses(t, f.pool) != 0 || countEvents(t, f.pool, events.TypeCabalResumed) != 1 {
-		t.Fatal("want the cabal resumed once both bounces returned")
+	if f.status(t, second) != "returned" || externalPauses(t, f.pool) != 0 {
+		t.Fatal("want both bounces returned")
 	}
 }
 
@@ -367,4 +367,14 @@ func TestNextBounceStatus(t *testing.T) {
 	if _, err := domain.Next(domain.ExternalBouncing, domain.BounceHold); err == nil {
 		t.Error("a bouncing deposit can be held")
 	}
+}
+
+func (f *bounceFixture) resolved(t *testing.T, id uuid.UUID) bool {
+	t.Helper()
+	var resolved bool
+	if err := f.pool.QueryRow(t.Context(), `SELECT resolved_at IS NOT NULL FROM external_deposits WHERE id = $1`, id).
+		Scan(&resolved); err != nil {
+		t.Fatal(err)
+	}
+	return resolved
 }

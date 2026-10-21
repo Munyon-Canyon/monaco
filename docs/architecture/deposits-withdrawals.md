@@ -161,7 +161,7 @@ The transfer's signature is stored before broadcast, like every treasury-touchin
 
 ## Direct transfers to a cabal treasury are not allowed
 
-Money reaches a cabal treasury only through Monaco's flow: platform balance → **Fund this cabal** → sweep. Anything else that lands in a treasury is sent back, and the cabal's trading pauses until it is. This is [flow 8](backend-platform.md#flows), owned by the `funding` module.
+Money reaches a cabal treasury only through Monaco's flow: platform balance → **Fund this cabal** → sweep. Anything else that lands in a treasury is sent back, and until it is, its value is quarantined: it never enters pot value or mints shares, and the cabal keeps trading, funding and cashing out. This is [flow 8](backend-platform.md#flows), owned by the `funding` module.
 
 ### Warn up front
 
@@ -184,24 +184,27 @@ The handler classifies each inbound transfer by its signature:
 
 One `uow.Do`:
 
-1. Insert `external_deposits` row: `signature` (unique), `cabal_id`, `sender` (owner of the source token account), `mint`, `amount` (`money.BaseUnits`), `status = detected`. An unresolved row is itself the pause (below).
+1. Insert `external_deposits` row: `signature` (unique), `cabal_id`, `sender` (owner of the source token account), `mint`, `amount` (`money.BaseUnits`), `status = detected`. An open row is quarantined: it never counts toward pot value (below).
 2. Append `cabal.external_deposit_detected`.
-3. Write the pause reason and, when it is the cabal's first open reason, append `cabal.paused` ([Pause](#pause)).
-4. Nothing else. Consumers do the rest ([flow 8](backend-platform.md#flows)): `funding` sends the bounce, `admin` shows it, and `notify` tells every cabal member from `cabal.paused`.
+3. Nothing else: no pause is written ([Quarantine](#quarantine)). Consumers do the rest ([flow 8](backend-platform.md#flows)): `funding` sends the bounce, `admin` shows it, and `notify` tells every cabal member from `cabal.paused`.
+
+### Quarantine
+
+An unattributed deposit does not pause the cabal. Pot value is read from the treasury ledger, and the stray inflow never enters it, so share price, every mint of share units and every cash-out payout stay right while the row is open, returned, held or given up on. Opening a pause for it let an outside sender freeze a cabal for the price of a deposit, and a failed refund never cleared it.
 
 ### Pause
 
-`funding` owns the pause. A cabal is paused while it has an unresolved external deposit or an ops pause, both recorded in funding with a reason (`external_deposit` or `ops`). Ops pauses go through funding too. `trading` and `treasury` read the pause through funding's query port at check time, so the pause takes effect in the same transaction that records it, with no event lag. There is no `cabals.trading_paused_at` column. The pause ends when its last reason resolves.
+`funding` owns the pause. A cabal is paused while it has an ops pause, recorded in funding with reason `ops`. Pauses with reason `external_deposit` written before 2026-10-20 close when their deposit returns, is held or fails. Ops pauses go through funding too. `trading` and `treasury` read the pause through funding's query port at check time, so the pause takes effect in the same transaction that records it, with no event lag. There is no `cabals.trading_paused_at` column. The pause ends when its last reason resolves.
 
 **Pause events.** `funding` appends `cabal.paused` in the transaction that opens a cabal's first pause reason, and `cabal.resumed` in the transaction that closes its last one. Opening a second reason or closing one of several appends nothing. Nothing reads these events to decide whether a cabal is paused; the query port stays the check. `notify` consumes both to push every member ([notifications.md](notifications.md#what-notifies-mvp)).
 
-**While paused**, every member is notified, and: no proposal executes (the trade engine's `CabalPaused` check, [trade-execution.md](trade-execution.md#stage-2-trade-engine)), no fund-to-cabal sweeps and no cash outs (`CabalPaused` on flows 7 and 14). Voting, chat and comments continue. The reason: until the stray money is gone, the treasury holds value no one owns, so pot value, share price, every mint of share units and every cash-out payout would be wrong.
+**While paused**, every member is notified, and: no proposal executes (the trade engine's `CabalPaused` check, [trade-execution.md](trade-execution.md#stage-2-trade-engine)), no fund-to-cabal sweeps and no cash outs (`CabalPaused` on flows 7 and 14). Voting, chat and comments continue. The pause is for ops only: a stray deposit holds value no one owns, but it is kept out of the ledger, so it cannot make pot value, share price or a payout wrong.
 
 ### Bounce
 
 The `funding` module's consumer of `cabal.external_deposit_detected` sends the **same mint and amount** back to the sender, from the treasury, signed through Privy with the app authorization key, fee paid by the relayer. Its state lives on the `external_deposits` row: signature stored before broadcast, then the same guarded update and sweeper recovery as a swap ([trade-execution.md](trade-execution.md#stage-3-swap-layer)). Exactly one bounce per external deposit, enforced by a guarded update from `detected`. The bounce writes no ledger entries. The stray inflow never entered the treasury ledger, so inflow and return net to nothing, and `cabal_txns` holds only Monaco's own movements.
 
-On confirm, one `uow.Do` sets `external_deposits.status = returned` and appends `cabal.external_deposit_bounced`. When the cabal has no other unresolved external deposits and no ops pause, the pause ends in that transaction, which also appends `cabal.resumed`; `notify` tells every member that trading resumed.
+On confirm, one `uow.Do` sets `external_deposits.status = returned` and appends `cabal.external_deposit_bounced`. A pause opened for the deposit before 2026-10-20 ends in that transaction, and `cabal.resumed` is appended when it was the cabal's last reason.
 
 ### Edge cases
 
@@ -211,8 +214,8 @@ On confirm, one `uow.Do` sets `external_deposits.status = returned` and appends 
 | Dust (below $1) | Relayer fee would exceed the value. Do not bounce, do not pause. Record as `ignored_dust`; excluded from pot value. Never swept to a platform wallet. |
 | Unknown or spam token | Not in the market catalog → record, do not bounce, do not pause, exclude from pot value. |
 | Stock token (xStock) sent directly | Same as USDC: bounce same mint and amount, pause meanwhile. |
-| Bounce fails (e.g. sender account closed) | Status `bounce_failed`, alert ops, cabal stays paused. Ops decides: retry to a new address or hold as unclaimed. |
-| Several stray transfers at once | Each gets its own row and bounce. Trading resumes only when all are resolved. |
+| Bounce fails (e.g. sender account closed) | Status `bounce_failed` and the row is resolved, the amount stays out of pot value, ops is alerted, and the cabal keeps running. Retries are bounded: a lapsed bounce is re-signed at most 3 times. Ops decides later: retry to a new address or hold as unclaimed. |
+| Several stray transfers at once | Each gets its own row and bounce. None pauses the cabal, so nothing needs clearing. |
 
 Member wallets are **not** covered by this: sending USDC to your own member wallet from outside is the intended crypto deposit.
 
