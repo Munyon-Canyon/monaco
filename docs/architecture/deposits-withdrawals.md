@@ -254,6 +254,8 @@ The member picks a network (Solana, Base, Arbitrum or Ethereum) and pastes an ad
 
 The balance hold works as for Solana: the in-flight amount is subtracted from `GET /v1/me/balance` until the row is terminal.
 
+Rows take turns. The withdrawal poller reads at most 100 unsent and 100 submitted EVM rows a tick, and the fund settler reads at most 100 landed or submitted fund transfers. `last_attempt_at` on `withdrawals` and `fund_transfers` is set to the poll time just before each row is worked, and the lists order by `last_attempt_at NULLS FIRST, created_at, id`. A row that cannot move (a fund waiting on a price, an EVM action that failed after a step broadcast) goes to the back of the line, so it cannot lock out newer rows. Each row also has its own time limit, so one slow call cannot use the tick, and a tick that runs out of time stops without an error, leaving the rows it did not reach first in line. The schedule lives in the database and survives a restart. Rows that cannot move keep their hold and still log for support; a durable support queue is a separate change.
+
 No fiat off-ramp in MVP: withdrawals are crypto only. Privy's on-ramp docs cover funding only, and a provider off-ramp is a separate decision after MVP.
 
 ### Balance

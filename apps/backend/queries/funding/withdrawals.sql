@@ -79,7 +79,7 @@ WHERE id = $1 AND status = 'created' AND destination_kind = 'evm';
 SELECT id, user_id, amount_micros::text AS amount_micros, network, evm_address::text AS evm_address
 FROM withdrawals
 WHERE status = 'created' AND destination_kind = 'evm' AND created_at < sqlc.arg(older_than)::timestamptz
-ORDER BY created_at, id
+ORDER BY last_attempt_at NULLS FIRST, created_at, id
 LIMIT sqlc.arg(max_rows);
 
 -- name: ListSubmittedEVMWithdrawals :many
@@ -87,8 +87,12 @@ SELECT id, user_id, amount_micros::text AS amount_micros, evm_address::text AS e
   privy_action_id::text AS privy_action_id, COALESCE(tx_signature, '')::text AS tx_signature
 FROM withdrawals
 WHERE status = 'submitted' AND destination_kind = 'evm'
-ORDER BY submitted_at, id
+ORDER BY last_attempt_at NULLS FIRST, submitted_at, id
 LIMIT sqlc.arg(max_rows);
+
+-- name: MarkEVMWithdrawalAttempted :exec
+UPDATE withdrawals SET last_attempt_at = sqlc.arg(attempted_at)::timestamptz
+WHERE id = $1 AND status IN ('created', 'submitted') AND destination_kind = 'evm';
 
 -- name: SetWithdrawalSourceSignature :execrows
 UPDATE withdrawals SET tx_signature = NULLIF(sqlc.arg(tx_signature)::text, '')

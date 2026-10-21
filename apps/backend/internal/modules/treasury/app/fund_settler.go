@@ -26,6 +26,7 @@ import (
 const (
 	FundSettleInterval = 5 * time.Second
 	fundBatch          = 100
+	fundItemBudget     = 3 * time.Second
 )
 
 type FundChain interface {
@@ -53,6 +54,7 @@ type FundSettlerDeps struct {
 	USDC       domain.Asset
 	Hints      HintPublisher
 	SendWindow time.Duration
+	ItemBudget time.Duration
 }
 
 type FundSettler struct{ d FundSettlerDeps }
@@ -88,6 +90,9 @@ func (s *FundSettler) Tick(ctx context.Context) (FundTick, error) {
 			landed = append(landed, r)
 		}
 	}
+	if err := s.markAttempted(ctx, submitted); err != nil {
+		return tick, err
+	}
 	confirmed, changed, err := s.confirm(ctx, submitted)
 	tick.Changed = changed
 	if err != nil {
@@ -95,16 +100,52 @@ func (s *FundSettler) Tick(ctx context.Context) (FundTick, error) {
 	}
 	var failed []error
 	for _, r := range append(landed, confirmed...) {
-		ok, err := s.mint(ctx, r)
-		if err != nil {
+		if ctx.Err() != nil {
+			break
+		}
+		if err := s.markAttempted(ctx, []openFund{r}); err != nil {
 			failed = append(failed, err)
 			continue
 		}
-		if ok {
-			tick.Minted++
-		}
+		failed = s.mintInto(ctx, &tick, r, failed)
 	}
 	return tick, errors.Join(failed...)
+}
+
+func (s *FundSettler) mintInto(tickCtx context.Context, tick *FundTick, r openFund, failed []error) []error {
+	ctx, cancel := context.WithTimeout(tickCtx, s.itemBudget())
+	defer cancel()
+	ok, err := s.mint(ctx, r)
+	if err != nil {
+		if tickCtx.Err() != nil {
+			return failed
+		}
+		return append(failed, err)
+	}
+	if ok {
+		tick.Minted++
+	}
+	return failed
+}
+
+func (s *FundSettler) itemBudget() time.Duration {
+	if s.d.ItemBudget > 0 {
+		return s.d.ItemBudget
+	}
+	return fundItemBudget
+}
+
+func (s *FundSettler) markAttempted(ctx context.Context, rows []openFund) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	rowIDs := make([]uuid.UUID, len(rows))
+	for i, r := range rows {
+		rowIDs[i] = r.ID
+	}
+	return sqlc.New(s.d.Reads).MarkFundTransfersAttempted(ctx, sqlc.MarkFundTransfersAttemptedParams{
+		AttemptedAt: s.d.Clock.Now(), Ids: rowIDs,
+	})
 }
 
 func (s *FundSettler) confirm(ctx context.Context, rows []openFund) ([]openFund, int, error) {
@@ -189,6 +230,8 @@ func (s *FundSettler) fail(ctx context.Context, r openFund, code errs.Code) erro
 }
 
 func (s *FundSettler) rebroadcast(ctx context.Context, r openFund) {
+	ctx, cancel := context.WithTimeout(ctx, s.itemBudget())
+	defer cancel()
 	err := s.d.Transfers.Broadcast(ctx, relayer.SignedTx{Bytes: r.SignedTx, Signature: chain.Signature(r.TxSignature)})
 	if err != nil {
 		observability.Info(ctx, observability.TreasuryFundBroadcastFailed, slog.String("transfer_id", r.ID.String()),

@@ -33,6 +33,7 @@ type settleStubs struct {
 	pot          *money.Micros
 	potErr       error
 	readsErr     error
+	potHook      func(context.Context, ids.CabalID) error
 	onTotal      func()
 	onStatuses   func()
 	hints        []string
@@ -58,6 +59,11 @@ func (s *settleStubs) Broadcast(_ context.Context, tx relayer.SignedTx) error {
 }
 
 func (s *settleStubs) PotValue(ctx context.Context, cabal ids.CabalID) (money.Micros, error) {
+	if s.potHook != nil {
+		if err := s.potHook(ctx, cabal); err != nil {
+			return money.Micros{}, err
+		}
+	}
 	if s.potErr != nil {
 		return money.Micros{}, s.potErr
 	}
@@ -109,17 +115,27 @@ func newSettleHarness(t *testing.T) *settleHarness {
 func newSettleHarnessOn(t *testing.T, h *fundHarness) *settleHarness {
 	t.Helper()
 	s := &settleStubs{statuses: map[chain.Signature]solana.Status{}, reads: h.stubs.owner}
-	settler := app.NewFundSettler(app.FundSettlerDeps{
-		Reads: h.pool, UoW: h.uow, IDs: h.ids, Clock: h.clock, Chain: s, Transfers: s, Pot: s,
+	sh := &settleHarness{fundHarness: h, chain: s}
+	sh.settler = sh.newSettler(0)
+	return sh
+}
+
+func (h *settleHarness) newSettler(itemBudget time.Duration) *app.FundSettler {
+	return h.newSettlerReading(h.pool, itemBudget)
+}
+
+func (h *settleHarness) newSettlerReading(reads sqlc.DBTX, itemBudget time.Duration) *app.FundSettler {
+	s := h.chain
+	return app.NewFundSettler(app.FundSettlerDeps{
+		Reads: reads, UoW: h.uow, IDs: h.ids, Clock: h.clock, Chain: s, Transfers: s, Pot: s,
 		PotOn: func(db sqlc.DBTX) app.FundPotReads {
 			if s.readsErr != nil {
 				return failingPotReads{err: s.readsErr}
 			}
 			return s.reads.On(db)
 		},
-		Ledger: h.ledger, USDC: h.usdc(), Hints: s, SendWindow: fundSendWindow,
+		Ledger: h.ledger, USDC: h.usdc(), Hints: s, SendWindow: fundSendWindow, ItemBudget: itemBudget,
 	})
-	return &settleHarness{fundHarness: h, chain: s, settler: settler}
 }
 
 func (h *settleHarness) systemCtx() context.Context {
