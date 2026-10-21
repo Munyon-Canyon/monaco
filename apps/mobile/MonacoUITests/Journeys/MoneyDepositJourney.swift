@@ -79,8 +79,8 @@ enum MoneyDepositJourney {
     static func expectWarning(_ app: XCUIApplication, on name: String, step: String) {
         let warning = app.element("deposit-network-warning")
         XCTAssertEqual(
-            warning.label, "Send only USDC on \(name). Transfers on other networks can't be recovered.",
-            "\(step): the network note under the address")
+            warning.label, "Only USDC on \(name)",
+            "\(step): the network note above the address")
     }
 
     static func copySolana(_ app: XCUIApplication, recorder: JourneyRecorder) {

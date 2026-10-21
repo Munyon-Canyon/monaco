@@ -72,6 +72,7 @@ struct DepositNetworksTests {
         for network in networks {
             strings += [
                 DepositContent.title(on: network.displayName),
+                DepositContent.warning(on: network.displayName),
                 DepositAddressCard.networkNote(on: network.displayName),
             ]
             strings += DepositContent.steps(on: network.displayName)

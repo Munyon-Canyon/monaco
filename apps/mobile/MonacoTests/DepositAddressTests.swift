@@ -73,8 +73,13 @@ struct DepositContentLayoutTests {
             availableMicros: micros, onChainMicros: micros, inFlightMicros: 0, depositAddress: "x", asOf: Date())
     }
 
-    @Test func theBalanceComesBeforeTheAddressAndTheStepper() {
-        #expect(DepositContent.order == [.head, .address, .notices, .howItWorks])
+    @Test func theNetworkWarningSitsDirectlyAboveTheAddress() {
+        #expect(DepositContent.order == [.head, .networkWarning, .address, .notices, .howItWorks])
+    }
+
+    @Test func theWarningNamesTheNetworkInOneLine() {
+        #expect(DepositContent.warning(on: "Solana") == "Only USDC on Solana")
+        #expect(DepositContent.warning(on: "Base") == "Only USDC on Base")
     }
 
     @Test func theStepperIsThreeShortSteps() {
