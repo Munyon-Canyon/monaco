@@ -15,7 +15,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-monaco}
       POSTGRES_DB: ${POSTGRES_DB:-monaco}
     ports:
-      - "${POSTGRES_PORT:-54322}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-54322}:5432"
     volumes:
       - monaco_pg_data:/var/lib/postgresql/data
     healthcheck:
@@ -30,7 +30,7 @@ services:
     container_name: monaco-nats
     command: ["-js", "-sd", "/data", "-m", "8222"]
     ports:
-      - "4222:4222"
+      - "127.0.0.1:4222:4222"
     volumes:
       - monaco_nats_data:/data
     healthcheck:
@@ -62,7 +62,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-monaco}
       POSTGRES_DB: ${POSTGRES_DB:-monaco}
     ports:
-      - "${MONACO_TEST_DB_PORT:-54323}:5432"
+      - "127.0.0.1:${MONACO_TEST_DB_PORT:-54323}:5432"
     tmpfs:
       # 4 parallel stage 0 checks hold up to ~130 clone databases (~1.25 GB) plus WAL; 2g filled in a minute (#2922).
       - /var/lib/postgresql/data:size=${MONACO_TEST_DB_TMPFS:-4g}
