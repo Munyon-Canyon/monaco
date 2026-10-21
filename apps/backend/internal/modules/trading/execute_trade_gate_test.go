@@ -29,7 +29,7 @@ func (e *engineEnv) swapOutcome(t *testing.T, proposal ids.ProposalID) (string, 
 func TestExecuteTrade_aSolanaWinnerFromTheMarketCatalogBuysThroughJupiter(t *testing.T) {
 	t.Parallel()
 	e := newEngineEnv(t)
-	ondo := chain.Mint{Address: "AAPLonDo1111111111111111111111111111111111111", Decimals: 9}
+	ondo := chain.Mint{Address: "88a8Dstsn9NgnpiThVQEgRaWKNr4jFxjKuKbut21N2Da", Decimals: 9}
 	winner := e.solanaWinner(t, ondo, true)
 	if _, err := e.pool.Exec(t.Context(), `UPDATE asset_listings SET enabled = true, verified_at = $2 WHERE id = $1`,
 		winner.UUID(), e.clk.Now()); err != nil {

@@ -57,7 +57,7 @@ func (e *engineEnv) outMint(t *testing.T, proposal ids.ProposalID) string {
 
 func (e *engineEnv) ondoOrder(t *testing.T) chain.Mint {
 	t.Helper()
-	ondo := chain.Mint{Address: "AAPLonDo1111111111111111111111111111111111111", Decimals: 9}
+	ondo := chain.Mint{Address: "88a8Dstsn9NgnpiThVQEgRaWKNr4jFxjKuKbut21N2Da", Decimals: 9}
 	e.quote(usdcToken(), ondo, 210_000_000, true)
 	order := jupiter.Order{RequestID: "req-1", Transaction: swapTx()}
 	e.jup.SetOrder(jupiterMint(usdcToken()), jupiterMint(ondo), order)

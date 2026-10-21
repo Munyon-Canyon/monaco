@@ -13,13 +13,16 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/swaptx"
 )
 
 const (
@@ -27,6 +30,15 @@ const (
 	orderRoute   = "/jupiter/swap/v2/order"
 	signature    = "5VfYmGBjvQKe3fgLtUq6Wr2mDzcYbUo8ZqQoYTmT4Qx1cS7yVJnEM8o2KcTnPDeYh8f9GZyRsAvQ7wHzNHbTzJtE"
 )
+
+func fixtureTx(in, out jupiter.Mint, inAmount, quoted uint64, slippage uint16) []byte {
+	return swaptx.Honest(swaptx.Spec{
+		Payer: swaptx.Address("payer"), Wallet: chain.SolanaAddress(treasury),
+		In:       chain.Mint{Address: chain.SolanaAddress(in.Address), Decimals: in.Decimals},
+		Out:      chain.Mint{Address: chain.SolanaAddress(out.Address), Decimals: out.Decimals},
+		InAmount: inAmount, QuotedOut: quoted, SlippageBps: slippage,
+	})
+}
 
 func TestOrder_buySendsTakerAndReturnsTheUnsignedTransaction(t *testing.T) {
 	t.Parallel()
@@ -38,9 +50,14 @@ func TestOrder_buySendsTakerAndReturnsTheUnsignedTransaction(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := jupiter.Order{
-		RequestID: "req-buy-aaplx-1", Transaction: []byte("unsigned-buy-tx"), InMint: usdc(), OutMint: aaplx(),
-		InAmount: units(25_000_000, usdc()), OutAmount: units(11_000_000, aaplx()),
-		MinOut: units(10_945_000, aaplx()), Router: "iris",
+		RequestID:   "req-buy-aaplx-1",
+		Transaction: fixtureTx(usdc(), aaplx(), 25_000_000, 11_000_000, 50),
+		InMint:      usdc(),
+		OutMint:     aaplx(),
+		InAmount:    units(25_000_000, usdc()),
+		OutAmount:   units(11_000_000, aaplx()),
+		MinOut:      units(10_945_000, aaplx()),
+		Router:      "iris",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("Order = %+v, want %+v", got, want)
@@ -82,8 +99,10 @@ func TestOrder_sellParsesAmountsInEachMintsDecimals(t *testing.T) {
 	if q := u.requests()[0].query; q.Has("payer") {
 		t.Fatalf("order query = %v, want no payer when the spec names none", q)
 	}
-	if got.RequestID != "req-sell-aaplx-1" || string(got.Transaction) != "unsigned-sell-tx" ||
-		got.InAmount != units(11_000_000, aaplx()) || got.OutAmount != units(24_870_000, usdc()) ||
+	if got.RequestID != "req-sell-aaplx-1" ||
+		string(got.Transaction) != string(fixtureTx(aaplx(), usdc(), 11_000_000, 24_870_000, 100)) ||
+		got.InAmount != units(11_000_000, aaplx()) ||
+		got.OutAmount != units(24_870_000, usdc()) ||
 		got.MinOut != units(24_621_300, usdc()) {
 		t.Fatalf("Order = %+v", got)
 	}
@@ -135,8 +154,8 @@ func TestOrder_malformedResponsesAreDecodeFailures(t *testing.T) {
 
 func TestOrder_minOutIsTheThresholdJupiterEnforcesAtTheRequestedSlippage(t *testing.T) {
 	t.Parallel()
-	tx := base64.StdEncoding.EncodeToString([]byte("tx"))
 	for bps, threshold := range map[int64]uint64{30: 282_378, 100: 280_395} {
+		tx := base64.StdEncoding.EncodeToString(fixtureTx(usdc(), aaplx(), 1_000_000, 283_228, swaptx.Bps(bps)))
 		body := `{"inAmount":"1000000","outAmount":"283228","otherAmountThreshold":"` +
 			strconv.FormatUint(threshold, 10) + `","slippageBps":` + strconv.FormatInt(bps, 10) +
 			`,"mode":"manual","routePlan":[{}],"transaction":"` + tx + `"}`
@@ -499,4 +518,116 @@ func TestQuote_waitsBetweenRetriesWithinTheBackoffCeilings(t *testing.T) {
 				len(u.requests()), waited)
 		}
 	})
+}
+
+func orderBody(inAmount, outAmount string, tx []byte) string {
+	return `{"requestId":"req-x","inAmount":"` + inAmount + `","outAmount":"` + outAmount +
+		`","otherAmountThreshold":"` + outAmount + `","routePlan":[{}],"transaction":"` +
+		base64.StdEncoding.EncodeToString(tx) + `"}`
+}
+
+func TestOrder_amountsComeFromTheBytesThatGetSigned(t *testing.T) {
+	t.Parallel()
+	tx := fixtureTx(usdc(), aaplx(), 25_000_000, 11_000_000, 50)
+	body := orderBody("25000000", "99999999", tx)
+	got, err := client(replying(http.StatusOK, body)).Order(t.Context(),
+		jupiter.OrderSpec{In: usdc(), Out: aaplx(), Amount: units(25_000_000, usdc()), Taker: treasury})
+	if err != nil || got.OutAmount != units(11_000_000, aaplx()) || got.MinOut != units(10_945_000, aaplx()) ||
+		got.InAmount != units(25_000_000, usdc()) {
+		t.Fatalf("Order = %+v, %v, want the amounts the transaction commits to, not the metadata's", got, err)
+	}
+}
+
+func TestOrder_refusesBytesThatDoNotDoWhatTheOrderSays(t *testing.T) {
+	t.Parallel()
+	two := swaptx.HonestTx(swaptx.Spec{
+		Payer:  swaptx.Address("payer"),
+		Wallet: chain.SolanaAddress(treasury),
+		In: chain.Mint{
+			Address: chain.SolanaAddress(usdc().Address),
+		},
+		Out:         chain.Mint{Address: chain.SolanaAddress(aaplx().Address)},
+		InAmount:    25_000_000,
+		QuotedOut:   11_000_000,
+		SlippageBps: 50,
+	})
+	two.Ixs = append(two.Ixs, two.Ixs[len(two.Ixs)-1])
+	other := swaptx.HonestTx(swaptx.Spec{
+		Payer:  swaptx.Address("payer"),
+		Wallet: chain.SolanaAddress(treasury),
+		In: chain.Mint{
+			Address: chain.SolanaAddress(usdc().Address),
+		},
+		Out:         chain.Mint{Address: chain.SolanaAddress(aaplx().Address)},
+		InAmount:    25_000_000,
+		QuotedOut:   11_000_000,
+		SlippageBps: 50,
+	})
+	other.Ixs[len(other.Ixs)-1].Data = make([]byte, 40)
+	noRoute := other
+	noRoute.Ixs = other.Ixs[:2]
+	for name, body := range map[string]string{
+		"not a transaction":    orderBody("25000000", "11000000", []byte("tx")),
+		"two routes":           orderBody("25000000", "11000000", two.Bytes()),
+		"unknown Jupiter call": orderBody("25000000", "11000000", other.Bytes()),
+		"no route":             orderBody("25000000", "11000000", noRoute.Bytes()),
+		"input differs":        orderBody("24000000", "11000000", fixtureTx(usdc(), aaplx(), 25_000_000, 11_000_000, 50)),
+		"spec amount differs":  orderBody("25000000", "11000000", fixtureTx(usdc(), aaplx(), 25_000_000, 11_000_000, 50)),
+		"bytes spend more":     orderBody("25000000", "11000000", fixtureTx(usdc(), aaplx(), 26_000_000, 11_000_000, 50)),
+		"truncated message":    orderBody("25000000", "11000000", fixtureTx(usdc(), aaplx(), 25_000_000, 11_000_000, 50)[:200]),
+	} {
+		amount := units(25_000_000, usdc())
+		if name == "spec amount differs" {
+			amount = units(24_000_000, usdc())
+		}
+		_, err := client(replying(http.StatusOK, body)).Order(t.Context(),
+			jupiter.OrderSpec{In: usdc(), Out: aaplx(), Amount: amount, Taker: treasury})
+		if errs.CodeOf(err) != errs.CodeJupiterRejected {
+			t.Fatalf("%s: err = %v, want jupiter_rejected", name, err)
+		}
+	}
+}
+
+func TestOrder_asksAgainWithoutTheMarketMakerWhenItsTransactionIsNotAJupiterRoute(t *testing.T) {
+	t.Parallel()
+	honest := fixtureTx(usdc(), aaplx(), 25_000_000, 11_000_000, 50)
+	for name, tc := range map[string]struct {
+		first, router string
+		wantCalls     int
+		wantErr       bool
+	}{
+		"market maker declined":  {first: base64.StdEncoding.EncodeToString([]byte("rfq")), router: "jupiterz", wantCalls: 2},
+		"aggregator not retried": {first: base64.StdEncoding.EncodeToString([]byte("rfq")), router: "iris", wantCalls: 1, wantErr: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			var calls atomic.Int64
+			u := &upstream{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+				body := `{"requestId":"req-x","router":"` + tc.router + `","inAmount":"25000000","outAmount":"11000000",` +
+					`"otherAmountThreshold":"10945000","routePlan":[{}],"transaction":"` + tc.first + `"}`
+				if r.URL.Query().Get("excludeRouters") == "jupiterz" {
+					body = `{"requestId":"req-y","router":"iris","inAmount":"25000000","outAmount":"11000000",` +
+						`"otherAmountThreshold":"10945000","routePlan":[{}],"transaction":"` +
+						base64.StdEncoding.EncodeToString(honest) + `"}`
+				}
+				_, _ = io.WriteString(w, body)
+			})}
+
+			got, err := client(u).Order(t.Context(),
+				jupiter.OrderSpec{In: usdc(), Out: aaplx(), Amount: units(25_000_000, usdc()), Taker: treasury})
+
+			if calls.Load() != int64(tc.wantCalls) || (err != nil) != tc.wantErr ||
+				(err == nil && got.RequestID != "req-y") {
+				t.Fatalf(
+					"Order = %+v, %v after %d calls, want %d calls and error %v",
+					got,
+					err,
+					calls.Load(),
+					tc.wantCalls,
+					tc.wantErr,
+				)
+			}
+		})
+	}
 }

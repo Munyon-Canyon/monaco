@@ -67,6 +67,7 @@ type SwapLayerDeps struct {
 	Signer Signer
 	Chain  ChainReader
 	Hints  Hints
+	Tables LookupTables
 }
 
 type SwapLayer struct {
@@ -157,6 +158,9 @@ func (l *SwapLayer) drive(ctx context.Context, req SwapRequest, id uuid.UUID) er
 		_, err := l.move(ctx, req, id, failed(req, id, domain.FailurePriceMoved, ""))
 		return err
 	}
+	if err := l.verify(ctx, req, payer, floor, order); err != nil {
+		return l.unverified(ctx, req, id, err)
+	}
 	var signed []byte
 	var signature chain.Signature
 	err = retryBriefly(ctx, l.d.Clock, func() (err error) {
@@ -174,6 +178,47 @@ func (l *SwapLayer) drive(ctx context.Context, req SwapRequest, id uuid.UUID) er
 	result, err := l.d.Venue.ExecuteUntilTerminal(ctx, order.RequestID, signed)
 	faultpoint.Hit(ctx, faultpoint.AfterExecute)
 	return l.settle(ctx, req, id, signature, result, err)
+}
+
+func (l *SwapLayer) verify(
+	ctx context.Context, req SwapRequest, payer chain.SolanaAddress, floor uint64, order Order,
+) error {
+	msg, ixs, err := chain.ResolveInstructions(
+		order.Transaction,
+		func(tables []chain.SolanaAddress) (chain.LookupTables, error) {
+			if l.d.Tables == nil {
+				return nil, errs.New(
+					errs.CodeInternal,
+					"trading.SwapLayer.verify",
+					slog.String("reason", "no lookup table reader"),
+				)
+			}
+			var loaded chain.LookupTables
+			err := retryBriefly(ctx, l.d.Clock, func() (err error) {
+				loaded, err = l.d.Tables.LookupTables(ctx, tables)
+				return err
+			})
+			return loaded, err
+		},
+	)
+	if err != nil {
+		return err
+	}
+	return chain.CheckSwap(msg, ixs, chain.SwapIntent{
+		Payer: payer, Wallet: req.TreasuryWallet.Address, In: req.InMint, Out: req.OutMint,
+		MaxIn: req.InAmount, MinOut: floor, MaxFeeLamports: chain.MaxSwapFeeLamports,
+	})
+}
+
+func (l *SwapLayer) unverified(ctx context.Context, req SwapRequest, id uuid.UUID, cause error) error {
+	if code := errs.CodeOf(cause); code == errs.CodeInvalidInput || code == errs.CodeDecodeFailed {
+		observability.Degraded(ctx, observability.TradingSwapRefused, slog.String("swap_id", id.String()),
+			slog.String("step", "validate"), slog.String("code", string(code)),
+			slog.GroupAttrs("detail", errs.Detail(cause)...))
+		_, err := l.move(ctx, req, id, failed(req, id, domain.FailureNeverSubmitted, ""))
+		return err
+	}
+	return l.neverSubmitted(ctx, req, id, cause)
 }
 
 func (l *SwapLayer) order(

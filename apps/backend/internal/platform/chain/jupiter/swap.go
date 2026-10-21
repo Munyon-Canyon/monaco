@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
@@ -58,34 +59,82 @@ type executeWire struct {
 }
 
 func (c *Client) Order(ctx context.Context, spec OrderSpec) (Order, error) {
-	const op = "jupiter.Order"
 	q := url.Values{"taker": {string(spec.Taker)}, "slippageBps": {strconv.FormatInt(spec.SlippageBps, 10)}}
 	if spec.Payer != "" {
 		q.Set("payer", string(spec.Payer))
 	}
+	o, router, err := c.signedOrder(ctx, spec, q)
+	if err != nil && errs.CodeOf(err) == errs.CodeJupiterRejected && router == marketMakerRouter &&
+		q.Get("excludeRouters") == "" {
+		q.Set("excludeRouters", marketMakerRouter)
+		o, _, err = c.signedOrder(ctx, spec, q)
+	}
+	return o, err
+}
+
+func (c *Client) signedOrder(ctx context.Context, spec OrderSpec, q url.Values) (Order, string, error) {
+	const op = "jupiter.Order"
 	w, status, err := c.order(ctx, op, spec.In, spec.Out, spec.Amount, q)
 	if err != nil {
-		return Order{}, err
+		return Order{}, "", err
 	}
 	if status != http.StatusOK || !w.routed() || w.Transaction == "" {
-		return Order{}, rejected(op, status, w.ErrorCode, w.message())
+		return Order{}, w.Router, rejected(op, status, w.ErrorCode, w.message())
 	}
 	tx, err := base64.StdEncoding.DecodeString(w.Transaction)
 	if err != nil {
-		return Order{}, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.String("request_id", w.RequestID))
+		return Order{}, w.Router, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.String("request_id", w.RequestID))
 	}
-	in, out, err := amounts(w, spec.In, spec.Out, op)
+	in, _, err := amounts(w, spec.In, spec.Out, op)
 	if err != nil {
-		return Order{}, err
+		return Order{}, w.Router, err
 	}
-	minOut, err := baseUnits(w.OtherAmountThreshold, spec.Out, op)
+	if _, err := baseUnits(w.OtherAmountThreshold, spec.Out, op); err != nil {
+		return Order{}, w.Router, err
+	}
+	route, err := signedRoute(tx, w.RequestID, op)
 	if err != nil {
-		return Order{}, err
+		return Order{}, w.Router, err
 	}
+	if route.In != in.Uint64() || route.In != spec.Amount.Uint64() {
+		return Order{}, w.Router, errs.New(errs.CodeJupiterRejected, op, slog.String("request_id", w.RequestID),
+			slog.String("reason", "transaction input differs from the order"),
+			slog.Uint64("transaction_in", route.In), slog.Uint64("order_in", in.Uint64()))
+	}
+	out := money.NewBaseUnits(route.QuotedOut, spec.Out.Decimals)
+	minOut := money.NewBaseUnits(route.MinOut(), spec.Out.Decimals)
 	return Order{
 		RequestID: w.RequestID, Transaction: tx, InMint: spec.In, OutMint: spec.Out,
 		InAmount: in, OutAmount: out, MinOut: minOut, Router: w.Router,
-	}, nil
+	}, w.Router, nil
+}
+
+func signedRoute(raw []byte, requestID, op string) (chain.SwapRoute, error) {
+	tx, err := chain.DecodeTransaction(raw)
+	if err != nil {
+		return chain.SwapRoute{}, errs.Wrap(err, errs.CodeJupiterRejected, op, slog.String("request_id", requestID))
+	}
+	msg, err := chain.ParseMessage(tx.Message)
+	if err != nil {
+		return chain.SwapRoute{}, errs.Wrap(err, errs.CodeJupiterRejected, op, slog.String("request_id", requestID))
+	}
+	var routes []chain.SwapRoute
+	for _, ix := range msg.Instructions {
+		if ix.Program >= len(msg.Keys) || msg.Keys[ix.Program] != chain.JupiterV6Program {
+			continue
+		}
+		route, ok := chain.JupiterRoute(chain.Instruction{Program: chain.JupiterV6Program, Data: ix.Data})
+		if !ok {
+			return chain.SwapRoute{}, errs.New(errs.CodeJupiterRejected, op, slog.String("request_id", requestID),
+				slog.String("reason", "Jupiter instruction is not a route"))
+		}
+		routes = append(routes, route)
+	}
+	if len(routes) != 1 {
+		return chain.SwapRoute{}, errs.New(errs.CodeJupiterRejected, op, slog.String("request_id", requestID),
+			slog.String("reason", "transaction has no single Jupiter route"), slog.Int("routes", len(routes)))
+	}
+	return routes[0], nil
 }
 
 func (c *Client) Quote(ctx context.Context, spec QuoteSpec) (Quote, error) {

@@ -21,6 +21,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/tradingapi"
@@ -240,7 +241,7 @@ func (m *Module) build() {
 	}
 	layer := app.NewSwapLayer(app.SwapLayerDeps{
 		UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: clk, IDs: m.deps.IDs, Venue: venue, Signer: signer,
-		Chain: reader, Hints: m.deps.Bus,
+		Chain: reader, Hints: m.deps.Bus, Tables: &lazyTables{cfg: cfg, clk: clk},
 	})
 	usdc := chain.Mint{Address: chain.SolanaAddress(cfg.Solana.USDCMint), Decimals: usdcDecimals}
 	ports := m.enginePorts()
@@ -368,6 +369,18 @@ func (m *Module) modulePorts() EnginePorts {
 		p.Positions = app.UnwiredPositions{}
 	}
 	return p
+}
+
+type lazyTables struct {
+	cfg  config.Config
+	clk  clock.Clock
+	once sync.Once
+	c    *solana.Client
+}
+
+func (l *lazyTables) LookupTables(ctx context.Context, tables []chain.SolanaAddress) (chain.LookupTables, error) {
+	l.once.Do(func() { l.c = solana.New(l.cfg, l.clk) })
+	return l.c.LookupTables(ctx, tables)
 }
 
 type unsignable struct{ err error }

@@ -51,7 +51,7 @@ func TestVenue_quoteCarriesAmountsAndImpactAcrossThePort(t *testing.T) {
 func TestVenue_orderCarriesTheRequestIDAndTransaction(t *testing.T) {
 	t.Parallel()
 	var fake jupiterfake.Venue
-	fake.SetOrder(jupiterMint(usdc()), jupiterMint(aaplx()), jupiter.Order{
+	fake.SetRawOrder(jupiterMint(usdc()), jupiterMint(aaplx()), jupiter.Order{
 		RequestID: "req-1", Transaction: []byte{1, 2, 3},
 	})
 	v := chain.NewVenue(&fake)
