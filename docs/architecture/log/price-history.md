@@ -19,3 +19,4 @@ Dated record of changes to [price-history.md](../price-history.md). Add one line
 - 2026-10-19: Reconcile now stores the newest `total_volumes` point of its `days=2` call in `asset_volumes`, and the asset list, the asset detail and `asset.price_moved` serve it as `volume_24h_micros` for 36 hours (#5691).
 - 2026-10-20: The history cache keeps a 1D series for 15 minutes instead of 5, so a stock opened from the feed is less often a cold 2 s CoinGecko call (#5775).
 - 2026-10-20: Every CoinGecko request is counted per UTC month in `coingecko_usage`; at 80% of `COINGECKO_MONTHLY_BUDGET` the volume poll and the cold reconcile slice stop, and at 95% every call stops and charts serve cached and stored data (#5777).
+- 2026-10-21: Every CoinGecko attempt, retries included, now waits for the limiter and reserves one credit in one atomic upsert that stops at the hard cap; a count that cannot be read or written fails closed instead of open (#5841).

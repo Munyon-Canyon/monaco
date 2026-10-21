@@ -23,17 +23,23 @@ func (q *Queries) CoinGeckoCalls(ctx context.Context, at time.Time) (int32, erro
 	return calls, err
 }
 
-const recordCoinGeckoCall = `-- name: RecordCoinGeckoCall :one
+const reserveCoinGeckoCall = `-- name: ReserveCoinGeckoCall :one
 INSERT INTO coingecko_usage (month, calls, updated_at)
 VALUES (date_trunc('month', $1::timestamptz AT TIME ZONE 'UTC')::date, 1, $1::timestamptz)
 ON CONFLICT (month) DO UPDATE SET
   calls = coingecko_usage.calls + 1,
   updated_at = excluded.updated_at
+WHERE coingecko_usage.calls < $2::bigint
 RETURNING calls
 `
 
-func (q *Queries) RecordCoinGeckoCall(ctx context.Context, at time.Time) (int32, error) {
-	row := q.db.QueryRow(ctx, recordCoinGeckoCall, at)
+type ReserveCoinGeckoCallParams struct {
+	At   time.Time
+	Hard int64
+}
+
+func (q *Queries) ReserveCoinGeckoCall(ctx context.Context, arg ReserveCoinGeckoCallParams) (int32, error) {
+	row := q.db.QueryRow(ctx, reserveCoinGeckoCall, arg.At, arg.Hard)
 	var calls int32
 	err := row.Scan(&calls)
 	return calls, err

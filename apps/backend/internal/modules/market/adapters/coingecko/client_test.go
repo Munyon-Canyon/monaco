@@ -312,8 +312,9 @@ func TestCoinGecko_429BacksOff(t *testing.T) {
 		}
 		wantSamples(t, got.Prices, 1790553607000, 300000, micros(275525925, 276930000, 273615000, 278459999))
 		reqs := u.requests()
-		if len(reqs) != 2 || reqs[1].at.Sub(reqs[0].at) != 2*time.Second {
-			t.Fatalf("requests = %+v, want two calls 2s apart, the Retry-After the 429 named", reqs)
+		if len(reqs) != 2 || reqs[1].at.Sub(reqs[0].at) < time.Minute/25-time.Millisecond {
+			t.Fatalf("requests = %+v, want two calls %s apart: the limiter holds the retry past the 2s Retry-After",
+				reqs, time.Minute/25)
 		}
 	})
 }
