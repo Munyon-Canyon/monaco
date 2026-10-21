@@ -1,5 +1,7 @@
 # v3 parity review
 
+> This is a dated snapshot. Covers now draw a solid tint under one flat overlay (decision 12), and where a reference image disagrees with the app, [decisions.md](../decisions.md#which-source-wins) says which wins.
+
 This page is the result of the screenshot parity review of the 43 UI v3 templates and their 255 states: every app screen was shot on one Debug build of `staging` and set beside its reference at `docs/design/v3/screens/`.
 
 ## How it was run
@@ -18,7 +20,7 @@ The light run shot 243 of the 255 states with no failure, no crash and no timeou
 ## Reading the verdicts
 
 - `match`: the same order, tokens, components, copy and states as the reference.
-- `match (15pt floor)`: matches, and is taller than the reference only because the app floors captions at 15pt, or differs only by a Context decision (native chart, glass tab bar and status bar, "opens soon" captions, cover gradients, SF Pro Bold wordmark).
+- `match (15pt floor)`: matches, and is taller than the reference only because the app floors captions at 15pt, or differs only by a Context decision (native chart, glass tab bar and status bar, "opens soon" captions, flat cover overlay, SF Pro Bold wordmark).
 - `difference`: the app and the reference disagree in order, tokens, components, copy or states. The row says what each shows. Differences are listed per owning ticket under [Follow-ups](#follow-ups).
 - `not built`: the app has no such state. The row says why.
 - `no harness`: the state exists in the app but no sample harness can draw it from fixtures.
@@ -135,7 +137,7 @@ Template `home` · group `home` · #5559 (Lane A) · founder: pending
 | `loss` | dark | difference | as light |
 | `gain` | light | difference | The proposal card header names the proposer (Jordan) where the reference names the cabal (Big Ballers) Follow-up: home (#5559). |
 | `empty` | light | match (15pt floor) |  |
-| `cash-only` | light | match (15pt floor) | Cabal cards draw the tint gradient in place of the stock photo (Context decision) |
+| `cash-only` | light | match (15pt floor) | Cabal cards draw the solid tint in place of the stock photo (Context decision) |
 | `multiple-proposals` | light | difference | The proposal card header names the proposer (Jordan) where the reference names the cabal (Big Ballers) Follow-up: home (#5559). |
 | `voted` | light | difference | The proposal card header names the proposer (Jordan) where the reference names the cabal (Big Ballers) Follow-up: home (#5559). |
 | `executing` | light | difference | The proposal card header names the proposer (Jordan) where the reference names the cabal (Big Ballers); the card line says "cabal", the reference "group" Follow-up: home (#5559). |
@@ -398,11 +400,11 @@ Template `cabal` · group `cabals` · #5566 (Lane B) · founder: pending
 
 | State | Appearance | Verdict | What differs |
 | --- | --- | --- | --- |
-| `ready` | light | match (15pt floor) | Cover draws the tint gradient in place of the stock photo (Context decision); the fixture chart is flat where the reference chart falls |
+| `ready` | light | match (15pt floor) | Cover draws the solid tint in place of the stock photo (Context decision); the fixture chart is flat where the reference chart falls |
 | `ready` | dark | match (15pt floor) | as light |
-| `no-share` | light | match (15pt floor) | Cover draws the tint gradient in place of the stock photo (Context decision); the fixture chart is flat |
-| `cash-only` | light | match (15pt floor) | Cover draws the tint gradient in place of the stock photo (Context decision) |
-| `no-proposals` | light | match (15pt floor) | Cover draws the tint gradient in place of the stock photo (Context decision); the fixture chart is flat |
+| `no-share` | light | match (15pt floor) | Cover draws the solid tint in place of the stock photo (Context decision); the fixture chart is flat |
+| `cash-only` | light | match (15pt floor) | Cover draws the solid tint in place of the stock photo (Context decision) |
+| `no-proposals` | light | match (15pt floor) | Cover draws the solid tint in place of the stock photo (Context decision); the fixture chart is flat |
 | `voted` | light | match (15pt floor) | The first screen matches the ready state; the vote card sits below the fold in both |
 | `executing` | light | match (15pt floor) | The harness shoots the middle of the page; the Proposals, Holdings and Member standings sections match the reference in order |
 | `completed` | light | match (15pt floor) | The harness shoots the middle of the page; the Proposals, Holdings and Member standings sections match the reference in order |
@@ -428,15 +430,15 @@ Template `cabals` · group `cabals` · #5565 (Lane B) · founder: pending
 
 | State | Appearance | Verdict | What differs |
 | --- | --- | --- | --- |
-| `ready` | light | match (15pt floor) | Cabal cards draw the tint gradient in place of the stock photo and "Return opens soon" is the missing-data caption (Context decisions); the card count sits beside the "Your cabals" heading where the reference right-aligns it |
+| `ready` | light | match (15pt floor) | Cabal cards draw the solid tint in place of the stock photo and "Return opens soon" is the missing-data caption (Context decisions); the card count sits beside the "Your cabals" heading where the reference right-aligns it |
 | `ready` | dark | match (15pt floor) | as light |
-| `no-action` | light | match (15pt floor) | Cabal cards draw the tint gradient in place of the stock photo and "Return opens soon" is the missing-data caption (Context decisions); the card count sits beside the "Your cabals" heading where the reference right-aligns it |
+| `no-action` | light | match (15pt floor) | Cabal cards draw the solid tint in place of the stock photo and "Return opens soon" is the missing-data caption (Context decisions); the card count sits beside the "Your cabals" heading where the reference right-aligns it |
 | `empty` | light | difference | The empty state adds an "Explore cabals" secondary button the reference does not draw Follow-up: cabals (#5565). |
 | `filtered` | light | match (15pt floor) | The harness scrolls to the bottom, so the shot shows the leaderboard where the reference shows the top of the list |
 | `loading` | light | difference | The app draws the Cabals title, the search field and the leaderboard header above the skeleton; the reference draws a skeleton for the whole page Follow-up: cabals (#5565). |
 | `error` | light | difference | The app keeps the Cabals title, the search field and the Cabal leaderboard around the error block; the reference replaces the whole page with it Follow-up: cabals (#5565). |
-| `no-share` | light | match (15pt floor) | Cabal cards draw the tint gradient in place of the stock photo and "Return opens soon" is the missing-data caption (Context decisions); the card count sits beside the "Your cabals" heading where the reference right-aligns it |
-| `pnl-unavailable` | light | match (15pt floor) | Cabal cards draw the tint gradient in place of the stock photo and "Return opens soon" is the missing-data caption (Context decisions); the card count sits beside the "Your cabals" heading where the reference right-aligns it |
+| `no-share` | light | match (15pt floor) | Cabal cards draw the solid tint in place of the stock photo and "Return opens soon" is the missing-data caption (Context decisions); the card count sits beside the "Your cabals" heading where the reference right-aligns it |
+| `pnl-unavailable` | light | match (15pt floor) | Cabal cards draw the solid tint in place of the stock photo and "Return opens soon" is the missing-data caption (Context decisions); the card count sits beside the "Your cabals" heading where the reference right-aligns it |
 | `rank-loading` | light | match (15pt floor) | The harness scrolls to the bottom: three skeleton rows under the filter row; the reference top of page matches in order |
 | `rank-error` | light | match (15pt floor) | The harness scrolls to the bottom: "Rankings couldn't load." with Retry rankings under the filter row; the reference top of page matches in order |
 | `rank-empty` | light | match (15pt floor) | The harness scrolls to the bottom: the leaderboard shows "No public rankings for this period." under the filter row; the reference top of page matches in order |
@@ -690,7 +692,7 @@ Template `settings` · group `profile` · #5571 (Lane B) · founder: pending
 
 - **Network chooser.** decisions.md says the `network` chooser (Base, Arbitrum, Ethereum) "stays out because the app is Solana-only", but #5561 built `DepositNetworksView` with Base, Arbitrum and Ethereum rows and chain logos (money / network / ready). Someone has to decide whether to keep it; the reference draws letter tiles and its loading, selected and unavailable states have no counterpart in the app.
 - **"Cabal" or "group".** The reference still says "group" in places (Group trades, from the group pot, Join a group, Group · 1M); the app says "cabal" throughout. The rows record each, but the wording is one decision for the founder, not eleven fixes.
-- **Photos.** The reference shows face photos for people and stock photos for cabals; the app draws initials and the tint gradient (decision 8 for covers). The sample fixtures carry no photo URLs, so every person row is initials in the shots. Adding fixture photos to the harnesses would remove this noise from the next review.
+- **Photos.** The reference shows face photos for people and stock photos for cabals; the app draws initials and the solid tint (decision 8 for covers). The sample fixtures carry no photo URLs, so every person row is initials in the shots. Adding fixture photos to the harnesses would remove this noise from the next review.
 
 ## Design gaps from the sign-in build
 
