@@ -185,10 +185,7 @@ func (v *EVMVenue) tolerance(ctx context.Context, spec app.EVMSwapSpec, attrs []
 	if err != nil {
 		return 0, errs.Wrap(err, errs.CodeDecodeFailed, evmVenueBuildOp, attrs...)
 	}
-	floor := spec.MinOut
-	if floor == 0 {
-		floor = domain.SlippageOf(spec.SlippageBps).MinOut(out)
-	}
+	floor := swapFloor(spec, out)
 	if floor == 0 || out < floor {
 		return 0, errs.New(errs.CodePriceMoved, evmVenueBuildOp,
 			append(attrs, slog.Uint64("quoted", out), slog.Uint64("floor", floor))...)
@@ -248,6 +245,9 @@ func buildPlan(
 	if txErr == nil {
 		txErr = checkSwapTarget(spec, tx)
 	}
+	if txErr == nil && outErr == nil {
+		txErr = checkSwapCalldata(spec, tx, swapFloor(spec, out))
+	}
 	plan := app.EVMSwapPlan{Swap: tx, OutAmount: out, MinOut: minOut}
 	errList := []error{minErr, outErr, txErr, permitAsTransaction(quote)}
 	if approval.Approval != nil {
@@ -269,6 +269,13 @@ func buildPlan(
 		}
 	}
 	return plan, nil
+}
+
+func swapFloor(spec app.EVMSwapSpec, out uint64) uint64 {
+	if spec.MinOut != 0 {
+		return spec.MinOut
+	}
+	return domain.SlippageOf(spec.SlippageBps).MinOut(out)
 }
 
 func minOutFor(outputs []outputWire, owner chain.EVMAddress) (uint64, error) {

@@ -11,6 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/evmcalls"
 )
 
 const (
@@ -18,6 +19,10 @@ const (
 	liveToken   = "0xb2000000000000000000002d0ba3164cc74f58b7"
 	liveUSDCEIP = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 )
+
+func liveSwap() string {
+	return evmcalls.Hex(evmcalls.Honest(liveOwner, baseCash, liveToken, 9_992_500, 995_000))
+}
 
 func liveSpec(t *testing.T) app.EVMSwapSpec {
 	t.Helper()
@@ -71,7 +76,7 @@ func TestEVMVenue_buildsItsOwnExactApprovalInsteadOfTheUnlimitedOneAndAsksForThe
 			"null",
 			livePermitTx(),
 		),
-		swapReply(evmTxJSON(liveRouter, "0x3593564c", "0x0")),
+		swapReply(evmTxJSON(liveRouter, liveSwap(), "0x0")),
 	)
 
 	plan, err := e.venue.Build(t.Context(), liveSpec(t))
@@ -104,7 +109,7 @@ func TestEVMVenue_refusesAPermitItCanOnlySign(t *testing.T) {
 	e := newVenueEnv(t)
 	permitData := `{"domain":{"name":"Permit2","chainId":8453},"types":{},"values":{}}`
 	e.script(liveCheckApproval(), liveQuote(t, "1000000", "1000000", permitData, "null"),
-		liveQuote(t, "1000100", "990200", permitData, "null"), swapReply(evmTxJSON(liveRouter, "0x3593564c", "0x0")))
+		liveQuote(t, "1000100", "990200", permitData, "null"), swapReply(evmTxJSON(liveRouter, liveSwap(), "0x0")))
 
 	_, err := e.venue.Build(t.Context(), liveSpec(t))
 
