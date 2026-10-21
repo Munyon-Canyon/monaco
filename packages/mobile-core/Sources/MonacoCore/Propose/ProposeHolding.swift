@@ -1,6 +1,14 @@
 import MonacoAPI
 
 public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
+    public struct Location: Equatable, Hashable, Sendable, Identifiable {
+        public let network: Components.Schemas.Network
+        public let tokenAmount: Int64
+        public let valueMicros: Int64
+
+        public var id: String { network.rawValue }
+    }
+
     public let symbol: String
     public let ticker: String
     public let name: String
@@ -8,6 +16,8 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
     public let tokenAmount: Int64
     public let priceMicros: Int64
     public let valueMicros: Int64
+    public let network: Components.Schemas.Network?
+    public let locations: [Location]
     private let unitsTenThousandths: Int64
 
     public var id: String { symbol }
@@ -18,14 +28,64 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
         ticker = AssetSymbolFormatter.display(holding.symbol, kind: kind)
         name = holding.displayName
         self.kind = kind
-        tokenAmount = holding.tokenAmount
         priceMicros = holding.priceMicros
-        valueMicros = holding.valueMicros
-        unitsTenThousandths = Int64(holding.units.replacingOccurrences(of: ".", with: "")) ?? 0
+        let locations = Self.locations(of: holding)
+        self.locations = locations
+        guard locations.contains(where: { $0.network != .solana }),
+            let first = locations.first(where: { $0.network == .solana }) ?? locations.first
+        else {
+            network = nil
+            tokenAmount = holding.tokenAmount
+            valueMicros = holding.valueMicros
+            unitsTenThousandths = Int64(holding.units.replacingOccurrences(of: ".", with: "")) ?? 0
+            return
+        }
+        network = first.network
+        tokenAmount = first.tokenAmount
+        valueMicros = first.valueMicros
+        unitsTenThousandths = Self.tenThousandths(valueMicros: first.valueMicros, priceMicros: holding.priceMicros)
+    }
+
+    private init(_ holding: ProposeHolding, at location: Location) {
+        symbol = holding.symbol
+        ticker = holding.ticker
+        name = holding.name
+        kind = holding.kind
+        priceMicros = holding.priceMicros
+        locations = holding.locations
+        network = location.network
+        tokenAmount = location.tokenAmount
+        valueMicros = location.valueMicros
+        unitsTenThousandths = Self.tenThousandths(valueMicros: location.valueMicros, priceMicros: holding.priceMicros)
+    }
+
+    public func at(_ network: Components.Schemas.Network) -> ProposeHolding {
+        locations.first { $0.network == network }.map { ProposeHolding(self, at: $0) } ?? self
+    }
+
+    private static func locations(of holding: Components.Schemas.CabalHolding) -> [Location] {
+        var found: [Location] = (holding.listings ?? []).compactMap { listing in
+            guard let amount = Int64(listing.tokenAmount), amount > 0 else { return nil }
+            return Location(network: listing.network, tokenAmount: amount, valueMicros: listing.valueMicros)
+        }
+        if holding.tokenAmount > 0, !found.contains(where: { $0.network == .solana }) {
+            let elsewhere = found.reduce(Int64(0)) { $0 + $1.valueMicros }
+            found.insert(
+                Location(
+                    network: .solana, tokenAmount: holding.tokenAmount,
+                    valueMicros: max(0, holding.valueMicros - elsewhere)),
+                at: 0)
+        }
+        return found
+    }
+
+    private static func tenThousandths(valueMicros: Int64, priceMicros: Int64) -> Int64 {
+        guard valueMicros > 0, priceMicros > 0 else { return 0 }
+        return priceMicros.dividingFullWidth(valueMicros.multipliedFullWidth(by: 10_000)).quotient
     }
 
     public var detail: String {
-        "\(name) · \(quantity(of: tokenAmount))"
+        "\(name) · \(heldQuantity)"
     }
 
     public static let noPriceHelper = "No price for this stock right now"
@@ -41,11 +101,23 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
         return ProposeMath.tokenAmount(units: tokenAmount, dollars: micros, holdingValue: valueMicros)
     }
 
+    public var heldQuantity: String {
+        guard locations.count > 1 else { return quantity(of: tokenAmount) }
+        let total = locations.reduce(Int64(0)) {
+            $0 + Self.tenThousandths(valueMicros: $1.valueMicros, priceMicros: priceMicros)
+        }
+        return Self.label(tenThousandths: total, kind: kind)
+    }
+
     public func quantity(of amount: Int64) -> String {
         let clamped = min(max(amount, 0), tokenAmount)
         let scaled =
             tokenAmount > 0
             ? tokenAmount.dividingFullWidth(unitsTenThousandths.multipliedFullWidth(by: clamped)).quotient : 0
+        return Self.label(tenThousandths: scaled, kind: kind)
+    }
+
+    private static func label(tenThousandths scaled: Int64, kind: AssetKind) -> String {
         var text = "\(scaled / 10_000)"
         var fraction = String(scaled % 10_000)
         fraction = String(repeating: "0", count: 4 - fraction.count) + fraction

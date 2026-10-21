@@ -126,6 +126,13 @@ public final class ProposalSegmentsModel {
 
 extension ProposalSummary {
     public var isTradeInProgress: Bool { status == .passed && swap?.status != "failed" }
+
+    public var routedSaleShareNanos: Int64? {
+        guard kind == "sell", let network, network != .solana, let bestPrice, bestPrice.isSell,
+            bestPrice.winner.network == network, bestPrice.winner.netShareNanos > 0
+        else { return nil }
+        return bestPrice.winner.netShareNanos
+    }
 }
 
 @Observable

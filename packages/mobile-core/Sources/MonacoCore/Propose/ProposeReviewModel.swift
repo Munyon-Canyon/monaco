@@ -45,6 +45,7 @@ public final class ProposeReviewModel {
         self.preview = preview
         self.trade = trade
         self.submission = submission
+        if case .sell(let holding) = trade, let network = holding.network { chain = .network(network) }
     }
 
     public var title: String {
@@ -135,6 +136,9 @@ public final class ProposeReviewModel {
     private var tradeRows: [Row] {
         guard case .sell(let holding) = trade else { return buyRows }
         var rows: [Row] = []
+        if let network = holding.network, holding.locations.count > 1 || network != .solana {
+            rows.append(Row(label: "Sells on", value: BestPrice.chainName(network)))
+        }
         if let out = preview.quoteOutAmount, out > 0 {
             rows.append(Row(label: "Raises", value: "about \(UsdAmountFormatter.format(micros: out))"))
         }

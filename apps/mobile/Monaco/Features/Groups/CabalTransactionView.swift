@@ -81,7 +81,7 @@ struct CabalTransactionView: View {
         let swap = row.kind.isSwap ? model?.openSwap : nil
         let isRetrying = model?.isRetrying(row.id) == true
         let status = isRetrying ? "Retrying" : swap?.statusLabel ?? row.status.receiptLabel
-        let solscanURL = swap?.solscanURL ?? row.solscanURL
+        let explorer = swap?.explorer ?? row.solscanURL.map { TxExplorer.Link(name: "Solscan", url: $0) }
         return VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
             VStack(spacing: MonacoTheme.Space.s) {
                 if row.kind.isSwap, let symbol = row.symbol {
@@ -130,10 +130,10 @@ struct CabalTransactionView: View {
                     .buttonStyle(.monacoRow)
                     .accessibilityIdentifier("cabal-txn-actor")
                 }
-                ReceiptLine(label: "When", value: .data(row.fullDate), isLast: solscanURL == nil)
+                ReceiptLine(label: "When", value: .data(row.fullDate), isLast: explorer == nil)
                     .accessibilityIdentifier("cabal-txn-when")
-                if let url = solscanURL {
-                    SolscanLinkRow(url: url, identifier: "cabal-txn-solscan")
+                if let explorer {
+                    SolscanLinkRow(url: explorer.url, name: explorer.name, identifier: "cabal-txn-solscan")
                 }
             }
             if let bestPrice = swap?.bestPrice {

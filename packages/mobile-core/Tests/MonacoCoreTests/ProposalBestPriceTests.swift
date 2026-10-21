@@ -52,6 +52,24 @@ final class ProposalBestPriceTests: XCTestCase {
         XCTAssertNil(ProposalDetail(.sample()).summary.network)
     }
 
+    func testARoutedSaleCarriesTheSharesItSellsOnlyOffSolana() {
+        var onBase = Components.Schemas.Proposal.sample(kind: .sell)
+        onBase.priceComparison = BestPrice.sampleComparison(now: Date())
+        onBase.network = .base
+        var onSolana = onBase
+        onSolana.network = .solana
+        var unpinned = onBase
+        unpinned.network = nil
+        var buy = onBase
+        buy.kind = .buy
+
+        XCTAssertEqual(ProposalSummary(onBase).routedSaleShareNanos, 40_120_000)
+        XCTAssertNil(ProposalSummary(onSolana).routedSaleShareNanos)
+        XCTAssertNil(ProposalSummary(unpinned).routedSaleShareNanos)
+        XCTAssertNil(ProposalSummary(buy).routedSaleShareNanos)
+        XCTAssertNil(ProposalSummary(.sample(kind: .sell)).routedSaleShareNanos)
+    }
+
     func testChainNameNamesEveryChain() {
         XCTAssertEqual(BestPrice.chainName(.robinhood), "Robinhood Chain")
         XCTAssertEqual(BestPrice.chainName(.base), "Base")

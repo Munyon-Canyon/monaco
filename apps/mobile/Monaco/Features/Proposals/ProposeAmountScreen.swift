@@ -66,6 +66,7 @@ struct ProposeAmountScreen: View {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                 header
                 ProposeContextCard(cabalID: cabalID, detail: contextDetail)
+                location
                 amountEntry
                 notices
                 thesisSection
@@ -127,9 +128,18 @@ struct ProposeAmountScreen: View {
         .accessibilityIdentifier("propose-amount-operation")
     }
 
+    @ViewBuilder private var location: some View {
+        if case .sell(let holding) = model.trade, holding.locations.count > 1 {
+            ProposeLocationSection(holding: holding) { network in
+                amountText = ""
+                model.chooseLocation(network)
+            }
+        }
+    }
+
     private var contextDetail: ProposeContextDetail {
         if case .sell(let holding) = model.trade {
-            return .units("\(holding.quantity(of: holding.tokenAmount)) held")
+            return .units("\(holding.heldQuantity) held")
         }
         guard let micros = model.spendableCashMicros else { return .loading }
         return .cash(micros: micros)

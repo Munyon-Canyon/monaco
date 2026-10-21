@@ -18,6 +18,7 @@ enum ProposeSampleScenario: String, CaseIterable {
     case sellNoHoldings
     case amount
     case amountSell
+    case amountSellBase
     case amountInsufficient
     case amountEmptyThesis
     case amountError
@@ -45,6 +46,7 @@ enum ProposeSampleScenario: String, CaseIterable {
         var script = SampleAPIScript()
         switch self {
         case .chooserCashOnly, .chooserNoHoldings, .sellNoHoldings: script.pot = .sampleCashOnly
+        case .amountSellBase: script.pot = .sampleMultichain
         case .chooserNotMember: script.role = nil
         case .potFailed, .amountError: script.mode = .potUnavailable
         case .buyError: script.mode = .assetsUnavailable
@@ -59,8 +61,8 @@ enum ProposeSampleScenario: String, CaseIterable {
 
     var tab: MainTab {
         switch self {
-        case .amount, .amountSell, .amountInsufficient, .amountEmptyThesis, .amountError, .potFailed, .pickCabal,
-            .noCabal, .sell:
+        case .amount, .amountSell, .amountSellBase, .amountInsufficient, .amountEmptyThesis, .amountError, .potFailed,
+            .pickCabal, .noCabal, .sell:
             .stocks
         default: .cabals
         }
@@ -76,7 +78,7 @@ enum ProposeSampleScenario: String, CaseIterable {
         case .buyNoResults: ProposeSampleRoute(scenario: self)
         case .sellList, .sellNoHoldings: ProposeRoute(cabalID: GroupDetailSampleData.cabalID, start: .sell)
         case .amount, .potFailed, .pickCabal, .noCabal: ProposeFromAssetRoute(symbol: "GOOGLx", kind: .buy)
-        case .amountSell, .sell: ProposeFromAssetRoute(symbol: "GOOGLx", kind: .sell)
+        case .amountSell, .amountSellBase, .sell: ProposeFromAssetRoute(symbol: "GOOGLx", kind: .sell)
         case .amountInsufficient, .amountEmptyThesis, .amountError: ProposeSampleRoute(scenario: self)
         case .review: SampleScreenRoute(screen: .proposeReview(.buy), arguments: [])
         case .sellReview: SampleScreenRoute(screen: .proposeReview(.sell), arguments: [])

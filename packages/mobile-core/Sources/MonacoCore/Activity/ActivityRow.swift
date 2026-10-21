@@ -70,7 +70,7 @@ public struct ActivityRow: Identifiable, Equatable, Sendable {
         self.actorName = activity.actor.map { $0.displayName.isEmpty ? "@\($0.handle)" : $0.displayName }
         self.actorID = activity.actor?.userId
         self.actorHandle = activity.actor?.handle
-        self.solscanURL = activity.txSignature.flatMap { URL(string: "https://solscan.io/tx/\($0)") }
+        self.solscanURL = activity.txSignature.flatMap(TxExplorer.solscanURL)
     }
 
     public init(
@@ -102,7 +102,7 @@ public struct ActivityRow: Identifiable, Equatable, Sendable {
         self.actorName = nil
         self.actorID = nil
         self.actorHandle = nil
-        self.solscanURL = swap.txSignature.flatMap { URL(string: "https://solscan.io/tx/\($0)") }
+        self.solscanURL = swap.txSignature.flatMap(TxExplorer.solscanURL)
     }
 
     private static func headline(

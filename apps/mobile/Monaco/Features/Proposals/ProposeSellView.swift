@@ -124,7 +124,7 @@ private struct ProposeHoldingRow: View {
 
     var body: some View {
         MonacoRow(
-            title: holding.name, subtitle: "\(holding.ticker) · \(holding.quantity(of: holding.tokenAmount))",
+            title: holding.name, subtitle: "\(holding.ticker) · \(holding.heldQuantity)",
             chevron: true, isLast: isLast
         ) {
             StockMark(

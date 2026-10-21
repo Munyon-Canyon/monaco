@@ -47,7 +47,8 @@ extension ProposalDraft {
         switch self {
         case .buy(let symbol, let usdcMicros, _):
             .init(kind: .buy, symbol: symbol, usdcMicros: usdcMicros > 0 ? usdcMicros : nil, network: network)
-        case .sell(let symbol, let tokenAmount, _): .init(kind: .sell, symbol: symbol, tokenAmount: tokenAmount)
+        case .sell(let symbol, let tokenAmount, _):
+            .init(kind: .sell, symbol: symbol, tokenAmount: tokenAmount, network: network)
         }
     }
 
@@ -56,7 +57,8 @@ extension ProposalDraft {
         case .buy(let symbol, let usdcMicros, let thesis):
             .init(kind: .buy, symbol: symbol, usdcMicros: usdcMicros, thesis: thesis.trimmedOrNil, network: network)
         case .sell(let symbol, let tokenAmount, let thesis):
-            .init(kind: .sell, symbol: symbol, tokenAmount: tokenAmount, thesis: thesis.trimmedOrNil)
+            .init(
+                kind: .sell, symbol: symbol, tokenAmount: tokenAmount, thesis: thesis.trimmedOrNil, network: network)
         }
     }
 }

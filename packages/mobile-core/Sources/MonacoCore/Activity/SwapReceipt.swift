@@ -6,7 +6,7 @@ public struct SwapReceipt: Equatable, Sendable {
     public let assetLine: String
     public let amount: String?
     public let failureMessage: String?
-    public let solscanURL: URL?
+    public let explorer: TxExplorer.Link?
     public let retryable: Bool
     public let bestPrice: BestPrice?
 
@@ -22,8 +22,9 @@ public struct SwapReceipt: Equatable, Sendable {
         self.assetLine = "\(swap.assetName) · \(AssetSymbolFormatter.display(swap.symbol))"
         self.amount = swap.usdcMicros.map { UsdAmountFormatter.format(micros: $0) }
         self.failureMessage = swap.status == .failed ? swap.failureMessage : nil
-        self.solscanURL = swap.txSignature.flatMap { URL(string: "https://solscan.io/tx/\($0)") }
+        let bestPrice = BestPrice(swap.route, isSell: swap.action == .sell)
+        self.explorer = swap.txSignature.flatMap { TxExplorer.link(signature: $0, network: bestPrice?.winner.network) }
         self.retryable = swap.retryable
-        self.bestPrice = BestPrice(swap.route, isSell: swap.action == .sell)
+        self.bestPrice = bestPrice
     }
 }
