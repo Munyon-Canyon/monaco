@@ -130,9 +130,7 @@ struct ProposeAmountKeypadTests {
     }
 
     static func setAutomation(enabled: Bool) throws {
-        let library = try #require(dlopen("/usr/lib/libAccessibility.dylib", RTLD_NOW))
-        let symbol = try #require(dlsym(library, "_AXSSetAutomationEnabled"))
-        unsafeBitCast(symbol, to: (@convention(c) (Int32) -> Void).self)(enabled ? 1 : 0)
+        try AccessibilityTree.setAutomation(enabled: enabled)
     }
 
     private static var holding: ProposeHolding {
