@@ -22,7 +22,14 @@ struct HomeMoneyStrip: View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             VStack(spacing: 0) {
                 MonacoRule(color: MonacoTheme.hairline)
-                strip.padding(.top, MonacoTheme.Space.m)
+                Text("Your money")
+                    .font(MonacoTheme.Typo.subheadStrong)
+                    .foregroundStyle(MonacoTheme.ink)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, MonacoTheme.Space.m)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("home-money-title")
+                strip.padding(.top, MonacoTheme.Space.xs)
             }
             if let retry {
                 MonacoErrorRow(
