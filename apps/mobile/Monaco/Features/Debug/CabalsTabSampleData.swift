@@ -130,11 +130,13 @@ final class CabalsTabSampleHarnessEntry: SampleHarnessEntry {
         return AnyView(CabalsTabSampleHarness(auth: auth))
     }
 }
-extension CabalsBoardFilters {
-    static var initial: CabalsBoardFilters {
+extension LeaderboardFilters {
+    static var cabalsTabSample: LeaderboardFilters {
         guard CabalsTabSampleData.matches(ProcessInfo.processInfo.arguments), CabalsTabSampleData.scenario == .filtered
         else { return .standard }
-        return CabalsBoardFilters(sort: .pnlAmount)
+        var filters = LeaderboardFilters.standard
+        filters.sort = .pnlAmount
+        return filters
     }
 }
 
