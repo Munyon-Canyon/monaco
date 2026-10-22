@@ -160,6 +160,8 @@ enum MonacoTheme {
 
     static let coverOverlayReduced = Color.adaptive(light: 0x00130B, lightAlpha: 0.91, dark: 0x00130B, darkAlpha: 0.91)
 
+    static let emblemPattern = Color.adaptive(light: 0xFFFFFF, lightAlpha: 0.12, dark: 0xFFFFFF, darkAlpha: 0.12)
+
     static let voteNeededFill = Color.adaptive(light: 0xC8F7CF, dark: 0xC8F7CF)
 
     static let voteNeededLabel = Color.adaptive(light: 0x083123, dark: 0x083123)

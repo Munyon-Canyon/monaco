@@ -4,6 +4,7 @@ import SwiftUI
 struct GalleryMarksPage: View {
     var body: some View {
         GalleryPage(title: "Marks") {
+            GalleryPixelSamples()
             GalleryGlyphSamples()
             GalleryStockSamples()
             GalleryCabalMarkSamples()

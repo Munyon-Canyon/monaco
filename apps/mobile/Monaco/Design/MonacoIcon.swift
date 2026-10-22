@@ -9,9 +9,11 @@ enum MonacoIcon: String, CaseIterable {
     case wallet, card, receipt, qr, copy, link, globe
     case clock, alert, offline, refresh, lock
     case mail, phone, bot, pause, play, trash, news, delete
+    case alertCircle
 
     var symbol: String {
         switch self {
+        case .alertCircle: return "exclamationmark.circle.fill"
         case .home: return "house"
         case .cabals: return "person.3"
         case .markets: return "chart.line.uptrend.xyaxis"
