@@ -16,12 +16,16 @@ import (
 func (p *SamplePrices) recordMoves(
 	ctx context.Context, assets []domain.Asset, bucket time.Time, marks map[domain.AssetID]domain.Sample,
 ) error {
-	for _, a := range assets {
-		mark, ok := marks[a.ID]
-		if !ok || !mark.ObservedAt.Equal(bucket) {
-			continue
-		}
-		ref, day, ok, err := p.reference(ctx, a, bucket)
+	moving, err := marked(assets, bucket, marks)
+	if err != nil {
+		return err
+	}
+	if err := p.loadCloses(ctx, moving); err != nil {
+		return err
+	}
+	for _, m := range moving {
+		a, mark := m.asset, marks[m.asset.ID]
+		ref, day, ok, err := p.reference(ctx, m, bucket)
 		if err != nil {
 			return err
 		}
@@ -37,31 +41,113 @@ func (p *SamplePrices) recordMoves(
 	return nil
 }
 
-func (p *SamplePrices) reference(
-	ctx context.Context, a domain.Asset, at time.Time,
-) (domain.Sample, domain.Date, bool, error) {
-	info, err := domain.Session(a.Kind, at)
-	if err != nil {
-		return domain.Sample{}, domain.Date{}, false, err
-	}
-	if a.Kind == domain.KindPreIPO {
-		start := time.Date(info.TradingDay.Year, info.TradingDay.Month, info.TradingDay.Day, 0, 0, 0, 0, time.UTC)
-		samples, err := p.book.DaySamples(ctx, a.ID, start, at)
-		if err != nil {
-			return domain.Sample{}, domain.Date{}, false, err
+func marked(
+	assets []domain.Asset, bucket time.Time, marks map[domain.AssetID]domain.Sample,
+) ([]movingAsset, error) {
+	var moving []movingAsset
+	for _, a := range assets {
+		if mark, ok := marks[a.ID]; ok && mark.ObservedAt.Equal(bucket) {
+			info, err := domain.Session(a.Kind, bucket)
+			if err != nil {
+				return nil, err
+			}
+			moving = append(moving, movingAsset{asset: a, info: info})
 		}
-		s, ok := domain.FirstAcceptedOnDay(samples, start)
-		return s, info.TradingDay, ok, nil
+	}
+	return moving, nil
+}
+
+type movingAsset struct {
+	asset domain.Asset
+	info  domain.SessionInfo
+}
+
+func (p *SamplePrices) reference(
+	ctx context.Context, m movingAsset, at time.Time,
+) (domain.Sample, domain.Date, bool, error) {
+	a, info := m.asset, m.info
+	if a.Kind == domain.KindPreIPO {
+		s, ok, err := p.dayOpen(ctx, a.ID, info.TradingDay, at)
+		return s, info.TradingDay, ok, err
 	}
 	if info.State != domain.StateOpen {
 		return domain.Sample{}, info.TradingDay, false, nil
 	}
-	prices, err := p.book.PricesAsOf(ctx, []domain.AssetID{a.ID}, info.LastClose)
-	if err != nil {
-		return domain.Sample{}, domain.Date{}, false, err
-	}
-	s, ok := prices[a.ID]
+	s, ok := p.closes[info.LastClose].prices[a.ID]
 	return s, info.TradingDay, ok, nil
+}
+
+func (p *SamplePrices) dayOpen(
+	ctx context.Context, id domain.AssetID, day domain.Date, at time.Time,
+) (domain.Sample, bool, error) {
+	if open, ok := p.opens[id]; ok && open.day == day {
+		return open.s, true, nil
+	}
+	start := time.Date(day.Year, day.Month, day.Day, 0, 0, 0, 0, time.UTC)
+	samples, err := p.book.DaySamples(ctx, id, start, at)
+	if err != nil {
+		return domain.Sample{}, false, err
+	}
+	s, ok := domain.FirstAcceptedOnDay(samples, start)
+	if ok {
+		if p.opens == nil {
+			p.opens = map[domain.AssetID]dayOpen{}
+		}
+		p.opens[id] = dayOpen{day: day, s: s}
+	}
+	return s, ok, nil
+}
+
+type dayOpen struct {
+	day domain.Date
+	s   domain.Sample
+}
+
+type closeRefs struct {
+	asked  map[domain.AssetID]bool
+	prices map[domain.AssetID]domain.Sample
+}
+
+func (p *SamplePrices) loadCloses(ctx context.Context, assets []movingAsset) error {
+	missing := p.unreadCloses(assets)
+	for lastClose, ids := range missing {
+		prices, err := p.book.PricesAsOf(ctx, ids, lastClose)
+		if err != nil {
+			return err
+		}
+		refs := p.closes[lastClose]
+		for _, id := range ids {
+			refs.asked[id] = true
+			if s, ok := prices[id]; ok {
+				refs.prices[id] = s
+			}
+		}
+	}
+	return nil
+}
+
+func (p *SamplePrices) unreadCloses(assets []movingAsset) map[time.Time][]domain.AssetID {
+	inUse := map[time.Time]closeRefs{}
+	missing := map[time.Time][]domain.AssetID{}
+	for _, m := range assets {
+		a, info := m.asset, m.info
+		if a.Kind == domain.KindPreIPO || info.State != domain.StateOpen {
+			continue
+		}
+		refs, ok := inUse[info.LastClose]
+		if !ok {
+			refs, ok = p.closes[info.LastClose]
+			if !ok {
+				refs = closeRefs{asked: map[domain.AssetID]bool{}, prices: map[domain.AssetID]domain.Sample{}}
+			}
+			inUse[info.LastClose] = refs
+		}
+		if !refs.asked[a.ID] {
+			missing[info.LastClose] = append(missing[info.LastClose], a.ID)
+		}
+	}
+	p.closes = inUse
+	return missing
 }
 
 func (p *SamplePrices) recordMove(

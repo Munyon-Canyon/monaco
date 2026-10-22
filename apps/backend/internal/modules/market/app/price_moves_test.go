@@ -125,3 +125,86 @@ func TestRecordMoves_reportsAVolumeReadFailure(t *testing.T) {
 		t.Fatalf("recordMoves = %v, want db_unavailable", err)
 	}
 }
+
+type countingBook struct {
+	fakeBook
+	asOfCalls *int
+	dayCalls  *int
+}
+
+func (c countingBook) PricesAsOf(
+	ctx context.Context, ids []domain.AssetID, at time.Time,
+) (map[domain.AssetID]domain.Sample, error) {
+	*c.asOfCalls++
+	return c.fakeBook.PricesAsOf(ctx, ids, at)
+}
+
+func (c countingBook) DaySamples(
+	ctx context.Context, id domain.AssetID, from, to time.Time,
+) ([]domain.Sample, error) {
+	*c.dayCalls++
+	return c.fakeBook.DaySamples(ctx, id, from, to)
+}
+
+func TestRecordMoves_readsEachCloseOncePerSession(t *testing.T) {
+	t.Parallel()
+	at := equityOpenAt(t, clock.Real{}.Now())
+	ids := testkit.NewIDs(11)
+	ref := domain.Sample{Micros: money.MicrosFromUint64(200_000_000), ObservedAt: at.Add(-time.Hour)}
+	assets := make([]domain.Asset, 0, 3)
+	refs := map[domain.AssetID]domain.Sample{}
+	for _, sym := range []string{"AAPLx", "TSLAx", "NVDAx"} {
+		id := domain.NewAssetID(ids)
+		assets = append(assets, domain.Asset{ID: id, Kind: domain.KindEquity, Symbol: sym})
+		refs[id] = ref
+	}
+	var asOf, day int
+	p := &SamplePrices{
+		book:  countingBook{fakeBook: fakeBook{asOf: refs}, asOfCalls: &asOf, dayCalls: &day},
+		clock: testkit.NewClock(at),
+	}
+	for tick := range 2 {
+		bucket := at.Add(time.Duration(tick) * domain.SampleBucket)
+		marks := map[domain.AssetID]domain.Sample{}
+		for _, a := range assets {
+			marks[a.ID] = domain.Sample{Micros: ref.Micros, ObservedAt: bucket}
+		}
+		if err := p.recordMoves(t.Context(), assets, bucket, marks); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if asOf != 1 {
+		t.Fatalf("PricesAsOf calls = %d, want 1 for three equities over two ticks", asOf)
+	}
+}
+
+func TestRecordMoves_readsAPreIPODayOpenOncePerDay(t *testing.T) {
+	t.Parallel()
+	now := clock.Real{}.Now().UTC()
+	at := time.Date(now.Year(), now.Month(), now.Day(), 15, 0, 0, 0, time.UTC)
+	id := domain.NewAssetID(testkit.NewIDs(12))
+	asset := domain.Asset{ID: id, Kind: domain.KindPreIPO, Symbol: "SPACx"}
+	var asOf, day int
+	p := &SamplePrices{clock: testkit.NewClock(at)}
+	tick := func(bucket time.Time) {
+		t.Helper()
+		start := time.Date(bucket.Year(), bucket.Month(), bucket.Day(), 0, 0, 0, 0, time.UTC)
+		open := domain.Sample{Micros: money.MicrosFromUint64(50_000_000), ObservedAt: start.Add(time.Minute)}
+		p.book = countingBook{fakeBook: fakeBook{days: []domain.Sample{open}}, asOfCalls: &asOf, dayCalls: &day}
+		mark := domain.Sample{Micros: open.Micros, ObservedAt: bucket}
+		if err := p.recordMoves(
+			t.Context(), []domain.Asset{asset}, bucket, map[domain.AssetID]domain.Sample{id: mark},
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tick(at)
+	tick(at.Add(domain.SampleBucket))
+	if day != 1 {
+		t.Fatalf("DaySamples calls = %d, want 1 across two ticks on one day", day)
+	}
+	tick(at.AddDate(0, 0, 1))
+	if day != 2 {
+		t.Fatalf("DaySamples calls = %d, want 2 after the next trading day starts", day)
+	}
+}
