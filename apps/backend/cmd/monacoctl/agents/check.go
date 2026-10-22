@@ -55,6 +55,9 @@ type checkRow struct {
 	prep   [][]string
 
 	lockWaited string
+
+	notes  []string
+	refuse string
 }
 
 const (
@@ -311,6 +314,11 @@ func (env *Env) stage0(ctx context.Context, lane, base, parent, head string) ([]
 		return nil, err
 	}
 	rows := env.prRows(parent, head)
+	touches, err := env.touchesRow(ctx, lane, base, changed)
+	if err != nil {
+		return nil, err
+	}
+	rows = append(rows, touches...)
 	backend := slices.ContainsFunc(changed, func(f string) bool { return strings.HasPrefix(f, "apps/backend/") })
 	if backend {
 		goRows, err := env.goRows(ctx, lane, base, head, changed)
@@ -1016,6 +1024,9 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 		_, _ = fmt.Fprintf(&r.log, "skip %s: %s\n", row.label, row.skip)
 		return nil
 	}
+	if row.refuse != "" {
+		return r.refuse(stdout, row)
+	}
 	release, tokenWait, err := r.admit(ctx, &row, stdout)
 	if err != nil {
 		return err
@@ -1027,10 +1038,20 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 	return r.runRow(ctx, row, stdout, tokenWait)
 }
 
+func (r *checkRun) refuse(stdout io.Writer, row checkRow) error {
+	_, _ = fmt.Fprintf(stdout, "  %-15s FAIL  %s\n", row.label, row.refuse)
+	_, _ = fmt.Fprintf(&r.log, "fail %s: %s\n", row.label, row.refuse)
+	return detailErr(errs.CodeInvalidInput, "monacoctl.agents.check", row.label+" failed; see the log")
+}
+
 func (r *checkRun) runRow(ctx context.Context, row checkRow, stdout io.Writer, tokenWait string) error {
 	if row.header != "" {
 		_, _ = fmt.Fprintf(stdout, "  %-15s %s\n", row.label, row.header)
 		_, _ = fmt.Fprintf(&r.log, "%s: %s\n", row.label, row.header)
+	}
+	for _, note := range row.notes {
+		_, _ = fmt.Fprintf(stdout, "    %s\n", note)
+		_, _ = fmt.Fprintf(&r.log, "%s: %s\n", row.label, note)
 	}
 	ctx, cancel, sb := r.rowBudget(ctx, row)
 	defer cancel()

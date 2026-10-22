@@ -1,6 +1,7 @@
 package agents
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"go/ast"
@@ -68,13 +69,20 @@ type rippleInput struct {
 }
 
 func ripple(in rippleInput) []string {
-	out := map[string]bool{}
+	return slices.Sorted(maps.Keys(rippleReasons(in)))
+}
+
+func rippleReasons(in rippleInput) map[string]string {
+	reasons := map[string]string{}
 	for _, f := range touchedPaths(in.touches, in.files) {
-		for _, p := range slices.Concat(generated(f, in.files), ownPackage(f, in)) {
-			out[p] = true
+		for _, p := range generated(f, in.files) {
+			reasons[p] = cmp.Or(reasons[p], "generated from "+f)
+		}
+		for _, p := range ownPackage(f, in) {
+			reasons[p] = cmp.Or(reasons[p], "test of "+f)
 		}
 	}
-	return slices.Sorted(maps.Keys(out))
+	return reasons
 }
 
 func generated(file string, files []string) []string {
@@ -220,16 +228,24 @@ func specNames(s ast.Spec) []string {
 	return names
 }
 
-func (env *Env) rippleOf(ctx context.Context, dir string, touches []string) ([]string, error) {
+func (env *Env) rippleInputOf(ctx context.Context, dir string, touches []string) (rippleInput, error) {
 	out, err := env.Run(ctx, dir, "", "git", "ls-files")
 	if err != nil {
-		return nil, err
+		return rippleInput{}, err
 	}
-	return ripple(rippleInput{
+	return rippleInput{
 		touches: touches,
 		files:   strings.Fields(string(out)),
 		read:    func(name string) ([]byte, error) { return readIn(dir, name) },
-	}), nil
+	}, nil
+}
+
+func (env *Env) rippleOf(ctx context.Context, dir string, touches []string) ([]string, error) {
+	in, err := env.rippleInputOf(ctx, dir, touches)
+	if err != nil {
+		return nil, err
+	}
+	return ripple(in), nil
 }
 
 func rippleCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) error {
@@ -260,4 +276,43 @@ func readIn(dir, name string) ([]byte, error) {
 		return nil, fmt.Errorf("read %s: %w", name, err)
 	}
 	return body, nil
+}
+
+func declaredNames() *regexp.Regexp {
+	return regexp.MustCompile(`(?m)^[-+](?:func\s+(?:\([^)]*\)\s*)?|type\s+|const\s+|var\s+)([A-Z]\w*)`)
+}
+
+func changedIdentifiers(diff string) []string {
+	names := map[string]bool{}
+	for _, m := range declaredNames().FindAllStringSubmatch(diff, -1) {
+		names[m[1]] = true
+	}
+	return slices.Sorted(maps.Keys(names))
+}
+
+func wideTier(files, pkgDirs, idents []string, read func(string) ([]byte, error)) map[string]string {
+	reasons := map[string]string{}
+	for _, f := range files {
+		if !isFixtureIn(f, pkgDirs) {
+			continue
+		}
+		body, err := read(f)
+		if err != nil {
+			continue
+		}
+		for _, name := range idents {
+			if regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\b`).Match(body) {
+				reasons[f] = "fixture naming " + name
+				break
+			}
+		}
+	}
+	return reasons
+}
+
+func isFixtureIn(file string, pkgDirs []string) bool {
+	return slices.ContainsFunc(pkgDirs, func(dir string) bool {
+		inTests := path.Dir(file) == dir && strings.HasSuffix(file, "_test.go")
+		return inTests || strings.HasPrefix(file, dir+"/testdata/")
+	})
 }
