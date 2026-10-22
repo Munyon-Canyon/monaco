@@ -42,6 +42,8 @@ type solFake struct {
 	sigs     map[chain.Signature]bool
 	beforeIn func()
 	onSend   func()
+
+	beforeBlockhash func()
 }
 
 func newSOLFake(payer chain.SolanaAddress, wallet, relayerLamports uint64) *solFake {
@@ -64,6 +66,9 @@ func (f *solFake) SOLBalance(_ context.Context, addr chain.SolanaAddress) (money
 }
 
 func (f *solFake) LatestBlockhash(context.Context) (solana.Blockhash, error) {
+	if f.beforeBlockhash != nil {
+		f.beforeBlockhash()
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.hashes++
@@ -433,6 +438,10 @@ func TestTopUpSOL_reportsJournalWritesItCannotMake(t *testing.T) {
 			t.Helper()
 			e.exec(t, `ALTER TABLE relayer_sol_topups ADD CONSTRAINT refuse CHECK (lamports < 0)`)
 		}},
+		"journal lost before the lock": {arrange: func(t *testing.T, e *topUpEnv) {
+			t.Helper()
+			e.rpc.beforeBlockhash = func() { e.exec(t, `ALTER TABLE relayer_sol_topups RENAME TO relayer_sol_topups_gone`) }
+		}},
 		"count unreadable":   {arrange: func(_ *testing.T, e *topUpEnv) { e.topUps = e.with(&brokenAfter{n: 1}) }},
 		"landing unrecorded": {arrange: func(_ *testing.T, e *topUpEnv) { e.topUps = e.with(&brokenAfter{n: 3}) }, sends: 1},
 		"pending unresolvable": {arrange: func(t *testing.T, e *topUpEnv) {
@@ -440,7 +449,7 @@ func TestTopUpSOL_reportsJournalWritesItCannotMake(t *testing.T) {
 			e.exec(t, `INSERT INTO relayer_sol_topups (id, wallet, lamports, signature, last_valid_block_height,
 				status, created_at) VALUES (gen_random_uuid(), $1, 1, 'gone', 100, 'pending', now())`, string(memberWallet))
 			e.rpc.expire = true
-			e.topUps = e.with(&brokenAfter{n: 1})
+			e.topUps = e.with(&brokenAfter{n: 2})
 		}},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -507,5 +516,115 @@ func TestLazyTopUps_buildsFromConfigOnFirstUse(t *testing.T) {
 	lazy := relayer.NewLazyTopUps(keyConfig("relayer"), uow, clock.Real{})
 	if err := lazy.TopUpSOL(t.Context(), "not-an-address"); errs.CodeOf(err) != errs.CodeInvalidAddress {
 		t.Fatalf("TopUpSOL err = %v, want the built top-ups to refuse the address", err)
+	}
+}
+
+type lockProbe struct {
+	*solFake
+	pool *pgxpool.Pool
+	mu   sync.Mutex
+	held []string
+	seen []string
+}
+
+func (p *lockProbe) probe(ctx context.Context, op string) {
+	conn, err := p.pool.Acquire(context.WithoutCancel(ctx))
+	if err != nil {
+		panic(err)
+	}
+	defer conn.Release()
+	var free bool
+	const key = `hashtextextended('sol-topup:' || $1::text, 0)`
+	if err := conn.QueryRow(context.WithoutCancel(ctx), `SELECT pg_try_advisory_lock(`+key+`)`, string(memberWallet)).
+		Scan(&free); err != nil {
+		panic(err)
+	}
+	if free {
+		if _, err := conn.Exec(
+			context.WithoutCancel(ctx),
+			`SELECT pg_advisory_unlock(`+key+`)`,
+			string(memberWallet),
+		); err != nil {
+			panic(err)
+		}
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.seen = append(p.seen, op)
+	if !free {
+		p.held = append(p.held, op)
+	}
+}
+
+func (p *lockProbe) SOLBalance(ctx context.Context, addr chain.SolanaAddress) (money.BaseUnits, error) {
+	p.probe(ctx, "SOLBalance")
+	return p.solFake.SOLBalance(ctx, addr)
+}
+
+func (p *lockProbe) LatestBlockhash(ctx context.Context) (solana.Blockhash, error) {
+	p.probe(ctx, "LatestBlockhash")
+	return p.solFake.LatestBlockhash(ctx)
+}
+
+func (p *lockProbe) SendTransaction(ctx context.Context, raw []byte) (chain.Signature, error) {
+	p.probe(ctx, "SendTransaction")
+	return p.solFake.SendTransaction(ctx, raw)
+}
+
+func (p *lockProbe) SignatureStatuses(ctx context.Context, sigs []chain.Signature) ([]solana.Status, error) {
+	p.probe(ctx, "SignatureStatuses")
+	return p.solFake.SignatureStatuses(ctx, sigs)
+}
+
+func TestTopUpSOL_readsAndSendsOutsideTheTransactionHoldingTheWalletLock(t *testing.T) {
+	t.Parallel()
+	for name, expired := range map[string]bool{"fresh": false, "replacing an expired top-up": true} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			e := newTopUpEnv(t, 0, funded, instant{})
+			if expired {
+				e.exec(t, `INSERT INTO relayer_sol_topups (id, wallet, lamports, signature, last_valid_block_height,
+					status, created_at) VALUES (gen_random_uuid(), $1, 1, 'old', 10, 'pending', now())`, string(memberWallet))
+				e.rpc.expire = true
+			}
+			probe := &lockProbe{solFake: e.rpc, pool: e.pool}
+			topUps := relayer.NewTopUps(e.relayer, probe, e.uow, instant{}, e.ids)
+
+			if err := topUps.TopUpSOL(t.Context(), memberWallet); err != nil {
+				t.Fatal(err)
+			}
+
+			probe.assertNoneUnderLock(t)
+		})
+	}
+}
+
+func (p *lockProbe) assertNoneUnderLock(t *testing.T) {
+	t.Helper()
+	for _, op := range []string{"SOLBalance", "LatestBlockhash", "SendTransaction", "SignatureStatuses"} {
+		if !slices.Contains(p.seen, op) {
+			t.Fatalf("rpc calls = %v, want %s among them", p.seen, op)
+		}
+	}
+	if len(p.held) != 0 {
+		t.Fatalf("rpc calls %v ran while the wallet lock was held", p.held)
+	}
+}
+
+func TestTopUpSOL_aJournalThatChangedAfterTheReadIsNotActedOn(t *testing.T) {
+	t.Parallel()
+	e := newTopUpEnv(t, 0, funded, instant{})
+	e.rpc.beforeBlockhash = func() {
+		e.exec(t, `INSERT INTO relayer_sol_topups (id, wallet, lamports, signature, last_valid_block_height,
+			status, created_at) VALUES (gen_random_uuid(), $1, 1, 'rival', 100, 'pending', now())`, string(memberWallet))
+	}
+
+	err := e.topUps.TopUpSOL(t.Context(), memberWallet)
+
+	if !errs.Retryable(errs.CodeOf(err)) || len(e.rpc.sentList()) != 0 {
+		t.Fatalf("err %v, sends %v, want a retryable refusal and nothing sent", err, e.rpc.sentList())
+	}
+	if got := e.journal(t); !slices.Equal(got, []string{"pending"}) {
+		t.Fatalf("journal = %v, want only the rival's row", got)
 	}
 }
