@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"os/exec"
 	"path"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -18,9 +20,26 @@ import (
 )
 
 const (
-	ciUsage     = "usage: monacoctl ci affected --base <ref> [--excluded]"
-	allPackages = "./..."
+	ciUsage      = "usage: monacoctl ci affected --base <ref> [--excluded]"
+	allPackages  = "./..."
+	scanSentinel = "scansModuleSource"
 )
+
+type scanRule struct {
+	roots   []string
+	added   *regexp.Regexp
+	scanner string
+}
+
+func scanRules() []scanRule {
+	return []scanRule{
+		{
+			roots:   []string{"internal/modules", "internal/platform"},
+			added:   regexp.MustCompile(`^\+.*\bobservability\.(Info|Warn|Error|Debug)\(`),
+			scanner: "internal/platform/observability",
+		},
+	}
+}
 
 type ciEnv struct {
 	moduleDir, goBin, gitBin string
@@ -96,8 +115,43 @@ func (env ciEnv) affected(ctx context.Context, base string) (selected, excluded 
 	if err != nil {
 		return nil, nil, err
 	}
-	selected, excluded = reverseDeps(pkgs, changed)
+	scanners, err := env.scanners(ctx, base, changed)
+	if err != nil {
+		return nil, nil, err
+	}
+	selected, excluded = reverseDeps(pkgs, changed, scanners...)
 	return selected, excluded, nil
+}
+
+func (env ciEnv) scanners(ctx context.Context, base string, changed []string) ([]string, error) {
+	const op = "monacoctl.ciScanners"
+	var dirs []string
+	for _, rule := range scanRules() {
+		specs := make([]string, len(rule.roots))
+		for i, root := range rule.roots {
+			specs[i] = ":(glob)" + root + "/**/*.go"
+		}
+		diff, err := env.exec(ctx, env.moduleDir, nil, env.gitBin,
+			slices.Concat([]string{"diff", "-U0", "--relative", base + "...HEAD", "--"}, specs)...)
+		if err != nil {
+			return nil, errs.Wrap(err, errs.CodeInternal, op)
+		}
+		if slices.ContainsFunc(strings.Split(string(diff), "\n"), rule.added.MatchString) {
+			dirs = append(dirs, rule.scanner)
+		}
+	}
+	if !slices.ContainsFunc(changed, func(f string) bool { return strings.HasSuffix(f, ".go") }) {
+		return dirs, nil
+	}
+	files, err := env.exec(ctx, env.moduleDir, nil, env.gitBin, "grep", "-l", scanSentinel, "--", "*_test.go")
+	var exit *exec.ExitError
+	if err != nil && (!errors.As(err, &exit) || exit.ExitCode() != 1) {
+		return nil, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	for _, f := range strings.Fields(string(files)) {
+		dirs = append(dirs, path.Dir(f))
+	}
+	return dirs, nil
 }
 
 func decodePackages(data []byte) (map[string]listedPackage, error) {
@@ -141,11 +195,12 @@ func sharedTooling(dir string) bool {
 	})
 }
 
-func reverseDeps(byDir map[string]listedPackage, changed []string) (selected, excluded []string) {
+func reverseDeps(byDir map[string]listedPackage, changed []string, scanners ...string) (selected, excluded []string) {
 	hit, local, bare, ok := seedPackages(byDir, changed)
 	if !ok {
 		return []string{allPackages}, nil
 	}
+	seedScanners(byDir, bare, scanners)
 	seeds := maps.Clone(hit)
 	growToImporters(byDir, hit)
 	dirOf := map[string]string{}
@@ -166,6 +221,14 @@ func reverseDeps(byDir map[string]listedPackage, changed []string) (selected, ex
 	slices.Sort(selected)
 	slices.Sort(excluded)
 	return selected, excluded
+}
+
+func seedScanners(byDir map[string]listedPackage, bare map[string]bool, scanners []string) {
+	for _, dir := range scanners {
+		if p, found := byDir[dir]; found {
+			bare[p.ImportPath] = true
+		}
+	}
 }
 
 func growToImporters(byDir map[string]listedPackage, hit map[string]bool) {
