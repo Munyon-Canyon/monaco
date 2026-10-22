@@ -24,8 +24,7 @@ struct MainTabView: View {
                 }
                 .monacoToastCenter(toasts, isEnabled: tab == navigator.selectedTab)
                 .tabItem {
-                    Label(tab.title, systemImage: tab.systemImage)
-                        .environment(\.symbolVariants, tab == navigator.selectedTab ? .fill : .none)
+                    MainTabLabel(tab: tab, isSelected: tab == navigator.selectedTab)
                         .accessibilityIdentifier(tab.accessibilityIdentifier)
                 }
                 .tag(tab)
@@ -48,6 +47,28 @@ struct MainTabView: View {
         }
         .sheet(isPresented: $pushPrePrompt.isPresented, onDismiss: pushPrePrompt.notNow) {
             PushPrePromptSheet(prompt: pushPrePrompt)
+        }
+    }
+}
+
+struct MainTabLabel: View {
+    let tab: MainTab
+    let isSelected: Bool
+
+    @Environment(\.displayScale) private var displayScale
+
+    var body: some View {
+        if let icon = MonacoIcon(systemName: tab.systemImage),
+            let image = icon.tabImage(selected: isSelected, scale: displayScale)
+        {
+            Label {
+                Text(tab.title)
+            } icon: {
+                Image(uiImage: image)
+            }
+        } else {
+            Label(tab.title, systemImage: tab.systemImage)
+                .environment(\.symbolVariants, isSelected ? .fill : .none)
         }
     }
 }
