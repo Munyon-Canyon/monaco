@@ -30,6 +30,7 @@ type gqlActor struct {
 
 type gqlPR struct {
 	Number    int       `json:"number"`
+	Title     string    `json:"title"`
 	Body      string    `json:"body"`
 	CreatedAt time.Time `json:"createdAt"`
 	State     string    `json:"state"`

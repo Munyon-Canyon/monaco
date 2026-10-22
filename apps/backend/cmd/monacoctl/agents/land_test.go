@@ -60,6 +60,7 @@ func newStackGH(t *testing.T, f *fixture, prs ...*stackPR) *stackGH {
 		f.hub.on(fmt.Sprintf("DELETE /repos/%s/issues/%d/labels/merge-queue", testRepo, p.Number), "[]")
 		f.hub.on(fmt.Sprintf("DELETE /repos/%s/issues/%d/labels/ship-it", testRepo, p.Number), "[]")
 		f.hub.on(list(fmt.Sprintf("/pulls/%d/files?", p.Number)), "[]")
+		f.hub.on(list("/commits/"+p.HeadOID+"/statuses?"), "[]")
 	}
 	f.hub.on(list("/pulls?state=open"), []PR{{Number: 900, Title: "[Graphite MQ] Draft PR GROUP:x (PRs " +
 		strings.Join(nums, ", ") + ")", Head: Ref{Ref: "gtmq_x"}}})

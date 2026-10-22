@@ -203,6 +203,7 @@ type Run struct {
 	Attempt    int       `json:"run_attempt"`
 	URL        string    `json:"html_url"`
 	CreatedAt  time.Time `json:"created_at"`
+	HeadSHA    string    `json:"head_sha"`
 }
 
 func newestPerWorkflow(runs []Run) []Run {
@@ -269,4 +270,81 @@ func (g *GitHub) Rerun(ctx context.Context, id int64) error {
 		return nil
 	}
 	return g.call(ctx, http.MethodPost, g.repo("/actions/runs/%d/rerun-failed-jobs", id), "", nil, nil)
+}
+
+func (g *GitHub) Statuses(ctx context.Context, sha string) ([]GHStatus, error) {
+	return pages[GHStatus](ctx, g, g.repo("/commits/%s/statuses?", sha))
+}
+
+type Job struct {
+	Name       string `json:"name"`
+	Conclusion string `json:"conclusion"`
+}
+
+func (g *GitHub) Jobs(ctx context.Context, id int64) ([]Job, error) {
+	var page struct {
+		Jobs []Job `json:"jobs"`
+	}
+	err := g.call(ctx, http.MethodGet, g.repo("/actions/runs/%d/jobs?per_page=%d", id, pageSize), "", nil, &page)
+	return page.Jobs, err
+}
+
+func (g *GitHub) Run(ctx context.Context, id int64) (Run, error) {
+	var run Run
+	err := g.call(ctx, http.MethodGet, g.repo("/actions/runs/%d", id), "", nil, &run)
+	return run, err
+}
+
+func (g *GitHub) DispatchedRuns(ctx context.Context, workflow, branch string, since time.Time) ([]Run, error) {
+	var page struct {
+		Runs []Run `json:"workflow_runs"`
+	}
+	path := g.repo("/actions/workflows/%s/runs?event=workflow_dispatch&branch=%s&created=>=%s&per_page=%d",
+		workflow, branch, since.UTC().Format(time.RFC3339), pageSize)
+	err := g.call(ctx, http.MethodGet, path, "", nil, &page)
+	return page.Runs, err
+}
+
+func (g *GitHub) Retarget(ctx context.Context, n int, base string) error {
+	return g.call(ctx, http.MethodPatch, g.repo("/pulls/%d", n), "", map[string]string{"base": base}, nil)
+}
+
+func (g *GitHub) Mergeable(ctx context.Context, n int) (*bool, error) {
+	var p struct {
+		Mergeable *bool `json:"mergeable"`
+	}
+	err := g.call(ctx, http.MethodGet, g.repo("/pulls/%d", n), "", nil, &p)
+	return p.Mergeable, err
+}
+
+func (g *GitHub) Squash(ctx context.Context, n int, sha, title, message string) (string, error) {
+	var merged struct {
+		SHA string `json:"sha"`
+	}
+	body := map[string]string{"merge_method": "squash", "sha": sha, "commit_title": title, "commit_message": message}
+	err := g.call(ctx, http.MethodPut, g.repo("/pulls/%d/merge", n), "", body, &merged)
+	return merged.SHA, err
+}
+
+func (g *GitHub) DeleteBranch(ctx context.Context, ref string) error {
+	err := g.call(ctx, http.MethodDelete, g.repo("/git/refs/heads/%s", ref), "", nil, nil)
+	var status httpStatusError
+	if errors.As(err, &status) && strings.HasPrefix(status.status, "422") {
+		return nil
+	}
+	return err
+}
+
+func apiMessage(err error) string {
+	var status httpStatusError
+	if !errors.As(err, &status) {
+		return err.Error()
+	}
+	var body struct {
+		Message string `json:"message"`
+	}
+	if json.Unmarshal([]byte(status.body), &body) == nil && body.Message != "" {
+		return body.Message
+	}
+	return status.Error()
 }

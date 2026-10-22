@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	stackFields = `number state mergeable closedAt baseRefName headRefName headRefOid body mergeCommit{oid} ` + labelFields + `
+	stackFields = `number title state mergeable closedAt baseRefName headRefName headRefOid body mergeCommit{oid} ` + labelFields + `
 commits(last:1){nodes{commit{` + commitChecks + `}}}
 timelineItems(itemTypes:[UNLABELED_EVENT,BASE_REF_CHANGED_EVENT],last:20){nodes{__typename ... on UnlabeledEvent{createdAt label{name} actor{login}} ... on BaseRefChangedEvent{createdAt currentRefName actor{login}}}}`
 	settleAfter = time.Minute
@@ -50,6 +50,10 @@ func landStackCmd(ctx context.Context, env *Env, args []string, stdout io.Writer
 	if err != nil {
 		return err
 	}
+	return env.landStack(ctx, n, stdout)
+}
+
+func (env *Env) landStack(ctx context.Context, n int, stdout io.Writer) error {
 	tops, err := env.stackPulls(ctx, []int{n})
 	if err != nil {
 		return err
@@ -75,9 +79,20 @@ func landStackCmd(ctx context.Context, env *Env, args []string, stdout io.Writer
 	if err != nil {
 		return err
 	}
+	return env.landReady(ctx, rec, dir, stack, stdout)
+}
+
+func (env *Env) landReady(ctx context.Context, rec Record, dir string, stack []stackPR, stdout io.Writer) error {
 	flows, err := env.flowGate(ctx, rec, stack)
 	if err != nil {
 		return err
+	}
+	direct, err := env.attested(ctx, dir, stack)
+	if err != nil {
+		return err
+	}
+	if direct && len(flows.entries()) == 0 {
+		return env.landDirect(ctx, rec, dir, stack, stdout)
 	}
 	if waiting := append(waitingOn(stack), flows.entries()...); len(waiting) > 0 {
 		return env.arm(ctx, rec, stack, waiting, stdout)
