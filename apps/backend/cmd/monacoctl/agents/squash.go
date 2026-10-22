@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -243,23 +244,107 @@ func (env *Env) waitCIOk(ctx context.Context, nums []int) ([]stackPR, error) {
 	}
 }
 
+func (env *Env) squashConflict(ctx context.Context, dir string, stack []stackPR) (string, error) {
+	if len(stack) < 2 {
+		return "", nil
+	}
+	trunk := env.Config.FeatureBranch
+	prev := "origin/" + trunk
+	lower := 0
+	for i, p := range stack {
+		out, err := env.Run(
+			ctx,
+			dir,
+			"",
+			"git",
+			"merge-tree",
+			"--write-tree",
+			"--name-only",
+			"--no-messages",
+			prev,
+			p.HeadOID,
+		)
+		files, err := mergeConflict(out, err)
+		if err != nil {
+			return "", landFailed(err)
+		}
+		if len(files) > 0 {
+			if i == 0 {
+				return "", nil
+			}
+			return fmt.Sprintf("#%d would conflict with %s after #%d squashes (%s)",
+				p.Number, trunk, lower, strings.Join(files, ", ")), nil
+		}
+		if i == len(stack)-1 {
+			break
+		}
+		tree, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\n")
+		commit, err := env.Run(
+			ctx,
+			dir,
+			"",
+			"git",
+			"commit-tree",
+			tree,
+			"-p",
+			prev,
+			"-m",
+			"land-stack: simulated squash of #"+strconv.Itoa(p.Number),
+		)
+		if err != nil {
+			return "", landFailed(err)
+		}
+		prev, lower = strings.TrimSpace(string(commit)), p.Number
+	}
+	return "", nil
+}
+
+func (env *Env) reopenClosed(ctx context.Context, stack []stackPR, stdout io.Writer) error {
+	for _, p := range stack {
+		got, err := env.GitHub.PR(ctx, p.Number)
+		if err != nil {
+			return landErr(apiMessage(err))
+		}
+		if got.State != "closed" || got.MergedAt != nil {
+			continue
+		}
+		if err := env.GitHub.Reopen(ctx, p.Number); err != nil {
+			return landErr(apiMessage(err))
+		}
+		_, _ = fmt.Fprintf(stdout, "#%d was closed by GitHub when its base branch went away; reopened\n", p.Number)
+	}
+	return nil
+}
+
 func (env *Env) squashBottomUp(ctx context.Context, stack []stackPR, stdout io.Writer) ([]stackPR, string, error) {
 	trunk := env.Config.FeatureBranch
 	top := stack[len(stack)-1].Number
+	if err := env.reopenClosed(ctx, stack, stdout); err != nil {
+		return nil, "", err
+	}
+	notLanded := func(err error, i int) error {
+		if i == 0 {
+			return err
+		}
+		return landErr(fmt.Sprintf("%s\n#%d is on %s; #%d is not: fix and run land-stack %d again",
+			cliText(err), stack[i-1].Number, trunk, stack[i].Number, top))
+	}
 	var landed []stackPR
 	var sha string
 	for i, p := range stack {
 		got, err := env.squash(ctx, stack, i, trunk)
-		if err != nil && i > 0 {
-			err = landErr(fmt.Sprintf("%s\n#%d is on %s; #%d is not: fix and run land-stack %d again",
-				cliText(err), stack[i-1].Number, trunk, p.Number, top))
-		}
 		if err != nil {
-			return landed, sha, err
+			return landed, sha, notLanded(err, i)
 		}
 		sha = got
 		landed = append(landed, p)
 		_, _ = fmt.Fprintf(stdout, "#%d landed as %s\n", p.Number, sha12(sha))
+		if i+1 < len(stack) {
+			if err := env.retarget(ctx, stack[i+1], p, trunk); err != nil {
+				return landed, sha, notLanded(err, i+1)
+			}
+			stack[i+1].Base = trunk
+		}
 		if err := env.GitHub.DeleteBranch(ctx, p.Head); err != nil {
 			_, _ = fmt.Fprintf(stdout, "#%d: branch %s was not deleted: %s\n", p.Number, p.Head, apiMessage(err))
 		}
@@ -275,9 +360,9 @@ func (env *Env) squash(ctx context.Context, stack []stackPR, i int, trunk string
 		)
 	}
 	if p.Base != trunk {
-		if err := env.retarget(ctx, p, stack[i-1], trunk); err != nil {
-			return "", err
-		}
+		return "", landErr(
+			fmt.Sprintf("#%d's base %s is not %s after #%d landed", p.Number, p.Base, trunk, stack[i-1].Number),
+		)
 	}
 	title := fmt.Sprintf("%s (#%d)", p.Title, p.Number)
 	sha, err := env.GitHub.Squash(ctx, p.Number, p.HeadOID, title, p.Body)

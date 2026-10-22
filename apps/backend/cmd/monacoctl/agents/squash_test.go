@@ -126,6 +126,8 @@ func newDirect(t *testing.T, bottom, top *stackPR) *directFixture {
 		{prefix: "git merge-base origin/fb b2-oid", out: baseSHA + "\n"},
 		{prefix: "git diff --name-only " + baseSHA, out: ""},
 		{prefix: "git merge-tree --write-tree origin/fb b2-oid", out: "mergedtree\n"},
+		{prefix: "git merge-tree --write-tree --name-only", out: "simtree\n"},
+		{prefix: "git commit-tree simtree", out: "simcommit\n"},
 		{prefix: "git commit-tree mergedtree", out: "mergedcommit\n"},
 		{prefix: "git worktree", out: ""},
 		{prefix: "cp ", out: ""},
@@ -140,7 +142,8 @@ func newDirect(t *testing.T, bottom, top *stackPR) *directFixture {
 		f.hub.on(fmt.Sprintf("DELETE /repos/o/r/git/refs/heads/b%d", n), "")
 	}
 	f.hub.on("PATCH /repos/o/r/pulls/2", "{}")
-	f.hub.on(get("/pulls/2"), `{"mergeable":true}`)
+	f.hub.on(get("/pulls/1"), `{"state":"open"}`)
+	f.hub.on(get("/pulls/2"), `{"state":"open","mergeable":true}`)
 	f.hub.on("POST /repos/o/r/actions/workflows/staging.yml/dispatches", "")
 	return &directFixture{t: t, f: f, s: s, sh: sh}
 }
@@ -177,8 +180,9 @@ func TestLandStack_squashesAnAttestedStackBottomUp(t *testing.T) {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 	wantCalls := []string{
-		"PUT /repos/o/r/pulls/1/merge", "DELETE /repos/o/r/git/refs/heads/b1",
-		"PATCH /repos/o/r/pulls/2", "GET /repos/o/r/pulls/2", "PUT /repos/o/r/pulls/2/merge",
+		"GET /repos/o/r/pulls/1", "GET /repos/o/r/pulls/2", "PUT /repos/o/r/pulls/1/merge",
+		"PATCH /repos/o/r/pulls/2", "GET /repos/o/r/pulls/2", "DELETE /repos/o/r/git/refs/heads/b1",
+		"PUT /repos/o/r/pulls/2/merge",
 		"DELETE /repos/o/r/git/refs/heads/b2", "POST /repos/o/r/actions/workflows/staging.yml/dispatches",
 	}
 	if got := d.mergeCalls(); !slices.Equal(got, wantCalls) {
@@ -283,7 +287,7 @@ func TestLandStack_runsStage2OnTheMergedTreeWhenTrunkMoved(t *testing.T) {
 		if got := d.sh.dirOf("scripts/ci/ready.sh"); got != wt {
 			t.Fatalf("ready.sh ran in %s", got)
 		}
-		if got := d.sh.lines("git commit-tree"); len(got) != 1 ||
+		if got := d.sh.lines("git commit-tree mergedtree"); len(got) != 1 ||
 			got[0] != "git commit-tree mergedtree -p origin/fb -m land-stack #2: stage 2 on the merged tree" {
 			t.Fatalf("commit-tree %v", got)
 		}
@@ -501,6 +505,178 @@ func TestSquash_refusesABottomPRWhoseBaseIsNotTheTrunk(t *testing.T) {
 	stack := []stackPR{{gqlPR: gqlPR{Number: 7}, Base: "other"}}
 	_, err := env.squash(t.Context(), stack, 0, "fb")
 	if got := cliText(err); got != "#7 is the bottom of its stack but its base other is not fb" {
+		t.Fatalf("%q", got)
+	}
+}
+
+func TestLandStack_retargetsTheUpperPRBeforeDeletingTheLowerBranch(t *testing.T) {
+	t.Parallel()
+	d := newDirect(t, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
+	if code, stdout, stderr := d.f.agents(t, "land-stack", "2"); code != 0 {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	var got []string
+	for _, c := range d.mergeCalls() {
+		if strings.HasPrefix(c, "PATCH") || strings.HasPrefix(c, "DELETE") || strings.HasPrefix(c, "PUT") ||
+			c == "GET /repos/o/r/pulls/2" {
+			got = append(got, c)
+		}
+	}
+	want := []string{
+		"GET /repos/o/r/pulls/2", "PUT /repos/o/r/pulls/1/merge", "PATCH /repos/o/r/pulls/2",
+		"GET /repos/o/r/pulls/2", "DELETE /repos/o/r/git/refs/heads/b1", "PUT /repos/o/r/pulls/2/merge",
+		"DELETE /repos/o/r/git/refs/heads/b2",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("calls:\n%s", strings.Join(got, "\n"))
+	}
+}
+
+func TestLandStack_reopensAPRThatGitHubClosedOnBaseDeletion(t *testing.T) {
+	t.Parallel()
+	d := newDirect(t, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
+	d.f.hub.on(get("/pulls/2"), `{"state":"closed","mergeable":true}`)
+	code, stdout, stderr := d.f.agents(t, "land-stack", "2")
+	if code != 0 || !strings.Contains(
+		stdout,
+		"#2 was closed by GitHub when its base branch went away; reopened\n",
+	) || !strings.Contains(stdout, "#2 landed as") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	if got := d.f.hub.callsContaining("PATCH /repos/o/r/pulls/2"); len(got) != 2 {
+		t.Fatalf("patches %v", got)
+	}
+}
+
+func TestLandStack_reopensAClosedTopAndWalksTheStackAgain(t *testing.T) {
+	t.Parallel()
+	top := green(t, 2, "b2", "fb")
+	top.State = "CLOSED"
+	d := newDirect(t, green(t, 1, "b1", "fb"), top)
+	d.f.hub.on(get("/compare/fb...b2-oid"), `{"status":"diverged"}`)
+	d.f.hub.hook = func(method, path, body string, status int) {
+		d.s.onLabel(method, path, body, status)
+		if method == "PATCH" && strings.HasSuffix(path, "/pulls/2") && strings.Contains(body, `"open"`) {
+			d.s.mu.Lock()
+			top.State = "OPEN"
+			d.s.mu.Unlock()
+		}
+	}
+	code, stdout, stderr := d.f.agents(t, "land-stack", "2")
+	if code != 0 || !strings.Contains(stdout, "#2 was closed by GitHub when its base branch went away; reopened\n") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	closed := green(t, 2, "b2", "fb")
+	closed.State = "CLOSED"
+	d2 := newDirect(t, green(t, 1, "b1", "fb"), closed)
+	d2.f.hub.on(get("/compare/fb...b2-oid"), `{"status":"diverged"}`)
+	d2.f.hub.status["PATCH /repos/o/r/pulls/2"] = 500
+	if code, _, stderr := d2.f.agents(
+		t,
+		"land-stack",
+		"2",
+	); code != 1 ||
+		!strings.Contains(stderr, "PATCH /repos/o/r/pulls/2") {
+		t.Fatalf("%d %q", code, stderr)
+	}
+	unknown := green(t, 2, "b2", "fb")
+	unknown.State = "CLOSED"
+	d3 := newDirect(t, green(t, 1, "b1", "fb"), unknown)
+	if code, _, stderr := d3.f.agents(
+		t,
+		"land-stack",
+		"2",
+	); code != 1 ||
+		!strings.Contains(stderr, "compare b2-oid with fb") {
+		t.Fatalf("%d %q", code, stderr)
+	}
+}
+
+func TestLandStack_fallsBackToTheQueueWhenAnUpperPRWouldConflictAfterTheLowerSquash(t *testing.T) {
+	t.Parallel()
+	d := newDirect(t, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
+	d.sh.first(shellRule{
+		prefix: "git merge-tree --write-tree --name-only --no-messages simcommit b2-oid",
+		out:    "badtree\nripple.go\nother.go\n", err: exitOne(t),
+	})
+	code, stdout, stderr := d.f.agents(t, "land-stack", "2")
+	want := "#2 would conflict with fb after #1 squashes (ripple.go, other.go); landing through the queue instead\n"
+	if code != 0 || !strings.Contains(stdout, want) || !strings.Contains(stdout, "queued #1 #2") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	if got := d.f.hub.callsContaining("/merge"); len(got) != 0 {
+		t.Fatalf("squashed %v", got)
+	}
+	if got := d.sh.lines("git commit-tree simtree -p origin/fb"); len(got) != 1 {
+		t.Fatalf("simulated squashes %v", got)
+	}
+}
+
+func TestSquashConflict_staysQuietForABottomConflictAndFailsOnGitErrors(t *testing.T) {
+	t.Parallel()
+	d := newDirect(t, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
+	d.sh.first(shellRule{
+		prefix: "git merge-tree --write-tree --name-only --no-messages origin/fb b1-oid",
+		out:    "badtree\na.go\n", err: exitOne(t),
+	})
+	env := d.f.Env(t)
+	stack := []stackPR{*green(t, 1, "b1", "fb"), *green(t, 2, "b2", "b1")}
+	if got, err := env.squashConflict(t.Context(), d.f.dir, stack); got != "" || err != nil {
+		t.Fatalf("%q %v", got, err)
+	}
+	if got, err := env.squashConflict(t.Context(), d.f.dir, stack[:1]); got != "" || err != nil {
+		t.Fatalf("%q %v", got, err)
+	}
+	d.sh.first(shellRule{prefix: "git merge-tree --write-tree --name-only", err: errors.New("boom")})
+	if _, err := env.squashConflict(t.Context(), d.f.dir, stack); err == nil {
+		t.Fatal("merge-tree error")
+	}
+}
+
+func TestLandStack_reportsAGitOrGitHubErrorWhileSimulatingOrReopening(t *testing.T) {
+	t.Parallel()
+	boom := errors.New("boom")
+	for _, tc := range []struct {
+		name, want string
+		setup      func(d *directFixture)
+	}{
+		{"merge-tree fails", "boom", func(d *directFixture) {
+			d.sh.first(shellRule{prefix: "git merge-tree --write-tree --name-only", err: boom})
+		}},
+		{"commit-tree fails", "boom", func(d *directFixture) {
+			d.sh.first(shellRule{prefix: "git commit-tree simtree", err: boom})
+		}},
+		{"the reopen is refused", "PATCH /repos/o/r/pulls/2", func(d *directFixture) {
+			d.f.hub.on(get("/pulls/2"), `{"state":"closed"}`)
+			d.f.hub.status["PATCH /repos/o/r/pulls/2"] = 500
+		}},
+		{"the mergeability cannot be read after the retarget", "GET /repos/o/r/pulls/2", func(d *directFixture) {
+			d.f.hub.hook = func(method, path, _ string, _ int) {
+				if method == "PATCH" && strings.HasSuffix(path, "/pulls/2") {
+					d.f.hub.mu.Lock()
+					d.f.hub.status[get("/pulls/2")] = 500
+					d.f.hub.mu.Unlock()
+				}
+			}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			d := newDirect(t, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
+			tc.setup(d)
+			if code, _, stderr := d.f.agents(t, "land-stack", "2"); code != 1 || !strings.Contains(stderr, tc.want) {
+				t.Fatalf("%d %q, want %q", code, stderr, tc.want)
+			}
+		})
+	}
+}
+
+func TestSquash_refusesAnUpperPRWhoseBaseWasNotRetargeted(t *testing.T) {
+	t.Parallel()
+	env := newFixture(t).Env(t)
+	stack := []stackPR{{gqlPR: gqlPR{Number: 7}, Base: "fb"}, {gqlPR: gqlPR{Number: 8}, Base: "b7"}}
+	_, err := env.squash(t.Context(), stack, 1, "fb")
+	if got := cliText(err); got != "#8's base b7 is not fb after #7 landed" {
 		t.Fatalf("%q", got)
 	}
 }

@@ -58,6 +58,9 @@ func (env *Env) landStack(ctx context.Context, n int, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
+	if err := env.reopenTop(ctx, tops[0], stdout); err != nil {
+		return err
+	}
 	ticket, ok := PR{Body: tops[0].Body}.Ticket()
 	if !ok {
 		return landErr(fmt.Sprintf("#%d links no ticket; its body needs \"Part of #N\" or \"Closes #N\"", n))
@@ -82,6 +85,21 @@ func (env *Env) landStack(ctx context.Context, n int, stdout io.Writer) error {
 	return env.landReady(ctx, rec, dir, stack, stdout)
 }
 
+func (env *Env) reopenTop(ctx context.Context, top stackPR, stdout io.Writer) error {
+	if top.State != "CLOSED" || top.Base != env.Config.FeatureBranch {
+		return nil
+	}
+	landed, err := env.landed(ctx, top.closed())
+	if err != nil || landed {
+		return err
+	}
+	if err := env.GitHub.Reopen(ctx, top.Number); err != nil {
+		return landErr(apiMessage(err))
+	}
+	_, _ = fmt.Fprintf(stdout, "#%d was closed by GitHub when its base branch went away; reopened\n", top.Number)
+	return nil
+}
+
 func (env *Env) landReady(ctx context.Context, rec Record, dir string, stack []stackPR, stdout io.Writer) error {
 	flows, err := env.flowGate(ctx, rec, stack)
 	if err != nil {
@@ -92,7 +110,14 @@ func (env *Env) landReady(ctx context.Context, rec Record, dir string, stack []s
 		return err
 	}
 	if direct && len(flows.entries()) == 0 {
-		return env.landDirect(ctx, rec, dir, stack, stdout)
+		conflict, err := env.squashConflict(ctx, dir, stack)
+		if err != nil {
+			return err
+		}
+		if conflict == "" {
+			return env.landDirect(ctx, rec, dir, stack, stdout)
+		}
+		_, _ = fmt.Fprintf(stdout, "%s; landing through the queue instead\n", conflict)
 	}
 	if waiting := append(waitingOn(stack), flows.entries()...); len(waiting) > 0 {
 		return env.arm(ctx, rec, stack, waiting, stdout)

@@ -333,6 +333,10 @@ func (g *GitHub) Retarget(ctx context.Context, n int, base string) error {
 	return g.call(ctx, http.MethodPatch, g.repo("/pulls/%d", n), "", map[string]string{"base": base}, nil)
 }
 
+func (g *GitHub) Reopen(ctx context.Context, n int) error {
+	return g.call(ctx, http.MethodPatch, g.repo("/pulls/%d", n), "", map[string]string{"state": "open"}, nil)
+}
+
 func (g *GitHub) Mergeable(ctx context.Context, n int) (*bool, error) {
 	var p struct {
 		Mergeable *bool `json:"mergeable"`
