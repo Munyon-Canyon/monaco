@@ -108,7 +108,6 @@ struct MoneyStrip: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            MonacoRule(color: MonacoTheme.border)
             ViewThatFits(in: .horizontal) {
                 MoneyStripRow(spacing: MonacoTheme.Space.s, weights: [MoneyStripMetrics.netWorthWeight, 1]) {
                     metric("Net worth", netWorth)
@@ -126,6 +125,7 @@ struct MoneyStrip: View {
                 }
             }
             .padding(.top, MonacoTheme.Space.m)
+            .overlay(alignment: .top) { MonacoRule(color: MonacoTheme.border) }
         }
     }
 
