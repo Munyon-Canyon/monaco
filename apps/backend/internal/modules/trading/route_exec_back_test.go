@@ -310,3 +310,24 @@ func TestBridgeBack_aRecordedArrivalStillSetsTheLandedCash(t *testing.T) {
 		t.Fatalf("balance read %d times, want none when the arrival is recorded", e.cash.reads)
 	}
 }
+
+func TestBridgeBack_aReturnWhoseSolanaLegIsExternalSettlesOnWhatPrivyDelivered(t *testing.T) {
+	t.Parallel()
+	e := newRouteEnv(t)
+	_, swap := e.strand(t)
+	e.mustTick(t, 1, 0)
+	e.proposals.set(governance.Status("cancelled"))
+	e.privy.delivered = landedMicros - 21_282
+	e.privy.script(multichain.ActionPending)
+
+	e.mustTick(t, 1, 1)
+	if status, _ := e.bridgeBackOf(t, swap); status != "submitted" {
+		t.Fatalf("bridge_back %q while Privy is pending, want submitted", status)
+	}
+
+	e.privy.script(multichain.ActionSucceeded)
+	e.mustTick(t, 1, 1)
+
+	got := e.steps(t, swap)
+	wantSteps(t, got[len(got)-3:], "bridge_back:pending:0", "bridge_back:submitted:0", "bridge_back:succeeded:21282")
+}

@@ -40,6 +40,7 @@ type privyFake struct {
 	states        []multichain.ActionState
 	landed        map[multichain.ActionID]bool
 	noArrival     bool
+	delivered     uint64
 	polls         int
 	transferErr   error
 	actionErr     error
@@ -93,14 +94,21 @@ func (p *privyFake) Action(
 		state, p.states = p.states[0], p.states[1:]
 	}
 	p.landed[id] = state == multichain.ActionSucceeded
-	noArrival := p.noArrival
+	noArrival, delivered := p.noArrival, p.delivered
 	hook := p.afterAction
 	p.afterAction = nil
 	p.mu.Unlock()
 	if hook != nil {
 		hook()
 	}
-	status := multichain.ActionStatus{ID: id, State: state}
+	status := multichain.ActionStatus{ID: id, State: state, Delivered: money.MicrosFromUint64(delivered)}
+	if state == multichain.ActionSucceeded && delivered > 0 {
+		status.Steps = []multichain.ActionStep{
+			{Network: chain.NetworkBase, TxHash: "0xsource", State: multichain.StepConfirmed},
+			{State: multichain.StepConfirmed},
+		}
+		return status, nil
+	}
 	if state == multichain.ActionSucceeded && !noArrival {
 		status.Steps = []multichain.ActionStep{
 			{Network: chain.NetworkBase, TxHash: "0xsource", State: multichain.StepConfirmed},

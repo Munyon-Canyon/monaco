@@ -204,9 +204,10 @@ type ActionStep struct {
 }
 
 type ActionStatus struct {
-	ID    ActionID     `json:"id"`
-	State ActionState  `json:"state"`
-	Steps []ActionStep `json:"steps"`
+	ID        ActionID     `json:"id"`
+	State     ActionState  `json:"state"`
+	Steps     []ActionStep `json:"steps"`
+	Delivered money.Micros `json:"delivered"`
 }
 
 type TransferSpec struct {

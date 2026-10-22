@@ -196,6 +196,23 @@ func TestAction_decodesStrictly(t *testing.T) {
 	}
 }
 
+func TestAction_readsTheDeliveredAmountWhenTheSolanaLegIsExternal(t *testing.T) {
+	t.Parallel()
+	body := `{"id":"a1","status":"succeeded","destination_amount":"0.951225","steps":[` +
+		`{"type":"evm_user_operation","status":"confirmed","caip2":"eip155:4663","bundle_transaction_hash":"0xe9"},` +
+		`{"type":"external_transaction","status":"confirmed"}]}`
+	got, err := client(replying(http.StatusOK, body)).Action(t.Context(), "w", "a1")
+	if err != nil || got.Delivered != money.MicrosFromUint64(951_225) || len(got.Steps) != 2 ||
+		got.Steps[0].Network != chain.NetworkRobinhood || got.Steps[1] != (multichain.ActionStep{State: multichain.StepConfirmed}) {
+		t.Fatalf("Action = %+v, %v", got, err)
+	}
+	for _, amount := range []string{"0.9512251", "abc", "-1"} {
+		_, err := client(replying(http.StatusOK, `{"id":"a1","status":"succeeded","destination_amount":"`+amount+`"}`)).
+			Action(t.Context(), "w", "a1")
+		wantCode(t, err, errs.CodeDecodeFailed)
+	}
+}
+
 func TestCreateAppEVMWallet_isAppOwnedAndKeyed(t *testing.T) {
 	t.Parallel()
 	c, u, _ := overFakes(t)
