@@ -48,7 +48,7 @@ a:visited { color: var(--ink-soft); }
 
 /* Phones: one centred column. Mark, name, line, then the sign-up bar. */
 main { width: 100%; margin: 0 auto; padding: calc(var(--s4) + env(safe-area-inset-top)) var(--gutter) var(--s4); display: grid; justify-items: center; align-content: center; text-align: center; }
-#mark { width: min(56vw, 32dvh, 280px); aspect-ratio: 1; display: block; touch-action: none; }
+#mark { width: min(56vw, 32dvh, 280px); aspect-ratio: 1; display: block; }
 .copy { display: grid; justify-items: center; width: 100%; max-width: 420px; }
 h1 { margin: clamp(var(--s2), 3dvh, 28px) 0 0; font-weight: 300; font-size: clamp(52px, 15vw, 80px); line-height: 1; letter-spacing: -.02em; font-variation-settings: "opsz" 144; }
 .lede { margin: 12px 0 0; white-space: nowrap; color: var(--ink); font-size: clamp(14px, 4.4vw, 22px); line-height: 1.35; font-variation-settings: "opsz" 24; }
@@ -157,8 +157,6 @@ footer a { display: inline-flex; align-items: center; min-height: 48px; }
 <script>
 // The mark, printed live: Monaco's icon as a cream halftone on the dark page, shaded like lit stone.
 // It never moves; three soft blobs wander through it, thinning the cream so the page's own green shows through.
-// A pointer over the figures is a lamp held over the print: the light swings round to it and the blobs scatter from it.
-// Anywhere else on the page, the mark is left to itself.
 (function () {
   var css = getComputedStyle(document.documentElement);
   var CREAM = css.getPropertyValue("--screen").trim();
@@ -193,7 +191,7 @@ footer a { display: inline-flex; align-items: center; min-height: 48px; }
   var G = screen(15, .9, 0), Au = [];
 
   // The light is the soft blobs (B, each [x, y, weight]) wandering over the mark. Their edges wobble so they read as
-  // blobs, not discs, and the light comes from Lp (the first blob, or the pointer), so shadows slide across each stone.
+  // blobs, not discs, and the light comes from Lp (the first blob), so shadows slide across each stone.
   function shade(B, Lp, tm, dev) {
     var lx = (Lp[0] - 50) / 50 * .8, ly = (Lp[1] - 50) / 50 * .8, n = Math.hypot(lx, ly, .8), L0 = lx / n, L1 = ly / n, L2 = .8 / n;
     var hn = Math.hypot(L0, L1, L2 + 1);
@@ -225,61 +223,24 @@ footer a { display: inline-flex; align-items: center; min-height: 48px; }
             50 + 30 * Math.sin(t * .053 + 2.3 + b * 2.9) + 9 * Math.cos(t * .113 + .5 + b * 1.9), 1];
   }
   var k = 1, tm = 0, dv = still ? 1 : 0;
-  // The pointer in mark units: where it is (pt), where the lamp has caught up to (ps), and how present it is (pw, 0 to 1).
-  // inside: the pointer is on the canvas; inkAt: when it was last over the figures themselves.
-  var pt = [50, 50], ps = [50, 50], pw = 0, inside = false, inkAt = -1e9;
   function size() { var r = Math.min(devicePixelRatio || 1, 2); cv.width = cv.height = Math.round(cv.clientWidth * r); k = cv.width / 100; }
-  // dt is the seconds since the last frame, so the lamp moves at the same speed whatever the frame rate. It trails the
-  // pointer with a 0.3s time constant and fades in or out over about a second.
-  function draw(dt, now) {
-    var w = tm * 6, B = [path(w, 0), path(w, 1), path(w, 2)], Lp = B[0], b, ex, ey, d, push;
-    var follow = 1 - Math.exp(-dt / .3), fade = 1 - Math.exp(-dt / .35), on = inside && now - inkAt < GAP;
-    ps[0] += (pt[0] - ps[0]) * follow; ps[1] += (pt[1] - ps[1]) * follow; pw += ((on ? 1 : 0) - pw) * fade;
-    if (pw > .01) {
-      // Each blob scatters from the lamp, further the nearer it is; the lamp cancels what is left under it and takes the light.
-      for (b = 0; b < 3; b++) {
-        ex = B[b][0] - ps[0]; ey = B[b][1] - ps[1]; d = Math.hypot(ex, ey) || 1; push = pw * 16 * Math.exp(-d * d / 1800);
-        B[b][0] += ex / d * push; B[b][1] += ey / d * push;
-      }
-      B.push([ps[0], ps[1], -pw]);
-      Lp = [B[0][0] + (ps[0] - B[0][0]) * pw, B[0][1] + (ps[1] - B[0][1]) * pw];
-    }
+  function draw() {
+    var w = tm * 6, B = [path(w, 0), path(w, 1), path(w, 2)], Lp = B[0];
     shade(B, Lp, tm, dv);
     cx.setTransform(1, 0, 0, 1, 0, 0); cx.clearRect(0, 0, cv.width, cv.height); cx.setTransform(k, 0, 0, k, 0, 0);
     cx.save(); cx.clip(P);
     ink(G, CREAM);
     cx.restore();
   }
-  var rt; addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(function () { size(); draw(0, 0); }, 120); });
-  size(); draw(0, 0);
+  var rt; addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(function () { size(); draw(); }, 120); });
+  size(); draw();
   if (still) return;
-  // The pointer counts only over the figures themselves, not the rest of the page or the bare corners of the canvas,
-  // with a margin of about 3% of the mark so the lamp does not flicker along an edge. A finger crossing a gap between
-  // figures keeps the lamp for GAP ms, so it glides to the next figure instead of going out and snapping back on.
-  // A touch counts while the finger is down. Only a lamp that has fully faded relights under the pointer.
-  var GAP = 300;
-  function onInk(x, y) { return near(x, y) || near(x - 3, y) || near(x + 3, y) || near(x, y - 3) || near(x, y + 3); }
-  function aim(e) {
-    var r = cv.getBoundingClientRect();
-    if (!r.width) return;
-    var x = (e.clientX - r.left) / r.width * 100, y = (e.clientY - r.top) / r.height * 100;
-    if (pw < .02) { ps[0] = x; ps[1] = y; }
-    pt[0] = x; pt[1] = y; inside = true;
-    if (onInk(x, y)) inkAt = performance.now();
-  }
-  function lift() { inside = false; }
-  cv.addEventListener("pointermove", aim); cv.addEventListener("pointerdown", aim);
-  cv.addEventListener("pointerleave", lift); cv.addEventListener("pointercancel", lift);
-  cv.addEventListener("pointerup", function (e) { if (e.pointerType !== "mouse") lift(); });
   // The print develops up from the baseline over 2.4s while the blobs start to wander (about a tenth of the mark a second).
-  // Idle, it draws at 30fps; while the lamp is lit it draws every frame up to 60fps, so it keeps up with a finger.
   var t0 = performance.now(), last = 0, raf = 0, seen = true;
   function frame(now) {
     raf = requestAnimationFrame(frame);
-    var gap = now - last;
-    if (gap < (pw > .01 || inside ? 14 : 30)) return;
-    last = now;
-    var t = now - t0; dv = Math.min(1, t / 2400); tm = t / 1000; draw(Math.min(gap, 100) / 1000, now);
+    if (now - last < 33) return; last = now;
+    var t = now - t0; dv = Math.min(1, t / 2400); tm = t / 1000; draw();
   }
   function run() { cancelAnimationFrame(raf); if (seen && !document.hidden) raf = requestAnimationFrame(frame); }
   document.addEventListener("visibilitychange", run);
