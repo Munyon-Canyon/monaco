@@ -478,7 +478,10 @@ func TestRecords_aLandingRoundTripsAndAnOldRecordDecodesWithoutOne(t *testing.T)
 	t.Parallel()
 	env := newFixture(t).Env(t)
 	at := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
-	landing := Landing{Top: 2, PRs: []int{1, 2}, SHA: "abc", At: at, RunID: 77, RunURL: "https://gh/run/77", Revert: 99}
+	landing := Landing{
+		Top: 2, PRs: []int{1, 2}, SHA: "abc", At: at, RunID: 77, RunURL: "https://gh/run/77", Revert: 99,
+		Reran: true,
+	}
 	if err := env.saveRecord(Record{Ticket: 40, Landed: []Landing{landing}}); err != nil {
 		t.Fatal(err)
 	}

@@ -32,19 +32,31 @@ func newLanding(t *testing.T, mutate func(*Landing)) *landingFixture {
 		{prefix: "gh pr view --json number", out: `{"number":99}`},
 	}...)}
 	f.run = sh.run
-	l := Landing{Top: 2, PRs: []int{1, 2}, SHA: lastSHA, At: f.now.Add(-5 * time.Minute), RunID: 77}
+	l := Landing{Top: 2, PRs: []int{1, 2}, SHA: lastSHA, At: f.now.Add(-5 * time.Minute), RunID: 77, Reran: true}
 	if mutate != nil {
 		mutate(&l)
 	}
 	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: f.dir, Landed: []Landing{l}})
 	f.noFailures()
 	f.hub.on(get("/pulls/2"), PR{Number: 2, Title: "Add widget"})
-	return &landingFixture{t: t, f: f, sh: sh, s: s}
+	lf := &landingFixture{t: t, f: f, sh: sh, s: s}
+	lf.prior(
+		Run{ID: 70, Status: "completed", Conclusion: "success", HeadSHA: "5555555555555555", CreatedAt: priorAt(f)},
+	)
+	return lf
+}
+
+func priorAt(f *fixture) time.Time { return f.now.Add(-time.Hour) }
+
+func (l *landingFixture) prior(runs ...Run) {
+	l.f.hub.on(get("/actions/workflows/staging.yml/runs?branch=fb&status=completed&per_page=10"),
+		map[string]any{"workflow_runs": runs})
 }
 
 func (l *landingFixture) run(conclusion string, jobs ...Job) {
 	l.f.hub.on(get("/actions/runs/77"), Run{
 		ID: 77, Status: "completed", Conclusion: conclusion, URL: "https://gh/run/77", HeadSHA: lastSHA,
+		CreatedAt: l.f.now.Add(-10 * time.Minute),
 	})
 	l.f.hub.on(get("/actions/runs/77/jobs?per_page=100"), map[string]any{"jobs": jobs})
 }
@@ -376,5 +388,118 @@ func TestWatch_remembersARunItFoundBeforeItFinishes(t *testing.T) {
 	_, stdout, _ := l.f.agents(t, "watch", "--once")
 	if got := l.landing(t); strings.Contains(stdout, "staging run") || got.Checked || got.RunID != 77 {
 		t.Fatalf("%q %+v", stdout, got)
+	}
+}
+
+func TestWatch_doesNotRevertAJobThatWasAlreadyRedBeforeTheLanding(t *testing.T) {
+	t.Parallel()
+	l := newLanding(t, func(x *Landing) { x.Reran = false })
+	l.prior(
+		Run{ID: 70, Status: "completed", Conclusion: "failure", HeadSHA: "5555555555555555", CreatedAt: priorAt(l.f)},
+		Run{
+			ID:         71,
+			Status:     "completed",
+			Conclusion: "failure",
+			HeadSHA:    lastSHA,
+			CreatedAt:  priorAt(l.f).Add(-time.Minute),
+		},
+	)
+	l.f.hub.on(get("/actions/runs/70/jobs?per_page=100"), map[string]any{"jobs": []Job{
+		{Name: "staging / Mobile integration", Conclusion: "failure"}, {Name: "staging / Lint", Conclusion: "success"},
+	}})
+	l.run("failure", Job{Name: "staging / Mobile integration", Conclusion: "failure"})
+	_, stdout, _ := l.f.agents(t, "watch", "--once")
+	want := "staging run https://gh/run/77 failed on staging / Mobile integration, already red on 55555555 " +
+		"before #1 #2 landed; not reverting for them\n"
+	if !strings.Contains(stdout, want) || strings.Contains(stdout, "reverted") || strings.Contains(stdout, "reran") {
+		t.Fatalf("%q", stdout)
+	}
+	if got := l.landing(t); !got.Checked || got.Revert != 0 || got.Reran {
+		t.Fatalf("landing %+v", got)
+	}
+	if len(l.sh.lines("git revert", "gt submit")) != 0 {
+		t.Fatalf("opened a revert: %v", l.sh.lines("git revert", "gt submit"))
+	}
+}
+
+func TestWatch_rerunsFailedJobsOnceBeforeReverting(t *testing.T) {
+	t.Parallel()
+	l := newLanding(t, func(x *Landing) { x.Reran = false })
+	route := "POST /repos/o/r/actions/runs/77/rerun-failed-jobs"
+	l.f.hub.on(route, "")
+	l.run("failure", Job{Name: "staging / Backend tests (a)", Conclusion: "failure"})
+	_, stdout, _ := l.f.agents(t, "watch", "--once")
+	want := "staging run https://gh/run/77 failed on staging / Backend tests (a); " +
+		"reran the failed jobs once before deciding on #1 #2\n"
+	if !strings.Contains(stdout, want) || strings.Contains(stdout, "reverted") {
+		t.Fatalf("first failure: %q", stdout)
+	}
+	if got := l.landing(t); got.Checked || !got.Reran || got.Revert != 0 {
+		t.Fatalf("landing %+v", got)
+	}
+	if len(l.f.hub.callsContaining("rerun-failed-jobs")) != 1 {
+		t.Fatalf("calls %v", l.f.hub.callsContaining("rerun-failed-jobs"))
+	}
+	_, stdout, _ = l.f.agents(t, "watch", "--once")
+	if !strings.Contains(stdout, "reverted #1 #2 with #99: staging run https://gh/run/77 failed on "+
+		"staging / Backend tests (a)\n") || len(l.f.hub.callsContaining("rerun-failed-jobs")) != 1 {
+		t.Fatalf("second failure: %q", stdout)
+	}
+	if got := l.landing(t); !got.Checked || got.Revert != 99 {
+		t.Fatalf("landing %+v", got)
+	}
+}
+
+func TestWatch_goesOnToTheRerunWhenThePriorRunWasRedOnOtherJobs(t *testing.T) {
+	t.Parallel()
+	l := newLanding(t, func(x *Landing) { x.Reran = false })
+	l.prior(
+		Run{ID: 70, Status: "completed", Conclusion: "failure", HeadSHA: "5555555555555555", CreatedAt: priorAt(l.f)},
+	)
+	l.f.hub.on(get("/actions/runs/70/jobs?per_page=100"), map[string]any{"jobs": []Job{
+		{Name: "staging / Lint", Conclusion: "failure"},
+	}})
+	l.f.hub.on("POST /repos/o/r/actions/runs/77/rerun-failed-jobs", "")
+	l.run("failure", Job{Name: "staging / Backend tests (a)", Conclusion: "failure"})
+	_, stdout, _ := l.f.agents(t, "watch", "--once")
+	if strings.Contains(stdout, "already red") || !strings.Contains(stdout, "reran the failed jobs once") {
+		t.Fatalf("%q", stdout)
+	}
+}
+
+func TestWatch_reportsWhatItCannotReadAboutThePriorRunAndWhatItCannotRerun(t *testing.T) {
+	t.Parallel()
+	prior := get("/actions/workflows/staging.yml/runs?branch=fb&status=completed&per_page=10")
+	jobs := get("/actions/runs/70/jobs?per_page=100")
+	rerun := "POST /repos/o/r/actions/runs/77/rerun-failed-jobs"
+	for _, tc := range []struct {
+		name, want string
+		checked    bool
+		setup      func(l *landingFixture)
+	}{
+		{"the prior run list fails", "watch error: revert #1 #2: GET ", true, func(l *landingFixture) {
+			l.f.hub.status[prior] = 500
+		}},
+		{"the prior run jobs fail", "watch error: revert #1 #2: GET ", true, func(l *landingFixture) {
+			l.prior(Run{ID: 70, Status: "completed", Conclusion: "failure", HeadSHA: "5555", CreatedAt: priorAt(l.f)})
+			l.f.hub.status[jobs] = 500
+		}},
+		{"the rerun is refused", "watch error: rerun https://gh/run/77: POST ", false, func(l *landingFixture) {
+			l.f.hub.on(rerun, "")
+			l.f.hub.status[rerun] = 500
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			l := newLanding(t, func(x *Landing) { x.Reran = false })
+			l.run("failure", Job{Name: "staging / Backend tests (a)", Conclusion: "failure"})
+			l.f.hub.on(jobs, map[string]any{"jobs": []Job{}})
+			tc.setup(l)
+			_, stdout, _ := l.f.agents(t, "watch", "--once")
+			got := l.landing(t)
+			if !strings.Contains(stdout, tc.want) || got.Checked != tc.checked || got.Reran {
+				t.Fatalf("%q, want %q; %+v", stdout, tc.want, got)
+			}
+		})
 	}
 }

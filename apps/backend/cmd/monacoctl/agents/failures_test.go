@@ -905,3 +905,21 @@ func TestGraphiteBase_graceRunsFromFirstSightWhenNoEventIsVisibleYet(t *testing.
 		})
 	}
 }
+
+func TestFailures_doesNotFlagAGreenPRThatMergedOrLanded(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.owner(t, Record{Ticket: 1955, Branch: "b1957", Worktree: "/w/1955", State: Exited})
+	f.owner(t, Record{
+		Ticket: 1956, Branch: "b1960", Worktree: "/w/1956", State: Exited,
+		Landed: []Landing{{Top: 1960, PRs: []int{1960}, SHA: "abc"}},
+	})
+	f.hub.on(graphqlRoute, failureData(
+		withPRField(watchNode(1957, "fb", rollup(greenOK), ""), `"state":"MERGED"`),
+		watchNode(1960, "fb", rollup(greenOK), ""),
+	))
+	_, stdout, _ := f.agents(t, "watch", "--once")
+	if strings.Contains(stdout, "green but not armed") {
+		t.Fatalf("flagged a PR that is no longer open or already landed:\n%s", stdout)
+	}
+}

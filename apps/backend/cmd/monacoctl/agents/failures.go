@@ -27,7 +27,7 @@ func failureQuery(after string) string {
 	}
 	return `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){` +
 		`pullRequests(` + openPage(after) + `){pageInfo{hasNextPage endCursor} ` +
-		`nodes{number body isDraft mergeable headRefName baseRefName headRefOid ` +
+		`nodes{number state body isDraft mergeable headRefName baseRefName headRefOid ` +
 		labelFields + ` commits(last:1){nodes{commit{...runs}}} ` +
 		`timelineItems(itemTypes:[UNLABELED_EVENT,BASE_REF_CHANGED_EVENT],last:20){nodes{` +
 		`... on UnlabeledEvent{createdAt label{name} actor{login}} ` +
@@ -62,6 +62,7 @@ type watchData struct {
 
 type watchPR struct {
 	Number      int    `json:"number"`
+	State       string `json:"state"`
 	Body        string `json:"body"`
 	HeadRefName string `json:"headRefName"`
 	BaseRefName string `json:"baseRefName"`
@@ -384,7 +385,7 @@ func (s stallScan) stall(ctx context.Context, p watchPR) string {
 		}
 		return ""
 	}
-	if labeled || marked || !s.landable(p) {
+	if labeled || marked || s.finished(p) || !s.landable(p) {
 		return ""
 	}
 	r, ok := s.recordOf(ctx, p)
@@ -398,6 +399,16 @@ func (s stallScan) stall(ctx context.Context, p watchPR) string {
 	}
 	return fmt.Sprintf("#%d is green but not armed; owner record %d.json: run land-stack %d",
 		p.Number, r.Ticket, p.Number)
+}
+
+func (s stallScan) finished(p watchPR) bool {
+	return p.State == "MERGED" || p.State == "CLOSED" || s.landed(p.Number)
+}
+
+func (s stallScan) landed(pr int) bool {
+	return slices.ContainsFunc(s.rs, func(r Record) bool {
+		return slices.ContainsFunc(r.Landed, func(l Landing) bool { return slices.Contains(l.PRs, pr) })
+	})
 }
 
 func (s stallScan) landable(top watchPR) bool {

@@ -272,6 +272,10 @@ func (g *GitHub) Rerun(ctx context.Context, id int64) error {
 	return g.call(ctx, http.MethodPost, g.repo("/actions/runs/%d/rerun-failed-jobs", id), "", nil, nil)
 }
 
+func (g *GitHub) RerunFailed(ctx context.Context, id int64) error {
+	return g.call(ctx, http.MethodPost, g.repo("/actions/runs/%d/rerun-failed-jobs", id), "", nil, nil)
+}
+
 func (g *GitHub) Statuses(ctx context.Context, sha string) ([]GHStatus, error) {
 	return pages[GHStatus](ctx, g, g.repo("/commits/%s/statuses?", sha))
 }
@@ -303,6 +307,26 @@ func (g *GitHub) DispatchedRuns(ctx context.Context, workflow, branch string, si
 		workflow, branch, since.UTC().Format(time.RFC3339), pageSize)
 	err := g.call(ctx, http.MethodGet, path, "", nil, &page)
 	return page.Runs, err
+}
+
+func (g *GitHub) LatestStagingRunBefore(
+	ctx context.Context, workflow, branch string, before time.Time, notSHA string,
+) (Run, bool, error) {
+	var page struct {
+		Runs []Run `json:"workflow_runs"`
+	}
+	path := g.repo("/actions/workflows/%s/runs?branch=%s&status=completed&per_page=10", workflow, branch)
+	if err := g.call(ctx, http.MethodGet, path, "", nil, &page); err != nil {
+		return Run{}, false, err
+	}
+	var best Run
+	found := false
+	for _, r := range page.Runs {
+		if r.CreatedAt.Before(before) && r.HeadSHA != notSHA && (!found || r.CreatedAt.After(best.CreatedAt)) {
+			best, found = r, true
+		}
+	}
+	return best, found, nil
 }
 
 func (g *GitHub) Retarget(ctx context.Context, n int, base string) error {

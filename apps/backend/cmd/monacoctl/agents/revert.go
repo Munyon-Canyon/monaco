@@ -68,21 +68,35 @@ func (env *Env) judgeLanding(ctx context.Context, r Record, l Landing) ([]string
 	if !run.done() {
 		return nil, mark
 	}
-	revert := 0
-	lines := []string{fmt.Sprintf("staging run for %s passed (%s)", sha, refs)}
+	call := landingCall{lines: []string{fmt.Sprintf("staging run for %s passed (%s)", sha, refs)}}
 	if run.Conclusion != "success" {
-		lines = []string{fmt.Sprintf("staging run %s ended %s; not reverting %s", run.URL, run.Conclusion, refs)}
+		call.lines = []string{fmt.Sprintf("staging run %s ended %s; not reverting %s", run.URL, run.Conclusion, refs)}
 	}
 	if run.broken() || run.Conclusion == "timed_out" {
 		var rerr error
-		revert, lines, rerr = env.relatedFailure(ctx, r, l, run)
+		call, rerr = env.relatedFailure(ctx, r, l, run)
 		if rerr != nil {
-			lines = append(lines, watchErr(fmt.Sprintf("revert %s: ", refs), rerr))
+			call.lines = append(call.lines, watchErr(fmt.Sprintf("revert %s: ", refs), rerr))
 		}
 	}
-	return lines, func(x *Landing) {
-		x.RunID, x.RunURL, x.Checked, x.Revert = run.ID, run.URL, true, revert
+	if call.wait {
+		return call.lines, nil
 	}
+	return call.lines, func(x *Landing) {
+		x.RunID, x.RunURL = run.ID, run.URL
+		if call.rerun {
+			x.Reran = true
+			return
+		}
+		x.Checked, x.Revert = true, call.revert
+	}
+}
+
+type landingCall struct {
+	revert int
+	rerun  bool
+	wait   bool
+	lines  []string
 }
 
 func (env *Env) stagingRun(ctx context.Context, l Landing) (Run, bool, error) {
@@ -120,11 +134,60 @@ func (env *Env) noLandingRun(ctx context.Context, l Landing) ([]string, func(*La
 	return nil, nil
 }
 
-func (env *Env) relatedFailure(ctx context.Context, r Record, l Landing, run Run) (int, []string, error) {
+func (env *Env) relatedFailure(ctx context.Context, r Record, l Landing, run Run) (landingCall, error) {
 	refs := prRefs(l.PRs)
-	jobs, err := env.GitHub.Jobs(ctx, run.ID)
+	failed, err := env.failedJobs(ctx, run.ID)
 	if err != nil {
-		return 0, nil, err
+		return landingCall{}, err
+	}
+	if len(failed) == 0 {
+		return landingCall{lines: []string{fmt.Sprintf("staging run %s ended %s with no failed job; not reverting %s",
+			run.URL, run.Conclusion, refs)}}, nil
+	}
+	related := failed
+	mobile, err := env.touchesMobile(ctx, l)
+	if err != nil {
+		return landingCall{}, err
+	}
+	if !mobile {
+		related = slices.DeleteFunc(slices.Clone(failed), unrelatedJob)
+	}
+	if len(related) == 0 {
+		return landingCall{
+			lines: []string{fmt.Sprintf("staging run %s failed only on %s, which %s cannot affect; not reverting",
+				run.URL, strings.Join(failed, ", "), refs)},
+		}, nil
+	}
+	var lines []string
+	related, redLine, err := env.dropAlreadyRed(ctx, l, run, related)
+	if err != nil {
+		return landingCall{}, err
+	}
+	if redLine != "" {
+		lines = append(lines, redLine)
+	}
+	if len(related) == 0 {
+		return landingCall{lines: lines}, nil
+	}
+	if !l.Reran {
+		if err := env.GitHub.RerunFailed(ctx, run.ID); err != nil {
+			return landingCall{wait: true, lines: append(lines, watchErr("rerun "+run.URL+": ", err))}, nil
+		}
+		lines = append(
+			lines,
+			fmt.Sprintf("staging run %s failed on %s; reran the failed jobs once before deciding on %s",
+				run.URL, strings.Join(related, ", "), refs),
+		)
+		return landingCall{rerun: true, lines: lines}, nil
+	}
+	pr, more, err := env.revertLanding(ctx, r, l, run, related)
+	return landingCall{revert: pr, lines: append(lines, more...)}, err
+}
+
+func (env *Env) failedJobs(ctx context.Context, runID int64) ([]string, error) {
+	jobs, err := env.GitHub.Jobs(ctx, runID)
+	if err != nil {
+		return nil, err
 	}
 	var failed []string
 	for _, j := range jobs {
@@ -132,23 +195,37 @@ func (env *Env) relatedFailure(ctx context.Context, r Record, l Landing, run Run
 			failed = append(failed, j.Name)
 		}
 	}
-	if len(failed) == 0 {
-		return 0, []string{fmt.Sprintf("staging run %s ended %s with no failed job; not reverting %s",
-			run.URL, run.Conclusion, refs)}, nil
+	return failed, nil
+}
+
+func (env *Env) dropAlreadyRed(ctx context.Context, l Landing, run Run, related []string) ([]string, string, error) {
+	prior, found, err := env.GitHub.LatestStagingRunBefore(ctx, indicatorWorkflow, env.Config.FeatureBranch,
+		run.CreatedAt, l.SHA)
+	if err != nil || !found || prior.Conclusion == "success" {
+		return related, "", err
 	}
-	related := failed
-	mobile, err := env.touchesMobile(ctx, l)
+	red, err := env.failedJobs(ctx, prior.ID)
 	if err != nil {
-		return 0, nil, err
+		return nil, "", err
 	}
-	if !mobile {
-		related = slices.DeleteFunc(slices.Clone(failed), unrelatedJob)
+	var already []string
+	remaining := slices.DeleteFunc(slices.Clone(related), func(name string) bool {
+		if slices.Contains(red, name) {
+			already = append(already, name)
+			return true
+		}
+		return false
+	})
+	if len(already) == 0 {
+		return related, "", nil
 	}
-	if len(related) == 0 {
-		return 0, []string{fmt.Sprintf("staging run %s failed only on %s, which %s cannot affect; not reverting",
-			run.URL, strings.Join(failed, ", "), refs)}, nil
-	}
-	return env.revertLanding(ctx, r, l, run, related)
+	return remaining, fmt.Sprintf(
+		"staging run %s failed on %s, already red on %s before %s landed; not reverting for them",
+		run.URL,
+		strings.Join(already, ", "),
+		prior.HeadSHA[:min(8, len(prior.HeadSHA))],
+		prRefs(l.PRs),
+	), nil
 }
 
 func unrelatedJob(name string) bool {
