@@ -22,6 +22,97 @@ func TestRenderRulesKeepsProseAndPointsAtTheEnforcer(t *testing.T) {
 	}
 }
 
+func TestRenderRulesAppendsWhyAndIncidentAsTrailingClauses(t *testing.T) {
+	t.Parallel()
+	rules := []rule{
+		{
+			ID:         "W",
+			Title:      "w",
+			Text:       "Do it.",
+			Why:        "It breaks.",
+			Incident:   "#1 broke.",
+			Surface:    []string{"owner-brief"},
+			EnforcedBy: "prose",
+		},
+		{
+			ID:         "N",
+			Title:      "n",
+			Text:       "Plain.",
+			Note:       "source: operator-memory",
+			Surface:    []string{"owner-brief"},
+			EnforcedBy: "prose",
+		},
+	}
+	want := "- Do it. Why: It breaks. Incident: #1 broke.\n- Plain.\n"
+	if got := renderRules(rules, "owner-brief"); got != want {
+		t.Fatalf("renderRules = %q, want %q", got, want)
+	}
+}
+
+func TestSurfaceForResolvesFixedAndCursorSurfaces(t *testing.T) {
+	t.Parallel()
+	for surface, file := range map[string]string{
+		"verifier-brief":                 "docs/agents/verifier.md",
+		"cursor-rules/dev-database":      ".cursor/rules/dev-database.mdc",
+		"backend-agents-md":              "apps/backend/AGENTS.md",
+		"mobile-agents-md":               "apps/mobile/AGENTS.md",
+		"standing-orders":                "docs/agents/standing-orders.md",
+		"owner-brief":                    "docs/agents/owner.md",
+		"cursor-rules/never-skip-verify": ".cursor/rules/never-skip-verify.mdc",
+	} {
+		spec, ok := surfaceFor(surface)
+		if !ok || spec.file != file {
+			t.Errorf("surfaceFor(%q) = %q, %v; want %q", surface, spec.file, ok, file)
+		}
+	}
+	for _, bad := range []string{"cursor-rules/", "cursor-rules/a/b", "cursor-rules/..", "cursor-rules", "nowhere"} {
+		if _, ok := surfaceFor(bad); ok {
+			t.Errorf("surfaceFor(%q) resolved", bad)
+		}
+	}
+}
+
+func TestSurfaceNamesAddsEverySurfaceARuleNamesOnce(t *testing.T) {
+	t.Parallel()
+	rules := []rule{
+		{Surface: []string{"owner-brief", "agents-md"}},
+		{Surface: []string{"owner-brief", "cursor-rules/x"}},
+	}
+	got := strings.Join(surfaceNames(rules), ",")
+	if want := "agents-md,cursor-rules/x,monaco-milestone,owner-brief"; got != want {
+		t.Fatalf("surfaceNames = %q, want %q", got, want)
+	}
+}
+
+func TestRuleAudienceMustRenderOnEverySurfaceItNames(t *testing.T) {
+	t.Parallel()
+	root := os.DirFS(t.TempDir())
+	of := func(audience string, surface ...string) []rule {
+		return []rule{{ID: "X", Title: "t", Text: "x", Audience: audience, Surface: surface, EnforcedBy: "prose"}}
+	}
+	for name, rules := range map[string][]rule{
+		"root on the owner brief":      of("root", "owner-brief"),
+		"verifier on the owner brief":  of("verifier", "owner-brief"),
+		"owner on the verifier brief":  of("owner", "verifier-brief"),
+		"owner on a backend AGENTS.md": of("owner", "backend-agents-md"),
+		"root on a cursor rule":        of("root", "cursor-rules/dev-database"),
+	} {
+		if err := validateRules(root, rules); err == nil {
+			t.Errorf("%s: want an error", name)
+		}
+	}
+	for name, rules := range map[string][]rule{
+		"all on the owner brief":       of("all", "owner-brief"),
+		"owner on the standing orders": of("owner", "standing-orders"),
+		"root on the standing orders":  of("root", "standing-orders", "agents-md"),
+		"verifier on its brief":        of("verifier", "verifier-brief"),
+	} {
+		if err := validateRules(root, rules); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}
+
 func TestRenderEnforcedListsOnlyEnforcedRulePhrases(t *testing.T) {
 	t.Parallel()
 	set := ruleSet{

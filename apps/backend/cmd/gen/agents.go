@@ -20,17 +20,56 @@ const (
 	enforcedHead = "# Rules a hook or CI check already enforces. Briefs must not restate these lines.\n"
 )
 
-func surfaceFile(surface string) (string, bool) {
-	switch surface {
-	case "agents-md":
-		return "AGENTS.md", true
-	case "monaco-milestone":
-		return ".claude/skills/monaco-milestone/SKILL.md", true
-	}
-	return "", false
+type surfaceSpec struct {
+	file      string
+	audiences []string
 }
 
-func surfaceNames() []string { return []string{"agents-md", "monaco-milestone"} }
+func fixedSurface(surface string) (surfaceSpec, bool) {
+	switch surface {
+	case "agents-md":
+		return surfaceSpec{file: "AGENTS.md"}, true
+	case "monaco-milestone":
+		return surfaceSpec{file: ".claude/skills/monaco-milestone/SKILL.md"}, true
+	case "backend-agents-md":
+		return surfaceSpec{file: "apps/backend/AGENTS.md", audiences: []string{"all"}}, true
+	case "mobile-agents-md":
+		return surfaceSpec{file: "apps/mobile/AGENTS.md", audiences: []string{"all"}}, true
+	case "standing-orders":
+		return surfaceSpec{file: "docs/agents/standing-orders.md", audiences: []string{"all", "root", "owner"}}, true
+	case "owner-brief":
+		return surfaceSpec{file: "docs/agents/owner.md", audiences: []string{"all", "owner"}}, true
+	case "verifier-brief":
+		return surfaceSpec{file: "docs/agents/verifier.md", audiences: []string{"all", "verifier"}}, true
+	}
+	return surfaceSpec{}, false
+}
+
+const cursorPrefix = "cursor-rules/"
+
+func surfaceFor(surface string) (surfaceSpec, bool) {
+	if spec, ok := fixedSurface(surface); ok {
+		return spec, true
+	}
+	name, ok := strings.CutPrefix(surface, cursorPrefix)
+	if !ok || name == "" || strings.ContainsAny(name, "/.") {
+		return surfaceSpec{}, false
+	}
+	return surfaceSpec{file: ".cursor/rules/" + name + ".mdc", audiences: []string{"all"}}, true
+}
+
+func surfaceNames(rules []rule) []string {
+	names := []string{"agents-md", "monaco-milestone"}
+	for _, r := range rules {
+		for _, s := range r.Surface {
+			if !slices.Contains(names, s) {
+				names = append(names, s)
+			}
+		}
+	}
+	slices.Sort(names)
+	return names
+}
 
 type rule struct {
 	ID         string   `yaml:"id"`
@@ -41,6 +80,9 @@ type rule struct {
 	EnforcedBy string   `yaml:"enforced_by"`
 	Covers     []string `yaml:"covers"`
 	Phrase     string   `yaml:"phrase"`
+	Why        string   `yaml:"why"`
+	Incident   string   `yaml:"incident"`
+	Note       string   `yaml:"note"`
 }
 
 type ruleSet struct {
@@ -91,8 +133,12 @@ func ruleProblem(repo fs.FS, r rule, duplicate bool) string {
 		return "audience must be all, root, owner or verifier"
 	}
 	for _, s := range r.Surface {
-		if _, ok := surfaceFile(s); !ok {
+		spec, ok := surfaceFor(s)
+		switch {
+		case !ok:
 			return "unknown surface " + s
+		case spec.audiences != nil && !slices.Contains(spec.audiences, r.Audience):
+			return fmt.Sprintf("audience %s does not render on surface %s", r.Audience, s)
 		}
 	}
 	return enforcerProblem(repo, r.EnforcedBy)
@@ -144,12 +190,23 @@ func renderRules(rules []rule, surface string) string {
 		switch {
 		case !slices.Contains(r.Surface, surface):
 		case r.prose():
-			fmt.Fprintf(&b, "- %s\n", r.Text)
+			fmt.Fprintf(&b, "- %s\n", proseLine(r))
 		default:
 			fmt.Fprintf(&b, "- %s: enforced by `%s`.\n", r.Title, r.EnforcedBy)
 		}
 	}
 	return b.String()
+}
+
+func proseLine(r rule) string {
+	line := r.Text
+	if r.Why != "" {
+		line += " Why: " + r.Why
+	}
+	if r.Incident != "" {
+		line += " Incident: " + r.Incident
+	}
+	return line
 }
 
 func renderEnforced(set ruleSet) string {
@@ -180,8 +237,9 @@ func renderAgents(repo fs.FS) (map[string]string, error) {
 		return nil, err
 	}
 	out := map[string]string{enforcedFile: renderEnforced(set)}
-	for _, surface := range surfaceNames() {
-		rel, _ := surfaceFile(surface)
+	for _, surface := range surfaceNames(set.Rules) {
+		spec, _ := surfaceFor(surface)
+		rel := spec.file
 		doc, err := fs.ReadFile(repo, rel)
 		if err != nil {
 			return nil, errs.Wrap(err, errs.CodeInternal, agentsOp)
