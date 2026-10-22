@@ -180,7 +180,7 @@ func TestMobileCoreTest_coverageBelowTheFloorFailsAndKeepsTheFloor(t *testing.T)
 	if run.err == nil {
 		t.Fatalf("coverage under the floor passed:\n%s", run.out)
 	}
-	if want := "coverage fell: " + self + " 90.60 -> 90.50"; !strings.Contains(run.out, want) {
+	if want := "coverage: 90.50% under floor 90.60%"; !strings.Contains(run.out, want) {
 		t.Fatalf("missing %q in:\n%s", want, run.out)
 	}
 	if got := run.floor(t); got != floor {
@@ -235,7 +235,7 @@ func TestMobileCoreTest_loadScalesThePerTestBudgetUpToFourTimes(t *testing.T) {
 			t.Fatalf("load %s: a 7 s test under the 8 s budget: %v\n%s", load1, run.err, run.out)
 		}
 		run := slowTestRun(t, "9.000", m, false)
-		if run.err == nil || !strings.Contains(run.out, "slow test: A.testSlow 9.000s (budget 8 s)") {
+		if run.err == nil || !strings.Contains(run.out, "budget: A.testSlow took 9.000s, limit 8s") {
 			t.Fatalf("load %s: a 9 s test passed an 8 s budget: %v\n%s", load1, run.err, run.out)
 		}
 	}
@@ -243,7 +243,7 @@ func TestMobileCoreTest_loadScalesThePerTestBudgetUpToFourTimes(t *testing.T) {
 
 func TestMobileCoreTest_anIdleMachineKeepsTheTwoSecondBudget(t *testing.T) {
 	run := slowTestRun(t, "2.500", mobileCoreIdleMachine, false)
-	if run.err == nil || !strings.Contains(run.out, "slow test: A.testSlow 2.500s (budget 2 s)") {
+	if run.err == nil || !strings.Contains(run.out, "budget: A.testSlow took 2.500s, limit 2s") {
 		t.Fatalf("a 2.5 s test passed an idle machine: %v\n%s", run.err, run.out)
 	}
 	if want := "per-test budget: 2 s (2 s x 1.0, load 0.5 on 8 cores)"; !strings.Contains(run.out, want) {
@@ -251,12 +251,16 @@ func TestMobileCoreTest_anIdleMachineKeepsTheTwoSecondBudget(t *testing.T) {
 	}
 }
 
-func TestMobileCoreTest_githubActionsNeverScalesTheBudget(t *testing.T) {
-	run := slowTestRun(t, "2.500", mobileCoreLoad{load1: "80.00", cores: "8"}, true)
-	if run.err == nil || !strings.Contains(run.out, "slow test: A.testSlow 2.500s (budget 2 s)") {
-		t.Fatalf("a 2.5 s test passed under GITHUB_ACTIONS at high load: %v\n%s", run.err, run.out)
+func TestMobileCoreTest_githubActionsUsesAThreeSecondBudgetAndNeverScalesIt(t *testing.T) {
+	loaded := mobileCoreLoad{load1: "80.00", cores: "8"}
+	if run := slowTestRun(t, "2.100", loaded, true); run.err != nil {
+		t.Fatalf("a 2.1 s test failed the CI budget: %v\n%s", run.err, run.out)
 	}
-	if want := "per-test budget: 2 s (2 s x 1.0, no load applied)"; !strings.Contains(run.out, want) {
+	run := slowTestRun(t, "3.500", loaded, true)
+	if run.err == nil || !strings.Contains(run.out, "budget: A.testSlow took 3.500s, limit 3s") {
+		t.Fatalf("a 3.5 s test passed under GITHUB_ACTIONS at high load: %v\n%s", run.err, run.out)
+	}
+	if want := "per-test budget: 3 s (3 s x 1.0, no load applied)"; !strings.Contains(run.out, want) {
 		t.Fatalf("missing %q in:\n%s", want, run.out)
 	}
 }
