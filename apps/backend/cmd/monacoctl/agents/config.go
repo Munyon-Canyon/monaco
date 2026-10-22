@@ -21,6 +21,7 @@ var (
 	errUnknownSection = errors.New("unknown section")
 	errBadBudget      = errors.New("want a positive duration such as \"60s\"")
 	errWantList       = errors.New("want a list of quoted strings such as [\"a/**\"]")
+	errWantBool       = errors.New("want true or false")
 )
 
 const (
@@ -43,6 +44,8 @@ const (
 	dispatchPrefix   = "dispatch."
 	watchSection     = "[watch]"
 	watchPrefix      = "watch."
+	landSection      = "[land]"
+	landPrefix       = "land."
 	defaultStuck     = 12 * time.Minute
 )
 
@@ -79,6 +82,7 @@ type Config struct {
 	Tokens               Tokens
 	MaxQueue             int
 	StuckAfter           time.Duration
+	LandOnStage0         bool
 	Budget               map[string]time.Duration
 	LocalBudget          map[string]bool
 	Shared               []string
@@ -114,12 +118,13 @@ func parseConfig(r io.Reader) (Config, error) {
 	ints[retiredMaxLoad] = new(int)
 	lists := map[string]*[]string{"batch.shared": &c.Shared}
 	durs := map[string]*time.Duration{"watch.stuck_after": &c.StuckAfter}
+	bools := map[string]*bool{"land.on_stage0": &c.LandOnStage0}
 	lines, err := logicalLines(r, configPath)
 	if err != nil {
 		return Config{}, err
 	}
 	for _, l := range lines {
-		err := applyConfigLine(c.Budget, &section, seen, strs, ints, lists, durs, l.text)
+		err := applyConfigLine(c.Budget, &section, seen, strs, ints, lists, durs, bools, l.text)
 		if unknown := (unknownKeyError{}); errors.As(err, &unknown) {
 			if !slices.Contains(c.Unknown, unknown.key) {
 				c.Unknown = append(c.Unknown, unknown.key)
@@ -159,6 +164,7 @@ func applyLocalConfig(c Config, r io.Reader) (Config, error) {
 	c.Budget = maps.Clone(c.Budget)
 	var slotsIgnoredSince3670 int
 	strs := map[string]*string{"milestone": &c.Milestone}
+	bools := map[string]*bool{"land.on_stage0": &c.LandOnStage0}
 	ints := map[string]*int{
 		"lanes":              &c.Lanes,
 		"check.slots":        &slotsIgnoredSince3670,
@@ -174,7 +180,7 @@ func applyLocalConfig(c Config, r io.Reader) (Config, error) {
 	}
 	seen := map[string]bool{}
 	for _, l := range lines {
-		if err := applyConfigLine(c.Budget, &section, seen, strs, ints, nil, nil, l.text); err != nil {
+		if err := applyConfigLine(c.Budget, &section, seen, strs, ints, nil, nil, bools, l.text); err != nil {
 			return Config{}, configLineErr(localConfigPath, l.n, err)
 		}
 	}
@@ -264,14 +270,21 @@ func opensList(line string) bool {
 func sectionPrefix(line string) (string, bool) {
 	prefix, ok := map[string]string{
 		budgetSection: budgetPrefix, checkSection: checkPrefix, tokensSection: tokensPrefix, dispatchSection: dispatchPrefix,
-		batchSection: batchPrefix, watchSection: watchPrefix,
+		batchSection: batchPrefix, watchSection: watchPrefix, landSection: landPrefix,
 	}[line]
 	return prefix, ok
 }
 
 func applyConfigLine(
-	budget map[string]time.Duration, section *string, seen map[string]bool, strs map[string]*string,
-	ints map[string]*int, lists map[string]*[]string, durs map[string]*time.Duration, text string,
+	budget map[string]time.Duration,
+	section *string,
+	seen map[string]bool,
+	strs map[string]*string,
+	ints map[string]*int,
+	lists map[string]*[]string,
+	durs map[string]*time.Duration,
+	bools map[string]*bool,
+	text string,
 ) error {
 	line := strings.TrimSpace(text)
 	if line == "" || strings.HasPrefix(line, "#") {
@@ -293,6 +306,8 @@ func applyConfigLine(
 		*lists[key], err = parseList(raw)
 	case durs[key] != nil:
 		*durs[key], err = parseDuration(key, raw)
+	case bools[key] != nil:
+		*bools[key], err = parseBool(raw)
 	default:
 		err = assignConfig(strs, ints, key, raw, ok)
 	}
@@ -351,6 +366,16 @@ func assignConfig(strs map[string]*string, ints map[string]*int, key, raw string
 	default:
 		return unknownKeyError{key: key}
 	}
+}
+
+func parseBool(raw string) (bool, error) {
+	switch raw {
+	case "true":
+		return true, nil
+	case "false":
+		return false, nil
+	}
+	return false, fmt.Errorf("%w, got %s", errWantBool, raw)
 }
 
 func parseDuration(key, raw string) (time.Duration, error) {

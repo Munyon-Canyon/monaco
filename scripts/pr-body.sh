@@ -46,6 +46,12 @@ git cat-file -e "$head_sha^{commit}" 2>/dev/null || git fetch --quiet origin "$h
 # still set, instead of refusing the body until the prose is perfect.
 GH_REPO="$repo" PR_TITLE="$title" PR_BODY="$body" BASE_REF="$base_ref" HEAD_REF="$head_ref" BASE_SHA="$base_sha" HEAD_SHA="$head_sha" \
   python3 "$here/check-pr-format.py" >&2 || echo "pr-body: PR format check failed (advisory); the body is set anyway, fix the findings above when you touch it next" >&2
+# The stage0/ok status must be on the head before ready_for_review starts the plan job. A failure leaves stage 1 in full.
+if attest_out="$(cd "$here/../apps/backend" && go run ./cmd/monacoctl agents attest "$pr" 2>&1)"; then
+  [[ -z "$attest_out" ]] || printf '%s\n' "$attest_out" >&2
+else
+  echo "pr-body: stage 0 attestation skipped: $attest_out" >&2
+fi
 # Ready first: an edit on a draft starts a PR format run that skips, and it cancels the real run.
 if [[ "$draft" == "true" ]]; then
   ready_out="$(gh pr ready "$pr" 2>&1)" || {

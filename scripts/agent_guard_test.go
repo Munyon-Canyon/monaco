@@ -467,6 +467,28 @@ func TestAgentGuard_onlyLandStackAddsTheQueueLabel(t *testing.T) {
 	}
 }
 
+func TestAgentGuard_onlyMonacoctlPostsCommitStatuses(t *testing.T) {
+	cwd := t.TempDir()
+	for _, cmd := range []string{
+		"gh api repos/o/r/statuses/abc -f state=success -f context=stage0/ok",
+		"gh api -X POST repos/o/r/statuses/abc",
+		"gh api --method POST repos/o/r/statuses/abc",
+		"gh api --method=post repos/o/r/statuses/abc",
+		"gh api repos/o/r/statuses/abc -F state=success",
+		"gh api repos/o/r/statuses/abc --raw-field state=success",
+	} {
+		assertBlocked(t, guard(t, cwd, cmd), cmd, "commit statuses are posted by monacoctl only")
+	}
+	for _, cmd := range []string{
+		"gh api repos/o/r/statuses/abc",
+		"gh api -X GET repos/o/r/statuses/abc -f per_page=5",
+		"gh api repos/o/r/commits/abc/statuses",
+		"gh api repos/o/r/issues/5/labels -f labels[]=docs",
+	} {
+		assertAllowed(t, guard(t, cwd, cmd), cmd)
+	}
+}
+
 func TestAgentGuard_graphiteOwnsEveryBase(t *testing.T) {
 	cwd := t.TempDir()
 	for _, cmd := range []string{

@@ -437,21 +437,23 @@ jobs:
       pull-requests: read
       actions: read
       checks: read
+      statuses: read
     outputs:
       reuse: ${{ steps.reuse.outputs.reuse }}
       patch-id: ${{ steps.reuse.outputs.patch-id }}
       ci-id: ${{ steps.reuse.outputs.ci-id }}
-      # Under steps.top.outputs.skip every filter is false, so every job skips and ci-ok still passes.
-      backend: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.backend == 'true' }}
-      mobile-core: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.mobile-core == 'true' }}
-      backend-tests: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.backend-tests == 'true' }}
-      mobile-tests: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.mobile-tests == 'true' }}
-      ios: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.ios == 'true' }}
-      flows: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.flows == 'true' }}
-      journeys: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.journeys == 'true' }}
-      scripts: ${{ steps.top.outputs.skip != 'true' && (steps.filter.outputs.scripts == 'true' || steps.every.outputs.scripts == 'true') }}
+      stage0: ${{ steps.stage0.outputs.skip == 'true' }}
+      # Under steps.top.outputs.skip or steps.stage0.outputs.skip every filter is false, so every job skips and ci-ok still passes.
+      backend: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && steps.filter.outputs.backend == 'true' }}
+      mobile-core: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && steps.filter.outputs.mobile-core == 'true' }}
+      backend-tests: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && steps.filter.outputs.backend-tests == 'true' }}
+      mobile-tests: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && steps.filter.outputs.mobile-tests == 'true' }}
+      ios: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && steps.filter.outputs.ios == 'true' }}
+      flows: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && steps.filter.outputs.flows == 'true' }}
+      journeys: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && steps.filter.outputs.journeys == 'true' }}
+      scripts: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && (steps.filter.outputs.scripts == 'true' || steps.every.outputs.scripts == 'true') }}
       # The staging stage runs everything, and so does a stacked PR with no merge-base to filter from.
-      unknown: ${{ steps.top.outputs.skip != 'true' && (steps.every.outputs.unknown == 'true' || steps.stacked.outputs.unknown == 'true' || inputs.stage == 'staging') }}
+      unknown: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && (steps.every.outputs.unknown == 'true' || steps.stacked.outputs.unknown == 'true' || inputs.stage == 'staging') }}
     steps:
       # CI runs on the top PR of a stack only. A PR that another open non-draft PR builds on reports every filter false,
       # so every job skips and its ci-ok passes; `monacoctl agents check` proved it before the push. Fails open.
@@ -665,6 +667,24 @@ jobs:
               - '!Justfile'
               - '!docker-compose.yml'
 
+      # `agents attest` posts a stage0/ok status naming the head's tree once `agents check` passed on it. The script
+      # skips stage 1 only when that tree is this head's and no mobile, journeys, web, workflows or unknown path
+      # changed. Fails open.
+      - name: Skip stage 1 on a head whose stage 0 pass is attested
+        id: stage0
+        if: steps.top.outputs.skip != 'true' && inputs.stage == 'pr' && github.event.pull_request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          IOS: ${{ steps.filter.outputs.ios }}
+          MOBILE_CORE: ${{ steps.filter.outputs.mobile-core }}
+          MOBILE_TESTS: ${{ steps.filter.outputs.mobile-tests }}
+          JOURNEYS: ${{ steps.filter.outputs.journeys }}
+          WEB: ${{ steps.filter.outputs.web }}
+          WORKFLOWS: ${{ steps.filter.outputs.workflows }}
+          UNKNOWN: ${{ steps.every.outputs.unknown == 'true' || steps.stacked.outputs.unknown == 'true' }}
+        run: scripts/ci/stage0-attested.sh
+
       # A workflow-only change runs this lint and the scripts/ci tests below, plus the `scripts` job (its filter
       # lists `.github/workflows/*.yml`) and `ios` or `mobile-core` when their own workflow file changed. The other
       # jobs a workflow defines stay off.
@@ -834,7 +854,7 @@ jobs:
 
       # The next stage 1 run of this PR reads this summary back to decide whether it can reuse this result.
       - name: Record the diff's patch ID on this check run
-        if: inputs.stage == 'pr' && needs.plan.outputs.patch-id != ''
+        if: inputs.stage == 'pr' && needs.plan.outputs.patch-id != '' && needs.plan.outputs.stage0 != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           PATCH_ID: ${{ needs.plan.outputs.patch-id }}
