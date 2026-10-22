@@ -203,3 +203,60 @@ func TestRippleCmd_refusesABadTicketOrAMissingIssue(t *testing.T) {
 		t.Fatal("a git failure was swallowed")
 	}
 }
+
+func TestRipple_globsFollowTheTouchesSyntax(t *testing.T) {
+	t.Parallel()
+	for glob, file := range map[string]string{
+		"docs/**":          "docs/a/b.md",
+		"docs/**/b.md":     "docs/b.md",
+		"docs/*/b.md":      "docs/a/b.md",
+		"docs/?.md":        "docs/a.md",
+		"docs/a.md":        "docs/a.md",
+		"a/**/b/**/c_?.go": "a/x/y/b/z/c_1.go",
+	} {
+		if !globsMatch([]string{glob}, file) {
+			t.Errorf("%s did not match %s", glob, file)
+		}
+	}
+	for glob, file := range map[string]string{
+		"docs/*.md": "docs/a/b.md",
+		"docs/?.md": "docs/ab.md",
+		"docs/a.md": "docs/axmd",
+	} {
+		if globsMatch([]string{glob}, file) {
+			t.Errorf("%s matched %s", glob, file)
+		}
+	}
+}
+
+func TestRipple_aFileWithoutExportsStillFindsItsOwnTest(t *testing.T) {
+	t.Parallel()
+	got := rippleOfFixture([]string{"p/a.go"}, map[string]string{
+		"p/a.go":       "package p\n\nfunc hidden() {}\n",
+		"p/a_test.go":  "package p\n",
+		"p/b_test.go":  "package p\n\nvar _ = hidden\n",
+		"p/unparsable": "",
+	})
+	if !slices.Equal(got, []string{"p/a_test.go"}) {
+		t.Fatalf("ripple = %v", got)
+	}
+}
+
+func TestDispatchTouches_refuseWhenTheIssueOrTheTreeIsUnreadable(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	env := f.Env(t)
+	if _, err := env.dispatchTouches(t.Context(), 9, f.dir, io.Discard); err == nil {
+		t.Fatal("a missing issue was swallowed")
+	}
+	if err := env.recordDispatch(t.Context(), dispatchIn{ticket: 9}, f.dir, "tip", io.Discard); err == nil {
+		t.Fatal("a missing issue was swallowed by recordDispatch")
+	}
+	f.hub.on(get("/issues/9"), Issue{Number: 9, Body: "**Touches:** `a`"})
+	env.Run = func(context.Context, string, string, string, ...string) ([]byte, error) {
+		return nil, errors.New("no git")
+	}
+	if _, err := env.dispatchTouches(t.Context(), 9, f.dir, io.Discard); err == nil {
+		t.Fatal("a git failure was swallowed")
+	}
+}
