@@ -42,6 +42,8 @@ def title_errors(title: str) -> list[str]:
         return [f'title starts with an issue number; link the issue under Why instead: "{title}"']
     if COMMIT_PREFIX_RE.match(title):
         return [f'title starts with a commit-type prefix; say what the PR changes instead: "{title}"']
+    if CLOSING_RE.search(title):
+        return [f'title has a closing keyword, which closes the ticket when the PR squashes; move the reference to the body\'s Why line: "{title}"']
     return []
 
 

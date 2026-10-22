@@ -18,6 +18,8 @@ TRUNK = "staging"
 QUEUE_LABEL = "merge-queue"
 # fast-track jumps the Graphite merge queue. Only a human adds it.
 FAST_TRACK_LABEL = "fast-track"
+# large-pr and gate-change-approved silence a CI check. Only a human adds them.
+HUMAN_ONLY_LABELS = (FAST_TRACK_LABEL, "large-pr", "gate-change-approved")
 CONVENTIONAL_TYPES = "feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert"
 CONVENTIONAL_RE = re.compile(rf"^({CONVENTIONAL_TYPES})(\([^()\s]+\))?!?: \S")
 HEREDOC_SUBST_RE = re.compile(r"^\$\(\s*cat\s*<<-?\s*(['\"]?)(\w+)\1[ \t]*\n(.*?)\n\s*\2\s*\)\s*$", re.S)
@@ -463,10 +465,22 @@ def rule_queue_label(inv: Invocation) -> str | None:
         return None
     if FAST_TRACK_LABEL in added:
         return f"the {FAST_TRACK_LABEL} label jumps the Graphite merge queue. Only a human adds it."
+    for label in HUMAN_ONLY_LABELS[1:]:
+        if label in added:
+            return f"the {label} label overrides a CI check. Only a human adds it."
     if QUEUE_LABEL in added:
         return (f"the {QUEUE_LABEL} label puts a PR in the Graphite merge queue. Only "
                 "`monacoctl agents land-stack <top-pr>` adds it, after stage 1 passes on every PR.")
     return None
+
+
+def rule_rerun_failed(inv: Invocation) -> str | None:
+    if os.path.basename(inv.argv[0]) != "gh" or inv.argv[1:3] != ["run", "rerun"]:
+        return None
+    args = inv.argv[3:]
+    if any(a in {"--failed", "--job", "-j"} or a.startswith(("--job=", "--failed=")) for a in args):
+        return None
+    return "rerun only the failed jobs: gh run rerun <id> --failed. A whole-run rerun takes 20 concurrent-job slots."
 
 
 FIELD_FLAGS = {"-f", "-F", "--field", "--raw-field", "--input"}
@@ -987,6 +1001,7 @@ RULES = [
     rule_merge_needs_verify,
     rule_edit_base,
     rule_queue_label,
+    rule_rerun_failed,
     rule_status_post,
     rule_inline_pr_body,
     rule_conventional_commit,
@@ -1024,7 +1039,29 @@ def generated_file_reason(file_path: str) -> str | None:
         return "generated file; run: cd apps/backend && go generate ./api"
     if file_path.endswith(".gen.swift"):
         return "generated file; run: cd apps/backend && go run ./cmd/gen flows"
+    if file_path.endswith(GENERATOR_OUTPUTS) or has_generated_header(file_path):
+        return "generated file (Code generated, DO NOT EDIT). " + (
+            "Edit apps/backend/api/spec/*.yaml, then run: cd apps/backend && go generate ./..."
+            if file_path.endswith(SPEC_OUTPUTS)
+            else "Edit its source, then run: cd apps/backend && go generate ./..."
+        )
     return None
+
+
+SPEC_OUTPUTS = (
+    "apps/backend/api/openapi.yaml",
+    "packages/mobile-core/Sources/MonacoAPI/openapi.yaml",
+)
+GENERATOR_OUTPUTS = ("apps/backend/.golangci.yml",) + SPEC_OUTPUTS
+
+
+def has_generated_header(file_path: str) -> bool:
+    try:
+        with open(file_path, encoding="utf-8", errors="replace") as f:
+            head = "".join(f.readline() for _ in range(3))
+    except OSError:
+        return False
+    return "Code generated" in head and "DO NOT EDIT" in head
 
 
 def main() -> int:
