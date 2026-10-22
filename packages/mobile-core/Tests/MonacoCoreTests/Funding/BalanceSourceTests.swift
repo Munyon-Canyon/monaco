@@ -25,7 +25,7 @@ final class BalanceSourceTests: XCTestCase {
         XCTAssertEqual(balance.asOf, Date(timeIntervalSince1970: 1_759_579_200))
     }
 
-    func testTheSampleParses() throws {
+    func testTheSampleParses() async throws {
         let balance = try AccountBalance(.sample)
 
         XCTAssertEqual(balance.availableMicros, 248_500_000)
@@ -244,7 +244,7 @@ final class BalanceSourceTests: XCTestCase {
         XCTAssertEqual(model.balance?.availableMicros, 17_000_000)
     }
 
-    func testAmountsParseFromDigitStrings() throws {
+    func testAmountsParseFromDigitStrings() async throws {
         XCTAssertEqual(try AccountBalance.micros("0"), 0)
         XCTAssertEqual(try AccountBalance.micros("1500000"), 1_500_000)
         XCTAssertEqual(try AccountBalance.micros("9223372036854775807"), .max)

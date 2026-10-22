@@ -223,3 +223,17 @@ func TestTestwait_reportsFixedWaitsAndPollLoopsOutsideSynctestAndTestkit(t *test
 		t.Fatalf("nogo = %d\n%s\nwant 3 and\n%s", code, strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
+
+func TestMain_registersEveryAnalyzer(t *testing.T) {
+	t.Parallel()
+	cmd := testkit.MainCommand(t, os.Environ(), "-flags")
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"nogo", "testmain", "wallclock", "testwait", "caldate"} {
+		if !strings.Contains(string(out), `"Name": "`+name+`"`) {
+			t.Errorf("nogo -flags lists no %s analyzer:\n%s", name, out)
+		}
+	}
+}

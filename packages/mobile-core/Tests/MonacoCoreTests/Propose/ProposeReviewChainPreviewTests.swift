@@ -5,7 +5,7 @@ import XCTest
 
 @MainActor
 final class ProposeReviewChainPreviewTests: XCTestCase {
-    func testThePrefetchShowsEveryChainAtOnceWithTheBestChainChosen() throws {
+    func testThePrefetchShowsEveryChainAtOnceWithTheBestChainChosen() async throws {
         let service = ReviewService()
         let model = makeModel(kind: .stock, service: service, bestChain: try Self.bestChain())
 

@@ -93,7 +93,7 @@ final class AssetBestChainStoreTests: XCTestCase {
         XCTAssertEqual(store.bestChain(for: "NVDAx")?.netShareNanos, 4_012_000)
     }
 
-    func testTheEstimateScalesEveryChainFromTheOneDollarProbe() throws {
+    func testTheEstimateScalesEveryChainFromTheOneDollarProbe() async throws {
         let bestChain = try XCTUnwrap(AssetBestChain(.fixture(now: Date())))
 
         XCTAssertEqual(bestChain.shareNanos(forMicros: 250_000_000), 1_003_000_000)

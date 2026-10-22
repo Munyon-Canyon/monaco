@@ -122,7 +122,7 @@ final class ShareCardModelTests: XCTestCase {
         XCTAssertEqual(count, 3)
     }
 
-    func testAPreviewModelIsAlreadyLoaded() throws {
+    func testAPreviewModelIsAlreadyLoaded() async throws {
         let content = try XCTUnwrap(
             ShareCardContent.cabal(
                 Cabal.sampleWithMembers(role: "member"), pot: .sampleInvested, history: .sample(), links: nil))

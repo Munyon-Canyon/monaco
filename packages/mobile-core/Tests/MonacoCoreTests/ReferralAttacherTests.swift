@@ -138,7 +138,7 @@ final class ReferralAttacherTests: XCTestCase {
         XCTAssertEqual(body?["source"], "manual")
     }
 
-    func testTheManualFieldIsOfferedOnlyWithoutAPendingOrAttachedReferral() throws {
+    func testTheManualFieldIsOfferedOnlyWithoutAPendingOrAttachedReferral() async throws {
         let (withPending, _, _) = try make([], pending: .clipboard)
         let (without, _, _) = try make([], pending: nil)
 
