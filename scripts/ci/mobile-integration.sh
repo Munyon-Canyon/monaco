@@ -113,8 +113,11 @@ if [[ "${CI:-}" != "true" ]]; then
     exit 1
   fi
 fi
-"$root/scripts/ci/retry.sh" docker compose pull postgres nats
-docker compose up -d --wait postgres nats
+# pull-image.sh falls back to mirror.gcr.io when ECR Public rate limits, so compose never pulls.
+while IFS= read -r image; do
+  "$root/scripts/ci/pull-image.sh" "$image" || exit 1
+done < <(docker compose config --images postgres nats)
+docker compose up -d --wait --pull never postgres nats
 
 # The ports compose published, not 54322 and 4222: COMPOSE_PROJECT_NAME, COMPOSE_FILE and
 # POSTGRES_PORT can then give this run its own Postgres and NATS beside a dev stack.
