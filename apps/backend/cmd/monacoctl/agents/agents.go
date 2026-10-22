@@ -112,6 +112,7 @@ func commands() map[string]command {
 		"land-stack":  landStackCmd,
 		"own":         ownCmd,
 		"resume":      resumeCmd,
+		"ripple":      rippleCmd,
 		"status":      statusCmd,
 		"timeline":    timelineCmd,
 		"verify-plan": verifyPlanCmd,
@@ -161,7 +162,7 @@ func runCLI(
 		}
 		err = commands()[args[0]](ctx, env, args[1:], out)
 	}
-	writeLimited(stdout, buf.String(), verbose || args[0] == "dispatch")
+	writeLimited(stdout, buf.String(), verbose || args[0] == "dispatch" || args[0] == "ripple")
 	return exitCode(logged(env, args[0], buf.String(), err), stderr)
 }
 

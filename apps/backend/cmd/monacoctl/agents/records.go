@@ -60,6 +60,7 @@ type Record struct {
 	Worktree  string      `json:"worktree"`
 	Branch    string      `json:"branch,omitempty"`
 	Base      string      `json:"base"`
+	Touches   []string    `json:"touches,omitempty"`
 	State     State       `json:"state"`
 	AgentID   string      `json:"agent_id,omitempty"`
 	Queued    Queues      `json:"queues,omitempty"`

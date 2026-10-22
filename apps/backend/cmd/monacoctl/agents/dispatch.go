@@ -83,15 +83,42 @@ func dispatchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer)
 	if err := env.ensureWorktree(ctx, path, tip, stdout); err != nil {
 		return err
 	}
-	rec := Record{
-		Ticket: in.ticket, Model: in.model, Worktree: path, Base: tip,
-		State: Running, Started: env.Now(), Changed: env.Now(),
-	}
-	if err := env.storeRecord(ctx, rec); err != nil {
+	if err := env.recordDispatch(ctx, in, path, tip, stdout); err != nil {
 		return err
 	}
 	writeOwnerSpawn(stdout, in, path, tip, risks.String())
 	return nil
+}
+
+func (env *Env) recordDispatch(ctx context.Context, in dispatchIn, path, tip string, stdout io.Writer) error {
+	touches, err := env.dispatchTouches(ctx, in.ticket, path, stdout)
+	if err != nil {
+		return err
+	}
+	return env.storeRecord(ctx, Record{
+		Ticket: in.ticket, Model: in.model, Worktree: path, Base: tip, Touches: touches,
+		State: Running, Started: env.Now(), Changed: env.Now(),
+	})
+}
+
+func (env *Env) dispatchTouches(ctx context.Context, ticket int, worktree string, stdout io.Writer) ([]string, error) {
+	is, err := env.GitHub.Issue(ctx, ticket)
+	if err != nil {
+		return nil, err
+	}
+	touches := touchGlobs(is.Body)
+	if len(touches) == 0 {
+		return nil, nil
+	}
+	all, err := env.rippleOf(ctx, worktree, touches)
+	if err != nil {
+		return nil, err
+	}
+	paths := slices.DeleteFunc(all, func(p string) bool { return globsMatch(touches, p) })
+	if len(paths) > 0 {
+		_, _ = fmt.Fprintf(stdout, "ripple: %d paths added to Touches\n  %s\n", len(paths), strings.Join(paths, "\n  "))
+	}
+	return append(touches, paths...), nil
 }
 
 func writeOwnerSpawn(stdout io.Writer, in dispatchIn, path, tip, risks string) {
