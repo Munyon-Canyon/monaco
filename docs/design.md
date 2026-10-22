@@ -16,7 +16,7 @@ Each one is a check you run on a screenshot.
 4. **One primary action per screen.** A 48pt capsule (`.monacoPrimary`) names the outcome, and sits pinned in the glass dock when the screen scrolls. Everything else is a row, a text link, an outline or soft button, or a toolbar glyph.
 5. **Cabals look like places.** A cover is the cabal's tint gradient plus its uploaded picture under a dark scrim, with white text. No stock photography (decision 8).
 6. **Glass is chrome only.** It appears on the tab bar, the 44pt round toolbar buttons, sheets and the dock. Content is never glass. Reduce Transparency swaps every glass surface for `surface` (decision 6).
-7. **A face for every act.** Anything a person did (proposed, voted, bought, joined) shows their avatar; anything a cabal did shows its mark.
+7. **A face for every act.** Anything a person did (proposed, voted, bought, joined) shows their avatar; anything a cabal did shows its mark. Nobody is initials: a member without a photo is a pixel animal, a cabal without a picture is its emblem on its tint.
 
 ## Colour
 
@@ -65,7 +65,8 @@ Tokens live in `apps/mobile/Monaco/Design/MonacoTheme.swift`; feature code uses 
 | On cover, glass | `onCoverGlass` | `#FFFFFF` at 0.09, border at 0.14 | same | share disc on a cover |
 | P&L on cover | `profitOnCover` / `lossOnCover` | `#83F1B9` / `#FFB2B0` | same | P&L on a cover card |
 | Cover stroke | `coverStroke` | inset `#FFFFFF` at 0.07 | same | cover card inner stroke |
-| Cover scrim | `CoverScrim` | `.memberCard`, `.card`, `.hero`, `.solid` | same | gradients under cover text; `.solid` is flat `#00130B` at 0.91 under Reduce Transparency; `.memberCard` ends `#000C09` at 0.96 (all stops in `MonacoTheme.CoverScrim`) |
+| Cover overlay | `coverOverlay` / `coverOverlayReduced` | `#00130B` at 0.80 / 0.91 | same | the flat overlay under cover text (decision 12); the reduced value under Reduce Transparency |
+| Emblem pattern | `emblemPattern` | `#FFFFFF` at 0.12 | same | the cabal emblem tiled over the tint of a cover with no picture |
 | Cabal tints | `CabalTint` ×5 | pine, ochre, plum, indigo, moss | | marks, cover gradients, chart lines, allocation bar |
 
 † The package's light values for these three are `#6B746E`, `#108153` and `#BD5455`. They fail AA on `surfaceSunken` (4.16, 4.22 and 3.97 : 1; `loss` also fails on `canvas` and `surface`), so they are darkened one step to 4.61, 4.62 and 4.60 : 1 on `surfaceSunken` (5.00, 5.01 and 4.99 on `canvas`). The vivid chart colours are not text and keep the package values.
@@ -146,10 +147,13 @@ Glass is chrome only (principle 6), and the app never draws its own compositor.
 
 ## Icons and motion
 
-- SF Symbols only, monochrome, named through `MonacoIcon` (ticket F5) so screens never type symbol strings. The design's icon grid and sizes are in [components.md](design/v3/components.md). Tab bar: default size, `.fill` when selected. Row leading glyph: a 22pt `brand` symbol in a 44pt `brandSoft` tile with radius 14.
-- State change `.easeOut(0.2)`. Segment and chip selection `.spring(response: 0.3, dampingFraction: 0.85)`. Button press scales to 0.97. Numbers roll with `.numericText`. Charts draw on once per range per appearance. Skeletons pulse 1 to 0.55 over 1.2s.
+The signatures that make a screen Monaco's, and where each one appears, are in [personality.md](design/personality.md). This section is the floor they stand on.
+
+- Glyphs are Monaco's own pixel family first, SF Symbols as the fallback. Every glyph is named through `MonacoIcon` and drawn through `MonacoGlyph`, so screens never type a symbol string or a bitmap. A drawn glyph is a `PixelBitmap` on the 16 grid the pixel animals use (`Design/PixelGlyphs.swift`), one unit stroke, square corners, no anti-aliasing; sizes 16, 22, 25 (tab bar) and 30. An icon with no bitmap renders its SF Symbol at the same size. Tab bar: outline resting, filled when selected. Row leading glyph: a 22pt `brand` glyph in a 44pt `brandSoft` tile with radius 14.
+- A cabal without a picture shows its emblem: one of eight pixel characters (`CabalEmblem`, picked by id like its tint) tiled over the tint in `emblemPattern` under the cover overlay, and drawn in the mark in place of initials. A member without a photo is a pixel animal picked by id (`PixelAnimal.forSeed`).
+- Motion lives in `MonacoMotion`; feature code names a value and never writes a curve. State change `.easeOut(0.2)`. Segment and chip selection `.spring(response: 0.3, dampingFraction: 0.85)`. Button press scales to 0.97. Figures roll with `.numericText` on `MonacoMotion.roll`; hero and large figures also settle (`monacoSettle`: lift to 1.03, spring back). A landing check stamps in (`monacoStamp`: scale 0.6 to 1 on `MonacoMotion.stamp`) on outcomes and toasts. The vote bar draws on from its leading edge (`monacoDrawOn`). Charts draw on once per range per appearance. Skeletons pulse 1 to 0.55 over 1.2s.
 - Haptics: `.selection` for chips, segments, tabs, presets and chart scrub; light impact on press of the primary button style only (the style plays it; actions never call `Haptics.tap()` behind it); `.success` when a vote, proposal or money movement lands; `.warning` on every error toast.
-- Reduce Motion turns everything off except the toast fade. The package has no motion of its own, so this section is unchanged by v3.
+- Reduce Motion turns everything off except the fades (toast, stamp).
 
 ## Charts
 
@@ -167,7 +171,7 @@ Range pills are a segmented control.
 
 The founder has made these nine decisions and they are final; the full reasoning is in [decisions.md](design/v3/decisions.md). Tickets apply them and do not reopen them.
 
-1. **Adopt v3 wholesale.** Cream canvas, bordered cards, capsule P&L pills, cover-art cabal cards, a dark identity card and glass chrome. Do not take half of it: two visual languages in one app is the failure to avoid.
+1. **Evolve v3** (amended 2026-10-22, from "adopt v3 wholesale"). Keep the bones: cream canvas, bordered cards, capsule P&L pills, cover-art cabal cards, a dark identity card and glass chrome. Give it a face through the signatures in [personality.md](design/personality.md). Two visual languages in one app is still the failure to avoid, so a signature appears everywhere its trigger appears or it does not ship.
 2. **Keep the 15pt text floor (#4110).** Captions the design draws at 10–13px become 15pt. Screens come out a little taller than the references, and parity QA accepts that.
 3. **Keep trading bots (agents)** and restyle them in the v3 language. The agent rows and the "Add a trading bot" entry stay, drawn with the same rows, tiles and cards as everything else. No reference image exists for them; judge them against the neighbouring v3 screens.
 4. **Keep native chart behaviour** (candles, intervals, pinch and pan, crosshair) and restyle the line chart to the v3 look (see Charts).
@@ -175,7 +179,7 @@ The founder has made these nine decisions and they are final; the full reasoning
 6. **Glass: keep the system `TabView`.** iOS 26 glass comes from `glassEffect` and the system; iOS 18 uses `.ultraThinMaterial` and `.regularMaterial`; Reduce Transparency falls back to solid surfaces; never draw the prototype's status bar, home indicator or blur compositor.
 7. **Backend gaps: build the UI against fixtures.** The design shows things the backend lacks: the notifications list, balances detail, group-cash yield, cabal holding cost basis, feed likes, profile bio, the pnl-private permission, the watchlist (local storage is fine), rank movement and card-funding return status. Where data is missing, show a muted `Typo.caption` line "Opens soon" under the section header, or in place of the missing figure. Never show a fake number in a release build. List the missing API in the ticket's Context so a backend ticket can be filed.
 8. **Cabal covers: no stock photos.** The package's JPEGs have no licence. Draw the cover from the cabal's tint gradient plus its uploaded picture when there is one, under the scrim. Default avatars stay as they are today (pixel animals).
-9. **Wordmark.** Render "monaco" in SF Pro Bold until the designer sends a vector. The vector is a follow-up.
+9. **Wordmark.** Render "monaco" in SF Pro Bold until a drawn wordmark holds up at 16pt and on the launch screen (reopened 2026-10-22; the four-figure `LaunchMark` is the candidate).
 
 ## References
 
