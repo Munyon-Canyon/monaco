@@ -393,7 +393,7 @@ func TestWatch_remembersARunItFoundBeforeItFinishes(t *testing.T) {
 
 func TestWatch_doesNotRevertAJobThatWasAlreadyRedBeforeTheLanding(t *testing.T) {
 	t.Parallel()
-	l := newLanding(t, nil)
+	l := newLanding(t, func(x *Landing) { x.Reran = false })
 	l.prior(
 		Run{ID: 70, Status: "completed", Conclusion: "failure", HeadSHA: "5555555555555555", CreatedAt: priorAt(l.f)},
 		Run{
