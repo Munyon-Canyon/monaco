@@ -66,6 +66,18 @@ type topUp struct {
 	lastValid uint64
 }
 
+type journalView struct {
+	pending   uuid.UUID
+	signature chain.Signature
+	lastValid uint64
+	recent    int32
+}
+
+type topUpPlan struct {
+	resolve string
+	next    *topUp
+}
+
 func (t *TopUps) TopUpSOL(ctx context.Context, wallet chain.SolanaAddress) error {
 	if _, err := chain.ParseAddress(string(wallet)); err != nil {
 		return errs.Wrap(err, errs.CodeInvalidAddress, topUpOp)
@@ -73,24 +85,37 @@ func (t *TopUps) TopUpSOL(ctx context.Context, wallet chain.SolanaAddress) error
 	if low, err := t.below(ctx, wallet); err != nil || !low {
 		return err
 	}
-	var next *topUp
-	err := t.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		next = nil
+	since := t.clock.Now().Add(-TopUpCapWindow)
+	var seen journalView
+	if err := t.uow.Do(ctx, func(ctx context.Context, tx db.Tx) (err error) {
+		seen, err = t.view(ctx, sqlc.New(tx.Queries()), wallet, since)
+		return err
+	}); err != nil {
+		return err
+	}
+	plan, err := t.plan(ctx, wallet, seen)
+	if err != nil || plan == (topUpPlan{}) {
+		return err
+	}
+	err = t.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		q := sqlc.New(tx.Queries())
 		if err := q.LockTopUp(ctx, string(wallet)); err != nil {
 			return errs.Wrap(err, errs.CodeDBUnavailable, topUpOp)
 		}
-		send, err := t.settlePending(ctx, q, wallet)
-		if err != nil || !send {
+		now, err := t.view(ctx, q, wallet, since)
+		if err != nil {
 			return err
 		}
-		next, err = t.prepare(ctx, q, wallet)
-		return err
+		if now != seen {
+			return errs.New(errs.CodeUpstreamUnavailable, topUpOp, slog.String("reason", "topup_changed"),
+				slog.String("wallet", string(wallet)))
+		}
+		return t.apply(ctx, q, wallet, seen, plan)
 	})
-	if err != nil || next == nil {
+	if err != nil || plan.next == nil {
 		return err
 	}
-	return t.broadcast(ctx, *next)
+	return t.broadcast(ctx, *plan.next)
 }
 
 func (t *TopUps) below(ctx context.Context, wallet chain.SolanaAddress) (bool, error) {
@@ -98,62 +123,101 @@ func (t *TopUps) below(ctx context.Context, wallet chain.SolanaAddress) (bool, e
 	return err == nil && balance.Uint64() < TopUpFloorLamports, err
 }
 
-func (t *TopUps) settlePending(ctx context.Context, q *sqlc.Queries, wallet chain.SolanaAddress) (bool, error) {
+func (t *TopUps) view(
+	ctx context.Context,
+	q *sqlc.Queries,
+	wallet chain.SolanaAddress,
+	since time.Time,
+) (journalView, error) {
+	var seen journalView
 	row, err := q.LatestPendingTopUp(ctx, string(wallet))
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		return true, nil
 	case err != nil:
-		return false, errs.Wrap(err, errs.CodeDBUnavailable, topUpOp)
+		return journalView{}, errs.Wrap(err, errs.CodeDBUnavailable, topUpOp)
+	default:
+		lastValid, err := strconv.ParseUint(row.LastValidBlockHeight, 10, 64)
+		if err != nil {
+			return journalView{}, errs.Wrap(
+				err,
+				errs.CodeDecodeFailed,
+				topUpOp,
+				slog.String("signature", row.Signature),
+			)
+		}
+		seen = journalView{pending: row.ID, signature: chain.Signature(row.Signature), lastValid: lastValid}
 	}
-	lastValid, err := strconv.ParseUint(row.LastValidBlockHeight, 10, 64)
+	seen.recent, err = q.CountTopUpsSince(ctx, sqlc.CountTopUpsSinceParams{Wallet: string(wallet), Since: since})
 	if err != nil {
-		return false, errs.Wrap(err, errs.CodeDecodeFailed, topUpOp, slog.String("signature", row.Signature))
+		return journalView{}, errs.Wrap(err, errs.CodeDBUnavailable, topUpOp)
 	}
-	status, err := t.status(ctx, chain.Signature(row.Signature))
-	if err != nil {
-		return false, err
-	}
-	switch {
-	case status.Failed || status.BlockhashExpired(lastValid):
-		return true, resolve(ctx, q, row.ID, topUpExpired, t.clock.Now())
-	case status.State != solana.StateNotFound:
-		return false, resolve(ctx, q, row.ID, topUpConfirmed, t.clock.Now())
-	}
-	return false, errs.New(errs.CodeUpstreamUnavailable, topUpOp, slog.String("reason", "topup_in_flight"),
-		slog.String("signature", row.Signature))
+	return seen, nil
 }
 
-func (t *TopUps) prepare(ctx context.Context, q *sqlc.Queries, wallet chain.SolanaAddress) (*topUp, error) {
+func (t *TopUps) plan(ctx context.Context, wallet chain.SolanaAddress, seen journalView) (topUpPlan, error) {
+	var plan topUpPlan
+	if seen.pending != uuid.Nil {
+		status, err := t.status(ctx, seen.signature)
+		if err != nil {
+			return topUpPlan{}, err
+		}
+		switch {
+		case status.Failed || status.BlockhashExpired(seen.lastValid):
+			plan.resolve = topUpExpired
+		case status.State != solana.StateNotFound:
+			return topUpPlan{resolve: topUpConfirmed}, nil
+		default:
+			return topUpPlan{}, errs.New(
+				errs.CodeUpstreamUnavailable,
+				topUpOp,
+				slog.String("reason", "topup_in_flight"),
+				slog.String("signature", string(seen.signature)),
+			)
+		}
+	}
 	balance, err := t.rpc.SOLBalance(ctx, wallet)
 	if err != nil || balance.Uint64() >= TopUpFloorLamports {
-		return nil, err
+		return plan, err
 	}
-	if err := t.underCap(ctx, q, wallet); err != nil {
-		return nil, err
+	if err := t.underCap(ctx, wallet, seen.recent); err != nil {
+		return topUpPlan{}, err
 	}
 	next, err := t.build(ctx, wallet, TopUpTargetLamports-balance.Uint64())
 	if err != nil {
-		return nil, err
+		return topUpPlan{}, err
 	}
-	err = q.InsertTopUp(ctx, sqlc.InsertTopUpParams{
+	plan.next = &next
+	return plan, nil
+}
+
+func (t *TopUps) apply(
+	ctx context.Context,
+	q *sqlc.Queries,
+	wallet chain.SolanaAddress,
+	seen journalView,
+	plan topUpPlan,
+) error {
+	if plan.resolve != "" {
+		if err := resolve(ctx, q, seen.pending, plan.resolve, t.clock.Now()); err != nil {
+			return err
+		}
+	}
+	next := plan.next
+	if next == nil {
+		return nil
+	}
+	err := q.InsertTopUp(ctx, sqlc.InsertTopUpParams{
 		ID: next.id, Wallet: string(wallet), Lamports: strconv.FormatUint(next.lamports, 10),
 		Signature: string(next.signature), LastValidBlockHeight: strconv.FormatUint(next.lastValid, 10),
 		CreatedAt: t.clock.Now(),
 	})
 	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeDBUnavailable, topUpOp)
-	}
-	return &next, nil
-}
-
-func (t *TopUps) underCap(ctx context.Context, q *sqlc.Queries, wallet chain.SolanaAddress) error {
-	count, err := q.CountTopUpsSince(ctx, sqlc.CountTopUpsSinceParams{
-		Wallet: string(wallet), Since: t.clock.Now().Add(-TopUpCapWindow),
-	})
-	if err != nil {
 		return errs.Wrap(err, errs.CodeDBUnavailable, topUpOp)
 	}
+	return nil
+}
+
+func (t *TopUps) underCap(ctx context.Context, wallet chain.SolanaAddress, count int32) error {
 	if count < TopUpCap {
 		return nil
 	}

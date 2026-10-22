@@ -35,6 +35,7 @@ func runUowdo(pass *analysis.Pass) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	local := localFuncs(pass)
 	for _, file := range pass.Files {
 		if allowedPath(allowed, pass.Fset.File(file.Pos()).Name()) {
 			continue
@@ -45,7 +46,7 @@ func runUowdo(pass *analysis.Pass) (any, error) {
 				return true
 			}
 			if lit, ok := call.Args[len(call.Args)-1].(*ast.FuncLit); ok {
-				reportInsideTx(pass, lit.Body)
+				reportInsideTx(pass, lit.Body, local)
 			}
 			return true
 		})
@@ -58,7 +59,21 @@ func isMethod(pass *analysis.Pass, call *ast.CallExpr, fullName string) bool {
 	return fn != nil && fn.FullName() == fullName
 }
 
-func reportInsideTx(pass *analysis.Pass, body *ast.BlockStmt) {
+func localFuncs(pass *analysis.Pass) map[*types.Func]*ast.FuncDecl {
+	local := map[*types.Func]*ast.FuncDecl{}
+	for _, file := range pass.Files {
+		for _, decl := range file.Decls {
+			if d, ok := decl.(*ast.FuncDecl); ok && d.Body != nil {
+				if fn, ok := pass.TypesInfo.Defs[d.Name].(*types.Func); ok {
+					local[fn] = d
+				}
+			}
+		}
+	}
+	return local
+}
+
+func reportInsideTx(pass *analysis.Pass, body *ast.BlockStmt, local map[*types.Func]*ast.FuncDecl) {
 	ast.Inspect(body, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
@@ -69,19 +84,53 @@ func reportInsideTx(pass *analysis.Pass, body *ast.BlockStmt) {
 		}
 		if msg := uowdoViolation(pass, call); msg != "" {
 			pass.Reportf(call.Pos(), "%s inside uow.Do: %s", types.ExprString(call.Fun), msg)
+			return true
+		}
+		if helper := typeutil.StaticCallee(pass.TypesInfo, call); local[helper] != nil {
+			reportVia(pass, call, helper, local)
 		}
 		return true
 	})
 }
 
+func reportVia(pass *analysis.Pass, site *ast.CallExpr, helper *types.Func, local map[*types.Func]*ast.FuncDecl) {
+	seen := map[*types.Func]bool{}
+	var walk func(fn *types.Func)
+	walk = func(fn *types.Func) {
+		seen[fn] = true
+		ast.Inspect(local[fn].Body, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			if isMethod(pass, call, "("+dbPkg+".Tx).AfterCommit") {
+				return false
+			}
+			if msg := uowdoViolation(pass, call); msg != "" {
+				pass.Reportf(
+					site.Pos(),
+					"%s inside uow.Do: %s (via %s)",
+					types.ExprString(call.Fun),
+					msg,
+					helper.Name(),
+				)
+			} else if next := typeutil.StaticCallee(pass.TypesInfo, call); local[next] != nil && !seen[next] {
+				walk(next)
+			}
+			return true
+		})
+	}
+	walk(helper)
+}
+
 func uowdoViolation(pass *analysis.Pass, call *ast.CallExpr) string {
-	fn := typeutil.StaticCallee(pass.TypesInfo, call)
-	if fn == nil || fn.Pkg() == nil {
+	fn, dynamic := calleeOf(pass, call)
+	if fn == nil || fn.Pkg() == nil || dynamic && fn.Pkg().Path() != pass.Pkg.Path() {
 		return ""
 	}
 	path, name := fn.Pkg().Path(), fn.Name()
 	switch {
-	case isOutboundChain(pass, fn):
+	case isOutboundChain(pass, fn, dynamic):
 		return "outbound chain or relayer call; run it before or after the transaction"
 	case path == httpclientPkg || strings.HasPrefix(fn.FullName(), "(*net/http.Client)."):
 		return "HTTP call; run it before or after the transaction"
@@ -93,10 +142,28 @@ func uowdoViolation(pass *analysis.Pass, call *ast.CallExpr) string {
 	return ""
 }
 
-func isOutboundChain(pass *analysis.Pass, fn *types.Func) bool {
+func calleeOf(pass *analysis.Pass, call *ast.CallExpr) (fn *types.Func, dynamic bool) {
+	if fn = typeutil.StaticCallee(pass.TypesInfo, call); fn != nil {
+		return fn, false
+	}
+	fn, _ = typeutil.Callee(pass.TypesInfo, call).(*types.Func)
+	return fn, fn != nil
+}
+
+func isOutboundChain(pass *analysis.Pass, fn *types.Func, dynamic bool) bool {
 	path := fn.Pkg().Path()
 	inChain := path == chainPkg || strings.HasPrefix(path, chainPkg+"/")
-	return inChain && path != pass.Pkg.Path() && !runsInTx(fn)
+	return inChain && (dynamic || path != pass.Pkg.Path()) && !runsInTx(fn) && takesContext(fn)
+}
+
+func takesContext(fn *types.Func) bool {
+	params := fn.Type().(*types.Signature).Params()
+	for i := range params.Len() {
+		if types.TypeString(params.At(i).Type(), nil) == "context.Context" {
+			return true
+		}
+	}
+	return false
 }
 
 func isInfoLog(path, name string) bool {
