@@ -195,22 +195,26 @@ func exportedNames(file string, read func(string) ([]byte, error)) []string {
 }
 
 func declNames(d ast.Decl) []string {
-	if fn, ok := d.(*ast.FuncDecl); ok {
-		return []string{fn.Name.Name}
-	}
-	gen, ok := d.(*ast.GenDecl)
-	if !ok {
-		return nil
-	}
 	var names []string
-	for _, s := range gen.Specs {
-		switch s := s.(type) {
-		case *ast.TypeSpec:
-			names = append(names, s.Name.Name)
-		case *ast.ValueSpec:
-			for _, n := range s.Names {
-				names = append(names, n.Name)
-			}
+	switch d := d.(type) {
+	case *ast.FuncDecl:
+		names = append(names, d.Name.Name)
+	case *ast.GenDecl:
+		for _, s := range d.Specs {
+			names = append(names, specNames(s)...)
+		}
+	}
+	return names
+}
+
+func specNames(s ast.Spec) []string {
+	var names []string
+	switch s := s.(type) {
+	case *ast.TypeSpec:
+		names = append(names, s.Name.Name)
+	case *ast.ValueSpec:
+		for _, n := range s.Names {
+			names = append(names, n.Name)
 		}
 	}
 	return names

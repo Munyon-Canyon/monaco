@@ -1,7 +1,11 @@
 package agents
 
 import (
+	"context"
+	"errors"
+	"io"
 	"io/fs"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -96,7 +100,7 @@ func TestRipple_eachGeneratorFeedsItsOutputs(t *testing.T) {
 			"own package",
 			[]string{be + "internal/x/x.go"},
 			map[string]string{
-				be + "internal/x/x.go":                  "package x\n\nfunc Parse() {}\nfunc hidden() {}\n",
+				be + "internal/x/x.go":                  "package x\n\nimport \"os\"\n\ntype Kind int\n\nconst Limit = 1\n\nvar Mode, quiet = os.Args, 0\n\nfunc Parse() {}\nfunc hidden() {}\n",
 				be + "internal/x/x_test.go":             "package x\n",
 				be + "internal/x/other_test.go":         "package x\n\nvar _ = Parse\n",
 				be + "internal/x/unrelated_test.go":     "package x\n\nvar _ = hidden\n",
@@ -154,5 +158,48 @@ func TestRippleCmd_printsThePathsOfATicket(t *testing.T) {
 	}
 	if code, _, _ := f.agents(t, "ripple"); code == 0 {
 		t.Fatal("ripple without a ticket succeeded")
+	}
+}
+
+func TestRippleOf_readsTrackedFilesFromTheTree(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	writeFile(t, filepath.Join(f.dir, "pkg", "a.go"), "package pkg\n\nfunc Run() {}\n")
+	writeFile(t, filepath.Join(f.dir, "pkg", "b_test.go"), "package pkg\n\nvar _ = Run\n")
+	writeFile(t, filepath.Join(f.dir, "pkg", "c_test.go"), "package pkg\n")
+	git(t, f.dir, "add", "pkg")
+	got, err := f.Env(t).rippleOf(t.Context(), f.dir, []string{"pkg/a.go"})
+	if err != nil || !slices.Equal(got, []string{"pkg/b_test.go"}) {
+		t.Fatalf("ripple = %v, %v", got, err)
+	}
+}
+
+func TestRippleOf_failsWhenGitCannotListTheTree(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	env := f.Env(t)
+	env.Run = func(context.Context, string, string, string, ...string) ([]byte, error) {
+		return nil, errors.New("no git")
+	}
+	if _, err := env.rippleOf(t.Context(), f.dir, []string{"a"}); err == nil {
+		t.Fatal("a git failure was swallowed")
+	}
+}
+
+func TestRippleCmd_refusesABadTicketOrAMissingIssue(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.hub.on(get("/issues/6"), Issue{Number: 6, Body: "**Touches:** `a`"})
+	for _, args := range [][]string{{"ripple", "x"}, {"ripple", "0"}, {"ripple", "7"}} {
+		if code, _, _ := f.agents(t, args...); code == 0 {
+			t.Fatalf("%v succeeded", args)
+		}
+	}
+	env := f.Env(t)
+	env.Run = func(context.Context, string, string, string, ...string) ([]byte, error) {
+		return nil, errors.New("no git")
+	}
+	if err := rippleCmd(t.Context(), env, []string{"6"}, io.Discard); err == nil {
+		t.Fatal("a git failure was swallowed")
 	}
 }
