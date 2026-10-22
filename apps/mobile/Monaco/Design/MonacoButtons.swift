@@ -375,8 +375,7 @@ struct CircleAction: View {
             action()
         } label: {
             VStack(spacing: MonacoTheme.Space.s) {
-                Image(systemName: systemImage)
-                    .font(.system(size: glyphSize, weight: .medium))
+                glyph
                     .foregroundStyle(MonacoTheme.brand)
                     .frame(width: discSize, height: discSize)
                     .background(Circle().fill(MonacoTheme.brandSoft))
@@ -397,6 +396,15 @@ struct CircleAction: View {
         }
         .buttonStyle(CircleActionPressStyle())
         .accessibilityLabel(title)
+    }
+
+    @ViewBuilder private var glyph: some View {
+        if let icon = MonacoIcon(systemName: systemImage), icon.hasPixel {
+            MonacoGlyph(icon, size: glyphSize)
+        } else {
+            Image(systemName: systemImage)
+                .font(.system(size: glyphSize, weight: .medium))
+        }
     }
 }
 

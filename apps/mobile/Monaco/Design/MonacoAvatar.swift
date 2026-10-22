@@ -97,15 +97,10 @@ struct MonacoAvatar: View {
 
     private var placeholder: some View {
         let key = (seed ?? "").isEmpty ? displayName : seed ?? ""
-        return Circle()
-            .fill(MonacoTheme.CabalTint.forGroupId(key).fill)
-            .overlay {
-                Text(CabalMark.initials(for: displayName))
-                    .font(.system(size: size * 0.4, weight: .semibold))
-                    .foregroundStyle(Color.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.5)
-            }
+        return Image(PixelAnimal.forSeed(key).imageName)
+            .interpolation(.none)
+            .resizable()
+            .scaledToFill()
     }
 }
 

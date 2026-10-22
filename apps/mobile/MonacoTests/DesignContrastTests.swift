@@ -213,6 +213,12 @@ struct MonacoContrastTests {
             ("profitOnCover", MonacoTheme.profitOnCover), ("lossOnCover", MonacoTheme.lossOnCover),
         ] {
             pairs.append(Pair(label, color, on: [Color.white, MonacoTheme.coverOverlay]))
+            for tint in MonacoTheme.CabalTint.allCases {
+                pairs.append(
+                    Pair(
+                        "\(label) on \(tint) emblem pattern", color,
+                        on: [tint.fill, MonacoTheme.coverOverlay, MonacoTheme.emblemPattern]))
+            }
         }
 
         pairs.append(Pair("onBrand", MonacoTheme.onBrand, on: [MonacoTheme.brandFill]))

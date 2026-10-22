@@ -9,6 +9,7 @@ import SwiftUI
 /// fixed `size × size` either way, so an arriving picture never moves anything.
 struct CabalMark: View {
     private let tint: MonacoTheme.CabalTint
+    private let emblem: CabalEmblem
     private let initials: String
     private let name: String
     private let size: CGFloat
@@ -33,6 +34,7 @@ struct CabalMark: View {
     ) {
         markForm = shape
         tint = .forGroupId(groupId)
+        emblem = .forGroupId(groupId)
         initials = CabalMark.initials(for: name)
         self.name = name
         self.size = size
@@ -78,14 +80,16 @@ struct CabalMark: View {
         MarkGeometry.shape(markForm, size: size)
     }
 
+    @Environment(\.displayScale) private var displayScale
+
     private var initialsLabel: some View {
-        Text(initials)
-            .font(.system(size: size * (initials.count > 1 ? 0.36 : 0.42), weight: .semibold))
-            .foregroundStyle(tint.onFill)
-            .lineLimit(1)
-            .minimumScaleFactor(0.5)
-            .padding(size * 0.08)
+        PixelGlyphShape(bitmap: emblem.bitmap, scale: displayScale)
+            .fill(tint.onFill, style: FillStyle(antialiased: false))
+            .frame(width: size * CabalMark.emblemFraction, height: size * CabalMark.emblemFraction)
+            .accessibilityLabel(Text(initials))
     }
+
+    static let emblemFraction: CGFloat = 0.72
 
     private var cachedPicture: UIImage? {
         pictureURL.flatMap { MonacoRemoteImageStore.avatars.cachedImage(for: $0) }
@@ -308,9 +312,14 @@ struct StockMark: View {
                 .minimumScaleFactor(0.5)
                 .padding(.horizontal, size * 0.08)
         case .symbol(let name):
-            Image(systemName: name)
-                .font(.system(size: size * 0.40, weight: .semibold))
-                .foregroundStyle(MonacoTheme.secondaryText)
+            if let icon = MonacoIcon(systemName: name), icon.hasPixel {
+                MonacoGlyph(icon, size: size * 0.40)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+            } else {
+                Image(systemName: name)
+                    .font(.system(size: size * 0.40, weight: .semibold))
+                    .foregroundStyle(MonacoTheme.secondaryText)
+            }
         }
     }
 
