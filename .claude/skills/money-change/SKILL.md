@@ -35,7 +35,7 @@ The relayer package is `apps/backend/internal/platform/chain/relayer`.
 
 ## Logs
 
-- Inside `uow.Do`, log at `Debug` only. The transaction can roll back and retry, so an `Info` line there can describe money that never moved. `db.UnitOfWork.Do` itself logs `tx.committed` or `tx.rolled_back` at `Info`. No lint enforces this rule yet, so check it in review.
+- Inside `uow.Do`, log at `Debug` only. The transaction can roll back and retry, so an `Info` line there can describe money that never moved. `db.UnitOfWork.Do` itself logs `tx.committed` or `tx.rolled_back` at `Info`. The `uowdo` analyzer (`internal/platform/lint/nogo`) reports outbound calls, Info logs and unwrapped publishes inside `uow.Do`; the lint row of `agents check` and CI's lint job run it.
 - After the commit, log the change once with before and after attributes: the balance or state before, the balance or state after, the asset and the owning ID. Register the message in the area's `msgs_<area>.go` under `apps/backend/internal/platform/observability`. `apps/backend/internal/platform/observability/registry_test.go` fails an unregistered message.
 - Never log a private key, a Privy token or a raw signed transaction. The handler in `apps/backend/internal/platform/observability/redact.go` masks attrs named like `key`, `token`, `signature` or `secret`, and long base58 and base64 values. Keep attr names honest so redaction applies. `apps/backend/internal/platform/chain/relayer/redaction_test.go` proves no key, token or signature reaches a log line. Add a case there when you add a signing path.
 
