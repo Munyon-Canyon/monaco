@@ -76,8 +76,11 @@ func (env *Env) judgeLanding(ctx context.Context, r Record, l Landing) ([]string
 		var rerr error
 		call, rerr = env.relatedFailure(ctx, r, l, run)
 		if rerr != nil {
-			return append(call.lines, watchErr(fmt.Sprintf("revert %s: ", refs), rerr)), nil
+			call.lines = append(call.lines, watchErr(fmt.Sprintf("revert %s: ", refs), rerr))
 		}
+	}
+	if call.wait {
+		return call.lines, nil
 	}
 	return call.lines, func(x *Landing) {
 		x.RunID, x.RunURL = run.ID, run.URL
@@ -92,6 +95,7 @@ func (env *Env) judgeLanding(ctx context.Context, r Record, l Landing) ([]string
 type landingCall struct {
 	revert int
 	rerun  bool
+	wait   bool
 	lines  []string
 }
 
@@ -167,7 +171,7 @@ func (env *Env) relatedFailure(ctx context.Context, r Record, l Landing, run Run
 	}
 	if !l.Reran {
 		if err := env.GitHub.RerunFailed(ctx, run.ID); err != nil {
-			return landingCall{lines: lines}, fmt.Errorf("rerun failed jobs of %s: %w", run.URL, err)
+			return landingCall{wait: true, lines: append(lines, watchErr("rerun "+run.URL+": ", err))}, nil
 		}
 		lines = append(
 			lines,

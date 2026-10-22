@@ -449,3 +449,57 @@ func TestWatch_rerunsFailedJobsOnceBeforeReverting(t *testing.T) {
 		t.Fatalf("landing %+v", got)
 	}
 }
+
+func TestWatch_goesOnToTheRerunWhenThePriorRunWasRedOnOtherJobs(t *testing.T) {
+	t.Parallel()
+	l := newLanding(t, func(x *Landing) { x.Reran = false })
+	l.prior(
+		Run{ID: 70, Status: "completed", Conclusion: "failure", HeadSHA: "5555555555555555", CreatedAt: priorAt(l.f)},
+	)
+	l.f.hub.on(get("/actions/runs/70/jobs?per_page=100"), map[string]any{"jobs": []Job{
+		{Name: "staging / Lint", Conclusion: "failure"},
+	}})
+	l.f.hub.on("POST /repos/o/r/actions/runs/77/rerun-failed-jobs", "")
+	l.run("failure", Job{Name: "staging / Backend tests (a)", Conclusion: "failure"})
+	_, stdout, _ := l.f.agents(t, "watch", "--once")
+	if strings.Contains(stdout, "already red") || !strings.Contains(stdout, "reran the failed jobs once") {
+		t.Fatalf("%q", stdout)
+	}
+}
+
+func TestWatch_reportsWhatItCannotReadAboutThePriorRunAndWhatItCannotRerun(t *testing.T) {
+	t.Parallel()
+	prior := get("/actions/workflows/staging.yml/runs?branch=fb&status=completed&per_page=10")
+	jobs := get("/actions/runs/70/jobs?per_page=100")
+	rerun := "POST /repos/o/r/actions/runs/77/rerun-failed-jobs"
+	for _, tc := range []struct {
+		name, want string
+		checked    bool
+		setup      func(l *landingFixture)
+	}{
+		{"the prior run list fails", "watch error: revert #1 #2: GET ", true, func(l *landingFixture) {
+			l.f.hub.status[prior] = 500
+		}},
+		{"the prior run jobs fail", "watch error: revert #1 #2: GET ", true, func(l *landingFixture) {
+			l.prior(Run{ID: 70, Status: "completed", Conclusion: "failure", HeadSHA: "5555", CreatedAt: priorAt(l.f)})
+			l.f.hub.status[jobs] = 500
+		}},
+		{"the rerun is refused", "watch error: rerun https://gh/run/77: POST ", false, func(l *landingFixture) {
+			l.f.hub.on(rerun, "")
+			l.f.hub.status[rerun] = 500
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			l := newLanding(t, func(x *Landing) { x.Reran = false })
+			l.run("failure", Job{Name: "staging / Backend tests (a)", Conclusion: "failure"})
+			l.f.hub.on(jobs, map[string]any{"jobs": []Job{}})
+			tc.setup(l)
+			_, stdout, _ := l.f.agents(t, "watch", "--once")
+			got := l.landing(t)
+			if !strings.Contains(stdout, tc.want) || got.Checked != tc.checked || got.Reran {
+				t.Fatalf("%q, want %q; %+v", stdout, tc.want, got)
+			}
+		})
+	}
+}
