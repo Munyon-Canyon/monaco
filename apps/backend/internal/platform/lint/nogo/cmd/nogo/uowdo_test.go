@@ -41,6 +41,10 @@ func uowdoTree(caller string) map[string]string {
 		"internal/platform/observability/boundary/boundary.go": "package boundary\n\nimport \"context\"\n\nfunc Warn(context.Context, string) {}\n",
 		"internal/platform/observability/obs.go": "package observability\n\nimport \"context\"\n\n" +
 			"func Info(context.Context, string) {}\n\nfunc Debug(context.Context, string) {}\n",
+		"internal/modules/referrals/app/attach_referral.go": "package app\n\nimport (\n\t\"context\"\n\n\t\"" + uowdoModule + "platform/db\"\n" +
+			"\t\"" + uowdoModule + "platform/observability\"\n)\n\n" +
+			"func Attach(ctx context.Context, uow *db.UnitOfWork) {\n\t_ = uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {\n" +
+			"\t\tobservability.Info(ctx, \"x\")\n\t\treturn nil\n\t})\n}\n",
 		"internal/modules/m/m.go": "package m\n\n" + imports + caller,
 	}
 }
