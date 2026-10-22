@@ -6,6 +6,7 @@ cd "$root"
 
 # Staged paths only. Full-tree `dotenvx precommit` walks .worktrees and takes ~10s+.
 git diff --cached --name-only --diff-filter=ACM | ./scripts/githooks/check-staged-env.sh
+git diff --cached --name-only --diff-filter=ACM | ./scripts/githooks/check-staged-udid.sh
 
 ./scripts/githooks/lint-staged-go.sh
 ./scripts/githooks/lint-staged-swift.sh
