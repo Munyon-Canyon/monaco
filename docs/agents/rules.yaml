@@ -746,3 +746,187 @@ rules:
     surface: [cursor-rules/no-cursor-coauthor]
     enforced_by: prose
     note: "Claude Code sessions follow the repo's signing rule instead (standing order 7)."
+  - id: OM01
+    title: "Ask before taking the shared backend ports"
+    text: "Before you stop or replace the backend on `:8080` or `:8081`, ask the orchestrator. That covers `just stop backend`, `just run`, `just reset` and serving a worktree branch there. Ask even when the user wants the branch backend, and use other ports for your own checks."
+    audience: owner
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "those ports are shared QA infrastructure, and a restart cuts off whichever session is mid-request against them."
+    note: "source: operator-memory (ask-before-taking-backend-ports)"
+  - id: OM02
+    title: "Ask before arming another lane's stack"
+    text: "Arm only your own PRs. When `agents watch` reports another lane's stack as green but not armed, message the orchestrator with the PR and the evidence before you run `land-stack`, and wait for a go-ahead."
+    audience: owner
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "a missing arm can be a deliberate hold, and the watch logs a deliberate `agents dequeue` the same way it logs a lost arm."
+    note: "source: operator-memory (ask-before-arming-lane-stacks)"
+  - id: OM03
+    title: "Closing keywords only in the last PR"
+    text: "Write `closes`, `fixes` or `resolves` followed by an issue number only in the last PR of a ticket, even as a negation or a passing mention. In every other body, say \"the last PR of #N\". Before `scripts/pr-body.sh`, grep the body file with `grep -niE \"(close[sd]?|fix(e[sd])?|resolve[sd]?) #[0-9]+\"`."
+    audience: owner
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "GitHub closes the ticket on squash for a closing keyword anywhere in the body, so an early mention hides an unlanded PR from the board."
+    note: "source: operator-memory (closing-keywords-anywhere-in-pr-body). The PR format check does not catch it yet."
+  - id: OM04
+    title: "Code-writing agents run on sonnet"
+    text: "Run every agent that writes code (ticket owners, bug fixers, runner changes) on `sonnet`, and keep planning, review and landing in the root. Pass `--model sonnet` to `monacoctl agents dispatch` and `model: sonnet` on `Agent` calls."
+    audience: root
+    surface: [standing-orders, monaco-milestone]
+    enforced_by: prose
+    why: "the operator asked for this during the 2026-10-06 overnight run, after Opus owners had been spawned. It overrides the Opus default in the pstack model sheet."
+    note: "source: operator-memory (code-agents-on-sonnet). Conflicts with standing order 6, which puts owners on opus; the operator has not reconciled the two."
+  - id: OM05
+    title: "One herdr lane per ticket group"
+    text: "For a milestone run, give each ticket or ticket group its own herdr workspace with an Opus session that orchestrates Sonnet coders and submits and lands its own stack. The main session supervises the lanes and the CI manager, and does not run owners as in-session subagents. Dispatch one ticket at a time (`agents batch <n>`, then `dispatch <n> --model opus`) so Touches overlaps inside a lane do not defer tickets."
+    audience: root
+    surface: [standing-orders, monaco-milestone]
+    enforced_by: prose
+    why: "the operator wants each lane visible in the herdr sidebar, with Opus orchestrating and Sonnet coding, and the same holds for the CI manager's tickets."
+    note: "source: operator-memory (herdr-lanes-opus-orchestrators)"
+  - id: OM06
+    title: "Async throws tests on a MainActor test case"
+    text: "In `packages/mobile-core`, write a new test on a `@MainActor` XCTestCase as `async throws`, never as a synchronous `throws`. To check, build the tests in the Swift Linux container and dump the test list as JSON; exit code 134 means the discovery crash."
+    audience: owner
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "the Linux XCTest runner force-casts a synchronous isolated test to a non-isolated type and aborts discovery, and macOS stage 0 passes, so only stage 1 shows it."
+    note: "source: operator-memory (mainactor-sync-throws-linux-xctest). A second memory file, linux-xctest-mainactor-sync-throws, says the same."
+  - id: OM07
+    title: "No heredoc around the agent guard"
+    text: "Never wrap a guarded command (a raw `git rebase`, a repo-wide `go test`, `pkill`, a push) in a `bash` or `sh` heredoc to get past `scripts/agent-guard.py`. When the guard blocks something you need, take its sanctioned path, such as `gt restack --only` or `agents check`, or ask the user and change the guard in a PR. Heredocs for data (`cat > file`, `--body-file`) are fine."
+    audience: all
+    surface: [agents-md]
+    enforced_by: prose
+    why: "a guard rule exists for a reason, and going around it silently costs the operator's trust. The CI manager session did this on 2026-10-07 and was called out."
+    note: "source: operator-memory (no-heredoc-guard-bypass)"
+  - id: OM08
+    title: "Two identical failures mean stop rerunning"
+    text: "When a check, journey run or CI job fails twice at the same step, stop rerunning. Diagnose from the code, the accessibility tree or the logs, decide whether the setup or the code is wrong, and fix that before the next run. Never rerun one change at a time with a full rebuild each time."
+    audience: owner
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "a journey owner reran one failing step about eight times at roughly 3.5 minutes a run, and the operator called the loop unacceptable."
+    note: "source: operator-memory (no-failure-loops)"
+  - id: OM09
+    title: "Never change the user's network settings"
+    text: "Never change the user's network settings: no VPN, Tailscale, firewall, DNS or proxy commands, even to unblock an unattended run and even when the change is reversible. Measure, report the evidence and the exact command, put it on the morning list, and land the work that does not depend on it."
+    audience: all
+    surface: [agents-md]
+    enforced_by: prose
+    why: "an overnight run disconnected a VPN after measuring that it dropped loopback connects, and the operator ruled that out for good."
+    note: "source: operator-memory (never-touch-network-settings)"
+  - id: OM10
+    title: "Smallest fixture that proves the rule"
+    text: "Prove a paging or batching rule with the smallest N that spans several pages, such as 250 rows at a page size of 100 for exactly 3 calls. Do not seed thousands of rows, and shrink any test that seeds more than about 500 before it ships."
+    audience: owner
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "a 10,000-wallet test saturated the shared test Postgres and failed other lanes' stage 0 for hours."
+    note: "source: operator-memory (no-huge-test-fixtures)"
+  - id: OM11
+    title: "Open each dispatched worktree in herdr"
+    text: "After `monacoctl agents dispatch` creates a worktree, open it with `herdr worktree open --cwd <repo root> --path <worktree> --label \"<n> <short name>\"`, and close that workspace when the worktree is removed."
+    audience: root
+    surface: [standing-orders, monaco-milestone]
+    enforced_by: prose
+    why: "dispatch and `git worktree add` do not open a herdr workspace, so the worktree stays out of the operator's sidebar."
+    note: "source: operator-memory (open-worktrees-in-herdr)"
+  - id: OM12
+    title: "One simulator, one continuous pass"
+    text: "Run journey QA on one booted simulator and switch actors in the app instead of booting a simulator per actor. Run a journey's steps in one continuous pass, not one relaunch per step. No more than 2 simulators may be booted across all sessions: check `xcrun simctl list devices booted` first, shut down extras, and drop a simulator on its first crash loop."
+    audience: owner
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "four booted simulators pushed machine load to 174 and slowed every lane."
+    note: "source: operator-memory (one-sim-continuous-journeys)"
+  - id: OM13
+    title: "Lint before you commit, report a refused commit"
+    text: "Before you commit Go, run the pinned `golangci-lint run ./<pkg>/...` from `apps/backend`, use a fixed `time.Date` in tests and write no Go comments. A refusal caused by your own change is yours to fix; retry once, and report the exact lines at once if it stays refused. Wait on your own check by pid, never `pgrep 'agents check'`, which matches other lanes' checks. The root takes over an owner whose files sit unchanged for 10 minutes with nothing running."
+    audience: owner
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "owners wrote correct code and then stalled without a report on a refused pre-commit, and two sat for more than 30 minutes while the critical path waited."
+    note: "source: operator-memory (owners-stall-at-precommit)"
+  - id: OM14
+    title: "Shared record changes use the staging binary"
+    text: "On a branch that changes the shape of an on-disk record every lane reads, such as `.git/.monaco/agents/<n>.json`, run `land-stack`, `dequeue`, `exited` and `own` from the staging-built `bin/monacoctl` in the primary clone, not from the worktree. Only `agents check` runs from the worktree. Keep old readers working by adding keys and leaving the old ones in their old shape."
+    audience: owner
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "a lane wrote a new key into the shared record from its worktree, the watch built from staging failed to decode it every round, and landing stopped for every lane."
+    note: "source: operator-memory (record-format-branch-use-staging-binary)"
+  - id: OM15
+    title: "Scripted QA and a time box"
+    text: "Run sim QA as scripted journeys (`docs/journeys` with `scripts/qa/journey.py`, test-without-building, data seeded through the backend API), never as improvised taps. No agent task runs 30 minutes without a pushed commit or a written result, and an investigation gets about 15. Before you take or restack a ticket, list its PRs' latest commit authors: a commit by someone else in the last 24 hours means a teammate owns it."
+    audience: owner
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "improvised QA took about two hours per agent, and two tickets were re-dispatched as dead while a teammate was still pushing to them."
+    note: "source: operator-memory (qa-fast-and-timeboxed)"
+  - id: OM16
+    title: "Rewrite tickets port from the working reference"
+    text: "For a rewrite-era ticket (pot, cash out, fund, withdraw, holdings, mobile money screens), name the files to read with `git show c838bd24:<path>` in the owner's brief and say to port that behavior (rules, states, edge cases, UI flow, copy) into the current module architecture. Do not redesign, and do not copy its code patterns."
+    audience: root
+    surface: [standing-orders, monaco-milestone]
+    enforced_by: prose
+    why: "commit c838bd24 (2026-09-25) is the last working pre-rewrite build, and the operator wants its behavior integrated, not rewritten."
+    note: "source: operator-memory (port-from-working-reference)"
+  - id: OM17
+    title: "Re-probe for teammates right before dispatch"
+    text: "Immediately before `monacoctl agents dispatch <n>`, run `gh pr list --state open --search \"head:<n>-\"` and `git ls-remote origin \"refs/heads/<n>-*\"`. A PR or branch by someone else under 24 hours old means a teammate owns the ticket, so skip it. Before you file a ticket for a staging failure, search open PRs for the failing test's name and its file."
+    audience: root
+    surface: [standing-orders, monaco-milestone]
+    enforced_by: prose
+    why: "an hours-old probe missed a teammate's four-PR stack, and a ticket was filed for a red test that a teammate's PR had fixed ten minutes earlier."
+    note: "source: operator-memory (reprobe-teammate-before-dispatch)"
+  - id: OM18
+    title: "Make stage 0 cheaper, not serial"
+    text: "A cap that runs one stage 0 check at a time is a stopgap for one run, not a policy. Cut the work per check: run only the packages that import a change, share build caches across worktrees, keep per-test probes out of the database hot path, and measure CPU-seconds and disk writes before and after. Restore the caps when the run ends."
+    audience: owner
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "parallel checks against Docker's test databases froze the machine three times, and the operator wants verification that does not burn the whole machine, not a permanent queue."
+    note: "source: operator-memory (stage0-must-be-cheap-not-serial)"
+  - id: OM19
+    title: "Run stage 0 in a second worktree"
+    text: "To keep coding while `monacoctl agents check` runs, add a second worktree with the branch itself checked out (`git worktree add ../<n>-check-b <branch>`, with `.bin` symlinked) and run the check there in the background. Never check from a detached worktree, never put `gt modify` or a checkout in the same backgrounded command as the check, and run `git checkout` and `gt submit` as separate calls."
+    audience: owner
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "a check from a detached worktree measured PR size against staging instead of the Graphite parent, and a backgrounded branch switch raced a foreground checkout."
+    note: "source: operator-memory (stage0-in-second-worktree)"
+  - id: OM20
+    title: "Signed-in simulator QA is agent work"
+    text: "Treat simulator QA that needs a signed-in app as agent work. `apps/mobile/qa/journeys/accounts.tsv` holds Privy test logins with fixed codes, and XCUITest can drive both the app and the iOS Settings app. Only a real third-party OAuth login or real mainnet money is the user's, so check an owner's hand-back against those two before it goes on the \"Needs from Logan\" list."
+    audience: root
+    surface: [standing-orders, monaco-milestone]
+    enforced_by: prose
+    why: "owners listed OTP sign-in and missing tap tools as operator items on an overnight run, and the operator asked why real QA was not being done."
+    note: "source: operator-memory (sim-qa-is-agent-runnable)"
+  - id: OM21
+    title: "Use the Mac's capacity"
+    text: "Run parallel work at the machine's real capacity: about 6 `agents check` slots and 4 Xcode slots. When load spikes, find the bug behind it (a broad `pkill`, a hung `xcodebuild`, Docker down) before you cut slots, restore capacity when load falls, and measure `uptime` and `memory_pressure` before and after any throttle. Cap the synthetic load of a load-test fix at 9 busy-loop processes."
+    audience: root
+    surface: [standing-orders, monaco-milestone]
+    enforced_by: prose
+    why: "cutting slots to 1 to 3 during a spike left 27 checks queued with 90% of memory free, and the spike's causes were bugs, not capacity."
+    note: "source: operator-memory (use-the-macs-capacity)"
+  - id: OM22
+    title: "Name a worktree after its branch"
+    text: "Name a worktree directory exactly after its branch, as in `git worktree add -b 573-flow-commands .worktrees/573-flow-commands origin/staging`, not by the bare ticket number."
+    audience: owner
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "the directory name tells the operator which branch is in it."
+    note: "source: operator-memory (worktree-named-after-branch). `agents dispatch` still creates .worktrees/<ticket>."
+  - id: OM23
+    title: "Trades buy the voted amount at execution price"
+    text: "A cabal buy spends the USDC amount the cabal voted for at the price when it executes, and a sell spends the token amount. The vote-time quote is display only: a stock move since the vote never fails or blocks the trade, and slippage only bounds the gap between the execution-time quote and the fill. Take the price floor from a fresh quote at execution, never from `proposals.quote_out_amount`."
+    audience: all
+    surface: [agents-md]
+    enforced_by: prose
+    why: "the operator rejected holding orders to the vote-time quote after a staging buy failed `price_moved` on a 1.3% rise, because the share count follows the amount."
+    note: "source: operator-memory (trades-buy-amount-at-execution-price)"
