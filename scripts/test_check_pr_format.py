@@ -117,6 +117,17 @@ class TicketTest(unittest.TestCase):
 
 
 class ClosingKeywordTest(unittest.TestCase):
+    def test_accepts_the_landed_title_and_why_of_5492(self):
+        self.assertEqual(check.title_errors("Trade stocks on Solana, Base and Robinhood Chain only"), [])
+        why = "Closes #5491. Operator decision (2026-10-17): the real-money run found no EVM route that beat Solana."
+        self.assertEqual(check.closing_errors(pr(why)), [])
+
+    def test_rejects_a_closing_keyword_in_the_title(self):
+        for title in ["Retry the sweep, closes #4048", "Fixes #12 in the router", "RESOLVES owner/repo#7 now"]:
+            self.assertEqual(len(check.title_errors(title)), 1, title)
+        self.assertEqual(check.title_errors("Fix redeem rounding reported in #212"), [])
+        self.assertEqual(check.title_errors("Retry the sweep after a timeout"), [])
+
     def test_rejects_the_sentences_that_closed_tickets_early(self):
         for why in ["Part of #5.\n\nThis lands before the PR that closes #1942.", "Part of #5.\n\nThis PR doesn't close #4048."]:
             errors = check.closing_errors(pr(why))
