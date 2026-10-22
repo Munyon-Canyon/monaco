@@ -137,6 +137,24 @@ func TestCIAffectedFailsWhenGitOrGoListFails(t *testing.T) {
 		{"go list fails", "base", "go list broke", fakeGo("", errs.New(errs.CodeInternal, "go list broke"))},
 		{"go list prints bad JSON", "base", "decode_failed", fakeGo("{", nil)},
 		{
+			"the scanner diff fails", "base", "scan diff broke",
+			func(ctx context.Context, d string, env []string, name string, args ...string) ([]byte, error) {
+				if slices.Contains(args, "-U0") {
+					return nil, errs.New(errs.CodeInternal, "scan diff broke")
+				}
+				return runCommand(ctx, d, env, name, args...)
+			},
+		},
+		{
+			"the sentinel search fails", "base", "sentinel broke",
+			func(ctx context.Context, d string, env []string, name string, args ...string) ([]byte, error) {
+				if slices.Contains(args, "-l") {
+					return nil, errs.New(errs.CodeInternal, "sentinel broke")
+				}
+				return runCommand(ctx, d, env, name, args...)
+			},
+		},
+		{
 			"the flow file diff fails", "base", "flow diff broke",
 			func(ctx context.Context, d string, env []string, name string, args ...string) ([]byte, error) {
 				if slices.Contains(args, ":(top)"+flows.Dir) {
@@ -522,6 +540,60 @@ func TestReverseDepsSeedsPerModuleSharedFilesFromTheirModule(t *testing.T) {
 			t.Parallel()
 			if got, _ := reverseDeps(byDir, tc.changed); !slices.Equal(got, tc.want) {
 				t.Fatalf("reverseDeps(%v) = %v, want %v", tc.changed, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestCIAffectedSelectsSourceScanningTests(t *testing.T) {
+	t.Parallel()
+	const call = "package a\n\nimport \"example.com/m/internal/platform/observability\"\n\nfunc A() { observability.Info(\"x\", 1) }\n"
+	cases := []struct {
+		name   string
+		change map[string]string
+		want   string
+	}{
+		{
+			"a changed observability call selects the registry package and the sentinel package",
+			map[string]string{"internal/modules/a/a.go": strings.Replace(call, "1)", "2)", 1)},
+			"./internal/modules/a\n./internal/platform/observability\n./scanner\n",
+		},
+		{
+			"a module change with no observability call selects only the sentinel package",
+			map[string]string{"internal/modules/b/b.go": "package b\n\nfunc B() int { return 2 }\n"},
+			"./internal/modules/b\n./scanner\n",
+		},
+		{
+			"a non-Go change in a package does not select the sentinel package",
+			map[string]string{"internal/modules/b/data.json": "{}\n"},
+			"./internal/modules/b\n",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dir := ciModule(t)
+			for name, body := range map[string]string{
+				"internal/platform/observability/observability.go": "package observability\n\nfunc Info(string, int) {}\n",
+				"internal/modules/a/a.go":                          call,
+				"internal/modules/b/b.go":                          "package b\n\nfunc B() int { return 1 }\n",
+				"scanner/scanner.go":                               "package scanner\n",
+				"scanner/scanner_test.go":                          "package scanner\n\nconst scansModuleSource = true\n\nvar _ = scansModuleSource\n",
+			} {
+				writeCIFile(t, dir, name, body)
+			}
+			git(t, dir, "add", ".")
+			git(t, dir, "commit", "-q", "-m", "scanners")
+			git(t, dir, "tag", "scanners")
+			for name, body := range tc.change {
+				writeCIFile(t, dir, name, body)
+			}
+			git(t, dir, "add", ".")
+			git(t, dir, "commit", "-q", "-m", "change")
+			env := ciEnv{moduleDir: dir, goBin: "go", gitBin: "git", exec: runCommand}
+			code, stdout, stderr := runCIAffected(env, "affected", "--base", "scanners")
+			if code != 0 || stdout != tc.want {
+				t.Fatalf("code=%d stdout=%q want %q stderr=%s", code, stdout, tc.want, stderr)
 			}
 		})
 	}
