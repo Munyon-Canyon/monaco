@@ -42,6 +42,7 @@ func steps(ctx context.Context) []step {
 		{"httpapi", func() error { return genAPIs(specDir, apiDir, backendModule+"/"+apiDir, errs.All()) }},
 		{"flows", func() error { return genFlows("../..") }},
 		{"docs", func() error { return genDocs("../../docs/reference") }},
+		{"agents", func() error { return genAgents("../..") }},
 		{"hash", func() error { return codegen.HashMigrations(ctx, ".") }},
 	}
 }
