@@ -8,7 +8,6 @@ gremlins
 monacoctl mutation
 git push
 git rebase
-merge without verify
 1000 changed lines
 ready job
 poteto-agent
@@ -19,3 +18,4 @@ land, then write
 gt sync
 gh run watch
 pr checks --watch
+merge without verify
