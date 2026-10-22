@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -733,5 +734,42 @@ func TestDispatch_reusesADetachedWorktreeAndLetsGitReportAnUnreadableOne(t *test
 	writeFile(t, file, "not a directory\n")
 	if err := env.ensureWorktree(t.Context(), file, "fb", ioDiscard()); err == nil {
 		t.Fatal("want git to refuse a file where the worktree should be")
+	}
+}
+
+func TestDispatch_recordsTheTouchesWithTheRipple(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	f.batch(t, 12)
+	f.hub.on(get("/issues/12"), Issue{
+		Number: 12,
+		Body:   "**Milestone:** M7 · **Blocked by:** none · **Touches:** `apps/backend/internal/errs/codes_zz.go`, `docs/reference/errors.md`",
+	})
+	f.hub.on(list("/pulls?state=open"), []PR{})
+	f.ownerComments(12)
+	f.ps()
+	code, stdout, stderr := f.agents(t, "dispatch", "12", "--model", "opus")
+	if code != 0 || stderr != "" {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+	if !strings.Contains(stdout, "ripple: 4 paths added to Touches") {
+		t.Fatalf("stdout = %q", stdout)
+	}
+	rec, err := f.Env(t).localRecord(12)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"apps/backend/internal/errs/codes_zz.go",
+		"docs/reference/errors.md",
+		"apps/backend/internal/errs/testdata/codes_zz.golden",
+		"packages/mobile-core/Tests/MonacoAPITests/ErrorCodeCases.gen.swift",
+	} {
+		if !slices.Contains(rec.Touches, want) {
+			t.Fatalf("record Touches %v lacks %s", rec.Touches, want)
+		}
+	}
+	if n := len(rec.Touches); n != 6 {
+		t.Fatalf("record Touches = %v, want the 2 listed and 4 rippled", rec.Touches)
 	}
 }
