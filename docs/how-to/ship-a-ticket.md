@@ -18,7 +18,7 @@ The design behind each step lives elsewhere. [Pull requests: small and stacked](
 
         gh issue view <n>
 
-    The header line names the milestone, `Blocked by`, the base branch and `Touches`. Change only the paths `Touches` lists. When the Proposal says "Implement exactly", do that and nothing more. An unrelated defect you find goes under "What came up" in the PR body, or into a new ticket.
+    The header line names the milestone, `Blocked by`, the base branch and `Touches`. Change only the paths `Touches` lists. `monacoctl agents dispatch` widens that list with the generated ripple and prints `ripple: <n> paths added to Touches`: the generator outputs, goldens and own-package tests that your paths feed. The widened list lives in the owner record, and the issue stays as written. `monacoctl agents ripple <ticket>` prints the same paths. `monacoctl agents check` then fails an edit outside the widened list unless it is a fixture in a package that imports a touched one and names an exported identifier your diff changed. It prints such an edit as `accepted by ripple: <path> (<reason>)`. When the Proposal says "Implement exactly", do that and nothing more. An unrelated defect you find goes under "What came up" in the PR body, or into a new ticket.
 
 2. Work in a worktree under `.worktrees/`, never in the primary checkout. A dispatched agent `cd`s into the `worktree` path from its prompt. A person makes one at the `staging` tip:
 
