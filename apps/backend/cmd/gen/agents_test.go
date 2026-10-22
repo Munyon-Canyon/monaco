@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -112,5 +113,69 @@ func TestCheckedInAgentFilesMatchTheRuleSource(t *testing.T) {
 		if string(have) != content {
 			t.Errorf("%s is stale against %s; run `go generate ./...` in apps/backend", rel, rulesFile)
 		}
+	}
+}
+
+func agentsFixture(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	files := map[string]string{
+		"docs/agents/rules.yaml": "legacy_phrases: [old]\nrules:\n" +
+			"  - {id: P, title: p, text: Prose rule., audience: all, surface: [agents-md, monaco-milestone], enforced_by: prose}\n",
+		"AGENTS.md": "<!-- BEGIN GENERATED rules:agents-md (x) -->\nstale\n<!-- END GENERATED rules:agents-md -->\n",
+		".claude/skills/monaco-milestone/SKILL.md": "<!-- BEGIN GENERATED rules:monaco-milestone (x) -->\n<!-- END GENERATED rules:monaco-milestone -->\n",
+	}
+	for rel, body := range files {
+		path := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return dir
+}
+
+func TestGenAgentsWritesEveryFileAndIsIdempotent(t *testing.T) {
+	t.Parallel()
+	dir := agentsFixture(t)
+	for range 2 {
+		if err := genAgents(dir); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := fs.ReadFile(os.DirFS(dir), "AGENTS.md")
+	if err != nil || !strings.Contains(string(got), "- Prose rule.\n") || strings.Contains(string(got), "stale") {
+		t.Fatalf("AGENTS.md = %q, %v", got, err)
+	}
+	enforced, err := fs.ReadFile(os.DirFS(dir), enforcedFile)
+	if err != nil || string(enforced) != enforcedHead+"old\n" {
+		t.Fatalf("enforced.txt = %q, %v", enforced, err)
+	}
+}
+
+func TestGenAgentsFailsWhenASurfaceFileIsMissingOrUnmarkedOrUnwritable(t *testing.T) {
+	t.Parallel()
+	skill := ".claude/skills/monaco-milestone/SKILL.md"
+	missing := agentsFixture(t)
+	if err := os.Remove(filepath.Join(missing, skill)); err != nil {
+		t.Fatal(err)
+	}
+	unmarked := agentsFixture(t)
+	if err := os.WriteFile(filepath.Join(unmarked, skill), []byte("no markers"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	unwritable := agentsFixture(t)
+	if err := os.MkdirAll(filepath.Join(unwritable, enforcedFile), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	for name, dir := range map[string]string{"missing": missing, "unmarked": unmarked, "unwritable": unwritable} {
+		if err := genAgents(dir); err == nil {
+			t.Errorf("%s: want an error", name)
+		}
+	}
+	if err := genAgents(t.TempDir()); err == nil {
+		t.Error("no rules.yaml: want an error")
 	}
 }
