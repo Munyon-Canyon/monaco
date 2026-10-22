@@ -144,6 +144,11 @@ func (env *Env) relatedFailure(ctx context.Context, r Record, l Landing, run Run
 		return landingCall{lines: []string{fmt.Sprintf("staging run %s ended %s with no failed job; not reverting %s",
 			run.URL, run.Conclusion, refs)}}, nil
 	}
+	failed = slices.DeleteFunc(failed, aggregateJob)
+	if len(failed) == 0 {
+		return landingCall{lines: []string{fmt.Sprintf("staging run %s failed only on the ci-ok aggregate "+
+			"(a job was cancelled or the run was cut short); not reverting %s", run.URL, refs)}}, nil
+	}
 	related := failed
 	mobile, err := env.touchesMobile(ctx, l)
 	if err != nil {
@@ -208,6 +213,7 @@ func (env *Env) dropAlreadyRed(ctx context.Context, l Landing, run Run, related 
 	if err != nil {
 		return nil, "", err
 	}
+	red = slices.DeleteFunc(red, aggregateJob)
 	var already []string
 	remaining := slices.DeleteFunc(slices.Clone(related), func(name string) bool {
 		if slices.Contains(red, name) {
@@ -226,6 +232,10 @@ func (env *Env) dropAlreadyRed(ctx context.Context, l Landing, run Run, related 
 		prior.HeadSHA[:min(8, len(prior.HeadSHA))],
 		prRefs(l.PRs),
 	), nil
+}
+
+func aggregateJob(name string) bool {
+	return strings.TrimPrefix(name, "staging / ") == "ci-ok"
 }
 
 func unrelatedJob(name string) bool {

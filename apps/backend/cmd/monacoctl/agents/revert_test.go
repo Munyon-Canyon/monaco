@@ -149,6 +149,59 @@ func TestWatch_ignoresAStagingRunFailedOnlyOnMobileJobsForABackendLanding(t *tes
 	}
 }
 
+func TestWatch_ignoresTheCiOkAggregateWhenJudgingALanding(t *testing.T) {
+	t.Parallel()
+	l := newLanding(t, func(x *Landing) { x.Reran = false })
+	l.run("failure", Job{Name: "staging / ios / iOS app build", Conclusion: "failure"},
+		Job{Name: "staging / ci-ok", Conclusion: "failure"})
+	code, stdout, stderr := l.f.agents(t, "watch", "--once")
+	want := "staging run https://gh/run/77 failed only on staging / ios / iOS app build, " +
+		"which #1 #2 cannot affect; not reverting\n"
+	if code != 0 || stderr != "" || !strings.Contains(stdout, want) || strings.Contains(stdout, "ci-ok") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	if got := l.sh.lines("git worktree", "git revert", "gt "); len(got) != 0 {
+		t.Fatalf("reverted anyway: %v", got)
+	}
+	if len(l.f.hub.callsContaining("rerun-failed-jobs")) != 0 {
+		t.Fatalf("reran: %v", l.f.hub.callsContaining("rerun-failed-jobs"))
+	}
+	if got := l.landing(t); !got.Checked || got.Reran || got.Revert != 0 {
+		t.Fatalf("landing %+v", got)
+	}
+}
+
+func TestWatch_neverBlamesTheCiOkAggregateAlone(t *testing.T) {
+	t.Parallel()
+	l := newLanding(t, func(x *Landing) { x.Reran = false })
+	l.run("failure", Job{Name: "staging / ci-ok", Conclusion: "failure"})
+	_, stdout, _ := l.f.agents(t, "watch", "--once")
+	want := "staging run https://gh/run/77 failed only on the ci-ok aggregate " +
+		"(a job was cancelled or the run was cut short); not reverting #1 #2\n"
+	if !strings.Contains(stdout, want) || len(l.f.hub.callsContaining("rerun-failed-jobs")) != 0 {
+		t.Fatalf("%q", stdout)
+	}
+	if got := l.landing(t); !got.Checked || got.Reran || got.Revert != 0 {
+		t.Fatalf("landing %+v", got)
+	}
+}
+
+func TestWatch_stillRerunsWhenCiOkFailsBesideABackendShard(t *testing.T) {
+	t.Parallel()
+	l := newLanding(t, func(x *Landing) { x.Reran = false })
+	l.f.hub.on("POST /repos/o/r/actions/runs/77/rerun-failed-jobs", "")
+	l.run("failure", Job{Name: "staging / Backend tests (a)", Conclusion: "failure"},
+		Job{Name: "staging / ci-ok", Conclusion: "failure"})
+	_, stdout, _ := l.f.agents(t, "watch", "--once")
+	want := "failed on staging / Backend tests (a); reran the failed jobs once before deciding on #1 #2\n"
+	if !strings.Contains(stdout, want) || strings.Contains(stdout, "ci-ok") {
+		t.Fatalf("%q", stdout)
+	}
+	if got := l.landing(t); got.Checked || !got.Reran {
+		t.Fatalf("landing %+v", got)
+	}
+}
+
 func TestWatch_revertsAMobileFailureWhenTheLandingTouchedMobile(t *testing.T) {
 	t.Parallel()
 	l := newLanding(t, nil)
