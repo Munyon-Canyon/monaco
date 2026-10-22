@@ -15,6 +15,7 @@ permissions:
   pull-requests: read
   actions: read
   checks: write
+  statuses: read
 
 jobs:
   ci:

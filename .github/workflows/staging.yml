@@ -9,10 +9,16 @@ on:
   schedule:
     - cron: '17 * * * *'
   workflow_dispatch:
+    inputs:
+      sha:
+        description: The landed commit this run tests; land-stack passes it so each landing gets its own run
+        type: string
+        required: false
 
 # One run at a time and none cancelled: a newer push waits behind the active run, replacing any older pending one.
+# A dispatch that names a landed commit gets its own group, so the hourly run never collapses it.
 concurrency:
-  group: staging-ci
+  group: staging-${{ inputs.sha || 'ci' }}
   cancel-in-progress: false
 
 permissions:
@@ -20,6 +26,7 @@ permissions:
   pull-requests: read
   actions: read
   checks: write
+  statuses: read
 
 jobs:
   # A scheduled run skips when staging has not moved since the last completed run. A dispatch always runs.

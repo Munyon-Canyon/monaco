@@ -469,6 +469,35 @@ def rule_queue_label(inv: Invocation) -> str | None:
     return None
 
 
+FIELD_FLAGS = {"-f", "-F", "--field", "--raw-field", "--input"}
+
+
+def api_method(args: list[str]) -> str | None:
+    method = None
+    for i, a in enumerate(args):
+        if a in {"-X", "--method"} and i + 1 < len(args):
+            method = args[i + 1]
+        elif a.startswith("--method="):
+            method = a.split("=", 1)[1]
+        elif a.startswith("-X") and len(a) > 2:
+            method = a[2:]
+    return method.upper() if method else None
+
+
+def rule_status_post(inv: Invocation) -> str | None:
+    if os.path.basename(inv.argv[0]) != "gh" or inv.argv[1:2] != ["api"]:
+        return None
+    args = inv.argv[2:]
+    if not any("/statuses/" in a and not a.startswith("-") for a in args):
+        return None
+    method = api_method(args)
+    has_fields = any(a in FIELD_FLAGS or a.startswith(("--field=", "--raw-field=", "--input=")) for a in args)
+    if method == "POST" or (method is None and has_fields):
+        return ("commit statuses are posted by monacoctl only (verify, flows-verify and stage0/ok); "
+                "run the monacoctl command instead")
+    return None
+
+
 def rule_inline_pr_body(inv: Invocation) -> str | None:
     if os.path.basename(inv.argv[0]) != "gh" or inv.argv[1:2] != ["pr"] or inv.argv[2:3] not in (["edit"], ["create"]):
         return None
@@ -958,6 +987,7 @@ RULES = [
     rule_merge_needs_verify,
     rule_edit_base,
     rule_queue_label,
+    rule_status_post,
     rule_inline_pr_body,
     rule_conventional_commit,
     rule_raw_history,

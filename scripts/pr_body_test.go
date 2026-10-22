@@ -32,6 +32,13 @@ func newPrBodySandbox(t *testing.T) prBodySandbox {
 		view:  filepath.Join(dir, "view"),
 	}
 	writeExecutable(t, filepath.Join(dir, "bin", "sleep"), fmt.Sprintf("#!/bin/sh\necho \"sleep $*\" >> %q\n", s.calls))
+	writeExecutable(t, filepath.Join(dir, "bin", "go"), fmt.Sprintf(`#!/bin/sh
+echo "go $*" >> %q
+if [ -n "${GO_ATTEST_FAIL:-}" ]; then
+  echo "$GO_ATTEST_FAIL" >&2
+  exit 1
+fi
+`, s.calls))
 	writeExecutable(t, filepath.Join(dir, "bin", "gh"), fmt.Sprintf(`#!/bin/sh
 calls=%q
 view=%q
@@ -377,5 +384,37 @@ func TestPrBody_goesOnWhenMergeabilityStaysUnknown(t *testing.T) {
 	if slept := sleptSeconds(t, calls); slept == 0 || slept > 30 ||
 		!strings.Contains(calls, "pr ready 7\n") || !strings.Contains(calls, "api -X PATCH repos/o/r/pulls/7 ") {
 		t.Fatalf("want a wait of at most 30s, then ready and the patch; slept %ds, got %q", slept, calls)
+	}
+}
+
+func TestPrBody_aFailingAttestStillMarksReadyAndSetsTheBody(t *testing.T) {
+	s := newPrBodySandbox(t)
+	base := s.head(t)
+	commitFile(t, s.repo, "a.txt", "feat(bus): add the thing")
+	out, err := s.runWith(t, true, base, "Add the thing", goodPrBody(), []string{"GO_ATTEST_FAIL=no stage 0 record for #7"})
+	if err != nil {
+		t.Fatalf("pr-body.sh: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "pr-body: stage 0 attestation skipped: no stage 0 record for #7") {
+		t.Fatalf("want the skip line with the attest error, got %q", out)
+	}
+	calls := s.ghCalls(t)
+	if !strings.Contains(calls, "pr ready 7\n") || !strings.Contains(calls, "api -X PATCH repos/o/r/pulls/7 -f title=Add the thing") {
+		t.Fatalf("a failing attest must not stop ready or the body; got %q", calls)
+	}
+}
+
+func TestPrBody_attestsBeforeMarkingReady(t *testing.T) {
+	s := newPrBodySandbox(t)
+	base := s.head(t)
+	commitFile(t, s.repo, "a.txt", "feat(bus): add the thing")
+	if out, err := s.run(t, true, base, "Add the thing", goodPrBody()); err != nil {
+		t.Fatalf("pr-body.sh: %v\n%s", err, out)
+	}
+	calls := s.ghCalls(t)
+	attest := strings.Index(calls, "go run ./cmd/monacoctl agents attest 7\n")
+	ready := strings.Index(calls, "pr ready 7\n")
+	if attest < 0 || ready < 0 || attest > ready {
+		t.Fatalf("want attest before gh pr ready, got %q", calls)
 	}
 }

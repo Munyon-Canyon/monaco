@@ -116,6 +116,7 @@ func commands() map[string]command {
 		"timeline":    timelineCmd,
 		"verify-plan": verifyPlanCmd,
 		"watch":       watchCmd,
+		"attest":      attestCmd,
 		"verdict":     verdictCmd,
 		"check":       checkCmd,
 	}

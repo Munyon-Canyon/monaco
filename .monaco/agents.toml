@@ -94,3 +94,9 @@ pr = "15s"
 # Every flow, which any change to internal/events or internal/errs runs, takes 90 to 100 s on the operator's Intel laptop.
 flows = "150s"
 journeys = "30s"
+
+# Land on stage 0, first half of the experiment in docs/architecture/ci.md#check-stages. When true, `agents check`
+# runs `go test -race`, and `agents attest` (run by scripts/pr-body.sh) posts a `stage0/ok` status on the PR head so CI
+# skips stage 1 for a backend-only stack. It ships off. Turn it on for yourself in .git/.monaco/agents.local.toml.
+[land]
+on_stage0 = false

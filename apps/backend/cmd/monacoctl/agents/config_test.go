@@ -466,3 +466,40 @@ func TestApplyLocalConfig_anInvalidLocalBudgetNamesTheLocalFile(t *testing.T) {
 		t.Fatalf("a rejected local budget changed the repo budget: %v", tracked.Budget["journeys"])
 	}
 }
+
+func TestLandOnStage0_parsesAndALocalFileOverridesIt(t *testing.T) {
+	t.Parallel()
+	off, err := parseConfig(strings.NewReader(testConfig))
+	if err != nil || off.LandOnStage0 {
+		t.Fatalf("default on_stage0 = %v, %v", off.LandOnStage0, err)
+	}
+	on, err := parseConfig(strings.NewReader(testConfig + "\n[land]\non_stage0 = true\n"))
+	if err != nil || !on.LandOnStage0 {
+		t.Fatalf("on_stage0 = %v, %v", on.LandOnStage0, err)
+	}
+	got, err := applyLocalConfig(off, strings.NewReader("[land]\non_stage0 = true\n"))
+	if err != nil || !got.LandOnStage0 {
+		t.Fatalf("local override = %v, %v", got.LandOnStage0, err)
+	}
+	got, err = applyLocalConfig(on, strings.NewReader("[land]\non_stage0 = false\n"))
+	if err != nil || got.LandOnStage0 {
+		t.Fatalf("local override off = %v, %v", got.LandOnStage0, err)
+	}
+}
+
+func TestLandOnStage0_aNonBooleanNamesTheFileAndLine(t *testing.T) {
+	t.Parallel()
+	tracked, err := parseConfig(strings.NewReader(testConfig))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = applyLocalConfig(tracked, strings.NewReader("[land]\non_stage0 = yes\n"))
+	if err == nil || !strings.Contains(cliText(err), ".monaco/agents.local.toml:2: want true or false, got yes") {
+		t.Fatalf("local yes: %v", err)
+	}
+	_, err = parseConfig(strings.NewReader(testConfig + "\n[land]\non_stage0 = yes\n"))
+	if err == nil || !strings.Contains(cliText(err), ".monaco/agents.toml:") ||
+		!strings.Contains(cliText(err), "want true or false, got yes") {
+		t.Fatalf("tracked yes: %v", err)
+	}
+}

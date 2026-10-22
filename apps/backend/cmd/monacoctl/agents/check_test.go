@@ -64,6 +64,7 @@ type checkHarness struct {
 	loadTick    func() (<-chan time.Time, func())
 	cores       int
 	actions     bool
+	landOn      bool
 	xcodeBuild  func(ctx context.Context, waited string) error
 	swiftWaited []string
 	swiftRun    func(waited string)
@@ -177,6 +178,7 @@ func (h *checkHarness) check(t *testing.T, args ...string) (int, string, string)
 				env.GOOS = h.goos
 			}
 			env.Actions = h.actions
+			env.Config.LandOnStage0 = h.landOn
 			env.Load = func(context.Context, string) (float64, error) { return h.loadOr(41.5), nil }
 			env.Cores = func() int { return cmp.Or(h.cores, 64) }
 			env.LoadTick = h.loadTick
@@ -2453,5 +2455,34 @@ func TestCheck_theGoTestRowSkipsWhenEveryAffectedPackageIsExcluded(t *testing.T)
 	h.excludedErr = errors.New("go list broke")
 	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "find excluded packages") {
 		t.Fatalf("excluded: %d %q", code, stderr)
+	}
+}
+
+func TestCheck_goTestCarriesRaceOnlyWhenLandOnStage0IsOn(t *testing.T) {
+	t.Parallel()
+	for _, on := range []bool{false, true} {
+		h := newCheckHarness(t)
+		h.landOn = on
+		h.base(t, map[string]string{"README.md": "hi\n"})
+		h.commit(t, map[string]string{"apps/backend/internal/x/x.go": "package x\n"})
+		h.affected = "./internal/x\n"
+		if code, stdout, stderr := h.check(t); code != 0 {
+			t.Fatalf("on=%v: check: %d %q %q", on, code, stdout, stderr)
+		}
+		var line string
+		for _, c := range h.calls {
+			if strings.Contains(c, " go test ") && strings.Contains(c, "-json") {
+				line = c
+			}
+		}
+		if line == "" {
+			t.Fatalf("on=%v: no go test call in %q", on, h.calls)
+		}
+		if got := strings.Contains(line, " -short -race -count=1 "); got != on {
+			t.Fatalf("on=%v: -race present = %v in %q", on, got, line)
+		}
+		if strings.Contains(line, "-race") != on {
+			t.Fatalf("on=%v: -race elsewhere in %q", on, line)
+		}
 	}
 }
