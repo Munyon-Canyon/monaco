@@ -1,2 +1,1 @@
 # path reason
-internal/modules/referrals/app/attach_referral.go Info log inside the attach transaction; move it after the commit (referrals owner follow-up)
