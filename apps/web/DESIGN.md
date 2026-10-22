@@ -43,7 +43,8 @@ into the green, never a second green, so nothing can read as a shade off.
 - Radius: 3px everywhere (certificate, not app chip).
 - Spacing: 8 / 16 / 24 / 40 / 64 / 96.
 - Motion: 180ms ease-out for state changes. Three moments: the icon prints in, the blobs wander
-  through it, and they scatter from a pointer (30fps, paused off-screen or in a hidden tab); button
+  through it, and they scatter from a pointer (30fps idle, up to 60fps while the lamp is lit, paused
+  off-screen or in a hidden tab; the lamp trails the pointer with a 0.3s time constant); button
   hover. Honors `prefers-reduced-motion`, which also switches the pointer response off.
 - Layout: phones get one centred column: icon, "Monaco", the line, then the sign-up bar, with a
   centred footer; it fits a 375x812 phone without scrolling, the cabal question included. From 820px
