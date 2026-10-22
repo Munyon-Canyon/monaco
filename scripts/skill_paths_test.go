@@ -14,12 +14,14 @@ var backendSkills = []string{"go-backend-module", "go-concurrency", "money-chang
 
 var mirroredSkills = append([]string{"commit"}, backendSkills...)
 
+var enforcerTargetPattern = regexp.MustCompile("^(lint|test|gen|runtime):")
+
 var codeSpan = regexp.MustCompile("`([^`\n]+)`")
 
 func pathSpans(markdown string) []string {
 	var paths []string
 	for _, m := range codeSpan.FindAllStringSubmatch(markdown, -1) {
-		span := m[1]
+		span := enforcerTargetPattern.ReplaceAllString(m[1], "")
 		if !strings.Contains(span, "/") || strings.ContainsAny(span, " <>*{}$|") ||
 			strings.HasPrefix(span, "/") || strings.Contains(span, "://") {
 			continue
