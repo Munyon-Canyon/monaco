@@ -99,17 +99,44 @@ jobs:
               os.utime(path, ns=(ns, ns))
           '
 
+      # A restored image can hold package checkouts with files missing (run 39828834578's build could not
+      # open swift-openapi-generator's GeneratorMode.swift, with workspace-state.json present), and a
+      # cold resolve once failed with `stat error: No such file or directory`. So resolve before the
+      # build, and on any failure delete SourcePackages and resolve again from clean, once more if
+      # needed, instead of failing the job on a damaged cache.
+      - name: Resolve packages
+        run: |
+          resolve() {
+            xcodebuild -resolvePackageDependencies -project apps/mobile/Monaco.xcodeproj -scheme Monaco \
+              -derivedDataPath "$DERIVED_DATA" -onlyUsePackageVersionsFromResolvedFile "$@"
+          }
+          damaged=0
+          for dir in "$DERIVED_DATA"/SourcePackages/checkouts/*/; do
+            [[ -d "$dir" ]] || continue
+            if [[ -n "$(git -C "$dir" status --porcelain 2>/dev/null || echo broken)" ]]; then
+              echo "damaged checkout: $dir"
+              damaged=1
+            fi
+          done
+          if [[ "$damaged" == 0 && -f "$DERIVED_DATA/SourcePackages/workspace-state.json" ]] \
+            && resolve -skipPackageUpdates -disableAutomaticPackageResolution; then
+            exit 0
+          fi
+          for attempt in 1 2; do
+            echo "resolving from a clean SourcePackages, attempt $attempt"
+            rm -rf "$DERIVED_DATA/SourcePackages"
+            resolve && exit 0
+          done
+          exit 1
+
       # build-for-testing compiles the app and MonacoTests for the generic simulator, arm64 only, so it
       # doesn't wait for the booting device. The MonacoTests test plan leaves MonacoUITests out, so CI
       # never compiles it; the scheme's default plan keeps both.
       - name: Build the app and MonacoTests
         run: |
-          # With the restored package graph, skip resolution, which otherwise fetches every package
-          # again (216 s, privy-ios alone 184 s).
-          offline=()
-          if [[ -f "$DERIVED_DATA/SourcePackages/workspace-state.json" ]]; then
-            offline=(-skipPackageUpdates -disableAutomaticPackageResolution)
-          fi
+          # The Resolve packages step left a complete graph, so skip resolution, which otherwise fetches
+          # every package again (216 s, privy-ios alone 184 s).
+          offline=(-skipPackageUpdates -disableAutomaticPackageResolution)
           xcodebuild build-for-testing -project apps/mobile/Monaco.xcodeproj -scheme Monaco -testPlan MonacoTests -configuration Debug \
             -destination "generic/platform=iOS Simulator" -derivedDataPath "$DERIVED_DATA" \
             -onlyUsePackageVersionsFromResolvedFile -skipPackagePluginValidation -skipMacroValidation "${offline[@]}" \
