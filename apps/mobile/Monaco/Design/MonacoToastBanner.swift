@@ -38,10 +38,9 @@ struct MonacoToastBanner: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.sm) {
             // Filled circle, not a bare tick: the state still reads without relying on hue.
-            Image(systemName: isSuccess ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                .font(.system(size: glyphSize, weight: .bold))
+            MonacoGlyph(isSuccess ? .checkCircle : .alertCircle, size: glyphSize, weight: .bold)
                 .foregroundStyle(isSuccess ? MonacoTheme.toastSuccessGlyph : MonacoTheme.toastErrorGlyph)
-                .accessibilityHidden(true)
+                .monacoStamp()
             Text(message)
                 .font(MonacoTheme.Typo.subhead)
                 .foregroundStyle(MonacoTheme.toastLabel)

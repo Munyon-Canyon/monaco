@@ -42,6 +42,11 @@ struct CabalCover<Overlay: View>: View {
         }
     }
 
+    static func drawsPattern(_ style: Style) -> Bool {
+        if case .thumb = style { return false }
+        return true
+    }
+
     static func overlay(for style: Style, reduceTransparency: Bool) -> Color? {
         if case .thumb = style { return nil }
         return reduceTransparency ? MonacoTheme.coverOverlayReduced : MonacoTheme.coverOverlay
@@ -92,6 +97,13 @@ struct CabalCover<Overlay: View>: View {
             .clipped()
             if let overlay = Self.overlay(for: style, reduceTransparency: reduceTransparency) {
                 overlay
+            }
+            if pictureURL == nil, Self.drawsPattern(style) {
+                CabalEmblemPattern(emblem: .forGroupId(cabalId))
+            } else if pictureURL == nil, case .thumb(let size) = style {
+                PixelGlyphShape(bitmap: CabalEmblem.forGroupId(cabalId).bitmap, scale: displayScale)
+                    .fill(tint.onFill, style: FillStyle(antialiased: false))
+                    .frame(width: size * CabalMark.emblemFraction, height: size * CabalMark.emblemFraction)
             }
             if style.drawsStroke {
                 shape.strokeBorder(MonacoTheme.coverStroke, lineWidth: 1 / displayScale)

@@ -248,8 +248,9 @@ struct MoneyHero: View {
                 .foregroundStyle(MonacoTheme.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
-                .contentTransition(reduceMotion ? .identity : .numericText())
-                .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: value)
+                .contentTransition(reduceMotion ? .identity : .numericText(value: MoneyHero.magnitude(of: value)))
+                .animation(reduceMotion ? nil : MonacoMotion.roll, value: value)
+                .monacoSettle(on: value)
                 .modifier(HeroTypeCap(isHero: true))
             (Text(change).foregroundStyle(PnLTone(dollarPnl: dollarChange ?? "0", percentReturn: percentChange).color)
                 + Text(" \(period)").foregroundStyle(MonacoTheme.secondaryText))
@@ -259,6 +260,13 @@ struct MoneyHero: View {
         }
         .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .center))
         .accessibilityElement(children: .combine)
+    }
+
+    static func magnitude(of figure: String) -> Double {
+        let digits = figure.filter { $0.isNumber || $0 == "." }
+        let negative = figure.hasPrefix("-") || figure.hasPrefix("\u{2212}")
+        let value = (digits as NSString).doubleValue
+        return negative ? -value : value
     }
 }
 
@@ -279,9 +287,23 @@ private struct MoneyFigure: View {
             .lineLimit(1)
             .minimumScaleFactor(style.minimumScaleFactor)
             .contentTransition(reduceMotion || value == nil ? .identity : .numericText(value: value ?? 0))
-            .animation(reduceMotion ? nil : .snappy, value: text)
+            .animation(reduceMotion ? nil : MonacoMotion.roll, value: text)
+            .modifier(MoneySettle(style: style, text: text))
             .modifier(HeroTypeCap(isHero: style == .hero))
             .monacoPrivateFigure()
+    }
+}
+
+private struct MoneySettle: ViewModifier {
+    let style: MoneyStyle
+    let text: String
+
+    func body(content: Content) -> some View {
+        if style == .hero || style == .large {
+            content.monacoSettle(on: text)
+        } else {
+            content
+        }
     }
 }
 

@@ -59,6 +59,9 @@ struct MonacoGlassButton: View {
     @ViewBuilder private var mark: some View {
         if isBusy {
             ProgressView().tint(glyphColor)
+        } else if let icon = MonacoIcon(systemName: systemImage), icon.hasPixel {
+            MonacoGlyph(icon, filled: style == .selected, size: min(glyphSize, 26))
+                .foregroundStyle(glyphColor)
         } else {
             Image(systemName: systemImage)
                 .font(.system(size: min(glyphSize, 26), weight: .medium))

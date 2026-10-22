@@ -72,7 +72,7 @@ struct VoteBar: View {
         VStack(alignment: .leading, spacing: 0) {
             Text(headline)
             SegmentedBar(segments: segments, height: VoteBarMetrics.barHeight, gap: VoteBarMetrics.gap)
-                .clipShape(Capsule())
+                .monacoDrawOn()
                 .padding(.top, MonacoTheme.Space.sm)
             Text(tally)
                 .padding(.top, MonacoTheme.Space.s)

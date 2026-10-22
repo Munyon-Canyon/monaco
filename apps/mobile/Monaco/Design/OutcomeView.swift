@@ -30,13 +30,15 @@ struct OutcomeView<Content: View>: View {
             }
         }
 
-        var symbol: String {
+        var icon: MonacoIcon {
             switch self {
-            case .done: return "checkmark"
-            case .pending: return "clock"
-            case .error: return "exclamationmark.triangle"
+            case .done: .check
+            case .pending: .clock
+            case .error: .alert
             }
         }
+
+        var symbol: String { icon.symbol }
     }
 
     private let tone: Tone
@@ -55,9 +57,9 @@ struct OutcomeView<Content: View>: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Image(systemName: tone.symbol)
-                .font(.system(size: glyphSize, weight: .bold))
+            MonacoGlyph(tone.icon, size: glyphSize, weight: .bold)
                 .foregroundStyle(tone.accent)
+                .monacoStamp()
                 .frame(width: OutcomeMetrics.orb, height: OutcomeMetrics.orb)
                 .background(
                     RoundedRectangle(cornerRadius: OutcomeMetrics.orbRadius, style: .continuous).fill(tone.fill)

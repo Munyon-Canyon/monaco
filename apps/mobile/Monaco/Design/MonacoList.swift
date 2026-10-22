@@ -266,10 +266,8 @@ struct MonacoRowChevron: View {
     @ScaledMetric(relativeTo: .body) private var size: CGFloat = MonacoRowLayout.chevronSize
 
     var body: some View {
-        Image(systemName: "chevron.right")
-            .font(.system(size: size, weight: .semibold))
+        MonacoGlyph(.chevron, size: size)
             .foregroundStyle(MonacoTheme.secondaryText)
-            .accessibilityHidden(true)
     }
 }
 
@@ -466,9 +464,17 @@ struct EmptyState: View {
 
     @ScaledMetric(relativeTo: .title2) private var glyphSize = EmptyStateMetrics.glyph
 
+    @ViewBuilder private var glyph: some View {
+        if let icon = systemImage.flatMap(MonacoIcon.init(systemName:)), icon.hasPixel {
+            MonacoGlyph(icon, size: glyphSize)
+        } else {
+            Image(systemName: systemImage ?? "")
+                .font(.system(size: glyphSize, weight: .semibold))
+        }
+    }
+
     private var tile: some View {
-        Image(systemName: systemImage ?? "")
-            .font(.system(size: glyphSize, weight: .semibold))
+        glyph
             .foregroundStyle(MonacoTheme.brand)
             .frame(width: EmptyStateMetrics.tile, height: EmptyStateMetrics.tile)
             .background(
