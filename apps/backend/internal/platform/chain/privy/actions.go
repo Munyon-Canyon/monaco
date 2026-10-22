@@ -1,6 +1,7 @@
 package privy
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"net/http"
@@ -39,9 +40,10 @@ type stepWire struct {
 }
 
 type actionWire struct {
-	ID     string     `json:"id"`
-	Status string     `json:"status"`
-	Steps  []stepWire `json:"steps"`
+	ID                string     `json:"id"`
+	Status            string     `json:"status"`
+	Steps             []stepWire `json:"steps"`
+	DestinationAmount string     `json:"destination_amount"`
 }
 
 func (c *Client) Transfer(
@@ -129,6 +131,15 @@ func decimalUSDC(m money.Micros) string {
 	return strconv.FormatUint(whole, 10) + "." + digits
 }
 
+func microsOfDecimal(raw string) (money.Micros, error) {
+	whole, frac, _ := strings.Cut(raw, ".")
+	if len(frac) > 6 {
+		return money.Micros{}, errs.New(errs.CodeInvalidInput, "privy.microsOfDecimal", slog.String("raw", raw))
+	}
+	frac = (frac + "000000")[:6]
+	return money.ParseMicros(cmp.Or(strings.TrimLeft(whole+frac, "0"), "0"))
+}
+
 func actionState(raw string) (multichain.ActionState, bool) {
 	switch state := multichain.ActionState(raw); state {
 	case multichain.ActionPending, multichain.ActionSucceeded, multichain.ActionRejected, multichain.ActionFailed:
@@ -156,6 +167,14 @@ func decodeAction(w actionWire) (multichain.ActionStatus, error) {
 			slog.String("status", w.Status))
 	}
 	out := multichain.ActionStatus{ID: multichain.ActionID(w.ID), State: state, Steps: []multichain.ActionStep{}}
+	if w.DestinationAmount != "" {
+		delivered, err := microsOfDecimal(w.DestinationAmount)
+		if err != nil {
+			return multichain.ActionStatus{}, errs.Wrap(err, errs.CodeDecodeFailed, "privy.decodeAction",
+				slog.String("destination_amount", w.DestinationAmount))
+		}
+		out.Delivered = delivered
+	}
 	for _, s := range w.Steps {
 		step, err := decodeStep(s)
 		if err != nil {

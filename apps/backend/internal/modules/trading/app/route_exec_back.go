@@ -72,6 +72,9 @@ func (r *RouteExec) arrival(ctx context.Context, b routedBuy, action multichain.
 		got, err := r.d.Arrivals.InboundAmount(ctx, chain.Signature(s.TxHash), b.solana, usdc)
 		return money.MicrosFromUint64(got.Uint64()), err
 	}
+	if action.State == multichain.ActionSucceeded && !action.Delivered.IsZero() {
+		return action.Delivered, nil
+	}
 	return money.Micros{}, errs.New(errs.CodeUpstreamUnavailable, "trading.RouteExec.arrival",
 		slog.String("swap_id", b.id.String()), slog.String("action_id", string(action.ID)))
 }
