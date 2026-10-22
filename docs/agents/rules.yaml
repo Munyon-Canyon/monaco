@@ -351,7 +351,7 @@ rules:
     title: "three verification stages"
     text: "Verification runs in three stages, per `docs/architecture/backend-platform.md#verification-scope`: agents run `monacoctl agents check` on every PR, CI stage 1 runs the full suite on the top PR of a stack (lower PRs' `ci / ci-ok` passes with every job skipped), except the macOS `ios` job (app build plus MonacoTests), which runs only in the hourly staging indicator (#3399), and the Graphite merge queue runs only build, vet, tidy and generated files before anything lands on `staging`. Every hour, when `staging` moved, `staging.yml` runs the full suite again as an advisory indicator that gates nothing (it ran on every push until #2950, which left PR runs waiting for the free plan's 20 concurrent jobs). The operator approved this split, so it is not skipping. Ticket Done-when, milestone manual verification, `just build mobile` and gold-sim QA still apply when the change touches what they cover."
     audience: all
-    surface: [agents-md]
+    surface: [agents-md, cursor-rules/never-skip-verification]
     enforced_by: prose
   - id: A44
     title: "mobile PR checks"
@@ -369,7 +369,7 @@ rules:
     title: "no skipped checks"
     text: "Never skip or shrink a check in that set unless the user explicitly says to skip in the current message."
     audience: all
-    surface: [agents-md]
+    surface: [agents-md, cursor-rules/never-skip-verification]
     enforced_by: prose
   - id: A47
     title: "user builds themselves"
@@ -695,3 +695,54 @@ rules:
     audience: verifier
     surface: [verifier-brief]
     enforced_by: prose
+  - id: CR01
+    title: "Never weaken dev database durability"
+    text: "Never run `ALTER SYSTEM`, `pg_resetwal`, or any `fsync=off`, `synchronous_commit=off` or `full_page_writes=off` against the dev database container `monaco-postgres`."
+    audience: all
+    surface: [cursor-rules/dev-database]
+    enforced_by: prose
+    why: "on 2026-09-27 a benchmark left `fsync=off` persisted in the dev volume, the machine crashed, and Postgres came back with `PANIC: could not locate a valid checkpoint record`."
+    note: "Claude Code blocks this with scripts/agent-guard-dev-db.sh; Cursor does not run that hook, so the text stays."
+  - id: CR02
+    title: "Benchmarks use a throwaway container"
+    text: "Run benchmarks and durability experiments in a throwaway container on another port, removed afterwards: `docker run --rm -d --name bench-pg -p 54399:5432 -e POSTGRES_PASSWORD=bench postgres:16-alpine -c fsync=off`."
+    audience: all
+    surface: [cursor-rules/dev-database]
+    enforced_by: prose
+  - id: CR03
+    title: "Broken dev database"
+    text: "If the dev database will not start, stop and ask the user. The supported recovery is `just reset db`."
+    audience: all
+    surface: [cursor-rules/dev-database]
+    enforced_by: prose
+  - id: CR04
+    title: "No inferred skips"
+    text: "Do not infer a skip from \"gates are enough\", red CI elsewhere in the repo, time pressure or orchestration closeout, or an assumption that automated checks cover manual steps."
+    audience: all
+    surface: [cursor-rules/never-skip-verification]
+    enforced_by: prose
+  - id: CR05
+    title: "Orchestrators verify manually"
+    text: "Orchestrators run the full manual verification sections before milestone closeout, not just the workspace done gate."
+    audience: all
+    surface: [cursor-rules/never-skip-verification]
+    enforced_by: prose
+  - id: CR06
+    title: "Blocked verification"
+    text: "If verification is blocked (env, credentials, flaky infra), report what failed and what remains. Do not mark the work done or close the milestone."
+    audience: all
+    surface: [cursor-rules/never-skip-verification]
+    enforced_by: prose
+  - id: CR07
+    title: "No Cursor commit trailers"
+    text: "Never add `Co-authored-by: Cursor <cursoragent@cursor.com>`, or any other Cursor or coding-agent co-author trailer, to a git commit."
+    audience: all
+    surface: [cursor-rules/no-cursor-coauthor]
+    enforced_by: prose
+  - id: CR08
+    title: "Commits stay the author's"
+    text: "Commit messages stay the author's. Do not append Cursor, Copilot or coding-agent `Co-authored-by` lines."
+    audience: all
+    surface: [cursor-rules/no-cursor-coauthor]
+    enforced_by: prose
+    note: "Claude Code sessions follow the repo's signing rule instead (standing order 7)."

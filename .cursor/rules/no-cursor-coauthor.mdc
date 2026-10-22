@@ -5,6 +5,7 @@ alwaysApply: true
 
 # No Cursor commit trailers
 
-Never add `Co-authored-by: Cursor <cursoragent@cursor.com>` (or any other Cursor/agent co-author trailer) to git commits.
-
-Commit messages stay the author's. Do not append Cursor, Copilot, or coding-agent `Co-authored-by` lines.
+<!-- BEGIN GENERATED rules:cursor-rules/no-cursor-coauthor (docs/agents/rules.yaml) -->
+- Never add `Co-authored-by: Cursor <cursoragent@cursor.com>`, or any other Cursor or coding-agent co-author trailer, to a git commit.
+- Commit messages stay the author's. Do not append Cursor, Copilot or coding-agent `Co-authored-by` lines.
+<!-- END GENERATED rules:cursor-rules/no-cursor-coauthor -->
