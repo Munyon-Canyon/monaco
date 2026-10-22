@@ -57,6 +57,8 @@ type SamplePrices struct {
 	loaded  bool
 
 	window   map[domain.AssetID][]domain.Sample
+	closes   map[time.Time]closeRefs
+	opens    map[domain.AssetID]dayOpen
 	lastTick time.Time
 	seededAt time.Time
 	points   int64
