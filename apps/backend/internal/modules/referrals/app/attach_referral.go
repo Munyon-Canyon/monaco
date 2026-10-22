@@ -42,7 +42,8 @@ func NewAttachReferralHandler(d AttachReferralDeps) *AttachReferralHandler {
 }
 
 func (h *AttachReferralHandler) Handle(ctx context.Context, cmd AttachReferral) error {
-	return h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+	var attrs []slog.Attr
+	err := h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		resolved, err := h.d.Resolver.Resolve(ctx, cmd.Code)
 		if err != nil {
 			return err
@@ -61,12 +62,18 @@ func (h *AttachReferralHandler) Handle(ctx context.Context, cmd AttachReferral) 
 		}); err != nil {
 			return err
 		}
-		observability.Info(ctx, observability.ReferralsAttributed,
+		attrs = []slog.Attr{
 			slog.String("referral_id", id.String()), slog.String("code_kind", string(resolved.CodeKind)),
-			slog.String("source", cmd.Source))
+			slog.String("source", cmd.Source),
+		}
 		faultpoint.Hit(ctx, faultpoint.BeforeCommit)
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	observability.Info(ctx, observability.ReferralsAttributed, attrs...)
+	return nil
 }
 
 func (h *AttachReferralHandler) allowed(
