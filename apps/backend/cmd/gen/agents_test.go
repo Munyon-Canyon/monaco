@@ -82,6 +82,7 @@ func TestValidateRulesRejectsBadRules(t *testing.T) {
 		"missing hook":        {with(func(r *rule) { r.EnforcedBy = "hook:rule_absent" })},
 		"missing path":        {with(func(r *rule) { r.EnforcedBy = "test:no/such/file" })},
 		"unknown kind":        {with(func(r *rule) { r.EnforcedBy = "magic:x" })},
+		"empty id":            {with(func(r *rule) { r.ID = "" })},
 		"duplicate id":        {ok, ok},
 		"unknown surface":     {with(func(r *rule) { r.Surface = []string{"nowhere"} })},
 		"unknown audience":    {with(func(r *rule) { r.Audience = "everyone" })},
@@ -92,6 +93,9 @@ func TestValidateRulesRejectsBadRules(t *testing.T) {
 		if err := validateRules(root, rules); err == nil {
 			t.Errorf("%s: want an error", name)
 		}
+	}
+	if err := validateRules(os.DirFS(t.TempDir()), []rule{ok}); err == nil {
+		t.Error("a hook rule without scripts/agent-guard.py: want an error")
 	}
 	if err := validateRules(root, []rule{ok}); err != nil {
 		t.Fatalf("a valid rule failed: %v", err)
@@ -174,6 +178,13 @@ func TestGenAgentsFailsWhenASurfaceFileIsMissingOrUnmarkedOrUnwritable(t *testin
 		if err := genAgents(dir); err == nil {
 			t.Errorf("%s: want an error", name)
 		}
+	}
+	badYAML := agentsFixture(t)
+	if err := os.WriteFile(filepath.Join(badYAML, rulesFile), []byte("surprise: 1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := genAgents(badYAML); err == nil {
+		t.Error("unknown yaml field: want an error")
 	}
 	if err := genAgents(t.TempDir()); err == nil {
 		t.Error("no rules.yaml: want an error")
