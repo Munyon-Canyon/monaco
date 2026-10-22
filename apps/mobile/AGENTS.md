@@ -4,22 +4,18 @@ Feature code lives in two places. The model is `packages/mobile-core/Sources/Mon
 
 Screen work (colour, type, touch targets, accessibility and copy) uses the `ios-screen` skill.
 
-## Build and test
+## Rules
 
-- `just test mobile` runs host `swift test` in `packages/mobile-core`.
-- `monacoctl agents check` is stage 0. On darwin, an app or mobile-core change also runs the `xcode` row: build for testing, then `MonacoTests`.
-- `just build mobile` compiles the app.
+New rules go in `docs/agents/rules.yaml`. The list below is rendered from it.
 
-Warnings are errors (#980). The app is Swift 6 with complete checking (#937). Format with `swift format` (#938).
-
-## API
-
-Do not add to `MonacoAPIClient.swift` or `API/DTOs/`. Call the backend only through `packages/mobile-core/Sources/MonacoAPI`.
-
-## Copy
-
-Say "cabal". Show a stock by name or symbol, never a mint address and never "xStock". Confirm an action with a toast, not a popup or a banner.
-
-## Simulator
-
-Do not boot a simulator for unit tests. Never `simctl erase`. Tap through only with `.cursor/skills/ios-simslim-fast-qa/SKILL.md` or MobileBuildMCP, passing `--simulator-id` from `scripts/gold-sim-udid.sh`.
+<!-- BEGIN GENERATED rules:mobile-agents-md (docs/agents/rules.yaml) -->
+- When the user says "test mobile" or runs `just test mobile`, run host `swift test` in `packages/mobile-core` (fast, deterministic; no iOS Simulator or `xcodebuild test`).
+- Do not boot a sim for unit tests.
+- Never `simctl erase`.
+- Agent tap-through may use `.cursor/skills/ios-simslim-fast-qa/SKILL.md` or MobileBuildMCP with `--simulator-id` from `scripts/gold-sim-udid.sh` (the worktree's own sim in a lane; in primary fail-loud if `SIMSLIM_UDID` is unset; not used by human `just run`).
+- Product UI: prefer toasts over main-UI popups or banners for action confirmations; never hyphenate wallet addresses; show human-readable stock names or symbols, not raw mint addresses or "xStock" branding.
+- User-facing copy uses "cabal" (not club/group), and so do new API routes, Go types, tables and event subjects (`/v1/cabals/{id}`; see `docs/architecture/backend-platform.md#decided`).
+- `monacoctl agents check` is stage 0. On darwin, an app or mobile-core change also runs the `xcode` row: build for testing, then `MonacoTests`. `just build mobile` compiles the app.
+- Warnings are errors (#980). The app is Swift 6 with complete checking (#937). Format with `swift format` (#938).
+- Call the backend only through `MonacoAPI`: enforced by `lint:scripts/check-legacy-growth.py`.
+<!-- END GENERATED rules:mobile-agents-md -->
