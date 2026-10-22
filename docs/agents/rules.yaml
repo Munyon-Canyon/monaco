@@ -227,63 +227,63 @@ rules:
     title: "trunk is staging"
     text: "Stacks build on the trunk `staging` (the default branch) and land through the Graphite merge queue."
     audience: all
-    surface: [agents-md]
+    surface: [agents-md, standing-orders]
     enforced_by: prose
   - id: A25
     title: "land right after submit"
     text: "Always land: right after `gt submit` and `scripts/pr-body.sh`, run `monacoctl agents land-stack <top-pr>` once without asking, unless the user says in the current conversation not to land or queue, then follow it with `monacoctl agents watch` under Monitor."
     audience: all
-    surface: [agents-md, monaco-milestone, backend-agents-md]
+    surface: [agents-md, monaco-milestone, backend-agents-md, standing-orders]
     enforced_by: prose
     covers: [A26]
   - id: S02
     title: "arming and the queue"
     text: "If stage 1 is still running, `land-stack` arms the stack, and `agents watch` lands it once stage 1 passes, or prints `armed stack #<top> disarmed: ...` when it fails. The verifier's `verify` status is advisory: landing does not wait on it. It adds the `merge-queue` label to every PR of the stack, and the queue squashes each PR into one commit on `staging` (title, ` (#N)`, then the body), so a landed PR shows as closed, not merged (merged when it landed on stage 0), a `revert-<top>` PR from `agents watch` is landed, not fought, and `Closes #N` in its body closes the ticket."
     audience: root
-    surface: [monaco-milestone]
+    surface: [monaco-milestone, standing-orders]
     enforced_by: prose
   - id: A27
     title: "no direct merge"
     text: "Never `gh pr merge` (direct or `--auto`)."
     audience: all
-    surface: [agents-md, monaco-milestone]
+    surface: [agents-md, monaco-milestone, standing-orders]
     enforced_by: hook:rule_merge_needs_verify
     phrase: "merge without verify"
   - id: A27E
     title: "no base edits"
     text: "Never `gh pr edit --base`."
     audience: all
-    surface: [agents-md, monaco-milestone]
+    surface: [agents-md, monaco-milestone, standing-orders]
     enforced_by: hook:rule_edit_base
   - id: A29
     title: "no Lands stack line"
     text: "No `Lands stack:` line and no `<feature>-checkpoint-<N>` branches."
     audience: all
-    surface: [agents-md]
+    surface: [agents-md, standing-orders]
     enforced_by: prose
   - id: A28
     title: "queue labels"
     text: "Never add `merge-queue` or `fast-track` by hand (`fast-track` is human only, for PRs under 100 counted lines)."
     audience: all
-    surface: [agents-md, monaco-milestone]
+    surface: [agents-md, monaco-milestone, standing-orders]
     enforced_by: hook:rule_queue_label
   - id: A30
     title: "dropped from the queue"
     text: "If a stack drops out of the queue, fix it with `gt modify` and `gt submit --stack`, then rerun `land-stack`."
     audience: root
-    surface: [monaco-milestone]
+    surface: [monaco-milestone, standing-orders]
     enforced_by: prose
   - id: A31D
     title: "dequeue first"
     text: "To change a queued stack, run `monacoctl agents dequeue <top-pr>` first."
     audience: all
-    surface: [agents-md, monaco-milestone]
+    surface: [agents-md, monaco-milestone, standing-orders]
     enforced_by: prose
   - id: A31
     title: "queued stack guard"
     text: "The agent guard hook blocks `gt submit`, `gt modify`, `gt restack` and `git push` on a stack while any of its PRs carries `merge-queue`."
     audience: all
-    surface: [agents-md, monaco-milestone]
+    surface: [agents-md, monaco-milestone, standing-orders]
     enforced_by: hook:rule_queued_stack
   - id: A32
     title: "force push"
@@ -357,13 +357,13 @@ rules:
     title: "mobile PR checks"
     text: "Every PR that touches `apps/mobile/**` must pass a local `just build mobile` and the MonacoTests run (`-only-testing:MonacoTests`) before it is pushed, and Proof cites both."
     audience: all
-    surface: [agents-md]
+    surface: [agents-md, owner-brief]
     enforced_by: prose
   - id: A45
     title: "mobile-core PR checks"
     text: "Every PR that touches Darwin-only code in `packages/mobile-core` must pass a local macOS `swift test` before it is pushed."
     audience: all
-    surface: [agents-md]
+    surface: [agents-md, owner-brief]
     enforced_by: prose
   - id: A46
     title: "no skipped checks"
@@ -539,4 +539,159 @@ rules:
     text: "Before a push, run `go run ./cmd/monacoctl agents check` from `apps/backend`. It builds, vets and runs the short tests of the packages affected since the base, with each package held to 120 s. If only the budget fails on a loaded machine, rerun it later. Stage 1 CI runs the full suite and `monacoctl verify` on the real binaries. Do not run them yourself."
     audience: all
     surface: [backend-agents-md]
+    enforced_by: prose
+  - id: SO01
+    title: "Land on staging through land-stack"
+    text: "Land on `staging`, always through `land-stack`. Only the operator merges into `main`: `main` changes only through a promotion PR from `staging` that the operator merges with a merge commit. [Old flow and new flow](../how-to/ship-a-ticket.md#old-flow-and-new-flow) lists what changed from the checkpoint branches."
+    audience: all
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "a promotion carries exactly what landed on `staging`. A PR based on `main` puts commits on `main` that `staging` lacks, and the next promotion must merge them back first."
+    incident: "a CI budget fix (#836) was based on `main`, and `main` then held commits the feature branch lacked. Checkpoint 3 needed a merge-back PR (#892) before it could open."
+    note: "source: docs/agents/standing-orders.md order 1"
+  - id: SO02
+    title: "Work only in your worktree"
+    text: "Work only in your assigned worktree under `.worktrees/`. `cd` into it first and use absolute paths. Never change the primary checkout."
+    audience: owner
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "owners run in parallel on one clone. The primary checkout is the operator's build tree and must stay on its branch, clean."
+    incident: "an agent's shell resets its working directory between commands, so a relative path can land in another agent's tree."
+    note: "source: docs/agents/standing-orders.md order 2"
+  - id: SO03
+    title: "Only the root restacks"
+    text: "Only the root restacks, and one stack at a time. Update the trunk with `gt sync --no-interactive --no-restack`, then restack the target stack with `gt restack --upstack` in its worktree. Build every branch of the stack afterwards."
+    audience: root
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "a restack moves branches that an owner may be building on."
+    incident: "a plain `gt sync` restacked owners' in-progress branches twice (the #479 stack and the #831 F stack). A clean textual restack of #482 still failed to compile, because the tip had renamed a helper."
+    note: "source: docs/agents/standing-orders.md order 3"
+  - id: SO04
+    title: "An owner stops after arming"
+    text: "An owner stops after it arms its stack. It pushes drafts, runs `scripts/pr-body.sh` for each PR, runs `monacoctl agents land-stack <top-pr>` once, and exits with its PR URLs, heads and decisions. It never waits on CI and never merges."
+    audience: owner
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "the root and the verifier own everything after the push. A waiting owner holds a lane and burns its context."
+    incident: "the lane cap counts every owner not marked exited. Finished owners that kept running blocked new dispatches until the root ran `monacoctl agents exited`."
+    note: "source: docs/agents/standing-orders.md order 4"
+  - id: SO05
+    title: "Verifier on another model, no tests"
+    text: "A verifier runs on another model, reviews the diff against the ticket and runs no tests. It reads `gh pr checks` once and fails a PR only for a real defect: wrong behavior, a missing acceptance item the PR claims, a CI-breaking change or a format violation. Its report says exactly what to fix."
+    audience: all
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "a second model catches what the owner's model misses. CI already runs the tests."
+    incident: "the #537 verifier caught Jupiter's `priceImpactPct` read as a fraction instead of a percent. It would have refused every real trade."
+    note: "source: docs/agents/standing-orders.md order 5"
+  - id: SO06
+    title: "Owner and verifier models"
+    text: "Use `opus` for owners and `sonnet` for their verifiers. After three failed `opus` attempts on one problem, try `fable` once at medium effort, then park the ticket. Park with a comment that says what was tried."
+    audience: root
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "`opus` and `sonnet` keep cost and behavior predictable. One stronger attempt is cheaper than a parked ticket."
+    incident: "three `opus` owners could not find the #838 NATS flake. One `fable` attempt root-caused it to a race in `nats-server` and fixed it."
+    note: "source: docs/agents/standing-orders.md order 6"
+  - id: SO07
+    title: "Sign commits and PR bodies"
+    text: "Sign every commit and PR body. Commit messages end with a `Co-Authored-By:` trailer that names the model. PR bodies end with the Claude Code line from the template."
+    audience: all
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "a reviewer can tell which model wrote a change and weigh the review for it."
+    note: "source: docs/agents/standing-orders.md order 7"
+  - id: SO08
+    title: "Write tests that repeat"
+    text: "Write tests that repeat. Stamp fixtures relative to the current time, never with a hard-coded date. Fake every external API; never call live Jupiter. Reset global registries and shared servers between runs."
+    audience: owner
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "the `flake` job reruns each changed test file 20 times, and a date that ages out fails a test months later with no code change."
+    incident: "`TestRegisterLedgerCheck` accumulated entries in a global registry and ejected #904 under the 20 reruns. `TestBusApply` shared one NATS server and failed at `-count=2` (#930)."
+    note: "source: docs/agents/standing-orders.md order 8"
+  - id: SO09
+    title: "Say what the PR changes"
+    text: "Say what the PR changes in its title, and record every decision under \"What came up\". The last PR of a ticket lists everything only the operator can do under `## Needs from Logan`, or says \"Nothing.\""
+    audience: owner
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "the operator reads the bodies, not the transcripts. A decision that is not in a body is lost."
+    incident: "the #490 owner left an eval result for the operator to judge. The root judged it and changed the section to \"Nothing.\", which saved a round trip."
+    note: "source: docs/agents/standing-orders.md order 9"
+  - id: SO10
+    title: "Fix a failed check by its cause"
+    text: "Fix a failed check by its cause. Rerun only the failed jobs once for an infra flake, with `gh run rerun <run-id> --failed`. Fix a PR format failure caused by the body by editing the body. A fix commit starts its own run, so do not also rerun."
+    audience: owner
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "a rerun replays the original event, including the body the PR had then."
+    incident: "reruns of #895 and #962 replayed the empty body from when the PR opened and failed again. Docker Hub, Go proxy and `curl` 500 errors ejected #843, #933 and #934, and each landed on requeue with no code change."
+    note: "source: docs/agents/standing-orders.md order 10"
+  - id: SO11
+    title: "Land a fix ahead of what it unblocks"
+    text: "Land a fix ahead of the PRs it unblocks. When a defect on the tip ejects PRs, stop requeueing them. Land the fix first, then requeue the rest behind it."
+    audience: root
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "a queued stack tested without the fix fails again."
+    incident: "#931, #933 and #934 were queued ahead of the teardown fix #952. They were dequeued and requeued behind it."
+    note: "source: docs/agents/standing-orders.md order 11"
+  - id: SO12
+    title: "Hand work on through GitHub"
+    text: "Hand work on through GitHub, not through one machine. Before you stop, push every branch, keep the draft PR's \"What came up\" current and post the next step on the ticket. Keep the milestone decision log committed."
+    audience: owner
+    surface: [standing-orders]
+    enforced_by: prose
+    why: "any engineer must be able to pick up a ticket or a milestone from a fresh clone."
+    incident: "at the M7 closeout the owner records, standing orders and decision log existed only on the operator's machine. The handoff had to tell the next orchestrator to re-dispatch in-flight tickets instead of resuming them."
+    note: "source: docs/agents/standing-orders.md order 12"
+  - id: O01
+    title: "Never ask the operator"
+    text: "Never ask the operator a question. Pick the option that best serves fast and correct, and record it under \"What came up\"."
+    audience: owner
+    surface: [owner-brief]
+    enforced_by: prose
+  - id: O02
+    title: "Start from a branch"
+    text: "Change files only in the worktree. It starts detached: begin with `git switch -c <n>-<slug>` and `gt track --parent staging`."
+    audience: owner
+    surface: [owner-brief]
+    enforced_by: prose
+  - id: V01
+    title: "Read the owner's code with git show"
+    text: "Leave the owner's branch unchanged. Read its code with `git show <head sha>:<path>`, never by checking out another agent's worktree."
+    audience: verifier
+    surface: [verifier-brief]
+    enforced_by: prose
+  - id: V02
+    title: "Review against the ticket"
+    text: "Review the diff against the ticket's Done-when and acceptance criteria."
+    audience: verifier
+    surface: [verifier-brief]
+    enforced_by: prose
+  - id: V03
+    title: "Read stage 1 once"
+    text: "Read stage 1's result once with `gh pr checks <n>`. Do not watch it."
+    audience: verifier
+    surface: [verifier-brief]
+    enforced_by: prose
+  - id: V04
+    title: "Run no tests"
+    text: "Run no tests."
+    audience: verifier
+    surface: [verifier-brief]
+    enforced_by: hook:rule_role_heavy_tests
+  - id: V05
+    title: "Judge defects, not nits"
+    text: "Judge correctness, claimed acceptance items, scope creep and the PR body format. Ignore nits."
+    audience: verifier
+    surface: [verifier-brief]
+    enforced_by: prose
+  - id: V06
+    title: "iOS diffs"
+    text: "For a PR under `apps/mobile/` or `packages/mobile-core/`, read the diff and `gh pr checks` once, as for Go. Do not drive the simulator unless the ticket's Done-when names a flow a unit test cannot see. Then use the `ios-verify` skill's tap-through step and nothing else. The owner brief needs no change: `monacoctl agents check` already runs the Swift rows."
+    audience: verifier
+    surface: [verifier-brief]
     enforced_by: prose
