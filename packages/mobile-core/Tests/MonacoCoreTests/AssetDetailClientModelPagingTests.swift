@@ -87,7 +87,7 @@ final class AssetDetailClientModelPagingTests: XCTestCase {
         XCTAssertEqual(sent.last, "/v1/assets/AAPLx/chart?range=1M&interval=4h")
     }
 
-    func testMappingCarriesTheIntervalAndTheCursor() throws {
+    func testMappingCarriesTheIntervalAndTheCursor() async throws {
         let cursor = Date(timeIntervalSince1970: TimeInterval(start))
         let series = MarketMapping.chart(page(interval: ._4h, step: 14_400, from: 0, count: 3, nextBefore: cursor))
 

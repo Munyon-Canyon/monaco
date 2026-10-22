@@ -65,7 +65,7 @@ final class ProposalPriceMovedModelTests: XCTestCase {
         #"{"quote_out_amount":\#(quote),"advisory_code":null,"advisory_message":null,"pot_value_micros":100000000}"#
     }
 
-    func testFailureCodeParsesFromTheSwap() throws {
+    func testFailureCodeParsesFromTheSwap() async throws {
         let moved = ProposalDetail(.priceMoved).summary.swap
         XCTAssertEqual(moved?.failureCode, "price_moved")
         XCTAssertEqual(moved?.isPriceMoved, true)

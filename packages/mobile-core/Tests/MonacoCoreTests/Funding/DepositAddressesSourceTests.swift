@@ -35,7 +35,7 @@ final class DepositAddressesSourceTests: XCTestCase {
         XCTAssertEqual(networks[1].isEVM, true)
     }
 
-    func testNoEVMNetworkMeansNoMonadEntry() throws {
+    func testNoEVMNetworkMeansNoMonadEntry() async throws {
         let json = #"{"addresses":[{"network":"solana","address":"\#(solana)","asset":"USDC"}]}"#
 
         XCTAssertEqual(try DepositNetwork.list(json: Data(json.utf8)).map(\.id), ["solana"])
@@ -53,7 +53,7 @@ final class DepositAddressesSourceTests: XCTestCase {
         XCTAssertEqual(networks.map(\.displayName), ["Solana", "Monad", "Arbitrum"])
     }
 
-    func testEntriesWithNoAddressOrAnotherAssetAreDropped() throws {
+    func testEntriesWithNoAddressOrAnotherAssetAreDropped() async throws {
         let json =
             #"{"addresses":[{"network":"solana","address":"\#(solana)","asset":"USDC"},"#
             + #"{"network":"base","address":"  ","asset":"USDC"},"#

@@ -79,7 +79,7 @@ final class BalancesModelTests: XCTestCase {
         XCTAssertTrue(model.allocation.isEmpty)
     }
 
-    func testNothingLoadedYetIsLoadingWithNoFigures() throws {
+    func testNothingLoadedYetIsLoadingWithNoFigures() async throws {
         let model = try make(portfolio: [], cash: [])
 
         XCTAssertEqual(model.phase, .loading)

@@ -10,10 +10,12 @@ struct RepoRule: Sendable {
     let passing: [String]
     var requiredLiteral: String?
     var skipsPreviewBlocks = false
+    var scan: (@Sendable (_ text: NSString) -> [Int])?
     var applies: @Sendable (_ path: String, _ contents: NSString) -> Bool = { _, _ in true }
     private let regex = RuleRegex()
 
     func matches(in text: NSString) throws -> Int {
+        if let scan { return scan(text).count }
         if let requiredLiteral, text.range(of: requiredLiteral, options: .literal).location == NSNotFound { return 0 }
         let subject = skipsPreviewBlocks ? PreviewBlockStripping.apply(text) : text
         let regex = try regex.for(pattern: pattern)
@@ -315,6 +317,7 @@ enum RepoRules {
         FeaturePatternRules.observable,
         FeaturePatternRules.decode,
         FeaturePatternRules.coreSwiftUI,
+        TestIsolationRules.mainActorSyncThrows,
     ]
 }
 
@@ -427,6 +430,78 @@ enum FeaturePatternRules {
         failing: ["import SwiftUI", "#if canImport(SwiftUI)"],
         passing: ["import MonacoCore"]
     )
+}
+
+enum TestIsolationRules {
+    static let mainActorSyncThrows = RepoRule(
+        name: "mainactor-sync-throws",
+        roots: RepoRules.testCode,
+        pattern: "",
+        message: "A sync throws test on a @MainActor XCTestCase aborts test discovery on Linux. Write it async throws.",
+        failing: [
+            "@MainActor\nfinal class FooTests: XCTestCase {\n    func testFoo() throws {\n    }\n}",
+            "@MainActor final class FooTests: XCTestCase {\n    func testFoo() throws {\n    }\n}",
+            "final class FooTests: XCTestCase {}\n\n@MainActor\nextension FooTests {\n"
+                + "    func testBar() throws {\n        let x = { 1 }\n    }\n}",
+        ],
+        passing: [
+            "@MainActor\nfinal class FooTests: XCTestCase {\n    func testFoo() async throws {\n    }\n}",
+            "@MainActor\nfinal class FooTests: XCTestCase {\n    func testFoo() {\n    }\n}",
+            "final class FooTests: XCTestCase {\n    func testFoo() throws {\n    }\n}",
+            "@MainActor\nfinal class FooTests: XCTestCase {\n    func helper() throws {\n    }\n}\n\n"
+                + "final class BarTests: XCTestCase {\n    func testBar() throws {\n    }\n}",
+            "@MainActor\nfinal class FooTests: XCTestCase {\n    // func testFoo() throws {\n}",
+        ],
+        scan: syncThrowsLines
+    )
+
+    private static let typeKeyword = #"\b(?:class|extension|struct|actor)\b"#
+    private static let testSignature = #"\bfunc\s+test\w*\s*\(\s*\)([^{]*)"#
+
+    static func syncThrowsLines(in text: NSString) -> [Int] {
+        var found: [Int] = []
+        var braces: [Bool] = []
+        var pendingAttribute = false
+        var pendingType: Bool?
+        for (offset, raw) in (text as String).split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+            let line = code(String(raw))
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let isolated = pendingAttribute || trimmed.hasPrefix("@MainActor")
+            if line.range(of: typeKeyword, options: .regularExpression) != nil, !trimmed.hasPrefix("func ") {
+                pendingType = isolated || (braces.last ?? false)
+            }
+            if trimmed.hasPrefix("@"), !trimmed.contains("{") {
+                pendingAttribute = pendingAttribute || trimmed.hasPrefix("@MainActor")
+            } else if !trimmed.isEmpty {
+                pendingAttribute = false
+            }
+            if braces.last == true, isSyncThrowsTest(line) { found.append(offset + 1) }
+            for character in line {
+                if character == "{" {
+                    braces.append(pendingType ?? (braces.last ?? false))
+                    pendingType = nil
+                } else if character == "}", !braces.isEmpty {
+                    braces.removeLast()
+                }
+            }
+        }
+        return found
+    }
+
+    private static func isSyncThrowsTest(_ line: String) -> Bool {
+        guard let regex = try? NSRegularExpression(pattern: testSignature),
+            let match = regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
+            let tail = Range(match.range(at: 1), in: line)
+        else { return false }
+        let effects = line[tail]
+        return effects.range(of: #"\bthrows\b"#, options: .regularExpression) != nil
+            && effects.range(of: #"\basync\b"#, options: .regularExpression) == nil
+    }
+
+    private static func code(_ line: String) -> String {
+        line.replacingOccurrences(of: #""(?:[^"\\]|\\.)*""#, with: "\"\"", options: .regularExpression)
+            .replacingOccurrences(of: #"//.*$"#, with: "", options: .regularExpression)
+    }
 }
 
 enum RepoTree {
@@ -635,7 +710,11 @@ final class RepoRulesTests: XCTestCase {
             let found = try RepoTree.counts(for: rule)
             let rows = allowed[rule.name, default: [:]]
             for (path, count) in found.sorted(by: { $0.key < $1.key }) where count > rows[path, default: 0] {
-                XCTFail("\(rule.name) \(path) \(rows[path, default: 0]) -> \(count): \(rule.message)")
+                var lines = ""
+                if let scan = rule.scan {
+                    lines = " at lines " + scan(try RepoTree.read(path)).map(String.init).joined(separator: ", ")
+                }
+                XCTFail("\(rule.name) \(path)\(lines) \(rows[path, default: 0]) -> \(count): \(rule.message)")
             }
         }
     }

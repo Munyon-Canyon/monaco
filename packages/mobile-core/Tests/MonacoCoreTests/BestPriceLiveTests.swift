@@ -146,7 +146,7 @@ final class BestPriceLiveTests: XCTestCase {
         XCTAssertNil(model.row(for: openBuy(pinned: .robinhood), decimals: 8, now: quotedAt))
     }
 
-    func testAClosedPinnedBuyShowsOnlyThePinnedChainsStoredPrice() throws {
+    func testAClosedPinnedBuyShowsOnlyThePinnedChainsStoredPrice() async throws {
         var proposal = Components.Schemas.Proposal.sample(kind: .buy)
         proposal.status = .executed
         proposal.network = .ethereum

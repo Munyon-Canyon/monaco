@@ -1,0 +1,2 @@
+# path reason
+internal/platform/db/intent_test.go Bind runs against a fake exec, so the fixed date is stored and never compared with a clock
