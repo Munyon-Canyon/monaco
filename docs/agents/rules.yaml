@@ -233,7 +233,7 @@ rules:
     title: "land right after submit"
     text: "Always land: right after `gt submit` and `scripts/pr-body.sh`, run `monacoctl agents land-stack <top-pr>` once without asking, unless the user says in the current conversation not to land or queue, then follow it with `monacoctl agents watch` under Monitor."
     audience: all
-    surface: [agents-md, monaco-milestone]
+    surface: [agents-md, monaco-milestone, backend-agents-md]
     enforced_by: prose
     covers: [A26]
   - id: S02
@@ -479,4 +479,64 @@ rules:
     text: "Refund leftover QA USDC via in-app withdrawal after QA runs"
     audience: all
     surface: []
+    enforced_by: prose
+  - id: B01
+    title: "Domain is pure (no context, no I/O, no other module)"
+    text: "`domain` is pure: no context, no I/O, no other module."
+    audience: all
+    surface: [backend-agents-md]
+    enforced_by: lint:apps/backend/.golangci.base.yml
+  - id: B02
+    title: "App holds commands and queries and defines the ports it needs"
+    text: "`app` holds commands and queries and defines the ports it needs. `adapters` holds Postgres, HTTP and consumers."
+    audience: all
+    surface: [backend-agents-md]
+    enforced_by: lint:apps/backend/.golangci.base.yml
+  - id: B03
+    title: "Never edit `.golangci.yml`; it is generated from `.golangci.base.yml`"
+    text: "Never edit `.golangci.yml`, which is generated from `.golangci.base.yml`."
+    audience: all
+    surface: [backend-agents-md]
+    enforced_by: hook:agent-guard.py
+  - id: B04
+    title: "Cross-module means an event, or the other module's query port"
+    text: "A module never imports another module. It reacts to that module's events or reads through the query port that module exports."
+    audience: all
+    surface: [backend-agents-md]
+    enforced_by: lint:apps/backend/.golangci.base.yml
+  - id: B05
+    title: "Amounts are `money.Micros`, `money.SignedMicros` or `money.BaseUnits`; floats are banned"
+    text: "Amounts are `money.Micros`, `money.SignedMicros` or `money.BaseUnits`. Floats are banned."
+    audience: all
+    surface: [backend-agents-md]
+    enforced_by: lint:apps/backend/.golangci.base.yml
+  - id: B06
+    title: "Balance changes commit with their event in `db.UnitOfWork.Do`"
+    text: "Every balance change and its event commit together inside `db.UnitOfWork.Do`. Read the `money-change` skill first."
+    audience: all
+    surface: [backend-agents-md]
+    enforced_by: prose
+  - id: B07
+    title: "No comments in Go: a better name, a type, a test or an issue instead"
+    text: "No comments in Go. If you want one, you need a better name, a type, a test or an issue. Only `//go:` directives survive."
+    audience: all
+    surface: [backend-agents-md]
+    enforced_by: hook:agent-guard-go-comments.sh
+  - id: B08
+    title: "Use the generators"
+    text: "Use the generators: `just gen module`, `just gen command`, `just gen query`, `just gen consumer`, `just gen provider` and `just gen flow` write the first copy. Copy what they emit, not what you remember."
+    audience: all
+    surface: [backend-agents-md]
+    enforced_by: prose
+  - id: B09
+    title: "Every flow is a file"
+    text: "Every flow is a file. A behavior change updates its row in `packages/flows/backend/<id>.tsv` and the `TestFlow<id>_<Command>_<Outcome>` tests it names."
+    audience: all
+    surface: [backend-agents-md]
+    enforced_by: ci:ci-jobs
+  - id: B10
+    title: "Run `monacoctl agents check` before a push"
+    text: "Before a push, run `go run ./cmd/monacoctl agents check` from `apps/backend`. It builds, vets and runs the short tests of the packages affected since the base, with each package held to 120 s. If only the budget fails on a loaded machine, rerun it later. Stage 1 CI runs the full suite and `monacoctl verify` on the real binaries. Do not run them yourself."
+    audience: all
+    surface: [backend-agents-md]
     enforced_by: prose
