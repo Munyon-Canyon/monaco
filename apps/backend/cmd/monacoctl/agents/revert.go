@@ -105,11 +105,30 @@ func (env *Env) stagingRun(ctx context.Context, l Landing) (Run, bool, error) {
 		return run, err == nil, err
 	}
 	runs, err := env.GitHub.DispatchedRuns(ctx, indicatorWorkflow, env.Config.FeatureBranch, l.At)
-	i := slices.IndexFunc(runs, func(x Run) bool { return x.HeadSHA == l.SHA })
-	if err != nil || i < 0 {
+	if err != nil {
 		return Run{}, false, err
 	}
-	return runs[i], true, nil
+	if i := slices.IndexFunc(runs, func(x Run) bool { return x.HeadSHA == l.SHA }); i >= 0 {
+		return runs[i], true, nil
+	}
+	return env.oldestRunContaining(ctx, l, runs)
+}
+
+func (env *Env) oldestRunContaining(ctx context.Context, l Landing, runs []Run) (Run, bool, error) {
+	root := filepath.Dir(env.Common)
+	sh := &shell{env: env}
+	sh.run(ctx, root, "git", "fetch", "--quiet", "origin", env.Config.FeatureBranch)
+	ordered := slices.SortedFunc(slices.Values(runs), func(a, b Run) int { return a.CreatedAt.Compare(b.CreatedAt) })
+	for _, run := range ordered {
+		base := sh.run(ctx, root, "git", "merge-base", l.SHA, run.HeadSHA)
+		if sh.err != nil {
+			return Run{}, false, sh.err
+		}
+		if base == l.SHA {
+			return run, true, nil
+		}
+	}
+	return Run{}, false, nil
 }
 
 func (env *Env) noLandingRun(ctx context.Context, l Landing) ([]string, func(*Landing)) {
@@ -149,13 +168,9 @@ func (env *Env) relatedFailure(ctx context.Context, r Record, l Landing, run Run
 		return landingCall{lines: []string{fmt.Sprintf("staging run %s failed only on the ci-ok aggregate "+
 			"(a job was cancelled or the run was cut short); not reverting %s", run.URL, refs)}}, nil
 	}
-	related := failed
-	mobile, err := env.touchesMobile(ctx, l)
+	related, err := env.relatedJobs(ctx, l, failed)
 	if err != nil {
 		return landingCall{}, err
-	}
-	if !mobile {
-		related = slices.DeleteFunc(slices.Clone(failed), unrelatedJob)
 	}
 	if len(related) == 0 {
 		return landingCall{
@@ -163,16 +178,16 @@ func (env *Env) relatedFailure(ctx context.Context, r Record, l Landing, run Run
 				run.URL, strings.Join(failed, ", "), refs)},
 		}, nil
 	}
-	var lines []string
-	related, redLine, err := env.dropAlreadyRed(ctx, l, run, related)
+	related, lines, err := env.dropAlreadyRed(ctx, l, run, related)
 	if err != nil {
 		return landingCall{}, err
 	}
-	if redLine != "" {
-		lines = append(lines, redLine)
-	}
 	if len(related) == 0 {
 		return landingCall{lines: lines}, nil
+	}
+	if run.HeadSHA != "" && run.HeadSHA != l.SHA {
+		return landingCall{lines: append(lines, fmt.Sprintf(
+			"staging run %s covers %s and other landings; not reverting one of several", run.URL, refs))}, nil
 	}
 	if !l.Reran {
 		if err := env.GitHub.RerunFailed(ctx, run.ID); err != nil {
@@ -189,6 +204,14 @@ func (env *Env) relatedFailure(ctx context.Context, r Record, l Landing, run Run
 	return landingCall{revert: pr, lines: append(lines, more...)}, err
 }
 
+func (env *Env) relatedJobs(ctx context.Context, l Landing, failed []string) ([]string, error) {
+	mobile, err := env.touchesMobile(ctx, l)
+	if err != nil || mobile {
+		return failed, err
+	}
+	return slices.DeleteFunc(slices.Clone(failed), unrelatedJob), nil
+}
+
 func (env *Env) failedJobs(ctx context.Context, runID int64) ([]string, error) {
 	jobs, err := env.GitHub.Jobs(ctx, runID)
 	if err != nil {
@@ -203,15 +226,15 @@ func (env *Env) failedJobs(ctx context.Context, runID int64) ([]string, error) {
 	return failed, nil
 }
 
-func (env *Env) dropAlreadyRed(ctx context.Context, l Landing, run Run, related []string) ([]string, string, error) {
+func (env *Env) dropAlreadyRed(ctx context.Context, l Landing, run Run, related []string) ([]string, []string, error) {
 	prior, found, err := env.GitHub.LatestStagingRunBefore(ctx, indicatorWorkflow, env.Config.FeatureBranch,
 		run.CreatedAt, l.SHA)
 	if err != nil || !found || prior.Conclusion == "success" {
-		return related, "", err
+		return related, nil, err
 	}
 	red, err := env.failedJobs(ctx, prior.ID)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, err
 	}
 	red = slices.DeleteFunc(red, aggregateJob)
 	var already []string
@@ -223,15 +246,15 @@ func (env *Env) dropAlreadyRed(ctx context.Context, l Landing, run Run, related 
 		return false
 	})
 	if len(already) == 0 {
-		return related, "", nil
+		return related, nil, nil
 	}
-	return remaining, fmt.Sprintf(
+	return remaining, []string{fmt.Sprintf(
 		"staging run %s failed on %s, already red on %s before %s landed; not reverting for them",
 		run.URL,
 		strings.Join(already, ", "),
 		prior.HeadSHA[:min(8, len(prior.HeadSHA))],
 		prRefs(l.PRs),
-	), nil
+	)}, nil
 }
 
 func aggregateJob(name string) bool {
