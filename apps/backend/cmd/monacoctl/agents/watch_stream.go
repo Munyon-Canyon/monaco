@@ -140,6 +140,7 @@ func (s *stream) round(ctx context.Context) ([]string, []string) {
 			items = append(items, r.Settled.Detail)
 		}
 	}
+	items = append(items, env.landingLines(ctx, rs)...)
 	items = append(items, s.draftLines(data.drafts, queued)...)
 	every := append(
 		stuckOnGraphiteBase(data.prs, rs, env.Config.QueueLabel, env.Now()),

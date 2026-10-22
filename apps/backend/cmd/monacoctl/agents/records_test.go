@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -470,5 +471,28 @@ func TestRecords_aFailingUpdateLeavesTheRecordAlone(t *testing.T) {
 	}
 	if r, err := env.localRecord(40); err != nil || r.State != Running {
 		t.Fatalf("%+v %v", r, err)
+	}
+}
+
+func TestRecords_aLandingRoundTripsAndAnOldRecordDecodesWithoutOne(t *testing.T) {
+	t.Parallel()
+	env := newFixture(t).Env(t)
+	at := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
+	landing := Landing{Top: 2, PRs: []int{1, 2}, SHA: "abc", At: at, RunID: 77, RunURL: "https://gh/run/77", Revert: 99}
+	if err := env.saveRecord(Record{Ticket: 40, Landed: []Landing{landing}}); err != nil {
+		t.Fatal(err)
+	}
+	back, err := env.localRecord(40)
+	if err != nil || len(back.Landed) != 1 || !back.Landed[0].At.Equal(at) {
+		t.Fatalf("round trip %+v %v", back, err)
+	}
+	want := landing
+	want.At = back.Landed[0].At
+	if !reflect.DeepEqual(back.Landed[0], want) {
+		t.Fatalf("landing %+v, want %+v", back.Landed[0], want)
+	}
+	old := loadRaw(t, `{"ticket":41,"queued":{"top":2,"prs":[2],"at":"2026-09-27T12:00:00Z"}}`)
+	if old.Landed != nil || len(old.Queued) != 1 {
+		t.Fatalf("old record decoded to %+v", old)
 	}
 }

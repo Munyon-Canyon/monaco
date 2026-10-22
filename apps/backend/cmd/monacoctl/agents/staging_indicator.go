@@ -13,11 +13,12 @@ const (
 	forwardedTo       = " fast-forwarded to "
 )
 
-func (g *GitHub) DispatchWorkflow(ctx context.Context, workflow, ref string) error {
-	return g.call(
-		ctx, http.MethodPost, g.repo("/actions/workflows/%s/dispatches", workflow),
-		"", map[string]string{"ref": ref}, nil,
-	)
+func (g *GitHub) DispatchWorkflow(ctx context.Context, workflow, ref string, inputs map[string]string) error {
+	body := map[string]any{"ref": ref}
+	if len(inputs) > 0 {
+		body["inputs"] = inputs
+	}
+	return g.call(ctx, http.MethodPost, g.repo("/actions/workflows/%s/dispatches", workflow), "", body, nil)
 }
 
 func (s *stream) indicatorLines(ctx context.Context, trunkMsg string) []string {
@@ -28,7 +29,7 @@ func (s *stream) indicatorLines(ctx context.Context, trunkMsg string) []string {
 	if s.indicatorDue == "" {
 		return nil
 	}
-	if err := env.GitHub.DispatchWorkflow(ctx, indicatorWorkflow, env.Config.FeatureBranch); err != nil {
+	if err := env.GitHub.DispatchWorkflow(ctx, indicatorWorkflow, env.Config.FeatureBranch, nil); err != nil {
 		return []string{watchErr("dispatch staging indicator: ", err)}
 	}
 	sha := s.indicatorDue
@@ -37,5 +38,20 @@ func (s *stream) indicatorLines(ctx context.Context, trunkMsg string) []string {
 }
 
 func (s *stream) indicatorIdle() bool {
-	return s.indicatorAt.IsZero() || s.env.Now().Sub(s.indicatorAt) >= indicatorEvery
+	now := s.env.Now()
+	if !s.indicatorAt.IsZero() && now.Sub(s.indicatorAt) < indicatorEvery {
+		return false
+	}
+	rs, err := s.env.records()
+	if err != nil {
+		return true
+	}
+	for _, r := range rs {
+		for _, l := range r.Landed {
+			if now.Sub(l.At) < indicatorEvery {
+				return false
+			}
+		}
+	}
+	return true
 }

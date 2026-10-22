@@ -99,6 +99,7 @@ func (p restPull) graphState() string {
 func (p restPull) asStack() stackPR {
 	sp := stackPR{}
 	sp.Number = p.Number
+	sp.Title = p.Title
 	sp.Body = p.Body
 	sp.State = p.graphState()
 	sp.HeadOID = p.Head.SHA

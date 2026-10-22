@@ -42,6 +42,18 @@ type Settlement struct {
 	At      time.Time `json:"at"`
 }
 
+type Landing struct {
+	Top          int       `json:"top"`
+	PRs          []int     `json:"prs"`
+	SHA          string    `json:"sha"`
+	At           time.Time `json:"at"`
+	RunID        int64     `json:"run_id,omitempty"`
+	RunURL       string    `json:"run_url,omitempty"`
+	Checked      bool      `json:"checked,omitempty"`
+	Revert       int       `json:"revert,omitempty"`
+	Redispatched bool      `json:"redispatched,omitempty"`
+}
+
 type Record struct {
 	Ticket    int         `json:"ticket"`
 	Model     string      `json:"model"`
@@ -55,6 +67,7 @@ type Record struct {
 	OldQueued *Queue      `json:"queued,omitempty"`
 	OldArmed  *Arm        `json:"armed,omitempty"`
 	Settled   *Settlement `json:"settled,omitempty"`
+	Landed    []Landing   `json:"landed,omitempty"`
 	Started   time.Time   `json:"started"`
 	Changed   time.Time   `json:"changed"`
 

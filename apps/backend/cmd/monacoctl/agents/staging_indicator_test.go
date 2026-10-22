@@ -1,6 +1,7 @@
 package agents
 
 import (
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -66,4 +67,30 @@ func TestStagingIndicator_printsTheErrorAndRetriesOnALaterPoll(t *testing.T) {
 	if got := s.trunkLines(t.Context()); len(got) != 0 {
 		t.Fatalf("after the retry printed %q", got)
 	}
+}
+
+func TestStagingIndicator_staysIdleWhileALandingJustDispatchedItsOwnRun(t *testing.T) {
+	t.Parallel()
+	r := newTrunkRepo(t)
+	landing := Landing{Top: 2, PRs: []int{1, 2}, SHA: strings.Repeat("a", 40), At: r.now.Add(-10 * time.Minute)}
+	if err := r.env.saveRecord(Record{Ticket: 40, Landed: []Landing{landing}}); err != nil {
+		t.Fatal(err)
+	}
+	s := newStream(r.env)
+	r.land("a.txt")
+	if got := s.trunkLines(t.Context()); len(got) != 1 || dispatches(r) != 0 {
+		t.Fatalf("printed %q after %d dispatches", got, dispatches(r))
+	}
+	r.now = r.now.Add(51 * time.Minute)
+	r.land("b.txt")
+	dispatchedFor(t, r, s.trunkLines(t.Context()))
+}
+
+func TestStagingIndicator_dispatchesWhenAnOwnerRecordCannotBeRead(t *testing.T) {
+	t.Parallel()
+	r := newTrunkRepo(t)
+	writeFile(t, filepath.Join(r.env.Common, recordsDir, "40.json"), "{")
+	s := newStream(r.env)
+	r.land("a.txt")
+	dispatchedFor(t, r, s.trunkLines(t.Context()))
 }
