@@ -319,9 +319,11 @@ func (env *Env) stage0(ctx context.Context, lane, base, parent, head string) ([]
 		return nil, err
 	}
 	rows = append(rows, touches...)
-	backend := slices.ContainsFunc(changed, func(f string) bool { return strings.HasPrefix(f, "apps/backend/") })
+	backend := slices.ContainsFunc(slices.Concat(changed, removed), func(f string) bool {
+		return strings.HasPrefix(f, "apps/backend/")
+	})
 	if backend {
-		goRows, err := env.goRows(ctx, lane, base, head, changed)
+		goRows, err := env.goRows(ctx, lane, base, head, changed, removed)
 		if err != nil {
 			return nil, err
 		}
@@ -683,7 +685,7 @@ func (env *Env) coverProfile(head string) string {
 	return env.statePath("coverage", head[:12]+".out")
 }
 
-func (env *Env) goRows(ctx context.Context, self, base, head string, changed []string) ([]checkRow, error) {
+func (env *Env) goRows(ctx context.Context, self, base, head string, changed, removed []string) ([]checkRow, error) {
 	backend := filepath.Join(env.Work, "apps", "backend")
 	out, err := env.Run(ctx, backend, "", self, "ci", "affected", "--base", base)
 	if err != nil {
@@ -693,6 +695,15 @@ func (env *Env) goRows(ctx context.Context, self, base, head string, changed []s
 	skipped, err := env.Run(ctx, backend, "", self, "ci", "affected", "--base", base, "--excluded")
 	if err != nil {
 		return nil, fmt.Errorf("find excluded packages: %w", err)
+	}
+	dependents, err := env.testDependents(ctx, backend, slices.Concat(changed, removed))
+	if err != nil {
+		return nil, err
+	}
+	for _, dep := range dependents {
+		if !slices.Contains(tested, dep) && !slices.Contains(strings.Fields(string(skipped)), dep) {
+			tested = append(tested, dep)
+		}
 	}
 	pkgs := slices.Concat(tested, strings.Fields(string(skipped)))
 	if len(pkgs) == 0 {
@@ -707,7 +718,7 @@ func (env *Env) goRows(ctx context.Context, self, base, head string, changed []s
 	if err != nil {
 		return nil, err
 	}
-	covered := coverageFiles(backend, changed)
+	covered := coverageFiles(backend, changed, removed)
 	testRow := goTestRow(env, backend, tags, tested, covered, profile)
 	testRow.header = testHeader(tested, strings.Fields(string(skipped)))
 	if len(tested) == 0 {
@@ -757,14 +768,18 @@ func goTestRow(env *Env, backend string, tags, pkgs []string, covered map[string
 	}
 }
 
-func coverageFiles(backend string, changed []string) map[string]bool {
+func coverageFiles(backend string, changed, removed []string) map[string]bool {
 	only := map[string]bool{}
 	for _, f := range changed {
+		if rel, ok := strings.CutPrefix(f, "apps/backend/"); ok && strings.HasSuffix(rel, ".go") && isSource(rel) {
+			only[rel] = true
+		}
+	}
+	for _, f := range slices.Concat(changed, removed) {
 		rel, ok := strings.CutPrefix(f, "apps/backend/")
-		if !ok || !strings.HasSuffix(rel, ".go") || !isSource(rel) {
+		if !ok || !strings.HasSuffix(rel, ".go") && !strings.HasSuffix(rel, ".allow") {
 			continue
 		}
-		only[rel] = true
 		siblings, _ := filepath.Glob(filepath.Join(backend, path.Dir(rel), "*.go"))
 		for _, sibling := range siblings {
 			if isSource(sibling) {
@@ -773,6 +788,61 @@ func coverageFiles(backend string, changed []string) map[string]bool {
 		}
 	}
 	return only
+}
+
+const importListFormat = `{{.Module.Path}} {{.ImportPath}} ` +
+	`{{join .Imports " "}} {{join .TestImports " "}} {{join .XTestImports " "}}`
+
+func (env *Env) testDependents(ctx context.Context, backend string, files []string) ([]string, error) {
+	var dirs []string
+	for _, f := range files {
+		rel, ok := strings.CutPrefix(f, "apps/backend/")
+		if ok && (strings.HasSuffix(rel, "_test.go") || strings.HasSuffix(rel, ".allow")) {
+			dirs = append(dirs, path.Dir(rel))
+		}
+	}
+	if len(dirs) == 0 {
+		return nil, nil
+	}
+	out, err := env.Run(ctx, backend, "", "go", "list", "-f", importListFormat, "./...")
+	if err != nil {
+		return nil, fmt.Errorf("list the importers of the packages whose tests changed: %w", err)
+	}
+	return importersOf(string(out), dirs), nil
+}
+
+func importersOf(listing string, dirs []string) []string {
+	importers := map[string][]string{}
+	var module string
+	for line := range strings.SplitSeq(listing, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		module = fields[0]
+		for _, imported := range fields[2:] {
+			importers[imported] = append(importers[imported], fields[1])
+		}
+	}
+	seen := map[string]bool{}
+	queue := make([]string, 0, len(dirs))
+	for _, dir := range dirs {
+		queue = append(queue, path.Join(module, dir))
+	}
+	for ; len(queue) > 0; queue = queue[1:] {
+		for _, importer := range importers[queue[0]] {
+			if !seen[importer] {
+				seen[importer] = true
+				queue = append(queue, importer)
+			}
+		}
+	}
+	deps := make([]string, 0, len(seen))
+	for pkg := range seen {
+		deps = append(deps, "./"+strings.TrimPrefix(pkg, module+"/"))
+	}
+	slices.Sort(deps)
+	return deps
 }
 
 func coverFlags(backend string, pkgs []string, covered map[string]bool, profile string) []string {
@@ -791,7 +861,7 @@ func coverageRow(backend, self, profile string, only map[string]bool) checkRow {
 		cmd = append(cmd, "--only", rel)
 	}
 	if len(cmd) == 4 {
-		row.skip = "no Go file outside tests changed under apps/backend"
+		row.skip = "no Go source, test or allow file changed under apps/backend"
 		return row
 	}
 	row.cmds = [][]string{cmd}

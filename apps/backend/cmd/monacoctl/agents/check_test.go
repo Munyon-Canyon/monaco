@@ -432,6 +432,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		".: gt parent --no-interactive",
 		"apps/backend: ci affected --base origin/fb",
 		"apps/backend: ci affected --base origin/fb --excluded",
+		"apps/backend: go list -f " + importListFormat + " ./...",
 		"apps/backend: go env GOPATH",
 		"apps/backend: golangci-lint version --short",
 		pr + "check-gate-changes.py",
@@ -1432,11 +1433,11 @@ func TestCheck_theCoverageRowGatesOnlyTheChangedGoSources(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
 	h.base(t, map[string]string{"apps/backend/internal/a/old.go": "package a\n"})
-	h.commit(t, map[string]string{"apps/backend/internal/a/a_test.go": "package a\n"})
+	h.commit(t, map[string]string{"apps/backend/internal/z/z_test.go": "package z\n"})
 	h.affected = "./internal/a\n"
 	code, stdout, stderr := h.check(t)
-	if code != 0 ||
-		!strings.Contains(stdout, "  coverage        skip  no Go file outside tests changed under apps/backend") {
+	const skipped = "  coverage        skip  no Go source, test or allow file changed under apps/backend"
+	if code != 0 || !strings.Contains(stdout, skipped) {
 		t.Fatalf("test-only change: %d %q %q", code, stdout, stderr)
 	}
 	if _, err := os.Stat(h.profile(t)); !errors.Is(err, os.ErrNotExist) {
@@ -1489,6 +1490,46 @@ func TestCheck_theCoverageRowGatesTheUnchangedSourcesOfAChangedPackage(t *testin
 	want := "apps/backend: coverage --profile " + h.profile(t) + " --only internal/a/a.go --only internal/a/b.go"
 	if !slices.Contains(h.calls, want) {
 		t.Fatalf("calls: %s\nwant %s", strings.Join(h.calls, "\n"), want)
+	}
+}
+
+func TestCheck_theCoverageRowGatesThePackageSourcesWhenATestOrAllowFileIsRemoved(t *testing.T) {
+	t.Parallel()
+	for _, gone := range []string{"apps/backend/internal/a/a_test.go", "apps/backend/internal/a/a.allow"} {
+		t.Run(filepath.Base(gone), func(t *testing.T) {
+			t.Parallel()
+			h := newCheckHarness(t)
+			h.base(t, map[string]string{
+				"apps/backend/internal/a/a.go":      "package a\n",
+				"apps/backend/internal/a/a_test.go": "package a\n",
+				"apps/backend/internal/a/a.allow":   "# path reason\n",
+				"apps/backend/internal/c/c.go":      "package c\n",
+			})
+			git(t, h.dir, "rm", "-q", gone)
+			h.commit(t, nil)
+			h.affected = "./internal/a\n"
+			listing := "m m/internal/a\nm m/internal/b m/internal/a\nm m/internal/c\n"
+			h.replies = []reply{{prefix: "go list", out: listing}}
+			h.calls = nil
+			if code, stdout, stderr := h.check(t); code != 0 {
+				t.Fatalf("check: %d %q %q", code, stdout, stderr)
+			}
+			want := "apps/backend: coverage --profile " + h.profile(t) + " --only internal/a/a.go"
+			if !slices.Contains(h.calls, want) {
+				t.Fatalf("calls: %s\nwant %s", strings.Join(h.calls, "\n"), want)
+			}
+			if !slices.ContainsFunc(h.calls, func(c string) bool {
+				return strings.Contains(c, "-coverpkg=./internal/a,./internal/b ") &&
+					strings.HasSuffix(c, " ./internal/a ./internal/b")
+			}) {
+				t.Fatalf("the importer of the package was not tested: %s", strings.Join(h.calls, "\n"))
+			}
+
+			h.replies = []reply{{prefix: "go list", err: errors.New("x")}}
+			if code, _, stderr := h.check(t, "--fresh"); code != 1 || !strings.Contains(stderr, "list the importers") {
+				t.Fatalf("go list failure: %d %q", code, stderr)
+			}
+		})
 	}
 }
 
@@ -2153,7 +2194,7 @@ func TestCheck_goTestWritesNoProfileWhenNoSourceChanged(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
 	h.base(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
-	h.commit(t, map[string]string{"apps/backend/internal/a/a_test.go": "package a\n"})
+	h.commit(t, map[string]string{"apps/backend/internal/z/z_test.go": "package z\n"})
 	h.affected = "./internal/a\n"
 	h.calls = nil
 	if code, stdout, stderr := h.check(t); code != 0 {
