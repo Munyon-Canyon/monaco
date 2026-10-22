@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,6 +20,7 @@ const (
 	ciOkFor        = 10 * time.Minute
 	mergeableEvery = 2 * time.Second
 	mergeableFor   = time.Minute
+	queuedLookback = 3 * time.Hour
 	stage2For      = 5 * time.Minute
 	tailLines      = 20
 	watchedPaths   = "apps/backend packages/flows"
@@ -415,6 +417,15 @@ func (env *Env) recordLanding(
 	if err != nil {
 		return err
 	}
+	queued, err := env.queuedDispatchedRun(ctx)
+	if err != nil {
+		_, _ = fmt.Fprintf(stdout, "watch error: list queued staging runs: %s\n", cliText(err))
+	}
+	if queued {
+		_, _ = fmt.Fprintf(stdout, "staging run for %s will share the next run (a dispatched run is still queued)\n",
+			sha12(sha))
+		return nil
+	}
 	err = env.GitHub.DispatchWorkflow(ctx, indicatorWorkflow, env.Config.FeatureBranch, map[string]string{"sha": sha})
 	if err != nil {
 		_, _ = fmt.Fprintf(stdout, "watch error: dispatch staging run: %s\n", cliText(err))
@@ -423,4 +434,10 @@ func (env *Env) recordLanding(
 	_, _ = fmt.Fprintf(stdout, "dispatched staging run for %s; agents watch reverts %s if it fails\n",
 		sha12(sha), prRefs(nums))
 	return nil
+}
+
+func (env *Env) queuedDispatchedRun(ctx context.Context) (bool, error) {
+	runs, err := env.GitHub.DispatchedRuns(ctx, indicatorWorkflow, env.Config.FeatureBranch,
+		env.Now().Add(-queuedLookback))
+	return slices.ContainsFunc(runs, func(r Run) bool { return r.Status == "queued" }), err
 }

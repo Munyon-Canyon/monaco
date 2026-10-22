@@ -167,6 +167,47 @@ func (d *directFixture) mergeCalls() []string {
 	return out
 }
 
+func TestLandStack_sharesTheNextStagingRunWhileADispatchedRunIsQueued(t *testing.T) {
+	t.Parallel()
+	d := newDirect(t, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
+	f := d.f
+	at := f.now.Add(-queuedLookback).UTC().Format(time.RFC3339)
+	f.hub.on(
+		get("/actions/workflows/staging.yml/runs?event=workflow_dispatch&branch=fb&created=>="+at+"&per_page=100"),
+		map[string]any{"workflow_runs": []Run{
+			{ID: 5, Status: "in_progress", HeadSHA: baseSHA},
+			{ID: 6, Status: "queued", HeadSHA: baseSHA},
+		}},
+	)
+	code, stdout, stderr := f.agents(t, "land-stack", "2")
+	want := "staging run for 222222222222 will share the next run (a dispatched run is still queued)\n"
+	if code != 0 || !strings.HasSuffix(stdout, want) || stderr != "" {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	if got := f.hub.callsContaining("dispatches"); len(got) != 0 {
+		t.Fatalf("dispatched %v", got)
+	}
+	if r := f.owned(t); len(r.Landed) != 1 || r.Landed[0].SHA != lastSHA || r.Landed[0].RunID != 0 {
+		t.Fatalf("landed %+v", r.Landed)
+	}
+}
+
+func TestLandStack_dispatchesWhenItCannotListTheQueuedRuns(t *testing.T) {
+	t.Parallel()
+	d := newDirect(t, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
+	f := d.f
+	at := f.now.Add(-queuedLookback).UTC().Format(time.RFC3339)
+	route := get("/actions/workflows/staging.yml/runs?event=workflow_dispatch&branch=fb&created=>=" +
+		at + "&per_page=100")
+	f.hub.status[route] = 500
+	f.hub.on(route, "{}")
+	_, stdout, _ := f.agents(t, "land-stack", "2")
+	if !strings.Contains(stdout, "watch error: list queued staging runs: ") ||
+		!strings.Contains(stdout, "dispatched staging run for 222222222222") {
+		t.Fatalf("%q", stdout)
+	}
+}
+
 func TestLandStack_squashesAnAttestedStackBottomUp(t *testing.T) {
 	t.Parallel()
 	d := newDirect(t, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))

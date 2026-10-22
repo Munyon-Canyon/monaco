@@ -556,3 +556,58 @@ func TestWatch_reportsWhatItCannotReadAboutThePriorRunAndWhatItCannotRerun(t *te
 		})
 	}
 }
+
+func sharedRunLanding(t *testing.T, headSHA string, jobs ...Job) *landingFixture {
+	t.Helper()
+	l := newLanding(t, func(x *Landing) { x.RunID = 0 })
+	l.sh.first(shellRule{prefix: "git merge-base " + lastSHA + " " + headSHA, out: lastSHA + "\n"})
+	at := l.f.now.Add(-5 * time.Minute).UTC().Format(time.RFC3339)
+	older := Run{ID: 70, Status: "completed", Conclusion: "success", HeadSHA: firstSHA}
+	older.CreatedAt = l.f.now.Add(-4 * time.Minute)
+	shared := Run{ID: 77, Status: "completed", Conclusion: "failure", URL: "https://gh/run/77", HeadSHA: headSHA}
+	shared.CreatedAt = l.f.now.Add(-3 * time.Minute)
+	l.f.hub.on(
+		get("/actions/workflows/staging.yml/runs?event=workflow_dispatch&branch=fb&created=>="+at+"&per_page=100"),
+		map[string]any{"workflow_runs": []Run{older, shared}},
+	)
+	l.f.hub.on(get("/actions/runs/77/jobs?per_page=100"), map[string]any{"jobs": jobs})
+	return l
+}
+
+func TestWatch_doesNotRevertOneLandingOfSeveralCoveredByASharedRun(t *testing.T) {
+	t.Parallel()
+	l := sharedRunLanding(t, "3333333333333333333333333333333333333333",
+		Job{Name: "staging / Backend tests (a)", Conclusion: "failure"})
+	l.sh.first(shellRule{prefix: "git merge-base " + lastSHA + " " + firstSHA, out: "0000\n"})
+	_, stdout, _ := l.f.agents(t, "watch", "--once")
+	want := "staging run https://gh/run/77 covers #1 #2 and other landings; not reverting one of several\n"
+	if !strings.Contains(stdout, want) || strings.Contains(stdout, "reverted") {
+		t.Fatalf("%q", stdout)
+	}
+	if got := l.landing(t); !got.Checked || got.Revert != 0 || got.RunID != 77 {
+		t.Fatalf("landing %+v", got)
+	}
+	if len(l.f.hub.callsContaining("/rerun")) != 0 || len(l.sh.lines("git revert")) != 0 {
+		t.Fatal("the shared run was rerun or reverted")
+	}
+}
+
+func TestWatch_stillRevertsWhenTheRunHeadIsTheLanding(t *testing.T) {
+	t.Parallel()
+	l := sharedRunLanding(t, lastSHA, Job{Name: "staging / Backend tests (a)", Conclusion: "failure"})
+	_, stdout, _ := l.f.agents(t, "watch", "--once")
+	want := "reverted #1 #2 with #99: staging run https://gh/run/77 failed on staging / Backend tests (a)\n"
+	if !strings.Contains(stdout, want) {
+		t.Fatalf("%q", stdout)
+	}
+}
+
+func TestWatch_reportsWhatItCannotReadWhileLookingForASharedRun(t *testing.T) {
+	t.Parallel()
+	l := sharedRunLanding(t, "3333333333333333333333333333333333333333")
+	l.sh.first(shellRule{prefix: "git merge-base", err: errors.New("bad object")})
+	_, stdout, _ := l.f.agents(t, "watch", "--once")
+	if !strings.Contains(stdout, "watch error: landing "+lastSHA[:12]+": ") || l.landing(t).Checked {
+		t.Fatalf("%q", stdout)
+	}
+}
