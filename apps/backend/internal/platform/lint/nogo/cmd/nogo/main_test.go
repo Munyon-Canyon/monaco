@@ -231,7 +231,7 @@ func TestMain_registersEveryAnalyzer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"nogo", "testmain", "wallclock", "testwait", "caldate"} {
+	for _, name := range []string{"nogo", "testmain", "wallclock", "testwait", "caldate", "uowdo"} {
 		if !strings.Contains(string(out), `"Name": "`+name+`"`) {
 			t.Errorf("nogo -flags lists no %s analyzer:\n%s", name, out)
 		}

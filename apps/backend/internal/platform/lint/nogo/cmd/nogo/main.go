@@ -13,5 +13,6 @@ func main() {
 		nogo.WallclockAnalyzer(),
 		nogo.TestwaitAnalyzer(),
 		nogo.CaldateAnalyzer(),
+		nogo.UowdoAnalyzer(),
 	)
 }
