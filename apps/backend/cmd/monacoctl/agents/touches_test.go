@@ -133,3 +133,28 @@ func TestChangedIdentifiers_readTopLevelDeclarationsAndMethods(t *testing.T) {
 		t.Fatalf("changedIdentifiers = %v, want %v", got, want)
 	}
 }
+
+func TestCheckTouches_aNarrowEditNeedsNoPackageLookup(t *testing.T) {
+	t.Parallel()
+	h := touchesHarness(t, "apps/backend/internal/errs/codes_zz.go")
+	h.affectedErr = errors.New("no go list")
+	h.commit(t, map[string]string{"docs/reference/errors.md": "new\n"})
+	code, stdout, _ := h.check(t)
+	if code != 0 || !strings.Contains(stdout, "accepted by ripple: docs/reference/errors.md") {
+		t.Fatalf("check: %d\n%s", code, stdout)
+	}
+}
+
+func TestWideTier_skipsAFileItCannotRead(t *testing.T) {
+	t.Parallel()
+	read := func(name string) ([]byte, error) {
+		if name == "p/a_test.go" {
+			return nil, errors.New("gone")
+		}
+		return []byte("Parse"), nil
+	}
+	got := wideTier([]string{"p/a_test.go", "p/b_test.go", "p/notes.md"}, []string{"p"}, []string{"Parse"}, read)
+	if len(got) != 1 || got["p/b_test.go"] != "fixture naming Parse" {
+		t.Fatalf("wideTier = %v", got)
+	}
+}
