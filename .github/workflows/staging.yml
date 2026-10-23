@@ -86,3 +86,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REF: ${{ github.ref }}
         run: scripts/ci/prune-caches.sh "$REF" xcode-ios-
+      - name: Warn when the caches pass the 7 GB budget
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci/prune-caches.sh --budget

@@ -159,6 +159,40 @@ func TestPruneCaches_emptyPrefixRefused(t *testing.T) {
 	}
 }
 
+func TestPruneCaches_budgetWarnsOverSevenGB(t *testing.T) {
+	repo := newPruneRepo(t)
+	repo.list("", `[
+	  {"key": "go-build-a", "sizeInBytes": 4294967296},
+	  {"key": "xcode-ios-dd-b", "sizeInBytes": 3221225472},
+	  {"key": "small", "sizeInBytes": 1048576}
+	]`)
+	out := repo.runScript(t, "--budget")
+	if !strings.Contains(out, "::warning::") || !strings.Contains(out, "7.00 GB") ||
+		!strings.Contains(out, "go-build-a 4096 MB, xcode-ios-dd-b 3072 MB, small 1 MB") {
+		t.Fatalf("got %q", out)
+	}
+}
+
+func TestPruneCaches_budgetQuietAtSevenGB(t *testing.T) {
+	repo := newPruneRepo(t)
+	repo.list("", `[
+	  {"key": "go-build-a", "sizeInBytes": 4294967296},
+	  {"key": "xcode-ios-dd-b", "sizeInBytes": 3221225472}
+	]`)
+	out := repo.runScript(t, "--budget")
+	if strings.Contains(out, "::warning::") || !strings.Contains(out, "caches total 7.00 GB") {
+		t.Fatalf("got %q", out)
+	}
+}
+
+func TestPruneCaches_budgetListErrorExitsZero(t *testing.T) {
+	repo := newPruneRepo(t)
+	out := repo.runScript(t, "--budget", "FAKE_GH_FAIL_LIST=1")
+	if !strings.Contains(out, "budget: list failed") || strings.Contains(out, "::warning::") {
+		t.Fatalf("got %q", out)
+	}
+}
+
 func TestPruneCaches_usage(t *testing.T) {
 	repo := newPruneRepo(t)
 	cmd := exec.Command("bash", repo.script)
@@ -204,6 +238,17 @@ func (r *pruneRepo) env(extra []string) []string {
 func (r *pruneRepo) run(t *testing.T, extra []string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("bash", append([]string{r.script}, args...)...)
+	cmd.Env = r.env(extra)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	return string(out)
+}
+
+func (r *pruneRepo) runScript(t *testing.T, name string, extra ...string) string {
+	t.Helper()
+	cmd := exec.Command("bash", r.script, name)
 	cmd.Env = r.env(extra)
 	out, err := cmd.CombinedOutput()
 	if err != nil {

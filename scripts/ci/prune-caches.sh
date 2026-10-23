@@ -4,7 +4,30 @@
 # saved its caches, and this job must not fail the workflow. A key that does
 # not start with the prefix is never deleted, and neither is an entry on
 # another ref. Artifacts are not caches and are not listed here.
+#
+# prune-caches.sh --budget instead warns when every cache on the repository totals more than 7 GB. GitHub keeps
+# 10 GB and evicts the least recently used entry when a save passes it, so the warning shows growth before an
+# eviction. It always exits 0.
 set -euo pipefail
+
+if [[ "${1:-}" == "--budget" ]]; then
+  limit=$((7 * 1024 * 1024 * 1024))
+  if ! all="$(gh cache list --limit 1000 --json key,sizeInBytes 2>&1)"; then
+    echo "budget: list failed: $(tr '\n' ' ' <<<"$all")" >&2
+    exit 0
+  fi
+  total="$(jq '[.[].sizeInBytes // 0] | add // 0' <<<"$all")"
+  gb="$(awk -v b="$total" 'BEGIN { printf "%.2f", b / 1073741824 }')"
+  echo "caches total ${gb} GB"
+  if ((total > limit)); then
+    largest="$(jq -r '
+      sort_by(-(.sizeInBytes // 0)) | .[:5]
+      | map("\(.key) \(((.sizeInBytes // 0) / 1048576) | floor) MB") | join(", ")
+    ' <<<"$all")"
+    echo "::warning::Actions caches total ${gb} GB, over the 7 GB budget of the 10 GB limit. Largest: ${largest}"
+  fi
+  exit 0
+fi
 
 if [[ $# -lt 2 ]]; then
   echo "usage: prune-caches.sh <ref> <prefix>..." >&2
