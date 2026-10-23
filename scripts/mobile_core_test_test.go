@@ -11,6 +11,7 @@ import (
 
 const mobileCoreFakeSwift = `#!/bin/sh
 bin="$PWD/.build/debug"
+echo "$*" >> "$PWD/.build/swift-calls"
 if [ "$2" = --show-codecov-path ]; then echo "$bin/codecov/MonacoCore.json"; exit 0; fi
 mkdir -p "$bin/codecov" "$bin/Dir.xctest/Contents/MacOS"
 : > "$bin/Dir.xctest/Contents/MacOS/Dir"
@@ -269,5 +270,33 @@ func TestMobileCoreTest_unreadableLoadFallsBackToFactorOne(t *testing.T) {
 	run := slowTestRun(t, "2.500", mobileCoreLoad{load1: "garbage", cores: "8"}, false)
 	if run.err == nil || !strings.Contains(run.out, "per-test budget: 2 s (2 s x 1.0, no load applied)") {
 		t.Fatalf("an unreadable load did not fall back to factor 1: %v\n%s", run.err, run.out)
+	}
+}
+
+func TestMobileCoreTest_buildsTheTestsWithTheTestFlagsFirstAndTimesBoth(t *testing.T) {
+	self, _ := hostPlatform()
+	run := runMobileCoreTest(t, self+" 90.50\n")
+	if run.err != nil {
+		t.Fatalf("run failed: %v\n%s", run.err, run.out)
+	}
+	calls, err := os.ReadFile(filepath.Join(run.dir, "packages/mobile-core/.build/swift-calls"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	flags := "--force-resolved-versions -Xswiftc -warnings-as-errors --enable-code-coverage"
+	lines := strings.Split(strings.TrimSpace(string(calls)), "\n")
+	if len(lines) < 2 || lines[0] != "build --build-tests "+flags || lines[1] != "test "+flags {
+		t.Fatalf("swift calls = %q, want build --build-tests then test with %q", lines, flags)
+	}
+	for _, prefix := range []string{"build: ", "test: "} {
+		found := false
+		for _, line := range strings.Split(run.out, "\n") {
+			if strings.HasPrefix(line, prefix) && strings.HasSuffix(line, " s") {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("no %q line in:\n%s", prefix, run.out)
+		}
 	}
 }
