@@ -253,6 +253,21 @@ jobs:
           # backend-report merges the earlier attempt's failures back in, so a rerun can never clear a flake.
           overwrite: true
 
+      # The rest leg has the Go cache, so this compiles little. backend-report downloads the binary and needs no Go.
+      - name: Build the monacoctl that backend-report runs
+        if: always() && matrix.artifact == 'rest-1'
+        run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/monacoctl" ./cmd/monacoctl
+
+      - name: Upload the monacoctl that backend-report runs
+        if: always() && matrix.artifact == 'rest-1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: monacoctl-linux
+          path: ${{ runner.temp }}/monacoctl
+          retention-days: 1
+          if-no-files-found: error
+          overwrite: true
+
       # Every pass builds with -race, which caches apart from a plain build. Jobs that restore the newest leg's
       # cache and then go run monacoctl, or build the binaries mobile-integration.sh boots, would compile them cold.
       - name: Build the cmd binaries into this leg's Go cache
@@ -278,7 +293,7 @@ jobs:
 
   backend-report:
     name: Backend tests report
-    needs: [plan, backend, ready]
+    needs: [plan, backend]
     if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -292,7 +307,7 @@ jobs:
         with:
           fetch-depth: ${{ inputs.stage == 'staging' && 1 || 0 }}
 
-      # The ready job built monacoctl, so the report needs no Go and no cold compile.
+      # The rest leg built monacoctl, so the report needs no Go and no cold compile.
       - uses: actions/download-artifact@v4
         with:
           name: monacoctl-linux
@@ -389,18 +404,6 @@ jobs:
       - run: scripts/install-atlas.sh
 
       - run: scripts/ci/ready.sh
-
-      - name: Build the monacoctl that backend-report runs
-        working-directory: apps/backend
-        run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/monacoctl" ./cmd/monacoctl
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: monacoctl-linux
-          path: ${{ runner.temp }}/monacoctl
-          retention-days: 1
-          if-no-files-found: error
-          overwrite: true
 
   scripts:
     needs: plan
