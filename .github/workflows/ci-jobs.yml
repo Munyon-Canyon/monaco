@@ -18,7 +18,33 @@ permissions:
 
 jobs:
   lint:
-    name: Lint (golangci-lint, nogo, comments, OpenAPI, migrations)
+    name: Lint (golangci-lint)
+    needs: plan
+    if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/backend-test-env
+        with:
+          db: 'false'
+
+      - name: Read the pinned golangci-lint version
+        id: golangci
+        run: echo "version=$(cat .golangci-lint-version)" >> "$GITHUB_OUTPUT"
+
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: ${{ steps.golangci.outputs.version }}
+          working-directory: apps/backend
+          args: ./...
+
+  lint-checks:
+    name: Lint (nogo, comments, OpenAPI, migrations, vuln)
     needs: plan
     if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
@@ -36,16 +62,6 @@ jobs:
       - name: Install the pinned atlas community build
         working-directory: .
         run: scripts/install-atlas.sh
-
-      - name: Read the pinned golangci-lint version
-        id: golangci
-        run: echo "version=$(cat .golangci-lint-version)" >> "$GITHUB_OUTPUT"
-
-      - uses: golangci/golangci-lint-action@v9
-        with:
-          version: ${{ steps.golangci.outputs.version }}
-          working-directory: apps/backend
-          args: ./...
 
       - name: No bare go statements outside platform and cmd
         run: go run ./internal/platform/lint/nogo/cmd/nogo ./...
@@ -96,6 +112,38 @@ jobs:
           fi
           git show "$base:apps/backend/api/openapi.yaml" > "$RUNNER_TEMP/base-openapi.yaml"
           ../../scripts/ci/oasdiff-breaking.sh "$RUNNER_TEMP/base-openapi.yaml" api/openapi.yaml
+
+      # Restore and save are split so a cold install is cached before the
+      # scan runs: a plain actions/cache saves only on job success, and a
+      # cold scan can hit the timeout.
+      - name: Restore the pinned govulncheck and its Go toolchain
+        id: govulncheck-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            .bin/govulncheck
+            .bin/govulncheck.version
+            ~/go/pkg/mod/golang.org/toolchain@*
+            ~/go/pkg/mod/cache/download/golang.org/toolchain
+          key: govulncheck-${{ runner.os }}-${{ hashFiles('scripts/install-govulncheck.sh') }}
+
+      - name: Install the pinned govulncheck
+        working-directory: .
+        run: scripts/install-govulncheck.sh
+
+      - name: Save the pinned govulncheck and its Go toolchain
+        if: steps.govulncheck-cache.outputs.cache-hit != 'true' && github.event_name != 'pull_request'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            .bin/govulncheck
+            .bin/govulncheck.version
+            ~/go/pkg/mod/golang.org/toolchain@*
+            ~/go/pkg/mod/cache/download/golang.org/toolchain
+          key: govulncheck-${{ runner.os }}-${{ hashFiles('scripts/install-govulncheck.sh') }}
+
+      - name: Reachable vulnerabilities in the backend and its dependencies
+        run: ../../.bin/govulncheck ./...
 
   # Four legs run the passes of scripts/test-backend.sh side by side on their own runners; backend-report
   # merges their output. A failed leg fails the matrix job, and ci-ok needs it.
@@ -298,57 +346,6 @@ jobs:
       - run: scripts/install-atlas.sh
 
       - run: scripts/ci/ready.sh
-
-  vuln:
-    name: Vuln (govulncheck)
-    needs: plan
-    if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
-    runs-on: ubuntu-latest
-    timeout-minutes: 4
-    defaults:
-      run:
-        working-directory: apps/backend
-    steps:
-      - uses: actions/checkout@v4
-
-      # govulncheck needs module sources, not the 6.6 GB build cache, and a
-      # cold go mod download takes seconds.
-      - uses: ./.github/actions/backend-test-env
-        with:
-          db: false
-          go-cache: false
-
-      # Restore and save are split so a cold install is cached before the
-      # scan runs: a plain actions/cache saves only on job success, and a
-      # cold scan can hit the timeout.
-      - name: Restore the pinned govulncheck and its Go toolchain
-        id: govulncheck-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            .bin/govulncheck
-            .bin/govulncheck.version
-            ~/go/pkg/mod/golang.org/toolchain@*
-            ~/go/pkg/mod/cache/download/golang.org/toolchain
-          key: govulncheck-${{ runner.os }}-${{ hashFiles('scripts/install-govulncheck.sh') }}
-
-      - name: Install the pinned govulncheck
-        working-directory: .
-        run: scripts/install-govulncheck.sh
-
-      - name: Save the pinned govulncheck and its Go toolchain
-        if: steps.govulncheck-cache.outputs.cache-hit != 'true' && github.event_name != 'pull_request'
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            .bin/govulncheck
-            .bin/govulncheck.version
-            ~/go/pkg/mod/golang.org/toolchain@*
-            ~/go/pkg/mod/cache/download/golang.org/toolchain
-          key: govulncheck-${{ runner.os }}-${{ hashFiles('scripts/install-govulncheck.sh') }}
-
-      - name: Reachable vulnerabilities in the backend and its dependencies
-        run: ../../.bin/govulncheck ./...
 
   scripts:
     needs: plan
@@ -829,7 +826,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [plan, lint, backend, backend-report, e2e, ready, vuln, scripts, journeys, mobile-core, ios, mobile-integration, flake-plan, flake, flake-swift]
+    needs: [plan, lint, lint-checks, backend, backend-report, e2e, ready, scripts, journeys, mobile-core, ios, mobile-integration, flake-plan, flake, flake-swift]
     runs-on: ubuntu-latest
     timeout-minutes: ${{ inputs.stage == 'queue' && 6 || 2 }}
     permissions:
@@ -841,7 +838,7 @@ jobs:
         if: inputs.stage != 'queue'
         with:
           jobs: ${{ toJSON(needs) }}
-          allowed-skips: lint, backend, backend-report, e2e, ready, vuln, scripts, journeys, mobile-core, ios, mobile-integration, flake-plan, flake, flake-swift
+          allowed-skips: lint, lint-checks, backend, backend-report, e2e, ready, scripts, journeys, mobile-core, ios, mobile-integration, flake-plan, flake, flake-swift
 
       - uses: actions/checkout@v4
         if: inputs.stage == 'queue'
