@@ -152,3 +152,5 @@ final class ActivityFeedModelTests: XCTestCase {
         await read.value
     }
 }
+
+private func scratch6367() {}
