@@ -78,11 +78,8 @@ jobs:
         continue-on-error: true
         run: |
           # shellcheck disable=SC2012
-          ls -la "$DERIVED_DATA" || true
-          # shellcheck disable=SC2012
           ls -la "$DERIVED_DATA/SourcePackages" 2>&1 | head -30 || true
           find "$DERIVED_DATA" -maxdepth 3 -name workspace-state.json || true
-          hdiutil info | grep -A3 "$DERIVED_DATA_IMAGE" || true
 
       # Before the stamp below, because writing the config changes its directory's mtime.
       - name: Placeholder app config
@@ -183,11 +180,8 @@ jobs:
         continue-on-error: true
         run: |
           # shellcheck disable=SC2012
-          ls -la "$DERIVED_DATA" || true
-          # shellcheck disable=SC2012
           ls -la "$DERIVED_DATA/SourcePackages" 2>&1 | head -30 || true
           find "$DERIVED_DATA" -maxdepth 3 -name workspace-state.json || true
-          hdiutil info | grep -A3 "$DERIVED_DATA_IMAGE" || true
 
       - name: Unmount DerivedData
         if: inputs.save-cache && steps.cache.outputs.cache-hit != 'true'
