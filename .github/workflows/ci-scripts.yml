@@ -10,9 +10,13 @@ permissions:
 
 jobs:
   scripts:
-    name: Go tests (scripts)
+    name: Go tests (scripts ${{ matrix.leg }} of 2)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        leg: [1, 2]
     steps:
       - uses: actions/checkout@v4
 
@@ -44,9 +48,20 @@ jobs:
           tar -xzf "$f" just
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
 
+      # The root package is 293 s of the serial run, so the legs split its top-level tests by sorted
+      # position. Leg 1 also runs every other package and the Python tests.
       - name: Test scripts
         working-directory: scripts
-        run: go test -short ./...
+        env:
+          LEG: ${{ matrix.leg }}
+        run: |
+          names="$(go test -list '^Test' . | grep '^Test' | sort | awk -v leg="$LEG" '(NR - leg) % 2 == 0' | paste -sd '|' -)"
+          go test -short -run "^($names)\$" .
+          if [ "$LEG" = 1 ]; then
+            mapfile -t others < <(go list ./... | grep -v '^github.com/monaco/monaco/scripts$')
+            go test -short "${others[@]}"
+          fi
 
       - name: Test Python scripts
+        if: matrix.leg == 1
         run: python3 -m unittest discover -s scripts -p 'test_*.py'
