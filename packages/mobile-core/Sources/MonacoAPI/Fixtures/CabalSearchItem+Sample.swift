@@ -11,7 +11,7 @@ extension Components.Schemas.CabalSearchItem {
             id: "00000000-0000-7000-8000-00000000c013", name: "Weekend pot", pictureUrl: nil, memberCount: 5,
             joinMode: "request", isMember: false, myAccessRequestStatus: "pending"),
         Self(
-            id: "00000000-0000-7000-8000-00000000c014", name: "Weekend club", pictureUrl: nil, memberCount: 2,
+            id: "00000000-0000-7000-8000-00000000c014", name: "Weekend crew", pictureUrl: nil, memberCount: 2,
             joinMode: "request", isMember: true, myAccessRequestStatus: nil),
     ]
 }
