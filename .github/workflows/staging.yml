@@ -75,7 +75,7 @@ jobs:
           PREFIX: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
         run: |
           scripts/ci/prune-caches.sh "$REF" \
-            "${PREFIX}short-1-" "${PREFIX}short-2-" "${PREFIX}rest-1-" "${PREFIX}rest-2-"
+            "${PREFIX}short-1-" "${PREFIX}short-2-" "${PREFIX}short-3-" "${PREFIX}short-4-" "${PREFIX}short-5-" "${PREFIX}short-6-" "${PREFIX}short-7-" "${PREFIX}short-8-" "${PREFIX}rest-1-"
       - name: Prune superseded iOS caches
         env:
           GH_TOKEN: ${{ github.token }}

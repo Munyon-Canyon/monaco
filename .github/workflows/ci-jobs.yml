@@ -145,36 +145,56 @@ jobs:
       - name: Reachable vulnerabilities in the backend and its dependencies
         run: ../../.bin/govulncheck ./...
 
-  # Four legs run the passes of scripts/test-backend.sh side by side on their own runners; backend-report
-  # merges their output. A failed leg fails the matrix job, and ci-ok needs it.
+  # Nine legs run the passes of scripts/test-backend.sh side by side on their own runners; backend-report
+  # merges their output. A pull request tests the packages its diff reaches (scripts/ci/stage1-packages.sh)
+  # and the staging run tests them all. A failed leg fails the matrix job, and ci-ok needs it.
   backend:
     name: Backend tests (${{ matrix.name }})
     needs: plan
     if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
     # The staging stage also builds the cmd binaries and saves the ~6.6 GB Go cache, which alone takes up to 5 minutes.
-    timeout-minutes: ${{ inputs.stage == 'staging' && 16 || 14 }}
+    timeout-minutes: ${{ inputs.stage == 'staging' && 16 || 8 }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: short 1 of 2
-            pass: 'short:1/2'
+          - name: short 1 of 8
+            pass: 'short:1/8'
             artifact: short-1
-          - name: short 2 of 2
-            pass: 'short:2/2'
+          - name: short 2 of 8
+            pass: 'short:2/8'
             artifact: short-2
-          - name: rest 1 of 2
-            pass: 'rest:1/2'
+          - name: short 3 of 8
+            pass: 'short:3/8'
+            artifact: short-3
+          - name: short 4 of 8
+            pass: 'short:4/8'
+            artifact: short-4
+          - name: short 5 of 8
+            pass: 'short:5/8'
+            artifact: short-5
+          - name: short 6 of 8
+            pass: 'short:6/8'
+            artifact: short-6
+          - name: short 7 of 8
+            pass: 'short:7/8'
+            artifact: short-7
+          - name: short 8 of 8
+            pass: 'short:8/8'
+            artifact: short-8
+          - name: rest 1 of 1
+            pass: 'rest:1/1'
             artifact: rest-1
-          - name: rest 2 of 2
-            pass: 'rest:2/2'
-            artifact: rest-2
     defaults:
       run:
         working-directory: apps/backend
     steps:
+      # The pull request stage diffs against the base for its package list and flow scope, which needs full history.
+      # The value is 1 only on staging, because `cond && 0 || 1` would yield 1: 0 is falsy.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ inputs.stage == 'staging' && 1 || 0 }}
 
       # go test keys its result cache on file mtimes, and a fresh checkout gives every file a new one.
       - name: Pin testdata mtimes
@@ -208,7 +228,18 @@ jobs:
         env:
           TEST_BACKEND_PASS: ${{ matrix.pass }}
           TEST_BACKEND_OUT: ${{ runner.temp }}/test-out
-        run: ../../scripts/test-backend.sh
+          BASE_SHA: ${{ needs.plan.outputs.base }}
+          FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH || 'main' }}
+          STAGE1_FULL: ${{ inputs.stage != 'pr' || needs.plan.outputs.base == '' }}
+        run: |
+          if [[ "$STAGE1_FULL" != true ]]; then
+            BASE="$(../../scripts/ci/fetch-base.sh)" ../../scripts/ci/stage1-packages.sh >"$RUNNER_TEMP/packages"
+            export TEST_BACKEND_PACKAGES="$RUNNER_TEMP/packages"
+            echo "stage 1 tests $(grep -c . "$TEST_BACKEND_PACKAGES" || true) listed package patterns from base $BASE_SHA"
+          else
+            echo "stage 1 tests every package (stage ${{ inputs.stage }}, base '${BASE_SHA}')"
+          fi
+          ../../scripts/test-backend.sh
 
       - name: Upload this pass's test output
         if: always()
@@ -247,7 +278,7 @@ jobs:
 
   backend-report:
     name: Backend tests report
-    needs: [plan, backend]
+    needs: [plan, backend, ready]
     if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -255,14 +286,19 @@ jobs:
       run:
         working-directory: apps/backend
     steps:
+      # The pull request stage diffs against the base for its package list and flow scope, which needs full history.
+      # The value is 1 only on staging, because `cond && 0 || 1` would yield 1: 0 is falsy.
       - uses: actions/checkout@v4
-
-      # The report compiles only monacoctl: a cold build is faster than
-      # restoring the 6.6 GB Go cache, which could outlast the timeout.
-      - uses: ./.github/actions/backend-test-env
         with:
-          db: false
-          go-cache: false
+          fetch-depth: ${{ inputs.stage == 'staging' && 1 || 0 }}
+
+      # The ready job built monacoctl, so the report needs no Go and no cold compile.
+      - uses: actions/download-artifact@v4
+        with:
+          name: monacoctl-linux
+          path: ${{ runner.temp }}
+
+      - run: chmod +x "$RUNNER_TEMP/monacoctl"
 
       - uses: actions/download-artifact@v4
         with:
@@ -274,7 +310,14 @@ jobs:
         env:
           TEST_BACKEND_PASS: report
           TEST_BACKEND_OUT: ${{ runner.temp }}/test-out
-        run: ../../scripts/test-backend.sh
+          BASE_SHA: ${{ needs.plan.outputs.base }}
+          FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH || 'main' }}
+        run: |
+          if [[ -n "$BASE_SHA" ]]; then
+            BASE="$(../../scripts/ci/fetch-base.sh)"
+            export BASE
+          fi
+          MONACOCTL="$RUNNER_TEMP/monacoctl" ../../scripts/test-backend.sh
 
   e2e:
     name: E2E (${{ matrix.name }})
@@ -346,6 +389,18 @@ jobs:
       - run: scripts/install-atlas.sh
 
       - run: scripts/ci/ready.sh
+
+      - name: Build the monacoctl that backend-report runs
+        working-directory: apps/backend
+        run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/monacoctl" ./cmd/monacoctl
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: monacoctl-linux
+          path: ${{ runner.temp }}/monacoctl
+          retention-days: 1
+          if-no-files-found: error
+          overwrite: true
 
   scripts:
     needs: plan
@@ -469,6 +524,9 @@ jobs:
       scripts: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && (steps.filter.outputs.scripts == 'true' || steps.every.outputs.scripts == 'true') }}
       # The staging stage runs everything, and so does a stacked PR with no merge-base to filter from.
       unknown: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && (steps.every.outputs.unknown == 'true' || steps.stacked.outputs.unknown == 'true' || inputs.stage == 'staging') }}
+      # The commit the backend legs diff from, so each tests the packages the diff reaches. Empty runs them all: the
+      # staging stage, a stacked PR with no merge-base, or an unowned path.
+      base: ${{ inputs.stage == 'pr' && steps.top.outputs.skip != 'true' && steps.stacked.outputs.unknown != 'true' && steps.every.outputs.unknown != 'true' && (steps.stacked.outputs.base || github.event.pull_request.base.sha) || '' }}
     steps:
       # CI runs on the top PR of a stack only. A PR that another open non-draft PR builds on reports every filter false,
       # so every job skips and its ci-ok passes; `monacoctl agents check` proved it before the push. Fails open.
@@ -556,6 +614,7 @@ jobs:
               - 'scripts/install-govulncheck.sh'
               - 'scripts/test-backend.sh'
               - 'scripts/test-shard.awk'
+              - 'scripts/ci/stage1-packages.sh'
               - 'scripts/ci/e2e.sh'
               - 'scripts/ci/retry.sh'
               - 'scripts/require-docker.sh'
