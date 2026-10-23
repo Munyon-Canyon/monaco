@@ -49,7 +49,7 @@ func TestVenue_ordersAndQuotesArePerPair(t *testing.T) {
 		RequestID: "req-buy", Transaction: []byte("tx"), InMint: usdc(), OutMint: aaplx(),
 		OutAmount: money.NewBaseUnits(7, 8),
 	}
-	v.SetOrder(usdc(), aaplx(), buy)
+	v.SetRawOrder(usdc(), aaplx(), buy)
 	v.SetQuote(usdc(), aaplx(), jupiter.Quote{Routable: true, PriceImpactBps: 7})
 
 	got, err := v.Order(t.Context(), jupiter.OrderSpec{In: usdc(), Out: aaplx(), Payer: "relayer"})
@@ -102,7 +102,7 @@ func TestVenue_scriptedMinOutIsReturnedAsIs(t *testing.T) {
 	t.Parallel()
 	var v jupiterfake.Venue
 	o := jupiter.Order{RequestID: "req", OutAmount: money.NewBaseUnits(10, 8), MinOut: money.NewBaseUnits(3, 8)}
-	v.SetOrder(usdc(), aaplx(), o)
+	v.SetRawOrder(usdc(), aaplx(), o)
 	spec := jupiter.OrderSpec{In: usdc(), Out: aaplx(), Payer: "relayer", SlippageBps: 100}
 	got, err := v.Order(t.Context(), spec)
 	if err != nil || !reflect.DeepEqual(got, o) {

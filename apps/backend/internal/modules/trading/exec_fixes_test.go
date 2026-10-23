@@ -37,7 +37,7 @@ func TestExecuteTrade_feeHeadroomComesFromTheSolanaWinnersMint(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			e := newEngineEnv(t)
-			ondo := chain.Mint{Address: "AAPLonDo1111111111111111111111111111111111111", Decimals: 9}
+			ondo := chain.Mint{Address: "88a8Dstsn9NgnpiThVQEgRaWKNr4jFxjKuKbut21N2Da", Decimals: 9}
 			e.ledger.SetTokens(e.wallet.Address, usdcToken(), buyMicros)
 			e.balances.setFee(aaplxMint, 500, math.MaxUint64)
 			e.balances.setFee(ondo.Address, c.winnerFeeBps, math.MaxUint64)
