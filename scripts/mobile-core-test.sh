@@ -34,6 +34,7 @@ else
   llvm_cov=(llvm-cov)
 fi
 
+# swift build --build-tests runs first with the test's flags so the log splits compiling from running (build: and test: lines).
 # Only stdout is teed into the file the timing parser reads. stderr goes straight to the
 # caller: a SwiftPM warning printed while tests run would otherwise land inside a buffered
 # "Test Case ... passed" line and leave that case untimed. Both XCTest and swift-testing
@@ -42,7 +43,14 @@ fi
 cd "$root/packages/mobile-core"
 mkdir -p .build
 status=0
-swift test --force-resolved-versions -Xswiftc -warnings-as-errors --enable-code-coverage "$@" | tee .build/test-output.txt || status=$?
+swift_flags=(--force-resolved-versions -Xswiftc -warnings-as-errors --enable-code-coverage)
+build_start=$SECONDS
+swift build --build-tests "${swift_flags[@]}" || status=$?
+echo "build: $((SECONDS - build_start)) s"
+((status == 0)) || exit "$status"
+test_start=$SECONDS
+swift test "${swift_flags[@]}" "$@" | tee .build/test-output.txt || status=$?
+echo "test: $((SECONDS - test_start)) s"
 ((status == 0)) || exit "$status"
 (($# == 0)) || exit 0
 
