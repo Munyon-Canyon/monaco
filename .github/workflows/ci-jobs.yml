@@ -432,6 +432,7 @@ jobs:
     uses: ./.github/workflows/ci-mobile-core.yml
     with:
       probe: ${{ inputs.stage == 'staging' || needs.plan.outputs.generator == 'true' }}
+      save-cache: ${{ inputs.stage == 'staging' }}
 
   # The only macOS job: builds the app and MonacoTests, then runs MonacoTests. Staging indicator only: it took about
   # 12 minutes on a mobile PR (#3399), and owners build the app and run MonacoTests locally before they push.
@@ -479,13 +480,18 @@ jobs:
           ids="$(go run ./cmd/monacoctl flows --affected --base "$BASE_COMMIT")"
           echo "FLOWS=${ids//$'\n'/,}" >> "$GITHUB_ENV"
 
+      - name: Print the zstd that picks the cache version
+        run: zstd --version
+
       - name: Restore the mobile-core .build
         id: swiftpm
         uses: actions/cache/restore@v4
         with:
           path: packages/mobile-core/.build
-          key: swiftpm-linux-6.3-${{ hashFiles('packages/mobile-core/Package.resolved') }}
-          restore-keys: swiftpm-linux-6.3-
+          key: swiftpm-linux-6.3-${{ hashFiles('packages/mobile-core/Package.resolved') }}-${{ github.sha }}
+          restore-keys: |
+            swiftpm-linux-6.3-${{ hashFiles('packages/mobile-core/Package.resolved') }}-
+            swiftpm-linux-6.3-
 
       - name: mobile-core integration tests against api, worker and fakes
         env:
@@ -886,13 +892,18 @@ jobs:
       - name: Trust the workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
+      - name: Install zstd so the cache version matches the other Swift jobs
+        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends zstd >/dev/null && zstd --version
+
       - name: Restore .build
         id: build-cache
         uses: actions/cache/restore@v4
         with:
           path: packages/mobile-core/.build
-          key: swiftpm-linux-6.3-${{ hashFiles('packages/mobile-core/Package.resolved') }}
-          restore-keys: swiftpm-linux-6.3-
+          key: swiftpm-linux-6.3-${{ hashFiles('packages/mobile-core/Package.resolved') }}-${{ github.sha }}
+          restore-keys: |
+            swiftpm-linux-6.3-${{ hashFiles('packages/mobile-core/Package.resolved') }}-
+            swiftpm-linux-6.3-
 
       # The merge-base with trunk, so a stacked PR reruns the changed tests of the whole stack.
       - name: Resolve the base commit

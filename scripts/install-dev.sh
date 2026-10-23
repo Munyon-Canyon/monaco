@@ -42,7 +42,7 @@ dev_tools=(
   docker dotenvx du ffmpeg ffprobe find gh git go golangci-lint grep gt hdiutil head id
   install ioreg jq just kill ln ls lsof magick mdutil mkdir mkfifo mktemp mv nats npm npx oasdiff open pgrep
   pkill ps python3 rm sed seq sha256sum shasum simslim sleep sort stat swift sysctl tail
-  tar tee touch tr uname uuidgen wc xcode-select xcodebuild xcrun
+  tar tee touch tr uname uuidgen wc xcode-select xcodebuild xcrun zstd
 )
 : "${dev_tools[@]}"
 
