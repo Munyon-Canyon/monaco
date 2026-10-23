@@ -12,6 +12,14 @@ dir="$1"
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 sim="$("$root/scripts/resolve-ios-sim.sh")"
+xcrun simctl list devices -j | python3 -c '
+import json, sys
+udid = sys.argv[1]
+for runtime, devices in json.load(sys.stdin)["devices"].items():
+    for dev in devices:
+        if dev.get("udid") == udid:
+            print("simulator: %s on %s" % (dev.get("name"), runtime.rsplit(".", 1)[-1]))
+' "$sim" || true
 echo "$sim" > "$dir/sim.tmp"
 mv "$dir/sim.tmp" "$dir/sim"
 xcrun simctl boot "$sim"

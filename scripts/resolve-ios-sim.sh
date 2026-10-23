@@ -36,55 +36,78 @@ slim_ready() {
   fi
 }
 
+# Pick an available iOS simulator when no UDID is set. Devices are ranked by name:
+# 0 "iPhone <n> Pro Max", 1 "iPhone <n> Pro", 2 "iPhone <n>" and "iPhone <n> Plus",
+# 3 "iPhone Air" and "iPhone <n>e", 4 any other iPhone, 5 iPhone Duo (Monaco is not
+# designed for it), 6 anything that is not an iPhone. The lowest rank wins; inside a
+# rank a booted device beats a shut-down one, then the newest runtime wins. Duo and
+# non-iPhones are picked only when no other iPhone exists on any runtime.
 pick_available_udid() {
   if command -v python3 >/dev/null 2>&1; then
     simctl list devices available -j | python3 -c '
 import json, re, sys
 data = json.load(sys.stdin)
-booted = None
-any_iphone = None
-any_ios = None
 
 def runtime_version(runtime):
     # com.apple.CoreSimulator.SimRuntime.iOS-26-0 -> (26, 0)
     return tuple(int(n) for n in re.findall(r"\d+", runtime.rsplit("iOS", 1)[-1]))
 
-# Newest runtime first: an old runtime may sit below the app deployment target
-# (a fresh CI runner lists several), and the newest one matches the newest Xcode.
-runtimes = sorted(data.get("devices", {}).items(), key=lambda item: runtime_version(item[0]), reverse=True)
-for runtime, devices in runtimes:
-    if "iOS" not in runtime and "SimRuntime.iOS" not in runtime:
+def rank(name):
+    if not name.startswith("iPhone"):
+        return 6
+    if "Duo" in name:
+        return 5
+    if re.fullmatch(r"iPhone \d+ Pro Max", name):
+        return 0
+    if re.fullmatch(r"iPhone \d+ Pro", name):
+        return 1
+    if re.fullmatch(r"iPhone \d+( Plus)?", name):
+        return 2
+    if re.fullmatch(r"iPhone Air|iPhone \d+e", name):
+        return 3
+    return 4
+
+best = None
+for runtime, devices in data.get("devices", {}).items():
+    if "iOS" not in runtime:
         continue
+    version = runtime_version(runtime)
     for dev in devices:
-        if not dev.get("isAvailable", True):
-            continue
         udid = dev.get("udid") or ""
-        name = dev.get("name") or ""
-        state = dev.get("state") or ""
-        if not udid:
+        if not udid or not dev.get("isAvailable", True):
             continue
-        if any_ios is None:
-            any_ios = udid
-        if "iPhone" in name and any_iphone is None:
-            any_iphone = udid
-        if state == "Booted" and "iPhone" in name and booted is None:
-            booted = udid
-        elif state == "Booted" and booted is None:
-            booted = udid
-print(booted or any_iphone or any_ios or "")
+        name = dev.get("name") or ""
+        key = (rank(name), dev.get("state") != "Booted", tuple(-n for n in version))
+        if best is None or key < best[0]:
+            best = (key, udid)
+print(best[1] if best else "")
 '
     return 0
   fi
-  local line udid
-  line="$(simctl list devices available | grep -E 'iPhone.*\(Booted\)' | head -n 1 || true)"
-  if [[ -z "$line" ]]; then
-    line="$(simctl list devices available | grep -E 'iPhone \(' | head -n 1 || true)"
-  fi
-  if [[ -z "$line" ]]; then
-    line="$(simctl list devices available | grep -E '\([A-F0-9-]{36}\)' | head -n 1 || true)"
-  fi
-  udid="$(printf '%s\n' "$line" | grep -Eo '[A-F0-9-]{36}' | head -n 1 || true)"
-  printf '%s\n' "$udid"
+  simctl list devices available | awk '
+    /^-- iOS [0-9.]+ --$/ { split($3, v, "."); version = v[1] * 1000 + v[2]; inios = 1; next }
+    /^-- / { inios = 0; next }
+    !inios { next }
+    {
+      if (!match($0, /\([A-F0-9-]+\) \([A-Za-z ]+\)[ ]*$/)) next
+      tail = substr($0, RSTART)
+      name = substr($0, 1, RSTART - 1)
+      sub(/^[ ]+/, "", name)
+      sub(/[ ]+$/, "", name)
+      udid = tail; sub(/^\(/, "", udid); sub(/\).*$/, "", udid)
+      booted = (tail ~ /\(Booted\)[ ]*$/) ? 0 : 1
+      if (name !~ /^iPhone/) rank = 6
+      else if (name ~ /Duo/) rank = 5
+      else if (name ~ /^iPhone [0-9]+ Pro Max$/) rank = 0
+      else if (name ~ /^iPhone [0-9]+ Pro$/) rank = 1
+      else if (name ~ /^iPhone [0-9]+( Plus)?$/) rank = 2
+      else if (name ~ /^iPhone Air$/ || name ~ /^iPhone [0-9]+e$/) rank = 3
+      else rank = 4
+      score = rank * 10000000 + booted * 1000000 + (999999 - version)
+      if (best == "" || score < bestscore) { best = udid; bestscore = score }
+    }
+    END { print best }
+  '
 }
 
 emit() {
