@@ -29,6 +29,7 @@ func (m *Module) Mount(r api.Mount) {
 
 func (m *Module) Consumers() []bus.Consumer {
 	echo := adapters.Echo{Hints: m.deps.Bus}
+
 	return []bus.Consumer{
 		{Durable: "system_echo", Handlers: []bus.HandlerSpec{bus.Handle("system.echo", echo.Handle)}},
 	}
