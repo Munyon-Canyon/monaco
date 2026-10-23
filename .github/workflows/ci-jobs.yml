@@ -479,6 +479,11 @@ jobs:
           ids="$(go run ./cmd/monacoctl flows --affected --base "$BASE_COMMIT")"
           echo "FLOWS=${ids//$'\n'/,}" >> "$GITHUB_ENV"
 
+      # The mobile-core job runs in a container without zstd, so its cache is a gzip archive, and the cache
+      # version includes the compression method. Hiding zstd makes this runner pick gzip and find that cache.
+      - name: Match the gzip cache version of the mobile-core job
+        run: sudo mv "$(command -v zstd)" "$(command -v zstd).off"
+
       - name: Restore the mobile-core .build
         id: swiftpm
         uses: actions/cache/restore@v4
