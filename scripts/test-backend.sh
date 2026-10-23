@@ -72,46 +72,124 @@ print_failures() {
     | .Output' "$@"
 }
 
+# affected_dirs prints the ./dir lines of $TEST_BACKEND_PACKAGES, the packages the PR stage tests.
+affected_dirs() {
+  if [[ ! -f "$TEST_BACKEND_PACKAGES" ]]; then
+    echo "error: TEST_BACKEND_PACKAGES=$TEST_BACKEND_PACKAGES is not a file." >&2
+    return 1
+  fi
+  grep -v '^[[:space:]]*$' "$TEST_BACKEND_PACKAGES" || true
+}
+
+# in_affected dir succeeds when $TEST_BACKEND_PACKAGES is unset or lists dir (or ./...).
+in_affected() {
+  if [[ -z "${TEST_BACKEND_PACKAGES:-}" ]]; then
+    return 0
+  fi
+  grep -qxF -e './...' -e "${1%/}" "$TEST_BACKEND_PACKAGES"
+}
+
+# universe pattern... prints the sorted import paths of the patterns, narrowed to the packages in
+# $TEST_BACKEND_PACKAGES when it is set.
+universe() {
+  local dirs=() line listed
+  if [[ -z "${TEST_BACKEND_PACKAGES:-}" ]]; then
+    go list "$@" | LC_ALL=C sort
+    return
+  fi
+  listed="$(affected_dirs)" || return 1
+  while IFS= read -r line; do
+    if [[ -n "$line" ]]; then
+      dirs+=("$line")
+    fi
+  done <<<"$listed"
+  if [[ "${#dirs[@]}" -eq 0 ]]; then
+    return 0
+  fi
+  awk 'NR == FNR { keep[$0]; next } $0 in keep' <(go list -e "${dirs[@]}" 2>/dev/null) <(go list "$@") | LC_ALL=C sort
+}
+
+# write_covered writes the non-test Go files of the packages in $TEST_BACKEND_PACKAGES to $out/covered.txt,
+# relative to apps/backend. Every leg writes it, so backend-report can limit the coverage gate to them.
+write_covered() {
+  local dirs=() line listed
+  if [[ -z "${TEST_BACKEND_PACKAGES:-}" ]]; then
+    return 0
+  fi
+  listed="$(affected_dirs)" || return 1
+  while IFS= read -r line; do
+    if [[ -n "$line" ]]; then
+      dirs+=("$line")
+    fi
+  done <<<"$listed"
+  : >"$out/covered.txt"
+  if [[ "${#dirs[@]}" -gt 0 ]]; then
+    # shellcheck disable=SC2016 # a Go template, not shell
+    go list -tags faultpoints -e -f '{{$d := .Dir}}{{range .GoFiles}}{{$d}}/{{.}}{{"\n"}}{{end}}' "${dirs[@]}" |
+      awk -v p="$PWD/" 'index($0, p) == 1 { print substr($0, length(p) + 1) }' | LC_ALL=C sort >"$out/covered.txt"
+  fi
+}
+
 # shard_packages i n table [pattern...] prints the packages of shard i of n over the patterns (default ./...).
 # Packages go to the least loaded shard, heaviest first, weighed by table (package<TAB>seconds); a package
 # missing from it weighs 5 s.
 shard_packages() {
   local i="$1" n="$2" table="$3"
   shift 3
-  go list "${@:-./...}" | sort | awk -v i="$i" -v n="$n" -v table="$table" -f "$script_dir/test-shard.awk"
+  universe "${@:-./...}" |
+    awk -v i="$i" -v n="$n" -v table="$table" -f "$script_dir/test-shard.awk"
 }
 
-# shard_list i n table pattern... fills the caller's pkgs array with shard i of n, or with the patterns when n is 1.
+# shard_list i n table pattern... fills the caller's pkgs array with shard i of n, or with the patterns when n is 1
+# and no packages file narrows them.
+# It returns 3 when $TEST_BACKEND_PACKAGES leaves this shard nothing.
 shard_list() {
   local i="$1" n="$2" table="$3" list line
   shift 3
-  if [[ "$n" -eq 1 ]]; then
+  if [[ "$n" -eq 1 && -z "${TEST_BACKEND_PACKAGES:-}" ]]; then
     pkgs=("$@")
     return 0
   fi
-  list="$(shard_packages "$i" "$n" "$table" "$@")"
+  if [[ "$n" -eq 1 ]]; then
+    list="$(universe "$@")" || return 1
+  else
+    list="$(shard_packages "$i" "$n" "$table" "$@")" || return 1
+  fi
   while IFS= read -r line; do
     if [[ -n "$line" ]]; then
       pkgs+=("$line")
     fi
   done <<<"$list"
   if [[ "${#pkgs[@]}" -eq 0 ]]; then
+    if [[ -n "${TEST_BACKEND_PACKAGES:-}" ]]; then
+      return 3
+    fi
     echo "error: shard $i/$n has no packages." >&2
     return 1
   fi
 }
 
 short_pass() {
-  local i="$1" n="$2" name json cover pkgs=() status=0
+  local i="$1" n="$2" name json cover pkgs=() status=0 rc=0
   shift 2
   name="short-$i-of-$n"
   json="$out/$name.json"
   cover="$out/$name.cover"
-  shard_list "$i" "$n" .test-shards.tsv ./... || return 1
+  write_covered || return 1
+  shard_list "$i" "$n" .test-shards.tsv ./... || rc=$?
+  if [[ "$rc" -eq 3 ]]; then
+    echo "nothing to test in this leg"
+    return 0
+  elif [[ "$rc" -ne 0 ]]; then
+    return 1
+  fi
+  : >"$json"
   # -p 4: at the default -p 8, eight test binaries each run their parallel tests at once and starve each
   # other; packages that take 3 s alone went over the 10 s package budget.
-  go test -json -tags faultpoints -race -shuffle=on -short -p 4 -coverpkg=./... -coverprofile="$cover" "$@" "${pkgs[@]}" |
-    tee "$json" | jq -rj --unbuffered "$summary" || status=1
+  if [[ "${#pkgs[@]}" -gt 0 ]]; then
+    go test -json -tags faultpoints -race -shuffle=on -short -p 4 -coverpkg=./... -coverprofile="$cover" "$@" "${pkgs[@]}" |
+      tee -a "$json" | jq -rj --unbuffered "$summary" || status=1
+  fi
   if [[ "$status" -ne 0 ]]; then
     print_failures "$json"
   fi
@@ -121,29 +199,52 @@ short_pass() {
 # rest_pass i n runs shard i of n of the non-short pass, split by .test-shards-full.tsv. Shard 1 also runs the
 # faultpoint package without its build tag and the allocation baselines.
 rest_pass() {
-  local i="$1" n="$2" json="$out/rest.json" json_full cover_full status=0 allocs=() pkgs=() dir files=()
+  local i="$1" n="$2" json="$out/rest.json" json_full cover_full status=0 rc=0 ran=0 allocs=() pkgs=() dir files=()
   shift 2
   json_full="$out/full-$i-of-$n.json"
   cover_full="$out/full-$i-of-$n.cover"
+  write_covered || return 1
   if [[ "$i" -eq 1 ]]; then
-    files+=("$json")
-    go test -json -race -short -coverpkg=./internal/platform/faultpoint/ -coverprofile="$out/rest-faultpoint.cover" "$@" \
-      ./internal/platform/faultpoint/ | tee "$json" | jq -rj --unbuffered "$summary" || status=1
+    if in_affected ./internal/platform/faultpoint/; then
+      ran=1
+      files+=("$json")
+      go test -json -race -short -coverpkg=./internal/platform/faultpoint/ -coverprofile="$out/rest-faultpoint.cover" "$@" \
+        ./internal/platform/faultpoint/ | tee "$json" | jq -rj --unbuffered "$summary" || status=1
+    fi
 
     # -race makes sync.Pool drop items at random, so allocation baselines run in a second pass without it.
     while IFS= read -r dir; do
-      allocs+=("$dir")
+      if in_affected "$dir"; then
+        allocs+=("$dir")
+      fi
     done < <(find . -name allocs_test.go -not -path '*/testdata/*' -exec dirname {} \; | sort -u)
     if [[ "${#allocs[@]}" -gt 0 ]]; then
+      if [[ "$ran" -eq 0 ]]; then
+        files+=("$json")
+      fi
+      ran=1
       go test -json -short -run '^TestAllocs' "${allocs[@]}" | tee -a "$json" | jq -rj --unbuffered "$summary" || status=1
     fi
   fi
 
   shard_list "$i" "$n" .test-shards-full.tsv ./internal/platform/ids/... ./internal/platform/lint/... \
-    ./internal/testkit/... ./internal/tools/gen/... ./cmd/monacoctl ./cmd/monacoctl/verify || return 1
+    ./internal/testkit/... ./internal/tools/gen/... ./cmd/monacoctl ./cmd/monacoctl/verify || rc=$?
+  if [[ "$rc" -eq 3 ]]; then
+    if [[ "$ran" -eq 0 ]]; then
+      echo "nothing to test in this leg"
+    elif [[ "$status" -ne 0 ]]; then
+      print_failures "${files[@]}"
+    fi
+    return "$status"
+  elif [[ "$rc" -ne 0 ]]; then
+    return 1
+  fi
   files+=("$json_full")
-  go test -json -race -coverpkg=./... -coverprofile="$cover_full" "$@" "${pkgs[@]}" |
-    tee "$json_full" | jq -rj --unbuffered "$summary" || status=1
+  : >"$json_full"
+  if [[ "${#pkgs[@]}" -gt 0 ]]; then
+    go test -json -race -coverpkg=./... -coverprofile="$cover_full" "$@" "${pkgs[@]}" |
+      tee -a "$json_full" | jq -rj --unbuffered "$summary" || status=1
+  fi
   if [[ "$status" -ne 0 ]]; then
     print_failures "${files[@]}"
   fi
@@ -154,7 +255,7 @@ rest_pass() {
 # per-package budget, so every full*.json goes to --budget-exempt and every other *.json to --from.
 report_pass() {
   local status=0 json="$work/go-test.json" exempt="$work/full.json" cover="$work/cover.out" f have_json=''
-  local have_exempt='' have_cover='' report
+  local have_exempt='' have_cover='' report ctl gate flows
   : >"$json"
   : >"$exempt"
   for f in "$out"/*.json; do
@@ -183,6 +284,10 @@ report_pass() {
     fi
   done
   if [[ -z "$have_json" || -z "$have_cover" ]]; then
+    if report_is_empty_set; then
+      echo "no affected packages"
+      return 0
+    fi
     echo "error: no test output under $out. Run the short and rest passes first." >&2
     return 1
   fi
@@ -196,10 +301,32 @@ report_pass() {
   if [[ -n "${CI:-}" ]]; then
     report+=(--ci)
   fi
-  go run ./cmd/monacoctl test-report "${report[@]}" || status=1
-  go run ./cmd/monacoctl flows check --from "$json" || status=1
-  go run ./cmd/monacoctl coverage --profile "$cover" | tail -n 40 || status=1
+  read -r -a ctl <<<"${MONACOCTL:-go run ./cmd/monacoctl}"
+  gate=(--profile "$cover")
+  flows=(flows check --from "$json")
+  if [[ -s "$out/covered.txt" ]]; then
+    while IFS= read -r f; do
+      gate+=(--only "$f")
+    done <"$out/covered.txt"
+    if [[ -n "${BASE:-}" ]]; then
+      flows=(flows check --affected --base "$BASE" --from "$json")
+    else
+      flows=(flows check --structure-only)
+    fi
+  fi
+  "${ctl[@]}" test-report "${report[@]}" || status=1
+  "${ctl[@]}" "${flows[@]}" || status=1
+  "${ctl[@]}" coverage "${gate[@]}" | tail -n 40 || status=1
   return "$status"
+}
+
+# report_is_empty_set succeeds when the legs were given a packages file with nothing in it, so no leg ran a test.
+report_is_empty_set() {
+  if [[ -n "${TEST_BACKEND_PACKAGES:-}" ]]; then
+    [[ -f "$TEST_BACKEND_PACKAGES" && ! -s "$TEST_BACKEND_PACKAGES" ]]
+    return
+  fi
+  [[ -f "$out/covered.txt" && ! -s "$out/covered.txt" ]]
 }
 
 # weights_pass rebuilds both weight tables in the current directory from the go test -json files under $out
