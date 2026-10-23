@@ -24,7 +24,7 @@ jobs:
   ios:
     name: iOS app build
     runs-on: xcode-27
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -106,9 +106,15 @@ jobs:
       # needed, instead of failing the job on a damaged cache.
       - name: Resolve packages
         run: |
+          start=$SECONDS
           resolve() {
             xcodebuild -resolvePackageDependencies -project apps/mobile/Monaco.xcodeproj -scheme Monaco \
               -derivedDataPath "$DERIVED_DATA" -onlyUsePackageVersionsFromResolvedFile "$@"
+          }
+          finish() {
+            echo "RESOLVE_MODE=$1" >> "$GITHUB_ENV"
+            echo "RESOLVE_SECS=$((SECONDS - start))" >> "$GITHUB_ENV"
+            exit 0
           }
           damaged=0
           for dir in "$DERIVED_DATA"/SourcePackages/checkouts/*/; do
@@ -118,14 +124,22 @@ jobs:
               damaged=1
             fi
           done
-          if [[ "$damaged" == 0 && -f "$DERIVED_DATA/SourcePackages/workspace-state.json" ]] \
-            && resolve -skipPackageUpdates -disableAutomaticPackageResolution; then
-            exit 0
+          if [[ "$damaged" != 0 ]]; then
+            echo "slow path because: a checkout was damaged (listed above)"
+          elif [[ ! -f "$DERIVED_DATA/SourcePackages/workspace-state.json" ]]; then
+            echo "slow path because: no workspace-state.json in the restored DerivedData"
+          elif resolve -skipPackageUpdates -disableAutomaticPackageResolution; then
+            finish fast
+          else
+            echo "slow path because: no checkout was damaged but 'resolve -skipPackageUpdates -disableAutomaticPackageResolution' failed"
           fi
           for attempt in 1 2; do
             echo "resolving from a clean SourcePackages, attempt $attempt"
             rm -rf "$DERIVED_DATA/SourcePackages"
-            resolve && exit 0
+            if resolve; then
+              finish clean
+            fi
+            echo "clean resolve attempt $attempt failed"
           done
           exit 1
 
@@ -134,6 +148,9 @@ jobs:
       # never compiles it; the scheme's default plan keeps both.
       - name: Build the app and MonacoTests
         run: |
+          start=$SECONDS
+          record_build_secs() { echo "BUILD_SECS=$((SECONDS - start))" >> "$GITHUB_ENV"; }
+          trap record_build_secs EXIT
           # The Resolve packages step left a complete graph, so skip resolution, which otherwise fetches
           # every package again (216 s, privy-ios alone 184 s).
           offline=(-skipPackageUpdates -disableAutomaticPackageResolution)
@@ -143,18 +160,12 @@ jobs:
             -showBuildTimingSummary ARCHS=arm64 CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO
 
       - name: Run MonacoTests
+        run: scripts/ci/run-monaco-tests.sh
+
+      - name: Summarize resolve and build times
+        if: always()
         run: |
-          for _ in $(seq 180); do [[ -s "$RUNNER_TEMP/sim" ]] && break; sleep 1; done
-          if [[ ! -s "$RUNNER_TEMP/sim" ]]; then
-            cat "$RUNNER_TEMP/simctl-boot.log"
-            exit 1
-          fi
-          SIM="$(cat "$RUNNER_TEMP/sim")"
-          xcrun simctl bootstatus "$SIM" -b
-          xcodebuild test-without-building -project apps/mobile/Monaco.xcodeproj -scheme Monaco -testPlan MonacoTests -configuration Debug \
-            -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
-            -resultBundlePath "$RUNNER_TEMP/MonacoTests.xcresult" \
-            -quiet CODE_SIGNING_ALLOWED=NO
+          echo "resolve: ${RESOLVE_MODE:-n/a} ${RESOLVE_SECS:-n/a} s, build: ${BUILD_SECS:-n/a} s" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Unmount DerivedData
         if: inputs.save-cache && steps.cache.outputs.cache-hit != 'true'
