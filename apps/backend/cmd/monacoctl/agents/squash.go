@@ -173,13 +173,15 @@ func (env *Env) stage2On(ctx context.Context, dir string, top stackPR) error {
 	tree, _, _ := strings.Cut(sh.run(ctx, dir, "git", "merge-tree", "--write-tree", trunk, top.HeadOID), "\n")
 	msg := fmt.Sprintf("land-stack #%d: stage 2 on the merged tree", top.Number)
 	commit := sh.run(ctx, dir, "git", "commit-tree", tree, "-p", trunk, "-m", msg)
+	defer func() {
+		bg := context.WithoutCancel(ctx)
+		_, _ = env.Run(bg, dir, "", "git", "worktree", "remove", "--force", "--force", wt)
+		_, _ = env.Run(bg, dir, "", "git", "worktree", "prune")
+	}()
 	sh.run(ctx, dir, "git", "worktree", "add", "--detach", wt, commit)
 	if sh.err != nil {
 		return landFailed(sh.err)
 	}
-	defer func() {
-		_, _ = env.Run(context.WithoutCancel(ctx), dir, "", "git", "worktree", "remove", "--force", wt)
-	}()
 	env.copyTools(ctx, root, wt)
 	if out, err := env.Run(ctx, wt, "", "scripts/ci/ready.sh"); err != nil {
 		return landErr(fmt.Sprintf("stage 2 on the merged tree failed: %s. "+

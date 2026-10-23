@@ -320,7 +320,8 @@ func TestLandStack_runsStage2OnTheMergedTreeWhenTrunkMoved(t *testing.T) {
 		want := []string{
 			"git worktree add --detach " + wt + " mergedcommit",
 			"scripts/ci/ready.sh",
-			"git worktree remove --force " + wt,
+			"git worktree remove --force --force " + wt,
+			"git worktree prune",
 		}
 		if got := d.sh.lines("git worktree", "scripts/ci/ready.sh"); !slices.Equal(got, want) {
 			t.Fatalf("calls %v", got)
@@ -719,5 +720,37 @@ func TestSquash_refusesAnUpperPRWhoseBaseWasNotRetargeted(t *testing.T) {
 	_, err := env.squash(t.Context(), stack, 1, "fb")
 	if got := cliText(err); got != "#8's base b7 is not fb after #7 landed" {
 		t.Fatalf("%q", got)
+	}
+}
+
+func TestStage2_removesTheWorktreeWhenAddIsInterrupted(t *testing.T) {
+	t.Parallel()
+	d := newDirect(t, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
+	d.sh.first(shellRule{prefix: "git diff --name-only", out: "apps/backend/a.go\n"},
+		shellRule{prefix: "git worktree add", err: errors.New("signal: killed")})
+	code, _, _ := d.f.agents(t, "land-stack", "2")
+	if code != 1 {
+		t.Fatalf("exit %d", code)
+	}
+	wt := d.f.root() + "/.worktrees/.land-2"
+	want := []string{
+		"git worktree add --detach " + wt + " mergedcommit",
+		"git worktree remove --force --force " + wt,
+		"git worktree prune",
+	}
+	if got := d.sh.lines("git worktree"); !slices.Equal(got, want) {
+		t.Fatalf("calls %v", got)
+	}
+}
+
+func TestStage2_removesTheWorktreeWhenReadyFails(t *testing.T) {
+	t.Parallel()
+	d := newDirect(t, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
+	d.sh.first(shellRule{prefix: "git diff --name-only", out: "apps/backend/a.go\n"},
+		shellRule{prefix: "scripts/ci/ready.sh", err: errors.New("exit status 1")})
+	d.f.agents(t, "land-stack", "2")
+	if got := d.sh.lines("git worktree remove", "git worktree prune"); len(got) != 2 ||
+		!strings.Contains(got[0], "--force --force") {
+		t.Fatalf("calls %v", got)
 	}
 }
