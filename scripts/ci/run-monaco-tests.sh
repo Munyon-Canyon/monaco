@@ -3,6 +3,7 @@
 # A hung xcodebuild test-without-building, as in run 39899096438 which sat 13 minutes
 # after Device already booted, is killed after MONACO_IOS_TEST_TIMEOUT seconds, default 720.
 # The simulator is restarted and the tests run once more. A second expiry fails.
+# The simulator is shut down at the end, so hdiutil can detach the DerivedData image.
 # Env: RUNNER_TEMP, DERIVED_DATA. MONACO_IOS_TEST_CMD, MONACO_IOS_TEST_TIMEOUT and
 # MONACO_IOS_XCRUN exist for scripts/ci/run_monaco_tests_test.go.
 set -euo pipefail
@@ -60,4 +61,19 @@ if [[ "$code" == 142 ]]; then
     echo "MonacoTests hung for 12 minutes a second time, failing the step"
   fi
 fi
+
+"$xcrun_bin" simctl shutdown "$SIM" || true
+start=$SECONDS
+for _ in $(seq 30); do
+  state="$("$xcrun_bin" simctl list devices -j | python3 -c '
+import json, os, sys
+for devices in json.load(sys.stdin)["devices"].values():
+    for d in devices:
+        if d["udid"] == os.environ["SIM"]:
+            print(d["state"])
+' || true)"
+  [[ "$state" == Shutdown ]] && break
+  sleep 2
+done
+echo "simulator shut down in $((SECONDS - start)) s"
 exit "$code"
