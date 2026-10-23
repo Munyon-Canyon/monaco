@@ -363,6 +363,8 @@ jobs:
       contents: read
       pull-requests: read
     uses: ./.github/workflows/ci-mobile-core.yml
+    with:
+      probe: ${{ inputs.stage == 'staging' || needs.plan.outputs.generator == 'true' }}
 
   # The only macOS job: builds the app and MonacoTests, then runs MonacoTests. Staging indicator only: it took about
   # 12 minutes on a mobile PR (#3399), and owners build the app and run MonacoTests locally before they push.
@@ -449,6 +451,7 @@ jobs:
       backend-tests: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && steps.filter.outputs.backend-tests == 'true' }}
       mobile-tests: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && steps.filter.outputs.mobile-tests == 'true' }}
       ios: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && steps.filter.outputs.ios == 'true' }}
+      generator: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && steps.filter.outputs.generator == 'true' }}
       flows: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && steps.filter.outputs.flows == 'true' }}
       journeys: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && steps.filter.outputs.journeys == 'true' }}
       scripts: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && (steps.filter.outputs.scripts == 'true' || steps.every.outputs.scripts == 'true') }}
@@ -557,6 +560,12 @@ jobs:
             mobile-tests:
               - 'packages/mobile-core/Tests/**/*.swift'
               - 'scripts/ci/flake-tests-swift.sh'
+            generator:
+              - 'scripts/gen-mobile-feature.sh'
+              - 'packages/mobile-core/Sources/MonacoSystem/Flow00SystemPingModel.swift'
+              - 'packages/mobile-core/Tests/MonacoCoreTests/SystemPingModelTests.swift'
+              - 'apps/mobile/Monaco/Features/SystemPing/**'
+              - 'packages/mobile-core/Sources/MonacoAPI/Fixtures/SystemPing+Sample.swift'
             mobile-core:
               - 'packages/mobile-core/**'
               - 'packages/flows/**'
@@ -793,6 +802,14 @@ jobs:
       - name: Trust the workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
+      - name: Restore .build
+        id: build-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: packages/mobile-core/.build
+          key: swiftpm-linux-6.3-${{ hashFiles('packages/mobile-core/Package.resolved') }}
+          restore-keys: swiftpm-linux-6.3-
+
       # The merge-base with trunk, so a stacked PR reruns the changed tests of the whole stack.
       - name: Resolve the base commit
         env:
@@ -803,10 +820,32 @@ jobs:
 
       - name: Build the package and its tests once
         working-directory: packages/mobile-core
-        run: swift build --build-tests --force-resolved-versions
+        shell: bash
+        run: |
+          start=$(date +%s)
+          swift build --build-tests --force-resolved-versions -Xswiftc -warnings-as-errors --enable-code-coverage
+          echo "swift build: $(( $(date +%s) - start )) s (build cache restored: ${CACHE_KEY:-nothing})"
+        env:
+          CACHE_KEY: ${{ steps.build-cache.outputs.cache-matched-key }}
 
+      # The cache holds a build made with these flags. A `swift test` without them would rebuild everything, so a
+      # shim named swift adds them to every `swift test` the script prints.
       - name: Rerun the changed Swift test files on the built package
-        run: scripts/ci/flake-tests-swift.sh --base "$BASE_COMMIT"
+        shell: bash
+        run: |
+          REAL_SWIFT="$(command -v swift)"
+          export REAL_SWIFT
+          mkdir -p "$RUNNER_TEMP/shim"
+          cat > "$RUNNER_TEMP/shim/swift" <<'SHIM'
+          #!/usr/bin/env bash
+          if [[ "${1:-}" == test ]]; then
+            shift
+            exec "$REAL_SWIFT" test --force-resolved-versions -Xswiftc -warnings-as-errors --enable-code-coverage "$@"
+          fi
+          exec "$REAL_SWIFT" "$@"
+          SHIM
+          chmod +x "$RUNNER_TEMP/shim/swift"
+          PATH="$RUNNER_TEMP/shim:$PATH" scripts/ci/flake-tests-swift.sh --base "$BASE_COMMIT"
 
   # Required as "ci / ci-ok". A skipped check passes a required check, so ci-ok must never skip
   # once this workflow starts: keep always(), not !cancelled(), so a cancelled run fails it.

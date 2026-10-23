@@ -11,10 +11,18 @@ on:
         description: Save the .build cache. PRs restore and never save.
         type: boolean
         default: false
+      probe:
+        description: Run the feature generator probe. The staging run always does.
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       save-cache:
         description: Save the .build cache.
+        type: boolean
+        default: false
+      probe:
+        description: Run the feature generator probe.
         type: boolean
         default: false
 
@@ -63,6 +71,7 @@ jobs:
 
       - name: Probe the feature generator
         id: probe
+        if: inputs.save-cache || inputs.probe
         shell: bash
         run: |
           set +e
@@ -89,7 +98,9 @@ jobs:
         env:
           CACHE_KEY: ${{ steps.build.outputs.cache-matched-key }}
           TEST_OUTCOME: ${{ steps.test.outcome }}
+          PROBE_OUTCOME: ${{ steps.probe.outcome }}
         run: |
+          if [[ "$PROBE_OUTCOME" == "skipped" ]]; then echo "probe: skipped (generator unchanged)" >> "$GITHUB_STEP_SUMMARY"; fi
           echo "compilation cache: not used (build cache restored: ${CACHE_KEY:-nothing})" >> "$GITHUB_STEP_SUMMARY"
           fail="$RUNNER_TEMP/fail-logs.tsv"
           : > "$fail"
