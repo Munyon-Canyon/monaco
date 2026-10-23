@@ -479,7 +479,18 @@ jobs:
           ids="$(go run ./cmd/monacoctl flows --affected --base "$BASE_COMMIT")"
           echo "FLOWS=${ids//$'\n'/,}" >> "$GITHUB_ENV"
 
+      - name: Restore the mobile-core .build
+        id: swiftpm
+        uses: actions/cache/restore@v4
+        with:
+          path: packages/mobile-core/.build
+          key: swiftpm-linux-6.3-${{ hashFiles('packages/mobile-core/Package.resolved') }}
+          restore-keys: swiftpm-linux-6.3-
+
       - name: mobile-core integration tests against api, worker and fakes
+        env:
+          MOBILE_INTEGRATION_WORKDIR: /__w/monaco/monaco
+          MOBILE_INTEGRATION_CACHE_KEY: ${{ steps.swiftpm.outputs.cache-matched-key }}
         run: |
           if [[ -v FLOWS ]]; then
             scripts/ci/mobile-integration.sh --flows "$FLOWS"
@@ -652,6 +663,7 @@ jobs:
               - 'scripts/swiftlint-ratchet.sh'
               - 'scripts/gen-mobile-feature.sh'
               - 'scripts/ci/mobile-integration.sh'
+              - 'scripts/ci/mobile-integration-swift.sh'
               - 'scripts/check-legacy-growth.py'
               - 'scripts/test_check_legacy_growth.py'
             flows:
@@ -663,6 +675,7 @@ jobs:
               - 'apps/backend/internal/modules/**'
               - 'apps/backend/internal/tools/flows/**'
               - 'scripts/ci/mobile-integration.sh'
+              - 'scripts/ci/mobile-integration-swift.sh'
               - 'scripts/ci/retry.sh'
             ios:
               - 'apps/mobile/**'
