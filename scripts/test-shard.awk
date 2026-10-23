@@ -1,5 +1,6 @@
 # Assigns each package on stdin to the least loaded of n shards, heaviest first, and prints shard i's.
-# -v table=<package<TAB>seconds file> weighs packages; one missing from it weighs 5 s.
+# -v table=<package<TAB>seconds file> weighs packages; one missing from it weighs 5 s, and a line that starts
+# with # is a comment.
 BEGIN {
   while ((getline line < table) > 0) {
     if (line ~ /^#/) continue
