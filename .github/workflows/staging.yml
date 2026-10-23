@@ -55,7 +55,7 @@ jobs:
     with:
       stage: staging
 
-  # Each backend leg above saves a per-SHA Go cache (ci-jobs.yml), and the ios job a per-SHA Swift package
+  # Each backend leg above saves a per-SHA Go build cache, and the rest leg the module cache once per go.sum (ci-jobs.yml), and the ios job a per-SHA Swift package
   # and DerivedData/Build cache (ci-ios.yml). Keep the newest per leg, and the newest iOS one, on this ref.
   prune:
     needs: [moved, staging]
@@ -72,7 +72,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REF: ${{ github.ref }}
-          PREFIX: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
+          PREFIX: go-build-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
         run: |
           scripts/ci/prune-caches.sh "$REF" \
             "${PREFIX}short-1-" "${PREFIX}short-2-" "${PREFIX}short-3-" "${PREFIX}short-4-" "${PREFIX}short-5-" "${PREFIX}short-6-" "${PREFIX}short-7-" "${PREFIX}short-8-" "${PREFIX}rest-1-"

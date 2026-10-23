@@ -153,7 +153,7 @@ jobs:
     needs: plan
     if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
-    # The staging stage also builds the cmd binaries and saves the ~6.6 GB Go cache, which alone takes up to 5 minutes.
+    # The staging stage also builds the cmd binaries and saves the Go caches, which alone takes up to 5 minutes.
     timeout-minutes: ${{ inputs.stage == 'staging' && 16 || 8 }}
     strategy:
       fail-fast: false
@@ -201,7 +201,8 @@ jobs:
         working-directory: .
         run: find . -path '*/testdata/*' -exec touch -t 200001010000 {} +
 
-      - uses: ./.github/actions/backend-test-env
+      - id: env
+        uses: ./.github/actions/backend-test-env
         with:
           cache-leg: ${{ matrix.artifact }}
 
@@ -276,20 +277,26 @@ jobs:
           go build ./cmd/...
           CGO_ENABLED=0 go build -o /dev/null ./cmd/monacoctl
 
-      # Only the staging run saves the Go cache, one key per leg, even after a test failure. The PR leg of the same
-      # name restores it through backend-test-env, and staging.yml's prune job keeps the newest per leg.
+      # Only the staging run saves the Go caches, even after a test failure. Every leg saves its build cache under
+      # its own key; staging.yml's prune job keeps the newest per leg. The module cache is the same on every leg, so
+      # the rest leg alone saves it, once per go.sum.
       - name: Drop the build cache entries this leg did not use
         if: always() && inputs.stage == 'staging'
         run: find ~/.cache/go-build -mindepth 2 -type f ! -newer "$RUNNER_TEMP/go-cache-start" -delete
 
-      - name: Save this leg's Go cache
+      - name: Save this leg's Go build cache
         if: always() && inputs.stage == 'staging'
         uses: actions/cache/save@v4
         with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-          key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-${{ matrix.artifact }}-${{ github.sha }}
+          path: ~/.cache/go-build
+          key: go-build-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-${{ matrix.artifact }}-${{ github.sha }}
+
+      - name: Save the Go module cache
+        if: always() && inputs.stage == 'staging' && matrix.artifact == 'rest-1' && steps.env.outputs.go-mod-cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/go/pkg/mod
+          key: go-mod-${{ runner.os }}-${{ hashFiles('**/go.sum') }}
 
   backend-report:
     name: Backend tests report
