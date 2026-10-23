@@ -171,7 +171,14 @@ jobs:
         if: inputs.save-cache && steps.cache.outputs.cache-hit != 'true'
         run: |
           rm -rf "$DERIVED_DATA/Logs" "$DERIVED_DATA/TestResults"
-          hdiutil detach -quiet "$DERIVED_DATA" || hdiutil detach -quiet -force "$DERIVED_DATA"
+          for attempt in 1 2 3; do
+            if [[ "$attempt" == 3 ]]; then force=-force; else force=; fi
+            # shellcheck disable=SC2086
+            hdiutil detach $force "$DERIVED_DATA" && break
+            lsof +D "$DERIVED_DATA" | head -20 || true
+            if [[ "$attempt" == 3 ]]; then exit 1; fi
+            sleep 10
+          done
           hdiutil compact -quiet "$DERIVED_DATA_IMAGE"
           ls -lh "$DERIVED_DATA_IMAGE"
 

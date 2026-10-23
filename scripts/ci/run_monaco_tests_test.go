@@ -18,7 +18,8 @@ func runMonacoTests(t *testing.T, testCmd string) (int, string, string) {
 	dir := t.TempDir()
 	calls := filepath.Join(dir, "calls")
 	xcrun := filepath.Join(dir, "xcrun")
-	writeExecutable(t, xcrun, "#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" >> "+calls+"\n")
+	writeExecutable(t, xcrun, "#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" >> "+calls+"\n"+
+		"[[ \"$2\" == list ]] && echo '{\"devices\":{\"iOS\":[{\"udid\":\"SIM-UDID\",\"state\":\"Shutdown\"}]}}'\nexit 0\n")
 	if err := os.WriteFile(filepath.Join(dir, "sim"), []byte("SIM-UDID\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +52,7 @@ func TestRunMonacoTests_retriesOnceAfterAHangAndRestartsTheSimulator(t *testing.
 	if !strings.Contains(out, retryMessage) {
 		t.Fatalf("output lacks the retry message:\n%s", out)
 	}
-	want := "simctl bootstatus SIM-UDID -b\nsimctl shutdown SIM-UDID\nsimctl boot SIM-UDID\nsimctl bootstatus SIM-UDID -b\n"
+	want := "simctl bootstatus SIM-UDID -b\nsimctl shutdown SIM-UDID\nsimctl boot SIM-UDID\nsimctl bootstatus SIM-UDID -b\nsimctl shutdown SIM-UDID\nsimctl list devices -j\n"
 	if calls != want {
 		t.Fatalf("xcrun calls = %q, want %q", calls, want)
 	}
@@ -74,7 +75,13 @@ func TestRunMonacoTests_doesNotRetryATestFailure(t *testing.T) {
 	if code != 65 {
 		t.Fatalf("exit = %d, want 65\n%s", code, out)
 	}
-	if strings.Contains(out, retryMessage) || strings.Contains(calls, "shutdown") {
+	if strings.Contains(out, retryMessage) || strings.Count(calls, "boot SIM-UDID") != 0 {
 		t.Fatalf("a failing test must not restart the simulator:\n%s\n%s", out, calls)
+	}
+	if got := strings.Count(calls, "simctl shutdown SIM-UDID"); got != 1 {
+		t.Fatalf("shutdown called %d times, want 1 after the tests:\n%s", got, calls)
+	}
+	if !strings.Contains(out, "simulator shut down in ") {
+		t.Fatalf("output lacks the shutdown message:\n%s", out)
 	}
 }
