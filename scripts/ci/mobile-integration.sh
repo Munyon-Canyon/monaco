@@ -35,6 +35,7 @@ elif [[ $# -ne 0 ]]; then
   echo "usage: $0 [--flows <id,id,...>]" >&2
   exit 2
 fi
+swift_image=public.ecr.aws/docker/library/swift:6.3-noble
 logdir="${RUNNER_TEMP:-/tmp}/mobile-integration"
 bindir="${RUNNER_TEMP:-/tmp}/mobile-integration-bin"
 mkdir -p "$logdir" "$bindir"
@@ -113,6 +114,9 @@ if [[ "${CI:-}" != "true" ]]; then
     exit 1
   fi
 fi
+"$root/scripts/ci/pull-image.sh" "$swift_image" > "$logdir/pull-swift.log" 2>&1 &
+swift_pull=$!
+pids+=("$swift_pull")
 # pull-image.sh falls back to mirror.gcr.io when ECR Public rate limits, so compose never pulls.
 while IFS= read -r image; do
   "$root/scripts/ci/pull-image.sh" "$image" || exit 1
@@ -247,20 +251,17 @@ if [[ "$ready" -ne 1 ]]; then
   exit 1
 fi
 
-swift_image=public.ecr.aws/docker/library/swift:6.3-noble
-"$root/scripts/ci/pull-image.sh" "$swift_image" || exit 1
+wait "$swift_pull" || { cat "$logdir/pull-swift.log" >&2; exit 1; }
+swift_start=$SECONDS
 set +e
-docker run --rm --network host \
-  -v "$root:/w" -w /w/packages/mobile-core \
-  -v "$bindir/linux:/seed:ro" \
-  -e MONACO_API_URL="$swift_api_url" -e MONACO_DEV_TOKEN="$dev_token" -e MONACO_DEV_USER="$dev_user" \
-  -e MONACO_SEED_BIN=/seed/monacoctl -e MONACO_SEED_DIR=/w/apps/backend \
-  -e DATABASE_URL="${DATABASE_URL/127.0.0.1/$container_host}" -e NATS_URL="${NATS_URL/127.0.0.1/$container_host}" \
-  -e MONACO_DEV_TOKEN_KEY="$token_key" -e MONACO_FAKES_URL="http://${container_host}:${fakes_addr##*:}" \
-  "$swift_image" swift test --filter "$filter" \
+MI_BINDIR="$bindir" MI_API_URL="$swift_api_url" MONACO_DEV_TOKEN="$dev_token" MONACO_DEV_USER="$dev_user" \
+  MI_DATABASE_URL="${DATABASE_URL/127.0.0.1/$container_host}" MI_NATS_URL="${NATS_URL/127.0.0.1/$container_host}" \
+  MONACO_DEV_TOKEN_KEY="$token_key" MI_FAKES_URL="http://${container_host}:${fakes_addr##*:}" \
+  "$root/scripts/ci/mobile-integration-swift.sh" "$swift_image" "$filter" \
   > "$logdir/swift.log" 2>&1
 swift_status=$?
 set -e
+echo "swift test: $((SECONDS - swift_start)) s (build cache restored: ${MOBILE_INTEGRATION_CACHE_KEY:-nothing})"
 
 # swift test writes no XCTest xunit file without --parallel, and --parallel reports a skipped
 # test as passed, so the xunit file monacoctl flows check reads is built from the serial log.
