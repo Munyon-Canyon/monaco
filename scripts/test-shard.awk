@@ -2,6 +2,7 @@
 # -v table=<package<TAB>seconds file> weighs packages; one missing from it weighs 5 s.
 BEGIN {
   while ((getline line < table) > 0) {
+    if (line ~ /^#/) continue
     split(line, f, "\t")
     secs[f[1]] = f[2] + 0
   }

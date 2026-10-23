@@ -202,6 +202,34 @@ report_pass() {
   return "$status"
 }
 
+# weights_pass rebuilds both weight tables in the current directory from the go test -json files under $out
+# (the unpacked backend-test-* artifacts of one stage 1 run), taking the longest result of each package.
+weights_pass() {
+  local header table f files
+  header="$(printf '\043') Seconds per package, from the go test -json files of one stage 1 run. Regenerate: gh run download <run-id> -p \"backend-test-*\" -D \"\$out\" && TEST_BACKEND_OUT=\"\$out\" TEST_BACKEND_PASS=weights scripts/test-backend.sh"
+  for table in .test-shards.tsv .test-shards-full.tsv; do
+    files=()
+    while IFS= read -r f; do
+      if [[ "$table" == .test-shards-full.tsv && "$(basename "$f")" == full*.json ]] ||
+        [[ "$table" == .test-shards.tsv && "$(basename "$f")" != full*.json ]]; then
+        files+=("$f")
+      fi
+    done < <(find "$out" -name '*.json' | sort)
+    if [[ "${#files[@]}" -eq 0 ]]; then
+      echo "error: no go test -json files for $table under $out." >&2
+      return 1
+    fi
+    {
+      printf '%s\n' "$header"
+      jq -rs '[.[] | select((.Action == "pass" or .Action == "fail") and .Test == null and .Package != null)]
+        | group_by(.Package) | .[] | "\(.[0].Package)\t\(map(.Elapsed) | max)"' "${files[@]}" |
+        awk -F'\t' '{ printf "%s\t%.1f\n", $1, $2 }' | LC_ALL=C sort
+    } >"$table.new"
+    mv "$table.new" "$table"
+    echo "wrote $table"
+  done
+}
+
 run_suite() {
   set -o pipefail
   if ! command -v jq >/dev/null 2>&1; then
@@ -256,8 +284,9 @@ run_suite() {
       ;;
     rest) rest_pass 1 1 "$@" || status=1 ;;
     report) report_pass || status=1 ;;
+    weights) weights_pass || status=1 ;;
     *)
-      echo "error: TEST_BACKEND_PASS=$pass is not short:<i>/<n>, rest, rest:<i>/<n> or report." >&2
+      echo "error: TEST_BACKEND_PASS=$pass is not short:<i>/<n>, rest, rest:<i>/<n> or report (weights rebuilds the tables)." >&2
       return 2
       ;;
   esac
