@@ -53,6 +53,9 @@ func TestMobileIntegrationMountsTheCheckoutAtTheWorkdir(t *testing.T) {
 			t.Errorf("docker run lacks %q:\n%s", want, call)
 		}
 	}
+	if !strings.Contains(call, "swift test --force-resolved-versions -Xswiftc -warnings-as-errors --enable-code-coverage --filter FIntegrationTests") {
+		t.Errorf("docker run lacks the flags the cache was built with:\n%s", call)
+	}
 	if strings.Contains(call, ":/w ") {
 		t.Errorf("docker run still mounts /w:\n%s", call)
 	}
