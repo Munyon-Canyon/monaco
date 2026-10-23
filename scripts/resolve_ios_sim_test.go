@@ -1,6 +1,8 @@
 package scripts_test
 
 import (
+	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -368,5 +370,133 @@ func TestResolveIOSSim_laneChecksAnExistingSimulator(t *testing.T) {
 		"on " + first.udid + " --profile " + profile + " --preserve-boot-state\n"
 	if got := readCalls(t, calls); !strings.Contains(got, want) {
 		t.Fatalf("calls %q, want to contain %q", got, want)
+	}
+}
+
+type rankDevice struct{ runtime, name, udid, state string }
+
+func rankFixture(t *testing.T, devices []rankDevice) (xcrunDir string) {
+	t.Helper()
+	byRuntime := map[string][]map[string]any{}
+	var order []string
+	text := map[string][]string{}
+	for _, d := range devices {
+		if _, ok := byRuntime[d.runtime]; !ok {
+			order = append(order, d.runtime)
+		}
+		byRuntime[d.runtime] = append(byRuntime[d.runtime], map[string]any{
+			"udid": d.udid, "name": d.name, "state": d.state, "isAvailable": true,
+		})
+		text[d.runtime] = append(text[d.runtime], "    "+d.name+" ("+d.udid+") ("+d.state+")")
+	}
+	var jsonOut, textOut strings.Builder
+	jsonOut.WriteString(`{"devices":{`)
+	for i, rt := range order {
+		if i > 0 {
+			jsonOut.WriteString(",")
+		}
+		b, err := json.Marshal(byRuntime[rt])
+		if err != nil {
+			t.Fatal(err)
+		}
+		jsonOut.WriteString(strconv.Quote("com.apple.CoreSimulator.SimRuntime.iOS-" + strings.ReplaceAll(rt, ".", "-")))
+		jsonOut.WriteString(":" + string(b))
+		textOut.WriteString("-- iOS " + rt + " --\n" + strings.Join(text[rt], "\n") + "\n")
+	}
+	jsonOut.WriteString("}}")
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "devices.json"), []byte(jsonOut.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "devices.txt"), []byte(textOut.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	bin := filepath.Join(dir, "bin")
+	writeExecutable(t, filepath.Join(bin, "xcrun"), `#!/bin/sh
+case "$*" in
+  "simctl list devices available -j") cat "`+dir+`/devices.json" ;;
+  "simctl list devices available") cat "`+dir+`/devices.txt" ;;
+  *) echo "stub xcrun: unhandled $*" >&2; exit 1 ;;
+esac
+`)
+	return bin
+}
+
+// pickWith runs resolve-ios-sim.sh in the primary checkout against stub devices, once with
+// python3 on PATH and once with only the tools the grep and awk fallback needs.
+func pickWith(t *testing.T, devices []rankDevice) (withPython, withoutPython string) {
+	t.Helper()
+	stub := rankFixture(t, devices)
+	checkout := simCheckout(t, "")
+	run := func(path string) string {
+		cmd := exec.Command("bash", filepath.Join(checkout, "scripts", "resolve-ios-sim.sh"))
+		cmd.Dir = checkout
+		cmd.Env = append(os.Environ(), "PATH="+path, "MONACO_LANE_LOOKUP=off", "SIMSLIM_UDID=", "MONACO_SIM_UDID=")
+		out, err := cmd.Output()
+		if err != nil {
+			var ee *exec.ExitError
+			if errors.As(err, &ee) {
+				t.Fatalf("resolve-ios-sim.sh: %v\n%s", err, ee.Stderr)
+			}
+			t.Fatalf("resolve-ios-sim.sh: %v", err)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	tools := t.TempDir()
+	for _, name := range []string{"grep", "awk", "head", "dirname", "cat", "sed", "env"} {
+		p, err := exec.LookPath(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(p, filepath.Join(tools, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return run(stub + string(os.PathListSeparator) + os.Getenv("PATH")), run(stub + string(os.PathListSeparator) + tools)
+}
+
+func TestResolveIOSSim_rankSkipsDuoForALaterPro(t *testing.T) {
+	a, b := pickWith(t, []rankDevice{
+		{"27.1", "iPhone Duo", "D0D0D0D0", "Shutdown"},
+		{"27.1", "iPhone 17 Pro", "AAAA1111", "Shutdown"},
+	})
+	if a != "AAAA1111" || b != "AAAA1111" {
+		t.Fatalf("python path %q, fallback path %q, want PRO", a, b)
+	}
+}
+
+func TestResolveIOSSim_rankPicksALoneDuo(t *testing.T) {
+	a, b := pickWith(t, []rankDevice{{"27.1", "iPhone Duo", "D0D0D0D0", "Shutdown"}})
+	if a != "D0D0D0D0" || b != "D0D0D0D0" {
+		t.Fatalf("python path %q, fallback path %q, want DUO", a, b)
+	}
+}
+
+func TestResolveIOSSim_rankBeatsBootedState(t *testing.T) {
+	a, b := pickWith(t, []rankDevice{
+		{"26.0", "iPhone 16", "B0071616", "Booted"},
+		{"26.0", "iPhone 17 Pro Max", "AAAA2222", "Shutdown"},
+	})
+	if a != "AAAA2222" || b != "AAAA2222" {
+		t.Fatalf("python path %q, fallback path %q, want MAX", a, b)
+	}
+}
+
+func TestResolveIOSSim_rankPrefersBootedThenNewestRuntimeWithinARank(t *testing.T) {
+	a, b := pickWith(t, []rankDevice{
+		{"26.0", "iPhone 17 Pro", "0A1D0A1D", "Shutdown"},
+		{"27.1", "iPhone 18 Pro", "0E0E0E0E", "Shutdown"},
+		{"26.0", "iPhone 16 Pro", "B0071234", "Booted"},
+		{"27.1", "iPad Pro", "1AD1AD1A", "Booted"},
+	})
+	if a != "B0071234" || b != "B0071234" {
+		t.Fatalf("python path %q, fallback path %q, want BOOTED", a, b)
+	}
+	a, b = pickWith(t, []rankDevice{
+		{"26.0", "iPhone 17 Pro", "0A1D0A1D", "Shutdown"},
+		{"27.1", "iPhone 18 Pro", "0E0E0E0E", "Shutdown"},
+	})
+	if a != "0E0E0E0E" || b != "0E0E0E0E" {
+		t.Fatalf("python path %q, fallback path %q, want NEW", a, b)
 	}
 }

@@ -40,6 +40,11 @@ in separate worktrees build and run the app at the same time without touching ea
 other. The primary checkout is not a lane and keeps the gold `SIMSLIM_UDID` with the
 stock fallback.
 
+The stock fallback, and CI, rank iPhones: Pro Max, then Pro, then the base and Plus models,
+then Air and the `e` models, then any other iPhone. A booted device beats a shut-down one
+of the same rank, the newest runtime wins ties, and iPhone Duo is picked only when no other
+iPhone exists.
+
 - **Simulator.** `scripts/lane-sim-udid.sh` prints the lane's simulator,
   `Monaco <lane>`. The first call creates it with the gold simulator's device type
   and runtime, and slims it (see SimSlim for lanes and journeys below).
