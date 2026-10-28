@@ -6,18 +6,23 @@ RETURNING id;
 
 -- name: InsertNotification :one
 INSERT INTO notifications (
-  id, broadcast_id, user_id, kind, source_event_id, title, body, data, collapse_id, state, created_at
+  id, broadcast_id, user_id, kind, source_event_id, title, body, data, collapse_id, state, created_at,
+  thread_id, category, interruption_level, presentation
 )
 VALUES (
   sqlc.arg(id), NULLIF(sqlc.arg(broadcast_id)::uuid, '00000000-0000-0000-0000-000000000000'), sqlc.arg(user_id),
   sqlc.arg(kind), sqlc.arg(source_event_id), sqlc.arg(title), sqlc.arg(body), sqlc.arg(data), sqlc.arg(collapse_id),
-  sqlc.arg(state), sqlc.arg(created_at)
+  sqlc.arg(state), sqlc.arg(created_at),
+  NULLIF(sqlc.arg(thread_id)::text, ''), NULLIF(sqlc.arg(category)::text, ''),
+  NULLIF(sqlc.arg(interruption_level)::text, ''), sqlc.arg(presentation)::jsonb
 )
 ON CONFLICT (source_event_id, user_id, kind) DO NOTHING
 RETURNING id;
 
 -- name: UndeliveredForEvent :many
-SELECT id, broadcast_id, user_id, kind, title, body, data, collapse_id, created_at FROM notifications
+SELECT id, broadcast_id, user_id, kind, title, body, data, collapse_id, created_at,
+  COALESCE(thread_id, '')::text AS thread_id, COALESCE(category, '')::text AS category,
+  COALESCE(interruption_level, '')::text AS interruption_level, presentation FROM notifications
 WHERE source_event_id = $1 AND state = 'pending'
 ORDER BY created_at, id;
 

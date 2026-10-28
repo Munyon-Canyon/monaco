@@ -240,3 +240,87 @@ func TestSend_sendsACollapseIDOfExactly64Bytes(t *testing.T) {
 		t.Fatalf("apns-collapse-id = %q, want the 64 byte id sent as is", got)
 	}
 }
+
+func TestSend_carriesThePresentationFieldsInAps(t *testing.T) {
+	t.Parallel()
+	u := &upstream{replies: []reply{accepted()}}
+	p := push(apns.Sandbox)
+	p.ThreadID = "cabal-c1"
+	p.Category = "VOTE"
+	p.MutableContent = true
+	p.InterruptionLevel = "time-sensitive"
+	p.Sound = "default"
+
+	mustSend(t, newClient(t, u), p)
+
+	var got map[string]any
+	if err := json.Unmarshal(u.requests()[0].body, &got); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]any{
+		"alert":              map[string]any{"title": "Trade filled", "body": "Your cabal bought $50.00 of Tesla"},
+		"thread-id":          "cabal-c1",
+		"category":           "VOTE",
+		"mutable-content":    float64(1),
+		"interruption-level": "time-sensitive",
+		"sound":              "default",
+	}
+	if !reflect.DeepEqual(got["aps"], want) {
+		t.Fatalf("aps = %v, want %v", got["aps"], want)
+	}
+}
+
+func TestSend_leavesThePresentationFieldsOutWhenUnset(t *testing.T) {
+	t.Parallel()
+	u := &upstream{replies: []reply{accepted()}}
+
+	mustSend(t, newClient(t, u), push(apns.Sandbox))
+
+	var got struct {
+		Aps map[string]any `json:"aps"`
+	}
+	if err := json.Unmarshal(u.requests()[0].body, &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Aps) != 1 {
+		t.Fatalf("aps = %v, want only the alert", got.Aps)
+	}
+}
+
+func TestSend_answersAnInterruptionLevelAPNSDoesNotKnowLocally(t *testing.T) {
+	t.Parallel()
+	for _, level := range []string{"critical", "urgent", "Active", "time_sensitive"} {
+		t.Run(level, func(t *testing.T) {
+			t.Parallel()
+			u := &upstream{replies: []reply{accepted()}}
+			p := push(apns.Sandbox)
+			p.InterruptionLevel = level
+
+			res := mustSend(t, newClient(t, u), p)
+
+			if want := (apns.Result{Status: 400, Reason: "BadInterruptionLevel"}); res != want {
+				t.Fatalf("Send = %+v, want %+v", res, want)
+			}
+			if apns.Classify(res) != apns.Rejected || u.count() != 0 {
+				t.Fatalf("outcome %d after %d requests, want a rejected push and nothing sent",
+					apns.Classify(res), u.count())
+			}
+		})
+	}
+}
+
+func TestSend_acceptsEveryAllowedInterruptionLevel(t *testing.T) {
+	t.Parallel()
+	for _, level := range []string{"", "passive", "active", "time-sensitive"} {
+		t.Run(level, func(t *testing.T) {
+			t.Parallel()
+			u := &upstream{replies: []reply{accepted()}}
+			p := push(apns.Sandbox)
+			p.InterruptionLevel = level
+
+			if res := mustSend(t, newClient(t, u), p); res.Status != 200 || u.count() != 1 {
+				t.Fatalf("Send = %+v after %d requests, want 200 and one request", res, u.count())
+			}
+		})
+	}
+}

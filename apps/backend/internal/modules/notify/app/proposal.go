@@ -40,7 +40,7 @@ func (k ProposalCreated) Render(ctx context.Context, e events.ProposalCreated, _
 	if err != nil {
 		return Message{}, err
 	}
-	proposer, err := proposerName(ctx, k.Users, ids.UserIDFrom(e.ProposerID))
+	proposer, err := personSender(ctx, k.Users, ids.UserIDFrom(e.ProposerID))
 	if err != nil {
 		return Message{}, err
 	}
@@ -48,8 +48,10 @@ func (k ProposalCreated) Render(ctx context.Context, e events.ProposalCreated, _
 	if words.noun == "sell" {
 		amount = "about " + usd(money.MicrosFromUint64(e.QuoteOutAmount))
 	}
-	body := fmt.Sprintf("%s wants to %s %s of %s. Vote now.", proposer, words.noun, amount, words.asset)
-	return proposalMessage(k.Name(), e.CabalID, e.ProposalID, "New proposal in "+view.Name, body), nil
+	body := fmt.Sprintf("%s wants to %s %s of %s. Vote now.", proposer.Name, words.noun, amount, words.asset)
+	return proposalMessage(
+		k.Name(), e.CabalID, e.ProposalID, "New proposal in "+view.Name, body, ForCabal(view, proposer),
+	), nil
 }
 
 type ProposalPassed struct {
@@ -81,7 +83,11 @@ func (k ProposalPassed) Render(ctx context.Context, e events.ProposalPassed, _ i
 	if words.noun == "sell" {
 		body = fmt.Sprintf("Your cabal's sell of %s passed. Selling now.", words.asset)
 	}
-	return proposalMessage(k.Name(), e.CabalID, e.ProposalID, "Proposal passed", body), nil
+	pres, err := cabalPresentation(ctx, k.Cabals, e.CabalID)
+	if err != nil {
+		return Message{}, err
+	}
+	return proposalMessage(k.Name(), e.CabalID, e.ProposalID, "Proposal passed", body, pres), nil
 }
 
 func proposerName(ctx context.Context, users Users, id ids.UserID) (string, error) {
@@ -96,11 +102,12 @@ func proposerName(ctx context.Context, users Users, id ids.UserID) (string, erro
 	return cmp.Or(card.DisplayName, unnamedProposer), nil
 }
 
-func proposalMessage(kind string, cabalID, proposalID uuid.UUID, title, body string) Message {
+func proposalMessage(kind string, cabalID, proposalID uuid.UUID, title, body string, pres Presentation) Message {
 	return Message{
-		Title:      title,
-		Body:       body,
-		Data:       map[string]string{"kind": kind, "cabal_id": cabalID.String(), "proposal_id": proposalID.String()},
-		CollapseID: "proposal-" + proposalID.String(),
+		Title:        title,
+		Body:         body,
+		Data:         map[string]string{"kind": kind, "cabal_id": cabalID.String(), "proposal_id": proposalID.String()},
+		CollapseID:   "proposal-" + proposalID.String(),
+		Presentation: pres,
 	}
 }

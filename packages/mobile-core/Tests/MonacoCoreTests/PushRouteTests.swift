@@ -199,11 +199,17 @@ final class PushRouteTests: XCTestCase {
     }
 
     func testEveryFixtureCarriesItsSendersKeysAndOpensItsScreen() throws {
+        let senderKeys: Set<String> = [
+            "sender_kind", "sender_id", "sender_name", "sender_image_url",
+            "group_id", "group_name", "group_image_url",
+        ]
         let rows: [(file: String, keys: Set<String>, screen: String)] = [
             ("trade_filled", ["kind", "cabal_id", "txn_id"], "transaction"),
             ("trade_failed", ["kind", "cabal_id", "txn_id"], "transaction"),
             ("proposal_created", ["kind", "cabal_id", "proposal_id"], "proposal"),
             ("cabal_paused", ["kind", "cabal_id"], "cabal"),
+            ("proposal_created_grouped", Set(["kind", "cabal_id", "proposal_id"]).union(senderKeys), "proposal"),
+            ("cabal_paused_grouped", Set(["kind", "cabal_id"]).union(senderKeys), "cabal"),
             ("deposit_credited", ["kind"], "home"),
             ("nudge", ["kind", "user_id"], "home"),
             ("new_follower", ["kind", "user_id"], "userProfile"),

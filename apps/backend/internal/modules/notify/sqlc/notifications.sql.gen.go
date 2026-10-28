@@ -115,29 +115,36 @@ func (q *Queries) InsertBroadcast(ctx context.Context, arg InsertBroadcastParams
 
 const insertNotification = `-- name: InsertNotification :one
 INSERT INTO notifications (
-  id, broadcast_id, user_id, kind, source_event_id, title, body, data, collapse_id, state, created_at
+  id, broadcast_id, user_id, kind, source_event_id, title, body, data, collapse_id, state, created_at,
+  thread_id, category, interruption_level, presentation
 )
 VALUES (
   $1, NULLIF($2::uuid, '00000000-0000-0000-0000-000000000000'), $3,
   $4, $5, $6, $7, $8, $9,
-  $10, $11
+  $10, $11,
+  NULLIF($12::text, ''), NULLIF($13::text, ''),
+  NULLIF($14::text, ''), $15::jsonb
 )
 ON CONFLICT (source_event_id, user_id, kind) DO NOTHING
 RETURNING id
 `
 
 type InsertNotificationParams struct {
-	ID            uuid.UUID
-	BroadcastID   uuid.UUID
-	UserID        uuid.UUID
-	Kind          string
-	SourceEventID uuid.UUID
-	Title         string
-	Body          string
-	Data          []byte
-	CollapseID    string
-	State         string
-	CreatedAt     time.Time
+	ID                uuid.UUID
+	BroadcastID       uuid.UUID
+	UserID            uuid.UUID
+	Kind              string
+	SourceEventID     uuid.UUID
+	Title             string
+	Body              string
+	Data              []byte
+	CollapseID        string
+	State             string
+	CreatedAt         time.Time
+	ThreadID          string
+	Category          string
+	InterruptionLevel string
+	Presentation      []byte
 }
 
 func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotificationParams) (uuid.UUID, error) {
@@ -153,6 +160,10 @@ func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotification
 		arg.CollapseID,
 		arg.State,
 		arg.CreatedAt,
+		arg.ThreadID,
+		arg.Category,
+		arg.InterruptionLevel,
+		arg.Presentation,
 	)
 	var id uuid.UUID
 	err := row.Scan(&id)
@@ -191,21 +202,27 @@ func (q *Queries) MarkNoDevice(ctx context.Context, id uuid.UUID) (int64, error)
 }
 
 const undeliveredForEvent = `-- name: UndeliveredForEvent :many
-SELECT id, broadcast_id, user_id, kind, title, body, data, collapse_id, created_at FROM notifications
+SELECT id, broadcast_id, user_id, kind, title, body, data, collapse_id, created_at,
+  COALESCE(thread_id, '')::text AS thread_id, COALESCE(category, '')::text AS category,
+  COALESCE(interruption_level, '')::text AS interruption_level, presentation FROM notifications
 WHERE source_event_id = $1 AND state = 'pending'
 ORDER BY created_at, id
 `
 
 type UndeliveredForEventRow struct {
-	ID          uuid.UUID
-	BroadcastID pgtype.UUID
-	UserID      uuid.UUID
-	Kind        string
-	Title       string
-	Body        string
-	Data        []byte
-	CollapseID  string
-	CreatedAt   time.Time
+	ID                uuid.UUID
+	BroadcastID       pgtype.UUID
+	UserID            uuid.UUID
+	Kind              string
+	Title             string
+	Body              string
+	Data              []byte
+	CollapseID        string
+	CreatedAt         time.Time
+	ThreadID          string
+	Category          string
+	InterruptionLevel string
+	Presentation      []byte
 }
 
 func (q *Queries) UndeliveredForEvent(ctx context.Context, sourceEventID uuid.UUID) ([]UndeliveredForEventRow, error) {
@@ -227,6 +244,10 @@ func (q *Queries) UndeliveredForEvent(ctx context.Context, sourceEventID uuid.UU
 			&i.Data,
 			&i.CollapseID,
 			&i.CreatedAt,
+			&i.ThreadID,
+			&i.Category,
+			&i.InterruptionLevel,
+			&i.Presentation,
 		); err != nil {
 			return nil, err
 		}

@@ -90,7 +90,11 @@ func followPush(to, from ids.UserID, who string) apns.Push {
 	return apns.Push{
 		UserID: to, Token: token('a'), Environment: apns.Sandbox, CollapseID: "follow-" + from.String(),
 		Title: "New follower", Body: who + " followed you",
-		Data: map[string]string{"kind": "new_follower", "user_id": from.String()},
+		Data: map[string]string{
+			"kind": "new_follower", "user_id": from.String(),
+			"sender_kind": "person", "sender_id": from.String(), "sender_name": strings.SplitN(who, " (", 2)[0],
+		},
+		ThreadID: "user-" + from.String(), InterruptionLevel: "active", Sound: "default",
 	}
 }
 
@@ -98,6 +102,7 @@ func digestPush(to ids.UserID, body string) apns.Push {
 	return apns.Push{
 		UserID: to, Token: token('a'), Environment: apns.Sandbox, CollapseID: "follow-digest",
 		Title: "New followers", Body: body, Data: map[string]string{"kind": "follow_digest"},
+		ThreadID: "user-" + to.String(), InterruptionLevel: "active", Sound: "default",
 	}
 }
 
@@ -239,15 +244,15 @@ func TestNotify_NewFollower_NamesTheFollowerOrSomeone(t *testing.T) {
 	follower := ids.UserIDFrom(uuid.NewSHA1(uuid.NameSpaceOID, []byte("notify-follower")))
 	e := events.FollowCreated{V: 1, FollowerID: follower.UUID()}
 	for name, tc := range map[string]struct {
-		cards map[ids.UserID]identity.UserCard
-		want  string
+		cards      map[ids.UserID]identity.UserCard
+		want, name string
 	}{
-		"a name and a handle":             {followerCard(follower, "Dana", "dana", false), "Dana (@dana) followed you"},
-		"a handle that is the whole name": {followerCard(follower, "dana", "dana", false), "@dana followed you"},
-		"a name and no handle":            {followerCard(follower, "Dana", "", false), "Dana followed you"},
-		"no name and no handle":           {followerCard(follower, "", "", false), "Someone followed you"},
-		"a deleted user that kept a name": {followerCard(follower, "Dana", "dana", true), "Someone followed you"},
-		"a user the port does not know":   {nil, "Someone followed you"},
+		"a name and a handle":             {followerCard(follower, "Dana", "dana", false), "Dana (@dana) followed you", "Dana"},
+		"a handle that is the whole name": {followerCard(follower, "dana", "dana", false), "@dana followed you", "dana"},
+		"a name and no handle":            {followerCard(follower, "Dana", "", false), "Dana followed you", "Dana"},
+		"no name and no handle":           {followerCard(follower, "", "", false), "Someone followed you", "Someone"},
+		"a deleted user that kept a name": {followerCard(follower, "Dana", "dana", true), "Someone followed you", "Someone"},
+		"a user the port does not know":   {nil, "Someone followed you", "Someone"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -257,6 +262,10 @@ func TestNotify_NewFollower_NamesTheFollowerOrSomeone(t *testing.T) {
 			want := app.Message{
 				Title: "New follower", Body: tc.want, CollapseID: "follow-" + follower.String(),
 				Data: map[string]string{"kind": "new_follower", "user_id": follower.String()},
+				Presentation: app.Presentation{
+					ThreadID: "user-" + follower.String(), InterruptionLevel: "active",
+					Sender: app.Sender{Kind: "person", ID: follower.String(), Name: tc.name},
+				},
 			}
 			if err != nil || !reflect.DeepEqual(msg, want) {
 				t.Fatalf("Render = %+v, %v, want %+v", msg, err, want)

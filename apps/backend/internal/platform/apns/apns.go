@@ -25,6 +25,12 @@ type Push struct {
 	Title       string
 	Body        string
 	Data        map[string]string
+
+	ThreadID          string
+	Category          string
+	MutableContent    bool
+	InterruptionLevel string
+	Sound             string
 }
 
 type Result struct {

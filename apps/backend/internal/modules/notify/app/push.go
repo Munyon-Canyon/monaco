@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"maps"
 	"math"
 	"time"
 
@@ -29,6 +30,8 @@ const (
 	opPush   = "notify.Push"
 	maxSends = 32
 	day      = 24 * time.Hour
+
+	defaultSound = "default"
 )
 
 type Message struct {
@@ -36,6 +39,8 @@ type Message struct {
 	Body       string
 	Data       map[string]string
 	CollapseID string
+
+	Presentation Presentation
 }
 
 type Kind[E events.Event] interface {
@@ -238,28 +243,57 @@ func (p *Pusher) write(ctx context.Context, d bus.Delivery, notes []Notification
 			}
 			broadcast = id
 		}
-		for _, n := range notes {
-			state, err := stateFor(ctx, q, n, d.At)
-			if err != nil {
-				return err
-			}
-			data, _ := json.Marshal(n.Message.Data)
-			_, err = q.InsertNotification(ctx, sqlc.InsertNotificationParams{
-				ID: p.ids.NewV7(), BroadcastID: broadcast, UserID: n.UserID.UUID(), Kind: n.Kind,
-				SourceEventID: d.EventID.UUID(), Title: n.Message.Title, Body: n.Message.Body, Data: data,
-				CollapseID: n.Message.CollapseID, State: string(state), CreatedAt: d.At,
-			})
-			switch {
-			case errors.Is(err, sql.ErrNoRows):
-			case err != nil:
-				return err
-			default:
-				written++
-			}
-		}
-		return nil
+		var err error
+		written, err = p.insertAll(ctx, q, notes, broadcast, d)
+		return err
 	})
 	return written, err
+}
+
+func (p *Pusher) insertAll(
+	ctx context.Context, q *sqlc.Queries, notes []Notification, broadcast uuid.UUID, d bus.Delivery,
+) (int, error) {
+	written := 0
+	for _, n := range notes {
+		state, err := stateFor(ctx, q, n, d.At)
+		if err != nil {
+			return 0, err
+		}
+		params, err := insertParams(p.ids.NewV7(), broadcast, n, state, d)
+		if err != nil {
+			return 0, err
+		}
+		_, err = q.InsertNotification(ctx, params)
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+		case err != nil:
+			return 0, err
+		default:
+			written++
+		}
+	}
+	return written, nil
+}
+
+func insertParams(
+	id, broadcast uuid.UUID, n Notification, state domain.NotificationState, d bus.Delivery,
+) (sqlc.InsertNotificationParams, error) {
+	data, _ := json.Marshal(n.Message.Data)
+	params := sqlc.InsertNotificationParams{
+		ID: id, BroadcastID: broadcast, UserID: n.UserID.UUID(), Kind: n.Kind,
+		SourceEventID: d.EventID.UUID(), Title: n.Message.Title, Body: n.Message.Body, Data: data,
+		CollapseID: n.Message.CollapseID, State: string(state), CreatedAt: d.At,
+	}
+	p := n.Message.Presentation
+	if !p.set() {
+		return params, nil
+	}
+	if err := p.check(n.Message.Data); err != nil {
+		return params, err
+	}
+	params.ThreadID, params.Category, params.InterruptionLevel, params.Presentation =
+		p.ThreadID, p.Category, p.InterruptionLevel, p.encode()
+	return params, nil
 }
 
 func stateFor(
@@ -329,16 +363,35 @@ func (p *Pusher) plan(ctx context.Context, event ids.EventID) ([]pendingRow, []j
 			return nil, nil, errs.Wrap(err, errs.CodeDecodeFailed, opPush)
 		}
 		rows[i].row = row
+		pres, err := decodePresentation(row.ThreadID, row.Category, row.InterruptionLevel, row.Presentation)
+		if err != nil {
+			return nil, nil, err
+		}
+		if pres.set() {
+			data = withPresentation(data, pres)
+		}
 		for _, t := range tokens {
 			j := job{at: len(jobs), kind: row.Kind, push: apns.Push{
 				UserID: ids.UserIDFrom(row.UserID), Token: t.Token, Environment: apns.Environment(t.Environment),
 				CollapseID: row.CollapseID, Title: row.Title, Body: row.Body, Data: data,
 			}}
+			if pres.set() {
+				j.push.ThreadID, j.push.Category = pres.ThreadID, pres.Category
+				j.push.InterruptionLevel, j.push.MutableContent = pres.InterruptionLevel, pres.mutable()
+				j.push.Sound = defaultSound
+			}
 			rows[i].jobs = append(rows[i].jobs, j)
 			jobs = append(jobs, j)
 		}
 	}
 	return rows, jobs, nil
+}
+
+func withPresentation(data map[string]string, p Presentation) map[string]string {
+	merged := make(map[string]string, len(data))
+	maps.Copy(merged, data)
+	maps.Copy(merged, p.data())
+	return merged
 }
 
 func (p *Pusher) sendAll(ctx context.Context, jobs []job) []sent {

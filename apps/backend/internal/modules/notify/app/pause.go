@@ -64,9 +64,10 @@ func pauseNotice(
 		return Message{}, err
 	}
 	return Message{
-		Title:      fmt.Sprintf(titleFormat, view.Name),
-		Body:       body,
-		Data:       map[string]string{"kind": kind, "cabal_id": cabalID.String()},
-		CollapseID: "pause-" + cabalID.String(),
+		Title:        fmt.Sprintf(titleFormat, view.Name),
+		Body:         body,
+		Data:         map[string]string{"kind": kind, "cabal_id": cabalID.String()},
+		CollapseID:   "pause-" + cabalID.String(),
+		Presentation: ForCabal(view, CabalSender(view)),
 	}, nil
 }

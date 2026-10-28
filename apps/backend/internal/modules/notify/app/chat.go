@@ -62,7 +62,7 @@ func chatMessage(
 	if err != nil {
 		return Message{}, err
 	}
-	poster, err := proposerName(ctx, users, ids.UserIDFrom(e.AuthorID))
+	poster, err := personSender(ctx, users, ids.UserIDFrom(e.AuthorID))
 	if err != nil {
 		return Message{}, err
 	}
@@ -75,9 +75,10 @@ func chatMessage(
 		data["parent_id"] = e.ParentID.String()
 	}
 	return Message{
-		Title:      view.Name,
-		Body:       poster + action,
-		Data:       data,
-		CollapseID: "chat-" + thread.String(),
+		Title:        view.Name,
+		Body:         poster.Name + action,
+		Data:         data,
+		CollapseID:   "chat-" + thread.String(),
+		Presentation: ForCabal(view, poster),
 	}, nil
 }

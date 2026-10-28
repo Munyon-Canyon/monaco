@@ -1,0 +1,22 @@
+{
+  "Simulator Target Bundle": "xyz.monacolabs.app",
+  "aps": {
+    "alert": {
+      "title": "AC Capital is paused",
+      "body": "Trading is on hold while we check something. Your money is safe; we'll tell you when it resumes."
+    },
+    "thread-id": "cabal-01920000-0000-7000-8000-000000000c01",
+    "mutable-content": 1,
+    "interruption-level": "active",
+    "sound": "default"
+  },
+  "kind": "cabal_paused",
+  "cabal_id": "01920000-0000-7000-8000-000000000c01",
+  "sender_kind": "cabal",
+  "sender_id": "01920000-0000-7000-8000-000000000c01",
+  "sender_name": "AC Capital",
+  "sender_image_url": "https://example.com/storage/v1/object/public/avatars/ac-capital.png",
+  "group_id": "01920000-0000-7000-8000-000000000c01",
+  "group_name": "AC Capital",
+  "group_image_url": "https://example.com/storage/v1/object/public/avatars/ac-capital.png"
+}

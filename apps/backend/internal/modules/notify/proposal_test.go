@@ -242,11 +242,15 @@ func (r *pushRig) wantProposalPushed(
 	states := map[ids.UserID]string{}
 	for _, user := range recipients {
 		states[user] = "delivered"
-		want = append(want, apns.Push{
+		sender := cabalSender(w.id)
+		if k.kind == createdPush {
+			sender = wantSender{"person", w.refs.proposer.String(), memberNames()[0]}
+		}
+		want = append(want, inCabal(apns.Push{
 			UserID: user, Token: w.tokens[user], Environment: apns.Sandbox,
 			CollapseID: "proposal-" + run.proposal.String(), Title: k.title, Body: k.body,
 			Data: map[string]string{"kind": k.kind, "cabal_id": w.id.String(), "proposal_id": run.proposal.String()},
-		})
+		}, w.id, sender))
 	}
 	slices.SortFunc(want, byToken)
 	sent := r.sender.Sent()

@@ -121,6 +121,41 @@ Error kinds and their bus verdicts come from the one `errs` code table ([Errors]
 
 apns2 brings its own HTTP/2 client, so the adapter is an exception to the rule that outbound HTTP goes through `platform/httpclient`. It still takes its deadline from `MONACO_TIMEOUT_APNS`, trips a `gobreaker` breaker after five consecutive failures, and adds the OTel client span by hand. With `APNS_BASE_URL` set (refused in production), both environments send to that URL through Go's default transport instead of apns2's. A loopback http base URL gets plain HTTP/1.1, which the fakes server needs because it does not speak h2. An https base URL may negotiate HTTP/2. Without a base URL, the TLS dial takes the send's context, so a send that opens a new connection still ends at `MONACO_TIMEOUT_APNS` and not at apns2's 20 s dial timeout. The URL must be https or a loopback host, because every request carries the provider token. The device token sits in the request path, so the adapter strips the URL from transport errors, and a token that is not hexadecimal, or a collapse id APNs would refuse, is answered with the matching local `400` instead of being sent. In local and test with no `APNS_KEY_P8`, the worker binds `apns.NoopSender`, which answers `200` and logs `apns.noop_send` with the user id only.
 
+### Payload
+
+Every push carries a presentation block next to its copy: a thread, a category, an interruption level and who the push is from. The extension that draws the picture (a notification service extension that donates an `INSendMessageIntent`) and the action buttons read these fields. They are stored on the `notifications` row (`thread_id`, `category`, `interruption_level` and a `presentation` jsonb holding the sender and the group), so a resend after a crash sends exactly what the first attempt would have. A row from before the migration has NULLs and sends as it always did, with no `thread-id`, no `sound` and no sender keys.
+
+```json
+{
+  "aps": {
+    "alert": {"title": "...", "body": "..."},
+    "thread-id": "cabal-<cabal id>",
+    "category": "VOTE",
+    "mutable-content": 1,
+    "interruption-level": "time-sensitive",
+    "sound": "default"
+  },
+  "kind": "...", "cabal_id": "...", "proposal_id": "...",
+  "sender_kind": "person" | "cabal" | "app",
+  "sender_id": "<user or cabal id>",
+  "sender_name": "Mia",
+  "sender_image_url": "https://.../avatars/...",
+  "group_id": "<cabal id>", "group_name": "AC Capital", "group_image_url": "https://..."
+}
+```
+
+- **Thread.** `aps.thread-id` is `cabal-<id>` for every push about a cabal (proposal, reminder, deciding vote, result, trade, pause, chat, access), `user-<id>` for a person (a new follower, a reply on a public post) and for the follower digest, `ledger` for the weekly Ledger, and `account` for deposit, nudge and test. iOS groups by it.
+- **Category.** `aps.category` is empty by default. Vote pushes set `VOTE` or `VOTE_DECIDING` and the Ledger sets `LEDGER`, in the tickets that own that copy.
+- **Interruption level.** `time-sensitive` only for the vote reminder and the deciding-vote push, which have a deadline. Everything else is `active`. The sender refuses any level outside `passive`, `active` and `time-sensitive` locally with `400 BadInterruptionLevel`, and never sends it.
+- **Sender.** The person who acted (proposer, requester, poster, follower) or the cabal (approval, result, trade, pause). `app` is for the Ledger. Deposit, nudge and test pushes name no sender and send no sender keys. Image URLs are the public `avatars` bucket URL of the person's photo or the cabal's `PictureURL`; an empty one is left out and the extension falls back to initials and the tint.
+- **Mutable content.** `aps.mutable-content` is `1` whenever a sender image or a group is present, so the extension runs. Account pushes do not set it.
+- **Sound.** Every push with a presentation sets `aps.sound` to `default`.
+- **Reserved keys.** `sender_kind`, `sender_id`, `sender_name`, `sender_image_url`, `group_id`, `group_name` and `group_image_url` belong to the presentation. A kind's own `Data` may not set one: the write fails with `invalid_input` and no row is written. `Data` may not set `aps` either.
+
+In Go, a kind sets `Message.Presentation` with `ForCabal(view, sender)`, `ForPerson(card)` or `ForAccount()`, and `CabalSender(view)` or `PersonSender(card)` build the sender. A kind that adds a reply or mention push must set one.
+
+Sample payloads for the simulator are `apps/mobile/PushFixtures/proposal_created_grouped.apns` (person-led, in a cabal thread) and `cabal_paused_grouped.apns` (cabal-led); drop one with `xcrun simctl push "$UDID" xyz.monacolabs.app <file>`.
+
 ### Flow: trade confirmed
 
 1. The `trading` module's swap state machine moves the `swaps` row to `confirmed`. In the same `uow.Do` it appends `trade.confirmed` with `{swap_id, cabal_id, ...}` (flow 11; [trade-execution.md](trade-execution.md), step 3). The relay publishes it with `Nats-Msg-Id` set to the event id.

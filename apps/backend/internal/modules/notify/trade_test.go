@@ -186,11 +186,11 @@ func wantTradePushedToEveryMember(t *testing.T, k tradeKind) {
 	states := map[ids.UserID]string{}
 	for i, member := range w.members {
 		states[member] = "delivered"
-		want = append(want, apns.Push{
+		want = append(want, inCabal(apns.Push{
 			UserID: member, Token: token(byte('a' + i)), Environment: apns.Sandbox,
 			CollapseID: k.collapse + run.subject.String(), Title: k.title, Body: k.body,
 			Data: map[string]string{"kind": k.kind, "cabal_id": w.id.String(), k.idKey: run.subject.String()},
-		})
+		}, w.id, cabalSender(w.id)))
 	}
 	sent := r.sender.Sent()
 	slices.SortFunc(sent, func(a, b apns.Push) int { return strings.Compare(a.Token, b.Token) })

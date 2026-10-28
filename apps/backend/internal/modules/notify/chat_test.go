@@ -80,11 +80,13 @@ func chatPush(
 	if e.ParentID != nil {
 		data["parent_id"] = e.ParentID.String()
 	}
-	return apns.Push{
+	return inCabal(apns.Push{
 		UserID: to, Token: tok, Environment: apns.Sandbox, CollapseID: "chat-" + thread.String(),
 		Title: cabalName, Body: body, Data: data,
-	}
+	}, ids.CabalIDFrom(e.CabalID), wantSender{"person", e.AuthorID.String(), firstWord(body)})
 }
+
+func firstWord(s string) string { return strings.SplitN(s, " ", 2)[0] }
 
 func (r *pushRig) wantPushed(t *testing.T, want ...apns.Push) {
 	t.Helper()
@@ -289,7 +291,12 @@ func TestNotify_Chat_Render(t *testing.T) {
 			if tc.parent != "" {
 				data["parent_id"] = tc.parent
 			}
-			want = app.Message{Title: cabalName, Body: tc.body, CollapseID: tc.collapse, Data: data}
+			cabalID := ids.CabalIDFrom(golden.CabalID)
+			sender := app.Sender{Kind: "person", ID: golden.AuthorID.String(), Name: firstWord(tc.body)}
+			want = app.Message{
+				Title: cabalName, Body: tc.body, CollapseID: tc.collapse, Data: data,
+				Presentation: app.ForCabal(cabal.View{ID: cabalID, Name: cabalName}, sender),
+			}
 		}
 		if !errors.Is(err, wantErr) || !reflect.DeepEqual(msg, want) {
 			t.Errorf("%s: Render = %+v, %v, want %+v, %v", name, msg, err, want, wantErr)

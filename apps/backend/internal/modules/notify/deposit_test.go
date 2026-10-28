@@ -30,7 +30,8 @@ func TestNotify_DepositCredited_Depositor(t *testing.T) {
 	want := apns.Push{
 		UserID: depositor, Token: token('a'), Environment: apns.Sandbox, CollapseID: "deposit-" + e.DepositID.String(),
 		Title: "Deposit received", Body: "$25.00 is in your account balance.",
-		Data: map[string]string{"kind": "deposit_credited"},
+		Data: map[string]string{"kind": "deposit_credited"}, ThreadID: "account", InterruptionLevel: "active",
+		Sound: "default",
 	}
 	if sent := r.sender.Sent(); !reflect.DeepEqual(sent, []apns.Push{want}) {
 		t.Fatalf("sent %+v, want only %+v", sent, want)
