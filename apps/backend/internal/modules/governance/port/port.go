@@ -67,3 +67,11 @@ type Ballot struct {
 type Ballots interface {
 	Ballots(ctx context.Context, id ids.ProposalID) ([]Ballot, error)
 }
+
+type ProposalHead struct {
+	Kind, Symbol, Thesis string
+}
+
+type ProposalHeads interface {
+	ProposalHead(ctx context.Context, id ids.ProposalID) (ProposalHead, error)
+}
