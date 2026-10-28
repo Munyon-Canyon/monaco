@@ -31,6 +31,14 @@ paths:
             enum: [all, popular, pre_ipo, movers, in_cabals]
             default: all
             examples: [popular]
+        - name: sort
+          in: query
+          required: false
+          description: "Order of `filter=all`: `symbol` (default), `name` A to Z by display name, `price` highest first. Other filters have their own order."
+          schema:
+            type: string
+            enum: [symbol, name, price]
+            examples: [name]
         - name: limit
           in: query
           required: false

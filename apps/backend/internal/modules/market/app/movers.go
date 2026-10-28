@@ -1,6 +1,7 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"slices"
@@ -15,23 +16,33 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
 )
 
-type moversBook struct {
-	mu    sync.Mutex
-	q     string
-	tick  time.Time
-	items []Summary
+type tickBook struct {
+	mu     sync.Mutex
+	q      string
+	tick   time.Time
+	loaded bool
+	orders tickOrders
 }
 
-func (l *ListAssets) movers(ctx context.Context, q listQuery, now time.Time) ([]Summary, string, error) {
-	ranked, err := l.rankedMovers(ctx, q.q, now)
+type tickOrders struct {
+	movers []Summary
+	price  []Summary
+}
+
+func (l *ListAssets) ranking(ctx context.Context, q listQuery, now time.Time) ([]Summary, string, error) {
+	orders, err := l.tickOrders(ctx, q.q, now)
 	if err != nil {
 		return nil, "", err
+	}
+	ranked, afterCursor, encode := orders.movers, moverAfter, encodeMoverCursor
+	if q.filter != FilterMovers {
+		ranked, afterCursor, encode = orders.price, priceAfter, encodePriceCursor
 	}
 	start := 0
 	if q.cursor.ok {
 		start = len(ranked)
 		for i, s := range ranked {
-			if after(s, q.cursor) {
+			if afterCursor(s, q.cursor) {
 				start = i
 				break
 			}
@@ -42,47 +53,52 @@ func (l *ListAssets) movers(ctx context.Context, q listQuery, now time.Time) ([]
 		return append([]Summary{}, rest...), "", nil
 	}
 	items := append([]Summary{}, rest[:q.limit]...)
-	return items, encodeMoverCursor(items[len(items)-1]), nil
+	return items, encode(items[len(items)-1]), nil
 }
 
-func (l *ListAssets) rankedMovers(ctx context.Context, search string, now time.Time) ([]Summary, error) {
-	candidates, err := l.moverCandidates(ctx, search)
+func (l *ListAssets) tickOrders(ctx context.Context, search string, now time.Time) (tickOrders, error) {
+	all, candidates, err := l.equities(ctx, search)
 	if err != nil {
-		return nil, err
+		return tickOrders{}, err
 	}
 	newest, err := l.newest(ctx, mintsOf(candidates), now)
 	if err != nil {
-		return nil, err
+		return tickOrders{}, err
 	}
 	tick := newestTick(newest)
 	if cached, ok := l.ranked.get(search, tick); ok {
 		return cached, nil
 	}
-	loaded, err := l.summaries(ctx, candidates, now)
-	if err != nil {
-		return nil, err
-	}
-	ranked := rankMovers(loaded)
-	l.ranked.put(search, tick, ranked)
-	return ranked, nil
-}
-
-func (l *ListAssets) moverCandidates(ctx context.Context, search string) ([]domain.Asset, error) {
-	all, err := l.catalog.ListAll(ctx)
-	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeOf(err), "market.ListAssets.movers")
-	}
 	hot, err := hotSet(ctx, l.hot, all)
 	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeOf(err), "market.ListAssets.movers")
+		return tickOrders{}, errs.Wrap(err, errs.CodeOf(err), "market.ListAssets.movers")
 	}
-	var out []domain.Asset
-	for _, a := range all {
-		if a.Kind == domain.KindEquity && a.Tradable() && hot[a.Mint.Address()] && matches(a, search) {
-			out = append(out, a)
+	loaded, err := l.summaries(ctx, candidates, now)
+	if err != nil {
+		return tickOrders{}, err
+	}
+	var warm []Summary
+	for _, s := range loaded {
+		if hot[s.Asset.Mint.Address()] {
+			warm = append(warm, s)
 		}
 	}
-	return out, nil
+	orders := tickOrders{movers: rankMovers(warm), price: rankPrices(loaded)}
+	l.ranked.put(search, tick, orders)
+	return orders, nil
+}
+
+func (l *ListAssets) equities(ctx context.Context, search string) (all, candidates []domain.Asset, err error) {
+	all, err = l.catalog.ListAll(ctx)
+	if err != nil {
+		return nil, nil, errs.Wrap(err, errs.CodeOf(err), "market.ListAssets.movers")
+	}
+	for _, a := range all {
+		if a.Kind == domain.KindEquity && a.Tradable() && matches(a, search) {
+			candidates = append(candidates, a)
+		}
+	}
+	return all, candidates, nil
 }
 
 func matches(a domain.Asset, search string) bool {
@@ -127,7 +143,7 @@ func absBps(v int32) int64 {
 	return int64(v)
 }
 
-func after(s Summary, cur pageCursor) bool {
+func moverAfter(s Summary, cur pageCursor) bool {
 	abs := absBps(*s.Change)
 	if abs != int64(cur.move) {
 		return abs < int64(cur.move)
@@ -150,17 +166,73 @@ func decodeMoverCursor(head string, id uuid.UUID) (pageCursor, error) {
 	return pageCursor{ok: true, move: int32(abs), symbol: symbol, id: id}, nil
 }
 
-func (b *moversBook) get(q string, tick time.Time) ([]Summary, bool) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.items == nil || b.q != q || !b.tick.Equal(tick) {
-		return nil, false
-	}
-	return b.items, true
+func rankPrices(in []Summary) []Summary {
+	out := slices.Clone(in)
+	slices.SortFunc(out, func(a, b Summary) int {
+		return comparePrice(
+			a.Priced, a.Price.Micros.Uint64(), a.Asset.Symbol,
+			b.Priced, b.Price.Micros.Uint64(), b.Asset.Symbol,
+		)
+	})
+	return out
 }
 
-func (b *moversBook) put(q string, tick time.Time, items []Summary) {
+func comparePrice(
+	aPriced bool, aMicros uint64, aSymbol string, bPriced bool, bMicros uint64, bSymbol string,
+) int {
+	if aPriced != bPriced {
+		if aPriced {
+			return -1
+		}
+		return 1
+	}
+	if aPriced {
+		if d := cmp.Compare(bMicros, aMicros); d != 0 {
+			return d
+		}
+	}
+	return strings.Compare(aSymbol, bSymbol)
+}
+
+func priceAfter(s Summary, cur pageCursor) bool {
+	return comparePrice(s.Priced, s.Price.Micros.Uint64(), s.Asset.Symbol, !cur.unpriced, cur.price, cur.symbol) > 0
+}
+
+func encodePriceCursor(last Summary) string {
+	price := "-"
+	if last.Priced {
+		price = strconv.FormatUint(last.Price.Micros.Uint64(), 10)
+	}
+	raw := "p" + price + "," + last.Asset.Symbol + "\x00" + last.Asset.ID.String()
+	return base64.RawURLEncoding.EncodeToString([]byte(raw))
+}
+
+func decodePriceCursor(head string, id uuid.UUID) (pageCursor, error) {
+	price, symbol, found := strings.Cut(head[1:], ",")
+	if !found || symbol == "" {
+		return pageCursor{}, errs.New(errs.CodeInvalidInput, "market.cursor")
+	}
+	if price == "-" {
+		return pageCursor{ok: true, unpriced: true, symbol: symbol, id: id}, nil
+	}
+	micros, err := strconv.ParseUint(price, 10, 64)
+	if err != nil {
+		return pageCursor{}, errs.Wrap(err, errs.CodeInvalidInput, "market.cursor")
+	}
+	return pageCursor{ok: true, price: micros, symbol: symbol, id: id}, nil
+}
+
+func (b *tickBook) get(q string, tick time.Time) (tickOrders, bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.q, b.tick, b.items = q, tick, items
+	if !b.loaded || b.q != q || !b.tick.Equal(tick) {
+		return tickOrders{}, false
+	}
+	return b.orders, true
+}
+
+func (b *tickBook) put(q string, tick time.Time, orders tickOrders) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.q, b.tick, b.orders, b.loaded = q, tick, orders, true
 }

@@ -105,3 +105,35 @@ func TestMovers_rejectsABadCursor(t *testing.T) {
 		t.Fatalf("symbol cursor on movers = %v, want invalid_input", err)
 	}
 }
+
+func TestListSort_rejectsABadCursorAndReportsAFailedNameRead(t *testing.T) {
+	t.Parallel()
+	id := "01920000-0000-7000-8000-000000000001"
+	for sort, heads := range map[Sort][]string{
+		SortPrice: {"p5", "px,AAPLx", "p-5,AAPLx", "p5,", "sAAPLx"},
+		SortName:  {"nAAPLx", "sAAPLx"},
+	} {
+		for _, head := range heads {
+			raw := base64.RawURLEncoding.EncodeToString([]byte(head + "\x00" + id))
+			_, err := normalize(ListRequest{Sort: sort, Cursor: raw})
+			if errs.CodeOf(err) != errs.CodeInvalidInput {
+				t.Fatalf("%s cursor %q = %v, want invalid_input", sort, head, err)
+			}
+		}
+	}
+	boom := errs.New(errs.CodeInternal, "market.test")
+	l := &ListAssets{read: reader{name: func() ([]sqlc.Asset, error) { return nil, boom }}}
+	if _, err := l.Handle(t.Context(), ListRequest{Sort: SortName}); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("name read failure = %v, want internal", err)
+	}
+}
+
+func TestListSort_aStockWithoutAPriceFollowsEveryPricedOne(t *testing.T) {
+	t.Parallel()
+	if got := comparePrice(false, 0, "A", true, 5, "B"); got != 1 {
+		t.Fatalf("unpriced against priced = %d, want 1", got)
+	}
+	if got := comparePrice(true, 5, "B", false, 0, "A"); got != -1 {
+		t.Fatalf("priced against unpriced = %d, want -1", got)
+	}
+}
