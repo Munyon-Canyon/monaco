@@ -571,6 +571,160 @@ func TestWatchStream_disarmsAnArmedStackWhoseStage1FailsOnce(t *testing.T) {
 	}
 }
 
+func failedStage1Stack(t *testing.T, lint string) *stackPR {
+	t.Helper()
+	p := stackOf(t, 2, "b2", "b1", "FAILURE", "SUCCESS")
+	rollup := &p.Commits.Nodes[0].Commit.StatusCheckRollup.Contexts
+	rollup.Nodes = append(rollup.Nodes, gqlContext{Name: "ci / Lint", Status: "COMPLETED", Conclusion: lint})
+	return p
+}
+
+func TestWatchStream_rearmsAStackOnceWhenStage1GoesGreenAfterACancelledJobDisarmedIt(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := armedWatch(t, f)
+	got := streamRounds(t, f, 6, func(round int) {
+		if round == 1 {
+			*s.prs[2] = *failedStage1Stack(t, "CANCELLED")
+		}
+		if round == 3 {
+			*s.prs[2] = *green(t, 2, "b2", "b1")
+		}
+	})
+	for _, want := range []string{
+		"armed stack #2 disarmed: #2 stage 1 failed\n",
+		"armed stack #2 re-armed: stage 1 went green after a cancelled job disarmed it\n",
+		"armed stack #2 landing\nqueued #1 #2\n",
+	} {
+		if strings.Count(got, want) != 1 {
+			t.Fatalf("want one %q in\n%s", want, got)
+		}
+	}
+	at := func(sub string) int { return strings.Index(got, sub) }
+	if at("disarmed") > at("re-armed") || at("re-armed") > at("landing") {
+		t.Fatalf("order\n%s", got)
+	}
+	if r := f.owned(t); len(r.Armed) > 0 || len(r.Rearm) > 0 || len(r.Queued) == 0 {
+		t.Fatalf("queued %+v armed %+v rearm %+v", r.Queued, r.Armed, r.Rearm)
+	}
+}
+
+func TestWatchStream_doesNotRearmAStackAfterARealStage1Failure(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := armedWatch(t, f)
+	got := streamRounds(t, f, 4, func(round int) {
+		switch round {
+		case 1:
+			*s.prs[2] = *failedStage1Stack(t, "FAILURE")
+		case 2:
+			*s.prs[2] = *green(t, 2, "b2", "b1")
+		}
+	})
+	if strings.Contains(got, "re-armed") || strings.Contains(got, "landing") {
+		t.Fatalf("stream\n%s", got)
+	}
+	if r := f.owned(t); len(r.Armed) > 0 || len(r.Rearm) > 0 || len(r.Queued) > 0 {
+		t.Fatalf("queued %+v armed %+v rearm %+v", r.Queued, r.Armed, r.Rearm)
+	}
+}
+
+func TestWatchStream_dropsTheRearmNoteWhenTheStackMovedOn(t *testing.T) {
+	t.Parallel()
+	for name, move := range map[string]func(t *testing.T, f *fixture, s *stackGH){
+		"a new head was pushed": func(t *testing.T, _ *fixture, s *stackGH) {
+			t.Helper()
+			*s.prs[2] = *green(t, 2, "b2", "b1")
+			s.prs[2].HeadOID = "new-oid"
+		},
+		"land-stack armed it again": func(t *testing.T, f *fixture, s *stackGH) {
+			t.Helper()
+			*s.prs[2] = *green(t, 2, "b2", "b1")
+			err := f.Env(t).updateRecord(t.Context(), 40, func(r *Record) {
+				r.Armed = r.Armed.with(Arm{Top: 2, PRs: []int{1, 2}, At: f.now})
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			s := armedWatch(t, f)
+			got := streamRounds(t, f, 4, func(round int) {
+				switch round {
+				case 1:
+					*s.prs[2] = *failedStage1Stack(t, "CANCELLED")
+				case 2:
+					move(t, f, s)
+				}
+			})
+			if strings.Contains(got, "re-armed") {
+				t.Fatalf("stream\n%s", got)
+			}
+			if r := f.owned(t); len(r.Rearm) > 0 {
+				t.Fatalf("rearm %+v", r.Rearm)
+			}
+		})
+	}
+}
+
+func TestWatchStream_reportsARearmItCannotReadOrWrite(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		break_ func(t *testing.T, f *fixture, s *stackGH)
+		want   string
+	}{
+		"the stack is gone": {func(t *testing.T, _ *fixture, s *stackGH) {
+			t.Helper()
+			delete(s.prs, 2)
+		}, "watch error: rearm #2: #2 is not a PR"},
+		"the record is read only": {func(t *testing.T, f *fixture, s *stackGH) {
+			t.Helper()
+			*s.prs[2] = *green(t, 2, "b2", "b1")
+			freeze(t, f.Env(t).recordPath(40))
+		}, "watch error: rearm #2: write owner record"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			s := armedWatch(t, f)
+			got := streamRounds(t, f, 3, func(round int) {
+				switch round {
+				case 1:
+					*s.prs[2] = *failedStage1Stack(t, "CANCELLED")
+				case 2:
+					tc.break_(t, f, s)
+				}
+			})
+			if !strings.Contains(got, tc.want) {
+				t.Fatalf("stream\n%s", got)
+			}
+		})
+	}
+}
+
+func TestWatchStream_rearmsAtMostOncePerArming(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := armedWatch(t, f)
+	got := streamRounds(t, f, 5, func(round int) {
+		switch round {
+		case 1, 3:
+			*s.prs[2] = *failedStage1Stack(t, "CANCELLED")
+		case 2:
+			*s.prs[2] = *green(t, 2, "b2", "b1")
+		}
+	})
+	if strings.Count(got, "re-armed") != 1 || strings.Count(got, "stage 1 failed") != 2 {
+		t.Fatalf("stream\n%s", got)
+	}
+	if r := f.owned(t); len(r.Armed) > 0 || len(r.Rearm) > 0 {
+		t.Fatalf("armed %+v rearm %+v", r.Armed, r.Rearm)
+	}
+}
+
 func TestWatchStream_keepsAnArmedStackArmedWhileANewerRunReplacesACancelledOne(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)

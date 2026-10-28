@@ -403,7 +403,7 @@ func TestLandStack_readsEveryCheckAndTheNewestRunOfEach(t *testing.T) {
 		{
 			"a rerun of ci-ok is still going",
 			lastPage(ciOK("", 0), verifyAt("SUCCESS", 4)),
-			"armed #2; agents watch lands it once stage 1 passes (waiting on #1 (stage 1 pending))\n",
+			"armed #2; agents watch lands it once stage 1 passes (waiting on #1 (stage 1 pending))\n" + noWatchLine + "\n",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1475,12 +1475,33 @@ func armedStack(t *testing.T, f *fixture) *stackGH {
 	return s
 }
 
+func TestLandStack_armsWithoutTheWarningWhileAWatchOrDaemonHoldsItsLock(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{watchLockFile, daemonLockFile} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			armedStack(t, f)
+			lock, ok, err := tryLock(filepath.Join(f.dir, ".git", ".monaco", name))
+			if err != nil || !ok {
+				t.Skipf("no file lock here: %v", err)
+			}
+			defer unlock(lock)
+			code, stdout, stderr := f.agents(t, "land-stack", "2")
+			want := "armed #2; agents watch lands it once stage 1 passes (waiting on #2 (stage 1 pending))\n"
+			if code != 0 || stdout != want || stderr != "" {
+				t.Fatalf("%d %q %q", code, stdout, stderr)
+			}
+		})
+	}
+}
+
 func TestLandStack_armsAStackWhoseStage1IsPendingAndLabelsNothing(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	s := armedStack(t, f)
 	code, stdout, stderr := f.agents(t, "land-stack", "2")
-	want := "armed #2; agents watch lands it once stage 1 passes (waiting on #2 (stage 1 pending))\n"
+	want := "armed #2; agents watch lands it once stage 1 passes (waiting on #2 (stage 1 pending))\n" + noWatchLine + "\n"
 	if code != 0 || stdout != want || stderr != "" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
