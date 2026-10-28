@@ -253,6 +253,33 @@ paths:
               example: {cabal_id: 01890a5d-ac96-774b-bcce-b302099a8059, pot_value_micros: 120000000, cash_micros: 60000000, cash_weight_bps: 5000, pnl_micros: 20000000, return_bps: 2000, prices_as_of: "2026-10-03T15:00:00Z", holdings: [{symbol: AAPLx, display_name: Apple, kind: equity, units: "2.0000", token_amount: 200000000, price_micros: 30000000, value_micros: 60000000, weight_bps: 5000, cost_basis_micros: 40000000, pnl_micros: 20000000, avg_entry_micros: "20000000", first_bought_at: "2026-10-01T15:00:00Z"}], me: {share_units: 100000000, value_micros: 120000000, slice_bps: 10000, net_contributed_micros: 100000000, pnl_micros: 20000000, first_funded_at: "2026-09-30T15:00:00Z"}}
         default:
           $ref: "#/components/responses/Problem"
+  /v1/me/held:
+    get:
+      operationId: getMyHeld
+      tags: [treasury]
+      summary: List what the caller's cabals hold, with a total.
+      description: >-
+        Returns every holding of every cabal the caller is an active member of, one row per cabal and stock,
+        largest value first and ties by symbol, valued like `GET /v1/cabals/{id}/pot` from one price read for
+        all the cabals. `total_value_micros` sums the rows and `cabal_count` counts the cabals among them.
+        With `symbol` only that stock's rows come back. A caller in no cabal gets an empty list. A holding
+        without a fresh price returns `price_unavailable`. Refresh on `global.prices_updated`.
+      parameters:
+        - name: symbol
+          in: query
+          required: false
+          description: Only the rows of this stock, by its token symbol.
+          schema: {type: string, maxLength: 64, examples: [NVDAx]}
+      responses:
+        "200":
+          description: What the caller's cabals hold.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HeldList"
+              example: {total_value_micros: 8360000000, cabal_count: 1, prices_as_of: "2026-10-03T15:00:00Z", holdings: [{cabal: {id: 01890a5d-ac96-774b-bcce-b302099a8059, name: AC Capital, picture_url: null}, logo_url: "https://cdn.example.com/NVDAx.png", holding: {symbol: NVDAx, display_name: NVIDIA, kind: equity, units: "38.0000", token_amount: 38000000, price_micros: 220000000, value_micros: 8360000000, weight_bps: 4200, cost_basis_micros: 7333333333, pnl_micros: 1026666667, avg_entry_micros: "192982456", first_bought_at: "2026-09-01T15:00:00Z"}}]}
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   schemas:
     CashOutRequest:
@@ -367,6 +394,39 @@ components:
             net_contributed_micros: {type: integer, format: int64, description: "Signed USDC the caller put in minus what they took out, in micros.", examples: [100000000]}
             pnl_micros: {type: integer, format: int64, description: "Signed gain, value minus net contributed, in micros.", examples: [20000000]}
             first_funded_at: {type: [string, "null"], format: date-time, description: "When the caller first funded this cabal, kept after a full cash out. Null when they never have.", examples: ["2026-08-04T15:00:00Z"]}
+    HeldList:
+      type: object
+      description: Every holding of the caller's cabals, valued from one price read, with their total.
+      additionalProperties: false
+      required: [total_value_micros, cabal_count, prices_as_of, holdings]
+      properties:
+        total_value_micros: {type: integer, format: int64, description: "The sum of every row's value, in USDC micros. 0 when there are no rows.", examples: [19627710000]}
+        cabal_count: {type: integer, format: int32, description: "How many distinct cabals the rows come from.", examples: [3]}
+        prices_as_of: {type: string, format: date-time, description: "The oldest price used across every cabal. The read time when there are no rows.", examples: ["2026-10-03T15:00:00Z"]}
+        holdings:
+          type: array
+          description: One row per cabal and stock with shares, largest value first, ties by symbol.
+          examples: [[]]
+          items: {$ref: "#/components/schemas/HeldRow"}
+    HeldRow:
+      type: object
+      description: One stock one of the caller's cabals holds.
+      additionalProperties: false
+      required: [cabal, logo_url, holding]
+      properties:
+        cabal:
+          type: object
+          description: The cabal that holds it.
+          x-go-type-name: HeldCabal
+          additionalProperties: false
+          required: [id, name, picture_url]
+          properties:
+            id: {type: string, format: uuid, description: The cabal id., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
+            name: {type: string, description: The cabal name., examples: [AC Capital]}
+            picture_url: {type: [string, "null"], description: The cabal picture. Null when it has none., examples: [null]}
+        logo_url: {type: [string, "null"], description: The stock's logo. Null when the catalog has none., examples: ["https://cdn.example.com/NVDAx.png"]}
+        holding:
+          $ref: "#/components/schemas/CabalHolding"
     CabalHolding:
       type: object
       description: One stock the cabal holds, valued at the latest market price.

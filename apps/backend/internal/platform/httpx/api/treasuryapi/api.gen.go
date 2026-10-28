@@ -596,6 +596,61 @@ type FundTransfer struct {
 // Examples: submitted
 type FundTransferStatus string
 
+// HeldList Every holding of the caller's cabals, valued from one price read, with their total.
+type HeldList struct {
+	// CabalCount How many distinct cabals the rows come from.
+	//
+	// Examples: 3
+	CabalCount int32 `json:"cabal_count"`
+
+	// Holdings One row per cabal and stock with shares, largest value first, ties by symbol.
+	//
+	// Examples: []
+	Holdings []HeldRow `json:"holdings"`
+
+	// PricesAsOf The oldest price used across every cabal. The read time when there are no rows.
+	//
+	// Examples: 2026-10-03T15:00:00Z
+	PricesAsOf time.Time `json:"prices_as_of"`
+
+	// TotalValueMicros The sum of every row's value, in USDC micros. 0 when there are no rows.
+	//
+	// Examples: 19627710000
+	TotalValueMicros int64 `json:"total_value_micros"`
+}
+
+// HeldRow One stock one of the caller's cabals holds.
+type HeldRow struct {
+	// Cabal The cabal that holds it.
+	Cabal HeldCabal `json:"cabal"`
+
+	// Holding One stock the cabal holds, valued at the latest market price.
+	Holding CabalHolding `json:"holding"`
+
+	// LogoUrl The stock's logo. Null when the catalog has none.
+	//
+	// Examples: https://cdn.example.com/NVDAx.png
+	LogoUrl *string `json:"logo_url"`
+}
+
+// HeldCabal The cabal that holds it.
+type HeldCabal struct {
+	// Id The cabal id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+	Id openapi_types.UUID `json:"id"`
+
+	// Name The cabal name.
+	//
+	// Examples: AC Capital
+	Name string `json:"name"`
+
+	// PictureUrl The cabal picture. Null when it has none.
+	//
+	// Examples: null
+	PictureUrl *string `json:"picture_url"`
+}
+
 // HoldingListing The part of a holding kept in one listing.
 type HoldingListing struct {
 	// Issuer The token issuer.
@@ -730,6 +785,12 @@ type GetFundPreviewParams struct {
 	AmountMicros *string `form:"amount_micros,omitempty" json:"amount_micros,omitempty"`
 }
 
+// GetMyHeldParams defines parameters for GetMyHeld.
+type GetMyHeldParams struct {
+	// Symbol Only the rows of this stock, by its token symbol.
+	Symbol *string `form:"symbol,omitempty" json:"symbol,omitempty"`
+}
+
 // GetMyTxnsParams defines parameters for GetMyTxns.
 type GetMyTxnsParams struct {
 	// Limit Page size. Defaults to 30 and cannot exceed 100.
@@ -771,6 +832,9 @@ type ServerInterface interface {
 	// GetFundTransfer Read one of the caller's fund transfers.
 	// (GET /v1/fund-transfers/{id})
 	GetFundTransfer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// GetMyHeld List what the caller's cabals hold, with a total.
+	// (GET /v1/me/held)
+	GetMyHeld(w http.ResponseWriter, r *http.Request, params GetMyHeldParams)
 	// GetMyTxns List the caller's transaction history.
 	// (GET /v1/me/txns)
 	GetMyTxns(w http.ResponseWriter, r *http.Request, params GetMyTxnsParams)
@@ -1116,6 +1180,39 @@ func (siw *ServerInterfaceWrapper) GetFundTransfer(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
+// GetMyHeld operation middleware
+func (siw *ServerInterfaceWrapper) GetMyHeld(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMyHeldParams
+
+	// ------------- Optional query parameter "symbol" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "symbol", r.URL.Query(), &params.Symbol, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "symbol"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "symbol", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMyHeld(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMyTxns operation middleware
 func (siw *ServerInterfaceWrapper) GetMyTxns(w http.ResponseWriter, r *http.Request) {
 
@@ -1290,6 +1387,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/fund/preview", wrapper.GetFundPreview)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/pot", wrapper.GetCabalPot)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/fund-transfers/{id}", wrapper.GetFundTransfer)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/held", wrapper.GetMyHeld)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/txns", wrapper.GetMyTxns)
 
 	return m
@@ -1614,6 +1712,45 @@ func (response GetFundTransferdefaultApplicationProblemPlusJSONResponse) VisitGe
 	return err
 }
 
+type GetMyHeldRequestObject struct {
+	Params GetMyHeldParams
+}
+
+type GetMyHeldResponseObject interface {
+	VisitGetMyHeldResponse(w http.ResponseWriter) error
+}
+
+type GetMyHeld200JSONResponse HeldList
+
+func (response GetMyHeld200JSONResponse) VisitGetMyHeldResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyHelddefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetMyHelddefaultApplicationProblemPlusJSONResponse) VisitGetMyHeldResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMyTxnsRequestObject struct {
 	Params GetMyTxnsParams
 }
@@ -1679,6 +1816,9 @@ type StrictServerInterface interface {
 	// GetFundTransfer Read one of the caller's fund transfers.
 	// (GET /v1/fund-transfers/{id})
 	GetFundTransfer(ctx context.Context, request GetFundTransferRequestObject) (GetFundTransferResponseObject, error)
+	// GetMyHeld List what the caller's cabals hold, with a total.
+	// (GET /v1/me/held)
+	GetMyHeld(ctx context.Context, request GetMyHeldRequestObject) (GetMyHeldResponseObject, error)
 	// GetMyTxns List the caller's transaction history.
 	// (GET /v1/me/txns)
 	GetMyTxns(ctx context.Context, request GetMyTxnsRequestObject) (GetMyTxnsResponseObject, error)
@@ -1943,6 +2083,32 @@ func (sh *strictHandler) GetFundTransfer(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetFundTransferResponseObject); ok {
 		if err := validResponse.VisitGetFundTransferResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMyHeld operation middleware
+func (sh *strictHandler) GetMyHeld(w http.ResponseWriter, r *http.Request, params GetMyHeldParams) {
+	var request GetMyHeldRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMyHeld(ctx, request.(GetMyHeldRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMyHeld")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMyHeldResponseObject); ok {
+		if err := validResponse.VisitGetMyHeldResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

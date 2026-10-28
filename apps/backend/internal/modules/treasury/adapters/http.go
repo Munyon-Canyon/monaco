@@ -27,6 +27,7 @@ type HTTP struct {
 	FundPreview *app.PreviewFundHandler
 	FundReads   sqlc.DBTX
 	Pot         *Queries
+	Held        *app.HeldReads
 	Cabals      app.CabalViews
 	Members     app.Members
 }
