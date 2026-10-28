@@ -77,7 +77,6 @@ nonisolated final class V3DynamicTypeAuditUITests: XCTestCase {
                 ("cabals__cabals__ready", "Find or search cabals"),
                 ("cabals__create-cabal__ready", "Cabal name"),
                 ("cabals__discover__results", "Search cabals"),
-                ("feed__feed__all", "Search the feed"),
                 ("markets__markets__ready", "Search stocks or tickers"),
                 ("markets__watchlist__ready", "Find stocks for your watchlist"),
                 ("profile__people__results", "Search people by name or handle"),

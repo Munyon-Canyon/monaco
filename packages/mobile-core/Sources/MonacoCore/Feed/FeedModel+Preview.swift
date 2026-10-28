@@ -66,42 +66,30 @@ enum FeedPreviewFixtures {
                 + "I want us to discuss concentration before adding more.",
             comments: 8, minutes: 12, likes: 12, returnBps: 820,
             figures: .init(action: "buy", usdcMicros: 400_000_000, assetName: "NVIDIA", shareOfPotBps: 200)),
+        Components.Schemas.FeedItem.results[0],
+        Components.Schemas.FeedItem.results[1],
         item(
-            2, kind: "trade", cabal: "Tech Crew", actor: 2, symbol: "AAPLx",
-            title: "Tech Crew sold $480.00 of Apple", detail: "Filled at $240.00", comments: 3, minutes: 38,
-            likes: 8, returnBps: 670,
+            4, kind: "reply", cabal: "Tech Titans", actor: 6, symbol: "TSLAx",
+            title: "Logan replied to Sell TSLA", detail: "TSLA · Replied to Sell TSLA",
+            body: "Taking profit here is the right call before the deliveries print.", comments: 2, minutes: 70,
+            likes: 5, returnBps: 310, figures: .init()),
+        item(
+            5, kind: "member_joined", cabal: "Big Ballers", actor: 7, symbol: nil,
+            title: "Nora joined Big Ballers", detail: nil, minutes: 95, likes: 2, figures: .init()),
+        Components.Schemas.FeedItem.results[3],
+        Components.Schemas.FeedItem.results[2],
+        item(
+            8, kind: "trade", cabal: "Big Ballers", actor: 3, symbol: "AMZNx",
+            title: "Priya sold $320.00 of Amazon in Big Ballers", detail: "Filled at $160.00", comments: 1,
+            minutes: 60 * 5, likes: 3, returnBps: 140,
             figures: .init(
-                action: "sell", usdcMicros: 480_000_000, assetName: "Apple", tokenAmount: 200_000_000,
-                tokenDecimals: 8, priceMicros: 240_000_000)),
-        item(
-            3, kind: "price_move", cabal: nil, actor: nil, symbol: "NVDAx",
-            title: "NVIDIA is up 4.18% today", detail: "$123.45, previous close $118.50", tone: "positive",
-            comments: 4, minutes: 60, likes: 18,
-            figures: .init(assetName: "NVIDIA", changeBps: 418, markMicros: 123_450_000, prevCloseMicros: 118_500_000)),
-        item(
-            4, kind: "reply", cabal: "Big Ballers", actor: 3, symbol: "AAPLx",
-            title: "Priya replied to your proposal", detail: "AAPL · Replied to your proposal",
-            body: "How much cash would we have left after this?", comments: 2, minutes: 70, likes: 5, returnBps: 310,
-            figures: .init()),
-        item(
-            5, kind: "proposal", cabal: "Tech Crew", actor: 4, symbol: "MSFTx",
-            title: "Sam proposed selling $350.00 of Microsoft in Tech Crew", detail: "Voting open",
-            body: "Trim the position before earnings.", comments: 1, minutes: 95, likes: 3, returnBps: -240,
-            figures: .init(action: "sell", usdcMicros: 350_000_000, assetName: "Microsoft", shareOfPotBps: 140)),
-        item(
-            6, kind: "threshold", cabal: "Big Ballers", actor: 1, symbol: "MSFTx",
-            title: "Mia’s proposal to buy $250.00 of Microsoft was approved", detail: "Execution pending",
-            comments: 6, minutes: 130, likes: 6, returnBps: 820,
-            figures: .init(action: "buy", usdcMicros: 250_000_000, assetName: "Microsoft", shareOfPotBps: 100)),
-        item(
-            7, kind: "cabal_created", cabal: "Café Capital", cabalID: newCabalID, actor: 5, symbol: nil,
-            title: "Jordan started Café Capital", detail: "Open to anyone", minutes: 60 * 5, likes: 2,
-            returnBps: 140, figures: .init()),
+                action: "sell", usdcMicros: 320_000_000, assetName: "Amazon", tokenAmount: 200_000_000,
+                tokenDecimals: 8, priceMicros: 160_000_000)),
     ]
 
     static let olderItems: [Components.Schemas.FeedItem] = [
         item(
-            8, kind: "trade", cabal: "Big Ballers", actor: 1, symbol: "GOOGLx",
+            9, kind: "trade", cabal: "Big Ballers", actor: 1, symbol: "GOOGLx",
             title: "Big Ballers bought $600.00 of Alphabet", detail: "Filled at $200.00", comments: 1,
             minutes: 60 * 26, likes: 4, returnBps: 820,
             figures: .init(
@@ -139,7 +127,7 @@ enum FeedPreviewFixtures {
             ])
     ]
 
-    private static let actorNames = ["Mia", "Leo", "Priya", "Sam", "Jordan"]
+    private static let actorNames = ["Mia", "Leo", "Priya", "Sam", "Jordan", "Logan", "Nora"]
 
     struct Figures {
         var action: String?
@@ -225,17 +213,13 @@ private struct FeedPreviewTransport: ClientTransport {
             return try Self.reply(Components.Schemas.FeedPage(items: FeedPreviewFixtures.olderItems, nextCursor: nil))
         }
         let kinds = value("kind").map { Set($0.split(separator: ",").map(String.init)) }
-        let q = value("q")
         let shown =
             mode == .pnlPrivate
             ? FeedPreviewFixtures.hidingReturns(FeedPreviewFixtures.items) : FeedPreviewFixtures.items
         let items =
             mode == .empty || mode == .followsNobody
             ? []
-            : shown.filter { item in
-                (kinds?.contains(item.kind) ?? true)
-                    && (q.map { item.title.localizedCaseInsensitiveContains($0) } ?? true)
-            }
+            : shown.filter { kinds?.contains($0.kind) ?? true }
         let more = mode == .loadMoreFailed ? "older" : nil
         return try Self.reply(Components.Schemas.FeedPage(items: items, nextCursor: more))
     }

@@ -5,21 +5,11 @@ import XCTest
 
 @MainActor
 final class FeedPreviewTests: XCTestCase {
-    func testTheItemsHarnessNarrowsByKindsAndSearch() async {
+    func testTheItemsHarnessShowsNoPriceMovesInAnyScope() async {
         let model = FeedModel.preview(.items, clock: TestClock())
         await model.load()
         let all = model.items.map(\.id)
-        XCTAssertEqual(
-            Set(model.items.map(\.kind)),
-            ["proposal", "trade", "price_move", "reply", "threshold", "cabal_created"])
-        await model.toggle(.cabalActivity)
-        XCTAssertEqual(model.items.map(\.kind), ["cabal_created"])
-        await model.clearKinds()
-        await model.toggle(.proposals)
-        XCTAssertEqual(model.items.map(\.kind), ["proposal", "proposal"])
-        await model.toggle(.repliesAndVotes)
-        XCTAssertEqual(Set(model.items.map(\.kind)), ["proposal", "reply"])
-        await model.clearKinds()
+        XCTAssertFalse(model.items.map(\.kind).contains("price_move"))
         await model.select(.following)
         XCTAssertEqual(model.items.map(\.id), all)
     }
@@ -58,7 +48,7 @@ final class FeedPreviewTests: XCTestCase {
     func testTheEmptyAndFailedHarnessesShowTheirStates() async {
         let empty = FeedModel.preview(.empty, clock: TestClock())
         await empty.load()
-        XCTAssertEqual(empty.phase, .empty(query: nil))
+        XCTAssertEqual(empty.phase, .empty)
         let failed = FeedModel.preview(.failed, clock: TestClock())
         await failed.load()
         guard case .failed = failed.phase else { return XCTFail("expected failure, got \(failed.phase)") }
@@ -67,7 +57,7 @@ final class FeedPreviewTests: XCTestCase {
     func testTheFollowsNobodyHarnessAsksToFollowInTheFollowingScope() async {
         let model = FeedModel.preview(.followsNobody, clock: TestClock())
         await model.load()
-        XCTAssertEqual(model.phase, .empty(query: nil))
+        XCTAssertEqual(model.phase, .empty)
         await model.select(.following)
         XCTAssertEqual(model.phase, .followsNobody)
     }

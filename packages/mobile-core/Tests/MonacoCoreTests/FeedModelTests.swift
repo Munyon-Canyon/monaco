@@ -9,7 +9,7 @@ import XCTest
 final class FeedModelTests: XCTestCase {
     private let samples = Components.Schemas.FeedItem.samples
 
-    func testAKindBuildsANewPagerThatSendsIt() async throws {
+    func testAScopeBuildsANewPagerThatSendsIt() async throws {
         let transport = StubTransport(scripted: [
             .json(.ok, try Self.page(samples)),
             .json(.ok, try Self.page([samples[0]])),
@@ -18,80 +18,25 @@ final class FeedModelTests: XCTestCase {
         await model.load()
         let first = model.pager
         XCTAssertEqual(model.items.count, samples.count)
-        await model.toggle(.proposals)
+        await model.select(.mine)
         XCTAssertFalse(model.pager === first)
         XCTAssertEqual(model.items.map(\.id), [samples[0].id])
         let sent = await queries(transport)
-        XCTAssertNil(sent[0]["kind"] ?? nil)
-        XCTAssertEqual(sent[0]["scope"], "all")
-        XCTAssertEqual(sent[1]["kind"], "proposal")
+        XCTAssertEqual(sent[0]["scope"], "network")
+        XCTAssertEqual(sent[1]["scope"], "mine")
+        XCTAssertEqual(sent[0]["kind"], FeedQuery.shownKinds)
+        XCTAssertEqual(sent[1]["kind"], FeedQuery.shownKinds)
     }
 
-    func testTheScopeKeepsTheKinds() async throws {
+    func testTheFeedNeverAsksForPriceMoves() async throws {
         let transport = StubTransport(.json(.ok, try Self.page(samples)))
         let model = makeModel(transport)
-        await model.toggle(.cabalActivity)
-        await model.select(.following)
-        let last = await queries(transport).last
-        XCTAssertEqual(last?["kind"], "cabal_created,member_joined")
-        XCTAssertEqual(last?["scope"], "following")
-    }
-
-    func testKindsCombineAndClearingSendsNoKind() async throws {
-        let transport = StubTransport(.json(.ok, try Self.page(samples)))
-        let model = makeModel(transport)
-        await model.toggle(.proposals)
-        await model.toggle(.repliesAndVotes)
-        XCTAssertEqual(model.query.kinds, [.proposals, .repliesAndVotes])
-        await model.toggle(.proposals)
-        XCTAssertEqual(model.query.kinds, [.repliesAndVotes])
-        await model.toggle(.proposalOutcomes)
-        await model.clearKinds()
-        XCTAssertTrue(model.query.kinds.isEmpty)
+        for scope in FeedScope.allCases { await model.select(scope) }
         let sent = await queries(transport)
-        XCTAssertEqual(sent.map { $0["kind"] ?? nil }, ["proposal", "proposal,reply", "reply", "reply,threshold", nil])
-    }
-
-    func testAllIsOnByDefaultAndOffWhileAGroupIsChosenAndUncheckingTheLastReturnsToIt() async throws {
-        let transport = StubTransport(.json(.ok, try Self.page(samples)))
-        let model = makeModel(transport)
-        XCTAssertTrue(model.query.showsAll)
-        await model.toggle(.proposals)
-        XCTAssertFalse(model.query.showsAll)
-        await model.toggle(.proposals)
-        XCTAssertTrue(model.query.showsAll)
-        await model.toggle(.priceMoves)
-        await model.clearKinds()
-        XCTAssertTrue(model.query.showsAll)
-        let sent = await queries(transport)
-        XCTAssertEqual(sent.map { $0["kind"] ?? nil }, ["proposal", nil, "price_move", nil])
-    }
-
-    func testSearchWaitsForTheDebounceAndSendsOnlyTheLastText() async throws {
-        let transport = StubTransport(scripted: [
-            .json(.ok, try Self.page(samples)),
-            .json(.ok, try Self.page([])),
-        ])
-        let clock = TestClock()
-        let model = makeModel(transport, clock: clock)
-        await model.load()
-        model.setSearch("ts")
-        model.setSearch("  zzqq ")
-        _ = await clock.state.until { $0.pending == 1 }
-        let beforeDebounce = await transport.sent.count
-        XCTAssertEqual(beforeDebounce, 1)
-        clock.advance(by: FeedModel.searchDebounce)
-        let searched = await waitUntil { model.phase == .empty(query: "zzqq") }
-        XCTAssertTrue(searched, "\(model.phase)")
-        let sent = await queries(transport)
-        XCTAssertEqual(sent.count, 2)
-        XCTAssertEqual(sent[1]["q"], "zzqq")
-    }
-
-    func testAnEmptyFeedWithNoQueryNamesNoQuery() async throws {
-        let model = makeModel(StubTransport(.json(.ok, try Self.page([]))))
-        await model.load()
-        XCTAssertEqual(model.phase, .empty(query: nil))
+        XCTAssertEqual(sent.count, FeedScope.allCases.count)
+        for query in sent {
+            XCTAssertFalse(try XCTUnwrap(query["kind"]).contains("price_move"))
+        }
     }
 
     func testLoadMoreIsSingleFlight() async throws {
@@ -166,14 +111,14 @@ final class FeedModelTests: XCTestCase {
         ])
         let model = makeModel(transport)
         await model.select(.following)
-        XCTAssertEqual(model.phase, .empty(query: nil))
+        XCTAssertEqual(model.phase, .empty)
     }
 
-    func testAnEmptyEveryoneFeedDoesNotReadTheViewersProfile() async throws {
+    func testAnEmptyNetworkFeedDoesNotReadTheViewersProfile() async throws {
         let transport = StubTransport(.json(.ok, try Self.page([])))
         let model = makeModel(transport)
         await model.load()
-        XCTAssertEqual(model.phase, .empty(query: nil))
+        XCTAssertEqual(model.phase, .empty)
         let sent = await transport.sent.count
         XCTAssertEqual(sent, 1)
     }
@@ -202,7 +147,7 @@ final class FeedModelTests: XCTestCase {
         let model = makeModel(transport)
         await model.load()
         _ = await model.mute(try muteTradesOption(model, trades[0]))
-        XCTAssertEqual(model.phase, .empty(query: nil))
+        XCTAssertEqual(model.phase, .empty)
         let sent = await transport.sent.count
         XCTAssertEqual(sent, 2)
     }

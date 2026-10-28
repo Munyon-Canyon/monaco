@@ -9,13 +9,12 @@ extension Components.Schemas.FeedItem: Identifiable {}
 public final class FeedModel {
     public enum Phase: Equatable, Sendable {
         case loading
-        case empty(query: String?)
+        case empty
         case followsNobody
         case failed(APIError)
         case loaded
     }
 
-    public static let searchDebounce: Duration = .milliseconds(300)
     public static let pageSize = 30
 
     public private(set) var query = FeedQuery()
@@ -33,8 +32,6 @@ public final class FeedModel {
     private let viewerID: String?
     private let hints: any HintSource
     private let clock: any Clock<Duration>
-    @ObservationIgnored private var typedSearch = ""
-    @ObservationIgnored private var searchTask: Task<Void, Never>?
     @ObservationIgnored private lazy var refresher = HintRefresher { [weak self] in await self?.refresh() }
 
     public init(api: APIClient, viewerID: String?, hints: any HintSource, clock: any Clock<Duration>) {
@@ -58,55 +55,13 @@ public final class FeedModel {
         case .exhausted:
             if checkingFollows { return .loading }
             if query.scope == .following && viewerFollowsNobody { return .followsNobody }
-            let search = query.trimmedSearch
-            return .empty(query: search.isEmpty ? nil : search)
+            return .empty
         case .idle, .loadingFirst, .loadingMore: return .loading
         }
     }
 
-    public func toggle(_ group: FeedKindGroup) async {
-        var next = query
-        if next.kinds.contains(group) {
-            next.kinds.remove(group)
-        } else {
-            next.kinds.insert(group)
-        }
-        next.search = typedSearch
-        searchTask?.cancel()
-        await apply(next)
-    }
-
-    public func clearKinds() async {
-        var next = query
-        next.kinds = []
-        next.search = typedSearch
-        searchTask?.cancel()
-        await apply(next)
-    }
-
     public func select(_ scope: FeedScope) async {
-        var next = query
-        next.scope = scope
-        next.search = typedSearch
-        searchTask?.cancel()
-        await apply(next)
-    }
-
-    public func setSearch(_ text: String) {
-        typedSearch = text
-        searchTask?.cancel()
-        var next = query
-        next.search = text
-        guard next.trimmedSearch != query.trimmedSearch else { return }
-        searchTask = Task { [weak self, clock] in
-            do {
-                try await clock.sleep(for: Self.searchDebounce)
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-            Task { await self?.apply(next) }
-        }
+        await apply(FeedQuery(scope: scope))
     }
 
     public func load() async {

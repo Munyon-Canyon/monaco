@@ -22,7 +22,6 @@ enum GovernanceCommentsJourney {
 
     static func openProposal(_ app: XCUIApplication, step: String) {
         FeedBrowseJourney.openFeed(app, step: step)
-        FeedBrowseJourney.choose(app, "feed-chip-Proposals")
         let cell = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier BEGINSWITH 'feed-cell-'")).firstMatch
         XCTAssertTrue(cell.waitForExistence(timeout: 15), "\(step): no proposal cell within 15 s")

@@ -8,14 +8,14 @@ struct FeedItemCell: View {
 
     var body: some View {
         let event = FeedEvent(item)
-        MonacoCard(style: .tight) {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                FeedAuthorRow(
-                    item: item, event: event, authorReturn: FeedReturnFacts(FeedFigureFormat.authorReturn(item)))
-                block(for: event)
-                FeedReactionsRow(item: item, onLike: onLike)
-            }
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+            FeedAuthorRow(
+                item: item, event: event, authorReturn: FeedReturnFacts(FeedFigureFormat.authorReturn(item)))
+            block(for: event)
+            FeedReactionsRow(item: item, onLike: onLike)
         }
+        .padding(.vertical, MonacoTheme.Space.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("feed-cell-\(item.id)")
     }

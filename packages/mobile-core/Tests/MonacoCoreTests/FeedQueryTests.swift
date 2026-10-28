@@ -3,57 +3,41 @@ import MonacoCore
 import XCTest
 
 final class FeedQueryTests: XCTestCase {
-    func testEachGroupSendsItsKinds() {
-        let expected: [FeedKindGroup: String] = [
-            .proposals: "proposal",
-            .completedTrades: "trade",
-            .priceMoves: "price_move",
-            .repliesAndVotes: "reply",
-            .proposalOutcomes: "threshold",
-            .cabalActivity: "cabal_created,member_joined",
-        ]
-        for group in FeedKindGroup.allCases {
-            let params = FeedQuery(kinds: [group]).parameters(cursor: nil, limit: 30)
-            XCTAssertEqual(params.kind, expected[group], group.title)
-        }
-        XCTAssertEqual(
-            FeedKindGroup.allCases.map(\.title),
-            [
-                "Proposals", "Completed trades", "Price moves", "Replies & votes", "Proposal outcomes",
-                "Cabal activity",
-            ])
-    }
-
-    func testSeveralGroupsSendTheSortedUnionAndNoneSendsNoKind() {
-        let union = FeedQuery(kinds: [.cabalActivity, .proposals, .repliesAndVotes])
-        XCTAssertEqual(union.parameters(cursor: nil, limit: 30).kind, "cabal_created,member_joined,proposal,reply")
-        XCTAssertNil(FeedQuery().parameters(cursor: nil, limit: 30).kind)
-        XCTAssertNil(FeedQuery(kinds: []).parameters(cursor: nil, limit: 30).kind)
-    }
-
-    func testAllIsOnOnlyWhenNoGroupIsChosen() {
-        XCTAssertTrue(FeedQuery().showsAll)
-        XCTAssertTrue(FeedQuery(scope: .following).showsAll)
-        XCTAssertFalse(FeedQuery(kinds: [.proposals]).showsAll)
-        XCTAssertFalse(FeedQuery(kinds: Set(FeedKindGroup.allCases)).showsAll)
+    func testTheDefaultScopeIsTheNetwork() {
+        XCTAssertEqual(FeedQuery().scope, .network)
+        XCTAssertEqual(FeedQuery().parameters(cursor: nil, limit: 30).scope, .network)
     }
 
     func testEachScopeSendsItsWireValue() {
-        XCTAssertEqual(FeedQuery(scope: .everyone).parameters(cursor: nil, limit: 30).scope, .all)
-        XCTAssertEqual(FeedQuery(scope: .mine).parameters(cursor: nil, limit: 30).scope, .mine)
-        XCTAssertEqual(FeedQuery(scope: .following).parameters(cursor: nil, limit: 30).scope, .following)
-        XCTAssertEqual(FeedScope.allCases.map(\.title), ["Everyone", "My cabals", "Following"])
+        let expected: [FeedScope: Operations.GetFeed.Input.Query.ScopePayload] = [
+            .network: .network, .mine: .mine, .following: .following, .everyone: .all, .others: .others,
+        ]
+        XCTAssertEqual(Set(FeedScope.allCases), Set(expected.keys))
+        for (scope, wire) in expected {
+            XCTAssertEqual(FeedQuery(scope: scope).parameters(cursor: nil, limit: 30).scope, wire, "\(scope)")
+        }
     }
 
-    func testSearchIsTrimmedAndABlankOneSendsNoQ() {
-        XCTAssertEqual(FeedQuery(search: "  earnings \n").parameters(cursor: nil, limit: 30).q, "earnings")
-        XCTAssertNil(FeedQuery(search: "   ").parameters(cursor: nil, limit: 30).q)
-        XCTAssertNil(FeedQuery().parameters(cursor: nil, limit: 30).q)
+    func testTheMenuListsTheFourScopesInOrder() {
+        XCTAssertEqual(FeedScope.menu, [.network, .mine, .following, .everyone])
+        XCTAssertEqual(
+            FeedScope.menu.map(\.title), ["Your cabals and friends", "Your cabals", "Friends", "Everyone"])
+    }
+
+    func testTheKindListNeverContainsPriceMoveInAnyScope() {
+        for scope in FeedScope.allCases {
+            let kinds = FeedQuery(scope: scope).parameters(cursor: nil, limit: 30).kind?.split(separator: ",")
+            XCTAssertEqual(
+                kinds.map(Set.init),
+                ["proposal", "result", "reply", "member_joined", "cabal_created", "trade", "threshold"], "\(scope)")
+            XCTAssertFalse(kinds?.contains("price_move") ?? true)
+        }
     }
 
     func testCursorAndLimitPassThrough() {
         let params = FeedQuery().parameters(cursor: "c2", limit: 30)
         XCTAssertEqual(params.cursor, "c2")
         XCTAssertEqual(params.limit, 30)
+        XCTAssertNil(params.q)
     }
 }

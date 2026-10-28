@@ -6,9 +6,8 @@ import SwiftUI
 enum ParitySampleScenario: String, CaseIterable {
     case addMoneyError = "add-money-error"
     case cabalInfoError = "cabal-info-error"
-    case feedPriceMoves = "feed-price-moves"
-    case feedProposals = "feed-proposals"
-    case feedTrades = "feed-trades"
+    case feedEveryone = "feed-everyone"
+    case feedMine = "feed-mine"
     case membersError = "members-error"
     case publicCabalError = "public-cabal-error"
     case votesClosed = "votes-closed"
@@ -24,11 +23,10 @@ enum ParitySampleScenario: String, CaseIterable {
         return ParitySampleScenario(rawValue: arguments[flag + 1])
     }
 
-    var feedGroup: FeedKindGroup? {
+    var feedScope: FeedScope? {
         switch self {
-        case .feedPriceMoves: .priceMoves
-        case .feedProposals: .proposals
-        case .feedTrades: .completedTrades
+        case .feedEveryone: .everyone
+        case .feedMine: .mine
         default: nil
         }
     }
@@ -48,7 +46,7 @@ enum ParitySampleScenario: String, CaseIterable {
         case .membersError: return [MembersRoute(cabalID: id, tab: .members)]
         case .publicCabalError: return [CabalSampleRoute(kind: .publicMember)]
         case .votesClosed, .votesExpired, .votesRejected: return [ProposalSampleRoute(votes: .open)]
-        case .feedPriceMoves, .feedProposals, .feedTrades: return []
+        case .feedEveryone, .feedMine: return []
         }
     }
 
@@ -60,14 +58,14 @@ enum ParitySampleScenario: String, CaseIterable {
         case .votesClosed: script.proposal = .sample(status: .executed)
         case .votesExpired: script.proposal = .sample(status: .expired)
         case .votesRejected: script.proposal = .sample(status: .failed)
-        case .feedPriceMoves, .feedProposals, .feedTrades: break
+        case .feedEveryone, .feedMine: break
         }
         return script
     }
 }
 
 private struct ParityFeedScreen: View {
-    let group: FeedKindGroup
+    let scope: FeedScope
 
     @State private var path: [AnyAppRoute] = []
 
@@ -75,15 +73,11 @@ private struct ParityFeedScreen: View {
         NavigationStack(path: $path) {
             FeedView(makeModel: { _ in
                 let model = FeedModel.preview(.items, clock: ContinuousClock())
-                Task { await model.toggle(group) }
+                Task { await model.select(scope) }
                 return model
             })
             .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
         }
-        .environment(
-            \.feedOpensSoon,
-            FeedOpensSoonData(hasUnreadActivity: true)
-        )
     }
 }
 
@@ -92,7 +86,7 @@ final class ParitySampleHarnessEntry: SampleHarnessEntry {
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
         guard let scenario = ParitySampleScenario.matching(arguments) else { return nil }
         SampleAPIProtocol.install(scenario.script)
-        if let group = scenario.feedGroup { return AnyView(ParityFeedScreen(group: group)) }
+        if let scope = scenario.feedScope { return AnyView(ParityFeedScreen(scope: scope)) }
         return AnyView(
             SampleAppFrame(
                 auth: auth, tab: scenario.tab, routes: scenario.routes, presentsDeposit: scenario == .addMoneyError))
