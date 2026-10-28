@@ -125,6 +125,7 @@ Routes follow the [`cabal` naming](backend-platform.md#decided). Every mutating 
 | `DELETE /v1/proposals/{id}` | `WithdrawProposal` ([flow 13](backend-platform.md#flows)) | Proposer withdraws; nobody else can. Allowed only while `open` and before any other member has voted. Soft delete to `withdrawn`. |
 | `POST /v1/proposals/{id}/votes` | `CastVote` | Cast or change a ballot. |
 | `DELETE /v1/proposals/{id}/votes` | `RetractVote` | Undo the caller's ballot within 15 seconds of its first cast, while the proposal is `open` and the ballot has never changed side. |
+| `GET /v1/me/market-facts?symbols=…` | query | One fact per requested symbol (1 to 50), first match wins: `vote_open` (an open proposal in the caller's current cabals whose frozen voter set holds the caller), then `held` (the treasury `Held` port, units summed across cabals), then `called` (a proposal in those cabals with `status IN ('passed', 'executed')` and `closed_at` in the last 7 days). A cabal the caller left yields nothing. One `CabalsOf`, two statements and one `Held` call for any symbol count. |
 | `GET/POST /v1/proposals/{id}/comments` | `CreateComment` (social module, [flow 21](backend-platform.md#flows)) | Comment thread on the proposal's feed item. Members only until moderation ships. |
 
 There is no `PATCH` for trade parameters. Changing what the cabal is voting on after votes are cast would invalidate those votes; withdraw and re-propose instead.

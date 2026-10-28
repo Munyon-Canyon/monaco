@@ -75,9 +75,14 @@ func (m *Module) Mount(r api.Mount) {
 	pending := app.NewPendingVoteReads(reads, app.PendingVotePorts{
 		Assets: market.New(m.deps).Catalog(), Replies: social.New(m.deps),
 	})
+	facts := app.NewMarketFacts(
+		m.deps.Pool, cabal.New(m.deps).Queries(), treasury.New(m.deps).Held(), identity.New(m.deps).Queries(),
+		m.deps.Clock,
+	)
 	propose := app.NewProposeTradeHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock, ports, hints)
 	governanceapi.Mount(adapters.HTTP{
 		Propose: propose,
+		Facts:   facts,
 		Comparisons: app.NewProposalComparisons(
 			m.deps.Pool, propose, adapters.PinListings{Market: market.New(m.deps).Catalog()},
 		),
