@@ -6,9 +6,14 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"os"
+	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
 const (
@@ -77,7 +82,32 @@ func newStream(env *Env) *stream {
 	}
 }
 
+func (env *Env) watchLock() (*os.File, error) {
+	path := filepath.Join(env.Common, ".monaco", "watch.lock")
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		return nil, fmt.Errorf("create the watch lock dir: %w", err)
+	}
+	f, ok, err := tryLock(path)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		pid, _ := os.ReadFile(path)
+		return nil, detailErr(errs.CodeInvalidInput, "monacoctl.agents.watch",
+			fmt.Sprintf("another watch is running (pid %s)", strings.TrimSpace(string(pid))))
+	}
+	if err := f.Truncate(0); err == nil {
+		_, _ = f.WriteAt([]byte(strconv.Itoa(os.Getpid())+"\n"), 0)
+	}
+	return f, nil
+}
+
 func (env *Env) watchStream(ctx context.Context, every time.Duration, out io.Writer) error {
+	lock, err := env.watchLock()
+	if err != nil {
+		return err
+	}
+	defer unlock(lock)
 	s := newStream(env)
 	for {
 		for _, item := range append(s.trunkLines(ctx), s.next(ctx)...) {
