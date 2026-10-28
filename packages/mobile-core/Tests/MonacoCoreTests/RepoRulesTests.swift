@@ -10,13 +10,13 @@ struct RepoRule: Sendable {
     let passing: [String]
     var requiredLiteral: String?
     var skipsPreviewBlocks = false
-    var scan: (@Sendable (_ text: NSString) -> [Int])?
+    var scan: (@Sendable (_ text: NSString) throws -> [Int])?
     var applies: @Sendable (_ path: String, _ contents: NSString) -> Bool = { _, _ in true }
     private let regex = RuleRegex()
 
     func matches(in text: NSString) throws -> Int {
-        if let scan { return scan(text).count }
         if let requiredLiteral, text.range(of: requiredLiteral, options: .literal).location == NSNotFound { return 0 }
+        if let scan { return try scan(text).count }
         let subject = skipsPreviewBlocks ? PreviewBlockStripping.apply(text) : text
         let regex = try regex.for(pattern: pattern)
         return regex.numberOfMatches(in: subject as String, range: NSRange(location: 0, length: subject.length))
@@ -474,22 +474,31 @@ enum TestIsolationRules {
                 + "final class BarTests: XCTestCase {\n    func testBar() throws {\n    }\n}",
             "@MainActor\nfinal class FooTests: XCTestCase {\n    // func testFoo() throws {\n}",
         ],
+        requiredLiteral: "@MainActor",
         scan: syncThrowsLines
     )
 
     private static let typeKeyword = #"\b(?:class|extension|struct|actor)\b"#
     private static let testSignature = #"\bfunc\s+test\w*\s*\(\s*\)([^{]*)"#
+    private static let stringLiteral = #""(?:[^"\\]|\\.)*""#
+    private static let lineComment = #"//.*$"#
+    private static let typeKeywordRegex = RuleRegex()
+    private static let testSignatureRegex = RuleRegex()
+    private static let stringLiteralRegex = RuleRegex()
+    private static let lineCommentRegex = RuleRegex()
 
-    static func syncThrowsLines(in text: NSString) -> [Int] {
+    static func syncThrowsLines(in text: NSString) throws -> [Int] {
         var found: [Int] = []
         var braces: [Bool] = []
         var pendingAttribute = false
         var pendingType: Bool?
-        for (offset, raw) in (text as String).split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
-            let line = code(String(raw))
+        var source = text as String
+        source.makeContiguousUTF8()
+        for (offset, raw) in source.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+            let line = try code(String(raw))
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             let isolated = pendingAttribute || trimmed.hasPrefix("@MainActor")
-            if line.range(of: typeKeyword, options: .regularExpression) != nil, !trimmed.hasPrefix("func ") {
+            if try declaresType(line), !trimmed.hasPrefix("func ") {
                 pendingType = isolated || (braces.last ?? false)
             }
             if trimmed.hasPrefix("@"), !trimmed.contains("{") {
@@ -497,7 +506,7 @@ enum TestIsolationRules {
             } else if !trimmed.isEmpty {
                 pendingAttribute = false
             }
-            if braces.last == true, isSyncThrowsTest(line) { found.append(offset + 1) }
+            if braces.last == true, try isSyncThrowsTest(line) { found.append(offset + 1) }
             for character in line {
                 if character == "{" {
                     braces.append(pendingType ?? (braces.last ?? false))
@@ -510,9 +519,15 @@ enum TestIsolationRules {
         return found
     }
 
-    private static func isSyncThrowsTest(_ line: String) -> Bool {
-        guard let regex = try? NSRegularExpression(pattern: testSignature),
-            let match = regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
+    private static func declaresType(_ line: String) throws -> Bool {
+        let regex = try typeKeywordRegex.for(pattern: typeKeyword)
+        return regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil
+    }
+
+    private static func isSyncThrowsTest(_ line: String) throws -> Bool {
+        guard line.contains("throws") else { return false }
+        let regex = try testSignatureRegex.for(pattern: testSignature)
+        guard let match = regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
             let tail = Range(match.range(at: 1), in: line)
         else { return false }
         let effects = line[tail]
@@ -520,9 +535,19 @@ enum TestIsolationRules {
             && effects.range(of: #"\basync\b"#, options: .regularExpression) == nil
     }
 
-    private static func code(_ line: String) -> String {
-        line.replacingOccurrences(of: #""(?:[^"\\]|\\.)*""#, with: "\"\"", options: .regularExpression)
-            .replacingOccurrences(of: #"//.*$"#, with: "", options: .regularExpression)
+    private static func code(_ line: String) throws -> String {
+        var result = line
+        if result.contains("\"") {
+            let regex = try stringLiteralRegex.for(pattern: stringLiteral)
+            result = regex.stringByReplacingMatches(
+                in: result, range: NSRange(result.startIndex..., in: result), withTemplate: "\"\"")
+        }
+        if result.contains("//") {
+            let regex = try lineCommentRegex.for(pattern: lineComment)
+            result = regex.stringByReplacingMatches(
+                in: result, range: NSRange(result.startIndex..., in: result), withTemplate: "")
+        }
+        return result
     }
 }
 
@@ -734,7 +759,7 @@ final class RepoRulesTests: XCTestCase {
             for (path, count) in found.sorted(by: { $0.key < $1.key }) where count > rows[path, default: 0] {
                 var lines = ""
                 if let scan = rule.scan {
-                    lines = " at lines " + scan(try RepoTree.read(path)).map(String.init).joined(separator: ", ")
+                    lines = " at lines " + (try scan(RepoTree.read(path))).map(String.init).joined(separator: ", ")
                 }
                 XCTFail("\(rule.name) \(path)\(lines) \(rows[path, default: 0]) -> \(count): \(rule.message)")
             }
