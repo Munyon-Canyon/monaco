@@ -1,19 +1,19 @@
 journey: governance/vote
 expect-fail: S1
 
-The Proposal screen's vote section toast reads "Voted" instead of "Vote recorded.". S1.3 waits for "Vote recorded.", so it must fail.
+The Proposal screen's vote section toasts "Voted" instead of the voter's place in the vote ("Voted Yes. 6th of 8."). S1.3 waits for that toast, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift b/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift
-index 63801485b..e31e5ca2d 100644
+index 7e02c3e85..c5e5dfcff 100644
 --- a/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift
 +++ b/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift
-@@ -108,7 +108,7 @@ struct ProposalVoteSection: View {
-             if await model.vote(choice) {
-                 analytics.step(.vote(.voteCast))
-                 Haptics.success()
--                toasts.show(success: "Vote recorded.")
-+                toasts.show(success: "Voted")
-             } else if let message = model.errorMessage {
-                 toasts.current = MonacoToast(message: message)
-             }
+@@ -216,7 +216,7 @@ struct ProposalVoteSection: View {
+             toast.offersUndo
+             ? MonacoToastAction(title: "Undo", expiresAt: outcome.undoUntil) { undo() }
+             : nil
+-        toasts.show(success: toast.message, action: action)
++        toasts.show(success: "Voted", action: action)
+     }
+ 
+     private func refused() {

@@ -36,6 +36,8 @@ nonisolated struct SampleAPIScript: Sendable {
     var sparseCandles = false
     var pot = Components.Schemas.CabalPot.sampleInvested
     var proposal: Components.Schemas.ProposalDetail?
+    var vote = VoteAnswer.ordinary
+    var undo = UndoAnswer.accepted
     var pendingVotes: [Components.Schemas.PendingVote] = []
     var cashOut = Components.Schemas.CashOutPreview.sample
     var invites: [Components.Schemas.CabalInvite] = []
@@ -63,6 +65,19 @@ nonisolated struct SampleAPIScript: Sendable {
     var catalog: [Components.Schemas.AssetSummary] = []
     var failsAfterAssetReads: Int?
     var invitePreview = InvitePreview.frame
+
+    enum VoteAnswer: Sendable, Equatable {
+        case ordinary
+        case settles
+        case refused(status: Int, code: String, message: String)
+        case dropped
+    }
+
+    enum UndoAnswer: Sendable, Equatable {
+        case accepted
+        case refused(status: Int, code: String, message: String)
+        case dropped
+    }
 
     enum InvitePreview: Sendable {
         case frame
@@ -111,7 +126,15 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
             Self.createdName.withLock { $0 = requestObject()?["name"] as? String }
         }
         if method == "POST", url.path.hasSuffix("/votes") {
+            if script.vote == .dropped {
+                client?.urlProtocol(self, didFailWithError: URLError(.networkConnectionLost))
+                return
+            }
             Self.castChoice.withLock { $0 = requestObject()?["choice"] as? String }
+        }
+        if method == "DELETE", url.path.hasSuffix("/votes"), script.undo == .dropped {
+            client?.urlProtocol(self, didFailWithError: URLError(.networkConnectionLost))
+            return
         }
         if method == "POST", url.path.hasSuffix("/comments") {
             Self.recordComment(requestObject())
@@ -346,17 +369,32 @@ nonisolated extension SampleAPIProtocol {
         proposal.id = id
         switch (method, tail.first) {
         case ("GET", nil):
-            return json(proposal)
+            return json(castApplied(proposal, script))
         case ("POST", "votes"):
+            if case .refused(let status, let code, let message) = script.vote {
+                castChoice.withLock { $0 = nil }
+                return problem(status, code, message)
+            }
             let choice = Components.Schemas.BallotChoice(rawValue: castChoice.withLock { $0 } ?? "") ?? .yes
-            var tally = proposal.tally
-            if choice == .yes { tally.yes += 1 } else { tally.no += 1 }
+            let cast = castApplied(proposal, script, choice: choice)
+            let settles = script.vote == .settles
             return json(
                 Components.Schemas.VoteResult(
-                    myVote: .init(
-                        order: tally.yes + tally.no, of: tally.voters, yesOrder: choice == .yes ? tally.yes : 0,
-                        noOrder: choice == .no ? tally.no : 0, decided: false),
-                    proposalId: proposal.id, status: proposal.status, tally: tally, myBallot: choice))
+                    myVote: cast.myVote.map {
+                        .init(
+                            order: $0.order, of: $0.of, yesOrder: $0.yesOrder, noOrder: $0.noOrder,
+                            decided: $0.decided)
+                    } ?? .init(order: 1, of: 1, yesOrder: 0, noOrder: 0, decided: false),
+                    proposalId: proposal.id, status: cast.status, tally: cast.tally, myBallot: choice,
+                    undoUntil: settles ? nil : Date(timeIntervalSinceNow: 15)))
+        case ("DELETE", "votes"):
+            if case .refused(let status, let code, let message) = script.undo {
+                return problem(status, code, message)
+            }
+            castChoice.withLock { $0 = nil }
+            return json(
+                Components.Schemas.RetractVoteResult(
+                    proposalId: proposal.id, status: proposal.status, tally: proposal.tally))
         case ("GET", "comments"):
             return json(
                 Components.Schemas.ProposalCommentPage(
@@ -372,6 +410,27 @@ nonisolated extension SampleAPIProtocol {
         default:
             return problem(404, "not_found", "Not in the sample data.")
         }
+    }
+
+    private static func castApplied(
+        _ detail: Components.Schemas.ProposalDetail, _ script: SampleAPIScript,
+        choice: Components.Schemas.BallotChoice? = nil
+    ) -> Components.Schemas.ProposalDetail {
+        let sent = castChoice.withLock { $0 }.flatMap(Components.Schemas.BallotChoice.init(rawValue:))
+        guard let choice = choice ?? sent else { return detail }
+        var cast = detail
+        if choice == .yes { cast.tally.yes += 1 } else { cast.tally.no += 1 }
+        cast.myBallot = .init(rawValue: choice.rawValue)
+        let settles = script.vote == .settles
+        cast.myVote = .init(
+            order: cast.tally.yes + cast.tally.no, of: cast.tally.voters, yesOrder: choice == .yes ? cast.tally.yes : 0,
+            noOrder: choice == .no ? cast.tally.no : 0, decided: settles)
+        if settles {
+            cast.status = .passed
+            cast.canVote = false
+            cast.stats.closedAt = .now
+        }
+        return cast
     }
 
     private static func recordComment(_ object: [String: Any]?) {

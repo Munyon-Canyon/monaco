@@ -1,5 +1,6 @@
 import Foundation
 import MonacoAPI
+import MonacoGovernance
 import Observation
 
 @Observable
@@ -135,6 +136,21 @@ extension ProposalSummary {
     }
 }
 
+public enum ProposalViewerRole: Equatable, Sendable {
+    case voter, memberNotVoter, nonMember
+}
+
+public enum ProposalVoteSelection: Equatable, Sendable {
+    case none
+    case picked(ProposalBallot)
+    case pending(ProposalBallot)
+    case committed(ProposalBallot)
+}
+
+extension ProposalBallot {
+    public var other: ProposalBallot { self == .yes ? .no : .yes }
+}
+
 @Observable
 @MainActor
 public final class ProposalDetailModel {
@@ -146,6 +162,10 @@ public final class ProposalDetailModel {
     public private(set) var isRetrying = false
     public private(set) var didRetry = false
     public private(set) var isVoting = false
+    public private(set) var lastVote: CastOutcome?
+    public private(set) var voteRefusal: VoteRefusal?
+    public private(set) var undoRefusal: UndoRefusal?
+    public var voteSelection: ProposalVoteSelection = .none
     public private(set) var priceMove: ProposalPriceMove?
     public let livePrice: LiveBestPriceModel
     private let id: String
@@ -203,6 +223,8 @@ public final class ProposalDetailModel {
             async let members = try? repository.members(cabalID: detail.summary.cabalID)
             async let asset = try? repository.asset(symbol: detail.summary.symbol)
             value = detail
+            syncVoteSelection(with: voting.applying(detail.summary))
+            voting.acknowledge(detail.summary)
             if let members = await members { self.members = members }
             if let asset = await asset { self.asset = asset }
             errorMessage = nil
@@ -225,15 +247,104 @@ public final class ProposalDetailModel {
     }
 
     public func vote(_ choice: String) async -> Bool {
-        guard let current = value?.summary else { return false }
-        isVoting = true
-        defer { isVoting = false }
-        guard await voting.vote(choice, on: current) else {
-            errorMessage = voting.errorMessage
+        guard !isVoting, let current = value?.summary, let side = ProposalBallot(rawValue: choice) else {
             return false
         }
+        let previous = voting.applying(current).myBallot.flatMap(ProposalBallot.init(rawValue:))
+        isVoting = true
+        defer { isVoting = false }
+        voteRefusal = nil
+        voteSelection = .pending(side)
+        let result = await voting.cast(choice, on: current)
+        guard let result else {
+            errorMessage = voting.errorMessage
+            voteRefusal = voting.voteRefusal
+            voteSelection = .picked(side)
+            if voteRefusal?.reloads == true {
+                await load()
+                errorMessage = voting.errorMessage
+            }
+            return false
+        }
+        lastVote = CastOutcome(
+            choice: side, status: result.status, tally: result.tally, undoUntil: result.undoUntil,
+            myVote: result.myVote, changed: previous != nil && previous != side)
+        voteSelection = .committed(side)
         await load()
         return true
+    }
+
+    public func undo() async -> Bool {
+        guard !isVoting, let current = value?.summary else { return false }
+        undoRefusal = nil
+        guard await voting.undo(on: current) != nil else {
+            errorMessage = voting.errorMessage
+            undoRefusal = voting.undoRefusal
+            if undoRefusal?.reloads == true {
+                await load()
+                errorMessage = voting.errorMessage
+            }
+            return false
+        }
+        lastVote = nil
+        voteSelection = .none
+        await load()
+        return true
+    }
+
+    public func beginChange() {
+        guard case .committed(let side) = voteSelection, value?.summary.canVote == true else { return }
+        voteSelection = .picked(side.other)
+    }
+
+    public func canUndo(now: Date) -> Bool {
+        guard let until = lastVote?.undoUntil, !(lastVote?.settled ?? false) else { return false }
+        return until > now
+    }
+
+    public func viewerRole(viewerID: String?) -> ProposalViewerRole {
+        if value?.summary.canVote == true { return .voter }
+        guard let viewerID, members.contains(where: { $0.id == viewerID }) else { return .nonMember }
+        return .memberNotVoter
+    }
+
+    public var statusFacts: [String] {
+        guard let value else { return [] }
+        return ProposalVoteCopy.statusFacts(
+            tally: summary?.tally ?? value.summary.tally, replies: value.replyCount, expiresAt: value.summary.expiresAt,
+            now: now())
+    }
+
+    public var statusLine: String? { value == nil ? nil : statusFacts.joined(separator: " · ") }
+
+    public var settledFacts: [String]? {
+        guard let vote = lastVote, vote.settled, let summary = value?.summary else { return nil }
+        return ProposalVoteCopy.settledFacts(
+            status: vote.status, tally: vote.tally, voted: vote.tally.yes + vote.tally.no, voters: vote.tally.voters,
+            sharesEstimate: sharesEstimate, isSell: summary.kind == "sell")
+    }
+
+    public var settledLine: String? { settledFacts?.joined(separator: " · ") }
+
+    public var decidingLine: String? {
+        guard let vote = lastVote, vote.settled, let myVote = vote.myVote else { return nil }
+        return ProposalVoteCopy.decidingLine(myVote: myVote, needed: vote.tally.needed, voters: vote.tally.voters)
+    }
+
+    private var sharesEstimate: String? {
+        guard let value = stats?.cells.first(where: { $0.label == "Shares" })?.value,
+            value != ProposalStats.missing
+        else { return nil }
+        return value.hasPrefix("≈ ") ? String(value.dropFirst(2)) : value
+    }
+
+    private func syncVoteSelection(with summary: ProposalSummary) {
+        switch voteSelection {
+        case .pending: return
+        case .picked: guard !(summary.status == .open && summary.canVote) else { return }
+        case .none, .committed: break
+        }
+        voteSelection = summary.myBallot.flatMap(ProposalBallot.init(rawValue:)).map { .committed($0) } ?? .none
     }
 
     public var summary: ProposalSummary? {

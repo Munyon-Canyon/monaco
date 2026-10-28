@@ -210,6 +210,12 @@ public struct ProposalMyVote: Equatable, Sendable {
             order: value.order, of: value.of, yesOrder: value.yesOrder, noOrder: value.noOrder,
             decided: value.decided)
     }
+
+    init(_ value: Components.Schemas.MyVote) {
+        self.init(
+            order: value.order, of: value.of, yesOrder: value.yesOrder, noOrder: value.noOrder,
+            decided: value.decided)
+    }
 }
 
 public struct ProposalDetail: Identifiable, Equatable, Sendable {
@@ -277,8 +283,30 @@ public struct ProposalTally: Equatable, Sendable {
 public struct ProposalVoteResult: Equatable, Sendable {
     public let status: ProposalStatus
     public let tally: ProposalTally
+    public let undoUntil: Date?
+    public let myVote: ProposalMyVote?
+
+    init(
+        status: ProposalStatus, tally: ProposalTally, undoUntil: Date? = nil, myVote: ProposalMyVote? = nil
+    ) {
+        self.status = status
+        self.tally = tally
+        self.undoUntil = undoUntil
+        self.myVote = myVote
+    }
 
     init(_ value: Components.Schemas.VoteResult) {
+        self.init(
+            status: ProposalStatus(value.status), tally: ProposalTally(value.tally), undoUntil: value.undoUntil,
+            myVote: ProposalMyVote(value.myVote))
+    }
+}
+
+public struct ProposalRetractResult: Equatable, Sendable {
+    public let status: ProposalStatus
+    public let tally: ProposalTally
+
+    init(_ value: Components.Schemas.RetractVoteResult) {
         status = ProposalStatus(value.status)
         tally = ProposalTally(value.tally)
     }
@@ -441,6 +469,16 @@ public struct ProposalsRepository: Sendable {
                     path: .init(id: id),
                     headers: .init(idempotencyKey: key),
                     body: .json(body)
+                ).ok.body.json)
+        }
+    }
+
+    public func retractVote(id: String, submission: IdempotentSubmission) async throws -> ProposalRetractResult {
+        try await api.submit(submission, payload: id, operation: "deleteProposalVote") { client, key in
+            ProposalRetractResult(
+                try await client.deleteProposalVote(
+                    path: .init(id: id),
+                    headers: .init(idempotencyKey: key)
                 ).ok.body.json)
         }
     }
