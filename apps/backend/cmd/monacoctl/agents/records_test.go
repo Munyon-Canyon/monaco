@@ -499,3 +499,30 @@ func TestRecords_aLandingRoundTripsAndAnOldRecordDecodesWithoutOne(t *testing.T)
 		t.Fatalf("old record decoded to %+v", old)
 	}
 }
+
+func TestRecords_revertTriedRoundTrips(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	env := f.Env(t)
+	l := Landing{
+		Top: 2, PRs: []int{1, 2}, SHA: lastSHA, RunID: 7, RunURL: "https://gh/run/7", Checked: true, RevertTried: true,
+	}
+	if err := env.saveRecord(Record{Ticket: 40, State: Exited, Landed: []Landing{l}}); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(env.recordPath(40))
+	if err != nil || !strings.Contains(string(raw), `"revert_tried": true`) {
+		t.Fatalf("%s %v", raw, err)
+	}
+	got, err := env.localRecord(40)
+	if err != nil || !got.Landed[0].RevertTried {
+		t.Fatalf("%+v %v", got, err)
+	}
+	if err := env.saveRecord(Record{Ticket: 41, State: Exited, Landed: []Landing{{Top: 2, SHA: lastSHA}}}); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ = os.ReadFile(env.recordPath(41))
+	if strings.Contains(string(raw), "revert_tried") {
+		t.Fatalf("%s", raw)
+	}
+}

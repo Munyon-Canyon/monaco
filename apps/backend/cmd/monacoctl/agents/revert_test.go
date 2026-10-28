@@ -393,7 +393,7 @@ func TestWatch_leavesTheRevertWorktreeAndSaysWhyWhenARevertStepFails(t *testing.
 		{"gt cannot track the branch", "revert setup in ", func(l *landingFixture) {
 			l.sh.first(shellRule{prefix: "gt track", err: boom})
 		}},
-		{"stage 0 fails on the revert", "revert of #1 #2 failed stage 0 in ", func(l *landingFixture) {
+		{"stage 0 fails on the revert", "revert of #1 #2 failed stage 0 (https://gh/run/77): ", func(l *landingFixture) {
 			l.sh.first(shellRule{prefix: "go run", out: "FAIL: TestX\n", err: boom})
 		}},
 		{"gt cannot submit", "open the revert PR from ", func(l *landingFixture) {
@@ -406,7 +406,11 @@ func TestWatch_leavesTheRevertWorktreeAndSaysWhyWhenARevertStepFails(t *testing.
 			l.f.hub.status[get("/pulls/2")] = 500
 		}},
 		{"the body cannot be written", "write revert body", func(l *landingFixture) {
-			writeFile(l.t, l.f.root()+"/.worktrees/revert-2/.build", "in the way")
+			l.sh.before = func(line string) {
+				if strings.HasPrefix(line, "git worktree add") {
+					writeFile(l.t, l.f.root()+"/.worktrees/revert-2/.build", "in the way")
+				}
+			}
 		}},
 		{"pr-body.sh refuses", "pr-body in ", func(l *landingFixture) {
 			l.sh.first(shellRule{prefix: "scripts/pr-body.sh", err: boom})
@@ -608,6 +612,134 @@ func TestWatch_reportsWhatItCannotReadWhileLookingForASharedRun(t *testing.T) {
 	l.sh.first(shellRule{prefix: "git merge-base", err: errors.New("bad object")})
 	_, stdout, _ := l.f.agents(t, "watch", "--once")
 	if !strings.Contains(stdout, "watch error: landing "+lastSHA[:12]+": ") || l.landing(t).Checked {
+		t.Fatalf("%q", stdout)
+	}
+}
+
+func (l *landingFixture) realWorktrees() {
+	l.sh.before = func(line string) {
+		switch {
+		case strings.HasPrefix(line, "git worktree add"):
+			_ = os.MkdirAll(l.f.root()+"/.worktrees/revert-2", 0o750)
+		case strings.HasPrefix(line, "git worktree remove"):
+			_ = os.RemoveAll(l.f.root() + "/.worktrees/revert-2")
+		}
+	}
+	l.sh.first(shellRule{prefix: "git branch", out: ""})
+}
+
+func (l *landingFixture) count(prefix string) int {
+	l.sh.mu.Lock()
+	defer l.sh.mu.Unlock()
+	n := 0
+	for _, c := range l.sh.calls {
+		if strings.HasPrefix(c.line, prefix) {
+			n++
+		}
+	}
+	return n
+}
+
+func TestWatch_doesNotRetryARevertThatFailedStage0(t *testing.T) {
+	t.Parallel()
+	l := newLanding(t, nil)
+	l.realWorktrees()
+	l.run("failure", Job{Name: "staging / Backend tests (a)", Conclusion: "failure"})
+	l.sh.first(shellRule{prefix: "go run", out: "FAIL: TestX\n", err: errors.New("boom")})
+	for range 3 {
+		l.f.agents(t, "watch", "--once")
+	}
+	if n := l.count("go run"); n != 1 {
+		t.Fatalf("stage 0 ran %d times, want 1", n)
+	}
+	got := l.landing(t)
+	if !got.Checked || !got.RevertTried || got.RunURL != "https://gh/run/77" {
+		t.Fatalf("landing %+v", got)
+	}
+
+	again := newLanding(t, func(x *Landing) { x.RevertTried = true })
+	again.run("failure", Job{Name: "staging / Backend tests (a)", Conclusion: "failure"})
+	_, stdout, _ := again.f.agents(t, "watch", "--once")
+	if !strings.Contains(stdout, "revert of #1 #2 not retried: it failed stage 0 at ") ||
+		!strings.Contains(stdout, "; root: fix by hand\n") || again.count("git worktree add") != 0 ||
+		again.count("go run") != 0 || !again.landing(t).Checked {
+		t.Fatalf("%q", stdout)
+	}
+}
+
+func TestWatch_leavesNoWorktreeAfterAFailedRevert(t *testing.T) {
+	t.Parallel()
+	l := newLanding(t, nil)
+	l.realWorktrees()
+	l.run("failure", Job{Name: "staging / Backend tests (a)", Conclusion: "failure"})
+	l.sh.first(shellRule{prefix: "go run", out: "FAIL: TestX\n", err: errors.New("boom")})
+	_, stdout, _ := l.f.agents(t, "watch", "--once")
+	if !strings.Contains(stdout, "revert of #1 #2 failed stage 0 (https://gh/run/77): ") ||
+		!strings.Contains(stdout, "FAIL: TestX") {
+		t.Fatalf("%q", stdout)
+	}
+	if _, err := os.Stat(l.f.root() + "/.worktrees/revert-2"); !os.IsNotExist(err) {
+		t.Fatalf("worktree left behind: %v", err)
+	}
+	if l.count("git worktree remove --force ") != 1 || l.count("git branch -D revert-2") != 1 {
+		t.Fatalf("calls %+v", l.sh.calls)
+	}
+}
+
+func TestWatch_doesNotRevertADocsOnlyLandingForACodeJob(t *testing.T) {
+	t.Parallel()
+	for _, job := range []string{"staging / Backend tests (a)", "staging / ios", "staging / e2e"} {
+		l := newLanding(t, nil)
+		l.sh.first(shellRule{prefix: "git diff --name-only", out: "docs/a/b.png\ndocs/design/f/notes.md\nREADME.md\n"})
+		l.run("failure", Job{Name: job, Conclusion: "failure"})
+		_, stdout, _ := l.f.agents(t, "watch", "--once")
+		if !strings.Contains(stdout, "which #1 #2 cannot affect; not reverting") || l.count("git worktree add") != 0 {
+			t.Fatalf("%s: %q", job, stdout)
+		}
+	}
+	l := newLanding(t, nil)
+	l.sh.first(shellRule{prefix: "git diff --name-only", out: "docs/a.md\n"})
+	l.run("failure", Job{Name: "staging / mkdocs build --strict", Conclusion: "failure"})
+	_, stdout, _ := l.f.agents(t, "watch", "--once")
+	if !strings.Contains(stdout, "reverted #1 #2 with #99") {
+		t.Fatalf("%q", stdout)
+	}
+	code := newLanding(t, nil)
+	code.sh.first(shellRule{prefix: "git diff --name-only", out: "docs/a.md\napps/backend/a.go\n"})
+	code.run("failure", Job{Name: "staging / Backend tests (a)", Conclusion: "failure"})
+	_, stdout, _ = code.f.agents(t, "watch", "--once")
+	if !strings.Contains(stdout, "reverted #1 #2 with #99") {
+		t.Fatalf("%q", stdout)
+	}
+}
+
+func TestWatch_removesTheRevertWorktreeOnceTheRevertPRLanded(t *testing.T) {
+	t.Parallel()
+	l := newLanding(t, nil)
+	l.realWorktrees()
+	l.f.hub.on(get("/pulls/99"), PR{Number: 99, State: "MERGED"})
+	l.run("failure", Job{Name: "staging / Backend tests (a)", Conclusion: "failure"})
+	_, stdout, _ := l.f.agents(t, "watch", "--once")
+	if !strings.Contains(stdout, "reverted #1 #2 with #99") || strings.Contains(stdout, "stays until") {
+		t.Fatalf("%q", stdout)
+	}
+	if _, err := os.Stat(l.f.root() + "/.worktrees/revert-2"); !os.IsNotExist(err) {
+		t.Fatalf("worktree left behind: %v", err)
+	}
+	if l.count("git branch -D revert-2") != 1 {
+		t.Fatalf("calls %+v", l.sh.calls)
+	}
+}
+
+func TestWatch_buildsNoRevertWhenItCannotRecordTheAttempt(t *testing.T) {
+	t.Parallel()
+	l := newLanding(t, nil)
+	l.run("failure", Job{Name: "staging / Backend tests (a)", Conclusion: "failure"})
+	if err := os.MkdirAll(l.f.Env(t).recordPath(40)+".lock", 0o750); err != nil {
+		t.Fatal(err)
+	}
+	_, stdout, _ := l.f.agents(t, "watch", "--once")
+	if !strings.Contains(stdout, "record the revert attempt: ") || l.count("git worktree add") != 0 {
 		t.Fatalf("%q", stdout)
 	}
 }

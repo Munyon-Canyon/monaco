@@ -205,11 +205,28 @@ func (env *Env) relatedFailure(ctx context.Context, r Record, l Landing, run Run
 }
 
 func (env *Env) relatedJobs(ctx context.Context, l Landing, failed []string) ([]string, error) {
-	mobile, err := env.touchesMobile(ctx, l)
-	if err != nil || mobile {
-		return failed, err
+	changed, err := env.landingFiles(ctx, l)
+	if err != nil {
+		return nil, err
+	}
+	if docsOnly(changed) {
+		return slices.DeleteFunc(slices.Clone(failed), func(name string) bool { return !docsJob(name) }), nil
+	}
+	if touchesMobile(changed) {
+		return failed, nil
 	}
 	return slices.DeleteFunc(slices.Clone(failed), unrelatedJob), nil
+}
+
+func docsOnly(changed []string) bool {
+	return len(changed) > 0 && !slices.ContainsFunc(changed, func(path string) bool {
+		return !strings.HasPrefix(path, "docs/") && !strings.HasSuffix(path, ".md")
+	})
+}
+
+func docsJob(name string) bool {
+	name = strings.ToLower(strings.TrimPrefix(name, "staging / "))
+	return strings.Contains(name, "docs") || strings.Contains(name, "mkdocs")
 }
 
 func (env *Env) failedJobs(ctx context.Context, runID int64) ([]string, error) {
@@ -272,7 +289,7 @@ func squashRevList(ctx context.Context, sh *shell, dir string, l Landing) []stri
 	return strings.Fields(sh.run(ctx, dir, "git", "rev-list", "--first-parent", "-n", strconv.Itoa(len(l.PRs)), l.SHA))
 }
 
-func (env *Env) touchesMobile(ctx context.Context, l Landing) (bool, error) {
+func (env *Env) landingFiles(ctx context.Context, l Landing) ([]string, error) {
 	root := filepath.Dir(env.Common)
 	sh := &shell{env: env}
 	sh.run(ctx, root, "git", "fetch", "--quiet", "origin", env.Config.FeatureBranch)
@@ -281,29 +298,33 @@ func (env *Env) touchesMobile(ctx context.Context, l Landing) (bool, error) {
 		first = sha
 	}
 	changed := strings.Fields(sh.run(ctx, root, "git", "diff", "--name-only", first+"^", l.SHA))
-	mobile := slices.ContainsFunc(changed, func(path string) bool {
+	return changed, sh.err
+}
+
+func touchesMobile(changed []string) bool {
+	return slices.ContainsFunc(changed, func(path string) bool {
 		return strings.HasPrefix(path, "apps/mobile/") || strings.HasPrefix(path, "packages/mobile-core/")
 	})
-	return mobile, sh.err
 }
 
 func (env *Env) revertLanding(ctx context.Context, r Record, l Landing, run Run, jobs []string) (int, []string, error) {
-	root, trunk, branch := filepath.Dir(env.Common), env.Config.FeatureBranch, fmt.Sprintf("revert-%d", l.Top)
+	root, branch := filepath.Dir(env.Common), fmt.Sprintf("revert-%d", l.Top)
 	dir, refs := filepath.Join(root, ".worktrees", branch), prRefs(l.PRs)
-	sh := &shell{env: env}
-	sh.run(ctx, root, "git", "fetch", "--quiet", "origin", trunk)
-	sh.run(ctx, root, "git", "worktree", "add", "-b", branch, dir, "origin/"+trunk)
-	revert := append([]string{"revert", "--no-edit"}, squashRevList(ctx, sh, dir, l)...)
-	sh.run(ctx, dir, "git", revert...)
-	sh.run(ctx, dir, "gt", "track", branch, "--parent", trunk, "--no-interactive")
-	if sh.err != nil {
-		return 0, nil, fmt.Errorf("revert setup in %s: %w", dir, sh.err)
+	if _, statErr := os.Stat(dir); l.RevertTried || statErr == nil {
+		return 0, []string{fmt.Sprintf("revert of %s not retried: it failed stage 0 at %s; root: fix by hand",
+			refs, r.Changed.Format(time.RFC3339))}, nil
 	}
-	env.copyTools(ctx, root, dir)
-	check := []string{"run", "./cmd/monacoctl", "agents", "check"}
-	if out, err := env.Run(ctx, filepath.Join(dir, "apps", "backend"), "", "go", check...); err != nil {
-		return 0, []string{fmt.Sprintf("revert of %s failed stage 0 in %s: %s; fix it there by hand",
-			refs, dir, tail(out, err))}, nil
+	if err := env.markRevertTried(ctx, r.Ticket, l, run); err != nil {
+		return 0, nil, err
+	}
+	sh := &shell{env: env}
+	if err := env.prepareRevert(ctx, sh, l, root, dir, branch); err != nil {
+		return 0, nil, err
+	}
+	if out, err := env.revertStage0(ctx, dir); err != nil {
+		env.dropRevert(ctx, root, dir, branch)
+		return 0, []string{fmt.Sprintf("revert of %s failed stage 0 (%s): %s; not retried, root: fix by hand",
+			refs, run.URL, tail(out, err))}, nil
 	}
 	sh.run(ctx, dir, "gt", "submit", "--stack", "--no-interactive", "--draft")
 	view := sh.run(ctx, dir, "gh", "pr", "view", "--json", "number")
@@ -320,11 +341,22 @@ func (env *Env) revertLanding(ctx context.Context, r Record, l Landing, run Run,
 	if err := env.setRevertBody(ctx, r, l, run, jobs, dir, pr); err != nil {
 		return pr, nil, err
 	}
+	return pr, env.landRevert(ctx, pr, refs, run, jobs, root, dir, branch), nil
+}
+
+func (env *Env) landRevert(
+	ctx context.Context, pr int, refs string, run Run, jobs []string, root, dir, branch string,
+) []string {
 	var landing strings.Builder
 	landed := env.landStack(ctx, pr, &landing)
 	lines := []string{
 		fmt.Sprintf("reverted %s with #%d: staging run %s failed on %s", refs, pr, run.URL, strings.Join(jobs, ", ")),
-		fmt.Sprintf("revert worktree %s stays until #%d lands; agents done is not involved", dir, pr),
+	}
+	if landed == nil && env.revertLanded(ctx, pr) {
+		env.dropRevert(ctx, root, dir, branch)
+	} else {
+		lines = append(lines,
+			fmt.Sprintf("revert worktree %s stays until #%d lands; agents done is not involved", dir, pr))
 	}
 	for line := range strings.Lines(landing.String()) {
 		lines = append(lines, strings.TrimSuffix(line, "\n"))
@@ -332,7 +364,57 @@ func (env *Env) revertLanding(ctx context.Context, r Record, l Landing, run Run,
 	if landed != nil {
 		lines = append(lines, watchErr(fmt.Sprintf("land revert #%d: ", pr), landed))
 	}
-	return pr, lines, nil
+	return lines
+}
+
+func (env *Env) prepareRevert(ctx context.Context, sh *shell, l Landing, root, dir, branch string) error {
+	trunk := env.Config.FeatureBranch
+	sh.run(ctx, root, "git", "fetch", "--quiet", "origin", trunk)
+	sh.run(ctx, root, "git", "worktree", "add", "-b", branch, dir, "origin/"+trunk)
+	revert := append([]string{"revert", "--no-edit"}, squashRevList(ctx, sh, dir, l)...)
+	sh.run(ctx, dir, "git", revert...)
+	sh.run(ctx, dir, "gt", "track", branch, "--parent", trunk, "--no-interactive")
+	if sh.err != nil {
+		return fmt.Errorf("revert setup in %s: %w", dir, sh.err)
+	}
+	env.copyTools(ctx, root, dir)
+	return nil
+}
+
+func (env *Env) revertStage0(ctx context.Context, dir string) ([]byte, error) {
+	check := []string{"run", "./cmd/monacoctl", "agents", "check"}
+	return env.Run(ctx, filepath.Join(dir, "apps", "backend"), "", "go", check...)
+}
+
+func (env *Env) markRevertTried(ctx context.Context, ticket int, l Landing, run Run) error {
+	err := env.updateRecord(ctx, ticket, func(rec *Record) {
+		for i := range rec.Landed {
+			if rec.Landed[i].SHA == l.SHA {
+				rec.Landed[i].Checked, rec.Landed[i].RevertTried = true, true
+				rec.Landed[i].RunID, rec.Landed[i].RunURL = run.ID, run.URL
+			}
+		}
+		rec.Changed = env.Now()
+	})
+	if err != nil {
+		return fmt.Errorf("record the revert attempt: %w", err)
+	}
+	return nil
+}
+
+func (env *Env) revertLanded(ctx context.Context, pr int) bool {
+	p, err := env.GitHub.PR(ctx, pr)
+	if err != nil {
+		return false
+	}
+	ok, err := env.landed(ctx, p.closed())
+	return err == nil && ok
+}
+
+func (env *Env) dropRevert(ctx context.Context, root, dir, branch string) {
+	bg := context.WithoutCancel(ctx)
+	_, _ = env.Run(bg, root, "", "git", "worktree", "remove", "--force", dir)
+	_, _ = env.Run(bg, root, "", "git", "branch", "-D", branch)
 }
 
 func (env *Env) setRevertBody(

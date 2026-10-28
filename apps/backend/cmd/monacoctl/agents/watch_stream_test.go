@@ -1635,3 +1635,45 @@ func TestWatchStream_reportsAnArmedStackThatStaysOnGraphiteBasePastTheGrace(t *t
 		t.Fatalf("stream %q", got)
 	}
 }
+
+func TestWatch_refusesASecondWatch(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.noFailures()
+	env := f.Env(t)
+	lock, err := env.watchLock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.Env(t).watchStream(t.Context(), time.Minute, &strings.Builder{})
+	want := fmt.Sprintf("another watch is running (pid %d)", os.Getpid())
+	if err == nil || !strings.Contains(cliText(err), want) {
+		t.Fatalf("err %v, want %q", err, want)
+	}
+	unlock(lock)
+	if _, err := env.watchLock(); err != nil {
+		t.Fatalf("released lock: %v", err)
+	}
+}
+
+func TestWatch_failsWhenItCannotTakeTheLock(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.noFailures()
+	blocked := f.Env(t)
+	blocked.Common = filepath.Join(t.TempDir(), "file")
+	writeFile(t, blocked.Common, "in the way")
+	if err := blocked.watchStream(t.Context(), time.Minute, &strings.Builder{}); err == nil ||
+		!strings.Contains(err.Error(), "create the watch lock dir") {
+		t.Fatalf("err %v", err)
+	}
+	locked := f.Env(t)
+	locked.Common = t.TempDir()
+	if err := os.MkdirAll(filepath.Join(locked.Common, ".monaco", "watch.lock"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := locked.watchStream(t.Context(), time.Minute, &strings.Builder{}); err == nil ||
+		!strings.Contains(err.Error(), "watch.lock") {
+		t.Fatalf("err %v", err)
+	}
+}

@@ -53,6 +53,7 @@ type Landing struct {
 	Revert       int       `json:"revert,omitempty"`
 	Redispatched bool      `json:"redispatched,omitempty"`
 	Reran        bool      `json:"reran,omitempty"`
+	RevertTried  bool      `json:"revert_tried,omitempty"`
 }
 
 type Record struct {
