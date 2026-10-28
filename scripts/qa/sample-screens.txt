@@ -331,8 +331,7 @@ stocks-tab-paused             -MonacoStocksTabSample paused
 stocks-tab-ready-large-text   -MonacoStocksTabSample ready -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 asset-open                    -MonacoAssetDetailSample open
 asset-loss                    -MonacoAssetDetailSample loss
-asset-candles                 -MonacoAssetDetailSample candles
-asset-candles-long            -MonacoAssetDetailSample candlesLong
+asset-stats-dashes            -MonacoAssetDetailSample statsDashes
 asset-candles-sparse          -MonacoAssetDetailSample candlesSparse
 asset-no-holders              -MonacoAssetDetailSample noHolders
 asset-no-proposals            -MonacoAssetDetailSample noProposals

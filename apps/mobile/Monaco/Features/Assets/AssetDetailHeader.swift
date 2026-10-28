@@ -7,41 +7,59 @@ struct AssetDetailHeader: View {
     let model: AssetDetailClientModel
     let scrub: AssetScrubHeader?
     let priceTick: MonacoPriceTick?
-    let bestChain: AssetBestChain?
-    let isWatched: Bool
-    let toggleWatch: () -> Void
+
+    private static let logoSize: CGFloat = 40
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            identity
-                .padding(.top, MonacoTheme.Space.gutter)
-                .padding(.bottom, MonacoTheme.Space.m)
+            summary
             notices
-            price
-            change.padding(.top, MonacoTheme.Space.s)
             session
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
     }
 
+    private var summary: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+            identity
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .lastTextBaseline, spacing: MonacoTheme.Space.sm) {
+                    price
+                    change
+                }
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                    price
+                    change
+                }
+            }
+        }
+        .padding(.top, MonacoTheme.Space.xs)
+        .padding(.bottom, MonacoTheme.Space.m)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Self.spokenSummary(detail: detail, scrub: scrub))
+        .accessibilityIdentifier("asset-detail-header")
+    }
+
+    static func spokenSummary(detail: AssetDetailPresentation, scrub: AssetScrubHeader?) -> String {
+        if let scrub { return "\(detail.name), \(scrub.price), \(scrub.caption)" }
+        guard let move = detail.todayMove else {
+            return detail.priceMicros.map { "\(detail.name), \(UsdAmountFormatter.format(micros: $0))" } ?? detail.name
+        }
+        return "\(detail.name), \(move.speech(priceMicros: detail.priceMicros))"
+    }
+
     private var identity: some View {
         HStack(spacing: MonacoTheme.Space.sm) {
             StockMark(
-                symbol: detail.symbol, displayName: detail.name, assetKind: detail.kind, size: 48,
+                symbol: detail.symbol, displayName: detail.name, assetKind: detail.kind, size: Self.logoSize,
                 logoURL: detail.market.logoURL)
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                Text(detail.name)
-                    .font(MonacoTheme.Typo.section)
-                    .foregroundStyle(MonacoTheme.primaryText)
-                    .accessibilityIdentifier("asset-detail-name")
-                Text(detail.ticker)
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-            }
+            Text(detail.name)
+                .font(MonacoTheme.Typo.title)
+                .foregroundStyle(MonacoTheme.primaryText)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("asset-detail-name")
             Spacer(minLength: 0)
-            WatchStarButton(
-                isWatched: isWatched, addLabel: "Add to watchlist", removeLabel: "Remove from watchlist",
-                identifier: "asset-watch-star", toggle: toggleWatch)
         }
     }
 
@@ -67,7 +85,7 @@ struct AssetDetailHeader: View {
                 .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
                 .accessibilityIdentifier("asset-detail-price")
         } else if let micros = detail.priceMicros {
-            Text(UsdAmountFormatter.format(micros: micros))
+            Self.hero(UsdAmountFormatter.format(micros: micros))
                 .moneyFont(.hero)
                 .lineLimit(1)
                 .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
@@ -85,54 +103,42 @@ struct AssetDetailHeader: View {
         }
     }
 
+    static func heroParts(_ text: String) -> (whole: String, cents: String) {
+        guard let point = text.lastIndex(of: ".") else { return (text, "") }
+        return (String(text[..<point]), String(text[point...]))
+    }
+
+    private static func hero(_ text: String) -> Text {
+        let parts = heroParts(text)
+        return Text(verbatim: parts.whole) + Text(verbatim: parts.cents).foregroundStyle(MonacoTheme.secondaryText)
+    }
+
     @ViewBuilder private var change: some View {
         if let scrub {
-            changeLine(basisPoints: scrub.basisPoints, caption: scrub.caption)
-        } else if let change = model.rangeChange {
-            changeLine(basisPoints: change.basisPoints, caption: change.label)
-                .opacity(change.basisPoints == nil ? 0 : 1)
-                .accessibilityHidden(change.basisPoints == nil)
+            scrubLine(basisPoints: scrub.basisPoints, caption: scrub.caption)
+        } else if let move = detail.todayMove {
+            Text(move.line)
+                .font(MonacoTheme.Typo.caption.monospacedDigit())
+                .foregroundStyle(move.isLoss ? MonacoTheme.loss : MonacoTheme.profit)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .accessibilityIdentifier("asset-detail-range-change")
         }
     }
 
-    private func changeLine(basisPoints: Int64?, caption: String) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: MonacoTheme.Space.sm) { changeParts(basisPoints, caption) }
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) { changeParts(basisPoints, caption) }
+    private func scrubLine(basisPoints: Int64?, caption: String) -> some View {
+        HStack(spacing: MonacoTheme.Space.sm) {
+            if let basisPoints { PercentText(basisPoints: basisPoints, style: .row) }
+            Text(caption).font(MonacoTheme.Typo.caption).foregroundStyle(MonacoTheme.secondaryText)
         }
         .accessibilityIdentifier("asset-detail-range-change")
     }
 
-    @ViewBuilder
-    private func changeParts(_ basisPoints: Int64?, _ caption: String) -> some View {
-        if let basisPoints { PercentText(basisPoints: basisPoints, style: .row) }
-        Text(caption).font(MonacoTheme.Typo.caption).foregroundStyle(MonacoTheme.secondaryText)
-    }
-
     @ViewBuilder private var session: some View {
-        let copy = detail.market.showsSessionChip ? MarketSessionCopy.chip(for: detail.market.status) : nil
-        if copy != nil || bestChain != nil {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                if let copy { MarketSessionChip(session: copy).accessibilityIdentifier("asset-detail-session") }
-                if let bestChain { AssetBestChainLine(bestChain: bestChain) }
-            }
-            .padding(.top, MonacoTheme.Space.s)
+        if detail.market.showsSessionChip, let copy = MarketSessionCopy.chip(for: detail.market.status) {
+            MarketSessionChip(session: copy)
+                .accessibilityIdentifier("asset-detail-session")
+                .padding(.bottom, MonacoTheme.Space.s)
         }
-    }
-}
-
-struct AssetBestChainLine: View {
-    let bestChain: AssetBestChain
-
-    var body: some View {
-        HStack(spacing: MonacoTheme.Space.xs) {
-            ChainMark(network: bestChain.network.rawValue, size: 24)
-            Text(bestChain.headline)
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("asset-detail-best-chain")
     }
 }

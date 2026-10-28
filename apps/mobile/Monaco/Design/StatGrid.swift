@@ -9,11 +9,13 @@ struct StatItem {
     let value: String
     var tone: Tone = .plain
     var info: (() -> Void)? = nil
+    var spokenValue: String? = nil
 }
 
 extension StatItem: Equatable {
     static func == (lhs: StatItem, rhs: StatItem) -> Bool {
         lhs.label == rhs.label && lhs.value == rhs.value && lhs.tone == rhs.tone
+            && lhs.spokenValue == rhs.spokenValue
             && (lhs.info == nil) == (rhs.info == nil)
     }
 }
@@ -135,7 +137,7 @@ private struct StatCellAccessibility: ViewModifier {
         if item.info == nil {
             content
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(item.label), \(item.value)")
+                .accessibilityLabel("\(item.label), \(item.spokenValue ?? item.value)")
         } else {
             content.accessibilityElement(children: .contain)
         }

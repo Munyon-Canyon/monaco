@@ -10,8 +10,8 @@ struct AssetDetailClientView: View {
     let seed: AssetSeed?
     @State private var model: AssetDetailClientModel?
     @State private var scrubbedIndex: Int?
-    @AppStorage("asset-chart-style") private var storedStyle = MonacoChartStyle.candles.rawValue
     @State private var priceTick: MonacoPriceTick?
+    @State private var showsStatsInfo = false
 
     init(symbol: String, seed: AssetSeed? = nil, model: AssetDetailClientModel? = nil) {
         self.symbol = symbol
@@ -23,18 +23,14 @@ struct AssetDetailClientView: View {
 
     var body: some View {
         content
-            .navigationTitle(model?.detail?.name ?? seed?.name ?? "")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar { toolbar }
+            .sheet(isPresented: $showsStatsInfo) { AssetMarketStatsInfo() }
             .task {
                 await start()
                 await model?.observe()
             }
-            .task { await environment.bestChains.refreshIfNeeded(symbol: symbol) }
-            .onScreenVisibilityChange { visible in
-                model?.setVisible(visible)
-                guard visible else { return }
-                Task { await environment.bestChains.refreshIfNeeded(symbol: symbol) }
-            }
+            .onScreenVisibilityChange { visible in model?.setVisible(visible) }
             .onChange(of: model?.detail?.priceMicros) { oldPrice, newPrice in
                 guard let oldPrice, let newPrice, oldPrice != newPrice else { return }
                 priceTick = .init(sequence: (priceTick?.sequence ?? 0) + 1, isUp: newPrice > oldPrice)
@@ -83,24 +79,16 @@ struct AssetDetailClientView: View {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.section) {
                 AssetDetailHeader(
                     detail: detail, model: model,
-                    scrub: AssetScrubHeader(chart: model.chart, barIndex: scrubbedIndex), priceTick: priceTick,
-                    bestChain: environment.bestChains.bestChain(for: symbol),
-                    isWatched: environment.watchlist.isWatched(symbol), toggleWatch: toggleWatch)
-                AssetDetailChartSection(
-                    detail: detail, model: model, scrubbedIndex: $scrubbedIndex, style: chartStyle)
+                    scrub: AssetScrubHeader(chart: model.chart, barIndex: scrubbedIndex), priceTick: priceTick)
+                AssetDetailChartSection(detail: detail, model: model, scrubbedIndex: $scrubbedIndex)
                 AssetDetailActions(detail: detail, canSell: model.heldByVotingCabal, propose: propose)
-                AssetMarketStats(
-                    stats: model.stats, attribution: detail.attribution, priceMicros: detail.priceMicros,
-                    volume24hMicros: detail.market.volume24hMicros)
-                AssetAbout(detail: detail)
+                if detail.kind == .preIpo { AssetAbout(detail: detail) }
                 AssetCabalHoldings(ticker: detail.ticker, positions: model.positions) {
                     environment.navigator.open(CabalRoute(id: $0.cabalID), in: tab)
                 }
                 AssetProposals(ticker: detail.ticker)
-                if !detail.otherListings.isEmpty {
-                    AssetOtherListings(listings: detail.otherListings) {
-                        environment.navigator.open(AssetRoute(symbol: $0.symbol), in: tab)
-                    }
+                if let stats = model.stats {
+                    AssetMarketStats(stats: stats) { showsStatsInfo = true }
                 }
             }
             .padding(.bottom, MonacoTheme.Space.l)
@@ -112,17 +100,42 @@ struct AssetDetailClientView: View {
         .accessibilityIdentifier("asset-detail-root")
     }
 
-    private var chartStyle: Binding<MonacoChartStyle> {
-        Binding(
-            get: { MonacoChartStyle(rawValue: storedStyle) ?? .candles },
-            set: { storedStyle = $0.rawValue }
-        )
+    @ToolbarContentBuilder private var toolbar: some ToolbarContent {
+        if model?.detail != nil {
+            ToolbarItem(placement: .topBarTrailing) {
+                let isWatched = environment.watchlist.isWatched(symbol)
+                MonacoGlassButton(
+                    systemImage: "star", accessibilityLabel: isWatched ? "Remove from watchlist" : "Add to watchlist",
+                    style: isWatched ? .selected : .quiet, placement: .toolbar, action: toggleWatch
+                )
+                .accessibilityAddTraits(isWatched ? .isSelected : [])
+                .accessibilityIdentifier("asset-watch-star")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                MonacoGlassButton(
+                    icon: .share, accessibilityLabel: "Share \(model?.detail?.name ?? symbol)", style: .quiet,
+                    placement: .toolbar, action: share
+                )
+                .accessibilityIdentifier("asset-share")
+            }
+        }
     }
 
     private func toggleWatch() {
         Haptics.selection()
-        if environment.watchlist.toggle(symbol) == .full {
-            toasts.current = MonacoToast(message: WatchlistCopy.fullMessage)
+        switch environment.watchlist.toggle(symbol) {
+        case .full: toasts.current = MonacoToast(message: WatchlistCopy.fullMessage)
+        case .added: toasts.current = MonacoToast(message: "Added to your watchlist")
+        case .removed: break
+        }
+    }
+
+    private func share() {
+        if let held = model?.positions.first {
+            environment.navigator.open(ShareRoute(.position(cabalID: held.cabalID, symbol: symbol)), in: tab)
+        } else {
+            let name = model?.detail?.name ?? symbol
+            SystemShare.present(SharePayload(title: "\(name) on Monaco", url: ShareCardContent.fallbackURL))
         }
     }
 

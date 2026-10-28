@@ -5,45 +5,69 @@ import XCTest
 
 @MainActor
 final class AssetDetailClientModelStartTests: XCTestCase {
-    func testStartReadsTheAssetAndBothChartsBeforeAnyAnswerArrives() async {
-        let transport = StubTransport(scripted: [.hang, .hang, .hang, .hang])
+    func testStartReadsTheAssetOneChartAndTheCabalsBeforeAnyAnswerArrives() async {
+        let transport = StubTransport(scripted: [.hang, .hang, .hang])
         let api = APIClient(
             serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
         let model = AssetDetailClientModel(api: api, symbol: "AAPLx", hints: FakeHintStream())
 
         let started = Task { await model.start() }
-        await transport.waitForRequests(4)
+        await transport.waitForRequests(3)
         started.cancel()
 
         let paths = await transport.sent.compactMap(\.path)
-        XCTAssertEqual(paths.filter { $0.hasPrefix("/v1/assets/AAPLx/chart") }.count, 2)
+        XCTAssertEqual(
+            paths.filter { $0.hasPrefix("/v1/assets/AAPLx/chart") }.count, 1, "no second chart call for stats")
         XCTAssertEqual(paths.filter { $0 == "/v1/assets/AAPLx" }.count, 1)
         XCTAssertEqual(paths.filter { $0 == "/v1/me/cabals" }.count, 1)
     }
 
-    func testStatsShowTheDayFiguresBeforeTheYearSeriesLands() async throws {
+    func testStatsComeFromTheAssetReadAndMakeNoChartCall() async throws {
         let transport = StubTransport(routes: [
-            "/v1/assets/AAPLx": [try reply(Components.Schemas.AssetDetail.googl)],
-            "/v1/assets/AAPLx/chart?range=1D": [try reply(chart(range: ._1d, interval: ._15m, prices: [100, 113]))],
-            "/v1/assets/AAPLx/chart?range=1Y": [.gate],
+            "/v1/assets/NVDAx": [try reply(Components.Schemas.AssetDetail.nvda)],
+            "/v1/assets/NVDAx/chart?range=1D": [try reply(chart(range: ._1d, interval: ._15m, prices: [100, 113]))],
             "/v1/me/cabals": [.json(.ok, "[]")],
         ])
         let api = APIClient(
             serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
-        let model = AssetDetailClientModel(api: api, symbol: "AAPLx", hints: FakeHintStream())
+        let model = AssetDetailClientModel(api: api, symbol: "NVDAx", hints: FakeHintStream())
 
-        let started = Task { await model.start() }
-        await transport.waitForRequests(4)
-        for _ in 0..<100_000 where model.stats == nil { await Task.yield() }
+        await model.start()
 
-        XCTAssertEqual(model.stats?.dayHigh, 113_000_000)
-        XCTAssertNil(model.stats?.yearHigh, "the year read is still out")
+        let paths = await transport.sent.compactMap(\.path)
+        XCTAssertEqual(paths.filter { $0.hasPrefix("/v1/assets/NVDAx/chart") }.count, 1)
+        XCTAssertEqual(
+            model.stats?.cells.map(\.value), ["$5.38T", "$9.4M", "$211.17", "$86.62", "$224.90", "1 cabal"])
+    }
 
-        await transport.releaseGate(try reply(chart(range: ._1y, interval: ._1d, prices: [90, 150])))
-        await started.value
+    func testAllNullStatsStillMakeSixDashes() async throws {
+        let model = try modelReading(.nvdaDashes)
 
-        XCTAssertEqual(model.stats?.dayHigh, 113_000_000)
-        XCTAssertEqual(model.stats?.yearHigh, 150_000_000)
+        await model.load()
+
+        let cells = try XCTUnwrap(model.stats?.cells)
+        XCTAssertEqual(cells.map(\.value), Array(repeating: "—", count: 6))
+        XCTAssertEqual(cells.map(\.spokenValue), Array(repeating: "not available", count: 6))
+    }
+
+    func testAPreIpoAssetHasNoMarketStats() async throws {
+        let model = try modelReading(.spaceX)
+
+        await model.load()
+
+        XCTAssertNil(model.stats)
+    }
+
+    private func modelReading(_ detail: Components.Schemas.AssetDetail) throws -> AssetDetailClientModel {
+        let transport = StubTransport(routes: [
+            "/v1/assets/\(detail.symbol)": [try reply(detail)],
+            "/v1/assets/\(detail.symbol)/chart?range=1D": [
+                try reply(chart(range: ._1d, interval: ._15m, prices: [100, 113]))
+            ],
+        ])
+        let api = APIClient(
+            serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
+        return AssetDetailClientModel(api: api, symbol: detail.symbol, hints: FakeHintStream())
     }
 
     private func reply<T: Encodable>(_ value: T) throws -> StubTransport.Reply {

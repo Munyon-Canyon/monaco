@@ -6,8 +6,7 @@ import SwiftUI
 enum AssetDetailSampleScenario: String, CaseIterable {
     case open
     case loss
-    case candles
-    case candlesLong
+    case statsDashes
     case candlesSparse
     case noHolders
     case noProposals
@@ -35,7 +34,7 @@ enum AssetDetailSampleScenario: String, CaseIterable {
 
     var showsSampleProposal: Bool {
         switch self {
-        case .open, .loss, .candles, .candlesLong, .candlesSparse, .stale: true
+        case .open, .loss, .statsDashes, .candlesSparse, .stale: true
         default: false
         }
     }
@@ -43,9 +42,9 @@ enum AssetDetailSampleScenario: String, CaseIterable {
     var script: SampleAPIScript {
         var script = SampleAPIScript()
         switch self {
-        case .open, .candles, .noProposals: break
+        case .open, .noProposals: script.show(.nvda)
         case .loss: script.makeLoss()
-        case .candlesLong: script.candleCount = 2_200
+        case .statsDashes: script.show(.nvdaDashes)
         case .candlesSparse: script.sparseCandles = true
         case .noHolders: script.cabalCount = 0
         case .preMarket: script.asset.session = .preMarket
@@ -70,6 +69,11 @@ enum AssetDetailSampleScenario: String, CaseIterable {
 }
 
 extension SampleAPIScript {
+    fileprivate mutating func show(_ detail: Components.Schemas.AssetDetail) {
+        asset = detail
+        assets[detail.symbol] = detail
+    }
+
     fileprivate mutating func makeLoss() {
         asset.changeBps = -444
         var state: UInt64 = 0x9E37_79B9_7F4A_7C15

@@ -124,21 +124,21 @@ final class AssetDetailClientModelTests: XCTestCase {
         XCTAssertEqual(model.chart?.points.count, 2)
     }
 
-    func testStatsReuseTheDrawnDayChartInsteadOfReadingItAgain() async throws {
+    func testTheOneHourRangeAsksTheServerForTheHourAtOneMinute() async throws {
         let transport = StubTransport(scripted: [
             try reply(Components.Schemas.AssetDetail.googl),
             StubTransport.Reply.json(.ok, chart),
-            try reply(chart(range: "1Y", prices: [90_000_000, 150_000_000])),
+            try reply(chart(range: "1H", prices: [100_000_000, 101_000_000])),
         ])
         let model = makeModel(transport: transport, hints: FakeHintStream())
         await model.load()
 
-        await model.loadStats()
+        await model.loadChart(range: .oneHour)
 
-        let sent = await transport.sent.count
-        XCTAssertEqual(sent, 3, "the day chart is drawn already, so only the year is read")
-        XCTAssertEqual(model.stats?.dayHigh, 113_000_000)
-        XCTAssertEqual(model.stats?.yearHigh, 150_000_000)
+        let paths = await transport.sent.compactMap(\.path)
+        XCTAssertTrue(paths.last?.contains("range=1H") == true, "\(paths)")
+        XCTAssertEqual(model.selectedInterval, .m1)
+        XCTAssertEqual(model.chart?.range, .oneHour)
     }
 
     func testRecognizesShortHistory() async throws {
@@ -292,6 +292,7 @@ final class AssetDetailClientModelTests: XCTestCase {
 
     private func defaultInterval(for range: String) -> Components.Schemas.AssetChart.IntervalPayload {
         switch range {
+        case "1H": ._1m
         case "1D": ._15m
         case "1W": ._1h
         case "1M": ._4h
@@ -301,6 +302,7 @@ final class AssetDetailClientModelTests: XCTestCase {
 
     private func chartRange(for range: String) -> Components.Schemas.AssetChart.RangePayload {
         switch range {
+        case "1H": ._1h
         case "1D": ._1d
         case "1W": ._1w
         case "1M": ._1m

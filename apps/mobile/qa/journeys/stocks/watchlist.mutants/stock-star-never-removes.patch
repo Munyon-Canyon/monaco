@@ -4,15 +4,15 @@ expect-fail: S2
 The star on the stock screen only adds. S2.2 expects it to take the stock off the watchlist, so S2 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift b/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift
-index bc242c8d0..921a2d7e4 100644
+index f4ce976ff..ed9fa21e5 100644
 --- a/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift
 +++ b/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift
-@@ -112,7 +112,7 @@ struct AssetDetailClientView: View {
+@@ -123,7 +123,7 @@ struct AssetDetailClientView: View {
  
      private func toggleWatch() {
          Haptics.selection()
--        if environment.watchlist.toggle(symbol) == .full {
-+        if !environment.watchlist.isWatched(symbol), environment.watchlist.toggle(symbol) == .full {
-             toasts.current = MonacoToast(message: WatchlistCopy.fullMessage)
-         }
-     }
+-        switch environment.watchlist.toggle(symbol) {
++        switch environment.watchlist.isWatched(symbol) ? .removed : environment.watchlist.toggle(symbol) {
+         case .full: toasts.current = MonacoToast(message: WatchlistCopy.fullMessage)
+         case .added: toasts.current = MonacoToast(message: "Added to your watchlist")
+         case .removed: break

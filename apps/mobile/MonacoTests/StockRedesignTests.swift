@@ -24,6 +24,34 @@ struct StockRowLayoutTests {
     }
 }
 
+@MainActor
+struct StockPageTests {
+    @Test func theHeroPriceDimsOnlyTheCents() {
+        let parts = AssetDetailHeader.heroParts("$220.00")
+        #expect(parts.whole == "$220")
+        #expect(parts.cents == ".00")
+    }
+
+    @Test func theStatsGridIsTwoRowsOfThreeAndANullCellIsADash() {
+        let stats = AssetStats(
+            marketCapMicros: nil, volume24hMicros: 9_400_000_000_000, openMicros: nil, yearLowMicros: nil,
+            yearHighMicros: nil, heldByCabals: 2)
+
+        let top = AssetMarketStats.items(stats.topRow)
+        let bottom = AssetMarketStats.items(stats.bottomRow)
+
+        #expect(top.map(\.value) == ["—", "$9.4M", "—"])
+        #expect(bottom.map(\.value) == ["—", "—", "2 cabals"])
+        #expect(top[0].spokenValue == "not available")
+        #expect(top[1].spokenValue == "$9.4M")
+        #expect(top.count == 3 && bottom.count == 3)
+    }
+
+    @Test func thePageOffersSevenRangesWithOneHourFirstAndAllLast() {
+        #expect(AssetChartRange.stockPage.map(\.label) == ["1H", "1D", "1W", "1M", "3M", "6M", "All"])
+    }
+}
+
 #if DEBUG
 /// `-MonacoSampleScroll`: where the sample app opens its page.
 struct SampleScrollAnchorTests {

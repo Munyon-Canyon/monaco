@@ -4,8 +4,8 @@ import XCTest
 
 final class ChartIntervalTests: XCTestCase {
     func testSeconds_matchTheWireNames() {
-        XCTAssertEqual(ChartInterval.allCases.map(\.rawValue), ["5m", "15m", "30m", "1h", "4h", "1d", "1w"])
-        XCTAssertEqual(ChartInterval.allCases.map(\.seconds), [300, 900, 1_800, 3_600, 14_400, 86_400, 604_800])
+        XCTAssertEqual(ChartInterval.allCases.map(\.rawValue), ["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w"])
+        XCTAssertEqual(ChartInterval.allCases.map(\.seconds), [60, 300, 900, 1_800, 3_600, 14_400, 86_400, 604_800])
         XCTAssertEqual(ChartInterval.h4.label, "4h")
     }
 
@@ -17,6 +17,7 @@ final class ChartIntervalTests: XCTestCase {
     }
 
     func testDefault_isTheBucketTheServerUsedBeforeIntervalsExisted() {
+        XCTAssertEqual(ChartInterval.default(for: .oneHour), .m1)
         XCTAssertEqual(ChartInterval.default(for: .oneDay), .m5)
         XCTAssertEqual(ChartInterval.default(for: .oneWeek), .h1)
         XCTAssertEqual(ChartInterval.default(for: .oneMonth), .h1)
@@ -26,6 +27,7 @@ final class ChartIntervalTests: XCTestCase {
     }
 
     func testAllowed_followsTheServerTable() {
+        XCTAssertEqual(ChartInterval.allowed(for: .oneHour), [.m1, .m5])
         XCTAssertEqual(ChartInterval.allowed(for: .oneDay), [.m5, .m15, .m30, .h1, .h4, .d1])
         XCTAssertEqual(ChartInterval.allowed(for: .oneWeek), [.m5, .m15, .m30, .h1, .h4, .d1])
         XCTAssertEqual(ChartInterval.allowed(for: .oneMonth), [.m15, .m30, .h1, .h4, .d1])

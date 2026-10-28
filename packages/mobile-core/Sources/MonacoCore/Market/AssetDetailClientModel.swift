@@ -16,6 +16,11 @@ public struct AssetDetailPresentation: Equatable, Sendable {
     public let otherListings: [AssetListingPresentation]
     public let isTradable: Bool
     public let isQuotable: Bool
+    public let stats: AssetStats?
+
+    public var todayMove: AssetTodayMove? {
+        AssetTodayMove(priceMicros: priceMicros, basisPoints: changeBasisPoints)
+    }
 }
 
 public typealias AssetListingPresentation = MarketListing
@@ -61,7 +66,6 @@ public final class AssetDetailClientModel {
     public private(set) var lastError: APIError?
     public private(set) var failureTick = 0
     public private(set) var positions: [AssetCabalPosition] = []
-    public private(set) var stats: AssetStats?
     public private(set) var refreshFailed = false
     private(set) var lastLoadedAt: Date?
     var chartGeneration = 0
@@ -76,6 +80,8 @@ public final class AssetDetailClientModel {
     private let refresher: HintRefresher
 
     public var phase: Phase { detailPhase }
+
+    public var stats: AssetStats? { detail?.stats }
 
     public var heldByVotingCabal: Bool { positions.contains { $0.canVote } }
 
@@ -162,13 +168,9 @@ public final class AssetDetailClientModel {
 
     public func start() async {
         async let cabalPositions: Void = loadCabalPositions()
-        async let year = loadSeries(.oneYear)
         async let drawn: Void = loadChart(range: selectedRange, interval: selectedInterval)
         await loadDetail()
         await drawn
-        let day = await loadSeries(.oneDay)
-        publishStats(day: day, year: nil)
-        publishStats(day: day, year: await year)
         await cabalPositions
     }
 
@@ -212,36 +214,6 @@ public final class AssetDetailClientModel {
         positions = found.sorted {
             $0.valueMicros == $1.valueMicros ? $0.cabalID < $1.cabalID : $0.valueMicros > $1.valueMicros
         }
-    }
-
-    public func loadStats() async {
-        publishStats(day: await loadSeries(.oneDay), year: await loadSeries(.oneYear))
-    }
-
-    private func loadSeries(_ range: AssetChartRange) async -> AssetChartSeries? {
-        guard let api else { return nil }
-        return try? await chartSeries(api: api, range: range)
-    }
-
-    private func publishStats(day: AssetChartSeries?, year: AssetChartSeries?) {
-        guard let detail else { return }
-        let built = AssetStats(
-            day: day, year: year, priceMicros: detail.priceMicros,
-            changeBasisPoints: detail.changeBasisPoints)
-        stats = built.isEmpty ? nil : built
-    }
-
-    private func chartSeries(api: APIClient, range: AssetChartRange) async throws -> AssetChartSeries {
-        let interval = ChartInterval.default(for: range)
-        if let chart, chart.range == range, chart.interval == interval || chart.interval == .preferred(for: range) {
-            return chart
-        }
-        let symbol = symbol
-        let response = try await api.read { client in
-            try await client.getAssetChart(path: .init(symbol: symbol), query: Self.query(range, interval, before: nil))
-                .ok.body.json
-        }
-        return MarketMapping.chart(response)
     }
 
     private enum PotRead: Sendable {
@@ -298,7 +270,13 @@ public final class AssetDetailClientModel {
             market: market,
             otherListings: mapped.otherListings,
             isTradable: detail.tradable,
-            isQuotable: detail.quotable
+            isQuotable: detail.quotable,
+            stats: market.kind == .preIpo
+                ? nil
+                : AssetStats(
+                    marketCapMicros: detail.stats?.marketCapMicros, volume24hMicros: detail.volume24hMicros,
+                    openMicros: detail.stats?.openMicros, yearLowMicros: detail.stats?.yearLowMicros,
+                    yearHighMicros: detail.stats?.yearHighMicros, heldByCabals: detail.stats?.heldByCabals)
         )
     }
 
@@ -317,6 +295,7 @@ public final class AssetDetailClientModel {
 extension AssetChartRange {
     var moveLabel: String {
         switch self {
+        case .oneHour: "Past hour"
         case .oneDay: "Past day"
         case .oneWeek: "Past week"
         case .oneMonth: "Past month"

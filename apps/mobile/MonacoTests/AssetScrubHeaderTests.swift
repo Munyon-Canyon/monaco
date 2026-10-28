@@ -1,4 +1,5 @@
 import Foundation
+import MonacoAPI
 import MonacoCore
 import Testing
 
@@ -98,5 +99,31 @@ struct AssetScrubHeaderTests {
         #expect(Self.barHeader(3, chart: Self.series) == nil)
         #expect(Self.barHeader(-1, chart: Self.series) == nil)
         #expect(Self.barHeader(0, chart: nil) == nil)
+    }
+
+    @Test func theHeaderReadsNameAndPriceAndTodaysMove() throws {
+        let detail = try Self.detail(Components.Schemas.AssetDetail.nvda, priceMicros: 220_000_000, changeBps: 418)
+
+        #expect(
+            AssetDetailHeader.spokenSummary(detail: detail, scrub: nil)
+                == "NVIDIA, 220 dollars, up 8 dollars 82, 4.18 percent today")
+    }
+
+    @Test func scrubbingTheChartReadsThePointInsteadOfToday() throws {
+        let detail = try Self.detail(Components.Schemas.AssetDetail.nvda, priceMicros: 220_000_000, changeBps: 418)
+        let scrub = try #require(Self.header(1))
+
+        #expect(AssetDetailHeader.spokenSummary(detail: detail, scrub: scrub) == "NVIDIA, $99.23, Sat, Aug 15")
+    }
+
+    private static func detail(
+        _ wire: Components.Schemas.AssetDetail, priceMicros: Int64, changeBps: Int32
+    ) throws -> AssetDetailPresentation {
+        var wire = wire
+        wire.priceMicros = priceMicros
+        wire.changeBps = changeBps
+        wire.displayName = "NVIDIA"
+        let model = AssetDetailClientModel(sampleDetail: wire, chart: nil)
+        return try #require(model.detail)
     }
 }

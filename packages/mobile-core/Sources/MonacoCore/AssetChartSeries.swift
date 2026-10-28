@@ -377,10 +377,10 @@ public enum ChartScrubLabel {
     /// is how people read a clock, 24-hour where it is not.
     private static func template(for range: AssetChartRange, intervalSeconds: Int?) -> String {
         if let intervalSeconds, intervalSeconds < 86_400 {
-            return range == .oneDay ? "EEEjmm" : "EEEMMMdjmm"
+            return range == .oneDay || range == .oneHour ? "EEEjmm" : "EEEMMMdjmm"
         }
         switch range {
-        case .oneDay: return "EEEjmm"
+        case .oneHour, .oneDay: return "EEEjmm"
         case .oneWeek, .oneMonth, .threeMonths, .sixMonths: return "EEEMMMd"
         case .oneYear, .all: return "MMMdyyyy"
         }
