@@ -5,6 +5,8 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -351,4 +353,90 @@ func globMatch(pattern, path string) bool {
 	b.WriteString("$")
 	ok, err := regexp.MatchString(b.String(), path)
 	return err == nil && ok
+}
+
+func TestCIPathFilter_aStaleBranchDiffsFromItsMergeBase(t *testing.T) {
+	script := stackedStepScript(t)
+	git := func(dir string, args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	commit := func(dir, path string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, path)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, path), []byte(path), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		git(dir, "add", ".")
+		git(dir, "commit", "-m", path)
+	}
+	origin := t.TempDir()
+	git(origin, "init", "-b", "staging")
+	commit(origin, "README.md")
+	cut := git(origin, "rev-parse", "HEAD")
+	git(origin, "checkout", "-b", "pr")
+	commit(origin, "apps/backend/internal/x/x.go")
+	git(origin, "checkout", "staging")
+	commit(origin, "apps/mobile/App.swift")
+	clone := t.TempDir()
+	git(clone, "clone", origin, ".")
+	git(clone, "checkout", "pr")
+
+	run := func(baseRef string) string {
+		t.Helper()
+		out := filepath.Join(t.TempDir(), "out")
+		cmd := exec.Command("bash", "-c", script)
+		cmd.Dir = clone
+		cmd.Env = append(os.Environ(), "BASE_REF="+baseRef, "TRUNK=staging", "GITHUB_OUTPUT="+out)
+		if b, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("stacked step: %v\n%s", err, b)
+		}
+		got, err := os.ReadFile(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(got)
+	}
+
+	got := run("staging")
+	if !strings.Contains(got, "base="+cut+"\n") || !strings.Contains(got, "stacked=false\n") {
+		t.Fatalf("unstacked PR outputs = %q, want base=%s stacked=false", got, cut)
+	}
+	diff := git(clone, "diff", "--name-only", cut, "HEAD")
+	if diff != "apps/backend/internal/x/x.go" {
+		t.Fatalf("diff from the merge base = %q", diff)
+	}
+	if got := run(""); strings.Contains(got, "base=") || strings.Contains(got, "unknown=") {
+		t.Fatalf("a run with no PR base wrote %q", got)
+	}
+}
+
+func stackedStepScript(t *testing.T) string {
+	t.Helper()
+	text := readRepo(t, repoRoot(t), ".github/workflows/ci-jobs.yml")
+	_, after, ok := strings.Cut(text, "id: stacked\n")
+	if !ok {
+		t.Fatal("ci-jobs.yml has no stacked step")
+	}
+	_, after, ok = strings.Cut(after, "run: |\n")
+	if !ok {
+		t.Fatal("the stacked step has no run block")
+	}
+	var lines []string
+	for _, line := range strings.Split(after, "\n") {
+		if line != "" && !strings.HasPrefix(line, "          ") {
+			break
+		}
+		lines = append(lines, strings.TrimPrefix(line, "          "))
+	}
+	return strings.Join(lines, "\n")
 }
