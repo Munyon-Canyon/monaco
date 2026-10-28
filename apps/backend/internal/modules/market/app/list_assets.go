@@ -33,9 +33,18 @@ const (
 	FilterInCabals Filter = "in_cabals"
 )
 
+type Sort string
+
+const (
+	SortSymbol Sort = "symbol"
+	SortName   Sort = "name"
+	SortPrice  Sort = "price"
+)
+
 type ListRequest struct {
 	Q      string
 	Filter Filter
+	Sort   Sort
 	Limit  int
 	Cursor string
 }
@@ -62,9 +71,14 @@ type Lister interface {
 	Handle(context.Context, ListRequest) (Page, error)
 }
 
-type catalogReader interface {
+type pageReader interface {
 	ListAssetsBySymbol(context.Context, sqlc.ListAssetsBySymbolParams) ([]sqlc.Asset, error)
+	ListAssetsByName(context.Context, sqlc.ListAssetsByNameParams) ([]sqlc.Asset, error)
 	ListAssetsByRank(context.Context, sqlc.ListAssetsByRankParams) ([]sqlc.Asset, error)
+}
+
+type catalogReader interface {
+	pageReader
 	NewestSamples(context.Context, sqlc.NewestSamplesParams) ([]sqlc.NewestSamplesRow, error)
 	FirstSamplesSince(context.Context, sqlc.FirstSamplesSinceParams) ([]sqlc.FirstSamplesSinceRow, error)
 	SparklineCloses(context.Context, sqlc.SparklineClosesParams) ([]sqlc.SparklineClosesRow, error)
@@ -84,7 +98,7 @@ type ListAssets struct {
 	clock    clock.Clock
 	catalog  assetLister
 	hot      []HotMints
-	ranked   moversBook
+	ranked   tickBook
 	holders  HolderCounts
 	held     holderBook
 	profiles preIPOReader
@@ -100,16 +114,20 @@ func NewListAssets(db sqlc.DBTX, c clock.Clock, hot ...HotMints) *ListAssets {
 type listQuery struct {
 	q      string
 	filter Filter
+	sort   Sort
 	limit  int32
 	cursor pageCursor
 }
 
 type pageCursor struct {
-	ok     bool
-	move   int32
-	symbol string
-	rank   int16
-	id     uuid.UUID
+	ok       bool
+	move     int32
+	symbol   string
+	rank     int16
+	name     string
+	price    uint64
+	unpriced bool
+	id       uuid.UUID
 }
 
 func (l *ListAssets) Handle(ctx context.Context, req ListRequest) (Page, error) {
@@ -117,12 +135,8 @@ func (l *ListAssets) Handle(ctx context.Context, req ListRequest) (Page, error) 
 	if err != nil {
 		return Page{}, err
 	}
-	if q.filter == FilterMovers {
-		items, next, moversErr := l.movers(ctx, q, l.clock.Now())
-		if moversErr != nil {
-			return Page{}, moversErr
-		}
-		return Page{Items: items, NextCursor: next}, nil
+	if q.filter == FilterMovers || q.sort == SortPrice {
+		return l.rankedPage(ctx, q)
 	}
 	if q.filter == FilterInCabals {
 		items, startersErr := l.starters(ctx, q, l.clock.Now())
@@ -152,9 +166,17 @@ func (l *ListAssets) Handle(ctx context.Context, req ListRequest) (Page, error) 
 	}
 	page := Page{Items: items}
 	if more {
-		page.NextCursor = encodeCursor(q.filter, assets[len(assets)-1])
+		page.NextCursor = encodeCursor(q.filter, q.sort, assets[len(assets)-1])
 	}
 	return page, nil
+}
+
+func (l *ListAssets) rankedPage(ctx context.Context, q listQuery) (Page, error) {
+	items, next, err := l.ranking(ctx, q, l.clock.Now())
+	if err != nil {
+		return Page{}, err
+	}
+	return Page{Items: items, NextCursor: next}, nil
 }
 
 func (l *ListAssets) page(ctx context.Context, q listQuery) ([]sqlc.Asset, error) {
@@ -172,6 +194,16 @@ func (l *ListAssets) page(ctx context.Context, q listQuery) ([]sqlc.Asset, error
 	kind := ""
 	if q.filter == FilterPreIPO {
 		kind = string(domain.KindPreIPO)
+	}
+	if q.sort == SortName {
+		rows, err := l.read.ListAssetsByName(ctx, sqlc.ListAssetsByNameParams{
+			Kind: kind, Q: q.q, Prefix: prefix, Contains: contains, HasCursor: q.cursor.ok,
+			CursorName: q.cursor.name, CursorID: q.cursor.id, RowLimit: q.limit + 1,
+		})
+		if err != nil {
+			return nil, errs.Wrap(err, errs.CodeOf(err), "market.ListAssets")
+		}
+		return rows, nil
 	}
 	rows, err := l.read.ListAssetsBySymbol(ctx, sqlc.ListAssetsBySymbolParams{
 		Kind: kind, Q: q.q, Prefix: prefix, Contains: contains, HasCursor: q.cursor.ok,
@@ -200,11 +232,25 @@ func normalize(req ListRequest) (listQuery, error) {
 			limit = starterDefault
 		}
 	}
-	cur, err := decodeCursor(filter, req.Cursor)
+	sort, err := parseSort(req.Sort, filter)
 	if err != nil {
 		return listQuery{}, err
 	}
-	return listQuery{q: strings.TrimSpace(req.Q), filter: filter, limit: limit, cursor: cur}, nil
+	cur, err := decodeCursor(filter, sort, req.Cursor)
+	if err != nil {
+		return listQuery{}, err
+	}
+	return listQuery{q: strings.TrimSpace(req.Q), filter: filter, sort: sort, limit: limit, cursor: cur}, nil
+}
+
+func parseSort(raw Sort, filter Filter) (Sort, error) {
+	if raw == "" {
+		return SortSymbol, nil
+	}
+	if filter != FilterAll || (raw != SortSymbol && raw != SortName && raw != SortPrice) {
+		return "", errs.New(errs.CodeInvalidInput, "market.ListAssets", slog.String("sort", string(raw)))
+	}
+	return raw, nil
 }
 
 func parseFilter(raw Filter) (Filter, error) {
@@ -233,16 +279,19 @@ func like(q string) (string, string) {
 	return esc + "%", "%" + esc + "%"
 }
 
-func encodeCursor(filter Filter, last domain.Asset) string {
+func encodeCursor(filter Filter, sort Sort, last domain.Asset) string {
 	head := "s" + last.Symbol
 	if filter == FilterPopular {
 		head = "r" + strconv.FormatInt(int64(last.PopularRank), 10)
+	}
+	if sort == SortName {
+		head = "n:" + strings.ToLower(last.DisplayName)
 	}
 	raw := head + "\x00" + last.ID.String()
 	return base64.RawURLEncoding.EncodeToString([]byte(raw))
 }
 
-func decodeCursor(filter Filter, raw string) (pageCursor, error) {
+func decodeCursor(filter Filter, sort Sort, raw string) (pageCursor, error) {
 	if raw == "" {
 		return pageCursor{}, nil
 	}
@@ -258,11 +307,15 @@ func decodeCursor(filter Filter, raw string) (pageCursor, error) {
 	if err != nil {
 		return pageCursor{}, errs.Wrap(err, errs.CodeInvalidInput, "market.cursor")
 	}
-	return cursorOf(filter, head, parsed)
+	return cursorOf(filter, sort, head, parsed)
 }
 
-func cursorOf(filter Filter, head string, id uuid.UUID) (pageCursor, error) {
+func cursorOf(filter Filter, sort Sort, head string, id uuid.UUID) (pageCursor, error) {
 	switch {
+	case sort == SortName:
+		return decodeNameCursor(head, id)
+	case sort == SortPrice:
+		return decodePriceCursor(head, id)
 	case filter == FilterMovers && head[0] == 'm':
 		return decodeMoverCursor(head, id)
 	case filter == FilterPopular && head[0] == 'r':
@@ -275,6 +328,13 @@ func cursorOf(filter Filter, head string, id uuid.UUID) (pageCursor, error) {
 		return pageCursor{ok: true, symbol: head[1:], id: id}, nil
 	}
 	return pageCursor{}, errs.New(errs.CodeInvalidInput, "market.cursor")
+}
+
+func decodeNameCursor(head string, id uuid.UUID) (pageCursor, error) {
+	if !strings.HasPrefix(head, "n:") {
+		return pageCursor{}, errs.New(errs.CodeInvalidInput, "market.cursor")
+	}
+	return pageCursor{ok: true, name: head[2:], id: id}, nil
 }
 
 func assetsOf(rows []sqlc.Asset) ([]domain.Asset, error) {

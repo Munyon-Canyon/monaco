@@ -23,8 +23,8 @@ func TestListAssets_rejectsABadRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 	asset := domain.Asset{ID: assetID, Symbol: "AAPLx", PopularRank: 1}
-	popular := encodeCursor(FilterPopular, asset)
-	symbol := encodeCursor(FilterAll, asset)
+	popular := encodeCursor(FilterPopular, SortSymbol, asset)
+	symbol := encodeCursor(FilterAll, SortSymbol, asset)
 	cases := []ListRequest{
 		{Filter: "nope"},
 		{Limit: -1},
@@ -50,6 +50,7 @@ func TestListAssets_rejectsABadRequest(t *testing.T) {
 
 type reader struct {
 	symbol func() ([]sqlc.Asset, error)
+	name   func() ([]sqlc.Asset, error)
 	rank   func() ([]sqlc.Asset, error)
 	newest func() ([]sqlc.NewestSamplesRow, error)
 	first  func() ([]sqlc.FirstSamplesSinceRow, error)
@@ -62,6 +63,13 @@ func (r reader) ListAssetsBySymbol(context.Context, sqlc.ListAssetsBySymbolParam
 		return []sqlc.Asset{}, nil
 	}
 	return r.symbol()
+}
+
+func (r reader) ListAssetsByName(context.Context, sqlc.ListAssetsByNameParams) ([]sqlc.Asset, error) {
+	if r.name == nil {
+		return []sqlc.Asset{}, nil
+	}
+	return r.name()
 }
 
 func (r reader) ListAssetsByRank(context.Context, sqlc.ListAssetsByRankParams) ([]sqlc.Asset, error) {

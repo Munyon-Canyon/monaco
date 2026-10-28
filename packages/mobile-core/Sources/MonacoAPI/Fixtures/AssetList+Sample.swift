@@ -25,6 +25,16 @@ extension Components.Schemas.AssetList {
         assets: [.googl, .unpriced],
         nextCursor: "all-next"
     )
+
+    public static let nameOrderedSample = Self(
+        assets: [.amd, .amzn, .msft, .nflx, .tsla],
+        nextCursor: nil
+    )
+
+    public static let priceOrderedSample = Self(
+        assets: [.nflx, .msft, .tsla, .amzn, .amd],
+        nextCursor: nil
+    )
 }
 
 extension Components.Schemas.AssetSummary {

@@ -265,6 +265,27 @@ func (e GetAssetsParamsFilter) Valid() bool {
 	}
 }
 
+// Defines values for GetAssetsParamsSort.
+const (
+	Name   GetAssetsParamsSort = "name"
+	Price  GetAssetsParamsSort = "price"
+	Symbol GetAssetsParamsSort = "symbol"
+)
+
+// Valid indicates whether the value is a known member of the GetAssetsParamsSort enum.
+func (e GetAssetsParamsSort) Valid() bool {
+	switch e {
+	case Name:
+		return true
+	case Price:
+		return true
+	case Symbol:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetAssetChartParamsRange.
 const (
 	GetAssetChartParamsRangeALL GetAssetChartParamsRange = "ALL"
@@ -916,6 +937,9 @@ type GetAssetsParams struct {
 	// Filter Which tradable assets to return, and how to order them.
 	Filter *GetAssetsParamsFilter `form:"filter,omitempty" json:"filter,omitempty"`
 
+	// Sort Order of `filter=all`: `symbol` (default), `name` A to Z by display name, `price` highest first. Other filters have their own order.
+	Sort *GetAssetsParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+
 	// Limit Page size. Defaults to 20 and cannot exceed 50.
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 
@@ -925,6 +949,9 @@ type GetAssetsParams struct {
 
 // GetAssetsParamsFilter defines parameters for GetAssets.
 type GetAssetsParamsFilter string
+
+// GetAssetsParamsSort defines parameters for GetAssets.
+type GetAssetsParamsSort string
 
 // GetAssetChartParams defines parameters for GetAssetChart.
 type GetAssetChartParams struct {
@@ -1003,6 +1030,19 @@ func (siw *ServerInterfaceWrapper) GetAssets(w http.ResponseWriter, r *http.Requ
 			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "filter"})
 		} else {
 			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "filter", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", r.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort", Err: err})
 		}
 		return
 	}

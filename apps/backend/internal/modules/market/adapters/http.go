@@ -114,6 +114,9 @@ func listRequest(p api.GetAssetsParams) app.ListRequest {
 	if p.Filter != nil {
 		out.Filter = app.Filter(*p.Filter)
 	}
+	if p.Sort != nil {
+		out.Sort = app.Sort(*p.Sort)
+	}
 	if p.Limit != nil {
 		out.Limit = *p.Limit
 	}
