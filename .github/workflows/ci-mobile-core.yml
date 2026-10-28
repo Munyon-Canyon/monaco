@@ -15,6 +15,10 @@ on:
         description: Run the feature generator probe. The staging run always does.
         type: boolean
         default: false
+      stage:
+        description: The caller's stage. On staging the base checks diff against the tested commit's parent.
+        type: string
+        default: ''
   workflow_dispatch:
     inputs:
       save-cache:
@@ -141,7 +145,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: ${{ inputs.stage == 'staging' && 2 || 0 }}
 
       - name: Test the growth check
         run: python3 scripts/test_check_legacy_growth.py
@@ -150,6 +154,7 @@ jobs:
       # added after it.
       - name: Resolve the base and labels
         env:
+          PUSH_SHA: ${{ inputs.stage == 'staging' && github.sha || '' }}
           FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH || 'main' }}
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -180,10 +185,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: ${{ inputs.stage == 'staging' && 2 || 0 }}
 
       - name: Resolve the base and labels
         env:
+          PUSH_SHA: ${{ inputs.stage == 'staging' && github.sha || '' }}
           FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH || 'main' }}
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
