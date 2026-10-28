@@ -582,8 +582,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      # A stacked PR's base is the PR below it. The filters diff base..HEAD, so from the merge-base with the
-      # trunk they see the whole stack's files, not only this PR's. Checkout fetched every branch.
+      # The filters diff base..HEAD from the merge-base, never from the branch tip of the base: a branch cut before
+      # the trunk took other changes would otherwise see those files as its own. A stacked PR's base is the PR below
+      # it, so it uses the merge-base with the trunk and sees the whole stack's files. Checkout fetched every branch.
       - name: Is this PR stacked on another PR
         id: stacked
         if: steps.top.outputs.skip != 'true'
@@ -592,12 +593,16 @@ jobs:
           TRUNK: ${{ vars.FEATURE_BRANCH || 'main' }}
         run: |
           stacked=false
+          against="$BASE_REF"
           if [[ -n "$BASE_REF" && "$BASE_REF" != "$TRUNK" && "$BASE_REF" != main ]]; then
             stacked=true
-            if base="$(git merge-base HEAD "origin/$TRUNK")"; then
+            against="$TRUNK"
+          fi
+          if [[ -n "$against" ]]; then
+            if base="$(git merge-base HEAD "origin/$against")"; then
               echo "base=$base" | tee -a "$GITHUB_OUTPUT"
             else
-              echo "::warning::no merge-base with $TRUNK, so every job runs"
+              echo "::warning::no merge-base with $against, so every job runs"
               echo "unknown=true" >>"$GITHUB_OUTPUT"
             fi
           fi
