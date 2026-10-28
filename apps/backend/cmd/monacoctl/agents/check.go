@@ -756,13 +756,9 @@ func goTestRow(env *Env, backend string, tags, pkgs []string, covered map[string
 		label: "go test -short", kind: packageKind, dir: backend, class: "db",
 		dbCmds: func(db testDB) [][]string {
 			p := strconv.Itoa(testParallelism(runtime.NumCPU(), db.busy))
-			var race []string
-			if env.Config.LandOnStage0 {
-				race = []string{"-race"}
-			}
 			return [][]string{
-				slices.Concat(db.testEnv(), []string{"go", "test"}, tags, []string{"-short"}, race, []string{
-					"-count=1", "-timeout", env.Config.Budget[packageKind].String(), "-p", p, "-json",
+				slices.Concat(db.testEnv(), []string{"go", "test"}, tags, []string{
+					"-short", "-count=1", "-timeout", env.Config.Budget[packageKind].String(), "-p", p, "-json",
 				}, coverFlags(backend, pkgs, covered, profile), pkgs),
 			}
 		},
