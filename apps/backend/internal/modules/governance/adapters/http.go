@@ -21,6 +21,7 @@ import (
 type HTTP struct {
 	Propose     *app.ProposeTradeHandler
 	Vote        *app.CastVoteHandler
+	RetractVote *app.RetractVoteHandler
 	Withdraw    *app.WithdrawProposalHandler
 	Void        *app.VoidProposalHandler
 	Admin       *app.AdminReads
@@ -52,6 +53,25 @@ func (h HTTP) PostProposalVote(
 		ProposalId: got.ProposalID.UUID(),
 		Status:     api.ProposalStatus(got.Status),
 		MyBallot:   api.BallotChoice(got.MyBallot),
+		Tally:      wireTally(got.Tally),
+		UndoUntil:  got.UndoUntil,
+	}, nil
+}
+
+func (h HTTP) DeleteProposalVote(
+	ctx context.Context, req api.DeleteProposalVoteRequestObject,
+) (api.DeleteProposalVoteResponseObject, error) {
+	voter, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	got, err := h.RetractVote.Handle(ctx, app.RetractVote{ProposalID: ids.ProposalIDFrom(req.Id), VoterID: voter})
+	if err != nil {
+		return nil, err
+	}
+	return api.DeleteProposalVote200JSONResponse{
+		ProposalId: got.ProposalID.UUID(),
+		Status:     api.ProposalStatus(got.Status),
 		Tally:      wireTally(got.Tally),
 	}, nil
 }

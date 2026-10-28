@@ -448,7 +448,8 @@ func (r *pushRig) insertProposal(t *testing.T, refs proposalRefs, voters ...ids.
 		VALUES ($1, $2, $3, 'buy', 'AAPLx', 'mint', $4, 105000000, 'majority', 'passed', $5, $6, $6)`,
 		refs.proposal, refs.cabal.UUID(), refs.proposer.UUID(), buyMicros, r.clock.Now().Add(time.Hour), r.clock.Now())
 	for _, voter := range voters {
-		r.exec(t, `INSERT INTO votes (proposal_id, voter_id, choice, cast_at) VALUES ($1, $2, 'yes', $3)`,
+		r.exec(t, `INSERT INTO votes (proposal_id, voter_id, choice, cast_at, first_cast_at)
+			VALUES ($1, $2, 'yes', $3, $3)`,
 			refs.proposal, voter.UUID(), r.clock.Now())
 	}
 }

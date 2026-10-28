@@ -270,6 +270,34 @@ func TestCastVote_ChangeBallotWhileOpen(t *testing.T) {
 	wantResult(t, got, domain.StatusOpen, app.Tally{Yes: 1, Voters: 3, Needed: 2}, domain.ChoiceYes)
 }
 
+func TestCastVote_undoUntilOnlyOnAnUnchangedOpenBallot(t *testing.T) {
+	t.Parallel()
+	d := newVoteDB(t)
+	h := d.handler()
+	p, v := d.open(t, 3)
+	first := d.mustCast(t, h, p.ID, v[0], domain.ChoiceYes)
+	if want := d.clk.Now().Add(domain.UndoWindow); first.UndoUntil == nil || !first.UndoUntil.Equal(want) {
+		t.Fatalf("first ballot undo_until = %v, want %s", first.UndoUntil, want)
+	}
+	d.clk.Advance(time.Second)
+	if changed := d.mustCast(t, h, p.ID, v[0], domain.ChoiceNo); changed.UndoUntil != nil {
+		t.Fatalf("changed ballot undo_until = %v, want nil", changed.UndoUntil)
+	}
+	if settled := d.mustCast(t, h, p.ID, v[1], domain.ChoiceYes); settled.Status != domain.StatusOpen ||
+		settled.UndoUntil == nil {
+		t.Fatalf("second voter's ballot = %+v, want open with an undo window", settled)
+	}
+	if passed := d.mustCast(t, h, p.ID, v[2], domain.ChoiceYes); passed.Status != domain.StatusPassed ||
+		passed.UndoUntil != nil {
+		t.Fatalf("deciding ballot = %+v, want passed with no undo window", passed)
+	}
+	q, w := d.openUnder(t, 2, "unanimous")
+	if failed := d.mustCast(t, h, q.ID, w[0], domain.ChoiceNo); failed.Status != domain.StatusFailed ||
+		failed.UndoUntil != nil {
+		t.Fatalf("failing ballot = %+v, want failed with no undo window", failed)
+	}
+}
+
 func TestCastVote_VoterSetFrozen(t *testing.T) {
 	t.Parallel()
 	d := newVoteDB(t)

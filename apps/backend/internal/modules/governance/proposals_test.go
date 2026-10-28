@@ -186,6 +186,15 @@ func TestBallots_upsertKeepsOnePerVoterAndCountsOnlyTheFrozenSet(t *testing.T) {
 	other := d.buy(a)
 	d.insert(t, other)
 	d.ballot(t, p.ID, a, "yes")
+	var firstCastAt time.Time
+	var changed bool
+	if err := d.pool.QueryRow(t.Context(), `SELECT first_cast_at, changed FROM votes
+		WHERE proposal_id = $1 AND voter_id = $2`, p.ID, a).Scan(&firstCastAt, &changed); err != nil {
+		t.Fatal(err)
+	}
+	if !firstCastAt.Equal(d.now) || changed {
+		t.Fatalf("fixture ballot first_cast_at %s, changed %v, want %s and false", firstCastAt, changed, d.now)
+	}
 	d.ballot(t, p.ID, b, "yes")
 	d.ballot(t, p.ID, outsider, "yes")
 	d.ballot(t, other.ID, a, "no")

@@ -46,7 +46,7 @@ Only `proposals`, `proposal_voters` and `votes` are governance tables. The other
 
 **`proposal_voters`**: `proposal_id`, `voter_id`. The cabal's voter set, copied from the cabal module's query port in the `ProposeTrade` transaction. Members who join or leave mid-vote do not change it, so the number of yes votes a proposal needs is fixed when it opens.
 
-**`votes`**: `proposal_id`, `voter_id`, `choice` (`yes`/`no`), `cast_at`. One ballot per voter per proposal. A voter may change their ballot while the proposal is `open` (upsert on the primary key); ballots are frozen once status leaves `open`.
+**`votes`**: `proposal_id`, `voter_id`, `choice` (`yes`/`no`), `cast_at`, `first_cast_at`, `changed`. One ballot per voter per proposal. `first_cast_at` never moves, and `changed` turns true when a re-cast flips the side and never turns back. A voter may change their ballot while the proposal is `open` (upsert on the primary key); ballots are frozen once status leaves `open`.
 
 **Comments**: a proposal's comments are the FeedComments on its `proposal` feed item ([feed.md](feed.md#comments)), owned by the `social` module. Nothing migrates from the old `proposal_comments` table: the new backend starts on an empty database. Comments stay open after the proposal closes so people can discuss the result. Comments and the proposal's chat thread stay separate streams.
 
@@ -100,6 +100,7 @@ Routes follow the [`cabal` naming](backend-platform.md#decided). Every mutating 
 | `GET /v1/proposals/{id}` | query | Detail: proposal, tally, the caller's ballot, who voted, comment count, linked swap and its state (from trading's query port). |
 | `DELETE /v1/proposals/{id}` | `WithdrawProposal` ([flow 13](backend-platform.md#flows)) | Proposer withdraws; nobody else can. Allowed only while `open` and before any other member has voted. Soft delete to `withdrawn`. |
 | `POST /v1/proposals/{id}/votes` | `CastVote` | Cast or change a ballot. |
+| `DELETE /v1/proposals/{id}/votes` | `RetractVote` | Undo the caller's ballot within 15 seconds of its first cast, while the proposal is `open` and the ballot has never changed side. |
 | `GET/POST /v1/proposals/{id}/comments` | `CreateComment` (social module, [flow 21](backend-platform.md#flows)) | Comment thread on the proposal's feed item. Members only until moderation ships. |
 
 There is no `PATCH` for trade parameters. Changing what the cabal is voting on after votes are cast would invalidate those votes; withdraw and re-propose instead.

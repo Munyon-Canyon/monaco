@@ -36,6 +36,7 @@ type CastVoteResult struct {
 	Status     domain.Status
 	Tally      Tally
 	MyBallot   domain.Choice
+	UndoUntil  *time.Time
 }
 
 type CastVoteHandler struct {
@@ -109,6 +110,7 @@ func (h *CastVoteHandler) vote(
 	var decided events.Event
 	switch domain.Tally(rule, voters, yes, no) {
 	case domain.Undecided:
+		out.UndoUntil = undoUntil(n.FirstCastAt, n.Changed)
 		return out, nil
 	case domain.Passed:
 		comparison, err := decodeComparison(p.PriceComparison)
@@ -125,6 +127,14 @@ func (h *CastVoteHandler) vote(
 		return CastVoteResult{}, err
 	}
 	return out, tx.Events.Append(ctx, decided)
+}
+
+func undoUntil(firstCastAt time.Time, changed bool) *time.Time {
+	if changed {
+		return nil
+	}
+	until := firstCastAt.Add(domain.UndoWindow).UTC()
+	return &until
 }
 
 func mayVote(p sqlc.LockProposalRow, now time.Time, op string) error {

@@ -155,6 +155,7 @@ extension Components.Schemas.ErrorCode {
         case .tradeNotStarted: true
         case .txnNotFound: true
         case .unauthorized: true
+        case .undoExpired: true
         case .unknownAsset: true
         case .upstreamTimeout: true
         case .upstreamUnavailable: true
@@ -162,6 +163,7 @@ extension Components.Schemas.ErrorCode {
         case .userDeleted: true
         case .userNotFound: true
         case .versionConflict: true
+        case .voteNotFound: true
         case .walletMismatch: true
         case .withdrawNotAllowed: true
         case .withdrawToOwnWallet: true
