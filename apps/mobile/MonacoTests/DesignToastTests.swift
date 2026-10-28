@@ -117,94 +117,61 @@ struct MonacoToastCountdownTests {
     }
 }
 
-struct MonacoToastPlacementTests {
-    /// One line of `.body` at the default text size.
-    private let defaultLine = MonacoToastPlacement.bottomCTALabelLineHeight
-    /// One line of `.body` at AX5: 17pt type becomes 53pt, at roughly 1.24 line height.
-    private let accessibilityLine: CGFloat = 65.5
+struct MonacoToastActionTests {
+    private let now = Date(timeIntervalSinceReferenceDate: 1_000)
 
-    private var bar: CGFloat { MonacoToastPlacement.bottomCTAButtonHeight + MonacoToastPlacement.bottomCTAChrome }
-
-    /// The inset is sized against the button's own floor, not a second copy of the number.
-    @Test func theBarHeightComesFromTheButtonItself() {
-        #expect(MonacoToastPlacement.bottomCTAButtonHeight == MonacoButtonMetrics.minimumHeight)
+    private func undo(expiresIn seconds: TimeInterval? = nil) -> MonacoToastAction {
+        MonacoToastAction(title: "Undo", expiresAt: seconds.map { now.addingTimeInterval($0) }) {}
     }
 
-    @Test func screenBottomIgnoresTheBottomBar() {
-        #expect(
-            MonacoToastPlacement.screenBottom.bottomInset(scaledLabelLineHeight: defaultLine)
-                == MonacoToastPlacement.gap)
-        #expect(
-            MonacoToastPlacement.screenBottom.bottomInset(scaledLabelLineHeight: accessibilityLine)
-                == MonacoToastPlacement.gap)
+    @Test func aToastWithAnActionStaysAtLeastFourSeconds() {
+        let plain = MonacoToastTiming.dwell(message: "Yes.", isSuccess: true, voiceOverRunning: false)
+        let withAction = MonacoToastTiming.dwell(
+            message: "Yes.", isSuccess: true, voiceOverRunning: false, action: undo(expiresIn: 15), now: now)
+        #expect(plain == MonacoToastTiming.successFloor)
+        #expect(withAction == MonacoToastTiming.actionFloor)
+        #expect(MonacoToastTiming.actionFloor == 4)
     }
 
-    @Test func aboveBottomCTAClearsTheBarAtTheDefaultTextSize() {
-        let inset = MonacoToastPlacement.aboveBottomCTA.bottomInset(scaledLabelLineHeight: defaultLine)
-        #expect(inset == bar + MonacoToastPlacement.gap)
-        #expect(inset >= 72)
+    @Test func theActionGoesAtItsExpiry() {
+        let action = undo(expiresIn: 15)
+        #expect(action.isAvailable(at: now))
+        #expect(action.isAvailable(at: now.addingTimeInterval(14.9)))
+        #expect(!action.isAvailable(at: now.addingTimeInterval(15)))
+        #expect(undo().isAvailable(at: now.addingTimeInterval(1_000_000)))
     }
 
-    /// The button is `max(floor, one line)`, so a bar does not grow at all until the line
-    /// outgrows the floor. The old model scaled the floor itself and started growing immediately.
-    @Test func theBarDoesNotGrowUntilTheLabelOutgrowsTheButtonFloor() {
-        let atDefault = MonacoToastPlacement.aboveBottomCTA.bottomInset(scaledLabelLineHeight: defaultLine)
-        let atLarge = MonacoToastPlacement.aboveBottomCTA.bottomInset(scaledLabelLineHeight: 40)
-        #expect(atLarge == atDefault)
+    @Test func voiceOverKeepsAnActionToastUntilItsExpiry() {
+        let dwell = MonacoToastTiming.dwell(
+            message: "Voted Yes. 6th of 8.", isSuccess: true, voiceOverRunning: true,
+            action: undo(expiresIn: 12), now: now)
+        #expect(dwell == 12)
+        let long = MonacoToastTiming.dwell(
+            message: "Voted Yes. 6th of 8.", isSuccess: true, voiceOverRunning: true,
+            action: undo(expiresIn: 60), now: now)
+        #expect(long == MonacoToastTiming.voiceOverCeiling)
     }
 
-    @Test func aboveBottomCTAGrowsWithTheLabelOnceItPassesTheFloor() {
-        let inset = MonacoToastPlacement.aboveBottomCTA.bottomInset(scaledLabelLineHeight: accessibilityLine)
-        let expectedBar = accessibilityLine + MonacoToastPlacement.bottomCTAChrome
-        #expect(inset == expectedBar + MonacoToastPlacement.gap)
+    @MainActor @Test func anActionRunsOnceAndDismisses() {
+        var gate = MonacoToastActionGate()
+        var performed = 0
+        var dismissed = 0
+        let first = gate.run(perform: { performed += 1 }, dismiss: { dismissed += 1 })
+        let second = gate.run(perform: { performed += 1 }, dismiss: { dismissed += 1 })
+        #expect(first)
+        #expect(!second)
+        #expect(performed == 1)
+        #expect(dismissed == 1)
     }
 
-    /// The overshoot this replaced: `@ScaledMetric` on the 50pt floor reached ~156pt at AX5, for a
-    /// bottom inset of ~188pt over a bar that is really about 86pt — the toast floated ~100pt
-    /// above the CTA. The bar grows by its label's line height, not in proportion to the floor.
-    @Test func theInsetDoesNotFloatAboveTheBarAtAccessibilitySizes() {
-        let inset = MonacoToastPlacement.aboveBottomCTA.bottomInset(scaledLabelLineHeight: accessibilityLine)
-        let realBar = accessibilityLine + MonacoToastPlacement.bottomCTAChrome
-        #expect(inset - realBar == MonacoToastPlacement.gap)
-        #expect(inset < 110, "the toast is floating above the bar again")
+    @Test func aTapOutsideTheActionDoesNotDismiss() {
+        #expect(!MonacoToastDismissal.tapOutsideTheActionDismisses)
+        #expect(MonacoToastDismissal.swipeDismisses(translation: -24.1, predicted: 0))
+        #expect(!MonacoToastDismissal.swipeDismisses(translation: -10, predicted: 0))
+        #expect(!MonacoToastDismissal.swipeDismisses(translation: 40, predicted: 80))
     }
 
-    /// Half of the overshoot was the *base* the modifier scaled, not the formula: `@ScaledMetric`
-    /// on the 50pt button floor gives ~156pt at AX5, for an inset of ~188pt over a bar that is
-    /// really ~86pt. A floor is a minimum to compare against, not a quantity to multiply. The base
-    /// is now a line of body text, which is what actually grows when the bar grows.
-    @Test func theScaledBaseIsALineOfTextNotTheButtonFloor() {
-        #expect(MonacoToastPlacement.bottomCTALabelLineHeight < MonacoToastPlacement.bottomCTAButtonHeight)
-
-        // Body type roughly triples between the default size and AX5 (17pt -> 53pt).
-        let ax5Factor: CGFloat = 3.12
-        let scaledLine = MonacoToastPlacement.bottomCTALabelLineHeight * ax5Factor
-        let scaledFloor = MonacoToastPlacement.bottomCTAButtonHeight * ax5Factor
-
-        #expect(MonacoToastPlacement.aboveBottomCTA.bottomInset(scaledLabelLineHeight: scaledLine) < 110)
-        // What the old base produced, kept here so the two models can be compared at a glance.
-        #expect(MonacoToastPlacement.aboveBottomCTA.bottomInset(scaledLabelLineHeight: scaledFloor) > 170)
-    }
-
-    @Test func aCallerInsetSizedForABarAlsoGrows() {
-        // The money screens pass 72, which was "12 + 50 + 8, plus a gap" at the default size.
-        let atDefault = MonacoToastPlacement.custom(72).bottomInset(scaledLabelLineHeight: defaultLine)
-        let scaled = MonacoToastPlacement.custom(72).bottomInset(scaledLabelLineHeight: accessibilityLine)
-        let growth = accessibilityLine - MonacoToastPlacement.bottomCTAButtonHeight
-        #expect(atDefault == 72)
-        #expect(scaled == 72 + growth)
-    }
-
-    @Test func aSmallCallerInsetIsLeftAlone() {
-        #expect(MonacoToastPlacement.custom(12).bottomInset(scaledLabelLineHeight: accessibilityLine) == 12)
-    }
-
-    /// The `.custom` threshold is a heuristic on the magnitude of the caller's number, so it
-    /// cannot tell a taller bar from a shorter one. Documented here so #398 has the case written
-    /// down rather than discovered.
-    @Test func aCallerInsetForATallerBarGetsTheSameGrowthAsAShortOne() {
-        let short = MonacoToastPlacement.custom(72).bottomInset(scaledLabelLineHeight: accessibilityLine) - 72
-        let tall = MonacoToastPlacement.custom(108).bottomInset(scaledLabelLineHeight: accessibilityLine) - 108
-        #expect(short == tall)
+    @Test func theToastSitsAtTheTop() {
+        #expect(MonacoToastLayout.alignment == .top)
     }
 }

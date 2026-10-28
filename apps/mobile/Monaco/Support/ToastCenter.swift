@@ -10,7 +10,6 @@ final class ToastCenter {
     private var shown: MonacoToast?
     @ObservationIgnored private var shownAt = Date.distantPast
     private let now: () -> Date
-    var bottomCTAs = 0
 
     init(now: @escaping () -> Date = Date.init) {
         self.now = now
@@ -38,10 +37,6 @@ final class ToastCenter {
     func show(success: String, link: MonacoToastLink? = nil, action: MonacoToastAction? = nil) {
         current = MonacoToast(message: success, isSuccess: true, link: link, action: action)
     }
-
-    func placement(requested: MonacoToastPlacement) -> MonacoToastPlacement {
-        requested == .screenBottom && bottomCTAs > 0 ? .aboveBottomCTA : requested
-    }
 }
 
 nonisolated struct TabToastHostKey: PreferenceKey {
@@ -53,16 +48,13 @@ nonisolated struct TabToastHostKey: PreferenceKey {
 }
 
 extension View {
-    func monacoToastCenter(
-        _ center: ToastCenter, placement: MonacoToastPlacement = .screenBottom, isEnabled: Bool = true
-    ) -> some View {
-        modifier(ToastCenterHost(center: center, placement: placement, isEnabled: isEnabled))
+    func monacoToastCenter(_ center: ToastCenter, isEnabled: Bool = true) -> some View {
+        modifier(ToastCenterHost(center: center, isEnabled: isEnabled))
     }
 }
 
 private struct ToastCenterHost: ViewModifier {
     @Bindable var center: ToastCenter
-    let placement: MonacoToastPlacement
     let isEnabled: Bool
 
     func body(content: Content) -> some View {
@@ -70,8 +62,7 @@ private struct ToastCenterHost: ViewModifier {
             Binding(
                 get: { isEnabled ? center.current : nil },
                 set: { center.current = $0 }
-            ),
-            placement: center.placement(requested: placement)
+            )
         )
     }
 }

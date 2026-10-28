@@ -279,7 +279,6 @@ struct BottomCTA<Content: View>: View {
     private let content: Content
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.displayScale) private var displayScale
-    @Environment(ToastCenter.self) private var toasts: ToastCenter?
 
     init(caption: String? = nil, @ViewBuilder content: () -> Content) {
         self.caption = caption
@@ -313,8 +312,6 @@ struct BottomCTA<Content: View>: View {
                 .fill(MonacoTheme.border)
                 .frame(height: 1 / displayScale)
         }
-        .onAppear { toasts?.bottomCTAs += 1 }
-        .onDisappear { toasts?.bottomCTAs -= 1 }
     }
 }
 
