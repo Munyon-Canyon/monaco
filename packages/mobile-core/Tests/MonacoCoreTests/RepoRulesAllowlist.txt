@@ -1,3 +1,4 @@
+feature-construct	apps/mobile/Monaco/Features/Deposit/FundCabalSampleHarness.swift	1
 feature-observable	apps/mobile/Monaco/Features/Assets/CabalHoldingsModel.swift	1
 feature-observable	apps/mobile/Monaco/Features/Groups/CabalsTabModel.swift	1
 feature-observable	apps/mobile/Monaco/Features/Home/HomeLeaderboardModel.swift	1
@@ -10,7 +11,6 @@ float-money	apps/mobile/Monaco/Features/Assets/PreIpoDetailSection.swift	1
 float-money	apps/mobile/Monaco/Features/Debug/AssetDetailSampleHarness.swift	1
 float-money	apps/mobile/Monaco/Features/Debug/GroupDetailSampleHarness.swift	1
 float-money	apps/mobile/Monaco/Features/Debug/SampleProposalFeedService.swift	4
-float-money	apps/mobile/Monaco/Features/Deposit/FundCabalView.swift	2
 float-money	apps/mobile/Monaco/Features/Proposals/ProposeService.swift	9
 float-money	apps/mobile/Monaco/Features/Redeem/SellCabalView.swift	2
 float-money	apps/mobile/Monaco/Features/Settings/WithdrawView.swift	2

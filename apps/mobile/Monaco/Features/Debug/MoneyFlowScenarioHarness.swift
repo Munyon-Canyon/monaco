@@ -25,27 +25,38 @@ final class FundFlowHarnessEntry: SampleHarnessEntry {
 private struct FundFlowScenarioSample: View {
     let scenario: Flow07Scenario
 
-    @Environment(ToastCenter.self) private var toasts
-    @State private var amountText = "250"
-
     var body: some View {
-        NavigationStack {
-            FundCabalContent(
-                cabalID: Funding.previewCabalID, cabalName: "Big Ballers", state: MoneyFlowScenarioFixture.balance,
-                amountText: $amountText, isSubmitting: false, onSubmit: {}, onRetry: {}, onAddMoney: {})
-        }
-        .tint(MonacoTheme.ink)
-        .task { await submit() }
+        FundCabalSampleHarness(amountText: "250", submits: true, server: scenario.server)
     }
+}
 
-    private func submit() async {
-        switch await Funding.preview(answering: scenario).submit(micros: 250_000_000) {
-        case .accepted:
-            break
-        case .refused(.needsMoney(let message)):
-            toasts.current = MonacoToast(message: message, action: MonacoToastAction(title: "Add money") {})
-        case .refused(.toast(let message)), .unconfirmed(let message):
-            toasts.current = MonacoToast(message: message)
+extension Flow07Scenario {
+    fileprivate var server: FundCabalSampleServer {
+        switch self {
+        case .invalidInput:
+            FundCabalSampleServer(
+                fund: .refused(status: 400, code: "invalid_input", message: "The request is not valid."))
+        case .notCabalMember:
+            FundCabalSampleServer(
+                fund: .refused(status: 403, code: "not_cabal_member", message: "You are not a member of this cabal."))
+        case .insufficientFunds:
+            FundCabalSampleServer(
+                fund: .refused(status: 422, code: "insufficient_funds", message: "Not enough in your account balance."))
+        case .cabalPaused:
+            FundCabalSampleServer(fund: .refused(status: 409, code: "cabal_paused", message: "This cabal is paused."))
+        case .cabalBanned:
+            FundCabalSampleServer(
+                fund: .refused(
+                    status: 422, code: "cabal_banned",
+                    message: "This cabal is banned. Members can still cash out and leave."))
+        case .potValueZero:
+            FundCabalSampleServer(
+                fund: .refused(status: 409, code: "pot_value_zero", message: "The pot has no value right now."))
+        case .privyUnavailable:
+            FundCabalSampleServer(
+                fund: .refused(status: 503, code: "privy_unavailable", message: "Wallet signing is down. Try again."))
+        case .interrupted:
+            FundCabalSampleServer(fund: .dropped)
         }
     }
 }

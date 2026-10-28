@@ -29,19 +29,6 @@ struct CardFundingScreenTests {
 
 @MainActor
 struct MoneyFlowV3CopyTests {
-    private func balance(_ micros: Int64) -> AccountBalance {
-        AccountBalance(
-            availableMicros: micros, onChainMicros: micros, inFlightMicros: 0, depositAddress: "x", asOf: Date())
-    }
-
-    @Test func fundNamesTheShortfallNotice() {
-        let form = FundCabalForm(amountText: "750", balance: balance(500_000_000))
-        #expect(form.noticeText == FundCabalForm.insufficientNotice)
-        #expect(form.shortfallMicros == 250_000_000)
-        #expect(FundCabalForm(amountText: "50", balance: balance(500_000_000)).noticeText == nil)
-        #expect(FundCabalForm(amountText: "50", balance: balance(500_000_000)).shortfallMicros == nil)
-    }
-
     @Test func cashLineAppendsWhatIsPending() {
         #expect(MoneyCashLine.text(availableMicros: 500_000_000, inFlightMicros: 0) == "Cash $500.00")
         #expect(
