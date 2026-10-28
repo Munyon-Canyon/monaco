@@ -92,6 +92,7 @@ type HistoricalReader interface {
 type HistoryReader interface {
 	CabalContributionHistory(ctx context.Context, cabalID ids.CabalID) ([]ContributionPoint, error)
 	UserStakeHistory(ctx context.Context, userID ids.UserID) ([]StakePoint, error)
+	OwnershipBps(ctx context.Context, user ids.UserID) (map[ids.CabalID]int32, error)
 }
 
 type ReservationReader interface {

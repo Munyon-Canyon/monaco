@@ -40,6 +40,7 @@ type Queries struct {
 	signature signatureStore
 	wallet    walletLedgerStore
 	transit   transitStore
+	holders   holdersStore
 	catalog   app.MintResolver
 	prices    app.PriceReader
 	listings  app.ListingReader
@@ -105,6 +106,7 @@ func NewQueries(
 		signature: queries,
 		wallet:    queries,
 		transit:   queries,
+		holders:   queries,
 		catalog:   catalog,
 		prices:    prices,
 		clock:     c,
@@ -116,7 +118,7 @@ func (q *Queries) On(db sqlc.DBTX) *Queries {
 	on := *q
 	queries := sqlc.New(db)
 	on.q, on.pot, on.history, on.flows, on.funds = queries, queries, queries, queries, queries
-	on.reserved, on.signature, on.wallet, on.transit = queries, queries, queries, queries
+	on.reserved, on.signature, on.wallet, on.transit, on.holders = queries, queries, queries, queries, queries
 	return &on
 }
 

@@ -25,6 +25,8 @@ type HTTP struct {
 	Cards     app.CabalCards
 	Users     app.Users
 	Members   app.MemberCabals
+	Ownership app.Ownership
+	Roles     app.MemberRoles
 }
 
 var _ api.StrictServerInterface = HTTP{}
@@ -152,7 +154,9 @@ func (h HTTP) GetMyPortfolio(
 	if err != nil {
 		return nil, err
 	}
-	view, err := app.ReadPortfolio{User: user}.Run(ctx, h.Boards, h.Snapshots, h.Stakes, h.Cards)
+	view, err := app.ReadPortfolio{User: user}.Run(ctx, app.PortfolioPorts{
+		Boards: h.Boards, Latest: h.Snapshots, Stakes: h.Stakes, Cards: h.Cards, Ownership: h.Ownership, Roles: h.Roles,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -220,9 +224,11 @@ func wirePortfolio(view app.PortfolioView) (api.MyPortfolio, error) {
 		card := view.Cabals[row.CabalID]
 		card.ID = row.CabalID
 		ref := cabalRef(card)
+		member := view.Members[row.CabalID]
 		out.Cabals = append(out.Cabals, api.PortfolioCabal{
 			Cabal: ref, ValueMicros: int64(value), ShareUnits: int64(shares), NetContributedMicros: row.Net.Int64(),
 			PnlMicros: row.PnL.Int64(), ReturnBps: bpsOf(row.Return), SliceBps: int64(row.SliceBps),
+			OwnershipBps: row.OwnershipBps, Role: api.PortfolioCabalRole(member.Role), CanVote: member.CanVote,
 		})
 	}
 	return out, nil

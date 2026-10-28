@@ -1,6 +1,7 @@
 package fakes
 
 import (
+	"cmp"
 	"context"
 	"slices"
 	"sync"
@@ -9,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -204,6 +206,36 @@ func (f *Treasury) StakesOf(_ context.Context, user ids.UserID) ([]treasury.Stak
 		}
 	}
 	return stakes, nil
+}
+
+func (f *Treasury) OwnershipBps(_ context.Context, user ids.UserID) (map[ids.CabalID]int32, error) {
+	if err := f.Check("OwnershipBps"); err != nil {
+		return nil, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := map[ids.CabalID]int32{}
+	for _, mine := range f.stakes {
+		if mine.UserID != user || mine.ShareUnits.IsZero() {
+			continue
+		}
+		holders := slices.DeleteFunc(slices.Clone(f.stakes), func(s treasury.Stake) bool {
+			return s.CabalID != mine.CabalID
+		})
+		slices.SortFunc(holders, func(a, b treasury.Stake) int {
+			return cmp.Compare(a.UserID.String(), b.UserID.String())
+		})
+		units := make([]money.SharesUnits, len(holders))
+		for i, holder := range holders {
+			units[i] = holder.ShareUnits
+		}
+		bps, err := domain.SlicesBps(units)
+		if err != nil {
+			return nil, err
+		}
+		out[mine.CabalID] = bps[slices.IndexFunc(holders, func(s treasury.Stake) bool { return s.UserID == user })]
+	}
+	return out, nil
 }
 
 func (f *Treasury) OpenFund(_ context.Context, cabalID ids.CabalID, user ids.UserID) (bool, error) {

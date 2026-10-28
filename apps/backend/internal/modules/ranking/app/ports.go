@@ -71,3 +71,11 @@ type Ports struct {
 	Previous  PreviousReader
 	Snapshots RangeSnapshots
 }
+
+type Ownership interface {
+	OwnershipBps(context.Context, ids.UserID) (map[ids.CabalID]int32, error)
+}
+
+type MemberRoles interface {
+	MembersOf(context.Context, []ids.CabalID) (map[ids.CabalID][]cabal.MemberView, error)
+}
