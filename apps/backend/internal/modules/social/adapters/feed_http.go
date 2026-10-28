@@ -156,9 +156,6 @@ func collectFeedRefs(items []app.FeedItem) feedRefs {
 		if item.ActorID.UUID() != uuid.Nil && !slices.Contains(r.actors, item.ActorID) {
 			r.actors = append(r.actors, item.ActorID)
 		}
-		if item.Caller != nil && !slices.Contains(r.actors, item.Caller.ID) {
-			r.actors = append(r.actors, item.Caller.ID)
-		}
 		if item.AssetID != uuid.Nil && !slices.Contains(r.assets, item.AssetID) {
 			r.assets = append(r.assets, item.AssetID)
 		}

@@ -7,8 +7,10 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -19,6 +21,7 @@ import (
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 )
@@ -476,5 +479,73 @@ func TestFeedConsumerQueries_onlyTheProjectionWritesResultRows(t *testing.T) {
 				)
 			}
 		}
+	}
+}
+
+func TestFeedResult_applyClosedWithoutAProposalItemRetries(t *testing.T) {
+	t.Parallel()
+	r := newProposalRig(t)
+	err := r.deliver(t, func(ctx context.Context, tx db.Tx) error {
+		tally := app.Tally{Yes: 4, No: 1, Voters: 6, Needed: 4}
+		return r.feed.ApplyClosed(ctx, tx, r.proposal, feed.StatusPassed, feed.OutcomePassed, tally, r.clock.Now())
+	})
+	if got := errs.CodeOf(err); got != errs.CodeFeedItemPending {
+		t.Fatalf("ApplyClosed without a proposal item = %s, want %s", got, errs.CodeFeedItemPending)
+	}
+}
+
+func TestFeedResult_aCorruptStoredResultFailsTheNextWrite(t *testing.T) {
+	t.Parallel()
+	r := newProposalRig(t)
+	r.mustCreate(t, func(*events.ProposalCreated) {})
+	if err := r.passed(t); err != nil {
+		t.Fatal(err)
+	}
+	_, err := r.pool.Exec(t.Context(), `UPDATE feed_objects SET payload = '{"action": 5}' WHERE kind = 'result'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.passed(t); err == nil {
+		t.Fatal("pass over a corrupt result = nil, want an error")
+	}
+}
+
+func TestFeedResult_aWriteWaitsForTheRowLockAndFailsWhenItCannotGetIt(t *testing.T) {
+	t.Parallel()
+	r := newProposalRig(t)
+	r.mustCreate(t, func(*events.ProposalCreated) {})
+	if err := r.passed(t); err != nil {
+		t.Fatal(err)
+	}
+	held, release := make(chan struct{}), make(chan struct{})
+	var holder errgroup.Group
+	holder.Go(func() error {
+		return r.deliver(t, func(ctx context.Context, tx db.Tx) error {
+			_, err := tx.Queries().Exec(ctx, `SELECT 1 FROM feed_objects WHERE kind = 'result' FOR UPDATE`)
+			close(held)
+			<-release
+			return err
+		})
+	})
+	<-held
+	t.Cleanup(func() {
+		close(release)
+		_ = holder.Wait()
+	})
+	ctx, cancel := context.WithTimeout(
+		observability.WithEventID(t.Context(), ids.EventIDFrom(r.gen.NewV7())),
+		time.Second,
+	)
+	defer cancel()
+	err := db.New(r.pool, r.gen, r.clock).Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		e := events.ProposalPassed{V: 1, ProposalID: r.proposal, CabalID: r.cabal}
+		closed, err := r.feed.FetchPassed(ctx, e)
+		if err != nil {
+			return err
+		}
+		return r.feed.ApplyPassed(ctx, tx, e, closed, r.clock.Now())
+	})
+	if err == nil {
+		t.Fatal("pass against a held row lock = nil, want an error")
 	}
 }

@@ -87,9 +87,6 @@ func (h Feed) ApplyClosed(
 	ctx context.Context, tx db.Tx, proposalID uuid.UUID, status feed.ProposalStatus, outcome feed.Outcome,
 	tally app.Tally, at time.Time,
 ) error {
-	if tally.Kind == ruleProposal {
-		return nil
-	}
 	source, err := sqlc.New(tx.Queries()).GetProposalFeedSource(ctx, proposalID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return errs.New(errs.CodeFeedItemPending, "social.Feed.ApplyClosed")
@@ -102,7 +99,7 @@ func (h Feed) ApplyClosed(
 		return err
 	}
 	facts := closeFacts(proposalID, proposal, source.ActorID.Bytes, status, outcome, tally)
-	if err := h.writeResult(ctx, tx, proposalID, facts, at); err != nil {
+	if err := h.writeResult(ctx, tx, source, proposalID, facts, at); err != nil {
 		return err
 	}
 	faultpoint.Hit(ctx, faultpoint.BeforeCommit)
@@ -134,16 +131,10 @@ func closeFacts(
 }
 
 func (h Feed) writeResult(
-	ctx context.Context, tx db.Tx, proposalID uuid.UUID, merge func(*feed.Payload), at time.Time,
+	ctx context.Context, tx db.Tx, source sqlc.GetProposalFeedSourceRow, proposalID uuid.UUID,
+	merge func(*feed.Payload), at time.Time,
 ) error {
 	q := sqlc.New(tx.Queries())
-	source, err := q.GetProposalFeedSource(ctx, proposalID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return errs.New(errs.CodeFeedItemPending, "social.Feed.writeResult")
-	}
-	if err != nil {
-		return err
-	}
 	var payload feed.Payload
 	raw, err := q.LockFeedResult(ctx, proposalID)
 	switch {
