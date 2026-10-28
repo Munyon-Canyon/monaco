@@ -1,11 +1,15 @@
+import MonacoCore
 import SwiftUI
 import Testing
 import UIKit
+import VisionKit
 
 @testable import Monaco
 
 @MainActor
 struct WithdrawScreenTests {
+    private static let recipient = "0x52908400098527886E0F7030069857D2E4169EE7"
+    private static let usdc = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
     private static let keypadIDs = [
         "amount-keypad-screen", "amount-keypad-source", "amount-keypad-close", "amount-keypad-amount",
         "amount-keypad-line",
@@ -35,11 +39,40 @@ struct WithdrawScreenTests {
         #expect(!ids.contains("withdraw-network-picker"))
     }
 
-    @Test(.timeLimit(.minutes(1))) func theScanButtonStaysHiddenUntilTheScannerLands() async throws {
+    @Test(.timeLimit(.minutes(1))) func theScanButtonFollowsScannerSupport() async throws {
         for state in [WithdrawSampleState.empty, .typed, .needsAddress] {
             let ids = try await Self.identifiers(of: state, until: "withdraw-address-field")
-            #expect(!ids.contains("withdraw-scan"), "\(state)")
+            #expect(ids.contains("withdraw-scan") == DataScannerViewController.isSupported, "\(state)")
         }
+    }
+
+    @Test func aRejectedScanChangesNeitherTheAddressNorTheNetwork() {
+        var address = "untouched"
+        var network = WithdrawNetwork.base
+        let rejected = [
+            "hello",
+            "ethereum:\(Self.usdc)@8453/transfer?address=\(Self.recipient)",
+            "ethereum:\(Self.recipient)@10",
+        ]
+        for text in rejected {
+            let applied = WithdrawScan.apply(text, setAddress: { address = $0 }, setNetwork: { network = $0 })
+            #expect(!applied, "\(text)")
+        }
+        #expect(address == "untouched" && network == .base)
+    }
+
+    @Test func anAcceptedScanSetsTheAddressAndTheNamedNetwork() {
+        var address = ""
+        var network = WithdrawNetwork.solana
+        let recipient = Self.recipient
+        let apply = { (text: String) in
+            WithdrawScan.apply(text, setAddress: { address = $0 }, setNetwork: { network = $0 })
+        }
+        #expect(apply("ethereum:\(recipient)@8453"))
+        #expect(address == recipient && network == .base)
+        network = .arbitrum
+        #expect(apply(recipient))
+        #expect(network == .arbitrum)
     }
 
     @Test(.timeLimit(.minutes(1))) func theTypedStateDrawsTheAction() async throws {

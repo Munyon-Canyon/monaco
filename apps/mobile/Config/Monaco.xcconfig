@@ -30,6 +30,7 @@ MONACO_APS_ENVIRONMENT = $(MONACO_APS_ENVIRONMENT_$(CONFIGURATION))
 // build with  xcodebuild ... MONACO_FEATURE_CONNECT_X=YES  or per launch with -MonacoFeatureConnectX YES.
 MONACO_FEATURE_CONNECT_X = NO
 
+INFOPLIST_KEY_NSCameraUsageDescription = Scan the QR code of the address you're sending to.
 INFOPLIST_KEY_NSContactsUsageDescription = Find friends who are already on Monaco. Monaco hashes your contacts' phone numbers on your phone and sends only the hashes. Names and your address book stay on your phone.
 INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = Save a gain card you share to your photos.
 

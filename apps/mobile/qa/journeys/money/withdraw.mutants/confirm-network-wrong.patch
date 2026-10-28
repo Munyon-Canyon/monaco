@@ -7,7 +7,7 @@ scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift b/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
 --- a/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
 +++ b/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
-@@ -202,7 +202,7 @@ private struct WithdrawNetworkChips: View {
+@@ -222,7 +222,7 @@ private struct WithdrawNetworkChips: View {
                          Haptics.selection()
                          select(network)
                      } label: {
