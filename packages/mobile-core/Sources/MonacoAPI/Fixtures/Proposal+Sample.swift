@@ -98,3 +98,95 @@ extension Components.Schemas.ProposalDetail {
             failureMessage: "The price moved past the cabal's limit since the vote.")
     }
 }
+
+extension Components.Schemas.ProposalDetail {
+    public static func openNVDA(now: Date = .now) -> Self {
+        trade(
+            symbol: "NVDAx", kind: .buy, usdcMicros: 400_000_000, tokenAmount: nil, quoteOut: 182_000_000,
+            status: .open, now: now, closesIn: 14_400, closedAgo: nil,
+            stats: .init(
+                treasuryShareBps: 200, closesAt: now.addingTimeInterval(14_400), closedAt: nil,
+                priceMicros: 220_000_000, sharesAtomics: 182_000_000, sharesExact: false, tokenDecimals: 8),
+            swap: nil)
+    }
+
+    public static func passedNVDA(now: Date = .now) -> Self {
+        trade(
+            symbol: "NVDAx", kind: .buy, usdcMicros: 400_000_000, tokenAmount: nil, quoteOut: 182_000_000,
+            status: .passed, now: now, closesIn: 14_400, closedAgo: 720,
+            stats: .init(
+                treasuryShareBps: 200, closesAt: now.addingTimeInterval(14_400),
+                closedAt: now.addingTimeInterval(-720), priceMicros: 220_000_000, sharesAtomics: 182_000_000,
+                sharesExact: false, tokenDecimals: 8),
+            swap: nil)
+    }
+
+    public static func filledNVDA(now: Date = .now) -> Self {
+        trade(
+            symbol: "NVDAx", kind: .buy, usdcMicros: 400_000_000, tokenAmount: nil, quoteOut: 182_000_000,
+            status: .executed, now: now, closesIn: 14_400, closedAgo: 720,
+            stats: .init(
+                treasuryShareBps: 200, closesAt: now.addingTimeInterval(14_400),
+                closedAt: now.addingTimeInterval(-720), priceMicros: 220_000_000, sharesAtomics: 182_000_000,
+                sharesExact: true, tokenDecimals: 8, sinceBps: 30),
+            swap: .init(
+                swapId: "swap-nvda", status: .confirmed, failureCode: nil, failureMessage: nil,
+                txSignature: "sig-nvda", retryable: false, usdcMicros: 399_308_000, tokenAmount: 182_000_000,
+                tokenDecimals: 8, priceMicros: 219_400_000, feeMicros: 400_000,
+                filledAt: now.addingTimeInterval(-720)))
+    }
+
+    public static func filledMETA(now: Date = .now) -> Self {
+        trade(
+            symbol: "METAx", kind: .buy, usdcMicros: 300_000_000, tokenAmount: nil, quoteOut: 42_000_000,
+            status: .executed, now: now, closesIn: -18_000, closedAgo: 18_000,
+            stats: .init(
+                treasuryShareBps: 128, closesAt: now.addingTimeInterval(-18_000),
+                closedAt: now.addingTimeInterval(-18_000), priceMicros: 724_400_000, sharesAtomics: 42_000_000,
+                sharesExact: true, tokenDecimals: 8, sinceBps: 110),
+            swap: .init(
+                swapId: "swap-meta", status: .confirmed, failureCode: nil, failureMessage: nil,
+                txSignature: "sig-meta", retryable: false, usdcMicros: 300_000_000, tokenAmount: 42_000_000,
+                tokenDecimals: 8, priceMicros: 716_520_000, feeMicros: 300_000,
+                filledAt: now.addingTimeInterval(-17_940)))
+    }
+
+    public static func failedTSLA(now: Date = .now) -> Self {
+        let closed = now.addingTimeInterval(-(3 * 86_400 + 15 * 3_600 + 53 * 60))
+        return trade(
+            symbol: "TSLAx", kind: .sell, usdcMicros: nil, tokenAmount: 220_000_000, quoteOut: 900_000_000,
+            status: .failed, now: now, closesIn: -400_000, closedAgo: 400_000,
+            stats: .init(
+                treasuryShareBps: 398, closesAt: closed, closedAt: closed, priceMicros: 412_550_000,
+                sharesAtomics: 220_000_000, sharesExact: true, tokenDecimals: 8),
+            swap: nil)
+    }
+
+    public static func preIpoSpaceX(now: Date = .now) -> Self {
+        trade(
+            symbol: "tSpaceX", kind: .buy, usdcMicros: 500_000_000, tokenAmount: nil, quoteOut: 270_000_000,
+            status: .open, now: now, closesIn: 72_000, closedAgo: nil,
+            stats: .init(
+                treasuryShareBps: 220, closesAt: now.addingTimeInterval(72_000), closedAt: nil,
+                priceMicros: 185_000_000, sharesAtomics: 270_000_000, sharesExact: false, tokenDecimals: 8),
+            swap: nil)
+    }
+
+    private static func trade(
+        symbol: String, kind: Components.Schemas.ProposalKind, usdcMicros: Int64?, tokenAmount: Int64?,
+        quoteOut: Int64, status: Components.Schemas.ProposalStatus, now: Date, closesIn: TimeInterval,
+        closedAgo: TimeInterval?, stats: Components.Schemas.ProposalStats, swap: SwapPayload?
+    ) -> Self {
+        var detail = sample(status: status, kind: kind, swap: swap)
+        detail.stats = stats
+        detail.symbol = symbol
+        detail.usdcMicros = usdcMicros
+        detail.tokenAmount = tokenAmount
+        detail.quoteOutAmount = quoteOut
+        detail.createdAt = now.addingTimeInterval(-7_200)
+        detail.expiresAt = now.addingTimeInterval(closesIn)
+        detail.myVote = nil
+        detail.replyCount = 6
+        return detail
+    }
+}

@@ -11,6 +11,8 @@ public struct ProposalSwap: Equatable, Sendable {
     public let tokenAmount: Int64?
     public let tokenDecimals: Int?
     public let priceMicros: Int64?
+    public let feeMicros: Int64?
+    public let filledAt: Date?
 
     public static let priceMovedCode = "price_moved"
     public var isPriceMoved: Bool { status == "failed" && failureCode == Self.priceMovedCode }
@@ -25,6 +27,8 @@ public struct ProposalSwap: Equatable, Sendable {
         tokenAmount = swap?.tokenAmount
         tokenDecimals = swap?.tokenDecimals
         priceMicros = swap?.priceMicros
+        feeMicros = swap?.feeMicros
+        filledAt = swap?.filledAt
     }
 
     public func executionFigures(kind: AssetKind) -> ProposalExecutionFigures? {
@@ -153,16 +157,80 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
     }
 }
 
+public struct ProposalStatsData: Equatable, Sendable {
+    public let priceMicros: Int64?
+    public let sharesAtomics: Int64?
+    public let sharesExact: Bool
+    public let tokenDecimals: Int
+    public let treasuryShareBps: Int64?
+    public let closesAt: Date
+    public let closedAt: Date?
+    public let sinceBps: Int64?
+
+    public init(
+        priceMicros: Int64? = nil, sharesAtomics: Int64? = nil, sharesExact: Bool = false, tokenDecimals: Int = 0,
+        treasuryShareBps: Int64? = nil, closesAt: Date, closedAt: Date? = nil, sinceBps: Int64? = nil
+    ) {
+        self.priceMicros = priceMicros
+        self.sharesAtomics = sharesAtomics
+        self.sharesExact = sharesExact
+        self.tokenDecimals = tokenDecimals
+        self.treasuryShareBps = treasuryShareBps
+        self.closesAt = closesAt
+        self.closedAt = closedAt
+        self.sinceBps = sinceBps
+    }
+
+    init(_ value: Components.Schemas.ProposalStats) {
+        self.init(
+            priceMicros: value.priceMicros, sharesAtomics: value.sharesAtomics,
+            sharesExact: value.sharesExact ?? false, tokenDecimals: value.tokenDecimals ?? 0,
+            treasuryShareBps: value.treasuryShareBps, closesAt: value.closesAt, closedAt: value.closedAt,
+            sinceBps: value.sinceBps)
+    }
+}
+
+public struct ProposalMyVote: Equatable, Sendable {
+    public let order: Int
+    public let of: Int
+    public let yesOrder: Int
+    public let noOrder: Int
+    public let decided: Bool
+
+    public init(order: Int, of: Int, yesOrder: Int, noOrder: Int, decided: Bool) {
+        self.order = order
+        self.of = of
+        self.yesOrder = yesOrder
+        self.noOrder = noOrder
+        self.decided = decided
+    }
+
+    init(_ value: Components.Schemas.ProposalDetail.MyVotePayload) {
+        self.init(
+            order: value.order, of: value.of, yesOrder: value.yesOrder, noOrder: value.noOrder,
+            decided: value.decided)
+    }
+}
+
 public struct ProposalDetail: Identifiable, Equatable, Sendable {
     public let summary: ProposalSummary
     public let voters: [ProposalVoter]
     public let proposerReturn: ProposerReturn?
+    public let stats: ProposalStatsData
+    public let myVote: ProposalMyVote?
+    public let replyCount: Int
     public var id: String { summary.id }
 
-    init(summary: ProposalSummary, voters: [ProposalVoter], proposerReturn: ProposerReturn? = nil) {
+    init(
+        summary: ProposalSummary, voters: [ProposalVoter], proposerReturn: ProposerReturn? = nil,
+        stats: ProposalStatsData? = nil, myVote: ProposalMyVote? = nil, replyCount: Int = 0
+    ) {
         self.summary = summary
         self.voters = voters
         self.proposerReturn = proposerReturn
+        self.stats = stats ?? ProposalStatsData(closesAt: summary.expiresAt)
+        self.myVote = myVote
+        self.replyCount = replyCount
     }
 
     init(_ value: Components.Schemas.ProposalDetail) {
@@ -179,7 +247,9 @@ public struct ProposalDetail: Identifiable, Equatable, Sendable {
             summary: ProposalSummary(
                 proposal, canVote: value.canVote, canWithdraw: value.canWithdraw, swap: ProposalSwap(value.swap)),
             voters: value.voters.map(ProposalVoter.init),
-            proposerReturn: ProposerReturn(bps: value.proposerReturn1mBps, isPrivate: value.proposerReturnPrivate))
+            proposerReturn: ProposerReturn(bps: value.proposerReturn1mBps, isPrivate: value.proposerReturnPrivate),
+            stats: ProposalStatsData(value.stats), myVote: value.myVote.map(ProposalMyVote.init),
+            replyCount: value.replyCount)
     }
 }
 

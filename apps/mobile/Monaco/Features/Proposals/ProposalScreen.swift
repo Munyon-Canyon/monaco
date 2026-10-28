@@ -30,6 +30,16 @@ struct ProposalScreen: View {
                 .environment(\.proposalDetail, model)
                 .environment(refresh)
                 .refreshable { await refresh.run() }
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        MonacoGlassButton(
+                            icon: .share, accessibilityLabel: "Share", style: .quiet, placement: .toolbar
+                        ) {
+                            share(model.summary?.title(asset: model.asset))
+                        }
+                        .accessibilityIdentifier("proposal-share")
+                    }
+                }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     if let comments { CommentComposerBar(model: comments) }
                 }
@@ -40,6 +50,10 @@ struct ProposalScreen: View {
                 }
                 .onScreenVisibilityChange { comments?.setVisible($0) }
         }
+    }
+
+    private func share(_ title: String?) {
+        SystemShare.present(SharePayload(title: title ?? "Proposal", url: ShareCardContent.fallbackURL))
     }
 
     private func preparedComments() -> CommentsModel {

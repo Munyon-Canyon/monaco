@@ -282,14 +282,25 @@ The card is one VoiceOver element, "<cabal>: <badge>. Buy NVIDIA, <amount line>.
 
 | Section | Shows |
 | --- | --- |
-| Hero | `StockMark`, the status badge (`proposal-status-chip`: "Voting open", "You voted Yes", "View only", "Approved · Executing", "Executed", "Expired", "Not executed", "Not approved", "Withdrawn", "Voided by Monaco"), "Buy NVIDIA" or "Sell NVIDIA", the amount (a sell shows its shares and "About $139.00"), the proposer (opens their profile) with their one-month return pill ("+8.2% · 1M", or "P&L private" when they hide it; no pill for an unranked proposer) from `proposer_return_1m_bps` and `proposer_return_private`, and the cabal's name with the age ("Big Ballers · 2h ago", from `cabal_name`) |
-| Thesis | "Thesis" and the reason as prose (`proposal-reason`). Omitted without a reason |
-| Votes | "Votes" with "See all", which opens the votes sheet, then the vote bar: "5 yes votes to pass" (or "Voting closed"), the bar and "3 yes · 1 no · 4 not voted" (`proposal-votes`) |
-| Your vote | `ProposalVoteSection`, right after Votes and before Discussion; it scrolls with the content. Header "Your vote" (`proposal-vote`) and a caption "2 of 5 yes votes · Closes in 8h" (`proposal-vote-progress`). States are in the table below |
-| Expected | "Cabal gets", "about 0.73 shares at $341.57", while open or passed (`proposal-expected`) |
-| Network and price | The chain and, when its live quote is missing, the reason (`proposal-chain-row`), then the best price (`best-price-loading` while it is found), while open or passed |
+| Crest line | The cabal's crest (20 pt), the cabal's name from `cabal_name`, "<Proposer> proposed" and the age: "AC Capital · Mia proposed · 2h", then the date ("Oct 22") after a day. Tapping it opens the cabal (`proposal-crest-line`). The navigation title is "Proposal", with back and a trailing share button (`proposal-share`), which opens the system share sheet until #6531 gives it the share cards |
+| Hero | `StockMark` (48 pt), "Buy NVDA" or "Sell TSLA" (the ticker) over the asset's name ("NVIDIA", `secondaryText`), and the amount trailing: "$400" for a buy, the quoted dollar value for a sell (shares live in the stat row). A Pre-IPO proposal adds a sub-line (#6550). A paused cabal keeps its caption as one `secondaryText` line under the hero (`proposal-paused-caption`). The status badge, the large amount and the proposer row with its return pill are gone |
+| Stat row | `ProposalStatRow` in a `StatGrid` card (`proposal-stat-row`), four cells that the pure `ProposalStats.make` builds from `ProposalDetail.stats` and the linked swap. It scrolls with the content. A missing figure reads "—", never "$0.00". The five shapes are in the table below |
+| Thesis | The reason as plain prose with no header (`proposal-reason`). Omitted without a reason |
+| Your vote | `ProposalVoteSection`, after the thesis and before Discussion; it scrolls with the content. Header "Your vote" (`proposal-vote`) and a caption "2 of 5 yes votes · Closes in 8h" (`proposal-vote-progress`). #6506 restyles it into the vote card, and the tally moves into it. States are in the table below |
 | Status | Once voting is over: a notice (warn "The vote passed. Execution is pending.", info "The trade is confirmed.", info "Voting closed without enough yes votes. No trade was placed.", error "The trade did not go through." with the failure message, info "The proposal did not pass.", info for withdrawn and voided), the price-moved rows (`proposal-price-moved`), "Retry" or "Buy at current price" when the trade can be retried (`proposal-retry`), and for passed, executed and blocked proposals the "Execution details" disclosure: Status, Executed price (`price_micros` of the linked swap, "Not confirmed" before the trade confirms), Units (executed only, `token_amount` over `token_decimals`; both read "Not available" when the swap carries no figures), Network and the "Transaction record" row that opens `TransactionRoute`. The section reads as the `ProposalStepper` label for VoiceOver (`proposal-tracker`) |
 | Withdraw | The proposer sees "Withdraw proposal" while it is open (confirm "Withdraw this proposal?" / "Votes so far are dropped.", toast "Proposal withdrawn.") |
+
+The stat row has five shapes. The i beside Price or Estimate is drawn once #6562 wires the Market stats sheet:
+
+| Shape | Cells |
+| --- | --- |
+| Open | Price (i) · Shares ≈ 1.82 · Of treasury 2% · Closes 1:53 PM ("Fri 5:41 AM" within a week, "Oct 30" after). A Pre-IPO proposal reads Estimate (i) in place of Price |
+| Passed, not yet filled | Price (i) · Shares ≈ · Of treasury · Passed 9:41 AM |
+| Filled | Fill $219.40 · Shares 1.82 · Now $220.00 · Since +0.3% (gain or loss colour) |
+| Did not pass, expired | Price (i) · Shares (exact for a sell, ≈ for a buy) · Of treasury · Closed Oct 18 |
+| Withdrawn, voided | The same, with the last cell "Withdrawn" or "Voided" |
+
+A rule proposal returns no cells. Percents show one decimal under 10% and none above, and shares show up to four decimals. The grid keeps four columns up to `.xLarge`, two from `.xxLarge` and one at accessibility sizes. VoiceOver reads each cell as "Price, $220.00".
 
 The "Your vote" section holds the vote; nothing but the composer floats at the bottom:
 
@@ -308,7 +319,7 @@ The "Your vote" section holds the vote; nothing but the composer floats at the b
 
 ### Votes sheet
 
-"See all" under Votes opens `ProposalVotesSheet` at one half-height detent (0.55) that does not expand; the list scrolls inside it, also at accessibility sizes. The header is "Votes" with a close button. A pinned strip reads "3 yes", "1 no", "4 not voted". One row per voter, yes then no then not voted: avatar, name and a "Yes", "No" or "Not voted" badge, opening their profile (`proposal-voter-<id>`). Loading is a strip and four row skeletons. An error reads "Votes couldn't load. Try again." over "Retry". Tallies stay live while the sheet is open.
+`ProposalVotesSheet` opens only from the sample harness now that the Votes block has left the page (#6539 brings the sides back). It sits at one half-height detent (0.55) that does not expand; the list scrolls inside it, also at accessibility sizes. The header is "Votes" with a close button. A pinned strip reads "3 yes", "1 no", "4 not voted". One row per voter, yes then no then not voted: avatar, name and a "Yes", "No" or "Not voted" badge, opening their profile (`proposal-voter-<id>`). Loading is a strip and four row skeletons. An error reads "Votes couldn't load. Try again." over "Retry". Tallies stay live while the sheet is open.
 
 ## All proposals (`PendingVotesRoute`)
 

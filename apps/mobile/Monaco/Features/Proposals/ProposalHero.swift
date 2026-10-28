@@ -1,101 +1,103 @@
 import MonacoCore
 import SwiftUI
 
-extension ProposerReturn.Tone {
-    fileprivate var pill: PnLPill.Tone {
-        switch self {
-        case .gain: .gain
-        case .loss: .loss
-        case .muted: .muted
-        }
-    }
-}
-
 struct ProposalHero: View {
     let summary: ProposalSummary
     let asset: ProposalAsset?
     let members: [ProposalMember]
     let paused: Bool
-    var authorReturn: ProposerReturn?
+    var subtitle: String?
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var state: ProposalState { summary.state(now: .now) }
     private var proposer: ProposalMember? { members.first { $0.id == summary.proposerID } }
     private var cabalLabel: String { summary.cabalName.isEmpty ? "Your cabal" : summary.cabalName }
+    private var kindLabel: String { summary.kind == "sell" ? "Sell" : "Buy" }
+    private var ticker: String { AssetSymbolFormatter.display(summary.symbol, kind: asset?.kind ?? .stock) }
+
+    static func crestLine(
+        cabalName: String, proposer: String, createdAt: Date, now: Date, calendar: Calendar
+    ) -> String {
+        let age = ProposalStats.crestAge(since: createdAt, now: now, calendar: calendar)
+        return "\(cabalName) · \(proposer) proposed · \(age)"
+    }
+
+    static func amountLabel(micros: Int64) -> String {
+        micros % 1_000_000 == 0
+            ? UsdAmountFormatter.format(micros: micros).replacingOccurrences(of: ".00", with: "")
+            : UsdAmountFormatter.format(micros: micros)
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top, spacing: MonacoTheme.Space.s) {
-                StockMark(
-                    symbol: summary.symbol, displayName: asset?.displayName, assetKind: asset?.kind ?? .stock,
-                    size: .review, logoURL: asset?.logoURL)
-                Spacer(minLength: MonacoTheme.Space.s)
-                StatusBadge(proposal: .hero(state))
-                    .accessibilityIdentifier("proposal-status-chip")
-            }
-            Text(summary.title(asset: asset))
-                .font(MonacoTheme.Typo.title)
-                .foregroundStyle(MonacoTheme.ink)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, MonacoTheme.Space.m)
-            amount
-                .padding(.top, MonacoTheme.Space.s)
-            author
-                .padding(.top, MonacoTheme.Space.m)
-            Text("\(cabalLabel) · \(ProposalCardCopy.ago(since: summary.createdAt, now: .now))")
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.muted)
-                .padding(.top, MonacoTheme.Space.xs)
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+            crest
+            heroRow
             if paused && state.isOpen {
-                MonacoNotice(.info, message: ProposalCardCopy.pausedCaption(isSell: summary.kind == "sell"))
-                    .padding(.top, MonacoTheme.Space.m)
+                Text(ProposalCardCopy.pausedCaption(isSell: summary.kind == "sell"))
+                    .font(MonacoTheme.Typo.subhead)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("proposal-paused-caption")
             }
         }
     }
 
-    @ViewBuilder private var amount: some View {
-        if summary.kind == "sell" {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                Text(ProposalCard.shareLabel(summary: summary, asset: asset))
-                    .moneyFigure(.large)
-                    .foregroundStyle(MonacoTheme.ink)
-                if summary.quoteOutAmount > 0 {
-                    Text("About \(UsdAmountFormatter.format(micros: summary.quoteOutAmount))")
-                        .font(MonacoTheme.Typo.caption)
-                        .foregroundStyle(MonacoTheme.muted)
-                }
-            }
-        } else if let micros = summary.usdcMicros {
-            MoneyText(micros: micros, style: .large)
-        }
-    }
-
-    private var author: some View {
-        let stacked = dynamicTypeSize.isAccessibilitySize
-        let layout =
-            stacked
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.s))
-            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.s))
-        return NavigationLink(value: AnyAppRoute(UserProfileRoute(userID: summary.proposerID))) {
-            layout {
-                HStack(spacing: MonacoTheme.Space.s) {
-                    MonacoAvatar(
-                        photoURL: proposer?.photoURL?.absoluteString, displayName: proposer?.name ?? "Member",
-                        size: 24, seed: summary.proposerID)
-                    Text(proposer?.name ?? "Member")
-                        .font(MonacoTheme.Typo.caption)
-                        .foregroundStyle(MonacoTheme.ink)
-                        .lineLimit(stacked ? nil : 1)
-                }
-                if let authorReturn {
-                    PnLPill(text: authorReturn.text, tone: authorReturn.tone.pill)
-                }
+    private var crest: some View {
+        NavigationLink(value: AnyAppRoute(CabalRoute(id: summary.cabalID))) {
+            HStack(spacing: MonacoTheme.Space.s) {
+                CabalMark(groupId: summary.cabalID, name: cabalLabel, size: 20)
+                Text(
+                    Self.crestLine(
+                        cabalName: cabalLabel, proposer: proposer?.name ?? "Member", createdAt: summary.createdAt,
+                        now: .now, calendar: .current)
+                )
+                .font(MonacoTheme.Typo.subhead)
+                .foregroundStyle(MonacoTheme.secondaryText)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
             }
             .frame(minHeight: MonacoButtonMetrics.hitTarget, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("proposal-crest-line")
+    }
+
+    private var heroRow: some View {
+        HStack(alignment: .center, spacing: MonacoTheme.Space.sm) {
+            StockMark(
+                symbol: summary.symbol, displayName: asset?.displayName, assetKind: asset?.kind ?? .stock,
+                size: .review, logoURL: asset?.logoURL)
+            VStack(alignment: .leading, spacing: 0) {
+                Text("\(kindLabel) \(ticker)")
+                    .font(MonacoTheme.Typo.title)
+                    .foregroundStyle(MonacoTheme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(summary.assetName(asset: asset))
+                    .font(MonacoTheme.Typo.subhead)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(MonacoTheme.Typo.subhead)
+                        .foregroundStyle(MonacoTheme.secondaryText)
+                        .accessibilityIdentifier("proposal-hero-subtitle")
+                }
+            }
+            Spacer(minLength: MonacoTheme.Space.s)
+            if let micros = amountMicros {
+                Text(Self.amountLabel(micros: micros))
+                    .moneyFigure(.card)
+                    .foregroundStyle(MonacoTheme.ink)
+                    .accessibilityIdentifier("proposal-hero-amount")
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var amountMicros: Int64? {
+        if summary.kind == "sell" { return summary.quoteOutAmount > 0 ? summary.quoteOutAmount : nil }
+        return summary.usdcMicros
     }
 }
