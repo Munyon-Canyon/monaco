@@ -11,11 +11,30 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	externalRef0 "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// Defines values for ReferralCabalCabalJoinMode.
+const (
+	Open    ReferralCabalCabalJoinMode = "open"
+	Request ReferralCabalCabalJoinMode = "request"
+)
+
+// Valid indicates whether the value is a known member of the ReferralCabalCabalJoinMode enum.
+func (e ReferralCabalCabalJoinMode) Valid() bool {
+	switch e {
+	case Open:
+		return true
+	case Request:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for ReferralSource.
 const (
@@ -86,6 +105,191 @@ type MyReferralCode struct {
 	//
 	// Examples: https://monacolabs.xyz/r/k7m4qx2p
 	Link string `json:"link"`
+}
+
+// ReferralCabal The cabal an invite link points to, as the invite landing draws it before sign-in, or `cabal` null when the link does not resolve.
+//
+// Examples: {"cabal":{"first_members":[{"display_name":"Christelle","photo_url":null}],"id":"01890a5d-ac96-774b-bcce-b302099a8058","join_mode":"request","member_count":8,"name":"AC Capital","picture_url":null,"pot_value_micros":"20000000000","since":"2026-08-14"},"inviter":{"display_name":"Andres","photo_url":"https://img.example/andres.png"},"open_proposal":{"asset_logo_url":null,"asset_name":"NVIDIA","eligible":8,"expires_at":"2026-10-28T16:00:00Z","id":"01890a5d-ac96-774b-bcce-b302099a8057","kind":"buy","no":1,"proposer_name":"Mia","replies":6,"symbol":"NVDAx","title":"small add before earnings","usdc_micros":"400000000","voted":5,"yes":4},"return_1m_bps":-410,"turnout_month_bps":9400}, {"cabal":null,"inviter":null,"open_proposal":null,"return_1m_bps":null,"turnout_month_bps":null}
+type ReferralCabal struct {
+	// Cabal The cabal's public facts, or null when the link does not resolve.
+	//
+	// Examples: null
+	Cabal *ReferralCabalFacts `json:"cabal"`
+
+	// Inviter The member whose link it is, or null when the code does not resolve. It stays set when the code resolves but the cabal does not, so the page can still name who invited the visitor.
+	//
+	// Examples: null
+	Inviter *ReferralCabalInviter `json:"inviter"`
+
+	// OpenProposal The open proposal, read-only. Null when there is none or until it is filled.
+	//
+	// Examples: null
+	OpenProposal *ReferralCabalProposal `json:"open_proposal"`
+
+	// Return1mBps The cabal's one-month return in basis points. Null until it is filled.
+	//
+	// Examples: -410
+	Return1mBps *int32 `json:"return_1m_bps"`
+
+	// TurnoutMonthBps The share of eligible votes cast this month, in basis points. Null until it is filled.
+	//
+	// Examples: 9400
+	TurnoutMonthBps *int32 `json:"turnout_month_bps"`
+}
+
+// ReferralCabalCabalJoinMode `open` joins at once; `request` makes a request the creator decides.
+//
+// Examples: request
+type ReferralCabalCabalJoinMode string
+
+// ReferralCabalFacts The cabal's public facts, or null when the link does not resolve.
+//
+// Examples: null
+type ReferralCabalFacts struct {
+	// FirstMembers Up to four current members other than the inviter, earliest joiner first, then by user id for a tie.
+	//
+	// Examples: []
+	FirstMembers []ReferralCabalPerson `json:"first_members"`
+
+	// Id The cabal id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	Id openapi_types.UUID `json:"id"`
+
+	// JoinMode `open` joins at once; `request` makes a request the creator decides.
+	//
+	// Examples: request
+	JoinMode ReferralCabalCabalJoinMode `json:"join_mode"`
+
+	// MemberCount Current members, the inviter included.
+	//
+	// Examples: 8
+	MemberCount int32 `json:"member_count"`
+
+	// Name The cabal's name.
+	//
+	// Examples: AC Capital
+	Name string `json:"name"`
+
+	// PictureUrl The cabal's picture, or null when it has none. Clients draw the initials crest then.
+	//
+	// Examples: null
+	PictureUrl *string `json:"picture_url"`
+
+	// PotValueMicros The pot's value in USDC micros, the figure `getCabalPot` returns.
+	//
+	// Examples: 20000000000
+	PotValueMicros string `json:"pot_value_micros"`
+
+	// Since The day the cabal was created, in UTC.
+	//
+	// Examples: 2026-08-14
+	Since openapi_types.Date `json:"since"`
+}
+
+// ReferralCabalInviter The member whose link it is, or null when the code does not resolve. It stays set when the code resolves but the cabal does not, so the page can still name who invited the visitor.
+//
+// Examples: null
+type ReferralCabalInviter struct {
+	// DisplayName The inviter's display name.
+	//
+	// Examples: Andres
+	DisplayName string `json:"display_name"`
+
+	// PhotoUrl The inviter's photo, or null when they have none.
+	//
+	// Examples: https://img.example/andres.png
+	PhotoUrl *string `json:"photo_url"`
+}
+
+// ReferralCabalProposal The open proposal, read-only. Null when there is none or until it is filled.
+//
+// Examples: null
+type ReferralCabalProposal struct {
+	// AssetLogoUrl The asset's logo, or null when it has none.
+	//
+	// Examples: null
+	AssetLogoUrl *string `json:"asset_logo_url"`
+
+	// AssetName The asset's display name.
+	//
+	// Examples: NVIDIA
+	AssetName string `json:"asset_name"`
+
+	// Eligible Members who can vote.
+	//
+	// Examples: 8
+	Eligible int32 `json:"eligible"`
+
+	// ExpiresAt When voting ends.
+	//
+	// Examples: 2026-10-28T16:00:00Z
+	ExpiresAt time.Time `json:"expires_at"`
+
+	// Id The proposal id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8057
+	Id openapi_types.UUID `json:"id"`
+
+	// Kind `buy` or `sell`.
+	//
+	// Examples: buy
+	Kind string `json:"kind"`
+
+	// No No ballots so far.
+	//
+	// Examples: 1
+	No int32 `json:"no"`
+
+	// ProposerName The proposer's display name.
+	//
+	// Examples: Mia
+	ProposerName string `json:"proposer_name"`
+
+	// Replies Replies on the proposal. Null when they are not counted.
+	//
+	// Examples: 6
+	Replies *int32 `json:"replies"`
+
+	// Symbol The asset's symbol.
+	//
+	// Examples: NVDAx
+	Symbol string `json:"symbol"`
+
+	// Title The proposal's thesis line.
+	//
+	// Examples: small add before earnings
+	Title string `json:"title"`
+
+	// UsdcMicros USDC a buy spends, in micros. Null on a sell, which is sized in shares.
+	//
+	// Examples: 400000000
+	UsdcMicros *string `json:"usdc_micros"`
+
+	// Voted Members who have voted.
+	//
+	// Examples: 5
+	Voted int32 `json:"voted"`
+
+	// Yes Yes ballots so far.
+	//
+	// Examples: 4
+	Yes int32 `json:"yes"`
+}
+
+// ReferralCabalPerson A person on the public cabal preview. It has no id and no handle.
+//
+// Examples: {"display_name":"Mia","photo_url":"https://img.example/mia.png"}
+type ReferralCabalPerson struct {
+	// DisplayName The person's display name.
+	//
+	// Examples: Mia
+	DisplayName string `json:"display_name"`
+
+	// PhotoUrl The person's photo, or null when they have none.
+	//
+	// Examples: https://img.example/mia.png
+	PhotoUrl *string `json:"photo_url"`
 }
 
 // ReferralClickRequest The invite code a visitor tapped Get Monaco for.
@@ -170,6 +374,9 @@ type ServerInterface interface {
 	// GetReferral Look up the referrer behind an invite code.
 	// (GET /v1/referrals/{code})
 	GetReferral(w http.ResponseWriter, r *http.Request, code string)
+	// GetReferralCabal Preview the cabal an invite link points to.
+	// (GET /v1/referrals/{code}/cabals/{cabal_id})
+	GetReferralCabal(w http.ResponseWriter, r *http.Request, code string, cabalId openapi_types.UUID)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -311,6 +518,41 @@ func (siw *ServerInterfaceWrapper) GetReferral(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// GetReferralCabal operation middleware
+func (siw *ServerInterfaceWrapper) GetReferralCabal(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "code" -------------
+	var code string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "code", r.PathValue("code"), &code, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "code", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "cabal_id" -------------
+	var cabalId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "cabal_id", r.PathValue("cabal_id"), &cabalId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cabal_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetReferralCabal(w, r, code, cabalId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -435,6 +677,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/referral-code", wrapper.GetMyReferralCode)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/referrals/clicks", wrapper.RecordReferralClick)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/referrals/{code}", wrapper.GetReferral)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/referrals/{code}/cabals/{cabal_id}", wrapper.GetReferralCabal)
 
 	return m
 }
@@ -598,6 +841,54 @@ func (response GetReferraldefaultApplicationProblemPlusJSONResponse) VisitGetRef
 	return err
 }
 
+type GetReferralCabalRequestObject struct {
+	Code    string             `json:"code"`
+	CabalId openapi_types.UUID `json:"cabal_id"`
+}
+
+type GetReferralCabalResponseObject interface {
+	VisitGetReferralCabalResponse(w http.ResponseWriter) error
+}
+
+type GetReferralCabal200ResponseHeaders struct {
+	CacheControl string
+}
+
+type GetReferralCabal200JSONResponse struct {
+	Body    ReferralCabal
+	Headers GetReferralCabal200ResponseHeaders
+}
+
+func (response GetReferralCabal200JSONResponse) VisitGetReferralCabalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetReferralCabaldefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetReferralCabaldefaultApplicationProblemPlusJSONResponse) VisitGetReferralCabalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// PostMeReferral Attribute the caller to an invite code.
@@ -612,6 +903,9 @@ type StrictServerInterface interface {
 	// GetReferral Look up the referrer behind an invite code.
 	// (GET /v1/referrals/{code})
 	GetReferral(ctx context.Context, request GetReferralRequestObject) (GetReferralResponseObject, error)
+	// GetReferralCabal Preview the cabal an invite link points to.
+	// (GET /v1/referrals/{code}/cabals/{cabal_id})
+	GetReferralCabal(ctx context.Context, request GetReferralCabalRequestObject) (GetReferralCabalResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -762,6 +1056,33 @@ func (sh *strictHandler) GetReferral(w http.ResponseWriter, r *http.Request, cod
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetReferralResponseObject); ok {
 		if err := validResponse.VisitGetReferralResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetReferralCabal operation middleware
+func (sh *strictHandler) GetReferralCabal(w http.ResponseWriter, r *http.Request, code string, cabalId openapi_types.UUID) {
+	var request GetReferralCabalRequestObject
+
+	request.Code = code
+	request.CabalId = cabalId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetReferralCabal(ctx, request.(GetReferralCabalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetReferralCabal")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetReferralCabalResponseObject); ok {
+		if err := validResponse.VisitGetReferralCabalResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -28,6 +28,18 @@ type CabalView struct {
 	CreatedAt   time.Time
 }
 
+type CabalPreview struct {
+	ID              ids.CabalID
+	Name            string
+	PictureURL      string
+	MemberCount     int32
+	CreatedAt       time.Time
+	JoinMode        domain.JoinMode
+	Banned          bool
+	InviterIsMember bool
+	FirstMemberIDs  []ids.UserID
+}
+
 type MemberView struct {
 	UserID   ids.UserID
 	Role     domain.Role
@@ -72,6 +84,7 @@ type MemberLocker interface {
 type BatchReader interface {
 	AllCabals(ctx context.Context) ([]CabalView, error)
 	MembersOf(ctx context.Context, cabalIDs []ids.CabalID) (map[ids.CabalID][]MemberView, error)
+	InvitePreview(ctx context.Context, cabal ids.CabalID, inviter ids.UserID) (CabalPreview, bool, error)
 }
 
 type TreasuryReader interface {

@@ -131,6 +131,18 @@ referral_clicks          -- landing-page taps, for the funnel only
 
 The handle unlock is `users.first_deposit_at`, owned by `identity` ([Codes](#codes)).
 
+## Cabal invite links
+
+F makes the cabal the invite: whoever opens the link before they have an account lands on the cabal, not on a generic "X invited you to Monaco".
+
+- **Format.** `https://monacolabs.xyz/r/<code>?c=<cabal_id>`. It is the inviter's referral link plus the cabal id, so the `/r/*` association, the clipboard bridge and referral attribution work exactly as in [Flow](#flow). `<code>` is the random code or an unlocked handle.
+- **Why it reuses the referral link.** Cabals have no invite code on purpose ([cabals.md](cabals.md#decision)): a leaked one has to be rotated. The link adds no secret. A cabal id is not secret (every cabal is public), and the code is the inviter's own, already shared, and never changes.
+- **The preview.** `GET /v1/referrals/{code}/cabals/{cabal_id}` (`getReferralCabal`) is public and rate-limited by IP like `getReferral`. It answers only when the code resolves to a user who is a current member of that cabal, so it needs a real member's link and a cabal id. It returns the inviter as `{display_name, photo_url}`, and for the cabal its id, name, picture, member count, `since` (the UTC creation day), `join_mode`, up to four other members as `{display_name, photo_url}` and the pot value. It carries no user id, handle, share or vote side. `first_members` leaves the inviter out and runs by `joined_at`, then `user_id`.
+- **Misses look alike.** An unknown code, a locked handle, a non-member, an unknown cabal and a banned cabal all get the same 200 with `cabal: null`, so the answer never says why. `inviter` stays set when the code resolves, as `getReferral` does for the referrer.
+- **Month facts.** `return_1m_bps`, `turnout_month_bps` and `open_proposal` are in the contract and read `null` until the social and governance reads fill them.
+- **No cache.** The tally is live, so the response carries `Cache-Control: no-cache` and the API keeps nothing in process. The web page caches its own rendered HTML at the edge for 60 s, which absorbs a burst of link-preview fetches.
+- **Joining.** The link does not skip the cabal's rules. After sign-in an `open` cabal joins at once (`JoinCabal`), and a `request` cabal makes a request the creator decides (`RequestAccess`).
+
 ## Web
 
 - `monacolabs.xyz/r/<code>` is a server-rendered route in `apps/web` (Cloudflare function): looks up the referrer's display name and photo from the API with `GET /v1/referrals/{code}`, renders the page, and sets Open Graph tags so the link preview in Messages shows "Alex invited you to Monaco" with their photo.

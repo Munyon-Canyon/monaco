@@ -3067,6 +3067,72 @@ paths:
                   {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", display_name: Kai, photo_url: "https://img.example/kai.png", handle: kaicenat}
         default:
           $ref: "#/components/responses/Problem"
+  /v1/referrals/{code}/cabals/{cabal_id}:
+    get:
+      operationId: getReferralCabal
+      tags: [referrals]
+      security: []
+      x-rate-limit: {ip: {rate: 60, per: 1m, burst: 60}}
+      summary: Preview the cabal an invite link points to.
+      description: >-
+        Public, for the cabal invite landing before sign-in. The link is `https://monacolabs.xyz/r/<code>?c=<cabal_id>`.
+        It answers only when the code resolves to a user who is a current member of that cabal. Every
+        other case (an unknown code, a locked handle, a banned or deleted owner, a non-member, an unknown
+        or banned cabal) gets the same 200 with `cabal` null, so the answer never says which. The inviter
+        card carries a display name and photo only; no answer carries a user id, a handle, a share or a
+        vote side. The month facts (`return_1m_bps`, `turnout_month_bps`, `open_proposal`) are null until
+        they are filled. The tally is live: the answer is never cached and carries `Cache-Control: no-cache`.
+      parameters:
+        - name: code
+          in: path
+          required: true
+          description: The inviter's random invite code or unlocked handle. It is compared in lowercase.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 40
+            examples: [k7m4qx2p]
+        - name: cabal_id
+          in: path
+          required: true
+          description: The cabal the link points to.
+          schema:
+            type: string
+            format: uuid
+            examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]
+      responses:
+        "200":
+          description: The cabal and its inviter, or `cabal` null when the link does not resolve.
+          headers:
+            Cache-Control:
+              description: Always `no-cache`.
+              required: true
+              schema:
+                type: string
+                examples: [no-cache]
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReferralCabal"
+              example:
+                inviter: {display_name: Andres, photo_url: "https://img.example/andres.png"}
+                cabal:
+                  id: "01890a5d-ac96-774b-bcce-b302099a8058"
+                  name: AC Capital
+                  picture_url: null
+                  member_count: 8
+                  since: "2026-08-14"
+                  join_mode: request
+                  first_members:
+                    - {display_name: Christelle, photo_url: "https://img.example/christelle.png"}
+                    - {display_name: Logan, photo_url: null}
+                    - {display_name: Mia, photo_url: "https://img.example/mia.png"}
+                  pot_value_micros: "20000000000"
+                return_1m_bps: null
+                turnout_month_bps: null
+                open_proposal: null
+        default:
+          $ref: "#/components/responses/Problem"
   # api/spec/social.yaml
   /v1/admin/comments/{id}:
     delete:
@@ -8064,6 +8130,211 @@ components:
           type: boolean
           description: True once the caller's first deposit is credited.
           examples: [true]
+    ReferralCabal:
+      type: object
+      description: >-
+        The cabal an invite link points to, as the invite landing draws it before sign-in, or `cabal` null
+        when the link does not resolve.
+      required: [inviter, cabal, return_1m_bps, turnout_month_bps, open_proposal]
+      examples:
+        - inviter: {display_name: Andres, photo_url: "https://img.example/andres.png"}
+          cabal:
+            id: "01890a5d-ac96-774b-bcce-b302099a8058"
+            name: AC Capital
+            picture_url: null
+            member_count: 8
+            since: "2026-08-14"
+            join_mode: request
+            first_members:
+              - {display_name: Christelle, photo_url: null}
+            pot_value_micros: "20000000000"
+          return_1m_bps: -410
+          turnout_month_bps: 9400
+          open_proposal:
+            id: "01890a5d-ac96-774b-bcce-b302099a8057"
+            kind: buy
+            symbol: NVDAx
+            asset_name: NVIDIA
+            asset_logo_url: null
+            usdc_micros: "400000000"
+            proposer_name: Mia
+            title: small add before earnings
+            "yes": 4
+            "no": 1
+            voted: 5
+            eligible: 8
+            replies: 6
+            expires_at: "2026-10-28T16:00:00Z"
+        - inviter: null
+          cabal: null
+          return_1m_bps: null
+          turnout_month_bps: null
+          open_proposal: null
+      properties:
+        inviter:
+          type: [object, "null"]
+          description: >-
+            The member whose link it is, or null when the code does not resolve. It stays set when the
+            code resolves but the cabal does not, so the page can still name who invited the visitor.
+          examples: [null]
+          x-go-type-name: ReferralCabalInviter
+          required: [display_name, photo_url]
+          properties:
+            display_name:
+              type: string
+              description: The inviter's display name.
+              examples: [Andres]
+            photo_url:
+              type: [string, "null"]
+              description: The inviter's photo, or null when they have none.
+              examples: ["https://img.example/andres.png"]
+        cabal:
+          type: [object, "null"]
+          description: The cabal's public facts, or null when the link does not resolve.
+          examples: [null]
+          x-go-type-name: ReferralCabalFacts
+          required: [id, name, picture_url, member_count, since, join_mode, first_members, pot_value_micros]
+          properties:
+            id:
+              type: string
+              format: uuid
+              description: The cabal id.
+              examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]
+            name:
+              type: string
+              description: The cabal's name.
+              examples: [AC Capital]
+            picture_url:
+              type: [string, "null"]
+              description: The cabal's picture, or null when it has none. Clients draw the initials crest then.
+              examples: [null]
+            member_count:
+              type: integer
+              format: int32
+              description: Current members, the inviter included.
+              examples: [8]
+            since:
+              type: string
+              format: date
+              description: The day the cabal was created, in UTC.
+              examples: ["2026-08-14"]
+            join_mode:
+              type: string
+              description: "`open` joins at once; `request` makes a request the creator decides."
+              enum: [open, request]
+              examples: [request]
+            first_members:
+              type: array
+              description: >-
+                Up to four current members other than the inviter, earliest joiner first, then by user id
+                for a tie.
+              maxItems: 4
+              items:
+                $ref: "#/components/schemas/ReferralCabalPerson"
+              examples: [[]]
+            pot_value_micros:
+              type: string
+              pattern: "^[0-9]+$"
+              description: The pot's value in USDC micros, the figure `getCabalPot` returns.
+              examples: ["20000000000"]
+        return_1m_bps:
+          type: [integer, "null"]
+          format: int32
+          description: The cabal's one-month return in basis points. Null until it is filled.
+          examples: [-410]
+        turnout_month_bps:
+          type: [integer, "null"]
+          format: int32
+          description: The share of eligible votes cast this month, in basis points. Null until it is filled.
+          examples: [9400]
+        open_proposal:
+          type: [object, "null"]
+          description: The open proposal, read-only. Null when there is none or until it is filled.
+          examples: [null]
+          x-go-type-name: ReferralCabalProposal
+          required:
+            [id, kind, symbol, asset_name, asset_logo_url, usdc_micros, proposer_name, title, "yes", "no", voted, eligible, replies, expires_at]
+          properties:
+            id:
+              type: string
+              format: uuid
+              description: The proposal id.
+              examples: ["01890a5d-ac96-774b-bcce-b302099a8057"]
+            kind:
+              type: string
+              description: "`buy` or `sell`."
+              examples: [buy]
+            symbol:
+              type: string
+              description: The asset's symbol.
+              examples: [NVDAx]
+            asset_name:
+              type: string
+              description: The asset's display name.
+              examples: [NVIDIA]
+            asset_logo_url:
+              type: [string, "null"]
+              description: The asset's logo, or null when it has none.
+              examples: [null]
+            usdc_micros:
+              type: [string, "null"]
+              pattern: "^[0-9]+$"
+              description: USDC a buy spends, in micros. Null on a sell, which is sized in shares.
+              examples: ["400000000"]
+            proposer_name:
+              type: string
+              description: The proposer's display name.
+              examples: [Mia]
+            title:
+              type: string
+              description: The proposal's thesis line.
+              examples: [small add before earnings]
+            "yes":
+              type: integer
+              format: int32
+              description: Yes ballots so far.
+              examples: [4]
+            "no":
+              type: integer
+              format: int32
+              description: No ballots so far.
+              examples: [1]
+            voted:
+              type: integer
+              format: int32
+              description: Members who have voted.
+              examples: [5]
+            eligible:
+              type: integer
+              format: int32
+              description: Members who can vote.
+              examples: [8]
+            replies:
+              type: [integer, "null"]
+              format: int32
+              description: Replies on the proposal. Null when they are not counted.
+              examples: [6]
+            expires_at:
+              type: string
+              format: date-time
+              description: When voting ends.
+              examples: ["2026-10-28T16:00:00Z"]
+    ReferralCabalPerson:
+      type: object
+      description: A person on the public cabal preview. It has no id and no handle.
+      required: [display_name, photo_url]
+      examples:
+        - display_name: Mia
+          photo_url: "https://img.example/mia.png"
+      properties:
+        display_name:
+          type: string
+          description: The person's display name.
+          examples: [Mia]
+        photo_url:
+          type: [string, "null"]
+          description: The person's photo, or null when they have none.
+          examples: ["https://img.example/mia.png"]
     ReferralClickRequest:
       type: object
       description: The invite code a visitor tapped Get Monaco for.

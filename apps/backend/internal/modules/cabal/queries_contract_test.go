@@ -270,6 +270,9 @@ func contractCases() []contractCase {
 		{"TreasuryWallet returns the wallet of that cabal", checkTreasuryWallet},
 		{"TreasuryWallets lists every cabal's wallet by cabal id", checkTreasuryWallets},
 		{"CabalsOf lists a user's cabals by join time and then cabal id", checkCabalsOf},
+		{"InvitePreview names the first four members other than the inviter", checkInvitePreview},
+		{"InvitePreview flags a non-member inviter and a banned cabal", checkInvitePreviewFlags},
+		{"InvitePreview on an unknown cabal is not found", checkInvitePreviewUnknown},
 	}
 }
 
@@ -460,5 +463,55 @@ func TestQueriesContract(t *testing.T) {
 				tc.run(contractEnv{t: t, q: s.build(t, w), w: w})
 			})
 		}
+	}
+}
+
+func checkInvitePreview(e contractEnv) {
+	a := e.w.membersOf("a")
+	creator, low, high := a[0].UserID, a[1].UserID, a[2].UserID
+	for _, tc := range []struct {
+		inviter ids.UserID
+		want    []ids.UserID
+	}{
+		{creator, []ids.UserID{low, high}},
+		{low, []ids.UserID{creator, high}},
+		{high, []ids.UserID{creator, low}},
+	} {
+		got, ok, err := e.q.InvitePreview(e.t.Context(), e.w.id("a"), tc.inviter)
+		if err != nil || !ok || !got.InviterIsMember || !slices.Equal(got.FirstMemberIDs, tc.want) {
+			e.t.Errorf("InvitePreview(a, %s) = %+v, %v, %v, want a member inviter and first %v",
+				tc.inviter, got, ok, err, tc.want)
+		}
+	}
+	got, _, err := e.q.InvitePreview(e.t.Context(), e.w.id("a"), creator)
+	wantNoErr(e.t, "InvitePreview a", err)
+	view := e.w.cabals["a"].view
+	if got.ID != view.ID || got.Name != view.Name || got.PictureURL != view.PictureURL ||
+		int(got.MemberCount) != view.MemberCount || got.JoinMode != view.JoinMode || got.Banned {
+		e.t.Errorf("InvitePreview a = %+v, want the facts of %+v", got, view)
+	}
+	wantSameInstant(e.t, "InvitePreview a created_at", got.CreatedAt, view.CreatedAt)
+}
+
+func checkInvitePreviewFlags(e contractEnv) {
+	outsider := e.w.users[3]
+	got, ok, err := e.q.InvitePreview(e.t.Context(), e.w.id("a"), outsider)
+	want := membersWhere(e.w.membersOf("a"), func(cabal.MemberView) bool { return true })
+	if err != nil || !ok || got.InviterIsMember || !slices.Equal(got.FirstMemberIDs, want) {
+		e.t.Errorf("InvitePreview(a, outsider) = %+v, %v, %v, want a non-member inviter and first %v",
+			got, ok, err, want)
+	}
+	b := e.w.membersOf("b")
+	got, ok, err = e.q.InvitePreview(e.t.Context(), e.w.id("b"), b[0].UserID)
+	want = []ids.UserID{b[1].UserID, b[2].UserID, b[3].UserID}
+	if err != nil || !ok || !got.Banned || !got.InviterIsMember || !slices.Equal(got.FirstMemberIDs, want) {
+		e.t.Errorf("InvitePreview(b) = %+v, %v, %v, want banned with first %v", got, ok, err, want)
+	}
+}
+
+func checkInvitePreviewUnknown(e contractEnv) {
+	got, ok, err := e.q.InvitePreview(e.t.Context(), ids.CabalID{}, e.w.users[0])
+	if err != nil || ok || len(got.FirstMemberIDs) != 0 {
+		e.t.Errorf("InvitePreview(unknown) = %+v, %v, %v, want not found", got, ok, err)
 	}
 }
