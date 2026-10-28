@@ -58,13 +58,14 @@ struct AssetDetailCopyOnceTests {
         window.makeKeyAndVisible()
         defer { TestWindow.close(window) }
         window.layoutIfNeeded()
+        let name = try #require(model.detail?.name)
         var labels: [String] = []
         var settled = false
         while !settled {
             try Task.checkCancellation()
             await nextRunLoopTurn()
             let next = accessibilityLabels(of: window)
-            settled = next == labels && next.contains { $0.contains(detail.attribution) }
+            settled = next == labels && next.contains { $0.hasPrefix("\(name),") }
             labels = next
         }
         return labels
