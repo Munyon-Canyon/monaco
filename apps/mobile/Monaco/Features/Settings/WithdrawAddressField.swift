@@ -1,8 +1,21 @@
+import MonacoCore
 import SwiftUI
 import UIKit
 
 enum WithdrawAddressFieldMetrics {
     static let lines = 2
+}
+
+enum WithdrawScan {
+    @discardableResult
+    static func apply(
+        _ text: String, setAddress: (String) -> Void, setNetwork: (WithdrawNetwork) -> Void
+    ) -> Bool {
+        guard let payload = AddressPayload.parse(text) else { return false }
+        if let network = payload.network { setNetwork(network) }
+        setAddress(payload.address)
+        return true
+    }
 }
 
 struct WithdrawAddressField: View {

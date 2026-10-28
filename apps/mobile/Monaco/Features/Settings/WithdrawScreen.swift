@@ -47,6 +47,7 @@ struct WithdrawKeypadView: View {
     @Environment(ToastCenter.self) private var toasts
     @State private var showsNote = false
     @State private var showsBalances = false
+    @State private var showsScanner = false
     @State private var focusRequests = 0
 
     private var amountText: Binding<String> {
@@ -129,10 +130,29 @@ struct WithdrawKeypadView: View {
                     WithdrawCopy.arrivalNote(network: model.network, arrivalSeconds: $0.arrivalSeconds)
                 })
         }
+        .sheet(isPresented: $showsScanner) {
+            AddressScannerSheet { text in
+                WithdrawScan.apply(text, setAddress: { model.setAddress($0) }, setNetwork: { model.setNetwork($0) })
+            }
+        }
         .sheet(isPresented: $showsBalances) {
             NavigationStack { BalancesRoute().destination() }
                 .presentationDetents([.fraction(MonacoSheetDetents.halfFraction), .large])
         }
+    }
+
+    private var scanAction: (() -> Void)? {
+        guard AddressScanner.isSupported else { return nil }
+        return { scan() }
+    }
+
+    private func scan() {
+        guard AddressScanner.isAvailable else {
+            Haptics.warning()
+            toasts.current = MonacoToast(message: AddressScannerCopy.unavailable)
+            return
+        }
+        showsScanner = true
     }
 
     private func edit(_ text: String) {
@@ -173,7 +193,7 @@ struct WithdrawKeypadView: View {
             WithdrawAddressField(
                 text: Binding(get: { model.address }, set: { model.setAddress($0) }),
                 placeholder: model.network.placeholder, isInvalid: model.addressProblem != nil,
-                focusRequests: focusRequests, onScan: nil)
+                focusRequests: focusRequests, onScan: scanAction)
             if let problem = model.addressProblem {
                 Text(problem)
                     .font(MonacoTheme.Typo.caption)
