@@ -548,7 +548,7 @@ jobs:
       generator: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && steps.filter.outputs.generator == 'true' }}
       flows: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && steps.filter.outputs.flows == 'true' }}
       journeys: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && steps.filter.outputs.journeys == 'true' }}
-      scripts: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && (steps.filter.outputs.scripts == 'true' || steps.every.outputs.scripts == 'true') }}
+      scripts: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && (steps.filter.outputs.scripts == 'true' || steps.every.outputs.scripts == 'true' || steps.every.outputs.scripts-deleted == 'true') }}
       # The staging stage runs everything, and so does a stacked PR with no merge-base to filter from.
       unknown: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && (steps.every.outputs.unknown == 'true' || steps.stacked.outputs.unknown == 'true' || inputs.stage == 'staging') }}
       # The commit the backend legs diff from, so each tests the packages the diff reaches. Empty runs them all: the
@@ -731,9 +731,10 @@ jobs:
               - 'apps/backend/cmd/monacoctl/agents/agents.go'
               - '.github/pull_request_template.md'
               - 'packages/mobile-core/Tests/MonacoCoreTests/LegacyFreezeTests.swift'
-              - deleted: '**'
 
-      # Negated patterns only exclude under `every`, so these two filters need their own step.
+      # Negated patterns only exclude under `every`, so these filters need their own step.
+      # `scripts-deleted` is a deleted or renamed file outside the trees no scripts test cites by path (the backend skills
+      # and apps/backend/AGENTS.md cite only apps/backend, packages/flows, scripts, docs and .claude paths).
       # `unknown` is a changed file no filter above owns and no line below calls inert: it runs
       # every job, so a new file can never pass ci-ok with nothing tested. The inert paths are
       # listed in docs/architecture/backend-platform.md#verification-scope.
@@ -751,6 +752,11 @@ jobs:
             scripts:
               - 'scripts/*'
               - '!scripts/cloud-setup.sh'
+            scripts-deleted:
+              - deleted: '**'
+              - '!apps/mobile/**'
+              - '!packages/mobile-core/**'
+              - '!apps/web/**'
             unknown:
               - '**'
               - '!apps/backend/**'
