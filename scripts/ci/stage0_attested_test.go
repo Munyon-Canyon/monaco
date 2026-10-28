@@ -36,12 +36,19 @@ func allFilters(value string) []string {
 }
 
 func runAttested(t *testing.T, statusTree string, fail bool, filters []string) (string, string) {
+	return runAttestedRows(t, statusTree, "", fail, filters)
+}
+
+func runAttestedRows(t *testing.T, statusTree, rows string, fail bool, filters []string) (string, string) {
 	t.Helper()
 	r := newReuseRepo(t)
 	head := r.commit("change.txt", "one\n")
 	tree := r.git("rev-parse", head+"^{tree}")
 	if statusTree == "head" {
 		statusTree = tree
+	}
+	if rows != "" {
+		statusTree += " rows " + rows
 	}
 	statuses := []map[string]string{
 		{"context": "verify", "state": "success", "description": "tree " + tree},
@@ -98,5 +105,41 @@ func TestStage0Attested_anAPIFailureWarnsAndKeepsStage1(t *testing.T) {
 	got, log := runAttested(t, "head", true, allFilters("false"))
 	if got != "skip=false" || !strings.Contains(log, "::warning::") {
 		t.Fatalf("output %q log %q, want skip=false and a warning", got, log)
+	}
+}
+
+const allRows = "go build,go vet,go test -short,swift test,xcode,journeys"
+
+func TestStage0Attested_aCoveringRowSkipsStage1(t *testing.T) {
+	for filter, row := range map[string]string{
+		"IOS": "xcode", "MOBILE_CORE": "swift test", "MOBILE_TESTS": "swift test", "JOURNEYS": "journeys",
+	} {
+		got, log := runAttestedRows(t, "head", allRows, false, append(allFilters("false"), filter+"=true"))
+		if got != "skip=true" || !strings.Contains(log, filter+" covered by "+row) {
+			t.Fatalf("%s=true: output %q log %q, want skip=true naming %s", filter, got, log, row)
+		}
+	}
+}
+
+func TestStage0Attested_aMissingRowKeepsStage1(t *testing.T) {
+	got, log := runAttestedRows(t, "head", "go build,swift test", false, append(allFilters("false"), "IOS=true"))
+	if got != "skip=false" || !strings.Contains(log, "no xcode row passed") {
+		t.Fatalf("output %q log %q, want skip=false", got, log)
+	}
+}
+
+func TestStage0Attested_aFilterNoRowCoversKeepsStage1WithEveryRow(t *testing.T) {
+	for _, k := range []string{"WEB", "WORKFLOWS", "UNKNOWN"} {
+		got, log := runAttestedRows(t, "head", allRows, false, append(allFilters("false"), k+"=true"))
+		if got != "skip=false" || !strings.Contains(log, k) {
+			t.Fatalf("%s=true: output %q log %q, want skip=false", k, got, log)
+		}
+	}
+}
+
+func TestStage0Attested_anOldDescriptionWithoutRowsKeepsStage1ForAMobileFilter(t *testing.T) {
+	got, log := runAttested(t, "head", false, append(allFilters("false"), "IOS=true"))
+	if got != "skip=false" || !strings.Contains(log, "no xcode row passed") {
+		t.Fatalf("output %q log %q, want skip=false", got, log)
 	}
 }

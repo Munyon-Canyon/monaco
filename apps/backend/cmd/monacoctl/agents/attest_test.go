@@ -67,6 +67,39 @@ func TestAttest_aRecordPostsTheTreeOnTheHead(t *testing.T) {
 	}
 }
 
+func TestAttest_theDescriptionCarriesTheRowsOfTheRecord(t *testing.T) {
+	t.Parallel()
+	f, sha, tree := attestFixture(t, true)
+	record := checkRecord{Rows: []string{"go build", "go vet", "go lint", "go test -short", "swift test", "xcode"}}
+	if _, err := f.Env(t).writeCheckRecord(tree, record); err != nil {
+		t.Fatal(err)
+	}
+	if code, _, stderr := f.agents(t, "attest", "5"); code != 0 {
+		t.Fatalf("code=%d stderr=%q", code, stderr)
+	}
+	wantBody := `{"context":"stage0/ok","description":"tree ` + tree + ` rows swift test,xcode","state":"success"}`
+	if got := strings.TrimSpace(f.hub.body("POST /repos/o/r/statuses/" + sha)); got != wantBody {
+		t.Fatalf("body=%q", got)
+	}
+	if n := len(checkRecord{Rows: attestedRows()}.description(tree)); n > 140 {
+		t.Fatalf("description is %d bytes; GitHub accepts 140", n)
+	}
+}
+
+func TestAttest_anUnreadableRecordFailsAndPostsNothing(t *testing.T) {
+	t.Parallel()
+	f, _, tree := attestFixture(t, true)
+	if err := os.MkdirAll(f.Env(t).statePath("checks", tree), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if code, _, stderr := f.agents(t, "attest", "5"); code == 0 || stderr == "" {
+		t.Fatalf("code=%d stderr=%q", code, stderr)
+	}
+	if posts := f.hub.callsContaining("POST"); len(posts) != 0 {
+		t.Fatalf("posted %v", posts)
+	}
+}
+
 func TestAttest_fetchesTheHeadBranchWhenTheCommitIsMissing(t *testing.T) {
 	t.Parallel()
 	f, sha, tree := attestFixture(t, true)

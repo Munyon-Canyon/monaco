@@ -81,6 +81,7 @@ type checkRun struct {
 	failures  []error
 	toolchain string
 	advised   bool
+	passed    []string
 }
 
 func parseCheckArgs(base string, args []string) (string, bool, bool, error) {
@@ -153,7 +154,7 @@ func (env *Env) runStage0(
 	if runErr != nil {
 		return runErr
 	}
-	record, err := env.writeState("checks", tree, fmt.Appendf(nil, "head %s\nbase %s\n", head, base))
+	record, err := env.writeCheckRecord(tree, checkRecord{Head: head, Base: base, Rows: run.passed})
 	if err != nil {
 		return err
 	}
@@ -182,8 +183,9 @@ func (env *Env) carry(patchID, tree, head, base, parent string, generated []stri
 	if !ok {
 		return false, nil
 	}
-	record := fmt.Appendf(nil, "head %s\nbase %s\ncarried from %s\n", head, base, old)
-	if _, err := env.writeState("checks", tree, record); err != nil {
+	oldRecord, _ := env.readCheckRecord(old)
+	record := checkRecord{Head: head, Base: base, CarriedFrom: old, Rows: oldRecord.Rows}
+	if _, err := env.writeCheckRecord(tree, record); err != nil {
 		return false, err
 	}
 	_, _ = fmt.Fprintf(stdout, "stage 0 carried from tree %s (same diff against %s)\n", old[:min(12, len(old))], parent)
@@ -1094,7 +1096,11 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 	if err := r.prepare(ctx, row, stdout); err != nil {
 		return err
 	}
-	return r.runRow(ctx, row, stdout, tokenWait)
+	if err := r.runRow(ctx, row, stdout, tokenWait); err != nil {
+		return err
+	}
+	r.passed = append(r.passed, row.label)
+	return nil
 }
 
 func (r *checkRun) runRow(ctx context.Context, row checkRow, stdout io.Writer, tokenWait string) error {

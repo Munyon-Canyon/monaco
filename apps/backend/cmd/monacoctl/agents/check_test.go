@@ -469,9 +469,10 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 	if !strings.Contains(stdout, "go test -short  ok    3.0s") || !strings.Contains(stdout, "recorded ") {
 		t.Fatalf("stdout: %s", stdout)
 	}
-	record, err := os.ReadFile(filepath.Join(h.stateDir(t, "checks"), tree))
-	if err != nil || !strings.HasPrefix(string(record), "head "+h.head(t)+"\nbase origin/fb\n") {
-		t.Fatalf("record: %q %v", record, err)
+	record, err := h.Env(t).readCheckRecord(tree)
+	if err != nil || record.Head != h.head(t) || record.Base != "origin/fb" ||
+		!slices.Contains(record.Rows, "go test -short") {
+		t.Fatalf("record: %+v %v", record, err)
 	}
 	log, err := os.ReadFile(filepath.Join(h.stateDir(t, "logs"), "check-"+tree[:12]+".log"))
 	if err != nil || !strings.Contains(string(log), "=== RUN   TestX\nok  \tx\t1.5s\n") ||
@@ -1559,10 +1560,11 @@ func TestCheck_aRestackThatLeavesTheDiffUnchangedCarriesTheStage0Pass(t *testing
 	if code != 0 || stdout != want || h.ranRows() {
 		t.Fatalf("carry: %d %q %q calls %v", code, stdout, stderr, h.calls)
 	}
-	record, err := os.ReadFile(filepath.Join(h.stateDir(t, "checks"), newTree))
-	wantRecord := "head " + h.head(t) + "\nbase origin/fb\ncarried from " + oldTree + "\n"
-	if err != nil || string(record) != wantRecord {
-		t.Fatalf("record %q, want %q (%v)", record, wantRecord, err)
+	oldRecord, _ := h.Env(t).readCheckRecord(oldTree)
+	record, err := h.Env(t).readCheckRecord(newTree)
+	if err != nil || record.Head != h.head(t) || record.Base != "origin/fb" || record.CarriedFrom != oldTree ||
+		!slices.Equal(record.Rows, oldRecord.Rows) || len(record.Rows) == 0 {
+		t.Fatalf("record %+v, old %+v (%v)", record, oldRecord, err)
 	}
 
 	h.calls = nil
@@ -2557,6 +2559,38 @@ func TestCheck_goTestNeverCarriesRace(t *testing.T) {
 		}
 		if strings.Contains(line, "-race") {
 			t.Fatalf("on=%v: -race in %q", on, line)
+		}
+	}
+}
+
+func TestCheck_aPassingCheckRecordsTheRowsThatRan(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{
+		"apps/backend/internal/a/a.go":           "package a\n",
+		"packages/mobile-core/Sources/A/a.swift": "let a = 1\n",
+	})
+	h.affected = "./internal/a\n"
+	if code, stdout, stderr := h.check(t); code != 0 {
+		t.Fatalf("check: %d %q %q", code, stdout, stderr)
+	}
+	record, err := h.Env(t).readCheckRecord(h.treeOf(t))
+	if err != nil || !slices.Contains(record.Rows, "swift test") || !slices.Contains(record.Rows, "go build") {
+		t.Fatalf("record %+v (%v)", record, err)
+	}
+}
+
+func TestCheck_anEmptyOrOldRecordReadsAsNoRows(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	env := h.Env(t)
+	for name, body := range map[string]string{"empty": "", "old": "head abc\nbase origin/fb\n"} {
+		if _, err := env.writeState("checks", name, []byte(body)); err != nil {
+			t.Fatal(err)
+		}
+		record, err := env.readCheckRecord(name)
+		if err != nil || len(record.Rows) != 0 {
+			t.Fatalf("%s: %+v %v", name, record, err)
 		}
 	}
 }
