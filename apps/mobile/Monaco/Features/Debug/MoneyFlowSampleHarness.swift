@@ -50,7 +50,9 @@ struct MoneyFlowSampleHarness: View {
     @ObservedObject var auth: PrivyAuthService
 
     var body: some View {
-        if scenario.drawsContentDirectly {
+        if let state = scenario.fundState {
+            FundCabalSampleHarness(state: state)
+        } else if scenario.drawsContentDirectly {
             NavigationStack {
                 MoneyFlowContentSample(scenario: scenario)
             }
@@ -65,8 +67,6 @@ struct MoneyFlowSampleHarness: View {
     private var routes: [any AppRoute] {
         switch scenario {
         case .addMoneyLoading, .addMoneyFailed: [DepositAddressRoute()]
-        case .fundCabal, .fundCabalFunding, .fundCabalEmpty, .fundCabalLoading, .fundCabalFailed:
-            [FundRoute(cabalID: GroupDetailSampleData.cabalID)]
         case .withdraw, .withdrawFailed: [WithdrawRoute()]
         default: []
         }
@@ -74,10 +74,24 @@ struct MoneyFlowSampleHarness: View {
 }
 
 extension MoneyFlowSampleScenario {
+    var fundState: FundCabalSampleState? {
+        switch self {
+        case .fundCabal: .empty
+        case .fundCabalFunding, .fundCabalEmpty: .noCash
+        case .fundCabalLoading: .loading
+        case .fundCabalFailed: .unavailable
+        case .fundCabalInsufficient: .invalid
+        case .fundCabalSubmitting: .submitting
+        case .fundCabalConfirmed: .settled
+        case .fundCabalPending: .pending
+        case .fundCabalNotSent: .failed
+        default: nil
+        }
+    }
+
     var drawsContentDirectly: Bool {
         switch self {
-        case .addMoney, .addMoneyLoading, .addMoneyFailed, .fundCabal, .fundCabalFunding, .fundCabalEmpty,
-            .fundCabalLoading, .fundCabalFailed, .withdraw, .withdrawFailed:
+        case .addMoney, .addMoneyLoading, .addMoneyFailed, .withdraw, .withdrawFailed:
             false
         default:
             true
@@ -112,12 +126,6 @@ private struct MoneyFlowContentSample: View {
     init(scenario: MoneyFlowSampleScenario) {
         self.scenario = scenario
         switch scenario {
-        case .fundCabalInsufficient:
-            _amount = State(initialValue: "750")
-            _destination = State(initialValue: "")
-        case .fundCabalSubmitting, .fundCabalConfirmed, .fundCabalPending, .fundCabalNotSent:
-            _amount = State(initialValue: "250")
-            _destination = State(initialValue: "")
         case .withdrawInvalid:
             _amount = State(initialValue: "100")
             _destination = State(initialValue: "not-an-address")
@@ -137,8 +145,6 @@ private struct MoneyFlowContentSample: View {
     @ViewBuilder
     private var content: some View {
         switch scenario {
-        case .fundCabalInsufficient, .fundCabalSubmitting, .fundCabalConfirmed, .fundCabalPending, .fundCabalNotSent:
-            fund
         case .addMoneyUnavailable:
             DepositChooser(state: .loaded(MoneyFlowContentFixture.balance()), cardStartFailed: true)
         case .cardFunding:
@@ -183,45 +189,13 @@ private struct MoneyFlowContentSample: View {
             EmptyView()
         }
     }
-
-    private var fundOutcome: FundOutcome? {
-        let transfer = FundTransfer(transferID: "sample", status: .submitted, amountMicros: 250_000_000)
-        switch scenario {
-        case .fundCabalPending:
-            return FundProgress.submitted(transfer).outcome(requestedMicros: 250_000_000, cabalName: "Big Ballers")
-        case .fundCabalConfirmed:
-            return FundProgress.settled(transfer).outcome(requestedMicros: 250_000_000, cabalName: "Big Ballers")
-        case .fundCabalNotSent:
-            return FundProgress.failed(code: "fund_not_sent")
-                .outcome(requestedMicros: 250_000_000, cabalName: "Big Ballers")
-        default:
-            return nil
-        }
-    }
-
-    private var fund: some View {
-        FundCabalContent(
-            cabalID: GroupDetailSampleData.cabalID, cabalName: "Big Ballers",
-            state: .loaded(MoneyFlowContentFixture.balance()), amountText: $amount,
-            isSubmitting: scenario == .fundCabalSubmitting, onSubmit: {}, onRetry: {}, onAddMoney: {}
-        )
-        .sheet(isPresented: .constant(fundOutcome != nil)) {
-            if let fundOutcome {
-                FundOutcomeContent(outcome: fundOutcome)
-            }
-        }
-    }
 }
 
 extension MoneyFlowSampleScenario {
     var script: SampleAPIScript {
         switch self {
-        case .addMoneyLoading, .fundCabalLoading: SampleAPIScript(mode: .hang)
-        case .addMoneyFailed, .withdrawFailed, .fundCabalFailed: SampleAPIScript(mode: .balanceFails)
-        case .fundCabalFunding:
-            SampleAPIScript(balance: MoneyFlowSampleData.balance(available: 0, inFlight: 50_000_000))
-        case .fundCabalEmpty:
-            SampleAPIScript(balance: MoneyFlowSampleData.balance(available: 0, inFlight: 0))
+        case .addMoneyLoading: SampleAPIScript(mode: .hang)
+        case .addMoneyFailed, .withdrawFailed: SampleAPIScript(mode: .balanceFails)
         default: SampleAPIScript()
         }
     }

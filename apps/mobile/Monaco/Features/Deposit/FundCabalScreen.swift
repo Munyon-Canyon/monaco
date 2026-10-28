@@ -1,0 +1,178 @@
+import MonacoCore
+import SwiftUI
+
+enum FundNoteCopy {
+    static let title = "Your share"
+    static let share = "Your share is the part of the pot you own. It moves when anyone funds or cashes out."
+}
+
+struct FundCabalScreen: View {
+    let cabalID: String
+    var onFirstFund: (() -> Void)?
+
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedID: String
+    @State private var sources: FundSourceListModel?
+    @State private var model: FundCabalModel?
+
+    init(cabalID: String, onFirstFund: (() -> Void)? = nil) {
+        self.cabalID = cabalID
+        self.onFirstFund = onFirstFund
+        _selectedID = State(initialValue: cabalID)
+    }
+
+    var body: some View {
+        Group {
+            if let model, let sources {
+                FundCabalKeypadView(
+                    model: model, sources: sources.rows, onClose: { dismiss() }, onPick: { selectedID = $0 },
+                    onFirstFund: onFirstFund
+                )
+                .id(model.cabalID)
+            } else {
+                MonacoTheme.canvas.ignoresSafeArea()
+            }
+        }
+        .toolbar(.hidden, for: .tabBar)
+        .toolbar(.hidden, for: .navigationBar)
+        .navigationBarBackButtonHidden()
+        .onScreenVisibilityChange { model?.setVisible($0) }
+        .task(id: selectedID) { await open(selectedID) }
+        .onDisappear { model?.dismiss() }
+    }
+
+    private func open(_ id: String) async {
+        let list = sources ?? FundSourceListModel(api: environment.api)
+        sources = list
+        if !list.isLoaded { await list.load() }
+        guard !Task.isCancelled else { return }
+        model?.dismiss()
+        let next = FundCabalModel(
+            api: environment.api, hints: environment.hints, cabalID: id,
+            cabalName: list.row(for: id)?.name ?? FundSourceCopy.fallbackName,
+            submission: environment.moneySubmission(slot: Funding.slot(cabalID: id)),
+            settlements: environment.settlements, clock: ContinuousClock())
+        model = next
+        await next.load()
+        await next.observe()
+    }
+}
+
+struct FundCabalKeypadView: View {
+    @Bindable var model: FundCabalModel
+    let sources: [FundSourceRow]
+    let onClose: () -> Void
+    let onPick: (String) -> Void
+    var onFirstFund: (() -> Void)?
+
+    @State private var showsNote = false
+    @State private var showsSources = false
+
+    private var current: FundSourceRow? {
+        sources.first { $0.id == model.cabalID }
+    }
+
+    private var keypadState: AmountKeypadState {
+        switch model.state {
+        case .empty: .empty
+        case .invalid: .invalid(limitLine: model.limitLine ?? "", slot: model.slotHint)
+        case .settled: .settled(line: model.line)
+        case .typed, .belowMinimum, .paused, .submitting, .unconfirmed, .failed: .typed
+        }
+    }
+
+    private var isInvalid: Bool {
+        if case .invalid = model.state { return true }
+        return false
+    }
+
+    private var locksSource: Bool {
+        switch model.state {
+        case .settled, .submitting: true
+        default: false
+        }
+    }
+
+    private var emptySlot: String {
+        if case .paused = model.state { return "" }
+        return model.slotHint
+    }
+
+    private var action: AmountKeypadAction? {
+        if let check = model.checkLabel {
+            return AmountKeypadAction(title: check, settledTitle: check, perform: {})
+        }
+        if case .submitting = model.state {
+            return AmountKeypadAction(title: model.line, isWorking: true, perform: {})
+        }
+        guard let title = model.buttonTitle else { return nil }
+        return AmountKeypadAction(title: title) { Task { await model.submit() } }
+    }
+
+    private var max: Decimal? {
+        model.preview == nil ? nil : AmountText.dollars(micros: model.maxMicros)
+    }
+
+    var body: some View {
+        AmountKeypadScreen(
+            amountText: $model.amountText,
+            state: keypadState,
+            line: AmountKeypadLine(text: model.line, info: { showsNote = true }),
+            max: max,
+            emptySlot: emptySlot,
+            action: action,
+            onClose: onClose,
+            onSource: locksSource ? nil : { showsSources = true },
+            source: { sourcePill }
+        )
+        .onChange(of: model.amountText) { model.amountChanged() }
+        .onChange(of: model.firstFund) { _, first in
+            if first { onFirstFund?() }
+        }
+        .sensoryFeedback(.error, trigger: isInvalid) { was, now in !was && now }
+        .sheet(isPresented: $showsNote) { FundNoteSheet() }
+        .sheet(isPresented: $showsSources) {
+            FundSourcePicker(rows: sources, selectedID: model.cabalID) { id in
+                showsSources = false
+                if id != model.cabalID { onPick(id) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var sourcePill: some View {
+        CabalMark(
+            groupId: model.cabalID, name: model.cabalName, size: FundPillMetrics.crest,
+            pictureUrl: current?.pictureURL)
+        Text(model.cabalName)
+            .font(MonacoTheme.Typo.headline)
+            .foregroundStyle(MonacoTheme.primaryText)
+            .monacoPrivate()
+        if model.preview != nil {
+            Text(FundSourceCopy.cash(micros: model.maxMicros))
+                .font(MonacoTheme.Typo.subhead)
+                .foregroundStyle(MonacoTheme.secondaryText)
+                .monacoPrivate()
+        }
+    }
+}
+
+enum FundPillMetrics {
+    static let crest: CGFloat = 28
+}
+
+struct FundNoteSheet: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+            Text(CabalYield.fundNote)
+            Text(FundNoteCopy.share)
+        }
+        .font(MonacoTheme.Typo.subhead)
+        .foregroundStyle(MonacoTheme.secondaryText)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.bottom, MonacoTheme.Space.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .monacoFittedSheet(title: FundNoteCopy.title, showsClose: true)
+    }
+}

@@ -19,7 +19,7 @@ final class PrivateDataMaskTests: XCTestCase {
         "apps/mobile/Monaco/Features/Comments/CommentComposer.swift": 1,
         "apps/mobile/Monaco/Features/Comments/CommentThreadView.swift": 2,
         "apps/mobile/Monaco/Features/Deposit/DepositView.swift": 1,
-        "apps/mobile/Monaco/Features/Deposit/FundCabalView.swift": 1,
+        "apps/mobile/Monaco/Features/Deposit/FundCabalScreen.swift": 2,
         "apps/mobile/Monaco/Features/Deposit/GroupCashView.swift": 1,
         "apps/mobile/Monaco/Features/Feed/FeedEventParts.swift": 4,
         "apps/mobile/Monaco/Features/Feed/FeedItemDetailView.swift": 3,

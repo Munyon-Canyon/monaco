@@ -53,7 +53,7 @@ struct ScreenMapOrderTests {
 
     @Test func theFundRouteRendersItsScreen() {
         let view: Any = FundRoute(cabalID: "c").destination()
-        #expect(view is FundCabalView)
+        #expect(view is FundCabalScreen)
     }
 
     @Test func theChatRouteRendersItsScreen() {
