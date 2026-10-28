@@ -47,7 +47,7 @@ struct ReactionRowTests {
         #expect(mine.isMine)
         #expect(!other.isMine)
         #expect(mine.spokenLabel == "party popper, 5 reactions, yours")
-        #expect(other.spokenLabel == "clapping hands sign, 2 reactions")
+        #expect(other.spokenLabel == "clapping hands, 2 reactions")
         #expect(MonacoReactionChip(emoji: "👀", count: 1, mine: false) {}.spokenLabel == "eyes, 1 reaction")
     }
 

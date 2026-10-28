@@ -110,7 +110,7 @@ private struct RemoveReactionAction: ViewModifier {
 
 extension String {
     var reactionName: String {
-        unicodeScalars.first?.properties.name?.lowercased() ?? self
+        EmojiCatalog.bundled.name(for: self) ?? unicodeScalars.first?.properties.name?.lowercased() ?? self
     }
 
     var reactionHex: String {
