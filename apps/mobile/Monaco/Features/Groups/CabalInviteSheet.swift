@@ -12,48 +12,48 @@ nonisolated enum CabalInviteMode: Hashable, Sendable {
 struct CabalInviteSheet: View {
     let cabal: Components.Schemas.Cabal
     var mode: CabalInviteMode = .share
-    var link: URL?
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(\.dismiss) private var dismiss
     @Environment(\.hostMainTab) private var hostMainTab
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @State private var links: InviteLinkModel?
-    @State private var access: CabalInviteAccessModel?
-    @State private var sharing: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var invite: CabalInviteModel?
+    @State private var flip: Double = 0
+    @State private var handleRoute: AnyAppRoute?
 
-    private var shareURL: URL? { link ?? links?.links?.shareURL }
+    private var showsQR: Bool { flip >= 90 }
+
+    private var isAdmin: Bool { CabalInviteCopy.isAdmin(role: cabal.me?.role) }
 
     var body: some View {
         NavigationStack {
             content
-                .monacoSheet(
-                    title: "Invite to cabal", titleIdentifier: "cabal-invite-title",
-                    detents: .votes, showsClose: true
-                )
                 .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
+                .navigationDestination(item: $handleRoute) { $0.destination() }
         }
         .monacoToastCenter(toasts)
         .task {
             guard mode == .share else { return }
-            let links = self.links ?? InviteLinkModel(api: environment.api, hints: environment.hints)
-            self.links = links
-            if link == nil { await links.load() }
+            let invite = self.invite ?? makeModel()
+            self.invite = invite
+            await invite.load()
+            await invite.observe()
         }
-        .task {
-            guard mode == .share else { return }
-            let access = self.access ?? CabalInviteAccessModel(cabalID: cabal.id, api: environment.api)
-            self.access = access
-            await access.load()
-        }
+    }
+
+    private func makeModel() -> CabalInviteModel {
+        CabalInviteModel(
+            api: environment.api, hints: environment.hints, cabalID: cabal.id,
+            inviteLinks: InviteLinkModel(api: environment.api, hints: environment.hints))
     }
 
     @ViewBuilder private var content: some View {
         switch mode {
         case .share:
-            shareContent
+            shareSheet
         case .invited:
             outcome(pending: false, title: "You\u{2019}re invited", id: "cabal-invite-preview")
         case .requested:
@@ -65,6 +65,8 @@ struct CabalInviteSheet: View {
             )
             .frame(maxWidth: .infinity)
             .accessibilityIdentifier("cabal-invite-unavailable")
+            .monacoSheet(
+                title: "Invite to cabal", titleIdentifier: "cabal-invite-title", detents: .votes, showsClose: true)
         }
     }
 
@@ -82,120 +84,167 @@ struct CabalInviteSheet: View {
         .padding(.top, MonacoTheme.Space.l)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(id)
+        .monacoSheet(title: "Invite to cabal", titleIdentifier: "cabal-invite-title", detents: .votes, showsClose: true)
     }
 
-    private var shareContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                CabalCover(
-                    cabalId: cabal.id, tint: .forGroupId(cabal.id), pictureURL: CabalMark.resolvedURL(cabal.pictureUrl),
-                    style: .card
-                ) {
-                    Text(cabal.name)
-                        .font(MonacoTheme.Typo.title)
-                        .foregroundStyle(MonacoTheme.onCover)
-                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
-                        .padding(MonacoTheme.Space.gutter)
-                }
-                .frame(height: CabalInviteMetrics.coverHeight)
-                .accessibilityIdentifier("cabal-invite-cover")
-                Text("Share a link with your friends.")
-                    .font(MonacoTheme.Typo.subhead)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                    .padding(.top, MonacoTheme.Space.m)
-                linkBox
-                    .padding(.top, MonacoTheme.Space.sm)
-                buttons
-                    .padding(.top, MonacoTheme.Space.gutter)
-                rows
-                    .padding(.top, MonacoTheme.Space.m)
+    private var shareSheet: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            heading
+            ScrollView {
+                face
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .padding(.bottom, MonacoTheme.Space.m)
             }
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.bottom, MonacoTheme.Space.l)
+            .scrollBounceBehavior(.basedOnSize)
+            buttons
         }
-        .scrollBounceBehavior(.basedOnSize)
+        .presentationDetents(Set(MonacoSheetDetents.half + (dynamicTypeSize.isAccessibilitySize ? [.large] : [])))
+        .presentationDragIndicator(.visible)
+        .presentationContentInteraction(.scrolls)
+        .presentationBackgroundInteraction(.disabled)
     }
 
-    @ViewBuilder private var linkBox: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-            Group {
-                if let shareURL {
-                    Text(shareURL.absoluteString)
-                        .textSelection(.enabled)
-                } else if case .failed? = links?.state {
-                    Text("Couldn\u{2019}t load your link.")
-                } else {
-                    Text(" ").skeletonBar(width: CabalInviteMetrics.skeletonLink)
-                }
+    private var heading: some View {
+        HStack(spacing: CabalInviteMetrics.roundGap) {
+            Text(invite?.preview?.title ?? CabalInviteCopy.title(name: cabal.name))
+                .font(MonacoTheme.Typo.section)
+                .foregroundStyle(MonacoTheme.primaryText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("cabal-invite-title")
+            MonacoGlassButton(
+                systemImage: showsQR ? "rectangle.on.rectangle" : MonacoIcon.qr.symbol,
+                accessibilityLabel: showsQR ? "Show invite card" : "Show QR code", style: .quiet, size: .compact
+            ) { toggleFlip() }
+            .disabled(invite?.link == nil)
+            .accessibilityIdentifier("cabal-invite-qr-toggle")
+            if isAdmin { settingsMenu }
+            MonacoGlassButton(systemImage: "xmark", accessibilityLabel: "Close", style: .quiet, size: .compact) {
+                dismiss()
             }
-            .font(MonacoTheme.Typo.caption)
-            .foregroundStyle(MonacoTheme.primaryText)
-            .padding(MonacoTheme.Space.sm)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: MonacoTheme.Radius.chip, style: .continuous)
-                    .fill(MonacoTheme.surface)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: MonacoTheme.Radius.chip, style: .continuous)
-                    .strokeBorder(MonacoTheme.border, lineWidth: 1)
-            )
-            .accessibilityIdentifier("cabal-invite-link")
-            Text(CabalCopy.cabalLinksOpenSoon)
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.secondaryText)
+        }
+        .frame(minHeight: 48)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.top, MonacoTheme.Space.s)
+        .padding(.bottom, MonacoTheme.Space.sm)
+    }
+
+    private var settingsMenu: some View {
+        Menu {
+            Button {
+                handleRoute = AnyAppRoute(
+                    InviteMemberRoute(cabalID: cabal.id, standing: CabalInviteStanding(role: .creator)))
+            } label: {
+                Label("Invite by handle", systemImage: "at")
+            }
+            .accessibilityIdentifier("cabal-invite-handle-row")
+            Button {
+                dismiss()
+                environment.navigator.open(
+                    CabalInfoRoute(cabalID: cabal.id), in: hostMainTab ?? environment.navigator.selectedTab)
+            } label: {
+                Label(CabalInviteCopy.joiningLine(joinMode: cabal.rules.joinMode), systemImage: "person.badge.plus")
+            }
+            .accessibilityIdentifier("cabal-invite-joining-row")
+        } label: {
+            Image(systemName: "gearshape")
+                .font(MonacoTheme.Typo.headline)
+                .foregroundStyle(MonacoTheme.primaryText)
+                .frame(width: CabalInviteMetrics.roundDiameter, height: CabalInviteMetrics.roundDiameter)
+                .background(Circle().fill(MonacoTheme.surfaceSunken))
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Circle())
+        }
+        .accessibilityLabel("Invite settings")
+        .accessibilityIdentifier("cabal-invite-settings")
+    }
+
+    @ViewBuilder private var face: some View {
+        switch invite?.state ?? .idle {
+        case .idle, .loading:
+            SkeletonBlock(height: CabalInviteMetrics.skeletonCard, radius: MonacoTheme.Radius.card)
+                .accessibilityIdentifier("cabal-invite-loading")
+        case .failed:
+            VStack(spacing: MonacoTheme.Space.m) {
+                EmptyState(
+                    title: "Couldn\u{2019}t load your invite", message: "Check your connection and try again.",
+                    systemImage: MonacoIcon.link.symbol)
+                Button("Try again") { Task { await invite?.load() } }
+                    .buttonStyle(.monacoOutline)
+                    .accessibilityIdentifier("cabal-invite-retry")
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("cabal-invite-failed")
+        case .loaded(let preview):
+            flipper(preview)
+        }
+    }
+
+    private func flipper(_ preview: CabalInvitePreview) -> some View {
+        CabalInviteFlip(
+            angle: flip, front: CabalInviteCard(preview: preview),
+            back: backFace(name: preview.name))
+    }
+
+    @ViewBuilder private func backFace(name: String) -> some View {
+        if let link = invite?.link {
+            CabalInviteQR(link: link, cabalName: name)
+        }
+    }
+
+    private func toggleFlip() {
+        let target: Double = showsQR ? 0 : 180
+        if reduceMotion {
+            flip = target
+        } else {
+            withAnimation(.easeInOut(duration: CabalInviteMetrics.flipDuration)) { flip = target }
         }
     }
 
     private var buttons: some View {
-        VStack(spacing: MonacoTheme.Space.sm) {
-            Button("Share link") {
-                if let shareURL { SystemShare.present(SharePayload(title: cabal.name, url: shareURL)) }
+        HStack(spacing: MonacoTheme.Space.sm) {
+            Button {
+                share()
+            } label: {
+                Label("Share", systemImage: "square.and.arrow.up")
+                    .frame(maxWidth: .infinity)
             }
             .buttonStyle(.monacoPrimary)
-            .disabled(shareURL == nil)
+            .disabled(invite?.link == nil || invite?.preview == nil)
             .accessibilityIdentifier("share-card-share")
-            Button("Copy link") { copy() }
-                .buttonStyle(.monacoOutline)
-                .disabled(shareURL == nil)
-                .accessibilityIdentifier("share-card-copy")
+            Button {
+                copy()
+            } label: {
+                Label("Copy link", systemImage: "doc.on.doc")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.monacoOutline)
+            .disabled(invite?.link == nil)
+            .accessibilityIdentifier("share-card-copy")
         }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.bottom, MonacoTheme.Space.m)
+    }
+
+    private func share() {
+        guard let link = invite?.link, let preview = invite?.preview else { return }
+        SystemShare.present(SharePayload(title: cabal.name, url: link, image: Self.cardImage(preview)))
     }
 
     private func copy() {
-        guard let shareURL else { return }
-        UIPasteboard.general.url = shareURL
+        guard let link = invite?.link else { return }
+        UIPasteboard.general.url = link
         Haptics.selection()
         toasts.current = MonacoToast(message: CabalCopy.linkCopied, isSuccess: true)
     }
 
-    private var rows: some View {
-        MonacoGroupedList {
-            if let standing = access?.standing, standing.canInvite {
-                NavigationLink(value: AnyAppRoute(InviteMemberRoute(cabalID: cabal.id, standing: standing))) {
-                    MonacoRow(title: "Invite by handle", chevron: true, isLast: false) {
-                        SunkenGlyphMark(systemImage: "at")
-                    }
-                }
-                .buttonStyle(.monacoRow)
-                .accessibilityIdentifier("cabal-invite-handle-row")
-            }
-            Button {
-                Task { await ShareCardLauncher.shareCabal(cabal, api: environment.api, toasts: toasts, busy: $sharing) }
-            } label: {
-                MonacoRow(title: "Share your gain as an image", chevron: true, isLast: true) {
-                    SunkenGlyphMark(systemImage: "photo")
-                }
-            }
-            .buttonStyle(.monacoRow)
-            .disabled(sharing != nil)
-            .accessibilityIdentifier("cabal-invite-gain-row")
-        }
-        .padding(.horizontal, -MonacoTheme.Space.gutter)
+    @MainActor static func cardImage(_ preview: CabalInvitePreview) -> UIImage? {
+        let card = CabalInviteCard(preview: preview)
+            .frame(width: CabalInviteMetrics.shareWidth)
+            .environment(\.colorScheme, .dark)
+            .dynamicTypeSize(.large)
+        let renderer = ImageRenderer(content: card)
+        renderer.scale = CabalInviteMetrics.shareScale
+        return renderer.uiImage
     }
-}
-
-enum CabalInviteMetrics {
-    static let coverHeight: CGFloat = 140
-    static let skeletonLink: CGFloat = 220
 }

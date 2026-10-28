@@ -13,6 +13,7 @@ final class InviteLinkModelTests: XCTestCase {
         + #""handle_link":"https://monacolabs.xyz/r/kaicenat","handle_unlocked":true}"#
     private static let unlockedWithoutHandleLink =
         #"{"code":"k7m4qx2p","link":"https://monacolabs.xyz/r/k7m4qx2p","handle_link":null,"handle_unlocked":true}"#
+    private static let cabalID = "01890a5d-ac96-774b-bcce-b302099a8058"
     private static let codeURL = URL(string: "https://monacolabs.xyz/r/k7m4qx2p")
     private static let handleURL = URL(string: "https://monacolabs.xyz/r/kaicenat")
 
@@ -50,6 +51,29 @@ final class InviteLinkModelTests: XCTestCase {
         XCTAssertEqual(links.shareURL, Self.codeURL)
         XCTAssertNil(links.codeURL)
         XCTAssertFalse(links.showsUnlockPrompt)
+    }
+
+    func testTheCabalLinkCarriesTheRandomCodeWhenLocked() async throws {
+        let (model, _, _, _) = try make([.json(.ok, Self.locked)])
+        XCTAssertNil(model.cabalLink(cabalID: Self.cabalID))
+
+        await model.load()
+
+        XCTAssertEqual(model.code?.value, "k7m4qx2p")
+        XCTAssertEqual(
+            model.cabalLink(cabalID: Self.cabalID)?.absoluteString,
+            "https://monacolabs.xyz/r/k7m4qx2p?c=\(Self.cabalID)")
+    }
+
+    func testTheCabalLinkCarriesTheHandleWhenUnlocked() async throws {
+        let (model, _, _, _) = try make([.json(.ok, Self.unlocked)])
+
+        await model.load()
+
+        XCTAssertEqual(model.code?.value, "kaicenat")
+        XCTAssertEqual(
+            model.cabalLink(cabalID: Self.cabalID)?.absoluteString,
+            "https://monacolabs.xyz/r/kaicenat?c=\(Self.cabalID)")
     }
 
     func testPendingWaitsTwoSecondsThenLoads() async throws {

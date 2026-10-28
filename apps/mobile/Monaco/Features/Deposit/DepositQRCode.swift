@@ -11,16 +11,12 @@ struct DepositQRCode: View {
     let onCopy: (String) -> Void
 
     static func image(for address: String) -> CIImage? {
-        let filter = CIFilter.qrCodeGenerator()
-        filter.message = Data(address.utf8)
-        filter.correctionLevel = "M"
-        return filter.outputImage
+        QRImage.image(for: address)
     }
 
     var body: some View {
         ZStack {
-            if let image = Self.image(for: address), let cgImage = Self.context.createCGImage(image, from: image.extent)
-            {
+            if let cgImage = QRImage.cgImage(for: address) {
                 Image(decorative: cgImage, scale: 1)
                     .interpolation(.none)
                     .resizable()
@@ -47,6 +43,19 @@ struct DepositQRCode: View {
                 onCopy(address)
             }
         }
+    }
+}
+
+enum QRImage {
+    static func image(for text: String) -> CIImage? {
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(text.utf8)
+        filter.correctionLevel = "M"
+        return filter.outputImage
+    }
+
+    static func cgImage(for text: String) -> CGImage? {
+        image(for: text).flatMap { context.createCGImage($0, from: $0.extent) }
     }
 
     private static let context = CIContext()

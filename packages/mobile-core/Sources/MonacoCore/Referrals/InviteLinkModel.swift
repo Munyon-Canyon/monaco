@@ -68,6 +68,14 @@ public final class InviteLinkModel {
         return nil
     }
 
+    public var code: ReferralCode? {
+        links.flatMap { ReferralLink.parse($0.shareURL) }
+    }
+
+    public func cabalLink(cabalID: String) -> URL? {
+        code.map { ReferralLink.url(for: $0, cabalID: cabalID) }
+    }
+
     public func load() async {
         generation += 1
         let current = generation
