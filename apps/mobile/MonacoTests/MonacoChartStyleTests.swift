@@ -156,7 +156,7 @@ enum RenderedView {
         let window = UIWindow(windowScene: scene)
         window.rootViewController = UIHostingController(rootView: view.environment(\.dynamicTypeSize, size))
         window.makeKeyAndVisible()
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
         await ProposalTestWindow.until { ready(AccessibilityTree.labels(in: window)) }
         return AccessibilityTree.labels(in: window)
     }

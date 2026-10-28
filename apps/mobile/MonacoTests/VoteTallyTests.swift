@@ -51,7 +51,7 @@ enum VoteTestKit {
 
     static func identifiers(_ view: some View) async throws -> [String] {
         let window = try window(view)
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
         await settle()
         return AccessibilityTree.identifiers(in: window)
     }
@@ -235,13 +235,13 @@ struct VoteTallyViewTests {
     @Test func aPairThatFirstRendersCommittedPlaysNothingAndALandingPlaysOnce() async throws {
         let recorder = VoteTestKit.Recorder()
         let first = try VoteTestKit.window(VoteTestKit.Host(box: VoteTestKit.Box(.committed(.yes)), recorder: recorder))
-        defer { first.isHidden = true }
+        defer { TestWindow.close(first) }
         await VoteTestKit.settle()
         #expect(recorder.landed == 0 && recorder.picks == 0)
 
         let box = VoteTestKit.Box(.pending(.yes))
         let second = try VoteTestKit.window(VoteTestKit.Host(box: box, recorder: recorder))
-        defer { second.isHidden = true }
+        defer { TestWindow.close(second) }
         await VoteTestKit.settle()
         box.selection = .committed(.yes)
         await VoteTestKit.settle { recorder.landed > 0 }
@@ -289,7 +289,7 @@ struct VoteTallyViewTests {
         let box = VoteTestKit.Box(.none)
         let recorder = VoteTestKit.Recorder()
         let window = try VoteTestKit.window(VoteTestKit.Host(box: box, recorder: recorder))
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
         await VoteTestKit.settle()
 
         let yes = try #require(VoteTestKit.node("proposal-vote-yes", in: window))
@@ -311,7 +311,7 @@ struct VoteTallyViewTests {
     @Test func aCommittedButtonReadsVotedAndOffersNoActions() async throws {
         let window = try VoteTestKit.window(
             VoteTestKit.Host(box: VoteTestKit.Box(.committed(.yes)), recorder: VoteTestKit.Recorder()))
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
         await VoteTestKit.settle()
 
         let yes = try #require(VoteTestKit.node("proposal-vote-yes", in: window))

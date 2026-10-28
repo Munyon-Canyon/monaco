@@ -20,7 +20,7 @@ struct FeedViewLoadTests {
             clock: ContinuousClock()
         )
         let window = try Self.window(hosting: FeedView(makeModel: { _ in model }))
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
 
         await Self.until { model.phase == .loaded }
 

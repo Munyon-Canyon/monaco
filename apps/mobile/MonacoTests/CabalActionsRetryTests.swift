@@ -23,7 +23,7 @@ struct CabalActionsRetryTests {
         )
         let tick = RetryTick()
         let window = try Self.window(hosting: RetryHost(tick: tick, model: model))
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
         await Self.until { model.actions == .hidden }
         await transport.waitForRequests(1)
 
@@ -51,7 +51,7 @@ struct CabalActionsRetryTests {
         try Self.setAutomation(enabled: true)
         defer { try? Self.setAutomation(enabled: false) }
         let window = try Self.window(hosting: RetryHost(tick: RetryTick(), model: model))
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
 
         await Self.until { if case .failed = model.actions { true } else { false } }
         #expect(await Self.element("cabal-actions-failed", in: window) != nil, "no error row")

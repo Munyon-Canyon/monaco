@@ -56,7 +56,7 @@ struct AssetDetailCopyOnceTests {
                 .environment(ToastCenter())
         )
         window.makeKeyAndVisible()
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
         window.layoutIfNeeded()
         var labels: [String] = []
         var settled = false

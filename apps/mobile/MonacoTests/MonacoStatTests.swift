@@ -131,7 +131,7 @@ struct MonacoStatTests {
         let window = UIWindow(windowScene: scene)
         window.rootViewController = UIHostingController(rootView: Self.strip())
         window.makeKeyAndVisible()
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
         await ProposalTestWindow.until { Self.frame(ofLabel: "Deposit", in: window) != nil }
 
         let frame = try #require(Self.frame(ofLabel: "Deposit", in: window))

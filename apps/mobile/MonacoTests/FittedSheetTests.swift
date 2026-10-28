@@ -37,7 +37,7 @@ struct FittedSheetTests {
         let window = UIWindow(windowScene: scene)
         window.rootViewController = root
         window.makeKeyAndVisible()
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
         try #require(await eventually { root.presentedViewController != nil }, "the sheet never opened")
         let presented = try #require(root.presentedViewController)
 
