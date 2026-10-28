@@ -53,7 +53,12 @@ ON CONFLICT (proposal_id) DO UPDATE
 SET fill_price_micros = EXCLUDED.fill_price_micros,
   filled_at = EXCLUDED.filled_at,
   updated_at = EXCLUDED.updated_at
-WHERE calls.state <> 'resolved';
+WHERE calls.state <> 'resolved'
+  AND (
+    calls.filled_at IS NULL
+    OR EXCLUDED.filled_at > calls.filled_at
+    OR (EXCLUDED.filled_at = calls.filled_at AND EXCLUDED.fill_price_micros > calls.fill_price_micros)
+  );
 
 -- name: VoidCall :exec
 INSERT INTO calls (proposal_id, cabal_id, state, void_reason, updated_at)

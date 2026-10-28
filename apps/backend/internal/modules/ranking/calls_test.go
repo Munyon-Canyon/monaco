@@ -2,6 +2,7 @@ package ranking_test
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"testing"
 	"time"
@@ -237,6 +238,63 @@ func TestCalls_fillPriceIsStoredWhicheverEventComesFirst(t *testing.T) {
 			}
 			assertFilledAndDecided(t, w.d.call(t, w.proposal))
 		})
+	}
+}
+
+func (w callsWorld) filledAt(t *testing.T, price uint64, at time.Time) {
+	t.Helper()
+	w.d.callsDeliver(t, w.ports, "ranking.calls.trade_confirmed", events.TradeConfirmed{
+		V: 1, SwapID: w.d.gen.NewV7(), CabalID: w.cabal, Source: events.TradeSource{Kind: "proposal", ID: w.proposal},
+		Action: "buy", Symbol: "AAPLx", InMint: chain.SolanaAddress(callsUSDC), InAmount: price,
+		OutMint: callsMint, OutAmount: 1_000_000, USDCMicros: money.MicrosFromUint64(price), ConfirmedAt: at,
+	})
+}
+
+type fillCase struct {
+	firstAt, secondAt       time.Duration
+	firstPrice, secondPrice uint64
+	wantPrice               int64
+	wantAt                  time.Duration
+}
+
+func TestCalls_twoFillsLeaveTheSameCallInEitherOrder(t *testing.T) {
+	t.Parallel()
+	for name, c := range map[string]fillCase{
+		"later fill is cheaper": {time.Hour, 2 * time.Hour, 700_000_000, 600_000_000, 600_000_000, 2 * time.Hour},
+		"later fill is dearer":  {time.Hour, 2 * time.Hour, 600_000_000, 700_000_000, 700_000_000, 2 * time.Hour},
+		"same time, two prices": {time.Hour, time.Hour, 600_000_000, 700_000_000, 700_000_000, time.Hour},
+	} {
+		for _, reversed := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s reversed=%v", name, reversed), func(t *testing.T) {
+				t.Parallel()
+				c.assertStored(t, reversed)
+			})
+		}
+	}
+}
+
+func (c fillCase) assertStored(t *testing.T, reversed bool) {
+	t.Helper()
+	w := newCallsWorld(t, 0)
+	w.created(t)
+	fills := []func(){
+		func() { w.filledAt(t, c.firstPrice, w.opened.Add(c.firstAt)) },
+		func() { w.filledAt(t, c.secondPrice, w.opened.Add(c.secondAt)) },
+	}
+	if reversed {
+		fills[0], fills[1] = fills[1], fills[0]
+	}
+	fills[0]()
+	fills[1]()
+	var price int64
+	var at time.Time
+	if err := w.d.pool.QueryRow(t.Context(),
+		`SELECT fill_price_micros, filled_at FROM calls WHERE proposal_id = $1`, w.proposal).
+		Scan(&price, &at); err != nil {
+		t.Fatal(err)
+	}
+	if want := w.opened.Add(c.wantAt); price != c.wantPrice || !at.Equal(want) {
+		t.Fatalf("fill = %d at %v (reversed %v), want %d at %v", price, at, reversed, c.wantPrice, want)
 	}
 }
 

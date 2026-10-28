@@ -12,10 +12,12 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
+	"github.com/monaco/monaco/apps/backend/internal/modules/ranking"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
@@ -242,4 +244,33 @@ func TestRunValuation_aCabalHoldingAnUncataloguedMintKeepsItsRowsFlaggedWhileThe
 	if flagged != 2 || healthy != 2 {
 		t.Fatalf("flagged rows = %d, healthy rows = %d, want 2 and 2", flagged, healthy)
 	}
+}
+
+func onceModule(rig *valuationRig) *ranking.Module {
+	deps := module.Deps{
+		Pool: rig.pool, Clock: testkit.NewClock(rig.now.Add(time.Minute)),
+		UoW: db.New(rig.pool, testkit.NewIDs(588), testkit.NewClock(rig.now)), IDs: testkit.NewIDs(589),
+		Config: testkit.Config(),
+	}
+	return ranking.New(deps, ranking.WithPorts(rig.ports))
+}
+
+func TestRunOnce_valuesAndWritesTheBoards(t *testing.T) {
+	t.Parallel()
+	rig := newValuationRig(t)
+	if err := onceModule(rig).RunOnce(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	rig.wantRows(t, map[string]int{"cabals": 1, "people": 1})
+}
+
+func TestRunOnce_stopsWhenTheValuationFails(t *testing.T) {
+	t.Parallel()
+	rig := newValuationRig(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if err := onceModule(rig).RunOnce(ctx); err == nil {
+		t.Fatal("RunOnce on a cancelled context = nil, want the valuation error")
+	}
+	rig.wantRows(t, map[string]int{"cabals": 0, "people": 0})
 }
