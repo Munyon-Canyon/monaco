@@ -1,6 +1,6 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { renderReferralPage, handleReferral, lookupReferrer, normalizeCode, otherHost } from "../lib/referral.js";
+import { renderReferralPage, handleReferral, lookupReferrer, lookupCabal, normalizeCode, normalizeId, otherHost } from "../lib/referral.js";
 import { onRequest as cloudflare } from "../functions/r/[code].js";
 import vercel from "../api/r/[code].js";
 import { readFileSync } from "node:fs";
@@ -229,6 +229,189 @@ test("the Vercel adapter reads the host a proxy forwarded and caches only a good
   await vercel(bad.req, bad.res);
   assert.equal(bad.headers["cache-control"], "no-store");
   assert.equal(bad.headers["cdn-cache-control"], undefined);
+});
+
+// The cabal landing: a link that carries ?c=<cabal_id>.
+const CABAL_ID = "01890a5d-ac96-774b-bcce-b302099a8058";
+const PROPOSAL_ID = "01890a5d-ac96-774b-bcce-b302099a8057";
+const preview = {
+  inviter: { display_name: "Andres", photo_url: null },
+  cabal: {
+    id: CABAL_ID, name: "AC Capital", picture_url: "https://img.example/cover.png", member_count: 8, since: "2026-08-14",
+    join_mode: "open", first_members: [{ display_name: "Christelle", photo_url: null }], pot_value_micros: "20000000000",
+  },
+  return_1m_bps: -410,
+  turnout_month_bps: 9400,
+  open_proposal: null,
+};
+
+// Answers the cabal route with `cabalBody` (or throws / fails) and every other route like fakeFetch.
+function routedFetch({ cabalBody = preview, cabalStatus = 200, cabalThrows = false, referrer = kai } = {}) {
+  const calls = [];
+  const fn = async (url, init) => {
+    calls.push({ url, init });
+    if (String(url).includes("/cabals/")) {
+      if (cabalThrows) throw new TypeError("fetch failed");
+      return new Response(JSON.stringify(cabalBody), { status: cabalStatus, headers: { "content-type": "application/json" } });
+    }
+    return new Response(JSON.stringify({ referrer }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  fn.calls = calls;
+  return fn;
+}
+
+const cabalLink = (over = {}) => ({ code: "k7m4qx2p", cabalId: CABAL_ID, host: "monacolabs.xyz", env, ...over });
+
+test("ids are accepted only as UUIDs", () => {
+  assert.equal(normalizeId(CABAL_ID.toUpperCase()), CABAL_ID);
+  for (const bad of [undefined, null, "", "abc", `${CABAL_ID}x`, "01890a5d-ac96-774b-bcce-b302099a805", '"><script>', ["x"]]) {
+    assert.equal(normalizeId(bad), null);
+  }
+});
+
+test("a valid c with a cabal renders the cabal landing and looks the cabal up", async () => {
+  const fetch = routedFetch();
+  const res = await handleReferral({ ...cabalLink(), cabalId: CABAL_ID.toUpperCase(), fetch });
+  assert.equal(fetch.calls.length, 1);
+  assert.equal(fetch.calls[0].url, `http://api.test/v1/referrals/k7m4qx2p/cabals/${CABAL_ID}`);
+  assert.match(res.body, /<h1>AC Capital<\/h1>/);
+  assert.match(res.body, /<meta property="og:title" content="Andres invited you to AC Capital">/);
+  assert.match(res.body, /<dt>Treasury<\/dt><dd>\$20,000<\/dd>/);
+  assert.match(res.body, new RegExp(`href="https://www\\.monacolabs\\.xyz/r/k7m4qx2p\\?c=${CABAL_ID}">Open in Monaco`));
+  assert.match(res.body, new RegExp(`var LINK = "https://monacolabs\\.xyz/r/k7m4qx2p\\?c=${CABAL_ID}";`));
+});
+
+test("a valid p rides along in the clipboard link and the Open in Monaco link, on both hosts", async () => {
+  const fetch = routedFetch();
+  const apex = await handleReferral({ ...cabalLink(), proposalId: PROPOSAL_ID, fetch });
+  assert.match(apex.body, new RegExp(`var LINK = "https://monacolabs\\.xyz/r/k7m4qx2p\\?c=${CABAL_ID}\\\\u0026p=${PROPOSAL_ID}";`));
+  assert.match(apex.body, new RegExp(`href="https://www\\.monacolabs\\.xyz/r/k7m4qx2p\\?c=${CABAL_ID}&amp;p=${PROPOSAL_ID}">Open in Monaco`));
+  const www = await handleReferral({ ...cabalLink({ host: "www.monacolabs.xyz" }), proposalId: PROPOSAL_ID, fetch });
+  assert.match(www.body, new RegExp(`href="https://monacolabs\\.xyz/r/k7m4qx2p\\?c=${CABAL_ID}&amp;p=${PROPOSAL_ID}">Open in Monaco`));
+  const junk = await handleReferral({ ...cabalLink({ host: "www.monacolabs.xyz" }), proposalId: "not-a-uuid", fetch });
+  assert.doesNotMatch(junk.body, /&amp;p=|u0026p=/);
+});
+
+test("the cabal page lives 60 s and the referrer page keeps 300; a failed lookup is no-store with no CDN age", async () => {
+  const cabal = await handleReferral({ ...cabalLink(), fetch: routedFetch() });
+  assert.equal(cabal.headers["Cache-Control"], "public, max-age=60");
+  assert.equal(cabal.cdnMaxAge, 60);
+  const referrerPage = await handleReferral({ code: "k7m4qx2p", host: "monacolabs.xyz", env, fetch: fakeFetch() });
+  assert.equal(referrerPage.headers["Cache-Control"], "public, max-age=300");
+  assert.equal(referrerPage.cdnMaxAge, 300);
+  const failed = await handleReferral({ code: "k7m4qx2p", host: "monacolabs.xyz", env, fetch: fakeFetch({ throws: true }) });
+  assert.equal(failed.headers["Cache-Control"], "no-store");
+  assert.equal(failed.cdnMaxAge, undefined);
+});
+
+test("c absent or invalid renders the referrer page byte for byte, without asking the cabal route", async () => {
+  const plain = await handleReferral({ code: "k7m4qx2p", host: "monacolabs.xyz", env, fetch: fakeFetch() });
+  const expected = renderReferralPage({
+    code: "k7m4qx2p", referrer: kai, appStoreUrl: STORE, openHost: "www.monacolabs.xyz", apiUrl: env.MONACO_API_URL, posthogKey: "",
+  });
+  assert.equal(plain.body, expected.body);
+  assert.deepEqual(plain.headers, expected.headers);
+  for (const cabalId of [undefined, null, "", "nope", `${CABAL_ID}0`]) {
+    const fetch = routedFetch();
+    const res = await handleReferral({ ...cabalLink({ cabalId }), fetch });
+    assert.equal(res.body, expected.body);
+    assert.equal(res.cdnMaxAge, 300);
+    assert.equal(fetch.calls.length, 1);
+    assert.doesNotMatch(fetch.calls[0].url, /cabals/);
+  }
+});
+
+test("a null cabal falls back to today's referrer page, cached as before", async () => {
+  const fetch = routedFetch({ cabalBody: { inviter: kai, cabal: null, return_1m_bps: null, turnout_month_bps: null, open_proposal: null } });
+  const res = await handleReferral({ ...cabalLink(), fetch });
+  assert.equal(res.body, renderReferralPage({
+    code: "k7m4qx2p", referrer: kai, appStoreUrl: STORE, openHost: "www.monacolabs.xyz", apiUrl: env.MONACO_API_URL, posthogKey: "",
+  }).body);
+  assert.equal(res.headers["Cache-Control"], "public, max-age=300");
+  assert.equal(res.cdnMaxAge, 300);
+  assert.equal(fetch.calls.length, 2);
+});
+
+test("a failed cabal lookup falls back to the referrer page and is never cached", async () => {
+  const cases = [
+    routedFetch({ cabalStatus: 429 }),
+    routedFetch({ cabalStatus: 500 }),
+    routedFetch({ cabalThrows: true }),
+    routedFetch({ cabalBody: { oops: true } }),
+    routedFetch({ cabalBody: { ...preview, cabal: { ...preview.cabal, name: "" } } }),
+    routedFetch({ cabalBody: { ...preview, cabal: { ...preview.cabal, pot_value_micros: "-1" } } }),
+  ];
+  for (const fetch of cases) {
+    const res = await handleReferral({ ...cabalLink(), fetch });
+    assert.match(res.body, /Kai invited you to Monaco/);
+    assert.doesNotMatch(res.body, /AC Capital/);
+    assert.equal(res.headers["Cache-Control"], "no-store");
+    assert.equal(res.cdnMaxAge, undefined);
+    assert.equal(fetch.calls.filter((c) => String(c.url).includes("/cabals/")).length, 1, "no retry loop");
+  }
+});
+
+test("lookupCabal times out like lookupReferrer and merges the month facts into the cabal", async () => {
+  const hang = fakeFetch({ hang: true });
+  await assert.rejects(lookupCabal({ code: "k7m4qx2p", cabalId: CABAL_ID, apiUrl: "http://api.test", fetch: hang, timeoutMs: 20 }));
+  const found = await lookupCabal({ code: "k7m4qx2p", cabalId: CABAL_ID, apiUrl: "http://api.test/", fetch: routedFetch() });
+  assert.equal(found.referrer.display_name, "Andres");
+  assert.equal(found.cabal.return_1m_bps, -410);
+  assert.equal(found.cabal.turnout_month_bps, 9400);
+  assert.equal(found.cabal.open_proposal, null);
+  assert.equal(found.cabal.name, "AC Capital");
+});
+
+test("the Cloudflare adapter passes c and p, and asks the edge cache for 60 s on the cabal lookup and 300 s on the referrer's", async () => {
+  globalThis.fetch = routedFetch();
+  const res = await cloudflare({ request: new Request(`https://monacolabs.xyz/r/k7m4qx2p?c=${CABAL_ID}&p=${PROPOSAL_ID}`), params: { code: "k7m4qx2p" }, env });
+  assert.equal(res.headers.get("cache-control"), "public, max-age=60");
+  const text = await res.text();
+  assert.match(text, /<h1>AC Capital<\/h1>/);
+  assert.match(text, new RegExp(`c=${CABAL_ID}&amp;p=${PROPOSAL_ID}`));
+  const [cabalCall] = globalThis.fetch.calls;
+  assert.match(cabalCall.url, /\/cabals\//);
+  assert.equal(cabalCall.init.cf.cacheEverything, true);
+  assert.deepEqual(cabalCall.init.cf.cacheTtlByStatus, { "200-299": 60, "300-599": 0 });
+  await cloudflare({ request: new Request("https://monacolabs.xyz/r/k7m4qx2p"), params: { code: "k7m4qx2p" }, env });
+  assert.deepEqual(globalThis.fetch.calls.at(-1).init.cf.cacheTtlByStatus, { "200-299": 300, "300-599": 0 });
+});
+
+test("the Vercel adapter passes c and p, and sets CDN-Cache-Control 60 for a cabal page, 300 for a referrer page, none for a failure", async () => {
+  process.env.MONACO_API_URL = env.MONACO_API_URL;
+  process.env.APP_STORE_URL = env.APP_STORE_URL;
+  globalThis.fetch = routedFetch();
+  const cabal = vercelReq("k7m4qx2p", "monacolabs.xyz");
+  cabal.req.query.c = CABAL_ID;
+  cabal.req.query.p = [PROPOSAL_ID];
+  await vercel(cabal.req, cabal.res);
+  assert.match(cabal.res.body, /<h1>AC Capital<\/h1>/);
+  assert.match(cabal.res.body, new RegExp(`c=${CABAL_ID}&amp;p=${PROPOSAL_ID}`));
+  assert.equal(cabal.headers["cache-control"], "public, max-age=60");
+  assert.equal(cabal.headers["cdn-cache-control"], "max-age=60");
+
+  const referrerPage = vercelReq("k7m4qx2p", "monacolabs.xyz");
+  await vercel(referrerPage.req, referrerPage.res);
+  assert.equal(referrerPage.headers["cdn-cache-control"], "max-age=300");
+
+  globalThis.fetch = routedFetch({ cabalThrows: true });
+  const failed = vercelReq("k7m4qx2p", "monacolabs.xyz");
+  failed.req.query.c = CABAL_ID;
+  await vercel(failed.req, failed.res);
+  assert.equal(failed.headers["cache-control"], "no-store");
+  assert.equal(failed.headers["cdn-cache-control"], undefined);
+});
+
+test("both adapters return identical cabal pages", async () => {
+  process.env.MONACO_API_URL = env.MONACO_API_URL;
+  process.env.APP_STORE_URL = env.APP_STORE_URL;
+  globalThis.fetch = routedFetch();
+  const cf = await cloudflare({ request: new Request(`https://monacolabs.xyz/r/k7m4qx2p?c=${CABAL_ID}`), params: { code: "k7m4qx2p" }, env });
+  const v = vercelReq("k7m4qx2p", "monacolabs.xyz");
+  v.req.query.c = CABAL_ID;
+  await vercel(v.req, v.res);
+  assert.equal(v.res.body, await cf.text());
+  assert.equal(v.headers["cache-control"], cf.headers.get("cache-control"));
 });
 
 // The AASA and its headers, read from the files the hosts serve.
