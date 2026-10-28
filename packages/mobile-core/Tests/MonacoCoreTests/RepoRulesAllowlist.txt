@@ -13,7 +13,6 @@ float-money	apps/mobile/Monaco/Features/Debug/GroupDetailSampleHarness.swift	1
 float-money	apps/mobile/Monaco/Features/Debug/SampleProposalFeedService.swift	4
 float-money	apps/mobile/Monaco/Features/Proposals/ProposeService.swift	9
 float-money	apps/mobile/Monaco/Features/Redeem/SellCabalView.swift	2
-float-money	apps/mobile/Monaco/Features/Settings/WithdrawView.swift	2
 float-money	packages/mobile-core/Sources/MonacoCore/AssetChartSeries.swift	1
 float-money	packages/mobile-core/Sources/MonacoCore/DisplayFormatters.swift	22
 float-money	packages/mobile-core/Sources/MonacoCore/Funding/AmountText.swift	3

@@ -57,7 +57,7 @@ final class PrivateDataMaskTests: XCTestCase {
         "apps/mobile/Monaco/Features/Settings/BlockedPeopleRoute.swift": 1,
         "apps/mobile/Monaco/Features/Settings/DeleteAccountView.swift": 1,
         "apps/mobile/Monaco/Features/Settings/ReceiptView.swift": 1,
-        "apps/mobile/Monaco/Features/Settings/WithdrawView.swift": 1,
+        "apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift": 1,
     ]
 
     static let pausedFiles = [

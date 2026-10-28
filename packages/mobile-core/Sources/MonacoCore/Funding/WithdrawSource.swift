@@ -27,16 +27,6 @@ public struct Withdrawal: Equatable, Sendable {
     }
 }
 
-public struct WithdrawPreview: Equatable, Sendable {
-    public let receiveMicros: Int64
-    public let expiresAt: Date?
-
-    public init(receiveMicros: Int64, expiresAt: Date?) {
-        self.receiveMicros = receiveMicros
-        self.expiresAt = expiresAt
-    }
-}
-
 public enum WithdrawFeeMode: Equatable, Sendable {
     case included, onTop
 }
@@ -96,13 +86,6 @@ public struct WithdrawSource: Sendable {
             txSignature: accepted.txSignature)
     }
 
-    public func preview(micros: Int64, toAddress: String, network: WithdrawNetwork) async throws -> WithdrawPreview {
-        let body = network.previewRequest(micros: micros, toAddress: toAddress)
-        let preview = try await api.read { try await $0.previewWithdrawal(body: .json(body)).ok.body.json }
-        return WithdrawPreview(
-            receiveMicros: try AccountBalance.micros(preview.receiveMicros), expiresAt: preview.expiresAt)
-    }
-
     public func quote(
         network: WithdrawNetwork, amountMicros: Int64?, toAddress: String?
     ) async throws -> WithdrawQuote {
@@ -131,3 +114,22 @@ public struct WithdrawSource: Sendable {
             failCode: wire.failCode)
     }
 }
+
+#if DEBUG
+extension WithdrawModel {
+    public static func sample(
+        transport: some ClientTransport, ownDepositAddress: String?, demoMode: Bool = false,
+        clock: any Clock<Duration>
+    ) -> WithdrawModel {
+        let api = APIClient(
+            serverURL: URL(filePath: "/sample"), tokens: FlowScenarioTokens(), transport: transport)
+        let hints = FlowScenarioHints()
+        let settlements = SettlementWatcher(api: api, hints: hints, journal: PendingIntentJournal())
+        settlements.bind(accountID: "sample")
+        return WithdrawModel(
+            api: api, hints: hints, submission: IdempotentSubmission(), settlements: settlements,
+            ownDepositAddress: ownDepositAddress, demoMode: demoMode, clock: clock,
+            balance: BalanceSource(api: api, hints: hints))
+    }
+}
+#endif

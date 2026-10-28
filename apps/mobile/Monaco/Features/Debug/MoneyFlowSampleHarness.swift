@@ -31,7 +31,6 @@ enum MoneyFlowSampleScenario: String, CaseIterable {
     case depositReceived
     case withdrawInvalid
     case withdrawInsufficient
-    case withdrawReview
     case withdrawProcessing
     case withdrawCompleted
 
@@ -52,6 +51,8 @@ struct MoneyFlowSampleHarness: View {
     var body: some View {
         if let state = scenario.fundState {
             FundCabalSampleHarness(state: state)
+        } else if let state = scenario.withdrawState {
+            WithdrawSampleHarness(state: state)
         } else if scenario.drawsContentDirectly {
             NavigationStack {
                 MoneyFlowContentSample(scenario: scenario)
@@ -67,7 +68,6 @@ struct MoneyFlowSampleHarness: View {
     private var routes: [any AppRoute] {
         switch scenario {
         case .addMoneyLoading, .addMoneyFailed: [DepositAddressRoute()]
-        case .withdraw, .withdrawFailed: [WithdrawRoute()]
         default: []
         }
     }
@@ -89,9 +89,21 @@ extension MoneyFlowSampleScenario {
         }
     }
 
+    var withdrawState: WithdrawSampleState? {
+        switch self {
+        case .withdraw: .empty
+        case .withdrawFailed: .feeFailed
+        case .withdrawInvalid: .invalidAddress
+        case .withdrawInsufficient: .invalid
+        case .withdrawProcessing: .submitting
+        case .withdrawCompleted: .settled
+        default: nil
+        }
+    }
+
     var drawsContentDirectly: Bool {
         switch self {
-        case .addMoney, .addMoneyLoading, .addMoneyFailed, .withdraw, .withdrawFailed:
+        case .addMoney, .addMoneyLoading, .addMoneyFailed:
             false
         default:
             true
@@ -118,25 +130,6 @@ private enum MoneyFlowContentFixture {
 
 private struct MoneyFlowContentSample: View {
     let scenario: MoneyFlowSampleScenario
-
-    @State private var amount: String
-    @State private var destination: String
-    @State private var network = WithdrawNetwork.solana
-
-    init(scenario: MoneyFlowSampleScenario) {
-        self.scenario = scenario
-        switch scenario {
-        case .withdrawInvalid:
-            _amount = State(initialValue: "100")
-            _destination = State(initialValue: "not-an-address")
-        case .withdrawInsufficient:
-            _amount = State(initialValue: "700")
-            _destination = State(initialValue: MoneyFlowContentFixture.address)
-        default:
-            _amount = State(initialValue: "")
-            _destination = State(initialValue: "")
-        }
-    }
 
     var body: some View {
         content
@@ -170,21 +163,6 @@ private struct MoneyFlowContentSample: View {
                 state: .loaded(MoneyFlowContentFixture.balance(arriving: scenario == .depositWaiting ? 4_500_000 : 0)),
                 onCopy: { _ in }, onRetryAddress: {}, onRetryBalance: {},
                 receivedMicros: scenario == .depositReceived ? 25_000_000 : nil)
-        case .withdrawInvalid, .withdrawInsufficient:
-            WithdrawContent(
-                state: .loaded(MoneyFlowContentFixture.balance()), amountText: $amount,
-                destinationAddress: $destination,
-                network: $network, onContinue: {}, onRetry: {})
-        case .withdrawReview:
-            WithdrawConfirmView(
-                destinationAddress: MoneyFlowContentFixture.evmAddress, network: .base, amountText: "100",
-                amountLabel: "$100.00", networkCost: "$0.12", isSubmitting: false, onWithdraw: {})
-        case .withdrawProcessing, .withdrawCompleted:
-            WithdrawConfirmView(
-                destinationAddress: MoneyFlowContentFixture.address, amountText: "100", amountLabel: "$100.00",
-                outcome: WithdrawOutcomeSummary(
-                    amountLabel: "$100.00", status: scenario == .withdrawCompleted ? .completed : .pending),
-                isSubmitting: false, onWithdraw: {})
         default:
             EmptyView()
         }
@@ -195,7 +173,7 @@ extension MoneyFlowSampleScenario {
     var script: SampleAPIScript {
         switch self {
         case .addMoneyLoading: SampleAPIScript(mode: .hang)
-        case .addMoneyFailed, .withdrawFailed: SampleAPIScript(mode: .balanceFails)
+        case .addMoneyFailed: SampleAPIScript(mode: .balanceFails)
         default: SampleAPIScript()
         }
     }

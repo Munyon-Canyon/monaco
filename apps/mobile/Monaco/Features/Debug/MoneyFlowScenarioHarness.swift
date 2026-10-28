@@ -3,17 +3,6 @@ import MonacoAPI
 import MonacoCore
 import SwiftUI
 
-private enum MoneyFlowScenarioFixture {
-    static let address = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
-
-    @MainActor
-    static var balance: LoadState<AccountBalance> {
-        guard let balance = try? AccountBalance(MoneyFlowSampleData.balance(available: 500_000_000, inFlight: 0))
-        else { return .loading }
-        return .loaded(balance)
-    }
-}
-
 final class FundFlowHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth _: PrivyAuthService) -> AnyView? {
@@ -110,31 +99,45 @@ final class WithdrawFlowHarnessEntry: SampleHarnessEntry {
 private struct WithdrawFlowScenarioSample: View {
     let scenario: Flow15Scenario
 
-    @Environment(ToastCenter.self) private var toasts
-    @State private var amountText = "100"
-    @State private var destination = MoneyFlowScenarioFixture.address
-    @State private var network = WithdrawNetwork.solana
-    @State private var refusedAddress: String?
-
     var body: some View {
-        NavigationStack {
-            WithdrawContent(
-                state: MoneyFlowScenarioFixture.balance, amountText: $amountText, destinationAddress: $destination,
-                network: $network, refusedAddress: refusedAddress, onContinue: {}, onRetry: {})
-        }
-        .tint(MonacoTheme.ink)
-        .task { await submit() }
+        WithdrawSampleHarness(
+            amountText: "120", address: WithdrawSampleState.solanaAddress, network: .solana, submits: true,
+            server: scenario.server)
     }
+}
 
-    private func submit() async {
-        let withdrawing = Withdrawing.preview(answering: scenario)
-        switch await withdrawing.submit(micros: 100_000_000, toAddress: destination, network: network) {
-        case .accepted:
-            break
-        case .refused(.address(let message)):
-            refusedAddress = message
-        case .refused(.toast(let message)), .unconfirmed(let message):
-            toasts.current = MonacoToast(message: message)
+extension Flow15Scenario {
+    fileprivate var server: WithdrawSampleServer {
+        switch self {
+        case .invalidInput:
+            WithdrawSampleServer(
+                withdraw: .refused(status: 400, code: "invalid_input", message: "The request is not valid."))
+        case .invalidAddress:
+            WithdrawSampleServer(
+                withdraw: .refused(status: 422, code: "invalid_address", message: "That address is not valid."))
+        case .withdrawToOwnWallet:
+            WithdrawSampleServer(
+                withdraw: .refused(
+                    status: 422, code: "withdraw_to_own_wallet", message: "That is your own wallet."))
+        case .insufficientFunds:
+            WithdrawSampleServer(
+                withdraw: .refused(
+                    status: 422, code: "insufficient_funds", message: "Not enough in your account balance."))
+        case .privyUnavailable:
+            WithdrawSampleServer(
+                withdraw: .refused(
+                    status: 503, code: "privy_unavailable", message: "Wallet signing is down. Try again."))
+        case .stepUpRequired:
+            WithdrawSampleServer(
+                withdraw: .refused(
+                    status: 422, code: "step_up_required", message: "Confirm this withdrawal to continue."))
+        case .stepUpMismatch:
+            WithdrawSampleServer(
+                withdraw: .refused(
+                    status: 422, code: "step_up_mismatch",
+                    message: "The amount or address changed after you confirmed. Confirm the withdrawal again."))
+        case .interrupted:
+            WithdrawSampleServer(withdraw: .dropped)
         }
     }
 }

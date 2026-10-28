@@ -1,19 +1,18 @@
 journey: money/withdraw
 expect-fail: S2
 
-Confirm names Solana for every network. S2.4 waits for "Base" on Confirm, so it must fail.
+Every network chip reads Solana. S2.4 waits for "Base" on the chip row, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Settings/WithdrawConfirmView.swift b/apps/mobile/Monaco/Features/Settings/WithdrawConfirmView.swift
-index 476fc36f7..c7b8bad9b 100644
---- a/apps/mobile/Monaco/Features/Settings/WithdrawConfirmView.swift
-+++ b/apps/mobile/Monaco/Features/Settings/WithdrawConfirmView.swift
-@@ -63,7 +63,7 @@ struct WithdrawConfirmView: View {
-                     MoneyKeyRow(label: "From", value: .words("Your cash")),
-                     MoneyKeyRow(label: "Asset", value: .words("USDC")),
-                     MoneyKeyRow(label: "Amount", value: .data(displayAmount)),
--                    MoneyKeyRow(label: "Network", value: .words(network.name)),
-+                    MoneyKeyRow(label: "Network", value: .words("Solana")),
-                     MoneyKeyRow(label: "Destination", value: .address(destinationAddress)),
-                     MoneyKeyRow(label: "Arrives", value: .words("About a minute")),
-                     MoneyKeyRow(label: "Network costs", value: .words(networkCost ?? "Included")),
+diff --git a/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift b/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
+--- a/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
++++ b/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
+@@ -202,7 +202,7 @@ private struct WithdrawNetworkChips: View {
+                         Haptics.selection()
+                         select(network)
+                     } label: {
+-                        Text(network.name).monacoChipLabel(isSelected: isSelected, leadingSymbol: .check)
++                        Text("Solana").monacoChipLabel(isSelected: isSelected, leadingSymbol: .check)
+                     }
+                     .buttonStyle(.plain)
+                     .accessibilityAddTraits(isSelected ? [.isSelected] : [])
