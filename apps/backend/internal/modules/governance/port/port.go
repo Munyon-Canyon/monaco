@@ -19,6 +19,17 @@ type Queries interface {
 	Proposer(ctx context.Context, id ids.ProposalID) (ids.UserID, error)
 }
 
+type Tally struct {
+	Yes, No, Voters, Needed int
+	ExpiresAt               time.Time
+	Status                  Status
+	Kind                    string
+}
+
+type Tallies interface {
+	Tallies(ctx context.Context, ids []ids.ProposalID) (map[ids.ProposalID]Tally, error)
+}
+
 type Voters interface {
 	Voters(ctx context.Context, id ids.ProposalID) ([]ids.UserID, error)
 }

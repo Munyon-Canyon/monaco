@@ -693,12 +693,17 @@ type FeedItem struct {
 	// Examples: Apple
 	Detail *string `json:"detail"`
 
+	// ExpiresAt When voting closes. Null except on a `proposal`.
+	//
+	// Examples: null
+	ExpiresAt *time.Time `json:"expires_at"`
+
 	// Id The item's id.
 	//
 	// Examples: 01920000-0000-7000-8000-000000000007
 	Id openapi_types.UUID `json:"id"`
 
-	// Kind `proposal`, `trade`, `price_move`, `cabal_created`, `member_joined`, `reply` or `threshold`. A `reply` is a comment on a proposal's feed item, with the comment text as `body` and the commenter as the actor. A `threshold` is a proposal that passed and awaits execution.
+	// Kind `proposal`, `trade`, `price_move`, `cabal_created`, `member_joined`, `reply` or `threshold`. A `reply` is a comment on a proposal's feed item, with the comment text as `body` and the commenter as the actor. A `threshold` is a proposal that passed and awaits execution. A `proposal` carries `tally` and `expires_at`; every other kind has both null.
 	//
 	// Examples: trade
 	Kind string `json:"kind"`
@@ -776,6 +781,11 @@ type FeedItem struct {
 	// Examples: AAPLx
 	Symbol *string `json:"symbol"`
 
+	// Tally The proposal's live vote count, read from governance on each request. Null except on a `proposal`.
+	//
+	// Examples: null
+	Tally *FeedTally `json:"tally"`
+
 	// Title The rendered headline.
 	//
 	// Examples: Alpha Cabal bought $500 of AAPLx
@@ -805,6 +815,31 @@ type FeedItem struct {
 	//
 	// Examples: 500000000
 	UsdcMicros *int64 `json:"usdc_micros"`
+}
+
+// FeedTally The proposal's live vote count, read from governance on each request. Null except on a `proposal`.
+//
+// Examples: null
+type FeedTally struct {
+	// Needed Yes ballots the proposal's threshold needs.
+	//
+	// Examples: 5
+	Needed int `json:"needed"`
+
+	// No Ballots cast no.
+	//
+	// Examples: 1
+	No int `json:"no"`
+
+	// Voters Members who can vote.
+	//
+	// Examples: 8
+	Voters int `json:"voters"`
+
+	// Yes Ballots cast yes.
+	//
+	// Examples: 4
+	Yes int `json:"yes"`
 }
 
 // FeedItemDetail One feed item, whether it passes the request's filters and whether the caller can comment on it.

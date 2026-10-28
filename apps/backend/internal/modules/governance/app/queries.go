@@ -5,8 +5,11 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
@@ -68,4 +71,39 @@ func (s Queries) Voters(ctx context.Context, id ids.ProposalID) ([]ids.UserID, e
 		voters[i] = ids.UserIDFrom(row)
 	}
 	return voters, nil
+}
+
+func (s Queries) Tallies(ctx context.Context, proposals []ids.ProposalID) (map[ids.ProposalID]port.Tally, error) {
+	const op = "governance.Tallies"
+	raw := make([]uuid.UUID, len(proposals))
+	for i, id := range proposals {
+		raw[i] = id.UUID()
+	}
+	facts, err := s.q.ProposalTallyFacts(ctx, raw)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeDBUnavailable, op)
+	}
+	counts, err := s.q.TallyProposals(ctx, sqlc.TallyProposalsParams{ProposalIds: raw, CallerID: uuid.Nil})
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeDBUnavailable, op)
+	}
+	votes := make(map[uuid.UUID]sqlc.TallyProposalsRow, len(counts))
+	for _, c := range counts {
+		votes[c.ProposalID] = c
+	}
+	out := make(map[ids.ProposalID]port.Tally, len(facts))
+	for _, f := range facts {
+		status, err := domain.ParseStatus(f.Status)
+		if err != nil {
+			return nil, errs.Wrap(err, errs.CodeDecodeFailed, op)
+		}
+		c := votes[f.ID]
+		voters := int(c.Voters)
+		out[ids.ProposalIDFrom(f.ID)] = port.Tally{
+			Yes: int(c.Yes), No: int(c.No), Voters: voters,
+			Needed:    domain.ThresholdRule(f.Threshold).Needed(voters),
+			ExpiresAt: f.ExpiresAt.UTC(), Status: status, Kind: f.Kind,
+		}
+	}
+	return out, nil
 }

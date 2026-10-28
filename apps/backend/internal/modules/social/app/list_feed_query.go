@@ -65,6 +65,7 @@ type FeedItem struct {
 	MarkMicros    money.Micros
 	PrevClose     money.Micros
 	ProposalID    uuid.UUID
+	ExpiresAt     time.Time
 	CommentCount  int32
 	LikeCount     int32
 	LikedByMe     bool
@@ -197,6 +198,9 @@ func feedItemOf(row sqlc.ListFeedRow) (FeedItem, error) {
 	}
 	if kind == feed.KindProposal || kind == feed.KindThreshold {
 		item.ProposalID = row.RefID
+	}
+	if kind == feed.KindProposal {
+		item.ExpiresAt = payload.ExpiresAt.UTC()
 	}
 	return item, nil
 }
