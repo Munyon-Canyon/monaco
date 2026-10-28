@@ -93,7 +93,7 @@ private struct FeedItemDetailContent: View {
             }
         case .ready(let item):
             VStack(alignment: .leading, spacing: 0) {
-                FeedPostHeader(item: item)
+                FeedDetailHeader(item: item)
                 FeedPostSummary(item: item)
                     .padding(.top, MonacoTheme.Space.m)
                 thread
@@ -142,7 +142,7 @@ private struct FeedPostSkeleton: View {
     }
 }
 
-private struct FeedPostHeader: View {
+private struct FeedDetailHeader: View {
     let item: Components.Schemas.FeedItem
 
     private var name: String {

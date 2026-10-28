@@ -67,8 +67,8 @@ private struct FeedSkeletonRow: View {
         VStack(spacing: 0) {
             HStack(alignment: .top, spacing: FeedPostMetrics.gap) {
                 SkeletonBlock(
-                    width: FeedPostMetrics.avatar, height: FeedPostMetrics.avatar,
-                    radius: FeedPostMetrics.avatar / 2)
+                    width: FeedPostMetrics.lead, height: FeedPostMetrics.lead,
+                    radius: FeedPostMetrics.lead / 2)
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                     SkeletonFraction(0.5) { SkeletonBar() }
                     SkeletonFraction(0.8) { SkeletonBar() }
@@ -201,11 +201,12 @@ private struct FeedScreen: View {
 
     private var timeline: some View {
         let items = model.items
+        let now = Date()
         return VStack(spacing: 0) {
             LazyVStack(spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     VStack(spacing: 0) {
-                        FeedItemCell(item: item) { Task { await model.toggleLike(item) } }
+                        FeedPost(item: item, now: now) {}
                             .padding(.horizontal, MonacoTheme.Space.gutter)
                         MonacoRule(color: MonacoTheme.hairline)
                             .padding(.leading, FeedPostMetrics.textColumn)
@@ -245,12 +246,6 @@ private struct FeedScreen: View {
                 .accessibilityIdentifier("feed-caught-up")
         }
     }
-}
-
-enum FeedPostMetrics {
-    static let avatar: CGFloat = 32
-    static let gap: CGFloat = 12
-    static let textColumn = MonacoTheme.Space.gutter + avatar + gap
 }
 
 enum FeedScreenMetrics {

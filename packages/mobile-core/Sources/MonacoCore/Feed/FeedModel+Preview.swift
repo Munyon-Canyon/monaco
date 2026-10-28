@@ -65,7 +65,9 @@ enum FeedPreviewFixtures {
             body: "A small position alongside our existing holdings. "
                 + "I want us to discuss concentration before adding more.",
             comments: 8, minutes: 12, likes: 12, returnBps: 820,
-            figures: .init(action: "buy", usdcMicros: 400_000_000, assetName: "NVIDIA", shareOfPotBps: 200)),
+            figures: .init(
+                action: "buy", usdcMicros: 400_000_000, assetName: "NVIDIA", shareOfPotBps: 200,
+                vote: (yes: 4, no: 1, voters: 8, needed: 5, endsInHours: 4))),
         Components.Schemas.FeedItem.results[0],
         Components.Schemas.FeedItem.results[1],
         item(
@@ -140,6 +142,7 @@ enum FeedPreviewFixtures {
         var changeBps: Int64?
         var markMicros: Int64?
         var prevCloseMicros: Int64?
+        var vote: (yes: Int, no: Int, voters: Int, needed: Int, endsInHours: Double)?
     }
 
     private static func item(
@@ -166,6 +169,8 @@ enum FeedPreviewFixtures {
             threadItemId: String(format: "00000000-0000-7000-8000-0000000fe%03d", number),
             replyCount: comments, canReply: true, canReact: true, replyRule: .anyone, replyRuleCabalName: nil,
             likeCount: likes, likedByMe: false, reactions: [], reactionCount: 0,
+            tally: figures.vote.map { .init(yes: $0.yes, no: $0.no, voters: $0.voters, needed: $0.needed) },
+            expiresAt: figures.vote.map { Date(timeIntervalSinceNow: $0.endsInHours * 3600) },
             return1mBps: returnBps, returnPrivate: false,
             createdAt: created, updatedAt: created)
     }

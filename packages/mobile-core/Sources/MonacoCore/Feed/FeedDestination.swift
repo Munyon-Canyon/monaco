@@ -1,26 +1,40 @@
 import MonacoAPI
 
 public enum FeedDestination: Equatable, Sendable {
-    case proposal(id: String)
-    case transaction(cabalID: String, transactionID: String)
-    case asset(symbol: String)
-    case cabal(id: String)
+    case proposal(proposalID: String)
+    case post(itemID: String)
 
-    public init?(_ item: Components.Schemas.FeedItem) {
-        switch FeedKind(rawValue: item.kind) {
-        case .proposal:
-            self = .proposal(id: item.refId)
-        case .trade:
-            guard let cabalID = item.cabalId else { return nil }
-            self = .transaction(cabalID: cabalID, transactionID: item.refId)
-        case .priceMove:
-            guard let symbol = item.symbol, !symbol.isEmpty else { return nil }
-            self = .asset(symbol: symbol)
-        case .cabalCreated, .memberJoined:
-            guard let cabalID = item.cabalId else { return nil }
-            self = .cabal(id: cabalID)
-        case .reply, .threshold, nil:
-            return nil
+    public static func destination(for item: Components.Schemas.FeedItem) -> FeedDestination {
+        switch FeedPostKind(item.kind) {
+        case .proposal, .reply:
+            return proposal(for: item)
+        case .result:
+            return item.shape == .cabal ? proposal(for: item) : .post(itemID: item.id)
+        case .trade, .threshold, .memberJoined, .cabalCreated, .other:
+            return .post(itemID: item.id)
+        }
+    }
+
+    private static func proposal(for item: Components.Schemas.FeedItem) -> FeedDestination {
+        let fallback = FeedPostKind(item.kind) == .proposal ? item.refId : nil
+        guard let proposalID = item.proposalId ?? fallback else { return .post(itemID: item.id) }
+        return .proposal(proposalID: proposalID)
+    }
+}
+
+enum FeedPostKind: Equatable {
+    case proposal, reply, result, trade, threshold, memberJoined, cabalCreated, other
+
+    init(_ raw: String) {
+        switch raw {
+        case "proposal": self = .proposal
+        case "reply": self = .reply
+        case "result": self = .result
+        case "trade": self = .trade
+        case "threshold": self = .threshold
+        case "member_joined": self = .memberJoined
+        case "cabal_created": self = .cabalCreated
+        default: self = .other
         }
     }
 }
