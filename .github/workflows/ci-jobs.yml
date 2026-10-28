@@ -444,6 +444,7 @@ jobs:
     with:
       probe: ${{ inputs.stage == 'staging' || needs.plan.outputs.generator == 'true' }}
       save-cache: ${{ inputs.stage == 'staging' }}
+      stage: ${{ inputs.stage }}
 
   # The only macOS job: builds the app and MonacoTests, then runs MonacoTests. Staging indicator only: it took about
   # 12 minutes on a mobile PR (#3399), and owners build the app and run MonacoTests locally before they push.
