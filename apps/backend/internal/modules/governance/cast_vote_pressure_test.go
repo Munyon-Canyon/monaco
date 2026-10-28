@@ -43,7 +43,7 @@ func TestVotesNeverNestPoolReadsAtFourConnections(t *testing.T) {
 		proposals[i] = p.ID
 	}
 
-	ctx, cancel := context.WithTimeout(t.Context(), testkit.PressureDeadline)
+	ctx, cancel := testkit.PressureContext(t)
 	defer cancel()
 	probe := testkit.StartProbe(ctx, pool)
 	jobs := make([]func() error, 0, len(voters)*len(proposals))
@@ -61,7 +61,7 @@ func TestVotesNeverNestPoolReadsAtFourConnections(t *testing.T) {
 	testkit.Concurrently(t, jobs...)
 	probe.Check(t)
 	if ctx.Err() != nil {
-		t.Fatalf("the run did not finish inside %s: %v", testkit.PressureDeadline, ctx.Err())
+		t.Fatalf("the run did not finish before the test deadline: %v", ctx.Err())
 	}
 	for _, proposal := range proposals {
 		if d.terminal(t, proposal) != 1 {

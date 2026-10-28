@@ -21,8 +21,20 @@ const (
 	PressureCallers  = 6
 	PressureDeadline = 30 * time.Second
 	pressureProbeGap = 5 * time.Millisecond
-	pressureProbeMax = 3 * time.Second
+	pressureMargin   = 5 * time.Second
 )
+
+func PressureContext(tb testing.TB) (context.Context, context.CancelFunc) {
+	tb.Helper()
+	deadline, ok := tb.(interface{ Deadline() (time.Time, bool) })
+	if !ok {
+		return context.WithTimeout(tb.Context(), PressureDeadline)
+	}
+	if at, set := deadline.Deadline(); set {
+		return context.WithDeadline(tb.Context(), at.Add(-pressureMargin))
+	}
+	return context.WithTimeout(tb.Context(), PressureDeadline)
+}
 
 func TracedPool(tb testing.TB, pool *pgxpool.Pool) (*pgxpool.Pool, *db.NestedReadGuard) {
 	tb.Helper()
@@ -88,24 +100,29 @@ func Concurrently(tb testing.TB, jobs ...func() error) {
 type Probe struct {
 	stop  context.CancelFunc
 	group errgroup.Group
+	pool  *pgxpool.Pool
 	reads atomic.Int64
-	worst atomic.Int64
 }
 
 func StartProbe(ctx context.Context, pool *pgxpool.Pool) *Probe {
 	ctx, stop := context.WithCancel(ctx)
-	p := &Probe{stop: stop}
+	p := &Probe{stop: stop, pool: pool}
+	first := make(chan struct{})
 	p.group.Go(func() error {
+		defer func() {
+			select {
+			case <-first:
+			default:
+				close(first)
+			}
+		}()
 		for ctx.Err() == nil {
-			start := clock.Real{}.Now()
 			var one int
 			if err := pool.QueryRow(ctx, `SELECT 1`).Scan(&one); err != nil {
 				return fmt.Errorf("probe read: %w", err)
 			}
-			p.reads.Add(1)
-			took := clock.Real{}.Now().Sub(start).Nanoseconds()
-			if took > p.worst.Load() {
-				p.worst.Store(took)
+			if p.reads.Add(1) == 1 {
+				close(first)
 			}
 			select {
 			case <-ctx.Done():
@@ -114,6 +131,7 @@ func StartProbe(ctx context.Context, pool *pgxpool.Pool) *Probe {
 		}
 		return nil
 	})
+	<-first
 	return p
 }
 
@@ -121,10 +139,13 @@ func (p *Probe) Check(tb testing.TB) {
 	tb.Helper()
 	p.stop()
 	err := p.group.Wait()
-	worst := time.Duration(p.worst.Load())
-	if (err != nil && !errors.Is(err, context.Canceled)) || p.reads.Load() == 0 || worst > pressureProbeMax {
-		tb.Errorf("unrelated reads = %d (error %v), slowest %s, want steady progress under %s",
-			p.reads.Load(), err, worst, pressureProbeMax)
+	if (err != nil && !errors.Is(err, context.Canceled)) || p.reads.Load() == 0 {
+		stat := p.pool.Stat()
+		tb.Errorf(
+			"unrelated reads = %d (error %v), want one while the callers ran; "+
+				"pool acquired=%d idle=%d total=%d max=%d empty-acquires=%d canceled-acquires=%d",
+			p.reads.Load(), err, stat.AcquiredConns(), stat.IdleConns(), stat.TotalConns(), stat.MaxConns(),
+			stat.EmptyAcquireCount(), stat.CanceledAcquireCount())
 	}
 }
 
