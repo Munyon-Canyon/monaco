@@ -47,17 +47,32 @@ Tokens live in `apps/mobile/Monaco/Design/MonacoTheme.swift`; feature code uses 
 | Fill | `surfaceSunken` | `#2C2C2E` | `#E5E5EA` | search field, skeletons, other people's bubbles |
 | Separator | `hairline` | `#38383A` | `#C6C6C8` | the inset row rule |
 | Label | `primaryText` | `#FFFFFF` | `#000000` | titles, figures, row titles |
-| Secondary | `secondaryText` | `#A1A1A6` | `#6C6C70` | sub-lines, captions, cents, resting range labels |
+| Secondary | `secondaryText` | `#A1A1A6` | `#636366` † | sub-lines, captions, cents, resting range labels |
 | Tertiary | `tertiaryText` | `#6E6E73` | `#AEAEB2` | glyphs only, never text |
 | Tint | `tint` | `#4DAE78` | `#1E5C3A` | tappable and selected: links, selected chip, underline tab |
 | Brand | `brandFill` | `#1E5C3A` | `#1E5C3A` | the one prominent button (white text, 7.9:1) |
-| Gain | `profit` | `#30F57A` | `#00843D` | gains, Yes |
-| Loss | `loss` | `#FF453A` | `#D70015` | losses, No, danger |
+| Gain | `profit` | `#30F57A` | `#00773A` † | gains, Yes |
+| Loss | `loss` | `#FF6259` † | `#C80014` † | losses, No, danger |
 | Crown | `crown` | `#FFD60A` | `#FFCC00` | #1 only |
 
 Identity hues, the same in both appearances: indigo `#5E5CE6`, orange `#FF9F0A`, teal `#40C8E0`, pink `#FF375F`, purple `#BF5AF2`, brown `#AC8E68`, blue `#0A84FF`, cyan `#64D2FF`. They colour a person or a cabal without a picture, picked by a stable hash of the id; never green. Default avatars and cabal crests are never Monaco green.
 
-Contrast: the frame lists each pair's ratio on the canvas and on a cell (for example `secondaryText` 8.2:1 and 6.6:1 in Dark). #6432 and #6585 share one role-based contract: text pairs are held to AA by size and role, and decorative glyphs are exempt with a reason. Values #6432 corrects for AA are marked † here when it writes them back (founder, 10-27: Q23). The thresholds are #6432's final text; this page does not restate them.
+The identity hues' label (`onFill`) is `#FFFFFF` on indigo and `#000000` on the other seven †. The vote-needed badge is a red count: `voteNeededFill` `#D70015` † in both appearances with a `#FFFFFF` label. Chart strokes `profitVivid` and `lossVivid` keep the board's values (`#00843D` / `#30F57A`, `#D70015` / `#FF453A`). `onDestructive` is `#FFFFFF` in light and `#000000` in dark. The allocation bar's blue and purple are `#0040DD` † and `#8944AB` † in light and the board's `#0A84FF` and `#BF5AF2` in dark.
+
+† marks a value corrected one step from the board so the pair clears AA (founder, 10-27: Q23). The board's `secondaryText` `#6C6C70` is 4.16:1 on a fill; `#636366` gives 5.99 / 5.37 / 4.77 on canvas / cell / fill. The board's light gain `#00843D` is 4.31 on a cell and 3.83 on a fill; `#00773A` gives 5.68 / 5.09 / 4.52. The light loss `#D70015` is 4.29 on a fill and the dark `#FF453A` is 4.09; `#C80014` gives 6.06 / 5.43 / 4.83 and `#FF6259` gives 7.14 / 5.79 / 4.74. White on the board's badge red `#FF3B30` is 3.55:1 under the 15 pt semibold count; `#D70015` (the board's own light loss red) gives 5.38:1. White fails 4.5:1 on seven of the eight hues (1.72 to 3.65), so seven take black: orange 10.22, teal 10.56, pink 5.96, purple 5.96, brown 6.82, blue 5.76, cyan 12.20, and indigo takes white at 5.06. The light allocation blue and purple were 2.14 and 2.07 against the cash track; the corrections give 4.43 and 3.54 there.
+
+The contrast contract, shared by #6432 and #6585 and asserted by `DesignContrastTests`:
+
+| Role | Bar | Pairs |
+| --- | --- | --- |
+| Text, any size or weight | 4.5:1 on canvas, cell and fill, light and dark | `primaryText`, `secondaryText`, `tint`, `profit`, `loss` (`destructive`), `warning`; `onBrand` on `brandFill`; `onDestructive` on `destructive`; `voteNeededLabel` on `voteNeededFill`; `onFill` on each of the eight hues; `toastLabel` on `toastFill` |
+| Meaningful non-text marks | 3:1 against what they sit on | the chart line (`profitVivid`, `lossVivid`) and the flat line (`secondaryText`); the `AllocationBar` segments against canvas and their cash track; toast glyphs at 4.5 |
+| Decorative, exempt | none | `tertiaryText`: glyphs only, a glyph that carries meaning uses `secondaryText`. `crown`: the rank and its accessibility label say it. The identity hue as a fill against the canvas, and its stroke: the cabal's name sits beside every crest |
+| Inactive, held quiet | [2.5, 4.5) on the three surfaces and at least 1 below `secondaryText` | `disabledLabel` |
+| System-drawn, not a token | measured by #6585's `.contrast` UI audit | the system tab bar and its badge, system materials |
+| Hue separation | asserted | no identity hue in the green band (OKLab 120° to 170°); every hue at least 30° from `profit`; `profit` and `loss` at least 90° and ΔE 0.2 apart; `tint` and `profit` ΔE ≥ 0.08 (light 0.087, dark 0.20) |
+
+The v3 checks that every pair of identity hues is 60° apart and that no hue sits within 30° of `loss` are removed: F's eight hues are the board's, pink `#FF375F` sits 11° from `loss`, a crest never carries a figure and a loss always carries "−".
 
 Ticker tiles keep the issuer logo, with a `surfaceSunken` tile and `primaryText` as the fallback.
 

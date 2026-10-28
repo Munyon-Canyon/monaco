@@ -22,7 +22,7 @@ struct CurveScrubChart: View {
         switch curve.change(plot)?.direction ?? .flat {
         case .up: MonacoTheme.profitVivid
         case .down: MonacoTheme.lossVivid
-        case .flat: MonacoTheme.tertiaryText
+        case .flat: MonacoTheme.secondaryText
         }
     }
 

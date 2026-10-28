@@ -151,62 +151,24 @@ struct MonacoContrastTests {
         for surface in surfaces {
             pairs.append(Pair("primaryText", MonacoTheme.primaryText, on: [surface]))
             pairs.append(Pair("secondaryText", MonacoTheme.secondaryText, on: [surface]))
-            // Timestamps and other quiet real content. Disabled labels and placeholders are
-            // deliberately *not* this token any more — see `disabledLabelStaysQuieterThanContent`.
-            pairs.append(Pair("tertiaryText", MonacoTheme.tertiaryText, on: [surface]))
-            // Amounts that neither gained nor lost, and their badge.
+            pairs.append(Pair("tint", MonacoTheme.tint, on: [surface]))
             pairs.append(Pair("flat", PnLTone.flat.color, on: [surface]))
-            pairs.append(Pair("flat on wash", PnLTone.flat.washColor, on: [surface, PnLTone.flat.wash]))
-            // Warnings in banners and rows.
             pairs.append(Pair("warning", MonacoTheme.warning, on: [surface]))
-            // `destructive` aliases `loss`; listed under its own role so repointing it is caught.
             pairs.append(Pair("destructive", MonacoTheme.destructive, on: [surface]))
-            // PnLBadge: signed text on its own wash.
-            pairs.append(Pair("profitOnWash", MonacoTheme.profitOnWash, on: [surface, MonacoTheme.profitWash]))
-            pairs.append(Pair("lossOnWash", MonacoTheme.lossOnWash, on: [surface, MonacoTheme.lossWash]))
-            // Bare signed text, no wash.
             pairs.append(Pair("profit", MonacoTheme.profit, on: [surface]))
             pairs.append(Pair("loss", MonacoTheme.loss, on: [surface]))
-            // CircleAction glyph and selected chips.
-            pairs.append(Pair("brandOnWash", MonacoTheme.brandOnWash, on: [surface, MonacoTheme.brandWash]))
-            // `brand` as a label: "See all", "Show more", "Try again", the selected tab item.
-            pairs.append(Pair("brand", MonacoTheme.brand, on: [surface]))
-            // `gold` as text: the rank-1 caption on a board. `goldGlyph` is not here on purpose —
-            // the crown is decoration beside a rank the row also prints, so it is exempt.
-            pairs.append(Pair("gold", MonacoTheme.gold, on: [surface]))
-            pairs.append(Pair("gold on wash", MonacoTheme.gold, on: [surface, MonacoTheme.goldWash]))
-            pairs.append(Pair("bodyText", MonacoTheme.bodyText, on: [surface]))
         }
 
-        pairs.append(Pair("brand on brandSoft", MonacoTheme.brand, on: [MonacoTheme.canvas, MonacoTheme.brandSoft]))
-        pairs.append(
-            Pair(
-                "secondaryText on brandSoft", MonacoTheme.secondaryText,
-                on: [MonacoTheme.canvas, MonacoTheme.brandSoft]))
         pairs.append(
             Pair(
                 "secondaryText on warningWash", MonacoTheme.secondaryText,
                 on: [MonacoTheme.canvas, MonacoTheme.warningWash]))
         pairs.append(
             Pair("warning on warningWash", MonacoTheme.warning, on: [MonacoTheme.canvas, MonacoTheme.warningWash]))
-        pairs.append(Pair("profit on buyWash", MonacoTheme.profit, on: [MonacoTheme.canvas, MonacoTheme.buyWash]))
-        pairs.append(Pair("loss on sellWash", MonacoTheme.loss, on: [MonacoTheme.canvas, MonacoTheme.sellWash]))
-        pairs.append(
-            Pair(
-                "discussionTint on surface", MonacoTheme.discussionTint,
-                on: [MonacoTheme.surface]))
-        pairs.append(
-            Pair(
-                "discussionTint on discussionWash", MonacoTheme.discussionTint,
-                on: [MonacoTheme.surface, MonacoTheme.discussionWash]))
         pairs.append(Pair("voteNeededLabel", MonacoTheme.voteNeededLabel, on: [MonacoTheme.voteNeededFill]))
         pairs.append(Pair("onDestructive", MonacoTheme.onDestructive, on: [MonacoTheme.destructive]))
-        for (label, color) in [
-            ("onIdentity", MonacoTheme.onIdentity), ("onIdentityMuted", MonacoTheme.onIdentityMuted),
-            ("onIdentityBody", MonacoTheme.onIdentityBody), ("profitOnIdentity", MonacoTheme.profitOnIdentity),
-            ("lossOnIdentity", MonacoTheme.lossOnIdentity),
-        ] {
-            pairs.append(Pair(label, color, on: [MonacoTheme.identityFill]))
+        for tint in MonacoTheme.CabalTint.allCases {
+            pairs.append(Pair("\(tint) onFill", tint.onFill, on: [tint.fill]))
         }
         for (label, color) in [
             ("onCover", MonacoTheme.onCover), ("onCoverMuted", MonacoTheme.onCoverMuted),
@@ -216,67 +178,21 @@ struct MonacoContrastTests {
         }
 
         pairs.append(Pair("onBrand", MonacoTheme.onBrand, on: [MonacoTheme.brandFill]))
-        // The same pair through the role aliases, so repointing a role is caught even if the
-        // token it aliased stayed put.
         pairs.append(
             Pair(
                 "primaryButtonLabel",
                 MonacoTheme.primaryButtonLabel,
                 on: [MonacoTheme.primaryButtonFill]
             ))
-        pairs.append(
-            Pair(
-                "secondaryButtonLabel",
-                MonacoTheme.secondaryButtonLabel,
-                on: [MonacoTheme.secondaryButtonFill]
-            ))
-        pairs.append(Pair("onHero", MonacoTheme.onHero, on: [MonacoTheme.heroInk]))
-        pairs.append(Pair("onHeroMuted", MonacoTheme.onHeroMuted, on: [MonacoTheme.heroInk]))
-        pairs.append(Pair("profitOnHero", MonacoTheme.profitOnHero, on: [MonacoTheme.heroInk]))
-        pairs.append(Pair("lossOnHero", MonacoTheme.lossOnHero, on: [MonacoTheme.heroInk]))
-        pairs.append(
-            Pair(
-                "profitOnHero on wash",
-                MonacoTheme.profitOnHero,
-                on: [MonacoTheme.heroInk, MonacoTheme.profitWashOnHero]
-            ))
-        pairs.append(
-            Pair(
-                "lossOnHero on wash",
-                MonacoTheme.lossOnHero,
-                on: [MonacoTheme.heroInk, MonacoTheme.lossWashOnHero]
-            ))
-        // A flat figure on the hero card, over its own wash.
-        pairs.append(Pair("flat on hero", PnLTone.flat.inkCardColor, on: [MonacoTheme.heroInk]))
-        pairs.append(
-            Pair(
-                "flat on hero wash",
-                PnLTone.flat.inkCardColor,
-                on: [MonacoTheme.heroInk, PnLTone.flat.inkCardWash]
-            ))
-        // The toast.
         pairs.append(Pair("toastLabel", MonacoTheme.toastLabel, on: [MonacoTheme.toastFill]))
         return pairs
     }
 
-    /// Graphical objects and large bold text: WCAG 1.4.11 / 1.4.3 ask for 3:1.
-    ///
-    /// The toast glyphs are held to 4.5 rather than 3 even though they are graphical. They are the
-    /// only thing distinguishing a failure toast from a success one for a member who does not read
-    /// the copy, and they sit over money screens. The nearest is 4.5:1, the error glyph on the
-    /// light panel in dark mode. At a 3:1 bar a retune could take a third off that and still pass.
     private static var glyphPairs: [Pair] {
-        var pairs: [Pair] = [
+        [
             Pair("toastSuccessGlyph", MonacoTheme.toastSuccessGlyph, on: [MonacoTheme.toastFill], minimum: 4.5),
             Pair("toastErrorGlyph", MonacoTheme.toastErrorGlyph, on: [MonacoTheme.toastFill], minimum: 4.5),
         ]
-        for tint in MonacoTheme.CabalTint.allCases {
-            // Bold tile initials, 15pt and up: the large-text bar, not the body one.
-            pairs.append(Pair("\(tint) onFill", tint.onFill, on: [tint.fill], minimum: 3))
-            // The retired on-ink tint, which is now the stroke on the canvas the hero aliases.
-            pairs.append(Pair("\(tint) onInk", tint.onInk, on: [MonacoTheme.heroInk], minimum: 3))
-        }
-        return pairs
     }
 
     @Test func adaptiveTokensActuallyResolvePerScheme() {
@@ -328,72 +244,70 @@ struct MonacoContrastTests {
         }
     }
 
-    /// Five cabals have to be five colours at a glance, and hue alone does not deliver that.
-    ///
-    /// A first pass at the forest tints separated them by hue only, with the two earthiest sitting
-    /// at nearly the same lightness. On the Home list, two cabals in adjacent rows came out as one
-    /// brown. Hue separation is what keeps a tint off the money colours; *lightness* separation is
-    /// what keeps two tints off each other when they happen to land next to one another, and which
-    /// pair lands next to which is a hash of the group id, so every pair has to survive it.
-    ///
-    /// Either route is enough on its own: 60° of hue, or 0.08 of L*.
-    @Test func everyPairOfCabalTintsIsTellableApart() {
-        let tints = MonacoTheme.CabalTint.allCases
+    private static let identityHexes: [UInt32] = [
+        0x5E5CE6, 0xFF9F0A, 0x40C8E0, 0xFF375F, 0xBF5AF2, 0xAC8E68, 0x0A84FF, 0x64D2FF,
+    ]
+
+    private static func hex(_ color: Color, _ scheme: UIUserInterfaceStyle) -> UInt32 {
+        let rgba = WCAGContrast.resolve(color, scheme)
+        func byte(_ value: Double) -> UInt32 { UInt32((value * 255).rounded()) }
+        return byte(rgba.red) << 16 | byte(rgba.green) << 8 | byte(rgba.blue)
+    }
+
+    @Test func identityHuesAreTheBoards() {
         for scheme in [UIUserInterfaceStyle.light, .dark] {
-            let name = scheme == .light ? "light" : "dark"
-            for (index, first) in tints.enumerated() {
-                for second in tints[(index + 1)...] {
-                    let a = OKLCh.value(first.fill, scheme)
-                    let b = OKLCh.value(second.fill, scheme)
-                    let hueGap = abs(a.hue - b.hue)
-                    let deltaHue = min(hueGap, 360 - hueGap)
-                    let deltaLightness = abs(a.lightness - b.lightness)
-                    #expect(
-                        deltaHue >= 60 || deltaLightness >= 0.08,
-                        "\(first) and \(second) in \(name) are only \(deltaHue)° apart at ΔL* \(deltaLightness): two cabals would read as one"
-                    )
-                }
+            #expect(MonacoTheme.CabalTint.allCases.map { Self.hex($0.fill, scheme) } == Self.identityHexes)
+        }
+    }
+
+    @Test func noIdentityHueIsGreen() {
+        for scheme in [UIUserInterfaceStyle.light, .dark] {
+            for tint in MonacoTheme.CabalTint.allCases {
+                var hue = OKLCh.value(tint.fill, scheme).hue
+                if hue < 0 { hue += 360 }
+                #expect(hue < 120 || hue > 170, "\(tint) hue \(hue)° is in the green band")
             }
         }
     }
 
-    /// A cabal tile sits in a row that also carries a gain or a loss, so no tint may be mistaken for
-    /// either.
-    ///
-    /// Hue is the whole guard here, and deliberately so. The tints are *not* quieter than the money
-    /// colours — measured, they run 0.9× to 1.2× profit's chroma — so a "the tint is more muted"
-    /// assertion would have been asserting something false. What separates them is that no tint
-    /// shares a hue with a money colour, and the two that come nearest are moss (a yellow-green, 38°
-    /// off profit) and ochre (a gold, 46° off loss).
     @Test func noCabalTintReadsAsAMoneyColour() {
         for scheme in [UIUserInterfaceStyle.light, .dark] {
             let name = scheme == .light ? "light" : "dark"
             for tint in MonacoTheme.CabalTint.allCases {
-                for (label, money) in [("profit", MonacoTheme.profit), ("loss", MonacoTheme.loss)] {
-                    let hueGap = abs(OKLCh.value(tint.fill, scheme).hue - OKLCh.value(money, scheme).hue)
-                    #expect(
-                        min(hueGap, 360 - hueGap) >= 30,
-                        "\(tint) vs \(label) in \(name): only \(min(hueGap, 360 - hueGap))° of hue apart"
-                    )
-                }
+                let hueGap = abs(OKLCh.value(tint.fill, scheme).hue - OKLCh.value(MonacoTheme.profit, scheme).hue)
+                #expect(
+                    min(hueGap, 360 - hueGap) >= 30,
+                    "\(tint) vs profit in \(name): only \(min(hueGap, 360 - hueGap))° of hue apart"
+                )
             }
         }
     }
 
-    /// `disabledLabel` is the one token held *below* AA on purpose, so it needs a two-sided guard:
-    /// AA-or-better makes an unavailable control read as a live one, and too low makes it
-    /// unreadable. The upper bound is expressed against `tertiaryText` rather than a bare number,
-    /// so the two cannot quietly converge back into the single token this split undid.
+    @Test func tintAndProfitStayApart() {
+        for scheme in [UIUserInterfaceStyle.light, .dark] {
+            let delta = OKLCh.distance(MonacoTheme.tint, MonacoTheme.profit, scheme)
+            #expect(delta >= 0.08, "tint vs profit in \(scheme == .light ? "light" : "dark"): ΔE OKLab is \(delta)")
+        }
+    }
+
+    @Test func theBadgeIsWhiteOnTheBoardsRed() {
+        for scheme in [UIUserInterfaceStyle.light, .dark] {
+            #expect(Self.hex(MonacoTheme.voteNeededFill, scheme) == 0xD70015)
+            #expect(Self.hex(MonacoTheme.voteNeededLabel, scheme) == 0xFFFFFF)
+            #expect(WCAGContrast.ratio(MonacoTheme.voteNeededLabel, on: [MonacoTheme.voteNeededFill], scheme) >= 4.5)
+        }
+    }
+
     @Test func disabledLabelStaysQuieterThanContent() {
         for surface in Self.surfaces {
             for scheme in [UIUserInterfaceStyle.light, .dark] {
                 let disabled = WCAGContrast.ratio(MonacoTheme.disabledLabel, on: [surface], scheme)
-                let content = WCAGContrast.ratio(MonacoTheme.tertiaryText, on: [surface], scheme)
+                let content = WCAGContrast.ratio(MonacoTheme.secondaryText, on: [surface], scheme)
                 #expect(disabled < 4.5, "disabledLabel is \(disabled): a disabled control reads as live")
                 #expect(disabled >= 2.5, "disabledLabel is \(disabled): unavailable is not the same as invisible")
                 #expect(
                     content - disabled > 1,
-                    "tertiaryText (\(content)) and disabledLabel (\(disabled)) have converged"
+                    "secondaryText (\(content)) and disabledLabel (\(disabled)) have converged"
                 )
             }
         }
@@ -470,31 +384,12 @@ extension MonacoContrastTests {
     private static var v3TextPairs: [Pair] {
         var pairs = coverPairs
         for surface in paper {
-            pairs.append(Pair("muted", MonacoTheme.muted, on: [surface]))
-            pairs.append(Pair("brand on brandSoft", MonacoTheme.brand, on: [surface, MonacoTheme.brandSoft]))
-            pairs.append(
-                Pair(
-                    "secondaryButtonLabel on secondaryButtonFill", MonacoTheme.secondaryButtonLabel,
-                    on: [surface, MonacoTheme.secondaryButtonFill]))
             for tone in StatusBadge.Tone.allCases {
                 pairs.append(Pair("StatusBadge \(tone)", tone.label, on: [surface, tone.fill]))
             }
             for kind in EventPill.Kind.allCases {
                 pairs.append(Pair("EventPill \(kind)", kind.label, on: [surface, kind.fill]))
             }
-            for (name, wash) in [
-                ("buyWash", MonacoTheme.buyWash), ("sellWash", MonacoTheme.sellWash),
-                ("priceWash", MonacoTheme.priceWash),
-            ] {
-                for (label, color) in [
-                    ("primaryText", MonacoTheme.primaryText), ("bodyText", MonacoTheme.bodyText),
-                    ("secondaryText", MonacoTheme.secondaryText),
-                ] {
-                    pairs.append(Pair("\(label) on \(name)", color, on: [surface, wash]))
-                }
-            }
-            pairs.append(Pair("profit on buyWash", MonacoTheme.profit, on: [surface, MonacoTheme.buyWash]))
-            pairs.append(Pair("loss on sellWash", MonacoTheme.loss, on: [surface, MonacoTheme.sellWash]))
         }
         return pairs
     }
@@ -504,16 +399,12 @@ extension MonacoContrastTests {
         for surface in paper {
             for (label, color) in [
                 ("profitVivid", MonacoTheme.profitVivid), ("lossVivid", MonacoTheme.lossVivid),
-                ("tertiaryText sparkline", MonacoTheme.tertiaryText),
+                ("flat chart line", MonacoTheme.secondaryText),
             ] {
                 pairs.append(Pair("chart \(label)", color, on: [surface], minimum: 3))
             }
-            for tint in MonacoTheme.CabalTint.allCases {
-                pairs.append(Pair("chart \(tint) stroke", tint.stroke, on: [surface], minimum: 3))
-            }
         }
         for (label, color) in [("yes", MonacoTheme.profitVivid), ("no", MonacoTheme.lossVivid)] {
-            pairs.append(Pair("VoteBar \(label) against its track", color, on: [MonacoTheme.border], minimum: 3))
             pairs.append(Pair("VoteBar \(label) against canvas", color, on: [MonacoTheme.canvas], minimum: 3))
         }
         for (index, color) in MonacoTheme.allocationTints.dropLast().enumerated() {

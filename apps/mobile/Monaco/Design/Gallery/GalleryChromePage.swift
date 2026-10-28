@@ -51,7 +51,7 @@ struct GalleryGlassSamples: View {
     private func backdrop(for style: MonacoGlassButton.Style) -> some View {
         if style == .onCover {
             RoundedRectangle(cornerRadius: MonacoTheme.Radius.badge, style: .continuous)
-                .fill(MonacoTheme.CabalTint.pine.fill)
+                .fill(MonacoTheme.CabalTint.blue.fill)
         }
     }
 }

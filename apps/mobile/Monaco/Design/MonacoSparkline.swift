@@ -35,7 +35,7 @@ struct Sparkline: View {
         switch tone {
         case .profit: return MonacoTheme.profitVivid
         case .loss: return MonacoTheme.lossVivid
-        case .flat: return MonacoTheme.tertiaryText
+        case .flat: return MonacoTheme.secondaryText
         }
     }
 

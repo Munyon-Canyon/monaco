@@ -29,11 +29,11 @@ struct CabalTintTests {
 
     @Test func tintIsPinnedForKnownIds() {
         // Pinned so a change to the hash or the case list is a deliberate, visible decision.
-        #expect(MonacoTheme.CabalTint.forGroupId("") == .plum)
-        #expect(MonacoTheme.CabalTint.forGroupId("a") == .ochre)
+        #expect(MonacoTheme.CabalTint.forGroupId("") == .brown)
+        #expect(MonacoTheme.CabalTint.forGroupId("a") == .purple)
     }
 
-    @Test func tintsSpreadAcrossAllFive() {
+    @Test func tintsSpreadAcrossAllEight() {
         let ids = (0..<200).map { "group-\($0)" }
         let used = Set(ids.map { MonacoTheme.CabalTint.forGroupId($0) })
         #expect(used.count == MonacoTheme.CabalTint.allCases.count)
