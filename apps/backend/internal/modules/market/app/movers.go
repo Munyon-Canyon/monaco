@@ -50,9 +50,6 @@ func (l *ListAssets) rankedMovers(ctx context.Context, search string, now time.T
 	if err != nil {
 		return nil, err
 	}
-	if len(candidates) == 0 {
-		return []Summary{}, nil
-	}
 	newest, err := l.newest(ctx, mintsOf(candidates), now)
 	if err != nil {
 		return nil, err
