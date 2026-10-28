@@ -14,6 +14,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type SwapView struct {
@@ -30,6 +31,7 @@ type SwapView struct {
 	TxSignature chain.Signature
 	CreatedAt   time.Time
 	ConfirmedAt time.Time
+	FeeMicros   *money.Micros
 	Retryable   bool
 }
 
@@ -144,6 +146,15 @@ func view(op string, r sqlc.SwapView) (SwapView, error) {
 	if err := errors.Join(kindErr, actionErr, statusErr, failureErr, inErr, outErr, requiredErr); err != nil {
 		return SwapView{}, errs.Wrap(err, errs.CodeDecodeFailed, op)
 	}
+	var fee *money.Micros
+	if r.FeeMicros.Valid {
+		amount, err := domain.ParseAmount(r.FeeMicros.Int64)
+		if err != nil {
+			return SwapView{}, errs.Wrap(err, errs.CodeDecodeFailed, op)
+		}
+		micros := money.MicrosFromUint64(amount)
+		fee = &micros
+	}
 	return SwapView{
 		ID: ids.SwapIDFrom(
 			r.ID,
@@ -160,6 +171,7 @@ func view(op string, r sqlc.SwapView) (SwapView, error) {
 		TxSignature: chain.Signature(r.TxSignature.String),
 		CreatedAt:   r.CreatedAt,
 		ConfirmedAt: r.ConfirmedAt.Time,
+		FeeMicros:   fee,
 		Retryable:   r.Retryable.Bool,
 	}, nil
 }
