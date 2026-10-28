@@ -6,6 +6,7 @@ import (
 
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
+	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/adapters"
@@ -19,6 +20,7 @@ import (
 	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/rankingapi"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
@@ -79,6 +81,8 @@ func (m *Module) Wire(set module.Set) {
 		case interface{ Queries() identityport.Queries }:
 			m.ports.Users = provider.Queries()
 			m.users = provider.Queries()
+		case interface{ Ballots() governanceport.Ballots }:
+			m.ports.Ballots = provider.Ballots()
 		case interface{ FollowGraph() app.Follows }:
 			m.ports.Follows = provider.FollowGraph()
 		case *market.Module:
@@ -115,7 +119,7 @@ func (m *Module) Mount(r api.Mount) {
 func (m *Module) Consumers() []bus.Consumer { return m.consumers() }
 
 func (m *Module) consumers() []bus.Consumer {
-	return []bus.Consumer{membership(), m.names(), m.hints(), triggers()}
+	return []bus.Consumer{membership(), m.names(), m.hints(), triggers(), m.calls()}
 }
 
 func (m *Module) Pollers() []poller.Poller {
@@ -134,6 +138,15 @@ func (m *Module) valuation() adapters.ValuationPoller {
 type Port = port.Queries
 
 func (m *Module) Queries() port.Queries { return QueriesOn(m.deps.Pool) }
+
+func (m *Module) Calls() interface {
+	Records(
+		ctx context.Context, userIDs []ids.UserID, cabalID *ids.CabalID, p port.Period,
+	) (map[ids.UserID]port.CallRecord, error)
+	CabalRecords(ctx context.Context, cabalIDs []ids.CabalID, p port.Period) (map[ids.CabalID]port.CallRecord, error)
+} {
+	return app.NewCallRecords(m.deps.Pool)
+}
 
 func (m *Module) CabalReturns() adapters.Latest { return adapters.Latest{DB: m.deps.Pool} }
 

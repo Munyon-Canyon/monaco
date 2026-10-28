@@ -23,6 +23,16 @@ type Voters interface {
 	Voters(ctx context.Context, id ids.ProposalID) ([]ids.UserID, error)
 }
 
+type Ballot struct {
+	VoterID ids.UserID
+	Choice  *string
+	CastAt  *time.Time
+}
+
+type Ballots = interface {
+	Ballots(ctx context.Context, id ids.ProposalID) ([]Ballot, error)
+}
+
 type OpenProposal struct {
 	ID         ids.ProposalID
 	Kind       string

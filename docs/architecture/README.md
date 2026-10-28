@@ -23,6 +23,7 @@ Durable record of the design decisions behind Monaco, one file per topic. Each f
 | Notifications | [notifications.md](notifications.md) | Decided 2026-09-27. Push copy is a TODO |
 | Followers & following | [followers.md](followers.md) | Decided 2026-09-26; amended 2026-09-27 |
 | Leaderboard | [leaderboards.md](leaderboards.md) | Decided 2026-09-26; amended 2026-09-27 |
+| Right calls | [right-calls.md](right-calls.md) | Decided 2026-10-26. Store and rule in #6434 |
 | Chat | [chat.md](chat.md) | Decided 2026-09-27 |
 | Referrals | [referrals.md](referrals.md) | Decided 2026-09-26; amended 2026-09-27 |
 | Cabals | [cabals.md](cabals.md) | Decided 2026-09-27 |

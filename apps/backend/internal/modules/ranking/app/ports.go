@@ -7,6 +7,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
+	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/sqlc"
@@ -61,6 +62,8 @@ type RangeSnapshots interface {
 	SnapshotsAt(context.Context, []time.Time) ([]sqlc.SnapshotsAtRow, error)
 }
 
+type Ballots = governanceport.Ballots
+
 type Ports struct {
 	Market    Market
 	Treasury  Treasury
@@ -70,6 +73,7 @@ type Ports struct {
 	Follows   Follows
 	Previous  PreviousReader
 	Snapshots RangeSnapshots
+	Ballots   Ballots
 }
 
 type Ownership interface {
