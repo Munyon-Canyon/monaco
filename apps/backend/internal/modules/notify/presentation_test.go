@@ -173,8 +173,11 @@ func TestPresentation_theCabalKindsFailWhenTheCabalCannotBeRead(t *testing.T) {
 	cabals.Fail("Cabal", down)
 	users := fakes.NewIdentity(nil, nil)
 	assets := marketfake.NewCatalog(marketfake.Fixtures()...)
-	cases := copyCases(cabals, users, assets)
-	for _, name := range []string{"trade_filled", "trade_failed", "trade_blocked", "proposal_passed"} {
+	cases := copyCases(cabals, users, assets, ids.UserID{})
+	for _, name := range []string{
+		"proposal_result_filled", "proposal_result_fill_failed", "proposal_result_fill_blocked",
+		"proposal_result_failed", "proposal_result_expired",
+	} {
 		c := cases[name]
 
 		_, err := c.render(t.Context(), goldenEvent(t, c.typ), ids.UserID{})

@@ -32,6 +32,10 @@ final class PushRouteTests: XCTestCase {
                 .proposal(proposalID: proposal, cabalID: cabal)
             ),
             (
+                "proposal_result", ["cabal_id": cabal, "proposal_id": proposal, "outcome": "filled"],
+                .proposal(proposalID: proposal, cabalID: cabal)
+            ),
+            (
                 "comment_reply", ["feed_item_id": feedItem, "proposal_id": proposal, "cabal_id": cabal],
                 .proposal(proposalID: proposal, cabalID: cabal)
             ),
@@ -204,8 +208,8 @@ final class PushRouteTests: XCTestCase {
             "group_id", "group_name", "group_image_url",
         ]
         let rows: [(file: String, keys: Set<String>, screen: String)] = [
-            ("trade_filled", ["kind", "cabal_id", "txn_id"], "transaction"),
-            ("trade_failed", ["kind", "cabal_id", "txn_id"], "transaction"),
+            ("proposal_result_filled", ["kind", "cabal_id", "proposal_id", "outcome"], "proposal"),
+            ("proposal_result_failed", ["kind", "cabal_id", "proposal_id", "outcome"], "proposal"),
             ("proposal_created", ["kind", "cabal_id", "proposal_id"], "proposal"),
             ("cabal_paused", ["kind", "cabal_id"], "cabal"),
             ("proposal_created_grouped", Set(["kind", "cabal_id", "proposal_id"]).union(senderKeys), "proposal"),

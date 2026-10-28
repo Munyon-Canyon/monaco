@@ -3,36 +3,52 @@ package app
 import (
 	"cmp"
 	"context"
-	"fmt"
 	"slices"
 
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
-const unnamedProposer = "Someone"
+const (
+	unnamedProposer = "Someone"
+	ruleKind        = "rule"
+	voteCategory    = "VOTE"
+)
 
-type Voters interface {
-	Voters(ctx context.Context, id ids.ProposalID) ([]ids.UserID, error)
-}
+type (
+	Ballots       = governanceport.Ballots
+	ProposalHeads = governanceport.ProposalHeads
+)
 
 type ProposalCreated struct {
-	Cabals Cabals
-	Users  Users
-	Assets Assets
+	Cabals  Cabals
+	Users   Users
+	Assets  Assets
+	Ballots Ballots
+	Heads   ProposalHeads
+	Clock   clock.Clock
 }
 
 func (ProposalCreated) Name() string { return "proposal_created" }
 
 func (k ProposalCreated) Recipients(ctx context.Context, e events.ProposalCreated) ([]ids.UserID, error) {
+	if e.Kind == ruleKind {
+		return nil, nil
+	}
 	return memberIDs(ctx, k.Cabals, &e.CabalID)
 }
 
-func (k ProposalCreated) Render(ctx context.Context, e events.ProposalCreated, _ ids.UserID) (Message, error) {
-	words, err := wordsFor(ctx, k.Assets, e.Kind, e.Symbol)
+func (k ProposalCreated) Render(ctx context.Context, e events.ProposalCreated, to ids.UserID) (Message, error) {
+	action, err := side(e.Kind)
+	if err != nil {
+		return Message{}, err
+	}
+	asset, err := labelOf(ctx, k.Assets, e.Symbol)
 	if err != nil {
 		return Message{}, err
 	}
@@ -44,50 +60,34 @@ func (k ProposalCreated) Render(ctx context.Context, e events.ProposalCreated, _
 	if err != nil {
 		return Message{}, err
 	}
-	amount := usd(e.USDCMicros)
-	if words.noun == "sell" {
-		amount = "about " + usd(money.MicrosFromUint64(e.QuoteOutAmount))
+	head, err := k.Heads.ProposalHead(ctx, ids.ProposalIDFrom(e.ProposalID))
+	if err != nil {
+		return Message{}, err
 	}
-	body := fmt.Sprintf("%s wants to %s %s of %s. Vote now.", proposer.Name, words.noun, amount, words.asset)
+	amount := e.USDCMicros
+	if action == "Sell" {
+		amount = money.MicrosFromUint64(e.QuoteOutAmount)
+	}
+	pres := ForCabal(view, proposer)
+	if pres.Category, err = k.category(ctx, e.ProposalID, to); err != nil {
+		return Message{}, err
+	}
 	return proposalMessage(
-		k.Name(), e.CabalID, e.ProposalID, "New proposal in "+view.Name, body, ForCabal(view, proposer),
+		k.Name(), e.CabalID, e.ProposalID,
+		createdTitle(proposer.Name, action, asset, dollars(amount)),
+		createdBody(head.Thesis, closesIn(e.ExpiresAt.Sub(k.Clock.Now()))), pres,
 	), nil
 }
 
-type ProposalPassed struct {
-	Cabals Cabals
-	Voters Voters
-	Assets Assets
-}
-
-func (ProposalPassed) Name() string { return "proposal_passed" }
-
-func (k ProposalPassed) Recipients(ctx context.Context, e events.ProposalPassed) ([]ids.UserID, error) {
-	voted, err := k.Voters.Voters(ctx, ids.ProposalIDFrom(e.ProposalID))
+func (k ProposalCreated) category(ctx context.Context, proposal uuid.UUID, to ids.UserID) (string, error) {
+	ballots, err := k.Ballots.Ballots(ctx, ids.ProposalIDFrom(proposal))
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	members, err := memberIDs(ctx, k.Cabals, &e.CabalID)
-	if err != nil {
-		return nil, err
+	if slices.ContainsFunc(ballots, func(b governanceport.Ballot) bool { return b.VoterID == to }) {
+		return voteCategory, nil
 	}
-	return slices.DeleteFunc(members, func(user ids.UserID) bool { return !slices.Contains(voted, user) }), nil
-}
-
-func (k ProposalPassed) Render(ctx context.Context, e events.ProposalPassed, _ ids.UserID) (Message, error) {
-	words, err := wordsFor(ctx, k.Assets, e.Kind, e.Symbol)
-	if err != nil {
-		return Message{}, err
-	}
-	body := fmt.Sprintf("Your cabal's buy of %s of %s passed. Buying now.", usd(e.USDCMicros), words.asset)
-	if words.noun == "sell" {
-		body = fmt.Sprintf("Your cabal's sell of %s passed. Selling now.", words.asset)
-	}
-	pres, err := cabalPresentation(ctx, k.Cabals, e.CabalID)
-	if err != nil {
-		return Message{}, err
-	}
-	return proposalMessage(k.Name(), e.CabalID, e.ProposalID, "Proposal passed", body, pres), nil
+	return "", nil
 }
 
 func proposerName(ctx context.Context, users Users, id ids.UserID) (string, error) {

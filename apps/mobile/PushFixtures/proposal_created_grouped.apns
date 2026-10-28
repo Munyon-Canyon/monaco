@@ -2,8 +2,8 @@
   "Simulator Target Bundle": "xyz.monacolabs.app",
   "aps": {
     "alert": {
-      "title": "New proposal in AC Capital",
-      "body": "Mia wants to buy $400.00 of NVIDIA. Vote now."
+      "title": "Mia proposed Buy NVDA $400",
+      "body": "“Small add before earnings.” The vote closes in 6h."
     },
     "thread-id": "cabal-01920000-0000-7000-8000-000000000c01",
     "mutable-content": 1,

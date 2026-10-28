@@ -23,6 +23,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
+	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify"
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify/app"
@@ -636,8 +637,22 @@ func renderer[E events.Event](k app.Kind[E]) func(context.Context, events.Event,
 	}
 }
 
-func copyCases(cabals app.Cabals, users app.Users, assets app.Assets) map[string]copyCase {
-	passed := renderer[events.ProposalPassed](app.ProposalPassed{Cabals: cabals, Assets: assets})
+type anyBallots struct{ to ids.UserID }
+
+func (b anyBallots) Ballots(context.Context, ids.ProposalID) ([]governanceport.Ballot, error) {
+	return []governanceport.Ballot{
+		yesBallot(b.to), noBallot(ids.UserIDFrom(uuid.NewSHA1(uuid.NameSpaceOID, []byte("notify-copy-other")))),
+	}, nil
+}
+
+type anyHead struct{}
+
+func (anyHead) ProposalHead(context.Context, ids.ProposalID) (governanceport.ProposalHead, error) {
+	return governanceport.ProposalHead{Kind: "buy", Symbol: "AAPLx", Thesis: "Small add before earnings."}, nil
+}
+
+func copyCases(cabals app.Cabals, users app.Users, assets app.Assets, to ids.UserID) map[string]copyCase {
+	results := app.ResultPorts{Cabals: cabals, Assets: assets, Ballots: anyBallots{to}, Heads: anyHead{}}
 	return map[string]copyCase{
 		"test":             {events.TypeNotifyTestRequested, renderer[events.NotifyTestRequested](app.Test{})},
 		"deposit_credited": {events.TypeDepositCredited, renderer[events.DepositCredited](app.DepositCredited{})},
@@ -647,21 +662,28 @@ func copyCases(cabals app.Cabals, users app.Users, assets app.Assets) map[string
 		"cabal_resumed": {
 			events.TypeCabalResumed, renderer[events.CabalResumed](app.CabalResumed{Cabals: cabals}),
 		},
-		"trade_filled": {
-			events.TypeTradeConfirmed, renderer[events.TradeConfirmed](app.TradeFilled{Cabals: cabals, Assets: assets}),
+		"proposal_result_filled": {
+			events.TypeTradeConfirmed, renderer[events.TradeConfirmed](app.ResultFilled{ResultPorts: results}),
 		},
-		"trade_failed": {
-			events.TypeTradeFailed, renderer[events.TradeFailed](app.TradeFailed{Cabals: cabals, Assets: assets}),
+		"proposal_result_fill_failed": {
+			events.TypeTradeFailed, renderer[events.TradeFailed](app.ResultFillFailed{ResultPorts: results}),
 		},
-		"trade_blocked": {
-			events.TypeTradeBlocked, renderer[events.TradeBlocked](app.TradeBlocked{Cabals: cabals, Assets: assets}),
+		"proposal_result_fill_blocked": {
+			events.TypeTradeBlocked, renderer[events.TradeBlocked](app.ResultFillBlocked{ResultPorts: results}),
+		},
+		"proposal_result_failed": {
+			events.TypeProposalFailed, renderer[events.ProposalFailed](app.ResultFailed{ResultPorts: results}),
+		},
+		"proposal_result_expired": {
+			events.TypeProposalExpired, renderer[events.ProposalExpired](app.ResultExpired{ResultPorts: results}),
 		},
 		"proposal_created": {
 			events.TypeProposalCreated,
-			renderer[events.ProposalCreated](app.ProposalCreated{Cabals: cabals, Users: users, Assets: assets}),
+			renderer[events.ProposalCreated](app.ProposalCreated{
+				Cabals: cabals, Users: users, Assets: assets, Ballots: anyBallots{to}, Heads: anyHead{},
+				Clock: testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)),
+			}),
 		},
-		"proposal_passed":     {events.TypeProposalPassed, passed},
-		"proposal_passed_buy": {events.TypeProposalPassed, passed},
 		"new_follower": {
 			events.TypeFollowCreated, renderer[events.FollowCreated](app.NewFollower{Users: users}),
 		},
@@ -760,11 +782,10 @@ func TestNotifyCopy(t *testing.T) {
 	requester := identity.UserCard{ID: ids.UserIDFrom(asked.UserID), DisplayName: memberNames()[0]}
 	users := fakes.NewIdentity([]identity.UserCard{proposer, follower, replier, poster, requester}, nil)
 	assets := marketfake.NewCatalog(marketfake.Fixtures()...)
-	goldenDirs := map[string]string{"proposal_passed_buy": "buy"}
 	covered := map[events.Type]bool{}
-	for name, c := range copyCases(cabals, users, assets) {
+	for name, c := range copyCases(cabals, users, assets, to) {
 		covered[c.typ] = true
-		msg, err := c.render(t.Context(), goldenEventIn(t, goldenDirs[name], c.typ), to)
+		msg, err := c.render(t.Context(), goldenEvent(t, c.typ), to)
 		if err != nil {
 			t.Fatalf("%s: Render = %v", name, err)
 		}
@@ -835,8 +856,8 @@ func withRenderedCabals(t *testing.T, seeds []fakes.CabalSeed) []fakes.CabalSeed
 		dir string
 		typ events.Type
 	}{
-		{"", events.TypeProposalPassed},
-		{"buy", events.TypeProposalPassed},
+		{"", events.TypeProposalFailed},
+		{"", events.TypeProposalExpired},
 		{"", events.TypeTradeConfirmed},
 		{"", events.TypeTradeFailed},
 		{"", events.TypeTradeBlocked},
