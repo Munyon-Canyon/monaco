@@ -3,6 +3,8 @@ site_url: https://munyon-canyon.github.io/monaco/
 repo_url: https://github.com/Munyon-Canyon/monaco
 edit_uri: edit/main/docs/
 docs_dir: docs
+exclude_docs: |
+  design/f/index.html
 strict: true
 
 theme:

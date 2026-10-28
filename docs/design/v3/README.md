@@ -1,3 +1,4 @@
+**Superseded by [docs/design/f](../f/README.md) (F launch, 10-26).** Kept only until #6589 removes it with the v3 audits that still read it; never build from it.
 # Monaco UI v3 reference
 
 v3 is the design the iOS app is being rebuilt to match: a cream-paper, forest-green, glass-chrome look with bordered cards, capsule P&L pills, cover-photo cabal cards, a dark identity card and floating glass chrome. It comes from the Monaco UI 1.5.3 design package. This folder is the in-repo copy, so tickets and PRs can link to it.
