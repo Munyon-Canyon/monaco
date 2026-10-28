@@ -28,6 +28,9 @@ func (h HTTP) GetFeed(ctx context.Context, req api.GetFeedRequestObject) (api.Ge
 	if err != nil {
 		return nil, err
 	}
+	if q.Filter.Status, err = feedStatus(p.Status); err != nil {
+		return nil, err
+	}
 	if q.Sort, err = feedSort(p.Sort); err != nil {
 		return nil, err
 	}
@@ -66,6 +69,16 @@ func feedSort(raw *api.GetFeedParamsSort) (feed.Sort, error) {
 		return "", errs.New(errs.CodeInvalidInput, "social.GetFeed", slog.String("sort", string(*raw)))
 	}
 	return feed.Sort(*raw), nil
+}
+
+func feedStatus(raw *api.GetFeedParamsStatus) (string, error) {
+	if raw == nil {
+		return "", nil
+	}
+	if !raw.Valid() {
+		return "", errs.New(errs.CodeInvalidInput, "social.GetFeed", slog.String("status", string(*raw)))
+	}
+	return string(*raw), nil
 }
 
 func parseFeedCursor(sort feed.Sort, raw string) (domain.Keyset, error) {

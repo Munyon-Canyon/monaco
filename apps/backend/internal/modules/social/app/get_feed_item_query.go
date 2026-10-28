@@ -25,7 +25,7 @@ func GetFeedItem(
 	reads := sqlc.New(db)
 	row, err := reads.GetFeedItem(ctx, sqlc.GetFeedItemParams{
 		Kinds: f.Kinds, CabalID: f.CabalID, ActorID: f.ActorID, Symbol: f.Symbol, Q: f.Q, Following: f.Following,
-		Mine: f.Mine, Viewer: f.Viewer, ID: id,
+		Mine: f.Mine, Network: f.Network, Others: f.Others, Viewer: f.Viewer, ID: id,
 	})
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
