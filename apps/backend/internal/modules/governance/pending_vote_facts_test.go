@@ -71,7 +71,7 @@ func newPendingFacts(t *testing.T) pendingFacts {
 }
 
 func (f pendingFacts) pendingReads() *app.PendingVoteReads {
-	reads := app.NewProposalReads(f.pool, f.swaps, f.names, f.assets, f.cards, &returnBook{})
+	reads := app.NewProposalReads(f.pool, f.swaps, f.names, f.assets, f.cards, &returnBook{}, f.replies)
 	return app.NewPendingVoteReads(reads, app.PendingVotePorts{Assets: f.mints, Replies: f.replies})
 }
 

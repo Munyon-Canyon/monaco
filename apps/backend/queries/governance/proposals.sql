@@ -18,14 +18,15 @@ FROM proposal, unnest(@voter_ids::uuid[]) AS voter;
 WITH proposal AS (
   INSERT INTO proposals (
     id, cabal_id, proposer_id, kind, symbol, mint, usdc_micros, token_amount, thesis,
-    quote_out_amount, threshold, status, expires_at, created_at, updated_at, price_comparison, network
+    quote_out_amount, threshold, status, expires_at, created_at, updated_at, price_comparison, network,
+    pot_value_micros
   )
   VALUES (
     sqlc.arg(id), sqlc.arg(cabal_id), sqlc.arg(proposer_id), sqlc.arg(kind), sqlc.arg(symbol), sqlc.arg(mint),
     NULLIF(sqlc.arg(usdc_micros)::text, '0')::bigint, NULLIF(sqlc.arg(token_amount)::text, '0')::bigint,
     NULLIF(sqlc.arg(thesis)::text, ''), sqlc.arg(quote_out_amount)::text::bigint, sqlc.arg(threshold), 'open', sqlc.arg(expires_at),
     sqlc.arg(created_at), sqlc.arg(created_at), sqlc.narg(price_comparison)::jsonb,
-    NULLIF(sqlc.arg(network)::text, '')
+    NULLIF(sqlc.arg(network)::text, ''), NULLIF(sqlc.arg(pot_value_micros)::text, '')::bigint
   )
   RETURNING id
 )
@@ -64,6 +65,8 @@ UPDATE proposals
 SET status = @to_status::text,
   status_reason = CASE WHEN @to_status::text = 'execution_blocked' THEN sqlc.narg(reason)::text END,
   void_reason = CASE WHEN @to_status::text = 'voided' THEN sqlc.narg(reason)::text END,
+  closed_at = CASE WHEN @from_status::text = 'open' THEN @at::timestamptz ELSE closed_at END,
+  decided_by = CASE WHEN @from_status::text = 'open' THEN NULLIF(sqlc.arg(decided_by)::text, '')::uuid ELSE decided_by END,
   updated_at = @at::timestamptz
 WHERE id = @id AND status = @from_status::text;
 
@@ -151,7 +154,9 @@ WITH prior AS (
   SELECT p.id, p.status FROM proposals AS p WHERE p.id = @id FOR UPDATE OF p
 )
 UPDATE proposals
-SET status = @to_status::text, void_reason = @reason::text, updated_at = @at::timestamptz
+SET status = @to_status::text, void_reason = @reason::text,
+  closed_at = CASE WHEN prior.status = 'open' THEN @at::timestamptz ELSE proposals.closed_at END,
+  updated_at = @at::timestamptz
 FROM prior
 WHERE proposals.id = prior.id AND prior.status = ANY(@from_statuses::text[])
 RETURNING proposals.cabal_id, prior.status AS from_status;

@@ -13,10 +13,54 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const ballotOrder = `-- name: BallotOrder :one
+WITH ranked AS (
+  SELECT
+    votes.voter_id,
+    votes.choice,
+    row_number() OVER (ORDER BY votes.first_cast_at, votes.voter_id)::int AS order_all,
+    row_number() OVER (PARTITION BY votes.choice ORDER BY votes.cast_at, votes.voter_id)::int AS order_side
+  FROM votes
+  WHERE votes.proposal_id = $1
+)
+SELECT
+  ranked.order_all AS "order",
+  (CASE WHEN ranked.choice = 'yes' THEN ranked.order_side ELSE 0 END)::int AS yes_order,
+  (CASE WHEN ranked.choice = 'no' THEN ranked.order_side ELSE 0 END)::int AS no_order,
+  (SELECT count(*) FROM proposal_voters WHERE proposal_voters.proposal_id = $1)::int AS voters
+FROM ranked
+WHERE ranked.voter_id = $2::uuid
+`
+
+type BallotOrderParams struct {
+	ProposalID uuid.UUID
+	VoterID    uuid.UUID
+}
+
+type BallotOrderRow struct {
+	Order    int32
+	YesOrder int32
+	NoOrder  int32
+	Voters   int32
+}
+
+func (q *Queries) BallotOrder(ctx context.Context, arg BallotOrderParams) (BallotOrderRow, error) {
+	row := q.db.QueryRow(ctx, ballotOrder, arg.ProposalID, arg.VoterID)
+	var i BallotOrderRow
+	err := row.Scan(
+		&i.Order,
+		&i.YesOrder,
+		&i.NoOrder,
+		&i.Voters,
+	)
+	return i, err
+}
+
 const getProposal = `-- name: GetProposal :one
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.usdc_micros, p.token_amount, p.quote_out_amount,
-  p.thesis, p.threshold, p.status, p.status_reason, p.expires_at, p.created_at,
+  p.thesis, p.threshold, p.status, p.status_reason, p.expires_at, p.created_at, p.pot_value_micros, p.closed_at,
+  p.decided_by,
   coalesce(mine.choice, '')::text AS my_ballot, p.price_comparison, coalesce(p.network, '')::text AS network, p.mint
 FROM proposals AS p
 LEFT JOIN votes AS mine ON mine.proposal_id = p.id AND mine.voter_id = $1
@@ -43,6 +87,9 @@ type GetProposalRow struct {
 	StatusReason    pgtype.Text
 	ExpiresAt       time.Time
 	CreatedAt       time.Time
+	PotValueMicros  pgtype.Int8
+	ClosedAt        pgtype.Timestamptz
+	DecidedBy       pgtype.UUID
 	MyBallot        string
 	PriceComparison []byte
 	Network         string
@@ -67,6 +114,9 @@ func (q *Queries) GetProposal(ctx context.Context, arg GetProposalParams) (GetPr
 		&i.StatusReason,
 		&i.ExpiresAt,
 		&i.CreatedAt,
+		&i.PotValueMicros,
+		&i.ClosedAt,
+		&i.DecidedBy,
 		&i.MyBallot,
 		&i.PriceComparison,
 		&i.Network,

@@ -86,12 +86,17 @@ type ProposalReads struct {
 	assets Assets
 	users  Handles
 	rets   rankingport.Queries
+
+	Replies ReplyCounts
 }
 
 func NewProposalReads(
 	db sqlc.DBTX, s Swaps, c cabalport.ViewReader, a Assets, users Handles, returns rankingport.Queries,
+	replies ReplyCounts,
 ) *ProposalReads {
-	return &ProposalReads{q: sqlc.New(db), swaps: s, cabals: c, assets: a, users: users, rets: returns}
+	return &ProposalReads{
+		q: sqlc.New(db), swaps: s, cabals: c, assets: a, users: users, rets: returns, Replies: replies,
+	}
 }
 
 func (r *ProposalReads) CabalName(ctx context.Context, id ids.CabalID) (string, error) {

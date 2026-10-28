@@ -37,6 +37,7 @@ type CastVoteResult struct {
 	Tally      Tally
 	MyBallot   domain.Choice
 	UndoUntil  *time.Time
+	MyVote     MyVote
 }
 
 type CastVoteHandler struct {
@@ -93,7 +94,7 @@ func (h *CastVoteHandler) vote(
 		return CastVoteResult{}, banned
 	}
 	rule := domain.ThresholdRule(p.Threshold)
-	n, err := q.CastBallot(ctx, sqlc.CastBallotParams{
+	n, order, err := castAndRank(ctx, q, sqlc.CastBallotParams{
 		ProposalID: p.ID, VoterID: cmd.VoterID.UUID(), Choice: string(cmd.Choice), CastAt: now,
 	})
 	if err != nil {
@@ -108,7 +109,9 @@ func (h *CastVoteHandler) vote(
 		Tally: Tally{Yes: yes, No: no, Voters: voters, Needed: rule.Needed(voters)},
 	}
 	var decided events.Event
-	switch domain.Tally(rule, voters, yes, no) {
+	verdict := domain.Tally(rule, voters, yes, no)
+	out.MyVote = *myVoteOf(order, verdict != domain.Undecided)
+	switch verdict {
 	case domain.Undecided:
 		out.UndoUntil = undoUntil(n.FirstCastAt, n.Changed)
 		return out, nil
@@ -123,10 +126,22 @@ func (h *CastVoteHandler) vote(
 	}
 	if _, err := q.Transition(ctx, sqlc.TransitionParams{
 		ID: p.ID, FromStatus: string(domain.StatusOpen), ToStatus: string(out.Status), At: now,
+		DecidedBy: cmd.VoterID.UUID().String(),
 	}); err != nil {
 		return CastVoteResult{}, err
 	}
 	return out, tx.Events.Append(ctx, decided)
+}
+
+func castAndRank(
+	ctx context.Context, q *sqlc.Queries, arg sqlc.CastBallotParams,
+) (sqlc.CastBallotRow, sqlc.BallotOrderRow, error) {
+	n, err := q.CastBallot(ctx, arg)
+	if err != nil {
+		return sqlc.CastBallotRow{}, sqlc.BallotOrderRow{}, err
+	}
+	order, err := q.BallotOrder(ctx, sqlc.BallotOrderParams{ProposalID: arg.ProposalID, VoterID: arg.VoterID})
+	return n, order, err
 }
 
 func undoUntil(firstCastAt time.Time, changed bool) *time.Time {

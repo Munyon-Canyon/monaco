@@ -214,6 +214,6 @@ final class ProposalTradingTests: XCTestCase {
     }
 
     static func detail(_ status: String, ballot: String? = nil) -> String {
-        #"{"id":"p","cabal_id":"c","cabal_name":"Cabal","proposer_id":"u","proposer_return_1m_bps":null,"proposer_return_private":false,"kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"\#(status)","status_reason":null,"status_message":null,"expires_at":"2099-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":\#(ballot.map { "\"\($0)\"" } ?? "null"),"voters":[{"user_id":"u","choice":null,"cast_at":null}],"can_vote":false,"can_withdraw":false,"swap":null}"#
+        #"{"id":"p","cabal_id":"c","cabal_name":"Cabal","proposer_id":"u","proposer_return_1m_bps":null,"proposer_return_private":false,"kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"\#(status)","status_reason":null,"status_message":null,"expires_at":"2099-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":\#(ballot.map { "\"\($0)\"" } ?? "null"),"voters":[{"user_id":"u","choice":null,"cast_at":null}],"can_vote":false,"stats":{"treasury_share_bps":null,"closes_at":"2026-10-04T15:00:00Z","closed_at":null},"my_vote":null,"reply_count":0,"can_withdraw":false,"swap":null}"#
     }
 }

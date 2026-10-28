@@ -46,7 +46,7 @@ func newReadsDB(t *testing.T) readsDB {
 }
 
 func (d readsDB) reads() *app.ProposalReads {
-	return app.NewProposalReads(d.pool, d.swaps, d.names, d.assets, &cardBook{}, &returnBook{})
+	return app.NewProposalReads(d.pool, d.swaps, d.names, d.assets, &cardBook{}, &returnBook{}, &replyBook{})
 }
 
 func (d readsDB) votes() *app.PendingVoteReads {

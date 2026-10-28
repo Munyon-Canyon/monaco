@@ -335,14 +335,15 @@ const openProposal = `-- name: OpenProposal :execrows
 WITH proposal AS (
   INSERT INTO proposals (
     id, cabal_id, proposer_id, kind, symbol, mint, usdc_micros, token_amount, thesis,
-    quote_out_amount, threshold, status, expires_at, created_at, updated_at, price_comparison, network
+    quote_out_amount, threshold, status, expires_at, created_at, updated_at, price_comparison, network,
+    pot_value_micros
   )
   VALUES (
     $2, $3, $4, $5, $6, $7,
     NULLIF($8::text, '0')::bigint, NULLIF($9::text, '0')::bigint,
     NULLIF($10::text, ''), $11::text::bigint, $12, 'open', $13,
     $14, $14, $15::jsonb,
-    NULLIF($16::text, '')
+    NULLIF($16::text, ''), NULLIF($17::text, '')::bigint
   )
   RETURNING id
 )
@@ -368,6 +369,7 @@ type OpenProposalParams struct {
 	CreatedAt       time.Time
 	PriceComparison []byte
 	Network         string
+	PotValueMicros  string
 }
 
 func (q *Queries) OpenProposal(ctx context.Context, arg OpenProposalParams) (int64, error) {
@@ -388,6 +390,7 @@ func (q *Queries) OpenProposal(ctx context.Context, arg OpenProposalParams) (int
 		arg.CreatedAt,
 		arg.PriceComparison,
 		arg.Network,
+		arg.PotValueMicros,
 	)
 	if err != nil {
 		return 0, err
@@ -479,25 +482,29 @@ UPDATE proposals
 SET status = $1::text,
   status_reason = CASE WHEN $1::text = 'execution_blocked' THEN $2::text END,
   void_reason = CASE WHEN $1::text = 'voided' THEN $2::text END,
-  updated_at = $3::timestamptz
-WHERE id = $4 AND status = $5::text
+  closed_at = CASE WHEN $3::text = 'open' THEN $4::timestamptz ELSE closed_at END,
+  decided_by = CASE WHEN $3::text = 'open' THEN NULLIF($5::text, '')::uuid ELSE decided_by END,
+  updated_at = $4::timestamptz
+WHERE id = $6 AND status = $3::text
 `
 
 type TransitionParams struct {
 	ToStatus   string
 	Reason     pgtype.Text
-	At         time.Time
-	ID         uuid.UUID
 	FromStatus string
+	At         time.Time
+	DecidedBy  string
+	ID         uuid.UUID
 }
 
 func (q *Queries) Transition(ctx context.Context, arg TransitionParams) (int64, error) {
 	result, err := q.db.Exec(ctx, transition,
 		arg.ToStatus,
 		arg.Reason,
-		arg.At,
-		arg.ID,
 		arg.FromStatus,
+		arg.At,
+		arg.DecidedBy,
+		arg.ID,
 	)
 	if err != nil {
 		return 0, err
@@ -564,7 +571,9 @@ WITH prior AS (
   SELECT p.id, p.status FROM proposals AS p WHERE p.id = $5 FOR UPDATE OF p
 )
 UPDATE proposals
-SET status = $1::text, void_reason = $2::text, updated_at = $3::timestamptz
+SET status = $1::text, void_reason = $2::text,
+  closed_at = CASE WHEN prior.status = 'open' THEN $3::timestamptz ELSE proposals.closed_at END,
+  updated_at = $3::timestamptz
 FROM prior
 WHERE proposals.id = prior.id AND prior.status = ANY($4::text[])
 RETURNING proposals.cabal_id, prior.status AS from_status

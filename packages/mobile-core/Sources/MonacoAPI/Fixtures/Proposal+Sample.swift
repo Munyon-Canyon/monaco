@@ -33,7 +33,11 @@ extension Components.Schemas.ProposalDetail {
         }
         return .init(
             id: "proposal-1", cabalId: Components.Schemas.Cabal.sample(role: nil).id,
-            cabalName: Components.Schemas.Cabal.sample(role: nil).name, proposerId: members[1].userId,
+            cabalName: Components.Schemas.Cabal.sample(role: nil).name,
+            stats: .init(
+                treasuryShareBps: 250, closesAt: .now.addingTimeInterval(isOpen ? 43_200 : -3_600),
+                closedAt: isOpen ? nil : .now.addingTimeInterval(-3_600)),
+            replyCount: 6, proposerId: members[1].userId,
             proposerReturn1mBps: 820, proposerReturnPrivate: false, kind: kind,
             symbol: "GOOGLx", usdcMicros: isSell ? nil : 25_000_000,
             tokenAmount: isSell ? 150_000_000 : nil,

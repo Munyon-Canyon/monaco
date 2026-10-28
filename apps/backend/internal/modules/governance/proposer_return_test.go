@@ -87,7 +87,7 @@ func TestGetProposal_ProposerReturn(t *testing.T) {
 			proposer := ids.UserIDFrom(p.ProposerID)
 			users := &cardBook{cards: tc.cards(proposer)}
 			rets := &returnBook{returns: tc.returns(proposer)}
-			reads := app.NewProposalReads(d.pool, d.swaps, d.names, d.assets, users, rets)
+			reads := app.NewProposalReads(d.pool, d.swaps, d.names, d.assets, users, rets, &replyBook{})
 			got, err := reads.Get(t.Context(), app.GetProposal{
 				ID: ids.ProposalIDFrom(p.ID), Caller: ids.UserIDFrom(d.caller),
 			})
@@ -131,7 +131,7 @@ func TestGetProposal_ProposerReturnPortFailure(t *testing.T) {
 			p := d.buy(d.caller)
 			p.CabalID = d.cabal
 			d.insert(t, p)
-			reads := app.NewProposalReads(d.pool, d.swaps, d.names, d.assets, tc.users, tc.rets)
+			reads := app.NewProposalReads(d.pool, d.swaps, d.names, d.assets, tc.users, tc.rets, &replyBook{})
 			_, err := reads.Get(t.Context(), app.GetProposal{
 				ID: ids.ProposalIDFrom(p.ID), Caller: ids.UserIDFrom(d.caller),
 			})
