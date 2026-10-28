@@ -240,10 +240,21 @@ func (env *Env) relatedJobs(ctx context.Context, l Landing, failed []string) ([]
 	if docsOnly(changed) {
 		return slices.DeleteFunc(slices.Clone(failed), func(name string) bool { return !docsJob(name) }), nil
 	}
+	if mobileOnly(changed) {
+		return slices.DeleteFunc(slices.Clone(failed), backendJob), nil
+	}
 	if touchesMobile(changed) {
 		return failed, nil
 	}
 	return slices.DeleteFunc(slices.Clone(failed), unrelatedJob), nil
+}
+
+func mobileOnly(changed []string) bool {
+	roots := []string{"apps/mobile/", "packages/mobile-core/", "docs/"}
+	return len(changed) > 0 && !slices.ContainsFunc(changed, func(path string) bool {
+		inRoot := slices.ContainsFunc(roots, func(root string) bool { return strings.HasPrefix(path, root) })
+		return !inRoot && !strings.HasSuffix(path, ".md")
+	})
 }
 
 func docsOnly(changed []string) bool {
@@ -309,6 +320,15 @@ func aggregateJob(name string) bool {
 func unrelatedJob(name string) bool {
 	name = strings.TrimPrefix(name, "staging / ")
 	return slices.ContainsFunc([]string{"ios", "mobile-core", "Flake (changed Swift"}, func(prefix string) bool {
+		return len(name) >= len(prefix) && strings.EqualFold(name[:len(prefix)], prefix)
+	})
+}
+
+func backendJob(name string) bool {
+	name = strings.TrimPrefix(name, "staging / ")
+	return slices.ContainsFunc([]string{
+		"Backend tests", "E2E", "Lint (golangci-lint)", "Lint (nogo, comments, OpenAPI, migrations, vuln)",
+	}, func(prefix string) bool {
 		return len(name) >= len(prefix) && strings.EqualFold(name[:len(prefix)], prefix)
 	})
 }
