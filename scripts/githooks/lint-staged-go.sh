@@ -6,9 +6,11 @@ cd "$root"
 
 pkgs=()
 files=()
+staged=()
 while IFS= read -r file; do
   [[ "$file" == */testdata/* ]] && continue
   files+=("${file#apps/backend/}")
+  staged+=("$file")
   pkg="./$(dirname "${file#apps/backend/}")"
   [[ " ${pkgs[*]-} " == *" $pkg "* ]] || pkgs+=("$pkg")
 done < <(git diff --cached --name-only --diff-filter=ACM -- 'apps/backend/*.go')
@@ -25,6 +27,29 @@ if ! command -v "$lint" >/dev/null 2>&1; then
   echo "error: golangci-lint is not on PATH. Run: just install" >&2
   exit 1
 fi
+
+hash_before=()
+unstaged=()
+for file in "${staged[@]}"; do
+  hash_before+=("$(git hash-object -- "$file")")
+  if [[ -n "$(git diff --name-only -- "$file")" ]]; then unstaged+=(1); else unstaged+=(0); fi
+done
+
+(cd apps/backend && "$lint" fmt "${files[@]}") || true
+
+partial=0
+for i in "${!staged[@]}"; do
+  file="${staged[$i]}"
+  [[ "$(git hash-object -- "$file")" == "${hash_before[$i]}" ]] && continue
+  if [[ "${unstaged[$i]}" -eq 1 ]]; then
+    echo "pre-commit: $file has unstaged changes, formatted but not re-staged; stage it and commit again" >&2
+    partial=1
+  else
+    git add -- "$file"
+    echo "pre-commit: formatted $file"
+  fi
+done
+[[ "$partial" -eq 0 ]] || exit 1
 
 cd apps/backend
 if ! "$lint" run --allow-parallel-runners --new-from-rev=HEAD "${pkgs[@]}"; then
