@@ -13,7 +13,6 @@ type roleRepo struct {
 
 func newRoleRepo(t *testing.T) roleRepo {
 	t.Helper()
-	t.Setenv("PYENV_VERSION", "system")
 	dir := t.TempDir()
 	primary, lane, remote := filepath.Join(dir, "primary"), filepath.Join(dir, "lane"), filepath.Join(dir, "remote.git")
 	git(t, dir, "init", "-q", "--bare", "-b", "main", remote)
@@ -52,6 +51,7 @@ func (r roleRepo) markChecked(t *testing.T) {
 }
 
 func TestAgentGuard_anOwnerPushesOnlyATreeThatAgentsCheckPassed(t *testing.T) {
+	t.Parallel()
 	r := newRoleRepo(t)
 	pushes := []string{"gt submit --stack --no-interactive --draft", "gt ss -d", "git push origin ticket"}
 	for _, cmd := range pushes {
@@ -69,6 +69,7 @@ func TestAgentGuard_anOwnerPushesOnlyATreeThatAgentsCheckPassed(t *testing.T) {
 }
 
 func TestAgentGuard_aLocalMilestoneMovesTheCheckRecord(t *testing.T) {
+	t.Parallel()
 	push := "gt submit --stack --no-interactive --draft"
 	for _, c := range []struct {
 		name, local, recorded string
@@ -100,6 +101,7 @@ func TestAgentGuard_aLocalMilestoneMovesTheCheckRecord(t *testing.T) {
 }
 
 func TestAgentGuard_anOwnerRunsNoHeavyTests(t *testing.T) {
+	t.Parallel()
 	r := newRoleRepo(t)
 	backend := filepath.Join(r.lane, "apps", "backend")
 	heavy := map[string]string{
@@ -134,6 +136,7 @@ func TestAgentGuard_anOwnerRunsNoHeavyTests(t *testing.T) {
 }
 
 func TestAgentGuard_anOwnerDoesNotWaitOnCI(t *testing.T) {
+	t.Parallel()
 	r := newRoleRepo(t)
 	for _, cmd := range []string{
 		"gh run watch 123",
@@ -169,6 +172,7 @@ func TestAgentGuard_anOwnerDoesNotWaitOnCI(t *testing.T) {
 }
 
 func TestAgentGuard_aQueuedStackRefusesGraphiteRewrites(t *testing.T) {
+	t.Parallel()
 	r := newRoleRepo(t)
 	record := filepath.Join(r.primary, ".git", ".monaco", "agents", "9.json")
 	writeRoleFile(t, record, `{"ticket":9,"worktree":"`+r.lane+`","queued":{"top":12,"prs":[11,12]}}`)
@@ -190,6 +194,7 @@ func TestAgentGuard_aQueuedStackRefusesGraphiteRewrites(t *testing.T) {
 }
 
 func TestAgentGuard_anOwnerOpensDraftsAndMarksThemReadyOnlyThroughPrBody(t *testing.T) {
+	t.Parallel()
 	r := newRoleRepo(t)
 	r.markChecked(t)
 	for cmd, want := range map[string]string{

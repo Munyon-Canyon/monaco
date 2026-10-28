@@ -68,6 +68,7 @@ func missingPaths(t *testing.T, root, markdown string) []string {
 }
 
 func TestSkillPaths_everyBacktickedPathInABackendSkillExists(t *testing.T) {
+	t.Parallel()
 	root := repoRoot(t)
 	for _, skill := range mirroredSkills {
 		files, err := filepath.Glob(filepath.Join(root, ".claude", "skills", skill, "*.md"))
@@ -91,6 +92,7 @@ func TestSkillPaths_everyBacktickedPathInABackendSkillExists(t *testing.T) {
 }
 
 func TestSkillPaths_eachMirroredSkillIsUnder150LinesAndMirroredForCursor(t *testing.T) {
+	t.Parallel()
 	root := repoRoot(t)
 	for _, skill := range mirroredSkills {
 		claude := filepath.Join(root, ".claude", "skills", skill, "SKILL.md")
@@ -112,6 +114,7 @@ func TestSkillPaths_eachMirroredSkillIsUnder150LinesAndMirroredForCursor(t *test
 }
 
 func TestSkillPaths_flagsAPlantedMissingPathAndSkipsNonPaths(t *testing.T) {
+	t.Parallel()
 	root := repoRoot(t)
 	markdown := "See `packages/flows/backend/00.tsv`, `internal/platform/db/uow.go#L1`, `./cmd/monacoctl`, " +
 		"`apps/backend/internal/nope.go` and `math/big`. " +

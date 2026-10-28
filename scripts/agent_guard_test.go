@@ -86,6 +86,7 @@ func pushRepo(t *testing.T) (work, remote string) {
 }
 
 func TestAgentGuard_blocksMutationRunsAndAllowsInstallingTheTool(t *testing.T) {
+	t.Parallel()
 	cwd := t.TempDir()
 	for _, cmd := range []string{
 		"gremlins unleash ./internal/modules/bus",
@@ -108,6 +109,7 @@ func TestAgentGuard_blocksMutationRunsAndAllowsInstallingTheTool(t *testing.T) {
 }
 
 func TestAgentGuard_blocksPushesToMainStagingAndGraphiteTrunks(t *testing.T) {
+	t.Parallel()
 	work, _ := pushRepo(t)
 	trunks := `{"trunk":"main","trunks":[{"name":"main"},{"name":"milestone-9"}]}`
 	if err := os.WriteFile(filepath.Join(work, ".git", ".graphite_repo_config"), []byte(trunks), 0o644); err != nil {
@@ -138,6 +140,7 @@ func TestAgentGuard_blocksPushesToMainStagingAndGraphiteTrunks(t *testing.T) {
 }
 
 func TestAgentGuard_forcePushNeedsAnExplicitLease(t *testing.T) {
+	t.Parallel()
 	work, _ := pushRepo(t)
 	for cmd, want := range map[string]string{
 		"git push --force origin ticket":                                   "--force/-f is not allowed",
@@ -155,6 +158,7 @@ func TestAgentGuard_forcePushNeedsAnExplicitLease(t *testing.T) {
 }
 
 func TestAgentGuard_blocksAPushThatWouldDropRemoteCommits(t *testing.T) {
+	t.Parallel()
 	work, remote := pushRepo(t)
 	other := filepath.Join(t.TempDir(), "other")
 	git(t, filepath.Dir(other), "clone", "-q", "-b", "ticket", remote, other)
@@ -181,6 +185,7 @@ func TestAgentGuard_blocksAPushThatWouldDropRemoteCommits(t *testing.T) {
 }
 
 func TestAgentGuard_headlessClaudeNeedsTimeout(t *testing.T) {
+	t.Parallel()
 	cwd := t.TempDir()
 	for _, cmd := range []string{`claude -p "hi"`, `claude --print hi`, `cd /tmp && claude --model haiku -p hi`} {
 		assertBlocked(t, guard(t, cwd, cmd), cmd, "claude -p must run under timeout")
@@ -191,6 +196,7 @@ func TestAgentGuard_headlessClaudeNeedsTimeout(t *testing.T) {
 }
 
 func TestAgentGuard_killsReachOnlyThisWorktreesProcesses(t *testing.T) {
+	t.Parallel()
 	cwd, _ := pushRepo(t)
 	root := strings.TrimSpace(gitOut(t, cwd, "rev-parse", "--show-toplevel"))
 	for _, cmd := range []string{
@@ -233,6 +239,7 @@ func status(state, login string, id int) string {
 }
 
 func TestAgentGuard_ghPrMergeNeedsTheLatestVerifyToBeSuccess(t *testing.T) {
+	t.Parallel()
 	cwd := t.TempDir()
 	blocked := map[string]string{
 		"no statuses":          `[]`,
@@ -253,6 +260,7 @@ func TestAgentGuard_ghPrMergeNeedsTheLatestVerifyToBeSuccess(t *testing.T) {
 }
 
 func TestAgentGuard_onlyTheOperatorMergesIntoMain(t *testing.T) {
+	t.Parallel()
 	cwd := t.TempDir()
 	env, _ := ghStubOnBase(t, "main", `[`+status("success", "lognorman20", 1)+`]`)
 	for _, cmd := range []string{"gh pr merge 42 --squash", "gh pr merge 42 --auto --squash"} {
@@ -261,6 +269,7 @@ func TestAgentGuard_onlyTheOperatorMergesIntoMain(t *testing.T) {
 }
 
 func TestAgentGuard_prBodiesComeFromFiles(t *testing.T) {
+	t.Parallel()
 	cwd := t.TempDir()
 	for _, cmd := range []string{
 		`gh pr edit 5 --body "x"`,
@@ -279,6 +288,7 @@ func TestAgentGuard_prBodiesComeFromFiles(t *testing.T) {
 }
 
 func TestAgentGuard_commitSubjectsAreConventionalWhereverTheHookCanSeeThem(t *testing.T) {
+	t.Parallel()
 	cwd := t.TempDir()
 	if err := os.WriteFile(filepath.Join(cwd, "bad.txt"), []byte("Add a thing\n\nbody\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -324,6 +334,7 @@ func TestAgentGuard_commitSubjectsAreConventionalWhereverTheHookCanSeeThem(t *te
 }
 
 func TestAgentGuard_ignoresCommandTextInsideHeredocBodiesAndComments(t *testing.T) {
+	t.Parallel()
 	work, _ := pushRepo(t)
 	for _, cmd := range []string{
 		"cat > body.md <<'EOF'\ngit push origin main\ngremlins unleash, don't\nEOF\necho written",
@@ -337,7 +348,7 @@ func TestAgentGuard_ignoresCommandTextInsideHeredocBodiesAndComments(t *testing.
 }
 
 func TestAgentGuard_runsRulesOverShellHeredocsAndDashC(t *testing.T) {
-	t.Setenv("PYENV_VERSION", "system")
+	t.Parallel()
 	worktree := filepath.Join(t.TempDir(), ".worktrees", "lane")
 	for cmd, want := range map[string]string{
 		"bash <<'EOF'\ngit rebase main\nEOF":                "gt restack",
@@ -377,7 +388,7 @@ func gitOut(t *testing.T, dir string, args ...string) string {
 }
 
 func TestAgentGuard_blocksRawRebaseAndMergeInAWorktreeAndAtTheRoot(t *testing.T) {
-	t.Setenv("PYENV_VERSION", "system")
+	t.Parallel()
 	worktree := filepath.Join(t.TempDir(), ".worktrees", "lane")
 	for _, cmd := range []string{"git rebase origin/main", "git merge origin/main", "cd " + worktree + " && git rebase"} {
 		assertBlocked(t, guard(t, worktree, cmd), cmd, "gt restack")
@@ -393,7 +404,7 @@ func TestAgentGuard_blocksRawRebaseAndMergeInAWorktreeAndAtTheRoot(t *testing.T)
 }
 
 func TestAgentGuard_allowsRebaseControlAndRemoteOnlyRebase(t *testing.T) {
-	t.Setenv("PYENV_VERSION", "system")
+	t.Parallel()
 	work, _ := pushRepo(t)
 	git(t, work, "remote", "add", "upstream", work)
 	allowed := []string{
@@ -431,6 +442,7 @@ func TestAgentGuard_gtSyncLeavesOtherStacksUnrestacked(t *testing.T) {
 }
 
 func TestAgentGuard_stagingTakesPRsOnlyThroughTheQueue(t *testing.T) {
+	t.Parallel()
 	cwd := t.TempDir()
 	env, _ := ghStubOnBase(t, "staging", `[`+status("success", "verifier", 2)+`]`)
 	for _, cmd := range []string{"gh pr merge 42 --squash", "gh pr merge 42 --auto", "gh pr merge --auto 42 --squash"} {
@@ -439,6 +451,7 @@ func TestAgentGuard_stagingTakesPRsOnlyThroughTheQueue(t *testing.T) {
 }
 
 func TestAgentGuard_onlyLandStackAddsTheQueueLabel(t *testing.T) {
+	t.Parallel()
 	cwd := t.TempDir()
 	for _, cmd := range []string{
 		"gh pr edit 5 --add-label merge-queue",
@@ -468,6 +481,7 @@ func TestAgentGuard_onlyLandStackAddsTheQueueLabel(t *testing.T) {
 }
 
 func TestAgentGuard_largePrAndGateChangeLabelsAreHumanOnly(t *testing.T) {
+	t.Parallel()
 	cwd := t.TempDir()
 	for _, cmd := range []string{
 		"gh pr edit 5 --add-label large-pr",
@@ -483,6 +497,7 @@ func TestAgentGuard_largePrAndGateChangeLabelsAreHumanOnly(t *testing.T) {
 }
 
 func TestAgentGuard_rerunNeedsFailedJobsOnly(t *testing.T) {
+	t.Parallel()
 	cwd := t.TempDir()
 	for _, cmd := range []string{"gh run rerun 123", "cd /tmp && gh run rerun 123 --debug"} {
 		assertBlocked(t, guard(t, cwd, cmd), cmd, "gh run rerun <id> --failed")
@@ -493,6 +508,7 @@ func TestAgentGuard_rerunNeedsFailedJobsOnly(t *testing.T) {
 }
 
 func TestAgentGuard_onlyMonacoctlPostsCommitStatuses(t *testing.T) {
+	t.Parallel()
 	cwd := t.TempDir()
 	for _, cmd := range []string{
 		"gh api repos/o/r/statuses/abc -f state=success -f context=stage0/ok",
@@ -515,6 +531,7 @@ func TestAgentGuard_onlyMonacoctlPostsCommitStatuses(t *testing.T) {
 }
 
 func TestAgentGuard_graphiteOwnsEveryBase(t *testing.T) {
+	t.Parallel()
 	cwd := t.TempDir()
 	for _, cmd := range []string{
 		"gh pr edit 5 --base backend-rewrite-9",
@@ -560,6 +577,7 @@ func queuedRepo(t *testing.T) string {
 }
 
 func TestAgentGuard_noPushToAStackInTheGraphiteQueue(t *testing.T) {
+	t.Parallel()
 	work := queuedRepo(t)
 	env := queuedGH(t, `[{"number":7,"headRefName":"lower"}]`)
 	for _, cmd := range []string{"git push origin upper", "git push origin lower", "gt submit --stack", "gt modify -a"} {
@@ -613,6 +631,7 @@ func closedMQDraft(prs string, closed, updated time.Time) string {
 }
 
 func TestAgentGuard_noPushToAStackGraphiteHoldsBeforeItsDraftOpens(t *testing.T) {
+	t.Parallel()
 	work := queuedRepo(t)
 	now := time.Now()
 	ago := func(m int) time.Time { return now.Add(-time.Duration(m) * time.Minute) }
@@ -676,6 +695,7 @@ func TestAgentGuard_noPushToAStackGraphiteHoldsBeforeItsDraftOpens(t *testing.T)
 }
 
 func TestAgentGuard_readsTheGraphiteQueueInOneGraphQLQuery(t *testing.T) {
+	t.Parallel()
 	work := queuedRepo(t)
 	env, calls := graphiteGH(t, `{"data":{"repository":{"open":{"nodes":[]},"closed":{"nodes":[]}}}}`)
 	assertAllowed(t, guard(t, work, "gt submit --stack", env...), "nothing held")

@@ -77,6 +77,7 @@ func printRuleset(t *testing.T, arg string) ruleset {
 }
 
 func TestStagingRuleset_squashesAndLeavesTheQueueToGraphite(t *testing.T) {
+	t.Parallel()
 	rs := printRuleset(t, "staging-ruleset")
 
 	if rs.Name != "staging" || !reflect.DeepEqual(rs.Conditions.RefName.Include, []string{"refs/heads/staging"}) {
@@ -105,6 +106,7 @@ func TestStagingRuleset_squashesAndLeavesTheQueueToGraphite(t *testing.T) {
 }
 
 func TestMainRuleset_takesAMergeCommitWithNoQueue(t *testing.T) {
+	t.Parallel()
 	rs := printRuleset(t, "main-ruleset")
 
 	if rs.Name != "main" || !reflect.DeepEqual(rs.Conditions.RefName.Include, []string{"refs/heads/main"}) {

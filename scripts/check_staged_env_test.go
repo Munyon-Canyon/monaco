@@ -18,6 +18,7 @@ func checkStagedEnv(t *testing.T, files ...string) (string, error) {
 }
 
 func TestCheckStagedEnv_allowsExampleAndEncrypted(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	example := filepath.Join(dir, ".env.example")
 	if err := os.WriteFile(example, []byte("FOO=bar\n"), 0o644); err != nil {
@@ -39,6 +40,7 @@ func TestCheckStagedEnv_allowsExampleAndEncrypted(t *testing.T) {
 }
 
 func TestCheckStagedEnv_blocksPlaintextEnvAndKeys(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	plain := filepath.Join(dir, ".env.local")
 	if err := os.WriteFile(plain, []byte("SECRET=1\n"), 0o644); err != nil {

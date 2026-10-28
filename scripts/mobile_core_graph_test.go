@@ -113,6 +113,7 @@ func allowedTable() string {
 }
 
 func TestMobileCoreGraph_packageMatchesTheAllowedTable(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("swift"); err != nil {
 		t.Skip("swift is not on PATH; the mobile-core graph check needs swift package dump-package")
 	}
@@ -135,6 +136,7 @@ func TestMobileCoreGraph_packageMatchesTheAllowedTable(t *testing.T) {
 }
 
 func TestMobileCoreGraph_reportsEachViolation(t *testing.T) {
+	t.Parallel()
 	cases := map[string]struct {
 		edit func(map[string][]string)
 		want string

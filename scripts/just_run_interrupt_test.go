@@ -140,6 +140,7 @@ func (r *justRun) waitExit(t *testing.T) {
 }
 
 func TestJustRun_ctrlCStopsTheBackend(t *testing.T) {
+	t.Parallel()
 	r := startJustRun(t)
 
 	// A terminal's Ctrl-C: SIGINT to the whole foreground process group.
@@ -152,6 +153,7 @@ func TestJustRun_ctrlCStopsTheBackend(t *testing.T) {
 // A failed iOS build ends `just run`; the backend it started in the background must not
 // outlive it.
 func TestJustRun_failedMobileBuildStopsTheBackend(t *testing.T) {
+	t.Parallel()
 	r := startJustRun(t, "MOBILE_EXIT=65")
 
 	r.waitExit(t)
@@ -159,6 +161,7 @@ func TestJustRun_failedMobileBuildStopsTheBackend(t *testing.T) {
 
 // A failed fund page install must not strand api and worker.
 func TestJustRun_failedFundPageInstallStillStopsTheBackendOnCtrlC(t *testing.T) {
+	t.Parallel()
 	r := startJustRun(t, "NPM_EXIT=1")
 
 	if err := syscall.Kill(-r.cmd.Process.Pid, syscall.SIGINT); err != nil {

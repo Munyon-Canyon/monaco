@@ -199,6 +199,7 @@ func (s recipeSandbox) just(t *testing.T, args ...string) []string {
 }
 
 func TestJustRunBackend_startsTheServicesWithoutMigrating(t *testing.T) {
+	t.Parallel()
 	s := newRecipeSandbox(t)
 
 	calls := s.just(t, "run", "backend")
@@ -218,6 +219,7 @@ func TestJustRunBackend_startsTheServicesWithoutMigrating(t *testing.T) {
 }
 
 func TestJustMigrateDb_appliesThenReportsTheRevisionThenAppliesTheStreams(t *testing.T) {
+	t.Parallel()
 	s := newRecipeSandbox(t)
 
 	calls := s.just(t, "migrate", "db")
@@ -253,6 +255,7 @@ func (s recipeSandbox) justWithEnv(t *testing.T, env []string, args ...string) (
 }
 
 func TestJustRunBackend_startsTheFundPageAgainstTheLocalApi(t *testing.T) {
+	t.Parallel()
 	s := newRecipeSandbox(t)
 
 	calls := s.just(t, "run", "backend")
@@ -270,6 +273,7 @@ func TestJustRunBackend_startsTheFundPageAgainstTheLocalApi(t *testing.T) {
 }
 
 func TestJustRunBackend_installsTheFundPageDependenciesWhenMissing(t *testing.T) {
+	t.Parallel()
 	s := newRecipeSandbox(t)
 	if err := os.Remove(filepath.Join(s.root, "apps", "web", "node_modules")); err != nil {
 		t.Fatal(err)
@@ -292,6 +296,7 @@ func TestJustRunBackend_installsTheFundPageDependenciesWhenMissing(t *testing.T)
 }
 
 func TestJustRunBackend_skipsTheFundPageWhenThePortIsTaken(t *testing.T) {
+	t.Parallel()
 	s := newRecipeSandbox(t)
 	taken, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", s.fundPort))
 	if err != nil {
@@ -319,6 +324,7 @@ func TestJustRunBackend_skipsTheFundPageWhenThePortIsTaken(t *testing.T) {
 }
 
 func TestJustRunBackend_startsWithoutNodeAndWarnsOnce(t *testing.T) {
+	t.Parallel()
 	s := newRecipeSandbox(t)
 	// The sandbox's fake npx sits first on PATH; take it out along with any real Node.
 	i := slices.IndexFunc(s.env, func(kv string) bool { return strings.HasPrefix(kv, "PATH=") })
@@ -385,6 +391,7 @@ func startFundListener(t *testing.T, s recipeSandbox, asVite bool) {
 }
 
 func TestJustStopBackend_stopsThisCheckoutsFundPage(t *testing.T) {
+	t.Parallel()
 	s := newRecipeSandbox(t)
 	startFundListener(t, s, true)
 
@@ -394,6 +401,7 @@ func TestJustStopBackend_stopsThisCheckoutsFundPage(t *testing.T) {
 }
 
 func TestJustStopBackend_leavesAnUnrelatedListenerOnTheFundPort(t *testing.T) {
+	t.Parallel()
 	s := newRecipeSandbox(t)
 	startFundListener(t, s, false)
 
@@ -406,6 +414,7 @@ func TestJustStopBackend_leavesAnUnrelatedListenerOnTheFundPort(t *testing.T) {
 }
 
 func TestJustRunBackend_skipsTheFundPageWhenOff(t *testing.T) {
+	t.Parallel()
 	s := newRecipeSandbox(t)
 
 	out, calls := s.justWithEnv(t, []string{"MONACO_FUND_PAGE_PORT=off"}, "run", "backend")
@@ -424,6 +433,7 @@ func TestJustRunBackend_skipsTheFundPageWhenOff(t *testing.T) {
 }
 
 func TestJustRunBackend_keepsTheBackendWhenTheInstallFails(t *testing.T) {
+	t.Parallel()
 	s := newRecipeSandbox(t)
 	if err := os.Remove(filepath.Join(s.root, "apps", "web", "node_modules")); err != nil {
 		t.Fatal(err)
@@ -449,6 +459,7 @@ func TestJustRunBackend_keepsTheBackendWhenTheInstallFails(t *testing.T) {
 }
 
 func TestJustKillports_stopsTheFundPageAndOnlyOurPorts(t *testing.T) {
+	t.Parallel()
 	s := newRecipeSandbox(t)
 	// Never the default 8080 and 8081: a developer's own stack may be listening there.
 	env := []string{

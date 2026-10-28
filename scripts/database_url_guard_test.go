@@ -19,6 +19,7 @@ func runDatabaseURLGuard(t *testing.T, databaseURL string) error {
 }
 
 func TestDatabaseURLGuard_rejectsHostedSupabaseUrl(t *testing.T) {
+	t.Parallel()
 	// Arrange
 	databaseURL := "postgres://user:pass@abc.supabase.co:5432/postgres"
 
@@ -32,6 +33,7 @@ func TestDatabaseURLGuard_rejectsHostedSupabaseUrl(t *testing.T) {
 }
 
 func TestDatabaseURLGuard_acceptsLocalhostComposeUrl(t *testing.T) {
+	t.Parallel()
 	// Arrange
 	databaseURL := "postgres://monaco:monaco@localhost:54322/monaco?sslmode=disable"
 
@@ -45,6 +47,7 @@ func TestDatabaseURLGuard_acceptsLocalhostComposeUrl(t *testing.T) {
 }
 
 func TestDatabaseURLGuard_rejectsTheDurabilityOffTestDatabase(t *testing.T) {
+	t.Parallel()
 	for _, databaseURL := range []string{
 		"postgres://monaco:monaco@localhost:54323/monaco?sslmode=disable",
 		"postgres://monaco:monaco@127.0.0.1:54323",

@@ -21,7 +21,6 @@ type prBodySandbox struct {
 
 func newPrBodySandbox(t *testing.T) prBodySandbox {
 	t.Helper()
-	t.Setenv("PYENV_VERSION", "system")
 	if _, err := exec.LookPath("jq"); err != nil {
 		t.Fatalf("the fake gh runs the script's --jq filter through jq, as gh does: %v", err)
 	}
@@ -183,6 +182,7 @@ func goodPrBody() string {
 }
 
 func TestPrBody_printsFormatFindingsAndSetsTheBodyAnyway(t *testing.T) {
+	t.Parallel()
 	s := newPrBodySandbox(t)
 	base := s.head(t)
 	commitFile(t, s.repo, "a.txt", "feat(bus): add the thing")
@@ -255,6 +255,7 @@ func sleptSeconds(t *testing.T, calls string) int {
 }
 
 func TestPrBody_setsTitleAndBodyThenMarksOnlyADraftReady(t *testing.T) {
+	t.Parallel()
 	s := newPrBodySandbox(t)
 	base := s.head(t)
 	commitFile(t, s.repo, "a.txt", "feat(bus): add the thing")
@@ -282,6 +283,7 @@ func TestPrBody_setsTitleAndBodyThenMarksOnlyADraftReady(t *testing.T) {
 }
 
 func TestPrBody_marksReadyThroughCCRWhenPrReadyIsRefused(t *testing.T) {
+	t.Parallel()
 	s := newPrBodySandbox(t)
 	base := s.head(t)
 	commitFile(t, s.repo, "a.txt", "feat(bus): add the thing")
@@ -301,6 +303,7 @@ func TestPrBody_marksReadyThroughCCRWhenPrReadyIsRefused(t *testing.T) {
 }
 
 func TestPrBody_readyFailureThatIsNotARefusalStaysAFailure(t *testing.T) {
+	t.Parallel()
 	s := newPrBodySandbox(t)
 	base := s.head(t)
 	commitFile(t, s.repo, "a.txt", "feat(bus): add the thing")
@@ -314,6 +317,7 @@ func TestPrBody_readyFailureThatIsNotARefusalStaysAFailure(t *testing.T) {
 }
 
 func TestPrBody_readsTheRepoWhenGHRepoIsUnset(t *testing.T) {
+	t.Parallel()
 	s := newPrBodySandbox(t).withoutRepo()
 	base := s.head(t)
 	commitFile(t, s.repo, "a.txt", "feat(bus): add the thing")
@@ -332,6 +336,7 @@ func TestPrBody_readsTheRepoWhenGHRepoIsUnset(t *testing.T) {
 const conflictMessage = "PR 7 conflicts with its base; restack before it can get checks"
 
 func TestPrBody_refusesAConflictingPRBeforeAnythingChanges(t *testing.T) {
+	t.Parallel()
 	s := newPrBodySandbox(t)
 	base := s.head(t)
 	commitFile(t, s.repo, "a.txt", "feat(bus): add the thing")
@@ -349,6 +354,7 @@ func TestPrBody_refusesAConflictingPRBeforeAnythingChanges(t *testing.T) {
 }
 
 func TestPrBody_waitsForGitHubToComputeMergeabilityBeforeDeciding(t *testing.T) {
+	t.Parallel()
 	s := newPrBodySandbox(t)
 	base := s.head(t)
 	commitFile(t, s.repo, "a.txt", "feat(bus): add the thing")
@@ -372,6 +378,7 @@ func TestPrBody_waitsForGitHubToComputeMergeabilityBeforeDeciding(t *testing.T) 
 }
 
 func TestPrBody_goesOnWhenMergeabilityStaysUnknown(t *testing.T) {
+	t.Parallel()
 	s := newPrBodySandbox(t)
 	base := s.head(t)
 	commitFile(t, s.repo, "a.txt", "feat(bus): add the thing")
@@ -388,6 +395,7 @@ func TestPrBody_goesOnWhenMergeabilityStaysUnknown(t *testing.T) {
 }
 
 func TestPrBody_aFailingAttestStillMarksReadyAndSetsTheBody(t *testing.T) {
+	t.Parallel()
 	s := newPrBodySandbox(t)
 	base := s.head(t)
 	commitFile(t, s.repo, "a.txt", "feat(bus): add the thing")
@@ -405,6 +413,7 @@ func TestPrBody_aFailingAttestStillMarksReadyAndSetsTheBody(t *testing.T) {
 }
 
 func TestPrBody_attestsBeforeMarkingReady(t *testing.T) {
+	t.Parallel()
 	s := newPrBodySandbox(t)
 	base := s.head(t)
 	commitFile(t, s.repo, "a.txt", "feat(bus): add the thing")

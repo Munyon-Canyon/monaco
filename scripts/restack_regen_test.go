@@ -72,6 +72,7 @@ func runRegen(t *testing.T, dir string, extraEnv ...string) (string, error) {
 }
 
 func TestRestackRegen_settlesAGeneratedOnlyRestack(t *testing.T) {
+	t.Parallel()
 	dir := regenRepo(t)
 	out, err := runRegen(t, dir, "GENERATE=sort src/*.txt > docs/reference/events.md")
 	if err != nil {
@@ -99,6 +100,7 @@ func TestRestackRegen_settlesAGeneratedOnlyRestack(t *testing.T) {
 }
 
 func TestRestackRegen_defaultGenerateRunsOnTheToolchainGoModPins(t *testing.T) {
+	t.Parallel()
 	dir := regenRepo(t)
 	bin := t.TempDir()
 	seen := filepath.Join(t.TempDir(), "toolchain")
@@ -114,6 +116,7 @@ func TestRestackRegen_defaultGenerateRunsOnTheToolchainGoModPins(t *testing.T) {
 }
 
 func TestRestackRegen_stopsOnAHandWrittenConflict(t *testing.T) {
+	t.Parallel()
 	dir := regenRepo(t)
 	// Both sides add notes.txt, so the last feature commit conflicts in a hand-written file.
 	regenRun(t, dir, "git", "checkout", "-q", "main")

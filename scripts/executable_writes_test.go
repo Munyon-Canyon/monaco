@@ -48,6 +48,7 @@ func hasExecutableMode(call *ast.CallExpr) bool {
 }
 
 func TestScriptsTests_writeExecutablesThroughForkLockedHelper(t *testing.T) {
+	t.Parallel()
 	t.Run("detector", func(t *testing.T) {
 		for _, tc := range []struct {
 			name, src string

@@ -3,7 +3,9 @@ package scripts_test
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -47,9 +49,18 @@ func commentsHookRepo(t *testing.T) string {
 	return resolved
 }
 
+var warmMonacoctl sync.Once
+
 func runCommentsHook(t *testing.T, dir, input string) (int, string, string) {
 	t.Helper()
-	return runShellHook(t, dir, "agent-guard-go-comments.sh", input)
+	warmMonacoctl.Do(func() {
+		cmd := exec.Command("go", "build", "-trimpath", "-o", os.DevNull, "./cmd/monacoctl")
+		cmd.Dir = filepath.Join(repoRoot(t), "apps/backend")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("warm monacoctl: %v\n%s", err, out)
+		}
+	})
+	return runShellHook(t, dir, "agent-guard-go-comments.sh", input, "GOFLAGS=-trimpath")
 }
 
 func claudeInput(path string) string {

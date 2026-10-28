@@ -157,6 +157,7 @@ const (
 )
 
 func TestSwiftlintRatchet_passesWhenNoChangedFileGrowsAndLintsOnlyChangedFiles(t *testing.T) {
+	t.Parallel()
 	r := newRatchetRepo(t)
 	r.edit(t, aSwift, "let a = [1].first!\nlet b = [2].first!\n// note\nlet d = 4\n")
 	r.baseFinds(t, unwrapA1, unwrapA2, commentA3)
@@ -173,6 +174,7 @@ func TestSwiftlintRatchet_passesWhenNoChangedFileGrowsAndLintsOnlyChangedFiles(t
 }
 
 func TestSwiftlintRatchet_failsWhenACountGrowsAndPrintsTheLines(t *testing.T) {
+	t.Parallel()
 	r := newRatchetRepo(t)
 	r.edit(t, aSwift, "let a = [1].first!\nlet b = [2].first!\n// note\nlet d = 4\n")
 	r.baseFinds(t, unwrapA1)
@@ -194,6 +196,7 @@ func TestSwiftlintRatchet_failsWhenACountGrowsAndPrintsTheLines(t *testing.T) {
 }
 
 func TestSwiftlintRatchet_aShrinkPassesWithNoStoredFile(t *testing.T) {
+	t.Parallel()
 	r := newRatchetRepo(t)
 	r.edit(t, aSwift, "let a = [1].first!\n")
 	r.baseFinds(t, unwrapA1, unwrapA2, commentA3)
@@ -211,6 +214,7 @@ func TestSwiftlintRatchet_aShrinkPassesWithNoStoredFile(t *testing.T) {
 }
 
 func TestSwiftlintRatchet_gateChangeApprovedWaivesGrowth(t *testing.T) {
+	t.Parallel()
 	r := newRatchetRepo(t)
 	r.edit(t, aSwift, "let a = [1].first!\nlet b = [2].first!\n// note\nlet d = 4\n")
 	r.baseFinds(t, unwrapA1)
@@ -226,6 +230,7 @@ func TestSwiftlintRatchet_gateChangeApprovedWaivesGrowth(t *testing.T) {
 }
 
 func TestSwiftlintRatchet_fallsBackToThePinnedImageAndStripsItsMount(t *testing.T) {
+	t.Parallel()
 	r := newRatchetRepo(t)
 	r.edit(t, aSwift, "let a = [1].first!\nlet b = [2].first!\n// note\nlet d = 4\n")
 	r.baseFinds(t, unwrapA1, unwrapA2, commentA3)
@@ -242,6 +247,7 @@ func TestSwiftlintRatchet_fallsBackToThePinnedImageAndStripsItsMount(t *testing.
 }
 
 func TestSwiftlintRatchet_aRenamedFileComparesAgainstItsOldPath(t *testing.T) {
+	t.Parallel()
 	r := newRatchetRepo(t)
 	const renamed = "apps/mobile/Monaco/Renamed.swift"
 	git(t, r.dir, "mv", aSwift, renamed)
@@ -258,6 +264,7 @@ func TestSwiftlintRatchet_aRenamedFileComparesAgainstItsOldPath(t *testing.T) {
 }
 
 func TestSwiftlintRatchet_aNewFileCountsFromZero(t *testing.T) {
+	t.Parallel()
 	r := newRatchetRepo(t)
 	const added = "apps/mobile/Monaco/C.swift"
 	r.edit(t, added, "let e = [5].first!\n")
@@ -272,6 +279,7 @@ func TestSwiftlintRatchet_aNewFileCountsFromZero(t *testing.T) {
 }
 
 func TestSwiftlintRatchet_anExplicitBaseThatAdvancedPastTheBranchPointIgnoresFilesTheBranchNeverTouched(t *testing.T) {
+	t.Parallel()
 	const b = "packages/mobile-core/Sources/B.swift"
 	r := newRatchetRepo(t)
 	git(t, r.dir, "checkout", "-q", "-b", "feature")
@@ -295,6 +303,7 @@ func TestSwiftlintRatchet_anExplicitBaseThatAdvancedPastTheBranchPointIgnoresFil
 }
 
 func TestSwiftlintRatchet_aBaseWithNoMergeBaseFailsClearly(t *testing.T) {
+	t.Parallel()
 	r := newRatchetRepo(t)
 	git(t, r.dir, "checkout", "-q", "--orphan", "island")
 	git(t, r.dir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "island")
@@ -334,6 +343,7 @@ func (r ratchetRepo) linkedWorktree(t *testing.T) ratchetRepo {
 }
 
 func TestSwiftlintRatchet_theCheckoutsDotBinSwiftlintWinsOverTheOtherCopies(t *testing.T) {
+	t.Parallel()
 	r := newRatchetRepo(t)
 	w := r.linkedWorktree(t)
 	writeRatchetFile(t, filepath.Join(w.dir, ".bin/swiftlint"), ratchetSwiftlintStub("root", "0.65.0"))
@@ -350,6 +360,7 @@ func TestSwiftlintRatchet_theCheckoutsDotBinSwiftlintWinsOverTheOtherCopies(t *t
 }
 
 func TestSwiftlintRatchet_aLinkedWorktreeFallsBackToThePrimaryCheckoutsDotBinWithoutDocker(t *testing.T) {
+	t.Parallel()
 	r := newRatchetRepo(t)
 	w := r.linkedWorktree(t)
 	writeRatchetFile(t, filepath.Join(r.dir, ".bin/swiftlint"), ratchetSwiftlintStub("primary", "0.65.0"))
@@ -366,6 +377,7 @@ func TestSwiftlintRatchet_aLinkedWorktreeFallsBackToThePrimaryCheckoutsDotBinWit
 }
 
 func TestSwiftlintRatchet_aDotBinSwiftlintOfTheWrongVersionIsSkippedForTheNextCopy(t *testing.T) {
+	t.Parallel()
 	r := newRatchetRepo(t)
 	writeRatchetFile(t, filepath.Join(r.dir, ".bin/swiftlint"), ratchetSwiftlintStub("root", "0.1.0"))
 	r.withChangedFile(t)
@@ -380,6 +392,7 @@ func TestSwiftlintRatchet_aDotBinSwiftlintOfTheWrongVersionIsSkippedForTheNextCo
 }
 
 func TestSwiftlintRatchet_noMatchingVersionAndNoDockerNamesTheInstaller(t *testing.T) {
+	t.Parallel()
 	r := newRatchetRepo(t)
 	writeRatchetFile(t, filepath.Join(r.dir, ".bin/swiftlint"), ratchetSwiftlintStub("root", "0.1.0"))
 	r.withoutDocker(t)
@@ -391,6 +404,7 @@ func TestSwiftlintRatchet_noMatchingVersionAndNoDockerNamesTheInstaller(t *testi
 }
 
 func TestSwiftlintRatchet_aDotBinSwiftlintOfTheWrongVersionFallsBackToTheDockerImage(t *testing.T) {
+	t.Parallel()
 	r := newRatchetRepo(t)
 	writeRatchetFile(t, filepath.Join(r.dir, ".bin/swiftlint"), ratchetSwiftlintStub("root", "0.1.0"))
 	r.withChangedFile(t)

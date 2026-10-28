@@ -58,7 +58,7 @@ jobs:
           LEG: ${{ matrix.leg }}
         run: |
           names="$(go test -list '^Test' . | grep '^Test' | sort | awk -v leg="$LEG" '(NR - leg) % 2 == 0' | paste -sd '|' -)"
-          go test -short -run "^($names)\$" .
+          go test -short -p 4 -parallel 8 -run "^($names)\$" .
           if [ "$LEG" = 1 ]; then
             mapfile -t others < <(go list ./... | grep -v '^github.com/monaco/monaco/scripts$')
             go test -short "${others[@]}"

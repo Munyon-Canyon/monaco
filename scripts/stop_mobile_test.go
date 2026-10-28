@@ -69,6 +69,7 @@ func simCalls(t *testing.T, state string) []string {
 }
 
 func TestStopMobile_primarySparesLiveLanesAndDeletesOrphans(t *testing.T) {
+	t.Parallel()
 	primary, state := stopFixture(t)
 	r := runSim(t, primary, "stop-mobile.sh", "simctl", state)
 	if r.err != nil {
@@ -94,6 +95,7 @@ func TestStopMobile_primarySparesLiveLanesAndDeletesOrphans(t *testing.T) {
 }
 
 func TestStopMobile_laneTouchesOnlyItsOwnSimulators(t *testing.T) {
+	t.Parallel()
 	primary, state := stopFixture(t)
 	r := runSim(t, filepath.Join(primary, ".worktrees", "live"), "stop-mobile.sh", "simctl", state)
 	if r.err != nil {
@@ -107,6 +109,7 @@ func TestStopMobile_laneTouchesOnlyItsOwnSimulators(t *testing.T) {
 
 // Only xcodebuild processes building into this checkout's derived data are stopped.
 func TestStopMobile_stopsOnlyThisCheckoutsXcodebuild(t *testing.T) {
+	t.Parallel()
 	primary, state := stopFixture(t)
 	// git prints the checkout with symlinks resolved (/private/var, not /var).
 	primary, err := filepath.EvalSymlinks(primary)

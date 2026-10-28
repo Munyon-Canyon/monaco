@@ -6,6 +6,7 @@ import (
 )
 
 func TestBackendAgentsMD_staysUnder60LinesAndCitesOnlyRealPaths(t *testing.T) {
+	t.Parallel()
 	root := repoRoot(t)
 	body := readRepo(t, root, "apps/backend/AGENTS.md")
 	if lines := strings.Count(body, "\n"); lines >= 60 {
