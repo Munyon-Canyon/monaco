@@ -7,5 +7,6 @@ func init() {
 		GovernanceBanVoidSkipped,
 		GovernanceProposalComparisonRefreshed,
 		GovernanceProposalComparisonUnlisted,
+		GovernanceStatsOverflow,
 	)
 }
