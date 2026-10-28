@@ -6,6 +6,35 @@ enum AmountPreset: Equatable {
     case dollars(Decimal)
     /// A share of `max`, e.g. `.fraction(1, label: "Max")`. Disabled when `max` is nil.
     case fraction(Double, label: String)
+    case add(Decimal)
+
+    var label: String {
+        switch self {
+        case .dollars(let dollars):
+            return AmountText.display(AmountText.plain(dollars))
+        case .fraction(_, let label):
+            return label
+        case .add(let step):
+            return "+" + AmountText.display(AmountText.plain(step))
+        }
+    }
+
+    var capsAtMax: Bool {
+        if case .add = self { return false }
+        return true
+    }
+
+    func applied(to text: String, max: Decimal?) -> String? {
+        switch self {
+        case .dollars(let dollars):
+            return AmountText.plain(dollars)
+        case .fraction(let fraction, _):
+            guard let max, max > 0 else { return nil }
+            return AmountText.plain(AmountText.roundDownToCents(max * Decimal(fraction)))
+        case .add(let step):
+            return AmountText.adding(step, to: text)
+        }
+    }
 }
 
 enum AmountEntryInput: Equatable {
@@ -236,43 +265,24 @@ struct AmountEntry<Accessory: View>: View {
     /// Drawn with the shared chip label, a disabled chip (Max before there is a balance) greys its label. The label is
     /// what UI tests and VoiceOver find the chip by ("$50", "Max"), so it stays the bare amount.
     private func presetChip(_ preset: AmountPreset) -> some View {
-        let target = amount(for: preset)
-        let selected = target != nil && value == target
+        let target = preset.applied(to: amountText, max: max).flatMap(AmountText.decimal)
+        let selected = target != nil && value == target && preset.capsAtMax
         return Button {
             guard let target else { return }
             Haptics.selection()
-            amountText = AmountEntryText.plain(target)
+            amountText = AmountText.plain(target)
             onPreset(preset)
         } label: {
-            Text(label(for: preset)).monacoChipLabel(isSelected: selected, isPreset: true)
+            Text(preset.label).monacoChipLabel(isSelected: selected, isPreset: true)
         }
         .buttonStyle(.plain)
-        .disabled(target == nil || isOverMax(target))
+        .disabled(target == nil || (preset.capsAtMax && isOverMax(target)))
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func isOverMax(_ target: Decimal?) -> Bool {
         guard let target, let max else { return false }
         return target > max
-    }
-
-    private func amount(for preset: AmountPreset) -> Decimal? {
-        switch preset {
-        case .dollars(let dollars):
-            return dollars
-        case .fraction(let fraction, _):
-            guard let max, max > 0 else { return nil }
-            return AmountEntryText.roundDownToCents(max * Decimal(fraction))
-        }
-    }
-
-    private func label(for preset: AmountPreset) -> String {
-        switch preset {
-        case .dollars(let dollars):
-            return AmountEntryText.display(AmountEntryText.plain(dollars))
-        case .fraction(_, let label):
-            return label
-        }
     }
 }
 
@@ -360,167 +370,4 @@ struct AmountEntrySkeleton: View {
     }
 }
 
-enum AmountKey: Hashable {
-    case digit(Int)
-    case dot
-    case delete
-}
-
-/// Pure text handling for `AmountEntry`, kept separate so it is easy to reason about.
-enum AmountEntryText {
-    private static let posix = Locale(identifier: "en_US_POSIX")
-
-    static func applying(_ key: AmountKey, to text: String) -> String {
-        switch key {
-        case .digit(let digit):
-            return sanitize(text + String(digit))
-        case .dot:
-            return sanitize(text + ".")
-        case .delete:
-            return String(text.dropLast())
-        }
-    }
-
-    /// Digits and one ".", at most two decimals, no leading zeros ("007" → "7", "." → "0.").
-    static func sanitize(_ raw: String) -> String {
-        let normalised = normalisingSeparators(raw)
-        var result = ""
-        var seenDot = false
-        var decimals = 0
-        for character in normalised {
-            if character.isASCII, character.isNumber {
-                if seenDot {
-                    guard decimals < 2 else { continue }
-                    decimals += 1
-                }
-                result.append(character)
-            } else if character == ".", !seenDot {
-                seenDot = true
-                result.append(result.isEmpty ? "0." : ".")
-            }
-        }
-        while result.count > 1, result.hasPrefix("0"), !result.hasPrefix("0.") {
-            result.removeFirst()
-        }
-        if result.count > 12 { result = String(result.prefix(12)) }
-        return result
-    }
-
-    /// Which separator in the text is the decimal point, and which is grouping.
-    ///
-    /// The figure over the pad renders "$1,250.50", and that is what gets copied and pasted back
-    /// in. Treating every comma as a decimal point turned a pasted "$1,250.50" into $1.25 — a
-    /// thousandfold error on a money screen.
-    ///
-    /// - Both separators present: only a paste can produce that, and the one that comes last is
-    ///   the decimal point. "1,250.50" and "1.250,50" are both 1250.50.
-    /// - Only commas: decided by shape, not by count. Commas laid out like grouping separators
-    ///   ("1,250", "1,250,000") are grouping and come out. Anything else is the member typing a
-    ///   decimal point on a comma-decimal pad — "12,", "12,5", and "1,2,5" from a double tap —
-    ///   so the first comma becomes the point and the rest are dropped, which is exactly what
-    ///   `sanitize` already does with extra dots.
-    /// - Only dots: left alone. `sanitize` keeps the first and ignores the rest, which is what
-    ///   typing needs — "1.2" plus another "." must stay 1.2, not become 12.
-    private static func normalisingSeparators(_ raw: String) -> String {
-        let hasComma = raw.contains(",")
-        guard hasComma else { return raw }
-
-        if let lastComma = raw.lastIndex(of: ","), let lastDot = raw.lastIndex(of: ".") {
-            if lastComma > lastDot {
-                return raw.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: ".")
-            }
-            return raw.replacingOccurrences(of: ",", with: "")
-        }
-
-        if commasAreGrouping(raw) {
-            return raw.replacingOccurrences(of: ",", with: "")
-        }
-        // Every comma becomes a dot; `sanitize` keeps the first and ignores the rest. Treating a
-        // stray second comma as grouping instead turned "1,250,5" into 12505 — a hundredfold
-        // error on a money field.
-        return raw.replacingOccurrences(of: ",", with: ".")
-    }
-
-    /// Commas in the shape grouping separators actually take: one to three digits, then groups of
-    /// exactly three. Currency symbols and spaces around them are ignored.
-    private static func commasAreGrouping(_ raw: String) -> Bool {
-        let compact = raw.filter { ($0.isASCII && $0.isNumber) || $0 == "," }
-        let groups = compact.split(separator: ",", omittingEmptySubsequences: false)
-        guard groups.count >= 2, (1...3).contains(groups[0].count) else { return false }
-        return groups.dropFirst().allSatisfy { $0.count == 3 }
-    }
-
-    static func decimal(_ text: String) -> Decimal? {
-        guard !text.isEmpty else { return nil }
-        return Decimal(string: text, locale: posix)
-    }
-
-    /// The typed amount in USDC micros, rounded to the nearest micro. Add money, Cash out and
-    /// Withdraw each used to carry their own copy of this conversion.
-    static func micros(_ text: String) -> Int64? {
-        guard let value = decimal(text), value >= 0 else { return nil }
-        var scaled = value * 1_000_000
-        var rounded: Decimal = 0
-        NSDecimalRound(&rounded, &scaled, 0, .plain)
-        return (rounded as NSDecimalNumber).int64Value
-    }
-
-    static func dollars(micros: Int64) -> Decimal {
-        Decimal(micros) / 1_000_000
-    }
-
-    /// "$1,250.5" while typing: grouping on the integer part, the typed decimals kept as typed.
-    static func display(_ text: String) -> String {
-        guard !text.isEmpty else { return "$0" }
-        let parts = text.split(separator: ".", omittingEmptySubsequences: false)
-        let integer = Int(parts[0]) ?? 0
-        let integerText = groupedIntegerFormatter.string(from: NSNumber(value: integer)) ?? String(parts[0])
-        if parts.count > 1 {
-            return "$\(integerText).\(parts[1])"
-        }
-        return "$\(integerText)"
-    }
-
-    /// "25", "12.5", "12.05" — no grouping, no trailing zeros.
-    static func plain(_ decimal: Decimal) -> String {
-        plainFormatter.string(from: decimal as NSDecimalNumber) ?? "\(decimal)"
-    }
-
-    // A NumberFormatter loads ICU data when it is built and is cheap to read afterwards. These
-    // run on every body pass of a screen the member is typing into — several times per keystroke
-    // between the figure, the CTA title and the preset chips — so they are built once.
-    private static let groupedIntegerFormatter: NumberFormatter = {
-        let formatter = NumberFormatter()
-        formatter.locale = posix
-        formatter.numberStyle = .decimal
-        formatter.usesGroupingSeparator = true
-        formatter.groupingSeparator = ","
-        return formatter
-    }()
-
-    private static let plainFormatter: NumberFormatter = {
-        let formatter = NumberFormatter()
-        formatter.locale = posix
-        formatter.numberStyle = .decimal
-        formatter.usesGroupingSeparator = false
-        formatter.minimumFractionDigits = 0
-        formatter.maximumFractionDigits = 2
-        return formatter
-    }()
-
-    /// Which preset goes on which row: one row normally, two at the accessibility text sizes
-    /// (the longer half first) once there are more than two chips.
-    static func presetRows(_ count: Int, stacked: Bool) -> [[Int]] {
-        guard count > 0 else { return [] }
-        guard stacked, count > 2 else { return [Array(0..<count)] }
-        let split = (count + 1) / 2
-        return [Array(0..<split), Array(split..<count)]
-    }
-
-    static func roundDownToCents(_ decimal: Decimal) -> Decimal {
-        var source = decimal
-        var result = Decimal()
-        NSDecimalRound(&result, &source, 2, .down)
-        return result
-    }
-}
+typealias AmountEntryText = AmountText
