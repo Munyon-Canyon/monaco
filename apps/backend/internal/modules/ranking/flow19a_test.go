@@ -72,6 +72,13 @@ func TestCallsResolverPoller_tickDrainsFullBatchesAndStopsOnAShortOne(t *testing
 	}
 }
 
+func TestCallsResolverPoller_theConfiguredIntervalReplacesTheMinute(t *testing.T) {
+	t.Parallel()
+	if got := (adapters.CallsResolverPoller{Every: 3 * time.Second}).Interval(); got != 3*time.Second {
+		t.Fatalf("Interval() = %v, want the configured 3s", got)
+	}
+}
+
 func TestCallsResolverPoller_tickStopsWhenAFullBatchChangesNothing(t *testing.T) {
 	t.Parallel()
 	r := &fakeResolver{reports: []app.ResolveReport{{Scanned: app.CallsBatch}}}

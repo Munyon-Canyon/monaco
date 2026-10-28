@@ -43,6 +43,7 @@ type Config struct {
 	OTel       OTel
 	Auth       Auth
 	Identity   Identity
+	Ranking    Ranking
 	Timeouts   Timeouts
 	Jupiter    Jupiter
 	CoinGecko  CoinGecko
@@ -88,6 +89,10 @@ type Trade struct {
 type Identity struct {
 	NudgesInterval      time.Duration
 	PhotoPurgesInterval time.Duration
+}
+
+type Ranking struct {
+	CallsResolverInterval time.Duration
 }
 
 type Auth struct {
@@ -441,6 +446,11 @@ func pollerFields() []field {
 			func(c *Config) *time.Duration { return &c.Worker.PollerBackoffMax }),
 		duration("MONACO_TIMEOUT_IDEMPOTENT_RUN", 25*time.Second,
 			func(c *Config) *time.Duration { return &c.Timeouts.IdempotentRun }),
+		duration(
+			"RANKING_CALLS_RESOLVER_INTERVAL",
+			time.Minute,
+			func(c *Config) *time.Duration { return &c.Ranking.CallsResolverInterval },
+		),
 	}
 }
 

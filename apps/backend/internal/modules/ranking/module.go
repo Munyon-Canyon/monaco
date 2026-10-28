@@ -129,6 +129,7 @@ func (m *Module) callsResolver() adapters.CallsResolverPoller {
 	return adapters.CallsResolverPoller{
 		Resolver: app.NewResolveCalls(m.deps.Pool, m.deps.UoW, m.ports.Market),
 		Clock:    m.deps.Clock,
+		Every:    m.deps.Config.Ranking.CallsResolverInterval,
 	}
 }
 
