@@ -2,7 +2,6 @@ package testkit
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -105,6 +104,13 @@ type Probe struct {
 }
 
 func StartProbe(ctx context.Context, pool *pgxpool.Pool) *Probe {
+	return startProbe(ctx, pool, func(ctx context.Context) error {
+		var one int
+		return pool.QueryRow(ctx, `SELECT 1`).Scan(&one)
+	})
+}
+
+func startProbe(ctx context.Context, pool *pgxpool.Pool, read func(context.Context) error) *Probe {
 	ctx, stop := context.WithCancel(ctx)
 	p := &Probe{stop: stop, pool: pool}
 	first := make(chan struct{})
@@ -116,30 +122,40 @@ func StartProbe(ctx context.Context, pool *pgxpool.Pool) *Probe {
 				close(first)
 			}
 		}()
-		for ctx.Err() == nil {
-			var one int
-			if err := pool.QueryRow(ctx, `SELECT 1`).Scan(&one); err != nil {
-				return fmt.Errorf("probe read: %w", err)
-			}
-			if p.reads.Add(1) == 1 {
-				close(first)
-			}
-			select {
-			case <-ctx.Done():
-			case <-clock.Real{}.After(pressureProbeGap):
-			}
-		}
-		return nil
+		return p.loop(ctx, read, first)
 	})
 	<-first
 	return p
+}
+
+func (p *Probe) loop(ctx context.Context, read func(context.Context) error, first chan struct{}) error {
+	for ctx.Err() == nil {
+		if err := read(ctx); err != nil {
+			return probeReadError(ctx, err)
+		}
+		if p.reads.Add(1) == 1 {
+			close(first)
+		}
+		select {
+		case <-ctx.Done():
+		case <-clock.Real{}.After(pressureProbeGap):
+		}
+	}
+	return nil
+}
+
+func probeReadError(ctx context.Context, err error) error {
+	if ctx.Err() == nil {
+		return fmt.Errorf("probe read: %w", err)
+	}
+	return nil
 }
 
 func (p *Probe) Check(tb testing.TB) {
 	tb.Helper()
 	p.stop()
 	err := p.group.Wait()
-	if (err != nil && !errors.Is(err, context.Canceled)) || p.reads.Load() == 0 {
+	if err != nil || p.reads.Load() == 0 {
 		stat := p.pool.Stat()
 		tb.Errorf(
 			"unrelated reads = %d (error %v), want one while the callers ran; "+
