@@ -341,7 +341,7 @@ func TestLandStack_armsWhenCIOkStaysPendingTenMinutes(t *testing.T) {
 	d := newDirect(t, green(t, 1, "b1", "fb"), stackOf(t, 2, "b2", "b1", "pending", "SUCCESS"))
 	code, stdout, stderr := d.f.agents(t, "land-stack", "2")
 	want := "landing #1 #2 on stage 0\nci-ok still pending after 10m; armed #2 for the queue path\n" +
-		"armed #2; agents watch lands it once stage 1 passes (waiting on #2 (stage 1 pending))\n"
+		"armed #2; agents watch lands it once stage 1 passes (waiting on #2 (stage 1 pending))\n" + noWatchLine + "\n"
 	if code != 0 || stdout != want || stderr != "" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}

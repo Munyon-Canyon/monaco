@@ -250,9 +250,16 @@ run *args:
         ;;
     esac
 
+# Start the per-clone `monacoctl agents watch` daemon: restarts the watch if it exits, refuses a second copy.
+watch:
+    ./scripts/agents-watch-daemon.sh start
+
 stop *app:
     #!/usr/bin/env bash
     set -euo pipefail
+    if [[ "{{app}}" == watch ]]; then
+      exec ./scripts/agents-watch-daemon.sh stop
+    fi
     if [[ -z "{{app}}" ]]; then
       just stop backend
       just stop mobile

@@ -67,6 +67,7 @@ type Record struct {
 	AgentID   string      `json:"agent_id,omitempty"`
 	Queued    Queues      `json:"queues,omitempty"`
 	Armed     Arms        `json:"arms,omitempty"`
+	Rearm     Queues      `json:"rearm,omitempty"`
 	OldQueued *Queue      `json:"queued,omitempty"`
 	OldArmed  *Arm        `json:"armed,omitempty"`
 	Settled   *Settlement `json:"settled,omitempty"`

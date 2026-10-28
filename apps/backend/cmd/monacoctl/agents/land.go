@@ -31,6 +31,9 @@ type Queue struct {
 	Top int       `json:"top"`
 	PRs []int     `json:"prs"`
 	At  time.Time `json:"at,omitzero"`
+
+	Head    string `json:"head,omitempty"`
+	Rearmed bool   `json:"rearmed,omitempty"`
 }
 
 type Arm = Queue
@@ -133,6 +136,7 @@ func (env *Env) arm(ctx context.Context, rec Record, stack []stackPR, waiting []
 	}
 	err := env.updateRecord(ctx, rec.Ticket, func(r *Record) {
 		r.Armed = r.Armed.with(Arm{Top: top, PRs: numbers(stack), At: env.Now()})
+		r.Rearm = r.Rearm.without(top)
 		r.Changed = env.Now()
 	})
 	if err != nil {
@@ -140,6 +144,9 @@ func (env *Env) arm(ctx context.Context, rec Record, stack []stackPR, waiting []
 	}
 	_, _ = fmt.Fprintf(stdout, "armed #%d; agents watch lands it once stage 1 passes (waiting on %s)\n",
 		top, strings.Join(waiting, ", "))
+	if !env.watchRunning() {
+		_, _ = fmt.Fprintln(stdout, noWatchLine)
+	}
 	return nil
 }
 
@@ -196,6 +203,10 @@ func (env *Env) landEachArmed(ctx context.Context, rs []Record, reran map[int64]
 	env.pullsShared = true
 	defer func() { env.pullsShared, env.pullsOK = false, false }()
 	for _, r := range rs {
+		if lines := env.rearmStacks(ctx, r); len(lines) > 0 {
+			env.pullsOK = false
+			out[r.Ticket] = append(out[r.Ticket], lines...)
+		}
 		for _, a := range r.Armed {
 			lines := env.landArmed(ctx, r, a, reran)
 			if len(lines) > 0 {
@@ -251,7 +262,7 @@ func (env *Env) landFresh(ctx context.Context, r Record, top int, reran map[int6
 		return lines
 	}
 	if failed := blocker(stack); failed != "" {
-		return env.disarm(ctx, r, top, failed)
+		return env.disarmStage1(ctx, r, top, stack, failed)
 	}
 	if waiting := waitingOn(stack); len(waiting) > 0 {
 		return []string{waitingLine(top, waiting)}
@@ -316,8 +327,15 @@ func (env *Env) endClosedTop(ctx context.Context, r Record, top int) ([]string, 
 }
 
 func (env *Env) disarm(ctx context.Context, r Record, top int, why string) []string {
+	return env.disarmWith(ctx, r, top, why, nil)
+}
+
+func (env *Env) disarmWith(ctx context.Context, r Record, top int, why string, rearm *Queue) []string {
 	err := env.updateRecord(ctx, r.Ticket, func(r *Record) {
 		r.Armed = r.Armed.without(top)
+		if rearm != nil {
+			r.Rearm = r.Rearm.with(*rearm)
+		}
 		r.Changed = env.Now()
 	})
 	if err != nil {
@@ -511,6 +529,7 @@ func (env *Env) queue(ctx context.Context, rec Record, dir string, stack []stack
 	err := env.updateRecord(ctx, rec.Ticket, func(r *Record) {
 		r.Queued = r.Queued.with(Queue{Top: top, PRs: nums, At: env.Now()})
 		r.Armed = r.Armed.without(top)
+		r.Rearm = r.Rearm.without(top)
 		r.Settled = nil
 		r.Changed = env.Now()
 	})

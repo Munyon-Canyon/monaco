@@ -83,7 +83,7 @@ func newStream(env *Env) *stream {
 }
 
 func (env *Env) watchLock() (*os.File, error) {
-	path := filepath.Join(env.Common, ".monaco", "watch.lock")
+	path := filepath.Join(env.Common, ".monaco", watchLockFile)
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return nil, fmt.Errorf("create the watch lock dir: %w", err)
 	}
@@ -100,6 +100,25 @@ func (env *Env) watchLock() (*os.File, error) {
 		_, _ = f.WriteAt([]byte(strconv.Itoa(os.Getpid())+"\n"), 0)
 	}
 	return f, nil
+}
+
+const (
+	watchLockFile  = "watch.lock"
+	daemonLockFile = "watch-daemon.lock"
+	noWatchLine    = "no watch is running; start one with just watch"
+)
+
+func (env *Env) watchRunning() bool {
+	dir := filepath.Join(env.Common, ".monaco")
+	_ = os.MkdirAll(dir, 0o750)
+	for _, name := range []string{watchLockFile, daemonLockFile} {
+		f, ok, err := tryLock(filepath.Join(dir, name))
+		if err != nil || !ok {
+			return true
+		}
+		unlock(f)
+	}
+	return false
 }
 
 func (env *Env) watchStream(ctx context.Context, every time.Duration, out io.Writer) error {
