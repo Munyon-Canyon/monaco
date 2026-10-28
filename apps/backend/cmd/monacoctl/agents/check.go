@@ -81,6 +81,7 @@ type checkRun struct {
 	keepGoing bool
 	failures  []error
 	toolchain string
+	advised   bool
 }
 
 func parseCheckArgs(base string, args []string) (string, bool, bool, error) {
@@ -1123,6 +1124,7 @@ func (r *checkRun) runRow(ctx context.Context, row checkRow, stdout io.Writer, t
 		_, _ = fmt.Fprintf(stdout, "    %s\n", note)
 		_, _ = fmt.Fprintf(&r.log, "%s: %s\n", row.label, note)
 	}
+	r.advised = false
 	ctx, cancel, sb := r.rowBudget(ctx, row)
 	defer cancel()
 	watch := r.env.watchLoad(ctx, sb)
@@ -1143,7 +1145,7 @@ func (r *checkRun) runRow(ctx context.Context, row checkRow, stdout io.Writer, t
 		sb = watch.sample(ctx)
 		warnings += strings.Count(text, "::warning ")
 		waited = lockWaited(row.lockWaited)
-		rescued, budgetErr := r.checkBudget(ctx, stdout, row, cmd, sb, rowStart, waited, first)
+		rescued, budgetErr := r.checkBudget(ctx, stdout, row, cmd, err, sb, rowStart, waited, first)
 		if budgetErr != nil {
 			return budgetErr
 		}
@@ -1244,18 +1246,33 @@ func (r *checkRun) checkBudget(
 	stdout io.Writer,
 	row checkRow,
 	cmd []string,
+	cmdErr error,
 	sb scaledBudget,
 	rowStart time.Time,
 	waited time.Duration,
 	first int,
 ) (bool, error) {
 	if row.kind == packageKind {
-		retried, err := r.retryAlone(ctx, stdout, row, cmd, sb, r.timings[first:])
+		retried, err := r.retryAlone(ctx, stdout, row, cmd, cmdErr, sb, r.timings[first:])
 		if retried || err != nil {
 			return retried, err
 		}
 	}
-	return false, r.overBudget(stdout, row, sb, rowStart, waited, r.timings[first:])
+	return false, r.overBudget(stdout, row, cmdErr, sb, rowStart, waited, r.timings[first:])
+}
+
+func (r *checkRun) advisoryOverrun(cmdErr error, sb scaledBudget) bool {
+	return !r.env.Actions && cmdErr == nil && sb.cores > 0 && sb.load/float64(sb.cores) > maxBudgetScale
+}
+
+func (r *checkRun) noteAdvisory(stdout io.Writer, row checkRow, sb scaledBudget) {
+	if r.advised {
+		return
+	}
+	r.advised = true
+	line := fmt.Sprintf("over budget under load (load1 %.1f, %d cores), advisory", sb.load, sb.cores)
+	_, _ = fmt.Fprintf(stdout, "  %-15s ok    %s\n", row.label, line)
+	_, _ = fmt.Fprintf(&r.log, "%s: %s\n", row.label, line)
 }
 
 type scaledBudget struct {
@@ -1452,7 +1469,7 @@ func rerunCmd(cmd []string, pkgs []timing) []string {
 }
 
 func (r *checkRun) retryAlone(
-	ctx context.Context, stdout io.Writer, row checkRow, cmd []string, sb scaledBudget, timings []timing,
+	ctx context.Context, stdout io.Writer, row checkRow, cmd []string, cmdErr error, sb scaledBudget, timings []timing,
 ) (bool, error) {
 	slow := slowPackages(timings, sb.limit)
 	if len(slow) == 0 || slices.ContainsFunc(slow, func(t timing) bool { return !strings.HasPrefix(t.name, "./") }) {
@@ -1468,6 +1485,10 @@ func (r *checkRun) retryAlone(
 	text, err := r.exec(ctx, row, alone)
 	again := r.timings[first:]
 	if still := slowPackages(again, sb.base); len(still) > 0 {
+		if err == nil && r.advisoryOverrun(cmdErr, sb) {
+			r.noteAdvisory(stdout, row, sb)
+			return true, nil
+		}
 		s, orig := slowest(still), slowest(slow)
 		_, _ = fmt.Fprintf(stdout, "  %-15s over budget\n", row.label)
 		return false, detailErr(errs.CodeUpstreamTimeout, "monacoctl.agents.check", fmt.Sprintf(
@@ -1534,7 +1555,13 @@ func parseLoad(raw string) (float64, error) {
 }
 
 func (r *checkRun) overBudget(
-	stdout io.Writer, row checkRow, sb scaledBudget, rowStart time.Time, waited time.Duration, timings []timing,
+	stdout io.Writer,
+	row checkRow,
+	cmdErr error,
+	sb scaledBudget,
+	rowStart time.Time,
+	waited time.Duration,
+	timings []timing,
 ) error {
 	var detail string
 	if row.kind == packageKind {
@@ -1556,6 +1583,10 @@ func (r *checkRun) overBudget(
 	}
 	if waited > 0 {
 		detail += fmt.Sprintf("; waited %s for %s lock, not counted", waited, row.label)
+	}
+	if r.advisoryOverrun(cmdErr, sb) {
+		r.noteAdvisory(stdout, row, sb)
+		return nil
 	}
 	_, _ = fmt.Fprintf(stdout, "  %-15s over budget\n", row.label)
 	return detailErr(errs.CodeUpstreamTimeout, "monacoctl.agents.check", detail)
