@@ -75,6 +75,7 @@ extension Components.Schemas.AssetChart {
 
     private static func seconds(_ interval: IntervalPayload) -> Int64 {
         switch interval {
+        case ._1m: 60
         case ._5m: 300
         case ._15m: 900
         case ._30m: 1_800

@@ -108,6 +108,7 @@ CoinGecko is called with the Demo key (`COINGECKO_API_KEY` in encrypted `.env.pr
 
 | Range | Default interval | Allowed intervals |
 | --- | --- | --- |
+| 1H | 1 min | 1m 5m |
 | 1D | 5 min | 5m 15m 30m 1h 4h 1d |
 | 1W | 1 hour | 5m 15m 30m 1h 4h 1d |
 | 1M | 1 hour | 15m 30m 1h 4h 1d |

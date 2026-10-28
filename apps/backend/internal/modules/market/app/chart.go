@@ -119,7 +119,7 @@ func (c *AssetChart) fromPricePoints(
 		out.Empty = true
 		return out, nil
 	}
-	since, until, ok, err := c.readWindow(ctx, asset, req, span, out.Bucket, until, now)
+	since, until, ok, err := c.readWindow(ctx, asset, req, span, interval, until, now)
 	if err != nil || !ok {
 		out.Empty = err == nil
 		return out, err
@@ -146,13 +146,14 @@ func (c *AssetChart) readWindow(
 	asset domain.Asset,
 	req ChartRequest,
 	span domain.ChartRange,
-	width time.Duration,
+	interval domain.ChartInterval,
 	until, now time.Time,
 ) (time.Time, time.Time, bool, error) {
+	width := interval.Duration()
 	if req.Before != nil {
 		until = earlier(until, alignDown(*req.Before, width).Add(-time.Microsecond))
 	}
-	since, ok, err := c.since(ctx, asset, span, req.Before != nil, now)
+	since, ok, err := c.since(ctx, asset, span, interval, req.Before != nil, now)
 	return since, until, ok, err
 }
 
@@ -264,14 +265,19 @@ func (c *AssetChart) until(ctx context.Context, mint string, now time.Time) (tim
 }
 
 func (c *AssetChart) since(
-	ctx context.Context, asset domain.Asset, span domain.ChartRange, paging bool, now time.Time,
+	ctx context.Context,
+	asset domain.Asset,
+	span domain.ChartRange,
+	interval domain.ChartInterval,
+	paging bool,
+	now time.Time,
 ) (time.Time, bool, error) {
 	mint := asset.Mint.String()
 	if window, bounded := span.Window(); bounded && !paging {
 		if opened, ok := lastSessionOpen(asset, span, now); ok {
 			return opened, true, nil
 		}
-		return now.Add(-window), true, nil
+		return windowStart(span, now, window, interval), true, nil
 	}
 	ts, err := c.read.EarliestPrice(ctx, mint)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -281,6 +287,15 @@ func (c *AssetChart) since(
 		return time.Time{}, false, errs.Wrap(err, errs.CodeOf(err), "market.EarliestPrice", slog.String("mint", mint))
 	}
 	return ts, true, nil
+}
+
+func windowStart(span domain.ChartRange, now time.Time, window time.Duration, interval domain.ChartInterval) time.Time {
+	start := now.Add(-window)
+	if span != domain.Chart1H {
+		return start
+	}
+	width := interval.Duration()
+	return alignDown(start.Add(width-time.Nanosecond), width)
 }
 
 func lastSessionOpen(asset domain.Asset, span domain.ChartRange, now time.Time) (time.Time, bool) {

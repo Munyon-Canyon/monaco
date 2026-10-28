@@ -49,7 +49,7 @@ func (c *AssetChart) fromHistory(
 		return Chart{}, false, nil
 	}
 	width := interval.Duration()
-	since, until := chartWindow(asset, req, span, width, now)
+	since, until := chartWindow(asset, req, span, interval, now)
 	points, older := bucketHistory(history.Prices, width, since, until, limit)
 	out := Chart{Range: span, Interval: interval, Bucket: width, Points: points, Empty: len(points) == 0}
 	if older {
@@ -91,13 +91,14 @@ func coversWindow(chart Chart, asset domain.Asset, req ChartRequest, span domain
 	if len(chart.Points) == 0 {
 		return false
 	}
-	since, _ := chartWindow(asset, req, span, chart.Bucket, now)
+	since, _ := chartWindow(asset, req, span, chart.Interval, now)
 	return !since.IsZero() && chart.Points[0].At.Sub(since) <= max(coldSlack, 2*chart.Bucket)
 }
 
 func chartWindow(
-	asset domain.Asset, req ChartRequest, span domain.ChartRange, width time.Duration, now time.Time,
+	asset domain.Asset, req ChartRequest, span domain.ChartRange, interval domain.ChartInterval, now time.Time,
 ) (time.Time, time.Time) {
+	width := interval.Duration()
 	until := now
 	if req.Before != nil {
 		until = earlier(until, alignDown(*req.Before, width).Add(-time.Microsecond))
@@ -109,7 +110,7 @@ func chartWindow(
 	if opened, ok := lastSessionOpen(asset, span, now); ok {
 		return opened, until
 	}
-	return now.Add(-window), until
+	return windowStart(span, now, window, interval), until
 }
 
 func bucketHistory(samples []Sample, width time.Duration, since, until time.Time, limit int) ([]Point, bool) {

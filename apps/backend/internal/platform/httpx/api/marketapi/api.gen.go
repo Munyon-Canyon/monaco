@@ -42,6 +42,7 @@ const (
 	AssetChartIntervalN15m AssetChartInterval = "15m"
 	AssetChartIntervalN1d  AssetChartInterval = "1d"
 	AssetChartIntervalN1h  AssetChartInterval = "1h"
+	AssetChartIntervalN1m  AssetChartInterval = "1m"
 	AssetChartIntervalN1w  AssetChartInterval = "1w"
 	AssetChartIntervalN30m AssetChartInterval = "30m"
 	AssetChartIntervalN4h  AssetChartInterval = "4h"
@@ -56,6 +57,8 @@ func (e AssetChartInterval) Valid() bool {
 	case AssetChartIntervalN1d:
 		return true
 	case AssetChartIntervalN1h:
+		return true
+	case AssetChartIntervalN1m:
 		return true
 	case AssetChartIntervalN1w:
 		return true
@@ -74,6 +77,7 @@ func (e AssetChartInterval) Valid() bool {
 const (
 	AssetChartRangeALL AssetChartRange = "ALL"
 	AssetChartRangeN1D AssetChartRange = "1D"
+	AssetChartRangeN1H AssetChartRange = "1H"
 	AssetChartRangeN1M AssetChartRange = "1M"
 	AssetChartRangeN1W AssetChartRange = "1W"
 	AssetChartRangeN1Y AssetChartRange = "1Y"
@@ -87,6 +91,8 @@ func (e AssetChartRange) Valid() bool {
 	case AssetChartRangeALL:
 		return true
 	case AssetChartRangeN1D:
+		return true
+	case AssetChartRangeN1H:
 		return true
 	case AssetChartRangeN1M:
 		return true
@@ -239,6 +245,7 @@ func (e GetAssetsParamsFilter) Valid() bool {
 const (
 	GetAssetChartParamsRangeALL GetAssetChartParamsRange = "ALL"
 	GetAssetChartParamsRangeN1D GetAssetChartParamsRange = "1D"
+	GetAssetChartParamsRangeN1H GetAssetChartParamsRange = "1H"
 	GetAssetChartParamsRangeN1M GetAssetChartParamsRange = "1M"
 	GetAssetChartParamsRangeN1W GetAssetChartParamsRange = "1W"
 	GetAssetChartParamsRangeN1Y GetAssetChartParamsRange = "1Y"
@@ -252,6 +259,8 @@ func (e GetAssetChartParamsRange) Valid() bool {
 	case GetAssetChartParamsRangeALL:
 		return true
 	case GetAssetChartParamsRangeN1D:
+		return true
+	case GetAssetChartParamsRangeN1H:
 		return true
 	case GetAssetChartParamsRangeN1M:
 		return true
@@ -273,6 +282,7 @@ const (
 	GetAssetChartParamsIntervalN15m GetAssetChartParamsInterval = "15m"
 	GetAssetChartParamsIntervalN1d  GetAssetChartParamsInterval = "1d"
 	GetAssetChartParamsIntervalN1h  GetAssetChartParamsInterval = "1h"
+	GetAssetChartParamsIntervalN1m  GetAssetChartParamsInterval = "1m"
 	GetAssetChartParamsIntervalN1w  GetAssetChartParamsInterval = "1w"
 	GetAssetChartParamsIntervalN30m GetAssetChartParamsInterval = "30m"
 	GetAssetChartParamsIntervalN4h  GetAssetChartParamsInterval = "4h"
@@ -287,6 +297,8 @@ func (e GetAssetChartParamsInterval) Valid() bool {
 	case GetAssetChartParamsIntervalN1d:
 		return true
 	case GetAssetChartParamsIntervalN1h:
+		return true
+	case GetAssetChartParamsIntervalN1m:
 		return true
 	case GetAssetChartParamsIntervalN1w:
 		return true
@@ -765,7 +777,7 @@ type GetAssetChartParams struct {
 	// Range The preset: the default interval and the first window.
 	Range GetAssetChartParamsRange `form:"range" json:"range"`
 
-	// Interval The bar width. Absent means the range default, `1D` 5m, `1W`/`1M`/`3M` 1h, `6M`/`1Y`/`ALL` 1d. Allowed per range, `1D` and `1W` 5m 15m 30m 1h 4h 1d; `1M` 15m 30m 1h 4h 1d; `3M` 30m 1h 4h 1d 1w; `6M` 1h 4h 1d 1w; `1Y` and `ALL` 4h 1d 1w. Weekly bars start on Monday 00:00 UTC. Any other pair is `invalid_input`.
+	// Interval The bar width. Absent means the range default, `1H` 1m, `1D` 5m, `1W`/`1M`/`3M` 1h, `6M`/`1Y`/`ALL` 1d. Allowed per range, `1H` 1m 5m; `1D` and `1W` 5m 15m 30m 1h 4h 1d; `1M` 15m 30m 1h 4h 1d; `3M` 30m 1h 4h 1d 1w; `6M` 1h 4h 1d 1w; `1Y` and `ALL` 4h 1d 1w. Weekly bars start on Monday 00:00 UTC. Any other pair is `invalid_input`.
 	Interval *GetAssetChartParamsInterval `form:"interval,omitempty" json:"interval,omitempty"`
 
 	// Before Bars that start before this instant, aligned down to the interval. The read then reaches back to the asset's first sample, not just the range.
