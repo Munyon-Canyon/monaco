@@ -25,8 +25,8 @@
 # MONACO_QA_SCREEN_TIMEOUT: seconds to wait for the marker after launch (default 20).
 # MONACO_QA_SCREEN_SETTLE: seconds to wait after the screen drew before the shot (default 3).
 # MONACO_QA_SCREEN_ONLY: extended regex; capture shoots only the manifest lines whose name matches
-# it, and --check still checks the whole manifest. `scripts/qa/parity.py defaults --regex` prints
-# the one that picks the 43 v3 default states.
+# it, and --check still checks the whole manifest. `scripts/qa/parity.py frames --regex` prints the
+# one that picks F's launch frames.
 set -uo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
