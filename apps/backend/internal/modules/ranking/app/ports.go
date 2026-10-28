@@ -4,9 +4,12 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
+	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/sqlc"
@@ -14,6 +17,13 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
+
+type (
+	AssetID    = market.AssetID
+	AssetPrice = market.Price
+)
+
+func AssetIDFrom(u uuid.UUID) AssetID { return market.AssetIDFrom(u) }
 
 type Prices interface {
 	PricesAsOf(context.Context, []market.AssetID, time.Time) (map[market.AssetID]market.Price, error)
@@ -45,6 +55,8 @@ type Users interface {
 	UsersByID(context.Context, []ids.UserID) (map[ids.UserID]identity.UserCard, error)
 }
 
+type Ballots = governanceport.Ballots
+
 type Follows = interface {
 	FollowingIDs(context.Context, ids.UserID) ([]ids.UserID, error)
 }
@@ -62,6 +74,7 @@ type RangeSnapshots interface {
 }
 
 type Ports struct {
+	Ballots   Ballots
 	Market    Market
 	Treasury  Treasury
 	Funding   Funding

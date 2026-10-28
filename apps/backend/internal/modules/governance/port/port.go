@@ -46,3 +46,13 @@ type InviteFacts interface {
 type ProposedMints interface {
 	ProposedMints(ctx context.Context) ([]chain.SolanaAddress, error)
 }
+
+type Ballot struct {
+	VoterID ids.UserID
+	Choice  *string
+	CastAt  *time.Time
+}
+
+type Ballots interface {
+	Ballots(ctx context.Context, id ids.ProposalID) ([]Ballot, error)
+}
