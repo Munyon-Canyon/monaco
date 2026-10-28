@@ -12,3 +12,4 @@ Dated record of changes to [cabals.md](../cabals.md). Add one line per change, n
 - 2026-10-08: Removed invite codes (#3785). `cabals.invite_code` is dropped. `Cabal.invite_code` is deprecated and always null, and `GET /v1/invite-codes/{code}` is deprecated and always refuses with `cabal_not_found`, so no old code can bypass `join_mode` and old clients keep decoding.
 - 2026-10-08: New cabals default to `open` when `join_mode` is omitted at `CreateCabal`; existing cabals keep their policy (#4112).
 - 2026-10-28: Added the `admin` role (#6424). Admins list and decide access requests, invite and revoke any invite, and always vote. The three door permissions refuse with `NotCabalAdmin`, and `Cabal.IsAdmin` is true for the creator and for `admin` rows.
+- 2026-10-28: `GET /v1/cabals/{id}` names the admins, creator first, in `admins`, and the `cabal.access_requested` push for a request goes to each admin instead of the creator alone (#6424).

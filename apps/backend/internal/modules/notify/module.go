@@ -88,7 +88,9 @@ func (m *Module) Consumers() []bus.Consumer {
 		adapters.Push(pusher, app.TradeBlocked{Cabals: m.cabals, Assets: m.assets}),
 		adapters.Push(pusher, app.ProposalCreated{Cabals: m.cabals, Users: m.users, Assets: m.assets}),
 		adapters.Push(pusher, app.ProposalPassed{Cabals: m.cabals, Voters: m.voters, Assets: m.assets}),
-		adapters.Push(pusher, app.CabalAccessRequested{Cabals: m.cabals, Users: m.users}),
+		adapters.Push(pusher, app.CabalAccessRequestedAdmins{
+			CabalAccessRequested: app.CabalAccessRequested{Cabals: m.cabals, Users: m.users}, Admins: m.cabals,
+		}),
 		adapters.Push(pusher, app.CabalAccessApproved{Cabals: m.cabals}),
 		adapters.Push(pusher, app.NewFollower{Users: m.users}),
 		adapters.Push(pusher, app.Nudge{Users: m.users}),
