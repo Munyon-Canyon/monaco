@@ -1,0 +1,13 @@
+{
+  "Simulator Target Bundle": "xyz.monacolabs.app",
+  "aps": {
+    "alert": {
+      "title": "TSLA failed 2–2",
+      "body": "No trade. You voted No."
+    }
+  },
+  "kind": "proposal_result",
+  "cabal_id": "01920000-0000-7000-8000-000000000c01",
+  "proposal_id": "01920000-0000-7000-8000-000000000a01",
+  "outcome": "failed"
+}

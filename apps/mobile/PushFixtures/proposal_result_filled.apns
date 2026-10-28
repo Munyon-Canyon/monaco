@@ -1,0 +1,13 @@
+{
+  "Simulator Target Bundle": "xyz.monacolabs.app",
+  "aps": {
+    "alert": {
+      "title": "NVDA passed 5–1",
+      "body": "Bought 1.82 sh at $219.40. You voted Yes."
+    }
+  },
+  "kind": "proposal_result",
+  "cabal_id": "01920000-0000-7000-8000-000000000c01",
+  "proposal_id": "01920000-0000-7000-8000-000000000a01",
+  "outcome": "filled"
+}

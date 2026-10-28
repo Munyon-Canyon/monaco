@@ -16,12 +16,13 @@ import (
 )
 
 type Module struct {
-	deps   module.Deps
-	users  app.Users
-	cabals app.Cabals
-	assets app.Assets
-	voters app.Voters
-	sender apns.Sender
+	deps    module.Deps
+	users   app.Users
+	cabals  app.Cabals
+	assets  app.Assets
+	ballots app.Ballots
+	heads   app.ProposalHeads
+	sender  apns.Sender
 }
 
 type Option func(*Module)
@@ -38,8 +39,12 @@ func WithAssets(assets app.Assets) Option {
 	return func(m *Module) { m.assets = assets }
 }
 
-func WithVoters(voters app.Voters) Option {
-	return func(m *Module) { m.voters = voters }
+func WithBallots(ballots app.Ballots) Option {
+	return func(m *Module) { m.ballots = ballots }
+}
+
+func WithProposalHeads(heads app.ProposalHeads) Option {
+	return func(m *Module) { m.heads = heads }
 }
 
 func WithSender(sender apns.Sender) Option {
@@ -47,9 +52,10 @@ func WithSender(sender apns.Sender) Option {
 }
 
 func New(d module.Deps, opts ...Option) *Module {
+	gov := governance.New(d)
 	m := &Module{
 		deps: d, users: identity.New(d).Queries(), cabals: cabal.New(d).Queries(),
-		assets: market.New(d).Catalog(), voters: governance.New(d).Voters(), sender: d.APNs,
+		assets: market.New(d).Catalog(), ballots: gov.Ballots(), heads: gov.ProposalHeads(), sender: d.APNs,
 	}
 	for _, opt := range opts {
 		opt(m)
@@ -78,16 +84,20 @@ func (m *Module) pusher() *app.Pusher {
 
 func (m *Module) Consumers() []bus.Consumer {
 	pusher := m.pusher()
+	results := app.ResultPorts{Cabals: m.cabals, Assets: m.assets, Ballots: m.ballots, Heads: m.heads}
 	return []bus.Consumer{{Durable: "notify", Handlers: []bus.HandlerSpec{
 		adapters.Push(pusher, app.Test{}),
 		adapters.Push(pusher, app.DepositCredited{}),
 		adapters.Push(pusher, app.CabalPaused{Cabals: m.cabals}),
 		adapters.Push(pusher, app.CabalResumed{Cabals: m.cabals}),
-		adapters.Push(pusher, app.TradeFilled{Cabals: m.cabals, Assets: m.assets}),
-		adapters.Push(pusher, app.TradeFailed{Cabals: m.cabals, Assets: m.assets}),
-		adapters.Push(pusher, app.TradeBlocked{Cabals: m.cabals, Assets: m.assets}),
-		adapters.Push(pusher, app.ProposalCreated{Cabals: m.cabals, Users: m.users, Assets: m.assets}),
-		adapters.Push(pusher, app.ProposalPassed{Cabals: m.cabals, Voters: m.voters, Assets: m.assets}),
+		adapters.Push(pusher, app.ResultFilled{ResultPorts: results}),
+		adapters.Push(pusher, app.ResultFillFailed{ResultPorts: results}),
+		adapters.Push(pusher, app.ResultFillBlocked{ResultPorts: results}),
+		adapters.Push(pusher, app.ProposalCreated{
+			Cabals: m.cabals, Users: m.users, Assets: m.assets, Ballots: m.ballots, Heads: m.heads, Clock: m.deps.Clock,
+		}),
+		adapters.Push(pusher, app.ResultFailed{ResultPorts: results}),
+		adapters.Push(pusher, app.ResultExpired{ResultPorts: results}),
 		adapters.Push(pusher, app.CabalAccessRequestedAdmins{
 			CabalAccessRequested: app.CabalAccessRequested{Cabals: m.cabals, Users: m.users}, Admins: m.cabals,
 		}),
