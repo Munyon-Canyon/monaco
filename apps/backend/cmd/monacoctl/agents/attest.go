@@ -35,17 +35,21 @@ func attestCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) e
 	if err != nil {
 		return err
 	}
-	if _, err := os.Stat(env.statePath("checks", tree)); err != nil {
+	record, err := env.readCheckRecord(tree)
+	if errors.Is(err, os.ErrNotExist) {
 		return detailErr(errs.CodeInvalidInput, "monacoctl.agents.attest", fmt.Sprintf(
 			"no stage 0 record for #%d head %s (tree %s); run monacoctl agents check first",
 			n, pr.Head.SHA[:12], tree[:12],
 		))
 	}
+	if err != nil {
+		return err
+	}
 	auth, err := env.statusAuth(ctx, "")
 	if err != nil {
 		return err
 	}
-	body := map[string]string{"state": "success", "context": stage0Context, "description": "tree " + tree}
+	body := map[string]string{"state": "success", "context": stage0Context, "description": record.description(tree)}
 	if err := env.GitHub.call(
 		ctx,
 		http.MethodPost,

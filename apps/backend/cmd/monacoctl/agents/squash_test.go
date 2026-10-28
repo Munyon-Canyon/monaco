@@ -110,7 +110,10 @@ type directFixture struct {
 
 func attest(f *fixture, head, tree string) {
 	f.hub.on(list("/commits/"+head+"/statuses?"), []GHStatus{
-		{Context: "stage0/ok", State: "success", Description: "tree " + tree, CreatedAt: f.now},
+		{
+			Context: "stage0/ok", State: "success", CreatedAt: f.now,
+			Description: "tree " + tree + " rows go build,xcode",
+		},
 		{Context: "verify", State: "success", CreatedAt: f.now},
 	})
 }

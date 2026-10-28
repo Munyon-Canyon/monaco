@@ -85,7 +85,8 @@ func (env *Env) attestation(ctx context.Context, dir string, p stackPR) (found, 
 		return found, false, nil
 	}
 	tree, err := env.treeOfHead(ctx, dir, p.HeadOID)
-	return true, newest.Description == "tree "+tree, err
+	want := "tree " + tree
+	return true, newest.Description == want || strings.HasPrefix(newest.Description, want+" rows "), err
 }
 
 func (env *Env) attested(ctx context.Context, dir string, stack []stackPR) (bool, error) {
