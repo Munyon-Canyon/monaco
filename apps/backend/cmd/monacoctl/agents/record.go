@@ -33,7 +33,7 @@ func (env *Env) readCheckRecord(tree string) (checkRecord, error) {
 }
 
 func attestedRows() []string {
-	return []string{"swift test", "xcode", "journeys"}
+	return []string{"swift test", "xcode", "journeys", "workflows", "web"}
 }
 
 func (r checkRecord) description(tree string) string {

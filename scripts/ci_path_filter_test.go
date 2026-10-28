@@ -42,6 +42,8 @@ func TestCIPathFilter_jobsFollowTheWorkflow(t *testing.T) {
 		{"mobile-core-script-only", []string{"scripts/mobile-core-test.sh"}, []string{"mobile-core"}},
 		{"flows-only", []string{"packages/flows/app/00.tsv"}, []string{"lint", "ready", "backend", "mobile-core", "ios"}},
 		{"ci-only", []string{".github/workflows/ci.yml"}, []string{"scripts", "actionlint"}},
+		{"render-only", []string{"render.yaml"}, nil},
+		{"monaco-config-only", []string{".monaco/agents.toml"}, []string{"lint", "ready", "backend"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -56,6 +58,19 @@ func TestCIPathFilter_jobsFollowTheWorkflow(t *testing.T) {
 		if job == "backend" {
 			t.Fatalf("apps/mobile change ran %s", job)
 		}
+	}
+}
+
+func TestCIPathFilter_unknownNamesNoInertTopLevelPath(t *testing.T) {
+	t.Parallel()
+	filters := parsePathFilters(t)
+	for _, file := range []string{"render.yaml", ".monaco/agents.toml", "ops/dns.tf", ".swiftlint.yml", "AGENTS.md"} {
+		if everyMatches(filters[everyPrefix+"unknown"], modified(file)[0]) {
+			t.Fatalf("%s sets unknown", file)
+		}
+	}
+	if !everyMatches(filters[everyPrefix+"unknown"], modified("newapp/main.go")[0]) {
+		t.Fatal("a new top-level path does not set unknown")
 	}
 }
 

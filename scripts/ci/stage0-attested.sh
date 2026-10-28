@@ -17,6 +17,8 @@ covered_by() {
     IOS) echo "xcode" ;;
     MOBILE_CORE | MOBILE_TESTS) echo "swift test" ;;
     JOURNEYS) echo "journeys" ;;
+    WORKFLOWS) echo "workflows" ;;
+    WEB) echo "web" ;;
     *) echo "" ;;
   esac
 }
