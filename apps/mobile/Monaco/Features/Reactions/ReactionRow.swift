@@ -10,10 +10,10 @@ struct ReactionRow<Trailing: View>: View {
     let showsAdd: Bool
     let onToggle: (String) -> Void
     let onOpenTray: () -> Void
+    let onOpenPicker: (() -> Void)?
     let trailing: () -> Trailing
 
     @State private var isTrayOpen: Bool
-    @State private var isPickerOpen = false
 
     init(
         target: ReactionTarget,
@@ -21,13 +21,14 @@ struct ReactionRow<Trailing: View>: View {
         showsAdd: Bool = true,
         startsOpen: Bool = false,
         onToggle: @escaping (String) -> Void, onOpenTray: @escaping () -> Void = {},
-        @ViewBuilder trailing: @escaping () -> Trailing
+        onOpenPicker: (() -> Void)? = nil, @ViewBuilder trailing: @escaping () -> Trailing
     ) {
         self.target = target
         self.reactions = reactions
         self.showsAdd = showsAdd
         self.onToggle = onToggle
         self.onOpenTray = onOpenTray
+        self.onOpenPicker = onOpenPicker
         self.trailing = trailing
         _isTrayOpen = State(initialValue: startsOpen)
     }
@@ -40,16 +41,13 @@ struct ReactionRow<Trailing: View>: View {
                 }
             }
             if isTrayOpen {
-                QuickReactionTray(target: target, onOpenPicker: { isPickerOpen = true }, onPick: onToggle) {
+                QuickReactionTray(target: target, onOpenPicker: onOpenPicker, onPick: onToggle) {
                     isTrayOpen = false
                 }
                 .transition(.opacity)
             }
         }
         .animation(.easeOut(duration: 0.15), value: isTrayOpen)
-        .sheet(isPresented: $isPickerOpen) {
-            EmojiPickerSheet(onPick: onToggle)
-        }
     }
 
     private func line(limit: Int) -> some View {

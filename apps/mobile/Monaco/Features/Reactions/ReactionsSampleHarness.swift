@@ -8,8 +8,6 @@ enum ReactionsSampleScenario: String, CaseIterable {
     case trayOpen
     case mine
     case failed
-    case picker
-    case search
 
     static let launchArgument = "-reactionsHarness"
 
@@ -26,21 +24,15 @@ private struct ReactionsSampleScreen: View {
     @State private var model: ReactionsModel
     @State private var items: [Components.Schemas.FeedItem]
     @State private var toast: MonacoToast?
-    @State private var isPickerOpen: Bool
-    private let frequent: FrequentEmojiStore
 
     init(scenario: ReactionsSampleScenario) {
         self.scenario = scenario
-        let defaults = UserDefaults(suiteName: "reactions-harness") ?? .standard
-        defaults.removePersistentDomain(forName: "reactions-harness")
-        frequent = FrequentEmojiStore(defaults: defaults)
         let items = [0, 1, 3].map { Components.Schemas.FeedItem.samples[$0] }
         _model = State(
             initialValue: ReactionsModel.sample(
                 reactions: Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0.reactions) }),
                 fails: scenario == .failed, clock: ContinuousClock()))
         _items = State(initialValue: items)
-        _isPickerOpen = State(initialValue: scenario == .picker || scenario == .search)
     }
 
     var body: some View {
@@ -62,12 +54,6 @@ private struct ReactionsSampleScreen: View {
         }
         .padding(MonacoTheme.Space.gutter)
         .background(MonacoTheme.background)
-        .sheet(isPresented: $isPickerOpen) {
-            if let item = items.first {
-                EmojiPickerSheet(initialQuery: scenario == .search ? "eyes" : "") { toggle($0, on: item) }
-            }
-        }
-        .environment(\.frequentEmojiStore, frequent)
         .monacoToast($toast)
         .onChange(of: model.noticeTick) {
             toast = model.notice.map { MonacoToast(message: $0) }

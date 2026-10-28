@@ -185,8 +185,6 @@ reactions-row                 -reactionsHarness row
 reactions-tray-open           -reactionsHarness trayOpen
 reactions-mine               -reactionsHarness mine
 reactions-failed             -reactionsHarness failed
-reactions-picker             -reactionsHarness picker
-reactions-picker-search      -reactionsHarness search
 
 cabals-tab                    -MonacoCabalsTabSample
 cabals-ready                  -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario ready
