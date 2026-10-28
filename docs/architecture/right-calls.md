@@ -38,7 +38,7 @@ Three tables, all written by the `ranking_calls` consumer (one handler per event
 **Every piece of evidence is stored on its own, whatever order it arrives in.** A `vote.cast`, a fill or a decision can arrive before `proposal.created`, and a replay can bring an older ballot after the decision. So each event writes its own columns with an upsert keyed by the proposal, there is no foreign key from `call_voters` to `calls`, and nothing is dropped because another event has not arrived:
 
 - A ballot only replaces an older one (`choice_at` guard), and a null `choice_at` never overwrites a choice.
-- A fill is kept whether or not the decision has arrived, and a fill after resolution changes nothing. The reference price is chosen at resolution, not when the fill or decision lands.
+- A fill is kept whether or not the decision has arrived, and a fill after resolution changes nothing. A proposal can confirm several trades (one per chain leg, or a retried trade), so the newest fill wins: a fill replaces the stored one only when its `filled_at` is later, or equal with a higher price, so the stored fill is the same in any delivery order. The reference price is chosen at resolution, not when the fill or decision lands.
 - A decision is recorded once (`WHERE decided_at IS NULL`) and never reopens a void call.
 - A void is final unless the call is already resolved.
 
