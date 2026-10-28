@@ -49,7 +49,7 @@ struct MarkGeometryTests {
     @Test func stockMarkSizesMatchTheListedValues() {
         #expect(
             [StockMarkSize.feed, .mover, .card, .row, .header, .review, .receipt].map(\.rawValue)
-                == [28, 31, 35, 42, 47, 48, 54])
+                == [36, 31, 35, 42, 47, 48, 54])
     }
 
     @Test func avatarSizesMatchTheListedValues() {

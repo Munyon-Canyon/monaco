@@ -3,15 +3,17 @@ import SwiftUI
 
 /// Size role for every figure that renders `$`, `%` or a share count.
 enum MoneyStyle {
-    case hero, large, card, row, caption
+    case hero, home, display, large, card, row, caption
 
     /// Design size at the default text size.
     var baseSize: CGFloat {
         switch self {
         case .hero: return 44
-        case .large: return 35
-        case .card: return 22
-        case .row: return 18
+        case .home: return 32
+        case .display: return 28
+        case .large: return 22
+        case .card: return 20
+        case .row: return 15
         case .caption: return 15
         }
     }
@@ -20,25 +22,31 @@ enum MoneyStyle {
     var textStyle: Font.TextStyle {
         switch self {
         case .hero: return .largeTitle
-        case .large: return .title
-        case .card: return .title2
-        case .row: return .body
+        case .home: return .largeTitle
+        case .display: return .title
+        case .large: return .title2
+        case .card: return .title3
+        case .row: return .subheadline
         case .caption: return .subheadline
         }
     }
 
     var weight: Font.Weight {
         switch self {
-        case .hero, .large, .card: return .bold
-        case .row, .caption: return .semibold
+        case .hero, .home, .card, .row, .caption: return .semibold
+        case .display: return .heavy
+        case .large: return .bold
         }
     }
+
+    var tracking: CGFloat { self == .display ? -0.5 : 0 }
 
     /// Hero figures shrink before they wrap; rows keep their size and truncate last.
     var minimumScaleFactor: CGFloat {
 
         switch self {
-        case .hero: return 0.5
+        case .hero, .home: return 0.5
+        case .display: return 0.5
         case .large: return 0.6
         case .card: return 0.7
         case .row, .caption: return 0.8
@@ -57,14 +65,18 @@ struct MoneyFont: ViewModifier {
     // there is one per role rather than one driven by `style`. The sizes come from `MoneyStyle`
     // so the two cannot drift; the text styles are asserted against it in `MoneyStyleScalingTests`.
     @ScaledMetric(relativeTo: .largeTitle) private var hero = MoneyStyle.hero.baseSize
-    @ScaledMetric(relativeTo: .title) private var large = MoneyStyle.large.baseSize
-    @ScaledMetric(relativeTo: .title2) private var card = MoneyStyle.card.baseSize
-    @ScaledMetric(relativeTo: .body) private var row = MoneyStyle.row.baseSize
+    @ScaledMetric(relativeTo: .largeTitle) private var home = MoneyStyle.home.baseSize
+    @ScaledMetric(relativeTo: .title) private var display = MoneyStyle.display.baseSize
+    @ScaledMetric(relativeTo: .title2) private var large = MoneyStyle.large.baseSize
+    @ScaledMetric(relativeTo: .title3) private var card = MoneyStyle.card.baseSize
+    @ScaledMetric(relativeTo: .subheadline) private var row = MoneyStyle.row.baseSize
     @ScaledMetric(relativeTo: .subheadline) private var caption = MoneyStyle.caption.baseSize
 
     private var size: CGFloat {
         switch style {
         case .hero: return hero
+        case .home: return home
+        case .display: return display
         case .large: return large
         case .card: return card
         case .row: return row
@@ -75,6 +87,7 @@ struct MoneyFont: ViewModifier {
     func body(content: Content) -> some View {
         // SF Pro with tabular figures, so a column of money lines up.
         content.font(.system(size: size, weight: weightOverride ?? style.weight).monospacedDigit())
+            .tracking(style.tracking)
     }
 }
 

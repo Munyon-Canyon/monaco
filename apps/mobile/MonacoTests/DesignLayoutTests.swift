@@ -6,30 +6,84 @@ import UIKit
 
 /// `MoneyFont` builds its `@ScaledMetric` bases from `MoneyStyle.baseSize`, so these assertions
 /// are over the numbers that actually render. The values are the redesign's money roles
-/// (`docs/design.md`): hero 44 bold, large 35 bold, card 22 bold, row 17 semibold, small 15 semibold.
+/// (`docs/design.md`): hero 44 semibold, home 32, display 28 heavy, large 22 bold, card 20, row and caption 15.
 struct MoneyStyleScalingTests {
     @Test func everyStyleHasItsDesignSize() {
         #expect(MoneyStyle.hero.baseSize == 44)
-        #expect(MoneyStyle.large.baseSize == 35)
-        #expect(MoneyStyle.card.baseSize == 22)
-        #expect(MoneyStyle.row.baseSize == 18)
+        #expect(MoneyStyle.home.baseSize == 32)
+        #expect(MoneyStyle.display.baseSize == 28)
+        #expect(MoneyStyle.large.baseSize == 22)
+        #expect(MoneyStyle.card.baseSize == 20)
+        #expect(MoneyStyle.row.baseSize == 15)
         #expect(MoneyStyle.caption.baseSize == 15)
     }
 
     @Test func stylesScaleAgainstTheTextStyleOfTheirSize() {
         #expect(MoneyStyle.hero.textStyle == .largeTitle)
-        #expect(MoneyStyle.large.textStyle == .title)
-        #expect(MoneyStyle.card.textStyle == .title2)
-        #expect(MoneyStyle.row.textStyle == .body)
+        #expect(MoneyStyle.home.textStyle == .largeTitle)
+        #expect(MoneyStyle.display.textStyle == .title)
+        #expect(MoneyStyle.large.textStyle == .title2)
+        #expect(MoneyStyle.card.textStyle == .title3)
+        #expect(MoneyStyle.row.textStyle == .subheadline)
         #expect(MoneyStyle.caption.textStyle == .subheadline)
     }
 
     @Test func weightsMatchTheDesign() {
-        #expect(MoneyStyle.hero.weight == .bold)
+        #expect(MoneyStyle.hero.weight == .semibold)
+        #expect(MoneyStyle.home.weight == .semibold)
+        #expect(MoneyStyle.display.weight == .heavy)
         #expect(MoneyStyle.large.weight == .bold)
-        #expect(MoneyStyle.card.weight == .bold)
+        #expect(MoneyStyle.card.weight == .semibold)
         #expect(MoneyStyle.row.weight == .semibold)
         #expect(MoneyStyle.caption.weight == .semibold)
+    }
+
+    @Test func onlyTheDisplayFigureSetsTracking() {
+        #expect(MoneyStyle.display.tracking == -0.5)
+        #expect(MoneyStyle.home.tracking == 0)
+        #expect(MoneyStyle.hero.tracking == 0)
+    }
+}
+
+struct FTokenTests {
+    @Test func spacingMatchesF() {
+        #expect(MonacoTheme.Space.gutter == 16)
+        #expect(MonacoTheme.Space.section == 16)
+        #expect(MonacoTheme.Space.root == 24)
+        #expect(MonacoTheme.Space.cardPadding == 12)
+        #expect(MonacoTheme.Space.titleGap == 6)
+        #expect(MonacoTheme.Space.stackGap == 8)
+        #expect(MonacoTheme.Space.tabClear == 104)
+        #expect(MonacoTheme.Space.homeClear == 40)
+        #expect(SectionHeaderMetrics.topSpacing == MonacoTheme.Space.section)
+        #expect(SectionHeaderMetrics.bottomSpacing == MonacoTheme.Space.titleGap)
+    }
+
+    @Test func radiiMatchF() {
+        #expect(MonacoTheme.Radius.card == 12)
+        #expect(MonacoTheme.Radius.cardTight == 12)
+        #expect(MonacoTheme.Radius.button == 10)
+        #expect(MonacoTheme.Radius.shareCard == 16)
+        #expect(MonacoTheme.Radius.small == 8)
+        #expect(MonacoTheme.Radius.field == 8)
+        #expect(MonacoTheme.Radius.tile == 6)
+        #expect(MonacoTheme.Radius.keypadKey == 8)
+        #expect(MonacoTheme.Radius.crest == 6)
+        #expect(MonacoTheme.Radius.logoFraction == 0.15)
+        #expect(MonacoTheme.Radius.squircleFraction == 0.225)
+    }
+
+    @Test func reactionChipIsSmallOnTheScreenAndBigUnderTheFinger() {
+        let chip = MonacoTheme.ReactionChipMetrics.self
+        #expect(chip.visibleHeight == 24)
+        #expect(chip.tapSize == 44)
+        #expect(chip.minWidth == 44)
+        #expect(chip.horizontalPadding == 8)
+        #expect(chip.gap == 4)
+    }
+
+    @Test func theFeedLogoIs36() {
+        #expect(StockMarkSize.feed.rawValue == 36)
     }
 }
 

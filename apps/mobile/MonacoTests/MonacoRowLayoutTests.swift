@@ -15,14 +15,14 @@ struct MonacoRowLayoutTests {
         }
     }
 
-    @Test func aRowIsSeventyTwoPointsTallWithAFortyFourPointMark() {
-        #expect(MonacoRowLayout.minHeight == 72)
+    @Test func aRowIsSixtyPointsTallWithAFortyFourPointMark() {
+        #expect(MonacoRowLayout.minHeight == 60)
         #expect(MonacoRowLayout.baseMarkSize == 44)
     }
 
     @Test func aRowThatKeepsItsRuleUnderTheLabelsDerivesTheInsetFromTheMark() {
         let layout = MonacoRowLayout(dynamicTypeSize: .large)
-        #expect(layout.separatorLeadingInset(markSize: 44) == 76)
+        #expect(layout.separatorLeadingInset(markSize: 44) == 72)
         let stacked = MonacoRowLayout(dynamicTypeSize: .accessibility3)
         #expect(stacked.separatorLeadingInset(markSize: 44) == MonacoTheme.Space.gutter)
     }
@@ -71,11 +71,11 @@ struct MonacoRowHeightTests {
         return host.sizeThatFits(in: CGSize(width: 402, height: CGFloat.greatestFiniteMagnitude)).height
     }
 
-    @Test func aTwoLineRowIsSeventyTwoPointsAtTheDefaultSize() {
+    @Test func aTwoLineRowIsSixtyPointsAtTheDefaultSize() {
         #expect(height(subtitle: "60% of your cabals", at: .large) == MonacoRowLayout.minHeight)
     }
 
-    @Test func aOneLineRowIsSeventyTwoPointsAtTheDefaultSize() {
+    @Test func aOneLineRowIsSixtyPointsAtTheDefaultSize() {
         #expect(height(subtitle: nil, at: .large) == MonacoRowLayout.minHeight)
     }
 

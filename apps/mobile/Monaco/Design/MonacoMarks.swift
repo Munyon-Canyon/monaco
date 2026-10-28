@@ -159,7 +159,7 @@ private struct CabalMarkAccessibility: ViewModifier {
 }
 
 enum StockMarkSize: CGFloat {
-    case feed = 28
+    case feed = 36
     case mover = 31
     case card = 35
     case row = 42

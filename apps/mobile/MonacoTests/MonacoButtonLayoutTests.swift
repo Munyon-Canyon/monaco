@@ -57,7 +57,7 @@ struct MonacoCompactButtonLayoutTests {
     }
 
     @Test func theRegularButtonsAreFortyEightPointsTall() {
-        #expect(MonacoButtonMetrics.minimumHeight == 48)
+        #expect(MonacoButtonMetrics.minimumHeight == 50)
         #expect(fitted(.monacoPrimary, at: .large).height >= MonacoButtonMetrics.minimumHeight)
         #expect(fitted(.monacoOutline, at: .large).height >= MonacoButtonMetrics.minimumHeight)
     }

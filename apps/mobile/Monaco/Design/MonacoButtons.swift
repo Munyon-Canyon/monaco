@@ -32,8 +32,8 @@ extension View {
 }
 
 enum MonacoButtonMetrics {
-    static let minimumHeight: CGFloat = 48
-    static let horizontalPadding: CGFloat = 18
+    static let minimumHeight: CGFloat = 50
+    static let horizontalPadding: CGFloat = 16
     static let verticalPadding: CGFloat = 10
     static let iconSize: CGFloat = 16
     static let iconGap: CGFloat = 8
