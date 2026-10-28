@@ -1,11 +1,13 @@
 package adapters
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"log/slog"
 	"math/big"
 	"slices"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -186,6 +188,29 @@ func (p *potBuilder) total() error {
 		p.Holdings[i].WeightBps = weights[i+1]
 	}
 	return nil
+}
+
+func (q *Queries) MemberUnits(
+	ctx context.Context, cabalID ids.CabalID, viewer ids.UserID,
+) ([]money.SharesUnits, int, error) {
+	const op = "treasury.Queries.MemberUnits"
+	rows, err := q.pot.CabalMemberShares(ctx, cabalID.UUID())
+	if err != nil {
+		return nil, 0, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	id := viewer.UUID()
+	me := slices.IndexFunc(rows, func(row sqlc.CabalMemberSharesRow) bool { return row.UserID == id })
+	if me < 0 {
+		me = sort.Search(len(rows), func(i int) bool { return bytes.Compare(rows[i].UserID[:], id[:]) > 0 })
+		rows = slices.Insert(rows, me, sqlc.CabalMemberSharesRow{UserID: id, ShareUnits: "0"})
+	}
+	units := make([]money.SharesUnits, len(rows))
+	for i, row := range rows {
+		if units[i], err = shares(row.ShareUnits); err != nil {
+			return nil, 0, err
+		}
+	}
+	return units, me, nil
 }
 
 func (q *Queries) slice(

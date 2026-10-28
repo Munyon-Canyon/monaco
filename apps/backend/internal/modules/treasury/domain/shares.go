@@ -2,6 +2,7 @@ package domain
 
 import (
 	"log/slog"
+	"slices"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -36,4 +37,26 @@ func CashOutUnitsFor(payout money.Micros, total money.SharesUnits, pot money.Mic
 		return money.SharesUnits{}, errs.Wrap(err, errs.CodeOf(err), "treasury.CashOutUnitsFor")
 	}
 	return money.SharesUnitsFromUint64(units), nil
+}
+
+func SliceAfterFund(
+	units []money.SharesUnits, me int, total money.SharesUnits, potValue, amount money.Micros,
+) (int32, error) {
+	const op = "treasury.SliceAfterFund"
+	if me < 0 || me >= len(units) {
+		return 0, errs.New(errs.CodeInvalidInput, op, slog.Int("member", me), slog.Int("members", len(units)))
+	}
+	minted, err := MintShares(amount, total, potValue)
+	if err != nil {
+		return 0, err
+	}
+	after := slices.Clone(units)
+	if after[me], err = after[me].Add(minted); err != nil {
+		return 0, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	bps, err := SlicesBps(after)
+	if err != nil {
+		return 0, err
+	}
+	return bps[me], nil
 }

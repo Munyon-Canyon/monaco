@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -288,5 +289,65 @@ func TestWirePot_refusesMicrosPastInt64(t *testing.T) {
 	t.Parallel()
 	if _, err := wirePot(port.CabalPot{PotValueMicros: money.MicrosFromUint64(1 << 63)}); err == nil {
 		t.Fatal("wirePot error = nil")
+	}
+}
+
+func memberUnitsCases(viewer ids.UserID) map[string]struct {
+	store potFake
+	units []uint64
+	me    int
+} {
+	low := sqlc.CabalMemberSharesRow{UserID: uuid.UUID{0}, ShareUnits: "1"}
+	high := sqlc.CabalMemberSharesRow{UserID: uuid.UUID{255}, ShareUnits: "2"}
+	listed := sqlc.CabalMemberSharesRow{UserID: viewer.UUID(), ShareUnits: "5"}
+	return map[string]struct {
+		store potFake
+		units []uint64
+		me    int
+	}{
+		"listed member": {
+			store: potFake{members: []sqlc.CabalMemberSharesRow{low, listed, high}}, units: []uint64{1, 5, 2}, me: 1,
+		},
+		"new member sorts in": {
+			store: potFake{members: []sqlc.CabalMemberSharesRow{low, high}}, units: []uint64{1, 0, 2}, me: 1,
+		},
+		"new member first": {store: potFake{members: []sqlc.CabalMemberSharesRow{high}}, units: []uint64{0, 2}, me: 0},
+		"no members":       {units: []uint64{0}, me: 0},
+	}
+}
+
+func TestMemberUnits(t *testing.T) {
+	t.Parallel()
+	viewer := potViewer()
+	cabal := ids.CabalIDFrom(testkit.NewIDs(5).NewV7())
+	for name, tt := range memberUnitsCases(viewer) {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			units, me, err := potQueries(tt.store, nil).MemberUnits(t.Context(), cabal, viewer)
+			got := make([]uint64, len(units))
+			for i, u := range units {
+				got[i] = u.Uint64()
+			}
+			if err != nil || me != tt.me || !slices.Equal(got, tt.units) {
+				t.Fatalf("MemberUnits = %v, %d, %v, want %v, %d", got, me, err, tt.units, tt.me)
+			}
+		})
+	}
+}
+
+func TestMemberUnitsFailures(t *testing.T) {
+	t.Parallel()
+	viewer := potViewer()
+	cabal := ids.CabalIDFrom(testkit.NewIDs(5).NewV7())
+	for name, store := range map[string]potFake{
+		"read fails": {membersErr: errs.New(errs.CodeInternal, "test")},
+		"bad units":  {members: []sqlc.CabalMemberSharesRow{{UserID: viewer.UUID(), ShareUnits: "bad"}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if _, _, err := potQueries(store, nil).MemberUnits(t.Context(), cabal, viewer); err == nil {
+				t.Fatal("MemberUnits error = nil")
+			}
+		})
 	}
 }

@@ -44,6 +44,11 @@ func TestFlow07_FundCabal_CabalPaused(t *testing.T) {
 	flows.F07FundCabalCabalPaused(flow07Scenario(t))
 }
 
+func TestFlow07_FundCabal_CabalBanned(t *testing.T) {
+	t.Parallel()
+	flows.F07FundCabalCabalBanned(flow07Scenario(t))
+}
+
 func TestFlow07_FundCabal_PotValueZero(t *testing.T) {
 	t.Parallel()
 	flows.F07FundCabalPotValueZero(flow07Scenario(t))

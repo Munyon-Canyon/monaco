@@ -20,14 +20,15 @@ import (
 var _ api.StrictServerInterface = HTTP{}
 
 type HTTP struct {
-	Reads     *app.ActivityReads
-	UserTxns  *app.UserTxnReads
-	CashOut   *app.CashOutHandler
-	Fund      *app.FundCabalHandler
-	FundReads sqlc.DBTX
-	Pot       *Queries
-	Cabals    app.CabalViews
-	Members   app.Members
+	Reads       *app.ActivityReads
+	UserTxns    *app.UserTxnReads
+	CashOut     *app.CashOutHandler
+	Fund        *app.FundCabalHandler
+	FundPreview *app.PreviewFundHandler
+	FundReads   sqlc.DBTX
+	Pot         *Queries
+	Cabals      app.CabalViews
+	Members     app.Members
 }
 
 func (h HTTP) GetCashOutPreview(

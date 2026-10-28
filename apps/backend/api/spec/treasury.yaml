@@ -134,8 +134,8 @@ paths:
         Moves an exact amount of USDC from the caller's wallet to the cabal treasury. The transfer is
         signed and its signature stored before broadcast, so the answer is 202 with the transfer id; share
         units are minted at the live price once the transfer is final. Poll GET /v1/fund-transfers/{id}
-        for the outcome. Only members can fund. A paused or banned cabal answers `cabal_paused`, an amount
-        over the available balance answers `insufficient_funds`, and a pot with shares but no value answers
+        for the outcome. Only members can fund. A paused cabal answers `cabal_paused`, a banned one answers
+        `cabal_banned`, an amount over the available balance answers `insufficient_funds`, and a pot with shares but no value answers
         `pot_value_zero`.
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
@@ -158,14 +158,47 @@ paths:
               schema: {$ref: "#/components/schemas/FundAccepted"}
               example: {transfer_id: 01890a5d-ac96-774b-bcce-b302099a8057, status: submitted}
         default: {$ref: "#/components/responses/Problem"}
+  /v1/cabals/{id}/fund/preview:
+    get:
+      operationId: getFundPreview
+      tags: [treasury]
+      summary: Preview a fund before it is submitted.
+      description: >-
+        Returns what the Fund this cabal keypad needs before a submit: the caller's available cash, the
+        minimum, the caller's current share of the pot and the share a fund of `amount_micros` would leave
+        them with. `slice_bps_after` is null without an amount or below the minimum, and is computed for at
+        most the available cash, so an amount over it returns `over_micros` and the share for exactly the
+        cash. The share uses the pot's own rounding, so it matches `me.slice_bps` on GET
+        /v1/cabals/{id}/pot after the real fund settles as long as nothing else moves the pot in between.
+        A paused cabal answers 200 with `paused: true`. Only members can preview; a banned cabal answers
+        `cabal_banned`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema: {type: string, format: uuid}
+        - name: amount_micros
+          in: query
+          required: false
+          description: The amount to preview, in USDC micros. Absent or 0 previews the current share only.
+          schema: {type: string, pattern: "^[0-9]+$", examples: ["250000000"]}
+      responses:
+        "200":
+          description: The preview.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FundPreview"}
+              example: {available_micros: "500000000", min_micros: "1000000", slice_bps_now: 3500, slice_bps_after: 3600, over_micros: "0", paused: false, first_funded_at: "2026-10-03T15:00:00Z"}
+        default: {$ref: "#/components/responses/Problem"}
   /v1/fund-transfers/{id}:
     get:
       operationId: getFundTransfer
       tags: [treasury]
       summary: Read one of the caller's fund transfers.
       description: >-
-        Returns the transfer's status, amount, the share units minted once it settles, and the failure code
-        once it fails. A transfer that belongs to another user answers `not_found`.
+        Returns the transfer's status, amount, the share units minted once it settles, the caller's share of
+        the pot in basis points once it settles, and the failure code once it fails. A transfer that belongs to another user answers `not_found`.
       parameters:
         - name: id
           in: path
@@ -178,7 +211,7 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/FundTransfer"}
-              example: {status: settled, amount_micros: "5000000", share_units: "5000000", fail_code: null}
+              example: {status: settled, amount_micros: "5000000", share_units: "5000000", slice_bps: 3600, fail_code: null}
         default: {$ref: "#/components/responses/Problem"}
   /v1/cabals/{id}/pot:
     get:
@@ -266,12 +299,26 @@ components:
     FundTransfer:
       type: object
       description: One fund transfer as its owner sees it.
-      required: [status, amount_micros, share_units, fail_code]
+      required: [status, amount_micros, share_units, slice_bps, fail_code]
       properties:
         status: {$ref: "#/components/schemas/FundTransferStatus"}
         amount_micros: {type: string, pattern: "^[0-9]+$", examples: ["5000000"]}
         share_units: {type: [string, "null"], pattern: "^[0-9]+$", examples: ["5000000"]}
+        slice_bps: {type: [integer, "null"], format: int32, description: "The caller's share of the pot in basis points at read time. Set only when the status is settled.", examples: [3600]}
         fail_code: {type: [string, "null"], examples: [fund_not_sent]}
+    FundPreview:
+      type: object
+      description: What the Fund this cabal keypad shows before a submit.
+      additionalProperties: false
+      required: [available_micros, min_micros, slice_bps_now, slice_bps_after, over_micros, paused, first_funded_at]
+      properties:
+        available_micros: {type: string, pattern: "^(0|[1-9][0-9]*)$", description: "The caller's cash available to fund, in USDC micros.", examples: ["500000000"]}
+        min_micros: {type: string, pattern: "^(0|[1-9][0-9]*)$", description: "The smallest fund, in USDC micros.", examples: ["1000000"]}
+        slice_bps_now: {type: integer, format: int32, description: "The caller's share of the pot now, in basis points.", examples: [3500]}
+        slice_bps_after: {type: [integer, "null"], format: int32, description: "The caller's share after the fund, in basis points, computed for at most the available cash. Null without an amount or below the minimum.", examples: [3600]}
+        over_micros: {type: string, pattern: "^(0|[1-9][0-9]*)$", description: "How far the amount is over the available cash, in USDC micros. 0 when it is not.", examples: ["0"]}
+        paused: {type: boolean, description: "True when the cabal is paused and a fund would be refused.", examples: [false]}
+        first_funded_at: {type: [string, "null"], format: date-time, description: "When the caller first funded this cabal. Null when they never have.", examples: ["2026-10-03T15:00:00Z"]}
     CabalPot:
       type: object
       description: A cabal's pot valued from one price read, with the caller's slice.

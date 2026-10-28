@@ -64,3 +64,11 @@ LIMIT sqlc.arg(row_limit);
 -- name: MarkFundTransfersAttempted :exec
 UPDATE fund_transfers SET last_attempt_at = sqlc.arg(attempted_at)::timestamptz
 WHERE id = ANY(sqlc.arg(ids)::uuid[]) AND status IN ('submitted', 'landed');
+
+-- name: FirstFundedAt :one
+SELECT occurred_at::timestamptz AS first_funded_at
+FROM cabal_activity
+WHERE cabal_id = sqlc.arg(cabal_id)::uuid AND actor_user_id = sqlc.arg(user_id)::uuid
+  AND kind = 'fund' AND status = 'confirmed'
+ORDER BY occurred_at, id
+LIMIT 1;
