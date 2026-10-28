@@ -39,7 +39,7 @@ func TestFetchBase_deletedQueueBranchWithSHAStillPrintsIt(t *testing.T) {
 	}
 }
 
-func TestFetchBase_unknownSHADeletedBranchFallsBackToTrunk(t *testing.T) {
+func TestFetchBase_unfetchablePRBaseFailsInsteadOfPrintingTrunk(t *testing.T) {
 	r := newFetchRepo(t)
 	trunk := r.git("rev-parse", "HEAD")
 	r.commit("local.txt", "local\n")
@@ -47,32 +47,79 @@ func TestFetchBase_unknownSHADeletedBranchFallsBackToTrunk(t *testing.T) {
 	const gone = "gone-branch"
 
 	out, errOut, err := r.run("BASE_SHA="+unknown, "BASE_REF="+gone, "FEATURE_BRANCH=main")
-	if err != nil {
-		t.Fatalf("fetch-base: %v\n%s", err, errOut)
-	}
-	if out != trunk {
-		t.Fatalf("printed %s, want merge base %s\n%s", out, trunk, errOut)
-	}
-	want := "base " + gone + " not fetchable; falling back to main"
-	if !strings.Contains(errOut, want) {
-		t.Fatalf("stderr missing %q:\n%s", want, errOut)
-	}
-}
-
-func TestFetchBase_nothingFetchableNamesAllThree(t *testing.T) {
-	r := newFetchRepo(t)
-	const sha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-	const ref = "missing-ref"
-	const trunk = "missing-trunk"
-
-	_, errOut, err := r.run("BASE_SHA="+sha, "BASE_REF="+ref, "FEATURE_BRANCH="+trunk)
 	if err == nil {
-		t.Fatal("expected exit 1")
+		t.Fatalf("expected exit 1, printed %s (trunk %s)\n%s", out, trunk, errOut)
 	}
-	for _, name := range []string{sha, ref, trunk} {
+	if out != "" {
+		t.Fatalf("printed %q on failure:\n%s", out, errOut)
+	}
+	for _, name := range []string{unknown, gone} {
 		if !strings.Contains(errOut, name) {
 			t.Errorf("stderr missing %s:\n%s", name, errOut)
 		}
+	}
+}
+
+func TestFetchBase_nothingFetchableNamesTheRecordedBase(t *testing.T) {
+	r := newFetchRepo(t)
+	const sha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	const ref = "missing-ref"
+
+	_, errOut, err := r.run("BASE_SHA="+sha, "BASE_REF="+ref, "FEATURE_BRANCH=main")
+	if err == nil {
+		t.Fatal("expected exit 1")
+	}
+	for _, name := range []string{sha, ref} {
+		if !strings.Contains(errOut, name) {
+			t.Errorf("stderr missing %s:\n%s", name, errOut)
+		}
+	}
+}
+
+func TestFetchBase_pushPrintsTheLandingsParentNotTheMovedTrunk(t *testing.T) {
+	r := newFetchRepo(t)
+	parent := r.git("rev-parse", "HEAD")
+	landing := r.commit("landing.txt", "landing\n")
+	r.git("push", "-q", "origin", "main")
+	newer := r.commit("newer.txt", "newer\n")
+	r.git("push", "-q", "origin", "main")
+	clone := r.shallowClone(landing)
+
+	out, errOut, err := clone.run("PUSH_SHA="+landing, "FEATURE_BRANCH=main", "DEPTH=1")
+	if err != nil {
+		t.Fatalf("fetch-base: %v\n%s", err, errOut)
+	}
+	if out != parent {
+		t.Fatalf("printed %s, want parent %s (trunk tip %s)\n%s", out, parent, newer, errOut)
+	}
+	if !strings.Contains(errOut, landing) {
+		t.Fatalf("stderr does not name %s:\n%s", landing, errOut)
+	}
+}
+
+func TestFetchBase_pushWithUnfetchableCommitFails(t *testing.T) {
+	r := newFetchRepo(t)
+	const unknown = "cccccccccccccccccccccccccccccccccccccccc"
+
+	out, errOut, err := r.run("PUSH_SHA="+unknown, "FEATURE_BRANCH=main", "DEPTH=1")
+	if err == nil {
+		t.Fatalf("expected exit 1, printed %s\n%s", out, errOut)
+	}
+	if !strings.Contains(errOut, unknown) {
+		t.Fatalf("stderr does not name %s:\n%s", unknown, errOut)
+	}
+}
+
+func TestFetchBase_pushWithRootCommitFails(t *testing.T) {
+	r := newFetchRepo(t)
+	root := r.git("rev-parse", "HEAD")
+
+	out, errOut, err := r.run("PUSH_SHA="+root, "FEATURE_BRANCH=main", "DEPTH=1")
+	if err == nil {
+		t.Fatalf("expected exit 1, printed %s\n%s", out, errOut)
+	}
+	if !strings.Contains(errOut, root) {
+		t.Fatalf("stderr does not name %s:\n%s", root, errOut)
 	}
 }
 
@@ -91,7 +138,7 @@ func TestFetchBase_queueRefWithoutSHAUsesTrunk(t *testing.T) {
 	if out != trunk {
 		t.Fatalf("printed %s, want trunk %s (queue tip %s)\n%s", out, trunk, tip, errOut)
 	}
-	want := "base gtmq_upper not fetchable; falling back to main"
+	want := "no base recorded, falling back to main"
 	if !strings.Contains(errOut, want) {
 		t.Fatalf("stderr missing %q:\n%s", want, errOut)
 	}
@@ -120,6 +167,17 @@ func newFetchRepo(t *testing.T) *fetchRepo {
 	r.git("remote", "add", "origin", origin)
 	r.git("push", "-q", "origin", "main")
 	return r
+}
+
+func (r *fetchRepo) shallowClone(sha string) *fetchRepo {
+	r.t.Helper()
+	dir := filepath.Join(filepath.Dir(r.dir), "clone")
+	gitAt(r.t, filepath.Dir(r.dir), "init", "-q", "-b", "main", dir)
+	c := &fetchRepo{t: r.t, dir: dir, origin: r.origin}
+	c.git("remote", "add", "origin", r.origin)
+	c.git("fetch", "-q", "--no-tags", "--depth=1", "origin", sha)
+	c.git("checkout", "-q", "--detach", "FETCH_HEAD")
+	return c
 }
 
 func (r *fetchRepo) git(args ...string) string {

@@ -103,6 +103,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BASE_REF: ${{ github.event.pull_request.base.ref || github.base_ref }}
+          PUSH_SHA: ${{ github.event_name == 'push' && github.sha || '' }}
           FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH || 'main' }}
         run: |
           base="$(DEPTH=1 ../../scripts/ci/fetch-base.sh)"
