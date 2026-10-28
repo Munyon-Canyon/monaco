@@ -102,6 +102,18 @@ func TestGetCabalValueHistory_mapsPointsAndFailsOnUnrepresentableOnes(t *testing
 
 type stubStakes struct{ points []app.StakePoint }
 
+type stubOwnership map[ids.CabalID]int32
+
+func (s stubOwnership) OwnershipBps(context.Context, ids.UserID) (map[ids.CabalID]int32, error) {
+	return s, nil
+}
+
+type stubRoles map[ids.CabalID][]app.MemberView
+
+func (s stubRoles) MembersOf(context.Context, []ids.CabalID) (map[ids.CabalID][]app.MemberView, error) {
+	return s, nil
+}
+
 func (s stubStakes) UserStakeHistory(context.Context, ids.UserID) ([]app.StakePoint, error) {
 	return s.points, nil
 }
@@ -208,7 +220,8 @@ func portfolioReq(
 	t *testing.T, value uint64, net int64, picture string,
 ) (api.GetMyPortfolioResponseObject, error) {
 	t.Helper()
-	ctx := asActor(t.Context(), auth.ActorUser, ids.Real{}.NewV7().String())
+	user := ids.UserIDFrom(ids.Real{}.NewV7())
+	ctx := asActor(t.Context(), auth.ActorUser, user.String())
 	at := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
 	cabalID := ids.CabalIDFrom(ids.Real{}.NewV7())
 	stake := app.StakePoint{
@@ -220,6 +233,8 @@ func portfolioReq(
 	h.Stakes = stubStakes{points: []app.StakePoint{stake}}
 	h.Snapshots = fixedLatest{values: map[ids.CabalID]domain.Snapshot{cabalID: snap}}
 	h.Cards = stubCards{cabalID: {ID: cabalID, Name: "Alpha", PictureURL: picture}}
+	h.Ownership = stubOwnership{cabalID: 3501}
+	h.Roles = stubRoles{cabalID: {{UserID: user, Role: "creator", CanVote: true}}}
 	return h.GetMyPortfolio(ctx, api.GetMyPortfolioRequestObject{})
 }
 
@@ -234,6 +249,16 @@ func TestGetMyPortfolio_mapsRows(t *testing.T) {
 	if row := out.Cabals[0]; row.Cabal.Name != "Alpha" || row.Cabal.PictureUrl == nil || row.SliceBps != 10_000 ||
 		row.ShareUnits != 1 || row.NetContributedMicros != 100 {
 		t.Fatalf("row = %+v", row)
+	}
+}
+
+func TestGetMyPortfolio_mapsOwnershipAndRole(t *testing.T) {
+	t.Parallel()
+	got, err := portfolioReq(t, 300, 100, "")
+	out, _ := got.(api.GetMyPortfolio200JSONResponse)
+	if err != nil || len(out.Cabals) != 1 || out.Cabals[0].OwnershipBps != 3501 || out.Cabals[0].Role != api.Admin ||
+		!out.Cabals[0].CanVote {
+		t.Fatalf("response = %+v, %v, want ownership 3501, admin, can_vote", got, err)
 	}
 }
 

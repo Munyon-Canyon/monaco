@@ -29,16 +29,18 @@ const (
 )
 
 type Module struct {
-	deps   module.Deps
-	ports  app.Ports
-	cabals app.CabalStatus
-	pages  adapters.PageCache
-	curves adapters.HistoryCache
-	ledger app.Contributions
-	stakes app.StakeHistory
-	cards  app.CabalCards
-	users  app.Users
-	member app.MemberCabals
+	deps      module.Deps
+	ports     app.Ports
+	cabals    app.CabalStatus
+	pages     adapters.PageCache
+	curves    adapters.HistoryCache
+	ledger    app.Contributions
+	stakes    app.StakeHistory
+	cards     app.CabalCards
+	users     app.Users
+	member    app.MemberCabals
+	ownership app.Ownership
+	roles     app.MemberRoles
 }
 
 type Option func(*Module)
@@ -65,6 +67,7 @@ func (m *Module) Wire(set module.Set) {
 			m.ports.Treasury = provider.Queries()
 			m.ledger = provider.Queries()
 			m.stakes = provider.Queries()
+			m.ownership = provider.Queries()
 		case interface{ Pauses() fundingport.Pauses }:
 			m.ports.Funding = provider.Pauses()
 		case interface{ Queries() cabalport.Queries }:
@@ -72,6 +75,7 @@ func (m *Module) Wire(set module.Set) {
 			m.cabals = provider.Queries()
 			m.cards = provider.Queries()
 			m.member = provider.Queries()
+			m.roles = provider.Queries()
 		case interface{ Queries() identityport.Queries }:
 			m.ports.Users = provider.Queries()
 			m.users = provider.Queries()
@@ -104,7 +108,7 @@ func (m *Module) Mount(r api.Mount) {
 	rankingapi.Mount(adapters.HTTP{
 		Boards: boards, Cabals: app.CheckCabal(m.cabals), Pages: m.pages, Follows: follows,
 		Snapshots: boards, Ledger: m.ledger, Histories: m.curves, Stakes: m.stakes, Cards: m.cards,
-		Users: m.users, Members: m.member,
+		Users: m.users, Members: m.member, Ownership: m.ownership, Roles: m.roles,
 	}, r)
 }
 

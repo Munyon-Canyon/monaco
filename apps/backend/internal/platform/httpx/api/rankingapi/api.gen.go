@@ -136,6 +136,24 @@ func (e MyPnlHistoryRange) Valid() bool {
 	}
 }
 
+// Defines values for PortfolioCabalRole.
+const (
+	Admin  PortfolioCabalRole = "admin"
+	Member PortfolioCabalRole = "member"
+)
+
+// Valid indicates whether the value is a known member of the PortfolioCabalRole enum.
+func (e PortfolioCabalRole) Valid() bool {
+	switch e {
+	case Admin:
+		return true
+	case Member:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for LeaderboardFilter.
 const (
 	LeaderboardFilterAll     LeaderboardFilter = "all"
@@ -730,10 +748,20 @@ type PortfolioCabal struct {
 	// Cabal A cabal's name and picture.
 	Cabal CabalRef `json:"cabal"`
 
+	// CanVote Whether the caller votes on this cabal's proposals.
+	//
+	// Examples: true
+	CanVote bool `json:"can_vote"`
+
 	// NetContributedMicros Contributed minus withdrawn in USDC micros.
 	//
 	// Examples: 900000
 	NetContributedMicros int64 `json:"net_contributed_micros"`
+
+	// OwnershipBps The caller's share of this cabal's pot in basis points, the same figure as `CabalPot.me.slice_bps` read at the same moment. It is the current split, while the value and the return are as the latest run valued them. 0 when the stake was cashed out after that run.
+	//
+	// Examples: 3500
+	OwnershipBps int32 `json:"ownership_bps"`
 
 	// PnlMicros Value minus the net contributed, negative for a loss.
 	//
@@ -745,12 +773,17 @@ type PortfolioCabal struct {
 	// Examples: 250
 	ReturnBps *int64 `json:"return_bps"`
 
+	// Role The caller's role in this cabal. `admin` is the cabal's creator.
+	//
+	// Examples: admin
+	Role PortfolioCabalRole `json:"role"`
+
 	// ShareUnits The caller's share units.
 	//
 	// Examples: 100
 	ShareUnits int64 `json:"share_units"`
 
-	// SliceBps The cabal's share of the total value in basis points.
+	// SliceBps This cabal's weight in the caller's portfolio, in basis points of the portfolio's total value. It is not the caller's share of the cabal's pot, which is `ownership_bps`.
 	//
 	// Examples: 5000
 	SliceBps int64 `json:"slice_bps"`
@@ -760,6 +793,11 @@ type PortfolioCabal struct {
 	// Examples: 1000000
 	ValueMicros int64 `json:"value_micros"`
 }
+
+// PortfolioCabalRole The caller's role in this cabal. `admin` is the cabal's creator.
+//
+// Examples: admin
+type PortfolioCabalRole string
 
 // SharedCabal One shared cabal and its pot figures.
 type SharedCabal struct {

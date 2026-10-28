@@ -14,13 +14,14 @@ import (
 )
 
 type PortfolioRow struct {
-	CabalID  ids.CabalID
-	Value    money.Micros
-	Shares   money.SharesUnits
-	Net      money.SignedMicros
-	PnL      money.SignedMicros
-	Return   *Bps
-	SliceBps uint64
+	CabalID      ids.CabalID
+	Value        money.Micros
+	Shares       money.SharesUnits
+	Net          money.SignedMicros
+	PnL          money.SignedMicros
+	Return       *Bps
+	SliceBps     uint64
+	OwnershipBps int32
 }
 
 type Portfolio struct {
