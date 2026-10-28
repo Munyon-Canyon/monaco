@@ -1,3 +1,4 @@
+import MonacoCore
 import SwiftUI
 
 struct AmountKeypad: View {
@@ -10,13 +11,15 @@ struct AmountKeypad: View {
 }
 
 enum AmountKeypadMetrics {
-    static let keyHeight: CGFloat = 48
+    static let keyHeight: CGFloat = 60
+    static let keyFont = MonacoTheme.Typo.title.weight(.regular)
 }
 
 private struct AmountKeypadGrid: View {
     @Binding var amountText: String
     @ScaledMetric(relativeTo: .title) private var rowHeight: CGFloat = AmountKeypadMetrics.keyHeight
     @State private var pressedKey: AmountKey?
+    @Environment(\.isEnabled) private var isEnabled
 
     private static let rows: [[AmountKey]] = [
         [.digit(1), .digit(2), .digit(3)],
@@ -26,7 +29,7 @@ private struct AmountKeypadGrid: View {
     ]
 
     var body: some View {
-        Grid(horizontalSpacing: MonacoTheme.Space.s, verticalSpacing: MonacoTheme.Space.s) {
+        Grid(horizontalSpacing: MonacoTheme.Space.s, verticalSpacing: 0) {
             ForEach(Array(Self.rows.enumerated()), id: \.offset) { _, row in
                 GridRow {
                     ForEach(row, id: \.self) { key in
@@ -43,20 +46,20 @@ private struct AmountKeypadGrid: View {
         face(key)
             .frame(maxWidth: .infinity, minHeight: max(rowHeight, MonacoButtonMetrics.hitTarget))
             .background(
-                RoundedRectangle(cornerRadius: MonacoTheme.Radius.field, style: .continuous)
-                    .fill(pressedKey == key ? MonacoTheme.surfaceSunken : MonacoTheme.surface)
+                RoundedRectangle(cornerRadius: MonacoTheme.Radius.keypadKey, style: .continuous)
+                    .fill(pressedKey == key && isEnabled ? MonacoTheme.surfaceSunken : Color.clear)
             )
             .contentShape(Rectangle())
             .onTapGesture { press(key) }
             .onLongPressGesture(
                 minimumDuration: 0.5,
                 perform: {
-                    guard key == .delete, !amountText.isEmpty else { return }
+                    guard isEnabled, key == .delete, !amountText.isEmpty else { return }
                     Haptics.selection()
                     amountText = ""
                 },
                 onPressingChanged: { pressed in
-                    if pressed {
+                    if pressed, isEnabled {
                         pressedKey = key
                     } else if pressedKey == key {
                         pressedKey = nil
@@ -69,7 +72,7 @@ private struct AmountKeypadGrid: View {
             .accessibilityAddTraits(.isButton)
             .accessibilityAction(.default) { press(key) }
             .accessibilityActions {
-                if key == .delete { Button("Clear") { amountText = "" } }
+                if key == .delete, isEnabled { Button("Clear") { amountText = "" } }
             }
     }
 
@@ -77,17 +80,21 @@ private struct AmountKeypadGrid: View {
     private func face(_ key: AmountKey) -> some View {
         switch key {
         case .digit(let digit):
-            Text(String(digit)).font(MonacoTheme.Typo.title).foregroundStyle(MonacoTheme.ink)
+            Text(String(digit)).font(AmountKeypadMetrics.keyFont).foregroundStyle(
+                isEnabled ? MonacoTheme.primaryText : MonacoTheme.disabledLabel)
         case .dot:
-            Text(".").font(MonacoTheme.Typo.title).foregroundStyle(MonacoTheme.ink)
+            Text(".").font(AmountKeypadMetrics.keyFont).foregroundStyle(
+                isEnabled ? MonacoTheme.primaryText : MonacoTheme.disabledLabel)
         case .delete:
-            Image(systemName: "delete.left").font(MonacoTheme.Typo.title).foregroundStyle(MonacoTheme.ink)
+            Image(systemName: "delete.left").font(AmountKeypadMetrics.keyFont).foregroundStyle(
+                isEnabled ? MonacoTheme.primaryText : MonacoTheme.disabledLabel)
         }
     }
 
     private func press(_ key: AmountKey) {
+        guard isEnabled else { return }
         Haptics.selection()
-        amountText = AmountEntryText.applying(key, to: amountText)
+        amountText = AmountText.applying(key, to: amountText)
     }
 
     private func label(_ key: AmountKey) -> String {
