@@ -104,6 +104,8 @@ CoinGecko is called with the Demo key (`COINGECKO_API_KEY` in encrypted `.env.pr
 
 ### Reads
 
+`GET /v1/assets?filter=movers` ranks the day's biggest moves: its candidates are the tradable equities in the price poller's hot set (held, proposed and popular-ranked mints, so each has fresh samples), never Pre-IPO, minus any with a null `change_bps`, ordered by `abs(change_bps)` descending then symbol, and the sorted list is kept per price tick (the newest sample time) so every page reads one order.
+
 `GET /v1/assets/{symbol}/chart?range=[&interval=][&before=][&limit=]` and every sparkline resolve symbol to mint, read `price_points` for the range's window, and bucket. `range` names the preset: its default interval and its first window. `interval` is the optional bar width, and the table says which widths each range allows; any other pair is `invalid_input`.
 
 | Range | Default interval | Allowed intervals |

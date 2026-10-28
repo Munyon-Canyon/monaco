@@ -28,6 +28,7 @@ const (
 	FilterAll     Filter = "all"
 	FilterPopular Filter = "popular"
 	FilterPreIPO  Filter = "pre_ipo"
+	FilterMovers  Filter = "movers"
 )
 
 type ListRequest struct {
@@ -72,11 +73,14 @@ type ListAssets struct {
 	read    catalogReader
 	volumes volumeReader
 	clock   clock.Clock
+	catalog *Catalog
+	hot     []HotMints
+	ranked  moversBook
 }
 
-func NewListAssets(db sqlc.DBTX, c clock.Clock) *ListAssets {
+func NewListAssets(db sqlc.DBTX, c clock.Clock, hot ...HotMints) *ListAssets {
 	queries := sqlc.New(db)
-	return &ListAssets{read: queries, volumes: queries, clock: c}
+	return &ListAssets{read: queries, volumes: queries, clock: c, catalog: NewCatalog(db), hot: hot}
 }
 
 type listQuery struct {
@@ -88,6 +92,7 @@ type listQuery struct {
 
 type pageCursor struct {
 	ok     bool
+	move   int32
 	symbol string
 	rank   int16
 	id     uuid.UUID
@@ -97,6 +102,13 @@ func (l *ListAssets) Handle(ctx context.Context, req ListRequest) (Page, error) 
 	q, err := normalize(req)
 	if err != nil {
 		return Page{}, err
+	}
+	if q.filter == FilterMovers {
+		items, next, moversErr := l.movers(ctx, q, l.clock.Now())
+		if moversErr != nil {
+			return Page{}, moversErr
+		}
+		return Page{Items: items, NextCursor: next}, nil
 	}
 	rows, err := l.page(ctx, q)
 	if err != nil {
@@ -170,7 +182,7 @@ func parseFilter(raw Filter) (Filter, error) {
 	switch raw {
 	case "", FilterAll:
 		return FilterAll, nil
-	case FilterPopular, FilterPreIPO:
+	case FilterPopular, FilterPreIPO, FilterMovers:
 		return raw, nil
 	default:
 		return "", errs.New(errs.CodeInvalidInput, "market.ListAssets", slog.String("filter", string(raw)))
@@ -217,15 +229,21 @@ func decodeCursor(filter Filter, raw string) (pageCursor, error) {
 	if err != nil {
 		return pageCursor{}, errs.Wrap(err, errs.CodeInvalidInput, "market.cursor")
 	}
-	if filter == FilterPopular && head[0] == 'r' {
-		rank, rankErr := strconv.ParseInt(head[1:], 10, 16)
-		if rankErr != nil {
-			return pageCursor{}, errs.Wrap(rankErr, errs.CodeInvalidInput, "market.cursor")
+	return cursorOf(filter, head, parsed)
+}
+
+func cursorOf(filter Filter, head string, id uuid.UUID) (pageCursor, error) {
+	switch {
+	case filter == FilterMovers && head[0] == 'm':
+		return decodeMoverCursor(head, id)
+	case filter == FilterPopular && head[0] == 'r':
+		rank, err := strconv.ParseInt(head[1:], 10, 16)
+		if err != nil {
+			return pageCursor{}, errs.Wrap(err, errs.CodeInvalidInput, "market.cursor")
 		}
-		return pageCursor{ok: true, rank: int16(rank), id: parsed}, nil
-	}
-	if filter != FilterPopular && head[0] == 's' {
-		return pageCursor{ok: true, symbol: head[1:], id: parsed}, nil
+		return pageCursor{ok: true, rank: int16(rank), id: id}, nil
+	case filter != FilterPopular && filter != FilterMovers && head[0] == 's':
+		return pageCursor{ok: true, symbol: head[1:], id: id}, nil
 	}
 	return pageCursor{}, errs.New(errs.CodeInvalidInput, "market.cursor")
 }

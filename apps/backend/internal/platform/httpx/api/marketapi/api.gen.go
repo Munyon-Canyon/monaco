@@ -223,6 +223,7 @@ func (e MarketState) Valid() bool {
 // Defines values for GetAssetsParamsFilter.
 const (
 	GetAssetsParamsFilterAll     GetAssetsParamsFilter = "all"
+	GetAssetsParamsFilterMovers  GetAssetsParamsFilter = "movers"
 	GetAssetsParamsFilterPopular GetAssetsParamsFilter = "popular"
 	GetAssetsParamsFilterPreIpo  GetAssetsParamsFilter = "pre_ipo"
 )
@@ -231,6 +232,8 @@ const (
 func (e GetAssetsParamsFilter) Valid() bool {
 	switch e {
 	case GetAssetsParamsFilterAll:
+		return true
+	case GetAssetsParamsFilterMovers:
 		return true
 	case GetAssetsParamsFilterPopular:
 		return true
