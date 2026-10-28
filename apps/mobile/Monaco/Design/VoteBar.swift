@@ -1,10 +1,5 @@
 import SwiftUI
 
-enum VoteBarMetrics {
-    static let barHeight: CGFloat = 8
-    static let gap: CGFloat = 3
-}
-
 struct SegmentedBar: View {
     struct Segment: Identifiable, Equatable {
         let id: Int
@@ -42,6 +37,52 @@ struct SegmentedBar: View {
     }
 }
 
+struct VoteTallyBar: View {
+    let yes: Int
+    let no: Int
+    let eligible: Int
+    var winner: VoteSide? = nil
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    static let height: CGFloat = 4
+
+    static func fractions(yes: Int, no: Int, eligible: Int) -> (yes: Double, no: Double) {
+        guard eligible > 0 else { return (0, 0) }
+        let yesShare = Double(max(yes, 0)) / Double(eligible)
+        let noShare = Double(max(no, 0)) / Double(eligible)
+        let total = yesShare + noShare
+        guard total > 1 else { return (yesShare, noShare) }
+        return (yesShare / total, noShare / total)
+    }
+
+    static func fill(_ side: VoteSide, winner: VoteSide?) -> Color {
+        winner == side ? MonacoTheme.primaryText : MonacoTheme.secondaryText
+    }
+
+    private var shares: (yes: Double, no: Double) { Self.fractions(yes: yes, no: no, eligible: eligible) }
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                Rectangle().fill(MonacoTheme.surfaceSunken)
+                Rectangle()
+                    .fill(Self.fill(.yes, winner: winner))
+                    .frame(width: geometry.size.width * shares.yes)
+                Rectangle()
+                    .fill(Self.fill(.no, winner: winner))
+                    .frame(width: geometry.size.width * shares.no)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        }
+        .frame(height: Self.height)
+        .clipShape(Capsule())
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: shares.yes)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: shares.no)
+        .accessibilityHidden(true)
+    }
+}
+
 struct VoteBar: View {
     let yes: Int
     let no: Int
@@ -54,33 +95,15 @@ struct VoteBar: View {
         return needed == 1 ? "1 yes vote to pass" : "\(needed) yes votes to pass"
     }
 
-    private var tally: String { "\(yes) yes · \(no) no · \(notVoted) not voted" }
-
     static func weights(yes: Int, no: Int, notVoted: Int) -> [Double] {
         let counts = [yes, no, notVoted].map { Double(max($0, 0)) }
         return counts.reduce(0, +) > 0 ? counts : [0, 0, 1]
     }
 
-    private var segments: [SegmentedBar.Segment] {
-        let colors = [MonacoTheme.profitVivid, MonacoTheme.lossVivid, MonacoTheme.border]
-        return zip(Self.weights(yes: yes, no: no, notVoted: notVoted), colors).enumerated().map {
-            SegmentedBar.Segment(id: $0.offset, weight: $0.element.0, color: $0.element.1)
-        }
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(headline)
-            SegmentedBar(segments: segments, height: VoteBarMetrics.barHeight, gap: VoteBarMetrics.gap)
-                .clipShape(Capsule())
-                .padding(.top, MonacoTheme.Space.sm)
-            Text(tally)
-                .padding(.top, MonacoTheme.Space.s)
-        }
-        .font(MonacoTheme.Typo.caption)
-        .foregroundStyle(MonacoTheme.secondaryText)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(yes) yes, \(no) no, \(notVoted) not voted. \(headline).")
+        VoteTallyBar(yes: yes, no: no, eligible: yes + no + notVoted)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(yes) yes, \(no) no, \(notVoted) not voted. \(headline).")
     }
 }
