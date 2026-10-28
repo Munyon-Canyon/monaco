@@ -6,6 +6,7 @@ feature-observable	apps/mobile/Monaco/Features/Proposals/ProposalVoteLedger.swif
 float-money	apps/mobile/Monaco/Design/MonacoAmountEntry.swift	1
 float-money	apps/mobile/Monaco/Design/MonacoMoney.swift	5
 float-money	apps/mobile/Monaco/Design/MonacoPreviewGallery.swift	5
+float-money	apps/mobile/Monaco/Design/ShareCard/FShareChart.swift	3
 float-money	apps/mobile/Monaco/Features/Assets/AssetPositionCard.swift	3
 float-money	apps/mobile/Monaco/Features/Assets/PreIpoDetailSection.swift	1
 float-money	apps/mobile/Monaco/Features/Debug/AssetDetailSampleHarness.swift	1
@@ -61,6 +62,8 @@ wall-clock	packages/mobile-core/Sources/MonacoCore/DisplayFormatters.swift	1
 wall-clock	packages/mobile-core/Sources/MonacoCore/Networking/MonacoHTTPTransport.swift	1
 wall-clock	packages/mobile-core/Sources/MonacoCore/ProposalFeedFormatters.swift	3
 spacing-scale	apps/mobile/Monaco/Design/MonacoAmountEntry.swift	2
+spacing-scale	apps/mobile/Monaco/Design/ShareCard/FShareCard.swift	9
+spacing-scale	apps/mobile/Monaco/Design/ShareCard/FShareChart.swift	2
 spacing-scale	apps/mobile/Monaco/Features/Assets/AssetPositionCard.swift	1
 spacing-scale	apps/mobile/Monaco/Features/Groups/PotMixBar.swift	1
 spacing-scale	apps/mobile/Monaco/Features/Proposals/ProposeBuyStockView.swift	1
