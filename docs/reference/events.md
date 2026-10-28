@@ -945,6 +945,19 @@ Subject `events.vote.cast`, version 1.
 | `choice` | `string` |
 | `cast_at` | `time.Time` |
 
+## `vote.retracted`
+
+Subject `events.vote.retracted`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `proposal_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `voter_id` | `uuid.UUID` |
+| `choice` | `string` |
+| `retracted_at` | `time.Time` |
+
 ## `withdrawal.confirmed`
 
 Subject `events.withdrawal.confirmed`, version 1.
