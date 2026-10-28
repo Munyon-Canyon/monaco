@@ -92,24 +92,10 @@ struct ToastCenterTests {
         #expect(center.current == nil)
     }
 
-    @Test func theDefaultPlacementLiftsOnlyWhileABottomCTAIsOnScreen() {
+    @Test func aBottomCTALeavesTheToastAlone() async throws {
         let center = ToastCenter()
-        #expect(center.placement(requested: .screenBottom) == .screenBottom)
-        center.bottomCTAs = 1
-        #expect(center.placement(requested: .screenBottom) == .aboveBottomCTA)
-        center.bottomCTAs = 0
-        #expect(center.placement(requested: .screenBottom) == .screenBottom)
-    }
-
-    @Test func aPlacementTheCallerChoseWinsOverABottomCTA() {
-        let center = ToastCenter()
-        center.bottomCTAs = 1
-        #expect(center.placement(requested: .custom(72)) == .custom(72))
-        #expect(center.placement(requested: .aboveBottomCTA) == .aboveBottomCTA)
-    }
-
-    @Test func aMountedBottomCTACountsUntilItDisappears() async throws {
-        let center = ToastCenter()
+        center.show(success: "Voted Yes. 6th of 8.")
+        let shown = try #require(center.current)
         let scene = try #require(
             UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first,
             "the test host has no window scene"
@@ -122,18 +108,16 @@ struct ToastCenterTests {
         window.makeKeyAndVisible()
         defer { window.isHidden = true }
 
-        try await settle { center.bottomCTAs == 1 }
-        #expect(center.placement(requested: .screenBottom) == .aboveBottomCTA)
+        await settle()
+        #expect(center.current?.id == shown.id)
 
         host.rootView = AnyView(EmptyView().environment(center))
-        try await settle { center.bottomCTAs == 0 }
-        #expect(center.placement(requested: .screenBottom) == .screenBottom)
+        await settle()
+        #expect(center.current?.id == shown.id)
     }
 
-    private func settle(_ done: () -> Bool) async throws {
-        let deadline = ContinuousClock.now + .seconds(5)
-        while !done() {
-            try #require(ContinuousClock.now < deadline, "the bar's appear and disappear never reached the center")
+    private func settle() async {
+        for _ in 0..<5 {
             await withCheckedContinuation { continuation in
                 RunLoop.main.perform { continuation.resume() }
             }

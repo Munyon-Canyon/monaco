@@ -9,28 +9,38 @@ struct GalleryToastPage: View {
 
     var body: some View {
         GalleryPage(title: "Toast") {
-            GalleryGroup(title: "Panels") {
+            GalleryGroup(title: "Capsules") {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-                    GalleryCase(caption: "Success toast on the ink panel") {
-                        MonacoToastBanner(message: "Added $50 to Weekend investors", isSuccess: true).monacoBleed()
-                    }
-                    GalleryCase(caption: "Error toast on the ink panel") {
-                        MonacoToastBanner(message: failure).monacoBleed()
-                    }
-                    GalleryCase(caption: "Toast with an action") {
-                        MonacoToastBanner(
-                            message: "Left Weekend investors", action: MonacoToastAction(title: "Undo") {}
-                        )
-                        .monacoBleed()
+                    ForEach(ColorScheme.allCases, id: \.self) { scheme in
+                        capsules.environment(\.colorScheme, scheme)
+                            .padding(MonacoTheme.Space.m)
+                            .background(MonacoTheme.canvas)
                     }
                 }
             }
             liveToasts
         }
-        .monacoToast($toast, placement: .aboveBottomCTA)
-        .safeAreaInset(edge: .bottom) {
-            BottomCTA {
-                Button("Add money") {}.buttonStyle(.monacoPrimary)
+        .monacoToast($toast)
+    }
+
+    private var capsules: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+            GalleryCase(caption: "An ordinary vote, with Undo") {
+                MonacoToastBanner(
+                    message: "Voted Yes. 6th of 8.", isSuccess: true, action: MonacoToastAction(title: "Undo") {},
+                    insetsGutter: false)
+            }
+            GalleryCase(caption: "The vote that settles it, no Undo") {
+                MonacoToastBanner(message: "Voted Yes. Passed 5–1.", isSuccess: true, insetsGutter: false)
+            }
+            GalleryCase(caption: "Failure") {
+                MonacoToastBanner(message: failure, insetsGutter: false)
+            }
+            GalleryCase(caption: "Reduce Transparency on") {
+                MonacoToastBanner(
+                    message: "Voted Yes. 6th of 8.", isSuccess: true, action: MonacoToastAction(title: "Undo") {},
+                    insetsGutter: false, opaque: true
+                )
             }
         }
     }
@@ -38,11 +48,17 @@ struct GalleryToastPage: View {
     private var liveToasts: some View {
         GalleryGroup(title: "Live toasts") {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
-                Text("A toast stays up for as long as its message takes to read. Swipe down or tap to dismiss.")
+                Text("A toast stays up for as long as its message takes to read. Swipe up to dismiss, or tap Undo.")
                     .font(MonacoTheme.Typo.callout)
                     .foregroundStyle(MonacoTheme.muted)
                 Button("Show success") {
                     toast = MonacoToast(message: "Added $50 to Weekend investors", isSuccess: true)
+                }
+                .buttonStyle(.monacoSecondary)
+                Button("Show a vote with Undo") {
+                    toast = MonacoToast(
+                        message: "Voted Yes. 6th of 8.", isSuccess: true,
+                        action: MonacoToastAction(title: "Undo", expiresAt: Date().addingTimeInterval(15)) {})
                 }
                 .buttonStyle(.monacoSecondary)
                 Button("Show a money failure") {

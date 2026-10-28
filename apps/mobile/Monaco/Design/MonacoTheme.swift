@@ -115,15 +115,15 @@ enum MonacoTheme {
 
     // MARK: Toast
 
-    static let toastFill = Color.adaptive(light: 0x0C3526, dark: 0xF5F8F4)
+    static let toastFill = surface
 
-    static let toastStroke = Color.clear
+    static let toastStroke = hairline
 
-    static let toastLabel = Color.adaptive(light: 0xFAF7F0, dark: 0x03130F)
+    static let toastLabel = primaryText
 
-    static let toastSuccessGlyph = Color.adaptive(light: 0x68EBAB, dark: 0x0F7A4E)
+    static let toastSuccessGlyph = profit
 
-    static let toastErrorGlyph = Color.adaptive(light: 0xFFAAAA, dark: 0xB54647)
+    static let toastErrorGlyph = loss
 
     // MARK: Identity card
 
