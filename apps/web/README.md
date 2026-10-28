@@ -10,6 +10,7 @@ Waitlist landing page, the `/r/<code>` invite page, and serverless functions. Vi
 | `dev-api.js` | Dev only: `npx vite` serves `api/waitlist.js`, `api/health.js` and `api/harbor.js` through it. Production never loads it |
 | `lib/waitlist.js` | Signup, health and cabal counter logic, tested in `test/` |
 | `lib/referral.js` | The `/r/<code>` invite page: lookup and HTML, tested in `test/referral.test.js` |
+| `lib/invite-landing.js` | The cabal invite page: what `/r/<code>?c=<cabal_id>` renders when the preview resolves, tested in `test/invite-landing.test.js` |
 | `functions/api/waitlist.js`, `functions/api/health.js`, `functions/api/harbor.js`, `functions/r/[code].js` | Cloudflare Pages adapters |
 | `api/waitlist.js`, `api/health.js`, `api/harbor.js`, `api/r/[code].js` | Vercel adapters. `vercel.json` rewrites `/r/:code` to `/api/r/:code` |
 | `public/.well-known/apple-app-site-association` | Lists `/r/*` for the iOS app's Universal Links. Served as `application/json` by `public/_headers` and `vercel.json` |
