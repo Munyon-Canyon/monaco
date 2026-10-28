@@ -97,6 +97,27 @@ func TestFetchBase_pushPrintsTheLandingsParentNotTheMovedTrunk(t *testing.T) {
 	}
 }
 
+func TestFetchBase_dispatchedStagingRunPrintsTheTestedCommitsParent(t *testing.T) {
+	r := newFetchRepo(t)
+	parent := r.git("rev-parse", "HEAD")
+	tested := r.commit("tested.txt", "tested\n")
+	r.git("push", "-q", "origin", "main")
+	newer := r.commit("newer.txt", "newer\n")
+	r.git("push", "-q", "origin", "main")
+	clone := r.shallowClone(tested)
+
+	out, errOut, err := clone.run("BASE_SHA=", "BASE_REF=", "PUSH_SHA="+tested, "FEATURE_BRANCH=main", "DEPTH=1")
+	if err != nil {
+		t.Fatalf("fetch-base: %v\n%s", err, errOut)
+	}
+	if out != parent {
+		t.Fatalf("printed %s, want parent %s (trunk tip %s)\n%s", out, parent, newer, errOut)
+	}
+	if strings.Contains(errOut, "falling back") {
+		t.Fatalf("fell back to the trunk:\n%s", errOut)
+	}
+}
+
 func TestFetchBase_pushWithUnfetchableCommitFails(t *testing.T) {
 	r := newFetchRepo(t)
 	const unknown = "cccccccccccccccccccccccccccccccccccccccc"
