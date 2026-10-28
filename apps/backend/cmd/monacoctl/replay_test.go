@@ -196,6 +196,8 @@ func TestProjections_leaveOutEveryConsumerThatIsNotAProjection(t *testing.T) {
 		"social.feed.proposal_withdrawn",
 		"social.feed.trade_confirmed",
 		"social.feed.trade_failed",
+		"social.feed.vote_cast",
+		"social.feed.vote_retracted",
 		"system.echo",
 		"treasury.activity.cashout_completed",
 		"treasury.activity.cashout_failed",

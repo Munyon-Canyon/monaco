@@ -9095,7 +9095,7 @@ components:
     FeedItem:
       type: object
       description: One feed item with its display strings rendered.
-      required: [id, kind, ref_type, ref_id, cabal_id, cabal_name, cabal_picture_url, actor_id, actor_name, actor_photo_url, asset_id, asset_logo_url, symbol, title, detail, body, status, tone, action, usdc_micros, asset_name, token_amount, token_decimals, price_micros, share_of_pot_bps, change_bps, mark_micros, prev_close_micros, proposal_id, comment_count, like_count, liked_by_me, reactions, reaction_count, return_1m_bps, return_private, created_at, updated_at]
+      required: [id, kind, ref_type, ref_id, cabal_id, cabal_name, cabal_picture_url, actor_id, actor_name, actor_photo_url, asset_id, asset_logo_url, symbol, title, detail, body, status, tone, action, usdc_micros, asset_name, token_amount, token_decimals, price_micros, share_of_pot_bps, change_bps, mark_micros, prev_close_micros, proposal_id, tally, expires_at, comment_count, like_count, liked_by_me, reactions, reaction_count, return_1m_bps, return_private, created_at, updated_at]
       properties:
         id: {type: string, format: uuid, description: "The item's id.", examples: ["01920000-0000-7000-8000-000000000007"]}
         kind:
@@ -9103,7 +9103,8 @@ components:
           description: >-
             `proposal`, `trade`, `price_move`, `cabal_created`, `member_joined`, `reply` or `threshold`.
             A `reply` is a comment on a proposal's feed item, with the comment text as `body` and the
-            commenter as the actor. A `threshold` is a proposal that passed and awaits execution.
+            commenter as the actor. A `threshold` is a proposal that passed and awaits execution. A `proposal` carries
+            `tally` and `expires_at`; every other kind has both null.
           examples: [trade]
         ref_type:
           type: string
@@ -9208,6 +9209,18 @@ components:
             `reaction_count` still counts every reaction.
           items: {$ref: "#/components/schemas/Reaction"}
         reaction_count: {type: integer, format: int32, minimum: 0, description: "The number of reactions on the item, over every emoji.", examples: [7]}
+        tally:
+          type: [object, "null"]
+          description: The proposal's live vote count, read from governance on each request. Null except on a `proposal`.
+          examples: [null]
+          x-go-type-name: FeedTally
+          required: [yes, no, voters, needed]
+          properties:
+            yes: {type: integer, minimum: 0, description: "Ballots cast yes.", examples: [4]}
+            no: {type: integer, minimum: 0, description: "Ballots cast no.", examples: [1]}
+            voters: {type: integer, minimum: 0, description: "Members who can vote.", examples: [8]}
+            needed: {type: integer, minimum: 0, description: "Yes ballots the proposal's threshold needs.", examples: [5]}
+        expires_at: {type: [string, "null"], format: date-time, description: "When voting closes. Null except on a `proposal`.", examples: [null]}
         return_1m_bps: {type: [integer, "null"], format: int64, description: "The author's one-month return in basis points, from the people board's `1M` range as of the last valuation run, not a live figure. Null when the author hides it, has no ranked row, or the item is a system item.", examples: [820]}
         return_private: {type: boolean, description: "True only when the author chose to hide their return. False for a system item or an author with no ranked row.", examples: [false]}
         created_at: {type: string, format: date-time, description: "When the item was created.", examples: ["2026-10-03T08:00:00Z"]}

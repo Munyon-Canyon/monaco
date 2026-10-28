@@ -179,9 +179,14 @@ func (h HTTP) wireFeedItems(ctx context.Context, items []app.FeedItem) ([]api.Fe
 	if err := h.loadFeedImages(ctx, &refs); err != nil {
 		return nil, err
 	}
+	tallies, err := h.loadTallies(ctx, items)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]api.FeedItem, len(items))
 	for i, item := range items {
 		out[i] = wireFeedItem(item)
+		wireTally(item, tallies, &out[i])
 		if card, ok := who.cards[item.ActorID]; ok && !card.Deleted {
 			out[i].ActorPhotoUrl = optionalWireText(card.PhotoURL)
 		}

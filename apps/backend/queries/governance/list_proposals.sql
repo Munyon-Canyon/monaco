@@ -48,3 +48,6 @@ WHERE CASE @filter::text
   AND (NOT @has_cursor::bool OR (p.created_at, p.id) < (@cursor_created_at::timestamptz, @cursor_id::uuid))
 ORDER BY p.created_at DESC, p.id DESC
 LIMIT @row_limit;
+
+-- name: ProposalTallyFacts :many
+SELECT id, kind, threshold, status, expires_at FROM proposals WHERE id = ANY(@proposal_ids::uuid[]);

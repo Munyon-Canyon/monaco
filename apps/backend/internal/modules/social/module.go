@@ -8,6 +8,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
+	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking"
@@ -27,6 +28,7 @@ type Module struct {
 	deps     module.Deps
 	users    app.Users
 	returns  app.Returns
+	tallies  app.Tallies
 	members  app.ChatMembers
 	cabals   app.Cabals
 	realtime app.Realtime
@@ -44,6 +46,10 @@ func WithUsers(users app.Users) Option {
 
 func WithReturns(returns app.Returns) Option {
 	return func(m *Module) { m.returns = returns }
+}
+
+func WithTallies(tallies app.Tallies) Option {
+	return func(m *Module) { m.tallies = tallies }
 }
 
 func WithCabals(cabals app.Cabals) Option {
@@ -127,6 +133,14 @@ func New(d module.Deps, opts ...Option) *Module {
 		m.pictures = queries
 	}
 	return m
+}
+
+func (m *Module) Wire(set module.Set) {
+	for _, mod := range set {
+		if provider, ok := mod.(interface{ Tallies() governanceport.Tallies }); ok {
+			m.tallies = provider.Tallies()
+		}
+	}
 }
 
 func (m *Module) useDefaultRealtime() {
@@ -221,6 +235,7 @@ func (m *Module) http() adapters.HTTP {
 		Clock:   m.deps.Clock,
 		Users:   m.users,
 		Returns: m.returns,
+		Tallies: m.tallies,
 		Logos:   m.logos, Pictures: m.pictures,
 	}
 }
@@ -248,6 +263,8 @@ func (m *Module) Consumers() []bus.Consumer {
 				bus.Handle("social.feed.proposal_passed", feed.ProposalPassed),
 				bus.Handle("social.feed.proposal_failed", feed.ProposalFailed),
 				bus.Handle("social.feed.proposal_expired", feed.ProposalExpired),
+				bus.Handle("social.feed.vote_cast", feed.VoteCast),
+				bus.Handle("social.feed.vote_retracted", feed.VoteRetracted),
 				bus.Handle("social.feed.proposal_withdrawn", feed.ProposalWithdrawn),
 				bus.Handle("social.feed.proposal_voided", feed.ProposalVoided),
 				bus.Handle("social.feed.proposal_executed", feed.ProposalExecuted),

@@ -41,6 +41,7 @@ type HTTP struct {
 	Clock           clock.Clock
 	Users           app.Users
 	Returns         app.Returns
+	Tallies         app.Tallies
 	Logos           app.AssetLogos
 	Pictures        app.CabalPictures
 }

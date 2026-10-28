@@ -1,2 +1,2 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
-10a	Undo vote	governance	DELETE /v1/proposals/{id}/votes	RetractVote	vote.retracted	analytics	ok;Unauthorized;ProposalNotFound;NotAVoter;ProposalClosed;VoteNotFound;UndoExpired	built	docs/architecture/proposals.md#undo
+10a	Undo vote	governance	DELETE /v1/proposals/{id}/votes	RetractVote	vote.retracted	analytics;social.feed.vote_retracted	ok;Unauthorized;ProposalNotFound;NotAVoter;ProposalClosed;VoteNotFound;UndoExpired	built	docs/architecture/proposals.md#undo
