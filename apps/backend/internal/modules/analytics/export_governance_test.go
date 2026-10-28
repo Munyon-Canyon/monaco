@@ -76,6 +76,21 @@ func TestAnalyticsExport_Governance(t *testing.T) {
 				}
 			},
 		},
+		"vote.retracted": {
+			event: func(s scene) events.Event {
+				return events.VoteRetracted{
+					V: 1, ProposalID: s.proposal, CabalID: s.cabal, VoterID: s.voter, Choice: "no",
+				}
+			},
+			actor: func(s scene) string { return userActor(s.voter) },
+			want: func(s scene) fakes.PostHogCapture {
+				return fakes.PostHogCapture{
+					Event:      "vote_retracted",
+					DistinctID: s.voter.String(),
+					Properties: s.props(map[string]any{"choice": "no"}),
+				}
+			},
+		},
 		"proposal.passed": {
 			event: func(s scene) events.Event {
 				return events.ProposalPassed{

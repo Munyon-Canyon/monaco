@@ -36,6 +36,14 @@ func (Proposals) VoteCast(_ context.Context, e events.VoteCast) (app.Capture, bo
 	}, true, nil
 }
 
+func (Proposals) VoteRetracted(_ context.Context, e events.VoteRetracted) (app.Capture, bool, error) {
+	return app.Capture{
+		Event:      "vote_retracted",
+		DistinctID: e.VoterID.String(),
+		Properties: proposalProps(e.ProposalID, e.CabalID, map[string]any{"choice": e.Choice}),
+	}, true, nil
+}
+
 func (Proposals) ProposalPassed(_ context.Context, e events.ProposalPassed) (app.Capture, bool, error) {
 	return app.Capture{
 		Event:      "proposal_passed",

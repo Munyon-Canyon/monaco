@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -84,6 +85,12 @@ func (h *RetractVoteHandler) retract(
 	}
 	n, err := q.CountBallots(ctx, p.ID)
 	if err != nil {
+		return RetractVoteResult{}, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	retracted := events.VoteRetracted{
+		V: 1, ProposalID: p.ID, CabalID: p.CabalID, VoterID: cmd.VoterID.UUID(), Choice: held.Choice, RetractedAt: now,
+	}
+	if err := tx.Events.Append(ctx, retracted); err != nil {
 		return RetractVoteResult{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	voters := int(n.Voters)

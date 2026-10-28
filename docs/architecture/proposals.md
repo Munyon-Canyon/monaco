@@ -87,6 +87,22 @@ The status is a Go type with a `transitions` table and a pure `Next(from, event)
 
 Expiry is a worker poller over `open` proposals past `expires_at` (indexed), with the same guarded update. It runs under the poller advisory lock ([Deploy rule 1](backend-platform.md#deploy-and-observability)) and reads time from the injected `clock.Clock`.
 
+## Undo
+
+`RetractVote` ([flow 10a](backend-platform.md#flows)), from `DELETE /v1/proposals/{id}/votes` with an `Idempotency-Key`. A voter can take back a ballot only while all of these hold:
+
+- It is their first ballot on the proposal and it has never changed side. A retried `POST` with the same choice is not a change.
+- It was first cast less than 15 seconds ago (`domain.UndoWindow`).
+- The proposal is `open` and its `expires_at` has not passed.
+
+The ballot that settles a proposal moves it to `passed` or `failed` in the same transaction, so it can never be undone, and a changed ballot has no undo. The refusals are `proposal_closed`, `not_a_voter`, `vote_not_found` (no ballot) and `undo_expired` (changed, or past the window). After an undo the voter can cast again, and the new ballot gets its own 15 seconds.
+
+One `uow.Do` locks the proposal and the ballot, deletes the ballot and appends `vote.retracted` with the deleted ballot's `choice`. A refused undo appends nothing. The response carries the proposal's new tally.
+
+`vote.retracted` tells everything that saw a `vote.cast` that it no longer stands. Analytics exports it as `vote_retracted` with the properties of `vote_cast`. Other consumers (the ranking call voters, notify's catch up and the feed hint) add their durable to flow 10a's consumers cell when their tickets land.
+
+The money path is untouched. An undo exists only while the proposal is `open`, before `proposal.passed`, so nothing reaches the trade engine and no swap, ledger or treasury row is read or written.
+
 ## CRUD surface
 
 Every cabal is public, so anyone signed in can read a cabal's proposals. Non-members are view-only: they cannot vote (they are not in the voter set), and they cannot comment on another cabal's proposals until moderation ships ([feed.md](feed.md)).

@@ -34,6 +34,7 @@ func TestModule_exportsEachProductSubjectOnTheAnalyticsDurable(t *testing.T) {
 	want := []string{
 		"analytics.posthog.proposal.created",
 		"analytics.posthog.vote.cast",
+		"analytics.posthog.vote.retracted",
 		"analytics.posthog.proposal.passed",
 		"analytics.posthog.proposal.failed",
 		"analytics.posthog.proposal.expired",

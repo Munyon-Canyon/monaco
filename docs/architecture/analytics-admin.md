@@ -81,6 +81,7 @@ Public market data (stock prices, charts, tickers, day change) stays visible, so
 | `cabal_funded` | `cabal.funded` (flow 7) |
 | `proposal_created` | `proposal.created` (flow 9) |
 | `vote_cast` | `vote.cast` (flow 10) |
+| `vote_retracted` | `vote.retracted` (flow 10a) |
 | `proposal_passed` | `proposal.passed` (flow 10) |
 | `proposal_failed` | `proposal.failed` (flow 10) |
 | `proposal_expired` | `proposal.expired` (flow 10) |
