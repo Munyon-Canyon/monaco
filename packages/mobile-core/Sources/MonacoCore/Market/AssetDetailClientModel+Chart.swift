@@ -86,6 +86,7 @@ extension AssetDetailClientModel {
         _ interval: ChartInterval
     ) -> Operations.GetAssetChart.Input.Query.IntervalPayload {
         switch interval {
+        case .m1: ._1m
         case .m5: ._5m
         case .m15: ._15m
         case .m30: ._30m
@@ -100,6 +101,7 @@ extension AssetDetailClientModel {
         _ range: AssetChartRange
     ) -> Operations.GetAssetChart.Input.Query.RangePayload {
         switch range {
+        case .oneHour: ._1h
         case .oneDay: ._1d
         case .oneWeek: ._1w
         case .oneMonth: ._1m

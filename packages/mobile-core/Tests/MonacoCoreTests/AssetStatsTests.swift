@@ -1,47 +1,78 @@
-import MonacoCore
 import XCTest
 
+@testable import MonacoCore
+
 final class AssetStatsTests: XCTestCase {
-    private func candle(_ t: Int64, o: Int64, h: Int64, l: Int64, c: Int64) -> MarketChartPoint {
-        MarketChartPoint(timestamp: t, priceUsdcMicros: c, openUsdcMicros: o, highUsdcMicros: h, lowUsdcMicros: l)
+    private let nvidia = AssetStats(
+        marketCapMicros: "5380000000000000000", volume24hMicros: 9_400_000_000_000, openMicros: 211_170_000,
+        yearLowMicros: 86_620_000, yearHighMicros: 224_900_000, heldByCabals: 1)
+
+    func testSixCellsInTwoRowsOfThreeAsTheFrameDrawsThem() {
+        XCTAssertEqual(
+            nvidia.topRow.map { "\($0.label) \($0.value)" },
+            ["Market cap $5.38T", "Volume · 24h $9.4M", "Open $211.17"])
+        XCTAssertEqual(
+            nvidia.bottomRow.map { "\($0.label) \($0.value)" },
+            ["52-week low $86.62", "52-week high $224.90", "Held by 1 cabal"])
     }
 
-    func testReadsOpenAndDayRangeFromTheDayCandles() {
-        let day = AssetChartSeries(
-            range: .oneDay,
-            points: [
-                candle(1, o: 100_000_000, h: 103_000_000, l: 99_000_000, c: 101_000_000),
-                candle(2, o: 101_000_000, h: 105_000_000, l: 100_000_000, c: 104_000_000),
-            ])
-        let stats = AssetStats(day: day, year: nil, priceMicros: 104_000_000, changeBasisPoints: nil)
+    func testANullCellIsADashThatReadsNotAvailableAndNoCellIsHidden() {
+        let empty = AssetStats(
+            marketCapMicros: nil, volume24hMicros: nil, openMicros: nil, yearLowMicros: nil, yearHighMicros: nil,
+            heldByCabals: 0)
 
-        XCTAssertEqual(stats.open, 100_000_000)
-        XCTAssertEqual(stats.dayHigh, 105_000_000)
-        XCTAssertEqual(stats.dayLow, 99_000_000)
-        XCTAssertNil(stats.yearHigh)
-        XCTAssertNil(stats.previousClose)
+        XCTAssertEqual(empty.cells.count, 6)
+        XCTAssertEqual(empty.cells.map(\.value), Array(repeating: "—", count: 6))
+        XCTAssertEqual(empty.cells.map(\.spokenValue), Array(repeating: "not available", count: 6))
+        XCTAssertEqual(empty.cells.map(\.label), nvidia.cells.map(\.label))
     }
 
-    func testDerivesThePreviousCloseFromTheQuoteAndItsMove() {
-        let stats = AssetStats(day: nil, year: nil, priceMicros: 110_000_000, changeBasisPoints: 1000)
-        XCTAssertEqual(stats.previousClose, 100_000_000)
+    func testHeldByCountsCabals() {
+        func held(_ count: Int?) -> String {
+            AssetStats(
+                marketCapMicros: nil, volume24hMicros: nil, openMicros: nil, yearLowMicros: nil, yearHighMicros: nil,
+                heldByCabals: count
+            ).bottomRow[2].value
+        }
+        XCTAssertEqual(held(2), "2 cabals")
+        XCTAssertEqual(held(12), "12 cabals")
+        XCTAssertEqual(held(nil), "—")
     }
 
-    func testPlacesThePriceInTheYearRangeAndClampsIt() {
-        let year = AssetChartSeries(
-            range: .oneYear,
-            points: [
-                candle(1, o: 100_000_000, h: 150_000_000, l: 90_000_000, c: 120_000_000),
-                candle(2, o: 120_000_000, h: 130_000_000, l: 110_000_000, c: 125_000_000),
-            ])
-        let stats = AssetStats(day: nil, year: year, priceMicros: nil, changeBasisPoints: nil)
+    func testMarketCapAbbreviatesToTwoDecimalsAndDropsTrailingZeros() {
+        XCTAssertEqual(AssetStats.abbreviated("5380000000000000000"), "$5.38T")
+        XCTAssertEqual(AssetStats.abbreviated("5000000000000000000"), "$5T")
+        XCTAssertEqual(AssetStats.abbreviated("350000000000000000"), "$350B")
+        XCTAssertEqual(AssetStats.abbreviated("12340000000000"), "$12.34M")
+        XCTAssertEqual(AssetStats.abbreviated("9990000000000000000000"), "$9990T")
+        XCTAssertNil(AssetStats.abbreviated("n/a"))
+    }
 
-        XCTAssertEqual(stats.yearLow, 90_000_000)
-        XCTAssertEqual(stats.yearHigh, 150_000_000)
-        XCTAssertEqual(stats.yearRangeBasisPoints(priceMicros: 120_000_000), 5000)
-        XCTAssertEqual(stats.yearRangeBasisPoints(priceMicros: 200_000_000), 10_000)
-        XCTAssertEqual(stats.yearRangeBasisPoints(priceMicros: 50_000_000), 0)
-        XCTAssertNil(stats.yearRangeBasisPoints(priceMicros: nil))
+    func testTodayMoveTruncatesToTheCentSoItNeverOverstatesTheMove() throws {
+        let move = try XCTUnwrap(AssetTodayMove(priceMicros: 220_000_000, basisPoints: 418))
+
+        XCTAssertEqual(move.changeMicros, 8_820_000)
+        XCTAssertEqual(move.line, "+$8.82 · 4.18% today")
+        XCTAssertFalse(move.isLoss)
+    }
+
+    func testTodayMoveForALossHasNoPercentSign() throws {
+        let move = try XCTUnwrap(AssetTodayMove(priceMicros: 180_000_000, basisPoints: -80))
+
+        XCTAssertEqual(move.line, "−$1.45 · 0.80% today")
+        XCTAssertTrue(move.isLoss)
+    }
+
+    func testTodayMoveNeedsAPriceAndAChange() {
+        XCTAssertNil(AssetTodayMove(priceMicros: nil, basisPoints: 100))
+        XCTAssertNil(AssetTodayMove(priceMicros: 100_000_000, basisPoints: nil))
+        XCTAssertNil(AssetTodayMove(priceMicros: 100_000_000, basisPoints: -10_000))
+    }
+
+    func testTheHeaderReadsForVoiceOver() throws {
+        let move = try XCTUnwrap(AssetTodayMove(priceMicros: 220_000_000, basisPoints: 418))
+
+        XCTAssertEqual(move.speech(priceMicros: 220_000_000), "220 dollars, up 8 dollars 82, 4.18 percent today")
     }
 
     func testPositionReturnIsPnlOverCostBasis() {
@@ -64,38 +95,4 @@ final class AssetStatsTests: XCTestCase {
 }
 
 extension AssetStatsTests {
-    func testTheGridCellsRunOpenPreviousCloseDayRangeThenTheYearRange() {
-        let day = AssetChartSeries(
-            range: .oneDay,
-            points: [
-                MarketChartPoint(
-                    timestamp: 1, priceUsdcMicros: 101_000_000, openUsdcMicros: 100_000_000,
-                    highUsdcMicros: 105_000_000, lowUsdcMicros: 99_000_000)
-            ])
-        let year = AssetChartSeries(
-            range: .oneYear,
-            points: [
-                MarketChartPoint(
-                    timestamp: 1, priceUsdcMicros: 120_000_000, openUsdcMicros: 100_000_000,
-                    highUsdcMicros: 150_000_000, lowUsdcMicros: 90_000_000)
-            ])
-        let stats = AssetStats(day: day, year: year, priceMicros: 110_000_000, changeBasisPoints: 1000)
-
-        XCTAssertEqual(
-            stats.cells,
-            [
-                AssetStatCell(label: "Open", value: "$100.00"),
-                AssetStatCell(label: "Previous close", value: "$100.00"),
-                AssetStatCell(label: "Day high", value: "$105.00"),
-                AssetStatCell(label: "Day low", value: "$99.00"),
-                AssetStatCell(label: "52-week high", value: "$150.00"),
-                AssetStatCell(label: "52-week low", value: "$90.00"),
-            ])
-    }
-
-    func testTheGridLeavesOutACellTheCandlesCannotGive() {
-        let stats = AssetStats(day: nil, year: nil, priceMicros: 110_000_000, changeBasisPoints: 1000)
-
-        XCTAssertEqual(stats.cells, [AssetStatCell(label: "Previous close", value: "$100.00")])
-    }
 }

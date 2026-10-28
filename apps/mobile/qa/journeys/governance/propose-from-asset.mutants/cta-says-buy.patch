@@ -4,14 +4,14 @@ expect-fail: S1
 The asset screen's CTA reads "Buy", the old direct-buy wording. S1.1 checks it reads "Propose a buy", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Assets/AssetDetailActions.swift b/apps/mobile/Monaco/Features/Assets/AssetDetailActions.swift
-index 08fbd6107..0e7f503b0 100644
+index 4166cfc8d..d38035212 100644
 --- a/apps/mobile/Monaco/Features/Assets/AssetDetailActions.swift
 +++ b/apps/mobile/Monaco/Features/Assets/AssetDetailActions.swift
-@@ -34,7 +34,7 @@ struct AssetDetailActions: View {
+@@ -36,7 +36,7 @@ enum AssetDetailBuyCTA {
+     static let sellTitle = "Propose sell"
  
- enum AssetDetailBuyCTA {
      static func title(tradable: Bool) -> String {
--        tradable ? "Propose a buy" : "Unavailable"
+-        tradable ? "Propose buy" : "Unavailable"
 +        tradable ? "Buy" : "Unavailable"
      }
  

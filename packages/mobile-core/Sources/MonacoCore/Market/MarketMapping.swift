@@ -91,7 +91,8 @@ public enum MarketMapping {
 
     private static func chartInterval(_ wire: Components.Schemas.AssetChart.IntervalPayload) -> ChartInterval {
         switch wire {
-        case ._1m, ._5m: .m5
+        case ._1m: .m1
+        case ._5m: .m5
         case ._15m: .m15
         case ._30m: .m30
         case ._1h: .h1
@@ -139,7 +140,8 @@ public enum MarketMapping {
 
     private static func chartRange(_ wire: Components.Schemas.AssetChart.RangePayload) -> AssetChartRange {
         switch wire {
-        case ._1h, ._1d: .oneDay
+        case ._1h: .oneHour
+        case ._1d: .oneDay
         case ._1w: .oneWeek
         case ._1m: .oneMonth
         case ._3m: .threeMonths

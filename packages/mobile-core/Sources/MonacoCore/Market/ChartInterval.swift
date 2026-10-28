@@ -1,4 +1,5 @@
 public enum ChartInterval: String, CaseIterable, Codable, Sendable {
+    case m1 = "1m"
     case m5 = "5m"
     case m15 = "15m"
     case m30 = "30m"
@@ -9,6 +10,7 @@ public enum ChartInterval: String, CaseIterable, Codable, Sendable {
 
     public var seconds: Int {
         switch self {
+        case .m1: 60
         case .m5: 300
         case .m15: 900
         case .m30: 1_800
@@ -30,6 +32,7 @@ public enum ChartInterval: String, CaseIterable, Codable, Sendable {
 extension ChartInterval {
     public static func `default`(for range: AssetChartRange) -> ChartInterval {
         switch range {
+        case .oneHour: .m1
         case .oneDay: .m5
         case .oneWeek, .oneMonth, .threeMonths: .h1
         case .sixMonths, .oneYear, .all: .d1
@@ -38,6 +41,7 @@ extension ChartInterval {
 
     public static func preferred(for range: AssetChartRange) -> ChartInterval {
         switch range {
+        case .oneHour: .m1
         case .oneDay: .m15
         case .oneWeek: .h1
         case .oneMonth: .h4
@@ -48,6 +52,7 @@ extension ChartInterval {
 
     public static func allowed(for range: AssetChartRange) -> [ChartInterval] {
         switch range {
+        case .oneHour: [.m1, .m5]
         case .oneDay, .oneWeek: [.m5, .m15, .m30, .h1, .h4, .d1]
         case .oneMonth: [.m15, .m30, .h1, .h4, .d1]
         case .threeMonths: [.m30, .h1, .h4, .d1, .w1]

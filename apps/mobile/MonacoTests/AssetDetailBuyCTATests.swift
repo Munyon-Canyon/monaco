@@ -10,15 +10,14 @@ import Testing
 
 @MainActor
 struct AssetDetailBuyCTATests {
-    @Test func aPausedStockCannotBeBoughtAndSaysWhy() {
+    @Test func aPausedStockCannotBeBought() {
         #expect(!AssetDetailBuyCTA.canBuy(tradable: true, quotable: false))
         #expect(AssetDetailBuyCTA.canBuy(tradable: true, quotable: true))
-        #expect(
-            AssetDetailBuyCTA.caption(tradable: true, quotable: false, canSell: true) == "Trading paused right now")
     }
 
-    @Test func theBuyButtonSaysProposeABuyAndTurnsToUnavailableWhenTheStockCannotTrade() {
-        #expect(AssetDetailBuyCTA.title(tradable: true) == "Propose a buy")
+    @Test func theButtonsSayProposeBuyAndProposeSellAndTheBuyTurnsToUnavailableWhenTheStockCannotTrade() {
+        #expect(AssetDetailBuyCTA.title(tradable: true) == "Propose buy")
+        #expect(AssetDetailBuyCTA.sellTitle == "Propose sell")
         #expect(AssetDetailBuyCTA.title(tradable: false) == "Unavailable")
     }
 
@@ -181,18 +180,6 @@ struct AssetDetailBuyCTATests {
         await started.value
 
         #expect(await cabals.sent.count == 2)
-    }
-
-    @Test func theCaptionNamesWhatTheCabalVotesOn() {
-        #expect(
-            AssetDetailBuyCTA.caption(tradable: true, canSell: false) == "Your cabal votes before anything is bought")
-        #expect(
-            AssetDetailBuyCTA.caption(tradable: true, canSell: true)
-                == "Your cabal votes before anything is bought or sold")
-    }
-
-    @Test func anUntradableAssetSaysWhyInsteadOfPromisingAVote() {
-        #expect(AssetDetailBuyCTA.caption(tradable: false, canSell: false) == "Not available to buy yet.")
     }
 
     private static func until(_ predicate: () -> Bool) async {
