@@ -10,63 +10,65 @@ import UIKit
 enum MonacoTheme {
     // MARK: Surfaces
 
-    static let background = Color.adaptive(light: 0xFAF7F0, dark: 0x03130F)
+    static let background = Color.adaptive(light: 0xFFFFFF, dark: 0x000000)
 
     static let canvas = background
 
-    static let surface = Color.adaptive(light: 0xF6F7F2, dark: 0x0A2119)
+    static let surface = Color.adaptive(light: 0xF2F2F7, dark: 0x1C1C1E)
 
-    static let surfaceSunken = Color.adaptive(light: 0xEDEFE7, dark: 0x102A20)
+    static let surfaceSunken = Color.adaptive(light: 0xE5E5EA, dark: 0x2C2C2E)
 
     static let cashFill = border
 
-    static let primaryText = Color.adaptive(light: 0x0C3526, dark: 0xF5F8F4)
+    static let primaryText = Color.adaptive(light: 0x000000, dark: 0xFFFFFF)
 
     static let ink = primaryText
 
-    static let bodyText = Color.adaptive(light: 0x172C24, dark: 0xE6EFEB)
+    static let bodyText = primaryText
 
-    static let secondaryText = Color.adaptive(light: 0x646D67, dark: 0x9EAFA5)
+    static let secondaryText = Color.adaptive(light: 0x636366, dark: 0xA1A1A6)
 
     static let muted = secondaryText
 
-    static let tertiaryText = Color.adaptive(light: 0x646D67, dark: 0x8E9E95)
+    static let tertiaryText = Color.adaptive(light: 0xAEAEB2, dark: 0x6E6E73)
 
-    static let disabledLabel = Color.adaptive(light: 0x8F9791, dark: 0x5E6B63)
+    static let disabledLabel = Color.adaptive(light: 0x8E8E93, dark: 0x6E6E73)
 
-    static let border = Color.adaptive(light: 0xE5E7DF, dark: 0x18342A)
+    static let border = Color.adaptive(light: 0xC6C6C8, dark: 0x38383A)
 
     static let hairline = border
 
     // MARK: Brand
 
-    static let brand = Color.adaptive(light: 0x07643E, dark: 0x60EFAA)
+    static let tint = Color.adaptive(light: 0x1E5C3A, dark: 0x4DAE78)
 
-    static let brandFill = Color.adaptive(light: 0x0D5C3A, dark: 0x66EFAB)
+    static let brand = tint
 
-    static let onBrand = Color.adaptive(light: 0xFFFFFF, dark: 0x072219)
+    static let brandFill = Color.adaptive(light: 0x1E5C3A, dark: 0x1E5C3A)
 
-    static let brandSoft = Color.adaptive(light: 0xE8F0E7, dark: 0x14372A)
+    static let onBrand = Color.adaptive(light: 0xFFFFFF, dark: 0xFFFFFF)
+
+    static let brandSoft = surfaceSunken
 
     static let brandWash = brandSoft
 
-    static let brandOnWash = brand
+    static let brandOnWash = tint
 
     static let warningWash = Color.adaptive(light: 0xF3ECD8, dark: 0x2C2819)
 
     // MARK: Glass and sheets
 
-    static let glassFill = Color.adaptive(light: 0xFBFCF7, lightAlpha: 0.86, dark: 0x0C231B, darkAlpha: 0.85)
+    static let glassFill = surface.opacity(0.86)
 
-    static let glassStroke = Color.adaptive(light: 0xFFFFFF, lightAlpha: 0.98, dark: 0xB0EAC8, darkAlpha: 0.20)
+    static let glassStroke = Color.clear
 
-    static let sheetGlass = Color.adaptive(light: 0xF8FAF5, lightAlpha: 0.90, dark: 0x11291F, darkAlpha: 0.94)
+    static let sheetGlass = surface.opacity(0.86)
 
-    static let sheetStroke = Color.adaptive(light: 0xFFFFFF, lightAlpha: 0.95, dark: 0xA8E3C2, darkAlpha: 0.21)
+    static let sheetStroke = Color.clear
 
-    static let sheetDim = Color.adaptive(light: 0x000E08, lightAlpha: 0.30, dark: 0x000604, darkAlpha: 0.48)
+    static let sheetDim = Color(hex: 0x000000, alpha: 0.4)
 
-    static let scrim = Color.adaptive(light: 0x01150E, lightAlpha: 0.33, dark: 0x000000, darkAlpha: 0.73)
+    static let scrim = Color(hex: 0x000000, alpha: 0.6)
 
     // MARK: Retired hero band
 
@@ -80,14 +82,14 @@ enum MonacoTheme {
 
     // MARK: Money
 
-    static let profit = Color.adaptive(light: 0x0F7A4E, dark: 0x68EBAB)
+    static let profit = Color.adaptive(light: 0x00773A, dark: 0x30F57A)
 
-    static let loss = Color.adaptive(light: 0xB54647, dark: 0xF1807F)
+    static let loss = Color.adaptive(light: 0xC80014, dark: 0xFF6259)
 
-    static let profitVivid = Color.adaptive(light: 0x108153, dark: 0x68EBAB)
+    static let profitVivid = Color.adaptive(light: 0x00843D, dark: 0x30F57A)
     static let onVivid = Color.adaptive(light: 0x0E1512, dark: 0x0E1512)
 
-    static let lossVivid = Color.adaptive(light: 0xBD5455, dark: 0xF1807F)
+    static let lossVivid = Color.adaptive(light: 0xD70015, dark: 0xFF453A)
 
     static let profitWash = Color.clear
 
@@ -105,11 +107,11 @@ enum MonacoTheme {
 
     static let lossOnHero = loss
 
-    static let buyWash = Color.adaptive(light: 0xE9F4EC, dark: 0x0E3022)
+    static let buyWash = surface
 
-    static let sellWash = Color.adaptive(light: 0xF8ECE9, dark: 0x30201F)
+    static let sellWash = surface
 
-    static let priceWash = Color.adaptive(light: 0xEDF0F9, dark: 0x13232B)
+    static let priceWash = surface
 
     // MARK: Toast
 
@@ -125,19 +127,19 @@ enum MonacoTheme {
 
     // MARK: Identity card
 
-    static let identityFill = Color.adaptive(light: 0x0C3828, dark: 0x0D2C21)
+    static let identityFill = surface
 
-    static let onIdentity = Color.adaptive(light: 0xF8FAF5, dark: 0xF5FAF6)
+    static let onIdentity = primaryText
 
-    static let onIdentityMuted = Color.adaptive(light: 0xB6D5C3, dark: 0xB6D5C3)
+    static let onIdentityMuted = secondaryText
 
-    static let onIdentityBody = Color.adaptive(light: 0xE0EEE3, dark: 0xE0EEE3)
+    static let onIdentityBody = primaryText
 
-    static let profitOnIdentity = Color.adaptive(light: 0x81E8B1, dark: 0x81E8B1)
+    static let profitOnIdentity = profit
 
-    static let lossOnIdentity = Color.adaptive(light: 0xFFAAAA, dark: 0xFFAAAA)
+    static let lossOnIdentity = loss
 
-    static let pencilFill = Color.adaptive(light: 0xE6F5E8, dark: 0xE6F5E8)
+    static let pencilFill = surfaceSunken
 
     // MARK: Covers
 
@@ -160,19 +162,18 @@ enum MonacoTheme {
 
     static let coverOverlayReduced = Color.adaptive(light: 0x00130B, lightAlpha: 0.91, dark: 0x00130B, darkAlpha: 0.91)
 
-    static let voteNeededFill = Color.adaptive(light: 0xC8F7CF, dark: 0xC8F7CF)
+    static let voteNeededFill = Color.adaptive(light: 0xD70015, dark: 0xD70015)
 
-    static let voteNeededLabel = Color.adaptive(light: 0x083123, dark: 0x083123)
+    static let voteNeededLabel = Color.adaptive(light: 0xFFFFFF, dark: 0xFFFFFF)
 
-    static let discussionTint = Color.adaptive(light: 0x535AAE, dark: 0xC7B9F7)
+    static let discussionTint = tint
 
-    static let discussionWash = Color.adaptive(
-        light: 0x676BDD, lightAlpha: 0.075, dark: 0xBCA4FF, darkAlpha: 0.10)
+    static let discussionWash = surfaceSunken
 
     static let allocationTints: [Color] = [
-        brand,
-        Color.adaptive(light: 0x6F8296, dark: 0x7B91A7),
-        Color.adaptive(light: 0x8C77A4, dark: 0x9A83B4),
+        tint,
+        Color.adaptive(light: 0x0040DD, dark: 0x0A84FF),
+        Color.adaptive(light: 0x8944AB, dark: 0xBF5AF2),
         border,
     ]
 
@@ -200,15 +201,15 @@ enum MonacoTheme {
 
     static let primaryButtonLabel = onBrand
 
-    static let secondaryButtonFill = brandSoft
+    static let secondaryButtonFill = surfaceSunken
 
-    static let secondaryButtonLabel = brand
+    static let secondaryButtonLabel = primaryText
 
     static let destructive = loss
 
-    static let onDestructive = Color.adaptive(light: 0xFAF7F0, dark: 0x03130F)
+    static let onDestructive = Color.adaptive(light: 0xFFFFFF, dark: 0x000000)
 
-    static let accent = brand
+    static let accent = tint
 
     static let disabled = Color.adaptive(light: 0xCBD2CB, dark: 0x37453D)
 
@@ -218,9 +219,11 @@ enum MonacoTheme {
 
     // MARK: Gold
 
-    static let gold = Color.adaptive(light: 0x7A5C12, dark: 0xE2B04A)
+    static let crown = Color.adaptive(light: 0xFFCC00, dark: 0xFFD60A)
 
-    static let goldGlyph = Color.adaptive(light: 0xC9A24A, dark: 0xD9B85A)
+    static let gold = crown
+
+    static let goldGlyph = crown
 
     static let goldWash = Color.adaptive(light: 0xC9A24A, lightAlpha: 0.16, dark: 0xD9B85A, darkAlpha: 0.16)
 
@@ -251,53 +254,9 @@ enum MonacoTheme {
         return muted
     }
 
-    /// Saturated identity tints. Picked from the group id, never from the name, so a rename keeps
-    /// the colour. `soft` is the low-alpha wash for tinted areas that still hold ink text.
-    ///
-    /// Retuned for the forest brand. The old five were carried over from the electric-blue app and
-    /// none of them was a money colour, which was the correctness bar — but at full saturation a
-    /// teal, a safety orange and a hot crimson are a different design language from cream paper and
-    /// forest ink, and a cabal row sat between the two. These five keep the same job and the same
-    /// separation while belonging to the palette around them.
-    ///
-    /// The constraint is not contrast, it is *hue*. Five cabals have to be five colours at a glance,
-    /// and none of them may be mistaken for `profit` or `loss` in a row that also carries money:
-    ///
-    /// | tint   | hue  | L*    | from `profit` | from `loss` |
-    /// |--------|------|-------|---------------|-------------|
-    /// | pine   | 190° | 0.487 | 35°           | 159°        |
-    /// | ochre  |  78° | 0.535 | 78°           |  46°        |
-    /// | plum   | 341° | 0.447 | 175°          |  51°        |
-    /// | indigo | 255° | 0.452 |  99°          | 137°        |
-    /// | moss   | 118° | 0.438 |  38°          |  93°        |
-    ///
-    /// Hue alone is not enough, which a first pass proved on the Home list: ochre and moss are the
-    /// closest pair at 40°, and at equal lightness two cabals in adjacent rows read as one colour.
-    /// So every pair is separated by 60° of hue *or* 0.08 of L\*, and ochre and moss take the
-    /// second route — moss is a deep olive where ochre is a mid gold.
-    ///
-    /// That is also why moss barely lifts in dark while the others do. Lifting each fill to the
-    /// same contrast floor independently flattened the ladder and put ochre and moss back within
-    /// 0.024 of each other; the ladder is the constraint, and white initials clear AA on a darker
-    /// tile anyway.
-    ///
-    /// The closest approach to a money colour is moss at 38° from profit. Hue is what does that
-    /// work — these tints are not quieter than the money colours, they run 0.9× to 1.2× profit's
-    /// chroma — and it is enough because a tint only ever fills a mark or a stripe, never a figure.
-    ///
-    /// White initials clear 4.5:1 on every fill in both schemes, where the old palette met only the
-    /// 3:1 large-text bar in dark. That was defensible for 15pt bold initials; holding the body bar
-    /// costs nothing here and means `fill` is safe behind small white text too.
     nonisolated enum CabalTint: CaseIterable {
-        // Order is the identity mapping: a cabal's tint is its id hashed mod 5, so these stay in
-        // their slots and no existing cabal changes which of the five it gets.
-        case pine, ochre, plum, indigo, moss
+        case indigo, orange, teal, pink, purple, brown, blue, cyan
 
-        /// The one tint function for a cabal. Every surface (rows, strip cards, hero, chat header, profile)
-        /// passes the cabal's `groupId`, never its name, so a cabal is the same colour everywhere.
-        /// Stable across launches: FNV-1a 64 over the UTF-8 bytes of the trimmed, lowercased id, mod 5
-        /// (lowercased because Swift's `UUID.uuidString` is uppercase while the API sends lowercase).
-        /// Never `String.hashValue`, which is randomised per launch.
         static func forGroupId(_ groupId: String) -> CabalTint {
             let all = CabalTint.allCases
             let key = groupId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -400,36 +359,26 @@ enum MonacoTheme {
 }
 
 extension MonacoTheme.CabalTint {
-    /// Mark tile, accent stripe, chart key.
     var fill: Color {
         switch self {
-        case .pine: return Color.adaptive(light: 0x0E6E6A, dark: 0x11827D)
-        case .ochre: return Color.adaptive(light: 0x8F6410, dark: 0x9A6C11)
-        case .plum: return Color.adaptive(light: 0x7A3A66, dark: 0xB15494)
-        case .indigo: return Color.adaptive(light: 0x2F5788, dark: 0x4076B9)
-        case .moss: return Color.adaptive(light: 0x4E5817, dark: 0x545F19)
+        case .indigo: return Color(hex: 0x5E5CE6)
+        case .orange: return Color(hex: 0xFF9F0A)
+        case .teal: return Color(hex: 0x40C8E0)
+        case .pink: return Color(hex: 0xFF375F)
+        case .purple: return Color(hex: 0xBF5AF2)
+        case .brown: return Color(hex: 0xAC8E68)
+        case .blue: return Color(hex: 0x0A84FF)
+        case .cyan: return Color(hex: 0x64D2FF)
         }
     }
 
-    /// Initials and glyphs drawn on `fill`.
-    var onFill: Color { .white }
+    var onFill: Color { self == .indigo ? .white : .black }
 
-    /// Low-alpha wash of `fill` for tinted surfaces that still carry ink text.
     var soft: Color { fill.opacity(0.12) }
 
-    /// Retired with the dark hero band: the tint on the canvas, which is what `stroke` is tuned for.
     var onInk: Color { stroke }
 
-    /// Chart line colour for this cabal.
-    var stroke: Color {
-        switch self {
-        case .pine: return Color.adaptive(light: 0x0E6E6A, dark: 0x35C4BD)
-        case .ochre: return Color.adaptive(light: 0x8F6410, dark: 0xE2B04A)
-        case .plum: return Color.adaptive(light: 0x7A3A66, dark: 0xD68CC2)
-        case .indigo: return Color.adaptive(light: 0x2F5788, dark: 0x7DAFE0)
-        case .moss: return Color.adaptive(light: 0x4E5817, dark: 0xB8CC63)
-        }
-    }
+    var stroke: Color { fill }
 
     /// Background fill for a cabal: `CabalTint.forGroupId(groupId).fill`.
     static func fill(forGroupId groupId: String) -> Color {

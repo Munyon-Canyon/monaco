@@ -18,39 +18,41 @@ enum GalleryTokenCatalog {
 
     static let groups: [GalleryTokenGroup] = [
         GalleryTokenGroup(
-            title: "Surfaces",
+            title: "F roles",
             tokens: [
                 GalleryToken(name: "canvas", color: Theme.canvas),
-                GalleryToken(name: "surface", color: Theme.surface),
-                GalleryToken(name: "surfaceSunken", color: Theme.surfaceSunken),
-                GalleryToken(name: "hairline", color: Theme.hairline),
-                GalleryToken(name: "scrim", color: Theme.scrim),
-            ]),
-        GalleryTokenGroup(
-            title: "Text",
-            tokens: [
-                GalleryToken(name: "ink", color: Theme.ink),
-                GalleryToken(name: "bodyText", color: Theme.bodyText),
-                GalleryToken(name: "muted", color: Theme.muted),
+                GalleryToken(name: "cell (surface)", color: Theme.surface),
+                GalleryToken(name: "fill (surfaceSunken)", color: Theme.surfaceSunken),
+                GalleryToken(name: "separator (hairline)", color: Theme.hairline),
+                GalleryToken(name: "label (primaryText)", color: Theme.primaryText),
+                GalleryToken(name: "secondaryText", color: Theme.secondaryText),
                 GalleryToken(name: "tertiaryText", color: Theme.tertiaryText),
-                GalleryToken(name: "disabledLabel", color: Theme.disabledLabel),
-            ]),
-        GalleryTokenGroup(
-            title: "Brand",
-            tokens: [
-                GalleryToken(name: "accent", color: Theme.accent),
-                GalleryToken(name: "brandFill", color: Theme.brandFill),
+                GalleryToken(name: "tint", color: Theme.tint),
+                GalleryToken(name: "brand (brandFill)", color: Theme.brandFill),
                 GalleryToken(name: "onBrand", color: Theme.onBrand),
-                GalleryToken(name: "brandSoft", color: Theme.brandSoft),
-                GalleryToken(name: "disabled", color: Theme.disabled),
+                GalleryToken(name: "gain (profit)", color: Theme.profit),
+                GalleryToken(name: "loss", color: Theme.loss),
+                GalleryToken(name: "crown", color: Theme.crown),
             ]),
         GalleryTokenGroup(
-            title: "Money",
+            title: "Identity hues",
+            tokens: Theme.CabalTint.allCases.map { GalleryToken(name: "CabalTint.\($0.galleryName)", color: $0.fill) }
+        ),
+        GalleryTokenGroup(
+            title: "Badge",
             tokens: [
-                GalleryToken(name: "profit", color: Theme.profit),
-                GalleryToken(name: "loss", color: Theme.loss),
+                GalleryToken(name: "voteNeededFill", color: Theme.voteNeededFill),
+                GalleryToken(name: "voteNeededLabel", color: Theme.voteNeededLabel),
+            ]),
+        GalleryTokenGroup(
+            title: "Other roles",
+            tokens: [
+                GalleryToken(name: "scrim", color: Theme.scrim),
+                GalleryToken(name: "disabledLabel", color: Theme.disabledLabel),
+                GalleryToken(name: "disabled", color: Theme.disabled),
                 GalleryToken(name: "profitVivid", color: Theme.profitVivid),
                 GalleryToken(name: "lossVivid", color: Theme.lossVivid),
+                GalleryToken(name: "onDestructive", color: Theme.onDestructive),
                 GalleryToken(name: "warning", color: Theme.warning),
             ]),
         GalleryTokenGroup(
@@ -105,10 +107,8 @@ enum GalleryTokenCatalog {
                 GalleryToken(name: "coverStroke", color: Theme.coverStroke),
             ]),
         GalleryTokenGroup(
-            title: "Vote needed and discussion",
+            title: "Discussion",
             tokens: [
-                GalleryToken(name: "voteNeededFill", color: Theme.voteNeededFill),
-                GalleryToken(name: "voteNeededLabel", color: Theme.voteNeededLabel),
                 GalleryToken(name: "discussionTint", color: Theme.discussionTint),
                 GalleryToken(name: "discussionWash", color: Theme.discussionWash),
             ]),
@@ -117,17 +117,6 @@ enum GalleryTokenCatalog {
             tokens: Theme.allocationTints.enumerated().map {
                 GalleryToken(name: "allocationTints[\($0.offset)]", color: $0.element)
             }),
-        GalleryTokenGroup(
-            title: "Cabal tints",
-            tokens: Theme.CabalTint.allCases.map { GalleryToken(name: "CabalTint.\($0.galleryName)", color: $0.fill) }
-        ),
-        GalleryTokenGroup(
-            title: "Gold",
-            tokens: [
-                GalleryToken(name: "gold", color: Theme.gold),
-                GalleryToken(name: "goldGlyph", color: Theme.goldGlyph),
-                GalleryToken(name: "goldWash", color: Theme.goldWash),
-            ]),
     ]
 }
 

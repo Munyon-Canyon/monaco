@@ -82,7 +82,7 @@ struct MonacoFaceStackTests {
 @MainActor
 struct CabalCoverTests {
     private func size(of style: CabalCover<Color>.Style, url: URL?) -> CGSize {
-        let cover = CabalCover(cabalId: "cabal-1", tint: .pine, pictureURL: url, style: style) { Color.clear }
+        let cover = CabalCover(cabalId: "cabal-1", tint: .blue, pictureURL: url, style: style) { Color.clear }
         let host = UIHostingController(rootView: cover)
         return host.sizeThatFits(in: CGSize(width: 300, height: 600))
     }

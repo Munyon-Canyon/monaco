@@ -178,7 +178,7 @@ struct ProfileSampleHarness: View {
         return profile
     }
 
-    static let samplePhotoURL = SampleImage.flat(.plum, name: "avatar")
+    static let samplePhotoURL = SampleImage.flat(.purple, name: "avatar")
 }
 
 private func apiMode(for scenario: ProfileSampleScenario) -> SampleAPIScript.Mode {

@@ -115,11 +115,14 @@ enum GalleryFixtures {
 extension MonacoTheme.CabalTint {
     var galleryName: String {
         switch self {
-        case .pine: "pine"
-        case .ochre: "ochre"
-        case .plum: "plum"
         case .indigo: "indigo"
-        case .moss: "moss"
+        case .orange: "orange"
+        case .teal: "teal"
+        case .pink: "pink"
+        case .purple: "purple"
+        case .brown: "brown"
+        case .blue: "blue"
+        case .cyan: "cyan"
         }
     }
 }

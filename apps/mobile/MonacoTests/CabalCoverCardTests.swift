@@ -13,7 +13,7 @@ struct CabalCoverCardTests {
         CabalCoverCardModel(
             id: "cabal-1", name: "Weekend Warriors", memberCountText: "8 members", votesNeededText: votes,
             shareText: share, ownershipText: ownership, pnl: pnl, pnlUnavailableReason: reason,
-            groupReturn: .init(periodText: "1M", percentText: "−4.12%", direction: .loss), tint: .pine)
+            groupReturn: .init(periodText: "1M", percentText: "−4.12%", direction: .loss), tint: .blue)
     }
 
     private func size(_ layout: CabalCoverCardLayout, text: DynamicTypeSize = .large) -> CGSize {

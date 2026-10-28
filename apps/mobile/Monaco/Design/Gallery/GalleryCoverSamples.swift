@@ -32,7 +32,7 @@ struct GalleryCoverSamples: View {
                     }
                 }
                 GalleryCase(caption: "CoverShareDisc on a hero cover") {
-                    CabalCover(cabalId: "gallery-share", tint: .plum, pictureURL: nil, style: .hero) {
+                    CabalCover(cabalId: "gallery-share", tint: .purple, pictureURL: nil, style: .hero) {
                         CoverShareDisc(cabalName: "Weekend investors") {}
                             .padding(MonacoTheme.Space.s)
                     }

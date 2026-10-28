@@ -60,7 +60,7 @@ struct V3LargeTextLayoutTests {
             id: "cabal-1", name: "Weekend Warriors", memberCountText: "8 members", votesNeededText: "1 vote needed",
             shareText: "$7,000.00", ownershipText: "35.00%",
             pnl: .init(amountText: "−$300.00", percentText: "−4.11%", direction: .loss),
-            groupReturn: .init(periodText: "1M", percentText: "−4.12%", direction: .loss), tint: .pine)
+            groupReturn: .init(periodText: "1M", percentText: "−4.12%", direction: .loss), tint: .blue)
         return CabalCoverCard(model: model, layout: layout, onOpen: {}, onShare: {})
     }
 

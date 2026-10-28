@@ -43,7 +43,7 @@ struct AuthCoverCard: View {
     }
 
     private var cover: some View {
-        CabalCover(cabalId: "auth", tint: .pine, pictureURL: nil, style: .thumb(tileSize))
+        CabalCover(cabalId: "auth", tint: .blue, pictureURL: nil, style: .thumb(tileSize))
             .overlay {
                 MonacoMark(size: tileSize * Self.markFraction)
                     .environment(\.colorScheme, .dark)

@@ -40,16 +40,16 @@ struct GalleryCoverCardSamples: View {
         (
             "List, ready with vote needed",
             GalleryCabalCards.model(
-                id: "gallery-card-1", tint: .pine, votes: "1 vote needed", pnl: GalleryCabalCards.loss)
+                id: "gallery-card-1", tint: .blue, votes: "1 vote needed", pnl: GalleryCabalCards.loss)
         ),
-        ("List, no action", GalleryCabalCards.model(id: "gallery-card-2", tint: .plum, pnl: GalleryCabalCards.loss)),
+        ("List, no action", GalleryCabalCards.model(id: "gallery-card-2", tint: .purple, pnl: GalleryCabalCards.loss)),
         (
             "List, no share",
-            GalleryCabalCards.model(id: "gallery-card-3", tint: .ochre, funded: false)
+            GalleryCabalCards.model(id: "gallery-card-3", tint: .orange, funded: false)
         ),
         (
             "List, P&L unavailable",
-            GalleryCabalCards.model(id: "gallery-card-4", tint: .moss, reason: "—")
+            GalleryCabalCards.model(id: "gallery-card-4", tint: .teal, reason: "—")
         ),
         (
             "List, gain, with a picture",
