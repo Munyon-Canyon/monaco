@@ -59,6 +59,8 @@ Do these once per milestone.
 
 5. When a ticket's scope changes, edit its body and add a comment that says why. A ticket must never describe work that no longer matches the plan.
 
+6. Before batching a mobile ticket, check its size against the write-ticket "Mobile ticket size" rule with `gh issue view <n>` and the Touches list, and split it when it names more than one view or model. Mobile tickets took 47 minutes from dispatch to landed against 13 for backend, because each needed 6 to 17 xcodebuilds.
+
 ## Run a batch
 
 1. `agents dispatch` enforces the backlog gate (more live stage 0 tickets than `[dispatch] max_queue` × the `db` plus `cpu` tokens of `[check.tokens]`) and the queue breaker (two `gtmq_` drafts closed in the last 60 minutes that failed on the same job), so there is nothing to check by hand. Send a pipeline fix with `--urgent`, which bypasses both.
