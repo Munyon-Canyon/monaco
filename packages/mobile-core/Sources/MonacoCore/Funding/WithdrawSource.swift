@@ -61,7 +61,7 @@ public struct WithdrawSource: Sendable {
     }
 
     public func preview(micros: Int64, toAddress: String, network: WithdrawNetwork) async throws -> WithdrawPreview {
-        let body = network.request(micros: micros, toAddress: toAddress)
+        let body = network.previewRequest(micros: micros, toAddress: toAddress)
         let preview = try await api.read { try await $0.previewWithdrawal(body: .json(body)).ok.body.json }
         return WithdrawPreview(
             receiveMicros: try AccountBalance.micros(preview.receiveMicros), expiresAt: preview.expiresAt)

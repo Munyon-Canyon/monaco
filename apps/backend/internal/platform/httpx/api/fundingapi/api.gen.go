@@ -94,6 +94,48 @@ func (e ReportOnrampStatusRequestStatus) Valid() bool {
 	}
 }
 
+// Defines values for WithdrawPreviewRequestDestinationKind.
+const (
+	WithdrawPreviewRequestDestinationKindEvm    WithdrawPreviewRequestDestinationKind = "evm"
+	WithdrawPreviewRequestDestinationKindSolana WithdrawPreviewRequestDestinationKind = "solana"
+)
+
+// Valid indicates whether the value is a known member of the WithdrawPreviewRequestDestinationKind enum.
+func (e WithdrawPreviewRequestDestinationKind) Valid() bool {
+	switch e {
+	case WithdrawPreviewRequestDestinationKindEvm:
+		return true
+	case WithdrawPreviewRequestDestinationKindSolana:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WithdrawPreviewRequestNetwork.
+const (
+	WithdrawPreviewRequestNetworkArbitrum WithdrawPreviewRequestNetwork = "arbitrum"
+	WithdrawPreviewRequestNetworkBase     WithdrawPreviewRequestNetwork = "base"
+	WithdrawPreviewRequestNetworkEthereum WithdrawPreviewRequestNetwork = "ethereum"
+	WithdrawPreviewRequestNetworkSolana   WithdrawPreviewRequestNetwork = "solana"
+)
+
+// Valid indicates whether the value is a known member of the WithdrawPreviewRequestNetwork enum.
+func (e WithdrawPreviewRequestNetwork) Valid() bool {
+	switch e {
+	case WithdrawPreviewRequestNetworkArbitrum:
+		return true
+	case WithdrawPreviewRequestNetworkBase:
+		return true
+	case WithdrawPreviewRequestNetworkEthereum:
+		return true
+	case WithdrawPreviewRequestNetworkSolana:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for WithdrawRequestDestinationKind.
 const (
 	WithdrawRequestDestinationKindEvm    WithdrawRequestDestinationKind = "evm"
@@ -130,6 +172,24 @@ func (e WithdrawRequestNetwork) Valid() bool {
 	case WithdrawRequestNetworkEthereum:
 		return true
 	case WithdrawRequestNetworkSolana:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WithdrawalPreviewFeeMode.
+const (
+	Included WithdrawalPreviewFeeMode = "included"
+	OnTop    WithdrawalPreviewFeeMode = "on_top"
+)
+
+// Valid indicates whether the value is a known member of the WithdrawalPreviewFeeMode enum.
+func (e WithdrawalPreviewFeeMode) Valid() bool {
+	switch e {
+	case Included:
+		return true
+	case OnTop:
 		return true
 	default:
 		return false
@@ -373,6 +433,39 @@ type WithdrawAccepted struct {
 	WithdrawalId openapi_types.UUID `json:"withdrawal_id"`
 }
 
+// WithdrawPreviewRequest A withdrawal to preview. Every field is optional, so the keypad can ask for the fee and the most the caller can send before an amount or an address is typed.
+type WithdrawPreviewRequest struct {
+	// AmountMicros USDC micros. Any amount is answered; one under 1000000 sets `below_min`.
+	//
+	// Examples: 2000000
+	AmountMicros *string `json:"amount_micros,omitempty"`
+
+	// DestinationKind Where `to_address` lives. Missing means solana.
+	//
+	// Examples: solana
+	DestinationKind *WithdrawPreviewRequestDestinationKind `json:"destination_kind,omitempty"`
+
+	// Network The destination chain. Missing means solana. Required when destination_kind is evm.
+	//
+	// Examples: solana
+	Network *WithdrawPreviewRequestNetwork `json:"network,omitempty"`
+
+	// ToAddress The destination: a Solana wallet, or for destination_kind evm a 0x address on `network`. Checked only when given.
+	//
+	// Examples: 9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P
+	ToAddress *string `json:"to_address,omitempty"`
+}
+
+// WithdrawPreviewRequestDestinationKind Where `to_address` lives. Missing means solana.
+//
+// Examples: solana
+type WithdrawPreviewRequestDestinationKind string
+
+// WithdrawPreviewRequestNetwork The destination chain. Missing means solana. Required when destination_kind is evm.
+//
+// Examples: solana
+type WithdrawPreviewRequestNetwork string
+
 // WithdrawRequest A withdrawal of platform balance to a Solana address or to an address on an EVM network.
 type WithdrawRequest struct {
 	// AmountMicros USDC micros, at least 1000000.
@@ -454,18 +547,68 @@ type WithdrawalAuthorization struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
-// WithdrawalPreview What a withdrawal would deliver to its destination.
+// WithdrawalPreview What a withdrawal on one network costs, the most the caller can send and, with an amount, what arrives.
 type WithdrawalPreview struct {
-	// ExpiresAt When the EVM quote expires. Null for Solana, which has no quote.
+	// ArrivalSeconds How long the network takes to deliver a withdrawal, in seconds.
+	//
+	// Examples: 60
+	ArrivalSeconds int `json:"arrival_seconds"`
+
+	// AvailableMicros The caller's available cash, the same figure as `GET /v1/me/balance`.
+	//
+	// Examples: 500000000
+	AvailableMicros string `json:"available_micros"`
+
+	// BelowMin The amount is under `min_micros`. Answered with 200, never an error.
+	//
+	// Examples: false
+	BelowMin bool `json:"below_min"`
+
+	// ExpiresAt When the EVM quote expires. Null for Solana, which has no quote, and without a quote.
 	//
 	// Examples: 2026-10-11T10:30:00Z
 	ExpiresAt *time.Time `json:"expires_at"`
 
-	// ReceiveMicros USDC micros the destination receives. An estimate for an EVM network, exact for Solana.
+	// FeeKnown False on an EVM network until an amount and an address have been quoted.
+	//
+	// Examples: true
+	FeeKnown bool `json:"fee_known"`
+
+	// FeeMicros The network's withdraw fee in USDC micros. 0 on Solana, where the relayer sponsors the network fee. On an EVM network it is Privy's cut from the last quote for that network (kept 5 minutes), or null when `fee_known` is false.
+	//
+	// Examples: 0
+	FeeMicros *string `json:"fee_micros"`
+
+	// FeeMode `included` means the fee comes out of the amount (EVM); `on_top` means it is added to the amount (Solana, with a fee of 0 today).
+	//
+	// Examples: on_top
+	FeeMode WithdrawalPreviewFeeMode `json:"fee_mode"`
+
+	// MaxAmountMicros The most the caller can send. On top, available cash less the fee, never below 0; included, the available cash.
+	//
+	// Examples: 500000000
+	MaxAmountMicros string `json:"max_amount_micros"`
+
+	// MinMicros The smallest withdrawal, in USDC micros.
+	//
+	// Examples: 1000000
+	MinMicros string `json:"min_micros"`
+
+	// OverMicros How much the amount is over `max_amount_micros`, 0 when it is not. Null without an amount and below the minimum.
+	//
+	// Examples: 150500000
+	OverMicros *string `json:"over_micros"`
+
+	// ReceiveMicros USDC micros the destination receives. "0" when nothing arrives: without an amount, below the minimum, over the maximum, or on an EVM network without a valid address. An estimate for an EVM network, exact for Solana.
 	//
 	// Examples: 9992500
 	ReceiveMicros string `json:"receive_micros"`
 }
+
+// WithdrawalPreviewFeeMode `included` means the fee comes out of the amount (EVM); `on_top` means it is added to the amount (Solana, with a fee of 0 today).
+//
+// Examples: on_top
+type WithdrawalPreviewFeeMode string
 
 // WithdrawalStatus created, then submitted, then confirmed. created or submitted can end in failed.
 type WithdrawalStatus string
@@ -546,7 +689,7 @@ type WithdrawJSONRequestBody = WithdrawRequest
 type AuthorizeWithdrawalJSONRequestBody = WithdrawRequest
 
 // PreviewWithdrawalJSONRequestBody defines body for PreviewWithdrawal for application/json ContentType.
-type PreviewWithdrawalJSONRequestBody = WithdrawRequest
+type PreviewWithdrawalJSONRequestBody = WithdrawPreviewRequest
 
 // CreateOnrampSessionJSONRequestBody defines body for CreateOnrampSession for application/json ContentType.
 type CreateOnrampSessionJSONRequestBody = CreateOnrampSessionRequest

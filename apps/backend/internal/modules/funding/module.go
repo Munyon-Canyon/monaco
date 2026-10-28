@@ -92,8 +92,10 @@ func (m *Module) Mount(r api.Mount) {
 		Withdrawals: app.NewWithdrawHandler(m.withdrawDeps(wallets)),
 		Authorize:   app.NewAuthorizeWithdrawalHandler(m.deps.UoW, m.deps.Clock),
 		Preview: app.PreviewWithdrawalHandler{
-			Wallets: wallets,
-			Quotes:  adapters.NewPrivyTransferQuotes(cfg, m.deps.Clock),
+			Wallets:  wallets,
+			Quotes:   adapters.NewPrivyTransferQuotes(cfg, m.deps.Clock),
+			Balances: m.balanceReader(),
+			Fees:     app.NewBridgeFees(m.deps.Clock),
 		},
 		Pause:    app.NewPauseCabalHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock, m.deps.Bus),
 		Resume:   app.NewResumeCabalHandler(m.deps.UoW, m.deps.Clock, m.deps.Bus),

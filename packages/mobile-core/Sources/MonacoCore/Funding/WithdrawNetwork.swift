@@ -55,4 +55,10 @@ public enum WithdrawNetwork: String, CaseIterable, Identifiable, Sendable {
             destinationKind: isEVM ? .evm : nil, network: isEVM ? .init(rawValue: rawValue) : nil,
             amountMicros: String(micros), toAddress: toAddress)
     }
+
+    func previewRequest(micros: Int64, toAddress: String) -> Components.Schemas.WithdrawPreviewRequest {
+        Components.Schemas.WithdrawPreviewRequest(
+            destinationKind: isEVM ? .evm : nil, network: isEVM ? .init(rawValue: rawValue) : nil,
+            amountMicros: String(micros), toAddress: toAddress)
+    }
 }

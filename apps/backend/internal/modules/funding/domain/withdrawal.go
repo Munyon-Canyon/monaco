@@ -19,6 +19,41 @@ const (
 
 const MinWithdrawalMicros = 1_000_000
 
+type FeeMode string
+
+const (
+	FeeIncluded FeeMode = "included"
+	FeeOnTop    FeeMode = "on_top"
+)
+
+func WithdrawalFee(network chain.Network) (money.Micros, FeeMode) {
+	if network.IsEVM() {
+		return money.Micros{}, FeeIncluded
+	}
+	return money.Micros{}, FeeOnTop
+}
+
+func ArrivalSeconds(network chain.Network) int {
+	if network == chain.NetworkEthereum {
+		return 300
+	}
+	if network.IsEVM() {
+		return 120
+	}
+	return 60
+}
+
+func MaxSendable(available, fee money.Micros, mode FeeMode) money.Micros {
+	if mode == FeeIncluded {
+		return available
+	}
+	left, err := available.Sub(fee)
+	if err != nil {
+		return money.Micros{}
+	}
+	return left
+}
+
 type DestinationKind string
 
 const (
@@ -65,6 +100,45 @@ func ParseWithdrawalRequest(raw RawWithdrawal) (WithdrawalRequest, error) {
 		return WithdrawalRequest{}, errs.New(errs.CodeInvalidInput, op,
 			slog.String("amount_micros", amount.String()), slog.Int("min_micros", MinWithdrawalMicros))
 	}
+	request, err := parseDestination(raw, true)
+	request.Amount = amount
+	return request, err
+}
+
+type RawWithdrawalPreview struct {
+	Amount            *string
+	Kind, Network, To string
+}
+
+type WithdrawalPreviewRequest struct {
+	Network chain.Network
+	Amount  *money.Micros
+	EVM     *chain.EVMAddress
+}
+
+func ParseWithdrawalPreview(raw RawWithdrawalPreview) (WithdrawalPreviewRequest, error) {
+	const op = "funding.ParseWithdrawalPreview"
+	var amount *money.Micros
+	if raw.Amount != nil {
+		parsed, err := money.ParseMicros(*raw.Amount)
+		if err != nil {
+			return WithdrawalPreviewRequest{}, errs.Wrap(err, errs.CodeInvalidInput, op)
+		}
+		amount = &parsed
+	}
+	request, err := parseDestination(RawWithdrawal{Kind: raw.Kind, Network: raw.Network, To: raw.To}, raw.To != "")
+	if err != nil {
+		return WithdrawalPreviewRequest{}, err
+	}
+	out := WithdrawalPreviewRequest{Network: request.Network, Amount: amount}
+	if request.Kind() == DestinationEVM && raw.To != "" {
+		out.EVM = &request.EVM
+	}
+	return out, nil
+}
+
+func parseDestination(raw RawWithdrawal, withAddress bool) (WithdrawalRequest, error) {
+	const op = "funding.ParseWithdrawalRequest"
 	network, err := chain.ParseNetwork(raw.Network)
 	if err != nil {
 		return WithdrawalRequest{}, err
@@ -75,12 +149,18 @@ func ParseWithdrawalRequest(raw RawWithdrawal) (WithdrawalRequest, error) {
 			return WithdrawalRequest{}, errs.New(errs.CodeInvalidNetwork, op,
 				slog.String("network", string(network)), slog.String("reason", "solana_destination"))
 		}
+		if !withAddress {
+			return WithdrawalRequest{Network: network}, nil
+		}
 		to, err := parseSolanaDestination(raw.To)
-		return WithdrawalRequest{Amount: amount, Network: network, To: to}, err
+		return WithdrawalRequest{Network: network, To: to}, err
 	case DestinationEVM:
 		if !evmWithdrawalEnabled(network) {
 			return WithdrawalRequest{}, errs.New(errs.CodeInvalidNetwork, op,
 				slog.String("network", string(network)), slog.String("reason", "not_enabled"))
+		}
+		if !withAddress {
+			return WithdrawalRequest{Network: network}, nil
 		}
 		to, err := chain.ParseEVMAddress(raw.To)
 		if err != nil {
@@ -89,7 +169,7 @@ func ParseWithdrawalRequest(raw RawWithdrawal) (WithdrawalRequest, error) {
 		if to == (chain.EVMAddress{}) {
 			return WithdrawalRequest{}, errs.New(errs.CodeInvalidAddress, op, slog.String("reason", "zero_address"))
 		}
-		return WithdrawalRequest{Amount: amount, Network: network, EVM: to}, nil
+		return WithdrawalRequest{Network: network, EVM: to}, nil
 	}
 	return WithdrawalRequest{}, errs.New(errs.CodeInvalidInput, op, slog.String("destination_kind", raw.Kind))
 }

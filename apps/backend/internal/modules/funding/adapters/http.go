@@ -97,7 +97,7 @@ func (h HTTP) PreviewWithdrawal(
 	if err != nil {
 		return nil, err
 	}
-	request, err := domain.ParseWithdrawalRequest(rawWithdrawal(*req.Body))
+	request, err := domain.ParseWithdrawalPreview(rawPreview(*req.Body))
 	if err != nil {
 		return nil, err
 	}
@@ -106,8 +106,41 @@ func (h HTTP) PreviewWithdrawal(
 		return nil, err
 	}
 	return api.PreviewWithdrawal200JSONResponse(api.WithdrawalPreview{
-		ReceiveMicros: got.ReceiveMicros.String(), ExpiresAt: got.ExpiresAt,
+		AvailableMicros: got.AvailableMicros.String(), FeeMicros: microsOrNil(got.FeeMicros),
+		FeeKnown: got.FeeMicros != nil, FeeMode: api.WithdrawalPreviewFeeMode(got.FeeMode),
+		MaxAmountMicros: got.MaxAmountMicros.String(), ReceiveMicros: receiveOrZero(got.ReceiveMicros),
+		OverMicros: microsOrNil(got.OverMicros), BelowMin: got.BelowMin, MinMicros: got.MinMicros.String(),
+		ArrivalSeconds: got.ArrivalSeconds, ExpiresAt: got.ExpiresAt,
 	}), nil
+}
+
+func receiveOrZero(m *money.Micros) string {
+	if m == nil {
+		return "0"
+	}
+	return m.String()
+}
+
+func microsOrNil(m *money.Micros) *string {
+	if m == nil {
+		return nil
+	}
+	value := m.String()
+	return &value
+}
+
+func rawPreview(body api.WithdrawPreviewRequest) domain.RawWithdrawalPreview {
+	raw := domain.RawWithdrawalPreview{Amount: body.AmountMicros}
+	if body.ToAddress != nil {
+		raw.To = *body.ToAddress
+	}
+	if body.DestinationKind != nil {
+		raw.Kind = string(*body.DestinationKind)
+	}
+	if body.Network != nil {
+		raw.Network = string(*body.Network)
+	}
+	return raw
 }
 
 func rawWithdrawal(body api.WithdrawRequest) domain.RawWithdrawal {

@@ -10,7 +10,7 @@ final class WithdrawSourcePreviewTests: XCTestCase {
     func testAnEVMPreviewPostsTheWithdrawalAndReturnsTheEstimateAndItsExpiry() async throws {
         let expiresAt = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down) + 300)
         let stamp = ISO8601DateFormatter().string(from: expiresAt)
-        let transport = StubTransport(.json(.ok, #"{"receive_micros":"9992500","expires_at":"\#(stamp)"}"#))
+        let transport = StubTransport(.json(.ok, Self.wire(receive: #""9992500""#, expires: #""\#(stamp)""#)))
 
         let preview = try await source(transport).preview(micros: 10_000_000, toAddress: evmAddress, network: .base)
 
@@ -27,7 +27,7 @@ final class WithdrawSourcePreviewTests: XCTestCase {
     }
 
     func testASolanaPreviewHasNoExpiry() async throws {
-        let transport = StubTransport(.json(.ok, #"{"receive_micros":"10000000","expires_at":null}"#))
+        let transport = StubTransport(.json(.ok, Self.wire(receive: #""10000000""#, expires: "null")))
 
         let preview = try await source(transport).preview(
             micros: 10_000_000, toAddress: "9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P", network: .solana)
@@ -48,7 +48,7 @@ final class WithdrawSourcePreviewTests: XCTestCase {
     }
 
     func testAnAmountThatIsNotMicrosIsADecodingError() async {
-        let transport = StubTransport(.json(.ok, #"{"receive_micros":"-1","expires_at":null}"#))
+        let transport = StubTransport(.json(.ok, Self.wire(receive: #""-1""#, expires: "null")))
 
         do {
             _ = try await source(transport).preview(micros: 10_000_000, toAddress: evmAddress, network: .ethereum)
@@ -56,6 +56,14 @@ final class WithdrawSourcePreviewTests: XCTestCase {
         } catch {
             guard case APIError.decoding = error else { return XCTFail("\(error) is not a decoding error") }
         }
+    }
+
+    private static func wire(receive: String, expires: String) -> String {
+        """
+        {"available_micros":"500000000","fee_micros":"7500","fee_known":true,"fee_mode":"included",\
+        "max_amount_micros":"500000000","receive_micros":\(receive),"over_micros":"0","below_min":false,\
+        "min_micros":"1000000","arrival_seconds":120,"expires_at":\(expires)}
+        """
     }
 
     private func source(_ transport: StubTransport) -> WithdrawSource {
