@@ -9,6 +9,9 @@ struct GalleryCardsPage: View {
             GalleryCoverCardSamples()
             GalleryBoardToolSamples()
             GalleryBoardRowSamples()
+            GalleryRankedRowSamples()
+            GalleryStatRowSamples()
+            GalleryRemindSamples()
             GalleryBoardListSamples()
             GalleryBalanceSamples()
         }
@@ -157,6 +160,129 @@ struct GalleryBoardRowSamples: View {
                         .monacoBleed()
                     }
                 }
+            }
+        }
+    }
+}
+
+struct GalleryRankedRowSamples: View {
+    private let cabal = GalleryFixtures.cabalNames[0]
+
+    private func avatar(_ name: String) -> some View {
+        MonacoAvatar(photoURL: nil, displayName: name, size: 40, seed: "gallery-ranked-\(name)")
+    }
+
+    var body: some View {
+        GalleryGroup(title: "Ranked rows") {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                GalleryCase(caption: "Ranked and up, down, same, new") {
+                    VStack(spacing: 0) {
+                        RankedRow(
+                            rank: .ranked(7, movement: 1), name: "Kai", isYou: false, subtitle: "Voted 14 of 14",
+                            figure: "79%", detail: "11 of 14 right"
+                        ) { avatar("Kai") }
+                        RankedRow(
+                            rank: .ranked(9, movement: -1), name: "Rosa", isYou: false, subtitle: "Voted 8 of 9",
+                            figure: "71%", detail: "5 of 7 right"
+                        ) { avatar("Rosa") }
+                        RankedRow(
+                            rank: .ranked(10, movement: 0), name: "Mo", isYou: false, subtitle: "Voted 9 of 11",
+                            figure: "67%", detail: "6 of 9 right"
+                        ) { avatar("Mo") }
+                        RankedRow(
+                            rank: .ranked(11, movement: nil), name: "Lena", isYou: false, subtitle: "Voted 5 of 5",
+                            figure: "60%", detail: "3 of 5 right"
+                        ) { avatar("Lena") }
+                    }
+                    .monacoBleed()
+                }
+                GalleryCase(caption: "Your row on the surface band") {
+                    RankedRow(
+                        rank: .ranked(8, movement: 1), name: "Andres", isYou: true, subtitle: "Voted 11 of 11",
+                        figure: "78%", detail: "7 of 9 right"
+                    ) { avatar("Andres") }
+                    .monacoBleed()
+                }
+                GalleryCase(caption: "Unranked") {
+                    VStack(spacing: 0) {
+                        RankedRow(
+                            rank: .unranked, name: "Rosa", isYou: false, subtitle: "2 resolved · voted 3 of 4",
+                            figure: "3 more", detail: "to rank"
+                        ) { avatar("Rosa") }
+                        RankedRow(
+                            rank: .unranked, name: "Andres", isYou: true, subtitle: "3 resolved · voted 3 of 3",
+                            figure: "2 more", detail: "to rank"
+                        ) { avatar("Andres") }
+                    }
+                    .monacoBleed()
+                }
+                GalleryCase(caption: "Crest-led cabal row") {
+                    RankedRow(
+                        rank: .ranked(3, movement: 2), name: cabal.name, isYou: false, subtitle: "Voted 12 of 12",
+                        figure: "82%", detail: "9 of 11 right"
+                    ) { CabalMark(groupId: cabal.id, name: cabal.name, size: .row) }
+                    .monacoBleed()
+                }
+            }
+        }
+    }
+}
+
+struct GalleryStatRowSamples: View {
+    var body: some View {
+        GalleryGroup(title: "Stat rows") {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+                GalleryCase(caption: "Open proposal") {
+                    StatGrid(items: [
+                        StatItem(label: "Price", value: "$220.00", info: {}),
+                        StatItem(label: "Shares", value: "≈ 1.82"),
+                        StatItem(label: "Of treasury", value: "2%"),
+                        StatItem(label: "Closes", value: "1:53 PM"),
+                    ])
+                }
+                GalleryCase(caption: "Closed proposal, with a gain") {
+                    StatGrid(items: [
+                        StatItem(label: "Fill", value: "$218.40"),
+                        StatItem(label: "Shares", value: "1.83"),
+                        StatItem(label: "Now", value: "$220.80"),
+                        StatItem(label: "Since", value: "+1.1%", tone: .gain),
+                    ])
+                }
+                GalleryCase(caption: "Closed proposal, with a loss") {
+                    StatGrid(items: [
+                        StatItem(label: "Fill", value: "$218.40"),
+                        StatItem(label: "Shares", value: "1.83"),
+                        StatItem(label: "Now", value: "$214.00"),
+                        StatItem(label: "Since", value: "−2.0%", tone: .loss),
+                    ])
+                }
+                GalleryCase(caption: "Cabal header") {
+                    StatGrid(items: [
+                        StatItem(label: "Your share", value: "$311.50"),
+                        StatItem(label: "Of treasury", value: "35%"),
+                        StatItem(label: "Open votes", value: "1"),
+                        StatItem(label: "Bot", value: "Off"),
+                    ])
+                }
+                GalleryCase(caption: "Review sheet") {
+                    StatGrid(items: [
+                        StatItem(label: "Shares", value: "≈ 1.82"),
+                        StatItem(label: "Price", value: "$220.00"),
+                        StatItem(label: "Of treasury", value: "2%"),
+                        StatItem(label: "To pass", value: "3 of 5"),
+                    ])
+                }
+            }
+        }
+    }
+}
+
+struct GalleryRemindSamples: View {
+    var body: some View {
+        GalleryGroup(title: "Remind me at close") {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                GalleryCase(caption: "Off") { RemindControl(isOn: false, onTitle: "Reminder at 12:53 PM") {} }
+                GalleryCase(caption: "On") { RemindControl(isOn: true, onTitle: "Reminder at 12:53 PM") {} }
             }
         }
     }

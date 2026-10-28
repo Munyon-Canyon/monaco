@@ -7,6 +7,7 @@ struct GalleryMarksPage: View {
             GalleryGlyphSamples()
             GalleryStockSamples()
             GalleryCabalMarkSamples()
+            GalleryCrestSamples()
             GalleryAvatarSamples()
             GalleryIdentitySamples()
             GalleryCoverSamples()
@@ -76,6 +77,52 @@ struct GalleryCabalMarkSamples: View {
                         ForEach(GalleryFixtures.cabalNames, id: \.id) { cabal in
                             CabalMark(groupId: cabal.id, name: cabal.name, size: 44, shape: .circle)
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct GalleryCrestSamples: View {
+    private let picture = GalleryFixtures.picture(.teal, name: "gallery-crest")?.absoluteString
+    private let cabal = GalleryFixtures.cabalNames[0]
+
+    var body: some View {
+        GalleryGroup(title: "Crests") {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+                GalleryCase(caption: "Identity hue, 24, 32, 40 and 56, beside a person circle") {
+                    HStack(alignment: .bottom, spacing: MonacoTheme.Space.sm) {
+                        ForEach(CabalMark.Size.allCases, id: \.rawValue) { size in
+                            CabalMark(groupId: cabal.id, name: cabal.name, size: size)
+                        }
+                        MonacoAvatar(photoURL: nil, displayName: "Andres", size: 40, seed: "gallery-person")
+                    }
+                }
+                GalleryCase(caption: "With a picture, 24, 32, 40 and 56") {
+                    HStack(alignment: .bottom, spacing: MonacoTheme.Space.sm) {
+                        ForEach(CabalMark.Size.allCases, id: \.rawValue) { size in
+                            CabalMark(groupId: cabal.id, name: cabal.name, size: size, pictureUrl: picture)
+                        }
+                    }
+                }
+                GalleryCase(caption: "Vote ring and badge, 1 and 12") {
+                    HStack(spacing: MonacoTheme.Space.l) {
+                        CabalMark(groupId: cabal.id, name: cabal.name, size: .row)
+                            .crestVoteRing(true)
+                            .crestBadge(1)
+                        CabalMark(groupId: GalleryFixtures.cabalNames[1].id, name: "Semis or bust", size: .row)
+                            .crestVoteRing(true)
+                            .crestBadge(12)
+                    }
+                    .padding(MonacoTheme.Space.s)
+                }
+                GalleryCase(caption: "A 24 crest on a photo's corner") {
+                    HStack(spacing: MonacoTheme.Space.m) {
+                        MonacoAvatar(photoURL: nil, displayName: "Rosa", size: 40, seed: "gallery-rosa")
+                            .crestOnCorner(groupId: cabal.id, name: cabal.name)
+                        MonacoAvatar(photoURL: nil, displayName: "Kai", size: 40, seed: "gallery-kai")
+                            .crestOnCorner(groupId: cabal.id, name: cabal.name, pictureUrl: picture)
                     }
                 }
             }

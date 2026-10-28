@@ -26,7 +26,7 @@ struct CabalMark: View {
     init(
         groupId: String,
         name: String,
-        size: CGFloat = 40,
+        size: CGFloat = CabalMark.Size.row.rawValue,
         pictureUrl: String? = nil,
         shape: MarkForm = .tile,
         accessibilityLabel: String? = nil
@@ -39,6 +39,27 @@ struct CabalMark: View {
         self.pictureURL = CabalMark.resolvedURL(pictureUrl)
         self.accessibilityLabel = accessibilityLabel
     }
+
+    init(
+        groupId: String,
+        name: String,
+        size crestSize: Size,
+        pictureUrl: String? = nil,
+        accessibilityLabel: String? = nil
+    ) {
+        self.init(
+            groupId: groupId, name: name, size: crestSize.rawValue, pictureUrl: pictureUrl,
+            accessibilityLabel: accessibilityLabel)
+    }
+
+    enum Size: CGFloat, CaseIterable {
+        case inline = 24
+        case small = 32
+        case row = 40
+        case header = 56
+    }
+
+    var identityTint: MonacoTheme.CabalTint { tint }
 
     /// Trims and rejects blanks, so an empty string never becomes a URL the
     /// image store retries forever.
@@ -76,6 +97,10 @@ struct CabalMark: View {
 
     private var markShape: AnyShape {
         MarkGeometry.shape(markForm, size: size)
+    }
+
+    func crestVoteRing(_ isOn: Bool) -> some View {
+        modifier(CrestVoteRing(isOn: isOn, color: tint.fill))
     }
 
     private var initialsLabel: some View {
@@ -137,6 +162,84 @@ struct CabalMark: View {
             return String(first).uppercased()
         }
         return (String(first) + String(last)).uppercased()
+    }
+}
+
+enum CrestMetrics {
+    static let ringWidth: CGFloat = 2
+    static let ringGap: CGFloat = 2
+    static let ringRadius: CGFloat = 8
+    static let badgeHeight: CGFloat = 18
+    static let badgeOffset: CGFloat = 6
+    static let cornerRing: CGFloat = 2
+    static let maxBadgeCount = 99
+
+    static func badgeText(_ count: Int?) -> String? {
+        guard let count, count > 0 else { return nil }
+        return count > maxBadgeCount ? "\(maxBadgeCount)+" : "\(count)"
+    }
+}
+
+private struct CrestVoteRing: ViewModifier {
+    let isOn: Bool
+    let color: Color
+
+    func body(content: Content) -> some View {
+        content.overlay {
+            if isOn {
+                RoundedRectangle(cornerRadius: CrestMetrics.ringRadius, style: .continuous)
+                    .strokeBorder(color, lineWidth: CrestMetrics.ringWidth)
+                    .padding(-(CrestMetrics.ringGap + CrestMetrics.ringWidth))
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+}
+
+private struct CrestBadge: ViewModifier {
+    let count: Int?
+
+    func body(content: Content) -> some View {
+        content.overlay(alignment: .topTrailing) {
+            if let text = CrestMetrics.badgeText(count) {
+                Text(text)
+                    .font(MonacoTheme.Typo.captionStrong)
+                    .foregroundStyle(MonacoTheme.voteNeededLabel)
+                    .lineLimit(1)
+                    .padding(.horizontal, MonacoTheme.Space.xs + 1)
+                    .frame(minWidth: CrestMetrics.badgeHeight, minHeight: CrestMetrics.badgeHeight)
+                    .background(MonacoTheme.voteNeededFill, in: Capsule())
+                    .offset(x: CrestMetrics.badgeOffset, y: -CrestMetrics.badgeOffset)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+}
+
+private struct CrestOnCorner: ViewModifier {
+    let groupId: String
+    let name: String
+    let pictureUrl: String?
+
+    func body(content: Content) -> some View {
+        content.overlay(alignment: .bottomTrailing) {
+            CabalMark(groupId: groupId, name: name, size: .inline, pictureUrl: pictureUrl)
+                .padding(CrestMetrics.cornerRing)
+                .background(
+                    MonacoTheme.canvas,
+                    in: RoundedRectangle(
+                        cornerRadius: MonacoTheme.Radius.crest + CrestMetrics.cornerRing, style: .continuous))
+        }
+    }
+}
+
+extension View {
+    func crestBadge(_ count: Int?) -> some View {
+        modifier(CrestBadge(count: count))
+    }
+
+    func crestOnCorner(groupId: String, name: String, pictureUrl: String? = nil) -> some View {
+        modifier(CrestOnCorner(groupId: groupId, name: name, pictureUrl: pictureUrl))
     }
 }
 
@@ -241,7 +344,7 @@ struct StockMark: View {
     @State private var logo: UIImage?
 
     private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: MarkGeometry.radius(for: size), style: .continuous)
+        RoundedRectangle(cornerRadius: MonacoTheme.Radius.tile, style: .continuous)
     }
 
     /// The issuer's artwork frames every company logo with four grey arrows that reach about
@@ -339,9 +442,13 @@ enum MarkGeometry {
         size * radiusFraction
     }
 
+    static func tileRadius(for size: CGFloat) -> CGFloat {
+        MonacoTheme.Radius.crest
+    }
+
     static func shape(_ form: MarkForm, size: CGFloat) -> AnyShape {
         switch form {
-        case .tile: return AnyShape(RoundedRectangle(cornerRadius: radius(for: size), style: .continuous))
+        case .tile: return AnyShape(RoundedRectangle(cornerRadius: tileRadius(for: size), style: .continuous))
         case .circle: return AnyShape(Circle())
         }
     }

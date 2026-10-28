@@ -1,14 +1,47 @@
 import SwiftUI
 
-struct StatItem: Equatable {
+struct StatItem {
+    enum Tone: Equatable {
+        case plain, gain, loss
+    }
+
     let label: String
     let value: String
+    var tone: Tone = .plain
+    var info: (() -> Void)? = nil
+}
+
+extension StatItem: Equatable {
+    static func == (lhs: StatItem, rhs: StatItem) -> Bool {
+        lhs.label == rhs.label && lhs.value == rhs.value && lhs.tone == rhs.tone
+            && (lhs.info == nil) == (rhs.info == nil)
+    }
 }
 
 enum StatMetrics {
-    static let columnGap: CGFloat = 24
-    static let cellMinHeight: CGFloat = 72
+    static let columnGap: CGFloat = 12
+    static let cellMinHeight: CGFloat = 56
     static let pairGap: CGFloat = 20
+    static let cardPaddingVertical: CGFloat = 12
+    static let cardPaddingHorizontal: CGFloat = 16
+    static let infoGlyph: CGFloat = 17
+    static let infoTarget: CGFloat = 44
+    static let defaultColumns = 4
+    static let wideTextColumns = 2
+
+    static func columns(requested: Int, dynamicTypeSize: DynamicTypeSize) -> Int {
+        if dynamicTypeSize.isAccessibilitySize { return 1 }
+        if dynamicTypeSize >= .xxLarge { return min(requested, wideTextColumns) }
+        return requested
+    }
+
+    static func color(for tone: StatItem.Tone) -> Color {
+        switch tone {
+        case .plain: return MonacoTheme.primaryText
+        case .gain: return MonacoTheme.profit
+        case .loss: return MonacoTheme.loss
+        }
+    }
 }
 
 enum MoneyStripMetrics {
@@ -17,6 +50,14 @@ enum MoneyStripMetrics {
 
 struct StatGrid: View {
     let items: [StatItem]
+    var columns: Int = StatMetrics.defaultColumns
+    var inCard: Bool = true
+
+    init(items: [StatItem], columns: Int = StatMetrics.defaultColumns, inCard: Bool = true) {
+        self.items = items
+        self.columns = columns
+        self.inCard = inCard
+    }
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -25,39 +66,79 @@ struct StatGrid: View {
     }
 
     var body: some View {
-        let columns = dynamicTypeSize.isAccessibilitySize ? 1 : 2
-        VStack(spacing: 0) {
-            ForEach(Array(Self.rows(items, columns: columns).enumerated()), id: \.offset) { _, row in
-                HStack(alignment: .top, spacing: StatMetrics.columnGap) {
+        let count = max(StatMetrics.columns(requested: columns, dynamicTypeSize: dynamicTypeSize), 1)
+        grid(count: count)
+            .padding(.vertical, inCard ? StatMetrics.cardPaddingVertical : 0)
+            .padding(.horizontal, inCard ? StatMetrics.cardPaddingHorizontal : 0)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                if inCard {
+                    RoundedRectangle(cornerRadius: MonacoTheme.Radius.small, style: .continuous)
+                        .fill(MonacoTheme.surface)
+                }
+            }
+    }
+
+    private func grid(count: Int) -> some View {
+        VStack(spacing: StatMetrics.columnGap) {
+            ForEach(Array(Self.rows(items, columns: count).enumerated()), id: \.offset) { _, row in
+                HStack(alignment: .lastTextBaseline, spacing: StatMetrics.columnGap) {
                     ForEach(Array(row.enumerated()), id: \.offset) { _, item in
-                        cell(item)
+                        cell(item, lineLimit: count > 2 ? 1 : 2)
                     }
-                    if row.count < columns {
-                        Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
+                    if row.count < count {
+                        ForEach(0..<(count - row.count), id: \.self) { _ in
+                            Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
+                        }
                     }
                 }
             }
         }
     }
 
-    private func cell(_ item: StatItem) -> some View {
+    private func cell(_ item: StatItem, lineLimit: Int) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(item.label)
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.secondaryText)
+            HStack(spacing: 0) {
+                Text(item.label)
+                    .font(MonacoTheme.Typo.subhead)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let info = item.info {
+                    Button(action: info) {
+                        Image(systemName: "info.circle")
+                            .font(.system(size: StatMetrics.infoGlyph))
+                            .foregroundStyle(MonacoTheme.tint)
+                            .frame(width: StatMetrics.infoTarget, height: StatMetrics.infoTarget)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(-(StatMetrics.infoTarget - StatMetrics.infoGlyph) / 2)
+                    .padding(.leading, MonacoTheme.Space.xs)
+                    .accessibilityLabel("About \(item.label)")
+                }
+            }
             Text(item.value)
-                .moneyFont(.row)
-                .foregroundStyle(MonacoTheme.primaryText)
-                .lineLimit(1)
-                .minimumScaleFactor(MoneyStyle.row.minimumScaleFactor)
+                .moneyFont(.card)
+                .foregroundStyle(StatMetrics.color(for: item.tone))
+                .lineLimit(lineLimit)
+                .minimumScaleFactor(0.8)
         }
-        .padding(.vertical, MonacoTheme.Space.m)
-        .frame(
-            maxWidth: .infinity, minHeight: StatMetrics.cellMinHeight, maxHeight: .infinity, alignment: .topLeading
-        )
-        .overlay(alignment: .bottom) { MonacoRule(color: MonacoTheme.border) }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(item.label), \(item.value)")
+        .frame(maxWidth: .infinity, minHeight: StatMetrics.cellMinHeight, alignment: .bottomLeading)
+        .modifier(StatCellAccessibility(item: item))
+    }
+}
+
+private struct StatCellAccessibility: ViewModifier {
+    let item: StatItem
+
+    func body(content: Content) -> some View {
+        if item.info == nil {
+            content
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(item.label), \(item.value)")
+        } else {
+            content.accessibilityElement(children: .contain)
+        }
     }
 }
 
