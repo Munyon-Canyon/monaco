@@ -1,4 +1,5 @@
 #if DEBUG
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -10,6 +11,16 @@ enum ShareSampleCase: String, CaseIterable {
     case truncated
     case loading
     case failed
+    case screenPost
+    case screenSquare
+    case screenStory
+    case screenSticker
+    case screenPnlOff
+    case screenBuySellOff
+    case screenCodeOff
+    case screenReplay
+    case screenLoading
+    case screenFailed
 
     static let launchArgument = "-MonacoShareSample"
 
@@ -31,8 +42,31 @@ enum ShareSampleCase: String, CaseIterable {
         case .buySellOff: ShareSampleData.spec(eyes: ShareEyes(buySell: false))
         case .truncated: ShareSampleData.spec(truncated: true)
         case .loading, .failed: nil
+        default: ShareSampleData.spec(eyes: screenEyes)
         }
     }
+
+    var isScreen: Bool { rawValue.hasPrefix("screen") }
+
+    var screenFormat: ShareFormat {
+        switch self {
+        case .screenSquare: .square
+        case .screenStory: .story
+        case .screenSticker: .sticker
+        default: .post
+        }
+    }
+
+    var screenEyes: ShareEyes {
+        switch self {
+        case .screenPnlOff: ShareEyes(pnlDollars: false)
+        case .screenBuySellOff: ShareEyes(buySell: false)
+        case .screenCodeOff: ShareEyes(code: false)
+        default: ShareEyes()
+        }
+    }
+
+    var replayProgress: Double? { self == .screenReplay ? 0.5 : nil }
 }
 
 enum ShareSampleData {
@@ -81,10 +115,14 @@ struct ShareSampleHarness: View {
     let sample: ShareSampleCase
 
     var body: some View {
-        MonacoTheme.canvas
-            .ignoresSafeArea()
-            .overlay { content }
-            .environment(\.colorScheme, .dark)
+        if sample.isScreen {
+            ShareScreenSample(sample: sample)
+        } else {
+            MonacoTheme.canvas
+                .ignoresSafeArea()
+                .overlay { content }
+                .environment(\.colorScheme, .dark)
+        }
     }
 
     @ViewBuilder
@@ -102,6 +140,39 @@ struct ShareSampleHarness: View {
                 FShareCard(spec: spec, size: sample.cardSize)
             }
         }
+    }
+}
+
+private struct ShareScreenSample: View {
+    let sample: ShareSampleCase
+    @State private var eyes: ShareEyes
+    @State private var format: ShareFormat
+
+    init(sample: ShareSampleCase) {
+        self.sample = sample
+        _eyes = State(initialValue: sample.screenEyes)
+        _format = State(initialValue: sample.screenFormat)
+    }
+
+    private var state: LoadState<ShareCardSpec> {
+        switch sample {
+        case .screenLoading: .loading
+        case .screenFailed: .failed(.decoding("no card"))
+        default: .loaded(ShareSampleData.spec(eyes: eyes))
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ShareScreenContent(
+                state: state, eyes: $eyes, format: $format, frozenProgress: sample.replayProgress,
+                share: { _, _ in }, copyImage: { _ in }, retry: {}
+            )
+            .monacoCanvas()
+            .navigationTitle("Share")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .environment(\.colorScheme, .dark)
     }
 }
 
