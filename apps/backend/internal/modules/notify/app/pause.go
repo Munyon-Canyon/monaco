@@ -14,6 +14,7 @@ import (
 type Cabals interface {
 	Cabal(ctx context.Context, id ids.CabalID) (cabal.View, error)
 	Members(ctx context.Context, id ids.CabalID) ([]cabal.MemberView, error)
+	Admins(ctx context.Context, id ids.CabalID) ([]ids.UserID, error)
 }
 
 type CabalPaused struct{ Cabals Cabals }

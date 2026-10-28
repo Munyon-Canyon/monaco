@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -57,6 +58,7 @@ type CabalView struct {
 	ExpirySeconds   int32
 	SlippageBps     int32
 	Creator         Person
+	Admins          []Person
 	MemberCount     int32
 	Members         []Member
 	Me              *Membership
@@ -99,7 +101,8 @@ func GetCabal(
 		ID: cabalID, Name: row.Name, PictureURL: textPtr(row.PictureUrl.Valid, row.PictureUrl.String),
 		Status: row.Status, JoinMode: row.JoinMode, VoterMode: row.VoterMode, Threshold: row.Threshold,
 		ExpirySeconds: row.ProposalExpirySeconds, SlippageBps: row.SlippageBps,
-		Creator: person(row.CreatorID, cards), MemberCount: row.MemberCount, Members: members, Me: me,
+		Creator: person(row.CreatorID, cards), Admins: adminsOf(memberRows, cards), MemberCount: row.MemberCount,
+		Members: members, Me: me,
 		Access: access, TreasuryAddress: chain.SolanaAddress(wallet.Address),
 	}
 	return view, nil
@@ -143,6 +146,18 @@ func membersOf(
 		}
 	}
 	return members, me
+}
+
+func adminsOf(rows []sqlc.ListMembersRow, cards map[ids.UserID]port.UserCard) []Person {
+	admins := make([]Person, 0, 2)
+	for _, role := range []domain.Role{domain.RoleCreator, domain.RoleAdmin} {
+		for _, row := range rows {
+			if row.Role == string(role) {
+				admins = append(admins, person(row.UserID, cards))
+			}
+		}
+	}
+	return admins
 }
 
 func person(id uuid.UUID, cards map[ids.UserID]port.UserCard) Person {

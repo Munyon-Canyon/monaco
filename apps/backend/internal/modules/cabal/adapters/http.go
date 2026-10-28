@@ -551,13 +551,17 @@ func wireCabal(view app.CabalView) api.Cabal {
 			JoinedAt: member.JoinedAt,
 		})
 	}
+	admins := make([]api.CabalPerson, 0, len(view.Admins))
+	for _, admin := range view.Admins {
+		admins = append(admins, wirePerson(admin))
+	}
 	return api.Cabal{
 		Id: view.ID.UUID(), Name: view.Name, PictureUrl: view.PictureURL, Status: view.Status,
 		Rules: api.CabalRules{
 			JoinMode: view.JoinMode, VoterMode: view.VoterMode, Threshold: view.Threshold,
 			ProposalExpirySeconds: view.ExpirySeconds, SlippageBps: view.SlippageBps,
 		},
-		Creator:     wirePerson(view.Creator),
+		Creator: wirePerson(view.Creator), Admins: &admins,
 		MemberCount: view.MemberCount, Members: members, Me: wireMe(view.Me),
 		MyAccessRequest: wireAccess(view.Access),
 		TreasuryAddress: string(view.TreasuryAddress),

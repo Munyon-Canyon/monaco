@@ -46,7 +46,7 @@ The creator sets these at `CreateCabal`. `UpdateCabal` can change them later ([E
 | `admin` | Everything a member can, plus list and decide access requests, invite, and revoke any invite. Always votes. |
 | `member` | Read the cabal, chat, revoke their own invites, leave. Proposing and voting depend on the voter set, not the role. |
 
-There is exactly one creator per cabal, and the role never moves. The creator is an admin, so "is an admin" means `creator` or `admin`. A database check keeps every `admin` row voting, and a voter-list edit keeps every admin on the list, as it keeps the creator. Nobody names a co-admin directly: a proposal does ([Open questions](#open-questions)).
+There is exactly one creator per cabal, and the role never moves. The creator is an admin, so "is an admin" means `creator` or `admin`, and the reads call the pair "admins", the creator first. A database check keeps every `admin` row voting, and a voter-list edit keeps every admin on the list, as it keeps the creator. Nobody names a co-admin directly: a proposal does ([Open questions](#open-questions)).
 
 ### Join and access requests
 
