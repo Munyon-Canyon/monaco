@@ -11,3 +11,7 @@ var GovernanceProposalComparisonRefreshed = Msg{
 var GovernanceProposalComparisonUnlisted = Msg{
 	Name: "governance.proposal.comparison_unlisted", Required: []string{"proposal_id", "network"},
 }
+
+var GovernanceStatsOverflow = Msg{
+	Name: "governance.stats_overflow", Required: []string{"proposal_id", "stat"},
+}

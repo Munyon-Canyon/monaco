@@ -51,6 +51,8 @@ type Fill struct {
 	TokenDecimals uint8
 	PriceMicros   uint64
 	Confirmed     bool
+	FeeMicros     *money.Micros
+	FilledAt      time.Time
 }
 
 func (r *ProposalReads) Get(ctx context.Context, req GetProposal) (ProposalDetail, error) {
@@ -88,17 +90,57 @@ func (r *ProposalReads) Get(ctx context.Context, req GetProposal) (ProposalDetai
 		CanWithdraw:       open && view.ProposerID == req.Caller && !othersVoted,
 		ProposerReturnBps: bps, ProposerReturnPrivate: private,
 	}
-	return out, r.linkSwap(ctx, row, &out)
+	return out, r.priced(ctx, row, &out)
 }
 
-func (r *ProposalReads) linkSwap(ctx context.Context, row sqlc.GetProposalRow, out *ProposalDetail) error {
+func (r *ProposalReads) priced(ctx context.Context, row sqlc.GetProposalRow, out *ProposalDetail) error {
+	asset, err := r.assetOf(ctx, row.Mint)
+	if err != nil {
+		return err
+	}
+	live, err := r.livePrice(ctx, asset.ID)
+	if err != nil {
+		return err
+	}
+	if err := r.linkSwap(ctx, row, asset, out); err != nil {
+		return err
+	}
+	out.Stats = withPrices(ctx, out.Stats, priceInputs{
+		id: out.Proposal.ID, kind: row.Kind, usdc: money.MicrosFromUint64(unsigned(row.UsdcMicros.Int64)),
+		token: unsigned(row.TokenAmount.Int64), decimals: asset.Decimals, live: live, fill: out.Fill,
+	})
+	return nil
+}
+
+func (r *ProposalReads) linkSwap(
+	ctx context.Context, row sqlc.GetProposalRow, asset market.Asset, out *ProposalDetail,
+) error {
 	swap, found, err := r.swaps.LatestBySource(ctx, trading.Source{Kind: "proposal", ID: row.ID})
 	if err != nil || !found {
 		return err
 	}
 	out.Swap = &swap
-	out.Fill, err = r.fill(ctx, row.Mint, swap)
-	return err
+	out.Fill = fillOf(swap, asset.Decimals)
+	return nil
+}
+
+func (r *ProposalReads) assetOf(ctx context.Context, rawMint string) (market.Asset, error) {
+	mint, err := market.ParseMint(rawMint)
+	if err != nil {
+		return market.Asset{}, err
+	}
+	return r.assets.AssetByMint(ctx, mint)
+}
+
+func (r *ProposalReads) livePrice(ctx context.Context, id market.AssetID) (money.Micros, error) {
+	if r.prices == nil {
+		return money.Micros{}, nil
+	}
+	prices, err := r.prices.PricesAsOf(ctx, []market.AssetID{id}, r.clock.Now())
+	if err != nil {
+		return money.Micros{}, errs.Wrap(err, errs.CodeOf(err), "governance.GetProposal")
+	}
+	return prices[id].Micros, nil
 }
 
 type detailFacts struct {
@@ -129,18 +171,6 @@ func (r *ProposalReads) facts(ctx context.Context, row sqlc.GetProposalRow, req 
 	return out, nil
 }
 
-func (r *ProposalReads) fill(ctx context.Context, rawMint string, swap trading.SwapView) (Fill, error) {
-	mint, err := market.ParseMint(rawMint)
-	if err != nil {
-		return Fill{}, err
-	}
-	asset, err := r.assets.AssetByMint(ctx, mint)
-	if err != nil {
-		return Fill{}, err
-	}
-	return fillOf(swap, asset.Decimals), nil
-}
-
 func fillOf(s trading.SwapView, decimals uint8) Fill {
 	f := Fill{USDCMicros: s.InAmount, TokenAmount: s.OutAmount, TokenDecimals: decimals}
 	if string(s.Action) == string(domain.KindSell) {
@@ -148,6 +178,7 @@ func fillOf(s trading.SwapView, decimals uint8) Fill {
 	}
 	if f.Confirmed = s.Status == "confirmed"; f.Confirmed {
 		f.PriceMicros = money.PricePerUnit(money.MicrosFromUint64(f.USDCMicros), f.TokenAmount, decimals).Uint64()
+		f.FeeMicros, f.FilledAt = s.FeeMicros, s.ConfirmedAt
 	}
 	return f
 }
