@@ -4291,6 +4291,17 @@ paths:
             type: string
             maxLength: 512
             examples: ["MTc3MjM2NjQwMDAwMDAwMDowMTg5MGE1ZC1hYzk2LTc3NGItYmNjZS1iMzAyMDk5YTgwNTc"]
+        - name: symbol
+          in: query
+          required: false
+          description: >-
+            Reads only the buys and sells of the stock with this token symbol, paged the same way. A symbol
+            the catalog does not know reads an empty page.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 64
+            examples: [NVDAx]
       responses:
         "200":
           description: One page of the cabal's activity.
@@ -4298,7 +4309,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CabalActivityPage"
-              example: {items: [{id: 01890a5d-ac96-774b-bcce-b302099a8060, kind: buy, status: confirmed, asset: {symbol: AAPLx, name: Apple}, usdc_micros: 25000000, units: 105000000, actor: null, tx_signature: 5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW, occurred_at: "2026-10-03T15:00:00Z"}], next_cursor: null}
+              example: {items: [{id: 01890a5d-ac96-774b-bcce-b302099a8060, kind: buy, status: confirmed, asset: {symbol: AAPLx, name: Apple}, usdc_micros: 25000000, units: 105000000, price_micros: 23809523, actor: null, tx_signature: 5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW, occurred_at: "2026-10-03T15:00:00Z"}], next_cursor: null}
         default:
           $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/cashouts:
@@ -4449,7 +4460,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CabalPot"
-              example: {cabal_id: 01890a5d-ac96-774b-bcce-b302099a8059, pot_value_micros: 120000000, cash_micros: 60000000, cash_weight_bps: 5000, pnl_micros: 20000000, return_bps: 2000, prices_as_of: "2026-10-03T15:00:00Z", holdings: [{symbol: AAPLx, display_name: Apple, kind: equity, units: "2.0000", token_amount: 200000000, price_micros: 30000000, value_micros: 60000000, weight_bps: 5000, cost_basis_micros: 40000000, pnl_micros: 20000000}], me: {share_units: 100000000, value_micros: 120000000, slice_bps: 10000, net_contributed_micros: 100000000, pnl_micros: 20000000}}
+              example: {cabal_id: 01890a5d-ac96-774b-bcce-b302099a8059, pot_value_micros: 120000000, cash_micros: 60000000, cash_weight_bps: 5000, pnl_micros: 20000000, return_bps: 2000, prices_as_of: "2026-10-03T15:00:00Z", holdings: [{symbol: AAPLx, display_name: Apple, kind: equity, units: "2.0000", token_amount: 200000000, price_micros: 30000000, value_micros: 60000000, weight_bps: 5000, cost_basis_micros: 40000000, pnl_micros: 20000000, avg_entry_micros: "20000000", first_bought_at: "2026-10-01T15:00:00Z"}], me: {share_units: 100000000, value_micros: 120000000, slice_bps: 10000, net_contributed_micros: 100000000, pnl_micros: 20000000, first_funded_at: "2026-09-30T15:00:00Z"}}
         default:
           $ref: "#/components/responses/Problem"
   /v1/fund-transfers/{id}:
@@ -9420,7 +9431,7 @@ components:
       type: object
       description: One buy, sell, fund or cash out in a cabal.
       additionalProperties: false
-      required: [id, kind, status, asset, usdc_micros, units, actor, tx_signature, occurred_at]
+      required: [id, kind, status, asset, usdc_micros, units, price_micros, actor, tx_signature, occurred_at]
       properties:
         id: {type: string, format: uuid, description: The source id. For a buy or sell it is the swap id., examples: [01890a5d-ac96-774b-bcce-b302099a8060]}
         kind:
@@ -9453,6 +9464,14 @@ components:
           format: int64
           description: Token base units bought or sold. Null until known.
           examples: [105000000]
+        price_micros:
+          type: [integer, "null"]
+          format: int64
+          description: >-
+            The price of one share as the user sees it, in USDC micros, from the fill and the share multiplier in
+            force when the trade happened, rounded down. Null for a fund, a cash out, a trade not yet confirmed,
+            and a stock the catalog does not know.
+          examples: [23809523]
         actor:
           type: [object, "null"]
           description: The member who acted. Null for a trade the cabal voted for.
@@ -9489,7 +9508,7 @@ components:
       type: object
       description: One stock the cabal holds, valued at the latest market price.
       additionalProperties: false
-      required: [symbol, display_name, kind, units, token_amount, price_micros, value_micros, weight_bps, cost_basis_micros, pnl_micros]
+      required: [symbol, display_name, kind, units, token_amount, price_micros, value_micros, weight_bps, cost_basis_micros, pnl_micros, avg_entry_micros, first_bought_at]
       properties:
         listings:
           type: array
@@ -9508,6 +9527,8 @@ components:
         weight_bps: {type: integer, format: int32, description: "The holding's share of the pot in basis points.", examples: [5000]}
         cost_basis_micros: {type: integer, format: int64, description: "What the cabal paid for the holding, in USDC micros.", examples: [40000000]}
         pnl_micros: {type: integer, format: int64, description: "Signed gain, value minus cost basis, in micros.", examples: [20000000]}
+        avg_entry_micros: {type: [string, "null"], pattern: "^(0|[1-9][0-9]*)$", description: "The average price paid for one share as the user sees it, cost basis over units, in USDC micros, rounded down. Null when the holding has no shares to divide by.", examples: ["54794520"]}
+        first_bought_at: {type: [string, "null"], format: date-time, description: "When the cabal's first confirmed buy of this stock happened. Null when no buy is recorded.", examples: ["2026-06-03T14:30:00Z"]}
     CabalPot:
       type: object
       description: A cabal's pot valued from one price read, with the caller's slice.
@@ -9537,13 +9558,14 @@ components:
           examples: [null]
           x-go-type-name: CabalPotSlice
           additionalProperties: false
-          required: [share_units, value_micros, slice_bps, net_contributed_micros, pnl_micros]
+          required: [share_units, value_micros, slice_bps, net_contributed_micros, pnl_micros, first_funded_at]
           properties:
             share_units: {type: integer, format: int64, description: "The caller's share units.", examples: [100000000]}
             value_micros: {type: integer, format: int64, description: "What the caller's shares are worth now, in USDC micros.", examples: [120000000]}
             slice_bps: {type: integer, format: int32, description: "The caller's share of the pot in basis points. Every member's slice sums to 10000.", examples: [10000]}
             net_contributed_micros: {type: integer, format: int64, description: "Signed USDC the caller put in minus what they took out, in micros.", examples: [100000000]}
             pnl_micros: {type: integer, format: int64, description: "Signed gain, value minus net contributed, in micros.", examples: [20000000]}
+            first_funded_at: {type: [string, "null"], format: date-time, description: "When the caller first funded this cabal, kept after a full cash out. Null when they never have.", examples: ["2026-08-04T15:00:00Z"]}
     CashOutJob:
       type: object
       description: An asynchronous cash-out job.

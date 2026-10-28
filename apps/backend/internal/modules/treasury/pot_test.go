@@ -15,6 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/treasuryapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -288,4 +289,80 @@ func TestPotRoute_servesAnyUserAndRefusesAnUnknownCabal(t *testing.T) {
 		)
 	s.When(scenario.Get("/v1/cabals/"+testkit.NewIDs(5).NewV7().String()+"/pot")).
 		Then(scenario.ExpectStatus(http.StatusNotFound), scenario.ExpectProblem(errs.CodeCabalNotFound))
+}
+
+func (p potCase) activity(t *testing.T, kind, status string, actor ids.UserID, asset string, at time.Time) {
+	t.Helper()
+	if _, err := p.f.pool.Exec(t.Context(), `INSERT INTO cabal_activity
+		(id, cabal_id, kind, status, actor_user_id, asset, usdc_micros, occurred_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, NULLIF($6, ''), 1000000, $7, $7)`,
+		p.f.ids.NewV7(), p.cabal.UUID(), kind, status, actor.UUID(), asset, at); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGetCabalPot_averagesEntryPerDisplayShareAndDatesTheFirstBuy(t *testing.T) {
+	t.Parallel()
+	p := newPotCase(t)
+	split := app.MintResolver(func(_ context.Context, mint chain.SolanaAddress) (app.Asset, error) {
+		a := marketfake.AAPLx()
+		if string(mint) != a.Mint.String() {
+			return app.Asset{}, errs.New(errs.CodeAssetNotFound, "test.split")
+		}
+		return app.Asset{
+			ID: a.ID.UUID(), Symbol: a.Symbol, DisplayName: a.DisplayName, Kind: string(a.Kind), Decimals: a.Decimals,
+			ChainChecked: true, UIMultiplierNum: 3, UIMultiplierDen: 2,
+		}, nil
+	})
+	p.q = adapters.NewQueries(p.f.pool, split, priceReader(p.prices), p.f.clock, usdcMint)
+	p.buy(t, 40_000_000, 200_000_000)
+	p.prices.Set(marketfake.AAPLx().ID, money.MicrosFromUint64(30_000_000), p.f.clock.Now())
+	jun := time.Date(2026, 6, 3, 14, 0, 0, 0, time.UTC)
+	mint := marketfake.AAPLx().Mint.String()
+	p.activity(t, "buy", "pending", p.funder, mint, jun.Add(-72*time.Hour))
+	p.activity(t, "sell", "confirmed", p.funder, mint, jun.Add(-48*time.Hour))
+	p.activity(t, "buy", "confirmed", p.funder, marketfake.TSLAx().Mint.String(), jun.Add(-24*time.Hour))
+	p.activity(t, "buy", "confirmed", p.funder, mint, jun.Add(30*24*time.Hour))
+	p.activity(t, "buy", "confirmed", p.funder, mint, jun)
+	got, err := p.get(t, p.funder, p.funder)
+	if err != nil || len(got.Holdings) != 1 {
+		t.Fatalf("pot = %#v, %v", got, err)
+	}
+	h := got.Holdings[0]
+	if h.Units != "3.0000" || h.AvgEntryMicros == nil || *h.AvgEntryMicros != "13333333" {
+		t.Fatalf("units %s, avg_entry_micros %v, want 3 shares at 40 USDC / 3 = 13333333", h.Units, h.AvgEntryMicros)
+	}
+	if h.FirstBoughtAt == nil || !h.FirstBoughtAt.Equal(jun) {
+		t.Fatalf("first_bought_at = %v, want the earliest confirmed AAPLx buy %v", h.FirstBoughtAt, jun)
+	}
+}
+
+func TestGetCabalPot_firstFundedAtIsTheFirstFundEverEvenAfterAFullCashOut(t *testing.T) {
+	t.Parallel()
+	p := newPotCase(t)
+	gone, joiner := p.f.user(t), p.f.user(t)
+	jul := time.Date(2026, 7, 1, 9, 0, 0, 0, time.UTC)
+	next := jul.Add(24 * time.Hour)
+	p.activity(t, "fund", "confirmed", p.funder, "", next)
+	p.activity(t, "fund", "pending", gone, "", jul.Add(-time.Hour))
+	p.activity(t, "fund", "confirmed", gone, "", jul)
+	p.activity(t, "cash_out", "confirmed", gone, "", jul.Add(48*time.Hour))
+	p.activity(t, "fund", "confirmed", gone, "", jul.Add(72*time.Hour))
+	members := []ids.UserID{p.funder, gone, joiner}
+	for name, c := range map[string]struct {
+		viewer ids.UserID
+		want   *time.Time
+	}{
+		"funder":                   {p.funder, &next},
+		"cashed out and came back": {gone, &jul},
+		"never funded":             {joiner, nil},
+	} {
+		got, err := p.get(t, c.viewer, members...)
+		if err != nil || got.Me == nil {
+			t.Fatalf("%s: me = %v, %v", name, got.Me, err)
+		}
+		if at := got.Me.FirstFundedAt; (at == nil) != (c.want == nil) || (at != nil && !at.Equal(*c.want)) {
+			t.Fatalf("%s: first_funded_at = %v, want %v", name, at, c.want)
+		}
+	}
 }

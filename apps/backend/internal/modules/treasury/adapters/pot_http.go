@@ -53,7 +53,11 @@ func wirePot(p port.CabalPot) (api.GetCabalPotResponseObject, error) {
 			TokenAmount: w.micros(money.MicrosFromUint64(h.TokenAmount.Uint64())),
 			PriceMicros: w.micros(h.PriceMicros), ValueMicros: w.micros(h.ValueMicros), WeightBps: h.WeightBps,
 			CostBasisMicros: w.micros(h.CostBasisMicros), PnlMicros: h.PnLMicros.Int64(),
-			Listings: wireListings(&w, h.Listings),
+			FirstBoughtAt: h.FirstBoughtAt, Listings: wireListings(&w, h.Listings),
+		}
+		if h.AvgEntryMicros != nil {
+			avg := h.AvgEntryMicros.String()
+			out.Holdings[i].AvgEntryMicros = &avg
 		}
 	}
 	if p.Me != nil {
@@ -65,6 +69,7 @@ func wirePot(p port.CabalPot) (api.GetCabalPotResponseObject, error) {
 			SliceBps:             p.Me.SliceBps,
 			NetContributedMicros: p.Me.NetContributedMicros.Int64(),
 			PnlMicros:            p.Me.PnLMicros.Int64(),
+			FirstFundedAt:        p.Me.FirstFundedAt,
 		}
 	}
 	if w.err != nil {

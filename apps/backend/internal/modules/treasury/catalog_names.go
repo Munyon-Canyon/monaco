@@ -2,6 +2,7 @@ package treasury
 
 import (
 	"context"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
@@ -19,7 +20,13 @@ func (c catalogNames) AssetNames(ctx context.Context) (map[domain.Asset]app.Asse
 	}
 	out := make(map[domain.Asset]app.AssetName, len(all))
 	for _, a := range all {
-		out[domain.Asset(a.Mint.String())] = app.AssetName{Symbol: a.Symbol, Name: a.DisplayName}
+		out[domain.Asset(a.Mint.String())] = app.AssetName{
+			Symbol: a.Symbol, Name: a.DisplayName, Decimals: a.Decimals,
+			MultiplierAt: func(t time.Time) (int64, int64) {
+				m := a.UIMultiplierAt(t)
+				return m.Num, m.Den
+			},
+		}
 	}
 	return out, nil
 }

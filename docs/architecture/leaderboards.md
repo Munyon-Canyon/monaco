@@ -63,6 +63,13 @@ Valuation needs, per cabal: units of each asset held, USDC held, total share uni
 
 The cabal screen reads the pot through `GET /v1/cabals/{id}/pot` (`treasury`'s `CabalPot`). One request makes one price read, and only when the pot holds a stock, so the pot, its holdings and the caller's slice always agree. It returns `pot_value_micros` (equal to `PotValue`), `cash_micros`, each holding with its units, price, value, weight and gain over cost basis, the cabal's all-time `pnl_micros` and `return_bps` over net contributed, `prices_as_of`, and `me`, the caller's share units, value, slice and gain. `me` is null for a non-member. Weights and slices are floored basis points that sum to 10000, with the remainder on the largest row. A holding without a price fresher than 5 minutes returns `price_unavailable`; the pot is never valued at cost basis. Any signed-in user may read it, and a banned cabal stays readable.
 
+The share cards read four more facts from treasury's own `cabal_activity`, never from `swaps`:
+
+- `GET /v1/cabals/{id}/activity?symbol=<sym>` returns only that stock's buys and sells, paged like the full list. A symbol the catalog does not know reads an empty page.
+- Each confirmed buy or sell carries `price_micros`, USDC per display share at the share multiplier in force when the trade happened, rounded down. Funds, cash outs and unconfirmed trades carry null.
+- Each holding carries `avg_entry_micros`, cost basis over the units it shows today, rounded down, and `first_bought_at`, the cabal's earliest confirmed buy of that stock.
+- `me.first_funded_at` is the caller's earliest confirmed fund into the cabal. A full cash out does not reset it.
+
 The app refreshes the pot on two hints:
 
 - `cabal.<id>.activity_changed` (`events.CabalActivityChangedHint`), which `treasury` publishes after commit when a trade is submitted, confirmed or fails, when a fund settles, and when a cash out starts, completes or fails.

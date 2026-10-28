@@ -146,13 +146,18 @@ func (h HTTP) GetCabalActivity(
 	if req.Params.Cursor != nil {
 		list.Cursor = *req.Params.Cursor
 	}
+	if req.Params.Symbol != nil {
+		list.Symbol = *req.Params.Symbol
+	}
 	page, err := h.Reads.List(ctx, list)
 	if err != nil {
 		return nil, err
 	}
 	out := api.GetCabalActivity200JSONResponse{Items: make([]api.CabalActivity, len(page.Items))}
 	for i, v := range page.Items {
-		out.Items[i] = wireActivity(v)
+		if out.Items[i], err = wireActivity(v); err != nil {
+			return nil, err
+		}
 	}
 	if page.NextCursor != "" {
 		out.NextCursor = &page.NextCursor
@@ -203,7 +208,7 @@ func wireUserTxn(v app.UserTxnView) api.UserTxn {
 	return out
 }
 
-func wireActivity(v app.ActivityView) api.CabalActivity {
+func wireActivity(v app.ActivityView) (api.CabalActivity, error) {
 	out := api.CabalActivity{
 		Id: v.ID, Kind: api.CabalActivityKind(v.Kind), Status: api.CabalActivityStatus(v.Status),
 		UsdcMicros: v.USDCMicros, Units: v.Units, TxSignature: v.TxSignature, OccurredAt: v.OccurredAt,
@@ -216,7 +221,28 @@ func wireActivity(v app.ActivityView) api.CabalActivity {
 			UserId: v.Actor.UserID.UUID(), Handle: v.Actor.Handle, DisplayName: v.Actor.DisplayName,
 		}
 	}
-	return out
+	price, ok, err := activityPrice(v)
+	if ok {
+		out.PriceMicros = &price
+	}
+	return out, err
+}
+
+func activityPrice(v app.ActivityView) (int64, bool, error) {
+	trade := v.Kind == domain.ActivityBuy || v.Kind == domain.ActivitySell
+	if !trade || v.Status != domain.ActivityConfirmed || v.Asset == nil || v.Asset.MultiplierAt == nil ||
+		v.USDCMicros == nil || v.Units == nil {
+		return 0, false, nil
+	}
+	num, den := v.Asset.MultiplierAt(v.OccurredAt)
+	usdc := money.MicrosFromUint64(uint64(max(*v.USDCMicros, 0)))
+	units := money.NewBaseUnits(uint64(max(*v.Units, 0)), v.Asset.Decimals)
+	price, ok, err := tradePriceMicros(usdc, units, num, den)
+	if err != nil || !ok {
+		return 0, false, err
+	}
+	var w int64Wire
+	return w.micros(price), w.err == nil, w.err
 }
 
 func caller(ctx context.Context) (ids.UserID, error) {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"errors"
 	"log/slog"
 	"math/big"
 	"slices"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
@@ -25,8 +27,10 @@ import (
 const unitsDisplayDecimals = 4
 
 type potStore interface {
+	FirstFundedAt(context.Context, sqlc.FirstFundedAtParams) (time.Time, error)
 	CabalPotSnapshot(context.Context, uuid.UUID) ([]sqlc.CabalPotSnapshotRow, error)
 	CabalMemberShares(context.Context, uuid.UUID) ([]sqlc.CabalMemberSharesRow, error)
+	CabalFirstBuys(context.Context, uuid.UUID) ([]sqlc.CabalFirstBuysRow, error)
 }
 
 func (q *Queries) CabalPot(
@@ -67,16 +71,35 @@ func (q *Queries) CabalPot(
 	if !member {
 		return pot.CabalPot, nil
 	}
-	totalShares, err := shares(head.TotalShares)
-	if err != nil {
-		return port.CabalPot{}, err
-	}
-	me, err := q.slice(ctx, cabalID, viewer, totalShares, pot.PotValueMicros)
+	me, err := q.me(ctx, cabalID, viewer, head.TotalShares, pot.PotValueMicros)
 	if err != nil {
 		return port.CabalPot{}, err
 	}
 	pot.Me = &me
 	return pot.CabalPot, nil
+}
+
+func (q *Queries) me(
+	ctx context.Context, cabalID ids.CabalID, viewer ids.UserID, totalRaw string, value money.Micros,
+) (port.Slice, error) {
+	total, err := shares(totalRaw)
+	if err != nil {
+		return port.Slice{}, err
+	}
+	me, err := q.slice(ctx, cabalID, viewer, total, value)
+	if err != nil {
+		return port.Slice{}, err
+	}
+	first, err := q.pot.FirstFundedAt(ctx, sqlc.FirstFundedAtParams{CabalID: cabalID.UUID(), UserID: viewer.UUID()})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return me, nil
+	}
+	if err != nil {
+		return port.Slice{}, errs.Wrap(err, errs.CodeInternal, "treasury.Queries.me")
+	}
+	first = first.UTC()
+	me.FirstFundedAt = &first
+	return me, nil
 }
 
 type potBuilder struct{ port.CabalPot }
@@ -110,7 +133,8 @@ func (q *Queries) potHoldings(
 		positions = append(positions, position)
 	}
 	if len(positions) > 0 {
-		if pot.Holdings, pot.PricesAsOf, err = q.priceHoldings(ctx, positions, assets, pot.PricesAsOf); err != nil {
+		pot.Holdings, pot.PricesAsOf, err = q.priceHoldings(ctx, cabalID, positions, assets, pot.PricesAsOf)
+		if err != nil {
 			return potBuilder{}, err
 		}
 	}
@@ -127,11 +151,16 @@ func (q *Queries) potHoldings(
 }
 
 func (q *Queries) priceHoldings(
-	ctx context.Context, positions []port.Position, assets map[chain.SolanaAddress]app.Asset, asOf time.Time,
+	ctx context.Context, cabalID ids.CabalID, positions []port.Position, assets map[chain.SolanaAddress]app.Asset,
+	asOf time.Time,
 ) ([]port.Holding, time.Time, error) {
 	prices, err := q.pricesOf(ctx, positions, assets)
 	if err != nil {
 		return nil, time.Time{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.CabalPot")
+	}
+	first, err := q.firstBuys(ctx, cabalID)
+	if err != nil {
+		return nil, time.Time{}, err
 	}
 	holdings := make([]port.Holding, 0, len(positions))
 	for _, position := range positions {
@@ -142,6 +171,7 @@ func (q *Queries) priceHoldings(
 		if observedAt.Before(asOf) {
 			asOf = observedAt
 		}
+		holding.FirstBoughtAt = first.at(string(position.Mint))
 		holdings = append(holdings, holding)
 	}
 	return holdings, asOf, nil
@@ -164,11 +194,40 @@ func (q *Queries) holding(
 		return port.Holding{}, time.Time{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.holding")
 	}
 	num, den := asset.UIMultiplierAt(q.clock.Now())
-	return port.Holding{
+	out := port.Holding{
 		Symbol: asset.Symbol, DisplayName: asset.DisplayName, Kind: asset.Kind, TokenAmount: position.Units,
 		Units:       displayUnits(position.Units, num, den),
 		PriceMicros: price.Micros, ValueMicros: value, CostBasisMicros: position.CostBasis, PnLMicros: pnl,
-	}, price.ObservedAt, nil
+	}
+	avg, ok, err := tradePriceMicros(position.CostBasis, position.Units, num, den)
+	if err != nil {
+		return port.Holding{}, time.Time{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.holding")
+	}
+	if ok {
+		out.AvgEntryMicros = &avg
+	}
+	return out, price.ObservedAt, nil
+}
+
+type firstBuys map[string]time.Time
+
+func (q *Queries) firstBuys(ctx context.Context, cabalID ids.CabalID) (firstBuys, error) {
+	rows, err := q.pot.CabalFirstBuys(ctx, cabalID.UUID())
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.firstBuys")
+	}
+	out := make(firstBuys, len(rows))
+	for _, row := range rows {
+		out[row.Asset] = row.FirstBoughtAt.UTC()
+	}
+	return out, nil
+}
+
+func (f firstBuys) at(asset string) *time.Time {
+	if at, ok := f[asset]; ok {
+		return &at
+	}
+	return nil
 }
 
 func (p *potBuilder) total() error {

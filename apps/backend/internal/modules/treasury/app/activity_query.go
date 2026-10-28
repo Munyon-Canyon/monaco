@@ -31,8 +31,10 @@ type Users interface {
 }
 
 type AssetName struct {
-	Symbol string
-	Name   string
+	Symbol       string
+	Name         string
+	Decimals     uint8
+	MultiplierAt func(time.Time) (num, den int64)
 }
 
 type AssetNames interface {
@@ -44,6 +46,7 @@ type ListActivity struct {
 	Caller  ids.UserID
 	Limit   int
 	Cursor  string
+	Symbol  string
 }
 
 type Actor struct {
@@ -94,27 +97,23 @@ func (r *ActivityReads) List(ctx context.Context, req ListActivity) (ActivityPag
 	if !member {
 		return ActivityPage{}, errs.New(errs.CodeNotCabalMember, op, slog.String("cabal_id", req.CabalID.String()))
 	}
-	routed, err := r.q.ListActivityRouted(ctx, sqlc.ListActivityRoutedParams{
+	params := sqlc.ListActivityRoutedParams{
 		CabalID: req.CabalID.UUID(), HasCursor: cursor.ok, CursorAt: cursor.at, CursorID: cursor.id,
 		RowLimit: limit + 1,
-	})
+	}
+	names, known, err := r.filter(ctx, req.Symbol, &params)
 	if err != nil {
 		return ActivityPage{}, err
 	}
-	rows := make([]sqlc.ListActivityRow, len(routed))
-	for i, row := range routed {
-		rows[i] = sqlc.ListActivityRow(row)
-	}
 	page := ActivityPage{Items: []ActivityView{}}
-	if len(rows) > int(limit) {
-		rows = rows[:limit]
-		last := rows[len(rows)-1]
-		page.NextCursor = encodeActivityCursor(last.OccurredAt, last.ID)
-	}
-	if len(rows) == 0 {
+	if !known {
 		return page, nil
 	}
-	names, actors, err := r.lookups(ctx, rows)
+	rows, err := r.page(ctx, params, &page)
+	if err != nil || len(rows) == 0 {
+		return page, err
+	}
+	names, actors, err := r.lookups(ctx, rows, names)
 	if err != nil {
 		return ActivityPage{}, err
 	}
@@ -130,10 +129,52 @@ func (r *ActivityReads) List(ctx context.Context, req ListActivity) (ActivityPag
 	return page, nil
 }
 
+func (r *ActivityReads) filter(
+	ctx context.Context, symbol string, params *sqlc.ListActivityRoutedParams,
+) (map[domain.Asset]AssetName, bool, error) {
+	if symbol == "" {
+		return nil, true, nil
+	}
+	names, err := r.assets.AssetNames(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	mint, ok := mintOf(names, symbol)
+	params.Asset.String, params.Asset.Valid = string(mint), ok
+	return names, ok, nil
+}
+
+func (r *ActivityReads) page(
+	ctx context.Context, params sqlc.ListActivityRoutedParams, page *ActivityPage,
+) ([]sqlc.ListActivityRow, error) {
+	routed, err := r.q.ListActivityRouted(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]sqlc.ListActivityRow, len(routed))
+	for i, row := range routed {
+		rows[i] = sqlc.ListActivityRow(row)
+	}
+	if limit := int(params.RowLimit) - 1; len(rows) > limit {
+		rows = rows[:limit]
+		last := rows[len(rows)-1]
+		page.NextCursor = encodeActivityCursor(last.OccurredAt, last.ID)
+	}
+	return rows, nil
+}
+
+func mintOf(names map[domain.Asset]AssetName, symbol string) (domain.Asset, bool) {
+	for mint, name := range names {
+		if name.Symbol == symbol {
+			return mint, true
+		}
+	}
+	return "", false
+}
+
 func (r *ActivityReads) lookups(
-	ctx context.Context, rows []sqlc.ListActivityRow,
+	ctx context.Context, rows []sqlc.ListActivityRow, names map[domain.Asset]AssetName,
 ) (map[domain.Asset]AssetName, map[ids.UserID]identityport.UserCard, error) {
-	var names map[domain.Asset]AssetName
 	var users []ids.UserID
 	for _, row := range rows {
 		if row.Asset.Valid && names == nil {

@@ -36,6 +36,20 @@ extension Components.Schemas.CabalPot {
             shareUnits: 380_000_000, valueMicros: 380_150_000, sliceBps: 3800, netContributedMicros: 380_000_000,
             pnlMicros: 150_000))
 
+    public static let sampleACCapital = sample(
+        potValueMicros: 20_000_000_000, cashMicros: 11_640_000_000, cashWeightBps: 5820, pnlMicros: 892_330_000,
+        returnBps: 467,
+        holdings: [
+            Components.Schemas.CabalHolding(
+                symbol: "NVDAx", displayName: "NVIDIA", kind: .equity, units: "38.0000", tokenAmount: 3_800_000_000,
+                priceMicros: 220_000_000, valueMicros: 8_360_000_000, weightBps: 4180, costBasisMicros: 7_332_100_000,
+                pnlMicros: 1_027_900_000, avgEntryMicros: "192950000",
+                firstBoughtAt: Date(timeIntervalSince1970: 1_780_497_000))
+        ],
+        me: MePayload(
+            shareUnits: 3_500_000_000, valueMicros: 7_000_000_000, sliceBps: 3500, netContributedMicros: 6_687_600_000,
+            pnlMicros: 312_400_000, firstFundedAt: Date(timeIntervalSince1970: 1_785_855_600)))
+
     public static let sampleCashOnly = sample(
         potValueMicros: 500_000_000, cashMicros: 500_000_000, cashWeightBps: 10000, pnlMicros: 0, holdings: [],
         me: MePayload(

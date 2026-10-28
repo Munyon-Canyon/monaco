@@ -13,6 +13,38 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const cabalFirstBuys = `-- name: CabalFirstBuys :many
+SELECT asset::text AS asset, min(occurred_at)::timestamptz AS first_bought_at
+FROM cabal_activity
+WHERE cabal_id = $1::uuid AND kind = 'buy' AND status = 'confirmed' AND asset IS NOT NULL
+GROUP BY asset
+`
+
+type CabalFirstBuysRow struct {
+	Asset         string
+	FirstBoughtAt time.Time
+}
+
+func (q *Queries) CabalFirstBuys(ctx context.Context, cabalID uuid.UUID) ([]CabalFirstBuysRow, error) {
+	rows, err := q.db.Query(ctx, cabalFirstBuys, cabalID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CabalFirstBuysRow
+	for rows.Next() {
+		var i CabalFirstBuysRow
+		if err := rows.Scan(&i.Asset, &i.FirstBoughtAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const cabalValueRows = `-- name: CabalValueRows :many
 WITH head AS (
   SELECT
@@ -77,8 +109,9 @@ SELECT a.id, a.kind,
 FROM cabal_activity AS a
 WHERE a.cabal_id = $1
   AND (NOT $2::bool OR (a.occurred_at, a.id) < ($3::timestamptz, $4::uuid))
+  AND ($5::text IS NULL OR (a.asset = $5::text AND a.kind IN ('buy', 'sell')))
 ORDER BY a.occurred_at DESC, a.id DESC
-LIMIT $5
+LIMIT $6
 `
 
 type ListActivityRoutedParams struct {
@@ -86,6 +119,7 @@ type ListActivityRoutedParams struct {
 	HasCursor bool
 	CursorAt  time.Time
 	CursorID  uuid.UUID
+	Asset     pgtype.Text
 	RowLimit  int32
 }
 
@@ -107,6 +141,7 @@ func (q *Queries) ListActivityRouted(ctx context.Context, arg ListActivityRouted
 		arg.HasCursor,
 		arg.CursorAt,
 		arg.CursorID,
+		arg.Asset,
 		arg.RowLimit,
 	)
 	if err != nil {
