@@ -7,8 +7,9 @@ import (
 )
 
 const (
-	TypeRankingSnapshotWritten Type = "ranking.snapshot_written"
-	TypeCallResolved           Type = "call.resolved"
+	TypeRankingSnapshotWritten  Type = "ranking.snapshot_written"
+	TypeCallResolved            Type = "call.resolved"
+	TypeRankingCallBoardWritten Type = "ranking.call_board_written"
 )
 
 const rankingAggregate = "ranking"
@@ -48,3 +49,15 @@ func (CallResolved) Type() Type { return TypeCallResolved }
 func (CallResolved) AggregateType() string { return rankingAggregate }
 
 func (e CallResolved) AggregateID() uuid.UUID { return e.ProposalID }
+
+type RankingCallBoardWritten struct {
+	V          int       `json:"v"`
+	RunID      uuid.UUID `json:"run_id"`
+	ComputedAt time.Time `json:"computed_at"`
+}
+
+func (RankingCallBoardWritten) Type() Type { return TypeRankingCallBoardWritten }
+
+func (RankingCallBoardWritten) AggregateType() string { return rankingAggregate }
+
+func (e RankingCallBoardWritten) AggregateID() uuid.UUID { return e.RunID }

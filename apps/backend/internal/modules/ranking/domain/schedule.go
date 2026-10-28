@@ -8,7 +8,11 @@ const (
 )
 
 func ShouldRun(now, lastRun time.Time, oldestTrigger *time.Time) bool {
-	return now.Sub(lastRun) >= RunEvery || (oldestTrigger != nil && now.Sub(*oldestTrigger) >= TriggerDebounce)
+	return ShouldRunEvery(now, lastRun, RunEvery, oldestTrigger)
+}
+
+func ShouldRunEvery(now, lastRun time.Time, every time.Duration, oldestTrigger *time.Time) bool {
+	return now.Sub(lastRun) >= every || (oldestTrigger != nil && now.Sub(*oldestTrigger) >= TriggerDebounce)
 }
 
 func MaxSnapshotGap(r Range) time.Duration {

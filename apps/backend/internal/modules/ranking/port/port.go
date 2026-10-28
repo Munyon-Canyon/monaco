@@ -74,3 +74,28 @@ type Calls interface {
 	) (map[ids.UserID]CallRecord, error)
 	CabalRecords(ctx context.Context, cabalIDs []ids.CabalID, p Period) (map[ids.CabalID]CallRecord, error)
 }
+
+type Standing struct {
+	Rank        *int
+	Of          int
+	RateBps     *int
+	Right       int
+	Resolved    int
+	PeriodStart time.Time
+}
+
+type Leader struct {
+	SubjectID   uuid.UUID
+	Name        string
+	Handle      string
+	PictureURL  string
+	RateBps     int
+	Right       int
+	Resolved    int
+	PeriodStart time.Time
+}
+
+type CallBoards interface {
+	CallStanding(ctx context.Context, userID ids.UserID, period domain.PeriodKind) (Standing, error)
+	CallLeader(ctx context.Context, board domain.Board, period domain.PeriodKind) (Leader, error)
+}
