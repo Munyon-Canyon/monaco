@@ -445,7 +445,7 @@ type AssetChartRange string
 
 // AssetDetail One asset, the list fields plus the chain facts and the other listings.
 //
-// Examples: {"attribution":"Data provided by CoinGecko","change_bps":1000,"decimals":8,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","other_listings":[],"price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"price_poll_interval_seconds":120,"price_source":"jupiter","quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx","tradable":true,"ui_multiplier":{"den":1,"num":1},"volume_24h_as_of":"2026-03-04T05:00:00Z","volume_24h_micros":2500000000000}
+// Examples: {"attribution":"Data provided by CoinGecko","change_bps":1000,"decimals":8,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","other_listings":[],"price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"price_poll_interval_seconds":120,"price_source":"jupiter","quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"stats":{"held_by_cabals":3,"market_cap_micros":"2970000000000000000","open_micros":108000000,"year_high_micros":null,"year_low_micros":null},"symbol":"AAPLx","tradable":true,"ui_multiplier":{"den":1,"num":1},"volume_24h_as_of":"2026-03-04T05:00:00Z","volume_24h_micros":2500000000000}
 type AssetDetail struct {
 	// Attribution The data source line the asset screen shows.
 	//
@@ -527,6 +527,11 @@ type AssetDetail struct {
 	// Examples: [100000000,110000000]
 	SparklineMicros *[]int64 `json:"sparkline_micros"`
 
+	// Stats The market stats of an equity. Six cells, always drawn: a null value is shown as a dash, never hidden. The cells are market cap, volume (`volume_24h_micros`), open, 52-week low, 52-week high and held by. Null for a `pre_ipo` asset, which shows its round stats instead.
+	//
+	// Examples: null
+	Stats *AssetStats `json:"stats"`
+
 	// Symbol The ticker the app shows and the path key for the asset.
 	//
 	// Examples: AAPLx
@@ -602,6 +607,36 @@ type PreIpoProfile struct {
 //
 // Examples: jupiter
 type AssetDetailPriceSource string
+
+// AssetStats The market stats of an equity. Six cells, always drawn: a null value is shown as a dash, never hidden. The cells are market cap, volume (`volume_24h_micros`), open, 52-week low, 52-week high and held by. Null for a `pre_ipo` asset, which shows its round stats instead.
+//
+// Examples: null
+type AssetStats struct {
+	// HeldByCabals How many active cabals hold the asset with units above zero. The count never names the cabals.
+	//
+	// Examples: 1
+	HeldByCabals int `json:"held_by_cabals"`
+
+	// MarketCapMicros The company's shares outstanding times `price_micros`, in USD micros as a decimal string. Null when the company has no filing on record or the asset is unpriced.
+	//
+	// Examples: 5380000000000000000
+	MarketCapMicros *string `json:"market_cap_micros"`
+
+	// OpenMicros The first accepted price of the current US session, or of the last session when the market is closed or has not opened yet, in USD micros. Null when that session has no price.
+	//
+	// Examples: 211170000
+	OpenMicros *int64 `json:"open_micros"`
+
+	// YearHighMicros The highest price of the last 52 weeks in USD micros. Null until the daily ranges that fill it exist.
+	//
+	// Examples: 224900000
+	YearHighMicros *int64 `json:"year_high_micros"`
+
+	// YearLowMicros The lowest price of the last 52 weeks in USD micros. Null until the daily ranges that fill it exist.
+	//
+	// Examples: 86620000
+	YearLowMicros *int64 `json:"year_low_micros"`
+}
 
 // AssetIssuer The firm that issues the tokenized stock.
 //

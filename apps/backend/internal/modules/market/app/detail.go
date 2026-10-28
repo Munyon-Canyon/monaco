@@ -20,6 +20,7 @@ type Listing struct {
 type AssetView struct {
 	Summary Summary
 	Others  []Listing
+	Stats   *Stats
 }
 
 type Detailer interface {
@@ -35,13 +36,27 @@ var _ Detailer = (*Detail)(nil)
 
 var _ detailReader = (*sqlc.Queries)(nil)
 
+type statsReader interface {
+	MarketStats(context.Context, sqlc.MarketStatsParams) (sqlc.MarketStatsRow, error)
+}
+
+var _ statsReader = (*sqlc.Queries)(nil)
+
 type Detail struct {
-	list *ListAssets
-	read detailReader
+	list    *ListAssets
+	read    detailReader
+	facts   statsReader
+	holding CabalsHolding
 }
 
 func NewDetail(db sqlc.DBTX, list *ListAssets) *Detail {
-	return &Detail{list: list, read: sqlc.New(db)}
+	queries := sqlc.New(db)
+	return &Detail{list: list, read: queries, facts: queries}
+}
+
+func (d *Detail) WithHolding(holding CabalsHolding) *Detail {
+	d.holding = holding
+	return d
 }
 
 func (d *Detail) Handle(ctx context.Context, symbol string) (AssetView, error) {
@@ -65,7 +80,15 @@ func (d *Detail) Handle(ctx context.Context, symbol string) (AssetView, error) {
 	if err != nil {
 		return AssetView{}, err
 	}
-	return AssetView{Summary: sums[0], Others: others}, nil
+	view := AssetView{Summary: sums[0], Others: others}
+	if asset.Kind == domain.KindEquity {
+		stats, statsErr := d.stats(ctx, sums[0], d.list.clock.Now())
+		if statsErr != nil {
+			return AssetView{}, statsErr
+		}
+		view.Stats = &stats
+	}
+	return view, nil
 }
 
 func (d *Detail) others(ctx context.Context, asset domain.Asset) ([]Listing, error) {

@@ -14,3 +14,7 @@ type HolderCount struct {
 type CabalHolderCounts interface {
 	CabalHolderCounts(ctx context.Context) ([]HolderCount, error)
 }
+
+type CabalsHolding interface {
+	CabalsHolding(ctx context.Context, asset string) (int, error)
+}

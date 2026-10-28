@@ -7839,6 +7839,12 @@ components:
           attribution: Data provided by CoinGecko
           price_source: jupiter
           price_poll_interval_seconds: 120
+          stats:
+            market_cap_micros: "2970000000000000000"
+            open_micros: 108000000
+            year_low_micros: null
+            year_high_micros: null
+            held_by_cabals: 3
       additionalProperties: false
       required:
         - symbol
@@ -7861,6 +7867,7 @@ components:
         - attribution
         - price_source
         - price_poll_interval_seconds
+        - stats
       properties:
         symbol:
           type: string
@@ -7982,6 +7989,51 @@ components:
             How often Monaco asks its provider for a new price, in seconds. A cadence, not a promise:
             `price_as_of` says how old the shown price is.
           examples: [120]
+        stats:
+          type: [object, "null"]
+          description: >-
+            The market stats of an equity. Six cells, always drawn: a null value is shown as a dash, never
+            hidden. The cells are market cap, volume (`volume_24h_micros`), open, 52-week low, 52-week high and
+            held by. Null for a `pre_ipo` asset, which shows its round stats instead.
+          examples: [null]
+          x-go-type-name: AssetStats
+          additionalProperties: false
+          required: [market_cap_micros, open_micros, year_low_micros, year_high_micros, held_by_cabals]
+          properties:
+            market_cap_micros:
+              type: [string, "null"]
+              pattern: "^[0-9]+$"
+              description: >-
+                The company's shares outstanding times `price_micros`, in USD micros as a decimal string. Null
+                when the company has no filing on record or the asset is unpriced.
+              examples: ["5380000000000000000"]
+            open_micros:
+              type: [integer, "null"]
+              format: int64
+              description: >-
+                The first accepted price of the current US session, or of the last session when the market is
+                closed or has not opened yet, in USD micros. Null when that session has no price.
+              examples: [211170000]
+            year_low_micros:
+              type: [integer, "null"]
+              format: int64
+              description: >-
+                The lowest price of the last 52 weeks in USD micros. Null until the daily ranges that fill it
+                exist.
+              examples: [86620000]
+            year_high_micros:
+              type: [integer, "null"]
+              format: int64
+              description: >-
+                The highest price of the last 52 weeks in USD micros. Null until the daily ranges that fill it
+                exist.
+              examples: [224900000]
+            held_by_cabals:
+              type: integer
+              minimum: 0
+              description: >-
+                How many active cabals hold the asset with units above zero. The count never names the cabals.
+              examples: [1]
         pre_ipo:
           type: [object, "null"]
           description: >-

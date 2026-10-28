@@ -21,6 +21,16 @@ type heldStub struct {
 
 func (s heldStub) HeldByCabal(context.Context) ([]sqlc.HeldByCabalRow, error) { return s.rows, s.err }
 
+func (s heldStub) CabalsHoldingAsset(_ context.Context, asset string) ([]uuid.UUID, error) {
+	var out []uuid.UUID
+	for _, row := range s.rows {
+		if row.Asset == asset {
+			out = append(out, row.CabalID)
+		}
+	}
+	return out, s.err
+}
+
 type activeStub struct {
 	active map[ids.CabalID]bool
 	calls  [][]ids.CabalID
@@ -95,6 +105,50 @@ func TestCabalHolders_reportsEachReadFailure(t *testing.T) {
 		"cabals":    holders(rows, &activeStub{err: boom}),
 	} {
 		if _, err := h.CabalHolderCounts(t.Context()); errs.CodeOf(err) != errs.CodeInternal {
+			t.Fatalf("%s: err = %v, want internal", name, err)
+		}
+	}
+}
+
+func TestCabalHolders_oneAssetCountMatchesTheCountsListForEveryAsset(t *testing.T) {
+	t.Parallel()
+	g := testkit.NewIDs(4)
+	a, b, c, banned := g.NewV7(), g.NewV7(), g.NewV7(), g.NewV7()
+	rows := slices.Concat(
+		holderRows(a, "NVDA", "AAPL"), holderRows(b, "NVDA"), holderRows(c, "NVDA", "AAPL"),
+		holderRows(banned, "NVDA", "AAPL", "TSLA"),
+	)
+	active := &activeStub{active: map[ids.CabalID]bool{
+		ids.CabalIDFrom(a): true, ids.CabalIDFrom(b): true, ids.CabalIDFrom(c): true, ids.CabalIDFrom(banned): false,
+	}}
+	h := holders(rows, active)
+	counts, err := h.CabalHolderCounts(t.Context())
+	if err != nil || len(counts) != 2 {
+		t.Fatalf("counts = %+v, %v, want two assets", counts, err)
+	}
+	for _, want := range counts {
+		got, err := h.CabalsHolding(t.Context(), string(want.Mint))
+		if err != nil || got != want.Cabals {
+			t.Fatalf("CabalsHolding(%s) = %d, %v, want %d", want.Mint, got, err, want.Cabals)
+		}
+	}
+	if got, err := h.CabalsHolding(t.Context(), "TSLA"); err != nil || got != 0 {
+		t.Fatalf("CabalsHolding(TSLA) = %d, %v, want 0 (its only holder is not active)", got, err)
+	}
+	if got, err := h.CabalsHolding(t.Context(), "MSFT"); err != nil || got != 0 {
+		t.Fatalf("CabalsHolding(MSFT) = %d, %v, want 0", got, err)
+	}
+}
+
+func TestCabalHolders_oneAssetCountReportsEachReadFailure(t *testing.T) {
+	t.Parallel()
+	boom := errs.New(errs.CodeInternal, "treasury.test")
+	rows := holderRows(testkit.NewIDs(1).NewV7(), "NVDA")
+	for name, h := range map[string]CabalHolders{
+		"positions": {held: heldStub{err: boom}, active: (&activeStub{}).Active},
+		"cabals":    holders(rows, &activeStub{err: boom}),
+	} {
+		if _, err := h.CabalsHolding(t.Context(), "NVDA"); errs.CodeOf(err) != errs.CodeInternal {
 			t.Fatalf("%s: err = %v, want internal", name, err)
 		}
 	}

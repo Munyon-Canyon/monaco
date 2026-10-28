@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
@@ -14,6 +16,7 @@ import (
 
 type heldByCabal interface {
 	HeldByCabal(ctx context.Context) ([]sqlc.HeldByCabalRow, error)
+	CabalsHoldingAsset(ctx context.Context, asset string) ([]uuid.UUID, error)
 }
 
 type ActiveCabals func(ctx context.Context, cabalIDs []ids.CabalID) (map[ids.CabalID]bool, error)
@@ -25,11 +28,38 @@ type CabalHolders struct {
 
 var (
 	_ port.CabalHolderCounts = CabalHolders{}
+	_ port.CabalsHolding     = CabalHolders{}
 	_ heldByCabal            = (*sqlc.Queries)(nil)
 )
 
 func NewCabalHolders(db sqlc.DBTX, active ActiveCabals) CabalHolders {
 	return CabalHolders{held: sqlc.New(db), active: active}
+}
+
+func (h CabalHolders) CabalsHolding(ctx context.Context, asset string) (int, error) {
+	const op = "treasury.CabalsHolding"
+	rows, err := h.held.CabalsHoldingAsset(ctx, asset)
+	if err != nil {
+		return 0, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	if len(rows) == 0 {
+		return 0, nil
+	}
+	cabalIDs := make([]ids.CabalID, len(rows))
+	for i, row := range rows {
+		cabalIDs[i] = ids.CabalIDFrom(row)
+	}
+	active, err := h.active(ctx, cabalIDs)
+	if err != nil {
+		return 0, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	n := 0
+	for _, id := range cabalIDs {
+		if active[id] {
+			n++
+		}
+	}
+	return n, nil
 }
 
 func (h CabalHolders) CabalHolderCounts(ctx context.Context) ([]port.HolderCount, error) {

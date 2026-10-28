@@ -318,6 +318,10 @@ func (m *Module) CabalHolderCounts(ctx context.Context) ([]port.HolderCount, err
 	return adapters.NewCabalHolders(m.deps.Pool, m.activeCabals).CabalHolderCounts(ctx)
 }
 
+func (m *Module) CabalsHolding(ctx context.Context, asset string) (int, error) {
+	return adapters.NewCabalHolders(m.deps.Pool, m.activeCabals).CabalsHolding(ctx, asset)
+}
+
 func (m *Module) activeCabals(ctx context.Context, cabalIDs []ids.CabalID) (map[ids.CabalID]bool, error) {
 	views, err := m.cabals.Cabals(ctx, cabalIDs)
 	if err != nil {

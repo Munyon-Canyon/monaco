@@ -136,6 +136,18 @@ A Pre-IPO company is private and priced per round, so the token's live price and
 
 The Tessera and PreStocks catalogs publish only a token mark price and a valuation, no funding rounds or tender dates. The seed therefore takes the estimate from the issuer's `markPrice` and the valuation from its `markValuation` as captured on 2026-10-28, uses PreStocks where both issuers list a company, and leaves `pre_ipo_rounds` empty.
 
+### Market stats
+
+`GET /v1/assets/{symbol}` carries `stats` for an equity and `stats: null` for a Pre-IPO asset, which shows its round stats instead. The stock screen draws six cells in two rows of three: market cap, volume, open, 52-week low, 52-week high and held by. The grid never collapses: a null value is drawn as a dash in its place, never hidden. The server computes every cell, so the app makes no second chart call.
+
+- `market_cap_micros` is `shares_outstanding` times `price_micros`, as a decimal string in `numeric` math. The share count is in `company_facts`, one hand-seeded row per `company_key` from the company's latest 10-Q or 10-K cover page, with the filing URL in `source`. A company without a row, and an unpriced asset, give null. A company with several share classes on its cover stays unseeded until someone sums them.
+- `open_micros` is the first price of the current US session, or of the last session when the market is closed or has not opened. It reads the same stored samples as the day reference and skips a first sample that jumps over 20% against the next. A session with no sample gives null.
+- `held_by_cabals` is treasury's one holder rule: active cabals with units above zero in `cabal_positions`, the rule behind `CabalHolderCounts`. `CabalsHolding` counts it for one asset, and a test keeps the two equal. The count never names the cabals.
+- `year_low_micros` and `year_high_micros` are declared and null. The daily ranges that fill them are a separate change (#6473), because the retention thinning below drops an intraday high.
+- `volume_24h_micros` stays on the detail as it was.
+
+The detail read makes one market query for the stats and one treasury call.
+
 ### Retention
 
 An hourly `market.retention` poller, under the same advisory-lock rule, thins and deletes old rows in three batched passes (decided 2026-10-17, #5500):
