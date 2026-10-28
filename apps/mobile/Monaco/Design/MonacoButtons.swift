@@ -260,16 +260,14 @@ struct SubmitLabel: View {
 }
 
 private struct MonacoDockBackground: View {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @MonacoReduceTransparency private var reduceTransparency
 
     @ViewBuilder
     var body: some View {
         if reduceTransparency {
-            Rectangle().fill(MonacoTheme.surface)
-        } else if #available(iOS 26, *) {
-            Color.clear.glassEffect(.regular, in: .rect)
+            Rectangle().fill(MonacoTheme.canvas)
         } else {
-            Rectangle().fill(.ultraThinMaterial)
+            Rectangle().fill(.bar)
         }
     }
 }
@@ -278,7 +276,6 @@ struct BottomCTA<Content: View>: View {
     private let caption: String?
     private let content: Content
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.displayScale) private var displayScale
 
     init(caption: String? = nil, @ViewBuilder content: () -> Content) {
         self.caption = caption
@@ -307,11 +304,6 @@ struct BottomCTA<Content: View>: View {
         .padding(.top, MonacoTheme.Space.sm)
         .padding(.bottom, MonacoTheme.Space.s)
         .background { MonacoDockBackground().ignoresSafeArea(edges: .bottom) }
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(MonacoTheme.border)
-                .frame(height: 1 / displayScale)
-        }
     }
 }
 

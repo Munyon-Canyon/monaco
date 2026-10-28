@@ -3,7 +3,7 @@ import SwiftUI
 
 struct ProposalVotesSheet: View {
     let model: ProposalDetailModel?
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @MonacoReduceTransparency private var reduceTransparency
 
     var body: some View {
         NavigationStack {

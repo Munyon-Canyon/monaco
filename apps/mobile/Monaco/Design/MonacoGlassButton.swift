@@ -2,7 +2,8 @@ import SwiftUI
 
 struct MonacoGlassButton: View {
     enum Style {
-        case glass, quiet, selected, onCover
+        case glass, quiet, selected
+        case onCover
     }
 
     enum Placement {
@@ -22,7 +23,7 @@ struct MonacoGlassButton: View {
     let action: () -> Void
 
     @ScaledMetric(relativeTo: .body) private var regularDiameter: CGFloat = 44
-    @ScaledMetric(relativeTo: .body) private var compactDiameter: CGFloat = 40
+    @ScaledMetric(relativeTo: .body) private var compactDiameter: CGFloat = 32
     @ScaledMetric(relativeTo: .body) private var glyphSize: CGFloat = 20
 
     init(
@@ -79,8 +80,8 @@ struct MonacoGlassButton: View {
     private var glyphColor: Color {
         switch style {
         case .glass, .quiet: MonacoTheme.primaryText
-        case .selected: MonacoTheme.brand
-        case .onCover: Color.white
+        case .selected: MonacoTheme.tint
+        case .onCover: MonacoTheme.primaryText
         }
     }
 
@@ -95,7 +96,8 @@ private struct MonacoGlassFill: ViewModifier {
     let style: MonacoGlassButton.Style
     let drawsCircle: Bool
 
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @MonacoReduceTransparency private var reduceTransparency
+    @Environment(\.displayScale) private var displayScale
 
     @ViewBuilder
     func body(content: Content) -> some View {
@@ -103,13 +105,8 @@ private struct MonacoGlassFill: ViewModifier {
             content
         } else {
             switch style {
-            case .glass: glass(content)
-            case .quiet: content
-            case .selected: content.background(Circle().fill(MonacoTheme.brandWash))
-            case .onCover:
-                content
-                    .background(Circle().fill(Color.white.opacity(0.094)))
-                    .overlay(Circle().strokeBorder(Color.white.opacity(0.14), lineWidth: 1))
+            case .glass, .onCover: glass(content)
+            case .quiet, .selected: content.background(Circle().fill(MonacoTheme.surfaceSunken))
             }
         }
     }
@@ -119,13 +116,13 @@ private struct MonacoGlassFill: ViewModifier {
         if reduceTransparency {
             content
                 .background(Circle().fill(MonacoTheme.surface))
-                .overlay(Circle().strokeBorder(MonacoTheme.border, lineWidth: 1))
+                .overlay(Circle().strokeBorder(MonacoTheme.hairline, lineWidth: 1 / displayScale))
         } else if #available(iOS 26, *) {
             content.glassEffect(.regular.interactive(), in: .circle)
         } else {
             content
                 .background(Circle().fill(.ultraThinMaterial))
-                .overlay(Circle().strokeBorder(MonacoTheme.border, lineWidth: 1))
+                .overlay(Circle().strokeBorder(MonacoTheme.hairline, lineWidth: 1 / displayScale))
         }
     }
 }

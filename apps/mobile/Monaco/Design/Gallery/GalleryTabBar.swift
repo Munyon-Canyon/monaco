@@ -81,4 +81,28 @@ struct GalleryTabBar: View {
         .accessibilityLabel("Gallery pages")
     }
 }
+
+struct GalleryTabBarSample: View {
+    @State private var selection: MainTab = .home
+
+    var body: some View {
+        TabView(selection: $selection) {
+            ForEach(MainTab.allCases) { tab in
+                MonacoTheme.canvas
+                    .tabItem {
+                        Label(tab.title, systemImage: tab.systemImage)
+                            .environment(\.symbolVariants, tab == selection ? .fill : .none)
+                    }
+                    .badge(tab == .cabals ? 1 : 0)
+                    .tag(tab)
+            }
+        }
+        .tint(MonacoTheme.tint)
+        .frame(height: 140)
+        .clipShape(RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
+                .strokeBorder(MonacoTheme.hairline, lineWidth: 1))
+    }
+}
 #endif
