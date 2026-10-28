@@ -68,6 +68,7 @@ The share cards read four more facts from treasury's own `cabal_activity`, never
 - `GET /v1/cabals/{id}/activity?symbol=<sym>` returns only that stock's buys and sells, paged like the full list. A symbol the catalog does not know reads an empty page.
 - Each confirmed buy or sell carries `price_micros`, USDC per display share at the share multiplier in force when the trade happened, rounded down. Funds, cash outs and unconfirmed trades carry null.
 - Each holding carries `avg_entry_micros`, cost basis over the units it shows today, rounded down, and `first_bought_at`, the cabal's earliest confirmed buy of that stock.
+- The average and the first buy cover every chain: a stock held on Solana and on EVM listings reads one average over the merged cost basis and merged display shares, and the earliest first buy across its listings. The `symbol` filter matches the mint and the stock's listing keys.
 - `me.first_funded_at` is the caller's earliest confirmed fund into the cabal. A full cash out does not reset it.
 
 The app refreshes the pot on two hints:

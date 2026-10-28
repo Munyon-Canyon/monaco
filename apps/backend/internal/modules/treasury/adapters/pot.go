@@ -24,7 +24,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
-const unitsDisplayDecimals = 4
+const (
+	unitsDisplayDecimals = 4
+	unitsDisplayScale    = 10_000
+)
 
 type potStore interface {
 	FirstFundedAt(context.Context, sqlc.FirstFundedAtParams) (time.Time, error)
@@ -104,10 +107,9 @@ func (q *Queries) me(
 
 type potBuilder struct{ port.CabalPot }
 
-func (q *Queries) potHoldings(
+func (q *Queries) splitHeld(
 	ctx context.Context, cabalID ids.CabalID, rows []sqlc.CabalPotSnapshotRow,
-) (potBuilder, error) {
-	pot := potBuilder{port.CabalPot{CabalID: cabalID, PricesAsOf: q.clock.Now(), Holdings: []port.Holding{}}}
+) (chainRows, error) {
 	held := make([]heldRow, 0, len(rows))
 	for _, row := range rows {
 		if row.Asset.Valid {
@@ -115,6 +117,18 @@ func (q *Queries) potHoldings(
 		}
 	}
 	split, err := q.byChain(held)
+	if err != nil {
+		return chainRows{}, err
+	}
+	split.first, err = q.firstBuys(ctx, cabalID)
+	return split, err
+}
+
+func (q *Queries) potHoldings(
+	ctx context.Context, cabalID ids.CabalID, rows []sqlc.CabalPotSnapshotRow,
+) (potBuilder, error) {
+	pot := potBuilder{port.CabalPot{CabalID: cabalID, PricesAsOf: q.clock.Now(), Holdings: []port.Holding{}}}
+	split, err := q.splitHeld(ctx, cabalID, rows)
 	if err != nil {
 		return potBuilder{}, err
 	}
@@ -133,7 +147,7 @@ func (q *Queries) potHoldings(
 		positions = append(positions, position)
 	}
 	if len(positions) > 0 {
-		pot.Holdings, pot.PricesAsOf, err = q.priceHoldings(ctx, cabalID, positions, assets, pot.PricesAsOf)
+		pot.Holdings, pot.PricesAsOf, err = q.priceHoldings(ctx, positions, assets, pot.PricesAsOf, split.first)
 		if err != nil {
 			return potBuilder{}, err
 		}
@@ -151,16 +165,12 @@ func (q *Queries) potHoldings(
 }
 
 func (q *Queries) priceHoldings(
-	ctx context.Context, cabalID ids.CabalID, positions []port.Position, assets map[chain.SolanaAddress]app.Asset,
-	asOf time.Time,
+	ctx context.Context, positions []port.Position, assets map[chain.SolanaAddress]app.Asset,
+	asOf time.Time, first firstBuys,
 ) ([]port.Holding, time.Time, error) {
 	prices, err := q.pricesOf(ctx, positions, assets)
 	if err != nil {
 		return nil, time.Time{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.CabalPot")
-	}
-	first, err := q.firstBuys(ctx, cabalID)
-	if err != nil {
-		return nil, time.Time{}, err
 	}
 	holdings := make([]port.Holding, 0, len(positions))
 	for _, position := range positions {

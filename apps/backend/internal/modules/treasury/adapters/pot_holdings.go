@@ -2,18 +2,22 @@ package adapters
 
 import (
 	"context"
+	"log/slog"
 	"math/big"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type stockGroup struct {
 	index    int
 	shares   *big.Rat
 	listings []port.HoldingListing
+	first    *time.Time
 }
 
 func (q *Queries) mergeEVM(
@@ -42,6 +46,7 @@ func (q *Queries) mergeEVM(
 		if err := g.add(&pot.Holdings[g.index], h); err != nil {
 			return errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.mergeEVM")
 		}
+		g.boughtAt(&pot.Holdings[g.index], split.first.at(h.key))
 	}
 	return nil
 }
@@ -54,7 +59,9 @@ func (q *Queries) newGroup(
 		if string(p.Mint) != groupKey(h) {
 			continue
 		}
-		g := &stockGroup{index: i, shares: q.solanaShares(p, assets[p.Mint])}
+		g := &stockGroup{
+			index: i, shares: q.solanaShares(p, assets[p.Mint]), first: pot.Holdings[i].FirstBoughtAt,
+		}
 		if quote, ok := quotes[solanaListingKey(p.Mint)]; ok {
 			g.listings = []port.HoldingListing{{
 				ListingID: quote.ListingID, Issuer: quote.Issuer, Network: chain.NetworkSolana,
@@ -90,7 +97,41 @@ func (g *stockGroup) add(holding *port.Holding, h evmHolding) error {
 		return err
 	}
 	holding.Units, holding.Listings = formatShares(g.shares), g.listings
+	avg, ok, err := avgEntry(holding.CostBasisMicros, g.shares)
+	if err != nil {
+		return err
+	}
+	if ok {
+		holding.AvgEntryMicros = &avg
+	}
 	return nil
+}
+
+func (g *stockGroup) boughtAt(holding *port.Holding, at *time.Time) {
+	if at != nil && (g.first == nil || at.Before(*g.first)) {
+		g.first = at
+	}
+	holding.FirstBoughtAt = g.first
+}
+
+func avgEntry(cost money.Micros, shares *big.Rat) (money.Micros, bool, error) {
+	scaled := new(big.Int).Quo(
+		new(big.Int).Mul(shares.Num(), big.NewInt(unitsDisplayScale)),
+		shares.Denom(),
+	)
+	if scaled.Sign() == 0 {
+		return money.Micros{}, false, nil
+	}
+	if !scaled.IsUint64() {
+		return money.Micros{}, false, errs.New(
+			errs.CodeInvalidInput, "treasury.avgEntry", slog.String("shares", scaled.String()),
+		)
+	}
+	avg, err := money.MulDiv(cost.Uint64(), unitsDisplayScale, scaled.Uint64())
+	if err != nil {
+		return money.Micros{}, false, errs.Wrap(err, errs.CodeOf(err), "treasury.avgEntry")
+	}
+	return money.MicrosFromUint64(avg), true, nil
 }
 
 func (q *Queries) solanaShares(p port.Position, asset app.Asset) *big.Rat {

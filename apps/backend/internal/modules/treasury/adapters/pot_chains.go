@@ -27,6 +27,7 @@ type chainRows struct {
 	solana  []heldRow
 	evmCash money.Micros
 	evm     []evmPosition
+	first   firstBuys
 }
 
 type evmHolding struct {
