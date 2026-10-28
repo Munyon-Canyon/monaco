@@ -12,7 +12,15 @@ struct WithdrawEstimateTests {
     private let expiresAt = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down) + 300)
 
     private var previewFixture: String {
-        #"{"receive_micros":"9992500","expires_at":"\#(ISO8601DateFormatter().string(from: expiresAt))"}"#
+        previewJSON(expiresAt: ISO8601DateFormatter().string(from: expiresAt))
+    }
+
+    private func previewJSON(expiresAt: String) -> String {
+        """
+        {"available_micros":"500000000","fee_micros":"7500","fee_known":true,"fee_mode":"included",\
+        "max_amount_micros":"500000000","receive_micros":"9992500","over_micros":"0","below_min":false,\
+        "min_micros":"1000000","arrival_seconds":120,"expires_at":"\(expiresAt)"}
+        """
     }
 
     private var beforeExpiry: Date { expiresAt.addingTimeInterval(-1) }
@@ -124,7 +132,7 @@ struct WithdrawEstimateTests {
         let request = try #require(form(.base, address: evmAddress).previewRequest)
         let start = Date()
         let past = ISO8601DateFormatter().string(from: start.addingTimeInterval(-60))
-        let transport = StubTransport(.json(.ok, #"{"receive_micros":"9992500","expires_at":"\#(past)"}"#))
+        let transport = StubTransport(.json(.ok, previewJSON(expiresAt: past)))
         var clock = start
         var waits: [Duration] = []
         var shown: [Int64?] = []

@@ -1316,24 +1316,29 @@ paths:
       x-allow-restricted: true
       summary: Show what a withdrawal would deliver.
       description: >-
-        Validates the amount, network and address like `POST /v1/me/withdrawals` and returns the amount the
-        destination receives. A Solana withdrawal receives the full amount. An EVM withdrawal is bridged from Solana at exact
-        input, so `receive_micros` is Privy's estimate after its fees and `expires_at` is when that quote ends.
+        Answers the withdraw keypad before an amount is typed. The amount and the address are optional, and
+        the response always carries the network's fee, the caller's available cash and the most they can send.
+        The fee is reported, never invented: a Solana withdrawal has no fee (`on_top`, 0), and an EVM
+        withdrawal is bridged from Solana at exact input, so its fee comes out of the amount (`included`) and is
+        Privy's cut. With an amount it also carries `over_micros`, and `below_min` when the amount is under
+        `min_micros`. Both are answered without a bridge quote. With an amount in range, an EVM network and a
+        valid address, `receive_micros` is Privy's estimate after its fees and `expires_at` is when that quote
+        ends. A Solana withdrawal receives the full amount. An address is validated only when one is given.
         Nothing is held or sent.
       requestBody:
-        description: The withdrawal to preview.
+        description: The withdrawal to preview. Today's full withdrawal body still works.
         required: true
         content:
           application/json:
-            schema: {$ref: "#/components/schemas/WithdrawRequest"}
+            schema: {$ref: "#/components/schemas/WithdrawPreviewRequest"}
             example: {amount_micros: "10000000", destination_kind: evm, network: base, to_address: "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed"}
       responses:
         "200":
-          description: The amount the destination would receive.
+          description: The fee, the most the caller can send and, with an amount, what arrives.
           content:
             application/json:
               schema: {$ref: "#/components/schemas/WithdrawalPreview"}
-              example: {receive_micros: "9992500", expires_at: "2026-10-11T10:30:00Z"}
+              example: {available_micros: "500000000", fee_micros: "7500", fee_known: true, fee_mode: included, max_amount_micros: "500000000", receive_micros: "9992500", over_micros: "0", below_min: false, min_micros: "1000000", arrival_seconds: 120, expires_at: "2026-10-11T10:30:00Z"}
         default: {$ref: "#/components/responses/Problem"}
   /v1/me/withdrawals/{id}:
     get:
@@ -6251,6 +6256,35 @@ components:
         withdrawal_id: {type: string, format: uuid, examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
         status: {$ref: "#/components/schemas/WithdrawalStatus", examples: [submitted]}
         tx_signature: {type: string, examples: [5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW]}
+    WithdrawPreviewRequest:
+      type: object
+      description: >-
+        A withdrawal to preview. Every field is optional, so the keypad can ask for the fee and the most the
+        caller can send before an amount or an address is typed.
+      properties:
+        destination_kind:
+          type: string
+          enum: [solana, evm]
+          default: solana
+          description: Where `to_address` lives. Missing means solana.
+          examples: [solana]
+        network:
+          type: string
+          enum: [solana, base, arbitrum, ethereum]
+          default: solana
+          description: The destination chain. Missing means solana. Required when destination_kind is evm.
+          examples: [solana]
+        amount_micros:
+          type: string
+          pattern: "^[0-9]+$"
+          description: USDC micros. Any amount is answered; one under 1000000 sets `below_min`.
+          examples: ["2000000"]
+        to_address:
+          type: string
+          description: >-
+            The destination: a Solana wallet, or for destination_kind evm a 0x address on `network`. Checked
+            only when given.
+          examples: [9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P]
     WithdrawRequest:
       type: object
       description: A withdrawal of platform balance to a Solana address or to an address on an EVM network.
@@ -6317,18 +6351,70 @@ components:
           examples: ["2026-10-21T12:05:00Z"]
     WithdrawalPreview:
       type: object
-      description: What a withdrawal would deliver to its destination.
-      required: [receive_micros, expires_at]
+      description: What a withdrawal on one network costs, the most the caller can send and, with an amount, what arrives.
+      required: [available_micros, fee_micros, fee_known, fee_mode, max_amount_micros, receive_micros, over_micros, below_min, min_micros, arrival_seconds, expires_at]
       properties:
+        available_micros:
+          type: string
+          pattern: "^[0-9]+$"
+          description: The caller's available cash, the same figure as `GET /v1/me/balance`.
+          examples: ["500000000"]
+        fee_micros:
+          type: [string, "null"]
+          pattern: "^[0-9]+$"
+          description: >-
+            The network's withdraw fee in USDC micros. 0 on Solana, where the relayer sponsors the network fee.
+            On an EVM network it is Privy's cut from the last quote for that network (kept 5 minutes), or null
+            when `fee_known` is false.
+          examples: ["0"]
+        fee_known:
+          type: boolean
+          description: False on an EVM network until an amount and an address have been quoted.
+          examples: [true]
+        fee_mode:
+          type: string
+          enum: [included, on_top]
+          description: >-
+            `included` means the fee comes out of the amount (EVM); `on_top` means it is added to the amount
+            (Solana, with a fee of 0 today).
+          examples: [on_top]
+        max_amount_micros:
+          type: string
+          pattern: "^[0-9]+$"
+          description: >-
+            The most the caller can send. On top, available cash less the fee, never below 0; included, the
+            available cash.
+          examples: ["500000000"]
         receive_micros:
           type: string
           pattern: "^[0-9]+$"
-          description: USDC micros the destination receives. An estimate for an EVM network, exact for Solana.
+          description: >-
+            USDC micros the destination receives. "0" when nothing arrives: without an amount, below the minimum,
+            over the maximum, or on an EVM network without a valid address. An estimate for an EVM network, exact
+            for Solana.
           examples: ["9992500"]
+        over_micros:
+          type: [string, "null"]
+          pattern: "^[0-9]+$"
+          description: How much the amount is over `max_amount_micros`, 0 when it is not. Null without an amount and below the minimum.
+          examples: ["150500000"]
+        below_min:
+          type: boolean
+          description: The amount is under `min_micros`. Answered with 200, never an error.
+          examples: [false]
+        min_micros:
+          type: string
+          pattern: "^[0-9]+$"
+          description: The smallest withdrawal, in USDC micros.
+          examples: ["1000000"]
+        arrival_seconds:
+          type: integer
+          description: How long the network takes to deliver a withdrawal, in seconds.
+          examples: [60]
         expires_at:
           type: [string, "null"]
           format: date-time
-          description: When the EVM quote expires. Null for Solana, which has no quote.
+          description: When the EVM quote expires. Null for Solana, which has no quote, and without a quote.
           examples: ["2026-10-11T10:30:00Z"]
     WithdrawalStatus:
       type: string

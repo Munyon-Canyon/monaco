@@ -86,4 +86,15 @@ final class WithdrawNetworkTests: XCTestCase {
         XCTAssertNil(solana.destinationKind)
         XCTAssertNil(solana.network)
     }
+
+    func testThePreviewBodyKeepsTheSolanaOmissionsAndNamesAnEVMNetwork() {
+        let solana = WithdrawNetwork.solana.previewRequest(micros: 2_000_000, toAddress: solanaAddress)
+        XCTAssertNil(solana.destinationKind)
+        XCTAssertNil(solana.network)
+        XCTAssertEqual(solana.amountMicros, "2000000")
+        XCTAssertEqual(solana.toAddress, solanaAddress)
+        let evm = WithdrawNetwork.base.previewRequest(micros: 2_000_000, toAddress: "0xabc")
+        XCTAssertEqual(evm.destinationKind, .evm)
+        XCTAssertEqual(evm.network, .base)
+    }
 }
