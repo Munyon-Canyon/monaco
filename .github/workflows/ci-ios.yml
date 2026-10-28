@@ -64,14 +64,24 @@ jobs:
             xcode-ios-dd-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-
 
       - name: Mount DerivedData
+        id: mount
         run: |
           if [[ ! -f "$DERIVED_DATA_IMAGE" ]]; then
             mkdir -p "$(dirname "$DERIVED_DATA_IMAGE")"
             hdiutil create -quiet -size 40g -type SPARSE -fs APFS -volname DerivedData "$DERIVED_DATA_IMAGE"
           fi
           mkdir -p "$DERIVED_DATA"
-          hdiutil attach -quiet -nobrowse -noverify -noautofsck -noautoopen -mountpoint "$DERIVED_DATA" "$DERIVED_DATA_IMAGE"
-          sudo mdutil -i off "$DERIVED_DATA" > /dev/null || true
+          if hdiutil attach -quiet -nobrowse -noverify -noautofsck -noautoopen -mountpoint "$DERIVED_DATA" "$DERIVED_DATA_IMAGE"; then
+            echo "attached=true" >> "$GITHUB_OUTPUT"
+            sudo mdutil -i off "$DERIVED_DATA" > /dev/null || true
+          else
+            echo "::warning::hdiutil attach failed for the DerivedData image; building without the cache"
+            if ! hdiutil info | grep -qE "[[:space:]]$DERIVED_DATA\$"; then
+              rm -rf "$DERIVED_DATA"
+            fi
+            mkdir -p "$DERIVED_DATA"
+            echo "attached=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Inspect the restored DerivedData
         if: always()
@@ -184,22 +194,47 @@ jobs:
           find "$DERIVED_DATA" -maxdepth 3 -name workspace-state.json || true
 
       - name: Unmount DerivedData
-        if: inputs.save-cache && steps.cache.outputs.cache-hit != 'true'
+        id: unmount
+        if: inputs.save-cache && steps.cache.outputs.cache-hit != 'true' && steps.mount.outputs.attached == 'true'
         run: |
           rm -rf "$DERIVED_DATA/Logs" "$DERIVED_DATA/TestResults"
+          image_node() {
+            hdiutil info | awk -v img="$DERIVED_DATA_IMAGE" '
+              /^=+$/ { inblk = 0; next }
+              /^image-path/ { sub(/^image-path *: */, ""); inblk = ($0 == img); next }
+              inblk && /^\/dev\/disk/ { print $1; exit }
+            ' || true
+          }
+          image_attached() {
+            [[ -n "$(image_node)" ]]
+          }
+          node="$(image_node)"
+          unmounted=false
           for attempt in 1 2 3; do
+            if ! image_attached; then
+              unmounted=true
+              break
+            fi
             if [[ "$attempt" == 3 ]]; then force=-force; else force=; fi
             # shellcheck disable=SC2086
-            hdiutil detach $force "$DERIVED_DATA" && break
+            hdiutil detach $force "${node:-$DERIVED_DATA}" || true
+            if ! image_attached; then
+              unmounted=true
+              break
+            fi
             lsof +D "$DERIVED_DATA" | head -20 || true
-            if [[ "$attempt" == 3 ]]; then exit 1; fi
-            sleep 10
+            if [[ "$attempt" != 3 ]]; then sleep 10; fi
           done
-          hdiutil compact -quiet "$DERIVED_DATA_IMAGE"
+          echo "unmounted=$unmounted" >> "$GITHUB_OUTPUT"
+          if [[ "$unmounted" != true ]]; then
+            echo "::warning::the DerivedData image is still attached after three detach attempts; not saving the cache"
+            exit 0
+          fi
+          hdiutil compact -quiet "$DERIVED_DATA_IMAGE" || echo "::warning::hdiutil compact failed; saving the image as it is"
           ls -lh "$DERIVED_DATA_IMAGE"
 
       - name: Save DerivedData
-        if: inputs.save-cache && steps.cache.outputs.cache-hit != 'true'
+        if: inputs.save-cache && steps.cache.outputs.cache-hit != 'true' && steps.unmount.outputs.unmounted == 'true'
         uses: actions/cache/save@v4
         with:
           path: ${{ env.DERIVED_DATA_IMAGE }}
