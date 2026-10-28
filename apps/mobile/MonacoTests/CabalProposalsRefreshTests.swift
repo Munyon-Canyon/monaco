@@ -24,7 +24,7 @@ struct CabalProposalsRefreshTests {
                     serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)),
             hints: hints)
         let window = try ProposalTestWindow.hosting(CabalProposals(cabalID: "cabal-1", makeModel: { _, _ in model }))
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
 
         await ProposalTestWindow.until { model.pager.phase == .exhausted && hints.subscribers > 0 }
         model.setVisible(true)
@@ -49,7 +49,7 @@ struct CabalProposalsRefreshTests {
                     serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)),
             hints: hints)
         let window = try ProposalTestWindow.hosting(CabalProposals(cabalID: "cabal-1", makeModel: { _, _ in model }))
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
 
         await ProposalTestWindow.until { model.pager.phase == .exhausted && hints.subscribers > 0 }
         model.setVisible(true)
@@ -101,7 +101,7 @@ struct CabalProposalsRefreshTests {
         let refresh = ScreenRefresh()
         let window = try ProposalTestWindow.hosting(
             CabalProposals(cabalID: "cabal-1", makeModel: { _, _ in model }).environment(refresh))
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
         await ProposalTestWindow.until { model.pager.phase == .exhausted }
         #expect(await listRequests(transport) == 1)
 

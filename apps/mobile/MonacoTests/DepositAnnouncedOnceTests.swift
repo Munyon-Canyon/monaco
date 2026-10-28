@@ -103,7 +103,7 @@ private final class Harness {
     }
 
     func close() {
-        window.isHidden = true
+        TestWindow.close(window)
     }
 
     func settledShowing(_ micros: Int64) async {

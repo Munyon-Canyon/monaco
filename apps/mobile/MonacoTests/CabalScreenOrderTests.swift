@@ -64,7 +64,7 @@ struct CabalScreenOrderTests {
         defer { try? AccessibilityTree.setAutomation(enabled: false) }
         let window = try Self.window(
             hosting: CabalScreen(cabalID: "cabal-1", sections: sections), over: transport)
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
 
         let ready = (variant == .closed) ? "cabal-closed-row" : "cabal-action-cash-out"
         await ProposalTestWindow.until { AccessibilityTree.identifiers(in: window).contains(ready) }

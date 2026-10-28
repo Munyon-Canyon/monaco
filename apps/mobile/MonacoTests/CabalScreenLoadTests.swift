@@ -22,7 +22,7 @@ struct CabalScreenLoadTests {
         ])
         let screen = CabalScreen(cabalID: "cabal-1", sections: Self.cabalReadingSections)
         let window = try Self.window(hosting: screen, over: transport)
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
 
         await transport.waitForRequest(path: Self.cabalPath)
         await transport.waitForRequest(path: Self.potPath)
@@ -44,7 +44,7 @@ struct CabalScreenLoadTests {
         try AccessibilityTree.setAutomation(enabled: true)
         defer { try? AccessibilityTree.setAutomation(enabled: false) }
         let window = try Self.window(hosting: screen, over: transport)
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
 
         await transport.waitForRequest(path: Self.cabalPath)
         await ProposalTestWindow.until { AccessibilityTree.identifiers(in: window).contains("cabal-failed") }
@@ -87,7 +87,7 @@ struct CabalScreenLoadTests {
         defer { try? AccessibilityTree.setAutomation(enabled: false) }
         let window = try ProposalTestWindow.hosting(
             CabalProposals(cabalID: "cabal-1", makeModel: { _, _ in list }).environment(\.cabalModel, cabal))
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
 
         await ProposalTestWindow.until {
             AccessibilityTree.labels(in: window).contains("No proposals need your attention.")
@@ -156,6 +156,10 @@ enum AccessibilityTree {
         walk(root).compactMap { $0.accessibilityLabel }.filter { !$0.isEmpty }
     }
 
+    static func nodes(in root: NSObject) -> [NSObject] {
+        walk(root)
+    }
+
     static func identifiers(in root: NSObject) -> [String] {
         var seen = Set<String>()
         return walk(root).compactMap { node -> String? in
@@ -169,14 +173,14 @@ enum AccessibilityTree {
 
     private static func walk(_ node: NSObject, depth: Int = 0) -> [NSObject] {
         guard depth < 80 else { return [] }
-        var children: [NSObject] = (node as? UIView)?.subviews ?? []
+        let children: [NSObject]
+        let count = node.accessibilityElementCount()
         if let elements = node.accessibilityElements as? [NSObject] {
-            children += elements
+            children = elements
+        } else if count != NSNotFound, count > 0 {
+            children = (0..<count).compactMap { node.accessibilityElement(at: $0) as? NSObject }
         } else {
-            let count = node.accessibilityElementCount()
-            if count != NSNotFound, count > 0 {
-                children += (0..<count).compactMap { node.accessibilityElement(at: $0) as? NSObject }
-            }
+            children = (node as? UIView)?.subviews ?? []
         }
         return [node] + children.flatMap { walk($0, depth: depth + 1) }
     }

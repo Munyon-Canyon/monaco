@@ -19,7 +19,7 @@ struct StocksTabLoadTests {
             clock: ContinuousClock()
         )
         let window = try Self.window(hosting: StocksTabView(makeModel: { _ in model }))
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
 
         await Self.until { model.all.phase != .idle && model.all.phase != .loading }
 

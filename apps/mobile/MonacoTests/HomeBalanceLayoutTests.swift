@@ -26,7 +26,7 @@ struct HomeBalanceLayoutTests {
         try ProposeAmountKeypadTests.setAutomation(enabled: true)
         defer { try? ProposeAmountKeypadTests.setAutomation(enabled: false) }
         let window = try Self.window(HomeBalanceSummary(display: .amount(1_990_000)), size: phone.size)
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
 
         let (add, withdraw) = try await Self.buttons(in: window)
         #expect(abs(add.width - withdraw.width) < 0.5, "Add money \(add.width)pt, Withdraw \(withdraw.width)pt")
@@ -46,7 +46,7 @@ struct HomeBalanceLayoutTests {
         defer { try? ProposeAmountKeypadTests.setAutomation(enabled: false) }
         for figure in Self.figures {
             let window = try Self.window(HomeBalanceSummary(display: .amount(figure.micros)), size: phone.size)
-            defer { window.isHidden = true }
+            defer { TestWindow.close(window) }
             let value = try await Self.element("platform-balance-value", in: window)
             #expect(value.accessibilityLabel == figure.text)
             let frame = value.accessibilityFrame
@@ -62,7 +62,7 @@ struct HomeBalanceLayoutTests {
         defer { try? ProposeAmountKeypadTests.setAutomation(enabled: false) }
         let strip = HomeMoneyStrip(netWorthMicros: 11_582_320_000, display: .amount(500_000_000))
         let window = try Self.window(strip, size: phone.size)
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
 
         let deposit = try await Self.element("home-add-money-link", in: window).accessibilityFrame
         let cashElement = try await Self.element("platform-balance-value", in: window)

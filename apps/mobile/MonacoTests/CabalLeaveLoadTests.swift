@@ -19,7 +19,7 @@ struct CabalLeaveLoadTests {
             cabalID: "cabal-1"
         )
         let window = try Self.window(hosting: CabalLeaveSection(cabalID: "cabal-1") { _, _ in model })
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
 
         await Self.until { if case .loaded = model.standing { true } else { false } }
 

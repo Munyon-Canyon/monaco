@@ -106,7 +106,7 @@ struct ToastCenterTests {
             rootView: AnyView(BottomCTA { Text("Send") }.environment(center)))
         window.rootViewController = host
         window.makeKeyAndVisible()
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
 
         await settle()
         #expect(center.current?.id == shown.id)

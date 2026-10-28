@@ -14,7 +14,7 @@ struct ProposeAmountKeypadTests {
         try Self.setAutomation(enabled: true)
         defer { try? Self.setAutomation(enabled: false) }
         let (window, _) = try Self.window()
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
 
         #expect(await Self.eventually(within: 10) { Self.element("propose-amount-reason", in: window) != nil })
         #expect(Self.element("propose-amount-add-reason", in: window) == nil)
@@ -26,7 +26,7 @@ struct ProposeAmountKeypadTests {
         try Self.setAutomation(enabled: true)
         defer { try? Self.setAutomation(enabled: false) }
         let (window, navigation) = try Self.window(textSize: .accessibility5, size: CGSize(width: 440, height: 956))
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
         func barBottom() -> CGFloat { navigation.navigationBar.convert(navigation.navigationBar.bounds, to: nil).maxY }
 
         let layoutSlack: CGFloat = 0.5
@@ -43,7 +43,7 @@ struct ProposeAmountKeypadTests {
         defer { try? Self.setAutomation(enabled: false) }
         let service = HeldPreviewService()
         let (window, _) = try Self.window(service: service)
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
         func helper() -> String? { Self.element("amount-entry-helper", in: window)?.accessibilityLabel }
         func spinning() -> Bool { Self.element("amount-entry-spinner", in: window) != nil }
         #expect(await Self.eventually(within: 10) { helper() == "The cabal can spend $500.00" })
@@ -64,7 +64,7 @@ struct ProposeAmountKeypadTests {
         ]
         for (trade, title) in trades {
             let (window, navigation) = try Self.window(trade: trade)
-            defer { window.isHidden = true }
+            defer { TestWindow.close(window) }
             _ = await Self.eventually { navigation.navigationBar.topItem?.title == title }
             #expect(navigation.navigationBar.topItem?.title == title)
         }

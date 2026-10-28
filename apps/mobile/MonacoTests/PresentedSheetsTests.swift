@@ -10,7 +10,7 @@ struct PresentedSheetsTests {
     func closingARealSheetResetsItsBinding() async throws {
         let flag = SheetFlag()
         let (window, root) = try Self.window(hosting: SheetHost(flag: flag))
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
         flag.isPresented = true
         await Self.until { flag.contentShown }
 
@@ -24,7 +24,7 @@ struct PresentedSheetsTests {
     @Test(.timeLimit(.minutes(1)))
     func withNothingPresentedItReturnsAtOnce() async throws {
         let (window, root) = try Self.window(hosting: SheetHost(flag: SheetFlag()))
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
 
         await PresentedSheets.dismiss(from: root)
 

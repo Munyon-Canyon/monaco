@@ -63,7 +63,7 @@ struct AmountKeypadScreenTests {
         defer { try? AccessibilityTree.setAutomation(enabled: false) }
         let window = try ProposalTestWindow.hosting(
             KeypadHarness(text: text, state: state).environment(\.dynamicTypeSize, size))
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
         await ProposalTestWindow.until { AccessibilityTree.identifiers(in: window).contains("amount-keypad-amount") }
         for _ in 0..<300 { await Task.yield() }
         try run(nodes(in: window), window)

@@ -22,7 +22,7 @@ struct CreatedCabalHeaderTests {
         try AccessibilityTree.setAutomation(enabled: true)
         defer { try? AccessibilityTree.setAutomation(enabled: false) }
         let (window, navigator) = try Self.window(over: transport)
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
 
         let field = try #require(await Self.eventually { Self.first(UITextField.self, in: window) }, "no name field")
         field.becomeFirstResponder()

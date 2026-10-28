@@ -12,7 +12,7 @@ struct PendingVotesRefreshTests {
     func homeShowsAProposalAnotherMemberOpensWhileItIsOnScreen() async throws {
         let (model, hints) = Self.model()
         let window = try ProposalTestWindow.hosting(HomePendingVotes(makeModel: { _ in model }))
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
 
         await Self.ready(model, hints)
         hints.send(.changed(.cabal("cabal-1"), what: "proposal_created", id: "1"))
@@ -25,7 +25,7 @@ struct PendingVotesRefreshTests {
     func seeAllShowsAProposalAnotherMemberOpensWhileItIsOnScreen() async throws {
         let (model, hints) = Self.model()
         let window = try ProposalTestWindow.hosting(PendingVotesScreen(makeModel: { _ in model }))
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
 
         await Self.ready(model, hints)
         hints.send(.changed(.cabal("cabal-1"), what: "proposal_created", id: "1"))

@@ -17,7 +17,7 @@ struct ProposeBuyStockLoadTests {
             api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport),
             hints: FakeHintSource(), clock: ContinuousClock())
         let window = try Self.window(hosting: ProposeBuyStockView(cabalID: "cabal-1", makeModel: { _ in model }))
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
 
         await Self.until { await !transport.sent.isEmpty }
 

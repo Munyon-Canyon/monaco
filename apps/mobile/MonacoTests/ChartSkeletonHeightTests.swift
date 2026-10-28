@@ -193,7 +193,7 @@ private final class Hosted {
     }
 
     func close() {
-        window.isHidden = true
+        TestWindow.close(window)
         try? AccessibilityTree.setAutomation(enabled: false)
     }
 }

@@ -20,7 +20,7 @@ struct HomePendingVotesLoadTests {
             hints: FakeHintSource()
         )
         let window = try Self.window(hosting: HomePendingVotes(makeModel: { _ in model }))
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
 
         await Self.until { await !transport.sent.isEmpty }
 

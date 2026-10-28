@@ -19,7 +19,7 @@ struct ProposeBuyStockTapTests {
         defer { try? Self.setAutomation(enabled: false) }
         let (window, navigation) = try Self.window(
             hosting: ProposeBuyStockView(cabalID: "cabal-1", makeModel: { _ in model }))
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
         try #require(await Self.eventually { !model.rows.isEmpty }, "the list never loaded")
 
         model.setQuery("GOOGL")

@@ -16,7 +16,7 @@ extension ProposeAmountKeypadTests {
         let store = Self.bestChains(answer: Self.bestChain)
         await store.refreshIfNeeded(symbol: "GOOGLx")
         let (window, _) = try Self.window(service: service, bestChains: store)
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
         func note() -> String? { Self.element("propose-amount-quantity", in: window)?.accessibilityLabel }
         try await ProposeAmountKeypadTests.typeOne(in: window)
 
@@ -36,7 +36,7 @@ extension ProposeAmountKeypadTests {
         let service = HeldPreviewService()
         let store = Self.bestChains(answer: nil)
         let (window, _) = try Self.window(service: service, bestChains: store)
-        defer { window.isHidden = true }
+        defer { TestWindow.close(window) }
         func helper() -> String? { Self.element("amount-entry-helper", in: window)?.accessibilityLabel }
         #expect(await Self.eventually(within: 10) { helper() == "The cabal can spend $500.00" })
 
