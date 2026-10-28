@@ -5,7 +5,7 @@ struct ProposeReviewScreen: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.hostMainTab) private var hostMainTab
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @MonacoReduceTransparency private var reduceTransparency
     @State private var model: MonacoCore.ProposeReviewModel?
     @State private var cabalFailed = false
     @Binding private var isSending: Bool

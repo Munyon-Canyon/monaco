@@ -10,6 +10,7 @@ final class AppNavigator {
     var stocksPath: [AnyAppRoute] = []
     var profilePath: [AnyAppRoute] = []
     var deposit: DepositRequest?
+    var tabBadges: [MainTab: Int] = [:]
 
     func reset() {
         selectedTab = .home

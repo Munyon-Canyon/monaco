@@ -42,7 +42,7 @@ struct ProposeChooserSheet: View {
 
     @State private var fittedHeight: CGFloat = 0
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @MonacoReduceTransparency private var reduceTransparency
 
     var body: some View {
         ScrollView {

@@ -7,7 +7,7 @@ import Testing
 struct SheetDetentTests {
     private let kinds: [MonacoSheetDetents] = [.review, .votes, .result, .fitted]
 
-    @Test func noSheetKindOffersTheLargeDetent() {
+    @Test func noSheetKindOffersTheLargeDetentAtRegularSizes() {
         for kind in kinds {
             for fitted in [0, 180, 900] as [CGFloat] {
                 #expect(!kind.detents(fittedHeight: fitted, screenHeight: 800).contains(.large))
@@ -17,27 +17,27 @@ struct SheetDetentTests {
     }
 
     @Test func reviewAndVotesOpenAtHalfTheScreen() {
-        #expect(MonacoSheetDetents.review.detents(fittedHeight: 0) == [.fraction(0.55)])
-        #expect(MonacoSheetDetents.votes.detents(fittedHeight: 0) == [.fraction(0.55)])
+        #expect(MonacoSheetDetents.review.detents(fittedHeight: 0) == [.medium])
+        #expect(MonacoSheetDetents.votes.detents(fittedHeight: 0) == [.medium])
     }
 
-    @Test func depositConfirmedKeepsItsFixedHeight() {
-        #expect(MonacoSheetDetents.result.detents(fittedHeight: 0) == [.height(310)])
+    @Test func depositConfirmedFitsItsContent() {
+        #expect(MonacoSheetDetents.result.detents(fittedHeight: 280, screenHeight: 800) == [.height(280)])
     }
 
     @Test func aFittedSheetUsesItsContentHeightOrHalfWhileMeasuring() {
         #expect(MonacoSheetDetents.fitted.detents(fittedHeight: 240, screenHeight: 800) == [.height(240)])
-        #expect(MonacoSheetDetents.fitted.detents(fittedHeight: 0, screenHeight: 800) == [.fraction(0.55)])
+        #expect(MonacoSheetDetents.fitted.detents(fittedHeight: 0, screenHeight: 800) == [.medium])
     }
 
     @Test func aFittedSheetNeverGrowsPastHalfTheScreen() {
-        #expect(MonacoSheetDetents.fitted.detents(fittedHeight: 435, screenHeight: 800) == [.height(435)])
-        #expect(MonacoSheetDetents.fitted.detents(fittedHeight: 445, screenHeight: 800) == [.fraction(0.55)])
-        #expect(MonacoSheetDetents.fitted.detents(fittedHeight: 2_000, screenHeight: 800) == [.fraction(0.55)])
+        #expect(MonacoSheetDetents.fitted.detents(fittedHeight: 395, screenHeight: 800) == [.height(395)])
+        #expect(MonacoSheetDetents.fitted.detents(fittedHeight: 405, screenHeight: 800) == [.medium])
+        #expect(MonacoSheetDetents.fitted.detents(fittedHeight: 2_000, screenHeight: 800) == [.medium])
     }
 
     @Test func aSheetWithNoKindOpensAtHalfTheScreen() {
-        #expect(MonacoSheetDetents.half == [.fraction(0.55)])
+        #expect(MonacoSheetDetents.half == [.medium])
         #expect(!MonacoSheetDetents.half.contains(.large))
     }
 }

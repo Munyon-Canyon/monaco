@@ -7,17 +7,17 @@ enum MonacoAppearance {
         let canvas = UIColor(MonacoTheme.canvas)
         let primaryText = UIColor(MonacoTheme.primaryText)
         let secondaryText = UIColor(MonacoTheme.secondaryText)
-        let brand = UIColor(MonacoTheme.brand)
+        let tint = UIColor(MonacoTheme.tint)
         let border = UIColor(MonacoTheme.border)
         let titleFont = UIFont.systemFont(ofSize: 17, weight: .semibold)
-        let largeTitleFont = UIFont.systemFont(ofSize: 30, weight: .bold)
+        let largeTitleFont = UIFont.systemFont(ofSize: 28, weight: .bold)
         let titleAttributes: [NSAttributedString.Key: Any] = [
             .foregroundColor: primaryText,
             .font: UIFontMetrics(forTextStyle: .headline).scaledFont(for: titleFont, maximumPointSize: 22),
         ]
         let largeTitleAttributes: [NSAttributedString.Key: Any] = [
             .foregroundColor: primaryText,
-            .font: UIFontMetrics(forTextStyle: .largeTitle).scaledFont(for: largeTitleFont, maximumPointSize: 36),
+            .font: UIFontMetrics(forTextStyle: .largeTitle).scaledFont(for: largeTitleFont, maximumPointSize: 34),
         ]
 
         // Chevron-only back button: the title is drawn clear and at a near-zero size so it takes no width.
@@ -31,11 +31,14 @@ enum MonacoAppearance {
         let backImage = UIImage(
             systemName: "chevron.left", withConfiguration: UIImage.SymbolConfiguration(weight: .semibold))
 
-        // Scrolled: opaque canvas with a hairline, so content never slides under the title.
         let standard = UINavigationBarAppearance()
-        standard.configureWithOpaqueBackground()
-        standard.backgroundColor = canvas
-        standard.shadowColor = border
+        if #available(iOS 26, *) {
+            standard.configureWithDefaultBackground()
+        } else {
+            standard.configureWithOpaqueBackground()
+            standard.backgroundColor = canvas
+            standard.shadowColor = border
+        }
         standard.titleTextAttributes = titleAttributes
         standard.largeTitleTextAttributes = largeTitleAttributes
         standard.backButtonAppearance = backButton
@@ -57,25 +60,22 @@ enum MonacoAppearance {
         navigationBar.tintColor = primaryText
         navigationBar.prefersLargeTitles = false
 
-        // Tab bar: the system material, which goes opaque under Reduce Transparency; the selected item in brand.
-        let tabBar = UITabBarAppearance()
-        tabBar.configureWithDefaultBackground()
-        tabBar.shadowColor = border
-        let tabItem = UITabBarItemAppearance()
-        let tabFont = UIFontMetrics(forTextStyle: .caption2)
-            .scaledFont(for: .systemFont(ofSize: 11, weight: .medium), maximumPointSize: 15)
-        tabItem.normal.iconColor = secondaryText
-        tabItem.normal.titleTextAttributes = [.foregroundColor: secondaryText, .font: tabFont]
-        tabItem.selected.iconColor = brand
-        tabItem.selected.titleTextAttributes = [.foregroundColor: brand, .font: tabFont]
-
-        tabBar.stackedLayoutAppearance = tabItem
-        tabBar.inlineLayoutAppearance = tabItem
-        tabBar.compactInlineLayoutAppearance = tabItem
-        UITabBar.appearance().standardAppearance = tabBar
-        UITabBar.appearance().scrollEdgeAppearance = tabBar
-        UITabBar.appearance().tintColor = brand
-        UITabBar.appearance().unselectedItemTintColor = secondaryText
+        UITabBar.appearance().tintColor = tint
+        if #unavailable(iOS 26) {
+            let tabBar = UITabBarAppearance()
+            tabBar.configureWithDefaultBackground()
+            let tabItem = UITabBarItemAppearance()
+            tabItem.normal.iconColor = secondaryText
+            tabItem.normal.titleTextAttributes = [.foregroundColor: secondaryText]
+            tabItem.selected.iconColor = tint
+            tabItem.selected.titleTextAttributes = [.foregroundColor: tint]
+            tabBar.stackedLayoutAppearance = tabItem
+            tabBar.inlineLayoutAppearance = tabItem
+            tabBar.compactInlineLayoutAppearance = tabItem
+            UITabBar.appearance().standardAppearance = tabBar
+            UITabBar.appearance().scrollEdgeAppearance = tabBar
+            UITabBar.appearance().unselectedItemTintColor = secondaryText
+        }
 
         // Legacy Form / List screens until they migrate to MonacoGroupedList.
         UITableView.appearance().backgroundColor = .clear
@@ -96,6 +96,15 @@ struct MonacoRootAppearanceModifier: ViewModifier {
 
 extension EnvironmentValues {
     @Entry var insideMonacoSheet = false
+    @Entry var monacoReduceTransparencyOverride = false
+}
+
+@propertyWrapper
+struct MonacoReduceTransparency: DynamicProperty {
+    @Environment(\.accessibilityReduceTransparency) private var system
+    @Environment(\.monacoReduceTransparencyOverride) private var override
+
+    var wrappedValue: Bool { system || override }
 }
 
 extension View {
@@ -155,6 +164,15 @@ extension View {
             closeIdentifier: nil, scrolls: true, content: self)
     }
 
+    @ViewBuilder
+    func monacoNavHairlineHidden() -> some View {
+        if #available(iOS 26, *) {
+            self
+        } else {
+            toolbarBackground(.hidden, for: .navigationBar)
+        }
+    }
+
     func monacoTopLevelHeader(title: String) -> some View {
         navigationTitle(title)
             .navigationBarTitleDisplayMode(.large)
@@ -200,10 +218,9 @@ extension View {
 enum MonacoSheetDetents {
     case review, votes, result, fitted
 
-    static let halfFraction: CGFloat = 0.55
-    static let resultHeight: CGFloat = 310
+    static let halfFraction: CGFloat = 0.5
 
-    static let half: [PresentationDetent] = [.fraction(halfFraction)]
+    static let half: [PresentationDetent] = [.medium]
 
     @MainActor
     static var screenHeight: CGFloat {
@@ -212,15 +229,22 @@ enum MonacoSheetDetents {
     }
 
     @MainActor
-    func detents(fittedHeight: CGFloat, screenHeight: CGFloat = MonacoSheetDetents.screenHeight) -> [PresentationDetent]
-    {
+    func detents(
+        fittedHeight: CGFloat, screenHeight: CGFloat = MonacoSheetDetents.screenHeight,
+        dynamicTypeSize: DynamicTypeSize = .large
+    ) -> [PresentationDetent] {
+        let base: [PresentationDetent]
         switch self {
-        case .review, .votes: return Self.half
-        case .result: return [.height(Self.resultHeight)]
-        case .fitted:
-            guard fittedHeight > 0, fittedHeight < screenHeight * Self.halfFraction else { return Self.half }
-            return [.height(fittedHeight)]
+        case .review, .votes:
+            base = Self.half
+        case .result, .fitted:
+            if fittedHeight > 0, fittedHeight < screenHeight * Self.halfFraction {
+                base = [.height(fittedHeight)]
+            } else {
+                base = Self.half
+            }
         }
+        return dynamicTypeSize.isAccessibilitySize ? base + [.large] : base
     }
 }
 
@@ -247,7 +271,10 @@ struct MonacoSheetHeading: View {
 
     @ViewBuilder
     private var closeButton: some View {
-        let button = MonacoGlassButton(systemImage: "xmark", accessibilityLabel: "Close", style: .quiet) { dismiss() }
+        let button = MonacoGlassButton(systemImage: "xmark", accessibilityLabel: "Close", style: .quiet, size: .compact)
+        {
+            dismiss()
+        }
         if let closeIdentifier {
             button.accessibilityIdentifier(closeIdentifier)
         } else {
@@ -281,6 +308,7 @@ private struct MonacoSheetFrame<Content: View>: View {
 
     @State private var headingHeight: CGFloat = 0
     @State private var contentHeight: CGFloat = 0
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -318,8 +346,8 @@ private struct MonacoSheetFrame<Content: View>: View {
     }
 
     private var available: [PresentationDetent] {
-        guard let kind else { return MonacoSheetDetents.half }
-        return kind.detents(fittedHeight: headingHeight > 0 && contentHeight > 0 ? headingHeight + contentHeight : 0)
+        let fitted = headingHeight > 0 && contentHeight > 0 ? headingHeight + contentHeight : 0
+        return (kind ?? .review).detents(fittedHeight: fitted, dynamicTypeSize: dynamicTypeSize)
     }
 }
 
@@ -330,21 +358,10 @@ extension View {
 }
 
 private struct MonacoSheetChrome: ViewModifier {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-
-    @ViewBuilder
     func body(content: Content) -> some View {
-        let base =
-            content
+        content
             .presentationDragIndicator(.visible)
             .presentationContentInteraction(.scrolls)
             .presentationBackgroundInteraction(.disabled)
-        if reduceTransparency {
-            base.presentationBackground(MonacoTheme.background)
-        } else if #available(iOS 26, *) {
-            base
-        } else {
-            base.presentationBackground(.regularMaterial)
-        }
     }
 }

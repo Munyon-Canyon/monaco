@@ -51,7 +51,7 @@ struct MonacoToastBanner: View {
     var onDismiss: () -> Void = {}
 
     @ScaledMetric(relativeTo: .subheadline) private var glyphSize: CGFloat = MonacoToastLayout.glyphSize
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @MonacoReduceTransparency private var reduceTransparency
     @Environment(\.displayScale) private var displayScale
     @State private var gate = MonacoToastActionGate()
 

@@ -28,11 +28,12 @@ struct MainTabView: View {
                         .environment(\.symbolVariants, tab == navigator.selectedTab ? .fill : .none)
                         .accessibilityIdentifier(tab.accessibilityIdentifier)
                 }
+                .badge(navigator.tabBadges[tab] ?? 0)
                 .tag(tab)
                 .environment(\.hostMainTab, tab)
             }
         }
-        .tint(MonacoTheme.brand)
+        .tint(MonacoTheme.tint)
         .environment(\.depositNavigator, navigator)
         .modifier(AccountBalanceHost())
         .preference(key: TabToastHostKey.self, value: true)
@@ -97,7 +98,16 @@ extension View {
             route.destination()
                 .monacoCanvas()
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbarBackground(MonacoTheme.canvas, for: .navigationBar)
+                .systemNavigationBackground()
+        }
+    }
+
+    @ViewBuilder
+    fileprivate func systemNavigationBackground() -> some View {
+        if #available(iOS 26, *) {
+            self
+        } else {
+            toolbarBackground(MonacoTheme.canvas, for: .navigationBar)
                 .toolbarBackground(.visible, for: .navigationBar)
         }
     }

@@ -6,6 +6,8 @@ struct GalleryChromePage: View {
         GalleryPage(title: "Chrome") {
             GalleryGlassSamples()
             GalleryToolbarSamples()
+            GalleryTabBarSamples()
+            GalleryChromeDockSamples()
             GallerySheetSamples()
         }
     }
@@ -14,11 +16,11 @@ struct GalleryChromePage: View {
 struct GalleryGlassSamples: View {
     private let styles: [(name: String, style: MonacoGlassButton.Style, icon: MonacoIcon)] = [
         ("glass", .glass, .share), ("quiet", .quiet, .close), ("selected", .selected, .star),
-        ("onCover", .onCover, .share),
     ]
 
-    private let sizes: [(name: String, size: MonacoGlassButton.Size)] = [
-        ("Size 44", .regular), ("Size compact 40", .compact),
+    private let sizes: [(name: String, size: MonacoGlassButton.Size, reduceTransparency: Bool)] = [
+        ("Size 44", .regular, false), ("Size compact 32 on 44", .compact, false),
+        ("Size 44, Reduce Transparency", .regular, true), ("Size compact, Reduce Transparency", .compact, true),
     ]
 
     var body: some View {
@@ -30,12 +32,13 @@ struct GalleryGlassSamples: View {
                             ForEach(styles, id: \.name) { sample in
                                 VStack(spacing: MonacoTheme.Space.xs) {
                                     ZStack {
-                                        backdrop(for: sample.style)
+                                        backdrop
                                         MonacoGlassButton(
                                             icon: sample.icon, accessibilityLabel: sample.name,
                                             style: sample.style, size: entry.size
                                         ) {}
                                     }
+                                    .environment(\.monacoReduceTransparencyOverride, entry.reduceTransparency)
                                     .frame(width: 64, height: 64)
                                     GalleryCaption(sample.name)
                                 }
@@ -47,12 +50,9 @@ struct GalleryGlassSamples: View {
         }
     }
 
-    @ViewBuilder
-    private func backdrop(for style: MonacoGlassButton.Style) -> some View {
-        if style == .onCover {
-            RoundedRectangle(cornerRadius: MonacoTheme.Radius.badge, style: .continuous)
-                .fill(MonacoTheme.CabalTint.blue.fill)
-        }
+    private var backdrop: some View {
+        RoundedRectangle(cornerRadius: MonacoTheme.Radius.badge, style: .continuous)
+            .fill(MonacoTheme.CabalTint.blue.fill)
     }
 }
 
@@ -99,11 +99,43 @@ struct GalleryToolbarSamples: View {
                 GalleryCase(caption: "Glass, quiet and selected in a toolbar, size 44") {
                     GalleryToolbarSample(title: "Cabal", size: .regular)
                 }
-                GalleryCase(caption: "Glass, quiet and selected in a toolbar, compact 40") {
+                GalleryCase(caption: "Glass, quiet and selected in a toolbar, compact 32 on 44") {
                     GalleryToolbarSample(title: "Cabal", size: .compact)
                 }
             }
         }
+    }
+}
+
+struct GalleryTabBarSamples: View {
+    var body: some View {
+        GalleryGroup(title: "Tab bar") {
+            GalleryCase(caption: "Five tabs, Cabals badge 1") {
+                GalleryTabBarSample()
+            }
+        }
+    }
+}
+
+struct GalleryChromeDockSamples: View {
+    var body: some View {
+        GalleryGroup(title: "Docked bar") {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+                GalleryCase(caption: "Docked Deposit on the bar material") {
+                    dock
+                }
+                GalleryCase(caption: "Docked Deposit, Reduce Transparency") {
+                    dock.environment(\.monacoReduceTransparencyOverride, true)
+                }
+            }
+        }
+    }
+
+    private var dock: some View {
+        BottomCTA {
+            Button("Deposit") {}.buttonStyle(.monacoPrimary)
+        }
+        .monacoBleed()
     }
 }
 

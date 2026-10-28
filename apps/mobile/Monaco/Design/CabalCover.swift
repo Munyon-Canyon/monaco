@@ -13,7 +13,7 @@ struct CabalCover<Overlay: View>: View {
     private let overlay: Overlay
 
     @State private var loadedPicture: UIImage?
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @MonacoReduceTransparency private var reduceTransparency
     @Environment(\.displayScale) private var displayScale
 
     private static var heroHeight: CGFloat { 132 }
