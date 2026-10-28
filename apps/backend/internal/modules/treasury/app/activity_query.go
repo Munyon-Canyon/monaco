@@ -101,7 +101,7 @@ func (r *ActivityReads) List(ctx context.Context, req ListActivity) (ActivityPag
 		CabalID: req.CabalID.UUID(), HasCursor: cursor.ok, CursorAt: cursor.at, CursorID: cursor.id,
 		RowLimit: limit + 1,
 	}
-	names, known, err := r.filter(ctx, req.Symbol, &params)
+	names, known, err := r.filter(ctx, req, &params)
 	if err != nil {
 		return ActivityPage{}, err
 	}
@@ -130,18 +130,21 @@ func (r *ActivityReads) List(ctx context.Context, req ListActivity) (ActivityPag
 }
 
 func (r *ActivityReads) filter(
-	ctx context.Context, symbol string, params *sqlc.ListActivityRoutedParams,
+	ctx context.Context, req ListActivity, params *sqlc.ListActivityRoutedParams,
 ) (map[domain.Asset]AssetName, bool, error) {
-	if symbol == "" {
+	if req.Symbol == "" {
 		return nil, true, nil
 	}
 	names, err := r.assets.AssetNames(ctx)
 	if err != nil {
 		return nil, false, err
 	}
-	mint, ok := mintOf(names, symbol)
-	params.Asset.String, params.Asset.Valid = string(mint), ok
-	return names, ok, nil
+	mint, ok := mintOf(names, req.Symbol)
+	if !ok {
+		return names, false, nil
+	}
+	params.Assets, err = r.stockKeys(ctx, req.CabalID, mint)
+	return names, err == nil, err
 }
 
 func (r *ActivityReads) page(
@@ -255,4 +258,25 @@ func parseActivityPage(req ListActivity) (int32, activityCursor, error) {
 
 func encodeActivityCursor(at time.Time, id uuid.UUID) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(strconv.FormatInt(at.UnixMicro(), 10) + ":" + id.String()))
+}
+
+func (r *ActivityReads) stockKeys(ctx context.Context, cabalID ids.CabalID, mint domain.Asset) ([]string, error) {
+	keys := []string{string(mint)}
+	if r.listings == nil {
+		return keys, nil
+	}
+	listed, err := r.q.CabalActivityListingKeys(ctx, cabalID.UUID())
+	if err != nil || len(listed) == 0 {
+		return keys, err
+	}
+	quotes, err := r.listings(ctx, listed, time.Time{})
+	if err != nil {
+		return nil, err
+	}
+	for _, key := range listed {
+		if q, ok := quotes[key]; ok && q.Asset != nil && q.Asset.Mint == string(mint) {
+			keys = append(keys, key)
+		}
+	}
+	return keys, nil
 }

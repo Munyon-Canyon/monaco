@@ -473,12 +473,10 @@ States: loading skeleton (`holding-loading`); error (`holding-error`, "Couldn't 
 
 Data. `GET /v1/cabals/{id}/pot` gives the units, price, value, cost basis and unrealized P&L of the holding and the price time; `GET /v1/cabals/{id}` the cabal name; `GET /v1/assets/{symbol}` the name, logo and token decimals; `GET /v1/cabals/{id}/activity` the trades (confirmed buys and sells of the symbol, filtered on the client, up to three pages of 100 per load); `GET /v1/cabals/{id}/proposals?filter=open` the related proposals. The backend has none of these (D7), so they render "—" or the fallback in production and come from `CabalHoldingFixture` only in the DEBUG harness:
 
-1. Average buy and average sell price per cabal holding.
+1. Average sell price per cabal holding.
 2. Realized and unrealized P&L split per cabal holding (only unrealized exists).
 3. A position value series per cabal holding and range (1W, 1M, 3M, 1Y, All).
 4. Period P&L for the holding.
-5. A `symbol` filter on `GET /v1/cabals/{id}/activity`.
-6. A per-trade unit price (today `usdc_micros / units`).
 
 ## Profile tab
 

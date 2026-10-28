@@ -366,3 +366,86 @@ func TestGetCabalPot_firstFundedAtIsTheFirstFundEverEvenAfterAFullCashOut(t *tes
 		}
 	}
 }
+
+func TestGetCabalPot_averagesAndDatesAMergedHoldingAcrossEveryChain(t *testing.T) {
+	t.Parallel()
+	p := newPotCase(t)
+	p.multichain(t)
+	p.buy(t, 20_000_000, 100_000_000)
+	p.hold(t, potEVMAAPL, 500_000_000_000_000_000, 15_000_000)
+	now := p.f.clock.Now()
+	p.activity(t, "buy", "confirmed", p.funder, marketfake.AAPLx().Mint.String(), now.Add(-24*time.Hour))
+	p.activity(t, "buy", "confirmed", p.funder, potEVMAAPL, now.Add(-72*time.Hour))
+	p.activity(t, "buy", "pending", p.funder, potEVMAAPL, now.Add(-96*time.Hour))
+
+	got, err := p.get(t, p.funder, p.funder)
+	if err != nil || len(got.Holdings) != 1 {
+		t.Fatalf("pot = %#v, %v", got, err)
+	}
+	h := got.Holdings[0]
+	if h.AvgEntryMicros == nil || *h.AvgEntryMicros != "23333333" {
+		t.Fatalf("avg_entry_micros = %v, want 35 USDC / 1.5 shares = 23333333", h.AvgEntryMicros)
+	}
+	if want := now.Add(-72 * time.Hour); h.FirstBoughtAt == nil || !h.FirstBoughtAt.Equal(want) {
+		t.Fatalf("first_bought_at = %v, want the earlier EVM buy %v", h.FirstBoughtAt, want)
+	}
+}
+
+func TestGetCabalPot_averagesAndDatesAnEVMOnlyHolding(t *testing.T) {
+	t.Parallel()
+	p := newPotCase(t)
+	p.multichain(t)
+	p.hold(t, potEVMAAPL, 500_000_000_000_000_000, 15_000_000)
+	at := p.f.clock.Now().Add(-48 * time.Hour)
+	p.activity(t, "buy", "confirmed", p.funder, potEVMAAPL, at)
+
+	got, err := p.get(t, p.funder, p.funder)
+	if err != nil || len(got.Holdings) != 1 {
+		t.Fatalf("pot = %#v, %v", got, err)
+	}
+	h := got.Holdings[0]
+	if h.AvgEntryMicros == nil || *h.AvgEntryMicros != "30000000" {
+		t.Fatalf("avg_entry_micros = %v, want 15 USDC / 0.5 shares = 30000000", h.AvgEntryMicros)
+	}
+	if h.FirstBoughtAt == nil || !h.FirstBoughtAt.Equal(at) {
+		t.Fatalf("first_bought_at = %v, want %v", h.FirstBoughtAt, at)
+	}
+}
+
+func TestGetCabalPot_refusesAMergedAverageThatOverflows(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		units, cost int64
+		perToken    *big.Rat
+	}{
+		"shares past uint64":  {units: 9_000_000_000_000_000_000, cost: 1, perToken: big.NewRat(1_000_000_000_000_000, 1)},
+		"average past uint64": {units: 100_000_000_000_000, cost: 2_000_000_000_000_000, perToken: big.NewRat(1, 1)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			p := newPotCase(t)
+			quotes := p.multichain(t)
+			listing := quotes[potEVMAAPL]
+			listing.SharesPerToken = tc.perToken
+			quotes[potEVMAAPL] = listing
+			p.hold(t, potEVMAAPL, tc.units, tc.cost)
+			if _, err := p.get(t, p.funder, p.funder); errs.CodeOf(err) != errs.CodeInvalidInput {
+				t.Fatalf("pot error = %v, want invalid_input", err)
+			}
+		})
+	}
+}
+
+func TestGetCabalPot_leavesTheAverageNullWhenAnEVMHoldingRoundsToZeroShares(t *testing.T) {
+	t.Parallel()
+	p := newPotCase(t)
+	p.multichain(t)
+	p.hold(t, potEVMAAPL, 10_000_000_000_000, 1)
+	got, err := p.get(t, p.funder, p.funder)
+	if err != nil || len(got.Holdings) != 1 {
+		t.Fatalf("pot = %#v, %v", got, err)
+	}
+	if h := got.Holdings[0]; h.Units != "0.0000" || h.AvgEntryMicros != nil {
+		t.Fatalf("units %s, avg_entry_micros %v, want 0.0000 shares and no average", h.Units, h.AvgEntryMicros)
+	}
+}

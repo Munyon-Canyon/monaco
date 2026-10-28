@@ -20,6 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/treasuryapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -278,5 +279,78 @@ func TestActivityHTTP_refusesAPriceTheWireCannotHold(t *testing.T) {
 	})
 	if errs.CodeOf(err) != errs.CodeInvalidInput {
 		t.Fatalf("a price past uint64 = %v, want invalid_input", err)
+	}
+}
+
+func TestActivityReads_aSymbolFilterPagesSolanaAndEVMRoutedTradesInOneOrder(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	c := testkit.NewCabal(t, pool)
+	seedAAPLx(t, pool)
+	g, base := testkit.NewIDs(96), clock.Real{}.Now().UTC().Truncate(time.Second)
+	aapl, evm, other := marketfake.AAPLx().Mint.String(), activityEVMAsset, "base:0xb200000000000000000000000000000000000d04"
+	one := int64(1)
+	rows := []trade{
+		{g.NewV7(), "buy", &aapl, &one, &one, base.Add(-5 * time.Minute)},
+		{g.NewV7(), "buy", &evm, &one, &one, base.Add(-4 * time.Minute)},
+		{g.NewV7(), "buy", &other, &one, &one, base.Add(-3 * time.Minute)},
+		{g.NewV7(), "sell", &evm, &one, &one, base.Add(-2 * time.Minute)},
+		{g.NewV7(), "sell", &aapl, &one, &one, base.Add(-time.Minute)},
+	}
+	seedTrades(t, pool, c.ID, rows...)
+	listings := app.ListingReader(
+		func(_ context.Context, keys []string, _ time.Time) (map[string]app.ListingQuote, error) {
+			out := map[string]app.ListingQuote{}
+			for _, k := range keys {
+				mint := "OtherMint"
+				if k == evm {
+					mint = aapl
+				}
+				out[k] = app.ListingQuote{
+					Symbol: "AAPLon", Network: chain.NetworkBase,
+					Asset: &app.ListedAsset{Mint: mint, Symbol: "AAPLx", DisplayName: "Apple"},
+				}
+			}
+			return out, nil
+		},
+	)
+	reads := app.NewActivityReads(pool, member(true), app.UnwiredReads{},
+		treasury.CatalogNames{Catalog: market.New(module.Deps{Pool: pool}).Catalog()}).WithListings(listings)
+	want := [][]uuid.UUID{{rows[4].id, rows[3].id}, {rows[1].id, rows[0].id}}
+	cursor := ""
+	for i, wantIDs := range want {
+		page, err := reads.List(t.Context(), app.ListActivity{
+			CabalID: c.ID, Caller: c.Creator.ID, Symbol: "AAPLx", Limit: 2, Cursor: cursor,
+		})
+		if err != nil || len(page.Items) != 2 {
+			t.Fatalf("page %d = %+v, %v, want 2 trades", i, page.Items, err)
+		}
+		for j, item := range page.Items {
+			if item.ID != wantIDs[j] {
+				t.Fatalf("page %d item %d = %s, want %s", i, j, item.ID, wantIDs[j])
+			}
+		}
+		cursor = page.NextCursor
+	}
+	if cursor != "" {
+		t.Fatalf("cursor after the last page = %q, want none", cursor)
+	}
+}
+
+func TestActivityReads_aSymbolFilterPassesAListingReadErrorOn(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	c := testkit.NewCabal(t, pool)
+	seedAAPLx(t, pool)
+	asset, one := activityEVMAsset, int64(1)
+	seedTrades(t, pool, c.ID, trade{testkit.NewIDs(97).NewV7(), "buy", &asset, &one, &one, clock.Real{}.Now().UTC()})
+	down := errs.New(errs.CodeDBUnavailable, "test")
+	reads := app.NewActivityReads(pool, member(true), app.UnwiredReads{},
+		treasury.CatalogNames{Catalog: market.New(module.Deps{Pool: pool}).Catalog()}).WithListings(
+		func(context.Context, []string, time.Time) (map[string]app.ListingQuote, error) { return nil, down },
+	)
+	_, err := reads.List(t.Context(), app.ListActivity{CabalID: c.ID, Caller: c.Creator.ID, Symbol: "AAPLx"})
+	if errs.CodeOf(err) != errs.CodeDBUnavailable {
+		t.Fatalf("err = %v, want db_unavailable", err)
 	}
 }
