@@ -12,59 +12,83 @@ extension Components.Schemas.CabalRef {
         id: "01890a5d-ac96-774b-bcce-b302099a805b", name: "Tech Titans", pictureUrl: nil)
     public static let sampleDegens = Self(
         id: "01890a5d-ac96-774b-bcce-b302099a805c", name: "Degens", pictureUrl: nil)
+    public static let sampleQuantKids = Self(
+        id: "01890a5d-ac96-774b-bcce-b302099a805d", name: "Quant Kids", pictureUrl: nil)
 }
 
 extension Components.Schemas.MyPortfolio {
     public static let sample = Self(
-        totalValueMicros: 1_000_000_000, pnlMicros: 14_000_000, returnBps: 142,
+        cashMicros: 0, netWorthMicros: 1_000_000_000, totalValueMicros: 1_000_000_000, pnlMicros: 14_000_000,
+        returnBps: 142,
         computedAt: Date(timeIntervalSince1970: 1_790_996_460),
         pricesAsOf: Date(timeIntervalSince1970: 1_790_996_400),
         cabals: [
             Components.Schemas.PortfolioCabal(
                 cabal: .sampleAlpha, valueMicros: 600_000_000, shareUnits: 600_000_000,
                 netContributedMicros: 590_000_000, pnlMicros: 10_000_000, returnBps: 169, sliceBps: 6000,
-                ownershipBps: 3500, role: .admin, canVote: true),
+                ownershipBps: 3500, role: .admin, canVote: true, potValueMicros: 1_714_285_714, memberCount: 8,
+                openVoteCount: 1),
             Components.Schemas.PortfolioCabal(
                 cabal: .sampleBeta, valueMicros: 400_000_000, shareUnits: 400_000_000,
                 netContributedMicros: 396_000_000, pnlMicros: 4_000_000, returnBps: 101, sliceBps: 4000,
-                ownershipBps: 1200, role: .member, canVote: true),
+                ownershipBps: 1200, role: .member, canVote: true, potValueMicros: 3_333_333_333, memberCount: 6,
+                openVoteCount: 0),
         ])
 
     public static let sampleLoss = Self(
-        totalValueMicros: 949_000_000, pnlMicros: -1_000_000, returnBps: -11,
+        cashMicros: 0, netWorthMicros: 949_000_000, totalValueMicros: 949_000_000, pnlMicros: -1_000_000,
+        returnBps: -11,
         computedAt: Date(timeIntervalSince1970: 1_790_996_460),
         pricesAsOf: Date(timeIntervalSince1970: 1_790_996_400),
         cabals: [
             Components.Schemas.PortfolioCabal(
                 cabal: .sampleAlpha, valueMicros: 949_000_000, shareUnits: 949_000_000,
                 netContributedMicros: 950_000_000, pnlMicros: -1_000_000, returnBps: -11, sliceBps: 10000,
-                ownershipBps: 3500, role: .admin, canVote: true),
+                ownershipBps: 3500, role: .admin, canVote: true, potValueMicros: 2_711_428_571, memberCount: 8,
+                openVoteCount: 0),
             Components.Schemas.PortfolioCabal(
                 cabal: .sampleBeta, valueMicros: 0, shareUnits: 0, netContributedMicros: 0, pnlMicros: 0,
-                returnBps: nil, sliceBps: 0, ownershipBps: 0, role: .member, canVote: true),
+                returnBps: nil, sliceBps: 0, ownershipBps: 0, role: .member, canVote: true, potValueMicros: 0,
+                memberCount: 6, openVoteCount: 0),
         ])
 
     public static let sampleOwnProfile = Self(
-        totalValueMicros: 11_582_000_000, pnlMicros: 454_080_000, returnBps: 408,
+        cashMicros: 500_000_000, netWorthMicros: 12_082_000_000, totalValueMicros: 11_582_000_000,
+        pnlMicros: 454_080_000, returnBps: 408,
         computedAt: Date(timeIntervalSince1970: 1_790_996_460),
         pricesAsOf: Date(timeIntervalSince1970: 1_790_996_400),
         cabals: [
             Components.Schemas.PortfolioCabal(
                 cabal: .sampleACCapital, valueMicros: 7_000_000_000, shareUnits: 7_000_000_000,
                 netContributedMicros: 6_687_600_000, pnlMicros: 312_400_000, returnBps: 467, sliceBps: 6045,
-                ownershipBps: 3500, role: .admin, canVote: true),
+                ownershipBps: 3500, role: .admin, canVote: true, potValueMicros: 20_000_000_000, memberCount: 8,
+                openVoteCount: 1),
             Components.Schemas.PortfolioCabal(
                 cabal: .sampleTechTitans, valueMicros: 2_710_000_000, shareUnits: 2_710_000_000,
                 netContributedMicros: 2_756_870_000, pnlMicros: -46_870_000, returnBps: -170, sliceBps: 2339,
-                ownershipBps: 1200, role: .member, canVote: true),
+                ownershipBps: 1200, role: .member, canVote: true, potValueMicros: 22_580_000_000, memberCount: 6,
+                openVoteCount: 0),
             Components.Schemas.PortfolioCabal(
                 cabal: .sampleDegens, valueMicros: 1_872_000_000, shareUnits: 1_872_000_000,
                 netContributedMicros: 1_683_450_000, pnlMicros: 188_550_000, returnBps: 1120, sliceBps: 1616,
-                ownershipBps: 800, role: .member, canVote: true),
+                ownershipBps: 800, role: .member, canVote: true, potValueMicros: 23_400_000_000, memberCount: 6,
+                openVoteCount: 0),
         ])
 
     public static let sampleEmpty = Self(
-        totalValueMicros: 0, pnlMicros: 0, returnBps: nil, computedAt: nil, pricesAsOf: nil, cabals: [])
+        cashMicros: 0, netWorthMicros: 0, totalValueMicros: 0, pnlMicros: 0, returnBps: nil, computedAt: nil,
+        pricesAsOf: nil, cabals: [])
+
+    public static let sampleWithUnfunded = Self(
+        cashMicros: 500_000_000, netWorthMicros: 12_082_000_000, totalValueMicros: 11_582_000_000,
+        pnlMicros: 454_080_000, returnBps: 408, computedAt: Date(timeIntervalSince1970: 1_790_996_460),
+        pricesAsOf: Date(timeIntervalSince1970: 1_790_996_400),
+        cabals: sampleOwnProfile.cabals + [
+            Components.Schemas.PortfolioCabal(
+                cabal: .sampleQuantKids, valueMicros: 0, shareUnits: 0, netContributedMicros: 0, pnlMicros: 0,
+                returnBps: nil, sliceBps: 0, ownershipBps: 0, role: .member, canVote: true, potValueMicros: 0,
+                memberCount: 5, openVoteCount: 0)
+        ])
 }
 
 extension Components.Schemas.MyPnlHistory {

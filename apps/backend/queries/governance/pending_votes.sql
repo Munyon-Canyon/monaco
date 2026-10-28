@@ -21,3 +21,9 @@ WHERE pv.voter_id = @voter_id
   AND NOT EXISTS (SELECT 1 FROM votes AS v WHERE v.proposal_id = p.id AND v.voter_id = @voter_id)
 ORDER BY p.expires_at, p.id
 LIMIT 50;
+
+-- name: OpenProposalCountsByCabal :many
+SELECT cabal_id, count(*)::int AS open_count
+FROM proposals
+WHERE status = 'open' AND cabal_id = ANY(@cabal_ids::uuid[])
+GROUP BY cabal_id;

@@ -27,6 +27,8 @@ type HTTP struct {
 	Members   app.MemberCabals
 	Ownership app.Ownership
 	Roles     app.MemberRoles
+	Balances  app.DisplayBalances
+	Votes     app.OpenVoteCounts
 }
 
 var _ api.StrictServerInterface = HTTP{}
@@ -155,7 +157,8 @@ func (h HTTP) GetMyPortfolio(
 		return nil, err
 	}
 	view, err := app.ReadPortfolio{User: user}.Run(ctx, app.PortfolioPorts{
-		Boards: h.Boards, Latest: h.Snapshots, Stakes: h.Stakes, Cards: h.Cards, Ownership: h.Ownership, Roles: h.Roles,
+		Balances: h.Balances, Joined: h.Members, Votes: h.Votes, Boards: h.Boards, Latest: h.Snapshots,
+		Stakes: h.Stakes, Cards: h.Cards, Ownership: h.Ownership, Roles: h.Roles,
 	})
 	if err != nil {
 		return nil, err
@@ -211,27 +214,45 @@ func wirePortfolio(view app.PortfolioView) (api.MyPortfolio, error) {
 	if total > math.MaxInt64 {
 		return api.MyPortfolio{}, errs.New(errs.CodeInternal, op, slog.Uint64("total", total))
 	}
+	cash, netWorth := view.Cash.Uint64(), view.NetWorth.Uint64()
+	if cash > math.MaxInt64 || netWorth > math.MaxInt64 {
+		return api.MyPortfolio{}, errs.New(errs.CodeInternal, op, slog.Uint64("cash", cash))
+	}
 	out := api.MyPortfolio{
+		CashMicros: int64(cash), NetWorthMicros: int64(netWorth),
 		TotalValueMicros: int64(total), PnlMicros: view.PnL.Int64(), ReturnBps: bpsOf(view.Return),
 		ComputedAt: view.ComputedAt, PricesAsOf: view.PricesAsOf, Cabals: make([]api.PortfolioCabal, 0, len(view.Rows)),
 	}
 	for _, row := range view.Rows {
-		value, shares := row.Value.Uint64(), row.Shares.Uint64()
-		if value > math.MaxInt64 || shares > math.MaxInt64 || row.SliceBps > math.MaxInt64 {
+		value, shares, pot := row.Value.Uint64(), row.Shares.Uint64(), row.PotValue.Uint64()
+		if value > math.MaxInt64 || shares > math.MaxInt64 || pot > math.MaxInt64 || row.SliceBps > math.MaxInt64 {
 			return api.MyPortfolio{}, errs.New(
 				errs.CodeInternal, op, slog.Uint64("value", value), slog.Uint64("shares", shares))
 		}
 		card := view.Cabals[row.CabalID]
 		card.ID = row.CabalID
+		members, okMembers := int32Of(card.MemberCount)
+		votes, okVotes := int32Of(view.OpenVotes[row.CabalID])
+		if !okMembers || !okVotes {
+			return api.MyPortfolio{}, errs.New(errs.CodeInternal, op, slog.Int("members", card.MemberCount))
+		}
 		ref := cabalRef(card)
 		member := view.Members[row.CabalID]
 		out.Cabals = append(out.Cabals, api.PortfolioCabal{
 			Cabal: ref, ValueMicros: int64(value), ShareUnits: int64(shares), NetContributedMicros: row.Net.Int64(),
 			PnlMicros: row.PnL.Int64(), ReturnBps: bpsOf(row.Return), SliceBps: int64(row.SliceBps),
 			OwnershipBps: row.OwnershipBps, Role: api.PortfolioCabalRole(member.Role), CanVote: member.CanVote,
+			PotValueMicros: int64(pot), MemberCount: members, OpenVoteCount: votes,
 		})
 	}
 	return out, nil
+}
+
+func int32Of(n int) (int32, bool) {
+	if n < 0 || n > math.MaxInt32 {
+		return 0, false
+	}
+	return int32(n), true
 }
 
 func bpsOf(b *domain.Bps) *int64 {

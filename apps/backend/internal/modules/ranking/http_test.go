@@ -1,6 +1,7 @@
 package ranking_test
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -13,12 +14,15 @@ import (
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
+	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/governance"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
+	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
@@ -26,7 +30,9 @@ import (
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/rankingapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -43,6 +49,24 @@ func newServer(t *testing.T) server {
 	return newServerWith(t, nil, true)
 }
 
+type cashModule struct{}
+
+func (cashModule) Name() string              { return "cash" }
+func (cashModule) Mount(apibase.Mount)       {}
+func (cashModule) Consumers() []bus.Consumer { return nil }
+func (cashModule) Pollers() []poller.Poller  { return nil }
+
+func (cashModule) Balances() fundingport.Balances { return cash{amount: 500_000_000} }
+
+type cash struct {
+	fundingport.Balances
+	amount uint64
+}
+
+func (c cash) ForDisplay(context.Context, ids.UserID) (fundingport.Balance, error) {
+	return fundingport.Balance{AvailableMicros: money.MicrosFromUint64(c.amount)}, nil
+}
+
 func newServerWith(t *testing.T, follows app.Follows, withSocial bool) server {
 	t.Helper()
 	g := testkit.NewIDs(1)
@@ -56,9 +80,15 @@ func newServerWith(t *testing.T, follows app.Follows, withSocial bool) server {
 	deps := module.Deps{Pool: pool, IDs: g, Clock: clk}
 	rankingModule := ranking.New(deps, ranking.WithPorts(app.Ports{Follows: follows}))
 	if withSocial {
-		module.NewSet(rankingModule, cabal.New(deps), treasury.New(deps), identity.New(deps), social.New(deps))
+		module.NewSet(
+			rankingModule, cabal.New(deps), treasury.New(deps), identity.New(deps), social.New(deps),
+			governance.New(deps), cashModule{},
+		)
 	} else {
-		module.NewSet(rankingModule, cabal.New(deps), treasury.New(deps), identity.New(deps))
+		module.NewSet(
+			rankingModule, cabal.New(deps), treasury.New(deps), identity.New(deps),
+			governance.New(deps), cashModule{},
+		)
 	}
 	mount := rankingModule.Mount
 	h, err := httpx.Handler(httpx.Deps{

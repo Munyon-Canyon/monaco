@@ -692,17 +692,27 @@ type MyPnlHistory struct {
 // Examples: ALL
 type MyPnlHistoryRange string
 
-// MyPortfolio The caller's stakes, valued by the latest run.
+// MyPortfolio The caller's stakes, valued by the latest run, and their cash.
 type MyPortfolio struct {
-	// Cabals The cabals the caller holds, largest first.
+	// Cabals Every cabal the caller is an active member of, valued ones largest first, then the ones with no stake or no valuation yet, whose value, P&L, return and ownership are zero.
 	//
 	// Examples: []
 	Cabals []PortfolioCabal `json:"cabals"`
+
+	// CashMicros The caller's available cash in USDC micros, the same figure as `Balance.available_micros`.
+	//
+	// Examples: 500000000
+	CashMicros int64 `json:"cash_micros"`
 
 	// ComputedAt When the run finished. Null before the first run.
 	//
 	// Examples: 2026-10-04T12:00:00Z
 	ComputedAt *time.Time `json:"computed_at"`
+
+	// NetWorthMicros `total_value_micros` plus `cash_micros` in USDC micros.
+	//
+	// Examples: 12082000000
+	NetWorthMicros int64 `json:"net_worth_micros"`
 
 	// PnlMicros Total value minus the net contributed, negative for a loss.
 	//
@@ -753,10 +763,20 @@ type PortfolioCabal struct {
 	// Examples: true
 	CanVote bool `json:"can_vote"`
 
+	// MemberCount The cabal's member count.
+	//
+	// Examples: 8
+	MemberCount int32 `json:"member_count"`
+
 	// NetContributedMicros Contributed minus withdrawn in USDC micros.
 	//
 	// Examples: 900000
 	NetContributedMicros int64 `json:"net_contributed_micros"`
+
+	// OpenVoteCount The cabal's open proposals, the same for every member. It does not count the caller's own ballots.
+	//
+	// Examples: 1
+	OpenVoteCount int32 `json:"open_vote_count"`
 
 	// OwnershipBps The caller's share of this cabal's pot in basis points, the same figure as `CabalPot.me.slice_bps` read at the same moment. It is the current split, while the value and the return are as the latest run valued them. 0 when the stake was cashed out after that run.
 	//
@@ -767,6 +787,11 @@ type PortfolioCabal struct {
 	//
 	// Examples: -5
 	PnlMicros int64 `json:"pnl_micros"`
+
+	// PotValueMicros The cabal's treasury value in USDC micros at the latest snapshot, the figure `ownership_bps` is a share of. 0 when the cabal has no snapshot yet.
+	//
+	// Examples: 20000000000
+	PotValueMicros int64 `json:"pot_value_micros"`
 
 	// ReturnBps The return in basis points. Null when nothing is contributed.
 	//

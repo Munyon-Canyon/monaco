@@ -180,3 +180,28 @@ func TestPortfolio_CarriesEachHoldersShareOfThePotAndRole(t *testing.T) {
 		}
 	}
 }
+
+func TestPortfolio_ListsAMembershipThatNeverFundedWithCashAsNetWorth(t *testing.T) {
+	t.Parallel()
+	s := newServer(t)
+	cabal := testkit.NewCabal(t, s.pool, testkit.WithName("Fresh"), testkit.WithMembers(3))
+	member := cabal.Members[1].ID
+	before := portfolioOf(t, s, member)
+	seedRun(t, s)
+	after := portfolioOf(t, s, member)
+	assertUnfundedMembership(t, "before the first run", before, cabal.ID)
+	assertUnfundedMembership(t, "after it", after, cabal.ID)
+}
+
+func assertUnfundedMembership(t *testing.T, when string, got api.MyPortfolio, cabal ids.CabalID) {
+	t.Helper()
+	if got.CashMicros != 500_000_000 || got.NetWorthMicros != 500_000_000 || got.TotalValueMicros != 0 ||
+		len(got.Cabals) != 1 {
+		t.Fatalf("%s = %+v, want the cash as net worth and the one membership", when, got)
+	}
+	row := got.Cabals[0]
+	if row.Cabal.Id != cabal.UUID() || row.ValueMicros != 0 || row.OwnershipBps != 0 || row.SliceBps != 0 ||
+		row.PotValueMicros != 0 || row.MemberCount != 3 || row.OpenVoteCount != 0 {
+		t.Fatalf("%s row = %+v, want a zero row with 3 members", when, row)
+	}
+}

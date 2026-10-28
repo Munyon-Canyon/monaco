@@ -9,6 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type LatestSnapshots interface {
@@ -35,15 +36,25 @@ type Membership struct {
 	CanVote bool
 }
 
+type OpenVoteCounts interface {
+	OpenVoteCounts(context.Context, []ids.CabalID) (map[ids.CabalID]int, error)
+}
+
 type PortfolioView struct {
 	domain.Portfolio
+	Cash       money.Micros
+	NetWorth   money.Micros
 	Cabals     map[ids.CabalID]CabalView
 	Members    map[ids.CabalID]Membership
+	OpenVotes  map[ids.CabalID]int
 	ComputedAt *time.Time
 	PricesAsOf *time.Time
 }
 
 type PortfolioPorts struct {
+	Balances  DisplayBalances
+	Joined    MemberCabals
+	Votes     OpenVoteCounts
 	Boards    Boards
 	Latest    LatestSnapshots
 	Stakes    StakeHistory
@@ -57,30 +68,59 @@ type ReadPortfolio struct {
 }
 
 func (r ReadPortfolio) Run(ctx context.Context, ports PortfolioPorts) (PortfolioView, error) {
-	empty := PortfolioView{Portfolio: domain.Portfolio{Rows: []domain.PortfolioRow{}}}
-	run, ok, err := ports.Boards.LatestRun(ctx)
-	if err != nil || !ok {
-		return empty, err
-	}
-	empty.ComputedAt, empty.PricesAsOf = &run.FinishedAt, &run.PricesAsOf
-	history, err := ports.Stakes.UserStakeHistory(ctx, r.User)
-	if err != nil || len(history) == 0 {
-		return empty, err
-	}
-	points, cabals := stakePoints(history)
-	values, err := ports.Latest.LatestValuesOf(ctx, cabals)
+	view := PortfolioView{Portfolio: domain.Portfolio{Rows: []domain.PortfolioRow{}}}
+	balance, err := ports.Balances.ForDisplay(ctx, r.User)
 	if err != nil {
 		return PortfolioView{}, err
 	}
-	portfolio, err := domain.NewPortfolio(points, values, logSkipped(ctx))
+	cash := balance.AvailableMicros
+	memberships, err := ports.Joined.CabalsOf(ctx, r.User)
+	if err != nil {
+		return PortfolioView{}, err
+	}
+	view.Cash = cash
+	run, ok, err := ports.Boards.LatestRun(ctx)
+	if err != nil {
+		return PortfolioView{}, err
+	}
+	var points []domain.StakePoint
+	var cabals []ids.CabalID
+	if ok {
+		view.ComputedAt, view.PricesAsOf = &run.FinishedAt, &run.PricesAsOf
+		history, err := ports.Stakes.UserStakeHistory(ctx, r.User)
+		if err != nil {
+			return PortfolioView{}, err
+		}
+		points, cabals = stakePoints(history)
+		cabals = appendNew(cabals, memberships)
+	}
+	values := map[ids.CabalID]domain.Snapshot{}
+	if len(cabals) > 0 {
+		if values, err = ports.Latest.LatestValuesOf(ctx, cabals); err != nil {
+			return PortfolioView{}, err
+		}
+	}
+	portfolio, err := domain.NewPortfolio(points, values, memberships, logSkipped(ctx))
 	if err != nil {
 		return PortfolioView{}, errs.Wrap(err, errs.CodeInternal, "ranking.ReadPortfolio")
 	}
-	empty.Portfolio = portfolio
-	if len(portfolio.Rows) == 0 {
-		return empty, nil
+	view.Portfolio = portfolio
+	if view.NetWorth, err = portfolio.Total.Add(cash); err != nil {
+		return PortfolioView{}, errs.Wrap(err, errs.CodeInternal, "ranking.ReadPortfolio")
 	}
-	return r.describe(ctx, ports, empty)
+	if len(portfolio.Rows) == 0 {
+		return view, nil
+	}
+	return r.describe(ctx, ports, view)
+}
+
+func appendNew(cabals, more []ids.CabalID) []ids.CabalID {
+	for _, id := range more {
+		if !slices.Contains(cabals, id) {
+			cabals = append(cabals, id)
+		}
+	}
+	return cabals
 }
 
 func (r ReadPortfolio) describe(ctx context.Context, ports PortfolioPorts, view PortfolioView) (PortfolioView, error) {
@@ -95,6 +135,9 @@ func (r ReadPortfolio) describe(ctx context.Context, ports PortfolioPorts, view 
 	}
 	members, err := ports.Roles.MembersOf(ctx, held)
 	if err != nil {
+		return PortfolioView{}, err
+	}
+	if view.OpenVotes, err = ports.Votes.OpenVoteCounts(ctx, held); err != nil {
 		return PortfolioView{}, err
 	}
 	view.Members = make(map[ids.CabalID]Membership, len(held))

@@ -44,3 +44,23 @@ func TestWirePortfolio_failsOnATotalOrRowThatDoesNotFit(t *testing.T) {
 		t.Fatalf("huge shares: err = %v, want internal", err)
 	}
 }
+
+func TestWirePortfolio_failsOnCashOrCountsThatDoNotFit(t *testing.T) {
+	t.Parallel()
+	cabalID := ids.CabalIDFrom(ids.Real{}.NewV7())
+	row := domain.PortfolioRow{CabalID: cabalID}
+	for name, change := range map[string]func(*app.PortfolioView){
+		"cash":       func(v *app.PortfolioView) { v.Cash = money.MicrosFromUint64(math.MaxUint64) },
+		"net worth":  func(v *app.PortfolioView) { v.NetWorth = money.MicrosFromUint64(math.MaxUint64) },
+		"members":    func(v *app.PortfolioView) { v.Cabals[cabalID] = app.CabalView{MemberCount: math.MaxInt32 + 1} },
+		"negative":   func(v *app.PortfolioView) { v.Cabals[cabalID] = app.CabalView{MemberCount: -1} },
+		"open votes": func(v *app.PortfolioView) { v.OpenVotes = map[ids.CabalID]int{cabalID: math.MaxInt32 + 1} },
+	} {
+		view := app.PortfolioView{Cabals: map[ids.CabalID]app.CabalView{}}
+		view.Rows = []domain.PortfolioRow{row}
+		change(&view)
+		if _, err := wirePortfolio(view); errs.CodeOf(err) != errs.CodeInternal {
+			t.Errorf("%s: err = %v, want internal", name, err)
+		}
+	}
+}

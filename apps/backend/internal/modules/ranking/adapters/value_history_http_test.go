@@ -47,7 +47,22 @@ func historyHTTP(net int64, rows ...domain.Snapshot) adapters.HTTP {
 		Snapshots: stubSnapshots{rows: rows},
 		Ledger:    stubLedger{net: net},
 		Cabals:    func(context.Context, ids.CabalID) error { return nil },
+		Balances:  stubBalances(500),
+		Members:   stubMembers{},
+		Votes:     stubVotes{},
 	}
+}
+
+type stubBalances uint64
+
+func (s stubBalances) ForDisplay(context.Context, ids.UserID) (app.Balance, error) {
+	return app.Balance{AvailableMicros: money.MicrosFromUint64(uint64(s))}, nil
+}
+
+type stubVotes map[ids.CabalID]int
+
+func (s stubVotes) OpenVoteCounts(context.Context, []ids.CabalID) (map[ids.CabalID]int, error) {
+	return s, nil
 }
 
 func historyReq(rng *api.GetCabalValueHistoryParamsRange) api.GetCabalValueHistoryRequestObject {
@@ -232,7 +247,9 @@ func portfolioReq(
 	h := historyHTTP(0)
 	h.Stakes = stubStakes{points: []app.StakePoint{stake}}
 	h.Snapshots = fixedLatest{values: map[ids.CabalID]domain.Snapshot{cabalID: snap}}
-	h.Cards = stubCards{cabalID: {ID: cabalID, Name: "Alpha", PictureURL: picture}}
+	h.Cards = stubCards{cabalID: {ID: cabalID, Name: "Alpha", PictureURL: picture, MemberCount: 8}}
+	h.Members = stubMembers{cabalID}
+	h.Votes = stubVotes{cabalID: 2}
 	h.Ownership = stubOwnership{cabalID: 3501}
 	h.Roles = stubRoles{cabalID: {{UserID: user, Role: "creator", CanVote: true}}}
 	return h.GetMyPortfolio(ctx, api.GetMyPortfolioRequestObject{})
@@ -249,6 +266,16 @@ func TestGetMyPortfolio_mapsRows(t *testing.T) {
 	if row := out.Cabals[0]; row.Cabal.Name != "Alpha" || row.Cabal.PictureUrl == nil || row.SliceBps != 10_000 ||
 		row.ShareUnits != 1 || row.NetContributedMicros != 100 {
 		t.Fatalf("row = %+v", row)
+	}
+}
+
+func TestGetMyPortfolio_mapsCashNetWorthTreasuryMembersAndOpenVotes(t *testing.T) {
+	t.Parallel()
+	got, err := portfolioReq(t, 300, 100, "")
+	out, _ := got.(api.GetMyPortfolio200JSONResponse)
+	if err != nil || len(out.Cabals) != 1 || out.CashMicros != 500 || out.NetWorthMicros != 800 ||
+		out.Cabals[0].PotValueMicros != 300 || out.Cabals[0].MemberCount != 8 || out.Cabals[0].OpenVoteCount != 2 {
+		t.Fatalf("response = %+v, %v, want cash 500, net worth 800, pot 300, 8 members and 2 open votes", got, err)
 	}
 }
 
