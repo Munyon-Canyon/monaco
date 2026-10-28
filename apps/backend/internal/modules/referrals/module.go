@@ -5,9 +5,11 @@ import (
 	"crypto/rand"
 	"io"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/referrals/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/referrals/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
@@ -50,6 +52,9 @@ func (m *Module) http() adapters.HTTP {
 		}),
 		Click: app.NewRecordReferralClickHandler(app.RecordReferralClickDeps{
 			Resolver: resolver, Reads: m.deps.Pool, Clock: m.deps.Clock,
+		}),
+		Cabals: app.NewInvitePreviewQuery(app.InvitePreviewDeps{
+			Resolver: resolver, Cabals: cabal.New(m.deps).Queries(), Pots: treasury.New(m.deps).Queries(),
 		}),
 	}
 }

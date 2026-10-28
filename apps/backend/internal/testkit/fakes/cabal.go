@@ -8,6 +8,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
+	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -93,6 +94,35 @@ func (f *Cabal) AllCabals(_ context.Context) ([]cabal.View, error) {
 		views[i] = f.viewOf(seed)
 	}
 	return views, nil
+}
+
+func (f *Cabal) InvitePreview(
+	_ context.Context, id ids.CabalID, inviter ids.UserID,
+) (cabalport.CabalPreview, bool, error) {
+	if err := f.Check("InvitePreview"); err != nil {
+		return cabalport.CabalPreview{}, false, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	i := f.index(id)
+	if i < 0 {
+		return cabalport.CabalPreview{}, false, nil
+	}
+	view := f.viewOf(f.cabals[i])
+	preview := cabalport.CabalPreview{
+		ID: id, Name: view.Name, PictureURL: view.PictureURL,
+		CreatedAt: view.CreatedAt, JoinMode: view.JoinMode, Banned: view.Status == cabal.StatusBanned,
+	}
+	for _, m := range f.membersOf(id, func(cabal.MemberView) bool { return true }) {
+		preview.MemberCount++
+		switch {
+		case m.UserID == inviter:
+			preview.InviterIsMember = true
+		case len(preview.FirstMemberIDs) < 4:
+			preview.FirstMemberIDs = append(preview.FirstMemberIDs, m.UserID)
+		}
+	}
+	return preview, true, nil
 }
 
 func (f *Cabal) IsMember(_ context.Context, id ids.CabalID, user ids.UserID) (bool, error) {

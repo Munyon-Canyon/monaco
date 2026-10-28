@@ -9,6 +9,7 @@ The `cabal` module owns cabals, members, access requests and treasury wallets ([
 - A cabal has two roles, `creator` and `member`. The creator decides access requests and is the only one who edits the cabal.
 - Joining is direct in an `open` cabal and goes through a request the creator decides in a `request` cabal.
 - A cabal has no invite code. The API keeps `Cabal.invite_code` (always null) and `GET /v1/invite-codes/{code}` (always `cabal_not_found`), both deprecated, until old clients are gone. People find a cabal in search and join or request by its `join_mode`. A **direct invite** targets one user by handle and lives 7 days.
+- A cabal invite link is the inviter's referral link plus the cabal id, `https://monacolabs.xyz/r/<code>?c=<cabal_id>`, so it adds no secret; see [Cabal invite links](referrals.md#cabal-invite-links).
 - Leaving is refused while the member holds share units, while the last member leaves a pot worth more than zero, and while the creator leaves other members behind.
 - The treasury wallet is created before the create transaction opens, idempotently.
 

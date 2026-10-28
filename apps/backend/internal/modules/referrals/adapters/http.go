@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 
+	openapi_types "github.com/oapi-codegen/runtime/types"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/referrals/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
@@ -15,6 +17,7 @@ type HTTP struct {
 	Codes  app.Resolver
 	Attach *app.AttachReferralHandler
 	Click  *app.RecordReferralClickHandler
+	Cabals *app.InvitePreviewQuery
 }
 
 var _ api.StrictServerInterface = HTTP{}
@@ -70,6 +73,23 @@ func (h HTTP) GetReferral(
 	return lookup(&referrer), nil
 }
 
+func (h HTTP) GetReferralCabal(
+	ctx context.Context, req api.GetReferralCabalRequestObject,
+) (api.GetReferralCabalResponseObject, error) {
+	cabal, err := ids.ParseCabalID(req.CabalId.String())
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInvalidInput, "referrals.GetReferralCabal")
+	}
+	preview, err := h.Cabals.Run(ctx, req.Code, cabal)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetReferralCabal200JSONResponse{
+		Body:    cabalPreview(preview),
+		Headers: api.GetReferralCabal200ResponseHeaders{CacheControl: "no-cache"},
+	}, nil
+}
+
 func (h HTTP) RecordReferralClick(
 	ctx context.Context, req api.RecordReferralClickRequestObject,
 ) (api.RecordReferralClickResponseObject, error) {
@@ -102,6 +122,34 @@ func lookup(referrer *api.ReferralReferrer) api.GetReferral200JSONResponse {
 		Body:    api.ReferralLookup{Referrer: referrer},
 		Headers: api.GetReferral200ResponseHeaders{CacheControl: "public, max-age=300"},
 	}
+}
+
+func cabalPreview(p app.InvitePreview) api.ReferralCabal {
+	out := api.ReferralCabal{}
+	if p.Inviter != nil {
+		out.Inviter = &api.ReferralCabalInviter{
+			DisplayName: p.Inviter.DisplayName, PhotoUrl: photoOf(p.Inviter.PhotoURL),
+		}
+	}
+	if c := p.Cabal; c != nil {
+		first := make([]api.ReferralCabalPerson, 0, len(c.FirstMembers))
+		for _, m := range c.FirstMembers {
+			first = append(first, api.ReferralCabalPerson{DisplayName: m.DisplayName, PhotoUrl: photoOf(m.PhotoURL)})
+		}
+		out.Cabal = &api.ReferralCabalFacts{
+			Id: c.ID.UUID(), Name: c.Name, PictureUrl: photoOf(c.PictureURL), MemberCount: c.MemberCount,
+			Since: openapi_types.Date{Time: c.Since}, JoinMode: api.ReferralCabalCabalJoinMode(c.JoinMode),
+			FirstMembers: first, PotValueMicros: c.PotValueMicros.String(),
+		}
+	}
+	return out
+}
+
+func photoOf(url string) *string {
+	if url == "" {
+		return nil
+	}
+	return &url
 }
 
 func caller(ctx context.Context) (ids.UserID, error) {

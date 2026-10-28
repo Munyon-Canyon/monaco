@@ -133,6 +133,7 @@ func TestQueries_aRowWhoseIDIsNotV7IsDecodeFailed(t *testing.T) {
 	_, voters := q.VoterSet(ctx, w.id("c"))
 	_, wallets := q.TreasuryWallets(ctx)
 	_, cabals := q.CabalsOf(ctx, w.users[0])
+	_, _, preview := q.InvitePreview(ctx, w.id("c"), w.users[5])
 	for name, err := range map[string]error{
 		"AllCabals":                 allCabals,
 		"Cabal with a v4 cabal id":  byV4Cabal,
@@ -144,6 +145,7 @@ func TestQueries_aRowWhoseIDIsNotV7IsDecodeFailed(t *testing.T) {
 		"VoterSet":                  voters,
 		"TreasuryWallets":           wallets,
 		"CabalsOf":                  cabals,
+		"InvitePreview":             preview,
 	} {
 		if errs.CodeOf(err) != errs.CodeDecodeFailed {
 			t.Errorf("%s err = %v, want decode_failed", name, err)
@@ -176,6 +178,10 @@ func TestQueries_databaseFailuresAreInternalAndKeepTheirCause(t *testing.T) {
 			return err
 		},
 		"CabalsOf": func() error { _, err := q.CabalsOf(ctx, user); return err },
+		"InvitePreview": func() error {
+			_, _, err := q.InvitePreview(ctx, id, user)
+			return err
+		},
 	} {
 		if err := call(); errs.CodeOf(err) != errs.CodeInternal || !errors.Is(err, context.Canceled) {
 			t.Errorf("%s err = %v, want internal wrapping the context error", name, err)
