@@ -54,3 +54,23 @@ type Queries interface {
 	LatestCabalValues(ctx context.Context) ([]CabalValue, error)
 	PeopleReturns(ctx context.Context, rng Range, users []ids.UserID) (map[ids.UserID]PersonReturn, error)
 }
+
+type Period = domain.Period
+
+type CallRecord struct {
+	Right          int
+	Resolved       int
+	Voted          int
+	Eligible       int
+	PendingSymbols []string
+}
+
+type Calls interface {
+	Records(
+		ctx context.Context,
+		userIDs []ids.UserID,
+		cabalID *ids.CabalID,
+		p Period,
+	) (map[ids.UserID]CallRecord, error)
+	CabalRecords(ctx context.Context, cabalIDs []ids.CabalID, p Period) (map[ids.CabalID]CallRecord, error)
+}
