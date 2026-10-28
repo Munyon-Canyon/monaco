@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -82,6 +84,58 @@ type checkRun struct {
 	toolchain string
 	advised   bool
 	passed    []string
+	failedRow string
+}
+
+const handBackAfter = 3
+
+type failureNote struct {
+	Row   string `json:"row"`
+	Count int    `json:"count"`
+	Tree  string `json:"tree"`
+}
+
+type exitStatusError struct {
+	error
+	code int
+}
+
+func (e *exitStatusError) Unwrap() error { return e.error }
+
+func (env *Env) failureNotePath() string {
+	sum := sha256.Sum256([]byte(env.Work))
+	return filepath.Join(env.Common, ".monaco", "check-failures", hex.EncodeToString(sum[:])[:12]+".json")
+}
+
+func (env *Env) clearFailureNote() { _ = os.Remove(env.failureNotePath()) }
+
+func (env *Env) recordFailure(row, tree string) int {
+	p := env.failureNotePath()
+	var note failureNote
+	if body, err := os.ReadFile(p); err == nil {
+		_ = json.Unmarshal(body, &note)
+	}
+	if note.Row == row {
+		note.Count++
+	} else {
+		note = failureNote{Row: row, Count: 1}
+	}
+	note.Tree = tree
+	body, _ := json.Marshal(note)
+	_ = os.MkdirAll(filepath.Dir(p), 0o750)
+	_ = os.WriteFile(p, body, 0o600)
+	return note.Count
+}
+
+func (env *Env) noteFailure(runErr error, row, tree string, stdout io.Writer) error {
+	count := env.recordFailure(row, tree)
+	if count < handBackAfter {
+		return runErr
+	}
+	_, _ = fmt.Fprintf(stdout, "%s failed %d checks in a row: push the draft "+
+		"(gt submit --stack --no-interactive --draft) and hand back under \"What came up\"; "+
+		"do not run agents check again on this failure\n", row, count)
+	return &exitStatusError{error: runErr, code: 3}
 }
 
 func parseCheckArgs(base string, args []string) (string, bool, bool, error) {
@@ -111,6 +165,7 @@ func checkCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 		return err
 	}
 	if _, err := os.Stat(env.statePath("checks", tree)); err == nil && !fresh {
+		env.clearFailureNote()
 		_, _ = fmt.Fprintf(stdout, "stage 0 already passed on tree %s\n", tree[:12])
 		return nil
 	}
@@ -118,6 +173,9 @@ func checkCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 	patchID, generated := env.patchID(ctx, parent)
 	if !fresh {
 		if carried, err := env.carry(patchID, tree, head, base, parent, generated, stdout); carried || err != nil {
+			if carried && err == nil {
+				env.clearFailureNote()
+			}
 			return err
 		}
 	}
@@ -152,8 +210,9 @@ func (env *Env) runStage0(
 	}
 	_, _ = fmt.Fprintf(stdout, "log: %s\n", logPath)
 	if runErr != nil {
-		return runErr
+		return env.noteFailure(runErr, run.failedRow, tree, stdout)
 	}
+	env.clearFailureNote()
 	record, err := env.writeCheckRecord(tree, checkRecord{Head: head, Base: base, Rows: run.passed})
 	if err != nil {
 		return err
@@ -1078,6 +1137,7 @@ func scannedGlobHit(testFile, changed string) bool {
 
 func (r *checkRun) rows(ctx context.Context, rows []checkRow, stdout io.Writer) error {
 	if err := r.tools(stdout); err != nil {
+		r.failedRow = "tools"
 		return err
 	}
 	var paced []checkRow
@@ -1100,6 +1160,9 @@ func (r *checkRun) rows(ctx context.Context, rows []checkRow, stdout io.Writer) 
 
 func (r *checkRun) attempt(ctx context.Context, row checkRow, stdout io.Writer) error {
 	err := r.row(ctx, row, stdout)
+	if err != nil && r.failedRow == "" {
+		r.failedRow = row.label
+	}
 	if err == nil || !r.keepGoing || ctx.Err() != nil {
 		return err
 	}

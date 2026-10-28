@@ -227,6 +227,10 @@ func exitCode(err error, stderr io.Writer) int {
 	if msg != "" {
 		_, _ = fmt.Fprintf(stderr, "monacoctl agents: %s\n", msg)
 	}
+	var status *exitStatusError
+	if errors.As(err, &status) {
+		return status.code
+	}
 	if errs.KindOf(errs.CodeOf(err)) == errs.KindInvalid && strings.HasPrefix(msg, "usage:") {
 		return 2
 	}
