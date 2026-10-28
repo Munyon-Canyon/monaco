@@ -7,7 +7,38 @@ package sqlc
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
+
+const heldByCabal = `-- name: HeldByCabal :many
+SELECT DISTINCT asset, cabal_id FROM cabal_positions WHERE units > 0
+`
+
+type HeldByCabalRow struct {
+	Asset   string
+	CabalID uuid.UUID
+}
+
+func (q *Queries) HeldByCabal(ctx context.Context) ([]HeldByCabalRow, error) {
+	rows, err := q.db.Query(ctx, heldByCabal)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []HeldByCabalRow
+	for rows.Next() {
+		var i HeldByCabalRow
+		if err := rows.Scan(&i.Asset, &i.CabalID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
 
 const heldMints = `-- name: HeldMints :many
 SELECT DISTINCT asset FROM cabal_positions WHERE units > 0 ORDER BY asset

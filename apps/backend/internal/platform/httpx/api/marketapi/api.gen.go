@@ -222,16 +222,19 @@ func (e MarketState) Valid() bool {
 
 // Defines values for GetAssetsParamsFilter.
 const (
-	GetAssetsParamsFilterAll     GetAssetsParamsFilter = "all"
-	GetAssetsParamsFilterMovers  GetAssetsParamsFilter = "movers"
-	GetAssetsParamsFilterPopular GetAssetsParamsFilter = "popular"
-	GetAssetsParamsFilterPreIpo  GetAssetsParamsFilter = "pre_ipo"
+	GetAssetsParamsFilterAll      GetAssetsParamsFilter = "all"
+	GetAssetsParamsFilterInCabals GetAssetsParamsFilter = "in_cabals"
+	GetAssetsParamsFilterMovers   GetAssetsParamsFilter = "movers"
+	GetAssetsParamsFilterPopular  GetAssetsParamsFilter = "popular"
+	GetAssetsParamsFilterPreIpo   GetAssetsParamsFilter = "pre_ipo"
 )
 
 // Valid indicates whether the value is a known member of the GetAssetsParamsFilter enum.
 func (e GetAssetsParamsFilter) Valid() bool {
 	switch e {
 	case GetAssetsParamsFilterAll:
+		return true
+	case GetAssetsParamsFilterInCabals:
 		return true
 	case GetAssetsParamsFilterMovers:
 		return true
@@ -596,6 +599,11 @@ type AssetListing struct {
 //
 // Examples: {"change_bps":1000,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx","tradable":true,"volume_24h_as_of":"2026-03-04T05:00:00Z","volume_24h_micros":2500000000000}
 type AssetSummary struct {
+	// CabalCount How many active cabals hold this asset. Set only on rows of the `in_cabals` filter that ranked by it, never below three, and absent everywhere else.
+	//
+	// Examples: 41
+	CabalCount *int `json:"cabal_count,omitempty"`
+
 	// ChangeBps The move in basis points against the last US close for an equity, or against the first sample of the UTC day for a pre-IPO token. Null when that reference does not exist.
 	//
 	// Examples: 1000

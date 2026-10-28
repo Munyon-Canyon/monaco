@@ -16,6 +16,11 @@ extension Components.Schemas.AssetList {
         nextCursor: nil
     )
 
+    public static let inCabalsSample = Self(
+        assets: [.starterNvda, .starterSpaceX, .starterApple, .starterMsft],
+        nextCursor: nil
+    )
+
     public static let allSample = Self(
         assets: [.googl, .unpriced],
         nextCursor: "all-next"
@@ -61,6 +66,44 @@ extension Components.Schemas.AssetSummary {
     public static let msft = mover(
         symbol: "MSFTx", displayName: "Microsoft xStock", changeBps: 60,
         sparklineMicros: [420_000_000, 421_000_000, 422_000_000, 422_520_000]
+    )
+
+    private static func starter(
+        symbol: String, displayName: String, issuer: Components.Schemas.AssetIssuer,
+        kind: Components.Schemas.AssetKind, priceMicros: Int64, changeBps: Int32?, cabalCount: Int
+    ) -> Self {
+        Self(
+            symbol: symbol,
+            displayName: displayName,
+            issuer: issuer,
+            kind: kind,
+            logoUrl: nil,
+            priceMicros: priceMicros,
+            priceAsOf: Date(timeIntervalSince1970: 1_772_596_200),
+            changeBps: changeBps,
+            sparklineMicros: [priceMicros],
+            quotable: true,
+            session: .open,
+            tradable: true,
+            cabalCount: cabalCount
+        )
+    }
+
+    public static let starterNvda = starter(
+        symbol: "NVDAx", displayName: "NVIDIA xStock", issuer: .xstocks, kind: .equity,
+        priceMicros: 220_000_000, changeBps: 418, cabalCount: 41
+    )
+    public static let starterSpaceX = starter(
+        symbol: "tSpaceX", displayName: "SpaceX", issuer: .tessera, kind: .preIpo,
+        priceMicros: 185_000_000, changeBps: nil, cabalCount: 29
+    )
+    public static let starterApple = starter(
+        symbol: "AAPLx", displayName: "Apple xStock", issuer: .xstocks, kind: .equity,
+        priceMicros: 180_000_000, changeBps: -80, cabalCount: 29
+    )
+    public static let starterMsft = starter(
+        symbol: "MSFTx", displayName: "Microsoft xStock", issuer: .xstocks, kind: .equity,
+        priceMicros: 512_300_000, changeBps: 60, cabalCount: 17
     )
 
     public static let googl = Self(
