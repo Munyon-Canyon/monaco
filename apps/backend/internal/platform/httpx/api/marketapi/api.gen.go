@@ -445,7 +445,7 @@ type AssetChartRange string
 
 // AssetDetail One asset, the list fields plus the chain facts and the other listings.
 //
-// Examples: {"attribution":"Data provided by CoinGecko","change_bps":1000,"decimals":8,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","other_listings":[],"price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"price_poll_interval_seconds":120,"price_source":"jupiter","quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"stats":{"held_by_cabals":3,"market_cap_micros":"2970000000000000000","open_micros":108000000,"year_high_micros":null,"year_low_micros":null},"symbol":"AAPLx","tradable":true,"ui_multiplier":{"den":1,"num":1},"volume_24h_as_of":"2026-03-04T05:00:00Z","volume_24h_micros":2500000000000}
+// Examples: {"attribution":"Data provided by CoinGecko","change_bps":1000,"decimals":8,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","other_listings":[],"price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"price_poll_interval_seconds":120,"price_source":"jupiter","quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"stats":{"held_by_cabals":3,"market_cap_micros":"2970000000000000000","open_micros":108000000,"year_high_micros":224900000,"year_low_micros":86620000},"symbol":"AAPLx","tradable":true,"ui_multiplier":{"den":1,"num":1},"volume_24h_as_of":"2026-03-04T05:00:00Z","volume_24h_micros":2500000000000}
 type AssetDetail struct {
 	// Attribution The data source line the asset screen shows.
 	//
@@ -627,12 +627,12 @@ type AssetStats struct {
 	// Examples: 211170000
 	OpenMicros *int64 `json:"open_micros"`
 
-	// YearHighMicros The highest price of the last 52 weeks in USD micros. Null until the daily ranges that fill it exist.
+	// YearHighMicros The highest accepted price over the last 52 weeks in USD micros, intraday included from 2026-10-28 on and daily points before. Null when the history does not cover 52 weeks.
 	//
 	// Examples: 224900000
 	YearHighMicros *int64 `json:"year_high_micros"`
 
-	// YearLowMicros The lowest price of the last 52 weeks in USD micros. Null until the daily ranges that fill it exist.
+	// YearLowMicros The lowest accepted price over the last 52 weeks in USD micros, intraday included from 2026-10-28 on and daily points before. Null when the history does not cover 52 weeks.
 	//
 	// Examples: 86620000
 	YearLowMicros *int64 `json:"year_low_micros"`

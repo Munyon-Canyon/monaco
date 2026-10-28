@@ -8,6 +8,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 const (
@@ -43,6 +44,13 @@ func (d *Detail) stats(ctx context.Context, item Summary, now time.Time) (Stats,
 	if row.OpenMicros > 0 {
 		out.Open = &row.OpenMicros
 	}
+	if d.years != nil {
+		low, high, yearErr := d.years.YearRange(ctx, asset.Mint, now)
+		if yearErr != nil {
+			return Stats{}, yearErr
+		}
+		out.YearLow, out.YearHigh = int64Ptr(low), int64Ptr(high)
+	}
 	if d.holding != nil {
 		out.HeldByCabals, err = d.holding(ctx, string(asset.Mint.Address()))
 		if err != nil {
@@ -61,4 +69,12 @@ func sessionWindow(session domain.SessionInfo, now time.Time) (since, until time
 		length = earlySession
 	}
 	return session.NextTransition.Add(-length), now
+}
+
+func int64Ptr(m *money.Micros) *int64 {
+	if m == nil {
+		return nil
+	}
+	v, _ := domain.MicrosToInt64(*m)
+	return &v
 }

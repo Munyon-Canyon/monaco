@@ -184,12 +184,15 @@ func (m *Module) Mount(r api.Mount) {
 	list := app.NewListAssets(m.deps.Pool, m.deps.Clock, m.hot...).WithHolders(m.holders)
 	cache := adapters.NewCache(m.deps.Clock)
 	chart := app.NewChart(m.deps.Pool, m.deps.Clock)
+	detail := app.NewDetail(m.deps.Pool, list).WithHolding(m.holding)
 	if m.deps.Config.CoinGecko.HistoryEnabled {
-		chart.WithHistory(adapters.CacheHistory(m.priceHistory(), cache))
+		history := adapters.CacheHistory(m.priceHistory(), cache)
+		chart.WithHistory(history)
+		detail.WithHistory(history)
 	}
 	marketapi.Mount(adapters.HTTP{
 		List:      adapters.CacheList(list, cache),
-		Detail:    app.NewDetail(m.deps.Pool, list).WithHolding(m.holding),
+		Detail:    detail,
 		Chart:     adapters.CacheChart(chart, cache),
 		BestChain: app.NewBestChains(m.Catalog(), adapters.DeferRouter(m.Router), m.deps.Clock),
 		Clock:     m.deps.Clock,

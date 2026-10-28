@@ -94,6 +94,26 @@ func TestStats_aSeededEquityServesTheCapTheOpenAndTheHolderCountWithTheYearCells
 	}
 }
 
+func TestStats_aCoveredEquityServesTheYearLowAndHighOnTheWire(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx()
+	s, _ := newStatsAPI(t, nil)
+	s.sessionPrices(t, aapl.Mint.String())
+	_, err := s.pool.Exec(t.Context(), `INSERT INTO price_day_ranges (mint, day, high_micros, low_micros, source)
+		SELECT $1, ($2::timestamptz AT TIME ZONE 'UTC')::date - n, 150000000 + (n % 5) * 15000000, 100000000 - (n % 3) * 4000000, 'samples'
+		FROM generate_series(1, 364) AS n`, aapl.Mint.String(), s.when)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := s.get(t, "/v1/assets/AAPLx")
+	stats := detailOf(t, rec).Stats
+	if stats == nil || stats.YearLowMicros == nil || *stats.YearLowMicros != 90_000_000 ||
+		stats.YearHighMicros == nil || *stats.YearHighMicros != 210_000_000 {
+		t.Fatalf("stats = %+v, want 90e6 (today's first sample) and 210e6 on a year of daily ranges", stats)
+	}
+}
+
 func TestStats_anEquityWithoutCompanyFactsHasNoCapButKeepsTheOtherCells(t *testing.T) {
 	t.Parallel()
 	aapl := marketfake.AAPLx()
@@ -174,6 +194,39 @@ func TestStats_theDetailReadMakesOneMarketQueryAndOneTreasuryCall(t *testing.T) 
 	}
 	if tracer.facts.Load() != 1 || held.Load() != 1 {
 		t.Fatalf("market stats queries = %d, treasury calls = %d, want 1 and 1", tracer.facts.Load(), held.Load())
+	}
+}
+
+type yearTracer struct{ queries atomic.Int32 }
+
+func (c *yearTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	if strings.Contains(data.SQL, "price_day_ranges") {
+		c.queries.Add(1)
+	}
+	return ctx
+}
+
+func (*yearTracer) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
+
+func TestStats_theYearCellsAddExactlyOneQueryToTheDetailRead(t *testing.T) {
+	t.Parallel()
+	s, _ := newStatsAPI(t, nil)
+	aapl := marketfake.AAPLx()
+	s.sessionPrices(t, aapl.Mint.String())
+	tracer := &yearTracer{}
+	cfg := s.pool.Config()
+	cfg.ConnConfig.Tracer = tracer
+	db, err := pgxpool.NewWithConfig(t.Context(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(db.Close)
+	view, err := app.NewDetail(db, app.NewListAssets(db, s.clock)).Handle(t.Context(), "AAPLx")
+	if err != nil || view.Stats == nil {
+		t.Fatalf("view = %+v, %v, want stats", view.Stats, err)
+	}
+	if tracer.queries.Load() != 1 {
+		t.Fatalf("year range queries = %d, want 1", tracer.queries.Load())
 	}
 }
 
