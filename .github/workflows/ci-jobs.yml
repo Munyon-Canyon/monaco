@@ -3,8 +3,8 @@ name: CI jobs
 # Called by ci.yml and ci-retarget.yml through their `ci` job, so every check is named
 # "ci / <job>" and the required check is "ci / ci-ok". docs/architecture/ci.md#triggers
 # `stage: pr` runs stage 1, every check and test, on the top PR of a stack. `stage: queue` runs stage 2 as one job:
-# every other job skips and ci-ok runs ready's steps (build, vet, tidy, generated files). `stage: staging` (staging.yml) runs every stage 1 job but the
-# flake reruns on each push to staging, as an advisory indicator. docs/architecture/ci.md#check-stages
+# every other job skips and ci-ok runs ready's steps (build, vet, tidy, generated files). `stage: staging` (staging.yml)
+# runs every stage 1 job, as an advisory indicator. docs/architecture/ci.md#check-stages
 on:
   workflow_call:
     inputs:
@@ -543,7 +543,6 @@ jobs:
       # Under steps.top.outputs.skip or steps.stage0.outputs.skip every filter is false, so every job skips and ci-ok still passes.
       backend: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && steps.filter.outputs.backend == 'true' }}
       mobile-core: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && steps.filter.outputs.mobile-core == 'true' }}
-      backend-tests: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && steps.filter.outputs.backend-tests == 'true' }}
       mobile-tests: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && steps.filter.outputs.mobile-tests == 'true' }}
       ios: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && steps.filter.outputs.ios == 'true' }}
       generator: ${{ steps.top.outputs.skip != 'true' && steps.stage0.outputs.skip != 'true' && steps.filter.outputs.generator == 'true' }}
@@ -657,13 +656,8 @@ jobs:
             workflows:
               - '.github/workflows/**'
               - '.github/actions/**'
-            backend-tests:
-              - 'apps/backend/**/*_test.go'
-              - 'apps/backend/**/testdata/**'
-              - 'scripts/ci/flake-tests.sh'
             mobile-tests:
               - 'packages/mobile-core/Tests/**/*.swift'
-              - 'scripts/ci/flake-tests-swift.sh'
             generator:
               - 'scripts/gen-mobile-feature.sh'
               - 'packages/mobile-core/Sources/MonacoSystem/Flow00SystemPingModel.swift'
@@ -723,7 +717,9 @@ jobs:
               - 'scripts/githooks/**'
               - 'scripts/testdata/**'
               - 'scripts/ci/**'
-              - 'scripts/qa/**'
+              - 'scripts/qa/**/*.sh'
+              - 'scripts/qa/**/*.py'
+              - 'scripts/qa/**/*.go'
               - 'scripts/demo/**'
               - 'Justfile'
               - '.claude/settings.json'
@@ -828,149 +824,13 @@ jobs:
         working-directory: apps/web
         run: npm ci && npm test && npm run build
 
-  # Lists the packages with changed backend tests, so `flake` can run one shard per package.
-  flake-plan:
-    name: Flake plan
-    needs: plan
-    if: inputs.stage == 'pr' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend-tests == 'true' || needs.plan.outputs.unknown == 'true')
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      packages: ${{ steps.list.outputs.packages }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # The merge-base with trunk, so a stacked PR reruns the changed tests of the whole stack.
-      - name: Resolve the base commit
-        env:
-          FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH || 'main' }}
-        run: |
-          base="$(scripts/ci/fetch-base.sh)"
-          echo "BASE_COMMIT=${base}" >> "$GITHUB_ENV"
-
-      - name: List the packages with changed tests
-        id: list
-        run: |
-          packages="$(scripts/ci/flake-tests.sh --base "$BASE_COMMIT" --list-packages | python3 -c 'import json, sys; print(json.dumps([l.strip() for l in sys.stdin if l.strip()], separators=(",", ":")))')"
-          echo "packages=${packages}" >> "$GITHUB_OUTPUT"
-
-  flake:
-    name: Flake (changed tests, count 20) ${{ matrix.package }}
-    needs: [plan, flake-plan]
-    if: inputs.stage == 'pr' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend-tests == 'true' || needs.plan.outputs.unknown == 'true') && needs.flake-plan.outputs.packages != '[]'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      max-parallel: 6
-      matrix:
-        package: ${{ fromJSON(needs.flake-plan.outputs.packages) }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # The merge-base with trunk, so a stacked PR reruns the changed tests of the whole stack.
-      - name: Resolve the base commit
-        env:
-          FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH || 'main' }}
-        run: |
-          base="$(scripts/ci/fetch-base.sh)"
-          echo "BASE_COMMIT=${base}" >> "$GITHUB_ENV"
-
-      - uses: ./.github/actions/backend-test-env
-
-      - name: Read the pinned golangci-lint version
-        id: golangci
-        run: echo "version=$(cat apps/backend/.golangci-lint-version)" >> "$GITHUB_OUTPUT"
-
-      # The lint package's rule tests run golangci-lint and fail in CI when it is missing.
-      - uses: golangci/golangci-lint-action@v9
-        with:
-          version: ${{ steps.golangci.outputs.version }}
-          install-only: true
-
-      - name: Rerun the package's changed test files on this host's Postgres
-        env:
-          FLAKE_PACKAGE: ${{ matrix.package }}
-        run: scripts/ci/flake-tests.sh --base "$BASE_COMMIT" --package "$FLAKE_PACKAGE"
-
-  flake-swift:
-    name: Flake (changed Swift tests, count 10)
-    needs: plan
-    if: inputs.stage == 'pr' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.mobile-tests == 'true' || needs.plan.outputs.unknown == 'true')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    container: mirror.gcr.io/library/swift:6.3-noble
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # The container runs as root over a checkout the runner user owns, so git refuses it
-      # ("detected dubious ownership") unless the workspace is marked safe.
-      - name: Trust the workspace
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      - name: Install zstd so the cache version matches the other Swift jobs
-        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends zstd >/dev/null && zstd --version
-
-      - name: Restore .build
-        id: build-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: packages/mobile-core/.build
-          key: swiftpm-linux-6.3-${{ hashFiles('packages/mobile-core/Package.resolved') }}-${{ github.sha }}
-          restore-keys: |
-            swiftpm-linux-6.3-${{ hashFiles('packages/mobile-core/Package.resolved') }}-
-            swiftpm-linux-6.3-
-
-      # The merge-base with trunk, so a stacked PR reruns the changed tests of the whole stack.
-      - name: Resolve the base commit
-        env:
-          FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH || 'main' }}
-        run: |
-          base="$(scripts/ci/fetch-base.sh)"
-          echo "BASE_COMMIT=${base}" >> "$GITHUB_ENV"
-
-      - name: Build the package and its tests once
-        working-directory: packages/mobile-core
-        shell: bash
-        run: |
-          start=$(date +%s)
-          swift build --build-tests --force-resolved-versions -Xswiftc -warnings-as-errors --enable-code-coverage
-          echo "swift build: $(( $(date +%s) - start )) s (build cache restored: ${CACHE_KEY:-nothing})"
-        env:
-          CACHE_KEY: ${{ steps.build-cache.outputs.cache-matched-key }}
-
-      # The cache holds a build made with these flags. A `swift test` without them would rebuild everything, so a
-      # shim named swift adds them to every `swift test` the script prints.
-      - name: Rerun the changed Swift test files on the built package
-        shell: bash
-        run: |
-          REAL_SWIFT="$(command -v swift)"
-          export REAL_SWIFT
-          mkdir -p "$RUNNER_TEMP/shim"
-          cat > "$RUNNER_TEMP/shim/swift" <<'SHIM'
-          #!/usr/bin/env bash
-          if [[ "${1:-}" == test ]]; then
-            shift
-            exec "$REAL_SWIFT" test --force-resolved-versions -Xswiftc -warnings-as-errors --enable-code-coverage "$@"
-          fi
-          exec "$REAL_SWIFT" "$@"
-          SHIM
-          chmod +x "$RUNNER_TEMP/shim/swift"
-          PATH="$RUNNER_TEMP/shim:$PATH" scripts/ci/flake-tests-swift.sh --base "$BASE_COMMIT"
-
   # Required as "ci / ci-ok". A skipped check passes a required check, so ci-ok must never skip
   # once this workflow starts: keep always(), not !cancelled(), so a cancelled run fails it.
   # In stage 2 every other job skips and ci-ok runs ready's steps itself, so a queue draft waits for one runner.
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [plan, lint, lint-checks, backend, backend-report, e2e, ready, scripts, journeys, mobile-core, ios, mobile-integration, flake-plan, flake, flake-swift]
+    needs: [plan, lint, lint-checks, backend, backend-report, e2e, ready, scripts, journeys, mobile-core, ios, mobile-integration]
     runs-on: ubuntu-latest
     timeout-minutes: ${{ inputs.stage == 'queue' && 6 || 2 }}
     permissions:
@@ -982,7 +842,7 @@ jobs:
         if: inputs.stage != 'queue'
         with:
           jobs: ${{ toJSON(needs) }}
-          allowed-skips: lint, lint-checks, backend, backend-report, e2e, ready, scripts, journeys, mobile-core, ios, mobile-integration, flake-plan, flake, flake-swift
+          allowed-skips: lint, lint-checks, backend, backend-report, e2e, ready, scripts, journeys, mobile-core, ios, mobile-integration
 
       - uses: actions/checkout@v4
         if: inputs.stage == 'queue'

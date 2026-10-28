@@ -46,6 +46,26 @@ fuzz_all() {
   return "$status"
 }
 
+flake_changed() {
+  local base cmds cmd status=0
+  if [[ -n "${PREV_TESTED_SHA:-}" ]] && git cat-file -e "${PREV_TESTED_SHA}^{commit}" 2> /dev/null; then
+    base="$(git merge-base HEAD "$PREV_TESTED_SHA")" || return 1
+  else
+    base="$(git rev-parse HEAD~50)" || return 1
+  fi
+  cmds="$(../../scripts/ci/flake-tests.sh --base "$base")" || return 1
+  if [[ -z "$cmds" ]]; then
+    echo "no changed tests"
+    return 0
+  fi
+  echo "changed tests since $base"
+  while IFS= read -r cmd; do
+    echo "+ $cmd"
+    CHAOS_SEEDS=5 bash -c "$cmd" || status=1
+  done <<<"$cmds"
+  return "$status"
+}
+
 step vuln ../../.bin/govulncheck ./...
 
 rapid=()
@@ -55,6 +75,7 @@ done < <(rapid_packages)
 step rapid env RAPID_CHECKS=100000 go test -tags faultpoints -timeout 60m "${rapid[@]}"
 step fuzz fuzz_all
 step long env CHAOS_SEEDS=5000 go test -tags faultpoints -race -shuffle=on -timeout 60m ./...
+step flake-changed flake_changed
 step seed-sweep go test -tags faultpoints -race -shuffle=on -short -count="$sweep" -timeout 60m ./...
 step verify go run ./cmd/monacoctl verify all
 step bench go test -run '^$' -bench . -benchmem -count 10 -timeout 60m ./...

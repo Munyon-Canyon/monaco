@@ -37,6 +37,7 @@ jobs:
       contents: read
     outputs:
       run: ${{ steps.decide.outputs.run }}
+      last: ${{ steps.decide.outputs.last }}
     steps:
       - id: decide
         env:
@@ -60,6 +61,7 @@ jobs:
             [[ -n "$last" && "$last" == "$head" ]] && run=false
           fi
           echo "run=$run" | tee -a "$GITHUB_OUTPUT"
+          echo "last=$last" >> "$GITHUB_OUTPUT"
 
   qa:
     name: night.sh (host tests, app, sample UI tests, screenshots)
@@ -200,6 +202,8 @@ jobs:
       actions: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # atlas for testkit.DB and the tmpfs test Postgres, the same setup as the PR backend job.
       - uses: ./.github/actions/backend-test-env
@@ -225,6 +229,7 @@ jobs:
         env:
           OUT: ${{ runner.temp }}/nightly-backend
           PREV_BENCH: ${{ runner.temp }}/prev/bench.txt
+          PREV_TESTED_SHA: ${{ needs.changed.outputs.last }}
         run: scripts/ci/nightly-backend.sh
 
       - name: Upload tonight's benchmarks for the next comparison
