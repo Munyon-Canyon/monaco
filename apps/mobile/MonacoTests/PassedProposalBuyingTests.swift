@@ -116,7 +116,7 @@ struct PassedProposalBuyingTests {
     }
 
     private static let pending =
-        #"[{"proposal_id":"p","cabal_id":"c","cabal_name":"Cabal","kind":"buy","symbol":"GOOGLx","expires_at":"2099-01-01T00:00:00Z"}]"#
+        #"[{"proposal_id":"p","cabal_id":"c","cabal_name":"Cabal","kind":"buy","symbol":"GOOGLx","usdc_micros":1,"token_amount":null,"asset_name":"Asset","asset_logo_url":null,"proposer":{"user_id":"u","handle":null,"display_name":"","photo_url":null},"tally":{"yes":0,"no":0,"voters":1,"needed":1},"voted_count":0,"reply_count":0,"created_at":"2025-01-01T00:00:00Z","expires_at":"2099-01-01T00:00:00Z"}]"#
 
     private static func repository(_ transport: StubTransport) -> ProposalsRepository {
         ProposalsRepository(api: api(transport))

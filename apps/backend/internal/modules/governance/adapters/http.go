@@ -25,6 +25,7 @@ type HTTP struct {
 	Void        *app.VoidProposalHandler
 	Admin       *app.AdminReads
 	Reads       *app.ProposalReads
+	Pending     *app.PendingVoteReads
 	Comparisons *app.ProposalComparisons
 }
 
@@ -309,7 +310,7 @@ func (h HTTP) GetMyPendingVotes(
 	if err != nil {
 		return nil, err
 	}
-	pending, err := h.Reads.PendingVotes(ctx, user)
+	pending, err := h.Pending.PendingVotes(ctx, user)
 	if err != nil {
 		return nil, err
 	}
@@ -317,7 +318,14 @@ func (h HTTP) GetMyPendingVotes(
 	for i, v := range pending {
 		out[i] = api.PendingVote{
 			ProposalId: v.ProposalID.UUID(), CabalId: v.CabalID.UUID(), CabalName: v.CabalName,
-			Kind: api.ProposalKind(v.Kind), Symbol: v.Symbol, ExpiresAt: v.ExpiresAt,
+			Kind: api.ProposalKind(v.Kind), Symbol: v.Symbol, ExpiresAt: v.ExpiresAt, CreatedAt: v.CreatedAt,
+			UsdcMicros: baseAmount(v.USDC.Uint64()), TokenAmount: baseAmount(v.TokenAmount.Uint64()),
+			AssetName: v.AssetName, AssetLogoUrl: present(v.AssetLogo),
+			Proposer: api.PendingVoteProposer{
+				UserId: v.Proposer.ID.UUID(), Handle: present(v.Proposer.Handle),
+				DisplayName: v.Proposer.DisplayName, PhotoUrl: present(v.Proposer.PhotoURL),
+			},
+			Tally: wireTally(v.Tally), VotedCount: v.VotedCount, ReplyCount: v.ReplyCount,
 		}
 	}
 	return out, nil

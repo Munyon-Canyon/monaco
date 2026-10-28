@@ -73,7 +73,7 @@ final class ProposalPauseModelTests: XCTestCase {
 @MainActor
 final class PendingVotesPauseTests: XCTestCase {
     private let vote =
-        #"[{"proposal_id":"p","cabal_id":"c","cabal_name":"Cabal","kind":"buy","symbol":"AAPLx","expires_at":"2026-01-01T00:00:00Z"}]"#
+        #"[{"proposal_id":"p","cabal_id":"c","cabal_name":"Cabal","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"asset_name":"Asset","asset_logo_url":null,"proposer":{"user_id":"u","handle":null,"display_name":"","photo_url":null},"tally":{"yes":0,"no":0,"voters":1,"needed":1},"voted_count":0,"reply_count":0,"created_at":"2025-01-01T00:00:00Z","expires_at":"2026-01-01T00:00:00Z"}]"#
     private let paused =
         #"{"slice_micros":"1","share_units":"1","min_micros":"1","pause":{"reasons":["ops"],"since":"2026-01-01T00:00:00Z"}}"#
 

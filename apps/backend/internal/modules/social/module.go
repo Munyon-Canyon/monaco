@@ -146,6 +146,10 @@ func (m *Module) useDefaultRealtime() {
 
 type FollowsPort = app.FollowsPort
 
+func (m *Module) ReplyCounts(ctx context.Context, proposalIDs []ids.ProposalID) (map[ids.ProposalID]int, error) {
+	return app.ReplyCounts(ctx, m.deps.Pool, proposalIDs)
+}
+
 func (m *Module) Follows() app.Follows { return app.NewFollows(m.deps.Pool) }
 
 func (m *Module) FollowCounts() interface {

@@ -26,7 +26,7 @@ func (d readsDB) expiringFor(t *testing.T, in time.Duration, voters ...uuid.UUID
 
 func (d readsDB) pending(t *testing.T, voter uuid.UUID) []uuid.UUID {
 	t.Helper()
-	got, err := d.reads().PendingVotes(t.Context(), ids.UserIDFrom(voter))
+	got, err := d.votes().PendingVotes(t.Context(), ids.UserIDFrom(voter))
 	if err != nil {
 		t.Fatalf("PendingVotes = %v", err)
 	}
@@ -74,13 +74,13 @@ func TestMe_PendingVotes_failures(t *testing.T) {
 	p := d.expiringFor(t, time.Hour, d.caller)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := d.reads().PendingVotes(ctx, ids.UserIDFrom(d.caller)); errs.CodeOf(err) != errs.CodeInternal {
+	if _, err := d.votes().PendingVotes(ctx, ids.UserIDFrom(d.caller)); errs.CodeOf(err) != errs.CodeInternal {
 		t.Errorf("PendingVotes on a cancelled context err = %v, want internal", err)
 	}
 	if _, err := d.pool.Exec(t.Context(), `UPDATE proposals SET kind = 'swap' WHERE id = $1`, p); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := d.reads().PendingVotes(t.Context(), ids.UserIDFrom(d.caller)); errs.CodeOf(
+	if _, err := d.votes().PendingVotes(t.Context(), ids.UserIDFrom(d.caller)); errs.CodeOf(
 		err) != errs.CodeDecodeFailed {
 		t.Errorf("PendingVotes with an unknown stored kind err = %v, want decode_failed", err)
 	}
@@ -91,18 +91,17 @@ func TestHTTP_GetMyPendingVotes(t *testing.T) {
 	d := newReadsDB(t)
 	p := d.buy(d.caller)
 	d.insert(t, p)
-	h := adapters.HTTP{Reads: d.reads()}
+	h := adapters.HTTP{Pending: d.votes()}
 	ctx := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: d.caller.String()})
 	res, err := h.GetMyPendingVotes(ctx, api.GetMyPendingVotesRequestObject{})
 	got, ok := res.(api.GetMyPendingVotes200JSONResponse)
 	if err != nil || !ok || len(got) != 1 {
 		t.Fatalf("GetMyPendingVotes = %#v, %v, want one proposal", res, err)
 	}
-	want := api.PendingVote{
-		ProposalId: p.ID, CabalId: p.CabalID, Kind: "buy", Symbol: "AAPLx", ExpiresAt: got[0].ExpiresAt,
-	}
-	if got[0] != want || !got[0].ExpiresAt.Equal(p.ExpiresAt) {
-		t.Errorf("pending vote = %+v, want %+v expiring at %s", got[0], want, p.ExpiresAt)
+	if got[0].ProposalId != p.ID || got[0].CabalId != p.CabalID || got[0].Kind != "buy" || got[0].Symbol != "AAPLx" ||
+		!got[0].ExpiresAt.Equal(p.ExpiresAt) {
+		t.Errorf("pending vote = %+v, want proposal %s in cabal %s expiring at %s",
+			got[0], p.ID, p.CabalID, p.ExpiresAt)
 	}
 	if _, err := h.GetMyPendingVotes(t.Context(), api.GetMyPendingVotesRequestObject{}); errs.CodeOf(
 		err) != errs.CodeUnauthorized {

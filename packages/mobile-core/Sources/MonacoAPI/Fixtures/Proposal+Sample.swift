@@ -61,15 +61,29 @@ extension Components.Schemas.ProposalDetail {
 }
 
 extension Components.Schemas.PendingVote {
+    public static func sample(
+        proposalId: String = "proposal-nvda", cabalId: String = Components.Schemas.Cabal.sample(role: nil).id,
+        cabalName: String = "AC Capital", kind: Components.Schemas.ProposalKind = .buy, symbol: String = "NVDAx",
+        assetName: String = "NVIDIA", expiresAt: Date = .now.addingTimeInterval(14_400)
+    ) -> Self {
+        .init(
+            proposalId: proposalId, cabalId: cabalId, cabalName: cabalName, kind: kind, symbol: symbol,
+            usdcMicros: kind == .sell ? nil : 400_000_000, tokenAmount: kind == .sell ? 1_820_000 : nil,
+            assetName: assetName, assetLogoUrl: nil,
+            proposer: .init(userId: "user-mia", handle: "mia", displayName: "Mia", photoUrl: nil),
+            tally: .init(yes: 4, no: 1, voters: 8, needed: 5), votedCount: 5, replyCount: 6,
+            createdAt: expiresAt.addingTimeInterval(-21_600), expiresAt: expiresAt)
+    }
+
+    public static let nvda: Self = .sample()
+
     public static let samples: [Self] = [
-        .init(
-            proposalId: "proposal-1", cabalId: Components.Schemas.Cabal.sample(role: nil).id,
-            cabalName: Components.Schemas.Cabal.sample(role: nil).name, kind: .buy, symbol: "GOOGLx",
-            expiresAt: .now.addingTimeInterval(43_200)),
-        .init(
-            proposalId: "proposal-2", cabalId: Components.Schemas.Cabal.sample(role: nil).id,
-            cabalName: Components.Schemas.Cabal.sample(role: nil).name, kind: .buy, symbol: "GOOGLx",
-            expiresAt: .now.addingTimeInterval(86_400)),
+        .sample(
+            proposalId: "proposal-1", cabalName: Components.Schemas.Cabal.sample(role: nil).name,
+            symbol: "GOOGLx", assetName: "Alphabet", expiresAt: .now.addingTimeInterval(43_200)),
+        .sample(
+            proposalId: "proposal-2", cabalName: Components.Schemas.Cabal.sample(role: nil).name,
+            symbol: "GOOGLx", assetName: "Alphabet", expiresAt: .now.addingTimeInterval(86_400)),
     ]
 }
 

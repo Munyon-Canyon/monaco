@@ -252,14 +252,15 @@ paths:
       summary: List the open proposals waiting on the caller's ballot.
       description: >-
         Returns up to 50 open proposals, across every cabal, whose frozen voter set holds the caller
-        and that have no ballot from the caller yet, soonest to expire first.
+        and that have no ballot from the caller yet, soonest to expire first. Each row carries what its card
+        draws: the amount, the asset's name and logo, the proposer, the tally, the ballots cast and the replies.
       responses:
         "200":
           description: The proposals waiting on the caller.
           content:
             application/json:
               schema: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/PendingVote"}}
-              example: [{proposal_id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, kind: buy, symbol: AAPLx, expires_at: "2026-10-04T15:00:00Z"}]
+              example: [{proposal_id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, kind: buy, symbol: NVDAx, usdc_micros: 400000000, token_amount: null, asset_name: NVIDIA, asset_logo_url: null, proposer: {user_id: 01890a5d-ac96-774b-bcce-b302099a8059, handle: mia, display_name: Mia, photo_url: null}, tally: {"yes": 4, "no": 1, voters: 8, needed: 5}, voted_count: 5, reply_count: 6, created_at: "2026-10-04T09:00:00Z", expires_at: "2026-10-04T15:00:00Z"}]
         default:
           $ref: "#/components/responses/Problem"
   /v1/me/proposals:
@@ -937,16 +938,61 @@ components:
               examples: [200000000]
     PendingVote:
       type: object
-      description: An open proposal that still needs the caller's ballot.
+      description: >-
+        An open proposal that still needs the caller's ballot, with the facts its card draws. Soonest-closing
+        first, at most 50.
       additionalProperties: false
-      required: [proposal_id, cabal_id, cabal_name, kind, symbol, expires_at]
+      required:
+        - proposal_id
+        - cabal_id
+        - cabal_name
+        - kind
+        - symbol
+        - usdc_micros
+        - token_amount
+        - asset_name
+        - asset_logo_url
+        - proposer
+        - tally
+        - voted_count
+        - reply_count
+        - created_at
+        - expires_at
       properties:
         proposal_id: {type: string, format: uuid, description: The proposal id., examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
         cabal_id: {type: string, format: uuid, description: The cabal id., examples: [01890a5d-ac96-774b-bcce-b302099a8058]}
         cabal_name: {type: string, description: "The cabal's current name.", examples: [Friday Night Lights]}
         kind: {$ref: "#/components/schemas/ProposalKind"}
-        symbol: {type: string, description: The token symbol., examples: [AAPLx]}
+        symbol: {type: string, description: The token symbol., examples: [NVDAx]}
+        usdc_micros:
+          type: [integer, "null"]
+          format: int64
+          description: USDC a buy spends, in micros. Null for a sell.
+          examples: [400000000]
+        token_amount:
+          type: [integer, "null"]
+          format: int64
+          description: Token base units a sell spends. Null for a buy.
+          examples: [null]
+        asset_name: {type: string, description: "The asset's display name.", examples: [NVIDIA]}
+        asset_logo_url: {type: [string, "null"], description: Null when the asset has no logo., examples: ["https://cdn.example.com/logos/nvda.png"]}
+        proposer:
+          $ref: "#/components/schemas/PendingVoteProposer"
+        tally: {$ref: "#/components/schemas/Tally"}
+        voted_count: {type: integer, minimum: 0, description: Ballots cast so far., examples: [5]}
+        reply_count: {type: integer, minimum: 0, description: Replies on the proposal's thread. Deleted and removed replies do not count., examples: [6]}
+        created_at: {type: string, format: date-time, description: When the proposal opened., examples: ["2026-10-04T09:00:00Z"]}
         expires_at: {type: string, format: date-time, description: When voting closes., examples: ["2026-10-04T15:00:00Z"]}
+    PendingVoteProposer:
+      type: object
+      description: The member who proposed it.
+      additionalProperties: false
+      required: [user_id, handle, display_name, photo_url]
+      properties:
+        user_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        handle: {type: [string, "null"], description: Null until onboarding sets one., examples: [mia]}
+        display_name: {type: string, description: Empty when the user has none., examples: [Mia]}
+        photo_url: {type: [string, "null"], description: Null when the user has none., examples: [null]}
     BallotChoice:
       type: string
       description: A voter's choice on a proposal.

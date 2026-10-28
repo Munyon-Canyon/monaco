@@ -458,8 +458,18 @@ type CastVoteRequest struct {
 	Choice BallotChoice `json:"choice"`
 }
 
-// PendingVote An open proposal that still needs the caller's ballot.
+// PendingVote An open proposal that still needs the caller's ballot, with the facts its card draws. Soonest-closing first, at most 50.
 type PendingVote struct {
+	// AssetLogoUrl Null when the asset has no logo.
+	//
+	// Examples: https://cdn.example.com/logos/nvda.png
+	AssetLogoUrl *string `json:"asset_logo_url"`
+
+	// AssetName The asset's display name.
+	//
+	// Examples: NVIDIA
+	AssetName string `json:"asset_name"`
+
 	// CabalId The cabal id.
 	//
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
@@ -469,6 +479,11 @@ type PendingVote struct {
 	//
 	// Examples: Friday Night Lights
 	CabalName string `json:"cabal_name"`
+
+	// CreatedAt When the proposal opened.
+	//
+	// Examples: 2026-10-04T09:00:00Z
+	CreatedAt time.Time `json:"created_at"`
 
 	// ExpiresAt When voting closes.
 	//
@@ -485,10 +500,57 @@ type PendingVote struct {
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8057
 	ProposalId openapi_types.UUID `json:"proposal_id"`
 
+	// Proposer The member who proposed it.
+	Proposer PendingVoteProposer `json:"proposer"`
+
+	// ReplyCount Replies on the proposal's thread. Deleted and removed replies do not count.
+	//
+	// Examples: 6
+	ReplyCount int `json:"reply_count"`
+
 	// Symbol The token symbol.
 	//
-	// Examples: AAPLx
+	// Examples: NVDAx
 	Symbol string `json:"symbol"`
+
+	// Tally The ballots counted against the proposal's frozen voter set.
+	Tally Tally `json:"tally"`
+
+	// TokenAmount Token base units a sell spends. Null for a buy.
+	//
+	// Examples: null
+	TokenAmount *int64 `json:"token_amount"`
+
+	// UsdcMicros USDC a buy spends, in micros. Null for a sell.
+	//
+	// Examples: 400000000
+	UsdcMicros *int64 `json:"usdc_micros"`
+
+	// VotedCount Ballots cast so far.
+	//
+	// Examples: 5
+	VotedCount int `json:"voted_count"`
+}
+
+// PendingVoteProposer The member who proposed it.
+type PendingVoteProposer struct {
+	// DisplayName Empty when the user has none.
+	//
+	// Examples: Mia
+	DisplayName string `json:"display_name"`
+
+	// Handle Null until onboarding sets one.
+	//
+	// Examples: mia
+	Handle *string `json:"handle"`
+
+	// PhotoUrl Null when the user has none.
+	//
+	// Examples: null
+	PhotoUrl *string `json:"photo_url"`
+
+	// UserId Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	UserId openapi_types.UUID `json:"user_id"`
 }
 
 // Proposal One proposal as the caller sees it, with its tally and the caller's ballot.
