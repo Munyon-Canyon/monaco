@@ -95,12 +95,76 @@ func TestCIPathFilter_scriptsRunWhenAPRDeletesOrRenamesAFile(t *testing.T) {
 	}
 }
 
+func TestCIPathFilter_scriptsSkipADeletionNoScriptsTestCanCite(t *testing.T) {
+	filters := parsePathFilters(t)
+	cases := []struct {
+		name    string
+		changes []change
+		jobs    []string
+	}{
+		{"mobile-delete", []change{{"deleted", "apps/mobile/Monaco/Features/Withdraw/WithdrawView.swift"}}, []string{"mobile-core", "ios"}},
+		{"mobile-rename", []change{{"deleted", "apps/mobile/Monaco/A.swift"}, {"added", "apps/mobile/Monaco/B.swift"}}, []string{"mobile-core", "ios"}},
+		{"mobile-core-delete", []change{{"deleted", "packages/mobile-core/Sources/MonacoCore/Old.swift"}}, []string{"mobile-core", "ios"}},
+		{"mobile-and-mobile-core-delete", []change{
+			{"deleted", "apps/mobile/MonacoTests/OldTests.swift"},
+			{"deleted", "packages/mobile-core/Tests/MonacoCoreTests/OldTests.swift"},
+			{"modified", "apps/mobile/Monaco/RepoRulesAllowlist.txt"},
+		}, []string{"mobile-core", "ios"}},
+		{"web-delete", []change{{"deleted", "apps/web/src/old.ts"}}, []string{"web"}},
+		{"backend-delete", []change{{"deleted", "apps/backend/internal/platform/db/uow.go"}}, []string{"lint", "ready", "backend", "scripts"}},
+		{"flows-delete", []change{{"deleted", "packages/flows/backend/00.tsv"}}, []string{"lint", "ready", "backend", "mobile-core", "ios", "scripts"}},
+		{"skill-delete", []change{{"deleted", ".claude/skills/commit/SKILL.md"}}, []string{"scripts"}},
+		{"mobile-delete-with-docs-delete", []change{
+			{"deleted", "apps/mobile/Monaco/A.swift"},
+			{"deleted", "docs/removed.md"},
+		}, []string{"mobile-core", "ios", "scripts"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := jobsFor(filters, tc.changes)
+			slices.Sort(got)
+			want := slices.Clone(tc.jobs)
+			slices.Sort(want)
+			if !slices.Equal(got, want) {
+				t.Fatalf("jobs = %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+func TestCIPathFilter_scriptsDeletionOutputFeedsThePlanScriptsOutput(t *testing.T) {
+	text := readRepo(t, repoRoot(t), ".github/workflows/ci-jobs.yml")
+	if !strings.Contains(text, "steps.every.outputs.scripts-deleted == 'true'") {
+		t.Fatal("the plan scripts output does not read steps.every.outputs.scripts-deleted")
+	}
+}
+
 type filterRule struct{ status, pattern string }
 
 type change struct{ status, path string }
 
 func (r filterRule) matches(c change) bool {
 	return (r.status == "" || slices.Contains(strings.Split(r.status, "|"), c.status)) && globMatch(r.pattern, c.path)
+}
+
+const everyPrefix = "every/"
+
+func everyMatches(rules []filterRule, c change) bool {
+	if len(rules) == 0 {
+		return false
+	}
+	for _, r := range rules {
+		if negated, ok := strings.CutPrefix(r.pattern, "!"); ok {
+			if (r.status == "" || slices.Contains(strings.Split(r.status, "|"), c.status)) && globMatch(negated, c.path) {
+				return false
+			}
+			continue
+		}
+		if !r.matches(c) {
+			return false
+		}
+	}
+	return true
 }
 
 func modified(paths ...string) []change {
@@ -114,12 +178,20 @@ func modified(paths ...string) []change {
 func jobsFor(filters map[string][]filterRule, changes []change) []string {
 	hit := map[string]bool{}
 	for name, rules := range filters {
+		if strings.HasPrefix(name, everyPrefix) {
+			continue
+		}
 		for _, c := range changes {
 			for _, r := range rules {
 				if r.matches(c) {
 					hit[name] = true
 				}
 			}
+		}
+	}
+	for _, c := range changes {
+		if everyMatches(filters[everyPrefix+"scripts-deleted"], c) {
+			hit["scripts"] = true
 		}
 	}
 	var jobs []string
@@ -211,7 +283,21 @@ func parsePathFilters(t *testing.T) map[string][]filterRule {
 	if start < 0 {
 		t.Fatal("ci-jobs.yml has no filters block")
 	}
-	rest := strings.Split(text[start+len(marker):], "\n")
+	filters := parseFilterBlock(t, text[start+len(marker):], "")
+	everyMarker := "predicate-quantifier: every\n          filters: |"
+	everyStart := strings.Index(text, everyMarker)
+	if everyStart < 0 {
+		t.Fatal("ci-jobs.yml has no filters block under predicate-quantifier: every")
+	}
+	for name, rules := range parseFilterBlock(t, text[everyStart+len(everyMarker):], everyPrefix) {
+		filters[name] = rules
+	}
+	return filters
+}
+
+func parseFilterBlock(t *testing.T, block, prefix string) map[string][]filterRule {
+	t.Helper()
+	rest := strings.Split(block, "\n")
 	filters := map[string][]filterRule{}
 	name := ""
 	nameRe := regexp.MustCompile(`^            ([a-z0-9-]+):\s*$`)
@@ -221,7 +307,7 @@ func parsePathFilters(t *testing.T) map[string][]filterRule {
 			break
 		}
 		if m := nameRe.FindStringSubmatch(line); m != nil {
-			name = m[1]
+			name = prefix + m[1]
 			filters[name] = nil
 			continue
 		}
