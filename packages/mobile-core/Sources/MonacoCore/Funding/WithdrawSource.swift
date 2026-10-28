@@ -37,6 +37,42 @@ public struct WithdrawPreview: Equatable, Sendable {
     }
 }
 
+public enum WithdrawFeeMode: Equatable, Sendable {
+    case included, onTop
+}
+
+public struct WithdrawQuote: Equatable, Sendable {
+    public let availableMicros: Int64
+    public let feeMicros: Int64?
+    public let feeKnown: Bool
+    public let feeMode: WithdrawFeeMode
+    public let maxAmountMicros: Int64
+    public let receiveMicros: Int64?
+    public let overMicros: Int64?
+    public let belowMin: Bool
+    public let minMicros: Int64
+    public let arrivalSeconds: Int
+    public let expiresAt: Date?
+
+    public init(
+        availableMicros: Int64, feeMicros: Int64?, feeKnown: Bool, feeMode: WithdrawFeeMode, maxAmountMicros: Int64,
+        receiveMicros: Int64?, overMicros: Int64?, belowMin: Bool, minMicros: Int64, arrivalSeconds: Int,
+        expiresAt: Date?
+    ) {
+        self.availableMicros = availableMicros
+        self.feeMicros = feeMicros
+        self.feeKnown = feeKnown
+        self.feeMode = feeMode
+        self.maxAmountMicros = maxAmountMicros
+        self.receiveMicros = receiveMicros
+        self.overMicros = overMicros
+        self.belowMin = belowMin
+        self.minMicros = minMicros
+        self.arrivalSeconds = arrivalSeconds
+        self.expiresAt = expiresAt
+    }
+}
+
 public struct WithdrawSource: Sendable {
     private let api: APIClient
 
@@ -65,6 +101,26 @@ public struct WithdrawSource: Sendable {
         let preview = try await api.read { try await $0.previewWithdrawal(body: .json(body)).ok.body.json }
         return WithdrawPreview(
             receiveMicros: try AccountBalance.micros(preview.receiveMicros), expiresAt: preview.expiresAt)
+    }
+
+    public func quote(
+        network: WithdrawNetwork, amountMicros: Int64?, toAddress: String?
+    ) async throws -> WithdrawQuote {
+        let body = Components.Schemas.WithdrawPreviewRequest(
+            destinationKind: network.isEVM ? .evm : nil,
+            network: network.isEVM ? .init(rawValue: network.rawValue) : nil,
+            amountMicros: amountMicros.map(String.init), toAddress: toAddress)
+        let wire = try await api.read { try await $0.previewWithdrawal(body: .json(body)).ok.body.json }
+        let receive = try AccountBalance.micros(wire.receiveMicros)
+        return WithdrawQuote(
+            availableMicros: try AccountBalance.micros(wire.availableMicros),
+            feeMicros: try wire.feeMicros.map(AccountBalance.micros), feeKnown: wire.feeKnown,
+            feeMode: wire.feeMode == .included ? .included : .onTop,
+            maxAmountMicros: try AccountBalance.micros(wire.maxAmountMicros),
+            receiveMicros: amountMicros == nil ? nil : receive,
+            overMicros: try wire.overMicros.map(AccountBalance.micros),
+            belowMin: wire.belowMin, minMicros: try AccountBalance.micros(wire.minMicros),
+            arrivalSeconds: wire.arrivalSeconds, expiresAt: wire.expiresAt)
     }
 
     public func withdrawal(id: String) async throws -> Withdrawal {
