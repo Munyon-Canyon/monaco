@@ -10,6 +10,7 @@
 		B463064130590361008E7964 /* Privy in Frameworks */ = {isa = PBXBuildFile; productRef = B463064030590361008E7964 /* Privy */; };
 		D946000530590361008E7964 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = D946000330590361008E7964 /* PostHog */; };
 		D946000630590361008E7964 /* Ably in Frameworks */ = {isa = PBXBuildFile; productRef = D946000430590361008E7964 /* Ably */; };
+		D946000930590361008E7964 /* GiphyUISDK in Frameworks */ = {isa = PBXBuildFile; productRef = D946000830590361008E7964 /* GiphyUISDK */; };
 		C0DE000330590361008E7964 /* MonacoCore in Frameworks */ = {isa = PBXBuildFile; productRef = C0DE000230590361008E7964 /* MonacoCore */; };
 		C0DE000530590361008E7964 /* MonacoAPI in Frameworks */ = {isa = PBXBuildFile; productRef = C0DE000430590361008E7964 /* MonacoAPI */; };
 		C0DE000630590361008E7964 /* MonacoTestClock in Frameworks */ = {isa = PBXBuildFile; productRef = C0DE000730590361008E7964 /* MonacoTestClock */; };
@@ -71,6 +72,7 @@
 				B463064130590361008E7964 /* Privy in Frameworks */,
 				D946000530590361008E7964 /* PostHog in Frameworks */,
 				D946000630590361008E7964 /* Ably in Frameworks */,
+				D946000930590361008E7964 /* GiphyUISDK in Frameworks */,
 				C0DE000330590361008E7964 /* MonacoCore in Frameworks */,
 				C0DE000530590361008E7964 /* MonacoAPI in Frameworks */,
 			);
@@ -158,6 +160,7 @@
 				B463064030590361008E7964 /* Privy */,
 				D946000330590361008E7964 /* PostHog */,
 				D946000430590361008E7964 /* Ably */,
+				D946000830590361008E7964 /* GiphyUISDK */,
 				C0DE000230590361008E7964 /* MonacoCore */,
 				C0DE000430590361008E7964 /* MonacoAPI */,
 			);
@@ -248,6 +251,7 @@
 				B463063F30590361008E7964 /* XCRemoteSwiftPackageReference "privy-ios" */,
 				D946000130590361008E7964 /* XCRemoteSwiftPackageReference "posthog-ios" */,
 				D946000230590361008E7964 /* XCRemoteSwiftPackageReference "ably-cocoa" */,
+				D946000730590361008E7964 /* XCRemoteSwiftPackageReference "giphy-ios-sdk" */,
 				C0DE000130590361008E7964 /* XCLocalSwiftPackageReference "../../packages/mobile-core" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -680,6 +684,14 @@
 				minimumVersion = 1.4.0;
 			};
 		};
+		D946000730590361008E7964 /* XCRemoteSwiftPackageReference "giphy-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Giphy/giphy-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.3.2;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -712,6 +724,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C0DE000130590361008E7964 /* XCLocalSwiftPackageReference "../../packages/mobile-core" */;
 			productName = MonacoTestClock;
+		};
+		D946000830590361008E7964 /* GiphyUISDK */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D946000730590361008E7964 /* XCRemoteSwiftPackageReference "giphy-ios-sdk" */;
+			productName = GiphyUISDK;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -4,3 +4,5 @@
 MONACO_API_BASE_URL_local = http:/$()/localhost:8080
 PRIVY_APP_ID_local = $(PRIVY_APP_ID_DEV)
 PRIVY_APP_CLIENT_ID_local = $(PRIVY_APP_CLIENT_ID_DEV)
+// The GIPHY client key from .env.local. Left empty, GIFs show as unavailable.
+GIPHY_SDK_KEY_local = $(GIPHY_SDK_KEY_DEV)

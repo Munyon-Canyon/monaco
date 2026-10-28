@@ -114,6 +114,15 @@ Indexes: `(created_at desc, id)`, `(cabal_id, created_at desc)`, `(asset_id, cre
 - A reply to your comment, or a comment on your proposal, is a notification candidate (see below).
 - **Proposal comments move here.** The proposal detail screen reads the FeedComments of that proposal's feed item. Nothing migrates from `proposal_comments`. The new backend starts on an empty database (decided 2026-09-27), and the old table goes with the old backend at [Rollout](backend-platform.md#rollout) step 7.
 
+## GIFs
+
+- GIFs come from GIPHY on the device, not from a server proxy. The app target carries the GIPHY iOS SDK (`GiphyUISDK`), configured once at launch, and reads results through the `GifProvider` port that `MonacoCore` declares. `MonacoCore` never imports the SDK. The app supplies `GiphyGifProvider`, `UnavailableGifProvider` when the build has no key, and `SampleGifProvider` in harnesses and tests.
+- The key is the client key `GIPHY_SDK_KEY`, read at build time by `scripts/ensure-ios-privy-config.sh` the way Privy's client ID is: `.env.local`, `.env.staging` and `.env.production` (else the staging key) become `GIPHY_SDK_KEY_DEV`, `_STAGING` and `_PRODUCTION`, the environment picks one, and `Info.plist` carries it. A missing key only warns, and GIFs show as unavailable.
+- Trending and search ask GIPHY's `v1/gifs/trending` and `v1/gifs/search` through the SDK's own HTTP client (`GiphyCore.shared.httpRequest`), 25 results a page, because SDK 2.3 has no trending or search call. The rating is `pg-13` (`GPHRatingType.ratedPG13`), set on every request.
+- A result is kept only when it has a still, a preview and an original rendition and all three URLs are on `media*.giphy.com` or `i.giphy.com` over https. The server repeats the host rule when it stores a reply (#6533).
+- The sheet must show "Powered by GIPHY" (`GifPage.attribution`) whenever results are visible.
+- The server stores only GIPHY media URLs on replies (#6533). There is no GIF route and no Render variable.
+
 ## Realtime
 
 Target: new items and new comments appear without a pull to refresh.

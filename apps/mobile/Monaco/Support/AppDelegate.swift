@@ -1,3 +1,4 @@
+import GiphyUISDK
 import MonacoCore
 import UIKit
 import UserNotifications
@@ -22,6 +23,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        if !Config.giphySDKKey.isEmpty, !Config.isRunningTests {
+            Giphy.configure(apiKey: Config.giphySDKKey)
+        }
         guard let environment = Self.environment else {
             AppLogger.session.error("Push taps will not open a screen: the app environment is missing at launch")
             return true
