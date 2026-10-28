@@ -15,7 +15,7 @@ import (
 func TestFundHTTP_readsATransferToItsOwnerOnly(t *testing.T) {
 	t.Parallel()
 	h := newFundHarness(t)
-	srv := adapters.HTTP{FundReads: h.pool}
+	srv := adapters.HTTP{FundReads: h.pool, Pot: h.stubs.owner}
 	read := func(ctx context.Context, id uuid.UUID) (api.GetFundTransfer200JSONResponse, error) {
 		res, err := srv.GetFundTransfer(ctx, api.GetFundTransferRequestObject{Id: id})
 		if err != nil {

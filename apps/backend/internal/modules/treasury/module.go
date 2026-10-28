@@ -64,6 +64,7 @@ type fundDeps struct {
 	cabals  app.FundCabals
 	wallets app.FundWallets
 	funding fundingProvider
+	pauses  fundingport.Pauses
 }
 
 type fundingProvider interface {
@@ -118,6 +119,7 @@ func (m *Module) Wire(set module.Set) {
 		}
 		if provider, ok := mod.(interface{ Pauses() fundingport.Pauses }); ok {
 			pauses := provider.Pauses()
+			m.fund.pauses = pauses
 			m.pauses = app.CashOutPauseFunc(func(ctx context.Context, cabal ids.CabalID) (app.CashOutPause, error) {
 				pause, err := pauses.IsPaused(ctx, cabal)
 				reasons := make([]string, len(pause.Reasons))
@@ -143,13 +145,14 @@ func (m *Module) Mount(r api.Mount) {
 	treasuryapi.Mount(adapters.HTTP{
 		Reads: app.NewActivityReads(m.deps.Pool, m.members, m.users, names).
 			WithListings(marketListings(market.New(m.deps).Prices())),
-		UserTxns:  app.NewUserTxnReads(m.deps.Pool, m.cabals, m.withdrawals, usdc(m.deps.Config)),
-		FundReads: m.deps.Pool,
-		Fund:      m.fundCabalHandler(adapters.NewTransfers(m.deps.Config, m.deps.Clock)),
-		CashOut:   m.cashOutHandler(),
-		Pot:       m.reads(),
-		Cabals:    m.cabals,
-		Members:   m.members,
+		UserTxns:    app.NewUserTxnReads(m.deps.Pool, m.cabals, m.withdrawals, usdc(m.deps.Config)),
+		FundReads:   m.deps.Pool,
+		Fund:        m.fundCabalHandler(adapters.NewTransfers(m.deps.Config, m.deps.Clock)),
+		FundPreview: m.fundPreviewHandler(),
+		CashOut:     m.cashOutHandler(),
+		Pot:         m.reads(),
+		Cabals:      m.cabals,
+		Members:     m.members,
 	}, r)
 }
 
@@ -172,6 +175,16 @@ func (m *Module) fundCabalHandler(transfers app.FundTransfers) *app.FundCabalHan
 		Balances: m.fund.funding.Balances(), Pauses: m.fund.funding.PausesIn, Pot: m.reads(), Transfers: transfers,
 		Hints: m.deps.Bus,
 		USDC:  chain.Mint{Address: chain.SolanaAddress(m.deps.Config.Solana.USDCMint), Decimals: usdcDecimals},
+	})
+}
+
+func (m *Module) fundPreviewHandler() *app.PreviewFundHandler {
+	if m.fund.funding == nil || m.fund.pauses == nil {
+		return nil
+	}
+	return app.NewPreviewFundHandler(app.PreviewFundDeps{
+		Cabals: m.fund.cabals, Balances: m.fund.funding.Balances(), Pauses: m.fund.pauses, Pot: m.reads(),
+		History: adapters.FundHistory{Reads: m.deps.Pool},
 	})
 }
 

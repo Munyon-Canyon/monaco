@@ -33,6 +33,7 @@ func (defined) SeedsF07() map[string]Seeder {
 		"F07FundCabalNotCabalMember":      seedFundOutsider,
 		"F07FundCabalInsufficientFunds":   seedFunder(nil),
 		"F07FundCabalCabalPaused":         seedFunder(pausedCabal),
+		"F07FundCabalCabalBanned":         seedFunder(bannedCabal),
 		"F07FundCabalPotValueZero":        seedFunderOfDrainedPot,
 		"F07FundCabalPrivyUnavailable":    seedFunder(nil),
 	}
@@ -66,6 +67,12 @@ func pausedCabal(t testkit.SeedT, pool *pgxpool.Pool, cabal ids.CabalID) {
 	if _, err := pool.Exec(t.Context(), `INSERT INTO cabal_pauses (id, cabal_id, reason, created_at)
 		VALUES (gen_random_uuid(), $1, 'ops', now())`, cabal.UUID()); err != nil {
 		t.Fatalf("flows: pause cabal: %v", err)
+	}
+}
+
+func bannedCabal(t testkit.SeedT, pool *pgxpool.Pool, cabal ids.CabalID) {
+	if _, err := pool.Exec(t.Context(), `UPDATE cabals SET status = 'banned' WHERE id = $1`, cabal.UUID()); err != nil {
+		t.Fatalf("flows: ban cabal: %v", err)
 	}
 }
 
@@ -205,6 +212,14 @@ func F07FundCabalCabalPaused(s *scenario.Scenario) {
 	s.Given(scenario.AsSeededUser("member", f.member.ID)).
 		When(scenario.Post(f.path(), fundBody)).
 		Then(scenario.ExpectProblem(errs.CodeCabalPaused), scenario.ExpectEvents(events.TypeFundSubmitted, 0))
+}
+
+func F07FundCabalCabalBanned(s *scenario.Scenario) {
+	f := seedFund(s)
+	bannedCabal(seedT{s}, s.DB(), f.cabal.ID)
+	s.Given(scenario.AsSeededUser("member", f.member.ID)).
+		When(scenario.Post(f.path(), fundBody)).
+		Then(scenario.ExpectProblem(errs.CodeCabalBanned), scenario.ExpectEvents(events.TypeFundSubmitted, 0))
 }
 
 func F07FundCabalPotValueZero(s *scenario.Scenario) {

@@ -505,6 +505,44 @@ type FundAccepted struct {
 	TransferId openapi_types.UUID `json:"transfer_id"`
 }
 
+// FundPreview What the Fund this cabal keypad shows before a submit.
+type FundPreview struct {
+	// AvailableMicros The caller's cash available to fund, in USDC micros.
+	//
+	// Examples: 500000000
+	AvailableMicros string `json:"available_micros"`
+
+	// FirstFundedAt When the caller first funded this cabal. Null when they never have.
+	//
+	// Examples: 2026-10-03T15:00:00Z
+	FirstFundedAt *time.Time `json:"first_funded_at"`
+
+	// MinMicros The smallest fund, in USDC micros.
+	//
+	// Examples: 1000000
+	MinMicros string `json:"min_micros"`
+
+	// OverMicros How far the amount is over the available cash, in USDC micros. 0 when it is not.
+	//
+	// Examples: 0
+	OverMicros string `json:"over_micros"`
+
+	// Paused True when the cabal is paused and a fund would be refused.
+	//
+	// Examples: false
+	Paused bool `json:"paused"`
+
+	// SliceBpsAfter The caller's share after the fund, in basis points, computed for at most the available cash. Null without an amount or below the minimum.
+	//
+	// Examples: 3600
+	SliceBpsAfter *int32 `json:"slice_bps_after"`
+
+	// SliceBpsNow The caller's share of the pot now, in basis points.
+	//
+	// Examples: 3500
+	SliceBpsNow int32 `json:"slice_bps_now"`
+}
+
 // FundRequest How much platform balance to move into the cabal.
 type FundRequest struct {
 	// AmountMicros Examples: 5000000
@@ -521,6 +559,11 @@ type FundTransfer struct {
 
 	// ShareUnits Examples: 5000000
 	ShareUnits *string `json:"share_units"`
+
+	// SliceBps The caller's share of the pot in basis points at read time. Set only when the status is settled.
+	//
+	// Examples: 3600
+	SliceBps *int32 `json:"slice_bps"`
 
 	// Status Where the transfer is. `landed` means final on chain with shares not yet minted.
 	//
@@ -658,6 +701,12 @@ type FundCabalParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// GetFundPreviewParams defines parameters for GetFundPreview.
+type GetFundPreviewParams struct {
+	// AmountMicros The amount to preview, in USDC micros. Absent or 0 previews the current share only.
+	AmountMicros *string `form:"amount_micros,omitempty" json:"amount_micros,omitempty"`
+}
+
 // GetMyTxnsParams defines parameters for GetMyTxns.
 type GetMyTxnsParams struct {
 	// Limit Page size. Defaults to 30 and cannot exceed 100.
@@ -690,6 +739,9 @@ type ServerInterface interface {
 	// FundCabal Fund a cabal from the caller's platform balance.
 	// (POST /v1/cabals/{id}/fund)
 	FundCabal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params FundCabalParams)
+	// GetFundPreview Preview a fund before it is submitted.
+	// (GET /v1/cabals/{id}/fund/preview)
+	GetFundPreview(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetFundPreviewParams)
 	// GetCabalPot Read a cabal's pot, its holdings and the caller's slice.
 	// (GET /v1/cabals/{id}/pot)
 	GetCabalPot(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
@@ -934,6 +986,48 @@ func (siw *ServerInterfaceWrapper) FundCabal(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// GetFundPreview operation middleware
+func (siw *ServerInterfaceWrapper) GetFundPreview(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetFundPreviewParams
+
+	// ------------- Optional query parameter "amount_micros" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "amount_micros", r.URL.Query(), &params.AmountMicros, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "amount_micros"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "amount_micros", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFundPreview(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetCabalPot operation middleware
 func (siw *ServerInterfaceWrapper) GetCabalPot(w http.ResponseWriter, r *http.Request) {
 
@@ -1157,6 +1251,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/cashouts/preview", wrapper.GetCashOutPreview)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/cashouts/{job_id}", wrapper.GetCashOutJob)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/fund", wrapper.FundCabal)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/fund/preview", wrapper.GetFundPreview)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/pot", wrapper.GetCabalPot)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/fund-transfers/{id}", wrapper.GetFundTransfer)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/txns", wrapper.GetMyTxns)
@@ -1365,6 +1460,46 @@ func (response FundCabaldefaultApplicationProblemPlusJSONResponse) VisitFundCaba
 	return err
 }
 
+type GetFundPreviewRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params GetFundPreviewParams
+}
+
+type GetFundPreviewResponseObject interface {
+	VisitGetFundPreviewResponse(w http.ResponseWriter) error
+}
+
+type GetFundPreview200JSONResponse FundPreview
+
+func (response GetFundPreview200JSONResponse) VisitGetFundPreviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFundPreviewdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetFundPreviewdefaultApplicationProblemPlusJSONResponse) VisitGetFundPreviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetCabalPotRequestObject struct {
 	Id openapi_types.UUID `json:"id"`
 }
@@ -1499,6 +1634,9 @@ type StrictServerInterface interface {
 	// FundCabal Fund a cabal from the caller's platform balance.
 	// (POST /v1/cabals/{id}/fund)
 	FundCabal(ctx context.Context, request FundCabalRequestObject) (FundCabalResponseObject, error)
+	// GetFundPreview Preview a fund before it is submitted.
+	// (GET /v1/cabals/{id}/fund/preview)
+	GetFundPreview(ctx context.Context, request GetFundPreviewRequestObject) (GetFundPreviewResponseObject, error)
 	// GetCabalPot Read a cabal's pot, its holdings and the caller's slice.
 	// (GET /v1/cabals/{id}/pot)
 	GetCabalPot(ctx context.Context, request GetCabalPotRequestObject) (GetCabalPotResponseObject, error)
@@ -1690,6 +1828,33 @@ func (sh *strictHandler) FundCabal(w http.ResponseWriter, r *http.Request, id op
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(FundCabalResponseObject); ok {
 		if err := validResponse.VisitFundCabalResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetFundPreview operation middleware
+func (sh *strictHandler) GetFundPreview(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetFundPreviewParams) {
+	var request GetFundPreviewRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetFundPreview(ctx, request.(GetFundPreviewRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetFundPreview")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetFundPreviewResponseObject); ok {
+		if err := validResponse.VisitGetFundPreviewResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

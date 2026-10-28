@@ -9,6 +9,7 @@ final class Flow07FundModelTests: XCTestCase {
             .notCabalMember: .toast("Join this cabal to fund it."),
             .insufficientFunds: .needsMoney("Not enough in your account balance."),
             .cabalPaused: .toast("Trading in this cabal is paused. You can fund it again once it resumes."),
+            .cabalBanned: .toast("Server says no."),
             .potValueZero: .toast("Server says no."),
             .privyUnavailable: .toast("Server says no."),
         ]
@@ -47,6 +48,9 @@ final class Flow07FundModelTests: XCTestCase {
                 XCTAssertEqual(
                     attempt,
                     .refused(.toast("Trading in this cabal is paused. You can fund it again once it resumes.")))
+            case .cabalBanned:
+                XCTAssertEqual(
+                    attempt, .refused(.toast("This cabal is banned. Members can still cash out and leave.")))
             case .potValueZero:
                 XCTAssertEqual(attempt, .refused(.toast("The pot has no value right now.")))
             case .privyUnavailable:

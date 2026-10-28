@@ -12,6 +12,7 @@ func (defined) ScriptsF07() map[string]Script {
 		"F07FundCabalNotCabalMember":      F07FundCabalNotCabalMember,
 		"F07FundCabalInsufficientFunds":   F07FundCabalInsufficientFunds,
 		"F07FundCabalCabalPaused":         F07FundCabalCabalPaused,
+		"F07FundCabalCabalBanned":         F07FundCabalCabalBanned,
 		"F07FundCabalPotValueZero":        F07FundCabalPotValueZero,
 		"F07FundCabalPrivyUnavailable":    F07FundCabalPrivyUnavailable,
 	}

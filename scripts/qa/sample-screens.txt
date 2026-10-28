@@ -519,6 +519,7 @@ flow-07-invalid-input         -MonacoFlow 07 invalidInput
 flow-07-not-cabal-member      -MonacoFlow 07 notCabalMember
 flow-07-insufficient-funds    -MonacoFlow 07 insufficientFunds
 flow-07-cabal-paused          -MonacoFlow 07 cabalPaused
+flow-07-cabal-banned          -MonacoFlow 07 cabalBanned
 flow-07-pot-value-zero        -MonacoFlow 07 potValueZero
 flow-07-privy-unavailable     -MonacoFlow 07 privyUnavailable
 flow-07-interrupted           -MonacoFlow 07 interrupted

@@ -61,6 +61,27 @@ func (q *Queries) FailFundTransfer(ctx context.Context, arg FailFundTransferPara
 	return result.RowsAffected(), nil
 }
 
+const firstFundedAt = `-- name: FirstFundedAt :one
+SELECT occurred_at::timestamptz AS first_funded_at
+FROM cabal_activity
+WHERE cabal_id = $1::uuid AND actor_user_id = $2::uuid
+  AND kind = 'fund' AND status = 'confirmed'
+ORDER BY occurred_at, id
+LIMIT 1
+`
+
+type FirstFundedAtParams struct {
+	CabalID uuid.UUID
+	UserID  uuid.UUID
+}
+
+func (q *Queries) FirstFundedAt(ctx context.Context, arg FirstFundedAtParams) (time.Time, error) {
+	row := q.db.QueryRow(ctx, firstFundedAt, arg.CabalID, arg.UserID)
+	var first_funded_at time.Time
+	err := row.Scan(&first_funded_at)
+	return first_funded_at, err
+}
+
 const getFundTransfer = `-- name: GetFundTransfer :one
 SELECT id, user_id, cabal_id, amount_micros::text AS amount_micros, status,
   COALESCE(share_units, 0)::text AS share_units, COALESCE(fail_code, '')::text AS fail_code

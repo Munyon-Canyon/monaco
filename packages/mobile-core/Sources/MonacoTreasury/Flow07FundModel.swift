@@ -21,6 +21,8 @@ public enum FundFailure: Equatable, Sendable {
             self = .toast(Self.notMember)
         case .invalidInput:
             self = .toast(Self.invalidAmount)
+        case .cabalBanned:
+            self = .toast(serverMessage)
         case .potValueZero:
             self = .toast(serverMessage)
         case .privyUnavailable:
