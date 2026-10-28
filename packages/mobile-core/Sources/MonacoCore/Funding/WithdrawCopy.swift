@@ -56,8 +56,15 @@ public enum WithdrawCopy {
     }
 
     public static func settledLine(network: WithdrawNetwork, arrivalSeconds: Int) -> String {
-        let wait = arrivalSeconds > 90 ? "about \((arrivalSeconds + 30) / 60) minutes" : "about a minute"
-        return "Sent just now · arrives on \(network.name) in \(wait)"
+        "Sent just now · arrives on \(network.name) in \(wait(arrivalSeconds))"
+    }
+
+    public static func arrivalNote(network: WithdrawNetwork, arrivalSeconds: Int) -> String {
+        "Arrives on \(network.name) in \(wait(arrivalSeconds))."
+    }
+
+    private static func wait(_ arrivalSeconds: Int) -> String {
+        arrivalSeconds > 90 ? "about \((arrivalSeconds + 30) / 60) minutes" : "about a minute"
     }
 
     public static func settledCheck(amountMicros: Int64, address: String) -> String {

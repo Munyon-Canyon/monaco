@@ -80,7 +80,11 @@ struct SessionGateView: View {
                 toasts.current = MonacoToast(message: line)
             }
         case .withdraw(let progress):
-            toasts.current = WithdrawView.toast(for: progress, fullBalanceLabel: notice.ticket.fullBalanceLabel)
+            toasts.current = WithdrawCopy.toast(for: progress, fullBalanceLabel: notice.ticket.fullBalanceLabel).map {
+                MonacoToast(
+                    message: $0.message, isSuccess: $0.isSuccess,
+                    link: $0.link.map { MonacoToastLink(title: $0.title, url: $0.url) })
+            }
         }
     }
 

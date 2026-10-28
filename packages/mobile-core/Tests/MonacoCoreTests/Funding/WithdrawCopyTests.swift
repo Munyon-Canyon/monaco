@@ -53,6 +53,13 @@ final class WithdrawCopyTests: XCTestCase {
             "Sent just now · arrives on Ethereum in about 5 minutes")
     }
 
+    func testTheArrivalNoteSaysAMinuteOrMinutes() {
+        XCTAssertEqual(
+            WithdrawCopy.arrivalNote(network: .solana, arrivalSeconds: 60), "Arrives on Solana in about a minute.")
+        XCTAssertEqual(
+            WithdrawCopy.arrivalNote(network: .base, arrivalSeconds: 120), "Arrives on Base in about 2 minutes.")
+    }
+
     func testTheSettledCheckTruncatesTheAddress() {
         XCTAssertEqual(
             WithdrawCopy.settledCheck(

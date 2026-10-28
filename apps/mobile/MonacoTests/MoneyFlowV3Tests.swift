@@ -36,13 +36,6 @@ struct MoneyFlowV3CopyTests {
                 == "Cash $500.00 · $50.00 pending")
     }
 
-    @Test func withdrawOutcomeSaysPendingUntilConfirmed() {
-        #expect(WithdrawConfirmView.title(.pending) == "Withdrawal processing")
-        #expect(WithdrawConfirmView.title(.completed) == "Withdrawal completed")
-        #expect(WithdrawConfirmView.statusWord(.pending) == "Pending")
-        #expect(WithdrawConfirmView.message(.failed) == WithdrawProgress.didNotGoThrough)
-    }
-
     @Test func networkChooserNamesSolanaDirect() {
         let solana = DepositNetwork(id: DepositNetwork.solanaID, address: "a")
         #expect(DepositNetworksView.subtitle(for: solana) == "Direct USDC deposit")

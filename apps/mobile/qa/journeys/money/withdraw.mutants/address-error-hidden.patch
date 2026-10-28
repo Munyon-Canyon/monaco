@@ -4,16 +4,15 @@ expect-fail: S1
 A bad address shows no inline error. S1.2 waits for withdraw-address-problem, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Settings/WithdrawView.swift b/apps/mobile/Monaco/Features/Settings/WithdrawView.swift
-index 0c15ec40f..5cba45c76 100644
---- a/apps/mobile/Monaco/Features/Settings/WithdrawView.swift
-+++ b/apps/mobile/Monaco/Features/Settings/WithdrawView.swift
-@@ -208,7 +208,7 @@ struct WithdrawForm: Equatable {
- 
-     /// Nothing while the field is empty; otherwise why the pasted address can't be used.
-     var addressProblem: String? {
--        guard case .failure(let problem) = addressValidation, !problem.isEmpty else { return nil }
-+        guard case .failure(let problem) = addressValidation, problem.isEmpty else { return nil }
-         return network.message(for: problem)
-     }
- 
+diff --git a/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift b/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
+--- a/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
++++ b/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
+@@ -174,7 +174,7 @@ struct WithdrawKeypadView: View {
+                 text: Binding(get: { model.address }, set: { model.setAddress($0) }),
+                 placeholder: model.network.placeholder, isInvalid: model.addressProblem != nil,
+                 focusRequests: focusRequests, onScan: nil)
+-            if let problem = model.addressProblem {
++            if let problem = model.addressProblem, problem.isEmpty {
+                 Text(problem)
+                     .font(MonacoTheme.Typo.caption)
+                     .foregroundStyle(MonacoTheme.loss)
