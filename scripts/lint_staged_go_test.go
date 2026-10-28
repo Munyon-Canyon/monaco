@@ -140,3 +140,67 @@ func TestLintStagedGo_blocksACommentInAStagedFile(t *testing.T) {
 		t.Fatalf("expected a file:line comment finding, out=%s", out)
 	}
 }
+
+func stagedBlob(t *testing.T, dir, rel string) string {
+	t.Helper()
+	cmd := exec.Command("git", "show", ":apps/backend/"+rel)
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(out)
+}
+
+func TestLintStagedGo_formatsAStagedFileAndRestagesIt(t *testing.T) {
+	t.Parallel()
+	dir := backendRepoWithHook(t)
+	rel := "internal/modules/foo/foo.go"
+	out, err := stageAndLint(t, dir, rel, "package foo\n\nfunc  Two() int { return 2 }\n")
+	if err != nil {
+		t.Fatalf("expected a format-only violation to pass, err=%v out=%s", err, out)
+	}
+	if !strings.Contains(out, "pre-commit: formatted apps/backend/"+rel) {
+		t.Fatalf("expected a formatted line, out=%s", out)
+	}
+	if got, want := stagedBlob(t, dir, rel), "package foo\n\nfunc Two() int { return 2 }\n"; got != want {
+		t.Fatalf("staged blob not formatted: %q", got)
+	}
+}
+
+func TestLintStagedGo_stillBlocksARealFinding(t *testing.T) {
+	t.Parallel()
+	dir := backendRepoWithHook(t)
+	out, err := stageAndLint(t, dir, "internal/modules/foo/foo.go",
+		"package foo\n\nfunc Two() int {\n\tunused := 1\n\treturn 2\n}\n")
+	if err == nil {
+		t.Fatalf("expected the hook to block, out=%s", out)
+	}
+}
+
+func TestLintStagedGo_refusesAFileWithStagedAndUnstagedHunks(t *testing.T) {
+	t.Parallel()
+	dir := backendRepoWithHook(t)
+	rel := "internal/modules/foo/foo.go"
+	if out, err := stageAndLint(t, dir, rel, "package foo\n\nfunc Two() int { return 2 }\n"); err != nil {
+		t.Fatalf("setup: %v %s", err, out)
+	}
+	git(t, dir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "foo")
+	path := filepath.Join(dir, "apps/backend", rel)
+	if err := os.WriteFile(path, []byte("package foo\n\nfunc  Two() int { return 2 }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git(t, dir, "add", ".")
+	if err := os.WriteFile(path, []byte("package foo\n\nfunc  Two() int { return 3 }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("bash", "scripts/githooks/lint-staged-go.sh")
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("expected the hook to refuse, out=%s", out)
+	}
+	if !strings.Contains(string(out), "has unstaged changes, formatted but not re-staged; stage it and commit again") {
+		t.Fatalf("expected the unstaged message, out=%s", out)
+	}
+}
