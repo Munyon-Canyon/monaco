@@ -20,3 +20,4 @@ Dated record of changes to [price-history.md](../price-history.md). Add one line
 - 2026-10-20: The history cache keeps a 1D series for 15 minutes instead of 5, so a stock opened from the feed is less often a cold 2 s CoinGecko call (#5775).
 - 2026-10-20: Every CoinGecko request is counted per UTC month in `coingecko_usage`; at 80% of `COINGECKO_MONTHLY_BUDGET` the volume poll and the cold reconcile slice stop, and at 95% every call stops and charts serve cached and stored data (#5777).
 - 2026-10-21: Every CoinGecko attempt, retries included, now waits for the limiter and reserves one credit in one atomic upsert that stops at the hard cap; a count that cannot be read or written fails closed instead of open (#5841).
+- 2026-10-28: Pre-IPO companies get a curated profile (secondary estimate, valuation, minimum order, sell window, rounds) in `pre_ipo_profiles` and `pre_ipo_rounds`, served as `estimate` on the asset list and `pre_ipo` on the asset detail (#6456).

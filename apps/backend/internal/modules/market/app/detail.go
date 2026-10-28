@@ -54,6 +54,13 @@ func (d *Detail) Handle(ctx context.Context, symbol string) (AssetView, error) {
 	if err != nil {
 		return AssetView{}, err
 	}
+	if profile := sums[0].Profile; profile != nil {
+		rounds, roundsErr := loadRounds(ctx, d.list.profiles, profile.CompanyKey)
+		if roundsErr != nil {
+			return AssetView{}, roundsErr
+		}
+		profile.Rounds = rounds
+	}
 	others, err := d.others(ctx, asset)
 	if err != nil {
 		return AssetView{}, err

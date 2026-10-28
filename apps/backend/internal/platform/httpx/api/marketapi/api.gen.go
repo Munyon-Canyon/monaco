@@ -220,6 +220,24 @@ func (e MarketState) Valid() bool {
 	}
 }
 
+// Defines values for PreIpoSellWindow.
+const (
+	AnyTime         PreIpoSellWindow = "any_time"
+	TenderQuarterly PreIpoSellWindow = "tender_quarterly"
+)
+
+// Valid indicates whether the value is a known member of the PreIpoSellWindow enum.
+func (e PreIpoSellWindow) Valid() bool {
+	switch e {
+	case AnyTime:
+		return true
+	case TenderQuarterly:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetAssetsParamsFilter.
 const (
 	GetAssetsParamsFilterAll      GetAssetsParamsFilter = "all"
@@ -469,6 +487,11 @@ type AssetDetail struct {
 	// Examples: [{"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLy.png","symbol":"AAPLy","tradable":false}]
 	OtherListings []AssetListing `json:"other_listings"`
 
+	// PreIpo The curated profile of a `pre_ipo` company: its secondary estimate, rounds and round stats. Null for equities and for a Pre-IPO asset without a profile; the field is then absent.
+	//
+	// Examples: null
+	PreIpo *PreIpoProfile `json:"pre_ipo,omitempty"`
+
 	// PriceAsOf When `price_micros` was sampled. Null when the asset is unpriced.
 	//
 	// Examples: 2026-03-04T14:30:00Z
@@ -509,7 +532,7 @@ type AssetDetail struct {
 	// Examples: AAPLx
 	Symbol string `json:"symbol"`
 
-	// Tradable True when this asset can be bought.
+	// Tradable True when this asset can be bought. For a `pre_ipo` asset, `true` is "Eligible" (a cabal can vote to buy it) and `false` is "Research only".
 	//
 	// Examples: true
 	Tradable bool `json:"tradable"`
@@ -528,6 +551,51 @@ type AssetDetail struct {
 	//
 	// Examples: 2500000000000
 	Volume24hMicros *int64 `json:"volume_24h_micros"`
+}
+
+// PreIpoProfile The curated profile of a `pre_ipo` company: its secondary estimate, rounds and round stats. Null for equities and for a Pre-IPO asset without a profile; the field is then absent.
+//
+// Examples: null
+type PreIpoProfile struct {
+	// Estimate The secondary estimate of a Pre-IPO company, per share.
+	//
+	// Examples: {"as_of":"2026-10-20","price_micros":185000000}
+	Estimate PreIpoEstimate `json:"estimate"`
+
+	// ImageUrl A licensed company image, or null.
+	//
+	// Examples: null
+	ImageUrl *string `json:"image_url"`
+
+	// LastRound The newest round, or null when the company has none on record.
+	//
+	// Examples: null
+	LastRound *PreIpoRound `json:"last_round"`
+
+	// MinOrderMicros The smallest order in USD micros.
+	//
+	// Examples: 10000000
+	MinOrderMicros int64 `json:"min_order_micros"`
+
+	// NextTenderOn The next tender day. Null when the company has none scheduled or sells any time.
+	//
+	// Examples: null
+	NextTenderOn *openapi_types.Date `json:"next_tender_on"`
+
+	// Rounds The funding rounds, oldest first.
+	//
+	// Examples: []
+	Rounds []PreIpoRound `json:"rounds"`
+
+	// SellWindow `any_time` sells at any time; `tender_quarterly` sells in a quarterly tender.
+	//
+	// Examples: any_time
+	SellWindow PreIpoSellWindow `json:"sell_window"`
+
+	// ValuationMicros The company valuation in USD micros, as a decimal string.
+	//
+	// Examples: 350000000000000000
+	ValuationMicros string `json:"valuation_micros"`
 }
 
 // AssetDetailPriceSource The provider of the sample behind `price_micros` and `price_as_of`. Null when unpriced.
@@ -614,6 +682,11 @@ type AssetSummary struct {
 	// Examples: Apple
 	DisplayName string `json:"display_name"`
 
+	// Estimate The secondary estimate of a `pre_ipo` company, per share. Null for equities and for a Pre-IPO asset without a profile; the field is then absent. A Pre-IPO screen shows it instead of `price_micros`.
+	//
+	// Examples: {"as_of":"2026-10-20","price_micros":185000000}
+	Estimate *PreIpoEstimate `json:"estimate,omitempty"`
+
 	// Issuer The firm that issues the token.
 	//
 	// Examples: xstocks
@@ -659,7 +732,7 @@ type AssetSummary struct {
 	// Examples: AAPLx
 	Symbol string `json:"symbol"`
 
-	// Tradable True when this asset can be bought.
+	// Tradable True when this asset can be bought. For a `pre_ipo` asset, `true` is "Eligible" (a cabal can vote to buy it) and `false` is "Research only".
 	//
 	// Examples: true
 	Tradable *bool `json:"tradable,omitempty"`
@@ -749,6 +822,41 @@ type MarketSessionNextState string
 //
 // Examples: open
 type MarketState string
+
+// PreIpoEstimate The secondary estimate of a Pre-IPO company, per share.
+//
+// Examples: {"as_of":"2026-10-20","price_micros":185000000}
+type PreIpoEstimate struct {
+	// AsOf The day the estimate was set.
+	//
+	// Examples: 2026-10-20
+	AsOf openapi_types.Date `json:"as_of"`
+
+	// PriceMicros The estimate per share in USD micros.
+	//
+	// Examples: 185000000
+	PriceMicros int64 `json:"price_micros"`
+}
+
+// PreIpoRound One funding round of a Pre-IPO company.
+//
+// Examples: {"on":"2026-06-01","price_micros":165000000}
+type PreIpoRound struct {
+	// On The day the round priced.
+	//
+	// Examples: 2026-06-01
+	On openapi_types.Date `json:"on"`
+
+	// PriceMicros The round price per share in USD micros.
+	//
+	// Examples: 165000000
+	PriceMicros int64 `json:"price_micros"`
+}
+
+// PreIpoSellWindow `any_time` sells at any time; `tender_quarterly` sells in a quarterly tender.
+//
+// Examples: any_time
+type PreIpoSellWindow string
 
 // UiMultiplier The whole tokens in one display unit, as an exact fraction.
 //

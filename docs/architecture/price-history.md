@@ -128,6 +128,14 @@ Range `ALL` is capped at whatever the table holds. On the Demo key that is 365 d
 
 A cabal's P&L curve reads `cabal_value_snapshots`, written every 2 minutes by the `ranking` valuation job, not this table times holdings (default 2026-09-27; [leaderboards.md](leaderboards.md)). `nav_snapshots` is superseded.
 
+### Pre-IPO profiles
+
+A Pre-IPO company is private and priced per round, so the token's live price and intraday move are not what a Pre-IPO screen shows. `pre_ipo_profiles` holds one curated row per `company_key`: the secondary estimate per share and its day (`estimate_micros`, `estimate_on`), the valuation, the minimum order, the sell window (`any_time` or `tender_quarterly`), the next tender day, and an optional licensed `image_url`. `pre_ipo_rounds` holds that company's funding rounds, one price per day. Both tables are filled by a migration, and every seeded row cites its source in a SQL comment. A new estimate or round is a new migration PR; there is no admin screen.
+
+`GET /v1/assets` adds `estimate {price_micros, as_of}` to a `pre_ipo` row that has a profile, from one profile query per page whatever its size. `GET /v1/assets/{symbol}` adds `pre_ipo` with the estimate, the valuation, the rounds oldest first, `last_round` (the newest round, null when none is on record), the minimum order, the sell window, the next tender day and the image. Both are absent for an equity and for a Pre-IPO asset without a profile. A Pre-IPO screen draws the estimate and the rounds, never `change_bps` or the sparkline. `tradable` is the Pre-IPO eligibility: `true` is "Eligible" (a cabal can vote to buy it) and `false` is "Research only", and a research-only company still carries its estimate and profile.
+
+The Tessera and PreStocks catalogs publish only a token mark price and a valuation, no funding rounds or tender dates. The seed therefore takes the estimate from the issuer's `markPrice` and the valuation from its `markValuation` as captured on 2026-10-28, uses PreStocks where both issuers list a company, and leaves `pre_ipo_rounds` empty.
+
 ### Retention
 
 An hourly `market.retention` poller, under the same advisory-lock rule, thins and deletes old rows in three batched passes (decided 2026-10-17, #5500):

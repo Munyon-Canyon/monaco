@@ -34,3 +34,9 @@ type Asset struct {
 	UiMultiplierNextAt  pgtype.Timestamptz
 	LastQuotedAt        pgtype.Timestamptz
 }
+
+type PreIpoRound struct {
+	CompanyKey  string
+	RoundOn     pgtype.Date
+	PriceMicros int64
+}
