@@ -17,9 +17,10 @@ func (Test) Recipients(_ context.Context, e events.NotifyTestRequested) ([]ids.U
 
 func (Test) Render(_ context.Context, _ events.NotifyTestRequested, to ids.UserID) (Message, error) {
 	return Message{
-		Title:      "Monaco test",
-		Body:       "Push is working.",
-		Data:       map[string]string{"kind": "test", "user_id": to.String()},
-		CollapseID: "test-" + to.String(),
+		Title:        "Monaco test",
+		Body:         "Push is working.",
+		Data:         map[string]string{"kind": "test", "user_id": to.String()},
+		CollapseID:   "test-" + to.String(),
+		Presentation: ForAccount(),
 	}, nil
 }

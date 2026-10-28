@@ -55,9 +55,10 @@ func (k Nudge) Recipients(ctx context.Context, e events.UserNudgeDue) ([]ids.Use
 func (k Nudge) Render(_ context.Context, e events.UserNudgeDue, to ids.UserID) (Message, error) {
 	kind, _ := nudgeKindOf(e.Kind)
 	return Message{
-		Title:      kind.title,
-		Body:       kind.body,
-		Data:       map[string]string{"kind": k.Name(), "user_id": to.String()},
-		CollapseID: "nudge-" + to.String(),
+		Title:        kind.title,
+		Body:         kind.body,
+		Data:         map[string]string{"kind": k.Name(), "user_id": to.String()},
+		CollapseID:   "nudge-" + to.String(),
+		Presentation: ForAccount(),
 	}, nil
 }

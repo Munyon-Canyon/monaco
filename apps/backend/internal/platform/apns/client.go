@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -34,6 +35,8 @@ const (
 	maxCollapseID  = 64
 	breakerOpenFor = 30 * time.Second
 	tripAfter      = 5
+
+	reasonBadInterruptionLevel = "BadInterruptionLevel"
 )
 
 type Option func(*Client)
@@ -195,6 +198,9 @@ func (c *Client) Send(ctx context.Context, p Push) (Result, error) {
 	if !isCollapseID(p.CollapseID) {
 		return Result{Status: http.StatusBadRequest, Reason: apns2.ReasonBadCollapseID}, nil
 	}
+	if !isInterruptionLevel(p.InterruptionLevel) {
+		return Result{Status: http.StatusBadRequest, Reason: reasonBadInterruptionLevel}, nil
+	}
 	n, err := c.notification(p)
 	if err != nil {
 		return Result{}, err
@@ -224,6 +230,21 @@ func (c *Client) notification(p Push) (*apns2.Notification, error) {
 		return nil, errs.New(errs.CodeInvalidInput, opSend, slog.String("reason", "data may not set the aps key"))
 	}
 	body := payload.NewPayload().AlertTitle(p.Title).AlertBody(p.Body)
+	if p.ThreadID != "" {
+		body.ThreadID(p.ThreadID)
+	}
+	if p.Category != "" {
+		body.Category(p.Category)
+	}
+	if p.MutableContent {
+		body.MutableContent()
+	}
+	if p.InterruptionLevel != "" {
+		body.InterruptionLevel(payload.EInterruptionLevel(p.InterruptionLevel))
+	}
+	if p.Sound != "" {
+		body.Sound(p.Sound)
+	}
 	for k, v := range p.Data {
 		body.Custom(k, v)
 	}
@@ -276,6 +297,13 @@ func isDeviceToken(s string) bool {
 
 func isCollapseID(s string) bool {
 	return len(s) <= maxCollapseID && strings.IndexFunc(s, unicode.IsControl) < 0
+}
+
+func isInterruptionLevel(s string) bool {
+	return slices.Contains([]string{
+		"", string(payload.InterruptionLevelPassive), string(payload.InterruptionLevelActive),
+		string(payload.InterruptionLevelTimeSensitive),
+	}, s)
 }
 
 func withoutURL(err error) error {

@@ -1,0 +1,23 @@
+{
+  "Simulator Target Bundle": "xyz.monacolabs.app",
+  "aps": {
+    "alert": {
+      "title": "New proposal in AC Capital",
+      "body": "Mia wants to buy $400.00 of NVIDIA. Vote now."
+    },
+    "thread-id": "cabal-01920000-0000-7000-8000-000000000c01",
+    "mutable-content": 1,
+    "interruption-level": "active",
+    "sound": "default"
+  },
+  "kind": "proposal_created",
+  "cabal_id": "01920000-0000-7000-8000-000000000c01",
+  "proposal_id": "01920000-0000-7000-8000-000000000a01",
+  "sender_kind": "person",
+  "sender_id": "01920000-0000-7000-8000-000000000b01",
+  "sender_name": "Mia",
+  "sender_image_url": "https://example.com/storage/v1/object/public/avatars/mia.png",
+  "group_id": "01920000-0000-7000-8000-000000000c01",
+  "group_name": "AC Capital",
+  "group_image_url": "https://example.com/storage/v1/object/public/avatars/ac-capital.png"
+}

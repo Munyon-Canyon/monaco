@@ -34,11 +34,14 @@ func (k NewFollower) Render(ctx context.Context, e events.FollowCreated, _ ids.U
 	if err != nil {
 		return Message{}, err
 	}
+	card := cards[follower]
+	card.ID = follower
 	return Message{
-		Title:      "New follower",
-		Body:       followerLabel(cards[follower]) + " followed you",
-		Data:       map[string]string{"kind": k.Name(), "user_id": follower.String()},
-		CollapseID: "follow-" + follower.String(),
+		Title:        "New follower",
+		Body:         followerLabel(card) + " followed you",
+		Data:         map[string]string{"kind": k.Name(), "user_id": follower.String()},
+		CollapseID:   "follow-" + follower.String(),
+		Presentation: ForPerson(card),
 	}, nil
 }
 

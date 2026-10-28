@@ -59,11 +59,11 @@ func TestNotify_CabalAccessRequested_PushesTheCreator(t *testing.T) {
 	err := handleKinds(t, r, r.sender, d, e, app.CabalAccessRequested{Cabals: w.cabals, Users: r.users})
 
 	wantVerdict(t, err, "", errs.VerdictAck)
-	want := apns.Push{
+	want := inCabal(apns.Push{
 		UserID: w.creator, Token: token('a'), Environment: apns.Sandbox, CollapseID: "access-" + e.RequestID.String(),
 		Title: "New request to join", Body: "Bea wants to join " + cabalName,
 		Data: map[string]string{"kind": "cabal_access_requested", "cabal_id": w.cabalID.String()},
-	}
+	}, w.cabalID, wantSender{"person", w.requester.String(), "Bea"})
 	if sent := r.sender.Sent(); !reflect.DeepEqual(sent, []apns.Push{want}) {
 		t.Fatalf("sent %+v, want only %+v", sent, want)
 	}
@@ -130,11 +130,11 @@ func TestNotify_CabalAccessApproved_PushesTheRequester(t *testing.T) {
 	err := handleKinds(t, r, r.sender, d, e, app.CabalAccessApproved{Cabals: w.cabals})
 
 	wantVerdict(t, err, "", errs.VerdictAck)
-	want := apns.Push{
+	want := inCabal(apns.Push{
 		UserID: w.requester, Token: token('b'), Environment: apns.Sandbox, CollapseID: "access-" + e.RequestID.String(),
 		Title: "You're in " + cabalName, Body: "Your request was approved. Say hi.",
 		Data: map[string]string{"kind": "cabal_access_approved", "cabal_id": w.cabalID.String()},
-	}
+	}, w.cabalID, cabalSender(w.cabalID))
 	if sent := r.sender.Sent(); !reflect.DeepEqual(sent, []apns.Push{want}) {
 		t.Fatalf("sent %+v, want only %+v", sent, want)
 	}

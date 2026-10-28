@@ -37,15 +37,16 @@ func (k CabalAccessRequested) Render(
 	if err != nil {
 		return Message{}, err
 	}
-	requester, err := proposerName(ctx, k.Users, ids.UserIDFrom(e.UserID))
+	requester, err := personSender(ctx, k.Users, ids.UserIDFrom(e.UserID))
 	if err != nil {
 		return Message{}, err
 	}
 	return Message{
-		Title:      "New request to join",
-		Body:       requester + " wants to join " + view.Name,
-		Data:       map[string]string{"kind": k.Name(), "cabal_id": e.CabalID.String()},
-		CollapseID: "access-" + e.RequestID.String(),
+		Title:        "New request to join",
+		Body:         requester.Name + " wants to join " + view.Name,
+		Data:         map[string]string{"kind": k.Name(), "cabal_id": e.CabalID.String()},
+		CollapseID:   "access-" + e.RequestID.String(),
+		Presentation: ForCabal(view, requester),
 	}, nil
 }
 
@@ -66,9 +67,10 @@ func (k CabalAccessApproved) Render(ctx context.Context, e events.CabalAccessDec
 		return Message{}, err
 	}
 	return Message{
-		Title:      "You're in " + view.Name,
-		Body:       "Your request was approved. Say hi.",
-		Data:       map[string]string{"kind": k.Name(), "cabal_id": e.CabalID.String()},
-		CollapseID: "access-" + e.RequestID.String(),
+		Title:        "You're in " + view.Name,
+		Body:         "Your request was approved. Say hi.",
+		Data:         map[string]string{"kind": k.Name(), "cabal_id": e.CabalID.String()},
+		CollapseID:   "access-" + e.RequestID.String(),
+		Presentation: ForCabal(view, CabalSender(view)),
 	}, nil
 }

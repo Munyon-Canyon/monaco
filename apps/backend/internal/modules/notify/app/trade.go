@@ -40,7 +40,7 @@ func (k TradeFilled) Render(ctx context.Context, e events.TradeConfirmed, _ ids.
 		return Message{}, err
 	}
 	body := fmt.Sprintf("Your cabal %s %s of %s", words.past, usd(e.USDCMicros), words.asset)
-	return tradeMessage(k.Name(), e.SwapID, e.CabalID, "Trade filled", body), nil
+	return tradeMessage(ctx, k.Cabals, k.Name(), e.SwapID, e.CabalID, "Trade filled", body)
 }
 
 type TradeFailed struct {
@@ -62,10 +62,10 @@ func (k TradeFailed) Render(ctx context.Context, e events.TradeFailed, _ ids.Use
 	if e.FailureCode == string(errs.CodePriceMoved) {
 		body := fmt.Sprintf("The price of %s moved since the vote. Open the proposal to buy at the current price.",
 			words.asset)
-		return tradeMessage(k.Name(), e.SwapID, e.CabalID, "Price moved", body), nil
+		return tradeMessage(ctx, k.Cabals, k.Name(), e.SwapID, e.CabalID, "Price moved", body)
 	}
 	body := fmt.Sprintf("Your cabal's %s of %s failed. No money moved.", words.noun, words.asset)
-	return tradeMessage(k.Name(), e.SwapID, e.CabalID, "Trade didn't go through", body), nil
+	return tradeMessage(ctx, k.Cabals, k.Name(), e.SwapID, e.CabalID, "Trade didn't go through", body)
 }
 
 type TradeBlocked struct {
@@ -90,7 +90,11 @@ func (k TradeBlocked) Render(ctx context.Context, e events.TradeBlocked, _ ids.U
 	}
 	body := fmt.Sprintf("Your cabal's %s of %s didn't go through: %s The %s still in the pot.",
 		words.noun, words.asset, errs.Message(e.Code), kept)
-	return proposalMessage(k.Name(), e.CabalID, e.Source.ID, "Trade didn't go through", body), nil
+	pres, err := cabalPresentation(ctx, k.Cabals, e.CabalID)
+	if err != nil {
+		return Message{}, err
+	}
+	return proposalMessage(k.Name(), e.CabalID, e.Source.ID, "Trade didn't go through", body, pres), nil
 }
 
 func tradeRecipients(
@@ -126,11 +130,18 @@ func wordsFor(ctx context.Context, assets Assets, action, symbol string) (tradeW
 	return words, nil
 }
 
-func tradeMessage(kind string, swapID, cabalID uuid.UUID, title, body string) Message {
-	return Message{
-		Title:      title,
-		Body:       body,
-		Data:       map[string]string{"kind": kind, "cabal_id": cabalID.String(), "txn_id": swapID.String()},
-		CollapseID: "trade-" + swapID.String(),
+func tradeMessage(
+	ctx context.Context, cabals Cabals, kind string, swapID, cabalID uuid.UUID, title, body string,
+) (Message, error) {
+	pres, err := cabalPresentation(ctx, cabals, cabalID)
+	if err != nil {
+		return Message{}, err
 	}
+	return Message{
+		Title:        title,
+		Body:         body,
+		Data:         map[string]string{"kind": kind, "cabal_id": cabalID.String(), "txn_id": swapID.String()},
+		CollapseID:   "trade-" + swapID.String(),
+		Presentation: pres,
+	}, nil
 }

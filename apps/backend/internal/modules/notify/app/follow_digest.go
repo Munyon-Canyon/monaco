@@ -83,7 +83,7 @@ func (p *FollowDigest) digest(
 ) (int, error) {
 	key := fmt.Sprintf("%s:%s:%s", p.Name(), followee, since.Format(time.DateOnly))
 	source := ids.EventIDFrom(uuid.NewSHA1(uuid.NameSpaceOID, []byte(key)))
-	note := Notification{Kind: followDigestKind, UserID: followee, Message: followDigestMessage(followers)}
+	note := Notification{Kind: followDigestKind, UserID: followee, Message: followDigestMessage(followee, followers)}
 	written, err := p.pusher.write(ctx, bus.Delivery{Handler: p.Name(), EventID: source, At: now}, []Notification{note})
 	if err != nil {
 		return 0, err
@@ -91,15 +91,16 @@ func (p *FollowDigest) digest(
 	return written, p.pusher.send(ctx, source)
 }
 
-func followDigestMessage(followers int64) Message {
+func followDigestMessage(followee ids.UserID, followers int64) Message {
 	body := "1 more person followed you"
 	if followers > 1 {
 		body = fmt.Sprintf("%d more people followed you", followers)
 	}
 	return Message{
-		Title:      "New followers",
-		Body:       body,
-		Data:       map[string]string{"kind": followDigestKind},
-		CollapseID: "follow-digest",
+		Title:        "New followers",
+		Body:         body,
+		Data:         map[string]string{"kind": followDigestKind},
+		CollapseID:   "follow-digest",
+		Presentation: forUserThread(followee),
 	}
 }

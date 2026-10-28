@@ -258,7 +258,8 @@ func TestPush_deliversTheTestPushAppendsNotificationSentAndLogsWithoutTheToken(t
 	want := apns.Push{
 		UserID: user, Token: token('a'), Environment: apns.Sandbox, CollapseID: "test-" + user.String(),
 		Title: "Monaco test", Body: "Push is working.",
-		Data: map[string]string{"kind": "test", "user_id": user.String()},
+		Data: map[string]string{"kind": "test", "user_id": user.String()}, ThreadID: "account",
+		InterruptionLevel: "active", Sound: "default",
 	}
 	if sent := r.sender.Sent(); !reflect.DeepEqual(sent, []apns.Push{want}) {
 		t.Fatalf("sent %+v, want only %+v", sent, want)
@@ -748,6 +749,7 @@ func TestNotifyCopy(t *testing.T) {
 		{View: cabal.View{ID: ids.CabalIDFrom(asked.CabalID), Name: cabalName}},
 		{View: cabal.View{ID: ids.CabalIDFrom(decided.CabalID), Name: cabalName}},
 	}
+	seeds = withRenderedCabals(t, seeds)
 	cabals := fakes.NewCabal(seeds, nil)
 	proposer := identity.UserCard{ID: ids.UserIDFrom(created.ProposerID), DisplayName: memberNames()[0]}
 	followed := goldenEvent(t, events.TypeFollowCreated).(events.FollowCreated)
@@ -804,4 +806,50 @@ func TestNotifyCopy_catchesEveryPlantedFault(t *testing.T) {
 			t.Errorf("%s: copy check found %q in %+v, want a fault %v", name, faults, tc.msg, tc.fails)
 		}
 	}
+}
+
+type wantSender struct{ kind, id, name string }
+
+func inCabal(p apns.Push, cabalID ids.CabalID, sender wantSender) apns.Push {
+	data := map[string]string{
+		"sender_kind": sender.kind, "sender_id": sender.id, "sender_name": sender.name,
+		"group_id": cabalID.String(), "group_name": cabalName,
+	}
+	maps.Copy(data, p.Data)
+	p.Data = data
+	p.ThreadID, p.InterruptionLevel, p.Sound, p.MutableContent = "cabal-"+cabalID.String(), "active", "default", true
+	return p
+}
+
+func cabalSender(cabalID ids.CabalID) wantSender {
+	return wantSender{"cabal", cabalID.String(), cabalName}
+}
+
+func withRenderedCabals(t *testing.T, seeds []fakes.CabalSeed) []fakes.CabalSeed {
+	t.Helper()
+	seen := map[ids.CabalID]bool{}
+	for _, s := range seeds {
+		seen[s.View.ID] = true
+	}
+	for _, c := range []struct {
+		dir string
+		typ events.Type
+	}{
+		{"", events.TypeProposalPassed},
+		{"buy", events.TypeProposalPassed},
+		{"", events.TypeTradeConfirmed},
+		{"", events.TypeTradeFailed},
+		{"", events.TypeTradeBlocked},
+	} {
+		id := ids.CabalIDFrom(reflectCabalID(goldenEventIn(t, c.dir, c.typ)))
+		if !seen[id] {
+			seen[id] = true
+			seeds = append(seeds, fakes.CabalSeed{View: cabal.View{ID: id, Name: cabalName}})
+		}
+	}
+	return seeds
+}
+
+func reflectCabalID(e events.Event) uuid.UUID {
+	return reflect.ValueOf(e).FieldByName("CabalID").Interface().(uuid.UUID)
 }

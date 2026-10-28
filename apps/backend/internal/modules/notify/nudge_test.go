@@ -52,6 +52,7 @@ func nudgePush(user ids.UserID, title, body string) apns.Push {
 	return apns.Push{
 		UserID: user, Token: token('a'), Environment: apns.Sandbox, CollapseID: "nudge-" + user.String(),
 		Title: title, Body: body, Data: map[string]string{"kind": "nudge", "user_id": user.String()},
+		ThreadID: "account", InterruptionLevel: "active", Sound: "default",
 	}
 }
 
