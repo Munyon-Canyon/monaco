@@ -1,8 +1,8 @@
 # Owner
 
-Procedure and check fixes: [Ship a ticket](../how-to/ship-a-ticket.md).
+Procedure: [Ship a ticket](../how-to/ship-a-ticket.md).
 
-Read the [standing orders](standing-orders.md) first. The dispatch prompt has five fields: the ticket number, the worktree, the parent SHA, this brief and the standing orders. Read the GitHub issue for that ticket.
+Read the [standing orders](standing-orders.md) first. The dispatch prompt names the ticket, worktree, parent SHA, this brief and the standing orders. Read the ticket's issue.
 
 <!-- BEGIN GENERATED rules:owner-brief (docs/agents/rules.yaml) -->
 - Every PR that touches `apps/mobile/**` must pass a local `just build mobile` before it is pushed, and Proof cites it.
@@ -11,12 +11,14 @@ Read the [standing orders](standing-orders.md) first. The dispatch prompt has fi
 - Change files only in the worktree. It starts detached: begin with `git switch -c <n>-<slug>` and `gt track --parent staging`.
 <!-- END GENERATED rules:owner-brief -->
 
-For `apps/mobile`, build once with `just build mobile`. If the second build fails, stop and report it under "What came up".
+Test changed packages with go test -short ./<pkg>/... first, then run agents check once; after its third failure on one row, push the draft and hand back.
+
+For `apps/mobile`, run `just build mobile` once; report a failed rerun.
 
 ## Done
 
 1. `monacoctl agents check` passes.
 2. Run `gt submit --stack --no-interactive --draft`.
-3. For each PR, write the body to a file and run `scripts/pr-body.sh <pr> "<title>" <file>`. It checks the PR and marks it ready. If it stops on a conflict with its base, report the PR and its body file and exit.
+3. For each PR, write the body to a file and run `scripts/pr-body.sh <pr> "<title>" <file>`. It marks the PR ready. On a base conflict, report the PR and body file and exit.
 4. Run `monacoctl agents land-stack <top-pr>` once. It arms the stack for the root's `agents watch`.
-5. Exit. The owner never calls `gh pr merge`.
+5. Exit. Never call `gh pr merge`.

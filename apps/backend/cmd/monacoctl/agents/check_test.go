@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -565,6 +566,91 @@ func TestCheck_aFailingRowStopsTheRunWithAnExcerpt(t *testing.T) {
 	if code != 1 || strings.Contains(stdout, "line 4\n") || !strings.Contains(stdout, "line 5\n") ||
 		!strings.Contains(stdout, "exit status 2\n") {
 		t.Fatalf("excerpt keeps the last %d lines: %d %q", excerptLines, code, stdout)
+	}
+}
+
+func (h *checkHarness) failureNotes(t *testing.T) []failureNote {
+	t.Helper()
+	paths, err := filepath.Glob(filepath.Join(h.Env(t).Common, ".monaco", "check-failures", "*.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	notes := make([]failureNote, 0, len(paths))
+	for _, p := range paths {
+		var n failureNote
+		body, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(body, &n); err != nil {
+			t.Fatal(err)
+		}
+		notes = append(notes, n)
+	}
+	return notes
+}
+
+func TestCheck_aThirdFailureOnOneRowHandsBackWithExitThree(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.affected = "./internal/a\n"
+	h.replies = []reply{{prefix: "go vet", err: errors.New("exit status 1")}}
+	for i := 1; i <= 2; i++ {
+		code, stdout, _ := h.check(t)
+		if code != 1 || strings.Contains(stdout, "in a row") {
+			t.Fatalf("failure %d: %d %q", i, code, stdout)
+		}
+	}
+	code, stdout, _ := h.check(t)
+	want := "go vet failed 3 checks in a row: push the draft (gt submit --stack --no-interactive --draft) " +
+		"and hand back under \"What came up\"; do not run agents check again on this failure"
+	if code != 3 || !strings.HasSuffix(stdout, want+"\n") {
+		t.Fatalf("third failure: %d %q", code, stdout)
+	}
+	if notes := h.failureNotes(
+		t,
+	); len(notes) != 1 || notes[0].Row != "go vet" || notes[0].Count != 3 ||
+		notes[0].Tree == "" {
+		t.Fatalf("note: %+v", notes)
+	}
+}
+
+func TestCheck_aFailureOnADifferentRowResetsTheCount(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n", "x.sh": "echo\n"})
+	h.affected = "./internal/a\n"
+	h.replies = []reply{{prefix: "go vet", err: errors.New("exit status 1")}}
+	h.check(t)
+	h.check(t)
+	h.replies = []reply{{prefix: "bash -n", err: errors.New("exit status 2")}}
+	code, stdout, _ := h.check(t)
+	if code != 1 || strings.Contains(stdout, "in a row") {
+		t.Fatalf("other row: %d %q", code, stdout)
+	}
+	if notes := h.failureNotes(t); len(notes) != 1 || notes[0].Count != 1 || notes[0].Row == "go vet" {
+		t.Fatalf("note: %+v", notes)
+	}
+}
+
+func TestCheck_aPassDeletesTheFailureNote(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.affected = "./internal/a\n"
+	h.replies = []reply{{prefix: "go vet", err: errors.New("exit status 1")}}
+	h.check(t)
+	h.check(t)
+	if len(h.failureNotes(t)) != 1 {
+		t.Fatal("no note after failures")
+	}
+	h.replies = nil
+	if code, stdout, _ := h.check(t, "--fresh"); code != 0 {
+		t.Fatalf("pass: %d %q", code, stdout)
+	}
+	if notes := h.failureNotes(t); len(notes) != 0 {
+		t.Fatalf("note survived a pass: %+v", notes)
 	}
 }
 
