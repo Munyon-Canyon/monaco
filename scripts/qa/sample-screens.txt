@@ -163,6 +163,10 @@ activity-feed-empty           -activityFeedHarness empty
 activity-feed-loading         -activityFeedHarness loading
 activity-feed-error           -activityFeedHarness error
 activity-feed-live            -activityFeedHarness live
+reactions-row                 -reactionsHarness row
+reactions-tray-open           -reactionsHarness trayOpen
+reactions-mine               -reactionsHarness mine
+reactions-failed             -reactionsHarness failed
 
 cabals-tab                    -MonacoCabalsTabSample
 cabals-ready                  -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario ready
