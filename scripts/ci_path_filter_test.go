@@ -15,6 +15,7 @@ import (
 )
 
 func TestCIPathFilter_jobsFollowTheWorkflow(t *testing.T) {
+	t.Parallel()
 	filters := parsePathFilters(t)
 	cases := []struct {
 		name  string
@@ -55,6 +56,7 @@ func TestCIPathFilter_jobsFollowTheWorkflow(t *testing.T) {
 }
 
 func TestCIPathFilter_scriptsRunWhenAFileTheyReadChanges(t *testing.T) {
+	t.Parallel()
 	filters := parsePathFilters(t)
 	for _, p := range outsideScriptsFilter(filters, readRepoPaths(t)) {
 		t.Errorf("%s is read by a scripts test but is not in the scripts filter of ci-jobs.yml", p)
@@ -78,6 +80,7 @@ func TestCIPathFilter_scriptsRunWhenAFileTheyReadChanges(t *testing.T) {
 }
 
 func TestCIPathFilter_scriptsRunWhenAPRDeletesOrRenamesAFile(t *testing.T) {
+	t.Parallel()
 	filters := parsePathFilters(t)
 	cases := []struct {
 		name    string
@@ -96,6 +99,7 @@ func TestCIPathFilter_scriptsRunWhenAPRDeletesOrRenamesAFile(t *testing.T) {
 }
 
 func TestCIPathFilter_scriptsSkipADeletionNoScriptsTestCanCite(t *testing.T) {
+	t.Parallel()
 	filters := parsePathFilters(t)
 	cases := []struct {
 		name    string
@@ -133,6 +137,7 @@ func TestCIPathFilter_scriptsSkipADeletionNoScriptsTestCanCite(t *testing.T) {
 }
 
 func TestCIPathFilter_scriptsDeletionOutputFeedsThePlanScriptsOutput(t *testing.T) {
+	t.Parallel()
 	text := readRepo(t, repoRoot(t), ".github/workflows/ci-jobs.yml")
 	if !strings.Contains(text, "steps.every.outputs.scripts-deleted == 'true'") {
 		t.Fatal("the plan scripts output does not read steps.every.outputs.scripts-deleted")

@@ -15,6 +15,7 @@ const (
 )
 
 func TestGeneratedAPIFiles_stayOnGitsTextMerge(t *testing.T) {
+	t.Parallel()
 	root := repoRoot(t)
 	for _, path := range []string{apiBundle, apiBase, apiModule} {
 		cmd := exec.Command("git", "check-attr", "merge", "diff", "binary", "--", path)
@@ -32,6 +33,7 @@ func TestGeneratedAPIFiles_stayOnGitsTextMerge(t *testing.T) {
 }
 
 func TestRestackRegen_settlesASameModuleConflictInTheAPIFiles(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	attrs, err := os.ReadFile(filepath.Join(repoRoot(t), ".gitattributes"))
 	if err != nil {

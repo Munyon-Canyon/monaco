@@ -11,6 +11,7 @@ import (
 )
 
 func TestToolManifest_everyInvokedBinaryIsInstalled(t *testing.T) {
+	t.Parallel()
 	root := repoRoot(t)
 	dev := toolArray(t, filepath.Join(root, "scripts", "install-dev.sh"), "dev_tools")
 	ci := toolArray(t, filepath.Join(root, ".github", "actions", "backend-test-env", "action.yml"), "ci_tools")
@@ -176,6 +177,7 @@ func TestShellBins_ignoresWordsInsideStringsAndHeredocs(t *testing.T) {
 }
 
 func TestToolManifest_plantedUnknownBinaryFails(t *testing.T) {
+	t.Parallel()
 	have := map[string]bool{"go": true, "jq": true}
 	missing := absent([]string{"not-a-real-monaco-tool"}, have)
 	if len(missing) != 1 || missing[0] != "not-a-real-monaco-tool" {

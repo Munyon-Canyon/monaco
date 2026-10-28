@@ -51,6 +51,7 @@ func stageSwift(t *testing.T, dir, rel, src string) (string, error) {
 const swiftPreCommit = "pre-commit: comments or lint findings in staged Swift files. No comments in Swift. Use a better name, a type, a test, or an issue."
 
 func TestLintStagedSwift_passesACleanFileAndIgnoresTheRest(t *testing.T) {
+	t.Parallel()
 	dir := swiftLintRepo(t)
 	out, err := stageSwift(t, dir, "apps/backend/Note.swift", "let bad = BAD_FORMAT\n")
 	if err != nil {
@@ -66,6 +67,7 @@ func TestLintStagedSwift_passesACleanFileAndIgnoresTheRest(t *testing.T) {
 }
 
 func TestLintStagedSwift_blocksAFormatFinding(t *testing.T) {
+	t.Parallel()
 	dir := swiftLintRepo(t)
 	out, err := stageSwift(t, dir, "packages/mobile-core/Sources/MonacoCore/Bad.swift", "let bad = BAD_FORMAT\n")
 	if err == nil || !strings.Contains(out, swiftPreCommit) {
@@ -74,6 +76,7 @@ func TestLintStagedSwift_blocksAFormatFinding(t *testing.T) {
 }
 
 func TestLintStagedSwift_blocksASwiftlintFinding(t *testing.T) {
+	t.Parallel()
 	dir := swiftLintRepo(t)
 	out, err := stageSwift(t, dir, "apps/mobile/Monaco/Force.swift", "let bad = FORCE_UNWRAP\n")
 	if err == nil || !strings.Contains(out, swiftPreCommit) || !strings.Contains(out, "force_unwrapping") {
@@ -82,6 +85,7 @@ func TestLintStagedSwift_blocksASwiftlintFinding(t *testing.T) {
 }
 
 func TestLintStagedSwift_blocksAModifiedFile(t *testing.T) {
+	t.Parallel()
 	dir := swiftLintRepo(t)
 	const rel = "apps/mobile/Monaco/Ok.swift"
 	if out, err := stageSwift(t, dir, rel, "let value = 1\n"); err != nil {
@@ -96,6 +100,7 @@ func TestLintStagedSwift_blocksAModifiedFile(t *testing.T) {
 }
 
 func TestLintStagedSwift_emptyIndexExitsZero(t *testing.T) {
+	t.Parallel()
 	dir := swiftLintRepo(t)
 	cmd := exec.Command("bash", "scripts/githooks/lint-staged-swift.sh")
 	cmd.Dir = dir

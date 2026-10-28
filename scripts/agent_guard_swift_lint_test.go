@@ -57,6 +57,7 @@ func runSwiftGuard(t *testing.T, dir, input string) (int, string, string) {
 }
 
 func TestAgentGuardSwiftLint_claudeCodeGetsExit2WithTheOffendingLine(t *testing.T) {
+	t.Parallel()
 	dir := swiftGuardRepo(t, true)
 	want := "apps/mobile/Monaco/Bad.swift:1: AlwaysUseLowerCamelCase: rename the constant: let groups_path = BAD_FORMAT"
 
@@ -67,6 +68,7 @@ func TestAgentGuardSwiftLint_claudeCodeGetsExit2WithTheOffendingLine(t *testing.
 }
 
 func TestAgentGuardSwiftLint_cursorGetsTheOffendingLineAsAdditionalContext(t *testing.T) {
+	t.Parallel()
 	dir := swiftGuardRepo(t, true)
 	want := "apps/mobile/Monaco/Force.swift:1: force_unwrapping: Force Unwrapping Violation: let bad = FORCE_UNWRAP"
 
@@ -81,6 +83,7 @@ func TestAgentGuardSwiftLint_cursorGetsTheOffendingLineAsAdditionalContext(t *te
 }
 
 func TestAgentGuardSwiftLint_lintsPackagesMobileCore(t *testing.T) {
+	t.Parallel()
 	dir := swiftGuardRepo(t, true)
 	want := "packages/mobile-core/Sources/MonacoCore/Force.swift:1: force_unwrapping: Force Unwrapping Violation: let bad = FORCE_UNWRAP"
 
@@ -91,6 +94,7 @@ func TestAgentGuardSwiftLint_lintsPackagesMobileCore(t *testing.T) {
 }
 
 func TestAgentGuardSwiftLint_reportsASwiftlintCrash(t *testing.T) {
+	t.Parallel()
 	dir := swiftGuardRepo(t, true)
 	want := "Fatal error: sourcekitd crashed\nswiftlint-ratchet: swiftlint exited 1\n"
 
@@ -101,6 +105,7 @@ func TestAgentGuardSwiftLint_reportsASwiftlintCrash(t *testing.T) {
 }
 
 func TestAgentGuardSwiftLint_checksAnEditInALinkedWorktree(t *testing.T) {
+	t.Parallel()
 	dir := swiftGuardRepo(t, true)
 	const rel = "apps/mobile/Monaco/Lane.swift"
 	path := fileInLinkedWorktree(t, dir, rel, "let groups_path = BAD_FORMAT\n")
@@ -113,6 +118,7 @@ func TestAgentGuardSwiftLint_checksAnEditInALinkedWorktree(t *testing.T) {
 }
 
 func TestAgentGuardSwiftLint_allowsCleanNonSwiftAndOutside(t *testing.T) {
+	t.Parallel()
 	dir := swiftGuardRepo(t, true)
 	for name, path := range map[string]string{
 		"clean swift":      filepath.Join(dir, "apps/mobile/Monaco/Ok.swift"),
@@ -136,6 +142,7 @@ func TestAgentGuardSwiftLint_allowsCleanNonSwiftAndOutside(t *testing.T) {
 }
 
 func TestAgentGuardSwiftLint_reportsAnUnparsableFormatError(t *testing.T) {
+	t.Parallel()
 	dir := swiftGuardRepo(t, true)
 	want := "apps/mobile/Monaco/Syntax.swift:2:13: error: expected expression in 'let' statement"
 
@@ -146,6 +153,7 @@ func TestAgentGuardSwiftLint_reportsAnUnparsableFormatError(t *testing.T) {
 }
 
 func TestAgentGuardSwiftLint_reportsWhenSwiftlintCannotRun(t *testing.T) {
+	t.Parallel()
 	dir := swiftGuardRepo(t, false)
 	code, stdout, stderr := runSwiftGuard(t, dir, claudeInput(filepath.Join(dir, "apps/mobile/Monaco/Ok.swift")))
 	if code != 2 || stdout != "" || stderr != "swiftlint skipped: start Docker\n" {

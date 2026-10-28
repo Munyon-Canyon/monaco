@@ -7,6 +7,7 @@ import (
 )
 
 func TestJustTestBackend_exitsZeroOnCleanClone(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("just smoke test skipped in short mode")
 	}

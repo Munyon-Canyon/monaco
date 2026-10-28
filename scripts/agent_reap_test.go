@@ -45,6 +45,7 @@ func exited(cmd *exec.Cmd, within time.Duration) bool {
 }
 
 func TestAgentReap_stopsOnlyTheFinishedAgentsShellsAndDropsDeadQueueTickets(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	mine := startShell(t, "sleep 301 && echo 'done'")
 	theirs := startShell(t, "sleep 302")

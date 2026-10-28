@@ -121,6 +121,7 @@ func hostPlatform() (self, other string) {
 }
 
 func TestMobileCoreTest_coverageWellAboveTheFloorPassesWithoutEditingTheFloor(t *testing.T) {
+	t.Parallel()
 	self, other := hostPlatform()
 	floor := self + " 89.00\n" + other + " 70.00\n"
 	run := runMobileCoreTest(t, floor)
@@ -136,6 +137,7 @@ func TestMobileCoreTest_coverageWellAboveTheFloorPassesWithoutEditingTheFloor(t 
 }
 
 func TestMobileCoreTest_updateFloorRaisesOnlyThisPlatformsRow(t *testing.T) {
+	t.Parallel()
 	self, other := hostPlatform()
 	run := runMobileCoreTestWith(t, self+" 89.00\n"+other+" 70.00\n", "--update-floor")
 	if run.err != nil {
@@ -148,6 +150,7 @@ func TestMobileCoreTest_updateFloorRaisesOnlyThisPlatformsRow(t *testing.T) {
 }
 
 func TestMobileCoreTest_updateFloorRefusesToLowerIt(t *testing.T) {
+	t.Parallel()
 	self, other := hostPlatform()
 	floor := self + " 90.60\n" + other + " 70.00\n"
 	run := runMobileCoreTestWith(t, floor, "--update-floor")
@@ -160,6 +163,7 @@ func TestMobileCoreTest_updateFloorRefusesToLowerIt(t *testing.T) {
 }
 
 func TestMobileCoreTest_coverageJustAboveTheFloorLeavesTheFloorAlone(t *testing.T) {
+	t.Parallel()
 	self, other := hostPlatform()
 	floor := self + " 90.00\n" + other + " 70.00\n"
 	run := runMobileCoreTest(t, floor)
@@ -175,6 +179,7 @@ func TestMobileCoreTest_coverageJustAboveTheFloorLeavesTheFloorAlone(t *testing.
 }
 
 func TestMobileCoreTest_coverageBelowTheFloorFailsAndKeepsTheFloor(t *testing.T) {
+	t.Parallel()
 	self, other := hostPlatform()
 	floor := self + " 90.60\n" + other + " 70.00\n"
 	run := runMobileCoreTest(t, floor)
@@ -190,6 +195,7 @@ func TestMobileCoreTest_coverageBelowTheFloorFailsAndKeepsTheFloor(t *testing.T)
 }
 
 func TestMobileCoreTest_stderrWrittenMidLineLeavesTheTimingsParseable(t *testing.T) {
+	t.Parallel()
 	run := runMobileCoreTest(t, "darwin 90.50\nlinux 90.50\n")
 	if run.err != nil {
 		t.Fatalf("mobile-core-test.sh: %v\n%s", run.err, run.out)
@@ -229,6 +235,7 @@ func slowTestRun(t *testing.T, secs string, m mobileCoreLoad, gha bool) mobileCo
 }
 
 func TestMobileCoreTest_loadScalesThePerTestBudgetUpToFourTimes(t *testing.T) {
+	t.Parallel()
 	for _, load1 := range []string{"32.00", "80.00"} {
 		m := mobileCoreLoad{load1: load1, cores: "8"}
 		line := "per-test budget: 8 s (2 s x 4.0, load " + load1[:len(load1)-1] + " on 8 cores)"
@@ -243,6 +250,7 @@ func TestMobileCoreTest_loadScalesThePerTestBudgetUpToFourTimes(t *testing.T) {
 }
 
 func TestMobileCoreTest_anIdleMachineKeepsTheTwoSecondBudget(t *testing.T) {
+	t.Parallel()
 	run := slowTestRun(t, "2.500", mobileCoreIdleMachine, false)
 	if run.err == nil || !strings.Contains(run.out, "budget: A.testSlow took 2.500s, limit 2s") {
 		t.Fatalf("a 2.5 s test passed an idle machine: %v\n%s", run.err, run.out)
@@ -253,6 +261,7 @@ func TestMobileCoreTest_anIdleMachineKeepsTheTwoSecondBudget(t *testing.T) {
 }
 
 func TestMobileCoreTest_githubActionsUsesAThreeSecondBudgetAndNeverScalesIt(t *testing.T) {
+	t.Parallel()
 	loaded := mobileCoreLoad{load1: "80.00", cores: "8"}
 	if run := slowTestRun(t, "2.100", loaded, true); run.err != nil {
 		t.Fatalf("a 2.1 s test failed the CI budget: %v\n%s", run.err, run.out)
@@ -267,6 +276,7 @@ func TestMobileCoreTest_githubActionsUsesAThreeSecondBudgetAndNeverScalesIt(t *t
 }
 
 func TestMobileCoreTest_unreadableLoadFallsBackToFactorOne(t *testing.T) {
+	t.Parallel()
 	run := slowTestRun(t, "2.500", mobileCoreLoad{load1: "garbage", cores: "8"}, false)
 	if run.err == nil || !strings.Contains(run.out, "per-test budget: 2 s (2 s x 1.0, no load applied)") {
 		t.Fatalf("an unreadable load did not fall back to factor 1: %v\n%s", run.err, run.out)
@@ -274,6 +284,7 @@ func TestMobileCoreTest_unreadableLoadFallsBackToFactorOne(t *testing.T) {
 }
 
 func TestMobileCoreTest_buildsTheTestsWithTheTestFlagsFirstAndTimesBoth(t *testing.T) {
+	t.Parallel()
 	self, _ := hostPlatform()
 	run := runMobileCoreTest(t, self+" 90.50\n")
 	if run.err != nil {

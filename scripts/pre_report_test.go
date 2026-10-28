@@ -8,6 +8,7 @@ import (
 )
 
 func TestPreReport_printsLocalGatesFromTheCIFilters(t *testing.T) {
+	t.Parallel()
 	script := repoRoot(t) + "/scripts/pre-report.sh"
 	cases := []struct {
 		name  string

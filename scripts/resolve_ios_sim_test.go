@@ -94,6 +94,7 @@ func createLog(t *testing.T, state string) []string {
 }
 
 func TestResolveIOSSim_picksBootedIPhoneWhenSlimUnset(t *testing.T) {
+	t.Parallel()
 	r := runSim(t, simCheckout(t, ""), "resolve-ios-sim.sh", "simctl", t.TempDir())
 	if r.err != nil {
 		t.Fatalf("resolve-ios-sim.sh: %v\n%s", r.err, r.out)
@@ -109,6 +110,7 @@ func TestResolveIOSSim_picksBootedIPhoneWhenSlimUnset(t *testing.T) {
 // A fresh CI runner has several runtimes and nothing booted; the oldest can sit below the
 // app's deployment target, so the pick must come from the newest runtime.
 func TestResolveIOSSim_prefersNewestRuntimeWhenNothingBooted(t *testing.T) {
+	t.Parallel()
 	r := runSim(t, simCheckout(t, ""), "resolve-ios-sim.sh", "simctl-shutdown", t.TempDir())
 	if r.err != nil {
 		t.Fatalf("resolve-ios-sim.sh: %v\n%s", r.err, r.out)
@@ -119,6 +121,7 @@ func TestResolveIOSSim_prefersNewestRuntimeWhenNothingBooted(t *testing.T) {
 }
 
 func TestResolveIOSSim_usesSlimUdidWhenDeviceExists(t *testing.T) {
+	t.Parallel()
 	r := runSim(t, simCheckout(t, ""), "resolve-ios-sim.sh", "simctl", t.TempDir(),
 		"SIMSLIM_UDID=AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
 	if r.err != nil {
@@ -133,6 +136,7 @@ func TestResolveIOSSim_usesSlimUdidWhenDeviceExists(t *testing.T) {
 }
 
 func TestResolveIOSSim_noCreateWhenEmpty(t *testing.T) {
+	t.Parallel()
 	state := t.TempDir()
 	r := runSim(t, simCheckout(t, ""), "resolve-ios-sim.sh", "simctl-empty", state)
 	if r.err == nil {
@@ -147,6 +151,7 @@ func TestResolveIOSSim_noCreateWhenEmpty(t *testing.T) {
 }
 
 func TestGoldSimUdid_failsWhenUnset(t *testing.T) {
+	t.Parallel()
 	r := runSim(t, simCheckout(t, ""), "gold-sim-udid.sh", "simctl", t.TempDir())
 	if r.err == nil {
 		t.Fatalf("expected fail when SIMSLIM_UDID unset, got:\n%s", r.out)
@@ -157,6 +162,7 @@ func TestGoldSimUdid_failsWhenUnset(t *testing.T) {
 }
 
 func TestGoldSimUdid_printsWhenDeviceExists(t *testing.T) {
+	t.Parallel()
 	r := runSim(t, simCheckout(t, ""), "gold-sim-udid.sh", "simctl", t.TempDir(),
 		"SIMSLIM_UDID=AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
 	if r.err != nil {
@@ -170,6 +176,7 @@ func TestGoldSimUdid_printsWhenDeviceExists(t *testing.T) {
 // In a linked worktree, resolve-ios-sim.sh and gold-sim-udid.sh both create the lane's own
 // simulator once, from the gold device's type and runtime, and return it from then on.
 func TestResolveIOSSim_laneCreatesItsOwnSimulatorOnce(t *testing.T) {
+	t.Parallel()
 	lane := simCheckout(t, "agent-7")
 	state := t.TempDir()
 	first := runSim(t, lane, "resolve-ios-sim.sh", "simctl", state, "SIMSLIM_UDID=AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
@@ -206,6 +213,7 @@ func TestResolveIOSSim_laneCreatesItsOwnSimulatorOnce(t *testing.T) {
 
 // Without SIMSLIM_UDID the gold template is the primary checkout's newest-runtime pick.
 func TestResolveIOSSim_laneCopiesTheNewestRuntimeWithoutSlim(t *testing.T) {
+	t.Parallel()
 	state := t.TempDir()
 	r := runSim(t, simCheckout(t, "lane-b"), "resolve-ios-sim.sh", "simctl-shutdown", state)
 	if r.err != nil {
@@ -218,6 +226,7 @@ func TestResolveIOSSim_laneCopiesTheNewestRuntimeWithoutSlim(t *testing.T) {
 }
 
 func TestResolveIOSSim_laneCallsAtOnceCreateOneSimulator(t *testing.T) {
+	t.Parallel()
 	lane := simCheckout(t, "racer")
 	state := t.TempDir()
 	var wg sync.WaitGroup
@@ -241,6 +250,7 @@ func TestResolveIOSSim_laneCallsAtOnceCreateOneSimulator(t *testing.T) {
 }
 
 func TestResolveIOSSim_monacoSimUdidOverridesLaneAndPrimary(t *testing.T) {
+	t.Parallel()
 	for _, lane := range []string{"", "pinned"} {
 		state := t.TempDir()
 		for _, script := range []string{"resolve-ios-sim.sh", "gold-sim-udid.sh"} {
@@ -258,6 +268,7 @@ func TestResolveIOSSim_monacoSimUdidOverridesLaneAndPrimary(t *testing.T) {
 
 // After creating the lane simulator, simslim slims it once with the checkout's profile.
 func TestResolveIOSSim_laneSlimsANewSimulator(t *testing.T) {
+	t.Parallel()
 	bin := t.TempDir()
 	calls := filepath.Join(t.TempDir(), "simslim.calls")
 	script := "#!/bin/sh\necho \"$*\" >> " + calls + "\n[ \"$1\" = on ]\n"
@@ -306,6 +317,7 @@ func readCalls(t *testing.T, calls string) string {
 }
 
 func TestSimslimEnsure_createCallsOnWithTheProfile(t *testing.T) {
+	t.Parallel()
 	path, calls := simslimBin(t, 0)
 	ensure(t, path, "create", "UDID1", "SIMSLIM_PROFILE=/p.json")
 	if got, want := readCalls(t, calls), "on UDID1 --profile /p.json --preserve-boot-state\n"; got != want {
@@ -314,6 +326,7 @@ func TestSimslimEnsure_createCallsOnWithTheProfile(t *testing.T) {
 }
 
 func TestSimslimEnsure_defaultProfileIsTheRepos(t *testing.T) {
+	t.Parallel()
 	path, calls := simslimBin(t, 0)
 	ensure(t, path, "create", "UDID1", "HOME=/h")
 	profile := filepath.Join(repoRoot(t), "ci", "profiles", "base-slim.json")
@@ -323,6 +336,7 @@ func TestSimslimEnsure_defaultProfileIsTheRepos(t *testing.T) {
 }
 
 func TestSimslimEnsure_checkLeavesASlimSimulatorAlone(t *testing.T) {
+	t.Parallel()
 	path, calls := simslimBin(t, 0)
 	ensure(t, path, "check", "UDID1", "SIMSLIM_PROFILE=/p.json")
 	if got, want := readCalls(t, calls), "verify UDID1 --profile /p.json\n"; got != want {
@@ -331,6 +345,7 @@ func TestSimslimEnsure_checkLeavesASlimSimulatorAlone(t *testing.T) {
 }
 
 func TestSimslimEnsure_checkRepairsOnceWhenNotSlim(t *testing.T) {
+	t.Parallel()
 	path, calls := simslimBin(t, 1)
 	ensure(t, path, "check", "UDID1", "SIMSLIM_PROFILE=/p.json")
 	want := "verify UDID1 --profile /p.json\non UDID1 --profile /p.json --preserve-boot-state\n"
@@ -340,6 +355,7 @@ func TestSimslimEnsure_checkRepairsOnceWhenNotSlim(t *testing.T) {
 }
 
 func TestSimslimEnsure_missingSimslimWarnsAndContinues(t *testing.T) {
+	t.Parallel()
 	_, out := ensure(t, "/usr/bin:/bin", "create", "UDID1")
 	if !strings.Contains(out, "warning: SimSlim not installed") {
 		t.Fatalf("output %q, want a missing simslim warning", out)
@@ -347,6 +363,7 @@ func TestSimslimEnsure_missingSimslimWarnsAndContinues(t *testing.T) {
 }
 
 func TestSimslimEnsure_optOutSkipsSimslim(t *testing.T) {
+	t.Parallel()
 	path, calls := simslimBin(t, 1)
 	_, out := ensure(t, path, "check", "UDID1", "MONACO_NO_SIMSLIM=1")
 	if got := readCalls(t, calls); got != "" || out != "" {
@@ -355,6 +372,7 @@ func TestSimslimEnsure_optOutSkipsSimslim(t *testing.T) {
 }
 
 func TestResolveIOSSim_laneChecksAnExistingSimulator(t *testing.T) {
+	t.Parallel()
 	path, calls := simslimBin(t, 1)
 	lane := simCheckout(t, "again")
 	state := t.TempDir()
@@ -456,6 +474,7 @@ func pickWith(t *testing.T, devices []rankDevice) (withPython, withoutPython str
 }
 
 func TestResolveIOSSim_rankSkipsDuoForALaterPro(t *testing.T) {
+	t.Parallel()
 	a, b := pickWith(t, []rankDevice{
 		{"27.1", "iPhone Duo", "D0D0D0D0", "Shutdown"},
 		{"27.1", "iPhone 17 Pro", "AAAA1111", "Shutdown"},
@@ -466,6 +485,7 @@ func TestResolveIOSSim_rankSkipsDuoForALaterPro(t *testing.T) {
 }
 
 func TestResolveIOSSim_rankPicksALoneDuo(t *testing.T) {
+	t.Parallel()
 	a, b := pickWith(t, []rankDevice{{"27.1", "iPhone Duo", "D0D0D0D0", "Shutdown"}})
 	if a != "D0D0D0D0" || b != "D0D0D0D0" {
 		t.Fatalf("python path %q, fallback path %q, want DUO", a, b)
@@ -473,6 +493,7 @@ func TestResolveIOSSim_rankPicksALoneDuo(t *testing.T) {
 }
 
 func TestResolveIOSSim_rankBeatsBootedState(t *testing.T) {
+	t.Parallel()
 	a, b := pickWith(t, []rankDevice{
 		{"26.0", "iPhone 16", "B0071616", "Booted"},
 		{"26.0", "iPhone 17 Pro Max", "AAAA2222", "Shutdown"},
@@ -483,6 +504,7 @@ func TestResolveIOSSim_rankBeatsBootedState(t *testing.T) {
 }
 
 func TestResolveIOSSim_rankPrefersBootedThenNewestRuntimeWithinARank(t *testing.T) {
+	t.Parallel()
 	a, b := pickWith(t, []rankDevice{
 		{"26.0", "iPhone 17 Pro", "0A1D0A1D", "Shutdown"},
 		{"27.1", "iPhone 18 Pro", "0E0E0E0E", "Shutdown"},

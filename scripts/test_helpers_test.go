@@ -12,6 +12,7 @@ func TestMain(m *testing.M) {
 	os.Setenv("GIT_CONFIG_COUNT", "1")
 	os.Setenv("GIT_CONFIG_KEY_0", "maintenance.auto")
 	os.Setenv("GIT_CONFIG_VALUE_0", "false")
+	os.Setenv("PYENV_VERSION", "system")
 	os.Exit(m.Run())
 }
 

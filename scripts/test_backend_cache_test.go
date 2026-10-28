@@ -36,6 +36,7 @@ func cacheExec(t *testing.T, dir, cache, command string) (string, error) {
 }
 
 func TestTestBackendCache_repeatTreeSkipsTheCommandAndAFailureDoesNot(t *testing.T) {
+	t.Parallel()
 	dir := gitRepo(t)
 	cache := t.TempDir()
 	marker := filepath.Join(t.TempDir(), "ran")

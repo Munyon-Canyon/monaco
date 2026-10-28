@@ -89,6 +89,7 @@ func stageAndLint(t *testing.T, dir, rel, src string) (string, error) {
 }
 
 func TestLintStagedGo_blocksTimeNowInAModule(t *testing.T) {
+	t.Parallel()
 	dir := backendRepoWithHook(t)
 	out, err := stageAndLint(t, dir, "internal/modules/foo/foo.go",
 		"package foo\n\nimport \"time\"\n\nfunc Stamp() time.Time { return time.Now() }\n")
@@ -101,6 +102,7 @@ func TestLintStagedGo_blocksTimeNowInAModule(t *testing.T) {
 }
 
 func TestLintStagedGo_passesCleanModuleAndIgnoresTestdata(t *testing.T) {
+	t.Parallel()
 	dir := backendRepoWithHook(t)
 	out, err := stageAndLint(t, dir, "internal/modules/foo/testdata/bad.go",
 		"package bad\n\nimport \"time\"\n\nfunc Stamp() time.Time { return time.Now() }\n")
@@ -114,6 +116,7 @@ func TestLintStagedGo_passesCleanModuleAndIgnoresTestdata(t *testing.T) {
 }
 
 func TestLintStagedGo_blocksABareGoStatementInAModule(t *testing.T) {
+	t.Parallel()
 	dir := backendRepoWithHook(t)
 	out, err := stageAndLint(t, dir, "internal/modules/foo/spawn.go",
 		"package foo\n\nfunc Spawn(fn func()) {\n\tgo fn()\n}\n")
@@ -126,6 +129,7 @@ func TestLintStagedGo_blocksABareGoStatementInAModule(t *testing.T) {
 }
 
 func TestLintStagedGo_blocksACommentInAStagedFile(t *testing.T) {
+	t.Parallel()
 	dir := backendRepoWithHook(t)
 	out, err := stageAndLint(t, dir, "internal/modules/foo/two.go",
 		"package foo\n\nfunc Two() int {\n\treturn 2 // hi\n}\n")

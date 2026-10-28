@@ -28,6 +28,7 @@ func runRequireDocker(t *testing.T, dockerBody string) (out string, code int, to
 }
 
 func TestRequireDockerHungDaemonFailsFast(t *testing.T) {
+	t.Parallel()
 	out, code, took := runRequireDocker(t, "exec sleep 30")
 	if code != 1 || took > 5*time.Second {
 		t.Fatalf("exit %d after %v, want exit 1 within 5s\n%s", code, took, out)
@@ -39,6 +40,7 @@ func TestRequireDockerHungDaemonFailsFast(t *testing.T) {
 }
 
 func TestRequireDockerStoppedDaemonKeepsNotRunningMessage(t *testing.T) {
+	t.Parallel()
 	out, code, took := runRequireDocker(t, "exit 1")
 	if code != 1 || took > 2*time.Second || !strings.Contains(out, "docker daemon is not running") {
 		t.Fatalf("exit %d after %v:\n%s", code, took, out)
@@ -46,6 +48,7 @@ func TestRequireDockerStoppedDaemonKeepsNotRunningMessage(t *testing.T) {
 }
 
 func TestRequireDockerHealthyDaemonPasses(t *testing.T) {
+	t.Parallel()
 	out, code, _ := runRequireDocker(t, "exit 0")
 	if code != 0 || out != "" {
 		t.Fatalf("exit %d, output %q, want silent success", code, out)
