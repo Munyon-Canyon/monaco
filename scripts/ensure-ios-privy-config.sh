@@ -211,6 +211,10 @@ write_info_plist() {
 	<string>${POSTHOG_SESSION_REPLAY:-true}</string>
 	<key>GIPHY_SDK_KEY</key>
 	<string>\$(GIPHY_SDK_KEY)</string>
+	<key>NSUserActivityTypes</key>
+	<array>
+		<string>INSendMessageIntent</string>
+	</array>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

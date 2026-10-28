@@ -156,6 +156,18 @@ In Go, a kind sets `Message.Presentation` with `ForCabal(view, sender)`, `ForPer
 
 Sample payloads for the simulator are `apps/mobile/PushFixtures/proposal_created_grouped.apns` (person-led, in a cabal thread) and `cabal_paused_grouped.apns` (cabal-led); drop one with `xcrun simctl push "$UDID" xyz.monacolabs.app <file>`.
 
+### Pictures on pushes
+
+A push is led by a picture with the Monaco icon on its corner only when iOS treats it as a communication notification. `MonacoNotificationService`, a notification service extension embedded in the app (`apps/mobile/MonacoNotificationService`), does that for every push with `mutable-content: 1`:
+
+- **Keys it reads.** `sender_kind`, `sender_id`, `sender_name`, `sender_image_url`, `group_id`, `group_name`, `group_image_url` and `aps.thread-id` ([Payload](#payload)). `PushSenderPayload` parses them with Foundation only. `sender_kind = app`, or a missing kind, id or name, returns nothing and the push is delivered as sent, so the Ledger and deposit pushes keep the plain app icon. For `sender_kind = cabal` the cabal is both the sender and the group.
+- **Host allow-list.** An image URL is used only when it is `https` with no credentials and its host is in the extension's own `Info.plist` key `MonacoImageHosts`, a comma separated list filled from the build setting `MONACO_IMAGE_HOSTS` (`MONACO_IMAGE_HOSTS_local`, `_staging` and `_production` in `Config/Environments/*.xcconfig`, picked by `MONACO_ENVIRONMENT` beside the API base URL). They name the Supabase project that serves the public `avatars` bucket, which holds profile photos and cabal pictures. Any other URL is dropped and the push still leads with the sender's name.
+- **Fetch.** The sender and group images load in parallel on an ephemeral `URLSession`, 5 s each, at most 1 MB each, `200` only and decodable by ImageIO.
+- **Intent.** The extension builds an `INSendMessageIntent` whose sender is an `INPerson` with the image, whose group name is the cabal's name with its picture, and whose conversation identifier is the thread. It donates the interaction as incoming and returns `content.updating(from: intent)`. iOS then draws the picture, and groups the pushes under the cabal's name.
+- **Fallback.** Any failure (a timeout, a 404, an oversized or broken image, a refused donation) delivers the push with its title and body unchanged, with whatever image did load. `serviceExtensionTimeWillExpire` delivers the best content so far. The extension logs ids and hosts under `xyz.monacolabs.app` / `push-service`, never a body.
+- **App side.** `Monaco.entitlements` carries `com.apple.developer.usernotifications.communication` and `.time-sensitive`, and the generated app Info.plists (`scripts/ensure-ios-privy-config.sh`) carry `NSUserActivityTypes = [INSendMessageIntent]`. Both capabilities must be on the App ID `xyz.monacolabs.app` in the developer portal before a signed build can show the communication style on a device.
+- **No module targets.** The extension links no Swift package, because an extension has a small memory budget and module targets depend on `MonacoAPI`. `PushSenderPayload.swift` is also a source of `MonacoTests`, which tests it.
+
 ### Flow: trade confirmed
 
 1. The `trading` module's swap state machine moves the `swaps` row to `confirmed`. In the same `uow.Do` it appends `trade.confirmed` with `{swap_id, cabal_id, ...}` (flow 11; [trade-execution.md](trade-execution.md), step 3). The relay publishes it with `Nats-Msg-Id` set to the event id.

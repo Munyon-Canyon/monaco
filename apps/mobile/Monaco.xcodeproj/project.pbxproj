@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E7A0000B30590361008E7964 /* MonacoNotificationService.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E7A0000130590361008E7964 /* MonacoNotificationService.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		E7A0001030590361008E7964 /* PushSenderPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7A0000F30590361008E7964 /* PushSenderPayload.swift */; };
 		B463064130590361008E7964 /* Privy in Frameworks */ = {isa = PBXBuildFile; productRef = B463064030590361008E7964 /* Privy */; };
 		D946000530590361008E7964 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = D946000330590361008E7964 /* PostHog */; };
 		D946000630590361008E7964 /* Ably in Frameworks */ = {isa = PBXBuildFile; productRef = D946000430590361008E7964 /* Ably */; };
@@ -33,9 +35,32 @@
 			remoteGlobalIDString = B46306123059035D008E7964;
 			remoteInfo = Monaco;
 		};
+		E7A0000830590361008E7964 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B463060B3059035D008E7964 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E7A0000430590361008E7964;
+			remoteInfo = MonacoNotificationService;
+		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		E7A0000A30590361008E7964 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				E7A0000B30590361008E7964 /* MonacoNotificationService.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		E7A0000130590361008E7964 /* MonacoNotificationService.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MonacoNotificationService.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		E7A0000F30590361008E7964 /* PushSenderPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PushSenderPayload.swift; path = MonacoNotificationService/PushSenderPayload.swift; sourceTree = "<group>"; };
 		B46306133059035D008E7964 /* Monaco.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Monaco.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B463062030590360008E7964 /* MonacoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MonacoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B463062A30590360008E7964 /* MonacoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MonacoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -45,6 +70,16 @@
 		C0DE001230590361008E7964 /* StubTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubTransport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		E7A0000330590361008E7964 /* Exceptions for "MonacoNotificationService" folder in "MonacoNotificationService" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = E7A0000430590361008E7964 /* MonacoNotificationService */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		B46306153059035D008E7964 /* Monaco */ = {
@@ -60,6 +95,14 @@
 		B463062D30590360008E7964 /* MonacoUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = MonacoUITests;
+			sourceTree = "<group>";
+		};
+		E7A0000230590361008E7964 /* MonacoNotificationService */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E7A0000330590361008E7964 /* Exceptions for "MonacoNotificationService" folder in "MonacoNotificationService" target */,
+			);
+			path = MonacoNotificationService;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -93,6 +136,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E7A0000630590361008E7964 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -103,6 +153,8 @@
 				B46306153059035D008E7964 /* Monaco */,
 				B463062330590360008E7964 /* MonacoTests */,
 				B463062D30590360008E7964 /* MonacoUITests */,
+				E7A0000230590361008E7964 /* MonacoNotificationService */,
+				E7A0000F30590361008E7964 /* PushSenderPayload.swift */,
 				C0DE000F30590361008E7964 /* MonacoTestSupport */,
 				B46306143059035D008E7964 /* Products */,
 			);
@@ -114,6 +166,7 @@
 				B46306133059035D008E7964 /* Monaco.app */,
 				B463062030590360008E7964 /* MonacoTests.xctest */,
 				B463062A30590360008E7964 /* MonacoUITests.xctest */,
+				E7A0000130590361008E7964 /* MonacoNotificationService.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -147,10 +200,12 @@
 				B463060F3059035D008E7964 /* Sources */,
 				B46306103059035D008E7964 /* Frameworks */,
 				B46306113059035D008E7964 /* Resources */,
+				E7A0000A30590361008E7964 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				E7A0000930590361008E7964 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				B46306153059035D008E7964 /* Monaco */,
@@ -215,6 +270,28 @@
 			productReference = B463062A30590360008E7964 /* MonacoUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		E7A0000430590361008E7964 /* MonacoNotificationService */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E7A0000C30590361008E7964 /* Build configuration list for PBXNativeTarget "MonacoNotificationService" */;
+			buildPhases = (
+				E7A0000530590361008E7964 /* Sources */,
+				E7A0000630590361008E7964 /* Frameworks */,
+				E7A0000730590361008E7964 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				E7A0000230590361008E7964 /* MonacoNotificationService */,
+			);
+			name = MonacoNotificationService;
+			packageProductDependencies = (
+			);
+			productName = MonacoNotificationService;
+			productReference = E7A0000130590361008E7964 /* MonacoNotificationService.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -235,6 +312,9 @@
 					B463062930590360008E7964 = {
 						CreatedOnToolsVersion = 26.4;
 						TestTargetID = B46306123059035D008E7964;
+					};
+					E7A0000430590361008E7964 = {
+						CreatedOnToolsVersion = 26.4;
 					};
 				};
 			};
@@ -262,6 +342,7 @@
 				B46306123059035D008E7964 /* Monaco */,
 				B463061F30590360008E7964 /* MonacoTests */,
 				B463062930590360008E7964 /* MonacoUITests */,
+				E7A0000430590361008E7964 /* MonacoNotificationService */,
 			);
 		};
 /* End PBXProject section */
@@ -288,6 +369,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E7A0000730590361008E7964 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -304,10 +392,18 @@
 			files = (
 				C0DE001130590361008E7964 /* StubTokenProvider.swift in Sources */,
 				C0DE001330590361008E7964 /* StubTransport.swift in Sources */,
+				E7A0001030590361008E7964 /* PushSenderPayload.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		B463062630590360008E7964 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E7A0000530590361008E7964 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -326,6 +422,11 @@
 			isa = PBXTargetDependency;
 			target = B46306123059035D008E7964 /* Monaco */;
 			targetProxy = B463062B30590360008E7964 /* PBXContainerItemProxy */;
+		};
+		E7A0000930590361008E7964 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E7A0000430590361008E7964 /* MonacoNotificationService */;
+			targetProxy = E7A0000830590361008E7964 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -611,6 +712,62 @@
 			};
 			name = Release;
 		};
+		E7A0000D30590361008E7964 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = B463064430590362008E7964 /* Monaco.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8Q2V9WHNNT;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MonacoNotificationService/Info.plist;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = xyz.monacolabs.app.NotificationService;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		E7A0000E30590361008E7964 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = B463064430590362008E7964 /* Monaco.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8Q2V9WHNNT;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MonacoNotificationService/Info.plist;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = xyz.monacolabs.app.NotificationService;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -646,6 +803,15 @@
 			buildConfigurations = (
 				B463063B30590360008E7964 /* Debug */,
 				B463063C30590360008E7964 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E7A0000C30590361008E7964 /* Build configuration list for PBXNativeTarget "MonacoNotificationService" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E7A0000D30590361008E7964 /* Debug */,
+				E7A0000E30590361008E7964 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
