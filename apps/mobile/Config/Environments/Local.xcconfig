@@ -2,6 +2,9 @@
 // build refuses this environment at launch.
 // `$()` keeps xcconfig from reading `//` as the start of a comment.
 MONACO_API_BASE_URL_local = http:/$()/localhost:8080
+// Hosts the notification service extension may load push pictures from (comma separated):
+// the Supabase project behind the public `avatars` bucket.
+MONACO_IMAGE_HOSTS_local = komoccjaeypsrgocrnht.supabase.co
 PRIVY_APP_ID_local = $(PRIVY_APP_ID_DEV)
 PRIVY_APP_CLIENT_ID_local = $(PRIVY_APP_CLIENT_ID_DEV)
 // The GIPHY client key from .env.local. Left empty, GIFs show as unavailable.

@@ -26,6 +26,10 @@ Swift 6 language mode with complete checking (#937). The app target's default ac
 
 Screen work (colour, type, touch targets, accessibility and copy) follows the `ios-screen` skill in `.claude/skills/ios-screen/SKILL.md`.
 
+## Targets
+
+`Monaco.xcodeproj` has four targets: `Monaco` (the app), `MonacoTests`, `MonacoUITests` and `MonacoNotificationService`, a notification service extension (bundle id `xyz.monacolabs.app.NotificationService`) that the app embeds in `PlugIns/`. The extension links no module target and no other package, so it stays inside an extension's memory budget; its sources are Foundation, Intents, ImageIO and UserNotifications only. It reads its image host allow-list from its own `Info.plist`. See [Pictures on pushes](notifications.md#pictures-on-pushes).
+
 ## Flow registry
 
 Each backend flow file, `packages/flows/backend/<id>.tsv`, has one app registry file at `packages/flows/app/<id>.tsv` that names its screen, its app status and its doc. `monacoctl flows check` joins the two on `id`. The spec is `packages/flows/README.md`.
