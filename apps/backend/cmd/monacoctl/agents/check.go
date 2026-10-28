@@ -490,11 +490,7 @@ func (env *Env) xcodeRow(changed []string) (checkRow, bool) {
 		"MONACO_XCODE_LOCK_TIMEOUT=" + seconds(xcodeLockWait),
 	}
 	cmds := env.installXcsift()
-	cmds = append(cmds,
-		append(slices.Clone(vars), "bash", "-c", xcodeScript("build-for-testing")),
-		append(slices.Clone(vars), "scripts/qa/xcode-lock.sh", "sim", "bash", "-c",
-			xcodeScript("-only-testing:MonacoTests test-without-building")),
-	)
+	cmds = append(cmds, append(slices.Clone(vars), "bash", "-c", xcodeScript("build-for-testing")))
 	return checkRow{label: "xcode", kind: xcodeKind, dir: env.Work, cmds: cmds, lockWaited: waited}, true
 }
 

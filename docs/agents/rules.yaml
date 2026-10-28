@@ -355,7 +355,7 @@ rules:
     enforced_by: prose
   - id: A44
     title: "mobile PR checks"
-    text: "Every PR that touches `apps/mobile/**` must pass a local `just build mobile` and the MonacoTests run (`-only-testing:MonacoTests`) before it is pushed, and Proof cites both."
+    text: "Every PR that touches `apps/mobile/**` must pass a local `just build mobile` before it is pushed, and Proof cites it."
     audience: all
     surface: [agents-md, owner-brief]
     enforced_by: prose
@@ -931,8 +931,8 @@ rules:
     why: "the operator rejected holding orders to the vote-time quote after a staging buy failed `price_moved` on a 1.3% rise, because the share count follows the amount."
     note: "source: operator-memory (trades-buy-amount-at-execution-price)"
   - id: M01
-    title: "Mobile build and test"
-    text: "`monacoctl agents check` is stage 0. On darwin, an app or mobile-core change also runs the `xcode` row: build for testing, then `MonacoTests`. `just build mobile` compiles the app."
+    title: "Mobile build"
+    text: "`monacoctl agents check` is stage 0. On darwin, an app or mobile-core change also runs the `xcode` row: build for testing, with no tests and no simulator; MonacoTests run in the hourly staging `ios` job. `just build mobile` compiles the app."
     audience: all
     surface: [mobile-agents-md]
     enforced_by: prose
