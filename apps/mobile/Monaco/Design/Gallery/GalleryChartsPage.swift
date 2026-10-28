@@ -48,14 +48,53 @@ struct GalleryCurveChart: View {
     }
 }
 
+struct GalleryCurveChartAtRest: View {
+    let trend: GalleryTrend
+    private let curve: ValueCurve
+    @State private var selection: Int?
+
+    init(trend: GalleryTrend) {
+        self.trend = trend
+        curve = trend.curve
+    }
+
+    var body: some View {
+        GalleryCase(caption: "\(trend.rawValue), at rest") {
+            CurveScrubChart(
+                curve: curve, plot: .pnl, range: .oneMonth, height: CurveScrubChart.defaultHeight,
+                selection: $selection, identifier: "gallery-chart-\(trend.rawValue)-rest")
+        }
+    }
+}
+
+struct GallerySparklineRow: View {
+    var body: some View {
+        GalleryCase(caption: "Sparklines, line only") {
+            HStack(spacing: MonacoTheme.Space.l) {
+                ForEach([PnLTone.profit, .loss, .flat], id: \.self) { tone in
+                    if let series = SparklineSeries(usdcMicros: Self.points) {
+                        Sparkline(series: series, tone: tone)
+                    }
+                }
+            }
+        }
+    }
+
+    private static let points: [Int64] = [10, 12, 11, 15, 14, 18, 17, 21, 19, 24].map { $0 * 1_000_000 }
+}
+
 struct GalleryChartsPage: View {
     var body: some View {
         GalleryPage(title: "Charts") {
             GalleryGroup(title: "Performance line") {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                     ForEach(GalleryTrend.allCases, id: \.self) { trend in
+                        GalleryCurveChartAtRest(trend: trend)
+                    }
+                    ForEach(GalleryTrend.allCases, id: \.self) { trend in
                         GalleryCurveChart(trend: trend, height: CurveScrubChart.defaultHeight)
                     }
+                    GallerySparklineRow()
                     ForEach(GalleryTrend.allCases, id: \.self) { trend in
                         GalleryCurveChart(trend: trend, height: CurveScrubChart.smallHeight)
                     }
