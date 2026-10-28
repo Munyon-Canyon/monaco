@@ -11,10 +11,12 @@ Read the [standing orders](standing-orders.md) first. The dispatch prompt has fi
 - Change files only in the worktree. It starts detached: begin with `git switch -c <n>-<slug>` and `gt track --parent staging`.
 <!-- END GENERATED rules:owner-brief -->
 
+For `apps/mobile`, build once with `just build mobile`. If the second build fails, stop and report it under "What came up".
+
 ## Done
 
 1. `monacoctl agents check` passes.
 2. Run `gt submit --stack --no-interactive --draft`.
-3. For each PR, write the body to a file and run `scripts/pr-body.sh <pr> "<title>" <file>`. It checks the title, body and commits, then marks the PR ready. If it stops on a conflict with its base, report the PR and its body file and exit.
-4. Run `monacoctl agents land-stack <top-pr>` once. It arms the stack, and the root's `agents watch` lands it once stage 1 passes.
+3. For each PR, write the body to a file and run `scripts/pr-body.sh <pr> "<title>" <file>`. It checks the PR and marks it ready. If it stops on a conflict with its base, report the PR and its body file and exit.
+4. Run `monacoctl agents land-stack <top-pr>` once. It arms the stack for the root's `agents watch`.
 5. Exit. The owner never calls `gh pr merge`.
