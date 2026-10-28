@@ -16,7 +16,7 @@ import (
 
 func TestFlow07_FundCabal_CrashAfterSign(t *testing.T) {
 	t.Parallel()
-	h := newSettleHarness(t)
+	h := newSettleHarness(t).withDeadlineBudget(t)
 	runs := 0
 	testkit.CrashAt(t, faultpoint.AfterSign, func(ctx context.Context) error {
 		runs++
@@ -69,7 +69,7 @@ func TestFlow07_FundCabal_CrashAfterBroadcast(t *testing.T) {
 
 func TestFlow07_FundCabal_CrashBeforeCommit(t *testing.T) {
 	t.Parallel()
-	h := newSettleHarness(t)
+	h := newSettleHarness(t).withDeadlineBudget(t)
 	id := h.landed(t, "5000000")
 	testkit.CrashAt(t, faultpoint.BeforeCommit, func(ctx context.Context) error {
 		_, err := h.settler.Tick(withSystemActor(ctx))
