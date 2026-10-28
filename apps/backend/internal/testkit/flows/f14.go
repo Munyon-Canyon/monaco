@@ -32,7 +32,7 @@ const (
 	potPath        = cabalsPath + "/{cabal}/pot"
 	cashOutPayout  = "treasury.cashout_payout"
 	f14Stake       = 2_000_000
-	rpcAttempts    = 3
+	rpcDown        = 1_000
 )
 
 func (defined) SeedsF14() map[string]Seeder {
@@ -347,13 +347,23 @@ func F14CashOutPayoutsPrivyUnavailable(s *scenario.Scenario) {
 		Then(append([]scenario.Step{payoutDispatched(errs.CodePrivyUnavailable)}, paid()...)...)
 }
 
+func rpcBlockhash(step fakes.Step) scenario.Step {
+	step.Route = "/rpc/getLatestBlockhash"
+	return scenario.FakeUpstream(step)
+}
+
 func F14CashOutPayoutsRPCUnavailable(s *scenario.Scenario) {
-	s.Given(append(f14Staked("rpc"), scenario.FakeUpstream(fakes.Step{
-		Route: "/rpc/getLatestBlockhash", Action: fakes.ActionFail, Status: http.StatusServiceUnavailable,
-		Times: rpcAttempts,
+	s.Given(append(f14Staked("rpc"), rpcBlockhash(fakes.Step{
+		Action: fakes.ActionFail, Status: http.StatusServiceUnavailable, Times: rpcDown,
 	}), chainSays("finalized"))...).
 		When(cashedOut("1000000")...).
-		Then(append([]scenario.Step{payoutDispatched(errs.CodeRPCUnavailable)}, paid()...)...)
+		Then(slices.Concat(
+			[]scenario.Step{
+				payoutDispatched(errs.CodeRPCUnavailable),
+				rpcBlockhash(fakes.Step{Action: fakes.ActionSucceed, Reset: true}),
+			},
+			paid(),
+		)...)
 }
 
 func CashOutRejectedOnChain(s *scenario.Scenario) {
