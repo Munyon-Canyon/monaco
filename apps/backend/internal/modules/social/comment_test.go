@@ -158,11 +158,12 @@ func TestCreateComment_storesTheCommentCountsItAndAppendsTheEvent(t *testing.T) 
 	if len(evs) != 1 {
 		t.Fatalf("%d comment.created events, want 1", len(evs))
 	}
-	cabalID, actor, ref := f.cabal.ID.UUID(), f.cabal.Creator.ID.UUID(), evs[0].RefID
+	cabalID, actor, ref, cabalName := f.cabal.ID.UUID(), f.cabal.Creator.ID.UUID(), evs[0].RefID, "Alpha Cabal"
 	wantEvent := events.CommentCreated{
 		V: 1, CommentID: got.ID, FeedObjectID: item, FeedKind: "proposal", RefType: "proposals", RefID: ref,
 		CabalID: &cabalID, AuthorID: author.UUID(), ItemActorID: &actor, ProposalID: &ref,
-		Excerpt: "buy it before earnings",
+		Excerpt: "buy it before earnings", ItemKind: "proposal", ThreadFeedObjectID: item, ItemActorName: "Ada",
+		ItemLabel: "Buy AAPLx", ItemNoun: "proposal", CabalName: &cabalName, ReplyRule: "members",
 	}
 	if !reflect.DeepEqual(evs[0], wantEvent) {
 		t.Fatalf("event = %+v, want %+v", evs[0], wantEvent)

@@ -223,21 +223,6 @@ func TestDeleteComment_deletesItsReplyItemAndItsLikesOnly(t *testing.T) {
 	}
 }
 
-func TestCreateComment_refusesAThreadOnAReplyOrAThresholdItem(t *testing.T) {
-	t.Parallel()
-	f := newCommentFixture(t)
-	for _, kind := range []feed.Kind{feed.KindReply, feed.KindThreshold} {
-		item := f.item(t, kind)
-		for _, author := range []ids.UserID{f.cabal.Members[1].ID, f.outsider} {
-			_, err := f.comment(t, item, author, "hi", uuid.Nil)
-			wantCode(t, err, errs.CodeCommentMembersOnly)
-		}
-		if stored, counted := f.count(t, item); stored != 0 || counted != 0 {
-			t.Fatalf("%s item: stored %d, comment_count %d, want 0 and 0", kind, stored, counted)
-		}
-	}
-}
-
 func TestListFeed_filtersByTheReplyAndThresholdKinds(t *testing.T) {
 	t.Parallel()
 	f := newFeedFixture(t)

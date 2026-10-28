@@ -25,6 +25,14 @@ type CommentCreated struct {
 	ItemActorID     *uuid.UUID `json:"item_actor_id"     pii:"true"`
 	ProposalID      *uuid.UUID `json:"proposal_id"`
 	Excerpt         string     `json:"excerpt"`
+
+	ItemKind           string    `json:"item_kind"`
+	ThreadFeedObjectID uuid.UUID `json:"thread_feed_object_id"`
+	ItemActorName      string    `json:"item_actor_name"       pii:"true"`
+	ItemLabel          string    `json:"item_label"`
+	ItemNoun           string    `json:"item_noun"`
+	CabalName          *string   `json:"cabal_name"`
+	ReplyRule          string    `json:"reply_rule"`
 }
 
 func (CommentCreated) Type() Type { return TypeCommentCreated }

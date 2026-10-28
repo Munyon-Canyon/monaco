@@ -60,6 +60,68 @@ func RenderDetail(k Kind, p Payload) string {
 	}
 }
 
+func RenderLabel(k Kind, p Payload) string {
+	switch k {
+	case KindProposal, KindThreshold:
+		return proposalLabel(p)
+	case KindResult:
+		if p.Shape == ShapeMember {
+			return fillLabel(p)
+		}
+		return proposalLabel(p)
+	case KindTrade:
+		return fillLabel(p)
+	case KindMemberJoined:
+		return memberOr(p.ActorName) + "'s join"
+	case KindCabalCreated:
+		return join(" ", p.CabalName, "launch")
+	case KindPriceMove:
+		return join(" ", symbolOf(p), "move")
+	case KindReply:
+		return "thesis"
+	default:
+		return "post"
+	}
+}
+
+func RenderNoun(k Kind, p Payload) string {
+	switch k {
+	case KindProposal, KindThreshold:
+		return "proposal"
+	case KindResult:
+		if p.Shape == ShapeMember {
+			return fillNoun(p)
+		}
+		return "proposal"
+	case KindTrade:
+		return fillNoun(p)
+	case KindMemberJoined:
+		return "join"
+	case KindCabalCreated, KindPriceMove, KindReply:
+		return "post"
+	default:
+		return "post"
+	}
+}
+
+func proposalLabel(p Payload) string {
+	return join(" ", capitalized(tradeVerbBare(p)), symbolOf(p))
+}
+
+func fillLabel(p Payload) string {
+	if p.Action == ActionSell {
+		return join(" ", symbolOf(p), "sale")
+	}
+	return join(" ", "Buy", symbolOf(p))
+}
+
+func fillNoun(p Payload) string {
+	if p.Action == ActionSell {
+		return "sale"
+	}
+	return "buy"
+}
+
 func RenderTone(k Kind, p Payload) Tone {
 	switch {
 	case k != KindPriceMove || p.ChangeBps == 0:
@@ -162,6 +224,13 @@ func tradeTitle(p Payload) string {
 		verb = "sold"
 	}
 	return p.CabalName + " " + verb + " " + amountOf(p)
+}
+
+func symbolOf(p Payload) string {
+	if p.Symbol != "" {
+		return p.Symbol
+	}
+	return p.AssetName
 }
 
 func assetLabel(p Payload) string {

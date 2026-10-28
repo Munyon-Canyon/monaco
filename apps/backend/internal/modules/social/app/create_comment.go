@@ -65,18 +65,13 @@ func NewCreateCommentHandler(d CommentDeps) *CreateCommentHandler {
 
 func (h *CreateCommentHandler) Handle(ctx context.Context, cmd CreateComment) (Comment, error) {
 	const op = "social.CreateComment"
-	item, err := sqlc.New(h.d.Reads).GetCommentItem(ctx, cmd.FeedObjectID)
-	switch {
-	case errors.Is(err, sql.ErrNoRows):
-		return Comment{}, errs.New(
-			errs.CodeFeedItemNotFound,
-			op,
-			slog.String("feed_object_id", cmd.FeedObjectID.String()),
-		)
-	case err != nil:
-		return Comment{}, errs.Wrap(err, errs.CodeInternal, op)
+	item, thread, err := ResolveThread(ctx, sqlc.New(h.d.Reads), cmd.FeedObjectID)
+	if err != nil {
+		return Comment{}, err
 	}
-	allowed, err := CanComment(ctx, h.d.Members, feed.Kind(item.Kind), ids.CabalIDFrom(item.CabalID.Bytes), cmd.Author)
+	allowed, rule, err := CanReply(
+		ctx, h.d.Members, feed.Kind(thread.Kind), ids.CabalIDFrom(thread.CabalID.Bytes), cmd.Author,
+	)
 	if err != nil {
 		return Comment{}, err
 	}
@@ -87,14 +82,15 @@ func (h *CreateCommentHandler) Handle(ctx context.Context, cmd CreateComment) (C
 			slog.String("feed_object_id", cmd.FeedObjectID.String()),
 		)
 	}
-	reply, err := h.replyDraft(ctx, item, cmd)
+	cmd.FeedObjectID = thread.ID
+	reply, err := h.replyDraft(ctx, thread, cmd)
 	if err != nil {
 		return Comment{}, err
 	}
 	var created Comment
 	err = h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		var err error
-		created, err = h.store(ctx, tx, item, cmd, reply)
+		created, err = h.store(ctx, tx, postedOn{item: item, thread: thread, rule: rule}, cmd, reply)
 		return err
 	})
 	if err != nil {
@@ -105,8 +101,14 @@ func (h *CreateCommentHandler) Handle(ctx context.Context, cmd CreateComment) (C
 	return created, nil
 }
 
+type postedOn struct {
+	item   sqlc.GetCommentItemRow
+	thread sqlc.GetCommentItemRow
+	rule   ReplyRule
+}
+
 func (h *CreateCommentHandler) store(
-	ctx context.Context, tx db.Tx, item sqlc.GetCommentItemRow, cmd CreateComment, reply replyDraft,
+	ctx context.Context, tx db.Tx, at postedOn, cmd CreateComment, reply replyDraft,
 ) (Comment, error) {
 	const op = "social.CreateComment"
 	q := sqlc.New(tx.Queries())
@@ -129,7 +131,7 @@ func (h *CreateCommentHandler) store(
 		return Comment{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, FeedHint, nil) })
-	return commentOf(row), tx.Events.Append(ctx, createdEvent(item, row, target, cmd.Body))
+	return commentOf(row), tx.Events.Append(ctx, createdEvent(at, row, target, cmd.Body))
 }
 
 type replyDraft struct {
@@ -179,17 +181,27 @@ func (d replyDraft) insert(ctx context.Context, q *sqlc.Queries, id uuid.UUID, c
 }
 
 func createdEvent(
-	item sqlc.GetCommentItemRow, row sqlc.FeedComment, target sqlc.GetCommentTargetRow, body domain.CommentBody,
+	at postedOn, row sqlc.FeedComment, target sqlc.GetCommentTargetRow, body domain.CommentBody,
 ) events.CommentCreated {
+	thread := at.thread
+	threadPayload, _ := feed.ParsePayload(thread.Payload)
+	itemPayload, _ := feed.ParsePayload(at.item.Payload)
+	itemKind := feed.Kind(at.item.Kind)
 	e := events.CommentCreated{
-		V: 1, CommentID: row.ID, FeedObjectID: row.FeedObjectID, FeedKind: item.Kind, RefType: item.RefType,
-		RefID: item.RefID, CabalID: parentOf(item.CabalID.Bytes), AuthorID: row.AuthorID,
+		V: 1, CommentID: row.ID, FeedObjectID: row.FeedObjectID, FeedKind: thread.Kind, RefType: thread.RefType,
+		RefID: thread.RefID, CabalID: parentOf(thread.CabalID.Bytes), AuthorID: row.AuthorID,
 		ParentCommentID: parentOf(row.ParentCommentID.Bytes), ParentAuthorID: parentOf(target.AuthorID),
 		ParentDeleted: target.Deleted, ReplyToUserID: parentOf(row.ReplyToUserID.Bytes),
-		ItemActorID: parentOf(item.ActorID.Bytes), Excerpt: body.Excerpt(),
+		ItemActorID: parentOf(thread.ActorID.Bytes), Excerpt: body.Excerpt(),
+		ItemKind: at.item.Kind, ThreadFeedObjectID: thread.ID, ItemActorName: threadPayload.ActorName,
+		ItemLabel: feed.RenderLabel(itemKind, itemPayload), ItemNoun: feed.RenderNoun(itemKind, itemPayload),
+		ReplyRule: string(at.rule),
 	}
-	if feed.Kind(item.Kind) == feed.KindProposal {
-		e.ProposalID = parentOf(item.RefID)
+	if threadPayload.CabalName != "" {
+		e.CabalName = &threadPayload.CabalName
+	}
+	if feed.Kind(thread.Kind) == feed.KindProposal {
+		e.ProposalID = parentOf(thread.RefID)
 	}
 	return e
 }
@@ -201,22 +213,6 @@ func commentOf(row sqlc.FeedComment) Comment {
 		Body: row.Body, CreatedAt: row.CreatedAt.UTC(), Deleted: row.DeletedAt.Valid,
 		RemovedByAdmin: row.DeletedByKind == CommentDeletedByAdmin,
 	}
-}
-
-func CanComment(
-	ctx context.Context, members Members, kind feed.Kind, cabal ids.CabalID, user ids.UserID,
-) (bool, error) {
-	if kind == feed.KindReply || kind == feed.KindThreshold {
-		return false, nil
-	}
-	if kind != feed.KindProposal {
-		return true, nil
-	}
-	member, err := members.IsMember(ctx, cabal, user)
-	if err != nil {
-		return false, errs.Wrap(err, errs.CodeOf(err), "social.CanComment")
-	}
-	return member, nil
 }
 
 func loadParent(

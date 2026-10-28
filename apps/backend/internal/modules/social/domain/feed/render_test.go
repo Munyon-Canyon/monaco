@@ -207,3 +207,38 @@ func TestProposalStatus_movesForwardOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderLabelAndNoun_nameThePostForAReplyPush(t *testing.T) {
+	t.Parallel()
+	buy := feed.Payload{Symbol: "NVDA", Action: feed.ActionBuy}
+	sale := feed.Payload{Symbol: "AAPL", Action: feed.ActionSell}
+	for _, tt := range []struct {
+		name        string
+		kind        feed.Kind
+		payload     feed.Payload
+		label, noun string
+	}{
+		{"proposal", feed.KindProposal, buy, "Buy NVDA", "proposal"},
+		{"sell proposal", feed.KindProposal, sale, "Sell AAPL", "proposal"},
+		{"threshold", feed.KindThreshold, buy, "Buy NVDA", "proposal"},
+		{"cabal result", feed.KindResult, feed.Payload{Symbol: "TSLA", Action: feed.ActionSell, Shape: feed.ShapeCabal}, "Sell TSLA", "proposal"},
+		{"result with no shape", feed.KindResult, buy, "Buy NVDA", "proposal"},
+		{"member sale", feed.KindResult, feed.Payload{Symbol: "AAPL", Action: feed.ActionSell, Shape: feed.ShapeMember}, "AAPL sale", "sale"},
+		{"member buy", feed.KindResult, feed.Payload{AssetName: "OpenAI", Action: feed.ActionBuy, Shape: feed.ShapeMember}, "Buy OpenAI", "buy"},
+		{"trade sold", feed.KindTrade, sale, "AAPL sale", "sale"},
+		{"trade bought", feed.KindTrade, buy, "Buy NVDA", "buy"},
+		{"join", feed.KindMemberJoined, feed.Payload{ActorName: "Nora"}, "Nora's join", "join"},
+		{"anonymous join", feed.KindMemberJoined, feed.Payload{}, "A member's join", "join"},
+		{"thesis", feed.KindReply, buy, "thesis", "post"},
+		{"cabal created", feed.KindCabalCreated, feed.Payload{CabalName: "Degens"}, "Degens launch", "post"},
+		{"price move", feed.KindPriceMove, buy, "NVDA move", "post"},
+		{"unknown kind", feed.Kind("news"), buy, "post", "post"},
+	} {
+		if got := feed.RenderLabel(tt.kind, tt.payload); got != tt.label {
+			t.Errorf("%s: label = %q, want %q", tt.name, got, tt.label)
+		}
+		if got := feed.RenderNoun(tt.kind, tt.payload); got != tt.noun {
+			t.Errorf("%s: noun = %q, want %q", tt.name, got, tt.noun)
+		}
+	}
+}

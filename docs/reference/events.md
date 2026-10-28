@@ -418,6 +418,13 @@ Subject `events.comment.created`, version 1.
 | `item_actor_id` | `*uuid.UUID` |
 | `proposal_id` | `*uuid.UUID` |
 | `excerpt` | `string` |
+| `item_kind` | `string` |
+| `thread_feed_object_id` | `uuid.UUID` |
+| `item_actor_name` | `string` |
+| `item_label` | `string` |
+| `item_noun` | `string` |
+| `cabal_name` | `*string` |
+| `reply_rule` | `string` |
 
 ## `comment.deleted`
 
