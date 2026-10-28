@@ -3,42 +3,124 @@ import SwiftUI
 
 struct MonacoChipLabel: ViewModifier {
     static let capsuleHeight: CGFloat = 36
-    static let borderWidth: CGFloat = 1
+    static let symbolGap: CGFloat = 4
 
     let isSelected: Bool
     var isPreset = false
+    var leadingSymbol: MonacoIcon?
+    var fillsWidth = false
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .subheadline) private var symbolSize: CGFloat = 15
 
     func body(content: Content) -> some View {
-        content
-            .font(isSelected ? MonacoTheme.Typo.captionStrong : MonacoTheme.Typo.caption)
-            .foregroundStyle(foreground)
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
-            .padding(.horizontal, MonacoTheme.Space.m)
-            .frame(minHeight: Self.capsuleHeight)
-            .background {
-                if isSelected {
-                    Capsule().fill(MonacoTheme.brandSoft)
-                } else {
-                    Capsule().strokeBorder(MonacoTheme.border, lineWidth: Self.borderWidth)
-                }
+        HStack(spacing: Self.symbolGap) {
+            if isSelected, let leadingSymbol {
+                Image(systemName: leadingSymbol.symbol)
+                    .font(.system(size: symbolSize, weight: .semibold))
+                    .accessibilityHidden(true)
             }
-            .frame(minHeight: MonacoButtonMetrics.hitTarget)
-            .contentShape(Rectangle())
-            .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85), value: isSelected)
+            content
+        }
+        .font(MonacoTheme.Typo.subheadStrong)
+        .foregroundStyle(Self.colors(isSelected: isSelected, isEnabled: isEnabled).label)
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .padding(.horizontal, MonacoTheme.Space.m)
+        .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: Self.capsuleHeight)
+        .background(Capsule().fill(Self.colors(isSelected: isSelected, isEnabled: isEnabled).fill))
+        .frame(minHeight: MonacoButtonMetrics.hitTarget)
+        .contentShape(Rectangle())
+        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85), value: isSelected)
     }
 
-    private var foreground: Color {
-        if !isEnabled { return MonacoTheme.disabledLabel }
-        return isSelected ? MonacoTheme.brand : MonacoTheme.secondaryText
+    static func colors(isSelected: Bool, isEnabled: Bool) -> (fill: Color, label: Color) {
+        if !isEnabled { return (MonacoTheme.surfaceSunken, MonacoTheme.disabledLabel) }
+        return isSelected
+            ? (MonacoTheme.brandFill, MonacoTheme.onBrand) : (MonacoTheme.surfaceSunken, MonacoTheme.primaryText)
     }
 }
 
 extension View {
-    func monacoChipLabel(isSelected: Bool, isPreset: Bool = false) -> some View {
-        modifier(MonacoChipLabel(isSelected: isSelected, isPreset: isPreset))
+    func monacoChipLabel(
+        isSelected: Bool, isPreset: Bool = false, leadingSymbol: MonacoIcon? = nil, fillsWidth: Bool = false
+    ) -> some View {
+        modifier(
+            MonacoChipLabel(
+                isSelected: isSelected, isPreset: isPreset, leadingSymbol: leadingSymbol, fillsWidth: fillsWidth))
+    }
+}
+
+enum MonacoPlainLabelMetrics {
+    static let scrollSpacing: CGFloat = 16
+    static let equalWidthFloor = DynamicTypeSize.xxLarge
+}
+
+struct MonacoPlainLabelRow<Item: Hashable>: View {
+    let items: [Item]
+    let selection: Item
+    let spacing: CGFloat
+    let equalWidth: Bool
+    let alwaysFits: Bool
+    var scrollInset = MonacoTheme.Space.gutter
+    let label: (Item) -> String
+    let accessibilityName: (Item) -> String
+    let identifier: (Item) -> String
+    let onSelect: (Item) -> Void
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        if alwaysFits || dynamicTypeSize >= MonacoPlainLabelMetrics.equalWidthFloor {
+            ViewThatFits(in: .horizontal) {
+                stack
+                scroller
+            }
+        } else {
+            stack
+        }
+    }
+
+    private var stack: some View {
+        HStack(spacing: equalWidth ? 0 : spacing) {
+            ForEach(items, id: \.self) { item in plainLabel(item, fillsWidth: equalWidth) }
+        }
+    }
+
+    private var scroller: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: MonacoPlainLabelMetrics.scrollSpacing) {
+                    ForEach(items, id: \.self) { item in plainLabel(item, fillsWidth: false).id(item) }
+                }
+                .padding(.horizontal, scrollInset)
+            }
+            .onAppear { proxy.scrollTo(selection, anchor: .center) }
+            .onChange(of: selection) { _, value in
+                withAnimation { proxy.scrollTo(value, anchor: .center) }
+            }
+        }
+    }
+
+    private func plainLabel(_ item: Item, fillsWidth: Bool) -> some View {
+        let isSelected = item == selection
+        return Button {
+            guard !isSelected else { return }
+            Haptics.selection()
+            onSelect(item)
+        } label: {
+            Text(label(item))
+                .font(isSelected ? MonacoTheme.Typo.subheadStrong : MonacoTheme.Typo.subhead)
+                .foregroundStyle(isSelected ? MonacoTheme.primaryText : MonacoTheme.secondaryText)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: MonacoButtonMetrics.hitTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityName(item))
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+        .accessibilityIdentifier(identifier(item))
     }
 }
 
@@ -63,25 +145,26 @@ struct MonacoRangeChips<Range: Hashable>: View {
     }
 
     var body: some View {
-        MonacoSegmented(
-            ranges,
-            selection: Binding(get: { selection }, set: { onSelect($0) }),
-            layout: .periods,
-            accessibilityName: accessibilityName,
-            identifier: identifier,
-            label: label
-        )
+        MonacoPlainLabelRow(
+            items: ranges, selection: selection, spacing: 0, equalWidth: true, alwaysFits: false,
+            label: label, accessibilityName: accessibilityName, identifier: identifier, onSelect: onSelect)
     }
 }
 
 struct MonacoRangeChipsSkeleton: View {
+    static let dashWidth: CGFloat = 20
+    static let dashHeight: CGFloat = 8
+
     let ranges: [LeaderboardRange]
 
     var body: some View {
-        SkeletonBlock(
-            height: MonacoSegmentedMetrics.periodsMinHeight, radius: MonacoSegmentedMetrics.periodsMinHeight / 2
-        )
-        .frame(maxWidth: .infinity)
+        HStack(spacing: 0) {
+            ForEach(ranges, id: \.self) { _ in
+                SkeletonBlock(width: Self.dashWidth, height: Self.dashHeight, radius: Self.dashHeight / 2)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .frame(minHeight: MonacoButtonMetrics.hitTarget)
         .accessibilityHidden(true)
     }
 }

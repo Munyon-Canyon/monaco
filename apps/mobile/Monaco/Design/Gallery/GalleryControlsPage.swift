@@ -5,6 +5,7 @@ import SwiftUI
 struct GalleryControlsPage: View {
     var body: some View {
         GalleryPage(title: "Controls") {
+            GalleryBoardControlSamples()
             GalleryButtonSamples()
             GalleryCompactSamples()
             GalleryDockSamples()
@@ -63,15 +64,16 @@ struct GalleryCompactSamples: View {
     var body: some View {
         GalleryGroup(title: "Small, links and tiles") {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-                GalleryCase(caption: "Small (38), enabled and disabled; compact Deposit (32 in a 44 hit box)") {
+                GalleryCase(caption: "Small (32 in a 44 hit box): quiet, quiet disabled, prominent") {
                     GalleryGrid(minimum: 110) {
                         Button("Review") {}.buttonStyle(.monacoCompact)
                         Button("Status") {}.buttonStyle(.monacoCompact).disabled(true)
                         Button("Deposit") {}.buttonStyle(.monacoCompactProminent)
                     }
                 }
-                GalleryCase(caption: "Text link with chevron; load more") {
+                GalleryCase(caption: "Text link, with chevron; load more") {
                     VStack(alignment: .leading, spacing: 0) {
+                        Button("See all") {}.buttonStyle(.monacoText)
                         Button("See all") {}.buttonStyle(.monacoText(chevron: true))
                         Button("Load more") {}.buttonStyle(.monacoLoadMore)
                     }
@@ -156,6 +158,88 @@ struct GallerySelectionSamples: View {
                 Text("$25").monacoChipLabel(isSelected: false)
                 Text("$50").monacoChipLabel(isSelected: true)
                 Text("Max").monacoChipLabel(isSelected: false)
+            }
+        }
+    }
+}
+
+struct GalleryBoardControlSamples: View {
+    private static let tabs = ["Treasury", "Rules", "Members", "Voters"]
+    private static let ranges = ["1H", "1D", "1W", "1M", "3M", "6M", "All"]
+    private static let periods = ["Week", "Month", "All time"]
+    private static let filters = ["All", "Watchlist", "Pre-IPO", "Held"]
+    private static let networks = ["Solana", "Base", "Arbitrum", "Ethereum"]
+
+    @State private var tab = "Treasury"
+    @State private var range = "1M"
+    @State private var period = "Month"
+    @State private var filter = "All"
+    @State private var network = "Solana"
+
+    var body: some View {
+        GalleryGroup(title: "Board controls") {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+                GalleryCase(caption: "Underline tabs") {
+                    MonacoUnderlineTabs(
+                        Self.tabs, selection: $tab, count: { $0 == "Members" ? 8 : nil },
+                        identifier: { "gallery-tab-\($0)" }
+                    ) { $0 }
+                    .monacoBleed()
+                }
+                GalleryCase(caption: "Chart ranges, plain labels") {
+                    MonacoRangeChips(
+                        ranges: Self.ranges, selection: range, identifierPrefix: "gallery-range", label: { $0 },
+                        onSelect: { range = $0 })
+                }
+                GalleryCase(caption: "Period header") {
+                    MonacoPeriodLabels(
+                        title: "This month", dates: "Oct 1 – 31", periods: Self.periods, selection: $period,
+                        identifierPrefix: "gallery-period-header", label: { $0 }
+                    )
+                    .monacoBleed()
+                }
+                GalleryCase(caption: "Filter chips") {
+                    MonacoChipBar(
+                        items: Self.filters, selected: filter, title: { $0 }, identifierPrefix: "gallery-filter",
+                        select: { filter = $0 }
+                    )
+                    .monacoBleed()
+                }
+                GalleryCase(caption: "Network chips, the selected one checked") {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: MonacoTheme.Space.s) {
+                            ForEach(Self.networks, id: \.self) { name in
+                                Button {
+                                    network = name
+                                } label: {
+                                    Text(name).monacoChipLabel(isSelected: name == network, leadingSymbol: .check)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+                GalleryCase(caption: "Prominent and quiet, a row of two") {
+                    HStack(spacing: MonacoTheme.Space.s) {
+                        Button {
+                        } label: {
+                            Label("Fund", systemImage: MonacoIcon.plus.symbol)
+                        }
+                        .buttonStyle(.monacoPrimary)
+                        Button {
+                        } label: {
+                            Label("Propose", systemImage: MonacoIcon.propose.symbol)
+                        }
+                        .buttonStyle(.monacoSecondary)
+                    }
+                }
+                GalleryCase(caption: "Small prominent Deposit; text link") {
+                    HStack {
+                        Button("Deposit") {}.buttonStyle(.monacoCompactProminent)
+                        Spacer()
+                        Button("See all") {}.buttonStyle(.monacoText)
+                    }
+                }
             }
         }
     }

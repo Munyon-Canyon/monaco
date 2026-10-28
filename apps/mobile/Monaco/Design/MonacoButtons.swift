@@ -35,14 +35,11 @@ enum MonacoButtonMetrics {
     static let minimumHeight: CGFloat = 50
     static let horizontalPadding: CGFloat = 16
     static let verticalPadding: CGFloat = 10
-    static let iconSize: CGFloat = 16
+    static let iconSize: CGFloat = 17
     static let iconGap: CGFloat = 8
-    static let smallHeight: CGFloat = 38
-    static let compactHeight: CGFloat = smallHeight
-    static let compactProminentHeight: CGFloat = 32
+    static let compactHeight: CGFloat = 32
     static let compactMinWidth: CGFloat = 82
     static let hitTarget: CGFloat = 44
-    static let borderWidth: CGFloat = 1
     static let disabledFillOpacity = 0.45
 }
 
@@ -54,9 +51,12 @@ private enum MonacoButtonKind {
     var visualHeight: CGFloat {
         switch self {
         case .regular: MonacoButtonMetrics.minimumHeight
-        case .small: MonacoButtonMetrics.smallHeight
-        case .deposit: MonacoButtonMetrics.compactProminentHeight
+        case .small, .deposit: MonacoButtonMetrics.compactHeight
         }
+    }
+
+    var radius: CGFloat {
+        self == .regular ? MonacoTheme.Radius.button : MonacoTheme.Radius.small
     }
 
     var horizontalPadding: CGFloat {
@@ -72,7 +72,7 @@ private enum MonacoButtonKind {
     }
 
     var font: Font {
-        self == .regular ? MonacoTheme.Typo.headline : MonacoTheme.Typo.captionStrong
+        self == .regular ? MonacoTheme.Typo.button : MonacoTheme.Typo.subheadStrong
     }
 }
 
@@ -92,7 +92,6 @@ private struct MonacoButtonChrome: ViewModifier {
     let label: Color
     let isPressed: Bool
     var kind = MonacoButtonKind.regular
-    var stroke: Color?
     var tapsOnPress = false
 
     @Environment(\.isEnabled) private var isEnabled
@@ -106,7 +105,7 @@ private struct MonacoButtonChrome: ViewModifier {
             .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
             .minimumScaleFactor(0.9)
             .multilineTextAlignment(.center)
-            .foregroundStyle(label.opacity(isEnabled ? 1 : 0.9))
+            .foregroundStyle(isEnabled ? label : MonacoTheme.disabledLabel)
             .padding(.horizontal, kind.horizontalPadding)
             .padding(.vertical, kind.verticalPadding)
             .frame(
@@ -114,14 +113,10 @@ private struct MonacoButtonChrome: ViewModifier {
                 maxWidth: fullWidth && kind == .regular ? .infinity : nil,
                 minHeight: kind.visualHeight
             )
-            .background {
-                Capsule().fill(fill.opacity(isEnabled ? 1 : MonacoButtonMetrics.disabledFillOpacity))
-                if let stroke {
-                    Capsule().strokeBorder(
-                        stroke.opacity(isEnabled ? 1 : MonacoButtonMetrics.disabledFillOpacity),
-                        lineWidth: MonacoButtonMetrics.borderWidth)
-                }
-            }
+            .background(
+                RoundedRectangle(cornerRadius: kind.radius, style: .continuous)
+                    .fill(isEnabled ? fill : MonacoTheme.surfaceSunken)
+            )
             .frame(minHeight: MonacoButtonMetrics.hitTarget)
             .contentShape(Rectangle())
             .modifier(MonacoPressEffect(isPressed: isPressed))
@@ -149,10 +144,7 @@ struct MonacoSecondaryButtonStyle: ButtonStyle {
 
 struct MonacoOutlineButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label.modifier(
-            MonacoButtonChrome(
-                fill: .clear, label: MonacoTheme.primaryText, isPressed: configuration.isPressed,
-                stroke: MonacoTheme.border))
+        MonacoSecondaryButtonStyle().makeBody(configuration: configuration)
     }
 }
 
@@ -160,7 +152,7 @@ struct MonacoDestructiveButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.modifier(
             MonacoButtonChrome(
-                fill: MonacoTheme.destructive, label: MonacoTheme.onDestructive, isPressed: configuration.isPressed))
+                fill: MonacoTheme.secondaryButtonFill, label: MonacoTheme.loss, isPressed: configuration.isPressed))
     }
 }
 
@@ -212,8 +204,8 @@ struct MonacoTextButtonStyle: ButtonStyle {
                     .accessibilityHidden(true)
             }
         }
-        .font(MonacoTheme.Typo.captionStrong)
-        .foregroundStyle(isEnabled ? MonacoTheme.brand : MonacoTheme.disabledLabel)
+        .font(MonacoTheme.Typo.subhead)
+        .foregroundStyle(isEnabled ? MonacoTheme.tint : MonacoTheme.disabledLabel)
         .frame(minWidth: MonacoButtonMetrics.hitTarget, minHeight: MonacoButtonMetrics.hitTarget)
         .contentShape(Rectangle())
         .opacity(configuration.isPressed ? 0.6 : 1)

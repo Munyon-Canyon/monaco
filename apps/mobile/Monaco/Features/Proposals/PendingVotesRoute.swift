@@ -84,13 +84,12 @@ struct PendingVotesScreen: View {
     private var loaded: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
-                MonacoSegmented(
+                MonacoUnderlineTabs(
                     [Segment.open, .closed], selection: $segment,
                     identifier: { $0 == .open ? "proposals-segment-open" : "proposals-segment-closed" }
                 ) {
                     $0 == .open ? "Open" : "Closed"
                 }
-                .padding(.horizontal, MonacoTheme.Space.gutter)
                 switch segment {
                 case .open: openProposals
                 case .closed: closedProposals
