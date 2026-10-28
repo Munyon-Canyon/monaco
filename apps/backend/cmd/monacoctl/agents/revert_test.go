@@ -692,6 +692,65 @@ func TestWatch_leavesNoWorktreeAfterAFailedRevert(t *testing.T) {
 	}
 }
 
+func TestWatch_doesNotRevertAMobileOnlyLandingForABackendJob(t *testing.T) {
+	t.Parallel()
+	l := newLanding(t, func(x *Landing) { x.Reran = false })
+	l.sh.first(shellRule{prefix: "git diff --name-only", out: "apps/mobile/Monaco/A.swift\ndocs/design/f/notes.md\n"})
+	l.run("failure",
+		Job{Name: "staging / E2E (e2e 1 of 3)", Conclusion: "failure"},
+		Job{Name: "staging / Backend tests (short 3 of 8)", Conclusion: "failure"},
+		Job{Name: "staging / Lint (golangci-lint)", Conclusion: "failure"},
+		Job{Name: "staging / Lint (nogo, comments, OpenAPI, migrations, vuln)", Conclusion: "failure"},
+	)
+	code, stdout, stderr := l.f.agents(t, "watch", "--once")
+	if code != 0 || stderr != "" || !strings.Contains(stdout, "which #1 #2 cannot affect; not reverting\n") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	if len(l.f.hub.callsContaining("rerun-failed-jobs")) != 0 || l.count("git worktree add") != 0 {
+		t.Fatalf("reran or reverted: %v %+v", l.f.hub.callsContaining("rerun-failed-jobs"), l.sh.calls)
+	}
+	if got := l.landing(t); !got.Checked || got.Reran || got.Revert != 0 {
+		t.Fatalf("landing %+v", got)
+	}
+}
+
+func TestWatch_stillRevertsAMobileOnlyLandingForTheIOSJob(t *testing.T) {
+	t.Parallel()
+	for _, job := range []string{
+		"staging / ios / iOS app build", "staging / mobile-core / Swift (mobile-core, Linux)", "staging / Journeys",
+		"staging / scripts / Go tests (scripts 1 of 2)",
+	} {
+		l := newLanding(t, nil)
+		l.sh.first(
+			shellRule{
+				prefix: "git diff --name-only",
+				out:    "apps/mobile/Monaco/A.swift\npackages/mobile-core/B.swift\n",
+			},
+		)
+		l.run("failure", Job{Name: job, Conclusion: "failure"},
+			Job{Name: "staging / E2E (e2e 2 of 3)", Conclusion: "failure"})
+		_, stdout, _ := l.f.agents(t, "watch", "--once")
+		want := "reverted #1 #2 with #99: staging run https://gh/run/77 failed on " + job + "\n"
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("%s: %q", job, stdout)
+		}
+	}
+}
+
+func TestWatch_aMobileAndBackendLandingKeepsBackendJobsRelated(t *testing.T) {
+	t.Parallel()
+	l := newLanding(t, nil)
+	l.sh.first(shellRule{prefix: "git diff --name-only", out: "apps/mobile/Monaco/A.swift\napps/backend/a.go\n"})
+	l.run("failure", Job{Name: "staging / E2E (e2e 1 of 3)", Conclusion: "failure"})
+	_, stdout, _ := l.f.agents(t, "watch", "--once")
+	if !strings.Contains(
+		stdout,
+		"reverted #1 #2 with #99: staging run https://gh/run/77 failed on staging / E2E (e2e 1 of 3)\n",
+	) {
+		t.Fatalf("%q", stdout)
+	}
+}
+
 func TestWatch_doesNotRevertADocsOnlyLandingForACodeJob(t *testing.T) {
 	t.Parallel()
 	for _, job := range []string{"staging / Backend tests (a)", "staging / ios", "staging / e2e"} {
