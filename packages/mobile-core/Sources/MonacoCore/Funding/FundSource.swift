@@ -8,16 +8,18 @@ public struct FundTransfer: Equatable, Sendable {
     public let status: FundTransferStatus
     public let amountMicros: Int64
     public let shareUnits: String?
+    public let sliceBps: Int32?
     public let failCode: String?
 
     public init(
         transferID: String, status: FundTransferStatus, amountMicros: Int64, shareUnits: String? = nil,
-        failCode: String? = nil
+        sliceBps: Int32? = nil, failCode: String? = nil
     ) {
         self.transferID = transferID
         self.status = status
         self.amountMicros = amountMicros
         self.shareUnits = shareUnits
+        self.sliceBps = sliceBps
         self.failCode = failCode
     }
 }
@@ -43,6 +45,6 @@ public struct FundSource: Sendable {
         let wire = try await api.read { try await $0.getFundTransfer(path: .init(id: id)).ok.body.json }
         return FundTransfer(
             transferID: id, status: wire.status, amountMicros: try AccountBalance.micros(wire.amountMicros),
-            shareUnits: wire.shareUnits, failCode: wire.failCode)
+            shareUnits: wire.shareUnits, sliceBps: wire.sliceBps, failCode: wire.failCode)
     }
 }
