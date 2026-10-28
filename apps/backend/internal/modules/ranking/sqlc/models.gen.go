@@ -19,6 +19,31 @@ type CabalValueSnapshot struct {
 	TotalShares       int64
 }
 
+type Call struct {
+	ProposalID          uuid.UUID
+	CabalID             uuid.UUID
+	Kind                pgtype.Text
+	Symbol              pgtype.Text
+	Mint                pgtype.Text
+	AssetID             pgtype.UUID
+	OpenedAt            pgtype.Timestamptz
+	DecidedAt           pgtype.Timestamptz
+	Outcome             pgtype.Text
+	MarketRefMicros     pgtype.Int8
+	MarketRefObservedAt pgtype.Timestamptz
+	FillPriceMicros     pgtype.Int8
+	FilledAt            pgtype.Timestamptz
+	RefPriceMicros      pgtype.Int8
+	RefSource           pgtype.Text
+	ResolveAt           pgtype.Timestamptz
+	ResolvedAt          pgtype.Timestamptz
+	EndPriceMicros      pgtype.Int8
+	MoveBps             pgtype.Int4
+	VoidReason          pgtype.Text
+	State               string
+	UpdatedAt           time.Time
+}
+
 type LeaderboardEntry struct {
 	Board             string
 	Range             string

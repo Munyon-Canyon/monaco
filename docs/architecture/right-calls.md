@@ -45,3 +45,15 @@ Three tables, all written by the `ranking_calls` consumer (one handler per event
 One order matters: a `proposal.failed` or `proposal.expired` event carries no mint, so when it arrives before `proposal.created` there is no asset to price and the market reference stays null. #6445 voids that call as `unpriced`.
 
 Reads go through `ranking/port.Calls`: `Records` (a member's right, resolved, voted and eligible counts in a period, optionally scoped to one cabal, plus the symbols of voted calls that have not resolved yet) and `CabalRecords` (right and resolved per cabal). `governance/port.Ballots` supplies the frozen voter set joined to the votes, so the consumer never reads governance tables.
+
+## Resolution
+
+The `ranking.calls_resolver` poller (`ResolveCalls`, every minute, 200 calls a batch) judges each call at `state = 'decided'` whose `resolve_at` has passed. A batch resolves in one transaction with its `call.resolved` events.
+
+- **Reference.** The fill price (`ref_source = 'fill'`) when the proposal filled, else the market price stored at the decision (`ref_source = 'market'`). A call with neither, or with a zero reference, is voided `unpriced`.
+- **End price.** The accepted sample at `resolve_at` (`PricesAsOf`). It counts only when it was observed at most 2 hours before `resolve_at`, or 36 hours for a Pre-IPO asset, whose estimate is sampled about once a day. Direction comes from the raw prices (`domain.Right`); `move_bps` is for display.
+- **Unpriced.** With no accepted sample, the call waits for the next tick until `resolve_at` + 6 hours, then it is voided `unpriced`. A call priced late but inside that window resolves normally.
+- **Resolved time.** `resolved_at = resolve_at`, not the tick time, so a late tick never moves a call into another period.
+- **Writes.** `ResolveCall` is a guarded update on `state = 'decided'`, so a second run, or another worker, resolves nothing and appends nothing. The same transaction sets `is_right` on every voter with a choice and on the cabal's call.
+- **Event.** `call.resolved` carries the proposal, cabal, kind, symbol, outcome, `resolved_at`, `move_bps`, the right and missed voter IDs and `cabal_right`. The boards (#6453) treat it as a trigger. Nothing pushes on it at launch.
+- **Retraction.** `vote.retracted` (`ranking.calls.vote_retracted`) clears the voter's choice and keeps the row, so the member still counts as eligible in turnout but has no call. A `vote.cast` older than the retraction does not bring the choice back.

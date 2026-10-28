@@ -39,10 +39,12 @@ func TestModule_declaresEachConsumerWithItsOwnDurable(t *testing.T) {
 func TestModule_registersTheThinningAndTheValuationPollers(t *testing.T) {
 	t.Parallel()
 	pollers := ranking.New(module.Deps{}).Pollers()
-	if len(pollers) != 2 || pollers[0].Name() != "ranking.snapshot_thinning" ||
+	if len(pollers) != 3 || pollers[0].Name() != "ranking.snapshot_thinning" ||
 		pollers[0].Interval() != 30*24*time.Hour || pollers[1].Name() != "ranking.valuation" ||
-		pollers[1].Interval() != time.Second {
-		t.Fatalf("pollers = %v, want the monthly ranking.snapshot_thinning and the 1 s ranking.valuation", pollers)
+		pollers[1].Interval() != time.Second || pollers[2].Name() != "ranking.calls_resolver" ||
+		pollers[2].Interval() != time.Minute {
+		t.Fatalf("pollers = %v, want the monthly ranking.snapshot_thinning, the 1 s ranking.valuation "+
+			"and the 1 min ranking.calls_resolver", pollers)
 	}
 }
 

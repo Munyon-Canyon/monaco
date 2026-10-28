@@ -12,6 +12,7 @@ func (m *Module) calls() bus.Consumer {
 		Handlers: []bus.HandlerSpec{
 			bus.HandleFetched("ranking.calls.proposal_created", c.FetchCreated, c.ApplyCreated),
 			bus.Handle("ranking.calls.vote_cast", c.VoteCast),
+			bus.Handle("ranking.calls.vote_retracted", c.VoteRetracted),
 			bus.HandleFetched("ranking.calls.proposal_passed", c.FetchPassed, c.ApplyPassed),
 			bus.HandleFetched("ranking.calls.proposal_failed", c.FetchFailed, c.ApplyFailed),
 			bus.HandleFetched("ranking.calls.proposal_expired", c.FetchExpired, c.ApplyExpired),

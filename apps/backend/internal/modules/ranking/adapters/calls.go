@@ -94,6 +94,12 @@ func (Calls) VoteCast(ctx context.Context, tx db.Tx, e events.VoteCast, _ time.T
 	})
 }
 
+func (Calls) VoteRetracted(ctx context.Context, tx db.Tx, e events.VoteRetracted, _ time.Time) error {
+	return sqlc.New(tx.Queries()).ResetCallVoterChoice(ctx, sqlc.ResetCallVoterChoiceParams{
+		ProposalID: e.ProposalID, UserID: e.VoterID, At: e.RetractedAt,
+	})
+}
+
 func (c Calls) FetchPassed(ctx context.Context, e events.ProposalPassed) (CallDecision, error) {
 	if !tradeKind(e.Kind) {
 		return CallDecision{skip: true}, nil

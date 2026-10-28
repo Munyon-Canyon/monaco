@@ -261,6 +261,8 @@ func flow(poller string) string {
 		return "28"
 	case "ranking.valuation":
 		return "19"
+	case "ranking.calls_resolver":
+		return "19a"
 	default:
 		return ""
 	}

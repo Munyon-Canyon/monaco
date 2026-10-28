@@ -70,6 +70,65 @@ func (q *Queries) CallAssetOfProposal(ctx context.Context, proposalID uuid.UUID)
 	return asset_id, err
 }
 
+const dueCalls = `-- name: DueCalls :many
+SELECT proposal_id, cabal_id, kind, symbol, mint, asset_id, opened_at, decided_at, outcome,
+  market_ref_micros, market_ref_observed_at, fill_price_micros, filled_at, ref_price_micros, ref_source,
+  resolve_at, resolved_at, end_price_micros, move_bps, void_reason, state, updated_at
+FROM calls
+WHERE state = 'decided' AND resolve_at <= $1::timestamptz
+ORDER BY resolve_at, proposal_id
+LIMIT $2::int
+FOR UPDATE SKIP LOCKED
+`
+
+type DueCallsParams struct {
+	Now time.Time
+	N   int32
+}
+
+func (q *Queries) DueCalls(ctx context.Context, arg DueCallsParams) ([]Call, error) {
+	rows, err := q.db.Query(ctx, dueCalls, arg.Now, arg.N)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Call
+	for rows.Next() {
+		var i Call
+		if err := rows.Scan(
+			&i.ProposalID,
+			&i.CabalID,
+			&i.Kind,
+			&i.Symbol,
+			&i.Mint,
+			&i.AssetID,
+			&i.OpenedAt,
+			&i.DecidedAt,
+			&i.Outcome,
+			&i.MarketRefMicros,
+			&i.MarketRefObservedAt,
+			&i.FillPriceMicros,
+			&i.FilledAt,
+			&i.RefPriceMicros,
+			&i.RefSource,
+			&i.ResolveAt,
+			&i.ResolvedAt,
+			&i.EndPriceMicros,
+			&i.MoveBps,
+			&i.VoidReason,
+			&i.State,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const recordCallDecision = `-- name: RecordCallDecision :execrows
 INSERT INTO calls (
   proposal_id, cabal_id, kind, symbol, mint, asset_id, decided_at, outcome,
@@ -180,6 +239,100 @@ type ResetCallVoterChoiceParams struct {
 func (q *Queries) ResetCallVoterChoice(ctx context.Context, arg ResetCallVoterChoiceParams) error {
 	_, err := q.db.Exec(ctx, resetCallVoterChoice, arg.At, arg.ProposalID, arg.UserID)
 	return err
+}
+
+const resolveCall = `-- name: ResolveCall :execrows
+UPDATE calls
+SET ref_price_micros = $1::bigint,
+  ref_source = $2::text,
+  end_price_micros = $3::bigint,
+  move_bps = $4::int,
+  resolved_at = $5::timestamptz,
+  state = 'resolved',
+  updated_at = $6::timestamptz
+WHERE proposal_id = $7 AND state = 'decided'
+`
+
+type ResolveCallParams struct {
+	RefPriceMicros int64
+	RefSource      string
+	EndPriceMicros int64
+	MoveBps        int32
+	ResolvedAt     time.Time
+	At             time.Time
+	ProposalID     uuid.UUID
+}
+
+func (q *Queries) ResolveCall(ctx context.Context, arg ResolveCallParams) (int64, error) {
+	result, err := q.db.Exec(ctx, resolveCall,
+		arg.RefPriceMicros,
+		arg.RefSource,
+		arg.EndPriceMicros,
+		arg.MoveBps,
+		arg.ResolvedAt,
+		arg.At,
+		arg.ProposalID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setCabalCallRight = `-- name: SetCabalCallRight :execrows
+UPDATE cabal_calls
+SET is_right = (side = 'yes') = $1::boolean
+WHERE proposal_id = $2
+`
+
+type SetCabalCallRightParams struct {
+	YesRight   bool
+	ProposalID uuid.UUID
+}
+
+func (q *Queries) SetCabalCallRight(ctx context.Context, arg SetCabalCallRightParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setCabalCallRight, arg.YesRight, arg.ProposalID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setVoterRight = `-- name: SetVoterRight :many
+UPDATE call_voters
+SET is_right = (choice = 'yes') = $1::boolean
+WHERE proposal_id = $2 AND choice IS NOT NULL
+RETURNING user_id, coalesce(is_right, false)::boolean AS is_right
+`
+
+type SetVoterRightParams struct {
+	YesRight   bool
+	ProposalID uuid.UUID
+}
+
+type SetVoterRightRow struct {
+	UserID  uuid.UUID
+	IsRight bool
+}
+
+func (q *Queries) SetVoterRight(ctx context.Context, arg SetVoterRightParams) ([]SetVoterRightRow, error) {
+	rows, err := q.db.Query(ctx, setVoterRight, arg.YesRight, arg.ProposalID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SetVoterRightRow
+	for rows.Next() {
+		var i SetVoterRightRow
+		if err := rows.Scan(&i.UserID, &i.IsRight); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const upsertCabalCall = `-- name: UpsertCabalCall :exec
@@ -428,4 +581,23 @@ func (q *Queries) VoidCall(ctx context.Context, arg VoidCallParams) error {
 		arg.At,
 	)
 	return err
+}
+
+const voidUnpriced = `-- name: VoidUnpriced :execrows
+UPDATE calls
+SET state = 'void', void_reason = 'unpriced', updated_at = $1::timestamptz
+WHERE proposal_id = $2 AND state = 'decided'
+`
+
+type VoidUnpricedParams struct {
+	At         time.Time
+	ProposalID uuid.UUID
+}
+
+func (q *Queries) VoidUnpriced(ctx context.Context, arg VoidUnpricedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, voidUnpriced, arg.At, arg.ProposalID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

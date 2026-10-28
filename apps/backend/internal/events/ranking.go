@@ -6,7 +6,10 @@ import (
 	"github.com/google/uuid"
 )
 
-const TypeRankingSnapshotWritten Type = "ranking.snapshot_written"
+const (
+	TypeRankingSnapshotWritten Type = "ranking.snapshot_written"
+	TypeCallResolved           Type = "call.resolved"
+)
 
 const rankingAggregate = "ranking"
 
@@ -25,3 +28,23 @@ func (RankingSnapshotWritten) Type() Type { return TypeRankingSnapshotWritten }
 func (RankingSnapshotWritten) AggregateType() string { return rankingAggregate }
 
 func (e RankingSnapshotWritten) AggregateID() uuid.UUID { return e.RunID }
+
+type CallResolved struct {
+	V              int         `json:"v"`
+	ProposalID     uuid.UUID   `json:"proposal_id"`
+	CabalID        uuid.UUID   `json:"cabal_id"`
+	Kind           string      `json:"kind"`
+	Symbol         string      `json:"symbol"`
+	Outcome        string      `json:"outcome"`
+	ResolvedAt     time.Time   `json:"resolved_at"`
+	MoveBps        int         `json:"move_bps"`
+	RightVoterIDs  []uuid.UUID `json:"right_voter_ids"  pii:"true"`
+	MissedVoterIDs []uuid.UUID `json:"missed_voter_ids" pii:"true"`
+	CabalRight     bool        `json:"cabal_right"`
+}
+
+func (CallResolved) Type() Type { return TypeCallResolved }
+
+func (CallResolved) AggregateType() string { return rankingAggregate }
+
+func (e CallResolved) AggregateID() uuid.UUID { return e.ProposalID }

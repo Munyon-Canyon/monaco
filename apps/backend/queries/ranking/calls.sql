@@ -145,3 +145,40 @@ WHERE cc.cabal_id = ANY(sqlc.arg(cabal_ids)::uuid[])
   AND c.resolved_at < sqlc.arg(window_end)::timestamptz
   AND cc.is_right IS NOT NULL
 GROUP BY cc.cabal_id;
+
+-- name: DueCalls :many
+SELECT proposal_id, cabal_id, kind, symbol, mint, asset_id, opened_at, decided_at, outcome,
+  market_ref_micros, market_ref_observed_at, fill_price_micros, filled_at, ref_price_micros, ref_source,
+  resolve_at, resolved_at, end_price_micros, move_bps, void_reason, state, updated_at
+FROM calls
+WHERE state = 'decided' AND resolve_at <= sqlc.arg(now)::timestamptz
+ORDER BY resolve_at, proposal_id
+LIMIT sqlc.arg(n)::int
+FOR UPDATE SKIP LOCKED;
+
+-- name: ResolveCall :execrows
+UPDATE calls
+SET ref_price_micros = sqlc.arg(ref_price_micros)::bigint,
+  ref_source = sqlc.arg(ref_source)::text,
+  end_price_micros = sqlc.arg(end_price_micros)::bigint,
+  move_bps = sqlc.arg(move_bps)::int,
+  resolved_at = sqlc.arg(resolved_at)::timestamptz,
+  state = 'resolved',
+  updated_at = sqlc.arg(at)::timestamptz
+WHERE proposal_id = sqlc.arg(proposal_id) AND state = 'decided';
+
+-- name: SetVoterRight :many
+UPDATE call_voters
+SET is_right = (choice = 'yes') = sqlc.arg(yes_right)::boolean
+WHERE proposal_id = sqlc.arg(proposal_id) AND choice IS NOT NULL
+RETURNING user_id, coalesce(is_right, false)::boolean AS is_right;
+
+-- name: SetCabalCallRight :execrows
+UPDATE cabal_calls
+SET is_right = (side = 'yes') = sqlc.arg(yes_right)::boolean
+WHERE proposal_id = sqlc.arg(proposal_id);
+
+-- name: VoidUnpriced :execrows
+UPDATE calls
+SET state = 'void', void_reason = 'unpriced', updated_at = sqlc.arg(at)::timestamptz
+WHERE proposal_id = sqlc.arg(proposal_id) AND state = 'decided';
