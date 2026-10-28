@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	openapi_types "github.com/oapi-codegen/runtime/types"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
@@ -157,6 +159,13 @@ func wireSummary(item app.Summary, now time.Time) (api.AssetSummary, error) {
 		Quotable: item.Asset.Quotable(now),
 	}
 	out.CabalCount = item.CabalCount
+	if item.Profile != nil {
+		estimate, err := wireEstimate(item.Profile.Estimate)
+		if err != nil {
+			return api.AssetSummary{}, err
+		}
+		out.Estimate = &estimate
+	}
 	if item.Volume != nil {
 		volume, err := int64Micros(item.Volume.USD)
 		if err != nil {
@@ -191,6 +200,14 @@ func wireDetail(view app.AssetView, now time.Time, pollInterval time.Duration) (
 		return api.AssetDetail{}, err
 	}
 	multiplier := view.Summary.Asset.UIMultiplierAt(now)
+	var preIPO *api.PreIpoProfile
+	if profile := view.Summary.Profile; profile != nil {
+		wired, profileErr := wireProfile(*profile, *summary.Estimate)
+		if profileErr != nil {
+			return api.AssetDetail{}, profileErr
+		}
+		preIPO = &wired
+	}
 	return api.AssetDetail{
 		Symbol:          summary.Symbol,
 		DisplayName:     summary.DisplayName,
@@ -210,6 +227,7 @@ func wireDetail(view app.AssetView, now time.Time, pollInterval time.Duration) (
 		Tradable:        view.Summary.Asset.Tradable(),
 		OtherListings:   wireListings(view.Others),
 		Attribution:     domain.Attribution,
+		PreIpo:          preIPO,
 
 		PriceSource:              priceSource(view.Summary),
 		PricePollIntervalSeconds: int(pollInterval / time.Second),
@@ -357,3 +375,40 @@ func wireComparison(c multichain.Comparison) wire.PriceComparison {
 }
 
 func shareNanos(n multichain.ShareNanos) string { return strconv.FormatUint(uint64(n), 10) }
+
+func wireEstimate(e domain.Estimate) (api.PreIpoEstimate, error) {
+	price, err := int64Micros(e.Price)
+	if err != nil {
+		return api.PreIpoEstimate{}, err
+	}
+	return api.PreIpoEstimate{PriceMicros: price, AsOf: wireDate(e.AsOf)}, nil
+}
+
+func wireProfile(p domain.Profile, estimate api.PreIpoEstimate) (api.PreIpoProfile, error) {
+	minOrder, err := int64Micros(p.MinOrder)
+	if err != nil {
+		return api.PreIpoProfile{}, err
+	}
+	rounds := make([]api.PreIpoRound, len(p.Rounds))
+	for i, round := range p.Rounds {
+		price, priceErr := int64Micros(round.Price)
+		if priceErr != nil {
+			return api.PreIpoProfile{}, priceErr
+		}
+		rounds[i] = api.PreIpoRound{On: wireDate(round.On), PriceMicros: price}
+	}
+	out := api.PreIpoProfile{
+		Estimate: estimate, ValuationMicros: p.Valuation, Rounds: rounds, MinOrderMicros: minOrder,
+		SellWindow: api.PreIpoSellWindow(p.SellWindow), ImageUrl: present(p.ImageURL),
+	}
+	if len(rounds) > 0 {
+		out.LastRound = &rounds[len(rounds)-1]
+	}
+	if p.NextTenderOn != nil {
+		next := wireDate(*p.NextTenderOn)
+		out.NextTenderOn = &next
+	}
+	return out, nil
+}
+
+func wireDate(d domain.Date) openapi_types.Date { return openapi_types.Date{Time: d.Time()} }

@@ -7881,7 +7881,9 @@ components:
               den: 1
         tradable:
           type: boolean
-          description: True when this asset can be bought.
+          description: >-
+            True when this asset can be bought. For a `pre_ipo` asset, `true` is "Eligible" (a cabal can vote
+            to buy it) and `false` is "Research only".
           examples: [true]
         other_listings:
           type: array
@@ -7911,6 +7913,24 @@ components:
             How often Monaco asks its provider for a new price, in seconds. A cadence, not a promise:
             `price_as_of` says how old the shown price is.
           examples: [120]
+        pre_ipo:
+          type: [object, "null"]
+          description: >-
+            The curated profile of a `pre_ipo` company: its secondary estimate, rounds and round stats. Null for
+            equities and for a Pre-IPO asset without a profile; the field is then absent.
+          examples: [null]
+          x-go-type-name: PreIpoProfile
+          additionalProperties: false
+          required: [estimate, valuation_micros, last_round, rounds, min_order_micros, sell_window, next_tender_on, image_url]
+          properties:
+            estimate: {$ref: "#/components/schemas/PreIpoEstimate"}
+            valuation_micros: {type: string, pattern: "^[0-9]+$", description: "The company valuation in USD micros, as a decimal string.", examples: ["350000000000000000"]}
+            last_round: {type: [object, "null"], x-go-type: PreIpoRound, description: "The newest round, or null when the company has none on record.", examples: [null], additionalProperties: false, required: [on, price_micros], properties: {on: {type: string, format: date, examples: ["2026-06-01"]}, price_micros: {type: integer, format: int64, examples: [165000000]}}}
+            rounds: {type: array, maxItems: 24, description: "The funding rounds, oldest first.", examples: [[]], items: {$ref: "#/components/schemas/PreIpoRound"}}
+            min_order_micros: {type: integer, format: int64, description: The smallest order in USD micros., examples: [10000000]}
+            sell_window: {$ref: "#/components/schemas/PreIpoSellWindow"}
+            next_tender_on: {type: [string, "null"], format: date, description: "The next tender day. Null when the company has none scheduled or sells any time.", examples: [null]}
+            image_url: {type: [string, "null"], description: "A licensed company image, or null.", examples: [null]}
     AssetIssuer:
       type: string
       description: The firm that issues the tokenized stock.
@@ -8105,7 +8125,9 @@ components:
           description: The session this asset is in.
         tradable:
           type: boolean
-          description: True when this asset can be bought.
+          description: >-
+            True when this asset can be bought. For a `pre_ipo` asset, `true` is "Eligible" (a cabal can vote
+            to buy it) and `false` is "Research only".
           examples: [true]
         cabal_count:
           type: integer
@@ -8114,6 +8136,18 @@ components:
             How many active cabals hold this asset. Set only on rows of the `in_cabals` filter that
             ranked by it, never below three, and absent everywhere else.
           examples: [41]
+        estimate:
+          type: [object, "null"]
+          description: >-
+            The secondary estimate of a `pre_ipo` company, per share. Null for equities and for a Pre-IPO asset
+            without a profile; the field is then absent. A Pre-IPO screen shows it instead of `price_micros`.
+          examples: [{price_micros: 185000000, as_of: "2026-10-20"}]
+          x-go-type: PreIpoEstimate
+          additionalProperties: false
+          required: [price_micros, as_of]
+          properties:
+            price_micros: {type: integer, format: int64, description: The estimate per share in USD micros., examples: [185000000]}
+            as_of: {type: string, format: date, description: The day the estimate was set., examples: ["2026-10-20"]}
     ChartPoint:
       type: object
       description: One bucket of open, high, low and close, in USD micros.
@@ -8200,6 +8234,33 @@ components:
       description: Where the underlying US session is.
       examples: [open]
       enum: [pre_market, open, after_hours, closed]
+    PreIpoEstimate:
+      type: object
+      description: The secondary estimate of a Pre-IPO company, per share.
+      examples:
+        - price_micros: 185000000
+          as_of: "2026-10-20"
+      additionalProperties: false
+      required: [price_micros, as_of]
+      properties:
+        price_micros: {type: integer, format: int64, description: The estimate per share in USD micros., examples: [185000000]}
+        as_of: {type: string, format: date, description: The day the estimate was set., examples: ["2026-10-20"]}
+    PreIpoRound:
+      type: object
+      description: One funding round of a Pre-IPO company.
+      examples:
+        - on: "2026-06-01"
+          price_micros: 165000000
+      additionalProperties: false
+      required: [on, price_micros]
+      properties:
+        on: {type: string, format: date, description: The day the round priced., examples: ["2026-06-01"]}
+        price_micros: {type: integer, format: int64, description: The round price per share in USD micros., examples: [165000000]}
+    PreIpoSellWindow:
+      type: string
+      description: "`any_time` sells at any time; `tender_quarterly` sells in a quarterly tender."
+      enum: [any_time, tender_quarterly]
+      examples: [any_time]
     UiMultiplier:
       type: object
       description: The whole tokens in one display unit, as an exact fraction.

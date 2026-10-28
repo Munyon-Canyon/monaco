@@ -162,7 +162,8 @@ extension Components.Schemas.AssetSummary {
         sparklineMicros: [40_000_000, 42_000_000],
         quotable: true,
         session: .init(state: .open, continuous: true, holiday: "", earlyClose: false),
-        tradable: true
+        tradable: true,
+        estimate: .init(priceMicros: 185_000_000, asOf: "2026-10-20")
     )
 }
 

@@ -50,6 +50,7 @@ type Summary struct {
 	Volume    *Volume
 
 	CabalCount *int
+	Profile    *domain.Profile
 }
 
 type Page struct {
@@ -78,19 +79,22 @@ type assetLister interface {
 }
 
 type ListAssets struct {
-	read    catalogReader
-	volumes volumeReader
-	clock   clock.Clock
-	catalog assetLister
-	hot     []HotMints
-	ranked  moversBook
-	holders HolderCounts
-	held    holderBook
+	read     catalogReader
+	volumes  volumeReader
+	clock    clock.Clock
+	catalog  assetLister
+	hot      []HotMints
+	ranked   moversBook
+	holders  HolderCounts
+	held     holderBook
+	profiles preIPOReader
 }
 
 func NewListAssets(db sqlc.DBTX, c clock.Clock, hot ...HotMints) *ListAssets {
 	queries := sqlc.New(db)
-	return &ListAssets{read: queries, volumes: queries, clock: c, catalog: NewCatalog(db), hot: hot}
+	return &ListAssets{
+		read: queries, volumes: queries, profiles: queries, clock: c, catalog: NewCatalog(db), hot: hot,
+	}
 }
 
 type listQuery struct {
@@ -294,9 +298,16 @@ func (l *ListAssets) summaries(ctx context.Context, assets []domain.Asset, now t
 	if err != nil {
 		return nil, err
 	}
+	profiles, err := loadProfiles(ctx, l.profiles, assets)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]Summary, len(assets))
 	for i, asset := range assets {
 		out[i] = summary(asset, sessions[asset.Kind], loaded)
+		if profile, ok := profiles[asset.CompanyKey]; ok && asset.Kind == domain.KindPreIPO {
+			out[i].Profile = &profile
+		}
 	}
 	return out, nil
 }

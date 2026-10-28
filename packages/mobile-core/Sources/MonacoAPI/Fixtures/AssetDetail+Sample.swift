@@ -63,6 +63,20 @@ extension Components.Schemas.AssetDetail {
         ],
         attribution: "Data provided by CoinGecko",
         priceSource: .jupiter,
-        pricePollIntervalSeconds: 120
+        pricePollIntervalSeconds: 120,
+        preIpo: .init(
+            estimate: .init(priceMicros: 185_000_000, asOf: "2026-10-20"),
+            valuationMicros: "350000000000000000",
+            lastRound: .init(on: "2026-06-01", priceMicros: 165_000_000),
+            rounds: [
+                .init(on: "2025-02-01", priceMicros: 120_000_000),
+                .init(on: "2025-10-01", priceMicros: 150_000_000),
+                .init(on: "2026-06-01", priceMicros: 165_000_000),
+            ],
+            minOrderMicros: 10_000_000,
+            sellWindow: .tenderQuarterly,
+            nextTenderOn: "2027-01-15",
+            imageUrl: nil
+        )
     )
 }
