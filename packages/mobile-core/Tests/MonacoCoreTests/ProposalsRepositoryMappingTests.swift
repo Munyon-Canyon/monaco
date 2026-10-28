@@ -25,8 +25,7 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
         let absent = ProposalSwap(nil)
         XCTAssertEqual(absent.status, "")
         XCTAssertFalse(absent.retryable)
-        let pending = PendingVote(
-            .init(proposalId: "p", cabalId: "c", cabalName: "Cabal", kind: .buy, symbol: "TSLAx", expiresAt: .now))
+        let pending = PendingVote(.sample(proposalId: "p", cabalId: "c", cabalName: "Cabal", symbol: "TSLAx"))
         XCTAssertEqual(pending.id, "p")
         XCTAssertEqual(pending.cabalID, "c")
         XCTAssertEqual(pending.cabalName, "Cabal")
@@ -52,7 +51,7 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
         let transport = StubTransport(
             .json(
                 .ok,
-                #"[{"proposal_id":"p","cabal_id":"c","cabal_name":"Cabal","kind":"buy","symbol":"AAPLx","expires_at":"2026-01-01T00:00:00Z"}]"#
+                #"[{"proposal_id":"p","cabal_id":"c","cabal_name":"Cabal","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"asset_name":"Asset","asset_logo_url":null,"proposer":{"user_id":"u","handle":null,"display_name":"","photo_url":null},"tally":{"yes":0,"no":0,"voters":1,"needed":1},"voted_count":0,"reply_count":0,"created_at":"2025-01-01T00:00:00Z","expires_at":"2026-01-01T00:00:00Z"}]"#
             ))
         let pending = try await repository(transport).pendingVotes()
         XCTAssertEqual(pending.map(\.id), ["p"])
@@ -196,7 +195,7 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
             "/v1/me/pending-votes": [
                 .json(
                     .ok,
-                    #"[{"proposal_id":"p","cabal_id":"c","cabal_name":"Cabal","kind":"buy","symbol":"AAPLx","expires_at":"2026-01-01T00:00:00Z"}]"#
+                    #"[{"proposal_id":"p","cabal_id":"c","cabal_name":"Cabal","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"asset_name":"Asset","asset_logo_url":null,"proposer":{"user_id":"u","handle":null,"display_name":"","photo_url":null},"tally":{"yes":0,"no":0,"voters":1,"needed":1},"voted_count":0,"reply_count":0,"created_at":"2025-01-01T00:00:00Z","expires_at":"2026-01-01T00:00:00Z"}]"#
                 )
             ],
             "/v1/proposals/p": [.json(.ok, detailBody)],
@@ -214,7 +213,7 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
             "/v1/me/pending-votes": [
                 .json(
                     .ok,
-                    #"[{"proposal_id":"p","cabal_id":"c","cabal_name":"Cabal","kind":"buy","symbol":"AAPLx","expires_at":"2026-01-01T00:00:00Z"}]"#
+                    #"[{"proposal_id":"p","cabal_id":"c","cabal_name":"Cabal","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"asset_name":"Asset","asset_logo_url":null,"proposer":{"user_id":"u","handle":null,"display_name":"","photo_url":null},"tally":{"yes":0,"no":0,"voters":1,"needed":1},"voted_count":0,"reply_count":0,"created_at":"2025-01-01T00:00:00Z","expires_at":"2026-01-01T00:00:00Z"}]"#
                 )
             ],
             "/v1/proposals/p": [.failure(URLError(.notConnectedToInternet))],

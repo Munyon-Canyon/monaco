@@ -222,10 +222,10 @@ enum HomeSampleData {
 
     private static func pending(_ proposal: Proposal) -> Components.Schemas.PendingVote {
         let second = proposal == .second
-        return Components.Schemas.PendingVote(
+        return Components.Schemas.PendingVote.sample(
             proposalId: "home-proposal-\(second ? 2 : 1)", cabalId: second ? techCrew : bigBallers,
-            cabalName: second ? "Tech Crew" : "Big Ballers", kind: .buy,
-            symbol: second ? "MSFTx" : "NVDAx", expiresAt: .now.addingTimeInterval(8 * 3_600))
+            cabalName: second ? "Tech Crew" : "Big Ballers", symbol: second ? "MSFTx" : "NVDAx",
+            assetName: second ? "Microsoft" : "NVIDIA", expiresAt: .now.addingTimeInterval(8 * 3_600))
     }
 
     private static func detail(_ proposal: Proposal) -> Components.Schemas.ProposalDetail {

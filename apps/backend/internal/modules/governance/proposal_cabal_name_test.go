@@ -153,7 +153,7 @@ func TestHTTP_GetMyPendingVotes_CarriesCabalName(t *testing.T) {
 	d.pendingIn(t, first, time.Hour)
 	d.pendingIn(t, second, 2*time.Hour)
 	d.pendingIn(t, first, 3*time.Hour)
-	h := adapters.HTTP{Reads: d.reads()}
+	h := adapters.HTTP{Pending: d.votes()}
 	res, err := h.GetMyPendingVotes(d.ctx(t), api.GetMyPendingVotesRequestObject{})
 	got, ok := res.(api.GetMyPendingVotes200JSONResponse)
 	if err != nil || !ok || len(got) != 3 {
@@ -191,7 +191,7 @@ func TestProposals_CabalReadFailureFailsTheRead(t *testing.T) {
 	reads, caller := d.reads(), ids.UserIDFrom(d.caller)
 	_, listErr := reads.List(t.Context(), app.ListProposals{CabalID: ids.CabalIDFrom(d.cabal), Caller: caller})
 	_, getErr := reads.Get(t.Context(), app.GetProposal{ID: ids.ProposalIDFrom(id), Caller: caller})
-	_, pendingErr := reads.PendingVotes(t.Context(), caller)
+	_, pendingErr := d.votes().PendingVotes(t.Context(), caller)
 	for name, err := range map[string]error{"List": listErr, "Get": getErr, "PendingVotes": pendingErr} {
 		if errs.CodeOf(err) != errs.CodeDBUnavailable {
 			t.Errorf("%s with the cabal read down = %v, want db_unavailable", name, err)

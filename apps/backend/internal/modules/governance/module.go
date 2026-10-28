@@ -15,6 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
@@ -71,6 +72,9 @@ func (m *Module) Mount(r api.Mount) {
 		m.deps.Pool, trading.New(m.deps).Queries(), cabal.New(m.deps).Queries(), ports.Assets,
 		identity.New(m.deps).Queries(), ranking.New(m.deps).Queries(),
 	)
+	pending := app.NewPendingVoteReads(reads, app.PendingVotePorts{
+		Assets: market.New(m.deps).Catalog(), Replies: social.New(m.deps),
+	})
 	propose := app.NewProposeTradeHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock, ports, hints)
 	governanceapi.Mount(adapters.HTTP{
 		Propose: propose,
@@ -82,7 +86,8 @@ func (m *Module) Mount(r api.Mount) {
 		Void: app.NewVoidProposalHandler(
 			m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, trading.New(m.deps).Queries(), hints,
 		),
-		Reads: reads,
+		Reads:   reads,
+		Pending: pending,
 		Admin: app.NewAdminReads(
 			reads, bus.NewEventLog(m.deps.Pool, m.deps.Clock), identity.New(m.deps).Queries(),
 			cabal.New(m.deps).Queries(), admin.New(m.deps).Actions(),

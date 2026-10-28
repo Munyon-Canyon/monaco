@@ -49,6 +49,10 @@ func (d readsDB) reads() *app.ProposalReads {
 	return app.NewProposalReads(d.pool, d.swaps, d.names, d.assets, &cardBook{}, &returnBook{})
 }
 
+func (d readsDB) votes() *app.PendingVoteReads {
+	return app.NewPendingVoteReads(d.reads(), app.PendingVotePorts{Assets: d.assets, Replies: &replyBook{}})
+}
+
 func (d readsDB) seed(t *testing.T, at time.Time, voters ...uuid.UUID) uuid.UUID {
 	t.Helper()
 	p := d.buy(append([]uuid.UUID{d.caller}, voters...)...)

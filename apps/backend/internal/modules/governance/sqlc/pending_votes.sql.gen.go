@@ -10,12 +10,27 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const pendingVotes = `-- name: PendingVotes :many
-SELECT p.id, p.cabal_id, p.kind, p.symbol, p.expires_at
+SELECT
+  p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, p.token_amount, p.threshold,
+  p.expires_at, p.created_at,
+  ballots.yes_count, ballots.no_count, ballots.voted_count, electorate.voter_count
 FROM proposal_voters AS pv
 JOIN proposals AS p ON p.id = pv.proposal_id
+CROSS JOIN LATERAL (
+  SELECT
+    (count(*) FILTER (WHERE v.choice = 'yes'))::int AS yes_count,
+    (count(*) FILTER (WHERE v.choice = 'no'))::int AS no_count,
+    count(*)::int AS voted_count
+  FROM votes AS v
+  WHERE v.proposal_id = p.id
+) AS ballots
+CROSS JOIN LATERAL (
+  SELECT count(*)::int AS voter_count FROM proposal_voters AS all_voters WHERE all_voters.proposal_id = p.id
+) AS electorate
 WHERE pv.voter_id = $1
   AND p.status = 'open'
   AND NOT EXISTS (SELECT 1 FROM votes AS v WHERE v.proposal_id = p.id AND v.voter_id = $1)
@@ -24,11 +39,21 @@ LIMIT 50
 `
 
 type PendingVotesRow struct {
-	ID        uuid.UUID
-	CabalID   uuid.UUID
-	Kind      string
-	Symbol    string
-	ExpiresAt time.Time
+	ID          uuid.UUID
+	CabalID     uuid.UUID
+	ProposerID  uuid.UUID
+	Kind        string
+	Symbol      string
+	Mint        string
+	UsdcMicros  pgtype.Int8
+	TokenAmount pgtype.Int8
+	Threshold   string
+	ExpiresAt   time.Time
+	CreatedAt   time.Time
+	YesCount    int32
+	NoCount     int32
+	VotedCount  int32
+	VoterCount  int32
 }
 
 func (q *Queries) PendingVotes(ctx context.Context, voterID uuid.UUID) ([]PendingVotesRow, error) {
@@ -43,9 +68,19 @@ func (q *Queries) PendingVotes(ctx context.Context, voterID uuid.UUID) ([]Pendin
 		if err := rows.Scan(
 			&i.ID,
 			&i.CabalID,
+			&i.ProposerID,
 			&i.Kind,
 			&i.Symbol,
+			&i.Mint,
+			&i.UsdcMicros,
+			&i.TokenAmount,
+			&i.Threshold,
 			&i.ExpiresAt,
+			&i.CreatedAt,
+			&i.YesCount,
+			&i.NoCount,
+			&i.VotedCount,
+			&i.VoterCount,
 		); err != nil {
 			return nil, err
 		}
