@@ -211,6 +211,11 @@ type CabalActivity struct {
 	// Examples: 2026-10-03T15:00:00Z
 	OccurredAt time.Time `json:"occurred_at"`
 
+	// PriceMicros The price of one share as the user sees it, in USDC micros, from the fill and the share multiplier in force when the trade happened, rounded down. Null for a fund, a cash out, a trade not yet confirmed, and a stock the catalog does not know.
+	//
+	// Examples: 23809523
+	PriceMicros *int64 `json:"price_micros"`
+
 	// Status Where it is. A confirmed or failed row never goes back to pending.
 	//
 	// Examples: confirmed
@@ -292,6 +297,11 @@ type CabalActivityPage struct {
 
 // CabalHolding One stock the cabal holds, valued at the latest market price.
 type CabalHolding struct {
+	// AvgEntryMicros The average price paid for one share as the user sees it, cost basis over units, in USDC micros, rounded down. Null when the holding has no shares to divide by.
+	//
+	// Examples: 54794520
+	AvgEntryMicros *string `json:"avg_entry_micros"`
+
 	// CostBasisMicros What the cabal paid for the holding, in USDC micros.
 	//
 	// Examples: 40000000
@@ -301,6 +311,11 @@ type CabalHolding struct {
 	//
 	// Examples: Apple
 	DisplayName string `json:"display_name"`
+
+	// FirstBoughtAt When the cabal's first confirmed buy of this stock happened. Null when no buy is recorded.
+	//
+	// Examples: 2026-06-03T14:30:00Z
+	FirstBoughtAt *time.Time `json:"first_bought_at"`
 
 	// Kind Whether the token tracks a listed equity or a pre-IPO company.
 	//
@@ -405,6 +420,11 @@ type CabalPot struct {
 //
 // Examples: null
 type CabalPotSlice struct {
+	// FirstFundedAt When the caller first funded this cabal, kept after a full cash out. Null when they never have.
+	//
+	// Examples: 2026-08-04T15:00:00Z
+	FirstFundedAt *time.Time `json:"first_funded_at"`
+
 	// NetContributedMicros Signed USDC the caller put in minus what they took out, in micros.
 	//
 	// Examples: 100000000
@@ -687,6 +707,9 @@ type GetCabalActivityParams struct {
 
 	// Cursor The `next_cursor` from the previous page. Absent reads the first page.
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Symbol Reads only the buys and sells of the stock with this token symbol, paged the same way. A symbol the catalog does not know reads an empty page.
+	Symbol *string `form:"symbol,omitempty" json:"symbol,omitempty"`
 }
 
 // PostCashOutParams defines parameters for PostCashOut.
@@ -802,6 +825,19 @@ func (siw *ServerInterfaceWrapper) GetCabalActivity(w http.ResponseWriter, r *ht
 			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
 		} else {
 			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "symbol" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "symbol", r.URL.Query(), &params.Symbol, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "symbol"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "symbol", Err: err})
 		}
 		return
 	}

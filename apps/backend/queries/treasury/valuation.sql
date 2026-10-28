@@ -27,5 +27,12 @@ SELECT a.id, a.kind,
 FROM cabal_activity AS a
 WHERE a.cabal_id = @cabal_id
   AND (NOT @has_cursor::bool OR (a.occurred_at, a.id) < (@cursor_at::timestamptz, @cursor_id::uuid))
+  AND (sqlc.narg(asset)::text IS NULL OR (a.asset = sqlc.narg(asset)::text AND a.kind IN ('buy', 'sell')))
 ORDER BY a.occurred_at DESC, a.id DESC
 LIMIT @row_limit;
+
+-- name: CabalFirstBuys :many
+SELECT asset::text AS asset, min(occurred_at)::timestamptz AS first_bought_at
+FROM cabal_activity
+WHERE cabal_id = sqlc.arg(cabal_id)::uuid AND kind = 'buy' AND status = 'confirmed' AND asset IS NOT NULL
+GROUP BY asset;

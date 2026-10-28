@@ -126,6 +126,8 @@ type Holding struct {
 	WeightBps       int32
 	CostBasisMicros money.Micros
 	PnLMicros       money.SignedMicros
+	AvgEntryMicros  *money.Micros
+	FirstBoughtAt   *time.Time
 	Listings        []HoldingListing
 }
 
@@ -143,6 +145,7 @@ type Slice struct {
 	SliceBps             int32
 	NetContributedMicros money.SignedMicros
 	PnLMicros            money.SignedMicros
+	FirstFundedAt        *time.Time
 }
 
 type CabalPot struct {

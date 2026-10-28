@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"pgregory.net/rapid"
 
@@ -25,10 +26,12 @@ import (
 const maxUint64 = "18446744073709551615"
 
 type potFake struct {
-	snapshot    []sqlc.CabalPotSnapshotRow
-	members     []sqlc.CabalMemberSharesRow
-	snapshotErr error
-	membersErr  error
+	snapshot     []sqlc.CabalPotSnapshotRow
+	members      []sqlc.CabalMemberSharesRow
+	snapshotErr  error
+	membersErr   error
+	firstBuysErr error
+	firstFundErr error
 }
 
 func (f potFake) CabalPotSnapshot(context.Context, uuid.UUID) ([]sqlc.CabalPotSnapshotRow, error) {
@@ -37,6 +40,17 @@ func (f potFake) CabalPotSnapshot(context.Context, uuid.UUID) ([]sqlc.CabalPotSn
 
 func (f potFake) CabalMemberShares(context.Context, uuid.UUID) ([]sqlc.CabalMemberSharesRow, error) {
 	return f.members, f.membersErr
+}
+
+func (f potFake) CabalFirstBuys(context.Context, uuid.UUID) ([]sqlc.CabalFirstBuysRow, error) {
+	return nil, f.firstBuysErr
+}
+
+func (f potFake) FirstFundedAt(context.Context, sqlc.FirstFundedAtParams) (time.Time, error) {
+	if f.firstFundErr != nil {
+		return time.Time{}, f.firstFundErr
+	}
+	return time.Time{}, pgx.ErrNoRows
 }
 
 func potViewer() ids.UserID { return ids.UserIDFrom(testkit.NewIDs(3).NewV7()) }
@@ -92,6 +106,19 @@ func TestCabalPot_refusesBadReadsAndOverflows(t *testing.T) {
 			pricesErr: errs.New(errs.CodeInternal, "test"),
 		},
 		"holding pnl overflows": {store: potFake{snapshot: []sqlc.CabalPotSnapshotRow{potRow(aapl, "1", maxUint64)}}},
+		"average entry overflows": {
+			store: potFake{snapshot: []sqlc.CabalPotSnapshotRow{potRow(aapl, "1", "1000000000000")}},
+		},
+		"first buys read fails": {
+			store: potFake{
+				snapshot:     []sqlc.CabalPotSnapshotRow{potRow(aapl, "1", "1")},
+				firstBuysErr: errs.New(errs.CodeInternal, "test"),
+			},
+		},
+		"first fund read fails": {
+			store:  potFake{snapshot: withRow(keep, usdc), firstFundErr: errs.New(errs.CodeInternal, "test")},
+			member: true,
+		},
 		"bad reservation": {
 			store: potFake{
 				snapshot: withRow(func(r *sqlc.CabalPotSnapshotRow) { r.CashOutReservedMicros = "bad" }, usdc),

@@ -20,6 +20,23 @@ extension Components.Schemas.CabalActivity {
 
     public static let samples = [sampleBuy, sampleSell, sampleFund, sampleCashOut]
 
+    public static let sampleNVDATrades = [
+        nvdaTrade(9, kind: .buy, shares: 13, priceMicros: 196_750_000, at: 1_790_778_600),
+        nvdaTrade(8, kind: .sell, shares: 10, priceMicros: 214_100_000, at: 1_787_236_200),
+        nvdaTrade(7, kind: .buy, shares: 15, priceMicros: 188_400_000, at: 1_784_125_800),
+        nvdaTrade(6, kind: .buy, shares: 20, priceMicros: 181_200_000, at: 1_780_497_000),
+    ]
+
+    static func nvdaTrade(
+        _ number: Int, kind: KindPayload, shares: Int64, priceMicros: Int64, at seconds: TimeInterval
+    ) -> Self {
+        Self(
+            id: String(format: "01890a5d-ac96-774b-bcce-b302099a9%03d", number), kind: kind, status: .confirmed,
+            asset: .init(symbol: "NVDAx", name: "NVIDIA"), usdcMicros: shares * priceMicros,
+            units: shares * 100_000_000, priceMicros: priceMicros, actor: nil,
+            txSignature: "sample-signature-\(number)", occurredAt: Date(timeIntervalSince1970: seconds))
+    }
+
     public static func sample(
         _ number: Int, kind: KindPayload, status: StatusPayload, asset: AssetPayload?, micros: Int64?,
         actor: ActorPayload?
