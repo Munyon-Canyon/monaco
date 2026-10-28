@@ -1000,8 +1000,6 @@ func TestCheck_theXcodeRowRunsForAnAppChangeOnDarwinOnly(t *testing.T) {
 	t.Parallel()
 	found := func(string) (string, error) { return "/usr/bin/xcodebuild", nil }
 	build := " MONACO_LOCK_HOLD=1200 MONACO_XCODE_LOCK_TIMEOUT=5400 bash -c " + xcodeScript("build-for-testing")
-	testCmd := " MONACO_LOCK_HOLD=1200 MONACO_XCODE_LOCK_TIMEOUT=5400 scripts/qa/xcode-lock.sh sim bash -c " +
-		xcodeScript("-only-testing:MonacoTests test-without-building")
 	ran := func(h *checkHarness, cmd string) bool {
 		return slices.ContainsFunc(h.calls, func(c string) bool {
 			return strings.HasPrefix(c, ".: env MONACO_LOCK_WAITED=") && strings.HasSuffix(c, cmd)
@@ -1014,17 +1012,22 @@ func TestCheck_theXcodeRowRunsForAnAppChangeOnDarwinOnly(t *testing.T) {
 	h.lookPath = found
 	h.commit(t, change)
 	code, stdout, stderr := h.check(t)
-	if code != 0 || !ran(h, build) || !ran(h, testCmd) ||
-		!strings.Contains(stdout, "xcode           ok") {
+	if code != 0 || !ran(h, build) || !strings.Contains(stdout, "xcode           ok") {
 		t.Fatalf("darwin app change: %d %q %q\n%s", code, stdout, stderr, strings.Join(h.calls, "\n"))
 	}
-	if !strings.Contains(build, "ensure-ios-privy-config.sh placeholder") ||
-		!strings.Contains(build, "scripts/xcode-cache-args.sh") || !strings.Contains(build, `"${cache_args[@]}"`) {
-		t.Fatalf("build script: %s", build)
+	if slices.ContainsFunc(h.calls, func(c string) bool {
+		return strings.Contains(c, "test-without-building") || strings.Contains(c, "MonacoTests") ||
+			strings.Contains(c, "xcode-lock.sh sim")
+	}) {
+		t.Fatalf(
+			"stage 0 runs MonacoTests, which belong to the hourly staging ios job:\n%s",
+			strings.Join(h.calls, "\n"),
+		)
 	}
-	if !strings.Contains(testCmd, "-collect-test-diagnostics never -only-testing:MonacoTests test-without-building") ||
+	if !strings.Contains(build, "ensure-ios-privy-config.sh placeholder") ||
+		!strings.Contains(build, "scripts/xcode-cache-args.sh") || !strings.Contains(build, `"${cache_args[@]}"`) ||
 		strings.Contains(build, "-collect-test-diagnostics") {
-		t.Fatalf("test diagnostics flag: test %s\nbuild %s", testCmd, build)
+		t.Fatalf("build script: %s", build)
 	}
 	if !slices.Contains(h.calls, ".: install-xcsift.sh") {
 		t.Fatalf("missing xcsift install:\n%s", strings.Join(h.calls, "\n"))
@@ -1081,35 +1084,6 @@ func TestXcodeScript_shutsDownASimulatorItBooted(t *testing.T) {
 	}
 }
 
-func TestCheck_theTestActionTakesTheSimSlotBeforeTheXcodeSlot(t *testing.T) {
-	t.Parallel()
-	h := newCheckHarness(t)
-	h.goos = "darwin"
-	h.lookPath = func(string) (string, error) { return "/usr/bin/xcodebuild", nil }
-	writeFile(t, filepath.Join(h.dir, ".bin", "xcsift"), "#!/bin/sh\n")
-	h.commit(t, map[string]string{"apps/mobile/Monaco/A.swift": "let a = 1\n"})
-	if code, stdout, stderr := h.check(t); code != 0 {
-		t.Fatalf("check: %d %q %q", code, stdout, stderr)
-	}
-	var test, build string
-	for _, c := range h.calls {
-		switch {
-		case strings.Contains(c, "test-without-building"):
-			test = c
-		case strings.Contains(c, "build-for-testing"):
-			build = c
-		}
-	}
-	sim := strings.Index(test, "scripts/qa/xcode-lock.sh sim bash -c ")
-	xcode := strings.Index(test, "scripts/qa/xcode-lock.sh xcodebuild ")
-	if sim < 0 || xcode < 0 || sim > xcode || strings.Count(test, "xcode-lock.sh sim") != 1 {
-		t.Fatalf("the test action must take the sim slot, then the xcode slot:\n%s", test)
-	}
-	if build == "" || strings.Contains(build, "xcode-lock.sh sim") {
-		t.Fatalf("build-for-testing boots no simulator and takes no sim slot:\n%s", build)
-	}
-}
-
 func TestCheck_theXcodeRowSkipsTestsTheAppNeverBuilds(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -1162,7 +1136,7 @@ func TestCheck_theXcodeBudgetStartsWhenTheLockIsTaken(t *testing.T) {
 		return runErr
 	}
 	code, stdout, stderr := h.check(t)
-	waitedRE := regexp.MustCompile(`xcode +ok +0\.2s  waited ([1-9]\d*)s for xcode lock`)
+	waitedRE := regexp.MustCompile(`xcode +ok +0\.1s  waited ([1-9]\d*)s for xcode lock`)
 	if code != 0 || !waitedRE.MatchString(stdout) {
 		t.Fatalf("a fast build behind a lock held past the budget passes: %d %q %q", code, stdout, stderr)
 	}
