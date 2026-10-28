@@ -34,6 +34,12 @@ enum ProposalSampleScenario: String, CaseIterable {
     case closedEmpty
     case closedLoading
     case closedError
+    case nvdaOpen
+    case nvdaPassed
+    case nvdaFilled
+    case metaFilled
+    case tslaFailed
+    case spaceXOpen
 
     static let launchArgument = "-MonacoProposalSample"
 
@@ -95,6 +101,24 @@ enum ProposalSampleScenario: String, CaseIterable {
         case .allEmpty: break
         case .allLoading: script.mode = .hang
         case .allError: script.pendingVotesFail = true
+        case .nvdaOpen:
+            script.asset = .nvda
+            script.proposal = .openNVDA()
+        case .nvdaPassed:
+            script.asset = .nvda
+            script.proposal = .passedNVDA()
+        case .nvdaFilled:
+            script.asset = .nvda
+            script.proposal = .filledNVDA()
+        case .metaFilled:
+            script.asset = .nvda
+            script.proposal = .filledMETA()
+        case .tslaFailed:
+            script.asset = .nvda
+            script.proposal = .failedTSLA()
+        case .spaceXOpen:
+            script.asset = .spaceX
+            script.proposal = .preIpoSpaceX()
         }
         return script
     }

@@ -485,6 +485,13 @@ proposal-not-voter            -MonacoProposalSample notVoter
 proposal-rejected             -MonacoProposalSample rejected
 proposal-blocked              -MonacoProposalSample blocked
 proposal-open-dark            -MonacoProposalSample open -AppleInterfaceStyle Dark
+proposal-nvda-open            -MonacoProposalSample nvdaOpen
+proposal-nvda-open-dark       -MonacoProposalSample nvdaOpen -AppleInterfaceStyle Dark
+proposal-nvda-passed          -MonacoProposalSample nvdaPassed
+proposal-nvda-filled          -MonacoProposalSample nvdaFilled
+proposal-meta-filled          -MonacoProposalSample metaFilled
+proposal-tsla-failed          -MonacoProposalSample tslaFailed
+proposal-spacex-open          -MonacoProposalSample spaceXOpen
 proposal-votes-open           -MonacoProposalSample votesOpen
 proposal-votes-recorded       -MonacoProposalSample votesRecorded
 proposal-votes-empty          -MonacoProposalSample votesEmpty

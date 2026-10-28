@@ -4,6 +4,7 @@ struct ProposalReasonSection: View {
     enum Style {
         case page
         case sheet
+        case plain
     }
 
     let title: String
@@ -12,10 +13,10 @@ struct ProposalReasonSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            MonacoSectionHeader(title)
+            if style != .plain { MonacoSectionHeader(title) }
             Text(text)
-                .font(style == .page ? MonacoTheme.Typo.body : MonacoTheme.Typo.subhead)
-                .lineSpacing(style == .page ? 4 : 2)
+                .font(style == .sheet ? MonacoTheme.Typo.subhead : MonacoTheme.Typo.body)
+                .lineSpacing(style == .sheet ? 2 : 4)
                 .foregroundStyle(MonacoTheme.bodyText)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)

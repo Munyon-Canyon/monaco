@@ -152,6 +152,8 @@ public final class ProposalDetailModel {
     private let cabalID: String
     private let repository: ProposalsRepository
     private let hints: any HintSource
+    private let now: @Sendable () -> Date
+    private let calendar: Calendar
     private let refresher: HintRefresher
     private let submission = IdempotentSubmission()
     private let retrySubmission = IdempotentSubmission()
@@ -162,12 +164,15 @@ public final class ProposalDetailModel {
 
     public init(
         id: String, cabalID: String, repository: ProposalsRepository, hints: any HintSource,
-        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        now: @escaping @Sendable () -> Date = Date.init, calendar: Calendar = .current
     ) {
         self.id = id
         self.cabalID = cabalID
         self.repository = repository
         self.hints = hints
+        self.now = now
+        self.calendar = calendar
         voting = ProposalVoteModel(repository: repository)
         proposeService = LiveProposeService(api: repository.api)
         livePrice = LiveBestPriceModel(sleep: sleep) { cabalID in
@@ -181,9 +186,11 @@ public final class ProposalDetailModel {
     public convenience init(
         sample detail: Components.Schemas.ProposalDetail, members: [Components.Schemas.CabalMember],
         asset: Components.Schemas.AssetDetail, priceMove: ProposalPriceMove? = nil, repository: ProposalsRepository,
-        hints: any HintSource
+        hints: any HintSource, now: @escaping @Sendable () -> Date = Date.init, calendar: Calendar = .current
     ) {
-        self.init(id: detail.id, cabalID: detail.cabalId, repository: repository, hints: hints)
+        self.init(
+            id: detail.id, cabalID: detail.cabalId, repository: repository, hints: hints, now: now,
+            calendar: calendar)
         value = ProposalDetail(detail)
         self.members = members.map(ProposalMember.init)
         self.asset = ProposalAsset(asset)
@@ -240,6 +247,10 @@ public final class ProposalDetailModel {
     }
 
     public var canWithdraw: Bool { value?.summary.canWithdraw == true }
+
+    public var stats: ProposalStats? {
+        value.map { ProposalStats.make(detail: $0, asset: asset, now: now(), calendar: calendar) }
+    }
 
     public var retryableSwapID: String? {
         guard !isRetryPending, let swap = value?.summary.swap, swap.retryable else { return nil }
