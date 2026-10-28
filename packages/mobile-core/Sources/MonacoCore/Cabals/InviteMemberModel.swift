@@ -160,7 +160,7 @@ public final class InviteMemberModel {
         case .requestPending:
             return "They already have a pending invite or request."
         case .ok, .invalidInput, .unauthorized, .cabalNotFound, .cabalBanned, .joinNeedsRequest, .requestNotNeeded,
-            .notCabalCreator, .accessRequestNotPending, .cannotRevokeAccess, .inviteExpired, .notCabalMember:
+            .notCabalAdmin, .accessRequestNotPending, .cannotRevokeAccess, .inviteExpired, .notCabalMember:
             return ToastCopy.message(for: error)
         }
     }

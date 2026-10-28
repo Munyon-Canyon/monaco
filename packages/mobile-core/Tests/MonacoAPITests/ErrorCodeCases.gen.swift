@@ -95,6 +95,7 @@ extension Components.Schemas.ErrorCode {
         case .noRoute: true
         case .notAVoter: true
         case .notBanned: true
+        case .notCabalAdmin: true
         case .notCabalCreator: true
         case .notCabalMember: true
         case .notFound: true

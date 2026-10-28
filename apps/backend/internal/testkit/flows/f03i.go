@@ -93,7 +93,7 @@ func F03InviteMemberNotCabalMember(s *scenario.Scenario) {
 		Then(refused(errs.CodeNotCabalMember, events.TypeCabalAccessRequested, 0)...)
 }
 
-func F03InviteMemberNotCabalCreator(s *scenario.Scenario) {
+func F03InviteMemberNotCabalAdmin(s *scenario.Scenario) {
 	s.Given(append(inviting("inv-member", "open"),
 		scenario.SignIn(outsiderOf("inv-member")),
 		scenario.Post(membersPath, ""),
@@ -103,7 +103,7 @@ func F03InviteMemberNotCabalCreator(s *scenario.Scenario) {
 		scenario.ExpectStatus(http.StatusOK),
 	)...).
 		When(scenario.SignIn(outsiderOf("inv-member")), scenario.Post(invitesPath, inviteBody("inv-member"))).
-		Then(refused(errs.CodeNotCabalCreator, events.TypeCabalAccessRequested, 0)...)
+		Then(refused(errs.CodeNotCabalAdmin, events.TypeCabalAccessRequested, 0)...)
 }
 
 func F03InviteMemberCabalBanned(s *scenario.Scenario) {

@@ -42,10 +42,11 @@ The creator sets these at `CreateCabal`. `UpdateCabal` can change them later ([E
 
 | Role | Can |
 | --- | --- |
-| `creator` | Everything a member can, plus decide access requests, invite, revoke any invite, and run `UpdateCabal`. |
+| `creator` | Everything an admin can, plus run `UpdateCabal`. |
+| `admin` | Everything a member can, plus list and decide access requests, invite, and revoke any invite. Always votes. |
 | `member` | Read the cabal, chat, revoke their own invites, leave. Proposing and voting depend on the voter set, not the role. |
 
-There is exactly one creator per cabal, and the role never moves. There is no admin role in the MVP ([Open questions](#open-questions)).
+There is exactly one creator per cabal, and the role never moves. The creator is an admin, so "is an admin" means `creator` or `admin`. A database check keeps every `admin` row voting, and a voter-list edit keeps every admin on the list, as it keeps the creator. Nobody names a co-admin directly: a proposal does ([Open questions](#open-questions)).
 
 ### Join and access requests
 
@@ -58,8 +59,8 @@ There is exactly one creator per cabal, and the role never moves. There is no ad
 
 | Actor | Decision | Status | Effect |
 | --- | --- | --- | --- |
-| creator | approve | `approved` | Inserts the member row in the same Unit of Work. Emits `cabal.access_decided` and `cabal.member_joined`. |
-| creator | deny | `denied` | Emits `cabal.access_decided`. |
+| admin | approve | `approved` | Inserts the member row in the same Unit of Work. Emits `cabal.access_decided` and `cabal.member_joined`. |
+| admin | deny | `denied` | Emits `cabal.access_decided`. |
 | requester | revoke | `revoked` | Emits `cabal.access_decided`. |
 
 - Requests do not expire. They stay `pending` until someone decides them.
@@ -67,6 +68,7 @@ There is exactly one creator per cabal, and the role never moves. There is no ad
 - A denied or revoked user can request again, which inserts a new row.
 - `GET /v1/cabals/{id}` returns `my_access_request` to a non-member: their pending request or invite, else their latest request when the creator denied it, else `null`. A member always sees `null`. The app shows "rejected" from the denied row. Search rows carry the pending status only.
 - `JoinCabal` on a `request` cabal is refused with `JoinNeedsRequest`, and `RequestAccess` on an `open` cabal with `RequestNotNeeded`, so the app always calls the command that matches the mode it read.
+- Listing the pending requests (`GET /v1/cabals/{id}/access-requests`) is for admins too. A member who is not an admin gets `NotCabalAdmin` from the list, `DecideAccess` and `InviteMember`.
 - `DecideAccess` approves or denies. It refuses an approval into a banned cabal with `CabalBanned` and an invite past `expires_at` with `InviteExpired`. The guarded update `WHERE status = 'pending'` lets one of two concurrent decisions win; the other gets `AccessRequestNotPending`.
 - The `cabal_hints` consumer publishes `cabal.<id>.members` and `user.<user_id>.cabal_access` for `cabal.member_joined` and `cabal.access_decided`, and `cabal.<id>.access_requests` for `cabal.access_requested` and `cabal.access_decided` on a request. On an invite it publishes `user.<invitee>.cabal_invites` in place of `cabal.<id>.access_requests`. The api's SSE hub rescopes a phone to its new cabals when it routes `user.<user_id>.cabal_access`.
 - A member calling `JoinCabal` or `RequestAccess` is refused with `AlreadyMember`. A banned cabal refuses both with `CabalBanned`.
@@ -76,20 +78,20 @@ There is exactly one creator per cabal, and the role never moves. There is no ad
 **Direct invite.**
 
 - `InviteMember` targets a user by handle, resolved through `identity`'s query port. It inserts a `cabal_access_requests` row with `direction = invite`, `status = pending`, the inviter's id and `expires_at = now() + 7 days`. Emits `cabal.access_requested`.
-- Who may invite: only the creator, in either `join_mode`.
-- Inviting an existing member is refused. Inviting a user with a pending request is refused; the creator approves the request instead.
+- Who may invite: any admin, in either `join_mode`. Everyone else is refused with `NotCabalAdmin`.
+- Inviting an existing member is refused. Inviting a user with a pending request is refused; an admin approves the request instead.
 - The invitee accepts or declines through `DecideAccess`. Accepting joins directly in either `join_mode` (`approved`, plus `cabal.member_joined`). Declining sets `denied`.
-- The inviter or the creator can revoke a pending invite (`revoked`).
+- The inviter or any admin can revoke a pending invite (`revoked`). A plain member can still revoke an invite they sent.
 - `GET /v1/me/cabal-invites` lists the caller's live invites with each cabal's name, picture and member count and the inviter, leaving out banned cabals. `GET /v1/cabals/{id}/invites` lists a cabal's live invites to its members. The inbox reads the partial index `cabal_access_requests_pending_user_idx` on `user_id`.
 - A worker poller sets `expired` on pending invites past `expires_at`, one guarded update per row (`WHERE status = 'pending'`), and emits `cabal.access_decided` with decision `expired`. An accept that races the poller loses on the same guard and is refused. The `cabal.invite_expiry` poller runs every 5 minutes under its advisory lock and takes at most 100 invites a tick.
 - An accept or decline of a pending invite past `expires_at` that the poller has not reached yet sets it `expired` with the same event and refuses with `InviteExpired`, in one Unit of Work.
 
 ### Edit
 
-- `UpdateCabal` is creator only. It changes the name, the picture and any rule in [Rules](#rules), the voter list included.
+- `UpdateCabal` is creator only, and a voter-list edit keeps every admin voting. It changes the name, the picture and any rule in [Rules](#rules), the voter list included.
 - A rules change applies to proposals created afterwards. Open proposals keep the voter set frozen at their creation ([proposals.md](proposals.md#data-model)) and their `expires_at`.
 - `threshold` is frozen on the proposal at creation ([proposals.md](proposals.md#data-model)), so a change never reaches an open vote. The trade engine still reads `slippage_bps` ([trade-execution.md](trade-execution.md#stage-2-trade-engine)) through this module's query port when it runs, so a change to it reaches open proposals ([Open questions](#open-questions)).
-- Switching `join_mode` from `request` to `open` leaves pending requests as they are. The creator can still decide them, and the requester can now join directly; that `JoinCabal` sets their pending request to `approved` in the same Unit of Work.
+- Switching `join_mode` from `request` to `open` leaves pending requests as they are. An admin can still decide them, and the requester can now join directly; that `JoinCabal` sets their pending request to `approved` in the same Unit of Work.
 - Emits `cabal.updated` with the fields that changed.
 
 ### Leave
@@ -140,13 +142,12 @@ Every payload carries `v` ([event-bus.md](event-bus.md)). Timestamps live on the
 | --- | --- |
 | Invite codes | A code is a second way in beside search and `join_mode`, and a leaked one has to be rotated. Direct invites already cover inviting a named user. |
 | A third `invite` join mode, where only invited users join | Product names two modes, open and by request. Direct invites already cover inviting into a `request` cabal. |
-| An admin role between creator and member | No MVP need. Product gives approval to the creator alone. |
 | Invites in their own table | [data-model.md](data-model.md#decision) puts both directions in `cabal_access_requests`, which keeps one pending-row rule and one poller. |
 | Requests expire like invites | A request waits on the creator, not the requester. Expiring it punishes the requester for the creator's delay. |
 
 ## Open questions
 
 - **Freezing slippage.** [Edit](#edit) says a rules change applies to later proposals, but the trade engine reads the current slippage. Closing the gap means `ProposeTrade` copies it onto the proposal, which is a governance change.
-- **Admin role.** Whether a creator can name co-admins who decide requests and invite. Not in the MVP.
+- **Naming admins.** The role and its door powers are built. Making or removing an admin is a rule proposal that no code applies yet, so the creator is the only admin until it does.
 
 Log: [log/cabals.md](log/cabals.md).

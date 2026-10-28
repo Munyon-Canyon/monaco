@@ -102,7 +102,7 @@ func newContractWorld(t *testing.T) contractWorld {
 		low, high = high, low
 	}
 	member("a", u[0], cabal.RoleCreator, true, t0)
-	member("a", low, cabal.RoleMember, true, t0.Add(time.Hour))
+	member("a", low, cabal.Role("admin"), true, t0.Add(time.Hour))
 	member("a", high, cabal.RoleMember, true, t0.Add(time.Hour))
 	member("b", u[2], cabal.RoleCreator, true, t0.Add(2*time.Hour))
 	member("b", u[0], cabal.RoleMember, false, t0.Add(3*time.Hour))
@@ -264,6 +264,7 @@ func contractCases() []contractCase {
 		{"Members come back by join time and then user id", checkMembers},
 		{"Members of an unknown cabal is an empty list", checkMembersUnknown},
 		{"VoterSet is the members who can vote in join order", checkVoterSet},
+		{"Admins is the creator and then the admins in join order", checkAdmins},
 		{"Rules carries the join, voter, threshold, expiry and slippage rules", checkRules},
 		{"SlippageBps reads the cabal's slippage", checkSlippage},
 		{"Status is active or banned", checkStatus},
@@ -370,6 +371,20 @@ func checkVoterSet(e contractEnv) {
 	got, err := e.q.VoterSet(e.t.Context(), ids.CabalID{})
 	if err != nil || got == nil || len(got) != 0 {
 		e.t.Errorf("VoterSet(unknown) = %v, %v, want an empty list", got, err)
+	}
+}
+
+func checkAdmins(e contractEnv) {
+	for _, key := range contractKeys() {
+		got, err := e.q.Admins(e.t.Context(), e.w.id(key))
+		want := membersWhere(e.w.membersOf(key), func(m cabal.MemberView) bool { return m.Role.IsAdmin() })
+		if err != nil || !slices.Equal(got, want) {
+			e.t.Errorf("Admins %s = %v, %v, want %v", key, got, err, want)
+		}
+	}
+	got, err := e.q.Admins(e.t.Context(), ids.CabalID{})
+	if err != nil || got == nil || len(got) != 0 {
+		e.t.Errorf("Admins(unknown) = %v, %v, want an empty list", got, err)
 	}
 }
 

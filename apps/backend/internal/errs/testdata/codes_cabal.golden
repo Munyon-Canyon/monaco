@@ -8,6 +8,7 @@ join_needs_request
 leave_creator_with_members
 leave_holds_shares
 leave_last_member_pot_not_empty
+not_cabal_admin
 not_cabal_creator
 not_cabal_member
 request_not_needed

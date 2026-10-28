@@ -4,15 +4,15 @@ package flows
 
 func (defined) ScriptsF03i() map[string]Script {
 	return map[string]Script{
-		"F03InviteMemberOK":              F03InviteMemberOK,
-		"F03InviteMemberUnauthorized":    F03InviteMemberUnauthorized,
-		"F03InviteMemberCabalNotFound":   F03InviteMemberCabalNotFound,
-		"F03InviteMemberUserNotFound":    F03InviteMemberUserNotFound,
-		"F03InviteMemberNotCabalMember":  F03InviteMemberNotCabalMember,
-		"F03InviteMemberNotCabalCreator": F03InviteMemberNotCabalCreator,
-		"F03InviteMemberCabalBanned":     F03InviteMemberCabalBanned,
-		"F03InviteMemberAlreadyMember":   F03InviteMemberAlreadyMember,
-		"F03InviteMemberRequestPending":  F03InviteMemberRequestPending,
-		"F03DecideAccessInviteExpired":   F03DecideAccessInviteExpired,
+		"F03InviteMemberOK":             F03InviteMemberOK,
+		"F03InviteMemberUnauthorized":   F03InviteMemberUnauthorized,
+		"F03InviteMemberCabalNotFound":  F03InviteMemberCabalNotFound,
+		"F03InviteMemberUserNotFound":   F03InviteMemberUserNotFound,
+		"F03InviteMemberNotCabalMember": F03InviteMemberNotCabalMember,
+		"F03InviteMemberNotCabalAdmin":  F03InviteMemberNotCabalAdmin,
+		"F03InviteMemberCabalBanned":    F03InviteMemberCabalBanned,
+		"F03InviteMemberAlreadyMember":  F03InviteMemberAlreadyMember,
+		"F03InviteMemberRequestPending": F03InviteMemberRequestPending,
+		"F03DecideAccessInviteExpired":  F03DecideAccessInviteExpired,
 	}
 }

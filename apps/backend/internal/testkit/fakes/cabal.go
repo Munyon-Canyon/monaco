@@ -194,6 +194,24 @@ func (f *Cabal) VoterSet(_ context.Context, id ids.CabalID) ([]ids.UserID, error
 	return voters, nil
 }
 
+func (f *Cabal) Admins(_ context.Context, id ids.CabalID) ([]ids.UserID, error) {
+	if err := f.Check("Admins"); err != nil {
+		return nil, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	admins := []ids.UserID{}
+	for _, keep := range []func(cabal.MemberView) bool{
+		func(m cabal.MemberView) bool { return m.Role == cabal.RoleCreator },
+		func(m cabal.MemberView) bool { return m.Role.IsAdmin() && m.Role != cabal.RoleCreator },
+	} {
+		for _, m := range f.membersOf(id, keep) {
+			admins = append(admins, m.UserID)
+		}
+	}
+	return admins, nil
+}
+
 func (f *Cabal) Rules(_ context.Context, id ids.CabalID) (cabal.Rules, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

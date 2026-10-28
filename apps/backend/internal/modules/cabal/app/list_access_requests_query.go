@@ -33,8 +33,13 @@ func ListAccessRequests(
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, listAccessRequestsOp)
 	}
-	if !(domain.Cabal{CreatorID: ids.UserIDFrom(cabal.CreatorID)}).IsCreator(actor) {
-		return nil, errs.New(errs.CodeNotCabalCreator, listAccessRequestsOp)
+	adminRows, err := dbq.ListAdminIDs(ctx, cabalID.UUID())
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, listAccessRequestsOp)
+	}
+	admins := domain.Cabal{CreatorID: ids.UserIDFrom(cabal.CreatorID), Admins: userIDsOf(adminRows)}
+	if !admins.IsAdmin(actor) {
+		return nil, errs.New(errs.CodeNotCabalAdmin, listAccessRequestsOp)
 	}
 	rows, err := dbq.ListPendingRequestsForCabal(ctx, cabalID.UUID())
 	if err != nil {

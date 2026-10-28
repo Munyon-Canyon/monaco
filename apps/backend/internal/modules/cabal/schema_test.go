@@ -125,7 +125,7 @@ func TestCabalsSchema_creatorsMustExist(t *testing.T) {
 	wantViolation(t, "unknown creator", err, foreignKeyViolation, "cabals_creator_id_fkey")
 }
 
-func TestCabalMembersSchema_refusesDuplicatesASecondCreatorAndAnInvalidRole(t *testing.T) {
+func TestCabalMembersSchema_refusesDuplicatesASecondCreatorAnInvalidRoleAndAnAdminWhoCannotVote(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	c := testkit.NewCabal(t, pool, testkit.WithMembers(2))
@@ -147,8 +147,12 @@ func TestCabalMembersSchema_refusesDuplicatesASecondCreatorAndAnInvalidRole(t *t
 		uniqueViolation,
 		"cabal_members_one_creator_key",
 	)
-	wantViolation(t, "an admin",
-		run(t, pool, insert, c.ID.UUID(), newcomer.ID.UUID(), "admin"), checkViolation, "cabal_members_role_check")
+	wantViolation(t, "an unknown role",
+		run(t, pool, insert, c.ID.UUID(), newcomer.ID.UUID(), "owner"), checkViolation, "cabal_members_role_check")
+	wantNoError(t, "an admin who votes", run(t, pool, insert, c.ID.UUID(), newcomer.ID.UUID(), "admin"))
+	wantViolation(t, "an admin who cannot vote",
+		run(t, pool, `UPDATE cabal_members SET can_vote = false WHERE cabal_id = $1 AND role = 'admin'`, c.ID.UUID()),
+		checkViolation, "cabal_members_admin_votes")
 	wantViolation(t, "a creator who cannot vote",
 		run(t, pool, `UPDATE cabal_members SET can_vote = false WHERE cabal_id = $1 AND role = 'creator'`, c.ID.UUID()),
 		checkViolation, "cabal_members_creator_votes")

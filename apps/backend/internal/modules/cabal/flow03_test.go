@@ -92,9 +92,9 @@ func TestFlow03_DecideAccess_CabalNotFound(t *testing.T) {
 	flows.F03DecideAccessCabalNotFound(cabalScenario(t))
 }
 
-func TestFlow03_DecideAccess_NotCabalCreator(t *testing.T) {
+func TestFlow03_DecideAccess_NotCabalAdmin(t *testing.T) {
 	t.Parallel()
-	flows.F03DecideAccessNotCabalCreator(cabalScenario(t))
+	flows.F03DecideAccessNotCabalAdmin(cabalScenario(t))
 }
 
 func TestFlow03_DecideAccess_AccessRequestNotPending(t *testing.T) {
@@ -157,9 +157,9 @@ func TestFlow03_InviteMember_NotCabalMember(t *testing.T) {
 	flows.F03InviteMemberNotCabalMember(cabalScenario(t))
 }
 
-func TestFlow03_InviteMember_NotCabalCreator(t *testing.T) {
+func TestFlow03_InviteMember_NotCabalAdmin(t *testing.T) {
 	t.Parallel()
-	flows.F03InviteMemberNotCabalCreator(cabalScenario(t))
+	flows.F03InviteMemberNotCabalAdmin(cabalScenario(t))
 }
 
 func TestFlow03_InviteMember_CabalBanned(t *testing.T) {

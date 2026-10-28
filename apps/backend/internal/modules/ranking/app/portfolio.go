@@ -117,7 +117,7 @@ func membershipOf(members []MemberView, user ids.UserID) Membership {
 	switch {
 	case i < 0:
 		return Membership{Role: RoleMember}
-	case members[i].Role == cabal.RoleCreator:
+	case members[i].Role.IsAdmin():
 		return Membership{Role: RoleAdmin, CanVote: members[i].CanVote}
 	}
 	return Membership{Role: RoleMember, CanVote: members[i].CanVote}

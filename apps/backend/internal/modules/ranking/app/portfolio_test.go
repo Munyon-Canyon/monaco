@@ -124,7 +124,11 @@ func TestReadPortfolio_MapsTheCallersRole(t *testing.T) {
 		me   *cabal.MemberView
 		want app.Membership
 	}{
-		"creator":    {me: &cabal.MemberView{Role: cabal.RoleCreator, CanVote: true}, want: app.Membership{Role: app.RoleAdmin, CanVote: true}},
+		"creator": {me: &cabal.MemberView{Role: cabal.RoleCreator, CanVote: true}, want: app.Membership{Role: app.RoleAdmin, CanVote: true}},
+		"admin": {
+			me:   &cabal.MemberView{Role: cabal.Role("admin"), CanVote: true},
+			want: app.Membership{Role: app.RoleAdmin, CanVote: true},
+		},
 		"voter":      {me: &cabal.MemberView{Role: cabal.RoleMember, CanVote: true}, want: app.Membership{Role: app.RoleMember, CanVote: true}},
 		"non-voter":  {me: &cabal.MemberView{Role: cabal.RoleMember}, want: app.Membership{Role: app.RoleMember}},
 		"left since": {want: app.Membership{Role: app.RoleMember}},

@@ -103,6 +103,7 @@ const (
 	NoRoute ErrorCode = "no_route"
 	NotAVoter ErrorCode = "not_a_voter"
 	NotBanned ErrorCode = "not_banned"
+	NotCabalAdmin ErrorCode = "not_cabal_admin"
 	NotCabalCreator ErrorCode = "not_cabal_creator"
 	NotCabalMember ErrorCode = "not_cabal_member"
 	NotFound ErrorCode = "not_found"
@@ -365,6 +366,8 @@ func (e ErrorCode) Valid() bool {
 	case NotAVoter:
 		return true
 	case NotBanned:
+		return true
+	case NotCabalAdmin:
 		return true
 	case NotCabalCreator:
 		return true
