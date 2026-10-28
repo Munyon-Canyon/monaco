@@ -169,7 +169,7 @@ enum HomeSampleData {
             return Components.Schemas.PortfolioCabal(
                 cabal: Components.Schemas.CabalRef(id: cabal.id, name: cabal.name, pictureUrl: nil),
                 valueMicros: value, shareUnits: value, netContributedMicros: netContributed, pnlMicros: pnl,
-                returnBps: returnBps, sliceBps: sliceBps)
+                returnBps: returnBps, sliceBps: sliceBps, ownershipBps: 10_000, role: .admin, canVote: true)
         }
         return Components.Schemas.MyPortfolio(
             totalValueMicros: total, pnlMicros: totalPnl, returnBps: totalReturnBps, computedAt: .now,

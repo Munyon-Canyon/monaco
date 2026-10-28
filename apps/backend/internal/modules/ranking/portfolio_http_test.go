@@ -116,13 +116,25 @@ func TestPortfolio_IsEmptyBeforeTheFirstRunAndForAMemberWithNoStakeAndNeedsAToke
 func TestPortfolio_IssuesOneQueryPerSource(t *testing.T) {
 	t.Parallel()
 	s := newServer(t)
-	cabal := testkit.NewCabal(t, s.pool)
+	first := testkit.NewCabal(t, s.pool)
+	user := first.Creator.ID
 	now := s.clock.Now().UTC()
-	testkit.NewLedger(t, s.pool).WithFundedMember(cabal.Creator.ID, cabal.ID, money.MicrosFromUint64(10_000_000))
-	backdateFunds(t, s, cabal.Creator.ID, now.Add(-time.Hour))
-	exec(t, s.pool, latestSnapshot, cabal.ID.UUID(), now, 12_000_000, sharesOf(t, s, cabal.ID))
+	ledger := testkit.NewLedger(t, s.pool)
+	hold := func(cabal ids.CabalID) {
+		ledger.WithFundedMember(user, cabal, money.MicrosFromUint64(10_000_000))
+		backdateFunds(t, s, user, now.Add(-time.Hour))
+		exec(t, s.pool, latestSnapshot, cabal.UUID(), now, 12_000_000, sharesOf(t, s, cabal))
+	}
+	hold(first.ID)
 	seedRun(t, s)
-	testkit.AssertQueries(t, "portfolio", func() { portfolioOf(t, s, cabal.Creator.ID) })
+	testkit.AssertQueries(t, "portfolio", func() { portfolioOf(t, s, user) })
+	for range 2 {
+		hold(testkit.NewCabal(t, s.pool, testkit.WithCreator(user)).ID)
+	}
+	if got := portfolioOf(t, s, user); len(got.Cabals) != 3 {
+		t.Fatalf("portfolio = %+v, want three cabals", got)
+	}
+	testkit.AssertQueries(t, "portfolio", func() { portfolioOf(t, s, user) })
 }
 
 func TestPortfolio_LatestValuesFailures(t *testing.T) {
@@ -138,5 +150,33 @@ func TestPortfolio_LatestValuesFailures(t *testing.T) {
 	exec(t, s.pool, `INSERT INTO cabal_value_snapshots VALUES ($1, $2, -1, 1, 1)`, cabal.UUID(), s.clock.Now())
 	if _, err := boards.LatestValuesOf(t.Context(), []ids.CabalID{cabal}); errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("negative value: err = %v, want internal", err)
+	}
+}
+
+func TestPortfolio_CarriesEachHoldersShareOfThePotAndRole(t *testing.T) {
+	t.Parallel()
+	s := newServer(t)
+	cabal := testkit.NewCabal(t, s.pool, testkit.WithMembers(3), testkit.WithVoterMode("list"))
+	now := s.clock.Now().UTC()
+	ledger := testkit.NewLedger(t, s.pool)
+	funds := []uint64{35_000_000, 33_333_333, 31_666_667}
+	for i, member := range cabal.Members {
+		ledger.WithFundedMember(member.ID, cabal.ID, money.MicrosFromUint64(funds[i]))
+		backdateFunds(t, s, member.ID, now.Add(-time.Hour))
+	}
+	exec(t, s.pool, latestSnapshot, cabal.ID.UUID(), now, 100_000_000, sharesOf(t, s, cabal.ID))
+	seedRun(t, s)
+	want := []api.PortfolioCabal{
+		{OwnershipBps: 3501, Role: "admin", CanVote: true},
+		{OwnershipBps: 3333, Role: "member"},
+		{OwnershipBps: 3166, Role: "member"},
+	}
+	for i, member := range cabal.Members {
+		rows := portfolioOf(t, s, member.ID).Cabals
+		if len(rows) != 1 || rows[0].OwnershipBps != want[i].OwnershipBps || rows[0].Role != want[i].Role ||
+			rows[0].CanVote != want[i].CanVote || rows[0].SliceBps != 10_000 {
+			t.Errorf("member %d rows = %+v, want ownership %d, %s, can_vote %t and slice 10000",
+				i, rows, want[i].OwnershipBps, want[i].Role, want[i].CanVote)
+		}
 	}
 }

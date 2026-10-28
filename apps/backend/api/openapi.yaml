@@ -8049,7 +8049,7 @@ components:
       type: object
       description: The caller's stake in one cabal.
       additionalProperties: false
-      required: [cabal, value_micros, share_units, net_contributed_micros, pnl_micros, return_bps, slice_bps]
+      required: [cabal, value_micros, share_units, net_contributed_micros, pnl_micros, return_bps, slice_bps, ownership_bps, role, can_vote]
       properties:
         cabal:
           $ref: "#/components/schemas/CabalRef"
@@ -8058,7 +8058,10 @@ components:
         net_contributed_micros: {type: integer, format: int64, description: Contributed minus withdrawn in USDC micros., examples: [900000]}
         pnl_micros: {type: integer, format: int64, description: "Value minus the net contributed, negative for a loss.", examples: [-5]}
         return_bps: {type: [integer, "null"], format: int64, description: The return in basis points. Null when nothing is contributed., examples: [250]}
-        slice_bps: {type: integer, format: int64, description: The cabal's share of the total value in basis points., examples: [5000]}
+        slice_bps: {type: integer, format: int64, description: "This cabal's weight in the caller's portfolio, in basis points of the portfolio's total value. It is not the caller's share of the cabal's pot, which is `ownership_bps`.", examples: [5000]}
+        ownership_bps: {type: integer, format: int32, minimum: 0, maximum: 10000, description: "The caller's share of this cabal's pot in basis points, the same figure as `CabalPot.me.slice_bps` read at the same moment. It is the current split, while the value and the return are as the latest run valued them. 0 when the stake was cashed out after that run.", examples: [3500]}
+        role: {type: string, enum: [admin, member], description: "The caller's role in this cabal. `admin` is the cabal's creator.", examples: [admin]}
+        can_vote: {type: boolean, description: Whether the caller votes on this cabal's proposals., examples: [true]}
     SharedCabal:
       type: object
       description: One shared cabal and its pot figures.
