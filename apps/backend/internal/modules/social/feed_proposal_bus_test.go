@@ -11,6 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -67,7 +68,8 @@ func expiryThroughTheBus(t *testing.T, expiryFirst bool) {
 	}
 	s := scenario.New(t, scenario.WithModules(func(d module.Deps) module.Module {
 		uow = d.UoW
-		return social.New(d, social.WithUsers(users), social.WithAssets(marketfake.NewCatalog(marketfake.AAPLx())))
+		return social.New(d, social.WithUsers(users), social.WithAssets(marketfake.NewCatalog(marketfake.AAPLx())),
+			social.WithTallies(closedTally(proposal)))
 	}))
 	expiresAt := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
 	created := events.ProposalCreated{
@@ -89,6 +91,12 @@ type sqlSeed struct {
 	gen                               *testkit.IDs
 	cabal, proposer, proposal         uuid.UUID
 	createdAt, expiresAt, expiresJSON string
+}
+
+func closedTally(proposal uuid.UUID) *fakeTallies {
+	return &fakeTallies{votes: map[ids.ProposalID]app.Tally{
+		ids.ProposalIDFrom(proposal): {Yes: 1, No: 2, Voters: 3, Needed: 2, Kind: "buy"},
+	}}
 }
 
 func newSQLSeed(t *testing.T, closed bool) sqlSeed {
@@ -143,7 +151,7 @@ func TestFeedProposal_aSqlSeededExpiryThroughTheBusEndsExpired(t *testing.T) {
 			s := scenario.New(t, scenario.WithModules(func(d module.Deps) module.Module {
 				uow = d.UoW
 				assets := social.WithAssets(marketfake.NewCatalog(marketfake.AAPLx()))
-				return social.New(d, social.WithUsers(users), assets)
+				return social.New(d, social.WithUsers(users), assets, social.WithTallies(closedTally(q.proposal)))
 			}))
 			cabalEvent := func(s *scenario.Scenario) {
 				s.Helper()

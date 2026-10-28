@@ -98,5 +98,6 @@ func muteKindLabel(kind feed.Kind) string {
 		feed.KindProposal: "Proposals", feed.KindTrade: "Trades", feed.KindPriceMove: "Price moves",
 		feed.KindCabalCreated: "New cabals", feed.KindMemberJoined: "New members",
 		feed.KindReply: "Replies", feed.KindThreshold: "Approved proposals",
+		feed.KindResult: "Results",
 	}[kind]
 }

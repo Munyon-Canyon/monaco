@@ -41,7 +41,66 @@ extension Components.Schemas.FeedItem {
             vote: Vote(yes: 2, no: 1, voters: 9, needed: 5, endsInHours: 18), minutesAgo: 50),
     ]
 
+    public static let results: [Self] = [
+        result(
+            ResultFacts(
+                number: 8, cabal: "Degens", actor: 6, symbol: "METAx", assetName: "META", action: "buy",
+                usdcMicros: 300_000_000, title: "Degens passed Buy META $300 4–1", detail: "buying",
+                vote: Vote(yes: 4, no: 1, voters: 6, needed: 4, endsInHours: 0), outcome: .passed, shape: .cabal,
+                assetKind: .equity, called: true, minutesAgo: 300)),
+        result(
+            ResultFacts(
+                number: 9, cabal: "Tech Titans", actor: 7, symbol: "AAPLx", assetName: "AAPL", action: "sell",
+                usdcMicros: 480_000_000, title: "Logan's sale of $480 of AAPL in Tech Titans passed 3–1",
+                detail: "selling", vote: Vote(yes: 3, no: 1, voters: 4, needed: 3, endsInHours: 0), outcome: .passed,
+                shape: .member, assetKind: .equity, called: true, minutesAgo: 300)),
+        result(
+            ResultFacts(
+                number: 10, cabal: "Quant Kids", actor: 4, symbol: "OPENAI", assetName: "OpenAI", action: "buy",
+                usdcMicros: 200_000_000, title: "Sam's buy of $200 of OpenAI in Quant Kids passed",
+                detail: "buying", vote: Vote(yes: 3, no: 0, voters: 5, needed: 3, endsInHours: 0), outcome: .passed,
+                shape: .member, assetKind: .preIpo, called: true, minutesAgo: 60 * 24 * 4)),
+        result(
+            ResultFacts(
+                number: 11, cabal: "Tech Titans", actor: 7, symbol: "TSLAx", assetName: "TSLA", action: "sell",
+                usdcMicros: 900_000_000, title: "Tech Titans failed Sell TSLA $900 2–2", detail: "no trade",
+                vote: Vote(yes: 2, no: 2, voters: 5, needed: 3, endsInHours: 0), outcome: .failed, shape: .cabal,
+                assetKind: .equity, called: false, minutesAgo: 60 * 24 * 4)),
+    ]
+
     private static let publicCabalID = "00000000-0000-7000-8000-0000000fc002"
+
+    private struct ResultFacts {
+        let number: Int, cabal: String, actor: Int, symbol: String, assetName: String, action: String
+        let usdcMicros: Int64, title: String, detail: String, vote: Vote
+        let outcome: Components.Schemas.FeedItem.OutcomePayload
+        let shape: Components.Schemas.FeedItem.ShapePayload
+        let assetKind: Components.Schemas.FeedItem.AssetKindPayload
+        let called: Bool, minutesAgo: Double
+    }
+
+    private static let resultActorNames = [4: "Sam", 6: "Christelle", 7: "Logan"]
+
+    private static func result(_ facts: ResultFacts) -> Self {
+        let created = Date(timeIntervalSinceNow: -facts.minutesAgo * 60)
+        let actorID = String(format: "00000000-0000-7000-8000-0000000fb%03d", facts.actor)
+        let name = resultActorNames[facts.actor] ?? ""
+        return Self(
+            id: String(format: "00000000-0000-7000-8000-0000000fe%03d", facts.number), kind: "result",
+            refType: "proposals", refId: String(format: "00000000-0000-7000-8000-0000000fa%03d", facts.number),
+            cabalId: String(format: "00000000-0000-7000-8000-0000000fc%03d", 10 + facts.number),
+            cabalName: facts.cabal, actorId: actorID, actorName: name, actorPhotoUrl: nil,
+            assetId: String(format: "00000000-0000-7000-8000-0000000fd%03d", facts.number), symbol: facts.symbol,
+            title: facts.title, detail: facts.detail, status: facts.outcome == .passed ? "passed" : "failed",
+            tone: "neutral", action: facts.action, usdcMicros: facts.usdcMicros, assetName: facts.assetName,
+            proposalId: String(format: "00000000-0000-7000-8000-0000000fa%03d", facts.number), commentCount: 0,
+            likeCount: 0, likedByMe: false, reactions: [], reactionCount: 0,
+            tally: .init(
+                yes: facts.vote.yes, no: facts.vote.no, voters: facts.vote.voters, needed: facts.vote.needed),
+            outcome: facts.outcome, shape: facts.shape,
+            caller: facts.called ? .init(id: actorID, name: name, photoUrl: nil) : nil,
+            assetKind: facts.assetKind, returnPrivate: false, createdAt: created, updatedAt: created)
+    }
 
     private struct Vote {
         let yes: Int, no: Int, voters: Int, needed: Int, endsInHours: Double

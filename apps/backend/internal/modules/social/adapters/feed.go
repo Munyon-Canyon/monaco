@@ -24,6 +24,7 @@ type Feed struct {
 	Cabals   app.Cabals
 	Assets   app.Assets
 	Treasury app.Treasury
+	Tallies  app.Tallies
 	IDs      ids.Generator
 	UoW      *db.UnitOfWork
 }

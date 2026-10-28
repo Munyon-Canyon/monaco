@@ -34,6 +34,11 @@ func (h HTTP) loadTallies(ctx context.Context, items []app.FeedItem) (map[ids.Pr
 }
 
 func wireTally(item app.FeedItem, tallies map[ids.ProposalID]app.Tally, out *api.FeedItem) {
+	if item.Kind == feed.KindResult && item.Tally != nil {
+		t := item.Tally
+		out.Tally = &api.FeedTally{Yes: t.Yes, No: t.No, Voters: t.Voters, Needed: t.Needed}
+		return
+	}
 	if item.Kind != feed.KindProposal {
 		return
 	}

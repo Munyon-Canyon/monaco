@@ -83,6 +83,69 @@ func (e AdminReportStatus) Valid() bool {
 	}
 }
 
+// Defines values for FeedItemAssetKind.
+const (
+	FeedItemAssetKindEquity      FeedItemAssetKind = "equity"
+	FeedItemAssetKindLessThannil FeedItemAssetKind = "<nil>"
+	FeedItemAssetKindPreIpo      FeedItemAssetKind = "pre_ipo"
+)
+
+// Valid indicates whether the value is a known member of the FeedItemAssetKind enum.
+func (e FeedItemAssetKind) Valid() bool {
+	switch e {
+	case FeedItemAssetKindEquity:
+		return true
+	case FeedItemAssetKindLessThannil:
+		return true
+	case FeedItemAssetKindPreIpo:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FeedItemOutcome.
+const (
+	FeedItemOutcomeFailed      FeedItemOutcome = "failed"
+	FeedItemOutcomeLessThannil FeedItemOutcome = "<nil>"
+	FeedItemOutcomePassed      FeedItemOutcome = "passed"
+)
+
+// Valid indicates whether the value is a known member of the FeedItemOutcome enum.
+func (e FeedItemOutcome) Valid() bool {
+	switch e {
+	case FeedItemOutcomeFailed:
+		return true
+	case FeedItemOutcomeLessThannil:
+		return true
+	case FeedItemOutcomePassed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FeedItemShape.
+const (
+	FeedItemShapeCabal       FeedItemShape = "cabal"
+	FeedItemShapeLessThannil FeedItemShape = "<nil>"
+	FeedItemShapeMember      FeedItemShape = "member"
+)
+
+// Valid indicates whether the value is a known member of the FeedItemShape enum.
+func (e FeedItemShape) Valid() bool {
+	switch e {
+	case FeedItemShapeCabal:
+		return true
+	case FeedItemShapeLessThannil:
+		return true
+	case FeedItemShapeMember:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FeedMuteRequestTargetType.
 const (
 	FeedMuteRequestTargetTypeAsset FeedMuteRequestTargetType = "asset"
@@ -670,6 +733,11 @@ type FeedItem struct {
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
 	AssetId *openapi_types.UUID `json:"asset_id"`
 
+	// AssetKind Whether the stock is listed (`equity`) or `pre_ipo`. Set on a `proposal` and a `result`, null on every other kind.
+	//
+	// Examples: equity
+	AssetKind *FeedItemAssetKind `json:"asset_kind"`
+
 	// AssetLogoUrl The stock's logo URL. Null when the item is not about a stock or the stock has no logo.
 	//
 	// Examples: null
@@ -699,6 +767,11 @@ type FeedItem struct {
 	//
 	// Examples: null
 	CabalPictureUrl *string `json:"cabal_picture_url"`
+
+	// Caller Who called a passed `result` (the proposer). Null on a failed result and on every other kind.
+	//
+	// Examples: null
+	Caller *FeedCaller `json:"caller"`
 
 	// ChangeBps A price move's change since the previous close, in signed basis points; 0 for a flat move. Null on every other kind.
 	//
@@ -730,7 +803,7 @@ type FeedItem struct {
 	// Examples: 01920000-0000-7000-8000-000000000007
 	Id openapi_types.UUID `json:"id"`
 
-	// Kind `proposal`, `trade`, `price_move`, `cabal_created`, `member_joined`, `reply` or `threshold`. A `reply` is a comment on a proposal's feed item, with the comment text as `body` and the commenter as the actor. A `threshold` is a proposal that passed and awaits execution. A `proposal` carries `tally` and `expires_at`; every other kind has both null.
+	// Kind `proposal`, `trade`, `price_move`, `cabal_created`, `member_joined`, `reply`, `result` or `threshold`. A `reply` is a comment on a proposal's feed item, with the comment text as `body` and the commenter as the actor. A `result` is one post per closed proposal, with its `outcome`, `shape`, `caller` and final `tally`. A `threshold` is a proposal that passed and awaits execution; only older items are `threshold`, no new one is written. A `proposal` carries `tally` and `expires_at`; every other kind has `expires_at` null, and only a `result` besides it has a `tally`.
 	//
 	// Examples: trade
 	Kind string `json:"kind"`
@@ -750,6 +823,11 @@ type FeedItem struct {
 	// Examples: 212400000
 	MarkMicros *int64 `json:"mark_micros"`
 
+	// Outcome How a `result` closed: `passed`, or `failed` when the vote failed or expired. Null on every other kind.
+	//
+	// Examples: passed
+	Outcome *FeedItemOutcome `json:"outcome"`
+
 	// PrevCloseMicros A price move's previous close in USDC micros. Null on every other kind and when the move has no previous close.
 	//
 	// Examples: 193100000
@@ -760,7 +838,7 @@ type FeedItem struct {
 	// Examples: 200000000
 	PriceMicros *int64 `json:"price_micros"`
 
-	// ProposalId The proposal a proposal, trade, reply or threshold item is about. Null on other kinds.
+	// ProposalId The proposal a proposal, trade, reply, result or threshold item is about. Null on other kinds.
 	//
 	// Examples: 01920000-0000-7000-8000-000000000009
 	ProposalId *openapi_types.UUID `json:"proposal_id"`
@@ -778,7 +856,7 @@ type FeedItem struct {
 	// Examples: 01920000-0000-7000-8000-000000000008
 	RefId openapi_types.UUID `json:"ref_id"`
 
-	// RefType The source the item points at, such as `swaps` for a trade, `feed_comments` for a reply (`ref_id` is the comment's id) or `proposals` for a proposal or a threshold item.
+	// RefType The source the item points at, such as `swaps` for a trade, `feed_comments` for a reply (`ref_id` is the comment's id) or `proposals` for a proposal, a result or a threshold item.
 	//
 	// Examples: swaps
 	RefType string `json:"ref_type"`
@@ -792,6 +870,11 @@ type FeedItem struct {
 	//
 	// Examples: false
 	ReturnPrivate bool `json:"return_private"`
+
+	// Shape Who heads a `result` post: the `cabal`, or the `member` who proposed it. Null on every other kind.
+	//
+	// Examples: cabal
+	Shape *FeedItemShape `json:"shape"`
 
 	// ShareOfPotBps A proposal's amount as basis points of the cabal pot when it was made, on a proposal, reply or threshold item. Null on other kinds and on proposals made before this field shipped.
 	//
@@ -808,7 +891,7 @@ type FeedItem struct {
 	// Examples: AAPLx
 	Symbol *string `json:"symbol"`
 
-	// Tally The proposal's live vote count, read from governance on each request. Null except on a `proposal`.
+	// Tally A proposal's live vote count, read from governance on each request, or a `result`'s stored final tally, `needed` included. Null on every other kind.
 	//
 	// Examples: null
 	Tally *FeedTally `json:"tally"`
@@ -844,7 +927,42 @@ type FeedItem struct {
 	UsdcMicros *int64 `json:"usdc_micros"`
 }
 
-// FeedTally The proposal's live vote count, read from governance on each request. Null except on a `proposal`.
+// FeedItemAssetKind Whether the stock is listed (`equity`) or `pre_ipo`. Set on a `proposal` and a `result`, null on every other kind.
+//
+// Examples: equity
+type FeedItemAssetKind string
+
+// FeedCaller Who called a passed `result` (the proposer). Null on a failed result and on every other kind.
+//
+// Examples: null
+type FeedCaller struct {
+	// Id The caller's user id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8060
+	Id openapi_types.UUID `json:"id"`
+
+	// Name The caller's display name when the proposal closed.
+	//
+	// Examples: Christelle
+	Name string `json:"name"`
+
+	// PhotoUrl The caller's current profile photo URL. Null for a member with no photo.
+	//
+	// Examples: null
+	PhotoUrl *string `json:"photo_url"`
+}
+
+// FeedItemOutcome How a `result` closed: `passed`, or `failed` when the vote failed or expired. Null on every other kind.
+//
+// Examples: passed
+type FeedItemOutcome string
+
+// FeedItemShape Who heads a `result` post: the `cabal`, or the `member` who proposed it. Null on every other kind.
+//
+// Examples: cabal
+type FeedItemShape string
+
+// FeedTally A proposal's live vote count, read from governance on each request, or a `result`'s stored final tally, `needed` included. Null on every other kind.
 //
 // Examples: null
 type FeedTally struct {

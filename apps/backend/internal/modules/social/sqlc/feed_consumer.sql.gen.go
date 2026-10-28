@@ -175,6 +175,19 @@ func (q *Queries) InsertFeedConsumerItem(ctx context.Context, arg InsertFeedCons
 	return err
 }
 
+const lockFeedResult = `-- name: LockFeedResult :one
+SELECT payload FROM feed_objects
+WHERE ref_type = 'proposals' AND ref_id = $1::uuid AND kind = 'result'
+FOR UPDATE
+`
+
+func (q *Queries) LockFeedResult(ctx context.Context, proposalID uuid.UUID) ([]byte, error) {
+	row := q.db.QueryRow(ctx, lockFeedResult, proposalID)
+	var payload []byte
+	err := row.Scan(&payload)
+	return payload, err
+}
+
 const upsertFeedCabal = `-- name: UpsertFeedCabal :exec
 INSERT INTO feed_cabals (cabal_id, name, updated_at)
 VALUES ($1, $2, $3)
@@ -220,4 +233,52 @@ func (q *Queries) UpsertFeedMembership(ctx context.Context, arg UpsertFeedMember
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const upsertFeedResult = `-- name: UpsertFeedResult :exec
+INSERT INTO feed_objects (
+  id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, asset_id, symbol, title, body, payload, status,
+  created_at, updated_at
+)
+VALUES (
+  $1, 'result', 'proposals', $2, $3, $4,
+  $5, $6, $7, $8, $9, $10,
+  $11, $12, $12
+)
+ON CONFLICT (ref_type, ref_id, kind) DO UPDATE SET
+  payload = excluded.payload, title = excluded.title, body = excluded.body, status = excluded.status,
+  updated_at = excluded.updated_at
+`
+
+type UpsertFeedResultParams struct {
+	ID         uuid.UUID
+	ProposalID uuid.UUID
+	CabalID    pgtype.UUID
+	CabalName  pgtype.Text
+	ActorID    pgtype.UUID
+	AssetID    pgtype.UUID
+	Symbol     pgtype.Text
+	Title      string
+	Body       pgtype.Text
+	Payload    []byte
+	Status     pgtype.Text
+	At         time.Time
+}
+
+func (q *Queries) UpsertFeedResult(ctx context.Context, arg UpsertFeedResultParams) error {
+	_, err := q.db.Exec(ctx, upsertFeedResult,
+		arg.ID,
+		arg.ProposalID,
+		arg.CabalID,
+		arg.CabalName,
+		arg.ActorID,
+		arg.AssetID,
+		arg.Symbol,
+		arg.Title,
+		arg.Body,
+		arg.Payload,
+		arg.Status,
+		arg.At,
+	)
+	return err
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -72,13 +73,24 @@ func chaosFeedConsumer(t *testing.T, h testkit.Harness) bus.Consumer {
 		cards[p] = card
 	}
 	deps := module.Deps{Pool: h.Pool, UoW: db.New(h.Pool, h.IDs, h.Clock), IDs: h.IDs, Clock: h.Clock, Bus: h.Bus}
-	for _, c := range social.New(deps, social.WithUsers(fakes.NewIdentity(cards, nil)), social.WithCabals(chaosNames())).Consumers() {
+	for _, c := range social.New(deps, social.WithUsers(fakes.NewIdentity(cards, nil)), social.WithCabals(chaosNames()),
+		social.WithTallies(chaosTallies())).Consumers() {
 		if c.Durable == "social_feed" {
 			return c
 		}
 	}
 	t.Fatal("social_feed is not registered")
 	return bus.Consumer{}
+}
+
+func chaosTallies() *fakeTallies {
+	votes := map[ids.ProposalID]app.Tally{
+		ids.ProposalIDFrom(chaosProposal()): {Yes: 3, No: 1, Voters: 5, Needed: 3, Kind: "buy"},
+	}
+	for i := range resultProposals {
+		votes[ids.ProposalIDFrom(resultProposal(i))] = app.Tally{Yes: i + 1, No: 2, Voters: 6, Needed: 4, Kind: "buy"}
+	}
+	return &fakeTallies{votes: votes}
 }
 
 func chaosNames() *cabalNames {

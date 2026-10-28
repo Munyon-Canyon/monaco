@@ -1,6 +1,7 @@
 package feed_test
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -22,7 +23,7 @@ func TestPayload_roundTripsAmountsAsIntegerStrings(t *testing.T) {
 		t.Fatalf("JSON() = %s", got)
 	}
 	got, err := feed.ParsePayload(raw)
-	if err != nil || got != want {
+	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("ParsePayload = %+v, %v, want %+v", got, err, want)
 	}
 }

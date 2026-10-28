@@ -9163,22 +9163,24 @@ components:
     FeedItem:
       type: object
       description: One feed item with its display strings rendered.
-      required: [id, kind, ref_type, ref_id, cabal_id, cabal_name, cabal_picture_url, actor_id, actor_name, actor_photo_url, asset_id, asset_logo_url, symbol, title, detail, body, status, tone, action, usdc_micros, asset_name, token_amount, token_decimals, price_micros, share_of_pot_bps, change_bps, mark_micros, prev_close_micros, proposal_id, tally, expires_at, comment_count, like_count, liked_by_me, reactions, reaction_count, return_1m_bps, return_private, created_at, updated_at]
+      required: [id, kind, ref_type, ref_id, cabal_id, cabal_name, cabal_picture_url, actor_id, actor_name, actor_photo_url, asset_id, asset_logo_url, symbol, title, detail, body, status, tone, action, usdc_micros, asset_name, token_amount, token_decimals, price_micros, share_of_pot_bps, change_bps, mark_micros, prev_close_micros, proposal_id, tally, expires_at, outcome, shape, caller, asset_kind, comment_count, like_count, liked_by_me, reactions, reaction_count, return_1m_bps, return_private, created_at, updated_at]
       properties:
         id: {type: string, format: uuid, description: "The item's id.", examples: ["01920000-0000-7000-8000-000000000007"]}
         kind:
           type: string
           description: >-
-            `proposal`, `trade`, `price_move`, `cabal_created`, `member_joined`, `reply` or `threshold`.
+            `proposal`, `trade`, `price_move`, `cabal_created`, `member_joined`, `reply`, `result` or `threshold`.
             A `reply` is a comment on a proposal's feed item, with the comment text as `body` and the
-            commenter as the actor. A `threshold` is a proposal that passed and awaits execution. A `proposal` carries
-            `tally` and `expires_at`; every other kind has both null.
+            commenter as the actor. A `result` is one post per closed proposal, with its `outcome`, `shape`,
+            `caller` and final `tally`. A `threshold` is a proposal that passed and awaits execution; only older
+            items are `threshold`, no new one is written. A `proposal` carries `tally` and `expires_at`; every other
+            kind has `expires_at` null, and only a `result` besides it has a `tally`.
           examples: [trade]
         ref_type:
           type: string
           description: >-
             The source the item points at, such as `swaps` for a trade, `feed_comments` for a reply
-            (`ref_id` is the comment's id) or `proposals` for a proposal or a threshold item.
+            (`ref_id` is the comment's id) or `proposals` for a proposal, a result or a threshold item.
           examples: [swaps]
         ref_id: {type: string, format: uuid, description: "The source row's id.", examples: ["01920000-0000-7000-8000-000000000008"]}
         cabal_id:
@@ -9264,7 +9266,7 @@ components:
         proposal_id:
           type: [string, "null"]
           format: uuid
-          description: "The proposal a proposal, trade, reply or threshold item is about. Null on other kinds."
+          description: "The proposal a proposal, trade, reply, result or threshold item is about. Null on other kinds."
           examples: ["01920000-0000-7000-8000-000000000009"]
         comment_count: {type: integer, format: int32, description: "The number of comments.", examples: [0]}
         like_count: {type: integer, format: int32, description: "Deprecated, read `reactions` instead. The number of users who reacted with ❤️.", examples: [3]}
@@ -9279,7 +9281,7 @@ components:
         reaction_count: {type: integer, format: int32, minimum: 0, description: "The number of reactions on the item, over every emoji.", examples: [7]}
         tally:
           type: [object, "null"]
-          description: The proposal's live vote count, read from governance on each request. Null except on a `proposal`.
+          description: "A proposal's live vote count, read from governance on each request, or a `result`'s stored final tally, `needed` included. Null on every other kind."
           examples: [null]
           x-go-type-name: FeedTally
           required: [yes, no, voters, needed]
@@ -9289,6 +9291,31 @@ components:
             voters: {type: integer, minimum: 0, description: "Members who can vote.", examples: [8]}
             needed: {type: integer, minimum: 0, description: "Yes ballots the proposal's threshold needs.", examples: [5]}
         expires_at: {type: [string, "null"], format: date-time, description: "When voting closes. Null except on a `proposal`.", examples: [null]}
+        outcome:
+          type: [string, "null"]
+          enum: [passed, failed, null]
+          description: "How a `result` closed: `passed`, or `failed` when the vote failed or expired. Null on every other kind."
+          examples: [passed]
+        shape:
+          type: [string, "null"]
+          enum: [cabal, member, null]
+          description: "Who heads a `result` post: the `cabal`, or the `member` who proposed it. Null on every other kind."
+          examples: [cabal]
+        caller:
+          type: [object, "null"]
+          description: "Who called a passed `result` (the proposer). Null on a failed result and on every other kind."
+          examples: [null]
+          x-go-type-name: FeedCaller
+          required: [id, name, photo_url]
+          properties:
+            id: {type: string, format: uuid, description: "The caller's user id.", examples: ["01890a5d-ac96-774b-bcce-b302099a8060"]}
+            name: {type: string, description: "The caller's display name when the proposal closed.", examples: [Christelle]}
+            photo_url: {type: [string, "null"], description: "The caller's current profile photo URL. Null for a member with no photo.", examples: [null]}
+        asset_kind:
+          type: [string, "null"]
+          enum: [equity, pre_ipo, null]
+          description: "Whether the stock is listed (`equity`) or `pre_ipo`. Set on a `proposal` and a `result`, null on every other kind."
+          examples: [equity]
         return_1m_bps: {type: [integer, "null"], format: int64, description: "The author's one-month return in basis points, from the people board's `1M` range as of the last valuation run, not a live figure. Null when the author hides it, has no ranked row, or the item is a system item.", examples: [820]}
         return_private: {type: boolean, description: "True only when the author chose to hide their return. False for a system item or an author with no ranked row.", examples: [false]}
         created_at: {type: string, format: date-time, description: "When the item was created.", examples: ["2026-10-03T08:00:00Z"]}
