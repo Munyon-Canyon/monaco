@@ -7,6 +7,9 @@
 # PRIVY_APP_ID_PRODUCTION / PRIVY_APP_CLIENT_ID_PRODUCTION.
 # Config/Environments/*.xcconfig pick one per MONACO_ENVIRONMENT: local uses dev, staging uses
 # staging, production uses production.
+# GIPHY_SDK_KEY follows the same pattern: .env.local gives GIPHY_SDK_KEY_DEV, .env.staging gives
+# GIPHY_SDK_KEY_STAGING, and .env.production gives GIPHY_SDK_KEY_PRODUCTION, falling back to the
+# staging key. A missing key only warns; GIFs then show as unavailable and sign-in is unaffected.
 # Writes gitignored Privy.local.xcconfig + Privy.local.Info.plist (merged into app at build;
 # Debug uses Privy.local.Debug.Info.plist, the same keys plus the ATS local-networking
 # exception that Release must not carry).
@@ -82,7 +85,8 @@ load_privy_env() {
     PRIVY_APP_ID_STAGING PRIVY_APP_CLIENT_ID_STAGING \
     PRIVY_APP_ID_PRODUCTION PRIVY_APP_CLIENT_ID_PRODUCTION \
     PRIVY_SMS_LOGIN_ENABLED PRIVY_EMAIL_LOGIN_ENABLED PRIVY_AUTHORIZATION_KEY_ID \
-    POSTHOG_API_KEY POSTHOG_SESSION_REPLAY
+    POSTHOG_API_KEY POSTHOG_SESSION_REPLAY \
+    GIPHY_SDK_KEY GIPHY_SDK_KEY_STAGING GIPHY_SDK_KEY_PRODUCTION
 
   PRIVY_APP_ID="$(dotenvx_get PRIVY_APP_ID)"
   PRIVY_APP_CLIENT_ID="$(dotenvx_get PRIVY_APP_CLIENT_ID)"
@@ -92,6 +96,10 @@ load_privy_env() {
   PRIVY_AUTHORIZATION_KEY_ID="$(dotenvx_get PRIVY_AUTHORIZATION_KEY_ID)"
   POSTHOG_API_KEY="$(dotenvx_get POSTHOG_API_KEY)"
   POSTHOG_SESSION_REPLAY="$(dotenvx_get POSTHOG_SESSION_REPLAY)"
+  GIPHY_SDK_KEY="$(dotenvx_get GIPHY_SDK_KEY)"
+  if [[ -z "$GIPHY_SDK_KEY" ]]; then
+    echo "warning: no GIPHY_SDK_KEY in .env.local; GIFs will show as unavailable" >&2
+  fi
   PRIVY_SMS_LOGIN_ENABLED="${PRIVY_SMS_LOGIN_ENABLED:-true}"
   PRIVY_EMAIL_LOGIN_ENABLED="${PRIVY_EMAIL_LOGIN_ENABLED:-true}"
   load_staging_privy_env
@@ -103,7 +111,12 @@ load_privy_env() {
 load_staging_privy_env() {
   PRIVY_APP_ID_STAGING=""
   PRIVY_APP_CLIENT_ID_STAGING=""
+  GIPHY_SDK_KEY_STAGING=""
   [[ -f "$STAGING_ENV_FILE" ]] || return 0
+  GIPHY_SDK_KEY_STAGING="$(dotenvx_get_from .env.staging GIPHY_SDK_KEY)"
+  if [[ -z "$GIPHY_SDK_KEY_STAGING" ]]; then
+    echo "warning: no GIPHY_SDK_KEY in .env.staging; GIFs will show as unavailable" >&2
+  fi
   PRIVY_APP_ID_STAGING="$(dotenvx_get_from .env.staging PRIVY_APP_ID)"
   PRIVY_APP_CLIENT_ID_STAGING="$(dotenvx_get_from .env.staging PRIVY_APP_CLIENT_ID)"
   if [[ -z "$PRIVY_APP_ID_STAGING" || "$PRIVY_APP_CLIENT_ID_STAGING" != client-* ]]; then
@@ -118,7 +131,13 @@ load_staging_privy_env() {
 load_production_privy_env() {
   PRIVY_APP_ID_PRODUCTION=""
   PRIVY_APP_CLIENT_ID_PRODUCTION=""
+  GIPHY_SDK_KEY_PRODUCTION="$GIPHY_SDK_KEY_STAGING"
   [[ -f "$PRODUCTION_ENV_FILE" ]] || return 0
+  local giphy_key
+  giphy_key="$(dotenvx_get_from .env.production GIPHY_SDK_KEY)"
+  if [[ -n "$giphy_key" ]]; then
+    GIPHY_SDK_KEY_PRODUCTION="$giphy_key"
+  fi
   PRIVY_APP_ID_PRODUCTION="$(dotenvx_get_from .env.production PRIVY_APP_ID)"
   PRIVY_APP_CLIENT_ID_PRODUCTION="$(dotenvx_get_from .env.production PRIVY_APP_CLIENT_ID)"
   if [[ -z "$PRIVY_APP_ID_PRODUCTION" || "$PRIVY_APP_CLIENT_ID_PRODUCTION" != client-* ]]; then
@@ -190,6 +209,8 @@ write_info_plist() {
 	<string>${POSTHOG_API_KEY:-}</string>
 	<key>POSTHOG_SESSION_REPLAY</key>
 	<string>${POSTHOG_SESSION_REPLAY:-true}</string>
+	<key>GIPHY_SDK_KEY</key>
+	<string>\$(GIPHY_SDK_KEY)</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -262,6 +283,9 @@ PRIVY_APP_ID_STAGING = ${PRIVY_APP_ID_STAGING}
 PRIVY_APP_CLIENT_ID_STAGING = ${PRIVY_APP_CLIENT_ID_STAGING}
 PRIVY_APP_ID_PRODUCTION = ${PRIVY_APP_ID_PRODUCTION}
 PRIVY_APP_CLIENT_ID_PRODUCTION = ${PRIVY_APP_CLIENT_ID_PRODUCTION}
+GIPHY_SDK_KEY_DEV = ${GIPHY_SDK_KEY}
+GIPHY_SDK_KEY_STAGING = ${GIPHY_SDK_KEY_STAGING}
+GIPHY_SDK_KEY_PRODUCTION = ${GIPHY_SDK_KEY_PRODUCTION}
 PRIVY_SMS_LOGIN_ENABLED = ${PRIVY_SMS_LOGIN_ENABLED:-true}
 PRIVY_EMAIL_LOGIN_ENABLED = ${PRIVY_EMAIL_LOGIN_ENABLED:-true}
 PRIVY_AUTHORIZATION_KEY_ID = ${PRIVY_AUTHORIZATION_KEY_ID:-}
@@ -300,6 +324,9 @@ PRIVY_APP_ID_STAGING =
 PRIVY_APP_CLIENT_ID_STAGING =
 PRIVY_APP_ID_PRODUCTION =
 PRIVY_APP_CLIENT_ID_PRODUCTION =
+GIPHY_SDK_KEY_DEV =
+GIPHY_SDK_KEY_STAGING =
+GIPHY_SDK_KEY_PRODUCTION =
 PRIVY_SMS_LOGIN_ENABLED = true
 PRIVY_EMAIL_LOGIN_ENABLED = true
 PRIVY_AUTHORIZATION_KEY_ID =

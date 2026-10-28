@@ -65,6 +65,7 @@ struct SampleAppFrame: View {
             tokens: SessionTokens(privyToken: { "sample-token" }, refresh: { _ in nil }),
             hints: hints,
             sessionStore: store,
+            gifs: SampleGifProvider(),
             isAuthenticated: { true },
             endAuthSession: {}
         )

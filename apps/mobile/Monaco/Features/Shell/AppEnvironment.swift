@@ -26,6 +26,7 @@ final class AppEnvironment {
     let referrals: ReferralAttacher
     let pushPrePrompt: PushPrePrompt
     let analytics: Analytics
+    let gifs: any GifProvider
     private let analyticsObserver: AnalyticsSessionObserver
     var viewer: Viewer?
     #if DEBUG
@@ -55,6 +56,7 @@ final class AppEnvironment {
         pendingIntents: PendingIntentJournal = PendingIntentJournal(),
         sessionStore: AppSessionStore? = nil,
         analytics: Analytics? = nil,
+        gifs: (any GifProvider)? = nil,
         isAuthenticated: (@MainActor () -> Bool)? = nil,
         endAuthSession: (@MainActor () async -> Void)? = nil,
         endExpiredSession: (@MainActor (String) async -> Void)? = nil
@@ -62,6 +64,7 @@ final class AppEnvironment {
         let tokens = tokens ?? SessionTokens(auth: auth)
         self.auth = auth
         self.tokens = tokens
+        self.gifs = gifs ?? Self.makeGifProvider(key: Config.giphySDKKey, isRunningTests: Config.isRunningTests)
         self.hints = hints
         let api = api ?? APIClient(serverURL: Config.api.baseURL, tokens: tokens)
         self.api = api
@@ -139,6 +142,11 @@ final class AppEnvironment {
         )
         self.init(
             auth: auth, tokens: tokens, hints: LiveHintConnection(stream), pendingIntents: Self.onDiskJournal())
+    }
+
+    static func makeGifProvider(key: String, isRunningTests: Bool) -> any GifProvider {
+        if isRunningTests { return SampleGifProvider() }
+        return key.isEmpty ? UnavailableGifProvider() : GiphyGifProvider(apiKey: key)
     }
 
     private static func onDiskJournal() -> PendingIntentJournal {

@@ -15,6 +15,15 @@ enum Config {
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
+    static var giphySDKKey: String {
+        giphyKey(from: Bundle.main.object(forInfoDictionaryKey: "GIPHY_SDK_KEY"))
+    }
+
+    static func giphyKey(from raw: Any?) -> String {
+        let value = (raw as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return value.hasPrefix("$(") ? "" : value
+    }
+
     static var postHogSessionReplay: Bool {
         let raw = Bundle.main.object(forInfoDictionaryKey: "POSTHOG_SESSION_REPLAY") as? String
         return raw?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "true"
