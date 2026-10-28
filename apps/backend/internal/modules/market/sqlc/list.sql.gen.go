@@ -67,6 +67,86 @@ func (q *Queries) FirstSamplesSince(ctx context.Context, arg FirstSamplesSincePa
 	return items, nil
 }
 
+const listAssetsByName = `-- name: ListAssetsByName :many
+SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at, ui_multiplier_next_num, ui_multiplier_next_den, ui_multiplier_next_at, last_quoted_at FROM assets
+WHERE chain_checked_at IS NOT NULL
+  AND coalesce(tradable_override, issuer_tradable)
+  AND ($1::text = '' OR kind = $1::text)
+  AND (
+    $2::text = ''
+    OR symbol ILIKE $3::text ESCAPE '!'
+    OR display_name ILIKE $4::text ESCAPE '!'
+  )
+  AND (
+    NOT $5::boolean
+    OR (lower(display_name), id) > ($6::text, $7::uuid)
+  )
+ORDER BY lower(display_name), id
+LIMIT $8::integer
+`
+
+type ListAssetsByNameParams struct {
+	Kind       string
+	Q          string
+	Prefix     string
+	Contains   string
+	HasCursor  bool
+	CursorName string
+	CursorID   uuid.UUID
+	RowLimit   int32
+}
+
+func (q *Queries) ListAssetsByName(ctx context.Context, arg ListAssetsByNameParams) ([]Asset, error) {
+	rows, err := q.db.Query(ctx, listAssetsByName,
+		arg.Kind,
+		arg.Q,
+		arg.Prefix,
+		arg.Contains,
+		arg.HasCursor,
+		arg.CursorName,
+		arg.CursorID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Asset
+	for rows.Next() {
+		var i Asset
+		if err := rows.Scan(
+			&i.ID,
+			&i.Symbol,
+			&i.Mint,
+			&i.Decimals,
+			&i.Issuer,
+			&i.Kind,
+			&i.DisplayName,
+			&i.LogoUrl,
+			&i.UiMultiplierNum,
+			&i.UiMultiplierDen,
+			&i.IssuerTradable,
+			&i.TradableOverride,
+			&i.PopularRank,
+			&i.CompanyKey,
+			&i.FirstSeenAt,
+			&i.UpdatedAt,
+			&i.ChainCheckedAt,
+			&i.UiMultiplierNextNum,
+			&i.UiMultiplierNextDen,
+			&i.UiMultiplierNextAt,
+			&i.LastQuotedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAssetsByRank = `-- name: ListAssetsByRank :many
 SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at, ui_multiplier_next_num, ui_multiplier_next_den, ui_multiplier_next_at, last_quoted_at FROM assets
 WHERE chain_checked_at IS NOT NULL
