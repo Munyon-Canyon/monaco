@@ -60,3 +60,55 @@ func (q *Queries) MarketStats(ctx context.Context, arg MarketStatsParams) (Marke
 	err := row.Scan(&i.MarketCapMicros, &i.OpenMicros)
 	return i, err
 }
+
+const yearRange = `-- name: YearRange :one
+WITH raw AS (
+  SELECT (p.ts AT TIME ZONE 'UTC')::date AS day, p.price_micros
+  FROM price_points AS p
+  LEFT JOIN LATERAL (
+    SELECT prev.price_micros
+    FROM price_points AS prev
+    WHERE prev.mint = p.mint AND prev.ts < p.ts
+    ORDER BY prev.ts DESC
+    LIMIT 1
+  ) AS earlier ON true
+  WHERE p.mint = $2::text
+    AND p.ts >= (($1::timestamptz AT TIME ZONE 'UTC')::date + 1)::timestamp AT TIME ZONE 'UTC'
+    AND p.price_micros > 0
+    AND (earlier.price_micros IS NULL OR abs(p.price_micros - earlier.price_micros) <= earlier.price_micros / 5)
+),
+days AS (
+  SELECT r.day, max(r.price_micros) AS high_micros, min(r.price_micros) AS low_micros
+  FROM raw AS r
+  GROUP BY r.day
+  UNION ALL
+  SELECT d.day, d.high_micros, d.low_micros
+  FROM price_day_ranges AS d
+  WHERE d.mint = $2::text
+    AND d.day > ($1::timestamptz AT TIME ZONE 'UTC')::date
+    AND NOT (d.source = 'history' AND d.day IN (SELECT r.day FROM raw AS r))
+)
+SELECT
+  coalesce(min(day) - ($1::timestamptz AT TIME ZONE 'UTC')::date, 0)::integer AS oldest_gap_days,
+  coalesce(min(low_micros), 0)::bigint AS low_micros,
+  coalesce(max(high_micros), 0)::bigint AS high_micros
+FROM days
+`
+
+type YearRangeParams struct {
+	After time.Time
+	Mint  string
+}
+
+type YearRangeRow struct {
+	OldestGapDays int32
+	LowMicros     int64
+	HighMicros    int64
+}
+
+func (q *Queries) YearRange(ctx context.Context, arg YearRangeParams) (YearRangeRow, error) {
+	row := q.db.QueryRow(ctx, yearRange, arg.After, arg.Mint)
+	var i YearRangeRow
+	err := row.Scan(&i.OldestGapDays, &i.LowMicros, &i.HighMicros)
+	return i, err
+}

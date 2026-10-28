@@ -21,3 +21,37 @@ SELECT
     ORDER BY first_samples.ts
     LIMIT 1
   ), 0)::bigint AS open_micros;
+
+
+-- name: YearRange :one
+WITH raw AS (
+  SELECT (p.ts AT TIME ZONE 'UTC')::date AS day, p.price_micros
+  FROM price_points AS p
+  LEFT JOIN LATERAL (
+    SELECT prev.price_micros
+    FROM price_points AS prev
+    WHERE prev.mint = p.mint AND prev.ts < p.ts
+    ORDER BY prev.ts DESC
+    LIMIT 1
+  ) AS earlier ON true
+  WHERE p.mint = sqlc.arg(mint)::text
+    AND p.ts >= ((sqlc.arg(after)::timestamptz AT TIME ZONE 'UTC')::date + 1)::timestamp AT TIME ZONE 'UTC'
+    AND p.price_micros > 0
+    AND (earlier.price_micros IS NULL OR abs(p.price_micros - earlier.price_micros) <= earlier.price_micros / 5)
+),
+days AS (
+  SELECT r.day, max(r.price_micros) AS high_micros, min(r.price_micros) AS low_micros
+  FROM raw AS r
+  GROUP BY r.day
+  UNION ALL
+  SELECT d.day, d.high_micros, d.low_micros
+  FROM price_day_ranges AS d
+  WHERE d.mint = sqlc.arg(mint)::text
+    AND d.day > (sqlc.arg(after)::timestamptz AT TIME ZONE 'UTC')::date
+    AND NOT (d.source = 'history' AND d.day IN (SELECT r.day FROM raw AS r))
+)
+SELECT
+  coalesce(min(day) - (sqlc.arg(after)::timestamptz AT TIME ZONE 'UTC')::date, 0)::integer AS oldest_gap_days,
+  coalesce(min(low_micros), 0)::bigint AS low_micros,
+  coalesce(max(high_micros), 0)::bigint AS high_micros
+FROM days;

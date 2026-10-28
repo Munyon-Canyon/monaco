@@ -47,11 +47,17 @@ type Detail struct {
 	read    detailReader
 	facts   statsReader
 	holding CabalsHolding
+	years   *YearRanges
 }
 
 func NewDetail(db sqlc.DBTX, list *ListAssets) *Detail {
 	queries := sqlc.New(db)
-	return &Detail{list: list, read: queries, facts: queries}
+	return &Detail{list: list, read: queries, facts: queries, years: NewYearRanges(db)}
+}
+
+func (d *Detail) WithHistory(h PriceHistory) *Detail {
+	d.years.WithHistory(h)
+	return d
 }
 
 func (d *Detail) WithHolding(holding CabalsHolding) *Detail {

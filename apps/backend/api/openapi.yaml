@@ -7842,8 +7842,8 @@ components:
           stats:
             market_cap_micros: "2970000000000000000"
             open_micros: 108000000
-            year_low_micros: null
-            year_high_micros: null
+            year_low_micros: 86620000
+            year_high_micros: 224900000
             held_by_cabals: 3
       additionalProperties: false
       required:
@@ -8018,15 +8018,15 @@ components:
               type: [integer, "null"]
               format: int64
               description: >-
-                The lowest price of the last 52 weeks in USD micros. Null until the daily ranges that fill it
-                exist.
+                The lowest accepted price over the last 52 weeks in USD micros, intraday included from 2026-10-28
+                on and daily points before. Null when the history does not cover 52 weeks.
               examples: [86620000]
             year_high_micros:
               type: [integer, "null"]
               format: int64
               description: >-
-                The highest price of the last 52 weeks in USD micros. Null until the daily ranges that fill it
-                exist.
+                The highest accepted price over the last 52 weeks in USD micros, intraday included from 2026-10-28
+                on and daily points before. Null when the history does not cover 52 weeks.
               examples: [224900000]
             held_by_cabals:
               type: integer

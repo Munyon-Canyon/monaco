@@ -24,16 +24,44 @@ func (q *Queries) CountPricePoints(ctx context.Context) (int64, error) {
 }
 
 const deleteColdPricePoints = `-- name: DeleteColdPricePoints :many
-DELETE FROM price_points
-WHERE ctid IN (
-  SELECT p.ctid
-  FROM price_points AS p
-  WHERE p.ts < $1::timestamptz
-    AND NOT (p.mint = ANY ($2::text[]))
-    AND p.mint NOT IN (SELECT a.mint FROM assets AS a WHERE a.popular_rank IS NOT NULL)
-  LIMIT $3::integer
+WITH doomed AS (
+  DELETE FROM price_points
+  WHERE ctid IN (
+    SELECT p.ctid
+    FROM price_points AS p
+    WHERE p.ts < $1::timestamptz
+      AND NOT (p.mint = ANY ($2::text[]))
+      AND p.mint NOT IN (SELECT a.mint FROM assets AS a WHERE a.popular_rank IS NOT NULL)
+    LIMIT $3::integer
+  )
+  RETURNING mint, ts, price_micros
+),
+rolled AS (
+  INSERT INTO price_day_ranges (mint, day, high_micros, low_micros, source)
+  SELECT d.mint, (d.ts AT TIME ZONE 'UTC')::date, max(d.price_micros), min(d.price_micros), 'samples'
+  FROM doomed AS d
+  LEFT JOIN LATERAL (
+    SELECT prev.price_micros
+    FROM price_points AS prev
+    WHERE prev.mint = d.mint AND prev.ts < d.ts
+    ORDER BY prev.ts DESC
+    LIMIT 1
+  ) AS earlier ON true
+  WHERE d.price_micros > 0
+    AND (earlier.price_micros IS NULL OR abs(d.price_micros - earlier.price_micros) <= earlier.price_micros / 5)
+  GROUP BY d.mint, (d.ts AT TIME ZONE 'UTC')::date
+  ON CONFLICT (mint, day) DO UPDATE SET
+    high_micros = CASE
+      WHEN price_day_ranges.source = 'history' THEN excluded.high_micros
+      ELSE greatest(price_day_ranges.high_micros, excluded.high_micros)
+    END,
+    low_micros = CASE
+      WHEN price_day_ranges.source = 'history' THEN excluded.low_micros
+      ELSE least(price_day_ranges.low_micros, excluded.low_micros)
+    END,
+    source = 'samples'
 )
-RETURNING ts
+SELECT ts FROM doomed
 `
 
 type DeleteColdPricePointsParams struct {
@@ -217,28 +245,56 @@ func (q *Queries) RecentPriceSamples(ctx context.Context, arg RecentPriceSamples
 }
 
 const thinKeptPricePoints = `-- name: ThinKeptPricePoints :many
-DELETE FROM price_points
-WHERE ctid IN (
-  SELECT p.ctid
-  FROM price_points AS p
-  WHERE p.ts >= $1::timestamptz
-    AND p.ts < $2::timestamptz
-    AND (
-      p.mint = ANY ($3::text[])
-      OR p.mint IN (SELECT a.mint FROM assets AS a WHERE a.popular_rank IS NOT NULL)
-    )
-    AND p.ts < (SELECT max(latest.ts) FROM price_points AS latest WHERE latest.mint = p.mint)
-    AND EXISTS (
-      SELECT 1
-      FROM price_points AS earlier
-      WHERE earlier.mint = p.mint
-        AND earlier.ts >= date_bin(($4::text)::interval, p.ts, TIMESTAMPTZ 'epoch')
-        AND earlier.ts < p.ts
-    )
-  ORDER BY p.ts
-  LIMIT $5::integer
+WITH doomed AS (
+  DELETE FROM price_points
+  WHERE ctid IN (
+    SELECT p.ctid
+    FROM price_points AS p
+    WHERE p.ts >= $1::timestamptz
+      AND p.ts < $2::timestamptz
+      AND (
+        p.mint = ANY ($3::text[])
+        OR p.mint IN (SELECT a.mint FROM assets AS a WHERE a.popular_rank IS NOT NULL)
+      )
+      AND p.ts < (SELECT max(latest.ts) FROM price_points AS latest WHERE latest.mint = p.mint)
+      AND EXISTS (
+        SELECT 1
+        FROM price_points AS earlier
+        WHERE earlier.mint = p.mint
+          AND earlier.ts >= date_bin(($4::text)::interval, p.ts, TIMESTAMPTZ 'epoch')
+          AND earlier.ts < p.ts
+      )
+    ORDER BY p.ts
+    LIMIT $5::integer
+  )
+  RETURNING mint, ts, price_micros
+),
+rolled AS (
+  INSERT INTO price_day_ranges (mint, day, high_micros, low_micros, source)
+  SELECT d.mint, (d.ts AT TIME ZONE 'UTC')::date, max(d.price_micros), min(d.price_micros), 'samples'
+  FROM doomed AS d
+  LEFT JOIN LATERAL (
+    SELECT prev.price_micros
+    FROM price_points AS prev
+    WHERE prev.mint = d.mint AND prev.ts < d.ts
+    ORDER BY prev.ts DESC
+    LIMIT 1
+  ) AS earlier ON true
+  WHERE d.price_micros > 0
+    AND (earlier.price_micros IS NULL OR abs(d.price_micros - earlier.price_micros) <= earlier.price_micros / 5)
+  GROUP BY d.mint, (d.ts AT TIME ZONE 'UTC')::date
+  ON CONFLICT (mint, day) DO UPDATE SET
+    high_micros = CASE
+      WHEN price_day_ranges.source = 'history' THEN excluded.high_micros
+      ELSE greatest(price_day_ranges.high_micros, excluded.high_micros)
+    END,
+    low_micros = CASE
+      WHEN price_day_ranges.source = 'history' THEN excluded.low_micros
+      ELSE least(price_day_ranges.low_micros, excluded.low_micros)
+    END,
+    source = 'samples'
 )
-RETURNING ts
+SELECT ts FROM doomed
 `
 
 type ThinKeptPricePointsParams struct {
@@ -276,24 +332,52 @@ func (q *Queries) ThinKeptPricePoints(ctx context.Context, arg ThinKeptPricePoin
 }
 
 const thinPricePoints = `-- name: ThinPricePoints :many
-DELETE FROM price_points
-WHERE ctid IN (
-  SELECT p.ctid
-  FROM price_points AS p
-  WHERE p.ts >= $1::timestamptz
-    AND p.ts < $2::timestamptz
-    AND p.ts < (SELECT max(latest.ts) FROM price_points AS latest WHERE latest.mint = p.mint)
-    AND EXISTS (
-      SELECT 1
-      FROM price_points AS earlier
-      WHERE earlier.mint = p.mint
-        AND earlier.ts >= date_bin(($3::text)::interval, p.ts, TIMESTAMPTZ 'epoch')
-        AND earlier.ts < p.ts
-    )
-  ORDER BY p.ts
-  LIMIT $4::integer
+WITH doomed AS (
+  DELETE FROM price_points
+  WHERE ctid IN (
+    SELECT p.ctid
+    FROM price_points AS p
+    WHERE p.ts >= $1::timestamptz
+      AND p.ts < $2::timestamptz
+      AND p.ts < (SELECT max(latest.ts) FROM price_points AS latest WHERE latest.mint = p.mint)
+      AND EXISTS (
+        SELECT 1
+        FROM price_points AS earlier
+        WHERE earlier.mint = p.mint
+          AND earlier.ts >= date_bin(($3::text)::interval, p.ts, TIMESTAMPTZ 'epoch')
+          AND earlier.ts < p.ts
+      )
+    ORDER BY p.ts
+    LIMIT $4::integer
+  )
+  RETURNING mint, ts, price_micros
+),
+rolled AS (
+  INSERT INTO price_day_ranges (mint, day, high_micros, low_micros, source)
+  SELECT d.mint, (d.ts AT TIME ZONE 'UTC')::date, max(d.price_micros), min(d.price_micros), 'samples'
+  FROM doomed AS d
+  LEFT JOIN LATERAL (
+    SELECT prev.price_micros
+    FROM price_points AS prev
+    WHERE prev.mint = d.mint AND prev.ts < d.ts
+    ORDER BY prev.ts DESC
+    LIMIT 1
+  ) AS earlier ON true
+  WHERE d.price_micros > 0
+    AND (earlier.price_micros IS NULL OR abs(d.price_micros - earlier.price_micros) <= earlier.price_micros / 5)
+  GROUP BY d.mint, (d.ts AT TIME ZONE 'UTC')::date
+  ON CONFLICT (mint, day) DO UPDATE SET
+    high_micros = CASE
+      WHEN price_day_ranges.source = 'history' THEN excluded.high_micros
+      ELSE greatest(price_day_ranges.high_micros, excluded.high_micros)
+    END,
+    low_micros = CASE
+      WHEN price_day_ranges.source = 'history' THEN excluded.low_micros
+      ELSE least(price_day_ranges.low_micros, excluded.low_micros)
+    END,
+    source = 'samples'
 )
-RETURNING ts
+SELECT ts FROM doomed
 `
 
 type ThinPricePointsParams struct {
@@ -326,4 +410,33 @@ func (q *Queries) ThinPricePoints(ctx context.Context, arg ThinPricePointsParams
 		return nil, err
 	}
 	return items, nil
+}
+
+const upsertHistoryDayRanges = `-- name: UpsertHistoryDayRanges :exec
+INSERT INTO price_day_ranges (mint, day, high_micros, low_micros, source)
+SELECT $1::text, (u.day AT TIME ZONE 'UTC')::date, u.high_micros, u.low_micros, 'history'
+FROM ROWS FROM (
+  unnest($2::timestamptz[]), unnest($3::bigint[]), unnest($4::bigint[])
+) AS u (day, high_micros, low_micros)
+ON CONFLICT (mint, day) DO UPDATE SET
+  high_micros = excluded.high_micros,
+  low_micros = excluded.low_micros
+WHERE price_day_ranges.source = 'history'
+`
+
+type UpsertHistoryDayRangesParams struct {
+	Mint       string
+	Days       []time.Time
+	HighMicros []int64
+	LowMicros  []int64
+}
+
+func (q *Queries) UpsertHistoryDayRanges(ctx context.Context, arg UpsertHistoryDayRangesParams) error {
+	_, err := q.db.Exec(ctx, upsertHistoryDayRanges,
+		arg.Mint,
+		arg.Days,
+		arg.HighMicros,
+		arg.LowMicros,
+	)
+	return err
 }

@@ -143,10 +143,10 @@ The Tessera and PreStocks catalogs publish only a token mark price and a valuati
 - `market_cap_micros` is `shares_outstanding` times `price_micros`, as a decimal string in `numeric` math. The share count is in `company_facts`, one hand-seeded row per `company_key` from the company's latest 10-Q or 10-K cover page, with the filing URL in `source`. A company without a row, and an unpriced asset, give null. A company with several share classes on its cover stays unseeded until someone sums them.
 - `open_micros` is the first price of the current US session, or of the last session when the market is closed or has not opened. It reads the same stored samples as the day reference and skips a first sample that jumps over 20% against the next. A session with no sample gives null.
 - `held_by_cabals` is treasury's one holder rule: active cabals with units above zero in `cabal_positions`, the rule behind `CabalHolderCounts`. `CabalsHolding` counts it for one asset, and a test keeps the two equal. The count never names the cabals.
-- `year_low_micros` and `year_high_micros` are declared and null. The daily ranges that fill them are a separate change (#6473), because the retention thinning below drops an intraday high.
+- `year_low_micros` and `year_high_micros` are the lowest and highest accepted price over the last 365 days, read from `price_day_ranges` (see Retention) together with the samples still in `price_points`, which are not rolled up yet. `YearRange` takes the days after `now − 365 days`, with a sample counted only when it is within a fifth of the sample before it, the accept rule that keeps a spike out. Both are null unless the oldest day used is within 7 days of `now − 365 days`, so a newly listed stock shows a dash instead of a short range under a 52-week label. When the stored days do not cover the year, the read loads the 365-day `PriceHistory` series the 1Y chart uses (same cache key, so no new CoinGecko credits) and writes each daily point as that day's high and low with `source = 'history'`. A day with a `samples` row is never overwritten by a `history` row, and a later roll-up replaces a `history` row. The detail read adds one query for the two cells.
 - `volume_24h_micros` stays on the detail as it was.
 
-The detail read makes one market query for the stats and one treasury call.
+The detail read makes one market query for the stats, one for the year cells and one treasury call.
 
 ### Retention
 
@@ -155,6 +155,8 @@ An hourly `market.retention` poller, under the same advisory-lock rule, thins an
 1. Every mint: samples older than 2 hours are thinned to one per hour.
 2. Hot mints (held and proposed, from the `HotMints` sources) plus every mint with a popular rank: samples older than 7 days are thinned to one per day.
 3. Every other mint: samples older than 7 days are deleted.
+
+Each pass rolls up what it deletes before the rows go, in the same statement: `price_day_ranges (mint, day, high_micros, low_micros, source)` keeps each UTC day's highest and lowest accepted price per mint, about 365 rows a year, so the 52-week range survives the thinning. A deleted sample counts when its price is within a fifth of the sample before it, and a rejected spike never becomes a day's high or low. The upsert widens a `samples` row and replaces a `history` one (see Market stats). A failed roll-up fails the pass and deletes nothing.
 
 The two thinning passes keep the earliest sample in a bucket and never delete a mint's newest sample; the cold pass deletes every sample past 7 days. A failing hot source fails the tick before any delete, so a held mint never loses history to a read error.
 
