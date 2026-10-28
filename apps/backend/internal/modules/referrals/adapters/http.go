@@ -3,6 +3,8 @@ package adapters
 import (
 	"context"
 	"log/slog"
+	"math"
+	"strconv"
 
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
@@ -141,6 +143,47 @@ func cabalPreview(p app.InvitePreview) api.ReferralCabal {
 			Since: openapi_types.Date{Time: c.Since}, JoinMode: api.ReferralCabalCabalJoinMode(c.JoinMode),
 			FirstMembers: first, PotValueMicros: c.PotValueMicros.String(),
 		}
+		out.Return1mBps = int32Of(c.Return1MBps)
+		out.TurnoutMonthBps = int32Of(c.TurnoutBps)
+		out.OpenProposal = proposalOf(c.OpenProposal)
+	}
+	return out
+}
+
+func int32Of(v *int64) *int32 {
+	if v == nil {
+		return nil
+	}
+	out := clampInt32(*v)
+	return &out
+}
+
+func clampInt32(v int64) int32 {
+	switch {
+	case v > math.MaxInt32:
+		return math.MaxInt32
+	case v < math.MinInt32:
+		return math.MinInt32
+	}
+	return int32(v)
+}
+
+func proposalOf(p *app.PreviewProposal) *api.ReferralCabalProposal {
+	if p == nil {
+		return nil
+	}
+	out := &api.ReferralCabalProposal{
+		Id: p.ID.UUID(), Kind: p.Kind, Symbol: p.Symbol, AssetName: p.AssetName, AssetLogoUrl: photoOf(p.AssetLogoURL),
+		ProposerName: p.ProposerName, Title: p.Title, Yes: p.Yes, No: p.No, Voted: p.Voted,
+		Eligible: p.Eligible, ExpiresAt: p.ExpiresAt.UTC(),
+	}
+	if p.USDCMicros != nil {
+		micros := strconv.FormatUint(*p.USDCMicros, 10)
+		out.UsdcMicros = &micros
+	}
+	if p.Replies != nil {
+		replies := clampInt32(int64(*p.Replies))
+		out.Replies = &replies
 	}
 	return out
 }

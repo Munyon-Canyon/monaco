@@ -8,5 +8,6 @@ func init() {
 		ReferralsClick,
 		ReferralsQualified,
 		ReferralsQualifySkipped,
+		ReferralsPreviewRepliesFailed,
 	)
 }

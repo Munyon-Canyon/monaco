@@ -40,6 +40,15 @@ type PersonReturn struct {
 	AsOf      time.Time
 }
 
+type CabalReturn struct {
+	ReturnBps *int64
+	AsOf      time.Time
+}
+
+type CabalReturnsReader interface {
+	CabalReturns(ctx context.Context, rng Range, cabals []ids.CabalID) (map[ids.CabalID]CabalReturn, error)
+}
+
 type Queries interface {
 	LatestRun(ctx context.Context) (Run, error)
 	LatestCabalValues(ctx context.Context) ([]CabalValue, error)

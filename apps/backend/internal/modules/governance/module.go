@@ -166,6 +166,8 @@ func (*Module) DashboardOn(db dbsqlc.DBTX) app.Dashboard { return app.NewDashboa
 
 func (m *Module) Voters() port.Voters { return app.NewQueries(m.deps.Pool) }
 
+func (m *Module) InviteFacts() app.Queries { return app.NewQueries(m.deps.Pool) }
+
 func (m *Module) ProposedMints(ctx context.Context) ([]chain.SolanaAddress, error) {
 	return adapters.NewProposedMints(m.deps.Pool).ProposedMints(ctx)
 }

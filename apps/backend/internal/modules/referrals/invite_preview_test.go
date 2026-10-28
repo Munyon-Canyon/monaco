@@ -1,9 +1,11 @@
 package referrals_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -18,7 +20,9 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
+	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
+	rankingport "github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/referrals/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/referrals/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
@@ -27,6 +31,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 )
 
 const andresPhoto = "https://img.example/andres.png"
@@ -255,7 +260,7 @@ func nameProblems(key, name string) []string {
 			problems = append(problems, fmt.Sprintf("key %s holds %q", key, part))
 		}
 	}
-	if strings.HasSuffix(name, "id") && key != "cabal.id" {
+	if strings.HasSuffix(name, "id") && key != "cabal.id" && key != "open_proposal.id" {
 		problems = append(problems, fmt.Sprintf("key %s is an id the public preview must not carry", key))
 	}
 	return problems
@@ -321,6 +326,8 @@ func TestInvitePreview_theSixtyFirstCallFromOneAddressIsRateLimited(t *testing.T
 type fakeWorld struct {
 	cabal    ids.CabalID
 	inviter  ids.UserID
+	friend   ids.UserID
+	now      time.Time
 	identity *fakes.Identity
 	cabals   *fakes.Cabal
 	pots     *fakes.Treasury
@@ -331,11 +338,14 @@ func newFakeWorld(t *testing.T, deleted bool) fakeWorld {
 	t.Helper()
 	gen := testkit.NewIDs(7)
 	now := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
-	w := fakeWorld{cabal: ids.CabalIDFrom(gen.NewV7()), inviter: ids.NewUserID(gen)}
-	friend := ids.NewUserID(gen)
+	w := fakeWorld{
+		cabal: ids.CabalIDFrom(gen.NewV7()), inviter: ids.NewUserID(gen), friend: ids.NewUserID(gen), now: now,
+	}
+	friend := w.friend
 	card := func(id ids.UserID, handle string, gone bool) identity.UserCard {
 		return identity.UserCard{
-			ID: id, Handle: handle, AccountStatus: identity.AccountActive, FirstDepositAt: &now, Deleted: gone,
+			ID: id, Handle: handle, DisplayName: strings.ToUpper(handle[:1]) + handle[1:],
+			AccountStatus: identity.AccountActive, FirstDepositAt: &now, Deleted: gone,
 		}
 	}
 	w.identity = fakes.NewIdentity(
@@ -424,5 +434,359 @@ func TestGetReferralCabal_aCabalIDThatIsNotV7IsInvalidInput(t *testing.T) {
 	)
 	if errs.CodeOf(err) != errs.CodeInvalidInput {
 		t.Fatalf("GetReferralCabal err = %v, want invalid_input", err)
+	}
+}
+
+type factsFake struct {
+	open      governanceport.OpenProposal
+	hasOpen   bool
+	voted     int
+	eligible  int
+	from      time.Time
+	openErr   error
+	turnedErr error
+}
+
+func (f *factsFake) NewestOpenProposal(context.Context, ids.CabalID) (governanceport.OpenProposal, bool, error) {
+	return f.open, f.hasOpen, f.openErr
+}
+
+func (f *factsFake) MonthTurnout(_ context.Context, _ ids.CabalID, from time.Time) (int, int, error) {
+	f.from = from
+	return f.voted, f.eligible, f.turnedErr
+}
+
+type returnsFake struct {
+	bps *int64
+	err error
+}
+
+func (r returnsFake) CabalReturns(
+	_ context.Context, rng rankingport.Range, cabals []ids.CabalID,
+) (map[ids.CabalID]rankingport.CabalReturn, error) {
+	if rng != rankingport.Range1M {
+		return nil, errs.New(errs.CodeInternal, "test.range")
+	}
+	if r.err != nil {
+		return nil, r.err
+	}
+	return map[ids.CabalID]rankingport.CabalReturn{cabals[0]: {ReturnBps: r.bps}}, nil
+}
+
+type repliesFake struct {
+	counts map[ids.ProposalID]int
+	err    error
+}
+
+func (r repliesFake) ReplyCounts(context.Context, []ids.ProposalID) (map[ids.ProposalID]int, error) {
+	return r.counts, r.err
+}
+
+func (w fakeWorld) monthDeps(facts *factsFake, bps *int64, replies repliesFake) app.InvitePreviewDeps {
+	return app.InvitePreviewDeps{
+		Resolver: app.Resolver{Users: w.identity}, Cabals: w.cabals, Pots: w.pots, Clock: testkit.NewClock(w.now),
+		Votes: facts, Returns: returnsFake{bps: bps}, Assets: marketfake.NewCatalog(marketfake.Fixtures()...),
+		Replies: replies,
+	}
+}
+
+func (w fakeWorld) monthQuery(facts *factsFake, bps *int64, replies repliesFake) *app.InvitePreviewQuery {
+	return app.NewInvitePreviewQuery(w.monthDeps(facts, bps, replies))
+}
+
+func (w fakeWorld) nvda() governanceport.OpenProposal {
+	usdc := uint64(400_000_000)
+	return governanceport.OpenProposal{
+		ID: ids.ProposalIDFrom(ids.Real{}.NewV7()), Kind: "buy", Symbol: "AAPLx",
+		Mint:       marketfake.AAPLx().Mint.String(),
+		USDCMicros: &usdc, ProposerID: w.friend, Thesis: "small add before earnings\nsecond line", Yes: 4, No: 1,
+		Voted: 5, Eligible: 8, ExpiresAt: w.now.Add(4 * time.Hour),
+	}
+}
+
+func bpsIs(t *testing.T, name string, got *int64, want int64) {
+	t.Helper()
+	if got == nil || *got != want {
+		t.Errorf("%s = %v, want %d", name, got, want)
+	}
+}
+
+func TestInvitePreviewQuery_composesTheMonthFactsTheFrameDraws(t *testing.T) {
+	t.Parallel()
+	w := newFakeWorld(t, false)
+	open := w.nvda()
+	loss := int64(-410)
+	facts := &factsFake{open: open, hasOpen: true, voted: 47, eligible: 50}
+	replies := repliesFake{counts: map[ids.ProposalID]int{open.ID: 6}}
+
+	got, err := w.monthQuery(facts, &loss, replies).Run(t.Context(), "andres", w.cabal)
+	if err != nil || got.Cabal == nil {
+		t.Fatalf("Run = %+v, %v, want the cabal", got, err)
+	}
+	bpsIs(t, "Return1MBps", got.Cabal.Return1MBps, -410)
+	bpsIs(t, "TurnoutBps", got.Cabal.TurnoutBps, 9400)
+	if want := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC); !facts.from.Equal(want) {
+		t.Errorf("turnout counted from %s, want the first instant of the UTC month %s", facts.from, want)
+	}
+	usdc, sixReplies := uint64(400_000_000), 6
+	want := &app.PreviewProposal{
+		ID: open.ID, Kind: "buy", Symbol: "AAPLx", AssetName: "Apple", AssetLogoURL: marketfake.AAPLx().LogoURL,
+		USDCMicros: &usdc, ProposerName: "Mia", Title: "small add before earnings", Yes: 4, No: 1, Voted: 5,
+		Eligible: 8, Replies: &sixReplies, ExpiresAt: open.ExpiresAt,
+	}
+	if !reflect.DeepEqual(got.Cabal.OpenProposal, want) {
+		t.Errorf("OpenProposal = %+v, want %+v", got.Cabal.OpenProposal, want)
+	}
+}
+
+func TestInvitePreviewQuery_theMonthFactsAreNullWhenThereIsNothingToShow(t *testing.T) {
+	t.Parallel()
+	w := newFakeWorld(t, false)
+	got, err := w.monthQuery(&factsFake{}, nil, repliesFake{}).Run(t.Context(), "andres", w.cabal)
+	if err != nil || got.Cabal == nil {
+		t.Fatalf("Run = %+v, %v, want the cabal", got, err)
+	}
+	if c := got.Cabal; c.Return1MBps != nil || c.TurnoutBps != nil || c.OpenProposal != nil {
+		t.Errorf("month facts = %v %v %v, want all null with nothing eligible, ranked or open",
+			c.Return1MBps, c.TurnoutBps, c.OpenProposal)
+	}
+	zero := int64(0)
+	facts := &factsFake{voted: 0, eligible: 3}
+	got, err = w.monthQuery(facts, &zero, repliesFake{}).Run(t.Context(), "andres", w.cabal)
+	if err != nil || got.Cabal.TurnoutBps == nil || *got.Cabal.TurnoutBps != 0 ||
+		got.Cabal.Return1MBps == nil || *got.Cabal.Return1MBps != 0 {
+		t.Fatalf("Run = %+v, %v, want 0 turnout and 0 return, not null, when ballots were eligible", got.Cabal, err)
+	}
+}
+
+func TestInvitePreviewQuery_aFailingReplyCountGivesNullRepliesNotAnError(t *testing.T) {
+	t.Parallel()
+	w := newFakeWorld(t, false)
+	facts := &factsFake{open: w.nvda(), hasOpen: true, voted: 5, eligible: 8}
+	replies := repliesFake{err: errs.New(errs.CodeInternal, "test.replies")}
+	got, err := w.monthQuery(facts, nil, replies).Run(t.Context(), "andres", w.cabal)
+	if err != nil || got.Cabal == nil || got.Cabal.OpenProposal == nil || got.Cabal.OpenProposal.Replies != nil {
+		t.Fatalf("Run = %+v, %v, want the proposal with replies null", got.Cabal, err)
+	}
+	if got.Cabal.OpenProposal.Yes != 4 || got.Cabal.TurnoutBps == nil {
+		t.Errorf("Run = %+v, want the rest of the preview intact", got.Cabal)
+	}
+}
+
+func TestInvitePreviewQuery_aSellHasNoUSDCAndAnEmptyThesisAnEmptyTitle(t *testing.T) {
+	t.Parallel()
+	w := newFakeWorld(t, false)
+	sell := w.nvda()
+	sell.Kind, sell.USDCMicros, sell.Thesis = "sell", nil, ""
+	facts := &factsFake{open: sell, hasOpen: true, voted: 1, eligible: 2}
+	query := w.monthQuery(facts, nil, repliesFake{counts: map[ids.ProposalID]int{}})
+	got, err := query.Run(t.Context(), "andres", w.cabal)
+	if err != nil || got.Cabal == nil || got.Cabal.OpenProposal == nil {
+		t.Fatalf("Run = %+v, %v, want the sell", got.Cabal, err)
+	}
+	p := got.Cabal.OpenProposal
+	if p.Kind != "sell" || p.USDCMicros != nil || p.Title != "" || p.Replies == nil || *p.Replies != 0 {
+		t.Errorf("OpenProposal = %+v, want a sell with no USDC, an empty title and 0 replies", p)
+	}
+	body, err := adapters.HTTP{Cabals: w.monthQuery(facts, nil, repliesFake{counts: map[ids.ProposalID]int{}})}.
+		GetReferralCabal(t.Context(), api.GetReferralCabalRequestObject{Code: "andres", CabalId: w.cabal.UUID()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(body.(api.GetReferralCabal200JSONResponse).Body.OpenProposal)
+	if err != nil || !strings.Contains(string(raw), `"usdc_micros":null`) {
+		t.Errorf("open_proposal JSON = %s, %v, want usdc_micros null", raw, err)
+	}
+}
+
+func TestInvitePreviewQuery_everyMonthReadFailureSurfacesUnchanged(t *testing.T) {
+	t.Parallel()
+	boom := errs.New(errs.CodeInternal, "test.month")
+	for name, arrange := range map[string]func(w fakeWorld, deps *app.InvitePreviewDeps, facts *factsFake){
+		"reading the return": func(_ fakeWorld, deps *app.InvitePreviewDeps, _ *factsFake) {
+			deps.Returns = returnsFake{err: boom}
+		},
+		"reading the turnout":       func(_ fakeWorld, _ *app.InvitePreviewDeps, facts *factsFake) { facts.turnedErr = boom },
+		"reading the open proposal": func(_ fakeWorld, _ *app.InvitePreviewDeps, facts *factsFake) { facts.openErr = boom },
+		"parsing the mint": func(_ fakeWorld, _ *app.InvitePreviewDeps, facts *factsFake) {
+			facts.open.Mint = "not a mint"
+		},
+		"reading the asset": func(_ fakeWorld, deps *app.InvitePreviewDeps, _ *factsFake) {
+			deps.Assets = marketfake.NewCatalog()
+		},
+		"reading the proposer": func(w fakeWorld, _ *app.InvitePreviewDeps, _ *factsFake) {
+			w.identity.FailOnce("UsersByID", nil)
+			w.identity.FailOnce("UsersByID", nil)
+			w.identity.FailOnce("UsersByID", boom)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			w := newFakeWorld(t, false)
+			facts := &factsFake{open: w.nvda(), hasOpen: true, voted: 5, eligible: 8}
+			deps := w.monthDeps(facts, nil, repliesFake{})
+			arrange(w, &deps, facts)
+			_, err := app.NewInvitePreviewQuery(deps).Run(t.Context(), "andres", w.cabal)
+			if err == nil {
+				t.Fatal("Run err = nil, want the read failure")
+			}
+		})
+	}
+}
+
+func TestGetReferralCabal_aReturnBeyondInt32IsClampedNotWrapped(t *testing.T) {
+	t.Parallel()
+	w := newFakeWorld(t, false)
+	for want, bps := range map[int32]int64{math.MaxInt32: math.MaxInt64, math.MinInt32: math.MinInt64} {
+		out, err := adapters.HTTP{Cabals: w.monthQuery(&factsFake{}, &bps, repliesFake{})}.GetReferralCabal(
+			t.Context(), api.GetReferralCabalRequestObject{Code: "andres", CabalId: w.cabal.UUID()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := out.(api.GetReferralCabal200JSONResponse).Body.Return1mBps
+		if got == nil || *got != want {
+			t.Errorf("return_1m_bps for %d = %v, want %d", bps, got, want)
+		}
+	}
+}
+
+func seedOpenProposal(
+	t *testing.T, s server, w previewWorld, proposer ids.UserID, created time.Time, ballots map[string]int,
+) uuid.UUID {
+	t.Helper()
+	id := ids.Real{}.NewV7()
+	if _, err := s.pool.Exec(t.Context(), `INSERT INTO proposals (id, cabal_id, proposer_id, kind, symbol, mint,
+		usdc_micros, thesis, quote_out_amount, threshold, status, expires_at, created_at, updated_at)
+		VALUES ($1, $2, $3, 'buy', 'AAPLx', $4, 400000000, $5, 1, 'majority', 'open', $6, $7, $7)`,
+		id, w.cabal.UUID(), proposer.UUID(), marketfake.AAPLx().Mint.String(),
+		"small add before earnings\nsecond line", created.Add(5*time.Hour), created); err != nil {
+		t.Fatal(err)
+	}
+	for i := range ballots["eligible"] {
+		voter := ids.Real{}.NewV7()
+		if _, err := s.pool.Exec(t.Context(),
+			`INSERT INTO proposal_voters (proposal_id, voter_id) VALUES ($1, $2)`, id, voter); err != nil {
+			t.Fatal(err)
+		}
+		choice := ""
+		switch {
+		case i < ballots["yes"]:
+			choice = "yes"
+		case i < ballots["yes"]+ballots["no"]:
+			choice = "no"
+		default:
+			continue
+		}
+		castBallot(t, s, id, voter, choice, created)
+	}
+	return id
+}
+
+func castBallot(t *testing.T, s server, proposal, voter uuid.UUID, choice string, at time.Time) {
+	t.Helper()
+	if _, err := s.pool.Exec(t.Context(),
+		`INSERT INTO votes (proposal_id, voter_id, choice, cast_at) VALUES ($1, $2, $3, $4)`,
+		proposal, voter, choice, at); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func seedMonthFacts(t *testing.T, s server, w previewWorld, now time.Time) uuid.UUID {
+	t.Helper()
+	if _, err := s.pool.Exec(t.Context(), `INSERT INTO assets (id, symbol, mint, decimals, issuer, kind, display_name,
+		logo_url, issuer_tradable, company_key, first_seen_at, updated_at)
+		VALUES ($1, 'AAPLx', $2, 8, 'xstocks', 'equity', 'Apple', 'https://img.example/aapl.png', true, 'apple',
+		$3, $3)`,
+		ids.Real{}.NewV7(), marketfake.AAPLx().Mint.String(), now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.pool.Exec(t.Context(), `INSERT INTO leaderboard_entries (board, range, rank, subject_id,
+		subject_name, subject_created_at, value_micros, pnl_micros, return_bps, prices_as_of, computed_at, join_mode,
+		member_count) VALUES ('cabals', '1M', 1, $1, 'AC Capital', $2, 20000000000, -5, -410, $2, $2, 'request', 4)`,
+		w.cabal.UUID(), now); err != nil {
+		t.Fatal(err)
+	}
+	proposer := w.members[0].id
+	older := map[string]int{"eligible": 2, "yes": 2}
+	passed := seedOpenProposal(t, s, w, proposer, now.AddDate(0, 0, -30), older)
+	tally := map[string]int{"eligible": 8, "yes": 4, "no": 1}
+	open := seedOpenProposal(t, s, w, proposer, now.Add(-time.Hour), tally)
+	if _, err := s.pool.Exec(t.Context(), `UPDATE proposals SET status = 'passed' WHERE id = $1`, passed); err != nil {
+		t.Fatal(err)
+	}
+	seedReplies(t, s, open, w.members[1].id, 6, now)
+	return open
+}
+
+func seedReplies(t *testing.T, s server, proposal uuid.UUID, author ids.UserID, n int, now time.Time) {
+	t.Helper()
+	object := ids.Real{}.NewV7()
+	if _, err := s.pool.Exec(t.Context(), `INSERT INTO feed_objects (id, kind, ref_type, ref_id, title, payload,
+		created_at, updated_at) VALUES ($1, 'proposal', 'proposals', $2, 'Buy AAPLx', '{}', $3, $3)`,
+		object, proposal, now); err != nil {
+		t.Fatal(err)
+	}
+	for range n {
+		if _, err := s.pool.Exec(t.Context(), `INSERT INTO feed_comments
+			(id, feed_object_id, author_id, body, created_at) VALUES ($1, $2, $3, 'in', $4)`, ids.Real{}.NewV7(), object, author.UUID(), now); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func readPreview(t *testing.T, s server, cabal ids.CabalID) (map[string]any, string) {
+	t.Helper()
+	rec := s.preview(t, "k7m4qx2p", cabal)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET preview = %d %s", rec.Code, rec.Body)
+	}
+	return previewBody(t, rec), rec.Body.String()
+}
+
+func TestInvitePreview_theMonthFactsComeFromGovernanceRankingAndSocial(t *testing.T) {
+	t.Parallel()
+	s := newServer(t)
+	w := seedPreviewWorld(t, s, 3)
+	now := s.clock.Now().UTC()
+	open := seedMonthFacts(t, s, w, now)
+
+	body, raw := readPreview(t, s, w.cabal)
+	want := map[string]any{
+		"id": open.String(), "kind": "buy", "symbol": "AAPLx", "asset_name": "Apple",
+		"asset_logo_url": "https://img.example/aapl.png", "usdc_micros": "400000000", "proposer_name": "Member 0",
+		"title": "small add before earnings", "yes": json.Number("4"), "no": json.Number("1"),
+		"voted": json.Number("5"), "eligible": json.Number("8"), "replies": json.Number("6"),
+		"expires_at": now.Add(4 * time.Hour).Format(time.RFC3339),
+	}
+	if got := body["open_proposal"]; !reflect.DeepEqual(got, want) {
+		t.Fatalf("open_proposal = %v, want %v", got, want)
+	}
+	if body["return_1m_bps"] != json.Number("-410") || body["turnout_month_bps"] != json.Number("6250") {
+		t.Fatalf("return_1m_bps and turnout_month_bps = %v and %v, want -410 and 6250 (5 of 8 this month)",
+			body["return_1m_bps"], body["turnout_month_bps"])
+	}
+	for _, problem := range keyProblems("", body) {
+		t.Error(problem)
+	}
+	if strings.Contains(raw, w.members[0].id.String()) {
+		t.Errorf("body %s holds the proposer's id", raw)
+	}
+}
+
+func TestInvitePreview_aVoteBetweenTwoReadsMovesTheTally(t *testing.T) {
+	t.Parallel()
+	s := newServer(t)
+	w := seedPreviewWorld(t, s, 3)
+	open := seedMonthFacts(t, s, w, s.clock.Now().UTC())
+	castBallot(t, s, open, ids.Real{}.NewV7(), "no", s.clock.Now())
+	if _, err := s.pool.Exec(t.Context(),
+		`INSERT INTO proposal_voters (proposal_id, voter_id) SELECT proposal_id, voter_id FROM votes
+		 WHERE proposal_id = $1 ON CONFLICT DO NOTHING`, open); err != nil {
+		t.Fatal(err)
+	}
+	body, _ := readPreview(t, s, w.cabal)
+	moved, _ := body["open_proposal"].(map[string]any)
+	if moved["no"] != json.Number("2") || moved["voted"] != json.Number("6") || moved["yes"] != json.Number("4") {
+		t.Fatalf("open_proposal after a vote = %v, want 4 yes, 2 no, 6 voted", moved)
 	}
 }

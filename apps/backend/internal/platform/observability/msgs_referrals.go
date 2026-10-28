@@ -19,3 +19,8 @@ var ReferralsQualifySkipped = Msg{
 	Name:     "referrals.qualify_skipped",
 	Required: []string{"reason"},
 }
+
+var ReferralsPreviewRepliesFailed = Msg{
+	Name:     "referrals.preview_replies_failed",
+	Required: []string{"proposal_id"},
+}

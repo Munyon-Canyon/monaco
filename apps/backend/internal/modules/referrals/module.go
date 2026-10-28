@@ -6,9 +6,13 @@ import (
 	"io"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
+	"github.com/monaco/monaco/apps/backend/internal/modules/governance"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market"
+	"github.com/monaco/monaco/apps/backend/internal/modules/ranking"
 	"github.com/monaco/monaco/apps/backend/internal/modules/referrals/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/referrals/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -54,7 +58,10 @@ func (m *Module) http() adapters.HTTP {
 			Resolver: resolver, Reads: m.deps.Pool, Clock: m.deps.Clock,
 		}),
 		Cabals: app.NewInvitePreviewQuery(app.InvitePreviewDeps{
-			Resolver: resolver, Cabals: cabal.New(m.deps).Queries(), Pots: treasury.New(m.deps).Queries(),
+			Resolver: resolver, Cabals: cabal.New(m.deps).Queries(),
+			Pots: treasury.New(m.deps).Queries(), Clock: m.deps.Clock,
+			Votes: governance.New(m.deps).InviteFacts(), Returns: ranking.New(m.deps).CabalReturns(),
+			Assets: market.New(m.deps).Catalog(), Replies: social.New(m.deps),
 		}),
 	}
 }
