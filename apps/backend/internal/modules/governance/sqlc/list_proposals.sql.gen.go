@@ -204,6 +204,44 @@ func (q *Queries) ListProposals(ctx context.Context, arg ListProposalsParams) ([
 	return items, nil
 }
 
+const proposalTallyFacts = `-- name: ProposalTallyFacts :many
+SELECT id, kind, threshold, status, expires_at FROM proposals WHERE id = ANY($1::uuid[])
+`
+
+type ProposalTallyFactsRow struct {
+	ID        uuid.UUID
+	Kind      string
+	Threshold string
+	Status    string
+	ExpiresAt time.Time
+}
+
+func (q *Queries) ProposalTallyFacts(ctx context.Context, proposalIds []uuid.UUID) ([]ProposalTallyFactsRow, error) {
+	rows, err := q.db.Query(ctx, proposalTallyFacts, proposalIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProposalTallyFactsRow
+	for rows.Next() {
+		var i ProposalTallyFactsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.Threshold,
+			&i.Status,
+			&i.ExpiresAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const tallyProposals = `-- name: TallyProposals :many
 SELECT
   proposal_voters.proposal_id,

@@ -147,6 +147,16 @@ func (h Feed) CabalBanned(ctx context.Context, tx db.Tx, e events.CabalBanned, a
 	return nil
 }
 
+func (h Feed) VoteCast(_ context.Context, tx db.Tx, _ events.VoteCast, _ time.Time) error {
+	tx.AfterCommit(func(ctx context.Context) { h.Bus.PublishHint(ctx, "global.feed", nil) })
+	return nil
+}
+
+func (h Feed) VoteRetracted(_ context.Context, tx db.Tx, _ events.VoteRetracted, _ time.Time) error {
+	tx.AfterCommit(func(ctx context.Context) { h.Bus.PublishHint(ctx, "global.feed", nil) })
+	return nil
+}
+
 func feedName(displayName, handle string) string {
 	if displayName != "" {
 		return displayName
