@@ -279,6 +279,7 @@ enum RepoRules {
         ),
         DesignScaleRules.fixedFont,
         DesignScaleRules.spacing,
+        DesignScaleRules.noGradient,
         roundedBorderField,
         seeAll,
         coinGlyph,
@@ -368,6 +369,27 @@ enum DesignScaleRules {
             "HStack(spacing: 24) {",
             "RoundedRectangle(cornerRadius: MonacoTheme.Radius.field)",
             "RoundedRectangle(cornerRadius: 18, style: .continuous)",
+        ]
+    )
+
+    static let noGradient = RepoRule(
+        name: "gradient",
+        roots: ["apps/mobile/Monaco"],
+        pattern: #"\b(Linear|Radial|Angular|Elliptical|Mesh)Gradient\b|\.gradient\b|Gradient\("#,
+        message: "F has no gradients: fills are flat tokens (founder rule). "
+            + "A chart fill is MonacoLineStyle.fillOpacity.",
+        failing: [
+            "LinearGradient(colors: [.red, .blue], startPoint: .top, endPoint: .bottom)",
+            ".fill(RadialGradient(colors: [.red, .blue], center: .center, startRadius: 0, endRadius: 20))",
+            "AngularGradient(gradient: Gradient(colors: [.red]), center: .center)",
+            "MeshGradient(width: 2, height: 2, points: [], colors: [])",
+            ".fill(Color.red.gradient)",
+            "let stops = Gradient(colors: [.red, .blue])",
+        ],
+        passing: [
+            ".fill(MonacoTheme.profit.opacity(MonacoLineStyle.fillOpacity))",
+            "let gradientRule = \"flat\"",
+            "context.fill(area, with: .color(tint))",
         ]
     )
 }

@@ -89,6 +89,7 @@ No Clean Architecture use-case layer, MVC, TCA, reducers or coordinator framewor
 | `core-swiftui` | `import SwiftUI` or `canImport(SwiftUI)` in `Sources/MonacoCore` | MonacoCore stays host-testable and free of UI |
 | `raw-color` | `Color(hex:`, `Color(red:` or `UIColor(red:` under `apps/mobile/Monaco` outside `Design/` | Colours are `MonacoTheme` tokens, which adapt to light and dark mode. Shrink-only |
 | `fixed-font` | `.system(size:` under `apps/mobile/Monaco` outside `Design/` | A fixed point size does not scale with Dynamic Type. Shrink-only |
+| `gradient` | `LinearGradient`, `RadialGradient`, `AngularGradient`, `EllipticalGradient`, `MeshGradient`, `.gradient` or `Gradient(` under `apps/mobile/Monaco` | F has no gradients (founder rule). Fills are flat tokens; a chart fill is `MonacoLineStyle.fillOpacity` |
 | `gutter` | `.padding(.horizontal, MonacoTheme.Space.m)` under `apps/mobile/Monaco/Features` | Every screen edge inset is `Space.gutter`, so headers, rows and pinned bars share one left edge. Inner spacing in a pill or bubble is allow-listed. Shrink-only |
 | `row-height` | `minHeight: 60` or `minHeight: 64` under `apps/mobile/Monaco/Features` | A row is `MonacoRowLayout.minHeight` (64) tall, so a retune moves every row at once |
 | `compact-target` | `minHeight: 36` under `apps/mobile/Monaco/Features` | A compact button is `.monacoCompact`: 36pt visible on a 44pt target |

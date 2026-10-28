@@ -104,20 +104,26 @@ struct MonacoCandleCanvas: View {
         let xs = visible.map { Double(metrics.x($0.date)) }
         let ys = visible.map { Double(metrics.y($0.close)) }
         guard let line = MonacoLineStyle.line(xs: xs, ys: ys) else { return }
+        let area = MonacoLineStyle.area(xs: xs, ys: ys, baseline: Double(metrics.plot.maxY))
+        let fill = tint.opacity(MonacoLineStyle.fillOpacity)
+        func paint(_ target: inout GraphicsContext) {
+            if let area { target.fill(area, with: .color(fill)) }
+            target.stroke(line, with: .color(tint), style: MonacoLineStyle.stroke)
+        }
         guard let held else {
-            context.stroke(line, with: .color(tint), style: MonacoLineStyle.stroke)
+            paint(&context)
             return
         }
         let split = min(max(held, metrics.plot.minX), metrics.plot.maxX)
         let plot = metrics.plot
         context.drawLayer { layer in
             layer.clip(to: Path(CGRect(x: plot.minX, y: plot.minY, width: split - plot.minX, height: plot.height)))
-            layer.stroke(line, with: .color(tint), style: MonacoLineStyle.stroke)
+            paint(&layer)
         }
         context.drawLayer { layer in
             layer.opacity = 0.3
             layer.clip(to: Path(CGRect(x: split, y: plot.minY, width: plot.maxX - split, height: plot.height)))
-            layer.stroke(line, with: .color(tint), style: MonacoLineStyle.stroke)
+            paint(&layer)
         }
     }
 
