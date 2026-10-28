@@ -30,7 +30,7 @@ func (q *Queries) HasLiveSwap(ctx context.Context, arg HasLiveSwapParams) (bool,
 }
 
 const latestBySource = `-- name: LatestBySource :one
-SELECT id, cabal_id, source_kind, source_id, action, symbol, in_amount, out_decimals, out_amount, status, failure_code, tx_signature, created_at, confirmed_at, retryable FROM swap_views
+SELECT id, cabal_id, source_kind, source_id, action, symbol, in_amount, out_decimals, out_amount, status, failure_code, tx_signature, created_at, confirmed_at, retryable, fee_micros FROM swap_views
 WHERE source_kind = $1 AND source_id = $2
 ORDER BY created_at DESC, id DESC
 LIMIT 1
@@ -60,6 +60,7 @@ func (q *Queries) LatestBySource(ctx context.Context, arg LatestBySourceParams) 
 		&i.CreatedAt,
 		&i.ConfirmedAt,
 		&i.Retryable,
+		&i.FeeMicros,
 	)
 	return i, err
 }
@@ -76,7 +77,7 @@ func (q *Queries) OwnsSignature(ctx context.Context, txSignature string) (bool, 
 }
 
 const swapByID = `-- name: SwapByID :one
-SELECT id, cabal_id, source_kind, source_id, action, symbol, in_amount, out_decimals, out_amount, status, failure_code, tx_signature, created_at, confirmed_at, retryable FROM swap_views WHERE id = $1
+SELECT id, cabal_id, source_kind, source_id, action, symbol, in_amount, out_decimals, out_amount, status, failure_code, tx_signature, created_at, confirmed_at, retryable, fee_micros FROM swap_views WHERE id = $1
 `
 
 func (q *Queries) SwapByID(ctx context.Context, id uuid.UUID) (SwapView, error) {
@@ -98,12 +99,13 @@ func (q *Queries) SwapByID(ctx context.Context, id uuid.UUID) (SwapView, error) 
 		&i.CreatedAt,
 		&i.ConfirmedAt,
 		&i.Retryable,
+		&i.FeeMicros,
 	)
 	return i, err
 }
 
 const swapBySignature = `-- name: SwapBySignature :one
-SELECT id, cabal_id, source_kind, source_id, action, symbol, in_amount, out_decimals, out_amount, status, failure_code, tx_signature, created_at, confirmed_at, retryable FROM swap_views WHERE tx_signature = $1::text
+SELECT id, cabal_id, source_kind, source_id, action, symbol, in_amount, out_decimals, out_amount, status, failure_code, tx_signature, created_at, confirmed_at, retryable, fee_micros FROM swap_views WHERE tx_signature = $1::text
 `
 
 func (q *Queries) SwapBySignature(ctx context.Context, txSignature string) (SwapView, error) {
@@ -125,6 +127,7 @@ func (q *Queries) SwapBySignature(ctx context.Context, txSignature string) (Swap
 		&i.CreatedAt,
 		&i.ConfirmedAt,
 		&i.Retryable,
+		&i.FeeMicros,
 	)
 	return i, err
 }
