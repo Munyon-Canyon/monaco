@@ -69,11 +69,15 @@ var _ Lister = (*ListAssets)(nil)
 
 var _ catalogReader = (*sqlc.Queries)(nil)
 
+type assetLister interface {
+	ListAll(context.Context) ([]domain.Asset, error)
+}
+
 type ListAssets struct {
 	read    catalogReader
 	volumes volumeReader
 	clock   clock.Clock
-	catalog *Catalog
+	catalog assetLister
 	hot     []HotMints
 	ranked  moversBook
 }
