@@ -3641,9 +3641,13 @@ paths:
       description: >-
         Stores the comment, adds one to the item's `comment_count` and appends `comment.created`. The
         body is trimmed and must be 1 to 1000 Unicode scalars, otherwise invalid_input. An unknown
-        item is feed_item_not_found. Only a member of the cabal can comment on a proposal, otherwise
-        comment_members_only. A reply names its `parent_comment_id`, which must be a comment on the same
-        item, otherwise comment_parent_mismatch. A reply to a reply is stored under the top-level comment
+        item is feed_item_not_found. Every item has one thread. A proposal is its own thread, and so are
+        a member's buy or sale and every other post; a `result` that a cabal heads, a `threshold` and a
+        `reply` share their proposal's thread, so the comment is stored there and counted on the proposal
+        item (feed_item_pending, retryable, while that item is missing). Only a member of the cabal can
+        comment in a proposal's thread, otherwise comment_members_only; anyone who can see any other post
+        can comment on it. A reply names its `parent_comment_id`, which must be a comment on the same
+        thread, otherwise comment_parent_mismatch. A reply to a reply is stored under the top-level comment
         and names the person it answers in `reply_to_handle`, so a thread stays one level deep. A replay
         returns the first response.
       parameters:
@@ -3677,7 +3681,8 @@ paths:
       description: >-
         Returns the top-level comments oldest first, one page at a time, each with all its replies
         oldest first. A deleted comment keeps its place with a null `body` and the `body_display`
-        `Comment deleted`, or `Removed by Monaco` once a moderator removes it. An unknown item is feed_item_not_found.
+        `Comment deleted`, or `Removed by Monaco` once a moderator removes it. On a `result` that a cabal heads, a
+        `threshold` or a `reply` item it returns the page of the proposal's thread. An unknown item is feed_item_not_found.
       parameters:
         - name: id
           in: path
@@ -9512,8 +9517,8 @@ components:
         can_comment:
           type: boolean
           description: >-
-            False on a proposal of a cabal the caller is not in, which only members can comment on, and on a reply or
-            threshold item, which open the proposal instead. True otherwise.
+            False on a post whose thread is a proposal of a cabal the caller is not in (the proposal, a cabal's
+            result, a threshold or a reply on it), which only members can comment in. True otherwise.
           examples: [true]
     FeedMute:
       type: object

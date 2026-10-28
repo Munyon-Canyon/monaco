@@ -989,7 +989,7 @@ type FeedTally struct {
 
 // FeedItemDetail One feed item, whether it passes the request's filters and whether the caller can comment on it.
 type FeedItemDetail struct {
-	// CanComment False on a proposal of a cabal the caller is not in, which only members can comment on, and on a reply or threshold item, which open the proposal instead. True otherwise.
+	// CanComment False on a post whose thread is a proposal of a cabal the caller is not in (the proposal, a cabal's result, a threshold or a reply on it), which only members can comment in. True otherwise.
 	//
 	// Examples: true
 	CanComment bool `json:"can_comment"`

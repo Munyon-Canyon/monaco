@@ -104,7 +104,7 @@ func (h HTTP) GetFeedItem(
 	if err != nil {
 		return nil, err
 	}
-	can, err := app.CanComment(ctx, h.Members, view.Item.Kind, view.Item.CabalID, me)
+	can, err := app.CanReplyToItem(ctx, h.Reads, h.Members, view.Item.ID, me)
 	if err != nil {
 		return nil, err
 	}

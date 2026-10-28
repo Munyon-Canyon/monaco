@@ -302,7 +302,8 @@ func TestGetFeedItem_reportsWhetherTheCallerCanComment(t *testing.T) {
 	t.Parallel()
 	f := newCommentRoutes(t)
 	proposal, trade := f.item(t, feed.KindProposal), f.item(t, feed.KindTrade)
-	reply, threshold := f.item(t, feed.KindReply), f.item(t, feed.KindThreshold)
+	ref := f.proposalRef(t, proposal)
+	reply, threshold := f.closing(t, feed.KindReply, "", ref), f.closing(t, feed.KindThreshold, "", ref)
 	for _, tt := range []struct {
 		name   string
 		item   uuid.UUID
@@ -312,9 +313,10 @@ func TestGetFeedItem_reportsWhetherTheCallerCanComment(t *testing.T) {
 		{"member on a proposal", proposal, f.cabal.Members[1].ID, true},
 		{"outsider on a proposal", proposal, f.outsider, false},
 		{"outsider on a trade", trade, f.outsider, true},
-		{"member on a reply", reply, f.cabal.Members[1].ID, false},
+		{"member on a reply", reply, f.cabal.Members[1].ID, true},
 		{"outsider on a reply", reply, f.outsider, false},
-		{"member on a threshold item", threshold, f.cabal.Members[1].ID, false},
+		{"member on a threshold item", threshold, f.cabal.Members[1].ID, true},
+		{"outsider on a threshold item", threshold, f.outsider, false},
 	} {
 		res, err := f.routes.GetFeedItem(asUser(t.Context(), tt.viewer), api.GetFeedItemRequestObject{Id: tt.item})
 		got, ok := res.(api.GetFeedItem200JSONResponse)

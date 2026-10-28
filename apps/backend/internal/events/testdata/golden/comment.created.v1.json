@@ -13,5 +13,12 @@
   "reply_to_user_id": "019b76da-a806-7e1f-a2b5-9c8b7d6e5f43",
   "item_actor_id": "019b76da-a807-7b02-8d4c-3e2f1a0b9c87",
   "proposal_id": "019b76da-a802-7825-86d1-31cccc1bc069",
-  "excerpt": "Buy it before earnings"
+  "excerpt": "Buy it before earnings",
+  "item_kind": "result",
+  "thread_feed_object_id": "019b76da-a801-7fd8-99db-1cb67525b48a",
+  "item_actor_name": "Ada",
+  "item_label": "Buy NVDA",
+  "item_noun": "proposal",
+  "cabal_name": "Alpha Cabal",
+  "reply_rule": "members"
 }

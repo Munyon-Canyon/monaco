@@ -42,16 +42,12 @@ func ListComments(ctx context.Context, db sqlc.DBTX, q CommentsQuery) (CommentsP
 		return CommentsPage{}, errs.New(errs.CodeInvalidInput, op, slog.Int("limit", q.Limit))
 	}
 	queries := sqlc.New(db)
-	_, err := queries.GetCommentItem(ctx, q.FeedObjectID)
-	switch {
-	case errors.Is(err, sql.ErrNoRows):
-		return CommentsPage{}, errs.New(errs.CodeFeedItemNotFound, op,
-			slog.String("feed_object_id", q.FeedObjectID.String()))
-	case err != nil:
-		return CommentsPage{}, errs.Wrap(err, errs.CodeInternal, op)
+	_, thread, err := ResolveThread(ctx, queries, q.FeedObjectID)
+	if err != nil {
+		return CommentsPage{}, err
 	}
 	params := sqlc.ListCommentThreadsParams{
-		FeedObjectID: q.FeedObjectID, Viewer: q.Viewer.UUID(), RowLimit: int32(q.Limit) + 1,
+		FeedObjectID: thread.ID, Viewer: q.Viewer.UUID(), RowLimit: int32(q.Limit) + 1,
 	}
 	if q.After != nil {
 		params.HasCursor, params.AfterAt, params.AfterID = true, q.After.At, q.After.ID

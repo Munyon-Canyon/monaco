@@ -45,7 +45,7 @@ func NewReactFeedItemHandler(d ReactionDeps) *ReactFeedItemHandler {
 
 func (h *ReactFeedItemHandler) Handle(ctx context.Context, cmd ReactFeedItem) (ReactionSummary, error) {
 	const op = "social.ReactFeedItem"
-	item, err := requireVisibleItem(ctx, h.d.Reads, cmd.Viewer, cmd.FeedObjectID)
+	item, err := CanReact(ctx, h.d.Reads, cmd.Viewer, cmd.FeedObjectID)
 	if err != nil {
 		return ReactionSummary{}, err
 	}
