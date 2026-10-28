@@ -274,34 +274,39 @@ enum MonacoTheme {
     }
 
     /// One family: SF Pro. Sizes keep the floor #4110 set after hands-on QA found text too small.
-    /// A role at a system text style's size uses that style; display, headline and body have no
-    /// matching style and pre-scale with `scaled`. Figures add `.monospacedDigit()`; nothing sets
-    /// letter-spacing, because SF Pro's optical tracking is the tracking.
+    /// A role at a system text style's size uses that style; display and button have no
+    /// matching style and pre-scale with `scaled`. Figures add `.monospacedDigit()`; nothing sets letter-spacing,
+    /// because SF Pro's optical tracking is the tracking.
     enum Typo {
-        /// 30 bold: tab root titles, the sign-in wordmark, a profile name.
-        static var display: Font { scaled(size: 30, weight: .bold, relativeTo: .largeTitle) }
-        /// 28 semibold: headings set in content, a stock name, keypad digits.
-        static let title = Font.title.weight(.semibold)
-        /// 22 semibold: section titles.
-        static let section = Font.title2.weight(.semibold)
-        /// 18 semibold: row titles, button labels, card headlines.
-        static var headline: Font { scaled(size: 18, weight: .semibold, relativeTo: .body) }
-        /// 18 regular: prose, chat, reasons.
-        static var body: Font { scaled(size: 18, weight: .regular, relativeTo: .body) }
-        /// 17 regular: row subtitles, helper lines, labels under figures.
-        static let subhead = Font.body
-        /// 17 semibold: text links, chip and segment labels, toast text.
-        static let subheadStrong = Font.headline
+        /// 28 bold: root tab titles.
+        static var display: Font { scaled(size: 28, weight: .bold, relativeTo: .largeTitle) }
+        /// 28 bold: moments, headings set in content, a stock name.
+        static let title = Font.title.weight(.bold)
+        /// 22 bold: the name on a pushed screen (cabal, stock, proposal).
+        static let title2 = Font.title2.weight(.bold)
+        /// 17 semibold: section and sheet titles, the Feed post's ticker and amount line.
+        static let section = Font.headline
+        /// 16 semibold: button labels.
+        static var button: Font { scaled(size: 16, weight: .semibold, relativeTo: .callout) }
+        /// 15 semibold: row, post, comment and tile titles, row values.
+        static let headline = Font.subheadline.weight(.semibold)
+        /// 15 regular: a thesis, comments, sheet and empty-state copy.
+        static let body = Font.subheadline
+        /// 15 regular (F's 13 at the 15 pt floor): second lines, trailing changes, stat labels.
+        static let subhead = Font.subheadline
+        /// 15 semibold: text links, chip and segment labels, toast text, a reaction chip's count.
+        static let subheadStrong = Font.subheadline.weight(.semibold)
         /// 15 medium: timestamps, "Closes in 2d", attribution.
         static let caption = Font.subheadline.weight(.medium)
         /// 15 semibold: the "You" tag, a count capsule, an outcome chip.
         static let captionStrong = Font.subheadline.weight(.semibold)
+        /// 15 semibold, tabular: rank numerals in rows and on the podium.
+        static let rank = Font.subheadline.weight(.semibold).monospacedDigit()
 
         // MARK: Retired roles, aliased until their call sites move
 
         static var rowTitle: Font { headline }
         static var bodyStrong: Font { headline }
-        static var button: Font { headline }
         static let callout = subhead
         static let calloutStrong = subheadStrong
         static let micro = captionStrong
@@ -325,24 +330,26 @@ enum MonacoTheme {
         }
     }
 
-    /// Squarer than before. The 24pt cards read as the app's whole personality, and now that a
-    /// section is rows on the paper rather than a card, the few cards left are things a member
-    /// acts on and want to sit flat, not float.
     enum Radius {
         static let chip: CGFloat = 12
-        static let card: CGFloat = 20
-        static let cardTight: CGFloat = 18
+        static let card: CGFloat = 12
+        static let cardTight: CGFloat = 12
+        static let button: CGFloat = 10
+        static let shareCard: CGFloat = 16
+        static let small: CGFloat = 8
         static let search: CGFloat = 16
-        static let notice: CGFloat = 15
+        static let notice: CGFloat = 12
         static let badge: CGFloat = 8
         static let pill: CGFloat = 6
-        static let identity: CGFloat = 22
-        static let sheet: CGFloat = 24
-        /// `CabalMark` at 40pt; marks scale this proportionally (size × 0.3).
-        static let tile: CGFloat = 12
-        static let field: CGFloat = 15
+        static let identity: CGFloat = 12
+        static let tile: CGFloat = 6
+        static let field: CGFloat = 8
         static let bubble: CGFloat = 17
         static let toast: CGFloat = 15
+        static let logoFraction: CGFloat = 0.15
+        static let keypadKey: CGFloat = 8
+        static let crest: CGFloat = 6
+        static let squircleFraction: CGFloat = 0.225
     }
 
     enum Space {
@@ -352,9 +359,22 @@ enum MonacoTheme {
         static let m: CGFloat = 16
         static let l: CGFloat = 24
         static let xl: CGFloat = 32
-        static let section: CGFloat = 24
-        /// Screen side padding, and the only horizontal inset.
-        static let gutter: CGFloat = 20
+        static let section: CGFloat = 16
+        static let root: CGFloat = 24
+        static let cardPadding: CGFloat = 12
+        static let titleGap: CGFloat = 6
+        static let stackGap: CGFloat = 8
+        static let tabClear: CGFloat = 104
+        static let homeClear: CGFloat = 40
+        static let gutter: CGFloat = 16
+    }
+
+    enum ReactionChipMetrics {
+        static let visibleHeight: CGFloat = 24
+        static let minWidth: CGFloat = 44
+        static let horizontalPadding: CGFloat = 8
+        static let gap: CGFloat = 4
+        static let tapSize: CGFloat = 44
     }
 }
 

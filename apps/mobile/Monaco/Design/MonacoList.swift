@@ -4,6 +4,8 @@ enum SectionHeaderMetrics {
     static let countSize: CGFloat = 24
     static let chevronSize: CGFloat = 13
     static let hitHeight: CGFloat = 44
+    static let topSpacing = MonacoTheme.Space.section
+    static let bottomSpacing = MonacoTheme.Space.titleGap
 }
 
 /// Sentence-case section title with an optional trailing text button ("See all").
@@ -81,7 +83,7 @@ struct MonacoSectionHeader: View {
             }
         }
         .frame(minHeight: SectionHeaderMetrics.hitHeight)
-        .padding(.bottom, MonacoTheme.Space.sm)
+        .padding(.bottom, SectionHeaderMetrics.bottomSpacing)
     }
 }
 
@@ -206,7 +208,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
                     // shrink through MoneyText's minimumScaleFactor before they ever truncate.
                     labels
                         .frame(minWidth: layout.minimumTitleWidth, alignment: .leading)
-                    VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
+                    VStack(alignment: .trailing, spacing: 0) {
                         trailing
                     }
                     .layoutPriority(1)
@@ -219,7 +221,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
     var body: some View {
         content
             .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.vertical, MonacoTheme.Space.sm)
+            .padding(.vertical, MonacoTheme.Space.s)
             .frame(minHeight: MonacoRowLayout.minHeight)
             .contentShape(Rectangle())
             .overlay(alignment: .bottom) {
@@ -306,7 +308,7 @@ struct MonacoRowLayout: Equatable {
 
     static let baseMarkSize: CGFloat = 44
 
-    static let minHeight: CGFloat = 72
+    static let minHeight: CGFloat = 60
 
     static let chevronSize: CGFloat = 16
 
