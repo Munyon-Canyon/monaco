@@ -40,6 +40,9 @@ enum ProposalSampleScenario: String, CaseIterable {
     case metaFilled
     case tslaFailed
     case spaceXOpen
+    case voteOrdinary
+    case voteSettles
+    case nonMember
 
     static let launchArgument = "-MonacoProposalSample"
 
@@ -103,7 +106,7 @@ enum ProposalSampleScenario: String, CaseIterable {
         case .allError: script.pendingVotesFail = true
         case .nvdaOpen:
             script.asset = .nvda
-            script.proposal = .openNVDA()
+            script.proposal = .votableNVDA()
         case .nvdaPassed:
             script.asset = .nvda
             script.proposal = .passedNVDA()
@@ -119,6 +122,16 @@ enum ProposalSampleScenario: String, CaseIterable {
         case .spaceXOpen:
             script.asset = .spaceX
             script.proposal = .preIpoSpaceX()
+        case .voteOrdinary:
+            script.asset = .nvda
+            script.proposal = .votableNVDA()
+        case .voteSettles:
+            script.asset = .nvda
+            script.proposal = .votableNVDA()
+            script.vote = .settles
+        case .nonMember:
+            script.asset = .pilatesAMZN
+            script.proposal = .pilatesAMZN()
         }
         return script
     }
@@ -199,6 +212,123 @@ extension Components.Schemas.ProposalDetail.SwapPayload {
             failureMessage: nil, txSignature: status == .confirmed ? "sample-signature" : nil, retryable: false,
             usdcMicros: status == .confirmed ? 400_000_000 : nil, tokenAmount: status == .confirmed ? 219_300_000 : nil,
             tokenDecimals: 8, priceMicros: status == .confirmed ? 182_400_000 : nil)
+    }
+}
+
+enum ProposalVoteFlowScenario: Equatable {
+    enum Vote: String, CaseIterable {
+        case unauthorized, proposalNotFound, notAVoter, proposalClosed, interrupted
+    }
+
+    enum Undo: String, CaseIterable {
+        case unauthorized, proposalNotFound, notAVoter, proposalClosed, voteNotFound, undoExpired
+    }
+
+    case vote(Vote)
+    case undo(Undo)
+
+    static func matching(_ arguments: [String]) -> ProposalVoteFlowScenario? {
+        guard let flag = arguments.firstIndex(of: "-MonacoFlow"), arguments.indices.contains(flag + 2) else {
+            return nil
+        }
+        let outcome = arguments[flag + 2]
+        switch arguments[flag + 1] {
+        case "10": return Vote(rawValue: outcome).map(ProposalVoteFlowScenario.vote)
+        case "10a": return Undo(rawValue: outcome).map(ProposalVoteFlowScenario.undo)
+        default: return nil
+        }
+    }
+
+    var script: SampleAPIScript {
+        var script = SampleAPIScript()
+        script.asset = .nvda
+        script.proposal = .votableNVDA()
+        switch self {
+        case .vote(let outcome):
+            script.vote = outcome.answer
+        case .undo(let outcome):
+            script.undo = outcome.answer
+        }
+        return script
+    }
+}
+
+extension ProposalVoteFlowScenario.Vote {
+    fileprivate var answer: SampleAPIScript.VoteAnswer {
+        switch self {
+        case .unauthorized:
+            .refused(status: 401, code: "unauthorized", message: "Please sign in again.")
+        case .proposalNotFound:
+            .refused(status: 404, code: "proposal_not_found", message: "This proposal is gone.")
+        case .notAVoter:
+            .refused(status: 403, code: "not_a_voter", message: "Only voters from when it opened can vote.")
+        case .proposalClosed:
+            .refused(status: 409, code: "proposal_closed", message: "Voting on this proposal has closed.")
+        case .interrupted:
+            .dropped
+        }
+    }
+}
+
+extension ProposalVoteFlowScenario.Undo {
+    fileprivate var answer: SampleAPIScript.UndoAnswer {
+        switch self {
+        case .unauthorized:
+            .refused(status: 401, code: "unauthorized", message: "Please sign in again.")
+        case .proposalNotFound:
+            .refused(status: 404, code: "proposal_not_found", message: "This proposal is gone.")
+        case .notAVoter:
+            .refused(status: 403, code: "not_a_voter", message: "Only voters from when it opened can vote.")
+        case .proposalClosed:
+            .refused(status: 409, code: "proposal_closed", message: "Voting on this proposal has closed.")
+        case .voteNotFound:
+            .refused(status: 404, code: "vote_not_found", message: "You have no vote to undo.")
+        case .undoExpired:
+            .refused(status: 409, code: "undo_expired", message: "It's too late to undo this vote.")
+        }
+    }
+}
+
+extension Components.Schemas.AssetDetail {
+    fileprivate static var pilatesAMZN: Self {
+        var asset = nvda
+        asset.symbol = "AMZNx"
+        asset.displayName = "Amazon"
+        return asset
+    }
+}
+
+extension Components.Schemas.ProposalDetail {
+    fileprivate static func votableNVDA() -> Self {
+        var detail = openNVDA()
+        detail.canVote = true
+        detail.tally = .init(yes: 4, no: 1, voters: 8, needed: 5)
+        return detail
+    }
+
+    fileprivate static func pilatesAMZN() -> Self {
+        var detail = openNVDA()
+        detail.cabalName = "Pilates"
+        detail.symbol = "AMZNx"
+        detail.usdcMicros = 250_000_000
+        detail.stats.priceMicros = 184_500_000
+        detail.stats.sharesAtomics = 136_000_000
+        detail.stats.closesAt = .now.addingTimeInterval(82_800)
+        detail.expiresAt = detail.stats.closesAt
+        detail.tally = .init(yes: 3, no: 0, voters: 7, needed: 4)
+        detail.replyCount = 2
+        detail.canVote = false
+        return detail
+    }
+}
+
+final class ProposalVoteFlowHarnessEntry: SampleHarnessEntry {
+    @MainActor
+    override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
+        guard let scenario = ProposalVoteFlowScenario.matching(arguments) else { return nil }
+        SampleAPIProtocol.install(scenario.script)
+        return AnyView(
+            SampleAppFrame(auth: auth, tab: .cabals, routes: [ProposalSampleRoute(votes: .closed)]))
     }
 }
 

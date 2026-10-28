@@ -507,6 +507,23 @@ proposal-all-open-dark        -MonacoProposalSample allOpen -AppleInterfaceStyle
 proposal-closed-empty         -MonacoProposalSample closedEmpty
 proposal-closed-loading       -MonacoProposalSample closedLoading
 proposal-closed-error         -MonacoProposalSample closedError
+proposal-vote-ordinary        -MonacoProposalSample voteOrdinary
+proposal-vote-ordinary-dark   -MonacoProposalSample voteOrdinary -AppleInterfaceStyle Dark
+proposal-vote-settles         -MonacoProposalSample voteSettles
+proposal-vote-settles-dark    -MonacoProposalSample voteSettles -AppleInterfaceStyle Dark
+proposal-non-member           -MonacoProposalSample nonMember
+proposal-non-member-dark      -MonacoProposalSample nonMember -AppleInterfaceStyle Dark
+proposal-vote-flow-10-unauthorized      -MonacoFlow 10 unauthorized
+proposal-vote-flow-10-proposal-not-found -MonacoFlow 10 proposalNotFound
+proposal-vote-flow-10-not-a-voter       -MonacoFlow 10 notAVoter
+proposal-vote-flow-10-proposal-closed   -MonacoFlow 10 proposalClosed
+proposal-vote-flow-10-interrupted       -MonacoFlow 10 interrupted
+proposal-vote-flow-10a-unauthorized     -MonacoFlow 10a unauthorized
+proposal-vote-flow-10a-proposal-not-found -MonacoFlow 10a proposalNotFound
+proposal-vote-flow-10a-not-a-voter      -MonacoFlow 10a notAVoter
+proposal-vote-flow-10a-proposal-closed  -MonacoFlow 10a proposalClosed
+proposal-vote-flow-10a-vote-not-found   -MonacoFlow 10a voteNotFound
+proposal-vote-flow-10a-undo-expired     -MonacoFlow 10a undoExpired
 
 # Harnesses that take a `-…Harness` flag; the word after it is the mode.
 feed-items                    -feedHarness items

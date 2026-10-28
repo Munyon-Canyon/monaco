@@ -118,7 +118,7 @@ The PostHog call is an outbound HTTP call, so it sits behind a port with an anti
 | Card deposit | deposit_opened → card_selected → page_opened → privy_auth → fund_confirmed / fund_cancelled → (server) deposit_credited |
 | Join cabal | cabal_viewed → join_tapped → request_sent / joined → fund_sheet_opened → (server) cabal_funded |
 | Propose | propose_opened → asset_selected → amount_entered → thesis_entered → submitted |
-| Vote | proposal_viewed → vote_cast |
+| Vote | proposal_viewed → vote_cast / vote_undone |
 | Trade outcome | (server) proposal_passed → trade_executed / trade_blocked / trade_failed |
 | Cash out | cash_out_opened → amount_entered → confirmed → (server) cash_out_completed / cash_out_partial / cash_out_failed |
 | Withdraw | withdraw_opened → address_entered → confirmed → (server) withdrawal_sent |

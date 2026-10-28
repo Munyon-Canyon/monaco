@@ -86,6 +86,7 @@ public struct AnalyticsStep: Hashable, Sendable {
     public enum Vote: String, AnalyticsStepName {
         case proposalViewed = "proposal_viewed"
         case voteCast = "vote_cast"
+        case voteUndone = "vote_undone"
         public static var flow: AnalyticsFlow { .vote }
     }
 
