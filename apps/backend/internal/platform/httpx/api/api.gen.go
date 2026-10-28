@@ -135,6 +135,7 @@ const (
 	QuoteUnavailable ErrorCode = "quote_unavailable"
 	RankingRunsStalled ErrorCode = "ranking_runs_stalled"
 	RateLimited ErrorCode = "rate_limited"
+	ReactionNotAllowed ErrorCode = "reaction_not_allowed"
 	ReasonRequired ErrorCode = "reason_required"
 	ReauthRequired ErrorCode = "reauth_required"
 	ReferralAlreadyAttached ErrorCode = "referral_already_attached"
@@ -430,6 +431,8 @@ func (e ErrorCode) Valid() bool {
 	case RankingRunsStalled:
 		return true
 	case RateLimited:
+		return true
+	case ReactionNotAllowed:
 		return true
 	case ReasonRequired:
 		return true

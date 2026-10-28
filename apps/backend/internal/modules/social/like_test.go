@@ -28,18 +28,18 @@ func newLikeFixture(t *testing.T) likeFixture {
 
 func (f likeFixture) put(t *testing.T, item uuid.UUID, viewer ids.UserID) error {
 	t.Helper()
-	return f.like.Handle(t.Context(), app.LikeFeedItem{FeedObjectID: item, Viewer: viewer})
+	return f.like.Handle(asUser(t.Context(), viewer), app.LikeFeedItem{FeedObjectID: item, Viewer: viewer})
 }
 
 func (f likeFixture) remove(t *testing.T, item uuid.UUID, viewer ids.UserID) error {
 	t.Helper()
-	return f.unlike.Handle(t.Context(), app.UnlikeFeedItem{FeedObjectID: item, Viewer: viewer})
+	return f.unlike.Handle(asUser(t.Context(), viewer), app.UnlikeFeedItem{FeedObjectID: item, Viewer: viewer})
 }
 
 func (f likeFixture) rows(t *testing.T, item uuid.UUID) int {
 	t.Helper()
 	var n int
-	if err := f.pool.QueryRow(t.Context(), `SELECT count(*) FROM feed_likes WHERE feed_object_id = $1`, item).
+	if err := f.pool.QueryRow(t.Context(), `SELECT count(*) FROM feed_reactions WHERE feed_object_id = $1 AND emoji = $2`, item, redHeart).
 		Scan(&n); err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +191,7 @@ func TestLikeFeedItem_failsWithInternalWhenTheStoreFails(t *testing.T) {
 	}
 	for _, stmt := range []string{
 		`CREATE FUNCTION refuse_likes() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'no'; END $$`,
-		`CREATE TRIGGER refuse BEFORE INSERT OR DELETE ON feed_likes FOR EACH ROW EXECUTE FUNCTION refuse_likes()`,
+		`CREATE TRIGGER refuse BEFORE INSERT OR DELETE ON feed_reactions FOR EACH ROW EXECUTE FUNCTION refuse_likes()`,
 	} {
 		if _, err := f.pool.Exec(t.Context(), stmt); err != nil {
 			t.Fatal(err)

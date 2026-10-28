@@ -668,6 +668,34 @@ Subject `events.ranking.snapshot_written`, version 1.
 | `rows_written` | `int` |
 | `cabals_excluded` | `int` |
 
+## `reaction.added`
+
+Subject `events.reaction.added`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `feed_object_id` | `uuid.UUID` |
+| `comment_id` | `*uuid.UUID` |
+| `user_id` | `uuid.UUID` |
+| `emoji` | `string` |
+| `item_actor_id` | `*uuid.UUID` |
+| `cabal_id` | `*uuid.UUID` |
+
+## `reaction.removed`
+
+Subject `events.reaction.removed`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `feed_object_id` | `uuid.UUID` |
+| `comment_id` | `*uuid.UUID` |
+| `user_id` | `uuid.UUID` |
+| `emoji` | `string` |
+| `item_actor_id` | `*uuid.UUID` |
+| `cabal_id` | `*uuid.UUID` |
+
 ## `referral.attributed`
 
 Subject `events.referral.attributed`, version 1.

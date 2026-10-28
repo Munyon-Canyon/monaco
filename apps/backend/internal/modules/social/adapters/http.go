@@ -17,30 +17,32 @@ import (
 )
 
 type HTTP struct {
-	Follow         *app.FollowHandler
-	Unfollow       *app.UnfollowHandler
-	Block          *app.BlockUserHandler
-	Unblock        *app.UnblockUserHandler
-	Report         *app.CreateReportHandler
-	Mute           *app.MuteHandler
-	Unmute         *app.UnmuteHandler
-	PostChat       *app.PostChatMessageHandler
-	DeleteChat     *app.DeleteChatMessageHandler
-	MarkSeen       *app.MarkChatSeenHandler
-	Token          *app.RealtimeTokenHandler
-	CreateComment  *app.CreateCommentHandler
-	DeleteComment  *app.DeleteCommentHandler
-	Removal        *app.RemoveCommentHandler
-	LikeFeedItem   *app.LikeFeedItemHandler
-	UnlikeFeedItem *app.UnlikeFeedItemHandler
-	Match          *app.MatchContactsHandler
-	Members        app.Members
-	Reads          sqlc.DBTX
-	Clock          clock.Clock
-	Users          app.Users
-	Returns        app.Returns
-	Logos          app.AssetLogos
-	Pictures       app.CabalPictures
+	Follow          *app.FollowHandler
+	Unfollow        *app.UnfollowHandler
+	Block           *app.BlockUserHandler
+	Unblock         *app.UnblockUserHandler
+	Report          *app.CreateReportHandler
+	Mute            *app.MuteHandler
+	Unmute          *app.UnmuteHandler
+	PostChat        *app.PostChatMessageHandler
+	DeleteChat      *app.DeleteChatMessageHandler
+	MarkSeen        *app.MarkChatSeenHandler
+	Token           *app.RealtimeTokenHandler
+	CreateComment   *app.CreateCommentHandler
+	DeleteComment   *app.DeleteCommentHandler
+	Removal         *app.RemoveCommentHandler
+	LikeFeedItem    *app.LikeFeedItemHandler
+	UnlikeFeedItem  *app.UnlikeFeedItemHandler
+	ReactFeedItem   *app.ReactFeedItemHandler
+	UnreactFeedItem *app.UnreactFeedItemHandler
+	Match           *app.MatchContactsHandler
+	Members         app.Members
+	Reads           sqlc.DBTX
+	Clock           clock.Clock
+	Users           app.Users
+	Returns         app.Returns
+	Logos           app.AssetLogos
+	Pictures        app.CabalPictures
 }
 
 func (h HTTP) GetUserFollowers(

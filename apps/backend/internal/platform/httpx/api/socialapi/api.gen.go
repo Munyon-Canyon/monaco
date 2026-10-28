@@ -950,6 +950,19 @@ type Reaction struct {
 	Mine bool `json:"mine"`
 }
 
+// ReactionSummary A feed item's reactions after a change.
+type ReactionSummary struct {
+	// Reactions One entry per emoji, most used first, then the emoji first used earliest. At most the top 20; `total` still counts every reaction.
+	//
+	// Examples: [{"count":5,"emoji":"🎉","mine":true}]
+	Reactions []Reaction `json:"reactions"`
+
+	// Total The number of reactions on the item, over every emoji.
+	//
+	// Examples: 7
+	Total int32 `json:"total"`
+}
+
 // RealtimeTokenRequest An Ably token request, signed with the app key. The app passes it to Ably unchanged.
 type RealtimeTokenRequest struct {
 	// Capability A JSON object that maps each cabal channel to `["subscribe"]`.
@@ -1182,6 +1195,18 @@ type PostFeedCommentParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// DeleteFeedReactionParams defines parameters for DeleteFeedReaction.
+type DeleteFeedReactionParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// PutFeedReactionParams defines parameters for PutFeedReaction.
+type PutFeedReactionParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // PostMeContactsMatchParams defines parameters for PostMeContactsMatch.
 type PostMeContactsMatchParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -1352,6 +1377,12 @@ type ServerInterface interface {
 	// PostFeedComment Comment on a feed item.
 	// (POST /v1/feed/{id}/comments)
 	PostFeedComment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostFeedCommentParams)
+	// DeleteFeedReaction Remove your emoji reaction from a feed item.
+	// (DELETE /v1/feed/{id}/reactions/{emoji})
+	DeleteFeedReaction(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, emoji string, params DeleteFeedReactionParams)
+	// PutFeedReaction React to a feed item with an emoji.
+	// (PUT /v1/feed/{id}/reactions/{emoji})
+	PutFeedReaction(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, emoji string, params PutFeedReactionParams)
 	// GetMeBlocks List the users the caller blocks.
 	// (GET /v1/me/blocks)
 	GetMeBlocks(w http.ResponseWriter, r *http.Request)
@@ -2384,6 +2415,132 @@ func (siw *ServerInterfaceWrapper) PostFeedComment(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
+// DeleteFeedReaction operation middleware
+func (siw *ServerInterfaceWrapper) DeleteFeedReaction(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "emoji" -------------
+	var emoji string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "emoji", r.PathValue("emoji"), &emoji, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "emoji", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteFeedReactionParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteFeedReaction(w, r, id, emoji, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutFeedReaction operation middleware
+func (siw *ServerInterfaceWrapper) PutFeedReaction(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "emoji" -------------
+	var emoji string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "emoji", r.PathValue("emoji"), &emoji, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "emoji", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PutFeedReactionParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutFeedReaction(w, r, id, emoji, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMeBlocks operation middleware
 func (siw *ServerInterfaceWrapper) GetMeBlocks(w http.ResponseWriter, r *http.Request) {
 
@@ -3271,6 +3428,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed/{id}", wrapper.GetFeedItem)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed/{id}/comments", wrapper.GetFeedComments)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/feed/{id}/comments", wrapper.PostFeedComment)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/feed/{id}/reactions/{emoji}", wrapper.DeleteFeedReaction)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/feed/{id}/reactions/{emoji}", wrapper.PutFeedReaction)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/blocks", wrapper.GetMeBlocks)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/contacts/match", wrapper.PostMeContactsMatch)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/contacts/matches", wrapper.GetMeContactsMatches)
@@ -3853,6 +4012,88 @@ type PostFeedCommentdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response PostFeedCommentdefaultApplicationProblemPlusJSONResponse) VisitPostFeedCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFeedReactionRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Emoji  string             `json:"emoji"`
+	Params DeleteFeedReactionParams
+}
+
+type DeleteFeedReactionResponseObject interface {
+	VisitDeleteFeedReactionResponse(w http.ResponseWriter) error
+}
+
+type DeleteFeedReaction200JSONResponse ReactionSummary
+
+func (response DeleteFeedReaction200JSONResponse) VisitDeleteFeedReactionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFeedReactiondefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response DeleteFeedReactiondefaultApplicationProblemPlusJSONResponse) VisitDeleteFeedReactionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutFeedReactionRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Emoji  string             `json:"emoji"`
+	Params PutFeedReactionParams
+}
+
+type PutFeedReactionResponseObject interface {
+	VisitPutFeedReactionResponse(w http.ResponseWriter) error
+}
+
+type PutFeedReaction200JSONResponse ReactionSummary
+
+func (response PutFeedReaction200JSONResponse) VisitPutFeedReactionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutFeedReactiondefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response PutFeedReactiondefaultApplicationProblemPlusJSONResponse) VisitPutFeedReactionResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -4524,6 +4765,12 @@ type StrictServerInterface interface {
 	// PostFeedComment Comment on a feed item.
 	// (POST /v1/feed/{id}/comments)
 	PostFeedComment(ctx context.Context, request PostFeedCommentRequestObject) (PostFeedCommentResponseObject, error)
+	// DeleteFeedReaction Remove your emoji reaction from a feed item.
+	// (DELETE /v1/feed/{id}/reactions/{emoji})
+	DeleteFeedReaction(ctx context.Context, request DeleteFeedReactionRequestObject) (DeleteFeedReactionResponseObject, error)
+	// PutFeedReaction React to a feed item with an emoji.
+	// (PUT /v1/feed/{id}/reactions/{emoji})
+	PutFeedReaction(ctx context.Context, request PutFeedReactionRequestObject) (PutFeedReactionResponseObject, error)
 	// GetMeBlocks List the users the caller blocks.
 	// (GET /v1/me/blocks)
 	GetMeBlocks(ctx context.Context, request GetMeBlocksRequestObject) (GetMeBlocksResponseObject, error)
@@ -5032,6 +5279,62 @@ func (sh *strictHandler) PostFeedComment(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostFeedCommentResponseObject); ok {
 		if err := validResponse.VisitPostFeedCommentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteFeedReaction operation middleware
+func (sh *strictHandler) DeleteFeedReaction(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, emoji string, params DeleteFeedReactionParams) {
+	var request DeleteFeedReactionRequestObject
+
+	request.Id = id
+	request.Emoji = emoji
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteFeedReaction(ctx, request.(DeleteFeedReactionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteFeedReaction")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteFeedReactionResponseObject); ok {
+		if err := validResponse.VisitDeleteFeedReactionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutFeedReaction operation middleware
+func (sh *strictHandler) PutFeedReaction(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, emoji string, params PutFeedReactionParams) {
+	var request PutFeedReactionRequestObject
+
+	request.Id = id
+	request.Emoji = emoji
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutFeedReaction(ctx, request.(PutFeedReactionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutFeedReaction")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutFeedReactionResponseObject); ok {
+		if err := validResponse.VisitPutFeedReactionResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

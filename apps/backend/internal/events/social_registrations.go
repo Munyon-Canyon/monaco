@@ -9,6 +9,8 @@ func socialRegistrations() []Registration {
 		Register[CommentDeleted](TypeCommentDeleted, 1),
 		Register[FollowCreated](TypeFollowCreated, 1),
 		Register[FollowRemoved](TypeFollowRemoved, 1),
+		Register[ReactionAdded](TypeReactionAdded, 1),
+		Register[ReactionRemoved](TypeReactionRemoved, 1),
 		Register[ReportCreated](TypeReportCreated, 1),
 	}
 }
