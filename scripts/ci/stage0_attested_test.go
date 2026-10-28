@@ -108,11 +108,12 @@ func TestStage0Attested_anAPIFailureWarnsAndKeepsStage1(t *testing.T) {
 	}
 }
 
-const allRows = "go build,go vet,go test -short,swift test,xcode,journeys"
+const allRows = "go build,go vet,go test -short,swift test,xcode,journeys,workflows,web"
 
 func TestStage0Attested_aCoveringRowSkipsStage1(t *testing.T) {
 	for filter, row := range map[string]string{
 		"IOS": "xcode", "MOBILE_CORE": "swift test", "MOBILE_TESTS": "swift test", "JOURNEYS": "journeys",
+		"WORKFLOWS": "workflows", "WEB": "web",
 	} {
 		got, log := runAttestedRows(t, "head", allRows, false, append(allFilters("false"), filter+"=true"))
 		if got != "skip=true" || !strings.Contains(log, filter+" covered by "+row) {
@@ -128,8 +129,17 @@ func TestStage0Attested_aMissingRowKeepsStage1(t *testing.T) {
 	}
 }
 
+func TestStage0Attested_aMissingWorkflowsOrWebRowKeepsStage1(t *testing.T) {
+	for filter, row := range map[string]string{"WORKFLOWS": "workflows", "WEB": "web"} {
+		got, log := runAttestedRows(t, "head", "go build,swift test,xcode,journeys", false, append(allFilters("false"), filter+"=true"))
+		if got != "skip=false" || !strings.Contains(log, "no "+row+" row passed") {
+			t.Fatalf("%s=true: output %q log %q, want skip=false", filter, got, log)
+		}
+	}
+}
+
 func TestStage0Attested_aFilterNoRowCoversKeepsStage1WithEveryRow(t *testing.T) {
-	for _, k := range []string{"WEB", "WORKFLOWS", "UNKNOWN"} {
+	for _, k := range []string{"UNKNOWN"} {
 		got, log := runAttestedRows(t, "head", allRows, false, append(allFilters("false"), k+"=true"))
 		if got != "skip=false" || !strings.Contains(log, k) {
 			t.Fatalf("%s=true: output %q log %q, want skip=false", k, got, log)

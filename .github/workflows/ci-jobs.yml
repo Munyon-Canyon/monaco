@@ -638,6 +638,7 @@ jobs:
           filters: |
             backend:
               - 'apps/backend/**'
+              - '.monaco/**'
               - 'packages/flows/**'
               - 'scripts/ci/ready.sh'
               - 'scripts/ci/oasdiff-*'
@@ -783,6 +784,16 @@ jobs:
               - '!.env.example'
               - '!Justfile'
               - '!docker-compose.yml'
+              - '!.env.staging'
+              - '!.git-blame-ignore-revs'
+              - '!.gitattributes'
+              - '!.monaco/**'
+              - '!.swift-format'
+              - '!.swiftlint.yml'
+              - '!ops/**'
+              - '!render.yaml'
+              - '!AGENTS.md'
+              - '!README.md'
 
       # `agents attest` posts a stage0/ok status naming the head's tree once `agents check` passed on it. The script
       # skips stage 1 only when that tree is this head's and no mobile, journeys, web, workflows or unknown path

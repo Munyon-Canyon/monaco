@@ -347,6 +347,7 @@ func (env *Env) stage0(ctx context.Context, lane, base, parent, head string) ([]
 	if row, ok := env.xcodeRow(changed); ok {
 		rows = append(rows, row)
 	}
+	rows = append(rows, env.coverRows(rows, changed)...)
 	if journeyChanged(changed) {
 		rows = append(rows, checkRow{
 			label: "journeys", kind: "journeys", dir: env.Work,
@@ -358,6 +359,55 @@ func (env *Env) stage0(ctx context.Context, lane, base, parent, head string) ([]
 		})
 	}
 	return env.pathRows(ctx, rows, changed, parent, head)
+}
+
+func (env *Env) coverRows(rows []checkRow, changed []string) []checkRow {
+	var out []checkRow
+	if workflowsChanged(changed) {
+		out = append(out, env.workflowsRow(rows))
+	}
+	if webChanged(changed) {
+		out = append(out, env.webRow())
+	}
+	return out
+}
+
+func workflowsChanged(changed []string) bool {
+	return slices.ContainsFunc(changed, func(f string) bool {
+		return underAny(f, []string{".github/workflows/", ".github/actions/"})
+	})
+}
+
+func (env *Env) workflowsRow(rows []checkRow) checkRow {
+	row := checkRow{
+		label: "workflows", kind: "workflows", dir: env.Work,
+		cmds: [][]string{{"go", "run", "github.com/rhysd/actionlint/cmd/actionlint@v1.7.12"}},
+	}
+	if !slices.ContainsFunc(rows, func(r checkRow) bool { return r.label == "scripts tests" }) {
+		row.cmds = append(row.cmds,
+			[]string{"go", "-C", "scripts", "test", "-short", "./ci/", "-run", "TestWorkflowTriggers"},
+			[]string{"go", "-C", "scripts", "test", "-short", ".", "-run", "TestCIPathFilter"},
+		)
+	}
+	return row
+}
+
+func webChanged(changed []string) bool {
+	return slices.ContainsFunc(changed, func(f string) bool { return strings.HasPrefix(f, "apps/web/") })
+}
+
+func (env *Env) webRow() checkRow {
+	row := checkRow{label: "web", kind: "web", class: "cpu", dir: filepath.Join(env.Work, "apps", "web")}
+	if _, err := env.lookPath("npm"); err != nil {
+		row.cmds = [][]string{{"bash", "-c", "echo 'npm not found; run just install' >&2; exit 1"}}
+		return row
+	}
+	row.cmds = [][]string{
+		{"npm", "ci", "--prefer-offline", "--no-audit", "--no-fund"},
+		{"npm", "test"},
+		{"npm", "run", "build"},
+	}
+	return row
 }
 
 func journeyChanged(changed []string) bool {

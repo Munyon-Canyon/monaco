@@ -86,6 +86,8 @@ scripts = "120s"
 # The gate-checker suite takes 16.1 s quiet and 22 to 31 s loaded on the operator's Intel laptop.
 python = "45s"
 shell = "10s"
+workflows = "120s"
+web = "180s"
 ready = "90s"
 migrate = "30s"
 openapi = "30s"

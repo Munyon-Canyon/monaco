@@ -65,6 +65,7 @@ func defaultBudget() map[string]time.Duration {
 		"python":  45 * time.Second, "shell": 10 * time.Second, "ready": 90 * time.Second,
 		"migrate": 30 * time.Second, "openapi": 30 * time.Second, "docs": 30 * time.Second,
 		"pr": 15 * time.Second, packageKind: 20 * time.Second, "flows": 60 * time.Second, "journeys": 30 * time.Second,
+		"workflows": 120 * time.Second, "web": 180 * time.Second,
 	}
 }
 
