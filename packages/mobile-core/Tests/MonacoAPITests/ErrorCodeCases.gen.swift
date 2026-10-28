@@ -127,6 +127,7 @@ extension Components.Schemas.ErrorCode {
         case .quoteUnavailable: true
         case .rankingRunsStalled: true
         case .rateLimited: true
+        case .reactionNotAllowed: true
         case .reasonRequired: true
         case .reauthRequired: true
         case .referralAlreadyAttached: true

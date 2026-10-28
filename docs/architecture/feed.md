@@ -114,6 +114,14 @@ Indexes: `(created_at desc, id)`, `(cabal_id, created_at desc)`, `(asset_id, cre
 - A reply to your comment, or a comment on your proposal, is a notification candidate (see below).
 - **Proposal comments move here.** The proposal detail screen reads the FeedComments of that proposal's feed item. Nothing migrates from `proposal_comments`. The new backend starts on an empty database (decided 2026-09-27), and the old table goes with the old backend at [Rollout](backend-platform.md#rollout) step 7.
 
+## Reactions
+
+- Any feed item takes emoji reactions, one row per user and emoji in `feed_reactions`, at most 10 distinct emoji per user per item ([Comments](#comments) covers replies). `domain.ParseEmoji` accepts exactly one emoji.
+- `PUT /v1/feed/{id}/reactions/{emoji}` adds one and `DELETE /v1/feed/{id}/reactions/{emoji}` removes the caller's, the emoji percent-encoded in the path and no body. The emoji follows the id because `PUT /v1/feed/{id}/reactions` would overlap `PUT /v1/feed/likes/{id}` in the router. Both are idempotent and return the item's `ReactionSummary`, so the app reconciles its optimistic chip. The 11th distinct emoji is `invalid_input` with `reason=reaction_limit`.
+- `ReactFeedItem` inserts the row and appends `reaction.added` in one `uow.Do`; `UnreactFeedItem` appends `reaction.removed` only when a row went. A repeat appends nothing. Both hint `global.feed` after the commit. Nothing consumes the events: a reaction never pushes (flow 21b).
+- The like routes are ❤️ reactions. `PUT|DELETE /v1/feed/likes/{id}` call the same handlers and no longer write `feed_likes`.
+- There is no route that lists who reacted.
+
 ## GIFs
 
 - GIFs come from GIPHY on the device, not from a server proxy. The app target carries the GIPHY iOS SDK (`GiphyUISDK`), configured once at launch, and reads results through the `GifProvider` port that `MonacoCore` declares. `MonacoCore` never imports the SDK. The app supplies `GiphyGifProvider`, `UnavailableGifProvider` when the build has no key, and `SampleGifProvider` in harnesses and tests.

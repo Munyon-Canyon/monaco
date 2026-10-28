@@ -446,6 +446,74 @@ paths:
           description: The item is not liked.
         default:
           $ref: "#/components/responses/Problem"
+  /v1/feed/{id}/reactions/{emoji}:
+    put:
+      operationId: putFeedReaction
+      tags: [social]
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 30, per: 1m, burst: 10}, ip: {rate: 60, per: 1m, burst: 60}}
+      summary: React to a feed item with an emoji.
+      description: >-
+        Adds the caller's reaction with one emoji and returns the item's reactions. Reacting with an emoji the caller
+        already used changes nothing and returns the same reactions. A caller holds at most 10 distinct emoji on an
+        item, and an 11th is invalid_input with `reason=reaction_limit`. An emoji that is not exactly one emoji is
+        invalid_input with `field=emoji`. An item the caller cannot see, or an unknown one, is feed_item_not_found.
+        An item the caller may not react to is reaction_not_allowed. The emoji sits in the path, after the id, so the
+        route cannot overlap `PUT /v1/feed/likes/{id}`.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: id
+          in: path
+          required: true
+          description: The feed item's id.
+          schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
+        - name: emoji
+          in: path
+          required: true
+          description: The emoji to add, percent-encoded.
+          schema: {type: string, minLength: 1, maxLength: 32, examples: ["🎉"]}
+      responses:
+        "200":
+          description: The item's reactions after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReactionSummary"
+              example: {reactions: [{emoji: "🎉", count: 5, mine: true}], total: 5}
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteFeedReaction
+      tags: [social]
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 30, per: 1m, burst: 10}, ip: {rate: 60, per: 1m, burst: 60}}
+      summary: Remove your emoji reaction from a feed item.
+      description: >-
+        Removes the caller's reaction with that emoji, and only theirs, then returns the item's reactions. Removing a
+        reaction the caller does not have changes nothing. An emoji that is not exactly one emoji is invalid_input with
+        `field=emoji`. An item the caller cannot see, or an unknown one, is feed_item_not_found.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: id
+          in: path
+          required: true
+          description: The feed item's id.
+          schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
+        - name: emoji
+          in: path
+          required: true
+          description: The emoji to remove, percent-encoded.
+          schema: {type: string, minLength: 1, maxLength: 32, examples: ["🎉"]}
+      responses:
+        "200":
+          description: The item's reactions after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReactionSummary"
+              example: {reactions: [{emoji: "🎉", count: 5, mine: true}], total: 5}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/feed/comments/{comment_id}:
     delete:
       operationId: deleteFeedComment
@@ -1223,6 +1291,21 @@ components:
         emoji: {type: string, minLength: 1, maxLength: 32, description: "One emoji, such as 🎉 or 👍🏽.", examples: ["🎉"]}
         count: {type: integer, format: int32, minimum: 1, description: "The number of users who reacted with this emoji.", examples: [5]}
         mine: {type: boolean, description: "True when the caller reacted with this emoji.", examples: [true]}
+    ReactionSummary:
+      type: object
+      description: A feed item's reactions after a change.
+      additionalProperties: false
+      required: [reactions, total]
+      properties:
+        reactions:
+          type: array
+          maxItems: 20
+          description: >-
+            One entry per emoji, most used first, then the emoji first used earliest. At most the top 20; `total`
+            still counts every reaction.
+          items: {$ref: "#/components/schemas/Reaction"}
+          examples: [[{emoji: "🎉", count: 5, mine: true}]]
+        total: {type: integer, format: int32, minimum: 0, description: "The number of reactions on the item, over every emoji.", examples: [7]}
     FeedItemDetail:
       type: object
       description: One feed item, whether it passes the request's filters and whether the caller can comment on it.
