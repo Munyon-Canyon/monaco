@@ -6,6 +6,7 @@ struct GalleryControlsPage: View {
     var body: some View {
         GalleryPage(title: "Controls") {
             GalleryBoardControlSamples()
+            GalleryVoteSamples()
             GalleryButtonSamples()
             GalleryCompactSamples()
             GalleryDockSamples()
@@ -240,6 +241,111 @@ struct GalleryBoardControlSamples: View {
                         Button("See all") {}.buttonStyle(.monacoText)
                     }
                 }
+            }
+        }
+    }
+}
+
+struct GalleryVoteSamples: View {
+    @State private var live = VoteSelection.none
+
+    var body: some View {
+        GalleryGroup(title: "Vote") {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+                ForEach([ColorScheme.dark, .light], id: \.self) { scheme in
+                    GalleryVoteStates()
+                        .padding(MonacoTheme.Space.m)
+                        .background(MonacoTheme.canvas)
+                        .environment(\.colorScheme, scheme)
+                }
+                GalleryCase(caption: "Live pair: press and hold for 0.6 s, lift early to cancel") {
+                    VotePair(
+                        yes: 4, no: 1, selection: $live, isEnabled: true, identifierPrefix: "gallery",
+                        onCommit: { _ in
+                            Task {
+                                try? await Task.sleep(for: .milliseconds(500))
+                                if case .pending(let side) = live { live = .committed(side) }
+                            }
+                        })
+                    Button("Reset") { live = .none }.buttonStyle(.monacoText)
+                }
+            }
+        }
+    }
+}
+
+private struct GalleryVoteStates: View {
+    private static let people: [MonacoAvatar.Source] = ["Mia", "Christelle", "Logan", "Sam", "You"].map {
+        MonacoAvatar.Source(id: $0, displayName: $0, photoURL: nil)
+    }
+
+    private func row(_ yes: VoteHoldPhase, _ no: VoteHoldPhase, counts: (Int, Int) = (4, 1)) -> some View {
+        VoteHoldRow(
+            yes: VoteHoldButton(side: .yes, count: counts.0, phase: yes),
+            no: VoteHoldButton(side: .no, count: counts.1, phase: no))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+            GalleryCase(caption: "Two-ended tally, idle") {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+                    VoteTallyBar(yes: 4, no: 1, eligible: 8)
+                    row(.idle, .idle)
+                    VoteStatusLine(
+                        result: nil, facts: ["5 of 8 voted", "6 replies", "ends in 4h"], identifierPrefix: "gallery",
+                        identifierSuffix: "idle")
+                }
+            }
+            GalleryCase(caption: "Picked, holding at 40 %, committed") {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+                    row(.picked, .dimmed)
+                    row(.holding(progress: 0.4), .dimmed)
+                    Text("Keep holding · lift to cancel")
+                        .font(MonacoTheme.Typo.subhead)
+                        .foregroundStyle(MonacoTheme.secondaryText)
+                    row(.committed, .dimmed, counts: (5, 1))
+                    VoteStatusLine(
+                        result: .executing, facts: ["Passed 5–1", "6 of 8 voted", "buying 1.82 sh"],
+                        identifierPrefix: "gallery", identifierSuffix: "executing")
+                }
+            }
+            GalleryCase(caption: "Closed, passed: ends, winner in label colour") {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+                    VoteTallyBar(yes: 4, no: 1, eligible: 6, winner: .yes)
+                    VoteTallyEnds(
+                        yes: 4, no: 1, middle: "5 of 6 voted", identifierPrefix: "gallery", identifierSuffix: "closed")
+                    VoteStatusLine(
+                        result: .passed, facts: ["Passed 4–1", "filled at $716.52"], identifierPrefix: "gallery",
+                        identifierSuffix: "passed")
+                }
+            }
+            GalleryCase(caption: "Closed, failed") {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+                    VoteTallyBar(yes: 2, no: 2, eligible: 6)
+                    VoteStatusLine(
+                        result: .failed, facts: ["Failed 2–2", "4 of 6 voted"], identifierPrefix: "gallery",
+                        identifierSuffix: "failed")
+                }
+            }
+            GalleryCase(caption: "Open card a non-member sees: no pair, no Remind") {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+                    VoteTallyBar(yes: 3, no: 0, eligible: 7)
+                    VoteTallyEnds(
+                        yes: 3, no: 0, middle: "Pilates members vote", identifierPrefix: "gallery",
+                        identifierSuffix: "public")
+                    VoteStatusLine(
+                        result: nil, facts: ["3 of 7 voted", "2 replies", "ends in 23h"], identifierPrefix: "gallery",
+                        identifierSuffix: "public")
+                }
+            }
+            GalleryCase(caption: "Sides row") {
+                VoteSidesRow(
+                    lines: [
+                        .init(side: .yes, avatars: Self.people, text: "Mia, Christelle, Logan, Sam, you"),
+                        .init(side: .no, avatars: [Self.people[1]], text: "Kai"),
+                        .init(
+                            side: nil, avatars: [Self.people[2], Self.people[3]], text: "Jordan and Priya did not vote"),
+                    ], identifierPrefix: "gallery")
             }
         }
     }
