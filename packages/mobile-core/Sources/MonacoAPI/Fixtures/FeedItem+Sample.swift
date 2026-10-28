@@ -9,17 +9,22 @@ extension Components.Schemas.FeedItem {
             1, kind: "proposal", refType: "proposals", cabalID: sampleCabalID, actor: 1, symbol: "AAPLx",
             title: "Maya proposed buying $500 of AAPLx", detail: "Weekend investors",
             body: "Earnings beat three quarters running and services keep growing. A small slice before the call.",
-            status: "open", minutesAgo: 4),
+            status: "open",
+            reactions: [.init(emoji: "💪", count: 3, mine: false), .init(emoji: "👀", count: 2, mine: false)],
+            minutesAgo: 4),
         sample(
             2, kind: "trade", refType: "swaps", cabalID: sampleCabalID, actor: 2, symbol: "NVDAx",
             title: "Weekend investors bought $250 of NVDAx", detail: "NVIDIA", tone: "positive", comments: 3,
+            reactions: [.init(emoji: "💰", count: 4, mine: false), .init(emoji: "🙌", count: 2, mine: false)],
             minutesAgo: 42),
         sample(
             3, kind: "price_move", refType: "assets", cabalID: nil, actor: nil, symbol: "TSLAx",
             title: "TSLAx fell 6.2% today", detail: "Tesla", tone: "negative", minutesAgo: 95),
         sample(
             4, kind: "cabal_created", refType: "cabals", cabalID: sampleCabalID, actor: 3, symbol: nil,
-            title: "Jordan started Weekend investors", detail: "Open to anyone", minutesAgo: 60 * 5),
+            title: "Jordan started Weekend investors", detail: "Open to anyone",
+            reactions: [.init(emoji: "🎉", count: 5, mine: true), .init(emoji: "👏", count: 2, mine: false)],
+            minutesAgo: 60 * 5),
         sample(
             5, kind: "member_joined", refType: "cabal_members", cabalID: sampleCabalID, actor: 4, symbol: nil,
             title: "Sam joined Weekend investors", detail: nil, comments: 1, minutesAgo: 60 * 26),
@@ -30,7 +35,7 @@ extension Components.Schemas.FeedItem {
     private static func sample(
         _ number: Int, kind: String, refType: String, cabalID: String?, actor: Int?, symbol: String?,
         title: String, detail: String?, body: String? = nil, status: String? = nil, tone: String = "neutral",
-        comments: Int32 = 0, minutesAgo: Double
+        comments: Int32 = 0, reactions: [Components.Schemas.Reaction] = [], minutesAgo: Double
     ) -> Self {
         let created = Date(timeIntervalSinceNow: -minutesAgo * 60)
         return Self(
@@ -43,7 +48,8 @@ extension Components.Schemas.FeedItem {
             assetId: symbol.map { _ in String(format: "00000000-0000-7000-8000-0000000fd%03d", number) },
             symbol: symbol,
             title: title, detail: detail, body: body, status: status, tone: tone, commentCount: comments,
-            likeCount: 0, likedByMe: false, returnPrivate: false,
+            likeCount: 0, likedByMe: false, reactions: reactions,
+            reactionCount: reactions.reduce(0) { $0 + $1.count }, returnPrivate: false,
             createdAt: created, updatedAt: created)
     }
 }

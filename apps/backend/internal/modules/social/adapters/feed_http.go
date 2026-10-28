@@ -211,8 +211,17 @@ func wireFeedItem(item app.FeedItem) api.FeedItem {
 		PrevCloseMicros: optionalWireAmount(item.PrevClose.Uint64()),
 		ProposalId:      optionalWireID(item.ProposalID),
 		CommentCount:    item.CommentCount, LikeCount: item.LikeCount, LikedByMe: item.LikedByMe,
+		Reactions: wireReactions(item.Reactions), ReactionCount: item.ReactionCount,
 		CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt,
 	}
+}
+
+func wireReactions(reactions []app.Reaction) []api.Reaction {
+	out := make([]api.Reaction, len(reactions))
+	for i, r := range reactions {
+		out[i] = api.Reaction{Emoji: r.Emoji.String(), Count: r.Count, Mine: r.Mine}
+	}
+	return out
 }
 
 func deref(s *string) string {

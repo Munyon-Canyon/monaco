@@ -703,12 +703,12 @@ type FeedItem struct {
 	// Examples: trade
 	Kind string `json:"kind"`
 
-	// LikeCount The number of users who like the item.
+	// LikeCount Deprecated, read `reactions` instead. The number of users who reacted with ❤️.
 	//
 	// Examples: 3
 	LikeCount int32 `json:"like_count"`
 
-	// LikedByMe True when the caller likes the item.
+	// LikedByMe Deprecated, read `reactions` instead. True when the caller reacted with ❤️.
 	//
 	// Examples: true
 	LikedByMe bool `json:"liked_by_me"`
@@ -732,6 +732,14 @@ type FeedItem struct {
 	//
 	// Examples: 01920000-0000-7000-8000-000000000009
 	ProposalId *openapi_types.UUID `json:"proposal_id"`
+
+	// ReactionCount The number of reactions on the item, over every emoji.
+	//
+	// Examples: 7
+	ReactionCount int32 `json:"reaction_count"`
+
+	// Reactions The item's reactions, one per emoji, most used first, then the emoji first used earliest. At most the top 20; `reaction_count` still counts every reaction.
+	Reactions []Reaction `json:"reactions"`
 
 	// RefId The source row's id.
 	//
@@ -922,6 +930,24 @@ type ProposalCommentPage struct {
 	//
 	// Examples: null
 	NextCursor *string `json:"next_cursor"`
+}
+
+// Reaction One emoji on a feed item, how many users reacted with it and whether the caller did.
+type Reaction struct {
+	// Count The number of users who reacted with this emoji.
+	//
+	// Examples: 5
+	Count int32 `json:"count"`
+
+	// Emoji One emoji, such as 🎉 or 👍🏽.
+	//
+	// Examples: 🎉
+	Emoji string `json:"emoji"`
+
+	// Mine True when the caller reacted with this emoji.
+	//
+	// Examples: true
+	Mine bool `json:"mine"`
 }
 
 // RealtimeTokenRequest An Ably token request, signed with the app key. The app passes it to Ably unchanged.
