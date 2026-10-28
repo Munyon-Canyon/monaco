@@ -173,6 +173,8 @@ func (m *Module) Tallies() port.Tallies { return app.NewQueries(m.deps.Pool) }
 
 func (m *Module) Ballots() port.Ballots { return adapters.NewBallots(m.deps.Pool) }
 
+func (m *Module) VoteStates() adapters.VoteStates { return adapters.NewVoteStates(m.deps.Pool) }
+
 func (m *Module) ProposalHeads() adapters.ProposalHeads {
 	return adapters.NewProposalHeads(m.deps.Pool)
 }

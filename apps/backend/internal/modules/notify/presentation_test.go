@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
@@ -173,10 +175,10 @@ func TestPresentation_theCabalKindsFailWhenTheCabalCannotBeRead(t *testing.T) {
 	cabals.Fail("Cabal", down)
 	users := fakes.NewIdentity(nil, nil)
 	assets := marketfake.NewCatalog(marketfake.Fixtures()...)
-	cases := copyCases(cabals, users, assets, ids.UserID{})
+	cases := copyCases(cabals, users, assets, fixedVotes{state: decidingState(uuid.Nil)}, ids.UserID{})
 	for _, name := range []string{
 		"proposal_result_filled", "proposal_result_fill_failed", "proposal_result_fill_blocked",
-		"proposal_result_failed", "proposal_result_expired",
+		"proposal_result_failed", "proposal_result_expired", "vote_deciding",
 	} {
 		c := cases[name]
 

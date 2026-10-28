@@ -142,3 +142,22 @@ func failedBody(voted string) string { return "No trade. You voted " + voted + "
 func expiredBody(voted string) string {
 	return "Not enough votes by the close. No trade. You voted " + voted + "."
 }
+
+func reminderTitle(left int, dur string) string {
+	votes := "votes"
+	if left == 1 {
+		votes = "vote"
+	}
+	return fmt.Sprintf("%d %s left · ends in %s", left, votes, dur)
+}
+
+func reminderBody(action, asset, amount string, yes, no int) string {
+	return fmt.Sprintf("%s %s %s: %d yes, %d no so far. Yours counts.", action, asset, amount, yes, no)
+}
+
+func decidingBody(action, asset, amount string, yes, no int, dur string) string {
+	return fmt.Sprintf(
+		"Yours decides it: %s %s %s stands at %d yes, %d no and needs one more yes. Closes in %s.",
+		action, asset, amount, yes, no, dur,
+	)
+}

@@ -7,11 +7,15 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type Status = domain.Status
 
-const StatusPassed = domain.StatusPassed
+const (
+	StatusOpen   = domain.StatusOpen
+	StatusPassed = domain.StatusPassed
+)
 
 type Queries interface {
 	Status(ctx context.Context, id ids.ProposalID) (Status, error)
@@ -74,4 +78,29 @@ type ProposalHead struct {
 
 type ProposalHeads interface {
 	ProposalHead(ctx context.Context, id ids.ProposalID) (ProposalHead, error)
+}
+
+type VoteState struct {
+	CabalID                 ids.CabalID
+	Kind, Symbol, Mint      string
+	USDCMicros              money.Micros
+	Status                  Status
+	Yes, No, Eligible, Need int
+	CreatedAt, ExpiresAt    time.Time
+}
+
+type ReminderCursor struct {
+	DueAt      time.Time
+	ProposalID ids.ProposalID
+}
+
+type DueReminder struct {
+	ProposalID ids.ProposalID
+	DueAt      time.Time
+}
+
+type VoteStates interface {
+	VoteState(ctx context.Context, id ids.ProposalID) (VoteState, error)
+	DueForReminder(ctx context.Context, now time.Time, after ReminderCursor, limit int) ([]DueReminder, error)
+	NonVoters(ctx context.Context, id ids.ProposalID) ([]ids.UserID, error)
 }

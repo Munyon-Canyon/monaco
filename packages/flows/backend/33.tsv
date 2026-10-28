@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+33	Vote reminders	notify	poller:notify.vote_reminders	RemindVoters	notification.sent		ok;crash:before-commit	built	docs/architecture/notifications.md#what-notifies-mvp

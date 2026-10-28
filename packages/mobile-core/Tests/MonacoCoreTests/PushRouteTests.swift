@@ -214,6 +214,8 @@ final class PushRouteTests: XCTestCase {
             ("cabal_paused", ["kind", "cabal_id"], "cabal"),
             ("proposal_created_grouped", Set(["kind", "cabal_id", "proposal_id"]).union(senderKeys), "proposal"),
             ("cabal_paused_grouped", Set(["kind", "cabal_id"]).union(senderKeys), "cabal"),
+            ("vote_reminder", Set(["kind", "cabal_id", "proposal_id"]).union(senderKeys), "proposal"),
+            ("vote_deciding", Set(["kind", "cabal_id", "proposal_id"]).union(senderKeys), "proposal"),
             ("deposit_credited", ["kind"], "home"),
             ("nudge", ["kind", "user_id"], "home"),
             ("new_follower", ["kind", "user_id"], "userProfile"),
