@@ -1817,9 +1817,14 @@ func TestCheck_aNonPackageRowGetsTheLoadScaledBudgetUpToFourTimesTheBase(t *test
 	h.load = 64
 	h.replies = []reply{{prefix: "python3 scripts/qa/journey.py check", took: 130 * time.Second}}
 	code, stdout, stderr = h.check(t)
-	want = "journeys row over the 2m0s (base 30s, x4.0 for load1 64.0 over 8 cores) journeys budget after 130s"
-	if code != 1 || !strings.Contains(stderr, want) || !strings.Contains(stdout, "journeys        over budget") {
-		t.Fatalf("a journeys row past 4x its base fails: %d %q %q", code, stdout, stderr)
+	want = "journeys        ok    over budget under load (load1 64.0, 8 cores), advisory"
+	if code != 0 || !strings.Contains(stdout, want) || strings.Contains(stdout, "journeys        over budget") {
+		t.Fatalf(
+			"a journeys row past 4x its base passes as advisory when the load is past the cap: %d %q %q",
+			code,
+			stdout,
+			stderr,
+		)
 	}
 
 	h.goos = "darwin"
@@ -1832,6 +1837,58 @@ func TestCheck_aNonPackageRowGetsTheLoadScaledBudgetUpToFourTimesTheBase(t *test
 		!slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, " MONACO_LOCK_HOLD=1200 ") }) {
 		t.Fatalf("the xcode lock's hold cap scales with the xcode budget: %d %q %q\n%s",
 			code, stdout, stderr, strings.Join(h.calls, "\n"))
+	}
+}
+
+func TestCheck_aNonPackageOverrunIsAdvisoryOnlyWhenTheCommandPassedLocallyAndLoadIsPastTheCap(t *testing.T) {
+	t.Parallel()
+	const journeys = "python3 scripts/qa/journey.py check"
+	const overrun = "journeys row over the 2m0s (base 30s, x4.0 for load1 64.0 over 8 cores) journeys budget after 130s"
+	for _, tc := range []struct {
+		name    string
+		load    float64
+		actions bool
+		err     error
+		took    time.Duration
+		want    string
+	}{
+		{"a failing command", 64, false, errors.New("boom"), 130 * time.Second, overrun},
+		{"CI", 64, true, nil, 130 * time.Second, "journeys row over the 30s journeys budget after 130s"},
+		{"under the cap", 20, false, nil, 80 * time.Second, "journeys row over the 1m15s (base 30s, x2.5 for load1 20.0 over 8 cores) journeys budget after 80s"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newCheckHarness(t)
+			tree := h.commit(t, map[string]string{"apps/mobile/qa/journeys/a.tsv": "a\n"})
+			h.load, h.cores, h.actions = tc.load, 8, tc.actions
+			h.replies = []reply{{prefix: journeys, took: tc.took, err: tc.err}}
+			code, stdout, stderr := h.check(t)
+			if code != 1 || !strings.Contains(stderr, tc.want) || strings.Contains(stdout, "advisory") {
+				t.Fatalf("the overrun fails: %d %q %q", code, stdout, stderr)
+			}
+			if _, err := os.Stat(filepath.Join(h.stateDir(t, "checks"), tree)); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("recorded the tree: %v", err)
+			}
+		})
+	}
+}
+
+func TestCheck_aPackageSlowAloneAndPassingUnderLoadPastTheCapIsAdvisory(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	tree := h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.loaded(150)
+	h.replies = []reply{
+		{prefix: rerunPrefix, took: 25 * time.Second, out: slowPackageEvents(25 * time.Second)},
+		{prefix: "go test", took: 81 * time.Second, out: slowPackageEvents(81 * time.Second)},
+	}
+	code, stdout, stderr := h.check(t)
+	want := "go test -short  ok    over budget under load (load1 150.0, 8 cores), advisory"
+	if code != 0 || !strings.Contains(stdout, want) {
+		t.Fatalf("a package slow alone but passing is advisory: %d %q %q", code, stdout, stderr)
+	}
+	if _, err := os.Stat(filepath.Join(h.stateDir(t, "checks"), tree)); err != nil {
+		t.Fatalf("a passing run records the tree: %v", err)
 	}
 }
 
@@ -1852,9 +1909,14 @@ func TestCheck_aRowIsJudgedByTheHighestLoadSeenDuringIt(t *testing.T) {
 	h.loads = []float64{8, 64}
 	h.replies = []reply{{prefix: "python3 scripts/qa/journey.py check", took: 130 * time.Second}}
 	code, stdout, stderr = h.check(t)
-	want = "journeys row over the 2m0s (base 30s, x4.0 for load1 64.0 over 8 cores) journeys budget after 130s"
-	if code != 1 || !strings.Contains(stderr, want) || !strings.Contains(stdout, "journeys        over budget") {
-		t.Fatalf("a row past 4x its base fails whatever the start load: %d %q %q", code, stdout, stderr)
+	want = "journeys        ok    over budget under load (load1 64.0, 8 cores), advisory"
+	if code != 0 || strings.Count(stdout, want) != 1 {
+		t.Fatalf(
+			"a row past 4x its base is judged by the peak load and notes the advisory once: %d %q %q",
+			code,
+			stdout,
+			stderr,
+		)
 	}
 }
 
