@@ -2,6 +2,8 @@
 
 Dated record of changes to [ci.md](../ci.md). Add one line per change, newest last.
 
+- 2026-10-28: The `scripts` job in `ci-scripts.yml` runs on `ubuntu-24.04` instead of `ubuntu-latest` (#6647). GitHub is moving `ubuntu-latest` to Ubuntu 26.04, and since about 15:00 UTC every `Go tests (scripts 1 of 2)` job on a 26.04 image fails `TestXcodeLockGroupInterruptStopsCommand/timeout` in `scripts/qa` ("timed out waiting for the command to stop"), while the same job passed on `ubuntu-24.04` at 11:34 UTC (#6634). The likely cause is that the Rust coreutils `timeout` on 26.04 does not pass SIGINT on to its command; the Macs that run `xcode-lock.sh` use GNU `gtimeout`. The founder approved pinning only this job on 10-28. Move it back to `ubuntu-latest` once `xcode-lock.sh` and its tests pass on 26.04.
+
 - 2026-10-07: The `Flake (changed tests, count 20)` job in `ci-jobs.yml` gets 40 minutes instead of 20. A stack that touches tests in many packages (lane 3462's, 2026-10-07) had the job cancelled at its timeout while still rerunning tests, and a cancelled required job costs a full stage 1 rerun. A job timeout guards against a hang, not slow code, so it is not a test gate. Sharding the reruns by package count is the next step if 40 minutes is not enough.
 
 - 2026-10-07: The `Swift (mobile-core, Linux)` job in `ci-mobile-core.yml` gets 20 minutes instead of 10. On 2026-10-07 the job was cancelled at its timeout while still compiling, on #3565 (run 37677353608) and #3621 (run 37689940995), with a cold or stale `.build` cache, and each cancellation cost a full stage 1 rerun. A job timeout guards against a hang, not slow code, so it is not a test gate.
