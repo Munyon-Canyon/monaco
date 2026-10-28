@@ -1,4 +1,4 @@
-h1:3I+EBOEDNpUN9GuSOks8PFweSFNva3XUaGCiQ5IkaUA=
+h1:XKXTOuPt7On8Z49+l61w3Nno5NGF+H69P7yigyj1NWo=
 20260927140427_platform.sql h1:dpKT9ALI2RTf1SBI4IzLY9kt47VTa8+JAziYaHsX5Jw=
 20260927185159_idempotency.sql h1:iYIp5Y5kBuPj5UJGcOifMeosr8qf0tj17c+5bmF37zE=
 20260929120000_system.sql h1:m6n0Y3tCc4MlfYNzi6Fh01YnogvlBbpQb1/X4WCtW40=
@@ -123,5 +123,6 @@ h1:3I+EBOEDNpUN9GuSOks8PFweSFNva3XUaGCiQ5IkaUA=
 20261028104327_governance_proposal_stats.sql h1:ZOUN0kkkQil/wCnkHMQmq2adMWFrscrQN8f6NUiue9o=
 20261028130201_market_pre_ipo_profiles.sql h1:1Bv+QN0AqsaoxcNlXBoGm3u+X6xYbHYy7UvtAkykM9E=
 20261028164916_market_company_facts.sql h1:IFg0KtdDOaXBnohdXPEwRsIpMvySwJZ28r4kLuOUUfw=
-20261028174605_market_price_day_ranges.sql h1:Q+3qQ0J231D4/bc0XTYiBDWorefVfTHYnieSp+a0o0k=
-20261028183000_ranking_calls.sql h1:e9lQDeos09l44T4qyN+6ulq16mvCKzy2lHp+nydASAc=
+20261028173120_trading_swap_views_fee.sql h1:DvATMkQ4I7LCcgr61h6AuipGZ4+dFCKhzh0nca3nibY=
+20261028174605_market_price_day_ranges.sql h1:5fan2tOX/9UI1QKNyah8g7vHlVAZv8g9JHIwY8LAwkA=
+20261028183000_ranking_calls.sql h1:r0lquI93LoPCe0uMFzeTojd727BDPyCo4zLrwA3yGrY=

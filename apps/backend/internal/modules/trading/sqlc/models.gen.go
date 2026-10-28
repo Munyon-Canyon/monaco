@@ -27,4 +27,5 @@ type SwapView struct {
 	CreatedAt   time.Time
 	ConfirmedAt pgtype.Timestamptz
 	Retryable   pgtype.Bool
+	FeeMicros   pgtype.Int8
 }
