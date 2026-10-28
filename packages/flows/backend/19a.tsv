@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+19a	Right calls	ranking	poller:ranking.calls_resolver	ResolveCalls	call.resolved		ok;crash:before-commit	built	docs/architecture/right-calls.md#resolution

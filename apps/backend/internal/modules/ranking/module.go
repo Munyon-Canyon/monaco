@@ -122,7 +122,14 @@ func (m *Module) consumers() []bus.Consumer {
 }
 
 func (m *Module) Pollers() []poller.Poller {
-	return []poller.Poller{app.NewThinSnapshots(m.deps.Pool, m.deps.Clock), m.valuation()}
+	return []poller.Poller{app.NewThinSnapshots(m.deps.Pool, m.deps.Clock), m.valuation(), m.callsResolver()}
+}
+
+func (m *Module) callsResolver() adapters.CallsResolverPoller {
+	return adapters.CallsResolverPoller{
+		Resolver: app.NewResolveCalls(m.deps.Pool, m.deps.UoW, m.ports.Market),
+		Clock:    m.deps.Clock,
+	}
 }
 
 func (m *Module) valuation() adapters.ValuationPoller {

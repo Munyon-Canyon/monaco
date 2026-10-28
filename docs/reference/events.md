@@ -303,6 +303,24 @@ Subject `events.cabal.wound_down`, version 1.
 | `members_paid` | `int64` |
 | `usdc_returned_micros` | `money.Micros` |
 
+## `call.resolved`
+
+Subject `events.call.resolved`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `proposal_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `kind` | `string` |
+| `symbol` | `string` |
+| `outcome` | `string` |
+| `resolved_at` | `time.Time` |
+| `move_bps` | `int` |
+| `right_voter_ids` | `[]uuid.UUID` |
+| `missed_voter_ids` | `[]uuid.UUID` |
+| `cabal_right` | `bool` |
+
 ## `cashout.completed`
 
 Subject `events.cashout.completed`, version 1.
