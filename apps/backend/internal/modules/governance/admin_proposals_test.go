@@ -223,7 +223,8 @@ func TestAdminProposalLookup_ShowsTheBallotsAndTheLinkedSwap(t *testing.T) {
 	s := scenario.New(t, withGovernanceAndAdmin())
 	p := seedLookupProposal(t, s, seedHandledCabal(t, s), "passed")
 	if _, err := s.DB().Exec(t.Context(),
-		`INSERT INTO votes (proposal_id, voter_id, choice, cast_at) VALUES ($1, $2, 'yes', now())`,
+		`INSERT INTO votes (proposal_id, voter_id, choice, cast_at, first_cast_at)
+		VALUES ($1, $2, 'yes', now(), now())`,
 		p.id, p.voter.UUID()); err != nil {
 		t.Fatal(err)
 	}

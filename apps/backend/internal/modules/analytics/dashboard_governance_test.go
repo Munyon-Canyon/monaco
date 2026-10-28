@@ -49,7 +49,7 @@ func (s proposalSeed) proposal(cabal uuid.UUID, status string, when time.Time, v
 			continue
 		}
 		if _, err := s.pool.Exec(s.t.Context(),
-			`INSERT INTO votes (proposal_id, voter_id, choice, cast_at) VALUES ($1, $2, 'yes', $3)`,
+			`INSERT INTO votes (proposal_id, voter_id, choice, cast_at, first_cast_at) VALUES ($1, $2, 'yes', $3, $3)`,
 			id, voter, when.Add(time.Hour)); err != nil {
 			s.t.Fatal(err)
 		}

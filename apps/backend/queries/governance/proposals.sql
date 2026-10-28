@@ -34,9 +34,21 @@ SELECT proposal.id, voter
 FROM proposal, unnest(sqlc.arg(voter_ids)::uuid[]) AS voter;
 
 -- name: UpsertBallot :exec
-INSERT INTO votes (proposal_id, voter_id, choice, cast_at)
-VALUES (@proposal_id, @voter_id, @choice, @cast_at)
-ON CONFLICT (proposal_id, voter_id) DO UPDATE SET choice = excluded.choice, cast_at = excluded.cast_at;
+INSERT INTO votes (proposal_id, voter_id, choice, cast_at, first_cast_at, changed)
+VALUES (@proposal_id, @voter_id, @choice, @cast_at, @cast_at, false)
+ON CONFLICT (proposal_id, voter_id) DO UPDATE SET
+  choice = excluded.choice,
+  cast_at = excluded.cast_at,
+  changed = votes.changed OR votes.choice IS DISTINCT FROM excluded.choice;
+
+-- name: LockBallot :one
+SELECT choice, first_cast_at, changed FROM votes
+WHERE proposal_id = @proposal_id AND voter_id = @voter_id
+FOR UPDATE;
+
+-- name: DeleteBallot :execrows
+DELETE FROM votes
+WHERE proposal_id = @proposal_id AND voter_id = @voter_id AND changed = false;
 
 -- name: CountBallots :one
 SELECT
@@ -96,10 +108,13 @@ FOR UPDATE OF p;
 
 -- name: CastBallot :one
 WITH ballot AS (
-  INSERT INTO votes (proposal_id, voter_id, choice, cast_at)
-  VALUES (@proposal_id, @voter_id, @choice, @cast_at)
-  ON CONFLICT (proposal_id, voter_id) DO UPDATE SET choice = excluded.choice, cast_at = excluded.cast_at
-  RETURNING choice
+  INSERT INTO votes (proposal_id, voter_id, choice, cast_at, first_cast_at, changed)
+  VALUES (@proposal_id, @voter_id, @choice, @cast_at, @cast_at, false)
+  ON CONFLICT (proposal_id, voter_id) DO UPDATE SET
+    choice = excluded.choice,
+    cast_at = excluded.cast_at,
+    changed = votes.changed OR votes.choice IS DISTINCT FROM excluded.choice
+  RETURNING choice, first_cast_at, changed
 ),
 ballots AS (
   SELECT votes.choice FROM votes WHERE votes.proposal_id = @proposal_id AND votes.voter_id <> @voter_id
@@ -109,7 +124,9 @@ ballots AS (
 SELECT
   (SELECT count(*) FROM proposal_voters WHERE proposal_voters.proposal_id = @proposal_id)::int AS voters,
   (count(*) FILTER (WHERE ballots.choice = 'yes'))::int AS yes,
-  (count(*) FILTER (WHERE ballots.choice = 'no'))::int AS no
+  (count(*) FILTER (WHERE ballots.choice = 'no'))::int AS no,
+  (SELECT ballot.first_cast_at FROM ballot) AS first_cast_at,
+  (SELECT ballot.changed FROM ballot) AS changed
 FROM ballots;
 
 -- name: DueForExpiry :many

@@ -63,7 +63,7 @@ func (b board) proposal(cabal uuid.UUID, status string, at time.Time, voters, vo
 			continue
 		}
 		if _, err := b.pool.Exec(b.t.Context(),
-			`INSERT INTO votes (proposal_id, voter_id, choice, cast_at) VALUES ($1, $2, 'yes', $3)`,
+			`INSERT INTO votes (proposal_id, voter_id, choice, cast_at, first_cast_at) VALUES ($1, $2, 'yes', $3, $3)`,
 			id, voter, at.Add(time.Hour)); err != nil {
 			b.t.Fatal(err)
 		}

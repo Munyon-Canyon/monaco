@@ -26,10 +26,13 @@ func (q *Queries) CabalOfProposal(ctx context.Context, id uuid.UUID) (uuid.UUID,
 
 const castBallot = `-- name: CastBallot :one
 WITH ballot AS (
-  INSERT INTO votes (proposal_id, voter_id, choice, cast_at)
-  VALUES ($1, $2, $3, $4)
-  ON CONFLICT (proposal_id, voter_id) DO UPDATE SET choice = excluded.choice, cast_at = excluded.cast_at
-  RETURNING choice
+  INSERT INTO votes (proposal_id, voter_id, choice, cast_at, first_cast_at, changed)
+  VALUES ($1, $2, $3, $4, $4, false)
+  ON CONFLICT (proposal_id, voter_id) DO UPDATE SET
+    choice = excluded.choice,
+    cast_at = excluded.cast_at,
+    changed = votes.changed OR votes.choice IS DISTINCT FROM excluded.choice
+  RETURNING choice, first_cast_at, changed
 ),
 ballots AS (
   SELECT votes.choice FROM votes WHERE votes.proposal_id = $1 AND votes.voter_id <> $2
@@ -39,7 +42,9 @@ ballots AS (
 SELECT
   (SELECT count(*) FROM proposal_voters WHERE proposal_voters.proposal_id = $1)::int AS voters,
   (count(*) FILTER (WHERE ballots.choice = 'yes'))::int AS yes,
-  (count(*) FILTER (WHERE ballots.choice = 'no'))::int AS no
+  (count(*) FILTER (WHERE ballots.choice = 'no'))::int AS no,
+  (SELECT ballot.first_cast_at FROM ballot) AS first_cast_at,
+  (SELECT ballot.changed FROM ballot) AS changed
 FROM ballots
 `
 
@@ -51,9 +56,11 @@ type CastBallotParams struct {
 }
 
 type CastBallotRow struct {
-	Voters int32
-	Yes    int32
-	No     int32
+	Voters      int32
+	Yes         int32
+	No          int32
+	FirstCastAt time.Time
+	Changed     bool
 }
 
 func (q *Queries) CastBallot(ctx context.Context, arg CastBallotParams) (CastBallotRow, error) {
@@ -64,7 +71,13 @@ func (q *Queries) CastBallot(ctx context.Context, arg CastBallotParams) (CastBal
 		arg.CastAt,
 	)
 	var i CastBallotRow
-	err := row.Scan(&i.Voters, &i.Yes, &i.No)
+	err := row.Scan(
+		&i.Voters,
+		&i.Yes,
+		&i.No,
+		&i.FirstCastAt,
+		&i.Changed,
+	)
 	return i, err
 }
 
@@ -89,6 +102,24 @@ func (q *Queries) CountBallots(ctx context.Context, proposalID uuid.UUID) (Count
 	var i CountBallotsRow
 	err := row.Scan(&i.Voters, &i.Yes, &i.No)
 	return i, err
+}
+
+const deleteBallot = `-- name: DeleteBallot :execrows
+DELETE FROM votes
+WHERE proposal_id = $1 AND voter_id = $2 AND changed = false
+`
+
+type DeleteBallotParams struct {
+	ProposalID uuid.UUID
+	VoterID    uuid.UUID
+}
+
+func (q *Queries) DeleteBallot(ctx context.Context, arg DeleteBallotParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteBallot, arg.ProposalID, arg.VoterID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const dueForExpiry = `-- name: DueForExpiry :many
@@ -184,6 +215,30 @@ func (q *Queries) InsertProposal(ctx context.Context, arg InsertProposalParams) 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const lockBallot = `-- name: LockBallot :one
+SELECT choice, first_cast_at, changed FROM votes
+WHERE proposal_id = $1 AND voter_id = $2
+FOR UPDATE
+`
+
+type LockBallotParams struct {
+	ProposalID uuid.UUID
+	VoterID    uuid.UUID
+}
+
+type LockBallotRow struct {
+	Choice      string
+	FirstCastAt time.Time
+	Changed     bool
+}
+
+func (q *Queries) LockBallot(ctx context.Context, arg LockBallotParams) (LockBallotRow, error) {
+	row := q.db.QueryRow(ctx, lockBallot, arg.ProposalID, arg.VoterID)
+	var i LockBallotRow
+	err := row.Scan(&i.Choice, &i.FirstCastAt, &i.Changed)
+	return i, err
 }
 
 const lockForWithdraw = `-- name: LockForWithdraw :one
@@ -479,9 +534,12 @@ func (q *Queries) TransitionAfterSwapFailure(ctx context.Context, arg Transition
 }
 
 const upsertBallot = `-- name: UpsertBallot :exec
-INSERT INTO votes (proposal_id, voter_id, choice, cast_at)
-VALUES ($1, $2, $3, $4)
-ON CONFLICT (proposal_id, voter_id) DO UPDATE SET choice = excluded.choice, cast_at = excluded.cast_at
+INSERT INTO votes (proposal_id, voter_id, choice, cast_at, first_cast_at, changed)
+VALUES ($1, $2, $3, $4, $4, false)
+ON CONFLICT (proposal_id, voter_id) DO UPDATE SET
+  choice = excluded.choice,
+  cast_at = excluded.cast_at,
+  changed = votes.changed OR votes.choice IS DISTINCT FROM excluded.choice
 `
 
 type UpsertBallotParams struct {

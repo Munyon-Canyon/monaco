@@ -1924,6 +1924,36 @@ paths:
                 $ref: "#/components/schemas/VoteResult"
         default:
           $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteProposalVote
+      tags: [governance]
+      x-idempotent: true
+      summary: Undo the caller's ballot on an open proposal.
+      description: >-
+        Removes the caller's own ballot and returns the tally without it. A ballot can be undone for 15
+        seconds after it was first cast (`undo_until` on the vote result), and only while it has never changed
+        side. The ballot that settled the proposal cannot be undone: the proposal has left `open`, so the call
+        answers proposal_closed. A caller outside the proposal's frozen voter set answers not_a_voter, a caller
+        with no ballot answers vote_not_found, and a ballot past the window or changed since the first cast
+        answers undo_expired. A replay with the same Idempotency-Key returns the first response.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The proposal id.
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The ballot was removed. `tally` no longer counts it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetractVoteResult"
+        default:
+          $ref: "#/components/responses/Problem"
   # api/spec/identity.yaml
   /v1/admin/handles/{handle}/reassign:
     post:
@@ -6110,6 +6140,7 @@ components:
         - trade_not_started
         - txn_not_found
         - unauthorized
+        - undo_expired
         - unknown_asset
         - upstream_timeout
         - upstream_unavailable
@@ -6117,6 +6148,7 @@ components:
         - user_deleted
         - user_not_found
         - version_conflict
+        - vote_not_found
         - wallet_mismatch
         - withdraw_not_allowed
         - withdraw_to_own_wallet
@@ -6977,6 +7009,20 @@ components:
             sells the Solana holding, or the only EVM holding when there is no Solana one.
           $ref: "#/components/schemas/Network"
           examples: [base]
+    RetractVoteResult:
+      type: object
+      description: The proposal after the caller's ballot was removed.
+      required: [proposal_id, status, tally]
+      properties:
+        proposal_id:
+          type: string
+          format: uuid
+          description: The proposal id.
+          examples: [01890a5d-ac96-774b-bcce-b302099a8057]
+        status:
+          $ref: "#/components/schemas/ProposalStatus"
+        tally:
+          $ref: "#/components/schemas/Tally"
     Tally:
       type: object
       description: The ballots counted against the proposal's frozen voter set.
@@ -7058,7 +7104,7 @@ components:
     VoteResult:
       type: object
       description: The proposal after the caller's ballot.
-      required: [proposal_id, status, tally, my_ballot]
+      required: [proposal_id, status, tally, my_ballot, undo_until]
       properties:
         proposal_id:
           type: string
@@ -7071,6 +7117,13 @@ components:
           $ref: "#/components/schemas/Tally"
         my_ballot:
           $ref: "#/components/schemas/BallotChoice"
+        undo_until:
+          type: [string, "null"]
+          format: date-time
+          description: >-
+            Until when the caller can undo this ballot. Null when the ballot settled the proposal or has
+            changed side.
+          examples: ["2026-10-03T16:00:15Z"]
   # api/spec/identity.yaml
     AccountStatus:
       type: string

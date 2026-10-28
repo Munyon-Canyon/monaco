@@ -163,6 +163,7 @@ const (
 	TradeNotStarted ErrorCode = "trade_not_started"
 	TxnNotFound ErrorCode = "txn_not_found"
 	Unauthorized ErrorCode = "unauthorized"
+	UndoExpired ErrorCode = "undo_expired"
 	UnknownAsset ErrorCode = "unknown_asset"
 	UpstreamTimeout ErrorCode = "upstream_timeout"
 	UpstreamUnavailable ErrorCode = "upstream_unavailable"
@@ -170,6 +171,7 @@ const (
 	UserDeleted ErrorCode = "user_deleted"
 	UserNotFound ErrorCode = "user_not_found"
 	VersionConflict ErrorCode = "version_conflict"
+	VoteNotFound ErrorCode = "vote_not_found"
 	WalletMismatch ErrorCode = "wallet_mismatch"
 	WithdrawNotAllowed ErrorCode = "withdraw_not_allowed"
 	WithdrawToOwnWallet ErrorCode = "withdraw_to_own_wallet"
@@ -484,6 +486,8 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case Unauthorized:
 		return true
+	case UndoExpired:
+		return true
 	case UnknownAsset:
 		return true
 	case UpstreamTimeout:
@@ -497,6 +501,8 @@ func (e ErrorCode) Valid() bool {
 	case UserNotFound:
 		return true
 	case VersionConflict:
+		return true
+	case VoteNotFound:
 		return true
 	case WalletMismatch:
 		return true
