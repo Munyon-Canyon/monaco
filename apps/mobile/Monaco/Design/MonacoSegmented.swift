@@ -4,9 +4,8 @@ enum MonacoSegmentedMetrics {
     static let inset: CGFloat = 3
     static let spacing: CGFloat = 2
     static let minHeight: CGFloat = 42
-    static let periodsMinHeight: CGFloat = 44
     static let hitOutset: CGFloat = 4
-    static let borderWidth: CGFloat = 1
+    static let thumbRadius: CGFloat = 6
     static let stackedOptionLimit = 3
 }
 
@@ -14,7 +13,6 @@ struct MonacoSegmentedLayout: Equatable {
     let minHeight: CGFloat
 
     static let standard = MonacoSegmentedLayout(minHeight: MonacoSegmentedMetrics.minHeight)
-    static let periods = MonacoSegmentedLayout(minHeight: MonacoSegmentedMetrics.periodsMinHeight)
 }
 
 struct MonacoSegmented<T: Hashable>: View {
@@ -46,14 +44,9 @@ struct MonacoSegmented<T: Hashable>: View {
         segments
             .padding(MonacoSegmentedMetrics.inset)
             .frame(maxWidth: .infinity, minHeight: layout.minHeight)
-            .background(trackShape.fill(MonacoTheme.surfaceSunken))
-            .overlay {
-                trackShape.strokeBorder(MonacoTheme.border, lineWidth: MonacoSegmentedMetrics.borderWidth)
-            }
-    }
-
-    private var trackShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: layout.minHeight / 2)
+            .background(
+                RoundedRectangle(cornerRadius: MonacoTheme.Radius.small, style: .continuous)
+                    .fill(MonacoTheme.surfaceSunken))
     }
 
     @ViewBuilder private var segments: some View {
@@ -89,19 +82,19 @@ struct MonacoSegmented<T: Hashable>: View {
             }
         } label: {
             Text(label(option))
-                .font(isSelected ? MonacoTheme.Typo.captionStrong : MonacoTheme.Typo.caption)
+                .font(MonacoTheme.Typo.subheadStrong)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 .minimumScaleFactor(0.8)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: keepsWidth, vertical: false)
-                .foregroundStyle(isSelected ? MonacoTheme.onBrand : MonacoTheme.secondaryText)
+                .foregroundStyle(isSelected ? MonacoTheme.primaryText : MonacoTheme.secondaryText)
                 .padding(.horizontal, MonacoTheme.Space.sm)
                 .padding(.vertical, MonacoTheme.Space.xs)
                 .frame(maxWidth: .infinity, minHeight: layout.minHeight - 2 * MonacoSegmentedMetrics.inset)
                 .background {
                     if isSelected {
-                        RoundedRectangle(cornerRadius: layout.minHeight / 2 - MonacoSegmentedMetrics.inset)
-                            .fill(MonacoTheme.brandFill)
+                        RoundedRectangle(cornerRadius: MonacoSegmentedMetrics.thumbRadius, style: .continuous)
+                            .fill(MonacoTheme.surface)
                             .matchedGeometryEffect(id: "thumb", in: thumb)
                     }
                 }

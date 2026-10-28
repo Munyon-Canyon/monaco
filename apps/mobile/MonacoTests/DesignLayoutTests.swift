@@ -181,7 +181,7 @@ struct V3LargeTextLayoutTests {
         }
 
         var body: some View {
-            MonacoSegmented(options, selection: $selection, layout: .periods) { $0 }
+            MonacoSegmented(options, selection: $selection) { $0 }
                 .padding(.horizontal, MonacoTheme.Space.gutter)
         }
     }
@@ -195,10 +195,34 @@ struct V3LargeTextLayoutTests {
         #expect(Self.fitted(probe, at: .xLarge).height == row, "the row must not change below xxLarge")
     }
 
+    private struct RangeProbe: View {
+        static let labels = ["1H", "1D", "1W", "1M", "3M", "6M", "All"]
+
+        var body: some View {
+            MonacoRangeChips(
+                ranges: Self.labels, selection: "1M", identifierPrefix: "probe", label: { $0 }, onSelect: { _ in })
+        }
+    }
+
+    private static func idealWidth(of text: String, at size: DynamicTypeSize) -> CGFloat {
+        let host = UIHostingController(
+            rootView: Text(text).font(MonacoTheme.Typo.subhead).fixedSize().environment(\.dynamicTypeSize, size))
+        return host.sizeThatFits(in: CGSize(width: 1000, height: 100)).width
+    }
+
     @Test(arguments: [DynamicTypeSize.xxxLarge, .accessibility1, .accessibility5])
-    func aSevenOptionSegmentedScrollsInsteadOfStackingOrCuttingALabel(size: DynamicTypeSize) {
-        let probe = SegmentedProbe(["1D", "1W", "1M", "3M", "6M", "1Y", "ALL"])
-        let fitted = Self.fitted(probe, at: size).height
-        #expect(fitted < 2 * MonacoSegmentedMetrics.periodsMinHeight * 2, "\(fitted)pt at \(size)")
+    func aSevenLabelRangeRowScrollsInsteadOfStackingOrCuttingALabel(size: DynamicTypeSize) {
+        let row = RangeProbe().frame(width: 393)
+        let fitted = Self.fitted(row, at: size).height
+        #expect(fitted < 2 * MonacoButtonMetrics.hitTarget, "\(fitted)pt at \(size)")
+        let ideal = UIHostingController(rootView: RangeProbe().environment(\.dynamicTypeSize, size))
+            .sizeThatFits(in: CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude))
+            .width
+        let labels = RangeProbe.labels.map { Self.idealWidth(of: $0, at: size) }.reduce(0, +)
+        #expect(ideal >= labels, "ideal \(ideal)pt, labels \(labels)pt at \(size)")
+    }
+
+    @Test func theSevenLabelRangeRowFitsThePhoneAtLargeSize() {
+        #expect(Self.fitted(RangeProbe(), at: .large).width <= 393)
     }
 }
