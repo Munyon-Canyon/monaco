@@ -45,6 +45,18 @@ struct CabalHoldingScreen: View {
             .monacoCanvas()
             .navigationTitle(model.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if case .loaded = model.outcome {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        MonacoGlassButton(
+                            icon: .share, accessibilityLabel: "Share position", style: .quiet, placement: .toolbar
+                        ) {
+                            open(ShareRoute(.position(cabalID: model.cabalID, symbol: model.symbol)))
+                        }
+                        .accessibilityIdentifier("holding-share")
+                    }
+                }
+            }
             .onChange(of: model.toast) { _, message in
                 guard let message else { return }
                 toasts.current = MonacoToast(message: message)

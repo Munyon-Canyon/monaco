@@ -2,6 +2,7 @@ import LinkPresentation
 import MonacoCore
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 struct SharePayload {
     let title: String
@@ -50,11 +51,41 @@ final class ShareLinkItem: NSObject, UIActivityItemSource {
     }
 }
 
+final class ShareImageItem: NSObject, UIActivityItemSource {
+    private let image: UIImage
+
+    init(_ image: UIImage) {
+        self.image = image
+    }
+
+    func activityViewControllerPlaceholderItem(_ controller: UIActivityViewController) -> Any {
+        image
+    }
+
+    func activityViewController(
+        _ controller: UIActivityViewController, itemForActivityType activityType: UIActivity.ActivityType?
+    ) -> Any? {
+        image
+    }
+
+    func activityViewController(
+        _ controller: UIActivityViewController, dataTypeIdentifierForActivityType activityType: UIActivity.ActivityType?
+    ) -> String {
+        UTType.png.identifier
+    }
+}
+
 @MainActor
 enum SystemShare {
+    static func activityItems(for payload: SharePayload) -> [Any] {
+        guard let image = payload.image else { return [ShareLinkItem(payload)] }
+        return [ShareImageItem(image), ShareLinkItem(payload)]
+    }
+
     static func present(_ payload: SharePayload) {
         guard let top = topController() else { return }
-        let controller = UIActivityViewController(activityItems: [ShareLinkItem(payload)], applicationActivities: nil)
+        let items = activityItems(for: payload)
+        let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
         controller.excludedActivityTypes = [.assignToContact, .print]
         controller.sheetPresentationController?.detents = [.medium()]
         if let popover = controller.popoverPresentationController {

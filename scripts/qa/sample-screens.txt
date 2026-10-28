@@ -127,6 +127,16 @@ share-sample-buy-sell-off     -MonacoShareSample buySellOff
 share-sample-truncated        -MonacoShareSample truncated
 share-sample-loading          -MonacoShareSample loading
 share-sample-failed           -MonacoShareSample failed
+share-screen-post             -MonacoShareSample screenPost
+share-screen-square           -MonacoShareSample screenSquare
+share-screen-story            -MonacoShareSample screenStory
+share-screen-sticker          -MonacoShareSample screenSticker
+share-screen-pnl-off          -MonacoShareSample screenPnlOff
+share-screen-buy-sell-off     -MonacoShareSample screenBuySellOff
+share-screen-code-off         -MonacoShareSample screenCodeOff
+share-screen-replay           -MonacoShareSample screenReplay
+share-screen-loading          -MonacoShareSample screenLoading
+share-screen-failed           -MonacoShareSample screenFailed
 
 home-populated                -MonacoHomeSample populated
 home-empty                    -MonacoHomeSample empty

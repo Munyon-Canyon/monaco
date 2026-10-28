@@ -59,6 +59,7 @@ struct FShareChart: View {
             self.size = size
             let radius = FShareChart.discSize * scale / 2
             let calloutHeight = 22 * scale
+            let showsCallouts = size.height >= 100 * scale
             let points = chart.points
             let times = points.map(\.time.timeIntervalSince1970) + chart.markers.map(\.time.timeIntervalSince1970)
             let prices = points.map(\.priceMicros) + chart.markers.map(\.priceMicros)
@@ -70,8 +71,8 @@ struct FShareChart: View {
                 discs = []
                 return
             }
-            let top = calloutHeight + radius + 4 * scale
-            let bottom = calloutHeight + radius + 4 * scale
+            let top = (showsCallouts ? calloutHeight : 0) + radius + 4 * scale
+            let bottom = top
             let spanT = max(maxT - minT, 1)
             let spanP = Double(max(maxP - minP, 1))
             let plotHeight = max(size.height - top - bottom, 1)
@@ -95,11 +96,12 @@ struct FShareChart: View {
                 built.append(
                     Disc(
                         marker: marker, center: center,
-                        callout: marker.callout.map {
+                        callout: (showsCallouts ? marker.callout : nil).map {
                             (
                                 $0,
                                 Self.calloutCenter(
-                                    for: marker.kind, disc: center, radius: radius, height: calloutHeight, size: size)
+                                    for: marker.kind, text: $0, disc: center, radius: radius, height: calloutHeight,
+                                    scale: scale, size: size)
                             )
                         }))
             }
@@ -112,13 +114,14 @@ struct FShareChart: View {
         }
 
         private static func calloutCenter(
-            for kind: ShareMarker.Kind, disc: CGPoint, radius: CGFloat, height: CGFloat, size: CGSize
+            for kind: ShareMarker.Kind, text: String, disc: CGPoint, radius: CGFloat, height: CGFloat, scale: CGFloat,
+            size: CGSize
         ) -> CGPoint {
             let above = kind == .sell
             var y = above ? disc.y - radius - height / 2 - 2 : disc.y + radius + height / 2 + 2
             if y - height / 2 < 0 { y = disc.y + radius + height / 2 + 2 }
             if y + height / 2 > size.height { y = disc.y - radius - height / 2 - 2 }
-            let half = height * 2.6
+            let half = (CGFloat(text.count) * 6.4 + 24) * scale / 2
             return CGPoint(x: min(max(disc.x, half), size.width - half), y: y)
         }
     }
