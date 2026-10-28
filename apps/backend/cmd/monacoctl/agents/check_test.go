@@ -2594,3 +2594,55 @@ func TestCheck_anEmptyOrOldRecordReadsAsNoRows(t *testing.T) {
 		}
 	}
 }
+
+func TestCheck_workflowsRowLintsAndRunsTheWorkflowTests(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{".github/workflows/staging.yml": "name: staging\n"})
+	code, stdout, stderr := h.check(t)
+	joined := strings.Join(h.calls, "\n")
+	if code != 0 || !strings.Contains(stdout, "workflows       ok") ||
+		!strings.Contains(joined, "go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12") ||
+		!strings.Contains(joined, "go -C scripts test -short ./ci/ -run TestWorkflowTriggers") ||
+		!strings.Contains(joined, "go -C scripts test -short . -run TestCIPathFilter") {
+		t.Fatalf("workflow change: %d %q %q\n%s", code, stdout, stderr, joined)
+	}
+}
+
+func TestCheck_workflowsRowSkipsTheGoTestsTheScriptsRowRuns(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{".github/workflows/staging.yml": "name: staging\n", "scripts/ci/a.sh": "#!/bin/sh\n"})
+	code, stdout, stderr := h.check(t)
+	joined := strings.Join(h.calls, "\n")
+	if code != 0 || !strings.Contains(joined, "actionlint@v1.7.12") || strings.Contains(joined, "go -C scripts test") {
+		t.Fatalf("workflow plus scripts change: %d %q %q\n%s", code, stdout, stderr, joined)
+	}
+}
+
+func TestCheck_webRowRunsTheWebJobCommands(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.lookPath = func(string) (string, error) { return "/usr/bin/npm", nil }
+	h.commit(t, map[string]string{"apps/web/src/a.ts": "export {}\n"})
+	code, stdout, stderr := h.check(t)
+	joined := strings.Join(h.calls, "\n")
+	if code != 0 || !strings.Contains(stdout, "web             ok") ||
+		!strings.Contains(joined, "npm ci --prefer-offline --no-audit --no-fund") ||
+		!strings.Contains(joined, "npm test") || !strings.Contains(joined, "npm run build") {
+		t.Fatalf("web change: %d %q %q\n%s", code, stdout, stderr, joined)
+	}
+}
+
+func TestCheck_webRowWithoutNpmFailsNamingJustInstall(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/web/src/a.ts": "export {}\n"})
+	code, _, _ := h.check(t)
+	if code == 0 {
+		t.Fatalf("web change without npm passed\n%s", strings.Join(h.calls, "\n"))
+	}
+	if !strings.Contains(strings.Join(h.calls, "\n"), "just install") {
+		t.Fatalf("failing row does not name just install\n%s", strings.Join(h.calls, "\n"))
+	}
+}

@@ -170,3 +170,13 @@ func TestAttest_refusesBadArgumentsAndAnUnknownPR(t *testing.T) {
 		t.Fatalf("unknown PR: code=%d stderr=%q", code, stderr)
 	}
 }
+
+func TestAttest_theDescriptionNamesTheWorkflowsAndWebRows(t *testing.T) {
+	t.Parallel()
+	record := checkRecord{Rows: []string{"web", "workflows", "journeys", "xcode", "swift test"}}
+	tree := strings.Repeat("d", 40)
+	want := "tree " + tree + " rows swift test,xcode,journeys,workflows,web"
+	if got := record.description(tree); got != want || len(got) >= 140 {
+		t.Fatalf("description %q, want %q under 140 characters", got, want)
+	}
+}
