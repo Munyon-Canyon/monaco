@@ -27,16 +27,56 @@ struct MonacoStatTests {
     @Test func itemsFillRowsOfTheColumnCount() {
         #expect(StatGrid.rows(Self.six, columns: 2).map(\.count) == [2, 2, 2])
         #expect(StatGrid.rows(Array(Self.six.prefix(5)), columns: 2).map(\.count) == [2, 2, 1])
+        #expect(StatGrid.rows(Self.six, columns: 4).map(\.count) == [4, 2])
         #expect(StatGrid.rows(Self.six, columns: 1).map(\.count) == [1, 1, 1, 1, 1, 1])
     }
 
-    @Test func eachCellIsAtLeastSeventyTwoTallAndTheGridHasTwoColumnsUntilAccessibilitySizes() {
-        let cell = StatMetrics.cellMinHeight
-        let normal = Self.height(of: StatGrid(items: Self.six))
-        let accessible = Self.height(of: StatGrid(items: Self.six), size: .accessibility3)
+    @Test func theGridHasFourColumnsAtDefaultSizesTwoFromXXLargeAndOneAtAccessibilitySizes() {
+        #expect(StatMetrics.columns(requested: 4, dynamicTypeSize: .large) == 4)
+        #expect(StatMetrics.columns(requested: 4, dynamicTypeSize: .xLarge) == 4)
+        #expect(StatMetrics.columns(requested: 4, dynamicTypeSize: .xxLarge) == 2)
+        #expect(StatMetrics.columns(requested: 4, dynamicTypeSize: .xxxLarge) == 2)
+        #expect(StatMetrics.columns(requested: 4, dynamicTypeSize: .accessibility1) == 1)
+        #expect(StatMetrics.columns(requested: 2, dynamicTypeSize: .xxLarge) == 2)
+        #expect(StatMetrics.columns(requested: 1, dynamicTypeSize: .large) == 1)
+    }
 
-        #expect(normal >= 3 * cell && normal < 6 * cell, "three rows of two: \(normal)")
-        #expect(accessible >= 6 * cell, "six rows of one: \(accessible)")
+    @Test func fourItemsSitInOneRowAtLargeAndStackAtAccessibility3() {
+        let four = Array(Self.six.prefix(4))
+        let row = Self.height(of: StatGrid(items: four))
+        let stacked = Self.height(of: StatGrid(items: four), size: .accessibility3)
+
+        #expect(row < 2 * StatMetrics.cellMinHeight + 2 * StatMetrics.cardPaddingVertical + 20, "one row: \(row)")
+        #expect(stacked >= 4 * StatMetrics.cellMinHeight, "four rows of one: \(stacked)")
+    }
+
+    @Test func aGridOutsideTheCardDropsThePadding() {
+        let open = [
+            StatItem(label: "Price", value: "$220.00"), StatItem(label: "Shares", value: "≈ 1.82"),
+            StatItem(label: "Of treasury", value: "2%"), StatItem(label: "Closes", value: "1:53 PM"),
+        ]
+        let carded = Self.height(of: StatGrid(items: open))
+        let bare = Self.height(of: StatGrid(items: open, inCard: false))
+
+        #expect(abs((carded - bare) - 2 * StatMetrics.cardPaddingVertical) < 0.5, "carded \(carded), bare \(bare)")
+    }
+
+    @Test func tonesPickPrimaryProfitAndLoss() {
+        #expect(StatMetrics.color(for: .plain) == MonacoTheme.primaryText)
+        #expect(StatMetrics.color(for: .gain) == MonacoTheme.profit)
+        #expect(StatMetrics.color(for: .loss) == MonacoTheme.loss)
+        #expect(StatItem(label: "Since", value: "+1.1%").tone == .plain)
+    }
+
+    @Test func theInfoButtonShowsOnlyOnAnItemWithAnInfoAction() async throws {
+        let withInfo = [StatItem(label: "Price", value: "$220.00", info: {}), StatItem(label: "Shares", value: "1.82")]
+        let labels = try await RenderedView.labels(StatGrid(items: withInfo)) { $0.contains("About Price") }
+
+        #expect(labels.contains("About Price"), "labels: \(labels)")
+        #expect(!labels.contains("About Shares"), "labels: \(labels)")
+
+        let plain = try await RenderedView.labels(StatGrid(items: Self.six)) { $0.contains("Units, 30.0000") }
+        #expect(!plain.contains { $0.hasPrefix("About ") }, "labels: \(plain)")
     }
 
     @Test func eachGridCellReadsAsOneElement() async throws {

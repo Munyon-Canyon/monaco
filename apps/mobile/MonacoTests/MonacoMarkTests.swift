@@ -40,8 +40,59 @@ struct StockMarkTests {
     }
 }
 
+@MainActor
+struct CabalCrestTests {
+    @Test(arguments: [24, 40, 56] as [CGFloat])
+    func theCrestIsASixPointSquareAtEverySize(size: CGFloat) {
+        #expect(MarkGeometry.tileRadius(for: size) == 6)
+        #expect(MarkGeometry.tileRadius(for: size) == MonacoTheme.Radius.crest)
+    }
+
+    @Test func crestSizesMatchTheListedValues() {
+        #expect(CabalMark.Size.allCases.map(\.rawValue) == [24, 32, 40, 56])
+    }
+
+    @Test func withNoPictureTheFillIsTheIdsIdentityHue() {
+        let id = "8f1c2d3e-0001"
+        let mark = CabalMark(groupId: id, name: "Weekend investors", size: .row)
+
+        #expect(mark.identityTint == MonacoTheme.CabalTint.forGroupId(id))
+    }
+
+    @Test func theBadgeIsHiddenAtZeroAndNilAndCapsAtNinetyNine() {
+        #expect(CrestMetrics.badgeText(nil) == nil)
+        #expect(CrestMetrics.badgeText(0) == nil)
+        #expect(CrestMetrics.badgeText(-1) == nil)
+        #expect(CrestMetrics.badgeText(1) == "1")
+        #expect(CrestMetrics.badgeText(99) == "99")
+        #expect(CrestMetrics.badgeText(100) == "99+")
+    }
+
+    @Test func theRingAndBadgeAddNothingToTheLayoutSize() {
+        let bare = Self.size(of: CabalMark(groupId: "a", name: "A", size: .row))
+        let marked = Self.size(of: CabalMark(groupId: "a", name: "A", size: .row).crestVoteRing(true).crestBadge(3))
+
+        #expect(bare == CGSize(width: 40, height: 40))
+        #expect(marked == bare)
+    }
+
+    @Test func aCrestOnTheCornerStaysInsideTheAvatarsBounds() {
+        let avatar = Color.clear.frame(width: 40, height: 40)
+        let withCrest = avatar.crestOnCorner(groupId: "a", name: "A")
+        let crest = CabalMark.Size.inline.rawValue + 2 * CrestMetrics.cornerRing
+
+        #expect(Self.size(of: withCrest) == CGSize(width: 40, height: 40))
+        #expect(crest <= 40)
+    }
+
+    private static func size(of view: some View) -> CGSize {
+        UIHostingController(rootView: view)
+            .sizeThatFits(in: CGSize(width: 200, height: 200))
+    }
+}
+
 struct MarkGeometryTests {
-    @Test func radiusIsThirtyTwoPercentOfSize() {
+    @Test func radiusIsThirtyTwoPercentOfSizeForGlyphTiles() {
         #expect(abs(MarkGeometry.radius(for: 44) - 14.08) < 0.001)
         #expect(abs(MarkGeometry.radius(for: 54) - 17.28) < 0.001)
     }
