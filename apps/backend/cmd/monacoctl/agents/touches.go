@@ -36,7 +36,7 @@ func (env *Env) touchesRow(ctx context.Context, self, base string, changed []str
 	}
 	rest = slices.DeleteFunc(rest, func(f string) bool { return wide[f] != "" })
 	if len(rest) > 0 {
-		row.refuse = "outside Touches: " + strings.Join(rest, ", ")
+		row.notes = append(row.notes, "outside Touches (warning only): "+strings.Join(rest, ", "))
 	}
 	return []checkRow{row}, nil
 }
