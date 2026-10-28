@@ -2,6 +2,7 @@ import Foundation
 import HTTPTypes
 import MonacoAPI
 import MonacoCore
+import Observation
 import OpenAPIRuntime
 import Testing
 
@@ -155,24 +156,28 @@ struct AssetDetailBuyCTATests {
     }
 
     @Test func proposeSellDoesNotWaitForTheChart() async throws {
-        let assets = StubTransport(scripted: [
-            .json(.ok, try Self.encoded(Components.Schemas.AssetDetail.googl)), .gate,
-            .json(.ok, try Self.encoded(Components.Schemas.AssetChart.oneDay)),
-        ])
+        let chart = try Self.encoded(Components.Schemas.AssetChart.oneDay)
+        let detail = StubTransport(scripted: [.json(.ok, try Self.encoded(Components.Schemas.AssetDetail.googl))])
+        let held = StubTransport(scripted: [.gate])
+        let series = StubTransport(scripted: [.json(.ok, chart), .json(.ok, chart)])
         let cabals = StubTransport(scripted: [
             .json(.ok, Self.cabals([("c-1", true)])), .json(.ok, Self.pot(holding: "GOOGLx")),
         ])
         let model = Self.model(
-            transport: RoutedTransport(routes: ["/v1/assets": assets, "/v1/me/cabals": cabals, "/v1/cabals": cabals]))
+            transport: RoutedTransport(routes: [
+                "/v1/assets": detail, "/v1/assets/GOOGLx/chart": series, "/v1/assets/GOOGLx/chart?range=1D": held,
+                "/v1/me/cabals": cabals, "/v1/cabals": cabals,
+            ]))
 
         let started = Task { await model.start() }
-        await assets.waitForRequests(2)
-        for _ in 0..<1000 where !model.heldByVotingCabal { await Task.yield() }
+        await held.waitForRequests(1)
+        await cabals.waitForRequests(2)
+        await Self.until { model.heldByVotingCabal }
 
         #expect(model.chartPhase == .loading)
         #expect(model.heldByVotingCabal)
 
-        await assets.releaseGate(.json(.ok, try Self.encoded(Components.Schemas.AssetChart.oneDay)))
+        await held.releaseGate(.json(.ok, chart))
         await started.value
 
         #expect(await cabals.sent.count == 2)
@@ -188,6 +193,18 @@ struct AssetDetailBuyCTATests {
 
     @Test func anUntradableAssetSaysWhyInsteadOfPromisingAVote() {
         #expect(AssetDetailBuyCTA.caption(tradable: false, canSell: false) == "Not available to buy yet.")
+    }
+
+    private static func until(_ predicate: () -> Bool) async {
+        while !predicate() {
+            await withCheckedContinuation { continuation in
+                withObservationTracking {
+                    _ = predicate()
+                } onChange: {
+                    continuation.resume()
+                }
+            }
+        }
     }
 
     private struct RoutedTransport: ClientTransport {
