@@ -16,9 +16,10 @@ import (
 const getFeedItem = `-- name: GetFeedItem :one
 SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
   f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at,
-  (SELECT count(*) FROM feed_likes l WHERE l.feed_object_id = f.id)::int AS like_count,
+  (SELECT count(*) FROM feed_reactions r WHERE r.feed_object_id = f.id AND r.emoji = U&'\2764\FE0F')::int AS like_count,
   EXISTS (
-    SELECT 1 FROM feed_likes l WHERE l.feed_object_id = f.id AND l.user_id = $1::uuid
+    SELECT 1 FROM feed_reactions r
+    WHERE r.feed_object_id = f.id AND r.user_id = $1::uuid AND r.emoji = U&'\2764\FE0F'
   ) AS liked_by_me,
   (
     NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AND fc.hidden_at IS NOT NULL)
@@ -144,9 +145,14 @@ func (q *Queries) GetFeedItem(ctx context.Context, arg GetFeedItemParams) (GetFe
 }
 
 const likeFeedItem = `-- name: LikeFeedItem :execrows
-INSERT INTO feed_likes (feed_object_id, user_id, created_at)
-VALUES ($1, $2, $3)
-ON CONFLICT (feed_object_id, user_id) DO NOTHING
+WITH liked AS (
+  INSERT INTO feed_likes (feed_object_id, user_id, created_at)
+  VALUES ($1, $2, $3)
+  ON CONFLICT (feed_object_id, user_id) DO NOTHING
+)
+INSERT INTO feed_reactions (feed_object_id, user_id, emoji, created_at)
+VALUES ($1, $2, U&'\2764\FE0F', $3)
+ON CONFLICT (feed_object_id, user_id, emoji) DO NOTHING
 `
 
 type LikeFeedItemParams struct {
@@ -166,9 +172,10 @@ func (q *Queries) LikeFeedItem(ctx context.Context, arg LikeFeedItemParams) (int
 const listFeed = `-- name: ListFeed :many
 SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
   f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at,
-  (SELECT count(*) FROM feed_likes l WHERE l.feed_object_id = f.id)::int AS like_count,
+  (SELECT count(*) FROM feed_reactions r WHERE r.feed_object_id = f.id AND r.emoji = U&'\2764\FE0F')::int AS like_count,
   EXISTS (
-    SELECT 1 FROM feed_likes l WHERE l.feed_object_id = f.id AND l.user_id = $1::uuid
+    SELECT 1 FROM feed_reactions r
+    WHERE r.feed_object_id = f.id AND r.user_id = $1::uuid AND r.emoji = U&'\2764\FE0F'
   ) AS liked_by_me
 FROM feed_objects f
 WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AND fc.hidden_at IS NOT NULL)
@@ -316,9 +323,10 @@ func (q *Queries) ListFeed(ctx context.Context, arg ListFeedParams) ([]ListFeedR
 const listTopFeed = `-- name: ListTopFeed :many
 SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
   f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at,
-  (SELECT count(*) FROM feed_likes l WHERE l.feed_object_id = f.id)::int AS like_count,
+  (SELECT count(*) FROM feed_reactions r WHERE r.feed_object_id = f.id AND r.emoji = U&'\2764\FE0F')::int AS like_count,
   EXISTS (
-    SELECT 1 FROM feed_likes l WHERE l.feed_object_id = f.id AND l.user_id = $1::uuid
+    SELECT 1 FROM feed_reactions r
+    WHERE r.feed_object_id = f.id AND r.user_id = $1::uuid AND r.emoji = U&'\2764\FE0F'
   ) AS liked_by_me
 FROM feed_objects f
 WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AND fc.hidden_at IS NOT NULL)
@@ -470,8 +478,11 @@ func (q *Queries) ListTopFeed(ctx context.Context, arg ListTopFeedParams) ([]Lis
 }
 
 const unlikeFeedItem = `-- name: UnlikeFeedItem :execrows
-DELETE FROM feed_likes
-WHERE feed_object_id = $1 AND user_id = $2
+WITH unliked AS (
+  DELETE FROM feed_likes l WHERE l.feed_object_id = $1 AND l.user_id = $2
+)
+DELETE FROM feed_reactions r
+WHERE r.feed_object_id = $1 AND r.user_id = $2 AND r.emoji = U&'\2764\FE0F'
 `
 
 type UnlikeFeedItemParams struct {

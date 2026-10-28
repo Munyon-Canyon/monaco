@@ -22,7 +22,8 @@ func GetFeedItem(
 ) (FeedItemView, error) {
 	const op = "social.GetFeedItem"
 	f := filterParams(viewer, filter)
-	row, err := sqlc.New(db).GetFeedItem(ctx, sqlc.GetFeedItemParams{
+	reads := sqlc.New(db)
+	row, err := reads.GetFeedItem(ctx, sqlc.GetFeedItemParams{
 		Kinds: f.Kinds, CabalID: f.CabalID, ActorID: f.ActorID, Symbol: f.Symbol, Q: f.Q, Following: f.Following,
 		Mine: f.Mine, Viewer: f.Viewer, ID: id,
 	})
@@ -42,5 +43,9 @@ func GetFeedItem(
 	if err != nil {
 		return FeedItemView{}, err
 	}
-	return FeedItemView{Item: item, Visible: row.Visible}, nil
+	items := []FeedItem{item}
+	if err := attachReactions(ctx, reads, viewer, items); err != nil {
+		return FeedItemView{}, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	return FeedItemView{Item: items[0], Visible: row.Visible}, nil
 }

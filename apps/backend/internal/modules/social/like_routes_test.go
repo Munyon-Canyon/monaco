@@ -3,9 +3,11 @@ package social_test
 import (
 	"encoding/json"
 	"net/http"
+	"slices"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
@@ -42,18 +44,31 @@ func TestFeedLikes_RoutesMountBesideEveryFeedRouteAndAnswerThroughTheRouter(t *t
 		)
 }
 
-func itemLikes(count int, mine bool) scenario.Step {
+func itemLikes(count int32, mine bool) scenario.Step {
 	return scenario.ExpectField("item", func(s *scenario.Scenario, raw json.RawMessage) {
 		s.Helper()
 		var item struct {
-			LikeCount int  `json:"like_count"`
-			LikedByMe bool `json:"liked_by_me"`
+			LikeCount     int32           `json:"like_count"`
+			LikedByMe     bool            `json:"liked_by_me"`
+			Reactions     json.RawMessage `json:"reactions"`
+			ReactionCount int32           `json:"reaction_count"`
 		}
 		if err := json.Unmarshal(raw, &item); err != nil {
 			s.Fatalf("decode the item: %v", err)
 		}
 		if item.LikeCount != count || item.LikedByMe != mine {
 			s.Fatalf("like_count %d, liked_by_me %v, want %d and %v", item.LikeCount, item.LikedByMe, count, mine)
+		}
+		var reactions []api.Reaction
+		if err := json.Unmarshal(item.Reactions, &reactions); err != nil || reactions == nil {
+			s.Fatalf("reactions %s, %v, want an array", item.Reactions, err)
+		}
+		want := []api.Reaction{}
+		if count > 0 {
+			want = []api.Reaction{{Emoji: redHeart, Count: count, Mine: mine}}
+		}
+		if !slices.Equal(reactions, want) || item.ReactionCount != count {
+			s.Fatalf("reactions %s, reaction_count %d, want %v and %d", item.Reactions, item.ReactionCount, want, count)
 		}
 	})
 }

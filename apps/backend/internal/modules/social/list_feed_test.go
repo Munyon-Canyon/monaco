@@ -232,7 +232,9 @@ type lastQuery struct {
 }
 
 func (q *lastQuery) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
-	q.sql, q.args = data.SQL, data.Args
+	if !strings.Contains(data.SQL, "-- name: ReactionSummaries ") {
+		q.sql, q.args = data.SQL, data.Args
+	}
 	return ctx
 }
 

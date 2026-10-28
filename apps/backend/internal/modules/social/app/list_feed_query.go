@@ -68,8 +68,16 @@ type FeedItem struct {
 	CommentCount  int32
 	LikeCount     int32
 	LikedByMe     bool
+	Reactions     []Reaction
+	ReactionCount int32
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+}
+
+type Reaction struct {
+	Emoji domain.Emoji
+	Count int32
+	Mine  bool
 }
 
 type FeedPage struct {
@@ -82,7 +90,8 @@ func ListFeed(ctx context.Context, db sqlc.DBTX, q FeedQuery) (FeedPage, error) 
 	if q.Limit < 1 || q.Limit > FeedPageMax {
 		return FeedPage{}, errs.New(errs.CodeInvalidInput, op, slog.Int("limit", q.Limit))
 	}
-	rows, err := fetchFeed(ctx, sqlc.New(db), q, int32(q.Limit)+1)
+	reads := sqlc.New(db)
+	rows, err := fetchFeed(ctx, reads, q, int32(q.Limit)+1)
 	if err != nil {
 		return FeedPage{}, errs.Wrap(err, errs.CodeOf(err), op)
 	}
@@ -93,6 +102,9 @@ func ListFeed(ctx context.Context, db sqlc.DBTX, q FeedQuery) (FeedPage, error) 
 			return FeedPage{}, err
 		}
 		page.Items = append(page.Items, item)
+	}
+	if err := attachReactions(ctx, reads, q.Viewer, page.Items); err != nil {
+		return FeedPage{}, errs.Wrap(err, errs.CodeOf(err), op)
 	}
 	if len(rows) > q.Limit {
 		last := page.Items[q.Limit-1]
@@ -126,6 +138,32 @@ func fetchFeed(ctx context.Context, reads *sqlc.Queries, q FeedQuery, rowLimit i
 		converted[i] = sqlc.ListFeedRow(row)
 	}
 	return converted, err
+}
+
+func attachReactions(ctx context.Context, reads *sqlc.Queries, viewer ids.UserID, items []FeedItem) error {
+	if len(items) == 0 {
+		return nil
+	}
+	at := make(map[uuid.UUID]int, len(items))
+	itemIDs := make([]uuid.UUID, len(items))
+	for i, item := range items {
+		at[item.ID], itemIDs[i] = i, item.ID
+	}
+	rows, err := reads.ReactionSummaries(
+		ctx, sqlc.ReactionSummariesParams{Viewer: viewer.UUID(), FeedObjectIds: itemIDs},
+	)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		item := &items[at[row.FeedObjectID]]
+		item.Reactions = append(
+			item.Reactions,
+			Reaction{Emoji: domain.Emoji(row.Emoji), Count: row.Count, Mine: row.Mine},
+		)
+		item.ReactionCount = row.Total
+	}
+	return nil
 }
 
 func feedItemOf(row sqlc.ListFeedRow) (FeedItem, error) {

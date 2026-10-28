@@ -8829,7 +8829,7 @@ components:
     FeedItem:
       type: object
       description: One feed item with its display strings rendered.
-      required: [id, kind, ref_type, ref_id, cabal_id, cabal_name, cabal_picture_url, actor_id, actor_name, actor_photo_url, asset_id, asset_logo_url, symbol, title, detail, body, status, tone, action, usdc_micros, asset_name, token_amount, token_decimals, price_micros, share_of_pot_bps, change_bps, mark_micros, prev_close_micros, proposal_id, comment_count, like_count, liked_by_me, return_1m_bps, return_private, created_at, updated_at]
+      required: [id, kind, ref_type, ref_id, cabal_id, cabal_name, cabal_picture_url, actor_id, actor_name, actor_photo_url, asset_id, asset_logo_url, symbol, title, detail, body, status, tone, action, usdc_micros, asset_name, token_amount, token_decimals, price_micros, share_of_pot_bps, change_bps, mark_micros, prev_close_micros, proposal_id, comment_count, like_count, liked_by_me, reactions, reaction_count, return_1m_bps, return_private, created_at, updated_at]
       properties:
         id: {type: string, format: uuid, description: "The item's id.", examples: ["01920000-0000-7000-8000-000000000007"]}
         kind:
@@ -8932,8 +8932,16 @@ components:
           description: "The proposal a proposal, trade, reply or threshold item is about. Null on other kinds."
           examples: ["01920000-0000-7000-8000-000000000009"]
         comment_count: {type: integer, format: int32, description: "The number of comments.", examples: [0]}
-        like_count: {type: integer, format: int32, description: "The number of users who like the item.", examples: [3]}
-        liked_by_me: {type: boolean, description: "True when the caller likes the item.", examples: [true]}
+        like_count: {type: integer, format: int32, description: "Deprecated, read `reactions` instead. The number of users who reacted with ❤️.", examples: [3]}
+        liked_by_me: {type: boolean, description: "Deprecated, read `reactions` instead. True when the caller reacted with ❤️.", examples: [true]}
+        reactions:
+          type: array
+          maxItems: 20
+          description: >-
+            The item's reactions, one per emoji, most used first, then the emoji first used earliest. At most the top 20;
+            `reaction_count` still counts every reaction.
+          items: {$ref: "#/components/schemas/Reaction"}
+        reaction_count: {type: integer, format: int32, minimum: 0, description: "The number of reactions on the item, over every emoji.", examples: [7]}
         return_1m_bps: {type: [integer, "null"], format: int64, description: "The author's one-month return in basis points, from the people board's `1M` range as of the last valuation run, not a live figure. Null when the author hides it, has no ranked row, or the item is a system item.", examples: [820]}
         return_private: {type: boolean, description: "True only when the author chose to hide their return. False for a system item or an author with no ranked row.", examples: [false]}
         created_at: {type: string, format: date-time, description: "When the item was created.", examples: ["2026-10-03T08:00:00Z"]}
@@ -9067,6 +9075,14 @@ components:
           type: [string, "null"]
           description: The cursor for the next page. Null on the last page.
           examples: [null]
+    Reaction:
+      type: object
+      description: One emoji on a feed item, how many users reacted with it and whether the caller did.
+      required: [emoji, count, mine]
+      properties:
+        emoji: {type: string, minLength: 1, maxLength: 32, description: "One emoji, such as 🎉 or 👍🏽.", examples: ["🎉"]}
+        count: {type: integer, format: int32, minimum: 1, description: "The number of users who reacted with this emoji.", examples: [5]}
+        mine: {type: boolean, description: "True when the caller reacted with this emoji.", examples: [true]}
     RealtimeTokenRequest:
       type: object
       description: >-
