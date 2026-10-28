@@ -11,6 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -21,6 +22,16 @@ import (
 )
 
 const flow14PrivyApp = "app-fixture"
+
+const flow14DeadlineMargin = 5 * time.Second
+
+func flow14Timeout(t *testing.T) time.Duration {
+	t.Helper()
+	if at, ok := t.Deadline(); ok {
+		return max(at.Sub(clock.Real{}.Now())-flow14DeadlineMargin, time.Second)
+	}
+	return time.Second
+}
 
 func flow14(t *testing.T, extra ...scenario.Option) *scenario.Scenario {
 	t.Helper()
@@ -38,7 +49,8 @@ func flow14(t *testing.T, extra ...scenario.Option) *scenario.Scenario {
 		Jupiter: config.Jupiter{SwapBaseURL: srv.URL + "/jupiter/swap/v2", PriceBaseURL: srv.URL + "/jupiter/price/v3"},
 		Relayer: config.Relayer{PrivateKey: flows.CashOutRelayerKey()},
 		Timeouts: config.Timeouts{
-			RPC: time.Second, Privy: 10 * time.Second, JupiterQuote: time.Second, JupiterExecute: 10 * time.Second,
+			RPC: flow14Timeout(t), Privy: 10 * time.Second,
+			JupiterQuote: flow14Timeout(t), JupiterExecute: 10 * time.Second,
 		},
 	}
 	with := func(build func(module.Deps) module.Module) func(module.Deps) module.Module {
