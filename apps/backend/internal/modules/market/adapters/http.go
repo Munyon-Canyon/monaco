@@ -21,11 +21,12 @@ import (
 )
 
 type HTTP struct {
-	List      app.Lister
-	Detail    app.Detailer
-	Chart     app.Charter
-	BestChain app.BestChainer
-	Clock     clock.Clock
+	List         app.Lister
+	Detail       app.Detailer
+	Chart        app.Charter
+	BestChain    app.BestChainer
+	Clock        clock.Clock
+	PollInterval time.Duration
 }
 
 var _ api.StrictServerInterface = HTTP{}
@@ -55,7 +56,7 @@ func (h HTTP) GetAsset(ctx context.Context, req api.GetAssetRequestObject) (api.
 	if err != nil {
 		return nil, err
 	}
-	body, err := wireDetail(view, h.Clock.Now())
+	body, err := wireDetail(view, h.Clock.Now(), h.PollInterval)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +184,7 @@ func wireSummary(item app.Summary, now time.Time) (api.AssetSummary, error) {
 	return out, nil
 }
 
-func wireDetail(view app.AssetView, now time.Time) (api.AssetDetail, error) {
+func wireDetail(view app.AssetView, now time.Time, pollInterval time.Duration) (api.AssetDetail, error) {
 	summary, err := wireSummary(view.Summary, now)
 	if err != nil {
 		return api.AssetDetail{}, err
@@ -208,7 +209,18 @@ func wireDetail(view app.AssetView, now time.Time) (api.AssetDetail, error) {
 		Tradable:        view.Summary.Asset.Tradable(),
 		OtherListings:   wireListings(view.Others),
 		Attribution:     domain.Attribution,
+
+		PriceSource:              priceSource(view.Summary),
+		PricePollIntervalSeconds: int(pollInterval / time.Second),
 	}, nil
+}
+
+func priceSource(item app.Summary) *api.AssetDetailPriceSource {
+	if !item.Priced || item.Price.Source == "" {
+		return nil
+	}
+	source := api.AssetDetailPriceSource(item.Price.Source)
+	return &source
 }
 
 func wireChart(chart app.Chart) (api.AssetChart, error) {

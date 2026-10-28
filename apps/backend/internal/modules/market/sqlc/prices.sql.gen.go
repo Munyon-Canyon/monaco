@@ -159,10 +159,10 @@ func (q *Queries) MarkAssetsQuoted(ctx context.Context, arg MarkAssetsQuotedPara
 }
 
 const recentPriceSamples = `-- name: RecentPriceSamples :many
-SELECT a.id AS asset_id, p.ts, p.price_micros
+SELECT a.id AS asset_id, p.ts, p.price_micros, p.source
 FROM assets AS a
 CROSS JOIN LATERAL (
-  SELECT price_points.ts, price_points.price_micros
+  SELECT price_points.ts, price_points.price_micros, price_points.source
   FROM price_points
   WHERE price_points.mint = a.mint AND price_points.ts <= $1::timestamptz
   ORDER BY price_points.ts DESC
@@ -183,6 +183,7 @@ type RecentPriceSamplesRow struct {
 	AssetID     uuid.UUID
 	Ts          time.Time
 	PriceMicros int64
+	Source      string
 }
 
 func (q *Queries) RecentPriceSamples(ctx context.Context, arg RecentPriceSamplesParams) ([]RecentPriceSamplesRow, error) {
@@ -199,7 +200,12 @@ func (q *Queries) RecentPriceSamples(ctx context.Context, arg RecentPriceSamples
 	var items []RecentPriceSamplesRow
 	for rows.Next() {
 		var i RecentPriceSamplesRow
-		if err := rows.Scan(&i.AssetID, &i.Ts, &i.PriceMicros); err != nil {
+		if err := rows.Scan(
+			&i.AssetID,
+			&i.Ts,
+			&i.PriceMicros,
+			&i.Source,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

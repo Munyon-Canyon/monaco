@@ -100,7 +100,7 @@ func expectDollarWinner(t *testing.T, body []byte, listing uuid.UUID, at time.Ti
 	if got.Symbol != "AAPLx" || got.AmountMicros != "1000000" || !got.QuotedAt.Equal(at) {
 		t.Fatalf("best chain = %s, want AAPLx for $1 at %v", body, at)
 	}
-	if got.Network != apibase.Solana || got.Venue != api.Jupiter || got.ListingId != listing ||
+	if got.Network != apibase.Solana || got.Venue != api.AssetBestChainVenueJupiter || got.ListingId != listing ||
 		got.NetShareNanos != "2970763" || got.PriceComparison.WinnerListingId != listing ||
 		len(got.PriceComparison.Quotes) != 1 {
 		t.Fatalf("best chain = %s, want the Solana listing", body)

@@ -154,6 +154,7 @@ func groupNewest(rows []sqlc.NewestSamplesRow) (map[string][]domain.Sample, erro
 		if err != nil {
 			return nil, err
 		}
+		sample.Source = domain.Source(row.Source)
 		out[row.Mint] = append(out[row.Mint], sample)
 	}
 	return out, nil

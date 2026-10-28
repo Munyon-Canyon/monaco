@@ -11,10 +11,10 @@ RETURNING mint, ts, price_micros;
 SELECT count(*)::bigint AS points FROM price_points;
 
 -- name: RecentPriceSamples :many
-SELECT a.id AS asset_id, p.ts, p.price_micros
+SELECT a.id AS asset_id, p.ts, p.price_micros, p.source
 FROM assets AS a
 CROSS JOIN LATERAL (
-  SELECT price_points.ts, price_points.price_micros
+  SELECT price_points.ts, price_points.price_micros, price_points.source
   FROM price_points
   WHERE price_points.mint = a.mint AND price_points.ts <= sqlc.arg(at)::timestamptz
   ORDER BY price_points.ts DESC

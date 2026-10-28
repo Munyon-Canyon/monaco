@@ -220,7 +220,8 @@ extension MarketMappingTests {
                         tradable: false
                     )
                 ],
-                attribution: "Data provided by CoinGecko"
+                attribution: "Data provided by CoinGecko",
+                pricePollIntervalSeconds: 120
             )
         )
 

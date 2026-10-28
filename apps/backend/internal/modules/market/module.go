@@ -171,6 +171,8 @@ func (m *Module) Mount(r api.Mount) {
 		Chart:     adapters.CacheChart(chart, cache),
 		BestChain: app.NewBestChains(m.Catalog(), adapters.DeferRouter(m.Router), m.deps.Clock),
 		Clock:     m.deps.Clock,
+
+		PollInterval: m.deps.Config.Market.PricePollInterval,
 	}, r)
 }
 

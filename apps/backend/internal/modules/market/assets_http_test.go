@@ -400,7 +400,9 @@ func newMarketAPIMounting(t *testing.T, when time.Time, mounting func(module.Dep
 	if err != nil {
 		t.Fatal(err)
 	}
-	mount := mounting(module.Deps{Pool: pool, Clock: clk})
+	mount := mounting(module.Deps{
+		Pool: pool, Clock: clk, Config: config.Config{Market: config.Market{PricePollInterval: 120 * time.Second}},
+	})
 	handler, err := httpx.Handler(httpx.Deps{
 		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, io.Discard),
 		Tracer:       noop.NewTracerProvider(),
@@ -1047,5 +1049,41 @@ func TestAssets_aVolumeOlderThanThirtySixHoursIsNullAndSoIsAMintWithNoRow(t *tes
 	if got.Volume24hMicros != nil || got.Volume24hAsOf != nil {
 		t.Fatalf("detail volume = %v as of %v, want null while another mint has a reading",
 			got.Volume24hMicros, got.Volume24hAsOf)
+	}
+}
+
+func TestAssetDetail_priceSourceComesFromTheStoredSample(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.seedFixtures(t)
+	insert := func(mint, source string, offset time.Duration) {
+		t.Helper()
+		if _, err := s.pool.Exec(t.Context(),
+			`INSERT INTO price_points (mint, ts, price_micros, source) VALUES ($1, $2, 100000000, $3)`,
+			mint, s.when.Add(offset), source); err != nil {
+			t.Fatal(err)
+		}
+	}
+	insert(marketfake.AAPLx().Mint.String(), "jupiter", -time.Minute)
+	insert(marketfake.TSLAx().Mint.String(), "coingecko", -time.Hour)
+
+	aapl := detailOf(t, s.get(t, "/v1/assets/AAPLx"))
+	if aapl.PriceSource == nil || *aapl.PriceSource != api.AssetDetailPriceSourceJupiter {
+		t.Fatalf("AAPLx price_source = %v, want jupiter", aapl.PriceSource)
+	}
+	tsla := detailOf(t, s.get(t, "/v1/assets/TSLAx"))
+	if tsla.PriceSource == nil || *tsla.PriceSource != api.AssetDetailPriceSourceCoingecko {
+		t.Fatalf("TSLAx price_source = %v, want coingecko", tsla.PriceSource)
+	}
+	if tsla.PriceAsOf == nil || !tsla.PriceAsOf.Equal(s.when.Add(-time.Hour)) {
+		t.Fatalf("TSLAx price_as_of = %v, want the sample's own time", tsla.PriceAsOf)
+	}
+	if aapl.PricePollIntervalSeconds != 120 {
+		t.Fatalf("price_poll_interval_seconds = %d, want 120", aapl.PricePollIntervalSeconds)
+	}
+	s.clock.Advance(10 * 120 * time.Second)
+	stale := detailOf(t, s.get(t, "/v1/assets/AAPLx"))
+	if stale.PriceAsOf == nil || !stale.PriceAsOf.Equal(s.when.Add(-time.Minute)) {
+		t.Fatalf("stale price_as_of = %v, want the old sample's time", stale.PriceAsOf)
 	}
 }

@@ -17,7 +17,9 @@ extension Components.Schemas.AssetDetail {
         uiMultiplier: .init(num: 1, den: 1),
         tradable: true,
         otherListings: [],
-        attribution: "Data provided by CoinGecko"
+        attribution: "Data provided by CoinGecko",
+        priceSource: .jupiter,
+        pricePollIntervalSeconds: 120
     )
 
     public static let paused = Self(
@@ -36,7 +38,9 @@ extension Components.Schemas.AssetDetail {
         uiMultiplier: .init(num: 1, den: 1),
         tradable: true,
         otherListings: [],
-        attribution: "Data provided by CoinGecko"
+        attribution: "Data provided by CoinGecko",
+        priceSource: .jupiter,
+        pricePollIntervalSeconds: 120
     )
 
     public static let spaceX = Self(
@@ -57,6 +61,8 @@ extension Components.Schemas.AssetDetail {
         otherListings: [
             .init(symbol: "SPACEX", displayName: "SpaceX", issuer: .prestocks, kind: .preIpo, tradable: false)
         ],
-        attribution: "Data provided by CoinGecko"
+        attribution: "Data provided by CoinGecko",
+        priceSource: .jupiter,
+        pricePollIntervalSeconds: 120
     )
 }
