@@ -541,6 +541,11 @@ func TestWatch_reportsWhatItCannotReadAboutThePriorRunAndWhatItCannotRerun(t *te
 			l.prior(Run{ID: 70, Status: "completed", Conclusion: "failure", HeadSHA: "5555", CreatedAt: priorAt(l.f)})
 			l.f.hub.status[jobs] = 500
 		}},
+		{"the later runs cannot be listed", "watch error: revert #1 #2: GET ", true, func(l *landingFixture) {
+			at := l.f.now.Add(-5 * time.Minute).UTC().Format(time.RFC3339)
+			l.f.hub.status[get("/actions/workflows/staging.yml/runs?event=workflow_dispatch&branch=fb&created=>="+
+				at+"&per_page=100")] = 500
+		}},
 		{"the rerun is refused", "watch error: rerun https://gh/run/77: POST ", false, func(l *landingFixture) {
 			l.f.hub.on(rerun, "")
 			l.f.hub.status[rerun] = 500
@@ -564,7 +569,8 @@ func TestWatch_reportsWhatItCannotReadAboutThePriorRunAndWhatItCannotRerun(t *te
 func sharedRunLanding(t *testing.T, headSHA string, jobs ...Job) *landingFixture {
 	t.Helper()
 	l := newLanding(t, func(x *Landing) { x.RunID = 0 })
-	l.sh.first(shellRule{prefix: "git merge-base " + lastSHA + " " + headSHA, out: lastSHA + "\n"})
+	l.sh.first(shellRule{prefix: "git merge-base " + lastSHA + " " + headSHA, out: lastSHA + "\n"},
+		shellRule{prefix: "git merge-base " + lastSHA + " " + firstSHA, out: "0000\n"})
 	at := l.f.now.Add(-5 * time.Minute).UTC().Format(time.RFC3339)
 	older := Run{ID: 70, Status: "completed", Conclusion: "success", HeadSHA: firstSHA}
 	older.CreatedAt = l.f.now.Add(-4 * time.Minute)
@@ -741,5 +747,68 @@ func TestWatch_buildsNoRevertWhenItCannotRecordTheAttempt(t *testing.T) {
 	_, stdout, _ := l.f.agents(t, "watch", "--once")
 	if !strings.Contains(stdout, "record the revert attempt: ") || l.count("git worktree add") != 0 {
 		t.Fatalf("%q", stdout)
+	}
+}
+
+func laterRuns(l *landingFixture, runs ...Run) {
+	at := l.f.now.Add(-5 * time.Minute).UTC().Format(time.RFC3339)
+	l.f.hub.on(
+		get("/actions/workflows/staging.yml/runs?event=workflow_dispatch&branch=fb&created=>="+at+"&per_page=100"),
+		map[string]any{"workflow_runs": runs},
+	)
+}
+
+func TestWatch_aLaterGreenRunContainingTheLandingSettlesIt(t *testing.T) {
+	t.Parallel()
+	l := newLanding(t, func(x *Landing) { x.Reran = false })
+	l.run("failure", Job{Name: "staging / Backend tests (a)", Conclusion: "failure"})
+	laterRuns(l, Run{
+		ID: 80, Status: "completed", Conclusion: "success", URL: "https://gh/run/80", HeadSHA: baseSHA,
+		CreatedAt: l.f.now.Add(-2 * time.Minute),
+	})
+	l.sh.first(shellRule{prefix: "git merge-base " + lastSHA + " " + baseSHA, out: lastSHA + "\n"})
+	_, stdout, _ := l.f.agents(t, "watch", "--once")
+	want := "staging run https://gh/run/77 failed, but https://gh/run/80 at " + baseSHA[:12] +
+		" contains #1 #2 and passed; not reverting\n"
+	if !strings.Contains(stdout, want) || strings.Contains(stdout, "reverted") || strings.Contains(stdout, "reran") {
+		t.Fatalf("%q", stdout)
+	}
+	if got := l.landing(t); !got.Checked || got.Revert != 0 || got.Reran {
+		t.Fatalf("landing %+v", got)
+	}
+	if len(l.f.hub.callsContaining("/rerun")) != 0 || len(l.sh.lines("git revert", "gt submit")) != 0 {
+		t.Fatal("the landing was rerun or reverted")
+	}
+}
+
+func TestWatch_aLaterGreenRunNotContainingTheLandingDoesNot(t *testing.T) {
+	t.Parallel()
+	l := newLanding(t, func(x *Landing) { x.Reran = false })
+	l.run("failure", Job{Name: "staging / Backend tests (a)", Conclusion: "failure"})
+	laterRuns(l,
+		Run{
+			ID: 80, Status: "completed", Conclusion: "success", URL: "https://gh/run/80", HeadSHA: baseSHA,
+			CreatedAt: l.f.now.Add(-2 * time.Minute),
+		},
+		Run{
+			ID: 81, Status: "completed", Conclusion: "failure", URL: "https://gh/run/81", HeadSHA: firstSHA,
+			CreatedAt: l.f.now.Add(-time.Minute),
+		},
+	)
+	l.f.hub.on("POST /repos/o/r/actions/runs/77/rerun-failed-jobs", "")
+	l.sh.first(shellRule{prefix: "git merge-base " + lastSHA + " " + baseSHA, out: "0000\n"})
+	_, stdout, _ := l.f.agents(t, "watch", "--once")
+	if strings.Contains(stdout, "not reverting") || !strings.Contains(stdout, "reran the failed jobs once") {
+		t.Fatalf("%q", stdout)
+	}
+	if got := l.landing(t); got.Checked || !got.Reran {
+		t.Fatalf("landing %+v", got)
+	}
+	if lines := l.sh.lines("git merge-base " + lastSHA + " " + firstSHA); len(lines) != 0 {
+		t.Fatalf("looked at a failed run: %v", lines)
+	}
+	_, stdout, _ = l.f.agents(t, "watch", "--once")
+	if !strings.Contains(stdout, "reverted #1 #2 with #99") {
+		t.Fatalf("second failure: %q", stdout)
 	}
 }

@@ -131,6 +131,18 @@ func (env *Env) oldestRunContaining(ctx context.Context, l Landing, runs []Run) 
 	return Run{}, false, nil
 }
 
+func (env *Env) laterGreenRun(ctx context.Context, l Landing) (Run, bool, error) {
+	runs, err := env.GitHub.DispatchedRuns(ctx, indicatorWorkflow, env.Config.FeatureBranch, l.At)
+	if err != nil {
+		return Run{}, false, err
+	}
+	runs = slices.DeleteFunc(runs, func(x Run) bool { return !x.done() || x.Conclusion != "success" })
+	if len(runs) == 0 {
+		return Run{}, false, nil
+	}
+	return env.oldestRunContaining(ctx, l, runs)
+}
+
 func (env *Env) noLandingRun(ctx context.Context, l Landing) ([]string, func(*Landing)) {
 	sha, age := sha12(l.SHA), env.Now().Sub(l.At)
 	switch {
@@ -188,6 +200,22 @@ func (env *Env) relatedFailure(ctx context.Context, r Record, l Landing, run Run
 	if run.HeadSHA != "" && run.HeadSHA != l.SHA {
 		return landingCall{lines: append(lines, fmt.Sprintf(
 			"staging run %s covers %s and other landings; not reverting one of several", run.URL, refs))}, nil
+	}
+	return env.settleRerunOrRevert(ctx, r, l, run, related, lines)
+}
+
+func (env *Env) settleRerunOrRevert(
+	ctx context.Context, r Record, l Landing, run Run, related, lines []string,
+) (landingCall, error) {
+	refs := prRefs(l.PRs)
+	later, settled, err := env.laterGreenRun(ctx, l)
+	if err != nil {
+		return landingCall{}, err
+	}
+	if settled {
+		return landingCall{lines: append(lines, fmt.Sprintf(
+			"staging run %s failed, but %s at %s contains %s and passed; not reverting",
+			run.URL, later.URL, sha12(later.HeadSHA), refs))}, nil
 	}
 	if !l.Reran {
 		if err := env.GitHub.RerunFailed(ctx, run.ID); err != nil {
