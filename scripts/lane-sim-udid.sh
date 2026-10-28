@@ -46,7 +46,8 @@ if [[ -n "$udid" ]]; then
   exit 0
 fi
 
-# One creator per lane at a time (mkdir is atomic); a lock whose pid is gone is stale.
+# One creator per lane at a time (mkdir is atomic); a lock whose pid is gone is stale. It is
+# stolen by an atomic rename, so a waiter never removes a lock another process just took.
 lock="$top/.build/lane-sim.lock"
 mkdir -p "$top/.build"
 have_lock=0
@@ -61,7 +62,14 @@ while (( tries < 600 )); do
   fi
   owner="$(cat "$lock/pid" 2>/dev/null || true)"
   if [[ -n "$owner" ]] && ! kill -0 "$owner" 2>/dev/null; then
-    rm -rf "$lock"
+    stale="$lock.stale.$$"
+    if mv "$lock" "$stale" 2>/dev/null; then
+      if [[ "$(cat "$stale/pid" 2>/dev/null || true)" == "$owner" ]]; then
+        rm -rf "$stale"
+      elif ! mv "$stale" "$lock" 2>/dev/null; then
+        rm -rf "$stale"
+      fi
+    fi
     continue
   fi
   sleep 0.2
