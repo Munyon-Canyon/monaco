@@ -116,6 +116,7 @@ type Module struct {
 	deps       module.Deps
 	hot        []app.HotMints
 	holders    app.HolderCounts
+	holding    app.CabalsHolding
 }
 
 func New(d module.Deps) *Module { return &Module{multichain: newMultichain(d), deps: d} }
@@ -132,6 +133,9 @@ func (m *Module) Wire(set module.Set) {
 		}
 		if provider, ok := mod.(treasuryport.CabalHolderCounts); ok {
 			m.holders = holderCounts(provider)
+		}
+		if provider, ok := mod.(treasuryport.CabalsHolding); ok {
+			m.holding = provider.CabalsHolding
 		}
 	}
 }
@@ -185,7 +189,7 @@ func (m *Module) Mount(r api.Mount) {
 	}
 	marketapi.Mount(adapters.HTTP{
 		List:      adapters.CacheList(list, cache),
-		Detail:    app.NewDetail(m.deps.Pool, list),
+		Detail:    app.NewDetail(m.deps.Pool, list).WithHolding(m.holding),
 		Chart:     adapters.CacheChart(chart, cache),
 		BestChain: app.NewBestChains(m.Catalog(), adapters.DeferRouter(m.Router), m.deps.Clock),
 		Clock:     m.deps.Clock,

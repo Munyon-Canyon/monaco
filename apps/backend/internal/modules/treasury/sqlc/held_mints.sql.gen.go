@@ -11,6 +11,30 @@ import (
 	"github.com/google/uuid"
 )
 
+const cabalsHoldingAsset = `-- name: CabalsHoldingAsset :many
+SELECT DISTINCT cabal_id FROM cabal_positions WHERE units > 0 AND asset = $1::text
+`
+
+func (q *Queries) CabalsHoldingAsset(ctx context.Context, asset string) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, cabalsHoldingAsset, asset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var cabal_id uuid.UUID
+		if err := rows.Scan(&cabal_id); err != nil {
+			return nil, err
+		}
+		items = append(items, cabal_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const heldByCabal = `-- name: HeldByCabal :many
 SELECT DISTINCT asset, cabal_id FROM cabal_positions WHERE units > 0
 `

@@ -1,4 +1,4 @@
-h1:SpI35uA/E7Yr7WgsMdy0W1HSLl7LwrdEOW1xEBGz0IU=
+h1:HHDLoUdtcD8CR4NM3o4GfzPgHC1ROi9k+E+KKMiiAK0=
 20260927140427_platform.sql h1:dpKT9ALI2RTf1SBI4IzLY9kt47VTa8+JAziYaHsX5Jw=
 20260927185159_idempotency.sql h1:iYIp5Y5kBuPj5UJGcOifMeosr8qf0tj17c+5bmF37zE=
 20260929120000_system.sql h1:m6n0Y3tCc4MlfYNzi6Fh01YnogvlBbpQb1/X4WCtW40=
@@ -122,3 +122,4 @@ h1:SpI35uA/E7Yr7WgsMdy0W1HSLl7LwrdEOW1xEBGz0IU=
 20261028101100_social_feed_reactions.sql h1:DKi3ZthN7y+b8vIL1Oyy/oU1AkFTjqT9+xJJJNBsB7g=
 20261028104327_governance_proposal_stats.sql h1:ZOUN0kkkQil/wCnkHMQmq2adMWFrscrQN8f6NUiue9o=
 20261028130201_market_pre_ipo_profiles.sql h1:1Bv+QN0AqsaoxcNlXBoGm3u+X6xYbHYy7UvtAkykM9E=
+20261028164916_market_company_facts.sql h1:IFg0KtdDOaXBnohdXPEwRsIpMvySwJZ28r4kLuOUUfw=

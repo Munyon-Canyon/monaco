@@ -208,6 +208,11 @@ func wireDetail(view app.AssetView, now time.Time, pollInterval time.Duration) (
 		}
 		preIPO = &wired
 	}
+	var stats *api.AssetStats
+	if view.Stats != nil {
+		wired := wireStats(*view.Stats)
+		stats = &wired
+	}
 	return api.AssetDetail{
 		Symbol:          summary.Symbol,
 		DisplayName:     summary.DisplayName,
@@ -228,10 +233,22 @@ func wireDetail(view app.AssetView, now time.Time, pollInterval time.Duration) (
 		OtherListings:   wireListings(view.Others),
 		Attribution:     domain.Attribution,
 		PreIpo:          preIPO,
+		Stats:           stats,
 
 		PriceSource:              priceSource(view.Summary),
 		PricePollIntervalSeconds: int(pollInterval / time.Second),
 	}, nil
+}
+
+func wireStats(stats app.Stats) api.AssetStats {
+	out := api.AssetStats{
+		HeldByCabals: stats.HeldByCabals, OpenMicros: stats.Open,
+		YearLowMicros: stats.YearLow, YearHighMicros: stats.YearHigh,
+	}
+	if stats.MarketCap != "" {
+		out.MarketCapMicros = &stats.MarketCap
+	}
+	return out
 }
 
 func priceSource(item app.Summary) *api.AssetDetailPriceSource {

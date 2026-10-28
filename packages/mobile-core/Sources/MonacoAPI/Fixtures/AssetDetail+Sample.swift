@@ -22,6 +22,63 @@ extension Components.Schemas.AssetDetail {
         pricePollIntervalSeconds: 120
     )
 
+    public static let nvda = Self(
+        symbol: "NVDAx",
+        displayName: "NVIDIA xStock",
+        issuer: .xstocks,
+        kind: .equity,
+        logoUrl: "https://cdn.example.com/NVDAx.png",
+        priceMicros: 211_170_000,
+        priceAsOf: Date(timeIntervalSince1970: 1_772_596_200),
+        changeBps: 125,
+        sparklineMicros: [208_000_000, 211_170_000],
+        volume24hMicros: 9_400_000_000_000,
+        quotable: true,
+        session: .open,
+        decimals: 8,
+        uiMultiplier: .init(num: 1, den: 1),
+        tradable: true,
+        otherListings: [],
+        attribution: "Data provided by CoinGecko",
+        priceSource: .jupiter,
+        pricePollIntervalSeconds: 120,
+        stats: .init(
+            marketCapMicros: "5380000000000000000",
+            openMicros: 211_170_000,
+            yearLowMicros: 86_620_000,
+            yearHighMicros: 224_900_000,
+            heldByCabals: 1
+        )
+    )
+
+    public static let nvdaDashes = Self(
+        symbol: "NVDAx",
+        displayName: "NVIDIA xStock",
+        issuer: .xstocks,
+        kind: .equity,
+        logoUrl: "https://cdn.example.com/NVDAx.png",
+        priceMicros: 211_170_000,
+        priceAsOf: Date(timeIntervalSince1970: 1_772_596_200),
+        changeBps: 125,
+        sparklineMicros: [208_000_000, 211_170_000],
+        quotable: true,
+        session: .open,
+        decimals: 8,
+        uiMultiplier: .init(num: 1, den: 1),
+        tradable: true,
+        otherListings: [],
+        attribution: "Data provided by CoinGecko",
+        priceSource: .jupiter,
+        pricePollIntervalSeconds: 120,
+        stats: .init(
+            marketCapMicros: nil,
+            openMicros: nil,
+            yearLowMicros: nil,
+            yearHighMicros: nil,
+            heldByCabals: 0
+        )
+    )
+
     public static let paused = Self(
         symbol: "SBUXx",
         displayName: "Starbucks xStock",
