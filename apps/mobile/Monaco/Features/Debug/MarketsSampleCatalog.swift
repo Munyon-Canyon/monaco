@@ -45,7 +45,8 @@ nonisolated extension Components.Schemas.AssetDetail {
             logoUrl: listing.logoUrl, priceMicros: listing.priceMicros, priceAsOf: listing.priceAsOf,
             changeBps: listing.changeBps, sparklineMicros: listing.sparklineMicros, quotable: listing.quotable,
             session: listing.session, decimals: 8, uiMultiplier: .init(num: 1, den: 1),
-            tradable: listing.tradable ?? true, otherListings: [], attribution: "Data provided by CoinGecko")
+            tradable: listing.tradable ?? true, otherListings: [], attribution: "Data provided by CoinGecko",
+            pricePollIntervalSeconds: 120)
     }
 }
 #endif

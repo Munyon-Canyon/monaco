@@ -11,6 +11,7 @@ const HoldWindow = 3
 type Sample struct {
 	Micros     money.Micros
 	ObservedAt time.Time
+	Source     Source
 }
 
 func Accept(newestFirst []Sample) (Sample, bool) {

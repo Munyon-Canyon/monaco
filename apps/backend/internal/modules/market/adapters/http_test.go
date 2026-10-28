@@ -9,6 +9,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
@@ -162,3 +163,82 @@ func TestDeferRouterBuildsTheRouterOnceOnFirstUse(t *testing.T) {
 		t.Fatalf("built %d times, want 1", builds)
 	}
 }
+
+type scriptedDetail struct{ view app.AssetView }
+
+func (s scriptedDetail) Handle(context.Context, string) (app.AssetView, error) { return s.view, nil }
+
+func detailBody(t *testing.T, view app.AssetView, now time.Time, poll time.Duration) api.AssetDetail {
+	t.Helper()
+	user := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: testkit.NewIDs(1).NewV7().String()})
+	h := HTTP{Detail: scriptedDetail{view: view}, Clock: testkit.NewClock(now), PollInterval: poll}
+	got, err := h.GetAsset(user, api.GetAssetRequestObject{Symbol: "NVDAx"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ok, isOK := got.(api.GetAsset200JSONResponse)
+	if !isOK {
+		t.Fatalf("response = %T", got)
+	}
+	return api.AssetDetail(ok)
+}
+
+func pricedView(at time.Time, source domain.Source) app.AssetView {
+	return app.AssetView{Summary: app.Summary{
+		Asset:  domain.Asset{Symbol: "NVDAx"},
+		Priced: true,
+		Price:  domain.Sample{Micros: money.MicrosFromUint64(110_000_000), ObservedAt: at, Source: source},
+	}}
+}
+
+func TestAssetDetail_priceSourceFollowsTheSample(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 10, 28, 14, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name string
+		view app.AssetView
+		want *api.AssetDetailPriceSource
+	}{
+		{"jupiter", pricedView(now, domain.SourceJupiter), ptr(api.AssetDetailPriceSourceJupiter)},
+		{"coingecko", pricedView(now, domain.SourceCoinGecko), ptr(api.AssetDetailPriceSourceCoingecko)},
+		{"unknown source", pricedView(now, ""), nil},
+		{"unpriced", app.AssetView{Summary: app.Summary{Asset: domain.Asset{Symbol: "NVDAx"}}}, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := detailBody(t, tc.view, now, 120*time.Second).PriceSource
+			switch {
+			case tc.want == nil && got != nil:
+				t.Fatalf("price_source = %q, want null", *got)
+			case tc.want != nil && (got == nil || *got != *tc.want):
+				t.Fatalf("price_source = %v, want %q", got, *tc.want)
+			}
+		})
+	}
+}
+
+func TestAssetDetail_pollIntervalFromConfig(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 10, 28, 14, 0, 0, 0, time.UTC)
+	view := pricedView(now, domain.SourceJupiter)
+	for _, tc := range []struct {
+		poll time.Duration
+		want int
+	}{{120 * time.Second, 120}, {45 * time.Second, 45}} {
+		if got := detailBody(t, view, now, tc.poll).PricePollIntervalSeconds; got != tc.want {
+			t.Fatalf("price_poll_interval_seconds for %s = %d, want %d", tc.poll, got, tc.want)
+		}
+	}
+}
+
+func TestAssetDetail_staleSampleKeepsItsTime(t *testing.T) {
+	t.Parallel()
+	sampled := time.Date(2026, 10, 28, 14, 0, 0, 0, time.UTC)
+	now := sampled.Add(10 * 120 * time.Second)
+	got := detailBody(t, pricedView(sampled, domain.SourceJupiter), now, 120*time.Second)
+	if got.PriceAsOf == nil || !got.PriceAsOf.Equal(sampled) {
+		t.Fatalf("price_as_of = %v, want %s", got.PriceAsOf, sampled)
+	}
+}
+
+func ptr[T any](v T) *T { return &v }

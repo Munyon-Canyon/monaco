@@ -21,16 +21,16 @@ import (
 
 // Defines values for AssetBestChainVenue.
 const (
-	Jupiter AssetBestChainVenue = "jupiter"
-	Uniswap AssetBestChainVenue = "uniswap"
+	AssetBestChainVenueJupiter AssetBestChainVenue = "jupiter"
+	AssetBestChainVenueUniswap AssetBestChainVenue = "uniswap"
 )
 
 // Valid indicates whether the value is a known member of the AssetBestChainVenue enum.
 func (e AssetBestChainVenue) Valid() bool {
 	switch e {
-	case Jupiter:
+	case AssetBestChainVenueJupiter:
 		return true
-	case Uniswap:
+	case AssetBestChainVenueUniswap:
 		return true
 	default:
 		return false
@@ -97,6 +97,27 @@ func (e AssetChartRange) Valid() bool {
 	case AssetChartRangeN3M:
 		return true
 	case AssetChartRangeN6M:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AssetDetailPriceSource.
+const (
+	AssetDetailPriceSourceCoingecko   AssetDetailPriceSource = "coingecko"
+	AssetDetailPriceSourceJupiter     AssetDetailPriceSource = "jupiter"
+	AssetDetailPriceSourceLessThannil AssetDetailPriceSource = "<nil>"
+)
+
+// Valid indicates whether the value is a known member of the AssetDetailPriceSource enum.
+func (e AssetDetailPriceSource) Valid() bool {
+	switch e {
+	case AssetDetailPriceSourceCoingecko:
+		return true
+	case AssetDetailPriceSourceJupiter:
+		return true
+	case AssetDetailPriceSourceLessThannil:
 		return true
 	default:
 		return false
@@ -388,7 +409,7 @@ type AssetChartRange string
 
 // AssetDetail One asset, the list fields plus the chain facts and the other listings.
 //
-// Examples: {"attribution":"Data provided by CoinGecko","change_bps":1000,"decimals":8,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","other_listings":[],"price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx","tradable":true,"ui_multiplier":{"den":1,"num":1},"volume_24h_as_of":"2026-03-04T05:00:00Z","volume_24h_micros":2500000000000}
+// Examples: {"attribution":"Data provided by CoinGecko","change_bps":1000,"decimals":8,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","other_listings":[],"price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"price_poll_interval_seconds":120,"price_source":"jupiter","quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx","tradable":true,"ui_multiplier":{"den":1,"num":1},"volume_24h_as_of":"2026-03-04T05:00:00Z","volume_24h_micros":2500000000000}
 type AssetDetail struct {
 	// Attribution The data source line the asset screen shows.
 	//
@@ -440,6 +461,16 @@ type AssetDetail struct {
 	// Examples: 110000000
 	PriceMicros *int64 `json:"price_micros"`
 
+	// PricePollIntervalSeconds How often Monaco asks its provider for a new price, in seconds. A cadence, not a promise: `price_as_of` says how old the shown price is.
+	//
+	// Examples: 120
+	PricePollIntervalSeconds int `json:"price_poll_interval_seconds"`
+
+	// PriceSource The provider of the sample behind `price_micros` and `price_as_of`. Null when unpriced.
+	//
+	// Examples: jupiter
+	PriceSource *AssetDetailPriceSource `json:"price_source"`
+
 	// Quotable False when Jupiter has not priced this asset in the last 15 minutes, so a buy would find no route. The app marks it Paused and disables Buy.
 	//
 	// Examples: true
@@ -480,6 +511,11 @@ type AssetDetail struct {
 	// Examples: 2500000000000
 	Volume24hMicros *int64 `json:"volume_24h_micros"`
 }
+
+// AssetDetailPriceSource The provider of the sample behind `price_micros` and `price_as_of`. Null when unpriced.
+//
+// Examples: jupiter
+type AssetDetailPriceSource string
 
 // AssetIssuer The firm that issues the tokenized stock.
 //

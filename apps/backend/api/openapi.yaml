@@ -7383,6 +7383,8 @@ components:
           tradable: true
           other_listings: []
           attribution: Data provided by CoinGecko
+          price_source: jupiter
+          price_poll_interval_seconds: 120
       additionalProperties: false
       required:
         - symbol
@@ -7403,6 +7405,8 @@ components:
         - tradable
         - other_listings
         - attribution
+        - price_source
+        - price_poll_interval_seconds
       properties:
         symbol:
           type: string
@@ -7510,6 +7514,18 @@ components:
           type: string
           description: The data source line the asset screen shows.
           examples: ["Data provided by CoinGecko"]
+        price_source:
+          type: [string, "null"]
+          enum: [jupiter, coingecko, null]
+          description: The provider of the sample behind `price_micros` and `price_as_of`. Null when unpriced.
+          examples: [jupiter]
+        price_poll_interval_seconds:
+          type: integer
+          minimum: 1
+          description: >-
+            How often Monaco asks its provider for a new price, in seconds. A cadence, not a promise:
+            `price_as_of` says how old the shown price is.
+          examples: [120]
     AssetIssuer:
       type: string
       description: The firm that issues the tokenized stock.

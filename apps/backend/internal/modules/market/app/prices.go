@@ -140,5 +140,5 @@ func sampleOf(row sqlc.RecentPriceSamplesRow) (domain.AssetID, domain.Sample, er
 		return domain.AssetID{}, domain.Sample{}, errs.Wrap(err, errs.CodeDecodeFailed, "market.sampleOf",
 			slog.String("asset_id", row.AssetID.String()), slog.Int64("price_micros", row.PriceMicros))
 	}
-	return id, domain.Sample{Micros: micros, ObservedAt: row.Ts}, nil
+	return id, domain.Sample{Micros: micros, ObservedAt: row.Ts, Source: domain.Source(row.Source)}, nil
 }

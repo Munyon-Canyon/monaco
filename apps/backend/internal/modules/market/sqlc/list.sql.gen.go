@@ -226,10 +226,10 @@ func (q *Queries) ListAssetsBySymbol(ctx context.Context, arg ListAssetsBySymbol
 }
 
 const newestSamples = `-- name: NewestSamples :many
-SELECT u.mint::text AS mint, p.ts, p.price_micros
+SELECT u.mint::text AS mint, p.ts, p.price_micros, p.source
 FROM unnest($1::text[]) AS u (mint)
 CROSS JOIN LATERAL (
-  SELECT price_points.ts, price_points.price_micros
+  SELECT price_points.ts, price_points.price_micros, price_points.source
   FROM price_points
   WHERE price_points.mint = u.mint AND price_points.ts <= $2::timestamptz
   ORDER BY price_points.ts DESC
@@ -246,6 +246,7 @@ type NewestSamplesRow struct {
 	Mint        string
 	Ts          time.Time
 	PriceMicros int64
+	Source      string
 }
 
 func (q *Queries) NewestSamples(ctx context.Context, arg NewestSamplesParams) ([]NewestSamplesRow, error) {
@@ -257,7 +258,12 @@ func (q *Queries) NewestSamples(ctx context.Context, arg NewestSamplesParams) ([
 	var items []NewestSamplesRow
 	for rows.Next() {
 		var i NewestSamplesRow
-		if err := rows.Scan(&i.Mint, &i.Ts, &i.PriceMicros); err != nil {
+		if err := rows.Scan(
+			&i.Mint,
+			&i.Ts,
+			&i.PriceMicros,
+			&i.Source,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

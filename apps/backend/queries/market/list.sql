@@ -33,10 +33,10 @@ ORDER BY popular_rank, id
 LIMIT sqlc.arg(row_limit)::integer;
 
 -- name: NewestSamples :many
-SELECT u.mint::text AS mint, p.ts, p.price_micros
+SELECT u.mint::text AS mint, p.ts, p.price_micros, p.source
 FROM unnest(sqlc.arg(mints)::text[]) AS u (mint)
 CROSS JOIN LATERAL (
-  SELECT price_points.ts, price_points.price_micros
+  SELECT price_points.ts, price_points.price_micros, price_points.source
   FROM price_points
   WHERE price_points.mint = u.mint AND price_points.ts <= sqlc.arg(at)::timestamptz
   ORDER BY price_points.ts DESC
