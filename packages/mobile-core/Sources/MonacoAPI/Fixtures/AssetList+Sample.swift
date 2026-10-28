@@ -11,6 +11,11 @@ extension Components.Schemas.AssetList {
         nextCursor: nil
     )
 
+    public static let moversSample = Self(
+        assets: [.amd, .nflx, .tsla, .amzn, .msft],
+        nextCursor: nil
+    )
+
     public static let allSample = Self(
         assets: [.googl, .unpriced],
         nextCursor: "all-next"
@@ -18,6 +23,46 @@ extension Components.Schemas.AssetList {
 }
 
 extension Components.Schemas.AssetSummary {
+    private static func mover(
+        symbol: String, displayName: String, changeBps: Int32, sparklineMicros: [Int64]
+    ) -> Self {
+        Self(
+            symbol: symbol,
+            displayName: displayName,
+            issuer: .xstocks,
+            kind: .equity,
+            logoUrl: nil,
+            priceMicros: sparklineMicros.last,
+            priceAsOf: Date(timeIntervalSince1970: 1_772_596_200),
+            changeBps: changeBps,
+            sparklineMicros: sparklineMicros,
+            quotable: true,
+            session: .open,
+            tradable: true
+        )
+    }
+
+    public static let amd = mover(
+        symbol: "AMDx", displayName: "Advanced Micro Devices xStock", changeBps: 790,
+        sparklineMicros: [150_000_000, 153_000_000, 158_000_000, 161_850_000]
+    )
+    public static let nflx = mover(
+        symbol: "NFLXx", displayName: "Netflix xStock", changeBps: 520,
+        sparklineMicros: [900_000_000, 915_000_000, 930_000_000, 946_800_000]
+    )
+    public static let tsla = mover(
+        symbol: "TSLAx", displayName: "Tesla xStock", changeBps: -240,
+        sparklineMicros: [250_000_000, 247_000_000, 246_000_000, 244_000_000]
+    )
+    public static let amzn = mover(
+        symbol: "AMZNx", displayName: "Amazon xStock", changeBps: -210,
+        sparklineMicros: [200_000_000, 198_500_000, 197_000_000, 195_800_000]
+    )
+    public static let msft = mover(
+        symbol: "MSFTx", displayName: "Microsoft xStock", changeBps: 60,
+        sparklineMicros: [420_000_000, 421_000_000, 422_000_000, 422_520_000]
+    )
+
     public static let googl = Self(
         symbol: "GOOGLx",
         displayName: "Alphabet xStock",

@@ -159,7 +159,7 @@ func (m *Module) RouteChecker() *app.RouteChecker {
 }
 
 func (m *Module) Mount(r api.Mount) {
-	list := app.NewListAssets(m.deps.Pool, m.deps.Clock)
+	list := app.NewListAssets(m.deps.Pool, m.deps.Clock, m.hot...)
 	cache := adapters.NewCache(m.deps.Clock)
 	chart := app.NewChart(m.deps.Pool, m.deps.Clock)
 	if m.deps.Config.CoinGecko.HistoryEnabled {

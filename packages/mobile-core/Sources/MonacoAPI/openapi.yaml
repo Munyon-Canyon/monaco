@@ -2479,7 +2479,8 @@ paths:
       description: >-
         Returns the tradable catalog, one page at a time. `q` matches the start of a symbol or any
         part of a display name, ignoring case. `popular` orders by the curated rank. `pre_ipo`
-        keeps only pre-IPO tokens. A price the hold rule has not accepted is null, never zero.
+        keeps only pre-IPO tokens. `movers` orders priced, tradable stocks by the size of today's
+        move, largest first; it never lists Pre-IPO. A price the hold rule has not accepted is null, never zero.
       parameters:
         - name: q
           in: query
@@ -2495,7 +2496,7 @@ paths:
           description: Which tradable assets to return, and how to order them.
           schema:
             type: string
-            enum: [all, popular, pre_ipo]
+            enum: [all, popular, pre_ipo, movers]
             default: all
             examples: [popular]
         - name: limit

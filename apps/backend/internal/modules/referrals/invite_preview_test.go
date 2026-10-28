@@ -685,7 +685,7 @@ func seedOpenProposal(
 func castBallot(t *testing.T, s server, proposal, voter uuid.UUID, choice string, at time.Time) {
 	t.Helper()
 	if _, err := s.pool.Exec(t.Context(),
-		`INSERT INTO votes (proposal_id, voter_id, choice, cast_at) VALUES ($1, $2, $3, $4)`,
+		`INSERT INTO votes (proposal_id, voter_id, choice, cast_at, first_cast_at) VALUES ($1, $2, $3, $4, $4)`,
 		proposal, voter, choice, at); err != nil {
 		t.Fatal(err)
 	}
