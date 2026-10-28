@@ -830,3 +830,9 @@ proposals__votes__loading                          -MonacoProposalSample votesLo
 proposals__votes__open                             -MonacoProposalSample votesOpen
 proposals__votes__recorded                         -MonacoProposalSample votesRecorded
 proposals__votes__rejected                         -MonacoParitySample votes-rejected
+
+# F parity: one line per launch frame, named f__<frame> after docs/design/f/screens. #6583 adds the screen lines.
+f__01-tokens            -MonacoDesignGallery -MonacoDesignGalleryTab tokens -MonacoDesignGalleryAppearance dark
+f__01-tokens-type       -MonacoDesignGallery -MonacoDesignGalleryTab type -MonacoDesignGalleryAppearance dark
+f__01-tokens-controls   -MonacoDesignGallery -MonacoDesignGalleryTab controls -MonacoDesignGalleryAppearance dark
+f__01-chart-variants    -MonacoDesignGallery -MonacoDesignGalleryTab charts -MonacoDesignGalleryAppearance dark
