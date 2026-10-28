@@ -34,6 +34,8 @@ func TestCIPathFilter_jobsFollowTheWorkflow(t *testing.T) {
 		{"mobile-integration-script-only", []string{"scripts/ci/mobile-integration.sh"}, []string{"mobile-core", "scripts"}},
 		{"prune-caches-script-only", []string{"scripts/ci/prune-caches.sh"}, []string{"scripts"}},
 		{"xcode-lock-script-only", []string{"scripts/qa/xcode-lock.sh"}, []string{"scripts"}},
+		{"journey-script-only", []string{"scripts/qa/journey.py"}, []string{"scripts"}},
+		{"sample-screens-text-only", []string{"scripts/qa/sample-screens.txt"}, nil},
 		{"record-clip-script-only", []string{"scripts/demo/record-clip.sh"}, []string{"scripts"}},
 		{"openapi-only", []string{"apps/backend/api/openapi.yaml"}, []string{"lint", "ready", "backend", "mobile-core"}},
 		{"xcode-version-only", []string{".xcode-version"}, []string{"mobile-core", "ios"}},
@@ -51,7 +53,7 @@ func TestCIPathFilter_jobsFollowTheWorkflow(t *testing.T) {
 	}
 	got := jobsFor(filters, modified("apps/mobile/App.swift"))
 	for _, job := range got {
-		if job == "backend" || job == "flake" {
+		if job == "backend" {
 			t.Fatalf("apps/mobile change ran %s", job)
 		}
 	}
@@ -210,9 +212,6 @@ func jobsFor(filters map[string][]filterRule, changes []change) []string {
 	}
 	if hit["ios"] {
 		jobs = append(jobs, "ios")
-	}
-	if hit["backend-tests"] {
-		jobs = append(jobs, "flake")
 	}
 	if hit["scripts"] {
 		jobs = append(jobs, "scripts")
