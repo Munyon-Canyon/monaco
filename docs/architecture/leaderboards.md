@@ -63,6 +63,8 @@ Valuation needs, per cabal: units of each asset held, USDC held, total share uni
 
 The cabal screen reads the pot through `GET /v1/cabals/{id}/pot` (`treasury`'s `CabalPot`). One request makes one price read, and only when the pot holds a stock, so the pot, its holdings and the caller's slice always agree. It returns `pot_value_micros` (equal to `PotValue`), `cash_micros`, each holding with its units, price, value, weight and gain over cost basis, the cabal's all-time `pnl_micros` and `return_bps` over net contributed, `prices_as_of`, and `me`, the caller's share units, value, slice and gain. `me` is null for a non-member. Weights and slices are floored basis points that sum to 10000, with the remainder on the largest row. A holding without a price fresher than 5 minutes returns `price_unavailable`; the pot is never valued at cost basis. Any signed-in user may read it, and a banned cabal stays readable.
 
+`GET /v1/me/held` lists every holding of the caller's active cabals with the same valuation as the pot, from one price read for all of them, with a total and an optional `symbol` filter (Markets' Held, the stock page's In your cabals).
+
 The share cards read four more facts from treasury's own `cabal_activity`, never from `swaps`:
 
 - `GET /v1/cabals/{id}/activity?symbol=<sym>` returns only that stock's buys and sells, paged like the full list. A symbol the catalog does not know reads an empty page.

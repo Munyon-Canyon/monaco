@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"math/big"
 	"slices"
 	"time"
 
@@ -330,26 +329,13 @@ func (q *Queries) positionValue(
 	if multiplierNum <= 0 || multiplierDen <= 0 {
 		return money.Micros{}, errs.New(errs.CodeInvalidInput, "treasury.Queries.positionValue")
 	}
-	value, err := valueWithMultiplier(
+	value, err := domain.HoldingValue(
 		position.Units.Uint64(), price.Micros.Uint64(), uint64(multiplierNum), scale, uint64(multiplierDen),
 	)
 	if err != nil {
 		return money.Micros{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.positionValue")
 	}
 	return money.MicrosFromUint64(value), nil
-}
-
-func valueWithMultiplier(units, price, multiplier, scale, divisor uint64) (uint64, error) {
-	numerator := new(big.Int).SetUint64(units)
-	numerator.Mul(numerator, new(big.Int).SetUint64(price))
-	numerator.Mul(numerator, new(big.Int).SetUint64(multiplier))
-	denominator := new(big.Int).SetUint64(scale)
-	denominator.Mul(denominator, new(big.Int).SetUint64(divisor))
-	numerator.Quo(numerator, denominator)
-	if !numerator.IsUint64() {
-		return 0, errs.New(errs.CodeInvalidInput, "treasury.Queries.valueWithMultiplier")
-	}
-	return numerator.Uint64(), nil
 }
 
 func (q *Queries) PotBasis(ctx context.Context, cabalID ids.CabalID) (string, error) {

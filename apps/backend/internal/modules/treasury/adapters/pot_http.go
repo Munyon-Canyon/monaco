@@ -48,17 +48,7 @@ func wirePot(p port.CabalPot) (api.GetCabalPotResponseObject, error) {
 		PricesAsOf: p.PricesAsOf, Holdings: make([]api.CabalHolding, len(p.Holdings)),
 	}
 	for i, h := range p.Holdings {
-		out.Holdings[i] = api.CabalHolding{
-			Symbol: h.Symbol, DisplayName: h.DisplayName, Kind: api.CabalHoldingKind(h.Kind), Units: h.Units,
-			TokenAmount: w.micros(money.MicrosFromUint64(h.TokenAmount.Uint64())),
-			PriceMicros: w.micros(h.PriceMicros), ValueMicros: w.micros(h.ValueMicros), WeightBps: h.WeightBps,
-			CostBasisMicros: w.micros(h.CostBasisMicros), PnlMicros: h.PnLMicros.Int64(),
-			FirstBoughtAt: h.FirstBoughtAt, Listings: wireListings(&w, h.Listings),
-		}
-		if h.AvgEntryMicros != nil {
-			avg := h.AvgEntryMicros.String()
-			out.Holdings[i].AvgEntryMicros = &avg
-		}
+		out.Holdings[i] = wireHolding(&w, h)
 	}
 	if p.Me != nil {
 		out.Me = &api.CabalPotSlice{

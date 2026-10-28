@@ -53,6 +53,7 @@ type Module struct {
 	members         app.Members
 	users           app.Users
 	cabals          app.CabalViews
+	heldCabals      app.HeldCabals
 	pauses          app.CashOutPauses
 	withdrawals     fundingport.Withdrawals
 	fund            fundDeps
@@ -91,6 +92,7 @@ func New(d module.Deps) *Module {
 	return &Module{
 		multichain: newMultichain(),
 		deps:       d, members: app.UnwiredReads{}, users: app.UnwiredReads{}, cabals: app.UnwiredReads{},
+		heldCabals:      unwiredHeldCabals{},
 		treasuryWallets: app.UnwiredReads{}, memberWallets: app.UnwiredReads{},
 		withdrawals: app.UnwiredReads{},
 		pauses: app.CashOutPauseFunc(func(context.Context, ids.CabalID) (app.CashOutPause, error) {
@@ -102,6 +104,30 @@ func New(d module.Deps) *Module {
 	}
 }
 
+type unwiredHeldCabals struct{ app.UnwiredReads }
+
+func (unwiredHeldCabals) CabalsOf(context.Context, ids.UserID) ([]ids.CabalID, error) {
+	return nil, errs.New(errs.CodeUpstreamUnavailable, "treasury.UnwiredReads.CabalsOf")
+}
+
+type catalogLogos struct {
+	Catalog market.Catalog
+}
+
+func (c catalogLogos) LogosBySymbol(ctx context.Context) (map[string]string, error) {
+	all, err := c.Catalog.ListAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]string, len(all))
+	for _, a := range all {
+		if a.LogoURL != "" {
+			out[a.Symbol] = a.LogoURL
+		}
+	}
+	return out, nil
+}
+
 func (*Module) Name() string { return "treasury" }
 
 func (m *Module) Wire(set module.Set) {
@@ -110,6 +136,7 @@ func (m *Module) Wire(set module.Set) {
 		case interface{ Queries() cabalport.Queries }:
 			m.members = provider.Queries()
 			m.cabals = provider.Queries()
+			m.heldCabals = provider.Queries()
 			m.fund.cabals = provider.Queries()
 			m.treasuryWallets = provider.Queries()
 		case interface{ Queries() identityport.Queries }:
@@ -151,10 +178,20 @@ func (m *Module) Mount(r api.Mount) {
 		FundPreview: m.fundPreviewHandler(),
 		CashOut:     m.cashOutHandler(),
 		Pot:         m.reads(),
+		Held:        m.heldReads(),
 		Cabals:      m.cabals,
 		Members:     m.members,
 	}, r)
 }
+
+func (m *Module) heldReads() *app.HeldReads {
+	return app.NewHeldReads(
+		m.heldCabals,
+		m.reads(), catalogLogos{Catalog: market.New(m.deps).Catalog()}, m.deps.Clock,
+	)
+}
+
+func (m *Module) Held() *app.HeldReads { return m.heldReads() }
 
 func (m *Module) cashOutHandler() *app.CashOutHandler {
 	return app.NewCashOutHandler(

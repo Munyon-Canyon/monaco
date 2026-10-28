@@ -39,11 +39,17 @@ type potStore interface {
 func (q *Queries) CabalPot(
 	ctx context.Context, cabalID ids.CabalID, viewer ids.UserID, member bool,
 ) (port.CabalPot, error) {
-	const op = "treasury.Queries.CabalPot"
 	rows, err := q.pot.CabalPotSnapshot(ctx, cabalID.UUID())
 	if err != nil {
-		return port.CabalPot{}, errs.Wrap(err, errs.CodeOf(err), op)
+		return port.CabalPot{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.CabalPot")
 	}
+	return q.cabalPot(ctx, cabalID, viewer, member, rows)
+}
+
+func (q *Queries) cabalPot(
+	ctx context.Context, cabalID ids.CabalID, viewer ids.UserID, member bool, rows []sqlc.CabalPotSnapshotRow,
+) (port.CabalPot, error) {
+	const op = "treasury.Queries.CabalPot"
 	head := rows[0]
 	pot, err := q.potHoldings(ctx, cabalID, rows)
 	if err != nil {
@@ -107,21 +113,143 @@ func (q *Queries) me(
 
 type potBuilder struct{ port.CabalPot }
 
+type priceBook struct {
+	prices map[uuid.UUID]app.Price
+	quotes map[string]app.ListingQuote
+}
+
+func (q *Queries) CabalPots(ctx context.Context, cabalIDs []ids.CabalID) ([]port.CabalPot, error) {
+	const op = "treasury.Queries.CabalPots"
+	snapshots := make([][]sqlc.CabalPotSnapshotRow, len(cabalIDs))
+	for i, id := range cabalIDs {
+		rows, err := q.pot.CabalPotSnapshot(ctx, id.UUID())
+		if err != nil {
+			return nil, errs.Wrap(err, errs.CodeOf(err), op)
+		}
+		snapshots[i] = rows
+	}
+	book, err := q.readPrices(ctx, snapshots)
+	if err != nil {
+		return nil, err
+	}
+	frozen := q.frozen(book)
+	pots := make([]port.CabalPot, len(cabalIDs))
+	for i, id := range cabalIDs {
+		if pots[i], err = frozen.cabalPot(ctx, id, ids.UserID{}, false, snapshots[i]); err != nil {
+			return nil, err
+		}
+	}
+	return pots, nil
+}
+
+type priceNeeds struct {
+	positions []port.Position
+	keys      []string
+}
+
+func (q *Queries) readPrices(ctx context.Context, snapshots [][]sqlc.CabalPotSnapshotRow) (priceBook, error) {
+	assets := map[chain.SolanaAddress]app.Asset{}
+	var need priceNeeds
+	for _, rows := range snapshots {
+		if err := q.collectNeeds(ctx, &need, rows, assets); err != nil {
+			return priceBook{}, err
+		}
+	}
+	return q.fetchPrices(ctx, need, assets)
+}
+
+func (q *Queries) collectNeeds(
+	ctx context.Context, need *priceNeeds, rows []sqlc.CabalPotSnapshotRow, assets map[chain.SolanaAddress]app.Asset,
+) error {
+	split, err := q.byChain(snapshotHeld(rows))
+	if err != nil {
+		return err
+	}
+	var solanaKeys []string
+	for _, row := range split.solana {
+		position, err := q.position(ctx, row.asset, row.units, row.cost, assets)
+		if err != nil {
+			return err
+		}
+		if position.Mint != q.usdc {
+			need.positions = append(need.positions, position)
+			solanaKeys = append(solanaKeys, solanaListingKey(position.Mint))
+		}
+	}
+	if len(split.evm) == 0 {
+		return nil
+	}
+	for _, p := range split.evm {
+		need.keys = append(need.keys, p.key)
+	}
+	need.keys = append(need.keys, solanaKeys...)
+	return nil
+}
+
+func (q *Queries) fetchPrices(
+	ctx context.Context, need priceNeeds, assets map[chain.SolanaAddress]app.Asset,
+) (priceBook, error) {
+	const op = "treasury.Queries.CabalPots"
+	var book priceBook
+	var err error
+	if len(need.positions) > 0 {
+		if book.prices, err = q.pricesOf(ctx, need.positions, assets); err != nil {
+			return priceBook{}, errs.Wrap(err, errs.CodeOf(err), op)
+		}
+	}
+	if len(need.keys) > 0 && q.listings != nil {
+		slices.Sort(need.keys)
+		if book.quotes, err = q.listings(ctx, slices.Compact(need.keys), q.clock.Now()); err != nil {
+			return priceBook{}, errs.Wrap(err, errs.CodeOf(err), op)
+		}
+	}
+	return book, nil
+}
+
+func (q *Queries) frozen(book priceBook) *Queries {
+	on := *q
+	on.prices = func(_ context.Context, assetIDs []uuid.UUID, _ time.Time) (map[uuid.UUID]app.Price, error) {
+		out := make(map[uuid.UUID]app.Price, len(assetIDs))
+		for _, id := range assetIDs {
+			if price, ok := book.prices[id]; ok {
+				out[id] = price
+			}
+		}
+		return out, nil
+	}
+	if q.listings != nil {
+		on.listings = func(_ context.Context, keys []string, _ time.Time) (map[string]app.ListingQuote, error) {
+			out := make(map[string]app.ListingQuote, len(keys))
+			for _, key := range keys {
+				if quote, ok := book.quotes[key]; ok {
+					out[key] = quote
+				}
+			}
+			return out, nil
+		}
+	}
+	return &on
+}
+
 func (q *Queries) splitHeld(
 	ctx context.Context, cabalID ids.CabalID, rows []sqlc.CabalPotSnapshotRow,
 ) (chainRows, error) {
+	split, err := q.byChain(snapshotHeld(rows))
+	if err != nil {
+		return chainRows{}, err
+	}
+	split.first, err = q.firstBuys(ctx, cabalID)
+	return split, err
+}
+
+func snapshotHeld(rows []sqlc.CabalPotSnapshotRow) []heldRow {
 	held := make([]heldRow, 0, len(rows))
 	for _, row := range rows {
 		if row.Asset.Valid {
 			held = append(held, heldRow{asset: row.Asset.String, units: row.Units, cost: row.CostBasisMicros})
 		}
 	}
-	split, err := q.byChain(held)
-	if err != nil {
-		return chainRows{}, err
-	}
-	split.first, err = q.firstBuys(ctx, cabalID)
-	return split, err
+	return held
 }
 
 func (q *Queries) potHoldings(

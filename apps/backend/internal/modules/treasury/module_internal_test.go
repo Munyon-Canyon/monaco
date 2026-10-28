@@ -11,6 +11,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 )
@@ -97,5 +99,30 @@ func TestMarketListingsCarriesTheListingItsStockAndItsPrice(t *testing.T) {
 		err,
 	) != errs.CodeDBUnavailable {
 		t.Fatalf("marketListings over a failed read = %v, want db_unavailable", err)
+	}
+}
+
+func TestCatalogLogos_mapsSymbolsToTheirLogos(t *testing.T) {
+	t.Parallel()
+	aapl, spacex := marketfake.AAPLx(), marketfake.TSpaceX()
+	catalog := marketfake.NewCatalog(aapl, spacex)
+	got, err := catalogLogos{Catalog: catalog}.LogosBySymbol(t.Context())
+	if err != nil || len(got) != 1 || got[aapl.Symbol] != aapl.LogoURL || aapl.LogoURL == "" {
+		t.Fatalf("LogosBySymbol = %v, %v, want only %s", got, err, aapl.Symbol)
+	}
+	catalog.FailOnce("ListAll", errs.New(errs.CodeDBUnavailable, "test"))
+	if _, err := (catalogLogos{Catalog: catalog}).LogosBySymbol(t.Context()); err == nil {
+		t.Fatal("LogosBySymbol over a failed catalog = nil, want an error")
+	}
+}
+
+func TestNew_refusesHeldCabalsUntilWired(t *testing.T) {
+	t.Parallel()
+	if New(module.Deps{}).Held() == nil {
+		t.Fatal("Held() = nil")
+	}
+	_, err := New(module.Deps{}).heldCabals.CabalsOf(t.Context(), ids.UserID{})
+	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
+		t.Fatalf("CabalsOf before Wire = %v, want upstream_unavailable", err)
 	}
 }
