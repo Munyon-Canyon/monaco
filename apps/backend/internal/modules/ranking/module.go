@@ -135,6 +135,8 @@ type Port = port.Queries
 
 func (m *Module) Queries() port.Queries { return QueriesOn(m.deps.Pool) }
 
+func (m *Module) CabalReturns() adapters.Latest { return adapters.Latest{DB: m.deps.Pool} }
+
 func QueriesOn(db dbsqlc.DBTX) port.Queries { return adapters.Latest{DB: db} }
 
 type marketPort struct {
