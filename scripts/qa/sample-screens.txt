@@ -119,6 +119,14 @@ share-card-cabal-loss         -MonacoShareCardSample cabalLoss
 share-card-cabal-short        -MonacoShareCardSample cabalShort
 share-card-me-gain            -MonacoShareCardSample meGain
 share-card-me-no-code         -MonacoShareCardSample meNoCode
+share-sample                  -MonacoShareSample
+share-sample-post             -MonacoShareSample post
+share-sample-square           -MonacoShareSample square
+share-sample-pnl-off          -MonacoShareSample pnlOff
+share-sample-buy-sell-off     -MonacoShareSample buySellOff
+share-sample-truncated        -MonacoShareSample truncated
+share-sample-loading          -MonacoShareSample loading
+share-sample-failed           -MonacoShareSample failed
 
 home-populated                -MonacoHomeSample populated
 home-empty                    -MonacoHomeSample empty
