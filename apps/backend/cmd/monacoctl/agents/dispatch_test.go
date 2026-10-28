@@ -421,6 +421,49 @@ func TestDispatch_linksThePinnedToolsIntoTheWorktree(t *testing.T) {
 	}
 }
 
+func TestDispatch_seedsTheLaneCachesAfterAddingTheWorktree(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		fail    error
+		wantOut string
+	}{
+		{"seeded", nil, "seeded .build/DerivedData from primary\n"},
+		{"script fails", errors.New("exit status 2"), "seed caches: exit status 2\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := prepBranch(t)
+			env := f.Env(t)
+			wt := env.worktreePath(12)
+			var ran []string
+			run := env.Run
+			env.Run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
+				if strings.HasSuffix(name, "seed-lane-caches.sh") {
+					ran = append(ran, name+" "+strings.Join(args, " "))
+					return []byte("seeded .build/DerivedData from primary\n"), tc.fail
+				}
+				out, err := run(ctx, dir, stdin, name, args...)
+				if err == nil && name == "git" && slices.Contains(args, "add") {
+					writeFile(t, filepath.Join(wt, "scripts", "seed-lane-caches.sh"), "#!/bin/sh\n")
+				}
+				return out, err
+			}
+			var out strings.Builder
+			if err := env.ensureWorktree(t.Context(), wt, "fb", &out); err != nil {
+				t.Fatalf("a seeding failure must not stop the dispatch: %v", err)
+			}
+			script := filepath.Join(wt, "scripts", "seed-lane-caches.sh")
+			if want := []string{script + " " + wt}; !slices.Equal(ran, want) {
+				t.Fatalf("ran %v, want %v", ran, want)
+			}
+			if !strings.Contains(out.String(), tc.wantOut) {
+				t.Fatalf("out %q lacks %q", out.String(), tc.wantOut)
+			}
+		})
+	}
+}
+
 func TestDispatch_refusesBeforeAddingAWorktreeWhenTheCloneLacksAPinnedTool(t *testing.T) {
 	t.Parallel()
 	for _, tool := range pinnedTools() {

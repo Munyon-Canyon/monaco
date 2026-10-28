@@ -454,7 +454,7 @@ func (env *Env) worktreePath(ticket int) string {
 func (env *Env) ensureWorktree(ctx context.Context, path, tip string, stdout io.Writer) error {
 	entries, err := os.ReadDir(path)
 	if err != nil {
-		return env.addWorktree(ctx, path, tip)
+		return env.addSeededWorktree(ctx, path, tip, stdout)
 	}
 	rel := filepath.Join(".worktrees", filepath.Base(path))
 	registered, err := env.isWorktree(ctx, path)
@@ -540,6 +540,26 @@ func (env *Env) addWorktree(ctx context.Context, path, tip string) error {
 		}
 	}
 	return nil
+}
+
+func (env *Env) addSeededWorktree(ctx context.Context, path, tip string, stdout io.Writer) error {
+	if err := env.addWorktree(ctx, path, tip); err != nil {
+		return err
+	}
+	env.seedCaches(ctx, path, stdout)
+	return nil
+}
+
+func (env *Env) seedCaches(ctx context.Context, path string, stdout io.Writer) {
+	script := filepath.Join(path, "scripts", "seed-lane-caches.sh")
+	if !isFile(script) {
+		return
+	}
+	out, err := env.Run(ctx, path, "", script, path)
+	_, _ = stdout.Write(out)
+	if err != nil {
+		_, _ = fmt.Fprintf(stdout, "seed caches: %v\n", err)
+	}
 }
 
 func pinnedTools() []string { return []string{"atlas", "sqlc"} }
