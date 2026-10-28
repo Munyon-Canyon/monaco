@@ -56,8 +56,7 @@ type checkRow struct {
 
 	lockWaited string
 
-	notes  []string
-	refuse string
+	notes []string
 }
 
 const (
@@ -1091,9 +1090,6 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 		_, _ = fmt.Fprintf(&r.log, "skip %s: %s\n", row.label, row.skip)
 		return nil
 	}
-	if row.refuse != "" {
-		return r.refuse(stdout, row)
-	}
 	release, tokenWait, err := r.admit(ctx, &row, stdout)
 	if err != nil {
 		return err
@@ -1103,12 +1099,6 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 		return err
 	}
 	return r.runRow(ctx, row, stdout, tokenWait)
-}
-
-func (r *checkRun) refuse(stdout io.Writer, row checkRow) error {
-	_, _ = fmt.Fprintf(stdout, "  %-15s FAIL  %s\n", row.label, row.refuse)
-	_, _ = fmt.Fprintf(&r.log, "fail %s: %s\n", row.label, row.refuse)
-	return detailErr(errs.CodeInvalidInput, "monacoctl.agents.check", row.label+" failed; see the log")
 }
 
 func (r *checkRun) runRow(ctx context.Context, row checkRow, stdout io.Writer, tokenWait string) error {

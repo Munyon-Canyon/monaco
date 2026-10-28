@@ -53,7 +53,7 @@ func TestCheckTouches_acceptsFixturesInImportersThatNameAChangedIdentifier(t *te
 	}
 }
 
-func TestCheckTouches_stillFailsAnUnrelatedFixtureEdit(t *testing.T) {
+func TestCheckTouches_warnsOnAnUnrelatedFixtureEditWithoutFailing(t *testing.T) {
 	t.Parallel()
 	h := touchesHarness(t, "apps/backend/internal/x/x.go")
 	h.commit(t, map[string]string{
@@ -63,8 +63,8 @@ func TestCheckTouches_stillFailsAnUnrelatedFixtureEdit(t *testing.T) {
 		"README.md":                         "hi\n",
 	})
 	code, stdout, _ := h.check(t)
-	want := "outside Touches: README.md, apps/backend/internal/v/v_test.go, apps/backend/internal/z/z_test.go"
-	if code == 0 || !strings.Contains(stdout, want) {
+	want := "outside Touches (warning only): README.md, apps/backend/internal/v/v_test.go, apps/backend/internal/z/z_test.go"
+	if code != 0 || !strings.Contains(stdout, want) {
 		t.Fatalf("check: %d\n%s", code, stdout)
 	}
 	if strings.Contains(stdout, "accepted by ripple") {
