@@ -70,7 +70,7 @@ func (m *Module) Mount(r api.Mount) {
 	hints := adapters.Hints{Publish: m.deps.Bus}
 	reads := app.NewProposalReads(
 		m.deps.Pool, trading.New(m.deps).Queries(), cabal.New(m.deps).Queries(), ports.Assets,
-		identity.New(m.deps).Queries(), ranking.New(m.deps).Queries(),
+		identity.New(m.deps).Queries(), ranking.New(m.deps).Queries(), social.New(m.deps),
 	)
 	pending := app.NewPendingVoteReads(reads, app.PendingVotePorts{
 		Assets: market.New(m.deps).Catalog(), Replies: social.New(m.deps),

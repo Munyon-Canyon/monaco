@@ -88,6 +88,7 @@ type OpenedProposal struct {
 	TokenAmount     int64
 	QuoteOutAmount  int64
 	PriceComparison *multichain.Comparison
+	Stats           Stats
 }
 
 type ProposeTradeHandler struct {
@@ -162,8 +163,14 @@ func (h *ProposeTradeHandler) Open(ctx context.Context, cmd ProposeTrade) (Opene
 	if err != nil {
 		return OpenedProposal{}, err
 	}
+	share, err := TreasuryShareBps(shareValue(p.Draft()), a.pot)
+	if err != nil {
+		return OpenedProposal{}, err
+	}
 	err = h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		return store(ctx, tx, openParams(p.Draft(), rule, voters, now), a.comparison, created(p.Draft(), len(voters)))
+		params := openParams(p.Draft(), rule, voters, now)
+		params.PotValueMicros = a.potColumn()
+		return store(ctx, tx, params, a.comparison, created(p.Draft(), len(voters)))
 	})
 	if err != nil {
 		return OpenedProposal{}, err
@@ -177,6 +184,7 @@ func (h *ProposeTradeHandler) Open(ctx context.Context, cmd ProposeTrade) (Opene
 		Draft: p.Draft(), Voters: voters, CreatedAt: now, Needed: rule.Needed(len(voters)), ProposerCanVote: canVote,
 		USDCMicros: decimal(p.Draft().USDCMicros.String()), TokenAmount: decimal(p.Draft().TokenAmount.String()),
 		QuoteOutAmount: decimal(strconv.FormatUint(p.Draft().QuoteOut, 10)), PriceComparison: a.comparison,
+		Stats: Stats{TreasuryShareBps: share, ClosesAt: p.Draft().ExpiresAt},
 	}, nil
 }
 
@@ -200,7 +208,23 @@ func decimal(raw string) int64 {
 	return n
 }
 
+func shareValue(d domain.Draft) money.Micros {
+	if d.Kind == domain.KindSell {
+		return money.MicrosFromUint64(d.QuoteOut)
+	}
+	return d.USDCMicros
+}
+
+func (a assessment) potColumn() string {
+	if !a.potKnown {
+		return ""
+	}
+	return a.pot.String()
+}
+
 type assessment struct {
+	pot        money.Micros
+	potKnown   bool
 	asset      market.Asset
 	decimals   uint8
 	routed     uint64
@@ -215,7 +239,14 @@ func (h *ProposeTradeHandler) assess(ctx context.Context, cmd ProposeTrade) (ass
 		return assessment{}, err
 	}
 	if cmd.Trade.Kind == domain.KindSell {
-		return h.assessSell(ctx, cmd, asset)
+		sold, err := h.assessSell(ctx, cmd, asset)
+		if err != nil {
+			return assessment{}, err
+		}
+		if pot, err := h.ports.Treasury.PotValue(ctx, cmd.CabalID); err == nil {
+			sold.pot, sold.potKnown = pot, true
+		}
+		return sold, nil
 	}
 	pot, err := h.ports.Treasury.PotValue(ctx, cmd.CabalID)
 	if err != nil {
@@ -230,8 +261,8 @@ func (h *ProposeTradeHandler) assess(ctx context.Context, cmd ProposeTrade) (ass
 	}
 	priced, err := pinned(comparison, cmd.Trade.Network)
 	return assessment{
-		asset: asset, decimals: asset.Decimals, routed: routed, comparison: comparison, priced: priced,
-		network: cmd.Trade.Network,
+		pot: pot, potKnown: true, asset: asset, decimals: asset.Decimals, routed: routed, comparison: comparison,
+		priced: priced, network: cmd.Trade.Network,
 	}, err
 }
 

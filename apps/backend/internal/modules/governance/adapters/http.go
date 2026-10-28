@@ -55,7 +55,16 @@ func (h HTTP) PostProposalVote(
 		MyBallot:   api.BallotChoice(got.MyBallot),
 		Tally:      wireTally(got.Tally),
 		UndoUntil:  got.UndoUntil,
+		MyVote:     wireMyVote(got.MyVote),
 	}, nil
+}
+
+func wireMyVote(v app.MyVote) api.MyVote {
+	return api.MyVote{Order: v.Order, Of: v.Of, YesOrder: v.YesOrder, NoOrder: v.NoOrder, Decided: v.Decided}
+}
+
+func wireStats(s app.Stats) api.ProposalStats {
+	return api.ProposalStats{TreasuryShareBps: s.TreasuryShareBps, ClosesAt: s.ClosesAt, ClosedAt: s.ClosedAt}
 }
 
 func (h HTTP) DeleteProposalVote(
@@ -283,6 +292,11 @@ func (h HTTP) detail(ctx context.Context, id ids.ProposalID, user ids.UserID) (a
 		Voters: make([]api.ProposalVoter, len(got.Voters)), CanVote: got.CanVote, CanWithdraw: got.CanWithdraw,
 		PriceComparison: p.PriceComparison, Network: p.Network,
 		ProposerReturn1mBps: got.ProposerReturnBps, ProposerReturnPrivate: got.ProposerReturnPrivate,
+		Stats: wireStats(got.Stats), ReplyCount: got.ReplyCount,
+	}
+	if m := got.MyVote; m != nil {
+		mine := api.ProposalMyVote(wireMyVote(*m))
+		out.MyVote = &mine
 	}
 	for i, v := range got.Voters {
 		out.Voters[i] = api.ProposalVoter{UserId: v.UserID.UUID()}
@@ -417,6 +431,7 @@ func wireOpenedProposal(opened app.OpenedProposal, cabalName string) api.Proposa
 		ExpiresAt: p.ExpiresAt, CreatedAt: p.CreatedAt, Tally: p.Tally, MyBallot: p.MyBallot, Voters: voters,
 		CanVote: opened.ProposerCanVote, CanWithdraw: true,
 		PriceComparison: wireComparison(opened.PriceComparison), Network: wireNetwork(d.Network),
+		Stats: wireStats(opened.Stats),
 	}
 }
 

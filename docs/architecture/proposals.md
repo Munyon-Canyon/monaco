@@ -42,11 +42,16 @@ Only `proposals`, `proposal_voters` and `votes` are governance tables. The other
 | `status` | See below. |
 | `status_reason` | The `errs` code from `trade.blocked` when `execution_blocked`; null otherwise. The user-facing message comes from the [code table](backend-platform.md#errors). |
 | `void_reason` | The reason given when the proposal is `voided`; null otherwise. It is carried as `reason` on `proposal.voided`. |
+| `pot_value_micros` | The cabal's pot in USDC micros, read once in the `ProposeTrade` transaction's checks and stored when the proposal opens. A sell stores it only when the read succeeds, because a sell does not need prices to open. Null for a proposal opened before the column existed, and for such a sell. |
+| `closed_at` | When the proposal left `open`: the transition's time, or the void's time when voided from `open`. Later moves (`executed`, `execution_blocked`, `reopened`, a void from `passed`) never change it. Null while open. The migration backfilled it for non-open rows from the earliest `proposal.passed`, `failed`, `expired`, `withdrawn` or `voided` event in `events`, and left it null when no such event exists; it is never copied from `updated_at`, which a fill moves. |
+| `decided_by` | The voter whose ballot passed or failed the proposal. Written only by a transition out of `open`, and only the vote path sets it; expiry, withdraw and void leave it null. Null for older rows. No foreign key, like `proposer_id` and `voter_id`. |
 | `expires_at`, `created_at`, `updated_at` | |
 
 **`proposal_voters`**: `proposal_id`, `voter_id`. The cabal's voter set, copied from the cabal module's query port in the `ProposeTrade` transaction. Members who join or leave mid-vote do not change it, so the number of yes votes a proposal needs is fixed when it opens.
 
 **`votes`**: `proposal_id`, `voter_id`, `choice` (`yes`/`no`), `cast_at`, `first_cast_at`, `changed`. One ballot per voter per proposal. `first_cast_at` never moves, and `changed` turns true when a re-cast flips the side and never turns back. A voter may change their ballot while the proposal is `open` (upsert on the primary key); ballots are frozen once status leaves `open`.
+
+**Stats**: `GET /v1/proposals/{id}` returns `stats` and `my_vote` beside the proposal. Stored: the pot at open, the close time and the deciding voter. Computed on read: `stats.treasury_share_bps`, which is `MulDiv(usdc_micros, 10000, pot_value_micros)` for a buy and `quote_out_amount` over the pot for a sell, rounded down and null when the pot is null or zero; `my_vote`, the caller's place among the ballots by first cast and by side, from window functions over `votes` so no other voter's ballot leaves the database; and `reply_count`, from the social module's reply counter. The vote response carries the same `my_vote`, so the toast needs no second read. The list stays one query and carries none of these.
 
 **Comments**: a proposal's comments are the FeedComments on its `proposal` feed item ([feed.md](feed.md#comments)), owned by the `social` module. Nothing migrates from the old `proposal_comments` table: the new backend starts on an empty database. Comments stay open after the proposal closes so people can discuss the result. Comments and the proposal's chat thread stay separate streams.
 

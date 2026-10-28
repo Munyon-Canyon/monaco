@@ -458,6 +458,34 @@ type CastVoteRequest struct {
 	Choice BallotChoice `json:"choice"`
 }
 
+// MyVote Where the caller's ballot falls among the cabal's votes.
+type MyVote struct {
+	// Decided True when the caller's ballot closed the proposal. False for every other voter, and for a proposal that has not closed.
+	//
+	// Examples: true
+	Decided bool `json:"decided"`
+
+	// NoOrder The caller's place among the no ballots by cast time, counted from 1. Zero when the caller voted yes.
+	//
+	// Examples: 0
+	NoOrder int `json:"no_order"`
+
+	// Of Members in the voter set frozen when the proposal opened.
+	//
+	// Examples: 8
+	Of int `json:"of"`
+
+	// Order The caller's place among all voters by the time of their first ballot, counted from 1.
+	//
+	// Examples: 6
+	Order int `json:"order"`
+
+	// YesOrder The caller's place among the yes ballots by cast time, counted from 1. Zero when the caller voted no.
+	//
+	// Examples: 5
+	YesOrder int `json:"yes_order"`
+}
+
 // PendingVote An open proposal that still needs the caller's ballot, with the facts its card draws. Soonest-closing first, at most 50.
 type PendingVote struct {
 	// AssetLogoUrl Null when the asset has no logo.
@@ -701,6 +729,11 @@ type ProposalDetail struct {
 	// Examples: null
 	MyBallot *BallotChoice `json:"my_ballot"`
 
+	// MyVote Where the caller's ballot falls in the vote. Null when the caller has no ballot and for a non-member.
+	//
+	// Examples: null
+	MyVote *ProposalMyVote `json:"my_vote"`
+
 	// Network The chain the trade is pinned to. Absent when a buy takes the best price on any chain or a sell uses the Solana holding.
 	//
 	// Examples: base
@@ -730,6 +763,14 @@ type ProposalDetail struct {
 	//
 	// Examples: 105000000
 	QuoteOutAmount int64 `json:"quote_out_amount"`
+
+	// ReplyCount Live replies in the proposal's thread, as the social module counts them. Zero when there are none.
+	//
+	// Examples: 6
+	ReplyCount int `json:"reply_count"`
+
+	// Stats Facts about a proposal that need no live price.
+	Stats ProposalStats `json:"stats"`
 
 	// Status Where a proposal is in its lifecycle.
 	//
@@ -778,6 +819,36 @@ type ProposalDetail struct {
 	//
 	// Examples: []
 	Voters []ProposalVoter `json:"voters"`
+}
+
+// ProposalMyVote Where the caller's ballot falls in the vote. Null when the caller has no ballot and for a non-member.
+//
+// Examples: null
+type ProposalMyVote struct {
+	// Decided True when the caller's ballot closed the proposal. False for every other voter and while the proposal is open.
+	//
+	// Examples: true
+	Decided bool `json:"decided"`
+
+	// NoOrder The caller's place among the no ballots by cast time, counted from 1. Zero when the caller voted yes.
+	//
+	// Examples: 0
+	NoOrder int `json:"no_order"`
+
+	// Of Members in the voter set frozen when the proposal opened.
+	//
+	// Examples: 8
+	Of int `json:"of"`
+
+	// Order The caller's place among all voters by the time of their first ballot, counted from 1.
+	//
+	// Examples: 6
+	Order int `json:"order"`
+
+	// YesOrder The caller's place among the yes ballots by cast time, counted from 1. Zero when the caller voted no.
+	//
+	// Examples: 5
+	YesOrder int `json:"yes_order"`
 }
 
 // ProposalDetailSwapStatus Where the trade is.
@@ -874,6 +945,24 @@ type ProposalPriceComparison struct {
 	//
 	// Examples: 2026-10-10T12:00:00Z
 	QuotedAt time.Time `json:"quoted_at"`
+}
+
+// ProposalStats Facts about a proposal that need no live price.
+type ProposalStats struct {
+	// ClosedAt When the proposal left `open`. Null while open, and for proposals closed before close times were recorded.
+	//
+	// Examples: null
+	ClosedAt *time.Time `json:"closed_at"`
+
+	// ClosesAt When voting closes. The same instant as `expires_at`.
+	//
+	// Examples: 2026-10-04T15:00:00Z
+	ClosesAt time.Time `json:"closes_at"`
+
+	// TreasuryShareBps The trade's share of the cabal's pot when the proposal opened, in basis points, rounded down: `usdc_micros` for a buy, `quote_out_amount` for a sell. Null when the pot was not recorded (a proposal opened before the figure was stored) or was zero.
+	//
+	// Examples: 200
+	TreasuryShareBps *int64 `json:"treasury_share_bps"`
 }
 
 // ProposalStatus Where a proposal is in its lifecycle.
@@ -1038,6 +1127,11 @@ type VoteResult struct {
 	//
 	// Examples: yes
 	MyBallot BallotChoice `json:"my_ballot"`
+
+	// MyVote Where the caller's ballot falls in the vote after this ballot.
+	//
+	// Examples: {"decided":true,"no_order":0,"of":8,"order":6,"yes_order":5}
+	MyVote MyVote `json:"my_vote"`
 
 	// ProposalId The proposal id.
 	//

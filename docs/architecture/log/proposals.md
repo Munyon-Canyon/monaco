@@ -16,3 +16,4 @@ Dated record of changes to [proposals.md](../proposals.md). Add one line per cha
 - 2026-10-11: A ballot is refused with a `Blocked` code once the proposal's `expires_at` has passed, even if the expiry poller has not reached it yet (#4750).
 - 2026-10-21: `network` is accepted on a sell. It names the location the proposal sells from, and a sell without it keeps selling the Solana holding (#5851).
 - 2026-10-28: Undoing a ballot appends `vote.retracted`, which analytics exports as `vote_retracted`, and flow 10a covers the route (#6439).
+- 2026-10-28: A proposal stores the pot at open, the time it left `open` and the voter who decided it, and the detail and vote responses return the treasury share, close times, reply count and the caller's place in the vote (#6438).

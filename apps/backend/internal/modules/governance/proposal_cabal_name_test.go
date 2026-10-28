@@ -209,7 +209,7 @@ func TestHTTP_PostCabalProposal_CabalReadFailure(t *testing.T) {
 		Propose: h.handler(h.d.ids),
 		Reads: app.NewProposalReads(
 			h.d.pool, fakes.NewTrading(), h.w.cabals.current.Load(), marketfake.NewCatalog(marketfake.Fixtures()...),
-			&cardBook{}, &returnBook{},
+			&cardBook{}, &returnBook{}, &replyBook{},
 		),
 	}
 	_, err := adapter.PostCabalProposal(member, api.PostCabalProposalRequestObject{

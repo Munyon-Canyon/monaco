@@ -131,6 +131,6 @@ struct PassedProposalBuyingTests {
     }
 
     private static func detail(status: String) -> String {
-        #"{"id":"p","cabal_id":"c","cabal_name":"Cabal","proposer_id":"u","proposer_return_1m_bps":null,"proposer_return_private":false,"kind":"buy","symbol":"GOOGLx","usdc_micros":1000000,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"\#(status)","status_reason":null,"status_message":null,"expires_at":"2099-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":2,"no":0,"voters":2,"needed":2},"my_ballot":"yes","voters":[],"can_vote":false,"can_withdraw":false,"swap":null}"#
+        #"{"id":"p","cabal_id":"c","cabal_name":"Cabal","proposer_id":"u","proposer_return_1m_bps":null,"proposer_return_private":false,"kind":"buy","symbol":"GOOGLx","usdc_micros":1000000,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"\#(status)","status_reason":null,"status_message":null,"expires_at":"2099-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":2,"no":0,"voters":2,"needed":2},"my_ballot":"yes","voters":[],"can_vote":false,"stats":{"treasury_share_bps":null,"closes_at":"2026-10-04T15:00:00Z","closed_at":null},"my_vote":null,"reply_count":0,"can_withdraw":false,"swap":null}"#
     }
 }

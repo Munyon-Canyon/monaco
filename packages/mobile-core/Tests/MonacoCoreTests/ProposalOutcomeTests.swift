@@ -126,7 +126,7 @@ final class ProposalOutcomeTests: XCTestCase {
     @MainActor
     func testAnOpenVoteResponseTallyReplacesTheGuessedCount() async throws {
         let response =
-            #"{"proposal_id":"p","status":"open","tally":{"yes":3,"no":0,"voters":3,"needed":2},"my_ballot":"yes"}"#
+            #"{"proposal_id":"p","status":"open","tally":{"yes":3,"no":0,"voters":3,"needed":2},"my_ballot":"yes","my_vote":{"order":1,"of":3,"yes_order":1,"no_order":0,"decided":false}}"#
         let voting = ProposalVoteModel(repository: Self.repository([response]))
         let summary = ProposalSummary(try Self.proposal(status: "open", ballot: nil))
 
@@ -139,7 +139,7 @@ final class ProposalOutcomeTests: XCTestCase {
     @MainActor
     func testAClosingVoteResponseKeepsTheGuessAndLeavesTheTallyToTheRefresh() async throws {
         let response =
-            #"{"proposal_id":"p","status":"passed","tally":{"yes":3,"no":0,"voters":3,"needed":2},"my_ballot":"yes"}"#
+            #"{"proposal_id":"p","status":"passed","tally":{"yes":3,"no":0,"voters":3,"needed":2},"my_ballot":"yes","my_vote":{"order":1,"of":3,"yes_order":1,"no_order":0,"decided":false}}"#
         let voting = ProposalVoteModel(repository: Self.repository([response]))
         let summary = ProposalSummary(try Self.proposal(status: "open", ballot: nil))
 

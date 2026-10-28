@@ -325,6 +325,9 @@ nonisolated extension SampleAPIProtocol {
             if choice == .yes { tally.yes += 1 } else { tally.no += 1 }
             return json(
                 Components.Schemas.VoteResult(
+                    myVote: .init(
+                        order: tally.yes + tally.no, of: tally.voters, yesOrder: choice == .yes ? tally.yes : 0,
+                        noOrder: choice == .no ? tally.no : 0, decided: false),
                     proposalId: proposal.id, status: proposal.status, tally: tally, myBallot: choice))
         case ("GET", "comments"):
             return json(

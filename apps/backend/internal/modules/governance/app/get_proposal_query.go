@@ -39,6 +39,10 @@ type ProposalDetail struct {
 
 	ProposerReturnBps     *int64
 	ProposerReturnPrivate bool
+
+	Stats      Stats
+	MyVote     *MyVote
+	ReplyCount int
 }
 
 type Fill struct {
@@ -69,26 +73,59 @@ func (r *ProposalReads) Get(ctx context.Context, req GetProposal) (ProposalDetai
 	if err != nil {
 		return ProposalDetail{}, err
 	}
-	swap, found, err := r.swaps.LatestBySource(ctx, trading.Source{Kind: "proposal", ID: row.ID})
+	bps, private, err := r.proposerReturn(ctx, view.ProposerID)
 	if err != nil {
 		return ProposalDetail{}, err
 	}
-	bps, private, err := r.proposerReturn(ctx, view.ProposerID)
+	facts, err := r.facts(ctx, row, req)
 	if err != nil {
 		return ProposalDetail{}, err
 	}
 	open := view.Status == domain.StatusOpen
 	out := ProposalDetail{
+		Stats: facts.stats, MyVote: facts.myVote, ReplyCount: facts.replyCount,
 		Proposal: view, Voters: voters, CanVote: open && isVoter,
 		CanWithdraw:       open && view.ProposerID == req.Caller && !othersVoted,
 		ProposerReturnBps: bps, ProposerReturnPrivate: private,
 	}
-	if found {
-		out.Swap = &swap
-		if out.Fill, err = r.fill(ctx, row.Mint, swap); err != nil {
-			return ProposalDetail{}, err
-		}
+	return out, r.linkSwap(ctx, row, &out)
+}
+
+func (r *ProposalReads) linkSwap(ctx context.Context, row sqlc.GetProposalRow, out *ProposalDetail) error {
+	swap, found, err := r.swaps.LatestBySource(ctx, trading.Source{Kind: "proposal", ID: row.ID})
+	if err != nil || !found {
+		return err
 	}
+	out.Swap = &swap
+	out.Fill, err = r.fill(ctx, row.Mint, swap)
+	return err
+}
+
+type detailFacts struct {
+	stats      Stats
+	myVote     *MyVote
+	replyCount int
+}
+
+func (r *ProposalReads) facts(ctx context.Context, row sqlc.GetProposalRow, req GetProposal) (detailFacts, error) {
+	const op = "governance.GetProposal"
+	stats, err := rowStats(row)
+	if err != nil {
+		return detailFacts{}, err
+	}
+	out := detailFacts{stats: stats}
+	if row.MyBallot != "" {
+		order, err := r.q.BallotOrder(ctx, sqlc.BallotOrderParams{ProposalID: row.ID, VoterID: req.Caller.UUID()})
+		if err != nil {
+			return detailFacts{}, lookupFailed(err, op)
+		}
+		out.myVote = myVoteOf(order, row.DecidedBy.Valid && row.DecidedBy.Bytes == req.Caller.UUID())
+	}
+	replies, err := r.Replies.ReplyCounts(ctx, []ids.ProposalID{req.ID})
+	if err != nil {
+		return detailFacts{}, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	out.replyCount = replies[req.ID]
 	return out, nil
 }
 

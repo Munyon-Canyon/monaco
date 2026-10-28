@@ -8,7 +8,7 @@ import XCTest
 @MainActor
 final class ProposalVoteModelTests: XCTestCase {
     private let voted =
-        #"{"proposal_id":"proposal-1","status":"open","tally":{"yes":1,"no":0,"voters":3,"needed":2},"my_ballot":"yes"}"#
+        #"{"proposal_id":"proposal-1","status":"open","tally":{"yes":1,"no":0,"voters":3,"needed":2},"my_ballot":"yes","my_vote":{"order":1,"of":3,"yes_order":1,"no_order":0,"decided":false}}"#
 
     private func model(_ transport: StubTransport) -> ProposalVoteModel {
         let api = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token"), transport: transport)
@@ -43,7 +43,7 @@ final class ProposalVoteModelTests: XCTestCase {
             StubTransport(
                 .json(
                     .ok,
-                    #"{"proposal_id":"proposal-1","status":"open","tally":{"yes":0,"no":1,"voters":3,"needed":2},"my_ballot":"no"}"#
+                    #"{"proposal_id":"proposal-1","status":"open","tally":{"yes":0,"no":1,"voters":3,"needed":2},"my_ballot":"no","my_vote":{"order":1,"of":3,"yes_order":1,"no_order":0,"decided":false}}"#
                 )))
         let proposal = summary(ballot: .yes)
         _ = await model.vote("no", on: proposal)
