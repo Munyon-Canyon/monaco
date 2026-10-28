@@ -12,7 +12,7 @@ struct AmountKeypad: View {
 
 enum AmountKeypadMetrics {
     static let keyHeight: CGFloat = 60
-    static let keyFont = MonacoTheme.Typo.title.weight(.regular)
+    static let keyFont = Font.title
 }
 
 private struct AmountKeypadGrid: View {
