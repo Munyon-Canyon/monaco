@@ -70,6 +70,17 @@ func (q *Queries) CallAssetOfProposal(ctx context.Context, proposalID uuid.UUID)
 	return asset_id, err
 }
 
+const callEventTime = `-- name: CallEventTime :one
+SELECT created_at FROM events WHERE id = $1
+`
+
+func (q *Queries) CallEventTime(ctx context.Context, id uuid.UUID) (time.Time, error) {
+	row := q.db.QueryRow(ctx, callEventTime, id)
+	var created_at time.Time
+	err := row.Scan(&created_at)
+	return created_at, err
+}
+
 const dueCalls = `-- name: DueCalls :many
 SELECT proposal_id, cabal_id, kind, symbol, mint, asset_id, opened_at, decided_at, outcome,
   market_ref_micros, market_ref_observed_at, fill_price_micros, filled_at, ref_price_micros, ref_source,
@@ -223,21 +234,27 @@ func (q *Queries) RecordCallFill(ctx context.Context, arg RecordCallFillParams) 
 }
 
 const resetCallVoterChoice = `-- name: ResetCallVoterChoice :exec
-UPDATE call_voters
-SET choice = NULL, choice_at = $1::timestamptz
-WHERE proposal_id = $2
-  AND user_id = $3
-  AND (choice_at IS NULL OR choice_at < $1::timestamptz)
+INSERT INTO call_voters (proposal_id, user_id, cabal_id, choice, choice_at)
+VALUES ($1, $2, $3, NULL, $4::timestamptz)
+ON CONFLICT (proposal_id, user_id) DO UPDATE
+SET choice = NULL, choice_at = EXCLUDED.choice_at
+WHERE call_voters.choice_at IS NULL OR call_voters.choice_at < EXCLUDED.choice_at
 `
 
 type ResetCallVoterChoiceParams struct {
-	At         time.Time
 	ProposalID uuid.UUID
 	UserID     uuid.UUID
+	CabalID    uuid.UUID
+	At         time.Time
 }
 
 func (q *Queries) ResetCallVoterChoice(ctx context.Context, arg ResetCallVoterChoiceParams) error {
-	_, err := q.db.Exec(ctx, resetCallVoterChoice, arg.At, arg.ProposalID, arg.UserID)
+	_, err := q.db.Exec(ctx, resetCallVoterChoice,
+		arg.ProposalID,
+		arg.UserID,
+		arg.CabalID,
+		arg.At,
+	)
 	return err
 }
 

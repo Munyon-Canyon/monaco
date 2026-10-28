@@ -463,3 +463,40 @@ func TestResolveCalls_aFailedEventAppendRollsTheWholeBatchBack(t *testing.T) {
 		t.Fatalf("call = %+v, want it rolled back to decided", got)
 	}
 }
+
+func TestResolveCalls_aCallOlderThanAWeekAcceptsADailySample(t *testing.T) {
+	t.Parallel()
+	now := clock.Real{}.Now().UTC()
+	for _, tc := range []struct {
+		name      string
+		resolveAt time.Duration
+		age       time.Duration
+		want      string
+	}{
+		{"a daily sample 20h before a call 10 days old", 10 * 24 * time.Hour, 20 * time.Hour, "resolved"},
+		{"a sample at 36h before a call 10 days old", 10 * 24 * time.Hour, 36 * time.Hour, "resolved"},
+		{"a sample past 36h before a call 10 days old", 10 * 24 * time.Hour, 36*time.Hour + time.Second, "void"},
+		{"a call just past the week", 7*24*time.Hour + time.Second, 20 * time.Hour, "resolved"},
+		{"a daily sample for a call at the week", 7 * 24 * time.Hour, 20 * time.Hour, "void"},
+		{"a daily sample for a call 2 days old", 48 * time.Hour, 20 * time.Hour, "void"},
+		{"a 2h sample for a call 2 days old", 48 * time.Hour, 2 * time.Hour, "resolved"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			pool := newRig(t)
+			resolveAt := now.Add(-tc.resolveAt).Truncate(time.Microsecond)
+			call := newCallRow("buy", "passed", "yes", 0, 50_000_000)
+			call.insert(t, pool, resolveAt)
+			if _, err := runResolver(
+				t, pool, call.market("equity", 55_000_000, resolveAt.Add(-tc.age)), now,
+			); err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			got := readCall(t, pool, call)
+			if got.state != tc.want || (tc.want == "void" && got.reason != "unpriced") ||
+				(tc.want == "resolved" && !got.yesRight) {
+				t.Fatalf("call = %+v, want %s", got, tc.want)
+			}
+		})
+	}
+}

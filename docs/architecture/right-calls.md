@@ -57,3 +57,35 @@ The `ranking.calls_resolver` poller (`ResolveCalls`, every minute, 200 calls a b
 - **Writes.** `ResolveCall` is a guarded update on `state = 'decided'`, so a second run, or another worker, resolves nothing and appends nothing. The same transaction sets `is_right` on every voter with a choice and on the cabal's call.
 - **Event.** `call.resolved` carries the proposal, cabal, kind, symbol, outcome, `resolved_at`, `move_bps`, the right and missed voter IDs and `cabal_right`. The boards (#6453) treat it as a trigger. Nothing pushes on it at launch.
 - **Retraction.** `vote.retracted` (`ranking.calls.vote_retracted`) clears the voter's choice and keeps the row, so the member still counts as eligible in turnout but has no call. A `vote.cast` older than the retraction does not bring the choice back.
+
+## Backfill
+
+Proposals decided before the consumer shipped have no calls. `monacoctl backfill` replays their stored events through the `ranking_calls` handlers, and the resolver then judges the decided calls like any other. The founder runs it on staging and on production once after the deploy, because they hold that access. The PR's agent never runs it.
+
+`monacoctl backfill` takes one handler and its one event type, so there is one command per handler. The consumer stamps `opened_at`, `decided_at` and the market reference from the event's stored `created_at`, not from the clock of the run, so a replay of old events dates each call by its decision. A `vote.retracted` that arrives before any ballot row writes the retraction itself, so an older `vote.cast` cannot bring the vote back. The store converges in any order, so the order below only saves work: the opening facts go first, the fills last.
+
+```
+monacoctl backfill --consumer ranking.calls.proposal_created --types proposal.created
+monacoctl backfill --consumer ranking.calls.vote_cast --types vote.cast
+monacoctl backfill --consumer ranking.calls.vote_retracted --types vote.retracted
+monacoctl backfill --consumer ranking.calls.proposal_passed --types proposal.passed
+monacoctl backfill --consumer ranking.calls.proposal_failed --types proposal.failed
+monacoctl backfill --consumer ranking.calls.proposal_expired --types proposal.expired
+monacoctl backfill --consumer ranking.calls.proposal_withdrawn --types proposal.withdrawn
+monacoctl backfill --consumer ranking.calls.proposal_voided --types proposal.voided
+monacoctl backfill --consumer ranking.calls.trade_confirmed --types trade.confirmed
+```
+
+As a loop, where `${h/_/.}` turns `proposal_created` into `proposal.created`:
+
+```
+for h in proposal_created vote_cast vote_retracted proposal_passed proposal_failed proposal_expired proposal_withdrawn proposal_voided trade_confirmed; do
+  monacoctl backfill --consumer ranking.calls.$h --types ${h/_/.}
+done
+```
+
+- **Nine commands.** The consumer has nine handlers, and `vote_retracted` is one of them. Without it a replayed `vote.cast` would bring back a vote that the member retracted, because the ballots snapshot at the decision never clears a stored choice.
+- **Safe to run twice.** Each delivery is recorded in `event_deliveries`, so a live delivery and a replayed one never apply twice, and a second pass reports every event as `duplicate` and changes no row. `--since <event_id>` resumes after an event.
+- **Resolution.** The resolver picks up the decided calls within a few ticks, 200 a batch. A call whose `resolve_at` is more than 7 days back accepts a sample observed up to 36 hours before `resolve_at`, because `market` keeps one sample a day after the first week. A call with no such sample is voided `unpriced` and is not re-priced from history.
+- **`call.resolved` events.** Backfilled calls append one `call.resolved` event each, many of them for old `resolved_at` times. That is expected. The boards (#6453) treat the event as a trigger only and read the period from `resolved_at`.
+- **Seeding QA.** `qa_flow_seed 19a ok` (`monacoctl flows seed 19a ok`) puts resolved calls in the current month on eight users: the signed-in user with exactly five, six others with five to eight, and one with two.
