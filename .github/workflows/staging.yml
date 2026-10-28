@@ -90,3 +90,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: scripts/ci/prune-caches.sh --budget
+# Proof for #6741: a workflow-only change should attest and skip stage 1.
