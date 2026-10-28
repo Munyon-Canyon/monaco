@@ -44,7 +44,7 @@ extension Components.Schemas.MyPortfolio {
             Components.Schemas.PortfolioCabal(
                 cabal: Components.Schemas.CabalRef(id: cabal.0, name: cabal.1, pictureUrl: nil),
                 valueMicros: value, shareUnits: value, netContributedMicros: value, pnlMicros: 0, returnBps: nil,
-                sliceBps: value * 10_000 / total)
+                sliceBps: value * 10_000 / total, ownershipBps: 10_000, role: .admin, canVote: true)
         }
         return Self(
             totalValueMicros: total, pnlMicros: 0, returnBps: nil,
