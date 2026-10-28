@@ -79,6 +79,11 @@ type AccessDecisionRequestDecision string
 
 // Cabal One cabal, as a signed-in user is allowed to see it.
 type Cabal struct {
+	// Admins The cabal's admins, the creator first. Always present.
+	//
+	// Examples: [{"display_name":"Kai","handle":"kai","photo_url":null,"user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}]
+	Admins *[]CabalPerson `json:"admins,omitempty"`
+
 	// Creator A user as shown on a cabal.
 	//
 	// Examples: {"display_name":"Kai","handle":"kai","photo_url":null,"user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}
@@ -139,7 +144,9 @@ type CabalMembership struct {
 	// CanVote Examples: true
 	CanVote bool `json:"can_vote"`
 
-	// Role Examples: creator
+	// Role `creator`, `admin` or `member`. Clients treat `creator` as an admin.
+	//
+	// Examples: creator
 	Role string `json:"role"`
 }
 
@@ -232,7 +239,7 @@ type CabalMember struct {
 	// Examples: null
 	PhotoUrl *string `json:"photo_url"`
 
-	// Role `creator` or `member`.
+	// Role `creator`, `admin` or `member`. Clients treat `creator` as an admin.
 	//
 	// Examples: creator
 	Role string `json:"role"`
@@ -396,7 +403,9 @@ type MyCabal struct {
 	PendingRequestCount int32              `json:"pending_request_count"`
 	PictureUrl          *string            `json:"picture_url"`
 
-	// Role Examples: creator
+	// Role `creator`, `admin` or `member`. Clients treat `creator` as an admin.
+	//
+	// Examples: creator
 	Role string `json:"role"`
 
 	// UnreadCount Chat messages in the channel the caller has not seen, at most 100.

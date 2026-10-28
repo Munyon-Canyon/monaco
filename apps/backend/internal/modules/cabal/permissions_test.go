@@ -70,32 +70,32 @@ func runPermissionCases(t *testing.T, cases []permissionCase, check func(domain.
 	}
 }
 
-func TestCanInvite_onlyTheCreatorInvitesWhateverTheJoinMode(t *testing.T) {
+func TestCanInvite_onlyAnAdminInvitesWhateverTheJoinMode(t *testing.T) {
 	t.Parallel()
 	c := newCast(t)
 	runPermissionCases(t, []permissionCase{
 		{"the creator", member(c.creator), ""},
-		{"a member", member(c.member), errs.CodeNotCabalCreator},
+		{"a member", member(c.member), errs.CodeNotCabalAdmin},
 		{"a non-member", nobody(c.outsider), errs.CodeNotCabalMember},
 		{"a creator who is no longer a member", nobody(c.creator), errs.CodeNotCabalMember},
 	}, func(a domain.Actor) error { return domain.CanInvite(a, c.cabal(t, "open")) })
 	runPermissionCases(t, []permissionCase{
 		{"the creator", member(c.creator), ""},
-		{"a member", member(c.member), errs.CodeNotCabalCreator},
+		{"a member", member(c.member), errs.CodeNotCabalAdmin},
 		{"a non-member", nobody(c.outsider), errs.CodeNotCabalMember},
 		{"a creator who is no longer a member", nobody(c.creator), errs.CodeNotCabalMember},
 	}, func(a domain.Actor) error { return domain.CanInvite(a, c.cabal(t, "request")) })
 }
 
-func TestCanDecide_theCreatorDecidesRequestsAndTheInviteeDecidesTheirInvite(t *testing.T) {
+func TestCanDecide_anAdminDecidesRequestsAndTheInviteeDecidesTheirInvite(t *testing.T) {
 	t.Parallel()
 	c := newCast(t)
 	cabal := c.cabal(t, "request")
 	runPermissionCases(t, []permissionCase{
 		{"the creator", member(c.creator), ""},
-		{"a member", member(c.member), errs.CodeNotCabalCreator},
-		{"the requester", nobody(c.applicant), errs.CodeNotCabalCreator},
-		{"a stranger", nobody(c.outsider), errs.CodeNotCabalCreator},
+		{"a member", member(c.member), errs.CodeNotCabalAdmin},
+		{"the requester", nobody(c.applicant), errs.CodeNotCabalAdmin},
+		{"a stranger", nobody(c.outsider), errs.CodeNotCabalAdmin},
 	}, func(a domain.Actor) error { return domain.CanDecide(a, cabal, c.request()) })
 	runPermissionCases(t, []permissionCase{
 		{"the invitee", nobody(c.invitee), ""},

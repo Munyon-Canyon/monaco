@@ -773,7 +773,7 @@ type PortfolioCabal struct {
 	// Examples: 250
 	ReturnBps *int64 `json:"return_bps"`
 
-	// Role The caller's role in this cabal. `admin` is the cabal's creator.
+	// Role The caller's role in this cabal. `admin` is the cabal's creator or one of its admins.
 	//
 	// Examples: admin
 	Role PortfolioCabalRole `json:"role"`
@@ -794,7 +794,7 @@ type PortfolioCabal struct {
 	ValueMicros int64 `json:"value_micros"`
 }
 
-// PortfolioCabalRole The caller's role in this cabal. `admin` is the cabal's creator.
+// PortfolioCabalRole The caller's role in this cabal. `admin` is the cabal's creator or one of its admins.
 //
 // Examples: admin
 type PortfolioCabalRole string

@@ -66,6 +66,7 @@ func TestQueries_everyMethodIsOneRoundTripAndTreasuryWalletsServes1000CabalsInOn
 		"Members":     func() error { _, err := q.Members(ctx, a); return err },
 		"MembersOf":   func() error { _, err := q.MembersOf(ctx, []ids.CabalID{a, w.id("b")}); return err },
 		"VoterSet":    func() error { _, err := q.VoterSet(ctx, a); return err },
+		"Admins":      func() error { _, err := q.Admins(ctx, a); return err },
 		"Rules":       func() error { _, err := q.Rules(ctx, a); return err },
 		"SlippageBps": func() error { _, err := q.SlippageBps(ctx, a); return err },
 		"Status":      func() error { _, err := q.Status(ctx, a); return err },
@@ -114,7 +115,7 @@ func TestQueries_aRowWhoseIDIsNotV7IsDecodeFailed(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO cabal_members (cabal_id, user_id, role, can_vote, joined_at)
-		VALUES ($1, $2, 'member', true, $3), ($4, $5, 'creator', true, $3)`,
+		VALUES ($1, $2, 'admin', true, $3), ($4, $5, 'creator', true, $3)`,
 		w.id("c").UUID(), v4User, now, v4Cabal, w.users[0].UUID()); err != nil {
 		t.Fatal(err)
 	}
@@ -131,6 +132,7 @@ func TestQueries_aRowWhoseIDIsNotV7IsDecodeFailed(t *testing.T) {
 	_, membersWithV4Cabal := q.MembersOf(ctx, []ids.CabalID{ids.CabalIDFrom(v4Cabal)})
 	_, membersWithV4User := q.MembersOf(ctx, []ids.CabalID{w.id("c")})
 	_, voters := q.VoterSet(ctx, w.id("c"))
+	_, admins := q.Admins(ctx, w.id("c"))
 	_, wallets := q.TreasuryWallets(ctx)
 	_, cabals := q.CabalsOf(ctx, w.users[0])
 	_, _, preview := q.InvitePreview(ctx, w.id("c"), w.users[5])
@@ -143,6 +145,7 @@ func TestQueries_aRowWhoseIDIsNotV7IsDecodeFailed(t *testing.T) {
 		"MembersOf with a v4 cabal": membersWithV4Cabal,
 		"MembersOf with a v4 user":  membersWithV4User,
 		"VoterSet":                  voters,
+		"Admins":                    admins,
 		"TreasuryWallets":           wallets,
 		"CabalsOf":                  cabals,
 		"InvitePreview":             preview,
@@ -169,6 +172,7 @@ func TestQueries_databaseFailuresAreInternalAndKeepTheirCause(t *testing.T) {
 		"Members":        func() error { _, err := q.Members(ctx, id); return err },
 		"MembersOf":      func() error { _, err := q.MembersOf(ctx, []ids.CabalID{id}); return err },
 		"VoterSet":       func() error { _, err := q.VoterSet(ctx, id); return err },
+		"Admins":         func() error { _, err := q.Admins(ctx, id); return err },
 		"Rules":          func() error { _, err := q.Rules(ctx, id); return err },
 		"SlippageBps":    func() error { _, err := q.SlippageBps(ctx, id); return err },
 		"Status":         func() error { _, err := q.Status(ctx, id); return err },

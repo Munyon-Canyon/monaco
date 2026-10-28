@@ -206,10 +206,10 @@ func F03DecideAccessCabalNotFound(s *scenario.Scenario) {
 		Then(refused(errs.CodeCabalNotFound, events.TypeCabalAccessDecided, 0)...)
 }
 
-func F03DecideAccessNotCabalCreator(s *scenario.Scenario) {
+func F03DecideAccessNotCabalAdmin(s *scenario.Scenario) {
 	s.Given(asked("decide-self")...).
 		When(scenario.Post(decisionPath, approveBody)).
-		Then(refused(errs.CodeNotCabalCreator, events.TypeCabalAccessDecided, 0)...)
+		Then(refused(errs.CodeNotCabalAdmin, events.TypeCabalAccessDecided, 0)...)
 }
 
 func F03DecideAccessAccessRequestNotPending(s *scenario.Scenario) {

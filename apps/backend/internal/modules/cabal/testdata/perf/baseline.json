@@ -1,6 +1,7 @@
 {
   "allocs": {},
   "queries": {
+    "Admins": 1,
     "AllCabals": 1,
     "Cabal": 1,
     "Cabals 1000 ids": 1,

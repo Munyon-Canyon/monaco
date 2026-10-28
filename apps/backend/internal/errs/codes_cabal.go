@@ -4,6 +4,7 @@ const (
 	CodeCabalNotFound              Code = "cabal_not_found"
 	CodeNotCabalMember             Code = "not_cabal_member"
 	CodeNotCabalCreator            Code = "not_cabal_creator"
+	CodeNotCabalAdmin              Code = "not_cabal_admin"
 	CodeCannotRevokeAccess         Code = "cannot_revoke_access"
 	CodeCabalBanned                Code = "cabal_banned"
 	CodeAlreadyMember              Code = "already_member"
@@ -25,6 +26,9 @@ func (codeFiles) Cabal() map[Code]Row {
 		},
 		CodeNotCabalCreator: {
 			Name: "NotCabalCreator", Kind: KindForbidden, Message: "Only the creator of this cabal can do that.",
+		},
+		CodeNotCabalAdmin: {
+			Name: "NotCabalAdmin", Kind: KindForbidden, Message: "Only an admin of this cabal can do that.",
 		},
 		CodeCannotRevokeAccess: {
 			Name: "CannotRevokeAccess", Kind: KindForbidden, Message: "You cannot cancel this request or invite.",

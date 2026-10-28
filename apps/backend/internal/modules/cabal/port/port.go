@@ -74,7 +74,7 @@ type MemberReader interface {
 	Member(ctx context.Context, id ids.CabalID, user ids.UserID) (MemberView, error)
 	Members(ctx context.Context, id ids.CabalID) ([]MemberView, error)
 	VoterSet(ctx context.Context, id ids.CabalID) ([]ids.UserID, error)
-	CabalsOf(ctx context.Context, user ids.UserID) ([]ids.CabalID, error)
+	Admins(ctx context.Context, id ids.CabalID) ([]ids.UserID, error)
 }
 
 type MemberLocker interface {
@@ -85,6 +85,7 @@ type BatchReader interface {
 	AllCabals(ctx context.Context) ([]CabalView, error)
 	MembersOf(ctx context.Context, cabalIDs []ids.CabalID) (map[ids.CabalID][]MemberView, error)
 	InvitePreview(ctx context.Context, cabal ids.CabalID, inviter ids.UserID) (CabalPreview, bool, error)
+	CabalsOf(ctx context.Context, user ids.UserID) ([]ids.CabalID, error)
 }
 
 type TreasuryReader interface {

@@ -21,7 +21,7 @@ func (defined) ScriptsF03() map[string]Script {
 		"F03DecideAccessInvalidInput":            F03DecideAccessInvalidInput,
 		"F03DecideAccessUnauthorized":            F03DecideAccessUnauthorized,
 		"F03DecideAccessCabalNotFound":           F03DecideAccessCabalNotFound,
-		"F03DecideAccessNotCabalCreator":         F03DecideAccessNotCabalCreator,
+		"F03DecideAccessNotCabalAdmin":           F03DecideAccessNotCabalAdmin,
 		"F03DecideAccessAccessRequestNotPending": F03DecideAccessAccessRequestNotPending,
 		"F03DecideAccessCabalBanned":             F03DecideAccessCabalBanned,
 		"F03RevokeAccessOK":                      F03RevokeAccessOK,

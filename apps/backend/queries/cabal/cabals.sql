@@ -15,7 +15,10 @@ SELECT id FROM cabals WHERE id = $1 FOR NO KEY UPDATE;
 SELECT c.creator_id, c.join_mode, c.voter_mode, c.threshold, c.proposal_expiry_seconds, c.slippage_bps, c.status,
   ARRAY(
     SELECT m.user_id FROM cabal_members m WHERE m.cabal_id = c.id AND m.user_id = ANY(sqlc.arg(user_ids)::uuid[])
-  )::uuid[] AS member_ids
+  )::uuid[] AS member_ids,
+  ARRAY(
+    SELECT m.user_id FROM cabal_members m WHERE m.cabal_id = c.id AND m.role IN ('creator', 'admin')
+  )::uuid[] AS admin_ids
 FROM cabals c
 WHERE c.id = sqlc.arg(cabal_id)
 FOR SHARE OF c;
@@ -67,7 +70,7 @@ LIMIT sqlc.arg(page_size)::int;
 -- name: ListMyCabals :many
 SELECT c.id, c.name, c.picture_url, m.role, m.can_vote, m.joined_at,
   (SELECT count(*) FROM cabal_members cm WHERE cm.cabal_id = c.id)::int AS member_count,
-  CASE WHEN m.role = 'creator' AND c.join_mode = 'request' THEN
+  CASE WHEN m.role IN ('creator', 'admin') AND c.join_mode = 'request' THEN
     (SELECT count(*) FROM cabal_access_requests ar
       WHERE ar.cabal_id = c.id AND ar.direction = 'request' AND ar.status = 'pending')::int
   ELSE 0 END AS pending_request_count

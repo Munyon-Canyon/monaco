@@ -27,6 +27,11 @@ SELECT user_id FROM cabal_members
 WHERE cabal_id = $1 AND can_vote
 ORDER BY joined_at, user_id;
 
+-- name: ListAdminIDs :many
+SELECT user_id FROM cabal_members
+WHERE cabal_id = $1 AND role IN ('creator', 'admin')
+ORDER BY (role = 'creator') DESC, joined_at, user_id;
+
 -- name: ListCabalIDsForUser :many
 SELECT cabal_id FROM cabal_members
 WHERE user_id = $1
@@ -44,7 +49,9 @@ WHERE cabal_id = $1 AND user_id = $2
 RETURNING role, can_vote;
 
 -- name: SetMemberVoters :exec
-UPDATE cabal_members SET can_vote = (role = 'creator' OR user_id = ANY(coalesce(sqlc.arg(voter_ids)::uuid[], '{}')))
+UPDATE cabal_members SET can_vote = (
+  role IN ('creator', 'admin') OR user_id = ANY(coalesce(sqlc.arg(voter_ids)::uuid[], '{}'))
+)
 WHERE cabal_id = sqlc.arg(cabal_id);
 
 -- name: SetAllMembersVote :exec

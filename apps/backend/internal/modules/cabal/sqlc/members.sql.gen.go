@@ -86,6 +86,32 @@ func (q *Queries) InsertMember(ctx context.Context, arg InsertMemberParams) (int
 	return result.RowsAffected(), nil
 }
 
+const listAdminIDs = `-- name: ListAdminIDs :many
+SELECT user_id FROM cabal_members
+WHERE cabal_id = $1 AND role IN ('creator', 'admin')
+ORDER BY (role = 'creator') DESC, joined_at, user_id
+`
+
+func (q *Queries) ListAdminIDs(ctx context.Context, cabalID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listAdminIDs, cabalID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var user_id uuid.UUID
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCabalIDsForUser = `-- name: ListCabalIDsForUser :many
 SELECT cabal_id FROM cabal_members
 WHERE user_id = $1
@@ -269,7 +295,9 @@ func (q *Queries) SetAllMembersVote(ctx context.Context, cabalID uuid.UUID) erro
 }
 
 const setMemberVoters = `-- name: SetMemberVoters :exec
-UPDATE cabal_members SET can_vote = (role = 'creator' OR user_id = ANY(coalesce($1::uuid[], '{}')))
+UPDATE cabal_members SET can_vote = (
+  role IN ('creator', 'admin') OR user_id = ANY(coalesce($1::uuid[], '{}'))
+)
 WHERE cabal_id = $2
 `
 

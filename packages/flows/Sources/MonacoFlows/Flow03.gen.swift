@@ -2,7 +2,7 @@
 
 public enum Flow03Outcome: Sendable, Hashable, CaseIterable {
     case ok, invalidInput, unauthorized, cabalNotFound, cabalBanned, alreadyMember, joinNeedsRequest, requestNotNeeded,
-        requestPending, notCabalCreator, accessRequestNotPending, cannotRevokeAccess, userNotFound, inviteExpired,
+        requestPending, notCabalAdmin, accessRequestNotPending, cannotRevokeAccess, userNotFound, inviteExpired,
         notCabalMember
 
     public static let flowID = "03"
@@ -19,7 +19,7 @@ public enum Flow03Outcome: Sendable, Hashable, CaseIterable {
         case .joinNeedsRequest: "join_needs_request"
         case .requestNotNeeded: "request_not_needed"
         case .requestPending: "request_pending"
-        case .notCabalCreator: "not_cabal_creator"
+        case .notCabalAdmin: "not_cabal_admin"
         case .accessRequestNotPending: "access_request_not_pending"
         case .cannotRevokeAccess: "cannot_revoke_access"
         case .userNotFound: "user_not_found"
@@ -38,7 +38,7 @@ public enum Flow03Outcome: Sendable, Hashable, CaseIterable {
         case "join_needs_request": self = .joinNeedsRequest
         case "request_not_needed": self = .requestNotNeeded
         case "request_pending": self = .requestPending
-        case "not_cabal_creator": self = .notCabalCreator
+        case "not_cabal_admin": self = .notCabalAdmin
         case "access_request_not_pending": self = .accessRequestNotPending
         case "cannot_revoke_access": self = .cannotRevokeAccess
         case "user_not_found": self = .userNotFound

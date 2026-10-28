@@ -394,7 +394,7 @@ paths:
           burst: 20
       summary: Invite a user to a cabal by handle.
       description: >-
-        Any member invites in an open cabal; only the creator invites in a request cabal. The invite
+        Only an admin of the cabal invites, whatever its join mode. The invite
         stays pending for 7 days, and the invitee accepts or declines it through the decision route.
         A user with a pending request or invite is refused with request_pending. A replay returns the
         first response.
@@ -524,6 +524,7 @@ components:
         rules: {$ref: "#/components/schemas/CabalRules", examples: [{join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}]}
         creator: {$ref: "#/components/schemas/CabalPerson", examples: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]}
         member_count: {type: integer, format: int32, examples: [1]}
+        admins: {type: array, items: {$ref: "#/components/schemas/CabalPerson"}, description: "The cabal's admins, the creator first. Always present.", examples: [[{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]]}
         members: {type: array, items: {$ref: "#/components/schemas/CabalMember"}, examples: [[]]}
         me:
           type: [object, "null"]
@@ -533,7 +534,7 @@ components:
           additionalProperties: false
           required: [role, can_vote]
           properties:
-            role: {type: string, examples: [creator]}
+            role: {type: string, description: "`creator`, `admin` or `member`. Clients treat `creator` as an admin.", examples: [creator]}
             can_vote: {type: boolean, examples: [true]}
         my_access_request:
           type: [object, "null"]
@@ -645,7 +646,7 @@ components:
         id: {type: string, format: uuid}
         name: {type: string}
         picture_url: {type: [string, "null"]}
-        role: {type: string, examples: [creator]}
+        role: {type: string, description: "`creator`, `admin` or `member`. Clients treat `creator` as an admin.", examples: [creator]}
         can_vote: {type: boolean}
         member_count: {type: integer, format: int32}
         joined_at: {type: string, format: date-time}
@@ -682,7 +683,7 @@ components:
         handle: {type: [string, "null"], description: "The member handle. Null until onboarding sets one.", examples: [kai]}
         display_name: {type: string, description: "The member name. Empty when the user has none.", examples: [Kai]}
         photo_url: {type: [string, "null"], description: "The member photo. Null when the user has none.", examples: [null]}
-        role: {type: string, description: "`creator` or `member`.", examples: [creator]}
+        role: {type: string, description: "`creator`, `admin` or `member`. Clients treat `creator` as an admin.", examples: [creator]}
         can_vote: {type: boolean, examples: [true]}
         joined_at: {type: string, format: date-time, examples: ["2026-09-30T12:00:00Z"]}
     CabalAccess:

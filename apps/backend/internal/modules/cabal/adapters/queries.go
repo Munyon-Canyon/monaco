@@ -172,6 +172,23 @@ func (r Postgres) VoterSet(ctx context.Context, id ids.CabalID) ([]ids.UserID, e
 	return voters, nil
 }
 
+func (r Postgres) Admins(ctx context.Context, id ids.CabalID) ([]ids.UserID, error) {
+	const op = "cabal.Admins"
+	rows, err := r.q.ListAdminIDs(ctx, id.UUID())
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	admins := make([]ids.UserID, 0, len(rows))
+	for _, raw := range rows {
+		user, err := userID(op, raw)
+		if err != nil {
+			return nil, err
+		}
+		admins = append(admins, user)
+	}
+	return admins, nil
+}
+
 func (r Postgres) Rules(ctx context.Context, id ids.CabalID) (port.Rules, error) {
 	row, err := r.find(ctx, "cabal.Rules", id)
 	if err != nil {

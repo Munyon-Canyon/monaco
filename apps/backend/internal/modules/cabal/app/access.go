@@ -58,13 +58,22 @@ func lockCabalFor(
 		return domain.Cabal{}, nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	cabal := domain.Cabal{
-		CreatorID: ids.UserIDFrom(row.CreatorID), Rules: rules, Banned: row.Status == string(port.StatusBanned),
+		CreatorID: ids.UserIDFrom(row.CreatorID), Admins: userIDsOf(row.AdminIds), Rules: rules,
+		Banned: row.Status == string(port.StatusBanned),
 	}
 	actors := make([]domain.Actor, 0, len(users))
 	for _, user := range users {
 		actors = append(actors, domain.Actor{UserID: user, Member: slices.Contains(row.MemberIds, user.UUID())})
 	}
 	return cabal, actors, nil
+}
+
+func userIDsOf(rows []uuid.UUID) []ids.UserID {
+	out := make([]ids.UserID, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, ids.UserIDFrom(row))
+	}
+	return out
 }
 
 type newMember struct {

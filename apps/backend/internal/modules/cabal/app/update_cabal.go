@@ -152,7 +152,11 @@ func voterChanges(
 		if row.CanVote {
 			voters = append(voters, row.UserID)
 		}
+		if domain.Role(row.Role).IsAdmin() {
+			cabal.Admins = append(cabal.Admins, ids.UserIDFrom(row.UserID))
+		}
 	}
+	requested = cabal.VotersWithAdmins(requested)
 	if err := domain.CheckVoters(cabal, members, requested); err != nil {
 		return nil, err
 	}

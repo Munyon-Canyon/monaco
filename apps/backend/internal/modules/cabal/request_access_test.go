@@ -285,7 +285,7 @@ func TestListAccessRequests_showsTheCreatorPendingRequestsOldestFirst(t *testing
 	}
 }
 
-func TestListAccessRequests_refusesAnyoneButTheCreatorAndWrapsStoreFailures(t *testing.T) {
+func TestListAccessRequests_refusesAnyoneButAnAdminAndWrapsStoreFailures(t *testing.T) {
 	t.Parallel()
 	f := newAccess(t)
 	c := testkit.NewCabal(t, f.pool, testkit.WithJoinMode("request"), testkit.WithMembers(2))
@@ -295,7 +295,7 @@ func TestListAccessRequests_refusesAnyoneButTheCreatorAndWrapsStoreFailures(t *t
 		return err
 	}
 	wantErr(t, list(f.users, ids.CabalIDFrom(ids.Real{}.NewV7()), c.Creator.ID), errs.CodeCabalNotFound)
-	wantErr(t, list(f.users, c.ID, c.Members[1].ID), errs.CodeNotCabalCreator)
+	wantErr(t, list(f.users, c.ID, c.Members[1].ID), errs.CodeNotCabalAdmin)
 	wantErr(t, list(failCards{}, c.ID, c.Creator.ID), errs.CodeInternal)
 	f.exec(t, `ALTER TABLE cabal_access_requests RENAME TO requests_gone`)
 	wantErr(t, list(f.users, c.ID, c.Creator.ID), errs.CodeInternal)
@@ -351,7 +351,7 @@ func TestAccessRequestRoutes_passErrorsThrough(t *testing.T) {
 		},
 		{
 			"get", func(ctx context.Context) error { _, err := routes.GetCabalAccessRequests(ctx, get); return err },
-			errs.CodeNotCabalCreator,
+			errs.CodeNotCabalAdmin,
 		},
 		{
 			"delete", func(ctx context.Context) error { _, err := routes.DeleteCabalAccessRequest(ctx, del); return err },
