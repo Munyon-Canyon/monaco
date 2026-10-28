@@ -156,6 +156,7 @@ func wireSummary(item app.Summary, now time.Time) (api.AssetSummary, error) {
 		LogoUrl: present(item.Asset.LogoURL), Session: wireSession(item.Session), Tradable: &tradable,
 		Quotable: item.Asset.Quotable(now),
 	}
+	out.CabalCount = item.CabalCount
 	if item.Volume != nil {
 		volume, err := int64Micros(item.Volume.USD)
 		if err != nil {

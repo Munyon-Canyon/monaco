@@ -29,6 +29,8 @@ const (
 	FilterPopular Filter = "popular"
 	FilterPreIPO  Filter = "pre_ipo"
 	FilterMovers  Filter = "movers"
+
+	FilterInCabals Filter = "in_cabals"
 )
 
 type ListRequest struct {
@@ -46,6 +48,8 @@ type Summary struct {
 	Change    *int32
 	Sparkline []money.Micros
 	Volume    *Volume
+
+	CabalCount *int
 }
 
 type Page struct {
@@ -80,6 +84,8 @@ type ListAssets struct {
 	catalog assetLister
 	hot     []HotMints
 	ranked  moversBook
+	holders HolderCounts
+	held    holderBook
 }
 
 func NewListAssets(db sqlc.DBTX, c clock.Clock, hot ...HotMints) *ListAssets {
@@ -113,6 +119,13 @@ func (l *ListAssets) Handle(ctx context.Context, req ListRequest) (Page, error) 
 			return Page{}, moversErr
 		}
 		return Page{Items: items, NextCursor: next}, nil
+	}
+	if q.filter == FilterInCabals {
+		items, startersErr := l.starters(ctx, q, l.clock.Now())
+		if startersErr != nil {
+			return Page{}, startersErr
+		}
+		return Page{Items: items}, nil
 	}
 	rows, err := l.page(ctx, q)
 	if err != nil {
@@ -175,6 +188,14 @@ func normalize(req ListRequest) (listQuery, error) {
 	if err != nil {
 		return listQuery{}, err
 	}
+	if filter == FilterInCabals {
+		if req.Cursor != "" {
+			return listQuery{}, errs.New(errs.CodeInvalidInput, "market.cursor")
+		}
+		if req.Limit == 0 {
+			limit = starterDefault
+		}
+	}
 	cur, err := decodeCursor(filter, req.Cursor)
 	if err != nil {
 		return listQuery{}, err
@@ -186,7 +207,7 @@ func parseFilter(raw Filter) (Filter, error) {
 	switch raw {
 	case "", FilterAll:
 		return FilterAll, nil
-	case FilterPopular, FilterPreIPO, FilterMovers:
+	case FilterPopular, FilterPreIPO, FilterMovers, FilterInCabals:
 		return raw, nil
 	default:
 		return "", errs.New(errs.CodeInvalidInput, "market.ListAssets", slog.String("filter", string(raw)))

@@ -2480,7 +2480,11 @@ paths:
         Returns the tradable catalog, one page at a time. `q` matches the start of a symbol or any
         part of a display name, ignoring case. `popular` orders by the curated rank. `pre_ipo`
         keeps only pre-IPO tokens. `movers` orders priced, tradable stocks by the size of today's
-        move, largest first; it never lists Pre-IPO. A price the hold rule has not accepted is null, never zero.
+        move, largest first; it never lists Pre-IPO. `in_cabals` orders tradable assets, Pre-IPO
+        included, by how many active cabals hold them, most first, and carries `cabal_count`; an
+        asset held by fewer than three active cabals has no count, and when fewer than `limit`
+        assets qualify the list is completed from `popular` without a count. It defaults to 5
+        rows, has no pages and takes no `cursor`. A price the hold rule has not accepted is null, never zero.
       parameters:
         - name: q
           in: query
@@ -2496,7 +2500,7 @@ paths:
           description: Which tradable assets to return, and how to order them.
           schema:
             type: string
-            enum: [all, popular, pre_ipo, movers]
+            enum: [all, popular, pre_ipo, movers, in_cabals]
             default: all
             examples: [popular]
         - name: limit
@@ -7906,6 +7910,13 @@ components:
           type: boolean
           description: True when this asset can be bought.
           examples: [true]
+        cabal_count:
+          type: integer
+          minimum: 3
+          description: >-
+            How many active cabals hold this asset. Set only on rows of the `in_cabals` filter that
+            ranked by it, never below three, and absent everywhere else.
+          examples: [41]
     ChartPoint:
       type: object
       description: One bucket of open, high, low and close, in USD micros.

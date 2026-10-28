@@ -115,6 +115,7 @@ type Module struct {
 	multichain multichainParts
 	deps       module.Deps
 	hot        []app.HotMints
+	holders    app.HolderCounts
 }
 
 func New(d module.Deps) *Module { return &Module{multichain: newMultichain(d), deps: d} }
@@ -129,6 +130,23 @@ func (m *Module) Wire(set module.Set) {
 		case governanceport.ProposedMints:
 			m.hot = append(m.hot, provider.ProposedMints)
 		}
+		if provider, ok := mod.(treasuryport.CabalHolderCounts); ok {
+			m.holders = holderCounts(provider)
+		}
+	}
+}
+
+func holderCounts(provider treasuryport.CabalHolderCounts) app.HolderCounts {
+	return func(ctx context.Context) ([]app.HolderCount, error) {
+		counts, err := provider.CabalHolderCounts(ctx)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]app.HolderCount, len(counts))
+		for i, c := range counts {
+			out[i] = app.HolderCount{Mint: c.Mint, Cabals: c.Cabals}
+		}
+		return out, nil
 	}
 }
 
@@ -159,7 +177,7 @@ func (m *Module) RouteChecker() *app.RouteChecker {
 }
 
 func (m *Module) Mount(r api.Mount) {
-	list := app.NewListAssets(m.deps.Pool, m.deps.Clock, m.hot...)
+	list := app.NewListAssets(m.deps.Pool, m.deps.Clock, m.hot...).WithHolders(m.holders)
 	cache := adapters.NewCache(m.deps.Clock)
 	chart := app.NewChart(m.deps.Pool, m.deps.Clock)
 	if m.deps.Config.CoinGecko.HistoryEnabled {

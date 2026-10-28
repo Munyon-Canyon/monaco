@@ -314,6 +314,22 @@ func (m *Module) HeldMints(ctx context.Context) ([]chain.SolanaAddress, error) {
 	return adapters.NewHeldMints(m.deps.Pool).HeldMints(ctx)
 }
 
+func (m *Module) CabalHolderCounts(ctx context.Context) ([]port.HolderCount, error) {
+	return adapters.NewCabalHolders(m.deps.Pool, m.activeCabals).CabalHolderCounts(ctx)
+}
+
+func (m *Module) activeCabals(ctx context.Context, cabalIDs []ids.CabalID) (map[ids.CabalID]bool, error) {
+	views, err := m.cabals.Cabals(ctx, cabalIDs)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[ids.CabalID]bool, len(views))
+	for id, view := range views {
+		out[id] = view.Status == cabalport.StatusActive
+	}
+	return out, nil
+}
+
 func (m *Module) LiveReads() *adapters.Queries { return m.reads() }
 
 func (m *Module) SignatureOwner() *adapters.Queries { return m.reads() }
