@@ -178,6 +178,8 @@ const (
 	GetFeedParamsScopeAll       GetFeedParamsScope = "all"
 	GetFeedParamsScopeFollowing GetFeedParamsScope = "following"
 	GetFeedParamsScopeMine      GetFeedParamsScope = "mine"
+	GetFeedParamsScopeNetwork   GetFeedParamsScope = "network"
+	GetFeedParamsScopeOthers    GetFeedParamsScope = "others"
 )
 
 // Valid indicates whether the value is a known member of the GetFeedParamsScope enum.
@@ -188,6 +190,25 @@ func (e GetFeedParamsScope) Valid() bool {
 	case GetFeedParamsScopeFollowing:
 		return true
 	case GetFeedParamsScopeMine:
+		return true
+	case GetFeedParamsScopeNetwork:
+		return true
+	case GetFeedParamsScopeOthers:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetFeedParamsStatus.
+const (
+	GetFeedParamsStatusOpen GetFeedParamsStatus = "open"
+)
+
+// Valid indicates whether the value is a known member of the GetFeedParamsStatus enum.
+func (e GetFeedParamsStatus) Valid() bool {
+	switch e {
+	case GetFeedParamsStatusOpen:
 		return true
 	default:
 		return false
@@ -217,6 +238,8 @@ const (
 	GetFeedItemParamsScopeAll       GetFeedItemParamsScope = "all"
 	GetFeedItemParamsScopeFollowing GetFeedItemParamsScope = "following"
 	GetFeedItemParamsScopeMine      GetFeedItemParamsScope = "mine"
+	GetFeedItemParamsScopeNetwork   GetFeedItemParamsScope = "network"
+	GetFeedItemParamsScopeOthers    GetFeedItemParamsScope = "others"
 )
 
 // Valid indicates whether the value is a known member of the GetFeedItemParamsScope enum.
@@ -227,6 +250,10 @@ func (e GetFeedItemParamsScope) Valid() bool {
 	case GetFeedItemParamsScopeFollowing:
 		return true
 	case GetFeedItemParamsScopeMine:
+		return true
+	case GetFeedItemParamsScopeNetwork:
+		return true
+	case GetFeedItemParamsScopeOthers:
 		return true
 	default:
 		return false
@@ -1154,8 +1181,11 @@ type GetFeedParams struct {
 	// Q Full-text search over each item's symbol, cabal name, title and body. It filters the items and leaves the order newest first.
 	Q *string `form:"q,omitempty" json:"q,omitempty"`
 
-	// Scope `all` (the default), `following` (the items whose actor the caller follows) or `mine` (the items of the cabals the caller is in, without price moves).
+	// Scope `all` (the default), `following` (the items whose actor the caller follows) or `mine` (the items of the cabals the caller is in, without price moves). `network` is the caller's cabals plus the people the caller follows; `others` is every cabal the caller is not in.
 	Scope *GetFeedParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+
+	// Status `open` keeps only items whose `status` is `open`, such as open proposals; use it with `kind=proposal`.
+	Status *GetFeedParamsStatus `form:"status,omitempty" json:"status,omitempty"`
 
 	// Sort `new` (the default): newest first. `top`: the items from the last 24 hours, most comments first, then newest first. A cursor is valid only for the sort that wrote it.
 	Sort *GetFeedParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
@@ -1169,6 +1199,9 @@ type GetFeedParams struct {
 
 // GetFeedParamsScope defines parameters for GetFeed.
 type GetFeedParamsScope string
+
+// GetFeedParamsStatus defines parameters for GetFeed.
+type GetFeedParamsStatus string
 
 // GetFeedParamsSort defines parameters for GetFeed.
 type GetFeedParamsSort string
@@ -1208,7 +1241,7 @@ type GetFeedItemParams struct {
 	// Q Full-text search over each item's symbol, cabal name, title and body. It filters the items and leaves the order newest first.
 	Q *string `form:"q,omitempty" json:"q,omitempty"`
 
-	// Scope `all` (the default), `following` (the items whose actor the caller follows) or `mine` (the items of the cabals the caller is in, without price moves).
+	// Scope `all` (the default), `following` (the items whose actor the caller follows) or `mine` (the items of the cabals the caller is in, without price moves). `network` is the caller's cabals plus the people the caller follows; `others` is every cabal the caller is not in.
 	Scope *GetFeedItemParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 }
 
@@ -2018,6 +2051,19 @@ func (siw *ServerInterfaceWrapper) GetFeed(w http.ResponseWriter, r *http.Reques
 			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "scope"})
 		} else {
 			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
 		}
 		return
 	}

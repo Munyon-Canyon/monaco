@@ -173,8 +173,16 @@ paths:
           required: false
           description: >-
             `all` (the default), `following` (the items whose actor the caller follows) or `mine` (the items
-            of the cabals the caller is in, without price moves).
-          schema: {type: string, enum: [all, following, mine], default: all, examples: [mine]}
+            of the cabals the caller is in, without price moves). `network` is the caller's cabals plus the
+            people the caller follows; `others` is every cabal the caller is not in.
+          schema: {type: string, enum: [all, following, mine, network, others], default: all, examples: [network]}
+        - name: status
+          in: query
+          required: false
+          description: >-
+            `open` keeps only items whose `status` is `open`, such as open proposals; use it with
+            `kind=proposal`.
+          schema: {type: string, enum: [open], examples: [open]}
         - name: sort
           in: query
           required: false
@@ -249,8 +257,9 @@ paths:
           required: false
           description: >-
             `all` (the default), `following` (the items whose actor the caller follows) or `mine` (the items
-            of the cabals the caller is in, without price moves).
-          schema: {type: string, enum: [all, following, mine], default: all, examples: [mine]}
+            of the cabals the caller is in, without price moves). `network` is the caller's cabals plus the
+            people the caller follows; `others` is every cabal the caller is not in.
+          schema: {type: string, enum: [all, following, mine, network, others], default: all, examples: [network]}
       responses:
         "200":
           description: The feed item.

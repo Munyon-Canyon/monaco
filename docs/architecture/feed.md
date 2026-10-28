@@ -82,14 +82,15 @@ The RFC also routes `cabal.member_left`, `cabal.funded`, `cashout.*` and `user.p
 
 ```
 GET /v1/feed?kind=proposal,trade&cabal_id=…&symbol=AAPL&q=earnings
-            &scope=all|mine|following&sort=new|top&cursor=…&limit=30
+            &scope=all|mine|following|network|others&status=open&sort=new|top&cursor=…&limit=30
 ```
 
 | Param | Does |
 | --- | --- |
 | `kind` | Include only these kinds. |
 | `cabal_id`, `symbol` | Scope to one cabal or one stock. |
-| `scope` | `all` (default), `mine` (cabals I am in), `following` (users I follow, [followers.md](followers.md); there are no cabal follows in MVP). |
+| `scope` | `all` (default), `mine` (cabals I am in), `following` (users I follow, [followers.md](followers.md); there are no cabal follows in MVP), `network` (the cabals I am in plus the users I follow, one keyset-paged list; an item that is both appears once) or `others` (every cabal I am not in, never a price move). Mutes and hidden cabals apply to every scope. |
+| `status` | `open` only: keeps the items whose `status` is `open`, such as open proposals; use it with `kind=proposal`. Keyset paging is unchanged, so a client can page every open item. Any other value is `invalid_input`. |
 | `q` | Full-text search over the `search` column (Postgres `tsvector`, GIN index). Symbol and cabal-name matches rank first. |
 | `sort` | `new` (default, `created_at desc`) or `top`: comment count, then recency, over the items from the last 24 h (default 2026-09-27). Votes do not change `top`; a proposal post's `tally` is read from governance on each request, and every `vote.cast` publishes the `global` feed hint. |
 | `cursor` | Keyset pagination on `(created_at, id)`, or on `(comment_count, created_at, id)` for `sort=top`. A cursor works only for the sort that wrote it. No offset paging. |

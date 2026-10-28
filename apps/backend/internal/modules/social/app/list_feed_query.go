@@ -27,6 +27,7 @@ type FeedFilter struct {
 	Symbol  string
 	Q       string
 	Scope   feed.Scope
+	Status  string
 }
 
 type FeedQuery struct {
@@ -127,7 +128,8 @@ func fetchFeed(ctx context.Context, reads *sqlc.Queries, q FeedQuery, rowLimit i
 	}
 	top := sqlc.ListTopFeedParams{
 		Kinds: params.Kinds, CabalID: params.CabalID, ActorID: params.ActorID, Symbol: params.Symbol, Q: params.Q,
-		Following: params.Following, Viewer: params.Viewer, Mine: params.Mine, Since: q.Now.Add(-feed.TopWindow),
+		Following: params.Following, Viewer: params.Viewer, Mine: params.Mine, Network: params.Network,
+		Others: params.Others, Status: params.Status, Since: q.Now.Add(-feed.TopWindow),
 		HasCursor: params.HasCursor, AfterAt: params.AfterAt, AfterID: params.AfterID, RowLimit: params.RowLimit,
 	}
 	if q.After != nil {
@@ -209,6 +211,8 @@ func filterParams(viewer ids.UserID, f FeedFilter) sqlc.ListFeedParams {
 	return sqlc.ListFeedParams{
 		Kinds: kindStrings(f.Kinds), CabalID: f.CabalID.UUID(), ActorID: f.ActorID.UUID(), Symbol: f.Symbol, Q: f.Q,
 		Following: f.Scope == feed.ScopeFollowing, Mine: f.Scope == feed.ScopeMine, Viewer: viewer.UUID(),
+		Network: f.Scope == feed.ScopeNetwork, Others: f.Scope == feed.ScopeOthers,
+		Status: f.Status,
 	}
 }
 

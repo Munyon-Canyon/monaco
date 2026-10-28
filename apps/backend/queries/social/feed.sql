@@ -49,6 +49,27 @@ WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AN
       )
     )
   )
+  AND (
+    NOT sqlc.arg(network)::bool
+    OR EXISTS (
+      SELECT 1 FROM feed_memberships fm
+      WHERE fm.user_id = sqlc.arg(viewer)::uuid AND fm.active AND fm.cabal_id = f.cabal_id
+    )
+    OR f.actor_id IN (
+      SELECT followee_id FROM follows WHERE follower_id = sqlc.arg(viewer)::uuid AND deleted_at IS NULL
+    )
+  )
+  AND (
+    NOT sqlc.arg(others)::bool
+    OR (
+      f.cabal_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM feed_memberships fm
+        WHERE fm.user_id = sqlc.arg(viewer)::uuid AND fm.active AND fm.cabal_id = f.cabal_id
+      )
+    )
+  )
+  AND (sqlc.arg(status)::text = '' OR f.status = sqlc.arg(status)::text)
   AND NOT EXISTS (
     SELECT 1 FROM feed_mutes m
     WHERE m.user_id = sqlc.arg(viewer)::uuid AND m.target_type = 'kind' AND m.target_id = f.kind
@@ -111,6 +132,27 @@ WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AN
       )
     )
   )
+  AND (
+    NOT sqlc.arg(network)::bool
+    OR EXISTS (
+      SELECT 1 FROM feed_memberships fm
+      WHERE fm.user_id = sqlc.arg(viewer)::uuid AND fm.active AND fm.cabal_id = f.cabal_id
+    )
+    OR f.actor_id IN (
+      SELECT followee_id FROM follows WHERE follower_id = sqlc.arg(viewer)::uuid AND deleted_at IS NULL
+    )
+  )
+  AND (
+    NOT sqlc.arg(others)::bool
+    OR (
+      f.cabal_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM feed_memberships fm
+        WHERE fm.user_id = sqlc.arg(viewer)::uuid AND fm.active AND fm.cabal_id = f.cabal_id
+      )
+    )
+  )
+  AND (sqlc.arg(status)::text = '' OR f.status = sqlc.arg(status)::text)
   AND NOT EXISTS (
     SELECT 1 FROM feed_mutes m
     WHERE m.user_id = sqlc.arg(viewer)::uuid AND m.target_type = 'kind' AND m.target_id = f.kind
@@ -173,6 +215,26 @@ SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.t
         SELECT 1 FROM feed_memberships fm
         WHERE fm.user_id = sqlc.arg(viewer)::uuid AND fm.active AND fm.cabal_id = f.cabal_id
       )
+      )
+    )
+    AND (
+      NOT sqlc.arg(network)::bool
+      OR EXISTS (
+        SELECT 1 FROM feed_memberships fm
+        WHERE fm.user_id = sqlc.arg(viewer)::uuid AND fm.active AND fm.cabal_id = f.cabal_id
+      )
+      OR coalesce(f.actor_id IN (
+        SELECT followee_id FROM follows WHERE follower_id = sqlc.arg(viewer)::uuid AND deleted_at IS NULL
+      ), false)
+    )
+    AND (
+      NOT sqlc.arg(others)::bool
+      OR (
+        f.cabal_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM feed_memberships fm
+          WHERE fm.user_id = sqlc.arg(viewer)::uuid AND fm.active AND fm.cabal_id = f.cabal_id
+        )
       )
     )
     AND NOT EXISTS (
