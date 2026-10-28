@@ -14,6 +14,7 @@ type AssetCard struct {
 	Symbol   string
 	Name     string
 	Decimals uint8
+	Kind     string
 }
 
 type Treasury interface {

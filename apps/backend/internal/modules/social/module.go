@@ -83,6 +83,7 @@ func (c CatalogAssets) AssetByMint(ctx context.Context, raw string) (app.AssetCa
 	asset, err := c.catalog.AssetByMint(ctx, mint)
 	return app.AssetCard{
 		ID: asset.ID.UUID(), Symbol: asset.Symbol, Name: asset.DisplayName, Decimals: asset.Decimals,
+		Kind: string(asset.Kind),
 	}, err
 }
 
@@ -243,7 +244,7 @@ func (m *Module) http() adapters.HTTP {
 func (m *Module) Consumers() []bus.Consumer {
 	feed := adapters.Feed{
 		Bus: m.deps.Bus, Users: m.users, Cabals: m.cabals, Assets: m.assets, Treasury: m.treasury,
-		IDs: m.deps.IDs, UoW: m.deps.UoW,
+		Tallies: m.tallies, IDs: m.deps.IDs, UoW: m.deps.UoW,
 	}
 	referrals := adapters.ReferralFollows{Users: m.users, IDs: m.deps.IDs}
 	revoke := adapters.RealtimeRevoke{Realtime: m.realtime}
@@ -260,9 +261,9 @@ func (m *Module) Consumers() []bus.Consumer {
 				bus.HandleFetched("social.feed.profile_updated", feed.FetchProfile, feed.ApplyProfile),
 				bus.HandleFetched("social.feed.cabal_updated", feed.FetchCabal, feed.ApplyCabal),
 				bus.HandleFetched("social.feed.proposal_created", feed.FetchProposal, feed.ApplyProposal),
-				bus.Handle("social.feed.proposal_passed", feed.ProposalPassed),
-				bus.Handle("social.feed.proposal_failed", feed.ProposalFailed),
-				bus.Handle("social.feed.proposal_expired", feed.ProposalExpired),
+				bus.HandleFetched("social.feed.proposal_passed", feed.FetchPassed, feed.ApplyPassed),
+				bus.HandleFetched("social.feed.proposal_failed", feed.FetchFailed, feed.ApplyFailed),
+				bus.HandleFetched("social.feed.proposal_expired", feed.FetchExpired, feed.ApplyExpired),
 				bus.Handle("social.feed.vote_cast", feed.VoteCast),
 				bus.Handle("social.feed.vote_retracted", feed.VoteRetracted),
 				bus.Handle("social.feed.proposal_withdrawn", feed.ProposalWithdrawn),

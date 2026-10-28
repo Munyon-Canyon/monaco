@@ -67,6 +67,11 @@ type FeedItem struct {
 	PrevClose     money.Micros
 	ProposalID    uuid.UUID
 	ExpiresAt     time.Time
+	Outcome       feed.Outcome
+	Tally         *Tally
+	Shape         feed.Shape
+	Caller        *FeedCaller
+	AssetKind     feed.AssetKind
 	CommentCount  int32
 	LikeCount     int32
 	LikedByMe     bool
@@ -74,6 +79,11 @@ type FeedItem struct {
 	ReactionCount int32
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+}
+
+type FeedCaller struct {
+	ID   ids.UserID
+	Name string
 }
 
 type Reaction struct {
@@ -195,16 +205,32 @@ func feedItemOf(row sqlc.ListFeedRow) (FeedItem, error) {
 		item.ChangeBps = &payload.ChangeBps
 		item.MarkMicros, item.PrevClose = payload.MarkMicros, payload.PrevClose
 	}
+	proposalFacts(&item, kind, payload, row.RefID)
+	if kind == feed.KindResult {
+		resultFacts(&item, payload, row.RefID)
+	}
+	return item, nil
+}
+
+func proposalFacts(item *FeedItem, kind feed.Kind, payload feed.Payload, ref uuid.UUID) {
 	if kind == feed.KindProposal || kind == feed.KindReply || kind == feed.KindThreshold {
 		item.ShareOfPotBps = payload.ShareOfPotBps
 	}
 	if kind == feed.KindProposal || kind == feed.KindThreshold {
-		item.ProposalID = row.RefID
+		item.ProposalID = ref
 	}
 	if kind == feed.KindProposal {
-		item.ExpiresAt = payload.ExpiresAt.UTC()
+		item.ExpiresAt, item.AssetKind = payload.ExpiresAt.UTC(), payload.AssetKind
 	}
-	return item, nil
+}
+
+func resultFacts(item *FeedItem, payload feed.Payload, proposal uuid.UUID) {
+	item.ProposalID, item.ShareOfPotBps, item.AssetKind = proposal, payload.ShareOfPotBps, payload.AssetKind
+	item.Outcome, item.Shape = payload.Outcome, payload.Shape
+	item.Tally = &Tally{Yes: payload.Yes, No: payload.No, Voters: payload.Voters, Needed: payload.Needed}
+	if payload.CallerID != uuid.Nil {
+		item.Caller = &FeedCaller{ID: ids.UserIDFrom(payload.CallerID), Name: payload.CallerName}
+	}
 }
 
 func filterParams(viewer ids.UserID, f FeedFilter) sqlc.ListFeedParams {

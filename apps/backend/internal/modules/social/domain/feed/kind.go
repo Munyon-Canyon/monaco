@@ -18,10 +18,20 @@ const (
 	KindMemberJoined Kind = "member_joined"
 	KindReply        Kind = "reply"
 	KindThreshold    Kind = "threshold"
+	KindResult       Kind = "result"
 )
 
 func Kinds() []Kind {
-	return []Kind{KindProposal, KindTrade, KindPriceMove, KindCabalCreated, KindMemberJoined, KindReply, KindThreshold}
+	return []Kind{
+		KindProposal,
+		KindTrade,
+		KindPriceMove,
+		KindCabalCreated,
+		KindMemberJoined,
+		KindReply,
+		KindThreshold,
+		KindResult,
+	}
 }
 
 func ParseKind(raw string) (Kind, error) {
@@ -44,7 +54,7 @@ const (
 
 func (k Kind) RefType() RefType {
 	switch k {
-	case KindProposal, KindThreshold:
+	case KindProposal, KindThreshold, KindResult:
 		return RefProposals
 	case KindTrade:
 		return RefSwaps

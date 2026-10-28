@@ -32,6 +32,9 @@ type ProposalCard struct {
 }
 
 func (h Feed) FetchProposal(ctx context.Context, e events.ProposalCreated) (ProposalCard, error) {
+	if e.Kind == ruleProposal {
+		return ProposalCard{}, nil
+	}
 	asset, err := h.Assets.AssetByMint(ctx, string(e.Mint))
 	if err != nil {
 		return ProposalCard{}, err
@@ -62,9 +65,19 @@ func shareOfPotBps(e events.ProposalCreated, pot money.Micros) int64 {
 	return int64(bps)
 }
 
+func quoteMicros(e events.ProposalCreated) money.Micros {
+	if e.Kind != string(feed.ActionSell) {
+		return money.Micros{}
+	}
+	return money.MicrosFromUint64(e.QuoteOutAmount)
+}
+
 func (h Feed) ApplyProposal(
 	ctx context.Context, tx db.Tx, e events.ProposalCreated, card ProposalCard, at time.Time,
 ) error {
+	if e.Kind == ruleProposal {
+		return nil
+	}
 	q := sqlc.New(tx.Queries())
 	cabal, err := q.FeedCabalName(ctx, e.CabalID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -77,6 +90,7 @@ func (h Feed) ApplyProposal(
 		CabalName: cabal, ActorName: card.ProposerName, Symbol: e.Symbol, AssetName: card.Asset.Name,
 		Action: feed.Action(e.Kind), USDCMicros: e.USDCMicros, TokenAmount: e.TokenAmount,
 		Status: string(feed.StatusOpen), ExpiresAt: e.ExpiresAt, ShareOfPotBps: shareOfPotBps(e, card.Pot),
+		AssetKind: feed.AssetKind(card.Asset.Kind), QuoteMicros: quoteMicros(e),
 	}
 	if err := q.InsertFeedConsumerItem(ctx, sqlc.InsertFeedConsumerItemParams{
 		ID: eventID(ctx), Kind: string(feed.KindProposal), RefType: string(feed.RefProposals), RefID: e.ProposalID,
@@ -89,45 +103,6 @@ func (h Feed) ApplyProposal(
 	}
 	tx.AfterCommit(func(ctx context.Context) { h.Bus.PublishHint(ctx, "global.feed", nil) })
 	return nil
-}
-
-func (h Feed) ProposalPassed(ctx context.Context, tx db.Tx, e events.ProposalPassed, at time.Time) error {
-	if err := h.advance(ctx, tx, e.ProposalID, feed.StatusPassed, "", at); err != nil {
-		return err
-	}
-	return h.insertThreshold(ctx, tx, e, at)
-}
-
-func (h Feed) insertThreshold(ctx context.Context, tx db.Tx, e events.ProposalPassed, at time.Time) error {
-	q := sqlc.New(tx.Queries())
-	source, err := q.GetProposalFeedSource(ctx, e.ProposalID)
-	if err != nil {
-		return err
-	}
-	proposal, err := feed.ParsePayload(source.Payload)
-	if err != nil {
-		return err
-	}
-	payload := feed.Payload{
-		CabalName: proposal.CabalName, ActorName: proposal.ActorName, Symbol: proposal.Symbol,
-		AssetName: proposal.AssetName, Action: proposal.Action, USDCMicros: proposal.USDCMicros,
-		TokenAmount: proposal.TokenAmount, TokenDecimals: proposal.TokenDecimals,
-		ShareOfPotBps: proposal.ShareOfPotBps, ProposalID: e.ProposalID,
-	}
-	return q.InsertFeedConsumerItem(ctx, sqlc.InsertFeedConsumerItemParams{
-		ID: eventID(ctx), Kind: string(feed.KindThreshold), RefType: string(feed.RefProposals), RefID: e.ProposalID,
-		CabalID: source.CabalID, CabalName: source.CabalName, ActorID: source.ActorID, AssetID: source.AssetID,
-		Symbol: source.Symbol, Title: feed.RenderTitle(feed.KindThreshold, payload), Body: source.Body,
-		Payload: payload.JSON(), At: at,
-	})
-}
-
-func (h Feed) ProposalFailed(ctx context.Context, tx db.Tx, e events.ProposalFailed, at time.Time) error {
-	return h.advance(ctx, tx, e.ProposalID, feed.StatusFailed, "", at)
-}
-
-func (h Feed) ProposalExpired(ctx context.Context, tx db.Tx, e events.ProposalExpired, at time.Time) error {
-	return h.advance(ctx, tx, e.ProposalID, feed.StatusExpired, "", at)
 }
 
 func (h Feed) ProposalWithdrawn(ctx context.Context, tx db.Tx, e events.ProposalWithdrawn, at time.Time) error {
@@ -156,23 +131,31 @@ func (h Feed) TradeFailed(ctx context.Context, tx db.Tx, e events.TradeFailed, a
 func (h Feed) advance(
 	ctx context.Context, tx db.Tx, proposal uuid.UUID, to feed.ProposalStatus, code string, at time.Time,
 ) error {
+	moved, err := h.moveStatus(ctx, tx, proposal, to, code, at)
+	if err != nil {
+		return err
+	}
+	if moved {
+		tx.AfterCommit(func(ctx context.Context) { h.Bus.PublishHint(ctx, "global.feed", nil) })
+	}
+	return nil
+}
+
+func (h Feed) moveStatus(
+	ctx context.Context, tx db.Tx, proposal uuid.UUID, to feed.ProposalStatus, code string, at time.Time,
+) (bool, error) {
 	row, err := sqlc.New(tx.Queries()).AdvanceFeedProposal(ctx, sqlc.AdvanceFeedProposalParams{
-		ToStatus: string(
-			to,
-		),
+		ToStatus:     string(to),
 		Patch:        feed.StatusPatch(to, code),
 		At:           at,
 		ProposalID:   proposal,
 		FromStatuses: to.MovesFrom(),
 	})
 	if err != nil {
-		return err
+		return false, err
 	}
 	if !row.Found {
-		return errs.New(errs.CodeFeedItemPending, "social.Feed.advance")
+		return false, errs.New(errs.CodeFeedItemPending, "social.Feed.advance")
 	}
-	if row.Moved > 0 {
-		tx.AfterCommit(func(ctx context.Context) { h.Bus.PublishHint(ctx, "global.feed", nil) })
-	}
-	return nil
+	return row.Moved > 0, nil
 }

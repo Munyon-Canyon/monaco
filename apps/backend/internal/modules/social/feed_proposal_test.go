@@ -16,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -32,6 +33,7 @@ type proposalRig struct {
 	cabal    uuid.UUID
 	proposal uuid.UUID
 	treasury *fakes.Treasury
+	tallies  *fakeTallies
 	feed     adapters.Feed
 }
 
@@ -45,17 +47,24 @@ func newProposalRig(t *testing.T) proposalRig {
 		conn:     b,
 		proposal: f.gen.NewV7(),
 		treasury: treasury,
-		feed: adapters.Feed{
-			Bus:      b.Conn,
-			Users:    f.users,
-			Assets:   social.NewAssets(marketfake.NewCatalog(marketfake.AAPLx())),
-			Treasury: treasury,
-			IDs:      f.gen,
-		},
+		tallies:  &fakeTallies{votes: map[ids.ProposalID]app.Tally{}},
+	}
+	r.feed = adapters.Feed{
+		Bus:      b.Conn,
+		Users:    f.users,
+		Assets:   social.NewAssets(marketfake.NewCatalog(marketfake.AAPLx())),
+		Treasury: treasury,
+		Tallies:  r.tallies,
+		IDs:      f.gen,
 	}
 	r.cabal = createFeedCabal(t, f)
+	r.tally(app.Tally{Yes: 4, No: 1, Voters: 6, Needed: 4, Kind: "buy"})
 	treasury.SetPotValue(ids.CabalIDFrom(r.cabal), money.MicrosFromUint64(5_000_000_000))
 	return r
+}
+
+func (r proposalRig) tally(t app.Tally) {
+	r.tallies.votes[ids.ProposalIDFrom(r.proposal)] = t
 }
 
 func (r proposalRig) created() events.ProposalCreated {
@@ -94,7 +103,12 @@ func (r proposalRig) executed(t *testing.T) error {
 func (r proposalRig) passed(t *testing.T) error {
 	t.Helper()
 	return r.deliver(t, func(ctx context.Context, tx db.Tx) error {
-		return r.feed.ProposalPassed(ctx, tx, events.ProposalPassed{V: 1, ProposalID: r.proposal}, r.clock.Now())
+		e := events.ProposalPassed{V: 1, ProposalID: r.proposal, CabalID: r.cabal}
+		closed, err := r.feed.FetchPassed(ctx, e)
+		if err != nil {
+			return err
+		}
+		return r.feed.ApplyPassed(ctx, tx, e, closed, r.clock.Now())
 	})
 }
 
@@ -102,7 +116,23 @@ func (r proposalRig) expired(t *testing.T) error {
 	t.Helper()
 	return r.deliver(t, func(ctx context.Context, tx db.Tx) error {
 		e := events.ProposalExpired{V: 1, ProposalID: r.proposal, CabalID: r.cabal}
-		return r.feed.ProposalExpired(ctx, tx, e, r.clock.Now())
+		closed, err := r.feed.FetchExpired(ctx, e)
+		if err != nil {
+			return err
+		}
+		return r.feed.ApplyExpired(ctx, tx, e, closed, r.clock.Now())
+	})
+}
+
+func (r proposalRig) failed(t *testing.T) error {
+	t.Helper()
+	return r.deliver(t, func(ctx context.Context, tx db.Tx) error {
+		e := events.ProposalFailed{V: 1, ProposalID: r.proposal, CabalID: r.cabal}
+		closed, err := r.feed.FetchFailed(ctx, e)
+		if err != nil {
+			return err
+		}
+		return r.feed.ApplyFailed(ctx, tx, e, closed, r.clock.Now())
 	})
 }
 
@@ -206,7 +236,7 @@ func TestFeedProposal_StatusOrder(t *testing.T) {
 	if row.Status != "executed" || row.Payload["status"] != "executed" || !row.Updated.Equal(executedAt) {
 		t.Fatalf("after executed then passed: %+v, want executed at %s", row, executedAt)
 	}
-	wantHints(t, r.conn.Conn, sub, 2)
+	wantHints(t, r.conn.Conn, sub, 3)
 }
 
 func TestFeedProposal_aFailedTradeThenARetryEndsExecuted(t *testing.T) {
@@ -285,10 +315,20 @@ func TestFeedProposal_everyStatusEventSetsItsStatus(t *testing.T) {
 	t.Parallel()
 	cases := map[string]func(adapters.Feed, context.Context, db.Tx, uuid.UUID, time.Time) error{
 		"failed": func(h adapters.Feed, ctx context.Context, tx db.Tx, id uuid.UUID, at time.Time) error {
-			return h.ProposalFailed(ctx, tx, events.ProposalFailed{ProposalID: id}, at)
+			e := events.ProposalFailed{ProposalID: id}
+			closed, err := h.FetchFailed(ctx, e)
+			if err != nil {
+				return err
+			}
+			return h.ApplyFailed(ctx, tx, e, closed, at)
 		},
 		"expired": func(h adapters.Feed, ctx context.Context, tx db.Tx, id uuid.UUID, at time.Time) error {
-			return h.ProposalExpired(ctx, tx, events.ProposalExpired{ProposalID: id}, at)
+			e := events.ProposalExpired{ProposalID: id}
+			closed, err := h.FetchExpired(ctx, e)
+			if err != nil {
+				return err
+			}
+			return h.ApplyExpired(ctx, tx, e, closed, at)
 		},
 		"withdrawn": func(h adapters.Feed, ctx context.Context, tx db.Tx, id uuid.UUID, at time.Time) error {
 			return h.ProposalWithdrawn(ctx, tx, events.ProposalWithdrawn{ProposalID: id}, at)

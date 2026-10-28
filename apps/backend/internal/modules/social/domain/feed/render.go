@@ -29,6 +29,8 @@ func RenderTitle(k Kind, p Payload) string {
 		return replyTitle(p)
 	case KindThreshold:
 		return thresholdTitle(p)
+	case KindResult:
+		return resultTitle(p)
 	default:
 		return ""
 	}
@@ -49,6 +51,8 @@ func RenderDetail(k Kind, p Payload) string {
 		return join(" · ", p.Symbol, "Replied to the proposal")
 	case KindThreshold:
 		return "Execution pending"
+	case KindResult:
+		return resultDetail(p)
 	case KindCabalCreated, KindMemberJoined:
 		return ""
 	default:
@@ -77,6 +81,58 @@ func replyTitle(p Payload) string {
 
 func thresholdTitle(p Payload) string {
 	return memberOr(p.ActorName) + "'s proposal to " + tradeVerbBare(p) + " " + exactAmountOf(p) + " was approved"
+}
+
+func resultTitle(p Payload) string {
+	if p.Shape == ShapeMember {
+		return memberResultTitle(p)
+	}
+	verb := "passed"
+	if p.Outcome == OutcomeFailed {
+		verb = "failed"
+	}
+	return join(" ", p.CabalName, verb, capitalized(tradeVerbBare(p)), assetLabel(p), resultDollars(p), tallyOf(p))
+}
+
+func memberResultTitle(p Payload) string {
+	noun, tally := "buy", ""
+	if p.Action == ActionSell {
+		noun, tally = "sale", tallyOf(p)
+	}
+	return join(" ", memberOr(p.ActorName)+"'s", noun, "of", resultAmountOf(p), "in", p.CabalName, "passed", tally)
+}
+
+func resultDetail(p Payload) string {
+	switch {
+	case p.Outcome == OutcomeFailed:
+		return "no trade"
+	case p.Action == ActionSell:
+		return "selling"
+	default:
+		return "buying"
+	}
+}
+
+func resultDollars(p Payload) string {
+	if p.USDCMicros.IsZero() {
+		return ""
+	}
+	return dollars(p.USDCMicros)
+}
+
+func resultAmountOf(p Payload) string {
+	return join(" of ", resultDollars(p), assetLabel(p))
+}
+
+func tallyOf(p Payload) string {
+	if p.Voters == 0 {
+		return ""
+	}
+	return strconv.Itoa(p.Yes) + "–" + strconv.Itoa(p.No)
+}
+
+func capitalized(s string) string {
+	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 func memberOr(name string) string {

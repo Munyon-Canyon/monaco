@@ -57,3 +57,22 @@ INSERT INTO feed_cabals (cabal_id, name, updated_at, hidden_at)
 VALUES (sqlc.arg(cabal_id)::uuid, '', sqlc.arg(at)::timestamptz, sqlc.arg(at)::timestamptz)
 ON CONFLICT (cabal_id) DO UPDATE SET hidden_at = excluded.hidden_at
 WHERE feed_cabals.hidden_at IS NULL;
+
+-- name: LockFeedResult :one
+SELECT payload FROM feed_objects
+WHERE ref_type = 'proposals' AND ref_id = sqlc.arg(proposal_id)::uuid AND kind = 'result'
+FOR UPDATE;
+
+-- name: UpsertFeedResult :exec
+INSERT INTO feed_objects (
+  id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, asset_id, symbol, title, body, payload, status,
+  created_at, updated_at
+)
+VALUES (
+  sqlc.arg(id), 'result', 'proposals', sqlc.arg(proposal_id), sqlc.arg(cabal_id), sqlc.arg(cabal_name),
+  sqlc.arg(actor_id), sqlc.narg(asset_id), sqlc.narg(symbol), sqlc.arg(title), sqlc.arg(body), sqlc.arg(payload),
+  sqlc.arg(status), sqlc.arg(at), sqlc.arg(at)
+)
+ON CONFLICT (ref_type, ref_id, kind) DO UPDATE SET
+  payload = excluded.payload, title = excluded.title, body = excluded.body, status = excluded.status,
+  updated_at = excluded.updated_at;

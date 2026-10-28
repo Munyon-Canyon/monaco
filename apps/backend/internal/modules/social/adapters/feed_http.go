@@ -156,6 +156,9 @@ func collectFeedRefs(items []app.FeedItem) feedRefs {
 		if item.ActorID.UUID() != uuid.Nil && !slices.Contains(r.actors, item.ActorID) {
 			r.actors = append(r.actors, item.ActorID)
 		}
+		if item.Caller != nil && !slices.Contains(r.actors, item.Caller.ID) {
+			r.actors = append(r.actors, item.Caller.ID)
+		}
 		if item.AssetID != uuid.Nil && !slices.Contains(r.assets, item.AssetID) {
 			r.assets = append(r.assets, item.AssetID)
 		}
@@ -203,6 +206,7 @@ func (h HTTP) wireFeedItems(ctx context.Context, items []app.FeedItem) ([]api.Fe
 		if card, ok := who.cards[item.ActorID]; ok && !card.Deleted {
 			out[i].ActorPhotoUrl = optionalWireText(card.PhotoURL)
 		}
+		out[i].Caller = wireCaller(item.Caller, who)
 		out[i].AssetLogoUrl = optionalWireText(refs.logos[item.AssetID])
 		out[i].CabalPictureUrl = optionalWireText(refs.covers[item.CabalID])
 		out[i].Return1mBps, out[i].ReturnPrivate = who.authorReturn(item.ActorID)
@@ -228,10 +232,24 @@ func wireFeedItem(item app.FeedItem) api.FeedItem {
 		MarkMicros:      optionalWireAmount(item.MarkMicros.Uint64()),
 		PrevCloseMicros: optionalWireAmount(item.PrevClose.Uint64()),
 		ProposalId:      optionalWireID(item.ProposalID),
+		Outcome:         optionalWireEnum[api.FeedItemOutcome](string(item.Outcome)),
+		Shape:           optionalWireEnum[api.FeedItemShape](string(item.Shape)),
+		AssetKind:       optionalWireEnum[api.FeedItemAssetKind](string(item.AssetKind)),
 		CommentCount:    item.CommentCount, LikeCount: item.LikeCount, LikedByMe: item.LikedByMe,
 		Reactions: wireReactions(item.Reactions), ReactionCount: item.ReactionCount,
 		CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt,
 	}
+}
+
+func wireCaller(caller *app.FeedCaller, who people) *api.FeedCaller {
+	if caller == nil {
+		return nil
+	}
+	out := api.FeedCaller{Id: caller.ID.UUID(), Name: caller.Name}
+	if card, ok := who.cards[caller.ID]; ok && !card.Deleted {
+		out.PhotoUrl = optionalWireText(card.PhotoURL)
+	}
+	return &out
 }
 
 func wireReactions(reactions []app.Reaction) []api.Reaction {
@@ -275,6 +293,14 @@ func optionalWireDecimals(d *uint8, withAmount bool) *int {
 		return nil
 	}
 	v := int(*d)
+	return &v
+}
+
+func optionalWireEnum[T ~string](s string) *T {
+	if s == "" {
+		return nil
+	}
+	v := T(s)
 	return &v
 }
 

@@ -22,7 +22,8 @@ The feed is a fifth bottom tab, **Feed**, between Home and Cabals (default 2026-
 | `cabal_created` | `cabal` events | A cabal is created. | Yes |
 | `member_joined` | `cabal` events | A user joins a cabal. | Yes |
 | `reply` | `social` comments | A comment, top-level or nested, is posted on a `proposal` item. Written in the comment's own transaction and deleted with the comment. Comments on other kinds make none. | Yes |
-| `threshold` | `governance` events | A proposal passes (`proposal.passed`). It stays "Execution pending" after the trade executes, because the `proposal` item, not this one, advances. | Yes |
+| `threshold` | `governance` events | Older items; no longer written. A proposal that passed used to insert one (`proposal.passed`), and it stayed "Execution pending" because the `proposal` item, not this one, advanced. | Yes |
+| `result` | `governance` events | A proposal closes: one row per proposal, written at `proposal.passed`, `proposal.failed` or `proposal.expired`, then patched by its trade events (#6515); every write re-renders title and body. It stores the outcome (`passed` or `failed`), the shape that says who heads the post (`cabal`, or the proposing `member` for a sale and a Pre-IPO buy), the caller (the proposer of a passed proposal) and the final tally with the votes it needed. A rule-change proposal has none. | Yes |
 | `news` | News provider | A news item tagged to a stock in the catalog. | No, deferred |
 
 **Every cabal is public in the feed** (decided 2026-09-27). There is no private-cabal flag. Proposals and trades from all cabals appear, not only cabals the viewer belongs to. `cabal_created` and `member_joined` items carry no money amounts, and funding and cash-outs never become feed items (default 2026-09-27), so the feed does not show what a member put in or took out.
@@ -32,7 +33,7 @@ The feed is a fifth bottom tab, **Feed**, between Home and Cabals (default 2026-
 ```
 feed_objects
   id             uuid      UUIDv7
-  kind           text      trade | proposal | cabal_created | member_joined | price_move | reply | threshold
+  kind           text      trade | proposal | cabal_created | member_joined | price_move | reply | threshold | result
   ref_type       text      swaps | proposals | cabals | cabal_members | asset_price_moves | feed_comments, one per kind
   ref_id         uuid      source row
   cabal_id       uuid?     null for price_move and news
@@ -73,7 +74,7 @@ All through the `feed` consumer on the event bus. Each source module appends its
 - **Price move** → the `market` price poller (flow 18, every 120 s) compares each asset's new sample with its previous close on every tick. There is no second poller. The window is the change since the previous close only, with no rolling intraday window (default 2026-09-27). Crossing a threshold (proposal: ±5% and ±10%) appends an `asset.price_moved` event, once per asset, per threshold, per day (dedupe key `(asset_id, threshold, trading_day)`). The `feed` consumer inserts the item. It sends no push for MVP ([notifications.md](notifications.md#what-notifies-mvp)). This event must be stored, because a feed item is durable work. The `price.tick` message is core NATS only (flow 18) and cannot drive it. `asset.price_moved` is in flow 18's row of the flows table (market → social feed).
 - **Cabal created** → `cabal.created` (flow 2) → insert `cabal_created` item.
 - **Member joined** → `cabal.member_joined` (flow 3) → insert `member_joined` item.
-- **Proposal passed** → `proposal.passed` (flow 10) → `social.feed.proposal_passed` advances the `proposal` item and inserts one `threshold` item for the proposal. A redelivery, or a reopened proposal that passes again, inserts none.
+- **Proposal closed** → `proposal.passed`, `proposal.failed` or `proposal.expired` (flow 10) → `social.feed.proposal_passed`, `social.feed.proposal_failed` and `social.feed.proposal_expired` advance the `proposal` item and write the proposal's one `result` item in the same transaction. The final tally and the votes it needed come from governance's `Tallies` port (the proposal's frozen threshold, never the cabal's current rule and never the price-move `threshold_bps`). Every write to a result row goes through one projection (`writeResult`): lock the row, merge the new facts into the payload, re-render `title`, `body` and `status`, upsert. A redelivery, or a reopened proposal that closes again, keeps one row and any fill keys already on it. No `threshold` item is written.
 - **News** (deferred) → an ingest job pulls from a provider and inserts items tagged by `asset_id`.
 
 The RFC also routes `cabal.member_left`, `cabal.funded`, `cashout.*` and `user.profile_updated` to the feed (flows 4, 7, 14, 23). None of them creates an item. Profile and cabal-name changes refresh the snapshots in `title`, `payload` and `search`; the rest keep the viewer's cabal list current for `scope=mine`.
