@@ -17,6 +17,7 @@ func TestParseChartRange_namesTheWindow(t *testing.T) {
 		window  time.Duration
 		bounded bool
 	}{
+		{"1H", time.Minute, time.Hour, true},
 		{"1D", 5 * time.Minute, day, true},
 		{"1W", time.Hour, 7 * day, true},
 		{"1M", time.Hour, 30 * day, true},
@@ -45,8 +46,11 @@ func TestParseChartRange_namesTheWindow(t *testing.T) {
 
 func TestChartRange_allowsTheIntervalsOfItsTable(t *testing.T) {
 	t.Parallel()
-	all := []ChartInterval{Interval5m, Interval15m, Interval30m, Interval1h, Interval4h, Interval1d, Interval1w}
+	all := []ChartInterval{
+		Interval1m, Interval5m, Interval15m, Interval30m, Interval1h, Interval4h, Interval1d, Interval1w,
+	}
 	table := map[ChartRange][]ChartInterval{
+		Chart1H:  {Interval1m, Interval5m},
 		Chart1D:  {Interval5m, Interval15m, Interval30m, Interval1h, Interval4h, Interval1d},
 		Chart1W:  {Interval5m, Interval15m, Interval30m, Interval1h, Interval4h, Interval1d},
 		Chart1M:  {Interval15m, Interval30m, Interval1h, Interval4h, Interval1d},
@@ -73,7 +77,7 @@ func TestChartRange_allowsTheIntervalsOfItsTable(t *testing.T) {
 func TestParseChartInterval_namesTheWidth(t *testing.T) {
 	t.Parallel()
 	widths := map[string]time.Duration{
-		"5m": 5 * time.Minute, "15m": 15 * time.Minute, "30m": 30 * time.Minute,
+		"1m": time.Minute, "5m": 5 * time.Minute, "15m": 15 * time.Minute, "30m": 30 * time.Minute,
 		"1h": time.Hour, "4h": 4 * time.Hour, "1d": 24 * time.Hour, "1w": 7 * 24 * time.Hour,
 	}
 	for raw, width := range widths {
@@ -82,7 +86,7 @@ func TestParseChartInterval_namesTheWidth(t *testing.T) {
 			t.Fatalf("%s = %s %v", raw, got, err)
 		}
 	}
-	for _, raw := range []string{"1m", "15M", "", "2h", "1W"} {
+	for _, raw := range []string{"2m", "1M", "15M", "", "2h", "1W"} {
 		if _, err := ParseChartInterval(raw); errs.CodeOf(err) != errs.CodeInvalidInput {
 			t.Fatalf("%q = %v", raw, err)
 		}

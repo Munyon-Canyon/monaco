@@ -425,6 +425,7 @@ nonisolated extension SampleAPIProtocol {
         _ range: Components.Schemas.AssetChart.RangePayload
     ) -> Components.Schemas.AssetChart.IntervalPayload {
         switch range {
+        case ._1h: ._1m
         case ._1d: ._5m
         case ._1w, ._1m, ._3m: ._1h
         case ._6m, ._1y, .all: ._1d

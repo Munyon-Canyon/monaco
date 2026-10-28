@@ -11,6 +11,7 @@ import (
 type ChartRange string
 
 const (
+	Chart1H  ChartRange = "1H"
 	Chart1D  ChartRange = "1D"
 	Chart1W  ChartRange = "1W"
 	Chart1M  ChartRange = "1M"
@@ -22,7 +23,7 @@ const (
 
 func ParseChartRange(raw string) (ChartRange, error) {
 	switch ChartRange(raw) {
-	case Chart1D, Chart1W, Chart1M, Chart3M, Chart6M, Chart1Y, ChartAll:
+	case Chart1H, Chart1D, Chart1W, Chart1M, Chart3M, Chart6M, Chart1Y, ChartAll:
 		return ChartRange(raw), nil
 	default:
 		return "", errs.New(errs.CodeInvalidInput, "market.ParseChartRange", slog.String("range", raw))
@@ -32,6 +33,7 @@ func ParseChartRange(raw string) (ChartRange, error) {
 type ChartInterval string
 
 const (
+	Interval1m  ChartInterval = "1m"
 	Interval5m  ChartInterval = "5m"
 	Interval15m ChartInterval = "15m"
 	Interval30m ChartInterval = "30m"
@@ -43,7 +45,7 @@ const (
 
 func ParseChartInterval(raw string) (ChartInterval, error) {
 	switch ChartInterval(raw) {
-	case Interval5m, Interval15m, Interval30m, Interval1h, Interval4h, Interval1d, Interval1w:
+	case Interval1m, Interval5m, Interval15m, Interval30m, Interval1h, Interval4h, Interval1d, Interval1w:
 		return ChartInterval(raw), nil
 	default:
 		return "", errs.New(errs.CodeInvalidInput, "market.ParseChartInterval", slog.String("interval", raw))
@@ -52,6 +54,8 @@ func ParseChartInterval(raw string) (ChartInterval, error) {
 
 func (i ChartInterval) Duration() time.Duration {
 	switch i {
+	case Interval1m:
+		return time.Minute
 	case Interval5m:
 		return 5 * time.Minute
 	case Interval15m:
@@ -73,6 +77,8 @@ func (i ChartInterval) Duration() time.Duration {
 
 func (r ChartRange) DefaultInterval() ChartInterval {
 	switch r {
+	case Chart1H:
+		return Interval1m
 	case Chart1D:
 		return Interval5m
 	case Chart1W, Chart1M, Chart3M:
@@ -88,6 +94,8 @@ func (r ChartRange) Bucket() time.Duration { return r.DefaultInterval().Duration
 
 func (r ChartRange) allowed() []ChartInterval {
 	switch r {
+	case Chart1H:
+		return []ChartInterval{Interval1m, Interval5m}
 	case Chart1D, Chart1W:
 		return []ChartInterval{Interval5m, Interval15m, Interval30m, Interval1h, Interval4h, Interval1d}
 	case Chart1M:
@@ -108,6 +116,8 @@ func (r ChartRange) Allows(i ChartInterval) bool { return slices.Contains(r.allo
 func (r ChartRange) Window() (time.Duration, bool) {
 	const day = 24 * time.Hour
 	switch r {
+	case Chart1H:
+		return time.Hour, true
 	case Chart1D:
 		return day, true
 	case Chart1W:

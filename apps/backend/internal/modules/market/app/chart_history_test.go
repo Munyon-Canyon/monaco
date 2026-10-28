@@ -230,10 +230,10 @@ func TestChart_aMissingUnconfiguredOrFailingHistoryFallsBackToPricePoints(t *tes
 	}
 }
 
-func TestChart_anHourRangeIsRefusedBeforeAnyHistoryCall(t *testing.T) {
+func TestChart_anUnknownHourRangeIsRefusedBeforeAnyHistoryCall(t *testing.T) {
 	t.Parallel()
 	hist := &fakeHistory{samples: historySamples()}
-	_, err := historyChart(t, hist, onlyAsset(t)).Handle(t.Context(), "AAPLx", ChartRequest{Range: "1H"})
+	_, err := historyChart(t, hist, onlyAsset(t)).Handle(t.Context(), "AAPLx", ChartRequest{Range: "2H"})
 	if errs.CodeOf(err) != errs.CodeInvalidInput || len(hist.calls()) != 0 {
 		t.Fatalf("err = %v calls %v", err, hist.calls())
 	}
