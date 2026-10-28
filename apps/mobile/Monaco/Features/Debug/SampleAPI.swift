@@ -62,6 +62,14 @@ nonisolated struct SampleAPIScript: Sendable {
     var closedProposalsHang = false
     var catalog: [Components.Schemas.AssetSummary] = []
     var failsAfterAssetReads: Int?
+    var invitePreview = InvitePreview.frame
+
+    enum InvitePreview: Sendable {
+        case frame
+        case noProposal
+        case hang
+        case fail
+    }
 }
 
 nonisolated final class SampleAPIProtocol: URLProtocol {
@@ -112,10 +120,11 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
         let query = Dictionary(items.compactMap { item in item.value.map { (item.name, $0) } }) { first, _ in first }
         let reply =
             Self.cabalBoardModeReply(url.path, script)
+            ?? Self.invitePreviewReply(path: url.path, script: script)
             ?? Self.reply(path: url.path, method: method, query: query, script: script)
         let response = HTTPURLResponse(
             url: url, statusCode: reply.status, httpVersion: "HTTP/1.1",
-            headerFields: ["Content-Type": reply.contentType]
+            headerFields: ["Content-Type": reply.contentType].merging(reply.headers) { first, _ in first }
         )
         guard let response else { return }
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
@@ -124,7 +133,8 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
     }
 
     private static func hangs(_ path: String, _ script: SampleAPIScript) -> Bool {
-        (script.pendingVotesHang && path == "/v1/me/pending-votes")
+        (script.invitePreview == .hang && path.hasPrefix("/v1/referrals/"))
+            || (script.pendingVotesHang && path == "/v1/me/pending-votes")
             || (script.closedProposalsHang && path == "/v1/me/proposals")
             || (script.cabalBoardMode == .hanging && path == "/v1/leaderboards/cabals")
     }
@@ -164,6 +174,7 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
     private struct Reply {
         var status = 200
         var contentType = "application/json"
+        var headers: [String: String] = [:]
         var body: Data
     }
 
@@ -234,6 +245,23 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
 }
 
 nonisolated extension SampleAPIProtocol {
+    private static func invitePreviewReply(path: String, script: SampleAPIScript) -> Reply? {
+        let parts = path.split(separator: "/").map(String.init)
+        guard parts.count == 5, parts[1] == "referrals", parts[3] == "cabals" else { return nil }
+        let cabalID = parts[4]
+        guard script.invitePreview != .fail else {
+            return problem(503, "unavailable", "The invite can't be read right now.")
+        }
+        var preview =
+            script.invitePreview == .noProposal
+            ? Components.Schemas.ReferralCabal.sampleNoOpenProposal : .sample
+        preview.cabal?.id = cabalID
+        preview.cabal?.name = Components.Schemas.Cabal.sample(role: nil).name
+        var reply = json(preview)
+        reply.headers["Cache-Control"] = "no-cache"
+        return reply
+    }
+
     private static func feedItemReply(id: String) -> Reply {
         var item = Components.Schemas.FeedItem.samples[0]
         item.id = id

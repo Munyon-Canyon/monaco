@@ -33,6 +33,10 @@ enum GroupDetailSampleScenario: String, CaseIterable {
     case requests
     case requestsEmpty
     case invite
+    case inviteNoProposal
+    case inviteMember
+    case inviteLoading
+    case inviteFailed
     case invitePreview
     case inviteInvalid
     case invitePending
@@ -51,8 +55,12 @@ extension GroupDetailSampleScenario {
     @MainActor
     var script: SampleAPIScript {
         switch self {
-        case .ready, .invite, .invitePreview, .inviteInvalid, .invitePending:
+        case .ready, .invitePreview, .inviteInvalid, .invitePending, .inviteMember:
             SampleAPIScript(role: "member", unreadCount: 3)
+        case .invite: SampleAPIScript(role: "creator", unreadCount: 3)
+        case .inviteNoProposal: SampleAPIScript(role: "creator", unreadCount: 3, invitePreview: .noProposal)
+        case .inviteLoading: SampleAPIScript(role: "creator", unreadCount: 3, invitePreview: .hang)
+        case .inviteFailed: SampleAPIScript(role: "creator", unreadCount: 3, invitePreview: .fail)
         case .noShare: SampleAPIScript(role: "member", pot: .noShare)
         case .cashOnly: SampleAPIScript(role: "member", pot: .sampleCashOnly)
         case .noProposals: SampleAPIScript(role: "member", hidesProposals: true)
@@ -98,10 +106,12 @@ extension GroupDetailSampleScenario {
         case .requests, .requestsEmpty: return [MembersRoute(cabalID: id, tab: .requests)]
         case .publicMember: return [CabalSampleRoute(kind: .publicMember)]
         case .publicPrivate: return [CabalSampleRoute(kind: .publicPrivate)]
-        case .invite: return [CabalSampleRoute(kind: .invite(.share))]
-        case .invitePreview: return [CabalSampleRoute(kind: .invite(.invited))]
-        case .inviteInvalid: return [CabalSampleRoute(kind: .invite(.unavailable))]
-        case .invitePending: return [CabalSampleRoute(kind: .invite(.requested))]
+        case .invite, .inviteNoProposal, .inviteLoading, .inviteFailed:
+            return [CabalSampleRoute(kind: .invite(.share, role: "creator"))]
+        case .inviteMember: return [CabalSampleRoute(kind: .invite(.share, role: "member"))]
+        case .invitePreview: return [CabalSampleRoute(kind: .invite(.invited, role: "member"))]
+        case .inviteInvalid: return [CabalSampleRoute(kind: .invite(.unavailable, role: "member"))]
+        case .invitePending: return [CabalSampleRoute(kind: .invite(.requested, role: "member"))]
         default: return [CabalRoute(id: id)]
         }
     }
@@ -184,7 +194,7 @@ nonisolated struct CabalSampleRoute: AppRoute {
         case publicMember
         case publicPrivate
         case infoSaving
-        case invite(CabalInviteMode)
+        case invite(CabalInviteMode, role: String)
     }
 
     let kind: Kind
@@ -216,11 +226,10 @@ private struct CabalSampleHost: View {
             PublicCabalView(cabal: cabal, isPrivate: true, retry: {})
         case .infoSaving:
             CabalInfoView(cabalID: cabalID, savingPreview: true)
-        case .invite(let mode):
+        case .invite(let mode, let role):
             CabalScreen(cabalID: cabalID)
                 .sheet(isPresented: .constant(true)) {
-                    CabalInviteSheet(
-                        cabal: .sample(role: "member"), mode: mode, link: URL(string: "https://monaco.app/i/alex"))
+                    CabalInviteSheet(cabal: .sample(role: role), mode: mode)
                 }
         }
     }

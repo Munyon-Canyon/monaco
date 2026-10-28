@@ -31,6 +31,22 @@ public enum ReferralLink {
         code.link
     }
 
+    public static func url(for code: ReferralCode, cabalID: String) -> URL {
+        url(for: code, queryItems: [URLQueryItem(name: "c", value: cabalID)])
+    }
+
+    public static func url(for code: ReferralCode, cabalID: String, proposalID: String) -> URL {
+        url(
+            for: code,
+            queryItems: [URLQueryItem(name: "c", value: cabalID), URLQueryItem(name: "p", value: proposalID)])
+    }
+
+    private static func url(for code: ReferralCode, queryItems: [URLQueryItem]) -> URL {
+        guard var components = URLComponents(url: code.link, resolvingAgainstBaseURL: false) else { return code.link }
+        components.queryItems = queryItems
+        return components.url ?? code.link
+    }
+
     public static func parse(_ string: String) -> ReferralCode? {
         let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.unicodeScalars.contains(where: CharacterSet.whitespacesAndNewlines.contains),

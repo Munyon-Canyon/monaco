@@ -240,6 +240,10 @@ cabal-members-requests            -MonacoGroupDetailSample requests
 cabal-members-requests-empty      -MonacoGroupDetailSample requestsEmpty
 cabal-invite                      -MonacoGroupDetailSample invite
 cabal-invite-dark                 -MonacoGroupDetailSample invite -AppleInterfaceStyle Dark
+cabal-invite-no-proposal          -MonacoGroupDetailSample inviteNoProposal
+cabal-invite-member               -MonacoGroupDetailSample inviteMember
+cabal-invite-loading              -MonacoGroupDetailSample inviteLoading
+cabal-invite-failed               -MonacoGroupDetailSample inviteFailed
 cabal-invite-preview              -MonacoGroupDetailSample invitePreview
 cabal-invite-invalid              -MonacoGroupDetailSample inviteInvalid
 cabal-invite-pending              -MonacoGroupDetailSample invitePending

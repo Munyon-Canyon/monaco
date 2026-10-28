@@ -91,6 +91,26 @@ final class ReferralLinkTests: XCTestCase {
         XCTAssertEqual(ReferralLink.parse(url), code)
     }
 
+    func testURLCarriesTheCabalForACodeAndAHandle() throws {
+        let cabalID = "01890a5d-ac96-774b-bcce-b302099a8058"
+        for raw in ["K7M4QX2P", "kaicenat"] {
+            let code = try XCTUnwrap(ReferralCode(raw))
+            let url = ReferralLink.url(for: code, cabalID: cabalID)
+            XCTAssertEqual(url.absoluteString, "https://monacolabs.xyz/r/\(code.value)?c=\(cabalID)")
+            XCTAssertEqual(ReferralLink.parse(url), code)
+        }
+    }
+
+    func testURLCarriesTheCabalAndTheProposal() throws {
+        let cabalID = "01890a5d-ac96-774b-bcce-b302099a8058"
+        let proposalID = "01890a5d-ac96-774b-bcce-b302099a8057"
+        let code = try XCTUnwrap(ReferralCode("kaicenat"))
+        let url = ReferralLink.url(for: code, cabalID: cabalID, proposalID: proposalID)
+        XCTAssertEqual(url.absoluteString, "https://monacolabs.xyz/r/kaicenat?c=\(cabalID)&p=\(proposalID)")
+        XCTAssertEqual(ReferralLink.parse(url), code)
+        XCTAssertEqual(ReferralLink.parse(url.absoluteString), code)
+    }
+
     func testSourceRawValuesMatchAPI() {
         XCTAssertEqual(ReferralSource.allCases.map(\.rawValue), ["universal_link", "clipboard", "manual"])
     }

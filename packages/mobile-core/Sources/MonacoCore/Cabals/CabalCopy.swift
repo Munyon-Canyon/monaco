@@ -86,7 +86,6 @@ public enum CabalCopy {
     public static let onlyVotersCaption = "Only voters can propose"
     public static let cashOutUnavailable = "Cash out unavailable: no funded share"
     public static let returnsOpenSoon = "Returns open soon"
-    public static let cabalLinksOpenSoon = "Cabal links open soon"
     public static let linkCopied = "Link copied."
     public static let votersSaved = "Voters saved."
     public static let noMessagesTitle = "No messages yet"
