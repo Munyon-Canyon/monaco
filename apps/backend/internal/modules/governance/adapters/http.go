@@ -64,7 +64,18 @@ func wireMyVote(v app.MyVote) api.MyVote {
 }
 
 func wireStats(s app.Stats) api.ProposalStats {
-	return api.ProposalStats{TreasuryShareBps: s.TreasuryShareBps, ClosesAt: s.ClosesAt, ClosedAt: s.ClosedAt}
+	decimals := int(s.TokenDecimals)
+	out := api.ProposalStats{
+		TreasuryShareBps: s.TreasuryShareBps, ClosesAt: s.ClosesAt, ClosedAt: s.ClosedAt,
+		SharesExact: &s.SharesExact, TokenDecimals: &decimals, SinceBps: s.SinceBps,
+	}
+	if s.PriceMicros != nil {
+		out.PriceMicros = baseAmount(s.PriceMicros.Uint64())
+	}
+	if s.Shares != nil {
+		out.SharesAtomics = baseAmount(s.Shares.Uint64())
+	}
+	return out
 }
 
 func (h HTTP) DeleteProposalVote(
@@ -326,6 +337,20 @@ func wireFill(out *api.LinkedSwap, f app.Fill) {
 	out.TokenDecimals = int(f.TokenDecimals)
 	if f.Confirmed {
 		out.PriceMicros = baseAmount(f.PriceMicros)
+		wireReceipt(out, f)
+	}
+}
+
+func wireReceipt(out *api.LinkedSwap, f app.Fill) {
+	if !f.FilledAt.IsZero() {
+		out.FilledAt = &f.FilledAt
+	}
+	if f.FeeMicros == nil {
+		return
+	}
+	if n := f.FeeMicros.Uint64(); n <= math.MaxInt64 {
+		fee := int64(n)
+		out.FeeMicros = &fee
 	}
 }
 
@@ -431,7 +456,7 @@ func wireOpenedProposal(opened app.OpenedProposal, cabalName string) api.Proposa
 		ExpiresAt: p.ExpiresAt, CreatedAt: p.CreatedAt, Tally: p.Tally, MyBallot: p.MyBallot, Voters: voters,
 		CanVote: opened.ProposerCanVote, CanWithdraw: true,
 		PriceComparison: wireComparison(opened.PriceComparison), Network: wireNetwork(d.Network),
-		Stats: wireStats(opened.Stats),
+		Stats: wireStats(app.QuotedStats(opened.Stats, d)),
 	}
 }
 

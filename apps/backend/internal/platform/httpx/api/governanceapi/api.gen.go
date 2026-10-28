@@ -769,7 +769,7 @@ type ProposalDetail struct {
 	// Examples: 6
 	ReplyCount int `json:"reply_count"`
 
-	// Stats Facts about a proposal that need no live price.
+	// Stats Facts about a proposal. `treasury_share_bps`, `closes_at` and `closed_at` are recorded when the proposal opens or closes. `price_micros` and `since_bps` are live, read at request time from the price book, and `shares_atomics` is an estimate until the trade fills.
 	Stats ProposalStats `json:"stats"`
 
 	// Status Where a proposal is in its lifecycle.
@@ -870,6 +870,16 @@ type LinkedSwap struct {
 	// Examples: null
 	FailureMessage *string `json:"failure_message"`
 
+	// FeeMicros The fee the confirmed trade paid, in USDC micros, as recorded on the swap. Null until `status` is `confirmed`, and when the swap recorded none.
+	//
+	// Examples: 400000
+	FeeMicros *int64 `json:"fee_micros,omitempty"`
+
+	// FilledAt When the trade confirmed on chain. Null until `status` is `confirmed`.
+	//
+	// Examples: 2026-10-04T13:41:00Z
+	FilledAt *time.Time `json:"filled_at,omitempty"`
+
 	// PriceMicros USDC micros per whole token, the floor of `usdc_micros` ÷ the whole units in `token_amount`. Null until `status` is `confirmed`.
 	//
 	// Examples: 200000000
@@ -947,7 +957,7 @@ type ProposalPriceComparison struct {
 	QuotedAt time.Time `json:"quoted_at"`
 }
 
-// ProposalStats Facts about a proposal that need no live price.
+// ProposalStats Facts about a proposal. `treasury_share_bps`, `closes_at` and `closed_at` are recorded when the proposal opens or closes. `price_micros` and `since_bps` are live, read at request time from the price book, and `shares_atomics` is an estimate until the trade fills.
 type ProposalStats struct {
 	// ClosedAt When the proposal left `open`. Null while open, and for proposals closed before close times were recorded.
 	//
@@ -958,6 +968,31 @@ type ProposalStats struct {
 	//
 	// Examples: 2026-10-04T15:00:00Z
 	ClosesAt time.Time `json:"closes_at"`
+
+	// PriceMicros The asset's live price in USDC micros per whole token, from the price book at request time. On a proposal that was just opened it is the quote's price. Null when the asset has no accepted price, never zero.
+	//
+	// Examples: 220000000
+	PriceMicros *int64 `json:"price_micros,omitempty"`
+
+	// SharesAtomics The trade's shares in base units of `token_decimals`. A sell is its `token_amount`, exact. A buy is the filled amount once the swap confirms, exact, and before that `usdc_micros` ÷ `price_micros` rounded down, an estimate. Null for an unfilled buy with no `price_micros`.
+	//
+	// Examples: 182000000
+	SharesAtomics *int64 `json:"shares_atomics,omitempty"`
+
+	// SharesExact True when `shares_atomics` is the trade's own amount, false when it is the estimate.
+	//
+	// Examples: false
+	SharesExact *bool `json:"shares_exact,omitempty"`
+
+	// SinceBps The change from the fill price (`swap.price_micros`) to `price_micros`, in basis points of the fill price, rounded toward zero. Negative when the price fell. Null until the swap confirms, and when either price is missing.
+	//
+	// Examples: 30
+	SinceBps *int64 `json:"since_bps,omitempty"`
+
+	// TokenDecimals Decimals of `shares_atomics`.
+	//
+	// Examples: 8
+	TokenDecimals *int `json:"token_decimals,omitempty"`
 
 	// TreasuryShareBps The trade's share of the cabal's pot when the proposal opened, in basis points, rounded down: `usdc_micros` for a buy, `quote_out_amount` for a sell. Null when the pot was not recorded (a proposal opened before the figure was stored) or was zero.
 	//
