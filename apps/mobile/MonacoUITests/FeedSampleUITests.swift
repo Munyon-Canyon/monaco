@@ -11,9 +11,10 @@ nonisolated final class FeedSampleUITests: XCTestCase {
         app.launchArguments = ["-feedHarness", "followsNobody"]
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["No updates yet"].waitForExistence(timeout: 15), "Everyone is plain empty")
+        XCTAssertTrue(
+            app.staticTexts["No updates yet"].waitForExistence(timeout: 15), "Your cabals and friends is plain empty")
         app.buttons["feed-filter"].tap()
-        FeedBrowseJourney.menuItem(app, "feed-scope-Following").tap()
+        FeedBrowseJourney.menuItem(app, "feed-scope-Friends").tap()
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)).tap()
         XCTAssertTrue(
             app.staticTexts["Follow people to see what they do."].waitForExistence(timeout: 10),
@@ -27,24 +28,23 @@ nonisolated final class FeedSampleUITests: XCTestCase {
     }
 
     @MainActor
-    func testFilterMenuAppliesEachToggleAtOnceAndStaysOpen() {
+    func testFilterMenuListsTheFourScopesAndMarksTheChosenOne() {
         let app = launch("-feedHarness", "items")
         let filter = app.buttons["feed-filter"]
         XCTAssertTrue(filter.waitForExistence(timeout: 15), "the filter round is missing")
         filter.tap()
-        let trades = FeedBrowseJourney.menuItem(app, "feed-chip-Completed trades")
-        XCTAssertTrue(trades.waitForExistence(timeout: 5), "the menu did not open: \(app.debugDescription)")
-        XCTAssertTrue(FeedBrowseJourney.menuItem(app, "feed-chip-All").isSelected, "All is not checked by default")
-        trades.tap()
-        XCTAssertFalse(FeedBrowseJourney.menuItem(app, "feed-chip-All").isSelected, "All stayed checked after a pick")
-        XCTAssertTrue(FeedBrowseJourney.menuItem(app, "feed-chip-Price moves").exists, "the menu closed after one pick")
-        XCTAssertTrue(FeedBrowseJourney.menuItem(app, "feed-muted-link").exists, "the menu has no Muted item")
-        FeedBrowseJourney.menuItem(app, "feed-scope-Following").tap()
+        let network = FeedBrowseJourney.menuItem(app, "feed-scope-Your cabals and friends")
+        XCTAssertTrue(network.waitForExistence(timeout: 5), "the menu did not open: \(app.debugDescription)")
+        XCTAssertTrue(network.isSelected, "Your cabals and friends is not checked by default")
+        for option in FeedBrowseJourney.filterOptions {
+            XCTAssertTrue(FeedBrowseJourney.menuItem(app, option).exists, "no \(option) in the menu")
+        }
+        FeedBrowseJourney.menuItem(app, "feed-scope-Everyone").tap()
+        filter.tap()
         XCTAssertTrue(
-            FeedBrowseJourney.menuItem(app, "feed-chip-Cabal activity").exists, "the menu closed after the second pick")
-        FeedBrowseJourney.menuItem(app, "feed-chip-All").tap()
-        XCTAssertFalse(trades.isSelected, "All left a group checked")
-        XCTAssertTrue(FeedBrowseJourney.menuItem(app, "feed-chip-All").isSelected, "All did not check")
+            FeedBrowseJourney.menuItem(app, "feed-scope-Everyone").waitForExistence(timeout: 5)
+                && FeedBrowseJourney.menuItem(app, "feed-scope-Everyone").isSelected,
+            "Everyone did not check")
         FeedBrowseJourney.menuItem(app, "feed-muted-link").tap()
         XCTAssertTrue(app.navigationBars["Muted"].waitForExistence(timeout: 5), "Muted did not open")
     }
@@ -116,7 +116,7 @@ nonisolated final class FeedSampleUITests: XCTestCase {
         XCTAssertTrue(back.waitForExistence(timeout: 15), "no Back to feed")
         XCTAssertFalse(app.buttons["comment-composer-send"].exists, "the composer is still there")
         back.tap()
-        XCTAssertTrue(app.textFields["monaco-search-field"].waitForExistence(timeout: 10), "did not return to the feed")
+        XCTAssertTrue(app.buttons["feed-filter"].waitForExistence(timeout: 10), "did not return to the feed")
     }
 
     @MainActor

@@ -53,18 +53,33 @@ struct FeedView: View {
 
 struct FeedSkeleton: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-            SkeletonTitle()
-            SkeletonFraction(0.4) { SkeletonBar() }
-            SkeletonBlock(height: SkeletonMetrics.cardHeight, radius: MonacoTheme.Radius.cardTight)
-            MonacoRowSkeleton(rows: 4, markShape: .circle)
-                .monacoBleed()
+        VStack(spacing: 0) {
+            ForEach(0..<FeedScreenMetrics.skeletonRows, id: \.self) { _ in FeedSkeletonRow() }
         }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.vertical, MonacoTheme.Space.m)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Loading the feed")
         .accessibilityIdentifier("feed-loading")
+    }
+}
+
+private struct FeedSkeletonRow: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: FeedPostMetrics.gap) {
+                SkeletonBlock(
+                    width: FeedPostMetrics.avatar, height: FeedPostMetrics.avatar,
+                    radius: FeedPostMetrics.avatar / 2)
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                    SkeletonFraction(0.5) { SkeletonBar() }
+                    SkeletonFraction(0.8) { SkeletonBar() }
+                    SkeletonBlock(height: FeedScreenMetrics.attachmentHeight, radius: MonacoTheme.Radius.field)
+                }
+            }
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .padding(.vertical, MonacoTheme.Space.sm)
+            MonacoRule(color: MonacoTheme.hairline)
+                .padding(.leading, FeedPostMetrics.textColumn)
+        }
     }
 }
 
@@ -72,81 +87,36 @@ private struct FeedScreen: View {
     let model: FeedModel
 
     @Environment(ToastCenter.self) private var toasts
-    @Environment(\.feedOpensSoon) private var opensSoon
-    @State private var search = ""
     @State private var readingID: Components.Schemas.FeedItem.ID?
-    @State private var showsActivity = false
     @State private var showsMuted = false
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-                MonacoSearchField(placeholder: "Search the feed", text: $search)
-                    .padding(.horizontal, MonacoTheme.Space.gutter)
-                content
-            }
-            .padding(.vertical, MonacoTheme.Space.m)
+            content
+                .padding(.bottom, MonacoTheme.Space.m)
         }
         .scrollPosition(id: $readingID, anchor: .top)
-        .scrollDismissesKeyboard(.interactively)
         .refreshable { await model.refresh() }
         .monacoCanvas()
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) { bell }
-            if #available(iOS 26, *) {
-                ToolbarSpacer(.fixed, placement: .topBarTrailing)
-            }
             ToolbarItem(placement: .topBarTrailing) { filter }
         }
-        .navigationDestination(isPresented: $showsActivity) { NotMigratedView(screen: "Activity") }
         .navigationDestination(isPresented: $showsMuted) { FeedMutesView() }
-        .onChange(of: search) { _, text in
-            readingID = nil
-            model.setSearch(text)
-        }
         .onChange(of: model.failureTick) { _, _ in
             guard let error = model.lastError else { return }
             toasts.show(error)
         }
     }
 
-    private var bell: some View {
-        MonacoGlassButton(
-            icon: .bell, accessibilityLabel: "Activity notifications", placement: .toolbar
-        ) {
-            showsActivity = true
-        }
-        .overlay(alignment: .topTrailing) {
-            if opensSoon.hasUnreadActivity {
-                Circle()
-                    .fill(MonacoTheme.brand)
-                    .frame(width: FeedScreenMetrics.unreadDot, height: FeedScreenMetrics.unreadDot)
-                    .padding(FeedScreenMetrics.unreadInset)
-                    .accessibilityHidden(true)
-            }
-        }
-        .accessibilityIdentifier("feed-bell")
-    }
-
     private var filter: some View {
         Menu {
-            Section("From") {
-                Picker("From", selection: scope) {
-                    ForEach(FeedScope.allCases, id: \.self) { scope in
-                        Text(scope.title).tag(scope).accessibilityIdentifier("feed-scope-\(scope.title)")
-                    }
-                }
-                .pickerStyle(.inline)
-                .accessibilityIdentifier("feed-scope")
-            }
-            Section("Show") {
-                Toggle("All", isOn: allBinding)
-                    .accessibilityIdentifier("feed-chip-All")
-                ForEach(FeedKindGroup.allCases, id: \.self) { group in
-                    Toggle(group.title, isOn: kindBinding(group))
-                        .accessibilityIdentifier("feed-chip-\(group.title)")
+            Picker("From", selection: scope) {
+                ForEach(FeedScope.menu, id: \.self) { scope in
+                    Text(scope.title).tag(scope).accessibilityIdentifier("feed-scope-\(scope.title)")
                 }
             }
+            .pickerStyle(.inline)
+            .accessibilityIdentifier("feed-scope")
             Section {
                 Button("Muted") { showsMuted = true }
                     .accessibilityIdentifier("feed-muted-link")
@@ -157,17 +127,12 @@ private struct FeedScreen: View {
                 placement: .toolbar
             ) {}
         }
-        .menuActionDismissBehavior(.disabled)
         .accessibilityLabel("Filter feed")
         .accessibilityIdentifier("feed-filter")
     }
 
     private var isFiltered: Bool {
-        model.query.scope != .everyone || !model.query.showsAll
-    }
-
-    private var isNarrowed: Bool {
-        isFiltered || !model.query.trimmedSearch.isEmpty
+        model.query.scope != .network
     }
 
     private func mute(_ option: FeedMuteOption) {
@@ -185,27 +150,6 @@ private struct FeedScreen: View {
             set: { next in
                 readingID = nil
                 Task { await model.select(next) }
-            }
-        )
-    }
-
-    private var allBinding: Binding<Bool> {
-        Binding(
-            get: { model.query.showsAll },
-            set: { _ in
-                guard !model.query.showsAll else { return }
-                readingID = nil
-                Task { await model.clearKinds() }
-            }
-        )
-    }
-
-    private func kindBinding(_ group: FeedKindGroup) -> Binding<Bool> {
-        Binding(
-            get: { model.query.kinds.contains(group) },
-            set: { _ in
-                readingID = nil
-                Task { await model.toggle(group) }
             }
         )
     }
@@ -235,14 +179,14 @@ private struct FeedScreen: View {
                 action: { Task { await model.reload() } }
             )
         case .loaded:
-            cards
+            timeline
         }
     }
 
     @ViewBuilder private var emptyState: some View {
-        if isNarrowed {
+        if isFiltered {
             EmptyState(
-                title: "No matching updates", message: "Change the filter to see more activity.",
+                title: "Nothing here yet", message: "Change the filter to see more.",
                 systemImage: MonacoIcon.filter.symbol
             )
             .accessibilityIdentifier("feed-empty")
@@ -255,32 +199,37 @@ private struct FeedScreen: View {
         }
     }
 
-    private var cards: some View {
+    private var timeline: some View {
         let items = model.items
-        return VStack(spacing: MonacoTheme.Space.sm) {
-            LazyVStack(spacing: MonacoTheme.Space.sm) {
+        return VStack(spacing: 0) {
+            LazyVStack(spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    FeedItemCell(item: item) { Task { await model.toggleLike(item) } }
-                        .contextMenu {
-                            ForEach(model.muteOptions(for: item)) { option in
-                                Button(option.menuTitle) { mute(option) }
-                            }
+                    VStack(spacing: 0) {
+                        FeedItemCell(item: item) { Task { await model.toggleLike(item) } }
+                            .padding(.horizontal, MonacoTheme.Space.gutter)
+                        MonacoRule(color: MonacoTheme.hairline)
+                            .padding(.leading, FeedPostMetrics.textColumn)
+                    }
+                    .contextMenu {
+                        ForEach(model.muteOptions(for: item)) { option in
+                            Button(option.menuTitle) { mute(option) }
                         }
-                        .onAppear {
-                            guard index >= items.count - 5, !model.loadMoreFailed else { return }
-                            Task { await model.loadMore() }
-                        }
+                    }
+                    .onAppear {
+                        guard index >= items.count - 5, !model.loadMoreFailed else { return }
+                        Task { await model.loadMore() }
+                    }
                 }
             }
             .scrollTargetLayout()
             footer
+                .padding(.horizontal, MonacoTheme.Space.gutter)
         }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
     }
 
     @ViewBuilder private var footer: some View {
         if model.isLoadingMore {
-            SkeletonBlock(height: SkeletonMetrics.cardHeight, radius: MonacoTheme.Radius.cardTight)
+            FeedSkeletonRow()
         } else if model.loadMoreFailed {
             VStack(spacing: MonacoTheme.Space.sm) {
                 MonacoNotice(.warn, message: "Older updates couldn’t load. The items above are still here.")
@@ -289,7 +238,7 @@ private struct FeedScreen: View {
                     .accessibilityIdentifier("feed-load-more-retry")
             }
         } else if model.pager.phase == .exhausted {
-            Text(isNarrowed ? "No more matching updates" : "You’re caught up")
+            Text(isFiltered ? "No more matching updates" : "You’re caught up")
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .frame(maxWidth: .infinity, minHeight: FeedScreenMetrics.footerHeight)
@@ -298,10 +247,16 @@ private struct FeedScreen: View {
     }
 }
 
+enum FeedPostMetrics {
+    static let avatar: CGFloat = 32
+    static let gap: CGFloat = 12
+    static let textColumn = MonacoTheme.Space.gutter + avatar + gap
+}
+
 enum FeedScreenMetrics {
-    static let unreadDot: CGFloat = 6
-    static let unreadInset: CGFloat = 7
     static let footerHeight: CGFloat = 48
+    static let attachmentHeight: CGFloat = 64
+    static let skeletonRows = 4
 }
 
 #if DEBUG
@@ -324,10 +279,6 @@ private struct FeedHarnessScreen: View {
             FeedView(makeModel: { _ in .preview(mode, clock: ContinuousClock()) })
                 .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
         }
-        .environment(
-            \.feedOpensSoon,
-            FeedOpensSoonData(hasUnreadActivity: true)
-        )
         .defaultScrollAnchor(SampleScrollAnchor.requested(by: SampleScrollAnchor.flag))
     }
 }

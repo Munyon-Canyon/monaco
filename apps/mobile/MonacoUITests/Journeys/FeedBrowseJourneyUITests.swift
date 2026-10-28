@@ -14,7 +14,7 @@ nonisolated final class FeedBrowseJourneyUITests: XCTestCase {
 
         try session.scenario("S1") {
             try session.act(as: "A")
-            FeedBrowseJourney.chipsAndSearch(app, run: run, recorder: recorder)
+            FeedBrowseJourney.scopeAndDefault(app, run: run, recorder: recorder)
             attachScreenshot(of: app, named: "S1-A-search")
         }
 

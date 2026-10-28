@@ -3,11 +3,9 @@ import XCTest
 enum FeedBrowseJourney {
     static let id = "feed/browse"
     static let version = 6
-    static let searchPlaceholder = "Search the feed"
     static let filterOptions = [
-        "feed-scope-Everyone", "feed-scope-My cabals", "feed-scope-Following",
-        "feed-chip-All", "feed-chip-Proposals", "feed-chip-Completed trades", "feed-chip-Price moves",
-        "feed-chip-Replies & votes", "feed-chip-Proposal outcomes", "feed-chip-Cabal activity", "feed-muted-link",
+        "feed-scope-Your cabals and friends", "feed-scope-Your cabals", "feed-scope-Friends", "feed-scope-Everyone",
+        "feed-muted-link",
     ]
 
     static func recorder() -> JourneyRecorder {
@@ -31,8 +29,7 @@ enum FeedBrowseJourney {
         let label =
             identifier == "feed-muted-link"
             ? "Muted"
-            : identifier.replacingOccurrences(of: "feed-scope-", with: "").replacingOccurrences(
-                of: "feed-chip-", with: "")
+            : identifier.replacingOccurrences(of: "feed-scope-", with: "")
         return app.buttons.matching(NSPredicate(format: "identifier == %@ OR label == %@", identifier, label))
             .firstMatch
     }
@@ -42,6 +39,7 @@ enum FeedBrowseJourney {
     }
 
     static func closeFilter(_ app: XCUIApplication) {
+        guard menuItem(app, filterOptions[0]).exists else { return }
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.6)).tap()
     }
 
@@ -55,55 +53,36 @@ enum FeedBrowseJourney {
         closeFilter(app)
     }
 
-    static func replaceQuery(_ app: XCUIApplication, with text: String) {
-        let field = app.textFields["monaco-search-field"]
-        field.tap()
-        let current = field.value as? String ?? ""
-        if current != searchPlaceholder, !current.isEmpty {
-            field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count))
-        }
-        field.typeText(text)
-    }
-
-    static func chipsAndSearch(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
+    static func scopeAndDefault(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S1.1", "open the Feed tab") {
             openFeed(app, step: "S1.1")
-            let field = app.textFields["monaco-search-field"]
-            XCTAssertTrue(field.waitForExistence(timeout: 5), "S1.1: no search field on the Feed tab")
-            XCTAssertEqual(field.placeholderValue, searchPlaceholder, "S1.1: the search placeholder is not the spec's")
             openFilter(app)
             for option in filterOptions {
                 XCTAssertTrue(menuItem(app, option).waitForExistence(timeout: 5), "S1.1: no \(option) in the menu")
             }
-            XCTAssertTrue(menuItem(app, "feed-chip-All").isSelected, "S1.1: All is not checked by default")
+            XCTAssertTrue(
+                menuItem(app, "feed-scope-Your cabals and friends").isSelected,
+                "S1.1: Your cabals and friends is not checked by default")
             closeFilter(app)
         }
 
-        recorder.step("S1.2", "the Cabal activity toggle shows the seeded cabal") {
-            choose(app, "feed-chip-Cabal activity")
+        recorder.step("S1.2", "the default scope shows the seeded cabal") {
             XCTAssertTrue(
                 text(app, containing: "started \(joinedCabal(run: run))").waitForExistence(timeout: 15),
                 "S1.2: no 'started \(joinedCabal(run: run))' cell within 15 s"
             )
         }
 
-        recorder.step("S1.3", "search narrows to one cabal") {
-            replaceQuery(app, with: joinedCabal(run: run))
-            XCTAssertTrue(
-                text(app, containing: "joined \(joinedCabal(run: run))").waitForExistence(timeout: 10),
-                "S1.3: no 'joined \(joinedCabal(run: run))' cell within 10 s"
-            )
-            XCTAssertFalse(
-                text(app, containing: "started \(ownCabal(run: run))").exists,
-                "S1.3: the search still shows \(ownCabal(run: run))"
-            )
+        recorder.step("S1.3", "the Feed has no search field and no bell") {
+            XCTAssertFalse(app.textFields["monaco-search-field"].exists, "S1.3: the Feed has a search field")
+            XCTAssertFalse(app.element("feed-bell").exists, "S1.3: the Feed has a bell")
         }
 
-        recorder.step("S1.4", "a search with no match is empty") {
-            replaceQuery(app, with: "nomatch \(run)")
+        recorder.step("S1.4", "Your cabals shows the cabal A started") {
+            choose(app, "feed-scope-Your cabals")
             XCTAssertTrue(
-                JoinJourney.waitForLabel(app.element("feed-empty"), containing: "No matching updates", timeout: 10),
-                "S1.4: no 'No matching updates' within 10 s"
+                text(app, containing: "started \(ownCabal(run: run))").waitForExistence(timeout: 15),
+                "S1.4: no 'started \(ownCabal(run: run))' cell within 15 s"
             )
         }
     }
@@ -111,7 +90,7 @@ enum FeedBrowseJourney {
     static func following(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S2.1", "Following hides people A does not follow") {
             openFeed(app, step: "S2.1")
-            choose(app, "feed-scope-Following")
+            choose(app, "feed-scope-Friends")
             XCTAssertFalse(
                 text(app, containing: "started \(joinedCabal(run: run))").waitForExistence(timeout: 5),
                 "S2.1: Following shows a cabal started by someone A does not follow"
@@ -131,10 +110,7 @@ enum FeedBrowseJourney {
     static func cellTaps(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S3.1", "a cabal cell opens the cabal") {
             openFeed(app, step: "S3.1")
-            let clear = app.buttons["Clear search"]
-            if clear.exists { clear.tap() }
-            app.dismissKeyboard()
-            choose(app, "feed-scope-Everyone")
+            choose(app, "feed-scope-Your cabals and friends")
             let cell = text(app, containing: "started \(joinedCabal(run: run))")
             XCTAssertTrue(cell.waitForExistence(timeout: 15), "S3.1: no 'started \(joinedCabal(run: run))' cell")
             cell.tap()
@@ -147,7 +123,6 @@ enum FeedBrowseJourney {
 
         recorder.step("S3.2", "a proposal cell opens the proposal") {
             app.navigationBars.buttons.element(boundBy: 0).tap()
-            choose(app, "feed-chip-Cabal activity", "feed-chip-Proposals")
             let cell = app.descendants(matching: .any)
                 .matching(NSPredicate(format: "identifier BEGINSWITH 'feed-cell-'")).firstMatch
             XCTAssertTrue(cell.waitForExistence(timeout: 15), "S3.2: no proposal cell within 15 s")
@@ -164,7 +139,6 @@ enum FeedBrowseJourney {
 
         recorder.step("S3.3", "hide a cell") {
             app.navigationBars.buttons.element(boundBy: 0).tap()
-            choose(app, "feed-chip-Proposals", "feed-chip-Cabal activity")
             let cell = text(app, containing: "started \(joinedCabal(run: run))")
             XCTAssertTrue(cell.waitForExistence(timeout: 15), "S3.3: no 'started \(joinedCabal(run: run))' cell")
             cell.press(forDuration: 1)

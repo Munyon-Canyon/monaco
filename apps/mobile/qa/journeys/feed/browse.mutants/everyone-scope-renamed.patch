@@ -1,0 +1,19 @@
+journey: feed/browse
+expect-fail: S1 S3
+
+The Everyone scope title reads "All". S1.1 checks every menu option by its title and S3.1 later picks feed-scope-Everyone, so S1 and S3 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Feed/FeedQuery.swift b/packages/mobile-core/Sources/MonacoCore/Feed/FeedQuery.swift
+index 7e6367427..632c11645 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Feed/FeedQuery.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Feed/FeedQuery.swift
+@@ -24,7 +24,7 @@ public enum FeedScope: CaseIterable, Hashable, Sendable {
+         case .network: "Your cabals and friends"
+         case .mine: "Your cabals"
+         case .following: "Friends"
+-        case .everyone: "Everyone"
++        case .everyone: "All"
+         case .others: "Other cabals"
+         }
+     }

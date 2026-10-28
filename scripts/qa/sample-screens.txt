@@ -737,13 +737,12 @@ explore__leaderboard__stale                        -MonacoLeaderboardSample stal
 feed__feed__all                                    -feedHarness items
 feed__feed__empty                                  -feedHarness empty
 feed__feed__error                                  -feedHarness failed
+feed__feed__everyone                               -MonacoParitySample feed-everyone
 feed__feed__following                              -feedHarness followsNobody
 feed__feed__load-more-error                        -feedHarness loadMoreFailed -MonacoSampleScroll bottom
 feed__feed__loading                                -feedHarness loading
+feed__feed__mine                                   -MonacoParitySample feed-mine
 feed__feed__pnl-private                            -feedHarness pnlPrivate
-feed__feed__price-moves                            -MonacoParitySample feed-price-moves
-feed__feed__proposals                              -MonacoParitySample feed-proposals
-feed__feed__trades                                 -MonacoParitySample feed-trades
 feed__post__empty                                  -feedPostHarness empty
 feed__post__failed                                 -feedPostHarness failed
 feed__post__ready                                  -feedPostHarness ready
