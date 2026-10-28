@@ -19,6 +19,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
@@ -118,6 +119,16 @@ func newSettleHarnessOn(t *testing.T, h *fundHarness) *settleHarness {
 	sh := &settleHarness{fundHarness: h, chain: s}
 	sh.settler = sh.newSettler(0)
 	return sh
+}
+
+const settleDeadlineMargin = 5 * time.Second
+
+func (h *settleHarness) withDeadlineBudget(t *testing.T) *settleHarness {
+	t.Helper()
+	if at, ok := t.Deadline(); ok {
+		h.settler = h.newSettler(max(at.Sub(clock.Real{}.Now())-settleDeadlineMargin, time.Second))
+	}
+	return h
 }
 
 func (h *settleHarness) newSettler(itemBudget time.Duration) *app.FundSettler {
