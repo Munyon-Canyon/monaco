@@ -2561,7 +2561,7 @@ func TestCheck_theGoTestRowSkipsWhenEveryAffectedPackageIsExcluded(t *testing.T)
 	}
 }
 
-func TestCheck_goTestCarriesRaceOnlyWhenLandOnStage0IsOn(t *testing.T) {
+func TestCheck_goTestNeverCarriesRace(t *testing.T) {
 	t.Parallel()
 	for _, on := range []bool{false, true} {
 		h := newCheckHarness(t)
@@ -2581,11 +2581,8 @@ func TestCheck_goTestCarriesRaceOnlyWhenLandOnStage0IsOn(t *testing.T) {
 		if line == "" {
 			t.Fatalf("on=%v: no go test call in %q", on, h.calls)
 		}
-		if got := strings.Contains(line, " -short -race -count=1 "); got != on {
-			t.Fatalf("on=%v: -race present = %v in %q", on, got, line)
-		}
-		if strings.Contains(line, "-race") != on {
-			t.Fatalf("on=%v: -race elsewhere in %q", on, line)
+		if strings.Contains(line, "-race") {
+			t.Fatalf("on=%v: -race in %q", on, line)
 		}
 	}
 }
