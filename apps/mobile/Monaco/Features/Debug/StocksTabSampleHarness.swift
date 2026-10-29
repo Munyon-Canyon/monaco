@@ -23,11 +23,11 @@ enum StocksTabSampleScenario: String, CaseIterable {
     }
 
     var script: SampleAPIScript {
-        var script = SampleAPIScript(catalog: MarketsSampleCatalog.assets)
+        var script = SampleAPIScript(catalog: MarketsSampleCatalog.marketsAssets)
         switch self {
         case .ready, .watchlistEmpty, .noResults: break
         case .loading: script.mode = .hang
-        case .stale: script.failsAfterAssetReads = 2 + StocksTabSampleScenario.watchedCount
+        case .stale: script.failsAfterAssetReads = 1 + StocksTabSampleScenario.watchedCount
         case .failed: script.mode = .assetsUnavailable
         case .empty: script.mode = .empty
         case .paused: script = SampleAPIScript(includesPausedStock: true)
@@ -37,7 +37,7 @@ enum StocksTabSampleScenario: String, CaseIterable {
 
     var watched: [String] {
         switch self {
-        case .ready, .stale: MarketsSampleCatalog.watched
+        case .ready, .stale: MarketsSampleCatalog.marketsWatched
         case .watchlistEmpty, .noResults, .loading, .failed, .empty, .paused: []
         }
     }
@@ -48,7 +48,7 @@ enum StocksTabSampleScenario: String, CaseIterable {
         self == .stale ? SampleTickHints(after: .seconds(2)) : SampleSilentHints()
     }
 
-    private static let watchedCount = MarketsSampleCatalog.watched.count
+    private static let watchedCount = MarketsSampleCatalog.marketsWatched.count
 }
 
 nonisolated struct SampleTickHints: HintConnecting {

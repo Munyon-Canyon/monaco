@@ -310,6 +310,8 @@ nonisolated extension SampleAPIProtocol {
             return json(script.pnlHistory ?? (empty ? Components.Schemas.MyPnlHistory.sampleEmpty : .sampleCurve()))
         case "/v1/me/txns":
             return json(empty ? Components.Schemas.UserTxnPage.sampleEmpty : .sampleFirst)
+        case "/v1/me/market-facts":
+            return json(script.catalog.isEmpty ? Components.Schemas.MarketFacts.sampleEmpty : .sampleAndres)
         case "/v1/me/pending-votes":
             return pendingVotesReply(script)
         case "/v1/me/proposals":
@@ -556,6 +558,8 @@ nonisolated extension SampleAPIProtocol {
         switch query["filter"] {
         case "popular" where !script.catalog.isEmpty: return .init(assets: catalog, nextCursor: nil)
         case "popular": return paused ? .init(assets: [.paused, .googl], nextCursor: nil) : .popularSample
+        case "pre_ipo" where !script.catalog.isEmpty:
+            return .init(assets: catalog.filter { $0.kind == .preIpo }, nextCursor: nil)
         case "pre_ipo": return .preIpoSample
         default: return .init(assets: catalog, nextCursor: nil)
         }

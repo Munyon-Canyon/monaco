@@ -6,25 +6,28 @@ import Observation
 @MainActor
 public final class StocksTabModel {
     public enum Browse: CaseIterable, Hashable, Sendable {
-        case all, popular, preIpo
+        case all, watchlist, preIpo, held
 
         public var title: String {
             switch self {
             case .all: "All"
-            case .popular: "Popular"
+            case .watchlist: "Watchlist"
             case .preIpo: "Pre-IPO"
+            case .held: "Held"
             }
         }
 
         public var identifier: String {
             switch self {
             case .all: "all"
-            case .popular: "popular"
+            case .watchlist: "watchlist"
             case .preIpo: "pre_ipo"
+            case .held: "held"
             }
         }
     }
-    public enum Section: Equatable, Sendable { case popular, preIpo, all, search }
+    public nonisolated static let availableBrowses: [Browse] = [.all, .watchlist, .preIpo]
+    public enum Section: Equatable, Sendable { case preIpo, all, search }
     public enum Phase: Equatable, Sendable {
         case idle, loading, loaded
         case failed(APIError)
@@ -38,7 +41,6 @@ public final class StocksTabModel {
     public static let searchDebounce: Duration = .milliseconds(300)
     public static let pageLimit = 20
     public private(set) var query = ""
-    public private(set) var popular = SectionState()
     public private(set) var preIpo = SectionState()
     public private(set) var all = SectionState()
     public private(set) var search = SectionState()
@@ -48,19 +50,22 @@ public final class StocksTabModel {
     public private(set) var browse: Browse = .all
     public private(set) var lastLoadedAt: Date?
     public private(set) var isStale = false
+    public internal(set) var facts: [String: MarketFact] = [:]
+    public private(set) var isMarkets = false
     public let quotes: WatchlistQuotes?
-    public var rows: [MarketAsset] { isSearching ? search.rows : self[browsedSection].rows }
-    public var phase: Phase { isSearching ? search.phase : self[browsedSection].phase }
-    public var nextCursor: String? { self[isSearching ? .search : browsedSection].nextCursor }
+    public var rows: [MarketAsset] { self[activeSection].rows }
+    public var phase: Phase { self[activeSection].phase }
+    public var nextCursor: String? { self[activeSection].nextCursor }
     public var hasMore: Bool { nextCursor != nil }
     public var isSearching: Bool { !Self.trimmed(query).isEmpty }
     public var loadMoreFailed: Bool { false }
     public var refreshFailed: Bool { lastError != nil }
-    private let api: APIClient
+    let api: APIClient
     private let hints: any HintSource
     private let clock: any Clock<Duration>
     let now: @Sendable () -> Date
     private let refresher: HintRefresher
+    let watchlist: WatchlistModel?
     private var generation = 0
     private var searchTask: Task<Void, Never>?
     private var replacementGenerations: Set<Int> = []
@@ -73,6 +78,7 @@ public final class StocksTabModel {
         self.hints = hints
         self.clock = clock
         self.now = now
+        self.watchlist = watchlist
         quotes = watchlist.map { WatchlistQuotes(api: api, watchlist: $0) }
         let hook = ReloadHook()
         refresher = HintRefresher { await hook.run?() }
@@ -83,29 +89,26 @@ public final class StocksTabModel {
         let issued = generation
         replacementGenerations.insert(issued)
         defer { replacementGenerations.remove(issued) }
-        await replace(isSearching ? .search : browsedSection, issued: issued)
-    }
-    public func loadPopular() async {
-        do {
-            let page = try await page(.popular, cursor: nil)
-            popular = .init(rows: page.assets, phase: .loaded, nextCursor: page.nextCursor, cursors: [nil])
-        } catch {
-            note(APIError(error), section: .popular, empty: popular.rows.isEmpty)
-        }
+        await replace(activeSection, issued: issued)
     }
     public func loadMarkets() async {
-        async let browsed: Void = load()
-        async let popular: Void = loadPopularUnlessBrowsed()
+        isMarkets = true
+        async let listed: Void = load()
         async let watched: Void = loadQuotes()
-        _ = await (browsed, popular, watched)
+        async let known: Void = loadFacts()
+        _ = await (listed, watched, known)
     }
     public func show(_ next: Browse) async {
         searchTask?.cancel()
         searchTask = nil
         browse = next
         isStale = false
-        if isSearching { search = .init(phase: .loading) }
-        await load()
+        if isSearching {
+            search = .init(phase: .loading)
+            await load()
+        } else if !isMarkets {
+            await load()
+        }
     }
     public func setQuery(_ text: String) {
         query = text
@@ -131,7 +134,7 @@ public final class StocksTabModel {
         }
     }
     public func loadMore() async {
-        await loadMore(isSearching ? .search : browsedSection)
+        await loadMore(activeSection)
     }
     private func loadMore(_ section: Section) async {
         guard !replacementGenerations.contains(generation), let cursor = self[section].nextCursor, !isLoadingMore else {
@@ -158,9 +161,8 @@ public final class StocksTabModel {
         let issued = generation
         replacementGenerations.insert(issued)
         defer { replacementGenerations.remove(issued) }
-        await refresh(isSearching ? .search : browsedSection, issued: issued)
-        if browse != .popular, !popular.rows.isEmpty { await refresh(.popular, issued: issued) }
-        await loadQuotes()
+        await refresh(activeSection, issued: issued)
+        await watchlistChanged()
     }
     private func replace(_ section: Section?, issued: Int) async {
         guard issued == generation else { return }
@@ -194,33 +196,23 @@ public final class StocksTabModel {
     }
     private func page(_ section: Section?, cursor: String?) async throws -> MarketAssetPage {
         let searchQuery = section == .search ? Self.trimmed(query) : nil
-        let browsed: Operations.GetAssets.Input.Query.FilterPayload =
-            switch browse {
-            case .all: .all
-            case .popular: .popular
-            case .preIpo: .preIpo
-            }
+        let wantsPreIpo = section == .preIpo || (section == .search && browse == .preIpo)
+        let filter: Operations.GetAssets.Input.Query.FilterPayload = wantsPreIpo ? .preIpo : .all
         let list = try await api.read { client in
             try await client.getAssets(
-                query: .init(
-                    q: searchQuery, filter: section == .popular ? .popular : browsed, limit: Self.pageLimit,
-                    cursor: cursor
-                )
+                query: .init(q: searchQuery, filter: filter, limit: Self.pageLimit, cursor: cursor)
             ).ok.body.json
         }
         return MarketMapping.page(list)
     }
     private var browsedSection: Section {
-        switch browse {
-        case .all: .all
-        case .popular: .popular
-        case .preIpo: .preIpo
-        }
+        if isMarkets { return .preIpo }
+        return browse == .preIpo ? .preIpo : .all
     }
+    private var activeSection: Section { isSearching ? .search : browsedSection }
     private subscript(section: Section?) -> SectionState {
         get {
             switch section {
-            case .popular: popular
             case .preIpo: preIpo
             case .all: all
             case .search: search
@@ -229,7 +221,6 @@ public final class StocksTabModel {
         }
         set {
             switch section {
-            case .popular: popular = newValue
             case .preIpo: preIpo = newValue
             case .all: all = newValue
             case .search: search = newValue
@@ -248,12 +239,8 @@ public final class StocksTabModel {
         lastLoadedAt = now()
         isStale = false
     }
-    private var currentSection: Section { isSearching ? .search : browsedSection }
-    private func loadPopularUnlessBrowsed() async {
-        guard browse != .popular else { return }
-        await loadPopular()
-    }
-    private func loadQuotes() async { await quotes?.load() }
+    private var currentSection: Section { activeSection }
+    func loadQuotes() async { await quotes?.load() }
     private static func trimmed(_ text: String) -> String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
 }
 private final class ReloadHook { var run: (@MainActor () async -> Void)? }

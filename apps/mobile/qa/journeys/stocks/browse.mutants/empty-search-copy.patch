@@ -4,15 +4,15 @@ expect-fail: S2
 A search with no match reads "No results". S2.2 expects "No matching stocks", so S2 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Assets/MarketsSections.swift b/apps/mobile/Monaco/Features/Assets/MarketsSections.swift
-index f14538bf6..4b298e353 100644
+index 9d3126fbf..0423ef1ab 100644
 --- a/apps/mobile/Monaco/Features/Assets/MarketsSections.swift
 +++ b/apps/mobile/Monaco/Features/Assets/MarketsSections.swift
-@@ -216,7 +216,7 @@ struct MarketsAllStocks: View {
+@@ -148,7 +148,7 @@ struct MarketsSearchResults: View {
+             MonacoErrorRow(thing: "stocks", identifier: "assets-failed") { Task { await model.load() } }
          case .loaded:
-             if model.isSearching {
-                 EmptyState(
--                    title: "No matching stocks", message: "Try a company name, ticker or another filter.",
-+                    title: "No results", message: "Try a company name, ticker or another filter.",
-                     systemImage: "magnifyingglass"
-                 )
-                 .accessibilityIdentifier("assets-search-empty")
+             EmptyState(
+-                title: "No matching stocks", message: "Try a company name, ticker or another filter.",
++                title: "No results", message: "Try a company name, ticker or another filter.",
+                 systemImage: "magnifyingglass"
+             )
+             .accessibilityIdentifier("assets-search-empty")

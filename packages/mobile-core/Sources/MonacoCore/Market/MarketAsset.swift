@@ -53,6 +53,16 @@ public struct MarketAssetDetail: Equatable, Sendable {
     }
 }
 
+public struct MarketEstimate: Equatable, Sendable {
+    public let priceMicros: Int64
+    public let asOf: String
+
+    public init(priceMicros: Int64, asOf: String) {
+        self.priceMicros = priceMicros
+        self.asOf = asOf
+    }
+}
+
 public struct MarketAsset: Equatable, Sendable, Identifiable {
     public let symbol: String
     public let ticker: String
@@ -71,6 +81,7 @@ public struct MarketAsset: Equatable, Sendable, Identifiable {
     public let isTradable: Bool
     public let isQuotable: Bool
     public let volume24hMicros: Int64?
+    public let estimate: MarketEstimate?
 
     public var id: String { symbol }
 
@@ -91,7 +102,8 @@ public struct MarketAsset: Equatable, Sendable, Identifiable {
         showsSessionChip: Bool,
         isTradable: Bool,
         isQuotable: Bool = true,
-        volume24hMicros: Int64? = nil
+        volume24hMicros: Int64? = nil,
+        estimate: MarketEstimate? = nil
     ) {
         self.symbol = symbol
         self.ticker = ticker
@@ -110,6 +122,7 @@ public struct MarketAsset: Equatable, Sendable, Identifiable {
         self.isTradable = isTradable
         self.isQuotable = isQuotable
         self.volume24hMicros = volume24hMicros
+        self.estimate = estimate
     }
 
     public var isPaused: Bool { isTradable && !isQuotable }

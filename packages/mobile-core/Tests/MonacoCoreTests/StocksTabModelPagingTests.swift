@@ -209,26 +209,20 @@ final class StocksTabModelPagingTests: XCTestCase {
         let transport = StubTransport(scripted: [
             .json(.ok, Self.page(symbol: "AAPLx", name: "Apple xStock", kind: "equity", cursor: "all-2")),
             .json(.ok, Self.page(symbol: "TSLAx", name: "Tesla xStock", kind: "equity")),
-            .json(.ok, Self.page(symbol: "NVDAx", name: "NVIDIA xStock", kind: "equity", cursor: "pop-2")),
-            .json(.ok, Self.page(symbol: "MSFTx", name: "Microsoft xStock", kind: "equity")),
             .json(.ok, Self.page(symbol: "tSpaceX", name: "T-SpaceX", kind: "pre_ipo", cursor: "pre-2")),
             .json(.ok, Self.page(symbol: "tOpenAI", name: "T-OpenAI", kind: "pre_ipo")),
         ])
         let model = makeModel(transport)
         await model.load()
         await model.loadMore()
-        await model.show(.popular)
-        await model.loadMore()
         await model.show(.preIpo)
         await model.loadMore()
         let sent = await targets(transport)
-        XCTAssertEqual(sent.count, 6)
+        XCTAssertEqual(sent.count, 4)
         XCTAssertTrue(sent[0].contains("filter=all") && !sent[0].contains("cursor="), sent[0])
         XCTAssertTrue(sent[1].contains("filter=all") && sent[1].contains("cursor=all-2"), sent[1])
-        XCTAssertTrue(sent[2].contains("filter=popular") && !sent[2].contains("cursor="), sent[2])
-        XCTAssertTrue(sent[3].contains("filter=popular") && sent[3].contains("cursor=pop-2"), sent[3])
-        XCTAssertTrue(sent[4].contains("filter=pre_ipo") && !sent[4].contains("cursor="), sent[4])
-        XCTAssertTrue(sent[5].contains("filter=pre_ipo") && sent[5].contains("cursor=pre-2"), sent[5])
+        XCTAssertTrue(sent[2].contains("filter=pre_ipo") && !sent[2].contains("cursor="), sent[2])
+        XCTAssertTrue(sent[3].contains("filter=pre_ipo") && sent[3].contains("cursor=pre-2"), sent[3])
         XCTAssertEqual(model.rows.map(\.name), ["SpaceX", "OpenAI"])
     }
 }

@@ -236,25 +236,22 @@ extension StocksTabModelTests {
     func testEachChipAsksForItsOwnFilter() async throws {
         let transport = StubTransport(scripted: [
             .json(.ok, Self.page(symbol: "AAPLx", name: "Apple xStock", kind: "equity")),
-            .json(.ok, Self.page(symbol: "NVDAx", name: "NVIDIA xStock", kind: "equity")),
             .json(
                 .ok,
                 Self.page(symbol: "tSpaceX", name: "T-SpaceX", kind: "pre_ipo", issuer: "tessera", continuous: true)),
         ])
         let model = makeModel(transport)
-        XCTAssertEqual(StocksTabModel.Browse.allCases.map(\.title), ["All", "Popular", "Pre-IPO"])
+        XCTAssertEqual(StocksTabModel.Browse.allCases.map(\.title), ["All", "Watchlist", "Pre-IPO", "Held"])
+        XCTAssertEqual(StocksTabModel.availableBrowses, [.all, .watchlist, .preIpo])
         await model.load()
-        await model.show(.popular)
-        XCTAssertEqual(model.rows.map(\.ticker), ["NVDA"])
         await model.show(.preIpo)
         XCTAssertEqual(model.rows.map(\.name), ["SpaceX"])
         XCTAssertEqual(model.rows.map(\.kind), [.preIpo])
         XCTAssertFalse(model.rows[0].showsSessionChip)
         let targets = await targets(transport)
-        XCTAssertEqual(targets.count, 3)
+        XCTAssertEqual(targets.count, 2)
         XCTAssertTrue(targets[0].contains("filter=all"), targets.description)
-        XCTAssertTrue(targets[1].contains("filter=popular"), targets.description)
-        XCTAssertTrue(targets[2].contains("filter=pre_ipo"), targets.description)
+        XCTAssertTrue(targets[1].contains("filter=pre_ipo"), targets.description)
     }
     func testSearchWithPreIpoSelectedSendsTheQueryAndTheFilter() async throws {
         let transport = StubTransport(scripted: [
@@ -273,28 +270,13 @@ extension StocksTabModelTests {
         let arrived = await waitUntil { model.rows.map(\.name) == ["OpenAI"] }
         XCTAssertTrue(arrived)
         XCTAssertEqual(model.browse, .preIpo)
-        await model.show(.popular)
+        await model.show(.all)
         let switched = await waitUntil { model.rows.map(\.ticker) == ["NVDA"] }
         XCTAssertTrue(switched)
         XCTAssertEqual(model.query, "open")
         let targets = await targets(transport)
         XCTAssertTrue(targets[2].contains("q=open") && targets[2].contains("filter=pre_ipo"), targets[2])
-        XCTAssertTrue(targets[3].contains("q=open") && targets[3].contains("filter=popular"), targets[3])
-    }
-    func testLoadPopularAsksForTheRankedListAndKeepsTheChip() async throws {
-        let transport = StubTransport(scripted: [
-            .json(.ok, Self.page(symbol: "NVDAx", name: "NVIDIA xStock", kind: "equity")),
-            .json(.ok, Self.page(symbol: "AAPLx", name: "Apple xStock", kind: "equity")),
-        ])
-        let model = makeModel(transport)
-        await model.loadPopular()
-        await model.load()
-        XCTAssertEqual(model.browse, .all)
-        XCTAssertEqual(model.popular.rows.map(\.ticker), ["NVDA"])
-        XCTAssertEqual(model.rows.map(\.ticker), ["AAPL"])
-        let targets = await targets(transport)
-        XCTAssertTrue(targets[0].contains("filter=popular"), targets.description)
-        XCTAssertTrue(targets[1].contains("filter=all"), targets.description)
+        XCTAssertTrue(targets[3].contains("q=open") && targets[3].contains("filter=all"), targets[3])
     }
     func testStaleBrowseReplacementDoesNotBlockSearchPagination() async throws {
         let transport = StubTransport(scripted: [

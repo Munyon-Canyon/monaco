@@ -6,22 +6,23 @@ import XCTest
 
 @MainActor
 final class WatchlistQuotesTests: XCTestCase {
-    func testTheFirstThreeWatchedSymbolsAreQuotedInTheOrderTheyWereAdded() async throws {
+    func testEveryWatchedSymbolIsQuotedInTheOrderItWasAdded() async throws {
         let transport = StubTransport(routes: [
             "/v1/assets/NVDAx": [try Self.quote("NVDAx", "NVIDIA xStock", 220_000_000)],
             "/v1/assets/AAPLx": [try Self.quote("AAPLx", "Apple xStock", 240_000_000)],
             "/v1/assets/MSFTx": [try Self.quote("MSFTx", "Microsoft xStock", 350_000_000)],
+            "/v1/assets/TSLAx": [try Self.quote("TSLAx", "Tesla xStock", 262_500_000)],
         ])
         let (quotes, _) = makeQuotes(transport, symbols: ["NVDAx", "AAPLx", "MSFTx", "TSLAx"])
 
         await quotes.load()
 
-        XCTAssertEqual(quotes.rows.map(\.id), ["NVDAx", "AAPLx", "MSFTx"])
+        XCTAssertEqual(quotes.rows.map(\.id), ["NVDAx", "AAPLx", "MSFTx", "TSLAx"])
         guard case .quoted(let first) = quotes.rows[0] else { return XCTFail("NVDAx should be quoted") }
         XCTAssertEqual(first.name, "NVIDIA")
         XCTAssertEqual(first.priceText, "$220.00")
         let paths = await transport.sent.map { $0.path ?? "" }
-        XCTAssertEqual(Set(paths), ["/v1/assets/NVDAx", "/v1/assets/AAPLx", "/v1/assets/MSFTx"])
+        XCTAssertEqual(Set(paths), ["/v1/assets/NVDAx", "/v1/assets/AAPLx", "/v1/assets/MSFTx", "/v1/assets/TSLAx"])
     }
 
     func testRowsAreLoadingUntilTheFirstAnswerArrives() async {
