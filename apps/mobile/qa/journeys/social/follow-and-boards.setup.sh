@@ -56,8 +56,28 @@ case "$scenario" in
     # the top three, which the page draws without a leaderboard-row identifier.
     seed="$(qa_flow_seed 19a ok)"
     read -r voter_a voter_b < <(python3 -c 'import json,sys; ids=json.load(sys.stdin)["ids"]; print(ids["user_2"], ids["user_6"])' <<<"$seed")
-    qa_sql -v a="$member_a" -v va="$voter_a" -v b="$member_b" -v vb="$voter_b" >/dev/null \
-      <<<"UPDATE call_voters SET user_id = CASE user_id WHEN :'va' THEN :'a'::uuid ELSE :'b'::uuid END WHERE user_id IN (:'va', :'vb')"
+    qa_sql -v a="$member_a" -v va="$voter_a" -v b="$member_b" -v vb="$voter_b" >/dev/null <<'SQL'
+DELETE FROM call_voters WHERE user_id IN (:'a', :'b');
+UPDATE call_voters SET user_id = CASE user_id WHEN :'va' THEN :'a'::uuid ELSE :'b'::uuid END WHERE user_id IN (:'va', :'vb');
+SQL
+    k=0
+    while read -r uid; do
+      k=$((k + 1))
+      qa_sql -v uid="$uid" -v name="QA caller $k" >/dev/null \
+        <<<"UPDATE users SET display_name = :'name' WHERE id = :'uid'"
+    done < <(python3 -c 'import json,sys; ids=json.load(sys.stdin)["ids"]; print(*[v for k, v in ids.items() if k.startswith("user_") and v not in sys.argv[1:]], sep="\n")' "$voter_a" "$voter_b" <<<"$seed")
+    triggered="$(qa_sql <<<"INSERT INTO call_board_triggers (reason, created_at) VALUES ('qa_journey', now()) RETURNING created_at")"
+    triggered="${triggered%%$'\n'*}"
+    rebuilt=
+    for _ in $(seq 20); do
+      rebuilt="$(qa_sql -v t="$triggered" <<<"SELECT count(*) FROM call_board_runs WHERE started_at > :'t'::timestamptz")"
+      [[ "$rebuilt" -gt 0 ]] && break
+      sleep 1
+    done
+    if [[ "${rebuilt:-0}" -eq 0 ]]; then
+      echo "the ranking.call_board poller did not rebuild the board within 20 s of the trigger at $triggered: is the worker running?" >&2
+      exit 1
+    fi
     while read -r follower followee; do
       [[ -n "$follower" ]] && unfollow "$follower" "$followee"
     done < <(live_follows "$member_a" "$member_b")

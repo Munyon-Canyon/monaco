@@ -2,7 +2,7 @@ import XCTest
 
 enum MoneyDepositJourney {
     static let id = "money/deposit"
-    static let version = 5
+    static let version = 6
 
     static let screenTimeout: TimeInterval = 15
 
@@ -169,7 +169,7 @@ enum MoneyDepositJourney {
         recorder.step("S3.1", "Profile's docked Deposit opens the sheet") {
             app.popToRoot()
             app.tab("Profile").tap()
-            let dock = app.element("profile-deposit-dock")
+            let dock = app.element("profile-add-money-link")
             XCTAssertTrue(dock.waitForExistence(timeout: screenTimeout), "S3.1: no docked Deposit on Profile")
             XCTAssertEqual(dock.label, "Deposit", "S3.1: the dock reads \(dock.label)")
             dock.tap()

@@ -2,7 +2,7 @@ import XCTest
 
 enum MoneyBestPriceTradeJourney {
     static let id = "money/best-price-trade"
-    static let version = 2
+    static let version = 3
 
     static let screenTimeout: TimeInterval = 15
     static let checkTimeout: TimeInterval = 10
@@ -89,7 +89,7 @@ enum MoneyBestPriceTradeJourney {
     static func refund(_ app: XCUIApplication, cabal: String, to address: String, recorder: JourneyRecorder) {
         recorder.step("S5.1", "A cashes out all") {
             app.openCabal(named: cabal)
-            let action = app.buttons["cabal-action-cash-out"]
+            let action = app.buttons["cabal-treasury-cash-out"]
             app.scrollIntoReach(action)
             XCTAssertTrue(action.waitForExistence(timeout: screenTimeout), "S5.1: no Cash out action")
             action.tap()

@@ -1,7 +1,7 @@
 ---
 id: feed/react-and-reply
 title: React and reply from the Feed
-version: 1
+version: 2
 milestone: F launch (phase 1)
 requires: [auth/sign-in]
 actors: [A]
@@ -33,7 +33,7 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap | the Feed tab | | The sale's card `feed-cell-<item id>` shows within 15 s with its reaction row's "+" (`reaction-add-feed-<item id>`, #6469) and the reply control `feed-reply-<item id>` reading 1 (#6551) |
-| S1.2 | A | tap, search, tap, tap, tap | `reaction-add-feed-<item id>`, `emoji-search`, `emoji-cell-1f525` in `emoji-picker`, the new chip, then "+" and the picker again | `fire` | Within 10 s the card shows `reaction-chip-feed-<item id>-1f525` "🔥 1" outlined as A's (#6494, after #6469's split). Tapping the chip removes it. Adding it again brings it back |
+| S1.2 | A | tap, search, tap, tap, tap | `reaction-add-feed-<item id>`, `emoji-search`, `emoji-cell-1F525` in `emoji-picker`, the new chip, then "+" and the picker again | `fire` | Within 10 s the card shows `reaction-chip-feed-<item id>-1F525` "🔥 1" outlined as A's (#6494, after #6469's split). Tapping the chip removes it. Adding it again brings it back |
 | S1.3 | A | tap, type, tap | `feed-reply-<item id>`, `comment-composer-field`, `comment-composer-send` | `QA feed reply {QA.run}` | Over the Feed `reply-sheet` reads "Reply to QA host", `reply-sheet-quote` shows the host's name and the post's summary, and the field has focus with `comment-composer-gif` inside it (`05-post-reply`). Within 10 s the toast reads "Replied", the sheet closes and the reply control reads 2 |
 
 ### S2 The post page
@@ -43,7 +43,7 @@ The format of this doc is in [App journeys](../README.md).
 | S2.1 | A | tap | the card | | `feed-item-detail` shows within 15 s with the inline title "Post", the post with its reaction row, "Replies 2", and the rows `comment-row-<id>` of `QA root {QA.run}` and A's reply (`05-post`) |
 | S2.2 | A | scroll to | `comment-composer-field` | | The last reply sits above the docked composer, whose field reads "Say something" with `comment-composer-gif` (`05-post-scrolled`) |
 | S2.3 | A | tap, tap, type, tap | `comment-reply-<root id>` on `QA root {QA.run}`, `comment-composer-gif`, `gif-search`, the first `gif-cell-<id>` | `rocket` | `reply-sheet` shows `reply-sheet-quote` with `QA root {QA.run}`. `gif-sheet` shows `gif-attribution` and the grid (#6556). Within 15 s the GIF is sent (it sends on pick), the sheets close, and the new row shows `gif-bubble-<comment id>` (#6558) with its quote `comment-quote-<comment id>` naming the host |
-| S2.4 | A | long-press, tap | `QA root {QA.run}`, then `reaction-tray-1f389` | | `comment-actions-<id>` shows the quick six and "+" above it, and `comment-action-reply`, `comment-action-copy` and `comment-action-report` below, with no `comment-action-delete` (`05-comment-actions`). Within 10 s the row shows `reaction-chip-comment-<id>-1f389` "🎉 1" as a per-emoji chip (#6541) |
+| S2.4 | A | long-press, tap | `QA root {QA.run}`, then `reaction-tray-1F389` | | `comment-actions-<id>` shows the quick six and "+" above it, and `comment-action-reply`, `comment-action-copy` and `comment-action-report` below, with no `comment-action-delete` (`05-comment-actions`). Within 10 s the row shows `reaction-chip-comment-<id>-1F389` "🎉 1" as a per-emoji chip (#6541) |
 | S2.5 | A | long-press, tap | `QA root {QA.run}`, then `comment-action-copy` | | The toast reads "Copied" |
 | S2.6 | A | long-press, tap, tap | A's own `QA feed reply {QA.run}`, `comment-action-delete`, then Delete in the confirmation | | The menu shows `comment-action-delete` and no `comment-action-report`. Within 10 s the row is gone and the header reads "Replies 2" (the GIF reply and the root remain) |
 
@@ -51,9 +51,9 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | A | pick, tap | "Everyone" in `feed-filter` (#6455), then the open proposal's card of `QA public {QA.run}` | | The vote card shows within 15 s with the live counts and "<cabal> members vote", and no `proposal-vote-yes`, no `proposal-vote-no` and no `proposal-remind` (#6506's non-member state; `05-post-public`) |
+| S3.1 | A | pick, tap | "Everyone" in `feed-filter` (#6455), then the open proposal's card of `QA public {QA.run}` | | The read-only card `proposal-vote-readonly` shows within 15 s and its label contains "<cabal> members vote", and no `proposal-vote-yes`, no `proposal-vote-no` and no `proposal-remind` (#6506's non-member state; `05-post-public`) |
 | S3.2 | A | scroll to | `comment-members-only` | | It reads "Members of QA public {QA.run} reply here" (#6553). There is no `comment-composer-field` and no `comment-reply-<id>` |
-| S3.3 | A | long-press, tap | the host's `QA public reply {QA.run}`, then `reaction-tray-1f44d` | | The tray, `comment-action-copy` and `comment-action-report` show, and no `comment-action-reply`. Within 10 s the row shows `reaction-chip-comment-<id>-1f44d` "👍 1" |
+| S3.3 | A | long-press, tap | the host's `QA public reply {QA.run}`, then `reaction-tray-1F44D` | | The tray, `comment-action-copy` and `comment-action-report` show, and no `comment-action-reply`. Within 10 s the row shows `reaction-chip-comment-<id>-1F44D` "👍 1" |
 
 ## Ground truth
 

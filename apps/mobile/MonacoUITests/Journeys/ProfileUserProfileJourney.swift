@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileUserProfileJourney {
     static let id = "profile/user-profile"
-    static let version = 5
+    static let version = 6
 
     static let memberName = "Bartholomez"
 
@@ -35,14 +35,22 @@ enum ProfileUserProfileJourney {
             app.element("cabal-header-name").waitForExistence(timeout: 15), "\(step): the cabal screen did not show")
     }
 
+    static func memberRow(_ app: XCUIApplication, name: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH 'cabal-member-' AND NOT identifier BEGINSWITH 'cabal-member-crown-' "
+                    + "AND label CONTAINS %@", name)
+        ).firstMatch
+    }
+
     static func openMember(_ app: XCUIApplication, name: String, step: String) {
         app.openCabalTab("Members")
-        let row = CabalsInfoAndMembersJourney.memberRow(app, label: "BEGINSWITH", name)
+        let row = memberRow(app, name: name)
         app.scrollIntoReach(row)
         XCTAssertTrue(row.waitForExistence(timeout: 15), "\(step): no member row for \(name)")
         row.tap()
         XCTAssertTrue(
-            app.element("user-profile-header").waitForExistence(timeout: 15), "\(step): the profile did not show")
+            app.element("user-profile-card").waitForExistence(timeout: 15), "\(step): the profile did not show")
     }
 
     static func openProfile(_ app: XCUIApplication, seed: Seed, name: String, step: String) {
@@ -127,7 +135,7 @@ enum ProfileUserProfileJourney {
         recorder.step("S3.3", "open the shared cabal") {
             row.tap()
             XCTAssertTrue(
-                app.element("cabal-details-button").waitForExistence(timeout: 15),
+                app.element("cabal-header-name").waitForExistence(timeout: 15),
                 "S3.3: the shared cabal did not open")
         }
     }

@@ -2,7 +2,7 @@ import XCTest
 
 enum RankingLeaderboardsJourney {
     static let id = "ranking/leaderboards"
-    static let version = 7
+    static let version = 8
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -46,7 +46,7 @@ enum RankingLeaderboardsJourney {
         }
 
         recorder.step("S1.2", "Month is selected and People is the first tab") {
-            for period in ["week", "month", "alltime"] {
+            for period in ["week", "month", "all"] {
                 XCTAssertTrue(
                     app.element("leaderboard-period-\(period)").waitForExistence(timeout: 10),
                     "S1.2: no leaderboard-period-\(period)")
@@ -80,16 +80,12 @@ enum RankingLeaderboardsJourney {
                 "S1.3: A's row reads '\(me.label)', not a rate and \"n of m right\"")
         }
 
-        recorder.step("S1.4", "a member under the five-vote floor is not ranked") {
+        recorder.step("S1.4", "a ranked viewer sees no Not ranked yet list") {
             let section = app.element("leaderboard-section-unranked")
-            app.scrollIntoReach(section)
-            XCTAssertTrue(section.waitForExistence(timeout: 10), "S1.4: no \"Not ranked yet\" section")
             let row = app.element("leaderboard-row-\(seed.unrankedID)")
-            app.scrollIntoReach(row)
-            XCTAssertTrue(row.waitForExistence(timeout: 10), "S1.4: the member with two resolved votes has no row")
-            XCTAssertTrue(
-                row.label.contains("not ranked yet") && row.label.contains("3 more to rank"),
-                "S1.4: the row reads '\(row.label)', not \"not ranked yet … 3 more to rank\"")
+            _ = row.waitForExistence(timeout: 3)
+            XCTAssertFalse(section.exists, "S1.4: A is ranked, yet the board shows a \"Not ranked yet\" section")
+            XCTAssertFalse(row.exists, "S1.4: the member under the five-vote floor has a row on the board")
         }
     }
 
@@ -115,20 +111,33 @@ enum RankingLeaderboardsJourney {
             XCTAssertTrue(
                 waitUntil(15) { rows.count > 0 },
                 "S2.1: the Cabals tab shows no cabal row within 15 s")
-            let first = rows.element(boundBy: 0)
+            func readsRateAndRecord() -> Bool {
+                rows.allElementsBoundByIndex.contains { $0.label.contains("percent") && $0.label.contains(" right") }
+            }
             XCTAssertTrue(
-                first.label.contains("percent") && first.label.contains(" right"),
-                "S2.1: the first cabal row reads '\(first.label)', not a rate and a record")
+                waitUntil(15) { readsRateAndRecord() },
+                "S2.1: no cabal row reads a rate and a record within 15 s; rows read \(rows.allElementsBoundByIndex.map(\.label))"
+            )
         }
     }
 
     static func friends(_ app: XCUIApplication, recorder: JourneyRecorder) {
-        recorder.step("S3.1", "Friends with no follows is empty") {
+        recorder.step("S3.1", "Friends with no follows ranks only A") {
             openPage(app, step: "S3.1")
             app.element("leaderboard-tab-friends").tap()
+            let places = app.descendants(matching: .any).matching(
+                NSPredicate(
+                    format: "identifier BEGINSWITH 'leaderboard-row-' OR identifier BEGINSWITH 'leaderboard-podium-'"))
             XCTAssertTrue(
-                app.element("leaderboard-empty").waitForExistence(timeout: 15),
-                "S3.1: the Friends tab shows no empty state within 15 s")
+                waitUntil(15) { places.count > 0 },
+                "S3.1: the Friends tab shows no ranked place within 15 s")
+            let labels = places.allElementsBoundByIndex.map(\.label)
+            XCTAssertTrue(
+                labels.allSatisfy { $0.contains(", you") },
+                "S3.1: Friends with no follows shows a place that is not A; places read \(labels)")
+            XCTAssertFalse(
+                app.element("leaderboard-empty").exists,
+                "S3.1: Friends always includes the viewer, so it never shows the empty state")
         }
     }
 }

@@ -3,7 +3,7 @@ import XCTest
 
 enum JoinJourney {
     static let id = "cabals/join"
-    static let version = 9
+    static let version = 10
 
     static let screenTimeout: TimeInterval = 15
 
@@ -17,8 +17,10 @@ enum JoinJourney {
     static let requestedToast = "Request sent. You'll be in once the creator says yes."
 
     static func waitForToast(_ app: XCUIApplication, _ message: String, step: String) {
+        let banner = app.element("monaco-toast-banner")
+        let text = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", message)).firstMatch
         XCTAssertTrue(
-            app.staticTexts[message].firstMatch.waitForExistence(timeout: 10),
+            FollowAndBoardsJourney.waitUntil(10) { (banner.exists && banner.label.contains(message)) || text.exists },
             "\(step): the toast \"\(message)\" did not show within 10 s"
         )
     }
@@ -51,20 +53,9 @@ enum JoinJourney {
 
     static func openDiscover(_ app: XCUIApplication, step: String) {
         if searchField(app).waitForExistence(timeout: 2) { return }
-        let filter = app.textFields["cabals-filter-field"]
-        XCTAssertTrue(filter.waitForExistence(timeout: 10), "\(step): no filter field or Discover on the Cabals tab")
-        let held = filter.value as? String ?? ""
-        if held.isEmpty || held == filter.placeholderValue {
-            filter.tap()
-            filter.typeText("zzqq nobody")
-        }
-        let entries = [app.buttons["cabals-search-public"], app.buttons["Explore cabals"]]
-        guard let entry = app.waitForFirst(of: entries, timeout: 10) else {
-            XCTFail("\(step): no Search public cabals link or Explore cabals within 10 s")
-            return
-        }
-        entries[entry].tap()
-        XCTAssertTrue(searchField(app).waitForExistence(timeout: 10), "\(step): Discover cabals did not open")
+        app.tab("Cabals").tap()
+        app.popToRoot()
+        CabalsDiscoverJourney.openFind(app, step: step)
     }
 
     static func search(_ app: XCUIApplication, for query: String, step: String) {
@@ -171,8 +162,8 @@ enum JoinJourney {
             openRequests(app, step: "S1.7")
             let rows = app.descendants(matching: .any).matching(identifier: "cabal-join-request-row")
             XCTAssertEqual(rows.count, 1, "S1.7: expected one request row")
-            XCTAssertTrue(rows.firstMatch.label.contains(member), "S1.7: the request does not name \(member)")
-            XCTAssertTrue(rows.firstMatch.label.contains("Asked to join"), "S1.7: the row does not read Asked to join")
+            XCTAssertTrue(rowNames(rows.firstMatch, member), "S1.7: the request does not name \(member)")
+            XCTAssertTrue(rowNames(rows.firstMatch, "Asked to join"), "S1.7: the row does not read Asked to join")
             snap(app, "S1-A-request-pending")
         }
 
@@ -218,6 +209,11 @@ extension JoinJourney {
         XCTAssertTrue(
             app.element("cabal-join-request-row").waitForExistence(timeout: screenTimeout),
             "\(step): Members shows no request within \(Int(screenTimeout)) s")
+    }
+
+    static func rowNames(_ row: XCUIElement, _ text: String) -> Bool {
+        row.label.contains(text)
+            || row.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch.exists
     }
 
     static func waitForRequestsGone(_ app: XCUIApplication, timeout: TimeInterval) -> Bool {

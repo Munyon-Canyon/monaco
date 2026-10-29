@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceProposeFromAssetJourney {
     static let id = "governance/propose-from-asset"
-    static let version = 9
+    static let version = 10
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -18,7 +18,7 @@ enum GovernanceProposeFromAssetJourney {
             app.element("tab-assets").tap()
             XCTAssertTrue(
                 app.element("assets-root").waitForExistence(timeout: 15), "S1.1: the Markets tab did not open")
-            let field = app.searchFields["Stocks and Pre-IPO"].firstMatch
+            let field = StocksBrowseJourney.searchField(app)
             XCTAssertTrue(field.waitForExistence(timeout: 10), "S1.1: no stock search on the Markets tab")
             field.tap()
             field.typeText("GOOGL")
@@ -47,11 +47,11 @@ enum GovernanceProposeFromAssetJourney {
             app.scrollIntoReach(row)
             XCTAssertTrue(row.waitForExistence(timeout: 10), "S1.3: no \(name) in the picker")
             row.tap()
-            XCTAssertTrue(app.element("amount-keypad-screen").waitForExistence(timeout: 10), "S1.3: no keypad")
+            XCTAssertTrue(app.element("propose-amount-screen").waitForExistence(timeout: 10), "S1.3: no keypad")
             let source = app.element("amount-keypad-source")
             XCTAssertTrue(source.waitForExistence(timeout: 10), "S1.3: no keypad source")
             XCTAssertTrue(source.label.contains(name), "S1.3: the source reads \(source.label), not \(name)")
-            for chip in ["+$1", "+$10", "+$20", "Max"] {
+            for chip in ["$25", "$50", "$100", "Max"] {
                 XCTAssertTrue(
                     app.element("amount-keypad-preset-\(chip)").waitForExistence(timeout: 10),
                     "S1.3: no \(chip) chip on the keypad")

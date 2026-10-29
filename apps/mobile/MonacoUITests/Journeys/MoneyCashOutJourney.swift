@@ -2,7 +2,7 @@ import XCTest
 
 enum MoneyCashOutJourney {
     static let id = "money/cash-out"
-    static let version = 4
+    static let version = 5
 
     static let screenTimeout: TimeInterval = 15
 
@@ -31,7 +31,7 @@ enum MoneyCashOutJourney {
 
         recorder.step("S1.2", "open Cash out") {
             JoinJourney.openBySearch(app, name, step: "S1.2")
-            let action = app.element("cabal-action-cash-out")
+            let action = app.element("cabal-treasury-cash-out")
             XCTAssertTrue(action.waitForExistence(timeout: screenTimeout), "S1.2: no Cash out action")
             action.tap()
             XCTAssertTrue(

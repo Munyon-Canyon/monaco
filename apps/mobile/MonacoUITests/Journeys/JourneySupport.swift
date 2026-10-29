@@ -320,7 +320,8 @@ extension XCUIApplication {
         let tile = buttons.matching(
             NSPredicate(format: "identifier BEGINSWITH 'cabals-tile-' AND label CONTAINS %@", name)
         ).firstMatch
-        if tile.waitForExistence(timeout: 5) {
+        _ = element("cabals-grid").waitForExistence(timeout: 10)
+        if revealInGrid(tile) {
             tile.tap()
         } else {
             JoinJourney.openBySearch(self, name, step: "openCabal")
@@ -333,8 +334,22 @@ extension XCUIApplication {
             "cabal-header-name did not read \(name) within \(Int(timeout)) s")
     }
 
+    func revealInGrid(_ tile: XCUIElement, maxSwipes: Int = 8) -> Bool {
+        var swipes = 0
+        while !(tile.exists && tile.isHittable) && swipes < maxSwipes {
+            swipeUp()
+            swipes += 1
+        }
+        return tile.exists && tile.isHittable
+    }
+
     func openCabalTab(_ name: String, timeout: TimeInterval = 10) {
         let tab = element("cabal-tab-\(name.lowercased())")
+        var swipes = 0
+        while !tab.waitForExistence(timeout: 2) && swipes < 4 {
+            swipeDown()
+            swipes += 1
+        }
         XCTAssertTrue(
             JourneyDiagnostics.wait(for: tab, in: self, timeout: timeout),
             "cabal-tab-\(name.lowercased()) did not show within \(Int(timeout)) s")
@@ -366,8 +381,11 @@ extension XCUIApplication {
 
     func popToRoot(maxDepth: Int = 8) {
         for _ in 0..<maxDepth {
-            let back = navigationBars.buttons["BackButton"].firstMatch
-            guard back.waitForExistence(timeout: 1), back.isHittable else { return }
+            let system = navigationBars.buttons["BackButton"].firstMatch
+            let custom = navigationBars.buttons["Back"].firstMatch
+            guard let index = waitForFirst(of: [system, custom], timeout: 1) else { return }
+            let back = [system, custom][index]
+            guard back.isHittable else { return }
             back.tap()
         }
     }

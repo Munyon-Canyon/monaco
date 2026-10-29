@@ -1,7 +1,7 @@
 ---
 id: cabals/create-cabal
 title: Create a cabal
-version: 13
+version: 14
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -45,7 +45,7 @@ Starts on the form (S1).
 | S2.2 | tap | "Approval required" in `create-rule-join`, "People I pick" in `create-rule-voters`, "1 hour" in `create-rule-expiry` | | Each choice is selected. The journey picks the join rule itself, so it does not depend on which choice the form starts on. Old app: the four segmented rules in `CreateGroupView` |
 | S2.3 | tap twice | `create-group-submit` | | The cabal screen shows within 20 s: `cabal-header-name` is the typed name, and the form is gone. The second tap proves "Creating…" holds off a duplicate. Old app: Create pushed `GroupDetailView` |
 | S2.4 | wait | the toast | | "Cabal created." shows within 20 s of the S2.3 tap, read while the cabal screen loads because the toast stays up 2.5 s. Old app: the same toast over `GroupDetailView` |
-| S2.5 | wait | `cabal-member-count` | | Reads "1 member", the `CabalHeaderSlot` count. Old app: the member count on `GroupDetailView`'s header |
+| S2.5 | wait | `cabal-member-count` | | Starts with "1 member" (the label goes on: "1 member · started today · you are admin"), the `CabalHeaderSlot` count. Old app: the member count on `GroupDetailView`'s header |
 | S2.6 | tap | Back | | Once the toast goes, the push pre-prompt (`push-pre-prompt`) is answered "Not now" if it shows.  The Cabals tab shows `cabals-grid` within 10 s, and exactly one `cabals-tile-<id>` button in it is named the typed name. Old app: Back to `CabalsTabView`'s cabals strip (F: the grid tile) |
 
 ### S3 A blank name cannot be submitted

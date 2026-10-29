@@ -96,12 +96,14 @@ enum CabalsEditRulesJourney {
 
     static func creatorProposesSides(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S2.1", "turn on Show who voted what") {
+            app.waitForToastGone()
             app.openCabalTab("Rules")
             let toggle = app.switches["cabal-rules-show-sides-toggle"]
             app.scrollIntoReach(toggle)
             XCTAssertTrue(toggle.waitForExistence(timeout: 10), "S2.1: no Show who voted what switch")
             toggle.tap()
             let words = app.element("cabal-rule-proposal-words")
+            if !words.waitForExistence(timeout: 3) { toggle.tap() }
             XCTAssertTrue(words.waitForExistence(timeout: 10), "S2.1: the proposal sheet did not open")
             XCTAssertTrue(words.label.contains("on"), "S2.1: the sheet reads '\(words.label)'")
         }

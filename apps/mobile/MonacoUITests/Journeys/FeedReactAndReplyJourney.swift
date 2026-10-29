@@ -2,7 +2,7 @@ import XCTest
 
 enum FeedReactAndReplyJourney {
     static let id = "feed/react-and-reply"
-    static let version = 1
+    static let version = 2
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -38,9 +38,10 @@ enum FeedReactAndReplyJourney {
         element.waitForNonExistence(timeout: timeout)
     }
 
-    static func repliesHeader(_ app: XCUIApplication, count: Int) -> XCUIElement {
-        app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Replies' AND label CONTAINS %@", "\(count)"))
-            .firstMatch
+    static func waitForRepliesHeader(_ app: XCUIApplication, count: Int, timeout: TimeInterval) -> Bool {
+        let title = app.staticTexts["Replies"]
+        let number = app.staticTexts.matching(NSPredicate(format: "label == %@", "\(count)")).firstMatch
+        return title.waitForExistence(timeout: timeout) && number.waitForExistence(timeout: timeout)
     }
 
     static func chooseEveryone(_ app: XCUIApplication) {
@@ -95,7 +96,7 @@ enum FeedReactAndReplyJourney {
         _ app: XCUIApplication, item: String, run: String, recorder: JourneyRecorder
     ) {
         let key = "feed-\(item)"
-        let chip = app.element("reaction-chip-\(key)-1f525")
+        let chip = app.element("reaction-chip-\(key)-1F525")
 
         recorder.step("S1.1", "open the Feed and read the sale's card") {
             app.popToRoot()
@@ -110,12 +111,12 @@ enum FeedReactAndReplyJourney {
         }
 
         recorder.step("S1.2", "add, remove and add a fire reaction") {
-            addReaction(app, to: key, search: "fire", hex: "1f525", step: "S1.2")
+            addReaction(app, to: key, search: "fire", hex: "1F525", step: "S1.2")
             XCTAssertTrue(chip.waitForExistence(timeout: 10), "S1.2: no 🔥 chip within 10 s")
             XCTAssertTrue(waitForLabel(chip, containing: "1", timeout: 10), "S1.2: the chip does not read 1")
             chip.tap()
             XCTAssertTrue(waitGone(chip, timeout: 10), "S1.2: the chip stayed after tapping it")
-            addReaction(app, to: key, search: "fire", hex: "1f525", step: "S1.2")
+            addReaction(app, to: key, search: "fire", hex: "1F525", step: "S1.2")
             XCTAssertTrue(chip.waitForExistence(timeout: 10), "S1.2: no 🔥 chip after adding it again")
         }
 
@@ -124,7 +125,8 @@ enum FeedReactAndReplyJourney {
             XCTAssertTrue(app.element("reply-sheet").waitForExistence(timeout: 5), "S1.3: no reply sheet")
             let quote = app.element("reply-sheet-quote")
             XCTAssertTrue(quote.waitForExistence(timeout: 5), "S1.3: no quoted post in the sheet")
-            XCTAssertTrue(quote.label.contains(host), "S1.3: the quote does not name \(host)")
+            XCTAssertTrue(
+                quote.label.contains(host), "S1.3: the quote does not name \(host); it reads '\(quote.label)'")
             let title = app.staticTexts
                 .matching(NSPredicate(format: "label CONTAINS %@", "Reply to \(host)"))
                 .firstMatch
@@ -151,7 +153,7 @@ enum FeedReactAndReplyJourney {
             XCTAssertTrue(app.element("feed-item-detail").waitForExistence(timeout: 15), "S2.1: no post page")
             XCTAssertTrue(app.navigationBars["Post"].waitForExistence(timeout: 5), "S2.1: the title is not 'Post'")
             XCTAssertTrue(app.element("reaction-add-feed-\(item)").exists, "S2.1: no reaction row on the post")
-            XCTAssertTrue(repliesHeader(app, count: 2).waitForExistence(timeout: 10), "S2.1: no 'Replies 2'")
+            XCTAssertTrue(waitForRepliesHeader(app, count: 2, timeout: 10), "S2.1: no 'Replies 2'")
             XCTAssertTrue(row(app, reading: root(run: run)).waitForExistence(timeout: 10), "S2.1: no root reply")
             XCTAssertTrue(row(app, reading: reply(run: run)).waitForExistence(timeout: 10), "S2.1: no reply by A")
         }
@@ -215,7 +217,7 @@ extension FeedReactAndReplyJourney {
                 XCTAssertTrue(app.element("comment-action-\(action)").exists, "S2.4: no \(action) action")
             }
             XCTAssertFalse(app.element("comment-action-delete").exists, "S2.4: a Delete on someone else's reply")
-            reactFromTray(app, id: id, hex: "1f389", text: "1", step: "S2.4")
+            reactFromTray(app, id: id, hex: "1F389", text: "1", step: "S2.4")
         }
 
         recorder.step("S2.5", "copy the root") {
@@ -240,7 +242,7 @@ extension FeedReactAndReplyJourney {
                 waitGone(row(app, reading: reply(run: run)), timeout: 10), "S2.6: the reply stayed within 10 s"
             )
             XCTAssertTrue(
-                repliesHeader(app, count: 2).waitForExistence(timeout: 10), "S2.6: the header is not 'Replies 2'"
+                waitForRepliesHeader(app, count: 2, timeout: 10), "S2.6: the header is not 'Replies 2'"
             )
         }
     }
@@ -255,9 +257,9 @@ extension FeedReactAndReplyJourney {
             app.scrollIntoReach(cell)
             XCTAssertTrue(cell.waitForExistence(timeout: 15), "S3.1: no public proposal card within 15 s")
             cell.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)).tap()
-            XCTAssertTrue(app.element("proposal-vote").waitForExistence(timeout: 15), "S3.1: no vote card")
-            let members = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'members vote'")).firstMatch
-            XCTAssertTrue(members.waitForExistence(timeout: 5), "S3.1: no '<cabal> members vote' line")
+            let card = app.element("proposal-vote-readonly")
+            XCTAssertTrue(card.waitForExistence(timeout: 15), "S3.1: no read-only vote card")
+            XCTAssertTrue(card.label.contains("members vote"), "S3.1: no '<cabal> members vote' in the card label")
             for gone in ["proposal-vote-yes", "proposal-vote-no", "proposal-remind"] {
                 XCTAssertFalse(app.element(gone).exists, "S3.1: \(gone) shows for a non-member")
             }
@@ -282,7 +284,7 @@ extension FeedReactAndReplyJourney {
             XCTAssertTrue(app.element("comment-action-copy").exists, "S3.3: no Copy")
             XCTAssertTrue(app.element("comment-action-report").exists, "S3.3: no Report")
             XCTAssertFalse(app.element("comment-action-reply").exists, "S3.3: a Reply for a non-member")
-            reactFromTray(app, id: id, hex: "1f44d", text: "1", step: "S3.3")
+            reactFromTray(app, id: id, hex: "1F44D", text: "1", step: "S3.3")
         }
     }
 }

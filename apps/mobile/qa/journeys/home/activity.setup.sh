@@ -2,7 +2,8 @@
 # journey.py runs this before each scenario of docs/journeys/home/activity.md with the scenario id.
 # A gets one open proposal to vote on, a reply from B to A's comment, and an expired proposal A voted on, so
 # Catch up has a Waiting on you, a Replies and mentions and a Results item. The result is an expired proposal
-# because that closes through the proposal.expired event the way the expiry poller writes it.
+# because that closes through the proposal.expired event the way the expiry poller writes it. Items earlier runs
+# left in A's Catch up are cleared first, so the bell counts only the three seeded here.
 set -euo pipefail
 
 scenario="${1:?usage: activity.setup.sh <S1>}"
@@ -193,7 +194,16 @@ ready_actor A "$token_a"
 ready_actor B "$token_b"
 
 closed="$(expire_open_proposals "$id_a" "$id_b")"
-sql -v a="$id_a" >/dev/null <<<"UPDATE catch_up_state SET cleared_at = NULL, cleared_reason = NULL WHERE user_id = :'a'"
+while IFS= read -r key; do
+  [[ -n "$key" ]] || continue
+  call POST "/v1/me/catch-up/items/$key/clear" "$token_a" >/dev/null
+done < <(call GET /v1/me/catch-up "$token_a" | python3 -c '
+import json, sys
+catch_up = json.load(sys.stdin)
+for section in ("waiting", "replies", "invites", "results"):
+    for item in catch_up.get(section) or []:
+        print(item["key"])
+')
 
 host_token="$(token new --pool vote-host)"
 call PATCH /v1/me "$host_token" '{"display_name":"QA host"}' >/dev/null

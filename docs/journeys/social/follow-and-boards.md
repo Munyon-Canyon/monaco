@@ -1,7 +1,7 @@
 ---
 id: social/follow-and-boards
 title: Follow and the boards
-version: 3
+version: 4
 milestone: F launch (phase 1)
 requires: [auth/sign-in]
 actors: [A, B]
@@ -37,7 +37,7 @@ Starts where S1 ended.
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, tap, then tap | the Profile tab, `profile-find-friends`, then `friends-tab-following` | | `friends-following-empty` reads "You're not following anyone yet" within 10 s (screens.md Find friends: "'You're not following anyone yet'") |
+| S2.1 | A | tap, tap, then tap | Settings from the Profile tab, `profile-find-friends`, then `friends-tab-following` | | `friends-following-empty` reads "You're not following anyone yet" within 10 s (screens.md Find friends: "'You're not following anyone yet'") |
 
 ### S3 Follow from the board
 
@@ -45,9 +45,9 @@ Starts where S2 ended.
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | A | tap, tap, tap, then tap | the Home tab, `home-leaderboard-row`, `leaderboard-tab-people`, then `leaderboard-row-<B id>` | | `user-profile-header` shows within 15 s with `user-profile-name` reading "Bartholomez", `user-profile-handle` starting with "@", `user-profile-followers` reading "0 followers", `user-profile-following` reading "0 following" and `user-profile-follow` reading "Follow" |
+| S3.1 | A | tap, tap, tap, then tap | the Home tab, `home-leaderboard-row`, `leaderboard-tab-people`, then `leaderboard-row-<B id>` | | `user-profile-card` shows within 15 s with `user-profile-name` reading "Bartholomez", `user-profile-handle` starting with "@", `user-profile-followers` reading "0 followers", `user-profile-following` reading "0 following" and `user-profile-follow` reading "Follow" |
 | S3.2 | A | tap | `user-profile-follow` | | `user-profile-follow` reads "Following" and `user-profile-followers` reads "1 follower" within 5 s, and `user-profile-following` still reads "0 following" |
-| S3.3 | A | tap, tap, then tap | the Profile tab, `profile-find-friends`, then `friends-tab-following` | | `friends-following-row-<B id>` shows within 15 s reading "Bartholomez", and `friends-following-empty` is gone (screens.md Find friends: "Following lists the people the viewer follows") |
+| S3.3 | A | tap, tap, then tap | Settings from the Profile tab, `profile-find-friends`, then `friends-tab-following` | | `friends-following-row-<B id>` shows within 15 s reading "Bartholomez", and `friends-following-empty` is gone (screens.md Find friends: "Following lists the people the viewer follows") |
 
 ### S4 B sees the follower
 
@@ -65,7 +65,7 @@ Starts where S4 ended.
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S5.1 | A | tap, tap, tap, tap, then tap | the Home tab, `home-leaderboard-row`, `leaderboard-tab-people`, `leaderboard-row-<B id>`, then `user-profile-follow` | | B's profile shows `user-profile-follow` reading "Following" within 15 s. After the tap it reads "Follow" and `user-profile-followers` reads "0 followers" within 5 s, with `user-profile-following` still reading "0 following" |
-| S5.2 | A | tap, tap, then tap | the Profile tab, `profile-find-friends`, then `friends-tab-following` | | `friends-following-empty` reads "You're not following anyone yet" within 10 s |
+| S5.2 | A | tap, tap, then tap | Settings from the Profile tab, `profile-find-friends`, then `friends-tab-following` | | `friends-following-empty` reads "You're not following anyone yet" within 10 s |
 
 ## Ground truth
 
@@ -73,7 +73,7 @@ Starts where S4 ended.
 
 ## Known failures on staging
 
-None known. B's profile (`user-profile-header`, #6530) is read here, not changed.
+None known. B's profile (`user-profile-card`, #6530) is read here, not changed.
 
 ## Not covered
 

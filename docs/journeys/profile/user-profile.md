@@ -1,7 +1,7 @@
 ---
 id: profile/user-profile
 title: Another member's profile
-version: 5
+version: 6
 milestone: M17
 requires: [auth/sign-in]
 actors: [A]
@@ -33,8 +33,8 @@ Starts signed in (auth/sign-in).
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | open | `openCabal(named: cabalName)` | | The cabal screen shows within 15 s, with `cabal-header-name` reading `cabalName` | A leaderboard or Groups row opens the cabal |
-| S1.2 | tap | the member's row on the Members tab (B's name, "Bartholomez") | | `user-profile-header` shows within 15 s | A member row opens the profile (`UserProfileRoute`) |
-| S1.3 | read | `user-profile-header` | | `user-profile-name` reads "Bartholomez", and the counts row below the identity card shows a count and "follower" or "followers" (`user-profile-followers`) and a count and "following" (`user-profile-following`). `user-profile-right-calls` reads "Right calls · 1M" with a figure | The profile header: avatar, name, "@handle", counts |
+| S1.2 | tap | the member's row on the Members tab (B's name, "Bartholomez") | | `user-profile-card` shows within 15 s | A member row opens the profile (`UserProfileRoute`) |
+| S1.3 | read | `user-profile-card` | | `user-profile-name` reads "Bartholomez", and the counts row below the identity card shows a count and "follower" or "followers" (`user-profile-followers`) and a count and "following" (`user-profile-following`). `user-profile-right-calls` reads "Right calls · 1M" with a figure | The profile header: avatar, name, "@handle", counts |
 | S1.4 | read | `user-profile-more` | | The "…" menu shows in the toolbar, labelled "More" | The report and block menu |
 
 ### S2 Follow, then unfollow
@@ -53,9 +53,9 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | open, open, then tap | `openCabal(named: cabalName)`, `openCabalTab("Members")`, then the member's row (B's name, "Bartholomez") | | `user-profile-header` shows within 15 s | A member row opens the profile (`UserProfileRoute`) |
+| S3.1 | open, open, then tap | `openCabal(named: cabalName)`, `openCabalTab("Members")`, then the member's row (B's name, "Bartholomez") | | `user-profile-card` shows within 15 s | A member row opens the profile (`UserProfileRoute`) |
 | S3.2 | tap, then scroll to | the Cabals tab (`user-profile-tab-cabals`), then `user-profile-cabal-row-{cabalID}` | | The tab lists a row reading `cabalName` within 15 s, with B's share unless B turned off sharing their performance (Q42) | The profile lists the shared groups (`UserProfileSharedCabalsSlot`) |
-| S3.3 | tap | `user-profile-cabal-row-{cabalID}` | | The cabal screen shows within 15 s, with `cabal-details-button` | A shared group row opens the group |
+| S3.3 | tap | `user-profile-cabal-row-{cabalID}` | | The cabal screen shows within 15 s, with `cabal-header-name` | A shared group row opens the group |
 
 ### S4 Report and block
 
@@ -72,7 +72,7 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S5.1 | open, open, then tap | `openCabal(named: cabalName)`, `openCabalTab("Members")`, then A's own row ("Alfred") | | `user-profile-header` shows within 15 s, and neither `user-profile-follow` nor `user-profile-more` shows, as screens.md's "Hidden on your own profile: the Follow button and the menu" | None, new in spec |
+| S5.1 | open, open, then tap | `openCabal(named: cabalName)`, `openCabalTab("Members")`, then A's own row ("Alfred") | | `user-profile-card` shows within 15 s, and neither `user-profile-follow` nor `user-profile-more` shows, as screens.md's "Hidden on your own profile: the Follow button and the menu" | None, new in spec |
 
 ## Ground truth
 

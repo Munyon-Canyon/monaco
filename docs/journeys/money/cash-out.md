@@ -1,7 +1,7 @@
 ---
 id: money/cash-out
 title: Cash out
-version: 4
+version: 5
 milestone: M15
 requires: [auth/sign-in]
 actors: [A]
@@ -37,7 +37,7 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | wait | `platform-balance-value` on Home | | The account balance reads more than "$0.00" within 60 s: the run is funded |
-| S1.2 | A | tap, type, tap, then tap | the Cabals tab, `cabals-search-field`, the `cabals-search-result-<id>`, then `cabal-action-cash-out` | `QA cash out {QA.run}` | The "Cash out your share" screen shows `cash-out-amount` with "25%", "50%" and "All", and `cash-out-explainer` reads "We sell this much of your slice and move the cash to your account balance. You stay in the cabal." within 10 s |
+| S1.2 | A | tap, type, tap, then tap | the Cabals tab, `cabals-search-field`, the `cabals-search-result-<id>`, then `cabal-treasury-cash-out` | `QA cash out {QA.run}` | The "Cash out your share" screen shows `cash-out-amount` with "25%", "50%" and "All", and `cash-out-explainer` reads "We sell this much of your slice and move the cash to your account balance. You stay in the cabal." within 10 s |
 | S1.3 | A | wait | the helper under `cash-out-amount` | | The helper reads "$… current share value" within 10 s |
 | S1.4 | A | tap | "25%" | | `cash-out-review` is enabled and reads "Review cash-out" within 5 s |
 | S1.5 | A | tap, then tap | `cash-out-review`, then `cash-out-submit` | | The toast "Cashing out $…. It lands in your balance in about a minute" shows and the outcome page (`cash-out-progress`) shows within 10 s |

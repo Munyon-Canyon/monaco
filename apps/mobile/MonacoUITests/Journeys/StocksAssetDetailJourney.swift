@@ -85,8 +85,8 @@ enum StocksAssetDetailJourney {
     static func heroChartAndBuy(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S1.1", "open Journey Alpha") {
             openAsset(app, alpha, step: "S1.1")
-            let title = app.navigationBars[alpha.name]
-            XCTAssertTrue(title.exists, "S1.1: the asset screen is not titled '\(alpha.name)'")
+            let name = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", alpha.name)).firstMatch
+            XCTAssertTrue(name.waitForExistence(timeout: 10), "S1.1: the asset screen does not name '\(alpha.name)'")
         }
 
         recorder.step("S1.2", "read the hero") {

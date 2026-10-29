@@ -1,7 +1,7 @@
 ---
 id: money/best-price-trade
 title: Buy at the best price
-version: 2
+version: 3
 milestone: M24
 requires: [auth/sign-in]
 actors: [A]
@@ -64,7 +64,7 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S5.1 | A | tap, tap, then tap | `cabal-action-cash-out`, "All", then `cash-out-submit` | | A toast starting "Cashing out $" shows within 10 s, then one starting "Cashed out $" within 900 s, and `cabal-pot-value` reads "$0.00" within 60 s. Selling Apple may bridge back from another chain |
+| S5.1 | A | tap, tap, then tap | `cabal-treasury-cash-out`, "All", then `cash-out-submit` | | A toast starting "Cashing out $" shows within 10 s, then one starting "Cashed out $" within 900 s, and `cabal-pot-value` reads "$0.00" within 60 s. Selling Apple may bridge back from another chain |
 | S5.2 | A | run | `MoneyWithdrawJourney.withdrawAll` | `{QA.refund_address}` | The steps of `money/withdraw` pass, ending with a toast starting "Withdrawing $" |
 | S5.3 | A | wait | the Home tab | | A toast starting "Withdrawal complete: $" shows within 120 s, and `platform-balance-value` reads "$0.00" within 60 s |
 

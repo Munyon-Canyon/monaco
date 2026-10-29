@@ -2,7 +2,7 @@ import XCTest
 
 enum HomeDashboardJourney {
     static let id = "home/dashboard"
-    static let version = 6
+    static let version = 7
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -34,8 +34,9 @@ enum HomeDashboardJourney {
         recorder.step("S1.2", "the cash row with Cash, USDC, APY and Deposit") {
             let cashRow = app.element("home-cash-row")
             XCTAssertTrue(cashRow.waitForExistence(timeout: 10), "S1.2: no cash row")
+            let texts = cashRow.staticTexts.allElementsBoundByIndex.map(\.label) + [cashRow.label]
             for word in ["Cash", "USDC", "3.5% APY"] {
-                XCTAssertTrue(cashRow.label.contains(word), "S1.2: the cash row reads '\(cashRow.label)', no \(word)")
+                XCTAssertTrue(texts.contains { $0.contains(word) }, "S1.2: the cash row reads \(texts), no \(word)")
             }
             let cash = app.element("platform-balance-value")
             XCTAssertTrue(
@@ -85,12 +86,12 @@ enum HomeDashboardJourney {
         recorder.step("S1.7", "the chart shows plain range labels") {
             openHome(app)
             app.swipeDown()
-            for range in ["1H", "1D", "1W", "1M", "3M", "6M", "All"] {
+            for range in ["1H", "1D", "1W", "1M", "3M", "6M", "ALL"] {
                 XCTAssertTrue(
-                    app.element("home-range-\(range)").waitForExistence(timeout: 10),
+                    app.element("home-portfolio-range-\(range)").waitForExistence(timeout: 10),
                     "S1.7: no \(range) range label within 10 s")
             }
-            XCTAssertTrue(app.element("home-range-1M").isSelected, "S1.7: 1M is not selected")
+            XCTAssertTrue(app.element("home-portfolio-range-1M").isSelected, "S1.7: 1M is not selected")
         }
     }
 

@@ -1,7 +1,7 @@
 ---
 id: cabals/join
 title: Join a cabal
-version: 9
+version: 10
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -17,7 +17,7 @@ The copy is [Join a cabal](../../screens.md#cabals-tab) and the [Cabal screen](.
 
 The format of this doc is in [App journeys](../README.md).
 
-Every step that says "open the cabal" uses `openCabal(named:)`. Only S1.4 uses public search: the step reaches it from the Cabals tab by typing a name the actor has no cabal called, such as `zzqq`, in `cabals-filter-field` ("Find or search cabals"), then tapping `cabals-search-public` ("Search public cabals for …") or pressing the keyboard Search key, which pushes Discover cabals with that text in `cabals-search-field`; an actor with no cabals taps "Explore cabals" instead.
+Every step that says "open the cabal" uses `openCabal(named:)`. Only S1.4 uses public search: the step reaches it from the Cabals tab by tapping the `+` (`cabals-new-button`), then "Find a cabal" (`cabals-menu-find`), which pushes Discover cabals, and typing a name the actor has no cabal called, such as `zzqq`, in `cabals-search-field`.
 
 ## Preconditions
 
@@ -38,7 +38,7 @@ The setup creates both cabals through the API, so this journey does not depend o
 | S1.1 | A | open | the cabal `QA pot {QA.run}` through `openCabal(named:)` | | `cabal-header-name` reads `QA pot {QA.run}` within 15 s |
 | S1.2 | A | none | | | `cabal-member-count` reads "1 member" within 15 s |
 | S1.3 | A | none | | | There is no `cabal-join-requests-heading`. A new request cabal has no pending requests |
-| S1.4 | B | tap, type, then tap | the Cabals tab, `cabals-filter-field`, then `cabals-search-public` | `zzqq` | Discover cabals shows `cabals-search-empty` "No matching cabals" / "Try another name." within 10 s. Old app: the "No cabal called" search line in `CabalsTabView` |
+| S1.4 | B | tap, tap, tap, then type | the Cabals tab, `cabals-new-button`, "Find a cabal", then `cabals-search-field` | `zzqq` | Discover cabals shows `cabals-search-empty` "No matching cabals" / "Try another name." within 10 s. Old app: the "No cabal called" search line in `CabalsTabView` |
 | S1.5 | B | open | the cabal `QA pot {QA.run}` through `openCabal(named:)` | | `cabal-header-name` reads `QA pot {QA.run}` and `cabal-join-button` shows within 15 s. screens.md: `CabalJoinSlot`, "Request to join" |
 | S1.6 | B | tap | `cabal-join-button` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s. `cabal-join-requested` reads "Request pending" next to `cabal-join-cancel` within 15 s |
 | S1.7 | A | open, tap, then tap | the cabal through `openCabal(named:)`, the Members tab, then `cabal-members-see-all` | | One `cabal-join-request-row` names B and reads "Asked to join" within 15 s |

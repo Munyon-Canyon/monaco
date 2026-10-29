@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceProposeBuyJourney {
     static let id = "governance/propose-buy"
-    static let version = 9
+    static let version = 10
 
     static let screenTimeout: TimeInterval = 15
     static let checkTimeout: TimeInterval = 10
@@ -349,7 +349,7 @@ extension GovernanceProposeBuyJourney {
 
     static func cashOutAll(_ app: XCUIApplication, cabal: String, step: String) {
         app.openCabal(named: cabal)
-        let action = app.buttons["cabal-action-cash-out"]
+        let action = app.buttons["cabal-treasury-cash-out"]
         app.scrollIntoReach(action)
         XCTAssertTrue(action.waitForExistence(timeout: screenTimeout), "\(step): no Cash out action")
         action.tap()

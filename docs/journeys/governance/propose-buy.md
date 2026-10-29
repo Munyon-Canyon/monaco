@@ -1,7 +1,7 @@
 ---
 id: governance/propose-buy
 title: Propose, vote and trade
-version: 9
+version: 10
 milestone: M14
 requires: [auth/sign-in]
 actors: [A, B]
@@ -74,7 +74,7 @@ With two voters and "Majority", a buy needs both yes votes.
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S5.1 | A | tap, tap, then tap | `cabal-action-cash-out`, "All", then `cash-out-submit` | | A toast starting "Cashing out $" shows within 10 s, then one starting "Cashed out $" within 120 s. The amount follows the GOOGL price, so the steps read it from the button |
+| S5.1 | A | tap, tap, then tap | `cabal-treasury-cash-out`, "All", then `cash-out-submit` | | A toast starting "Cashing out $" shows within 10 s, then one starting "Cashed out $" within 120 s. The amount follows the GOOGL price, so the steps read it from the button |
 | S5.2 | B | tap, tap, then tap | the same cash out of "All" | | The same two toasts within 10 s and 120 s, then `cabal-pot-value` reads "$0.00" within 60 s |
 | S5.3 | A | run | `MoneyWithdrawJourney.withdrawAll` | `{QA.refund_address}` | The steps of `money/withdraw` pass, ending with a toast starting "Withdrawing $" |
 | S5.4 | A | wait | the Home tab | | A toast starting "Withdrawal complete: $" shows within 120 s, and `platform-balance-value` reads "$0.00" within 60 s |

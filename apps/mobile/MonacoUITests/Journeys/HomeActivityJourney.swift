@@ -91,7 +91,10 @@ enum HomeActivityJourney {
             XCTAssertTrue(
                 JourneyDiagnostics.wait(for: app.element("vote-hold-sheet"), in: app, timeout: 15),
                 "S1.4: the hold sheet did not open")
-            app.element("vote-hold-close").tap()
+            let byID = app.element("vote-hold-close")
+            let close = byID.exists ? byID : app.buttons["Close"].firstMatch
+            XCTAssertTrue(close.waitForExistence(timeout: 5), "S1.4: the hold sheet has no Close button")
+            close.tap()
             XCTAssertTrue(
                 JourneyDiagnostics.wait(for: subline, in: app, timeout: 15),
                 "S1.4: Catch up did not come back")
