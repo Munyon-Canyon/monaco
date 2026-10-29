@@ -9,6 +9,7 @@ public struct AssetHeldRowFacts: Equatable, Sendable, Identifiable {
     public let subtitle: String
     public let valueMicros: Int64
     public let returnText: String?
+    public let valueNote: String?
 
     public var id: String { cabalID }
 
@@ -26,8 +27,10 @@ public struct AssetHeldRowFacts: Equatable, Sendable, Identifiable {
         subtitle = "\(shares) sh · \(max(Int(holding.weightBps), 0) / 100)% of treasury"
         valueMicros = holding.valueMicros
         let (scaled, overflow) = holding.pnlMicros.multipliedReportingOverflow(by: 10_000)
+        let isPreIpo = holding.kind == .preIpo
+        valueNote = isPreIpo ? PreIpoCopy.heldAtEstimate : nil
         returnText =
-            holding.costBasisMicros > 0 && !overflow
+            holding.costBasisMicros > 0 && !overflow && !isPreIpo
             ? PercentFormatter.format(
                 basisPoints: scaled / holding.costBasisMicros, signed: true, fractionDigits: 1)
             : nil

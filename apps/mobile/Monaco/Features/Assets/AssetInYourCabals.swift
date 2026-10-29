@@ -40,7 +40,9 @@ struct AssetInYourCabals: View {
             cover(id: row.cabalID, pictureURL: row.pictureURL)
         } trailing: {
             Text(row.valueText).moneyFigure(.row).foregroundStyle(MonacoTheme.ink)
-            if let returnText = row.returnText {
+            if let note = row.valueNote {
+                Text(note).moneyFigure(.caption).foregroundStyle(MonacoTheme.secondaryText)
+            } else if let returnText = row.returnText {
                 Text(returnText)
                     .moneyFigure(.caption)
                     .foregroundStyle(PnLTone(dollarPnl: "0", percentReturn: returnText).color)
@@ -48,7 +50,8 @@ struct AssetInYourCabals: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            [row.title, row.subtitle, row.valueText, row.returnText].compactMap { $0 }.joined(separator: ", "))
+            [row.title, row.subtitle, row.valueText, row.valueNote ?? row.returnText]
+                .compactMap { $0 }.joined(separator: ", "))
     }
 
     private func proposalRow(_ row: AssetOpenProposalRowFacts, isLast: Bool) -> some View {

@@ -42,17 +42,38 @@ struct AssetDetailClientView: View {
         if let model {
             switch model.detailPhase {
             case .idle, .loading:
-                loading
+                if seed?.kind == .preIpo { preIpoPage(.loading, model: model) } else { loading }
             case .failed:
-                AssetsLoadFailure(identifier: "asset-detail-failed") { Task { await model.start() } }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .monacoCanvas()
+                if seed?.kind == .preIpo {
+                    preIpoPage(.failed, model: model)
+                } else {
+                    AssetsLoadFailure(identifier: "asset-detail-failed") { Task { await model.start() } }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .monacoCanvas()
+                }
             case .loaded:
-                if let detail = model.detail { loaded(detail, model: model) }
+                if let detail = model.detail {
+                    if detail.kind == .preIpo {
+                        preIpoPage(.loaded(detail), model: model)
+                    } else {
+                        loaded(detail, model: model)
+                    }
+                }
             }
         } else {
             loading
         }
+    }
+
+    private func preIpoPage(_ state: PreIpoPageState, model: AssetDetailClientModel) -> some View {
+        let detail = model.detail
+        return PreIpoDetailView(
+            symbol: symbol, name: detail?.name ?? seed?.name ?? symbol,
+            logoURL: detail?.market.logoURL ?? seed?.logoURL,
+            state: state, held: model.heldRows, proposals: model.openProposals,
+            openCabal: { environment.navigator.open(CabalRoute(id: $0), in: tab) },
+            openProposal: { environment.navigator.open(ProposalRoute(proposalID: $0), in: tab) },
+            propose: propose, retry: { Task { await model.start() } })
     }
 
     private var loading: some View {

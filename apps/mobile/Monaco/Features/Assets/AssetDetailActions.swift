@@ -4,6 +4,7 @@ import SwiftUI
 struct AssetDetailActions: View {
     let detail: AssetDetailPresentation
     let canSell: Bool
+    var showsBuy = true
     let propose: (ProposeKind) -> Void
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -14,14 +15,16 @@ struct AssetDetailActions: View {
             ? AnyLayout(VStackLayout(spacing: MonacoTheme.Space.sm))
             : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
         layout {
-            Button {
-                propose(.buy)
-            } label: {
-                Label(AssetDetailBuyCTA.title(tradable: detail.isTradable), systemImage: "arrow.up.right")
+            if showsBuy {
+                Button {
+                    propose(.buy)
+                } label: {
+                    Label(AssetDetailBuyCTA.title(tradable: detail.isTradable), systemImage: "arrow.up.right")
+                }
+                .buttonStyle(.monacoPrimary)
+                .disabled(!AssetDetailBuyCTA.canBuy(tradable: detail.isTradable, quotable: detail.isQuotable))
+                .accessibilityIdentifier("asset-detail-propose-buy")
             }
-            .buttonStyle(.monacoPrimary)
-            .disabled(!AssetDetailBuyCTA.canBuy(tradable: detail.isTradable, quotable: detail.isQuotable))
-            .accessibilityIdentifier("asset-detail-propose-buy")
             if canSell {
                 Button {
                     propose(.sell)
