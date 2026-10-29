@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # journey.py runs this before each scenario of docs/journeys/governance/vote.md with the scenario id.
 # Every scenario gets its own cabal from the pooled "QA host" user, with A and B as members and one open
-# buy proposal by the host. S3 adds an expired proposal. The proposal rows are written the way
+# buy proposal by the host. S3 adds an expired proposal. S4 seeds two cabals with a passed proposal each, one with
+# the show_sides rule on. The proposal rows are written the way
 # governance.ProposeTrade writes them, because the propose route needs a Jupiter route and pot funds.
 set -euo pipefail
 
-scenario="${1:?usage: vote.setup.sh <S1|S2|S3>}"
+scenario="${1:?usage: vote.setup.sh <S1|S2|S3|S4>}"
 case "$scenario" in
-  S1 | S2 | S3) ;;
+  S1 | S2 | S3 | S4) ;;
   *) echo "vote.setup.sh: unknown scenario '$scenario'" >&2 && exit 1 ;;
 esac
 
@@ -168,7 +169,8 @@ hand_off() {
 import json, os, sys
 path, pairs = sys.argv[1], sys.argv[2:]
 values = json.load(open(path)) if os.path.exists(path) and os.path.getsize(path) else {}
-values.pop("closedProposalID", None)
+for stale in ("closedProposalID", "offProposalID", "offCabalName"):
+    values.pop(stale, None)
 values.update(zip(pairs[::2], pairs[1::2]))
 json.dump(values, open(path, "w"))
 PY
@@ -193,6 +195,34 @@ cabal_id="$(call POST /v1/cabals "$host_token" \
   field id)"
 admit "$token_a" "$host_token" "$cabal_id"
 admit "$token_b" "$host_token" "$cabal_id"
+
+cast_votes() {
+  local proposal="$1" host="$2" a="$3" b="$4"
+  sql -v proposal="$proposal" -v host="$host" -v a="$a" -v b="$b" >/dev/null <<'SQL'
+INSERT INTO votes (proposal_id, voter_id, choice, cast_at, first_cast_at)
+VALUES (:'proposal', :'host', 'yes', now(), now()), (:'proposal', :'a', 'yes', now(), now()),
+  (:'proposal', :'b', 'no', now(), now())
+SQL
+}
+
+if [[ "$scenario" == S4 ]]; then
+  sql -v cabal="$cabal_id" >/dev/null <<<"UPDATE cabals SET show_sides = true, show_sides_changed_at = now() WHERE id = :'cabal'"
+  closed_id="$(open_proposal "$cabal_id" "$host_id" "QA sides $run" passed '-2 days' '-1 day')"
+  [[ -n "$closed_id" ]] || fail "no TSLAx row in assets, so no proposal was written"
+  cast_votes "$closed_id" "$host_id" "$id_a" "$id_b"
+  off_name="QA vote $run $scenario off"
+  off_cabal="$(call POST /v1/cabals "$host_token" \
+    "{\"name\":\"$off_name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
+    field id)"
+  admit "$token_a" "$host_token" "$off_cabal"
+  admit "$token_b" "$host_token" "$off_cabal"
+  off_id="$(open_proposal "$off_cabal" "$host_id" "QA plain $run" passed '-2 days' '-1 day')"
+  cast_votes "$off_id" "$host_id" "$id_a" "$id_b"
+  hand_off cabalName "$cabal_name" cabalID "$cabal_id" closedProposalID "$closed_id" offProposalID "$off_id" \
+    offCabalName "$off_name"
+  echo "seeded S4: expired $closed open proposals of A or B, sides cabal '$cabal_name' with closed proposal $closed_id, plain cabal '$off_name' with $off_id"
+  exit 0
+fi
 
 proposal_id="$(open_proposal "$cabal_id" "$host_id" "QA vote $run" open '0 seconds' '86400 seconds')"
 [[ -n "$proposal_id" ]] || fail "no TSLAx row in assets, so no proposal was written"

@@ -1,0 +1,19 @@
+journey: governance/vote
+expect-fail: S1
+
+A changed ballot's toast offers Undo. S1.5 expects "Changed to No." with no monaco-toast-action, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalVoteCopy.swift b/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalVoteCopy.swift
+index 6f2fe889b..f07c59f13 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalVoteCopy.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalVoteCopy.swift
+@@ -122,7 +122,7 @@ public enum ProposalVoteCopy {
+             return VoteToast(message: "\(voted) \(result) \(score).", offersUndo: false)
+         }
+         if outcome.changed {
+-            return VoteToast(message: "Changed to \(outcome.choice.label).", offersUndo: false)
++            return VoteToast(message: "Changed to \(outcome.choice.label).", offersUndo: true)
+         }
+         guard let myVote = outcome.myVote else {
+             return VoteToast(message: voted, offersUndo: outcome.undoUntil != nil)

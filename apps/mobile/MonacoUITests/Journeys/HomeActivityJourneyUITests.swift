@@ -13,8 +13,8 @@ nonisolated final class HomeActivityJourneyUITests: XCTestCase {
 
         try session.scenario("S1") {
             try session.act(as: "A")
-            HomeActivityJourney.opensFromBell(app, recorder: recorder)
-            attachScreenshot(of: app, named: "S1-A-activity")
+            try HomeActivityJourney.opensCatchUp(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-A-catch-up")
         }
     }
 }
