@@ -121,6 +121,7 @@ const (
 	PhoneNotLinked ErrorCode = "phone_not_linked"
 	PhotoInvalid ErrorCode = "photo_invalid"
 	PinnedChainUnavailable ErrorCode = "pinned_chain_unavailable"
+	PollClosed ErrorCode = "poll_closed"
 	PostHogRejected ErrorCode = "post_hog_rejected"
 	PostHogUnavailable ErrorCode = "post_hog_unavailable"
 	PotCashShort ErrorCode = "pot_cash_short"
@@ -406,6 +407,8 @@ func (e ErrorCode) Valid() bool {
 	case PhotoInvalid:
 		return true
 	case PinnedChainUnavailable:
+		return true
+	case PollClosed:
 		return true
 	case PostHogRejected:
 		return true

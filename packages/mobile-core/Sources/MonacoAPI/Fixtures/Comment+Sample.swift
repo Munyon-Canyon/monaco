@@ -54,6 +54,19 @@ extension Components.Schemas.Comment {
         return comment
     }
 
+    public static func pollSample(
+        _ id: String, author: String, parent: String? = nil, minutesAgo: Double = 5,
+        quote: Components.Schemas.CommentQuote? = nil
+    ) -> Self {
+        var comment = sample(id, author: author, parent: parent, minutesAgo: minutesAgo, quote: quote)
+        comment.body = nil
+        comment.bodyDisplay = "Trim to 40% before earnings?"
+        comment.attachment = .poll(.sample())
+        return comment
+    }
+
+    public static let priyaPoll = pollSample("poll-priya", author: "Priya", minutesAgo: 10)
+
     public static func deletedSample(_ id: String, parent: String? = nil) -> Self {
         var comment = sample(id, parent: parent)
         comment.body = nil
@@ -77,6 +90,18 @@ extension Components.Schemas.GifAttachment {
     public static func sample(id: String = "xT9IgDEI1iZyb2wqo8", title: String = "Clapping") -> Self {
         let media = Components.Schemas.GifMedia(url: "file:///placeholder.gif", width: 200, height: 150)
         return Self(kind: .gif, id: id, title: title, still: media, preview: media, original: media)
+    }
+}
+
+extension Components.Schemas.PollAttachment {
+    public static func sample(
+        question: String = "Trim to 40% before earnings?", closesInHours: Double = 20, myPosition: Int? = 1
+    ) -> Self {
+        Self(
+            kind: .poll, question: question, closesAt: Date(timeIntervalSinceNow: closesInHours * 3600), closed: false,
+            options: [
+                .init(position: 0, label: "Yes", count: 3), .init(position: 1, label: "Wait", count: 2),
+            ], total: 5, myPosition: myPosition)
     }
 }
 

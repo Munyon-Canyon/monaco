@@ -17,37 +17,39 @@ import (
 )
 
 type HTTP struct {
-	Follow          *app.FollowHandler
-	Unfollow        *app.UnfollowHandler
-	Block           *app.BlockUserHandler
-	Unblock         *app.UnblockUserHandler
-	Report          *app.CreateReportHandler
-	Mute            *app.MuteHandler
-	Unmute          *app.UnmuteHandler
-	PostChat        *app.PostChatMessageHandler
-	DeleteChat      *app.DeleteChatMessageHandler
-	MarkSeen        *app.MarkChatSeenHandler
-	Token           *app.RealtimeTokenHandler
-	CreateComment   *app.CreateCommentHandler
-	DeleteComment   *app.DeleteCommentHandler
-	Removal         *app.RemoveCommentHandler
-	LikeFeedItem    *app.LikeFeedItemHandler
-	UnlikeFeedItem  *app.UnlikeFeedItemHandler
-	ReactFeedItem   *app.ReactFeedItemHandler
-	UnreactFeedItem *app.UnreactFeedItemHandler
-	ReactComment    *app.ReactCommentHandler
-	UnreactComment  *app.UnreactCommentHandler
-	Match           *app.MatchContactsHandler
-	Members         app.Members
-	Reads           sqlc.DBTX
-	Stocks          app.StockCards
-	Clock           clock.Clock
-	Users           app.Users
-	Returns         app.Returns
-	Tallies         app.Tallies
-	Logos           app.AssetLogos
-	Pictures        app.CabalPictures
-	Activity        *app.UserActivityQuery
+	Follow                  *app.FollowHandler
+	Unfollow                *app.UnfollowHandler
+	Block                   *app.BlockUserHandler
+	Unblock                 *app.UnblockUserHandler
+	Report                  *app.CreateReportHandler
+	Mute                    *app.MuteHandler
+	Unmute                  *app.UnmuteHandler
+	PostChat                *app.PostChatMessageHandler
+	DeleteChat              *app.DeleteChatMessageHandler
+	MarkSeen                *app.MarkChatSeenHandler
+	Token                   *app.RealtimeTokenHandler
+	CreateComment           *app.CreateCommentHandler
+	DeleteComment           *app.DeleteCommentHandler
+	Removal                 *app.RemoveCommentHandler
+	VoteCommentPoll         *app.VoteCommentPollHandler
+	WithdrawCommentPollVote *app.WithdrawCommentPollVoteHandler
+	LikeFeedItem            *app.LikeFeedItemHandler
+	UnlikeFeedItem          *app.UnlikeFeedItemHandler
+	ReactFeedItem           *app.ReactFeedItemHandler
+	UnreactFeedItem         *app.UnreactFeedItemHandler
+	ReactComment            *app.ReactCommentHandler
+	UnreactComment          *app.UnreactCommentHandler
+	Match                   *app.MatchContactsHandler
+	Members                 app.Members
+	Reads                   sqlc.DBTX
+	Stocks                  app.StockCards
+	Clock                   clock.Clock
+	Users                   app.Users
+	Returns                 app.Returns
+	Tallies                 app.Tallies
+	Logos                   app.AssetLogos
+	Pictures                app.CabalPictures
+	Activity                *app.UserActivityQuery
 }
 
 func (h HTTP) GetUserFollowers(

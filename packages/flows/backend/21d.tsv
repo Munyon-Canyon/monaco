@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+21d	Vote in a reply's poll	social	PUT /v1/feed/comments/{comment_id}/poll/vote	VoteCommentPoll	comment.poll_voted		ok;InvalidInput;PollClosed;CommentNotFound;Unauthorized;RateLimited;crash:before-commit	built	docs/architecture/feed.md#comments

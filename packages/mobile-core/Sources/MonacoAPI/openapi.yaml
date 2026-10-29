@@ -3883,6 +3883,69 @@ paths:
           description: The comment is deleted.
         default:
           $ref: "#/components/responses/Problem"
+  /v1/feed/comments/{comment_id}/poll/vote:
+    put:
+      operationId: putCommentPollVote
+      tags: [social]
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 30, per: 1m, burst: 10}, ip: {rate: 60, per: 1m, burst: 60}}
+      summary: Vote in a reply's poll.
+      description: >-
+        Records the caller's one vote, or moves it to another option, and returns the poll's counts. Anyone who can
+        see the thread may vote, members or not, by the same rule as reacting. A poll is not a cabal vote. An unknown
+        or deleted comment, or one without a poll, is comment_not_found. A comment on an item the caller cannot see is
+        feed_item_not_found. A poll past its `closes_at` is poll_closed. An unknown position is invalid_input with
+        `reason=poll_option`. Appends `comment.poll_voted`.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: comment_id
+          in: path
+          required: true
+          description: The comment that carries the poll.
+          schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
+      requestBody:
+        description: The option to vote for.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PollVoteRequest"
+      responses:
+        "200":
+          description: The poll's counts after the vote.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PollState"
+              example: {closes_at: "2026-10-04T08:00:00Z", closed: false, options: [{position: 0, label: Yes, count: 3}, {position: 1, label: Wait for earnings, count: 2}], total: 5, my_position: 1}
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteCommentPollVote
+      tags: [social]
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 30, per: 1m, burst: 10}, ip: {rate: 60, per: 1m, burst: 60}}
+      summary: Withdraw your vote from a reply's poll.
+      description: >-
+        Removes the caller's vote and returns the poll's counts. Withdrawing a vote the caller does not have changes
+        nothing. The same visibility, comment_not_found and poll_closed rules as voting apply.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: comment_id
+          in: path
+          required: true
+          description: The comment that carries the poll.
+          schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
+      responses:
+        "200":
+          description: The poll's counts after the withdrawal.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PollState"
+              example: {closes_at: "2026-10-04T08:00:00Z", closed: false, options: [{position: 0, label: Yes, count: 3}, {position: 1, label: Wait for earnings, count: 1}], total: 4}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/feed/comments/{comment_id}/reactions/{emoji}:
     put:
       operationId: putCommentReaction
@@ -6781,6 +6844,7 @@ components:
         - phone_not_linked
         - photo_invalid
         - pinned_chain_unavailable
+        - poll_closed
         - post_hog_rejected
         - post_hog_unavailable
         - pot_cash_short
@@ -10127,6 +10191,7 @@ components:
         body_display: {type: string, description: "The body, `GIF` for a GIF-only reply, `Comment deleted` once the author deletes it, or `Removed by Monaco` once a moderator removes it.", examples: [nice]}
         attachment:
           $ref: "#/components/schemas/CommentAttachment"
+          examples: [{kind: poll, question: "Trim to 40% before earnings?", closes_at: "2026-10-04T08:00:00Z", closed: false, options: [{position: 0, label: "Yes", count: 3}, {position: 1, label: Wait for earnings, count: 2}], total: 5, my_position: 1}]
         is_mine: {type: boolean, description: True when the caller wrote it., examples: [true]}
         reactions:
           type: array
@@ -10146,12 +10211,14 @@ components:
         - $ref: "#/components/schemas/GifAttachment"
         - $ref: "#/components/schemas/ThesisQuoteAttachment"
         - $ref: "#/components/schemas/StockAttachment"
+        - $ref: "#/components/schemas/PollAttachment"
       discriminator:
         propertyName: kind
         mapping:
           gif: "#/components/schemas/GifAttachment"
           thesis_quote: "#/components/schemas/ThesisQuoteAttachment"
           stock: "#/components/schemas/StockAttachment"
+          poll: "#/components/schemas/PollAttachment"
     CommentAttachmentInput:
       description: The attachment of a reply, keyed by `kind`. At most one per reply.
       examples:
@@ -10160,12 +10227,14 @@ components:
         - $ref: "#/components/schemas/GifAttachmentInput"
         - $ref: "#/components/schemas/ThesisQuoteAttachmentInput"
         - $ref: "#/components/schemas/StockAttachmentInput"
+        - $ref: "#/components/schemas/PollAttachmentInput"
       discriminator:
         propertyName: kind
         mapping:
           gif: "#/components/schemas/GifAttachmentInput"
           thesis_quote: "#/components/schemas/ThesisQuoteAttachmentInput"
           stock: "#/components/schemas/StockAttachmentInput"
+          poll: "#/components/schemas/PollAttachmentInput"
     CommentAuthor:
       type: object
       description: The author of a comment. A deleted account has a null handle and an empty name.
@@ -10261,6 +10330,7 @@ components:
           examples: [nice]
         attachment:
           $ref: "#/components/schemas/CommentAttachmentInput"
+          examples: [{kind: poll, question: "Trim to 40% before earnings?", options: ["Yes", Wait for earnings], closes_in_hours: 24}]
         parent_comment_id:
           type: string
           format: uuid
@@ -10591,6 +10661,69 @@ components:
         url: {type: string, description: "The GIPHY media URL.", examples: ["https://media.giphy.com/media/xT9IgDEI1iZyb2wqo8/200.gif"]}
         width: {type: integer, minimum: 1, maximum: 2000, description: Width in pixels., examples: [200]}
         height: {type: integer, minimum: 1, maximum: 2000, description: Height in pixels., examples: [150]}
+    PollAttachment:
+      type: object
+      description: A poll on a reply. Who voted for what is never returned.
+      required: [kind, question, closes_at, closed, options, total]
+      properties:
+        kind: {type: string, enum: [poll], description: The attachment kind., examples: [poll]}
+        question: {type: string, description: The question., examples: ["Trim to 40% before earnings?"]}
+        closes_at: {type: string, format: date-time, description: When votes stop changing., examples: ["2026-10-04T08:00:00Z"]}
+        closed: {type: boolean, description: True once `closes_at` has passed., examples: [false]}
+        options:
+          type: array
+          description: The options in order.
+          items:
+            $ref: "#/components/schemas/PollOption"
+          examples: [[{position: 0, label: "Yes", count: 3}, {position: 1, label: Wait for earnings, count: 2}]]
+        total: {type: integer, minimum: 0, description: Votes across all options., examples: [5]}
+        my_position: {type: [integer, "null"], description: The option the caller voted for. Absent when they have not voted., examples: [1]}
+    PollAttachmentInput:
+      type: object
+      description: >-
+        A poll attached to a reply. It is a show of hands that moves no money. The reply's `body_display` is the
+        question. Anyone who can see the thread may vote once, and may change the vote until the poll closes.
+      required: [kind, question, options]
+      properties:
+        kind: {type: string, enum: [poll], description: The attachment kind., examples: [poll]}
+        question: {type: string, description: "The question, trimmed by the server to 1 to 100 Unicode scalars. Otherwise invalid_input with `reason=poll_question`.", examples: ["Trim to 40% before earnings?"]}
+        options:
+          type: array
+          description: "2 to 4 options of 1 to 40 characters each, trimmed and distinct ignoring case. Otherwise invalid_input with `reason=poll_options`."
+          minItems: 2
+          maxItems: 4
+          items: {type: string, maxLength: 40, examples: [Yes]}
+          examples: [[Yes, Wait for earnings]]
+        closes_in_hours: {type: integer, minimum: 1, maximum: 168, description: "Hours until the poll closes, 1 to 168. Defaults to 24. Otherwise invalid_input with `reason=poll_close`.", examples: [24]}
+    PollOption:
+      type: object
+      description: One option of a poll and the votes it holds.
+      required: [position, label, count]
+      properties:
+        position: {type: integer, minimum: 0, maximum: 3, description: "The option's place, from 0.", examples: [0]}
+        label: {type: string, description: The option's text., examples: [Yes]}
+        count: {type: integer, minimum: 0, description: "Votes for this option. Always shown, before and after you vote.", examples: [3]}
+    PollState:
+      type: object
+      description: The live counts of a poll.
+      required: [closes_at, closed, options, total]
+      properties:
+        closes_at: {type: string, format: date-time, description: When votes stop changing., examples: ["2026-10-04T08:00:00Z"]}
+        closed: {type: boolean, description: True once `closes_at` has passed., examples: [false]}
+        options:
+          type: array
+          description: The options in order.
+          items:
+            $ref: "#/components/schemas/PollOption"
+          examples: [[{position: 0, label: "Yes", count: 3}, {position: 1, label: Wait for earnings, count: 2}]]
+        total: {type: integer, minimum: 0, description: Votes across all options., examples: [5]}
+        my_position: {type: [integer, "null"], description: The option the caller voted for. Absent when they have not voted., examples: [1]}
+    PollVoteRequest:
+      type: object
+      description: The option to vote for.
+      required: [position]
+      properties:
+        position: {type: integer, minimum: 0, maximum: 3, description: "The option's position, from 0. An unknown position is invalid_input with `reason=poll_option`.", examples: [1]}
     PostChatMessageRequest:
       type: object
       description: A chat message to post.

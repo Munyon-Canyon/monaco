@@ -248,6 +248,36 @@ func (e GifAttachmentInputKind) Valid() bool {
 	}
 }
 
+// Defines values for PollAttachmentKind.
+const (
+	PollAttachmentKindPoll PollAttachmentKind = "poll"
+)
+
+// Valid indicates whether the value is a known member of the PollAttachmentKind enum.
+func (e PollAttachmentKind) Valid() bool {
+	switch e {
+	case PollAttachmentKindPoll:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PollAttachmentInputKind.
+const (
+	PollAttachmentInputKindPoll PollAttachmentInputKind = "poll"
+)
+
+// Valid indicates whether the value is a known member of the PollAttachmentInputKind enum.
+func (e PollAttachmentInputKind) Valid() bool {
+	switch e {
+	case PollAttachmentInputKindPoll:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ReportRequestKind.
 const (
 	ReportRequestKindCabal   ReportRequestKind = "cabal"
@@ -777,7 +807,7 @@ type ChatThread struct {
 type Comment struct {
 	// Attachment A reply's attachment, keyed by `kind`.
 	//
-	// Examples: {"kind":"thesis_quote","proposal_id":"0b6c5a3e-6d2f-4f7e-9a51-2c8d1e4f7a90","proposer_name":"Ada","text":"Small add to the position."}
+	// Examples: {"closed":false,"closes_at":"2026-10-04T08:00:00Z","kind":"poll","my_position":1,"options":[{"count":3,"label":"Yes","position":0},{"count":2,"label":"Wait for earnings","position":1}],"question":"Trim to 40% before earnings?","total":5}
 	Attachment *CommentAttachment `json:"attachment,omitempty"`
 
 	// Author The author of a comment. A deleted account has a null handle and an empty name.
@@ -985,7 +1015,7 @@ type ContactMatchRequest struct {
 type CreateCommentRequest struct {
 	// Attachment The attachment of a reply, keyed by `kind`. At most one per reply.
 	//
-	// Examples: {"end":25,"kind":"thesis_quote","start":0}
+	// Examples: {"closes_in_hours":24,"kind":"poll","options":["Yes","Wait for earnings"],"question":"Trim to 40% before earnings?"}
 	Attachment *CommentAttachmentInput `json:"attachment,omitempty"`
 
 	// Body The text, trimmed by the server to 1 to 1000 Unicode scalars. Optional when `attachment` is present, otherwise required.
@@ -1520,6 +1550,131 @@ type GifMedia struct {
 	//
 	// Examples: 200
 	Width int `json:"width"`
+}
+
+// PollAttachment A poll on a reply. Who voted for what is never returned.
+type PollAttachment struct {
+	// Closed True once `closes_at` has passed.
+	//
+	// Examples: false
+	Closed bool `json:"closed"`
+
+	// ClosesAt When votes stop changing.
+	//
+	// Examples: 2026-10-04T08:00:00Z
+	ClosesAt time.Time `json:"closes_at"`
+
+	// Kind The attachment kind.
+	//
+	// Examples: poll
+	Kind PollAttachmentKind `json:"kind"`
+
+	// MyPosition The option the caller voted for. Absent when they have not voted.
+	//
+	// Examples: 1
+	MyPosition *int `json:"my_position,omitempty"`
+
+	// Options The options in order.
+	//
+	// Examples: [{"count":3,"label":"Yes","position":0},{"count":2,"label":"Wait for earnings","position":1}]
+	Options []PollOption `json:"options"`
+
+	// Question The question.
+	//
+	// Examples: Trim to 40% before earnings?
+	Question string `json:"question"`
+
+	// Total Votes across all options.
+	//
+	// Examples: 5
+	Total int `json:"total"`
+}
+
+// PollAttachmentKind The attachment kind.
+//
+// Examples: poll
+type PollAttachmentKind string
+
+// PollAttachmentInput A poll attached to a reply. It is a show of hands that moves no money. The reply's `body_display` is the question. Anyone who can see the thread may vote once, and may change the vote until the poll closes.
+type PollAttachmentInput struct {
+	// ClosesInHours Hours until the poll closes, 1 to 168. Defaults to 24. Otherwise invalid_input with `reason=poll_close`.
+	//
+	// Examples: 24
+	ClosesInHours *int `json:"closes_in_hours,omitempty"`
+
+	// Kind The attachment kind.
+	//
+	// Examples: poll
+	Kind PollAttachmentInputKind `json:"kind"`
+
+	// Options 2 to 4 options of 1 to 40 characters each, trimmed and distinct ignoring case. Otherwise invalid_input with `reason=poll_options`.
+	//
+	// Examples: ["Yes","Wait for earnings"]
+	Options []string `json:"options"`
+
+	// Question The question, trimmed by the server to 1 to 100 Unicode scalars. Otherwise invalid_input with `reason=poll_question`.
+	//
+	// Examples: Trim to 40% before earnings?
+	Question string `json:"question"`
+}
+
+// PollAttachmentInputKind The attachment kind.
+//
+// Examples: poll
+type PollAttachmentInputKind string
+
+// PollOption One option of a poll and the votes it holds.
+type PollOption struct {
+	// Count Votes for this option. Always shown, before and after you vote.
+	//
+	// Examples: 3
+	Count int `json:"count"`
+
+	// Label The option's text.
+	//
+	// Examples: Yes
+	Label string `json:"label"`
+
+	// Position The option's place, from 0.
+	//
+	// Examples: 0
+	Position int `json:"position"`
+}
+
+// PollState The live counts of a poll.
+type PollState struct {
+	// Closed True once `closes_at` has passed.
+	//
+	// Examples: false
+	Closed bool `json:"closed"`
+
+	// ClosesAt When votes stop changing.
+	//
+	// Examples: 2026-10-04T08:00:00Z
+	ClosesAt time.Time `json:"closes_at"`
+
+	// MyPosition The option the caller voted for. Absent when they have not voted.
+	//
+	// Examples: 1
+	MyPosition *int `json:"my_position,omitempty"`
+
+	// Options The options in order.
+	//
+	// Examples: [{"count":3,"label":"Yes","position":0},{"count":2,"label":"Wait for earnings","position":1}]
+	Options []PollOption `json:"options"`
+
+	// Total Votes across all options.
+	//
+	// Examples: 5
+	Total int `json:"total"`
+}
+
+// PollVoteRequest The option to vote for.
+type PollVoteRequest struct {
+	// Position The option's position, from 0. An unknown position is invalid_input with `reason=poll_option`.
+	//
+	// Examples: 1
+	Position int `json:"position"`
 }
 
 // PostChatMessageRequest A chat message to post.
@@ -2071,6 +2226,18 @@ type DeleteFeedCommentParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// DeleteCommentPollVoteParams defines parameters for DeleteCommentPollVote.
+type DeleteCommentPollVoteParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// PutCommentPollVoteParams defines parameters for PutCommentPollVote.
+type PutCommentPollVoteParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // DeleteCommentReactionParams defines parameters for DeleteCommentReaction.
 type DeleteCommentReactionParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -2260,6 +2427,9 @@ type RemoveCommentJSONRequestBody = externalRef0.ReasonBody
 // PostChatMessageJSONRequestBody defines body for PostChatMessage for application/json ContentType.
 type PostChatMessageJSONRequestBody = PostChatMessageRequest
 
+// PutCommentPollVoteJSONRequestBody defines body for PutCommentPollVote for application/json ContentType.
+type PutCommentPollVoteJSONRequestBody = PollVoteRequest
+
 // PostFeedCommentJSONRequestBody defines body for PostFeedComment for application/json ContentType.
 type PostFeedCommentJSONRequestBody = CreateCommentRequest
 
@@ -2380,6 +2550,40 @@ func (t *CommentAttachment) MergeStockAttachment(v StockAttachment) error {
 	return err
 }
 
+// AsPollAttachment returns the union data inside the CommentAttachment as a PollAttachment
+func (t CommentAttachment) AsPollAttachment() (PollAttachment, error) {
+	var body PollAttachment
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPollAttachment overwrites any union data inside the CommentAttachment as the provided PollAttachment
+func (t *CommentAttachment) FromPollAttachment(v PollAttachment) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"poll"}`))
+	t.union = b
+	return err
+}
+
+// MergePollAttachment performs a merge with any union data inside the CommentAttachment, using the provided PollAttachment
+func (t *CommentAttachment) MergePollAttachment(v PollAttachment) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"poll"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t CommentAttachment) Discriminator() (string, error) {
 	var discriminator struct {
 		Discriminator string `json:"kind"`
@@ -2396,6 +2600,8 @@ func (t CommentAttachment) ValueByDiscriminator() (interface{}, error) {
 	switch discriminator {
 	case "gif":
 		return t.AsGifAttachment()
+	case "poll":
+		return t.AsPollAttachment()
 	case "stock":
 		return t.AsStockAttachment()
 	case "thesis_quote":
@@ -2517,6 +2723,40 @@ func (t *CommentAttachmentInput) MergeStockAttachmentInput(v StockAttachmentInpu
 	return err
 }
 
+// AsPollAttachmentInput returns the union data inside the CommentAttachmentInput as a PollAttachmentInput
+func (t CommentAttachmentInput) AsPollAttachmentInput() (PollAttachmentInput, error) {
+	var body PollAttachmentInput
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPollAttachmentInput overwrites any union data inside the CommentAttachmentInput as the provided PollAttachmentInput
+func (t *CommentAttachmentInput) FromPollAttachmentInput(v PollAttachmentInput) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"poll"}`))
+	t.union = b
+	return err
+}
+
+// MergePollAttachmentInput performs a merge with any union data inside the CommentAttachmentInput, using the provided PollAttachmentInput
+func (t *CommentAttachmentInput) MergePollAttachmentInput(v PollAttachmentInput) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"poll"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t CommentAttachmentInput) Discriminator() (string, error) {
 	var discriminator struct {
 		Discriminator string `json:"kind"`
@@ -2533,6 +2773,8 @@ func (t CommentAttachmentInput) ValueByDiscriminator() (interface{}, error) {
 	switch discriminator {
 	case "gif":
 		return t.AsGifAttachmentInput()
+	case "poll":
+		return t.AsPollAttachmentInput()
 	case "stock":
 		return t.AsStockAttachmentInput()
 	case "thesis_quote":
@@ -2757,6 +2999,12 @@ type ServerInterface interface {
 	// DeleteFeedComment Delete your comment.
 	// (DELETE /v1/feed/comments/{comment_id})
 	DeleteFeedComment(w http.ResponseWriter, r *http.Request, commentId openapi_types.UUID, params DeleteFeedCommentParams)
+	// DeleteCommentPollVote Withdraw your vote from a reply's poll.
+	// (DELETE /v1/feed/comments/{comment_id}/poll/vote)
+	DeleteCommentPollVote(w http.ResponseWriter, r *http.Request, commentId openapi_types.UUID, params DeleteCommentPollVoteParams)
+	// PutCommentPollVote Vote in a reply's poll.
+	// (PUT /v1/feed/comments/{comment_id}/poll/vote)
+	PutCommentPollVote(w http.ResponseWriter, r *http.Request, commentId openapi_types.UUID, params PutCommentPollVoteParams)
 	// DeleteCommentReaction Remove your emoji reaction from a reply.
 	// (DELETE /v1/feed/comments/{comment_id}/reactions/{emoji})
 	DeleteCommentReaction(w http.ResponseWriter, r *http.Request, commentId openapi_types.UUID, emoji string, params DeleteCommentReactionParams)
@@ -3499,6 +3747,114 @@ func (siw *ServerInterfaceWrapper) DeleteFeedComment(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeleteFeedComment(w, r, commentId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteCommentPollVote operation middleware
+func (siw *ServerInterfaceWrapper) DeleteCommentPollVote(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "comment_id" -------------
+	var commentId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "comment_id", r.PathValue("comment_id"), &commentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "comment_id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteCommentPollVoteParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteCommentPollVote(w, r, commentId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutCommentPollVote operation middleware
+func (siw *ServerInterfaceWrapper) PutCommentPollVote(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "comment_id" -------------
+	var commentId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "comment_id", r.PathValue("comment_id"), &commentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "comment_id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PutCommentPollVoteParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutCommentPollVote(w, r, commentId, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5021,6 +5377,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}/thread", wrapper.GetChatThread)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed", wrapper.GetFeed)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/feed/comments/{comment_id}", wrapper.DeleteFeedComment)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/feed/comments/{comment_id}/poll/vote", wrapper.DeleteCommentPollVote)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/feed/comments/{comment_id}/poll/vote", wrapper.PutCommentPollVote)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/feed/comments/{comment_id}/reactions/{emoji}", wrapper.DeleteCommentReaction)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/feed/comments/{comment_id}/reactions/{emoji}", wrapper.PutCommentReaction)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/feed/likes/{id}", wrapper.DeleteFeedLike)
@@ -5424,6 +5782,87 @@ type DeleteFeedCommentdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response DeleteFeedCommentdefaultApplicationProblemPlusJSONResponse) VisitDeleteFeedCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteCommentPollVoteRequestObject struct {
+	CommentId openapi_types.UUID `json:"comment_id"`
+	Params    DeleteCommentPollVoteParams
+}
+
+type DeleteCommentPollVoteResponseObject interface {
+	VisitDeleteCommentPollVoteResponse(w http.ResponseWriter) error
+}
+
+type DeleteCommentPollVote200JSONResponse PollState
+
+func (response DeleteCommentPollVote200JSONResponse) VisitDeleteCommentPollVoteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteCommentPollVotedefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response DeleteCommentPollVotedefaultApplicationProblemPlusJSONResponse) VisitDeleteCommentPollVoteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutCommentPollVoteRequestObject struct {
+	CommentId openapi_types.UUID `json:"comment_id"`
+	Params    PutCommentPollVoteParams
+	Body      *PutCommentPollVoteJSONRequestBody
+}
+
+type PutCommentPollVoteResponseObject interface {
+	VisitPutCommentPollVoteResponse(w http.ResponseWriter) error
+}
+
+type PutCommentPollVote200JSONResponse PollState
+
+func (response PutCommentPollVote200JSONResponse) VisitPutCommentPollVoteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutCommentPollVotedefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response PutCommentPollVotedefaultApplicationProblemPlusJSONResponse) VisitPutCommentPollVoteResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -6473,6 +6912,12 @@ type StrictServerInterface interface {
 	// DeleteFeedComment Delete your comment.
 	// (DELETE /v1/feed/comments/{comment_id})
 	DeleteFeedComment(ctx context.Context, request DeleteFeedCommentRequestObject) (DeleteFeedCommentResponseObject, error)
+	// DeleteCommentPollVote Withdraw your vote from a reply's poll.
+	// (DELETE /v1/feed/comments/{comment_id}/poll/vote)
+	DeleteCommentPollVote(ctx context.Context, request DeleteCommentPollVoteRequestObject) (DeleteCommentPollVoteResponseObject, error)
+	// PutCommentPollVote Vote in a reply's poll.
+	// (PUT /v1/feed/comments/{comment_id}/poll/vote)
+	PutCommentPollVote(ctx context.Context, request PutCommentPollVoteRequestObject) (PutCommentPollVoteResponseObject, error)
 	// DeleteCommentReaction Remove your emoji reaction from a reply.
 	// (DELETE /v1/feed/comments/{comment_id}/reactions/{emoji})
 	DeleteCommentReaction(ctx context.Context, request DeleteCommentReactionRequestObject) (DeleteCommentReactionResponseObject, error)
@@ -6869,6 +7314,67 @@ func (sh *strictHandler) DeleteFeedComment(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DeleteFeedCommentResponseObject); ok {
 		if err := validResponse.VisitDeleteFeedCommentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteCommentPollVote operation middleware
+func (sh *strictHandler) DeleteCommentPollVote(w http.ResponseWriter, r *http.Request, commentId openapi_types.UUID, params DeleteCommentPollVoteParams) {
+	var request DeleteCommentPollVoteRequestObject
+
+	request.CommentId = commentId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteCommentPollVote(ctx, request.(DeleteCommentPollVoteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteCommentPollVote")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteCommentPollVoteResponseObject); ok {
+		if err := validResponse.VisitDeleteCommentPollVoteResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutCommentPollVote operation middleware
+func (sh *strictHandler) PutCommentPollVote(w http.ResponseWriter, r *http.Request, commentId openapi_types.UUID, params PutCommentPollVoteParams) {
+	var request PutCommentPollVoteRequestObject
+
+	request.CommentId = commentId
+	request.Params = params
+
+	var body PutCommentPollVoteJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutCommentPollVote(ctx, request.(PutCommentPollVoteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutCommentPollVote")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutCommentPollVoteResponseObject); ok {
+		if err := validResponse.VisitPutCommentPollVoteResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

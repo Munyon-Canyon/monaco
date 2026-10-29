@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -92,6 +93,7 @@ type Attachment struct {
 	GIF    *GifAttachment
 	Thesis *ThesisQuote
 	Stock  *StockSnapshot
+	Poll   *Poll
 	Range  QuoteRange
 }
 
@@ -100,6 +102,7 @@ type GifInput = GifAttachment
 type AttachmentInput struct {
 	Kind    string
 	GIF     *GifInput
+	Poll    *PollInput
 	Start   *int
 	End     *int
 	AssetID uuid.UUID
@@ -118,6 +121,8 @@ func (a Attachment) Display() CommentBody {
 		return StockDisplay
 	case AttachmentGIF:
 		return GifDisplay
+	case AttachmentPoll:
+		return CommentBody(a.Poll.Question)
 	}
 	return ""
 }
@@ -132,7 +137,12 @@ func (c CommentInput) Text() CommentBody {
 	return ""
 }
 
-func (a Attachment) Payload() []byte {
+type pollPayload struct {
+	Question string    `json:"question"`
+	ClosesAt time.Time `json:"closes_at"`
+}
+
+func (a Attachment) Payload(now time.Time) []byte {
 	var payload []byte
 	switch a.Kind {
 	case AttachmentThesisQuote:
@@ -141,6 +151,8 @@ func (a Attachment) Payload() []byte {
 		payload, _ = json.Marshal(a.Stock)
 	case AttachmentGIF:
 		payload, _ = json.Marshal(a.GIF)
+	case AttachmentPoll:
+		payload, _ = json.Marshal(pollPayload{Question: a.Poll.Question, ClosesAt: now.Add(a.Poll.ClosesIn).UTC()})
 	}
 	return payload
 }
@@ -149,6 +161,13 @@ func DecodeAttachment(kind string, payload []byte) *Attachment {
 	att := Attachment{Kind: AttachmentKind(kind)}
 	var target any
 	switch att.Kind {
+	case AttachmentPoll:
+		var poll pollPayload
+		if json.Unmarshal(payload, &poll) != nil {
+			return nil
+		}
+		att.Poll = &Poll{Question: poll.Question, ClosesAt: poll.ClosesAt}
+		return &att
 	case AttachmentGIF:
 		att.GIF = &GifAttachment{}
 		target = att.GIF
@@ -209,6 +228,15 @@ func parseAttachment(in AttachmentInput) (Attachment, error) {
 		return Attachment{Kind: AttachmentThesisQuote, Range: QuoteRange{Start: in.Start, End: in.End}}, nil
 	case AttachmentStock:
 		return Attachment{Kind: AttachmentStock, Stock: &StockSnapshot{AssetID: in.AssetID}}, nil
+	case AttachmentPoll:
+		if in.Poll == nil {
+			break
+		}
+		poll, err := ParsePoll(in.Poll.Question, in.Poll.Options, in.Poll.ClosesIn)
+		if err != nil {
+			return Attachment{}, err
+		}
+		return Attachment{Kind: AttachmentPoll, Poll: &poll}, nil
 	}
 	return Attachment{}, errs.New(errs.CodeInvalidInput, op, slog.String("reason", "unknown_kind"))
 }

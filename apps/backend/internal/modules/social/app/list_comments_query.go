@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -25,6 +26,7 @@ type CommentsQuery struct {
 	After        *domain.Keyset
 	Limit        int
 	Stocks       StockCards
+	Now          time.Time
 }
 
 type CommentThread struct {
@@ -62,6 +64,16 @@ func ListComments(ctx context.Context, db sqlc.DBTX, q CommentsQuery) (CommentsP
 		return CommentsPage{}, err
 	}
 	if err := attachStocks(ctx, q.Stocks, &page); err != nil {
+		return CommentsPage{}, err
+	}
+	var listed []*Comment
+	for i := range page.Threads {
+		listed = append(listed, &page.Threads[i].Comment)
+		for j := range page.Threads[i].Replies {
+			listed = append(listed, &page.Threads[i].Replies[j])
+		}
+	}
+	if err := pollViews(ctx, db, q.Viewer, listed, q.Now); err != nil {
 		return CommentsPage{}, err
 	}
 	return page, nil

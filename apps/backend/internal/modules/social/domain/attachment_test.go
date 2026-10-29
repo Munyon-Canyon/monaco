@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
@@ -149,7 +150,7 @@ func TestDecodeAttachment(t *testing.T) {
 	t.Parallel()
 	gif := gifInput()
 	att := &domain.Attachment{Kind: domain.AttachmentGIF, GIF: &gif}
-	got := domain.DecodeAttachment("gif", att.Payload())
+	got := domain.DecodeAttachment("gif", att.Payload(time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)))
 	if got == nil || got.GIF == nil || *got.GIF != gif {
 		t.Fatalf("decoded = %+v, want %+v", got, gif)
 	}
@@ -158,7 +159,7 @@ func TestDecodeAttachment(t *testing.T) {
 		payload []byte
 	}{
 		"no row":       {"", nil},
-		"unknown kind": {"poll", []byte(`{}`)},
+		"unknown kind": {"photo", []byte(`{}`)},
 		"bad payload":  {"gif", []byte(`not json`)},
 	} {
 		if got := domain.DecodeAttachment(c.kind, c.payload); got != nil {
