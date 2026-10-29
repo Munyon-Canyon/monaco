@@ -64,7 +64,7 @@ func TestPostFeedComment_returnsTheCommentWithItsAuthor(t *testing.T) {
 	t.Parallel()
 	f := newCommentRoutes(t)
 	kai := f.cabal.Members[0].ID
-	top, err := f.post(t, f.item(t, feed.KindTrade), kai, &api.CreateCommentRequest{Body: " first "})
+	top, err := f.post(t, f.item(t, feed.KindTrade), kai, &api.CreateCommentRequest{Body: ptr(" first ")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,23 +92,23 @@ func TestPostFeedComment_aReplyToAReplyNamesWhoItAnswers(t *testing.T) {
 	f := newCommentRoutes(t)
 	item := f.item(t, feed.KindTrade)
 	kai, gone := f.cabal.Members[0].ID, f.cabal.Members[1].ID
-	top, err := f.post(t, item, kai, &api.CreateCommentRequest{Body: "top"})
+	top, err := f.post(t, item, kai, &api.CreateCommentRequest{Body: ptr("top")})
 	if err != nil {
 		t.Fatal(err)
 	}
-	byKai, err := f.post(t, item, kai, &api.CreateCommentRequest{Body: "ok", ParentCommentId: &top.Id})
+	byKai, err := f.post(t, item, kai, &api.CreateCommentRequest{Body: ptr("ok"), ParentCommentId: &top.Id})
 	if err != nil {
 		t.Fatal(err)
 	}
-	byGone, err := f.post(t, item, gone, &api.CreateCommentRequest{Body: "hm", ParentCommentId: &top.Id})
+	byGone, err := f.post(t, item, gone, &api.CreateCommentRequest{Body: ptr("hm"), ParentCommentId: &top.Id})
 	if err != nil {
 		t.Fatal(err)
 	}
-	toKai, err := f.post(t, item, f.outsider, &api.CreateCommentRequest{Body: "yes", ParentCommentId: &byKai.Id})
+	toKai, err := f.post(t, item, f.outsider, &api.CreateCommentRequest{Body: ptr("yes"), ParentCommentId: &byKai.Id})
 	if err != nil {
 		t.Fatal(err)
 	}
-	toGone, err := f.post(t, item, f.outsider, &api.CreateCommentRequest{Body: "no", ParentCommentId: &byGone.Id})
+	toGone, err := f.post(t, item, f.outsider, &api.CreateCommentRequest{Body: ptr("no"), ParentCommentId: &byGone.Id})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,14 +126,14 @@ func TestPostFeedComment_refusesBadInput(t *testing.T) {
 	f := newCommentRoutes(t)
 	item := f.item(t, feed.KindTrade)
 	for name, body := range map[string]*api.CreateCommentRequest{
-		"no body": nil, "blank": {Body: "  "},
+		"no body": nil, "blank": {Body: ptr("  ")},
 	} {
 		if _, err := f.post(t, item, f.outsider, body); errs.CodeOf(err) != errs.CodeInvalidInput {
 			t.Errorf("%s: error = %v, want invalid_input", name, err)
 		}
 	}
 	if _, err := f.routes.PostFeedComment(t.Context(), api.PostFeedCommentRequestObject{
-		Id: item, Body: &api.CreateCommentRequest{Body: "hi"},
+		Id: item, Body: &api.CreateCommentRequest{Body: ptr("hi")},
 	}); errs.CodeOf(err) != errs.CodeUnauthorized {
 		t.Errorf("anonymous: error = %v, want unauthorized", err)
 	}
@@ -142,14 +142,14 @@ func TestPostFeedComment_refusesBadInput(t *testing.T) {
 func TestPostFeedComment_passesTheCommandAndIdentityErrorsThrough(t *testing.T) {
 	t.Parallel()
 	f := newCommentRoutes(t)
-	_, err := f.post(t, f.gen.NewV7(), f.outsider, &api.CreateCommentRequest{Body: "hi"})
+	_, err := f.post(t, f.gen.NewV7(), f.outsider, &api.CreateCommentRequest{Body: ptr("hi")})
 	if errs.CodeOf(err) != errs.CodeFeedItemNotFound {
 		t.Errorf("unknown item: error = %v, want feed_item_not_found", err)
 	}
 	deps := module.Deps{Pool: f.pool, UoW: f.uow, IDs: f.gen, Clock: f.clock}
 	down := social.HTTPOf(social.New(deps, social.WithUsers(brokenUsers{})))
 	_, err = down.PostFeedComment(asUser(t.Context(), f.outsider), api.PostFeedCommentRequestObject{
-		Id: f.item(t, feed.KindTrade), Body: &api.CreateCommentRequest{Body: "hi"},
+		Id: f.item(t, feed.KindTrade), Body: &api.CreateCommentRequest{Body: ptr("hi")},
 	})
 	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
 		t.Errorf("identity down: error = %v, want upstream_unavailable", err)
@@ -174,7 +174,7 @@ func TestPostFeedComment_aDeletedAuthorShowsOnlyTheId(t *testing.T) {
 	t.Parallel()
 	f := newCommentRoutes(t)
 	gone := f.cabal.Members[1].ID
-	got, err := f.post(t, f.item(t, feed.KindTrade), gone, &api.CreateCommentRequest{Body: "hm"})
+	got, err := f.post(t, f.item(t, feed.KindTrade), gone, &api.CreateCommentRequest{Body: ptr("hm")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +208,7 @@ func (f commentRoutes) say(
 	t *testing.T, item uuid.UUID, author ids.UserID, body string, parent *uuid.UUID,
 ) api.Comment {
 	t.Helper()
-	c, err := f.post(t, item, author, &api.CreateCommentRequest{Body: body, ParentCommentId: parent})
+	c, err := f.post(t, item, author, &api.CreateCommentRequest{Body: &body, ParentCommentId: parent})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -276,7 +276,7 @@ func TestGetFeedComments_passesIdentityErrorsThrough(t *testing.T) {
 	t.Parallel()
 	f := newCommentRoutes(t)
 	item := f.item(t, feed.KindTrade)
-	if _, err := f.post(t, item, f.outsider, &api.CreateCommentRequest{Body: "hi"}); err != nil {
+	if _, err := f.post(t, item, f.outsider, &api.CreateCommentRequest{Body: ptr("hi")}); err != nil {
 		t.Fatal(err)
 	}
 	deps := module.Deps{Pool: f.pool, UoW: f.uow, IDs: f.gen, Clock: f.clock}
@@ -289,7 +289,7 @@ func TestDeleteFeedComment_answers204AndPassesRefusalsThrough(t *testing.T) {
 	t.Parallel()
 	f := newCommentRoutes(t)
 	kai := f.cabal.Members[0].ID
-	top, err := f.post(t, f.item(t, feed.KindTrade), kai, &api.CreateCommentRequest{Body: "top"})
+	top, err := f.post(t, f.item(t, feed.KindTrade), kai, &api.CreateCommentRequest{Body: ptr("top")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -348,7 +348,7 @@ func TestComments_hintTheFeedThroughTheBusAfterACreateAndADelete(t *testing.T) {
 	routes := social.HTTPOf(social.New(deps, social.WithUsers(fakes.NewIdentity(nil, nil))))
 	ctx := asUser(t.Context(), f.outsider)
 	res, err := routes.PostFeedComment(ctx, api.PostFeedCommentRequestObject{
-		Id: f.item(t, feed.KindTrade), Body: &api.CreateCommentRequest{Body: "hi"},
+		Id: f.item(t, feed.KindTrade), Body: &api.CreateCommentRequest{Body: ptr("hi")},
 	})
 	if err != nil {
 		t.Fatal(err)

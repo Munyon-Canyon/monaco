@@ -101,10 +101,11 @@ func listedComment(row sqlc.ListCommentThreadsRow) Comment {
 		ReplyToUserID: row.ReplyToUserID, ReplyToCommentID: row.ReplyToCommentID, Body: row.Body,
 		CreatedAt: row.CreatedAt, DeletedAt: row.DeletedAt, DeletedBy: row.DeletedBy, DeletedByKind: row.DeletedByKind,
 	})
+	c.Attachment = domain.DecodeAttachment(row.AttachmentKind.String, row.AttachmentPayload)
 	if row.QuoteID.Valid {
 		c.ReplyTo = quoteOf(
 			row.QuoteID.Bytes, row.QuoteAuthorID.Bytes, row.QuoteParentID.Bytes, row.QuoteBody.String,
-			row.QuoteDeleted, row.QuoteBlocked,
+			row.QuoteHasAttachment, row.QuoteDeleted, row.QuoteBlocked,
 		)
 	}
 	return c

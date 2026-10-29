@@ -102,6 +102,7 @@ func (q *Queries) GetCommentItem(ctx context.Context, id uuid.UUID) (GetCommentI
 
 const getCommentTarget = `-- name: GetCommentTarget :one
 SELECT c.id, c.author_id, c.parent_comment_id, c.body, (c.deleted_at IS NOT NULL)::bool AS deleted,
+  EXISTS (SELECT 1 FROM comment_attachments a WHERE a.comment_id = c.id)::bool AS has_attachment,
   EXISTS (
     SELECT 1 FROM user_blocks b WHERE b.blocker_id = $1::uuid AND b.blocked_id = c.author_id
   )::bool AS blocked
@@ -119,8 +120,9 @@ type GetCommentTargetRow struct {
 	ID              uuid.UUID
 	AuthorID        uuid.UUID
 	ParentCommentID pgtype.UUID
-	Body            string
+	Body            pgtype.Text
 	Deleted         bool
+	HasAttachment   bool
 	Blocked         bool
 }
 
@@ -133,6 +135,7 @@ func (q *Queries) GetCommentTarget(ctx context.Context, arg GetCommentTargetPara
 		&i.ParentCommentID,
 		&i.Body,
 		&i.Deleted,
+		&i.HasAttachment,
 		&i.Blocked,
 	)
 	return i, err
@@ -191,7 +194,7 @@ VALUES (
   NULLIF($4::uuid, '00000000-0000-0000-0000-000000000000'),
   NULLIF($5::uuid, '00000000-0000-0000-0000-000000000000'),
   NULLIF($6::uuid, '00000000-0000-0000-0000-000000000000'),
-  $7, $8
+  NULLIF($7::text, ''), $8
 )
 RETURNING id, feed_object_id, author_id, parent_comment_id, reply_to_user_id, body, created_at, deleted_at, deleted_by,
   deleted_by_kind, reply_to_comment_id
@@ -295,11 +298,14 @@ SELECT c.id, c.feed_object_id, c.author_id, c.parent_comment_id, c.reply_to_user
   c.created_at, c.deleted_at, c.deleted_by, c.deleted_by_kind,
   r.id AS quote_id, r.author_id AS quote_author_id, r.parent_comment_id AS quote_parent_id, r.body AS quote_body,
   (r.deleted_at IS NOT NULL)::bool AS quote_deleted,
+  EXISTS (SELECT 1 FROM comment_attachments qa WHERE qa.comment_id = r.id)::bool AS quote_has_attachment,
+  a.kind AS attachment_kind, a.payload AS attachment_payload,
   EXISTS (
     SELECT 1 FROM user_blocks b WHERE b.blocker_id = $1::uuid AND b.blocked_id = r.author_id
   )::bool AS quote_blocked
 FROM feed_comments c
 LEFT JOIN feed_comments r ON r.feed_object_id = c.feed_object_id AND r.id = c.reply_to_comment_id
+LEFT JOIN comment_attachments a ON a.comment_id = c.id
 WHERE c.feed_object_id = $2
   AND (c.id IN (SELECT id FROM tops) OR c.parent_comment_id IN (SELECT id FROM tops))
   AND NOT EXISTS (
@@ -318,23 +324,26 @@ type ListCommentThreadsParams struct {
 }
 
 type ListCommentThreadsRow struct {
-	ID               uuid.UUID
-	FeedObjectID     uuid.UUID
-	AuthorID         uuid.UUID
-	ParentCommentID  pgtype.UUID
-	ReplyToUserID    pgtype.UUID
-	ReplyToCommentID pgtype.UUID
-	Body             string
-	CreatedAt        time.Time
-	DeletedAt        pgtype.Timestamptz
-	DeletedBy        pgtype.UUID
-	DeletedByKind    string
-	QuoteID          pgtype.UUID
-	QuoteAuthorID    pgtype.UUID
-	QuoteParentID    pgtype.UUID
-	QuoteBody        pgtype.Text
-	QuoteDeleted     bool
-	QuoteBlocked     bool
+	ID                 uuid.UUID
+	FeedObjectID       uuid.UUID
+	AuthorID           uuid.UUID
+	ParentCommentID    pgtype.UUID
+	ReplyToUserID      pgtype.UUID
+	ReplyToCommentID   pgtype.UUID
+	Body               pgtype.Text
+	CreatedAt          time.Time
+	DeletedAt          pgtype.Timestamptz
+	DeletedBy          pgtype.UUID
+	DeletedByKind      string
+	QuoteID            pgtype.UUID
+	QuoteAuthorID      pgtype.UUID
+	QuoteParentID      pgtype.UUID
+	QuoteBody          pgtype.Text
+	QuoteDeleted       bool
+	QuoteHasAttachment bool
+	AttachmentKind     pgtype.Text
+	AttachmentPayload  []byte
+	QuoteBlocked       bool
 }
 
 func (q *Queries) ListCommentThreads(ctx context.Context, arg ListCommentThreadsParams) ([]ListCommentThreadsRow, error) {
@@ -370,6 +379,9 @@ func (q *Queries) ListCommentThreads(ctx context.Context, arg ListCommentThreads
 			&i.QuoteParentID,
 			&i.QuoteBody,
 			&i.QuoteDeleted,
+			&i.QuoteHasAttachment,
+			&i.AttachmentKind,
+			&i.AttachmentPayload,
 			&i.QuoteBlocked,
 		); err != nil {
 			return nil, err

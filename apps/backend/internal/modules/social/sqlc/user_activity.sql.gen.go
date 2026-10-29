@@ -13,7 +13,7 @@ import (
 )
 
 const userReplies = `-- name: UserReplies :many
-SELECT c.id, c.body, c.created_at, o.ref_id AS proposal_id
+SELECT c.id, COALESCE(c.body, 'GIF')::text AS body, c.created_at, o.ref_id AS proposal_id
 FROM feed_comments AS c
 JOIN feed_objects AS o ON o.id = c.feed_object_id
 WHERE c.author_id = $1

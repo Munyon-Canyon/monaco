@@ -38,6 +38,7 @@ type CommentCreated struct {
 	ItemNoun           string    `json:"item_noun"`
 	CabalName          *string   `json:"cabal_name"`
 	ReplyRule          string    `json:"reply_rule"`
+	AttachmentKind     string    `json:"attachment_kind"`
 }
 
 func (CommentCreated) Type() Type { return TypeCommentCreated }

@@ -12,8 +12,19 @@ extension Components.Schemas.Comment {
                 id: "author-\(author.lowercased())", handle: author.lowercased(), displayName: author, photoUrl: nil,
                 returnPrivate: false),
             replyToHandle: replyTo, replyTo: quote, body: body ?? "Comment \(id)",
-            bodyDisplay: body ?? "Comment \(id)", isMine: mine,
+            bodyDisplay: body ?? "Comment \(id)", attachment: nil, isMine: mine,
             createdAt: Date(timeIntervalSinceNow: -minutesAgo * 60))
+    }
+
+    public static func gifSample(
+        _ id: String, author: String, parent: String? = nil, minutesAgo: Double = 5,
+        quote: Components.Schemas.CommentQuote? = nil
+    ) -> Self {
+        var comment = sample(id, author: author, parent: parent, minutesAgo: minutesAgo, quote: quote)
+        comment.body = nil
+        comment.bodyDisplay = "GIF"
+        comment.attachment = .sample()
+        return comment
     }
 
     public static func deletedSample(_ id: String, parent: String? = nil) -> Self {
@@ -27,11 +38,18 @@ extension Components.Schemas.Comment {
 extension Components.Schemas.CommentQuote {
     public static func sample(
         _ commentId: String, root: String? = nil, author: String, excerpt: String?, folded: Bool = false,
-        deleted: Bool = false
+        deleted: Bool = false, hasAttachment: Bool = false
     ) -> Self {
         Self(
             commentId: commentId, rootCommentId: root ?? commentId, authorDisplayName: author, excerpt: excerpt,
-            isDeleted: deleted, isFolded: folded)
+            isDeleted: deleted, hasAttachment: hasAttachment, isFolded: folded)
+    }
+}
+
+extension Components.Schemas.GifAttachment {
+    public static func sample(id: String = "xT9IgDEI1iZyb2wqo8", title: String = "Clapping") -> Self {
+        let media = Components.Schemas.GifMedia(url: "file:///placeholder.gif", width: 200, height: 150)
+        return Self(kind: .gif, id: id, title: title, still: media, preview: media, original: media)
     }
 }
 
@@ -62,11 +80,17 @@ extension Components.Schemas.CommentThread {
             comment: .sample("aapl-andres", author: "Andres", body: "Good timing on this one.", minutesAgo: 40),
             replies: []),
         Self(
-            comment: .sample(
-                "aapl-christelle", author: "Christelle", body: "A GIF of someone clapping.", minutesAgo: 30,
+            comment: .gifSample(
+                "aapl-christelle", author: "Christelle", minutesAgo: 30,
                 quote: .sample(
                     "aapl-logan", root: "aapl-nora", author: "Logan", excerpt: "Took the gain while it was there.",
                     folded: true)),
+            replies: []),
+        Self(
+            comment: .sample(
+                "aapl-jordan", author: "Jordan", body: "Same.", minutesAgo: 25,
+                quote: .sample(
+                    "aapl-christelle", author: "Christelle", excerpt: "GIF", hasAttachment: true)),
             replies: []),
         Self(
             comment: .sample(

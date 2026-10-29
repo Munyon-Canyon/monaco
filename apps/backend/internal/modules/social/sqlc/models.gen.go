@@ -31,7 +31,7 @@ type FeedComment struct {
 	AuthorID         uuid.UUID
 	ParentCommentID  pgtype.UUID
 	ReplyToUserID    pgtype.UUID
-	Body             string
+	Body             pgtype.Text
 	CreatedAt        time.Time
 	DeletedAt        pgtype.Timestamptz
 	DeletedBy        pgtype.UUID

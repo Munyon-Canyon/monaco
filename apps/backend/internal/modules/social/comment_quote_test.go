@@ -33,7 +33,7 @@ func newQuoteThread(t *testing.T) quoteThread {
 
 func (f quoteThread) say(t *testing.T, who ids.UserID, body string, answering uuid.UUID) api.Comment {
 	t.Helper()
-	req := &api.CreateCommentRequest{Body: body}
+	req := &api.CreateCommentRequest{Body: &body}
 	if answering != uuid.Nil {
 		req.ParentCommentId = &answering
 	}
