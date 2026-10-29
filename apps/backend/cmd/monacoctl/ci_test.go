@@ -405,10 +405,10 @@ func TestAffectedLeavesTheAgentToolingOutUnlessItsOwnInputsChanged(t *testing.T)
 			nil,
 		},
 		{
-			"a direct module import selects only the tooling that imports it",
+			"a module diff leaves the tooling that imports the module excluded",
 			[]string{"internal/modules/cabal/app.go"},
-			[]string{"./cmd/monacoctl", "./internal/modules/cabal"},
-			nil,
+			[]string{"./internal/modules/cabal"},
+			[]string{"./cmd/monacoctl"},
 		},
 		{
 			"a flow file still selects the flow readers",
@@ -533,7 +533,7 @@ func TestReverseDepsSeedsPerModuleSharedFilesFromTheirModule(t *testing.T) {
 		{
 			"a module file beside a shared module file",
 			[]string{obs + "/msgs_cabal.go", "internal/modules/trading/app/x.go"},
-			with(obs, cabal, []string{"./internal/modules/trading/app"}),
+			with(obs, cabal, trading),
 		},
 	}
 	for _, tc := range cases {
@@ -647,16 +647,15 @@ func TestReverseDepsSelectsASpecChangeFromItsModule(t *testing.T) {
 		"internal/platform/httpx/api/rankingapi/api.gen.go",
 	}, nil)
 	want := []string{
-		"./api", "./internal/modules/ranking", "./internal/modules/social",
+		"./api", "./internal/modules/ranking", "./internal/modules/ranking/app", "./internal/modules/social",
 		"./internal/platform/httpx/api/apiall", "./internal/platform/httpx/api/rankingapi",
 		"./internal/testkit", "./internal/testkit/scenario",
 	}
 	if !slices.Equal(selected, want) {
 		t.Fatalf("selected %v, want %v", selected, want)
 	}
-	wantExcluded := []string{"./cmd/monacoctl", "./cmd/monacoctl/agents", "./cmd/monacoctl/verify"}
-	if !slices.Equal(excluded, wantExcluded) {
-		t.Fatalf("excluded %v, want %v", excluded, wantExcluded)
+	if len(excluded) != 0 {
+		t.Fatalf("excluded %v", excluded)
 	}
 }
 
@@ -851,5 +850,255 @@ func TestCIChangedFlowsReadsTheFlowsOfTheRepo(t *testing.T) {
 	}
 	if got := (ciEnv{exec: failing}).changedFlows(context.Background(), []string{"leaf/leaf.go"}); got != nil {
 		t.Fatalf("changedFlows with no flow file changed = %v, want nil", got)
+	}
+}
+
+func TestModuleOf(t *testing.T) {
+	t.Parallel()
+	cabalQuery := []string{"queries/cabal/members.sql"}
+	cases := []struct {
+		name    string
+		f       string
+		changed []string
+		want    string
+		ok      bool
+	}{
+		{"a module package file", "internal/modules/cabal/app/x.go", nil, "cabal", true},
+		{"a module root file", "internal/modules/cabal/module.go", nil, "cabal", true},
+		{"a file directly under modules", "internal/modules/doc.go", nil, "", false},
+		{"a module query", "queries/cabal/members.sql", nil, "cabal", true},
+		{"a query directly under queries", "queries/q.sql", nil, "", false},
+		{"a module api file", "internal/platform/httpx/api/cabalapi/api.gen.go", nil, "cabal", true},
+		{"the aggregate api package", "internal/platform/httpx/api/apiall/all.go", nil, "", false},
+		{"a file named like a module api", "internal/platform/httpx/api/cabalapi", nil, "", false},
+		{"an api package with no module", "internal/platform/httpx/api/api/x.go", nil, "", false},
+		{"a migration beside a module query", "migrations/1_x.sql", cabalQuery, "cabal", true},
+		{"atlas.sum beside a module query", "migrations/atlas.sum", cabalQuery, "cabal", true},
+		{
+			"a migration beside a module sqlc file", "migrations/1_x.sql",
+			[]string{"internal/modules/cabal/sqlc/a.go"},
+			"cabal", true,
+		},
+		{
+			"a migration beside a module app file", "migrations/1_x.sql",
+			[]string{"internal/modules/cabal/app/a.go"},
+			"", false,
+		},
+		{
+			"a migration beside a module file without a subdirectory", "migrations/1_x.sql",
+			[]string{"internal/modules/cabal"},
+			"", false,
+		},
+		{
+			"a migration beside two modules", "migrations/1_x.sql",
+			[]string{"queries/cabal/a.sql", "queries/funding/b.sql"},
+			"", false,
+		},
+		{
+			"a migration beside one module twice", "migrations/1_x.sql",
+			[]string{"queries/cabal/a.sql", "internal/modules/cabal/sqlc/a.go"},
+			"cabal", true,
+		},
+		{"a migration with no module", "migrations/1_x.sql", []string{"migrations/1_x.sql"}, "", false},
+		{"a go file in migrations", "migrations/m.go", cabalQuery, "", false},
+		{"a shared file", "internal/platform/db/uow.go", cabalQuery, "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got, ok := moduleOf(tc.f, tc.changed); got != tc.want || ok != tc.ok {
+				t.Fatalf("moduleOf(%q, %v) = %q, %v; want %q, %v", tc.f, tc.changed, got, ok, tc.want, tc.ok)
+			}
+		})
+	}
+}
+
+func moduleScopedGraph() map[string]listedPackage {
+	const mod = "example.com/m/"
+	pkg := func(dir string, imports ...string) listedPackage {
+		p := listedPackage{ImportPath: mod + dir}
+		if dir == "." {
+			p.ImportPath = strings.TrimSuffix(mod, "/")
+		}
+		for _, i := range imports {
+			if i == "." {
+				p.Imports = append(p.Imports, strings.TrimSuffix(mod, "/"))
+				continue
+			}
+			p.Imports = append(p.Imports, mod+i)
+		}
+		return p
+	}
+	const (
+		apiAll   = "internal/platform/httpx/api/apiall"
+		api      = "internal/platform/httpx/api/"
+		db       = "internal/platform/db"
+		testkit  = "internal/testkit"
+		scenario = "internal/testkit/scenario"
+		kitFlows = "internal/testkit/flows"
+		modules  = "internal/modules/"
+	)
+	byDir := map[string]listedPackage{
+		".":                pkg("."),
+		db:                 pkg(db, "."),
+		"api":              pkg("api"),
+		api + "cabalapi":   pkg(api+"cabalapi", "api"),
+		api + "rankingapi": pkg(api+"rankingapi", "api"),
+		api + "fundingapi": pkg(api+"fundingapi", "api"),
+		apiAll:             pkg(apiAll, api+"cabalapi", api+"rankingapi", api+"fundingapi"),
+		testkit: pkg(
+			testkit,
+			modules+"cabal/sqlc",
+			modules+"ranking",
+			modules+"funding/sqlc",
+			apiAll,
+		),
+		scenario:                   pkg(scenario, testkit, apiAll),
+		kitFlows:                   pkg(kitFlows, testkit),
+		"internal/testkit/fakes":   pkg("internal/testkit/fakes"),
+		"cmd/api":                  pkg("cmd/api", apiAll, modules+"cabal", modules+"ranking", modules+"funding"),
+		"cmd/worker":               pkg("cmd/worker", modules+"cabal", modules+"ranking", modules+"funding"),
+		"cmd/monacoctl":            pkg("cmd/monacoctl", modules+"cabal", kitFlows),
+		"cmd/monacoctl/agents":     pkg("cmd/monacoctl/agents", modules+"cabal"),
+		"cmd/monacoctl/verify":     pkg("cmd/monacoctl/verify", modules+"cabal"),
+		"cmd/gen":                  pkg("cmd/gen"),
+		"internal/tools/flows":     pkg("internal/tools/flows"),
+		"internal/tools/gen":       pkg("internal/tools/gen"),
+		modules + "cabal/sqlc":     pkg(modules + "cabal/sqlc"),
+		modules + "cabal/app":      pkg(modules+"cabal/app", modules+"cabal/sqlc"),
+		modules + "cabal/domain":   pkg(modules + "cabal/domain"),
+		modules + "cabal/adapters": pkg(modules+"cabal/adapters", modules+"cabal/app"),
+		modules + "cabal":          pkg(modules+"cabal", modules+"cabal/app", modules+"cabal/sqlc", api+"cabalapi", db),
+		modules + "ranking/domain": pkg(modules + "ranking/domain"),
+		modules + "ranking/app":    pkg(modules+"ranking/app", modules+"ranking/domain"),
+		modules + "ranking":        pkg(modules+"ranking", modules+"ranking/app", api+"rankingapi", db),
+		modules + "funding/sqlc":   pkg(modules + "funding/sqlc"),
+		modules + "funding": pkg(
+			modules+"funding",
+			modules+"funding/sqlc",
+			api+"fundingapi",
+			db,
+			modules+"cabal",
+		),
+		modules + "treasury": pkg(modules+"treasury", db, modules+"cabal/domain"),
+		modules + "admin":    pkg(modules+"admin", modules+"ranking", modules+"cabal", db),
+		modules + "social":   pkg(modules+"social", modules+"ranking", db),
+		modules + "notify":   pkg(modules+"notify", modules+"ranking/app", db),
+	}
+	return byDir
+}
+
+func TestReverseDepsScopesACabalMigrationAndQueriesToCabal(t *testing.T) {
+	t.Parallel()
+	selected, excluded := reverseDeps(moduleScopedGraph(), []string{
+		"migrations/20261029045644_cabal_member_sort.sql", "migrations/atlas.sum",
+		"queries/cabal/members.sql", "internal/modules/cabal/sqlc/members.sql.gen.go",
+	}, nil)
+	want := []string{
+		"./cmd/api", "./cmd/worker",
+		"./internal/modules/admin", "./internal/modules/cabal", "./internal/modules/cabal/adapters",
+		"./internal/modules/cabal/app", "./internal/modules/cabal/domain", "./internal/modules/cabal/sqlc",
+		"./internal/modules/funding", "./internal/modules/treasury",
+		"./internal/platform/httpx/api/cabalapi",
+		"./internal/testkit", "./internal/testkit/flows", "./internal/testkit/scenario",
+	}
+	if !slices.Equal(selected, want) {
+		t.Fatalf("selected %v, want %v", selected, want)
+	}
+	wantExcluded := []string{"./cmd/monacoctl", "./cmd/monacoctl/agents", "./cmd/monacoctl/verify"}
+	if !slices.Equal(excluded, wantExcluded) {
+		t.Fatalf("excluded %v, want %v", excluded, wantExcluded)
+	}
+}
+
+func TestReverseDepsScopesAModuleAppFileToItsImportingModules(t *testing.T) {
+	t.Parallel()
+	selected, _ := reverseDeps(moduleScopedGraph(), []string{"internal/modules/ranking/app/portfolio.go"}, nil)
+	want := []string{
+		"./cmd/api", "./cmd/worker",
+		"./internal/modules/admin", "./internal/modules/notify", "./internal/modules/ranking",
+		"./internal/modules/ranking/app", "./internal/modules/ranking/domain", "./internal/modules/social",
+		"./internal/platform/httpx/api/rankingapi",
+		"./internal/testkit", "./internal/testkit/flows", "./internal/testkit/scenario",
+	}
+	if !slices.Equal(selected, want) {
+		t.Fatalf("selected %v, want %v", selected, want)
+	}
+}
+
+func TestReverseDepsKeepsEverythingForAnUnresolvedMigrationOrASharedFile(t *testing.T) {
+	t.Parallel()
+	for _, changed := range [][]string{
+		{"migrations/20261029045644_x.sql", "migrations/atlas.sum"},
+		{"migrations/20261029045644_x.sql", "queries/cabal/a.sql", "queries/funding/b.sql"},
+		{"internal/platform/db/uow.go"},
+		{"internal/modules/cabal/app/x.go", "internal/platform/db/uow.go"},
+	} {
+		selected, _ := reverseDeps(moduleScopedGraph(), changed, nil)
+		for _, dir := range []string{
+			"./internal/modules/funding", "./internal/modules/treasury", "./internal/modules/ranking",
+			"./internal/testkit/scenario", "./cmd/api",
+		} {
+			if !slices.Contains(selected, dir) {
+				t.Fatalf("%v selected %v without %s", changed, selected, dir)
+			}
+		}
+	}
+}
+
+func TestReverseDepsFallsBackToEverythingWhenAModuleFileHasNoPackage(t *testing.T) {
+	t.Parallel()
+	for _, changed := range [][]string{
+		{"internal/modules/cabal/ghost/x.go"},
+		{"migrations/1_x.sql", "queries/ghost/q.sql"},
+	} {
+		if got, _ := reverseDeps(moduleScopedGraph(), changed, nil); !slices.Equal(got, []string{allPackages}) {
+			t.Fatalf("%v selected %v", changed, got)
+		}
+	}
+}
+
+func TestReverseDepsSelectsACabalRouteTicketWithItsImportingModules(t *testing.T) {
+	t.Parallel()
+	changed := []string{
+		"api/openapi.yaml", "api/spec/cabal.yaml", "api/spec/ranking.yaml",
+		"internal/modules/cabal/adapters/http.go", "internal/modules/cabal/app/reorder_cabals.go",
+		"internal/modules/cabal/domain/cabal_order.go", "internal/modules/cabal/domain/cabal_order_test.go",
+		"internal/modules/cabal/flow34_test.go", "internal/modules/cabal/http_test.go",
+		"internal/modules/cabal/module.go", "internal/modules/cabal/reorder_cabals_test.go",
+		"internal/modules/cabal/sqlc/cabals.sql.gen.go", "internal/modules/cabal/sqlc/members.sql.gen.go",
+		"internal/modules/cabal/sqlc/models.gen.go",
+		"internal/modules/ranking/app/portfolio_order_test.go", "internal/modules/ranking/domain/portfolio.go",
+		"internal/modules/ranking/domain/portfolio_test.go",
+		"internal/platform/httpx/api/cabalapi/api.gen.go",
+		"internal/testkit/fakes/testdata/fakes/privy/v1/users/qa-f34-invalid.json",
+		"internal/testkit/fakes/testdata/fakes/privy/v1/users/qa-f34-ok.json",
+		"internal/testkit/flows/f34.gen.go", "internal/testkit/flows/f34.go",
+		"migrations/20261029045644_cabal_member_sort.sql", "migrations/atlas.sum",
+		"queries/cabal/cabals.sql", "queries/cabal/members.sql",
+		flows.Dir + "/34.tsv",
+	}
+	parsed := []flows.Flow{{ID: "34", Module: "cabal"}}
+	selected, excluded := reverseDeps(moduleScopedGraph(), changed, parsed)
+	if len(selected) > 85 {
+		t.Fatalf("selected %d packages: %v", len(selected), selected)
+	}
+	for _, dir := range []string{
+		"./internal/modules/cabal", "./internal/modules/cabal/sqlc", "./internal/modules/ranking/domain",
+		"./internal/platform/httpx/api/cabalapi", "./internal/modules/admin",
+		"./internal/testkit/flows", "./internal/testkit/scenario",
+	} {
+		if !slices.Contains(selected, dir) {
+			t.Fatalf("selected %v without %s", selected, dir)
+		}
+	}
+	for _, dir := range []string{"./internal/modules/funding", "./internal/modules/treasury"} {
+		if !slices.Contains(selected, dir) {
+			t.Fatalf("selected %v without %s", selected, dir)
+		}
+	}
+	wantExcluded := []string{"./cmd/monacoctl", "./cmd/monacoctl/agents", "./cmd/monacoctl/verify"}
+	if !slices.Equal(excluded, wantExcluded) {
+		t.Fatalf("excluded %v, want %v", excluded, wantExcluded)
 	}
 }
