@@ -18,7 +18,6 @@ public struct FeedPostFacts: Equatable, Sendable {
         public let headline: String
         public let place: String?
         public let trailing: Trailing?
-        public internal(set) var placeIsWarning = false
 
         public var showsLogo: Bool { symbol != nil }
     }
@@ -39,33 +38,9 @@ public struct FeedPostFacts: Equatable, Sendable {
         }
     }
 
-    public struct ChartPoint: Equatable, Sendable {
-        public let at: Date
-        public let priceMicros: Int64
-
-        public init(at: Date, priceMicros: Int64) {
-            self.at = at
-            self.priceMicros = priceMicros
-        }
-    }
-
-    public struct ChartMarker: Equatable, Sendable {
-        public let at: Date
-        public let side: FeedSide
-        public let priceMicros: Int64
-
-        public init(at: Date, side: FeedSide, priceMicros: Int64) {
-            self.at = at
-            self.side = side
-            self.priceMicros = priceMicros
-        }
-    }
-
     public enum Attachment: Equatable, Sendable {
         case tally(Tally)
         case quote(String)
-        case result(sealName: String, sparkline: [ChartPoint], isLoss: Bool)
-        case sale(points: [ChartPoint], markers: [ChartMarker], isLoss: Bool)
         case none
     }
 
@@ -84,10 +59,9 @@ public struct FeedPostFacts: Equatable, Sendable {
         let kind = FeedPostKind(item.kind)
         let age = Age(item.createdAt, now: now)
         let lead = Self.lead(of: item, kind: kind)
-        let result = kind == .result ? ResultReading(item, now: now) : nil
-        let verb = result?.verb ?? Self.verb(of: item, kind: kind)
-        let object = result?.object ?? Self.object(of: item, kind: kind)
-        let attachment = result?.attachment ?? Self.attachment(of: item, kind: kind, now: now)
+        let verb = Self.verb(of: item, kind: kind)
+        let object = Self.object(of: item, kind: kind)
+        let attachment = Self.attachment(of: item, kind: kind, now: now)
 
         self.lead = lead
         self.name = lead.name
@@ -112,12 +86,12 @@ extension FeedPostFacts.Lead {
 }
 
 extension FeedPostFacts {
-    struct Spoken<Value> {
+    fileprivate struct Spoken<Value> {
         let value: Value
         let spoken: String
     }
 
-    struct Line {
+    fileprivate struct Line {
         let line: Object
         let spoken: String
     }
@@ -144,7 +118,7 @@ extension FeedPostFacts {
         }
     }
 
-    static func text(_ raw: String?) -> String? {
+    fileprivate static func text(_ raw: String?) -> String? {
         guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
         return trimmed
     }
@@ -204,7 +178,7 @@ extension FeedPostFacts {
             spoken: spoken)
     }
 
-    static func amount(of item: Components.Schemas.FeedItem) -> (short: String, spoken: String)? {
+    fileprivate static func amount(of item: Components.Schemas.FeedItem) -> (short: String, spoken: String)? {
         if let micros = item.usdcMicros {
             return (wholeDollars(micros), spokenDollars(micros))
         }
@@ -227,7 +201,7 @@ extension FeedPostFacts {
         return "\(dollars) \(dollars == 1 ? "dollar" : "dollars")"
     }
 
-    static func capitalized(_ word: String) -> String {
+    fileprivate static func capitalized(_ word: String) -> String {
         word.prefix(1).uppercased() + word.dropFirst()
     }
 
