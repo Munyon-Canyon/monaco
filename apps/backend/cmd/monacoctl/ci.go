@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"os"
 	"os/exec"
 	"path"
 	"regexp"
@@ -119,8 +120,29 @@ func (env ciEnv) affected(ctx context.Context, base string) (selected, excluded 
 	if err != nil {
 		return nil, nil, err
 	}
-	selected, excluded = reverseDeps(pkgs, changed, scanners...)
+	selected, excluded = reverseDeps(pkgs, changed, env.changedFlows(ctx, changed), scanners...)
 	return selected, excluded, nil
+}
+
+func (env ciEnv) changedFlows(ctx context.Context, changed []string) []flows.Flow {
+	if !slices.ContainsFunc(changed, flowFile) {
+		return nil
+	}
+	top, err := env.exec(ctx, env.moduleDir, nil, env.gitBin, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return nil
+	}
+	parsed, _, err := flows.ReadAll(os.DirFS(strings.TrimSpace(string(top))))
+	if err != nil {
+		return nil
+	}
+	return parsed
+}
+
+func flowFile(f string) bool {
+	return strings.HasPrefix(f, flows.Dir+"/") ||
+		strings.HasPrefix(f, "internal/testkit/flows/") ||
+		strings.HasPrefix(f, "internal/testkit/fakes/testdata/")
 }
 
 func (env ciEnv) scanners(ctx context.Context, base string, changed []string) ([]string, error) {
@@ -204,8 +226,13 @@ func sharedTooling(dir string) bool {
 	})
 }
 
-func reverseDeps(byDir map[string]listedPackage, changed []string, scanners ...string) (selected, excluded []string) {
-	hit, local, bare, ok := seedPackages(byDir, changed)
+func reverseDeps(
+	byDir map[string]listedPackage,
+	changed []string,
+	parsed []flows.Flow,
+	scanners ...string,
+) (selected, excluded []string) {
+	hit, local, bare, ok := seedPackages(byDir, changed, parsed)
 	if !ok {
 		return []string{allPackages}, nil
 	}
@@ -291,10 +318,14 @@ func inputsChanged(p listedPackage, dirOf map[string]string, seeds, local map[st
 		slices.ContainsFunc(p.Imports, func(i string) bool { return seeds[i] && !sharedTooling(dirOf[i]) })
 }
 
-func seedPackages(byDir map[string]listedPackage, changed []string) (hit, local, bare map[string]bool, ok bool) {
+func seedPackages(
+	byDir map[string]listedPackage,
+	changed []string,
+	parsed []flows.Flow,
+) (hit, local, bare map[string]bool, ok bool) {
 	hit, local, bare = map[string]bool{}, map[string]bool{}, map[string]bool{}
 	for _, f := range changed {
-		if specSeed(byDir, changed, f, hit, bare) || scopedSeed(byDir, f, bare) {
+		if specSeed(byDir, changed, f, hit, bare) || flowSeed(byDir, parsed, f, bare) || scopedSeed(byDir, f, bare) {
 			continue
 		}
 		dirs := seedDirs(byDir, f)
@@ -314,6 +345,44 @@ func seedPackages(byDir map[string]listedPackage, changed []string) (hit, local,
 		}
 	}
 	return hit, local, bare, true
+}
+
+func flowSeed(byDir map[string]listedPackage, parsed []flows.Flow, f string, bare map[string]bool) bool {
+	for _, fl := range parsed {
+		id := regexp.QuoteMeta(fl.ID)
+		var owners []string
+		switch {
+		case f == flows.Dir+"/"+fl.ID+".tsv":
+			owners = flowsReaders()
+		case regexp.MustCompile(`^internal/testkit/flows/f` + id + `(\.gen)?\.go$`).MatchString(f):
+			owners = []string{"internal/testkit/flows"}
+		case strings.HasPrefix(f, "internal/testkit/fakes/testdata/") &&
+			regexp.MustCompile(`(^|[^a-z0-9])f`+id+`([^a-z0-9]|$)`).MatchString(path.Base(f)):
+			owners = []string{"internal/testkit/fakes"}
+		default:
+			continue
+		}
+		for _, dir := range owners {
+			bare[byDir[dir].ImportPath] = true
+		}
+		for _, module := range flowModules(fl) {
+			for _, dir := range moduleDirs(byDir, module) {
+				bare[byDir[dir].ImportPath] = true
+			}
+		}
+		return true
+	}
+	return false
+}
+
+func flowModules(f flows.Flow) []string {
+	modules := []string{f.Module}
+	for _, c := range f.Consumers {
+		if module, _, ok := strings.Cut(c, "."); ok && !slices.Contains(modules, module) {
+			modules = append(modules, module)
+		}
+	}
+	return modules
 }
 
 func scopedSeed(byDir map[string]listedPackage, f string, bare map[string]bool) bool {
