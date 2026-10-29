@@ -1865,8 +1865,11 @@ paths:
       summary: Read one proposal.
       description: >-
         Returns the proposal as the list shows it, plus every member of its frozen voter set with
-        their ballot, whether the caller can vote on it or withdraw it, and the latest trade linked
-        to it. A non-member sees the same proposal with `can_vote` and `can_withdraw` false.
+        their name, photo and whether they voted, whether the caller can vote on it or withdraw it,
+        and the latest trade linked to it. Vote counts are always live, but which way each member
+        voted is private: every voter's `choice` and `cast_at` are null except the caller's own,
+        until the proposal closes in a cabal whose "Show who voted what" rule was on when it opened
+        (`sides_visible`). A non-member sees the same proposal with `can_vote` and `can_withdraw` false.
       parameters:
         - name: id
           in: path
@@ -1882,7 +1885,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProposalDetail"
-              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, proposer: {id: 01890a5d-ac96-774b-bcce-b302099a8059, display_name: Mia, photo_url: null}, proposer_return_1m_bps: 820, proposer_return_private: false, kind: buy, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: open, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 1, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", voters: [{user_id: 01890a5d-ac96-774b-bcce-b302099a8059, choice: "yes", cast_at: "2026-10-03T16:00:00Z"}, {user_id: 01890a5d-ac96-774b-bcce-b302099a8061, choice: null, cast_at: null}], can_vote: true, can_withdraw: true, swap: null, stats: {treasury_share_bps: 250, closes_at: "2026-10-04T15:00:00Z", closed_at: null, price_micros: 220000000, shares_atomics: 11363636, shares_exact: false, token_decimals: 8, since_bps: null}, passed_price_micros: null, my_vote: {order: 1, of: 2, yes_order: 1, no_order: 0, decided: false}, reply_count: 6}
+              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, proposer: {id: 01890a5d-ac96-774b-bcce-b302099a8059, display_name: Mia, photo_url: null}, proposer_return_1m_bps: 820, proposer_return_private: false, kind: buy, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: open, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 1, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", voters: [{user_id: 01890a5d-ac96-774b-bcce-b302099a8059, voted: true, choice: "yes", cast_at: "2026-10-03T16:00:00Z", display_name: Mia, photo_url: null}, {user_id: 01890a5d-ac96-774b-bcce-b302099a8061, voted: false, choice: null, cast_at: null, display_name: Kai, photo_url: null}], sides_visible: false, can_vote: true, can_withdraw: true, swap: null, stats: {treasury_share_bps: 250, closes_at: "2026-10-04T15:00:00Z", closed_at: null, price_micros: 220000000, shares_atomics: 11363636, shares_exact: false, token_decimals: 8, since_bps: null}, passed_price_micros: null, my_vote: {order: 1, of: 2, yes_order: 1, no_order: 0, decided: false}, reply_count: 6}
         default:
           $ref: "#/components/responses/Problem"
     delete:
@@ -1910,7 +1913,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProposalDetail"
-              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, proposer: {id: 01890a5d-ac96-774b-bcce-b302099a8059, display_name: Mia, photo_url: null}, proposer_return_1m_bps: 820, proposer_return_private: false, kind: buy, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: withdrawn, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 1, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", voters: [{user_id: 01890a5d-ac96-774b-bcce-b302099a8059, choice: "yes", cast_at: "2026-10-03T16:00:00Z"}, {user_id: 01890a5d-ac96-774b-bcce-b302099a8061, choice: null, cast_at: null}], can_vote: false, can_withdraw: false, swap: null, stats: {treasury_share_bps: 250, closes_at: "2026-10-04T15:00:00Z", closed_at: "2026-10-03T16:30:00Z", price_micros: 220000000, shares_atomics: 11363636, shares_exact: false, token_decimals: 8, since_bps: null}, passed_price_micros: null, my_vote: {order: 1, of: 2, yes_order: 1, no_order: 0, decided: false}, reply_count: 0}
+              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, proposer: {id: 01890a5d-ac96-774b-bcce-b302099a8059, display_name: Mia, photo_url: null}, proposer_return_1m_bps: 820, proposer_return_private: false, kind: buy, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: withdrawn, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 1, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", voters: [{user_id: 01890a5d-ac96-774b-bcce-b302099a8059, voted: true, choice: "yes", cast_at: "2026-10-03T16:00:00Z", display_name: Mia, photo_url: null}, {user_id: 01890a5d-ac96-774b-bcce-b302099a8061, voted: false, choice: null, cast_at: null, display_name: Kai, photo_url: null}], sides_visible: false, can_vote: false, can_withdraw: false, swap: null, stats: {treasury_share_bps: 250, closes_at: "2026-10-04T15:00:00Z", closed_at: "2026-10-03T16:30:00Z", price_micros: 220000000, shares_atomics: 11363636, shares_exact: false, token_decimals: 8, since_bps: null}, passed_price_micros: null, my_vote: {order: 1, of: 2, yes_order: 1, no_order: 0, decided: false}, reply_count: 0}
         default:
           $ref: "#/components/responses/Problem"
   /v1/proposals/{id}/votes:
@@ -7084,10 +7087,12 @@ components:
         - stats
         - my_vote
         - reply_count
+        - sides_visible
       properties:
         id: {type: string, format: uuid, description: The proposal id., examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
         cabal_id: {type: string, format: uuid, description: The cabal id., examples: [01890a5d-ac96-774b-bcce-b302099a8058]}
         cabal_name: {type: string, description: "The cabal's current name.", examples: [Friday Night Lights]}
+        sides_visible: {type: boolean, description: "True once the proposal has closed in a cabal that showed who voted what when it opened. Then every voter's `choice` is set.", examples: [false]}
         stats: {$ref: "#/components/schemas/ProposalStats"}
         my_vote:
           type: [object, "null"]
@@ -7344,11 +7349,12 @@ components:
     ProposalVoter:
       type: object
       description: One member of the proposal's frozen voter set.
-      required: [user_id, choice, cast_at]
+      required: [user_id, voted, choice, cast_at, display_name, photo_url]
       properties:
         user_id: {type: string, format: uuid, description: The voter., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
+        voted: {type: boolean, description: "Whether the voter has cast a ballot. Always set, even while their side is private.", examples: [true]}
         choice:
-          description: The voter's ballot. Null until they vote.
+          description: The voter's ballot. Null until they vote, and null for every voter but the caller while the cabal keeps sides private.
           examples: ["yes"]
           type: [string, "null"]
           enum: ["yes", "no", null]
@@ -7356,8 +7362,10 @@ components:
         cast_at:
           type: [string, "null"]
           format: date-time
-          description: When the ballot was last cast. Null until they vote.
+          description: When the ballot was last cast. Null until they vote, and null for every voter but the caller while the cabal keeps sides private.
           examples: ["2026-10-03T16:00:00Z"]
+        display_name: {type: string, description: "The voter's name. Empty when the account is gone.", examples: [Mia]}
+        photo_url: {type: [string, "null"], description: "The voter's photo. Null when they have none.", examples: [null]}
     ProposeTradeRequest:
       type: object
       description: A trade to propose. A buy sets `usdc_micros` only, and a sell sets `token_amount` only.

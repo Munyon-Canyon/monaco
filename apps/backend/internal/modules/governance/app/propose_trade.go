@@ -169,6 +169,7 @@ func (h *ProposeTradeHandler) Open(ctx context.Context, cmd ProposeTrade) (Opene
 	}
 	err = h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		params := openParams(p.Draft(), rule, voters, now)
+		params.SidesAfterClose = rules.ShowSides
 		params.PotValueMicros = a.potColumn()
 		return store(ctx, tx, params, a.comparison, created(p.Draft(), len(voters)))
 	})

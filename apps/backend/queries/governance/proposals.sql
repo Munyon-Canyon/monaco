@@ -2,11 +2,11 @@
 WITH proposal AS (
   INSERT INTO proposals (
     id, cabal_id, proposer_id, kind, symbol, mint, usdc_micros, token_amount, thesis,
-    quote_out_amount, threshold, status, expires_at, created_at, updated_at
+    quote_out_amount, threshold, status, expires_at, created_at, updated_at, sides_after_close
   )
   VALUES (
     @id, @cabal_id, @proposer_id, @kind, @symbol, @mint, @usdc_micros, @token_amount, @thesis,
-    @quote_out_amount, @threshold, 'open', @expires_at, @created_at, @created_at
+    @quote_out_amount, @threshold, 'open', @expires_at, @created_at, @created_at, @sides_after_close
   )
   RETURNING id
 )
@@ -19,14 +19,15 @@ WITH proposal AS (
   INSERT INTO proposals (
     id, cabal_id, proposer_id, kind, symbol, mint, usdc_micros, token_amount, thesis,
     quote_out_amount, threshold, status, expires_at, created_at, updated_at, price_comparison, network,
-    pot_value_micros
+    pot_value_micros, sides_after_close
   )
   VALUES (
     sqlc.arg(id), sqlc.arg(cabal_id), sqlc.arg(proposer_id), sqlc.arg(kind), sqlc.arg(symbol), sqlc.arg(mint),
     NULLIF(sqlc.arg(usdc_micros)::text, '0')::bigint, NULLIF(sqlc.arg(token_amount)::text, '0')::bigint,
     NULLIF(sqlc.arg(thesis)::text, ''), sqlc.arg(quote_out_amount)::text::bigint, sqlc.arg(threshold), 'open', sqlc.arg(expires_at),
     sqlc.arg(created_at), sqlc.arg(created_at), sqlc.narg(price_comparison)::jsonb,
-    NULLIF(sqlc.arg(network)::text, ''), NULLIF(sqlc.arg(pot_value_micros)::text, '')::bigint
+    NULLIF(sqlc.arg(network)::text, ''), NULLIF(sqlc.arg(pot_value_micros)::text, '')::bigint,
+    sqlc.arg(sides_after_close)::boolean
   )
   RETURNING id
 )

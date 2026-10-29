@@ -95,8 +95,8 @@ func TestGetProposal_ProposerReturn(t *testing.T) {
 				t.Fatal(err)
 			}
 			checkReturn(t, got, tc.wantBps, tc.private)
-			if len(users.calls) != 1 || len(users.calls[0]) != 1 || users.calls[0][0] != proposer {
-				t.Fatalf("UsersByID calls = %v, want one call for the proposer", users.calls)
+			if len(users.calls) != 1 || users.calls[0][0] != proposer {
+				t.Fatalf("UsersByID calls = %v, want one call that starts with the proposer", users.calls)
 			}
 			if len(rets.ranges) != 1 || rets.ranges[0] != rankingport.Range1M {
 				t.Fatalf("PeopleReturns ranges = %v, want one 1M call", rets.ranges)

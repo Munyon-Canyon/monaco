@@ -27,14 +27,15 @@ extension Components.Schemas.ProposalDetail {
         let castOffsets: [TimeInterval] = [-6_000, -5_000, -4_000]
         let voters = members.prefix(3).enumerated().map { index, member in
             Components.Schemas.ProposalVoter(
-                userId: member.userId,
+                userId: member.userId, voted: choices[index] != nil,
                 choice: choices[index]
                     .flatMap { Components.Schemas.ProposalVoter.ChoicePayload(rawValue: $0.rawValue) },
-                castAt: choices[index] == nil ? nil : .now.addingTimeInterval(castOffsets[index]))
+                castAt: choices[index] == nil ? nil : .now.addingTimeInterval(castOffsets[index]),
+                displayName: member.displayName, photoUrl: nil)
         }
         return .init(
             id: "proposal-1", cabalId: Components.Schemas.Cabal.sample(role: nil).id,
-            cabalName: Components.Schemas.Cabal.sample(role: nil).name,
+            cabalName: Components.Schemas.Cabal.sample(role: nil).name, sidesVisible: !isOpen,
             stats: .init(
                 treasuryShareBps: 250, closesAt: .now.addingTimeInterval(isOpen ? 43_200 : -3_600),
                 closedAt: isOpen ? nil : .now.addingTimeInterval(-3_600)),

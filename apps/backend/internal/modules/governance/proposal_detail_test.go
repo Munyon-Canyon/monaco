@@ -96,18 +96,23 @@ func TestProposals_Detail_votersAndPermissions(t *testing.T) {
 		t.Errorf("after another ballot proposer = %+v, other = %+v, want vote only", can(got),
 			can(d.get(t, p, other)))
 	}
-	byID := map[uuid.UUID]app.Voter{}
-	for _, v := range got.Voters {
-		byID[v.UserID.UUID()] = v
-	}
-	if mine, theirs := byID[d.caller], byID[other]; len(got.Voters) != 2 || mine.Choice != domain.ChoiceYes ||
-		theirs.Choice != domain.ChoiceNo || !mine.CastAt.Equal(d.now) ||
-		got.Voters[0].UserID.String() != min(d.caller.String(), other.String()) {
-		t.Errorf("voters = %+v, want both ballots ordered by user id", got.Voters)
-	}
+	checkOrderedBallots(t, got.Voters, d.caller, other, d.now)
 	d.setStatus(t, p, string(domain.StatusPassed), "")
 	if got := can(d.get(t, p, d.caller)); got != (permissions{}) {
 		t.Errorf("proposer on a passed proposal = %+v, want neither", got)
+	}
+}
+
+func checkOrderedBallots(t *testing.T, voters []app.Voter, caller, other uuid.UUID, at time.Time) {
+	t.Helper()
+	byID := map[uuid.UUID]app.Voter{}
+	for _, v := range voters {
+		byID[v.UserID.UUID()] = v
+	}
+	if mine, theirs := byID[caller], byID[other]; len(voters) != 2 || mine.Choice != domain.ChoiceYes ||
+		theirs.Choice != "" || !theirs.Voted || !mine.CastAt.Equal(at) ||
+		voters[0].UserID.String() != min(caller.String(), other.String()) {
+		t.Errorf("voters = %+v, want the caller's side, the other voter's side private, ordered by user id", voters)
 	}
 }
 
@@ -221,7 +226,7 @@ func TestHTTP_GetProposal(t *testing.T) {
 	}
 	checkVoters(t, got.Voters, map[uuid.UUID]api.ProposalVoter{
 		d.caller: {UserId: d.caller},
-		other:    {UserId: other, Choice: ptr(api.BallotChoice("no")), CastAt: ptr(d.now)},
+		other:    {UserId: other, Voted: true},
 	})
 	wantSwap := api.LinkedSwap{
 		SwapId: failed.ID.UUID(), Status: "failed", FailureCode: ptr("jupiter_failed"),

@@ -56,7 +56,7 @@ func wireAdminProposal(got app.AdminProposal) api.AdminProposal {
 		RecentAdminActions: make([]api.AdminProposalAction, len(got.Actions)),
 	}
 	for i, v := range got.Detail.Voters {
-		out.Voters[i] = api.ProposalVoter{UserId: v.UserID.UUID()}
+		out.Voters[i] = wireVoter(v)
 		if v.Choice != "" {
 			choice, at := api.BallotChoice(v.Choice), v.CastAt
 			out.Voters[i].Choice, out.Voters[i].CastAt = &choice, &at

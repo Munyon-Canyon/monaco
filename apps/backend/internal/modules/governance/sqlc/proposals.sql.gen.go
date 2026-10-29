@@ -164,11 +164,11 @@ const insertProposal = `-- name: InsertProposal :execrows
 WITH proposal AS (
   INSERT INTO proposals (
     id, cabal_id, proposer_id, kind, symbol, mint, usdc_micros, token_amount, thesis,
-    quote_out_amount, threshold, status, expires_at, created_at, updated_at
+    quote_out_amount, threshold, status, expires_at, created_at, updated_at, sides_after_close
   )
   VALUES (
     $2, $3, $4, $5, $6, $7, $8, $9, $10,
-    $11, $12, 'open', $13, $14, $14
+    $11, $12, 'open', $13, $14, $14, $15
   )
   RETURNING id
 )
@@ -178,20 +178,21 @@ FROM proposal, unnest($1::uuid[]) AS voter
 `
 
 type InsertProposalParams struct {
-	VoterIds       []uuid.UUID
-	ID             uuid.UUID
-	CabalID        uuid.UUID
-	ProposerID     uuid.UUID
-	Kind           string
-	Symbol         string
-	Mint           string
-	UsdcMicros     pgtype.Int8
-	TokenAmount    pgtype.Int8
-	Thesis         pgtype.Text
-	QuoteOutAmount int64
-	Threshold      string
-	ExpiresAt      time.Time
-	CreatedAt      time.Time
+	VoterIds        []uuid.UUID
+	ID              uuid.UUID
+	CabalID         uuid.UUID
+	ProposerID      uuid.UUID
+	Kind            string
+	Symbol          string
+	Mint            string
+	UsdcMicros      pgtype.Int8
+	TokenAmount     pgtype.Int8
+	Thesis          pgtype.Text
+	QuoteOutAmount  int64
+	Threshold       string
+	ExpiresAt       time.Time
+	CreatedAt       time.Time
+	SidesAfterClose bool
 }
 
 func (q *Queries) InsertProposal(ctx context.Context, arg InsertProposalParams) (int64, error) {
@@ -210,6 +211,7 @@ func (q *Queries) InsertProposal(ctx context.Context, arg InsertProposalParams) 
 		arg.Threshold,
 		arg.ExpiresAt,
 		arg.CreatedAt,
+		arg.SidesAfterClose,
 	)
 	if err != nil {
 		return 0, err
@@ -336,14 +338,15 @@ WITH proposal AS (
   INSERT INTO proposals (
     id, cabal_id, proposer_id, kind, symbol, mint, usdc_micros, token_amount, thesis,
     quote_out_amount, threshold, status, expires_at, created_at, updated_at, price_comparison, network,
-    pot_value_micros
+    pot_value_micros, sides_after_close
   )
   VALUES (
     $2, $3, $4, $5, $6, $7,
     NULLIF($8::text, '0')::bigint, NULLIF($9::text, '0')::bigint,
     NULLIF($10::text, ''), $11::text::bigint, $12, 'open', $13,
     $14, $14, $15::jsonb,
-    NULLIF($16::text, ''), NULLIF($17::text, '')::bigint
+    NULLIF($16::text, ''), NULLIF($17::text, '')::bigint,
+    $18::boolean
   )
   RETURNING id
 )
@@ -370,6 +373,7 @@ type OpenProposalParams struct {
 	PriceComparison []byte
 	Network         string
 	PotValueMicros  string
+	SidesAfterClose bool
 }
 
 func (q *Queries) OpenProposal(ctx context.Context, arg OpenProposalParams) (int64, error) {
@@ -391,6 +395,7 @@ func (q *Queries) OpenProposal(ctx context.Context, arg OpenProposalParams) (int
 		arg.PriceComparison,
 		arg.Network,
 		arg.PotValueMicros,
+		arg.SidesAfterClose,
 	)
 	if err != nil {
 		return 0, err

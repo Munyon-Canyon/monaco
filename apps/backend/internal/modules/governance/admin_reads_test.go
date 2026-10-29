@@ -10,6 +10,7 @@ import (
 	adminport "github.com/monaco/monaco/apps/backend/internal/modules/admin/port"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -87,5 +88,32 @@ func TestAdminReads_PassOnEveryPortFailure(t *testing.T) {
 	) !=
 		errs.CodeDBUnavailable {
 		t.Errorf("CabalProposals with a failing cabal read = %v, want db_unavailable", err)
+	}
+}
+
+func TestAdminProposal_seesEverySide(t *testing.T) {
+	t.Parallel()
+	d := newReadsDB(t)
+	mia, kai := d.ids.NewV7(), d.ids.NewV7()
+	p := d.proposedBy(t, d.caller, mia, kai)
+	d.ballot(t, p, mia, "yes")
+	d.ballot(t, p, kai, "no")
+	reads := app.NewAdminReads(d.reads(), stubReads{}, stubReads{}, stubReads{}, stubReads{})
+	got, err := reads.Proposal(t.Context(), ids.ProposalIDFrom(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sides := map[uuid.UUID]domain.Choice{}
+	for _, v := range got.Detail.Voters {
+		sides[v.UserID.UUID()] = v.Choice
+	}
+	if sides[mia] != domain.ChoiceYes || sides[kai] != domain.ChoiceNo {
+		t.Errorf("admin voters = %v, want every choice", sides)
+	}
+	member := d.get(t, p, d.caller)
+	for _, v := range member.Voters {
+		if v.UserID.UUID() != d.caller && v.Choice != "" {
+			t.Errorf("member read of the same proposal shows %+v, want other sides redacted", v)
+		}
 	}
 }

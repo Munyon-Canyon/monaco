@@ -309,15 +309,15 @@ func (h HTTP) detail(ctx context.Context, id ids.ProposalID, user ids.UserID) (a
 		PriceComparison: p.PriceComparison, Network: p.Network,
 		Proposer:            wireProposer(got.Proposer),
 		ProposerReturn1mBps: got.ProposerReturnBps, ProposerReturnPrivate: got.ProposerReturnPrivate,
-		PassedPriceMicros: got.PassedPriceMicros,
-		Stats:             wireStats(got.Stats), ReplyCount: got.ReplyCount,
+		PassedPriceMicros: got.PassedPriceMicros, SidesVisible: got.SidesVisible,
+		Stats: wireStats(got.Stats), ReplyCount: got.ReplyCount,
 	}
 	if m := got.MyVote; m != nil {
 		mine := api.ProposalMyVote(wireMyVote(*m))
 		out.MyVote = &mine
 	}
 	for i, v := range got.Voters {
-		out.Voters[i] = api.ProposalVoter{UserId: v.UserID.UUID()}
+		out.Voters[i] = wireVoter(v)
 		if v.Choice != "" {
 			choice, at := api.BallotChoice(v.Choice), v.CastAt
 			out.Voters[i].Choice, out.Voters[i].CastAt = &choice, &at
@@ -337,6 +337,12 @@ func (h HTTP) detail(ctx context.Context, id ids.ProposalID, user ids.UserID) (a
 		wireFill(out.Swap, got.Fill)
 	}
 	return out, nil
+}
+
+func wireVoter(v app.Voter) api.ProposalVoter {
+	return api.ProposalVoter{
+		UserId: v.UserID.UUID(), Voted: v.Voted, DisplayName: v.DisplayName, PhotoUrl: present(v.PhotoURL),
+	}
 }
 
 func wireFill(out *api.LinkedSwap, f app.Fill) {
