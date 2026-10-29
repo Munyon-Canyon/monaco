@@ -17,7 +17,7 @@ Build: `just build mobile` on `6583-f-parity-review` at `0c9caa91c` (`staging` a
 
 The dark run shot 91 lines and the light run the 5 twins, with no failed draw and no crash. `screens.sh` warned that three pairs are the same picture: `04-vote-committed` and `04-vote-idle` (`voteSettles` settles only after a tap), `04-proposal-sides` and `04-proposal-passed` (`closedSidesOn` and `nvdaPassed` load the same proposal), and `16-catch-up-empty-scrolled` and `16-catch-up-empty` (the caught-up page does not scroll). Those rows are `no harness` or record the shot they drew.
 
-Pushes: `proposal_created_grouped.apns`, `cabal_paused_grouped.apns`, `proposal_created.apns`, `proposal_result_filled.apns`, `proposal_result_failed.apns`, `vote_reminder.apns`, `vote_deciding.apns`, `weekly_ledger.apns` and `post_reply.apns` were sent with `xcrun simctl push`. Every one was refused with `UNErrorDomain 2003: Source is not authorized` (the freshly installed app had no notification permission), and #6853, which closed #6565, attached no screenshots. The five `system` frames are recorded unshot; #7035 shoots them.
+Pushes: notification permission was granted by a throwaway XCUITest (not committed) that launched the push pre-prompt harness (`-MonacoHomeSample prePrompt`), tapped "Turn on notifications" and accepted the system alert on the simulator `Monaco 7035`. The nine fixtures `proposal_created_grouped.apns`, `cabal_paused_grouped.apns`, `proposal_created.apns`, `proposal_result_filled.apns`, `proposal_result_failed.apns`, `vote_reminder.apns`, `vote_deciding.apns`, `weekly_ledger.apns` and `post_reply.apns` were then sent in that order with `xcrun simctl push`, and the simulator accepted all nine in dark appearance. `14-lock-screen-launch` and `19-notifications` were shot from the locked screen with the pushes stacked (the simulator has no separate Notification Center list; it shows the same stack), and `15-last-vote` from the `vote_reminder` banner pushed again. `14-notification` (expanded push) and `14-faceid-alt` (Face ID) cannot be shown on the simulator and move to the next build's device check.
 
 Shots and sheets stay outside the repo. The per-group PNG sheets are attached to the PR.
 
@@ -41,10 +41,10 @@ Every `difference` and `no harness` row links one follow-up issue per group; the
 | match | 11 |
 | match (15 pt floor) | 21 |
 | no backend at launch | 0 |
-| difference | 60 |
+| difference | 63 |
 | not built | 0 |
 | no harness | 6 |
-| system | 5 |
+| system | 2 |
 
 No launch screen shows a season row, a streak or a "Season" word. `10-profile-other` and `10-profile-other-cabals` show a Follow control, and so do their frames; #7030 sends it to the founder on #6410 as a phase 2 element.
 
@@ -277,11 +277,11 @@ founder:
 
 | Frame | Appearance | Verdict | Difference | Follow-up |
 | --- | --- | --- | --- | --- |
-| [`14-lock-screen-launch`](../screens/14-lock-screen-launch.png) | dark | system | Not shot: the simulator refused the push fixtures (no notification permission). | #7035 |
-| [`19-notifications`](../screens/19-notifications.png) | dark | system | Not shot: the simulator refused the push fixtures (no notification permission). | #7035 |
-| [`14-notification`](../screens/14-notification.png) | dark | system | Not shot: the simulator refused the push fixtures (no notification permission). | #7035 |
-| [`14-faceid-alt`](../screens/14-faceid-alt.png) | dark | system | Not shot: the simulator refused the push fixtures (no notification permission). | #7035 |
-| [`15-last-vote`](../screens/15-last-vote.png) | dark | system | Not shot: the simulator refused the push fixtures (no notification permission). | #7035 |
+| [`14-lock-screen-launch`](../screens/14-lock-screen-launch.png) | dark | difference | The pushes arrive as one collapsed stack ("+7 from Monaco", newest on top) with the app icon, where the frame lists two separate cards with the AC Capital picture and no stack; the frame has no cabal picture or grouping on this screen. | next push-presentation ticket |
+| [`19-notifications`](../screens/19-notifications.png) | dark | difference | The list is one collapsed stack with the app icon and "5" badge, where the frame shows the pushes grouped per cabal (AC Capital, Degens) with a picture, "Show less" and Sam's avatar. | next push-presentation ticket |
+| [`14-notification`](../screens/14-notification.png) | dark | system | Device only: the simulator cannot expand a push or show Face ID; moved to the next build's device check. | next build's device check |
+| [`14-faceid-alt`](../screens/14-faceid-alt.png) | dark | system | Device only: the simulator cannot expand a push or show Face ID; moved to the next build's device check. | next build's device check |
+| [`15-last-vote`](../screens/15-last-vote.png) | dark | difference | The shot is the compact banner with the app icon and a "Time Sensitive" label; the frame shows the expanded push with the AC Capital picture and the Yes and No actions, which the simulator does not expand. | next build's device check |
 
 founder:
 
@@ -307,4 +307,4 @@ One issue per group, each listing the owner ticket for every row.
 - #7032: Leaderboard (13), owners #6484, #6514.
 - #7033: Ledger (14), owners #6557, #6559, #6570, #6581.
 - #7034: Catch up (16), owners #6561, #6566.
-- #7035: the five system frames, owners #6413, #6444, #6454, #6525, #6565.
+- #7035: the three system frames shot on the simulator are recorded as `difference`; `14-notification` and `14-faceid-alt` move to the next build's device check.
