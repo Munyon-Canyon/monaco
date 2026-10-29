@@ -138,6 +138,7 @@ func (m *Module) Consumers() []bus.Consumer {
 			Cabals: m.cabals, Users: m.users, Assets: m.assets, Ballots: m.ballots, Heads: m.heads, Clock: m.deps.Clock,
 		}),
 		adapters.Push(pusher, app.VoteDeciding{VotePorts: m.votePorts(), Clock: m.deps.Clock}),
+		adapters.Push(pusher, app.CloseReminder{Cabals: m.cabals, Assets: m.assets, Clock: m.deps.Clock}),
 		adapters.Push(pusher, app.ResultFailed{ResultPorts: results}),
 		adapters.Push(pusher, app.ResultExpired{ResultPorts: results}),
 		adapters.Push(pusher, app.CabalAccessRequestedAdmins{
