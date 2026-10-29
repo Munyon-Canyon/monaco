@@ -366,8 +366,11 @@ extension XCUIApplication {
 
     func popToRoot(maxDepth: Int = 8) {
         for _ in 0..<maxDepth {
-            let back = navigationBars.buttons["BackButton"].firstMatch
-            guard back.waitForExistence(timeout: 1), back.isHittable else { return }
+            let system = navigationBars.buttons["BackButton"].firstMatch
+            let custom = navigationBars.buttons["Back"].firstMatch
+            guard let index = waitForFirst(of: [system, custom], timeout: 1) else { return }
+            let back = [system, custom][index]
+            guard back.isHittable else { return }
             back.tap()
         }
     }

@@ -122,12 +122,22 @@ enum RankingLeaderboardsJourney {
     }
 
     static func friends(_ app: XCUIApplication, recorder: JourneyRecorder) {
-        recorder.step("S3.1", "Friends with no follows is empty") {
+        recorder.step("S3.1", "Friends with no follows ranks only A") {
             openPage(app, step: "S3.1")
             app.element("leaderboard-tab-friends").tap()
+            let places = app.descendants(matching: .any).matching(
+                NSPredicate(
+                    format: "identifier BEGINSWITH 'leaderboard-row-' OR identifier BEGINSWITH 'leaderboard-podium-'"))
             XCTAssertTrue(
-                app.element("leaderboard-empty").waitForExistence(timeout: 15),
-                "S3.1: the Friends tab shows no empty state within 15 s")
+                waitUntil(15) { places.count > 0 },
+                "S3.1: the Friends tab shows no ranked place within 15 s")
+            let labels = places.allElementsBoundByIndex.map(\.label)
+            XCTAssertTrue(
+                labels.allSatisfy { $0.contains(", you") },
+                "S3.1: Friends with no follows shows a place that is not A; places read \(labels)")
+            XCTAssertFalse(
+                app.element("leaderboard-empty").exists,
+                "S3.1: Friends always includes the viewer, so it never shows the empty state")
         }
     }
 }

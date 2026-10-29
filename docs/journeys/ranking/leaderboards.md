@@ -21,7 +21,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- |
 | P1 | Actor A has signed in once (`auth/sign-in`), and its `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv`. Only A drives the app |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
-| P3 | `apps/mobile/qa/journeys/ranking/leaderboards.setup.sh` ran right before S1. It marks A as done with onboarding, then runs `qa_flow_seed 19a ok` (`F19aResolveCallsOK`, which seeds eight voters with 5, 8, 7, 6, 5, 5, 5 and 2 resolved votes this month under fresh users). The seed does not use A, so the setup moves the votes of the third voter (7 resolved, 4 right, 57%, below the top three) to A and hands the test A's id and the id of the voter with two resolved votes. S2 and S3 run with no setup of their own. The S1 setup also ends every live follow by A (`DELETE /v1/users/{id}/follow`), so A follows nobody and the Friends tab is empty |
+| P3 | `apps/mobile/qa/journeys/ranking/leaderboards.setup.sh` ran right before S1. It marks A as done with onboarding, then runs `qa_flow_seed 19a ok` (`F19aResolveCallsOK`, which seeds eight voters with 5, 8, 7, 6, 5, 5, 5 and 2 resolved votes this month under fresh users). The seed does not use A, so the setup moves the votes of the third voter (7 resolved, 4 right, 57%, below the top three) to A and hands the test A's id and the id of the voter with two resolved votes. S2 and S3 run with no setup of their own. The S1 setup also ends every live follow by A (`DELETE /v1/users/{id}/follow`), so A follows nobody and the Friends tab holds A alone |
 
 ## Scenarios
 
@@ -40,11 +40,11 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | tap, tap, then tap | the Home tab, `home-leaderboard-row`, then `leaderboard-tab-cabals` | | The tab is selected and at least one cabal row (`leaderboard-row-<id>` or `leaderboard-podium-<rank>`) reads a rate with "percent" and "n of m right" within 15 s (`13-leaderboard-C-cabals`) |
 
-### S3 The Friends tab with no follows
+### S3 The Friends tab with no follows holds only A
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | A | tap, tap, then tap | the Home tab, `home-leaderboard-row`, then `leaderboard-tab-friends` | | `leaderboard-empty` shows within 15 s (`13-leaderboard-C`; #6499 builds Friends and the ⓘ sheet) |
+| S3.1 | A | tap, tap, then tap | the Home tab, `home-leaderboard-row`, then `leaderboard-tab-friends` | | Within 15 s the tab shows a ranked place (`leaderboard-podium-<rank>` or `leaderboard-row-<id>`), every place reads "you" in its spoken label (so the only one is A), and `leaderboard-empty` never shows. The Friends board always includes the viewer: `loadFriends` in `apps/backend/internal/modules/ranking/app/read_call_board.go` appends the viewer to the followed ids (`13-leaderboard-C`) |
 
 ## Ground truth
 
