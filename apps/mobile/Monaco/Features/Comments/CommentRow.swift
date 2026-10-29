@@ -100,7 +100,7 @@ struct CommentRow: View {
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(row.spoken)
+        .accessibilityLabel(row.spoken(age: time))
         .accessibilityIdentifier("comment-row-\(row.id)")
         .modifier(CommentActions(row: row, canReply: canReply, onReply: onReply, onReact: onDoubleTap, onJump: onJump))
     }

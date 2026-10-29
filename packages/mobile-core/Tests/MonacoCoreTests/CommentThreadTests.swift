@@ -118,7 +118,7 @@ final class CommentThreadTests: XCTestCase {
             comment: .sample("c2", author: "Sam", body: "Same.", minutesAgo: 2, quote: quote, reactions: reactions),
             isReply: false)
 
-        XCTAssertEqual(row.spoken, "Sam, 2m, replying to Logan: Same.. 3 reactions")
+        XCTAssertEqual(row.spoken(age: "2m"), "Sam, 2m, replying to Logan: Same.. 3 reactions")
     }
 
     func testTheCopyReadsRepliesAndViewNReplies() {

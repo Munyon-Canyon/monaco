@@ -1,4 +1,3 @@
-import Foundation
 import MonacoAPI
 
 extension Components.Schemas.CommentThread: Identifiable {
@@ -74,8 +73,7 @@ public struct CommentThreadRow: Equatable, Sendable, Identifiable {
 
     public var opensAuthorProfile: Bool { !isDeleted && !isSystem }
 
-    public var spoken: String {
-        let age = RelativeTimeFormatter.label(date: comment.createdAt, now: Date())
+    public func spoken(age: String) -> String {
         var line = "\(authorName), \(age)"
         if let quote { line += ", replying to \(quote.name)" }
         line += ": \(text)."
