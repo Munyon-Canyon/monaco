@@ -27,6 +27,7 @@ struct HomeSlotsTests {
             HomeBalanceSlot.self,
             HomeCabalsSlot.self,
             HomeLeaderboardSlot.self,
+            HomeFeedPreviewSlot.self,
         ]
         #expect(order == expected.map { ObjectIdentifier($0) })
     }
