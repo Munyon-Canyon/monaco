@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -52,10 +53,21 @@ func configured(url, key string, opts ...httpclient.Option) (*Client, error) {
 	}, opts...)
 }
 
-func liveClient(t *testing.T) (*Client, http.Handler) {
+const deadlineMargin = 5 * time.Second
+
+func deadlineTimeout(t *testing.T) time.Duration {
+	t.Helper()
+	if at, ok := t.Deadline(); ok {
+		return max(at.Sub(clock.Real{}.Now())-deadlineMargin, time.Second)
+	}
+	return time.Second
+}
+
+func liveClient(t *testing.T, opts ...httpclient.Option) (*Client, http.Handler) {
 	t.Helper()
 	h := fakes.New()
-	c, err := configured("http://127.0.0.1:9", "service-role", httpclient.WithTransport(handlerTrip{h}))
+	c, err := configured("http://127.0.0.1:9", "service-role",
+		append([]httpclient.Option{httpclient.WithTransport(handlerTrip{h})}, opts...)...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +171,7 @@ func TestProfilePhotos_storesAndDeletesAUsersPhotos(t *testing.T) {
 
 func TestDeletePrefix_pagesAndSkipsNestedObjects(t *testing.T) {
 	t.Parallel()
-	c, h := liveClient(t)
+	c, h := liveClient(t, httpclient.WithTimeout(deadlineTimeout(t)))
 	for i := range 1001 {
 		if _, err := c.Put(t.Context(), "avatars", "user/"+itoa(i)+".png", "image/png", []byte{1}); err != nil {
 			t.Fatal(err)
