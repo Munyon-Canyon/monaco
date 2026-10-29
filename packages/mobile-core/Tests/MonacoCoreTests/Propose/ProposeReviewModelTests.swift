@@ -292,8 +292,8 @@ actor ReviewService: ProposeService {
     }
 
     func waitUntilChainAsked() async -> Bool {
-        for _ in 0..<1_000 where heldChain == nil { await Task.yield() }
-        return heldChain != nil
+        while heldChain == nil { await Task.yield() }
+        return true
     }
 
     func releaseChain() {

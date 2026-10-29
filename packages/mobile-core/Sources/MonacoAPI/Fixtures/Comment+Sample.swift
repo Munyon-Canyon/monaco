@@ -26,7 +26,31 @@ extension Components.Schemas.Comment {
             id, author: author, parent: parent, minutesAgo: minutesAgo, quote: quote, reactions: reactions)
         comment.body = nil
         comment.bodyDisplay = "GIF"
-        comment.attachment = .sample()
+        comment.attachment = .gif(.sample())
+        return comment
+    }
+
+    public static func thesisQuoteSample(
+        _ id: String, author: String, text: String, minutesAgo: Double = 5
+    ) -> Self {
+        var comment = sample(id, author: author, minutesAgo: minutesAgo)
+        comment.body = nil
+        comment.bodyDisplay = "Quoted the thesis"
+        comment.attachment = .thesisQuote(
+            .init(kind: .thesisQuote, proposalId: "proposal-nvda", text: text, proposerName: "Maya"))
+        return comment
+    }
+
+    public static func stockSample(
+        _ id: String, author: String, minutesAgo: Double = 5
+    ) -> Self {
+        var comment = sample(id, author: author, minutesAgo: minutesAgo)
+        comment.body = nil
+        comment.bodyDisplay = "Shared a stock"
+        comment.attachment = .stock(
+            .init(
+                kind: .stock, assetId: "asset-aapl", symbol: "AAPL", name: "Apple",
+                logoUrl: "file:///placeholder.png", isPreIpo: false, priceMicros: 180_000_000, changeBps: -80))
         return comment
     }
 
@@ -105,6 +129,16 @@ extension Components.Schemas.CommentThread {
                 "aapl-sam", author: "Sam", body: "He called the top again.", minutesAgo: 20,
                 quote: .sample("aapl-andres", author: "Andres", excerpt: "Good timing on this one.")),
             replies: []),
+    ]
+
+    public static let nvdaThread: [Self] = [
+        Self(
+            comment: .thesisQuoteSample(
+                "nvda-christelle", author: "Christelle",
+                text: "Small add to the position. Earnings next week; I want more before, and we can add on a dip.",
+                minutesAgo: 20),
+            replies: []),
+        Self(comment: .stockSample("nvda-jordan", author: "Jordan", minutesAgo: 10), replies: []),
     ]
 
     public static let pilatesThread: [Self] = [

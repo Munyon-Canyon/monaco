@@ -2,6 +2,9 @@ package adapters
 
 import (
 	"context"
+	"encoding/json"
+	"log/slog"
+	"math"
 	"slices"
 
 	"github.com/google/uuid"
@@ -32,11 +35,11 @@ func (h HTTP) PostFeedComment(
 	}
 	var att *domain.AttachmentInput
 	if a := req.Body.Attachment; a != nil {
-		gif := domain.GifInput{
-			ID: a.Gif.Id, Title: a.Gif.Title, Still: mediaInput(a.Gif.Still), Preview: mediaInput(a.Gif.Preview),
-			Original: mediaInput(a.Gif.Original),
+		parsed, err := attachmentInput(*a)
+		if err != nil {
+			return nil, err
 		}
-		att = &domain.AttachmentInput{Kind: string(a.Kind), GIF: &gif}
+		att = &parsed
 	}
 	input, err := domain.ParseCommentInput(req.Body.Body, att)
 	if err != nil {
@@ -65,11 +68,61 @@ func wireMedia(m domain.Media) api.GifMedia {
 	return api.GifMedia{Url: m.URL, Width: m.Width, Height: m.Height}
 }
 
-func wireAttachment(a *domain.Attachment) *api.GifAttachment {
-	return &api.GifAttachment{
-		Kind: api.GifAttachmentKindGif, Id: a.GIF.ID, Title: a.GIF.Title, Still: wireMedia(a.GIF.Still),
-		Preview: wireMedia(a.GIF.Preview), Original: wireMedia(a.GIF.Original),
+func attachmentInput(a api.CommentAttachmentInput) (domain.AttachmentInput, error) {
+	raw, _ := a.MarshalJSON()
+	var in struct {
+		Kind    string        `json:"kind"`
+		Gif     *api.GifInput `json:"gif"`
+		Start   *int          `json:"start"`
+		End     *int          `json:"end"`
+		AssetID uuid.UUID     `json:"asset_id"`
 	}
+	if json.Unmarshal(raw, &in) != nil {
+		return domain.AttachmentInput{}, errs.New(
+			errs.CodeInvalidInput, "social.PostFeedComment", slog.String("reason", "invalid_attachment"),
+		)
+	}
+	out := domain.AttachmentInput{Kind: in.Kind, Start: in.Start, End: in.End, AssetID: in.AssetID}
+	if in.Gif != nil {
+		gif := domain.GifInput{
+			ID: in.Gif.Id, Title: in.Gif.Title, Still: mediaInput(in.Gif.Still), Preview: mediaInput(in.Gif.Preview),
+			Original: mediaInput(in.Gif.Original),
+		}
+		out.GIF = &gif
+	}
+	return out, nil
+}
+
+func wireAttachment(c app.Comment) *api.CommentAttachment {
+	a := c.Attachment
+	var out api.CommentAttachment
+	switch a.Kind {
+	case domain.AttachmentThesisQuote:
+		_ = out.FromThesisQuoteAttachment(api.ThesisQuoteAttachment{
+			Kind: api.ThesisQuoteAttachmentKindThesisQuote, ProposalId: a.Thesis.ProposalID, Text: a.Thesis.Text,
+			ProposerName: a.Thesis.ProposerName,
+		})
+	case domain.AttachmentStock:
+		_ = out.FromStockAttachment(wireStock(a.Stock, c.Stock))
+	case domain.AttachmentGIF:
+		_ = out.FromGifAttachment(api.GifAttachment{
+			Kind: api.GifAttachmentKindGif, Id: a.GIF.ID, Title: a.GIF.Title, Still: wireMedia(a.GIF.Still),
+			Preview: wireMedia(a.GIF.Preview), Original: wireMedia(a.GIF.Original),
+		})
+	}
+	return &out
+}
+
+func wireStock(snap *domain.StockSnapshot, live *app.StockCard) api.StockAttachment {
+	out := api.StockAttachment{
+		Kind: api.StockAttachmentKindStock, AssetId: snap.AssetID, Symbol: snap.Symbol, Name: snap.Name,
+		LogoUrl: snap.LogoURL, IsPreIpo: snap.IsPreIPO,
+	}
+	if live != nil {
+		price := int64(min(live.PriceMicros.Uint64(), math.MaxInt64))
+		out.PriceMicros, out.ChangeBps = &price, live.ChangeBps
+	}
+	return out
 }
 
 func wireComments(
@@ -159,9 +212,9 @@ func wireLiveBody(out *api.Comment, c app.Comment) {
 	if c.Attachment == nil {
 		return
 	}
-	out.Attachment = wireAttachment(c.Attachment)
+	out.Attachment = wireAttachment(c)
 	if c.Body == "" {
-		out.BodyDisplay = string(domain.GifDisplay)
+		out.BodyDisplay = string(c.Attachment.Display())
 	}
 }
 
@@ -212,7 +265,7 @@ func (h HTTP) commentPage(
 	if err != nil {
 		return api.CommentPage{}, err
 	}
-	q := app.CommentsQuery{FeedObjectID: item, Viewer: me, Limit: app.CommentPageDefault}
+	q := app.CommentsQuery{FeedObjectID: item, Viewer: me, Limit: app.CommentPageDefault, Stocks: h.Stocks}
 	if limit != nil {
 		q.Limit = *limit
 	}

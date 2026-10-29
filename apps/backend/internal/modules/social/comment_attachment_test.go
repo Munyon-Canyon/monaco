@@ -23,14 +23,30 @@ func gifRequest(body *string, parent *uuid.UUID) *api.CreateCommentRequest {
 	still.Url += "?cid=abc&ep=v1_gifs"
 	return &api.CreateCommentRequest{
 		Body: body, ParentCommentId: parent,
-		Attachment: &api.CommentAttachmentInput{
-			Kind: api.CommentAttachmentInputKindGif,
-			Gif: api.GifInput{
-				Id: gifID, Title: "happy dance", Still: still, Preview: gifMedia("200w.mp4"),
-				Original: gifMedia("giphy.gif"),
-			},
-		},
+		Attachment: gifUnion(api.GifInput{
+			Id: gifID, Title: "happy dance", Still: still, Preview: gifMedia("200w.mp4"),
+			Original: gifMedia("giphy.gif"),
+		}),
 	}
+}
+
+func gifUnion(g api.GifInput) *api.CommentAttachmentInput {
+	var u api.CommentAttachmentInput
+	if err := u.FromGifAttachmentInput(
+		api.GifAttachmentInput{Kind: api.GifAttachmentInputKindGif, Gif: g},
+	); err != nil {
+		panic(err)
+	}
+	return &u
+}
+
+func withGif(r *api.CreateCommentRequest, mutate func(*api.GifInput)) {
+	in, err := r.Attachment.AsGifAttachmentInput()
+	if err != nil {
+		panic(err)
+	}
+	mutate(&in.Gif)
+	r.Attachment = gifUnion(in.Gif)
 }
 
 func (f quoteThread) rows(t *testing.T) (comments, attachments int) {
@@ -62,7 +78,11 @@ func gifOf(t *testing.T, c api.Comment) api.GifAttachment {
 	if c.Attachment == nil {
 		t.Fatalf("comment %+v has no attachment", c)
 	}
-	return *c.Attachment
+	gif, err := c.Attachment.AsGifAttachment()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return gif
 }
 
 func wantGif(t *testing.T, name string, c api.Comment) {
@@ -118,7 +138,7 @@ func TestGifReply_aBadGifWritesNothing(t *testing.T) {
 	t.Parallel()
 	f := newQuoteThread(t)
 	req := gifRequest(nil, nil)
-	req.Attachment.Gif.Preview.Url = "http://media.giphy.com/media/" + gifID + "/200w.mp4"
+	withGif(req, func(g *api.GifInput) { g.Preview.Url = "http://media.giphy.com/media/" + gifID + "/200w.mp4" })
 	_, err := f.post(t, f.item, f.nora, req)
 	wantCode(t, err, errs.CodeInvalidInput)
 	if comments, attachments := f.rows(t); comments != 0 || attachments != 0 {
@@ -130,7 +150,11 @@ func TestGifReply_refusesAReplyWithNeitherTextNorAttachmentAndAnUnknownKind(t *t
 	t.Parallel()
 	f := newQuoteThread(t)
 	unknown := gifRequest(nil, nil)
-	unknown.Attachment.Kind = "photo"
+	var photo api.CommentAttachmentInput
+	if err := photo.UnmarshalJSON([]byte(`{"kind":"photo"}`)); err != nil {
+		t.Fatal(err)
+	}
+	unknown.Attachment = &photo
 	for name, req := range map[string]*api.CreateCommentRequest{
 		"empty": {}, "blank text": {Body: ptr(" ")}, "unknown kind": unknown,
 	} {

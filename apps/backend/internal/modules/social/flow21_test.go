@@ -29,15 +29,15 @@ func TestCreateComment_refusesInvalidGifCases(t *testing.T) {
 	author := f.cabal.Members[0].ID
 	cases := map[string]func(*api.CreateCommentRequest){
 		"a non-GIPHY host": func(r *api.CreateCommentRequest) {
-			r.Attachment.Gif.Still.Url = "https://example.com/media/" + gifID + "/200_s.gif"
+			withGif(r, func(g *api.GifInput) { g.Still.Url = "https://example.com/media/" + gifID + "/200_s.gif" })
 		},
 		"an id missing from the path": func(r *api.CreateCommentRequest) {
-			r.Attachment.Gif.Original.Url = "https://media.giphy.com/media/other/giphy.gif"
+			withGif(r, func(g *api.GifInput) { g.Original.Url = "https://media.giphy.com/media/other/giphy.gif" })
 		},
 		"an http url": func(r *api.CreateCommentRequest) {
-			r.Attachment.Gif.Preview.Url = "http://media.giphy.com/media/" + gifID + "/200w.mp4"
+			withGif(r, func(g *api.GifInput) { g.Preview.Url = "http://media.giphy.com/media/" + gifID + "/200w.mp4" })
 		},
-		"a zero size": func(r *api.CreateCommentRequest) { r.Attachment.Gif.Still.Width = 0 },
+		"a zero size": func(r *api.CreateCommentRequest) { withGif(r, func(g *api.GifInput) { g.Still.Width = 0 }) },
 	}
 	for name, mutate := range cases {
 		req := gifRequest(nil, nil)

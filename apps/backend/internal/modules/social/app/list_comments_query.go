@@ -24,6 +24,7 @@ type CommentsQuery struct {
 	Viewer       ids.UserID
 	After        *domain.Keyset
 	Limit        int
+	Stocks       StockCards
 }
 
 type CommentThread struct {
@@ -60,6 +61,9 @@ func ListComments(ctx context.Context, db sqlc.DBTX, q CommentsQuery) (CommentsP
 	if err := attachCommentReactions(ctx, queries, q.Viewer, &page); err != nil {
 		return CommentsPage{}, err
 	}
+	if err := attachStocks(ctx, q.Stocks, &page); err != nil {
+		return CommentsPage{}, err
+	}
 	return page, nil
 }
 
@@ -83,6 +87,37 @@ func attachCommentReactions(ctx context.Context, reads *sqlc.Queries, viewer ids
 			reply := &thread.Replies[j]
 			own := found[reply.ID]
 			reply.Reactions, reply.ReactionCount = own.Reactions, own.Total
+		}
+	}
+	return nil
+}
+
+func attachStocks(ctx context.Context, stocks StockCards, page *CommentsPage) error {
+	var comments []*Comment
+	var assetIDs []uuid.UUID
+	for i := range page.Threads {
+		thread := &page.Threads[i]
+		all := []*Comment{&thread.Comment}
+		for j := range thread.Replies {
+			all = append(all, &thread.Replies[j])
+		}
+		for _, c := range all {
+			if c.Attachment != nil && c.Attachment.Stock != nil {
+				comments = append(comments, c)
+				assetIDs = append(assetIDs, c.Attachment.Stock.AssetID)
+			}
+		}
+	}
+	if len(comments) == 0 {
+		return nil
+	}
+	cards, err := stocks.StockCards(ctx, assetIDs)
+	if err != nil {
+		return errs.Wrap(err, errs.CodeOf(err), "social.ListComments")
+	}
+	for _, c := range comments {
+		if card, ok := cards[c.Attachment.Stock.AssetID]; ok {
+			c.Stock = &card
 		}
 	}
 	return nil

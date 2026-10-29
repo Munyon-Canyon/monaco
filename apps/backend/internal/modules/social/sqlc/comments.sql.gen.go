@@ -70,7 +70,7 @@ func (q *Queries) GetComment(ctx context.Context, id uuid.UUID) (GetCommentRow, 
 }
 
 const getCommentItem = `-- name: GetCommentItem :one
-SELECT id, kind, ref_type, ref_id, cabal_id, actor_id, payload
+SELECT id, kind, ref_type, ref_id, cabal_id, actor_id, payload, body
 FROM feed_objects
 WHERE id = $1
 `
@@ -83,6 +83,7 @@ type GetCommentItemRow struct {
 	CabalID pgtype.UUID
 	ActorID pgtype.UUID
 	Payload []byte
+	Body    pgtype.Text
 }
 
 func (q *Queries) GetCommentItem(ctx context.Context, id uuid.UUID) (GetCommentItemRow, error) {
@@ -96,6 +97,7 @@ func (q *Queries) GetCommentItem(ctx context.Context, id uuid.UUID) (GetCommentI
 		&i.CabalID,
 		&i.ActorID,
 		&i.Payload,
+		&i.Body,
 	)
 	return i, err
 }

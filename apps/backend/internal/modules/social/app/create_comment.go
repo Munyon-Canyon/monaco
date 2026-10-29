@@ -28,6 +28,7 @@ type Comment struct {
 	ReplyToUserID  ids.UserID
 	Body           string
 	Attachment     *domain.Attachment
+	Stock          *StockCard
 	CreatedAt      time.Time
 	Deleted        bool
 	RemovedByAdmin bool
@@ -83,6 +84,7 @@ type CommentDeps struct {
 	IDs     ids.Generator
 	Clock   clock.Clock
 	Hints   Hints
+	Stocks  StockCards
 }
 
 type Hints interface {
@@ -123,6 +125,10 @@ func (h *CreateCommentHandler) Handle(ctx context.Context, cmd CreateComment) (C
 	if err != nil {
 		return Comment{}, err
 	}
+	stock, err := h.resolveAttachment(ctx, thread, cmd.Input.Attachment)
+	if err != nil {
+		return Comment{}, err
+	}
 	var created Comment
 	err = h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		var err error
@@ -131,6 +137,9 @@ func (h *CreateCommentHandler) Handle(ctx context.Context, cmd CreateComment) (C
 	})
 	if err != nil {
 		return Comment{}, err
+	}
+	if stock.ID != uuid.Nil {
+		created.Stock = &stock
 	}
 	observability.Info(ctx, observability.SocialCommentCreated,
 		slog.String("comment_id", created.ID.String()), slog.String("feed_object_id", created.FeedObjectID.String()))
@@ -195,6 +204,41 @@ type replyDraft struct {
 	feedObjectID uuid.UUID
 	payload      feed.Payload
 	title        string
+}
+
+func (h *CreateCommentHandler) resolveAttachment(
+	ctx context.Context, thread sqlc.GetCommentItemRow, att *domain.Attachment,
+) (StockCard, error) {
+	const op = "social.CreateComment"
+	switch {
+	case att == nil:
+		return StockCard{}, nil
+	case att.Kind == domain.AttachmentThesisQuote:
+		proposal, _ := feed.ParsePayload(thread.Payload)
+		text, ok := att.Range.Cut(thread.Body.String)
+		reason := "invalid_range"
+		if feed.Kind(thread.Kind) != feed.KindProposal || thread.Body.String == "" {
+			ok, reason = false, "no_thesis"
+		}
+		if !ok {
+			return StockCard{}, errs.New(errs.CodeInvalidInput, op, slog.String("reason", reason))
+		}
+		att.Thesis = &domain.ThesisQuote{ProposalID: thread.RefID, Text: text, ProposerName: proposal.ActorName}
+	case att.Kind == domain.AttachmentStock:
+		cards, err := h.d.Stocks.StockCards(ctx, []uuid.UUID{att.Stock.AssetID})
+		if err != nil {
+			return StockCard{}, errs.Wrap(err, errs.CodeOf(err), op)
+		}
+		card, found := cards[att.Stock.AssetID]
+		if !found {
+			return StockCard{}, errs.New(errs.CodeInvalidInput, op, slog.String("reason", "asset_not_found"))
+		}
+		att.Stock = &domain.StockSnapshot{
+			AssetID: card.ID, Symbol: card.Symbol, Name: card.Name, LogoURL: card.LogoURL, IsPreIPO: card.IsPreIPO,
+		}
+		return card, nil
+	}
+	return StockCard{}, nil
 }
 
 func (h *CreateCommentHandler) replyDraft(

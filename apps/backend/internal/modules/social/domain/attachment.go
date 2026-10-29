@@ -8,15 +8,21 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
 type AttachmentKind string
 
 const (
-	AttachmentGIF AttachmentKind = "gif"
+	AttachmentGIF         AttachmentKind = "gif"
+	AttachmentThesisQuote AttachmentKind = "thesis_quote"
+	AttachmentStock       AttachmentKind = "stock"
 
-	GifDisplay CommentBody = "GIF"
+	GifDisplay         CommentBody = "GIF"
+	ThesisQuoteDisplay CommentBody = "Quoted the thesis"
+	StockDisplay       CommentBody = "Shared a stock"
 
 	gifTitleMax = 140
 	gifSizeMax  = 2000
@@ -47,16 +53,56 @@ type GifAttachment struct {
 	Original Media  `json:"original"`
 }
 
+type ThesisQuote struct {
+	ProposalID   uuid.UUID `json:"proposal_id"`
+	Text         string    `json:"text"`
+	ProposerName string    `json:"proposer_name"`
+}
+
+type StockSnapshot struct {
+	AssetID  uuid.UUID `json:"asset_id"`
+	Symbol   string    `json:"symbol"`
+	Name     string    `json:"name"`
+	LogoURL  string    `json:"logo_url"`
+	IsPreIPO bool      `json:"is_pre_ipo"`
+}
+
+type QuoteRange struct {
+	Start *int
+	End   *int
+}
+
+func (r QuoteRange) Cut(thesis string) (string, bool) {
+	runes := []rune(thesis)
+	start, end := 0, len(runes)
+	if r.Start != nil {
+		start = *r.Start
+	}
+	if r.End != nil {
+		end = *r.End
+	}
+	if start < 0 || start >= end || end > len(runes) {
+		return "", false
+	}
+	return string(runes[start:end]), true
+}
+
 type Attachment struct {
-	Kind AttachmentKind
-	GIF  *GifAttachment
+	Kind   AttachmentKind
+	GIF    *GifAttachment
+	Thesis *ThesisQuote
+	Stock  *StockSnapshot
+	Range  QuoteRange
 }
 
 type GifInput = GifAttachment
 
 type AttachmentInput struct {
-	Kind string
-	GIF  *GifInput
+	Kind    string
+	GIF     *GifInput
+	Start   *int
+	End     *int
+	AssetID uuid.UUID
 }
 
 type CommentInput struct {
@@ -64,24 +110,61 @@ type CommentInput struct {
 	Attachment *Attachment
 }
 
-func (c CommentInput) Text() CommentBody {
-	if c.Body != nil {
-		return *c.Body
+func (a Attachment) Display() CommentBody {
+	switch a.Kind {
+	case AttachmentThesisQuote:
+		return ThesisQuoteDisplay
+	case AttachmentStock:
+		return StockDisplay
+	case AttachmentGIF:
+		return GifDisplay
 	}
-	return GifDisplay
+	return ""
+}
+
+func (c CommentInput) Text() CommentBody {
+	switch {
+	case c.Body != nil:
+		return *c.Body
+	case c.Attachment != nil:
+		return c.Attachment.Display()
+	}
+	return ""
 }
 
 func (a Attachment) Payload() []byte {
-	payload, _ := json.Marshal(a.GIF)
+	var payload []byte
+	switch a.Kind {
+	case AttachmentThesisQuote:
+		payload, _ = json.Marshal(a.Thesis)
+	case AttachmentStock:
+		payload, _ = json.Marshal(a.Stock)
+	case AttachmentGIF:
+		payload, _ = json.Marshal(a.GIF)
+	}
 	return payload
 }
 
 func DecodeAttachment(kind string, payload []byte) *Attachment {
-	var gif GifAttachment
-	if AttachmentKind(kind) != AttachmentGIF || json.Unmarshal(payload, &gif) != nil {
+	att := Attachment{Kind: AttachmentKind(kind)}
+	var target any
+	switch att.Kind {
+	case AttachmentGIF:
+		att.GIF = &GifAttachment{}
+		target = att.GIF
+	case AttachmentThesisQuote:
+		att.Thesis = &ThesisQuote{}
+		target = att.Thesis
+	case AttachmentStock:
+		att.Stock = &StockSnapshot{}
+		target = att.Stock
+	default:
 		return nil
 	}
-	return &Attachment{Kind: AttachmentGIF, GIF: &gif}
+	if json.Unmarshal(payload, target) != nil {
+		return nil
+	}
+	return &att
 }
 
 func ParseCommentInput(body *string, att *AttachmentInput) (CommentInput, error) {
@@ -109,14 +192,35 @@ func ParseCommentInput(body *string, att *AttachmentInput) (CommentInput, error)
 
 func parseAttachment(in AttachmentInput) (Attachment, error) {
 	const op = "social.ParseAttachment"
-	if AttachmentKind(in.Kind) != AttachmentGIF || in.GIF == nil {
-		return Attachment{}, errs.New(errs.CodeInvalidInput, op, slog.String("reason", "unknown_kind"))
+	switch AttachmentKind(in.Kind) {
+	case AttachmentGIF:
+		if in.GIF == nil {
+			break
+		}
+		gif, err := ParseGif(*in.GIF)
+		if err != nil {
+			return Attachment{}, err
+		}
+		return Attachment{Kind: AttachmentGIF, GIF: &gif}, nil
+	case AttachmentThesisQuote:
+		if !validRange(in.Start, in.End) {
+			return Attachment{}, errs.New(errs.CodeInvalidInput, op, slog.String("reason", "invalid_range"))
+		}
+		return Attachment{Kind: AttachmentThesisQuote, Range: QuoteRange{Start: in.Start, End: in.End}}, nil
+	case AttachmentStock:
+		return Attachment{Kind: AttachmentStock, Stock: &StockSnapshot{AssetID: in.AssetID}}, nil
 	}
-	gif, err := ParseGif(*in.GIF)
-	if err != nil {
-		return Attachment{}, err
+	return Attachment{}, errs.New(errs.CodeInvalidInput, op, slog.String("reason", "unknown_kind"))
+}
+
+func validRange(start, end *int) bool {
+	switch {
+	case start != nil && *start < 0, end != nil && *end < 0:
+		return false
+	case start != nil && end != nil:
+		return *start < *end
 	}
-	return Attachment{Kind: AttachmentGIF, GIF: &gif}, nil
+	return true
 }
 
 func ParseGif(in GifInput) (GifAttachment, error) {
