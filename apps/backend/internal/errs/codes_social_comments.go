@@ -5,6 +5,7 @@ const (
 	CodeCommentNotAuthor      Code = "comment_not_author"
 	CodeCommentNotFound       Code = "comment_not_found"
 	CodeCommentParentMismatch Code = "comment_parent_mismatch"
+	CodePollClosed            Code = "poll_closed"
 )
 
 func (codeFiles) SocialComments() map[Code]Row {
@@ -22,6 +23,9 @@ func (codeFiles) SocialComments() map[Code]Row {
 		CodeCommentParentMismatch: {
 			Name: "CommentParentMismatch", Kind: KindInvalid,
 			Message: "The comment you replied to is not on this item.",
+		},
+		CodePollClosed: {
+			Name: "PollClosed", Kind: KindConflict, Message: "This poll is closed, so votes can no longer change.",
 		},
 	}
 }

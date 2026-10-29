@@ -432,6 +432,7 @@ Subject `events.comment.created`, version 1.
 | `cabal_name` | `*string` |
 | `reply_rule` | `string` |
 | `attachment_kind` | `string` |
+| `poll_question` | `string` |
 
 ## `comment.deleted`
 
@@ -444,6 +445,18 @@ Subject `events.comment.deleted`, version 1.
 | `feed_object_id` | `uuid.UUID` |
 | `deleted_by` | `uuid.UUID` |
 | `deleted_by_kind` | `string` |
+
+## `comment.poll_voted`
+
+Subject `events.comment.poll_voted`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `comment_id` | `uuid.UUID` |
+| `feed_object_id` | `uuid.UUID` |
+| `user_id` | `uuid.UUID` |
+| `position` | `int` |
 
 ## `deposit.candidate_dismissed`
 

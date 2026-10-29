@@ -13,6 +13,7 @@ func TestCommentEventsNameTheCommentAsTheirAggregate(t *testing.T) {
 	for _, e := range []events.Event{
 		events.CommentCreated{CommentID: comment, FeedObjectID: ids.Real{}.NewV7()},
 		events.CommentDeleted{CommentID: comment, FeedObjectID: ids.Real{}.NewV7()},
+		events.CommentPollVoted{CommentID: comment, FeedObjectID: ids.Real{}.NewV7()},
 	} {
 		if e.AggregateType() != "feed_comment" || e.AggregateID() != comment {
 			t.Errorf("%T aggregate = %s %s, want feed_comment %s", e, e.AggregateType(), e.AggregateID(), comment)

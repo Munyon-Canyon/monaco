@@ -29,6 +29,7 @@ type Comment struct {
 	Body           string
 	Attachment     *domain.Attachment
 	Stock          *StockCard
+	Poll           *PollView
 	CreatedAt      time.Time
 	Deleted        bool
 	RemovedByAdmin bool
@@ -179,18 +180,24 @@ func (h *CreateCommentHandler) store(
 	if err := reply.insert(ctx, q, h.d.IDs.NewV7(), row, cmd.Input.Text().String()); err != nil {
 		return Comment{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
+	created := commentOf(row)
 	if att := cmd.Input.Attachment; att != nil {
 		err := q.InsertCommentAttachment(ctx, sqlc.InsertCommentAttachmentParams{
-			CommentID: row.ID, FeedObjectID: row.FeedObjectID, Kind: string(att.Kind), Payload: att.Payload(),
-			CreatedAt: row.CreatedAt,
+			CommentID:    row.ID,
+			FeedObjectID: row.FeedObjectID,
+			Kind:         string(att.Kind),
+			Payload:      att.Payload(row.CreatedAt),
+			CreatedAt:    row.CreatedAt,
 		})
 		if err != nil {
 			return Comment{}, errs.Wrap(err, errs.CodeInternal, op)
 		}
+		created.Attachment, created.Poll, err = storePoll(ctx, q, row, att)
+		if err != nil {
+			return Comment{}, err
+		}
 	}
 	tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, FeedHint, nil) })
-	created := commentOf(row)
-	created.Attachment = cmd.Input.Attachment
 	if target.ID != uuid.Nil {
 		created.ReplyTo = quoteOf(
 			target.ID, target.AuthorID, target.ParentCommentID.Bytes, target.Body.String, target.HasAttachment,
@@ -302,6 +309,9 @@ func createdEvent(
 	}
 	if input.Attachment != nil {
 		e.AttachmentKind = string(input.Attachment.Kind)
+		if input.Attachment.Poll != nil {
+			e.PollQuestion = input.Attachment.Poll.Question
+		}
 	}
 	if target.ID != uuid.Nil {
 		answered := quotedText(target.Body.String, target.HasAttachment)

@@ -26,5 +26,6 @@
   "item_noun": "proposal",
   "cabal_name": "Alpha Cabal",
   "reply_rule": "members",
-  "attachment_kind": ""
+  "attachment_kind": "",
+  "poll_question": ""
 }

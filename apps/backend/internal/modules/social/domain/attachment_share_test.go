@@ -2,6 +2,7 @@ package domain_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -16,7 +17,7 @@ func TestCommentInput_textNamesTheAttachmentWhenThereIsNoBody(t *testing.T) {
 			t.Errorf("%s text = %q, want %q", kind, got, want)
 		}
 	}
-	if got := (domain.Attachment{Kind: "poll"}).Display(); got != "" {
+	if got := (domain.Attachment{Kind: "photo"}).Display(); got != "" {
 		t.Errorf("unknown kind display = %q, want empty", got)
 	}
 	if got := (domain.CommentInput{}).Text(); got != "" {
@@ -36,16 +37,16 @@ func TestDecodeAttachment_roundTripsEachKindAndRefusesTheRest(t *testing.T) {
 		Stock: &domain.StockSnapshot{AssetID: id, Symbol: "AAPL", IsPreIPO: true},
 	}
 	for _, att := range []domain.Attachment{quote, stock} {
-		got := domain.DecodeAttachment(string(att.Kind), att.Payload())
+		got := domain.DecodeAttachment(string(att.Kind), att.Payload(time.Date(2026, 10, 3, 8, 0, 0, 0, time.UTC)))
 		if got == nil || got.Kind != att.Kind || (got.Thesis == nil) != (att.Thesis == nil) ||
 			(got.Stock == nil) != (att.Stock == nil) {
 			t.Errorf("decode %s = %+v, want the same kind back", att.Kind, got)
 		}
 	}
-	if got := domain.DecodeAttachment("poll", []byte("{}")); got != nil {
+	if got := domain.DecodeAttachment("photo", []byte("{}")); got != nil {
 		t.Errorf("unknown kind decoded to %+v", got)
 	}
-	for _, kind := range []domain.AttachmentKind{domain.AttachmentGIF, domain.AttachmentThesisQuote, domain.AttachmentStock} {
+	for _, kind := range []domain.AttachmentKind{domain.AttachmentGIF, domain.AttachmentThesisQuote, domain.AttachmentStock, domain.AttachmentPoll} {
 		if got := domain.DecodeAttachment(string(kind), []byte("{")); got != nil {
 			t.Errorf("%s with a broken payload decoded to %+v", kind, got)
 		}

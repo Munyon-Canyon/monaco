@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"math"
 	"slices"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -71,11 +72,14 @@ func wireMedia(m domain.Media) api.GifMedia {
 func attachmentInput(a api.CommentAttachmentInput) (domain.AttachmentInput, error) {
 	raw, _ := a.MarshalJSON()
 	var in struct {
-		Kind    string        `json:"kind"`
-		Gif     *api.GifInput `json:"gif"`
-		Start   *int          `json:"start"`
-		End     *int          `json:"end"`
-		AssetID uuid.UUID     `json:"asset_id"`
+		Kind          string        `json:"kind"`
+		Gif           *api.GifInput `json:"gif"`
+		Start         *int          `json:"start"`
+		End           *int          `json:"end"`
+		AssetID       uuid.UUID     `json:"asset_id"`
+		Question      string        `json:"question"`
+		Options       []string      `json:"options"`
+		ClosesInHours *int          `json:"closes_in_hours"`
 	}
 	if json.Unmarshal(raw, &in) != nil {
 		return domain.AttachmentInput{}, errs.New(
@@ -90,6 +94,14 @@ func attachmentInput(a api.CommentAttachmentInput) (domain.AttachmentInput, erro
 		}
 		out.GIF = &gif
 	}
+	if in.Kind == string(domain.AttachmentPoll) {
+		poll := domain.PollInput{Question: in.Question, Options: in.Options}
+		if in.ClosesInHours != nil {
+			closesIn := time.Duration(*in.ClosesInHours) * time.Hour
+			poll.ClosesIn = &closesIn
+		}
+		out.Poll = &poll
+	}
 	return out, nil
 }
 
@@ -97,6 +109,11 @@ func wireAttachment(c app.Comment) *api.CommentAttachment {
 	a := c.Attachment
 	var out api.CommentAttachment
 	switch a.Kind {
+	case domain.AttachmentPoll:
+		_ = out.FromPollAttachment(api.PollAttachment{
+			Kind: api.PollAttachmentKindPoll, Question: a.Poll.Question, ClosesAt: c.Poll.ClosesAt,
+			Closed: c.Poll.Closed, Options: wirePollOptions(c.Poll), Total: c.Poll.Total, MyPosition: c.Poll.MyPosition,
+		})
 	case domain.AttachmentThesisQuote:
 		_ = out.FromThesisQuoteAttachment(api.ThesisQuoteAttachment{
 			Kind: api.ThesisQuoteAttachmentKindThesisQuote, ProposalId: a.Thesis.ProposalID, Text: a.Thesis.Text,
@@ -123,6 +140,14 @@ func wireStock(snap *domain.StockSnapshot, live *app.StockCard) api.StockAttachm
 		out.PriceMicros, out.ChangeBps = &price, live.ChangeBps
 	}
 	return out
+}
+
+func wirePollOptions(p *app.PollView) []api.PollOption {
+	options := make([]api.PollOption, len(p.Options))
+	for i, o := range p.Options {
+		options[i] = api.PollOption{Position: o.Position, Label: o.Label, Count: o.Count}
+	}
+	return options
 }
 
 func wireComments(
@@ -265,7 +290,13 @@ func (h HTTP) commentPage(
 	if err != nil {
 		return api.CommentPage{}, err
 	}
-	q := app.CommentsQuery{FeedObjectID: item, Viewer: me, Limit: app.CommentPageDefault, Stocks: h.Stocks}
+	q := app.CommentsQuery{
+		FeedObjectID: item,
+		Viewer:       me,
+		Limit:        app.CommentPageDefault,
+		Stocks:       h.Stocks,
+		Now:          h.Clock.Now(),
+	}
 	if limit != nil {
 		q.Limit = *limit
 	}
@@ -329,4 +360,45 @@ func (h HTTP) RemoveComment(
 		return nil, err
 	}
 	return api.RemoveComment204Response{}, nil
+}
+
+func (h HTTP) PutCommentPollVote(
+	ctx context.Context, req api.PutCommentPollVoteRequestObject,
+) (api.PutCommentPollVoteResponseObject, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req.Body == nil {
+		return nil, errs.New(errs.CodeInvalidInput, "social.PutCommentPollVote")
+	}
+	state, err := h.VoteCommentPoll.Handle(ctx, app.VoteCommentPoll{
+		CommentID: req.CommentId, Viewer: me, Position: req.Body.Position,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return api.PutCommentPollVote200JSONResponse(wirePollState(state)), nil
+}
+
+func (h HTTP) DeleteCommentPollVote(
+	ctx context.Context, req api.DeleteCommentPollVoteRequestObject,
+) (api.DeleteCommentPollVoteResponseObject, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	state, err := h.WithdrawCommentPollVote.Handle(ctx, app.WithdrawCommentPollVote{
+		CommentID: req.CommentId, Viewer: me,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return api.DeleteCommentPollVote200JSONResponse(wirePollState(state)), nil
+}
+
+func wirePollState(p app.PollView) api.PollState {
+	return api.PollState{
+		ClosesAt: p.ClosesAt, Closed: p.Closed, Options: wirePollOptions(&p), Total: p.Total, MyPosition: p.MyPosition,
+	}
 }

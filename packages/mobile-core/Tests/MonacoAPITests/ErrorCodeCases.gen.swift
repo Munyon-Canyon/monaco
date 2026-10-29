@@ -113,6 +113,7 @@ extension Components.Schemas.ErrorCode {
         case .phoneNotLinked: true
         case .photoInvalid: true
         case .pinnedChainUnavailable: true
+        case .pollClosed: true
         case .postHogRejected: true
         case .postHogUnavailable: true
         case .potCashShort: true
