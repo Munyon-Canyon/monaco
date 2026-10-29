@@ -22,6 +22,10 @@ const (
 	ReplyRuleMembers ReplyRule = "members"
 )
 
+func proposalThreadKinds() []feed.Kind {
+	return []feed.Kind{feed.KindThreshold, feed.KindReply, feed.KindResult}
+}
+
 func ThreadOf(ctx context.Context, q *sqlc.Queries, item sqlc.GetCommentItemRow) (sqlc.GetCommentItemRow, error) {
 	const op = "social.ThreadOf"
 	proposal, shared, err := threadProposal(item)
@@ -64,7 +68,7 @@ func ResolveThread(
 }
 
 func threadProposal(item sqlc.GetCommentItemRow) (proposal uuid.UUID, shared bool, err error) {
-	if !slices.Contains([]feed.Kind{feed.KindThreshold, feed.KindReply, feed.KindResult}, feed.Kind(item.Kind)) {
+	if !slices.Contains(proposalThreadKinds(), feed.Kind(item.Kind)) {
 		return uuid.Nil, false, nil
 	}
 	payload, err := feed.ParsePayload(item.Payload)
@@ -81,26 +85,24 @@ func threadProposal(item sqlc.GetCommentItemRow) (proposal uuid.UUID, shared boo
 	return proposal, true, nil
 }
 
+func ReplyRights(thread feed.Kind, member bool) (bool, ReplyRule) {
+	if thread != feed.KindProposal {
+		return true, ReplyRuleAnyone
+	}
+	return member, ReplyRuleMembers
+}
+
 func CanReply(
 	ctx context.Context, members Members, thread feed.Kind, cabal ids.CabalID, user ids.UserID,
 ) (bool, ReplyRule, error) {
 	if thread != feed.KindProposal {
-		return true, ReplyRuleAnyone, nil
+		ok, rule := ReplyRights(thread, false)
+		return ok, rule, nil
 	}
 	member, err := members.IsMember(ctx, cabal, user)
 	if err != nil {
 		return false, ReplyRuleMembers, errs.Wrap(err, errs.CodeOf(err), "social.CanReply")
 	}
-	return member, ReplyRuleMembers, nil
-}
-
-func CanReplyToItem(
-	ctx context.Context, reads sqlc.DBTX, members Members, id uuid.UUID, user ids.UserID,
-) (bool, error) {
-	_, thread, err := ResolveThread(ctx, sqlc.New(reads), id)
-	if err != nil {
-		return false, err
-	}
-	ok, _, err := CanReply(ctx, members, feed.Kind(thread.Kind), ids.CabalIDFrom(thread.CabalID.Bytes), user)
-	return ok, err
+	ok, rule := ReplyRights(thread, member)
+	return ok, rule, nil
 }

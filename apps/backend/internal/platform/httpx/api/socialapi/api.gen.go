@@ -125,6 +125,24 @@ func (e FeedItemOutcome) Valid() bool {
 	}
 }
 
+// Defines values for FeedItemReplyRule.
+const (
+	Anyone  FeedItemReplyRule = "anyone"
+	Members FeedItemReplyRule = "members"
+)
+
+// Valid indicates whether the value is a known member of the FeedItemReplyRule enum.
+func (e FeedItemReplyRule) Valid() bool {
+	switch e {
+	case Anyone:
+		return true
+	case Members:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FeedItemShape.
 const (
 	FeedItemShapeCabal       FeedItemShape = "cabal"
@@ -773,12 +791,22 @@ type FeedItem struct {
 	// Examples: null
 	Caller *FeedCaller `json:"caller"`
 
+	// CanReact True when the caller can react to the item, which is every item the caller can see.
+	//
+	// Examples: true
+	CanReact bool `json:"can_react"`
+
+	// CanReply True when the caller can comment in the item's thread. False on a thread that is a proposal of a cabal the caller is not in.
+	//
+	// Examples: true
+	CanReply bool `json:"can_reply"`
+
 	// ChangeBps A price move's change since the previous close, in signed basis points; 0 for a flat move. Null on every other kind.
 	//
 	// Examples: 1000
 	ChangeBps *int64 `json:"change_bps"`
 
-	// CommentCount The number of comments.
+	// CommentCount Deprecated, read `reply_count` instead. The number of comments on this item itself.
 	//
 	// Examples: 0
 	CommentCount int32 `json:"comment_count"`
@@ -861,6 +889,21 @@ type FeedItem struct {
 	// Examples: swaps
 	RefType string `json:"ref_type"`
 
+	// ReplyCount The number of comments in the item's thread, the same on a proposal, its result, its threshold and its replies.
+	//
+	// Examples: 4
+	ReplyCount int32 `json:"reply_count"`
+
+	// ReplyRule Who can reply in the item's thread: `members` when the thread is a proposal (only its cabal's members), else `anyone`.
+	//
+	// Examples: members
+	ReplyRule FeedItemReplyRule `json:"reply_rule"`
+
+	// ReplyRuleCabalName The name of the cabal whose members can reply. Null when `reply_rule` is `anyone`.
+	//
+	// Examples: Pilates
+	ReplyRuleCabalName *string `json:"reply_rule_cabal_name"`
+
 	// Return1mBps The author's one-month return in basis points, from the people board's `1M` range as of the last valuation run, not a live figure. Null when the author hides it, has no ranked row, or the item is a system item.
 	//
 	// Examples: 820
@@ -895,6 +938,11 @@ type FeedItem struct {
 	//
 	// Examples: null
 	Tally *FeedTally `json:"tally"`
+
+	// ThreadItemId The item whose thread this one opens: the item itself, or the proposal's item for a cabal's result, a threshold or a reply.
+	//
+	// Examples: 01920000-0000-7000-8000-00000000000a
+	ThreadItemId openapi_types.UUID `json:"thread_item_id"`
 
 	// Title The rendered headline.
 	//
@@ -957,6 +1005,11 @@ type FeedCaller struct {
 // Examples: passed
 type FeedItemOutcome string
 
+// FeedItemReplyRule Who can reply in the item's thread: `members` when the thread is a proposal (only its cabal's members), else `anyone`.
+//
+// Examples: members
+type FeedItemReplyRule string
+
 // FeedItemShape Who heads a `result` post: the `cabal`, or the `member` who proposed it. Null on every other kind.
 //
 // Examples: cabal
@@ -989,7 +1042,7 @@ type FeedTally struct {
 
 // FeedItemDetail One feed item, whether it passes the request's filters and whether the caller can comment on it.
 type FeedItemDetail struct {
-	// CanComment False on a post whose thread is a proposal of a cabal the caller is not in (the proposal, a cabal's result, a threshold or a reply on it), which only members can comment in. True otherwise.
+	// CanComment Deprecated, read `item.can_reply` instead, which is equal. False on a post whose thread is a proposal of a cabal the caller is not in (the proposal, a cabal's result, a threshold or a reply on it), which only members can comment in. True otherwise.
 	//
 	// Examples: true
 	CanComment bool `json:"can_comment"`

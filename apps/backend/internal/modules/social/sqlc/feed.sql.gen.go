@@ -16,6 +16,14 @@ import (
 const getFeedItem = `-- name: GetFeedItem :one
 SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
   f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at,
+  coalesce(t.id, f.id) AS thread_item_id,
+  coalesce(t.comment_count, f.comment_count) AS reply_count,
+  coalesce(t.kind, f.kind) AS thread_kind,
+  coalesce(t.cabal_name, f.cabal_name) AS thread_cabal_name,
+  EXISTS (
+    SELECT 1 FROM feed_memberships fm
+    WHERE fm.user_id = $1::uuid AND fm.active AND fm.cabal_id = coalesce(t.cabal_id, f.cabal_id)
+  ) AS member_of_thread_cabal,
   (SELECT count(*) FROM feed_reactions r WHERE r.feed_object_id = f.id AND r.emoji = U&'\2764\FE0F')::int AS like_count,
   EXISTS (
     SELECT 1 FROM feed_reactions r
@@ -90,43 +98,59 @@ SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.t
     )
   )::bool AS visible
 FROM feed_objects f
-WHERE f.id = $11
+LEFT JOIN LATERAL (
+  SELECT CASE
+    WHEN f.kind = ANY($11::text[]) AND coalesce(f.payload->>'shape', '') <> 'member'
+    THEN coalesce(
+      nullif(f.payload->>'proposal_id', '00000000-0000-0000-0000-000000000000')::uuid,
+      CASE WHEN f.ref_type = 'proposals' THEN f.ref_id END
+    )
+  END AS proposal_id
+) tp ON true
+LEFT JOIN feed_objects t ON t.kind = 'proposal' AND t.ref_type = 'proposals' AND t.ref_id = tp.proposal_id
+WHERE f.id = $12
 `
 
 type GetFeedItemParams struct {
-	Viewer    uuid.UUID
-	Kinds     []string
-	CabalID   uuid.UUID
-	ActorID   uuid.UUID
-	Symbol    string
-	Q         string
-	Following bool
-	Mine      bool
-	Network   bool
-	Others    bool
-	ID        uuid.UUID
+	Viewer      uuid.UUID
+	Kinds       []string
+	CabalID     uuid.UUID
+	ActorID     uuid.UUID
+	Symbol      string
+	Q           string
+	Following   bool
+	Mine        bool
+	Network     bool
+	Others      bool
+	ThreadKinds []string
+	ID          uuid.UUID
 }
 
 type GetFeedItemRow struct {
-	ID           uuid.UUID
-	Kind         string
-	RefType      string
-	RefID        uuid.UUID
-	CabalID      pgtype.UUID
-	ActorID      pgtype.UUID
-	Symbol       pgtype.Text
-	Title        string
-	Body         pgtype.Text
-	Payload      []byte
-	Status       pgtype.Text
-	AssetID      pgtype.UUID
-	CabalName    pgtype.Text
-	CommentCount int32
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	LikeCount    int32
-	LikedByMe    bool
-	Visible      bool
+	ID                  uuid.UUID
+	Kind                string
+	RefType             string
+	RefID               uuid.UUID
+	CabalID             pgtype.UUID
+	ActorID             pgtype.UUID
+	Symbol              pgtype.Text
+	Title               string
+	Body                pgtype.Text
+	Payload             []byte
+	Status              pgtype.Text
+	AssetID             pgtype.UUID
+	CabalName           pgtype.Text
+	CommentCount        int32
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	ThreadItemID        uuid.UUID
+	ReplyCount          int32
+	ThreadKind          string
+	ThreadCabalName     pgtype.Text
+	MemberOfThreadCabal bool
+	LikeCount           int32
+	LikedByMe           bool
+	Visible             bool
 }
 
 func (q *Queries) GetFeedItem(ctx context.Context, arg GetFeedItemParams) (GetFeedItemRow, error) {
@@ -141,6 +165,7 @@ func (q *Queries) GetFeedItem(ctx context.Context, arg GetFeedItemParams) (GetFe
 		arg.Mine,
 		arg.Network,
 		arg.Others,
+		arg.ThreadKinds,
 		arg.ID,
 	)
 	var i GetFeedItemRow
@@ -161,6 +186,11 @@ func (q *Queries) GetFeedItem(ctx context.Context, arg GetFeedItemParams) (GetFe
 		&i.CommentCount,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ThreadItemID,
+		&i.ReplyCount,
+		&i.ThreadKind,
+		&i.ThreadCabalName,
+		&i.MemberOfThreadCabal,
 		&i.LikeCount,
 		&i.LikedByMe,
 		&i.Visible,
@@ -196,30 +226,48 @@ func (q *Queries) LikeFeedItem(ctx context.Context, arg LikeFeedItemParams) (int
 const listFeed = `-- name: ListFeed :many
 SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
   f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at,
+  coalesce(t.id, f.id) AS thread_item_id,
+  coalesce(t.comment_count, f.comment_count) AS reply_count,
+  coalesce(t.kind, f.kind) AS thread_kind,
+  coalesce(t.cabal_name, f.cabal_name) AS thread_cabal_name,
+  EXISTS (
+    SELECT 1 FROM feed_memberships fm
+    WHERE fm.user_id = $1::uuid AND fm.active AND fm.cabal_id = coalesce(t.cabal_id, f.cabal_id)
+  ) AS member_of_thread_cabal,
   (SELECT count(*) FROM feed_reactions r WHERE r.feed_object_id = f.id AND r.emoji = U&'\2764\FE0F')::int AS like_count,
   EXISTS (
     SELECT 1 FROM feed_reactions r
     WHERE r.feed_object_id = f.id AND r.user_id = $1::uuid AND r.emoji = U&'\2764\FE0F'
   ) AS liked_by_me
 FROM feed_objects f
+LEFT JOIN LATERAL (
+  SELECT CASE
+    WHEN f.kind = ANY($2::text[]) AND coalesce(f.payload->>'shape', '') <> 'member'
+    THEN coalesce(
+      nullif(f.payload->>'proposal_id', '00000000-0000-0000-0000-000000000000')::uuid,
+      CASE WHEN f.ref_type = 'proposals' THEN f.ref_id END
+    )
+  END AS proposal_id
+) tp ON true
+LEFT JOIN feed_objects t ON t.kind = 'proposal' AND t.ref_type = 'proposals' AND t.ref_id = tp.proposal_id
 WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AND fc.hidden_at IS NOT NULL)
-  AND (cardinality($2::text[]) = 0 OR f.kind = ANY($2::text[]))
-  AND ($3::uuid = '00000000-0000-0000-0000-000000000000' OR f.cabal_id = $3::uuid)
-  AND ($4::uuid = '00000000-0000-0000-0000-000000000000' OR f.actor_id = $4::uuid)
-  AND ($5::text = '' OR lower(f.symbol) = lower($5::text))
+  AND (cardinality($3::text[]) = 0 OR f.kind = ANY($3::text[]))
+  AND ($4::uuid = '00000000-0000-0000-0000-000000000000' OR f.cabal_id = $4::uuid)
+  AND ($5::uuid = '00000000-0000-0000-0000-000000000000' OR f.actor_id = $5::uuid)
+  AND ($6::text = '' OR lower(f.symbol) = lower($6::text))
   AND (
-    $6::text = ''
-    OR f.search @@ websearch_to_tsquery('english', $6::text)
-    OR f.search @@ websearch_to_tsquery('simple', $6::text)
+    $7::text = ''
+    OR f.search @@ websearch_to_tsquery('english', $7::text)
+    OR f.search @@ websearch_to_tsquery('simple', $7::text)
   )
   AND (
-    NOT $7::bool
+    NOT $8::bool
     OR f.actor_id IN (
       SELECT followee_id FROM follows WHERE follower_id = $1::uuid AND deleted_at IS NULL
     )
   )
   AND (
-    NOT $8::bool
+    NOT $9::bool
     OR (
       f.kind <> 'price_move'
       AND EXISTS (
@@ -229,7 +277,7 @@ WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AN
     )
   )
   AND (
-    NOT $9::bool
+    NOT $10::bool
     OR EXISTS (
       SELECT 1 FROM feed_memberships fm
       WHERE fm.user_id = $1::uuid AND fm.active AND fm.cabal_id = f.cabal_id
@@ -239,7 +287,7 @@ WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AN
     )
   )
   AND (
-    NOT $10::bool
+    NOT $11::bool
     OR (
       f.cabal_id IS NOT NULL
       AND NOT EXISTS (
@@ -248,7 +296,7 @@ WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AN
       )
     )
   )
-  AND ($11::text = '' OR f.status = $11::text)
+  AND ($12::text = '' OR f.status = $12::text)
   AND NOT EXISTS (
     SELECT 1 FROM feed_mutes m
     WHERE m.user_id = $1::uuid AND m.target_type = 'kind' AND m.target_id = f.kind
@@ -270,55 +318,62 @@ WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AN
     WHERE m.user_id = $1::uuid AND m.target_type = 'item' AND m.target_id = f.id::text
   )
   AND (
-    NOT $12::bool
-    OR (f.created_at, f.id) < ($13::timestamptz, $14::uuid)
+    NOT $13::bool
+    OR (f.created_at, f.id) < ($14::timestamptz, $15::uuid)
   )
 ORDER BY f.created_at DESC, f.id DESC
-LIMIT $15::int
+LIMIT $16::int
 `
 
 type ListFeedParams struct {
-	Viewer    uuid.UUID
-	Kinds     []string
-	CabalID   uuid.UUID
-	ActorID   uuid.UUID
-	Symbol    string
-	Q         string
-	Following bool
-	Mine      bool
-	Network   bool
-	Others    bool
-	Status    string
-	HasCursor bool
-	AfterAt   time.Time
-	AfterID   uuid.UUID
-	RowLimit  int32
+	Viewer      uuid.UUID
+	ThreadKinds []string
+	Kinds       []string
+	CabalID     uuid.UUID
+	ActorID     uuid.UUID
+	Symbol      string
+	Q           string
+	Following   bool
+	Mine        bool
+	Network     bool
+	Others      bool
+	Status      string
+	HasCursor   bool
+	AfterAt     time.Time
+	AfterID     uuid.UUID
+	RowLimit    int32
 }
 
 type ListFeedRow struct {
-	ID           uuid.UUID
-	Kind         string
-	RefType      string
-	RefID        uuid.UUID
-	CabalID      pgtype.UUID
-	ActorID      pgtype.UUID
-	Symbol       pgtype.Text
-	Title        string
-	Body         pgtype.Text
-	Payload      []byte
-	Status       pgtype.Text
-	AssetID      pgtype.UUID
-	CabalName    pgtype.Text
-	CommentCount int32
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	LikeCount    int32
-	LikedByMe    bool
+	ID                  uuid.UUID
+	Kind                string
+	RefType             string
+	RefID               uuid.UUID
+	CabalID             pgtype.UUID
+	ActorID             pgtype.UUID
+	Symbol              pgtype.Text
+	Title               string
+	Body                pgtype.Text
+	Payload             []byte
+	Status              pgtype.Text
+	AssetID             pgtype.UUID
+	CabalName           pgtype.Text
+	CommentCount        int32
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	ThreadItemID        uuid.UUID
+	ReplyCount          int32
+	ThreadKind          string
+	ThreadCabalName     pgtype.Text
+	MemberOfThreadCabal bool
+	LikeCount           int32
+	LikedByMe           bool
 }
 
 func (q *Queries) ListFeed(ctx context.Context, arg ListFeedParams) ([]ListFeedRow, error) {
 	rows, err := q.db.Query(ctx, listFeed,
 		arg.Viewer,
+		arg.ThreadKinds,
 		arg.Kinds,
 		arg.CabalID,
 		arg.ActorID,
@@ -358,6 +413,11 @@ func (q *Queries) ListFeed(ctx context.Context, arg ListFeedParams) ([]ListFeedR
 			&i.CommentCount,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ThreadItemID,
+			&i.ReplyCount,
+			&i.ThreadKind,
+			&i.ThreadCabalName,
+			&i.MemberOfThreadCabal,
 			&i.LikeCount,
 			&i.LikedByMe,
 		); err != nil {
@@ -374,30 +434,48 @@ func (q *Queries) ListFeed(ctx context.Context, arg ListFeedParams) ([]ListFeedR
 const listTopFeed = `-- name: ListTopFeed :many
 SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
   f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at,
+  coalesce(t.id, f.id) AS thread_item_id,
+  coalesce(t.comment_count, f.comment_count) AS reply_count,
+  coalesce(t.kind, f.kind) AS thread_kind,
+  coalesce(t.cabal_name, f.cabal_name) AS thread_cabal_name,
+  EXISTS (
+    SELECT 1 FROM feed_memberships fm
+    WHERE fm.user_id = $1::uuid AND fm.active AND fm.cabal_id = coalesce(t.cabal_id, f.cabal_id)
+  ) AS member_of_thread_cabal,
   (SELECT count(*) FROM feed_reactions r WHERE r.feed_object_id = f.id AND r.emoji = U&'\2764\FE0F')::int AS like_count,
   EXISTS (
     SELECT 1 FROM feed_reactions r
     WHERE r.feed_object_id = f.id AND r.user_id = $1::uuid AND r.emoji = U&'\2764\FE0F'
   ) AS liked_by_me
 FROM feed_objects f
+LEFT JOIN LATERAL (
+  SELECT CASE
+    WHEN f.kind = ANY($2::text[]) AND coalesce(f.payload->>'shape', '') <> 'member'
+    THEN coalesce(
+      nullif(f.payload->>'proposal_id', '00000000-0000-0000-0000-000000000000')::uuid,
+      CASE WHEN f.ref_type = 'proposals' THEN f.ref_id END
+    )
+  END AS proposal_id
+) tp ON true
+LEFT JOIN feed_objects t ON t.kind = 'proposal' AND t.ref_type = 'proposals' AND t.ref_id = tp.proposal_id
 WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AND fc.hidden_at IS NOT NULL)
-  AND (cardinality($2::text[]) = 0 OR f.kind = ANY($2::text[]))
-  AND ($3::uuid = '00000000-0000-0000-0000-000000000000' OR f.cabal_id = $3::uuid)
-  AND ($4::uuid = '00000000-0000-0000-0000-000000000000' OR f.actor_id = $4::uuid)
-  AND ($5::text = '' OR lower(f.symbol) = lower($5::text))
+  AND (cardinality($3::text[]) = 0 OR f.kind = ANY($3::text[]))
+  AND ($4::uuid = '00000000-0000-0000-0000-000000000000' OR f.cabal_id = $4::uuid)
+  AND ($5::uuid = '00000000-0000-0000-0000-000000000000' OR f.actor_id = $5::uuid)
+  AND ($6::text = '' OR lower(f.symbol) = lower($6::text))
   AND (
-    $6::text = ''
-    OR f.search @@ websearch_to_tsquery('english', $6::text)
-    OR f.search @@ websearch_to_tsquery('simple', $6::text)
+    $7::text = ''
+    OR f.search @@ websearch_to_tsquery('english', $7::text)
+    OR f.search @@ websearch_to_tsquery('simple', $7::text)
   )
   AND (
-    NOT $7::bool
+    NOT $8::bool
     OR f.actor_id IN (
       SELECT followee_id FROM follows WHERE follower_id = $1::uuid AND deleted_at IS NULL
     )
   )
   AND (
-    NOT $8::bool
+    NOT $9::bool
     OR (
       f.kind <> 'price_move'
       AND EXISTS (
@@ -407,7 +485,7 @@ WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AN
     )
   )
   AND (
-    NOT $9::bool
+    NOT $10::bool
     OR EXISTS (
       SELECT 1 FROM feed_memberships fm
       WHERE fm.user_id = $1::uuid AND fm.active AND fm.cabal_id = f.cabal_id
@@ -417,7 +495,7 @@ WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AN
     )
   )
   AND (
-    NOT $10::bool
+    NOT $11::bool
     OR (
       f.cabal_id IS NOT NULL
       AND NOT EXISTS (
@@ -426,7 +504,7 @@ WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AN
       )
     )
   )
-  AND ($11::text = '' OR f.status = $11::text)
+  AND ($12::text = '' OR f.status = $12::text)
   AND NOT EXISTS (
     SELECT 1 FROM feed_mutes m
     WHERE m.user_id = $1::uuid AND m.target_type = 'kind' AND m.target_id = f.kind
@@ -447,60 +525,67 @@ WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AN
     SELECT 1 FROM feed_mutes m
     WHERE m.user_id = $1::uuid AND m.target_type = 'item' AND m.target_id = f.id::text
   )
-  AND f.created_at >= $12::timestamptz
+  AND f.created_at >= $13::timestamptz
   AND (
-    NOT $13::bool
+    NOT $14::bool
     OR (f.comment_count, f.created_at, f.id)
-      < ($14::int, $15::timestamptz, $16::uuid)
+      < ($15::int, $16::timestamptz, $17::uuid)
   )
 ORDER BY f.comment_count DESC, f.created_at DESC, f.id DESC
-LIMIT $17::int
+LIMIT $18::int
 `
 
 type ListTopFeedParams struct {
-	Viewer     uuid.UUID
-	Kinds      []string
-	CabalID    uuid.UUID
-	ActorID    uuid.UUID
-	Symbol     string
-	Q          string
-	Following  bool
-	Mine       bool
-	Network    bool
-	Others     bool
-	Status     string
-	Since      time.Time
-	HasCursor  bool
-	AfterCount int32
-	AfterAt    time.Time
-	AfterID    uuid.UUID
-	RowLimit   int32
+	Viewer      uuid.UUID
+	ThreadKinds []string
+	Kinds       []string
+	CabalID     uuid.UUID
+	ActorID     uuid.UUID
+	Symbol      string
+	Q           string
+	Following   bool
+	Mine        bool
+	Network     bool
+	Others      bool
+	Status      string
+	Since       time.Time
+	HasCursor   bool
+	AfterCount  int32
+	AfterAt     time.Time
+	AfterID     uuid.UUID
+	RowLimit    int32
 }
 
 type ListTopFeedRow struct {
-	ID           uuid.UUID
-	Kind         string
-	RefType      string
-	RefID        uuid.UUID
-	CabalID      pgtype.UUID
-	ActorID      pgtype.UUID
-	Symbol       pgtype.Text
-	Title        string
-	Body         pgtype.Text
-	Payload      []byte
-	Status       pgtype.Text
-	AssetID      pgtype.UUID
-	CabalName    pgtype.Text
-	CommentCount int32
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	LikeCount    int32
-	LikedByMe    bool
+	ID                  uuid.UUID
+	Kind                string
+	RefType             string
+	RefID               uuid.UUID
+	CabalID             pgtype.UUID
+	ActorID             pgtype.UUID
+	Symbol              pgtype.Text
+	Title               string
+	Body                pgtype.Text
+	Payload             []byte
+	Status              pgtype.Text
+	AssetID             pgtype.UUID
+	CabalName           pgtype.Text
+	CommentCount        int32
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	ThreadItemID        uuid.UUID
+	ReplyCount          int32
+	ThreadKind          string
+	ThreadCabalName     pgtype.Text
+	MemberOfThreadCabal bool
+	LikeCount           int32
+	LikedByMe           bool
 }
 
 func (q *Queries) ListTopFeed(ctx context.Context, arg ListTopFeedParams) ([]ListTopFeedRow, error) {
 	rows, err := q.db.Query(ctx, listTopFeed,
 		arg.Viewer,
+		arg.ThreadKinds,
 		arg.Kinds,
 		arg.CabalID,
 		arg.ActorID,
@@ -542,6 +627,11 @@ func (q *Queries) ListTopFeed(ctx context.Context, arg ListTopFeedParams) ([]Lis
 			&i.CommentCount,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ThreadItemID,
+			&i.ReplyCount,
+			&i.ThreadKind,
+			&i.ThreadCabalName,
+			&i.MemberOfThreadCabal,
 			&i.LikeCount,
 			&i.LikedByMe,
 		); err != nil {

@@ -162,7 +162,10 @@ enum FeedPreviewFixtures {
             shareOfPotBps: figures.shareOfPotBps, changeBps: figures.changeBps, markMicros: figures.markMicros,
             prevCloseMicros: figures.prevCloseMicros,
             proposalId: proposal ? String(format: "00000000-0000-7000-8000-0000000fa%03d", 100 + number) : nil,
-            commentCount: comments, likeCount: likes, likedByMe: false, reactions: [], reactionCount: 0,
+            commentCount: comments,
+            threadItemId: String(format: "00000000-0000-7000-8000-0000000fe%03d", number),
+            replyCount: comments, canReply: true, canReact: true, replyRule: .anyone, replyRuleCabalName: nil,
+            likeCount: likes, likedByMe: false, reactions: [], reactionCount: 0,
             return1mBps: returnBps, returnPrivate: false,
             createdAt: created, updatedAt: created)
     }
