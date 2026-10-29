@@ -51,6 +51,8 @@ struct VoteHoldSheet: View {
                     .font(.title2)
                     .foregroundStyle(MonacoTheme.secondaryText)
             }
+            .frame(minWidth: CommentRowMetrics.replyTarget, minHeight: CommentRowMetrics.replyTarget)
+            .contentShape(Rectangle())
             .accessibilityLabel("Close")
             .accessibilityIdentifier("vote-hold-close")
         }

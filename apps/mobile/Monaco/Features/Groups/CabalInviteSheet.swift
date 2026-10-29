@@ -155,6 +155,8 @@ struct CabalInviteSheet: View {
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Circle())
         }
+        .frame(minWidth: 44, minHeight: 44)
+        .contentShape(Rectangle())
         .accessibilityLabel("Invite settings")
         .accessibilityIdentifier("cabal-invite-settings")
     }

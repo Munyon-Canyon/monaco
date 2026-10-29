@@ -54,6 +54,8 @@ struct MonacoGlassButton: View {
                 .contentShape(Circle())
         }
         .buttonStyle(MonacoGlassPressStyle())
+        .frame(minWidth: 44, minHeight: 44)
+        .contentShape(Rectangle())
         .disabled(isBusy)
         .accessibilityLabel(accessibilityLabel)
     }
