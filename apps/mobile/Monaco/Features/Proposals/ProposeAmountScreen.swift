@@ -13,6 +13,7 @@ struct ProposeAmountScreen: View {
     let stock: ProposeStock
     var seed = ProposeAmountSeed()
     private let cabalID: String
+    private let onChangeCabal: ((Int64) -> Void)?
     @Environment(AppEnvironment.self) private var environment
     @State private var showsReview = false
     @State private var model: ProposeAmountModel
@@ -21,14 +22,20 @@ struct ProposeAmountScreen: View {
 
     init(
         service: MonacoCore.ProposeService, cabalID: String, stock: ProposeStock, trade: ProposeTrade? = nil,
-        bestChains: AssetBestChainStore? = nil
+        bestChains: AssetBestChainStore? = nil, initialAmountMicros: Int64? = nil,
+        onChangeCabal: ((Int64) -> Void)? = nil
     ) {
         self.stock = stock
         self.cabalID = cabalID
+        self.onChangeCabal = onChangeCabal
+        if let micros = initialAmountMicros, micros > 0 {
+            _amountText = State(initialValue: "\(ProposeMath.usd(fromMicros: micros))")
+        }
         let trade = trade ?? .buy(symbol: stock.symbol, kind: stock.assetKind, tokenDecimals: stock.tokenDecimals)
         _model = State(
             initialValue: ProposeAmountModel(
-                service: service, cabalID: cabalID, trade: trade, clock: ContinuousClock(), bestChains: bestChains))
+                service: service, cabalID: cabalID, trade: trade, clock: ContinuousClock(), bestChains: bestChains,
+                initialAmountMicros: initialAmountMicros))
     }
 
     static let markSize: CGFloat = 48
@@ -87,13 +94,24 @@ struct ProposeAmountScreen: View {
         }
         .sheet(isPresented: $showsReview) {
             if let preview = model.preview {
-                ProposeReviewSheet(
-                    service: MonacoCore.LiveProposeService(api: environment.api), cabalID: cabalID,
-                    draft: model.draft, preview: preview, trade: model.trade,
-                    buyName: displayName, bestChain: model.previewBestChain, logoURL: stock.logoURL,
-                    memory: reviewMemory, sendsOnAppear: seed.sendsReview)
+                reviewSheet(preview)
             }
         }
+    }
+
+    private func reviewSheet(_ preview: MonacoCore.ProposePreview) -> ProposeReviewSheet {
+        var sheet = ProposeReviewSheet(
+            service: MonacoCore.LiveProposeService(api: environment.api), cabalID: cabalID,
+            draft: model.draft, preview: preview, trade: model.trade,
+            buyName: displayName, bestChain: model.previewBestChain, logoURL: stock.logoURL,
+            memory: reviewMemory, sendsOnAppear: seed.sendsReview)
+        if let onChangeCabal {
+            sheet.onChangeCabal = {
+                showsReview = false
+                onChangeCabal(model.amountMicros)
+            }
+        }
+        return sheet
     }
 
     private func applySeed() async {
