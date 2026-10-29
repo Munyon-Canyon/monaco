@@ -154,7 +154,7 @@ extension ProposalBallot {
 @Observable
 @MainActor
 public final class ProposalDetailModel {
-    public private(set) var value: ProposalDetail?
+    public private(set) var value: ProposalDetail? { didSet { syncRemind() } }
     public private(set) var members: [ProposalMember] = []
     public private(set) var asset: ProposalAsset?
     public private(set) var errorMessage: String?
@@ -168,6 +168,7 @@ public final class ProposalDetailModel {
     public var voteSelection: ProposalVoteSelection = .none
     public private(set) var priceMove: ProposalPriceMove?
     public let livePrice: LiveBestPriceModel
+    public private(set) var remind: ProposalRemindModel?
     private let id: String
     private var cabalID: String?
     private let repository: ProposalsRepository
@@ -210,8 +211,7 @@ public final class ProposalDetailModel {
         hints: any HintSource, now: @escaping @Sendable () -> Date = Date.init, calendar: Calendar = .current
     ) {
         self.init(
-            id: detail.id, cabalID: detail.cabalId, repository: repository, hints: hints, now: now,
-            calendar: calendar)
+            id: detail.id, cabalID: detail.cabalId, repository: repository, hints: hints, now: now, calendar: calendar)
         value = ProposalDetail(detail)
         self.members = members.map(ProposalMember.init)
         self.asset = ProposalAsset(asset)
@@ -581,5 +581,16 @@ public final class ProposalCardContext {
             }
         }
         hasLoaded = true
+    }
+}
+
+extension ProposalDetailModel {
+    fileprivate func syncRemind() {
+        guard let detail = value else { return }
+        if let remind {
+            remind.apply(server: detail.reminderSet)
+        } else {
+            remind = ProposalRemindModel(proposalID: detail.id, initial: detail.reminderSet, repository: repository)
+        }
     }
 }

@@ -226,13 +226,15 @@ public struct ProposalDetail: Identifiable, Equatable, Sendable {
     public let myVote: ProposalMyVote?
     public let replyCount: Int
     public let sidesVisible: Bool
+    public let reminderSet: Bool
     public var id: String { summary.id }
 
     init(
         summary: ProposalSummary, voters: [ProposalVoter], proposerReturn: ProposerReturn? = nil,
         stats: ProposalStatsData? = nil, myVote: ProposalMyVote? = nil, replyCount: Int = 0,
-        sidesVisible: Bool = false
+        sidesVisible: Bool = false, reminderSet: Bool = false
     ) {
+        self.reminderSet = reminderSet
         self.sidesVisible = sidesVisible
         self.summary = summary
         self.voters = voters
@@ -258,7 +260,21 @@ public struct ProposalDetail: Identifiable, Equatable, Sendable {
             voters: value.voters.map(ProposalVoter.init),
             proposerReturn: ProposerReturn(bps: value.proposerReturn1mBps, isPrivate: value.proposerReturnPrivate),
             stats: ProposalStatsData(value.stats), myVote: value.myVote.map(ProposalMyVote.init),
-            replyCount: value.replyCount, sidesVisible: value.sidesVisible)
+            replyCount: value.replyCount, sidesVisible: value.sidesVisible, reminderSet: value.reminderSet)
+    }
+}
+
+public struct ProposalReminderState: Equatable, Sendable {
+    public let isSet: Bool
+    public let dueAt: Date?
+
+    public init(isSet: Bool, dueAt: Date?) {
+        self.isSet = isSet
+        self.dueAt = dueAt
+    }
+
+    init(_ value: Components.Schemas.ProposalReminder) {
+        self.init(isSet: value.reminderSet, dueAt: value.dueAt)
     }
 }
 
@@ -508,6 +524,22 @@ public struct ProposalsRepository: Sendable {
                     path: .init(id: id),
                     headers: .init(idempotencyKey: key)
                 ).ok.body.json)
+        }
+    }
+
+    public func setReminder(id: String, submission: IdempotentSubmission) async throws -> ProposalReminderState {
+        try await api.submit(submission, payload: id, operation: "putProposalReminder") { client, key in
+            ProposalReminderState(
+                try await client.putProposalReminder(path: .init(id: id), headers: .init(idempotencyKey: key))
+                    .ok.body.json)
+        }
+    }
+
+    public func clearReminder(id: String, submission: IdempotentSubmission) async throws -> ProposalReminderState {
+        try await api.submit(submission, payload: id, operation: "deleteProposalReminder") { client, key in
+            ProposalReminderState(
+                try await client.deleteProposalReminder(path: .init(id: id), headers: .init(idempotencyKey: key))
+                    .ok.body.json)
         }
     }
 
