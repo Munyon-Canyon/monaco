@@ -26,7 +26,7 @@ func CategoryOf(kind string) (Category, bool) {
 func AlwaysOnKinds() []string {
 	return []string{
 		"deposit_credited", "new_follower", "notify.follow_digest", "nudge",
-		"cabal_access_requested", "cabal_access_approved", "test",
+		"cabal_access_requested", "cabal_access_approved", "weekly_ledger", "test",
 	}
 }
 

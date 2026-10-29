@@ -46,6 +46,7 @@ func TestModule_servesDevicesConsumesEveryPushKindAndRunsTheFollowDigest(t *test
 			"notify notify.cabal_access_decided cabal.access_decided",
 			"notify notify.follow_created follow.created",
 			"notify notify.user_nudge_due user.nudge_due",
+			"notify notify.ranking_ledger_ready ranking.ledger_ready",
 			"notify notify.comment_created comment.created",
 			"notify notify.chat_message_posted chat.message_posted",
 			"notify_catch_up notify.catch_up_vote_cast vote.cast",

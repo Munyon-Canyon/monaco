@@ -5,5 +5,6 @@ func rankingRegistrations() []Registration {
 		Register[RankingSnapshotWritten](TypeRankingSnapshotWritten, 1),
 		Register[CallResolved](TypeCallResolved, 1),
 		Register[RankingCallBoardWritten](TypeRankingCallBoardWritten, 1),
+		Register[RankingLedgerReady](TypeRankingLedgerReady, 1),
 	}
 }

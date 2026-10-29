@@ -176,6 +176,75 @@ func (q *Queries) LatestLedger(ctx context.Context, userID uuid.UUID) ([]byte, e
 	return payload, err
 }
 
+const pendingLedgerUsers = `-- name: PendingLedgerUsers :many
+SELECT u.id::uuid AS user_id
+FROM unnest($1::uuid[]) AS u(id)
+WHERE NOT EXISTS (SELECT 1 FROM weekly_ledgers AS l WHERE l.user_id = u.id AND l.week = $2)
+  AND NOT EXISTS (SELECT 1 FROM weekly_ledger_skips AS s WHERE s.user_id = u.id AND s.week = $2)
+ORDER BY u.id
+LIMIT $3::int
+`
+
+type PendingLedgerUsersParams struct {
+	CandidateIds []uuid.UUID
+	Week         string
+	BatchLimit   int32
+}
+
+func (q *Queries) PendingLedgerUsers(ctx context.Context, arg PendingLedgerUsersParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, pendingLedgerUsers, arg.CandidateIds, arg.Week, arg.BatchLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var user_id uuid.UUID
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const resolvedVotersBetween = `-- name: ResolvedVotersBetween :many
+SELECT DISTINCT cv.user_id::uuid AS user_id
+FROM call_voters AS cv
+JOIN calls AS c ON c.proposal_id = cv.proposal_id
+WHERE c.state = 'resolved'
+  AND c.resolved_at >= $1::timestamptz
+  AND c.resolved_at < $2::timestamptz
+`
+
+type ResolvedVotersBetweenParams struct {
+	WindowStart time.Time
+	WindowEnd   time.Time
+}
+
+func (q *Queries) ResolvedVotersBetween(ctx context.Context, arg ResolvedVotersBetweenParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, resolvedVotersBetween, arg.WindowStart, arg.WindowEnd)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var user_id uuid.UUID
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const userCallsResolvedBetween = `-- name: UserCallsResolvedBetween :many
 SELECT c.proposal_id, c.cabal_id, c.kind, c.symbol, c.mint, cv.choice, cv.is_right, c.move_bps, c.decided_at
 FROM call_voters AS cv
