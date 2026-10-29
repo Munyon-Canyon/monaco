@@ -10,6 +10,8 @@ enum ParitySampleScenario: String, CaseIterable {
     case feedMine = "feed-mine"
     case membersError = "members-error"
     case publicCabalError = "public-cabal-error"
+    case toastSettled = "toast-settled"
+    case infoSheet = "info-sheet"
     case votesClosed = "votes-closed"
     case votesExpired = "votes-expired"
     case votesRejected = "votes-rejected"
@@ -34,6 +36,7 @@ enum ParitySampleScenario: String, CaseIterable {
     var tab: MainTab {
         switch self {
         case .addMoneyError: .home
+        case .infoSheet: .stocks
         default: .cabals
         }
     }
@@ -45,6 +48,8 @@ enum ParitySampleScenario: String, CaseIterable {
         case .cabalInfoError: return [CabalRoute(id: id, tab: .rules)]
         case .membersError: return [MembersRoute(cabalID: id)]
         case .publicCabalError: return [CabalSampleRoute(kind: .publicMember)]
+        case .toastSettled: return [ParityToastSettledRoute()]
+        case .infoSheet: return [ParityInfoSheetRoute()]
         case .votesClosed, .votesExpired, .votesRejected: return [ProposalSampleRoute(votes: .open)]
         case .feedEveryone, .feedMine: return []
         }
@@ -58,9 +63,42 @@ enum ParitySampleScenario: String, CaseIterable {
         case .votesClosed: script.proposal = .sample(status: .executed)
         case .votesExpired: script.proposal = .sample(status: .expired)
         case .votesRejected: script.proposal = .sample(status: .failed)
+        case .toastSettled: script = ProposalSampleScenario.nvdaOpen.script
+        case .infoSheet: script.asset = .nvda
         case .feedEveryone, .feedMine: break
         }
         return script
+    }
+}
+
+nonisolated struct ParityToastSettledRoute: AppRoute {
+    @MainActor func destination() -> some View { ParityToastSettledHost() }
+}
+
+private struct ParityToastSettledHost: View {
+    @Environment(ToastCenter.self) private var toasts
+
+    var body: some View {
+        ProposalSampleRoute(votes: .closed).destination()
+            .task {
+                let tally = ProposalTally(yes: 5, no: 1, voters: 6, needed: 4)
+                let outcome = CastOutcome(
+                    choice: .yes, status: .passed, tally: tally, undoUntil: nil, myVote: nil)
+                toasts.show(success: ProposalVoteCopy.toast(outcome: outcome).message)
+            }
+    }
+}
+
+nonisolated struct ParityInfoSheetRoute: AppRoute {
+    @MainActor func destination() -> some View { ParityInfoSheetHost() }
+}
+
+private struct ParityInfoSheetHost: View {
+    @State private var shows = true
+
+    var body: some View {
+        AssetRoute(symbol: Components.Schemas.AssetDetail.nvda.symbol).destination()
+            .sheet(isPresented: $shows) { MarketStatsSheet(facts: MarketStatsFacts(.nvda)) }
     }
 }
 
