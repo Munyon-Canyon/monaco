@@ -244,12 +244,12 @@ func (h *checkHarness) commit(t *testing.T, files map[string]string) string {
 	return strings.TrimSpace(string(out))
 }
 
-func (h *checkHarness) goTest(t *testing.T, p, parallel, cover string, pkgs ...string) []string {
+func (h *checkHarness) goTest(t *testing.T, p, cover string, pkgs ...string) []string {
 	t.Helper()
 	profile := h.profile(t)
 	return []string{
 		"apps/backend: " + strings.Join(testDB{}.testEnv(), " ") +
-			" go test -tags faultpoints -short -count=1 -timeout 1m20s -p " + p + " -parallel " + parallel +
+			" go test -tags faultpoints -short -count=1 -timeout 1m20s -p " + p +
 			" -json -coverpkg=" + cover +
 			" -coverprofile=" + profile +
 			" " + strings.Join(pkgs, " "),
@@ -424,7 +424,6 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 	goTest := h.goTest(
 		t,
 		strconv.Itoa(testParallelism(runtime.NumCPU(), 1)),
-		strconv.Itoa(testParallelPerPackage(runtime.NumCPU(), 1, testParallelism(runtime.NumCPU(), 1))),
 		"./internal/x",
 		"./internal/x",
 		"./internal/t",
@@ -1463,20 +1462,6 @@ func TestCheck_aFlowsPackageChangeRunsTheSwiftAndReadyRows(t *testing.T) {
 	}
 }
 
-func TestTestParallelPerPackage_scalesWithBusySlotsAndPackages(t *testing.T) {
-	t.Parallel()
-	for _, c := range []struct{ cpus, busy, p, want int }{
-		{18, 1, 4, 4}, {18, 2, 4, 2}, {18, 3, 4, 2}, {18, 5, 3, 2}, {18, 9, 2, 2}, {64, 1, 4, 8}, {8, 0, 4, 8},
-	} {
-		if got := testParallelPerPackage(c.cpus, c.busy, c.p); got != c.want {
-			t.Errorf("testParallelPerPackage(%d, %d, %d) = %d, want %d", c.cpus, c.busy, c.p, got, c.want)
-		}
-	}
-	if p := testParallelism(18, 1); p != 4 || testParallelPerPackage(18, 1, p) != 4 {
-		t.Errorf("narrow closure: p = %d, parallel = %d, want 4 and 4", p, testParallelPerPackage(18, 1, p))
-	}
-}
-
 func TestCheck_eachBusySlotGetsItsOwnTestDatabaseAndAShareOfTheCPUs(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct{ cpus, busy, want int }{{18, 4, 4}, {18, 2, 4}, {18, 1, 4}, {8, 0, 4}, {6, 2, 3}, {2, 1, 2}, {1, 0, 2}} {
@@ -1504,8 +1489,7 @@ func TestCheck_eachBusySlotGetsItsOwnTestDatabaseAndAShareOfTheCPUs(t *testing.T
 	})
 	h.affected = "./internal/a\n"
 	p := strconv.Itoa(testParallelism(runtime.NumCPU(), 4))
-	par := strconv.Itoa(testParallelPerPackage(runtime.NumCPU(), 4, testParallelism(runtime.NumCPU(), 4)))
-	goTest := strings.Replace(h.goTest(t, p, par, "./internal/a", "./internal/a")[0], ":54323/", ":54326/", 1)
+	goTest := strings.Replace(h.goTest(t, p, "./internal/a", "./internal/a")[0], ":54323/", ":54326/", 1)
 	drop := ".: docker exec monaco-postgres-test-3 sh -c " + dropLeftoverClones
 	if code, _, stderr := h.check(t); code != 0 || !slices.Contains(h.calls, upTestDB(3)) ||
 		!slices.Contains(h.calls, drop) || !slices.Contains(h.calls, goTest) {
@@ -1525,7 +1509,7 @@ func TestCheck_eachBusySlotGetsItsOwnTestDatabaseAndAShareOfTheCPUs(t *testing.T
 
 	h.calls = nil
 	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a // again\n", compose: "ports: []\n"})
-	goTest = h.goTest(t, p, par, "./internal/a", "./internal/a")[0]
+	goTest = h.goTest(t, p, "./internal/a", "./internal/a")[0]
 	if code, _, stderr := h.check(t); code != 0 || !slices.Contains(h.calls, upTestDB(0)) ||
 		!slices.Contains(h.calls, dropDeadClones) || !slices.Contains(h.calls, goTest) {
 		t.Fatalf(
@@ -1838,12 +1822,7 @@ func TestCheck_aChangedDiffAfterTheRestackRunsStage0InFull(t *testing.T) {
 	}
 }
 
-func rerunPrefix() string {
-	parallel := testParallelPerPackage(runtime.NumCPU(), 1, testParallelism(runtime.NumCPU(), 1))
-	return "go test -tags faultpoints -short -count=1 -timeout 20s -p 1 -parallel " + strconv.Itoa(
-		parallel,
-	) + " -json ./internal/slow"
-}
+const rerunPrefix = "go test -tags faultpoints -short -count=1 -timeout 20s -p 1 -json ./internal/slow"
 
 func slowPackageEvents(took time.Duration) string {
 	return strings.Join([]string{
@@ -1863,7 +1842,7 @@ func TestCheck_aPackageOverBudgetPassesWhenRerunAlone(t *testing.T) {
 	tree := h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
 	h.affected = "./internal/fast\n./internal/slow\n"
 	h.replies = []reply{
-		{prefix: rerunPrefix(), took: 5 * time.Second, out: rerunEvents(5 * time.Second)},
+		{prefix: rerunPrefix, took: 5 * time.Second, out: rerunEvents(5 * time.Second)},
 		{prefix: "go test", took: 26 * time.Second, out: slowPackageEvents(25 * time.Second)},
 	}
 	code, stdout, stderr := h.check(t)
@@ -1876,7 +1855,7 @@ func TestCheck_aPackageOverBudgetPassesWhenRerunAlone(t *testing.T) {
 	}
 	rerun := slices.IndexFunc(
 		h.calls,
-		func(c string) bool { return strings.Contains(c, " "+rerunPrefix()) },
+		func(c string) bool { return strings.Contains(c, " "+rerunPrefix) },
 	)
 	if rerun < 0 || strings.Contains(h.calls[rerun], "-cover") {
 		t.Fatalf("rerun without coverage flags: %v", h.calls)
@@ -1892,7 +1871,7 @@ func TestCheck_aPackageStillOverBudgetWhenRerunAloneFailsNamingTheRerun(t *testi
 	tree := h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
 	h.affected = "./internal/fast\n./internal/slow\n"
 	h.replies = []reply{
-		{prefix: rerunPrefix(), took: 25 * time.Second, out: slowPackageEvents(25 * time.Second)},
+		{prefix: rerunPrefix, took: 25 * time.Second, out: slowPackageEvents(25 * time.Second)},
 		{prefix: "go test", took: 27 * time.Second, out: slowPackageEvents(27 * time.Second)},
 	}
 	code, stdout, stderr := h.check(t)
@@ -1932,7 +1911,7 @@ func TestCheck_theScaledBudgetIsCappedAtFourTimesTheBase(t *testing.T) {
 	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
 	h.loaded(150)
 	h.replies = []reply{
-		{prefix: rerunPrefix(), took: 10 * time.Second, out: rerunEvents(10 * time.Second)},
+		{prefix: rerunPrefix, took: 10 * time.Second, out: rerunEvents(10 * time.Second)},
 		{prefix: "go test", took: 81 * time.Second, out: slowPackageEvents(81 * time.Second)},
 	}
 	code, stdout, stderr := h.check(t)
@@ -2023,7 +2002,7 @@ func TestCheck_aPackageSlowAloneAndPassingUnderLoadPastTheCapIsAdvisory(t *testi
 	tree := h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
 	h.loaded(150)
 	h.replies = []reply{
-		{prefix: rerunPrefix(), took: 25 * time.Second, out: slowPackageEvents(25 * time.Second)},
+		{prefix: rerunPrefix, took: 25 * time.Second, out: slowPackageEvents(25 * time.Second)},
 		{prefix: "go test", took: 81 * time.Second, out: slowPackageEvents(81 * time.Second)},
 	}
 	code, stdout, stderr := h.check(t)
@@ -2115,7 +2094,7 @@ func TestCheck_aPackageSlowAloneStillFailsUnderLoadNamingBothBudgets(t *testing.
 	tree := h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
 	h.loaded(16)
 	h.replies = []reply{
-		{prefix: rerunPrefix(), took: 25 * time.Second, out: slowPackageEvents(25 * time.Second)},
+		{prefix: rerunPrefix, took: 25 * time.Second, out: slowPackageEvents(25 * time.Second)},
 		{prefix: "go test", took: 46 * time.Second, out: slowPackageEvents(45 * time.Second)},
 	}
 	code, stdout, stderr := h.check(t)
@@ -2136,7 +2115,7 @@ func TestCheck_ciKeepsTheBaseBudgetWhateverTheLoad(t *testing.T) {
 	h.loaded(150)
 	h.actions = true
 	h.replies = []reply{
-		{prefix: rerunPrefix(), took: 25 * time.Second, out: slowPackageEvents(25 * time.Second)},
+		{prefix: rerunPrefix, took: 25 * time.Second, out: slowPackageEvents(25 * time.Second)},
 		{prefix: "go test", took: 31 * time.Second, out: slowPackageEvents(30 * time.Second)},
 	}
 	code, _, stderr := h.check(t)
@@ -2251,7 +2230,7 @@ func TestCheck_aPackageThatFailsWhenRerunAloneFailsTheRow(t *testing.T) {
 	h.affected = "./internal/fast\n./internal/slow\n"
 	h.replies = []reply{
 		{
-			prefix: rerunPrefix(),
+			prefix: rerunPrefix,
 			took:   2 * time.Second,
 			err:    errors.New("exit status 1"),
 			out:    rerunEvents(2 * time.Second),
@@ -2280,9 +2259,7 @@ func TestCheck_aFlowChangeRunsTheFlowsRowForTheAffectedFlowsOnly(t *testing.T) {
 	want := []string{
 		"apps/backend: flows --affected --base " + h.mergeBase(t, "origin/fb"),
 		"apps/backend: " + strings.Join(testDB{}.testEnv(), " ") +
-			" bash -c go test -tags faultpoints -p " + strconv.Itoa(testParallelism(runtime.NumCPU(), 1)) +
-			" -parallel " + strconv.Itoa(testParallelPerPackage(runtime.NumCPU(), 1, testParallelism(runtime.NumCPU(), 1))) +
-			" -json -run \"$1\" \"${@:3}\" > \"$2\" || true flows " +
+			" bash -c go test -tags faultpoints -json -run \"$1\" \"${@:3}\" > \"$2\" || true flows " +
 			"^TestFlow(00)_ " + results + " ./internal/modules/system/... ./internal/modules/identity/...",
 		"apps/backend: flows check --affected --base " + h.mergeBase(t, "origin/fb") + " --from " + results,
 		"apps/backend: mobile-core-test.sh --filter (F|Flow)(00)[^a-z0-9]",
@@ -2392,8 +2369,7 @@ func TestCheck_coverpkgInstrumentsOnlyChangedPackages(t *testing.T) {
 	if code, stdout, stderr := h.check(t); code != 0 {
 		t.Fatalf("check: %d %q %q", code, stdout, stderr)
 	}
-	want := h.goTest(t, strconv.Itoa(testParallelism(runtime.NumCPU(), 1)),
-		strconv.Itoa(testParallelPerPackage(runtime.NumCPU(), 1, testParallelism(runtime.NumCPU(), 1))), "./internal/a",
+	want := h.goTest(t, strconv.Itoa(testParallelism(runtime.NumCPU(), 1)), "./internal/a",
 		"./internal/a", "./internal/b", "./internal/c", "./internal/d")[0]
 	if !slices.Contains(h.calls, want) {
 		t.Fatalf("calls: %s\nwant %s", strings.Join(h.calls, "\n"), want)
