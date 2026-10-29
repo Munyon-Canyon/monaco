@@ -8,6 +8,10 @@ struct CommentThreadView: View {
     @Environment(\.sectionScrollProxy) private var scroll
     @State private var deleting: CommentThreadRow?
     @State private var reporting: ReportTarget?
+    @State private var actions: CommentActionsTarget?
+    @State private var picking: CommentThreadRow?
+    @State private var afterDismiss: (() -> Void)?
+    @Environment(ToastCenter.self) private var toasts
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -23,6 +27,13 @@ struct CommentThreadView: View {
         .accessibilityIdentifier("comment-thread")
         .commentNotices(model)
         .reportSheet($reporting)
+        .fullScreenCover(item: $actions, onDismiss: runAfterDismiss) { target in
+            actionsOverlay(target)
+                .presentationBackground(.clear)
+        }
+        .sheet(item: $picking) { row in
+            EmojiPickerSheet(onPick: { emoji in Task { await model.react(emoji, to: row) } })
+        }
         .onReceive(NotificationCenter.default.publisher(for: .monacoBlocksChanged)) { _ in
             Task { await model.refresh() }
         }
@@ -94,11 +105,56 @@ extension CommentThreadView {
             onToggleReaction: { emoji in Task { await model.react(emoji, to: row) } },
             onDoubleTap: { Task { await model.doubleTap(row) } },
             onJump: { model.jump(to: $0) },
-            onDelete: row.comment.isMine && !row.isDeleted ? { deleting = row } : nil,
-            onReport: !row.comment.isMine && !row.isDeleted && !row.isSystem
-                ? { reporting = ReportTarget(kind: .comment, targetID: row.id) } : nil
+            onDelete: deleteAction(row),
+            onReport: reportAction(row),
+            onLongPress: { frame in present(CommentActionsTarget(row: row, frame: frame)) }
         )
         .id(row.id)
+    }
+
+    fileprivate func reportAction(_ row: CommentThreadRow) -> (() -> Void)? {
+        guard !row.comment.isMine && !row.isDeleted && !row.isSystem else { return nil }
+        return { reporting = ReportTarget(kind: .comment, targetID: row.id) }
+    }
+
+    fileprivate func deleteAction(_ row: CommentThreadRow) -> (() -> Void)? {
+        guard row.comment.isMine && !row.isDeleted else { return nil }
+        return { deleting = row }
+    }
+
+    fileprivate func present(_ target: CommentActionsTarget) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { actions = target }
+    }
+
+    fileprivate func dismissActions() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { actions = nil }
+    }
+
+    fileprivate func runAfterDismiss() {
+        let work = afterDismiss
+        afterDismiss = nil
+        work?()
+    }
+
+    fileprivate func actionsOverlay(_ target: CommentActionsTarget) -> some View {
+        let row = target.row
+        return CommentActionsOverlay(
+            row: row, frame: target.frame, reactions: model.reactions(for: row),
+            onReact: { emoji in afterDismiss = { Task { await model.react(emoji, to: row) } } },
+            onOpenPicker: { afterDismiss = { picking = row } },
+            onReply: { afterDismiss = { model.presentReplySheet(.comment(row)) } },
+            onCopy: {
+                UIPasteboard.general.string = row.text
+                afterDismiss = { toasts.show(success: "Copied") }
+            },
+            onReport: reportAction(row).map { work in { afterDismiss = work } },
+            onDelete: deleteAction(row).map { work in { afterDismiss = work } },
+            onDismiss: { dismissActions() }
+        )
     }
 
     fileprivate func scrollToRequest() async {
