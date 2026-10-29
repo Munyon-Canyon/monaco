@@ -32,11 +32,11 @@ struct MarketsPreIpoRow: View {
                 Text(name)
                     .font(MonacoTheme.Typo.rowTitle)
                     .foregroundStyle(MonacoTheme.primaryText)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(estimateLine)
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.secondaryText)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
             } trailing: {
                 VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
                     if let estimate = asset.estimate {
@@ -47,7 +47,7 @@ struct MarketsPreIpoRow: View {
                     Text(PreIpoRowCopy.eligibility(tradable: asset.isTradable))
                         .font(MonacoTheme.Typo.caption)
                         .foregroundStyle(asset.isTradable ? MonacoTheme.profit : MonacoTheme.secondaryText)
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
@@ -65,11 +65,27 @@ struct MarketsRowFrame<Leading: View, Labels: View, Trailing: View>: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
-            leading
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) { labels }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            trailing
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                    HStack(spacing: MonacoTheme.Space.sm) {
+                        leading
+                        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) { labels }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    HStack(spacing: MonacoTheme.Space.sm) { trailing }
+                        .fixedSize()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.vertical, MonacoTheme.Space.s)
+            } else {
+                HStack(spacing: MonacoTheme.Space.sm) {
+                    leading
+                    VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) { labels }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    trailing
+                }
+            }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .frame(minHeight: MarketsRowMetrics.height)

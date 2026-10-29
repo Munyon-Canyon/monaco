@@ -69,11 +69,11 @@ private struct MarketsHeldRow: View {
                 Text(row.title)
                     .font(MonacoTheme.Typo.rowTitle)
                     .foregroundStyle(MonacoTheme.primaryText)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(row.subtitle)
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.secondaryText)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
             } trailing: {
                 VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
                     Text(row.valueText).moneyFigure(.row).foregroundStyle(MonacoTheme.ink)

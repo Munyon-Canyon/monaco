@@ -55,7 +55,7 @@ struct AssetInYourCabals: View {
     }
 
     private func proposalRow(_ row: AssetOpenProposalRowFacts, isLast: Bool) -> some View {
-        MonacoRow(title: row.title, subtitle: row.subtitle, isLast: isLast) {
+        MonacoRow(title: row.title, subtitle: row.subtitle, subtitleLineLimit: 3, isLast: isLast) {
             cover(id: row.cabalID, name: row.cabalName, pictureURL: row.pictureURL)
         } trailing: {
             Text(row.trailing).moneyFigure(.caption).foregroundStyle(MonacoTheme.secondaryText)

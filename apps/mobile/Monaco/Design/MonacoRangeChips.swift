@@ -54,6 +54,8 @@ extension View {
 enum MonacoPlainLabelMetrics {
     static let scrollSpacing: CGFloat = 16
     static let equalWidthFloor = DynamicTypeSize.xxLarge
+
+    static func scrollsAlways(_ size: DynamicTypeSize) -> Bool { size.isAccessibilitySize }
 }
 
 struct MonacoPlainLabelRow<Item: Hashable>: View {
@@ -74,7 +76,9 @@ struct MonacoPlainLabelRow<Item: Hashable>: View {
     private var hitOutset: CGFloat { equalWidth ? 0 : spacing / 2 }
 
     var body: some View {
-        if alwaysFits || dynamicTypeSize >= MonacoPlainLabelMetrics.equalWidthFloor {
+        if MonacoPlainLabelMetrics.scrollsAlways(dynamicTypeSize) {
+            scroller
+        } else if alwaysFits || dynamicTypeSize >= MonacoPlainLabelMetrics.equalWidthFloor {
             ViewThatFits(in: .horizontal) {
                 stack
                 scroller
