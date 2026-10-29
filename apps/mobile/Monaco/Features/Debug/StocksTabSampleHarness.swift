@@ -89,6 +89,7 @@ enum MoversSample {
         let slope: Int64 = changeBps < 0 ? -1 : 1
         let wobble: [Int64] = [0, 3, 1, 4, 2, 5, 4, 7, 6, 9, 8, 11]
         return Components.Schemas.AssetSummary(
+            id: "01890a5d-ac96-774b-bcce-b302099a8070",
             symbol: symbol, displayName: name, issuer: .xstocks, kind: .equity, logoUrl: nil,
             priceMicros: priceMicros, priceAsOf: Date(), changeBps: changeBps,
             sparklineMicros: wobble.map { priceMicros - slope * (11 - $0) * step }, quotable: true,

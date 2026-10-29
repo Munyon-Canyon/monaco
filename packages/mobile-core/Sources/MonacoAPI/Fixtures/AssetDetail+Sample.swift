@@ -2,6 +2,7 @@ import Foundation
 
 extension Components.Schemas.AssetDetail {
     public static let googl = Self(
+        id: "01890a5d-ac96-774b-bcce-b302099a8114",
         symbol: "GOOGLx",
         displayName: "Alphabet xStock",
         issuer: .xstocks,
@@ -23,6 +24,7 @@ extension Components.Schemas.AssetDetail {
     )
 
     public static let nvda = Self(
+        id: "01890a5d-ac96-774b-bcce-b302099a8115",
         symbol: "NVDAx",
         displayName: "NVIDIA xStock",
         issuer: .xstocks,
@@ -52,6 +54,7 @@ extension Components.Schemas.AssetDetail {
     )
 
     public static let nvdaDashes = Self(
+        id: "01890a5d-ac96-774b-bcce-b302099a8116",
         symbol: "NVDAx",
         displayName: "NVIDIA xStock",
         issuer: .xstocks,
@@ -80,6 +83,7 @@ extension Components.Schemas.AssetDetail {
     )
 
     public static let paused = Self(
+        id: "01890a5d-ac96-774b-bcce-b302099a8117",
         symbol: "SBUXx",
         displayName: "Starbucks xStock",
         issuer: .xstocks,
@@ -101,6 +105,7 @@ extension Components.Schemas.AssetDetail {
     )
 
     public static let spaceX = Self(
+        id: "01890a5d-ac96-774b-bcce-b302099a8118",
         symbol: "tSpaceX",
         displayName: "T-SpaceX",
         issuer: .tessera,

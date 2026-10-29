@@ -8736,7 +8736,8 @@ components:
       type: object
       description: One asset, the list fields plus the chain facts and the other listings.
       examples:
-        - symbol: AAPLx
+        - id: 01890a5d-ac96-774b-bcce-b302099a8070
+          symbol: AAPLx
           display_name: Apple
           issuer: xstocks
           kind: equity
@@ -8771,6 +8772,7 @@ components:
             year_high_micros: 224900000
             held_by_cabals: 3
       required:
+        - id
         - symbol
         - display_name
         - issuer
@@ -8793,6 +8795,11 @@ components:
         - price_poll_interval_seconds
         - stats
       properties:
+        id:
+          type: string
+          format: uuid
+          description: The asset's id, as `StockAttachmentInput.asset_id` takes it.
+          examples: [01890a5d-ac96-774b-bcce-b302099a8070]
         symbol:
           type: string
           description: The ticker the app shows and the path key for the asset.
@@ -8989,7 +8996,8 @@ components:
       description: One page of the tradable catalog.
       examples:
         - assets:
-            - symbol: AAPLx
+            - id: 01890a5d-ac96-774b-bcce-b302099a8070
+              symbol: AAPLx
               display_name: Apple
               issuer: xstocks
               kind: equity
@@ -9061,7 +9069,8 @@ components:
       type: object
       description: One tradable asset as the list draws it, with the price already chosen.
       examples:
-        - symbol: AAPLx
+        - id: 01890a5d-ac96-774b-bcce-b302099a8070
+          symbol: AAPLx
           display_name: Apple
           issuer: xstocks
           kind: equity
@@ -9082,6 +9091,7 @@ components:
             next_transition: "2026-03-04T21:00:00Z"
           tradable: true
       required:
+        - id
         - symbol
         - display_name
         - issuer
@@ -9096,6 +9106,11 @@ components:
         - session
         - quotable
       properties:
+        id:
+          type: string
+          format: uuid
+          description: The asset's id, as `StockAttachmentInput.asset_id` takes it.
+          examples: [01890a5d-ac96-774b-bcce-b302099a8070]
         symbol:
           type: string
           description: The ticker the app shows and the path key for the asset.

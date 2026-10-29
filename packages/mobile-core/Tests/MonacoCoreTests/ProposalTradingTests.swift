@@ -138,7 +138,7 @@ final class ProposalTradingTests: XCTestCase {
                 .replacingOccurrences(of: "AAPLx", with: symbol)
         }
         let asset =
-            #"{"symbol":"AAPLx","display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":null,"#
+            #"{"id":"01890a5d-ac96-774b-bcce-b302099a8070","symbol":"AAPLx","display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":null,"#
             + #""price_micros":null,"price_as_of":null,"change_bps":null,"sparkline_micros":null,"quotable":true,"#
             + #""session":{"state":"open","continuous":false,"holiday":"","early_close":false,"#
             + #""next_state":null,"next_transition":null},"decimals":8,"ui_multiplier":{"num":1,"den":1},"#
