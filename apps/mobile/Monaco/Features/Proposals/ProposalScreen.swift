@@ -41,7 +41,7 @@ struct ProposalScreen: View {
                     }
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if let comments { CommentComposerBar(model: comments) }
+                    if let comments { CommentComposerBar(model: comments, thesis: model.value?.summary.thesis) }
                 }
                 .task {
                     let model = preparedComments()

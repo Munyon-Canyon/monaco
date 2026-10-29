@@ -33,7 +33,34 @@ nonisolated final class ComposerMenuSampleUITests: XCTestCase {
         plus.tap()
         XCTAssertTrue(element(app, "composer-menu-poll").waitForExistence(timeout: 10), "no Poll row")
         XCTAssertTrue(element(app, "composer-menu-thesis").exists, "no thesis row")
-        XCTAssertTrue(element(app, "composer-menu-stock").exists, "no stock row")
+    }
+
+    @MainActor
+    func testTheThesisRowIsAbsentOnASale() {
+        let app = launch("menuSale")
+        let plus = app.buttons["comment-composer-plus"]
+        XCTAssertTrue(plus.waitForExistence(timeout: 15), "no plus")
+        plus.tap()
+        XCTAssertTrue(element(app, "composer-menu-poll").waitForExistence(timeout: 10), "no Poll row")
+        XCTAssertFalse(element(app, "composer-menu-thesis").exists, "the thesis row shows on a sale")
+    }
+
+    @MainActor
+    func testQuotingTheThesisShowsThePreview() {
+        let app = launch("menu")
+        let plus = app.buttons["comment-composer-plus"]
+        XCTAssertTrue(plus.waitForExistence(timeout: 15), "no plus")
+        plus.tap()
+        element(app, "composer-menu-thesis").tap()
+        XCTAssertTrue(app.buttons["thesis-quote-all"].waitForExistence(timeout: 10), "no sheet")
+        app.buttons["thesis-quote-all"].tap()
+        XCTAssertTrue(element(app, "composer-attachment-preview").waitForExistence(timeout: 10), "no preview")
+    }
+
+    @MainActor
+    func testAThesisQuoteReplyRendersItsBubble() {
+        let app = launch("thesisBubble")
+        XCTAssertTrue(element(app, "attachment-thesis-c1").waitForExistence(timeout: 15), "no thesis bubble")
     }
 
     @MainActor

@@ -73,7 +73,9 @@ private struct FeedItemDetailContent: View {
             .refreshable { await model.refresh() }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if phase != .unavailable, phase != .failed {
-                    CommentComposerBar(model: model.comments)
+                    CommentComposerBar(
+                        model: model.comments,
+                        thesis: model.item?.kind == "proposal" ? model.item?.body : nil)
                 }
             }
             .onChange(of: model.comments.lastPostedID) { _, id in

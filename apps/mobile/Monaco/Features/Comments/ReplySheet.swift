@@ -6,6 +6,7 @@ struct ReplySheet: View {
     let target: ReplyTarget
     var owner: String?
     var menuItems: [ComposerMenuItem] = []
+    var thesis: String?
 
     @FocusState private var focused: Bool
     @State private var picksGif = false
@@ -18,7 +19,7 @@ struct ReplySheet: View {
             ComposerNotices(model: model)
             ComposerAttachmentSlot(model: model)
             HStack(alignment: .bottom, spacing: MonacoTheme.Space.s) {
-                ComposerMenu(items: menuItems, target: target)
+                ComposerMenu(items: menuItems, target: target, thesis: thesis, model: model)
                 ComposerField(
                     model: model, focused: $focused,
                     onGif: {

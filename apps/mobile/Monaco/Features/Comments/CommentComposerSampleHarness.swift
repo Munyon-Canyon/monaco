@@ -22,12 +22,15 @@ enum CommentComposerScenario: String {
     case failed
     case menu
     case draft
+    case menuSale
+    case thesisSheet
+    case thesisBubble
 
     var previewMode: FeedItemDetailModel.PreviewMode {
         switch self {
         case .sending: .sending
         case .failed: .failed
-        case .docked, .sheetComment, .sheetPost, .menu, .draft: .ready
+        case .docked, .sheetComment, .sheetPost, .menu, .draft, .menuSale, .thesisSheet, .thesisBubble: .ready
         }
     }
 }
@@ -45,12 +48,36 @@ private struct CommentComposerHarnessScreen: View {
         _detail = State(initialValue: .preview(scenario.previewMode, clock: ContinuousClock()))
     }
 
+    private static let thesis = "Small add to the position. Earnings next week; I want more before. 👍🏽"
+
+    private var thesisText: String? {
+        switch scenario {
+        case .menu, .draft, .thesisSheet, .thesisBubble: Self.thesis
+        default: nil
+        }
+    }
+
+    @ViewBuilder private var stage: some View {
+        if scenario == .thesisBubble {
+            AttachmentBubble(
+                commentID: "c1",
+                attachment: .thesisQuote(
+                    .init(kind: .thesisQuote, proposalId: "p1", text: Self.thesis, proposerName: "Mia"))
+            )
+            .padding(MonacoTheme.Space.gutter)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        } else if scenario == .thesisSheet {
+            ThesisQuoteSheet(thesis: Self.thesis) { detail.comments.pick($0, toasts: toasts) }
+        } else {
+            Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
     var body: some View {
-        Color.clear
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        stage
             .monacoCanvas()
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                CommentComposerBar(model: detail.comments, menuItems: menuItems)
+                CommentComposerBar(model: detail.comments, menuItems: menuItems, thesis: thesisText)
             }
             .environment(toasts)
             .monacoToastCenter(toasts)
@@ -58,19 +85,13 @@ private struct CommentComposerHarnessScreen: View {
     }
 
     private var menuItems: [ComposerMenuItem] {
-        guard scenario == .menu || scenario == .draft else { return [] }
+        guard scenario == .menu || scenario == .draft || scenario == .menuSale else { return [] }
         let model = detail.comments
         let toasts = toasts
         return [
             ComposerMenuItem(
                 id: "poll", title: "Poll", icon: .pollCheck, isAvailable: { _ in true },
-                action: { model.pick(.sample(title: "Sample poll"), toasts: toasts) }),
-            ComposerMenuItem(
-                id: "thesis", title: "Quote the thesis", icon: .thesis, isAvailable: { _ in true },
-                action: { model.pick(.sample(title: "Sample quote"), toasts: toasts) }),
-            ComposerMenuItem(
-                id: "stock", title: "Share a stock", icon: .markets, isAvailable: { _ in true },
-                action: { model.pick(.sample(title: "Sample stock"), toasts: toasts) }),
+                action: { model.pick(.thesis(start: 0, end: 5), toasts: toasts) })
         ]
     }
 
@@ -78,10 +99,10 @@ private struct CommentComposerHarnessScreen: View {
         let model = detail.comments
         await model.load()
         switch scenario {
-        case .docked, .menu:
+        case .docked, .menu, .menuSale, .thesisSheet, .thesisBubble:
             break
         case .draft:
-            _ = model.pick(.sample(title: "Sample poll"))
+            _ = model.pick(.thesis(start: 0, end: 5))
         case .sheetComment:
             if let row = model.rows.first { model.presentReplySheet(.comment(row)) }
         case .sheetPost:

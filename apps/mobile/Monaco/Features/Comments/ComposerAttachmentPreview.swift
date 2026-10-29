@@ -32,10 +32,15 @@ struct ComposerAttachmentPreview: View {
 
     @ViewBuilder private var content: some View {
         switch draft {
-        case .sample(let title):
-            Text(title)
-                .font(MonacoTheme.Typo.subhead)
-                .foregroundStyle(MonacoTheme.primaryText)
+        case .thesis:
+            HStack(spacing: MonacoTheme.Space.s) {
+                Image(monaco: .thesis)
+                    .font(MonacoTheme.Typo.subhead)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                Text("Quoting the thesis")
+                    .font(MonacoTheme.Typo.subhead)
+                    .foregroundStyle(MonacoTheme.primaryText)
+            }
         }
     }
 }

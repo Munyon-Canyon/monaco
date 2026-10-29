@@ -8,6 +8,7 @@ struct AttachmentBubble: View {
     var body: some View {
         switch attachment {
         case .gif(let gif): GifBubble(commentID: commentID, attachment: gif)
+        case .thesisQuote(let quote): ThesisQuoteBubble(commentID: commentID, attachment: quote)
         default: EmptyView()
         }
     }
