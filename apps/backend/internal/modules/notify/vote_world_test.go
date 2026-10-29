@@ -109,7 +109,7 @@ func (w voteWorld) deciding() app.VoteDeciding {
 }
 
 func (w voteWorld) reminders() *app.RemindVoters {
-	return app.NewRemindVoters(app.NewPusher(w.r.uow, w.r.users, w.r.sender, w.r.ids, w.r.clock), w.ports)
+	return app.NewRemindVoters(app.NewPusher(w.r.uow, w.r.users, w.r.sender, w.r.ids, w.r.clock), w.ports, 0)
 }
 
 func (w voteWorld) pushTo(user ids.UserID, proposal uuid.UUID, title, body, category string) apns.Push {

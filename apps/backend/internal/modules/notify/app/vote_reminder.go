@@ -20,7 +20,7 @@ import (
 const (
 	voteReminderInterval = time.Minute
 	voteReminderBatch    = 50
-	voteReminderGrace    = 2 * voteReminderInterval
+	voteReminderGrace    = 2 * time.Minute
 	voteReminderPoller   = "notify.vote_reminders"
 	voteReminderCursor   = "vote_reminders"
 	opVoteReminder       = "notify.VoteReminder"
@@ -103,15 +103,21 @@ func (voteReminder) Name() string { return "vote_reminder" }
 type RemindVoters struct {
 	pusher *Pusher
 	ports  VotePorts
+	every  time.Duration
 }
 
-func NewRemindVoters(p *Pusher, ports VotePorts) *RemindVoters {
-	return &RemindVoters{pusher: p, ports: ports}
+func NewRemindVoters(p *Pusher, ports VotePorts, every time.Duration) *RemindVoters {
+	return &RemindVoters{pusher: p, ports: ports, every: every}
 }
 
 func (*RemindVoters) Name() string { return voteReminderPoller }
 
-func (*RemindVoters) Interval() time.Duration { return voteReminderInterval }
+func (p *RemindVoters) Interval() time.Duration {
+	if p.every > 0 {
+		return p.every
+	}
+	return voteReminderInterval
+}
 
 func (p *RemindVoters) Tick(ctx context.Context) (poller.Report, error) {
 	now := p.pusher.clock.Now()

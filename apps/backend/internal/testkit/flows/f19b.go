@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
@@ -28,6 +29,7 @@ type boardPerson struct {
 type boardFixture struct {
 	people map[string]uuid.UUID
 	closed time.Time
+	events int
 }
 
 func boardPeople() []boardPerson {
@@ -89,6 +91,7 @@ func seedCallBoard(s *scenario.Scenario, now time.Time) boardFixture {
 		opened := fx.closed.Add(time.Duration(i) * time.Minute)
 		return opened, opened.Add(25 * time.Hour)
 	})
+	fx.events = fx.startTheDay(s)
 	return fx
 }
 
@@ -97,32 +100,50 @@ func (fx boardFixture) seedCalls(
 ) {
 	s.Helper()
 	g := ids.Real{}
+	var batch pgx.Batch
 	for i := range n {
 		proposal := g.NewV7()
 		opened, resolved := when(i)
-		exec := func(query string, args ...any) {
-			if _, err := s.DB().Exec(s.Context(), query, args...); err != nil {
-				s.Fatalf("flows: seed the call board fixture: %v", err)
-			}
-		}
-		exec(`INSERT INTO calls (proposal_id, cabal_id, kind, symbol, opened_at, decided_at, outcome,
+		batch.Queue(`INSERT INTO calls (proposal_id, cabal_id, kind, symbol, opened_at, decided_at, outcome,
 			market_ref_micros, ref_price_micros, ref_source, resolve_at, resolved_at, end_price_micros, move_bps, state,
 			updated_at)
 			VALUES ($1, $2, 'buy', 'TSLAx', $3, $3, 'passed', 100000000, 100000000, 'market', $4, $4, 110000000, 1000,
 			'resolved', $4)`, proposal, cabal, opened, resolved)
-		exec(`INSERT INTO cabal_calls (proposal_id, cabal_id, side, is_right) VALUES ($1, $2, 'yes', true)`,
+		batch.Queue(`INSERT INTO cabal_calls (proposal_id, cabal_id, side, is_right) VALUES ($1, $2, 'yes', true)`,
 			proposal, cabal)
 		for _, p := range people {
 			if i < p.resolved {
-				exec(`INSERT INTO call_voters (proposal_id, user_id, cabal_id, choice, choice_at, is_right)
+				batch.Queue(`INSERT INTO call_voters (proposal_id, user_id, cabal_id, choice, choice_at, is_right)
 					VALUES ($1, $2, $3, 'yes', $4, $5)`, proposal, fx.people[p.name], cabal, opened, i < p.right)
 			}
 		}
 	}
+	results := s.DB().SendBatch(s.Context(), &batch)
+	defer func() { _ = results.Close() }()
+	for range batch.Len() {
+		if _, err := results.Exec(); err != nil {
+			s.Fatalf("flows: seed the call board fixture: %v", err)
+		}
+	}
+}
+
+func (fx boardFixture) startTheDay(s *scenario.Scenario) int {
+	s.Helper()
+	var written int
+	if err := s.DB().QueryRow(s.Context(), `SELECT count(*) FROM events WHERE type = $1`,
+		string(events.TypeRankingCallBoardWritten)).Scan(&written); err != nil {
+		s.Fatalf("flows: count ranking.call_board_written events: %v", err)
+	}
+	if _, err := s.DB().Exec(s.Context(), `WITH runs AS (DELETE FROM call_board_runs),
+		triggers AS (DELETE FROM call_board_triggers)
+		DELETE FROM call_board_baselines WHERE day = (now() AT TIME ZONE 'UTC')::date`); err != nil {
+		s.Fatalf("flows: start the board's day over: %v", err)
+	}
+	return written
 }
 
 func (fx boardFixture) awaitBoard() []scenario.Step {
-	return []scenario.Step{fx.awaitRanks(), fx.awaitBaselines(), fx.awaitClosedMonth(), awaitBoardEvent()}
+	return []scenario.Step{fx.awaitRanks(), fx.awaitBaselines(), fx.awaitClosedMonth(), fx.awaitBoardEvent()}
 }
 
 func (fx boardFixture) awaitRanks() scenario.Step {
@@ -187,13 +208,14 @@ func (fx boardFixture) awaitClosedMonth() scenario.Step {
 	})
 }
 
-func awaitBoardEvent() scenario.Step {
+func (fx boardFixture) awaitBoardEvent() scenario.Step {
 	return scenario.Eventually("one ranking.call_board_written event", func(s *scenario.Scenario) bool {
 		var got int
 		if err := s.DB().QueryRow(s.Context(), `SELECT count(*) FROM events WHERE type = $1`,
 			string(events.TypeRankingCallBoardWritten)).Scan(&got); err != nil {
 			s.Fatalf("flows: count ranking.call_board_written events: %v", err)
 		}
+		got -= fx.events
 		if got > 1 {
 			s.Fatalf("flows: %d ranking.call_board_written events, want 1", got)
 		}

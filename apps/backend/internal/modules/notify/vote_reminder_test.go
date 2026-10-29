@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/notify/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/apns"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
@@ -264,4 +265,14 @@ func cursorOf(t *testing.T, r *pushRig) cursor {
 		t.Fatal(err)
 	}
 	return c
+}
+
+func TestRemindVoters_theConfiguredIntervalReplacesTheMinute(t *testing.T) {
+	t.Parallel()
+	if got := app.NewRemindVoters(nil, app.VotePorts{}, 3*time.Second).Interval(); got != 3*time.Second {
+		t.Fatalf("Interval() = %v, want the configured 3s", got)
+	}
+	if got := app.NewRemindVoters(nil, app.VotePorts{}, 0).Interval(); got != time.Minute {
+		t.Fatalf("Interval() = %v, want the default minute", got)
+	}
 }

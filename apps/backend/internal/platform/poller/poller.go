@@ -263,6 +263,10 @@ func flow(poller string) string {
 		return "19"
 	case "ranking.calls_resolver":
 		return "19a"
+	case "ranking.call_board":
+		return "19b"
+	case "notify.vote_reminders":
+		return "33"
 	default:
 		return ""
 	}
