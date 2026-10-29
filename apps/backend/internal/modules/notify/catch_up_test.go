@@ -765,7 +765,7 @@ func handleReplyWith(t *testing.T, r *pushRig, hints app.Hints, d bus.Delivery, 
 	ctx := observability.WithLogger(observability.WithActor(t.Context(), "system:"+d.Handler),
 		observability.NewLogger(config.Config{Env: config.EnvTest}, r.logs))
 	return app.Notify[events.CommentCreated]{Pusher: pusher, Kinds: []app.Kind[events.CommentCreated]{
-		app.CommentReply{Users: r.users},
+		app.CommentReply{Users: r.users, Cabals: cabalsOf(e), Blocks: blocks{}},
 	}}.Handle(ctx, d, e)
 }
 

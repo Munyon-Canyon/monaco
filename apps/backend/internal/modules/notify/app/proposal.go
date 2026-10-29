@@ -1,7 +1,6 @@
 package app
 
 import (
-	"cmp"
 	"context"
 	"slices"
 
@@ -93,18 +92,6 @@ func (k ProposalCreated) category(ctx context.Context, proposal uuid.UUID, to id
 		return voteCategory, nil
 	}
 	return "", nil
-}
-
-func proposerName(ctx context.Context, users Users, id ids.UserID) (string, error) {
-	cards, err := users.UsersByID(ctx, []ids.UserID{id})
-	if err != nil {
-		return "", err
-	}
-	card := cards[id]
-	if card.Deleted {
-		return unnamedProposer, nil
-	}
-	return cmp.Or(card.DisplayName, unnamedProposer), nil
 }
 
 func proposalMessage(kind string, cabalID, proposalID uuid.UUID, title, body string, pres Presentation) Message {

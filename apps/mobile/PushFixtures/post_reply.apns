@@ -1,0 +1,27 @@
+{
+  "Simulator Target Bundle": "xyz.monacolabs.app",
+  "aps": {
+    "alert": {
+      "title": "Sam replied to you",
+      "body": "“He called the top again.” On Logan's AAPL sale."
+    },
+    "thread-id": "user-01920000-0000-7000-8000-000000000b04",
+    "mutable-content": 1,
+    "interruption-level": "active",
+    "sound": "default"
+  },
+  "feed_item_id": "01920000-0000-7000-8000-000000000e01",
+  "comment_id": "01920000-0000-7000-8000-000000000d01",
+  "root_comment_id": "01920000-0000-7000-8000-000000000d02",
+  "cabal_id": "01920000-0000-7000-8000-000000000c01",
+  "cabal_name": "Tech Titans",
+  "item_actor_name": "Logan",
+  "quoted_excerpt": "Deliveries miss is priced in.",
+  "kind": "comment_reply",
+  "item_kind": "result",
+  "item_label": "AAPL sale",
+  "sender_kind": "person",
+  "sender_id": "01920000-0000-7000-8000-000000000b04",
+  "sender_name": "Sam",
+  "sender_image_url": "https://example.com/storage/v1/object/public/avatars/sam.png"
+}
