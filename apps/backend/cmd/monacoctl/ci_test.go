@@ -107,9 +107,43 @@ func TestCIAffectedPrintsChangedPackagesAndTheirImporters(t *testing.T) {
 	}
 }
 
+func TestCIAffectedScopedPrintsWhetherTheSelectionIsScoped(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name   string
+		change map[string]string
+		want   string
+	}{
+		{"a module-scoped diff", map[string]string{"internal/modules/ranking/app/a.go": "package app\n"}, "true\n"},
+		{"a shared seed", map[string]string{"internal/platform/db/uow.go": "package db\n"}, "false\n"},
+		{"no change", nil, "false\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dir := ciModule(t)
+			writeCIFile(t, dir, "internal/modules/ranking/app/b.go", "package app\n")
+			writeCIFile(t, dir, "internal/platform/db/db.go", "package db\n")
+			git(t, dir, "add", ".")
+			git(t, dir, "commit", "-q", "-m", "more")
+			git(t, dir, "tag", "-f", "base")
+			for name, body := range tc.change {
+				writeCIFile(t, dir, name, body)
+			}
+			git(t, dir, "add", ".")
+			git(t, dir, "commit", "-q", "--allow-empty", "-m", "change")
+			env := ciEnv{moduleDir: dir, goBin: "go", gitBin: "git", exec: runCommand}
+			code, stdout, stderr := runCIAffected(env, "affected", "--base", "base", "--scoped")
+			if code != 0 || stdout != tc.want {
+				t.Fatalf("code=%d stdout=%q want %q stderr=%s", code, stdout, tc.want, stderr)
+			}
+		})
+	}
+}
+
 func TestCIAffectedRejectsBadArguments(t *testing.T) {
 	t.Parallel()
-	for _, args := range [][]string{nil, {"unknown"}, {"affected"}, {"affected", "--base", "x", "extra"}, {"affected", "--nope"}} {
+	for _, args := range [][]string{nil, {"unknown"}, {"affected"}, {"affected", "--base", "x", "extra"}, {"affected", "--nope"}, {"affected", "--base", "x", "--scoped", "--excluded"}} {
 		code, stdout, stderr := runCIAffected(ciEnv{}, args...)
 		if code != 2 || stdout != "" || !strings.Contains(stderr, ciUsage) {
 			t.Fatalf("args=%v code=%d stdout=%q stderr=%q", args, code, stdout, stderr)

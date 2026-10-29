@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -852,7 +853,8 @@ func (env *Env) goRows(ctx context.Context, self, base, head string, changed, re
 	covered := coverageFiles(backend, changed, removed)
 	flags := coverFlags(backend, tested, covered, profile)
 	linked, unlinked, err := splitByCover(listing, tested, flags)
-	if err != nil {
+	changedLines, linesErr := env.changedLinesFile(ctx, backend, self, base, head)
+	if err = errors.Join(err, linesErr); err != nil {
 		return nil, err
 	}
 	testRow := goTestRow(env, backend, tags, linked, unlinked, flags)
@@ -874,7 +876,7 @@ func (env *Env) goRows(ctx context.Context, self, base, head string, changed, re
 		},
 		lint,
 		testRow,
-		coverageRow(backend, self, profile, covered),
+		coverageRow(backend, self, profile, changedLines, covered),
 	}, nil
 }
 
@@ -1102,7 +1104,52 @@ func coverFlags(backend string, pkgs []string, covered map[string]bool, profile 
 	return []string{"-coverpkg=" + strings.Join(instrumented, ","), "-coverprofile=" + profile}
 }
 
-func coverageRow(backend, self, profile string, only map[string]bool) checkRow {
+func (env *Env) changedLinesFile(ctx context.Context, backend, self, base, head string) (string, error) {
+	scoped, err := env.Run(ctx, backend, "", self, "ci", "affected", "--base", base, "--scoped")
+	if err != nil {
+		return "", fmt.Errorf("find whether the selection is scoped: %w", err)
+	}
+	if strings.TrimSpace(string(scoped)) != "true" {
+		return "", nil
+	}
+	diff, err := env.Run(ctx, backend, "", "git", "diff", "-U0", "--relative", base+"...HEAD", "--", ":(glob)**/*.go")
+	if err != nil {
+		return "", fmt.Errorf("diff the changed lines: %w", err)
+	}
+	return env.writeState("coverage", head[:12]+".changed", []byte(changedRanges(string(diff))))
+}
+
+var hunkRE = regexp.MustCompile(`^@@ -\S+ \+(\d+)(?:,(\d+))? @@`)
+
+func changedRanges(diff string) string {
+	var out strings.Builder
+	var file string
+	for line := range strings.Lines(diff) {
+		line = strings.TrimRight(line, "\n")
+		if rest, ok := strings.CutPrefix(line, "+++ "); ok {
+			file = strings.TrimPrefix(rest, "b/")
+			if rest == "/dev/null" || strings.HasSuffix(file, "_test.go") {
+				file = ""
+			}
+			continue
+		}
+		m := hunkRE.FindStringSubmatch(line)
+		if file == "" || m == nil {
+			continue
+		}
+		start, _ := strconv.Atoi(m[1])
+		count := 1
+		if m[2] != "" {
+			count, _ = strconv.Atoi(m[2])
+		}
+		if count > 0 {
+			fmt.Fprintf(&out, "%s:%d-%d\n", file, start, start+count-1)
+		}
+	}
+	return out.String()
+}
+
+func coverageRow(backend, self, profile, changedLines string, only map[string]bool) checkRow {
 	row := checkRow{label: "coverage", kind: "go", dir: backend}
 	cmd := make([]string, 0, 4+2*len(only))
 	cmd = append(cmd, self, "coverage", "--profile", profile)
@@ -1112,6 +1159,10 @@ func coverageRow(backend, self, profile string, only map[string]bool) checkRow {
 	if len(cmd) == 4 {
 		row.skip = "no Go source, test or allow file changed under apps/backend"
 		return row
+	}
+	if changedLines != "" {
+		cmd = append(cmd, "--changed", changedLines)
+		row.header = "coverage judges changed lines only (scoped selection)"
 	}
 	row.cmds = [][]string{cmd}
 	return row
