@@ -5,6 +5,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/modules/notify/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
@@ -35,6 +36,10 @@ func collapseID(e events.CommentCreated) string {
 	return "comment-" + root.String()
 }
 
+func (CommentReply) ItemKey(e events.CommentCreated) string {
+	return domain.ItemKeyCommentPrefix + e.CommentID.String()
+}
+
 func (k CommentReply) Render(ctx context.Context, e events.CommentCreated, _ ids.UserID) (Message, error) {
 	replier, err := proposerName(ctx, k.Users, ids.UserIDFrom(e.AuthorID))
 	if err != nil {
@@ -47,6 +52,9 @@ func (k CommentReply) Render(ctx context.Context, e events.CommentCreated, _ ids
 	data := map[string]string{"kind": k.Name(), "feed_item_id": e.FeedObjectID.String()}
 	if e.ProposalID != nil && e.CabalID != nil {
 		data["proposal_id"], data["cabal_id"] = e.ProposalID.String(), e.CabalID.String()
+	}
+	if e.ProposalID == nil {
+		data["item_kind"], data["item_label"], data["item_actor_name"] = e.ItemKind, e.ItemLabel, e.ItemActorName
 	}
 	return Message{
 		Title:      replier + " replied to your comment",

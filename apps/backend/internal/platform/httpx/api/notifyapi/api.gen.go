@@ -9,12 +9,108 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	externalRef0 "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// Defines values for CatchUpItemClearedReason.
+const (
+	Cleared CatchUpItemClearedReason = "cleared"
+	Joined  CatchUpItemClearedReason = "joined"
+	Replied CatchUpItemClearedReason = "replied"
+	Voted   CatchUpItemClearedReason = "voted"
+)
+
+// Valid indicates whether the value is a known member of the CatchUpItemClearedReason enum.
+func (e CatchUpItemClearedReason) Valid() bool {
+	switch e {
+	case Cleared:
+		return true
+	case Joined:
+		return true
+	case Replied:
+		return true
+	case Voted:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CatchUpItemKind.
+const (
+	Invite      CatchUpItemKind = "invite"
+	Mention     CatchUpItemKind = "mention"
+	Reply       CatchUpItemKind = "reply"
+	Result      CatchUpItemKind = "result"
+	WaitingVote CatchUpItemKind = "waiting_vote"
+)
+
+// Valid indicates whether the value is a known member of the CatchUpItemKind enum.
+func (e CatchUpItemKind) Valid() bool {
+	switch e {
+	case Invite:
+		return true
+	case Mention:
+		return true
+	case Reply:
+		return true
+	case Result:
+		return true
+	case WaitingVote:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CatchUpProposalOutcome.
+const (
+	Expired    CatchUpProposalOutcome = "expired"
+	Failed     CatchUpProposalOutcome = "failed"
+	FillFailed CatchUpProposalOutcome = "fill_failed"
+	Filled     CatchUpProposalOutcome = "filled"
+)
+
+// Valid indicates whether the value is a known member of the CatchUpProposalOutcome enum.
+func (e CatchUpProposalOutcome) Valid() bool {
+	switch e {
+	case Expired:
+		return true
+	case Failed:
+		return true
+	case FillFailed:
+		return true
+	case Filled:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CatchUpProposalYourChoice.
+const (
+	No  CatchUpProposalYourChoice = "no"
+	Yes CatchUpProposalYourChoice = "yes"
+)
+
+// Valid indicates whether the value is a known member of the CatchUpProposalYourChoice enum.
+func (e CatchUpProposalYourChoice) Valid() bool {
+	switch e {
+	case No:
+		return true
+	case Yes:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for DeviceEnvironment.
 const (
@@ -32,6 +128,280 @@ func (e DeviceEnvironment) Valid() bool {
 	default:
 		return false
 	}
+}
+
+// CatchUp The caller's Catch up.
+type CatchUp struct {
+	// Cabals Every cabal the caller belongs to, by join date, even when every section is empty.
+	//
+	// Examples: [{"id":"01890a5d-ac96-774b-bcce-b302099a8058","name":"AC Capital","picture_url":null}]
+	Cabals []CatchUpCabal `json:"cabals"`
+
+	// Cleared Examples: []
+	Cleared []CatchUpItem `json:"cleared"`
+
+	// Count Active items across all sections.
+	//
+	// Examples: 6
+	Count int `json:"count"`
+
+	// Invites Examples: []
+	Invites []CatchUpItem `json:"invites"`
+
+	// Replies Examples: []
+	Replies []CatchUpItem `json:"replies"`
+
+	// Results Examples: []
+	Results []CatchUpItem `json:"results"`
+
+	// Waiting Examples: []
+	Waiting []CatchUpItem `json:"waiting"`
+}
+
+// CatchUpCabal A cabal on a Catch up item.
+type CatchUpCabal struct {
+	// Id Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	Id openapi_types.UUID `json:"id"`
+
+	// Name Examples: AC Capital
+	Name string `json:"name"`
+
+	// PictureUrl Null when the cabal has no picture.
+	//
+	// Examples: null
+	PictureUrl *string `json:"picture_url"`
+}
+
+// CatchUpComment The incoming comment, which is the reply or mention itself.
+type CatchUpComment struct {
+	// Author A person on a Catch up item.
+	Author CatchUpPerson `json:"author"`
+
+	// Body Examples: Still out: @Andres, Jordan?
+	Body string `json:"body"`
+
+	// CabalId Examples: null
+	CabalId *openapi_types.UUID `json:"cabal_id"`
+
+	// CommentId Examples: 01890a5d-ac96-774b-bcce-b302099a8061
+	CommentId openapi_types.UUID `json:"comment_id"`
+
+	// CreatedAt Examples: 2026-10-28T21:40:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// FeedItemId Examples: 01890a5d-ac96-774b-bcce-b302099a8060
+	FeedItemId openapi_types.UUID `json:"feed_item_id"`
+
+	// ParentCommentId Examples: null
+	ParentCommentId *openapi_types.UUID `json:"parent_comment_id"`
+
+	// ProposalId Examples: null
+	ProposalId *openapi_types.UUID `json:"proposal_id"`
+
+	// RootCommentId Examples: 01890a5d-ac96-774b-bcce-b302099a8061
+	RootCommentId openapi_types.UUID `json:"root_comment_id"`
+}
+
+// CatchUpCount The number of active Catch up items.
+type CatchUpCount struct {
+	// Count Active items across all sections.
+	//
+	// Examples: 6
+	Count int `json:"count"`
+}
+
+// CatchUpInvite The cabal facts an invite row draws.
+type CatchUpInvite struct {
+	// Id The invite request id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8062
+	Id openapi_types.UUID `json:"id"`
+
+	// MemberCount Examples: 5
+	MemberCount int `json:"member_count"`
+
+	// TopHoldingName Null when the cabal holds nothing.
+	//
+	// Examples: OpenAI
+	TopHoldingName *string `json:"top_holding_name"`
+}
+
+// CatchUpItem One Catch up item.
+type CatchUpItem struct {
+	// Actor A person on a Catch up item.
+	Actor *CatchUpPerson `json:"actor,omitempty"`
+
+	// At Examples: 2026-10-28T18:00:00Z
+	At time.Time `json:"at"`
+
+	// Cabal A cabal on a Catch up item.
+	Cabal *CatchUpCabal `json:"cabal,omitempty"`
+
+	// ClearedReason Examples: voted
+	ClearedReason *CatchUpItemClearedReason `json:"cleared_reason,omitempty"`
+
+	// Comment The incoming comment, which is the reply or mention itself.
+	Comment *CatchUpComment `json:"comment,omitempty"`
+
+	// Invite The cabal facts an invite row draws.
+	Invite *CatchUpInvite `json:"invite,omitempty"`
+
+	// Key The item key: proposal:<id>, comment:<id>, chat:<id> or invite:<id>.
+	//
+	// Examples: proposal:01890a5d-ac96-774b-bcce-b302099a8057
+	Key string `json:"key"`
+
+	// Kind Examples: waiting_vote
+	Kind CatchUpItemKind `json:"kind"`
+
+	// Post The post a reply is on when it is not a proposal.
+	Post *CatchUpPost `json:"post,omitempty"`
+
+	// Proposal The proposal facts a Catch up row and card draw. The amount and asset fields are null on a rule proposal. The outcome, your_choice and filled fields appear only on a result or a proposal the caller voted on.
+	Proposal *CatchUpProposal `json:"proposal,omitempty"`
+
+	// Quote The text a list row quotes.
+	Quote *CatchUpQuote `json:"quote,omitempty"`
+
+	// Unread Examples: true
+	Unread bool `json:"unread"`
+}
+
+// CatchUpItemClearedReason Examples: voted
+type CatchUpItemClearedReason string
+
+// CatchUpItemKind Examples: waiting_vote
+type CatchUpItemKind string
+
+// CatchUpPerson A person on a Catch up item.
+type CatchUpPerson struct {
+	// Id Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+	Id openapi_types.UUID `json:"id"`
+
+	// Name Empty when the user has none.
+	//
+	// Examples: Christelle
+	Name string `json:"name"`
+
+	// PhotoUrl Null when the user has none.
+	//
+	// Examples: null
+	PhotoUrl *string `json:"photo_url"`
+}
+
+// CatchUpPost The post a reply is on when it is not a proposal.
+type CatchUpPost struct {
+	// ActorName Examples: Logan
+	ActorName string `json:"actor_name"`
+
+	// FeedItemId Examples: 01890a5d-ac96-774b-bcce-b302099a8060
+	FeedItemId openapi_types.UUID `json:"feed_item_id"`
+
+	// Kind Examples: trade
+	Kind string `json:"kind"`
+
+	// Label Examples: sale
+	Label string `json:"label"`
+}
+
+// CatchUpProposal The proposal facts a Catch up row and card draw. The amount and asset fields are null on a rule proposal. The outcome, your_choice and filled fields appear only on a result or a proposal the caller voted on.
+type CatchUpProposal struct {
+	// AssetLogoUrl Examples: null
+	AssetLogoUrl *string `json:"asset_logo_url"`
+
+	// AssetName Examples: NVIDIA
+	AssetName string `json:"asset_name"`
+
+	// CreatedAt Examples: 2026-10-28T18:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// Eligible Members who can vote.
+	//
+	// Examples: 8
+	Eligible int `json:"eligible"`
+
+	// ExpiresAt Examples: 2026-10-28T22:00:00Z
+	ExpiresAt time.Time `json:"expires_at"`
+
+	// Filled Whether the trade filled. Set on results only.
+	//
+	// Examples: true
+	Filled *bool `json:"filled,omitempty"`
+
+	// Id Examples: 01890a5d-ac96-774b-bcce-b302099a8057
+	Id openapi_types.UUID `json:"id"`
+
+	// Kind The proposal kind.
+	//
+	// Examples: buy
+	Kind string `json:"kind"`
+
+	// No Examples: 1
+	No int `json:"no"`
+
+	// Outcome How a result ended.
+	//
+	// Examples: filled
+	Outcome *CatchUpProposalOutcome `json:"outcome,omitempty"`
+
+	// Proposer A person on a Catch up item.
+	Proposer CatchUpPerson `json:"proposer"`
+
+	// ReplyCount Examples: 6
+	ReplyCount int `json:"reply_count"`
+
+	// Status The proposal status.
+	//
+	// Examples: open
+	Status string `json:"status"`
+
+	// Symbol Examples: NVDAx
+	Symbol string `json:"symbol"`
+
+	// TokenAmount Token base units a sell spends.
+	//
+	// Examples: null
+	TokenAmount *int64 `json:"token_amount"`
+
+	// UsdcMicros USDC a buy spends, in micros.
+	//
+	// Examples: 400000000
+	UsdcMicros *int64 `json:"usdc_micros"`
+
+	// Voted Ballots cast so far.
+	//
+	// Examples: 5
+	Voted int `json:"voted"`
+
+	// Yes Examples: 4
+	Yes int `json:"yes"`
+
+	// YourChoice The caller's ballot, when they voted.
+	//
+	// Examples: yes
+	YourChoice *CatchUpProposalYourChoice `json:"your_choice,omitempty"`
+}
+
+// CatchUpProposalOutcome How a result ended.
+//
+// Examples: filled
+type CatchUpProposalOutcome string
+
+// CatchUpProposalYourChoice The caller's ballot, when they voted.
+//
+// Examples: yes
+type CatchUpProposalYourChoice string
+
+// CatchUpQuote The text a list row quotes.
+type CatchUpQuote struct {
+	// AuthorName Examples: Christelle
+	AuthorName string `json:"author_name"`
+
+	// IsYou Examples: false
+	IsYou bool `json:"is_you"`
+
+	// Text Examples: Still out: @Andres, Jordan?
+	Text string `json:"text"`
 }
 
 // DeviceEnvironment The APNs environment that issued the token.
@@ -77,6 +447,12 @@ type DeleteDeviceParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// GetMyCatchUpParams defines parameters for GetMyCatchUp.
+type GetMyCatchUpParams struct {
+	// Since Start of the caller's local day, which bounds the Cleared section. Defaults to 24 hours ago.
+	Since *time.Time `form:"since,omitempty" json:"since,omitempty"`
+}
+
 // PutNotificationPreferencesParams defines parameters for PutNotificationPreferences.
 type PutNotificationPreferencesParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -97,6 +473,12 @@ type ServerInterface interface {
 	// DeleteDevice Remove one of the caller's device tokens.
 	// (DELETE /v1/devices/{token})
 	DeleteDevice(w http.ResponseWriter, r *http.Request, token string, params DeleteDeviceParams)
+	// GetMyCatchUp Read everything the Catch up screens draw.
+	// (GET /v1/me/catch-up)
+	GetMyCatchUp(w http.ResponseWriter, r *http.Request, params GetMyCatchUpParams)
+	// GetMyCatchUpCount Read the number of active Catch up items.
+	// (GET /v1/me/catch-up/count)
+	GetMyCatchUpCount(w http.ResponseWriter, r *http.Request)
 	// GetNotificationPreferences Read the caller's notification preferences.
 	// (GET /v1/me/notification-preferences)
 	GetNotificationPreferences(w http.ResponseWriter, r *http.Request)
@@ -204,6 +586,53 @@ func (siw *ServerInterfaceWrapper) DeleteDevice(w http.ResponseWriter, r *http.R
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeleteDevice(w, r, token, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMyCatchUp operation middleware
+func (siw *ServerInterfaceWrapper) GetMyCatchUp(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMyCatchUpParams
+
+	// ------------- Optional query parameter "since" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "since", r.URL.Query(), &params.Since, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "since"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "since", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMyCatchUp(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMyCatchUpCount operation middleware
+func (siw *ServerInterfaceWrapper) GetMyCatchUpCount(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMyCatchUpCount(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -394,6 +823,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/devices", wrapper.PostDevice)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/devices/{token}", wrapper.DeleteDevice)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/catch-up", wrapper.GetMyCatchUp)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/catch-up/count", wrapper.GetMyCatchUpCount)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/notification-preferences", wrapper.GetNotificationPreferences)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/me/notification-preferences", wrapper.PutNotificationPreferences)
 
@@ -457,6 +888,83 @@ type DeleteDevicedefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response DeleteDevicedefaultApplicationProblemPlusJSONResponse) VisitDeleteDeviceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyCatchUpRequestObject struct {
+	Params GetMyCatchUpParams
+}
+
+type GetMyCatchUpResponseObject interface {
+	VisitGetMyCatchUpResponse(w http.ResponseWriter) error
+}
+
+type GetMyCatchUp200JSONResponse CatchUp
+
+func (response GetMyCatchUp200JSONResponse) VisitGetMyCatchUpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyCatchUpdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetMyCatchUpdefaultApplicationProblemPlusJSONResponse) VisitGetMyCatchUpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyCatchUpCountRequestObject struct {
+}
+
+type GetMyCatchUpCountResponseObject interface {
+	VisitGetMyCatchUpCountResponse(w http.ResponseWriter) error
+}
+
+type GetMyCatchUpCount200JSONResponse CatchUpCount
+
+func (response GetMyCatchUpCount200JSONResponse) VisitGetMyCatchUpCountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyCatchUpCountdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetMyCatchUpCountdefaultApplicationProblemPlusJSONResponse) VisitGetMyCatchUpCountResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -554,6 +1062,12 @@ type StrictServerInterface interface {
 	// DeleteDevice Remove one of the caller's device tokens.
 	// (DELETE /v1/devices/{token})
 	DeleteDevice(ctx context.Context, request DeleteDeviceRequestObject) (DeleteDeviceResponseObject, error)
+	// GetMyCatchUp Read everything the Catch up screens draw.
+	// (GET /v1/me/catch-up)
+	GetMyCatchUp(ctx context.Context, request GetMyCatchUpRequestObject) (GetMyCatchUpResponseObject, error)
+	// GetMyCatchUpCount Read the number of active Catch up items.
+	// (GET /v1/me/catch-up/count)
+	GetMyCatchUpCount(ctx context.Context, request GetMyCatchUpCountRequestObject) (GetMyCatchUpCountResponseObject, error)
 	// GetNotificationPreferences Read the caller's notification preferences.
 	// (GET /v1/me/notification-preferences)
 	GetNotificationPreferences(ctx context.Context, request GetNotificationPreferencesRequestObject) (GetNotificationPreferencesResponseObject, error)
@@ -654,6 +1168,56 @@ func (sh *strictHandler) DeleteDevice(w http.ResponseWriter, r *http.Request, to
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DeleteDeviceResponseObject); ok {
 		if err := validResponse.VisitDeleteDeviceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMyCatchUp operation middleware
+func (sh *strictHandler) GetMyCatchUp(w http.ResponseWriter, r *http.Request, params GetMyCatchUpParams) {
+	var request GetMyCatchUpRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMyCatchUp(ctx, request.(GetMyCatchUpRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMyCatchUp")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMyCatchUpResponseObject); ok {
+		if err := validResponse.VisitGetMyCatchUpResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMyCatchUpCount operation middleware
+func (sh *strictHandler) GetMyCatchUpCount(w http.ResponseWriter, r *http.Request) {
+	var request GetMyCatchUpCountRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMyCatchUpCount(ctx, request.(GetMyCatchUpCountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMyCatchUpCount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMyCatchUpCountResponseObject); ok {
+		if err := validResponse.VisitGetMyCatchUpCountResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

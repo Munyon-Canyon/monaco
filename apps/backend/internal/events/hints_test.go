@@ -21,4 +21,9 @@ func TestHintKeys(t *testing.T) {
 	), "user."+id.String()+".balance_changed"; got != want {
 		t.Fatalf("UserBalanceChangedHint = %q, want %q", got, want)
 	}
+	if got, want := events.UserCatchUpChangedHint(
+		ids.UserIDFrom(id),
+	), "user."+id.String()+".catch_up_changed"; got != want {
+		t.Fatalf("UserCatchUpChangedHint = %q, want %q", got, want)
+	}
 }

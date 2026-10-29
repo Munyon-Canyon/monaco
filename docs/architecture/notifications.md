@@ -209,12 +209,44 @@ A member can turn two push categories off. A missing row means on, so nobody has
 
 - `GET /v1/me/notification-preferences` returns `{decision_requests, replies_and_mentions}`. `PUT` replaces both in one `uow.Do`, appends no event and returns what it stored. A deleted account is unauthorized.
 - The table is `notification_preferences (user_id, category, enabled, updated_at)`, keyed on `(user_id, category)`.
-- `Notify.Handle` makes one `GetPreferences` read for the distinct recipients of the event, after `Pusher.eligible`. It skips a recipient whose category for the kind is off, so no `notifications` row is written, as for an ineligible recipient. A kind with no category is never filtered. A table test fails when a kind `Name()` in `app/` is in no bucket.
-- Daily caps and batching (`stateFor`) are unchanged. There are no per-cabal or per-kind switches and no quiet hours.
+- `Notify.Handle` makes one `GetPreferences` read for the distinct recipients of the event, after `Pusher.eligible`. It still writes a row for a recipient whose category for the kind is off, in state `muted` (the `state` check allows `muted`), so [Catch up](#catch-up) lists the reply or result. `send` reads only `pending` rows, so a `muted` row is never pushed, and `CountKindSince` skips it, so it never counts toward a daily cap. An ineligible recipient (deleted, or the event's actor) still gets no row. A kind with no category is never muted. A table test fails when a kind `Name()` in `app/` is in no bucket.
+- Daily caps and batching (`stateFor`) are unchanged for rows that are not `muted`. There are no per-cabal or per-kind switches and no quiet hours.
+
+### Catch up
+
+The bell on Home opens Catch up. It is a read over the `notifications` rows plus batched reads from four modules, and one small state table. No second copy of the notifications is kept.
+
+**Sources**, each item keyed so one proposal is one row:
+
+| Section | Source | Item key |
+| --- | --- | --- |
+| Waiting on you | the viewer's open proposals with no ballot, from `governance` `PendingVotes`, soonest close first | `proposal:<id>` |
+| Replies and mentions | rows of `comment_reply`, `post_reply`, `comment_mention`, `chat_mention` and `chat_thread_reply` from the last 30 days, newest first | `comment:<id>` or `chat:<message id>` |
+| Invites | pending cabal invites from `cabal` `PendingInvites`, newest first | `invite:<request id>` |
+| Results | rows of `proposal_result` from the last 30 days, newest first | `proposal:<id>` |
+| Cleared today | `catch_up_state` rows cleared since the request's `since`, drawn from their `snapshot` only | any of the above |
+
+A kind sets `ItemKey` through the `ItemKeyed` interface beside `Kind`; `Notify` copies it to `notifications.item_key`, and a row without a key is never listed. A reply to a post that is not a proposal carries `item_kind`, `item_label` and `item_actor_name` in its `data`, which Catch up returns as `post`.
+
+**State.** `catch_up_state (user_id, item_key, read_at, cleared_at, cleared_reason, kept_at, snapshot, updated_at)`. The read side only reads it. #6513 writes it.
+
+- An item is **active** when it has no `cleared_at`, or when a source row newer than `cleared_at` arrived. A result for a proposal you voted on earlier reopens it as unread.
+- The exception is a result for a proposal **your** ballot decided (`proposals.decided_by` is the viewer). It does not reopen the item, since the toast already told you.
+- An item is **unread** when its newest source row is newer than `read_at`.
+- A comment the viewer cannot see (deleted, removed or by a blocked author) is neither listed nor counted.
+- The **count** is the number of active items. It is the bell badge and the "6 to catch up".
+
+**Routes.** `GET /v1/me/catch-up?since=<RFC 3339>` (`getMyCatchUp`) returns `{count, cabals, waiting, replies, invites, results, cleared}`. `since` is the start of the viewer's local day and bounds `cleared`; it defaults to 24 hours ago. `cabals` is every cabal the viewer belongs to by join date, even when every section is empty. `GET /v1/me/catch-up/count` (`getMyCatchUpCount`) returns `{count}`. Every figure is computed on the server; the app only formats it. The backend port `notify/port.CatchUp.Count` serves the same number to other readers.
+
+**Cross-module reads**, one batched call each per request, whatever the item count: `governance.PendingVotes`, `governance.ProposalCards`, `social.CommentPreviews` (each comment and the one it answers), `social.ReplyCounts`, `cabal.PendingInvites`, `cabal.CabalsOf` and `Cabals`, `treasury.TopHoldings` with `market` `ByMints` for the invite's top holding, and `identity.UsersByID` for chat authors.
+
+**Hint.** `Pusher.write` publishes `user.<id>.catch_up_changed` after commit for every recipient of a row with an `item_key`, muted rows included. #6513 publishes it for its own writes.
+
+**Retention.** The rows Catch up reads are kept for 30 days. A prune of `notifications` (#6200) must keep `comment_reply`, `post_reply`, `comment_mention`, `chat_mention`, `chat_thread_reply` and `proposal_result` rows that long.
 
 ### What notifies (MVP)
 
-Push only for MVP (default 2026-09-27). There is no in-app notification list and no app badge; the app never sets `badge` in the payload. The only per-user mute settings are the two [preferences](#preferences) categories. Nobody is pushed about their own action: the handler drops any recipient equal to the event's `actor_id`.
+Push only for MVP (default 2026-09-27). The in-app list is [Catch up](#catch-up), a read over these rows; there is no app-icon badge, and the app never sets `badge` in the payload. The only per-user mute settings are the two [preferences](#preferences) categories. Nobody is pushed about their own action: the handler drops any recipient equal to the event's `actor_id`.
 
 | Push | Subject | Recipients | Copy | Source |
 | --- | --- | --- | --- | --- |

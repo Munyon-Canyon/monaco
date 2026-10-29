@@ -345,6 +345,8 @@ func (m *Module) DashboardOn(db dbsqlc.DBTX) adapters.Dashboard {
 	return adapters.NewDashboard(db, chain.SolanaAddress(m.deps.Config.Solana.USDCMint))
 }
 
+func (m *Module) TopHoldings() *app.TopHoldings { return app.NewTopHoldings(m.deps.Pool) }
+
 func (m *Module) Ledger() *app.LedgerReads { return app.NewLedgerReads(m.deps.Pool) }
 
 func (m *Module) HeldMints(ctx context.Context) ([]chain.SolanaAddress, error) {

@@ -31,6 +31,7 @@ type ReceivedInvite struct {
 	ID        uuid.UUID
 	Cabal     CabalCard
 	InvitedBy Person
+	CreatedAt time.Time
 	ExpiresAt time.Time
 }
 
@@ -70,7 +71,7 @@ func ListMyInvites(
 				),
 				MemberCount: row.MemberCount,
 			},
-			InvitedBy: person(row.InvitedBy.Bytes, cards), ExpiresAt: row.ExpiresAt.Time,
+			InvitedBy: person(row.InvitedBy.Bytes, cards), CreatedAt: row.CreatedAt, ExpiresAt: row.ExpiresAt.Time,
 		})
 	}
 	return out, nil

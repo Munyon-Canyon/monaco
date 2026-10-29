@@ -98,14 +98,19 @@ func (r *PendingVoteReads) PendingVotes(ctx context.Context, voter ids.UserID) (
 	return out, nil
 }
 
-type pendingExtras struct {
+type cardExtras struct {
 	names     map[ids.CabalID]string
 	assets    map[string]market.Asset
 	proposers map[ids.UserID]PendingProposer
-	replies   map[ids.ProposalID]int
+}
+
+type pendingExtras struct {
+	cardExtras
+	replies map[ids.ProposalID]int
 }
 
 func (r *PendingVoteReads) pendingExtras(ctx context.Context, rows []sqlc.PendingVotesRow) (pendingExtras, error) {
+	const op = "governance.PendingVotes"
 	cabalIDs := make([]ids.CabalID, len(rows))
 	mints := make([]string, len(rows))
 	proposerIDs := make([]ids.UserID, len(rows))
@@ -116,12 +121,26 @@ func (r *PendingVoteReads) pendingExtras(ctx context.Context, rows []sqlc.Pendin
 	}
 	var out pendingExtras
 	var err error
-	if out.names, err = r.reads.cabalNames(ctx, cabalIDs); err != nil {
+	if out.cardExtras, err = r.cardExtras(ctx, op, cabalIDs, mints, proposerIDs); err != nil {
 		return pendingExtras{}, err
+	}
+	if out.replies, err = r.ports.Replies.ReplyCounts(ctx, proposalIDs); err != nil {
+		return pendingExtras{}, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	return out, nil
+}
+
+func (r *PendingVoteReads) cardExtras(
+	ctx context.Context, op string, cabalIDs []ids.CabalID, mints []string, proposerIDs []ids.UserID,
+) (cardExtras, error) {
+	var out cardExtras
+	var err error
+	if out.names, err = r.reads.cabalNames(ctx, cabalIDs); err != nil {
+		return cardExtras{}, err
 	}
 	assets, err := r.ports.Assets.ByMints(ctx, mints)
 	if err != nil {
-		return pendingExtras{}, errs.Wrap(err, errs.CodeOf(err), "governance.PendingVotes")
+		return cardExtras{}, errs.Wrap(err, errs.CodeOf(err), op)
 	}
 	out.assets = make(map[string]market.Asset, len(assets))
 	for _, a := range assets {
@@ -129,7 +148,7 @@ func (r *PendingVoteReads) pendingExtras(ctx context.Context, rows []sqlc.Pendin
 	}
 	cards, err := r.reads.users.UsersByID(ctx, proposerIDs)
 	if err != nil {
-		return pendingExtras{}, errs.Wrap(err, errs.CodeOf(err), "governance.PendingVotes")
+		return cardExtras{}, errs.Wrap(err, errs.CodeOf(err), op)
 	}
 	out.proposers = make(map[ids.UserID]PendingProposer, len(cards))
 	for id, card := range cards {
@@ -138,9 +157,6 @@ func (r *PendingVoteReads) pendingExtras(ctx context.Context, rows []sqlc.Pendin
 				ID: id, Handle: card.Handle, DisplayName: card.DisplayName, PhotoURL: card.PhotoURL,
 			}
 		}
-	}
-	if out.replies, err = r.ports.Replies.ReplyCounts(ctx, proposalIDs); err != nil {
-		return pendingExtras{}, errs.Wrap(err, errs.CodeOf(err), "governance.PendingVotes")
 	}
 	return out, nil
 }

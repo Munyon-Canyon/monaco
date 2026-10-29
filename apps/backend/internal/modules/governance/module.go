@@ -68,13 +68,8 @@ func (*Module) Name() string { return "governance" }
 func (m *Module) Mount(r api.Mount) {
 	ports := m.tradePorts()
 	hints := adapters.Hints{Publish: m.deps.Bus}
-	reads := app.NewProposalReads(
-		m.deps.Pool, trading.New(m.deps).Queries(), cabal.New(m.deps).Queries(), ports.Assets,
-		identity.New(m.deps).Queries(), ranking.New(m.deps).Queries(), social.New(m.deps),
-	).Priced(market.New(m.deps).Prices(), m.deps.Clock)
-	pending := app.NewPendingVoteReads(reads, app.PendingVotePorts{
-		Assets: market.New(m.deps).Catalog(), Replies: social.New(m.deps),
-	})
+	reads := m.proposalReads(ports)
+	pending := m.pendingReads(reads)
 	facts := app.NewMarketFacts(
 		m.deps.Pool, cabal.New(m.deps).Queries(), treasury.New(m.deps).Held(), identity.New(m.deps).Queries(),
 		m.deps.Clock,
@@ -101,6 +96,19 @@ func (m *Module) Mount(r api.Mount) {
 			cabal.New(m.deps).Queries(), admin.New(m.deps).Actions(),
 		),
 	}, r)
+}
+
+func (m *Module) proposalReads(ports Ports) *app.ProposalReads {
+	return app.NewProposalReads(
+		m.deps.Pool, trading.New(m.deps).Queries(), cabal.New(m.deps).Queries(), ports.Assets,
+		identity.New(m.deps).Queries(), ranking.New(m.deps).Queries(), social.New(m.deps),
+	).Priced(market.New(m.deps).Prices(), m.deps.Clock)
+}
+
+func (m *Module) pendingReads(reads *app.ProposalReads) *app.PendingVoteReads {
+	return app.NewPendingVoteReads(reads, app.PendingVotePorts{
+		Assets: market.New(m.deps).Catalog(), Replies: social.New(m.deps),
+	})
 }
 
 func (m *Module) tradePorts() Ports {
@@ -166,6 +174,10 @@ func (m *Module) Pollers() []poller.Poller {
 	hints := adapters.Hints{Publish: m.deps.Bus}
 	app.ObserveOpenProposals(otel.GetMeterProvider().Meter(meterName), app.NewDashboard(m.deps.Pool))
 	return []poller.Poller{app.NewExpiryPoller(m.deps.UoW, m.deps.Pool, m.deps.Clock, hints)}
+}
+
+func (m *Module) CatchUp() adapters.CatchUp {
+	return adapters.NewCatchUp(m.pendingReads(m.proposalReads(m.tradePorts())))
 }
 
 func (m *Module) Queries() port.Queries { return app.NewQueries(m.deps.Pool) }

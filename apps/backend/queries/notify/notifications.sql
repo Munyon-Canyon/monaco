@@ -7,14 +7,15 @@ RETURNING id;
 -- name: InsertNotification :one
 INSERT INTO notifications (
   id, broadcast_id, user_id, kind, source_event_id, title, body, data, collapse_id, state, created_at,
-  thread_id, category, interruption_level, presentation
+  thread_id, category, interruption_level, presentation, item_key
 )
 VALUES (
   sqlc.arg(id), NULLIF(sqlc.arg(broadcast_id)::uuid, '00000000-0000-0000-0000-000000000000'), sqlc.arg(user_id),
   sqlc.arg(kind), sqlc.arg(source_event_id), sqlc.arg(title), sqlc.arg(body), sqlc.arg(data), sqlc.arg(collapse_id),
   sqlc.arg(state), sqlc.arg(created_at),
   NULLIF(sqlc.arg(thread_id)::text, ''), NULLIF(sqlc.arg(category)::text, ''),
-  NULLIF(sqlc.arg(interruption_level)::text, ''), sqlc.arg(presentation)::jsonb
+  NULLIF(sqlc.arg(interruption_level)::text, ''), sqlc.arg(presentation)::jsonb,
+  NULLIF(sqlc.arg(item_key)::text, '')
 )
 ON CONFLICT (source_event_id, user_id, kind) DO NOTHING
 RETURNING id;
@@ -36,7 +37,7 @@ WHERE id = sqlc.arg(id) AND state = 'pending';
 
 -- name: CountKindSince :one
 SELECT count(*) FROM notifications
-WHERE user_id = $1 AND kind = $2 AND created_at >= $3;
+WHERE user_id = $1 AND kind = $2 AND created_at >= $3 AND state <> 'muted';
 
 -- name: BatchedFollowCounts :many
 SELECT user_id, count(*) AS followers FROM notifications

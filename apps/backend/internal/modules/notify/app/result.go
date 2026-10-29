@@ -10,6 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/notify/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
@@ -23,6 +24,10 @@ type ResultPorts struct {
 	Assets  Assets
 	Ballots Ballots
 	Heads   ProposalHeads
+}
+
+func resultItemKey(proposal uuid.UUID) string {
+	return domain.ItemKeyProposalPrefix + proposal.String()
 }
 
 type resultCast struct {
@@ -105,6 +110,10 @@ type ResultFilled struct{ ResultPorts }
 
 func (ResultFilled) Name() string { return "proposal_result" }
 
+func (ResultFilled) ItemKey(e events.TradeConfirmed) string {
+	return resultItemKey(e.Source.ID)
+}
+
 func (k ResultFilled) Recipients(ctx context.Context, e events.TradeConfirmed) ([]ids.UserID, error) {
 	return k.fillRecipients(ctx, e.Source, e.CabalID)
 }
@@ -139,6 +148,10 @@ type ResultFillFailed struct{ ResultPorts }
 
 func (ResultFillFailed) Name() string { return "proposal_result" }
 
+func (ResultFillFailed) ItemKey(e events.TradeFailed) string {
+	return resultItemKey(e.Source.ID)
+}
+
 func (k ResultFillFailed) Recipients(ctx context.Context, e events.TradeFailed) ([]ids.UserID, error) {
 	return k.fillRecipients(ctx, e.Source, e.CabalID)
 }
@@ -150,6 +163,10 @@ func (k ResultFillFailed) Render(ctx context.Context, e events.TradeFailed, to i
 type ResultFillBlocked struct{ ResultPorts }
 
 func (ResultFillBlocked) Name() string { return "proposal_result" }
+
+func (ResultFillBlocked) ItemKey(e events.TradeBlocked) string {
+	return resultItemKey(e.Source.ID)
+}
 
 func (k ResultFillBlocked) Recipients(ctx context.Context, e events.TradeBlocked) ([]ids.UserID, error) {
 	return k.fillRecipients(ctx, e.Source, e.CabalID)
@@ -181,6 +198,10 @@ type ResultFailed struct{ ResultPorts }
 
 func (ResultFailed) Name() string { return "proposal_result" }
 
+func (ResultFailed) ItemKey(e events.ProposalFailed) string {
+	return resultItemKey(e.ProposalID)
+}
+
 func (k ResultFailed) Recipients(ctx context.Context, e events.ProposalFailed) ([]ids.UserID, error) {
 	return k.decided(ctx, e.ProposalID, e.CabalID)
 }
@@ -192,6 +213,10 @@ func (k ResultFailed) Render(ctx context.Context, e events.ProposalFailed, to id
 type ResultExpired struct{ ResultPorts }
 
 func (ResultExpired) Name() string { return "proposal_result" }
+
+func (ResultExpired) ItemKey(e events.ProposalExpired) string {
+	return resultItemKey(e.ProposalID)
+}
 
 func (k ResultExpired) Recipients(ctx context.Context, e events.ProposalExpired) ([]ids.UserID, error) {
 	return k.decided(ctx, e.ProposalID, e.CabalID)

@@ -58,11 +58,17 @@ type Keyed[E events.Event] interface {
 	SourceKey(e E) uuid.UUID
 }
 
+type ItemKeyed[E events.Event] interface {
+	ItemKey(e E) string
+}
+
 type Notification struct {
 	Kind    string
 	UserID  ids.UserID
 	Message Message
 	Cap     int
+	ItemKey string
+	Muted   bool
 	source  ids.EventID
 }
 
@@ -91,9 +97,9 @@ func (n Notify[E]) Handle(ctx context.Context, d bus.Delivery, e E) error {
 		return err
 	}
 	sources := n.sources(d.EventID, e)
-	notes, err := n.notes(ctx, e, recipients, sources, func(i int, to ids.UserID) bool {
+	notes, err := n.notes(ctx, e, recipients, sources, func(i int, to ids.UserID) (keep, muted bool) {
 		category, categorised := domain.CategoryOf(n.Kinds[i].Name())
-		return eligible[to] && (!categorised || prefs[to].Enabled(category))
+		return eligible[to], categorised && !prefs[to].Enabled(category)
 	})
 	if err != nil {
 		return err
@@ -117,7 +123,7 @@ func (n Notify[E]) notes(
 	e E,
 	recipients [][]ids.UserID,
 	sources []ids.EventID,
-	wanted func(kind int, to ids.UserID) bool,
+	wanted func(kind int, to ids.UserID) (keep, muted bool),
 ) ([]Notification, error) {
 	var notes []Notification
 	for i, k := range n.Kinds {
@@ -125,21 +131,29 @@ func (n Notify[E]) notes(
 		if c, ok := k.(Capped); ok {
 			limit = c.DailyCap()
 		}
+		key := ""
+		if keyed, ok := k.(ItemKeyed[E]); ok {
+			key = keyed.ItemKey(e)
+		}
 		for _, to := range recipients[i] {
-			if !wanted(i, to) {
+			keep, muted := wanted(i, to)
+			if !keep {
 				continue
 			}
 			msg, err := k.Render(ctx, e, to)
 			if err != nil {
 				return nil, err
 			}
-			notes = append(
-				notes,
-				Notification{Kind: k.Name(), UserID: to, Message: msg, Cap: limit, source: sources[i]},
-			)
+			notes = append(notes, Notification{
+				Kind: k.Name(), UserID: to, Message: msg, Cap: limit, ItemKey: key, Muted: muted, source: sources[i],
+			})
 		}
 	}
 	return notes, nil
+}
+
+type Hints interface {
+	PublishHint(ctx context.Context, key string, payload []byte)
 }
 
 type Pusher struct {
@@ -148,10 +162,16 @@ type Pusher struct {
 	sender apns.Sender
 	ids    ids.Generator
 	clock  clock.Clock
+	hints  Hints
 }
 
 func NewPusher(uow *db.UnitOfWork, users Users, sender apns.Sender, g ids.Generator, c clock.Clock) *Pusher {
 	return &Pusher{uow: uow, users: users, sender: sender, ids: g, clock: c}
+}
+
+func (p *Pusher) WithHints(h Hints) *Pusher {
+	p.hints = h
+	return p
 }
 
 func (p *Pusher) eligible(ctx context.Context, event ids.EventID, users []ids.UserID) (map[ids.UserID]bool, error) {
@@ -310,6 +330,7 @@ func (p *Pusher) writeWith(
 			if written, err = p.insertBatch(ctx, q, notes, d); err != nil {
 				return err
 			}
+			p.publishCatchUp(tx, notes)
 		}
 		if also == nil {
 			return nil
@@ -317,6 +338,26 @@ func (p *Pusher) writeWith(
 		return also(ctx, q)
 	})
 	return written, err
+}
+
+func (p *Pusher) publishCatchUp(tx db.Tx, notes []Notification) {
+	if p.hints == nil {
+		return
+	}
+	var users []ids.UserID
+	for _, n := range notes {
+		if n.ItemKey != "" && !slices.Contains(users, n.UserID) {
+			users = append(users, n.UserID)
+		}
+	}
+	if len(users) == 0 {
+		return
+	}
+	tx.AfterCommit(func(ctx context.Context) {
+		for _, u := range users {
+			p.hints.PublishHint(ctx, events.UserCatchUpChangedHint(u), nil)
+		}
+	})
 }
 
 func (p *Pusher) insertBatch(ctx context.Context, q *sqlc.Queries, notes []Notification, d bus.Delivery) (int, error) {
@@ -370,6 +411,7 @@ func insertParams(
 		ID: id, BroadcastID: broadcast, UserID: n.UserID.UUID(), Kind: n.Kind,
 		SourceEventID: d.EventID.UUID(), Title: n.Message.Title, Body: n.Message.Body, Data: data,
 		CollapseID: n.Message.CollapseID, State: string(state), CreatedAt: d.At,
+		ItemKey: n.ItemKey,
 	}
 	p := n.Message.Presentation
 	if !p.set() {
@@ -386,6 +428,9 @@ func insertParams(
 func stateFor(
 	ctx context.Context, q *sqlc.Queries, n Notification, at time.Time,
 ) (domain.NotificationState, error) {
+	if n.Muted {
+		return domain.NotificationMuted, nil
+	}
 	if n.Cap == 0 {
 		return domain.NotificationPending, nil
 	}
@@ -540,7 +585,7 @@ func (p *Pusher) settle(ctx context.Context, event ids.EventID, r pendingRow, re
 		case domain.NotificationNoDevice:
 			_, err := q.MarkNoDevice(ctx, r.row.ID)
 			return err
-		case domain.NotificationPending, domain.NotificationBatched:
+		case domain.NotificationPending, domain.NotificationBatched, domain.NotificationMuted:
 		}
 		return nil
 	})

@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/modules/notify/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
@@ -19,6 +20,10 @@ func (ChatMention) Name() string { return "chat_mention" }
 
 func (k ChatMention) Recipients(ctx context.Context, e events.ChatMessagePosted) ([]ids.UserID, error) {
 	return chatRecipients(ctx, k.Cabals, e.CabalID, e.MentionedUserIDs, nil)
+}
+
+func (ChatMention) ItemKey(e events.ChatMessagePosted) string {
+	return domain.ItemKeyChatPrefix + e.MessageID.String()
 }
 
 func (k ChatMention) Render(ctx context.Context, e events.ChatMessagePosted, _ ids.UserID) (Message, error) {
@@ -34,6 +39,10 @@ func (ChatThreadReply) Name() string { return "chat_thread_reply" }
 
 func (k ChatThreadReply) Recipients(ctx context.Context, e events.ChatMessagePosted) ([]ids.UserID, error) {
 	return chatRecipients(ctx, k.Cabals, e.CabalID, e.ThreadParticipantIDs, e.MentionedUserIDs)
+}
+
+func (ChatThreadReply) ItemKey(e events.ChatMessagePosted) string {
+	return domain.ItemKeyChatPrefix + e.MessageID.String()
 }
 
 func (k ChatThreadReply) Render(ctx context.Context, e events.ChatMessagePosted, _ ids.UserID) (Message, error) {
@@ -69,6 +78,7 @@ func chatMessage(
 	thread := e.MessageID
 	data := map[string]string{
 		"kind": kind, "cabal_id": e.CabalID.String(), "message_id": e.MessageID.String(),
+		"author_id": e.AuthorID.String(),
 	}
 	if e.ParentID != nil {
 		thread = *e.ParentID

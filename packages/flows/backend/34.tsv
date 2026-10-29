@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+34	Catch up	notify	GET /v1/me/catch-up	ReadCatchUp			ok;Unauthorized	built	docs/architecture/notifications.md#catch-up

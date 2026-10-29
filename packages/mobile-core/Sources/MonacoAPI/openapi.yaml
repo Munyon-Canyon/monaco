@@ -2741,6 +2741,53 @@ paths:
           description: The caller no longer has this token registered.
         default:
           $ref: "#/components/responses/Problem"
+  /v1/me/catch-up:
+    get:
+      operationId: getMyCatchUp
+      tags: [notify]
+      summary: Read everything the Catch up screens draw.
+      description: >-
+        Returns the caller's active Catch up items in five sections and the count behind the bell badge. Waiting is
+        the caller's open proposals with no ballot yet, soonest close first. Replies holds replies and mentions of
+        the last 30 days, newest first. Invites holds pending cabal invites, newest first. Results holds proposal
+        results of the last 30 days, newest first. Cleared holds what the caller cleared since the given time, drawn
+        from the item as it was when it was cleared. The caller's cabals come back even when every section is empty.
+        A deleted account is unauthorized.
+      parameters:
+        - name: since
+          in: query
+          required: false
+          description: Start of the caller's local day, which bounds the Cleared section. Defaults to 24 hours ago.
+          schema:
+            type: string
+            format: date-time
+            examples: ["2026-10-28T00:00:00-04:00"]
+      responses:
+        "200":
+          description: The caller's Catch up.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatchUp"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/catch-up/count:
+    get:
+      operationId: getMyCatchUpCount
+      tags: [notify]
+      summary: Read the number of active Catch up items.
+      description: >-
+        Returns how many items are active in the caller's Catch up, which is the number on Home's bell. A deleted
+        account is unauthorized.
+      responses:
+        "200":
+          description: The active count.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatchUpCount"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/me/notification-preferences:
     get:
       operationId: getNotificationPreferences
@@ -8660,6 +8707,150 @@ components:
           description: The denominator.
           examples: [1]
   # api/spec/notify.yaml
+    CatchUp:
+      type: object
+      description: The caller's Catch up.
+      required: [count, cabals, waiting, replies, invites, results, cleared]
+      properties:
+        count: {type: integer, minimum: 0, description: Active items across all sections., examples: [6]}
+        cabals:
+          type: array
+          description: Every cabal the caller belongs to, by join date, even when every section is empty.
+          examples: [[{id: "01890a5d-ac96-774b-bcce-b302099a8058", name: AC Capital, picture_url: null}]]
+          items: {$ref: "#/components/schemas/CatchUpCabal"}
+        waiting: {type: array, items: {$ref: "#/components/schemas/CatchUpItem"}, examples: [[]]}
+        replies: {type: array, items: {$ref: "#/components/schemas/CatchUpItem"}, examples: [[]]}
+        invites: {type: array, items: {$ref: "#/components/schemas/CatchUpItem"}, examples: [[]]}
+        results: {type: array, items: {$ref: "#/components/schemas/CatchUpItem"}, examples: [[]]}
+        cleared: {type: array, items: {$ref: "#/components/schemas/CatchUpItem"}, examples: [[]]}
+    CatchUpCabal:
+      type: object
+      description: A cabal on a Catch up item.
+      required: [id, name, picture_url]
+      properties:
+        id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        name: {type: string, examples: [AC Capital]}
+        picture_url: {type: [string, "null"], description: Null when the cabal has no picture., examples: [null]}
+    CatchUpComment:
+      type: object
+      description: The incoming comment, which is the reply or mention itself.
+      required: [feed_item_id, comment_id, parent_comment_id, root_comment_id, proposal_id, cabal_id, author, body, created_at]
+      properties:
+        feed_item_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8060"]}
+        comment_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8061"]}
+        parent_comment_id: {type: [string, "null"], format: uuid, examples: [null]}
+        root_comment_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8061"]}
+        proposal_id: {type: [string, "null"], format: uuid, examples: [null]}
+        cabal_id: {type: [string, "null"], format: uuid, examples: [null]}
+        author: {$ref: "#/components/schemas/CatchUpPerson"}
+        body: {type: string, examples: ["Still out: @Andres, Jordan?"]}
+        created_at: {type: string, format: date-time, examples: ["2026-10-28T21:40:00Z"]}
+    CatchUpCount:
+      type: object
+      description: The number of active Catch up items.
+      required: [count]
+      properties:
+        count: {type: integer, minimum: 0, description: Active items across all sections., examples: [6]}
+    CatchUpInvite:
+      type: object
+      description: The cabal facts an invite row draws.
+      required: [id, member_count, top_holding_name]
+      properties:
+        id: {type: string, format: uuid, description: The invite request id., examples: ["01890a5d-ac96-774b-bcce-b302099a8062"]}
+        member_count: {type: integer, minimum: 0, examples: [5]}
+        top_holding_name: {type: [string, "null"], description: Null when the cabal holds nothing., examples: [OpenAI]}
+    CatchUpItem:
+      type: object
+      description: One Catch up item.
+      required: [key, kind, unread, at]
+      properties:
+        key: {type: string, description: "The item key: proposal:<id>, comment:<id>, chat:<id> or invite:<id>.", examples: ["proposal:01890a5d-ac96-774b-bcce-b302099a8057"]}
+        kind: {type: string, enum: [waiting_vote, reply, mention, invite, result], examples: [waiting_vote]}
+        unread: {type: boolean, examples: [true]}
+        at: {type: string, format: date-time, examples: ["2026-10-28T18:00:00Z"]}
+        cleared_reason: {type: string, enum: [voted, replied, joined, cleared], examples: [voted]}
+        actor: {$ref: "#/components/schemas/CatchUpPerson"}
+        cabal: {$ref: "#/components/schemas/CatchUpCabal"}
+        proposal: {$ref: "#/components/schemas/CatchUpProposal"}
+        post: {$ref: "#/components/schemas/CatchUpPost"}
+        comment: {$ref: "#/components/schemas/CatchUpComment"}
+        quote: {$ref: "#/components/schemas/CatchUpQuote"}
+        invite: {$ref: "#/components/schemas/CatchUpInvite"}
+    CatchUpPerson:
+      type: object
+      description: A person on a Catch up item.
+      required: [id, name, photo_url]
+      properties:
+        id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8059"]}
+        name: {type: string, description: Empty when the user has none., examples: [Christelle]}
+        photo_url: {type: [string, "null"], description: Null when the user has none., examples: [null]}
+    CatchUpPost:
+      type: object
+      description: The post a reply is on when it is not a proposal.
+      required: [feed_item_id, kind, label, actor_name]
+      properties:
+        feed_item_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8060"]}
+        kind: {type: string, examples: [trade]}
+        label: {type: string, examples: [sale]}
+        actor_name: {type: string, examples: [Logan]}
+    CatchUpProposal:
+      type: object
+      description: >-
+        The proposal facts a Catch up row and card draw. The amount and asset fields are null on a rule proposal. The
+        outcome, your_choice and filled fields appear only on a result or a proposal the caller voted on.
+      required:
+        - id
+        - kind
+        - symbol
+        - asset_name
+        - asset_logo_url
+        - usdc_micros
+        - token_amount
+        - proposer
+        - created_at
+        - expires_at
+        - status
+        - yes
+        - no
+        - voted
+        - eligible
+        - reply_count
+      properties:
+        id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8057"]}
+        kind: {type: string, description: The proposal kind., examples: [buy]}
+        symbol: {type: string, examples: [NVDAx]}
+        asset_name: {type: string, examples: [NVIDIA]}
+        asset_logo_url: {type: [string, "null"], examples: [null]}
+        usdc_micros: {type: [integer, "null"], format: int64, description: "USDC a buy spends, in micros.", examples: [400000000]}
+        token_amount: {type: [integer, "null"], format: int64, description: Token base units a sell spends., examples: [null]}
+        proposer: {$ref: "#/components/schemas/CatchUpPerson"}
+        created_at: {type: string, format: date-time, examples: ["2026-10-28T18:00:00Z"]}
+        expires_at: {type: string, format: date-time, examples: ["2026-10-28T22:00:00Z"]}
+        status: {type: string, description: The proposal status., examples: [open]}
+        yes: {type: integer, minimum: 0, examples: [4]}
+        no: {type: integer, minimum: 0, examples: [1]}
+        voted: {type: integer, minimum: 0, description: Ballots cast so far., examples: [5]}
+        eligible: {type: integer, minimum: 0, description: Members who can vote., examples: [8]}
+        reply_count: {type: integer, minimum: 0, examples: [6]}
+        outcome:
+          type: string
+          description: How a result ended.
+          enum: [filled, fill_failed, failed, expired]
+          examples: [filled]
+        your_choice:
+          type: string
+          description: The caller's ballot, when they voted.
+          enum: [yes, no]
+          examples: [yes]
+        filled: {type: boolean, description: Whether the trade filled. Set on results only., examples: [true]}
+    CatchUpQuote:
+      type: object
+      description: The text a list row quotes.
+      required: [author_name, is_you, text]
+      properties:
+        author_name: {type: string, examples: [Christelle]}
+        is_you: {type: boolean, examples: [false]}
+        text: {type: string, examples: ["Still out: @Andres, Jordan?"]}
     DeviceEnvironment:
       type: string
       description: The APNs environment that issued the token.
