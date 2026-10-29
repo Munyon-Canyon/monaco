@@ -462,7 +462,7 @@ class JourneyTradeEngine(unittest.TestCase):
     """The backend a run starts stubs the trade engine, except for a run that moves real USDC."""
 
     def args(self, **values):
-        return unittest.mock.Mock(**{"all": False, "journey": "money/fund-cabal", **values})
+        return unittest.mock.Mock(**{"all": False, "journey": ["money/fund-cabal"], **values})
 
     def pick(self, journey_id, environ):
         funded = unittest.mock.Mock(funds={"A": 2})
@@ -470,7 +470,7 @@ class JourneyTradeEngine(unittest.TestCase):
         journeys = {"money/fund-cabal": funded, "auth/sign-in": free}
         with unittest.mock.patch.object(journey, "load_journeys", lambda: journeys), \
                 unittest.mock.patch.dict(os.environ, environ, clear=True):
-            return journey.backend_trade_engine(self.args(journey=journey_id))
+            return journey.backend_trade_engine(self.args(journey=[journey_id]))
 
     def test_a_journey_without_funds_runs_against_the_stub(self):
         self.assertEqual(self.pick("auth/sign-in", {}), "stub")
@@ -1093,6 +1093,45 @@ class Output(Tree):
         journey.OUT, journey.DERIVED, journey.RESULTS = self.saved_out
         journey.simulator_devices = self.saved_devices
         super().tearDown()
+
+
+class XctestrunCommand(Output):
+    """A test of an existing build runs from its xctestrun without a build slot; a build keeps the slot."""
+
+    def command(self, *extra):
+        saved, journey.cache_args = journey.cache_args, lambda: []
+        try:
+            return journey.xcodebuild("sim", *extra)
+        finally:
+            journey.cache_args = saved
+
+    def test_a_test_without_an_xctestrun_keeps_the_project_form_and_its_slot(self):
+        args = self.command("-only-testing:MonacoUITests/X", "test-without-building")
+        self.assertEqual(args[:3], ["scripts/qa/xcode-lock.sh", "xcode", "xcodebuild"])
+        self.assertIn("-project", args)
+
+    def test_a_test_runs_from_the_newest_app_xctestrun_with_no_slot(self):
+        products = journey.DERIVED / "Build" / "Products"
+        old = self.write(os.path.relpath(str(products / "Monaco_Monaco_iphonesimulator26.5-arm64.xctestrun"),
+                                         str(journey.ROOT)), "")
+        self.write(os.path.relpath(str(products / "Monaco_MonacoTests_iphonesimulator27.1-arm64.xctestrun"),
+                                   str(journey.ROOT)), "")
+        new = self.write(os.path.relpath(str(products / "Monaco_Monaco_iphonesimulator27.1-arm64.xctestrun"),
+                                         str(journey.ROOT)), "")
+        os.utime(str(old), (1, 1))
+        args = self.command("-only-testing:MonacoUITests/X", "-collect-test-diagnostics", "never",
+                            "test-without-building")
+        self.assertEqual(args, ["xcodebuild", "test-without-building", "-xctestrun", str(new),
+                                "-destination", "platform=iOS Simulator,id=sim",
+                                "-only-testing:MonacoUITests/X", "-collect-test-diagnostics", "never"])
+
+    def test_a_build_keeps_its_slot_when_an_xctestrun_exists(self):
+        products = journey.DERIVED / "Build" / "Products"
+        self.write(os.path.relpath(str(products / "Monaco_Monaco_iphonesimulator27.1-arm64.xctestrun"),
+                                   str(journey.ROOT)), "")
+        args = self.command("build-for-testing")
+        self.assertEqual(args[:3], ["scripts/qa/xcode-lock.sh", "xcode", "xcodebuild"])
+        self.assertEqual(args[-1], "build-for-testing")
 
 
 class RemappedRun(Output):
@@ -1792,13 +1831,15 @@ class Stamp(Output):
 
 
 class All(Output):
-    def test_every_journey_runs_after_what_it_requires_on_one_build_and_one_backend(self):
+    def journeys(self):
         self.write("docs/journeys/cabals/join.md", DOC.replace("auth/sign-in", "cabals/join").replace(
             "requires: []", "requires: [cabals/create]"))
         self.write("docs/journeys/cabals/create.md", DOC.replace("auth/sign-in", "cabals/create").replace(
             "requires: []", "requires: [auth/sign-in]"))
         self.write("docs/journeys/cabals/fund.md", DOC.replace("auth/sign-in", "cabals/fund").replace(
             "requires: []", "requires: []\nfunds:\n  A: 5"))
+
+    def run_main(self, argv):
         backends, builds, ran = [], [], []
 
         @contextlib.contextmanager
@@ -1820,18 +1861,35 @@ class All(Output):
                 unittest.mock.patch.object(journey, "build_label", lambda mutant=None: "abc"), \
                 unittest.mock.patch.dict(os.environ, {"MONACO_QA_REFUND_ADDRESS": ""}), \
                 unittest.mock.patch.object(journey, "with_dotenv", lambda args: ""), \
-                redirect_stdout(StringIO()) as printed:
-            code = journey.main(["run", "--all"])
+                redirect_stdout(StringIO()) as printed, unittest.mock.patch("sys.stderr", StringIO()) as err:
+            code = journey.main(argv)
+        return code, ran, (len(backends), len(builds)), printed.getvalue() + err.getvalue()
 
+    def test_every_journey_runs_after_what_it_requires_on_one_build_and_one_backend(self):
+        self.journeys()
+        code, ran, counts, out = self.run_main(["run", "--all"])
         self.assertEqual(code, 0)
         self.assertEqual(ran, ["auth/sign-in", "cabals/create", "cabals/join"])
-        self.assertEqual((len(backends), len(builds)), (1, 1))
-        self.assertIn("cabals/fund SKIP funds", printed.getvalue())
+        self.assertEqual(counts, (1, 1))
+        self.assertIn("cabals/fund SKIP funds", out)
+
+    def test_named_journeys_run_in_requires_order_on_one_build_and_one_backend(self):
+        self.journeys()
+        code, ran, counts, _ = self.run_main(["run", "cabals/join", "auth/sign-in", "cabals/create"])
+        self.assertEqual(code, 0)
+        self.assertEqual(ran, ["auth/sign-in", "cabals/create", "cabals/join"])
+        self.assertEqual(counts, (1, 1))
+
+    def test_scenario_needs_exactly_one_journey(self):
+        self.journeys()
+        code, ran, _, out = self.run_main(["run", "auth/sign-in", "cabals/join", "--scenario", "S1"])
+        self.assertEqual((code, ran), (2, []))
+        self.assertIn("--scenario names one journey's scenarios: name exactly one journey", out)
 
     def test_run_needs_a_journey_or_all(self):
         with redirect_stdout(StringIO()), unittest.mock.patch("sys.stderr", StringIO()) as err:
             self.assertEqual(journey.main(["run"]), 2)
-        self.assertIn("name one journey, or pass --all", err.getvalue())
+        self.assertIn("name one or more journeys, or pass --all", err.getvalue())
 
 
 class Seed(unittest.TestCase):

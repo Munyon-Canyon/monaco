@@ -144,11 +144,14 @@ scripts/qa/journey.py run auth/sign-in                        # every scenario, 
 scripts/qa/journey.py run auth/sign-in --runs 10              # for the flake rate
 scripts/qa/journey.py run auth/sign-in --scenario S2          # S1, then S2: a scenario starts where the last one ended
 scripts/qa/journey.py run --all                               # every journey, one build, one backend
+scripts/qa/journey.py run cabals/join profile/overview       # rerun several on one build and one backend
 scripts/qa/journey.py run auth/sign-in --timeout 600          # a longer budget than 300 s
 scripts/qa/journey.py run auth/sign-in --rebuild              # build even when the stamp matches
 scripts/qa/journey.py mutants auth/sign-in                    # catch rate against the seeded bugs
 scripts/qa/journey.py report                                  # the table across every run so far
 ```
+
+Rerun several failing journeys with one `run` call, not one call each: every call starts its own backend. A test of an existing build launches from its `.xctestrun`, which skips the project load (about 6 s to the first test instead of 10 to 29 s) and holds no Xcode build slot.
 
 Each run appends a row to `.logs/qa/journeys/results.tsv`:
 

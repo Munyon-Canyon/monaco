@@ -4,6 +4,7 @@
   journey.py check                          docs and their XCUITest files agree
   journey.py list                           every journey, its version and scenarios
   journey.py run <journey> [options]           run a journey's XCUITest and record the result
+  journey.py run <journey> <journey>... [opts]  those journeys in requires order, one build, one backend
   journey.py run --all [options]               every journey in requires order, one build, one backend
   journey.py mutants <journey> [options]       run a journey against its seeded bugs
   journey.py report                         speed and correctness per journey
@@ -867,7 +868,21 @@ def cache_args():
     return out.splitlines()
 
 
+def xctestrun():
+    """The newest xctestrun of the app scheme's test plan in DERIVED, which holds MonacoUITests, or None."""
+    found = sorted(DERIVED.glob("Build/Products/Monaco_Monaco_iphonesimulator*.xctestrun"),
+                   key=lambda path: path.stat().st_mtime)
+    return found[-1] if found else None
+
+
 def xcodebuild(sim, *extra):
+    """A build runs under an Xcode build slot. A test of an existing build runs from its xctestrun,
+    which skips the project load and package resolution and compiles nothing, so it takes no slot."""
+    plan = xctestrun() if "test-without-building" in extra else None
+    if plan:
+        rest = [arg for arg in extra if arg != "test-without-building"]
+        return ["xcodebuild", "test-without-building", "-xctestrun", str(plan),
+                "-destination", "platform=iOS Simulator,id=%s" % sim] + rest
     return [
         "scripts/qa/xcode-lock.sh", "xcode", "xcodebuild",
         "-project", "apps/mobile/Monaco.xcodeproj", "-scheme", "Monaco", "-configuration", "Debug",
@@ -1440,24 +1455,24 @@ EXIT_CODES = {"PASS": 0, "FAIL": 1, "TIMEOUT": 1, "ERROR": 2}
 
 def cmd_run(args):
     if args.all == bool(args.journey):
-        raise JourneyError("name one journey, or pass --all")
-    if args.all and args.scenario:
-        raise JourneyError("--scenario names one journey's scenarios: drop it with --all")
+        raise JourneyError("name one or more journeys, or pass --all")
+    if args.scenario and len(args.journey) != 1:
+        raise JourneyError("--scenario names one journey's scenarios: name exactly one journey")
     warning = xcode_version_warning()
     if warning:
         print(warning, file=sys.stderr)
     builder = once_builder(args)
     os.environ.setdefault("TRADE_ENGINE", backend_trade_engine(args))
     with simulator_shutdown(args.keep_sims), journey_backend(args.slot) as api_base_url:
-        if not args.all:
-            return run_journey(args, api_base_url, args.journey, builder)
-        return run_all(args, api_base_url, builder)
+        if len(args.journey) == 1:
+            return run_journey(args, api_base_url, args.journey[0], builder)
+        return run_all(args, api_base_url, builder, only=args.journey)
 
 
 def backend_trade_engine(args):
     """live when the run includes a journey with `funds` that will really move USDC, otherwise stub."""
     journeys = load_journeys()
-    picked = list(journeys.values()) if args.all else [pick(journeys, args.journey)]
+    picked = list(journeys.values()) if args.all else [pick(journeys, name) for name in args.journey]
     moves_money = any(journey.funds for journey in picked) and (
         not args.all or bool(os.environ.get("MONACO_QA_REFUND_ADDRESS")))
     return "live" if moves_money else "stub"
@@ -1515,12 +1530,16 @@ def requires_order(journeys):
     return order
 
 
-def run_all(args, api_base_url, builder):
-    """Every journey in requires order on one build and one backend. Returns the worst exit code."""
+def run_all(args, api_base_url, builder, only=None):
+    """Every journey, or the ones named in `only`, in requires order on one build and one backend.
+    Returns the worst exit code."""
     journeys = load_journeys()
+    if only:
+        named = [pick(journeys, name) for name in only]
+        journeys = {journey.id: journey for journey in named}
     worst = 0
     for journey_id in requires_order(journeys):
-        if journeys[journey_id].funds:
+        if journeys[journey_id].funds and not only:
             try:
                 refund_address()
             except JourneyError:
@@ -1749,7 +1768,8 @@ def main(argv=None):
     for name, handler in (("run", cmd_run), ("mutants", cmd_mutants)):
         sub = commands.add_parser(name)
         sub.set_defaults(run=handler)
-        sub.add_argument("journey", nargs="?" if name == "run" else None, help="journey id, such as auth/sign-in")
+        sub.add_argument("journey", nargs="*" if name == "run" else None,
+                         help="journey id, such as auth/sign-in" + ("; several share one backend and build" if name == "run" else ""))
         sub.add_argument("--sim", default="", metavar="UDID",
                          help="the one simulator every actor uses; defaults to Monaco Journeys [<lane>]")
         sub.add_argument("--channel", choices=("sms", "email"), default="sms")
