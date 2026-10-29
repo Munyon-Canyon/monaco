@@ -482,6 +482,19 @@ func TestRunCallBoard_failsWhenATableItWritesIsGone(t *testing.T) {
 	}
 }
 
+func TestRunCallBoard_failsWhenTheOldEntriesCannotBeDeleted(t *testing.T) {
+	t.Parallel()
+	pool, cards := newRig(t), &boardCards{}
+	seedMonth(t, pool, cards)
+	execAll(t, pool,
+		`CREATE FUNCTION refuse_delete() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'no'; END $$`)
+	execAll(t, pool,
+		`CREATE TRIGGER refuse BEFORE DELETE ON call_board_entries FOR EACH STATEMENT EXECUTE FUNCTION refuse_delete()`)
+	if _, err := newBoardRun(t, pool, cards).Run(pollerContext(t), boardNow()); err == nil {
+		t.Fatal("Run error = nil, want the delete of the old entries to fail")
+	}
+}
+
 func runBoardAt(t *testing.T, run app.RunCallBoard, at time.Time) {
 	t.Helper()
 	if _, err := run.Run(pollerContext(t), at); err != nil {

@@ -41,7 +41,8 @@ type callWant struct {
 
 func (defined) SeedsF19a() map[string]Seeder {
 	return map[string]Seeder{
-		"F19aResolveCallsOK": seedSignedInWith(seedResolvedCalls),
+		"F19aResolveCallsOK":                seedSignedInWith(seedResolvedCalls),
+		"F19aResolveCallsCrashBeforeCommit": seedSignedInWith(seedResolvedCalls),
 	}
 }
 
