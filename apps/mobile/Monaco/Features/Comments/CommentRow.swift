@@ -1,0 +1,229 @@
+import MonacoAPI
+import MonacoCore
+import SwiftUI
+import UIKit
+
+enum CommentThreadLayout {
+    static let avatarSize: CGFloat = MonacoAvatarSize.feed.rawValue
+    static let indentWidth: CGFloat = avatarSize + MonacoTheme.Space.sm
+
+    static func avatarLeading(level: Int) -> CGFloat {
+        MonacoTheme.Space.gutter + CGFloat(max(level, 0)) * indentWidth
+    }
+
+    static func textLeading(level: Int) -> CGFloat {
+        avatarLeading(level: level) + avatarSize + MonacoTheme.Space.sm
+    }
+}
+
+enum CommentRowMetrics {
+    static let replyTarget: CGFloat = 44
+
+    static func replyOverhang(lineHeight: CGFloat) -> CGFloat {
+        max(0, (replyTarget - lineHeight) / 2)
+    }
+
+    static func nameSlop(overhang: CGFloat) -> CGFloat {
+        overhang > 0 ? 0 : MonacoTheme.Space.s
+    }
+}
+
+struct CommentRow: View {
+    let row: CommentThreadRow
+    var reactions: [Components.Schemas.Reaction]?
+    var isHighlighted = false
+    var canReply = true
+    let onReply: () -> Void
+    var onToggleReaction: (String) -> Void = { _ in }
+    var onDoubleTap: () -> Void = {}
+    var onJump: (CommentQuoteRow) -> Void = { _ in }
+    var onDelete: (() -> Void)?
+    var onReport: (() -> Void)?
+
+    @ScaledMetric(relativeTo: .callout) private var nameLineHeight: CGFloat = 20
+
+    private var level: Int { row.indentLevel }
+
+    private var shownReactions: [Components.Schemas.Reaction] { reactions ?? row.reactions }
+
+    private var time: String {
+        if row.isSystem {
+            return Self.systemTime.string(from: row.comment.createdAt)
+        }
+        return RelativeTimeFormatter.label(date: row.comment.createdAt, now: Date())
+    }
+
+    private static let systemTime: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("MMM d jm")
+        return formatter
+    }()
+
+    private var showsBody: Bool { row.isDeleted || row.comment.body != nil }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: MonacoTheme.Space.sm) {
+            avatar
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                byline
+                if let quote = row.quote {
+                    CommentQuote(quote: quote, rowID: row.id) { onJump(quote) }
+                }
+                if showsBody { bodyText }
+                if let attachment = row.attachment { AttachmentBubble(commentID: row.id, attachment: attachment) }
+                if row.canReact { reactionRow }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.leading, CommentThreadLayout.avatarLeading(level: level))
+        .padding(.trailing, MonacoTheme.Space.gutter)
+        .padding(.top, MonacoTheme.Space.s)
+        .padding(.bottom, row.canReact ? 0 : MonacoTheme.Space.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(isHighlighted ? MonacoTheme.surfaceSunken : Color.clear)
+        .animation(.easeOut(duration: 0.2), value: isHighlighted)
+        .contentShape(Rectangle())
+        .contextMenu {
+            if !row.isSystem {
+                Button("Copy") { UIPasteboard.general.string = row.text }
+                    .accessibilityIdentifier("comment-copy-\(row.id)")
+            }
+            if let onReport {
+                Button(action: onReport) {
+                    Label("Report", systemImage: "exclamationmark.bubble")
+                }
+                .accessibilityIdentifier("comment-report-\(row.id)")
+            }
+            if let onDelete {
+                Button(CommentsCopy.delete, role: .destructive, action: onDelete)
+                    .accessibilityIdentifier("comment-delete-\(row.id)")
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(row.spoken)
+        .accessibilityIdentifier("comment-row-\(row.id)")
+        .modifier(CommentActions(row: row, canReply: canReply, onReply: onReply, onReact: onDoubleTap, onJump: onJump))
+    }
+
+    @ViewBuilder private var avatar: some View {
+        if row.isSystem {
+            Circle()
+                .fill(MonacoTheme.surfaceSunken)
+                .frame(width: CommentThreadLayout.avatarSize, height: CommentThreadLayout.avatarSize)
+                .overlay {
+                    Image(monaco: .bot).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
+                }
+                .accessibilityHidden(true)
+        } else {
+            authorLink(
+                identifier: "comment-avatar-\(row.id)", height: CommentThreadLayout.avatarSize,
+                widthOverhang: CommentRowMetrics.replyTarget - CommentThreadLayout.avatarSize
+            ) {
+                MonacoAvatar(
+                    photoURL: row.comment.author.photoUrl, displayName: row.authorName,
+                    size: CommentThreadLayout.avatarSize, seed: row.authorID)
+            }
+            .accessibilityHidden(true)
+        }
+    }
+
+    private var byline: some View {
+        HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
+            nameLink
+            timeLabel
+        }
+    }
+
+    private var nameLink: some View {
+        authorLink(identifier: "comment-author-\(row.id)", height: nameLineHeight) {
+            Text(row.authorName)
+                .font(MonacoTheme.Typo.headline)
+                .foregroundStyle(MonacoTheme.primaryText)
+                .lineLimit(1)
+                .monacoPrivate()
+        }
+    }
+
+    private var timeLabel: some View {
+        Text(time)
+            .font(MonacoTheme.Typo.subhead)
+            .foregroundStyle(MonacoTheme.secondaryText)
+            .lineLimit(1)
+    }
+
+    private var bodyText: some View {
+        Text(row.text)
+            .font(MonacoTheme.Typo.body)
+            .foregroundStyle(row.isDeleted ? MonacoTheme.secondaryText : MonacoTheme.bodyText)
+            .fixedSize(horizontal: false, vertical: true)
+            .contentShape(Rectangle())
+            .onTapGesture(count: 2) { if row.canReact { onDoubleTap() } }
+            .accessibilityIdentifier("comment-body-\(row.id)")
+            .monacoPrivate()
+    }
+
+    private var reactionRow: some View {
+        ReactionRow(
+            target: .comment(row.id), reactions: shownReactions, showsAdd: false, size: .compact,
+            onToggle: onToggleReaction
+        ) {
+            if canReply { replyButton }
+        }
+    }
+
+    @ViewBuilder private func authorLink(
+        identifier: String, height: CGFloat, widthOverhang: CGFloat = 0, @ViewBuilder label: () -> some View
+    ) -> some View {
+        if row.opensAuthorProfile {
+            NavigationLink(value: AnyAppRoute(UserProfileRoute(userID: row.authorID))) {
+                label()
+                    .padding(.horizontal, CommentRowMetrics.nameSlop(overhang: widthOverhang))
+                    .frame(
+                        minWidth: widthOverhang > 0 ? CommentRowMetrics.replyTarget : nil,
+                        minHeight: CommentRowMetrics.replyTarget, alignment: .leading
+                    )
+                    .contentShape(Rectangle())
+                    .padding(.horizontal, -CommentRowMetrics.nameSlop(overhang: widthOverhang))
+            }
+            .buttonStyle(.plain)
+            .padding(.vertical, -CommentRowMetrics.replyOverhang(lineHeight: height))
+            .padding(.trailing, -widthOverhang)
+            .accessibilityIdentifier(identifier)
+        } else {
+            label()
+        }
+    }
+
+    private var replyButton: some View {
+        Button(action: onReply) {
+            Text(CommentsCopy.reply)
+                .font(MonacoTheme.Typo.subhead)
+                .foregroundStyle(MonacoTheme.brand)
+                .frame(
+                    minWidth: CommentRowMetrics.replyTarget, minHeight: CommentRowMetrics.replyTarget,
+                    alignment: .leading
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(CommentsCopy.reply)
+        .accessibilityIdentifier("comment-reply-\(row.id)")
+    }
+}
+
+private struct CommentActions: ViewModifier {
+    let row: CommentThreadRow
+    let canReply: Bool
+    let onReply: () -> Void
+    let onReact: () -> Void
+    let onJump: (CommentQuoteRow) -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .accessibilityAction(named: CommentsCopy.reply) { if canReply && row.canReact { onReply() } }
+            .accessibilityAction(named: CommentsCopy.react) { if row.canReact { onReact() } }
+            .accessibilityAction(named: CommentsCopy.goToQuote) {
+                if let quote = row.quote, quote.canJump { onJump(quote) }
+            }
+    }
+}

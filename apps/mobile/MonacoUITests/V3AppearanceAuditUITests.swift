@@ -81,7 +81,7 @@ nonisolated final class V3AppearanceAuditUITests: XCTestCase {
         ("propose-amount", "Max", Reason.inactive),
         ("proposal-open", "Vote No", Reason.chrome),
         ("proposal-open", "Cabal gets", Reason.chrome),
-        ("proposal-open", "Discussion", Reason.chrome),
+        ("proposal-open", "Replies", Reason.chrome),
         ("proposal-open", "Maya", Reason.chrome),
         ("cabals-ready", "$1,300.00", Reason.cover),
         ("cabals-ready", "6.50%", Reason.cover),

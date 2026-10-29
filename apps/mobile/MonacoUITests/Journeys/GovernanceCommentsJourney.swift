@@ -58,7 +58,7 @@ enum GovernanceCommentsJourney {
                 app.staticTexts["No replies yet"].waitForExistence(timeout: 10),
                 "S1.2: no 'No replies yet' within 10 s"
             )
-            XCTAssertFalse(app.staticTexts["Discussion"].exists, "S1.2: an empty thread shows the 'Discussion' header")
+            XCTAssertFalse(app.staticTexts["Replies"].exists, "S1.2: an empty thread shows the 'Replies' header")
         }
 
         recorder.step("S1.3", "post a comment") {

@@ -4,12 +4,12 @@ expect-fail: S2
 The Reply button loses its identifier. S2.3 taps comment-reply-<id> on the comment, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Comments/CommentThreadView.swift b/apps/mobile/Monaco/Features/Comments/CommentThreadView.swift
---- a/apps/mobile/Monaco/Features/Comments/CommentThreadView.swift
-+++ b/apps/mobile/Monaco/Features/Comments/CommentThreadView.swift
-@@ -271,7 +271,7 @@
+diff --git a/apps/mobile/Monaco/Features/Comments/CommentRow.swift b/apps/mobile/Monaco/Features/Comments/CommentRow.swift
+--- a/apps/mobile/Monaco/Features/Comments/CommentRow.swift
++++ b/apps/mobile/Monaco/Features/Comments/CommentRow.swift
+@@ -200,7 +200,7 @@
+         }
          .buttonStyle(.plain)
-         .padding(.top, MonacoTheme.Space.xs)
          .accessibilityLabel(CommentsCopy.reply)
 -        .accessibilityIdentifier("comment-reply-\(row.id)")
 +        .accessibilityIdentifier("comment-answer-\(row.id)")

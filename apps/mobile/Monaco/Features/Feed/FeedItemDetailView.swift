@@ -70,6 +70,7 @@ private struct FeedItemDetailContent: View {
                     .padding(.vertical, MonacoTheme.Space.s)
             }
             .scrollDismissesKeyboard(.interactively)
+            .environment(\.sectionScrollProxy, proxy)
             .refreshable { await model.refresh() }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if phase != .unavailable, phase != .failed {

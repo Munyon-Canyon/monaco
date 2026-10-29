@@ -7,8 +7,8 @@ scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/packages/mobile-core/Sources/MonacoCore/Comments/CommentThread.swift b/packages/mobile-core/Sources/MonacoCore/Comments/CommentThread.swift
 --- a/packages/mobile-core/Sources/MonacoCore/Comments/CommentThread.swift
 +++ b/packages/mobile-core/Sources/MonacoCore/Comments/CommentThread.swift
-@@ -71,7 +71,7 @@
-     public static let title = "Discussion"
+@@ -158,7 +158,7 @@
+     public static let title = "Replies"
      public static let empty = "No replies yet"
      public static let emptyMessage = "Start the discussion."
 -    public static let placeholder = "Say something"

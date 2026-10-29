@@ -17,7 +17,9 @@ public final class FeedItemDetailModel {
         self.itemID = itemID
         self.api = api
         self.hints = hints
-        comments = CommentsModel(source: FeedCommentsSource(itemID: itemID, api: api), hints: hints, clock: clock)
+        comments = CommentsModel(
+            source: FeedCommentsSource(itemID: itemID, api: api), hints: hints, clock: clock,
+            reactions: ReactionsModel(api: api, clock: clock))
     }
 
     public func load() async {
