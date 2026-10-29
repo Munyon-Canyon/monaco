@@ -1,7 +1,7 @@
 ---
 id: profile/invite
 title: Invite friends
-version: 1
+version: 2
 milestone: M21
 requires: [auth/sign-in]
 actors: [A]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/ProfileInviteJourney.swift, apps/m
 
 # Invite friends
 
-A signed-in member opens Profile, taps "Invite friends", copies their referral link and opens the share sheet. The design is `ProfileLinksSlot` in [screens.md](../../screens.md#profile-tab). The old app's version is the Profile "Invite friends" row with a `ShareLink` and a "Copy referral link" button at `c838bd24`.
+A signed-in member opens Profile, then Settings → Account, taps "Invite friends", copies their referral link and opens the share sheet. F's Profile has no links list: #6505 moves "Invite friends" to Settings → Account and keeps `profile-invite-row` and the referral screen. The cabal invite sheet over Profile is [cabals/invite](../cabals/invite.md). The old design was `ProfileLinksSlot` in [screens.md](../../screens.md#profile-tab). The old app's version is the Profile "Invite friends" row with a `ShareLink` and a "Copy referral link" button at `c838bd24`.
 
 The format of this doc is in [App journeys](../README.md).
 
@@ -20,7 +20,7 @@ The format of this doc is in [App journeys](../README.md).
 | Id | What must be true |
 | --- | --- |
 | P1 | Everything [auth/sign-in](../auth/sign-in.md) needs |
-| P2 | Before each scenario, `apps/mobile/qa/journeys/profile/invite.setup.sh` marks A as done with onboarding and sets A's display name through `scripts/qa/seed.sh`, so no nudge banner sits above the Profile header |
+| P2 | Before each scenario, `apps/mobile/qa/journeys/profile/invite.setup.sh` marks A as done with onboarding and sets A's display name through `scripts/qa/seed.sh`, so no nudge banner sits on Profile |
 
 ## Scenarios
 
@@ -30,8 +30,8 @@ Starts signed in (auth/sign-in).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap | the Profile tab | | `profile-header` shows within 15 s (old app: the Profile tab) |
-| S1.2 | A | scroll to, then tap | `profile-invite-row` | | The row reads "Invite friends" (screens.md `ProfileLinksSlot`: Row "Invite friends"; old app: Profile -> Invite friends) |
+| S1.1 | A | tap, then tap | the Profile tab, then the settings round `profile-settings-row` | | `profile-card` shows within 15 s, then Settings opens (#6505) |
+| S1.2 | A | scroll to, then tap | `profile-invite-row` in Settings → Account | | The row reads "Invite friends" (screens.md `ProfileLinksSlot`: Row "Invite friends"; old app: Profile -> Invite friends) |
 | S1.3 | A | wait | `invite-link` | | Within 15 s the screen is titled "Invite friends" and `invite-link` shows a link with "/r/" in it (screens.md: `Invite friends ──▶ InviteRoute`; old app: the referral link above Copy) |
 | S1.4 | A | tap | `invite-copy` | | The toast "Link copied." shows within 10 s (old app: "Copy referral link" -> toast) |
 
@@ -41,7 +41,7 @@ Starts signed in (auth/sign-in).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, scroll to, then tap | the Profile tab, then `profile-invite-row` | | `invite-link` shows within 15 s (screens.md `ProfileLinksSlot`: Row "Invite friends"; old app: Profile -> Invite friends) |
+| S2.1 | A | tap, tap, scroll to, then tap | the Profile tab, `profile-settings-row`, then `profile-invite-row` | | `invite-link` shows within 15 s (screens.md `ProfileLinksSlot`: Row "Invite friends"; old app: Profile -> Invite friends) |
 | S2.2 | A | tap | `invite-share` | | The button reads "Share", and the iOS share sheet opens within 5 s (old app: `ShareLink` on the invite screen) |
 | S2.3 | A | close | the share sheet | | `invite-link` shows again within 5 s |
 
@@ -51,7 +51,7 @@ Starts signed in (auth/sign-in).
 
 ## Known failures on staging
 
-None expected. A failing step becomes a wave 2 fix ticket.
+None expected. The Settings → Account rows and `profile-invite-row` exist in the app today (#6505). A failing step becomes a wave 2 fix ticket.
 
 ## Not covered
 

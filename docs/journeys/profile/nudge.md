@@ -1,7 +1,7 @@
 ---
 id: profile/nudge
 title: Profile nudge and limits
-version: 3
+version: 4
 milestone: M9
 requires: [auth/sign-in]
 actors: [A]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/ProfileNudgeJourney.swift, apps/mo
 
 # Profile nudge and limits
 
-A signed-in member hits the photo rate limit, sees the onboarding nudge for the step they skipped, sees it on Home only, sees no nudge once onboarding is complete, and opens Edit profile, where the username is, from the Profile tab's identity card. These scenarios were S5 to S8 of [profile/edit](edit.md) until that journey outgrew the runner's 300 s budget. The design is [Flow 23](../../architecture/auth.md#handle), and the banner copy comes from [`auth_state`](../../architecture/auth.md#auth_state).
+A signed-in member hits the photo rate limit, sees the onboarding nudge for the step they skipped, sees it on Profile and never on Home (Q49, #6496), sees no nudge once onboarding is complete, and opens Edit profile, where the username is, from the Profile tab's card. These scenarios were S5 to S8 of [profile/edit](edit.md) until that journey outgrew the runner's 300 s budget. The design is [Flow 23](../../architecture/auth.md#handle), and the banner copy comes from [`auth_state`](../../architecture/auth.md#auth_state).
 
 The format of this doc is in [App journeys](../README.md).
 
@@ -31,7 +31,7 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S1.1 | tap, then tap, up to 8 times | the Profile tab, `profile-photo-picker`, then `face-option-fox` | | Each pick ends in a `monaco-toast-banner` within 30 s. One of them reads "Too many requests. Try again in a moment." |
+| S1.1 | tap, then tap, up to 8 times | the Profile tab, `profile-photo-edit`, then `face-option-fox` | | Each pick ends in a `monaco-toast-banner` within 30 s. One of them reads "Too many requests. Try again in a moment." |
 
 ### S2 The nudge banner
 
@@ -39,11 +39,11 @@ Starts signed in (auth/sign-in), with A at `AWAITING_SOCIALS` (P3).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S2.1 | tap | the Home tab | | `onboarding-nudge` shows within 15 s and `onboarding-nudge-open` reads "Connect X to find people you follow" |
-| S2.2 | tap | the Profile tab | | `profile-header` shows and `onboarding-nudge` does not |
-| S2.3 | tap, then tap, then tap | the Home tab, `onboarding-nudge-open`, then "Not now" | | `onboarding-socials-step` shows within 5 s. "Not now" closes it within 5 s |
+| S2.1 | tap | the Profile tab | | `onboarding-nudge` shows within 15 s and `onboarding-nudge-open` reads "Connect X to find people you follow" |
+| S2.2 | tap | the Home tab | | `onboarding-nudge` does not show within 3 s |
+| S2.3 | tap, then tap, then tap | the Profile tab, `onboarding-nudge-open`, then "Not now" | | `onboarding-socials-step` shows within 5 s. "Not now" closes it within 5 s |
 | S2.4 | tap | `onboarding-nudge-close` | | `onboarding-nudge` is gone within 5 s |
-| S2.5 | tap | the Profile tab, then the Home tab | | `onboarding-nudge` does not show on Home |
+| S2.5 | tap | the Home tab, then the Profile tab | | `onboarding-nudge` does not show on Profile |
 
 ### S3 No banner once onboarding is complete
 
@@ -51,7 +51,7 @@ Starts signed in (auth/sign-in), with A at `ONBOARDING_COMPLETED` (P3).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S3.1 | tap | the Profile tab | | `profile-header` shows within 15 s and `onboarding-nudge` does not |
+| S3.1 | tap | the Profile tab | | `profile-card` shows within 15 s and `onboarding-nudge` does not |
 | S3.2 | tap | the Home tab | | `onboarding-nudge` does not show within 5 s |
 
 ### S4 Open Edit profile from the handle
@@ -61,6 +61,10 @@ Starts signed in (auth/sign-in).
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
 | S4.1 | tap | the Profile tab, then `profile-handle` | | "Edit profile" shows within 5 s as the screen title, with `edit-profile-username-field` and `profile-name-save` disabled because nothing has changed |
+
+## Known failures on staging
+
+- S2.1, S2.3, S2.4 and S2.5: `onboarding-nudge` is only in `OnboardingNudgeBanner` and no screen shows it on Profile yet. #6496 moves the nudge off Home and onto Profile.
 
 ## Not covered
 

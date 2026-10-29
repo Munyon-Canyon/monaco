@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileNudgeJourney {
     static let id = "profile/nudge"
-    static let version = 3
+    static let version = 4
 
     static let nudgeCopy = "Connect X to find people you follow"
     static let rateLimitCopy = "Too many requests. Try again in a moment."
@@ -12,7 +12,7 @@ enum ProfileNudgeJourney {
     }
 
     static func photoRateLimit(_ app: XCUIApplication, recorder: JourneyRecorder) {
-        let picker = app.buttons["profile-photo-picker"]
+        let picker = app.buttons["profile-photo-edit"]
 
         recorder.step("S1.1", "pick faces until the rate limit answers") {
             ProfileEditJourney.openProfile(app, step: "S1.1")
@@ -35,20 +35,20 @@ enum ProfileNudgeJourney {
     static func nudgeBanner(_ app: XCUIApplication, recorder: JourneyRecorder) {
         let banner = app.element("onboarding-nudge")
 
-        recorder.step("S2.1", "see the nudge on Home") {
-            app.tab("Home").tap()
-            XCTAssertTrue(banner.waitForExistence(timeout: 15), "S2.1: no nudge banner on Home")
+        recorder.step("S2.1", "see the nudge on Profile") {
+            ProfileEditJourney.openProfile(app, step: "S2.1")
+            XCTAssertTrue(banner.waitForExistence(timeout: 15), "S2.1: no nudge banner on Profile")
             XCTAssertEqual(
                 app.buttons["onboarding-nudge-open"].label, nudgeCopy, "S2.1: the banner does not read '\(nudgeCopy)'")
         }
 
-        recorder.step("S2.2", "no nudge on Profile") {
-            ProfileEditJourney.openProfile(app, step: "S2.2")
-            XCTAssertFalse(banner.exists, "S2.2: a nudge banner showed on Profile")
+        recorder.step("S2.2", "no nudge on Home") {
+            app.tab("Home").tap()
+            XCTAssertFalse(banner.waitForExistence(timeout: 3), "S2.2: a nudge banner showed on Home")
         }
 
         recorder.step("S2.3", "open the X sheet and close it with Not now") {
-            app.tab("Home").tap()
+            ProfileEditJourney.openProfile(app, step: "S2.3")
             app.buttons["onboarding-nudge-open"].tap()
             let step = app.element("onboarding-socials-step")
             XCTAssertTrue(step.waitForExistence(timeout: 5), "S2.3: the X sheet did not show")
@@ -63,10 +63,10 @@ enum ProfileNudgeJourney {
             XCTAssertTrue(banner.waitForNonExistence(timeout: 5), "S2.4: the banner stayed after close")
         }
 
-        recorder.step("S2.5", "the banner stays closed on Home") {
-            ProfileEditJourney.openProfile(app, step: "S2.5")
+        recorder.step("S2.5", "the banner stays closed on Profile") {
             app.tab("Home").tap()
-            XCTAssertFalse(banner.waitForExistence(timeout: 3), "S2.5: the closed banner came back on Home")
+            ProfileEditJourney.openProfile(app, step: "S2.5")
+            XCTAssertFalse(banner.waitForExistence(timeout: 3), "S2.5: the closed banner came back on Profile")
         }
     }
 
@@ -75,7 +75,7 @@ enum ProfileNudgeJourney {
 
         recorder.step("S3.1", "no banner on Profile") {
             ProfileEditJourney.openProfile(app, step: "S3.1")
-            XCTAssertFalse(banner.exists, "S3.1: a nudge banner showed for a completed account")
+            XCTAssertFalse(banner.waitForExistence(timeout: 3), "S3.1: a nudge banner showed for a completed account")
         }
 
         recorder.step("S3.2", "no banner on Home") {

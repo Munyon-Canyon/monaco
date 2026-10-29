@@ -2,14 +2,15 @@ import XCTest
 
 enum ProfileInviteJourney {
     static let id = "profile/invite"
-    static let version = 1
+    static let version = 2
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
     }
 
     static func openInvite(_ app: XCUIApplication, step: String) {
-        ProfileOverviewJourney.openProfile(app, step: step)
+        ProfileEditJourney.openProfile(app, step: step)
+        ProfileEditJourney.openSettings(app, step: step)
         let row = app.element("profile-invite-row")
         app.scrollIntoReach(row)
         XCTAssertTrue(row.waitForExistence(timeout: 10), "\(step): no Invite friends row on Profile")
@@ -22,7 +23,8 @@ enum ProfileInviteJourney {
 
     static func copyLink(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S1.1", "open Profile") {
-            ProfileOverviewJourney.openProfile(app, step: "S1.1")
+            ProfileEditJourney.openProfile(app, step: "S1.1")
+            ProfileEditJourney.openSettings(app, step: "S1.1")
         }
 
         recorder.step("S1.2", "tap Invite friends") {

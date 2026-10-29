@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileFindFriendsJourney {
     static let id = "profile/find-friends"
-    static let version = 4
+    static let version = 5
 
     static let memberName = "Bartholomez"
     static let explainer =
@@ -26,11 +26,8 @@ enum ProfileFindFriendsJourney {
     }
 
     static func openFindFriends(_ app: XCUIApplication, step: String) {
-        app.tab("Profile").tap()
-        let row = app.element("profile-find-friends")
-        app.scrollIntoReach(row)
-        XCTAssertTrue(row.waitForExistence(timeout: 15), "\(step): no 'Find friends' row on Profile")
-        row.tap()
+        ProfileEditJourney.openProfile(app, step: step)
+        ProfileEditJourney.openSettingsRow(app, "profile-find-friends", step: step)
         XCTAssertTrue(
             app.navigationBars["Find friends"].waitForExistence(timeout: 10),
             "\(step): 'Find friends' did not open")
@@ -51,10 +48,11 @@ enum ProfileFindFriendsJourney {
 
     static func backOut(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S1.1", "find the Find friends row") {
-            app.tab("Profile").tap()
+            ProfileEditJourney.openProfile(app, step: "S1.1")
+            ProfileEditJourney.openSettings(app, step: "S1.1")
             let row = app.element("profile-find-friends")
             app.scrollIntoReach(row)
-            XCTAssertTrue(row.waitForExistence(timeout: 15), "S1.1: no 'Find friends' row on Profile")
+            XCTAssertTrue(row.waitForExistence(timeout: 15), "S1.1: no 'Find friends' row in Settings")
             XCTAssertTrue(row.label.contains("Find friends"), "S1.1: the row reads '\(row.label)', not 'Find friends'")
         }
 
@@ -70,8 +68,9 @@ enum ProfileFindFriendsJourney {
 
         recorder.step("S1.3", "back out with Not now") {
             app.element("friends-not-now").tap()
+            app.popToRoot()
             XCTAssertTrue(
-                app.element("profile-header").waitForExistence(timeout: 10),
+                app.element("profile-card").waitForExistence(timeout: 10),
                 "S1.3: 'Not now' did not return to Profile")
         }
     }
@@ -106,8 +105,9 @@ enum ProfileFindFriendsJourney {
 
         recorder.step("S3.1", "open the search again") {
             app.navigationBars["Find friends"].buttons.element(boundBy: 0).tap()
+            app.popToRoot()
             XCTAssertTrue(
-                app.element("profile-header").waitForExistence(timeout: 10),
+                app.element("profile-card").waitForExistence(timeout: 10),
                 "S3.1: the back button did not return to Profile")
             field = openSearch(app, step: "S3.1")
         }
