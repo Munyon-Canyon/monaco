@@ -2,7 +2,6 @@ import MonacoCore
 import SwiftUI
 import Testing
 import UIKit
-import VisionKit
 
 @testable import Monaco
 
@@ -39,10 +38,10 @@ struct WithdrawScreenTests {
         #expect(!ids.contains("withdraw-network-picker"))
     }
 
-    @Test(.timeLimit(.minutes(1))) func theScanButtonFollowsScannerSupport() async throws {
+    @Test(.timeLimit(.minutes(1))) func theScanButtonAlwaysShows() async throws {
         for state in [WithdrawSampleState.empty, .typed, .needsAddress] {
             let ids = try await Self.identifiers(of: state, until: "withdraw-address-field")
-            #expect(ids.contains("withdraw-scan") == DataScannerViewController.isSupported, "\(state)")
+            #expect(ids.contains("withdraw-scan"), "\(state)")
         }
     }
 

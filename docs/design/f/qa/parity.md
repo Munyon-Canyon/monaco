@@ -206,11 +206,11 @@ founder:
 | [`09-fund-cabal-empty`](../screens/09-fund-cabal-empty.png) | dark | match (15 pt floor) | — | — |
 | [`09-fund-cabal`](../screens/09-fund-cabal.png) | dark | match (15 pt floor) | — | — |
 | [`09-fund-cabal-invalid`](../screens/09-fund-cabal-invalid.png) | dark | match (15 pt floor) | — | — |
-| [`09-fund-cabal-settled`](../screens/09-fund-cabal-settled.png) | dark | difference | Frame header drops to "Cash $250.00" after funding; app still shows "Cash $500.00". | #7029 (#6475) |
-| [`09-withdraw-empty`](../screens/09-withdraw-empty.png) | dark | difference | Frame address field has paste and QR-scan controls; app shows a single copy-style icon and no scan control. | #7029 (#6476) |
-| [`09-withdraw`](../screens/09-withdraw.png) | dark | difference | Same address field gap: no scan control, single copy-style icon. | #7029 (#6476) |
-| [`09-withdraw-invalid`](../screens/09-withdraw-invalid.png) | dark | difference | Frame keeps "≈ 650.00 USDC · fee $0.50" under the amount and puts the over-limit text only above the keypad; app replaces the sub-line with the over-limit text too, so it shows twice. | #7029 (#6504) |
-| [`09-withdraw-settled`](../screens/09-withdraw-settled.png) | dark | difference | App dims the chain chips (Solana/Base/Arbitrum/Ethereum) after send; frame leaves them at full strength; address abbreviation also reads "4H6P" vs "VFin" (sample data). | #7029 (#6504) |
+| [`09-fund-cabal-settled`](../screens/09-fund-cabal-settled.png) | dark | match (15 pt floor) | — | #7029 |
+| [`09-withdraw-empty`](../screens/09-withdraw-empty.png) | dark | match (15 pt floor) | — | #7029 |
+| [`09-withdraw`](../screens/09-withdraw.png) | dark | match (15 pt floor) | — | #7029 |
+| [`09-withdraw-invalid`](../screens/09-withdraw-invalid.png) | dark | match (15 pt floor) | — | #7029 |
+| [`09-withdraw-settled`](../screens/09-withdraw-settled.png) | dark | match (15 pt floor) | Address abbreviation is sample data. | #7029 |
 
 founder:
 
