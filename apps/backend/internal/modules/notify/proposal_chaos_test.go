@@ -56,7 +56,6 @@ func chaosProposal(i int) events.Event {
 }
 
 func TestNotify_ProposalKinds_ConvergeUnderChaos(t *testing.T) {
-	t.Skip("times out the count-20 flake job in CI; see #6707")
 	t.Parallel()
 	testkit.ConsumerSuite(t, func(h testkit.Harness) bus.Consumer {
 		seedChaosUsers(t, h)
