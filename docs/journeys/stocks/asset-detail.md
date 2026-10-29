@@ -82,7 +82,7 @@ Starts signed in (auth/sign-in), with a cabal of A's holding `JRNYAx` (P4).
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
 | S5.1 | tap, type, then tap | the Markets tab `tab-assets`, then `monaco-search-field`, then `assets-row-JRNYAx` | `JRNYA` | Within 15 s, `asset-detail-root` shows |
-| S5.2 | scroll to | `asset-cabal-positions` | | Within 10 s, `asset-cabal-positions` ("Cabals holding JRNYA") shows one `asset-position-<cabal id>` row per cabal that holds it. Old app: the position card. screens.md: "Cabals holding <TICKER>" with one row per cabal of the viewer's that holds it |
+| S5.2 | scroll to | `asset-in-your-cabals` | | Within 10 s, `asset-in-your-cabals` ("In your cabals") shows one `asset-held-<cabal id>` row per cabal that holds it. Old app: the position card. screens.md: "Cabals holding <TICKER>" with one row per cabal of the viewer's that holds it |
 | S5.3 | scroll to, then tap | `asset-detail-propose-sell` | | Within 10 s, the propose screen opens with "Propose sell". Old app: Propose sell from the position card. screens.md: plus "Propose a sell" when a cabal holds it |
 
 ## Ground truth
@@ -93,7 +93,7 @@ Looking at a stock writes nothing, and S1.9 backs out of Amount. After a run, `a
 
 | Step | Why | Blocking ticket |
 | --- | --- | --- |
-| S5.2, S5.3 | No path seeds a holding of `JRNYAx` for A (P4), so "Cabals holding JRNYA" lists no cabal and Propose a sell does not show | #2136 |
+| S5.2, S5.3 | No path seeds a holding of `JRNYAx` for A (P4), so "In your cabals" is hidden and Propose a sell does not show | #2136 |
 
 ## Not covered
 

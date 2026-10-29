@@ -81,12 +81,12 @@ struct AssetDetailClientView: View {
                     detail: detail, model: model,
                     scrub: AssetScrubHeader(chart: model.chart, barIndex: scrubbedIndex), priceTick: priceTick)
                 AssetDetailChartSection(detail: detail, model: model, scrubbedIndex: $scrubbedIndex)
-                AssetDetailActions(detail: detail, canSell: model.heldByVotingCabal, propose: propose)
+                AssetDetailActions(detail: detail, canSell: !model.heldRows.isEmpty, propose: propose)
                 if detail.kind == .preIpo { AssetAbout(detail: detail) }
-                AssetCabalHoldings(ticker: detail.ticker, positions: model.positions) {
-                    environment.navigator.open(CabalRoute(id: $0.cabalID), in: tab)
-                }
-                AssetProposals(ticker: detail.ticker)
+                AssetInYourCabals(
+                    held: model.heldRows, proposals: model.openProposals,
+                    openCabal: { environment.navigator.open(CabalRoute(id: $0), in: tab) },
+                    openProposal: { environment.navigator.open(ProposalRoute(proposalID: $0), in: tab) })
                 if let stats = model.stats {
                     AssetMarketStats(stats: stats) { showsStatsInfo = true }
                 }
@@ -131,7 +131,7 @@ struct AssetDetailClientView: View {
     }
 
     private func share() {
-        if let held = model?.positions.first {
+        if let held = model?.heldRows.first {
             environment.navigator.open(ShareRoute(.position(cabalID: held.cabalID, symbol: symbol)), in: tab)
         } else {
             let name = model?.detail?.name ?? symbol

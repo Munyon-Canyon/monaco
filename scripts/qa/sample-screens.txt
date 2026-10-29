@@ -330,6 +330,7 @@ stocks-tab-empty              -MonacoStocksTabSample empty
 stocks-tab-paused             -MonacoStocksTabSample paused
 stocks-tab-ready-large-text   -MonacoStocksTabSample ready -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 asset-open                    -MonacoAssetDetailSample open
+asset-many-closed             -MonacoAssetDetailSample manyClosed
 asset-loss                    -MonacoAssetDetailSample loss
 asset-stats-dashes            -MonacoAssetDetailSample statsDashes
 asset-candles-sparse          -MonacoAssetDetailSample candlesSparse

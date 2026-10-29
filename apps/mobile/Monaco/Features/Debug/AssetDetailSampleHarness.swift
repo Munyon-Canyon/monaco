@@ -5,6 +5,7 @@ import SwiftUI
 
 enum AssetDetailSampleScenario: String, CaseIterable {
     case open
+    case manyClosed
     case loss
     case statsDashes
     case candlesSparse
@@ -32,17 +33,11 @@ enum AssetDetailSampleScenario: String, CaseIterable {
         return AssetDetailSampleScenario(rawValue: arguments[flag + 1])
     }
 
-    var showsSampleProposal: Bool {
-        switch self {
-        case .open, .loss, .statsDashes, .candlesSparse, .stale: true
-        default: false
-        }
-    }
-
     var script: SampleAPIScript {
         var script = SampleAPIScript()
         switch self {
         case .open, .noProposals: script.show(.nvda)
+        case .manyClosed: script.show(.nvda)
         case .loss: script.makeLoss()
         case .statsDashes: script.show(.nvdaDashes)
         case .candlesSparse: script.sparseCandles = true
@@ -63,12 +58,24 @@ enum AssetDetailSampleScenario: String, CaseIterable {
         }
         let age = self == .stale ? Self.staleMinutes * 60 : 0
         script.asset.priceAsOf = Date().addingTimeInterval(-age)
-        if showsSampleProposal { script.proposal = .sample(canVote: true) }
+        if self == .open || self == .manyClosed { script.showInYourCabals(closedFirst: self == .manyClosed) }
         return script
     }
 }
 
 extension SampleAPIScript {
+    fileprivate mutating func showInYourCabals(closedFirst: Bool) {
+        held = .sampleAndres
+        let cabalID = "01890a5d-ac96-774b-bcce-b302099a8059"
+        func post(_ number: Int, open: Bool, minutesAgo: Double) -> Components.Schemas.FeedItem {
+            .sampleProposalPost(
+                number: number, cabalID: cabalID, cabalName: "AC Capital", symbol: "NVDAx", usdcMicros: 400_000_000,
+                open: open, minutesAgo: minutesAgo)
+        }
+        assetFeed = [post(30, open: true, minutesAgo: closedFirst ? 60 * 24 * 9 : 8)]
+        if closedFirst { assetFeed += (31...35).map { post($0, open: false, minutesAgo: Double($0 - 30) * 90) } }
+    }
+
     fileprivate mutating func show(_ detail: Components.Schemas.AssetDetail) {
         asset = detail
         assets[detail.symbol] = detail
@@ -101,35 +108,6 @@ extension SampleAPIScript {
     }
 }
 
-struct AssetSampleProposalCard: View {
-    @Environment(AppEnvironment.self) private var environment
-    @State private var card: Card?
-
-    private struct Card {
-        let detail: ProposalDetail
-        let asset: ProposalAsset
-        let members: [ProposalMember]
-    }
-
-    var body: some View {
-        ZStack {
-            if let card {
-                ProposalCard(proposal: card.detail, asset: card.asset, members: card.members)
-            }
-        }
-        .task { await load() }
-    }
-
-    private func load() async {
-        let repository = ProposalsRepository(api: environment.api)
-        guard let detail = try? await repository.detail(id: "proposal-1"),
-            let asset = try? await repository.asset(symbol: detail.summary.symbol),
-            let members = try? await repository.members(cabalID: detail.summary.cabalID)
-        else { return }
-        card = Card(detail: detail, asset: asset, members: members)
-    }
-}
-
 final class AssetDetailSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
@@ -137,7 +115,6 @@ final class AssetDetailSampleHarnessEntry: SampleHarnessEntry {
         let script = scenario.script
         SampleAPIProtocol.install(script)
         MarketsSampleCatalog.install(watched: scenario == .open ? [script.asset.symbol] : [])
-        AssetProposals.sampleCard = scenario.showsSampleProposal ? AnyView(AssetSampleProposalCard()) : nil
         return AnyView(
             SampleAppFrame(auth: auth, tab: .stocks, routes: [AssetRoute(symbol: script.asset.symbol)])
         )

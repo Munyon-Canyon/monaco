@@ -65,6 +65,8 @@ nonisolated struct SampleAPIScript: Sendable {
     var catalog: [Components.Schemas.AssetSummary] = []
     var failsAfterAssetReads: Int?
     var invitePreview = InvitePreview.frame
+    var held: Components.Schemas.HeldList?
+    var assetFeed: [Components.Schemas.FeedItem] = []
 
     enum VoteAnswer: Sendable, Equatable {
         case ordinary
@@ -258,8 +260,7 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
         case "/v1/leaderboards/people", "/v1/leaderboards/cabals":
             return json(Components.Schemas.LeaderboardPage.samplePeople(count: empty ? 0 : 3))
         case "/v1/feed":
-            let items = empty ? [] : Components.Schemas.FeedItem.samples
-            return json(Components.Schemas.FeedPage(items: items, nextCursor: nil))
+            return feedReply(query: query, script: script, empty: empty)
         default:
             if path.hasPrefix("/v1/feed/") { return feedItemReply(id: String(path.dropFirst("/v1/feed/".count))) }
             return problem(404, "not_found", "Not in the sample data.")
@@ -316,8 +317,24 @@ nonisolated extension SampleAPIProtocol {
         case "/v1/me/cabal-invites":
             return json(script.invites)
         default:
-            return problem(404, "not_found", "Not in the sample data.")
+            return path == "/v1/me/held" ? heldReply(script) : problem(404, "not_found", "Not in the sample data.")
         }
+    }
+
+    private static func heldReply(_ script: SampleAPIScript) -> Reply {
+        guard let held = script.held else { return problem(404, "not_found", "Not in the sample data.") }
+        return json(held)
+    }
+
+    private static func feedReply(query: [String: String], script: SampleAPIScript, empty: Bool) -> Reply {
+        let items: [Components.Schemas.FeedItem]
+        if let symbol = query["symbol"], !script.assetFeed.isEmpty {
+            let status = query["status"]
+            items = script.assetFeed.filter { $0.symbol == symbol && (status == nil || $0.status == status) }
+        } else {
+            items = empty ? [] : Components.Schemas.FeedItem.samples
+        }
+        return json(Components.Schemas.FeedPage(items: items, nextCursor: nil))
     }
 
     private static func myCabalsReply(_ script: SampleAPIScript) -> Reply {

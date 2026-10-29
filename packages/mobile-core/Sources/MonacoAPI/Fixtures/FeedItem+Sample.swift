@@ -86,6 +86,23 @@ extension Components.Schemas.FeedItem {
                 thread: .members("Tech Titans", of: 19, count: 4))),
     ]
 
+    public static func sampleProposalPost(
+        number: Int, cabalID: String, cabalName: String, symbol: String, usdcMicros: Int64, open: Bool,
+        minutesAgo: Double
+    ) -> Self {
+        var item = sample(
+            number, kind: "proposal", refType: "proposals", cabalID: cabalID, actor: 2, symbol: symbol,
+            title: "Alex proposed buying $\(usdcMicros / 1_000_000) of \(symbol)", detail: cabalName,
+            status: open ? "open" : "passed", comments: open ? 6 : 0,
+            vote: Vote(yes: open ? 4 : 5, no: 1, voters: 8, needed: 5, endsInHours: open ? 4.05 : -1),
+            thread: .members(cabalName), minutesAgo: minutesAgo)
+        item.cabalName = cabalName
+        item.proposalId = String(format: "00000000-0000-7000-8000-0000000fa%03d", number)
+        item.action = "buy"
+        item.usdcMicros = usdcMicros
+        return item
+    }
+
     private static let publicCabalID = "00000000-0000-7000-8000-0000000fc002"
 
     private struct ResultFacts {
