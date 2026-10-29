@@ -4,15 +4,15 @@ expect-fail: S4
 Members & voters lists only the creator, not every member. S4.5 looks for B on the Members tab, so S4 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Groups/MembersView.swift b/apps/mobile/Monaco/Features/Groups/MembersView.swift
-index c413233..a87f3b6 100644
+index 61cf853e3..42ac6ac3d 100644
 --- a/apps/mobile/Monaco/Features/Groups/MembersView.swift
 +++ b/apps/mobile/Monaco/Features/Groups/MembersView.swift
-@@ -142,7 +142,7 @@ struct MembersView: View {
-         VStack(alignment: .leading, spacing: 0) {
-             helper(cabal)
-             MonacoGroupedList {
--                ForEach(cabal.members, id: \.userId) { member in
-+                ForEach(cabal.members.filter { $0.role == "creator" }, id: \.userId) { member in
-                     NavigationLink(
-                         value: AnyAppRoute(
-                             UserProfileRoute(
+@@ -274,7 +274,7 @@ private struct PagedMemberRows<Row: View>: View {
+         if let members, !members.rows.isEmpty {
+             let rows = members.rows
+             LazyVStack(spacing: 0) {
+-                ForEach(rows) { item in
++                ForEach(rows.filter { $0.member.role == "creator" }) { item in
+                     row(item.member, item.id == rows.last?.id && !members.hasMore)
+                         .onAppear { Task { await members.loadMore(after: item) } }
+                 }

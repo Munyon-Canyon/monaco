@@ -7,11 +7,14 @@ struct ProposalVotersView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @Environment(AppEnvironment.self) private var environment: AppEnvironment?
+    @State private var voters: ProposalVotersPager?
 
-    private var sides: ProposalSides {
+    private var sidesVisible: Bool { model?.value?.sidesVisible ?? false }
+
+    private func makeSides(_ voters: ProposalVotersPager) -> ProposalSides {
         ProposalSides.make(
-            voters: model?.value?.voters ?? [], members: model?.members ?? [],
-            viewerID: environment?.viewer?.userID ?? "", sidesVisible: model?.value?.sidesVisible ?? false)
+            voters: voters.rows.map(\.voter), members: model?.members ?? [],
+            viewerID: environment?.viewer?.userID ?? "", sidesVisible: sidesVisible)
     }
 
     var body: some View {
@@ -20,21 +23,35 @@ struct ProposalVotersView: View {
                 model?.setVisible(true)
                 await model?.observe()
             }
+            .task(id: model?.value?.summary.tally) {
+                guard let summary = model?.value?.summary, let environment else { return }
+                let pager = voters ?? ProposalVotersPager(proposalID: summary.id, api: environment.api)
+                voters = pager
+                await pager.loadFirst()
+            }
             .onScreenVisibilityChange { model?.setVisible($0) }
             .accessibilityIdentifier("proposal-voters")
     }
 
     @ViewBuilder private var content: some View {
-        if model?.value != nil {
-            let sides = sides
-            ScrollView {
-                MonacoGroupedList {
-                    ForEach(sides.rows) { row in
-                        voterRow(row, isLast: row.id == sides.rows.last?.id)
+        if let tally = model?.value?.summary.tally {
+            if let voters, !voters.rows.isEmpty {
+                let sides = makeSides(voters)
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(sides.rows) { row in
+                            voterRow(row, isLast: row.id == sides.rows.last?.id && voters.phase == .exhausted)
+                        }
+                        pagingFooter(voters)
                     }
+                    .frame(maxWidth: .infinity)
                 }
+                .safeAreaInset(edge: .top, spacing: 0) { totals(ProposalVoterTotals(tally)) }
+            } else if let voters, case .failed = voters.phase {
+                failure
+            } else {
+                loading
             }
-            .safeAreaInset(edge: .top, spacing: 0) { totals(sides) }
         } else if model?.errorMessage != nil {
             failure
         } else {
@@ -42,15 +59,27 @@ struct ProposalVotersView: View {
         }
     }
 
-    private func totals(_ sides: ProposalSides) -> some View {
+    @ViewBuilder private func pagingFooter(_ voters: ProposalVotersPager) -> some View {
+        switch voters.phase {
+        case .idle:
+            Color.clear.frame(height: 1).onAppear { Task { await voters.loadMore() } }
+        case .loadingMore:
+            MonacoRowSkeleton(rows: 1, markShape: .circle)
+        case .failed:
+            MonacoErrorRow(thing: "more votes", identifier: "proposal-voters-more-failed") {
+                Task { await voters.loadMore() }
+            }
+        default:
+            EmptyView()
+        }
+    }
+
+    private func totals(_ totals: ProposalVoterTotals) -> some View {
         let layout =
             dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.xs))
             : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.s))
-        let counts =
-            sides.sidesVisible
-            ? [("\(sides.yes.count) yes"), "\(sides.no.count) no", "\(sides.notVoted.count) not voted"]
-            : ["\(sides.votedCount) voted", "\(sides.notVoted.count) not voted"]
+        let counts = totals.counts(sidesVisible: sidesVisible)
         return VStack(spacing: MonacoTheme.Space.s) {
             layout {
                 ForEach(Array(counts.enumerated()), id: \.offset) { index, text in
@@ -68,9 +97,9 @@ struct ProposalVotersView: View {
                     .fill(MonacoTheme.canvas)
             )
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(sides.strip)
+            .accessibilityLabel(totals.strip(sidesVisible: sidesVisible))
             .padding(.horizontal, MonacoTheme.Space.gutter)
-            if !sides.sidesVisible {
+            if !sidesVisible {
                 Text(privacyCaption)
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.secondaryText)
@@ -135,9 +164,14 @@ struct ProposalVotersView: View {
     private var failure: some View {
         VStack(spacing: MonacoTheme.Space.sm) {
             MonacoNotice(.error, message: "Votes couldn't load. Try again.")
-            Button("Retry") { Task { await model?.load() } }
-                .buttonStyle(.monacoOutline)
-                .accessibilityIdentifier("proposal-voters-retry")
+            Button("Retry") {
+                Task {
+                    await model?.load()
+                    await voters?.loadFirst()
+                }
+            }
+            .buttonStyle(.monacoOutline)
+            .accessibilityIdentifier("proposal-voters-retry")
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
     }
