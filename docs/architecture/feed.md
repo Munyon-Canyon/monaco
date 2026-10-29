@@ -119,6 +119,17 @@ Indexes: `(created_at desc, id)`, `(cabal_id, created_at desc)`, `(asset_id, cre
 - A reply to your comment, or a comment on your proposal, is a notification candidate (see below). `comment.created` carries what the push copy needs: `item_kind` and `item_label`/`item_noun` for the post replied on, `thread_feed_object_id`, the thread item's `item_actor_id` and `item_actor_name`, `cabal_name` and `reply_rule`. The label and noun come from `domain/feed/render.go`, the one place display strings come from.
 - **Proposal comments move here.** The proposal detail screen reads the FeedComments of that proposal's feed item. Nothing migrates from `proposal_comments`. The new backend starts on an empty database (decided 2026-09-27), and the old table goes with the old backend at [Rollout](backend-platform.md#rollout) step 7.
 
+## A member's activity
+
+`GET /v1/users/{id}/activity` serves a profile's Activity tab: what the member voted on, proposed, replied to, and which months they topped the People board. It is a separate read from the feed, for two reasons.
+
+- **Votes never enter the Feed.** A `voted` kind in `feed_objects` would put every vote into the Feed tab, which Feed A does not draw. The read merges four sources at request time instead: `VotesBy` and `ProposalsBy` from governance, the member's live `feed_comments`, and the closed months from ranking's `ClosedTops` (`call_board_closed`, one row per month the member ranked first).
+- **Sides stay private.** A `voted` row carries no `choice` unless the caller is the member, because a vote's side is private by default (founder decision). The feed and the proposal read never expose it either.
+
+Social reads governance through the `governance/port.MemberActivity` port and ranking through `CallBoards`, both picked from the module set in `Wire`, never by importing the module (governance imports social). A missing pick answers `upstream_unavailable`.
+
+The page is ordered `(at desc, kind_rank, source_id desc)` and paged by one opaque cursor over that tuple, so rows with the same timestamp are neither lost nor repeated across a page boundary. Each source returns the rows strictly after the cursor; a batch that visibility filtering empties (banned cabal, removed comment, unknown proposal) is followed by the source's next batch, up to five. The page stops at the earliest point a capped source has read to, so a filtered source never lets a later row of another source jump ahead of it. A blocked pair, either way, gets an empty page.
+
 ## Reactions
 
 - Any feed item takes emoji reactions, one row per user and emoji in `feed_reactions`, at most 10 distinct emoji per user per item ([Comments](#comments) covers replies). `domain.ParseEmoji` accepts exactly one emoji.

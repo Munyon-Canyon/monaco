@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -103,4 +105,47 @@ type VoteStates interface {
 	VoteState(ctx context.Context, id ids.ProposalID) (VoteState, error)
 	DueForReminder(ctx context.Context, now time.Time, after ReminderCursor, limit int) ([]DueReminder, error)
 	NonVoters(ctx context.Context, id ids.ProposalID) ([]ids.UserID, error)
+}
+
+const MemberActivityMaxLimit = 100
+
+type Cursor struct {
+	At time.Time
+	ID uuid.UUID
+}
+
+type CastVote struct {
+	ProposalID ids.ProposalID
+	CabalID    ids.CabalID
+	Kind       string
+	Symbol     string
+	Mint       string
+	USDCMicros *uint64
+	Choice     string
+	CastAt     time.Time
+}
+
+type ProposedRow struct {
+	ProposalID ids.ProposalID
+	CabalID    ids.CabalID
+	Kind       string
+	Symbol     string
+	Mint       string
+	USDCMicros *uint64
+	Status     Status
+	Yes, No    int
+	CreatedAt  time.Time
+}
+
+type Subject struct {
+	CabalID    ids.CabalID
+	Kind       string
+	Symbol     string
+	USDCMicros *uint64
+}
+
+type MemberActivity interface {
+	VotesBy(ctx context.Context, user ids.UserID, after *Cursor, limit int) ([]CastVote, error)
+	ProposalsBy(ctx context.Context, user ids.UserID, after *Cursor, limit int) ([]ProposedRow, error)
+	ProposalSubjects(ctx context.Context, proposals []ids.ProposalID) (map[ids.ProposalID]Subject, error)
 }

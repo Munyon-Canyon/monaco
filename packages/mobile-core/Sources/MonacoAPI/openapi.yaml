@@ -4113,6 +4113,38 @@ paths:
               example: {id: "01920000-0000-7000-8000-000000000009"}
         default:
           $ref: "#/components/responses/Problem"
+  /v1/users/{id}/activity:
+    get:
+      operationId: getUserActivity
+      tags: [social]
+      summary: Read what a member did.
+      description: >-
+        Returns the member's votes, proposals, replies and month wins merged newest first, one page at a
+        time. A vote never carries which way it went unless the caller is the member: `choice` appears only
+        on your own activity. A blocked pair, either way, gets an empty page. Rows from a banned cabal and
+        removed comments are left out. An unknown user is user_not_found and a cursor the server did not
+        write is invalid_input.
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` of the previous page.
+          schema: {type: string, maxLength: 128, examples: ["MTc1OTQ3OTMzMDEyMzQ1Ni4wLjAxOTIwMDAwLTAwMDAtNzAwMC04MDAwLTAwMDAwMDAwMDAwNw"]}
+        - name: limit
+          in: query
+          required: false
+          description: The page size, 20 by default.
+          schema: {type: integer, minimum: 1, maximum: 50, default: 20, examples: [20]}
+      responses:
+        "200":
+          description: One page of the member's activity.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserActivityPage"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/users/{id}/block:
     post:
       operationId: postUserBlock
@@ -9724,6 +9756,109 @@ components:
           description: Optional context, at most 500 characters.
           maxLength: 500
           examples: [Sends the same link to everyone.]
+    UserActivity:
+      description: >-
+        One thing the member did, told apart by `kind`: `voted`, `proposed`, `replied` or `topped_board`.
+        `choice` appears only on your own `voted` rows.
+      oneOf:
+        - $ref: "#/components/schemas/UserActivityVoted"
+        - $ref: "#/components/schemas/UserActivityProposed"
+        - $ref: "#/components/schemas/UserActivityReplied"
+        - $ref: "#/components/schemas/UserActivityToppedBoard"
+      discriminator:
+        propertyName: kind
+        mapping:
+          voted: "#/components/schemas/UserActivityVoted"
+          proposed: "#/components/schemas/UserActivityProposed"
+          replied: "#/components/schemas/UserActivityReplied"
+          topped_board: "#/components/schemas/UserActivityToppedBoard"
+    UserActivityCabal:
+      type: object
+      description: The cabal a row happened in.
+      required: [id, name, picture_url]
+      properties:
+        id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        name: {type: string, examples: [AC Capital]}
+        picture_url: {type: [string, "null"], examples: [null]}
+    UserActivityPage:
+      type: object
+      description: One page of a member's activity, newest first.
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          description: The page.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/UserActivity"
+        next_cursor:
+          type: [string, "null"]
+          description: The cursor for the next page. Null on the last page.
+          examples: [null]
+    UserActivityProposed:
+      type: object
+      description: The member put a proposal to their cabal.
+      required: [kind, at, title, cabal, proposal_id, subject, symbol, usdc_micros, status, result]
+      properties:
+        kind: {type: string, enum: [proposed], examples: [proposed]}
+        at: {type: string, format: date-time, description: "When the proposal was made.", examples: ["2026-10-28T12:00:00Z"]}
+        title: {type: string, examples: [Proposed]}
+        cabal: {$ref: "#/components/schemas/UserActivityCabal"}
+        proposal_id: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000008"]}
+        subject: {type: string, examples: [Buy META]}
+        symbol: {type: string, examples: [META]}
+        usdc_micros: {type: [integer, "null"], format: int64, examples: [1500000000]}
+        status:
+          type: string
+          description: "`open`, `passed`, `failed`, `expired`, `withdrawn`, `voided`, `executed` or `execution_blocked`."
+          examples: [passed]
+        result:
+          type: [object, "null"]
+          description: The yes and no counts once the proposal is decided. Null while it is open.
+          required: [yes, no]
+          properties:
+            yes: {type: integer, examples: [4]}
+            no: {type: integer, examples: [1]}
+    UserActivityReplied:
+      type: object
+      description: The member commented on a proposal.
+      required: [kind, at, cabal, comment_id, proposal_id, body, subject, usdc_micros]
+      properties:
+        kind: {type: string, enum: [replied], examples: [replied]}
+        at: {type: string, format: date-time, description: "When the comment was posted.", examples: ["2026-10-28T12:00:00Z"]}
+        cabal: {$ref: "#/components/schemas/UserActivityCabal"}
+        comment_id: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000009"]}
+        proposal_id: {type: string, format: uuid, description: "The proposal the comment is on, for the tap.", examples: ["01920000-0000-7000-8000-000000000008"]}
+        body: {type: string, description: "The comment, cut to 140 characters on a grapheme boundary.", examples: [Concentration is a feature]}
+        subject: {type: string, description: "The thread's proposal as a phrase.", examples: [Buy NVDA]}
+        usdc_micros: {type: [integer, "null"], format: int64, description: "The thread's proposal amount in USDC micros.", examples: [1500000000]}
+    UserActivityToppedBoard:
+      type: object
+      description: The member ranked first on the People board for a closed month.
+      required: [kind, at, title, period_start, right, resolved]
+      properties:
+        kind: {type: string, enum: [topped_board], examples: [topped_board]}
+        at: {type: string, format: date-time, description: "When the month closed.", examples: ["2026-10-01T00:00:00Z"]}
+        title: {type: string, examples: [Topped the board]}
+        period_start: {type: string, format: date, description: "The first day of the month, UTC.", examples: ["2026-09-01"]}
+        right: {type: integer, description: "The calls the member got right that month.", examples: [11]}
+        resolved: {type: integer, description: "The calls that were decided that month.", examples: [12]}
+    UserActivityVoted:
+      type: object
+      description: >-
+        The member cast a vote. `choice` is `yes` or `no` and is present only when the caller is the member,
+        because sides are private.
+      required: [kind, at, title, cabal, proposal_id, subject, symbol, usdc_micros]
+      properties:
+        kind: {type: string, enum: [voted], examples: [voted]}
+        at: {type: string, format: date-time, description: "When the vote was cast.", examples: ["2026-10-28T12:00:00Z"]}
+        title: {type: string, description: "The rendered headline.", examples: [Voted]}
+        cabal: {$ref: "#/components/schemas/UserActivityCabal"}
+        proposal_id: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000008"]}
+        subject: {type: string, description: "The proposal as a phrase.", examples: [Buy NVDA]}
+        symbol: {type: string, examples: [NVDA]}
+        usdc_micros: {type: [integer, "null"], format: int64, description: "The proposal's amount in USDC micros.", examples: [1500000000]}
+        choice: {type: string, enum: [yes, no], description: "The side the member voted. Only on your own activity.", examples: [yes]}
   # api/spec/system.yaml
     Ping:
       type: object

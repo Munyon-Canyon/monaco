@@ -236,6 +236,84 @@ func (e ReportRequestReason) Valid() bool {
 	}
 }
 
+// Defines values for UserActivityProposedKind.
+const (
+	Proposed UserActivityProposedKind = "proposed"
+)
+
+// Valid indicates whether the value is a known member of the UserActivityProposedKind enum.
+func (e UserActivityProposedKind) Valid() bool {
+	switch e {
+	case Proposed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UserActivityRepliedKind.
+const (
+	Replied UserActivityRepliedKind = "replied"
+)
+
+// Valid indicates whether the value is a known member of the UserActivityRepliedKind enum.
+func (e UserActivityRepliedKind) Valid() bool {
+	switch e {
+	case Replied:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UserActivityToppedBoardKind.
+const (
+	ToppedBoard UserActivityToppedBoardKind = "topped_board"
+)
+
+// Valid indicates whether the value is a known member of the UserActivityToppedBoardKind enum.
+func (e UserActivityToppedBoardKind) Valid() bool {
+	switch e {
+	case ToppedBoard:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UserActivityVotedChoice.
+const (
+	No  UserActivityVotedChoice = "no"
+	Yes UserActivityVotedChoice = "yes"
+)
+
+// Valid indicates whether the value is a known member of the UserActivityVotedChoice enum.
+func (e UserActivityVotedChoice) Valid() bool {
+	switch e {
+	case No:
+		return true
+	case Yes:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UserActivityVotedKind.
+const (
+	Voted UserActivityVotedKind = "voted"
+)
+
+// Valid indicates whether the value is a known member of the UserActivityVotedKind enum.
+func (e UserActivityVotedKind) Valid() bool {
+	switch e {
+	case Voted:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetAdminReportsParamsStatus.
 const (
 	GetAdminReportsParamsStatusOpen     GetAdminReportsParamsStatus = "open"
@@ -1263,6 +1341,202 @@ type ReportRequestKind string
 // ReportRequestReason Examples: spam
 type ReportRequestReason string
 
+// UserActivity One thing the member did, told apart by `kind`: `voted`, `proposed`, `replied` or `topped_board`. `choice` appears only on your own `voted` rows.
+type UserActivity struct {
+	union json.RawMessage
+}
+
+// UserActivityCabal The cabal a row happened in.
+type UserActivityCabal struct {
+	// Id Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	Id openapi_types.UUID `json:"id"`
+
+	// Name Examples: AC Capital
+	Name string `json:"name"`
+
+	// PictureUrl Examples: null
+	PictureUrl *string `json:"picture_url"`
+}
+
+// UserActivityPage One page of a member's activity, newest first.
+type UserActivityPage struct {
+	// Items The page.
+	//
+	// Examples: []
+	Items []UserActivity `json:"items"`
+
+	// NextCursor The cursor for the next page. Null on the last page.
+	//
+	// Examples: null
+	NextCursor *string `json:"next_cursor"`
+}
+
+// UserActivityProposed The member put a proposal to their cabal.
+type UserActivityProposed struct {
+	// At When the proposal was made.
+	//
+	// Examples: 2026-10-28T12:00:00Z
+	At time.Time `json:"at"`
+
+	// Cabal The cabal a row happened in.
+	Cabal UserActivityCabal `json:"cabal"`
+
+	// Kind Examples: proposed
+	Kind UserActivityProposedKind `json:"kind"`
+
+	// ProposalId Examples: 01920000-0000-7000-8000-000000000008
+	ProposalId openapi_types.UUID `json:"proposal_id"`
+
+	// Result The yes and no counts once the proposal is decided. Null while it is open.
+	Result *struct {
+		// No Examples: 1
+		No int `json:"no"`
+
+		// Yes Examples: 4
+		Yes int `json:"yes"`
+	} `json:"result"`
+
+	// Status `open`, `passed`, `failed`, `expired`, `withdrawn`, `voided`, `executed` or `execution_blocked`.
+	//
+	// Examples: passed
+	Status string `json:"status"`
+
+	// Subject Examples: Buy META
+	Subject string `json:"subject"`
+
+	// Symbol Examples: META
+	Symbol string `json:"symbol"`
+
+	// Title Examples: Proposed
+	Title string `json:"title"`
+
+	// UsdcMicros Examples: 1500000000
+	UsdcMicros *int64 `json:"usdc_micros"`
+}
+
+// UserActivityProposedKind Examples: proposed
+type UserActivityProposedKind string
+
+// UserActivityReplied The member commented on a proposal.
+type UserActivityReplied struct {
+	// At When the comment was posted.
+	//
+	// Examples: 2026-10-28T12:00:00Z
+	At time.Time `json:"at"`
+
+	// Body The comment, cut to 140 characters on a grapheme boundary.
+	//
+	// Examples: Concentration is a feature
+	Body string `json:"body"`
+
+	// Cabal The cabal a row happened in.
+	Cabal UserActivityCabal `json:"cabal"`
+
+	// CommentId Examples: 01920000-0000-7000-8000-000000000009
+	CommentId openapi_types.UUID `json:"comment_id"`
+
+	// Kind Examples: replied
+	Kind UserActivityRepliedKind `json:"kind"`
+
+	// ProposalId The proposal the comment is on, for the tap.
+	//
+	// Examples: 01920000-0000-7000-8000-000000000008
+	ProposalId openapi_types.UUID `json:"proposal_id"`
+
+	// Subject The thread's proposal as a phrase.
+	//
+	// Examples: Buy NVDA
+	Subject string `json:"subject"`
+
+	// UsdcMicros The thread's proposal amount in USDC micros.
+	//
+	// Examples: 1500000000
+	UsdcMicros *int64 `json:"usdc_micros"`
+}
+
+// UserActivityRepliedKind Examples: replied
+type UserActivityRepliedKind string
+
+// UserActivityToppedBoard The member ranked first on the People board for a closed month.
+type UserActivityToppedBoard struct {
+	// At When the month closed.
+	//
+	// Examples: 2026-10-01T00:00:00Z
+	At time.Time `json:"at"`
+
+	// Kind Examples: topped_board
+	Kind UserActivityToppedBoardKind `json:"kind"`
+
+	// PeriodStart The first day of the month, UTC.
+	//
+	// Examples: 2026-09-01
+	PeriodStart openapi_types.Date `json:"period_start"`
+
+	// Resolved The calls that were decided that month.
+	//
+	// Examples: 12
+	Resolved int `json:"resolved"`
+
+	// Right The calls the member got right that month.
+	//
+	// Examples: 11
+	Right int `json:"right"`
+
+	// Title Examples: Topped the board
+	Title string `json:"title"`
+}
+
+// UserActivityToppedBoardKind Examples: topped_board
+type UserActivityToppedBoardKind string
+
+// UserActivityVoted The member cast a vote. `choice` is `yes` or `no` and is present only when the caller is the member, because sides are private.
+type UserActivityVoted struct {
+	// At When the vote was cast.
+	//
+	// Examples: 2026-10-28T12:00:00Z
+	At time.Time `json:"at"`
+
+	// Cabal The cabal a row happened in.
+	Cabal UserActivityCabal `json:"cabal"`
+
+	// Choice The side the member voted. Only on your own activity.
+	//
+	// Examples: yes
+	Choice *UserActivityVotedChoice `json:"choice,omitempty"`
+
+	// Kind Examples: voted
+	Kind UserActivityVotedKind `json:"kind"`
+
+	// ProposalId Examples: 01920000-0000-7000-8000-000000000008
+	ProposalId openapi_types.UUID `json:"proposal_id"`
+
+	// Subject The proposal as a phrase.
+	//
+	// Examples: Buy NVDA
+	Subject string `json:"subject"`
+
+	// Symbol Examples: NVDA
+	Symbol string `json:"symbol"`
+
+	// Title The rendered headline.
+	//
+	// Examples: Voted
+	Title string `json:"title"`
+
+	// UsdcMicros The proposal's amount in USDC micros.
+	//
+	// Examples: 1500000000
+	UsdcMicros *int64 `json:"usdc_micros"`
+}
+
+// UserActivityVotedChoice The side the member voted. Only on your own activity.
+//
+// Examples: yes
+type UserActivityVotedChoice string
+
+// UserActivityVotedKind Examples: voted
+type UserActivityVotedKind string
+
 // ChatCabalId Examples: 01890a5d-ac96-774b-bcce-b302099a8058
 type ChatCabalId = openapi_types.UUID
 
@@ -1503,6 +1777,15 @@ type PostReportParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// GetUserActivityParams defines parameters for GetUserActivity.
+type GetUserActivityParams struct {
+	// Cursor The `next_cursor` of the previous page.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit The page size, 20 by default.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // DeleteUserBlockParams defines parameters for DeleteUserBlock.
 type DeleteUserBlockParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -1568,6 +1851,179 @@ type PostReportJSONRequestBody = ReportRequest
 
 // PostUserFollowJSONRequestBody defines body for PostUserFollow for application/json ContentType.
 type PostUserFollowJSONRequestBody = FollowRequest
+
+// AsUserActivityVoted returns the union data inside the UserActivity as a UserActivityVoted
+func (t UserActivity) AsUserActivityVoted() (UserActivityVoted, error) {
+	var body UserActivityVoted
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromUserActivityVoted overwrites any union data inside the UserActivity as the provided UserActivityVoted
+func (t *UserActivity) FromUserActivityVoted(v UserActivityVoted) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"voted"}`))
+	t.union = b
+	return err
+}
+
+// MergeUserActivityVoted performs a merge with any union data inside the UserActivity, using the provided UserActivityVoted
+func (t *UserActivity) MergeUserActivityVoted(v UserActivityVoted) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"voted"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsUserActivityProposed returns the union data inside the UserActivity as a UserActivityProposed
+func (t UserActivity) AsUserActivityProposed() (UserActivityProposed, error) {
+	var body UserActivityProposed
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromUserActivityProposed overwrites any union data inside the UserActivity as the provided UserActivityProposed
+func (t *UserActivity) FromUserActivityProposed(v UserActivityProposed) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"proposed"}`))
+	t.union = b
+	return err
+}
+
+// MergeUserActivityProposed performs a merge with any union data inside the UserActivity, using the provided UserActivityProposed
+func (t *UserActivity) MergeUserActivityProposed(v UserActivityProposed) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"proposed"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsUserActivityReplied returns the union data inside the UserActivity as a UserActivityReplied
+func (t UserActivity) AsUserActivityReplied() (UserActivityReplied, error) {
+	var body UserActivityReplied
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromUserActivityReplied overwrites any union data inside the UserActivity as the provided UserActivityReplied
+func (t *UserActivity) FromUserActivityReplied(v UserActivityReplied) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"replied"}`))
+	t.union = b
+	return err
+}
+
+// MergeUserActivityReplied performs a merge with any union data inside the UserActivity, using the provided UserActivityReplied
+func (t *UserActivity) MergeUserActivityReplied(v UserActivityReplied) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"replied"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsUserActivityToppedBoard returns the union data inside the UserActivity as a UserActivityToppedBoard
+func (t UserActivity) AsUserActivityToppedBoard() (UserActivityToppedBoard, error) {
+	var body UserActivityToppedBoard
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromUserActivityToppedBoard overwrites any union data inside the UserActivity as the provided UserActivityToppedBoard
+func (t *UserActivity) FromUserActivityToppedBoard(v UserActivityToppedBoard) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"topped_board"}`))
+	t.union = b
+	return err
+}
+
+// MergeUserActivityToppedBoard performs a merge with any union data inside the UserActivity, using the provided UserActivityToppedBoard
+func (t *UserActivity) MergeUserActivityToppedBoard(v UserActivityToppedBoard) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"topped_board"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t UserActivity) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"kind"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t UserActivity) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "proposed":
+		return t.AsUserActivityProposed()
+	case "replied":
+		return t.AsUserActivityReplied()
+	case "topped_board":
+		return t.AsUserActivityToppedBoard()
+	case "voted":
+		return t.AsUserActivityVoted()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t UserActivity) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *UserActivity) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -1652,6 +2108,9 @@ type ServerInterface interface {
 	// PostReport Report a message, comment, user or cabal.
 	// (POST /v1/reports)
 	PostReport(w http.ResponseWriter, r *http.Request, params PostReportParams)
+	// GetUserActivity Read what a member did.
+	// (GET /v1/users/{id}/activity)
+	GetUserActivity(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params GetUserActivityParams)
 	// DeleteUserBlock Unblock a user.
 	// (DELETE /v1/users/{id}/block)
 	DeleteUserBlock(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params DeleteUserBlockParams)
@@ -3219,6 +3678,61 @@ func (siw *ServerInterfaceWrapper) PostReport(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// GetUserActivity operation middleware
+func (siw *ServerInterfaceWrapper) GetUserActivity(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id externalRef0.UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetUserActivityParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetUserActivity(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeleteUserBlock operation middleware
 func (siw *ServerInterfaceWrapper) DeleteUserBlock(w http.ResponseWriter, r *http.Request) {
 
@@ -3692,6 +4206,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/proposals/{id}/comments", wrapper.PostProposalComment)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/realtime/token", wrapper.CreateRealtimeToken)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/reports", wrapper.PostReport)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/users/{id}/activity", wrapper.GetUserActivity)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/users/{id}/block", wrapper.DeleteUserBlock)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/users/{id}/block", wrapper.PostUserBlock)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/users/{id}/follow", wrapper.DeleteUserFollow)
@@ -4741,6 +5256,46 @@ func (response PostReportdefaultApplicationProblemPlusJSONResponse) VisitPostRep
 	return err
 }
 
+type GetUserActivityRequestObject struct {
+	Id     externalRef0.UserId `json:"id"`
+	Params GetUserActivityParams
+}
+
+type GetUserActivityResponseObject interface {
+	VisitGetUserActivityResponse(w http.ResponseWriter) error
+}
+
+type GetUserActivity200JSONResponse UserActivityPage
+
+func (response GetUserActivity200JSONResponse) VisitGetUserActivityResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetUserActivitydefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetUserActivitydefaultApplicationProblemPlusJSONResponse) VisitGetUserActivityResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteUserBlockRequestObject struct {
 	Id     externalRef0.UserId `json:"id"`
 	Params DeleteUserBlockParams
@@ -5053,6 +5608,9 @@ type StrictServerInterface interface {
 	// PostReport Report a message, comment, user or cabal.
 	// (POST /v1/reports)
 	PostReport(ctx context.Context, request PostReportRequestObject) (PostReportResponseObject, error)
+	// GetUserActivity Read what a member did.
+	// (GET /v1/users/{id}/activity)
+	GetUserActivity(ctx context.Context, request GetUserActivityRequestObject) (GetUserActivityResponseObject, error)
 	// DeleteUserBlock Unblock a user.
 	// (DELETE /v1/users/{id}/block)
 	DeleteUserBlock(ctx context.Context, request DeleteUserBlockRequestObject) (DeleteUserBlockResponseObject, error)
@@ -5875,6 +6433,33 @@ func (sh *strictHandler) PostReport(w http.ResponseWriter, r *http.Request, para
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostReportResponseObject); ok {
 		if err := validResponse.VisitPostReportResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetUserActivity operation middleware
+func (sh *strictHandler) GetUserActivity(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params GetUserActivityParams) {
+	var request GetUserActivityRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetUserActivity(ctx, request.(GetUserActivityRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetUserActivity")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetUserActivityResponseObject); ok {
+		if err := validResponse.VisitGetUserActivityResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

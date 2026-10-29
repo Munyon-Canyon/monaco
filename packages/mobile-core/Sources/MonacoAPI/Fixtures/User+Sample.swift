@@ -107,4 +107,66 @@ extension Components.Schemas.UserCabals {
                 shared: row.shared, ownershipBps: nil)
         })
 }
+
+extension Components.Schemas.UserActivityCabal {
+    public static let sampleAC = Self(id: "01890a5d-ac96-774b-bcce-b302099a8101", name: "AC Capital", pictureUrl: nil)
+    public static let sampleDegens = Self(id: "01890a5d-ac96-774b-bcce-b302099a8102", name: "Degens", pictureUrl: nil)
+    public static let sampleBigBallers = Self(
+        id: "01890a5d-ac96-774b-bcce-b302099a8103", name: "Big Ballers", pictureUrl: nil)
+}
+
+extension Components.Schemas.UserActivity {
+    private static let anchor: TimeInterval = 1_761_000_000
+
+    public static let sampleVotedNVDA = Self.voted(
+        Components.Schemas.UserActivityVoted(
+            kind: .voted, at: Date(timeIntervalSince1970: anchor - 20 * 60), title: "Voted",
+            cabal: .sampleAC, proposalId: "01890a5d-ac96-774b-bcce-b302099a8201", subject: "Buy NVDA",
+            symbol: "NVDA", usdcMicros: 1_500_000_000, choice: nil))
+
+    public static let sampleProposedMETA = Self.proposed(
+        Components.Schemas.UserActivityProposed(
+            kind: .proposed, at: Date(timeIntervalSince1970: anchor - 5 * 3_600), title: "Proposed",
+            cabal: .sampleDegens, proposalId: "01890a5d-ac96-774b-bcce-b302099a8202", subject: "Buy META",
+            symbol: "META", usdcMicros: 800_000_000, status: "passed", result: .init(yes: 4, no: 1)))
+
+    public static let sampleReplied = Self.replied(
+        Components.Schemas.UserActivityReplied(
+            kind: .replied, at: Date(timeIntervalSince1970: anchor - 3 * 86_400), cabal: .sampleAC,
+            commentId: "01890a5d-ac96-774b-bcce-b302099a8301", proposalId: "01890a5d-ac96-774b-bcce-b302099a8201",
+            body: "Concentration is a feature", subject: "Buy NVDA", usdcMicros: 1_500_000_000))
+
+    public static let sampleVotedSpaceX = Self.voted(
+        Components.Schemas.UserActivityVoted(
+            kind: .voted, at: Date(timeIntervalSince1970: anchor - 4 * 86_400), title: "Voted",
+            cabal: .sampleBigBallers, proposalId: "01890a5d-ac96-774b-bcce-b302099a8203", subject: "Buy SpaceX",
+            symbol: "SPCX", usdcMicros: 2_000_000_000, choice: nil))
+
+    public static let sampleToppedBoard = Self.toppedBoard(
+        Components.Schemas.UserActivityToppedBoard(
+            kind: .toppedBoard, at: Date(timeIntervalSince1970: anchor - 21 * 86_400), title: "Topped the board",
+            periodStart: "2026-09-01", right: 11, resolved: 12))
+
+    public static let sampleOwnVoted = Self.voted(
+        Components.Schemas.UserActivityVoted(
+            kind: .voted, at: Date(timeIntervalSince1970: anchor - 20 * 60), title: "Voted",
+            cabal: .sampleAC, proposalId: "01890a5d-ac96-774b-bcce-b302099a8201", subject: "Buy NVDA",
+            symbol: "NVDA", usdcMicros: 1_500_000_000, choice: .yes))
+}
+
+extension Components.Schemas.UserActivityPage {
+    public static let sampleChristelle = Self(
+        items: [
+            .sampleVotedNVDA, .sampleProposedMETA, .sampleReplied, .sampleVotedSpaceX, .sampleToppedBoard,
+        ],
+        nextCursor: nil
+    )
+
+    public static let sampleOwn = Self(
+        items: [.sampleOwnVoted, .sampleProposedMETA, .sampleReplied, .sampleVotedSpaceX, .sampleToppedBoard],
+        nextCursor: nil
+    )
+
+    public static let sampleEmpty = Self(items: [], nextCursor: nil)
+}
 #endif

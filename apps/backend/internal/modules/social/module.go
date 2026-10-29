@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking"
+	rankingport "github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters/ably"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
@@ -36,6 +37,8 @@ type Module struct {
 	logos    app.AssetLogos
 	pictures app.CabalPictures
 	treasury app.Treasury
+	activity app.MemberActivity
+	tops     app.ClosedTops
 }
 
 type Option func(*Module)
@@ -107,7 +110,7 @@ func WithRealtime(realtime app.Realtime) Option {
 }
 
 func New(d module.Deps, opts ...Option) *Module {
-	m := &Module{deps: d}
+	m := &Module{deps: d, activity: app.UnwiredMemberActivity{}, tops: app.UnwiredClosedTops{}}
 	for _, opt := range opts {
 		opt(m)
 	}
@@ -140,6 +143,14 @@ func (m *Module) Wire(set module.Set) {
 	for _, mod := range set {
 		if provider, ok := mod.(interface{ Tallies() governanceport.Tallies }); ok {
 			m.tallies = provider.Tallies()
+		}
+		if provider, ok := mod.(interface {
+			MemberActivity() governanceport.MemberActivity
+		}); ok {
+			m.activity = provider.MemberActivity()
+		}
+		if provider, ok := mod.(interface{ CallBoards() rankingport.CallBoards }); ok {
+			m.tops = app.MonthTops{Boards: provider.CallBoards()}
 		}
 	}
 }
@@ -238,6 +249,10 @@ func (m *Module) http() adapters.HTTP {
 		Returns: m.returns,
 		Tallies: m.tallies,
 		Logos:   m.logos, Pictures: m.pictures,
+		Activity: &app.UserActivityQuery{
+			Store: app.NewActivityStore(m.deps.Pool), Users: m.users, Cabals: m.pictures,
+			Activity: m.activity, Tops: m.tops,
+		},
 	}
 }
 
