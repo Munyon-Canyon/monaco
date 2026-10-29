@@ -164,85 +164,252 @@ struct GallerySelectionSamples: View {
     }
 }
 
+struct GalleryUsageRow<Content: View>: View {
+    let title: String
+    let note: String
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                Text(title).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
+                GalleryCaption(note)
+            }
+            content
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 struct GalleryBoardControlSamples: View {
     private static let tabs = ["Treasury", "Rules", "Members", "Voters"]
     private static let ranges = ["1H", "1D", "1W", "1M", "3M", "6M", "All"]
     private static let periods = ["Week", "Month", "All time"]
     private static let filters = ["All", "Watchlist", "Pre-IPO", "Held"]
-    private static let networks = ["Solana", "Base", "Arbitrum", "Ethereum"]
 
     @State private var tab = "Treasury"
     @State private var range = "1M"
     @State private var period = "Month"
     @State private var filter = "All"
-    @State private var network = "Solana"
 
     var body: some View {
-        GalleryGroup(title: "Board controls") {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-                GalleryCase(caption: "Underline tabs") {
-                    MonacoUnderlineTabs(
-                        Self.tabs, selection: $tab, count: { $0 == "Members" ? 8 : nil },
-                        identifier: { "gallery-tab-\($0)" }
-                    ) { $0 }
-                    .monacoBleed()
-                }
-                GalleryCase(caption: "Chart ranges, plain labels") {
-                    MonacoRangeChips(
-                        ranges: Self.ranges, selection: range, identifierPrefix: "gallery-range", label: { $0 },
-                        onSelect: { range = $0 })
-                }
-                GalleryCase(caption: "Period header") {
-                    MonacoPeriodLabels(
-                        title: "This month", dates: "Oct 1 – 31", periods: Self.periods, selection: $period,
-                        identifierPrefix: "gallery-period-header", label: { $0 }
-                    )
-                    .monacoBleed()
-                }
-                GalleryCase(caption: "Filter chips") {
-                    MonacoChipBar(
-                        items: Self.filters, selected: filter, title: { $0 }, identifierPrefix: "gallery-filter",
-                        select: { filter = $0 }
-                    )
-                    .monacoBleed()
-                }
-                GalleryCase(caption: "Network chips, the selected one checked") {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: MonacoTheme.Space.s) {
-                            ForEach(Self.networks, id: \.self) { name in
-                                Button {
-                                    network = name
-                                } label: {
-                                    Text(name).monacoChipLabel(isSelected: name == network, leadingSymbol: .check)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
+        GalleryGroup(title: "Controls, which control where") {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
+                basics
+                votes
+                facts
+                social
+            }
+        }
+    }
+
+    private var basics: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
+            GalleryUsageRow(title: "Underline tabs", note: "sibling sections of one screen · max 1 row") {
+                MonacoUnderlineTabs(
+                    Self.tabs, selection: $tab, count: { $0 == "Members" ? 8 : nil },
+                    identifier: { "gallery-tab-\($0)" }
+                ) { $0 }
+                .monacoBleed()
+            }
+            GalleryUsageRow(
+                title: "Chart ranges · periods",
+                note: "plain labels, no underline, no pill; the board's Week · Month · All time too"
+            ) {
+                MonacoRangeChips(
+                    ranges: Self.ranges, selection: range, identifierPrefix: "gallery-range", label: { $0 },
+                    onSelect: { range = $0 })
+                MonacoPeriodLabels(
+                    title: "This month", dates: "Oct 1 – 31", periods: Self.periods, selection: $period,
+                    identifierPrefix: "gallery-period-header", label: { $0 }
+                )
+                .monacoBleed()
+            }
+            GalleryUsageRow(title: "Chips", note: "filters, quick amounts, networks · max 4") {
+                MonacoChipBar(
+                    items: Self.filters, selected: filter, title: { $0 }, identifierPrefix: "gallery-filter",
+                    select: { filter = $0 }
+                )
+                .monacoBleed()
+            }
+            GalleryUsageRow(title: "Buttons", note: "one prominent per screen") {
+                HStack(spacing: MonacoTheme.Space.s) {
+                    Button {
+                    } label: {
+                        Label("Fund", systemImage: MonacoIcon.plus.symbol)
                     }
-                }
-                GalleryCase(caption: "Prominent and quiet, a row of two") {
-                    HStack(spacing: MonacoTheme.Space.s) {
-                        Button {
-                        } label: {
-                            Label("Fund", systemImage: MonacoIcon.plus.symbol)
-                        }
-                        .buttonStyle(.monacoPrimary)
-                        Button {
-                        } label: {
-                            Label("Propose", systemImage: MonacoIcon.propose.symbol)
-                        }
-                        .buttonStyle(.monacoSecondary)
+                    .buttonStyle(.monacoPrimary)
+                    Button {
+                    } label: {
+                        Label("Propose", systemImage: MonacoIcon.propose.symbol)
                     }
+                    .buttonStyle(.monacoSecondary)
                 }
-                GalleryCase(caption: "Small prominent Deposit; text link") {
-                    HStack {
-                        Button("Deposit") {}.buttonStyle(.monacoCompactProminent)
-                        Spacer()
-                        Button("See all") {}.buttonStyle(.monacoText)
-                    }
+                HStack {
+                    Button("Deposit") {}.buttonStyle(.monacoCompactProminent)
+                    Spacer()
+                    Button("See all") {}.buttonStyle(.monacoText)
                 }
             }
         }
+    }
+
+    private var votes: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
+            GalleryUsageRow(
+                title: "Two-ended tally · idle",
+                note:
+                    "theme 1: the bar fills Yes from the left and No from the right; neutral pair with the live counts"
+            ) {
+                VoteTallyBar(yes: 4, no: 1, eligible: 8)
+                VoteHoldRow(
+                    yes: VoteHoldButton(side: .yes, count: 4, phase: .idle),
+                    no: VoteHoldButton(side: .no, count: 1, phase: .idle))
+                VoteStatusLine(
+                    result: nil, facts: ["5 of 8 voted", "6 replies", "ends in 4h"], identifierPrefix: "gallery-usage",
+                    identifierSuffix: "idle")
+            }
+            GalleryUsageRow(
+                title: "Pick → hold → committed",
+                note: "0.6 s, F's ring and sweep are the progress; the count ticks on commit"
+            ) {
+                VoteHoldRow(
+                    yes: VoteHoldButton(side: .yes, count: 4, phase: .picked),
+                    no: VoteHoldButton(side: .no, count: 1, phase: .dimmed))
+                VoteHoldRow(
+                    yes: VoteHoldButton(side: .yes, count: 4, phase: .holding(progress: 0.4)),
+                    no: VoteHoldButton(side: .no, count: 1, phase: .dimmed))
+                VoteHoldRow(
+                    yes: VoteHoldButton(side: .yes, count: 5, phase: .committed),
+                    no: VoteHoldButton(side: .no, count: 1, phase: .dimmed))
+            }
+            GalleryUsageRow(
+                title: "Closed · sides",
+                note:
+                    "the counts at the two ends; the names by side only when the cabal's Rules switch is on (decision 6)"
+            ) {
+                VoteTallyBar(yes: 5, no: 1, eligible: 8, winner: .yes)
+                VoteTallyEnds(
+                    yes: 5, no: 1, middle: "6 of 8 voted",
+                    identifierPrefix: "gallery-usage", identifierSuffix: "closed")
+                VoteStatusLine(
+                    result: .passed, facts: ["filled at $219.40", "Oct 22"], identifierPrefix: "gallery-usage",
+                    identifierSuffix: "passed")
+                VoteSidesRow(
+                    lines: [
+                        .init(side: .yes, avatars: Self.people, text: "Mia, Christelle, Logan, Sam, you"),
+                        .init(side: .no, avatars: [Self.people[1]], text: "Kai"),
+                        .init(
+                            side: nil, avatars: [Self.people[2], Self.people[3]], text: "Jordan and Priya did not vote"),
+                    ], identifierPrefix: "gallery-usage")
+            }
+        }
+    }
+
+    private var facts: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
+            GalleryUsageRow(title: "Proposal stat row", note: "D's four facts under the hero (decision 10)") {
+                StatGrid(items: [
+                    StatItem(label: "Price", value: "$220.00", info: {}),
+                    StatItem(label: "Shares", value: "≈ 1.82"),
+                    StatItem(label: "Of treasury", value: "2%"),
+                    StatItem(label: "Closes", value: "1:53 PM"),
+                ])
+            }
+            GalleryUsageRow(
+                title: "Remind me at close", note: "theme 8: 32 visible, 44 to tap; gone once you have voted"
+            ) {
+                RemindControl(isOn: false, onTitle: "Reminder set") {}
+            }
+            GalleryUsageRow(
+                title: "Ranked row",
+                note:
+                    "decision 2: the rate over its record, turnout as the sub-line; under five resolved votes, no rank"
+            ) {
+                VStack(spacing: 0) {
+                    RankedRow(
+                        rank: .ranked(8, movement: 1), name: "Andres", isYou: true, subtitle: "Voted 11 of 11",
+                        figure: "78%", detail: "7 of 9 right"
+                    ) { avatar("Andres") }
+                    RankedRow(
+                        rank: .unranked, name: "Rosa", isYou: false, subtitle: "2 resolved · voted 3 of 4",
+                        figure: "3 more", detail: "to rank"
+                    ) { avatar("Rosa") }
+                }
+                .monacoBleed()
+            }
+        }
+    }
+
+    private var social: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
+            GalleryUsageRow(
+                title: "Reactions",
+                note:
+                    "decision 5: any emoji as a chip with its count; the quick six and +; then the reply control, bubble and count, that opens the thread (10-27)"
+            ) {
+                HStack(spacing: MonacoTheme.Space.s) {
+                    MonacoReactionChip(emoji: "💪", count: 3, mine: false) {}
+                    MonacoReactionChip(emoji: "🙌", count: 1, mine: true) {}
+                    MonacoReactionChip.add {}
+                    MonacoReactionChip.reply(count: 6) {}
+                }
+                HStack(spacing: MonacoTheme.Space.sm) {
+                    ForEach(["👍", "❤️", "😂", "🎉", "👀", "💪"], id: \.self) { Text($0).font(MonacoTheme.Typo.headline) }
+                    Image(systemName: MonacoIcon.plus.symbol).foregroundStyle(MonacoTheme.secondaryText)
+                }
+                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.vertical, MonacoTheme.Space.sm)
+                .background(MonacoTheme.surfaceSunken, in: Capsule())
+            }
+            GalleryUsageRow(title: "GIF", note: "decision 5: the composer's GIF button; a GIF reply is a bubble") {
+                HStack(spacing: MonacoTheme.Space.sm) {
+                    Image(systemName: MonacoIcon.plus.symbol).foregroundStyle(MonacoTheme.tint)
+                    HStack {
+                        Text("Say something").font(MonacoTheme.Typo.body).foregroundStyle(MonacoTheme.secondaryText)
+                        Spacer()
+                        Text(CommentsCopy.gifTitle)
+                            .font(MonacoTheme.Typo.captionStrong)
+                            .foregroundStyle(MonacoTheme.secondaryText)
+                            .padding(.horizontal, MonacoTheme.Space.s)
+                            .padding(.vertical, MonacoTheme.Space.xs)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: MonacoTheme.Radius.pill, style: .continuous)
+                                    .strokeBorder(MonacoTheme.secondaryText, lineWidth: 1))
+                    }
+                    .padding(.horizontal, MonacoTheme.Space.m)
+                    .padding(.vertical, MonacoTheme.Space.sm)
+                    .background(MonacoTheme.surfaceSunken, in: Capsule())
+                }
+            }
+            GalleryUsageRow(title: "Crest", note: "theme 12: the cover cut square, 6 pt; people stay circles") {
+                HStack(spacing: MonacoTheme.Space.sm) {
+                    CabalMark(
+                        groupId: GalleryFixtures.cabalNames[0].id,
+                        name: GalleryFixtures.cabalNames[0].name, size: .header)
+                    CabalMark(
+                        groupId: GalleryFixtures.cabalNames[1].id,
+                        name: GalleryFixtures.cabalNames[1].name, size: .row)
+                    CabalMark(
+                        groupId: GalleryFixtures.cabalNames[2].id,
+                        name: GalleryFixtures.cabalNames[2].name, size: .small)
+                    avatar("Mia")
+                }
+            }
+            GalleryUsageRow(title: "Toast", note: "material capsule, 2.5 s, in the nav row over the title") {
+                MonacoToastBanner(
+                    message: "Voted Yes. 6th of 8.", isSuccess: true, action: MonacoToastAction(title: "Undo") {},
+                    insetsGutter: false)
+            }
+        }
+    }
+
+    private static let people: [MonacoAvatar.Source] = ["Mia", "Christelle", "Logan", "Sam", "You"].map {
+        MonacoAvatar.Source(id: $0, displayName: $0, photoURL: nil)
+    }
+
+    private func avatar(_ name: String) -> some View {
+        MonacoAvatar(photoURL: nil, displayName: name, size: 40, seed: "gallery-usage-\(name)")
     }
 }
 
