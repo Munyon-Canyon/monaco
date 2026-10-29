@@ -257,9 +257,9 @@ extension FeedReactAndReplyJourney {
             app.scrollIntoReach(cell)
             XCTAssertTrue(cell.waitForExistence(timeout: 15), "S3.1: no public proposal card within 15 s")
             cell.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)).tap()
-            XCTAssertTrue(app.element("proposal-vote").waitForExistence(timeout: 15), "S3.1: no vote card")
-            let members = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'members vote'")).firstMatch
-            XCTAssertTrue(members.waitForExistence(timeout: 5), "S3.1: no '<cabal> members vote' line")
+            let card = app.element("proposal-vote-readonly")
+            XCTAssertTrue(card.waitForExistence(timeout: 15), "S3.1: no read-only vote card")
+            XCTAssertTrue(card.label.contains("members vote"), "S3.1: no '<cabal> members vote' in the card label")
             for gone in ["proposal-vote-yes", "proposal-vote-no", "proposal-remind"] {
                 XCTAssertFalse(app.element(gone).exists, "S3.1: \(gone) shows for a non-member")
             }

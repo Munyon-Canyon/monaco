@@ -51,7 +51,7 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | A | pick, tap | "Everyone" in `feed-filter` (#6455), then the open proposal's card of `QA public {QA.run}` | | The vote card shows within 15 s with the live counts and "<cabal> members vote", and no `proposal-vote-yes`, no `proposal-vote-no` and no `proposal-remind` (#6506's non-member state; `05-post-public`) |
+| S3.1 | A | pick, tap | "Everyone" in `feed-filter` (#6455), then the open proposal's card of `QA public {QA.run}` | | The read-only card `proposal-vote-readonly` shows within 15 s and its label contains "<cabal> members vote", and no `proposal-vote-yes`, no `proposal-vote-no` and no `proposal-remind` (#6506's non-member state; `05-post-public`) |
 | S3.2 | A | scroll to | `comment-members-only` | | It reads "Members of QA public {QA.run} reply here" (#6553). There is no `comment-composer-field` and no `comment-reply-<id>` |
 | S3.3 | A | long-press, tap | the host's `QA public reply {QA.run}`, then `reaction-tray-1F44D` | | The tray, `comment-action-copy` and `comment-action-report` show, and no `comment-action-reply`. Within 10 s the row shows `reaction-chip-comment-<id>-1F44D` "👍 1" |
 

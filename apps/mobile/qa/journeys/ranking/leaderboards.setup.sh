@@ -22,6 +22,19 @@ qa_sql -v did="$did" >/dev/null \
 qa_api A PATCH /v1/me "{\"display_name\":\"$(_qa_account A name)\"}" >/dev/null
 me="$(qa_user_id A)"
 
+unfollow() {
+  local followee="$1" token
+  token="$(_qa_monacoctl dev token --user "$me" --ttl 1h </dev/null)"
+  curl -fsS -o /dev/null -X DELETE "$QA_API/v1/users/$followee/follow" \
+    -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
+    -H "Idempotency-Key: $(uuidgen | tr '[:upper:]' '[:lower:]')" </dev/null
+}
+
+# S3.1 expects an empty Friends tab, so A ends every live follow left by earlier runs.
+while read -r followee; do
+  [[ -n "$followee" ]] && unfollow "$followee"
+done < <(qa_sql -v me="$me" <<<"SELECT followee_id FROM follows WHERE follower_id = :'me' AND deleted_at IS NULL")
+
 # F19aResolveCallsOK seeds eight voters with 5, 8, 7, 6, 5, 5, 5 and 2 resolved
 # votes this month under fresh users. A takes over the seventh voter's votes
 # (7 resolved, 4 right, below the top three) and user_7 stays the one under the

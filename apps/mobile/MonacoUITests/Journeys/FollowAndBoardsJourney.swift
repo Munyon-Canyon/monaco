@@ -52,6 +52,7 @@ enum FollowAndBoardsJourney {
     }
 
     static func openFollowing(_ app: XCUIApplication, step: String) {
+        ProfileEditJourney.openProfile(app, step: step)
         ProfileEditJourney.openSettingsRow(app, "profile-find-friends", step: step)
         let following = app.element("friends-tab-following")
         XCTAssertTrue(following.waitForExistence(timeout: 10), "\(step): no Following segment on Find friends")
