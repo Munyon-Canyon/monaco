@@ -57,10 +57,10 @@ struct AssetDetailBuyCTATests {
     @Test func proposeSellShowsWhenAVotingCabalHoldsTheAsset() async {
         let model = Self.model(
             cabals: .json(.ok, Self.cabals([("c-1", false), ("c-2", true)])),
-            pots: ["c-1": [.json(.ok, Self.pot(holding: "AAPLx"))], "c-2": [.json(.ok, Self.pot(holding: "GOOGLx"))]]
+            held: [.json(.ok, Self.held(["c-2"]))]
         )
 
-        await model.loadCabalPositions()
+        await model.loadInYourCabals()
 
         #expect(model.heldByVotingCabal)
         #expect(model.positions.map(\.cabalID) == ["c-2"])
@@ -68,118 +68,77 @@ struct AssetDetailBuyCTATests {
 
     @Test func proposeSellHidesWhenNoVotingCabalHoldsTheAsset() async {
         let model = Self.model(
-            .json(.ok, Self.cabals([("c-1", true)])),
-            .json(.ok, Self.pot(holding: "AAPLx"))
-        )
+            cabals: .json(.ok, Self.cabals([("c-1", true)])), held: [.json(.ok, Self.held([]))])
 
-        await model.loadCabalPositions()
+        await model.loadInYourCabals()
 
         #expect(!model.heldByVotingCabal)
     }
 
     @Test func proposeSellHidesWhenOnlyANonVotingCabalHoldsTheAsset() async {
-        let transport = StubTransport(scripted: [
-            .json(.ok, Self.cabals([("c-1", false)])), .json(.ok, Self.pot(holding: "GOOGLx")),
-        ])
-        let model = Self.model(transport: transport)
+        let model = Self.model(
+            cabals: .json(.ok, Self.cabals([("c-1", false)])), held: [.json(.ok, Self.held(["c-1"]))])
 
-        await model.loadCabalPositions()
+        await model.loadInYourCabals()
 
         #expect(!model.heldByVotingCabal)
         #expect(model.positions.map(\.cabalID) == ["c-1"])
         #expect(model.positions.first?.valueMicros == 60_000_000)
-        #expect(await transport.sent.count == 2)
     }
 
-    @Test func aPotReadThatFailsOnARefreshKeepsThatCabalsPosition() async {
-        let cabals = Self.cabals([("c-1", true), ("c-2", true)])
+    @Test func aHeldReadThatFailsOnARefreshKeepsThePositions() async {
+        let cabals = Self.cabals([("c-1", true)])
         let model = Self.model(
             cabals: .json(.ok, cabals), .json(.ok, cabals),
-            pots: [
-                "c-1": [.json(.ok, Self.pot(holding: "GOOGLx")), .failure(URLError(.notConnectedToInternet))],
-                "c-2": [.json(.ok, Self.pot(holding: "AAPLx")), .json(.ok, Self.pot(holding: "AAPLx"))],
-            ]
+            held: [.json(.ok, Self.held(["c-1"])), .failure(URLError(.notConnectedToInternet))]
         )
-        await model.loadCabalPositions()
+        await model.loadInYourCabals()
 
-        await model.loadCabalPositions()
+        await model.loadInYourCabals()
 
         #expect(model.heldByVotingCabal)
         #expect(model.positions.map(\.cabalID) == ["c-1"])
     }
 
-    @Test func aPotReadThatFailsLeavesTheOtherCabalsPositionsOnScreen() async {
+    @Test func proposeSellHidesOnceTheHeldReadAnswersWithoutTheAsset() async {
+        let cabals = Self.cabals([("c-1", true)])
         let model = Self.model(
-            cabals: .json(.ok, Self.cabals([("c-1", true), ("c-2", true)])),
-            pots: [
-                "c-1": [.failure(URLError(.notConnectedToInternet))], "c-2": [.json(.ok, Self.pot(holding: "GOOGLx"))],
-            ]
+            cabals: .json(.ok, cabals), .json(.ok, cabals),
+            held: [.json(.ok, Self.held(["c-1"])), .json(.ok, Self.held([]))]
         )
+        await model.loadInYourCabals()
 
-        await model.loadCabalPositions()
-
-        #expect(model.positions.map(\.cabalID) == ["c-2"])
-    }
-
-    @Test func proposeSellHidesOnceEveryPotAnswersWithoutTheAsset() async {
-        let model = Self.model(
-            .json(.ok, Self.cabals([("c-1", true)])),
-            .json(.ok, Self.pot(holding: "GOOGLx")),
-            .json(.ok, Self.cabals([("c-1", true)])),
-            .json(.ok, Self.pot(holding: "AAPLx"))
-        )
-        await model.loadCabalPositions()
-
-        await model.loadCabalPositions()
+        await model.loadInYourCabals()
 
         #expect(!model.heldByVotingCabal)
         #expect(model.positions.isEmpty)
     }
 
-    @Test func thePotsAreReadTogether() async {
-        let first = StubTransport(scripted: [.gate])
-        let second = StubTransport(scripted: [.json(.ok, Self.pot(holding: "GOOGLx"))])
-        let list = StubTransport(scripted: [.json(.ok, Self.cabals([("c-1", true), ("c-2", true)]))])
-        let model = Self.model(
-            transport: RoutedTransport(routes: [
-                "/v1/me/cabals": list, "/v1/cabals/c-1/pot": first, "/v1/cabals/c-2/pot": second,
-            ]))
-
-        let loading = Task { await model.loadCabalPositions() }
-        await first.waitForRequests(1)
-        await second.waitForRequests(1)
-
-        await first.releaseGate(.json(.ok, Self.pot(holding: "GOOGLx")))
-        await loading.value
-        #expect(model.positions.map(\.cabalID) == ["c-1", "c-2"])
-    }
-
     @Test func proposeSellDoesNotWaitForTheChart() async throws {
         let chart = try Self.encoded(Components.Schemas.AssetChart.oneDay)
         let detail = StubTransport(scripted: [.json(.ok, try Self.encoded(Components.Schemas.AssetDetail.googl))])
-        let held = StubTransport(scripted: [.gate])
+        let gate = StubTransport(scripted: [.gate])
         let series = StubTransport(scripted: [.json(.ok, chart), .json(.ok, chart)])
-        let cabals = StubTransport(scripted: [
-            .json(.ok, Self.cabals([("c-1", true)])), .json(.ok, Self.pot(holding: "GOOGLx")),
-        ])
+        let cabals = StubTransport(scripted: [.json(.ok, Self.cabals([("c-1", true)]))])
+        let held = StubTransport(scripted: [.json(.ok, Self.held(["c-1"]))])
         let model = Self.model(
             transport: RoutedTransport(routes: [
-                "/v1/assets": detail, "/v1/assets/GOOGLx/chart": series, "/v1/assets/GOOGLx/chart?range=1D": held,
-                "/v1/me/cabals": cabals, "/v1/cabals": cabals,
+                "/v1/assets": detail, "/v1/assets/GOOGLx/chart": series, "/v1/assets/GOOGLx/chart?range=1D": gate,
+                "/v1/me/cabals": cabals, "/v1/me/held": held,
             ]))
 
         let started = Task { await model.start() }
+        await gate.waitForRequests(1)
         await held.waitForRequests(1)
-        await cabals.waitForRequests(2)
         await Self.until { model.heldByVotingCabal }
 
         #expect(model.chartPhase == .loading)
         #expect(model.heldByVotingCabal)
 
-        await held.releaseGate(.json(.ok, chart))
+        await gate.releaseGate(.json(.ok, chart))
         await started.value
 
-        #expect(await cabals.sent.count == 2)
+        #expect(await held.sent.count == 1)
     }
 
     private static func until(_ predicate: () -> Bool) async {
@@ -224,11 +183,12 @@ struct AssetDetailBuyCTATests {
     }
 
     private static func model(
-        cabals: StubTransport.Reply..., pots: [String: [StubTransport.Reply]]
+        cabals: StubTransport.Reply..., held: [StubTransport.Reply]
     ) -> AssetDetailClientModel {
-        var routes = ["/v1/me/cabals": StubTransport(scripted: cabals)]
-        for (id, replies) in pots { routes["/v1/cabals/\(id)/pot"] = StubTransport(scripted: replies) }
-        return model(transport: RoutedTransport(routes: routes))
+        model(
+            transport: RoutedTransport(routes: [
+                "/v1/me/cabals": StubTransport(scripted: cabals), "/v1/me/held": StubTransport(scripted: held),
+            ]))
     }
 
     private static func cabals(_ rows: [(id: String, canVote: Bool)]) -> String {
@@ -239,12 +199,14 @@ struct AssetDetailBuyCTATests {
         return "[\(body.joined(separator: ","))]"
     }
 
-    private static func pot(holding symbol: String) -> String {
-        #"{"cabal_id":"c-2","pot_value_micros":100000000,"cash_micros":40000000,"cash_weight_bps":4000,"#
-            + #""pnl_micros":0,"return_bps":null,"prices_as_of":"2026-10-04T12:00:00Z","holdings":[{"#
-            + #""symbol":"\#(symbol)","display_name":"Stock","kind":"equity","units":"0.3000","token_amount":30000000,"#
-            + #""price_micros":200000000,"value_micros":60000000,"weight_bps":6000,"cost_basis_micros":60000000,"#
-            + #""pnl_micros":0}],"me":{"share_units":1,"value_micros":1,"slice_bps":10000,"#
-            + #""net_contributed_micros":1,"pnl_micros":0}}"#
+    private static func held(_ ids: [String]) -> String {
+        let rows = ids.map { id in
+            #"{"cabal":{"id":"\#(id)","name":"Cabal","picture_url":null},"logo_url":null,"holding":{"#
+                + #""symbol":"GOOGLx","display_name":"Stock","kind":"equity","units":"0.3000","token_amount":30000000,"#
+                + #""price_micros":200000000,"value_micros":60000000,"weight_bps":6000,"cost_basis_micros":60000000,"#
+                + #""pnl_micros":0,"avg_entry_micros":"1","first_bought_at":null}}"#
+        }
+        return #"{"total_value_micros":0,"cabal_count":\#(ids.count),"prices_as_of":"2026-10-04T12:00:00Z","#
+            + #""holdings":[\#(rows.joined(separator: ","))]}"#
     }
 }

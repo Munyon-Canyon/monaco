@@ -10,12 +10,12 @@ final class AssetDetailClientModelRefreshTests: XCTestCase {
         await model.load()
         let observer = Task { await model.observe() }
         addTeardownBlock { observer.cancel() }
-        let subscribed = await waitUntil { await hints.subscriberCount == 1 }
+        let subscribed = await waitUntil { await hints.subscriberCount == 2 }
         XCTAssertTrue(subscribed)
 
         await hints.send(.changed(.global, what: "prices_updated", id: "1"))
 
-        let refreshed = await waitUntil { await transport.sent.count == 4 }
+        let refreshed = await waitUntil { await self.assetRequests(transport) == 4 }
         XCTAssertTrue(refreshed)
     }
 
@@ -25,11 +25,11 @@ final class AssetDetailClientModelRefreshTests: XCTestCase {
         await model.loadChart(range: .oneWeek)
         let observer = Task { await model.observe() }
         addTeardownBlock { observer.cancel() }
-        _ = await waitUntil { await hints.subscriberCount == 1 }
+        _ = await waitUntil { await hints.subscriberCount == 2 }
 
         await hints.send(.changed(.global, what: "prices_updated", id: "1"))
 
-        let refreshed = await waitUntil { await transport.sent.count == 4 }
+        let refreshed = await waitUntil { await self.assetRequests(transport) == 4 }
         XCTAssertTrue(refreshed)
         XCTAssertEqual(model.selectedRange, .oneWeek)
     }
@@ -39,11 +39,11 @@ final class AssetDetailClientModelRefreshTests: XCTestCase {
         await model.load()
         let observer = Task { await model.observe() }
         addTeardownBlock { observer.cancel() }
-        _ = await waitUntil { await hints.subscriberCount == 1 }
+        _ = await waitUntil { await hints.subscriberCount == 2 }
 
         await hints.send(.resync)
 
-        let refreshed = await waitUntil { await transport.sent.count == 4 }
+        let refreshed = await waitUntil { await self.assetRequests(transport) == 4 }
         XCTAssertTrue(refreshed)
     }
 
@@ -52,12 +52,12 @@ final class AssetDetailClientModelRefreshTests: XCTestCase {
         await model.load()
         let observer = Task { await model.observe() }
         addTeardownBlock { observer.cancel() }
-        _ = await waitUntil { await hints.subscriberCount == 1 }
+        _ = await waitUntil { await hints.subscriberCount == 2 }
 
         await hints.send(.changed(.global, what: "other", id: "1"))
         for _ in 0..<10 { await Task.yield() }
 
-        let requestCount = await transport.sent.count
+        let requestCount = await assetRequests(transport)
         XCTAssertEqual(requestCount, 2)
     }
 
@@ -66,16 +66,16 @@ final class AssetDetailClientModelRefreshTests: XCTestCase {
         await model.load()
         let observer = Task { await model.observe() }
         addTeardownBlock { observer.cancel() }
-        _ = await waitUntil { await hints.subscriberCount == 1 }
+        _ = await waitUntil { await hints.subscriberCount == 2 }
         model.setVisible(false)
 
         await hints.send(.changed(.global, what: "prices_updated", id: "1"))
         for _ in 0..<10 { await Task.yield() }
-        let deferredRequestCount = await transport.sent.count
+        let deferredRequestCount = await assetRequests(transport)
         XCTAssertEqual(deferredRequestCount, 2)
 
         model.setVisible(true)
-        let refreshed = await waitUntil { await transport.sent.count == 4 }
+        let refreshed = await waitUntil { await self.assetRequests(transport) == 4 }
         XCTAssertTrue(refreshed)
     }
 
@@ -85,9 +85,25 @@ final class AssetDetailClientModelRefreshTests: XCTestCase {
 
     private func model(with replies: [Reply]) throws -> (AssetDetailClientModel, FakeHintStream, StubTransport) {
         let hints = FakeHintStream()
-        let transport = StubTransport(scripted: try replies.map(reply))
+        var routes: [String: [StubTransport.Reply]] = [:]
+        for kind in replies {
+            routes[path(kind), default: []].append(try reply(kind))
+        }
+        let transport = StubTransport(routes: routes)
         let api = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
         return (AssetDetailClientModel(api: api, symbol: "AAPLx", hints: hints), hints, transport)
+    }
+
+    private func path(_ reply: Reply) -> String {
+        switch reply {
+        case .detail: "/v1/assets/AAPLx"
+        case .day: "/v1/assets/AAPLx/chart?range=1D"
+        case .week: "/v1/assets/AAPLx/chart?range=1W"
+        }
+    }
+
+    private func assetRequests(_ transport: StubTransport) async -> Int {
+        await transport.sent.compactMap(\.path).filter { $0.hasPrefix("/v1/assets/") }.count
     }
 
     private func reply(_ reply: Reply) throws -> StubTransport.Reply {

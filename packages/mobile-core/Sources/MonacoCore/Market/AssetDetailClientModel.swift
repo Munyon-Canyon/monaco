@@ -65,7 +65,9 @@ public final class AssetDetailClientModel {
     public internal(set) var olderFailureTick = 0
     public private(set) var lastError: APIError?
     public private(set) var failureTick = 0
-    public private(set) var positions: [AssetCabalPosition] = []
+    public internal(set) var positions: [AssetCabalPosition] = []
+    public internal(set) var heldRows: [AssetHeldRowFacts] = []
+    public internal(set) var openProposals: [AssetOpenProposalRowFacts] = []
     public private(set) var refreshFailed = false
     private(set) var lastLoadedAt: Date?
     var chartGeneration = 0
@@ -78,6 +80,10 @@ public final class AssetDetailClientModel {
     private let hints: (any HintSource)?
     let now: @Sendable () -> Date
     private let refresher: HintRefresher
+    let feedRefresher: HintRefresher
+    let activityRefresher: HintRefresher
+    var heldCabalIDs: Set<String> = []
+    var heldCabalIDChanges: AsyncStream<Set<String>>.Continuation?
 
     public var phase: Phase { detailPhase }
 
@@ -108,9 +114,19 @@ public final class AssetDetailClientModel {
         self.hints = hints
         self.now = now
         let hook = ReloadHook()
+        let feedHook = ReloadHook()
+        let activityHook = ReloadHook()
         refresher = HintRefresher { await hook.run?() }
+        feedRefresher = HintRefresher { await feedHook.run?() }
+        activityRefresher = HintRefresher { await activityHook.run?() }
         hook.run = { [weak self] in
             await self?.refresh()
+        }
+        feedHook.run = { [weak self] in
+            await self?.refreshFeed()
+        }
+        activityHook.run = { [weak self] in
+            await self?.loadHeld()
         }
     }
 
@@ -129,6 +145,8 @@ public final class AssetDetailClientModel {
         hints = nil
         self.now = now
         refresher = HintRefresher {}
+        feedRefresher = HintRefresher {}
+        activityRefresher = HintRefresher {}
         detail = sampleDetail.map(Self.presentation)
         detailPhase = sampleDetail == nil ? .loading : .loaded
         self.chart = chart
@@ -167,68 +185,26 @@ public final class AssetDetailClientModel {
     }
 
     public func start() async {
-        async let cabalPositions: Void = loadCabalPositions()
+        async let inYourCabals: Void = loadInYourCabals()
         async let drawn: Void = loadChart(range: selectedRange, interval: selectedInterval)
         await loadDetail()
         await drawn
-        await cabalPositions
-    }
-
-    public func loadCabalPositions() async {
-        guard let api else { return }
-        guard let cabals = try? await api.read({ try await $0.getMyCabals().ok.body.json }) else { return }
-        let symbol = symbol
-        let reads = await withTaskGroup(of: PotRead.self) { group in
-            for cabal in cabals {
-                group.addTask {
-                    guard
-                        let pot = try? await api.read({
-                            try await $0.getCabalPot(path: .init(id: cabal.id)).ok.body.json
-                        })
-                    else { return .failed(cabalID: cabal.id) }
-                    guard
-                        let holding = pot.holdings.first(where: {
-                            $0.symbol.caseInsensitiveCompare(symbol) == .orderedSame
-                        })
-                    else { return .lacks }
-                    return .holds(
-                        AssetCabalPosition(
-                            cabalID: cabal.id, cabalName: cabal.name, pictureURL: cabal.pictureUrl,
-                            canVote: cabal.canVote, units: holding.units, kind: AssetKind(raw: holding.kind.rawValue),
-                            valueMicros: holding.valueMicros,
-                            pnlMicros: holding.pnlMicros, costBasisMicros: holding.costBasisMicros))
-                }
-            }
-            var results: [PotRead] = []
-            for await result in group { results.append(result) }
-            return results
-        }
-        var found: [AssetCabalPosition] = []
-        for read in reads {
-            switch read {
-            case .holds(let position): found.append(position)
-            case .failed(let cabalID): found += positions.filter { $0.cabalID == cabalID }
-            case .lacks: break
-            }
-        }
-        positions = found.sorted {
-            $0.valueMicros == $1.valueMicros ? $0.cabalID < $1.cabalID : $0.valueMicros > $1.valueMicros
-        }
-    }
-
-    private enum PotRead: Sendable {
-        case holds(AssetCabalPosition)
-        case lacks
-        case failed(cabalID: String)
+        await inYourCabals
     }
 
     public func observe() async {
         guard let hints else { return }
-        await refresher.observe(hints.hints(matching: .global(what: "prices_updated")))
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await self.refresher.observe(hints.hints(matching: .global(what: "prices_updated"))) }
+            group.addTask { await self.feedRefresher.observe(hints.hints(matching: .global(what: "feed"))) }
+            group.addTask { await self.observeHeldActivity(hints) }
+        }
     }
 
     public func setVisible(_ visible: Bool) {
         refresher.setVisible(visible)
+        feedRefresher.setVisible(visible)
+        activityRefresher.setVisible(visible)
     }
 
     private func refresh() async {
@@ -241,12 +217,18 @@ public final class AssetDetailClientModel {
             detailPhase = .loaded
             lastError = nil
             noteFresh()
+            await loadHeld()
             if chartPhase != .loading { await refreshChart() }
         } catch {
             lastError = APIError(error)
             refreshFailed = detail != nil
             if !BackgroundRefresh.isActive { failureTick += 1 }
         }
+    }
+
+    func refreshFeed() async {
+        await loadOpenProposals()
+        await loadHeld()
     }
 
     private func noteFresh() {
