@@ -1184,6 +1184,9 @@ func TestCheck_theXcodeRowSkipsTestsTheAppNeverBuilds(t *testing.T) {
 		{"packages/mobile-core/Package.swift", true, true},
 		{"packages/mobile-core/Package.resolved", true, true},
 		{"packages/flows/README.md", false, true},
+		{"packages/flows/backend/19a.tsv", false, true},
+		{"packages/flows/Sources/MonacoFlows/Flow19a.gen.swift", true, true},
+		{"packages/flows/Package.swift", true, true},
 	} {
 		t.Run(tc.file, func(t *testing.T) {
 			t.Parallel()

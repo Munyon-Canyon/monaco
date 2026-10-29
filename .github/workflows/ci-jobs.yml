@@ -698,7 +698,8 @@ jobs:
             ios:
               - 'apps/mobile/**'
               - 'packages/mobile-core/**'
-              - 'packages/flows/**'
+              - 'packages/flows/Sources/**'
+              - 'packages/flows/Package.swift'
               - '.xcode-version'
               - 'scripts/ci/select-xcode.sh'
               - 'scripts/ci/start-ios-sim.sh'

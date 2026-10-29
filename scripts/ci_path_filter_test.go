@@ -40,7 +40,8 @@ func TestCIPathFilter_jobsFollowTheWorkflow(t *testing.T) {
 		{"openapi-only", []string{"apps/backend/api/openapi.yaml"}, []string{"lint", "ready", "backend", "mobile-core"}},
 		{"xcode-version-only", []string{".xcode-version"}, []string{"mobile-core", "ios"}},
 		{"mobile-core-script-only", []string{"scripts/mobile-core-test.sh"}, []string{"mobile-core"}},
-		{"flows-only", []string{"packages/flows/app/00.tsv"}, []string{"lint", "ready", "backend", "mobile-core", "ios"}},
+		{"flows-only", []string{"packages/flows/app/00.tsv"}, []string{"lint", "ready", "backend", "mobile-core"}},
+		{"flows-sources", []string{"packages/flows/Sources/MonacoFlows/A.gen.swift"}, []string{"lint", "ready", "backend", "mobile-core", "ios"}},
 		{"ci-only", []string{".github/workflows/ci.yml"}, []string{"scripts", "actionlint"}},
 		{"render-only", []string{"render.yaml"}, nil},
 		{"monaco-config-only", []string{".monaco/agents.toml"}, []string{"lint", "ready", "backend"}},
@@ -135,7 +136,7 @@ func TestCIPathFilter_scriptsSkipADeletionNoScriptsTestCanCite(t *testing.T) {
 		}, []string{"mobile-core", "ios"}},
 		{"web-delete", []change{{"deleted", "apps/web/src/old.ts"}}, []string{"web"}},
 		{"backend-delete", []change{{"deleted", "apps/backend/internal/platform/db/uow.go"}}, []string{"lint", "ready", "backend", "scripts"}},
-		{"flows-delete", []change{{"deleted", "packages/flows/backend/00.tsv"}}, []string{"lint", "ready", "backend", "mobile-core", "ios", "scripts"}},
+		{"flows-delete", []change{{"deleted", "packages/flows/backend/00.tsv"}}, []string{"lint", "ready", "backend", "mobile-core", "scripts"}},
 		{"skill-delete", []change{{"deleted", ".claude/skills/commit/SKILL.md"}}, []string{"scripts"}},
 		{"mobile-delete-with-docs-delete", []change{
 			{"deleted", "apps/mobile/Monaco/A.swift"},
