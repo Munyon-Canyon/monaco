@@ -173,6 +173,8 @@ var _ Prices = (*app.PriceBook)(nil)
 
 func (m *Module) Prices() *app.PriceBook { return app.NewPriceBook(m.deps.Pool, m.deps.Clock) }
 
+func (m *Module) History() *app.FeedHistory { return app.NewFeedHistory(m.deps.Pool, m.deps.Clock) }
+
 func (m *Module) Router() *app.Router { return adapters.MultichainRoutingRouter(m.deps, m.Prices()) }
 
 func (m *Module) Quoter() *adapters.DeferredQuoter { return adapters.MultichainRoutingQuoter(m.deps) }

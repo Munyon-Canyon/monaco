@@ -49,6 +49,8 @@ type HTTP struct {
 	Tallies                 app.Tallies
 	Logos                   app.AssetLogos
 	Pictures                app.CabalPictures
+	History                 app.ChartPrices
+	Marks                   app.ChartTrades
 	Activity                *app.UserActivityQuery
 }
 

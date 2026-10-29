@@ -193,9 +193,14 @@ func (h HTTP) wireFeedItems(ctx context.Context, items []app.FeedItem) ([]api.Fe
 	if err != nil {
 		return nil, err
 	}
+	charts, err := h.loadCharts(ctx, items, h.Clock.Now())
+	if err != nil {
+		return nil, err
+	}
 	out := make([]api.FeedItem, len(items))
 	for i, item := range items {
 		out[i] = wireFeedItem(item)
+		out[i].ReturnBps, out[i].Chart = charts[item.ID].ReturnBps, charts[item.ID].Chart
 		wireTally(item, tallies, &out[i])
 		if card, ok := who.cards[item.ActorID]; ok && !card.Deleted {
 			out[i].ActorPhotoUrl = optionalWireText(card.PhotoURL)

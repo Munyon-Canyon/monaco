@@ -1,4 +1,4 @@
-package adapters
+package domain
 
 import (
 	"log/slog"
@@ -10,8 +10,8 @@ import (
 
 const maxWholeDecimals = 19
 
-func tradePriceMicros(usdc money.Micros, units money.BaseUnits, num, den int64) (money.Micros, bool, error) {
-	const op = "treasury.tradePriceMicros"
+func TradePriceMicros(usdc money.Micros, units money.BaseUnits, num, den int64) (money.Micros, bool, error) {
+	const op = "treasury.TradePriceMicros"
 	if units.IsZero() {
 		return money.Micros{}, false, nil
 	}

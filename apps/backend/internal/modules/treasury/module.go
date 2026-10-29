@@ -167,6 +167,10 @@ func (m *Module) Wire(set module.Set) {
 	}
 }
 
+func (m *Module) TradeMarks() *app.TradeMarks {
+	return app.NewTradeMarks(m.deps.Pool, catalogNames{Catalog: market.New(m.deps).Catalog()})
+}
+
 func (m *Module) Mount(r api.Mount) {
 	names := catalogNames{Catalog: market.New(m.deps).Catalog()}
 	treasuryapi.Mount(adapters.HTTP{

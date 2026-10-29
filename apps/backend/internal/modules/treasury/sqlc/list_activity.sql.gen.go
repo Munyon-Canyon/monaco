@@ -78,3 +78,61 @@ func (q *Queries) ListActivity(ctx context.Context, arg ListActivityParams) ([]L
 	}
 	return items, nil
 }
+
+const listTradesForPairs = `-- name: ListTradesForPairs :many
+SELECT a.id, a.cabal_id, a.kind, a.asset::text AS asset, a.usdc_micros, a.units, a.occurred_at
+FROM cabal_activity AS a
+JOIN (
+  SELECT c.cabal_id, k.asset
+  FROM unnest($1::uuid[]) WITH ORDINALITY AS c(cabal_id, idx)
+  JOIN unnest($2::text[]) WITH ORDINALITY AS k(asset, idx) USING (idx)
+) AS p ON p.cabal_id = a.cabal_id AND p.asset = a.asset
+WHERE a.kind IN ('buy', 'sell') AND a.status = 'confirmed'
+  AND a.usdc_micros IS NOT NULL AND a.units IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM trade_steps AS s WHERE s.trade_id = a.id AND s.status IN ('pending', 'submitted'))
+ORDER BY a.cabal_id, a.asset, a.occurred_at, a.id
+`
+
+type ListTradesForPairsParams struct {
+	CabalIds []uuid.UUID
+	Assets   []string
+}
+
+type ListTradesForPairsRow struct {
+	ID         uuid.UUID
+	CabalID    uuid.UUID
+	Kind       string
+	Asset      string
+	UsdcMicros pgtype.Numeric
+	Units      pgtype.Numeric
+	OccurredAt time.Time
+}
+
+func (q *Queries) ListTradesForPairs(ctx context.Context, arg ListTradesForPairsParams) ([]ListTradesForPairsRow, error) {
+	rows, err := q.db.Query(ctx, listTradesForPairs, arg.CabalIds, arg.Assets)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTradesForPairsRow
+	for rows.Next() {
+		var i ListTradesForPairsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CabalID,
+			&i.Kind,
+			&i.Asset,
+			&i.UsdcMicros,
+			&i.Units,
+			&i.OccurredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
