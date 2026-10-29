@@ -27,6 +27,7 @@ type CloseReminderPoller struct {
 	uow   *db.UnitOfWork
 	reads sqlc.DBTX
 	clock clock.Clock
+	Every time.Duration
 }
 
 func NewCloseReminderPoller(uow *db.UnitOfWork, reads sqlc.DBTX, c clock.Clock) *CloseReminderPoller {
@@ -35,7 +36,12 @@ func NewCloseReminderPoller(uow *db.UnitOfWork, reads sqlc.DBTX, c clock.Clock) 
 
 func (*CloseReminderPoller) Name() string { return "governance.close_reminders" }
 
-func (*CloseReminderPoller) Interval() time.Duration { return CloseReminderInterval }
+func (p *CloseReminderPoller) Interval() time.Duration {
+	if p.Every > 0 {
+		return p.Every
+	}
+	return CloseReminderInterval
+}
 
 func (p *CloseReminderPoller) Tick(ctx context.Context) (poller.Report, error) {
 	now := p.clock.Now()

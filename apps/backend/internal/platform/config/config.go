@@ -44,6 +44,7 @@ type Config struct {
 	Auth       Auth
 	Identity   Identity
 	Ranking    Ranking
+	Governance Governance
 	Notify     Notify
 	Timeouts   Timeouts
 	Jupiter    Jupiter
@@ -94,6 +95,10 @@ type Identity struct {
 
 type Notify struct {
 	VoteRemindersInterval time.Duration
+}
+
+type Governance struct {
+	CloseRemindersInterval time.Duration
 }
 
 type Ranking struct {
@@ -466,6 +471,11 @@ func pollerFields() []field {
 			"RANKING_LEDGER_POLL_INTERVAL",
 			15*time.Minute,
 			func(c *Config) *time.Duration { return &c.Ranking.LedgerPollInterval },
+		),
+		duration(
+			"GOVERNANCE_CLOSE_REMINDERS_INTERVAL",
+			30*time.Second,
+			func(c *Config) *time.Duration { return &c.Governance.CloseRemindersInterval },
 		),
 	}
 }

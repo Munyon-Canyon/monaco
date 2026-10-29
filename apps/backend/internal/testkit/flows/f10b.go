@@ -11,6 +11,8 @@ import (
 
 const closeReminderPoller = "governance.close_reminders"
 
+func (defined) WorkerEnvF10b() []string { return []string{"GOVERNANCE_CLOSE_REMINDERS_INTERVAL=1s"} }
+
 func reminderPath(p openProposal) string { return p.path + "/reminder" }
 
 func F10bSetReminderOK(s *scenario.Scenario) {
@@ -100,7 +102,7 @@ func F10bCloseReminderPollerOK(s *scenario.Scenario) {
 			scenario.ExpectTick(closeReminderPoller, 1, 1),
 		).
 		Then(
-			scenario.ExpectEvents(events.TypeProposalCloseReminderDue, 1),
+			scenario.ExpectAllEvents(events.TypeProposalCloseReminderDue, 1),
 			scenario.ExpectEventPayload(events.TypeProposalCloseReminderDue, map[string]any{
 				"v": 1, "proposal_id": p.id.String(), "cabal_id": p.cabalID.String(),
 				"user_id": p.voters[0].String(), "kind": "buy", "symbol": "AAPLx",
