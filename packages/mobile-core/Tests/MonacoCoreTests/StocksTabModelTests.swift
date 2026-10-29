@@ -256,7 +256,7 @@ extension StocksTabModelTests {
         ])
         let model = makeModel(transport)
         XCTAssertEqual(StocksTabModel.Browse.allCases.map(\.title), ["All", "Watchlist", "Pre-IPO", "Held"])
-        XCTAssertEqual(StocksTabModel.availableBrowses, [.all, .watchlist, .preIpo])
+        XCTAssertEqual(StocksTabModel.availableBrowses, [.all, .watchlist, .preIpo, .held])
         await model.load()
         await model.show(.preIpo)
         XCTAssertEqual(model.rows.map(\.name), ["SpaceX"])

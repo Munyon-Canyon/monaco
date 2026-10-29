@@ -26,8 +26,8 @@ struct MarketsLayoutTests {
         #expect(MarketsRowMetrics.sparklineWidth == 60)
     }
 
-    @Test func theChipsAreAllWatchlistAndPreIpoOnly() {
-        #expect(MonacoCore.StocksTabModel.availableBrowses.map(\.title) == ["All", "Watchlist", "Pre-IPO"])
+    @Test func theChipsAreAllWatchlistPreIpoAndHeld() {
+        #expect(MonacoCore.StocksTabModel.availableBrowses.map(\.title) == ["All", "Watchlist", "Pre-IPO", "Held"])
         let count = MonacoCore.StocksTabModel.availableBrowses.count
         #expect(MonacoChipBar<MonacoCore.StocksTabModel.Browse>.fits(count, maxVisible: 4))
     }

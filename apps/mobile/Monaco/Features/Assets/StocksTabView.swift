@@ -6,24 +6,34 @@ struct StocksTabView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @State private var model: MonacoCore.StocksTabModel?
+    @State private var held: HeldModel?
+    @State private var screenVisible = true
     @State private var query: String
     @State private var searching: Bool
     private let makeModel: @MainActor (AppEnvironment) -> MonacoCore.StocksTabModel
+    private let makeHeld: @MainActor (AppEnvironment) -> HeldModel
+
+    #if DEBUG
+    @MainActor static var sampleBrowse = MonacoCore.StocksTabModel.Browse.all
+    #endif
 
     init(
         query: String = "",
-        makeModel: @escaping @MainActor (AppEnvironment) -> MonacoCore.StocksTabModel = StocksTabView.liveModel
+        makeModel: @escaping @MainActor (AppEnvironment) -> MonacoCore.StocksTabModel = StocksTabView.liveModel,
+        makeHeld: @escaping @MainActor (AppEnvironment) -> HeldModel = StocksTabView.liveHeld
     ) {
         _query = State(initialValue: query)
         _searching = State(initialValue: !query.isEmpty)
         self.makeModel = makeModel
+        self.makeHeld = makeHeld
     }
 
     var body: some View {
         ZStack {
-            if let model {
+            if let model, let held {
                 StocksTabScreen(
-                    model: model, query: $query, searching: searching, open: openAsset, openSymbol: openSymbol,
+                    model: model, held: held, query: $query, searching: searching, open: openAsset,
+                    openSymbol: openSymbol,
                     openWatchlist: { environment.navigator.open(WatchlistRoute(), in: .stocks) })
             } else {
                 ScrollView { MarketsLoading() }
@@ -51,10 +61,25 @@ struct StocksTabView: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("assets-root")
         .task { await start() }
-        .onScreenVisibilityChange { model?.setVisible($0) }
+        .onScreenVisibilityChange {
+            model?.setVisible($0)
+            screenVisible = $0
+            syncHeldVisibility()
+        }
         .onChange(of: model?.failureTick) { _, _ in
             guard let error = model?.lastError else { return }
             toasts.show(error)
+        }
+        .onChange(of: held?.failureTick) { _, _ in
+            guard let error = held?.lastError else { return }
+            toasts.show(error)
+        }
+        .onChange(of: model?.browse) { _, next in
+            guard next == .held else { return syncHeldVisibility() }
+            Task {
+                await held?.load()
+                syncHeldVisibility()
+            }
         }
         .onChange(of: environment.watchlist.symbols) { _, _ in
             Task { await model?.watchlistChanged() }
@@ -63,12 +88,30 @@ struct StocksTabView: View {
 
     private func start() async {
         let created = preparedModel()
+        let heldModel = preparedHeld()
         if !query.isEmpty {
             created.setQuery(query)
         } else if created.rows.isEmpty {
             await created.loadMarkets()
         }
+        #if DEBUG
+        if Self.sampleBrowse != .all { await created.show(Self.sampleBrowse) }
+        #endif
+        async let heldWatch: Void = heldModel.observe()
         await created.observe()
+        await heldWatch
+    }
+
+    private func syncHeldVisibility() {
+        held?.setVisible(screenVisible && model?.browse == .held)
+    }
+
+    private func preparedHeld() -> HeldModel {
+        if let held { return held }
+        let created = makeHeld(environment)
+        created.setVisible(false)
+        held = created
+        return created
     }
 
     private func preparedModel() -> MonacoCore.StocksTabModel {
@@ -84,6 +127,10 @@ struct StocksTabView: View {
             watchlist: environment.watchlist)
     }
 
+    static func liveHeld(_ environment: AppEnvironment) -> HeldModel {
+        HeldModel(api: environment.api, hints: environment.hints, clock: ContinuousClock())
+    }
+
     private func openAsset(_ asset: MarketAsset) {
         Haptics.selection()
         environment.navigator.open(AssetRoute(symbol: asset.symbol, seed: AssetSeed(asset)), in: .stocks)
@@ -97,6 +144,7 @@ struct StocksTabView: View {
 
 private struct StocksTabScreen: View {
     let model: MonacoCore.StocksTabModel
+    let held: HeldModel
     @Binding var query: String
     let searching: Bool
     let open: (MarketAsset) -> Void
@@ -110,7 +158,7 @@ private struct StocksTabScreen: View {
     }
 
     private var stage: Stage {
-        guard model.preIpo.rows.isEmpty, model.watchlistRows.isEmpty else { return .browse }
+        guard model.browse != .held, model.preIpo.rows.isEmpty, model.watchlistRows.isEmpty else { return .browse }
         switch model.preIpo.phase {
         case .idle, .loading: return .loading
         case .failed: return .failed
@@ -156,7 +204,13 @@ private struct StocksTabScreen: View {
                 .padding(.bottom, MonacoTheme.Space.l)
             }
             .scrollDismissesKeyboard(.interactively)
-            .refreshable { await model.loadMarkets() }
+            .refreshable {
+                if model.browse == .held {
+                    await held.load()
+                } else {
+                    await model.loadMarkets()
+                }
+            }
             .accessibilityIdentifier("assets-grid")
         }
     }
@@ -177,7 +231,7 @@ private struct StocksTabScreen: View {
         case .all: allSections
         case .watchlist: watchlistChip
         case .preIpo: preIpoChip
-        case .held: EmptyView()
+        case .held: MarketsHeldList(model: held, openSymbol: openSymbol)
         }
     }
 
