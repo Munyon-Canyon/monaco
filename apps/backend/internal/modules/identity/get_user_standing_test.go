@@ -2,6 +2,7 @@ package identity_test
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -209,5 +210,60 @@ func TestGetUser_failuresInTheStandingsPort(t *testing.T) {
 		if _, err := routes.GetUser(asUser(t, f.viewer), api.GetUserRequestObject{Id: f.target.UUID()}); err == nil {
 			t.Fatalf("standings %s: GetUser succeeded", name)
 		}
+	}
+}
+
+type perUserCabals struct{ failFor ids.UserID }
+
+func (c perUserCabals) CabalsOf(_ context.Context, user ids.UserID) ([]ids.CabalID, error) {
+	if user == c.failFor {
+		return nil, errs.New(errs.CodeInternal, "test")
+	}
+	return nil, nil
+}
+
+func TestGetUser_failsWhenEitherMembershipReadIsDown(t *testing.T) {
+	t.Parallel()
+	f := newStandingFixture()
+	cards := fakes.NewIdentity([]app.UserCard{{ID: f.target, Handle: "target"}}, nil)
+	for name, failFor := range map[string]ids.UserID{"member": f.target, "viewer": f.viewer} {
+		routes := adapters.HTTP{
+			Cards: cards, Follows: f.blocks, Cabals: perUserCabals{failFor: failFor}, Returns: stubReturns{},
+			Standings: stubStandings{}, Clock: testkit.NewClock(f.now),
+		}
+		if _, err := routes.GetUser(asUser(t, f.viewer), api.GetUserRequestObject{Id: f.target.UUID()}); err == nil {
+			t.Fatalf("%s memberships down: GetUser succeeded", name)
+		}
+	}
+}
+
+func TestGetUser_clampsCountsToTheWireType(t *testing.T) {
+	t.Parallel()
+	f := newStandingFixture()
+	f.standing.Right, f.standing.Resolved, f.standing.Of = math.MinInt64, math.MaxInt64, math.MaxInt64
+	s := f.profile(t, f.viewer).Standing
+	if s == nil || s.Right != math.MinInt32 || s.Resolved != math.MaxInt32 || s.RankedCount != math.MaxInt32 {
+		t.Fatalf("clamped standing = %+v, want counts held to the int32 range", s)
+	}
+}
+
+type fakeCallBoards struct {
+	rankingport.CallBoards
+	periods *[]rankingport.PeriodKind
+}
+
+func (b fakeCallBoards) CallStanding(
+	_ context.Context, _ ids.UserID, period rankingport.PeriodKind,
+) (rankingport.Standing, error) {
+	*b.periods = append(*b.periods, period)
+	return rankingport.Standing{Resolved: 1}, nil
+}
+
+func TestMonthStandings_readsTheMonthBoard(t *testing.T) {
+	t.Parallel()
+	var periods []rankingport.PeriodKind
+	row, err := (app.MonthStandings{Boards: fakeCallBoards{periods: &periods}}).MonthStanding(t.Context(), ids.UserID{})
+	if err != nil || row.Resolved != 1 || len(periods) != 1 || periods[0] != rankingport.PeriodMonth {
+		t.Fatalf("MonthStanding = %+v, %v, periods %v, want one month read", row, err, periods)
 	}
 }
