@@ -118,3 +118,17 @@ type CallBoards interface {
 		period domain.PeriodKind,
 	) ([]ClosedTop, error)
 }
+
+type (
+	Ledger     = domain.Ledger
+	LedgerCall = domain.LedgerCall
+)
+
+const (
+	CallBuy = domain.CallBuy
+	SideYes = domain.SideYes
+)
+
+type Ledgers interface {
+	Ledger(ctx context.Context, user ids.UserID, week string) (Ledger, bool, error)
+}

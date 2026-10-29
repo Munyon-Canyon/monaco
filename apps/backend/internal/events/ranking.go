@@ -10,6 +10,7 @@ const (
 	TypeRankingSnapshotWritten  Type = "ranking.snapshot_written"
 	TypeCallResolved            Type = "call.resolved"
 	TypeRankingCallBoardWritten Type = "ranking.call_board_written"
+	TypeRankingLedgerReady      Type = "ranking.ledger_ready"
 )
 
 const rankingAggregate = "ranking"
@@ -61,3 +62,15 @@ func (RankingCallBoardWritten) Type() Type { return TypeRankingCallBoardWritten 
 func (RankingCallBoardWritten) AggregateType() string { return rankingAggregate }
 
 func (e RankingCallBoardWritten) AggregateID() uuid.UUID { return e.RunID }
+
+type RankingLedgerReady struct {
+	V      int       `json:"v"`
+	UserID uuid.UUID `json:"user_id" pii:"true"`
+	Week   string    `json:"week"`
+}
+
+func (RankingLedgerReady) Type() Type { return TypeRankingLedgerReady }
+
+func (RankingLedgerReady) AggregateType() string { return rankingAggregate }
+
+func (e RankingLedgerReady) AggregateID() uuid.UUID { return e.UserID }

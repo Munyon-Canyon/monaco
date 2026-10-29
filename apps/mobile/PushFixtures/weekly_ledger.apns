@@ -1,0 +1,16 @@
+{
+  "Simulator Target Bundle": "xyz.monacolabs.app",
+  "aps": {
+    "alert": {
+      "title": "The Ledger · Week 42",
+      "body": "You voted 3 of 3. Best call: Sell AMZN, +4.2%."
+    },
+    "category": "LEDGER",
+    "thread-id": "ledger",
+    "interruption-level": "active",
+    "sound": "default"
+  },
+  "kind": "weekly_ledger",
+  "week": "2026-W42",
+  "sender_kind": "app"
+}

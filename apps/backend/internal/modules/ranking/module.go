@@ -170,6 +170,7 @@ func (m *Module) Pollers() []poller.Poller {
 		m.valuation(),
 		m.callsResolver(),
 		m.callBoardPoller(),
+		m.ledgerPoller(),
 	}
 }
 
@@ -188,6 +189,8 @@ func (m *Module) RunCallBoard() app.RunCallBoard {
 func (m *Module) callBoardPoller() adapters.CallBoardPoller {
 	return adapters.CallBoardPoller{Reads: sqlc.New(m.deps.Pool), Runner: m.RunCallBoard(), Clock: m.deps.Clock}
 }
+
+func (m *Module) Ledgers() app.LedgerReader { return app.NewLedgerReader(sqlc.New(m.deps.Pool)) }
 
 func (m *Module) CallBoards() port.CallBoards { return app.NewCallBoards(m.deps.Pool) }
 
@@ -232,4 +235,10 @@ func (p marketPort) ListingPrices(
 	ctx context.Context, keys []market.ListingKey, at time.Time,
 ) (map[market.ListingKey]market.ListingPrice, error) {
 	return p.listings.ListingPrices(ctx, keys, at)
+}
+
+func (m *Module) ledgerPoller() app.LedgerPoller {
+	return app.LedgerPoller{Builder: app.NewBuildLedgers(
+		sqlc.New(m.deps.Pool), m.deps.UoW, m.LedgerInputs, m.ports.Cabals, m.deps.Clock,
+	)}
 }

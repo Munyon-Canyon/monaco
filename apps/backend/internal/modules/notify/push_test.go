@@ -27,6 +27,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify"
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify/app"
+	rankingport "github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/apns"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -703,6 +704,12 @@ func copyCases(
 			events.TypeFollowCreated, renderer[events.FollowCreated](app.NewFollower{Users: users}),
 		},
 		"nudge": {events.TypeUserNudgeDue, renderer[events.UserNudgeDue](app.Nudge{Users: users})},
+		"weekly_ledger": {
+			events.TypeRankingLedgerReady,
+			renderer[events.RankingLedgerReady](app.WeeklyLedger{Users: users, Ledgers: &ledgerStub{
+				ledger: rankingport.Ledger{Voted: 3, Eligible: 3, Resolved: 1, BestCall: ledgerCall("buy", "no", 420)},
+			}}),
+		},
 		"comment_reply": {
 			events.TypeCommentCreated, renderer[events.CommentCreated](app.CommentReply{Users: users}),
 		},

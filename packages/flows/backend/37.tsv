@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+37	Weekly Ledger	ranking	poller:ranking.weekly_ledger	BuildLedgers	ranking.ledger_ready	notify	ok;crash:before-commit	built	docs/architecture/right-calls.md#the-ledger

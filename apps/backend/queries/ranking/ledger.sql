@@ -64,3 +64,19 @@ WHERE c.cabal_id = ANY(sqlc.arg(cabal_ids)::uuid[])
   AND c.state = 'resolved'
   AND c.resolved_at >= sqlc.arg(window_start)::timestamptz
   AND c.resolved_at < sqlc.arg(window_end)::timestamptz;
+
+-- name: ResolvedVotersBetween :many
+SELECT DISTINCT cv.user_id::uuid AS user_id
+FROM call_voters AS cv
+JOIN calls AS c ON c.proposal_id = cv.proposal_id
+WHERE c.state = 'resolved'
+  AND c.resolved_at >= sqlc.arg(window_start)::timestamptz
+  AND c.resolved_at < sqlc.arg(window_end)::timestamptz;
+
+-- name: PendingLedgerUsers :many
+SELECT u.id::uuid AS user_id
+FROM unnest(sqlc.arg(candidate_ids)::uuid[]) AS u(id)
+WHERE NOT EXISTS (SELECT 1 FROM weekly_ledgers AS l WHERE l.user_id = u.id AND l.week = sqlc.arg(week))
+  AND NOT EXISTS (SELECT 1 FROM weekly_ledger_skips AS s WHERE s.user_id = u.id AND s.week = sqlc.arg(week))
+ORDER BY u.id
+LIMIT sqlc.arg(batch_limit)::int;

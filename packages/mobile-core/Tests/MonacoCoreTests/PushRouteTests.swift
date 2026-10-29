@@ -219,6 +219,7 @@ final class PushRouteTests: XCTestCase {
             ("close_reminder", Set(["kind", "cabal_id", "proposal_id"]).union(senderKeys), "proposal"),
             ("deposit_credited", ["kind"], "home"),
             ("nudge", ["kind", "user_id"], "home"),
+            ("weekly_ledger", ["kind", "week", "sender_kind"], "home"),
             ("new_follower", ["kind", "user_id"], "userProfile"),
             ("chat_mention", ["kind", "cabal_id", "message_id"], "chat"),
             ("chat_thread_reply", ["kind", "cabal_id", "message_id"], "chat"),

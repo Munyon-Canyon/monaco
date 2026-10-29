@@ -728,6 +728,16 @@ Subject `events.ranking.call_board_written`, version 1.
 | `run_id` | `uuid.UUID` |
 | `computed_at` | `time.Time` |
 
+## `ranking.ledger_ready`
+
+Subject `events.ranking.ledger_ready`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `user_id` | `uuid.UUID` |
+| `week` | `string` |
+
 ## `ranking.snapshot_written`
 
 Subject `events.ranking.snapshot_written`, version 1.

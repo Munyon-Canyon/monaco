@@ -8,6 +8,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/ranking"
+	rankingport "github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/apns"
@@ -26,6 +28,7 @@ type Module struct {
 	ballots app.Ballots
 	heads   app.ProposalHeads
 	votes   app.VoteStates
+	ledgers rankingport.Ledgers
 	sender  apns.Sender
 }
 
@@ -55,6 +58,10 @@ func WithVoteStates(votes app.VoteStates) Option {
 	return func(m *Module) { m.votes = votes }
 }
 
+func WithLedgers(ledgers rankingport.Ledgers) Option {
+	return func(m *Module) { m.ledgers = ledgers }
+}
+
 func WithSender(sender apns.Sender) Option {
 	return func(m *Module) { m.sender = sender }
 }
@@ -70,6 +77,7 @@ func New(d module.Deps, opts ...Option) *Module {
 		ballots: gov.Ballots(),
 		heads:   gov.ProposalHeads(),
 		votes:   gov.VoteStates(),
+		ledgers: ranking.New(d).Ledgers(),
 		sender:  d.APNs,
 	}
 	for _, opt := range opts {
@@ -147,6 +155,7 @@ func (m *Module) Consumers() []bus.Consumer {
 		adapters.Push(pusher, app.CabalAccessApproved{Cabals: m.cabals}),
 		adapters.Push(pusher, app.NewFollower{Users: m.users}),
 		adapters.Push(pusher, app.Nudge{Users: m.users}),
+		adapters.Push(pusher, app.WeeklyLedger{Users: m.users, Ledgers: m.ledgers}),
 		adapters.Push(pusher, app.CommentReply{Users: m.users}),
 		adapters.Push(
 			pusher,
