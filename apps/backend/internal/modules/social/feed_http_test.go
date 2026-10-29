@@ -72,7 +72,8 @@ func TestGetFeed_pagesNewestFirstWithAnOpaqueCursor(t *testing.T) {
 	want := api.FeedItem{
 		Id: newer, Kind: "price_move", RefType: "asset_price_moves", RefId: move, Symbol: ptr("AAPLx"),
 		Title: "AAPLx is flat today", Tone: "neutral", ChangeBps: ptr(int64(0)), Reactions: []api.Reaction{},
-		CreatedAt: f.clock.Now(), UpdatedAt: f.clock.Now(),
+		CreatedAt: f.clock.Now(), UpdatedAt: f.clock.Now(), ThreadItemId: newer, CanReply: true, CanReact: true,
+		ReplyRule: api.Anyone,
 	}
 	if len(first.Items) != 1 || !reflect.DeepEqual(first.Items[0], want) || first.NextCursor == nil {
 		t.Fatalf("first page = %+v, want [%+v] and a cursor", first, want)
@@ -83,6 +84,7 @@ func TestGetFeed_pagesNewestFirstWithAnOpaqueCursor(t *testing.T) {
 		CabalName: ptr("Alpha Cabal"), ActorId: ptr(viewer.UUID()), Symbol: ptr("AAPLx"),
 		Title: "Alpha Cabal bought $500 of Apple", Action: ptr("buy"), UsdcMicros: ptr(int64(500_000_000)),
 		AssetName: ptr("Apple"), Tone: "neutral", Reactions: []api.Reaction{}, CreatedAt: olderAt, UpdatedAt: olderAt,
+		ThreadItemId: older, CanReply: true, CanReact: true, ReplyRule: api.Anyone,
 	}
 	if len(second.Items) != 1 || !reflect.DeepEqual(second.Items[0], want) || second.NextCursor != nil {
 		t.Fatalf("second page = %+v, want [%+v] and no cursor", second, want)

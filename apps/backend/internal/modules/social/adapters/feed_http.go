@@ -104,16 +104,12 @@ func (h HTTP) GetFeedItem(
 	if err != nil {
 		return nil, err
 	}
-	can, err := app.CanReplyToItem(ctx, h.Reads, h.Members, view.Item.ID, me)
-	if err != nil {
-		return nil, err
-	}
 	items, err := h.wireFeedItems(ctx, []app.FeedItem{view.Item})
 	if err != nil {
 		return nil, err
 	}
 	return api.GetFeedItem200JSONResponse(api.FeedItemDetail{
-		Item: items[0], Visible: view.Visible, CanComment: can,
+		Item: items[0], Visible: view.Visible, CanComment: view.Item.CanReply,
 	}), nil
 }
 
@@ -214,17 +210,30 @@ func (h HTTP) wireFeedItems(ctx context.Context, items []app.FeedItem) ([]api.Fe
 func wireFeedItem(item app.FeedItem) api.FeedItem {
 	tokens := optionalWireAmount(item.TokenAmount)
 	return api.FeedItem{
-		Id: item.ID, Kind: string(item.Kind), RefType: string(item.RefType), RefId: item.RefID,
-		CabalId: optionalWireID(item.CabalID.UUID()), CabalName: optionalWireText(item.CabalName),
-		ActorId: optionalWireID(item.ActorID.UUID()), ActorName: optionalWireText(item.ActorName),
-		AssetId: optionalWireID(item.AssetID), Symbol: optionalWireText(item.Symbol), Title: item.Title,
-		Detail: optionalWireText(item.Detail), Body: optionalWireText(item.Body),
-		Status: optionalWireText(item.Status), Tone: string(item.Tone), Action: optionalWireText(string(item.Action)),
-		UsdcMicros: optionalWireAmount(item.USDCMicros.Uint64()), AssetName: optionalWireText(item.AssetName),
-		TokenAmount: tokens, TokenDecimals: optionalWireDecimals(item.TokenDecimals, tokens != nil),
+		Id:            item.ID,
+		Kind:          string(item.Kind),
+		RefType:       string(item.RefType),
+		RefId:         item.RefID,
+		CabalId:       optionalWireID(item.CabalID.UUID()),
+		CabalName:     optionalWireText(item.CabalName),
+		ActorId:       optionalWireID(item.ActorID.UUID()),
+		ActorName:     optionalWireText(item.ActorName),
+		AssetId:       optionalWireID(item.AssetID),
+		Symbol:        optionalWireText(item.Symbol),
+		Title:         item.Title,
+		Detail:        optionalWireText(item.Detail),
+		Body:          optionalWireText(item.Body),
+		Status:        optionalWireText(item.Status),
+		Tone:          string(item.Tone),
+		Action:        optionalWireText(string(item.Action)),
+		UsdcMicros:    optionalWireAmount(item.USDCMicros.Uint64()),
+		AssetName:     optionalWireText(item.AssetName),
+		TokenAmount:   tokens,
+		TokenDecimals: optionalWireDecimals(item.TokenDecimals, tokens != nil),
 		PriceMicros: optionalWireAmount(
 			item.PriceMicros.Uint64(),
-		), ShareOfPotBps: optionalWirePositive(item.ShareOfPotBps),
+		),
+		ShareOfPotBps:   optionalWirePositive(item.ShareOfPotBps),
 		ChangeBps:       item.ChangeBps,
 		MarkMicros:      optionalWireAmount(item.MarkMicros.Uint64()),
 		PrevCloseMicros: optionalWireAmount(item.PrevClose.Uint64()),
@@ -232,9 +241,21 @@ func wireFeedItem(item app.FeedItem) api.FeedItem {
 		Outcome:         optionalWireEnum[api.FeedItemOutcome](string(item.Outcome)),
 		Shape:           optionalWireEnum[api.FeedItemShape](string(item.Shape)),
 		AssetKind:       optionalWireEnum[api.FeedItemAssetKind](string(item.AssetKind)),
-		CommentCount:    item.CommentCount, LikeCount: item.LikeCount, LikedByMe: item.LikedByMe,
-		Reactions: wireReactions(item.Reactions), ReactionCount: item.ReactionCount,
-		CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt,
+		CommentCount:    item.CommentCount,
+		ThreadItemId:    item.ThreadItemID,
+		ReplyCount:      item.ReplyCount,
+		CanReply:        item.CanReply,
+		CanReact:        item.CanReact,
+		ReplyRule:       api.FeedItemReplyRule(item.ReplyRule),
+		ReplyRuleCabalName: optionalWireText(
+			item.ReplyRuleCabalName,
+		),
+		LikeCount:     item.LikeCount,
+		LikedByMe:     item.LikedByMe,
+		Reactions:     wireReactions(item.Reactions),
+		ReactionCount: item.ReactionCount,
+		CreatedAt:     item.CreatedAt,
+		UpdatedAt:     item.UpdatedAt,
 	}
 }
 

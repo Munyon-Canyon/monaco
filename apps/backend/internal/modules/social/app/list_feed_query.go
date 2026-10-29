@@ -40,45 +40,51 @@ type FeedQuery struct {
 }
 
 type FeedItem struct {
-	ID            uuid.UUID
-	Kind          feed.Kind
-	RefType       feed.RefType
-	RefID         uuid.UUID
-	CabalID       ids.CabalID
-	ActorID       ids.UserID
-	AssetID       uuid.UUID
-	CabalName     string
-	ActorName     string
-	Symbol        string
-	Title         string
-	Detail        string
-	Body          string
-	Status        string
-	Tone          feed.Tone
-	Action        feed.Action
-	USDCMicros    money.Micros
-	AssetName     string
-	TokenAmount   uint64
-	TokenDecimals *uint8
-	PriceMicros   money.Micros
-	ShareOfPotBps int64
-	ChangeBps     *int64
-	MarkMicros    money.Micros
-	PrevClose     money.Micros
-	ProposalID    uuid.UUID
-	ExpiresAt     time.Time
-	Outcome       feed.Outcome
-	Tally         *Tally
-	Shape         feed.Shape
-	Caller        *FeedCaller
-	AssetKind     feed.AssetKind
-	CommentCount  int32
-	LikeCount     int32
-	LikedByMe     bool
-	Reactions     []Reaction
-	ReactionCount int32
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID                 uuid.UUID
+	Kind               feed.Kind
+	RefType            feed.RefType
+	RefID              uuid.UUID
+	CabalID            ids.CabalID
+	ActorID            ids.UserID
+	AssetID            uuid.UUID
+	CabalName          string
+	ActorName          string
+	Symbol             string
+	Title              string
+	Detail             string
+	Body               string
+	Status             string
+	Tone               feed.Tone
+	Action             feed.Action
+	USDCMicros         money.Micros
+	AssetName          string
+	TokenAmount        uint64
+	TokenDecimals      *uint8
+	PriceMicros        money.Micros
+	ShareOfPotBps      int64
+	ChangeBps          *int64
+	MarkMicros         money.Micros
+	PrevClose          money.Micros
+	ProposalID         uuid.UUID
+	ExpiresAt          time.Time
+	Outcome            feed.Outcome
+	Tally              *Tally
+	Shape              feed.Shape
+	Caller             *FeedCaller
+	AssetKind          feed.AssetKind
+	CommentCount       int32
+	ThreadItemID       uuid.UUID
+	ReplyCount         int32
+	CanReply           bool
+	CanReact           bool
+	ReplyRule          ReplyRule
+	ReplyRuleCabalName string
+	LikeCount          int32
+	LikedByMe          bool
+	Reactions          []Reaction
+	ReactionCount      int32
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 type FeedCaller struct {
@@ -137,10 +143,23 @@ func fetchFeed(ctx context.Context, reads *sqlc.Queries, q FeedQuery, rowLimit i
 		return reads.ListFeed(ctx, params)
 	}
 	top := sqlc.ListTopFeedParams{
-		Kinds: params.Kinds, CabalID: params.CabalID, ActorID: params.ActorID, Symbol: params.Symbol, Q: params.Q,
-		Following: params.Following, Viewer: params.Viewer, Mine: params.Mine, Network: params.Network,
-		Others: params.Others, Status: params.Status, Since: q.Now.Add(-feed.TopWindow),
-		HasCursor: params.HasCursor, AfterAt: params.AfterAt, AfterID: params.AfterID, RowLimit: params.RowLimit,
+		Kinds:       params.Kinds,
+		CabalID:     params.CabalID,
+		ActorID:     params.ActorID,
+		Symbol:      params.Symbol,
+		Q:           params.Q,
+		Following:   params.Following,
+		Viewer:      params.Viewer,
+		Mine:        params.Mine,
+		Network:     params.Network,
+		Others:      params.Others,
+		Status:      params.Status,
+		ThreadKinds: params.ThreadKinds,
+		Since:       q.Now.Add(-feed.TopWindow),
+		HasCursor:   params.HasCursor,
+		AfterAt:     params.AfterAt,
+		AfterID:     params.AfterID,
+		RowLimit:    params.RowLimit,
 	}
 	if q.After != nil {
 		top.AfterCount = q.After.Count
@@ -205,11 +224,20 @@ func feedItemOf(row sqlc.ListFeedRow) (FeedItem, error) {
 		item.ChangeBps = &payload.ChangeBps
 		item.MarkMicros, item.PrevClose = payload.MarkMicros, payload.PrevClose
 	}
+	threadFacts(&item, row)
 	proposalFacts(&item, kind, payload, row.RefID)
 	if kind == feed.KindResult {
 		resultFacts(&item, payload, row.RefID)
 	}
 	return item, nil
+}
+
+func threadFacts(item *FeedItem, row sqlc.ListFeedRow) {
+	item.ThreadItemID, item.ReplyCount, item.CanReact = row.ThreadItemID, row.ReplyCount, true
+	item.CanReply, item.ReplyRule = ReplyRights(feed.Kind(row.ThreadKind), row.MemberOfThreadCabal)
+	if item.ReplyRule == ReplyRuleMembers {
+		item.ReplyRuleCabalName = row.ThreadCabalName.String
+	}
 }
 
 func proposalFacts(item *FeedItem, kind feed.Kind, payload feed.Payload, ref uuid.UUID) {
@@ -238,7 +266,7 @@ func filterParams(viewer ids.UserID, f FeedFilter) sqlc.ListFeedParams {
 		Kinds: kindStrings(f.Kinds), CabalID: f.CabalID.UUID(), ActorID: f.ActorID.UUID(), Symbol: f.Symbol, Q: f.Q,
 		Following: f.Scope == feed.ScopeFollowing, Mine: f.Scope == feed.ScopeMine, Viewer: viewer.UUID(),
 		Network: f.Scope == feed.ScopeNetwork, Others: f.Scope == feed.ScopeOthers,
-		Status: f.Status,
+		Status: f.Status, ThreadKinds: kindStrings(proposalThreadKinds()),
 	}
 }
 

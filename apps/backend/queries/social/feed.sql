@@ -17,12 +17,30 @@ RETURNING id;
 -- name: ListFeed :many
 SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
   f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at,
+  coalesce(t.id, f.id) AS thread_item_id,
+  coalesce(t.comment_count, f.comment_count) AS reply_count,
+  coalesce(t.kind, f.kind) AS thread_kind,
+  coalesce(t.cabal_name, f.cabal_name) AS thread_cabal_name,
+  EXISTS (
+    SELECT 1 FROM feed_memberships fm
+    WHERE fm.user_id = sqlc.arg(viewer)::uuid AND fm.active AND fm.cabal_id = coalesce(t.cabal_id, f.cabal_id)
+  ) AS member_of_thread_cabal,
   (SELECT count(*) FROM feed_reactions r WHERE r.feed_object_id = f.id AND r.emoji = U&'\2764\FE0F')::int AS like_count,
   EXISTS (
     SELECT 1 FROM feed_reactions r
     WHERE r.feed_object_id = f.id AND r.user_id = sqlc.arg(viewer)::uuid AND r.emoji = U&'\2764\FE0F'
   ) AS liked_by_me
 FROM feed_objects f
+LEFT JOIN LATERAL (
+  SELECT CASE
+    WHEN f.kind = ANY(sqlc.arg(thread_kinds)::text[]) AND coalesce(f.payload->>'shape', '') <> 'member'
+    THEN coalesce(
+      nullif(f.payload->>'proposal_id', '00000000-0000-0000-0000-000000000000')::uuid,
+      CASE WHEN f.ref_type = 'proposals' THEN f.ref_id END
+    )
+  END AS proposal_id
+) tp ON true
+LEFT JOIN feed_objects t ON t.kind = 'proposal' AND t.ref_type = 'proposals' AND t.ref_id = tp.proposal_id
 WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AND fc.hidden_at IS NOT NULL)
   AND (cardinality(sqlc.arg(kinds)::text[]) = 0 OR f.kind = ANY(sqlc.arg(kinds)::text[]))
   AND (sqlc.arg(cabal_id)::uuid = '00000000-0000-0000-0000-000000000000' OR f.cabal_id = sqlc.arg(cabal_id)::uuid)
@@ -100,12 +118,30 @@ LIMIT sqlc.arg(row_limit)::int;
 -- name: ListTopFeed :many
 SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
   f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at,
+  coalesce(t.id, f.id) AS thread_item_id,
+  coalesce(t.comment_count, f.comment_count) AS reply_count,
+  coalesce(t.kind, f.kind) AS thread_kind,
+  coalesce(t.cabal_name, f.cabal_name) AS thread_cabal_name,
+  EXISTS (
+    SELECT 1 FROM feed_memberships fm
+    WHERE fm.user_id = sqlc.arg(viewer)::uuid AND fm.active AND fm.cabal_id = coalesce(t.cabal_id, f.cabal_id)
+  ) AS member_of_thread_cabal,
   (SELECT count(*) FROM feed_reactions r WHERE r.feed_object_id = f.id AND r.emoji = U&'\2764\FE0F')::int AS like_count,
   EXISTS (
     SELECT 1 FROM feed_reactions r
     WHERE r.feed_object_id = f.id AND r.user_id = sqlc.arg(viewer)::uuid AND r.emoji = U&'\2764\FE0F'
   ) AS liked_by_me
 FROM feed_objects f
+LEFT JOIN LATERAL (
+  SELECT CASE
+    WHEN f.kind = ANY(sqlc.arg(thread_kinds)::text[]) AND coalesce(f.payload->>'shape', '') <> 'member'
+    THEN coalesce(
+      nullif(f.payload->>'proposal_id', '00000000-0000-0000-0000-000000000000')::uuid,
+      CASE WHEN f.ref_type = 'proposals' THEN f.ref_id END
+    )
+  END AS proposal_id
+) tp ON true
+LEFT JOIN feed_objects t ON t.kind = 'proposal' AND t.ref_type = 'proposals' AND t.ref_id = tp.proposal_id
 WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AND fc.hidden_at IS NOT NULL)
   AND (cardinality(sqlc.arg(kinds)::text[]) = 0 OR f.kind = ANY(sqlc.arg(kinds)::text[]))
   AND (sqlc.arg(cabal_id)::uuid = '00000000-0000-0000-0000-000000000000' OR f.cabal_id = sqlc.arg(cabal_id)::uuid)
@@ -185,6 +221,14 @@ LIMIT sqlc.arg(row_limit)::int;
 -- name: GetFeedItem :one
 SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
   f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at,
+  coalesce(t.id, f.id) AS thread_item_id,
+  coalesce(t.comment_count, f.comment_count) AS reply_count,
+  coalesce(t.kind, f.kind) AS thread_kind,
+  coalesce(t.cabal_name, f.cabal_name) AS thread_cabal_name,
+  EXISTS (
+    SELECT 1 FROM feed_memberships fm
+    WHERE fm.user_id = sqlc.arg(viewer)::uuid AND fm.active AND fm.cabal_id = coalesce(t.cabal_id, f.cabal_id)
+  ) AS member_of_thread_cabal,
   (SELECT count(*) FROM feed_reactions r WHERE r.feed_object_id = f.id AND r.emoji = U&'\2764\FE0F')::int AS like_count,
   EXISTS (
     SELECT 1 FROM feed_reactions r
@@ -259,6 +303,16 @@ SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.t
     )
   )::bool AS visible
 FROM feed_objects f
+LEFT JOIN LATERAL (
+  SELECT CASE
+    WHEN f.kind = ANY(sqlc.arg(thread_kinds)::text[]) AND coalesce(f.payload->>'shape', '') <> 'member'
+    THEN coalesce(
+      nullif(f.payload->>'proposal_id', '00000000-0000-0000-0000-000000000000')::uuid,
+      CASE WHEN f.ref_type = 'proposals' THEN f.ref_id END
+    )
+  END AS proposal_id
+) tp ON true
+LEFT JOIN feed_objects t ON t.kind = 'proposal' AND t.ref_type = 'proposals' AND t.ref_id = tp.proposal_id
 WHERE f.id = sqlc.arg(id);
 
 -- name: LikeFeedItem :execrows

@@ -30,6 +30,7 @@ type commentRoutes struct {
 func newCommentRoutes(t *testing.T) commentRoutes {
 	t.Helper()
 	f := commentRoutes{commentFixture: newCommentFixture(t)}
+	f.feedMembers(t)
 	users := fakes.NewIdentity([]identity.UserCard{
 		{
 			ID: f.cabal.Members[0].ID, Handle: "kai", DisplayName: "Kai", PhotoURL: "https://cdn.example.com/kai.jpg",
@@ -324,17 +325,6 @@ func TestGetFeedItem_reportsWhetherTheCallerCanComment(t *testing.T) {
 			t.Errorf("%s: can_comment = %+v, %v, want %v", tt.name, res, err, tt.want)
 		}
 	}
-}
-
-func TestGetFeedItem_passesAMembershipFailureThrough(t *testing.T) {
-	t.Parallel()
-	f := newCommentRoutes(t)
-	item := f.item(t, feed.KindProposal)
-	if _, err := f.pool.Exec(t.Context(), `DROP TABLE cabal_members CASCADE`); err != nil {
-		t.Fatal(err)
-	}
-	_, err := f.routes.GetFeedItem(asUser(t.Context(), f.outsider), api.GetFeedItemRequestObject{Id: item})
-	wantCode(t, err, errs.CodeInternal)
 }
 
 func TestComments_hintTheFeedThroughTheBusAfterACreateAndADelete(t *testing.T) {

@@ -25,7 +25,7 @@ func GetFeedItem(
 	reads := sqlc.New(db)
 	row, err := reads.GetFeedItem(ctx, sqlc.GetFeedItemParams{
 		Kinds: f.Kinds, CabalID: f.CabalID, ActorID: f.ActorID, Symbol: f.Symbol, Q: f.Q, Following: f.Following,
-		Mine: f.Mine, Network: f.Network, Others: f.Others, Viewer: f.Viewer, ID: id,
+		Mine: f.Mine, Network: f.Network, Others: f.Others, Viewer: f.Viewer, ID: id, ThreadKinds: f.ThreadKinds,
 	})
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
@@ -37,12 +37,15 @@ func GetFeedItem(
 		ID: row.ID, Kind: row.Kind, RefType: row.RefType, RefID: row.RefID, CabalID: row.CabalID,
 		ActorID: row.ActorID, Symbol: row.Symbol, Title: row.Title, Body: row.Body, Payload: row.Payload,
 		Status: row.Status, AssetID: row.AssetID, CabalName: row.CabalName,
-		CommentCount: row.CommentCount, LikeCount: row.LikeCount, LikedByMe: row.LikedByMe,
+		CommentCount: row.CommentCount, ThreadItemID: row.ThreadItemID, ReplyCount: row.ReplyCount,
+		ThreadKind: row.ThreadKind, ThreadCabalName: row.ThreadCabalName, MemberOfThreadCabal: row.MemberOfThreadCabal,
+		LikeCount: row.LikeCount, LikedByMe: row.LikedByMe,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	})
 	if err != nil {
 		return FeedItemView{}, err
 	}
+	item.CanReact = row.Visible
 	items := []FeedItem{item}
 	if err := attachReactions(ctx, reads, viewer, items); err != nil {
 		return FeedItemView{}, errs.Wrap(err, errs.CodeOf(err), op)

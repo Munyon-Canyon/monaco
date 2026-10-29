@@ -298,14 +298,9 @@ func TestResolveThread_failsWhenTheReadFails(t *testing.T) {
 func TestResolveThread_namesAMissingItemAndAMissingProposal(t *testing.T) {
 	t.Parallel()
 	f := newCommentFixture(t)
-	members := cabal.New(module.Deps{Pool: f.pool}).Queries()
 	_, _, err := app.ResolveThread(t.Context(), sqlc.New(f.pool), f.gen.NewV7())
 	wantCode(t, err, errs.CodeFeedItemNotFound)
-	_, err = app.CanReplyToItem(t.Context(), f.pool, members, f.gen.NewV7(), f.outsider)
-	wantCode(t, err, errs.CodeFeedItemNotFound)
 	orphan := f.closing(t, feed.KindResult, feed.ShapeCabal, f.gen.NewV7())
-	_, err = app.CanReplyToItem(t.Context(), f.pool, members, orphan, f.outsider)
-	wantCode(t, err, errs.CodeFeedItemPending)
 	_, err = app.ListComments(t.Context(), f.pool, app.CommentsQuery{FeedObjectID: orphan, Limit: 10})
 	wantCode(t, err, errs.CodeFeedItemPending)
 }
