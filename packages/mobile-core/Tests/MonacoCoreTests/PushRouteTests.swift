@@ -252,6 +252,7 @@ final class PushRouteTests: XCTestCase {
         case .chat, .chatThread: "chat"
         case .transaction: "transaction"
         case .proposal: "proposal"
+        case .voteHold: "voteHold"
         case .feedItem: "feedItem"
         case .cabal: "cabal"
         case .home: "home"

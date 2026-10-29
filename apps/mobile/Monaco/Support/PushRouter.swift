@@ -16,6 +16,12 @@ final class PushRouter {
         self.dismissPresented = dismissPresented
     }
 
+    func isShowing(proposalID: String) -> Bool {
+        let navigator = environment.navigator
+        return navigator.voteHold?.proposalID == proposalID
+            || navigator.path(for: navigator.selectedTab).last == AnyAppRoute(ProposalRoute(proposalID: proposalID))
+    }
+
     func handle(_ route: PushRoute) {
         held = route
         guard environment.viewer != nil else {
@@ -71,6 +77,8 @@ final class PushRouter {
             navigator.openTransaction(cabalID: cabalID, transactionID: txnID, in: .cabals)
         case .proposal(let proposalID, let cabalID):
             navigator.open(cabalID: cabalID, then: ProposalRoute(proposalID: proposalID), in: .cabals)
+        case .voteHold(let proposalID, _, let pick):
+            navigator.presentVoteHold(proposalID: proposalID, pick: pick)
         case .feedItem(let feedItemID):
             navigator.open(FeedItemRoute(itemID: feedItemID), in: .feed)
         case .cabal(let cabalID):

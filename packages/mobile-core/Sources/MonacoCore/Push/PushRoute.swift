@@ -6,6 +6,7 @@ public enum PushRoute: Equatable, Sendable {
     case chatThread(cabalID: String, parentID: String)
     case transaction(txnID: String, cabalID: String)
     case proposal(proposalID: String, cabalID: String)
+    case voteHold(proposalID: String, cabalID: String, pick: ProposalBallot)
     case feedItem(feedItemID: String)
     case cabal(cabalID: String)
     case home

@@ -97,3 +97,5 @@ No Clean Architecture use-case layer, MVC, TCA, reducers or coordinator framewor
 | `flow-switch` | `default:` or `@unknown default:` in a `switch` over a `Flow<id>Outcome` value, under `apps/mobile/Monaco` and `packages/mobile-core/Sources` | A default hides a new backend outcome. The enum comes from `cmd/gen flows`, so a new outcome breaks the build until the app handles it |
 
 Log: [log/ios.md](log/ios.md).
+
+Push actions: the app registers the `VOTE`, `VOTE_DECIDING` and `LEDGER` categories at launch, and a Yes or No on a vote push opens the hold sheet with that pick through `PushRouter` (see [Actions](notifications.md#actions)).
