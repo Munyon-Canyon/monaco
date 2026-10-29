@@ -44,6 +44,7 @@ type HTTP struct {
 	Tallies         app.Tallies
 	Logos           app.AssetLogos
 	Pictures        app.CabalPictures
+	Activity        *app.UserActivityQuery
 }
 
 func (h HTTP) GetUserFollowers(
