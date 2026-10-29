@@ -1,7 +1,7 @@
 ---
 id: money/best-price-trade
 title: Buy at the best price
-version: 2
+version: 3
 milestone: M24
 requires: [auth/sign-in]
 actors: [A]

@@ -1,7 +1,7 @@
 ---
 id: money/cash-out
 title: Cash out
-version: 4
+version: 5
 milestone: M15
 requires: [auth/sign-in]
 actors: [A]

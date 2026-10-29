@@ -1,7 +1,7 @@
 ---
 id: profile/overview
 title: Your profile
-version: 9
+version: 10
 milestone: M9
 requires: [auth/sign-in]
 actors: [A]

@@ -1,7 +1,7 @@
 ---
 id: home/dashboard
 title: The Home dashboard
-version: 6
+version: 7
 milestone: M16
 requires: [auth/sign-in]
 actors: [A, C]

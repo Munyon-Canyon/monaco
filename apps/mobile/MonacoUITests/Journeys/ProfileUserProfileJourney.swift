@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileUserProfileJourney {
     static let id = "profile/user-profile"
-    static let version = 5
+    static let version = 6
 
     static let memberName = "Bartholomez"
 

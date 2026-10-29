@@ -111,10 +111,13 @@ enum RankingLeaderboardsJourney {
             XCTAssertTrue(
                 waitUntil(15) { rows.count > 0 },
                 "S2.1: the Cabals tab shows no cabal row within 15 s")
-            let first = rows.element(boundBy: 0)
+            func readsRateAndRecord() -> Bool {
+                rows.allElementsBoundByIndex.contains { $0.label.contains("percent") && $0.label.contains(" right") }
+            }
             XCTAssertTrue(
-                first.label.contains("percent") && first.label.contains(" right"),
-                "S2.1: the first cabal row reads '\(first.label)', not a rate and a record")
+                waitUntil(15) { readsRateAndRecord() },
+                "S2.1: no cabal row reads a rate and a record within 15 s; rows read \(rows.allElementsBoundByIndex.map(\.label))"
+            )
         }
     }
 

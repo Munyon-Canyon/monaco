@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileOverviewJourney {
     static let id = "profile/overview"
-    static let version = 9
+    static let version = 10
 
     static let signOutTitle = "Sign out of Monaco?"
     static let signOutMessage =

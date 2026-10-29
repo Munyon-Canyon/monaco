@@ -1,7 +1,7 @@
 ---
 id: feed/react-and-reply
 title: React and reply from the Feed
-version: 1
+version: 2
 milestone: F launch (phase 1)
 requires: [auth/sign-in]
 actors: [A]

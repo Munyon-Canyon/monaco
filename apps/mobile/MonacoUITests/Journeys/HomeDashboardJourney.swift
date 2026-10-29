@@ -2,7 +2,7 @@ import XCTest
 
 enum HomeDashboardJourney {
     static let id = "home/dashboard"
-    static let version = 6
+    static let version = 7
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)

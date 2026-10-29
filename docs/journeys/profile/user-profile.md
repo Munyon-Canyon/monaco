@@ -1,7 +1,7 @@
 ---
 id: profile/user-profile
 title: Another member's profile
-version: 5
+version: 6
 milestone: M17
 requires: [auth/sign-in]
 actors: [A]

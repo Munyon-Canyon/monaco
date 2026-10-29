@@ -1,7 +1,7 @@
 ---
 id: money/deposit
 title: Add money
-version: 5
+version: 6
 milestone: M12
 requires: [auth/sign-in]
 actors: [A]

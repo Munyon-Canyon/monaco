@@ -2,7 +2,7 @@ import XCTest
 
 enum FeedReactAndReplyJourney {
     static let id = "feed/react-and-reply"
-    static let version = 1
+    static let version = 2
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -124,7 +124,8 @@ enum FeedReactAndReplyJourney {
             XCTAssertTrue(app.element("reply-sheet").waitForExistence(timeout: 5), "S1.3: no reply sheet")
             let quote = app.element("reply-sheet-quote")
             XCTAssertTrue(quote.waitForExistence(timeout: 5), "S1.3: no quoted post in the sheet")
-            XCTAssertTrue(quote.label.contains(host), "S1.3: the quote does not name \(host)")
+            XCTAssertTrue(
+                quote.label.contains(host), "S1.3: the quote does not name \(host); it reads '\(quote.label)'")
             let title = app.staticTexts
                 .matching(NSPredicate(format: "label CONTAINS %@", "Reply to \(host)"))
                 .firstMatch

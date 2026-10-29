@@ -1,7 +1,7 @@
 ---
 id: demo/story
 title: The demo story
-version: 7
+version: 8
 milestone: M8.5
 requires: [auth/sign-in, cabals/create-cabal, stocks/asset-detail]
 actors: [A, B]

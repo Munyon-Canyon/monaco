@@ -1,7 +1,7 @@
 ---
 id: governance/propose-buy
 title: Propose, vote and trade
-version: 9
+version: 10
 milestone: M14
 requires: [auth/sign-in]
 actors: [A, B]

@@ -2,7 +2,7 @@ import XCTest
 
 enum MoneyDepositJourney {
     static let id = "money/deposit"
-    static let version = 5
+    static let version = 6
 
     static let screenTimeout: TimeInterval = 15
 

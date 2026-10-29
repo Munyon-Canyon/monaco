@@ -117,7 +117,7 @@ case "$scenario" in
 INSERT INTO feed_objects (id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, symbol, title, payload,
   status, comment_count, created_at, updated_at)
 VALUES ($(uuid7), 'trade', 'swaps', $(uuid7), :'cabal', :'name', :'host', 'TSLAx', 'sold TSLAx',
-  '{"side":"sell","symbol":"TSLAx"}', 'completed', 0, now(), now())
+  '{"side":"sell","symbol":"TSLAx","actor_name":"QA host"}', 'completed', 0, now(), now())
 RETURNING id
 SQL
 )"
