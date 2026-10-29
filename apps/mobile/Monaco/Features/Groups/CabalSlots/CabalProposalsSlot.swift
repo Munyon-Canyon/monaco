@@ -1,5 +1,6 @@
 import MonacoAPI
 import MonacoCore
+import Observation
 import SwiftUI
 
 enum CabalProposalsSlot: CabalSection {
@@ -17,7 +18,7 @@ struct CabalProposals: View {
     @Environment(\.hostMainTab) private var hostMainTab
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @State private var model: ProposalListModel?
-    @State private var context: ProposalCardContext?
+    @State private var assets = CabalProposalAssets()
     private let makeModel: @MainActor (AppEnvironment, String) -> ProposalListModel
 
     init(
@@ -36,7 +37,7 @@ struct CabalProposals: View {
                 refresh?.register("cabal-proposals") { await model.refresh() }
                 await model.load()
             }
-            .task(id: model?.pager.items.map(\.id)) { await context?.load(for: Self.open(model?.pager.items ?? [])) }
+            .task(id: Self.open(model?.pager.items ?? []).map(\.symbol)) { await loadAssets() }
             .task { await preparedModel().observe(cabalID: cabalID) }
             .onScreenVisibilityChange { model?.setVisible($0) }
     }
@@ -60,11 +61,10 @@ struct CabalProposals: View {
                 VStack(spacing: 0) {
                     ForEach(Array(open.enumerated()), id: \.element.id) { index, proposal in
                         CabalOpenProposalRow(
-                            proposal: proposal, asset: context?.assets[proposal.symbol],
+                            proposal: proposal, asset: assets.byTicker[proposal.symbol],
                             isLast: index == open.count - 1, open: { openProposal(proposal) })
                     }
                 }
-                .accessibilityIdentifier("cabal-open-proposals")
             }
         }
     }
@@ -78,13 +78,17 @@ struct CabalProposals: View {
             ProposalRoute(proposalID: proposal.id), in: hostMainTab ?? environment.navigator.selectedTab)
     }
 
+    private func loadAssets() async {
+        await assets.load(
+            symbols: Self.open(model?.pager.items ?? []).map(\.symbol),
+            repository: ProposalsRepository(api: environment.api))
+    }
+
     private func preparedModel() -> ProposalListModel {
         if let model { return model }
-        context = ProposalCardContext(cabalID: cabalID, repository: ProposalsRepository(api: environment.api))
         let created = makeModel(environment, cabalID)
-        created.onOutcome = { [weak context, toasts] outcome in
-            let asset = context?.assets[outcome.proposal.symbol]
-            let message = outcome.toast(asset: asset)
+        created.onOutcome = { [assets, toasts] outcome in
+            let message = outcome.toast(asset: assets.byTicker[outcome.proposal.symbol])
             if outcome.proposal.status == .executed {
                 toasts.show(success: message)
             } else {
@@ -97,8 +101,20 @@ struct CabalProposals: View {
 
     static func liveModel(_ environment: AppEnvironment, _ cabalID: String) -> ProposalListModel {
         ProposalListModel(
-            cabalID: cabalID, filter: .open, repository: ProposalsRepository(api: environment.api),
+            cabalID: cabalID, filter: .all, repository: ProposalsRepository(api: environment.api),
             hints: environment.hints)
+    }
+}
+
+@Observable
+@MainActor
+final class CabalProposalAssets {
+    private(set) var byTicker: [String: ProposalAsset] = [:]
+
+    func load(symbols: [String], repository: ProposalsRepository) async {
+        for symbol in Set(symbols) where byTicker[symbol] == nil {
+            if let asset = try? await repository.asset(symbol: symbol) { byTicker[symbol] = asset }
+        }
     }
 }
 

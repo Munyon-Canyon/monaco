@@ -142,7 +142,7 @@ struct CabalScreenLoadTests {
             potPath: Array(repeating: .json(.ok, try json(pot)), count: 8),
             "\(historyPath)?range=1M": Array(
                 repeating: .json(.ok, try json(Components.Schemas.CabalValueHistory.sampleCurve())), count: 8),
-            "\(proposalsPath)?filter=open": Array(repeating: .json(.ok, try json(page)), count: 8),
+            "\(proposalsPath)?filter=all": Array(repeating: .json(.ok, try json(page)), count: 8),
             myCabalsPath: Array(repeating: .json(.ok, "[]"), count: 8),
         ])
     }
