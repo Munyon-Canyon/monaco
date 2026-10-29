@@ -28,10 +28,12 @@ struct ShareExportView: View {
         let cardWidth = size.width - Self.storyInset * 2 * unit
         let cardSize = CGSize(width: cardWidth, height: cardWidth * 5 / 4)
         return VStack(spacing: 0) {
-            Text("monaco")
-                .font(.system(size: 88 * unit, weight: .bold))
-                .foregroundStyle(Color.white)
-            Color.clear.frame(height: 56 * unit)
+            if !spec.facts.isLedger {
+                Text("monaco")
+                    .font(.system(size: 88 * unit, weight: .bold))
+                    .foregroundStyle(Color.white)
+                Color.clear.frame(height: 56 * unit)
+            }
             card(size: cardSize)
         }
         .frame(width: size.width, height: size.height)

@@ -69,7 +69,7 @@ struct VoteHoldSheet: View {
                 .buttonStyle(.monacoText)
         default:
             if let summary = model.summary, let tally = model.tally {
-                row(model, summary)
+                MonacoCard { row(model, summary) }
                 card(model, summary, tally)
                 Button("Read the thesis") { openProposal() }
                     .buttonStyle(.monacoText)
@@ -108,41 +108,39 @@ struct VoteHoldSheet: View {
     @ViewBuilder private func card(_ model: VoteHoldModel, _ summary: ProposalSummary, _ tally: ProposalTally)
         -> some View
     {
-        MonacoCard {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
-                VoteTallyBar(yes: tally.yes, no: tally.no, eligible: tally.voters)
-                switch model.phase {
-                case .ready:
-                    pair(model, summary, tally)
-                case .alreadyVoted(let side):
-                    let line = ProposalVoteCopy.committedOrdinary(choice: side, tally: tally)
-                    HStack {
-                        Text(line.title)
-                            .font(MonacoTheme.Typo.headline)
-                            .foregroundStyle(MonacoTheme.primaryText)
-                            .accessibilityIdentifier("proposal-voted")
-                        Spacer()
-                        Button("Change") { model.detail.beginChange() }
-                            .buttonStyle(.monacoText)
-                            .accessibilityIdentifier("proposal-change-vote")
-                    }
-                    VoteStatusLine(result: nil, facts: model.detail.statusFacts, identifierPrefix: "proposal")
-                case .closed:
-                    Text("This vote has closed.")
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+            VoteTallyBar(yes: tally.yes, no: tally.no, eligible: tally.voters)
+            switch model.phase {
+            case .ready:
+                pair(model, summary, tally)
+            case .alreadyVoted(let side):
+                let line = ProposalVoteCopy.committedOrdinary(choice: side, tally: tally)
+                HStack {
+                    Text(line.title)
                         .font(MonacoTheme.Typo.headline)
                         .foregroundStyle(MonacoTheme.primaryText)
-                        .accessibilityIdentifier("vote-hold-closed")
-                    Button("See the result") { openProposal() }
+                        .accessibilityIdentifier("proposal-voted")
+                    Spacer()
+                    Button("Change") { model.detail.beginChange() }
                         .buttonStyle(.monacoText)
-                        .accessibilityIdentifier("vote-hold-result")
-                case .viewOnly:
-                    Text(ProposalVoteCopy.readOnlyLabel(cabalName: summary.cabalName))
-                        .font(MonacoTheme.Typo.subhead)
-                        .foregroundStyle(MonacoTheme.secondaryText)
-                        .accessibilityIdentifier("vote-hold-view-only")
-                case .loading, .failed:
-                    EmptyView()
+                        .accessibilityIdentifier("proposal-change-vote")
                 }
+                VoteStatusLine(result: nil, facts: model.detail.statusFacts, identifierPrefix: "proposal")
+            case .closed:
+                Text("This vote has closed.")
+                    .font(MonacoTheme.Typo.headline)
+                    .foregroundStyle(MonacoTheme.primaryText)
+                    .accessibilityIdentifier("vote-hold-closed")
+                Button("See the result") { openProposal() }
+                    .buttonStyle(.monacoText)
+                    .accessibilityIdentifier("vote-hold-result")
+            case .viewOnly:
+                Text(ProposalVoteCopy.readOnlyLabel(cabalName: summary.cabalName))
+                    .font(MonacoTheme.Typo.subhead)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .accessibilityIdentifier("vote-hold-view-only")
+            case .loading, .failed:
+                EmptyView()
             }
         }
     }
