@@ -56,6 +56,23 @@ func (q *Queries) BallotOrder(ctx context.Context, arg BallotOrderParams) (Ballo
 	return i, err
 }
 
+const findProposalID = `-- name: FindProposalID :one
+SELECT id, status, sides_after_close FROM proposals WHERE id = $1
+`
+
+type FindProposalIDRow struct {
+	ID              uuid.UUID
+	Status          string
+	SidesAfterClose bool
+}
+
+func (q *Queries) FindProposalID(ctx context.Context, id uuid.UUID) (FindProposalIDRow, error) {
+	row := q.db.QueryRow(ctx, findProposalID, id)
+	var i FindProposalIDRow
+	err := row.Scan(&i.ID, &i.Status, &i.SidesAfterClose)
+	return i, err
+}
+
 const getProposal = `-- name: GetProposal :one
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.usdc_micros, p.token_amount, p.quote_out_amount,
@@ -152,6 +169,54 @@ func (q *Queries) ProposalVoters(ctx context.Context, proposalID uuid.UUID) ([]P
 	var items []ProposalVotersRow
 	for rows.Next() {
 		var i ProposalVotersRow
+		if err := rows.Scan(&i.VoterID, &i.Choice, &i.CastAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const proposalVotersPage = `-- name: ProposalVotersPage :many
+SELECT proposal_voters.voter_id, votes.choice, votes.cast_at
+FROM proposal_voters
+LEFT JOIN votes USING (proposal_id, voter_id)
+WHERE proposal_voters.proposal_id = $1
+  AND (NOT $2::boolean OR proposal_voters.voter_id > $3::uuid)
+ORDER BY proposal_voters.voter_id
+LIMIT $4
+`
+
+type ProposalVotersPageParams struct {
+	ProposalID    uuid.UUID
+	HasCursor     bool
+	CursorVoterID uuid.UUID
+	RowLimit      int32
+}
+
+type ProposalVotersPageRow struct {
+	VoterID uuid.UUID
+	Choice  pgtype.Text
+	CastAt  pgtype.Timestamptz
+}
+
+func (q *Queries) ProposalVotersPage(ctx context.Context, arg ProposalVotersPageParams) ([]ProposalVotersPageRow, error) {
+	rows, err := q.db.Query(ctx, proposalVotersPage,
+		arg.ProposalID,
+		arg.HasCursor,
+		arg.CursorVoterID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProposalVotersPageRow
+	for rows.Next() {
+		var i ProposalVotersPageRow
 		if err := rows.Scan(&i.VoterID, &i.Choice, &i.CastAt); err != nil {
 			return nil, err
 		}

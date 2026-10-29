@@ -126,7 +126,9 @@ type Cabal struct {
 	// MemberCount Examples: 1
 	MemberCount int32 `json:"member_count"`
 
-	// Members Examples: []
+	// Members Deprecated, but kept for builds that predate the paged route. Every member, which costs the whole membership on each read. Page `GET /v1/cabals/{id}/members` instead.
+	//
+	// Examples: []
 	Members []CabalMember `json:"members"`
 
 	// MyAccessRequest The caller's pending access request or invite, else their latest access request when the creator denied it, else null. Always null for a member.
@@ -295,6 +297,17 @@ type CabalMember struct {
 
 	// UserId Examples: 01890a5d-ac96-774b-bcce-b302099a8058
 	UserId openapi_types.UUID `json:"user_id"`
+}
+
+// CabalMemberPage One page of a cabal's members.
+type CabalMemberPage struct {
+	// Items Examples: []
+	Items []CabalMember `json:"items"`
+
+	// NextCursor Null on the last page.
+	//
+	// Examples: null
+	NextCursor *string `json:"next_cursor"`
 }
 
 // CabalPerson A user as shown on a cabal.
@@ -597,6 +610,15 @@ type PostCabalInviteParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// GetCabalMembersParams defines parameters for GetCabalMembers.
+type GetCabalMembersParams struct {
+	// Cursor The `next_cursor` of the previous page. Absent reads the first page.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit The number of members to return, from 1 through 200. Defaults to 50.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // PostCabalMemberParams defines parameters for PostCabalMember.
 type PostCabalMemberParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -677,6 +699,9 @@ type ServerInterface interface {
 	// PostCabalInvite Invite a user to a cabal by handle.
 	// (POST /v1/cabals/{id}/invites)
 	PostCabalInvite(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostCabalInviteParams)
+	// GetCabalMembers Page through a cabal's members.
+	// (GET /v1/cabals/{id}/members)
+	GetCabalMembers(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetCabalMembersParams)
 	// PostCabalMember Join an open cabal.
 	// (POST /v1/cabals/{id}/members)
 	PostCabalMember(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostCabalMemberParams)
@@ -1211,6 +1236,61 @@ func (siw *ServerInterfaceWrapper) PostCabalInvite(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
+// GetCabalMembers operation middleware
+func (siw *ServerInterfaceWrapper) GetCabalMembers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetCabalMembersParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCabalMembers(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PostCabalMember operation middleware
 func (siw *ServerInterfaceWrapper) PostCabalMember(w http.ResponseWriter, r *http.Request) {
 
@@ -1611,6 +1691,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/access-requests/{request_id}/decision", wrapper.PostCabalAccessDecision)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/invites", wrapper.GetCabalInvites)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/invites", wrapper.PostCabalInvite)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/members", wrapper.GetCabalMembers)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/members", wrapper.PostCabalMember)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/members/me", wrapper.DeleteCabalMemberMe)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/picture", wrapper.DeleteCabalPicture)
@@ -2026,6 +2107,46 @@ func (response PostCabalInvitedefaultApplicationProblemPlusJSONResponse) VisitPo
 	return err
 }
 
+type GetCabalMembersRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params GetCabalMembersParams
+}
+
+type GetCabalMembersResponseObject interface {
+	VisitGetCabalMembersResponse(w http.ResponseWriter) error
+}
+
+type GetCabalMembers200JSONResponse CabalMemberPage
+
+func (response GetCabalMembers200JSONResponse) VisitGetCabalMembersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCabalMembersdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetCabalMembersdefaultApplicationProblemPlusJSONResponse) VisitGetCabalMembersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PostCabalMemberRequestObject struct {
 	Id     openapi_types.UUID `json:"id"`
 	Params PostCabalMemberParams
@@ -2328,6 +2449,9 @@ type StrictServerInterface interface {
 	// PostCabalInvite Invite a user to a cabal by handle.
 	// (POST /v1/cabals/{id}/invites)
 	PostCabalInvite(ctx context.Context, request PostCabalInviteRequestObject) (PostCabalInviteResponseObject, error)
+	// GetCabalMembers Page through a cabal's members.
+	// (GET /v1/cabals/{id}/members)
+	GetCabalMembers(ctx context.Context, request GetCabalMembersRequestObject) (GetCabalMembersResponseObject, error)
 	// PostCabalMember Join an open cabal.
 	// (POST /v1/cabals/{id}/members)
 	PostCabalMember(ctx context.Context, request PostCabalMemberRequestObject) (PostCabalMemberResponseObject, error)
@@ -2690,6 +2814,33 @@ func (sh *strictHandler) PostCabalInvite(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostCabalInviteResponseObject); ok {
 		if err := validResponse.VisitPostCabalInviteResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCabalMembers operation middleware
+func (sh *strictHandler) GetCabalMembers(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetCabalMembersParams) {
+	var request GetCabalMembersRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCabalMembers(ctx, request.(GetCabalMembersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCabalMembers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCabalMembersResponseObject); ok {
+		if err := validResponse.VisitGetCabalMembersResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

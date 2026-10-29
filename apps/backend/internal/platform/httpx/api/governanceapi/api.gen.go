@@ -908,7 +908,7 @@ type ProposalDetail struct {
 	// Examples: 25000000
 	UsdcMicros *int64 `json:"usdc_micros"`
 
-	// Voters Every member of the frozen voter set, ordered by user id.
+	// Voters Deprecated, but kept for builds that predate the paged route. Every member of the frozen voter set, ordered by user id. Page `GET /v1/proposals/{id}/votes` instead.
 	//
 	// Examples: []
 	Voters []ProposalVoter `json:"voters"`
@@ -1113,6 +1113,55 @@ type ProposalStats struct {
 //
 // Examples: open
 type ProposalStatus string
+
+// ProposalVoteItem One member of the proposal's frozen voter set with their card and ballot.
+type ProposalVoteItem struct {
+	// CastAt When the ballot was last cast. Null until they vote, and null for every voter but the caller.
+	//
+	// Examples: 2026-10-03T16:00:00Z
+	CastAt *time.Time `json:"cast_at"`
+
+	// Choice The voter's ballot. Null until they vote, and null for every voter but the caller, because the side of a ballot is private.
+	//
+	// Examples: yes
+	Choice *BallotChoice `json:"choice"`
+
+	// DisplayName The voter name. Empty when the user has none.
+	//
+	// Examples: Mia
+	DisplayName string `json:"display_name"`
+
+	// Handle The voter handle. Null until onboarding sets one.
+	//
+	// Examples: mia
+	Handle *string `json:"handle"`
+
+	// PhotoUrl The voter photo. Null when the user has none.
+	//
+	// Examples: null
+	PhotoUrl *string `json:"photo_url"`
+
+	// UserId The voter.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+	UserId openapi_types.UUID `json:"user_id"`
+
+	// Voted Whether the voter has cast a ballot. Always set, even while their side is private.
+	//
+	// Examples: true
+	Voted bool `json:"voted"`
+}
+
+// ProposalVotePage One page of a proposal's voters.
+type ProposalVotePage struct {
+	// Items Examples: []
+	Items []ProposalVoteItem `json:"items"`
+
+	// NextCursor Null on the last page.
+	//
+	// Examples: null
+	NextCursor *string `json:"next_cursor"`
+}
 
 // ProposalVoter One member of the proposal's frozen voter set.
 type ProposalVoter struct {
@@ -1404,6 +1453,15 @@ type DeleteProposalVoteParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// GetProposalVotesParams defines parameters for GetProposalVotes.
+type GetProposalVotesParams struct {
+	// Cursor The `next_cursor` of the previous page. Absent reads the first page.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit The number of voters to return, from 1 through 200. Defaults to 50.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // PostProposalVoteParams defines parameters for PostProposalVote.
 type PostProposalVoteParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -1460,6 +1518,9 @@ type ServerInterface interface {
 	// DeleteProposalVote Undo the caller's ballot on an open proposal.
 	// (DELETE /v1/proposals/{id}/votes)
 	DeleteProposalVote(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DeleteProposalVoteParams)
+	// GetProposalVotes Page through a proposal's voters and their ballots.
+	// (GET /v1/proposals/{id}/votes)
+	GetProposalVotes(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetProposalVotesParams)
 	// PostProposalVote Cast or change the caller's ballot on an open proposal.
 	// (POST /v1/proposals/{id}/votes)
 	PostProposalVote(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostProposalVoteParams)
@@ -2113,6 +2174,61 @@ func (siw *ServerInterfaceWrapper) DeleteProposalVote(w http.ResponseWriter, r *
 	handler.ServeHTTP(w, r)
 }
 
+// GetProposalVotes operation middleware
+func (siw *ServerInterfaceWrapper) GetProposalVotes(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetProposalVotesParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProposalVotes(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PostProposalVote operation middleware
 func (siw *ServerInterfaceWrapper) PostProposalVote(w http.ResponseWriter, r *http.Request) {
 
@@ -2300,6 +2416,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/proposals/{id}", wrapper.DeleteProposal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/proposals/{id}", wrapper.GetProposal)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/proposals/{id}/votes", wrapper.DeleteProposalVote)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/proposals/{id}/votes", wrapper.GetProposalVotes)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/proposals/{id}/votes", wrapper.PostProposalVote)
 
 	return m
@@ -2821,6 +2938,46 @@ func (response DeleteProposalVotedefaultApplicationProblemPlusJSONResponse) Visi
 	return err
 }
 
+type GetProposalVotesRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params GetProposalVotesParams
+}
+
+type GetProposalVotesResponseObject interface {
+	VisitGetProposalVotesResponse(w http.ResponseWriter) error
+}
+
+type GetProposalVotes200JSONResponse ProposalVotePage
+
+func (response GetProposalVotes200JSONResponse) VisitGetProposalVotesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProposalVotesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetProposalVotesdefaultApplicationProblemPlusJSONResponse) VisitGetProposalVotesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PostProposalVoteRequestObject struct {
 	Id     openapi_types.UUID `json:"id"`
 	Params PostProposalVoteParams
@@ -2903,6 +3060,9 @@ type StrictServerInterface interface {
 	// DeleteProposalVote Undo the caller's ballot on an open proposal.
 	// (DELETE /v1/proposals/{id}/votes)
 	DeleteProposalVote(ctx context.Context, request DeleteProposalVoteRequestObject) (DeleteProposalVoteResponseObject, error)
+	// GetProposalVotes Page through a proposal's voters and their ballots.
+	// (GET /v1/proposals/{id}/votes)
+	GetProposalVotes(ctx context.Context, request GetProposalVotesRequestObject) (GetProposalVotesResponseObject, error)
 	// PostProposalVote Cast or change the caller's ballot on an open proposal.
 	// (POST /v1/proposals/{id}/votes)
 	PostProposalVote(ctx context.Context, request PostProposalVoteRequestObject) (PostProposalVoteResponseObject, error)
@@ -3298,6 +3458,33 @@ func (sh *strictHandler) DeleteProposalVote(w http.ResponseWriter, r *http.Reque
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DeleteProposalVoteResponseObject); ok {
 		if err := validResponse.VisitDeleteProposalVoteResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetProposalVotes operation middleware
+func (sh *strictHandler) GetProposalVotes(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetProposalVotesParams) {
+	var request GetProposalVotesRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProposalVotes(ctx, request.(GetProposalVotesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProposalVotes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProposalVotesResponseObject); ok {
+		if err := validResponse.VisitGetProposalVotesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

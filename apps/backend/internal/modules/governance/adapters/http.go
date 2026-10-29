@@ -173,6 +173,41 @@ func (h HTTP) GetProposal(
 	return api.GetProposal200JSONResponse(out), nil
 }
 
+func (h HTTP) GetProposalVotes(
+	ctx context.Context, req api.GetProposalVotesRequestObject,
+) (api.GetProposalVotesResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	query := app.ListVotes{ID: ids.ProposalIDFrom(req.Id), Caller: user, Limit: app.ListVotesDefault}
+	if req.Params.Limit != nil {
+		query.Limit = *req.Params.Limit
+	}
+	if req.Params.Cursor != nil {
+		query.Cursor = *req.Params.Cursor
+	}
+	page, err := h.Reads.Votes(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]api.ProposalVoteItem, 0, len(page.Items))
+	for _, entry := range page.Items {
+		item := api.ProposalVoteItem{
+			UserId: entry.UserID.UUID(), Voted: entry.Voted, Handle: present(entry.Card.Handle),
+			DisplayName: entry.Card.DisplayName, PhotoUrl: present(entry.Card.PhotoURL),
+		}
+		if entry.Voted && entry.Choice != "" {
+			choice, at := api.BallotChoice(entry.Choice), entry.CastAt
+			item.Choice, item.CastAt = &choice, &at
+		}
+		items = append(items, item)
+	}
+	return api.GetProposalVotes200JSONResponse(
+		api.ProposalVotePage{Items: items, NextCursor: present(page.NextCursor)},
+	), nil
+}
+
 func (h HTTP) PostCabalProposal(
 	ctx context.Context, req api.PostCabalProposalRequestObject,
 ) (api.PostCabalProposalResponseObject, error) {
