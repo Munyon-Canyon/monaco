@@ -6,71 +6,6 @@ import XCTest
 
 @MainActor
 final class AssetDetailNoticesTests: XCTestCase {
-    func testAPriceOlderThanFiveMinutesIsStaleByItsOwnAge() async throws {
-        let moment = TestMoment()
-        let model = try await loaded(priceAsOf: moment.before(minutes: 14), moment: moment)
-
-        XCTAssertEqual(model.notices, [.stale(minutes: 14)])
-        XCTAssertEqual(model.notices.map(\.text), ["Token price delayed · 14 minutes ago."])
-    }
-
-    func testAPriceFromTheLastFiveMinutesIsFresh() async throws {
-        let moment = TestMoment()
-        let model = try await loaded(priceAsOf: moment.date.addingTimeInterval(-300), moment: moment)
-
-        XCTAssertTrue(model.notices.isEmpty)
-        XCTAssertNil(model.staleMinutes)
-    }
-
-    func testAPriceJustPastTheLimitIsStale() async throws {
-        let moment = TestMoment()
-        let model = try await loaded(priceAsOf: moment.date.addingTimeInterval(-301), moment: moment)
-
-        XCTAssertEqual(model.staleMinutes, 5)
-    }
-
-    func testAnUnpricedAssetHasNothingToBeStaleAbout() async throws {
-        let moment = TestMoment()
-        let model = try await loaded(priceMicros: nil, priceAsOf: nil, moment: moment)
-
-        XCTAssertNil(model.staleMinutes)
-    }
-
-    func testAFailedRefreshWithAPriceOnScreenIsStaleFromTheLastGoodLoad() async throws {
-        let moment = TestMoment()
-        let model = makeModel(
-            [
-                try Self.reply(priceAsOf: moment.date), .json(.ok, Self.emptyChart),
-                .failure(URLError(.cannotConnectToHost)),
-            ], moment: moment)
-        await model.load()
-        XCTAssertNil(model.staleMinutes)
-        moment.advance(minutes: 3)
-
-        await model.load()
-
-        XCTAssertTrue(model.refreshFailed)
-        XCTAssertEqual(model.notices, [.stale(minutes: 3)])
-    }
-
-    func testAGoodRefreshClearsTheNotice() async throws {
-        let moment = TestMoment()
-        let model = makeModel(
-            [
-                try Self.reply(priceAsOf: moment.date), .json(.ok, Self.emptyChart),
-                .failure(URLError(.cannotConnectToHost)),
-                try Self.reply(priceAsOf: moment.date), .json(.ok, Self.emptyChart),
-            ], moment: moment)
-        await model.load()
-        await model.load()
-        XCTAssertFalse(model.notices.isEmpty)
-
-        await model.load()
-
-        XCTAssertFalse(model.refreshFailed)
-        XCTAssertTrue(model.notices.isEmpty)
-    }
-
     func testAnAssetThatCannotTradeSaysSoAndAPausedOneSaysItIsPaused() async throws {
         let moment = TestMoment()
         let untradable = try await loaded(priceAsOf: moment.date, tradable: false, moment: moment)
@@ -80,13 +15,6 @@ final class AssetDetailNoticesTests: XCTestCase {
         XCTAssertEqual(untradable.notices.map(\.text), ["This stock is unavailable for new proposals."])
         XCTAssertEqual(paused.notices, [.paused])
         XCTAssertEqual(paused.notices.map(\.text), ["Trading paused right now."])
-    }
-
-    func testStaleComesFirstWhenTwoNoticesApply() async throws {
-        let moment = TestMoment()
-        let model = try await loaded(priceAsOf: moment.before(minutes: 9), tradable: false, moment: moment)
-
-        XCTAssertEqual(model.notices, [.stale(minutes: 9), .unavailable])
     }
 
     private func loaded(

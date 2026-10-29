@@ -28,13 +28,11 @@ public struct AssetDetailPresentation: Equatable, Sendable {
 public typealias AssetListingPresentation = MarketListing
 
 public enum AssetNotice: Equatable, Sendable {
-    case stale(minutes: Int)
     case unavailable
     case paused
 
     public var text: String {
         switch self {
-        case .stale(let minutes): MarketStaleness.tokenPriceDelayed(minutes: minutes)
         case .unavailable: "This stock is unavailable for new proposals."
         case .paused: "Trading paused right now."
         }
@@ -71,7 +69,6 @@ public final class AssetDetailClientModel {
     public internal(set) var heldRows: [AssetHeldRowFacts] = []
     public internal(set) var openProposals: [AssetOpenProposalRowFacts] = []
     public private(set) var refreshFailed = false
-    private(set) var lastLoadedAt: Date?
     var chartGeneration = 0
     var selectionGeneration = 0
     public static let maximumBars = 4_000
@@ -234,7 +231,6 @@ public final class AssetDetailClientModel {
     }
 
     private func noteFresh() {
-        lastLoadedAt = now()
         refreshFailed = false
     }
 

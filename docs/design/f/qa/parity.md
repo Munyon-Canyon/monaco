@@ -183,9 +183,9 @@ founder:
 
 | Frame | Appearance | Verdict | Difference | Follow-up |
 | --- | --- | --- | --- | --- |
-| [`07-stock-dark`](../screens/07-stock-dark.png) | dark | difference | App adds a "Token price delayed" banner, a "Market open" pill and a dashed reference line with a price tag on the chart; the frame has none of them. | #7027 (#6528, #6536) |
-| [`07-stock-light`](../screens/07-stock-light.png) | light | difference | Same extra delayed banner, "Market open" pill and chart price tag as the dark shot. | #7027 (#6528, #6536) |
-| [`07-stock-preipo`](../screens/07-stock-preipo.png) | dark | difference | Frame has a SpaceX photo hero with the logo on it; app shows only a plain "S" tile. | #7027 (#6544) |
+| [`07-stock-dark`](../screens/07-stock-dark.png) | dark | match | — | — |
+| [`07-stock-light`](../screens/07-stock-light.png) | light | match | — | — |
+| [`07-stock-preipo`](../screens/07-stock-preipo.png) | dark | difference | App now draws the hero block behind the logo, but the repo has no SpaceX photo asset, so the block is flat instead of the frame's photo. | #6410 (founder: supply the photo or accept the block) |
 | [`07-stock-preipo-scrolled`](../screens/07-stock-preipo-scrolled.png) | dark | match (15 pt floor) | — | — |
 
 founder:
