@@ -158,7 +158,7 @@ struct AssetDetailClientView: View {
             environment.navigator.open(ShareRoute(.position(cabalID: held.cabalID, symbol: symbol)), in: tab)
         } else {
             let name = model?.detail?.name ?? symbol
-            SystemShare.present(SharePayload(title: "\(name) on Monaco", url: ShareCardContent.fallbackURL))
+            SystemShare.present(SharePayload(title: "\(name) on Monaco", url: SharePayload.fallbackURL))
         }
     }
 

@@ -56,7 +56,7 @@ struct ProposalScreen: View {
     }
 
     private func share(_ title: String?) {
-        SystemShare.present(SharePayload(title: title ?? "Proposal", url: ShareCardContent.fallbackURL))
+        SystemShare.present(SharePayload(title: title ?? "Proposal", url: SharePayload.fallbackURL))
     }
 
     private func preparedComments() -> CommentsModel {

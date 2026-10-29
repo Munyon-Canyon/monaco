@@ -27,39 +27,26 @@ nonisolated final class ShareCardSampleUITests: XCTestCase {
     }
 
     @MainActor
-    private func assertSystemShareSheet(_ app: XCUIApplication, _ message: String) {
-        let sheet = element(app, "ActivityListView")
-        XCTAssertTrue(sheet.waitForExistence(timeout: 30), message)
-        XCTAssertFalse(element(app, "share-card-title").exists, "a Monaco sheet opened before the system sheet")
-        attach(app.screenshot(), "system-share-sheet")
-    }
-
-    @MainActor
     func testEverySampleCardRenders() throws {
-        let names = [
-            "cabalGain": "share-card-cabal",
-            "cabalLoss": "share-card-cabal-loss",
-            "cabalShort": "share-card-cabal-short",
-            "meGain": "share-card-me",
-            "meNoCode": "share-card-me-no-code",
-        ]
-        for (scenario, name) in names.sorted(by: { $0.key < $1.key }) {
-            let app = launch(["-MonacoShareCardSample", scenario])
-            let card = element(app, "share-card-image")
+        for scenario in ["stake", "portfolio"] {
+            let app = launch(["-MonacoShareSample", scenario])
+            let card = element(app, "share-card")
             XCTAssertTrue(card.waitForExistence(timeout: 30), "\(scenario): no card")
             _ = XCTWaiter().wait(for: [XCTestExpectation()], timeout: 1.5)
-            attach(card.screenshot(), name)
+            attach(card.screenshot(), "share-card-\(scenario)")
             app.terminate()
         }
     }
 
     @MainActor
-    func testTheCabalScreenOpensTheSystemShareSheetInOneTap() throws {
+    func testTheCabalScreenOpensTheShareScreenInOneTap() throws {
         let app = launch(["-MonacoGroupDetailSample", "ready"])
         let button = app.buttons["cabal-share-button"]
         XCTAssertTrue(button.waitForExistence(timeout: 30), "no share button on a member's cabal")
         button.tap()
-        assertSystemShareSheet(app, "the cabal Share did not open the system share sheet")
+        let screen = element(app, "share-screen")
+        XCTAssertTrue(screen.waitForExistence(timeout: 30), "the cabal Share did not open the share screen")
+        attach(app.screenshot(), "cabal-share-screen")
     }
 
     @MainActor
@@ -71,12 +58,13 @@ nonisolated final class ShareCardSampleUITests: XCTestCase {
     }
 
     @MainActor
-    func testProfileOpensTheSystemShareSheetInOneTap() throws {
+    func testProfileOpensTheShareScreenInOneTap() throws {
         let app = launch(["-MonacoProfileSample", "cabals"])
         let button = app.buttons["profile-share-button"]
         XCTAssertTrue(button.waitForExistence(timeout: 30), "no share button on Profile")
         attach(app.screenshot(), "share-profile-button")
         button.tap()
-        assertSystemShareSheet(app, "the Profile Share did not open the system share sheet")
+        let screen = element(app, "share-screen")
+        XCTAssertTrue(screen.waitForExistence(timeout: 30), "the Profile Share did not open the share screen")
     }
 }

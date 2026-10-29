@@ -15,7 +15,6 @@ struct ProfileScreen: View {
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @State private var portfolio: PortfolioModel?
     @State private var own: OwnProfileModel?
-    @State private var sharing: String?
     let sections: [any ProfileSection.Type]
 
     init(sections: [any ProfileSection.Type] = Self.sections) {
@@ -66,8 +65,7 @@ struct ProfileScreen: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     MonacoGlassButton(
-                        icon: .share, accessibilityLabel: "Share your return", style: .quiet, placement: .toolbar,
-                        isBusy: sharing == ShareCardLauncher.meKey
+                        icon: .share, accessibilityLabel: "Share your return", style: .quiet, placement: .toolbar
                     ) {
                         share()
                     }
@@ -92,11 +90,7 @@ struct ProfileScreen: View {
     }
 
     private func share() {
-        guard let profile = own?.sessionProfile else { return }
-        Task {
-            await ShareCardLauncher.shareMe(
-                profile: profile, api: environment.api, toasts: toasts, busy: $sharing)
-        }
+        ShareCardLauncher.shareMe(navigator: environment.navigator, in: .profile)
     }
 
     @ViewBuilder private var content: some View {

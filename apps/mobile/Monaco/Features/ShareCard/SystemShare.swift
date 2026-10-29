@@ -1,5 +1,4 @@
 import LinkPresentation
-import MonacoCore
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
@@ -9,9 +8,7 @@ struct SharePayload {
     let url: URL
     var image: UIImage?
 
-    static func card(_ content: ShareCardContent, image: UIImage?) -> SharePayload {
-        SharePayload(title: content.title, url: content.shareURL, image: image)
-    }
+    static let fallbackURL = URL(string: "https://monacolabs.xyz") ?? URL(fileURLWithPath: "/")
 }
 
 final class ShareLinkItem: NSObject, UIActivityItemSource {

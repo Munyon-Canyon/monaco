@@ -9,7 +9,7 @@ enum FeedShareContent {
     }
 
     static func url(links: InviteLinks?) -> URL {
-        links?.shareURL ?? ShareCardContent.fallbackURL
+        links?.shareURL ?? SharePayload.fallbackURL
     }
 
     static func payload(for item: Components.Schemas.FeedItem, links: InviteLinks?) -> SharePayload {

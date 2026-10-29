@@ -176,7 +176,7 @@ struct ProposalDetailSlotView: View {
         let isMember = model.members.contains { $0.id == environment.viewer?.userID }
         switch ProposalResultCopy.action(status: summary.status, canPropose: isMember) {
         case .share:
-            ShareLink(item: ShareCardContent.fallbackURL) {
+            ShareLink(item: SharePayload.fallbackURL) {
                 Label("Share result", systemImage: MonacoIcon.share.symbol)
             }
             .buttonStyle(.monacoPrimary)

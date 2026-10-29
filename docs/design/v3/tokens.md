@@ -69,7 +69,7 @@ Ticker tiles: the prototype tints only NVDA (`#C7F69F` on `#1A3614`), MSFT (`#F0
 
 ### Share card
 
-The shared image is drawn dark and opaque on the identity green, flat fills only. The values do not change with appearance. Contrast is measured by `ShareCardRendererTests`.
+The shared image is drawn dark and opaque on the identity green, flat fills only. The values do not change with appearance. Contrast is measured by the share card tests.
 
 | Role | Value | On `canvas` | On `surface` | SwiftUI |
 | --- | --- | --- | --- | --- |

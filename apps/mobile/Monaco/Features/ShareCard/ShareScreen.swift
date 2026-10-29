@@ -49,7 +49,7 @@ enum ShareActions {
 
     static func payload(for spec: ShareCardSpec, url: URL?, image: UIImage) -> SharePayload {
         SharePayload(
-            title: "\(spec.header.title) \u{00B7} \(spec.tickerLine.symbol)", url: url ?? ShareCardContent.fallbackURL,
+            title: "\(spec.header.title) \u{00B7} \(spec.tickerLine.symbol)", url: url ?? SharePayload.fallbackURL,
             image: image)
     }
 
