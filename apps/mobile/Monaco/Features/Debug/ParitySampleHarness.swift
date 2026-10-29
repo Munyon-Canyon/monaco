@@ -43,7 +43,7 @@ enum ParitySampleScenario: String, CaseIterable {
         switch self {
         case .addMoneyError: return []
         case .cabalInfoError: return [CabalRoute(id: id, tab: .rules)]
-        case .membersError: return [MembersRoute(cabalID: id, tab: .members)]
+        case .membersError: return [MembersRoute(cabalID: id)]
         case .publicCabalError: return [CabalSampleRoute(kind: .publicMember)]
         case .votesClosed, .votesExpired, .votesRejected: return [ProposalSampleRoute(votes: .open)]
         case .feedEveryone, .feedMine: return []

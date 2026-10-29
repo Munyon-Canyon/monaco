@@ -1,18 +1,19 @@
 journey: cabals/create-cabal
 expect-fail: S4
 
-Members & voters lists only the creator, not every member. S4.5 looks for B on the Members tab, so S4 must fail.
+The Members tab lists only the creator, not every member. S4.5 looks for B on the Members tab, so S4 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
-diff --git a/apps/mobile/Monaco/Features/Groups/MembersView.swift b/apps/mobile/Monaco/Features/Groups/MembersView.swift
-index 61cf853e3..42ac6ac3d 100644
---- a/apps/mobile/Monaco/Features/Groups/MembersView.swift
-+++ b/apps/mobile/Monaco/Features/Groups/MembersView.swift
-@@ -274,7 +274,7 @@ private struct PagedMemberRows<Row: View>: View {
-         if let members, !members.rows.isEmpty {
-             let rows = members.rows
-             LazyVStack(spacing: 0) {
--                ForEach(rows) { item in
-+                ForEach(rows.filter { $0.member.role == "creator" }) { item in
-                     row(item.member, item.id == rows.last?.id && !members.hasMore)
-                         .onAppear { Task { await members.loadMore(after: item) } }
-                 }
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalMembersTab.swift b/apps/mobile/Monaco/Features/Groups/CabalMembersTab.swift
+index e52ff6601..0bf2012c2 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalMembersTab.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalMembersTab.swift
+@@ -44,7 +44,7 @@ private struct CabalMembersTabBody: View {
+         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+             CabalMembersList(model: model) {
+                 MonacoGroupedList {
+-                    ForEach(model.preview) { entry in
++                    ForEach(model.preview.filter { $0.row.role == .creator }) { entry in
+                         CabalMemberLink(
+                             entry: entry, viewerID: viewerID, subtitle: CabalMemberCopy.tabLine(entry.row),
+                             chevron: true, isLast: entry.id == model.preview.last?.id)

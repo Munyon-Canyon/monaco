@@ -28,8 +28,8 @@ enum CabalTabs: CabalSection {
         switch tab {
         case .treasury: [CabalHoldingsSlot.self, CabalValueChartSlot.self, CabalActivitySlot.self]
         case .rules: [CabalRulesSlot.self]
-        case .members: [CabalMemberBoardSlot.self]
-        case .voters: [CabalVoterBoardSlot.self]
+        case .members: [CabalMembersSlot.self]
+        case .voters: [CabalVotersSlot.self]
         }
     }
 

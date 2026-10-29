@@ -75,7 +75,7 @@ private struct CabalInfoLinks: View {
 
     private func links(_ cabal: Components.Schemas.Cabal) -> some View {
         MonacoGroupedList {
-            NavigationLink(value: AnyAppRoute(MembersRoute(cabalID: cabalID, tab: .members))) {
+            NavigationLink(value: AnyAppRoute(MembersRoute(cabalID: cabalID))) {
                 MonacoRow(
                     title: "Members & voters", subtitle: CabalCopy.memberCount(cabal.memberCount), chevron: true,
                     isLast: false
@@ -98,7 +98,7 @@ private struct CabalInfoLinks: View {
             .buttonStyle(.monacoRow)
             .accessibilityIdentifier("cabal-invite-member-row")
             if requestCount > 0 {
-                NavigationLink(value: AnyAppRoute(MembersRoute(cabalID: cabalID, tab: .requests))) {
+                NavigationLink(value: AnyAppRoute(MembersRoute(cabalID: cabalID))) {
                     MonacoRow(
                         title: "Join requests", subtitle: CabalCopy.requestsLine(requestCount), chevron: true,
                         isLast: true

@@ -63,7 +63,7 @@ struct CabalJoinSection: View {
                 }
             }
         case .pending(let requests):
-            NavigationLink(value: AnyAppRoute(MembersRoute(cabalID: cabalID, tab: .requests))) {
+            NavigationLink(value: AnyAppRoute(MembersRoute(cabalID: cabalID))) {
                 MonacoRow(
                     title: "Join requests", subtitle: CabalCopy.requestsLine(requests.count), chevron: true,
                     isLast: true

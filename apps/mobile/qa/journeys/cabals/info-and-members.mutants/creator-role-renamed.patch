@@ -3,16 +3,17 @@ expect-fail: S1
 
 The member list calls the creator Owner. S1.4 expects the creator's row to read Admin, so S1 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
-diff --git a/apps/mobile/Monaco/Features/Groups/MembersView.swift b/apps/mobile/Monaco/Features/Groups/MembersView.swift
-index c413233..3f55835 100644
---- a/apps/mobile/Monaco/Features/Groups/MembersView.swift
-+++ b/apps/mobile/Monaco/Features/Groups/MembersView.swift
-@@ -135,7 +135,7 @@ struct MembersView: View {
-     }
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Cabals/CabalMemberCopy.swift b/packages/mobile-core/Sources/MonacoCore/Cabals/CabalMemberCopy.swift
+index e09c03dfa..2e82b779f 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Cabals/CabalMemberCopy.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Cabals/CabalMemberCopy.swift
+@@ -16,7 +16,7 @@ public enum CabalMemberGroup: Equatable, Sendable {
  
-     private func role(_ member: Components.Schemas.CabalMember) -> String {
--        member.role == "creator" ? "Admin" : "Member"
-+        member.role == "creator" ? "Owner" : "Member"
-     }
- 
-     private func membersList(_ cabal: Components.Schemas.Cabal) -> some View {
+     public var word: String {
+         switch self {
+-        case .admin: "Admin"
++        case .admin: "Owner"
+         case .voter: "Voter"
+         case .member: "Member"
+         }
