@@ -1,19 +1,21 @@
 journey: feed/browse
 expect-fail: S3
 
-A cabal cell opens nothing. S3.1 expects the cell to open the cabal screen, so it must fail.
+A cabal cell opens a proposal that does not exist instead of its own page. S3.1 expects the cell to open the cabal screen, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/packages/mobile-core/Sources/MonacoCore/Feed/FeedDestination.swift b/packages/mobile-core/Sources/MonacoCore/Feed/FeedDestination.swift
-index b8864c5b4..f2a875860 100644
+index 22e0487d6..c7927e180 100644
 --- a/packages/mobile-core/Sources/MonacoCore/Feed/FeedDestination.swift
 +++ b/packages/mobile-core/Sources/MonacoCore/Feed/FeedDestination.swift
-@@ -18,7 +18,7 @@ public enum FeedDestination: Equatable, Sendable {
-             self = .asset(symbol: symbol)
-         case .cabalCreated, .memberJoined:
-             guard let cabalID = item.cabalId else { return nil }
--            self = .cabal(id: cabalID)
-+            return nil
-         case .reply, .threshold, nil:
-             return nil
+@@ -10,7 +10,9 @@ public enum FeedDestination: Equatable, Sendable {
+             return proposal(for: item)
+         case .result:
+             return item.shape == .cabal ? proposal(for: item) : .post(itemID: item.id)
+-        case .trade, .threshold, .memberJoined, .cabalCreated, .other:
++        case .memberJoined, .cabalCreated:
++            return .proposal(proposalID: item.refId)
++        case .trade, .threshold, .other:
+             return .post(itemID: item.id)
          }
+     }

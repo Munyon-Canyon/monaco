@@ -5,148 +5,35 @@ import Testing
 
 @testable import Monaco
 
-@MainActor
 struct FeedEventTests {
     private typealias Item = Components.Schemas.FeedItem
 
-    private func loadedItems() async -> [Item] {
-        let model = FeedModel.preview(.items, clock: ContinuousClock())
-        await model.load()
-        return model.items
-    }
-
-    private func pill(_ item: Item) -> String {
-        let event = FeedEvent(item)
-        return "\(event.pillLabel)/\(event.pillTone)"
-    }
-
-    private func first(_ kind: FeedKind, in items: [Item]) throws -> Item {
-        try #require(items.first { $0.kind == kind.rawValue })
-    }
-
-    private func asPriceMove(_ trade: Item) -> Item {
-        var item = trade
-        item.kind = FeedKind.priceMove.rawValue
-        item.symbol = "NVDAx"
-        item.assetName = "NVIDIA"
-        item.changeBps = 418
-        return item
-    }
-
-    @Test func everyCardVariantNamesItselfWithItsOwnPill() async throws {
-        let items = await loadedItems()
-        let proposal = try first(.proposal, in: items)
-        let trade = try first(.trade, in: items)
-        var proposeSell = proposal
-        proposeSell.action = "sell"
-        var approved = proposal
-        approved.kind = FeedEvent.outcomeKind
-        let variants = [
-            proposal, trade, asPriceMove(trade), try first(.reply, in: items), proposeSell, approved,
-            try first(.memberJoined, in: items),
-        ]
-        #expect(
-            variants.map(pill) == [
-                "Proposal/positive", "Sell/negative", "Price move/warn", "Discussion/discussion",
-                "Propose sell/negative", "Approved/warn", "Cabal/positive",
-            ])
-    }
-
-    @Test func aCardDrawsTheLogoAndPictureTheFeedSends() async throws {
-        let items = await loadedItems()
-        var item = try #require(items.first)
+    @Test func aPostDrawsTheLogoTheFeedSends() {
+        var item = Item.samples[0]
         item.assetLogoUrl = " https://cdn.example/AAPLx.png "
-        item.cabalPictureUrl = "https://cdn.example/alpha.jpg"
         #expect(item.assetLogoURL == URL(string: "https://cdn.example/AAPLx.png"))
-        #expect(item.cabalPictureURL == URL(string: "https://cdn.example/alpha.jpg"))
-    }
-
-    @Test func aCardWithNoLogoOrPictureKeepsItsFallback() async throws {
-        let items = await loadedItems()
-        var item = try #require(items.first)
         item.assetLogoUrl = nil
-        item.cabalPictureUrl = ""
         #expect(item.assetLogoURL == nil)
-        #expect(item.cabalPictureURL == nil)
+        item.assetLogoUrl = ""
+        #expect(item.assetLogoURL == nil)
     }
 
-    @Test func aTradeWithNoActionDefaultsToBuy() async throws {
-        let items = await loadedItems()
-        var item = try #require(items.first { $0.kind == FeedKind.trade.rawValue })
-        item.action = nil
-        #expect(FeedEvent(item) == .trade(.buy))
+    @Test func thePostColumnStartsWhereTheGutterAvatarAndGapEnd() {
+        #expect(FeedPostMetrics.gutter == MonacoTheme.Space.gutter)
+        #expect(FeedPostMetrics.lead == MonacoAvatarSize.feed.rawValue)
+        #expect(FeedPostMetrics.textColumn == 60)
     }
 
-    @Test func aKindFromANewerBackendIsAPlainUpdate() async throws {
-        let items = await loadedItems()
-        var item = try #require(items.first)
-        item.kind = "something_new"
-        let event = FeedEvent(item)
-        #expect(event == .update)
-        #expect(event.block == .quote)
-        #expect(event.pillLabel == "Update")
+    @Test func aDestinationMapsToItsOneRoute() {
+        #expect(FeedDestination.proposal(proposalID: "p1").route == AnyAppRoute(ProposalRoute(proposalID: "p1")))
+        #expect(FeedDestination.post(itemID: "i1").route == AnyAppRoute(FeedItemRoute(itemID: "i1")))
     }
 
-    @Test func blocksFollowTheEvent() {
-        #expect(FeedEvent.proposal(.sell).block == .asset(.sell))
-        #expect(FeedEvent.trade(.buy).block == .asset(.buy))
-        #expect(FeedEvent.outcome(.buy).block == .asset(.buy))
-        #expect(FeedEvent.priceMove.block == .price)
-        #expect(FeedEvent.cabal.block == .cabal)
-        #expect(FeedEvent.discussion.block == .quote)
-    }
-
-    @Test func aTradeFillsTheBlockFromTheWireFigures() async throws {
-        let items = await loadedItems()
-        let item = try first(.trade, in: items)
-        let facts = FeedAssetFacts(item, event: FeedEvent(item))
-        #expect(facts.ticker == "AMZN")
-        #expect(facts.amount == "$320.00")
-        #expect(facts.detail == "Sold 2 units · Avg $160.00")
-        #expect(facts.company == "Amazon")
-        #expect(facts.status == "Executed")
-    }
-
-    @Test func aTradeWithNoFiguresFallsBackToTheRenderedDetail() async throws {
-        let items = await loadedItems()
-        var item = try #require(items.first { $0.kind == FeedKind.trade.rawValue })
-        item.usdcMicros = nil
-        item.tokenAmount = nil
-        item.tokenDecimals = nil
-        item.priceMicros = nil
-        item.assetName = nil
-        let facts = FeedAssetFacts(item, event: FeedEvent(item))
-        #expect(facts.detail == "Filled at $160.00")
-        #expect(facts.amount == nil)
-        #expect(facts.company == nil)
-    }
-
-    @Test func aProposalReadsItsShareOfThePotAndItsStatus() async throws {
-        let items = await loadedItems()
-        let item = try #require(items.first { $0.kind == FeedKind.proposal.rawValue })
-        let facts = FeedAssetFacts(item, event: FeedEvent(item))
-        #expect(facts.status == "Voting open")
-        #expect(facts.amount == "$400.00")
-        #expect(facts.detail == "2.00% of Big Ballers’s pot")
-        #expect(facts.thesis?.hasPrefix("A small position") == true)
-    }
-
-    @Test func aProposalMadeBeforeTheShareShippedHasNoShareLine() async throws {
-        let items = await loadedItems()
-        var item = try #require(items.first { $0.kind == FeedKind.proposal.rawValue })
-        item.shareOfPotBps = nil
-        #expect(FeedAssetFacts(item, event: FeedEvent(item)).detail == nil)
-    }
-
-    @Test func aPriceMoveShowsTheChangeTheWireStates() async throws {
-        let items = await loadedItems()
-        var item = asPriceMove(try first(.trade, in: items))
-        #expect(FeedPriceFacts(item).change == "+4.18%")
-        #expect(FeedPriceFacts(item).company == "NVIDIA")
-        item.changeBps = -620
-        #expect(FeedPriceFacts(item).change == "\u{2212}6.20%")
-        item.changeBps = nil
-        #expect(FeedPriceFacts(item).change == nil)
+    @Test func aProposalAndAJoinOpenWhereTheRuleSays() {
+        let proposal = Item.samples[0]
+        #expect(proposal.opensRoute == AnyAppRoute(ProposalRoute(proposalID: proposal.refId)))
+        let join = Item.samples[4]
+        #expect(join.opensRoute == AnyAppRoute(CabalRoute(id: Item.sampleCabalID)))
     }
 
     @Test func aReturnReadsAsOneMonthAndAHiddenOneAsPrivate() throws {
