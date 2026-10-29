@@ -17,7 +17,8 @@ struct CabalComingSlotsTests {
             CabalScreen.sections.map { String(describing: $0) } == [
                 "CabalHeaderSlot", "CabalClosedSlot", "CabalPauseSlot", "CabalJoinSlot", "CabalPotSlot",
                 "CabalSliceSlot",
-                "CabalActionsSlot", "CabalProposalsSlot", "CabalTabs",
+                "CabalActionsSlot", "CabalEmptySlot", "CabalStartersSlot", "CabalProposalsSlot",
+                "CabalTabs",
             ])
     }
 }

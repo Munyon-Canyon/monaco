@@ -53,6 +53,7 @@ enum GroupDetailSampleScenario: String, CaseIterable {
     case fMembersAll
     case fVoters
     case fMembersLarge
+    case fEmpty
 
     static let launchArgument = "-MonacoGroupDetailSample"
 
@@ -77,6 +78,7 @@ extension GroupDetailSampleScenario {
         case .fMembersAll: GroupDetailSampleData.fMembersAll
         case .fMembersLarge: GroupDetailSampleData.fMembersLarge
         case .fRulesSides: GroupDetailSampleData.fRulesSides
+        case .fEmpty: GroupDetailSampleData.fEmpty
         case .fRuleProposalOpen: GroupDetailSampleData.fRuleProposalOpen
         case .invite: SampleAPIScript(role: "creator", unreadCount: 3)
         case .inviteNoProposal: SampleAPIScript(role: "creator", unreadCount: 3, invitePreview: .noProposal)
@@ -198,6 +200,29 @@ enum GroupDetailSampleData {
                     navPerShareMicros: 1_000_000 - Int64(day) * 1_366, pnlMicros: 0)
             },
             pricesAsOf: start.addingTimeInterval(30 * 86_400))
+        return script
+    }
+
+    @MainActor
+    static var fEmpty: SampleAPIScript {
+        var pot = Components.Schemas.CabalPot.sample(
+            potValueMicros: 600_000_000, cashMicros: 600_000_000, cashWeightBps: 10000, pnlMicros: 0, holdings: [],
+            me: .init(
+                shareUnits: 200_000_000, valueMicros: 200_000_000, sliceBps: 3333, netContributedMicros: 200_000_000,
+                pnlMicros: 0))
+        pot.cabalId = cabalID
+        var script = SampleAPIScript(role: "admin", pot: pot)
+        script.hidesProposals = true
+        script.catalog = Components.Schemas.AssetList.inCabalsSample.assets
+        script.cabalEdit = { cabal in
+            cabal.name = "Garage Fund"
+            cabal.memberCount = 3
+            cabal.voterCount = 3
+            cabal.openProposalCount = 0
+            cabal.createdAt = .now
+        }
+        script.valueHistory = Components.Schemas.CabalValueHistory(
+            cabalId: cabalID, range: ._1m, points: [], pricesAsOf: nil)
         return script
     }
 

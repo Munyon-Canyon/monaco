@@ -59,6 +59,7 @@ struct CabalActionsRow: View {
     @Environment(ToastCenter.self) private var toasts
     @Environment(\.cabalModel) private var cabalModel
     @Environment(\.cabalPotModel) private var potModel
+    @Environment(\.cabalEmptyModel) private var emptyModel
     @Environment(\.accountRestricted) private var accountRestricted
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showsProposeChooser = false
@@ -75,7 +76,9 @@ struct CabalActionsRow: View {
     }
 
     @ViewBuilder private var content: some View {
-        if cabalModel?.cabal?.status == CabalClosedModel.closedStatus {
+        if cabalModel?.cabal?.status == CabalClosedModel.closedStatus
+            || emptyModel?.isOn(cabal: cabalModel?.cabal, pot: potModel?.summary) == true
+        {
             Color.clear.frame(height: 0)
         } else {
             actionsContent

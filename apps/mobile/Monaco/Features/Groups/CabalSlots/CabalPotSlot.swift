@@ -18,14 +18,27 @@ private struct CabalTreasuryLine: View {
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.hostMainTab) private var hostMainTab
+    @Environment(\.cabalModel) private var cabalModel
+    @Environment(\.cabalEmptyModel) private var emptyModel
+
+    private var isEmptyCabal: Bool {
+        emptyModel?.isOn(cabal: cabalModel?.cabal, pot: model?.summary) == true
+    }
 
     var body: some View {
         CabalMoveReader(cabalID: cabalID) { move in
-            CabalPotBand(model: model, move: move) {
-                environment.navigator.open(
-                    CabalTreasuryHistoryRoute(cabalID: cabalID), in: hostMainTab ?? environment.navigator.selectedTab)
-            }
+            CabalPotBand(model: model, move: move, openHistory: historyAction)
         }
+    }
+
+    private var historyAction: (() -> Void)? {
+        if isEmptyCabal { return nil }
+        return { openHistory() }
+    }
+
+    private func openHistory() {
+        environment.navigator.open(
+            CabalTreasuryHistoryRoute(cabalID: cabalID), in: hostMainTab ?? environment.navigator.selectedTab)
     }
 }
 

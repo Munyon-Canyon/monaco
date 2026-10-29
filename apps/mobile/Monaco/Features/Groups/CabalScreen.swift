@@ -11,6 +11,8 @@ struct CabalScreen: View {
         CabalPotSlot.self,
         CabalSliceSlot.self,
         CabalActionsSlot.self,
+        CabalEmptySlot.self,
+        CabalStartersSlot.self,
         CabalProposalsSlot.self,
         CabalTabs.self,
     ]
@@ -52,6 +54,7 @@ struct CabalScreen: View {
     var body: some View {
         let sections = sections.map { $0.erased }
         let (cabal, pot) = models.prepared(cabalID: context.cabalID, environment: environment)
+        let empty = models.preparedEmpty(cabalID: context.cabalID, environment: environment)
         Group {
             if SectionStack<CabalContext>.live(sections).isEmpty {
                 NotMigratedView(screen: "Cabal")
@@ -66,6 +69,7 @@ struct CabalScreen: View {
                 SectionStack(context: context, sections: sections)
                     .environment(\.cabalModel, cabal)
                     .environment(\.cabalPotModel, pot)
+                    .environment(\.cabalEmptyModel, empty)
                     .environment(\.cabalTabSelection, selection)
                     .environment(refresh)
                     .refreshable {
@@ -104,14 +108,17 @@ struct CabalScreen: View {
         .task(id: retryTick) {
             async let loadedCabal: Void = cabal.load()
             async let loadedPot: Void = pot.load()
-            _ = await (loadedCabal, loadedPot)
+            async let loadedEmpty: Void = empty.load()
+            _ = await (loadedCabal, loadedPot, loadedEmpty)
             async let observedCabal: Void = cabal.observe()
             async let observedPot: Void = pot.observe()
-            _ = await (observedCabal, observedPot)
+            async let observedEmpty: Void = empty.observe()
+            _ = await (observedCabal, observedPot, observedEmpty)
         }
         .onScreenVisibilityChange { visible in
             cabal.setVisible(visible)
             pot.setVisible(visible)
+            empty.setVisible(visible)
         }
         .toolbar {
             if let loaded = cabal.cabal {
@@ -178,6 +185,13 @@ final class CabalScreenModels {
     private var cabal: CabalModel?
     private var pot: CabalPotModel?
     private var edit: CabalEditModel?
+    private var empty: CabalEmptyModel?
+
+    func preparedEmpty(cabalID: String, environment: AppEnvironment) -> CabalEmptyModel {
+        let created = empty ?? CabalEmptyModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
+        empty = created
+        return created
+    }
 
     func preparedEdit(cabalID: String, environment: AppEnvironment) -> CabalEditModel {
         let created = edit ?? CabalEditModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
@@ -211,6 +225,7 @@ extension EnvironmentValues {
     @Entry var cabalRetry = CabalRetry()
     @Entry var cabalModel: CabalModel? = nil
     @Entry var cabalPotModel: CabalPotModel? = nil
+    @Entry var cabalEmptyModel: CabalEmptyModel? = nil
     @Entry var cabalShare: CabalShare? = nil
     @Entry var cabalEditModel: CabalEditModel? = nil
     @Entry var cabalInfoSaving = false
