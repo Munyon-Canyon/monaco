@@ -693,6 +693,12 @@ func copyCases(
 				Clock:     testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)),
 			}),
 		},
+		"close_reminder": {
+			events.TypeProposalCloseReminderDue,
+			renderer[events.ProposalCloseReminderDue](app.CloseReminder{
+				Cabals: cabals, Assets: assets, Clock: testkit.NewClock(time.Date(2026, 10, 29, 17, 0, 0, 0, time.UTC)),
+			}),
+		},
 		"new_follower": {
 			events.TypeFollowCreated, renderer[events.FollowCreated](app.NewFollower{Users: users}),
 		},
@@ -875,6 +881,7 @@ func withRenderedCabals(t *testing.T, seeds []fakes.CabalSeed) []fakes.CabalSeed
 		{"", events.TypeTradeConfirmed},
 		{"", events.TypeTradeFailed},
 		{"", events.TypeTradeBlocked},
+		{"", events.TypeProposalCloseReminderDue},
 	} {
 		id := ids.CabalIDFrom(reflectCabalID(goldenEventIn(t, c.dir, c.typ)))
 		if !seen[id] {

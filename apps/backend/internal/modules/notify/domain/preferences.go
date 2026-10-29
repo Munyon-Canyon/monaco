@@ -9,7 +9,13 @@ const (
 
 func CategoryOf(kind string) (Category, bool) {
 	switch kind {
-	case "proposal_created", "proposal_result", "vote_reminder", "vote_deciding", "cabal_paused", "cabal_resumed":
+	case "proposal_created",
+		"proposal_result",
+		"vote_reminder",
+		"vote_deciding",
+		"close_reminder",
+		"cabal_paused",
+		"cabal_resumed":
 		return CategoryDecisionRequests, true
 	case "comment_reply", "chat_mention", "chat_thread_reply":
 		return CategoryRepliesAndMentions, true

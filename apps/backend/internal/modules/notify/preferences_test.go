@@ -266,7 +266,8 @@ func kindName(decl ast.Decl) (string, bool) {
 func TestCategoryOf_classifiesEveryKindExactlyOnce(t *testing.T) {
 	t.Parallel()
 	decisions := []string{
-		"proposal_created", "proposal_result", "vote_reminder", "vote_deciding", "cabal_paused", "cabal_resumed",
+		"proposal_created", "proposal_result", "vote_reminder", "vote_deciding", "close_reminder",
+		"cabal_paused", "cabal_resumed",
 	}
 	replies := []string{"comment_reply", "chat_mention", "chat_thread_reply"}
 	always := domain.AlwaysOnKinds()

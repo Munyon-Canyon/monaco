@@ -39,6 +39,7 @@ func TestModule_servesDevicesConsumesEveryPushKindAndRunsTheFollowDigest(t *test
 			"notify notify.trade_blocked trade.blocked",
 			"notify notify.proposal_created proposal.created",
 			"notify notify.vote_cast vote.cast",
+			"notify notify.proposal_close_reminder_due proposal.close_reminder_due",
 			"notify notify.proposal_failed proposal.failed",
 			"notify notify.proposal_expired proposal.expired",
 			"notify notify.cabal_access_requested cabal.access_requested",
