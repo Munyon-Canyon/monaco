@@ -289,3 +289,15 @@ func TestCloseReminderPoller_aFailedListScansNothing(t *testing.T) {
 		t.Fatalf("events = %+v, want none", events)
 	}
 }
+
+func TestCloseReminderPoller_intervalFollowsEveryWhenSet(t *testing.T) {
+	t.Parallel()
+	p := app.NewCloseReminderPoller(nil, nil, nil)
+	if got := p.Interval(); got != app.CloseReminderInterval {
+		t.Fatalf("Interval() = %v, want the default %v", got, app.CloseReminderInterval)
+	}
+	p.Every = time.Second
+	if got := p.Interval(); got != time.Second {
+		t.Fatalf("Interval() with Every = %v, want 1s", got)
+	}
+}

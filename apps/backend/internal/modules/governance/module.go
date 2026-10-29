@@ -179,7 +179,7 @@ func (m *Module) Pollers() []poller.Poller {
 	app.ObserveOpenProposals(otel.GetMeterProvider().Meter(meterName), app.NewDashboard(m.deps.Pool))
 	return []poller.Poller{
 		app.NewExpiryPoller(m.deps.UoW, m.deps.Pool, m.deps.Clock, hints),
-		app.NewCloseReminderPoller(m.deps.UoW, m.deps.Pool, m.deps.Clock),
+		m.closeReminderPoller(),
 	}
 }
 
@@ -232,4 +232,10 @@ func (m *Module) voidProposal(hints app.Hints) *app.VoidProposalHandler {
 	return app.NewVoidProposalHandler(
 		m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, trading.New(m.deps).Queries(), hints,
 	)
+}
+
+func (m *Module) closeReminderPoller() *app.CloseReminderPoller {
+	p := app.NewCloseReminderPoller(m.deps.UoW, m.deps.Pool, m.deps.Clock)
+	p.Every = m.deps.Config.Governance.CloseRemindersInterval
+	return p
 }
