@@ -24,6 +24,7 @@ struct MonacoSectionHeader: View {
     private var count: Int?
     private var actionIdentifier: String?
     private var countIsSecondary = false
+    private var titleSuffix: String?
     private var infoAction: (() -> Void)?
     private var infoIdentifier: String?
 
@@ -41,6 +42,12 @@ struct MonacoSectionHeader: View {
     func secondaryCount() -> Self {
         var copy = self
         copy.countIsSecondary = true
+        return copy
+    }
+
+    func countText(_ text: String) -> Self {
+        var copy = self
+        copy.titleSuffix = text
         return copy
     }
 
@@ -62,7 +69,11 @@ struct MonacoSectionHeader: View {
                     .foregroundStyle(MonacoTheme.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
-                if let count, count > 0 {
+                if let titleSuffix {
+                    Text(titleSuffix)
+                        .font(MonacoTheme.Typo.section.monospacedDigit())
+                        .foregroundStyle(MonacoTheme.secondaryText)
+                } else if let count, count > 0 {
                     if countIsSecondary {
                         Text("\(count)")
                             .font(MonacoTheme.Typo.section.monospacedDigit())

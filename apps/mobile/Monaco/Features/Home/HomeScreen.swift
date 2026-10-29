@@ -50,7 +50,7 @@ struct HomeScreen: View {
             }
             .withoutGlass()
             ToolbarItem(placement: .topBarTrailing) {
-                notificationsButton
+                HomeBellButton()
             }
             .withoutGlass()
             ToolbarItem(placement: .topBarTrailing) {
@@ -90,16 +90,6 @@ struct HomeScreen: View {
         let created = PortfolioModel(api: environment.api, hints: environment.hints)
         portfolio = created
         return created
-    }
-
-    private var notificationsButton: some View {
-        MonacoGlassButton(
-            systemImage: MonacoIcon.bell.symbol, accessibilityLabel: "Notifications", style: .quiet,
-            placement: .toolbar
-        ) {
-            environment.navigator.open(ActivityFeedRoute(), in: .home)
-        }
-        .accessibilityIdentifier("home-notifications-button")
     }
 
     private var profileButton: some View {

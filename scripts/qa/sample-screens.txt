@@ -177,6 +177,7 @@ home-f-vote-rule              -MonacoHomeSample fVoteRule -AppleInterfaceStyle D
 home-f-ready                  -MonacoHomeSample fReady -AppleInterfaceStyle Dark
 home-f-ready-light            -MonacoHomeSample fReadyLight -AppleInterfaceStyle Light
 home-f-scrolled               -MonacoHomeSample fScrolled -AppleInterfaceStyle Dark -MonacoSampleScroll 0.35
+home-f-unfunded               -MonacoHomeSample fUnfunded -AppleInterfaceStyle Dark
 home-v3-executing             -MonacoHomeSample executing
 home-v3-completed             -MonacoHomeSample completed
 home-v3-expired               -MonacoHomeSample expired

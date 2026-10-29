@@ -3,216 +3,115 @@ import SwiftUI
 
 enum HomeLeaderboardSlot: HomeSection {
     static let isLive = true
+    static let route = LeaderboardRoute(board: .people, range: .oneMonth)
 
     static func body(for context: Void) -> some View {
         HomeLeaderboard()
     }
 }
 
-enum HomeLeaderboardCategory: Hashable, CaseIterable {
-    case cabals
-    case people
-
-    var label: String {
-        switch self {
-        case .cabals: "Cabals"
-        case .people: "People"
-        }
-    }
-
-    var board: LeaderboardBoard {
-        switch self {
-        case .cabals: .cabals
-        case .people: .people
-        }
-    }
-
-    var contextName: String {
-        switch self {
-        case .cabals: "Cabal P&L"
-        case .people: "Personal P&L"
-        }
-    }
-
-    func viewAllRoute(range: LeaderboardRange) -> LeaderboardRoute {
-        switch self {
-        case .cabals: LeaderboardRoute(board: .cabals, range: range)
-        case .people: LeaderboardRoute(board: .people, range: range)
-        }
-    }
-}
-
 enum HomeLeaderboardMetrics {
-    static let rows = 3
-    static let periodWidth: CGFloat = 86
-}
-
-private struct HomeLeaderboardHost<Content: View>: View {
-    let board: LeaderboardBoard
-    let range: LeaderboardRange
-    @ViewBuilder let content: (LeaderboardLoader) -> Content
-
-    @Environment(AppEnvironment.self) private var environment
-    @Environment(ToastCenter.self) private var toasts
-    @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
-    @State private var loader: LeaderboardLoader?
-
-    var body: some View {
-        VStack(spacing: 0) {
-            if let loader {
-                content(loader)
-            } else {
-                Color.clear.frame(height: 1)
-            }
-        }
-        .task {
-            let loader = preparedLoader()
-            refresh?.register("home-people-board") { await loader.reload() }
-            await loader.load()
-            await loader.observe()
-        }
-        .onScreenVisibilityChange { loader?.setVisible($0) }
-        .onChange(of: loader?.toast) { _, message in
-            guard let message else { return }
-            toasts.current = MonacoToast(message: message)
-            loader?.dismissToast()
-        }
-        .onChange(of: range) { _, next in loader?.select(range: next) }
-    }
-
-    private func preparedLoader() -> LeaderboardLoader {
-        if let loader { return loader }
-        let created = LeaderboardLoader(board: board, range: range, api: environment.api, hints: environment.hints)
-        loader = created
-        return created
-    }
+    static let crownLift: CGFloat = 9
 }
 
 private struct HomeLeaderboard: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
+    @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @Environment(\.homeReads) private var reads
-    @State private var category = HomeLeaderboardCategory.cabals
-    @State private var range = LeaderboardRange.oneMonth
+    @State private var model: HomeLeaderboardModel?
 
     var body: some View {
         let gate = HomeGate(portfolio: portfolio, reads: reads, balance: environment.balance.state)
         VStack(alignment: .leading, spacing: 0) {
-            MonacoSectionHeader("Leaderboard", trailing: "View all") {
-                environment.navigator.open(category.viewAllRoute(range: range), in: .home)
-            }
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            tools
-            HomeLeaderboardHost(board: category.board, range: range) { loader in
-                HomeLeaderboardRows(loader: loader, category: category)
-            }
-            .id(category)
-        }
-        .homeSlotHidden(!gate.shows { _ in true })
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("home-people-board")
-    }
-
-    private var tools: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            HStack(spacing: MonacoTheme.Space.s) {
-                MonacoMenuSelect(
-                    title: "Leaderboard category", selection: $category, options: HomeLeaderboardCategory.allCases,
-                    label: \.label
-                )
-                .fillsWidth()
-                .accessibilityIdentifier("home-leaderboard-category")
-                MonacoMenuSelect(
-                    title: "Leaderboard period", selection: $range, options: LeaderboardRange.homePeriods,
-                    label: \.label
-                )
-                .frame(width: HomeLeaderboardMetrics.periodWidth)
-                .accessibilityIdentifier("home-leaderboard-period")
-            }
-            Text("\(category.contextName) · \(range.label)")
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.muted)
-        }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.bottom, MonacoTheme.Space.xs)
-    }
-}
-
-private struct HomeLeaderboardRows: View {
-    let loader: LeaderboardLoader
-    let category: HomeLeaderboardCategory
-
-    @Environment(\.homeReads) private var reads
-
-    var body: some View {
-        Group {
-            switch loader.phase {
-            case .loading:
-                BoardRowSkeleton(rows: HomeLeaderboardMetrics.rows)
-                    .accessibilityIdentifier("home-leaderboard-loading")
-            case .empty:
-                empty
+            switch model?.phase ?? .loading {
+            case .loading, .hidden:
+                EmptyView()
             case .failed:
                 if reads.showsOwnRow(.board) {
                     MonacoErrorRow(thing: "the leaderboard", identifier: "home-leaderboard-error") {
-                        loader.retry()
+                        Task { await model?.load() }
                     }
                 }
-            case .loaded:
-                rows
+            case .ready(let row):
+                card(row)
             }
         }
-        .onChange(of: HomeReadStatus(loader.phase), initial: true) { _, status in
-            reads?.report(.board, status)
+        .homeSlotHidden(!gate.shows { _ in true } || isHidden)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("home-people-board")
+        .task {
+            let model = preparedModel()
+            refresh?.register("home-people-board") { await model.load() }
+            await model.load()
+            await model.observe()
+        }
+        .onScreenVisibilityChange { model?.setVisible($0) }
+        .onChange(of: model?.readStatus, initial: true) { _, status in
+            if let status { reads?.report(.board, status) }
         }
     }
 
-    private var rows: some View {
-        let shown = Array(loader.rows.prefix(HomeLeaderboardMetrics.rows))
-        return MonacoGroupedList {
-            ForEach(shown) { row in
-                NavigationLink(value: route(for: row)) {
-                    BoardRow(row: row, isLast: row.id == shown.last?.id, chevron: true) {
-                        mark(row)
+    private var isHidden: Bool {
+        switch model?.phase ?? .loading {
+        case .loading, .hidden: true
+        case .failed, .ready: false
+        }
+    }
+
+    private func card(_ row: HomeLeaderboardRow) -> some View {
+        Button {
+            environment.navigator.open(HomeLeaderboardSlot.route, in: .home)
+        } label: {
+            MonacoCard(style: .tight) {
+                HStack(spacing: MonacoTheme.Space.sm) {
+                    leader(row)
+                    VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                        Text(row.title)
+                            .font(MonacoTheme.Typo.rowTitle)
+                            .foregroundStyle(MonacoTheme.primaryText)
+                            .lineLimit(2)
+                        Text(row.subtitle)
+                            .font(MonacoTheme.Typo.caption)
+                            .foregroundStyle(MonacoTheme.secondaryText)
+                            .lineLimit(2)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    if let rate = row.rateText {
+                        Text(rate)
+                            .font(MonacoTheme.Typo.rowTitle.monospacedDigit())
+                            .foregroundStyle(MonacoTheme.primaryText)
+                    }
+                    MonacoRowChevron()
                 }
-                .buttonStyle(.monacoRow)
-                .accessibilityIdentifier("home-leaderboard-row-\(row.id)")
             }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(row.spoken)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("home-leaderboard-row")
+    }
+
+    private func leader(_ row: HomeLeaderboardRow) -> some View {
+        MonacoAvatar(
+            photoURL: row.leaderPictureURL, displayName: row.leaderName, size: .row, seed: row.leaderID
+        )
+        .overlay(alignment: .top) {
+            Image(systemName: "crown.fill")
+                .font(MonacoTheme.Typo.captionStrong)
+                .foregroundStyle(MonacoTheme.goldGlyph)
+                .offset(y: -HomeLeaderboardMetrics.crownLift)
+                .accessibilityHidden(true)
         }
     }
 
-    private func route(for row: LeaderboardRowView) -> AnyAppRoute {
-        switch category {
-        case .cabals:
-            AnyAppRoute(CabalRoute(id: row.id))
-        case .people:
-            AnyAppRoute(
-                UserProfileRoute(
-                    userID: row.id,
-                    preview: UserPreview(displayName: row.name, handle: row.handle, photoURL: row.pictureURL)))
-        }
-    }
-
-    @ViewBuilder private func mark(_ row: LeaderboardRowView) -> some View {
-        switch category {
-        case .cabals:
-            CabalMark(groupId: row.id, name: row.name, size: BoardRowMetrics.avatarSize, pictureUrl: row.pictureURL)
-        case .people:
-            MonacoAvatar(photoURL: row.pictureURL, displayName: row.name, seed: row.id)
-        }
-    }
-
-    @ViewBuilder private var empty: some View {
-        switch category {
-        case .people:
-            EmptyState(title: "No investors yet", message: "Fund a cabal to get on the board.")
-                .accessibilityIdentifier("home-leaderboard-empty")
-        case .cabals:
-            EmptyState(
-                title: "No cabals ranked yet", message: "Public cabals show up here once they're funded."
-            )
-            .accessibilityIdentifier("home-leaderboard-empty")
-        }
+    private func preparedModel() -> HomeLeaderboardModel {
+        if let model { return model }
+        let created = HomeLeaderboardModel(api: environment.api, hints: environment.hints)
+        model = created
+        return created
     }
 }
