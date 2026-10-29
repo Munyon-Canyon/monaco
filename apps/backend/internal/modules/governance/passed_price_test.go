@@ -190,6 +190,19 @@ func TestCastVote_aMissingProposalAnswersNotFoundAndLogsNoDegradedPrice(t *testi
 	}
 }
 
+func TestCastVote_aFailingProposalReadLogsOnceAsInternal(t *testing.T) {
+	t.Parallel()
+	d := newPricedVote(t)
+	ctx, buf := loggedCtx(t)
+	ctx, cancel := context.WithCancel(ctx)
+	cancel()
+	p, v := d.open(t, 1)
+	if _, err := d.cast(ctx, d.handler(), p.ID, v[0], domain.ChoiceYes); err == nil {
+		t.Fatal("CastVote on a cancelled context succeeded")
+	}
+	wantOneWarning(t, buf, p.ID, errs.CodeInternal)
+}
+
 func wantOneWarning(t *testing.T, buf *bytes.Buffer, proposal uuid.UUID, code errs.Code) {
 	t.Helper()
 	w := warnings(buf)
