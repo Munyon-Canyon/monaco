@@ -24,11 +24,9 @@ nonisolated final class CommentComposerSampleUITests: XCTestCase {
         let field = app.textFields["comment-composer-field"]
         XCTAssertTrue(field.waitForExistence(timeout: 15), "no composer field")
         XCTAssertEqual(field.placeholderValue, "Say something")
-        let plus = app.buttons["comment-composer-plus"]
         let gif = app.buttons["comment-composer-gif"]
-        XCTAssertTrue(plus.exists, "no plus")
+        XCTAssertFalse(app.buttons["comment-composer-plus"].exists, "the plus shows with no menu rows")
         XCTAssertTrue(gif.exists, "no GIF")
-        XCTAssertLessThan(plus.frame.maxX, field.frame.minX + 1, "the plus is not on the leading side")
         XCTAssertGreaterThan(gif.frame.minX, field.frame.minX, "the GIF button is not inside the field")
         XCTAssertFalse(app.buttons["comment-composer-send"].isEnabled, "an empty field can send")
         XCTAssertFalse(app.otherElements["reply-sheet"].exists, "a sheet opened by itself")
@@ -43,7 +41,8 @@ nonisolated final class CommentComposerSampleUITests: XCTestCase {
         XCTAssertTrue(app.buttons["comment-composer-gif"].exists, "no GIF inside the field")
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 10), "the field is not focused")
         XCTAssertTrue(app.buttons["reply-sheet-close"].exists, "no close")
-        XCTAssertFalse(app.buttons["comment-composer-plus"].exists, "the docked bar is still there")
+        let fields = app.textFields.matching(identifier: "comment-composer-field")
+        XCTAssertEqual(fields.count, 1, "the docked bar is still there")
     }
 
     @MainActor
@@ -52,7 +51,7 @@ nonisolated final class CommentComposerSampleUITests: XCTestCase {
         let close = app.buttons["reply-sheet-close"]
         XCTAssertTrue(close.waitForExistence(timeout: 15), "no close")
         close.tap()
-        XCTAssertTrue(app.buttons["comment-composer-plus"].waitForExistence(timeout: 10), "no docked bar")
+        XCTAssertTrue(app.textFields["comment-composer-field"].waitForExistence(timeout: 10), "no docked bar")
         XCTAssertFalse(app.keyboards.firstMatch.exists, "the docked bar came back focused")
     }
 
