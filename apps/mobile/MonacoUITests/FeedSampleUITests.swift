@@ -12,7 +12,7 @@ nonisolated final class FeedSampleUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(
-            app.staticTexts["No updates yet"].waitForExistence(timeout: 15), "Your cabals and friends is plain empty")
+            app.staticTexts["Quiet week"].waitForExistence(timeout: 15), "Your cabals and friends is a quiet week")
         app.buttons["feed-filter"].tap()
         FeedBrowseJourney.menuItem(app, "feed-scope-Friends").tap()
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)).tap()

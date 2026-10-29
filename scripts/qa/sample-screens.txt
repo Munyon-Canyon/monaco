@@ -552,6 +552,7 @@ proposal-vote-flow-10a-undo-expired     -MonacoFlow 10a undoExpired
 # Harnesses that take a `-…Harness` flag; the word after it is the mode.
 feed-items                    -feedHarness items
 feed-empty                    -feedHarness empty
+feed-quiet-earlier            -feedHarness quietWithEarlier
 feed-failed                   -feedHarness failed
 feed-follows-nobody           -feedHarness followsNobody
 feed-load-more-failed         -feedHarness loadMoreFailed -MonacoSampleScroll bottom
