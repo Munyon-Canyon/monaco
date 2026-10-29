@@ -138,7 +138,7 @@ nonisolated final class FAccessibilityAuditUITests: XCTestCase {
 
     @MainActor
     func testHoldCommitsOnPressAndHold() async throws {
-        for id in ["f__04-vote-idle", "f__04b-hold-1-pick"] {
+        for id in ["f__04-vote-idle", "f__04b-hold-1-pick", "f__14-hold-sheet"] {
             let app = try launch(id)
             defer { app.terminate() }
             let yes = voteButton(app, "yes")
@@ -151,7 +151,7 @@ nonisolated final class FAccessibilityAuditUITests: XCTestCase {
 
     @MainActor
     func testShortPressDoesNotCommit() async throws {
-        for id in ["f__04-vote-idle", "f__04b-hold-1-pick"] {
+        for id in ["f__04-vote-idle", "f__04b-hold-1-pick", "f__14-hold-sheet"] {
             let app = try launch(id)
             defer { app.terminate() }
             let yes = voteButton(app, "yes")
@@ -163,7 +163,7 @@ nonisolated final class FAccessibilityAuditUITests: XCTestCase {
 
     @MainActor
     func testVoteButtonsAreLabelled() async throws {
-        for id in ["f__04-vote-idle", "f__04b-hold-1-pick"] {
+        for id in ["f__04-vote-idle", "f__04b-hold-1-pick", "f__14-hold-sheet"] {
             let app = try launch(id)
             defer { app.terminate() }
             let yes = voteButton(app, "yes")

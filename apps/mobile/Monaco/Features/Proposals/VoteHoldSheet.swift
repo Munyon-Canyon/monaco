@@ -35,6 +35,7 @@ struct VoteHoldSheet: View {
             await model.load()
             await model.detail.observe()
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("vote-hold-sheet")
     }
 
