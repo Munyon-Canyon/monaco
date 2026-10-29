@@ -196,7 +196,8 @@ enum HomeSampleData {
                 at: start.addingTimeInterval(TimeInterval(index) * 86_400), equityMicros: 12_000_000_000 + pnl,
                 pnlMicros: pnl)
         }
-        return Components.Schemas.MyPnlHistory(range: ._1m, points: points)
+        return Components.Schemas.MyPnlHistory(
+            range: ._1m, pnlMicros: target, returnBps: target * 10_000 / 12_000_000_000, points: points)
     }
 
     private static func myCabal(_ cabal: (id: String, name: String, members: Int32, ownershipBps: Int32))

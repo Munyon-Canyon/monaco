@@ -119,3 +119,25 @@ func TestThinning_TickFailsOnACanceledContext(t *testing.T) {
 		t.Fatal("Tick error = nil")
 	}
 }
+
+func TestThinning_KeepsADailyPointForAtLeast190Days(t *testing.T) {
+	t.Parallel()
+	const days = 200
+	const seedPairs = `INSERT INTO cabal_value_snapshots (cabal_id, at, value_micros, nav_per_share_micros, total_shares)
+SELECT $1, date_trunc('day', $2::timestamptz) - (n * interval '1 day') + offsets.minutes, n, 1, 1
+FROM generate_series(0, $3::int) AS n, (VALUES (interval '10 hours'), (interval '10 hours 30 minutes')) AS offsets(minutes)`
+	const daysWithARow = `SELECT count(DISTINCT date_trunc('day', at)) FROM cabal_value_snapshots
+WHERE cabal_id = $1 AND at >= $2`
+	pool, now := testkit.DB(t), thinningNow()
+	cabal := ids.CabalIDFrom(ids.Real{}.NewV7())
+	if _, err := pool.Exec(t.Context(), seedPairs, cabal.UUID(), now, days-1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.NewThinSnapshots(pool, testkit.NewClock(now)).Tick(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	since := now.AddDate(0, 0, -190)
+	if got := count(t, pool, daysWithARow, cabal.UUID(), since); got < 190 {
+		t.Fatalf("days with a snapshot in the last 190 = %d, want every one", got)
+	}
+}

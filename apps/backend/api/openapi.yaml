@@ -5387,7 +5387,7 @@ components:
       in: query
       required: false
       description: The window the curve covers. Defaults to `ALL`.
-      schema: {type: string, enum: ["1H", "1D", "1W", "1M", ALL], default: ALL, examples: [ALL]}
+      schema: {type: string, enum: ["1H", "1D", "1W", "1M", "3M", "6M", ALL], default: ALL, examples: [ALL]}
   # api/spec/social.yaml
     ChatCabalId:
       name: id
@@ -9736,7 +9736,7 @@ components:
         cabal_id: {type: string, format: uuid, description: The cabal., examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
         range:
           type: string
-          enum: ["1H", "1D", "1W", "1M", ALL]
+          enum: ["1H", "1D", "1W", "1M", "3M", "6M", ALL]
           description: The window the curve covers.
           examples: [ALL]
         points:
@@ -10012,13 +10012,15 @@ components:
       type: object
       description: The caller's equity and P&L curve.
       additionalProperties: false
-      required: [range, points]
+      required: [range, pnl_micros, return_bps, points]
       properties:
         range:
           type: string
-          enum: ["1H", "1D", "1W", "1M", ALL]
+          enum: ["1H", "1D", "1W", "1M", "3M", "6M", ALL]
           description: The window the curve covers.
           examples: [ALL]
+        pnl_micros: {type: integer, format: int64, description: "The P&L over the range in USDC micros: the last point's P&L minus the first's, so money put in or taken out during the range is not a gain or a loss. 0 with fewer than two points.", examples: [241100000]}
+        return_bps: {type: integer, format: int64, description: "The return over the range in basis points, rounded toward zero: `pnl_micros` over the first point's equity plus the money put in during the range. 0 with fewer than two points or when that base is not positive.", examples: [203]}
         points:
           type: array
           description: One point per bucket, oldest first.

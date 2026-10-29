@@ -94,7 +94,7 @@ extension Components.Schemas.MyPortfolio {
 extension Components.Schemas.MyPnlHistory {
     public static func sample(range: RangePayload = ._1d) -> Self {
         Self(
-            range: range,
+            range: range, pnlMicros: 4_500_000, returnBps: 450,
             points: [
                 (100_000_000, 0), (101_500_000, 1_500_000), (103_000_000, 3_000_000), (104_500_000, 4_500_000),
             ].enumerated().map { index, pair in
@@ -104,10 +104,10 @@ extension Components.Schemas.MyPnlHistory {
             })
     }
 
-    public static let sampleEmpty = Self(range: ._1d, points: [])
+    public static let sampleEmpty = Self(range: ._1d, pnlMicros: 0, returnBps: 0, points: [])
 
     public static let sampleACCapitalStake = Self(
-        range: .all,
+        range: .all, pnlMicros: 312_400_000, returnBps: 1_249,
         points: [
             (1_785_542_400, 2_500_000_000, 0), (1_788_220_800, 4_100_000_000, 85_000_000),
             (1_790_812_800, 5_600_000_000, 190_000_000), (1_790_996_460, 7_000_000_000, 312_400_000),
@@ -117,8 +117,9 @@ extension Components.Schemas.MyPnlHistory {
 
     public static func sampleCurve(range: RangePayload = ._1d, count: Int = 49) -> Self {
         let walk = SampleWalk.equity(count: count, base: 962_000_000, step: 4_000_000, seed: 7)
+        let gain = (walk.last ?? walk[0]) - walk[0]
         return Self(
-            range: range,
+            range: range, pnlMicros: gain, returnBps: gain * 10_000 / walk[0],
             points: walk.enumerated().map { index, equity in
                 Components.Schemas.PnlPoint(
                     at: Date(timeIntervalSince1970: 1_790_931_600 + TimeInterval(index * 1_800)),

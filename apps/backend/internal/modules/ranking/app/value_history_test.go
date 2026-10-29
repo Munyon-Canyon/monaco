@@ -156,3 +156,32 @@ func TestReadValueHistory_Failures(t *testing.T) {
 		}
 	}
 }
+
+func TestReadValueHistory_ThreeAndSixMonthsStartThatFarBackWithinTheMonthlyBudget(t *testing.T) {
+	t.Parallel()
+	const days = 200
+	in, run, snaps := historyFixture()
+	snaps.rows = make([]domain.Snapshot, 0, days+1)
+	for d := days; d >= 0; d-- {
+		snaps.rows = append(snaps.rows, domain.Snapshot{
+			At: run.AsOf.AddDate(0, 0, -d), Value: money.MicrosFromUint64(uint64(1000 + days - d)),
+		})
+	}
+	read := func(r domain.Range) []domain.ValuePoint {
+		in.Range = r
+		got, err := in.Run(t.Context(), fakeBoards{run: run, hasRun: true}, snaps, fakeContributions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got.Points
+	}
+	month := len(read(domain.Range1M))
+	for r, span := range map[domain.Range]int{domain.Range3M: 90, domain.Range6M: 182} {
+		got := read(r)
+		if len(got) == 0 || len(got) > month || !got[0].At.Equal(run.AsOf.AddDate(0, 0, -span)) ||
+			!got[len(got)-1].At.Equal(run.AsOf) {
+			t.Fatalf("%s: %d points from %v to %v, want at most %d from %d days back to now",
+				r, len(got), got[0].At, got[len(got)-1].At, month, span)
+		}
+	}
+}

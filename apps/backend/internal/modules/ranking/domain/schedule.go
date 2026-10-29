@@ -17,7 +17,7 @@ func ShouldRunEvery(now, lastRun time.Time, every time.Duration, oldestTrigger *
 
 func MaxSnapshotGap(r Range) time.Duration {
 	switch r {
-	case Range1W, Range1M, RangeAll:
+	case Range1W, Range1M, Range3M, Range6M, RangeAll:
 		return time.Hour + 2*RunEvery
 	case Range1H, Range1D:
 	}

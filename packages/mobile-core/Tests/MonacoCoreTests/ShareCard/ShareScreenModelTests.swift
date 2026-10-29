@@ -446,13 +446,13 @@ private actor ShareServer: ClientTransport {
         """
 
     private static let stakeHistory = """
-        {"range":"ALL","points":[{"at":"2026-07-01T12:00:00Z","equity_micros":1,"pnl_micros":0},\
+        {"range":"ALL","pnl_micros":0,"return_bps":0,"points":[{"at":"2026-07-01T12:00:00Z","equity_micros":1,"pnl_micros":0},\
         {"at":"2026-08-19T15:00:00Z","equity_micros":7000000000,"pnl_micros":0},\
         {"at":"2026-10-01T12:00:00Z","equity_micros":8000000000,"pnl_micros":0}]}
         """
 
     private static let monthHistory = """
-        {"range":"1M","points":[{"at":"2026-09-22T12:00:00Z","equity_micros":1,"pnl_micros":900000000},\
+        {"range":"1M","pnl_micros":40000000,"return_bps":0,"points":[{"at":"2026-09-22T12:00:00Z","equity_micros":1,"pnl_micros":900000000},\
         {"at":"2026-10-22T12:00:00Z","equity_micros":1,"pnl_micros":940000000}]}
         """
 

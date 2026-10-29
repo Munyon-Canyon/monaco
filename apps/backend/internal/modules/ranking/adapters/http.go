@@ -105,7 +105,7 @@ func (h HTTP) GetCabalValueHistory(
 	rng := domain.RangeAll
 	if req.Params.Range != nil {
 		var err error
-		if rng, err = domain.ParseRange(string(*req.Params.Range)); err != nil {
+		if rng, err = domain.ParseHistoryRange(string(*req.Params.Range)); err != nil {
 			return nil, err
 		}
 	}
@@ -132,7 +132,7 @@ func (h HTTP) GetMyPnlHistory(
 	}
 	rng := domain.RangeAll
 	if req.Params.Range != nil {
-		if rng, err = domain.ParseRange(string(*req.Params.Range)); err != nil {
+		if rng, err = domain.ParseHistoryRange(string(*req.Params.Range)); err != nil {
 			return nil, err
 		}
 	}
@@ -145,7 +145,14 @@ func (h HTTP) GetMyPnlHistory(
 	if err != nil {
 		return nil, err
 	}
-	out := api.MyPnlHistory{Range: api.MyPnlHistoryRange(rng), Points: make([]api.PnlPoint, 0, len(points))}
+	gain, bps, err := domain.RangeReturnOf(points)
+	if err != nil {
+		return nil, err
+	}
+	out := api.MyPnlHistory{
+		Range: api.MyPnlHistoryRange(rng), PnlMicros: gain.Int64(), ReturnBps: int64(bps),
+		Points: make([]api.PnlPoint, 0, len(points)),
+	}
 	for _, p := range points {
 		equity := p.Equity.Uint64()
 		if equity > math.MaxInt64 {

@@ -19,15 +19,26 @@ const (
 	Range1D  Range = "1D"
 	Range1W  Range = "1W"
 	Range1M  Range = "1M"
+	Range3M  Range = "3M"
+	Range6M  Range = "6M"
 	RangeAll Range = "ALL"
 )
 
 func ParseRange(raw string) (Range, error) {
-	r := Range(raw)
-	if _, ok := r.span(); ok || r == RangeAll {
+	switch r := Range(raw); r {
+	case Range1H, Range1D, Range1W, Range1M, RangeAll:
 		return r, nil
+	case Range3M, Range6M:
 	}
 	return "", errs.New(errs.CodeInvalidInput, "ranking.ParseRange", slog.String("raw", raw))
+}
+
+func ParseHistoryRange(raw string) (Range, error) {
+	switch r := Range(raw); r {
+	case Range1H, Range1D, Range1W, Range1M, Range3M, Range6M, RangeAll:
+		return r, nil
+	}
+	return "", errs.New(errs.CodeInvalidInput, "ranking.ParseHistoryRange", slog.String("raw", raw))
 }
 
 func (r Range) Start(now time.Time) (time.Time, bool) {
@@ -48,6 +59,10 @@ func (r Range) span() (time.Duration, bool) {
 		return 7 * 24 * time.Hour, true
 	case Range1M:
 		return 30 * 24 * time.Hour, true
+	case Range3M:
+		return 90 * 24 * time.Hour, true
+	case Range6M:
+		return 182 * 24 * time.Hour, true
 	case RangeAll:
 	}
 	return 0, false
