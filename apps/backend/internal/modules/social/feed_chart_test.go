@@ -14,6 +14,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
+	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
@@ -427,5 +428,32 @@ func TestFeedChart_readErrorsFailThePage(t *testing.T) {
 		) {
 			t.Errorf("%s: err = %v, want boom", name, err)
 		}
+	}
+}
+
+func TestGetFeed_aChartReadErrorFailsTheList(t *testing.T) {
+	t.Parallel()
+	f := newFeedFixture(t)
+	viewer := ids.NewUserID(f.gen)
+	asset := f.gen.NewV7()
+	ref := f.gen.NewV7()
+	f.item(t, func(it *feed.Item) {
+		it.Kind, it.RefID, it.AssetID, it.CabalID = feed.KindResult, ref, asset, ids.CabalIDFrom(f.gen.NewV7())
+		it.Payload = feed.Payload{
+			Symbol: "META", Action: feed.ActionBuy, Outcome: feed.OutcomePassed, AssetKind: feed.AssetKindEquity,
+			ExpectedFills: 1,
+		}
+		it.Payload.Fills = map[string]feed.Fill{
+			f.gen.NewV7().String(): {
+				TokenAmount: money.NewBaseUnits(1_000_000, 6), USDCMicros: micros(2_000_000), FilledAt: f.clock.Now(),
+			},
+		}
+	})
+	boom := errs.New(errs.CodeInternal, "test.boom")
+	routes := f.routes()
+	routes.History = &chartPricesFake{latestErr: boom}
+	_, err := routes.GetFeed(asUser(t.Context(), viewer), api.GetFeedRequestObject{})
+	if !errors.Is(err, boom) {
+		t.Fatalf("GetFeed err = %v, want boom", err)
 	}
 }
