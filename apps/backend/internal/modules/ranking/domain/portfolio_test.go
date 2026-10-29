@@ -272,15 +272,20 @@ func membershipPortfolio(t *testing.T) membershipCase {
 	return m
 }
 
-func TestNewPortfolio_ListsEveryMembershipAfterTheValuedRowsAndTotalsIgnoreThem(t *testing.T) {
+func TestNewPortfolio_ListsEveryMembershipInMembershipOrderAndTotalsIgnoreThem(t *testing.T) {
 	t.Parallel()
 	m := membershipPortfolio(t)
 	if len(m.got.Rows) != 5 || m.got.Total.Uint64() != 1_000 || m.got.PnL.Int64() != 500 {
 		t.Fatalf("NewPortfolio = %+v, want five rows and totals from the funded cabal only", m.got)
 	}
-	if first := m.got.Rows[0]; first.CabalID != m.funded || first.PotValue.Uint64() != 2_000 ||
-		first.Value.Uint64() != 1_000 || first.SliceBps != 10_000 {
-		t.Fatalf("first = %+v, want the funded cabal with its pot", first)
+	if funded := m.got.Rows[2]; funded.CabalID != m.funded || funded.PotValue.Uint64() != 2_000 ||
+		funded.Value.Uint64() != 1_000 || funded.SliceBps != 10_000 {
+		t.Fatalf("third = %+v, want the funded cabal with its pot", funded)
+	}
+	for i, want := range []ids.CabalID{m.never, m.zeroShares, m.funded, m.noSnapshot, m.oversold} {
+		if m.got.Rows[i].CabalID != want {
+			t.Fatalf("row %d = %v, want %v", i, m.got.Rows[i].CabalID, want)
+		}
 	}
 	if len(m.skipped) != 1 || m.skipped[0] != m.oversold {
 		t.Fatalf("skipped = %v, want [%v]", m.skipped, m.oversold)
@@ -291,10 +296,7 @@ func TestNewPortfolio_AZeroRowKeepsItsPotAndNothingElse(t *testing.T) {
 	t.Parallel()
 	m := membershipPortfolio(t)
 	wantPots := map[ids.CabalID]uint64{m.noSnapshot: 0, m.zeroShares: 700, m.never: 0, m.oversold: 5}
-	zero := m.got.Rows[1:]
-	if !slices.IsSortedFunc(zero, func(a, b domain.PortfolioRow) int { return compareIDs(a.CabalID, b.CabalID) }) {
-		t.Errorf("zero rows = %v, want them in id order", zero)
-	}
+	zero := slices.Concat(m.got.Rows[:2], m.got.Rows[3:])
 	for _, row := range zero {
 		if row.PotValue.Uint64() != wantPots[row.CabalID] || !row.Value.IsZero() || !row.Shares.IsZero() ||
 			!row.Net.IsZero() || !row.PnL.IsZero() || row.Return != nil || row.SliceBps != 0 || row.OwnershipBps != 0 {

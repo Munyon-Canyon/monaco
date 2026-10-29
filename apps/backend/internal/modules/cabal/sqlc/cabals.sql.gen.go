@@ -312,7 +312,7 @@ SELECT c.id, c.name, c.picture_url, m.role, m.can_vote, m.joined_at,
 FROM cabal_members m
 JOIN cabals c ON c.id = m.cabal_id
 WHERE m.user_id = $1 AND c.status <> 'banned'
-ORDER BY m.joined_at DESC, c.id DESC
+ORDER BY m.sort_index NULLS LAST, m.joined_at, c.id
 `
 
 type ListMyCabalsRow struct {

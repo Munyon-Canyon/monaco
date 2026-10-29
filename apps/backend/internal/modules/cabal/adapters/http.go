@@ -34,6 +34,7 @@ type HTTP struct {
 	Update  *app.UpdateCabalHandler
 	Picture *app.SetCabalPictureHandler
 	Leave   *app.LeaveCabalHandler
+	Reorder *app.ReorderCabalsHandler
 	Invite  *app.InviteMemberHandler
 	DB      sqlc.DBTX
 	Users   app.UserCards
@@ -148,6 +149,26 @@ func (h HTTP) GetMyCabals(
 		})
 	}
 	return api.GetMyCabals200JSONResponse(items), nil
+}
+
+func (h HTTP) PutMyCabalOrder(
+	ctx context.Context, req api.PutMyCabalOrderRequestObject,
+) (api.PutMyCabalOrderResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req.Body == nil {
+		return nil, errs.New(errs.CodeInvalidInput, "cabal.PutMyCabalOrder", slog.String("reason", "body"))
+	}
+	requested := make([]ids.CabalID, len(req.Body.CabalIds))
+	for i, id := range req.Body.CabalIds {
+		requested[i] = ids.CabalIDFrom(id)
+	}
+	if err := h.Reorder.Handle(ctx, app.ReorderCabals{ActorID: user, CabalIDs: requested}); err != nil {
+		return nil, err
+	}
+	return api.PutMyCabalOrder204Response{}, nil
 }
 
 func (h HTTP) unreadCounts(

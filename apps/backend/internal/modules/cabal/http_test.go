@@ -682,7 +682,7 @@ func TestMyCabals_returnsAnEmptyListForANewUser(t *testing.T) {
 	}
 }
 
-func TestMyCabals_ordersByJoinedAtDescending(t *testing.T) {
+func TestMyCabals_ordersBySortIndexThenJoinedAtAscending(t *testing.T) {
 	t.Parallel()
 	f := newCreate(t)
 	now := clock.Real{}.Now().UTC().Truncate(time.Microsecond)
@@ -695,9 +695,23 @@ func TestMyCabals_ordersByJoinedAtDescending(t *testing.T) {
 		t.Fatal(err)
 	}
 	items := []api.MyCabal(result.(api.GetMyCabals200JSONResponse))
-	if len(items) != 3 || items[0].Id != newest.ID.UUID() || items[1].Id != middle.ID.UUID() ||
-		items[2].Id != oldest.ID.UUID() {
+	if len(items) != 3 || items[0].Id != oldest.ID.UUID() || items[1].Id != middle.ID.UUID() ||
+		items[2].Id != newest.ID.UUID() {
 		t.Fatalf("cabals = %+v", items)
+	}
+	if _, err := f.pool.Exec(t.Context(),
+		`UPDATE cabal_members SET sort_index = 0 WHERE cabal_id = $1 AND user_id = $2`,
+		newest.ID.UUID(), f.user.ID.UUID()); err != nil {
+		t.Fatal(err)
+	}
+	result, err = f.routes(nil).GetMyCabals(f.actor(t.Context()), api.GetMyCabalsRequestObject{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	items = []api.MyCabal(result.(api.GetMyCabals200JSONResponse))
+	if len(items) != 3 || items[0].Id != newest.ID.UUID() || items[1].Id != oldest.ID.UUID() ||
+		items[2].Id != middle.ID.UUID() {
+		t.Fatalf("cabals with an index = %+v", items)
 	}
 }
 

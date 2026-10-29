@@ -198,7 +198,8 @@ paths:
       x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}, ip: {rate: 600, per: 1m, burst: 100}}
       summary: Read the caller's portfolio.
       description: >-
-        Returns the caller's stake in each cabal they hold, as the latest run valued it, with the
+        Returns the caller's stake in each cabal they hold, as the latest run valued it, in the caller's own
+        cabal order (see putMyCabalOrder) rather than by value, with the
         total, the P&L, the return and each cabal's share of the total in basis points. The slices
         sum to 10000, with the remainder on the largest cabal, and are all 0 when the total is 0.
         Cash on the platform is not included. A cabal with no snapshot yet is left out of the rows

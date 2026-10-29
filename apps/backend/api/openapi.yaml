@@ -1126,8 +1126,8 @@ paths:
       x-allow-restricted: true
       summary: List the caller's cabals.
       description: >-
-        Returns every cabal the caller belongs to, most recently joined first. Each row carries the
-        server-computed `unread_count` of the cabal's chat, capped at 100.
+        Returns every cabal the caller belongs to, in the caller's own order (see putMyCabalOrder). A cabal
+        joined after the last reorder comes last, in join order. Each row carries the server-computed `unread_count` of the cabal's chat, capped at 100.
       responses:
         "200":
           description: The caller's cabals.
@@ -1135,6 +1135,32 @@ paths:
             application/json:
               schema: {type: array, items: {$ref: "#/components/schemas/MyCabal"}}
               example: [{id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Friends, picture_url: null, role: creator, can_vote: true, member_count: 3, joined_at: "2026-10-02T15:00:00Z", pending_request_count: 1, unread_count: 3}]
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/cabals/order:
+    put:
+      operationId: putMyCabalOrder
+      tags: [cabal]
+      x-idempotent: true
+      summary: Save the order of the caller's cabals.
+      description: >-
+        Lists the caller's cabals first, in the given order. Ids that are not the caller's cabals are ignored,
+        because a cabal may have been left on another device. Every cabal left out keeps its prior relative order
+        after the listed ones. The result is one complete order that getMyCabals and getMyPortfolio follow. At most
+        100 ids, with no duplicates, or the call is refused with invalid_input. A replay returns the first response.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The cabal ids in the order the caller wants them.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PutMyCabalOrderRequest"
+            example: {cabal_ids: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+      responses:
+        "204":
+          description: The order is saved.
         default:
           $ref: "#/components/responses/Problem"
   # api/spec/funding.yaml
@@ -3276,7 +3302,8 @@ paths:
       x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}, ip: {rate: 600, per: 1m, burst: 100}}
       summary: Read the caller's portfolio.
       description: >-
-        Returns the caller's stake in each cabal they hold, as the latest run valued it, with the
+        Returns the caller's stake in each cabal they hold, as the latest run valued it, in the caller's own
+        cabal order (see putMyCabalOrder) rather than by value, with the
         total, the P&L, the return and each cabal's share of the total in basis points. The slices
         sum to 10000, with the remainder on the largest cabal, and are all 0 when the total is 0.
         Cash on the platform is not included. A cabal with no snapshot yet is left out of the rows
@@ -6783,6 +6810,18 @@ components:
         joined_at: {type: string, format: date-time}
         pending_request_count: {type: integer, format: int32}
         unread_count: {type: integer, description: "Chat messages in the channel the caller has not seen, at most 100.", examples: [3]}
+    PutMyCabalOrderRequest:
+      type: object
+      description: The caller's cabals in their own order.
+      additionalProperties: false
+      required: [cabal_ids]
+      properties:
+        cabal_ids:
+          type: array
+          maxItems: 100
+          description: Cabal ids, first to last. At most 100, no duplicates.
+          items: {type: string, format: uuid}
+          examples: [["01890a5d-ac96-774b-bcce-b302099a8058"]]
     UpdateCabalRequest:
       type: object
       description: The cabal fields to change. An omitted field keeps its value.

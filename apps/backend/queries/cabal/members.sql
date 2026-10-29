@@ -42,7 +42,7 @@ ORDER BY (role = 'creator') DESC, joined_at, user_id;
 -- name: ListCabalIDsForUser :many
 SELECT cabal_id FROM cabal_members
 WHERE user_id = $1
-ORDER BY joined_at, cabal_id;
+ORDER BY sort_index NULLS LAST, joined_at, cabal_id;
 
 -- name: LockMembers :many
 SELECT user_id, role FROM cabal_members
@@ -64,3 +64,16 @@ WHERE cabal_id = sqlc.arg(cabal_id);
 -- name: SetAllMembersVote :exec
 UPDATE cabal_members SET can_vote = true
 WHERE cabal_id = $1;
+
+-- name: LockMyMemberships :many
+SELECT cabal_id FROM cabal_members
+WHERE user_id = $1
+ORDER BY sort_index NULLS LAST, joined_at, cabal_id
+FOR UPDATE;
+
+-- name: SetMySortIndexes :exec
+UPDATE cabal_members m SET sort_index = v.sort_index
+FROM (
+  SELECT unnest(sqlc.arg(cabal_ids)::uuid[]) AS cabal_id, unnest(sqlc.arg(sort_indexes)::int[]) AS sort_index
+) v
+WHERE m.user_id = sqlc.arg(user_id) AND m.cabal_id = v.cabal_id;
