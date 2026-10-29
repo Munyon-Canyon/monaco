@@ -1022,8 +1022,8 @@ f__03-cabal-treasury                -MonacoGroupDetailSample fTreasury
 f__03-cabal-treasury-light          -MonacoGroupDetailSample fTreasuryLight
 f__03-cabal-treasury-scrolled       -MonacoGroupDetailSample fTreasuryScrolled -MonacoSampleScroll 1
 f__03-cabal-rules                   -MonacoGroupDetailSample fRules
-f__03-cabal-rules-scrolled          -MonacoGroupDetailSample fRulesScrolled -MonacoSampleScroll 0.6
-f__03-cabal-rules-sides             -MonacoGroupDetailSample fRulesSides -MonacoSampleScroll 0.6
+f__03-cabal-rules-scrolled          -MonacoGroupDetailSample fRulesScrolled -MonacoSampleScroll 1
+f__03-cabal-rules-sides             -MonacoGroupDetailSample fRulesSides -MonacoSampleScroll 1
 f__03-cabal-members                 -MonacoGroupDetailSample fMembers
 f__03-cabal-members-scrolled        -MonacoGroupDetailSample fMembersScrolled -MonacoSampleScroll 1
 f__03-cabal-members-all             -MonacoGroupDetailSample fMembersAll

@@ -25,6 +25,11 @@ struct CabalEmptyReader<Content: View>: View {
     }
 }
 
+enum CabalEmptyTint {
+    static let washOpacity = 0.16
+    static let wash = MonacoTheme.CabalTint.teal.fill.opacity(washOpacity)
+}
+
 struct CabalEmptyCard: View {
     let cabalID: String
 
@@ -59,7 +64,7 @@ struct CabalEmptyCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(MonacoTheme.Space.cardPadding)
-        .background(MonacoTheme.discussionWash, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card))
+        .background(CabalEmptyTint.wash, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card))
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.top, -(SectionStackMetrics.spacing - MonacoTheme.Space.sm))
         .accessibilityIdentifier("cabal-empty-card")

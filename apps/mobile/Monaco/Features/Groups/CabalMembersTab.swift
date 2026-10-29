@@ -69,6 +69,8 @@ private struct CabalMembersTabBody: View {
                 .buttonStyle(.monacoRow)
                 .accessibilityIdentifier("cabal-members-invite")
             }
+            .tintedCard()
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             Text(CabalMemberCopy.membersFooter)
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.muted)
@@ -77,5 +79,12 @@ private struct CabalMembersTabBody: View {
                 .accessibilityIdentifier("cabal-members-footer")
         }
         .sheet(isPresented: $showsInvite) { CabalInviteSheet(cabal: cabal) }
+    }
+}
+
+extension View {
+    func tintedCard() -> some View {
+        background(MonacoTheme.brandWash)
+            .clipShape(RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous))
     }
 }

@@ -30,7 +30,7 @@ struct CabalsGridSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let content = store.content, !content.isEmpty {
-                MonacoSectionHeader("Your cabals", trailing: content.countText)
+                MonacoSectionHeader("Your cabals").countText(content.countText)
                     .padding(.horizontal, MonacoTheme.Space.gutter)
                 LazyVGrid(columns: columns, alignment: .center, spacing: MonacoTheme.Space.m) {
                     ForEach(store.tiles) { tile in

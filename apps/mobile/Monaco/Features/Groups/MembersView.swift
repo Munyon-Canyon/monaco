@@ -127,11 +127,11 @@ private struct MembersAllList: View {
         case .header(let title):
             MonacoSectionHeader(title)
                 .padding(.horizontal, MonacoTheme.Space.gutter)
-        case .member(let entry, let group):
+        case .member(let entry, _):
             CabalMemberLink(
                 entry: entry, viewerID: viewerID,
-                subtitle: group == .admin ? "" : CabalMemberCopy.voterLine(entry.row),
-                chevron: true, isLast: entry.id == model.rows.last?.id
+                subtitle: CabalMemberCopy.voterLine(entry.row),
+                isLast: entry.id == model.rows.last?.id
             )
             .onAppear { Task { await model.loadMore(after: entry) } }
         case .invite:
@@ -139,11 +139,14 @@ private struct MembersAllList: View {
                 showsInvite = true
             } label: {
                 MonacoRow(
-                    title: CabalMemberCopy.inviteTo(CabalHeaderCopy.shortName(cabal.name)), chevron: true,
-                    isLast: true, leading: { SunkenGlyphMark(systemImage: "person.badge.plus") },
+                    title: CabalMemberCopy.inviteTo(CabalHeaderCopy.shortName(cabal.name)),
+                    titleColor: MonacoTheme.brand, isLast: true,
+                    leading: { SunkenGlyphMark(systemImage: "person.badge.plus") },
                     trailing: { EmptyView() })
             }
             .buttonStyle(.monacoRow)
+            .tintedCard()
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             .accessibilityIdentifier("members-invite-row")
         case .footer:
             Text(CabalMemberCopy.membersFooter)

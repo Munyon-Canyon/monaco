@@ -50,9 +50,8 @@ struct CabalContextMenuPreview: View {
                     .font(MonacoTheme.Typo.headline)
                     .foregroundStyle(MonacoTheme.primaryText)
                     .lineLimit(1)
-                Text(figures)
+                figures
                     .font(MonacoTheme.Typo.dataCaption)
-                    .foregroundStyle(tile.isFunded ? tile.direction.pnlTone.color : MonacoTheme.secondaryText)
                     .lineLimit(1)
                 Text(
                     CabalMenuActions.membersLine(memberCount: tile.memberCount, role: tile.role, canVote: tile.canVote)
@@ -63,13 +62,15 @@ struct CabalContextMenuPreview: View {
             }
         }
         .padding(MonacoTheme.Space.m)
-        .frame(minWidth: 280, alignment: .leading)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("cabals-menu-preview")
     }
 
-    private var figures: String {
-        CabalMenuActions.figuresLine(valueMicros: tile.valueMicros, returnText: tile.returnText)
+    private var figures: Text {
+        let value = Text(CabalHeaderCopy.compactDollars(tile.valueMicros)).foregroundStyle(MonacoTheme.secondaryText)
+        guard tile.isFunded else { return value }
+        let gap = Text(" \u{00B7} ").foregroundStyle(MonacoTheme.secondaryText)
+        return value + gap + Text(tile.returnText).foregroundStyle(tile.direction.pnlTone.color)
     }
 }
 
@@ -106,13 +107,46 @@ struct CabalContextMenuSampleSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             CabalContextMenuPreview(tile: tile, votes: votes)
-            List {
-                CabalContextMenuItems(actions: actions, perform: perform)
+            VStack(spacing: MonacoTheme.Space.s) {
+                group(.trade)
+                group(.people)
             }
-            .scrollDisabled(true)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            Spacer(minLength: 0)
         }
-        .presentationDetents([.medium])
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .presentationBackground(.ultraThinMaterial)
+        .presentationDetents([.large])
         .accessibilityIdentifier("cabals-menu-sample")
+    }
+
+    private func group(_ group: CabalMenuAction.Group) -> some View {
+        let rows = actions.filter { $0.group == group }
+        return VStack(spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.element.id) { index, action in
+                if index > 0 { Divider().overlay(MonacoTheme.hairline) }
+                Button {
+                    perform(action)
+                } label: {
+                    HStack {
+                        Text(action.title)
+                            .font(MonacoTheme.Typo.body)
+                            .foregroundStyle(MonacoTheme.primaryText)
+                        Spacer(minLength: MonacoTheme.Space.m)
+                        Image(systemName: action.icon.symbol)
+                            .foregroundStyle(MonacoTheme.primaryText)
+                    }
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .padding(.vertical, MonacoTheme.Space.sm)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("cabals-menu-\(action.id)")
+            }
+        }
+        .background(MonacoTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: MonacoTheme.Radius.card))
     }
 }
 #endif

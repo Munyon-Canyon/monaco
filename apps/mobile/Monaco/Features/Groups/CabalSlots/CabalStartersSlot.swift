@@ -35,6 +35,7 @@ private struct CabalStartersList: View {
         if let rows = model?.rows, !rows.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 MonacoSectionHeader(CabalStartersModel.title)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                 ForEach(rows) { row in
                     Button {
                         environment.navigator.open(
