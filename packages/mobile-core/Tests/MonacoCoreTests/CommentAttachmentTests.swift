@@ -25,25 +25,25 @@ final class CommentAttachmentTests: XCTestCase {
     func testPickingFillsTheDraftWithNoToast() async throws {
         let (model, _) = try await make([])
 
-        let toast = model.pick(.sample(title: "One"))
+        let toast = model.pick(.thesis(start: 0, end: 1))
 
         XCTAssertNil(toast)
-        XCTAssertEqual(model.attachmentDraft, .sample(title: "One"))
+        XCTAssertEqual(model.attachmentDraft, .thesis(start: 0, end: 1))
     }
 
     func testPickingASecondReplacesTheFirstWithAToast() async throws {
         let (model, _) = try await make([])
-        _ = model.pick(.sample(title: "One"))
+        _ = model.pick(.thesis(start: 0, end: 1))
 
-        let toast = model.pick(.sample(title: "Two"))
+        let toast = model.pick(.thesis(start: 2, end: 3))
 
-        XCTAssertEqual(toast, "Replaced the sample")
-        XCTAssertEqual(model.attachmentDraft, .sample(title: "Two"))
+        XCTAssertEqual(toast, "Replaced the quote")
+        XCTAssertEqual(model.attachmentDraft, .thesis(start: 2, end: 3))
     }
 
     func testRemovingClearsTheDraft() async throws {
         let (model, _) = try await make([])
-        _ = model.pick(.sample(title: "One"))
+        _ = model.pick(.thesis(start: 0, end: 1))
 
         model.removeAttachment()
 
@@ -53,13 +53,13 @@ final class CommentAttachmentTests: XCTestCase {
     func testAFailedSendKeepsTheTextAndTheDraft() async throws {
         let (model, _) = try await make([.json(.internalServerError, "{}")])
         model.edit("hello")
-        _ = model.pick(.sample(title: "One"))
+        _ = model.pick(.thesis(start: 0, end: 1))
 
         let ok = await model.post(CommentDraft(text: model.draft))
 
         XCTAssertFalse(ok)
         XCTAssertEqual(model.draft, "hello")
-        XCTAssertEqual(model.attachmentDraft, .sample(title: "One"))
+        XCTAssertEqual(model.attachmentDraft, .thesis(start: 0, end: 1))
     }
 
     func testASuccessfulSendSendsTheAttachmentAndClearsTheDraft() async throws {
@@ -67,7 +67,7 @@ final class CommentAttachmentTests: XCTestCase {
         let (model, transport) = try await make([
             .json(.created, try Support.encode(posted)), try Support.page(Thread.samples),
         ])
-        _ = model.pick(.sample(title: "One"))
+        _ = model.pick(.thesis(start: 0, end: 1))
 
         let ok = await model.post(CommentDraft(text: ""))
 
@@ -82,9 +82,34 @@ final class CommentAttachmentTests: XCTestCase {
         XCTAssertEqual(attachment["kind"] as? String, "thesis_quote")
     }
 
+    func testRuneOffsetsCountEmojiAsOneRune() {
+        let text = "a👍🏽b é"
+        let start = text.index(text.startIndex, offsetBy: 1)
+        let end = text.index(text.startIndex, offsetBy: 2)
+
+        XCTAssertEqual(ThesisQuote.runeCount(text), 6)
+        XCTAssertEqual(ThesisQuote.selection(start..<end, in: text), .thesis(start: 1, end: 3))
+        XCTAssertEqual(ThesisQuote.all(text), .thesis(start: 0, end: 6))
+    }
+
+    func testTheThesisDraftMapsToTheInput() async throws {
+        let input = CommentAttachmentDraft.thesis(start: 3, end: 9).input
+
+        guard case .thesisQuote(let quote) = input else { return XCTFail("not a thesis quote") }
+        XCTAssertEqual(quote.start, 3)
+        XCTAssertEqual(quote.end, 9)
+        XCTAssertEqual(CommentAttachmentDraft.thesis(start: 0, end: 1).kindName, "quote")
+    }
+
+    func testOnlyANonBlankThesisIsQuotable() {
+        XCTAssertFalse(ThesisQuote.isQuotable(nil))
+        XCTAssertFalse(ThesisQuote.isQuotable("  \n"))
+        XCTAssertTrue(ThesisQuote.isQuotable("Buy more"))
+    }
+
     func testAnExplicitAttachmentWinsOverTheDraft() async throws {
         let (model, _) = try await make([.json(.internalServerError, "{}")])
-        _ = model.pick(.sample(title: "One"))
+        _ = model.pick(.thesis(start: 0, end: 1))
 
         let ok = await model.post(
             CommentDraft(text: ""), attachment: .thesisQuote(.init(kind: .thesisQuote, start: 1, end: 2)))

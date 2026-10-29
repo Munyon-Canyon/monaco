@@ -1,18 +1,42 @@
+import Foundation
 import MonacoAPI
 
 public enum CommentAttachmentDraft: Equatable, Sendable {
-    case sample(title: String)
+    case thesis(start: Int, end: Int)
 
     public var kindName: String {
         switch self {
-        case .sample: "sample"
+        case .thesis: "quote"
         }
     }
 
     public var input: Components.Schemas.CommentAttachmentInput {
         switch self {
-        case .sample: .thesisQuote(.init(kind: .thesisQuote, start: 0, end: 25))
+        case .thesis(let start, let end): .thesisQuote(.init(kind: .thesisQuote, start: start, end: end))
         }
+    }
+}
+
+public enum ThesisQuote {
+    public static func runeCount(_ text: String) -> Int { text.unicodeScalars.count }
+
+    public static func runeRange(of selection: Range<String.Index>, in text: String) -> (start: Int, end: Int) {
+        (
+            start: text.unicodeScalars.distance(from: text.unicodeScalars.startIndex, to: selection.lowerBound),
+            end: text.unicodeScalars.distance(from: text.unicodeScalars.startIndex, to: selection.upperBound)
+        )
+    }
+
+    public static func all(_ text: String) -> CommentAttachmentDraft { .thesis(start: 0, end: runeCount(text)) }
+
+    public static func selection(_ range: Range<String.Index>, in text: String) -> CommentAttachmentDraft {
+        let runes = runeRange(of: range, in: text)
+        return .thesis(start: runes.start, end: runes.end)
+    }
+
+    public static func isQuotable(_ thesis: String?) -> Bool {
+        guard let thesis else { return false }
+        return !thesis.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
