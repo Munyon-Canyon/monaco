@@ -260,6 +260,9 @@ func priceSource(item app.Summary) *api.AssetDetailPriceSource {
 		return nil
 	}
 	source := api.AssetDetailPriceSource(item.Price.Source)
+	if !source.Valid() {
+		return nil
+	}
 	return &source
 }
 

@@ -2,6 +2,10 @@ import Foundation
 import MonacoAPI
 import Observation
 
+#if canImport(os)
+import os
+#endif
+
 public struct AssetDetailPresentation: Equatable, Sendable {
     public let symbol: String
     public let ticker: String
@@ -174,6 +178,7 @@ public final class AssetDetailClientModel {
             noteFresh()
             return true
         } catch {
+            Self.logDetailFailure(symbol: symbol, error: error)
             let error = APIError(error)
             lastError = error
             failureTick += 1
@@ -181,6 +186,14 @@ public final class AssetDetailClientModel {
             if detail == nil { detailPhase = .failed(error) }
             return false
         }
+    }
+
+    nonisolated static func logDetailFailure(symbol: String, error: any Error) {
+        #if canImport(os)
+        Logger(subsystem: "xyz.monacolabs.app", category: "asset-detail").error(
+            "Asset detail load failed symbol=\(symbol, privacy: .public) error=\(String(describing: error), privacy: .public)"
+        )
+        #endif
     }
 
     public func start() async {

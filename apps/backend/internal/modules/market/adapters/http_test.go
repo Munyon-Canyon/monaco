@@ -202,6 +202,8 @@ func TestAssetDetail_priceSourceFollowsTheSample(t *testing.T) {
 		{"jupiter", pricedView(now, domain.SourceJupiter), ptr(api.AssetDetailPriceSourceJupiter)},
 		{"coingecko", pricedView(now, domain.SourceCoinGecko), ptr(api.AssetDetailPriceSourceCoingecko)},
 		{"unknown source", pricedView(now, ""), nil},
+		{"journey seed", pricedView(now, domain.Source("qa-journey")), nil},
+		{"uniswap", pricedView(now, domain.Source("uniswap")), nil},
 		{"unpriced", app.AssetView{Summary: app.Summary{Asset: domain.Asset{Symbol: "NVDAx"}}}, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
