@@ -166,11 +166,15 @@ func (b BuildLedgers) candidates(ctx context.Context, start, end time.Time) ([]u
 
 type LedgerPoller struct {
 	Builder BuildLedgers
+	Every   time.Duration
 }
 
 func (LedgerPoller) Name() string { return "ranking.weekly_ledger" }
 
 func (p LedgerPoller) Interval() time.Duration {
+	if p.Every > 0 {
+		return p.Every
+	}
 	return LedgerInterval
 }
 

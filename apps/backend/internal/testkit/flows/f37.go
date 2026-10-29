@@ -21,6 +21,8 @@ func (defined) SeedsF37() map[string]Seeder {
 	}
 }
 
+func (defined) WorkerEnvF37() []string { return []string{"RANKING_LEDGER_POLL_INTERVAL=1s"} }
+
 type ledgerFixture struct{ voter uuid.UUID }
 
 func ledgerDelivery(now time.Time) time.Time {
