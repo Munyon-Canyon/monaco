@@ -104,7 +104,7 @@ func (env ciEnv) affected(ctx context.Context, base string) (selected, excluded 
 		return nil, nil, false, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	rows, err := env.exec(ctx, env.moduleDir, nil, env.gitBin,
-		"diff", "--name-only", base+"...HEAD", "--", ":(top)"+flows.Dir)
+		"diff", "--name-only", base+"...HEAD", "--", ":(top)"+flows.Dir, ":(top)"+flows.AppDir)
 	if err != nil {
 		return nil, nil, false, errs.Wrap(err, errs.CodeInternal, op)
 	}
@@ -147,7 +147,7 @@ func (env ciEnv) changedFlows(ctx context.Context, changed []string) []flows.Flo
 }
 
 func flowFile(f string) bool {
-	return strings.HasPrefix(f, flows.Dir+"/") ||
+	return flowRow(f) ||
 		strings.HasPrefix(f, "internal/testkit/flows/") ||
 		strings.HasPrefix(f, "internal/testkit/fakes/testdata/")
 }
@@ -200,6 +200,10 @@ func decodePackages(data []byte) (map[string]listedPackage, error) {
 		}
 		byDir[path.Clean("."+strings.TrimPrefix(p.ImportPath, p.Module.Path))] = p
 	}
+}
+
+func flowRow(f string) bool {
+	return strings.HasPrefix(f, flows.Dir+"/") || strings.HasPrefix(f, flows.AppDir+"/")
 }
 
 func flowsReaders() []string {
@@ -492,7 +496,7 @@ func flowSeed(byDir map[string]listedPackage, parsed []flows.Flow, f string, bar
 		id := regexp.QuoteMeta(fl.ID)
 		var owners []string
 		switch {
-		case f == flows.Dir+"/"+fl.ID+".tsv":
+		case f == flows.Dir+"/"+fl.ID+".tsv" || f == flows.AppDir+"/"+fl.ID+".tsv":
 			owners = flowsReaders()
 		case regexp.MustCompile(`^internal/testkit/flows/f` + id + `(\.gen)?\.go$`).MatchString(f):
 			owners = []string{"internal/testkit/flows"}
@@ -636,7 +640,7 @@ func seedDirs(byDir map[string]listedPackage, f string) []string {
 	switch {
 	case f == "sqlc.yaml":
 		return sqlcDirs(byDir)
-	case strings.HasPrefix(f, flows.Dir+"/"):
+	case flowRow(f):
 		return flowsReaders()
 	case isQuery && nested:
 		return []string{"internal/modules/" + module + "/sqlc"}

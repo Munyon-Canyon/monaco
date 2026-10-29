@@ -336,27 +336,29 @@ func TestFlowsReadersAreEveryPackageReadingTheFlowFiles(t *testing.T) {
 
 var flowReader = regexp.MustCompile(`\bfunc ReadAll\(|\b(?:flows|toolflows|tools)\.ReadAll\(`)
 
-func TestCIAffectedSeesABackendFlowFileOutsideTheModule(t *testing.T) {
+func TestCIAffectedSeesAFlowFileOutsideTheModule(t *testing.T) {
 	t.Parallel()
-	repo := t.TempDir()
-	module := filepath.Join(repo, "apps", "backend")
-	writeCIFile(t, module, "go.mod", "module example.com/m\n\ngo 1.25.0\n")
-	writeCIFile(t, module, "leaf/leaf.go", "package leaf\n")
-	for _, dir := range flowsReaders() {
-		writeCIFile(t, module, dir+"/x.go", "package "+path.Base(dir)+"\n")
-	}
-	writeCIFile(t, repo, "packages/flows/backend/03.tsv", "old\n")
-	git(t, repo, "init", "-q")
-	git(t, repo, "add", ".")
-	git(t, repo, "commit", "-q", "-m", "base")
-	git(t, repo, "tag", "base")
-	writeCIFile(t, repo, "packages/flows/backend/03.tsv", "new\n")
-	git(t, repo, "commit", "-q", "-am", "change")
-	env := ciEnv{moduleDir: module, goBin: "go", gitBin: "git", exec: runCommand}
-	code, stdout, stderr := runCIAffected(env, "affected", "--base", "base")
-	want := "./" + strings.Join(slices.Sorted(slices.Values(flowsReaders())), "\n./") + "\n"
-	if code != 0 || stdout != want {
-		t.Fatalf("code=%d stdout=%q want %q stderr=%s", code, stdout, want, stderr)
+	for _, row := range []string{"packages/flows/backend/03.tsv", "packages/flows/app/03.tsv"} {
+		repo := t.TempDir()
+		module := filepath.Join(repo, "apps", "backend")
+		writeCIFile(t, module, "go.mod", "module example.com/m\n\ngo 1.25.0\n")
+		writeCIFile(t, module, "leaf/leaf.go", "package leaf\n")
+		for _, dir := range flowsReaders() {
+			writeCIFile(t, module, dir+"/x.go", "package "+path.Base(dir)+"\n")
+		}
+		writeCIFile(t, repo, row, "old\n")
+		git(t, repo, "init", "-q")
+		git(t, repo, "add", ".")
+		git(t, repo, "commit", "-q", "-m", "base")
+		git(t, repo, "tag", "base")
+		writeCIFile(t, repo, row, "new\n")
+		git(t, repo, "commit", "-q", "-am", "change")
+		env := ciEnv{moduleDir: module, goBin: "go", gitBin: "git", exec: runCommand}
+		code, stdout, stderr := runCIAffected(env, "affected", "--base", "base")
+		want := "./" + strings.Join(slices.Sorted(slices.Values(flowsReaders())), "\n./") + "\n"
+		if code != 0 || stdout != want {
+			t.Fatalf("%s: code=%d stdout=%q want %q stderr=%s", row, code, stdout, want, stderr)
+		}
 	}
 }
 
