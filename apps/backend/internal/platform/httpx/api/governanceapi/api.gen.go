@@ -857,6 +857,11 @@ type ProposalDetail struct {
 	// Examples: 6
 	ReplyCount int `json:"reply_count"`
 
+	// SidesVisible True once the proposal has closed in a cabal that showed who voted what when it opened. Then every voter's `choice` is set.
+	//
+	// Examples: false
+	SidesVisible bool `json:"sides_visible"`
+
 	// Stats Facts about a proposal. `treasury_share_bps`, `closes_at` and `closed_at` are recorded when the proposal opens or closes. `price_micros` and `since_bps` are live, read at request time from the price book, and `shares_atomics` is an estimate until the trade fills.
 	Stats ProposalStats `json:"stats"`
 
@@ -1111,20 +1116,35 @@ type ProposalStatus string
 
 // ProposalVoter One member of the proposal's frozen voter set.
 type ProposalVoter struct {
-	// CastAt When the ballot was last cast. Null until they vote.
+	// CastAt When the ballot was last cast. Null until they vote, and null for every voter but the caller while the cabal keeps sides private.
 	//
 	// Examples: 2026-10-03T16:00:00Z
 	CastAt *time.Time `json:"cast_at"`
 
-	// Choice The voter's ballot. Null until they vote.
+	// Choice The voter's ballot. Null until they vote, and null for every voter but the caller while the cabal keeps sides private.
 	//
 	// Examples: yes
 	Choice *BallotChoice `json:"choice"`
+
+	// DisplayName The voter's name. Empty when the account is gone.
+	//
+	// Examples: Mia
+	DisplayName string `json:"display_name"`
+
+	// PhotoUrl The voter's photo. Null when they have none.
+	//
+	// Examples: null
+	PhotoUrl *string `json:"photo_url"`
 
 	// UserId The voter.
 	//
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
 	UserId openapi_types.UUID `json:"user_id"`
+
+	// Voted Whether the voter has cast a ballot. Always set, even while their side is private.
+	//
+	// Examples: true
+	Voted bool `json:"voted"`
 }
 
 // ProposeTradeRequest A trade to propose. A buy sets `usdc_micros` only, and a sell sets `token_amount` only.

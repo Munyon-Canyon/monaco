@@ -199,7 +199,11 @@ private enum ProposalSampleDetailSlot: ProposalSection {
 extension Components.Schemas.ProposalDetail {
     fileprivate func withoutBallots() -> Self {
         var detail = self
-        detail.voters = voters.map { .init(userId: $0.userId, choice: nil, castAt: nil) }
+        detail.voters = voters.map {
+            .init(
+                userId: $0.userId, voted: false, choice: nil, castAt: nil, displayName: $0.displayName,
+                photoUrl: $0.photoUrl)
+        }
         detail.tally = .init(yes: 0, no: 0, voters: tally.voters, needed: tally.needed)
         return detail
     }

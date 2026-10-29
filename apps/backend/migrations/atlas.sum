@@ -1,4 +1,4 @@
-h1:ey5UIRU9o0UssJfB5d8HGKzzkePaYgN8l6hVLtP9R78=
+h1:hLDxKAJslQGuSk4KHQR+ZVu9B6Mzlrrl5YgktPssvyo=
 20260927140427_platform.sql h1:dpKT9ALI2RTf1SBI4IzLY9kt47VTa8+JAziYaHsX5Jw=
 20260927185159_idempotency.sql h1:iYIp5Y5kBuPj5UJGcOifMeosr8qf0tj17c+5bmF37zE=
 20260929120000_system.sql h1:m6n0Y3tCc4MlfYNzi6Fh01YnogvlBbpQb1/X4WCtW40=
@@ -132,3 +132,4 @@ h1:ey5UIRU9o0UssJfB5d8HGKzzkePaYgN8l6hVLtP9R78=
 20261029013640_notify_reminder_cursor.sql h1:4eFX+tU2JxefDoIr3KTrFgaZjimxirpb98LOmQff370=
 20261029020819_ranking_call_board_history.sql h1:9R22keqL0hBUfe+lpLGZB+LGKQzAi6HcRThUvoDavVw=
 20261029022549_cabal_rules_sides_max_trade.sql h1:B8nBco5gw0YYVDq36MAppHk1h1s8wFminIFQ41yh8pQ=
+20261029024555_governance_sides_after_close.sql h1:DG3cx0wUDuHeEbjJox8GfG5FAP7VplKggeqtJChfAfg=

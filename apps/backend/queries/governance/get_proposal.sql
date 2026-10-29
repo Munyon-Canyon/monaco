@@ -2,7 +2,7 @@
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.usdc_micros, p.token_amount, p.quote_out_amount,
   p.thesis, p.threshold, p.status, p.status_reason, p.expires_at, p.created_at, p.pot_value_micros, p.closed_at,
-  p.passed_price_micros, p.decided_by,
+  p.passed_price_micros, p.decided_by, p.sides_after_close,
   coalesce(mine.choice, '')::text AS my_ballot, p.price_comparison, coalesce(p.network, '')::text AS network, p.mint
 FROM proposals AS p
 LEFT JOIN votes AS mine ON mine.proposal_id = p.id AND mine.voter_id = @caller_id

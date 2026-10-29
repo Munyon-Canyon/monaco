@@ -20,23 +20,28 @@ type Swaps interface {
 }
 
 type GetProposal struct {
-	ID     ids.ProposalID
-	Caller ids.UserID
+	ID       ids.ProposalID
+	Caller   ids.UserID
+	AllSides bool
 }
 
 type Voter struct {
-	UserID ids.UserID
-	Choice domain.Choice
-	CastAt time.Time
+	UserID      ids.UserID
+	Voted       bool
+	Choice      domain.Choice
+	CastAt      time.Time
+	DisplayName string
+	PhotoURL    string
 }
 
 type ProposalDetail struct {
-	Proposal    ProposalView
-	Voters      []Voter
-	CanVote     bool
-	CanWithdraw bool
-	Swap        *trading.SwapView
-	Fill        Fill
+	Proposal     ProposalView
+	Voters       []Voter
+	SidesVisible bool
+	CanVote      bool
+	CanWithdraw  bool
+	Swap         *trading.SwapView
+	Fill         Fill
 
 	Proposer              ProposerCard
 	ProposerReturnBps     *int64
@@ -74,7 +79,8 @@ func (r *ProposalReads) Get(ctx context.Context, req GetProposal) (ProposalDetai
 	if err != nil {
 		return ProposalDetail{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	voters, tally, isVoter, othersVoted := tallyVoters(ballots, req.Caller)
+	reveal := req.AllSides || sidesVisible(domain.Status(row.Status), row.SidesAfterClose)
+	voters, tally, isVoter, othersVoted := tallyVoters(ballots, req.Caller, reveal)
 	tally.Needed = domain.ThresholdRule(row.Threshold).Needed(tally.Voters)
 	view, err := proposalView(listRow(row), tally)
 	if err != nil {
@@ -84,7 +90,11 @@ func (r *ProposalReads) Get(ctx context.Context, req GetProposal) (ProposalDetai
 	if err != nil {
 		return ProposalDetail{}, err
 	}
-	proposer, err := r.proposerFacts(ctx, view.ProposerID)
+	cards, err := r.nameVoters(ctx, view.ProposerID, voters)
+	if err != nil {
+		return ProposalDetail{}, err
+	}
+	proposer, err := r.proposerFacts(ctx, view.ProposerID, cards)
 	if err != nil {
 		return ProposalDetail{}, err
 	}
@@ -95,7 +105,7 @@ func (r *ProposalReads) Get(ctx context.Context, req GetProposal) (ProposalDetai
 	open := view.Status == domain.StatusOpen
 	out := ProposalDetail{
 		Stats: facts.stats, MyVote: facts.myVote, ReplyCount: facts.replyCount,
-		Proposal: view, Voters: voters, CanVote: open && isVoter,
+		Proposal: view, Voters: voters, SidesVisible: reveal, CanVote: open && isVoter,
 		CanWithdraw: open && view.ProposerID == req.Caller && !othersVoted,
 		Proposer:    proposer.card, ProposerReturnBps: proposer.bps, ProposerReturnPrivate: proposer.private,
 		PassedPriceMicros: passedPrice(row),
@@ -231,14 +241,42 @@ func cardOf(id ids.UserID, cards map[ids.UserID]identityport.UserCard) ProposerC
 	return ProposerCard{ID: id, DisplayName: card.DisplayName, PhotoURL: card.PhotoURL}
 }
 
-func (r *ProposalReads) proposerFacts(ctx context.Context, id ids.UserID) (proposerFacts, error) {
-	const op = "governance.GetProposal"
-	who := []ids.UserID{id}
+func (r *ProposalReads) nameVoters(
+	ctx context.Context, proposer ids.UserID, voters []Voter,
+) (map[ids.UserID]identityport.UserCard, error) {
+	cards, err := r.cardsOf(ctx, proposer, voters)
+	if err != nil {
+		return nil, err
+	}
+	for i := range voters {
+		card := cardOf(voters[i].UserID, cards)
+		voters[i].DisplayName, voters[i].PhotoURL = card.DisplayName, card.PhotoURL
+	}
+	return cards, nil
+}
+
+func (r *ProposalReads) cardsOf(
+	ctx context.Context, proposer ids.UserID, voters []Voter,
+) (map[ids.UserID]identityport.UserCard, error) {
+	who := make([]ids.UserID, 0, len(voters)+1)
+	who = append(who, proposer)
+	for _, v := range voters {
+		if v.UserID != proposer {
+			who = append(who, v.UserID)
+		}
+	}
 	cards, err := r.users.UsersByID(ctx, who)
 	if err != nil {
-		return proposerFacts{}, errs.Wrap(err, errs.CodeOf(err), op)
+		return nil, errs.Wrap(err, errs.CodeOf(err), "governance.GetProposal")
 	}
-	found, err := r.rets.PeopleReturns(ctx, rankingport.Range1M, who)
+	return cards, nil
+}
+
+func (r *ProposalReads) proposerFacts(
+	ctx context.Context, id ids.UserID, cards map[ids.UserID]identityport.UserCard,
+) (proposerFacts, error) {
+	const op = "governance.GetProposal"
+	found, err := r.rets.PeopleReturns(ctx, rankingport.Range1M, []ids.UserID{id})
 	if err != nil {
 		return proposerFacts{}, errs.Wrap(err, errs.CodeOf(err), op)
 	}
@@ -254,13 +292,25 @@ func (r *ProposalReads) proposerFacts(ctx context.Context, id ids.UserID) (propo
 	return out, nil
 }
 
-func tallyVoters(rows []sqlc.ProposalVotersRow, caller ids.UserID) ([]Voter, Tally, bool, bool) {
+func sidesVisible(status domain.Status, rule bool) bool {
+	switch status {
+	case domain.StatusPassed, domain.StatusFailed, domain.StatusExpired, domain.StatusExecuted,
+		domain.StatusExecutionBlocked:
+		return rule
+	case domain.StatusOpen, domain.StatusWithdrawn, domain.StatusVoided:
+		return false
+	}
+	return false
+}
+
+func tallyVoters(rows []sqlc.ProposalVotersRow, caller ids.UserID, reveal bool) ([]Voter, Tally, bool, bool) {
 	voters := make([]Voter, len(rows))
 	tally := Tally{Voters: len(rows)}
 	isVoter, othersVoted := false, false
 	for i, row := range rows {
 		voter := Voter{
-			UserID: ids.UserIDFrom(row.VoterID), Choice: domain.Choice(row.Choice.String), CastAt: row.CastAt.Time,
+			UserID: ids.UserIDFrom(row.VoterID), Voted: row.Choice.Valid,
+			Choice: domain.Choice(row.Choice.String), CastAt: row.CastAt.Time,
 		}
 		switch voter.Choice {
 		case domain.ChoiceYes:
@@ -269,7 +319,10 @@ func tallyVoters(rows []sqlc.ProposalVotersRow, caller ids.UserID) ([]Voter, Tal
 			tally.No++
 		}
 		isVoter = isVoter || voter.UserID == caller
-		othersVoted = othersVoted || (voter.Choice != "" && voter.UserID != caller)
+		othersVoted = othersVoted || (voter.Voted && voter.UserID != caller)
+		if !reveal && voter.UserID != caller {
+			voter.Choice, voter.CastAt = "", time.Time{}
+		}
 		voters[i] = voter
 	}
 	return voters, tally, isVoter, othersVoted

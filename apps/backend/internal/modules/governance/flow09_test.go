@@ -146,7 +146,9 @@ func (w *tradeWorld) voters() []map[string]any {
 	slices.SortFunc(sorted, func(a, b ids.UserID) int { return strings.Compare(a.String(), b.String()) })
 	out := make([]map[string]any, len(sorted))
 	for i, v := range sorted {
-		out[i] = map[string]any{"user_id": v.String(), "choice": nil, "cast_at": nil}
+		out[i] = map[string]any{
+			"user_id": v.String(), "voted": false, "choice": nil, "cast_at": nil, "display_name": "", "photo_url": nil,
+		}
 	}
 	return out
 }

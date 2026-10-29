@@ -81,7 +81,7 @@ func eventStatuses() map[events.Type]domain.Status {
 }
 
 func (a *AdminReads) Proposal(ctx context.Context, id ids.ProposalID) (AdminProposal, error) {
-	detail, err := a.reads.Get(ctx, GetProposal{ID: id})
+	detail, err := a.reads.Get(ctx, GetProposal{ID: id, AllSides: true})
 	if err != nil {
 		return AdminProposal{}, err
 	}

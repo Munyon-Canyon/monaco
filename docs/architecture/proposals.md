@@ -47,6 +47,7 @@ Only `proposals`, `proposal_voters` and `votes` are governance tables. The other
 | `decided_by` | The voter whose ballot passed or failed the proposal. Written only by a transition out of `open`, and only the vote path sets it; expiry, withdraw and void leave it null. Null for older rows. No foreign key, like `proposer_id` and `voter_id`. |
 | `expires_at`, `created_at`, `updated_at` | |
 | `passed_price_micros` | The asset's last stored price when the vote passed, in USDC micros per whole token. Read from market's stored prices, never fetched. `CastVote` reads the price before `uow.Do`, since a pool read inside the transaction can deadlock the pool, and the settling vote stores it inside the transaction with the guarded `open` to `passed` transition, so a replay never overwrites it and a rollback never leaves it. A price that is missing or fails to read stores null and never blocks the vote. Null while open, after any other outcome, for proposals that passed before the column existed, and when no price was stored. `GET /v1/proposals/{id}` returns it with `proposer {id, display_name, photo_url}`. |
+| `sides_after_close` | The cabal's "Show who voted what" rule (`cabalport.Rules.ShowSides`) as it stood when the proposal opened, snapshotted in `ProposeTrade` as `threshold` is. Default false. Read by `GET /v1/proposals/{id}` to decide whether a closed proposal shows each voter's side. |
 
 **`proposal_voters`**: `proposal_id`, `voter_id`. The cabal's voter set, copied from the cabal module's query port in the `ProposeTrade` transaction. Members who join or leave mid-vote do not change it, so the number of yes votes a proposal needs is fixed when it opens.
 
@@ -95,6 +96,10 @@ The status is a Go type with a `transitions` table and a pure `Next(from, event)
 
 Expiry is a worker poller over `open` proposals past `expires_at` (indexed), with the same guarded update. It runs under the poller advisory lock ([Deploy rule 1](backend-platform.md#deploy-and-observability)) and reads time from the injected `clock.Clock`.
 
+## Who voted what
+
+Counts are public and sides are private. `tally` is live for every caller in every state, but `GET /v1/proposals/{id}` returns each voter's `choice` and `cast_at` only for the caller's own ballot. Every other voter carries `voted` (who has voted is not private) and null `choice` and `cast_at`. The cabal's "Show who voted what" rule is snapshotted onto the proposal as `sides_after_close` when it opens, so turning the rule on later reveals nothing for proposals that opened under privacy. A reveal happens only after close: when `sides_after_close` is set and the status is `passed`, `failed`, `expired`, `executed` or `execution_blocked`, the detail returns every side and `sides_visible` is true. `withdrawn` and `voided` proposals never reveal. A non-member has no ballot, so sees choices only in that revealed case. Each voter also carries `display_name` and `photo_url`, resolved in one identity read together with the proposer's card. Admin reads (`/v1/admin/proposals/{id}`) pass `AllSides` and stay complete, since moderators need every choice. The same `sidesVisible` rule must guard any other route that lists ballots.
+
 ## Undo
 
 `RetractVote` ([flow 10a](backend-platform.md#flows)), from `DELETE /v1/proposals/{id}/votes` with an `Idempotency-Key`. A voter can take back a ballot only while all of these hold:
@@ -121,7 +126,7 @@ Routes follow the [`cabal` naming](backend-platform.md#decided). Every mutating 
 | --- | --- | --- |
 | `POST /v1/cabals/{id}/proposals` | `ProposeTrade` ([flow 9](backend-platform.md#flows)) | Create; emits `proposal.created`. Advisory checks only: asset in catalog and Jupiter can route, through the market module's query port; amount ≤ pot, against `treasury`'s `PotValue(ctx, cabalID)` on its query port ([leaderboards.md](leaderboards.md#2-positions-from-the-ledger)). |
 | `GET /v1/cabals/{id}/proposals` | query | List, filter by status, newest first, keyset paginated. |
-| `GET /v1/proposals/{id}` | query | Detail: proposal, tally, the caller's ballot, who voted, comment count, linked swap and its state (from trading's query port). |
+| `GET /v1/proposals/{id}` | query | Detail: proposal, tally, the caller's ballot, who voted, and their side when revealed, comment count, linked swap and its state (from trading's query port). |
 | `DELETE /v1/proposals/{id}` | `WithdrawProposal` ([flow 13](backend-platform.md#flows)) | Proposer withdraws; nobody else can. Allowed only while `open` and before any other member has voted. Soft delete to `withdrawn`. |
 | `POST /v1/proposals/{id}/votes` | `CastVote` | Cast or change a ballot. |
 | `DELETE /v1/proposals/{id}/votes` | `RetractVote` | Undo the caller's ballot within 15 seconds of its first cast, while the proposal is `open` and the ballot has never changed side. |
