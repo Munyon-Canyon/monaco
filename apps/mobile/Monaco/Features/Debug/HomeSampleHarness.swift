@@ -34,6 +34,7 @@ enum HomeSampleScenario: String, CaseIterable {
     case fReady
     case fReadyLight
     case fScrolled
+    case feedPreviewEveryone
 
     static func matching(_ arguments: [String]) -> HomeSampleScenario? {
         guard let flag = arguments.firstIndex(of: "-MonacoHomeSample"),
@@ -46,7 +47,8 @@ enum HomeSampleScenario: String, CaseIterable {
 extension HomeSampleScenario {
     var script: SampleAPIScript {
         switch self {
-        case .populated: SampleAPIScript()
+        case .populated: HomeSampleData.feedPreviewScript(.yourCabals)
+        case .feedPreviewEveryone: HomeSampleData.feedPreviewScript(.everyone)
         case .empty: HomeSampleData.script(.empty, proposals: [])
         case .loading: SampleAPIScript(mode: .hang)
         case .nudgeX: SampleAPIScript()
@@ -115,6 +117,30 @@ enum HomeSampleData {
     private static let cabals: [(id: String, name: String, members: Int32, ownershipBps: Int32)] = [
         (bigBallers, "Big Ballers", 8, 3_500), (techCrew, "Tech Crew", 5, 1_400), (underwater, "Underwater", 9, 650),
     ]
+
+    static func feedPreviewScript(_ source: HomeFeedPreviewModel.Source) -> SampleAPIScript {
+        var script = SampleAPIScript()
+        script.homeFeed = feedPreviewItems(source)
+        return script
+    }
+
+    private static func feedPreviewItems(_ source: HomeFeedPreviewModel.Source) -> [Components.Schemas.FeedItem] {
+        typealias Item = Components.Schemas.FeedItem
+        var proposal = source == .yourCabals ? Item.samples[0] : Item.publicProposals[0]
+        proposal.symbol = source == .yourCabals ? "NVDAx" : "AMZNx"
+        proposal.action = "buy"
+        proposal.usdcMicros = source == .yourCabals ? 400_000_000 : 250_000_000
+        proposal.cabalName = source == .yourCabals ? "AC Capital" : "Degens"
+        proposal.actorName = source == .yourCabals ? "Mia" : "Christelle"
+        proposal.createdAt = Date.now.addingTimeInterval(source == .yourCabals ? -300 : -3_600)
+        guard source == .yourCabals else {
+            var stripe = Item.publicProposals[1]
+            stripe.action = "buy"
+            stripe.usdcMicros = 300_000_000
+            return [proposal, Item.results[1], stripe, Item.results[2]]
+        }
+        return [proposal, Item.results[1], Item.results[0], Item.samples[4], Item.results[4]]
+    }
 
     @MainActor
     static func script(
@@ -334,8 +360,12 @@ struct HomeSampleHarness: View {
     }
 
     private var sheet: (() -> AnyView)? {
-        guard scenario == .prePrompt else { return nil }
-        return { AnyView(PushPrePromptSheet(prompt: SamplePushPrePrompt.make())) }
+        switch scenario {
+        case .prePrompt: { AnyView(PushPrePromptSheet(prompt: SamplePushPrePrompt.make())) }
+        case .feedPreviewEveryone:
+            { AnyView(ScrollView { HomeEveryonePreviewSlot.body(for: ()) }.monacoCanvas()) }
+        default: nil
+        }
     }
 
     private func session(_ store: AppSessionStore) {

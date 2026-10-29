@@ -69,6 +69,7 @@ nonisolated struct SampleAPIScript: Sendable {
     var invitePreview = InvitePreview.frame
     var held: Components.Schemas.HeldList?
     var assetFeed: [Components.Schemas.FeedItem] = []
+    var homeFeed: [Components.Schemas.FeedItem] = []
     var cabalEdit: (@Sendable (inout Components.Schemas.Cabal) -> Void)?
     var openProposal: Components.Schemas.Proposal?
     var valueHistory: Components.Schemas.CabalValueHistory?
@@ -347,6 +348,8 @@ nonisolated extension SampleAPIProtocol {
         if let symbol = query["symbol"], !script.assetFeed.isEmpty {
             let status = query["status"]
             items = script.assetFeed.filter { $0.symbol == symbol && (status == nil || $0.status == status) }
+        } else if ["mine", "others"].contains(query["scope"]), !script.homeFeed.isEmpty {
+            items = script.homeFeed
         } else {
             items = empty ? [] : Components.Schemas.FeedItem.samples
         }

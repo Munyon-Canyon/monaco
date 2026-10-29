@@ -13,6 +13,7 @@ struct HomeScreen: View {
         HomeBalanceSlot.self,
         HomeCabalsSlot.self,
         HomeLeaderboardSlot.self,
+        HomeFeedPreviewSlot.self,
     ]
 
     @Environment(AppEnvironment.self) private var environment
