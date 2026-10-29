@@ -209,6 +209,8 @@ cabals-empty                  -MonacoCabalsTabSample -MonacoCabalsTabSampleScena
 cabals-filtered               -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario filtered -MonacoSampleScroll bottom
 cabals-no-share               -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario noShare
 cabals-pnl-unavailable        -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario pnlUnavailable
+cabals-f-ready                -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario fReady
+cabals-f-unfunded             -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario fUnfunded
 cabals-rank-loading           -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario rankLoading -MonacoSampleScroll bottom
 cabals-rank-error             -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario rankError -MonacoSampleScroll bottom
 cabals-rank-empty             -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario rankEmpty -MonacoSampleScroll bottom

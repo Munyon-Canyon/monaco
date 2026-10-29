@@ -4,6 +4,8 @@ import SwiftUI
 
 struct HomeVoteCard: View {
     let model: HomeVoteCardModel
+    var identifierPrefix = "home"
+    var tab: MainTab = .home
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(\.analytics) private var analytics
@@ -22,14 +24,14 @@ struct HomeVoteCard: View {
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("home-vote-card-\(model.id)")
+        .accessibilityIdentifier("\(identifierPrefix)-vote-card-\(model.id)")
         .task { await model.observe() }
         .onChange(of: model.phase) { _, new in phaseChanged(new) }
     }
 
     private var header: some View {
         Button {
-            environment.navigator.open(ProposalRoute(proposalID: model.id), in: .home)
+            environment.navigator.open(ProposalRoute(proposalID: model.id), in: tab)
         } label: {
             HStack(spacing: MonacoTheme.Space.sm) {
                 if !row.isRule {
@@ -39,11 +41,11 @@ struct HomeVoteCard: View {
                     Text(model.headline)
                         .font(MonacoTheme.Typo.headline)
                         .foregroundStyle(MonacoTheme.primaryText)
-                        .accessibilityIdentifier("home-vote-headline-\(model.id)")
+                        .accessibilityIdentifier("\(identifierPrefix)-vote-headline-\(model.id)")
                     Text(model.subhead(now: .now))
                         .font(MonacoTheme.Typo.subhead)
                         .foregroundStyle(MonacoTheme.secondaryText)
-                        .accessibilityIdentifier("home-vote-subhead-\(model.id)")
+                        .accessibilityIdentifier("\(identifierPrefix)-vote-subhead-\(model.id)")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 Image(monaco: .chevron)
@@ -53,7 +55,7 @@ struct HomeVoteCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityHint("Opens the proposal")
-        .accessibilityIdentifier("home-vote-open-\(model.id)")
+        .accessibilityIdentifier("\(identifierPrefix)-vote-open-\(model.id)")
     }
 
     @ViewBuilder private var buttons: some View {
@@ -63,7 +65,7 @@ struct HomeVoteCard: View {
                 no: frozen(.no, held: side.voteSide, progress: progress))
         } else {
             VotePair(
-                yes: tally.yes, no: tally.no, selection: selection, isEnabled: true, identifierPrefix: "home",
+                yes: tally.yes, no: tally.no, selection: selection, isEnabled: true, identifierPrefix: identifierPrefix,
                 identifierSuffix: model.id, onCommit: commit, onPhaseChange: { holding = $0 == .holding })
         }
     }
@@ -74,7 +76,7 @@ struct HomeVoteCard: View {
             phase: VotePair.buttonPhase(
                 side, selection: .picked(held), holding: held, progress: progress, isEnabled: true)
         )
-        .accessibilityIdentifier(VoteIdentifier.make("home", "vote-\(side.title.lowercased())", model.id))
+        .accessibilityIdentifier(VoteIdentifier.make(identifierPrefix, "vote-\(side.title.lowercased())", model.id))
     }
 
     @ViewBuilder private var hint: some View {
@@ -85,13 +87,13 @@ struct HomeVoteCard: View {
                     .foregroundStyle(MonacoTheme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityIdentifier("home-vote-deciding-\(model.id)")
+                    .accessibilityIdentifier("\(identifierPrefix)-vote-deciding-\(model.id)")
             } else {
                 Label(text, systemImage: holding ? "hand.tap" : "hand.point.up")
                     .font(MonacoTheme.Typo.subhead)
                     .foregroundStyle(MonacoTheme.secondaryText)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityIdentifier("home-vote-hint-\(model.id)")
+                    .accessibilityIdentifier("\(identifierPrefix)-vote-hint-\(model.id)")
             }
         }
     }
