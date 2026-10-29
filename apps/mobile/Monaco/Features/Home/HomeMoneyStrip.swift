@@ -22,6 +22,8 @@ struct HomeCashRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             MonacoCard(style: .tight) { row }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("home-cash-row")
             if let retry {
                 MonacoErrorRow(
                     thing: "your balance", identifier: "home-balance-error", inset: false, retry: retry)

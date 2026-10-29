@@ -50,6 +50,7 @@ struct HomeScreen: View {
             ToolbarItem(placement: scrolled ? .principal : .topBarLeading) {
                 MonacoWordmark(.toolbar, isTitle: true)
                     .fixedSize()
+                    .accessibilityIdentifier("home-wordmark")
             }
             .withoutGlass()
             ToolbarItem(placement: .topBarTrailing) {
