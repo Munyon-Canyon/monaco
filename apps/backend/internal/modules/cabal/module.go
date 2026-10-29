@@ -169,6 +169,7 @@ func (m *Module) http() adapters.HTTP {
 		Update:  app.NewUpdateCabalHandler(m.deps.UoW, m.deps.Clock),
 		Picture: app.NewSetCabalPictureHandler(m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, m.deps.Photos),
 		Leave:   m.LeaveCabalHandler(),
+		Reorder: app.NewReorderCabalsHandler(m.deps.UoW),
 		Invite:  app.NewInviteMemberHandler(m.deps.UoW, users, m.deps.IDs, m.deps.Clock),
 		DB:      m.deps.Pool, Users: users, Unread: unread, Votes: votes, Clock: m.deps.Clock,
 	}

@@ -637,6 +637,14 @@ type MyCabal struct {
 	UnreadCount int `json:"unread_count"`
 }
 
+// PutMyCabalOrderRequest The caller's cabals in their own order.
+type PutMyCabalOrderRequest struct {
+	// CabalIds Cabal ids, first to last. At most 100, no duplicates.
+	//
+	// Examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]
+	CabalIds []openapi_types.UUID `json:"cabal_ids"`
+}
+
 // UpdateCabalRequest The cabal fields to change. An omitted field keeps its value.
 type UpdateCabalRequest struct {
 	// JoinMode `open` (anyone joins at once) or `request` (the creator approves each request).
@@ -786,6 +794,12 @@ type PutCabalPictureParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// PutMyCabalOrderParams defines parameters for PutMyCabalOrder.
+type PutMyCabalOrderParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // PostCabalJSONRequestBody defines body for PostCabal for application/json ContentType.
 type PostCabalJSONRequestBody = CreateCabalRequest
 
@@ -803,6 +817,9 @@ type PostCabalInviteJSONRequestBody = InviteMemberRequest
 
 // PutCabalPictureMultipartRequestBody defines body for PutCabalPicture for multipart/form-data ContentType.
 type PutCabalPictureMultipartRequestBody PutCabalPictureMultipartBody
+
+// PutMyCabalOrderJSONRequestBody defines body for PutMyCabalOrder for application/json ContentType.
+type PutMyCabalOrderJSONRequestBody = PutMyCabalOrderRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -860,6 +877,9 @@ type ServerInterface interface {
 	// GetMyCabals List the caller's cabals.
 	// (GET /v1/me/cabals)
 	GetMyCabals(w http.ResponseWriter, r *http.Request)
+	// PutMyCabalOrder Save the order of the caller's cabals.
+	// (PUT /v1/me/cabals/order)
+	PutMyCabalOrder(w http.ResponseWriter, r *http.Request, params PutMyCabalOrderParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -1711,6 +1731,51 @@ func (siw *ServerInterfaceWrapper) GetMyCabals(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// PutMyCabalOrder operation middleware
+func (siw *ServerInterfaceWrapper) PutMyCabalOrder(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PutMyCabalOrderParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutMyCabalOrder(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -1849,6 +1914,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/invite-codes/{code}", wrapper.GetCabalByCode)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/cabal-invites", wrapper.GetMyCabalInvites)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/cabals", wrapper.GetMyCabals)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/me/cabals/order", wrapper.PutMyCabalOrder)
 
 	return m
 }
@@ -2567,6 +2633,40 @@ func (response GetMyCabalsdefaultApplicationProblemPlusJSONResponse) VisitGetMyC
 	return err
 }
 
+type PutMyCabalOrderRequestObject struct {
+	Params PutMyCabalOrderParams
+	Body   *PutMyCabalOrderJSONRequestBody
+}
+
+type PutMyCabalOrderResponseObject interface {
+	VisitPutMyCabalOrderResponse(w http.ResponseWriter) error
+}
+
+type PutMyCabalOrder204Response struct {
+}
+
+func (response PutMyCabalOrder204Response) VisitPutMyCabalOrderResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type PutMyCabalOrderdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response PutMyCabalOrderdefaultApplicationProblemPlusJSONResponse) VisitPutMyCabalOrderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// GetCabals Search public cabals.
@@ -2623,6 +2723,9 @@ type StrictServerInterface interface {
 	// GetMyCabals List the caller's cabals.
 	// (GET /v1/me/cabals)
 	GetMyCabals(ctx context.Context, request GetMyCabalsRequestObject) (GetMyCabalsResponseObject, error)
+	// PutMyCabalOrder Save the order of the caller's cabals.
+	// (PUT /v1/me/cabals/order)
+	PutMyCabalOrder(ctx context.Context, request PutMyCabalOrderRequestObject) (PutMyCabalOrderResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -3180,6 +3283,39 @@ func (sh *strictHandler) GetMyCabals(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMyCabalsResponseObject); ok {
 		if err := validResponse.VisitGetMyCabalsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutMyCabalOrder operation middleware
+func (sh *strictHandler) PutMyCabalOrder(w http.ResponseWriter, r *http.Request, params PutMyCabalOrderParams) {
+	var request PutMyCabalOrderRequestObject
+
+	request.Params = params
+
+	var body PutMyCabalOrderJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutMyCabalOrder(ctx, request.(PutMyCabalOrderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutMyCabalOrder")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutMyCabalOrderResponseObject); ok {
+		if err := validResponse.VisitPutMyCabalOrderResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

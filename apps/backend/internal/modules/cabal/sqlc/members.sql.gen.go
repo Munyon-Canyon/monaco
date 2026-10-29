@@ -115,7 +115,7 @@ func (q *Queries) ListAdminIDs(ctx context.Context, cabalID uuid.UUID) ([]uuid.U
 const listCabalIDsForUser = `-- name: ListCabalIDsForUser :many
 SELECT cabal_id FROM cabal_members
 WHERE user_id = $1
-ORDER BY joined_at, cabal_id
+ORDER BY sort_index NULLS LAST, joined_at, cabal_id
 `
 
 func (q *Queries) ListCabalIDsForUser(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
@@ -182,15 +182,23 @@ WHERE cabal_id = ANY($1::uuid[])
 ORDER BY cabal_id, joined_at, user_id
 `
 
-func (q *Queries) ListMembersOf(ctx context.Context, cabalIds []uuid.UUID) ([]CabalMember, error) {
+type ListMembersOfRow struct {
+	CabalID  uuid.UUID
+	UserID   uuid.UUID
+	Role     string
+	CanVote  bool
+	JoinedAt time.Time
+}
+
+func (q *Queries) ListMembersOf(ctx context.Context, cabalIds []uuid.UUID) ([]ListMembersOfRow, error) {
 	rows, err := q.db.Query(ctx, listMembersOf, cabalIds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []CabalMember
+	var items []ListMembersOfRow
 	for rows.Next() {
-		var i CabalMember
+		var i ListMembersOfRow
 		if err := rows.Scan(
 			&i.CabalID,
 			&i.UserID,
@@ -338,6 +346,33 @@ func (q *Queries) LockMembers(ctx context.Context, cabalID uuid.UUID) ([]LockMem
 	return items, nil
 }
 
+const lockMyMemberships = `-- name: LockMyMemberships :many
+SELECT cabal_id FROM cabal_members
+WHERE user_id = $1
+ORDER BY sort_index NULLS LAST, joined_at, cabal_id
+FOR UPDATE
+`
+
+func (q *Queries) LockMyMemberships(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, lockMyMemberships, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var cabal_id uuid.UUID
+		if err := rows.Scan(&cabal_id); err != nil {
+			return nil, err
+		}
+		items = append(items, cabal_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setAllMembersVote = `-- name: SetAllMembersVote :exec
 UPDATE cabal_members SET can_vote = true
 WHERE cabal_id = $1
@@ -362,5 +397,24 @@ type SetMemberVotersParams struct {
 
 func (q *Queries) SetMemberVoters(ctx context.Context, arg SetMemberVotersParams) error {
 	_, err := q.db.Exec(ctx, setMemberVoters, arg.VoterIds, arg.CabalID)
+	return err
+}
+
+const setMySortIndexes = `-- name: SetMySortIndexes :exec
+UPDATE cabal_members m SET sort_index = v.sort_index
+FROM (
+  SELECT unnest($2::uuid[]) AS cabal_id, unnest($3::int[]) AS sort_index
+) v
+WHERE m.user_id = $1 AND m.cabal_id = v.cabal_id
+`
+
+type SetMySortIndexesParams struct {
+	UserID      uuid.UUID
+	CabalIds    []uuid.UUID
+	SortIndexes []int32
+}
+
+func (q *Queries) SetMySortIndexes(ctx context.Context, arg SetMySortIndexesParams) error {
+	_, err := q.db.Exec(ctx, setMySortIndexes, arg.UserID, arg.CabalIds, arg.SortIndexes)
 	return err
 }

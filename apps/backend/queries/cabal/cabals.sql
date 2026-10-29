@@ -83,7 +83,7 @@ SELECT c.id, c.name, c.picture_url, m.role, m.can_vote, m.joined_at,
 FROM cabal_members m
 JOIN cabals c ON c.id = m.cabal_id
 WHERE m.user_id = sqlc.arg(user_id) AND c.status <> 'banned'
-ORDER BY m.joined_at DESC, c.id DESC;
+ORDER BY m.sort_index NULLS LAST, m.joined_at, c.id;
 
 -- name: UpdateCabal :execrows
 UPDATE cabals SET name = sqlc.arg(name), join_mode = sqlc.arg(join_mode), voter_mode = sqlc.arg(voter_mode),

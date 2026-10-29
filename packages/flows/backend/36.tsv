@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+36	Reorder my cabals	cabal	PUT /v1/me/cabals/order	ReorderCabals			ok;InvalidInput;Unauthorized	built	docs/architecture/cabals.md#how-it-works

@@ -25,14 +25,6 @@ type CabalAccessRequest struct {
 	ViaUserID pgtype.UUID
 }
 
-type CabalMember struct {
-	CabalID  uuid.UUID
-	UserID   uuid.UUID
-	Role     string
-	CanVote  bool
-	JoinedAt time.Time
-}
-
 type TreasuryEvmWallet struct {
 	CabalID       uuid.UUID
 	PrivyWalletID string

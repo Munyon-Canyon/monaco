@@ -72,6 +72,7 @@ func NewPortfolio(
 		return Portfolio{}, err
 	}
 	out.Rows = append(out.Rows, unfundedRows(out.Rows, latest, memberships)...)
+	inOrder(out.Rows, memberships)
 	return out, nil
 }
 
@@ -88,8 +89,23 @@ func unfundedRows(valued []PortfolioRow, latest map[ids.CabalID]Snapshot, member
 		held[cabal] = true
 		rows = append(rows, PortfolioRow{CabalID: cabal, PotValue: latest[cabal].Value})
 	}
-	slices.SortFunc(rows, func(a, b PortfolioRow) int { return cmp.Compare(a.CabalID.String(), b.CabalID.String()) })
 	return rows
+}
+
+func inOrder(rows []PortfolioRow, memberships []ids.CabalID) {
+	rank := make(map[ids.CabalID]int, len(memberships))
+	for i, cabal := range memberships {
+		if _, ok := rank[cabal]; !ok {
+			rank[cabal] = i
+		}
+	}
+	at := func(row PortfolioRow) int {
+		if i, ok := rank[row.CabalID]; ok {
+			return i
+		}
+		return len(memberships)
+	}
+	slices.SortStableFunc(rows, func(a, b PortfolioRow) int { return cmp.Compare(at(a), at(b)) })
 }
 
 func (p *Portfolio) sum() (money.SignedMicros, error) {
