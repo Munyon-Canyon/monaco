@@ -31,6 +31,7 @@ struct BalancesContent: View {
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ScrollView {
@@ -105,7 +106,7 @@ struct BalancesContent: View {
                 .foregroundStyle(MonacoTheme.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
-                .contentTransition(.numericText())
+                .contentTransition(reduceMotion ? .identity : .numericText())
                 .accessibilityIdentifier("balances-net-worth")
             Text("Your cabal shares + cash")
                 .font(MonacoTheme.Typo.caption)
