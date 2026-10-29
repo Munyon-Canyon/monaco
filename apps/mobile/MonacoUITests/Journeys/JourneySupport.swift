@@ -78,6 +78,17 @@ enum JourneyDiagnostics {
     }
 }
 
+enum JourneyWait {
+    static func until(timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if condition() { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        } while Date() < deadline
+        return condition()
+    }
+}
+
 final class JourneyRecorder {
     let journey: String
     let version: Int
@@ -258,10 +269,103 @@ extension XCUIApplication {
     }
 
     func dismissPushPrePromptIfShown(timeout: TimeInterval = 3) {
-        let notNow = buttons["push-pre-prompt-not-now"].firstMatch
-        guard notNow.waitForExistence(timeout: timeout) else { return }
-        notNow.tap()
-        _ = element("push-pre-prompt").waitForNonExistence(timeout: 5)
+        answerVotePermissionSheet(turnOn: false, timeout: timeout)
+    }
+
+    @discardableResult
+    func answerVotePermissionSheet(turnOn: Bool, timeout: TimeInterval = 10) -> Bool {
+        let sheet = element("push-pre-prompt")
+        guard sheet.waitForExistence(timeout: timeout) else { return false }
+        let answer = buttons[turnOn ? "push-pre-prompt-turn-on" : "push-pre-prompt-not-now"].firstMatch
+        guard answer.waitForExistence(timeout: 5) else { return false }
+        answer.tap()
+        if turnOn { _ = answerSystemAlert(allow: true, timeout: 5) }
+        return element("push-pre-prompt").waitForNonExistence(timeout: 5)
+    }
+
+    func holdToCommit(_ target: XCUIElement, duration: TimeInterval = 0.9) {
+        target.press(forDuration: duration)
+    }
+
+    func pickAndHold(_ choice: String) {
+        let target = element("proposal-vote-\(choice)")
+        XCTAssertTrue(target.waitForExistence(timeout: 10), "proposal-vote-\(choice) did not show within 10 s")
+        target.tap()
+        holdToCommit(target)
+    }
+
+    func changeVote(to choice: String) {
+        let change = element("proposal-change-vote")
+        XCTAssertTrue(change.waitForExistence(timeout: 10), "proposal-change-vote did not show within 10 s")
+        change.tap()
+        pickAndHold(choice)
+    }
+
+    func homeVoteCardPickAndHold(proposalID: String, choice: String) {
+        let target = element("home-vote-\(choice)-\(proposalID)")
+        XCTAssertTrue(
+            target.waitForExistence(timeout: 10), "home-vote-\(choice)-\(proposalID) did not show within 10 s")
+        target.tap()
+        holdToCommit(target)
+    }
+
+    func toastText(timeout: TimeInterval = 10) -> String? {
+        let banner = element("monaco-toast-banner")
+        guard banner.waitForExistence(timeout: timeout) else { return nil }
+        if !banner.label.isEmpty { return banner.label }
+        return banner.staticTexts.firstMatch.label
+    }
+
+    @discardableResult
+    func tapToastAction(timeout: TimeInterval = 10) -> Bool {
+        let action = element("monaco-toast-action")
+        guard action.waitForExistence(timeout: timeout) else { return false }
+        action.tap()
+        return true
+    }
+
+    func openCabal(named name: String, timeout: TimeInterval = 15) {
+        tab("Cabals").tap()
+        let tile = descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'cabals-tile-' AND label BEGINSWITH %@", name)
+        ).firstMatch
+        if !tile.waitForExistence(timeout: 5) {
+            let plus = element("cabals-new-button")
+            XCTAssertTrue(
+                plus.waitForExistence(timeout: timeout), "cabals-new-button did not show within \(Int(timeout)) s")
+            plus.tap()
+            let find = buttons["cabals-menu-find"].firstMatch
+            XCTAssertTrue(find.waitForExistence(timeout: 5), "cabals-menu-find did not show within 5 s")
+            find.tap()
+            let field = textFields["cabals-search-field"].firstMatch
+            XCTAssertTrue(
+                field.waitForExistence(timeout: timeout), "cabals-search-field did not show within \(Int(timeout)) s")
+            field.tap()
+            field.typeText(name)
+            let result = descendants(matching: .any).matching(
+                NSPredicate(format: "identifier BEGINSWITH 'cabals-search-result-'")
+            ).firstMatch
+            XCTAssertTrue(
+                result.waitForExistence(timeout: timeout),
+                "no cabals-search-result for \(name) within \(Int(timeout)) s")
+            dismissKeyboard()
+            result.tap()
+        } else {
+            tile.tap()
+        }
+        let header = element("cabal-header-name")
+        XCTAssertTrue(
+            header.waitForExistence(timeout: timeout), "cabal-header-name did not show within \(Int(timeout)) s")
+        XCTAssertTrue(
+            JourneyWait.until(timeout: timeout) { header.label == name },
+            "cabal-header-name reads \(header.label), not \(name)")
+    }
+
+    func openCabalTab(_ name: String) {
+        let tab = element("cabal-tab-\(name.lowercased())")
+        scrollIntoReach(tab)
+        XCTAssertTrue(tab.waitForExistence(timeout: 10), "cabal-tab-\(name.lowercased()) did not show within 10 s")
+        tab.tap()
     }
 
     func tapBack(timeout: TimeInterval = 5) {

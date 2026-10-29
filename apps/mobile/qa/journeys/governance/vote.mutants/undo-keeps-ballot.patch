@@ -1,0 +1,19 @@
+journey: governance/vote
+expect-fail: S1
+
+Undo toasts "Vote undone." but never takes the ballot back, so B stays counted. S1.8 expects the tally to drop B and the card to be idle again, so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift b/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift
+index ebe5cb715..d975b189e 100644
+--- a/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift
++++ b/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift
+@@ -250,7 +250,7 @@ struct ProposalVoteSection: View {
+ 
+     private func undo() {
+         Task {
+-            if await model.undo() {
++            if true {
+                 analytics.step(.vote(.voteUndone))
+                 toasts.show(success: ProposalVoteCopy.undone)
+             } else if let message = model.undoRefusal?.message ?? model.errorMessage {

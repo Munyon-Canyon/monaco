@@ -1,0 +1,19 @@
+journey: home/activity
+expect-fail: S1
+
+Clear sends the wrong item key, so the server refuses and the cleared row comes back. S1.3 expects the count to drop and stay dropped, so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoNotify/Flow34CatchUpModel.swift b/packages/mobile-core/Sources/MonacoNotify/Flow34CatchUpModel.swift
+index 9376150fd..594f3fb26 100644
+--- a/packages/mobile-core/Sources/MonacoNotify/Flow34CatchUpModel.swift
++++ b/packages/mobile-core/Sources/MonacoNotify/Flow34CatchUpModel.swift
+@@ -147,7 +147,7 @@ public final class CatchUpModel {
+         var succeeded = true
+         do {
+             _ = try await api.submit(clearSubmission, payload: key, operation: "clearCatchUpItem") { client, idem in
+-                try await client.clearCatchUpItem(path: .init(key: key), headers: .init(idempotencyKey: idem))
++                try await client.clearCatchUpItem(path: .init(key: key + "x"), headers: .init(idempotencyKey: idem))
+                     .noContent
+             }
+         } catch {
