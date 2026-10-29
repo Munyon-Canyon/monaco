@@ -352,7 +352,7 @@ private struct MonacoToastModifier: ViewModifier {
 
     /// Counts down in slices so a toast is not dismissed out from under a dragging thumb, and never
     /// past `MonacoToastTiming.maximumHold` beyond its dwell even if the drag never reports an end.
-    /// A toast with an action does not count down while VoiceOver focus is on it.
+    /// No toast counts down while VoiceOver focus is on it.
     private func dismiss(_ current: MonacoToast, after dwell: TimeInterval) async {
         let slice: TimeInterval = 0.1
         var countdown = MonacoToastCountdown(dwell: dwell)
@@ -363,7 +363,7 @@ private struct MonacoToastModifier: ViewModifier {
                 return
             }
             refreshAction(of: current)
-            if voiceOverEnabled, current.action != nil, bannerFocused { continue }
+            if voiceOverEnabled, bannerFocused { continue }
             countdown.tick(slice: slice, isHeld: isDragging)
         }
         if toast?.id == current.id {
