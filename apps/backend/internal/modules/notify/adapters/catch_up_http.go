@@ -7,7 +7,9 @@ import (
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/notify/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify/domain"
+	baseapi "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/notifyapi"
 )
 
@@ -46,6 +48,45 @@ func (h HTTP) GetMyCatchUpCount(
 		return nil, err
 	}
 	return api.GetMyCatchUpCount200JSONResponse{Count: count}, nil
+}
+
+func (h HTTP) ReadCatchUpItem(
+	ctx context.Context, req api.ReadCatchUpItemRequestObject,
+) (api.ReadCatchUpItemResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.CatchUpWrites.Read(ctx, app.ReadItem{User: user, Key: req.Key}); err != nil {
+		return nil, err
+	}
+	return api.ReadCatchUpItem204Response{}, nil
+}
+
+func (h HTTP) ClearCatchUpItem(
+	ctx context.Context, req api.ClearCatchUpItemRequestObject,
+) (api.ClearCatchUpItemResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.CatchUpWrites.Clear(ctx, app.ClearItem{User: user, Key: req.Key}); err != nil {
+		return nil, err
+	}
+	return api.ClearCatchUpItem204Response{}, nil
+}
+
+func (h HTTP) KeepCatchUpItem(
+	ctx context.Context, req api.KeepCatchUpItemRequestObject,
+) (api.KeepCatchUpItemResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.CatchUpWrites.Keep(ctx, app.KeepItem{User: user, Key: req.Key}); err != nil {
+		return nil, err
+	}
+	return api.KeepCatchUpItem204Response{}, nil
 }
 
 func wireCabals(in []domain.CatchUpCabal) []api.CatchUpCabal {
@@ -145,6 +186,7 @@ func wireComment(c domain.CatchUpComment) api.CatchUpComment {
 		FeedItemId: uid(c.FeedItemID), CommentId: uid(c.CommentID), ParentCommentId: uidPtr(c.ParentCommentID),
 		RootCommentId: uid(c.RootCommentID), ProposalId: uidPtr(c.ProposalID), CabalId: uidPtr(c.CabalID),
 		Author: wirePerson(c.Author), Body: c.Body, CreatedAt: c.CreatedAt,
+		Reactions: wireReactions(c.Reactions), ReactionCount: c.ReactionCount,
 	}
 }
 
@@ -166,4 +208,12 @@ func present(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+func wireReactions(in []domain.CatchUpReaction) []baseapi.Reaction {
+	out := make([]baseapi.Reaction, len(in))
+	for i, r := range in {
+		out[i] = baseapi.Reaction{Emoji: r.Emoji, Count: r.Count, Mine: r.Mine}
+	}
+	return out
 }

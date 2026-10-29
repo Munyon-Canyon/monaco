@@ -198,6 +198,16 @@ type CatchUpComment struct {
 	// ProposalId Examples: null
 	ProposalId *openapi_types.UUID `json:"proposal_id"`
 
+	// ReactionCount The number of reactions on the comment, over every emoji.
+	//
+	// Examples: 1
+	ReactionCount int32 `json:"reaction_count"`
+
+	// Reactions The reactions on the comment, most used first, as the comment's thread draws them.
+	//
+	// Examples: [{"count":1,"emoji":"❤️","mine":false}]
+	Reactions []externalRef0.Reaction `json:"reactions"`
+
 	// RootCommentId Examples: 01890a5d-ac96-774b-bcce-b302099a8061
 	RootCommentId openapi_types.UUID `json:"root_comment_id"`
 }
@@ -435,6 +445,9 @@ type NotificationPreferences struct {
 	RepliesAndMentions bool `json:"replies_and_mentions"`
 }
 
+// CatchUpItemKey Examples: comment:01890a5d-ac96-774b-bcce-b302099a8061
+type CatchUpItemKey = string
+
 // PostDeviceParams defines parameters for PostDevice.
 type PostDeviceParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -451,6 +464,24 @@ type DeleteDeviceParams struct {
 type GetMyCatchUpParams struct {
 	// Since Start of the caller's local day, which bounds the Cleared section. Defaults to 24 hours ago.
 	Since *time.Time `form:"since,omitempty" json:"since,omitempty"`
+}
+
+// ClearCatchUpItemParams defines parameters for ClearCatchUpItem.
+type ClearCatchUpItemParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// KeepCatchUpItemParams defines parameters for KeepCatchUpItem.
+type KeepCatchUpItemParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// ReadCatchUpItemParams defines parameters for ReadCatchUpItem.
+type ReadCatchUpItemParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
 // PutNotificationPreferencesParams defines parameters for PutNotificationPreferences.
@@ -479,6 +510,15 @@ type ServerInterface interface {
 	// GetMyCatchUpCount Read the number of active Catch up items.
 	// (GET /v1/me/catch-up/count)
 	GetMyCatchUpCount(w http.ResponseWriter, r *http.Request)
+	// ClearCatchUpItem Clear one Catch up item.
+	// (POST /v1/me/catch-up/items/{key}/clear)
+	ClearCatchUpItem(w http.ResponseWriter, r *http.Request, key CatchUpItemKey, params ClearCatchUpItemParams)
+	// KeepCatchUpItem Keep one Catch up item.
+	// (POST /v1/me/catch-up/items/{key}/keep)
+	KeepCatchUpItem(w http.ResponseWriter, r *http.Request, key CatchUpItemKey, params KeepCatchUpItemParams)
+	// ReadCatchUpItem Mark one Catch up item read.
+	// (POST /v1/me/catch-up/items/{key}/read)
+	ReadCatchUpItem(w http.ResponseWriter, r *http.Request, key CatchUpItemKey, params ReadCatchUpItemParams)
 	// GetNotificationPreferences Read the caller's notification preferences.
 	// (GET /v1/me/notification-preferences)
 	GetNotificationPreferences(w http.ResponseWriter, r *http.Request)
@@ -633,6 +673,168 @@ func (siw *ServerInterfaceWrapper) GetMyCatchUpCount(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMyCatchUpCount(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ClearCatchUpItem operation middleware
+func (siw *ServerInterfaceWrapper) ClearCatchUpItem(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "key" -------------
+	var key CatchUpItemKey
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", r.PathValue("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "key", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ClearCatchUpItemParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ClearCatchUpItem(w, r, key, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// KeepCatchUpItem operation middleware
+func (siw *ServerInterfaceWrapper) KeepCatchUpItem(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "key" -------------
+	var key CatchUpItemKey
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", r.PathValue("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "key", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params KeepCatchUpItemParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.KeepCatchUpItem(w, r, key, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReadCatchUpItem operation middleware
+func (siw *ServerInterfaceWrapper) ReadCatchUpItem(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "key" -------------
+	var key CatchUpItemKey
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", r.PathValue("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "key", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ReadCatchUpItemParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReadCatchUpItem(w, r, key, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -825,6 +1027,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/devices/{token}", wrapper.DeleteDevice)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/catch-up", wrapper.GetMyCatchUp)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/catch-up/count", wrapper.GetMyCatchUpCount)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/catch-up/items/{key}/clear", wrapper.ClearCatchUpItem)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/catch-up/items/{key}/keep", wrapper.KeepCatchUpItem)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/catch-up/items/{key}/read", wrapper.ReadCatchUpItem)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/notification-preferences", wrapper.GetNotificationPreferences)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/me/notification-preferences", wrapper.PutNotificationPreferences)
 
@@ -976,6 +1181,108 @@ func (response GetMyCatchUpCountdefaultApplicationProblemPlusJSONResponse) Visit
 	return err
 }
 
+type ClearCatchUpItemRequestObject struct {
+	Key    CatchUpItemKey `json:"key"`
+	Params ClearCatchUpItemParams
+}
+
+type ClearCatchUpItemResponseObject interface {
+	VisitClearCatchUpItemResponse(w http.ResponseWriter) error
+}
+
+type ClearCatchUpItem204Response struct {
+}
+
+func (response ClearCatchUpItem204Response) VisitClearCatchUpItemResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ClearCatchUpItemdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response ClearCatchUpItemdefaultApplicationProblemPlusJSONResponse) VisitClearCatchUpItemResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type KeepCatchUpItemRequestObject struct {
+	Key    CatchUpItemKey `json:"key"`
+	Params KeepCatchUpItemParams
+}
+
+type KeepCatchUpItemResponseObject interface {
+	VisitKeepCatchUpItemResponse(w http.ResponseWriter) error
+}
+
+type KeepCatchUpItem204Response struct {
+}
+
+func (response KeepCatchUpItem204Response) VisitKeepCatchUpItemResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type KeepCatchUpItemdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response KeepCatchUpItemdefaultApplicationProblemPlusJSONResponse) VisitKeepCatchUpItemResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReadCatchUpItemRequestObject struct {
+	Key    CatchUpItemKey `json:"key"`
+	Params ReadCatchUpItemParams
+}
+
+type ReadCatchUpItemResponseObject interface {
+	VisitReadCatchUpItemResponse(w http.ResponseWriter) error
+}
+
+type ReadCatchUpItem204Response struct {
+}
+
+func (response ReadCatchUpItem204Response) VisitReadCatchUpItemResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ReadCatchUpItemdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response ReadCatchUpItemdefaultApplicationProblemPlusJSONResponse) VisitReadCatchUpItemResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetNotificationPreferencesRequestObject struct {
 }
 
@@ -1068,6 +1375,15 @@ type StrictServerInterface interface {
 	// GetMyCatchUpCount Read the number of active Catch up items.
 	// (GET /v1/me/catch-up/count)
 	GetMyCatchUpCount(ctx context.Context, request GetMyCatchUpCountRequestObject) (GetMyCatchUpCountResponseObject, error)
+	// ClearCatchUpItem Clear one Catch up item.
+	// (POST /v1/me/catch-up/items/{key}/clear)
+	ClearCatchUpItem(ctx context.Context, request ClearCatchUpItemRequestObject) (ClearCatchUpItemResponseObject, error)
+	// KeepCatchUpItem Keep one Catch up item.
+	// (POST /v1/me/catch-up/items/{key}/keep)
+	KeepCatchUpItem(ctx context.Context, request KeepCatchUpItemRequestObject) (KeepCatchUpItemResponseObject, error)
+	// ReadCatchUpItem Mark one Catch up item read.
+	// (POST /v1/me/catch-up/items/{key}/read)
+	ReadCatchUpItem(ctx context.Context, request ReadCatchUpItemRequestObject) (ReadCatchUpItemResponseObject, error)
 	// GetNotificationPreferences Read the caller's notification preferences.
 	// (GET /v1/me/notification-preferences)
 	GetNotificationPreferences(ctx context.Context, request GetNotificationPreferencesRequestObject) (GetNotificationPreferencesResponseObject, error)
@@ -1218,6 +1534,87 @@ func (sh *strictHandler) GetMyCatchUpCount(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMyCatchUpCountResponseObject); ok {
 		if err := validResponse.VisitGetMyCatchUpCountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ClearCatchUpItem operation middleware
+func (sh *strictHandler) ClearCatchUpItem(w http.ResponseWriter, r *http.Request, key CatchUpItemKey, params ClearCatchUpItemParams) {
+	var request ClearCatchUpItemRequestObject
+
+	request.Key = key
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ClearCatchUpItem(ctx, request.(ClearCatchUpItemRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ClearCatchUpItem")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ClearCatchUpItemResponseObject); ok {
+		if err := validResponse.VisitClearCatchUpItemResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// KeepCatchUpItem operation middleware
+func (sh *strictHandler) KeepCatchUpItem(w http.ResponseWriter, r *http.Request, key CatchUpItemKey, params KeepCatchUpItemParams) {
+	var request KeepCatchUpItemRequestObject
+
+	request.Key = key
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.KeepCatchUpItem(ctx, request.(KeepCatchUpItemRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "KeepCatchUpItem")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(KeepCatchUpItemResponseObject); ok {
+		if err := validResponse.VisitKeepCatchUpItemResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReadCatchUpItem operation middleware
+func (sh *strictHandler) ReadCatchUpItem(w http.ResponseWriter, r *http.Request, key CatchUpItemKey, params ReadCatchUpItemParams) {
+	var request ReadCatchUpItemRequestObject
+
+	request.Key = key
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReadCatchUpItem(ctx, request.(ReadCatchUpItemRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReadCatchUpItem")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReadCatchUpItemResponseObject); ok {
+		if err := validResponse.VisitReadCatchUpItemResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

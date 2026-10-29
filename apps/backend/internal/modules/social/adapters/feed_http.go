@@ -13,6 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
+	baseapi "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
@@ -276,10 +277,10 @@ func wireCaller(caller *app.FeedCaller, who people) *api.FeedCaller {
 	return &out
 }
 
-func wireReactions(reactions []app.Reaction) []api.Reaction {
-	out := make([]api.Reaction, len(reactions))
+func wireReactions(reactions []app.Reaction) []baseapi.Reaction {
+	out := make([]baseapi.Reaction, len(reactions))
 	for i, r := range reactions {
-		out[i] = api.Reaction{Emoji: r.Emoji.String(), Count: r.Count, Mine: r.Mine}
+		out[i] = baseapi.Reaction{Emoji: r.Emoji.String(), Count: r.Count, Mine: r.Mine}
 	}
 	return out
 }

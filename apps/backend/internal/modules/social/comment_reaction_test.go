@@ -15,6 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	baseapi "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -255,7 +256,7 @@ func TestGetFeedComments_carriesReactionsForTopsAndAnswersWithMine(t *testing.T)
 		}
 	}
 	byID := f.commentsByID(t, kai, item)
-	wantTop := []api.Reaction{{Emoji: "😂", Count: 2, Mine: true}, {Emoji: "❤️", Count: 1, Mine: true}}
+	wantTop := []baseapi.Reaction{{Emoji: "😂", Count: 2, Mine: true}, {Emoji: "❤️", Count: 1, Mine: true}}
 	if got := byID[top.Id]; !reflect.DeepEqual(got.Reactions, wantTop) || got.ReactionCount != 3 {
 		t.Fatalf("top = %+v %d, want %+v and 3", got.Reactions, got.ReactionCount, wantTop)
 	}

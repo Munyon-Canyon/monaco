@@ -735,6 +735,24 @@ type Problem struct {
 // ProblemType Always about:blank. The code field carries the problem type.
 type ProblemType string
 
+// Reaction One emoji on a feed item, how many users reacted with it and whether the caller did.
+type Reaction struct {
+	// Count The number of users who reacted with this emoji.
+	//
+	// Examples: 5
+	Count int32 `json:"count"`
+
+	// Emoji One emoji, such as 🎉 or 👍🏽.
+	//
+	// Examples: 🎉
+	Emoji string `json:"emoji"`
+
+	// Mine True when the caller reacted with this emoji.
+	//
+	// Examples: true
+	Mine bool `json:"mine"`
+}
+
 // ReasonBody The reason an administrator gives for an action.
 //
 // Examples: {"reason":"spam"}

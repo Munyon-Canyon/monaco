@@ -228,7 +228,7 @@ The bell on Home opens Catch up. It is a read over the `notifications` rows plus
 
 A kind sets `ItemKey` through the `ItemKeyed` interface beside `Kind`; `Notify` copies it to `notifications.item_key`, and a row without a key is never listed. A reply to a post that is not a proposal carries `item_kind`, `item_label` and `item_actor_name` in its `data`, which Catch up returns as `post`.
 
-**State.** `catch_up_state (user_id, item_key, read_at, cleared_at, cleared_reason, kept_at, snapshot, updated_at)`. The read side only reads it. #6513 writes it.
+**State.** `catch_up_state (user_id, item_key, read_at, cleared_at, cleared_reason, kept_at, snapshot, updated_at)`. The commands and the `notify_catch_up` consumer below write it.
 
 - An item is **active** when it has no `cleared_at`, or when a source row newer than `cleared_at` arrived. A result for a proposal you voted on earlier reopens it as unread.
 - The exception is a result for a proposal **your** ballot decided (`proposals.decided_by` is the viewer). It does not reopen the item, since the toast already told you.
@@ -240,7 +240,29 @@ A kind sets `ItemKey` through the `ItemKeyed` interface beside `Kind`; `Notify` 
 
 **Cross-module reads**, one batched call each per request, whatever the item count: `governance.PendingVotes`, `governance.ProposalCards`, `social.CommentPreviews` (each comment and the one it answers), `social.ReplyCounts`, `cabal.PendingInvites`, `cabal.CabalsOf` and `Cabals`, `treasury.TopHoldings` with `market` `ByMints` for the invite's top holding, and `identity.UsersByID` for chat authors.
 
-**Hint.** `Pusher.write` publishes `user.<id>.catch_up_changed` after commit for every recipient of a row with an `item_key`, muted rows included. #6513 publishes it for its own writes.
+**Hint.** `Pusher.write` publishes `user.<id>.catch_up_changed` after commit for every recipient of a row with an `item_key`, muted rows included. Every write below publishes it too, after commit.
+
+**Commands.** `POST /v1/me/catch-up/items/{key}/read`, `/clear` and `/keep` (`readCatchUpItem`, `clearCatchUpItem`, `keepCatchUpItem`) each need an `Idempotency-Key`, answer 204 and run in one `uow.Do`. A key that is not an active item of the caller is `not_found`.
+
+- **Read** sets `read_at`. **Keep** sets `kept_at` and `read_at` and leaves the item active. **Clear** sets `cleared_at` with the reason `cleared` and stores the snapshot.
+- Every write is an upsert guarded by `catch_up_state.updated_at <= excluded.updated_at`, so a redelivered or reordered event never moves state backwards.
+
+**Snapshot rule.** A cleared item must still draw after its source is gone: a cast ballot leaves `PendingVotes`, and an accepted invite leaves `PendingInvites`. So each clear stores the item as it was when it was cleared, rendered through the same assembly as the read, and Cleared today draws from that snapshot alone.
+
+**Automatic clears.** The durable `notify_catch_up` clears an item when the viewer acts elsewhere. Each handler records its delivery in `event_deliveries` in the same transaction as its write.
+
+| Event | Effect | Reason |
+| --- | --- | --- |
+| `vote.cast` | clears `proposal:<id>` for the voter; the snapshot is the proposal card with the voter's choice | `voted` |
+| `vote.retracted` | reopens `proposal:<id>` when it was cleared as `voted`, so an undone ballot is waiting again; a hand-cleared item stays cleared | none |
+| `comment.created` | clears the author's `comment:` items whose notification `feed_item_id` is the event's `feed_object_id`; the snapshot is the item as rendered; `chat:` items are only cleared by hand | `replied` |
+| `cabal.access_decided`, `direction = invite`, `decision = accepted` | clears `invite:<request id>` for the invitee; the snapshot comes from `cabal` `InvitesByID` and `treasury.TopHoldings` | `joined` |
+| `proposal.passed`, `failed`, `expired`, `withdrawn`, `voided` | no state; publishes the hint to every member of the cabal | none |
+| `cabal.access_requested`, `direction = invite` | no state; publishes the hint to the invitee | none |
+
+A `vote.retracted` writes a row even when nothing was cleared, stamped with the retraction time. A `vote.cast` delivered after it carries an older time, so the guard skips it and the proposal stays waiting.
+
+**Reaction chips.** `social.CommentPreviews` fills each preview's `reactions` and `reaction_count` from the same comment reaction summaries as the thread, in one extra read for the whole batch. Catch up returns them on `comment` as `reactions` (the `Reaction` schema of the feed) and `reaction_count`; an emoji with no count is absent.
 
 **Retention.** The rows Catch up reads are kept for 30 days. A prune of `notifications` (#6200) must keep `comment_reply`, `post_reply`, `comment_mention`, `chat_mention`, `chat_thread_reply` and `proposal_result` rows that long.
 

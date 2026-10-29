@@ -224,3 +224,46 @@ func TestCommentPreviews_answersNothingForNoComments(t *testing.T) {
 		t.Fatalf("previews = %+v, want none", got)
 	}
 }
+
+func TestCommentPreviews_carriesTheReactionChipsOfEachCommentFromOneRead(t *testing.T) {
+	t.Parallel()
+	f := newCommentReactFixture(t)
+	item := f.item(t, feed.KindTrade)
+	kai, lee := f.cabal.Members[0].ID, f.cabal.Members[1].ID
+	liked := f.say(t, item, kai, "liked", nil).Id
+	bare := f.say(t, item, kai, "bare", nil).Id
+	for _, who := range []ids.UserID{kai, lee} {
+		if _, err := f.add(t, liked, who, "❤️"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := f.add(t, liked, lee, "🔥"); err != nil {
+		t.Fatal(err)
+	}
+
+	got := f.previews(t, kai, liked, bare)
+
+	wantChips := []port.Reaction{{Emoji: "❤️", Count: 2, Mine: true}, {Emoji: "🔥", Count: 1}}
+	if !reflect.DeepEqual(got[liked].Reactions, wantChips) || got[liked].ReactionCount != 3 ||
+		len(got[bare].Reactions) != 0 || got[bare].ReactionCount != 0 {
+		t.Fatalf("liked = %+v, bare = %+v, want chips %+v and none", got[liked], got[bare], wantChips)
+	}
+}
+
+func TestCommentPreviews_failsWhenTheReactionsCannotBeRead(t *testing.T) {
+	t.Parallel()
+	f := newCommentReactFixture(t)
+	item := f.item(t, feed.KindTrade)
+	id := f.say(t, item, f.cabal.Members[0].ID, "hello", nil).Id
+	if _, err := f.pool.Exec(t.Context(), `ALTER TABLE comment_reactions RENAME TO reactions_gone`); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := app.NewCommentPreviews(f.pool, f.users).
+		CommentPreviews(t.Context(), f.cabal.Members[0].ID, []uuid.UUID{id})
+
+	wantCode(t, err, errs.CodeInternal)
+	if got != nil {
+		t.Fatalf("previews = %+v, want none", got)
+	}
+}

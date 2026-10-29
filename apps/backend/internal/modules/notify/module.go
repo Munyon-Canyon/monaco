@@ -92,6 +92,7 @@ func (m *Module) catchUp() *app.ReadCatchUp {
 		Comments:   socials.CommentPreviews(),
 		Replies:    socials,
 		Invites:    cabal.New(m.deps).Invites(),
+		InviteByID: cabal.New(m.deps).Invites(),
 		Cabals:     cabals,
 		Holdings:   treasury.New(m.deps).TopHoldings(),
 		Assets:     markets.Catalog(),
@@ -107,13 +108,14 @@ func (m *Module) CatchUp() *app.ReadCatchUp { return m.catchUp() }
 
 func (m *Module) Mount(r api.Mount) {
 	notifyapi.Mount(adapters.HTTP{
-		CatchUp:    m.catchUp(),
-		Clock:      m.deps.Clock,
-		Register:   app.NewRegisterDeviceHandler(m.deps.UoW, m.users, m.deps.IDs, m.deps.Clock),
-		Unregister: app.NewUnregisterDeviceHandler(m.deps.UoW),
-		SetPrefs:   app.NewSetNotificationPreferencesHandler(m.deps.UoW, m.users, m.deps.Clock),
-		Reads:      m.deps.Pool,
-		Users:      m.users,
+		CatchUp:       m.catchUp(),
+		CatchUpWrites: app.NewCatchUpWrites(m.deps.UoW, m.catchUp(), m.deps.Bus, m.deps.Clock),
+		Clock:         m.deps.Clock,
+		Register:      app.NewRegisterDeviceHandler(m.deps.UoW, m.users, m.deps.IDs, m.deps.Clock),
+		Unregister:    app.NewUnregisterDeviceHandler(m.deps.UoW),
+		SetPrefs:      app.NewSetNotificationPreferencesHandler(m.deps.UoW, m.users, m.deps.Clock),
+		Reads:         m.deps.Pool,
+		Users:         m.users,
 	}, r)
 }
 
@@ -150,7 +152,10 @@ func (m *Module) Consumers() []bus.Consumer {
 			app.ChatMention{Cabals: m.cabals, Users: m.users},
 			app.ChatThreadReply{Cabals: m.cabals, Users: m.users},
 		),
-	}}}
+	}}, {
+		Durable:  adapters.CatchUpDurable,
+		Handlers: adapters.CatchUpHandlers(app.NewCatchUpClears(m.catchUp(), m.cabals, m.deps.Bus)),
+	}}
 }
 
 func (m *Module) votePorts() app.VotePorts {

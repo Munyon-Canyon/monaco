@@ -221,3 +221,12 @@ components:
           minLength: 1
           maxLength: 500
           examples: [spam]
+    Reaction:
+      type: object
+      description: One emoji on a feed item, how many users reacted with it and whether the caller did.
+      additionalProperties: false
+      required: [emoji, count, mine]
+      properties:
+        emoji: {type: string, minLength: 1, maxLength: 32, description: "One emoji, such as 🎉 or 👍🏽.", examples: ["🎉"]}
+        count: {type: integer, format: int32, minimum: 1, description: "The number of users who reacted with this emoji.", examples: [5]}
+        mine: {type: boolean, description: "True when the caller reacted with this emoji.", examples: [true]}

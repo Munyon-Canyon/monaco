@@ -15,6 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/social"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
+	baseapi "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -73,7 +74,7 @@ func TestPostFeedComment_returnsTheCommentWithItsAuthor(t *testing.T) {
 		Id: top.Id, Author: api.CommentAuthor{
 			Id: kai.UUID(), Handle: ptr("kai"), DisplayName: "Kai", PhotoUrl: ptr("https://cdn.example.com/kai.jpg"),
 		},
-		Body: &body, BodyDisplay: "first", IsMine: true, CreatedAt: f.clock.Now(), Reactions: []api.Reaction{},
+		Body: &body, BodyDisplay: "first", IsMine: true, CreatedAt: f.clock.Now(), Reactions: []baseapi.Reaction{},
 	}
 	if !reflect.DeepEqual(top, want) {
 		t.Fatalf("comment = %+v, want %+v", top, want)

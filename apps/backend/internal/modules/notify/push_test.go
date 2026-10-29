@@ -805,6 +805,9 @@ func TestNotifyCopy(t *testing.T) {
 		}
 	}
 	for _, c := range notify.New(module.Deps{}).Consumers() {
+		if c.Durable != "notify" {
+			continue
+		}
 		for _, h := range c.Handlers {
 			if !covered[h.Type()] {
 				t.Errorf("the notify consumer handles %s, which has no kind in copyCases", h.Type())

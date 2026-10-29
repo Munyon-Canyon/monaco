@@ -46,8 +46,25 @@ func (p CommentPreviews) CommentPreviews(
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeOf(err), op)
 	}
+	found := make([]uuid.UUID, len(rows))
+	for i, row := range rows {
+		found[i] = row.ID
+	}
+	reactions, err := commentReactions(ctx, sqlc.New(p.db), viewer, found)
+	if err != nil {
+		return nil, err
+	}
 	for _, row := range rows {
-		out[row.ID] = previewOf(row, cards)
+		preview := previewOf(row, cards)
+		summary := reactions[row.ID]
+		preview.ReactionCount = summary.Total
+		for _, r := range summary.Reactions {
+			preview.Reactions = append(
+				preview.Reactions,
+				port.Reaction{Emoji: r.Emoji.String(), Count: r.Count, Mine: r.Mine},
+			)
+		}
+		out[row.ID] = preview
 	}
 	return out, nil
 }

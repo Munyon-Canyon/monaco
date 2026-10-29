@@ -20,6 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/sqlc"
+	baseapi "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
@@ -39,7 +40,7 @@ func (f likeFixture) react(t *testing.T, item uuid.UUID, user ids.UserID, emoji 
 	}
 }
 
-func wantReactions(t *testing.T, label string, got api.FeedItem, want []api.Reaction, total int32) {
+func wantReactions(t *testing.T, label string, got api.FeedItem, want []baseapi.Reaction, total int32) {
 	t.Helper()
 	if !slices.Equal(got.Reactions, want) || got.ReactionCount != total {
 		t.Fatalf("%s: reactions %v, reaction_count %d, want %v and %d",
@@ -62,7 +63,7 @@ func TestFeedReads_orderReactionsByCountThenFirstReactionAndMarkTheViewers(t *te
 		viewer ids.UserID
 		mine   []bool
 	}{{a, []bool{true, true, false, true}}, {b, []bool{true, false, true, false}}} {
-		want := []api.Reaction{
+		want := []baseapi.Reaction{
 			{Emoji: "🎉", Count: 3, Mine: tt.mine[0]},
 			{Emoji: "🙌", Count: 2, Mine: tt.mine[1]},
 			{Emoji: "👀", Count: 2, Mine: tt.mine[2]},
@@ -73,7 +74,7 @@ func TestFeedReads_orderReactionsByCountThenFirstReactionAndMarkTheViewers(t *te
 		wantReactions(t, "top", f.listed(t, item, tt.viewer, api.Top), want, 8)
 	}
 	bare := f.item(t, feed.KindTrade)
-	wantReactions(t, "no reactions", f.detail(t, bare, a), []api.Reaction{}, 0)
+	wantReactions(t, "no reactions", f.detail(t, bare, a), []baseapi.Reaction{}, 0)
 }
 
 func TestFeedReads_returnTheTop20EmojiAndCountEveryReaction(t *testing.T) {
@@ -81,17 +82,17 @@ func TestFeedReads_returnTheTop20EmojiAndCountEveryReaction(t *testing.T) {
 	f := newLikeFixture(t)
 	item := f.item(t, feed.KindTrade)
 	a, b := f.cabal.Members[0].ID, f.cabal.Members[1].ID
-	var want []api.Reaction
+	var want []baseapi.Reaction
 	for i := range rune(25) {
 		emoji := string(0x1F600 + i)
 		f.react(t, item, a, emoji, time.Duration(i)*time.Second)
 		if i < 20 {
-			want = append(want, api.Reaction{Emoji: emoji, Count: 1, Mine: true})
+			want = append(want, baseapi.Reaction{Emoji: emoji, Count: 1, Mine: true})
 		}
 	}
 	last := string(rune(0x1F600 + 24))
 	f.react(t, item, b, last, time.Minute)
-	want = append([]api.Reaction{{Emoji: last, Count: 2, Mine: true}}, want[:19]...)
+	want = append([]baseapi.Reaction{{Emoji: last, Count: 2, Mine: true}}, want[:19]...)
 	wantReactions(t, "get", f.detail(t, item, a), want, 26)
 	wantReactions(t, "new", f.listed(t, item, a, api.New), want, 26)
 }
@@ -111,7 +112,7 @@ func TestFeedReads_showMigratedLikesAsRedHearts(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := f.detail(t, item, a)
-	wantReactions(t, "copied", got, []api.Reaction{{Emoji: redHeart, Count: 2, Mine: true}}, 2)
+	wantReactions(t, "copied", got, []baseapi.Reaction{{Emoji: redHeart, Count: 2, Mine: true}}, 2)
 	if got.LikeCount != 2 || !got.LikedByMe {
 		t.Fatalf("like_count %d, liked_by_me %v, want 2 and true", got.LikeCount, got.LikedByMe)
 	}
@@ -125,7 +126,7 @@ func TestFeedReads_showMigratedLikesAsRedHearts(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantReactions(t, "liked through the like route", f.detail(t, item, f.outsider),
-		[]api.Reaction{{Emoji: redHeart, Count: 2, Mine: true}}, 2)
+		[]baseapi.Reaction{{Emoji: redHeart, Count: 2, Mine: true}}, 2)
 }
 
 func likesCopy(t *testing.T) string {

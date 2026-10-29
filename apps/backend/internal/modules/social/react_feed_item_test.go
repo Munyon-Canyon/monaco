@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	baseapi "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
@@ -275,7 +276,7 @@ func TestPutFeedReaction_throughTheRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := api.ReactionSummary{Reactions: []api.Reaction{{Emoji: "🎉", Count: 1, Mine: true}}, Total: 1}
+	want := api.ReactionSummary{Reactions: []baseapi.Reaction{{Emoji: "🎉", Count: 1, Mine: true}}, Total: 1}
 	if got := put.(api.PutFeedReaction200JSONResponse); got.Total != want.Total || len(got.Reactions) != 1 ||
 		got.Reactions[0] != want.Reactions[0] {
 		t.Fatalf("put = %+v, want %+v", got, want)

@@ -15,6 +15,12 @@ type CommentAuthor struct {
 	PhotoURL string
 }
 
+type Reaction struct {
+	Emoji string
+	Count int32
+	Mine  bool
+}
+
 type CommentPreview struct {
 	FeedItemID      uuid.UUID
 	CommentID       uuid.UUID
@@ -26,6 +32,8 @@ type CommentPreview struct {
 	Author          CommentAuthor
 	Body            string
 	CreatedAt       time.Time
+	Reactions       []Reaction
+	ReactionCount   int32
 }
 
 type CommentPreviews interface {
