@@ -38,7 +38,6 @@ struct ProfileTabsContent: View {
                 identifier: { $0 == .cabals ? "profile-tab-cabals" : "profile-tab-activity" },
                 label: { $0 == .cabals ? "Cabals" : "Activity" }
             )
-            .accessibilityIdentifier("profile-tabs")
             switch selection {
             case .cabals: cabalsBody
             case .activity: activityBody
