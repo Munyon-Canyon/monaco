@@ -219,6 +219,10 @@ final class PushRouteTests: XCTestCase {
             "sender_kind", "sender_id", "sender_name", "sender_image_url",
             "group_id", "group_name", "group_image_url",
         ]
+        let replyKeys: Set<String> = [
+            "kind", "feed_item_id", "cabal_id", "cabal_name", "comment_id", "root_comment_id",
+            "item_kind", "item_label", "item_actor_name", "quoted_excerpt",
+        ]
         let rows: [(file: String, keys: Set<String>, screen: String)] = [
             ("proposal_result_filled", ["kind", "cabal_id", "proposal_id", "outcome"], "proposal"),
             ("proposal_result_failed", ["kind", "cabal_id", "proposal_id", "outcome"], "proposal"),
@@ -236,7 +240,8 @@ final class PushRouteTests: XCTestCase {
             ("chat_mention", ["kind", "cabal_id", "message_id"], "chat"),
             ("chat_thread_reply", ["kind", "cabal_id", "message_id"], "chat"),
             ("comment_reply_feed", ["kind", "feed_item_id"], "feedItem"),
-            ("comment_reply_proposal", ["kind", "feed_item_id", "proposal_id", "cabal_id"], "proposal"),
+            ("comment_reply_proposal", replyKeys.union(senderKeys).union(["proposal_id"]), "proposal"),
+            ("post_reply", replyKeys.union(senderKeys.filter { $0.hasPrefix("sender_") }), "feedItem"),
             ("malformed", ["kind", "cabal_id", "txn_id"], "home"),
         ]
         var directory = URL(fileURLWithPath: #filePath)

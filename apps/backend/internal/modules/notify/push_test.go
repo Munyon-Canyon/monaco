@@ -711,7 +711,12 @@ func copyCases(
 			}}),
 		},
 		"comment_reply": {
-			events.TypeCommentCreated, renderer[events.CommentCreated](app.CommentReply{Users: users}),
+			events.TypeCommentCreated,
+			renderer[events.CommentCreated](app.CommentReply{Users: users, Cabals: cabals, Blocks: blocks{}}),
+		},
+		"post_reply": {
+			events.TypeCommentCreated,
+			renderer[events.CommentCreated](app.PostReply{Users: users, Cabals: cabals, Blocks: blocks{}}),
 		},
 		"chat_mention": {
 			events.TypeChatMessagePosted,
@@ -889,6 +894,7 @@ func withRenderedCabals(t *testing.T, seeds []fakes.CabalSeed) []fakes.CabalSeed
 		{"", events.TypeTradeFailed},
 		{"", events.TypeTradeBlocked},
 		{"", events.TypeProposalCloseReminderDue},
+		{"", events.TypeCommentCreated},
 	} {
 		id := ids.CabalIDFrom(reflectCabalID(goldenEventIn(t, c.dir, c.typ)))
 		if !seen[id] {
@@ -900,7 +906,8 @@ func withRenderedCabals(t *testing.T, seeds []fakes.CabalSeed) []fakes.CabalSeed
 }
 
 func reflectCabalID(e events.Event) uuid.UUID {
-	return reflect.ValueOf(e).FieldByName("CabalID").Interface().(uuid.UUID)
+	field := reflect.Indirect(reflect.ValueOf(e).FieldByName("CabalID"))
+	return field.Interface().(uuid.UUID)
 }
 
 type keyedCrowd struct {

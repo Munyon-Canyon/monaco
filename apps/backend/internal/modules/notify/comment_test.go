@@ -36,16 +36,19 @@ func (r *pushRig) emitReply(t *testing.T, e events.CommentCreated) bus.Delivery 
 
 func (r *pushRig) handleReply(t *testing.T, d bus.Delivery, e events.CommentCreated) error {
 	t.Helper()
-	return handleKinds(t, r, r.sender, d, e, app.CommentReply{Users: r.users})
+	return handleKinds(t, r, r.sender, d, e, app.CommentReply{Users: r.users, Cabals: cabalsOf(e), Blocks: blocks{}})
 }
 
-func replyPush(to ids.UserID, e events.CommentCreated, title string) apns.Push {
-	return apns.Push{
-		UserID: to, Token: token('a'), Environment: apns.Sandbox, CollapseID: "comment-" + e.ReplyToRootID.String(),
-		Title: title, Body: e.Excerpt, Data: map[string]string{
-			"kind": "comment_reply", "feed_item_id": e.FeedObjectID.String(),
-			"proposal_id": e.ProposalID.String(), "cabal_id": e.CabalID.String(),
-		},
+func wantReplyPush(t *testing.T, sent []apns.Push, to ids.UserID, e events.CommentCreated, title, body, thread string) {
+	t.Helper()
+	if len(sent) != 1 {
+		t.Fatalf("sent %+v, want exactly one push", sent)
+	}
+	p := sent[0]
+	if p.UserID != to || p.Title != title || p.Body != body || p.ThreadID != thread ||
+		p.CollapseID != "comment-"+e.ReplyToRootID.String() || p.Data["kind"] != "comment_reply" ||
+		p.Data["comment_id"] != e.CommentID.String() {
+		t.Fatalf("sent %+v, want %s %q %q thread %q", p, to, title, body, thread)
 	}
 }
 
@@ -60,10 +63,8 @@ func TestNotify_CommentReply_ParentAuthor(t *testing.T) {
 
 	wantVerdict(t, r.handleReply(t, d, e), "", errs.VerdictAck)
 
-	want := replyPush(parent, e, "Bea replied to your comment")
-	if sent := r.sender.Sent(); !reflect.DeepEqual(sent, []apns.Push{want}) {
-		t.Fatalf("sent %+v, want only %+v", sent, want)
-	}
+	wantReplyPush(t, r.sender.Sent(), parent, e, "Bea replied to you",
+		"“Buy it before earnings” On Ada's Buy NVDA.", "cabal-"+e.CabalID.String())
 	r.wantStates(t, d, map[ids.UserID]string{parent: "delivered"})
 	r.wantSentEvents(t, d, 1)
 	r.wantRecorded(t, d, 1)
@@ -138,7 +139,7 @@ func TestNotify_CommentReply_Recipients(t *testing.T) {
 		e := golden
 		tc.edit(&e)
 
-		got, err := app.CommentReply{}.Recipients(t.Context(), e)
+		got, err := app.CommentReply{Blocks: blocks{}}.Recipients(t.Context(), e)
 
 		if err != nil || !slices.Equal(got, tc.want) {
 			t.Errorf("%s: Recipients = %v, %v, want %v", name, got, err, tc.want)
@@ -146,82 +147,128 @@ func TestNotify_CommentReply_Recipients(t *testing.T) {
 	}
 }
 
-type commentRender struct {
-	edit  func(*events.CommentCreated)
-	cards map[ids.UserID]identity.UserCard
-	err   error
-	title string
-	body  string
-	data  map[string]string
-}
-
-func commentRenders(golden events.CommentCreated) map[string]commentRender {
-	replier := ids.UserIDFrom(golden.AuthorID)
-	card := func(name string, deleted bool) map[ids.UserID]identity.UserCard {
-		return map[ids.UserID]identity.UserCard{replier: {ID: replier, DisplayName: name, Deleted: deleted}}
-	}
-	onItem := map[string]string{"kind": "comment_reply", "feed_item_id": golden.FeedObjectID.String()}
-	onPost := map[string]string{
-		"kind": "comment_reply", "feed_item_id": golden.FeedObjectID.String(),
-		"item_kind": golden.ItemKind, "item_label": golden.ItemLabel, "item_actor_name": golden.ItemActorName,
-	}
-	onProposal := map[string]string{
-		"kind": "comment_reply", "feed_item_id": golden.FeedObjectID.String(),
-		"proposal_id": golden.ProposalID.String(), "cabal_id": golden.CabalID.String(),
-	}
-	cut, whole := strings.Repeat("é", excerptMax), strings.Repeat("é", excerptMax-1)
-	byBea, bySomeone := "Bea replied to your comment", "Someone replied to your comment"
-	keep := func(*events.CommentCreated) {}
-	return map[string]commentRender{
-		"a comment on a proposal": {
-			edit: keep, cards: card("Bea", false), title: byBea, body: golden.Excerpt, data: onProposal,
-		},
-		"a comment on a feed item": {
-			edit:  func(e *events.CommentCreated) { e.ProposalID = nil },
-			cards: card("Bea", false), title: byBea, body: golden.Excerpt, data: onPost,
-		},
-		"a proposal with no cabal": {
-			edit:  func(e *events.CommentCreated) { e.CabalID = nil },
-			cards: card("Bea", false), title: byBea, body: golden.Excerpt, data: onItem,
-		},
-		"an excerpt of 120 runes": {
-			edit:  func(e *events.CommentCreated) { e.Excerpt = cut },
-			cards: card("Bea", false), title: byBea, body: cut + "…", data: onProposal,
-		},
-		"an excerpt of 119 runes": {
-			edit:  func(e *events.CommentCreated) { e.Excerpt = whole },
-			cards: card("Bea", false), title: byBea, body: whole, data: onProposal,
-		},
-		"a deleted author who kept a name": {
-			edit: keep, cards: card("Bea", true), title: bySomeone, body: golden.Excerpt, data: onProposal,
-		},
-		"an author with no name": {
-			edit: keep, cards: card("", false), title: bySomeone, body: golden.Excerpt, data: onProposal,
-		},
-		"an author the port does not know": {
-			edit: keep, title: bySomeone, body: golden.Excerpt, data: onProposal,
-		},
-		"a users port failure": {edit: keep, err: errs.New(errs.CodeDBUnavailable, "test.users")},
-	}
-}
-
 func TestNotify_CommentReply_Render(t *testing.T) {
 	t.Parallel()
 	golden := goldenEvent(t, events.TypeCommentCreated).(events.CommentCreated)
-	collapse := "comment-" + golden.ReplyToRootID.String()
-	for name, tc := range commentRenders(golden) {
+	replier, itemActor := ids.UserIDFrom(golden.AuthorID), ids.UserIDFrom(*golden.ItemActorID)
+	card := identity.UserCard{ID: replier, DisplayName: "Bea"}
+	cut, whole := strings.Repeat("é", excerptMax), strings.Repeat("é", excerptMax-1)
+	onAda := " On Ada's Buy NVDA."
+	for name, tc := range map[string]struct {
+		edit  func(*events.CommentCreated)
+		to    ids.UserID
+		cards map[ids.UserID]identity.UserCard
+		title string
+		body  string
+		pres  func(events.CommentCreated) app.Presentation
+	}{
+		"a cabal discussion": {
+			edit: func(*events.CommentCreated) {}, cards: map[ids.UserID]identity.UserCard{replier: card},
+			title: "Bea replied to you", body: "“Buy it before earnings”" + onAda, pres: cabalPres,
+		},
+		"a reply on the recipient's own post": {
+			edit: func(*events.CommentCreated) {}, to: itemActor, cards: map[ids.UserID]identity.UserCard{replier: card},
+			title: "Bea replied to you", body: "“Buy it before earnings” On your Buy NVDA.", pres: cabalPres,
+		},
+		"a post outside a cabal's discussion": {
+			edit:  func(e *events.CommentCreated) { e.ReplyRule = "anyone" },
+			cards: map[ids.UserID]identity.UserCard{replier: card},
+			title: "Bea replied to you", body: "“Buy it before earnings”" + onAda, pres: personPres(card),
+		},
+		"a members thread with no cabal": {
+			edit:  func(e *events.CommentCreated) { e.CabalID = nil },
+			cards: map[ids.UserID]identity.UserCard{replier: card},
+			title: "Bea replied to you", body: "“Buy it before earnings”" + onAda, pres: personPres(card),
+		},
+		"an excerpt of 120 runes": {
+			edit:  func(e *events.CommentCreated) { e.Excerpt = cut },
+			cards: map[ids.UserID]identity.UserCard{replier: card},
+			title: "Bea replied to you", body: "“" + cut + "…”" + onAda, pres: cabalPres,
+		},
+		"an excerpt of 119 runes": {
+			edit:  func(e *events.CommentCreated) { e.Excerpt = whole },
+			cards: map[ids.UserID]identity.UserCard{replier: card},
+			title: "Bea replied to you", body: "“" + whole + "”" + onAda, pres: cabalPres,
+		},
+		"a GIF with no text": {
+			edit:  func(e *events.CommentCreated) { e.Excerpt, e.AttachmentKind = "", "gif" },
+			cards: map[ids.UserID]identity.UserCard{replier: card},
+			title: "Bea replied to you", body: "Sent a GIF" + onAda, pres: cabalPres,
+		},
+		"a poll with no text": {
+			edit:  func(e *events.CommentCreated) { e.Excerpt, e.PollQuestion = "", "Buy or hold?" },
+			cards: map[ids.UserID]identity.UserCard{replier: card},
+			title: "Bea replied to you", body: "Asked: Buy or hold?" + onAda, pres: cabalPres,
+		},
+		"nothing to say": {
+			edit:  func(e *events.CommentCreated) { e.Excerpt = "" },
+			cards: map[ids.UserID]identity.UserCard{replier: card},
+			title: "Bea replied to you", body: "On Ada's Buy NVDA.", pres: cabalPres,
+		},
+		"a deleted author who kept a name": {
+			edit: func(*events.CommentCreated) {}, cards: map[ids.UserID]identity.UserCard{replier: {ID: replier, DisplayName: "Bea", Deleted: true}},
+			title: "Someone replied to you", body: "“Buy it before earnings”" + onAda,
+			pres: func(e events.CommentCreated) app.Presentation {
+				return app.ForCabal(cabalView(e), app.PersonSender(identity.UserCard{ID: replier, Deleted: true}))
+			},
+		},
+		"an author the port does not know": {
+			edit:  func(*events.CommentCreated) {},
+			title: "Someone replied to you", body: "“Buy it before earnings”" + onAda,
+			pres: func(e events.CommentCreated) app.Presentation {
+				return app.ForCabal(cabalView(e), app.PersonSender(identity.UserCard{ID: replier}))
+			},
+		},
+	} {
 		e := golden
 		tc.edit(&e)
-		kind := app.CommentReply{Users: users{cards: tc.cards, err: tc.err}}
+		kind := app.CommentReply{Users: users{cards: tc.cards}, Cabals: cabalsOf(e), Blocks: blocks{}}
 
-		msg, err := kind.Render(t.Context(), e, ids.UserID{})
+		msg, err := kind.Render(t.Context(), e, tc.to)
 
-		want := app.Message{}
-		if tc.err == nil {
-			want = app.Message{Title: tc.title, Body: tc.body, Data: tc.data, CollapseID: collapse}
+		want := app.Message{
+			Title: tc.title, Body: tc.body, Data: wantReplyData("comment_reply", e, true),
+			CollapseID: "comment-" + golden.ReplyToRootID.String(), Presentation: tc.pres(e),
 		}
-		if !errors.Is(err, tc.err) || !reflect.DeepEqual(msg, want) {
-			t.Errorf("%s: Render = %+v, %v, want %+v, %v", name, msg, err, want, tc.err)
+		if err != nil || !reflect.DeepEqual(msg, want) {
+			t.Errorf("%s: Render = %+v, %v, want %+v", name, msg, err, want)
+		}
+	}
+}
+
+func TestNotify_CommentReply_RenderFailures(t *testing.T) {
+	t.Parallel()
+	golden := goldenEvent(t, events.TypeCommentCreated).(events.CommentCreated)
+	down := errs.New(errs.CodeDBUnavailable, "test.down")
+	for name, kind := range map[string]app.CommentReply{
+		"a users port failure":  {Users: users{err: down}, Cabals: cabalsOf(golden), Blocks: blocks{}},
+		"a cabals port failure": {Users: users{}, Cabals: downCabals{err: down}, Blocks: blocks{}},
+	} {
+		if _, err := kind.Render(t.Context(), golden, ids.UserID{}); !errors.Is(err, down) {
+			t.Errorf("%s: Render error = %v, want %v", name, err, down)
+		}
+	}
+}
+
+func TestNotify_CommentReply_BlocksDropTheRecipientEitherWay(t *testing.T) {
+	t.Parallel()
+	golden := goldenEvent(t, events.TypeCommentCreated).(events.CommentCreated)
+	answered, replier := ids.UserIDFrom(*golden.ReplyToAuthorID), ids.UserIDFrom(golden.AuthorID)
+	down := errs.New(errs.CodeDBUnavailable, "test.blocks")
+	for name, tc := range map[string]struct {
+		blocks blocks
+		want   []ids.UserID
+		err    error
+	}{
+		"nobody blocked":          {blocks{}, []ids.UserID{answered}, nil},
+		"the recipient blocked":   {blocks{pairs: map[[2]ids.UserID]bool{{answered, replier}: true}}, nil, nil},
+		"the replier blocked":     {blocks{pairs: map[[2]ids.UserID]bool{{replier, answered}: true}}, nil, nil},
+		"the block store is down": {blocks{err: down}, nil, down},
+	} {
+		got, err := app.CommentReply{Blocks: tc.blocks}.Recipients(t.Context(), golden)
+
+		if !errors.Is(err, tc.err) || !slices.Equal(got, tc.want) {
+			t.Errorf("%s: Recipients = %v, %v, want %v, %v", name, got, err, tc.want, tc.err)
 		}
 	}
 }
@@ -234,13 +281,12 @@ func TestNotify_CommentReply_ReachesTheParentAuthorThroughTheModule(t *testing.T
 	r.device(t, replier, token('b'))
 	deps := module.Deps{Pool: r.pool, UoW: r.uow, IDs: r.ids, Clock: r.clock}
 	e := r.reply(t, parent, replier)
+	e.ReplyRule = "anyone"
 
 	d := r.dispatchTo(t, notify.New(deps, notify.WithSender(r.sender)), userActor(replier), e)
 
-	want := replyPush(parent, e, "Bea replied to your comment")
-	if sent := r.sender.Sent(); !reflect.DeepEqual(sent, []apns.Push{want}) {
-		t.Fatalf("sent %+v, want only %+v", sent, want)
-	}
+	wantReplyPush(t, r.sender.Sent(), parent, e, "Bea replied to you",
+		"“Buy it before earnings” On Ada's Buy NVDA.", "user-"+replier.String())
 	r.wantStates(t, d, map[ids.UserID]string{parent: "delivered"})
 	r.wantRecorded(t, d, 1)
 }
@@ -260,7 +306,7 @@ func TestNotify_CommentReply_CollapsesOnTheAnsweredRoot(t *testing.T) {
 		"an old event's parent":       {old, "comment-" + golden.ParentCommentID.String()},
 		"a top-level reply":           {topLevel, "comment-" + golden.ReplyToRootID.String()},
 	} {
-		kind := app.CommentReply{Users: users{}}
+		kind := app.CommentReply{Users: users{}, Cabals: cabalsOf(tc.e), Blocks: blocks{}}
 
 		msg, err := kind.Render(t.Context(), tc.e, ids.UserID{})
 

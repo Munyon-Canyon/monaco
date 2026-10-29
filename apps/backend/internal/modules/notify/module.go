@@ -133,6 +133,7 @@ func (m *Module) pusher() *app.Pusher {
 
 func (m *Module) Consumers() []bus.Consumer {
 	pusher := m.pusher()
+	socials := social.New(m.deps)
 	results := app.ResultPorts{Cabals: m.cabals, Assets: m.assets, Ballots: m.ballots, Heads: m.heads}
 	return []bus.Consumer{{Durable: "notify", Handlers: []bus.HandlerSpec{
 		adapters.Push(pusher, app.Test{}),
@@ -156,7 +157,10 @@ func (m *Module) Consumers() []bus.Consumer {
 		adapters.Push(pusher, app.NewFollower{Users: m.users}),
 		adapters.Push(pusher, app.Nudge{Users: m.users}),
 		adapters.Push(pusher, app.WeeklyLedger{Users: m.users, Ledgers: m.ledgers}),
-		adapters.Push(pusher, app.CommentReply{Users: m.users}),
+		adapters.Push(pusher,
+			app.CommentReply{Users: m.users, Cabals: m.cabals, Blocks: socials.Follows()},
+			app.PostReply{Users: m.users, Cabals: m.cabals, Blocks: socials.Follows()},
+		),
 		adapters.Push(
 			pusher,
 			app.ChatMention{Cabals: m.cabals, Users: m.users},
