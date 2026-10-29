@@ -13,3 +13,7 @@ func CabalActivityChangedHint(cabalID ids.CabalID) string {
 func UserCashOutChangedHint(user ids.UserID) string {
 	return "user." + user.String() + ".cashout_changed"
 }
+
+func UserCatchUpChangedHint(user ids.UserID) string {
+	return "user." + user.String() + ".catch_up_changed"
+}

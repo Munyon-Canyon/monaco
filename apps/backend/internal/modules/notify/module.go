@@ -7,6 +7,9 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/notify/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/apns"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
@@ -80,8 +83,32 @@ func New(d module.Deps, opts ...Option) *Module {
 
 func (*Module) Name() string { return "notify" }
 
+func (m *Module) catchUp() *app.ReadCatchUp {
+	cabals := cabal.New(m.deps).Queries()
+	markets := market.New(m.deps)
+	socials := social.New(m.deps)
+	return app.NewReadCatchUp(app.CatchUpPorts{
+		Governance: governance.New(m.deps).CatchUp(),
+		Comments:   socials.CommentPreviews(),
+		Replies:    socials,
+		Invites:    cabal.New(m.deps).Invites(),
+		Cabals:     cabals,
+		Holdings:   treasury.New(m.deps).TopHoldings(),
+		Assets:     markets.Catalog(),
+		Users:      m.users,
+		Reads:      m.deps.Pool,
+		Clock:      m.deps.Clock,
+	})
+}
+
+var _ port.CatchUp = (*app.ReadCatchUp)(nil)
+
+func (m *Module) CatchUp() *app.ReadCatchUp { return m.catchUp() }
+
 func (m *Module) Mount(r api.Mount) {
 	notifyapi.Mount(adapters.HTTP{
+		CatchUp:    m.catchUp(),
+		Clock:      m.deps.Clock,
 		Register:   app.NewRegisterDeviceHandler(m.deps.UoW, m.users, m.deps.IDs, m.deps.Clock),
 		Unregister: app.NewUnregisterDeviceHandler(m.deps.UoW),
 		SetPrefs:   app.NewSetNotificationPreferencesHandler(m.deps.UoW, m.users, m.deps.Clock),
@@ -91,7 +118,7 @@ func (m *Module) Mount(r api.Mount) {
 }
 
 func (m *Module) pusher() *app.Pusher {
-	return app.NewPusher(m.deps.UoW, m.users, m.sender, m.deps.IDs, m.deps.Clock)
+	return app.NewPusher(m.deps.UoW, m.users, m.sender, m.deps.IDs, m.deps.Clock).WithHints(m.deps.Bus)
 }
 
 func (m *Module) Consumers() []bus.Consumer {

@@ -125,7 +125,10 @@ func (r *pushRig) preference(t *testing.T, user ids.UserID, c domain.Category, e
 
 func (r *pushRig) wantKinds(t *testing.T, want ...string) {
 	t.Helper()
-	rows, err := r.pool.Query(t.Context(), `SELECT user_id || '/' || kind FROM notifications`)
+	rows, err := r.pool.Query(
+		t.Context(),
+		`SELECT user_id || '/' || kind || CASE WHEN state = 'muted' THEN '/muted' ELSE '' END FROM notifications`,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +161,8 @@ func TestPush_aMemberWithDecisionRequestsOffStillGetsDeposits(t *testing.T) {
 
 	wantVerdict(t, err, "", errs.VerdictAck)
 	r.wantKinds(t,
-		quiet.String()+"/deposit_credited", loud.String()+"/deposit_credited", loud.String()+"/proposal_created")
+		quiet.String()+"/deposit_credited", loud.String()+"/deposit_credited", loud.String()+"/proposal_created",
+		quiet.String()+"/proposal_created/muted")
 }
 
 func TestPush_aMemberWithRepliesAndMentionsOffStillGetsProposals(t *testing.T) {
@@ -174,7 +178,8 @@ func TestPush_aMemberWithRepliesAndMentionsOffStillGetsProposals(t *testing.T) {
 		namedKind{&crowd{users: to}, "proposal_created"})
 
 	wantVerdict(t, err, "", errs.VerdictAck)
-	r.wantKinds(t, quiet.String()+"/proposal_created")
+	r.wantKinds(t, quiet.String()+"/proposal_created",
+		quiet.String()+"/comment_reply/muted", quiet.String()+"/chat_mention/muted")
 }
 
 func TestPush_anEnabledRowDoesNotSilenceAnything(t *testing.T) {

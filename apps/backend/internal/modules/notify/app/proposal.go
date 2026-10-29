@@ -9,6 +9,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/notify/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -41,6 +42,10 @@ func (k ProposalCreated) Recipients(ctx context.Context, e events.ProposalCreate
 		return nil, nil
 	}
 	return memberIDs(ctx, k.Cabals, &e.CabalID)
+}
+
+func (ProposalCreated) ItemKey(e events.ProposalCreated) string {
+	return domain.ItemKeyProposalPrefix + e.ProposalID.String()
 }
 
 func (k ProposalCreated) Render(ctx context.Context, e events.ProposalCreated, to ids.UserID) (Message, error) {

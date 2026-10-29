@@ -76,6 +76,7 @@ func chatPush(
 ) apns.Push {
 	data := map[string]string{
 		"kind": kind, "cabal_id": e.CabalID.String(), "message_id": e.MessageID.String(),
+		"author_id": e.AuthorID.String(),
 	}
 	if e.ParentID != nil {
 		data["parent_id"] = e.ParentID.String()
@@ -287,6 +288,7 @@ func TestNotify_Chat_Render(t *testing.T) {
 		if wantErr == nil {
 			data := map[string]string{
 				"kind": tc.kind, "cabal_id": golden.CabalID.String(), "message_id": golden.MessageID.String(),
+				"author_id": golden.AuthorID.String(),
 			}
 			if tc.parent != "" {
 				data["parent_id"] = tc.parent

@@ -161,6 +161,10 @@ func commentRenders(golden events.CommentCreated) map[string]commentRender {
 		return map[ids.UserID]identity.UserCard{replier: {ID: replier, DisplayName: name, Deleted: deleted}}
 	}
 	onItem := map[string]string{"kind": "comment_reply", "feed_item_id": golden.FeedObjectID.String()}
+	onPost := map[string]string{
+		"kind": "comment_reply", "feed_item_id": golden.FeedObjectID.String(),
+		"item_kind": golden.ItemKind, "item_label": golden.ItemLabel, "item_actor_name": golden.ItemActorName,
+	}
 	onProposal := map[string]string{
 		"kind": "comment_reply", "feed_item_id": golden.FeedObjectID.String(),
 		"proposal_id": golden.ProposalID.String(), "cabal_id": golden.CabalID.String(),
@@ -174,7 +178,7 @@ func commentRenders(golden events.CommentCreated) map[string]commentRender {
 		},
 		"a comment on a feed item": {
 			edit:  func(e *events.CommentCreated) { e.ProposalID = nil },
-			cards: card("Bea", false), title: byBea, body: golden.Excerpt, data: onItem,
+			cards: card("Bea", false), title: byBea, body: golden.Excerpt, data: onPost,
 		},
 		"a proposal with no cabal": {
 			edit:  func(e *events.CommentCreated) { e.CabalID = nil },

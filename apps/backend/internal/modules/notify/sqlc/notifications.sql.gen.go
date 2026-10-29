@@ -53,7 +53,7 @@ func (q *Queries) BatchedFollowCounts(ctx context.Context, arg BatchedFollowCoun
 
 const countKindSince = `-- name: CountKindSince :one
 SELECT count(*) FROM notifications
-WHERE user_id = $1 AND kind = $2 AND created_at >= $3
+WHERE user_id = $1 AND kind = $2 AND created_at >= $3 AND state <> 'muted'
 `
 
 type CountKindSinceParams struct {
@@ -116,14 +116,15 @@ func (q *Queries) InsertBroadcast(ctx context.Context, arg InsertBroadcastParams
 const insertNotification = `-- name: InsertNotification :one
 INSERT INTO notifications (
   id, broadcast_id, user_id, kind, source_event_id, title, body, data, collapse_id, state, created_at,
-  thread_id, category, interruption_level, presentation
+  thread_id, category, interruption_level, presentation, item_key
 )
 VALUES (
   $1, NULLIF($2::uuid, '00000000-0000-0000-0000-000000000000'), $3,
   $4, $5, $6, $7, $8, $9,
   $10, $11,
   NULLIF($12::text, ''), NULLIF($13::text, ''),
-  NULLIF($14::text, ''), $15::jsonb
+  NULLIF($14::text, ''), $15::jsonb,
+  NULLIF($16::text, '')
 )
 ON CONFLICT (source_event_id, user_id, kind) DO NOTHING
 RETURNING id
@@ -145,6 +146,7 @@ type InsertNotificationParams struct {
 	Category          string
 	InterruptionLevel string
 	Presentation      []byte
+	ItemKey           string
 }
 
 func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotificationParams) (uuid.UUID, error) {
@@ -164,6 +166,7 @@ func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotification
 		arg.Category,
 		arg.InterruptionLevel,
 		arg.Presentation,
+		arg.ItemKey,
 	)
 	var id uuid.UUID
 	err := row.Scan(&id)

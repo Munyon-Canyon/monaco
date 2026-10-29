@@ -8,4 +8,8 @@ var (
 	}
 	NotifyDeviceUnregisterSkipped = Msg{Name: "notify.device.unregister_skipped", Required: []string{"user_id"}}
 	NotifyPushResult              = Msg{Name: "notify.push.result", Required: []string{"user_id", "kind", "status"}}
+	NotifyCatchUpSnapshotMissing  = Msg{
+		Name:     "notify.catch_up.snapshot_missing",
+		Required: []string{"user_id", "item_key"},
+	}
 )

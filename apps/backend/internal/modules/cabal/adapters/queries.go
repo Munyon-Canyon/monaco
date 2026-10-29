@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/sqlc"
@@ -19,12 +20,19 @@ import (
 )
 
 type Postgres struct {
-	q *sqlc.Queries
+	db    sqlc.DBTX
+	q     *sqlc.Queries
+	users app.UserCards
 }
 
 var _ port.Queries = Postgres{}
 
-func NewQueries(db sqlc.DBTX) Postgres { return Postgres{q: sqlc.New(db)} }
+func NewQueries(db sqlc.DBTX) Postgres { return Postgres{db: db, q: sqlc.New(db)} }
+
+func (r Postgres) WithUsers(users app.UserCards) Postgres {
+	r.users = users
+	return r
+}
 
 func (r Postgres) AllCabals(ctx context.Context) ([]port.CabalView, error) {
 	const op = "cabal.AllCabals"

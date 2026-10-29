@@ -183,6 +183,10 @@ func (m *Module) Pollers() []poller.Poller {
 
 func (m *Module) Queries() port.Queries { return adapters.NewQueries(m.deps.Pool) }
 
+func (m *Module) Invites() adapters.Postgres {
+	return adapters.NewQueries(m.deps.Pool).WithUsers(identity.New(m.deps).Queries())
+}
+
 func (m *Module) TreasuryEVM() port.TreasuryEVM {
 	return port.NewTreasuryEVM(m.TreasuryEVMWallets().EnsureTreasuryEVMWallet)
 }

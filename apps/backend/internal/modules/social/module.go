@@ -212,6 +212,10 @@ func (m *Module) Chat() interface {
 	return app.NewUnread(m.deps.Pool)
 }
 
+func (m *Module) CommentPreviews() app.CommentPreviews {
+	return app.NewCommentPreviews(m.deps.Pool, m.users)
+}
+
 func (*Module) Name() string { return "social" }
 
 func (m *Module) Mount(r api.Mount) { socialapi.Mount(m.http(), r) }

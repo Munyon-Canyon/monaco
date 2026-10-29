@@ -7,4 +7,5 @@ const (
 	NotificationDelivered NotificationState = "delivered"
 	NotificationNoDevice  NotificationState = "no_device"
 	NotificationBatched   NotificationState = "batched"
+	NotificationMuted     NotificationState = "muted"
 )
