@@ -150,7 +150,7 @@ func (h *checkHarness) run(ctx context.Context, dir, stdin, name string, args ..
 	switch line {
 	case "golangci-lint version --short":
 		return []byte(h.lint), nil
-	case "gt parent --no-interactive", "go env GOPATH":
+	case "gt parent --no-interactive", "go env GOPATH", "screens.sh --check":
 		return nil, nil
 	}
 	h.clock = h.clock.Add(time.Second)
@@ -457,6 +457,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		"packages/mobile-core: swift format lint --strict --recursive --parallel ../../apps/mobile .",
 		"packages/mobile-core: swiftlint-ratchet.sh --base " + h.mergeBase(t, "origin/fb"),
 		"packages/mobile-core: mobile-core-test.sh",
+		".: screens.sh --check",
 		".: python3 scripts/qa/journey.py check",
 		".: python3 scripts/qa/test_journey.py",
 		".: python3 scripts/qa/test_skill_eval.py",
