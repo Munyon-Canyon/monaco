@@ -2,11 +2,17 @@
 # Settles a stopped `gt restack` (or rebase) whose every conflicted path is generated: takes the
 # upstream copy of each, runs the generators, stages the result and continues, until the rebase ends.
 # With no rebase in progress it runs `gt restack` first. Any hand-written conflict stops it.
-# GT, GENERATE and GENERATED_GLOBS let the test swap in fakes.
+# When the restack ends, a migration the stack adds that now sorts at or below one the trunk gained is
+# renamed with gen migration --rebase (which also rewrites atlas.sum) and the branch amended, so a
+# restack never leaves the ready row's migrate order failing (lanes 6462 and 6507 on 2026-10-29).
+# GT, GENERATE, GENERATED_GLOBS, MIGRATE_ORDER and MIGRATE_REBASE let the test swap in fakes.
 set -euo pipefail
 
 gt=${GT:-gt}
-generate=${GENERATE:-"cd apps/backend && GOTOOLCHAIN=\$(sed -n 's/^toolchain //p' go.mod) && test -n \"\$GOTOOLCHAIN\" && export GOTOOLCHAIN && go generate ./..."}
+backend_go="cd apps/backend && GOTOOLCHAIN=\$(sed -n 's/^toolchain //p' go.mod) && test -n \"\$GOTOOLCHAIN\" && export GOTOOLCHAIN &&"
+generate=${GENERATE:-"$backend_go go generate ./..."}
+migrate_order=${MIGRATE_ORDER:-"$backend_go go run ./cmd/monacoctl migrate order"}
+migrate_rebase=${MIGRATE_REBASE:-"$backend_go go run ./cmd/monacoctl gen migration --rebase"}
 # The paths .gitattributes marks linguist-generated, plus atlas.sum.
 generated=${GENERATED_GLOBS:-"apps/backend/api/openapi.yaml
 apps/backend/internal/platform/httpx/api/*.gen.go
@@ -30,6 +36,23 @@ rebasing() {
   [[ -d "$(git rev-parse --git-path rebase-merge)" || -d "$(git rev-parse --git-path rebase-apply)" ]]
 }
 
+settle_migrations() {
+  local report
+  report=$(bash -c "$migrate_order" 2>&1) && return 0
+  echo "restack-regen: the restack left a migration out of order:"
+  printf '  %s\n' "$report"
+  bash -c "$migrate_rebase"
+  git add -A apps/backend/migrations
+  echo "restack-regen: renamed:"
+  git diff --cached --name-status -M -- apps/backend/migrations | sed 's/^/  /'
+  "$gt" modify --no-interactive
+  if ! report=$(bash -c "$migrate_order" 2>&1); then
+    echo "restack-regen: still out of order after the rename (a lower branch adds it?); rebase it there:" >&2
+    printf '  %s\n' "$report" >&2
+    return 1
+  fi
+}
+
 conflicted_paths() {
   git diff --name-only --diff-filter=U
 }
@@ -50,7 +73,11 @@ fi
 
 stalled=0
 for _ in $(seq 1 100); do
-  rebasing || { echo "restack-regen: the restack finished"; exit 0; }
+  if ! rebasing; then
+    echo "restack-regen: the restack finished"
+    settle_migrations
+    exit
+  fi
   conflicted=$(conflicted_paths)
   if [[ -z "$conflicted" ]]; then
     # Nothing to settle, so only a failed continue can keep the rebase here.
