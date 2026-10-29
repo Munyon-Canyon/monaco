@@ -40,7 +40,10 @@ struct CatchUpView: View {
                 Button {
                     deckStart = CatchUpDeckStart(key: nil)
                 } label: {
-                    Label(CatchUpCopy.oneByOne, systemImage: "square.stack").labelStyle(.titleAndIcon)
+                    HStack(spacing: MonacoTheme.Space.xs) {
+                        Image(systemName: "square.stack")
+                        Text(CatchUpCopy.oneByOne)
+                    }
                 }
                 .accessibilityIdentifier("catch-up-one-by-one")
             }
@@ -106,6 +109,9 @@ struct CatchUpView: View {
         }
         CatchUpSection(
             title: CatchUpCopy.clearedHeader, identifier: "cleared", items: screen.cleared, now: now(), actions: nil)
+        if screen.isCaughtUp {
+            Color.clear.frame(height: MonacoTheme.Space.tabClear).catchUpListRow()
+        }
     }
 
     private func markRead(_ item: Components.Schemas.CatchUpItem) {

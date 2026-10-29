@@ -114,6 +114,10 @@ struct CatchUpRow: View {
                 .foregroundStyle(MonacoTheme.bodyText)
                 .lineLimit(2)
                 .monacoPrivate()
+                .padding(.leading, MonacoTheme.Space.s)
+                .overlay(alignment: .leading) {
+                    Rectangle().fill(MonacoTheme.hairline).frame(width: 2)
+                }
         } else if item.kind == .waitingVote, let proposal = item.proposal {
             let tally = CatchUpCopy.tally(proposal)
             HStack(spacing: MonacoTheme.Space.xs) {
@@ -151,12 +155,12 @@ struct CatchUpRow: View {
         switch item.kind {
         case .waitingVote:
             Button("Vote") { actions.vote(item) }
-                .buttonStyle(.monacoCompactProminent)
+                .buttonStyle(.monacoCompact)
                 .frame(minWidth: 44, minHeight: 44)
                 .accessibilityIdentifier("catch-up-vote-\(item.key)")
         case .invite:
             Button("Join") { actions.join(item) }
-                .buttonStyle(.monacoCompactProminent)
+                .buttonStyle(.monacoCompact)
                 .frame(minWidth: 44, minHeight: 44)
                 .accessibilityIdentifier("catch-up-join-\(item.key)")
         case .reply, .mention, .result:

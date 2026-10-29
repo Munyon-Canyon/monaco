@@ -11,11 +11,8 @@ struct CatchUpCaughtUp: View {
     var body: some View {
         VStack(spacing: MonacoTheme.Space.m) {
             if let first = screen.cabals.first {
-                CabalCover(
-                    cabalId: first.id, tint: .forGroupId(first.id), pictureURL: CabalMark.resolvedURL(first.pictureUrl),
-                    style: .thumb(Self.crestSize)
-                )
-                .accessibilityHidden(true)
+                CabalMark(groupId: first.id, name: first.name, size: Self.crestSize, pictureUrl: first.pictureUrl)
+                    .accessibilityHidden(true)
             }
             Text(CatchUpCopy.caughtUpTitle)
                 .font(MonacoTheme.Typo.title)
@@ -25,7 +22,7 @@ struct CatchUpCaughtUp: View {
                 .foregroundStyle(MonacoTheme.muted)
                 .multilineTextAlignment(.center)
             Button(action: openFeed) {
-                Label(CatchUpCopy.openFeed, systemImage: "bolt")
+                Label(CatchUpCopy.openFeed, systemImage: "newspaper")
             }
             .buttonStyle(.monacoSecondary)
             .accessibilityIdentifier("catch-up-open-feed")

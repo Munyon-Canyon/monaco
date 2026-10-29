@@ -265,11 +265,11 @@ founder:
 
 | Frame | Appearance | Verdict | Difference | Follow-up |
 | --- | --- | --- | --- | --- |
-| [`16-catch-up`](../screens/16-catch-up.png) | dark | difference | Top-right control is icon-only (frame has "One by one" label), reply rows lack the quote bar, and Vote/Join are green (frame gray). | #7034 (#6561) |
+| [`16-catch-up`](../screens/16-catch-up.png) | dark | match (15 pt floor) | — | — |
 | [`16-catch-up-open`](../screens/16-catch-up-open.png) | dark | match (15 pt floor) | — | — |
 | [`16-catch-up-open-scrolled`](../screens/16-catch-up-open-scrolled.png) | dark | match (15 pt floor) | — | — |
-| [`16-catch-up-empty`](../screens/16-catch-up-empty.png) | dark | difference | Cabal emblem is a blank cyan tile with no initials and "Open Feed" uses a bolt glyph (frame: newspaper glyph). | #7034 (#6566) |
-| [`16-catch-up-empty-scrolled`](../screens/16-catch-up-empty-scrolled.png) | dark | no harness | Harness line draws 16-catch-up-empty's state (not scrolled with compact title). | #7034 (#6566) |
+| [`16-catch-up-empty`](../screens/16-catch-up-empty.png) | dark | match (15 pt floor) | — | — |
+| [`16-catch-up-empty-scrolled`](../screens/16-catch-up-empty-scrolled.png) | dark | match (15 pt floor) | — | — |
 
 founder:
 
