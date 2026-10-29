@@ -405,8 +405,8 @@ class QALock(unittest.TestCase):
 
     def test_a_second_run_waits_for_the_first(self):
         first = journey.take_qa_lock(self.path)
-        threading.Timer(0.3, first.close).start()
         started = time.monotonic()
+        threading.Timer(0.3, first.close).start()
         second = journey.take_qa_lock(self.path)
         self.addCleanup(second.close)
         self.assertGreaterEqual(time.monotonic() - started, 0.25)
