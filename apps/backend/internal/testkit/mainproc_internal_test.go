@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -34,5 +35,25 @@ func TestChildCoverDir_isolatesEachChildAndMergesItsFilesIntoTheSharedDir(t *tes
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(name), 0o600); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestMainCommand_passesGOCOVERDIROnlyWhenThisBinaryIsInstrumented(t *testing.T) {
+	t.Parallel()
+	env := os.Environ()
+	cmd := MainCommand(t, env, "-h")
+	var added []string
+	for _, kv := range cmd.Env[len(env):] {
+		if strings.HasPrefix(kv, "GOCOVERDIR=") {
+			added = append(added, kv)
+		}
+	}
+	want := coverDirFlag() != "" && testing.CoverMode() != ""
+	if (len(added) == 1) != want || len(added) > 1 {
+		t.Fatalf("MainCommand added GOCOVERDIR entries %q; this binary covermode %q, gocoverdir flag %q",
+			added, testing.CoverMode(), coverDirFlag())
+	}
+	if want && !strings.HasPrefix(added[0], "GOCOVERDIR="+coverDirFlag()+string(filepath.Separator)+"child") {
+		t.Fatalf("child GOCOVERDIR %q is not a child dir of %q", added[0], coverDirFlag())
 	}
 }
