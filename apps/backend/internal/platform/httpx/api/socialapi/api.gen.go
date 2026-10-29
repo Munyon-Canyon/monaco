@@ -691,10 +691,55 @@ type Comment struct {
 	// Examples: null
 	ParentCommentId *openapi_types.UUID `json:"parent_comment_id"`
 
-	// ReplyToHandle The handle of the person a reply answers, when it answers a reply. Otherwise null.
+	// ReplyTo The comment this answers, drawn as a quote above the reply. Null on a comment that answers nothing.
+	//
+	// Examples: null
+	ReplyTo *CommentQuote `json:"reply_to"`
+
+	// ReplyToHandle Deprecated, read `reply_to` instead. The handle of the person a reply answers. Null on a comment that answers nothing.
 	//
 	// Examples: null
 	ReplyToHandle *string `json:"reply_to_handle"`
+
+	// RootCommentId On a folded answer, its top-level comment, equal to `parent_comment_id`. Null on a top-level comment.
+	//
+	// Examples: null
+	RootCommentId *openapi_types.UUID `json:"root_comment_id"`
+}
+
+// CommentQuote The comment this answers, drawn as a quote above the reply. Null on a comment that answers nothing.
+//
+// Examples: null
+type CommentQuote struct {
+	// AuthorDisplayName The answered comment's author, or `Someone` when that account is deleted.
+	//
+	// Examples: Kai
+	AuthorDisplayName string `json:"author_display_name"`
+
+	// CommentId The answered comment.
+	//
+	// Examples: 01920000-0000-7000-8000-000000000007
+	CommentId openapi_types.UUID `json:"comment_id"`
+
+	// Excerpt The first 120 Unicode scalars of the answered comment. Null when it is deleted or removed, or its author is blocked by the caller.
+	//
+	// Examples: nice
+	Excerpt *string `json:"excerpt"`
+
+	// IsDeleted True when the answered comment is deleted or removed.
+	//
+	// Examples: false
+	IsDeleted bool `json:"is_deleted"`
+
+	// IsFolded True when the answered comment is a folded answer, so the app opens its root before it jumps there.
+	//
+	// Examples: false
+	IsFolded bool `json:"is_folded"`
+
+	// RootCommentId The answered comment's top-level comment: its parent, or itself when it is top-level.
+	//
+	// Examples: 01920000-0000-7000-8000-000000000007
+	RootCommentId openapi_types.UUID `json:"root_comment_id"`
 }
 
 // CommentAuthor The author of a comment. A deleted account has a null handle and an empty name.

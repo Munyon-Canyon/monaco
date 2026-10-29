@@ -59,7 +59,7 @@ func TestAdminRemoveComment_RendersRemovedByMonaco(t *testing.T) {
 	item := f.item(t, feed.KindTrade)
 	kai := f.cabal.Members[0].ID
 	top := f.say(t, item, kai, "secret abuse", nil)
-	f.say(t, item, f.outsider, "reply", &top.Id)
+	f.say(t, item, kai, "reply", &top.Id)
 	for range 2 {
 		if err := f.removeAs(asAdmin(t), top.Id, "abuse"); err != nil {
 			t.Fatalf("RemoveComment = %v, want nil", err)

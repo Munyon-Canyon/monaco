@@ -35,20 +35,26 @@ WITH item AS (
 DELETE FROM feed_objects WHERE id IN (SELECT id FROM item);
 
 -- name: GetCommentTarget :one
-SELECT id, author_id, parent_comment_id, (deleted_at IS NOT NULL)::bool AS deleted
-FROM feed_comments
-WHERE id = sqlc.arg(id) AND feed_object_id = sqlc.arg(feed_object_id);
+SELECT c.id, c.author_id, c.parent_comment_id, c.body, (c.deleted_at IS NOT NULL)::bool AS deleted,
+  EXISTS (
+    SELECT 1 FROM user_blocks b WHERE b.blocker_id = sqlc.arg(viewer)::uuid AND b.blocked_id = c.author_id
+  )::bool AS blocked
+FROM feed_comments c
+WHERE c.id = sqlc.arg(id) AND c.feed_object_id = sqlc.arg(feed_object_id);
 
 -- name: InsertComment :one
-INSERT INTO feed_comments (id, feed_object_id, author_id, parent_comment_id, reply_to_user_id, body, created_at)
+INSERT INTO feed_comments (
+  id, feed_object_id, author_id, parent_comment_id, reply_to_user_id, reply_to_comment_id, body, created_at
+)
 VALUES (
   sqlc.arg(id), sqlc.arg(feed_object_id), sqlc.arg(author_id),
   NULLIF(sqlc.arg(parent_comment_id)::uuid, '00000000-0000-0000-0000-000000000000'),
   NULLIF(sqlc.arg(reply_to_user_id)::uuid, '00000000-0000-0000-0000-000000000000'),
+  NULLIF(sqlc.arg(reply_to_comment_id)::uuid, '00000000-0000-0000-0000-000000000000'),
   sqlc.arg(body), sqlc.arg(created_at)
 )
 RETURNING id, feed_object_id, author_id, parent_comment_id, reply_to_user_id, body, created_at, deleted_at, deleted_by,
-  deleted_by_kind;
+  deleted_by_kind, reply_to_comment_id;
 
 -- name: BumpCommentCount :execrows
 UPDATE feed_objects
@@ -84,9 +90,16 @@ WITH tops AS (
   LIMIT sqlc.arg(row_limit)::int
 )
 SELECT c.id, c.feed_object_id, c.author_id, c.parent_comment_id, c.reply_to_user_id, c.body, c.created_at,
-  c.deleted_at, c.deleted_by, c.deleted_by_kind
+  c.deleted_at, c.deleted_by, c.deleted_by_kind, c.reply_to_comment_id,
+  q.author_id AS quote_author_id, q.parent_comment_id AS quote_parent_id, q.body AS quote_body,
+  (q.deleted_at IS NOT NULL)::bool AS quote_deleted,
+  EXISTS (
+    SELECT 1 FROM user_blocks b WHERE b.blocker_id = sqlc.arg(viewer)::uuid AND b.blocked_id = q.author_id
+  )::bool AS quote_blocked
 FROM feed_comments c
-WHERE (c.id IN (SELECT id FROM tops) OR c.parent_comment_id IN (SELECT id FROM tops))
+LEFT JOIN feed_comments q ON q.feed_object_id = c.feed_object_id AND q.id = c.reply_to_comment_id
+WHERE c.feed_object_id = sqlc.arg(feed_object_id)
+  AND (c.id IN (SELECT id FROM tops) OR c.parent_comment_id IN (SELECT id FROM tops))
   AND NOT EXISTS (
     SELECT 1 FROM user_blocks b WHERE b.blocker_id = sqlc.arg(viewer)::uuid AND b.blocked_id = c.author_id
   )

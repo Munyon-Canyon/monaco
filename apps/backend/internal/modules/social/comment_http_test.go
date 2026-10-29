@@ -80,37 +80,62 @@ func TestPostFeedComment_returnsTheCommentWithItsAuthor(t *testing.T) {
 	}
 }
 
-func TestPostFeedComment_aReplyToAReplyNamesWhoItAnswers(t *testing.T) {
-	t.Parallel()
-	f := newCommentRoutes(t)
+type answeredThread struct {
+	top, byKai, byGone, toKai, toGone api.Comment
+}
+
+func (f commentRoutes) answeredThread(t *testing.T) answeredThread {
+	t.Helper()
 	item := f.item(t, feed.KindTrade)
 	kai, gone := f.cabal.Members[0].ID, f.cabal.Members[1].ID
-	top, err := f.post(t, item, kai, &api.CreateCommentRequest{Body: "top"})
-	if err != nil {
-		t.Fatal(err)
+	say := func(author ids.UserID, body string, parent *uuid.UUID) api.Comment {
+		c, err := f.post(t, item, author, &api.CreateCommentRequest{Body: body, ParentCommentId: parent})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return c
 	}
-	byKai, err := f.post(t, item, kai, &api.CreateCommentRequest{Body: "ok", ParentCommentId: &top.Id})
-	if err != nil {
-		t.Fatal(err)
+	var a answeredThread
+	a.top = say(kai, "top", nil)
+	a.byKai = say(kai, "ok", &a.top.Id)
+	a.byGone = say(gone, "hm", &a.top.Id)
+	a.toKai = say(f.outsider, "yes", &a.byKai.Id)
+	a.toGone = say(f.outsider, "no", &a.byGone.Id)
+	return a
+}
+
+func TestPostFeedComment_theAuthorsAnswerFoldsAndQuotesTheCommentItAnswers(t *testing.T) {
+	t.Parallel()
+	a := newCommentRoutes(t).answeredThread(t)
+	got := a.byKai
+	if got.ParentCommentId == nil || *got.ParentCommentId != a.top.Id || got.RootCommentId == nil ||
+		*got.RootCommentId != a.top.Id || got.ReplyTo == nil || got.ReplyTo.CommentId != a.top.Id {
+		t.Errorf("the author's answer = %+v, want parent and root %s and a quote of it", got, a.top.Id)
 	}
-	byGone, err := f.post(t, item, gone, &api.CreateCommentRequest{Body: "hm", ParentCommentId: &top.Id})
-	if err != nil {
-		t.Fatal(err)
+}
+
+func TestPostFeedComment_aReplyToAFoldedAnswerIsTopLevelAndQuotesIt(t *testing.T) {
+	t.Parallel()
+	a := newCommentRoutes(t).answeredThread(t)
+	want := &api.CommentQuote{
+		CommentId: a.byKai.Id, RootCommentId: a.top.Id, AuthorDisplayName: "Kai", Excerpt: ptr("ok"), IsFolded: true,
 	}
-	toKai, err := f.post(t, item, f.outsider, &api.CreateCommentRequest{Body: "yes", ParentCommentId: &byKai.Id})
-	if err != nil {
-		t.Fatal(err)
+	got := a.toKai
+	if got.ParentCommentId != nil || got.RootCommentId != nil || !reflect.DeepEqual(got.ReplyTo, want) {
+		t.Errorf("reply to a folded answer = %+v, want top level and quote %+v", got, want)
 	}
-	toGone, err := f.post(t, item, f.outsider, &api.CreateCommentRequest{Body: "no", ParentCommentId: &byGone.Id})
-	if err != nil {
-		t.Fatal(err)
+	if got.ReplyToHandle == nil || *got.ReplyToHandle != "kai" {
+		t.Errorf("reply_to_handle = %v, want kai", got.ReplyToHandle)
 	}
-	if toKai.ParentCommentId == nil || *toKai.ParentCommentId != top.Id ||
-		toKai.ReplyToHandle == nil || *toKai.ReplyToHandle != "kai" {
-		t.Errorf("reply to a reply = %+v, want parent %s and reply_to_handle kai", toKai, top.Id)
-	}
-	if toGone.ReplyToHandle != nil {
-		t.Errorf("reply to a deleted account = %+v, want no reply_to_handle", toGone)
+}
+
+func TestPostFeedComment_aReplyToADeletedAccountNamesNobody(t *testing.T) {
+	t.Parallel()
+	a := newCommentRoutes(t).answeredThread(t)
+	got := a.toGone
+	if got.ReplyToHandle != nil || got.ReplyTo == nil || got.ReplyTo.AuthorDisplayName != "Someone" ||
+		got.ReplyTo.Excerpt == nil || got.ReplyTo.RootCommentId != a.byGone.Id {
+		t.Errorf("reply to a deleted account = %+v, want no reply_to_handle and the quote by Someone", got)
 	}
 }
 
@@ -214,20 +239,20 @@ func TestGetFeedComments_rendersADeletedCommentInPlaceAndMarksOwnComments(t *tes
 	f := newCommentRoutes(t)
 	item := f.item(t, feed.KindTrade)
 	kai := f.cabal.Members[0].ID
-	top := f.say(t, item, kai, "top", nil)
-	reply := f.say(t, item, f.outsider, "reply", &top.Id)
-	if _, err := f.routes.DeleteFeedComment(asUser(t.Context(), kai), api.DeleteFeedCommentRequestObject{
+	top := f.say(t, item, f.outsider, "top", nil)
+	reply := f.say(t, item, kai, "reply", &top.Id)
+	if _, err := f.routes.DeleteFeedComment(asUser(t.Context(), f.outsider), api.DeleteFeedCommentRequestObject{
 		CommentId: top.Id,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	page := f.read(t, f.outsider, item, api.GetFeedCommentsParams{})
+	page := f.read(t, kai, item, api.GetFeedCommentsParams{})
 	if len(page.Items) != 1 || len(page.Items[0].Replies) != 1 {
 		t.Fatalf("page = %+v, want one thread with a reply", page)
 	}
 	gotTop, gotReply := page.Items[0].Comment, page.Items[0].Replies[0]
 	if gotTop.Body != nil || gotTop.BodyDisplay != "Comment deleted" || gotTop.IsMine ||
-		gotTop.Author.Id != kai.UUID() {
+		gotTop.Author.Id != f.outsider.UUID() {
 		t.Errorf("deleted top-level comment = %+v", gotTop)
 	}
 	if gotReply.Id != reply.Id || gotReply.Body == nil || *gotReply.Body != "reply" || !gotReply.IsMine {

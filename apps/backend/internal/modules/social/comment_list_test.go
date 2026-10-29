@@ -58,7 +58,7 @@ func TestListComments_returnsThreadsOldestFirstWithTheirRepliesOldestFirst(t *te
 	f.say(t, item, f.outsider, "third", uuid.Nil)
 	f.say(t, f.item(t, feed.KindTrade), a, "elsewhere", uuid.Nil)
 	page := f.list(t, item, 50, nil)
-	want := [][]string{{"first", "first-r1", "first-r2"}, {"second", "second-r1"}, {"third"}}
+	want := [][]string{{"first"}, {"second", "second-r1"}, {"first-r1", "first-r2"}, {"third"}}
 	if got := threadBodies(page); !reflect.DeepEqual(got, want) || page.Next != nil {
 		t.Fatalf("threads = %v, next %v, want %v and no cursor", got, page.Next, want)
 	}
@@ -92,7 +92,7 @@ func TestListComments_keepsDeletedCommentsInPlace(t *testing.T) {
 	item := f.item(t, feed.KindTrade)
 	a := f.cabal.Members[0].ID
 	top := f.say(t, item, a, "top", uuid.Nil)
-	f.say(t, item, f.outsider, "reply", top)
+	f.say(t, item, a, "reply", top)
 	if err := f.delete(t, top, a); err != nil {
 		t.Fatal(err)
 	}

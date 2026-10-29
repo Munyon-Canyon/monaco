@@ -181,19 +181,20 @@ func TestCreateComment_cutsTheExcerptAt120Scalars(t *testing.T) {
 	}
 }
 
-func TestCreateComment_aReplyToAReplyLandsUnderTheTopLevelComment(t *testing.T) {
+func TestCreateComment_onlyThePostsAuthorFoldsAnAnswerUnderAComment(t *testing.T) {
 	t.Parallel()
 	f := newCommentFixture(t)
 	item := f.item(t, feed.KindTrade)
-	a, b := f.cabal.Members[0].ID, f.cabal.Members[1].ID
-	top := f.mustComment(t, item, a, "top", uuid.Nil)
-	reply := f.mustComment(t, item, b, "reply", top.ID)
-	nested := f.mustComment(t, item, a, "nested", reply.ID)
-	if reply.ParentID != top.ID || reply.ReplyToUserID != (ids.UserID{}) {
-		t.Fatalf("reply to a top-level comment = %+v", reply)
+	author, b := f.cabal.Members[0].ID, f.cabal.Members[1].ID
+	top := f.mustComment(t, item, b, "top", uuid.Nil)
+	answer := f.mustComment(t, item, author, "answer", top.ID)
+	reply := f.mustComment(t, item, f.outsider, "reply", answer.ID)
+	if answer.ParentID != top.ID || answer.ReplyToUserID != b || answer.Quote.CommentID != top.ID {
+		t.Fatalf("the author's answer = %+v, want parent %s, reply-to %s and a quote of it", answer, top.ID, b)
 	}
-	if nested.ParentID != top.ID || nested.ReplyToUserID != b {
-		t.Fatalf("reply to a reply = %+v, want parent %s and reply-to %s", nested, top.ID, b)
+	if reply.ParentID != uuid.Nil || reply.ReplyToUserID != author || reply.Quote.CommentID != answer.ID ||
+		reply.Quote.RootID != top.ID || !reply.Quote.Folded {
+		t.Fatalf("another member's reply = %+v, want top level quoting the folded answer under %s", reply, top.ID)
 	}
 	if stored, counted := f.count(t, item); stored != 3 || counted != 3 {
 		t.Fatalf("stored %d, comment_count %d, want 3 and 3", stored, counted)
@@ -209,13 +210,23 @@ func TestCreateComment_theEventNamesWhoTheReplyAnswers(t *testing.T) {
 	reply := f.mustComment(t, item, f.cabal.Members[1].ID, "reply", top.ID)
 	f.mustComment(t, item, f.cabal.Members[0].ID, "nested", reply.ID)
 	evs := f.created(t)
-	type answers struct{ parent, parentAuthor, replyTo *uuid.UUID }
-	got := []answers{
-		{evs[0].ParentCommentID, evs[0].ParentAuthorID, evs[0].ReplyToUserID},
-		{evs[1].ParentCommentID, evs[1].ParentAuthorID, evs[1].ReplyToUserID},
-		{evs[2].ParentCommentID, evs[2].ParentAuthorID, evs[2].ReplyToUserID},
+	type answers struct {
+		parent, parentAuthor, replyTo, answered, answeredAuthor, answeredRoot *uuid.UUID
+		excerpt                                                               *string
 	}
-	want := []answers{{}, {&top.ID, &a, nil}, {&top.ID, &b, &b}}
+	got := make([]answers, len(evs))
+	for i, e := range evs {
+		got[i] = answers{
+			e.ParentCommentID, e.ParentAuthorID, e.ReplyToUserID, e.ReplyToCommentID, e.ReplyToAuthorID,
+			e.ReplyToRootID, e.ReplyToExcerpt,
+		}
+	}
+	topText, replyText := "top", "reply"
+	want := []answers{
+		{},
+		{nil, &a, &a, &top.ID, &a, &top.ID, &topText},
+		{&reply.ID, &b, &b, &reply.ID, &b, &reply.ID, &replyText},
+	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("answers = %+v, want %+v", got, want)
 	}

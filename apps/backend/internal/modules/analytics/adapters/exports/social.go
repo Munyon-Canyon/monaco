@@ -15,6 +15,8 @@ func FollowCreated(_ context.Context, e events.FollowCreated) (app.Capture, bool
 
 func CommentCreated(_ context.Context, e events.CommentCreated) (app.Capture, bool, error) {
 	return byUser("comment_created", e.AuthorID, map[string]any{
-		"feed_object_id": e.FeedObjectID.String(), "item_kind": e.FeedKind, "is_reply": e.ParentCommentID != nil,
+		"feed_object_id": e.FeedObjectID.String(),
+		"item_kind":      e.FeedKind,
+		"is_reply":       e.ParentCommentID != nil || e.ReplyToCommentID != nil,
 	})
 }

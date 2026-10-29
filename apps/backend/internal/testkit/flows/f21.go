@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -32,18 +34,18 @@ func (w *commentWorld) seed() scenario.Step {
 			s.Fatalf("flows: parse the seeded commenters: %v %v", errKai, errLee)
 		}
 		cabal := testkit.NewCabal(s, s.DB(), testkit.WithCreator(kai), testkit.WithJoiner(lee))
-		w.proposal = feedItemOf(s, "proposal", "proposals", cabal.ID)
-		w.trade = feedItemOf(s, "trade", "swaps", cabal.ID)
+		w.proposal = feedItemOf(s, "proposal", "proposals", cabal.ID, kai.UUID())
+		w.trade = feedItemOf(s, "trade", "swaps", cabal.ID, uuid.Nil)
 	}
 }
 
-func feedItemOf(s *scenario.Scenario, kind, refType string, cabal ids.CabalID) string {
+func feedItemOf(s *scenario.Scenario, kind, refType string, cabal ids.CabalID, actor uuid.UUID) string {
 	s.Helper()
 	id := ids.Real{}.NewV7()
 	if _, err := s.DB().Exec(s.Context(), `INSERT INTO feed_objects
-		(id, kind, ref_type, ref_id, cabal_id, title, payload, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, 'seeded', '{}', now(), now())`,
-		id, kind, refType, ids.Real{}.NewV7(), cabal.UUID()); err != nil {
+		(id, kind, ref_type, ref_id, cabal_id, actor_id, title, payload, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, NULLIF($6::uuid, '00000000-0000-0000-0000-000000000000'), 'seeded', '{}', now(), now())`,
+		id, kind, refType, ids.Real{}.NewV7(), cabal.UUID(), actor); err != nil {
 		s.Fatalf("flows: seed the %s feed item: %v", kind, err)
 	}
 	return id.String()
@@ -130,7 +132,18 @@ func F21CreateCommentOK(s *scenario.Scenario) {
 			scenario.AsUser("lee"),
 			commentOn(&w.proposal, "thanks", "reply"),
 			scenario.ExpectStatus(http.StatusCreated),
-			scenario.ExpectRemembered("parent_comment_id", "top"),
+			scenario.ExpectJSON("parent_comment_id", nil),
+			scenario.ExpectField("reply_to", func(s *scenario.Scenario, raw json.RawMessage) {
+				var quote struct {
+					CommentID string `json:"comment_id"`
+					RootID    string `json:"root_comment_id"`
+					IsFolded  bool   `json:"is_folded"`
+				}
+				if err := json.Unmarshal(raw, &quote); err != nil || quote.CommentID != s.Recall("reply") ||
+					quote.RootID != s.Recall("top") || !quote.IsFolded {
+					s.Fatalf("flows: reply_to = %s, %v, want the folded reply under top", raw, err)
+				}
+			}),
 			scenario.Delete(feedPath+"/comments/{top}"),
 			scenario.ExpectStatus(http.StatusNoContent),
 			scenario.Delete(feedPath+"/comments/{top}"),

@@ -101,12 +101,16 @@ func (q *Queries) GetCommentItem(ctx context.Context, id uuid.UUID) (GetCommentI
 }
 
 const getCommentTarget = `-- name: GetCommentTarget :one
-SELECT id, author_id, parent_comment_id, (deleted_at IS NOT NULL)::bool AS deleted
-FROM feed_comments
-WHERE id = $1 AND feed_object_id = $2
+SELECT c.id, c.author_id, c.parent_comment_id, c.body, (c.deleted_at IS NOT NULL)::bool AS deleted,
+  EXISTS (
+    SELECT 1 FROM user_blocks b WHERE b.blocker_id = $1::uuid AND b.blocked_id = c.author_id
+  )::bool AS blocked
+FROM feed_comments c
+WHERE c.id = $2 AND c.feed_object_id = $3
 `
 
 type GetCommentTargetParams struct {
+	Viewer       uuid.UUID
 	ID           uuid.UUID
 	FeedObjectID uuid.UUID
 }
@@ -115,17 +119,21 @@ type GetCommentTargetRow struct {
 	ID              uuid.UUID
 	AuthorID        uuid.UUID
 	ParentCommentID pgtype.UUID
+	Body            string
 	Deleted         bool
+	Blocked         bool
 }
 
 func (q *Queries) GetCommentTarget(ctx context.Context, arg GetCommentTargetParams) (GetCommentTargetRow, error) {
-	row := q.db.QueryRow(ctx, getCommentTarget, arg.ID, arg.FeedObjectID)
+	row := q.db.QueryRow(ctx, getCommentTarget, arg.Viewer, arg.ID, arg.FeedObjectID)
 	var i GetCommentTargetRow
 	err := row.Scan(
 		&i.ID,
 		&i.AuthorID,
 		&i.ParentCommentID,
+		&i.Body,
 		&i.Deleted,
+		&i.Blocked,
 	)
 	return i, err
 }
@@ -175,25 +183,29 @@ func (q *Queries) GetProposalFeedSource(ctx context.Context, proposalID uuid.UUI
 }
 
 const insertComment = `-- name: InsertComment :one
-INSERT INTO feed_comments (id, feed_object_id, author_id, parent_comment_id, reply_to_user_id, body, created_at)
+INSERT INTO feed_comments (
+  id, feed_object_id, author_id, parent_comment_id, reply_to_user_id, reply_to_comment_id, body, created_at
+)
 VALUES (
   $1, $2, $3,
   NULLIF($4::uuid, '00000000-0000-0000-0000-000000000000'),
   NULLIF($5::uuid, '00000000-0000-0000-0000-000000000000'),
-  $6, $7
+  NULLIF($6::uuid, '00000000-0000-0000-0000-000000000000'),
+  $7, $8
 )
 RETURNING id, feed_object_id, author_id, parent_comment_id, reply_to_user_id, body, created_at, deleted_at, deleted_by,
-  deleted_by_kind
+  deleted_by_kind, reply_to_comment_id
 `
 
 type InsertCommentParams struct {
-	ID              uuid.UUID
-	FeedObjectID    uuid.UUID
-	AuthorID        uuid.UUID
-	ParentCommentID uuid.UUID
-	ReplyToUserID   uuid.UUID
-	Body            string
-	CreatedAt       time.Time
+	ID               uuid.UUID
+	FeedObjectID     uuid.UUID
+	AuthorID         uuid.UUID
+	ParentCommentID  uuid.UUID
+	ReplyToUserID    uuid.UUID
+	ReplyToCommentID uuid.UUID
+	Body             string
+	CreatedAt        time.Time
 }
 
 func (q *Queries) InsertComment(ctx context.Context, arg InsertCommentParams) (FeedComment, error) {
@@ -203,6 +215,7 @@ func (q *Queries) InsertComment(ctx context.Context, arg InsertCommentParams) (F
 		arg.AuthorID,
 		arg.ParentCommentID,
 		arg.ReplyToUserID,
+		arg.ReplyToCommentID,
 		arg.Body,
 		arg.CreatedAt,
 	)
@@ -218,6 +231,7 @@ func (q *Queries) InsertComment(ctx context.Context, arg InsertCommentParams) (F
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.DeletedByKind,
+		&i.ReplyToCommentID,
 	)
 	return i, err
 }
@@ -278,9 +292,16 @@ WITH tops AS (
   LIMIT $6::int
 )
 SELECT c.id, c.feed_object_id, c.author_id, c.parent_comment_id, c.reply_to_user_id, c.body, c.created_at,
-  c.deleted_at, c.deleted_by, c.deleted_by_kind
+  c.deleted_at, c.deleted_by, c.deleted_by_kind, c.reply_to_comment_id,
+  q.author_id AS quote_author_id, q.parent_comment_id AS quote_parent_id, q.body AS quote_body,
+  (q.deleted_at IS NOT NULL)::bool AS quote_deleted,
+  EXISTS (
+    SELECT 1 FROM user_blocks b WHERE b.blocker_id = $1::uuid AND b.blocked_id = q.author_id
+  )::bool AS quote_blocked
 FROM feed_comments c
-WHERE (c.id IN (SELECT id FROM tops) OR c.parent_comment_id IN (SELECT id FROM tops))
+LEFT JOIN feed_comments q ON q.feed_object_id = c.feed_object_id AND q.id = c.reply_to_comment_id
+WHERE c.feed_object_id = $2
+  AND (c.id IN (SELECT id FROM tops) OR c.parent_comment_id IN (SELECT id FROM tops))
   AND NOT EXISTS (
     SELECT 1 FROM user_blocks b WHERE b.blocker_id = $1::uuid AND b.blocked_id = c.author_id
   )
@@ -296,7 +317,26 @@ type ListCommentThreadsParams struct {
 	RowLimit     int32
 }
 
-func (q *Queries) ListCommentThreads(ctx context.Context, arg ListCommentThreadsParams) ([]FeedComment, error) {
+type ListCommentThreadsRow struct {
+	ID               uuid.UUID
+	FeedObjectID     uuid.UUID
+	AuthorID         uuid.UUID
+	ParentCommentID  pgtype.UUID
+	ReplyToUserID    pgtype.UUID
+	Body             string
+	CreatedAt        time.Time
+	DeletedAt        pgtype.Timestamptz
+	DeletedBy        pgtype.UUID
+	DeletedByKind    string
+	ReplyToCommentID pgtype.UUID
+	QuoteAuthorID    pgtype.UUID
+	QuoteParentID    pgtype.UUID
+	QuoteBody        pgtype.Text
+	QuoteDeleted     bool
+	QuoteBlocked     bool
+}
+
+func (q *Queries) ListCommentThreads(ctx context.Context, arg ListCommentThreadsParams) ([]ListCommentThreadsRow, error) {
 	rows, err := q.db.Query(ctx, listCommentThreads,
 		arg.Viewer,
 		arg.FeedObjectID,
@@ -309,9 +349,9 @@ func (q *Queries) ListCommentThreads(ctx context.Context, arg ListCommentThreads
 		return nil, err
 	}
 	defer rows.Close()
-	var items []FeedComment
+	var items []ListCommentThreadsRow
 	for rows.Next() {
-		var i FeedComment
+		var i ListCommentThreadsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.FeedObjectID,
@@ -323,6 +363,12 @@ func (q *Queries) ListCommentThreads(ctx context.Context, arg ListCommentThreads
 			&i.DeletedAt,
 			&i.DeletedBy,
 			&i.DeletedByKind,
+			&i.ReplyToCommentID,
+			&i.QuoteAuthorID,
+			&i.QuoteParentID,
+			&i.QuoteBody,
+			&i.QuoteDeleted,
+			&i.QuoteBlocked,
 		); err != nil {
 			return nil, err
 		}

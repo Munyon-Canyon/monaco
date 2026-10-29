@@ -149,16 +149,16 @@ func TestGetFeedComments_showsEachAuthorsReturnWithOneLookupPerPage(t *testing.T
 		t.Fatal(err)
 	}
 	page := api.CommentPage(res.(api.GetFeedComments200JSONResponse))
-	if len(page.Items) != 1 || len(page.Items[0].Replies) != 2 {
-		t.Fatalf("page = %+v, want one thread with two replies", page)
+	if len(page.Items) != 3 {
+		t.Fatalf("page = %+v, want three threads", page)
 	}
 	if a := page.Items[0].Comment.Author; a.Return1mBps == nil || *a.Return1mBps != 1250 || a.ReturnPrivate {
 		t.Errorf("sharing author = %+v, want 1250 and not private", a)
 	}
-	if a := page.Items[0].Replies[0].Author; a.Return1mBps != nil || !a.ReturnPrivate {
+	if a := page.Items[1].Comment.Author; a.Return1mBps != nil || !a.ReturnPrivate {
 		t.Errorf("hiding author = %+v, want null and private", a)
 	}
-	if a := page.Items[0].Replies[1].Author; a.Return1mBps != nil || a.ReturnPrivate {
+	if a := page.Items[2].Comment.Author; a.Return1mBps != nil || a.ReturnPrivate {
 		t.Errorf("deleted author = %+v, want null and not private", a)
 	}
 	assertOneLookup(t, users.calls, len(returns.asked))

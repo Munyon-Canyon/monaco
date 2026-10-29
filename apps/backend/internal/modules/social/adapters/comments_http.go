@@ -1,6 +1,7 @@
 package adapters
 
 import (
+	"cmp"
 	"context"
 	"slices"
 
@@ -17,6 +18,7 @@ import (
 const (
 	commentDeletedDisplay = "Comment deleted"
 	commentRemovedDisplay = "Removed by Monaco"
+	quoteAuthorGone       = "Someone"
 )
 
 func (h HTTP) PostFeedComment(
@@ -65,7 +67,11 @@ func wireComments(
 func commentPeople(comments []app.Comment) []ids.UserID {
 	var people []ids.UserID
 	for _, c := range comments {
-		for _, id := range []ids.UserID{c.AuthorID, c.ReplyToUserID} {
+		named := []ids.UserID{c.AuthorID, c.ReplyToUserID}
+		if c.Quote != nil {
+			named = append(named, c.Quote.AuthorID)
+		}
+		for _, id := range named {
 			if id.UUID() != uuid.Nil && !slices.Contains(people, id) {
 				people = append(people, id)
 			}
@@ -82,11 +88,15 @@ func wireComment(c app.Comment, viewer ids.UserID, who people) api.Comment {
 	}
 	author.Return1mBps, author.ReturnPrivate = who.authorReturn(c.AuthorID)
 	out := api.Comment{
-		Id: c.ID, ParentCommentId: optionalWireID(c.ParentID), Author: author, IsMine: c.AuthorID == viewer,
+		Id: c.ID, ParentCommentId: optionalWireID(c.ParentID), RootCommentId: optionalWireID(c.ParentID),
+		Author: author, IsMine: c.AuthorID == viewer,
 		CreatedAt: c.CreatedAt, BodyDisplay: c.Body,
 	}
 	if card, ok := who.cards[c.ReplyToUserID]; ok && !card.Deleted {
 		out.ReplyToHandle = optionalWireText(card.Handle)
+	}
+	if c.Quote != nil {
+		out.ReplyTo = wireQuote(*c.Quote, who)
 	}
 	switch {
 	case c.Deleted && c.RemovedByAdmin:
@@ -97,6 +107,17 @@ func wireComment(c app.Comment, viewer ids.UserID, who people) api.Comment {
 		out.Body = &c.Body
 	}
 	return out
+}
+
+func wireQuote(q app.CommentQuote, who people) *api.CommentQuote {
+	name := quoteAuthorGone
+	if card, ok := who.cards[q.AuthorID]; ok && !card.Deleted {
+		name = cmp.Or(card.DisplayName, card.Handle, quoteAuthorGone)
+	}
+	return &api.CommentQuote{
+		CommentId: q.CommentID, RootCommentId: q.RootID, AuthorDisplayName: name, Excerpt: q.Excerpt,
+		IsDeleted: q.Deleted, IsFolded: q.Folded,
+	}
 }
 
 func (h HTTP) GetFeedComments(
