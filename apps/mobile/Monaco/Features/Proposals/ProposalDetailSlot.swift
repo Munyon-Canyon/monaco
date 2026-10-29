@@ -76,11 +76,15 @@ struct ProposalDetailSlotView: View {
         let state = summary.state(now: .now)
         return VStack(alignment: .leading, spacing: MonacoTheme.Space.section) {
             ProposalHero(
-                summary: summary, asset: model.asset, members: model.members, paused: pause?.isPaused == true
+                summary: summary, asset: model.asset, members: model.members, paused: pause?.isPaused == true,
+                subtitle: model.asset?.preIpo == nil ? nil : PreIpoCopy.proposalSubtitle
             )
             .padding(.horizontal, MonacoTheme.Space.gutter)
             if let stats = model.stats {
                 ProposalStatRow(stats: stats)
+            }
+            if let preIpo = model.asset?.preIpo, let profile = preIpo.profile {
+                ProposalPreIpoLedger(lines: profile.ledger, eligibility: preIpo.eligibility)
             }
             if let thesis = summary.thesis, !thesis.isEmpty {
                 ProposalReasonSection(title: "Thesis", text: thesis, style: .plain)

@@ -69,11 +69,45 @@ final class ProposalStatsTests: XCTestCase {
         }
     }
 
-    func testAPreIpoProposalCallsItsPriceAnEstimate() async throws {
+    func testAPreIpoBuyShowsTheEstimateAndSharesRoundedDown() async throws {
         let result = stats(.preIpoSpaceX(now: now), asset: .spaceX)
-        XCTAssertEqual(result.cells.first?.label, "Estimate")
-        XCTAssertEqual(result.cells.first?.hasInfo, true)
-        XCTAssertEqual(result.cells.last?.value, "Fri 5:53 AM")
+        XCTAssertEqual(line(result), ["Estimate $185.00", "Shares ≈ 2.70", "Of treasury 2.2%", "Closes Fri 5:53 AM"])
+        XCTAssertEqual(result.cells.map(\.hasInfo), [true, false, false, false])
+    }
+
+    func testAPassedPreIpoBuyKeepsTheEstimate() async throws {
+        var fixture = Components.Schemas.ProposalDetail.preIpoSpaceX(now: now)
+        fixture.status = .passed
+        let cells = stats(fixture, asset: .spaceX).cells.prefix(2).map { "\($0.label) \($0.value)" }
+        XCTAssertEqual(cells, ["Estimate $185.00", "Shares ≈ 2.70"])
+    }
+
+    func testAPreIpoAssetWithoutRoundFactsFallsBackToThePrice() async throws {
+        var asset = Components.Schemas.AssetDetail.spaceX
+        asset.preIpo = nil
+        let result = stats(.preIpoSpaceX(now: now), asset: asset)
+        XCTAssertEqual(result.cells.first.map { "\($0.label) \($0.value)" }, "Price $185.00")
+    }
+
+    func testTheEligibilityLineNeverPromisesATenderFill() async throws {
+        for kind in [Components.Schemas.ProposalKind.buy, .sell] {
+            for window in [Components.Schemas.PreIpoSellWindow.tenderQuarterly, .anyTime] {
+                var asset = Components.Schemas.AssetDetail.spaceX
+                asset.preIpo?.sellWindow = window
+                asset.preIpo?.nextTenderOn = window == .anyTime ? nil : "2027-01-15"
+                let eligibility = try XCTUnwrap(ProposalAsset(asset).preIpo).eligibility
+                let text = PreIpoCopy.proposalEligibilityLine(eligibility)
+                XCTAssertEqual(text, "Proposal eligible · fills when it passes", "\(kind) \(window)")
+                XCTAssertFalse(text.lowercased().contains("tender"))
+            }
+        }
+    }
+
+    func testAResearchOnlyAssetReadsResearchOnlyWithNoFillClause() async throws {
+        var asset = Components.Schemas.AssetDetail.spaceX
+        asset.tradable = false
+        let eligibility = try XCTUnwrap(ProposalAsset(asset).preIpo).eligibility
+        XCTAssertEqual(PreIpoCopy.proposalEligibilityLine(eligibility), "Research only")
     }
 
     func testAClosingTimeBeyondAWeekReadsAsADate() async throws {

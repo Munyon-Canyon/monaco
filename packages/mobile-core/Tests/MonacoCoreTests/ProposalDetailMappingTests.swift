@@ -62,7 +62,7 @@ final class ProposalDetailMappingTests: XCTestCase {
             (.filledNVDA(now: now), .nvda, ["$219.40", "1.82", "$220.00", "+0.3%"]),
             (.filledMETA(now: now), .nvda, ["$716.52", "0.42", "$724.40", "+1.1%"]),
             (.failedTSLA(now: now), .nvda, ["$412.55", "2.2", "4%", "Oct 18"]),
-            (.preIpoSpaceX(now: now), .spaceX, ["$185.00", "≈ 2.7", "2.2%", "Fri 5:53 AM"]),
+            (.preIpoSpaceX(now: now), .spaceX, ["$185.00", "≈ 2.70", "2.2%", "Fri 5:53 AM"]),
         ]
         for (fixture, asset, values) in cases {
             let model = ProposalDetailModel(
@@ -71,5 +71,18 @@ final class ProposalDetailMappingTests: XCTestCase {
                 calendar: utc)
             XCTAssertEqual(model.stats?.cells.map(\.value), values, "\(fixture.symbol) \(fixture.status)")
         }
+    }
+
+    func testTheSpaceXAssetDetailMapsItsPreIpoFactsAndEligibility() async throws {
+        let asset = ProposalAsset(.spaceX)
+        XCTAssertEqual(asset.kind, .preIpo)
+        XCTAssertTrue(asset.tradable)
+        XCTAssertEqual(asset.preIpo?.eligibility, .eligible)
+        XCTAssertEqual(asset.preIpo?.profile?.estimateText, "$185.00")
+        var research = Components.Schemas.AssetDetail.spaceX
+        research.tradable = false
+        XCTAssertFalse(ProposalAsset(research).tradable)
+        XCTAssertEqual(ProposalAsset(research).preIpo?.eligibility, .researchOnly)
+        XCTAssertNil(ProposalAsset(.nvda).preIpo)
     }
 }

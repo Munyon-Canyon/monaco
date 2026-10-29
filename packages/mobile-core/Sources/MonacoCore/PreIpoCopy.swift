@@ -103,6 +103,13 @@ public enum PreIpoCopy {
         LedgerLine(label: "\(estimateTitle) · \(date)", value: price)
     }
 
+    public static let proposalSubtitle = "Pre-IPO · priced at the secondary estimate"
+    public static let proposalFillLine = "fills when it passes"
+
+    public static func proposalEligibilityLine(_ eligibility: PreIpoEligibility) -> String {
+        eligibility == .eligible ? "\(eligible) · \(proposalFillLine)" : researchOnly
+    }
+
     public static func roundsCount(rounds: Int, estimates: Int) -> String {
         "\(rounds) \(rounds == 1 ? "round" : "rounds") · \(estimates) \(estimates == 1 ? "estimate" : "estimates")"
     }
@@ -146,5 +153,8 @@ public enum PreIpoCopy {
         roundStatsInfo,
         heldAtEstimate,
         roundsCount(rounds: 3, estimates: 1),
+        proposalSubtitle,
+        proposalEligibilityLine(.eligible),
+        proposalEligibilityLine(.researchOnly),
     ]
 }

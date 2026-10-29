@@ -32,10 +32,13 @@ public struct ProposalStats: Equatable, Sendable {
         let stats = detail.stats
         let swap = summary.swap
         let isSell = summary.kind == "sell"
-        let isPreIpo = asset?.kind == .preIpo
+        let estimate = asset?.kind == .preIpo ? asset?.estimateMicros : nil
         let priceCell = Cell(
-            label: isPreIpo ? "Estimate" : "Price", value: money(stats.priceMicros), hasInfo: true)
-        let sharesCell = Cell(label: "Shares", value: sharesText(stats, exact: stats.sharesExact || isSell))
+            label: estimate == nil ? "Price" : "Estimate", value: money(estimate ?? stats.priceMicros),
+            hasInfo: true)
+        let sharesCell =
+            estimate.flatMap { estimatedShares(usdcMicros: isSell ? nil : summary.usdcMicros, estimateMicros: $0) }
+            ?? Cell(label: "Shares", value: sharesText(stats, exact: stats.sharesExact || isSell))
         let treasuryCell = Cell(label: "Of treasury", value: percent(stats.treasuryShareBps))
 
         if let swap, swap.status == "confirmed", swap.filledAt != nil, let fill = swap.priceMicros {
@@ -82,6 +85,15 @@ public struct ProposalStats: Equatable, Sendable {
             priceCell, sharesCell, treasuryCell,
             Cell(label: label, value: stats.closedAt.map { dayLabel($0, calendar: calendar) } ?? missing),
         ])
+    }
+
+    private static func estimatedShares(usdcMicros: Int64?, estimateMicros: Int64) -> Cell? {
+        guard let usdcMicros, usdcMicros > 0, estimateMicros > 0 else { return nil }
+        let hundredths = (usdcMicros.multipliedReportingOverflow(by: 100))
+        guard !hundredths.overflow else { return nil }
+        let value = hundredths.partialValue / estimateMicros
+        let fraction = value % 100
+        return Cell(label: "Shares", value: "≈ \(value / 100).\(fraction < 10 ? "0" : "")\(fraction)")
     }
 
     private static func since(_ bps: Int64?) -> Cell {
