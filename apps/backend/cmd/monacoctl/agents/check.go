@@ -394,7 +394,7 @@ func (env *Env) stage0(ctx context.Context, lane, base, parent, head string) ([]
 	rows = append(rows, env.testFileRows(changed, len(removed) > 0)...)
 	swift := swiftChanged(changed)
 	if swift {
-		rows = append(rows, env.swiftRow(parent))
+		rows = append(rows, env.swiftRow(parent, changed))
 	}
 	if slices.ContainsFunc(changed, env.flowFile) {
 		row, err := env.flowsRow(ctx, lane, parent, head, swift)
@@ -475,16 +475,25 @@ func journeyChanged(changed []string) bool {
 	})
 }
 
-func swiftChanged(changed []string) bool {
-	return slices.ContainsFunc(changed, func(f string) bool {
-		return strings.HasPrefix(f, "packages/mobile-core/") || strings.HasPrefix(f, "packages/flows/") ||
-			strings.HasPrefix(f, "apps/mobile/") || f == openAPISpec || f == ".swift-format" || f == ".swiftlint.yml"
-	})
+func swiftFile(f string) bool {
+	return strings.HasPrefix(f, "packages/mobile-core/") || strings.HasPrefix(f, "packages/flows/") ||
+		strings.HasPrefix(f, "apps/mobile/") || f == openAPISpec || f == ".swift-format" || f == ".swiftlint.yml"
 }
 
-func (env *Env) swiftRow(parent string) checkRow {
+func swiftChanged(changed []string) bool {
+	return slices.ContainsFunc(changed, swiftFile)
+}
+
+func generatedSwift(f string) bool {
+	if f == openAPISpec || f == swiftSpecCopy || f == errorCodeCasesFile {
+		return true
+	}
+	return underAny(f, []string{"packages/flows/", "packages/mobile-core/"}) && strings.HasSuffix(f, ".gen.swift")
+}
+
+func (env *Env) swiftRow(parent string, changed []string) checkRow {
 	waited := env.statePath(lockWaitedDir, strconv.Itoa(os.Getpid())+".swift.waited")
-	return checkRow{
+	row := checkRow{
 		label: "swift test", kind: "swift", class: "cpu", dir: filepath.Join(env.Work, "packages", "mobile-core"),
 		cmds: [][]string{
 			{"swift", "format", "lint", "--strict", "--recursive", "--parallel", "../../apps/mobile", "."},
@@ -493,6 +502,11 @@ func (env *Env) swiftRow(parent string) checkRow {
 		},
 		lockWaited: waited,
 	}
+	if slices.IndexFunc(changed, func(f string) bool { return swiftFile(f) && !generatedSwift(f) }) < 0 {
+		row.cmds = [][]string{lockWaitedCmd(waited, "../../scripts/mobile-core-test.sh", "--filter", "MonacoAPITests")}
+		row.header = "generated Swift only; MonacoAPITests, lint skipped"
+	}
+	return row
 }
 
 func lockWaitedCmd(waited string, cmd ...string) []string {
