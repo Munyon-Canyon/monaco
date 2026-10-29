@@ -118,7 +118,7 @@ The PostHog call is an outbound HTTP call, so it sits behind a port with an anti
 | Card deposit | deposit_opened → card_selected → page_opened → privy_auth → fund_confirmed / fund_cancelled → (server) deposit_credited |
 | Join cabal | cabal_viewed → join_tapped → request_sent / joined → fund_sheet_opened → (server) cabal_funded |
 | Propose | propose_opened → asset_selected → amount_entered → thesis_entered → submitted |
-| Vote | proposal_viewed → vote_cast / vote_undone |
+| Vote | proposal_viewed → vote_cast / vote_undone; push_action |
 | Trade outcome | (server) proposal_passed → trade_executed / trade_blocked / trade_failed |
 | Cash out | cash_out_opened → amount_entered → confirmed → (server) cash_out_completed / cash_out_partial / cash_out_failed |
 | Withdraw | withdraw_opened → address_entered → confirmed → (server) withdrawal_sent |
@@ -126,6 +126,8 @@ The PostHog call is an outbound HTTP call, so it sits behind a port with an anti
 | Social | profile_viewed → follow_tapped; suggestion_shown → suggestion_followed / suggestion_dismissed |
 | Chat | chat_opened → message_sent |
 | Referral | invite_paste_shown → invite_pasted / invite_skipped |
+
+`vote_push_action` carries `action` (`vote_yes`, `vote_no`, `read_thesis`, `default`) and `kind` (the push kind).
 
 The list of flows lives here; adding a screen means adding its steps here and in the app's event enum, so names never drift. A step's event name is `<flow>_<step>` with the flow's snake_case name, for example `crypto_deposit_deposit_opened`; the Referral steps keep their own names, as [referrals.md](referrals.md#analytics) lists them. `AnalyticsStepTests` reads this table and fails when `AnalyticsStep` and the table differ.
 

@@ -156,6 +156,24 @@ In Go, a kind sets `Message.Presentation` with `ForCabal(view, sender)`, `ForPer
 
 Sample payloads for the simulator are `apps/mobile/PushFixtures/proposal_created_grouped.apns` (person-led, in a cabal thread) and `cabal_paused_grouped.apns` (cabal-led). `proposal_created.apns`, `proposal_result_filled.apns` and `proposal_result_failed.apns` show the vote pushes, and `vote_reminder.apns` and `vote_deciding.apns` the reminder and the deciding vote; drop one with `xcrun simctl push "$UDID" xyz.monacolabs.app <file>`.
 
+### Actions
+
+The app registers the categories on every launch, before it sets the notification delegate, so a cold start from an action finds them. `PushCategory.all` in `MonacoCore/Push/PushCategories.swift` is the one source of truth.
+
+| Category id | Actions (id, title, SF Symbol, options) |
+|---|---|
+| `VOTE` | `VOTE_YES` Yes `checkmark` (foreground, authenticationRequired); `VOTE_NO` No `xmark` (foreground, authenticationRequired); `READ_THESIS` Read the thesis `bubble.left` (foreground) |
+| `VOTE_DECIDING` | `VOTE_YES`, `VOTE_NO` as above |
+| `LEDGER` | none (routing and analytics only) |
+
+`PushAction.route(actionIdentifier:payload:)` maps Yes and No to `PushRoute.voteHold` (the hold sheet with the pick made), Read the thesis to the proposal screen, and a plain tap or an unknown action to `PushRoute.parse`. A missing or invalid `proposal_id` or `cabal_id` falls back to `PushRoute.parse`. When the proposal's hold sheet or screen is already showing, `willPresent` returns `[.list]` only.
+
+**How a vote from a notification is authenticated.**
+- No vote ever leaves the notification. Yes and No are `.foreground` actions with `.authenticationRequired`, so iOS unlocks the phone (Face ID or passcode) and opens the app before the app sees the choice.
+- The app then opens the hold sheet with the side picked. The member holds to vote, and the vote goes out as every vote does: `POST /v1/proposals/{id}/votes` with the signed-in session's token and an `Idempotency-Key`.
+- No token, signature or vote intent is put in a push payload, and no new backend auth path exists.
+- With no session, `PushRouter` holds the route until sign-in. If the proposal closed meanwhile, the hold sheet shows it closed.
+
 ### Pictures on pushes
 
 A push is led by a picture with the Monaco icon on its corner only when iOS treats it as a communication notification. `MonacoNotificationService`, a notification service extension embedded in the app (`apps/mobile/MonacoNotificationService`), does that for every push with `mutable-content: 1`:

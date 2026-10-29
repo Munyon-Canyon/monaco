@@ -87,6 +87,7 @@ public struct AnalyticsStep: Hashable, Sendable {
         case proposalViewed = "proposal_viewed"
         case voteCast = "vote_cast"
         case voteUndone = "vote_undone"
+        case pushAction = "push_action"
         public static var flow: AnalyticsFlow { .vote }
     }
 

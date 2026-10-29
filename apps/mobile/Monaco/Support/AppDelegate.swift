@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         }
         let center = PushCenterDelegate(router: PushRouter(environment: environment))
         pushCenter = center
+        UNUserNotificationCenter.current().setNotificationCategories(Set(PushCategory.all.map(\.notificationCategory)))
         UNUserNotificationCenter.current().delegate = center
         return true
     }
