@@ -10,6 +10,11 @@ enum ProfileSampleScenario: String, CaseIterable {
     case ready
     case facePicker
     case cabals
+    case tabsCabals
+    case tabsUnvalued
+    case tabsActivity
+    case tabsEmpty
+    case tabsError
     case empty
     case loading
     case error
@@ -124,6 +129,79 @@ struct UserProfileSampleScreen: View {
     }
 }
 
+struct ProfileTabsSampleScreen: View {
+    let scenario: ProfileSampleScenario
+    @State private var selection = ProfileTabsSelection.cabals
+
+    private var cabals: LoadState<[ProfileCabalRow]> {
+        switch scenario {
+        case .tabsEmpty: .loaded([])
+        case .tabsError: .failed(.transport(URLError(.notConnectedToInternet)))
+        case .tabsUnvalued:
+            .loaded(
+                ProfileCabalRows.make(
+                    cabals: [Self.cabal(.sampleACCapital), Self.cabal(.sampleQuantKids)],
+                    portfolio: .sampleWithUnfunded, invites: []))
+        default:
+            .loaded(
+                ProfileCabalRows.make(
+                    cabals: [
+                        Self.cabal(.sampleACCapital, role: "creator"), Self.cabal(.sampleTechTitans),
+                        Self.cabal(.sampleDegens),
+                    ], portfolio: .sampleOwnProfile,
+                    invites: [Self.quantKidsInvite]))
+        }
+    }
+
+    private static let activityRows: [MemberActivityRow] = [
+        ("Voted Yes", "Buy NVDA · AC Capital", "20m", MemberActivityRow.Glyph.voted),
+        ("Proposed Buy META", "AC Capital · passed 4–1", "5h", .proposed),
+        ("“Concentration is a feature”", "on Buy NVDA $1,500.00 · Tech Titans", "3d", .replied),
+        ("Voted No", "Sell TSLA · Degens", "1w", .voted),
+        ("Topped the board", "September · 11 of 12 right", "3w", .toppedBoard),
+    ].enumerated().map { index, item in
+        MemberActivityRow(
+            id: "\(index)", glyph: item.3, title: item.0, subtitle: item.1, time: item.2,
+            destination: item.3 == .toppedBoard ? .board : .proposal("sample-proposal"))
+    }
+
+    private var activity: LoadState<[MemberActivityRow]> {
+        switch scenario {
+        case .tabsEmpty: .loaded([])
+        case .tabsError: .failed(.transport(URLError(.notConnectedToInternet)))
+        default:
+            .loaded(Self.activityRows)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                ProfileTabsContent(
+                    cabals: cabals, activity: activity, hasMoreActivity: false, selection: $selection)
+            }
+            .monacoCanvas()
+            .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
+        }
+        .onAppear { if scenario == .tabsActivity { selection = .activity } }
+    }
+
+    private static func cabal(_ ref: Components.Schemas.CabalRef, role: String = "member")
+        -> Components.Schemas.MyCabal
+    {
+        Components.Schemas.MyCabal(
+            id: ref.id, name: ref.name, pictureUrl: nil, role: role, canVote: true, memberCount: 5,
+            joinedAt: Date(timeIntervalSince1970: 0), pendingRequestCount: 0, unreadCount: 0)
+    }
+
+    private static let quantKidsInvite = Components.Schemas.CabalInvite(
+        requestId: "sample-invite",
+        cabal: .init(
+            id: Components.Schemas.CabalRef.sampleQuantKids.id, name: "Quant Kids", pictureUrl: nil, memberCount: 5),
+        invitedBy: .init(userId: "sample-sam", handle: "sam", displayName: "Sam", photoUrl: nil),
+        expiresAt: Date(timeIntervalSince1970: 1_791_590_400))
+}
+
 struct ProfileSampleHarness: View {
     let scenario: ProfileSampleScenario
     @ObservedObject var auth: PrivyAuthService
@@ -195,6 +273,12 @@ final class ProfileSampleHarnessEntry: SampleHarnessEntry {
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
         guard let scenario = ProfileSampleScenario.matching(arguments) else { return nil }
         SampleAPIProtocol.install(SampleAPIScript(mode: apiMode(for: scenario)))
+        switch scenario {
+        case .tabsCabals, .tabsUnvalued, .tabsActivity, .tabsEmpty, .tabsError:
+            return AnyView(ProfileTabsSampleScreen(scenario: scenario))
+        default:
+            break
+        }
         if let state = scenario.personState {
             return AnyView(UserProfileSampleScreen(state: state))
         }

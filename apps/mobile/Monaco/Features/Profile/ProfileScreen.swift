@@ -7,7 +7,7 @@ struct ProfileScreen: View {
         ProfileCardSlot.self,
         ProfileStandingSlot.self,
         ProfileBalanceSlot.self,
-        ProfileCabalsSlot.self,
+        ProfileTabsSlot.self,
         ProfileLinksSlot.self,
     ]
 

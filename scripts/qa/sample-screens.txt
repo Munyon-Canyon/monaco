@@ -280,6 +280,11 @@ profile-photo                 -MonacoProfileSample photo
 profile-ready                 -MonacoProfileSample ready
 profile-face-picker           -MonacoProfileSample facePicker
 profile-cabals                -MonacoProfileSample cabals -MonacoSampleScroll bottom
+profile-tabs-cabals           -MonacoProfileSample tabsCabals
+profile-tabs-unvalued         -MonacoProfileSample tabsUnvalued
+profile-tabs-activity         -MonacoProfileSample tabsActivity
+profile-tabs-empty            -MonacoProfileSample tabsEmpty
+profile-tabs-error            -MonacoProfileSample tabsError
 profile-empty                 -MonacoProfileSample empty -MonacoSampleScroll bottom
 profile-loading               -MonacoProfileSample loading
 profile-error                 -MonacoProfileSample error
@@ -471,6 +476,9 @@ propose-review-long-thesis     -MonacoProposeSample reviewLongThesis
 propose-review-submitting      -MonacoProposeSample reviewSubmitting
 propose-review-sent            -MonacoProposeSample reviewSent
 propose-review-error           -MonacoProposeSample reviewError
+propose-review-nvidia          -MonacoProposeSample reviewNvidia
+propose-review-nvidia-two      -MonacoProposeSample reviewNvidiaTwoCabals
+propose-review-spacex          -MonacoProposeSample reviewSpaceX
 propose-review-expanded        -MonacoProposeSample review -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 propose-chooser-large-text     -MonacoProposeSample chooser -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityXXXL
 propose-amount-large-text      -MonacoProposeSample amount -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityXXXL
