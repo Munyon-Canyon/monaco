@@ -138,16 +138,34 @@ func (e MyPnlHistoryRange) Valid() bool {
 
 // Defines values for PortfolioCabalRole.
 const (
-	Admin  PortfolioCabalRole = "admin"
-	Member PortfolioCabalRole = "member"
+	PortfolioCabalRoleAdmin  PortfolioCabalRole = "admin"
+	PortfolioCabalRoleMember PortfolioCabalRole = "member"
 )
 
 // Valid indicates whether the value is a known member of the PortfolioCabalRole enum.
 func (e PortfolioCabalRole) Valid() bool {
 	switch e {
-	case Admin:
+	case PortfolioCabalRoleAdmin:
 		return true
-	case Member:
+	case PortfolioCabalRoleMember:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UserCabalRole.
+const (
+	UserCabalRoleAdmin  UserCabalRole = "admin"
+	UserCabalRoleMember UserCabalRole = "member"
+)
+
+// Valid indicates whether the value is a known member of the UserCabalRole enum.
+func (e UserCabalRole) Valid() bool {
+	switch e {
+	case UserCabalRoleAdmin:
+		return true
+	case UserCabalRoleMember:
 		return true
 	default:
 		return false
@@ -853,6 +871,50 @@ type SharedCabals struct {
 	Cabals []SharedCabal `json:"cabals"`
 }
 
+// UserCabal One cabal the user is in.
+type UserCabal struct {
+	// Cabal A cabal's name and picture.
+	Cabal CabalRef `json:"cabal"`
+
+	// CanVote Whether the user votes on this cabal's proposals.
+	//
+	// Examples: true
+	CanVote bool `json:"can_vote"`
+
+	// MemberCount The cabal's member count.
+	//
+	// Examples: 12
+	MemberCount int32 `json:"member_count"`
+
+	// OwnershipBps The user's share of this cabal's pot in basis points, the same figure as `CabalPot.me.slice_bps` read as that user. 0 when they hold no units. Null when they hide their performance and the caller is not that user.
+	//
+	// Examples: 2000
+	OwnershipBps *int32 `json:"ownership_bps"`
+
+	// Role The user's role in this cabal. `admin` is the cabal's creator or one of its admins.
+	//
+	// Examples: admin
+	Role UserCabalRole `json:"role"`
+
+	// Shared Whether the caller is a member of this cabal too.
+	//
+	// Examples: true
+	Shared bool `json:"shared"`
+}
+
+// UserCabalRole The user's role in this cabal. `admin` is the cabal's creator or one of its admins.
+//
+// Examples: admin
+type UserCabalRole string
+
+// UserCabals The cabals one user is in.
+type UserCabals struct {
+	// Cabals The user's cabals, shared ones first, then largest share first.
+	//
+	// Examples: []
+	Cabals []UserCabal `json:"cabals"`
+}
+
 // LeaderboardCursor Examples: MjA
 type LeaderboardCursor = string
 
@@ -987,6 +1049,9 @@ type ServerInterface interface {
 	// GetMyPortfolio Read the caller's portfolio.
 	// (GET /v1/me/portfolio)
 	GetMyPortfolio(w http.ResponseWriter, r *http.Request)
+	// GetUserCabals Read the cabals another user is in.
+	// (GET /v1/users/{id}/cabals)
+	GetUserCabals(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// GetSharedCabals Read the cabals the caller and another user share.
 	// (GET /v1/users/{id}/shared-cabals)
 	GetSharedCabals(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
@@ -1341,6 +1406,32 @@ func (siw *ServerInterfaceWrapper) GetMyPortfolio(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// GetUserCabals operation middleware
+func (siw *ServerInterfaceWrapper) GetUserCabals(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetUserCabals(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetSharedCabals operation middleware
 func (siw *ServerInterfaceWrapper) GetSharedCabals(w http.ResponseWriter, r *http.Request) {
 
@@ -1493,6 +1584,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/leaderboards/people", wrapper.GetPeopleLeaderboard)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/pnl-history", wrapper.GetMyPnlHistory)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/portfolio", wrapper.GetMyPortfolio)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/users/{id}/cabals", wrapper.GetUserCabals)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/users/{id}/shared-cabals", wrapper.GetSharedCabals)
 
 	return m
@@ -1733,6 +1825,45 @@ func (response GetMyPortfoliodefaultApplicationProblemPlusJSONResponse) VisitGet
 	return err
 }
 
+type GetUserCabalsRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetUserCabalsResponseObject interface {
+	VisitGetUserCabalsResponse(w http.ResponseWriter) error
+}
+
+type GetUserCabals200JSONResponse UserCabals
+
+func (response GetUserCabals200JSONResponse) VisitGetUserCabalsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetUserCabalsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetUserCabalsdefaultApplicationProblemPlusJSONResponse) VisitGetUserCabalsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetSharedCabalsRequestObject struct {
 	Id openapi_types.UUID `json:"id"`
 }
@@ -1792,6 +1923,9 @@ type StrictServerInterface interface {
 	// GetMyPortfolio Read the caller's portfolio.
 	// (GET /v1/me/portfolio)
 	GetMyPortfolio(ctx context.Context, request GetMyPortfolioRequestObject) (GetMyPortfolioResponseObject, error)
+	// GetUserCabals Read the cabals another user is in.
+	// (GET /v1/users/{id}/cabals)
+	GetUserCabals(ctx context.Context, request GetUserCabalsRequestObject) (GetUserCabalsResponseObject, error)
 	// GetSharedCabals Read the cabals the caller and another user share.
 	// (GET /v1/users/{id}/shared-cabals)
 	GetSharedCabals(ctx context.Context, request GetSharedCabalsRequestObject) (GetSharedCabalsResponseObject, error)
@@ -1985,6 +2119,32 @@ func (sh *strictHandler) GetMyPortfolio(w http.ResponseWriter, r *http.Request) 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMyPortfolioResponseObject); ok {
 		if err := validResponse.VisitGetMyPortfolioResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetUserCabals operation middleware
+func (sh *strictHandler) GetUserCabals(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetUserCabalsRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetUserCabals(ctx, request.(GetUserCabalsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetUserCabals")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetUserCabalsResponseObject); ok {
+		if err := validResponse.VisitGetUserCabalsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

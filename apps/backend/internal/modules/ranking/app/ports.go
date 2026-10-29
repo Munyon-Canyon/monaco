@@ -98,3 +98,22 @@ type (
 	DisplayBalances = fundingport.DisplayBalances
 	Balance         = fundingport.Balance
 )
+
+type Blocks interface {
+	BlockedByMe(ctx context.Context, viewer, user ids.UserID) (bool, error)
+}
+
+type FollowCounts = interface {
+	Counts(context.Context, ids.UserID) (int, int, error)
+	FollowedByMe(context.Context, ids.UserID, ids.UserID) (bool, error)
+	FollowedAmong(context.Context, ids.UserID, []ids.UserID) (map[ids.UserID]bool, error)
+	BlockedByMe(context.Context, ids.UserID, ids.UserID) (bool, error)
+}
+
+type UnwiredBlocks struct{}
+
+var _ Blocks = UnwiredBlocks{}
+
+func (UnwiredBlocks) BlockedByMe(context.Context, ids.UserID, ids.UserID) (bool, error) {
+	return false, errs.New(errs.CodeUpstreamUnavailable, "ranking.UnwiredBlocks.BlockedByMe")
+}

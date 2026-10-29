@@ -27,6 +27,7 @@ type HTTP struct {
 	Members   app.MemberCabals
 	Ownership app.Ownership
 	Roles     app.MemberRoles
+	Blocks    app.Blocks
 	Balances  app.DisplayBalances
 	Votes     app.OpenVoteCounts
 }
@@ -198,6 +199,34 @@ func (h HTTP) GetSharedCabals(
 		})
 	}
 	return api.GetSharedCabals200JSONResponse(out), nil
+}
+
+func (h HTTP) GetUserCabals(
+	ctx context.Context, req api.GetUserCabalsRequestObject,
+) (api.GetUserCabalsResponseObject, error) {
+	viewer, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ports := app.UserCabalPorts{
+		Users: h.Users, Blocks: h.Blocks, Members: h.Members, Cards: h.Cards, Ownership: h.Ownership, Roles: h.Roles,
+	}
+	rows, err := app.ReadUserCabals{Viewer: viewer, Other: ids.UserIDFrom(req.Id)}.Run(ctx, ports)
+	if err != nil {
+		return nil, err
+	}
+	out := api.UserCabals{Cabals: make([]api.UserCabal, 0, len(rows))}
+	for _, row := range rows {
+		members, ok := int32Of(row.Cabal.MemberCount)
+		if !ok {
+			return nil, errs.New(errs.CodeInternal, "ranking.GetUserCabals", slog.Int("members", row.Cabal.MemberCount))
+		}
+		out.Cabals = append(out.Cabals, api.UserCabal{
+			Cabal: cabalRef(row.Cabal), MemberCount: members, Role: api.UserCabalRole(row.Role),
+			CanVote: row.CanVote, Shared: row.Shared, OwnershipBps: row.OwnershipBps,
+		})
+	}
+	return api.GetUserCabals200JSONResponse(out), nil
 }
 
 func cabalRef(card app.CabalView) api.CabalRef {

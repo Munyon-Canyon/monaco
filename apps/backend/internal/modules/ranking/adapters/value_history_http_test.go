@@ -283,7 +283,8 @@ func TestGetMyPortfolio_mapsOwnershipAndRole(t *testing.T) {
 	t.Parallel()
 	got, err := portfolioReq(t, 300, 100, "")
 	out, _ := got.(api.GetMyPortfolio200JSONResponse)
-	if err != nil || len(out.Cabals) != 1 || out.Cabals[0].OwnershipBps != 3501 || out.Cabals[0].Role != api.Admin ||
+	if err != nil || len(out.Cabals) != 1 || out.Cabals[0].OwnershipBps != 3501 ||
+		out.Cabals[0].Role != api.PortfolioCabalRoleAdmin ||
 		!out.Cabals[0].CanVote {
 		t.Fatalf("response = %+v, %v, want ownership 3501, admin, can_vote", got, err)
 	}

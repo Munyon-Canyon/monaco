@@ -2996,6 +2996,34 @@ paths:
                 $ref: "#/components/schemas/MyPortfolio"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/users/{id}/cabals:
+    get:
+      operationId: getUserCabals
+      tags: [ranking]
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}, ip: {rate: 600, per: 1m, burst: 100}}
+      summary: Read the cabals another user is in.
+      description: >-
+        Returns every cabal the user is a member of, the ones the caller is in too first, then by
+        the user's share of the pot, largest first. Each row carries the user's role, whether they
+        vote, and whether the caller is a member as well. `ownership_bps` is the user's share of the
+        pot, and is null when they hide their performance, unless the caller reads their own cabals.
+        A cabal with no snapshot yet stays in the list. A block in either direction returns an empty
+        list. An unknown user is user_not_found.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The user's id.
+          schema: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+      responses:
+        "200":
+          description: The user's cabals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserCabals"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/users/{id}/shared-cabals:
     get:
       operationId: getSharedCabals
@@ -8856,6 +8884,31 @@ components:
           examples: [[]]
           items:
             $ref: "#/components/schemas/SharedCabal"
+    UserCabal:
+      type: object
+      description: One cabal the user is in.
+      additionalProperties: false
+      required: [cabal, member_count, role, can_vote, shared, ownership_bps]
+      properties:
+        cabal:
+          $ref: "#/components/schemas/CabalRef"
+        member_count: {type: integer, format: int32, minimum: 0, description: The cabal's member count., examples: [12]}
+        role: {type: string, enum: [admin, member], description: "The user's role in this cabal. `admin` is the cabal's creator or one of its admins.", examples: [admin]}
+        can_vote: {type: boolean, description: Whether the user votes on this cabal's proposals., examples: [true]}
+        shared: {type: boolean, description: Whether the caller is a member of this cabal too., examples: [true]}
+        ownership_bps: {type: [integer, "null"], format: int32, minimum: 0, maximum: 10000, description: "The user's share of this cabal's pot in basis points, the same figure as `CabalPot.me.slice_bps` read as that user. 0 when they hold no units. Null when they hide their performance and the caller is not that user.", examples: [2000]}
+    UserCabals:
+      type: object
+      description: The cabals one user is in.
+      additionalProperties: false
+      required: [cabals]
+      properties:
+        cabals:
+          type: array
+          description: The user's cabals, shared ones first, then largest share first.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/UserCabal"
   # api/spec/referrals.yaml
     AttachReferralRequest:
       type: object
