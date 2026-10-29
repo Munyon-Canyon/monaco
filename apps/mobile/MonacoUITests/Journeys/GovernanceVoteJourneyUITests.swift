@@ -14,36 +14,45 @@ nonisolated final class GovernanceVoteJourneyUITests: XCTestCase {
 
         try session.scenario("S1") {
             let proposalID = try JourneyHandoff.read("proposalID")
-            let first = try session.act(as: "A")
+            try session.act(as: "A")
             GovernanceVoteJourney.voteFromHome(app, proposalID: proposalID, run: run, recorder: recorder)
+            GovernanceVoteJourney.castAndChange(app, recorder: recorder)
             attachScreenshot(of: app, named: "S1-A-voted-yes")
             try session.act(as: "B")
-            GovernanceVoteJourney.secondVoterPasses(
-                app, proposalID: proposalID, voter: first.name, recorder: recorder)
+            GovernanceVoteJourney.secondVoterPasses(app, proposalID: proposalID, recorder: recorder)
             attachScreenshot(of: app, named: "S1-B-passed")
             try session.act(as: "A")
             GovernanceVoteJourney.firstVoterSeesItLeave(app, proposalID: proposalID, recorder: recorder)
-            attachScreenshot(of: app, named: "S1-A-home-cleared")
+            attachScreenshot(of: app, named: "S1-A-settled")
         }
 
         try session.scenario("S2") {
             let cabalName = try JourneyHandoff.read("cabalName")
             let proposalID = try JourneyHandoff.read("proposalID")
             try session.act(as: "A")
-            GovernanceVoteJourney.voteOnCabalCard(
-                app, cabalName: cabalName, proposalID: proposalID, recorder: recorder)
-            attachScreenshot(of: app, named: "S2-A-cabal-card")
+            GovernanceVoteJourney.voteFromCabalPage(
+                app, cabalName: cabalName, proposalID: proposalID, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-A-cabal-page")
         }
 
         try session.scenario("S3") {
-            let cabalName = try JourneyHandoff.read("cabalName")
             let proposalID = try JourneyHandoff.read("proposalID")
             let closedProposalID = try JourneyHandoff.read("closedProposalID")
             try session.act(as: "A")
-            GovernanceVoteJourney.seeAllHistory(
-                app, cabalName: cabalName, proposalID: proposalID, closedProposalID: closedProposalID,
-                recorder: recorder)
-            attachScreenshot(of: app, named: "S3-A-see-all")
+            GovernanceVoteJourney.allProposals(
+                app, proposalID: proposalID, closedProposalID: closedProposalID, recorder: recorder)
+            attachScreenshot(of: app, named: "S3-A-all-proposals")
+        }
+
+        try session.scenario("S4") {
+            let sidesClosedID = try JourneyHandoff.read("sidesClosedProposalID")
+            let plainClosedID = try JourneyHandoff.read("plainClosedProposalID")
+            let otherName = try session.account("B").name
+            try session.act(as: "A")
+            GovernanceVoteJourney.sidesAfterClose(
+                app, sidesClosedID: sidesClosedID, plainClosedID: plainClosedID, hostName: "QA host",
+                otherName: otherName, recorder: recorder)
+            attachScreenshot(of: app, named: "S4-A-sides")
         }
     }
 }

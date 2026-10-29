@@ -1,0 +1,19 @@
+journey: governance/vote
+expect-fail: S4
+
+The closed proposal shows the sides row only when the cabal keeps sides private. S4.2 expects it with the rule on and S4.3 expects none with the rule off, so S4 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Proposals/ProposalResultCard.swift b/apps/mobile/Monaco/Features/Proposals/ProposalResultCard.swift
+index 66e976c68..0fda5b18f 100644
+--- a/apps/mobile/Monaco/Features/Proposals/ProposalResultCard.swift
++++ b/apps/mobile/Monaco/Features/Proposals/ProposalResultCard.swift
+@@ -42,7 +42,7 @@ struct ProposalResultCard<Sides: View>: View {
+                         .foregroundStyle(MonacoTheme.muted)
+                         .accessibilityIdentifier("proposal-result-caption")
+                 }
+-                if let detail = model?.value, detail.sidesVisible {
++                if let detail = model?.value, !detail.sidesVisible {
+                     MonacoRule()
+                     ProposalSidesRow(
+                         sides: .make(

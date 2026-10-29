@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # journey.py runs this before each scenario of docs/journeys/governance/vote.md with the scenario id.
 # Every scenario gets its own cabal from the pooled "QA host" user, with A and B as members and one open
-# buy proposal by the host. S3 adds an expired proposal. The proposal rows are written the way
+# buy proposal by the host. S3 adds an expired proposal. S4 adds a proposal marked passed in place, with three
+# ballots and no event so no trade runs, in this cabal (sides rule off) and in a second cabal whose "Show who voted what" rule is on. The proposal rows are written the way
 # governance.ProposeTrade writes them, because the propose route needs a Jupiter route and pot funds.
 set -euo pipefail
 
-scenario="${1:?usage: vote.setup.sh <S1|S2|S3>}"
+scenario="${1:?usage: vote.setup.sh <S1|S2|S3|S4>}"
 case "$scenario" in
-  S1 | S2 | S3) ;;
+  S1 | S2 | S3 | S4) ;;
   *) echo "vote.setup.sh: unknown scenario '$scenario'" >&2 && exit 1 ;;
 esac
 
@@ -163,12 +164,26 @@ SELECT id FROM proposal
 SQL
 }
 
+closed_with_ballots() {
+  local cabal="$1" proposer="$2" thesis="$3" sides="$4" proposal
+  proposal="$(open_proposal "$cabal" "$proposer" "$thesis" expired '-2 days' '-1 day')"
+  sql -v proposal="$proposal" -v a="$id_a" -v b="$id_b" -v host="$proposer" -v sides="$sides" >/dev/null <<SQL
+UPDATE proposals SET status = 'passed', sides_after_close = :'sides'::boolean WHERE id = :'proposal';
+INSERT INTO votes (proposal_id, voter_id, choice, cast_at, first_cast_at) VALUES
+  (:'proposal', :'a', 'yes', now() - interval '2 days', now() - interval '2 days'),
+  (:'proposal', :'host', 'yes', now() - interval '2 days', now() - interval '2 days'),
+  (:'proposal', :'b', 'no', now() - interval '2 days', now() - interval '2 days')
+SQL
+  echo "$proposal"
+}
+
 hand_off() {
   python3 - "$handoff" "$@" <<'PY'
 import json, os, sys
 path, pairs = sys.argv[1], sys.argv[2:]
 values = json.load(open(path)) if os.path.exists(path) and os.path.getsize(path) else {}
-values.pop("closedProposalID", None)
+for stale in ("closedProposalID", "sidesCabalName", "sidesClosedProposalID", "plainClosedProposalID"):
+    values.pop(stale, None)
 values.update(zip(pairs[::2], pairs[1::2]))
 json.dump(values, open(path, "w"))
 PY
@@ -201,6 +216,19 @@ pairs=(cabalName "$cabal_name" cabalID "$cabal_id" proposalID "$proposal_id" "${
 if [[ "$scenario" == S3 ]]; then
   closed_id="$(open_proposal "$cabal_id" "$host_id" "QA closed $run" expired '-2 days' '-1 day')"
   pairs+=(closedProposalID "$closed_id")
+fi
+if [[ "$scenario" == S4 ]]; then
+  sides_name="QA sides $run"
+  sides_cabal="$(call POST /v1/cabals "$host_token" \
+    "{\"name\":\"$sides_name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
+    field id)"
+  admit "$token_a" "$host_token" "$sides_cabal"
+  admit "$token_b" "$host_token" "$sides_cabal"
+  sql -v cabal="$sides_cabal" >/dev/null \
+    <<<"UPDATE cabals SET show_sides = true, show_sides_changed_at = now() WHERE id = :'cabal'"
+  sides_closed="$(closed_with_ballots "$sides_cabal" "$host_id" "QA sides closed $run" true)"
+  plain_closed="$(closed_with_ballots "$cabal_id" "$host_id" "QA plain closed $run" false)"
+  pairs+=(sidesCabalName "$sides_name" sidesClosedProposalID "$sides_closed" plainClosedProposalID "$plain_closed")
 fi
 hand_off "${pairs[@]}"
 
