@@ -566,9 +566,13 @@ func (env *Env) flowsRow(ctx context.Context, self, parent, head string, swift b
 	alternatives := strings.Join(ids, "|")
 	row.class, row.cmds = "db", nil
 	row.dbCmds = func(db testDB) [][]string {
+		p := testParallelism(runtime.NumCPU(), db.busy)
+		parallel := testParallelPerPackage(runtime.NumCPU(), db.busy, p)
+		script := fmt.Sprintf(
+			`go test -tags faultpoints -p %d -parallel %d -json -run "$1" "${@:3}" > "$2" || true`, p, parallel)
 		cmds := [][]string{
 			slices.Concat(db.testEnv(), []string{
-				"bash", "-c", `go test -tags faultpoints -json -run "$1" "${@:3}" > "$2" || true`, "flows",
+				"bash", "-c", script, "flows",
 				"^TestFlow(" + alternatives + ")_", results,
 			}, pkgs),
 			append(check, "--from", results),
