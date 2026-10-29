@@ -466,7 +466,7 @@ func TestResolveCalls_aFailedEventAppendRollsTheWholeBatchBack(t *testing.T) {
 
 func TestResolveCalls_aCallOlderThanAWeekAcceptsADailySample(t *testing.T) {
 	t.Parallel()
-	now := clock.Real{}.Now().UTC()
+	now := clock.Real{}.Now().UTC().Truncate(time.Microsecond)
 	for _, tc := range []struct {
 		name      string
 		resolveAt time.Duration

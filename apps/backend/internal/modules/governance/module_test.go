@@ -131,3 +131,11 @@ func TestExpiryPoller_twoWorkersOnOneDatabaseExpireEachProposalOnce(t *testing.T
 		t.Fatalf("status %s, want expired with exactly one proposal.expired", d.status(t, soon))
 	}
 }
+
+func TestVoidFromOps_refusesABlankReasonBeforeTouchingAnything(t *testing.T) {
+	t.Parallel()
+	err := governance.New(module.Deps{}).VoidFromOps(t.Context(), governance.ProposalID{}, " ")
+	if err == nil {
+		t.Fatalf("VoidFromOps err = %v, want an error", err)
+	}
+}

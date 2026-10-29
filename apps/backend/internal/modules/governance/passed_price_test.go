@@ -177,7 +177,7 @@ func TestCastVote_anUnreadableMintStoresNullLogsOnceAndTheVotePasses(t *testing.
 	}
 }
 
-func TestCastVote_aMissingProposalLogsOnceAndStillAnswersNotFound(t *testing.T) {
+func TestCastVote_aMissingProposalAnswersNotFoundAndLogsNoDegradedPrice(t *testing.T) {
 	t.Parallel()
 	d := newPricedVote(t)
 	ctx, buf := loggedCtx(t)
@@ -185,9 +185,22 @@ func TestCastVote_aMissingProposalLogsOnceAndStillAnswersNotFound(t *testing.T) 
 	if errs.CodeOf(err) != errs.CodeProposalNotFound {
 		t.Fatalf("CastVote err = %v, want proposal_not_found", err)
 	}
-	if w := warnings(buf); len(w) != 1 {
-		t.Fatalf("warnings = %v, want one", w)
+	if w := warnings(buf); len(w) != 0 {
+		t.Fatalf("warnings = %v, want none", w)
 	}
+}
+
+func TestCastVote_aFailingProposalReadLogsOnceAsInternal(t *testing.T) {
+	t.Parallel()
+	d := newPricedVote(t)
+	ctx, buf := loggedCtx(t)
+	ctx, cancel := context.WithCancel(ctx)
+	cancel()
+	p, v := d.open(t, 1)
+	if _, err := d.cast(ctx, d.handler(), p.ID, v[0], domain.ChoiceYes); err == nil {
+		t.Fatal("CastVote on a cancelled context succeeded")
+	}
+	wantOneWarning(t, buf, p.ID, errs.CodeInternal)
 }
 
 func wantOneWarning(t *testing.T, buf *bytes.Buffer, proposal uuid.UUID, code errs.Code) {
