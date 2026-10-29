@@ -48,7 +48,7 @@ private struct CommentComposerHarnessScreen: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .monacoCanvas()
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                CommentComposerBar(model: detail.comments, onPlus: {}, onGif: {})
+                CommentComposerBar(model: detail.comments, onPlus: {})
             }
             .environment(toasts)
             .monacoToastCenter(toasts)

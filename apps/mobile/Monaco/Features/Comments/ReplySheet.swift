@@ -5,9 +5,9 @@ struct ReplySheet: View {
     let model: CommentsModel
     let target: ReplyTarget
     var owner: String?
-    var onGif: (() -> Void)?
 
     @FocusState private var focused: Bool
+    @State private var picksGif = false
     @Environment(ToastCenter.self) private var toasts
 
     var body: some View {
@@ -16,7 +16,12 @@ struct ReplySheet: View {
             ReplySheetQuote(target: target)
             ComposerNotices(model: model)
             HStack(alignment: .bottom, spacing: MonacoTheme.Space.s) {
-                ComposerField(model: model, focused: $focused, onGif: onGif)
+                ComposerField(
+                    model: model, focused: $focused,
+                    onGif: {
+                        focused = false
+                        picksGif = true
+                    })
                 ComposerSendButton(model: model) {
                     if case .post = target { toasts.show(success: CommentsCopy.replied) }
                 }
@@ -31,6 +36,7 @@ struct ReplySheet: View {
         )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("reply-sheet")
+        .gifPicker(isPresented: $picksGif, model: model)
         .onAppear { focused = true }
     }
 
