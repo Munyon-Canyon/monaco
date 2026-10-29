@@ -9,6 +9,18 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
+func (defined) SeedsF10a() map[string]Seeder {
+	return map[string]Seeder{
+		"F10aRetractVoteOK":               seedSignedInWith(arrangeVotable),
+		"F10aRetractVoteUnauthorized":     seedAnonymous,
+		"F10aRetractVoteProposalNotFound": seedSignedIn,
+		"F10aRetractVoteNotAVoter":        seedSignedInWith(arrangeForeignProposal),
+		"F10aRetractVoteProposalClosed":   seedSignedInWith(arrangeClosedProposal),
+		"F10aRetractVoteVoteNotFound":     seedSignedInWith(arrangeVotable),
+		"F10aRetractVoteUndoExpired":      seedSignedInWith(arrangeVotable),
+	}
+}
+
 func F10aRetractVoteOK(s *scenario.Scenario) {
 	p := seedOpenProposal(s, 3)
 	s.Given(scenario.AsSeededUser("alice", p.voters[0])).

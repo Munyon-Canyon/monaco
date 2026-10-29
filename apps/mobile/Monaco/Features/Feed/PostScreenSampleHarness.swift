@@ -1,6 +1,7 @@
 #if DEBUG
 import MonacoAPI
 import MonacoCore
+import MonacoFlows
 import SwiftUI
 
 final class FeedPostSampleHarnessEntry: SampleHarnessEntry {
@@ -11,6 +12,17 @@ final class FeedPostSampleHarnessEntry: SampleHarnessEntry {
         let acts = arguments.contains(SampleHarnessRegistry.actArgument)
         return AnyView(
             FeedPostHarnessScreen(mode: FeedItemDetailModel.PreviewMode(rawValue: raw) ?? .ready, acts: acts))
+    }
+}
+
+final class FeedPostFlowHarnessEntry: SampleHarnessEntry {
+    @MainActor
+    override class func root(arguments: [String], auth _: PrivyAuthService) -> AnyView? {
+        guard
+            Flow21Scenario.matching(arguments) != nil || Flow21bScenario.matching(arguments) != nil
+                || Flow21dScenario.matching(arguments) != nil
+        else { return nil }
+        return AnyView(FeedPostHarnessScreen(mode: .unavailable, acts: false))
     }
 }
 

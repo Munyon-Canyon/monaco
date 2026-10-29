@@ -1,6 +1,7 @@
 #if DEBUG
 import MonacoAPI
 import MonacoCore
+import MonacoFlows
 import SwiftUI
 
 enum GroupDetailSampleScenario: String, CaseIterable {
@@ -329,6 +330,16 @@ final class GroupDetailSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
         guard let scenario = GroupDetailSampleScenario.matching(arguments) else { return nil }
+        SampleAPIProtocol.install(scenario.script)
+        return AnyView(GroupDetailSampleHarness(scenario: scenario, auth: auth))
+    }
+}
+
+final class MembersFlowHarnessEntry: SampleHarnessEntry {
+    @MainActor
+    override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
+        guard Flow03Scenario.matching(arguments) != nil else { return nil }
+        let scenario = GroupDetailSampleScenario.error
         SampleAPIProtocol.install(scenario.script)
         return AnyView(GroupDetailSampleHarness(scenario: scenario, auth: auth))
     }

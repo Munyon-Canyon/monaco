@@ -142,3 +142,15 @@ func F21dVoteCommentPollCrashBeforeCommit(s *scenario.Scenario) {
 			scenario.EventuallyPublished(events.TypeCommentPollVoted, 1),
 		)
 }
+
+func (defined) SeedsF21d() map[string]Seeder {
+	return map[string]Seeder{
+		"F21dVoteCommentPollOK":                seedSignedIn,
+		"F21dVoteCommentPollInvalidInput":      seedSignedIn,
+		"F21dVoteCommentPollPollClosed":        seedSignedIn,
+		"F21dVoteCommentPollCommentNotFound":   seedSignedIn,
+		"F21dVoteCommentPollUnauthorized":      seedAnonymous,
+		"F21dVoteCommentPollRateLimited":       seedSignedIn,
+		"F21dVoteCommentPollCrashBeforeCommit": seedSignedIn,
+	}
+}

@@ -1,8 +1,11 @@
 package flows
 
 import (
+	"context"
 	"net/http"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -84,6 +87,37 @@ func f09Route(s *scenario.Scenario, amount string, action fakes.Action, fixture 
 }
 
 func f09Member(c f09Cabal) scenario.Step { return scenario.AsSeededUser("alice", c.members[0]) }
+
+func (defined) SeedsF09() map[string]Seeder {
+	return map[string]Seeder{
+		"F09ProposeTradeOK":                 seedF09Member,
+		"F09ProposeTradeInvalidInput":       seedF09Member,
+		"F09ProposeTradeUnauthorized":       seedAnonymous,
+		"F09ProposeTradeNotCabalMember":     seedF09Outsider,
+		"F09ProposeTradeAssetNotFound":      seedF09Member,
+		"F09ProposeTradeAssetUntradable":    seedF09Member,
+		"F09ProposeTradeNoRoute":            seedF09Member,
+		"F09ProposeTradeAssetPaused":        seedF09Member,
+		"F09ProposeTradePotExceeded":        seedF09Member,
+		"F09ProposeTradeOverTradeCap":       seedF09Member,
+		"F09ProposeTradeCabalSharesShort":   seedF09Member,
+		"F09ProposeTradeJupiterUnavailable": seedF09Member,
+		"F09ProposeTradePriceUnavailable":   seedF09Member,
+		"F09ProposeTradeCrashAfterPublish":  seedF09Member,
+	}
+}
+
+func seedF09Outsider(ctx context.Context, env SeedEnv) (SeedResult, error) {
+	return seedSignedInWith(func(t testkit.SeedT, pool *pgxpool.Pool, _ ids.UserID) map[string]string {
+		return map[string]string{"cabal": testkit.NewCabal(t, pool).ID.String()}
+	})(ctx, env)
+}
+
+func seedF09Member(ctx context.Context, env SeedEnv) (SeedResult, error) {
+	return seedSignedInWith(func(t testkit.SeedT, pool *pgxpool.Pool, member ids.UserID) map[string]string {
+		return map[string]string{"cabal": testkit.NewCabal(t, pool, testkit.WithCreator(member)).ID.String()}
+	})(ctx, env)
+}
 
 func F09ProposeTradeOK(s *scenario.Scenario) {
 	c := seedF09(s, "100000000")

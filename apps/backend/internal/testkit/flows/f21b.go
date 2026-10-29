@@ -317,3 +317,20 @@ func F21bReactCommentCrashBeforeCommit(s *scenario.Scenario) {
 			scenario.EventuallyPublished(events.TypeReactionAdded, 1),
 		)
 }
+
+func (defined) SeedsF21b() map[string]Seeder {
+	return map[string]Seeder{
+		"F21bReactFeedItemOK":                seedSignedIn,
+		"F21bReactFeedItemInvalidInput":      seedSignedIn,
+		"F21bReactFeedItemFeedItemNotFound":  seedSignedIn,
+		"F21bReactFeedItemUnauthorized":      seedAnonymous,
+		"F21bReactFeedItemRateLimited":       seedSignedIn,
+		"F21bReactFeedItemCrashBeforeCommit": seedSignedIn,
+		"F21bReactCommentOK":                 seedSignedIn,
+		"F21bReactCommentInvalidInput":       seedSignedIn,
+		"F21bReactCommentCommentNotFound":    seedSignedIn,
+		"F21bReactCommentUnauthorized":       seedAnonymous,
+		"F21bReactCommentRateLimited":        seedSignedIn,
+		"F21bReactCommentCrashBeforeCommit":  seedSignedIn,
+	}
+}
