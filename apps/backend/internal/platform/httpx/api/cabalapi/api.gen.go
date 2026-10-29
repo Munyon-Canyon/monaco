@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"time"
@@ -199,7 +200,7 @@ type CabalAccess struct {
 	Status string `json:"status"`
 }
 
-// CabalAccessRequest A pending request to join a cabal, as its creator sees it.
+// CabalAccessRequest A pending request to join a cabal, as an admin sees it.
 type CabalAccessRequest struct {
 	// CreatedAt Examples: 2026-10-02T15:00:00Z
 	CreatedAt time.Time `json:"created_at"`
@@ -211,6 +212,19 @@ type CabalAccessRequest struct {
 	//
 	// Examples: {"display_name":"Kai","handle":"kai","photo_url":null,"user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}
 	User CabalPerson `json:"user"`
+
+	// Via The member whose link the request came through. Null when it came through no link or a code that names no member.
+	//
+	// Examples: null
+	Via *CabalPerson `json:"via"`
+}
+
+// CabalAccessRequestBody Optional context for a request to join.
+type CabalAccessRequestBody struct {
+	// ViaCode The referral code or handle from the link the invitee opened.
+	//
+	// Examples: jordan
+	ViaCode *string `json:"via_code,omitempty"`
 }
 
 // CabalInvite A pending invite, as its invitee sees it.
@@ -618,6 +632,9 @@ type PostCabalJSONRequestBody = CreateCabalRequest
 
 // PatchCabalJSONRequestBody defines body for PatchCabal for application/json ContentType.
 type PatchCabalJSONRequestBody = UpdateCabalRequest
+
+// PostCabalAccessRequestJSONRequestBody defines body for PostCabalAccessRequest for application/json ContentType.
+type PostCabalAccessRequestJSONRequestBody = CabalAccessRequestBody
 
 // PostCabalAccessDecisionJSONRequestBody defines body for PostCabalAccessDecision for application/json ContentType.
 type PostCabalAccessDecisionJSONRequestBody = AccessDecisionRequest
@@ -1807,6 +1824,7 @@ func (response GetCabalAccessRequestsdefaultApplicationProblemPlusJSONResponse) 
 type PostCabalAccessRequestRequestObject struct {
 	Id     openapi_types.UUID `json:"id"`
 	Params PostCabalAccessRequestParams
+	Body   *PostCabalAccessRequestJSONRequestBody
 }
 
 type PostCabalAccessRequestResponseObject interface {
@@ -2524,6 +2542,16 @@ func (sh *strictHandler) PostCabalAccessRequest(w http.ResponseWriter, r *http.R
 
 	request.Id = id
 	request.Params = params
+
+	var body PostCabalAccessRequestJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if !errors.Is(err, io.EOF) {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+	} else {
+		request.Body = &body
+	}
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.PostCabalAccessRequest(ctx, request.(PostCabalAccessRequestRequestObject))

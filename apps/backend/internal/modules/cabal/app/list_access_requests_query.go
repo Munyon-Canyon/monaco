@@ -19,6 +19,7 @@ const listAccessRequestsOp = "cabal.ListAccessRequests"
 type PendingRequest struct {
 	ID        uuid.UUID
 	User      Person
+	Via       *Person
 	CreatedAt time.Time
 }
 
@@ -45,9 +46,12 @@ func ListAccessRequests(
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, listAccessRequestsOp)
 	}
-	userIDs := make([]ids.UserID, 0, len(rows))
+	userIDs := make([]ids.UserID, 0, 2*len(rows))
 	for _, row := range rows {
 		userIDs = append(userIDs, ids.UserIDFrom(row.UserID))
+		if row.ViaUserID.Valid {
+			userIDs = append(userIDs, ids.UserIDFrom(uuid.UUID(row.ViaUserID.Bytes)))
+		}
 	}
 	cards, err := users.UsersByID(ctx, userIDs)
 	if err != nil {
@@ -55,7 +59,12 @@ func ListAccessRequests(
 	}
 	out := make([]PendingRequest, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, PendingRequest{ID: row.ID, User: person(row.UserID, cards), CreatedAt: row.CreatedAt})
+		pending := PendingRequest{ID: row.ID, User: person(row.UserID, cards), CreatedAt: row.CreatedAt}
+		if row.ViaUserID.Valid {
+			via := person(row.ViaUserID.Bytes, cards)
+			pending.Via = &via
+		}
+		out = append(out, pending)
 	}
 	return out, nil
 }

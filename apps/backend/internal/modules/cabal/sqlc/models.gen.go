@@ -22,6 +22,7 @@ type CabalAccessRequest struct {
 	DecidedBy pgtype.UUID
 	CreatedAt time.Time
 	DecidedAt pgtype.Timestamptz
+	ViaUserID pgtype.UUID
 }
 
 type CabalMember struct {

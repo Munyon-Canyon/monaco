@@ -45,6 +45,7 @@ type Module struct {
 	treasury   app.TreasuryReads
 	unread     app.UnreadCounter
 	votes      app.OpenVotes
+	codes      app.CodeResolver
 }
 
 type liveReads struct {
@@ -115,6 +116,9 @@ func (m *Module) Wire(set module.Set) {
 		if provider, ok := mod.(interface{ Chat() app.UnreadCounter }); ok {
 			m.unread = provider.Chat()
 		}
+		if provider, ok := mod.(interface{ Codes() app.CodeResolver }); ok {
+			m.codes = provider.Codes()
+		}
 		if provider, ok := mod.(interface{ Queries() governanceport.Queries }); ok {
 			if votes, ok := provider.Queries().(app.OpenVotes); ok {
 				m.votes = votes
@@ -140,7 +144,7 @@ func (m *Module) http() adapters.HTTP {
 	return adapters.HTTP{
 		Create:  m.CreateCabalHandler(),
 		Join:    app.NewJoinCabalHandler(m.deps.UoW, m.deps.Clock),
-		Request: app.NewRequestAccessHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock),
+		Request: app.NewRequestAccessHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock, m.codes),
 		Revoke:  app.NewRevokeAccessHandler(m.deps.UoW, m.deps.Clock),
 		Decide:  app.NewDecideAccessHandler(m.deps.UoW, m.deps.Clock),
 		Update:  app.NewUpdateCabalHandler(m.deps.UoW, m.deps.Clock),
@@ -220,6 +224,7 @@ type (
 	TreasuryWallet    = port.TreasuryWallet
 	Status            = port.Status
 	JoinMode          = domain.JoinMode
+	CodeResolver      = app.CodeResolver
 	VoterMode         = domain.VoterMode
 	Threshold         = domain.Threshold
 	Role              = domain.Role

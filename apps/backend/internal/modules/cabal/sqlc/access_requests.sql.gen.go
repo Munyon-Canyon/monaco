@@ -61,7 +61,8 @@ func (q *Queries) ExpireAccessRequest(ctx context.Context, arg ExpireAccessReque
 }
 
 const findAccessRequest = `-- name: FindAccessRequest :one
-SELECT id, cabal_id, user_id, direction, invited_by, status, expires_at, decided_by, created_at, decided_at
+SELECT id, cabal_id, user_id, direction, invited_by, status, expires_at, decided_by, created_at, decided_at,
+  via_user_id
 FROM cabal_access_requests
 WHERE cabal_id = $1 AND id = $2
 `
@@ -85,13 +86,14 @@ func (q *Queries) FindAccessRequest(ctx context.Context, arg FindAccessRequestPa
 		&i.DecidedBy,
 		&i.CreatedAt,
 		&i.DecidedAt,
+		&i.ViaUserID,
 	)
 	return i, err
 }
 
 const findRequesterAccess = `-- name: FindRequesterAccess :one
 SELECT r.id, r.cabal_id, r.user_id, r.direction, r.invited_by, r.status, r.expires_at, r.decided_by, r.created_at,
-  r.decided_at
+  r.decided_at, r.via_user_id
 FROM cabal_access_requests r
 WHERE r.cabal_id = $1 AND r.user_id = $2 AND (
   r.status = 'pending' OR (r.status = 'denied' AND r.direction = 'request' AND NOT EXISTS (
@@ -123,14 +125,15 @@ func (q *Queries) FindRequesterAccess(ctx context.Context, arg FindRequesterAcce
 		&i.DecidedBy,
 		&i.CreatedAt,
 		&i.DecidedAt,
+		&i.ViaUserID,
 	)
 	return i, err
 }
 
 const insertAccessRequest = `-- name: InsertAccessRequest :execrows
-INSERT INTO cabal_access_requests (id, cabal_id, user_id, direction, invited_by, expires_at, created_at)
+INSERT INTO cabal_access_requests (id, cabal_id, user_id, direction, invited_by, expires_at, via_user_id, created_at)
 VALUES ($1, $2, $3, $4, $5,
-  $6, $7)
+  $6, NULLIF($7::uuid, '00000000-0000-0000-0000-000000000000'::uuid), $8)
 ON CONFLICT (cabal_id, user_id) WHERE status = 'pending' DO NOTHING
 `
 
@@ -141,6 +144,7 @@ type InsertAccessRequestParams struct {
 	Direction string
 	InvitedBy pgtype.UUID
 	ExpiresAt pgtype.Timestamptz
+	ViaUserID uuid.UUID
 	Now       time.Time
 }
 
@@ -152,6 +156,7 @@ func (q *Queries) InsertAccessRequest(ctx context.Context, arg InsertAccessReque
 		arg.Direction,
 		arg.InvitedBy,
 		arg.ExpiresAt,
+		arg.ViaUserID,
 		arg.Now,
 	)
 	if err != nil {
@@ -340,14 +345,15 @@ func (q *Queries) ListPendingInvitesForUser(ctx context.Context, arg ListPending
 }
 
 const listPendingRequestsForCabal = `-- name: ListPendingRequestsForCabal :many
-SELECT id, user_id, created_at FROM cabal_access_requests
+SELECT id, user_id, via_user_id, created_at FROM cabal_access_requests
 WHERE cabal_id = $1 AND direction = 'request' AND status = 'pending'
-ORDER BY created_at, id
+ORDER BY created_at DESC, id DESC
 `
 
 type ListPendingRequestsForCabalRow struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
+	ViaUserID pgtype.UUID
 	CreatedAt time.Time
 }
 
@@ -360,7 +366,12 @@ func (q *Queries) ListPendingRequestsForCabal(ctx context.Context, cabalID uuid.
 	var items []ListPendingRequestsForCabalRow
 	for rows.Next() {
 		var i ListPendingRequestsForCabalRow
-		if err := rows.Scan(&i.ID, &i.UserID, &i.CreatedAt); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.ViaUserID,
+			&i.CreatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

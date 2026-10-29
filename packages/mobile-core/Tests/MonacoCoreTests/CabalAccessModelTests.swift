@@ -77,7 +77,7 @@ final class CabalAccessModelTests: XCTestCase {
     func testTheCreatorSeesEachPendingRequestByName() async throws {
         let model = try await creatorModel(StubTransport(scripted: try creatorReplies()))
         guard case .pending(let pending) = model.standing else { return XCTFail("got \(model.standing)") }
-        XCTAssertEqual(pending.map(\.name), ["Jordan", "@priya"])
+        XCTAssertEqual(pending.map(\.name), ["Leo", "@priya"])
         XCTAssertEqual(CabalAccessStanding.heading(count: pending.count), "2 people want to join")
         XCTAssertEqual(CabalAccessStanding.heading(count: 1), "1 person wants to join")
     }

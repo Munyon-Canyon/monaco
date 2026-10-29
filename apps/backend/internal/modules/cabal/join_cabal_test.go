@@ -278,7 +278,7 @@ func (f accessFixture) routes(users app.UserCards) adapters.HTTP {
 	}
 	return adapters.HTTP{
 		Join:    app.NewJoinCabalHandler(f.uow, f.clock),
-		Request: app.NewRequestAccessHandler(f.uow, f.ids, f.clock),
+		Request: app.NewRequestAccessHandler(f.uow, f.ids, f.clock, nil),
 		Revoke:  app.NewRevokeAccessHandler(f.uow, f.clock),
 		Decide:  app.NewDecideAccessHandler(f.uow, f.clock),
 		Update:  app.NewUpdateCabalHandler(f.uow, f.clock),

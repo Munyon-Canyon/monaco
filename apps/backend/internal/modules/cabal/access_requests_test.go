@@ -283,7 +283,7 @@ func seedPendingMix(t *testing.T, f queriesFixture) pendingMix {
 	return m
 }
 
-func TestAccessRequestQueries_pendingRequestsOfACabalExcludeInvitesDecisionsAndOtherCabals(t *testing.T) {
+func TestAccessRequestQueries_pendingRequestsOfACabalNewestFirstExcludeInvitesDecisionsAndOtherCabals(t *testing.T) {
 	t.Parallel()
 	f := newQueries(t)
 	m := seedPendingMix(t, f)
@@ -293,8 +293,8 @@ func TestAccessRequestQueries_pendingRequestsOfACabalExcludeInvitesDecisionsAndO
 		"ListPendingRequestsForCabal",
 		idsOf(got, func(r sqlc.ListPendingRequestsForCabalRow) uuid.UUID { return r.ID }),
 		err,
-		m.r1,
 		m.r2,
+		m.r1,
 	)
 }
 
