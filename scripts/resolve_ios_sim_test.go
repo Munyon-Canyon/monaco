@@ -67,6 +67,7 @@ func runSim(t *testing.T, checkout, script, fixture, state string, env ...string
 	cmd.Dir = checkout
 	cmd.Env = append(os.Environ(),
 		"PATH="+filepath.Join(root, "scripts", "testdata", "fakebin")+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"MONACO_NO_SIMSLIM=1",
 		"FAKE_SIMCTL_DIR="+filepath.Join(root, "scripts", "testdata", fixture),
 		"FAKE_SIMCTL_STATE="+state,
 		"SIMSLIM_UDID=",
@@ -274,7 +275,8 @@ func TestResolveIOSSim_laneSlimsANewSimulator(t *testing.T) {
 	script := "#!/bin/sh\necho \"$*\" >> " + calls + "\n[ \"$1\" = on ]\n"
 	writeExecutable(t, filepath.Join(bin, "simslim"), script)
 	r := runSim(t, simCheckout(t, "slim"), "resolve-ios-sim.sh", "simctl", t.TempDir(),
-		"HOME="+t.TempDir(), "PATH="+filepath.Join(repoRoot(t), "scripts", "testdata", "fakebin")+string(os.PathListSeparator)+bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+		"HOME="+t.TempDir(), "MONACO_NO_SIMSLIM=",
+		"PATH="+filepath.Join(repoRoot(t), "scripts", "testdata", "fakebin")+string(os.PathListSeparator)+bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	if r.err != nil {
 		t.Fatalf("resolve-ios-sim.sh: %v\n%s", r.err, r.out)
 	}
@@ -302,7 +304,7 @@ func simslimBin(t *testing.T, verifyRC int) (path, calls string) {
 func ensure(t *testing.T, path, mode, udid string, env ...string) (calls string, out string) {
 	t.Helper()
 	cmd := exec.Command(filepath.Join(repoRoot(t), "scripts", "simslim-ensure.sh"), mode, udid)
-	cmd.Env = append(os.Environ(), append([]string{"PATH=" + path, "HOME=/nonexistent"}, env...)...)
+	cmd.Env = append(os.Environ(), append([]string{"PATH=" + path, "HOME=/nonexistent", "MONACO_NO_SIMSLIM="}, env...)...)
 	b, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("simslim-ensure.sh %s: %v\n%s", mode, err, b)
@@ -354,11 +356,15 @@ func TestSimslimEnsure_checkRepairsOnceWhenNotSlim(t *testing.T) {
 	}
 }
 
-func TestSimslimEnsure_missingSimslimWarnsAndContinues(t *testing.T) {
+func TestSimslimEnsure_missingSimslimFailsLoud(t *testing.T) {
 	t.Parallel()
-	_, out := ensure(t, "/usr/bin:/bin", "create", "UDID1")
-	if !strings.Contains(out, "warning: SimSlim not installed") {
-		t.Fatalf("output %q, want a missing simslim warning", out)
+	cmd := exec.Command(filepath.Join(repoRoot(t), "scripts", "simslim-ensure.sh"), "create", "UDID1")
+	cmd.Env = append(os.Environ(), "PATH=/usr/bin:/bin", "HOME=/nonexistent", "MONACO_NO_SIMSLIM=")
+	out, err := cmd.CombinedOutput()
+	var exit *exec.ExitError
+	if !errors.As(err, &exit) || exit.ExitCode() != 1 ||
+		!strings.Contains(string(out), "error: SimSlim not installed: brew install mobai-app/tap/simslim") {
+		t.Fatalf("err %v output %q, want exit 1 naming the install", err, out)
 	}
 }
 
@@ -376,7 +382,7 @@ func TestResolveIOSSim_laneChecksAnExistingSimulator(t *testing.T) {
 	path, calls := simslimBin(t, 1)
 	lane := simCheckout(t, "again")
 	state := t.TempDir()
-	env := []string{"HOME=/h", "PATH=" + path}
+	env := []string{"HOME=/h", "PATH=" + path, "MONACO_NO_SIMSLIM="}
 	first := runSim(t, lane, "resolve-ios-sim.sh", "simctl", state, env...)
 	second := runSim(t, lane, "resolve-ios-sim.sh", "simctl", state, env...)
 	if first.err != nil || second.err != nil || first.udid != second.udid {
