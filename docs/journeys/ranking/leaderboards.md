@@ -1,7 +1,7 @@
 ---
 id: ranking/leaderboards
 title: Leaderboard C
-version: 7
+version: 8
 milestone: F launch (phase 1)
 requires: [auth/sign-in]
 actors: [A]
@@ -30,9 +30,9 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap, then tap | the Home tab, then `home-leaderboard-row` | | The row reads "… leads · …%" and "This month · you are #n of m" within 15 s, and tapping it opens `leaderboard-page` titled "Leaderboard" within 15 s |
-| S1.2 | A | read | `leaderboard-period-week`, `-month`, `-alltime`, `leaderboard-tab-people`, `-cabals`, `-friends` | | "Month" is the selected period and People is the selected tab (`13-leaderboard-C-people`) |
+| S1.2 | A | read | `leaderboard-period-week`, `-month`, `-all`, `leaderboard-tab-people`, `-cabals`, `-friends` | | "Month" is the selected period and People is the selected tab (`13-leaderboard-C-people`) |
 | S1.3 | A | read | `leaderboard-you-card`, "Top three", "Around you" | | The You card reads "#n of m people". "Top three" shows three `leaderboard-podium-<rank>` places. "Around you" lists `leaderboard-row-<A id>` reading a rate with "percent" and "n of m right" |
-| S1.4 | A | scroll to | `leaderboard-section-unranked`, then `leaderboard-row-<unranked id>` | | The section "Not ranked yet" shows the voter with two resolved votes, who reads "not ranked yet" and "3 more to rank" (`13-leaderboard-C-unranked`) |
+| S1.4 | A | read | `leaderboard-section-unranked`, `leaderboard-row-<unranked id>` | | A is ranked, so People shows no `leaderboard-section-unranked` and no row for the voter with two resolved votes, who is under the five-vote floor. The list shows only to an unranked viewer (#6970) |
 
 ### S2 The Cabals tab
 
@@ -57,6 +57,7 @@ None known. Targets this journey does not read because the app has no identifier
 ## Not covered
 
 - The Friends tab with follows. That needs a seeded follow and belongs to `social/follow-and-boards`.
+- The "Not ranked yet" list and card. They show only to an unranked viewer (a seed where A is under the floor), then the viewer and people they follow.
 - The Week and All time periods' contents. The seed resolves its votes across the month, so only Month is stable.
 - The leaderboard moment, the ⓘ sheet and the docked row. Unit tests cover them.
 - Ranks that change after a trade. A trade needs a funded cabal, which belongs to the trade journeys.

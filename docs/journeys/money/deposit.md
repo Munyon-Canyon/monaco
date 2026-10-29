@@ -19,7 +19,7 @@ Version 2 (M24, #4968): Add money lists "Card" first and "Send crypto" second, "
 
 Version 4 (#5762): Add money is a half sheet over Home titled "Deposit" (`deposit-sheet-title`), not a pushed screen. Choosing an option closes the sheet and pushes the next screen onto Home, so back returns to Home.
 
-Version 5 (F launch, #6576): Home's cash row link reads "Deposit" (still `home-add-money-link`), and S3 opens the same sheet from Profile's docked "Deposit" (`profile-deposit-dock`).
+Version 5 (F launch, #6576): Home's cash row link reads "Deposit" (still `home-add-money-link`), and S3 opens the same sheet from Profile's docked "Deposit" (`profile-add-money-link`).
 
 Old app (`c838bd24`): Home -> "Add money" -> `Deposit/DepositView.swift`: the address, "Copy", the copied toast, "How it works", and the deposit-received toast. Spec: **Add money** in [screens.md](../../screens.md) (Money).
 
@@ -59,7 +59,7 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | A | tap, then tap | the Profile tab, then `profile-deposit-dock` "Deposit" | | The half sheet titled "Deposit" (`deposit-sheet-title`) shows `deposit-crypto-row` within 15 s |
+| S3.1 | A | tap, then tap | the Profile tab, then `profile-add-money-link` "Deposit" | | The half sheet titled "Deposit" (`deposit-sheet-title`) shows `deposit-crypto-row` within 15 s |
 
 ## Ground truth
 
@@ -67,7 +67,7 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Known failures on staging
 
-- S3.1: the app sets no `profile-deposit-dock` identifier yet (#6488 and #6505 own the Profile dock). It is a follow-up against those tickets.
+None.
 
 ## Not covered
 

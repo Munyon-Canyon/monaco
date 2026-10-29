@@ -216,7 +216,7 @@ enum DemoStoryJourney {
 
     static func cashOut(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S7.1", "open Cash out") {
-            tapAction(app, "cabal-action-cash-out", run: run, step: "S7.1")
+            tapAction(app, "cabal-treasury-cash-out", run: run, step: "S7.1")
             waitForTitle(app, "Cash out", step: "S7.1", blockedBy: "#6576")
             XCTAssertTrue(button(app, "25%").exists, "S7.1: no 25% (known failure, #6576)")
         }

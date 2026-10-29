@@ -85,12 +85,12 @@ enum HomeDashboardJourney {
         recorder.step("S1.7", "the chart shows plain range labels") {
             openHome(app)
             app.swipeDown()
-            for range in ["1H", "1D", "1W", "1M", "3M", "6M", "All"] {
+            for range in ["1H", "1D", "1W", "1M", "3M", "6M", "ALL"] {
                 XCTAssertTrue(
-                    app.element("home-range-\(range)").waitForExistence(timeout: 10),
+                    app.element("home-portfolio-range-\(range)").waitForExistence(timeout: 10),
                     "S1.7: no \(range) range label within 10 s")
             }
-            XCTAssertTrue(app.element("home-range-1M").isSelected, "S1.7: 1M is not selected")
+            XCTAssertTrue(app.element("home-portfolio-range-1M").isSelected, "S1.7: 1M is not selected")
         }
     }
 

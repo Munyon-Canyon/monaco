@@ -95,7 +95,7 @@ enum FeedReactAndReplyJourney {
         _ app: XCUIApplication, item: String, run: String, recorder: JourneyRecorder
     ) {
         let key = "feed-\(item)"
-        let chip = app.element("reaction-chip-\(key)-1f525")
+        let chip = app.element("reaction-chip-\(key)-1F525")
 
         recorder.step("S1.1", "open the Feed and read the sale's card") {
             app.popToRoot()
@@ -110,12 +110,12 @@ enum FeedReactAndReplyJourney {
         }
 
         recorder.step("S1.2", "add, remove and add a fire reaction") {
-            addReaction(app, to: key, search: "fire", hex: "1f525", step: "S1.2")
+            addReaction(app, to: key, search: "fire", hex: "1F525", step: "S1.2")
             XCTAssertTrue(chip.waitForExistence(timeout: 10), "S1.2: no 🔥 chip within 10 s")
             XCTAssertTrue(waitForLabel(chip, containing: "1", timeout: 10), "S1.2: the chip does not read 1")
             chip.tap()
             XCTAssertTrue(waitGone(chip, timeout: 10), "S1.2: the chip stayed after tapping it")
-            addReaction(app, to: key, search: "fire", hex: "1f525", step: "S1.2")
+            addReaction(app, to: key, search: "fire", hex: "1F525", step: "S1.2")
             XCTAssertTrue(chip.waitForExistence(timeout: 10), "S1.2: no 🔥 chip after adding it again")
         }
 
@@ -215,7 +215,7 @@ extension FeedReactAndReplyJourney {
                 XCTAssertTrue(app.element("comment-action-\(action)").exists, "S2.4: no \(action) action")
             }
             XCTAssertFalse(app.element("comment-action-delete").exists, "S2.4: a Delete on someone else's reply")
-            reactFromTray(app, id: id, hex: "1f389", text: "1", step: "S2.4")
+            reactFromTray(app, id: id, hex: "1F389", text: "1", step: "S2.4")
         }
 
         recorder.step("S2.5", "copy the root") {
@@ -282,7 +282,7 @@ extension FeedReactAndReplyJourney {
             XCTAssertTrue(app.element("comment-action-copy").exists, "S3.3: no Copy")
             XCTAssertTrue(app.element("comment-action-report").exists, "S3.3: no Report")
             XCTAssertFalse(app.element("comment-action-reply").exists, "S3.3: a Reply for a non-member")
-            reactFromTray(app, id: id, hex: "1f44d", text: "1", step: "S3.3")
+            reactFromTray(app, id: id, hex: "1F44D", text: "1", step: "S3.3")
         }
     }
 }

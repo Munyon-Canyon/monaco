@@ -2,7 +2,7 @@ import XCTest
 
 enum RankingLeaderboardsJourney {
     static let id = "ranking/leaderboards"
-    static let version = 7
+    static let version = 8
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -46,7 +46,7 @@ enum RankingLeaderboardsJourney {
         }
 
         recorder.step("S1.2", "Month is selected and People is the first tab") {
-            for period in ["week", "month", "alltime"] {
+            for period in ["week", "month", "all"] {
                 XCTAssertTrue(
                     app.element("leaderboard-period-\(period)").waitForExistence(timeout: 10),
                     "S1.2: no leaderboard-period-\(period)")
@@ -80,16 +80,12 @@ enum RankingLeaderboardsJourney {
                 "S1.3: A's row reads '\(me.label)', not a rate and \"n of m right\"")
         }
 
-        recorder.step("S1.4", "a member under the five-vote floor is not ranked") {
+        recorder.step("S1.4", "a ranked viewer sees no Not ranked yet list") {
             let section = app.element("leaderboard-section-unranked")
-            app.scrollIntoReach(section)
-            XCTAssertTrue(section.waitForExistence(timeout: 10), "S1.4: no \"Not ranked yet\" section")
             let row = app.element("leaderboard-row-\(seed.unrankedID)")
-            app.scrollIntoReach(row)
-            XCTAssertTrue(row.waitForExistence(timeout: 10), "S1.4: the member with two resolved votes has no row")
-            XCTAssertTrue(
-                row.label.contains("not ranked yet") && row.label.contains("3 more to rank"),
-                "S1.4: the row reads '\(row.label)', not \"not ranked yet … 3 more to rank\"")
+            _ = row.waitForExistence(timeout: 3)
+            XCTAssertFalse(section.exists, "S1.4: A is ranked, yet the board shows a \"Not ranked yet\" section")
+            XCTAssertFalse(row.exists, "S1.4: the member under the five-vote floor has a row on the board")
         }
     }
 

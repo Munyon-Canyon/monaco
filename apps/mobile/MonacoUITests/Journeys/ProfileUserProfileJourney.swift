@@ -127,7 +127,7 @@ enum ProfileUserProfileJourney {
         recorder.step("S3.3", "open the shared cabal") {
             row.tap()
             XCTAssertTrue(
-                app.element("cabal-details-button").waitForExistence(timeout: 15),
+                app.element("cabal-header-name").waitForExistence(timeout: 15),
                 "S3.3: the shared cabal did not open")
         }
     }

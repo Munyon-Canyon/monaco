@@ -31,7 +31,7 @@ enum MoneyCashOutJourney {
 
         recorder.step("S1.2", "open Cash out") {
             JoinJourney.openBySearch(app, name, step: "S1.2")
-            let action = app.element("cabal-action-cash-out")
+            let action = app.element("cabal-treasury-cash-out")
             XCTAssertTrue(action.waitForExistence(timeout: screenTimeout), "S1.2: no Cash out action")
             action.tap()
             XCTAssertTrue(
