@@ -27,6 +27,24 @@ final class ProposalDetailMappingTests: XCTestCase {
         XCTAssertNil(detail.myVote)
     }
 
+    func testTheFailedFixtureCarriesWhoDidNotVote() async throws {
+        let detail = ProposalDetail(.failedTSLA(now: now))
+        let missing = detail.voters.filter { !$0.voted }
+        XCTAssertEqual(missing.count, 1)
+        XCTAssertNil(missing.first?.ballot)
+        let members = Components.Schemas.Cabal.sampleWithMembers(role: "member").members.map(ProposalMember.init)
+        let names = members.filter { member in missing.contains { $0.id == member.id } }.map(\.name)
+        XCTAssertEqual(names, ["Priya"])
+        XCTAssertEqual(
+            ProposalResultCopy.notVotedRow(names: names, status: detail.summary.status), "Priya did not vote")
+    }
+
+    func testAVoterWithoutAnExplicitFlagReadsFromItsBallot() {
+        XCTAssertTrue(ProposalVoter(id: "a", ballot: "yes").voted)
+        XCTAssertFalse(ProposalVoter(id: "b", ballot: nil).voted)
+        XCTAssertTrue(ProposalVoter(id: "c", ballot: nil, voted: true).voted)
+    }
+
     func testAStatsBlockWithOnlyItsRequiredFieldsMapsToNilFigures() async throws {
         let detail = ProposalDetail(.sample())
         XCTAssertNil(detail.stats.priceMicros)

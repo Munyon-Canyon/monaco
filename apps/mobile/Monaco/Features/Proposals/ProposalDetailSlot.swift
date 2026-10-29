@@ -103,13 +103,63 @@ struct ProposalDetailSlotView: View {
             if let thesis = summary.thesis, !thesis.isEmpty {
                 ProposalReasonSection(title: "Thesis", text: thesis, style: .plain)
             }
-            ProposalVoteSection(model: model, summary: summary)
-            if !state.isOpen {
-                ProposalStatusSection(model: model, summary: summary)
+            if state.isOpen {
+                ProposalVoteSection(model: model, summary: summary)
+            } else {
+                closed(detail, summary, model)
             }
             if model.canWithdraw { withdrawButton }
         }
         .padding(.top, MonacoTheme.Space.m)
+    }
+
+    @ViewBuilder private func closed(_ detail: ProposalDetail, _ summary: ProposalSummary, _ model: ProposalDetailModel)
+        -> some View
+    {
+        let isSell = summary.kind == "sell"
+        let units = detail.stats.sharesAtomics.flatMap {
+            ProposalResultCopy.units(atomics: $0, decimals: detail.stats.tokenDecimals)
+        }
+        ProposalResultCard(
+            status: summary.status, tally: summary.tally,
+            caption: ProposalResultCopy.caption(
+                status: summary.status, tally: summary.tally, swap: summary.swap, isSell: isSell,
+                pendingUnits: units.map { "\($0) sh" }, statusMessage: summary.statusMessage),
+            accessibilitySummary: ProposalStepper.make(
+                status: summary.status, isSell: isSell, swapFailed: summary.swap?.status == "failed",
+                expiresAt: summary.expiresAt, failureMessage: summary.swap?.failureMessage,
+                statusMessage: summary.statusMessage, priceMoved: summary.swap?.isPriceMoved == true
+            ).accessibilityLabel
+        ) {
+            EmptyView()
+        }
+        ProposalReceiptCard(model: model, detail: detail)
+        resultAction(summary, model)
+    }
+
+    @ViewBuilder private func resultAction(_ summary: ProposalSummary, _ model: ProposalDetailModel) -> some View {
+        let isMember = model.members.contains { $0.id == environment.viewer?.userID }
+        switch ProposalResultCopy.action(status: summary.status, canPropose: isMember) {
+        case .share:
+            ShareLink(item: ShareCardContent.fallbackURL) {
+                Label("Share result", systemImage: MonacoIcon.share.symbol)
+            }
+            .buttonStyle(.monacoPrimary)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .accessibilityIdentifier("proposal-share-result")
+        case .proposeAgain:
+            NavigationLink(
+                value: AnyAppRoute(
+                    ProposeFromAssetRoute(symbol: summary.symbol, kind: summary.kind == "sell" ? .sell : .buy))
+            ) {
+                Label("Propose again", systemImage: MonacoIcon.refresh.symbol)
+            }
+            .buttonStyle(.monacoSecondary)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .accessibilityIdentifier("proposal-propose-again")
+        case nil:
+            EmptyView()
+        }
     }
 
     private var withdrawButton: some View {

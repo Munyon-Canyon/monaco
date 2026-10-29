@@ -265,7 +265,7 @@ public struct ProposalTally: Equatable, Sendable {
     public let voters: Int
     public let needed: Int
 
-    init(yes: Int, no: Int, voters: Int, needed: Int) {
+    public init(yes: Int, no: Int, voters: Int, needed: Int) {
         self.yes = yes
         self.no = no
         self.voters = voters
@@ -315,10 +315,16 @@ public struct ProposalRetractResult: Equatable, Sendable {
 public struct ProposalVoter: Equatable, Sendable, Identifiable {
     public let id: String
     public let ballot: String?
+    public let voted: Bool
+
+    public init(id: String, ballot: String?, voted: Bool? = nil) {
+        self.id = id
+        self.ballot = ballot
+        self.voted = voted ?? (ballot != nil)
+    }
 
     init(_ value: Components.Schemas.ProposalVoter) {
-        id = value.userId
-        ballot = value.choice?.rawValue
+        self.init(id: value.userId, ballot: value.choice?.rawValue, voted: value.voted)
     }
 }
 
