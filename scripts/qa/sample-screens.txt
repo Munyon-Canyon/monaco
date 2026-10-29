@@ -1011,3 +1011,7 @@ gif-reply-bubble-dark         -gifHarness bubble -AppleInterfaceStyle Dark
 gif-reply-reduce-motion       -gifHarness reduceMotion
 gif-viewer                    -gifHarness viewer
 upgrade-required              -upgradeHarness blocked
+cabal-f-members-scrolled          -MonacoGroupDetailSample fMembersScrolled -AppleInterfaceStyle Dark -MonacoSampleScroll 0.6
+cabal-f-members-all               -MonacoGroupDetailSample fMembersAll -AppleInterfaceStyle Dark
+cabal-f-voters                    -MonacoGroupDetailSample fVoters -AppleInterfaceStyle Dark
+cabal-f-members-large             -MonacoGroupDetailSample fMembersLarge -AppleInterfaceStyle Dark

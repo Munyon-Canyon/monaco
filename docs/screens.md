@@ -243,8 +243,8 @@ The page is the header (#6481: cover, name and facts line, stat block, Fund and 
 | --- | --- |
 | Treasury (`cabal-tab-treasury`) | `CabalHoldingsSlot` (the allocation bar, one row per holding that opens `CabalHoldingRoute`, a "Cash" row that opens `GroupCashRoute`), `CabalValueChartSlot` (the return line, the chart and `1W 1M All`), `CabalActivitySlot` ("Group activity" with "See all"). #6511 fills it |
 | Rules (`cabal-tab-rules`) | `CabalRulesRowSlot`: today's "The rules" card (Who can join, Who votes, Votes stay open, Current threshold) with "Edit" for the creator. #6523 fills it |
-| Members (`cabal-tab-members`) | `CabalMemberBoardSlot`: "Member standings", compact rows and the viewer's row washed with a "You" badge. Hidden on a cash-only cabal. #6534 fills it |
-| Voters (`cabal-tab-voters`) | `CabalVoterBoardSlot`: the same board filtered to members who can vote ("Voter standings"). #6534 fills it |
+| Members (`cabal-tab-members`) | `CabalMembersSlot`: the first five members with role, record and share, "See all N", Invite and the footer (#6534) |
+| Voters (`cabal-tab-voters`) | `CabalVotersSlot`: every member grouped "Vote (N)" and "Don't vote (N)", with propose actions in each row's menu (#6534) |
 
 **The ··· menu** (`cabal-more-button`) holds Chat (`cabal-more-chat`, opens `ChatRoute`; hidden on a closed cabal), Edit name and picture (`cabal-more-edit`, creator only, opens Cabal settings), Treasury address (`cabal-more-treasury`, a sheet with the warning, the address and "View on Solscan") and Leave cabal (`cabal-more-leave`, destructive and last, a sheet whose "Leave cabal" button asks for confirmation). There is no information screen: the chat screen’s details sheet is the only place that still lists the rules, links and treasury sections together.
 

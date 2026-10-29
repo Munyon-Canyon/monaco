@@ -5,15 +5,15 @@ Approve sends a deny. S2.2 waits for the toast "Approved." and 2 members, so it 
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/MembersView.swift b/apps/mobile/Monaco/Features/Groups/MembersView.swift
-index c4132335a..909217bca 100644
+index 4ee308015..27b32bfe8 100644
 --- a/apps/mobile/Monaco/Features/Groups/MembersView.swift
 +++ b/apps/mobile/Monaco/Features/Groups/MembersView.swift
-@@ -238,7 +238,7 @@ struct MembersView: View {
- 
-     @ViewBuilder private func reviewButtons(_ request: CabalPendingRequest) -> some View {
-         Button("Approve") {
--            Task { await requests?.decide(request, approve: true) }
-+            Task { await requests?.decide(request, approve: false) }
-         }
-         .accessibilityIdentifier("cabal-join-approve")
-         if requests?.picksVoters == true {
+@@ -122,7 +122,7 @@ private struct MembersAllList: View {
+         case .request(let request):
+             MembersRequestRow(
+                 request: request, isDeciding: model.deciding.contains(request.id),
+-                approve: { Task { await model.approve(request.id) } },
++                approve: { Task { await model.deny(request.id) } },
+                 decline: { Task { await model.deny(request.id) } })
+         case .header(let title):
+             MonacoSectionHeader(title)

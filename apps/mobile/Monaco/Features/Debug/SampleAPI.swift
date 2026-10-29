@@ -42,6 +42,7 @@ nonisolated struct SampleAPIScript: Sendable {
     var cashOut = Components.Schemas.CashOutPreview.sample
     var invites: [Components.Schemas.CabalInvite] = []
     var accessRequests: [Components.Schemas.CabalAccessRequest] = []
+    var memberPage: Components.Schemas.CabalMemberPage?
     var viewerCanVote = false
     var proposalStatus = Components.Schemas.ProposalStatus.open
     var hidesProposals = false
@@ -245,7 +246,7 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
         if parts.count >= 3, parts[1] == "cabals", UUID(uuidString: parts[2]) != nil || parts[2].count > 8 {
             let tail = Array(parts.dropFirst(3))
             return proposeReply(id: parts[2], tail: tail, method: method, query: query, script: script)
-                ?? membersReply(id: parts[2], tail: tail, method: method, script: script)
+                ?? membersReply(id: parts[2], tail: tail, method: method, query: query, script: script)
                 ?? cabalReply(id: parts[2], tail: tail, range: range, script: script)
         }
         if parts.count >= 3, parts[1] == "proposals" {
@@ -615,8 +616,18 @@ nonisolated extension SampleAPIProtocol {
         return cabal
     }
 
-    private static func membersReply(id: String, tail: [String], method: String, script: SampleAPIScript) -> Reply? {
+    private static func membersReply(
+        id: String, tail: [String], method: String, query: [String: String], script: SampleAPIScript
+    ) -> Reply? {
         guard method == "GET", tail == ["members"] else { return nil }
+        if let all = script.memberPage {
+            let start = query["cursor"].flatMap(Int.init) ?? 0
+            let end = min(all.items.count, start + (query["limit"].flatMap(Int.init) ?? 50))
+            return json(
+                Components.Schemas.CabalMemberPage(
+                    items: Array(all.items[start..<end]), nextCursor: end < all.items.count ? String(end) : nil,
+                    totals: all.totals))
+        }
         let members = cabalRead(id: id, script: script).members
         return json(Components.Schemas.CabalMemberPage.sample(members: members))
     }

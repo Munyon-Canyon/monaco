@@ -55,8 +55,8 @@ struct CabalScreenOrderTests {
                 "CabalHoldingsSlot", "CabalValueChartSlot", "CabalActivitySlot",
             ])
         #expect(Self.names(CabalTabs.sections(for: .rules)) == ["CabalRulesSlot"])
-        #expect(Self.names(CabalTabs.sections(for: .members)) == ["CabalMemberBoardSlot"])
-        #expect(Self.names(CabalTabs.sections(for: .voters)) == ["CabalVoterBoardSlot"])
+        #expect(Self.names(CabalTabs.sections(for: .members)) == ["CabalMembersSlot"])
+        #expect(Self.names(CabalTabs.sections(for: .voters)) == ["CabalVotersSlot"])
     }
 
     @Test func theTabSlotsAndTheChatPreviewLeaveTheTopLevel() {

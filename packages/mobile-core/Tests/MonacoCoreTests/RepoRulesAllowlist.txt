@@ -73,7 +73,6 @@ unmasked-money-font	apps/mobile/Monaco/Features/Assets/AssetDetailSeedHeader.swi
 unmasked-money-font	apps/mobile/Monaco/Features/Deposit/DepositView.swift	1
 unmasked-money-font	apps/mobile/Monaco/Features/Deposit/PlatformBalanceCard.swift	1
 unmasked-money-font	apps/mobile/Monaco/Features/Groups/BestPriceSection.swift	1
-unmasked-money-font	apps/mobile/Monaco/Features/Groups/CabalSlots/CabalMemberBoardSlot.swift	1
 unmasked-money-font	apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPotSlot.swift	1
 unmasked-money-font	apps/mobile/Monaco/Features/Groups/CabalSlots/CabalValueChartSlot.swift	1
 unmasked-money-font	apps/mobile/Monaco/Features/Groups/PublicCabalView.swift	1

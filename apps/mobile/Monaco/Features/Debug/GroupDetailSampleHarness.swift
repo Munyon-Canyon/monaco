@@ -48,6 +48,10 @@ enum GroupDetailSampleScenario: String, CaseIterable {
     case fRuleProposal
     case fRuleProposalOpen
     case fMembers
+    case fMembersScrolled
+    case fMembersAll
+    case fVoters
+    case fMembersLarge
 
     static let launchArgument = "-MonacoGroupDetailSample"
 
@@ -65,8 +69,11 @@ extension GroupDetailSampleScenario {
         switch self {
         case .ready, .invitePreview, .inviteInvalid, .invitePending, .inviteMember:
             SampleAPIScript(role: "member", unreadCount: 3)
-        case .fTreasury, .fTreasuryLight, .fTreasuryScrolled, .fRules, .fRulesScrolled, .fRuleProposal, .fMembers:
+        case .fTreasury, .fTreasuryLight, .fTreasuryScrolled, .fRules, .fRulesScrolled, .fRuleProposal:
             GroupDetailSampleData.fTreasury
+        case .fMembers, .fMembersScrolled, .fVoters: GroupDetailSampleData.fMembers
+        case .fMembersAll: GroupDetailSampleData.fMembersAll
+        case .fMembersLarge: GroupDetailSampleData.fMembersLarge
         case .fRulesSides: GroupDetailSampleData.fRulesSides
         case .fRuleProposalOpen: GroupDetailSampleData.fRuleProposalOpen
         case .invite: SampleAPIScript(role: "creator", unreadCount: 3)
@@ -113,10 +120,10 @@ extension GroupDetailSampleScenario {
         switch self {
         case .info, .infoAdmin, .fRules, .fRulesScrolled, .fRulesSides, .fRuleProposal, .fRuleProposalOpen:
             return [CabalRoute(id: id, tab: .rules)]
-        case .fMembers: return [CabalRoute(id: id, tab: .members)]
-        case .members: return [MembersRoute(cabalID: id, tab: .members)]
-        case .voters: return [MembersRoute(cabalID: id, tab: .voters)]
-        case .requests, .requestsEmpty: return [MembersRoute(cabalID: id, tab: .requests)]
+        case .fMembers, .fMembersScrolled: return [CabalRoute(id: id, tab: .members)]
+        case .fVoters: return [CabalRoute(id: id, tab: .voters)]
+        case .members, .fMembersAll, .fMembersLarge, .requests, .requestsEmpty: return [MembersRoute(cabalID: id)]
+        case .voters: return [CabalRoute(id: id, tab: .voters)]
         case .publicMember: return [CabalSampleRoute(kind: .publicMember)]
         case .publicPrivate: return [CabalSampleRoute(kind: .publicPrivate)]
         case .invite, .inviteNoProposal, .inviteLoading, .inviteFailed:
@@ -188,6 +195,39 @@ enum GroupDetailSampleData {
                     navPerShareMicros: 1_000_000 - Int64(day) * 1_366, pnlMicros: 0)
             },
             pricesAsOf: start.addingTimeInterval(30 * 86_400))
+        return script
+    }
+
+    @MainActor
+    static var fMembers: SampleAPIScript {
+        var script = fTreasury
+        var page = Components.Schemas.CabalMemberPage.sampleACCapital
+        page.items[0].userId = Components.Schemas.Me.sample.id
+        script.memberPage = page
+        return script
+    }
+
+    @MainActor
+    static var fMembersAll: SampleAPIScript {
+        var script = fMembers
+        script.accessRequests = [Components.Schemas.CabalAccessRequest.samples[0]]
+        return script
+    }
+
+    @MainActor
+    static var fMembersLarge: SampleAPIScript {
+        var script = fMembersAll
+        let joined = Date(timeIntervalSince1970: 1_790_000_000)
+        let admins = Array(Components.Schemas.CabalMemberPage.sampleACCapital.items.prefix(2))
+        let rest = (0..<118).map { index in
+            Components.Schemas.CabalMemberRow(
+                userId: "01890a5d-ac96-774b-bcce-b302099b\(String(format: "%04d", index))",
+                handle: "member\(index)", displayName: "Member \(index)", photoUrl: nil, role: .member,
+                canVote: index < 80, joinedAt: joined, ownershipBps: Int32(max(1, 100 - index)),
+                month: .init(right: 3, resolved: 5, voted: 6, eligible: 6), crown: false)
+        }
+        script.memberPage = .init(
+            items: admins + rest, nextCursor: nil, totals: .init(admins: 2, voters: 80, members: 38))
         return script
     }
 
