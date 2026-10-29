@@ -109,16 +109,17 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
         let reply = element("comment-reply-c1")
         XCTAssertTrue(waitUntilHittable(reply), "Reply is not reachable after posting")
         reply.tap()
-        XCTAssertTrue(app.staticTexts["Replying to Maya"].waitForExistence(timeout: 5), "no reply target shown")
-        field.tap()
-        field.typeText("Agreed, Nvidia next.")
+        XCTAssertTrue(app.staticTexts["Reply to Maya"].waitForExistence(timeout: 5), "no reply sheet shown")
+        let sheetField = element("comment-composer-field")
+        sheetField.tap()
+        sheetField.typeText("Agreed, Nvidia next.")
         element("comment-composer-send").tap()
         XCTAssertTrue(
             app.staticTexts["Agreed, Nvidia next."].waitForExistence(timeout: 5),
             "the posted reply never reached the thread")
         XCTAssertTrue(
-            app.staticTexts["Replying to Maya"].waitForNonExistence(timeout: 5),
-            "the reply target should clear after posting")
+            app.staticTexts["Reply to Maya"].waitForNonExistence(timeout: 5),
+            "the reply sheet should close after posting")
         XCTAssertTrue(
             waitUntilHittable(app.staticTexts["Agreed, Nvidia next."]),
             "the posted reply is off screen or behind the composer"

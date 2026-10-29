@@ -24,26 +24,43 @@ public final class CommentsModel {
     public private(set) var lastPostedID: String?
     public private(set) var canCommentKnown = false
     public private(set) var canCommentFailed = false
-    public private(set) var replyTarget: CommentThreadRow?
+    public private(set) var replySheet: ReplyTarget?
+    public var isDockedFocused = false
+    public private(set) var draft = ""
+    public private(set) var sendFailed = false
     public private(set) var notice: Notice?
     public private(set) var noticeTick = 0
 
     private let source: any CommentsSource
     private let hints: any HintSource
     private let clock: any Clock<Duration>
+    private let onPosted: (@MainActor () -> Void)?
     private let pager: CursorPager<Components.Schemas.CommentThread>
     @ObservationIgnored private let postSubmission = IdempotentSubmission()
     @ObservationIgnored private var deleteSubmissions: [String: IdempotentSubmission] = [:]
     @ObservationIgnored private lazy var refresher = HintRefresher { [weak self] in await self?.refresh() }
 
-    public init(source: any CommentsSource, hints: any HintSource, clock: any Clock<Duration>) {
+    public init(
+        source: any CommentsSource, hints: any HintSource, clock: any Clock<Duration>,
+        onPosted: (@MainActor () -> Void)? = nil
+    ) {
         self.source = source
         self.hints = hints
         self.clock = clock
+        self.onPosted = onPosted
         pager = CursorPager { cursor in
             let page = try await Self.retryingPending(clock: clock) { try await source.list(cursor: cursor) }
             return (page.threads, page.nextCursor)
         }
+    }
+
+    public static func forPost(
+        item: Components.Schemas.FeedItem, api: APIClient, hints: any HintSource, clock: any Clock<Duration>,
+        onPosted: (@MainActor () -> Void)? = nil
+    ) -> CommentsModel {
+        CommentsModel(
+            source: FeedCommentsSource(itemID: item.threadItemId, api: api), hints: hints, clock: clock,
+            onPosted: onPosted)
     }
 
     public var rows: [CommentThreadRow] { CommentThreadRow.rows(from: pager.items) }
@@ -95,33 +112,54 @@ public final class CommentsModel {
         refresher.setVisible(visible)
     }
 
-    public func beginReply(to row: CommentThreadRow) {
-        guard !row.isDeleted else { return }
-        replyTarget = row
+    public func edit(_ text: String) {
+        draft = text
+        sendFailed = false
     }
 
-    public func cancelReply() {
-        replyTarget = nil
+    public func focusDocked() {
+        replySheet = nil
+        isDockedFocused = true
     }
 
-    public func post(_ text: String) async -> Bool {
-        guard let body = CommentDraft(text: text).body, !isPosting else { return false }
+    public func presentReplySheet(_ target: ReplyTarget) {
+        if case .comment(let row) = target, row.isDeleted { return }
+        isDockedFocused = false
+        replySheet = target
+    }
+
+    public func dismissReplySheet() {
+        replySheet = nil
+    }
+
+    public func post(
+        _ draft: CommentDraft, attachment: Components.Schemas.CommentAttachmentInput? = nil
+    ) async -> Bool {
+        let body = draft.body
+        if case .tooLong = draft { return false }
+        guard body != nil || attachment != nil, !isPosting else { return false }
         isPosting = true
+        sendFailed = false
         defer { isPosting = false }
-        let parentID = replyTarget?.id
+        let target = replySheet
+        let parentID = target?.parentCommentID
         let created: Components.Schemas.Comment
         do {
             created = try await Self.retryingPending(clock: clock) {
-                try await source.post(body: body, parentId: parentID, submission: postSubmission)
+                try await source.post(
+                    body: body, attachment: attachment, parentId: parentID, submission: postSubmission)
             }
         } catch {
+            sendFailed = true
             fail(APIError(error))
             return false
         }
-        replyTarget = nil
+        replySheet = nil
+        self.draft = CommentDraft.field(self.draft, afterPosting: body ?? "")
         showPosted(created)
-        await refresh()
+        if case .post = target {} else { await refresh() }
         lastPostedID = created.id
+        onPosted?()
         return true
     }
 
@@ -136,7 +174,7 @@ public final class CommentsModel {
             return
         }
         deleteSubmissions[row.id] = nil
-        if replyTarget?.id == row.id { replyTarget = nil }
+        if case .comment(let target) = replySheet, target.id == row.id { replySheet = nil }
         say(.deleted)
         showDeleted(row)
         await refresh()

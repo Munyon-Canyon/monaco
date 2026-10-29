@@ -86,11 +86,11 @@ final class CommentsModelTests: XCTestCase {
         await model.load()
         XCTAssertNil(model.lastPostedID)
 
-        let first = await model.post("hello")
+        let first = await model.post(CommentDraft(text: "hello"))
         XCTAssertTrue(first)
         XCTAssertEqual(model.lastPostedID, "c5")
 
-        let second = await model.post("again")
+        let second = await model.post(CommentDraft(text: "again"))
         XCTAssertFalse(second)
         XCTAssertEqual(model.lastPostedID, "c5")
     }
@@ -133,12 +133,12 @@ final class CommentsModelTests: XCTestCase {
             try Support.page(Thread.samples),
         ])
         await model.load()
-        model.beginReply(to: model.rows[1])
+        model.presentReplySheet(.comment(model.rows[1]))
 
-        let ok = await model.post("  nice  ")
+        let ok = await model.post(CommentDraft(text: "  nice  "))
 
         XCTAssertTrue(ok)
-        XCTAssertNil(model.replyTarget)
+        XCTAssertNil(model.replySheet)
         let sent = await transport.sent
         let bodies = await transport.sentBodies
         let post = try XCTUnwrap(sent.firstIndex { $0.method == .post })
@@ -157,8 +157,8 @@ final class CommentsModelTests: XCTestCase {
             try Support.page([]),
         ])
 
-        let first = await model.post("hello")
-        let second = await model.post("hello")
+        let first = await model.post(CommentDraft(text: "hello"))
+        let second = await model.post(CommentDraft(text: "hello"))
 
         XCTAssertFalse(first)
         XCTAssertTrue(second)
@@ -178,7 +178,7 @@ final class CommentsModelTests: XCTestCase {
                     retryable: false))
         ])
 
-        let ok = await model.post("hello")
+        let ok = await model.post(CommentDraft(text: "hello"))
 
         XCTAssertFalse(ok)
         guard case .failure(.problem(let problem)) = model.notice else {
@@ -190,8 +190,8 @@ final class CommentsModelTests: XCTestCase {
     func testAnEmptyOrOverlongDraftSendsNothing() async throws {
         let (model, transport, _) = try make([])
 
-        let blank = await model.post("   ")
-        let long = await model.post(String(repeating: "a", count: CommentDraft.maxScalars + 1))
+        let blank = await model.post(CommentDraft(text: "   "))
+        let long = await model.post(CommentDraft(text: String(repeating: "a", count: CommentDraft.maxScalars + 1)))
 
         XCTAssertFalse(blank)
         XCTAssertFalse(long)

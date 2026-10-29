@@ -60,7 +60,7 @@ struct CommentThreadView: View {
             ForEach(model.rows) { row in
                 CommentRow(
                     row: row,
-                    onReply: { model.beginReply(to: row) },
+                    onReply: { model.presentReplySheet(.comment(row)) },
                     onDelete: row.comment.isMine && !row.isDeleted ? { deleting = row } : nil,
                     onReport: !row.comment.isMine && !row.isDeleted
                         ? { reporting = ReportTarget(kind: .comment, targetID: row.id) } : nil

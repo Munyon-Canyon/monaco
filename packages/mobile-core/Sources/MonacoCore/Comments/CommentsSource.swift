@@ -14,7 +14,8 @@ public struct CommentsPage: Sendable {
 public protocol CommentsSource: Sendable {
     func list(cursor: String?) async throws -> CommentsPage
     func post(
-        body: String, parentId: String?, submission: IdempotentSubmission
+        body: String?, attachment: Components.Schemas.CommentAttachmentInput?, parentId: String?,
+        submission: IdempotentSubmission
     ) async throws -> Components.Schemas.Comment
     func delete(id: String, submission: IdempotentSubmission) async throws
     func canComment() async throws -> Bool
@@ -37,9 +38,11 @@ public struct FeedCommentsSource: CommentsSource {
     }
 
     public func post(
-        body: String, parentId: String?, submission: IdempotentSubmission
+        body: String?, attachment: Components.Schemas.CommentAttachmentInput?, parentId: String?,
+        submission: IdempotentSubmission
     ) async throws -> Components.Schemas.Comment {
-        let request = Components.Schemas.CreateCommentRequest(body: body, parentCommentId: parentId)
+        let request = Components.Schemas.CreateCommentRequest(
+            body: body, attachment: attachment, parentCommentId: parentId)
         return try await api.submit(submission, payload: request, operation: "postFeedComment/\(itemID)") {
             [itemID] client, key in
             try await client.postFeedComment(
@@ -81,9 +84,11 @@ public actor ProposalCommentsSource: CommentsSource {
     }
 
     public func post(
-        body: String, parentId: String?, submission: IdempotentSubmission
+        body: String?, attachment: Components.Schemas.CommentAttachmentInput?, parentId: String?,
+        submission: IdempotentSubmission
     ) async throws -> Components.Schemas.Comment {
-        let request = Components.Schemas.CreateCommentRequest(body: body, parentCommentId: parentId)
+        let request = Components.Schemas.CreateCommentRequest(
+            body: body, attachment: attachment, parentCommentId: parentId)
         return try await api.submit(submission, payload: request, operation: "postProposalComment/\(proposalID)") {
             [proposalID] client, key in
             try await client.postProposalComment(

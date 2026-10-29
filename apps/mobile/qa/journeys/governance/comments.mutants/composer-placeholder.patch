@@ -1,7 +1,7 @@
 journey: governance/comments
 expect-fail: S1
 
-The comment composer reads "Say something". S1.3 checks the spec's "Add a comment", so it must fail.
+The comment composer reads "Add a comment". S1.3 checks the spec's "Say something", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/packages/mobile-core/Sources/MonacoCore/Comments/CommentThread.swift b/packages/mobile-core/Sources/MonacoCore/Comments/CommentThread.swift
@@ -11,8 +11,8 @@ diff --git a/packages/mobile-core/Sources/MonacoCore/Comments/CommentThread.swif
      public static let title = "Discussion"
      public static let empty = "No replies yet"
      public static let emptyMessage = "Start the discussion."
--    public static let placeholder = "Add a comment"
-+    public static let placeholder = "Say something"
+-    public static let placeholder = "Say something"
++    public static let placeholder = "Add a comment"
      public static let membersOnly = "Only members of this cabal can comment."
      public static let deleted = "Comment deleted"
      public static let delete = "Delete"

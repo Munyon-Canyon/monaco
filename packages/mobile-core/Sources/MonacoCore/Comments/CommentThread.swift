@@ -36,6 +36,25 @@ public struct CommentThreadRow: Equatable, Sendable, Identifiable {
     }
 }
 
+public enum ReplyTarget: Equatable, Identifiable {
+    case thread
+    case comment(CommentThreadRow)
+    case post(Components.Schemas.FeedItem)
+
+    public var id: String {
+        switch self {
+        case .thread: "thread"
+        case .comment(let row): "comment-\(row.id)"
+        case .post(let item): "post-\(item.id)"
+        }
+    }
+
+    public var parentCommentID: String? {
+        if case .comment(let row) = self { return row.id }
+        return nil
+    }
+}
+
 public enum CommentDraft: Equatable {
     public static let maxScalars = 1000
 
@@ -71,18 +90,23 @@ public enum CommentsCopy {
     public static let title = "Discussion"
     public static let empty = "No replies yet"
     public static let emptyMessage = "Start the discussion."
-    public static let placeholder = "Add a comment"
+    public static let placeholder = "Say something"
     public static let membersOnly = "Only members of this cabal can comment."
     public static let deleted = "Comment deleted"
     public static let delete = "Delete"
     public static let reply = "Reply"
-    public static let postAccessibility = "Send comment"
+    public static let postAccessibility = "Send reply"
+    public static let gifAccessibility = "Add a GIF"
+    public static let plusAccessibility = "Add a poll, quote or stock"
+    public static let gifTitle = "GIF"
+    public static let replyTitleBare = "Reply"
+    public static let replied = "Replied"
     public static let sending = "Sending…"
     public static let sendFailed = "Your reply wasn’t sent. Your text is still here."
     public static let tooLong = "Comments can be up to 1,000 characters."
     public static let unknownAuthor = "Someone"
 
-    public static func replyingTo(_ name: String) -> String {
-        "Replying to \(name)"
+    public static func replyTitle(_ name: String) -> String {
+        "Reply to \(name)"
     }
 }

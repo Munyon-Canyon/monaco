@@ -20,7 +20,7 @@ final class CommentsModelLongThreadTests: XCTestCase {
         let (model, _) = try await loaded(
             pages: 2, then: [try created("c6"), try Support.page(pageOne, nextCursor: "p2")])
 
-        let posted = await model.post("hello")
+        let posted = await model.post(CommentDraft(text: "hello"))
 
         XCTAssertTrue(posted)
         XCTAssertEqual(model.rows.map(\.id), ["c1", "c2", "c3", "c4", "c5", "c6"])
@@ -31,7 +31,7 @@ final class CommentsModelLongThreadTests: XCTestCase {
         let (model, _) = try await loaded(
             pages: 1, then: [try created("c6"), try Support.page(pageOne, nextCursor: "p2")])
 
-        _ = await model.post("hello")
+        _ = await model.post(CommentDraft(text: "hello"))
 
         XCTAssertEqual(model.rows.map(\.id), ["c1", "c2", "c3"])
     }
@@ -39,9 +39,9 @@ final class CommentsModelLongThreadTests: XCTestCase {
     func testAReplyToAThreadOnTheLastPageAppearsUnderIt() async throws {
         let (model, _) = try await loaded(
             pages: 2, then: [try created("c6", parent: "c4"), try Support.page(pageOne, nextCursor: "p2")])
-        model.beginReply(to: try XCTUnwrap(model.rows.first { $0.id == "c4" }))
+        model.presentReplySheet(.comment(try XCTUnwrap(model.rows.first { $0.id == "c4" })))
 
-        _ = await model.post("agreed")
+        _ = await model.post(CommentDraft(text: "agreed"))
 
         XCTAssertEqual(model.rows.map(\.id), ["c1", "c2", "c3", "c4", "c5", "c6"])
         XCTAssertEqual(model.rows.last?.isReply, true)
@@ -53,8 +53,8 @@ final class CommentsModelLongThreadTests: XCTestCase {
         let refreshed = try Support.page([withReply], nextCursor: "p2")
         let failed = Reply.json(.internalServerError, "{}")
         let (model, transport) = try await loaded(pages: 2, then: [.gate, refreshed, failed])
-        model.beginReply(to: try XCTUnwrap(model.rows.first { $0.id == "c1" }))
-        let sending = Task { await model.post("hi") }
+        model.presentReplySheet(.comment(try XCTUnwrap(model.rows.first { $0.id == "c1" })))
+        let sending = Task { await model.post(CommentDraft(text: "hi")) }
         _ = await Support.waitUntil { await transport.sent.count == 4 }
 
         await model.refresh()

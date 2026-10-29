@@ -278,7 +278,7 @@ The card is one VoiceOver element, "<cabal>: <badge>. Buy NVIDIA, <amount line>.
 | Order | Slot | Owner | Shows |
 | --- | --- | --- | --- |
 | 1 | `ProposalDetailSlot` | #612 | The sections below, top to bottom |
-| 2 | `ProposalCommentsSlot` | #711 | "Discussion", the thread, and the only thing pinned at the bottom, the composer "Add a comment". Empty: "No replies yet" / "Start the discussion." |
+| 2 | `ProposalCommentsSlot` | #711 | "Discussion", the thread, and the only thing pinned at the bottom, the docked composer "Say something". Empty: "No replies yet" / "Start the discussion." |
 
 | Section | Shows |
 | --- | --- |
@@ -463,7 +463,7 @@ States. Loading is a skeleton under the live title and search. Empty: "No update
 | Author | Avatar (opens `UserProfileRoute`), name, "<time> · <cabal>" ("Public" with no cabal). The one-month return pill waits for the API. A market item shows "Market update" instead |
 | Summary card | The item title, its thesis or detail, and for a stock a row with its logo, name, cabal and a chevron that opens the item's destination |
 | Discussion | "Discussion", then comments: 30pt avatar, name, time and "Reply", with replies indented one step |
-| Composer | "Add a comment" field and a send disc pinned above the tab bar. "Replying to <name>" with a cancel button while replying. "Sending…" while the comment posts, and "Your reply wasn’t sent. Your text is still here." after a failure |
+| Composer | Docked bar: ⊕, a "Say something" field with GIF inside it, and a send disc. Replying opens the "Reply to <name>" half sheet with the quote above the field. "Sending…" while the comment posts, and "Your reply wasn’t sent. Your text is still here." after a failure |
 
 States. Loading is a skeleton. No comments: "No replies yet" / "Start the discussion.", composer kept. A post the viewer cannot read (404 or 403): "This update isn’t available" / "It may have been removed, or you may no longer have permission to view it." with "Back to feed", and no composer. Any other failure: "Couldn’t load this view" with "Try again". Comments that fail to load show a "Couldn't load comments." notice with "Try again". A non-member sees "Only members of this cabal can comment." in place of the field. `CommentThreadView` and `CommentComposerBar` are shared with the proposal screen.
 
