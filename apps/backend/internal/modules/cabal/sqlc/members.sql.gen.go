@@ -383,6 +383,31 @@ func (q *Queries) SetAllMembersVote(ctx context.Context, cabalID uuid.UUID) erro
 	return err
 }
 
+const setMemberRole = `-- name: SetMemberRole :execrows
+UPDATE cabal_members SET role = $1, can_vote = $2
+WHERE cabal_id = $3 AND user_id = $4
+`
+
+type SetMemberRoleParams struct {
+	Role    string
+	CanVote bool
+	CabalID uuid.UUID
+	UserID  uuid.UUID
+}
+
+func (q *Queries) SetMemberRole(ctx context.Context, arg SetMemberRoleParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setMemberRole,
+		arg.Role,
+		arg.CanVote,
+		arg.CabalID,
+		arg.UserID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setMemberVoters = `-- name: SetMemberVoters :exec
 UPDATE cabal_members SET can_vote = (
   role IN ('creator', 'admin') OR user_id = ANY(coalesce($1::uuid[], '{}'))

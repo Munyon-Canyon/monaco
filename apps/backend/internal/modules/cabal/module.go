@@ -179,6 +179,9 @@ func (m *Module) Consumers() []bus.Consumer {
 	hints := adapters.Hints{Publish: m.deps.Bus}
 	evm := adapters.TreasuryEVMWalletOnCreate{Wallets: m.TreasuryEVMWallets(), UoW: m.deps.UoW}
 	return []bus.Consumer{{
+		Durable:  "cabal_rule_passed",
+		Handlers: []bus.HandlerSpec{bus.Handle("cabal.rule_passed", adapters.RulePassed{}.Handle)},
+	}, {
 		Durable:  "cabal_ban",
 		Handlers: []bus.HandlerSpec{bus.Handle("cabal.ban", adapters.Ban{IDs: m.deps.IDs}.Handle)},
 	}, {

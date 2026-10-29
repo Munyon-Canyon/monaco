@@ -214,16 +214,3 @@ func TestCreateCabal_aRetryWithAMaxPerTradeReturnsTheSameCabal(t *testing.T) {
 		t.Fatalf("a retry with another cap = %v, want %s", err, errs.CodeIdempotencyMismatch)
 	}
 }
-
-func TestPatchCabal_wrapsAVoterListReadFailure(t *testing.T) {
-	t.Parallel()
-	f := newAccess(t)
-	c := testkit.NewCabal(t, f.pool, testkit.WithVoterMode("list"))
-	if _, err := f.pool.Exec(t.Context(), `ALTER TABLE cabal_members DROP COLUMN joined_at`); err != nil {
-		t.Fatal(err)
-	}
-	_, err := f.patch(t.Context(), c.Creator.ID, c.ID, api.UpdateCabalRequest{VoterIds: voterIDs(c.Creator)})
-	if errs.CodeOf(err) != errs.CodeInternal {
-		t.Fatalf("PatchCabal = %v, want %s", err, errs.CodeInternal)
-	}
-}

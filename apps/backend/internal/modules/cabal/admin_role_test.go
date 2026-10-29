@@ -1,10 +1,7 @@
 package cabal_test
 
 import (
-	"slices"
 	"testing"
-
-	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/app"
@@ -84,31 +81,6 @@ func TestAdminRole_aPlainMemberIsRefusedTheDoorButRevokesTheInviteTheySent(t *te
 		t.Fatalf("a member revoking the invite they sent = %+v, %v; want it revoked", revoked, err)
 	}
 }
-
-func TestAdminRole_aVoterListThatOmitsAnAdminKeepsTheAdminVoting(t *testing.T) {
-	t.Parallel()
-	f := newAccess(t)
-	c := testkit.NewCabal(t, f.pool, testkit.WithMembers(4))
-	f.makeAdmin(t, c.ID, c.Members[1].ID)
-	f.patchOK(t, c, api.UpdateCabalRequest{
-		VoterMode: ptr("list"), VoterIds: voterIDs(c.Creator, c.Members[2]),
-	})
-	if got := f.voters(t, c); !slices.Equal(got, []bool{true, true, true, false}) {
-		t.Fatalf("voters = %v, want the creator, the admin and the listed member", got)
-	}
-	updates := f.updates(t)
-	listed := []uuid.UUID{c.Creator.ID.UUID(), c.Members[1].ID.UUID(), c.Members[2].ID.UUID()}
-	slices.SortFunc(listed, compareUUID)
-	if len(updates) != 1 || !slices.Equal(updates[0].Changes.VoterIDs, listed) {
-		t.Fatalf("updates = %+v, want one change naming the admin among the voters", updates)
-	}
-	f.patchOK(t, c, api.UpdateCabalRequest{VoterIds: voterIDs(c.Creator, c.Members[2])})
-	if got := len(f.updates(t)); got != 1 {
-		t.Fatalf("cabal.updated events = %d after a list that only omits the admin, want no new one", got)
-	}
-}
-
-func compareUUID(a, b uuid.UUID) int { return slices.Compare(a[:], b[:]) }
 
 func TestAdminRole_anAdminSeesTheRequestCountOnMyCabals(t *testing.T) {
 	t.Parallel()

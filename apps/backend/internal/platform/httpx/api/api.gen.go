@@ -154,6 +154,7 @@ const (
 	RpcUnavailable ErrorCode = "rpc_unavailable"
 	RuleChangeOpen ErrorCode = "rule_change_open"
 	RuleUnchanged ErrorCode = "rule_unchanged"
+	RulesChangeByProposal ErrorCode = "rules_change_by_proposal"
 	SaleShort ErrorCode = "sale_short"
 	SameApprover ErrorCode = "same_approver"
 	SessionRequired ErrorCode = "session_required"
@@ -475,6 +476,8 @@ func (e ErrorCode) Valid() bool {
 	case RuleChangeOpen:
 		return true
 	case RuleUnchanged:
+		return true
+	case RulesChangeByProposal:
 		return true
 	case SaleShort:
 		return true

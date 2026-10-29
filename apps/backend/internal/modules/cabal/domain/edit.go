@@ -1,9 +1,6 @@
 package domain
 
 import (
-	"log/slog"
-	"slices"
-
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
@@ -14,6 +11,10 @@ type RulesPatch struct {
 	Threshold     *string
 	ExpirySeconds *int32
 	SlippageBps   *int32
+}
+
+func (p RulesPatch) ChangesRules() bool {
+	return p.JoinMode != nil || p.VoterMode != nil || p.Threshold != nil || p.ExpirySeconds != nil
 }
 
 func (r Rules) Patch(p RulesPatch) (Rules, error) {
@@ -49,22 +50,6 @@ func CanEdit(actor ids.UserID, cabal Cabal) error {
 		return errs.New(errs.CodeNotCabalCreator, op)
 	case cabal.Banned:
 		return errs.New(errs.CodeCabalBanned, op)
-	}
-	return nil
-}
-
-func CheckVoters(cabal Cabal, members, voters []ids.UserID) error {
-	const op = "cabal.CheckVoters"
-	switch {
-	case cabal.Rules.VoterMode() != VotersList:
-		return errs.New(errs.CodeInvalidInput, op, slog.String("reason", "voter_ids_need_list_mode"))
-	case !slices.Contains(voters, cabal.CreatorID):
-		return errs.New(errs.CodeInvalidInput, op, slog.String("reason", "voter_ids_missing_creator"))
-	}
-	for _, voter := range voters {
-		if !slices.Contains(members, voter) {
-			return errs.New(errs.CodeInvalidInput, op, slog.String("reason", "voter_ids_not_member"))
-		}
 	}
 	return nil
 }

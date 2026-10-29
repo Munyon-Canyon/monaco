@@ -61,6 +61,10 @@ UPDATE cabal_members SET can_vote = (
 )
 WHERE cabal_id = sqlc.arg(cabal_id);
 
+-- name: SetMemberRole :execrows
+UPDATE cabal_members SET role = sqlc.arg(role), can_vote = sqlc.arg(can_vote)
+WHERE cabal_id = sqlc.arg(cabal_id) AND user_id = sqlc.arg(user_id);
+
 -- name: SetAllMembersVote :exec
 UPDATE cabal_members SET can_vote = true
 WHERE cabal_id = $1;

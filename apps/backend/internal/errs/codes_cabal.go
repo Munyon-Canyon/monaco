@@ -16,6 +16,7 @@ const (
 	CodeLeaveHoldsShares           Code = "leave_holds_shares"
 	CodeLeaveLastMemberPotNotEmpty Code = "leave_last_member_pot_not_empty"
 	CodeLeaveCreatorWithMembers    Code = "leave_creator_with_members"
+	CodeRulesChangeByProposal      Code = "rules_change_by_proposal"
 )
 
 func (codeFiles) Cabal() map[Code]Row {
@@ -67,6 +68,9 @@ func (codeFiles) Cabal() map[Code]Row {
 		CodeLeaveCreatorWithMembers: {
 			Name: "LeaveCreatorWithMembers", Kind: KindBlocked,
 			Message: "The creator cannot leave while other members remain.",
+		},
+		CodeRulesChangeByProposal: {
+			Name: "RulesChangeByProposal", Kind: KindConflict, Message: "Rules change by proposal.",
 		},
 	}
 }
