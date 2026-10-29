@@ -339,12 +339,18 @@ public struct ProposalAsset: Equatable, Sendable {
     public let kind: AssetKind
     public let decimals: Int
     public let logoURL: URL?
+    public let preIpo: PreIpoDetail?
+    public let tradable: Bool
+
+    var estimateMicros: Int64? { preIpo?.profile?.steps.last { $0.isEstimate }?.priceMicros }
 
     init(_ value: Components.Schemas.AssetDetail) {
         displayName = value.displayName
         kind = AssetKind(raw: value.kind.rawValue)
         decimals = value.decimals
         logoURL = value.logoUrl.flatMap(URL.init(string:))
+        preIpo = PreIpoDetail(value)
+        tradable = value.tradable
     }
 }
 
