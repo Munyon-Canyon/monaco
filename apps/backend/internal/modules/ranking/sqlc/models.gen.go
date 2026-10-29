@@ -44,6 +44,13 @@ type Call struct {
 	UpdatedAt           time.Time
 }
 
+type CallBoardRun struct {
+	RunID       uuid.UUID
+	StartedAt   time.Time
+	FinishedAt  time.Time
+	RowsWritten int32
+}
+
 type LeaderboardEntry struct {
 	Board             string
 	Range             string

@@ -18,3 +18,9 @@ func (h Hints) Snapshot(_ context.Context, tx db.Tx, e events.RankingSnapshotWri
 	tx.AfterCommit(func(ctx context.Context) { h.Hints.PublishHint(ctx, leaderboardsUpdated, payload) })
 	return nil
 }
+
+func (h Hints) CallBoard(_ context.Context, tx db.Tx, e events.RankingCallBoardWritten, _ time.Time) error {
+	payload, _ := json.Marshal(runHint{RunID: e.RunID, ComputedAt: e.ComputedAt})
+	tx.AfterCommit(func(ctx context.Context) { h.Hints.PublishHint(ctx, leaderboardsUpdated, payload) })
+	return nil
+}

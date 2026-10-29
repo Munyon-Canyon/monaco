@@ -118,11 +118,16 @@ func (m *Module) Mount(r api.Mount) {
 func (m *Module) Consumers() []bus.Consumer { return m.consumers() }
 
 func (m *Module) consumers() []bus.Consumer {
-	return []bus.Consumer{membership(), m.names(), m.hints(), triggers(), m.calls()}
+	return []bus.Consumer{membership(), m.names(), m.hints(), triggers(), m.calls(), callBoard()}
 }
 
 func (m *Module) Pollers() []poller.Poller {
-	return []poller.Poller{app.NewThinSnapshots(m.deps.Pool, m.deps.Clock), m.valuation(), m.callsResolver()}
+	return []poller.Poller{
+		app.NewThinSnapshots(m.deps.Pool, m.deps.Clock),
+		m.valuation(),
+		m.callsResolver(),
+		m.callBoardPoller(),
+	}
 }
 
 func (m *Module) callsResolver() adapters.CallsResolverPoller {
@@ -131,6 +136,16 @@ func (m *Module) callsResolver() adapters.CallsResolverPoller {
 		Clock:    m.deps.Clock,
 	}
 }
+
+func (m *Module) RunCallBoard() app.RunCallBoard {
+	return app.NewRunCallBoard(m.deps.Pool, m.deps.UoW, m.deps.IDs, m.deps.Clock, m.ports.Users, m.ports.Cabals)
+}
+
+func (m *Module) callBoardPoller() adapters.CallBoardPoller {
+	return adapters.CallBoardPoller{Reads: sqlc.New(m.deps.Pool), Runner: m.RunCallBoard(), Clock: m.deps.Clock}
+}
+
+func (m *Module) CallBoards() app.CallBoards { return app.NewCallBoards(m.deps.Pool) }
 
 func (m *Module) valuation() adapters.ValuationPoller {
 	return adapters.ValuationPoller{

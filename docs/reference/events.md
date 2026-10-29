@@ -679,6 +679,16 @@ Subject `events.proposal.withdrawn`, version 1.
 | `cabal_id` | `uuid.UUID` |
 | `proposer_id` | `uuid.UUID` |
 
+## `ranking.call_board_written`
+
+Subject `events.ranking.call_board_written`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `run_id` | `uuid.UUID` |
+| `computed_at` | `time.Time` |
+
 ## `ranking.snapshot_written`
 
 Subject `events.ranking.snapshot_written`, version 1.
