@@ -127,8 +127,9 @@ func (m *Module) Ports() app.Ports { return m.ports }
 
 func (m *Module) LedgerInputs() app.LedgerInputs {
 	return app.LedgerInputs{
-		Store: sqlc.New(m.deps.Pool), Market: m.ports.Market, Users: m.ports.Users, Members: m.member,
-		Cards: m.cards, Trades: m.trades, Replies: m.replies,
+		Store: sqlc.New(m.deps.Pool), Market: m.ports.Market, Users: m.ports.Users,
+		Cards: m.cards, Trades: m.trades, Replies: m.replies, Ports: m.ports, Stakes: m.stakes,
+		Snaps: adapters.Boards{DB: m.deps.Pool},
 	}
 }
 

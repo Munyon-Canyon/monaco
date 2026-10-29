@@ -164,3 +164,12 @@ func PickSharpest(records []LedgerSharpest) *LedgerSharpest {
 	})
 	return &eligible[0]
 }
+
+func (l *Ledger) Tally() {
+	for _, c := range l.Calls {
+		l.Resolved++
+		if c.Right {
+			l.Right++
+		}
+	}
+}
