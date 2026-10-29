@@ -78,6 +78,9 @@ iPhone exists.
   [Build slots](overnight-qa.md#build-slots). Two builds never share one
   `-derivedDataPath`, which fails with `database is locked`: the second waits for
   the first, and for any xcodebuild still building there outside the lock.
+  The clone's `.git/.monaco/xcode-slots` and `.git/.monaco/swiftpm-slots` set each
+  class's count for every worktree. The lock rereads them on every wait poll, so a
+  raised count admits callers already queued. The env var wins over the file.
 - **Stop.** `just stop mobile` in a lane stops only that lane's xcodebuild and
   uninstalls the app only on the lane's simulators. In the primary checkout it
   spares the simulators of live lanes and deletes the simulators of lanes whose
@@ -95,8 +98,8 @@ iPhone exists.
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `MONACO_SIM_UDID` | unset | Use this simulator in any checkout, lane or primary. Nothing is created. |
-| `MONACO_XCODE_SLOTS` | RAM GB / 16, at least 1 | xcodebuild processes that may run at once. |
-| `MONACO_SWIFTPM_SLOTS` | RAM GB / 8, at least 1 | `swift build` and `swift test` processes that may run at once. |
+| `MONACO_XCODE_SLOTS` | `.git/.monaco/xcode-slots`, else RAM GB / 16, at least 1 | xcodebuild processes that may run at once. |
+| `MONACO_SWIFTPM_SLOTS` | `.git/.monaco/swiftpm-slots`, else min(RAM GB / 8, CPUs / 8), at least 1 | `swift build` and `swift test` processes that may run at once. |
 
 ## SimSlim for lanes and journeys
 

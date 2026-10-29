@@ -65,7 +65,9 @@
 #                              else max(1, RAM GB / 16))
 #   MONACO_SIM_SLOTS           `sim` slots (default: the number in the clone's
 #                              .git/.monaco/sim-slots, reread on every wait poll, else 2)
-#   MONACO_SWIFTPM_SLOTS       `swiftpm` slots (default max(1, min(RAM GB / 8, CPUs / 8)))
+#   MONACO_SWIFTPM_SLOTS       `swiftpm` slots (default: the number in the clone's
+#                              .git/.monaco/swiftpm-slots, reread on every wait poll,
+#                              else max(1, min(RAM GB / 8, CPUs / 8)))
 #   MONACO_LANE                lane of this caller (default the git top level when it is a
 #                              ticket worktree under <primary checkout>/.worktrees/, else
 #                              $HERDR_WORKSPACE_ID, else the git top level, else $PWD)
@@ -107,6 +109,7 @@ case "$class" in
     ;;
   swiftpm)
     base_dir="${MONACO_SWIFTPM_LOCK_DIR:-/private/tmp/monaco-swiftpm.lock}"
+    slots_file="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)/.monaco/swiftpm-slots"
     ;;
   sim)
     base_dir="${MONACO_SIM_LOCK_DIR:-/private/tmp/monaco-sim.lock}"
@@ -115,7 +118,7 @@ case "$class" in
 esac
 
 # Sets $slots. The wait loop calls it on every poll, so a slot count raised or lowered in
-# xcode-slots applies to callers already queued.
+# the clone's slots file applies to callers already queued.
 read_slots() {
   local machine_slots by_ram by_cpu
   case "$class" in
@@ -128,9 +131,10 @@ read_slots() {
       slots="${MONACO_SIM_SLOTS:-${machine_slots:-2}}"
       ;;
     swiftpm)
+      machine_slots="$(cat "$slots_file" 2>/dev/null || true)"
       by_ram=$((ram_gb / 8))
       by_cpu=$((cpus / 8))
-      slots="${MONACO_SWIFTPM_SLOTS:-$((by_ram < by_cpu ? by_ram : by_cpu))}"
+      slots="${MONACO_SWIFTPM_SLOTS:-${machine_slots:-$((by_ram < by_cpu ? by_ram : by_cpu))}}"
       ;;
   esac
   if ! [[ "$slots" =~ ^[0-9]+$ ]] || (( slots < 1 )); then

@@ -1033,6 +1033,95 @@ func TestXcodeLockTakesASlotAddedWhileQueued(t *testing.T) {
 	}
 }
 
+// With MONACO_SWIFTPM_SLOTS unset, a caller already queued rereads swiftpm-slots on every
+// poll, so raising the count lets it take the new slot beside the holders.
+func TestXcodeLockSwiftpmTakesASlotAddedWhileQueued(t *testing.T) {
+	t.Parallel()
+	e := newLockEnv(t)
+	repo := filepath.Join(e.dir, "repo")
+	if out, err := exec.Command("git", "init", "-q", repo).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
+	slotsFile := filepath.Join(repo, ".git", ".monaco", "swiftpm-slots")
+	if err := os.MkdirAll(filepath.Dir(slotsFile), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(slotsFile, []byte("2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	unset := []string{"MONACO_SWIFTPM_SLOTS="}
+	ins := []string{filepath.Join(e.dir, "a.in"), filepath.Join(e.dir, "b.in"), filepath.Join(e.dir, "c.in")}
+	rels := []string{filepath.Join(e.dir, "a.rel"), filepath.Join(e.dir, "b.rel"), filepath.Join(e.dir, "c.rel")}
+
+	a := e.start(repo, unset, append([]string{"swiftpm"}, holdUntil(ins[0], rels[0])...)...)
+	await(t, "the first holder to run", func() bool { return exists(ins[0]) }, a)
+	b := e.start(repo, unset, append([]string{"swiftpm"}, holdUntil(ins[1], rels[1])...)...)
+	await(t, "the second holder to run", func() bool { return exists(ins[1]) }, a, b)
+	c := e.start(repo, append(unset, "MONACO_XCODE_LOCK_TIMEOUT=10"),
+		append([]string{"swiftpm"}, holdUntil(ins[2], rels[2])...)...)
+	t.Cleanup(func() { release(t, rels...) })
+	await(t, "the third caller to queue", func() bool {
+		return strings.Contains(c.stderr.String(), "queue position 1 behind ")
+	}, a, b, c)
+	if exists(ins[2]) {
+		t.Fatalf("third caller ran with both slots held")
+	}
+
+	if err := os.WriteFile(slotsFile, []byte("3\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	await(t, "the queued caller to take the new slot", func() bool { return exists(ins[2]) }, a, b, c)
+	if !exists(e.swiftpmLock() + ".3") {
+		t.Fatalf("the queued caller is not in slot 3")
+	}
+	for i, call := range []*call{c, b, a} {
+		release(t, rels[2-i])
+		if code := call.wait(t); code != 0 {
+			t.Fatalf("holder exit %d:\n%s", code, call.stderr.String())
+		}
+	}
+}
+
+// MONACO_SWIFTPM_SLOTS beats the clone's swiftpm-slots file.
+func TestXcodeLockSwiftpmEnvBeatsTheSlotsFile(t *testing.T) {
+	t.Parallel()
+	e := newLockEnv(t)
+	repo := filepath.Join(e.dir, "repo")
+	if out, err := exec.Command("git", "init", "-q", repo).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
+	slotsFile := filepath.Join(repo, ".git", ".monaco", "swiftpm-slots")
+	if err := os.MkdirAll(filepath.Dir(slotsFile), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(slotsFile, []byte("3\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	env := []string{"MONACO_SWIFTPM_SLOTS=1", "MONACO_XCODE_LOCK_TIMEOUT=10"}
+	aIn, bIn := filepath.Join(e.dir, "a.in"), filepath.Join(e.dir, "b.in")
+	aRel, bRel := filepath.Join(e.dir, "a.rel"), filepath.Join(e.dir, "b.rel")
+
+	a := e.start(repo, env, append([]string{"swiftpm"}, holdUntil(aIn, aRel)...)...)
+	await(t, "the first holder to run", func() bool { return exists(aIn) }, a)
+	b := e.start(repo, env, append([]string{"swiftpm"}, holdUntil(bIn, bRel)...)...)
+	t.Cleanup(func() { release(t, aRel, bRel) })
+	await(t, "the second caller to queue", func() bool {
+		return strings.Contains(b.stderr.String(), "queue position 1 behind ")
+	}, a, b)
+	if exists(bIn) {
+		t.Fatalf("second caller ran although the env allows one slot")
+	}
+	for _, c := range []struct {
+		rel  string
+		call *call
+	}{{aRel, a}, {bRel, b}} {
+		release(t, c.rel)
+		if code := c.call.wait(t); code != 0 {
+			t.Fatalf("holder exit %d:\n%s", code, c.call.stderr.String())
+		}
+	}
+}
+
 // laneEnv names a caller's lane and gives the class two slots.
 func laneEnv(lane string) []string {
 	return []string{"MONACO_LANE=" + lane, "MONACO_XCODE_SLOTS=2"}
