@@ -110,34 +110,12 @@ struct V3LargeTextLayoutTests {
         UIHostingController(rootView: view.environment(\.dynamicTypeSize, size)).sizeThatFits(in: phone)
     }
 
-    private static func card(_ layout: CabalCoverCardLayout) -> CabalCoverCard {
-        let model = CabalCoverCardModel(
-            id: "cabal-1", name: "Weekend Warriors", memberCountText: "8 members", votesNeededText: "1 vote needed",
-            shareText: "$7,000.00", ownershipText: "35.00%",
-            pnl: .init(amountText: "−$300.00", percentText: "−4.11%", direction: .loss),
-            groupReturn: .init(periodText: "1M", percentText: "−4.12%", direction: .loss), tint: .blue)
-        return CabalCoverCard(model: model, layout: layout, onOpen: {}, onShare: {})
-    }
-
     private static let items = [
         StatItem(label: "Units", value: "30.0000"),
         StatItem(label: "Average buy", value: "$412.40"),
         StatItem(label: "Cost", value: "$12,372.00"),
         StatItem(label: "Value", value: "$13,950.00"),
     ]
-
-    @Test(arguments: [DynamicTypeSize.xxLarge, .xxxLarge, .accessibility1, .accessibility5])
-    func theRailCardKeepsItsWidthAndNeverShrinksBelowItsDesignHeight(size: DynamicTypeSize) {
-        let fitted = Self.fitted(Self.card(.rail), at: size)
-        #expect(fitted.width == CabalCoverCardMetrics.railWidth)
-        #expect(fitted.height >= CabalCoverCardMetrics.railHeight, "rail card is \(fitted.height)pt at \(size)")
-    }
-
-    @Test(arguments: [DynamicTypeSize.accessibility1, .accessibility3, .accessibility5])
-    func theCoverCardsReachTheirLargeTextHeightAtAccessibilitySizes(size: DynamicTypeSize) {
-        #expect(Self.fitted(Self.card(.rail), at: size).height >= CabalCoverCardMetrics.railLargeTextHeight)
-        #expect(Self.fitted(Self.card(.list), at: size).height >= CabalCoverCardMetrics.listLargeTextHeight)
-    }
 
     @Test(arguments: [DynamicTypeSize.large, .xxxLarge, .accessibility1, .accessibility5])
     func thePickerLabelAndKeypadSourceWrapOnlyAtAccessibilitySizes(size: DynamicTypeSize) {

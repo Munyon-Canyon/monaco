@@ -172,7 +172,6 @@ struct MonacoContrastTests {
         }
         for (label, color) in [
             ("onCover", MonacoTheme.onCover), ("onCoverMuted", MonacoTheme.onCoverMuted),
-            ("profitOnCover", MonacoTheme.profitOnCover), ("lossOnCover", MonacoTheme.lossOnCover),
         ] {
             pairs.append(Pair(label, color, on: [Color.white, MonacoTheme.coverOverlay]))
         }
@@ -371,7 +370,6 @@ extension MonacoContrastTests {
             for base in coverBases {
                 for (label, color) in [
                     ("onCover", MonacoTheme.onCover), ("onCoverMuted", MonacoTheme.onCoverMuted),
-                    ("profitOnCover", MonacoTheme.profitOnCover), ("lossOnCover", MonacoTheme.lossOnCover),
                 ] {
                     pairs.append(
                         Pair("\(label) on \(overlayLabel) over \(base.label)", color, on: base.layers + [overlay]))
@@ -403,9 +401,6 @@ extension MonacoContrastTests {
             ] {
                 pairs.append(Pair("chart \(label)", color, on: [surface], minimum: 3))
             }
-        }
-        for (label, color) in [("yes", MonacoTheme.profitVivid), ("no", MonacoTheme.lossVivid)] {
-            pairs.append(Pair("VoteBar \(label) against canvas", color, on: [MonacoTheme.canvas], minimum: 3))
         }
         for (index, color) in MonacoTheme.allocationTints.dropLast().enumerated() {
             pairs.append(

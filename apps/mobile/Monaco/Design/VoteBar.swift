@@ -82,28 +82,3 @@ struct VoteTallyBar: View {
         .accessibilityHidden(true)
     }
 }
-
-struct VoteBar: View {
-    let yes: Int
-    let no: Int
-    let notVoted: Int
-    let needed: Int
-    let isClosed: Bool
-
-    private var headline: String {
-        if isClosed { return "Voting closed" }
-        return needed == 1 ? "1 yes vote to pass" : "\(needed) yes votes to pass"
-    }
-
-    static func weights(yes: Int, no: Int, notVoted: Int) -> [Double] {
-        let counts = [yes, no, notVoted].map { Double(max($0, 0)) }
-        return counts.reduce(0, +) > 0 ? counts : [0, 0, 1]
-    }
-
-    var body: some View {
-        VoteTallyBar(yes: yes, no: no, eligible: yes + no + notVoted)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(yes) yes, \(no) no, \(notVoted) not voted. \(headline).")
-    }
-}

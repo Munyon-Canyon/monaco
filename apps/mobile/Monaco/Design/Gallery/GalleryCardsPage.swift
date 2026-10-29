@@ -6,7 +6,6 @@ import SwiftUI
 struct GalleryCardsPage: View {
     var body: some View {
         GalleryPage(title: "Cards") {
-            GalleryCoverCardSamples()
             GalleryBoardToolSamples()
             GalleryBoardRowSamples()
             GalleryRankedRowSamples()
@@ -14,76 +13,6 @@ struct GalleryCardsPage: View {
             GalleryRemindSamples()
             GalleryBoardListSamples()
             GalleryBalanceSamples()
-        }
-    }
-}
-
-enum GalleryCabalCards {
-    static func model(
-        id: String, tint: MonacoTheme.CabalTint, votes: String? = nil, funded: Bool = true,
-        pnl: CabalCoverCardModel.Figure? = nil, reason: String? = nil, withPicture: Bool = false
-    ) -> CabalCoverCardModel {
-        let gained = pnl?.direction != .loss
-        return CabalCoverCardModel(
-            id: id, name: "Weekend Warriors", memberCountText: "8 members", votesNeededText: votes,
-            shareText: funded ? "$7,000.00" : nil, ownershipText: funded ? "35.00%" : nil, pnl: pnl,
-            pnlUnavailableReason: reason,
-            groupReturn: .init(
-                periodText: "1M", percentText: gained ? "+4.12%" : "−4.12%", direction: gained ? .profit : .loss),
-            tint: tint,
-            pictureURL: withPicture ? GalleryFixtures.picture(tint, name: "gallery-card-\(id)")?.absoluteString : nil)
-    }
-
-    static let loss = CabalCoverCardModel.Figure(amountText: "−$300.00", percentText: "−4.11%", direction: .loss)
-    static let gain = CabalCoverCardModel.Figure(amountText: "+$412.50", percentText: "+5.90%", direction: .profit)
-}
-
-struct GalleryCoverCardSamples: View {
-    private let samples: [(caption: String, model: CabalCoverCardModel)] = [
-        (
-            "List, ready with vote needed",
-            GalleryCabalCards.model(
-                id: "gallery-card-1", tint: .blue, votes: "1 vote needed", pnl: GalleryCabalCards.loss)
-        ),
-        ("List, no action", GalleryCabalCards.model(id: "gallery-card-2", tint: .purple, pnl: GalleryCabalCards.loss)),
-        (
-            "List, no share",
-            GalleryCabalCards.model(id: "gallery-card-3", tint: .orange, funded: false)
-        ),
-        (
-            "List, P&L unavailable",
-            GalleryCabalCards.model(id: "gallery-card-4", tint: .teal, reason: "—")
-        ),
-        (
-            "List, gain, with a picture",
-            GalleryCabalCards.model(
-                id: "gallery-card-5", tint: .indigo, pnl: GalleryCabalCards.gain, withPicture: true)
-        ),
-    ]
-
-    var body: some View {
-        GalleryGroup(title: "Cabal cover cards") {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-                ForEach(samples, id: \.caption) { sample in
-                    GalleryCase(caption: sample.caption) {
-                        CabalCoverCard(model: sample.model, layout: .list, onOpen: {}, onShare: {})
-                    }
-                }
-                GalleryCase(caption: "Rail, three cards") {
-                    CabalCoverRail {
-                        ForEach(samples.prefix(3), id: \.caption) { sample in
-                            CabalCoverCard(model: sample.model, layout: .rail, onOpen: {}, onShare: {})
-                        }
-                    }
-                    .monacoBleed()
-                }
-                GalleryCase(caption: "Skeleton, list and rail") {
-                    VStack(spacing: MonacoTheme.Space.sm) {
-                        CabalCoverCardSkeleton(layout: .list)
-                        CabalCoverCardSkeleton(layout: .rail)
-                    }
-                }
-            }
         }
     }
 }

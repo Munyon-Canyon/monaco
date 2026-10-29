@@ -45,21 +45,10 @@ enum GalleryTokenCatalog {
                 GalleryToken(name: "warningWash", color: Theme.warningWash),
                 GalleryToken(name: "buyWash", color: Theme.buyWash),
                 GalleryToken(name: "sellWash", color: Theme.sellWash),
-                GalleryToken(name: "priceWash", color: Theme.priceWash),
-            ]),
-        GalleryTokenGroup(
-            title: "Glass",
-            tokens: [
-                GalleryToken(name: "glassFill", color: Theme.glassFill),
-                GalleryToken(name: "glassStroke", color: Theme.glassStroke),
             ]),
         GalleryTokenGroup(
             title: "Sheet",
-            tokens: [
-                GalleryToken(name: "sheetGlass", color: Theme.sheetGlass),
-                GalleryToken(name: "sheetStroke", color: Theme.sheetStroke),
-                GalleryToken(name: "sheetDim", color: Theme.sheetDim),
-            ]),
+            tokens: [GalleryToken(name: "sheetDim", color: Theme.sheetDim)]),
         GalleryTokenGroup(
             title: "Toast",
             tokens: [
@@ -75,8 +64,6 @@ enum GalleryTokenCatalog {
                 GalleryToken(name: "onIdentity", color: Theme.onIdentity),
                 GalleryToken(name: "onIdentityMuted", color: Theme.onIdentityMuted),
                 GalleryToken(name: "onIdentityBody", color: Theme.onIdentityBody),
-                GalleryToken(name: "profitOnIdentity", color: Theme.profitOnIdentity),
-                GalleryToken(name: "lossOnIdentity", color: Theme.lossOnIdentity),
                 GalleryToken(name: "pencilFill", color: Theme.pencilFill),
             ]),
         GalleryTokenGroup(
@@ -84,8 +71,6 @@ enum GalleryTokenCatalog {
             tokens: [
                 GalleryToken(name: "onCover", color: Theme.onCover),
                 GalleryToken(name: "onCoverMuted", color: Theme.onCoverMuted),
-                GalleryToken(name: "profitOnCover", color: Theme.profitOnCover),
-                GalleryToken(name: "lossOnCover", color: Theme.lossOnCover),
                 GalleryToken(name: "onCoverGlass", color: Theme.onCoverGlass),
                 GalleryToken(name: "onCoverGlassStroke", color: Theme.onCoverGlassStroke),
                 GalleryToken(name: "coverStroke", color: Theme.coverStroke),

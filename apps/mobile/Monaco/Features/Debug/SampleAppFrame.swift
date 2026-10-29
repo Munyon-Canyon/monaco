@@ -121,24 +121,6 @@ nonisolated struct SampleSilentHints: HintConnecting {
     func stop() async {}
 }
 
-nonisolated struct SampleResyncHints: HintConnecting {
-    let delay: Duration
-
-    func hints(matching _: HintFilter) -> AsyncStream<Hint> {
-        AsyncStream { continuation in
-            let task = Task {
-                try? await Task.sleep(for: delay)
-                continuation.yield(.resync)
-                continuation.finish()
-            }
-            continuation.onTermination = { _ in task.cancel() }
-        }
-    }
-
-    func start() async {}
-    func stop() async {}
-}
-
 enum SampleImage {
     @MainActor
     static func flat(_ tint: MonacoTheme.CabalTint, name: String) -> URL? {

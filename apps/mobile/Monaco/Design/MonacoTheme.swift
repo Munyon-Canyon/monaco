@@ -58,21 +58,11 @@ enum MonacoTheme {
 
     // MARK: Glass and sheets
 
-    static let glassFill = surface.opacity(0.86)
-
-    static let glassStroke = Color.clear
-
-    static let sheetGlass = surface.opacity(0.86)
-
-    static let sheetStroke = Color.clear
-
     static let sheetDim = Color(hex: 0x000000, alpha: 0.4)
 
     static let scrim = Color(hex: 0x000000, alpha: 0.6)
 
     // MARK: Retired hero band
-
-    static let heroInk = canvas
 
     static let onHero = primaryText
 
@@ -111,8 +101,6 @@ enum MonacoTheme {
 
     static let sellWash = surface
 
-    static let priceWash = surface
-
     // MARK: Toast
 
     static let toastFill = surface
@@ -135,10 +123,6 @@ enum MonacoTheme {
 
     static let onIdentityBody = primaryText
 
-    static let profitOnIdentity = profit
-
-    static let lossOnIdentity = loss
-
     static let pencilFill = surfaceSunken
 
     // MARK: Covers
@@ -146,10 +130,6 @@ enum MonacoTheme {
     static let onCover = Color.adaptive(light: 0xFFFFFF, dark: 0xFFFFFF)
 
     static let onCoverMuted = Color.adaptive(light: 0xC5D1CB, dark: 0xC5D1CB)
-
-    static let profitOnCover = Color.adaptive(light: 0x83F1B9, dark: 0x83F1B9)
-
-    static let lossOnCover = Color.adaptive(light: 0xFFB2B0, dark: 0xFFB2B0)
 
     static let onCoverGlass = Color.adaptive(light: 0xFFFFFF, lightAlpha: 0.09, dark: 0xFFFFFF, darkAlpha: 0.09)
 
@@ -224,8 +204,6 @@ enum MonacoTheme {
     static let gold = crown
 
     static let goldGlyph = crown
-
-    static let goldWash = Color.adaptive(light: 0xC9A24A, lightAlpha: 0.16, dark: 0xD9B85A, darkAlpha: 0.16)
 
     /// Green for gains, red for losses, muted for zero / missing.
     /// Accepts ASCII "-" and the typographic minus "−" (U+2212) as a loss sign.
