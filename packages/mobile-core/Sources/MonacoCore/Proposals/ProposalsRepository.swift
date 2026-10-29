@@ -225,12 +225,15 @@ public struct ProposalDetail: Identifiable, Equatable, Sendable {
     public let stats: ProposalStatsData
     public let myVote: ProposalMyVote?
     public let replyCount: Int
+    public let sidesVisible: Bool
     public var id: String { summary.id }
 
     init(
         summary: ProposalSummary, voters: [ProposalVoter], proposerReturn: ProposerReturn? = nil,
-        stats: ProposalStatsData? = nil, myVote: ProposalMyVote? = nil, replyCount: Int = 0
+        stats: ProposalStatsData? = nil, myVote: ProposalMyVote? = nil, replyCount: Int = 0,
+        sidesVisible: Bool = false
     ) {
+        self.sidesVisible = sidesVisible
         self.summary = summary
         self.voters = voters
         self.proposerReturn = proposerReturn
@@ -255,7 +258,7 @@ public struct ProposalDetail: Identifiable, Equatable, Sendable {
             voters: value.voters.map(ProposalVoter.init),
             proposerReturn: ProposerReturn(bps: value.proposerReturn1mBps, isPrivate: value.proposerReturnPrivate),
             stats: ProposalStatsData(value.stats), myVote: value.myVote.map(ProposalMyVote.init),
-            replyCount: value.replyCount)
+            replyCount: value.replyCount, sidesVisible: value.sidesVisible)
     }
 }
 
@@ -316,15 +319,26 @@ public struct ProposalVoter: Equatable, Sendable, Identifiable {
     public let id: String
     public let ballot: String?
     public let voted: Bool
+    public let castAt: Date?
+    public let displayName: String
+    public let photoURL: URL?
 
-    public init(id: String, ballot: String?, voted: Bool? = nil) {
+    public init(
+        id: String, ballot: String?, voted: Bool? = nil, castAt: Date? = nil, displayName: String = "",
+        photoURL: URL? = nil
+    ) {
         self.id = id
         self.ballot = ballot
         self.voted = voted ?? (ballot != nil)
+        self.castAt = castAt
+        self.displayName = displayName
+        self.photoURL = photoURL
     }
 
     init(_ value: Components.Schemas.ProposalVoter) {
-        self.init(id: value.userId, ballot: value.choice?.rawValue, voted: value.voted)
+        self.init(
+            id: value.userId, ballot: value.choice?.rawValue, voted: value.voted, castAt: value.castAt,
+            displayName: value.displayName, photoURL: value.photoUrl.flatMap(URL.init(string:)))
     }
 }
 

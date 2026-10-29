@@ -112,4 +112,39 @@ final class ProposalDetailMappingTests: XCTestCase {
         XCTAssertEqual(stats.pollInterval, .seconds(120))
         XCTAssertFalse(stats.tradesContinuously)
     }
+
+    func testARedactedFixtureMapsWithoutBallotsOrCastTimes() async throws {
+        var fixture = Components.Schemas.ProposalDetail.filledNVDA(now: now)
+        fixture.sidesVisible = false
+        let viewer = fixture.voters[0].userId
+        fixture.voters = fixture.voters.map { voter in
+            var copy = voter
+            if copy.userId != viewer {
+                copy.choice = nil
+                copy.castAt = nil
+            }
+            copy.photoUrl = "https://example.com/\(copy.userId).png"
+            return copy
+        }
+        let detail = ProposalDetail(fixture)
+        XCTAssertFalse(detail.sidesVisible)
+        let others = detail.voters.filter { $0.id != viewer }
+        XCTAssertTrue(others.allSatisfy { $0.castAt == nil && $0.ballot == nil })
+        XCTAssertTrue(detail.voters.allSatisfy { !$0.displayName.isEmpty && $0.photoURL != nil })
+        let sides = ProposalSides.make(voters: detail.voters, members: [], viewerID: viewer, sidesVisible: false)
+        XCTAssertEqual(sides.yes.map(\.id), [viewer])
+        XCTAssertEqual(sides.votedHidden.count, 1)
+        XCTAssertEqual(sides.notVoted.count, 1)
+    }
+
+    func testARevealedFixtureCarriesEveryCastTimeAndOrdersByIt() async throws {
+        var fixture = Components.Schemas.ProposalDetail.filledNVDA(now: now)
+        fixture.voters[0].castAt = now.addingTimeInterval(-10)
+        fixture.voters[1].castAt = now.addingTimeInterval(-20)
+        let detail = ProposalDetail(fixture)
+        XCTAssertTrue(detail.sidesVisible)
+        XCTAssertTrue(detail.voters.filter(\.voted).allSatisfy { $0.castAt != nil })
+        let sides = ProposalSides.make(voters: detail.voters, members: [], viewerID: "nobody", sidesVisible: true)
+        XCTAssertEqual(sides.yes.map(\.id), [detail.voters[1].id, detail.voters[0].id])
+    }
 }
