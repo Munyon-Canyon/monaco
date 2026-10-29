@@ -110,7 +110,7 @@ enum FeedPreviewFixtures {
     static func earlierItems() -> [Components.Schemas.FeedItem] {
         [items[7], olderItems[0]].enumerated().map { index, item in
             var item = item
-            item.createdAt = Date(timeIntervalSinceNow: -Double(8 + index) * 24 * 60 * 60)
+            item.createdAt = Date(timeIntervalSinceNow: -TimeInterval(8 + index) * 24 * 60 * 60)
             item.updatedAt = item.createdAt
             return item
         }
