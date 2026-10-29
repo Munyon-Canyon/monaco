@@ -1,7 +1,7 @@
 ---
 id: governance/comments
 title: Comment on a proposal
-version: 8
+version: 9
 milestone: M18
 requires: [auth/sign-in]
 actors: [A]
@@ -31,7 +31,7 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap, pick, then tap | the Feed tab, the "Proposals" item from `feed-filter`, then the first `feed-cell-<id>` | | `proposal-votes` shows within 15 s (old app: Proposal detail; screens.md `ProposalDetailSlot`) |
+| S1.1 | A | tap, then tap | the Feed tab, then the first `feed-cell-<id>` | | The post page `feed-item-detail` shows within 15 s (a Feed cell opens its post, which holds the thread and the docked composer; old app: Proposal detail; screens.md `ProposalDetailSlot`) |
 | S1.2 | A | wait | `comment-thread` | | The section header "Replies" (no count) and the empty line "No replies yet" show in the thread within 10 s (F `04-proposal-dark`, #6541; old app: `CommentThreadView` read) |
 | S1.3 | A | type, then tap | `comment-composer-field`, then `comment-composer-send` | `QA comment {QA.run}` | The field's placeholder is "Say something", the GIF button `comment-composer-gif` shows inside the field, and a `comment-body-<id>` reads `QA comment {QA.run}` within 10 s (F: the docked composer, "Say something"; old app: `CommentThreadView` post) |
 
@@ -39,7 +39,7 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, pick, then tap | the Feed tab, the "Proposals" item from `feed-filter`, then the first `feed-cell-<id>` | | `proposal-votes` shows within 15 s |
+| S2.1 | A | tap, then tap | the Feed tab, then the first `feed-cell-<id>` | | `feed-item-detail` shows within 15 s |
 | S2.2 | A | type, then tap | `comment-composer-field`, then `comment-composer-send` | `QA ask {QA.run}` | A `comment-body-<id>` reads `QA ask {QA.run}` within 10 s |
 | S2.3 | A | tap | the `comment-reply-<id>` with the id of the `comment-body-<id>` reading `QA ask {QA.run}` | | `reply-sheet` shows within 5 s and its `reply-sheet-quote` reads "QA ask {QA.run}" (F `04-reply-composer`, #6548: the reply half sheet; old app: `CommentThreadView` reply) |
 | S2.4 | A | type, then tap | `comment-composer-field`, then `comment-composer-send` | `QA answer {QA.run}` | A `comment-body-<id>` reads `QA answer {QA.run}` within 10 s, one indent in, and its row shows `comment-quote-<id>` naming the comment it answers (#6541) |

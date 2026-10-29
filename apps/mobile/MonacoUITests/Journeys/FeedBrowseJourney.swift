@@ -2,7 +2,7 @@ import XCTest
 
 enum FeedBrowseJourney {
     static let id = "feed/browse"
-    static let version = 7
+    static let version = 8
     static let filterOptions = [
         "feed-scope-Your cabals and friends", "feed-scope-Your cabals", "feed-scope-Friends", "feed-scope-Everyone",
         "feed-muted-link",
@@ -108,16 +108,15 @@ enum FeedBrowseJourney {
     }
 
     static func cellTaps(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
-        recorder.step("S3.1", "a cabal cell opens the cabal") {
+        recorder.step("S3.1", "a cabal cell opens its post") {
             openFeed(app, step: "S3.1")
             choose(app, "feed-scope-Your cabals and friends")
             let cell = text(app, containing: "started \(joinedCabal(run: run))")
             XCTAssertTrue(cell.waitForExistence(timeout: 15), "S3.1: no 'started \(joinedCabal(run: run))' cell")
             cell.tap()
             XCTAssertTrue(
-                JoinJourney.waitForLabel(
-                    app.element("cabal-header-name"), containing: joinedCabal(run: run), timeout: 15),
-                "S3.1: the cell did not open \(joinedCabal(run: run)) within 15 s"
+                app.element("feed-item-detail").waitForExistence(timeout: 15),
+                "S3.1: the cell did not open the post page for \(joinedCabal(run: run)) within 15 s"
             )
         }
 

@@ -1,7 +1,7 @@
 ---
 id: governance/propose-from-asset
 title: Propose a buy from a stock
-version: 8
+version: 9
 milestone: M13
 requires: [auth/sign-in]
 actors: [A]
@@ -31,7 +31,7 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap, type, then tap | the Markets tab, the search "Search stocks or tickers", then `assets-row-GOOGL…` | `GOOGL` | `asset-detail-root` shows, and `asset-detail-propose-buy` reads "Propose buy", within 15 s |
+| S1.1 | A | tap, type, then tap | the Markets tab (`tab-assets`), the native search "Stocks and Pre-IPO", then `assets-row-GOOGL…` | `GOOGL` | `asset-detail-root` shows, and `asset-detail-propose-buy` reads "Propose buy", within 15 s |
 | S1.2 | A | tap | `asset-detail-propose-buy` | | A half sheet titled "Choose a cabal" (`propose-pick-cabal-sheet`) opens over the stock and asks "Which cabal should buy GOOGL?" (`propose-pick-cabal-question`) and lists `QA asset {QA.run}` within 10 s (old app: `GroupPickerForProposalView`) |
 | S1.3 | A | tap | the `QA asset {QA.run}` row (`propose-pick-cabal-<id>`) | | The sheet closes and the keypad (`amount-keypad-screen`, #6573) shows within 10 s, `amount-keypad-source` names `QA asset {QA.run}` and its cash, and the chips `amount-keypad-preset-<label>` read "+$1", "+$10", "+$20", "Max", with no Buy search step |
 | S1.4 | A | tap | `amount-keypad-5` | | `amount-keypad-limit-line` reads "… available · … over" in place of the chips within 10 s, and `amount-keypad-action` does not show (founder decision Q2: the keypad replaces the chips with one grey limit line) |

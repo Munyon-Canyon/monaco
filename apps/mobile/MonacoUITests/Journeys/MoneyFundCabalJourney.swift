@@ -35,7 +35,7 @@ enum MoneyFundCabalJourney {
         let amount = app.element("amount-keypad-amount")
         let delete = app.element("amount-keypad-delete")
         XCTAssertTrue(delete.waitForExistence(timeout: 10), "no amount keypad")
-        for _ in 0..<amount.label.filter({ $0.isNumber || $0 == "." }).count { delete.tap() }
+        for _ in 0..<(amount.value as? String ?? "").filter({ $0.isNumber || $0 == "." }).count { delete.tap() }
     }
 
     static func typeKeypadAmount(_ app: XCUIApplication, _ text: String) {
@@ -84,7 +84,8 @@ enum MoneyFundCabalJourney {
                 JoinJourney.waitForLabel(source, containing: "Cash $", timeout: screenTimeout),
                 "S1.2: the source pill does not read Cash $…: \(source.label)")
             XCTAssertTrue(source.label.contains(name), "S1.2: the source pill does not name \(name): \(source.label)")
-            XCTAssertEqual(app.element("amount-keypad-amount").label, "$0", "S1.2: the amount does not read $0")
+            XCTAssertEqual(
+                app.element("amount-keypad-amount").value as? String, "$0", "S1.2: the amount does not read $0")
             for chip in ["+$1", "+$10", "+$20", "Max"] {
                 XCTAssertTrue(app.buttons["amount-keypad-preset-\(chip)"].exists, "S1.2: no chip \(chip)")
             }

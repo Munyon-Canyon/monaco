@@ -21,10 +21,20 @@ enum CabalsEditRulesJourney {
     static func assertRule(
         _ app: XCUIApplication, _ row: String, reads text: String, step: String, timeout: TimeInterval = 10
     ) {
-        XCTAssertTrue(
-            JoinJourney.waitForLabel(rule(app, row), containing: text, timeout: timeout),
-            "\(step): cabal-rules-\(row) does not read \(text): \(rule(app, row).label)"
-        )
+        let element = rule(app, row)
+        let deadline = Date().addingTimeInterval(timeout)
+        var read = false
+        repeat {
+            read = rowReads(element, text)
+            if !read { RunLoop.current.run(until: Date().addingTimeInterval(0.2)) }
+        } while !read && Date() < deadline
+        XCTAssertTrue(read, "\(step): cabal-rules-\(row) does not read \(text): \(element.label)")
+    }
+
+    private static func rowReads(_ element: XCUIElement, _ text: String) -> Bool {
+        guard element.exists else { return false }
+        if element.label.contains(text) { return true }
+        return element.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch.exists
     }
 
     static func openProposal(_ app: XCUIApplication, step: String) {

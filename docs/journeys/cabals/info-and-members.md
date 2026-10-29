@@ -1,7 +1,7 @@
 ---
 id: cabals/info-and-members
 title: Members and voters on the cabal page
-version: 2
+version: 3
 milestone: UI v3
 requires: [auth/sign-in]
 actors: [A]
@@ -41,11 +41,11 @@ Starts where S1 left off: on the cabal page, Members tab.
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | `openCabalTab("Voters")` | `cabal-tab-voters`, then `cabal-voters` | | `cabal-member-<A id>` shows and `cabal-member-<B id>` does not within 10 s |
+| S2.1 | A | `openCabalTab("Voters")` | `cabal-tab-voters`, then `cabal-voters` | | `cabal-member-<A id>` shows, and `cabal-member-<B id>` shows with "Holds a share" in its label (under Don't vote, not Vote) within 10 s |
 | S2.2 | A | long press, then tap | `cabal-member-<B id>`, then `cabal-voters-propose-voter` ("Propose making a voter") | | The sheet "Propose a rule change" opens and `cabal-rule-proposal-words` reads "Make B a voter" within 10 s |
 | S2.3 | A | tap | `cabal-rule-proposal-propose` | | The toast "Proposed. Your cabal votes on it." shows within 10 s |
 | S2.4 | A | tap, then `pickAndHold("yes")` | the `cabal-open-proposal-<id>` row above the tabs | | A holds Yes; A is the only voter, so it passes |
-| S2.5 | A | `openCabalTab("Voters")` | `cabal-member-<B id>` | | B shows under Voters within 20 s |
+| S2.5 | A | `openCabalTab("Voters")` | `cabal-member-<B id>` | | `cabal-member-<B id>`'s label no longer holds "Holds a share" (B moved under Vote) within 20 s |
 
 ## Ground truth
 

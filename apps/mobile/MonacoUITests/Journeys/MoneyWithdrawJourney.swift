@@ -98,7 +98,8 @@ enum MoneyWithdrawJourney {
                 JoinJourney.waitForLabel(line, containing: "USDC", timeout: screenTimeout),
                 "S1.3: the line does not read ≈ … USDC · fee …: \(line.label)")
             XCTAssertTrue(line.label.hasPrefix("≈"), "S1.3: the line does not start with ≈: \(line.label)")
-            XCTAssertNotEqual(app.element("amount-keypad-amount").label, "$0", "S1.3: Max left the amount at $0")
+            XCTAssertNotEqual(
+                app.element("amount-keypad-amount").value as? String, "$0", "S1.3: Max left the amount at $0")
         }
 
         recorder.step("S1.4", "Withdraw sends and settles") {

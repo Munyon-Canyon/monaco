@@ -1,7 +1,7 @@
 ---
 id: feed/browse
 title: Browse the feed
-version: 7
+version: 8
 milestone: M18
 requires: [auth/sign-in]
 actors: [A]
@@ -47,7 +47,7 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | A | tap, pick `feed-scope-Your cabals and friends` from `feed-filter` (closing the menu), then tap | the Feed tab, then the card reading "started QA feed {QA.run}" | | `cabal-header-name` reads `QA feed {QA.run}` within 15 s (old app: a feed cell opens its subject) |
+| S3.1 | A | tap, pick `feed-scope-Your cabals and friends` from `feed-filter` (closing the menu), then tap | the Feed tab, then the card reading "started QA feed {QA.run}" | | `feed-item-detail` shows within 15 s, the post page, not the cabal page (screens.md Post screen: the Feed card opens its post; the cabal opens from the card's context menu, "Open <cabal>") |
 | S3.2 | A | tap back, then tap | the first `feed-cell-<id>` | | `proposal-vote-yes` shows within 15 s, and the screen reads `QA proposal {QA.run}` within 10 s (screens.md Proposal screen) |
 | S3.3 | A | tap back, then press and hold, then tap | the card reading "started QA feed {QA.run}", then "Hide this post" | | The card is gone within 5 s (Q40: a long-press hides) |
 
@@ -57,7 +57,7 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Known failures on staging
 
-- S1.2 of the v7 design (picking a kind narrows the cards): the app has no kind options in `feed-filter` today, so no `feed-chip-*` identifier exists to drive. The journey covers the scope options only.
+None.
 
 ## Not covered
 

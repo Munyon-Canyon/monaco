@@ -2,7 +2,7 @@ import XCTest
 
 enum HomeActivityJourney {
     static let id = "home/activity"
-    static let version = 2
+    static let version = 3
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -66,10 +66,17 @@ enum HomeActivityJourney {
             let clear = app.buttons["Clear"]
             XCTAssertTrue(clear.waitForExistence(timeout: 10), "S1.3: swiping the result row shows no Clear")
             clear.tap()
-            let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: resultRow)
+            let results = app.element("catch-up-section-results")
+            let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: results)
             XCTAssertEqual(
                 XCTWaiter().wait(for: [gone], timeout: 10), .completed,
                 "S1.3: the result row is still in Results")
+            let cleared = app.element("catch-up-section-cleared")
+            XCTAssertTrue(cleared.waitForExistence(timeout: 10), "S1.3: no Cleared today section")
+            XCTAssertTrue(
+                cleared.label.contains("Cleared today"),
+                "S1.3: the section reads '\(cleared.label)', not 'Cleared today'")
+            XCTAssertTrue(resultRow.exists, "S1.3: the cleared row is not under Cleared today")
             let two = XCTNSPredicateExpectation(
                 predicate: NSPredicate(format: "label BEGINSWITH %@", "2 to catch up"), object: subline)
             XCTAssertEqual(
