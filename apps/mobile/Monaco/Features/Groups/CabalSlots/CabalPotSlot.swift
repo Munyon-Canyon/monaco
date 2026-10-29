@@ -7,13 +7,31 @@ enum CabalPotSlot: CabalSection {
 
     static func body(for context: CabalContext) -> some View {
         CabalPotModelHost(cabalID: context.cabalID) { model in
-            CabalTreasuryLine(model: model)
+            CabalTreasuryLine(model: model, cabalID: context.cabalID)
         }
     }
 }
 
 private struct CabalTreasuryLine: View {
     let model: CabalPotModel?
+    let cabalID: String
+
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(\.hostMainTab) private var hostMainTab
+
+    var body: some View {
+        CabalMoveReader(cabalID: cabalID) { move in
+            CabalPotBand(model: model, move: move) {
+                environment.navigator.open(
+                    CabalTreasuryHistoryRoute(cabalID: cabalID), in: hostMainTab ?? environment.navigator.selectedTab)
+            }
+        }
+    }
+}
+
+struct CabalMoveReader<Content: View>: View {
+    let cabalID: String
+    @ViewBuilder let content: (CabalHeaderCopy.Move?) -> Content
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.cabalRetry) private var retry
@@ -26,7 +44,7 @@ private struct CabalTreasuryLine: View {
     }
 
     var body: some View {
-        CabalPotBand(model: model, move: move)
+        content(move)
             .task(id: retry.tick) {
                 let chart = prepared()
                 await withTaskGroup(of: Void.self) { group in
@@ -40,8 +58,8 @@ private struct CabalTreasuryLine: View {
     private func prepared() -> ValueChartModel {
         if let chart { return chart }
         let created = ValueChartModel(
-            subjects: [.cabal(id: model?.cabalID ?? cabalModel?.cabalID ?? "")], ranges: [.oneMonth],
-            range: .oneMonth, api: environment.api, hints: environment.hints)
+            subjects: [.cabal(id: cabalID)], ranges: [.oneMonth], range: .oneMonth, api: environment.api,
+            hints: environment.hints)
         chart = created
         return created
     }
@@ -79,6 +97,7 @@ struct CabalPotModelHost<Content: View>: View {
 struct CabalPotBand: View {
     let model: CabalPotModel?
     var move: CabalHeaderCopy.Move?
+    var openHistory: (() -> Void)?
 
     var body: some View {
         content
@@ -100,7 +119,27 @@ struct CabalPotBand: View {
                 Task { await model?.load() }
             }
         case .loaded(let summary):
-            line(figure: Text(Self.dimmedCents(summary.potValue)), move: move)
+            loaded(summary)
+        }
+    }
+
+    @ViewBuilder private func loaded(_ summary: CabalPotSummary) -> some View {
+        let figure = line(figure: Text(Self.dimmedCents(summary.potValue)), move: move)
+        if let openHistory, summary.state != .zero {
+            Button(action: openHistory) {
+                HStack(spacing: MonacoTheme.Space.s) {
+                    figure
+                    MonacoRowChevron()
+                }
+                .contentShape(Rectangle())
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Self.spoken(summary.potValue, move: move))
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint(CabalTreasuryCopy.historyHint)
+            .accessibilityIdentifier("cabal-pot-value")
+        } else {
+            figure
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Self.spoken(summary.potValue, move: move))
                 .accessibilityIdentifier("cabal-pot-value")
@@ -193,7 +232,7 @@ private struct CabalPotHarnessScreen: View {
                 SectionStackLayout(spacing: SectionStackMetrics.spacing) {
                     CabalPotBand(model: model)
                     CabalSliceBand(model: model)
-                    CabalHoldingsSection(model: model, cabalID: pot.cabalId) { path.append(AnyAppRoute($0)) }
+                    CabalTreasuryBody(model: model, cabalID: pot.cabalId, move: nil) { path.append(AnyAppRoute($0)) }
                 }
                 .padding(.top, MonacoTheme.Space.gutter + SectionStackMetrics.spacing)
             }

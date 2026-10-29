@@ -2,18 +2,8 @@ import MonacoAPI
 import MonacoCore
 import SwiftUI
 
-enum CabalActivitySlot: CabalSection {
-    static let isLive = true
-
-    static func body(for context: CabalContext) -> some View {
-        CabalActivityLive(cabalID: context.cabalID)
-    }
-}
-
 enum CabalActivityCopy {
     static let header = "Group activity"
-    static let helper = "Decisions and transactions in this pot"
-    static let seeAll = "See all"
     static let emptyTitle = "Nothing yet"
     static let emptyMessage = "Money added and trades show up here."
     static let failedThing = "activity"
@@ -30,83 +20,6 @@ extension View {
         .onChange(of: model?.toast) { _, toast in
             guard let toast else { return }
             toasts.current = MonacoToast(message: toast.message, isSuccess: toast.isSuccess)
-        }
-    }
-}
-
-private struct CabalActivityLive: View {
-    let cabalID: String
-
-    @Environment(AppEnvironment.self) private var environment
-    @Environment(ToastCenter.self) private var toasts
-    @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
-    @State private var model: CabalActivityModel?
-
-    var body: some View {
-        CabalActivitySection(model: model)
-            .task {
-                let model = preparedModel()
-                refresh?.register("cabal-activity") { await model.refresh() }
-                await model.load()
-                await model.observe()
-            }
-            .onScreenVisibilityChange { model?.setVisible($0) }
-            .cabalActivityToasts(model, in: toasts)
-    }
-
-    private func preparedModel() -> CabalActivityModel {
-        if let model { return model }
-        let created = CabalActivityModel(
-            cabalID: cabalID, api: environment.api, hints: environment.hints, clock: Date.init)
-        model = created
-        return created
-    }
-}
-
-struct CabalActivitySection: View {
-    @Environment(AppEnvironment.self) private var environment
-    @Environment(\.hostMainTab) private var hostMainTab
-    @Environment(\.cabalPotModel) private var potModel
-    let model: CabalActivityModel?
-
-    private var isHidden: Bool {
-        if model?.phase == .hidden { return true }
-        guard model?.phase == .empty, let state = potModel?.summary?.state else { return false }
-        return state != .invested
-    }
-
-    var body: some View {
-        if !isHidden {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                header
-                    .padding(.horizontal, MonacoTheme.Space.gutter)
-                    .padding(.bottom, -MonacoTheme.Space.s)
-                Text(CabalActivityCopy.helper)
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                    .padding(.horizontal, MonacoTheme.Space.gutter)
-                CabalActivityContent(
-                    opensThroughNavigator: true, model: model, rows: model?.firstFive ?? [], skeletonRows: 3)
-            }
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("cabal-activity")
-        } else {
-            Color.clear.frame(height: 0)
-        }
-    }
-
-    @ViewBuilder private var header: some View {
-        if let model, model.hasMore {
-            MonacoSectionHeader(
-                CabalActivityCopy.header, trailing: CabalActivityCopy.seeAll,
-                actionIdentifier: "cabal-activity-see-all"
-            ) {
-                environment.navigator.open(
-                    CabalActivityListRoute(cabalID: model.cabalID),
-                    in: hostMainTab ?? environment.navigator.selectedTab)
-            }
-        } else {
-            MonacoSectionHeader(CabalActivityCopy.header)
         }
     }
 }

@@ -71,8 +71,8 @@ struct HomeBalanceLayoutTests {
         #expect(deposit.height >= 44 - 0.001, "Deposit is \(deposit.height)pt tall")
         #expect(deposit.width >= 82, "Deposit is \(deposit.width)pt wide")
         #expect(
-            abs(deposit.maxX - (phone.size.width - MonacoTheme.Space.gutter)) < 0.5,
-            "Deposit ends at \(deposit.maxX), not on the gutter")
+            abs(deposit.maxX - (phone.size.width - MonacoTheme.Space.gutter - MonacoTheme.Space.m)) < 0.5,
+            "Deposit ends at \(deposit.maxX), not on the card's trailing padding")
         #expect(cash.maxX <= deposit.minX, "Cash \(cash.maxX) runs under Deposit \(deposit.minX)")
     }
 

@@ -1,19 +1,19 @@
 journey: cabals/pot
 expect-fail: S3
 
-The holdings section is headed "Assets". S3.2 scrolls to "Holdings", so it must fail.
+The positions section is headed "Assets". S3.2 scrolls to its header, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalHoldingsSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalHoldingsSlot.swift
-index 1992e7d8b..8a133fa36 100644
---- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalHoldingsSlot.swift
-+++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalHoldingsSlot.swift
-@@ -34,7 +34,7 @@ struct CabalHoldingsSection: View {
+diff --git a/packages/mobile-core/Sources/MonacoCore/Treasury/CabalTreasuryRows.swift b/packages/mobile-core/Sources/MonacoCore/Treasury/CabalTreasuryRows.swift
+index 4eced5d82..7735d8235 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Treasury/CabalTreasuryRows.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Treasury/CabalTreasuryRows.swift
+@@ -27,7 +27,7 @@ public struct CabalTreasuryRows: Equatable, Sendable {
+     }
  
-     var body: some View {
-         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
--            MonacoSectionHeader("Holdings")
-+            MonacoSectionHeader("Assets")
-                 .padding(.horizontal, MonacoTheme.Space.gutter)
-             content
-         }
+     public static let atEstimate = "at estimate"
+-    public static let positionsLabel = "Positions"
++    public static let positionsLabel = "Assets"
+     public static let botLabel = "Trading bot"
+     public static let cashOutLabel = "Cash out my share"
+     public static let historyLabel = "Treasury history"

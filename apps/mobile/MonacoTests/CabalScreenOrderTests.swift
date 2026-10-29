@@ -50,10 +50,7 @@ struct CabalScreenOrderTests {
     }
 
     @Test func eachTabHostsItsSlots() {
-        #expect(
-            Self.names(CabalTabs.sections(for: .treasury)) == [
-                "CabalHoldingsSlot", "CabalValueChartSlot", "CabalActivitySlot",
-            ])
+        #expect(Self.names(CabalTabs.sections(for: .treasury)) == ["CabalTreasuryTabSlot"])
         #expect(Self.names(CabalTabs.sections(for: .rules)) == ["CabalRulesSlot"])
         #expect(Self.names(CabalTabs.sections(for: .members)) == ["CabalMembersSlot"])
         #expect(Self.names(CabalTabs.sections(for: .voters)) == ["CabalVotersSlot"])

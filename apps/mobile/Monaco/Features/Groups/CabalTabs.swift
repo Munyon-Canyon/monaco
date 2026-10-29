@@ -26,7 +26,7 @@ enum CabalTabs: CabalSection {
 
     static func sections(for tab: CabalTab) -> [any CabalSection.Type] {
         switch tab {
-        case .treasury: [CabalHoldingsSlot.self, CabalValueChartSlot.self, CabalActivitySlot.self]
+        case .treasury: [CabalTreasuryTabSlot.self]
         case .rules: [CabalRulesSlot.self]
         case .members: [CabalMembersSlot.self]
         case .voters: [CabalVotersSlot.self]

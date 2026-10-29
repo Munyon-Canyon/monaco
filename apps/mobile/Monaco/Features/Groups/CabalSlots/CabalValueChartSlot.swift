@@ -4,10 +4,10 @@ import SwiftUI
 
 enum CabalValueChartSlot: CabalSection {
     static let isLive = true
-    static let ranges: [LeaderboardRange] = LeaderboardRange.homePeriods
+    static let ranges: [LeaderboardRange] = [.oneWeek, .oneMonth, .threeMonths, .sixMonths, .all]
 
     static func body(for context: CabalContext) -> some View {
-        CabalValueChart(cabalID: context.cabalID)
+        CabalValueChart(cabalID: context.cabalID, topInset: CabalChartMetrics.slotInset)
     }
 }
 
@@ -15,10 +15,12 @@ enum CabalChartMetrics {
     static let returnGap: CGFloat = MonacoTheme.Space.s
     static let chartGap: CGFloat = MonacoTheme.Space.sm
     static let periodsGap: CGFloat = MonacoTheme.Space.sm
+    static let slotInset: CGFloat = -(SectionStackMetrics.spacing - returnGap)
 }
 
-private struct CabalValueChart: View {
+struct CabalValueChart: View {
     let cabalID: String
+    let topInset: CGFloat
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
@@ -38,7 +40,7 @@ private struct CabalValueChart: View {
             content
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.top, -(SectionStackMetrics.spacing - CabalChartMetrics.returnGap))
+        .padding(.top, topInset)
         .frame(maxWidth: .infinity, alignment: .leading)
         .task(id: retry.tick) {
             let model = prepared()
