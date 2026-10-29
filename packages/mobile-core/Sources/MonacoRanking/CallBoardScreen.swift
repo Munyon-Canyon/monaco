@@ -122,6 +122,7 @@ public struct CallBoardCard: Equatable, Sendable {
     public let neighbourLine: String?
     public let gapLine: String?
     public let climb: Double
+    public let standing: String?
 }
 
 public struct CallBoardScreen: Equatable, Sendable {
@@ -132,6 +133,13 @@ public struct CallBoardScreen: Equatable, Sendable {
     public let top: [CallBoardRowValue]
     public let around: [CallBoardRowValue]
     public let emptyMessage: String
+    public let moment: CallBoardMoment?
+    private let viewerListed: Bool
+
+    public func showsDocked(viewerRowVisible: Bool) -> Bool {
+        guard card != nil else { return false }
+        return viewerListed ? !viewerRowVisible : true
+    }
 
     public var isEmpty: Bool { top.isEmpty && around.isEmpty && card == nil }
 
@@ -145,6 +153,11 @@ public struct CallBoardScreen: Equatable, Sendable {
         top = board.top.map(CallBoardRowValue.init)
         around = board.around.rows.map(CallBoardRowValue.init)
         emptyMessage = CallBoardCopy.emptyMessage(period)
+        moment = board.leadChange.map {
+            CallBoardMoment($0, seenKey: "\(board.board.rawValue).\(board.filter.rawValue).\(period.rawValue)")
+        }
+        let listed = board.top + board.around.rows
+        viewerListed = board.me.map { me in listed.contains { $0.subject.id == me.subject.id } } ?? false
         card = board.me.map { me in
             let mine = CallBoardRowValue(me)
             let above = board.above.map(CallBoardRowValue.init)
@@ -160,7 +173,12 @@ public struct CallBoardScreen: Equatable, Sendable {
                 gapLine: board.gap.flatMap { gap in
                     shortName.flatMap { CallBoardCopy.gapLine(gap, name: $0, period: period) }
                 },
-                climb: min(max(Double(board.climbBps) / 10_000, 0), 1))
+                climb: min(max(Double(board.climbBps) / 10_000, 0), 1),
+                standing: mine.rank.map {
+                    CallBoardCopy.standing(
+                        rank: $0, total: Int(board.totalRanked), ratePct: me.ratePct.map(Int.init), period: period,
+                        tab: tab)
+                })
         }
     }
 }
