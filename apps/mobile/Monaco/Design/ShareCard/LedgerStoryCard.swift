@@ -16,6 +16,9 @@ struct LedgerStoryCard: View {
                 header
                     .padding(.horizontal, 14 * scale)
                     .padding(.top, 10 * scale)
+                figure
+                    .padding(.horizontal, 14 * scale)
+                    .padding(.top, 6 * scale)
                 FShareChart(chart: spec.chart, tone: spec.figure.tone, progress: progress, scale: scale)
                     .frame(maxHeight: .infinity)
                 lower
@@ -64,18 +67,21 @@ struct LedgerStoryCard: View {
         }
     }
 
+    private var figure: some View {
+        HStack(alignment: .lastTextBaseline, spacing: 6 * scale) {
+            Text(spec.figure.main)
+                .font(.system(size: 54 * scale, weight: .black).width(.condensed).monospacedDigit())
+                .minimumScaleFactor(0.5)
+                .lineLimit(1)
+                .foregroundStyle(tone)
+            if let context = spec.figure.context {
+                Text(context).font(.system(size: 14 * scale)).foregroundStyle(MonacoTheme.secondaryText)
+            }
+        }
+    }
+
     private var lower: some View {
         VStack(alignment: .leading, spacing: 8 * scale) {
-            HStack(alignment: .lastTextBaseline, spacing: 6 * scale) {
-                Text(spec.figure.main)
-                    .font(.system(size: 54 * scale, weight: .black).width(.condensed).monospacedDigit())
-                    .minimumScaleFactor(0.5)
-                    .lineLimit(1)
-                    .foregroundStyle(tone)
-                if let context = spec.figure.context {
-                    Text(context).font(.system(size: 14 * scale)).foregroundStyle(MonacoTheme.secondaryText)
-                }
-            }
             if !spec.stats.isEmpty {
                 Rectangle().fill(MonacoTheme.hairline).frame(height: 1)
                 HStack(alignment: .top, spacing: 0) {

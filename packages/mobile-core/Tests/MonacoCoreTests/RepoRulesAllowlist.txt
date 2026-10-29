@@ -63,7 +63,7 @@ wall-clock	packages/mobile-core/Sources/MonacoCore/Networking/MonacoHTTPTranspor
 wall-clock	packages/mobile-core/Sources/MonacoCore/ProposalFeedFormatters.swift	3
 spacing-scale	apps/mobile/Monaco/Design/MonacoAmountEntry.swift	2
 spacing-scale	apps/mobile/Monaco/Design/ShareCard/FShareCard.swift	9
-spacing-scale	apps/mobile/Monaco/Design/ShareCard/LedgerStoryCard.swift	9
+spacing-scale	apps/mobile/Monaco/Design/ShareCard/LedgerStoryCard.swift	11
 spacing-scale	apps/mobile/Monaco/Design/ShareCard/FShareChart.swift	2
 spacing-scale	apps/mobile/Monaco/Features/Assets/AssetPositionCard.swift	1
 spacing-scale	apps/mobile/Monaco/Features/Groups/PotMixBar.swift	1

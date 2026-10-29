@@ -64,6 +64,14 @@ enum ProposalSampleScenario: String, CaseIterable {
         return ProposalSampleScenario(rawValue: arguments[flag + 1])
     }
 
+    var holdPick: ProposalBallot?? {
+        switch self {
+        case .holdYes, .holdVoted, .holdClosed, .holdViewOnly: .some(.yes)
+        case .holdCold: .some(nil)
+        default: nil
+        }
+    }
+
     var route: any AppRoute {
         switch self {
         case .needsVote, .needsVoteEmpty: PendingVotesRoute()
@@ -72,8 +80,6 @@ enum ProposalSampleScenario: String, CaseIterable {
         case .votesOpen, .votesRecorded, .votesEmpty, .votesLoading, .votesError:
             ProposalSampleRoute(votes: .open)
         case .permissionSheet: PermissionSheetSampleRoute()
-        case .holdYes, .holdVoted, .holdClosed, .holdViewOnly: VoteHoldSampleRoute(pick: .yes)
-        case .holdCold: VoteHoldSampleRoute(pick: nil)
         case .votePicked: ProposalSampleRoute(votes: .closed, seed: .picked)
         case .voteHolding: ProposalSampleRoute(votes: .closed, seed: .holding)
         case .voteSettles: ProposalSampleRoute(votes: .closed, seed: .settle)
@@ -247,24 +253,6 @@ private struct ProposalSampleDetail: View {
         if seed == .picked || seed == .holding { model.voteSelection = .picked(.yes) }
         box.model = model
         return model
-    }
-}
-
-nonisolated struct VoteHoldSampleRoute: AppRoute {
-    let pick: ProposalBallot?
-
-    @MainActor func destination() -> some View {
-        VoteHoldSampleHost(pick: pick)
-    }
-}
-
-private struct VoteHoldSampleHost: View {
-    let pick: ProposalBallot?
-    @Environment(AppEnvironment.self) private var environment
-
-    var body: some View {
-        ProposalSampleRoute(votes: .closed).destination()
-            .task { environment.navigator.presentVoteHold(proposalID: "proposal-1", pick: pick) }
     }
 }
 
@@ -510,6 +498,16 @@ final class ProposalSampleHarnessEntry: SampleHarnessEntry {
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
         guard let scenario = ProposalSampleScenario.matching(arguments) else { return nil }
         SampleAPIProtocol.install(scenario.script)
+        if let pick = scenario.holdPick {
+            return AnyView(
+                SampleAppFrame(
+                    auth: auth, tab: .home,
+                    sheet: {
+                        AnyView(
+                            VoteHoldSheet(request: VoteHoldRequest(proposalID: "proposal-1", pick: pick))
+                                .analyticsScreen("vote_hold"))
+                    }))
+        }
         return AnyView(SampleAppFrame(auth: auth, tab: .cabals, routes: [scenario.route]))
     }
 }

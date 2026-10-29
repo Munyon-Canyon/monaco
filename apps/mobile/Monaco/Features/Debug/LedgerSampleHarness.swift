@@ -40,6 +40,7 @@ final class LedgerSampleHarnessEntry: SampleHarnessEntry {
         if scenario == .story || scenario == .storyNoCalls {
             return AnyView(LedgerStorySample(eyes: ShareEyes(buySell: scenario == .story)))
         }
+        SampleAPIProtocol.install(HomeSampleScenario.populated.script)
         return AnyView(
             SampleAppFrame(
                 auth: auth, tab: .home,
@@ -69,6 +70,10 @@ private struct LedgerStorySample: View {
         let callAt: Date = start.addingTimeInterval(5 * 86_400 + 54_000)
         let call = Components.Schemas.LedgerMarker(at: callAt, kind: .call, symbol: "AMZN", label: "Called AMZN")
         ledger.markers = [call]
+        let cover = SampleImage.flat(.indigo, name: "ledger-cover")?.absoluteString
+        ledger.cabals = ledger.cabals.map { cabal in
+            Components.Schemas.LedgerCabal(id: cabal.id, name: cabal.name, pictureUrl: cover)
+        }
         return LedgerShareContent(
             ledger, name: "Andres", photoURL: nil, code: "ANDRES", timeZone: TimeZone(identifier: "UTC") ?? .gmt)
     }
@@ -82,6 +87,13 @@ private struct LedgerStorySample: View {
             .monacoCanvas()
             .navigationTitle(content.weekTitle)
             .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden()
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    MonacoGlassButton(
+                        systemImage: "chevron.left", accessibilityLabel: "Back", placement: .toolbar, action: {})
+                }
+            }
         }
         .environment(\.colorScheme, .dark)
     }

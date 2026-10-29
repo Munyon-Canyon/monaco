@@ -255,9 +255,9 @@ founder:
 
 | Frame | Appearance | Verdict | Difference | Follow-up |
 | --- | --- | --- | --- | --- |
-| [`14-hold-sheet`](../screens/14-hold-sheet.png) | dark | difference | Sheet shows the proposal page behind it instead of Home; sheet's vote buttons sit in a separate large card with a different header. | #7033 (#6557, #6559) |
-| [`14-wrap-sheet`](../screens/14-wrap-sheet.png) | dark | difference | Sheet sits over a "Couldn't load this view" error instead of Home; "+1.4%" caption is stacked below instead of inline. | #7033 (#6570) |
-| [`14-ledger-story`](../screens/14-ledger-story.png) | dark | difference | App puts the +1.4% headline below the chart, adds a "monaco" wordmark above the card, and uses a purple placeholder cover with a glitch instead of the cabal photo; back button missing. | #7033 (#6581) |
+| [`14-hold-sheet`](../screens/14-hold-sheet.png) | dark | difference | Sheet shows the proposal page behind it instead of Home; sheet's vote buttons sit in a separate large card with a different header. | #7033 (#6557, #6559), fixed; re-shoot pending |
+| [`14-wrap-sheet`](../screens/14-wrap-sheet.png) | dark | difference | Sheet sits over a "Couldn't load this view" error instead of Home; "+1.4%" caption is stacked below instead of inline. | #7033 (#6570), fixed; re-shoot pending |
+| [`14-ledger-story`](../screens/14-ledger-story.png) | dark | difference | App puts the +1.4% headline below the chart, adds a "monaco" wordmark above the card, and uses a purple placeholder cover with a glitch instead of the cabal photo; back button missing. | #7033 (#6581), fixed; re-shoot pending |
 
 founder:
 

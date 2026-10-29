@@ -92,7 +92,7 @@ struct LedgerSheet: View {
     }
 
     private func hero(_ screen: LedgerScreen) -> some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+        HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
             Text(LedgerCopy.hero(bps: screen.returnBps))
                 .moneyFigure(.hero)
                 .foregroundStyle(heroColor(LedgerCopy.heroTone(bps: screen.returnBps)))
@@ -102,6 +102,7 @@ struct LedgerSheet: View {
             Text(LedgerCopy.heroSubtitle(cabals: screen.cabalCount))
                 .font(MonacoTheme.Typo.subhead)
                 .foregroundStyle(MonacoTheme.secondaryText)
+                .lineLimit(1)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(LedgerCopy.heroSpoken(bps: screen.returnBps, cabals: screen.cabalCount))
