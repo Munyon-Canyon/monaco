@@ -36,7 +36,7 @@ public struct InviteLandingContent: Equatable, Sendable {
 }
 
 public enum InviteLandingCopy {
-    public static let signedOutNote = "You'll sign in with your phone to join."
+    public static let signedOutNote = "You sign in at your first vote or fund."
     public static let requestSentTitle = "Request sent"
     public static let voteNote = "Join to vote"
     public static let emptyFigure = "\u{2014}"

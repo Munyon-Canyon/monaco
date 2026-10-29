@@ -22,7 +22,6 @@ struct InviteLandingScreen: View {
     var body: some View {
         content
             .monacoCanvas()
-            .safeAreaInset(edge: .bottom, spacing: 0) { dock }
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     MonacoWordmark(.toolbar, isTitle: true)
@@ -88,6 +87,7 @@ struct InviteLandingScreen: View {
                             InviteLandingProposal(
                                 proposal: proposal, eligible: Int(model.preview?.openProposal?.eligible ?? 0))
                         }
+                        joinControls
                     }
                     .padding(.horizontal, MonacoTheme.Space.gutter)
                     .padding(.top, MonacoTheme.Space.s)
@@ -193,25 +193,23 @@ struct InviteLandingScreen: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    @ViewBuilder private var dock: some View {
-        if model.phase == .loaded, model.content != nil {
-            VStack(spacing: 0) {
-                BottomCTA {
-                    buttons
-                }
-                if let note = model.note {
-                    Text(note)
-                        .font(MonacoTheme.Typo.caption)
-                        .foregroundStyle(MonacoTheme.secondaryText)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, MonacoTheme.Space.gutter)
-                        .padding(.bottom, MonacoTheme.Space.s)
-                        .accessibilityIdentifier("invite-landing-note")
-                }
+    private var joinControls: some View {
+        VStack(spacing: MonacoTheme.Space.s) {
+            if model.showsAcceptDecline {
+                HStack(spacing: MonacoTheme.Space.s) { buttons }
+            } else {
+                buttons
             }
-            .background(MonacoTheme.canvas)
+            if let note = model.note {
+                Text(note)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityIdentifier("invite-landing-note")
+            }
         }
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder private var buttons: some View {

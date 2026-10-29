@@ -55,7 +55,7 @@ final class InviteLandingModelTests: XCTestCase {
         XCTAssertEqual(model.buttonTitle, "Ask to join AC Capital")
         XCTAssertTrue(model.buttonEnabled)
         XCTAssertFalse(model.showsAcceptDecline)
-        XCTAssertEqual(model.note, "You'll sign in with your phone to join.")
+        XCTAssertEqual(model.note, "You sign in at your first vote or fund.")
     }
 
     func testNullMonthFactsShowDashes() async throws {
