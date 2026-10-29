@@ -19,13 +19,14 @@ public final class ProposeReviewModel {
     public private(set) var proposalID: String?
     public private(set) var chain: ProposeChain = .best
     public private(set) var chainPreview: ChainPreview?
+    public private(set) var preIpo: PreIpoDetail.Profile?
 
     public let cabal: ProposeCabalInfo
     private let service: ProposeService
     private let cabalID: String
     public let draft: ProposalDraft
-    private let preview: ProposePreview
-    private let trade: ProposeTrade
+    let preview: ProposePreview
+    let trade: ProposeTrade
     private let submission: IdempotentSubmission
     private let buyName: String?
     private let bestChain: AssetBestChain?
@@ -118,6 +119,8 @@ public final class ProposeReviewModel {
         if case .loading = chainPreview.state { return false }
         return chainProblem == nil
     }
+
+    public func setPreIpo(_ profile: PreIpoDetail.Profile?) { preIpo = profile }
 
     public var destination: String { "to \(cabal.name)" }
     public var voteCaption: String { "\(cabal.voters) will vote on this proposal." }
@@ -250,13 +253,13 @@ public final class ProposeReviewModel {
         }
     }
 
-    private func quantity(_ preview: ProposePreview) -> Decimal? {
+    func quantity(_ preview: ProposePreview) -> Decimal? {
         guard case .buy(_, _, let tokenDecimals) = trade, let tokenDecimals, let out = preview.quoteOutAmount, out > 0
         else { return nil }
         return TokenQuantityFormatter.quantity(fromAtomics: String(out), decimals: tokenDecimals)
     }
 
-    private func price(quantity: Decimal?) -> Decimal? {
+    func price(quantity: Decimal?) -> Decimal? {
         guard case .buy(_, let usdcMicros, _) = draft, let quantity, quantity > 0,
             let usd = TokenQuantityFormatter.quantity(fromAtomics: String(usdcMicros), decimals: 6)
         else { return nil }

@@ -374,7 +374,7 @@ nonisolated final class ProposeFlowSampleUITests: XCTestCase {
         review.tap()
         let send = element("propose-review-send")
         XCTAssertTrue(send.waitForExistence(timeout: 5), "the review screen never drew")
-        XCTAssertEqual(send.label, "Send proposal", "the send button should say what it does")
+        XCTAssertEqual(send.label, "Send to vote", "the send button should say what it does")
         XCTAssertTrue(app.staticTexts["Earnings Thursday."].exists, "the thesis should repeat on the receipt")
         sleep(1)
         capture("14-review")

@@ -87,7 +87,7 @@ public struct ProposalStats: Equatable, Sendable {
         ])
     }
 
-    private static func estimatedShares(usdcMicros: Int64?, estimateMicros: Int64) -> Cell? {
+    static func estimatedShares(usdcMicros: Int64?, estimateMicros: Int64) -> Cell? {
         guard let usdcMicros, usdcMicros > 0, estimateMicros > 0 else { return nil }
         let hundredths = (usdcMicros.multipliedReportingOverflow(by: 100))
         guard !hundredths.overflow else { return nil }
@@ -107,7 +107,7 @@ public struct ProposalStats: Equatable, Sendable {
         micros.map { UsdAmountFormatter.format(micros: $0) } ?? missing
     }
 
-    private static func percent(_ bps: Int64?) -> String {
+    static func percent(_ bps: Int64?) -> String {
         guard let bps else { return missing }
         if bps > 0, bps < 10 { return "<0.1%" }
         return "\(figure(bps: bps.magnitude))%"
@@ -123,6 +123,10 @@ public struct ProposalStats: Equatable, Sendable {
         guard let atomics = stats.sharesAtomics,
             let quantity = TokenQuantityFormatter.quantity(fromAtomics: String(atomics), decimals: stats.tokenDecimals)
         else { return missing }
+        return sharesText(quantity, exact: exact)
+    }
+
+    static func sharesText(_ quantity: Decimal, exact: Bool) -> String {
         let formatted = sharesFormatter.string(from: quantity as NSDecimalNumber) ?? missing
         let body = formatted == "0" && quantity > 0 ? "<0.0001" : formatted
         return exact ? body : "≈ \(body)"
