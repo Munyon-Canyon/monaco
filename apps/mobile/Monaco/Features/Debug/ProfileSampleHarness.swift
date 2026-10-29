@@ -244,6 +244,10 @@ private func apiScript(for scenario: ProfileSampleScenario) -> SampleAPIScript {
     case .noStanding: script.user.standing = nil
     default: break
     }
+    if scenario == .ready {
+        script.balance.inFlightMicros = "0"
+        script.balance.onChainMicros = script.balance.availableMicros
+    }
     return script
 }
 
