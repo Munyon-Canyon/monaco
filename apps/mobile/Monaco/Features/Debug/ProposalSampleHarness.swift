@@ -84,7 +84,7 @@ enum ProposalSampleScenario: String, CaseIterable {
         case .votePicked: ProposalSampleRoute(votes: .closed, seed: .picked)
         case .voteHolding: ProposalSampleRoute(votes: .closed, seed: .holding)
         case .voteSettles: ProposalSampleRoute(votes: .closed, seed: .settle)
-        case .nvdaPassedMoment: PassedMomentSampleRoute()
+        case .nvdaPassedMoment: ProposalSampleRoute(votes: .closed)
         default: ProposalSampleRoute(votes: .closed)
         }
     }
@@ -260,31 +260,6 @@ private struct ProposalSampleDetail: View {
         if seed == .picked || seed == .holding { model.voteSelection = .picked(.yes) }
         box.model = model
         return model
-    }
-}
-
-nonisolated struct PassedMomentSampleRoute: AppRoute {
-    @MainActor func destination() -> some View {
-        PassedMomentSampleHost()
-    }
-}
-
-private struct PassedMomentSampleHost: View {
-    @Environment(AppEnvironment.self) private var environment
-    @State private var signedIn = false
-
-    var body: some View {
-        Group {
-            if signedIn {
-                ProposalSampleRoute(votes: .closed).destination()
-            } else {
-                ProgressView()
-            }
-        }
-        .onAppear {
-            environment.viewer = Viewer(userID: "sample-viewer", handle: nil)
-            signedIn = true
-        }
     }
 }
 
@@ -566,7 +541,9 @@ final class ProposalSampleHarnessEntry: SampleHarnessEntry {
                                 .analyticsScreen("vote_hold"))
                     }))
         }
-        return AnyView(SampleAppFrame(auth: auth, tab: .cabals, routes: [scenario.route]))
+        return AnyView(
+            SampleAppFrame(
+                auth: auth, tab: .cabals, routes: [scenario.route], opensWithViewer: scenario == .nvdaPassedMoment))
     }
 }
 #endif
