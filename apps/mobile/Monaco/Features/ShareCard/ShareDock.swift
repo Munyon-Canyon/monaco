@@ -92,7 +92,8 @@ struct ShareDock: View {
             }
             MonacoPlainLabelRow(
                 items: ShareFormat.allCases, selection: format, spacing: MonacoTheme.Space.m, equalWidth: false,
-                alwaysFits: true, scrollInset: 0, label: \.title, accessibilityName: \.title,
+                alwaysFits: true, scrollInset: 0, minLabelWidth: MonacoButtonMetrics.hitTarget, label: \.title,
+                accessibilityName: \.title,
                 identifier: \.identifier, onSelect: { format = $0 })
             HStack(spacing: MonacoTheme.Space.sm) {
                 Button(action: share) {

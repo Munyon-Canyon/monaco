@@ -63,12 +63,15 @@ struct MonacoPlainLabelRow<Item: Hashable>: View {
     let equalWidth: Bool
     let alwaysFits: Bool
     var scrollInset = MonacoTheme.Space.gutter
+    var minLabelWidth: CGFloat?
     let label: (Item) -> String
     let accessibilityName: (Item) -> String
     let identifier: (Item) -> String
     let onSelect: (Item) -> Void
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var hitOutset: CGFloat { equalWidth ? 0 : spacing / 2 }
 
     var body: some View {
         if alwaysFits || dynamicTypeSize >= MonacoPlainLabelMetrics.equalWidthFloor {
@@ -115,11 +118,13 @@ struct MonacoPlainLabelRow<Item: Hashable>: View {
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
                 .frame(
-                    minWidth: MonacoButtonMetrics.hitTarget,
+                    minWidth: minLabelWidth,
                     maxWidth: fillsWidth ? .infinity : nil,
                     minHeight: MonacoButtonMetrics.hitTarget
                 )
+                .padding(.horizontal, hitOutset)
                 .contentShape(Rectangle())
+                .padding(.horizontal, -hitOutset)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityName(item))
