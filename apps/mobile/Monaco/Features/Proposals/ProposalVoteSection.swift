@@ -22,6 +22,7 @@ struct ProposalVoteSection: View {
     @Environment(\.analytics) private var analytics
     @State private var holding = false
     @State private var showsCommitted = false
+    @State private var hold: Task<Void, Never>?
 
     private var state: ProposalState { summary.state(now: .now) }
     private var viewer: String? { viewerID ?? environment?.viewer?.userID }
@@ -48,13 +49,16 @@ struct ProposalVoteSection: View {
         content
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .onChange(of: model.voteSelection) { old, new in
-                if case .pending = old, case .committed = new { showsCommitted = true }
+                guard case .pending = old, case .committed = new else { return }
+                showsCommitted = true
+                hold?.cancel()
+                hold = Task {
+                    try? await Task.sleep(for: Self.committedHold)
+                    guard !Task.isCancelled else { return }
+                    showsCommitted = false
+                }
             }
-            .task(id: showsCommitted) {
-                guard showsCommitted else { return }
-                try? await Task.sleep(for: Self.committedHold)
-                showsCommitted = false
-            }
+            .onDisappear { hold?.cancel() }
     }
 
     @ViewBuilder private var content: some View {
