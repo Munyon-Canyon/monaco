@@ -40,6 +40,9 @@ enum GroupDetailSampleScenario: String, CaseIterable {
     case invitePreview
     case inviteInvalid
     case invitePending
+    case fTreasury
+    case fTreasuryLight
+    case fTreasuryScrolled
 
     static let launchArgument = "-MonacoGroupDetailSample"
 
@@ -57,6 +60,7 @@ extension GroupDetailSampleScenario {
         switch self {
         case .ready, .invitePreview, .inviteInvalid, .invitePending, .inviteMember:
             SampleAPIScript(role: "member", unreadCount: 3)
+        case .fTreasury, .fTreasuryLight, .fTreasuryScrolled: GroupDetailSampleData.fTreasury
         case .invite: SampleAPIScript(role: "creator", unreadCount: 3)
         case .inviteNoProposal: SampleAPIScript(role: "creator", unreadCount: 3, invitePreview: .noProposal)
         case .inviteLoading: SampleAPIScript(role: "creator", unreadCount: 3, invitePreview: .hang)
@@ -134,6 +138,37 @@ enum GroupDetailSampleData {
         invite.cabal.id = cabal.id
         invite.cabal.name = cabal.name
         return invite
+    }
+
+    @MainActor
+    static var fTreasury: SampleAPIScript {
+        var script = SampleAPIScript(role: "admin", pictureURL: pictureURL, pot: .sampleACCapital)
+        script.cabalEdit = { cabal in
+            cabal.name = "AC Capital Management"
+            cabal.memberCount = 8
+            cabal.voterCount = 8
+            cabal.openProposalCount = 1
+            cabal.createdAt = Date(timeIntervalSince1970: 1_786_000_000)
+        }
+        var proposal = Components.Schemas.Proposal.sample()
+        proposal.id = "proposal-nvda"
+        proposal.cabalName = "AC Capital Management"
+        proposal.symbol = "NVDAx"
+        proposal.usdcMicros = 400_000_000
+        proposal.expiresAt = .now.addingTimeInterval(4 * 3_600 + 600)
+        proposal.tally = .init(yes: 4, no: 1, voters: 8, needed: 5)
+        script.openProposal = proposal
+        let start = Date(timeIntervalSince1970: 1_790_931_600)
+        script.valueHistory = Components.Schemas.CabalValueHistory(
+            cabalId: Components.Schemas.Cabal.sample(role: nil).id, range: ._1m,
+            points: (0..<31).map { day in
+                Components.Schemas.CabalValuePoint(
+                    at: start.addingTimeInterval(TimeInterval(day * 86_400)),
+                    valueMicros: 20_000_000_000 - Int64(day) * 27_000_000,
+                    navPerShareMicros: 1_000_000 - Int64(day) * 1_366, pnlMicros: 0)
+            },
+            pricesAsOf: start.addingTimeInterval(30 * 86_400))
+        return script
     }
 
     @MainActor

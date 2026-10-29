@@ -271,6 +271,9 @@ cabal-invite-failed               -MonacoGroupDetailSample inviteFailed
 cabal-invite-preview              -MonacoGroupDetailSample invitePreview
 cabal-invite-invalid              -MonacoGroupDetailSample inviteInvalid
 cabal-invite-pending              -MonacoGroupDetailSample invitePending
+cabal-f-treasury                  -MonacoGroupDetailSample fTreasury -AppleInterfaceStyle Dark
+cabal-f-treasury-light            -MonacoGroupDetailSample fTreasuryLight
+cabal-f-treasury-scrolled         -MonacoGroupDetailSample fTreasuryScrolled -AppleInterfaceStyle Dark -MonacoSampleScroll 0.3
 
 profile-placeholder           -MonacoProfileSample placeholder
 profile-photo                 -MonacoProfileSample photo

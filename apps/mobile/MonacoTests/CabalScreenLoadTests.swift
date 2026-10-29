@@ -12,6 +12,8 @@ struct CabalScreenLoadTests {
     private static let cabalPath = "/v1/cabals/cabal-1"
     private static let potPath = "/v1/cabals/cabal-1/pot"
     private static let myCabalsPath = "/v1/me/cabals"
+    private static let historyPath = "/v1/cabals/cabal-1/value-history"
+    private static let proposalsPath = "/v1/cabals/cabal-1/proposals"
 
     @Test(.timeLimit(.minutes(1)))
     func openingACabalReadsItAndItsPotOnce() async throws {
@@ -56,47 +58,62 @@ struct CabalScreenLoadTests {
         #expect(slotErrors.isEmpty, "identifiers: \(identifiers)")
     }
 
-    @Test(
-        .timeLimit(.minutes(1)),
-        arguments: [
-            (role: String?.none, canVote: true, hasMessage: false),
-            (role: "member", canVote: false, hasMessage: false),
-            (role: "member", canVote: true, hasMessage: true),
-        ])
-    func onlyVotersAreToldToProposeTheFirstBuy(role: String?, canVote: Bool, hasMessage: Bool) async throws {
-        let cabalTransport = StubTransport(routes: [
-            Self.cabalPath: [
-                .json(.ok, try Self.json(Components.Schemas.Cabal.sample(role: role, canVote: canVote)))
-            ]
-        ])
-        let cabal = CabalModel(
-            cabalID: "cabal-1",
-            api: APIClient(
-                serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: cabalTransport),
-            hints: FakeHintSource())
-        await cabal.load()
-        let emptyPage = #"{"proposals":[],"next_cursor":null}"#
-        let proposals = StubTransport(scripted: Array(repeating: .json(.ok, emptyPage), count: 4))
-        let list = ProposalListModel(
-            cabalID: "cabal-1", filter: .all,
-            repository: ProposalsRepository(
-                api: APIClient(
-                    serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: proposals)),
-            hints: EmittingHintSource())
+    @Test(.timeLimit(.minutes(1)))
+    func theHeaderReadsTheCabalThePotTheMonthAndTheOpenProposalsOnce() async throws {
+        let transport = try Self.transport(
+            cabal: .sample(role: "member"), pot: .sampleInvested, proposals: [.sample(status: .open)])
+        let screen = CabalScreen(cabalID: "cabal-1", sections: Self.headerSections)
+        let window = try Self.window(hosting: screen, over: transport)
+        defer { TestWindow.close(window) }
+
+        await transport.waitForRequest(path: Self.historyPath)
+        await transport.waitForRequest(path: Self.proposalsPath)
+        for _ in 0..<2_000 { await Task.yield() }
+
+        let sent = await transport.sent
+        let paths = sent.map { URLComponents(string: $0.path ?? "")?.path }
+        for path in [Self.cabalPath, Self.potPath, Self.historyPath, Self.proposalsPath] {
+            #expect(paths.filter { $0 == path }.count == 1, "\(path) requests sent: \(paths)")
+        }
+        let history = try #require(sent.first { $0.path?.hasPrefix(Self.historyPath) == true })
+        #expect(history.path?.contains("range=1M") == true, "history request: \(history.path ?? "")")
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func openProposalsShowOnACabalWithCashAndNoPositions() async throws {
+        let transport = try Self.transport(
+            cabal: .sample(role: "member"), pot: .sampleCashOnly, proposals: [.sample(status: .open)])
         try AccessibilityTree.setAutomation(enabled: true)
         defer { try? AccessibilityTree.setAutomation(enabled: false) }
-        let window = try ProposalTestWindow.hosting(
-            CabalProposals(cabalID: "cabal-1", makeModel: { _, _ in list }).environment(\.cabalModel, cabal))
+        let window = try Self.window(
+            hosting: CabalScreen(cabalID: "cabal-1", sections: Self.headerSections), over: transport)
         defer { TestWindow.close(window) }
 
         await ProposalTestWindow.until {
-            AccessibilityTree.labels(in: window).contains("No proposals need your attention.")
+            AccessibilityTree.identifiers(in: window).contains("cabal-open-proposal-proposal-1")
         }
+
+        let identifiers = AccessibilityTree.identifiers(in: window)
+        #expect(identifiers.contains("cabal-open-proposal-proposal-1"), "identifiers: \(identifiers)")
+    }
+
+    @Test(.timeLimit(.minutes(1)), arguments: [(canPropose: true, hasPropose: true), (false, false)])
+    func proposeShowsOnlyWhenTheMemberMayPropose(canPropose: Bool, hasPropose: Bool) async throws {
+        var cabal = Components.Schemas.Cabal.sample(role: "member")
+        cabal.me?.canPropose = canPropose
+        let transport = try Self.transport(cabal: cabal, pot: .sampleInvested, proposals: [])
+        try AccessibilityTree.setAutomation(enabled: true)
+        defer { try? AccessibilityTree.setAutomation(enabled: false) }
+        let window = try Self.window(
+            hosting: CabalScreen(cabalID: "cabal-1", sections: Self.headerSections), over: transport)
+        defer { TestWindow.close(window) }
+
+        await ProposalTestWindow.until { AccessibilityTree.identifiers(in: window).contains("cabal-action-fund") }
         for _ in 0..<500 { await Task.yield() }
 
-        let labels = AccessibilityTree.labels(in: window)
-        #expect(labels.contains("No proposals need your attention."), "labels: \(labels)")
-        #expect(labels.contains("Propose the first buy.") == hasMessage, "labels: \(labels)")
+        let identifiers = AccessibilityTree.identifiers(in: window)
+        #expect(identifiers.contains("cabal-action-propose") == hasPropose, "identifiers: \(identifiers)")
+        #expect(identifiers.contains("cabal-action-fund"), "identifiers: \(identifiers)")
     }
 
     private static let cabalReadingSections: [any CabalSection.Type] = [
@@ -107,6 +124,28 @@ struct CabalScreenLoadTests {
         CabalActionsSlot.self,
         CabalHoldingsSlot.self,
     ]
+
+    private static let headerSections: [any CabalSection.Type] = [
+        CabalHeaderSlot.self,
+        CabalPotSlot.self,
+        CabalSliceSlot.self,
+        CabalActionsSlot.self,
+        CabalProposalsSlot.self,
+    ]
+
+    private static func transport(
+        cabal: Components.Schemas.Cabal, pot: Components.Schemas.CabalPot, proposals: [Components.Schemas.Proposal]
+    ) throws -> StubTransport {
+        let page = Components.Schemas.ProposalList(proposals: proposals, nextCursor: nil)
+        return StubTransport(routes: [
+            cabalPath: Array(repeating: .json(.ok, try json(cabal)), count: 8),
+            potPath: Array(repeating: .json(.ok, try json(pot)), count: 8),
+            "\(historyPath)?range=1M": Array(
+                repeating: .json(.ok, try json(Components.Schemas.CabalValueHistory.sampleCurve())), count: 8),
+            "\(proposalsPath)?filter=open": Array(repeating: .json(.ok, try json(page)), count: 8),
+            myCabalsPath: Array(repeating: .json(.ok, "[]"), count: 8),
+        ])
+    }
 
     private static func json(_ value: some Encodable) throws -> String {
         let encoder = JSONEncoder()

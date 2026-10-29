@@ -4,16 +4,14 @@ expect-fail: S1
 The pot value is renamed `cabal-pot-amount`. S1.1 waits for `cabal-pot-value`, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPotSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPotSlot.swift
-index 155bea6dd..2fc2dd4d4 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPotSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPotSlot.swift
-@@ -67,7 +67,7 @@ struct CabalPotBand: View {
-                 .lineLimit(1)
-                 .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
-                 .accessibilityLabel("In the pot, \(summary.potValue)")
+@@ -103,7 +103,7 @@
+             line(figure: Text(Self.dimmedCents(summary.potValue)), move: move)
+                 .accessibilityElement(children: .ignore)
+                 .accessibilityLabel(Self.spoken(summary.potValue, move: move))
 -                .accessibilityIdentifier("cabal-pot-value")
 +                .accessibilityIdentifier("cabal-pot-amount")
          }
      }
- }
+ 

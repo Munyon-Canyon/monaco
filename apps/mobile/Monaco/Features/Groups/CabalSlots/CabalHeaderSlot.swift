@@ -15,6 +15,21 @@ enum CabalHeaderSlot: CabalSection {
     }
 }
 
+struct CabalHeaderNameBottom: PreferenceKey {
+    static let defaultValue: CGFloat? = nil
+
+    static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
+        value = nextValue() ?? value
+    }
+}
+
+enum CabalHeaderTitle {
+    static func isShown(nameBottom: CGFloat?, barBottom: CGFloat) -> Bool {
+        guard let nameBottom else { return false }
+        return nameBottom <= barBottom
+    }
+}
+
 enum CabalHeroMetrics {
     static let nameInset: CGFloat = 20
     static let bottomInset: CGFloat = 54
@@ -29,7 +44,6 @@ private struct CabalHeader: View {
     @Environment(ToastCenter.self) private var toasts
     @Environment(\.cabalRetry) private var retry
     @Environment(\.cabalModel) private var model
-    @Environment(\.cabalShare) private var share
 
     var body: some View {
         content
@@ -44,25 +58,78 @@ private struct CabalHeader: View {
     @ViewBuilder private var content: some View {
         switch model?.state ?? .loading {
         case .idle, .loading:
-            SkeletonBlock(height: CabalHeroMetrics.skeletonHeight, radius: MonacoTheme.Radius.identity)
-                .accessibilityElement()
-                .accessibilityLabel("Loading this cabal")
-                .accessibilityIdentifier("cabal-header-loading")
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+                SkeletonBlock(height: CabalHeroMetrics.tallSkeletonHeight, radius: MonacoTheme.Radius.identity)
+                HStack(spacing: MonacoTheme.Space.sm) {
+                    SkeletonBlock(
+                        width: CabalMark.Size.row.rawValue, height: CabalMark.Size.row.rawValue,
+                        radius: MonacoTheme.Radius.tile)
+                    VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                        Text(" ").font(MonacoTheme.Typo.title).skeletonBar(width: 220)
+                        Text(" ").font(MonacoTheme.Typo.caption).skeletonBar(width: 160)
+                    }
+                }
+            }
+            .accessibilityElement()
+            .accessibilityLabel("Loading this cabal")
+            .accessibilityIdentifier("cabal-header-loading")
         case .failed:
             MonacoErrorRow(thing: "this cabal", identifier: "cabal-header-failed", inset: false) {
                 if let again = retry.retry { again() } else { Task { await model?.load() } }
             }
         case .loaded(let cabal):
-            CabalHeroCover(
-                cabal: cabal,
-                pictureWriter: LiveCabalPictureWriter(api: environment.api),
-                share: share?.open,
-                shareBusy: share?.isBusy ?? false,
-                pictureResult: { toast in
-                    toasts.current = toast
-                    guard toast.isSuccess else { return }
-                    Task { await model?.load() }
-                })
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+                CabalHeroCover(
+                    cabal: cabal, tall: true, plain: true,
+                    pictureWriter: LiveCabalPictureWriter(api: environment.api),
+                    pictureResult: { toast in
+                        toasts.current = toast
+                        guard toast.isSuccess else { return }
+                        Task { await model?.load() }
+                    })
+                CabalIdentityRow(cabal: cabal)
+            }
+        }
+    }
+}
+
+private struct CabalIdentityRow: View {
+    let cabal: Components.Schemas.Cabal
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var subline: String {
+        CabalHeaderCopy.subline(
+            memberCount: cabal.memberCount, createdAt: cabal.createdAt, role: cabal.me?.role,
+            canVote: cabal.me?.canVote ?? false, now: .now)
+    }
+
+    var body: some View {
+        HStack(spacing: MonacoTheme.Space.sm) {
+            CabalMark(groupId: cabal.id, name: cabal.name, size: .row, pictureUrl: cabal.pictureUrl)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                Text(cabal.name)
+                    .font(MonacoTheme.Typo.title)
+                    .foregroundStyle(MonacoTheme.primaryText)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 2)
+                    .truncationMode(.tail)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("cabal-header-name")
+                    .background {
+                        GeometryReader { proxy in
+                            Color.clear.preference(
+                                key: CabalHeaderNameBottom.self, value: proxy.frame(in: .global).maxY)
+                        }
+                    }
+                Text(subline)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("cabal-member-count")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
@@ -71,6 +138,7 @@ struct CabalHeroCover: View {
     let cabal: Components.Schemas.Cabal
     var subtitle: String?
     var tall = false
+    var plain = false
     var pictureWriter: (any CabalPictureWriting)?
     var share: (() -> Void)?
     var shareBusy = false
@@ -85,6 +153,7 @@ struct CabalHeroCover: View {
         cabal: Components.Schemas.Cabal,
         subtitle: String? = nil,
         tall: Bool = false,
+        plain: Bool = false,
         pictureWriter: (any CabalPictureWriting)? = nil,
         share: (() -> Void)? = nil,
         shareBusy: Bool = false,
@@ -93,6 +162,7 @@ struct CabalHeroCover: View {
         self.cabal = cabal
         self.subtitle = subtitle
         self.tall = tall
+        self.plain = plain
         self.pictureWriter = pictureWriter
         self.share = share
         self.shareBusy = shareBusy
@@ -133,24 +203,41 @@ struct CabalHeroCover: View {
             cabalId: cabal.id, tint: .forGroupId(cabal.id), pictureURL: CabalMark.resolvedURL(editor.pictureUrl),
             style: tall ? .heroTall : .hero
         ) {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                Text(cabal.name)
-                    .font(MonacoTheme.Typo.title)
-                    .foregroundStyle(MonacoTheme.onCover)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
-                    .truncationMode(.tail)
-                    .accessibilityAddTraits(.isHeader)
-                    .accessibilityIdentifier("cabal-header-name")
-                Text(subtitle ?? CabalCopy.memberCount(cabal.memberCount))
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.onCoverMuted)
-                    .accessibilityIdentifier("cabal-member-count")
+            if plain {
+                plainOverlay
+            } else {
+                nameOverlay
             }
-            .padding(.horizontal, CabalHeroMetrics.nameInset)
-            .padding(.top, CabalHeroMetrics.nameInset)
-            .padding(.bottom, share == nil ? CabalHeroMetrics.nameInset : CabalHeroMetrics.bottomInset)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    @ViewBuilder private var plainOverlay: some View {
+        if CabalMark.resolvedURL(editor.pictureUrl) == nil {
+            Text(CabalMark.initials(for: cabal.name))
+                .font(MonacoTheme.Typo.display)
+                .foregroundStyle(MonacoTheme.onCover)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private var nameOverlay: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+            Text(cabal.name)
+                .font(MonacoTheme.Typo.title)
+                .foregroundStyle(MonacoTheme.onCover)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                .truncationMode(.tail)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("cabal-header-name")
+            Text(subtitle ?? CabalCopy.memberCount(cabal.memberCount))
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.onCoverMuted)
+                .accessibilityIdentifier("cabal-member-count")
+        }
+        .padding(.horizontal, CabalHeroMetrics.nameInset)
+        .padding(.top, CabalHeroMetrics.nameInset)
+        .padding(.bottom, share == nil ? CabalHeroMetrics.nameInset : CabalHeroMetrics.bottomInset)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var picker: some View {

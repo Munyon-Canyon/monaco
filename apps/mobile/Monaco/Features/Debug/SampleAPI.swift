@@ -67,6 +67,9 @@ nonisolated struct SampleAPIScript: Sendable {
     var invitePreview = InvitePreview.frame
     var held: Components.Schemas.HeldList?
     var assetFeed: [Components.Schemas.FeedItem] = []
+    var cabalEdit: (@Sendable (inout Components.Schemas.Cabal) -> Void)?
+    var openProposal: Components.Schemas.Proposal?
+    var valueHistory: Components.Schemas.CabalValueHistory?
 
     enum VoteAnswer: Sendable, Equatable {
         case ordinary
@@ -600,6 +603,7 @@ nonisolated extension SampleAPIProtocol {
         }
         if let joinMode = script.joinMode { cabal.rules.joinMode = joinMode }
         if id == CabalsTabSampleData.createdCabalID, let name = createdName.withLock({ $0 }) { cabal.name = name }
+        script.cabalEdit?(&cabal)
         return cabal
     }
 
@@ -611,7 +615,7 @@ nonisolated extension SampleAPIProtocol {
         case "pot":
             return potReply(id: id, script: script)
         case "proposals":
-            var proposal = Components.Schemas.Proposal.sample(status: script.proposalStatus)
+            var proposal = script.openProposal ?? .sample(status: script.proposalStatus)
             proposal.canVote = script.viewerCanVote
             return json(
                 Components.Schemas.ProposalList(
@@ -623,7 +627,8 @@ nonisolated extension SampleAPIProtocol {
         case "value-history":
             let history: Components.Schemas.CabalValueHistory =
                 empty || range == "1D"
-                ? .init(cabalId: id, range: ._1d, points: [], pricesAsOf: nil) : .sampleCurve(cabalID: id)
+                ? .init(cabalId: id, range: ._1d, points: [], pricesAsOf: nil)
+                : script.valueHistory ?? .sampleCurve(cabalID: id)
             return json(history)
         case "cashouts" where tail.last == "preview":
             return json(script.cashOut)

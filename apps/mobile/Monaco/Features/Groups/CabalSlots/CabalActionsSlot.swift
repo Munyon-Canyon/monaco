@@ -59,6 +59,7 @@ struct CabalActionsRow: View {
     @Environment(ToastCenter.self) private var toasts
     @Environment(\.cabalModel) private var cabalModel
     @Environment(\.cabalPotModel) private var potModel
+    @Environment(\.accountRestricted) private var accountRestricted
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showsProposeChooser = false
 
@@ -79,6 +80,7 @@ struct CabalActionsRow: View {
         } else {
             actionsContent
                 .padding(.horizontal, MonacoTheme.Space.gutter)
+                .padding(.top, -(SectionStackMetrics.spacing - MonacoTheme.Space.sm))
         }
     }
 
@@ -88,32 +90,24 @@ struct CabalActionsRow: View {
             if cabalModel?.cabal?.me == nil, cabalModel?.cabal != nil {
                 Color.clear.frame(height: 0)
             } else {
-                HStack(spacing: 0) {
-                    ForEach(0..<3, id: \.self) { _ in
-                        SkeletonBlock(
-                            width: CircleActionMetrics.baseDiscSize, height: CircleActionMetrics.baseDiscSize,
-                            radius: CircleActionMetrics.baseDiscSize / 2
-                        )
-                        .frame(maxWidth: .infinity)
-                    }
-                }
-                .accessibilityHidden(true)
+                SkeletonBlock(height: MonacoButtonMetrics.minimumHeight, radius: MonacoTheme.Radius.button)
+                    .accessibilityHidden(true)
             }
         case .hidden:
             Color.clear.frame(height: 0)
         case .failed:
             MonacoErrorRow(
                 thing: "the cabal actions", identifier: "cabal-actions-failed", inset: false, retry: retry)
-        case .member(let canPropose):
+        case .member(let canVote):
             if let model {
-                buttons(cabalID: model.cabalID, canPropose: canPropose)
+                buttons(cabalID: model.cabalID, canPropose: cabalModel?.cabal?.me?.canPropose ?? canVote)
             }
         }
     }
 
     private func buttons(cabalID: String, canPropose: Bool) -> some View {
         VStack(spacing: MonacoTheme.Space.sm) {
-            tiles(cabalID: cabalID, canPropose: canPropose)
+            pair(cabalID: cabalID, canPropose: canPropose)
             if !canPropose {
                 Text(CabalCopy.onlyVotersCaption)
                     .font(MonacoTheme.Typo.caption)
@@ -128,38 +122,33 @@ struct CabalActionsRow: View {
         }
     }
 
-    @ViewBuilder private func tiles(cabalID: String, canPropose: Bool) -> some View {
-        let fund = action(
-            CabalCopy.fundTerm, MonacoIcon.deposit.symbol, id: "cabal-action-fund", FundRoute(cabalID: cabalID))
-        let propose = CircleAction("Propose", systemImage: MonacoIcon.propose.symbol) { showsProposeChooser = true }
-            .frame(maxWidth: .infinity)
-            .accessibilityIdentifier("cabal-action-propose")
-            .disabled(!canPropose)
-            .proposeChooser(isPresented: $showsProposeChooser, cabalID: cabalID)
-        let cashOut = action(
-            "Cash out", MonacoIcon.cashOut.symbol, id: "cabal-action-cash-out", CashOutRoute(cabalID: cabalID)
-        )
-        .disabled(hasNoShare)
-        .accessibilityLabel(hasNoShare ? CabalCopy.cashOutUnavailable : "Cash out")
-        if dynamicTypeSize.isAccessibilitySize {
-            VStack(spacing: MonacoTheme.Space.s) {
-                fund
-                propose
-                cashOut
+    private func pair(cabalID: String, canPropose: Bool) -> some View {
+        let layout =
+            dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: MonacoTheme.Space.s))
+            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
+        return layout {
+            if !accountRestricted {
+                Button {
+                    open(FundRoute(cabalID: cabalID))
+                } label: {
+                    Label("Fund", systemImage: MonacoIcon.deposit.symbol)
+                }
+                .buttonStyle(.monacoPrimary)
+                .accessibilityLabel(CabalCopy.fundTerm)
+                .accessibilityIdentifier("cabal-action-fund")
             }
-        } else {
-            HStack(alignment: .top, spacing: 0) {
-                fund
-                propose
-                cashOut
+            if canPropose {
+                Button {
+                    showsProposeChooser = true
+                } label: {
+                    Label("Propose", systemImage: MonacoIcon.propose.symbol)
+                }
+                .buttonStyle(.monacoSecondary)
+                .accessibilityIdentifier("cabal-action-propose")
+                .proposeChooser(isPresented: $showsProposeChooser, cabalID: cabalID)
             }
         }
-    }
-
-    private func action(_ title: String, _ systemImage: String, id: String, _ route: some AppRoute) -> some View {
-        CircleAction(title, systemImage: systemImage) { open(route) }
-            .frame(maxWidth: .infinity)
-            .accessibilityIdentifier(id)
     }
 }
 

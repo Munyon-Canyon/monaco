@@ -4,15 +4,14 @@ expect-fail: S2
 The Fund button loses cabal-action-fund. S2.2 taps it, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
 --- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
-@@ -130,7 +130,7 @@
- 
-     @ViewBuilder private func tiles(cabalID: String, canPropose: Bool) -> some View {
-         let fund = action(
--            CabalCopy.fundTerm, MonacoIcon.deposit.symbol, id: "cabal-action-fund", FundRoute(cabalID: cabalID))
-+            CabalCopy.fundTerm, MonacoIcon.deposit.symbol, id: "cabal-action-add", FundRoute(cabalID: cabalID))
-         let propose = CircleAction("Propose", systemImage: MonacoIcon.propose.symbol) { showsProposeChooser = true }
-             .frame(maxWidth: .infinity)
-             .accessibilityIdentifier("cabal-action-propose")
+@@ -136,7 +136,7 @@
+                 }
+                 .buttonStyle(.monacoPrimary)
+                 .accessibilityLabel(CabalCopy.fundTerm)
+-                .accessibilityIdentifier("cabal-action-fund")
++                .accessibilityIdentifier("cabal-action-add")
+             }
+             if canPropose {
+                 Button {

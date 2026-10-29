@@ -4,15 +4,13 @@ expect-fail: S2
 A voter's Propose action is disabled. S2.1 checks it is enabled, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
 --- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
-@@ -134,7 +134,7 @@
-         let propose = CircleAction("Propose", systemImage: MonacoIcon.propose.symbol) { showsProposeChooser = true }
-             .frame(maxWidth: .infinity)
-             .accessibilityIdentifier("cabal-action-propose")
--            .disabled(!canPropose)
-+            .disabled(true)
-             .proposeChooser(isPresented: $showsProposeChooser, cabalID: cabalID)
-         let cashOut = action(
-             "Cash out", MonacoIcon.cashOut.symbol, id: "cabal-action-cash-out", CashOutRoute(cabalID: cabalID)
+@@ -146,6 +146,7 @@
+                 }
+                 .buttonStyle(.monacoSecondary)
+                 .accessibilityIdentifier("cabal-action-propose")
++                .disabled(true)
+                 .proposeChooser(isPresented: $showsProposeChooser, cabalID: cabalID)
+             }
+         }

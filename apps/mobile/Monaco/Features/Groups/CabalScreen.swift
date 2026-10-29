@@ -6,13 +6,13 @@ struct CabalScreen: View {
     static let sections: [any CabalSection.Type] = [
         CabalHeaderSlot.self,
         CabalClosedSlot.self,
+        CabalPauseSlot.self,
+        CabalJoinSlot.self,
         CabalPotSlot.self,
+        CabalSliceSlot.self,
         CabalActionsSlot.self,
         CabalProposalsSlot.self,
         CabalValueChartSlot.self,
-        CabalSliceSlot.self,
-        CabalPauseSlot.self,
-        CabalJoinSlot.self,
         CabalChatPreviewSlot.self,
         CabalHoldingsSlot.self,
         CabalMemberBoardSlot.self,
@@ -38,6 +38,8 @@ struct CabalScreen: View {
     @State private var models = CabalScreenModels()
     @State private var retryTick = 0
     @State private var refresh = ScreenRefresh()
+    @State private var nameBottom: CGFloat?
+    @State private var barBottom: CGFloat = 0
 
     init(cabalID: String, sections: [any CabalSection.Type] = Self.sections) {
         self.context = CabalContext(cabalID: cabalID)
@@ -73,6 +75,12 @@ struct CabalScreen: View {
                     }
             }
         }
+        .onPreferenceChange(CabalHeaderNameBottom.self) { nameBottom = $0 }
+        .onGeometryChange(for: CGFloat.self) {
+            $0.safeAreaInsets.top
+        } action: {
+            barBottom = $0
+        }
         .environment(\.cabalRetry, CabalRetry(tick: retryTick) { retryTick += 1 })
         .environment(
             \.cabalShare,
@@ -93,6 +101,19 @@ struct CabalScreen: View {
             pot.setVisible(visible)
         }
         .toolbar {
+            if let loaded = cabal.cabal {
+                ToolbarItem(placement: .principal) {
+                    let shown = CabalHeaderTitle.isShown(nameBottom: nameBottom, barBottom: barBottom)
+                    Text(CabalHeaderCopy.shortName(loaded.name))
+                        .font(MonacoTheme.Typo.section)
+                        .foregroundStyle(MonacoTheme.primaryText)
+                        .lineLimit(1)
+                        .opacity(shown ? 1 : 0)
+                        .animation(.easeOut(duration: 0.15), value: shown)
+                        .accessibilityHidden(!shown)
+                        .accessibilityIdentifier("cabal-inline-title")
+                }
+            }
             if let loaded = cabal.cabal, loaded.me != nil {
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: MonacoTheme.Space.s) {

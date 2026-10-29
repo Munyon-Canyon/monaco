@@ -53,6 +53,8 @@ public struct CabalPotSummary: Equatable, Sendable {
     public let cashYield: String?
     public let invested: String
     public let slice: Slice?
+    public let shareMicros: Int64
+    public let sliceBps: Int
     public private(set) var holdings: [Row]
     public let sellable: [ProposeHolding]
     public let legend: [Segment]
@@ -67,6 +69,8 @@ public struct CabalPotSummary: Equatable, Sendable {
         cash = UsdAmountFormatter.format(micros: pot.cashMicros)
         cashYield = pot.cashMicros > 0 ? CabalYield.apy : nil
         invested = UsdAmountFormatter.format(micros: pot.holdings.reduce(0) { $0 + $1.valueMicros })
+        shareMicros = pot.me?.valueMicros ?? 0
+        sliceBps = Int(pot.me?.sliceBps ?? 0)
         slice = pot.me.map { me in
             guard me.shareUnits != 0 else { return .none }
             return .stake(

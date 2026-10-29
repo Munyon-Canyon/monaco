@@ -7,8 +7,43 @@ enum CabalPotSlot: CabalSection {
 
     static func body(for context: CabalContext) -> some View {
         CabalPotModelHost(cabalID: context.cabalID) { model in
-            CabalPotBand(model: model)
+            CabalTreasuryLine(model: model)
         }
+    }
+}
+
+private struct CabalTreasuryLine: View {
+    let model: CabalPotModel?
+
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(\.cabalRetry) private var retry
+    @Environment(\.cabalModel) private var cabalModel
+    @State private var chart: ValueChartModel?
+
+    private var move: CabalHeaderCopy.Move? {
+        guard let createdAt = cabalModel?.cabal?.createdAt else { return nil }
+        return CabalHeaderCopy.move(chart?.curve, createdAt: createdAt, now: .now)
+    }
+
+    var body: some View {
+        CabalPotBand(model: model, move: move)
+            .task(id: retry.tick) {
+                let chart = prepared()
+                await withTaskGroup(of: Void.self) { group in
+                    group.addTask { await chart.load() }
+                    group.addTask { await chart.observe() }
+                }
+            }
+            .onScreenVisibilityChange { chart?.setVisible($0) }
+    }
+
+    private func prepared() -> ValueChartModel {
+        if let chart { return chart }
+        let created = ValueChartModel(
+            subjects: [.cabal(id: model?.cabalID ?? cabalModel?.cabalID ?? "")], ranges: [.oneMonth],
+            range: .oneMonth, api: environment.api, hints: environment.hints)
+        chart = created
+        return created
     }
 }
 
@@ -43,31 +78,86 @@ struct CabalPotModelHost<Content: View>: View {
 
 struct CabalPotBand: View {
     let model: CabalPotModel?
+    var move: CabalHeaderCopy.Move?
 
     var body: some View {
         content
             .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.top, -(SectionStackMetrics.spacing - MonacoTheme.Space.gutter))
+            .padding(.top, -(SectionStackMetrics.spacing - MonacoTheme.Space.sm))
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder private var content: some View {
         switch model?.state ?? .loading {
         case .idle, .loading:
-            Text("$0.00").moneyFont(.hero).skeletonBar(width: 180)
-                .accessibilityIdentifier("cabal-pot-loading")
+            HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
+                label
+                Text("$0.00").moneyFont(.row).skeletonBar(width: 120)
+            }
+            .accessibilityIdentifier("cabal-pot-loading")
         case .failed:
             MonacoErrorRow(thing: "the pot", identifier: "cabal-pot-failed", inset: false) {
                 Task { await model?.load() }
             }
         case .loaded(let summary):
-            Text(summary.potValue)
-                .moneyFigure(.hero)
-                .foregroundStyle(MonacoTheme.primaryText)
-                .lineLimit(1)
-                .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
-                .accessibilityLabel("In the pot, \(summary.potValue)")
+            line(figure: Text(Self.dimmedCents(summary.potValue)), move: move)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Self.spoken(summary.potValue, move: move))
                 .accessibilityIdentifier("cabal-pot-value")
+        }
+    }
+
+    private var label: some View {
+        Text("Treasury")
+            .font(MonacoTheme.Typo.subhead)
+            .foregroundStyle(MonacoTheme.secondaryText)
+    }
+
+    private func line(figure: Text, move: CabalHeaderCopy.Move?) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
+                parts(figure, move: move)
+            }
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                parts(figure, move: move)
+            }
+        }
+    }
+
+    @ViewBuilder private func parts(_ figure: Text, move: CabalHeaderCopy.Move?) -> some View {
+        label
+        figure
+            .moneyFigure(.row)
+            .foregroundStyle(MonacoTheme.primaryText)
+            .lineLimit(1)
+            .minimumScaleFactor(MoneyStyle.row.minimumScaleFactor)
+        if let move {
+            Text(move.line)
+                .font(MonacoTheme.Typo.subhead)
+                .foregroundStyle(Self.color(move.direction))
+                .lineLimit(1)
+                .accessibilityIdentifier("cabal-pot-move")
+        }
+    }
+
+    static func dimmedCents(_ amount: String) -> AttributedString {
+        var text = AttributedString(amount)
+        if let dot = amount.lastIndex(of: "."), let range = text.range(of: String(amount[dot...])) {
+            text[range].foregroundColor = MonacoTheme.secondaryText
+        }
+        return text
+    }
+
+    static func spoken(_ amount: String, move: CabalHeaderCopy.Move?) -> String {
+        guard let move else { return "Treasury, \(amount)" }
+        return "Treasury, \(amount), \(PnLSpeech.percent(move.percent)), \(CabalHeaderCopy.moveRange)"
+    }
+
+    private static func color(_ direction: PortfolioSummary.Direction) -> Color {
+        switch direction {
+        case .up: MonacoTheme.profit
+        case .down: MonacoTheme.loss
+        case .flat: MonacoTheme.secondaryText
         }
     }
 }
