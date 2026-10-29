@@ -106,7 +106,7 @@ public enum CabalInviteCopy {
             yes: Int(source.yes), no: Int(source.no))
     }
 
-    private static func wholeDollars(micros raw: String) -> String {
+    static func wholeDollars(micros raw: String) -> String {
         let micros = Int64(raw) ?? 0
         return trimmed(UsdAmountFormatter.format(micros: micros - micros % 1_000_000))
     }

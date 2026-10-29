@@ -27,23 +27,24 @@ extension APIClient {
     public func enterCabal(
         _ cabalID: String,
         policy: CabalJoinPolicy = .request,
+        viaCode: String? = nil,
         submission: IdempotentSubmission
     ) async -> CabalEntry {
         switch policy {
         case .open:
             let first = await join(cabalID, submission: submission)
             guard case .refused(let error) = first, Self.flow03Outcome(error) == .joinNeedsRequest else { return first }
-            return await request(cabalID, submission: submission)
+            return await request(cabalID, viaCode: viaCode, submission: submission)
         case .request:
-            let first = await request(cabalID, submission: submission)
+            let first = await request(cabalID, viaCode: viaCode, submission: submission)
             guard case .refused(let error) = first, Self.flow03Outcome(error) == .requestNotNeeded else { return first }
             return await join(cabalID, submission: submission)
         }
     }
 
-    private func request(_ cabalID: String, submission: IdempotentSubmission) async -> CabalEntry {
+    private func request(_ cabalID: String, viaCode: String?, submission: IdempotentSubmission) async -> CabalEntry {
         do {
-            try await requestAccess(cabalID, submission: submission)
+            try await requestAccess(cabalID, viaCode: viaCode, submission: submission)
             return .requested
         } catch {
             let failure = APIError(error)
@@ -112,18 +113,27 @@ extension APIClient {
         return Flow03Outcome(code: problem.code.wire)
     }
 
-    private func requestAccess(_ cabalID: String, submission: IdempotentSubmission) async throws {
+    private func requestAccess(_ cabalID: String, viaCode: String?, submission: IdempotentSubmission) async throws {
         _ = try await submit(
-            submission, payload: CabalPayload(cabalID: cabalID), operation: "postCabalAccessRequest"
+            submission, payload: AccessRequestEntryPayload(cabalID: cabalID, viaCode: viaCode),
+            operation: "postCabalAccessRequest"
         ) { client, key in
-            try await client.postCabalAccessRequest(path: .init(id: cabalID), headers: .init(idempotencyKey: key))
-                .created.body.json
+            try await client.postCabalAccessRequest(
+                path: .init(id: cabalID),
+                headers: .init(idempotencyKey: key),
+                body: viaCode.map { .json(.init(viaCode: $0)) }
+            ).created.body.json
         }
     }
 }
 
 private struct CabalPayload: Encodable, Sendable {
     let cabalID: String
+}
+
+private struct AccessRequestEntryPayload: Encodable, Sendable {
+    let cabalID: String
+    let viaCode: String?
 }
 
 private struct AccessRequestPayload: Encodable, Sendable {
