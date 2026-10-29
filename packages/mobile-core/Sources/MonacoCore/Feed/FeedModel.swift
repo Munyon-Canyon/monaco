@@ -24,13 +24,12 @@ public final class FeedModel {
     public private(set) var loadMoreFailed = false
     public private(set) var fromEveryone: [Components.Schemas.FeedItem] = []
     private var fromEveryoneLoaded = false
-    private var likesInFlight: Set<String> = []
     private var viewerFollowsNobody = false
     private var checkingFollows = false
 
     private let api: APIClient
     private let mutes: FeedMuteService
-    private let likes: FeedLikeService
+    private let reactions: ReactionsModel
     private let viewerID: String?
     private let hints: any HintSource
     private let clock: any Clock<Duration>
@@ -43,7 +42,7 @@ public final class FeedModel {
     ) {
         self.api = api
         mutes = FeedMuteService(api: api)
-        likes = FeedLikeService(api: api)
+        reactions = ReactionsModel(api: api, clock: clock)
         self.viewerID = viewerID
         self.hints = hints
         self.clock = clock
@@ -153,23 +152,22 @@ public final class FeedModel {
         await reload()
     }
 
-    public func toggleLike(_ item: Components.Schemas.FeedItem) async {
-        let id = item.id
-        guard likesInFlight.insert(id).inserted else { return }
-        defer { likesInFlight.remove(id) }
+    public func reactions(for item: Components.Schemas.FeedItem) -> [Components.Schemas.Reaction] {
+        reactions.reactions(for: .feedItem(item.id), fallback: item.reactions)
+    }
+
+    public func react(_ emoji: String, on item: Components.Schemas.FeedItem) async {
         let pager = pager
-        let before = pager.items.first { $0.id == id } ?? item
-        let liking = !before.likedByMe
-        pager.update(id: id) { $0.setLike(liking, from: before) }
-        do {
-            try await likes.set(liking, itemID: id)
-        } catch {
-            pager.update(id: id) {
-                $0.likedByMe = before.likedByMe
-                $0.likeCount = before.likeCount
-            }
-            fail(APIError(error))
+        let current = pager.items.first { $0.id == item.id }?.reactions ?? item.reactions
+        let updated = await reactions.toggle(emoji, on: .feedItem(item.id), current: current)
+        pager.update(id: item.id) {
+            $0.reactions = updated
+            $0.reactionCount = updated.reduce(0) { $0 + $1.count }
         }
+    }
+
+    public func didReply(to itemID: String) {
+        pager.update(id: itemID) { $0.replyCount += 1 }
     }
 
     private func fail(_ error: APIError) {

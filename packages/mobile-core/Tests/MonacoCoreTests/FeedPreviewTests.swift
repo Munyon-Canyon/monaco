@@ -23,16 +23,6 @@ final class FeedPreviewTests: XCTestCase {
         }
     }
 
-    func testTheItemsHarnessLikesAnItemThroughTheStubbedEndpoint() async {
-        let model = FeedModel.preview(.items, clock: TestClock())
-        await model.load()
-        let item = model.items[0]
-        await model.toggleLike(item)
-        XCTAssertEqual(model.items[0].likedByMe, true)
-        XCTAssertEqual(model.items[0].likeCount, item.likeCount + 1)
-        XCTAssertEqual(model.failureTick, 0)
-    }
-
     func testTheLoadMoreFailedHarnessFailsTheFirstRetryOnlyOnce() async {
         let model = FeedModel.preview(.loadMoreFailed, clock: TestClock())
         await model.load()
