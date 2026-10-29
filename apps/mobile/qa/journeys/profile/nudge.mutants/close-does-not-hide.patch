@@ -4,10 +4,10 @@ expect-fail: S2
 The banner close button does nothing. S2.4 expects the banner gone after close, so S2 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Home/OnboardingNudgeBanner.swift b/apps/mobile/Monaco/Features/Home/OnboardingNudgeBanner.swift
+diff --git a/apps/mobile/Monaco/Features/Profile/OnboardingNudgeBanner.swift b/apps/mobile/Monaco/Features/Profile/OnboardingNudgeBanner.swift
 index 78b8fe47a..0f409912d 100644
---- a/apps/mobile/Monaco/Features/Home/OnboardingNudgeBanner.swift
-+++ b/apps/mobile/Monaco/Features/Home/OnboardingNudgeBanner.swift
+--- a/apps/mobile/Monaco/Features/Profile/OnboardingNudgeBanner.swift
++++ b/apps/mobile/Monaco/Features/Profile/OnboardingNudgeBanner.swift
 @@ -55,7 +55,7 @@ struct OnboardingNudgeBanner: View {
                  .accessibilityIdentifier("onboarding-nudge-open")
  

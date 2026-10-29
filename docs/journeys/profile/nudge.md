@@ -62,10 +62,6 @@ Starts signed in (auth/sign-in).
 | --- | --- | --- | --- | --- |
 | S4.1 | tap | the Profile tab, then `profile-handle` | | "Edit profile" shows within 5 s as the screen title, with `edit-profile-username-field` and `profile-name-save` disabled because nothing has changed |
 
-## Known failures on staging
-
-- S2.1, S2.3, S2.4 and S2.5: `onboarding-nudge` is only in `OnboardingNudgeBanner` and no screen shows it on Profile yet. #6496 moves the nudge off Home and onto Profile.
-
 ## Not covered
 
 - The "Add your number to find friends" banner. A text-message sign-in leaves A past `AWAITING_PHONE` (P3). `OnboardingNudgeTests` covers that copy.
