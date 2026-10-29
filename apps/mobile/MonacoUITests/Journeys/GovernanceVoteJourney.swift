@@ -182,9 +182,7 @@ enum GovernanceVoteJourney {
         recorder.step("S1.7", "B votes No, then Undo takes the ballot back") {
             app.pickAndHold("no")
             expectLabel(app, "proposal-vote-no", "Voted No, 1 vote", step: "S1.7")
-            XCTAssertEqual(
-                app.toastText(timeout: checkTimeout)?.contains("Voted No. 2nd of 3."), true,
-                "S1.7: wrong toast")
+            expectToast(app, "Voted No. 2nd of 3.", undo: true, step: "S1.7")
             XCTAssertTrue(app.tapToastAction(timeout: checkTimeout), "S1.7: the toast has no Undo")
             expectTally(app, yes: "Yes, 1 vote", no: "No, 0 votes", step: "S1.7")
             XCTAssertTrue(

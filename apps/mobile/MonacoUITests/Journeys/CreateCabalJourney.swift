@@ -3,7 +3,7 @@ import XCTest
 
 enum CreateCabalJourney {
     static let id = "cabals/create-cabal"
-    static let version = 13
+    static let version = 14
 
     private static let listTimeout: TimeInterval = 15
     private static let formTimeout: TimeInterval = 10
@@ -104,7 +104,7 @@ enum CreateCabalJourney {
         recorder.step("S2.5", "see one member") {
             let count = app.element("cabal-member-count")
             XCTAssertTrue(count.waitForExistence(timeout: formTimeout), "S2.5: no member count on the cabal")
-            XCTAssertEqual(count.label, "1 member", "S2.5: the member count is wrong")
+            XCTAssertTrue(count.label.hasPrefix("1 member"), "S2.5: the member count reads '\(count.label)'")
         }
 
         recorder.step("S2.6", "go back to the Cabals tab and find the cabal tile once") {

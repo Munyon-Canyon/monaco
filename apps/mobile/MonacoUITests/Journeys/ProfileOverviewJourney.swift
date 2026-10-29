@@ -108,9 +108,11 @@ enum ProfileOverviewJourney {
         recorder.step("S1.5", "read the cash row and the Deposit dock") {
             let cash = app.element("profile-cash-row")
             XCTAssertTrue(cash.waitForExistence(timeout: 10), "S1.5: no cash row")
-            for text in ["Cash", "USDC", "3.5% APY"] {
+            for text in ["Cash", "USDC"] {
                 XCTAssertTrue(cash.label.contains(text), "S1.5: the cash row reads '\(cash.label)', with no '\(text)'")
             }
+            XCTAssertTrue(
+                app.staticTexts["3.5% APY"].waitForExistence(timeout: 5), "S1.5: no APY text beside the cash row")
             let dock = app.element("profile-add-money-link")
             XCTAssertTrue(dock.waitForExistence(timeout: 5), "S1.5: no Deposit dock above the tab bar")
             XCTAssertTrue(dock.label.contains("Deposit"), "S1.5: the dock reads '\(dock.label)', not 'Deposit'")

@@ -107,6 +107,7 @@ enum CabalsInfoAndMembersJourney {
             XCTAssertTrue(row.waitForExistence(timeout: 15), "S2.4: no open proposal row")
             row.tap()
             app.pickAndHold("yes")
+            app.dismissPushPrePromptIfShown(timeout: 8)
             app.tapBack()
         }
 

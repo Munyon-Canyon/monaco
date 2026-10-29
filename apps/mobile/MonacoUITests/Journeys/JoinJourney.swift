@@ -163,7 +163,7 @@ enum JoinJourney {
             let rows = app.descendants(matching: .any).matching(identifier: "cabal-join-request-row")
             XCTAssertEqual(rows.count, 1, "S1.7: expected one request row")
             XCTAssertTrue(rowNames(rows.firstMatch, member), "S1.7: the request does not name \(member)")
-            XCTAssertTrue(rows.firstMatch.label.contains("Asked to join"), "S1.7: the row does not read Asked to join")
+            XCTAssertTrue(rowNames(rows.firstMatch, "Asked to join"), "S1.7: the row does not read Asked to join")
             snap(app, "S1-A-request-pending")
         }
 

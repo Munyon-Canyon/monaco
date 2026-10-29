@@ -80,9 +80,13 @@ enum CabalsBrowseJourney {
     static func holdsATile(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S2.1", "press and hold a tile") {
             if JoinJourney.searchField(app).exists { app.tapBack() }
-            app.tab("Cabals").tap()
+            for _ in 0..<3 where !app.element("cabals-grid").exists {
+                app.tab("Cabals").tap()
+                _ = app.element("cabals-grid").waitForExistence(timeout: 5)
+            }
             let held = tile(app, named: mine(run: run))
-            XCTAssertTrue(app.revealInGrid(held), "S2.1: no tile for \(mine(run: run))")
+            for _ in 0..<4 where !held.isHittable { app.swipeDown() }
+            XCTAssertTrue(held.isHittable || app.revealInGrid(held), "S2.1: no tile for \(mine(run: run))")
             held.press(forDuration: 1.0)
             for item in ["Fund", "Propose buy", "Invite", "Share"] {
                 XCTAssertTrue(
