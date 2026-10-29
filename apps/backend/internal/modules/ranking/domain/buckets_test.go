@@ -24,6 +24,8 @@ func TestBucketWidth(t *testing.T) {
 		domain.Range1D:  10 * time.Minute,
 		domain.Range1W:  time.Hour,
 		domain.Range1M:  4 * time.Hour,
+		domain.Range3M:  12 * time.Hour,
+		domain.Range6M:  36 * time.Hour,
 		domain.RangeAll: 24 * time.Hour,
 	}
 	for r, want := range tests {

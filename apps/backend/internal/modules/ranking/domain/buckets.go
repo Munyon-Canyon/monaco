@@ -16,6 +16,10 @@ func BucketWidth(r Range) time.Duration {
 		return time.Hour
 	case Range1M:
 		return 4 * time.Hour
+	case Range3M:
+		return 12 * time.Hour
+	case Range6M:
+		return 36 * time.Hour
 	case RangeAll:
 	}
 	return 24 * time.Hour

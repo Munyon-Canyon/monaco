@@ -26,6 +26,8 @@ const (
 	CabalValueHistoryRangeN1H CabalValueHistoryRange = "1H"
 	CabalValueHistoryRangeN1M CabalValueHistoryRange = "1M"
 	CabalValueHistoryRangeN1W CabalValueHistoryRange = "1W"
+	CabalValueHistoryRangeN3M CabalValueHistoryRange = "3M"
+	CabalValueHistoryRangeN6M CabalValueHistoryRange = "6M"
 )
 
 // Valid indicates whether the value is a known member of the CabalValueHistoryRange enum.
@@ -40,6 +42,10 @@ func (e CabalValueHistoryRange) Valid() bool {
 	case CabalValueHistoryRangeN1M:
 		return true
 	case CabalValueHistoryRangeN1W:
+		return true
+	case CabalValueHistoryRangeN3M:
+		return true
+	case CabalValueHistoryRangeN6M:
 		return true
 	default:
 		return false
@@ -242,6 +248,8 @@ const (
 	MyPnlHistoryRangeN1H MyPnlHistoryRange = "1H"
 	MyPnlHistoryRangeN1M MyPnlHistoryRange = "1M"
 	MyPnlHistoryRangeN1W MyPnlHistoryRange = "1W"
+	MyPnlHistoryRangeN3M MyPnlHistoryRange = "3M"
+	MyPnlHistoryRangeN6M MyPnlHistoryRange = "6M"
 )
 
 // Valid indicates whether the value is a known member of the MyPnlHistoryRange enum.
@@ -256,6 +264,10 @@ func (e MyPnlHistoryRange) Valid() bool {
 	case MyPnlHistoryRangeN1M:
 		return true
 	case MyPnlHistoryRangeN1W:
+		return true
+	case MyPnlHistoryRangeN3M:
+		return true
+	case MyPnlHistoryRangeN6M:
 		return true
 	default:
 		return false
@@ -395,6 +407,8 @@ const (
 	ValueHistoryRangeN1H ValueHistoryRange = "1H"
 	ValueHistoryRangeN1M ValueHistoryRange = "1M"
 	ValueHistoryRangeN1W ValueHistoryRange = "1W"
+	ValueHistoryRangeN3M ValueHistoryRange = "3M"
+	ValueHistoryRangeN6M ValueHistoryRange = "6M"
 )
 
 // Valid indicates whether the value is a known member of the ValueHistoryRange enum.
@@ -409,6 +423,10 @@ func (e ValueHistoryRange) Valid() bool {
 	case ValueHistoryRangeN1M:
 		return true
 	case ValueHistoryRangeN1W:
+		return true
+	case ValueHistoryRangeN3M:
+		return true
+	case ValueHistoryRangeN6M:
 		return true
 	default:
 		return false
@@ -449,6 +467,8 @@ const (
 	GetCabalValueHistoryParamsRangeN1H GetCabalValueHistoryParamsRange = "1H"
 	GetCabalValueHistoryParamsRangeN1M GetCabalValueHistoryParamsRange = "1M"
 	GetCabalValueHistoryParamsRangeN1W GetCabalValueHistoryParamsRange = "1W"
+	GetCabalValueHistoryParamsRangeN3M GetCabalValueHistoryParamsRange = "3M"
+	GetCabalValueHistoryParamsRangeN6M GetCabalValueHistoryParamsRange = "6M"
 )
 
 // Valid indicates whether the value is a known member of the GetCabalValueHistoryParamsRange enum.
@@ -463,6 +483,10 @@ func (e GetCabalValueHistoryParamsRange) Valid() bool {
 	case GetCabalValueHistoryParamsRangeN1M:
 		return true
 	case GetCabalValueHistoryParamsRangeN1W:
+		return true
+	case GetCabalValueHistoryParamsRangeN3M:
+		return true
+	case GetCabalValueHistoryParamsRangeN6M:
 		return true
 	default:
 		return false
@@ -614,6 +638,8 @@ const (
 	GetMyPnlHistoryParamsRangeN1H GetMyPnlHistoryParamsRange = "1H"
 	GetMyPnlHistoryParamsRangeN1M GetMyPnlHistoryParamsRange = "1M"
 	GetMyPnlHistoryParamsRangeN1W GetMyPnlHistoryParamsRange = "1W"
+	GetMyPnlHistoryParamsRangeN3M GetMyPnlHistoryParamsRange = "3M"
+	GetMyPnlHistoryParamsRangeN6M GetMyPnlHistoryParamsRange = "6M"
 )
 
 // Valid indicates whether the value is a known member of the GetMyPnlHistoryParamsRange enum.
@@ -628,6 +654,10 @@ func (e GetMyPnlHistoryParamsRange) Valid() bool {
 	case GetMyPnlHistoryParamsRangeN1M:
 		return true
 	case GetMyPnlHistoryParamsRangeN1W:
+		return true
+	case GetMyPnlHistoryParamsRangeN3M:
+		return true
+	case GetMyPnlHistoryParamsRangeN6M:
 		return true
 	default:
 		return false
@@ -1124,6 +1154,11 @@ type LedgerUser struct {
 
 // MyPnlHistory The caller's equity and P&L curve.
 type MyPnlHistory struct {
+	// PnlMicros The P&L over the range in USDC micros: the last point's P&L minus the first's, so money put in or taken out during the range is not a gain or a loss. 0 with fewer than two points.
+	//
+	// Examples: 241100000
+	PnlMicros int64 `json:"pnl_micros"`
+
 	// Points One point per bucket, oldest first.
 	//
 	// Examples: []
@@ -1133,6 +1168,11 @@ type MyPnlHistory struct {
 	//
 	// Examples: ALL
 	Range MyPnlHistoryRange `json:"range"`
+
+	// ReturnBps The return over the range in basis points, rounded toward zero: `pnl_micros` over the first point's equity plus the money put in during the range. 0 with fewer than two points or when that base is not positive.
+	//
+	// Examples: 203
+	ReturnBps int64 `json:"return_bps"`
 }
 
 // MyPnlHistoryRange The window the curve covers.

@@ -317,3 +317,39 @@ func assertSumsTo(
 		}
 	}
 }
+
+func TestReadPnLHistory_ThreeAndSixMonthsStartThatFarBackWithinTheMonthlyBudget(t *testing.T) {
+	t.Parallel()
+	const days = 200
+	at := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+	cabal := ids.CabalIDFrom(ids.Real{}.NewV7())
+	stakes := fakeStakes{points: []app.StakePoint{{
+		CabalID: cabal, At: at.AddDate(0, 0, -days-1), ShareUnits: money.SharesUnitsFromUint64(1),
+		NetContributed: money.SignedMicrosFromInt64(1000),
+	}}}
+	series := make([]domain.Snapshot, 0, days+1)
+	for d := days; d >= 0; d-- {
+		series = append(series, domain.Snapshot{
+			At: at.AddDate(0, 0, -d), Value: money.MicrosFromUint64(uint64(1000 + days - d)),
+			TotalShares: money.SharesUnitsFromUint64(1),
+		})
+	}
+	snaps := &fakeCabalSnapshots{series: map[ids.CabalID][]domain.Snapshot{cabal: series}}
+	boards := fakeBoards{run: domain.Run{AsOf: at}, hasRun: true}
+	read := func(r domain.Range) []domain.PnLPoint {
+		got, err := app.ReadPnLHistory{Range: r}.Run(t.Context(), boards, snaps, stakes)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	month := len(read(domain.Range1M))
+	for r, span := range map[domain.Range]int{domain.Range3M: 90, domain.Range6M: 182} {
+		got := read(r)
+		if len(got) == 0 || len(got) > month || !got[0].At.Equal(at.AddDate(0, 0, -span)) ||
+			!got[len(got)-1].At.Equal(at) {
+			t.Fatalf("%s: %d points from %v to %v, want at most %d from %d days back to now",
+				r, len(got), got[0].At, got[len(got)-1].At, month, span)
+		}
+	}
+}
