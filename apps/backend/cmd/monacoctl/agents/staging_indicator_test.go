@@ -94,3 +94,57 @@ func TestStagingIndicator_dispatchesWhenAnOwnerRecordCannotBeRead(t *testing.T) 
 	r.land("a.txt")
 	dispatchedFor(t, r, s.trunkLines(t.Context()))
 }
+
+func listRunsRoute(r *trunkRepo) string {
+	at := r.now.Add(-indicatorEvery).UTC().Format(time.RFC3339)
+	return get("/actions/workflows/staging.yml/runs?event=workflow_dispatch&branch=staging&created=>=" + at +
+		"&per_page=100")
+}
+
+func alreadyDispatched(t *testing.T, r *trunkRepo, lines []string, sha, url string) {
+	t.Helper()
+	sha = sha[:7]
+	want := []string{"staging fast-forwarded to " + sha, "staging run for " + sha + " already dispatched (" + url + ")"}
+	if !slices.Equal(lines, want) || dispatches(r) != 0 {
+		t.Fatalf("lines %q after %d dispatches, want %q", lines, dispatches(r), want)
+	}
+}
+
+func TestStagingIndicator_skipsTheDispatchWhenARunForTheNewHeadExists(t *testing.T) {
+	t.Parallel()
+	r := newTrunkRepo(t)
+	s := newStream(r.env)
+	sha := r.land("a.txt")
+	r.hub.on(listRunsRoute(r), map[string]any{"workflow_runs": []Run{
+		{ID: 1, Status: "completed", HeadSHA: sha, URL: "https://runs/1"},
+	}})
+	alreadyDispatched(t, r, s.trunkLines(t.Context()), sha, "https://runs/1")
+	r.now = r.now.Add(10 * time.Minute)
+	r.land("b.txt")
+	if got := s.trunkLines(t.Context()); len(got) != 1 || dispatches(r) != 0 {
+		t.Fatalf("10 minutes later printed %q after %d dispatches", got, dispatches(r))
+	}
+}
+
+func TestStagingIndicator_skipsTheDispatchWhileADispatchedRunIsQueued(t *testing.T) {
+	t.Parallel()
+	r := newTrunkRepo(t)
+	s := newStream(r.env)
+	sha := r.land("a.txt")
+	r.hub.on(listRunsRoute(r), map[string]any{"workflow_runs": []Run{
+		{ID: 2, Status: "queued", HeadSHA: strings.Repeat("b", 40), URL: "https://runs/2"},
+	}})
+	alreadyDispatched(t, r, s.trunkLines(t.Context()), sha, "https://runs/2")
+}
+
+func TestStagingIndicator_dispatchesWhenItCannotListTheRuns(t *testing.T) {
+	t.Parallel()
+	r := newTrunkRepo(t)
+	s := newStream(r.env)
+	r.hub.status[listRunsRoute(r)] = 500
+	r.land("a.txt")
+	dispatchedFor(t, r, s.trunkLines(t.Context()))
+	if dispatches(r) != 1 {
+		t.Fatalf("%d dispatches, want 1", dispatches(r))
+	}
+}
