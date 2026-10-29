@@ -993,6 +993,43 @@ func TestWatch_judgesAlreadyRedByTheFailingFlowsAndTests(t *testing.T) {
 	}
 }
 
+func TestWatch_doesNotBlameALandingForFailuresThatAppearedAcrossOtherLandings(t *testing.T) {
+	t.Parallel()
+	const e2e = "staging / E2E (e2e 1 of 3)"
+	for name, tc := range map[string]struct {
+		between string
+		reruns  bool
+	}{
+		"another landing sits between the prior run and this one": {between: "3\n", reruns: false},
+		"the prior run is this landing's parent":                  {between: "2\n", reruns: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			l := newLanding(t, func(x *Landing) { x.Reran = false })
+			l.prior(Run{
+				ID: 70, Status: "completed", Conclusion: "failure", HeadSHA: "5555555555555555",
+				CreatedAt: priorAt(l.f),
+			})
+			l.f.hub.on(get("/actions/runs/70/jobs?per_page=100"), map[string]any{"jobs": []Job{
+				{ID: 700, Name: e2e, Conclusion: "failure"},
+			}})
+			l.f.hub.on(get("/actions/jobs/700/logs"), "FAIL flow 21b ok: feed ack\n")
+			l.f.hub.on(get("/actions/jobs/770/logs"), "FAIL flow 37 ok: no tick\n")
+			l.f.hub.on("POST /repos/o/r/actions/runs/77/rerun-failed-jobs", "")
+			l.sh.first(shellRule{
+				prefix: "git rev-list --count --first-parent 5555555555555555.." + lastSHA, out: tc.between,
+			})
+			l.run("failure", Job{ID: 770, Name: e2e, Conclusion: "failure"})
+			_, stdout, _ := l.f.agents(t, "watch", "--once")
+			reran := strings.Contains(stdout, "reran the failed jobs once")
+			gap := strings.Contains(stdout, "but other landings sit between 55555555 and #1 #2; not reverting for them")
+			if reran != tc.reruns || gap == tc.reruns || l.count("git worktree add") != 0 {
+				t.Fatalf("%q", stdout)
+			}
+		})
+	}
+}
+
 func TestWatch_keepsTheJobNameRuleWhenAJobLogCannotBeRead(t *testing.T) {
 	t.Parallel()
 	const e2e = "staging / E2E (e2e 1 of 3)"

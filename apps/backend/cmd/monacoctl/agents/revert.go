@@ -355,6 +355,16 @@ func (env *Env) newFailures(ctx context.Context, before, after Job) []string {
 	return added
 }
 
+func (env *Env) landingsSince(ctx context.Context, prior, sha string) int {
+	sh := &shell{env: env}
+	out := sh.run(ctx, filepath.Dir(env.Common), "git", "rev-list", "--count", "--first-parent", prior+".."+sha)
+	n, err := strconv.Atoi(strings.TrimSpace(out))
+	if sh.err != nil || err != nil {
+		return 0
+	}
+	return n
+}
+
 func (env *Env) dropAlreadyRed(
 	ctx context.Context, l Landing, run Run, related []string, now []Job,
 ) ([]string, []string, error) {
@@ -375,6 +385,7 @@ func (env *Env) dropAlreadyRed(
 		return jobs[i], true
 	}
 	short := prior.HeadSHA[:min(8, len(prior.HeadSHA))]
+	gap := env.landingsSince(ctx, prior.HeadSHA, l.SHA) > len(l.PRs)
 	var already, lines []string
 	remaining := slices.DeleteFunc(slices.Clone(related), func(name string) bool {
 		before, ok := byName(red, name)
@@ -383,6 +394,12 @@ func (env *Env) dropAlreadyRed(
 		}
 		after, _ := byName(now, name)
 		if added := env.newFailures(ctx, before, after); len(added) > 0 {
+			if gap {
+				lines = append(lines, fmt.Sprintf("staging run %s failed on %s with new failures, "+
+					"but other landings sit between %s and %s; not reverting for them",
+					run.URL, name, short, prRefs(l.PRs)))
+				return true
+			}
 			lines = append(lines, fmt.Sprintf("staging run %s failed on %s, red on %s too, but with new failures: %s",
 				run.URL, name, short, strings.Join(added, ", ")))
 			return false
@@ -391,7 +408,7 @@ func (env *Env) dropAlreadyRed(
 		return true
 	})
 	if len(already) == 0 {
-		return related, lines, nil
+		return remaining, lines, nil
 	}
 	return remaining, append(lines, fmt.Sprintf(
 		"staging run %s failed on %s, already red on %s before %s landed; not reverting for them",
