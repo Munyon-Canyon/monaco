@@ -23,3 +23,4 @@ Dated record of changes to [proposals.md](../proposals.md). Add one line per cha
 - 2026-10-28: The proposal detail keeps each voter's side private until the proposal closes in a cabal whose rule was on when it opened, and gives every voter a name and photo (#6468).
 - 2026-10-29: A voter who has not decided can ask for a reminder an hour before close with `PUT /v1/proposals/{id}/reminder`, clear it with `DELETE`, and see `reminder_set` on the detail. Voting drops the reminder (#6478).
 - 2026-10-29: A poller raises `proposal.close_reminder_due` once for a member who asked for a close reminder and still has not voted, with the live tally (#6492).
+- 2026-10-29: A voter can propose a rule change, and a passed one is announced on `proposal.rule_passed` with its proposer instead of `proposal.passed` (#6498).

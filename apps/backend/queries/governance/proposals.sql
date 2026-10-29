@@ -35,6 +35,23 @@ INSERT INTO proposal_voters (proposal_id, voter_id)
 SELECT proposal.id, voter
 FROM proposal, unnest(sqlc.arg(voter_ids)::uuid[]) AS voter;
 
+-- name: InsertRuleProposal :execrows
+WITH proposal AS (
+  INSERT INTO proposals (
+    id, cabal_id, proposer_id, kind, thesis, threshold, status, expires_at, created_at, updated_at,
+    sides_after_close, rule_change
+  )
+  VALUES (
+    sqlc.arg(id), sqlc.arg(cabal_id), sqlc.arg(proposer_id), 'rule', NULLIF(sqlc.arg(thesis)::text, ''),
+    sqlc.arg(threshold), 'open', sqlc.arg(expires_at), sqlc.arg(created_at), sqlc.arg(created_at),
+    sqlc.arg(sides_after_close)::boolean, sqlc.arg(rule_change)::jsonb
+  )
+  RETURNING id
+)
+INSERT INTO proposal_voters (proposal_id, voter_id)
+SELECT proposal.id, voter
+FROM proposal, unnest(sqlc.arg(voter_ids)::uuid[]) AS voter;
+
 -- name: UpsertBallot :exec
 INSERT INTO votes (proposal_id, voter_id, choice, cast_at, first_cast_at, changed)
 VALUES (@proposal_id, @voter_id, @choice, @cast_at, @cast_at, false)
@@ -107,6 +124,7 @@ SELECT voter_id FROM votes WHERE proposal_id = @proposal_id ORDER BY cast_at, vo
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, p.token_amount, p.quote_out_amount,
   p.status, p.threshold, p.expires_at, p.price_comparison, coalesce(p.network, '')::text AS network,
+  p.rule_change,
   EXISTS (
     SELECT 1 FROM proposal_voters AS v WHERE v.proposal_id = p.id AND v.voter_id = @voter_id
   ) AS is_voter

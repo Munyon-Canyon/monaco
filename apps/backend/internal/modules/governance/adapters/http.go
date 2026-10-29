@@ -20,6 +20,7 @@ import (
 
 type HTTP struct {
 	Propose     *app.ProposeTradeHandler
+	RuleChange  *app.ProposeRuleChangeHandler
 	Vote        *app.CastVoteHandler
 	RetractVote *app.RetractVoteHandler
 	Withdraw    *app.WithdrawProposalHandler
@@ -271,6 +272,30 @@ func (h HTTP) PostCabalProposal(
 		return nil, err
 	}
 	return api.PostCabalProposal201JSONResponse(wireOpenedProposal(opened, name, proposer)), nil
+}
+
+func (h HTTP) PostCabalRuleProposal(
+	ctx context.Context, req api.PostCabalRuleProposalRequestObject,
+) (api.PostCabalRuleProposalResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	target, err := ruleTarget(req.Body.Change)
+	if err != nil {
+		return nil, err
+	}
+	id, err := h.RuleChange.Handle(ctx, app.ProposeRuleChange{
+		CabalID: ids.CabalIDFrom(req.Id), ProposerID: user, Target: target, Thesis: deref(req.Body.Thesis),
+	})
+	if err != nil {
+		return nil, err
+	}
+	out, err := h.detail(ctx, id, user)
+	if err != nil {
+		return nil, err
+	}
+	return api.PostCabalRuleProposal201JSONResponse(out), nil
 }
 
 func (h HTTP) GetCabalProposalPreview(

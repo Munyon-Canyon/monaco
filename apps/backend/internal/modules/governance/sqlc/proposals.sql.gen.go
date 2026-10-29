@@ -220,6 +220,56 @@ func (q *Queries) InsertProposal(ctx context.Context, arg InsertProposalParams) 
 	return result.RowsAffected(), nil
 }
 
+const insertRuleProposal = `-- name: InsertRuleProposal :execrows
+WITH proposal AS (
+  INSERT INTO proposals (
+    id, cabal_id, proposer_id, kind, thesis, threshold, status, expires_at, created_at, updated_at,
+    sides_after_close, rule_change
+  )
+  VALUES (
+    $2, $3, $4, 'rule', NULLIF($5::text, ''),
+    $6, 'open', $7, $8, $8,
+    $9::boolean, $10::jsonb
+  )
+  RETURNING id
+)
+INSERT INTO proposal_voters (proposal_id, voter_id)
+SELECT proposal.id, voter
+FROM proposal, unnest($1::uuid[]) AS voter
+`
+
+type InsertRuleProposalParams struct {
+	VoterIds        []uuid.UUID
+	ID              uuid.UUID
+	CabalID         uuid.UUID
+	ProposerID      uuid.UUID
+	Thesis          string
+	Threshold       string
+	ExpiresAt       time.Time
+	CreatedAt       time.Time
+	SidesAfterClose bool
+	RuleChange      []byte
+}
+
+func (q *Queries) InsertRuleProposal(ctx context.Context, arg InsertRuleProposalParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertRuleProposal,
+		arg.VoterIds,
+		arg.ID,
+		arg.CabalID,
+		arg.ProposerID,
+		arg.Thesis,
+		arg.Threshold,
+		arg.ExpiresAt,
+		arg.CreatedAt,
+		arg.SidesAfterClose,
+		arg.RuleChange,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const lockBallot = `-- name: LockBallot :one
 SELECT choice, first_cast_at, changed FROM votes
 WHERE proposal_id = $1 AND voter_id = $2
@@ -280,6 +330,7 @@ const lockProposal = `-- name: LockProposal :one
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, p.token_amount, p.quote_out_amount,
   p.status, p.threshold, p.expires_at, p.price_comparison, coalesce(p.network, '')::text AS network,
+  p.rule_change,
   EXISTS (
     SELECT 1 FROM proposal_voters AS v WHERE v.proposal_id = p.id AND v.voter_id = $1
   ) AS is_voter
@@ -308,6 +359,7 @@ type LockProposalRow struct {
 	ExpiresAt       time.Time
 	PriceComparison []byte
 	Network         string
+	RuleChange      []byte
 	IsVoter         bool
 }
 
@@ -329,6 +381,7 @@ func (q *Queries) LockProposal(ctx context.Context, arg LockProposalParams) (Loc
 		&i.ExpiresAt,
 		&i.PriceComparison,
 		&i.Network,
+		&i.RuleChange,
 		&i.IsVoter,
 	)
 	return i, err

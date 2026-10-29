@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+38	Propose rule change	governance	POST /v1/cabals/{id}/rule-proposals	ProposeRuleChange	proposal.created;proposal.rule_passed		ok;InvalidInput;NotAVoter;NotCabalMember;RuleUnchanged;RuleChangeOpen	built	docs/architecture/proposals.md#rule-proposals

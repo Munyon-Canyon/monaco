@@ -17,7 +17,13 @@ const (
 	pgConnectionClass      = "08"
 	pgOperatorIntervention = "57P"
 	pgUndefinedTable       = "42P01"
+	pgUniqueViolation      = "23505"
 )
+
+func IsUniqueViolation(err error) bool {
+	var pg *pgconn.PgError
+	return errors.As(err, &pg) && pg.Code == pgUniqueViolation
+}
 
 func transient(err error) bool {
 	var pg *pgconn.PgError

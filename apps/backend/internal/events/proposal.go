@@ -1,6 +1,7 @@
 package events
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,6 +15,7 @@ import (
 const (
 	TypeProposalCreated          Type = "proposal.created"
 	TypeProposalPassed           Type = "proposal.passed"
+	TypeProposalRulePassed       Type = "proposal.rule_passed"
 	TypeProposalFailed           Type = "proposal.failed"
 	TypeProposalExpired          Type = "proposal.expired"
 	TypeProposalWithdrawn        Type = "proposal.withdrawn"
@@ -70,6 +72,21 @@ func (ProposalPassed) Type() Type { return TypeProposalPassed }
 func (ProposalPassed) AggregateType() string { return proposalAggregate }
 
 func (e ProposalPassed) AggregateID() uuid.UUID { return e.ProposalID }
+
+type ProposalRulePassed struct {
+	V          int             `json:"v"`
+	ProposalID uuid.UUID       `json:"proposal_id"`
+	CabalID    uuid.UUID       `json:"cabal_id"`
+	ProposerID uuid.UUID       `json:"proposer_id" pii:"true"`
+	Change     json.RawMessage `json:"change"      pii:"true"`
+	PassedAt   time.Time       `json:"passed_at"`
+}
+
+func (ProposalRulePassed) Type() Type { return TypeProposalRulePassed }
+
+func (ProposalRulePassed) AggregateType() string { return proposalAggregate }
+
+func (e ProposalRulePassed) AggregateID() uuid.UUID { return e.ProposalID }
 
 type ProposalFailed struct {
 	V          int       `json:"v"`

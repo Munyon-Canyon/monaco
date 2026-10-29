@@ -697,6 +697,19 @@ Subject `events.proposal.reopened`, version 1.
 | `cabal_id` | `uuid.UUID` |
 | `swap_id` | `uuid.UUID` |
 
+## `proposal.rule_passed`
+
+Subject `events.proposal.rule_passed`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `proposal_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `proposer_id` | `uuid.UUID` |
+| `change` | `json.RawMessage` |
+| `passed_at` | `time.Time` |
+
 ## `proposal.voided`
 
 Subject `events.proposal.voided`, version 1.

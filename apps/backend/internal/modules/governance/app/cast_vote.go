@@ -168,7 +168,7 @@ func (h *CastVoteHandler) vote(
 		out.UndoUntil = undoUntil(n.FirstCastAt, n.Changed)
 		return out, nil
 	}
-	fin, err := closeOut(p, verdict, priced)
+	fin, err := closeOut(p, verdict, priced, now)
 	if err != nil {
 		return CastVoteResult{}, err
 	}
@@ -176,9 +176,6 @@ func (h *CastVoteHandler) vote(
 	transition := decidedTransition(p.ID, out.Status, cmd.VoterID.UUID(), now, fin.price, fin.hasPrice)
 	if _, err := q.Transition(ctx, transition); err != nil {
 		return CastVoteResult{}, err
-	}
-	if fin.event == nil {
-		return out, nil
 	}
 	return out, tx.Events.Append(ctx, fin.event)
 }
@@ -190,7 +187,7 @@ type closing struct {
 	hasPrice bool
 }
 
-func closeOut(p sqlc.LockProposalRow, verdict domain.Outcome, priced candidate) (closing, error) {
+func closeOut(p sqlc.LockProposalRow, verdict domain.Outcome, priced candidate, at time.Time) (closing, error) {
 	if verdict == domain.Failed {
 		return closing{
 			status: domain.StatusFailed,
@@ -198,7 +195,7 @@ func closeOut(p sqlc.LockProposalRow, verdict domain.Outcome, priced candidate) 
 		}, nil
 	}
 	if domain.Kind(p.Kind) == domain.KindRule {
-		return closing{status: domain.StatusPassed}, nil
+		return closing{status: domain.StatusPassed, event: rulePassed(p, at)}, nil
 	}
 	comparison, err := decodeComparison(p.PriceComparison)
 	if err != nil {
@@ -206,6 +203,12 @@ func closeOut(p sqlc.LockProposalRow, verdict domain.Outcome, priced candidate) 
 	}
 	price, hasPrice := priced.storable(p.Mint.String)
 	return closing{status: domain.StatusPassed, event: passed(p, comparison), price: price, hasPrice: hasPrice}, nil
+}
+
+func rulePassed(p sqlc.LockProposalRow, at time.Time) events.ProposalRulePassed {
+	return events.ProposalRulePassed{
+		V: 1, ProposalID: p.ID, CabalID: p.CabalID, ProposerID: p.ProposerID, Change: p.RuleChange, PassedAt: at,
+	}
 }
 
 func decidedTransition(

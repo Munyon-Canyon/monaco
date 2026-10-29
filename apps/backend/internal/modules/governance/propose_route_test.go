@@ -94,3 +94,25 @@ func TestHTTP_PostCabalProposal_failsWhenTheProposerCardCannotBeRead(t *testing.
 		t.Fatalf("PostCabalProposal err = %v, want %s", err, errs.CodeInternal)
 	}
 }
+
+func TestHTTP_PostCabalRuleProposal_refusesWithoutAnActorAndWhenTheDetailReadFails(t *testing.T) {
+	t.Parallel()
+	w := newRuleWorld(t, ruleWorldOpts{})
+	adapter := adapters.HTTP{
+		RuleChange: w.handler(),
+		Reads: app.NewProposalReads(
+			w.pool, fakes.NewTrading(), w.fake,
+			marketfake.NewCatalog(marketfake.Fixtures()...),
+			&cardBook{err: errs.New(errs.CodeInternal, "test")}, &returnBook{}, &replyBook{},
+		),
+	}
+	body := api.RuleChangeRequest{Change: api.RuleChangeRequestChange{Rule: "show_sides", To: true}}
+	req := api.PostCabalRuleProposalRequestObject{Id: w.cabal.UUID(), Body: &body}
+	if _, err := adapter.PostCabalRuleProposal(t.Context(), req); errs.CodeOf(err) != errs.CodeUnauthorized {
+		t.Errorf("PostCabalRuleProposal without an actor err = %v, want %s", err, errs.CodeUnauthorized)
+	}
+	member := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: w.members[1].String()})
+	if _, err := adapter.PostCabalRuleProposal(member, req); errs.CodeOf(err) != errs.CodeInternal {
+		t.Errorf("PostCabalRuleProposal with the card read down err = %v, want %s", errs.CodeOf(err), errs.CodeInternal)
+	}
+}

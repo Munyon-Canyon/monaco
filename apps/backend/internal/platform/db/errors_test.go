@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"testing"
@@ -60,6 +61,16 @@ func TestClassify_mapsEachFailureToOneCode(t *testing.T) {
 				t.Fatalf("classify(%v) = %v, want code %s wrapping the cause", tc.err, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestIsUniqueViolation(t *testing.T) {
+	t.Parallel()
+	if !IsUniqueViolation(fmt.Errorf("wrapped: %w", &pgconn.PgError{Code: "23505"})) {
+		t.Fatal("a wrapped 23505 is not a unique violation")
+	}
+	if IsUniqueViolation(&pgconn.PgError{Code: "23514"}) || IsUniqueViolation(errs.New(errs.CodeInternal, "x")) {
+		t.Fatal("another error counts as a unique violation")
 	}
 }
 

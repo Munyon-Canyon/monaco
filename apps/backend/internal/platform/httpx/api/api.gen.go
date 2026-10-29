@@ -152,6 +152,8 @@ const (
 	RequestNotNeeded ErrorCode = "request_not_needed"
 	RequestPending ErrorCode = "request_pending"
 	RpcUnavailable ErrorCode = "rpc_unavailable"
+	RuleChangeOpen ErrorCode = "rule_change_open"
+	RuleUnchanged ErrorCode = "rule_unchanged"
 	SaleShort ErrorCode = "sale_short"
 	SameApprover ErrorCode = "same_approver"
 	SessionRequired ErrorCode = "session_required"
@@ -469,6 +471,10 @@ func (e ErrorCode) Valid() bool {
 	case RequestPending:
 		return true
 	case RpcUnavailable:
+		return true
+	case RuleChangeOpen:
+		return true
+	case RuleUnchanged:
 		return true
 	case SaleShort:
 		return true

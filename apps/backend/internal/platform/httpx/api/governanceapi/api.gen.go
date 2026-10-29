@@ -289,6 +289,39 @@ func (e ProposalStatus) Valid() bool {
 	}
 }
 
+// Defines values for RuleChangeRequestChangeRule.
+const (
+	RuleChangeRequestChangeRuleAdmin                 RuleChangeRequestChangeRule = "admin"
+	RuleChangeRequestChangeRuleJoinMode              RuleChangeRequestChangeRule = "join_mode"
+	RuleChangeRequestChangeRuleMaxTradeBps           RuleChangeRequestChangeRule = "max_trade_bps"
+	RuleChangeRequestChangeRuleProposalExpirySeconds RuleChangeRequestChangeRule = "proposal_expiry_seconds"
+	RuleChangeRequestChangeRuleShowSides             RuleChangeRequestChangeRule = "show_sides"
+	RuleChangeRequestChangeRuleThreshold             RuleChangeRequestChangeRule = "threshold"
+	RuleChangeRequestChangeRuleVoter                 RuleChangeRequestChangeRule = "voter"
+)
+
+// Valid indicates whether the value is a known member of the RuleChangeRequestChangeRule enum.
+func (e RuleChangeRequestChangeRule) Valid() bool {
+	switch e {
+	case RuleChangeRequestChangeRuleAdmin:
+		return true
+	case RuleChangeRequestChangeRuleJoinMode:
+		return true
+	case RuleChangeRequestChangeRuleMaxTradeBps:
+		return true
+	case RuleChangeRequestChangeRuleProposalExpirySeconds:
+		return true
+	case RuleChangeRequestChangeRuleShowSides:
+		return true
+	case RuleChangeRequestChangeRuleThreshold:
+		return true
+	case RuleChangeRequestChangeRuleVoter:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for VoidedProposalStatus.
 const (
 	VoidedProposalStatusVoided VoidedProposalStatus = "voided"
@@ -1544,6 +1577,46 @@ type RetractVoteResult struct {
 	Tally Tally `json:"tally"`
 }
 
+// RuleChangeRequest A change to one cabal rule to propose.
+//
+// Examples: {"change":{"rule":"show_sides","to":true},"thesis":"Let everyone see who voted what."}
+type RuleChangeRequest struct {
+	// Change The rule and the value it should take. `to` is a boolean for `show_sides`, `voter` and `admin`, an integer or null for `max_trade_bps`, an integer for `proposal_expiry_seconds` and a string for `threshold` and `join_mode`. `user_id` names the member a `voter` or `admin` change targets.
+	//
+	// Examples: {"rule":"show_sides","to":true}
+	Change RuleChangeRequestChange `json:"change"`
+
+	// Thesis The proposer's reason, up to 280 characters.
+	//
+	// Examples: Let everyone see who voted what.
+	Thesis *string `json:"thesis,omitempty"`
+}
+
+// RuleChangeRequestChangeRule Which rule to change.
+//
+// Examples: show_sides
+type RuleChangeRequestChangeRule string
+
+// RuleChangeRequestChange The rule and the value it should take. `to` is a boolean for `show_sides`, `voter` and `admin`, an integer or null for `max_trade_bps`, an integer for `proposal_expiry_seconds` and a string for `threshold` and `join_mode`. `user_id` names the member a `voter` or `admin` change targets.
+//
+// Examples: {"rule":"show_sides","to":true}
+type RuleChangeRequestChange struct {
+	// Rule Which rule to change.
+	//
+	// Examples: show_sides
+	Rule RuleChangeRequestChangeRule `json:"rule"`
+
+	// To The value the rule should take.
+	//
+	// Examples: true
+	To interface{} `json:"to"`
+
+	// UserId The member a `voter` or `admin` change targets.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	UserId *openapi_types.UUID `json:"user_id,omitempty"`
+}
+
 // Tally The ballots counted against the proposal's frozen voter set.
 type Tally struct {
 	// Needed Yes ballots the cabal's threshold rule needs to pass the proposal.
@@ -1719,6 +1792,12 @@ type GetCabalProposalPreviewParams struct {
 	Network *externalRef0.Network `form:"network,omitempty" json:"network,omitempty"`
 }
 
+// PostCabalRuleProposalParams defines parameters for PostCabalRuleProposal.
+type PostCabalRuleProposalParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // GetMyMarketFactsParams defines parameters for GetMyMarketFacts.
 type GetMyMarketFactsParams struct {
 	// Symbols Comma-separated symbols, 1 to 50, each at most 64 characters. More than 50 is `invalid_input`.
@@ -1785,6 +1864,9 @@ type VoidAdminProposalJSONRequestBody = externalRef0.ReasonBody
 // PostCabalProposalJSONRequestBody defines body for PostCabalProposal for application/json ContentType.
 type PostCabalProposalJSONRequestBody = ProposeTradeRequest
 
+// PostCabalRuleProposalJSONRequestBody defines body for PostCabalRuleProposal for application/json ContentType.
+type PostCabalRuleProposalJSONRequestBody = RuleChangeRequest
+
 // PostProposalVoteJSONRequestBody defines body for PostProposalVote for application/json ContentType.
 type PostProposalVoteJSONRequestBody = CastVoteRequest
 
@@ -1811,6 +1893,9 @@ type ServerInterface interface {
 	// GetCabalProposalPriceComparison Compare venues for an open buy proposal now.
 	// (GET /v1/cabals/{id}/proposals/{proposal_id}/price-comparison)
 	GetCabalProposalPriceComparison(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, proposalId openapi_types.UUID)
+	// PostCabalRuleProposal Propose a change to a cabal rule for the cabal to vote on.
+	// (POST /v1/cabals/{id}/rule-proposals)
+	PostCabalRuleProposal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostCabalRuleProposalParams)
 	// GetMyMarketFacts Say what Monaco knows about each of the caller's watched stocks.
 	// (GET /v1/me/market-facts)
 	GetMyMarketFacts(w http.ResponseWriter, r *http.Request, params GetMyMarketFactsParams)
@@ -2242,6 +2327,60 @@ func (siw *ServerInterfaceWrapper) GetCabalProposalPriceComparison(w http.Respon
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetCabalProposalPriceComparison(w, r, id, proposalId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostCabalRuleProposal operation middleware
+func (siw *ServerInterfaceWrapper) PostCabalRuleProposal(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostCabalRuleProposalParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostCabalRuleProposal(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2835,6 +2974,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/proposals", wrapper.PostCabalProposal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/proposals/preview", wrapper.GetCabalProposalPreview)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/proposals/{proposal_id}/price-comparison", wrapper.GetCabalProposalPriceComparison)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/rule-proposals", wrapper.PostCabalRuleProposal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/market-facts", wrapper.GetMyMarketFacts)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/pending-votes", wrapper.GetMyPendingVotes)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/proposals", wrapper.GetMyProposals)
@@ -3119,6 +3259,47 @@ type GetCabalProposalPriceComparisondefaultApplicationProblemPlusJSONResponse st
 }
 
 func (response GetCabalProposalPriceComparisondefaultApplicationProblemPlusJSONResponse) VisitGetCabalProposalPriceComparisonResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostCabalRuleProposalRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params PostCabalRuleProposalParams
+	Body   *PostCabalRuleProposalJSONRequestBody
+}
+
+type PostCabalRuleProposalResponseObject interface {
+	VisitPostCabalRuleProposalResponse(w http.ResponseWriter) error
+}
+
+type PostCabalRuleProposal201JSONResponse ProposalDetail
+
+func (response PostCabalRuleProposal201JSONResponse) VisitPostCabalRuleProposalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostCabalRuleProposaldefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response PostCabalRuleProposaldefaultApplicationProblemPlusJSONResponse) VisitPostCabalRuleProposalResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -3549,6 +3730,9 @@ type StrictServerInterface interface {
 	// GetCabalProposalPriceComparison Compare venues for an open buy proposal now.
 	// (GET /v1/cabals/{id}/proposals/{proposal_id}/price-comparison)
 	GetCabalProposalPriceComparison(ctx context.Context, request GetCabalProposalPriceComparisonRequestObject) (GetCabalProposalPriceComparisonResponseObject, error)
+	// PostCabalRuleProposal Propose a change to a cabal rule for the cabal to vote on.
+	// (POST /v1/cabals/{id}/rule-proposals)
+	PostCabalRuleProposal(ctx context.Context, request PostCabalRuleProposalRequestObject) (PostCabalRuleProposalResponseObject, error)
 	// GetMyMarketFacts Say what Monaco knows about each of the caller's watched stocks.
 	// (GET /v1/me/market-facts)
 	GetMyMarketFacts(ctx context.Context, request GetMyMarketFactsRequestObject) (GetMyMarketFactsResponseObject, error)
@@ -3815,6 +3999,40 @@ func (sh *strictHandler) GetCabalProposalPriceComparison(w http.ResponseWriter, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetCabalProposalPriceComparisonResponseObject); ok {
 		if err := validResponse.VisitGetCabalProposalPriceComparisonResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostCabalRuleProposal operation middleware
+func (sh *strictHandler) PostCabalRuleProposal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostCabalRuleProposalParams) {
+	var request PostCabalRuleProposalRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body PostCabalRuleProposalJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostCabalRuleProposal(ctx, request.(PostCabalRuleProposalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostCabalRuleProposal")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostCabalRuleProposalResponseObject); ok {
+		if err := validResponse.VisitPostCabalRuleProposalResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

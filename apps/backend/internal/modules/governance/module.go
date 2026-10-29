@@ -77,7 +77,10 @@ func (m *Module) Mount(r api.Mount) {
 	propose := app.NewProposeTradeHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock, ports, hints)
 	governanceapi.Mount(adapters.HTTP{
 		Propose: propose,
-		Facts:   facts,
+		RuleChange: app.NewProposeRuleChangeHandler(
+			m.deps.UoW, m.deps.IDs, m.deps.Clock, cabal.New(m.deps).Queries(), hints,
+		),
+		Facts: facts,
 		Comparisons: app.NewProposalComparisons(
 			m.deps.Pool, propose, adapters.PinListings{Market: market.New(m.deps).Catalog()},
 		),

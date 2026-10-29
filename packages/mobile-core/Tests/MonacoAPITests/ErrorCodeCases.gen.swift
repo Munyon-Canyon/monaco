@@ -144,6 +144,8 @@ extension Components.Schemas.ErrorCode {
         case .requestNotNeeded: true
         case .requestPending: true
         case .rpcUnavailable: true
+        case .ruleChangeOpen: true
+        case .ruleUnchanged: true
         case .saleShort: true
         case .sameApprover: true
         case .sessionRequired: true
