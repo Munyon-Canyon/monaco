@@ -66,7 +66,7 @@ func F03JoinCabalOK(s *scenario.Scenario) {
 			scenario.Post(membersPath, ""),
 			scenario.ExpectStatus(http.StatusOK),
 			scenario.ExpectJSON("member_count", 2),
-			scenario.ExpectJSON("me", map[string]any{"role": "member", "can_vote": true}),
+			scenario.ExpectJSON("me", map[string]any{"role": "member", "can_vote": true, "can_propose": true}),
 			scenario.Replay(),
 		).
 		Then(
@@ -183,7 +183,7 @@ func F03DecideAccessOK(s *scenario.Scenario) {
 			scenario.SignIn(outsiderOf("decide-ok")),
 			scenario.EventuallyHint("cabal_access"),
 			scenario.Get(cabalsPath+"/{cabal}"),
-			scenario.ExpectJSON("me", map[string]any{"role": "member", "can_vote": false}),
+			scenario.ExpectJSON("me", map[string]any{"role": "member", "can_vote": false, "can_propose": false}),
 			cabalHolds(),
 		)
 }

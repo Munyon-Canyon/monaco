@@ -166,9 +166,9 @@ final class CabalModelTests: XCTestCase {
         }.joined(separator: ",")
         return """
             {"id":"01890a5d-ac96-774b-bcce-b302099a8060","name":"\(name)","picture_url":null,"status":"active",\
-            "rules":{"join_mode":"request","voter_mode":"all","threshold":"majority","proposal_expiry_seconds":86400,"slippage_bps":100},\
+            "rules":{"join_mode":"request","voter_mode":"all","threshold":"majority","proposal_expiry_seconds":86400,"slippage_bps":100,"show_sides":false,"show_sides_since":null,"max_trade_bps":null,"who_can_propose":"voters"},\
             "creator":{"user_id":"01890a5d-ac96-774b-bcce-b302099a8070","handle":"kai0","display_name":"Kai 0","photo_url":null},\
-            "member_count":\(members),"members":[\(people)],"me":{"role":"creator","can_vote":true},\
+            "created_at":"2026-09-30T12:00:00Z","open_proposal_count":0,"voter_count":1,"member_count":\(members),"members":[\(people)],"me":{"role":"creator","can_vote":true,"can_propose":true},\
             "my_access_request":null,"invite_code":null,"treasury_address":"treasury-1"}
             """
     }

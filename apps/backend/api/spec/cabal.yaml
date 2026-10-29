@@ -61,7 +61,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Cabal"
-              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, members: [], me: {role: creator, can_vote: true}, my_access_request: null, invite_code: null, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
+              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100, show_sides: false, show_sides_since: null, max_trade_bps: null, who_can_propose: voters}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, created_at: "2026-09-30T12:00:00Z", open_proposal_count: 0, voter_count: 1, members: [], me: {role: creator, can_vote: true, can_propose: true}, my_access_request: null, invite_code: null, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
         default:
           $ref: "#/components/responses/Problem"
   /v1/cabals/{id}:
@@ -83,7 +83,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Cabal"
-              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, members: [], me: null, my_access_request: null, invite_code: null, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
+              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100, show_sides: false, show_sides_since: null, max_trade_bps: null, who_can_propose: voters}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, created_at: "2026-09-30T12:00:00Z", open_proposal_count: 0, voter_count: 1, members: [], me: null, my_access_request: null, invite_code: null, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
         default:
           $ref: "#/components/responses/Problem"
     patch:
@@ -118,7 +118,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Cabal"
-              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Work pot, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 50}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, members: [], me: {role: creator, can_vote: true}, my_access_request: null, invite_code: null, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
+              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Work pot, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 50, show_sides: false, show_sides_since: null, max_trade_bps: null, who_can_propose: voters}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, created_at: "2026-09-30T12:00:00Z", open_proposal_count: 0, voter_count: 1, members: [], me: {role: creator, can_vote: true, can_propose: true}, my_access_request: null, invite_code: null, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
         default:
           $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/picture:
@@ -156,7 +156,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Cabal"
-              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: "https://example.supabase.co/storage/v1/object/public/avatars/cabals/01890a5d-ac96-774b-bcce-b302099a8058/01890a5d-ac96-774b-bcce-b302099a8059.png", status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, members: [], me: {role: creator, can_vote: true}, my_access_request: null, invite_code: null, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
+              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: "https://example.supabase.co/storage/v1/object/public/avatars/cabals/01890a5d-ac96-774b-bcce-b302099a8058/01890a5d-ac96-774b-bcce-b302099a8059.png", status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100, show_sides: false, show_sides_since: null, max_trade_bps: null, who_can_propose: voters}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, created_at: "2026-09-30T12:00:00Z", open_proposal_count: 0, voter_count: 1, members: [], me: {role: creator, can_vote: true, can_propose: true}, my_access_request: null, invite_code: null, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
         default:
           $ref: "#/components/responses/Problem"
     delete:
@@ -180,7 +180,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Cabal"
-              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, members: [], me: {role: creator, can_vote: true}, my_access_request: null, invite_code: null, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
+              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100, show_sides: false, show_sides_since: null, max_trade_bps: null, who_can_propose: voters}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, created_at: "2026-09-30T12:00:00Z", open_proposal_count: 0, voter_count: 1, members: [], me: {role: creator, can_vote: true, can_propose: true}, my_access_request: null, invite_code: null, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
         default:
           $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/members:
@@ -207,7 +207,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Cabal"
-              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 2, members: [], me: {role: member, can_vote: true}, my_access_request: null, invite_code: null, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
+              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100, show_sides: false, show_sides_since: null, max_trade_bps: null, who_can_propose: voters}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 2, created_at: "2026-09-30T12:00:00Z", open_proposal_count: 0, voter_count: 2, members: [], me: {role: member, can_vote: true, can_propose: true}, my_access_request: null, invite_code: null, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
         default:
           $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/members/me:
@@ -494,6 +494,7 @@ components:
         threshold: {type: string, description: "`majority` or `unanimous`.", examples: [majority]}
         proposal_expiry_seconds: {type: integer, format: int32, description: "One of 3600, 86400 or 604800.", examples: [86400]}
         slippage_bps: {type: integer, format: int32, description: "Basis points from 1 to 300. Omitted means 100.", examples: [100]}
+        max_trade_bps: {type: [integer, "null"], format: int32, description: "Cap on one trade as basis points of the treasury's cash, from 100 to 10000 in steps of 100. Omitted or null means no cap.", examples: [2000]}
     UpdateCabalRequest:
       type: object
       description: The cabal fields to change. An omitted field keeps its value.
@@ -515,15 +516,18 @@ components:
       description: One cabal, as a signed-in user is allowed to see it.
       additionalProperties: false
       required:
-        [id, name, picture_url, status, rules, creator, member_count, members, me, my_access_request, invite_code, treasury_address]
+        [id, name, picture_url, status, rules, creator, member_count, created_at, open_proposal_count, voter_count, members, me, my_access_request, invite_code, treasury_address]
       properties:
         id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
         name: {type: string, examples: [Kai]}
         picture_url: {type: [string, "null"], description: Null when the cabal has no picture., examples: [null]}
         status: {type: string, description: "`active` or `banned`.", examples: [active]}
-        rules: {$ref: "#/components/schemas/CabalRules", examples: [{join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}]}
+        rules: {$ref: "#/components/schemas/CabalRules", examples: [{join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100, show_sides: false, show_sides_since: null, max_trade_bps: null, who_can_propose: voters}]}
         creator: {$ref: "#/components/schemas/CabalPerson", examples: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]}
         member_count: {type: integer, format: int32, examples: [1]}
+        created_at: {type: string, format: date-time, description: When the cabal was created., examples: ["2026-09-30T12:00:00Z"]}
+        open_proposal_count: {type: integer, format: int32, description: Proposals open for a vote right now., examples: [1]}
+        voter_count: {type: integer, format: int32, description: Members who can vote., examples: [1]}
         admins: {type: array, items: {$ref: "#/components/schemas/CabalPerson"}, description: "The cabal's admins, the creator first. Always present.", examples: [[{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]]}
         members: {type: array, items: {$ref: "#/components/schemas/CabalMember"}, examples: [[]]}
         me:
@@ -532,10 +536,11 @@ components:
           examples: [null]
           x-go-type-name: CabalMembership
           additionalProperties: false
-          required: [role, can_vote]
+          required: [role, can_vote, can_propose]
           properties:
             role: {type: string, description: "`creator`, `admin` or `member`. Clients treat `creator` as an admin.", examples: [creator]}
             can_vote: {type: boolean, examples: [true]}
+            can_propose: {type: boolean, description: "Whether the caller may propose a trade under `rules.who_can_propose`.", examples: [true]}
         my_access_request:
           type: [object, "null"]
           description: "The caller's pending access request or invite, else their latest access request when the creator denied it, else null. Always null for a member."
@@ -656,13 +661,17 @@ components:
       type: object
       description: How the cabal admits members and how it votes.
       additionalProperties: false
-      required: [join_mode, voter_mode, threshold, proposal_expiry_seconds, slippage_bps]
+      required: [join_mode, voter_mode, threshold, proposal_expiry_seconds, slippage_bps, show_sides, show_sides_since, max_trade_bps, who_can_propose]
       properties:
         join_mode: {type: string, examples: [open]}
         voter_mode: {type: string, examples: [all]}
         threshold: {type: string, examples: [majority]}
         proposal_expiry_seconds: {type: integer, format: int32, examples: [86400]}
         slippage_bps: {type: integer, format: int32, examples: [100]}
+        show_sides: {type: boolean, description: "Whether who voted which way shows after a vote closes. Off unless the cabal turned it on.", examples: [false]}
+        show_sides_since: {type: [string, "null"], format: date-time, description: "When show_sides last changed. Null while it has never changed.", examples: [null]}
+        max_trade_bps: {type: [integer, "null"], format: int32, description: "Cap on one trade as basis points of the treasury's cash. Null means no cap.", examples: [2000]}
+        who_can_propose: {type: string, enum: [voters], description: Who may propose a trade., examples: [voters]}
     CabalPerson:
       type: object
       description: A user as shown on a cabal.

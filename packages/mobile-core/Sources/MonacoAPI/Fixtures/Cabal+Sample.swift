@@ -14,11 +14,14 @@ extension Components.Schemas.Cabal {
             status: "active",
             rules: .init(
                 joinMode: "request", voterMode: "all", threshold: "unanimous", proposalExpirySeconds: 86_400,
-                slippageBps: 100),
+                slippageBps: 100, showSides: false, showSidesSince: nil, maxTradeBps: 2000, whoCanPropose: .voters),
             creator: .init(userId: creatorID, handle: "kai", displayName: "Kai", photoUrl: nil),
             memberCount: 2,
+            createdAt: Date(timeIntervalSince1970: 1_785_000_000),
+            openProposalCount: 1,
+            voterCount: 2,
             members: [],
-            me: role.map { .init(role: $0, canVote: canVote) },
+            me: role.map { .init(role: $0, canVote: canVote, canPropose: canVote) },
             myAccessRequest: nil,
             inviteCode: nil,
             treasuryAddress: "treasury-1"

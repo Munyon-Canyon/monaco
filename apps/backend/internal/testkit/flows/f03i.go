@@ -64,7 +64,7 @@ func F03InviteMemberOK(s *scenario.Scenario) {
 			scenario.ExpectJSON("status", "approved"),
 			scenario.ExpectEvents(events.TypeCabalMemberJoined, 2),
 			scenario.Get(cabalsPath+"/{cabal}"),
-			scenario.ExpectJSON("me", map[string]any{"role": "member", "can_vote": true}),
+			scenario.ExpectJSON("me", map[string]any{"role": "member", "can_vote": true, "can_propose": true}),
 			cabalHolds(),
 		)
 }

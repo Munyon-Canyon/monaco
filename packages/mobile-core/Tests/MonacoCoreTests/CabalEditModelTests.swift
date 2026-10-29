@@ -23,7 +23,8 @@ final class CabalEditModelTests: XCTestCase {
     }
 
     func testAMemberWhoDidNotCreateTheCabalIsNotTheCreator() async {
-        let (model, _, _) = make([.json(.ok, Self.cabal(name: "QA pot", me: #"{"role":"member","can_vote":true}"#))])
+        let member = #"{"role":"member","can_vote":true,"can_propose":true}"#
+        let (model, _, _) = make([.json(.ok, Self.cabal(name: "QA pot", me: member))])
 
         await model.load()
 
@@ -180,7 +181,7 @@ final class CabalEditModelTests: XCTestCase {
         return await predicate()
     }
 
-    static let creator = #"{"role":"creator","can_vote":true}"#
+    static let creator = #"{"role":"creator","can_vote":true,"can_propose":true}"#
     static let jordanID = "01890a5d-ac96-774b-bcce-b302099a8061"
     static let priyaID = "01890a5d-ac96-774b-bcce-b302099a8062"
 
@@ -207,9 +208,9 @@ final class CabalEditModelTests: XCTestCase {
     static func cabal(name: String, me: String) -> String {
         ##"{"id":"\##(cabalID)","name":"\##(name)","picture_url":null,"status":"active","##
             + ##""rules":{"join_mode":"request","voter_mode":"all","threshold":"unanimous","##
-            + ##""proposal_expiry_seconds":86400,"slippage_bps":100},"##
+            + ##""proposal_expiry_seconds":86400,"slippage_bps":100,"show_sides":false,"show_sides_since":null,"max_trade_bps":null,"who_can_propose":"voters"},"##
             + ##""creator":{"user_id":"\##(creatorID)","handle":"kai","display_name":"Kai","photo_url":null},"##
-            + ##""member_count":2,"members":[],"me":\##(me),"my_access_request":null,"##
+            + ##""created_at":"2026-09-30T12:00:00Z","open_proposal_count":0,"voter_count":1,"member_count":2,"members":[],"me":\##(me),"my_access_request":null,"##
             + ##""invite_code":null,"treasury_address":"Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf"}"##
     }
 }

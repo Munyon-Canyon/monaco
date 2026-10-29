@@ -53,6 +53,8 @@ type Rules struct {
 	Threshold      domain.Threshold
 	ProposalExpiry time.Duration
 	SlippageBps    int32
+	ShowSides      bool
+	MaxTradeBps    *int32
 }
 
 type TreasuryWallet struct {

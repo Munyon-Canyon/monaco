@@ -86,6 +86,7 @@ func TestUpdateCabal_Ok(t *testing.T) {
 	view, ok := res.(api.PatchCabal200JSONResponse)
 	rules := api.CabalRules{
 		JoinMode: "request", VoterMode: "all", Threshold: "unanimous", ProposalExpirySeconds: 3600, SlippageBps: 50,
+		WhoCanPropose: "voters",
 	}
 	if err != nil || !ok || view.Name != "Work pot" || view.Rules != rules || view.Me == nil ||
 		view.Me.Role != "creator" {

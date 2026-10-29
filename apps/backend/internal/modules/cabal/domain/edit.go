@@ -34,7 +34,12 @@ func (r Rules) Patch(p RulesPatch) (Rules, error) {
 	if p.SlippageBps != nil {
 		slippage = *p.SlippageBps
 	}
-	return NewRules(join, voters, threshold, expiry, slippage)
+	next, err := NewRules(join, voters, threshold, expiry, slippage)
+	if err != nil {
+		return Rules{}, err
+	}
+	next.showSides, next.showSidesChangedAt, next.maxTradeBps = r.showSides, r.showSidesChangedAt, r.maxTradeBps
+	return next, nil
 }
 
 func CanEdit(actor ids.UserID, cabal Cabal) error {

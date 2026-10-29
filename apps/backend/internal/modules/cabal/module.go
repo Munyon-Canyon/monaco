@@ -7,6 +7,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
+	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
@@ -43,6 +44,7 @@ type Module struct {
 	wallets    app.TreasuryWallets
 	treasury   app.TreasuryReads
 	unread     app.UnreadCounter
+	votes      app.OpenVotes
 }
 
 type liveReads struct {
@@ -113,6 +115,11 @@ func (m *Module) Wire(set module.Set) {
 		if provider, ok := mod.(interface{ Chat() app.UnreadCounter }); ok {
 			m.unread = provider.Chat()
 		}
+		if provider, ok := mod.(interface{ Queries() governanceport.Queries }); ok {
+			if votes, ok := provider.Queries().(app.OpenVotes); ok {
+				m.votes = votes
+			}
+		}
 	}
 }
 
@@ -126,6 +133,10 @@ func (m *Module) http() adapters.HTTP {
 	if unread == nil {
 		unread = app.UnwiredUnread{}
 	}
+	votes := m.votes
+	if votes == nil {
+		votes = app.NoOpenVotes{}
+	}
 	return adapters.HTTP{
 		Create:  m.CreateCabalHandler(),
 		Join:    app.NewJoinCabalHandler(m.deps.UoW, m.deps.Clock),
@@ -136,7 +147,7 @@ func (m *Module) http() adapters.HTTP {
 		Picture: app.NewSetCabalPictureHandler(m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, m.deps.Photos),
 		Leave:   m.LeaveCabalHandler(),
 		Invite:  app.NewInviteMemberHandler(m.deps.UoW, users, m.deps.IDs, m.deps.Clock),
-		DB:      m.deps.Pool, Users: users, Unread: unread, Clock: m.deps.Clock,
+		DB:      m.deps.Pool, Users: users, Unread: unread, Votes: votes, Clock: m.deps.Clock,
 	}
 }
 

@@ -38,6 +38,21 @@ func (e AccessDecisionRequestDecision) Valid() bool {
 	}
 }
 
+// Defines values for CabalRulesWhoCanPropose.
+const (
+	Voters CabalRulesWhoCanPropose = "voters"
+)
+
+// Valid indicates whether the value is a known member of the CabalRulesWhoCanPropose enum.
+func (e CabalRulesWhoCanPropose) Valid() bool {
+	switch e {
+	case Voters:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetCabalAccessRequestsParamsStatus.
 const (
 	GetCabalAccessRequestsParamsStatusPending GetCabalAccessRequestsParamsStatus = "pending"
@@ -84,6 +99,11 @@ type Cabal struct {
 	// Examples: [{"display_name":"Kai","handle":"kai","photo_url":null,"user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}]
 	Admins *[]CabalPerson `json:"admins,omitempty"`
 
+	// CreatedAt When the cabal was created.
+	//
+	// Examples: 2026-09-30T12:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
 	// Creator A user as shown on a cabal.
 	//
 	// Examples: {"display_name":"Kai","handle":"kai","photo_url":null,"user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}
@@ -116,6 +136,11 @@ type Cabal struct {
 	// Name Examples: Kai
 	Name string `json:"name"`
 
+	// OpenProposalCount Proposals open for a vote right now.
+	//
+	// Examples: 1
+	OpenProposalCount int32 `json:"open_proposal_count"`
+
 	// PictureUrl Null when the cabal has no picture.
 	//
 	// Examples: null
@@ -123,7 +148,7 @@ type Cabal struct {
 
 	// Rules How the cabal admits members and how it votes.
 	//
-	// Examples: {"join_mode":"open","proposal_expiry_seconds":86400,"slippage_bps":100,"threshold":"majority","voter_mode":"all"}
+	// Examples: {"join_mode":"open","max_trade_bps":null,"proposal_expiry_seconds":86400,"show_sides":false,"show_sides_since":null,"slippage_bps":100,"threshold":"majority","voter_mode":"all","who_can_propose":"voters"}
 	Rules CabalRules `json:"rules"`
 
 	// Status `active` or `banned`.
@@ -135,12 +160,22 @@ type Cabal struct {
 	//
 	// Examples: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf
 	TreasuryAddress string `json:"treasury_address"`
+
+	// VoterCount Members who can vote.
+	//
+	// Examples: 1
+	VoterCount int32 `json:"voter_count"`
 }
 
 // CabalMembership Null when the caller is not a member.
 //
 // Examples: null
 type CabalMembership struct {
+	// CanPropose Whether the caller may propose a trade under `rules.who_can_propose`.
+	//
+	// Examples: true
+	CanPropose bool `json:"can_propose"`
+
 	// CanVote Examples: true
 	CanVote bool `json:"can_vote"`
 
@@ -296,8 +331,23 @@ type CabalRules struct {
 	// JoinMode Examples: open
 	JoinMode string `json:"join_mode"`
 
+	// MaxTradeBps Cap on one trade as basis points of the treasury's cash. Null means no cap.
+	//
+	// Examples: 2000
+	MaxTradeBps *int32 `json:"max_trade_bps"`
+
 	// ProposalExpirySeconds Examples: 86400
 	ProposalExpirySeconds int32 `json:"proposal_expiry_seconds"`
+
+	// ShowSides Whether who voted which way shows after a vote closes. Off unless the cabal turned it on.
+	//
+	// Examples: false
+	ShowSides bool `json:"show_sides"`
+
+	// ShowSidesSince When show_sides last changed. Null while it has never changed.
+	//
+	// Examples: null
+	ShowSidesSince *time.Time `json:"show_sides_since"`
 
 	// SlippageBps Examples: 100
 	SlippageBps int32 `json:"slippage_bps"`
@@ -307,7 +357,17 @@ type CabalRules struct {
 
 	// VoterMode Examples: all
 	VoterMode string `json:"voter_mode"`
+
+	// WhoCanPropose Who may propose a trade.
+	//
+	// Examples: voters
+	WhoCanPropose CabalRulesWhoCanPropose `json:"who_can_propose"`
 }
+
+// CabalRulesWhoCanPropose Who may propose a trade.
+//
+// Examples: voters
+type CabalRulesWhoCanPropose string
 
 // CabalSearchItem A public cabal in a search result.
 type CabalSearchItem struct {
@@ -358,6 +418,11 @@ type CreateCabalRequest struct {
 	//
 	// Examples: open
 	JoinMode *string `json:"join_mode,omitempty"`
+
+	// MaxTradeBps Cap on one trade as basis points of the treasury's cash, from 100 to 10000 in steps of 100. Omitted or null means no cap.
+	//
+	// Examples: 2000
+	MaxTradeBps *int32 `json:"max_trade_bps,omitempty"`
 
 	// Name Cabal name, 3 to 40 characters.
 	//

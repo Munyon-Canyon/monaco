@@ -254,7 +254,7 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
     }
 
     private var cabalBody: String {
-        #"{"id":"c","name":"Cabal","picture_url":null,"status":"active","rules":{"join_mode":"request","voter_mode":"all","threshold":"majority","proposal_expiry_seconds":86400,"slippage_bps":100},"creator":{"user_id":"u","handle":"jordan","display_name":"Jordan","photo_url":null},"member_count":1,"members":[{"user_id":"u","handle":"jordan","display_name":"Jordan","photo_url":null,"role":"creator","can_vote":true,"joined_at":"2026-01-01T00:00:00Z"}],"me":{"role":"creator","can_vote":true},"my_access_request":null,"invite_code":null,"treasury_address":"treasury"}"#
+        #"{"id":"c","name":"Cabal","picture_url":null,"status":"active","rules":{"join_mode":"request","voter_mode":"all","threshold":"majority","proposal_expiry_seconds":86400,"slippage_bps":100,"show_sides":false,"show_sides_since":null,"max_trade_bps":null,"who_can_propose":"voters"},"creator":{"user_id":"u","handle":"jordan","display_name":"Jordan","photo_url":null},"created_at":"2026-09-30T12:00:00Z","open_proposal_count":0,"voter_count":1,"member_count":1,"members":[{"user_id":"u","handle":"jordan","display_name":"Jordan","photo_url":null,"role":"creator","can_vote":true,"joined_at":"2026-01-01T00:00:00Z"}],"me":{"role":"creator","can_vote":true,"can_propose":true},"my_access_request":null,"invite_code":null,"treasury_address":"treasury"}"#
     }
 
     private var assetBody: String {

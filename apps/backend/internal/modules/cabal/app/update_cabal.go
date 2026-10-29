@@ -106,6 +106,9 @@ func editable(
 		row.ProposalExpirySeconds,
 		row.SlippageBps,
 	)
+	if err == nil {
+		rules, err = storedRules(rules, row)
+	}
 	if err != nil {
 		return sqlc.FindCabalRow{}, domain.Cabal{}, errs.Wrap(err, errs.CodeInternal, updateCabalOp)
 	}
@@ -113,6 +116,11 @@ func editable(
 		CreatorID: ids.UserIDFrom(row.CreatorID), Rules: rules, Banned: row.Status == string(port.StatusBanned),
 	}
 	return row, cabal, domain.CanEdit(actor, cabal)
+}
+
+func storedRules(rules domain.Rules, row sqlc.FindCabalRow) (domain.Rules, error) {
+	return rules.WithShowSides(row.ShowSides, timePtr(row.ShowSidesChangedAt.Valid, row.ShowSidesChangedAt.Time)).
+		WithMaxTradeBps(int32Ptr(row.MaxTradeBps.Valid, row.MaxTradeBps.Int32))
 }
 
 func ruleChanges(current sqlc.FindCabalRow, name string, rules domain.Rules) events.CabalChanges {

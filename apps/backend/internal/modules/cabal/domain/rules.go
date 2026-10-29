@@ -3,6 +3,7 @@ package domain
 import (
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
@@ -60,6 +61,10 @@ const (
 	MinSlippageBps     int32 = 1
 	MaxSlippageBps     int32 = 300
 	DefaultSlippageBps int32 = 100
+
+	MinMaxTradeBps  int32 = 100
+	MaxMaxTradeBps  int32 = 10000
+	MaxTradeBpsStep int32 = 100
 )
 
 func validExpiry(seconds int32) bool {
@@ -76,6 +81,10 @@ type Rules struct {
 	threshold     Threshold
 	expirySeconds int32
 	slippageBps   int32
+
+	showSides          bool
+	showSidesChangedAt *time.Time
+	maxTradeBps        *int32
 }
 
 func NewRules(joinMode, voterMode, threshold string, expirySeconds, slippageBps int32) (Rules, error) {
@@ -113,3 +122,22 @@ func (r Rules) Threshold() Threshold { return r.threshold }
 func (r Rules) ExpirySeconds() int32 { return r.expirySeconds }
 
 func (r Rules) SlippageBps() int32 { return r.slippageBps }
+
+func (r Rules) ShowSides() bool { return r.showSides }
+
+func (r Rules) ShowSidesChangedAt() *time.Time { return r.showSidesChangedAt }
+
+func (r Rules) MaxTradeBps() *int32 { return r.maxTradeBps }
+
+func (r Rules) WithShowSides(on bool, at *time.Time) Rules {
+	r.showSides, r.showSidesChangedAt = on, at
+	return r
+}
+
+func (r Rules) WithMaxTradeBps(v *int32) (Rules, error) {
+	if v != nil && (*v < MinMaxTradeBps || *v > MaxMaxTradeBps || *v%MaxTradeBpsStep != 0) {
+		return Rules{}, errs.New(errs.CodeInvalidInput, "cabal.WithMaxTradeBps", slog.String("fields", "max_trade_bps"))
+	}
+	r.maxTradeBps = v
+	return r, nil
+}

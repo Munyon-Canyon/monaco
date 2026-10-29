@@ -37,6 +37,7 @@ type HTTP struct {
 	DB      sqlc.DBTX
 	Users   app.UserCards
 	Unread  app.UnreadCounter
+	Votes   app.OpenVotes
 	Clock   clock.Clock
 }
 
@@ -57,7 +58,7 @@ func (h HTTP) PostCabal(
 	if err != nil {
 		return nil, err
 	}
-	view, err := app.GetCabal(ctx, h.DB, h.Users, created.ID, user)
+	view, err := app.GetCabal(ctx, h.DB, h.Users, h.Votes, created.ID, user)
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +226,7 @@ func (h HTTP) GetCabal(
 	if err != nil {
 		return nil, err
 	}
-	view, err := app.GetCabal(ctx, h.DB, h.Users, ids.CabalIDFrom(req.Id), user)
+	view, err := app.GetCabal(ctx, h.DB, h.Users, h.Votes, ids.CabalIDFrom(req.Id), user)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +247,7 @@ func (h HTTP) PatchCabal(
 	if err := h.Update.Handle(ctx, cmd); err != nil {
 		return nil, err
 	}
-	view, err := app.GetCabal(ctx, h.DB, h.Users, cmd.CabalID, user)
+	view, err := app.GetCabal(ctx, h.DB, h.Users, h.Votes, cmd.CabalID, user)
 	if err != nil {
 		return nil, err
 	}
@@ -319,7 +320,7 @@ func (h HTTP) setPicture(ctx context.Context, cabalID ids.CabalID, picture *app.
 	); err != nil {
 		return api.Cabal{}, err
 	}
-	view, err := app.GetCabal(ctx, h.DB, h.Users, cabalID, user)
+	view, err := app.GetCabal(ctx, h.DB, h.Users, h.Votes, cabalID, user)
 	if err != nil {
 		return api.Cabal{}, err
 	}
@@ -337,7 +338,7 @@ func (h HTTP) PostCabalMember(
 	if err := h.Join.Handle(ctx, app.JoinCabal{ActorID: user, CabalID: cabalID}); err != nil {
 		return nil, err
 	}
-	view, err := app.GetCabal(ctx, h.DB, h.Users, cabalID, user)
+	view, err := app.GetCabal(ctx, h.DB, h.Users, h.Votes, cabalID, user)
 	if err != nil {
 		return nil, err
 	}
@@ -521,6 +522,9 @@ func createCommand(user ids.UserID, req api.PostCabalRequestObject) (app.CreateC
 	if err != nil {
 		return app.CreateCabal{}, err
 	}
+	if rules, err = rules.WithMaxTradeBps(req.Body.MaxTradeBps); err != nil {
+		return app.CreateCabal{}, err
+	}
 	return app.CreateCabal{
 		ActorID: user, IdempotencyKey: req.Params.IdempotencyKey, Name: name, Rules: rules,
 	}, nil
@@ -542,6 +546,8 @@ func caller(ctx context.Context) (ids.UserID, error) {
 	return user, nil
 }
 
+const whoCanProposeVoters = "voters"
+
 func wireCabal(view app.CabalView) api.Cabal {
 	members := make([]api.CabalMember, 0, len(view.Members))
 	for _, member := range view.Members {
@@ -560,7 +566,10 @@ func wireCabal(view app.CabalView) api.Cabal {
 		Rules: api.CabalRules{
 			JoinMode: view.JoinMode, VoterMode: view.VoterMode, Threshold: view.Threshold,
 			ProposalExpirySeconds: view.ExpirySeconds, SlippageBps: view.SlippageBps,
+			ShowSides: view.ShowSides, ShowSidesSince: view.ShowSidesSince, MaxTradeBps: view.MaxTradeBps,
+			WhoCanPropose: whoCanProposeVoters,
 		},
+		CreatedAt: view.CreatedAt, OpenProposalCount: view.OpenProposals, VoterCount: view.VoterCount,
 		Creator: wirePerson(view.Creator), Admins: &admins,
 		MemberCount: view.MemberCount, Members: members, Me: wireMe(view.Me),
 		MyAccessRequest: wireAccess(view.Access),
@@ -578,7 +587,7 @@ func wireMe(me *app.Membership) *api.CabalMembership {
 	if me == nil {
 		return nil
 	}
-	return &api.CabalMembership{Role: me.Role, CanVote: me.CanVote}
+	return &api.CabalMembership{Role: me.Role, CanVote: me.CanVote, CanPropose: me.CanPropose}
 }
 
 func wireAccess(access *app.Access) *api.CabalAccess {

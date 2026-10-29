@@ -49,7 +49,8 @@ func (f createFixture) routes(users app.UserCards) adapters.HTTP {
 		users = identity.New(module.Deps{Pool: f.pool}).Queries()
 	}
 	return adapters.HTTP{
-		Create: f.handler(), DB: f.pool, Users: users, Unread: social.New(module.Deps{Pool: f.pool}).Chat(),
+		Create: f.handler(), DB: f.pool, Users: users, Votes: app.NoOpenVotes{},
+		Unread: social.New(module.Deps{Pool: f.pool}).Chat(),
 	}
 }
 
@@ -355,7 +356,7 @@ func checkBrokenRead(t *testing.T, name, ddl string, code errs.Code) {
 	if name == "missing" {
 		id = ids.CabalIDFrom(f.ids.NewV7())
 	}
-	_, err := app.GetCabal(t.Context(), f.pool, f.routes(nil).Users, id, f.user.ID)
+	_, err := app.GetCabal(t.Context(), f.pool, f.routes(nil).Users, app.NoOpenVotes{}, id, f.user.ID)
 	if errs.CodeOf(err) != code {
 		t.Fatalf("GetCabal = %v, want %s", err, code)
 	}
@@ -375,7 +376,7 @@ func TestGetCabal_wrapsAUserLookupFailure(t *testing.T) {
 	t.Parallel()
 	f := newCreate(t)
 	seeded := testkit.NewCabal(t, f.pool)
-	_, err := app.GetCabal(t.Context(), f.pool, failCards{}, seeded.ID, f.user.ID)
+	_, err := app.GetCabal(t.Context(), f.pool, failCards{}, app.NoOpenVotes{}, seeded.ID, f.user.ID)
 	if errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("GetCabal = %v", err)
 	}

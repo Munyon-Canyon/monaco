@@ -93,10 +93,13 @@ func (cmd CreateCabal) validate() error {
 	if _, err := domain.ParseName(cmd.Name.String()); err != nil {
 		return err
 	}
-	_, err := domain.NewRules(
+	if _, err := domain.NewRules(
 		string(cmd.Rules.JoinMode()), string(cmd.Rules.VoterMode()), string(cmd.Rules.Threshold()),
 		cmd.Rules.ExpirySeconds(), cmd.Rules.SlippageBps(),
-	)
+	); err != nil {
+		return err
+	}
+	_, err := cmd.Rules.WithMaxTradeBps(cmd.Rules.MaxTradeBps())
 	return err
 }
 
@@ -117,7 +120,8 @@ func (h *CreateCabalHandler) committed(
 	if cabal.CreatorID != cmd.ActorID.UUID() || cabal.Name != cmd.Name.String() ||
 		cabal.JoinMode != string(cmd.Rules.JoinMode()) || cabal.VoterMode != string(cmd.Rules.VoterMode()) ||
 		cabal.Threshold != string(cmd.Rules.Threshold()) ||
-		cabal.ProposalExpirySeconds != cmd.Rules.ExpirySeconds() || cabal.SlippageBps != cmd.Rules.SlippageBps() {
+		cabal.ProposalExpirySeconds != cmd.Rules.ExpirySeconds() || cabal.SlippageBps != cmd.Rules.SlippageBps() ||
+		!equalBps(cabal.MaxTradeBps.Valid, cabal.MaxTradeBps.Int32, cmd.Rules.MaxTradeBps()) {
 		return CreatedCabal{}, false, errs.New(
 			errs.CodeIdempotencyMismatch, createCabalOp, slog.String("privy_wallet_id", walletID),
 		)
@@ -134,12 +138,16 @@ func (h *CreateCabalHandler) write(
 	q := sqlc.New(tx.Queries())
 	id := ids.CabalIDFrom(h.ids.NewV7())
 	now := h.clock.Now()
-	if err := insertCabal(ctx, q, sqlc.InsertCabalParams{
+	row := sqlc.InsertCabalParams{
 		ID: id.UUID(), Name: cmd.Name.String(), CreatorID: cmd.ActorID.UUID(),
 		JoinMode: string(cmd.Rules.JoinMode()), VoterMode: string(cmd.Rules.VoterMode()),
 		Threshold: string(cmd.Rules.Threshold()), ProposalExpirySeconds: cmd.Rules.ExpirySeconds(),
 		SlippageBps: cmd.Rules.SlippageBps(), Now: now,
-	}); err != nil {
+	}
+	if bps := cmd.Rules.MaxTradeBps(); bps != nil {
+		row.MaxTradeBps.Int32, row.MaxTradeBps.Valid = *bps, true
+	}
+	if err := insertCabal(ctx, q, row); err != nil {
 		return CreatedCabal{}, err
 	}
 	n, err := q.InsertMember(ctx, sqlc.InsertMemberParams{
@@ -183,6 +191,13 @@ func appendCreated(
 		return err
 	}
 	return tx.Events.Append(ctx, joined)
+}
+
+func equalBps(storedValid bool, stored int32, want *int32) bool {
+	if want == nil {
+		return !storedValid
+	}
+	return storedValid && stored == *want
 }
 
 func insertCabal(ctx context.Context, q *sqlc.Queries, row sqlc.InsertCabalParams) error {

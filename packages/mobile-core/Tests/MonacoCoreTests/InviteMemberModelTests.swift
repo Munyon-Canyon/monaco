@@ -224,8 +224,8 @@ final class InviteMemberModelTests: XCTestCase {
         return """
             {"id":"\(cabalID)","name":"QA pot","picture_url":null,"status":"active",
             "rules":{"join_mode":"\(joinMode)","voter_mode":"all","threshold":"majority",
-            "proposal_expiry_seconds":86400,"slippage_bps":100},
-            "creator":\(creator),"member_count":2,"members":[],"me":{"role":"\(role)","can_vote":true},
+            "proposal_expiry_seconds":86400,"slippage_bps":100,"show_sides":false,"show_sides_since":null,"max_trade_bps":null,"who_can_propose":"voters"},
+            "creator":\(creator),"created_at":"2026-09-30T12:00:00Z","open_proposal_count":0,"voter_count":1,"member_count":2,"members":[],"me":{"role":"\(role)","can_vote":true,"can_propose":true},
             "my_access_request":null,"invite_code":null,"treasury_address":"treasury-placeholder"}
             """
     }
