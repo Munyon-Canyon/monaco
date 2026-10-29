@@ -5,20 +5,23 @@ import SwiftUI
 nonisolated struct ProposeFromAssetRoute: AppRoute {
     let symbol: String
     let kind: ProposeKind
+    var prefill: ProposePrefill? = nil
 
     @MainActor func destination() -> some View {
-        ProposeFromAssetScreen(symbol: symbol, kind: kind)
+        ProposeFromAssetScreen(symbol: symbol, kind: kind, prefill: prefill)
     }
 }
 
 struct ProposeFromAssetScreen: View {
     let symbol: String
     let kind: ProposeKind
+    var prefill: ProposePrefill? = nil
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.hostMainTab) private var hostMainTab
     @State private var model: ProposeFromAssetModel?
     @State private var pickedCabal: Components.Schemas.MyCabal?
     @State private var showsPicker = false
+    @State private var keptAmountMicros: Int64?
     @State private var logoURL: URL?
 
     var body: some View {
@@ -44,7 +47,7 @@ struct ProposeFromAssetScreen: View {
             }
         }
         .onChange(of: model?.destination == .pick) { _, picking in
-            if picking { showsPicker = true }
+            if picking, pickedCabal == nil { showsPicker = true }
         }
         .sheet(isPresented: $showsPicker, onDismiss: pickerDismissed) {
             if case .loaded(let cabals) = model?.state { picker(cabals) }
@@ -55,6 +58,7 @@ struct ProposeFromAssetScreen: View {
             model = created
             guard case .idle = created.state else { return }
             await created.load(kind: kind, symbol: symbol)
+            if let cabal = created.votableCabal(id: prefill?.cabalID) { pickedCabal = cabal }
         }
     }
 
@@ -92,7 +96,7 @@ struct ProposeFromAssetScreen: View {
                 MonacoGroupedList {
                     ForEach(cabals, id: \.id) { cabal in
                         Button {
-                            pickedCabal = cabal
+                            if cabal.id != pickedCabal?.id { pickedCabal = cabal }
                             showsPicker = false
                         } label: {
                             ProposePickCabalRow(cabal: cabal, isLast: cabal.id == cabals.last?.id)
@@ -107,6 +111,16 @@ struct ProposeFromAssetScreen: View {
         .monacoSheet(
             title: ProposeFlowCopy.chooseCabalTitle, titleIdentifier: "propose-pick-cabal-sheet", detents: .votes,
             showsClose: true)
+    }
+
+    private var initialAmountMicros: Int64? { keptAmountMicros ?? prefill?.amountMicros }
+
+    private var changeCabalAction: ((Int64) -> Void)? {
+        guard model?.destination == .pick else { return nil }
+        return { micros in
+            keptAmountMicros = micros > 0 ? micros : nil
+            showsPicker = true
+        }
     }
 
     private func pickerDismissed() {
@@ -125,7 +139,10 @@ struct ProposeFromAssetScreen: View {
         case .buy:
             ProposeAmountScreen(
                 service: MonacoCore.LiveProposeService(api: environment.api), cabalID: cabal.id,
-                stock: ProposeStock(symbol: symbol, logoURL: logoURL), bestChains: environment.bestChains)
+                stock: ProposeStock(symbol: symbol, logoURL: logoURL), bestChains: environment.bestChains,
+                initialAmountMicros: initialAmountMicros, onChangeCabal: changeCabalAction
+            )
+            .id(cabal.id)
         case .sell:
             CabalPotModelHost(cabalID: cabal.id) { pot in
                 sellAmount(cabal, pot: pot)
@@ -140,7 +157,10 @@ struct ProposeFromAssetScreen: View {
         }) {
             ProposeAmountScreen(
                 service: MonacoCore.LiveProposeService(api: environment.api), cabalID: cabal.id,
-                stock: ProposeStock(holding: holding, logoURL: logoURL), trade: .sell(holding))
+                stock: ProposeStock(holding: holding, logoURL: logoURL), trade: .sell(holding),
+                initialAmountMicros: initialAmountMicros, onChangeCabal: changeCabalAction
+            )
+            .id(cabal.id)
         } else if case .failed = pot?.state {
             framed {
                 EmptyState.loadFailed(identifier: "propose-sell-error") { Task { await pot?.load() } }

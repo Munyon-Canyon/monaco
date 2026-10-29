@@ -21,17 +21,19 @@ public final class ProposeAmountModel {
     private let cabalID: String
     private let clock: any Clock<Duration>
     private let bestChains: AssetBestChainStore?
+    private var initialAmountMicros: Int64?
     private var previewTask: Task<Void, Never>?
 
     public init(
         service: ProposeService, cabalID: String, trade: ProposeTrade, clock: any Clock<Duration>,
-        bestChains: AssetBestChainStore? = nil
+        bestChains: AssetBestChainStore? = nil, initialAmountMicros: Int64? = nil
     ) {
         self.service = service
         self.cabalID = cabalID
         self.trade = trade
         self.clock = clock
         self.bestChains = bestChains
+        self.initialAmountMicros = initialAmountMicros
     }
 
     public var maxMicros: Int64? {
@@ -79,7 +81,11 @@ public final class ProposeAmountModel {
     }
 
     public func load() async {
-        guard case .buy(let symbol, _, _) = trade else { return }
+        guard case .buy(let symbol, _, _) = trade else {
+            applyInitialAmount()
+            return
+        }
+        defer { applyInitialAmount() }
         do {
             cashPreview = try await service.preview(
                 cabalID: cabalID, draft: .buy(symbol: symbol, usdcMicros: 0, thesis: ""), network: nil)
@@ -88,6 +94,16 @@ public final class ProposeAmountModel {
         } catch {
             cashFailed = true
         }
+    }
+
+    private func applyInitialAmount() {
+        guard let micros = initialAmountMicros, micros > 0 else { return }
+        initialAmountMicros = nil
+        if let maxMicros, micros > maxMicros {
+            amountMicros = micros
+            return
+        }
+        setAmount(micros: micros)
     }
 
     public func prefetchBestChain() async {

@@ -29,6 +29,17 @@ final class ProposeFromAssetModelTests: XCTestCase {
         XCTAssertEqual(model.destination, .pick)
     }
 
+    func testPrefillPicksOnlyACabalTheCallerCanStillVoteIn() async {
+        let model = makeModel([cabal("a", canVote: true), cabal("b", canVote: true), cabal("c", canVote: false)])
+
+        XCTAssertNil(model.votableCabal(id: "a"))
+        await model.load(kind: .buy, symbol: "AAPLx")
+
+        XCTAssertEqual(model.votableCabal(id: "b")?.id, "b")
+        XCTAssertNil(model.votableCabal(id: "c"))
+        XCTAssertNil(model.votableCabal(id: nil))
+    }
+
     func testAFailedReadHasNoDestination() async {
         let model = ProposeFromAssetModel(api: api(StubTransport(.json(.internalServerError, "{}"))))
 

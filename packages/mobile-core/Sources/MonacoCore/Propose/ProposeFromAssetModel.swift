@@ -37,6 +37,11 @@ public final class ProposeFromAssetModel {
         return .pick
     }
 
+    public func votableCabal(id: String?) -> Components.Schemas.MyCabal? {
+        guard let id, case .loaded(let cabals) = state else { return nil }
+        return cabals.first { $0.id == id }
+    }
+
     private func holding(
         _ cabals: [Components.Schemas.MyCabal], symbol: String
     ) async throws -> [Components.Schemas.MyCabal] {
