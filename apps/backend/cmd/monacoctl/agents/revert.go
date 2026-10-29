@@ -342,6 +342,9 @@ func (env *Env) newFailures(ctx context.Context, before, after Job) []string {
 		return nil
 	}
 	seen := failingNames(old)
+	if len(seen) == 0 {
+		return nil
+	}
 	var added []string
 	for name := range failingNames(fresh) {
 		if !seen[name] {
