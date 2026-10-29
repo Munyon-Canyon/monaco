@@ -16,6 +16,7 @@ final class AnalyticsStepTests: XCTestCase {
         "Social": .social,
         "Chat": .chat,
         "Referral": .referral,
+        "Catch up": .catchUp,
     ]
 
     private static let serverOnlyLabels: Set<String> = ["Trade outcome"]

@@ -3,23 +3,36 @@ import MonacoCore
 import SwiftUI
 
 struct CatchUpRowActions {
-    let vote: (String) -> Void
+    let vote: (Components.Schemas.CatchUpItem) -> Void
     let open: (Components.Schemas.CatchUpItem) -> Void
     let join: (Components.Schemas.CatchUpItem) -> Void
+    let clear: (Components.Schemas.CatchUpItem) -> Void
+}
+
+extension View {
+    func catchUpListRow() -> some View {
+        listRowInsets(EdgeInsets())
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+    }
 }
 
 struct CatchUpSection: View {
     let title: String
+    let identifier: String
     let items: [Components.Schemas.CatchUpItem]
     let now: Date
-    let actions: CatchUpRowActions
+    let actions: CatchUpRowActions?
 
     var body: some View {
         if !items.isEmpty {
             MonacoSectionHeader(title, count: items.count)
                 .padding(.horizontal, MonacoTheme.Space.gutter)
+                .accessibilityIdentifier("catch-up-section-\(identifier)")
+                .catchUpListRow()
             ForEach(items, id: \.key) { item in
                 CatchUpRow(item: item, now: now, actions: actions)
+                    .catchUpListRow()
             }
         }
     }
@@ -28,35 +41,69 @@ struct CatchUpSection: View {
 struct CatchUpRow: View {
     let item: Components.Schemas.CatchUpItem
     let now: Date
-    let actions: CatchUpRowActions
+    let actions: CatchUpRowActions?
 
     @Environment(\.calendar) private var calendar
 
     var body: some View {
-        Button {
-            actions.open(item)
-        } label: {
+        if let actions {
+            active(actions)
+        } else {
             HStack(alignment: .top, spacing: MonacoTheme.Space.sm) {
-                leading
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                    Text(CatchUpCopy.rowTitle(item))
-                        .font(MonacoTheme.Typo.subheadStrong)
-                        .foregroundStyle(MonacoTheme.ink)
-                    Text(CatchUpCopy.subtitle(item, now: now))
-                        .font(MonacoTheme.Typo.caption)
-                        .foregroundStyle(MonacoTheme.muted)
-                    detail
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                trailing
+                content(subtitle: CatchUpCopy.clearedSubtitle(item, now: now))
+                Text(CatchUpCopy.relativeTime(item.at, now: now, calendar: calendar))
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.muted)
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.vertical, MonacoTheme.Space.m)
             .frame(minHeight: MonacoRowLayout.minHeight)
-            .contentShape(Rectangle())
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("catch-up-row-\(item.key)")
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("catch-up-row-\(item.key)")
+    }
+
+    private func active(_ actions: CatchUpRowActions) -> some View {
+        HStack(alignment: .top, spacing: MonacoTheme.Space.sm) {
+            Button {
+                actions.open(item)
+            } label: {
+                content(subtitle: CatchUpCopy.subtitle(item, now: now))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(CatchUpCopy.accessibilityLabel(item, now: now, calendar: calendar))
+            .accessibilityIdentifier("catch-up-row-\(item.key)")
+            trailing(actions)
+        }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.vertical, MonacoTheme.Space.m)
+        .frame(minHeight: MonacoRowLayout.minHeight)
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            Button {
+                actions.clear(item)
+            } label: {
+                Label(CatchUpCopy.clearAction, systemImage: "checkmark")
+            }
+            .tint(MonacoTheme.tint)
+        }
+        .accessibilityAction(named: CatchUpCopy.clearAction) { actions.clear(item) }
+    }
+
+    private func content(subtitle: String) -> some View {
+        HStack(alignment: .top, spacing: MonacoTheme.Space.sm) {
+            leading
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                Text(CatchUpCopy.rowTitle(item))
+                    .font(MonacoTheme.Typo.subheadStrong)
+                    .foregroundStyle(MonacoTheme.ink)
+                Text(subtitle)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.muted)
+                if actions != nil { detail }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     @ViewBuilder private var detail: some View {
@@ -100,18 +147,18 @@ struct CatchUpRow: View {
         .accessibilityHidden(true)
     }
 
-    @ViewBuilder private var trailing: some View {
+    @ViewBuilder private func trailing(_ actions: CatchUpRowActions) -> some View {
         switch item.kind {
         case .waitingVote:
-            Button("Vote") { item.proposal.map { actions.vote($0.id) } }
+            Button("Vote") { actions.vote(item) }
                 .buttonStyle(.monacoCompactProminent)
                 .frame(minWidth: 44, minHeight: 44)
-                .accessibilityIdentifier("catch-up-vote")
+                .accessibilityIdentifier("catch-up-vote-\(item.key)")
         case .invite:
             Button("Join") { actions.join(item) }
                 .buttonStyle(.monacoCompactProminent)
                 .frame(minWidth: 44, minHeight: 44)
-                .accessibilityIdentifier("catch-up-join")
+                .accessibilityIdentifier("catch-up-join-\(item.key)")
         case .reply, .mention, .result:
             VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
                 Text(CatchUpCopy.relativeTime(item.at, now: now, calendar: calendar))
@@ -121,6 +168,7 @@ struct CatchUpRow: View {
                     .fill(item.unread ? MonacoTheme.tint : Color.clear)
                     .frame(width: MonacoTheme.Space.s, height: MonacoTheme.Space.s)
             }
+            .accessibilityHidden(true)
         }
     }
 }
