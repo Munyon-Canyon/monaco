@@ -126,16 +126,19 @@ enum ProposalSampleScenario: String, CaseIterable {
             script.proposal = .votableNVDA()
         case .nvdaPassed:
             script.asset = .nvda
-            script.proposal = .passedNVDA()
+            script.proposal = Components.Schemas.ProposalDetail.filledNVDA()
+                .closedResult(yes: 4, no: 1, voters: 6, needed: 4, ballot: .yes, order: 4, sides: false)
         case .closedSidesOn:
             script.asset = .nvda
-            script.proposal = .passedNVDA()
+            script.proposal = Components.Schemas.ProposalDetail.filledNVDA()
+                .closedResult(yes: 5, no: 1, voters: 6, needed: 4, ballot: .yes, order: 4, sides: true)
         case .closedSidesPrivate:
             script.asset = .nvda
             script.proposal = .passedNVDA().withHiddenSides()
         case .nvdaFilled:
             script.asset = .nvda
-            script.proposal = .filledNVDA()
+            script.proposal = Components.Schemas.ProposalDetail.filledNVDA()
+                .closedResult(yes: 4, no: 1, voters: 6, needed: 4, ballot: .yes, order: 4, sides: false)
         case .nvdaPassedMoment:
             script.asset = .nvda
             script.proposal = Components.Schemas.ProposalDetail.filledNVDA().voted(.yes)
@@ -144,7 +147,8 @@ enum ProposalSampleScenario: String, CaseIterable {
             script.proposal = .filledMETA()
         case .tslaFailed:
             script.asset = .nvda
-            script.proposal = .failedTSLA()
+            script.proposal = Components.Schemas.ProposalDetail.failedTSLA()
+                .closedResult(yes: 2, no: 2, voters: 5, needed: 3, ballot: .no, order: 2, sides: false)
         case .spaceXOpen:
             script.asset = .spaceX
             script.proposal = .preIpoSpaceX().votedYesOfSix()
@@ -344,6 +348,19 @@ extension Components.Schemas.ProposalDetail {
     fileprivate func voted(_ side: Components.Schemas.BallotChoice) -> Self {
         var detail = self
         detail.myBallot = MyBallotPayload(rawValue: side.rawValue)
+        return detail
+    }
+
+    fileprivate func closedResult(
+        yes: Int, no: Int, voters count: Int, needed: Int, ballot: Components.Schemas.BallotChoice, order: Int,
+        sides: Bool
+    ) -> Self {
+        var detail = voted(ballot)
+        detail.tally = .init(yes: yes, no: no, voters: count, needed: needed)
+        detail.sidesVisible = sides
+        detail.myVote = .init(
+            order: order, of: count, yesOrder: ballot == .yes ? order : 0, noOrder: ballot == .no ? order : 0,
+            decided: false)
         return detail
     }
 

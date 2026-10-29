@@ -60,9 +60,17 @@ struct ProposalResultCard<Sides: View>: View {
     }
 
     @ViewBuilder private var tallyLine: some View {
-        let text = Text(ProposalResultCopy.tallyLine(tally: tally))
-            .font(MonacoTheme.Typo.subhead)
-            .foregroundStyle(MonacoTheme.muted)
+        let text = HStack(spacing: MonacoTheme.Space.s) {
+            Label("\(tally.yes)", systemImage: "checkmark")
+                .foregroundStyle(MonacoTheme.profit)
+            Text("\(tally.yes + tally.no) of \(tally.voters) voted")
+                .foregroundStyle(MonacoTheme.muted)
+            Label("\(tally.no)", systemImage: "xmark")
+                .foregroundStyle(MonacoTheme.loss)
+        }
+        .font(MonacoTheme.Typo.subhead)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(ProposalResultCopy.tallyLine(tally: tally))
         if model == nil {
             text.accessibilityIdentifier("proposal-result-tally")
         } else {
