@@ -977,3 +977,6 @@ catch-up-six-dark             -MonacoCatchUpSample six -AppleInterfaceStyle Dark
 catch-up-loading              -MonacoCatchUpSample loading
 catch-up-error                -MonacoCatchUpSample error
 catch-up-legacy-unread        -activityFeedHarness unread
+catch-up-caught-up            -MonacoCatchUpSample caughtUp
+catch-up-caught-up-dark       -MonacoCatchUpSample caughtUp -AppleInterfaceStyle Dark
+catch-up-first-use            -MonacoCatchUpSample firstUse
