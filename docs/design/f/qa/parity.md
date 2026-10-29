@@ -172,10 +172,10 @@ founder:
 
 | Frame | Appearance | Verdict | Difference | Follow-up |
 | --- | --- | --- | --- | --- |
-| [`06-markets-A`](../screens/06-markets-A.png) | dark | difference | Frame has a large left "Markets" title under the star; app shows a small centered inline title. | #7026 (#6487) |
+| [`06-markets-A`](../screens/06-markets-A.png) | dark | match | — | — |
 | [`06-markets-A-scrolled`](../screens/06-markets-A-scrolled.png) | dark | match (15 pt floor) | — | — |
-| [`06-markets-search`](../screens/06-markets-search.png) | dark | difference | Frame ends the search field with a green "Cancel" text; app shows a round X button and an extra clear icon in the field. | #7026 (#6501) |
-| [`06-markets-held`](../screens/06-markets-held.png) | dark | difference | Frame has a large "Markets" title; app shows a small centered inline title. | #7026 (#6516) |
+| [`06-markets-search`](../screens/06-markets-search.png) | dark | match | — | — |
+| [`06-markets-held`](../screens/06-markets-held.png) | dark | match | — | — |
 
 founder:
 

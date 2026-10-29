@@ -29,6 +29,7 @@ struct MonacoSearchField: View {
     var placeholder: String
     @Binding var text: String
     var isEnabled: Bool = true
+    var showsClear: Bool = true
 
     @ScaledMetric(relativeTo: .body) private var iconSize = MonacoSearchFieldMetrics.iconSize
 
@@ -47,7 +48,7 @@ struct MonacoSearchField: View {
                 .disabled(!isEnabled)
                 .accessibilityLabel(placeholder)
                 .accessibilityIdentifier("monaco-search-field")
-            if !text.isEmpty, isEnabled {
+            if !text.isEmpty, isEnabled, showsClear {
                 Button {
                     text = ""
                 } label: {
@@ -61,7 +62,7 @@ struct MonacoSearchField: View {
             }
         }
         .padding(.leading, MonacoTheme.Space.sm)
-        .padding(.trailing, text.isEmpty ? MonacoTheme.Space.sm : 0)
+        .padding(.trailing, text.isEmpty || !showsClear ? MonacoTheme.Space.sm : 0)
         .frame(minHeight: MonacoSearchFieldMetrics.minHeight)
         .background(
             RoundedRectangle(cornerRadius: MonacoTheme.Radius.search, style: .continuous)

@@ -39,7 +39,7 @@ nonisolated final class StocksTabSampleUITests: XCTestCase {
 
     @MainActor
     private func waitForSearchField(_ app: XCUIApplication, _ context: String) -> XCUIElement {
-        let field = app.searchFields.firstMatch
+        let field = app.textFields["monaco-search-field"]
         XCTAssertTrue(field.waitForExistence(timeout: 25), "\(context) never drew the search field")
         return field
     }
@@ -75,7 +75,7 @@ nonisolated final class StocksTabSampleUITests: XCTestCase {
         waitForTab(app, "ready")
 
         _ = waitForSearchField(app, "ready")
-        XCTAssertEqual(app.searchFields.firstMatch.placeholderValue, "Stocks and Pre-IPO")
+        XCTAssertEqual(app.textFields["monaco-search-field"].placeholderValue, "Stocks and Pre-IPO")
         XCTAssertTrue(anyElement(app, "markets-mover-NVDAx").waitForExistence(timeout: 25), "no mover tile")
         XCTAssertTrue(anyElement(app, "markets-watchlist-row-AAPLx").waitForExistence(timeout: 25), "no watched row")
         XCTAssertTrue(app.buttons["markets-watchlist-manage"].exists, "no Manage link")
@@ -209,7 +209,7 @@ nonisolated final class StocksTabSampleUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["Couldn't load this view"].waitForExistence(timeout: 25), "no failure state")
         XCTAssertEqual(app.buttons["assets-failed"].label, "Try again")
-        XCTAssertFalse(app.searchFields.firstMatch.exists, "a full-screen error has no search field")
+        XCTAssertFalse(app.textFields["monaco-search-field"].exists, "a full-screen error has no search field")
         XCTAssertFalse(anyElement(app, "assets-row-NVDAx").exists, "a failed read must not show rows")
     }
 
@@ -220,7 +220,7 @@ nonisolated final class StocksTabSampleUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["No stocks to show"].waitForExistence(timeout: 25), "the empty state never drew")
         XCTAssertFalse(app.staticTexts["Couldn't load this view"].exists, "an empty catalogue is not a failure")
-        XCTAssertTrue(app.searchFields.firstMatch.exists, "the search field should stay live")
+        XCTAssertTrue(app.textFields["monaco-search-field"].exists, "the search field should stay live")
     }
 
     @MainActor
@@ -240,7 +240,7 @@ nonisolated final class StocksTabSampleUITests: XCTestCase {
             anyElement(app, "markets-mover-NVDAx").waitForExistence(timeout: 30),
             "the rail should stack at AX5"
         )
-        XCTAssertTrue(app.searchFields.firstMatch.exists, "the search field should survive AX5")
+        XCTAssertTrue(app.textFields["monaco-search-field"].exists, "the search field should survive AX5")
         attachScreenshot(app, name: "markets-ax5")
     }
 
