@@ -25,6 +25,7 @@ final class AppEnvironment {
     let push: PushRegistrar
     let referrals: ReferralAttacher
     let pushPrePrompt: PushPrePrompt
+    let passedMoments: PassedMomentBook
     let analytics: Analytics
     let gifs: any GifProvider
     private let analyticsObserver: AnalyticsSessionObserver
@@ -57,6 +58,7 @@ final class AppEnvironment {
         sessionStore: AppSessionStore? = nil,
         analytics: Analytics? = nil,
         gifs: (any GifProvider)? = nil,
+        defaults: UserDefaults = .standard,
         isAuthenticated: (@MainActor () -> Bool)? = nil,
         endAuthSession: (@MainActor () async -> Void)? = nil,
         endExpiredSession: (@MainActor (String) async -> Void)? = nil
@@ -89,6 +91,7 @@ final class AppEnvironment {
             defaults: .standard,
             register: { Task { await AppDelegate.registerIfAuthorized() } }
         )
+        self.passedMoments = PassedMomentBook(defaults: defaults, now: { Date() })
         self.linking = PrivyAccountLinker(privy: auth.privy, api: api)
         self.sessionStore =
             sessionStore

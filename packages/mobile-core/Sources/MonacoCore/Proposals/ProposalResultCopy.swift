@@ -67,7 +67,7 @@ public enum ProposalResultCopy {
         (0..<exponent).reduce(UInt64(1)) { power, _ in power * 10 }
     }
 
-    private static func isFilled(_ swap: ProposalSwap?) -> Bool {
+    static func isFilled(_ swap: ProposalSwap?) -> Bool {
         guard let swap else { return false }
         return swap.status == "confirmed" && swap.filledAt != nil && swap.priceMicros != nil
             && swap.tokenAmount != nil && swap.tokenDecimals != nil
@@ -83,6 +83,36 @@ public enum ProposalResultCopy {
         case .ticker(let symbol): name = symbol
         }
         return "\(isSell ? "Sold" : "Bought") \(count) \(name) at \(UsdAmountFormatter.format(micros: price))"
+    }
+
+    public static func passedSheetTitle(kind: String, symbol: String, assetKind: AssetKind, amountMicros: Int64?)
+        -> String
+    {
+        let verb = kind == "sell" ? "Sell" : "Buy"
+        let ticker = AssetSymbolFormatter.display(symbol, kind: assetKind)
+        guard let amountMicros else { return "\(verb) \(ticker)" }
+        return "\(verb) \(ticker) · \(ShareProposalText.wholeDollars(amountMicros))"
+    }
+
+    public static func passedSheetTally(
+        tally: ProposalTally, closedAt: Date?, now: Date, calendar: Calendar = .current
+    ) -> String {
+        let score = "✓ \(tally.yes) · ✕ \(tally.no)"
+        guard let closedAt else { return score }
+        let sameDay = calendar.isDate(closedAt, inSameDayAs: now)
+        let when = sameDay ? clock(closedAt, calendar: calendar) : day(closedAt, calendar: calendar)
+        return "\(score) · closed \(when)"
+    }
+
+    public static func passedSheetTrade(_ fill: ProposalSwap, symbol: String, assetKind: AssetKind, isSell: Bool)
+        -> String?
+    {
+        let ticker = AssetSymbolFormatter.display(symbol, kind: assetKind)
+        return filled(fill, unit: .ticker(ticker), isSell: isSell).map { $0 + "." }
+    }
+
+    public static func calledItLine(proposerName: String, isViewer: Bool, voted: Int, voters: Int) -> String {
+        "\(ResultCopy.calledIt(isViewer ? "You" : proposerName)) · \(voted) of \(voters) voted"
     }
 
     public static func caption(

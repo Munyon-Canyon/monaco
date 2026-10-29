@@ -9,6 +9,10 @@ enum ProposalDetailSlot: ProposalSection {
     }
 }
 
+private struct PassedMomentTrigger: Identifiable {
+    let id: String
+}
+
 private enum ProposalInfoSheet: String, Identifiable {
     case price, estimate
     var id: String { rawValue }
@@ -26,6 +30,7 @@ struct ProposalDetailSlotView: View {
     @State private var showsVotes = false
     @State private var confirmingWithdrawal = false
     @State private var infoSheet: ProposalInfoSheet?
+    @State private var passedMoment: PassedMomentTrigger?
 
     init(proposalID: String, model: ProposalDetailModel? = nil) {
         self.proposalID = proposalID
@@ -44,6 +49,8 @@ struct ProposalDetailSlotView: View {
                 pause?.setVisible($0)
             }
             .onAppear { if presentsVotes { showsVotes = true } }
+            .onChange(of: model?.value, initial: true) { presentPassedMomentIfDue() }
+            .onChange(of: otherSheetIsUp) { presentPassedMomentIfDue() }
             .sheet(isPresented: $showsVotes) {
                 ProposalVotesSheet(model: model)
             }
@@ -52,6 +59,9 @@ struct ProposalDetailSlotView: View {
                 case .price: if let asset = model?.asset { MarketStatsSheet(facts: asset.marketStats) }
                 case .estimate: if let preIpo = model?.asset?.preIpo { EstimateInfoSheet(preIpo: preIpo) }
                 }
+            }
+            .sheet(item: $passedMoment) { trigger in
+                passedSheet(trigger.id)
             }
             .confirmationDialog(
                 "Withdraw this proposal?", isPresented: $confirmingWithdrawal, titleVisibility: .visible
@@ -63,6 +73,31 @@ struct ProposalDetailSlotView: View {
             } message: {
                 Text("Votes so far are dropped.")
             }
+    }
+
+    private var otherSheetIsUp: Bool {
+        showsVotes || infoSheet != nil || confirmingWithdrawal || environment.pushPrePrompt.isPresented
+            || environment.navigator.voteHold != nil || environment.navigator.deposit != nil
+    }
+
+    private func presentPassedMomentIfDue() {
+        guard passedMoment == nil, !otherSheetIsUp, let detail = model?.value,
+            let viewerID = environment.viewer?.userID
+        else { return }
+        let store = environment.passedMoments.store(for: viewerID)
+        guard store.shouldShow(detail: detail), let filledAt = detail.summary.swap?.filledAt else { return }
+        store.markSeen(id: detail.id, filledAt: filledAt)
+        passedMoment = PassedMomentTrigger(id: detail.id)
+    }
+
+    @ViewBuilder private func passedSheet(_ id: String) -> some View {
+        if let model, let detail = model.value,
+            let moment = ProposalPassedMoment(detail: detail, model: model, viewerID: environment.viewer?.userID)
+        {
+            ProposalPassedSheet(moment: moment) {
+                environment.navigator.open(ShareRoute(.passedProposal(id: id)), in: environment.navigator.selectedTab)
+            }
+        }
     }
 
     @ViewBuilder private var content: some View {
