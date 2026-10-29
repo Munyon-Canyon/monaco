@@ -238,7 +238,7 @@ paths:
       operationId: getCabalAccessRequests
       tags: [cabal]
       summary: List the pending requests to join a cabal.
-      description: Creator only. Returns pending requests, oldest first. Invites are not listed here.
+      description: Admins only. Returns pending requests, newest first, each with the member whose link it came through when known. Invites are not listed here.
       parameters:
         - name: id
           in: path
@@ -256,7 +256,7 @@ paths:
           content:
             application/json:
               schema: {type: array, items: {$ref: "#/components/schemas/CabalAccessRequest"}}
-              example: [{id: "01890a5d-ac96-774b-bcce-b302099a8059", user: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, created_at: "2026-10-02T15:00:00Z"}]
+              example: [{id: "01890a5d-ac96-774b-bcce-b302099a8059", user: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, via: {user_id: "01890a5d-ac96-774b-bcce-b302099a8057", handle: jordan, display_name: Jordan, photo_url: null}, created_at: "2026-10-02T15:00:00Z"}]
         default:
           $ref: "#/components/responses/Problem"
     post:
@@ -266,7 +266,8 @@ paths:
       summary: Ask to join a request cabal.
       description: >-
         Files a pending request that the creator approves or denies. An open cabal refuses with
-        request_not_needed, so the app joins it instead. A replay returns the first response.
+        request_not_needed, so the app joins it instead. An optional via_code names the link the invitee
+        came through; a code that names no current member is ignored. A replay returns the first response.
       parameters:
         - name: id
           in: path
@@ -274,6 +275,14 @@ paths:
           description: The cabal id.
           schema: {type: string, format: uuid}
         - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: false
+        description: Optional. The code from the invite link the invitee opened.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CabalAccessRequestBody"
+            example: {via_code: jordan}
       responses:
         "201":
           description: The pending request.
@@ -563,13 +572,31 @@ components:
         decision: {type: string, enum: [approve, deny], examples: [approve]}
     CabalAccessRequest:
       type: object
-      description: A pending request to join a cabal, as its creator sees it.
+      description: A pending request to join a cabal, as an admin sees it.
       additionalProperties: false
-      required: [id, user, created_at]
+      required: [id, user, via, created_at]
       properties:
         id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8059"]}
         user: {$ref: "#/components/schemas/CabalPerson", examples: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]}
+        via:
+          description: The member whose link the request came through. Null when it came through no link or a code that names no member.
+          type: [object, "null"]
+          x-go-type: CabalPerson
+          additionalProperties: false
+          required: [user_id, handle, display_name, photo_url]
+          properties:
+            user_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8057"]}
+            handle: {type: [string, "null"], examples: [jordan]}
+            display_name: {type: string, examples: [Jordan]}
+            photo_url: {type: [string, "null"], examples: [null]}
+          examples: [null]
         created_at: {type: string, format: date-time, examples: ["2026-10-02T15:00:00Z"]}
+    CabalAccessRequestBody:
+      type: object
+      description: Optional context for a request to join.
+      additionalProperties: false
+      properties:
+        via_code: {type: string, description: "The referral code or handle from the link the invitee opened.", examples: [jordan]}
     InviteMemberRequest:
       type: object
       description: Who to invite to a cabal.

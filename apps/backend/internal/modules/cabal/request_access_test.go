@@ -18,7 +18,7 @@ import (
 )
 
 func (f accessFixture) request(ctx context.Context, user ids.UserID, c ids.CabalID) (app.Access, error) {
-	return app.NewRequestAccessHandler(f.uow, f.ids, f.clock).Handle(as(ctx, user),
+	return app.NewRequestAccessHandler(f.uow, f.ids, f.clock, nil).Handle(as(ctx, user),
 		app.RequestAccess{ActorID: user, CabalID: c})
 }
 
@@ -257,7 +257,7 @@ func TestRevokeAccess_wrapsStoreFailuresAsInternal(t *testing.T) {
 	}
 }
 
-func TestListAccessRequests_showsTheCreatorPendingRequestsOldestFirst(t *testing.T) {
+func TestListAccessRequests_showsTheCreatorPendingRequestsNewestFirst(t *testing.T) {
 	t.Parallel()
 	f := newAccess(t)
 	c := testkit.NewCabal(t, f.pool, testkit.WithJoinMode("request"))
@@ -279,9 +279,9 @@ func TestListAccessRequests_showsTheCreatorPendingRequestsOldestFirst(t *testing
 	for _, p := range got {
 		ids = append(ids, p.ID)
 	}
-	if !slices.Equal(ids, []uuid.UUID{firstID, secondID}) || got[0].User.UserID != first.UUID() ||
-		got[0].User.Handle != "first" || !got[0].CreatedAt.Before(got[1].CreatedAt) {
-		t.Fatalf("pending = %+v, want the two pending requests oldest first with the first asker's card", got)
+	if !slices.Equal(ids, []uuid.UUID{secondID, firstID}) || got[1].User.UserID != first.UUID() ||
+		got[1].User.Handle != "first" || !got[0].CreatedAt.After(got[1].CreatedAt) {
+		t.Fatalf("pending = %+v, want the two pending requests newest first with the first asker's card", got)
 	}
 }
 

@@ -1,7 +1,7 @@
 -- name: InsertAccessRequest :execrows
-INSERT INTO cabal_access_requests (id, cabal_id, user_id, direction, invited_by, expires_at, created_at)
+INSERT INTO cabal_access_requests (id, cabal_id, user_id, direction, invited_by, expires_at, via_user_id, created_at)
 VALUES (sqlc.arg(id), sqlc.arg(cabal_id), sqlc.arg(user_id), sqlc.arg(direction), sqlc.narg(invited_by),
-  sqlc.narg(expires_at), sqlc.arg(now))
+  sqlc.narg(expires_at), NULLIF(sqlc.arg(via_user_id)::uuid, '00000000-0000-0000-0000-000000000000'::uuid), sqlc.arg(now))
 ON CONFLICT (cabal_id, user_id) WHERE status = 'pending' DO NOTHING;
 
 -- name: InsertInvite :execrows
@@ -11,13 +11,14 @@ VALUES (sqlc.arg(id), sqlc.arg(cabal_id), sqlc.arg(user_id), 'invite', sqlc.arg(
 ON CONFLICT (cabal_id, user_id) WHERE status = 'pending' DO NOTHING;
 
 -- name: FindAccessRequest :one
-SELECT id, cabal_id, user_id, direction, invited_by, status, expires_at, decided_by, created_at, decided_at
+SELECT id, cabal_id, user_id, direction, invited_by, status, expires_at, decided_by, created_at, decided_at,
+  via_user_id
 FROM cabal_access_requests
 WHERE cabal_id = $1 AND id = $2;
 
 -- name: FindRequesterAccess :one
 SELECT r.id, r.cabal_id, r.user_id, r.direction, r.invited_by, r.status, r.expires_at, r.decided_by, r.created_at,
-  r.decided_at
+  r.decided_at, r.via_user_id
 FROM cabal_access_requests r
 WHERE r.cabal_id = $1 AND r.user_id = $2 AND (
   r.status = 'pending' OR (r.status = 'denied' AND r.direction = 'request' AND NOT EXISTS (
@@ -45,9 +46,9 @@ ORDER BY expires_at, id
 LIMIT sqlc.arg(max_rows);
 
 -- name: ListPendingRequestsForCabal :many
-SELECT id, user_id, created_at FROM cabal_access_requests
+SELECT id, user_id, via_user_id, created_at FROM cabal_access_requests
 WHERE cabal_id = $1 AND direction = 'request' AND status = 'pending'
-ORDER BY created_at, id;
+ORDER BY created_at DESC, id DESC;
 
 -- name: ListPendingInvitesForCabal :many
 SELECT id, user_id, invited_by, expires_at, created_at FROM cabal_access_requests

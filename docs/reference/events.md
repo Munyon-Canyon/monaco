@@ -134,6 +134,7 @@ Subject `events.cabal.access_requested`, version 1.
 | `direction` | `string` |
 | `actor_id` | `uuid.UUID` |
 | `expires_at` | `time.Time` |
+| `via_user_id` | `*uuid.UUID` |
 
 ## `cabal.banned`
 

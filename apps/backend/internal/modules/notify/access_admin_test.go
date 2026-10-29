@@ -1,6 +1,7 @@
 package notify_test
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"slices"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/apns"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -107,4 +109,63 @@ func TestNotify_CabalAccessRequestedAdmins_AdminsFailureReturnsAsIs(t *testing.T
 		t.Fatalf("sent %+v after a failed Admins read, want nothing", sent)
 	}
 	r.wantRecorded(t, d, 0)
+}
+
+func TestNotify_CabalAccessRequestedAdmins_NamesTheLinkOwnerWhenKnown(t *testing.T) {
+	t.Parallel()
+	r := newPushRig(t)
+	w, _ := r.adminWorld(t)
+	jordan := r.follower(t, "jordan", "Jordan")
+	e := w.requested(r, "request")
+	e.ViaUserID = new(jordan.UUID())
+	d := r.emit(t, userActor(w.requester), e)
+	kind := app.CabalAccessRequestedAdmins{
+		CabalAccessRequested: app.CabalAccessRequested{Cabals: w.cabals, Users: r.users}, Admins: w.cabals,
+	}
+
+	err := handleKinds(t, r, r.sender, d, e, kind)
+
+	wantVerdict(t, err, "", errs.VerdictAck)
+	sent := r.sender.Sent()
+	if len(sent) != 2 {
+		t.Fatalf("sent %+v, want one push per admin", sent)
+	}
+	for _, push := range sent {
+		if want := "Bea wants to join " + cabalName + " through Jordan's link"; push.Body != want {
+			t.Fatalf("body %q, want %q", push.Body, want)
+		}
+	}
+}
+
+type failVia struct {
+	app.Users
+	via  ids.UserID
+	fail error
+}
+
+func (f failVia) UsersByID(ctx context.Context, userIDs []ids.UserID) (map[ids.UserID]identity.UserCard, error) {
+	if slices.Contains(userIDs, f.via) {
+		return nil, f.fail
+	}
+	return f.Users.UsersByID(ctx, userIDs)
+}
+
+func TestNotify_CabalAccessRequestedAdmins_LinkOwnerReadFailureReturnsAsIs(t *testing.T) {
+	t.Parallel()
+	r := newPushRig(t)
+	w, admin := r.adminWorld(t)
+	jordan := r.follower(t, "jordan", "Jordan")
+	e := w.requested(r, "request")
+	e.ViaUserID = new(jordan.UUID())
+	down := errs.New(errs.CodeDBUnavailable, "test.users")
+	users := failVia{Users: r.users, via: jordan, fail: down}
+	kind := app.CabalAccessRequestedAdmins{
+		CabalAccessRequested: app.CabalAccessRequested{Cabals: w.cabals, Users: users}, Admins: w.cabals,
+	}
+
+	_, err := kind.Render(t.Context(), e, admin)
+
+	if !errors.Is(err, down) {
+		t.Fatalf("Render = %v, want %v", err, down)
+	}
 }

@@ -375,7 +375,11 @@ func (h HTTP) PostCabalAccessRequest(
 	if err != nil {
 		return nil, err
 	}
-	filed, err := h.Request.Handle(ctx, app.RequestAccess{ActorID: user, CabalID: ids.CabalIDFrom(req.Id)})
+	cmd := app.RequestAccess{ActorID: user, CabalID: ids.CabalIDFrom(req.Id)}
+	if req.Body != nil && req.Body.ViaCode != nil {
+		cmd.ViaCode = *req.Body.ViaCode
+	}
+	filed, err := h.Request.Handle(ctx, cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -431,7 +435,12 @@ func (h HTTP) GetCabalAccessRequests(
 	}
 	items := make([]api.CabalAccessRequest, 0, len(pending))
 	for _, p := range pending {
-		items = append(items, api.CabalAccessRequest{Id: p.ID, User: wirePerson(p.User), CreatedAt: p.CreatedAt})
+		item := api.CabalAccessRequest{Id: p.ID, User: wirePerson(p.User), CreatedAt: p.CreatedAt}
+		if p.Via != nil {
+			via := wirePerson(*p.Via)
+			item.Via = &via
+		}
+		items = append(items, item)
 	}
 	return api.GetCabalAccessRequests200JSONResponse(items), nil
 }

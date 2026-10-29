@@ -57,13 +57,14 @@ func (CabalMemberJoined) AggregateType() string { return cabalAggregate }
 func (e CabalMemberJoined) AggregateID() uuid.UUID { return e.CabalID }
 
 type CabalAccessRequested struct {
-	V         int       `json:"v"`
-	RequestID uuid.UUID `json:"request_id"`
-	CabalID   uuid.UUID `json:"cabal_id"`
-	UserID    uuid.UUID `json:"user_id"             pii:"true"`
-	Direction string    `json:"direction"`
-	ActorID   uuid.UUID `json:"actor_id"            pii:"true"`
-	ExpiresAt time.Time `json:"expires_at,omitzero"`
+	V         int        `json:"v"`
+	RequestID uuid.UUID  `json:"request_id"`
+	CabalID   uuid.UUID  `json:"cabal_id"`
+	UserID    uuid.UUID  `json:"user_id"               pii:"true"`
+	Direction string     `json:"direction"`
+	ActorID   uuid.UUID  `json:"actor_id"              pii:"true"`
+	ExpiresAt time.Time  `json:"expires_at,omitzero"`
+	ViaUserID *uuid.UUID `json:"via_user_id,omitempty" pii:"true"`
 }
 
 func (CabalAccessRequested) Type() Type { return TypeCabalAccessRequested }

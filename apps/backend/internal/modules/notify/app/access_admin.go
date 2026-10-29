@@ -24,3 +24,18 @@ func (k CabalAccessRequestedAdmins) Recipients(
 	}
 	return k.Admins.Admins(ctx, ids.CabalIDFrom(e.CabalID))
 }
+
+func (k CabalAccessRequestedAdmins) Render(
+	ctx context.Context, e events.CabalAccessRequested, recipient ids.UserID,
+) (Message, error) {
+	msg, err := k.CabalAccessRequested.Render(ctx, e, recipient)
+	if err != nil || e.ViaUserID == nil {
+		return msg, err
+	}
+	via, err := personSender(ctx, k.Users, ids.UserIDFrom(*e.ViaUserID))
+	if err != nil {
+		return Message{}, err
+	}
+	msg.Body += " through " + via.Name + "'s link"
+	return msg, nil
+}
