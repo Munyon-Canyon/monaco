@@ -42,3 +42,34 @@ func (h HTTP) DeleteFeedReaction(
 func wireReactionSummary(summary app.ReactionSummary) api.ReactionSummary {
 	return api.ReactionSummary{Reactions: wireReactions(summary.Reactions), Total: summary.Total}
 }
+
+func (h HTTP) PutCommentReaction(
+	ctx context.Context, req api.PutCommentReactionRequestObject,
+) (api.PutCommentReactionResponseObject, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	summary, err := h.ReactComment.Handle(ctx, app.ReactComment{CommentID: req.CommentId, Viewer: me, Emoji: req.Emoji})
+	if err != nil {
+		return nil, err
+	}
+	return api.PutCommentReaction200JSONResponse(wireReactionSummary(summary)), nil
+}
+
+func (h HTTP) DeleteCommentReaction(
+	ctx context.Context, req api.DeleteCommentReactionRequestObject,
+) (api.DeleteCommentReactionResponseObject, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	summary, err := h.UnreactComment.Handle(
+		ctx,
+		app.UnreactComment{CommentID: req.CommentId, Viewer: me, Emoji: req.Emoji},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return api.DeleteCommentReaction200JSONResponse(wireReactionSummary(summary)), nil
+}

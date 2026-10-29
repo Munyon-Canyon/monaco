@@ -56,7 +56,36 @@ func ListComments(ctx context.Context, db sqlc.DBTX, q CommentsQuery) (CommentsP
 	if err != nil {
 		return CommentsPage{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	return threadsOf(rows, q.Limit), nil
+	page := threadsOf(rows, q.Limit)
+	if err := attachCommentReactions(ctx, queries, q.Viewer, &page); err != nil {
+		return CommentsPage{}, err
+	}
+	return page, nil
+}
+
+func attachCommentReactions(ctx context.Context, reads *sqlc.Queries, viewer ids.UserID, page *CommentsPage) error {
+	var commentIDs []uuid.UUID
+	for _, thread := range page.Threads {
+		commentIDs = append(commentIDs, thread.Comment.ID)
+		for _, reply := range thread.Replies {
+			commentIDs = append(commentIDs, reply.ID)
+		}
+	}
+	found, err := commentReactions(ctx, reads, viewer, commentIDs)
+	if err != nil {
+		return err
+	}
+	for i := range page.Threads {
+		thread := &page.Threads[i]
+		top := found[thread.Comment.ID]
+		thread.Comment.Reactions, thread.Comment.ReactionCount = top.Reactions, top.Total
+		for j := range thread.Replies {
+			reply := &thread.Replies[j]
+			own := found[reply.ID]
+			reply.Reactions, reply.ReactionCount = own.Reactions, own.Total
+		}
+	}
+	return nil
 }
 
 func threadsOf(rows []sqlc.ListCommentThreadsRow, limit int) CommentsPage {

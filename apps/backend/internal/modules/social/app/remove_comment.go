@@ -55,6 +55,9 @@ func (h *RemoveCommentHandler) Handle(ctx context.Context, cmd RemoveComment) er
 		if _, err := q.BumpCommentCount(ctx, sqlc.BumpCommentCountParams{Delta: -1, ID: row.FeedObjectID}); err != nil {
 			return errs.Wrap(err, errs.CodeInternal, op)
 		}
+		if _, err := q.DeleteCommentReactions(ctx, row.ID); err != nil {
+			return errs.Wrap(err, errs.CodeInternal, op)
+		}
 		if _, err := q.DeleteFeedCommentItem(ctx, row.ID); err != nil {
 			return errs.Wrap(err, errs.CodeInternal, op)
 		}

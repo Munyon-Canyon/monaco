@@ -32,6 +32,8 @@ type Comment struct {
 	Deleted        bool
 	RemovedByAdmin bool
 	ReplyTo        *CommentQuote
+	Reactions      []Reaction
+	ReactionCount  int32
 }
 
 type CommentQuote struct {

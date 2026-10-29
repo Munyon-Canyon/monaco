@@ -73,7 +73,7 @@ func TestPostFeedComment_returnsTheCommentWithItsAuthor(t *testing.T) {
 		Id: top.Id, Author: api.CommentAuthor{
 			Id: kai.UUID(), Handle: ptr("kai"), DisplayName: "Kai", PhotoUrl: ptr("https://cdn.example.com/kai.jpg"),
 		},
-		Body: &body, BodyDisplay: "first", IsMine: true, CreatedAt: f.clock.Now(),
+		Body: &body, BodyDisplay: "first", IsMine: true, CreatedAt: f.clock.Now(), Reactions: []api.Reaction{},
 	}
 	if !reflect.DeepEqual(top, want) {
 		t.Fatalf("comment = %+v, want %+v", top, want)

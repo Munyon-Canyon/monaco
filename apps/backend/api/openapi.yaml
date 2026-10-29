@@ -3603,6 +3603,75 @@ paths:
           description: The comment is deleted.
         default:
           $ref: "#/components/responses/Problem"
+  /v1/feed/comments/{comment_id}/reactions/{emoji}:
+    put:
+      operationId: putCommentReaction
+      tags: [social]
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 30, per: 1m, burst: 10}, ip: {rate: 60, per: 1m, burst: 60}}
+      summary: React to a reply with an emoji.
+      description: >-
+        Adds the caller's reaction with one emoji to a reply and returns the reply's reactions. Reacting with an emoji
+        the caller already used changes nothing. A caller holds at most 10 distinct emoji on a reply, and an 11th is
+        invalid_input with `reason=reaction_limit`. An emoji that is not exactly one emoji is invalid_input with
+        `field=emoji`. A deleted or removed comment, or an unknown one, is comment_not_found. A reply on an item the
+        caller cannot see is feed_item_not_found, and on an item the caller may not react to is reaction_not_allowed.
+        The emoji sits in the path, like `PUT /v1/feed/{id}/reactions/{emoji}`, because a body route would overlap it.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: comment_id
+          in: path
+          required: true
+          description: The comment's id.
+          schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
+        - name: emoji
+          in: path
+          required: true
+          description: The emoji to add, percent-encoded.
+          schema: {type: string, minLength: 1, maxLength: 32, examples: ["🎉"]}
+      responses:
+        "200":
+          description: The reply's reactions after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReactionSummary"
+              example: {reactions: [{emoji: "🎉", count: 5, mine: true}], total: 5}
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteCommentReaction
+      tags: [social]
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 30, per: 1m, burst: 10}, ip: {rate: 60, per: 1m, burst: 60}}
+      summary: Remove your emoji reaction from a reply.
+      description: >-
+        Removes the caller's reaction with that emoji, and only theirs, then returns the reply's reactions. Removing a
+        reaction the caller does not have changes nothing. An emoji that is not exactly one emoji is invalid_input with
+        `field=emoji`. A deleted or removed comment, or an unknown one, is comment_not_found. A reply on an item the
+        caller cannot see is feed_item_not_found.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: comment_id
+          in: path
+          required: true
+          description: The comment's id.
+          schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
+        - name: emoji
+          in: path
+          required: true
+          description: The emoji to remove, percent-encoded.
+          schema: {type: string, minLength: 1, maxLength: 32, examples: ["🎉"]}
+      responses:
+        "200":
+          description: The reply's reactions after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReactionSummary"
+              example: {reactions: [{emoji: "🎉", count: 5, mine: true}], total: 5}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/feed/likes/{id}:
     put:
       operationId: putFeedLike
@@ -9507,7 +9576,7 @@ components:
       type: object
       description: One comment on a feed item.
       additionalProperties: false
-      required: [id, parent_comment_id, author, reply_to_handle, body, body_display, is_mine, created_at]
+      required: [id, parent_comment_id, author, reply_to_handle, body, body_display, is_mine, reactions, reaction_count, created_at]
       properties:
         id: {type: string, format: uuid, description: "The comment id.", examples: ["01920000-0000-7000-8000-000000000007"]}
         parent_comment_id:
@@ -9533,6 +9602,15 @@ components:
         attachment:
           $ref: "#/components/schemas/GifAttachment"
         is_mine: {type: boolean, description: True when the caller wrote it., examples: [true]}
+        reactions:
+          type: array
+          maxItems: 20
+          description: >-
+            The comment's reactions, one per emoji, most used first, then the emoji first used earliest. At most the top
+            20; `reaction_count` still counts every reaction. Empty on a deleted comment.
+          items: {$ref: "#/components/schemas/Reaction"}
+          examples: [[{emoji: "😂", count: 3, mine: false}, {emoji: "❤️", count: 1, mine: true}]]
+        reaction_count: {type: integer, format: int32, minimum: 0, description: "The number of reactions on the comment, over every emoji.", examples: [3]}
         created_at: {type: string, format: date-time, description: When the server stored it., examples: ["2026-10-03T12:00:00Z"]}
     CommentAttachmentInput:
       type: object

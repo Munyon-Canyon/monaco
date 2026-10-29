@@ -35,6 +35,8 @@ type HTTP struct {
 	UnlikeFeedItem  *app.UnlikeFeedItemHandler
 	ReactFeedItem   *app.ReactFeedItemHandler
 	UnreactFeedItem *app.UnreactFeedItemHandler
+	ReactComment    *app.ReactCommentHandler
+	UnreactComment  *app.UnreactCommentHandler
 	Match           *app.MatchContactsHandler
 	Members         app.Members
 	Reads           sqlc.DBTX

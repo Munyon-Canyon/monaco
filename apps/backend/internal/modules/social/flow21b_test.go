@@ -31,3 +31,28 @@ func TestFlow21b_ReactFeedItem_RateLimited(t *testing.T) {
 	t.Parallel()
 	flows.F21bReactFeedItemRateLimited(scenario.New(t, withSocial()))
 }
+
+func TestFlow21b_ReactComment_OK(t *testing.T) {
+	t.Parallel()
+	flows.F21bReactCommentOK(scenario.New(t, withSocial()))
+}
+
+func TestFlow21b_ReactComment_InvalidInput(t *testing.T) {
+	t.Parallel()
+	flows.F21bReactCommentInvalidInput(scenario.New(t, withSocial()))
+}
+
+func TestFlow21b_ReactComment_CommentNotFound(t *testing.T) {
+	t.Parallel()
+	flows.F21bReactCommentCommentNotFound(scenario.New(t, withSocial()))
+}
+
+func TestFlow21b_ReactComment_Unauthorized(t *testing.T) {
+	t.Parallel()
+	flows.F21bReactCommentUnauthorized(scenario.New(t, withSocial()))
+}
+
+func TestFlow21b_ReactComment_RateLimited(t *testing.T) {
+	t.Parallel()
+	flows.F21bReactCommentRateLimited(scenario.New(t, withSocial()))
+}

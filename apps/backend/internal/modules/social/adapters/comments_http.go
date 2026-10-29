@@ -132,6 +132,8 @@ func wireComment(c app.Comment, viewer ids.UserID, who people) api.Comment {
 		IsMine:          c.AuthorID == viewer,
 		CreatedAt:       c.CreatedAt,
 		BodyDisplay:     c.Body,
+		Reactions:       wireReactions(c.Reactions),
+		ReactionCount:   c.ReactionCount,
 	}
 	if card, ok := who.cards[c.ReplyToUserID]; ok && !card.Deleted {
 		out.ReplyToHandle = optionalWireText(card.Handle)
