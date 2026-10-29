@@ -78,6 +78,7 @@ private struct CabalRulesBody: View {
                     }
                 }
             }
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             Text(rows.footer)
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.muted)
