@@ -25,7 +25,9 @@ struct AssetDetailClientView: View {
         content
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
-            .sheet(isPresented: $showsStatsInfo) { AssetMarketStatsInfo() }
+            .sheet(isPresented: $showsStatsInfo) {
+                if let facts = model?.detail?.marketStats { AssetMarketStatsInfo(facts: facts) }
+            }
             .task {
                 await start()
                 await model?.observe()

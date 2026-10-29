@@ -3,7 +3,7 @@ import SwiftUI
 
 struct ProposalStatRow: View {
     let stats: ProposalStats
-    var showsInfo = false
+    var showsInfo = true
     var onInfo: () -> Void = {}
 
     var body: some View {
