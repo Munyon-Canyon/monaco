@@ -447,8 +447,6 @@ money-deposit-waiting         -MonacoMoneyFlowSample depositWaiting
 money-deposit-received        -MonacoMoneyFlowSample depositReceived
 money-withdraw-invalid        -MonacoMoneyFlowSample withdrawInvalid
 money-withdraw-insufficient   -MonacoMoneyFlowSample withdrawInsufficient
-money-first-fund              -MonacoMoneyFlowSample firstFund
-money-first-fund-no-vote      -MonacoMoneyFlowSample firstFundNoVote
 money-withdraw-processing     -MonacoMoneyFlowSample withdrawProcessing
 money-withdraw-completed      -MonacoMoneyFlowSample withdrawCompleted
 withdraw-empty                -MonacoWithdrawSample empty

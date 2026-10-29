@@ -6,13 +6,6 @@ enum FundNoteCopy {
     static let share = "Your share is the part of the pot you own. It moves when anyone funds or cashes out."
 }
 
-struct FirstFundHandOff: Identifiable {
-    let cabalID: String
-    let micros: Int64
-
-    var id: String { cabalID }
-}
-
 struct FundCabalScreen: View {
     let cabalID: String
     var onFirstFund: (() -> Void)?
@@ -22,8 +15,6 @@ struct FundCabalScreen: View {
     @State private var selectedID: String
     @State private var sources: FundSourceListModel?
     @State private var model: FundCabalModel?
-    @State private var firstFund: FirstFundHandOff?
-    @State private var leavesAfterFirstFund = false
 
     init(cabalID: String, onFirstFund: (() -> Void)? = nil) {
         self.cabalID = cabalID
@@ -36,7 +27,7 @@ struct FundCabalScreen: View {
             if let model, let sources {
                 FundCabalKeypadView(
                     model: model, sources: sources.rows, onClose: { dismiss() }, onPick: { selectedID = $0 },
-                    onFirstFund: firstFundHandler(model)
+                    onFirstFund: onFirstFund
                 )
                 .id(model.cabalID)
             } else {
@@ -49,26 +40,6 @@ struct FundCabalScreen: View {
         .onScreenVisibilityChange { model?.setVisible($0) }
         .task(id: selectedID) { await open(selectedID) }
         .onDisappear { model?.dismiss() }
-        .fullScreenCover(item: $firstFund, onDismiss: leaveAfterFirstFund) { handOff in
-            FirstFundView(
-                cabalID: handOff.cabalID, settledMicros: handOff.micros,
-                onDone: {
-                    leavesAfterFirstFund = true
-                    firstFund = nil
-                })
-        }
-    }
-
-    private func leaveAfterFirstFund() {
-        if leavesAfterFirstFund { dismiss() }
-    }
-
-    private func firstFundHandler(_ model: FundCabalModel) -> () -> Void {
-        {
-            guard case .settled(let micros, _, _) = model.state else { return }
-            firstFund = FirstFundHandOff(cabalID: model.cabalID, micros: micros)
-            onFirstFund?()
-        }
     }
 
     private func open(_ id: String) async {

@@ -152,7 +152,7 @@ public final class FundCabalModel {
 
     public func submit() async {
         guard canSubmit, let micros = amountMicros else { return }
-        isFirstFund = FirstFundModel.heldNoShare(sliceBps: preview?.sliceBpsNow)
+        isFirstFund = preview?.firstFundedAt == nil
         cashAfterMicros = max(maxMicros - micros, 0)
         resting = .submitting
         switch await funding.submit(micros: micros) {
