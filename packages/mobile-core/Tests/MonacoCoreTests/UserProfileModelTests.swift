@@ -30,15 +30,58 @@ final class UserProfileModelTests: XCTestCase {
         XCTAssertEqual(sent.map(\.path), ["/v1/users/\(UserProfileSupport.userID)"])
     }
 
-    func testTheSharedCabalsEmptyLineUsesTheLoadedName() async throws {
-        let profile = UserProfileSupport.profile(followers: 1, following: 1, followed: false)
+    private func loaded(_ profile: Components.Schemas.PublicProfile) async throws -> UserProfileModel {
         let model = UserProfileSupport.model(try StubTransport(scripted: [.profile(profile)]))
-
         await model.load()
+        return model
+    }
 
-        XCTAssertEqual(
-            SharedCabalsSummary.emptyLine(displayName: model.displayName),
-            "You and Maya Angelou aren't in a cabal together yet.")
+    func testTheHandleLineNamesTheMonthRankOrTheJoinDate() async throws {
+        let leader = try await loaded(.sampleLeader)
+        XCTAssertEqual(leader.handleLine, "@christelle \u{00B7} #1 this month")
+        XCTAssertTrue(leader.crown)
+
+        let ranked = try await loaded(.sample)
+        XCTAssertEqual(ranked.handleLine, "@maya \u{00B7} #8 this month")
+        XCTAssertFalse(ranked.crown)
+
+        let unranked = try await loaded(.sampleUnranked)
+        XCTAssertTrue(unranked.handleLine.hasPrefix("@noor \u{00B7} joined "), unranked.handleLine)
+        XCTAssertFalse(unranked.crown)
+
+        XCTAssertEqual(UserProfileSupport.model(StubTransport(.json(.ok, "{}"))).handleLine, "")
+    }
+
+    func testThePnLFigureIsAPercentPrivateOrADash() async throws {
+        let publicFigure = try await loaded(.sample)
+        XCTAssertEqual(publicFigure.pnlFigure, "+8.2%")
+
+        let hidden = try await loaded(.sampleOwn)
+        XCTAssertEqual(hidden.pnlFigure, "Private")
+
+        let none = try await loaded(.sampleUnranked)
+        XCTAssertEqual(none.pnlFigure, "\u{2014}")
+
+        XCTAssertEqual(UserProfileSupport.model(StubTransport(.json(.ok, "{}"))).pnlFigure, "\u{2014}")
+    }
+
+    func testRightCallsComeFromTheStandingOrADash() async throws {
+        let leader = try await loaded(.sampleLeader)
+        XCTAssertEqual(leader.rightCallsFigure, "12 of 13")
+
+        let none = try await loaded(UserProfileSupport.profile(followers: 1, following: 1, followed: false))
+        XCTAssertEqual(none.rightCallsFigure, "\u{2014}")
+    }
+
+    func testTheCountsLineAddsInCommonOnlyWhenThereIsOne() async throws {
+        let shared = try await loaded(.sampleLeader)
+        XCTAssertEqual(shared.countsLine, "40 followers \u{00B7} 15 following \u{00B7} 3 cabals \u{00B7} 2 in common")
+        XCTAssertEqual(shared.inCommon, 2)
+
+        var alone = Components.Schemas.PublicProfile.sampleUnranked
+        alone.cabalsInCommon = 0
+        let none = try await loaded(alone)
+        XCTAssertEqual(none.countsLine, "2 followers \u{00B7} 3 following \u{00B7} 1 cabal")
     }
 
     func testAnUnknownUserIsUnavailable() async throws {

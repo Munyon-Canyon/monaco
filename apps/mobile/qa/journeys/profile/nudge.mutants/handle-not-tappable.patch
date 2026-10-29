@@ -4,15 +4,15 @@ expect-fail: S4
 The handle is a dead button. S4.1 expects the handle editor, so S4 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Profile/IdentityCard.swift b/apps/mobile/Monaco/Features/Profile/IdentityCard.swift
---- a/apps/mobile/Monaco/Features/Profile/IdentityCard.swift
-+++ b/apps/mobile/Monaco/Features/Profile/IdentityCard.swift
-@@ -95,7 +95,7 @@
- 
-     @ViewBuilder private var nameBlock: some View {
-         if let editRoute {
--            NavigationLink(value: editRoute) {
+diff --git a/apps/mobile/Monaco/Features/Profile/ProfileCardSlot.swift b/apps/mobile/Monaco/Features/Profile/ProfileCardSlot.swift
+--- a/apps/mobile/Monaco/Features/Profile/ProfileCardSlot.swift
++++ b/apps/mobile/Monaco/Features/Profile/ProfileCardSlot.swift
+@@ -73,7 +73,7 @@
+                 toasts.current = $0
+                 if $0.isSuccess { Task { await model.load() } }
+             }
+-            NavigationLink(value: AnyAppRoute(EditProfileRoute())) {
 +            Button {} label: {
-                 names.accessibilityElement(children: .contain)
+                 names(card)
              }
              .buttonStyle(.plain)

@@ -81,8 +81,11 @@ struct UserProfileMoreMenu: View {
             }
         } label: {
             Image(systemName: "ellipsis")
-                .monacoToolbarIcon()
-                .frame(minWidth: 44, minHeight: 44)
+                .font(.title3.weight(.medium))
+                .foregroundStyle(MonacoTheme.primaryText)
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(MonacoTheme.surfaceSunken))
+                .contentShape(Circle())
         }
         .accessibilityLabel("More")
         .accessibilityIdentifier("user-profile-more")

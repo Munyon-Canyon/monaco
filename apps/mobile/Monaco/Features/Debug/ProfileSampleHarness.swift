@@ -23,6 +23,12 @@ enum ProfileSampleScenario: String, CaseIterable {
     case personPrivate
     case personNotFound
     case personError
+    case personChristelleActivity
+    case personChristelleCabals
+    case personUnranked
+    case personHidden
+    case personBlocked
+    case personViewer
     case editProfileReady
     case editProfileInvalid
     case editProfileSaving
@@ -56,6 +62,12 @@ enum ProfileSampleScenario: String, CaseIterable {
         case .personPrivate: .privateProfile
         case .personNotFound: .notFound
         case .personError: .error
+        case .personChristelleActivity: .christelleActivity
+        case .personChristelleCabals: .christelleCabals
+        case .personUnranked: .unranked
+        case .personHidden: .hiddenPerformance
+        case .personBlocked: .blocked
+        case .personViewer: .viewer
         default: nil
         }
     }
@@ -82,50 +94,6 @@ enum ProfileSampleScenario: String, CaseIterable {
 private struct RejectingNameStore: DisplayNameSaving {
     func saveDisplayName(_ draft: String) async -> ProfileSaveOutcome {
         .failed("Couldn't save your name. Try again.")
-    }
-}
-
-enum UserProfileSampleState {
-    case publicProfile, following, privateProfile, notFound, error
-}
-
-struct UserProfileSampleScreen: View {
-    let state: UserProfileSampleState
-
-    private var data: UserProfileContentData {
-        UserProfileContentData(
-            userID: "sample-mia", title: "Mia Chen", handle: "mia", photoURL: nil, followers: 12, following: 8,
-            followedByMe: state == .following, bio: "Curious about good ideas and better questions.",
-            joinedText: "Joined October 2026", cabals: 3,
-            performance: state == .privateProfile
-                ? .hidden : .figure(dollars: "+$984.00", percent: "+8.2%"),
-            activity: [], activityLoaded: true)
-    }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: MonacoTheme.Space.m) {
-                    content
-                }
-                .padding(.top, MonacoTheme.Space.m)
-            }
-            .monacoCanvas()
-            .navigationTitle("Mia Chen")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
-        }
-    }
-
-    @ViewBuilder private var content: some View {
-        switch state {
-        case .notFound:
-            UserProfileNotFound {}
-        case .error:
-            UserProfileLoadFailed {}
-        default:
-            UserProfileContent(data: data, actions: UserProfileActions())
-        }
     }
 }
 

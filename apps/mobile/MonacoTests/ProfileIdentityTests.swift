@@ -1,8 +1,6 @@
 import MonacoAPI
 import MonacoCore
-import SwiftUI
 import Testing
-import UIKit
 
 @testable import Monaco
 
@@ -10,44 +8,6 @@ import UIKit
 struct ProfileIdentityTests {
     private func summary(_ portfolio: Components.Schemas.MyPortfolio) -> PortfolioSummary {
         PortfolioSummary(portfolio)
-    }
-
-    @Test func aNewProfileDrawsZerosAsDesigned() {
-        let stats = summary(.sampleEmpty).stats
-        #expect(IdentityPerformance(stats: stats) == .empty)
-        #expect(IdentityPerformance.empty == .figure(dollars: "+$0.00", percent: "0.00%"))
-    }
-
-    @Test func aLossKeepsItsSignAndTwoDecimals() {
-        let stats = summary(.sampleLoss).stats
-        #expect(IdentityPerformance(stats: stats) == .figure(dollars: "−$1.00", percent: "−0.11%"))
-    }
-
-    @Test func aPublicReturnDrawsAFigureThePrivateStateOrNoReturn() {
-        #expect(
-            IdentityPerformance(.figure(pnlMicros: 984_000_000, returnBps: 820))
-                == .figure(dollars: "+$984.00", percent: "+8.20%"))
-        #expect(IdentityPerformance(.hidden) == .hidden)
-        #expect(IdentityPerformance(.unavailable) == .notRanked)
-    }
-
-    private func cardHeight(_ performance: IdentityPerformance, positions: String?) -> CGFloat {
-        let model = IdentityCardModel(
-            displayName: "Alex", positionsValue: positions, performance: performance, periodText: "1M")
-        let card = IdentityCard(model: model) {
-            Color.clear.frame(width: 64, height: 64)
-        } share: {
-            EmptyView()
-        }
-        return UIHostingController(rootView: card)
-            .sizeThatFits(in: CGSize(width: 358, height: CGFloat.greatestFiniteMagnitude)).height
-    }
-
-    @Test func theOneMonthDollarsAndPercentShareALine() {
-        let figure = IdentityPerformance.figure(dollars: "+$1,234.56", percent: "+12.30%")
-        for positions in [nil, "$12,345.67"] {
-            #expect(cardHeight(figure, positions: positions) == cardHeight(.hidden, positions: positions))
-        }
     }
 
     @Test func theFullScreenErrorNeedsAFailedReadAndNoCardToKeep() {
