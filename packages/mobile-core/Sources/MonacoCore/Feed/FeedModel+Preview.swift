@@ -65,7 +65,7 @@ enum FeedPreviewFixtures {
             title: "Mia proposed buying $400.00 of NVIDIA in Big Ballers", detail: "Voting open",
             body: "A small position alongside our existing holdings. "
                 + "I want us to discuss concentration before adding more.",
-            comments: 8, minutes: 12, likes: 12, returnBps: 820,
+            comments: 8, replies: 6, minutes: 12, likes: 12, returnBps: 820,
             figures: .init(
                 action: "buy", usdcMicros: 400_000_000, assetName: "NVIDIA", shareOfPotBps: 200,
                 vote: (yes: 4, no: 1, voters: 8, needed: 5, endsInHours: 4))),
@@ -74,8 +74,8 @@ enum FeedPreviewFixtures {
         item(
             4, kind: "reply", cabal: "Tech Titans", actor: 6, symbol: "TSLAx",
             title: "Logan replied to Sell TSLA", detail: "TSLA · Replied to Sell TSLA",
-            body: "Taking profit here is the right call before the deliveries print.", comments: 2, minutes: 70,
-            likes: 5, returnBps: 310, figures: .init()),
+            body: "Taking profit here is the right call before the deliveries print.", comments: 2, replies: 4,
+            refID: "c2", minutes: 70, likes: 5, returnBps: 310, figures: .init()),
         item(
             5, kind: "member_joined", cabal: "Big Ballers", actor: 7, symbol: nil,
             title: "Nora joined Big Ballers", detail: nil, minutes: 95, likes: 2, figures: .init()),
@@ -165,13 +165,14 @@ enum FeedPreviewFixtures {
     private static func item(
         _ number: Int, kind: String, cabal: String?, cabalID: String = cabalID, actor: Int?, symbol: String?,
         title: String, detail: String?, body: String? = nil, tone: String = "neutral", comments: Int32 = 0,
-        minutes: Double, likes: Int32, returnBps: Int64? = nil, figures: Figures
+        replies: Int32? = nil, refID: String? = nil, minutes: Double, likes: Int32, returnBps: Int64? = nil,
+        figures: Figures
     ) -> Components.Schemas.FeedItem {
         let created = Date(timeIntervalSinceNow: -minutes * 60)
         let proposal = ["proposal", "threshold", "reply"].contains(kind)
         return Components.Schemas.FeedItem(
             id: String(format: "00000000-0000-7000-8000-0000000fe%03d", 100 + number), kind: kind, refType: kind,
-            refId: String(format: "00000000-0000-7000-8000-0000000fa%03d", 100 + number),
+            refId: refID ?? String(format: "00000000-0000-7000-8000-0000000fa%03d", 100 + number),
             cabalId: cabal.map { _ in cabalID }, cabalName: cabal,
             actorId: actor.map { String(format: "00000000-0000-7000-8000-0000000fb%03d", $0) },
             actorName: actor.map { actorNames[$0 - 1] }, actorPhotoUrl: nil,
@@ -184,7 +185,8 @@ enum FeedPreviewFixtures {
             proposalId: proposal ? String(format: "00000000-0000-7000-8000-0000000fa%03d", 100 + number) : nil,
             commentCount: comments,
             threadItemId: String(format: "00000000-0000-7000-8000-0000000fe%03d", number),
-            replyCount: comments, canReply: true, canReact: true, replyRule: .anyone, replyRuleCabalName: nil,
+            replyCount: replies ?? comments, canReply: true, canReact: true, replyRule: .anyone,
+            replyRuleCabalName: nil,
             likeCount: likes, likedByMe: false, reactions: [], reactionCount: 0,
             tally: figures.vote.map { .init(yes: $0.yes, no: $0.no, voters: $0.voters, needed: $0.needed) },
             expiresAt: figures.vote.map { Date(timeIntervalSinceNow: $0.endsInHours * 3600) },
@@ -228,8 +230,8 @@ private struct FeedPreviewTransport: ClientTransport {
         if mode == .failed { throw URLError(.notConnectedToInternet) }
         if mode == .loading { try await Task.sleep(for: .seconds(3600)) }
         if operationID == "getUser" { return try Self.reply(Self.profile) }
-        if operationID == "putFeedLike" || operationID == "deleteFeedLike" {
-            return (HTTPResponse(status: .noContent), nil)
+        if operationID == "putFeedReaction" || operationID == "deleteFeedReaction" {
+            return try Self.reply(Self.reactionSummary(request, adding: operationID == "putFeedReaction"))
         }
         let params = URLComponents(string: request.path ?? "")?.queryItems ?? []
         let value = { (name: String) in params.first { $0.name == name }?.value }
@@ -254,6 +256,13 @@ private struct FeedPreviewTransport: ClientTransport {
             : shown.filter { kinds?.contains($0.kind) ?? true }
         let more = mode == .loadMoreFailed ? "older" : nil
         return try Self.reply(Components.Schemas.FeedPage(items: items, nextCursor: more))
+    }
+
+    private static func reactionSummary(_ request: HTTPRequest, adding: Bool) -> Components.Schemas.ReactionSummary {
+        let emoji = (request.path ?? "").split(separator: "/").last.flatMap { String($0).removingPercentEncoding }
+        let reactions = emoji.map { ReactionsModel.applying($0, adding: adding, to: []) } ?? []
+        return Components.Schemas.ReactionSummary(
+            reactions: reactions, total: Int32(reactions.reduce(0) { $0 + Int($1.count) }))
     }
 
     private static let profile = Components.Schemas.PublicProfile(

@@ -23,14 +23,30 @@ final class FeedPreviewTests: XCTestCase {
         }
     }
 
-    func testTheItemsHarnessLikesAnItemThroughTheStubbedEndpoint() async {
+    func testTheItemsHarnessReactsToAnItemThroughTheStubbedEndpoint() async {
         let model = FeedModel.preview(.items, clock: TestClock())
         await model.load()
         let item = model.items[0]
-        await model.toggleLike(item)
-        XCTAssertEqual(model.items[0].likedByMe, true)
-        XCTAssertEqual(model.items[0].likeCount, item.likeCount + 1)
+        await model.react("🎉", on: item)
+        XCTAssertEqual(model.items[0].reactions, [.init(emoji: "🎉", count: 1, mine: true)])
+        XCTAssertEqual(model.items[0].reactionCount, 1)
         XCTAssertEqual(model.failureTick, 0)
+    }
+
+    func testARepliedPostCountsOneMoreReply() async {
+        let model = FeedModel.preview(.items, clock: TestClock())
+        await model.load()
+        let before = model.items[0].replyCount
+        model.didReply(to: model.items[0].id)
+        XCTAssertEqual(model.items[0].replyCount, before + 1)
+    }
+
+    func testTheItemsHarnessCarriesTheReplyCountsFeedADraws() async {
+        let model = FeedModel.preview(.items, clock: TestClock())
+        await model.load()
+        let counts = Dictionary(uniqueKeysWithValues: model.items.map { ($0.title, $0.replyCount) })
+        XCTAssertEqual(counts["Mia proposed buying $400.00 of NVIDIA in Big Ballers"], 6)
+        XCTAssertEqual(model.items.first { $0.kind == "reply" }?.replyCount, 4)
     }
 
     func testTheLoadMoreFailedHarnessFailsTheFirstRetryOnlyOnce() async {

@@ -23,14 +23,13 @@ public final class FeedModel {
     public private(set) var lastError: APIError?
     public private(set) var loadMoreFailed = false
     public private(set) var fromEveryone: [Components.Schemas.FeedItem] = []
+    public let reactions: ReactionsModel
     private var fromEveryoneLoaded = false
-    private var likesInFlight: Set<String> = []
     private var viewerFollowsNobody = false
     private var checkingFollows = false
 
     private let api: APIClient
     private let mutes: FeedMuteService
-    private let likes: FeedLikeService
     private let viewerID: String?
     private let hints: any HintSource
     private let clock: any Clock<Duration>
@@ -43,7 +42,7 @@ public final class FeedModel {
     ) {
         self.api = api
         mutes = FeedMuteService(api: api)
-        likes = FeedLikeService(api: api)
+        reactions = ReactionsModel(api: api, clock: clock)
         self.viewerID = viewerID
         self.hints = hints
         self.clock = clock
@@ -153,23 +152,31 @@ public final class FeedModel {
         await reload()
     }
 
-    public func toggleLike(_ item: Components.Schemas.FeedItem) async {
-        let id = item.id
-        guard likesInFlight.insert(id).inserted else { return }
-        defer { likesInFlight.remove(id) }
-        let pager = pager
-        let before = pager.items.first { $0.id == id } ?? item
-        let liking = !before.likedByMe
-        pager.update(id: id) { $0.setLike(liking, from: before) }
-        do {
-            try await likes.set(liking, itemID: id)
-        } catch {
-            pager.update(id: id) {
-                $0.likedByMe = before.likedByMe
-                $0.likeCount = before.likeCount
-            }
-            fail(APIError(error))
+    public func reactions(for item: Components.Schemas.FeedItem) -> [Components.Schemas.Reaction] {
+        reactions.reactions(for: .feedItem(item.id), fallback: item.reactions)
+    }
+
+    public func react(_ emoji: String, on item: Components.Schemas.FeedItem) async {
+        let target = ReactionTarget.feedItem(item.id)
+        let current = reactions.reactions(for: target, fallback: stored(item.id)?.reactions ?? item.reactions)
+        let next = await reactions.toggle(emoji, on: target, current: current)
+        patch(item.id) {
+            $0.reactions = next
+            $0.reactionCount = next.reduce(0) { $0 + $1.count }
         }
+    }
+
+    public func didReply(to itemID: String) {
+        patch(itemID) { $0.replyCount += 1 }
+    }
+
+    private func stored(_ id: String) -> Components.Schemas.FeedItem? {
+        pager.items.first { $0.id == id } ?? fromEveryone.first { $0.id == id }
+    }
+
+    private func patch(_ id: String, _ change: (inout Components.Schemas.FeedItem) -> Void) {
+        pager.update(id: id, change)
+        if let index = fromEveryone.firstIndex(where: { $0.id == id }) { change(&fromEveryone[index]) }
     }
 
     private func fail(_ error: APIError) {

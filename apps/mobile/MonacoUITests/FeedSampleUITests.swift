@@ -50,16 +50,48 @@ nonisolated final class FeedSampleUITests: XCTestCase {
     }
 
     @MainActor
-    func testLikeTogglesLocallyAndShareOpensTheSystemSheet() {
+    func testEveryPostEndsItsRowWithTheReplyControl() {
         let app = launch("-feedHarness", "items")
-        let like = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'feed-like-'")).firstMatch
-        XCTAssertTrue(like.waitForExistence(timeout: 15), "no like button")
-        XCTAssertFalse(like.isSelected)
-        like.tap()
-        XCTAssertTrue(like.isSelected, "the like did not stick")
-        let share = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'feed-share-'")).firstMatch
-        share.tap()
-        XCTAssertTrue(app.otherElements["ActivityListView"].waitForExistence(timeout: 15), "no system share sheet")
+        for (post, label) in Self.controls {
+            let control = replyControl(app, post)
+            XCTAssertTrue(control.exists, "no reply control on \(post)")
+            XCTAssertEqual(control.label, label, "the control on \(post) reads wrong")
+        }
+    }
+
+    @MainActor
+    func testTheControlOnAMembersSaleOpensTheReplySheetOverTheFeed() {
+        let app = launch("-feedHarness", "items")
+        replyControl(app, Self.aaplSale).tap()
+        XCTAssertTrue(app.otherElements["reply-sheet"].waitForExistence(timeout: 10), "no reply sheet")
+        XCTAssertTrue(app.otherElements["reply-sheet-quote"].exists, "the sheet does not quote the sale")
+        XCTAssertTrue(app.buttons["feed-filter"].exists, "the Feed is not behind the sheet")
+    }
+
+    @MainActor
+    func testTheControlOnAProposalOpensItWithTheSheetUpAndNoQuote() {
+        let app = launch("-feedHarness", "items")
+        replyControl(app, Self.nvdaProposal).tap()
+        XCTAssertTrue(app.otherElements["reply-sheet"].waitForExistence(timeout: 15), "no reply sheet")
+        XCTAssertFalse(app.otherElements["reply-sheet-quote"].exists, "the sheet quotes something")
+        XCTAssertTrue(app.buttons["proposal-share"].exists, "the proposal is not behind the sheet")
+    }
+
+    @MainActor
+    func testTheControlOnACabalsResultOpensItsProposalAtTheReplies() {
+        let app = launch("-feedHarness", "items")
+        replyControl(app, Self.metaResult).tap()
+        XCTAssertTrue(app.otherElements["reply-sheet"].waitForExistence(timeout: 15), "no reply sheet")
+        XCTAssertFalse(app.otherElements["reply-sheet-quote"].exists, "the sheet quotes something")
+        XCTAssertTrue(app.buttons["proposal-share"].exists, "the proposal is not behind the sheet")
+    }
+
+    @MainActor
+    func testTheControlOnAReplyPostOpensTheProposalWithTheSheetQuotingIt() {
+        let app = launch("-feedHarness", "items")
+        replyControl(app, Self.tslaQuote).tap()
+        XCTAssertTrue(app.otherElements["reply-sheet"].waitForExistence(timeout: 15), "no reply sheet")
+        XCTAssertTrue(app.otherElements["reply-sheet-quote"].exists, "the sheet does not quote the reply")
     }
 
     @MainActor
@@ -117,6 +149,28 @@ nonisolated final class FeedSampleUITests: XCTestCase {
         XCTAssertFalse(app.buttons["comment-composer-send"].exists, "the composer is still there")
         back.tap()
         XCTAssertTrue(app.buttons["feed-filter"].waitForExistence(timeout: 10), "did not return to the feed")
+    }
+
+    private static let nvdaProposal = "00000000-0000-7000-8000-0000000fe101"
+    private static let metaResult = "00000000-0000-7000-8000-0000000fe008"
+    private static let aaplSale = "00000000-0000-7000-8000-0000000fe009"
+    private static let tslaQuote = "00000000-0000-7000-8000-0000000fe104"
+    private static let openAIBuy = "00000000-0000-7000-8000-0000000fe010"
+
+    private static let controls = [
+        (nvdaProposal, "Reply, 6 replies"), (metaResult, "Reply, 5 replies"), (aaplSale, "Reply, 5 replies"),
+        (tslaQuote, "Reply"), (openAIBuy, "Reply"),
+    ]
+
+    @MainActor
+    private func replyControl(_ app: XCUIApplication, _ item: String) -> XCUIElement {
+        let control = app.buttons["feed-reply-\(item)"]
+        var swipes = 0
+        while !control.waitForExistence(timeout: 3), swipes < 10 {
+            app.swipeUp()
+            swipes += 1
+        }
+        return control
     }
 
     @MainActor

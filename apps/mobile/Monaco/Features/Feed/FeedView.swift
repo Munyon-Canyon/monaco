@@ -86,7 +86,9 @@ private struct FeedSkeletonRow: View {
 private struct FeedScreen: View {
     let model: FeedModel
 
+    @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
+    @State private var replying: FeedReply?
     @State private var readingID: Components.Schemas.FeedItem.ID?
     @State private var showsMuted = false
 
@@ -102,10 +104,24 @@ private struct FeedScreen: View {
             ToolbarItem(placement: .topBarTrailing) { filter }
         }
         .navigationDestination(isPresented: $showsMuted) { FeedMutesView() }
+        .sheet(item: $replying) { FeedReplySheet(reply: $0) }
         .onChange(of: model.failureTick) { _, _ in
             guard let error = model.lastError else { return }
             toasts.show(error)
         }
+        .onChange(of: model.reactions.noticeTick) { _, _ in
+            guard let notice = model.reactions.notice else { return }
+            toasts.current = MonacoToast(message: notice)
+            model.reactions.dismissNotice()
+        }
+    }
+
+    private func startReply(_ item: Components.Schemas.FeedItem) {
+        let comments = CommentsModel.forPost(
+            item: item, api: environment.api, hints: environment.hints, clock: ContinuousClock(),
+            onPosted: { [weak model] in model?.didReply(to: item.id) })
+        comments.presentReplySheet(.post(item))
+        replying = FeedReply(item: item, comments: comments)
     }
 
     private var filter: some View {
@@ -218,8 +234,10 @@ private struct FeedScreen: View {
 
     private func row(_ item: Components.Schemas.FeedItem, now: Date, style: FeedPostStyle) -> some View {
         VStack(spacing: 0) {
-            FeedPost(item: item, now: now, style: style) {}
-                .padding(.horizontal, MonacoTheme.Space.gutter)
+            FeedPost(item: item, now: now, style: style) {
+                PostReactionsSlot(item: item, model: model, onReply: startReply)
+            }
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             MonacoRule(color: MonacoTheme.hairline)
                 .padding(.leading, FeedPostMetrics.textColumn)
         }
@@ -269,6 +287,26 @@ private struct FeedScreen: View {
     }
 }
 
+private struct FeedReply: Identifiable {
+    let item: Components.Schemas.FeedItem
+    let comments: CommentsModel
+
+    var id: String { item.id }
+}
+
+private struct FeedReplySheet: View {
+    let reply: FeedReply
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ReplySheet(model: reply.comments, target: .post(reply.item))
+            .onChange(of: reply.comments.replySheet) { _, target in
+                if target == nil { dismiss() }
+            }
+    }
+}
+
 enum FeedScreenMetrics {
     static let footerHeight: CGFloat = 48
     static let attachmentHeight: CGFloat = 64
@@ -278,24 +316,34 @@ enum FeedScreenMetrics {
 #if DEBUG
 final class FeedSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
-    override class func root(arguments: [String], auth _: PrivyAuthService) -> AnyView? {
+    override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
         guard let flag = arguments.firstIndex(of: "-feedHarness") else { return nil }
         let raw = arguments.indices.contains(flag + 1) ? arguments[flag + 1] : "items"
-        return AnyView(FeedHarnessScreen(mode: FeedModel.PreviewMode(rawValue: raw) ?? .items))
+        var script = SampleAPIScript()
+        script.proposal = .sample(canVote: true)
+        SampleAPIProtocol.install(script)
+        return AnyView(FeedHarnessScreen(mode: FeedModel.PreviewMode(rawValue: raw) ?? .items, auth: auth))
     }
 }
 
 private struct FeedHarnessScreen: View {
     let mode: FeedModel.PreviewMode
 
-    @State private var path: [AnyAppRoute] = []
+    @State private var environment: AppEnvironment
+
+    init(mode: FeedModel.PreviewMode, auth: PrivyAuthService) {
+        self.mode = mode
+        _environment = State(initialValue: .sample(auth: auth, suite: "MonacoFeedHarness"))
+    }
 
     var body: some View {
-        NavigationStack(path: $path) {
+        NavigationStack(path: Bindable(environment.navigator).feedPath) {
             FeedView(makeModel: { _ in .preview(mode, clock: ContinuousClock()) })
                 .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
         }
         .defaultScrollAnchor(SampleScrollAnchor.requested(by: SampleScrollAnchor.flag))
+        .environment(environment)
+        .environment(environment.sessionStore)
     }
 }
 #endif
