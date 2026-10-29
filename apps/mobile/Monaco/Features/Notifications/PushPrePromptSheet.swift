@@ -14,10 +14,18 @@ struct PushPrePromptSheet: View {
                 .frame(width: 56, height: 56)
                 .background(MonacoTheme.brandSoft, in: Circle())
                 .accessibilityHidden(true)
+            Text("Hear how votes end?")
+                .font(MonacoTheme.Typo.section)
+                .foregroundStyle(MonacoTheme.primaryText)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("push-pre-prompt-title")
             Text("Get each result when a vote closes. No more vote reminders after you vote.")
                 .font(MonacoTheme.Typo.body)
                 .foregroundStyle(MonacoTheme.secondaryText)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity, alignment: .center)
             if let sample = prompt.sample { sampleCard(sample) }
             Button {
                 Task { await prompt.turnOn() }
@@ -36,8 +44,9 @@ struct PushPrePromptSheet: View {
             }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.top, MonacoTheme.Space.l)
         .padding(.bottom, MonacoTheme.Space.m)
-        .monacoFittedSheet(title: "Hear how votes end?", titleIdentifier: "push-pre-prompt-title")
+        .monacoFittedSheet(title: "Hear how votes end?", showsHeading: false)
         .accessibilityIdentifier("push-pre-prompt")
     }
 
@@ -74,5 +83,6 @@ struct PushPrePromptSheet: View {
             ? AnyLayout(VStackLayout(spacing: MonacoTheme.Space.s))
             : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.m))
         return layout { content() }
+            .frame(maxWidth: .infinity, alignment: .center)
     }
 }

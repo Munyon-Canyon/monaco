@@ -146,7 +146,7 @@ founder:
 
 | Frame | Appearance | Verdict | Difference | Follow-up |
 | --- | --- | --- | --- | --- |
-| [`19-permission-sheet`](../screens/19-permission-sheet.png) | dark | difference | App puts the "Hear how votes end?" title top-left above the bell icon; frame centers the bell, then the centered title, then the copy. The page behind shows an unvoted Yes/No card, not "Voted Yes 5 / Passed 5-1". | #7024 (#6554) |
+| [`19-permission-sheet`](../screens/19-permission-sheet.png) | dark | match | Bell, title and copy centered in order; page behind shows the voted-Yes passed 5–1 card. | #7024 (#6554) |
 
 founder:
 

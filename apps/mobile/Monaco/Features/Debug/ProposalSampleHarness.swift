@@ -166,7 +166,7 @@ enum ProposalSampleScenario: String, CaseIterable {
             script.vote = .settles
         case .permissionSheet:
             script.asset = .nvda
-            script.proposal = .votableNVDA()
+            script.proposal = Components.Schemas.ProposalDetail.passedNVDA().voted(.yes)
         case .holdYes, .holdCold:
             script.asset = .nvda
             script.proposal = .votableNVDA()

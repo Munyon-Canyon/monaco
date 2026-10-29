@@ -158,11 +158,12 @@ extension View {
         titleIdentifier: String? = nil,
         detents: MonacoSheetDetents = .fitted,
         showsClose: Bool = false,
-        closeIdentifier: String? = nil
+        closeIdentifier: String? = nil,
+        showsHeading: Bool = true
     ) -> some View {
         MonacoSheetFrame(
             title: title, titleIdentifier: titleIdentifier, kind: detents, showsClose: showsClose,
-            closeIdentifier: closeIdentifier, scrolls: true, content: self)
+            closeIdentifier: closeIdentifier, scrolls: true, showsHeading: showsHeading, content: self)
     }
 
     @ViewBuilder
@@ -305,6 +306,7 @@ private struct MonacoSheetFrame<Content: View>: View {
     let showsClose: Bool
     let closeIdentifier: String?
     let scrolls: Bool
+    var showsHeading = true
     let content: Content
 
     @State private var headingHeight: CGFloat = 0
@@ -313,13 +315,16 @@ private struct MonacoSheetFrame<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            MonacoSheetHeading(
-                title: title, identifier: titleIdentifier, showsClose: showsClose, closeIdentifier: closeIdentifier
-            )
-            .onGeometryChange(for: CGFloat.self) {
-                $0.size.height
-            } action: {
-                headingHeight = $0
+            if showsHeading {
+                MonacoSheetHeading(
+                    title: title, identifier: titleIdentifier, showsClose: showsClose,
+                    closeIdentifier: closeIdentifier
+                )
+                .onGeometryChange(for: CGFloat.self) {
+                    $0.size.height
+                } action: {
+                    headingHeight = $0
+                }
             }
             sheetContent
         }
@@ -347,7 +352,8 @@ private struct MonacoSheetFrame<Content: View>: View {
     }
 
     private var available: [PresentationDetent] {
-        let fitted = headingHeight > 0 && contentHeight > 0 ? headingHeight + contentHeight : 0
+        let headingReady = !showsHeading || headingHeight > 0
+        let fitted = headingReady && contentHeight > 0 ? headingHeight + contentHeight : 0
         return (kind ?? .review).detents(fittedHeight: fitted, dynamicTypeSize: dynamicTypeSize)
     }
 }
