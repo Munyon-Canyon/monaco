@@ -14,6 +14,8 @@ struct MonacoMenuSelect<Option: Hashable>: View {
     private let label: (Option) -> String
     private var expands = false
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     @ScaledMetric(relativeTo: .footnote) private var chevronSize = MonacoMenuSelectMetrics.chevronSize
 
     init(
@@ -31,6 +33,10 @@ struct MonacoMenuSelect<Option: Hashable>: View {
         return copy
     }
 
+    static func wraps(at size: DynamicTypeSize) -> Bool {
+        size.isAccessibilitySize
+    }
+
     var body: some View {
         Menu {
             Picker(title, selection: $selection) {
@@ -44,7 +50,8 @@ struct MonacoMenuSelect<Option: Hashable>: View {
                 Text(label(selection))
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.primaryText)
-                    .lineLimit(1)
+                    .lineLimit(Self.wraps(at: dynamicTypeSize) ? nil : 1)
+                    .fixedSize(horizontal: false, vertical: Self.wraps(at: dynamicTypeSize))
                 if expands {
                     Spacer(minLength: 0)
                 }
