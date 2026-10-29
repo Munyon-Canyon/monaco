@@ -11,8 +11,10 @@ struct HomeScreen: View {
         HomePendingVotesSlot.self,
         HomeChartSlot.self,
         HomeBalanceSlot.self,
+        HomeFirstUseSlot.self,
         HomeCabalsSlot.self,
         HomeLeaderboardSlot.self,
+        HomeEveryonePreviewSlot.self,
         HomeFeedPreviewSlot.self,
     ]
 
@@ -29,6 +31,10 @@ struct HomeScreen: View {
         self.sections = sections
     }
 
+    static func cashEmphasis(for summary: PortfolioSummary?) -> HomeCashEmphasis {
+        HomeFirstUse.applies(to: summary) ? .quiet : .prominent
+    }
+
     var body: some View {
         let sections = sections.map { $0.erased }
         let live = SectionStack<Void>.live(sections)
@@ -41,6 +47,7 @@ struct HomeScreen: View {
                     .environment(portfolio)
                     .environment(\.homeReads, reads)
                     .environment(\.homeVoteNeeds, voteNeeds)
+                    .environment(\.homeCashEmphasis, Self.cashEmphasis(for: portfolio?.summary))
             }
         }
         .toolbar {
@@ -61,17 +68,26 @@ struct HomeScreen: View {
         .task {
             let portfolio = preparedPortfolio()
             refresh?.register("home-portfolio") { await portfolio.load() }
-            refresh?.register("home-portfolio-chart") { await portfolio.chart.refresh() }
+            refresh?.register("home-portfolio-chart") {
+                if !HomeFirstUse.applies(to: portfolio.summary) { await portfolio.chart.refresh() }
+            }
             await withTaskGroup(of: Void.self) { group in
-                group.addTask { await portfolio.load() }
+                group.addTask {
+                    await portfolio.load()
+                    let firstUse = await HomeFirstUse.applies(to: portfolio.summary)
+                    if !firstUse { await portfolio.chart.load() }
+                }
                 group.addTask { await portfolio.observe() }
-                group.addTask { await portfolio.chart.load() }
                 group.addTask { await portfolio.chart.observe() }
             }
         }
         .onScreenVisibilityChange {
             portfolio?.setVisible($0)
             portfolio?.chart.setVisible($0)
+        }
+        .onChange(of: HomeFirstUse.applies(to: portfolio?.summary)) { wasFirstUse, isFirstUse in
+            guard wasFirstUse, !isFirstUse, let portfolio else { return }
+            Task { await portfolio.chart.load() }
         }
         .onChange(of: portfolio?.chart.toast) { _, message in
             guard let message else { return }

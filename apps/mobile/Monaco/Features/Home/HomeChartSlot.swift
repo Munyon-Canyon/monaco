@@ -17,7 +17,9 @@ struct HomeChartView: View {
 
     var body: some View {
         Group {
-            if reads?.plan.showsSharedRow == true || portfolio?.summary == nil {
+            if reads?.plan.showsSharedRow == true || !HomeFirstUse.shows(.chart, summary: portfolio?.summary)
+                || portfolio?.summary == nil
+            {
                 EmptyView()
             } else if let chart = portfolio?.chart {
                 content(chart)

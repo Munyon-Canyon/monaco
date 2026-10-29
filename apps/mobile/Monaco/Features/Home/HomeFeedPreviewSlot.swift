@@ -27,11 +27,19 @@ private struct HomeFeedPreview: View {
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
+    @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
     @State private var model: HomeFeedPreviewModel?
 
     private var items: [Components.Schemas.FeedItem] {
         guard case .loaded(let items) = model?.state else { return [] }
         return items
+    }
+
+    private var block: HomeBlock { source == .everyone ? .everyoneFeed : .cabalsFeed }
+
+    private var waitsForGate: Bool {
+        guard let portfolio else { return false }
+        return !HomeFirstUse.shows(block, summary: portfolio.summary) || portfolio.summary == nil
     }
 
     var body: some View {
@@ -51,10 +59,11 @@ private struct HomeFeedPreview: View {
                 }
             }
         }
-        .homeSlotHidden(rows.isEmpty)
+        .homeSlotHidden(rows.isEmpty || waitsForGate)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(source == .yourCabals ? "home-feed-preview" : "home-feed-everyone")
-        .task {
+        .task(id: waitsForGate) {
+            guard !waitsForGate else { return }
             let model = preparedModel()
             refresh?.register("home-feed-preview-\(header)") { await model.load() }
             await model.load()

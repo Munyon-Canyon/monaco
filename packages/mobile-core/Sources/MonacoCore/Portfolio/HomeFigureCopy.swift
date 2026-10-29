@@ -13,6 +13,8 @@ public enum HomeFigureCopy {
         public let direction: PortfolioSummary.Direction
     }
 
+    public static let allCash = "All cash"
+
     public static func netWorth(micros: Int64) -> Figure {
         let text = UsdAmountFormatter.format(micros: UsdAmountFormatter.flooredToCents(micros))
         return Figure(whole: String(text.dropLast(3)), cents: String(text.suffix(3)))

@@ -46,6 +46,12 @@ struct HomeGate {
 
     var isLoading: Bool { summary == nil && !sharedFailure }
 
+    var firstUse: Bool { !sharedFailure && HomeFirstUse.applies(to: summary) }
+
+    func shows(_ block: HomeBlock) -> Bool {
+        !sharedFailure && HomeFirstUse.shows(block, summary: summary)
+    }
+
     func shows(_ rule: (HomeVariant) -> Bool) -> Bool {
         guard !sharedFailure, let variant else { return false }
         return rule(variant)

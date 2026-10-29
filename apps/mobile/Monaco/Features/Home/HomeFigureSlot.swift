@@ -50,7 +50,10 @@ struct HomeFigureView: View {
     @ViewBuilder private var loaded: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
             stale
-            if let netWorth = portfolio?.netWorth {
+            if let summary = portfolio?.summary, HomeFirstUse.applies(to: summary) {
+                figure(summary.cash)
+                allCash
+            } else if let netWorth = portfolio?.netWorth {
                 figure(netWorth)
                 line(netWorth)
             }
@@ -83,6 +86,13 @@ struct HomeFigureView: View {
         .lineLimit(1)
         .minimumScaleFactor(MoneyStyle.home.minimumScaleFactor)
         .accessibilityIdentifier("home-portfolio-total")
+    }
+
+    private var allCash: some View {
+        Text(HomeFigureCopy.allCash)
+            .font(MonacoTheme.Typo.subhead)
+            .foregroundStyle(MonacoTheme.secondaryText)
+            .accessibilityIdentifier("home-portfolio-all-cash")
     }
 
     @ViewBuilder private func line(_ netWorth: Int64) -> some View {

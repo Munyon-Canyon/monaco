@@ -68,3 +68,26 @@ public final class HomeReads {
         plan.report(slot, status)
     }
 }
+
+public enum HomeBlock: CaseIterable, Sendable {
+    case vote
+    case chart
+    case cabalsList
+    case cabalsFeed
+    case firstUse
+    case everyoneFeed
+}
+
+public enum HomeFirstUse {
+    public static func applies(to summary: PortfolioSummary?) -> Bool {
+        summary?.isEmpty == true
+    }
+
+    public static func shows(_ block: HomeBlock, summary: PortfolioSummary?) -> Bool {
+        let firstUse = applies(to: summary)
+        switch block {
+        case .vote, .chart, .cabalsList, .cabalsFeed: return !firstUse
+        case .firstUse, .everyoneFeed: return firstUse
+        }
+    }
+}

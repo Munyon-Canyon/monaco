@@ -33,7 +33,12 @@ struct HomePendingVotes: View {
     private var isHidden: Bool {
         guard portfolio != nil else { return false }
         let gate = HomeGate(portfolio: portfolio, reads: reads, balance: environment.balance.state)
-        return !gate.shows { $0.showsProposals }
+        return !gate.shows { $0.showsProposals } || !gate.shows(.vote)
+    }
+
+    private var waitsForGate: Bool {
+        guard let portfolio else { return false }
+        return portfolio.summary == nil || !HomeFirstUse.shows(.vote, summary: portfolio.summary)
     }
 
     var body: some View {
@@ -54,7 +59,8 @@ struct HomePendingVotes: View {
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .homeSlotHidden(isHidden)
         .animation(reduceMotion ? nil : .snappy, value: model?.cards.map(\.id))
-        .task {
+        .task(id: waitsForGate) {
+            guard !waitsForGate else { return }
             let model = preparedModel()
             await model.load()
             await model.observe()

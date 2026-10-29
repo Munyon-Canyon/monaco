@@ -36,6 +36,7 @@ enum HomeSampleScenario: String, CaseIterable {
     case fScrolled
     case feedPreviewEveryone
     case fUnfunded
+    case fFirstUse
 
     static func matching(_ arguments: [String]) -> HomeSampleScenario? {
         guard let flag = arguments.firstIndex(of: "-MonacoHomeSample"),
@@ -79,6 +80,7 @@ extension HomeSampleScenario {
         case .fVoteRule: HomeSampleData.script(.loss, proposals: [.fRule])
         case .fReady, .fReadyLight, .fScrolled: HomeSampleData.script(.fAccount, proposals: [.fVote])
         case .fUnfunded: HomeSampleData.script(.fUnfunded, proposals: [.fVote])
+        case .fFirstUse: HomeSampleData.firstUseScript()
         }
     }
 
@@ -105,7 +107,7 @@ extension HomeSampleScenario {
 
 enum HomeSampleData {
     enum Figures {
-        case loss, gain, cashOnly, unfunded, partlyFunded, empty, fAccount, fUnfunded
+        case loss, gain, cashOnly, unfunded, partlyFunded, empty, fAccount, fUnfunded, fFirstUse
     }
 
     enum Proposal {
@@ -145,6 +147,13 @@ enum HomeSampleData {
     }
 
     @MainActor
+    static func firstUseScript() -> SampleAPIScript {
+        var script = self.script(.fFirstUse, proposals: [])
+        script.homeFeed = feedPreviewScript(.everyone).homeFeed
+        return script
+    }
+
+    @MainActor
     static func script(
         _ figures: Figures, proposals: [Proposal], pendingVotesHang: Bool = false, pendingVotesFail: Bool = false,
         portfolioReadsBeforeFailing: Int? = nil
@@ -153,7 +162,7 @@ enum HomeSampleData {
         script.portfolio = portfolio(figures)
         script.pnlHistory = history(figures)
         script.balance = balance(micros: figures == .empty ? 0 : 500_000_000)
-        script.homeCabals = figures == .empty ? [] : cabals.map(myCabal)
+        script.homeCabals = figures == .empty || figures == .fFirstUse ? [] : cabals.map(myCabal)
         script.ownershipBps = Dictionary(
             uniqueKeysWithValues: cabals.map { ($0.id, ownershipBps(figures, $0)) })
         script.cabalBoard = cabalBoard
@@ -178,7 +187,7 @@ enum HomeSampleData {
         -> Int32
     {
         switch figures {
-        case .cashOnly, .unfunded: 0
+        case .cashOnly, .unfunded, .fFirstUse: 0
         case .partlyFunded: cabal.id == bigBallers ? cabal.ownershipBps : 0
         case .loss, .gain, .empty, .fAccount, .fUnfunded: cabal.ownershipBps
         }
@@ -210,6 +219,11 @@ enum HomeSampleData {
             return .sampleF
         case .unfunded, .empty:
             return .sampleEmpty
+        case .fFirstUse:
+            var cashOnly = Components.Schemas.MyPortfolio.sampleEmpty
+            cashOnly.cashMicros = 500_000_000
+            cashOnly.netWorthMicros = 500_000_000
+            return cashOnly
         }
         let total: Int64 = values.reduce(0, +)
         let totalPnl: Int64 = pnls.reduce(0, +)
@@ -241,7 +255,7 @@ enum HomeSampleData {
         case .loss, .partlyFunded: target = -417_680_000
         case .gain: target = 1_482_320_000
         case .fAccount, .fUnfunded: target = 241_100_000
-        case .cashOnly, .unfunded, .empty: return .sampleEmpty
+        case .cashOnly, .unfunded, .empty, .fFirstUse: return .sampleEmpty
         }
         let count = 31
         let wobbles: [Int64] = [0, 18, -12, 25, -20, 10, -25, 15]
