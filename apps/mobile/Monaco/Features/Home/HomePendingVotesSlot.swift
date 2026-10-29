@@ -10,7 +10,6 @@ enum HomePendingVotesSlot: HomeSection {
 }
 
 enum HomeProposalsMetrics {
-    static let shownLimit = 2
     static let loadingTitleFraction: CGFloat = 0.46
     static let loadingSubtitleFraction: CGFloat = 0.72
     static let loadingFooterFraction: CGFloat = 0.65
@@ -22,11 +21,12 @@ struct HomePendingVotes: View {
     @Environment(\.homeReads) private var reads
     @Environment(\.homeVoteNeeds) private var voteNeeds
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var model: PendingVotesModel?
-    @State private var voting: ProposalVoteModel?
-    private let makeModel: @MainActor (AppEnvironment) -> PendingVotesModel
+    @State private var model: HomePendingVotesModel?
+    private let makeModel: @MainActor (AppEnvironment) -> HomePendingVotesModel
 
-    init(makeModel: @escaping @MainActor (AppEnvironment) -> PendingVotesModel = HomePendingVotes.liveModel) {
+    init(
+        makeModel: @escaping @MainActor (AppEnvironment) -> HomePendingVotesModel = HomePendingVotes.liveModel
+    ) {
         self.makeModel = makeModel
     }
 
@@ -39,20 +39,21 @@ struct HomePendingVotes: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let model {
-                let shown = shownVotes(model)
-                MonacoSectionHeader("Proposals", count: waiting(shown, model), trailing: "See all") {
+                MonacoSectionHeader(
+                    "Your vote", count: model.waitingCount > 0 ? model.waitingCount : nil, trailing: "All proposals"
+                ) {
                     environment.navigator.open(PendingVotesRoute(), in: .home)
                 }
                 switch model.phase {
                 case .loading: loading
                 case .failed: failed(model)
-                case .loaded: loaded(shown, model)
+                case .loaded: loaded(model)
                 }
             }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .homeSlotHidden(isHidden)
-        .animation(reduceMotion ? nil : .snappy, value: model?.votes.map(\.id))
+        .animation(reduceMotion ? nil : .snappy, value: model?.cards.map(\.id))
         .task {
             let model = preparedModel()
             await model.load()
@@ -61,45 +62,19 @@ struct HomePendingVotes: View {
         .onScreenVisibilityChange { model?.setVisible($0) }
         .onChange(of: voteSignature, initial: true) { _, _ in
             guard let model else { return }
-            voteNeeds?.update(model, votedThisSession: voting?.votedIDs ?? [])
+            voteNeeds?.update(rows: model.rows, votedThisSession: model.votedIDs)
         }
     }
 
     private var voteSignature: [String] {
-        guard let model else { return [] }
-        let voted = voting?.votedIDs ?? []
-        return model.votes.map { "\($0.id)|\(model.details[$0.id]?.summary.myBallot != nil)|\(voted.contains($0.id))" }
+        model?.cards.map { "\($0.id)|\($0.isCommitted)" } ?? []
     }
 
-    private func shownVotes(_ model: PendingVotesModel) -> [PendingVote] {
-        Array((model.needsVote + model.inProgress).prefix(HomeProposalsMetrics.shownLimit))
-    }
-
-    private func waiting(_ shown: [PendingVote], _ model: PendingVotesModel) -> Int? {
-        let voted = voting?.votedIDs ?? []
-        let needing = Set(model.needsVote.map(\.id))
-        let count = shown.filter {
-            needing.contains($0.id) && !voted.contains($0.id) && model.details[$0.id]?.summary.myBallot == nil
-        }.count
-        return count > 0 ? count : nil
-    }
-
-    @ViewBuilder private func loaded(_ shown: [PendingVote], _ model: PendingVotesModel) -> some View {
-        if shown.isEmpty {
+    @ViewBuilder private func loaded(_ model: HomePendingVotesModel) -> some View {
+        if let card = model.shown {
+            HomeVoteCard(model: card).id(card.id)
+        } else {
             quietEmpty
-        } else if let voting {
-            VStack(spacing: MonacoTheme.Space.sm) {
-                ForEach(shown) { vote in
-                    if let detail = model.details[vote.id] {
-                        ProposalVoteCard(
-                            proposal: detail.summary, voting: voting,
-                            asset: model.assets[detail.summary.symbol],
-                            members: model.members[detail.summary.cabalID] ?? [],
-                            paused: model.pausedCabals.contains(detail.summary.cabalID),
-                            onVoted: { await model.load() })
-                    }
-                }
-            }
         }
     }
 
@@ -140,7 +115,7 @@ struct HomePendingVotes: View {
         .accessibilityIdentifier("home-proposals-loading")
     }
 
-    private func failed(_ model: PendingVotesModel) -> some View {
+    private func failed(_ model: HomePendingVotesModel) -> some View {
         MonacoCard {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.sm) {
@@ -166,15 +141,20 @@ struct HomePendingVotes: View {
         .accessibilityIdentifier("home-proposals-error")
     }
 
-    private func preparedModel() -> PendingVotesModel {
+    private func preparedModel() -> HomePendingVotesModel {
         if let model { return model }
         let created = makeModel(environment)
-        voting = ProposalVoteModel(repository: ProposalsRepository(api: environment.api))
         model = created
         return created
     }
 
-    static func liveModel(_ environment: AppEnvironment) -> PendingVotesModel {
-        PendingVotesModel(repository: ProposalsRepository(api: environment.api), hints: environment.hints)
+    static func liveModel(_ environment: AppEnvironment) -> HomePendingVotesModel {
+        let model = HomePendingVotesModel(api: environment.api, hints: environment.hints)
+        #if DEBUG
+        if let scenario = HomeSampleScenario.matching(ProcessInfo.processInfo.arguments) {
+            model.cardSetup = scenario.voteCardSetup
+        }
+        #endif
+        return model
     }
 }
