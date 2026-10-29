@@ -84,4 +84,14 @@ final class FeedItemDetailPreviewTests: XCTestCase {
         let posted = await model.comments.post(CommentDraft(text: "Count me in."))
         XCTAssertFalse(posted)
     }
+
+    func testTheLoganPostHarnessShowsLogansSaleWithFiveReplies() async {
+        for mode in [FeedItemDetailModel.PreviewMode.logan, .end] {
+            let model = FeedItemDetailModel.preview(mode, clock: TestClock())
+            await model.load()
+            XCTAssertEqual(model.item?.actorName, "Logan")
+            XCTAssertEqual(model.item?.reactions.map(\.emoji), ["💰", "🙌"])
+            XCTAssertEqual(model.comments.commentCount, 5)
+        }
+    }
 }

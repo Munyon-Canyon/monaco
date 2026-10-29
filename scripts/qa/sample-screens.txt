@@ -603,6 +603,10 @@ feed-post-replying            -feedPostHarness replying
 feed-post-sending             -feedPostHarness sending
 feed-post-failed              -feedPostHarness failed
 feed-post-unavailable         -feedPostHarness unavailable
+feed-post-logan               -feedPostHarness logan
+feed-post-logan-dark          -feedPostHarness logan -AppleInterfaceStyle Dark
+feed-post-end                 -feedPostHarness end
+feed-post-end-dark            -feedPostHarness end -AppleInterfaceStyle Dark
 composer-docked               -composerHarness docked
 composer-docked-dark          -composerHarness docked -AppleInterfaceStyle Dark
 composer-sheet-comment         -composerHarness sheetComment

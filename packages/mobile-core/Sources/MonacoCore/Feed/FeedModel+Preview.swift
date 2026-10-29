@@ -37,6 +37,8 @@ extension FeedItemDetailModel {
         case failed
         case unavailable
         case poll
+        case logan
+        case end
     }
 
     public static let previewItemID = FeedPreviewFixtures.postItem.id
@@ -191,6 +193,16 @@ enum FeedPreviewFixtures {
         return item
     }()
 
+    static let loganSale: Components.Schemas.FeedItem = {
+        var item = Components.Schemas.FeedItem.results.first { $0.title.hasPrefix("Logan's sale") } ?? postItem
+        item.reactions = [.init(emoji: "💰", count: 4, mine: false), .init(emoji: "🙌", count: 2, mine: false)]
+        item.reactionCount = 6
+        return item
+    }()
+
+    static let loganThreads: [Components.Schemas.CommentThread] =
+        Components.Schemas.CommentThread.loganAAPLThread.filter { $0.comment.id != "aapl-jordan" }
+
     static let threads: [Components.Schemas.CommentThread] = [
         .init(
             comment: .sample(
@@ -329,6 +341,10 @@ private struct FeedPreviewTransport: ClientTransport {
     }
 }
 
+extension FeedItemDetailModel.PreviewMode {
+    fileprivate var isLogan: Bool { self == .logan || self == .end }
+}
+
 private struct FeedPostPreviewTransport: ClientTransport {
     let mode: FeedItemDetailModel.PreviewMode
 
@@ -342,12 +358,14 @@ private struct FeedPostPreviewTransport: ClientTransport {
         case "getFeedItem":
             if mode == .unavailable { return Self.notFound() }
             let detail = Components.Schemas.FeedItemDetail(
-                item: FeedPreviewFixtures.postItem, visible: true, canComment: true)
+                item: mode.isLogan ? FeedPreviewFixtures.loganSale : FeedPreviewFixtures.postItem, visible: true,
+                canComment: true)
             return try FeedPreviewTransport.reply(detail)
         case "getFeedComments":
             let threads =
                 mode == .poll
-                ? PollPreviewStore.shared.threads : mode == .empty ? [] : FeedPreviewFixtures.threads
+                ? PollPreviewStore.shared.threads
+                : mode == .empty ? [] : mode.isLogan ? FeedPreviewFixtures.loganThreads : FeedPreviewFixtures.threads
             return try FeedPreviewTransport.reply(Components.Schemas.CommentPage(items: threads, nextCursor: nil))
         case "postFeedComment":
             if mode == .sending { try await Task.sleep(for: .seconds(3600)) }
