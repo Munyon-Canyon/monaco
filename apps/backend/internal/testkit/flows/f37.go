@@ -14,6 +14,13 @@ import (
 
 const weeklyLedgerPoller = "ranking.weekly_ledger"
 
+func (defined) SeedsF37() map[string]Seeder {
+	return map[string]Seeder{
+		"F37BuildLedgersOK":                seedSignedIn,
+		"F37BuildLedgersCrashBeforeCommit": seedSignedIn,
+	}
+}
+
 type ledgerFixture struct{ voter uuid.UUID }
 
 func ledgerDelivery(now time.Time) time.Time {
