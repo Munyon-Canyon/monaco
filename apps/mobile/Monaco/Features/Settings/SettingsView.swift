@@ -4,10 +4,12 @@ import SwiftUI
 import UIKit
 
 enum SettingsRow: CaseIterable, Identifiable {
-    case notifications, editProfile, activity, withdraw, blockedPeople, advanced, signOut, deleteAccount
+    case notifications, editProfile, findFriends, inviteFriends, viewAsOthers, activity, withdraw, blockedPeople
+    case advanced, signOut, deleteAccount
 
     static let accountRows: [SettingsRow] = [
-        .editProfile, .activity, .withdraw, .blockedPeople, .advanced, .signOut,
+        .editProfile, .findFriends, .inviteFriends, .viewAsOthers, .activity, .withdraw, .blockedPeople, .advanced,
+        .signOut,
     ]
 
     var id: Self { self }
@@ -16,6 +18,9 @@ enum SettingsRow: CaseIterable, Identifiable {
         switch self {
         case .notifications: "Notifications"
         case .editProfile: "Edit profile"
+        case .findFriends: "Find friends"
+        case .inviteFriends: "Invite friends"
+        case .viewAsOthers: "View as others"
         case .activity: "Account activity"
         case .withdraw: "Withdraw"
         case .blockedPeople: "Blocked people"
@@ -29,6 +34,9 @@ enum SettingsRow: CaseIterable, Identifiable {
         switch self {
         case .notifications: nil
         case .editProfile: "Name, photo and optional bio"
+        case .findFriends: "Search people and contacts"
+        case .inviteFriends: "Share your invite link"
+        case .viewAsOthers: "See your profile as others do"
         case .activity: "Transfers and receipts"
         case .withdraw: "Send cash to an external wallet"
         case .blockedPeople: "People you've blocked"
@@ -42,6 +50,9 @@ enum SettingsRow: CaseIterable, Identifiable {
         switch self {
         case .notifications: "bell"
         case .editProfile: "person"
+        case .findFriends: "person.2"
+        case .inviteFriends: "square.and.arrow.up"
+        case .viewAsOthers: "eye"
         case .activity: "doc.text"
         case .withdraw: "arrow.up.right"
         case .blockedPeople: "hand.raised"
@@ -55,6 +66,9 @@ enum SettingsRow: CaseIterable, Identifiable {
         switch self {
         case .notifications: "settings-notifications"
         case .editProfile: "settings-edit-profile"
+        case .findFriends: "profile-find-friends"
+        case .inviteFriends: "profile-invite-row"
+        case .viewAsOthers: "profile-view-as-others"
         case .activity: "settings-activity"
         case .withdraw: "settings-withdraw"
         case .blockedPeople: "settings-blocked-people"
@@ -103,7 +117,7 @@ struct SettingsView: View {
             authorization: LiveNotificationAuthorizing(), register: environment.registerForPush,
             signOut: { await environment.signOut() },
             preferences: { NotificationPreferencesModel(api: environment.api) },
-            showError: { toasts.show($0) },
+            showError: { toasts.show($0) }, viewerID: environment.viewer?.userID,
             open: { route in environment.navigator.open(route, in: environment.navigator.selectedTab) })
     }
 }
@@ -113,6 +127,7 @@ struct SettingsList: View {
     let register: () -> Void
     let signOut: () async -> Void
     let showError: (APIError) -> Void
+    let viewerID: String?
     let open: (any AppRoute) -> Void
 
     @Environment(\.openURL) private var openURL
@@ -130,12 +145,14 @@ struct SettingsList: View {
         state: SettingsScreenState = .ready,
         preferences: () -> NotificationPreferencesModel? = { nil },
         showError: @escaping (APIError) -> Void = { _ in },
+        viewerID: String? = nil,
         open: @escaping (any AppRoute) -> Void
     ) {
         self.authorization = authorization
         self.register = register
         self.signOut = signOut
         self.showError = showError
+        self.viewerID = viewerID
         self.open = open
         _phase = State(initialValue: state)
         _preferences = State(initialValue: preferences())
@@ -198,7 +215,7 @@ struct SettingsList: View {
                 MonacoSectionHeader("Account")
                     .padding(.horizontal, MonacoTheme.Space.gutter)
                 MonacoGroupedList {
-                    ForEach(SettingsRow.accountRows) { row in
+                    ForEach(SettingsRow.accountRows.filter { $0 != .viewAsOthers || viewerID != nil }) { row in
                         link(for: row)
                     }
                 }
@@ -350,43 +367,25 @@ extension SettingsList {
         .onAppear { panelTitleFocused = true }
     }
 
+    private func route(for row: SettingsRow) -> (any AppRoute)? {
+        switch row {
+        case .editProfile: EditProfileRoute()
+        case .findFriends: FriendsRoute()
+        case .inviteFriends: InviteRoute()
+        case .viewAsOthers: viewerID.map { UserProfileRoute(userID: $0) }
+        case .activity: AccountActivityRoute()
+        case .withdraw: WithdrawRoute()
+        case .blockedPeople: BlockedPeopleRoute()
+        case .deleteAccount: DeleteAccountRoute()
+        case .notifications, .advanced, .signOut: nil
+        }
+    }
+
     @ViewBuilder private func link(for row: SettingsRow) -> some View {
         let isLast = row == SettingsRow.accountRows.last || row == .deleteAccount
         switch row {
         case .notifications:
             EmptyView()
-        case .editProfile:
-            Button {
-                open(EditProfileRoute())
-            } label: {
-                label(for: row, isLast: isLast)
-            }
-            .buttonStyle(.monacoRow)
-            .accessibilityIdentifier(row.identifier)
-        case .activity:
-            Button {
-                open(AccountActivityRoute())
-            } label: {
-                label(for: row, isLast: isLast)
-            }
-            .buttonStyle(.monacoRow)
-            .accessibilityIdentifier(row.identifier)
-        case .withdraw:
-            Button {
-                open(WithdrawRoute())
-            } label: {
-                label(for: row, isLast: isLast)
-            }
-            .buttonStyle(.monacoRow)
-            .accessibilityIdentifier(row.identifier)
-        case .blockedPeople:
-            Button {
-                open(BlockedPeopleRoute())
-            } label: {
-                label(for: row, isLast: isLast)
-            }
-            .buttonStyle(.monacoRow)
-            .accessibilityIdentifier(row.identifier)
         case .advanced:
             NavigationLink {
                 AdvancedSettingsView()
@@ -404,9 +403,9 @@ extension SettingsList {
             .buttonStyle(.monacoRow)
             .disabled(isSigningOut)
             .accessibilityIdentifier(row.identifier)
-        case .deleteAccount:
+        default:
             Button {
-                open(DeleteAccountRoute())
+                if let route = route(for: row) { open(route) }
             } label: {
                 label(for: row, isLast: isLast)
             }
@@ -464,7 +463,7 @@ private struct SettingsHarnessScreen: View {
         NavigationStack(path: $path) {
             SettingsList(
                 authorization: FixedAuthorization(current: authorized ? .authorized : .denied), register: {},
-                state: state, preferences: { showsCategorySwitches ? .preview() : nil }
+                state: state, preferences: { showsCategorySwitches ? .preview() : nil }, viewerID: "sample-me"
             ) {
                 path.append(AnyAppRoute($0))
             }

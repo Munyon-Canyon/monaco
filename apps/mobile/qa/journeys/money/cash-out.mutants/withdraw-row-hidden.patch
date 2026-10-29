@@ -7,9 +7,9 @@ scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Settings/SettingsView.swift b/apps/mobile/Monaco/Features/Settings/SettingsView.swift
 --- a/apps/mobile/Monaco/Features/Settings/SettingsView.swift
 +++ b/apps/mobile/Monaco/Features/Settings/SettingsView.swift
-@@ -55,7 +55,7 @@
-         case .notifications: "settings-notifications"
-         case .editProfile: "settings-edit-profile"
+@@ -70,7 +70,7 @@
+         case .inviteFriends: "profile-invite-row"
+         case .viewAsOthers: "profile-view-as-others"
          case .activity: "settings-activity"
 -        case .withdraw: "settings-withdraw"
 +        case .withdraw: "settings-withdraw-gone"
