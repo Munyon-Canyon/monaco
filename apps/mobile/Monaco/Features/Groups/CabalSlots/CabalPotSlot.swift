@@ -130,7 +130,7 @@ struct CabalPotBand: View {
 
     @ViewBuilder private func loaded(_ summary: CabalPotSummary) -> some View {
         let figure = line(figure: Text(Self.dimmedCents(summary.potValue)), move: move)
-        if let openHistory, summary.state != .zero {
+        if let openHistory {
             Button(action: openHistory) {
                 HStack(spacing: MonacoTheme.Space.s) {
                     figure

@@ -81,6 +81,24 @@ struct CabalTreasurySlotTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
+    func aZeroPotStillOffersTreasuryHistory() async throws {
+        try AccessibilityTree.setAutomation(enabled: true)
+        defer { try? AccessibilityTree.setAutomation(enabled: false) }
+        let rendered = try await Self.render(.sampleZero)
+        defer { TestWindow.close(rendered.window) }
+
+        let identifiers = AccessibilityTree.identifiers(in: rendered.window)
+        #expect(identifiers.contains("cabal-holdings-empty"), "identifiers: \(identifiers)")
+        #expect(identifiers.contains("cabal-treasury-history"), "identifiers: \(identifiers)")
+        #expect(!identifiers.contains("cabal-treasury-cash-out"), "identifiers: \(identifiers)")
+
+        try Self.activate("cabal-treasury-history", in: rendered.window)
+
+        let route = rendered.opened.routes.last as? CabalTreasuryHistoryRoute
+        #expect(route == CabalTreasuryHistoryRoute(cabalID: Components.Schemas.CabalPot.sampleZero.cabalId))
+    }
+
+    @Test(.timeLimit(.minutes(1)))
     func aPositionOpensItsHolding() async throws {
         try AccessibilityTree.setAutomation(enabled: true)
         defer { try? AccessibilityTree.setAutomation(enabled: false) }
