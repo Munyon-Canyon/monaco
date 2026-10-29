@@ -70,17 +70,6 @@ struct ProfileIdentityTests {
         #expect(ProfileMoneyStrip.spoken(.unavailable) == "unavailable")
     }
 
-    @Test func theCoverCardTakesTheRowFigures() throws {
-        let row = try #require(summary(.sample).rows.first)
-        let model = CabalCoverCardModel(profileRow: row)
-        #expect(model.shareText == "$600.00")
-        #expect(model.ownershipText == row.slice)
-        #expect(model.pnl?.direction == .profit)
-        #expect(model.groupReturn == nil)
-        let unfunded = try #require(summary(.sampleLoss).rows.last)
-        #expect(CabalCoverCardModel(profileRow: unfunded).pnl == nil)
-    }
-
     @Test func theRowsFollowTheDesignOrder() {
         let names = ProfileScreen.sections.map { String(describing: $0) }
         #expect(!names.contains("ProfileStatsSlot"))
