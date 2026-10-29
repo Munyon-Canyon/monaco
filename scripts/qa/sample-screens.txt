@@ -190,13 +190,6 @@ balances-ready-dark           -balancesHarness ready -AppleInterfaceStyle Dark
 balances-cash-only            -balancesHarness cashOnly
 balances-loading              -balancesHarness loading
 balances-error                -balancesHarness error
-activity-feed-unread          -activityFeedHarness unread
-activity-feed-unread-dark     -activityFeedHarness unread -AppleInterfaceStyle Dark
-activity-feed-read            -activityFeedHarness read
-activity-feed-empty           -activityFeedHarness empty
-activity-feed-loading         -activityFeedHarness loading
-activity-feed-error           -activityFeedHarness error
-activity-feed-live            -activityFeedHarness live
 reactions-row                 -reactionsHarness row
 reactions-tray-open           -reactionsHarness trayOpen
 reactions-mine               -reactionsHarness mine
@@ -830,11 +823,6 @@ home__home__proposals-error                        -MonacoHomeSample proposalsEr
 home__home__proposals-loading                      -MonacoHomeSample proposalsLoading
 home__home__stale                                  -MonacoHomeSample stale
 home__home__voted                                  -MonacoHomeSample voted
-home__notifications__empty                         -activityFeedHarness empty
-home__notifications__error                         -activityFeedHarness error
-home__notifications__loading                       -activityFeedHarness loading
-home__notifications__read                          -activityFeedHarness read
-home__notifications__unread                        -activityFeedHarness unread
 markets__instrument__loading                       -MonacoAssetDetailSample loading
 markets__instrument__loss                          -MonacoAssetDetailSample loss
 markets__instrument__no-holders                    -MonacoAssetDetailSample noHolders
@@ -974,3 +962,7 @@ f__01-tokens            -MonacoDesignGallery -MonacoDesignGalleryTab tokens -Mon
 f__01-tokens-type       -MonacoDesignGallery -MonacoDesignGalleryTab type -MonacoDesignGalleryAppearance dark
 f__01-tokens-controls   -MonacoDesignGallery -MonacoDesignGalleryTab controls -MonacoDesignGalleryAppearance dark
 f__01-chart-variants    -MonacoDesignGallery -MonacoDesignGalleryTab charts -MonacoDesignGalleryAppearance dark
+catch-up-six                  -MonacoCatchUpSample six
+catch-up-six-dark             -MonacoCatchUpSample six -AppleInterfaceStyle Dark
+catch-up-loading              -MonacoCatchUpSample loading
+catch-up-error                -MonacoCatchUpSample error
