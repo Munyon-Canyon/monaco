@@ -3,17 +3,20 @@ expect-fail: S1
 
 Home names the board "Top people". The journey step that reads the board header must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
-
 diff --git a/apps/mobile/Monaco/Features/Home/HomeLeaderboardSlot.swift b/apps/mobile/Monaco/Features/Home/HomeLeaderboardSlot.swift
-index e6c4bd8b1..5844850f8 100644
+index 384d7c1c3..7acf0f930 100644
 --- a/apps/mobile/Monaco/Features/Home/HomeLeaderboardSlot.swift
 +++ b/apps/mobile/Monaco/Features/Home/HomeLeaderboardSlot.swift
-@@ -91,7 +91,7 @@ private struct HomeLeaderboard: View {
-     var body: some View {
-         let gate = HomeGate(portfolio: portfolio, reads: reads, balance: environment.balance.state)
-         VStack(alignment: .leading, spacing: 0) {
--            MonacoSectionHeader("Leaderboard", trailing: "View all") {
-+            MonacoSectionHeader("Top people", trailing: "View all") {
-                 environment.navigator.open(category.viewAllRoute(range: range), in: .home)
-             }
-             .padding(.horizontal, MonacoTheme.Space.gutter)
+@@ -39,10 +39,10 @@ private struct HomeLeaderboard: View {
+         }
+         .homeSlotHidden(!gate.shows { _ in true } || isHidden)
+         .accessibilityElement(children: .contain)
+-        .accessibilityIdentifier("home-people-board")
++        .accessibilityIdentifier("home-top-people")
+         .task {
+             let model = preparedModel()
+-            refresh?.register("home-people-board") { await model.load() }
++            refresh?.register("home-top-people") { await model.load() }
+             await model.load()
+             await model.observe()
+         }

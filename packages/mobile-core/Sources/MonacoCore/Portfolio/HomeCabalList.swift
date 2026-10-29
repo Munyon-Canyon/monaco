@@ -1,54 +1,60 @@
 import Foundation
-import MonacoAPI
 
-public struct HomeCabalItem: Equatable, Sendable, Identifiable {
+public struct HomeCabalRow: Equatable, Sendable, Identifiable {
     public let id: String
     public let name: String
     public let pictureURL: String?
-    public let memberCount: Int?
-    public let standing: PortfolioSummary.Row?
+    public let memberCount: Int
+    public let ownershipText: String
+    public let valueMicros: Int64
+    public let returnBps: Int64?
+    public let isFunded: Bool
 
-    public var isFunded: Bool { (standing?.valueMicros ?? 0) > 0 }
+    init(_ row: PortfolioSummary.Row) {
+        id = row.id
+        name = CabalHeaderCopy.shortName(row.name)
+        pictureURL = row.pictureURL
+        memberCount = row.memberCount
+        ownershipText = PercentFormatter.format(basisPoints: row.ownershipBps, signed: false, fractionDigits: 0)
+        valueMicros = row.valueMicros
+        isFunded = row.valueMicros > 0
+        returnBps = isFunded ? row.returnBps : nil
+    }
+
+    public var membersText: String { memberCount == 1 ? "1 member" : "\(memberCount) members" }
+
+    public func subtitle(votesText: String?) -> String {
+        "\(votesText ?? membersText) · \(ownershipText) yours"
+    }
+
+    public func spoken(votesText: String?) -> String {
+        subtitle(votesText: votesText).replacingOccurrences(of: " · ", with: ", ")
+    }
+}
+
+public struct HomeCabalsContent: Equatable, Sendable {
+    public static let shownCabals = 3
+
+    public let cabals: [HomeCabalRow]
+    public let invites: [HomeInviteRow]
+
+    public var shown: [HomeCabalRow] { Array(cabals.prefix(Self.shownCabals)) }
+
+    public var countText: String {
+        invites.isEmpty ? "\(cabals.count)" : "\(cabals.count) · \(invites.count) invited"
+    }
 }
 
 public enum HomeCabalsState: Equatable, Sendable {
     case loading
     case empty
-    case cabals([HomeCabalItem])
+    case cabals(HomeCabalsContent)
 }
 
 public enum HomeCabalList {
-    public static func state(portfolio: PortfolioSummary, memberships: [Components.Schemas.MyCabal]?)
-        -> HomeCabalsState
-    {
-        let items = items(portfolio: portfolio, memberships: memberships)
-        if !items.isEmpty { return .cabals(items) }
-        return memberships == nil ? .loading : .empty
-    }
-
-    public static func items(portfolio: PortfolioSummary, memberships: [Components.Schemas.MyCabal]?)
-        -> [HomeCabalItem]
-    {
-        guard let memberships else {
-            return portfolio.rows.map {
-                HomeCabalItem(id: $0.id, name: $0.name, pictureURL: $0.pictureURL, memberCount: nil, standing: $0)
-            }
-        }
-        let byID = Dictionary(memberships.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let funded = portfolio.rows.filter { $0.valueMicros > 0 }.map { row in
-            HomeCabalItem(
-                id: row.id, name: row.name, pictureURL: row.pictureURL,
-                memberCount: byID[row.id].map { Int($0.memberCount) }, standing: row)
-        }
-        let fundedIDs = Set(funded.map(\.id))
-        let standings = Dictionary(portfolio.rows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let unfunded = byID.values.filter { !fundedIDs.contains($0.id) }
-            .sorted { ($0.joinedAt, $0.id) > ($1.joinedAt, $1.id) }
-            .map { cabal in
-                HomeCabalItem(
-                    id: cabal.id, name: cabal.name, pictureURL: cabal.pictureUrl, memberCount: Int(cabal.memberCount),
-                    standing: standings[cabal.id])
-            }
-        return funded + unfunded
+    public static func state(portfolio: PortfolioSummary, invites: [HomeInviteRow]?) -> HomeCabalsState {
+        let content = HomeCabalsContent(cabals: portfolio.rows.map(HomeCabalRow.init), invites: invites ?? [])
+        if !content.cabals.isEmpty || !content.invites.isEmpty { return .cabals(content) }
+        return invites == nil ? .loading : .empty
     }
 }

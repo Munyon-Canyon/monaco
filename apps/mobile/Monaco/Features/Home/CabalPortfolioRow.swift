@@ -2,40 +2,54 @@ import MonacoCore
 import SwiftUI
 
 struct CabalPortfolioRow: View {
-    private let id: String
-    private let name: String
-    private let pictureURL: String?
-    private let subtitle: String?
-    private let valueMicros: Int64
-    private let returnBps: Int64?
-    private let isLast: Bool
-
-    init(row: PortfolioSummary.Row, isLast: Bool = false) {
-        id = row.id
-        name = row.name
-        pictureURL = row.pictureURL
-        subtitle = row.share
-        valueMicros = row.valueMicros
-        returnBps = row.returnBps
-        self.isLast = isLast
-    }
+    let row: HomeCabalRow
+    let votes: Int
+    let votesText: String?
+    var isLast = false
 
     var body: some View {
-        NavigationLink(value: AnyAppRoute(CabalRoute(id: id))) {
-            MonacoRow(title: name, subtitle: subtitle, isLast: isLast) {
-                CabalMark(groupId: id, name: name, pictureUrl: pictureURL)
+        NavigationLink(value: AnyAppRoute(CabalRoute(id: row.id))) {
+            MonacoRow(title: row.name, subtitle: row.subtitle(votesText: votesText), isLast: isLast) {
+                CabalMark(groupId: row.id, name: row.name, size: .row, pictureUrl: row.pictureURL)
+                    .crestVoteRing(votes > 0)
+                    .crestBadge(votes)
             } trailing: {
                 VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
-                    MoneyText(micros: valueMicros, style: .row)
-                    if let returnBps {
-                        PercentText(basisPoints: returnBps, style: .caption)
-                    } else {
-                        PercentText(percentReturn: nil, style: .caption)
-                    }
+                    MoneyText(micros: row.valueMicros, style: .row)
+                    if row.isFunded { returnText }
                 }
             }
         }
         .buttonStyle(.monacoRow)
-        .accessibilityIdentifier("cabal-row-\(id)")
+        .accessibilityIdentifier("cabal-row-\(row.id)")
+    }
+
+    @ViewBuilder private var returnText: some View {
+        if let bps = row.returnBps {
+            PercentText(basisPoints: bps, style: .caption)
+        } else {
+            PercentText(percentReturn: nil, style: .caption)
+        }
+    }
+}
+
+struct HomeInviteCabalRow: View {
+    let row: HomeInviteRow
+    var isLast = false
+    let open: () -> Void
+
+    var body: some View {
+        Button(action: open) {
+            MonacoRow(title: row.name, subtitle: row.subtitle, isLast: isLast) {
+                CabalMark(
+                    groupId: row.invite.cabalID, name: row.name, size: .row, pictureUrl: row.invite.pictureURL)
+            } trailing: {
+                Text("Invited")
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+            }
+        }
+        .buttonStyle(.monacoRow)
+        .accessibilityIdentifier("home-invited-\(row.invite.cabalID)")
     }
 }

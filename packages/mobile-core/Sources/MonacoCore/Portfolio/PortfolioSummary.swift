@@ -31,6 +31,8 @@ public struct PortfolioSummary: Equatable, Sendable {
         public let returnBps: Int64?
         public let slice: String
         public let share: String?
+        public let memberCount: Int
+        public let ownershipBps: Int64
         public let direction: Direction
 
         init(_ cabal: Components.Schemas.PortfolioCabal, cabalCount: Int) {
@@ -48,6 +50,8 @@ public struct PortfolioSummary: Equatable, Sendable {
                 cabalCount > 1
                 ? "\(PercentFormatter.format(basisPoints: cabal.sliceBps, signed: false, fractionDigits: 0)) of your cabals"
                 : nil
+            memberCount = Int(cabal.memberCount)
+            ownershipBps = Int64(cabal.ownershipBps)
             direction = Direction(signedMicros: cabal.pnlMicros)
         }
     }

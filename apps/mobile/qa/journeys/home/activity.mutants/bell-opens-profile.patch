@@ -3,16 +3,16 @@ expect-fail: S1
 
 The Home bell opens the Profile tab. S1.1 expects the Activity screen, so S1 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
-diff --git a/apps/mobile/Monaco/Features/Home/HomeScreen.swift b/apps/mobile/Monaco/Features/Home/HomeScreen.swift
-index c37e24cbc..3338e428a 100644
---- a/apps/mobile/Monaco/Features/Home/HomeScreen.swift
-+++ b/apps/mobile/Monaco/Features/Home/HomeScreen.swift
-@@ -87,7 +87,7 @@ struct HomeScreen: View {
-             systemImage: MonacoIcon.bell.symbol, accessibilityLabel: "Notifications", style: .quiet,
-             placement: .toolbar
+diff --git a/apps/mobile/Monaco/Features/Home/HomeBellButton.swift b/apps/mobile/Monaco/Features/Home/HomeBellButton.swift
+index 5645bdc9e..09fbcaa58 100644
+--- a/apps/mobile/Monaco/Features/Home/HomeBellButton.swift
++++ b/apps/mobile/Monaco/Features/Home/HomeBellButton.swift
+@@ -15,7 +15,7 @@ struct HomeBellButton: View {
+             systemImage: MonacoIcon.bell.symbol, accessibilityLabel: model?.accessibilityLabel ?? "Catch up",
+             style: .quiet, placement: .toolbar
          ) {
 -            environment.navigator.open(ActivityFeedRoute(), in: .home)
 +            environment.navigator.selectedTab = .profile
          }
+         .overlay(alignment: .topTrailing) { badge }
          .accessibilityIdentifier("home-notifications-button")
-     }

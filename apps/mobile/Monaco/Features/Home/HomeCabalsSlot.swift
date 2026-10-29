@@ -1,4 +1,3 @@
-import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -10,76 +9,52 @@ enum HomeCabalsSlot: HomeSection {
     }
 }
 
-extension CabalCoverCardModel {
-    init(item: HomeCabalItem, context: HomeCabalContext?, votesNeededText: String?) {
-        let funded = item.isFunded
-        let standing = item.standing
-        self.init(
-            id: item.id, name: item.name,
-            memberCountText: item.memberCount.map { CabalCopy.memberCount(Int32(clamping: $0)) }
-                ?? context?.memberCountText ?? "Cabal",
-            votesNeededText: funded ? votesNeededText : nil,
-            shareText: UsdAmountFormatter.format(micros: standing?.valueMicros ?? 0),
-            ownershipText: context?.ownershipText ?? (funded ? nil : "0.00%"),
-            pnl: funded
-                ? standing.map {
-                    Figure(amountText: $0.pnl, percentText: $0.returnText, direction: $0.direction.pnlTone)
-                } : nil,
-            pnlUnavailableReason: funded ? nil : "Not funded", groupReturn: nil,
-            tint: MonacoTheme.CabalTint.forGroupId(item.id), pictureURL: item.pictureURL)
-    }
-}
-
-extension PortfolioSummary.Direction {
-    var pnlTone: PnLTone {
-        switch self {
-        case .up: .profit
-        case .down: .loss
-        case .flat: .flat
-        }
-    }
-}
-
 private struct HomeCabals: View {
     @Environment(AppEnvironment.self) private var environment
-    @Environment(ToastCenter.self) private var toasts
     @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @Environment(\.homeReads) private var reads
     @Environment(\.homeVoteNeeds) private var voteNeeds
     @State private var details: HomeCabalContextModel?
-    @State private var sharing: String?
+    @State private var answering: HomeInviteRow?
 
     var body: some View {
         let gate = HomeGate(portfolio: portfolio, reads: reads, balance: environment.balance.state)
         VStack(alignment: .leading, spacing: 0) {
             if let summary = gate.summary {
-                switch HomeCabalList.state(portfolio: summary, memberships: details?.memberships) {
+                switch HomeCabalList.state(portfolio: summary, invites: details?.invites) {
                 case .loading:
                     EmptyView()
                 case .empty:
                     startWithPeople
-                case .cabals(let items):
-                    rail(items)
+                case .cabals(let content):
+                    section(content)
                 }
             }
         }
         .homeSlotHidden(!gate.shows { _ in true })
-        .task(id: gate.summary) {
-            let summary = gate.summary
-            refresh?.register("home-cabals") { await sync(summary: summary, refreshing: true) }
-            await sync(summary: summary, refreshing: false)
-            await details?.observe(hints: environment.hints)
+        .sheet(item: $answering) { row in
+            CabalInviteAnswerSheet(invite: row.invite) {
+                answering = nil
+                Task {
+                    await details?.load(refreshing: true)
+                    await portfolio?.load()
+                }
+            }
+        }
+        .task {
+            let model = preparedDetails()
+            refresh?.register("home-cabals") { await model.load(refreshing: true) }
+            await model.load()
+            await model.observe(hints: environment.hints)
         }
     }
 
-    private func sync(summary: PortfolioSummary?, refreshing: Bool) async {
-        let model = details ?? HomeCabalContextModel(api: environment.api)
-        details = model
-        await model.loadMemberships(refreshing: refreshing)
-        guard let summary else { return }
-        let items = HomeCabalList.items(portfolio: summary, memberships: model.memberships)
-        await model.load(cabalIDs: items.map(\.id))
+    private func preparedDetails() -> HomeCabalContextModel {
+        if let details { return details }
+        let created = HomeCabalContextModel(api: environment.api)
+        details = created
+        return created
     }
 
     private var startWithPeople: some View {
@@ -94,31 +69,41 @@ private struct HomeCabals: View {
         .accessibilityIdentifier("home-cabals-empty")
     }
 
-    private func rail(_ items: [HomeCabalItem]) -> some View {
+    private func section(_ content: HomeCabalsContent) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            MonacoSectionHeader("Your cabals", trailing: "See all") {
-                environment.navigator.selectedTab = .cabals
-            }
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            CabalCoverRail {
-                ForEach(items) { item in
-                    CabalCoverCard(
-                        model: CabalCoverCardModel(
-                            item: item, context: details?.contexts[item.id],
-                            votesNeededText: voteNeeds?.text(for: item.id)),
-                        isSharing: sharing == item.id,
-                        onOpen: { environment.navigator.open(CabalRoute(id: item.id), in: .home) },
-                        onShare: {
-                            Task {
-                                await ShareCardLauncher.shareCabal(
-                                    id: item.id, api: environment.api, toasts: toasts, busy: $sharing)
-                            }
-                        }
-                    )
-                    .accessibilityElement(children: .contain)
-                    .accessibilityIdentifier("cabal-row-\(item.id)")
+            header(content)
+            MonacoGroupedList {
+                ForEach(content.shown) { row in
+                    CabalPortfolioRow(
+                        row: row, votes: voteNeeds?.byCabal[row.id] ?? 0, votesText: voteNeeds?.text(for: row.id),
+                        isLast: row.id == content.shown.last?.id && content.invites.isEmpty)
+                }
+                ForEach(content.invites) { invite in
+                    HomeInviteCabalRow(row: invite, isLast: invite.id == content.invites.last?.id) {
+                        answering = invite
+                    }
                 }
             }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("home-cabals")
+    }
+
+    private func header(_ content: HomeCabalsContent) -> some View {
+        MonacoSectionHeader("Your cabals", trailing: "See all", actionIdentifier: "home-cabals-see-all") {
+            environment.navigator.selectedTab = .cabals
+        }
+        .countText(content.countText)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+    }
+}
+
+extension PortfolioSummary.Direction {
+    var pnlTone: PnLTone {
+        switch self {
+        case .up: .profit
+        case .down: .loss
+        case .flat: .flat
         }
     }
 }

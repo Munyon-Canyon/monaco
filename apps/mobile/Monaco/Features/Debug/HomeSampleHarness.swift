@@ -35,6 +35,7 @@ enum HomeSampleScenario: String, CaseIterable {
     case fReadyLight
     case fScrolled
     case feedPreviewEveryone
+    case fUnfunded
 
     static func matching(_ arguments: [String]) -> HomeSampleScenario? {
         guard let flag = arguments.firstIndex(of: "-MonacoHomeSample"),
@@ -77,6 +78,7 @@ extension HomeSampleScenario {
         case .fVotePick, .fVoteHolding, .fVoteCommitted: HomeSampleData.script(.loss, proposals: [.fVote])
         case .fVoteRule: HomeSampleData.script(.loss, proposals: [.fRule])
         case .fReady, .fReadyLight, .fScrolled: HomeSampleData.script(.fAccount, proposals: [.fVote])
+        case .fUnfunded: HomeSampleData.script(.fUnfunded, proposals: [.fVote])
         }
     }
 
@@ -103,7 +105,7 @@ extension HomeSampleScenario {
 
 enum HomeSampleData {
     enum Figures {
-        case loss, gain, cashOnly, unfunded, partlyFunded, empty, fAccount
+        case loss, gain, cashOnly, unfunded, partlyFunded, empty, fAccount, fUnfunded
     }
 
     enum Proposal {
@@ -166,6 +168,7 @@ enum HomeSampleData {
         script.pendingVotesHang = pendingVotesHang
         script.pendingVotesFail = pendingVotesFail
         script.portfolioReadsBeforeFailing = portfolioReadsBeforeFailing
+        if figures == .fAccount || figures == .fUnfunded { applyF(&script, unfunded: figures == .fUnfunded) }
         return script
     }
 
@@ -177,7 +180,7 @@ enum HomeSampleData {
         switch figures {
         case .cashOnly, .unfunded: 0
         case .partlyFunded: cabal.id == bigBallers ? cabal.ownershipBps : 0
-        case .loss, .gain, .empty, .fAccount: cabal.ownershipBps
+        case .loss, .gain, .empty, .fAccount, .fUnfunded: cabal.ownershipBps
         }
     }
 
@@ -203,7 +206,7 @@ enum HomeSampleData {
         case .partlyFunded:
             values = [7_000_000_000, 0, 0]
             pnls = [-300_000_000, 0, 0]
-        case .fAccount:
+        case .fAccount, .fUnfunded:
             return .sampleF
         case .unfunded, .empty:
             return .sampleEmpty
@@ -237,7 +240,7 @@ enum HomeSampleData {
         switch figures {
         case .loss, .partlyFunded: target = -417_680_000
         case .gain: target = 1_482_320_000
-        case .fAccount: target = 241_100_000
+        case .fAccount, .fUnfunded: target = 241_100_000
         case .cashOnly, .unfunded, .empty: return .sampleEmpty
         }
         let count = 31
@@ -334,6 +337,66 @@ enum HomeSampleData {
         asset.logoUrl = nil
         asset.changeBps = changeBps
         return asset
+    }
+}
+
+extension HomeSampleData {
+    private static let acCapital = Components.Schemas.CabalRef.sampleACCapital
+    private static let techTitans = Components.Schemas.CabalRef.sampleTechTitans
+    private static let degens = Components.Schemas.CabalRef(
+        id: "0f1d6a52-0001-7000-8000-000000000011", name: "Degens", pictureUrl: nil)
+    private static let quietMoney = Components.Schemas.CabalRef(
+        id: "0f1d6a52-0001-7000-8000-000000000012", name: "Quiet Money", pictureUrl: nil)
+
+    private static func fStake(
+        _ cabal: Components.Schemas.CabalRef, value: Int64, returnBps: Int64?, ownership: Int32, members: Int32
+    ) -> Components.Schemas.PortfolioCabal {
+        let net: Int64 = returnBps.map { value * 10_000 / (10_000 + $0) } ?? value
+        return Components.Schemas.PortfolioCabal(
+            cabal: cabal, valueMicros: value, shareUnits: value, netContributedMicros: net, pnlMicros: value - net,
+            returnBps: value == 0 ? nil : returnBps, sliceBps: 0, ownershipBps: ownership, role: .member, canVote: true,
+            potValueMicros: value * 10_000 / max(Int64(ownership), 1), memberCount: members, openVoteCount: 1)
+    }
+
+    private static var quantKidsInvite: Components.Schemas.CabalInvite {
+        Components.Schemas.CabalInvite(
+            requestId: "0f1d6a52-0001-7000-8000-000000000021",
+            cabal: .init(
+                id: "0f1d6a52-0001-7000-8000-000000000013", name: "Quant Kids", pictureUrl: nil, memberCount: 5),
+            invitedBy: .init(
+                userId: "0f1d6a52-0001-7000-8000-000000000022", handle: "sam", displayName: "Sam", photoUrl: nil),
+            expiresAt: .now.addingTimeInterval(7 * 86_400))
+    }
+
+    private static func applyF(_ script: inout SampleAPIScript, unfunded: Bool) {
+        var portfolio = Components.Schemas.MyPortfolio.sampleF
+        portfolio.cabals =
+            unfunded
+            ? [
+                fStake(acCapital, value: 7_000_000_000, returnBps: 470, ownership: 3_500, members: 8),
+                fStake(quietMoney, value: 0, returnBps: nil, ownership: 0, members: 4),
+            ]
+            : [
+                fStake(acCapital, value: 7_000_000_000, returnBps: 470, ownership: 3_500, members: 8),
+                fStake(techTitans, value: 2_710_000_000, returnBps: -170, ownership: 1_200, members: 6),
+                fStake(degens, value: 1_872_000_000, returnBps: 1_120, ownership: 800, members: 6),
+            ]
+        script.portfolio = portfolio
+        script.invites = unfunded ? [] : [quantKidsInvite]
+        script.callBoard = .peopleMonth
+        script.catchUpCount = 6
+        script.pendingVotes = script.pendingVotes.map { vote in
+            var vote = vote
+            vote.cabalId = acCapital.id
+            vote.cabalName = acCapital.name
+            return vote
+        }
+        script.proposals = script.proposals.mapValues { detail in
+            var detail = detail
+            detail.cabalId = acCapital.id
+            detail.cabalName = acCapital.name
+            return detail
+        }
     }
 }
 

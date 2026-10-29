@@ -7,48 +7,42 @@ import Testing
 
 @MainActor
 struct HomeCabalCardTests {
-    private func memberships(_ ids: [String]) -> [Components.Schemas.MyCabal] {
-        ids.enumerated().map { index, id in
-            Components.Schemas.MyCabal(
-                id: id, name: "Cabal \(index)", pictureUrl: nil, role: "member", canVote: true, memberCount: 8,
-                joinedAt: Date(timeIntervalSince1970: 1_790_000_000 + TimeInterval(index)), pendingRequestCount: 0,
-                unreadCount: 0)
-        }
+    private func row(value: Int64, ownershipBps: Int32, members: Int32) -> HomeCabalRow {
+        let ref = Components.Schemas.CabalRef.sampleACCapital
+        let stake = Components.Schemas.PortfolioCabal(
+            cabal: ref, valueMicros: value, shareUnits: value, netContributedMicros: value, pnlMicros: 0,
+            returnBps: value == 0 ? nil : 0, sliceBps: 0, ownershipBps: ownershipBps, role: .member, canVote: true,
+            potValueMicros: 0, memberCount: members, openVoteCount: 0)
+        let portfolio = Components.Schemas.MyPortfolio(
+            cashMicros: 0, netWorthMicros: value, totalValueMicros: value, pnlMicros: 0, returnBps: nil,
+            computedAt: nil, pricesAsOf: nil, cabals: [stake])
+        guard case .cabals(let content) = HomeCabalList.state(portfolio: PortfolioSummary(portfolio), invites: [])
+        else { return fallback }
+        return content.cabals[0]
     }
 
-    private func items(_ portfolio: Components.Schemas.MyPortfolio, _ ids: [String]) -> [HomeCabalItem] {
-        HomeCabalList.items(portfolio: PortfolioSummary(portfolio), memberships: memberships(ids))
+    private var fallback: HomeCabalRow {
+        row(value: 0, ownershipBps: 0, members: 0)
     }
 
-    @Test func aFundedCardKeepsItsReturnAndShare() {
-        let alpha = Components.Schemas.CabalRef.sampleAlpha.id
-        let item = items(.sample, [alpha])[0]
-        let model = CabalCoverCardModel(item: item, context: nil, votesNeededText: "1 vote needed")
+    @Test func aFundedRowReadsItsVotesThenYourShare() {
+        let funded = row(value: 7_000_000_000, ownershipBps: 3_500, members: 8)
 
-        #expect(model.pnl != nil)
-        #expect(model.pnlUnavailableReason == nil)
-        #expect(model.shareText == "$600.00")
-        #expect(model.votesNeededText == "1 vote needed")
-        #expect(model.memberCountText == "8 members")
+        #expect(funded.isFunded)
+        #expect(funded.subtitle(votesText: "1 vote open") == "1 vote open · 35% yours")
+        #expect(funded.spoken(votesText: "1 vote open") == "1 vote open, 35% yours")
     }
 
-    @Test func anUnfundedCardSaysNotFundedWithAZeroShare() {
-        let item = items(.sampleEmpty, ["01890a5d-ac96-774b-bcce-b302099a805a"])[0]
-        let model = CabalCoverCardModel(item: item, context: nil, votesNeededText: "1 vote needed")
+    @Test func anUnfundedRowReadsMembersAndZeroPercentWithNoReturn() {
+        let unfunded = row(value: 0, ownershipBps: 0, members: 4)
 
-        #expect(model.pnl == nil)
-        #expect(model.pnlUnavailableReason == "Not funded")
-        #expect(model.shareText == "$0.00")
-        #expect(model.ownershipText == "0.00%")
-        #expect(model.votesNeededText == nil)
+        #expect(!unfunded.isFunded)
+        #expect(unfunded.returnBps == nil)
+        #expect(unfunded.subtitle(votesText: nil) == "4 members · 0% yours")
     }
 
-    @Test func aCashedOutCardIsUnfundedToo() throws {
-        let beta = Components.Schemas.CabalRef.sampleBeta.id
-        let item = try #require(items(.sampleLoss, [beta]).first { $0.id == beta })
-        let model = CabalCoverCardModel(item: item, context: nil, votesNeededText: nil)
-
-        #expect(model.pnl == nil)
-        #expect(model.pnlUnavailableReason == "Not funded")
+    @Test func theCrestBadgeCountsTheOpenVotesAndHidesAtZero() {
+        #expect(CrestMetrics.badgeText(1) == "1")
+        #expect(CrestMetrics.badgeText(0) == nil)
     }
 }

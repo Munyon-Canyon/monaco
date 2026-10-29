@@ -31,12 +31,7 @@ struct HomeSlotsTests {
         #expect(order == expected.map { ObjectIdentifier($0) })
     }
 
-    @Test func viewAllOpensTheLeaderboardOnTheCardsBoardAndRange() {
-        #expect(
-            HomeLeaderboardCategory.cabals.viewAllRoute(range: .oneWeek)
-                == LeaderboardRoute(board: .cabals, range: .oneWeek))
-        #expect(
-            HomeLeaderboardCategory.people.viewAllRoute(range: .all)
-                == LeaderboardRoute(board: .people, range: .all))
+    @Test func theLeaderboardRowOpensThePeopleBoardForTheMonth() {
+        #expect(HomeLeaderboardSlot.route == LeaderboardRoute(board: .people, range: .oneMonth))
     }
 }

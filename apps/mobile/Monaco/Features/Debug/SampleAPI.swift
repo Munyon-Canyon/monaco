@@ -58,6 +58,8 @@ nonisolated struct SampleAPIScript: Sendable {
     var proposals: [String: Components.Schemas.ProposalDetail] = [:]
     var assets: [String: Components.Schemas.AssetDetail] = [:]
     var cabalBoard: [Components.Schemas.LeaderboardRow] = []
+    var callBoard: Components.Schemas.CallBoard?
+    var catchUpCount = 0
     var portfolioReadsBeforeFailing: Int?
     var pendingVotesFail = false
     var pendingVotesHang = false
@@ -264,8 +266,8 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
             page.board = "cabals"
             page.rows = script.cabalBoard
             return json(page)
-        case "/v1/leaderboards/people", "/v1/leaderboards/cabals":
-            return json(Components.Schemas.LeaderboardPage.samplePeople(count: empty ? 0 : 3))
+        case "/v1/leaderboards/people", "/v1/leaderboards/cabals", "/v1/leaderboards/calls":
+            return boardReply(path: path, script: script, empty: empty)
         case "/v1/feed":
             return feedReply(query: query, script: script, empty: empty)
         default:
@@ -331,11 +333,23 @@ nonisolated extension SampleAPIProtocol {
             return pendingVotesReply(script)
         case "/v1/me/proposals":
             return closedProposalsReply(script)
-        case "/v1/me/cabal-invites":
-            return json(script.invites)
+        case "/v1/me/cabal-invites", "/v1/me/catch-up/count":
+            return invitesReply(path: path, script: script)
         default:
             return path == "/v1/me/held" ? heldReply(script) : problem(404, "not_found", "Not in the sample data.")
         }
+    }
+
+    private static func boardReply(path: String, script: SampleAPIScript, empty: Bool) -> Reply {
+        if path == "/v1/leaderboards/calls" {
+            return json(script.callBoard ?? .empty)
+        }
+        return json(Components.Schemas.LeaderboardPage.samplePeople(count: empty ? 0 : 3))
+    }
+
+    private static func invitesReply(path: String, script: SampleAPIScript) -> Reply {
+        if path == "/v1/me/catch-up/count" { return json(Components.Schemas.CatchUpCount(count: script.catchUpCount)) }
+        return json(script.invites)
     }
 
     private static func heldReply(_ script: SampleAPIScript) -> Reply {
