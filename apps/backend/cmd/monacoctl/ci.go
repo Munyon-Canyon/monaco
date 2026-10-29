@@ -232,13 +232,17 @@ func reverseDeps(
 	parsed []flows.Flow,
 	scanners ...string,
 ) (selected, excluded []string) {
-	hit, local, bare, ok := seedPackages(byDir, changed, parsed)
+	hit, local, bare, scoped, ok := seedPackages(byDir, changed, parsed)
 	if !ok {
 		return []string{allPackages}, nil
 	}
 	seedScanners(byDir, bare, scanners)
 	seeds := maps.Clone(hit)
-	growToImporters(byDir, hit)
+	if scoped {
+		growScoped(byDir, hit, bare)
+	} else {
+		growToImporters(byDir, hit, nil)
+	}
 	dirOf := map[string]string{}
 	for dir, p := range byDir {
 		dirOf[p.ImportPath] = dir
@@ -249,7 +253,7 @@ func reverseDeps(
 		testsHit := slices.ContainsFunc(tests, func(i string) bool { return testHit[i] })
 		switch {
 		case !hit[p.ImportPath] && !local[p.ImportPath] && !bare[p.ImportPath] && !testsHit:
-		case slices.Contains(agentTooling(), dir) && !inputsChanged(p, dirOf, seeds, local):
+		case slices.Contains(agentTooling(), dir) && !inputsChanged(p, dirOf, seeds, local, scoped):
 			excluded = append(excluded, "./"+dir)
 		default:
 			selected = append(selected, "./"+dir)
@@ -302,49 +306,178 @@ func seedScanners(byDir map[string]listedPackage, bare map[string]bool, scanners
 	}
 }
 
-func growToImporters(byDir map[string]listedPackage, hit map[string]bool) {
+func growthStops(byDir map[string]listedPackage) map[string]bool {
+	stop := map[string]bool{}
+	for dir, p := range byDir {
+		harness := slices.Contains(harnessPackages(), dir) || dir == "internal/testkit" ||
+			strings.HasPrefix(dir, "internal/testkit/")
+		command := strings.HasPrefix(dir, "cmd/") && !slices.Contains(agentTooling(), dir)
+		if harness || command {
+			stop[p.ImportPath] = true
+		}
+	}
+	return stop
+}
+
+func growScoped(byDir map[string]listedPackage, hit, bare map[string]bool) {
+	stop := growthStops(byDir)
+	reach := maps.Clone(hit)
+	growToImporters(byDir, reach, nil)
+	growToImporters(byDir, hit, stop)
+	for i := range stop {
+		if reach[i] && !hit[i] {
+			bare[i] = true
+		}
+	}
+}
+
+func growToImporters(byDir map[string]listedPackage, hit, stop map[string]bool) {
 	for grew := true; grew; {
 		grew = false
 		for _, p := range byDir {
-			if !hit[p.ImportPath] && slices.ContainsFunc(p.Imports, func(i string) bool { return hit[i] }) {
+			if !hit[p.ImportPath] && !stop[p.ImportPath] &&
+				slices.ContainsFunc(p.Imports, func(i string) bool { return hit[i] }) {
 				hit[p.ImportPath], grew = true, true
 			}
 		}
 	}
 }
 
-func inputsChanged(p listedPackage, dirOf map[string]string, seeds, local map[string]bool) bool {
+func inputsChanged(p listedPackage, dirOf map[string]string, seeds, local map[string]bool, scoped bool) bool {
 	return seeds[p.ImportPath] || local[p.ImportPath] ||
-		slices.ContainsFunc(p.Imports, func(i string) bool { return seeds[i] && !sharedTooling(dirOf[i]) })
+		slices.ContainsFunc(p.Imports, func(i string) bool {
+			return seeds[i] && !sharedTooling(dirOf[i]) &&
+				(!scoped || !strings.HasPrefix(dirOf[i], "internal/modules/"))
+		})
 }
 
 func seedPackages(
 	byDir map[string]listedPackage,
 	changed []string,
 	parsed []flows.Flow,
-) (hit, local, bare map[string]bool, ok bool) {
-	hit, local, bare = map[string]bool{}, map[string]bool{}, map[string]bool{}
+) (hit, local, bare map[string]bool, scoped, ok bool) {
+	hit, local, bare, scoped = map[string]bool{}, map[string]bool{}, map[string]bool{}, true
 	for _, f := range changed {
 		if specSeed(byDir, changed, f, hit, bare) || flowSeed(byDir, parsed, f, bare) || scopedSeed(byDir, f, bare) {
 			continue
 		}
-		dirs := seedDirs(byDir, f)
-		if len(dirs) == 0 {
-			return nil, nil, nil, false
+		if module, found := moduleOf(f, changed); found && !testOnly(f) {
+			if !moduleSeed(byDir, f, module, hit, bare) {
+				return nil, nil, nil, false, false
+			}
+			continue
 		}
 		into := hit
 		if testOnly(f) {
 			into = local
+		} else {
+			scoped = false
 		}
-		for _, d := range dirs {
-			p, found := byDir[d]
-			if !found {
-				return nil, nil, nil, false
-			}
-			into[p.ImportPath] = true
+		if !plainSeed(byDir, f, into) {
+			return nil, nil, nil, false, false
 		}
 	}
-	return hit, local, bare, true
+	return hit, local, bare, scoped, true
+}
+
+func plainSeed(byDir map[string]listedPackage, f string, into map[string]bool) bool {
+	dirs := seedDirs(byDir, f)
+	if len(dirs) == 0 {
+		return false
+	}
+	for _, d := range dirs {
+		p, found := byDir[d]
+		if !found {
+			return false
+		}
+		into[p.ImportPath] = true
+	}
+	return true
+}
+
+func moduleOf(f string, changed []string) (string, bool) {
+	const apiRoot = "internal/platform/httpx/api/"
+	if rest, found := strings.CutPrefix(f, "internal/modules/"); found {
+		return nestedModule(rest)
+	}
+	if rest, found := strings.CutPrefix(f, "queries/"); found {
+		return nestedModule(rest)
+	}
+	if rest, found := strings.CutPrefix(f, apiRoot); found {
+		dir, _, nested := strings.Cut(rest, "/")
+		module, suffixed := strings.CutSuffix(dir, "api")
+		if !nested || !suffixed || module == "" {
+			return "", false
+		}
+		return module, true
+	}
+	if strings.HasPrefix(f, "migrations/") && (strings.HasSuffix(f, ".sql") || f == "migrations/atlas.sum") {
+		return migrationModule(changed)
+	}
+	return "", false
+}
+
+func nestedModule(rest string) (string, bool) {
+	module, _, nested := strings.Cut(rest, "/")
+	if !nested || module == "" {
+		return "", false
+	}
+	return module, true
+}
+
+func migrationModule(changed []string) (string, bool) {
+	var modules []string
+	for _, c := range changed {
+		module, found := "", false
+		if rest, queried := strings.CutPrefix(c, "queries/"); queried {
+			module, found = nestedModule(rest)
+		} else if rest, owned := strings.CutPrefix(c, "internal/modules/"); owned {
+			var inner string
+			module, inner, found = strings.Cut(rest, "/")
+			found = found && strings.HasPrefix(inner, "sqlc/")
+		}
+		if found && !slices.Contains(modules, module) {
+			modules = append(modules, module)
+		}
+	}
+	if len(modules) != 1 {
+		return "", false
+	}
+	return modules[0], true
+}
+
+func inModule(dir, module string) bool {
+	root := "internal/modules/" + module
+	return dir == root || strings.HasPrefix(dir, root+"/")
+}
+
+func moduleSeed(byDir map[string]listedPackage, f, module string, hit, bare map[string]bool) bool {
+	if !strings.HasPrefix(f, "migrations/") {
+		for _, d := range seedDirs(byDir, f) {
+			p, found := byDir[d]
+			if !found {
+				return false
+			}
+			hit[p.ImportPath] = true
+		}
+	}
+	owned := false
+	for dir, p := range byDir {
+		owns := inModule(dir, module) || dir == "internal/platform/httpx/api/"+module+"api"
+		owned = owned || owns
+		if owns || importsModule(dir, p, module) {
+			bare[p.ImportPath] = true
+		}
+	}
+	return owned
+}
+
+func importsModule(dir string, p listedPackage, module string) bool {
+	if path.Dir(dir) != "internal/modules" {
+		return false
+	}
+	root := strings.TrimSuffix(p.ImportPath, dir) + "internal/modules/" + module
+	return slices.ContainsFunc(p.Imports, func(i string) bool { return i == root || strings.HasPrefix(i, root+"/") })
 }
 
 func flowSeed(byDir map[string]listedPackage, parsed []flows.Flow, f string, bare map[string]bool) bool {
