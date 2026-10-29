@@ -48,21 +48,78 @@ struct GalleryCurveChart: View {
     }
 }
 
-struct GalleryCurveChartAtRest: View {
-    let trend: GalleryTrend
-    private let curve: ValueCurve
-    @State private var selection: Int?
+enum GalleryFillStyle: CaseIterable {
+    case flat, line, fade
 
-    init(trend: GalleryTrend) {
-        self.trend = trend
-        curve = trend.curve
+    var caption: String {
+        switch self {
+        case .flat: "Flat 10 % tint · the default"
+        case .line: "Line only · sparklines"
+        case .fade: "Gradient · breaks the no-gradient rule (comparison only)"
+        }
     }
+}
+
+nonisolated struct GalleryAreaShape: Shape {
+    let line: SparklineShape
+
+    func path(in rect: CGRect) -> Path {
+        var path = line.path(in: rect)
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        return path
+    }
+}
+
+struct GalleryFillChart: View {
+    let style: GalleryFillStyle
+    private static let fadeSteps = 24
+    private static let heights: [Double] = [
+        0.02, 0.06, 0.15, 0.17, 0.2, 0.24, 0.2, 0.22, 0.27, 0.33, 0.29, 0.28, 0.24, 0.3, 0.35, 0.31, 0.4, 0.48,
+        0.52, 0.48, 0.45, 0.42, 0.37, 0.39, 0.35, 0.33, 0.31, 0.27, 0.28, 0.3, 0.38, 0.4, 0.46, 0.48, 0.54, 0.58,
+        0.56, 0.62, 0.78, 0.9, 1,
+    ]
 
     var body: some View {
-        GalleryCase(caption: "\(trend.rawValue), at rest") {
-            CurveScrubChart(
-                curve: curve, plot: .pnl, range: .oneMonth, height: CurveScrubChart.defaultHeight,
-                selection: $selection, identifier: "gallery-chart-\(trend.rawValue)-rest")
+        let line = SparklineShape(heights: Self.heights, inset: 2)
+        let area = GalleryAreaShape(line: line)
+        ZStack {
+            switch style {
+            case .flat:
+                area.fill(MonacoTheme.profitVivid.opacity(0.1))
+            case .line:
+                EmptyView()
+            case .fade:
+                area.fill(MonacoTheme.profitVivid.opacity(0.3))
+                    .mask {
+                        VStack(spacing: 0) {
+                            ForEach(0..<Self.fadeSteps, id: \.self) { step in
+                                Rectangle().opacity(1 - Double.init(step) / Double.init(Self.fadeSteps))
+                            }
+                        }
+                    }
+            }
+            line.stroke(
+                MonacoTheme.profitVivid, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+        }
+        .frame(height: 96)
+        .accessibilityHidden(true)
+    }
+}
+
+struct GalleryFillVariants: View {
+    var body: some View {
+        GalleryCase(caption: "Chart fill variants, side by side") {
+            HStack(alignment: .top, spacing: MonacoTheme.Space.s) {
+                ForEach(GalleryFillStyle.allCases, id: \.self) { style in
+                    VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                        GalleryFillChart(style: style)
+                        GalleryCaption(style.caption)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+            }
         }
     }
 }
@@ -88,12 +145,7 @@ struct GalleryChartsPage: View {
         GalleryPage(title: "Charts") {
             GalleryGroup(title: "Performance line") {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-                    ForEach(GalleryTrend.allCases, id: \.self) { trend in
-                        GalleryCurveChartAtRest(trend: trend)
-                    }
-                    ForEach(GalleryTrend.allCases, id: \.self) { trend in
-                        GalleryCurveChart(trend: trend, height: CurveScrubChart.defaultHeight)
-                    }
+                    GalleryFillVariants()
                     GallerySparklineRow()
                     ForEach(GalleryTrend.allCases, id: \.self) { trend in
                         GalleryCurveChart(trend: trend, height: CurveScrubChart.smallHeight)

@@ -18,23 +18,6 @@ enum GalleryTokenCatalog {
 
     static let groups: [GalleryTokenGroup] = [
         GalleryTokenGroup(
-            title: "F roles",
-            tokens: [
-                GalleryToken(name: "canvas", color: Theme.canvas),
-                GalleryToken(name: "cell (surface)", color: Theme.surface),
-                GalleryToken(name: "fill (surfaceSunken)", color: Theme.surfaceSunken),
-                GalleryToken(name: "separator (hairline)", color: Theme.hairline),
-                GalleryToken(name: "label (primaryText)", color: Theme.primaryText),
-                GalleryToken(name: "secondaryText", color: Theme.secondaryText),
-                GalleryToken(name: "tertiaryText", color: Theme.tertiaryText),
-                GalleryToken(name: "tint", color: Theme.tint),
-                GalleryToken(name: "brand (brandFill)", color: Theme.brandFill),
-                GalleryToken(name: "onBrand", color: Theme.onBrand),
-                GalleryToken(name: "gain (profit)", color: Theme.profit),
-                GalleryToken(name: "loss", color: Theme.loss),
-                GalleryToken(name: "crown", color: Theme.crown),
-            ]),
-        GalleryTokenGroup(
             title: "Identity hues",
             tokens: Theme.CabalTint.allCases.map { GalleryToken(name: "CabalTint.\($0.galleryName)", color: $0.fill) }
         ),
@@ -47,6 +30,7 @@ enum GalleryTokenCatalog {
         GalleryTokenGroup(
             title: "Other roles",
             tokens: [
+                GalleryToken(name: "onBrand", color: Theme.onBrand),
                 GalleryToken(name: "scrim", color: Theme.scrim),
                 GalleryToken(name: "disabledLabel", color: Theme.disabledLabel),
                 GalleryToken(name: "disabled", color: Theme.disabled),
@@ -118,6 +102,90 @@ enum GalleryTokenCatalog {
                 GalleryToken(name: "allocationTints[\($0.offset)]", color: $0.element)
             }),
     ]
+}
+
+struct GalleryColourRole: Identifiable {
+    let name: String
+    let color: Color
+    let dark: String
+    let light: String
+    var id: String { name }
+
+    static let board: [GalleryColourRole] = [
+        GalleryColourRole(name: "canvas", color: MonacoTheme.canvas, dark: "", light: ""),
+        GalleryColourRole(name: "cell", color: MonacoTheme.surface, dark: "", light: ""),
+        GalleryColourRole(name: "fill", color: MonacoTheme.surfaceSunken, dark: "", light: ""),
+        GalleryColourRole(name: "separator", color: MonacoTheme.hairline, dark: "", light: ""),
+        GalleryColourRole(
+            name: "label", color: MonacoTheme.primaryText,
+            dark: "21.0:1 · 17.0:1 on cell", light: "21.0:1 · 18.8:1 on cell"),
+        GalleryColourRole(
+            name: "secondary", color: MonacoTheme.secondaryText,
+            dark: "8.2:1 · 6.6:1 on cell", light: "5.2:1 · 4.7:1 on cell"),
+        GalleryColourRole(name: "tertiary", color: MonacoTheme.tertiaryText, dark: "glyphs only", light: "glyphs only"),
+        GalleryColourRole(
+            name: "tint", color: MonacoTheme.tint,
+            dark: "7.6:1 · 6.2:1 on cell", light: "7.9:1 · 7.1:1 on cell"),
+        GalleryColourRole(
+            name: "brand", color: MonacoTheme.brandFill,
+            dark: "white text 7.9:1", light: "white text 7.9:1"),
+        GalleryColourRole(
+            name: "gain", color: MonacoTheme.profit,
+            dark: "14.5:1 · 11.7:1 on cell", light: "4.8:1 · 4.3:1 on cell"),
+        GalleryColourRole(
+            name: "loss", color: MonacoTheme.lossVivid,
+            dark: "6.2:1 · 5.0:1 on cell", light: "5.4:1 · 4.8:1 on cell"),
+        GalleryColourRole(name: "crown", color: MonacoTheme.crown, dark: "", light: ""),
+    ]
+}
+
+struct GalleryColourBoard: View {
+    var body: some View {
+        GalleryGroup(title: "Dark and light, ratio on canvas, on cell") {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                ForEach(GalleryColourRole.board) { role in
+                    HStack(spacing: MonacoTheme.Space.sm) {
+                        HStack(spacing: MonacoTheme.Space.sm) {
+                            GallerySwatch(color: role.color, scheme: .dark)
+                            GallerySwatch(color: role.color, scheme: .light)
+                        }
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(role.name)
+                                .font(MonacoTheme.Typo.captionStrong)
+                                .foregroundStyle(MonacoTheme.ink)
+                            GalleryCaption("dark \(GalleryHex.string(role.color, in: .dark)) \(role.dark)")
+                            GalleryCaption("light \(GalleryHex.string(role.color, in: .light)) \(role.light)")
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .frame(minHeight: 44)
+                    .accessibilityElement(children: .combine)
+                }
+            }
+        }
+    }
+}
+
+struct GalleryRuleTable: View {
+    let title: String
+    let rows: [(name: String, value: String, use: String)]
+
+    var body: some View {
+        GalleryGroup(title: title) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+                ForEach(rows, id: \.name) { row in
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("\(row.name) · \(row.value)")
+                            .font(MonacoTheme.Typo.headline)
+                            .foregroundStyle(MonacoTheme.ink)
+                        GalleryCaption(row.use)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityElement(children: .combine)
+                }
+            }
+        }
+    }
 }
 
 struct GallerySwatch: View {
@@ -223,7 +291,45 @@ struct GalleryMetricSamples: View {
                     .padding(.bottom, MonacoTheme.Space.s)
             }
         }
-        GalleryGroup(title: "Spacing") {
+        GalleryRuleTable(
+            title: "Radii",
+            rows: [
+                (
+                    "cell / card", "\(Int(MonacoTheme.Radius.card))",
+                    "vote card, cash row, settings groups, profile card"
+                ),
+                ("button 50", "\(Int(MonacoTheme.Radius.button))", "prominent and bordered, full width"),
+                ("share card", "\(Int(MonacoTheme.Radius.shareCard))", "the position, vote and share cards"),
+                ("small", "\(Int(MonacoTheme.Radius.small))", "field, stat row, podium step, rank badge"),
+                ("ticker tile · logo", "\(Int(MonacoTheme.Radius.tile)) · 15 %", "Monaco"),
+                ("keypad key", "\(Int(MonacoTheme.Radius.keypadKey))", "press highlight only"),
+                ("capsule", "999", "chip, reaction, toast, tab bar, search field, composer"),
+                ("cabal squircle · sheet top", "22.5 % · 38", "app-icon shape · the display corner (system)"),
+            ])
+        GalleryRuleTable(
+            title: "Spacing",
+            rows: [
+                (
+                    "margin · card-pad", "\(Int(MonacoTheme.Space.gutter)) · \(Int(MonacoTheme.Space.cardPadding))",
+                    "every screen, sheet, bar; inside cards"
+                ),
+                ("row", "10 × 16, min 44", "every list row, post, comment"),
+                (
+                    "section gap", "\(Int(MonacoTheme.Space.section)) · \(Int(MonacoTheme.Space.root)) root",
+                    "above a section title; between root blocks"
+                ),
+                (
+                    "title gap · stack gap", "\(Int(MonacoTheme.Space.titleGap)) · \(Int(MonacoTheme.Space.stackGap))",
+                    "title to content; between cards"
+                ),
+                ("button · small", "50 · 32", ".controlSize(.large) / (.small)"),
+                (
+                    "tab clear · home clear",
+                    "\(Int(MonacoTheme.Space.tabClear)) · \(Int(MonacoTheme.Space.homeClear))",
+                    "nothing rests under the bar"
+                ),
+            ])
+        GalleryGroup(title: "Spacing scale") {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 ForEach(spacing, id: \.name) { entry in
                     HStack(spacing: MonacoTheme.Space.sm) {
@@ -256,6 +362,7 @@ struct GalleryMetricSamples: View {
 struct GalleryTokensPage: View {
     var body: some View {
         GalleryPage(title: "Tokens") {
+            GalleryColourBoard()
             ForEach(GalleryTokenCatalog.groups) { group in
                 GalleryGroup(title: group.title) {
                     VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
