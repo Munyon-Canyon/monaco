@@ -47,6 +47,16 @@ func TestModule_servesDevicesConsumesEveryPushKindAndRunsTheFollowDigest(t *test
 			"notify notify.user_nudge_due user.nudge_due",
 			"notify notify.comment_created comment.created",
 			"notify notify.chat_message_posted chat.message_posted",
+			"notify_catch_up notify.catch_up_vote_cast vote.cast",
+			"notify_catch_up notify.catch_up_comment_created comment.created",
+			"notify_catch_up notify.catch_up_access_decided cabal.access_decided",
+			"notify_catch_up notify.catch_up_vote_retracted vote.retracted",
+			"notify_catch_up notify.catch_up_proposal_passed proposal.passed",
+			"notify_catch_up notify.catch_up_proposal_failed proposal.failed",
+			"notify_catch_up notify.catch_up_proposal_expired proposal.expired",
+			"notify_catch_up notify.catch_up_proposal_withdrawn proposal.withdrawn",
+			"notify_catch_up notify.catch_up_proposal_voided proposal.voided",
+			"notify_catch_up notify.catch_up_access_requested cabal.access_requested",
 		}) {
 		t.Fatalf("module = %s, handlers %q, pollers %q", m.Name(), handlers, pollers)
 	}

@@ -25,3 +25,9 @@ type PendingInvite struct {
 type InviteReader interface {
 	PendingInvites(ctx context.Context, user ids.UserID, now time.Time) ([]PendingInvite, error)
 }
+
+type ReceivedInvite = PendingInvite
+
+type InviteLookup interface {
+	InvitesByID(ctx context.Context, requestIDs []uuid.UUID) (map[uuid.UUID]ReceivedInvite, error)
+}

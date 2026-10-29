@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+35	Catch up clear	notify	POST /v1/me/catch-up/items/{key}/clear	ClearItem		notify_catch_up	ok;NotFound;Unauthorized;crash:before-commit	built	docs/architecture/notifications.md#catch-up

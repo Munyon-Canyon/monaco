@@ -821,7 +821,7 @@ type Comment struct {
 	// Reactions The comment's reactions, one per emoji, most used first, then the emoji first used earliest. At most the top 20; `reaction_count` still counts every reaction. Empty on a deleted comment.
 	//
 	// Examples: [{"count":3,"emoji":"😂","mine":false},{"count":1,"emoji":"❤️","mine":true}]
-	Reactions []Reaction `json:"reactions"`
+	Reactions []externalRef0.Reaction `json:"reactions"`
 
 	// ReplyTo The comment a reply answers, as the quote above the reply.
 	ReplyTo *CommentQuote `json:"reply_to,omitempty"`
@@ -1172,7 +1172,7 @@ type FeedItem struct {
 	ReactionCount int32 `json:"reaction_count"`
 
 	// Reactions The item's reactions, one per emoji, most used first, then the emoji first used earliest. At most the top 20; `reaction_count` still counts every reaction.
-	Reactions []Reaction `json:"reactions"`
+	Reactions []externalRef0.Reaction `json:"reactions"`
 
 	// RefId The source row's id.
 	//
@@ -1558,30 +1558,12 @@ type ProposalCommentPage struct {
 	NextCursor *string `json:"next_cursor"`
 }
 
-// Reaction One emoji on a feed item, how many users reacted with it and whether the caller did.
-type Reaction struct {
-	// Count The number of users who reacted with this emoji.
-	//
-	// Examples: 5
-	Count int32 `json:"count"`
-
-	// Emoji One emoji, such as 🎉 or 👍🏽.
-	//
-	// Examples: 🎉
-	Emoji string `json:"emoji"`
-
-	// Mine True when the caller reacted with this emoji.
-	//
-	// Examples: true
-	Mine bool `json:"mine"`
-}
-
 // ReactionSummary A feed item's reactions after a change.
 type ReactionSummary struct {
 	// Reactions One entry per emoji, most used first, then the emoji first used earliest. At most the top 20; `total` still counts every reaction.
 	//
 	// Examples: [{"count":5,"emoji":"🎉","mine":true}]
-	Reactions []Reaction `json:"reactions"`
+	Reactions []externalRef0.Reaction `json:"reactions"`
 
 	// Total The number of reactions on the item, over every emoji.
 	//

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
-	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
+	baseapi "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
@@ -59,13 +59,13 @@ func itemLikes(count int32, mine bool) scenario.Step {
 		if item.LikeCount != count || item.LikedByMe != mine {
 			s.Fatalf("like_count %d, liked_by_me %v, want %d and %v", item.LikeCount, item.LikedByMe, count, mine)
 		}
-		var reactions []api.Reaction
+		var reactions []baseapi.Reaction
 		if err := json.Unmarshal(item.Reactions, &reactions); err != nil || reactions == nil {
 			s.Fatalf("reactions %s, %v, want an array", item.Reactions, err)
 		}
-		want := []api.Reaction{}
+		want := []baseapi.Reaction{}
 		if count > 0 {
-			want = []api.Reaction{{Emoji: redHeart, Count: count, Mine: mine}}
+			want = []baseapi.Reaction{{Emoji: redHeart, Count: count, Mine: mine}}
 		}
 		if !slices.Equal(reactions, want) || item.ReactionCount != count {
 			s.Fatalf("reactions %s, reaction_count %d, want %v and %d", item.Reactions, item.ReactionCount, want, count)

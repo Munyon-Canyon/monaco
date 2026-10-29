@@ -43,6 +43,7 @@ type CatchUpPorts struct {
 	Comments   socialport.CommentPreviews
 	Replies    ReplyCounts
 	Invites    cabalport.InviteReader
+	InviteByID cabalport.InviteLookup
 	Cabals     CatchUpCabals
 	Holdings   treasuryport.TopHoldingsReader
 	Assets     AssetsByMint
@@ -581,7 +582,10 @@ func commentView(p socialport.CommentPreview) *domain.CatchUpComment {
 	out := &domain.CatchUpComment{
 		FeedItemID: p.FeedItemID.String(), CommentID: p.CommentID.String(), RootCommentID: p.RootCommentID.String(),
 		Author: domain.CatchUpPerson{ID: p.Author.ID.String(), Name: p.Author.Name, PhotoURL: p.Author.PhotoURL},
-		Body:   p.Body, CreatedAt: p.CreatedAt,
+		Body:   p.Body, CreatedAt: p.CreatedAt, ReactionCount: p.ReactionCount,
+	}
+	for _, r := range p.Reactions {
+		out.Reactions = append(out.Reactions, domain.CatchUpReaction{Emoji: r.Emoji, Count: r.Count, Mine: r.Mine})
 	}
 	if p.ParentCommentID != nil {
 		out.ParentCommentID = p.ParentCommentID.String()
@@ -639,6 +643,25 @@ func (r *ReadCatchUp) cleared(
 		item.Key, item.Unread, item.At = g.ItemKey, false, g.ClearedAt.Time
 		item.ClearedReason = g.ClearedReason.String
 		out = append(out, item)
+	}
+	return out, nil
+}
+
+func (r *ReadCatchUp) Render(
+	ctx context.Context, user ids.UserID, keys []string,
+) (map[string]domain.CatchUpItem, error) {
+	set, err := r.collect(ctx, user)
+	if err != nil {
+		return nil, err
+	}
+	set.actives = slices.DeleteFunc(set.actives, func(c candidate) bool { return !slices.Contains(keys, c.key) })
+	deco, err := r.decorate(ctx, user, set)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]domain.CatchUpItem, len(set.actives))
+	for _, c := range set.actives {
+		out[c.key] = deco.item(c, user)
 	}
 	return out, nil
 }

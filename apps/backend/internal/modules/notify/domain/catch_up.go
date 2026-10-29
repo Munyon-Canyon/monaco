@@ -23,6 +23,13 @@ const (
 )
 
 const (
+	ClearedVoted   = "voted"
+	ClearedReplied = "replied"
+	ClearedJoined  = "joined"
+	ClearedManual  = "cleared"
+)
+
+const (
 	CatchUpWindow = 30 * 24 * time.Hour
 	CatchUpDay    = 24 * time.Hour
 )
@@ -90,6 +97,12 @@ type CatchUpPost struct {
 	ActorName  string `json:"actor_name"`
 }
 
+type CatchUpReaction struct {
+	Emoji string `json:"emoji"`
+	Count int32  `json:"count"`
+	Mine  bool   `json:"mine"`
+}
+
 type CatchUpComment struct {
 	FeedItemID      string        `json:"feed_item_id"`
 	CommentID       string        `json:"comment_id"`
@@ -100,6 +113,9 @@ type CatchUpComment struct {
 	Author          CatchUpPerson `json:"author"`
 	Body            string        `json:"body"`
 	CreatedAt       time.Time     `json:"created_at"`
+
+	Reactions     []CatchUpReaction `json:"reactions,omitempty"`
+	ReactionCount int32             `json:"reaction_count,omitempty"`
 }
 
 type CatchUpQuote struct {

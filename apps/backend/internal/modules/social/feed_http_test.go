@@ -16,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	baseapi "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -71,7 +72,7 @@ func TestGetFeed_pagesNewestFirstWithAnOpaqueCursor(t *testing.T) {
 	first := f.getFeed(t, viewer, api.GetFeedParams{Limit: ptr(1), Sort: ptr(api.GetFeedParamsSort("new"))})
 	want := api.FeedItem{
 		Id: newer, Kind: "price_move", RefType: "asset_price_moves", RefId: move, Symbol: ptr("AAPLx"),
-		Title: "AAPLx is flat today", Tone: "neutral", ChangeBps: ptr(int64(0)), Reactions: []api.Reaction{},
+		Title: "AAPLx is flat today", Tone: "neutral", ChangeBps: ptr(int64(0)), Reactions: []baseapi.Reaction{},
 		CreatedAt: f.clock.Now(), UpdatedAt: f.clock.Now(), ThreadItemId: newer, CanReply: true, CanReact: true,
 		ReplyRule: api.Anyone,
 	}
@@ -80,11 +81,28 @@ func TestGetFeed_pagesNewestFirstWithAnOpaqueCursor(t *testing.T) {
 	}
 	second := f.getFeed(t, viewer, api.GetFeedParams{Limit: ptr(1), Cursor: first.NextCursor})
 	want = api.FeedItem{
-		Id: older, Kind: "trade", RefType: "swaps", RefId: trade, CabalId: ptr(cabal.UUID()),
-		CabalName: ptr("Alpha Cabal"), ActorId: ptr(viewer.UUID()), Symbol: ptr("AAPLx"),
-		Title: "Alpha Cabal bought $500 of Apple", Action: ptr("buy"), UsdcMicros: ptr(int64(500_000_000)),
-		AssetName: ptr("Apple"), Tone: "neutral", Reactions: []api.Reaction{}, CreatedAt: olderAt, UpdatedAt: olderAt,
-		ThreadItemId: older, CanReply: true, CanReact: true, ReplyRule: api.Anyone,
+		Id:         older,
+		Kind:       "trade",
+		RefType:    "swaps",
+		RefId:      trade,
+		CabalId:    ptr(cabal.UUID()),
+		CabalName:  ptr("Alpha Cabal"),
+		ActorId:    ptr(viewer.UUID()),
+		Symbol:     ptr("AAPLx"),
+		Title:      "Alpha Cabal bought $500 of Apple",
+		Action:     ptr("buy"),
+		UsdcMicros: ptr(int64(500_000_000)),
+		AssetName: ptr(
+			"Apple",
+		),
+		Tone:         "neutral",
+		Reactions:    []baseapi.Reaction{},
+		CreatedAt:    olderAt,
+		UpdatedAt:    olderAt,
+		ThreadItemId: older,
+		CanReply:     true,
+		CanReact:     true,
+		ReplyRule:    api.Anyone,
 	}
 	if len(second.Items) != 1 || !reflect.DeepEqual(second.Items[0], want) || second.NextCursor != nil {
 		t.Fatalf("second page = %+v, want [%+v] and no cursor", second, want)

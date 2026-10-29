@@ -39,6 +39,7 @@ type catchUpGov struct {
 	pendingCalls, cardsCalls int
 	onCall                   func()
 	err                      error
+	cardsErr                 error
 }
 
 func (g *catchUpGov) PendingVotes(context.Context, ids.UserID) ([]governanceport.CatchUpProposal, error) {
@@ -59,7 +60,7 @@ func (g *catchUpGov) ProposalCards(
 			out[id] = card
 		}
 	}
-	return out, nil
+	return out, g.cardsErr
 }
 
 type catchUpComments struct {
@@ -113,6 +114,23 @@ func (c *catchUpInvites) PendingInvites(context.Context, ids.UserID, time.Time) 
 	return c.invites, c.err
 }
 
+type catchUpInviteLookup struct {
+	byID map[uuid.UUID]cabalport.PendingInvite
+	err  error
+}
+
+func (c *catchUpInviteLookup) InvitesByID(
+	_ context.Context, requestIDs []uuid.UUID,
+) (map[uuid.UUID]cabalport.ReceivedInvite, error) {
+	out := map[uuid.UUID]cabalport.ReceivedInvite{}
+	for _, id := range requestIDs {
+		if inv, ok := c.byID[id]; ok {
+			out[id] = inv
+		}
+	}
+	return out, c.err
+}
+
 type catchUpCabals struct {
 	joined              []ids.CabalID
 	views               map[ids.CabalID]cabalport.CabalView
@@ -159,10 +177,13 @@ type catchUpWorld struct {
 	comments *catchUpComments
 	replies  *catchUpReplies
 	invites  *catchUpInvites
+	lookup   *catchUpInviteLookup
 	cabals   *catchUpCabals
 	holdings *catchUpHoldings
 	assets   *catchUpAssets
 	now      time.Time
+
+	cabalMembers []ids.UserID
 }
 
 func newCatchUpWorld(t *testing.T) *catchUpWorld {
@@ -178,6 +199,7 @@ func newCatchUpWorld(t *testing.T) *catchUpWorld {
 		comments: &catchUpComments{previews: map[uuid.UUID]socialport.CommentPreview{}},
 		replies:  &catchUpReplies{counts: map[ids.ProposalID]int{}},
 		invites:  &catchUpInvites{},
+		lookup:   &catchUpInviteLookup{},
 		cabals:   &catchUpCabals{views: map[ids.CabalID]cabalport.CabalView{}},
 		holdings: &catchUpHoldings{top: map[ids.CabalID]chain.SolanaAddress{}},
 		assets:   &catchUpAssets{assets: []market.Asset{{Mint: openAI, Symbol: "OPENAI", DisplayName: "OpenAI"}}},
@@ -187,8 +209,17 @@ func newCatchUpWorld(t *testing.T) *catchUpWorld {
 
 func (w *catchUpWorld) reads() *app.ReadCatchUp {
 	return app.NewReadCatchUp(app.CatchUpPorts{
-		Governance: w.gov, Comments: w.comments, Replies: w.replies, Invites: w.invites, Cabals: w.cabals,
-		Holdings: w.holdings, Assets: w.assets, Users: w.r.users, Reads: w.r.pool, Clock: w.r.clock,
+		Governance: w.gov,
+		Comments:   w.comments,
+		Replies:    w.replies,
+		Invites:    w.invites,
+		InviteByID: w.lookup,
+		Cabals:     w.cabals,
+		Holdings:   w.holdings,
+		Assets:     w.assets,
+		Users:      w.r.users,
+		Reads:      w.r.pool,
+		Clock:      w.r.clock,
 	})
 }
 

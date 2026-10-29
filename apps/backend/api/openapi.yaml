@@ -2917,6 +2917,57 @@ paths:
                 $ref: "#/components/schemas/CatchUpCount"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/me/catch-up/items/{key}/clear:
+    post:
+      operationId: clearCatchUpItem
+      tags: [notify]
+      x-idempotent: true
+      summary: Clear one Catch up item.
+      description: >-
+        Moves the item to Cleared with the reason cleared and stores the item as it is now. A newer source row reopens it. An item that is not active in the caller's Catch up, or a key that is not the caller's, is not_found.
+        A replay with the same Idempotency-Key answers 204 and writes once. A deleted account is unauthorized.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CatchUpItemKey"
+      responses:
+        "204":
+          description: The item is cleared.
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/catch-up/items/{key}/keep:
+    post:
+      operationId: keepCatchUpItem
+      tags: [notify]
+      x-idempotent: true
+      summary: Keep one Catch up item.
+      description: >-
+        Marks the item read and keeps it active, so clearing elsewhere does not remove it. An item that is not active in the caller's Catch up, or a key that is not the caller's, is not_found.
+        A replay with the same Idempotency-Key answers 204 and writes once. A deleted account is unauthorized.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CatchUpItemKey"
+      responses:
+        "204":
+          description: The item is kept.
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/catch-up/items/{key}/read:
+    post:
+      operationId: readCatchUpItem
+      tags: [notify]
+      x-idempotent: true
+      summary: Mark one Catch up item read.
+      description: >-
+        Sets the item read now, so it stops showing unread until a newer source row arrives. An item that is not active in the caller's Catch up, or a key that is not the caller's, is not_found.
+        A replay with the same Idempotency-Key answers 204 and writes once. A deleted account is unauthorized.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CatchUpItemKey"
+      responses:
+        "204":
+          description: The item is read.
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/me/notification-preferences:
     get:
       operationId: getNotificationPreferences
@@ -5112,6 +5163,15 @@ components:
         type: string
         format: uuid
         examples: [01890a5d-ac96-774b-bcce-b302099a8059]
+  # api/spec/notify.yaml
+    CatchUpItemKey:
+      name: key
+      in: path
+      required: true
+      description: The item key, such as proposal:<id>, comment:<id>, chat:<id> or invite:<id>.
+      schema:
+        type: string
+        examples: ["comment:01890a5d-ac96-774b-bcce-b302099a8061"]
   # api/spec/ranking.yaml
     LeaderboardCursor:
       name: cursor
@@ -6301,6 +6361,15 @@ components:
           type: boolean
           description: True when the same request may succeed if sent again later.
           examples: [false]
+    Reaction:
+      type: object
+      description: One emoji on a feed item, how many users reacted with it and whether the caller did.
+      additionalProperties: false
+      required: [emoji, count, mine]
+      properties:
+        emoji: {type: string, minLength: 1, maxLength: 32, description: "One emoji, such as 🎉 or 👍🏽.", examples: ["🎉"]}
+        count: {type: integer, format: int32, minimum: 1, description: "The number of users who reacted with this emoji.", examples: [5]}
+        mine: {type: boolean, description: "True when the caller reacted with this emoji.", examples: [true]}
     ReasonBody:
       type: object
       description: The reason an administrator gives for an action.
@@ -9115,7 +9184,7 @@ components:
       type: object
       description: The incoming comment, which is the reply or mention itself.
       additionalProperties: false
-      required: [feed_item_id, comment_id, parent_comment_id, root_comment_id, proposal_id, cabal_id, author, body, created_at]
+      required: [feed_item_id, comment_id, parent_comment_id, root_comment_id, proposal_id, cabal_id, author, body, created_at, reactions, reaction_count]
       properties:
         feed_item_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8060"]}
         comment_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8061"]}
@@ -9126,6 +9195,12 @@ components:
         author: {$ref: "#/components/schemas/CatchUpPerson"}
         body: {type: string, examples: ["Still out: @Andres, Jordan?"]}
         created_at: {type: string, format: date-time, examples: ["2026-10-28T21:40:00Z"]}
+        reactions:
+          type: array
+          description: The reactions on the comment, most used first, as the comment's thread draws them.
+          items: {$ref: "#/components/schemas/Reaction"}
+          examples: [[{emoji: "❤️", count: 1, mine: false}]]
+        reaction_count: {type: integer, format: int32, minimum: 0, description: "The number of reactions on the comment, over every emoji.", examples: [1]}
     CatchUpCount:
       type: object
       description: The number of active Catch up items.
@@ -10742,15 +10817,6 @@ components:
           type: [string, "null"]
           description: The cursor for the next page. Null on the last page.
           examples: [null]
-    Reaction:
-      type: object
-      description: One emoji on a feed item, how many users reacted with it and whether the caller did.
-      additionalProperties: false
-      required: [emoji, count, mine]
-      properties:
-        emoji: {type: string, minLength: 1, maxLength: 32, description: "One emoji, such as 🎉 or 👍🏽.", examples: ["🎉"]}
-        count: {type: integer, format: int32, minimum: 1, description: "The number of users who reacted with this emoji.", examples: [5]}
-        mine: {type: boolean, description: "True when the caller reacted with this emoji.", examples: [true]}
     ReactionSummary:
       type: object
       description: A feed item's reactions after a change.

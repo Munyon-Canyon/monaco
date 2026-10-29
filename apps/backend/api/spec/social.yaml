@@ -1473,15 +1473,6 @@ components:
         return_private: {type: boolean, description: "True only when the author chose to hide their return. False for a system item or an author with no ranked row.", examples: [false]}
         created_at: {type: string, format: date-time, description: "When the item was created.", examples: ["2026-10-03T08:00:00Z"]}
         updated_at: {type: string, format: date-time, description: "When the item last changed.", examples: ["2026-10-03T08:00:00Z"]}
-    Reaction:
-      type: object
-      description: One emoji on a feed item, how many users reacted with it and whether the caller did.
-      additionalProperties: false
-      required: [emoji, count, mine]
-      properties:
-        emoji: {type: string, minLength: 1, maxLength: 32, description: "One emoji, such as 🎉 or 👍🏽.", examples: ["🎉"]}
-        count: {type: integer, format: int32, minimum: 1, description: "The number of users who reacted with this emoji.", examples: [5]}
-        mine: {type: boolean, description: "True when the caller reacted with this emoji.", examples: [true]}
     ReactionSummary:
       type: object
       description: A feed item's reactions after a change.

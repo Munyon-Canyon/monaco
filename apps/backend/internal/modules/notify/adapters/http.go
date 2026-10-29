@@ -15,13 +15,14 @@ import (
 )
 
 type HTTP struct {
-	Register   *app.RegisterDeviceHandler
-	Unregister *app.UnregisterDeviceHandler
-	SetPrefs   *app.SetNotificationPreferencesHandler
-	Reads      sqlc.DBTX
-	Users      app.Users
-	CatchUp    *app.ReadCatchUp
-	Clock      clock.Clock
+	Register      *app.RegisterDeviceHandler
+	Unregister    *app.UnregisterDeviceHandler
+	SetPrefs      *app.SetNotificationPreferencesHandler
+	Reads         sqlc.DBTX
+	Users         app.Users
+	CatchUp       *app.ReadCatchUp
+	CatchUpWrites *app.CatchUpWrites
+	Clock         clock.Clock
 }
 
 var _ api.StrictServerInterface = HTTP{}

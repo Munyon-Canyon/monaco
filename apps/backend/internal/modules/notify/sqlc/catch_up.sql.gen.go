@@ -147,3 +147,124 @@ func (q *Queries) ClearedSince(ctx context.Context, arg ClearedSinceParams) ([]C
 	}
 	return items, nil
 }
+
+const reopenVoted = `-- name: ReopenVoted :exec
+INSERT INTO catch_up_state (user_id, item_key, updated_at)
+VALUES ($1, $2, $3::timestamptz)
+ON CONFLICT (user_id, item_key) DO UPDATE
+SET cleared_at = CASE WHEN catch_up_state.cleared_reason = 'voted' THEN NULL ELSE catch_up_state.cleared_at END,
+    snapshot = CASE WHEN catch_up_state.cleared_reason = 'voted' THEN NULL ELSE catch_up_state.snapshot END,
+    cleared_reason = CASE WHEN catch_up_state.cleared_reason = 'voted' THEN NULL ELSE catch_up_state.cleared_reason END,
+    updated_at = EXCLUDED.updated_at
+WHERE catch_up_state.updated_at <= EXCLUDED.updated_at
+`
+
+type ReopenVotedParams struct {
+	UserID  uuid.UUID
+	ItemKey string
+	At      time.Time
+}
+
+func (q *Queries) ReopenVoted(ctx context.Context, arg ReopenVotedParams) error {
+	_, err := q.db.Exec(ctx, reopenVoted, arg.UserID, arg.ItemKey, arg.At)
+	return err
+}
+
+const threadCommentKeys = `-- name: ThreadCommentKeys :many
+SELECT DISTINCT item_key::text AS item_key FROM notifications
+WHERE user_id = $1 AND item_key LIKE 'comment:%' AND data ->> 'feed_item_id' = $2::text
+  AND created_at >= $3::timestamptz
+ORDER BY 1
+`
+
+type ThreadCommentKeysParams struct {
+	UserID     uuid.UUID
+	FeedItemID string
+	Since      time.Time
+}
+
+func (q *Queries) ThreadCommentKeys(ctx context.Context, arg ThreadCommentKeysParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, threadCommentKeys, arg.UserID, arg.FeedItemID, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var item_key string
+		if err := rows.Scan(&item_key); err != nil {
+			return nil, err
+		}
+		items = append(items, item_key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const upsertClear = `-- name: UpsertClear :exec
+INSERT INTO catch_up_state (user_id, item_key, cleared_at, cleared_reason, snapshot, updated_at)
+VALUES ($1, $2, $3::timestamptz, $4::text, $5::jsonb, $3::timestamptz)
+ON CONFLICT (user_id, item_key) DO UPDATE
+SET cleared_at = EXCLUDED.cleared_at, cleared_reason = EXCLUDED.cleared_reason, snapshot = EXCLUDED.snapshot,
+    updated_at = EXCLUDED.updated_at
+WHERE catch_up_state.updated_at <= EXCLUDED.updated_at
+`
+
+type UpsertClearParams struct {
+	UserID   uuid.UUID
+	ItemKey  string
+	At       time.Time
+	Reason   string
+	Snapshot []byte
+}
+
+func (q *Queries) UpsertClear(ctx context.Context, arg UpsertClearParams) error {
+	_, err := q.db.Exec(ctx, upsertClear,
+		arg.UserID,
+		arg.ItemKey,
+		arg.At,
+		arg.Reason,
+		arg.Snapshot,
+	)
+	return err
+}
+
+const upsertKeep = `-- name: UpsertKeep :exec
+INSERT INTO catch_up_state (user_id, item_key, read_at, kept_at, updated_at)
+VALUES ($1, $2, $3::timestamptz, $3::timestamptz, $3::timestamptz)
+ON CONFLICT (user_id, item_key) DO UPDATE
+SET read_at = EXCLUDED.read_at, kept_at = EXCLUDED.kept_at, updated_at = EXCLUDED.updated_at
+WHERE catch_up_state.updated_at <= EXCLUDED.updated_at
+`
+
+type UpsertKeepParams struct {
+	UserID  uuid.UUID
+	ItemKey string
+	At      time.Time
+}
+
+func (q *Queries) UpsertKeep(ctx context.Context, arg UpsertKeepParams) error {
+	_, err := q.db.Exec(ctx, upsertKeep, arg.UserID, arg.ItemKey, arg.At)
+	return err
+}
+
+const upsertRead = `-- name: UpsertRead :exec
+INSERT INTO catch_up_state (user_id, item_key, read_at, updated_at)
+VALUES ($1, $2, $3::timestamptz, $3::timestamptz)
+ON CONFLICT (user_id, item_key) DO UPDATE
+SET read_at = EXCLUDED.read_at, updated_at = EXCLUDED.updated_at
+WHERE catch_up_state.updated_at <= EXCLUDED.updated_at
+`
+
+type UpsertReadParams struct {
+	UserID  uuid.UUID
+	ItemKey string
+	At      time.Time
+}
+
+func (q *Queries) UpsertRead(ctx context.Context, arg UpsertReadParams) error {
+	_, err := q.db.Exec(ctx, upsertRead, arg.UserID, arg.ItemKey, arg.At)
+	return err
+}
