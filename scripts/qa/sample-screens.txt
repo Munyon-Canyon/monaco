@@ -750,13 +750,10 @@ chat-thread-dark              -MonacoChatSampleQA -MonacoChatSampleProposal -App
 chat-thread-ax                -MonacoChatSampleQA -MonacoChatSampleProposal -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityXXXL
 cabal-holding-ready-dark      -MonacoCabalHoldingSample ready -AppleInterfaceStyle Dark
 cabal-holding-ready-ax        -MonacoCabalHoldingSample ready -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityXXXL
-leaderboard-cabals            -MonacoLeaderboardSample cabals
-leaderboard-cabals-dark       -MonacoLeaderboardSample cabals -AppleInterfaceStyle Dark
-leaderboard-people            -MonacoLeaderboardSample people
-leaderboard-filtered          -MonacoLeaderboardSample filtered
+leaderboard-people-month      -MonacoLeaderboardSample peopleMonth
+leaderboard-people-month-dark -MonacoLeaderboardSample peopleMonth -AppleInterfaceStyle Dark
 leaderboard-empty             -MonacoLeaderboardSample empty
 leaderboard-loading           -MonacoLeaderboardSample loading
-leaderboard-stale             -MonacoLeaderboardSample stale
 leaderboard-error             -MonacoLeaderboardSample error
 
 # v3 parity: one line per reference state, named like docs/design/v3/screens
@@ -826,13 +823,10 @@ cabals__public-cabal__member                       -MonacoGroupDetailSample publ
 cabals__public-cabal__pending                      -MonacoGroupDetailSample publicPending
 cabals__public-cabal__preview                      -MonacoGroupDetailSample publicPreview
 cabals__public-cabal__private                      -MonacoGroupDetailSample publicPrivate
-explore__leaderboard__cabals                       -MonacoLeaderboardSample cabals
 explore__leaderboard__empty                        -MonacoLeaderboardSample empty
 explore__leaderboard__error                        -MonacoLeaderboardSample error
-explore__leaderboard__filtered                     -MonacoLeaderboardSample filtered
 explore__leaderboard__loading                      -MonacoLeaderboardSample loading
-explore__leaderboard__people                       -MonacoLeaderboardSample people
-explore__leaderboard__stale                        -MonacoLeaderboardSample stale
+explore__leaderboard__people-month                 -MonacoLeaderboardSample peopleMonth
 feed__feed__all                                    -feedHarness items
 feed__feed__empty                                  -feedHarness empty
 feed__feed__error                                  -feedHarness failed
