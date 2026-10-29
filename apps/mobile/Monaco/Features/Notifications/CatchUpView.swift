@@ -5,14 +5,20 @@ import SwiftUI
 
 struct CatchUpView: View {
     @State private var model: CatchUpModel?
+    @State private var deckStart: CatchUpDeckStart?
+    private let opensDeckAt: CatchUpDeckStart?
     private let now: @Sendable () -> Date
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
 
-    init(model: CatchUpModel? = nil, now: @escaping @Sendable () -> Date = { Date() }) {
+    init(
+        model: CatchUpModel? = nil, now: @escaping @Sendable () -> Date = { Date() },
+        opensDeckAt: CatchUpDeckStart? = nil
+    ) {
         _model = State(initialValue: model)
+        self.opensDeckAt = opensDeckAt
         self.now = now
     }
 
@@ -21,9 +27,37 @@ struct CatchUpView: View {
             .monacoCanvas()
             .navigationTitle(CatchUpCopy.title)
             .navigationBarTitleDisplayMode(.large)
+            .toolbar { oneByOne }
+            .fullScreenCover(item: $deckStart) { start in deck(start) }
             .task { await start() }
             .onAppear { model?.setVisible(true) }
             .onDisappear { model?.setVisible(false) }
+    }
+
+    @ToolbarContentBuilder private var oneByOne: some ToolbarContent {
+        if case .loaded(let screen) = model?.state, !screen.isCaughtUp {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    deckStart = CatchUpDeckStart(key: nil)
+                } label: {
+                    Label(CatchUpCopy.oneByOne, systemImage: "square.stack").labelStyle(.titleAndIcon)
+                }
+                .accessibilityIdentifier("catch-up-one-by-one")
+            }
+        }
+    }
+
+    @ViewBuilder private func deck(_ start: CatchUpDeckStart) -> some View {
+        if let model, case .loaded(let screen) = model.state {
+            CatchUpCardView(
+                model: model, screen: screen, start: start, now: now(), rowActions: rowActions,
+                reactions: ReactionsModel(api: environment.api, clock: ContinuousClock()),
+                seeAll: {})
+        }
+    }
+
+    private var rowActions: CatchUpRowActions {
+        CatchUpRowActions(vote: vote, open: open, join: join, clear: clear)
     }
 
     @ViewBuilder private var content: some View {
@@ -132,6 +166,9 @@ struct CatchUpView: View {
         let model = prepared()
         refresh?.register("catch-up") { await model.load() }
         if case .idle = model.state { await model.load() }
+        if let opensDeckAt, deckStart == nil {
+            deckStart = opensDeckAt
+        }
         await model.observe()
     }
 
