@@ -34,8 +34,9 @@ enum HomeDashboardJourney {
         recorder.step("S1.2", "the cash row with Cash, USDC, APY and Deposit") {
             let cashRow = app.element("home-cash-row")
             XCTAssertTrue(cashRow.waitForExistence(timeout: 10), "S1.2: no cash row")
+            let texts = cashRow.staticTexts.allElementsBoundByIndex.map(\.label) + [cashRow.label]
             for word in ["Cash", "USDC", "3.5% APY"] {
-                XCTAssertTrue(cashRow.label.contains(word), "S1.2: the cash row reads '\(cashRow.label)', no \(word)")
+                XCTAssertTrue(texts.contains { $0.contains(word) }, "S1.2: the cash row reads \(texts), no \(word)")
             }
             let cash = app.element("platform-balance-value")
             XCTAssertTrue(
