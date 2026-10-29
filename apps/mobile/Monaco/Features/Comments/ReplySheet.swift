@@ -7,9 +7,12 @@ struct ReplySheet: View {
     var owner: String?
     var menuItems: [ComposerMenuItem] = []
     var thesis: String?
+    var offersPoll = false
+    var asksCabal = false
 
     @FocusState private var focused: Bool
     @State private var picksGif = false
+    @State private var picksPoll = false
     @Environment(ToastCenter.self) private var toasts
 
     var body: some View {
@@ -19,7 +22,9 @@ struct ReplySheet: View {
             ComposerNotices(model: model)
             ComposerAttachmentSlot(model: model)
             HStack(alignment: .bottom, spacing: MonacoTheme.Space.s) {
-                ComposerMenu(items: menuItems, target: target, thesis: thesis, model: model)
+                ComposerMenu(
+                    items: menuItems, target: target, thesis: thesis, model: model,
+                    onPoll: offersPoll ? { picksPoll = true } : nil)
                 ComposerField(
                     model: model, focused: $focused,
                     onGif: {
@@ -41,6 +46,7 @@ struct ReplySheet: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("reply-sheet")
         .gifPicker(isPresented: $picksGif, model: model)
+        .pollComposer(isPresented: $picksPoll, model: model, isCabal: asksCabal)
         .onAppear { focused = true }
     }
 

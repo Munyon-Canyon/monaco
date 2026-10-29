@@ -19,17 +19,18 @@ struct ComposerMenu: View {
     @Environment(ToastCenter.self) private var toasts
 
     private var quotable: String? { ThesisQuote.isQuotable(thesis) && model != nil ? thesis : nil }
+    var onPoll: (() -> Void)?
 
     private var available: [ComposerMenuItem] { items.filter { $0.isAvailable(target) } }
 
     var body: some View {
-        if !available.isEmpty || quotable != nil {
+        if onPoll != nil || !available.isEmpty || quotable != nil {
             Menu {
-                ForEach(available) { item in
-                    Button(action: item.action) {
-                        Label(item.title, monacoIcon: item.icon)
+                if let onPoll {
+                    Button(action: onPoll) {
+                        Label(CommentsCopy.pollMenu, monacoIcon: .pollCheck)
                     }
-                    .accessibilityIdentifier("composer-menu-\(item.id)")
+                    .accessibilityIdentifier("composer-menu-poll")
                 }
                 if quotable != nil {
                     Button {
@@ -38,6 +39,12 @@ struct ComposerMenu: View {
                         Label("Quote the thesis", monacoIcon: .thesis)
                     }
                     .accessibilityIdentifier("composer-menu-thesis")
+                }
+                ForEach(available) { item in
+                    Button(action: item.action) {
+                        Label(item.title, monacoIcon: item.icon)
+                    }
+                    .accessibilityIdentifier("composer-menu-\(item.id)")
                 }
             } label: {
                 Image(monaco: .plusCircle)

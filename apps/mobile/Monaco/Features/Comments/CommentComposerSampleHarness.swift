@@ -25,11 +25,13 @@ enum CommentComposerScenario: String {
     case menuSale
     case thesisSheet
     case thesisBubble
+    case poll
 
     var previewMode: FeedItemDetailModel.PreviewMode {
         switch self {
         case .sending: .sending
         case .failed: .failed
+        case .poll: .poll
         case .docked, .sheetComment, .sheetPost, .menu, .draft, .menuSale, .thesisSheet, .thesisBubble: .ready
         }
     }
@@ -69,7 +71,7 @@ private struct CommentComposerHarnessScreen: View {
         } else if scenario == .thesisSheet {
             ThesisQuoteSheet(thesis: Self.thesis) { detail.comments.pick($0, toasts: toasts) }
         } else {
-            Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
+            thread.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -77,11 +79,33 @@ private struct CommentComposerHarnessScreen: View {
         stage
             .monacoCanvas()
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                CommentComposerBar(model: detail.comments, menuItems: menuItems, thesis: thesisText)
+                CommentComposerBar(
+                    model: detail.comments, menuItems: menuItems, thesis: thesisText, offersPoll: offersPoll)
             }
+            .environment(\.pollVoting, PreviewPollVoting())
             .environment(toasts)
             .monacoToastCenter(toasts)
             .task { await run() }
+    }
+
+    private var offersPoll: Bool { [.menu, .draft, .menuSale, .poll].contains(scenario) }
+
+    @ViewBuilder private var thread: some View {
+        if scenario == .poll {
+            ScrollView {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+                    ForEach(detail.comments.rows) { row in
+                        if let attachment = row.comment.attachment {
+                            AttachmentBubble(commentID: row.id, attachment: attachment)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(MonacoTheme.Space.gutter)
+            }
+        } else {
+            Color.clear
+        }
     }
 
     private var menuItems: [ComposerMenuItem] {
@@ -90,7 +114,7 @@ private struct CommentComposerHarnessScreen: View {
         let toasts = toasts
         return [
             ComposerMenuItem(
-                id: "poll", title: "Poll", icon: .pollCheck, isAvailable: { _ in true },
+                id: "stock", title: "Share a stock", icon: .markets, isAvailable: { _ in true },
                 action: { model.pick(.thesis(start: 0, end: 5), toasts: toasts) })
         ]
     }
@@ -99,7 +123,7 @@ private struct CommentComposerHarnessScreen: View {
         let model = detail.comments
         await model.load()
         switch scenario {
-        case .docked, .menu, .menuSale, .thesisSheet, .thesisBubble:
+        case .docked, .menu, .menuSale, .thesisSheet, .thesisBubble, .poll:
             break
         case .draft:
             _ = model.pick(.thesis(start: 0, end: 5))
