@@ -248,6 +248,33 @@ final class ShareScreenModelTests: XCTestCase {
             ["/v1/me/portfolio", "/v1/me/pnl-history", "/v1/me/referral-code", "/v1/me", "/v1/users/me-1"])
     }
 
+    func testTheLedgerLoadsTheWeekTheViewerAndTheCode() async throws {
+        let server = ShareServer(tradePages: [1])
+        let model = make(server, subject: .ledger(week: "2026-W42"))
+        XCTAssertEqual(model.title, "Week 42")
+
+        await model.load()
+
+        let spec = try XCTUnwrap(model.spec)
+        XCTAssertEqual(spec.header.title, "Andres \u{00B7} Week 42")
+        XCTAssertEqual(spec.figure.main, "+1.4%")
+        XCTAssertEqual(model.title, "Week 42")
+        XCTAssertNotNil(model.shareURL)
+        model.format = .sticker
+        XCTAssertEqual(model.spec?.figure.main, "+1.4%")
+        let paths = await server.paths
+        XCTAssertEqual(Set(paths), ["/v1/me/ledgers/2026-W42", "/v1/me", "/v1/me/referral-code"])
+    }
+
+    func testALedgerThatIsNotReadyIsTheFailedState() async {
+        let model = make(ShareServer(tradePages: [1]), subject: .ledger(week: "2026-W01"))
+
+        await model.load()
+
+        guard case .failed = model.state else { return XCTFail("got \(model.state)") }
+        XCTAssertEqual(model.title, "Week 1")
+    }
+
     func testAPortfolioWithoutAMonthFigureIsTheFailedState() async {
         let model = make(ShareServer(tradePages: [1], noMonth: true), subject: .portfolio)
 
@@ -350,6 +377,7 @@ private actor ShareServer: ClientTransport {
     private func accountReply(_ path: String, _ components: URLComponents?) throws -> (HTTPResponse, HTTPBody?) {
         switch path {
         case "/v1/me": return reply(.ok, Self.me)
+        case "/v1/me/ledgers/2026-W42": return reply(.ok, try encode(Components.Schemas.Ledger.week42))
         case "/v1/users/me-1": return reply(.ok, noMonth ? Self.user(month: false) : Self.user(month: true))
         case "/v1/me/portfolio": return reply(.ok, Self.portfolio)
         case "/v1/me/pnl-history":

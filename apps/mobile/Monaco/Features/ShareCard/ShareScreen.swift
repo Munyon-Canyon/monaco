@@ -81,6 +81,7 @@ struct ShareScreen: View {
         .task {
             guard model == nil else { return }
             let created = ShareScreenModel(subject: subject, api: environment.api) { Date() }
+            if case .ledger = subject, let saved = LedgerShareEyes.saved() { created.eyes = saved }
             model = created
             await created.load()
         }
@@ -89,7 +90,12 @@ struct ShareScreen: View {
     private func content(_ model: ShareScreenModel) -> some View {
         ShareScreenContent(
             state: model.state,
-            eyes: Binding(get: { model.eyes }, set: { model.eyes = $0 }),
+            eyes: Binding(
+                get: { model.eyes },
+                set: {
+                    model.eyes = $0
+                    if case .ledger = subject, model.format != .sticker { LedgerShareEyes.save($0) }
+                }),
             format: Binding(get: { model.format }, set: { model.format = $0 }),
             unusedEyes: model.isVote ? [.pnl, .trades] : [],
             share: { spec, image in
@@ -186,7 +192,7 @@ struct ShareScreenContent: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             ShareDock(
-                eyes: $eyes, format: $format, unusedEyes: unusedEyes,
+                eyes: $eyes, format: $format, unusedEyes: unusedEyes, isLedger: spec.facts.isLedger,
                 share: { share(spec, current(spec)) }, copyImage: { copyImage(current(spec)) })
         }
         .task(id: spec) {
@@ -226,7 +232,7 @@ struct ShareScreenContent: View {
                 .background { if format == .sticker { ShareCheckerboard() } }
                 .accessibilityLabel(spec.spoken)
                 .accessibilityAddTraits(.isImage)
-                .accessibilityIdentifier("share-card")
+                .accessibilityIdentifier(spec.facts.isLedger ? "ledger-share-card" : "share-card")
         } else {
             SkeletonBlock(width: fitted.width, height: fitted.height, radius: MonacoTheme.Radius.shareCard)
         }
@@ -259,7 +265,7 @@ struct ShareScreenContent: View {
         }
         .buttonStyle(.plain)
         .padding(.horizontal, MonacoTheme.Space.gutter)
-        .accessibilityIdentifier("share-replay")
+        .accessibilityIdentifier(spec.facts.isLedger ? "ledger-share-replay" : "share-replay")
     }
 
     static let replayHeight: CGFloat = MonacoButtonMetrics.hitTarget

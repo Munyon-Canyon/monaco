@@ -16,7 +16,7 @@ struct ShareExportView: View {
     var body: some View {
         switch format {
         case .post, .square:
-            FShareCard(spec: spec, size: size, progress: progress)
+            card(size: size)
         case .sticker:
             FShareSticker(spec: ShareStickerSpec(from: spec, eyes: eyes), size: size)
         case .story:
@@ -32,11 +32,19 @@ struct ShareExportView: View {
                 .font(.system(size: 88 * unit, weight: .bold))
                 .foregroundStyle(Color.white)
             Color.clear.frame(height: 56 * unit)
-            FShareCard(spec: spec, size: cardSize, progress: progress)
+            card(size: cardSize)
         }
         .frame(width: size.width, height: size.height)
         .background(Color.black)
         .environment(\.colorScheme, .dark)
+    }
+
+    @ViewBuilder private func card(size: CGSize) -> some View {
+        if spec.facts.isLedger {
+            LedgerStoryCard(spec: spec, size: size, progress: progress)
+        } else {
+            FShareCard(spec: spec, size: size, progress: progress)
+        }
     }
 }
 
