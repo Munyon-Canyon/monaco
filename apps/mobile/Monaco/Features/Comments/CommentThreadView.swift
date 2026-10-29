@@ -84,6 +84,8 @@ struct CommentThreadView: View {
             }
             if model.isLoadingMore {
                 CommentSkeleton(rows: 1)
+            } else if model.hasMore {
+                CommentAllRepliesLink(count: model.commentCount) { Task { await model.loadMore() } }
             }
             if model.hasMore {
                 Color.clear.frame(height: 1)
@@ -236,5 +238,28 @@ private struct CommentNotices: ViewModifier {
             .onChange(of: model.reactionNoticeTick) { _, _ in
                 if let message = model.reactionNotice { toasts.current = MonacoToast(message: message) }
             }
+    }
+}
+
+private struct CommentAllRepliesLink: View {
+    let count: Int
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: MonacoTheme.Space.s) {
+                Text("All \(count) replies")
+                    .font(MonacoTheme.Typo.headline)
+                Image(monaco: .chevron)
+                    .font(MonacoTheme.Typo.caption)
+            }
+            .foregroundStyle(MonacoTheme.brand)
+            .frame(minHeight: CommentRowMetrics.replyTarget, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .accessibilityIdentifier("comment-all-replies")
     }
 }

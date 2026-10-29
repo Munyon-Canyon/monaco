@@ -86,7 +86,7 @@ struct StatGrid: View {
             ForEach(Array(Self.rows(items, columns: count).enumerated()), id: \.offset) { _, row in
                 HStack(alignment: .lastTextBaseline, spacing: StatMetrics.columnGap) {
                     ForEach(Array(row.enumerated()), id: \.offset) { _, item in
-                        cell(item, lineLimit: count > 2 ? 1 : 2)
+                        cell(item, lineLimit: count > 4 ? 1 : 2)
                     }
                     if row.count < count {
                         ForEach(0..<(count - row.count), id: \.self) { _ in

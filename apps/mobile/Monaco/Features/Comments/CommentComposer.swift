@@ -81,7 +81,9 @@ private struct DockedComposer: View {
             ComposerNotices(model: model)
             ComposerAttachmentSlot(model: model)
             HStack(alignment: .bottom, spacing: MonacoTheme.Space.s) {
-                ComposerMenu(items: menuItems, target: .thread, thesis: thesis, model: model, onPoll: onPoll)
+                if model.draft.isEmpty {
+                    ComposerMenu(items: menuItems, target: .thread, thesis: thesis, model: model, onPoll: onPoll)
+                }
                 ComposerField(
                     model: model, focused: $focused,
                     onGif: {

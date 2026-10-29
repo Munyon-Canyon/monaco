@@ -22,9 +22,11 @@ struct ReplySheet: View {
             ComposerNotices(model: model)
             ComposerAttachmentSlot(model: model)
             HStack(alignment: .bottom, spacing: MonacoTheme.Space.s) {
-                ComposerMenu(
-                    items: menuItems, target: target, thesis: thesis, model: model,
-                    onPoll: offersPoll ? { picksPoll = true } : nil)
+                if model.draft.isEmpty {
+                    ComposerMenu(
+                        items: menuItems, target: target, thesis: thesis, model: model,
+                        onPoll: offersPoll ? { picksPoll = true } : nil)
+                }
                 ComposerField(
                     model: model, focused: $focused,
                     onGif: {
