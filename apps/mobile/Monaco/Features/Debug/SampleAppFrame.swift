@@ -70,6 +70,7 @@ struct SampleAppFrame: View {
             isAuthenticated: { true },
             endAuthSession: {}
         )
+        if tab == .profile, let userID = store.profile?.userID { made.viewer = Viewer(userID: userID, handle: nil) }
         made.navigator.selectedTab = tab
         for route in routes { made.navigator.open(route, in: tab) }
         if presentsDeposit { made.navigator.presentDeposit() }

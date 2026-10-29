@@ -59,7 +59,7 @@ nonisolated final class ShareCardSampleUITests: XCTestCase {
 
     @MainActor
     func testProfileOpensTheShareScreenInOneTap() throws {
-        let app = launch(["-MonacoProfileSample", "cabals"])
+        let app = launch(["-MonacoProfileSample", "ready"])
         let button = app.buttons["profile-share-button"]
         XCTAssertTrue(button.waitForExistence(timeout: 30), "no share button on Profile")
         attach(app.screenshot(), "share-profile-button")
