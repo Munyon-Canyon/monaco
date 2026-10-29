@@ -44,6 +44,7 @@ struct CatchUpRow: View {
     let actions: CatchUpRowActions?
 
     @Environment(\.calendar) private var calendar
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         if let actions {
@@ -63,8 +64,14 @@ struct CatchUpRow: View {
         }
     }
 
+    private var rowLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.sm))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: MonacoTheme.Space.sm))
+    }
+
     private func active(_ actions: CatchUpRowActions) -> some View {
-        HStack(alignment: .top, spacing: MonacoTheme.Space.sm) {
+        rowLayout {
             Button {
                 actions.open(item)
             } label: {

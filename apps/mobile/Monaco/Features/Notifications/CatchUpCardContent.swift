@@ -51,7 +51,6 @@ struct CatchUpCardContent: View {
                 Text(cabal.name)
                     .font(MonacoTheme.Typo.headline)
                     .foregroundStyle(MonacoTheme.primaryText)
-                    .lineLimit(1)
                 Spacer(minLength: MonacoTheme.Space.s)
                 Text(CatchUpCopy.relativeTime(item.at, now: now, calendar: calendar))
                     .font(MonacoTheme.Typo.subhead)
