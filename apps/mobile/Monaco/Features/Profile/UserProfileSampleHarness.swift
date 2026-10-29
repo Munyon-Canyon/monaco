@@ -43,6 +43,8 @@ enum UserProfileSampleState {
         self == .hiddenPerformance || self == .privateProfile ? .sampleHiddenPerformance : .sample
     }
 
+    var showsNavButtons: Bool { self != .notFound && self != .error && self != .viewer }
+
     var opensOnCabals: Bool { self == .christelleCabals }
 }
 
@@ -73,9 +75,45 @@ struct UserProfileSampleScreen: View {
             .monacoCanvas()
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar { if state.showsNavButtons { navButtons } }
             .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
         }
         .onAppear { if state.opensOnCabals { selection = .cabals } }
+    }
+
+    @ToolbarContentBuilder private var navButtons: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            MonacoGlassButton(systemImage: "chevron.left", accessibilityLabel: "Back", placement: .toolbar) {}
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            MonacoGlassButton(
+                systemImage: MonacoIcon.share.symbol, accessibilityLabel: "Share", placement: .toolbar
+            ) {}
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Menu {
+                Button {
+                } label: {
+                    Label(
+                        UserProfileMoreMenu.SafetyAction.report.title,
+                        systemImage: UserProfileMoreMenu.SafetyAction.report.systemImage)
+                }
+                Button(role: UserProfileMoreMenu.SafetyAction.block.role) {
+                } label: {
+                    Label(
+                        UserProfileMoreMenu.SafetyAction.block.title,
+                        systemImage: UserProfileMoreMenu.SafetyAction.block.systemImage)
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.title3.weight(.medium))
+                    .foregroundStyle(MonacoTheme.primaryText)
+                    .frame(width: MonacoButtonMetrics.hitTarget, height: MonacoButtonMetrics.hitTarget)
+                    .background(Circle().fill(MonacoTheme.surfaceSunken))
+                    .contentShape(Circle())
+            }
+            .accessibilityLabel("More")
+        }
     }
 
     @ViewBuilder private var content: some View {
