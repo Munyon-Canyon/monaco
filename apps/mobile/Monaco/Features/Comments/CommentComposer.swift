@@ -6,19 +6,25 @@ struct CommentComposerBar<Restricted: View>: View {
     var replyOwner: String?
     var menuItems: [ComposerMenuItem] = []
     var thesis: String?
+    var offersPoll = false
+    var asksCabal = false
     var onDidStandDown: () -> Void = {}
     @ViewBuilder var restricted: () -> Restricted
 
     @State private var picksGif = false
+    @State private var picksPoll = false
 
     var body: some View {
         VStack(spacing: 0) {
             if model.replySheet == nil { bar }
         }
         .sheet(item: sheetBinding) { target in
-            ReplySheet(model: model, target: target, owner: replyOwner, menuItems: menuItems, thesis: thesis)
+            ReplySheet(
+                model: model, target: target, owner: replyOwner, menuItems: menuItems, thesis: thesis,
+                offersPoll: offersPoll, asksCabal: asksCabal)
         }
         .gifPicker(isPresented: $picksGif, model: model)
+        .pollComposer(isPresented: $picksPoll, model: model, isCabal: asksCabal)
     }
 
     private var sheetBinding: Binding<ReplyTarget?> {
@@ -38,8 +44,8 @@ struct CommentComposerBar<Restricted: View>: View {
             EmptyView()
         } else if model.canComment {
             DockedComposer(
-                model: model, menuItems: menuItems, thesis: thesis, onGif: { picksGif = true },
-                onDidStandDown: onDidStandDown)
+                model: model, menuItems: menuItems, thesis: thesis, onPoll: offersPoll ? { picksPoll = true } : nil,
+                onGif: { picksGif = true }, onDidStandDown: onDidStandDown)
         } else {
             restricted()
         }
@@ -49,11 +55,12 @@ struct CommentComposerBar<Restricted: View>: View {
 extension CommentComposerBar where Restricted == EmptyView {
     init(
         model: CommentsModel, replyOwner: String? = nil, menuItems: [ComposerMenuItem] = [], thesis: String? = nil,
-        onDidStandDown: @escaping () -> Void = {}
+        offersPoll: Bool = false, asksCabal: Bool = false, onDidStandDown: @escaping () -> Void = {}
     ) {
         self.init(
-            model: model, replyOwner: replyOwner, menuItems: menuItems, thesis: thesis,
-            onDidStandDown: onDidStandDown, restricted: { EmptyView() })
+            model: model, replyOwner: replyOwner, menuItems: menuItems, thesis: thesis, offersPoll: offersPoll,
+            asksCabal: asksCabal, onDidStandDown: onDidStandDown,
+            restricted: { EmptyView() })
     }
 }
 
@@ -61,6 +68,7 @@ private struct DockedComposer: View {
     @Bindable var model: CommentsModel
     let menuItems: [ComposerMenuItem]
     let thesis: String?
+    let onPoll: (() -> Void)?
     let onGif: () -> Void
     let onDidStandDown: () -> Void
 
@@ -71,7 +79,7 @@ private struct DockedComposer: View {
             ComposerNotices(model: model)
             ComposerAttachmentSlot(model: model)
             HStack(alignment: .bottom, spacing: MonacoTheme.Space.s) {
-                ComposerMenu(items: menuItems, target: .thread, thesis: thesis, model: model)
+                ComposerMenu(items: menuItems, target: .thread, thesis: thesis, model: model, onPoll: onPoll)
                 ComposerField(
                     model: model, focused: $focused,
                     onGif: {

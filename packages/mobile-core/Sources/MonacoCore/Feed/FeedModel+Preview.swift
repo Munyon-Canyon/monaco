@@ -4,6 +4,7 @@ import Foundation
 import HTTPTypes
 import MonacoAPI
 import OpenAPIRuntime
+import Synchronization
 
 extension FeedModel {
     public enum PreviewMode: String, Sendable {
@@ -35,6 +36,7 @@ extension FeedItemDetailModel {
         case sending
         case failed
         case unavailable
+        case poll
     }
 
     public static let previewItemID = FeedPreviewFixtures.postItem.id
@@ -332,7 +334,7 @@ private struct FeedPostPreviewTransport: ClientTransport {
 
     func send(
         _: HTTPRequest,
-        body _: HTTPBody?,
+        body: HTTPBody?,
         baseURL _: URL,
         operationID: String
     ) async throws -> (HTTPResponse, HTTPBody?) {
@@ -343,11 +345,20 @@ private struct FeedPostPreviewTransport: ClientTransport {
                 item: FeedPreviewFixtures.postItem, visible: true, canComment: true)
             return try FeedPreviewTransport.reply(detail)
         case "getFeedComments":
-            let threads = mode == .empty ? [] : FeedPreviewFixtures.threads
+            let threads =
+                mode == .poll
+                ? PollPreviewStore.shared.threads : mode == .empty ? [] : FeedPreviewFixtures.threads
             return try FeedPreviewTransport.reply(Components.Schemas.CommentPage(items: threads, nextCursor: nil))
         case "postFeedComment":
             if mode == .sending { try await Task.sleep(for: .seconds(3600)) }
             if mode == .failed { throw URLError(.notConnectedToInternet) }
+            if mode == .poll, let body {
+                let request = try JSONDecoder().decode(
+                    Components.Schemas.CreateCommentRequest.self, from: try await Data(collecting: body, upTo: 1 << 20))
+                var created = try FeedPreviewTransport.reply(PollPreviewStore.shared.post(request))
+                created.0.status = .created
+                return created
+            }
             var created = try FeedPreviewTransport.reply(Components.Schemas.Comment.sample("c9", mine: true))
             created.0.status = .created
             return created
@@ -374,6 +385,58 @@ private struct FeedPreviewTokens: MonacoAPI.AccessTokenProvider {
 private struct FeedPreviewHints: HintSource {
     func hints(matching _: HintFilter) -> AsyncStream<Hint> {
         AsyncStream { $0.finish() }
+    }
+}
+
+final class PollPreviewStore: Sendable {
+    static let shared = PollPreviewStore()
+
+    private let comments = Mutex<[Components.Schemas.Comment]>([])
+
+    var threads: [Components.Schemas.CommentThread] {
+        comments.withLock { $0.map { .init(comment: $0, replies: []) } }
+    }
+
+    func post(_ request: Components.Schemas.CreateCommentRequest) -> Components.Schemas.Comment {
+        var comment = Components.Schemas.Comment.sample("poll-\(comments.withLock { $0.count })", mine: true)
+        comment.body = nil
+        if case .poll(let input) = request.attachment {
+            comment.bodyDisplay = input.question
+            comment.attachment = .poll(
+                .init(
+                    kind: .poll, question: input.question,
+                    closesAt: Date(timeIntervalSinceNow: TimeInterval((input.closesInHours ?? 24) * 3600)),
+                    closed: false,
+                    options: input.options.enumerated().map { .init(position: $0.offset, label: $0.element, count: 0) },
+                    total: 0))
+        }
+        comments.withLock { $0.append(comment) }
+        return comment
+    }
+
+    func tally(_ commentID: String, _ position: Int?) throws -> Components.Schemas.PollState {
+        try comments.withLock { all in
+            guard let index = all.firstIndex(where: { $0.id == commentID }),
+                case .poll(var poll) = all[index].attachment
+            else { throw URLError(.badURL) }
+            poll = CommentPollModel.applying(position: position, to: poll)
+            all[index].attachment = .poll(poll)
+            return .init(
+                closesAt: poll.closesAt, closed: poll.closed, options: poll.options, total: poll.total,
+                myPosition: poll.myPosition)
+        }
+    }
+}
+
+public struct PreviewPollVoting: PollVoting {
+    public init() {}
+
+    public func vote(commentID: String, position: Int) async throws -> Components.Schemas.PollState {
+        try PollPreviewStore.shared.tally(commentID, position)
+    }
+
+    public func withdraw(commentID: String) async throws -> Components.Schemas.PollState {
+        try PollPreviewStore.shared.tally(commentID, nil)
     }
 }
 #endif

@@ -76,7 +76,8 @@ private struct FeedItemDetailContent: View {
                 if phase != .unavailable, phase != .failed {
                     CommentComposerBar(
                         model: model.comments,
-                        thesis: model.item?.kind == "proposal" ? model.item?.body : nil)
+                        thesis: model.item?.kind == "proposal" ? model.item?.body : nil,
+                        offersPoll: true)
                 }
             }
             .onChange(of: model.comments.lastPostedID) { _, id in
@@ -314,7 +315,7 @@ private struct FeedPostHarnessScreen: View {
             if let row = model.comments.rows.first { model.comments.presentReplySheet(.comment(row)) }
         case .sending, .failed:
             _ = await model.comments.post(CommentDraft(text: "Count me in if we cap it at $25."))
-        case .ready, .empty, .unavailable:
+        case .ready, .empty, .unavailable, .poll:
             break
         }
     }

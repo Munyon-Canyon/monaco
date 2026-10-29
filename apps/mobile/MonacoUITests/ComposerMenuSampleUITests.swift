@@ -69,7 +69,7 @@ nonisolated final class ComposerMenuSampleUITests: XCTestCase {
         let plus = app.buttons["comment-composer-plus"]
         XCTAssertTrue(plus.waitForExistence(timeout: 15), "no plus")
         plus.tap()
-        element(app, "composer-menu-poll").tap()
+        element(app, "composer-menu-stock").tap()
         XCTAssertTrue(element(app, "composer-attachment-preview").waitForExistence(timeout: 10), "no preview")
         app.buttons["composer-attachment-remove"].tap()
         XCTAssertFalse(element(app, "composer-attachment-preview").exists, "the draft was not cleared")
