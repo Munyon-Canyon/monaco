@@ -2,7 +2,7 @@ import XCTest
 
 enum InviteJourney {
     static let id = "cabals/invite"
-    static let version = 8
+    static let version = 9
 
     static let cabalName = "QA pot"
 
@@ -13,8 +13,8 @@ enum InviteJourney {
         JourneyRecorder(journey: id, version: version)
     }
 
-    static func inviteRows(_ app: XCUIApplication) -> XCUIElementQuery {
-        app.descendants(matching: .any).matching(identifier: "cabal-invite-row")
+    static func inviteTiles(_ app: XCUIApplication) -> XCUIElementQuery {
+        app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'cabals-invited-'"))
     }
 
     static func pendingRows(_ app: XCUIApplication) -> XCUIElementQuery {
@@ -56,13 +56,17 @@ enum InviteJourney {
         button.tap()
     }
 
-    static func openDetailsAfterToast(_ app: XCUIApplication) {
+    static func openInviteSheet(_ app: XCUIApplication, step: String) {
         app.waitForToastGone()
         app.dismissPushPrePromptIfShown()
-        app.buttons["cabal-details-button"].tap()
+        app.openCabalTab("members")
+        let invite = app.element("cabal-members-invite")
+        if !invite.waitForExistence(timeout: 3) { app.swipeUp() }
+        XCTAssertTrue(invite.waitForExistence(timeout: 10), "\(step): no Invite row on the Members tab within 10 s")
+        invite.tap()
         XCTAssertTrue(
-            app.element("cabal-members-row").waitForExistence(timeout: 10),
-            "S1.3: the Cabal information screen did not show within 10 s"
+            app.element("cabal-invite-title").waitForExistence(timeout: 10),
+            "\(step): the invite sheet did not show within 10 s"
         )
     }
 
@@ -76,73 +80,70 @@ enum InviteJourney {
     }
 
     static func openHandleForm(_ app: XCUIApplication) {
-        app.element("cabal-invite-member-row").tap()
+        let gear = app.element("cabal-invite-settings")
+        XCTAssertTrue(gear.waitForExistence(timeout: 10), "S2.3: the invite sheet has no gear round")
+        gear.tap()
         let byHandle = app.element("cabal-invite-handle-row")
-        if !byHandle.waitForExistence(timeout: 3) { app.element("cabal-invite-cover").swipeUp() }
-        XCTAssertTrue(byHandle.waitForExistence(timeout: 10), "S2.3: the invite sheet has no Invite by handle row")
+        XCTAssertTrue(byHandle.waitForExistence(timeout: 10), "S2.3: the gear menu has no Invite by handle row")
         byHandle.tap()
     }
 
     static func acceptAndInvite(_ app: XCUIApplication, recorder: JourneyRecorder) {
-        recorder.step("S1.1", "open the Cabals tab and find the invite") {
+        recorder.step("S1.1", "open the Cabals tab and find the invited tile") {
             app.tab("Cabals").tap()
             XCTAssertTrue(
-                waitForCount(inviteRows(app), 1, timeout: 10),
-                "S1.1: expected one invite on the Cabals tab within 10 s, found \(inviteRows(app).count)"
+                waitForCount(inviteTiles(app), 1, timeout: 10),
+                "S1.1: expected one Invited tile on the Cabals tab within 10 s, found \(inviteTiles(app).count)"
             )
-            let text = rowText(inviteRows(app).firstMatch)
-            XCTAssertTrue(text.contains(cabalName), "S1.1: the invite does not name \(cabalName): \(text)")
-            XCTAssertTrue(text.contains("invited you"), "S1.1: the invite does not say who invited: \(text)")
+            let label = inviteTiles(app).firstMatch.label
+            XCTAssertTrue(label.contains(cabalName), "S1.1: the tile does not name \(cabalName): \(label)")
+            XCTAssertTrue(label.contains("invited"), "S1.1: the tile does not read Invited: \(label)")
         }
 
-        recorder.step("S1.2", "accept and land on the cabal") {
-            app.buttons["cabal-invite-accept"].firstMatch.tap()
+        recorder.step("S1.2", "accept from the tile and land on the cabal") {
+            inviteTiles(app).firstMatch.tap()
+            let accept = app.buttons["cabal-invite-accept"].firstMatch
+            XCTAssertTrue(accept.waitForExistence(timeout: 10), "S1.2: no Accept in the invitation sheet within 10 s")
+            accept.tap()
             waitForToast(app, "You're in.", step: "S1.2")
             XCTAssertTrue(
-                app.buttons["cabal-details-button"].waitForExistence(timeout: 15),
-                "S1.2: the cabal screen's information button did not show within 15 s"
+                app.element("cabal-header-name").waitForExistence(timeout: 15),
+                "S1.2: the cabal page did not show within 15 s"
             )
         }
 
-        recorder.step("S1.3", "open the cabal's details") {
-            openDetailsAfterToast(app)
-            XCTAssertTrue(
-                app.element("cabal-invite-member-row").waitForExistence(timeout: 10),
-                "S1.3: no Invite to this cabal row in the information screen within 10 s"
-            )
+        recorder.step("S1.3", "open the invite sheet from the Members tab") {
+            openInviteSheet(app, step: "S1.3")
         }
 
-        recorder.step("S1.4", "a member is not offered Invite by handle") {
-            app.element("cabal-invite-member-row").tap()
+        recorder.step("S1.4", "the sheet offers Share and Copy link, and a member has no gear") {
             XCTAssertTrue(
                 app.buttons["share-card-share"].waitForExistence(timeout: 10),
-                "S1.4: the Share cabal sheet did not show within 10 s"
+                "S1.4: Share did not show within 10 s"
             )
-            app.element("cabal-invite-cover").swipeUp()
-            XCTAssertTrue(
-                app.element("cabal-invite-gain-row").waitForExistence(timeout: 10),
-                "S1.4: no Share your gain as an image row in the sheet"
-            )
+            XCTAssertTrue(app.buttons["share-card-copy"].exists, "S1.4: no Copy link in the invite sheet")
+            XCTAssertFalse(
+                app.element("cabal-invite-settings").exists, "S1.4: a member is offered the invite gear")
             XCTAssertFalse(
                 app.element("cabal-invite-handle-row").exists, "S1.4: a member is offered Invite by handle")
+            let copy = app.buttons["share-card-copy"]
+            XCTAssertTrue(copy.isEnabled, "S1.4: Copy link stayed disabled")
+            copy.tap()
+            waitForToast(app, "Link copied.", step: "S1.4")
             app.buttons["Close"].firstMatch.tap()
         }
     }
 
     static func creatorInvites(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S2.1", "open the cabal the creator made") {
-            JoinJourney.openBySearch(app, ownCabal(run: run), step: "S2.1")
+            app.openCabal(named: ownCabal(run: run))
         }
 
-        recorder.step("S2.2", "open the cabal's details") {
-            openDetailsAfterToast(app)
-            XCTAssertTrue(
-                app.element("cabal-invite-member-row").waitForExistence(timeout: 10),
-                "S2.2: no Invite to this cabal row in the information screen within 10 s"
-            )
+        recorder.step("S2.2", "open the invite sheet from the Members tab") {
+            openInviteSheet(app, step: "S2.2")
         }
 
-        recorder.step("S2.3", "open Invite someone") {
+        recorder.step("S2.3", "open Invite by handle from the gear") {
             openHandleForm(app)
             XCTAssertTrue(
                 app.textFields["invite-member-handle-field"].waitForExistence(timeout: 10),
@@ -194,23 +195,26 @@ enum InviteJourney {
     }
 
     static func decline(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
-        recorder.step("S2.8", "open the Cabals tab and find exactly one invite") {
+        recorder.step("S2.8", "open the Cabals tab and find exactly one invited tile") {
             app.tab("Cabals").tap()
             XCTAssertTrue(
-                waitForCount(inviteRows(app), 1, timeout: 10),
-                "S2.8: expected exactly one invite within 10 s, found \(inviteRows(app).count)"
+                waitForCount(inviteTiles(app), 1, timeout: 10),
+                "S2.8: expected exactly one Invited tile within 10 s, found \(inviteTiles(app).count)"
             )
-            let text = rowText(inviteRows(app).firstMatch)
+            let label = inviteTiles(app).firstMatch.label
             XCTAssertTrue(
-                text.contains(ownCabal(run: run)), "S2.8: the invite does not name \(ownCabal(run: run)): \(text)")
+                label.contains(ownCabal(run: run)), "S2.8: the tile does not name \(ownCabal(run: run)): \(label)")
         }
 
         recorder.step("S2.9", "decline it") {
-            app.buttons["cabal-invite-decline"].firstMatch.tap()
+            inviteTiles(app).firstMatch.tap()
+            let decline = app.buttons["cabal-invite-decline"].firstMatch
+            XCTAssertTrue(decline.waitForExistence(timeout: 10), "S2.9: no Decline in the invitation sheet")
+            decline.tap()
             waitForToast(app, "Invite declined.", step: "S2.9")
             XCTAssertTrue(
-                waitForCount(inviteRows(app), 0, timeout: 10),
-                "S2.9: the declined invite is still on the Cabals tab"
+                waitForCount(inviteTiles(app), 0, timeout: 10),
+                "S2.9: the declined invite is still a tile on the Cabals tab"
             )
         }
     }

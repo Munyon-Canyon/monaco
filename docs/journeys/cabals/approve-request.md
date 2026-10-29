@@ -1,7 +1,7 @@
 ---
 id: cabals/approve-request
 title: Ask to join, cancel, and the creator's answer
-version: 3
+version: 4
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/CabalsApproveRequestJourney.swift,
 
 # Ask to join, cancel, and the creator's answer
 
-A member who is not in a request cabal asks to join from the cabal screen, changes their mind, and asks again. The creator sees the request on the cabal screen and denies it. In a second scenario the creator approves a request the setup made. The rules are [Cabals](../../architecture/cabals.md#join-and-access-requests). `cabals/join` covers asking after a Discover cabals search; this journey covers the cabal screen's own buttons, Cancel and Deny.
+A member who is not in a request cabal asks to join from the cabal screen, changes their mind, and asks again. The creator sees the request as the first row of the Members tab and declines it. In a second scenario the creator approves a request the setup made. The rules are [Cabals](../../architecture/cabals.md#join-and-access-requests). `cabals/join` covers asking after a search; this journey covers the cabal screen's own buttons, Cancel and Decline. A step that says "open the cabal" uses `openCabal(named:)`, and the request row sits in Members · all (`cabal-members-see-all`), where the app lists pending requests.
 
 Old app (`c838bd24`): Cabal (non-member) -> "Request to join" -> "Request sent" -> Cancel (`JoinGroupView.swift`); creator: `GroupDetailView.swift` "N people want to join" -> Approve or Deny. Spec: `CabalJoinSlot` in [screens.md](../../screens.md#cabal-screen-cabalroute).
 
@@ -31,19 +31,19 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | B | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA ask {QA.run}` | `cabal-header-name` reads `QA ask {QA.run}` and `cabal-join-button` reads "Request to join" within 15 s (old app: the non-member cabal screen's "Request to join") |
+| S1.1 | B | open | the cabal through `openCabal(named:)` | `QA ask {QA.run}` | `cabal-header-name` reads `QA ask {QA.run}` and `cabal-join-button` reads "Request to join" within 15 s (old app: the non-member cabal screen's "Request to join") |
 | S1.2 | B | tap | `cabal-join-button` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s. `cabal-join-requested` reads "Request pending" next to `cabal-join-cancel` "Cancel request" within 10 s |
 | S1.3 | B | tap | `cabal-join-cancel` | | `cabal-join-button` reads "Request to join" again within 10 s, and there is no `cabal-join-requested` |
 | S1.4 | B | tap | `cabal-join-button` | | `cabal-join-requested` reads "Request pending" within 10 s |
-| S1.5 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA ask {QA.run}` | `cabal-join-requests-heading` reads "1 request to review" within 15 s. Tapping it opens the Requests tab with one `cabal-join-request-row` naming B and its `cabal-join-review` "Review B" button, which opens a dialog with `cabal-join-approve` and `cabal-join-deny` |
-| S1.6 | A | tap, then tap | `cabal-join-review`, then `cabal-join-deny` in the dialog | | The toast "Denied." shows within 10 s. `members-requests-empty` shows, and after the back button `cabal-member-count` still reads "1 member" |
+| S1.5 | A | open, then tap | the cabal through `openCabal(named:)`, the Members tab, then `cabal-members-see-all` | `QA ask {QA.run}` | One `cabal-join-request-row` names B, reads "Asked to join" and holds `cabal-join-approve` "Approve B" within 15 s |
+| S1.6 | A | long press, then tap | the `cabal-join-request-row`, then "Decline" (`cabal-join-deny`) in its menu | | The toast "Denied." shows within 10 s. The request row is gone, and after the back button `cabal-member-count` still reads "1 member" |
 
 ### S2 The creator approves
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA ok {QA.run}` | `cabal-join-requests-heading` reads "1 request to review" within 15 s, and its Requests tab holds one `cabal-join-request-row` naming B |
-| S2.2 | A | tap, then tap | `cabal-join-review`, then `cabal-join-approve` in the dialog | | The toast "Approved." shows within 10 s. `members-requests-empty` shows, and after the back button `cabal-member-count` reads "2 members" within 10 s |
+| S2.1 | A | open, then tap | the cabal through `openCabal(named:)`, the Members tab, then `cabal-members-see-all` | `QA ok {QA.run}` | One `cabal-join-request-row` names B and reads "Asked to join" within 15 s |
+| S2.2 | A | tap | `cabal-join-approve` in the row | | The toast "Approved." shows within 10 s. The request row is gone, and after the back button `cabal-member-count` reads "2 members" within 10 s |
 
 ## Ground truth
 
@@ -52,6 +52,8 @@ The format of this doc is in [App journeys](../README.md).
 ## Known failures on staging
 
 None known.
+
+The ticket names the request row `members-request-<id>` and its button `members-request-approve-<id>`. The app builds them as `cabal-join-request-row`, `cabal-join-approve` and `cabal-join-deny` (Decline sits in the row's long-press menu and swipe), and the journey follows the app.
 
 ## Not covered
 

@@ -1,0 +1,18 @@
+journey: cabals/invite
+expect-fail: S1
+
+The invited tile loses its identifier. S1.1 and S1.2 look for it on the Cabals tab, so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalsGridSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalsGridSlot.swift
+--- a/apps/mobile/Monaco/Features/Groups/CabalsGridSlot.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalsGridSlot.swift
+@@ -164,7 +164,7 @@ struct CabalsGridSection: View {
+         .accessibilityElement(children: .ignore)
+         .accessibilityLabel("\(tile.shortName), invited")
+         .accessibilityAddTraits(.isButton)
+-        .accessibilityIdentifier("cabals-invited-\(tile.id)")
++        .accessibilityIdentifier("cabals-pending-\(tile.id)")
+     }
+ 
+     private var newCabal: some View {

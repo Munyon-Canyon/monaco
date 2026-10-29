@@ -1,7 +1,7 @@
 ---
 id: cabals/browse
 title: Browse and search cabals
-version: 7
+version: 8
 milestone: M10
 requires: [auth/sign-in]
 actors: [A]
@@ -11,13 +11,11 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/CabalsBrowseJourney.swift, apps/mo
 
 # Browse and search cabals
 
-A member opens the Cabals tab, sees their cabals as cards, opens one, then filters them by name, then searches public cabals on Discover cabals and asks to join one from the search rows. The tab's Cabal leaderboard is checked in its own scenario, since it waits on backend routes. The rules are [Cabals](../../architecture/cabals.md#join-and-access-requests).
+A member opens the Cabals tab, sees their cabals as app-icon tiles beside a "New cabal" tile, opens one, then searches public cabals through "Find a cabal" behind the "+" menu and asks to join one from the search rows. A second scenario presses and holds a tile and reads the actions menu. The rules are [Cabals](../../architecture/cabals.md#join-and-access-requests). The frames are `03-cabals-tab` and `03-cabals-tab-menu` in `docs/design/f/screens/`.
 
-Old app (`c838bd24`): the Cabals tab (`Groups/CabalsTabView.swift`): "Your cabals" cards (`CabalsStripSection.swift`) -> cabal; "Find a cabal by name" on the tab -> results (`CabalsSearchResultsSection.swift`) -> Join or Request; "Top cabals" (`CabalsLeaderboardSection.swift`); the return chart (`CabalsPnLChartSection.swift`). Spec: the Cabals tab, `CabalsListSlot`, `CabalsJoinSlot`, `CabalsBoardSlot` and Discover cabals in [screens.md](../../screens.md#cabals-tab).
+The Cabals tab in F has no search field and no cabal leaderboard. Public search sits behind the "+" round (`cabals-new-button`): its menu holds "Start a cabal", "Join with a link" and "Find a cabal" (`cabals-menu-find`, founder decision Q7, #6522). Leaderboard C's Cabals tab ([ranking/leaderboards](../ranking/leaderboards.md), #6577) covers the ranking that used to sit here. A step that says "Find a cabal" taps `cabals-new-button`, then `cabals-menu-find`, and then types into the search field.
 
 The format of this doc is in [App journeys](../README.md).
-
-Discover cabals is where `cabals-search-field` lives. A step that says "Discover cabals" reaches it from the Cabals tab by typing a name the actor has no cabal called, such as `zzqq`, in `cabals-filter-field` ("Find or search cabals"), then tapping `cabals-search-public` ("Search public cabals for …") or pressing the keyboard Search key, which pushes Discover cabals with that text in `cabals-search-field`; an actor with no cabals taps "Explore cabals" instead. The step then replaces the text in `cabals-search-field`.
 
 ## Preconditions
 
@@ -29,20 +27,21 @@ Discover cabals is where `cabals-search-field` lives. A step that says "Discover
 
 ## Scenarios
 
-### S1 Cards, search, join and request
+### S1 Tiles, search and request
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap | the Cabals tab | | `cabals-filter-field` reads "Find or search cabals", `cabals-list` has the header "Your cabals" with a `cabal-cover-card-<id>` card button naming `QA mine {QA.run}` within 15 s |
-| S1.2 | A | tap | the `cabal-cover-card-<id>` for `QA mine {QA.run}` | | `cabal-header-name` reads `QA mine {QA.run}` within 15 s |
-| S1.3 | A | wait for the toast to close, go back, open Discover cabals, clear the field, then type | `cabals-search-field` | `QA ask {QA.run}` | One `cabals-search-result-<id>` names `QA ask {QA.run}` with "1 member", and its `cabals-search-enter-<id>` reads "Request" and is labelled "Request to join QA ask {QA.run}" within 10 s |
+| S1.1 | A | tap | the Cabals tab | | `cabals-grid` has the "Your cabals" header with a count, a tile `cabals-tile-<id>` labelled `QA mine {QA.run}`, and the `cabals-new-tile` "New cabal" tile within 15 s |
+| S1.2 | A | tap | the `cabals-tile-<id>` for `QA mine {QA.run}` | | `cabal-header-name` reads `QA mine {QA.run}` within 15 s |
+| S1.3 | A | wait for the toast to close, go back, open Find a cabal, then type | the search field | `QA ask {QA.run}` | One `cabals-search-result-<id>` names `QA ask {QA.run}` with "1 member", and its `cabals-search-enter-<id>` reads "Request" and is labelled "Request to join QA ask {QA.run}" within 10 s |
 | S1.4 | A | tap | the `cabals-search-enter-<id>` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s, and the row shows `cabals-search-requested` "Request pending", with the notice "Your request to join QA ask {QA.run} is pending." above the list |
 
-### S3 Cabal leaderboard
+### S2 Long press a tile
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | A | tap, then scroll to | the Cabals tab, then `cabals-board` | | `cabals-board` reads "Cabal leaderboard" / "Public" and lists up to three ranked rows (`cabals-board-row-<id>`), or the empty state "No public rankings for this period." (`cabals-board-empty`), within 15 s |
+| S2.1 | A | tap, then press and hold | the Cabals tab, then the `cabals-tile-<id>` for `QA mine {QA.run}` | | The menu shows "Fund" (`cabals-menu-fund`), "Propose buy", "Invite" and "Share" within 10 s, and no "Vote on …" item, since the cabal has no open vote |
+| S2.2 | A | tap, then tap | "Fund", then `amount-keypad-close` | | `amount-keypad-screen` shows within 10 s; after closing it the Cabals tab shows again with `cabals-grid` |
 
 ## Ground truth
 
@@ -55,5 +54,9 @@ None known.
 ## Not covered
 
 - The request and unread counts on a card. The card no longer draws them and reads them out in its VoiceOver value. `cabals/approve-request` covers the requests themselves on the cabal screen, and chat waits on #623.
-- The vote-needed badge, the leaderboard filter sheet (its selects are disabled until the API has filters) and "Load more rankings".
-- The "+" (`cabals-new-button`) and the "Explore cabals" empty state. `cabals/create-cabal` covers the "+" into Start a cabal, and the QA account always has a cabal, so the empty state is out of reach.
+- The vote-needed badge and the "Vote on …" menu item, which need an open vote. `vote/*` journeys cover the vote.
+- The "Invite" and "Share" menu items beyond their presence: [cabals/invite](invite.md) covers the invite sheet.
+- Dragging a tile to reorder it.
+- The "Invited" tile: [cabals/invite](invite.md) covers it.
+- The Cabal leaderboard: gone from the tab, covered by [ranking/leaderboards](../ranking/leaderboards.md) (#6577).
+- "Start a cabal": `cabals/create-cabal` covers the "+" and the "New cabal" tile.

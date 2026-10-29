@@ -1,0 +1,17 @@
+journey: cabals/invite
+expect-fail: S1
+
+Copy link no longer toasts. S1.4 waits for "Link copied.", so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalInviteSheet.swift b/apps/mobile/Monaco/Features/Groups/CabalInviteSheet.swift
+--- a/apps/mobile/Monaco/Features/Groups/CabalInviteSheet.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalInviteSheet.swift
+@@ -235,7 +235,6 @@ struct CabalInviteSheet: View {
+         guard let link = invite?.link else { return }
+         UIPasteboard.general.url = link
+         Haptics.selection()
+-        toasts.current = MonacoToast(message: CabalCopy.linkCopied, isSuccess: true)
+     }
+ 
+     @MainActor static func cardImage(_ preview: CabalInvitePreview) -> UIImage? {

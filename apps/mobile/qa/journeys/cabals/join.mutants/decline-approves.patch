@@ -1,0 +1,20 @@
+journey: cabals/join
+expect-fail: S3
+
+Decline in the request row's menu approves the request. S3.2 waits for the toast "Denied.", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+a
+b
+diff --git a/apps/mobile/Monaco/Features/Groups/MembersView.swift b/apps/mobile/Monaco/Features/Groups/MembersView.swift
+--- a/apps/mobile/Monaco/Features/Groups/MembersView.swift
++++ b/apps/mobile/Monaco/Features/Groups/MembersView.swift
+@@ -123,7 +123,7 @@ private struct MembersAllList: View {
+             MembersRequestRow(
+                 request: request, isDeciding: model.deciding.contains(request.id),
+                 approve: { Task { await model.approve(request.id) } },
+-                decline: { Task { await model.deny(request.id) } })
++                decline: { Task { await model.approve(request.id) } })
+         case .header(let title):
+             MonacoSectionHeader(title)
+                 .padding(.horizontal, MonacoTheme.Space.gutter)
