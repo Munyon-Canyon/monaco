@@ -10,8 +10,16 @@ struct LiveNotificationAuthorizing: NotificationAuthorizing {
     }
 
     func request() async -> Bool {
+        await authorize([.alert, .sound])
+    }
+
+    func requestProvisional() async -> Bool {
+        await authorize([.alert, .sound, .badge, .provisional])
+    }
+
+    private func authorize(_ options: UNAuthorizationOptions) async -> Bool {
         do {
-            return try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+            return try await UNUserNotificationCenter.current().requestAuthorization(options: options)
         } catch {
             AppLogger.session.error(
                 "Notification permission request failed: \(String(describing: error), privacy: .public)")

@@ -45,6 +45,7 @@ enum ProposalSampleScenario: String, CaseIterable {
     case voteOrdinary
     case voteSettles
     case nonMember
+    case permissionSheet
 
     static let launchArgument = "-MonacoProposalSample"
 
@@ -62,6 +63,7 @@ enum ProposalSampleScenario: String, CaseIterable {
         case .allClosed, .closedEmpty, .closedLoading, .closedError: PendingVotesSampleRoute(showsClosed: true)
         case .votesOpen, .votesRecorded, .votesEmpty, .votesLoading, .votesError:
             ProposalSampleRoute(votes: .open)
+        case .permissionSheet: PermissionSheetSampleRoute()
         default: ProposalSampleRoute(votes: .closed)
         }
     }
@@ -137,6 +139,9 @@ enum ProposalSampleScenario: String, CaseIterable {
             script.asset = .nvda
             script.proposal = .votableNVDA()
             script.vote = .settles
+        case .permissionSheet:
+            script.asset = .nvda
+            script.proposal = .votableNVDA()
         case .nonMember:
             script.asset = .pilatesAMZN
             script.proposal = .pilatesAMZN()
@@ -157,6 +162,33 @@ nonisolated struct ProposalSampleRoute: AppRoute {
         ProposalScreen(proposalID: "proposal-1", sections: [ProposalSampleDetailSlot.self, ProposalCommentsSlot.self])
             .environment(\.presentsProposalVotes, votes == .open)
     }
+}
+
+nonisolated struct PermissionSheetSampleRoute: AppRoute {
+    @MainActor func destination() -> some View {
+        PermissionSheetSample()
+    }
+}
+
+private struct PermissionSheetSample: View {
+    @State private var prompt = PushPrePrompt(
+        authorization: UndeterminedAuthorization(),
+        defaults: UserDefaults(suiteName: "PermissionSheetSample") ?? .standard,
+        register: {})
+
+    var body: some View {
+        ProposalSampleRoute(votes: .closed).destination()
+            .task {
+                await prompt.noteFirstVote(
+                    sample: PushSample(title: "NVDA passed 5–1", body: "Bought 1.82 sh at $219.40."))
+            }
+            .sheet(isPresented: $prompt.isPresented) { PushPrePromptSheet(prompt: prompt) }
+    }
+}
+
+private struct UndeterminedAuthorization: NotificationAuthorizing {
+    func status() async -> PushAuthorization { .notDetermined }
+    func request() async -> Bool { false }
 }
 
 nonisolated struct PendingVotesSampleRoute: AppRoute {

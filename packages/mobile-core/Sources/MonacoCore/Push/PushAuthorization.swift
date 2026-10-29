@@ -15,6 +15,11 @@ public enum PushAuthorization: Sendable, CaseIterable {
 public protocol NotificationAuthorizing: Sendable {
     func status() async -> PushAuthorization
     func request() async -> Bool
+    func requestProvisional() async -> Bool
+}
+
+extension NotificationAuthorizing {
+    public func requestProvisional() async -> Bool { await request() }
 }
 
 public enum PushPrePromptPolicy {

@@ -526,6 +526,8 @@ proposal-vote-settles         -MonacoProposalSample voteSettles
 proposal-vote-settles-dark    -MonacoProposalSample voteSettles -AppleInterfaceStyle Dark
 proposal-non-member           -MonacoProposalSample nonMember
 proposal-non-member-dark      -MonacoProposalSample nonMember -AppleInterfaceStyle Dark
+proposal-permission-sheet     -MonacoProposalSample permissionSheet
+proposal-permission-sheet-dark -MonacoProposalSample permissionSheet -AppleInterfaceStyle Dark
 proposal-vote-flow-10-unauthorized      -MonacoFlow 10 unauthorized
 proposal-vote-flow-10-proposal-not-found -MonacoFlow 10 proposalNotFound
 proposal-vote-flow-10-not-a-voter       -MonacoFlow 10 notAVoter

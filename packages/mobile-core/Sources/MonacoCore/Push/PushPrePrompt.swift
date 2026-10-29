@@ -7,6 +7,7 @@ public final class PushPrePrompt {
     private static let shownKey = "pushPrePromptShown"
 
     public var isPresented = false
+    public private(set) var sample: PushSample?
 
     private let authorization: any NotificationAuthorizing
     private let defaults: UserDefaults
@@ -22,16 +23,26 @@ public final class PushPrePrompt {
         self.register = register
     }
 
-    public func noteCabalJoined() async {
+    public func noteCabalJoined() async {}
+
+    public func noteFirstVote(sample: PushSample) async {
         let status = await authorization.status()
         let alreadyShown = defaults.bool(forKey: Self.shownKey)
         guard PushPrePromptPolicy.shouldShow(status: status, alreadyShown: alreadyShown) else { return }
+        self.sample = sample
         isPresented = true
     }
 
     public func turnOn() async {
         markShown()
         let granted = await authorization.request()
+        isPresented = false
+        if granted { register() }
+    }
+
+    public func deliverQuietly() async {
+        markShown()
+        let granted = await authorization.requestProvisional()
         isPresented = false
         if granted { register() }
     }
