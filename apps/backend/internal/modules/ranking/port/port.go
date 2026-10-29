@@ -34,6 +34,13 @@ type Range = domain.Range
 
 const Range1M = domain.Range1M
 
+type PeriodKind = domain.PeriodKind
+
+const (
+	PeriodMonth      = domain.PeriodMonth
+	MinResolvedCalls = domain.MinResolvedCalls
+)
+
 type PersonReturn struct {
 	ReturnBps *int64
 	PnlMicros money.SignedMicros

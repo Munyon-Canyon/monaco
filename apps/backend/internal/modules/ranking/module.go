@@ -155,7 +155,7 @@ func (m *Module) callBoardPoller() adapters.CallBoardPoller {
 	return adapters.CallBoardPoller{Reads: sqlc.New(m.deps.Pool), Runner: m.RunCallBoard(), Clock: m.deps.Clock}
 }
 
-func (m *Module) CallBoards() app.CallBoards { return app.NewCallBoards(m.deps.Pool) }
+func (m *Module) CallBoards() port.CallBoards { return app.NewCallBoards(m.deps.Pool) }
 
 func (m *Module) valuation() adapters.ValuationPoller {
 	return adapters.ValuationPoller{

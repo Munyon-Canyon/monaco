@@ -14,3 +14,4 @@ Dated record of changes to [leaderboards.md](../leaderboards.md). Add one line p
 - 2026-10-13: Decided by Andres: boards, cabal value history and the Home chart use the live 24/7 token price at all times, also while the US market is shut. Removed close-price valuation and `ranking.close_sample.missing`. Replaces the 2026-09-27 off-hours default.
 - 2026-10-28: `avg_entry_micros`, `first_bought_at` and the activity `symbol` filter cover every chain of a stock, merged EVM listings and EVM-only holdings included (#6630).
 - 2026-10-28: `treasury` serves `GET /v1/me/held`, every holding of the caller's active cabals valued like the pot from one price read, with a total and a `symbol` filter, and exposes `Held()` on its port (#6436).
+- 2026-10-28: `GET /v1/users/{id}` serves the month right-call `standing`, `crown` and `cabals_in_common`, and returns your own 1M return and P&L whatever your sharing setting (#6467).

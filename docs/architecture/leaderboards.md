@@ -137,6 +137,10 @@ return        = gain / (start_equity + time-weighted net_flows)      -- modified
 - On `GET /v1/me/portfolio`, each cabal's `ownership_bps` is the caller's current share of the pot, which `treasury` serves with the pot's own rounding, so it matches `GET /v1/cabals/{id}/pot`'s `me.slice_bps`. `role` and `can_vote` come from the `cabal` module.
 - **Boards:** cabals, people (lifetime and ranged), members within a cabal, and friends-only (default 2026-09-27). Friends-only is the people board filtered at read time to the people the viewer follows, which the route gets from `social`'s query port ([followers.md](followers.md)). It needs no extra valuation.
 
+### Standing on profiles
+
+`GET /v1/users/{id}` serves `standing`, `crown` and `cabals_in_common` beside the 1M return. `identity` reads the standing through ranking's `CallStanding` for the People board over the current UTC month ([right-calls.md](right-calls.md)). `standing` carries the rate, the record, the rank, the ranked count and `more_to_rank`, which is the minimum of five resolved calls less the member's resolved calls, floored at 0. It is null when the member has no calls this month, when the stored row's `period_start` is before the first day of the current UTC month (the board has not run since the month rolled over), and when either person blocked the other. `crown` is true at rank 1. `cabals_in_common` counts the cabals both people belong to today, and is 0 on your own profile. Sharing settings hide money, not right calls: `share_performance=false` hides the 1M return and P&L from others and never hides the standing. You always see your own return and P&L.
+
 ## Validity rules
 
 A leaderboard that is fast and wrong is worse than slow. Rules the job enforces:
