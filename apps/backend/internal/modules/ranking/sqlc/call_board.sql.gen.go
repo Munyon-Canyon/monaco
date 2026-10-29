@@ -13,6 +13,44 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const baselinesFor = `-- name: BaselinesFor :many
+SELECT subject_id, rank
+FROM call_board_baselines
+WHERE board = $1 AND period = $2
+  AND day = ($3::timestamptz AT TIME ZONE 'UTC')::date
+`
+
+type BaselinesForParams struct {
+	Board  string
+	Period string
+	Day    time.Time
+}
+
+type BaselinesForRow struct {
+	SubjectID uuid.UUID
+	Rank      int32
+}
+
+func (q *Queries) BaselinesFor(ctx context.Context, arg BaselinesForParams) ([]BaselinesForRow, error) {
+	rows, err := q.db.Query(ctx, baselinesFor, arg.Board, arg.Period, arg.Day)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []BaselinesForRow
+	for rows.Next() {
+		var i BaselinesForRow
+		if err := rows.Scan(&i.SubjectID, &i.Rank); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const cabalCallInputs = `-- name: CabalCallInputs :many
 WITH decided AS (
   SELECT DISTINCT cc.cabal_id
@@ -115,6 +153,17 @@ func (q *Queries) CallBoardLastRun(ctx context.Context) (CallBoardRun, error) {
 	return i, err
 }
 
+const callBoardRanSince = `-- name: CallBoardRanSince :one
+SELECT EXISTS (SELECT 1 FROM call_board_runs WHERE started_at >= $1::timestamptz)::boolean AS ran
+`
+
+func (q *Queries) CallBoardRanSince(ctx context.Context, since time.Time) (bool, error) {
+	row := q.db.QueryRow(ctx, callBoardRanSince, since)
+	var ran bool
+	err := row.Scan(&ran)
+	return ran, err
+}
+
 const callLeaderOf = `-- name: CallLeaderOf :one
 SELECT subject_id, subject_name, subject_handle, subject_picture_url, right_count, resolved, rate_bps, period_start
 FROM call_board_entries
@@ -191,6 +240,91 @@ func (q *Queries) CallStandingOf(ctx context.Context, arg CallStandingOfParams) 
 	return i, err
 }
 
+const closedPeriodsPending = `-- name: ClosedPeriodsPending :many
+WITH stamps AS (
+  SELECT unnest(ARRAY[opened_at, decided_at, resolved_at]) AT TIME ZONE 'UTC' AS ts
+  FROM calls
+  WHERE state <> 'void'
+),
+periods AS (
+  SELECT DISTINCT 'week'::text AS period, date_trunc('week', ts)::date AS period_start FROM stamps WHERE ts IS NOT NULL
+  UNION
+  SELECT DISTINCT 'month'::text, date_trunc('month', ts)::date FROM stamps WHERE ts IS NOT NULL
+)
+SELECT p.period, p.period_start
+FROM periods AS p
+WHERE (p.period_start + CASE p.period WHEN 'week' THEN interval '7 days' ELSE interval '1 month' END)
+    <= ($1::timestamptz AT TIME ZONE 'UTC')
+  AND NOT EXISTS (
+    SELECT 1 FROM call_board_closed AS k WHERE k.period = p.period AND k.period_start = p.period_start
+  )
+ORDER BY p.period_start, p.period
+`
+
+type ClosedPeriodsPendingRow struct {
+	Period      string
+	PeriodStart pgtype.Date
+}
+
+func (q *Queries) ClosedPeriodsPending(ctx context.Context, endedBefore time.Time) ([]ClosedPeriodsPendingRow, error) {
+	rows, err := q.db.Query(ctx, closedPeriodsPending, endedBefore)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ClosedPeriodsPendingRow
+	for rows.Next() {
+		var i ClosedPeriodsPendingRow
+		if err := rows.Scan(&i.Period, &i.PeriodStart); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const closedTopsOf = `-- name: ClosedTopsOf :many
+SELECT period_start, right_count, resolved
+FROM call_board_closed
+WHERE subject_id = $1 AND board = $2 AND period = $3 AND rank = 1
+ORDER BY period_start DESC
+`
+
+type ClosedTopsOfParams struct {
+	SubjectID uuid.UUID
+	Board     string
+	Period    string
+}
+
+type ClosedTopsOfRow struct {
+	PeriodStart pgtype.Date
+	RightCount  int32
+	Resolved    int32
+}
+
+func (q *Queries) ClosedTopsOf(ctx context.Context, arg ClosedTopsOfParams) ([]ClosedTopsOfRow, error) {
+	rows, err := q.db.Query(ctx, closedTopsOf, arg.SubjectID, arg.Board, arg.Period)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ClosedTopsOfRow
+	for rows.Next() {
+		var i ClosedTopsOfRow
+		if err := rows.Scan(&i.PeriodStart, &i.RightCount, &i.Resolved); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteCallBoardEntries = `-- name: DeleteCallBoardEntries :exec
 DELETE FROM call_board_entries WHERE board = $1 AND period = $2
 `
@@ -217,14 +351,17 @@ func (q *Queries) DeleteCallBoardTriggersThrough(ctx context.Context, startedAt 
 const insertCallBoardEntries = `-- name: InsertCallBoardEntries :exec
 INSERT INTO call_board_entries (
   board, period, period_start, subject_id, subject_kind, subject_name, subject_handle, subject_picture_url,
-  subject_created_at, rank, right_count, resolved, voted, eligible, rate_bps, turnout_bps, run_id, computed_at
+  subject_created_at, rank, right_count, resolved, voted, eligible, rate_bps, turnout_bps, baseline_rank, movement,
+  movement_kind, last_call, run_id, computed_at
 )
 SELECT board, period, period_start, subject_id, subject_kind, subject_name, subject_handle, subject_picture_url,
-  subject_created_at, rank, right_count, resolved, voted, eligible, rate_bps, turnout_bps, run_id, computed_at
+  subject_created_at, rank, right_count, resolved, voted, eligible, rate_bps, turnout_bps, baseline_rank, movement,
+  movement_kind, last_call, run_id, computed_at
 FROM jsonb_to_recordset($1::jsonb) AS rows(
   board text, period text, period_start date, subject_id uuid, subject_kind text, subject_name text,
   subject_handle text, subject_picture_url text, subject_created_at timestamptz, rank int, right_count int,
-  resolved int, voted int, eligible int, rate_bps int, turnout_bps int, run_id uuid, computed_at timestamptz
+  resolved int, voted int, eligible int, rate_bps int, turnout_bps int, baseline_rank int, movement int,
+  movement_kind text, last_call jsonb, run_id uuid, computed_at timestamptz
 )
 `
 
@@ -264,6 +401,90 @@ type InsertCallBoardTriggerParams struct {
 func (q *Queries) InsertCallBoardTrigger(ctx context.Context, arg InsertCallBoardTriggerParams) error {
 	_, err := q.db.Exec(ctx, insertCallBoardTrigger, arg.Reason, arg.CreatedAt)
 	return err
+}
+
+const insertClosedBoard = `-- name: InsertClosedBoard :exec
+INSERT INTO call_board_closed (
+  board, period, period_start, rank, subject_id, rate_bps, right_count, resolved, voted, eligible, closed_at
+)
+SELECT board, period, period_start, rank, subject_id, rate_bps, right_count, resolved, voted, eligible,
+  $1::timestamptz
+FROM jsonb_to_recordset($2::jsonb) AS rows(
+  board text, period text, period_start date, rank int, subject_id uuid, rate_bps int, right_count int,
+  resolved int, voted int, eligible int
+)
+ON CONFLICT (board, period, period_start, subject_id) DO NOTHING
+`
+
+type InsertClosedBoardParams struct {
+	ClosedAt time.Time
+	Rows     []byte
+}
+
+func (q *Queries) InsertClosedBoard(ctx context.Context, arg InsertClosedBoardParams) error {
+	_, err := q.db.Exec(ctx, insertClosedBoard, arg.ClosedAt, arg.Rows)
+	return err
+}
+
+const lastCallsSince = `-- name: LastCallsSince :many
+SELECT DISTINCT ON (subject_id) subject_id, proposal_id, kind, symbol, is_right AS right_call
+FROM (
+  SELECT cv.user_id AS subject_id, c.proposal_id, c.kind, c.symbol, cv.is_right, c.resolved_at
+  FROM call_voters AS cv
+  JOIN calls AS c ON c.proposal_id = cv.proposal_id
+  WHERE cv.user_id = ANY($1::uuid[])
+    AND cv.is_right IS NOT NULL
+    AND c.state = 'resolved'
+    AND c.resolved_at >= $2::timestamptz
+  UNION ALL
+  SELECT cc.cabal_id AS subject_id, c.proposal_id, c.kind, c.symbol, cc.is_right, c.resolved_at
+  FROM cabal_calls AS cc
+  JOIN calls AS c ON c.proposal_id = cc.proposal_id
+  WHERE cc.cabal_id = ANY($1::uuid[])
+    AND cc.is_right IS NOT NULL
+    AND c.state = 'resolved'
+    AND c.resolved_at >= $2::timestamptz
+) AS resolved_calls
+ORDER BY subject_id, resolved_at DESC, proposal_id DESC
+`
+
+type LastCallsSinceParams struct {
+	SubjectIds []uuid.UUID
+	Since      time.Time
+}
+
+type LastCallsSinceRow struct {
+	SubjectID  uuid.UUID
+	ProposalID uuid.UUID
+	Kind       pgtype.Text
+	Symbol     pgtype.Text
+	RightCall  pgtype.Bool
+}
+
+func (q *Queries) LastCallsSince(ctx context.Context, arg LastCallsSinceParams) ([]LastCallsSinceRow, error) {
+	rows, err := q.db.Query(ctx, lastCallsSince, arg.SubjectIds, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LastCallsSinceRow
+	for rows.Next() {
+		var i LastCallsSinceRow
+		if err := rows.Scan(
+			&i.SubjectID,
+			&i.ProposalID,
+			&i.Kind,
+			&i.Symbol,
+			&i.RightCall,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const oldestCallBoardTrigger = `-- name: OldestCallBoardTrigger :one
@@ -349,4 +570,41 @@ func (q *Queries) PeopleCallInputs(ctx context.Context, arg PeopleCallInputsPara
 		return nil, err
 	}
 	return items, nil
+}
+
+const pruneBaselines = `-- name: PruneBaselines :exec
+DELETE FROM call_board_baselines WHERE day < ($1::timestamptz AT TIME ZONE 'UTC')::date
+`
+
+func (q *Queries) PruneBaselines(ctx context.Context, before time.Time) error {
+	_, err := q.db.Exec(ctx, pruneBaselines, before)
+	return err
+}
+
+const upsertBaselines = `-- name: UpsertBaselines :exec
+INSERT INTO call_board_baselines (board, period, period_start, day, subject_id, rank)
+SELECT $1::text, $2::text, ($3::timestamptz AT TIME ZONE 'UTC')::date,
+  ($4::timestamptz AT TIME ZONE 'UTC')::date,
+  rows.subject_id, rows.rank
+FROM jsonb_to_recordset($5::jsonb) AS rows(subject_id uuid, rank int)
+ON CONFLICT (board, period, day, subject_id) DO NOTHING
+`
+
+type UpsertBaselinesParams struct {
+	Board       string
+	Period      string
+	PeriodStart time.Time
+	Day         time.Time
+	Rows        []byte
+}
+
+func (q *Queries) UpsertBaselines(ctx context.Context, arg UpsertBaselinesParams) error {
+	_, err := q.db.Exec(ctx, upsertBaselines,
+		arg.Board,
+		arg.Period,
+		arg.PeriodStart,
+		arg.Day,
+		arg.Rows,
+	)
+	return err
 }

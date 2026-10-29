@@ -102,7 +102,19 @@ type Leader struct {
 	PeriodStart time.Time
 }
 
+type ClosedTop struct {
+	PeriodStart time.Time
+	Right       int
+	Resolved    int
+}
+
 type CallBoards interface {
 	CallStanding(ctx context.Context, userID ids.UserID, period domain.PeriodKind) (Standing, error)
 	CallLeader(ctx context.Context, board domain.Board, period domain.PeriodKind) (Leader, error)
+	ClosedTops(
+		ctx context.Context,
+		subjectID uuid.UUID,
+		board domain.Board,
+		period domain.PeriodKind,
+	) ([]ClosedTop, error)
 }

@@ -157,13 +157,17 @@ type entry struct {
 	rank, rateBps                    *int
 	right, resolved, voted, eligible int
 	name, kind, periodStart          string
-	movementIsNew                    bool
+	movementKind                     string
+	movement, baseline               *int
+	lastSymbol                       *string
+	lastRight                        *bool
 }
 
 func readEntries(t *testing.T, pool rig, board, period string) map[string]entry {
 	t.Helper()
 	rows, err := pool.Query(t.Context(), `SELECT subject_name, subject_kind, period_start::text, rank, rate_bps,
-		right_count, resolved, voted, eligible, movement_kind = 'new' AND last_call IS NULL
+		right_count, resolved, voted, eligible, movement_kind, movement, baseline_rank,
+		last_call->>'symbol', (last_call->>'right')::boolean
 		FROM call_board_entries WHERE board = $1 AND period = $2`, board, period)
 	if err != nil {
 		t.Fatal(err)
@@ -173,7 +177,7 @@ func readEntries(t *testing.T, pool rig, board, period string) map[string]entry 
 	for rows.Next() {
 		var e entry
 		if err := rows.Scan(&e.name, &e.kind, &e.periodStart, &e.rank, &e.rateBps, &e.right, &e.resolved, &e.voted,
-			&e.eligible, &e.movementIsNew); err != nil {
+			&e.eligible, &e.movementKind, &e.movement, &e.baseline, &e.lastSymbol, &e.lastRight); err != nil {
 			t.Fatal(err)
 		}
 		out[e.name] = e
@@ -187,6 +191,14 @@ func readEntries(t *testing.T, pool rig, board, period string) map[string]entry 
 func newBoardRun(t *testing.T, pool rig, cards *boardCards) app.RunCallBoard {
 	t.Helper()
 	return app.NewRunCallBoard(pool, pool.uow, testkit.NewIDs(6453), clock.Real{}, cards, cards)
+}
+
+func unmovedOnFirstRun(e entry) bool {
+	want := "same"
+	if e.rank == nil {
+		want = "new"
+	}
+	return e.movementKind == want && e.lastSymbol == nil
 }
 
 func wantRank(t *testing.T, got map[string]entry, name string, rank, rate int) {
@@ -241,8 +253,8 @@ func TestRunCallBoard_monthFixtureRanksPeople(t *testing.T) {
 		if e.rank != nil {
 			ranked++
 		}
-		if e.kind != "person" || e.periodStart != "2026-10-01" || !e.movementIsNew {
-			t.Errorf("entry %s = %+v, want a person from 2026-10-01 with new movement", name, e)
+		if e.kind != "person" || e.periodStart != "2026-10-01" || !unmovedOnFirstRun(e) {
+			t.Errorf("entry %s = %+v, want a person from 2026-10-01 with unmoved ranks and no last call", name, e)
 		}
 	}
 	if ranked != 24 {
@@ -467,5 +479,139 @@ func TestRunCallBoard_failsWhenATableItWritesIsGone(t *testing.T) {
 				t.Fatal("Run error = nil, want the write to fail")
 			}
 		})
+	}
+}
+
+func runBoardAt(t *testing.T, run app.RunCallBoard, at time.Time) {
+	t.Helper()
+	if _, err := run.Run(pollerContext(t), at); err != nil {
+		t.Fatalf("Run at %s = %v", at, err)
+	}
+}
+
+func seedMovementMonth(t *testing.T, pool rig, cards *boardCards) uuid.UUID {
+	t.Helper()
+	cabal := cards.addCabal("Pilates", cabalport.StatusActive)
+	seedPeople(t, pool, cards, cabal, time.Date(2026, 10, 5, 9, 0, 0, 0, time.UTC), []personSeed{
+		{name: "Cy", right: 9, resolved: 10},
+		{name: "Ada", right: 8, resolved: 10},
+		{name: "Bo", right: 7, resolved: 9},
+		{name: "Di", right: 5, resolved: 10},
+		{name: "Eli", right: 4, resolved: 4},
+	})
+	return cabal
+}
+
+type moved struct {
+	rank, movement int
+	kind           string
+	right          bool
+}
+
+func wantMoved(t *testing.T, got map[string]entry, name string, want moved) {
+	t.Helper()
+	e := got[name]
+	if e.rank == nil || *e.rank != want.rank || e.movement == nil || *e.movement != want.movement ||
+		e.movementKind != want.kind || e.lastRight == nil || *e.lastRight != want.right ||
+		e.lastSymbol == nil || *e.lastSymbol != "AAPLx" {
+		t.Errorf("%s = %+v, want rank %d, %s %d, last call AAPLx right=%t", name, e, want.rank, want.kind,
+			want.movement, want.right)
+	}
+}
+
+func TestRunCallBoard_movementIsTheRankAtTheDaysFirstRunMinusTheRankNow(t *testing.T) {
+	t.Parallel()
+	pool, cards := newRig(t), &boardCards{}
+	cabal := seedMovementMonth(t, pool, cards)
+	run := newBoardRun(t, pool, cards)
+	day := time.Date(2026, 10, 28, 0, 0, 0, 0, time.UTC)
+
+	runBoardAt(t, run, day.Add(10*time.Minute))
+	for name, e := range readEntries(t, pool, "people", "month") {
+		if !unmovedOnFirstRun(e) {
+			t.Errorf("first run: %s = %+v, want unmoved ranks and no last call", name, e)
+		}
+	}
+
+	callSeed{
+		proposal: uuid.NewSHA1(uuid.Nil, []byte("movement/late")), cabal: cabal, openedAt: day.Add(-19 * time.Hour),
+		resolved: true, cabalRight: true, voters: []voteSeed{
+			{user: boardUser("Cy").UUID(), voted: true, right: true},
+			{user: boardUser("Ada").UUID(), voted: true, right: false},
+			{user: boardUser("Bo").UUID(), voted: true, right: true},
+			{user: boardUser("Di").UUID(), voted: true, right: true},
+			{user: boardUser("Eli").UUID(), voted: true, right: false},
+		},
+	}.insert(t, pool)
+	runBoardAt(t, run, day.Add(12*time.Hour))
+
+	got := readEntries(t, pool, "people", "month")
+	wantMoved(t, got, "Cy", moved{1, 0, "same", true})
+	wantMoved(t, got, "Bo", moved{2, 1, "up", true})
+	wantMoved(t, got, "Ada", moved{4, -2, "down", false})
+	wantMoved(t, got, "Di", moved{5, -1, "down", true})
+	if e := got["Eli"]; e.rank == nil || *e.rank != 3 || e.movementKind != "new" || e.baseline != nil ||
+		e.movement != nil || e.lastRight == nil || *e.lastRight {
+		t.Errorf("Eli = %+v, want #3, new, no baseline and a missed last call", e)
+	}
+}
+
+func TestRunCallBoard_everyMonthRowIsNewOnTheFirstDayOfTheMonth(t *testing.T) {
+	t.Parallel()
+	pool, cards := newRig(t), &boardCards{}
+	cabal := cards.addCabal("Pilates", cabalport.StatusActive)
+	voters := make([]voteSeed, 0, 6)
+	for _, name := range []string{"Ada", "Bo", "Cy", "Di", "Eli", "Fay"} {
+		voters = append(voters, voteSeed{user: cards.addUser(name, len(voters)), voted: true})
+	}
+	callSeed{
+		proposal: uuid.NewSHA1(uuid.Nil, []byte("first-day")), cabal: cabal,
+		openedAt: time.Date(2026, 11, 1, 0, 5, 0, 0, time.UTC), voters: voters,
+	}.insert(t, pool)
+	run := newBoardRun(t, pool, cards)
+
+	runBoardAt(t, run, time.Date(2026, 11, 1, 0, 20, 0, 0, time.UTC))
+
+	month := readEntries(t, pool, "people", "month")
+	if len(month) != 6 {
+		t.Fatalf("month rows = %d, want 6", len(month))
+	}
+	for name, e := range month {
+		if e.movementKind != "new" || e.movement != nil || e.baseline != nil || e.rank != nil {
+			t.Errorf("%s = %+v, want an unranked new row", name, e)
+		}
+	}
+}
+
+func TestRunCallBoard_aNewDayTakesItsOwnBaselineAndOldOnesAgeOut(t *testing.T) {
+	t.Parallel()
+	pool, cards := newRig(t), &boardCards{}
+	seedMovementMonth(t, pool, cards)
+	run := newBoardRun(t, pool, cards)
+	execAll(t, pool, `INSERT INTO call_board_baselines (board, period, period_start, day, subject_id, rank)
+		VALUES ('people', 'month', '2026-08-01', '2026-09-17', $1, 1), ('people', 'month', '2026-09-01', '2026-09-19', $1, 1)`,
+		boardUser("Cy").UUID())
+
+	runBoardAt(t, run, time.Date(2026, 10, 28, 0, 10, 0, 0, time.UTC))
+	runBoardAt(t, run, time.Date(2026, 10, 28, 9, 0, 0, 0, time.UTC))
+	runBoardAt(t, run, time.Date(2026, 10, 29, 0, 10, 0, 0, time.UTC))
+
+	rows, err := pool.Query(t.Context(), `SELECT day::text, count(*) FROM call_board_baselines
+		WHERE board = 'people' AND period = 'month' GROUP BY day ORDER BY day`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var days []string
+	for rows.Next() {
+		var day string
+		var n int
+		if err := rows.Scan(&day, &n); err != nil {
+			t.Fatal(err)
+		}
+		days = append(days, fmt.Sprintf("%s:%d", day, n))
+	}
+	if want := []string{"2026-09-19:1", "2026-10-28:4", "2026-10-29:4"}; fmt.Sprint(days) != fmt.Sprint(want) {
+		t.Fatalf("baselines per day = %v, want %v: one per ranked person, none older than 40 days", days, want)
 	}
 }
