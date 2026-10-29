@@ -18,10 +18,12 @@ import (
 )
 
 const (
-	liveSampleAge   = 2 * time.Hour
-	preIPOSampleAge = 36 * time.Hour
-	unpricedAfter   = 6 * time.Hour
-	CallsBatch      = 200
+	liveSampleAge     = 2 * time.Hour
+	backfillSampleAge = 36 * time.Hour
+	preIPOSampleAge   = 36 * time.Hour
+	liveSampleWindow  = 7 * 24 * time.Hour
+	unpricedAfter     = 6 * time.Hour
+	CallsBatch        = 200
 
 	preIPOKind      = "pre_ipo"
 	refSourceFill   = "fill"
@@ -101,7 +103,7 @@ func (r ResolveCalls) judge(ctx context.Context, due []sqlc.Call, now time.Time)
 			out = append(out, judgement{call: call, void: true})
 			continue
 		}
-		end, found, err := r.endPrice(ctx, call, assets)
+		end, found, err := r.endPrice(ctx, call, assets, now)
 		if err != nil {
 			return nil, err
 		}
@@ -146,7 +148,7 @@ func (r ResolveCalls) assetsOf(ctx context.Context, due []sqlc.Call) (map[uuid.U
 }
 
 func (r ResolveCalls) endPrice(
-	ctx context.Context, call sqlc.Call, assets map[uuid.UUID]market.Asset,
+	ctx context.Context, call sqlc.Call, assets map[uuid.UUID]market.Asset, now time.Time,
 ) (priced, bool, error) {
 	if !call.AssetID.Valid {
 		return priced{}, false, nil
@@ -161,6 +163,9 @@ func (r ResolveCalls) endPrice(
 		return priced{}, false, nil
 	}
 	limit := liveSampleAge
+	if now.Sub(call.ResolveAt.Time) > liveSampleWindow {
+		limit = backfillSampleAge
+	}
 	if string(assets[call.AssetID.Bytes].Kind) == preIPOKind {
 		limit = preIPOSampleAge
 	}

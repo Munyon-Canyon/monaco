@@ -852,3 +852,30 @@ func TestCalls_decisionFailuresReturnAnErrorAndAnUnhandledRuleProposalIsSkipped(
 		t.Error("a failed proposal whose call row cannot be read error = nil")
 	}
 }
+
+func TestCalls_theDecisionTimeComesFromTheStoredEventAndFallsBackToTheClock(t *testing.T) {
+	t.Parallel()
+	w := newCallsWorld(t, 0)
+	c := adapters.Calls{Ballots: w.ports.Ballots, Market: w.ports.Market, DB: w.d.pool, Clock: w.d.clock}
+	created := events.ProposalCreated{V: 1, ProposalID: w.proposal, CabalID: w.cabal, Kind: "buy", Mint: callsMint}
+	passed := events.ProposalPassed{V: 1, ProposalID: w.proposal, CabalID: w.cabal, Kind: "buy", Mint: callsMint}
+	for name, ctx := range map[string]context.Context{
+		"no event id":    t.Context(),
+		"an unstored id": observability.WithEventID(t.Context(), ids.EventIDFrom(w.d.gen.NewV7())),
+	} {
+		if _, err := c.FetchCreated(ctx, created); err != nil {
+			t.Errorf("%s: FetchCreated error = %v, want the clock fallback", name, err)
+		}
+		if _, err := c.FetchPassed(ctx, passed); err != nil {
+			t.Errorf("%s: FetchPassed error = %v, want the clock fallback", name, err)
+		}
+	}
+	ctx, cancel := context.WithCancel(observability.WithEventID(t.Context(), ids.EventIDFrom(w.d.gen.NewV7())))
+	cancel()
+	if _, err := c.FetchCreated(ctx, created); err == nil {
+		t.Error("FetchCreated with an unreadable events table error = nil")
+	}
+	if _, err := c.FetchPassed(ctx, passed); err == nil {
+		t.Error("FetchPassed with an unreadable events table error = nil")
+	}
+}

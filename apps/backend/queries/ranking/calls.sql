@@ -73,11 +73,11 @@ VALUES (sqlc.arg(proposal_id), sqlc.arg(cabal_id), sqlc.arg(side))
 ON CONFLICT (proposal_id) DO NOTHING;
 
 -- name: ResetCallVoterChoice :exec
-UPDATE call_voters
-SET choice = NULL, choice_at = sqlc.arg(at)::timestamptz
-WHERE proposal_id = sqlc.arg(proposal_id)
-  AND user_id = sqlc.arg(user_id)
-  AND (choice_at IS NULL OR choice_at < sqlc.arg(at)::timestamptz);
+INSERT INTO call_voters (proposal_id, user_id, cabal_id, choice, choice_at)
+VALUES (sqlc.arg(proposal_id), sqlc.arg(user_id), sqlc.arg(cabal_id), NULL, sqlc.arg(at)::timestamptz)
+ON CONFLICT (proposal_id, user_id) DO UPDATE
+SET choice = NULL, choice_at = EXCLUDED.choice_at
+WHERE call_voters.choice_at IS NULL OR call_voters.choice_at < EXCLUDED.choice_at;
 
 -- name: CallAssetOfProposal :one
 SELECT asset_id FROM calls WHERE proposal_id = sqlc.arg(proposal_id);
@@ -182,3 +182,6 @@ WHERE proposal_id = sqlc.arg(proposal_id);
 UPDATE calls
 SET state = 'void', void_reason = 'unpriced', updated_at = sqlc.arg(at)::timestamptz
 WHERE proposal_id = sqlc.arg(proposal_id) AND state = 'decided';
+
+-- name: CallEventTime :one
+SELECT created_at FROM events WHERE id = sqlc.arg(id);

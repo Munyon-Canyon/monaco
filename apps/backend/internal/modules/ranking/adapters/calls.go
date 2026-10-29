@@ -21,6 +21,7 @@ import (
 	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 const tradeSourceProposal = "proposal"
@@ -34,12 +35,14 @@ type Calls struct {
 
 type CallOpening struct {
 	skip    bool
+	at      time.Time
 	assetID pgtype.UUID
 	ballots []ballot
 }
 
 type CallDecision struct {
 	skip    bool
+	at      time.Time
 	assetID pgtype.UUID
 	ballots []ballot
 	ref     *app.AssetPrice
@@ -70,13 +73,18 @@ func (c Calls) FetchCreated(ctx context.Context, e events.ProposalCreated) (Call
 	if err != nil {
 		return CallOpening{}, err
 	}
-	return CallOpening{assetID: asset, ballots: ballots}, nil
+	at, err := c.eventTime(ctx)
+	if err != nil {
+		return CallOpening{}, err
+	}
+	return CallOpening{assetID: asset, ballots: ballots, at: at}, nil
 }
 
-func (Calls) ApplyCreated(ctx context.Context, tx db.Tx, e events.ProposalCreated, f CallOpening, at time.Time) error {
+func (Calls) ApplyCreated(ctx context.Context, tx db.Tx, e events.ProposalCreated, f CallOpening, _ time.Time) error {
 	if f.skip {
 		return nil
 	}
+	at := f.at
 	q := sqlc.New(tx.Queries())
 	if err := q.UpsertCallOpened(ctx, sqlc.UpsertCallOpenedParams{
 		ProposalID: e.ProposalID, CabalID: e.CabalID, Kind: text(e.Kind), Symbol: text(e.Symbol),
@@ -96,7 +104,7 @@ func (Calls) VoteCast(ctx context.Context, tx db.Tx, e events.VoteCast, _ time.T
 
 func (Calls) VoteRetracted(ctx context.Context, tx db.Tx, e events.VoteRetracted, _ time.Time) error {
 	return sqlc.New(tx.Queries()).ResetCallVoterChoice(ctx, sqlc.ResetCallVoterChoiceParams{
-		ProposalID: e.ProposalID, UserID: e.VoterID, At: e.RetractedAt,
+		ProposalID: e.ProposalID, UserID: e.VoterID, CabalID: e.CabalID, At: e.RetractedAt,
 	})
 }
 
@@ -119,6 +127,22 @@ func (c Calls) FetchExpired(ctx context.Context, e events.ProposalExpired) (Call
 	return c.decisionOfOpened(ctx, e.ProposalID)
 }
 
+func (c Calls) eventTime(ctx context.Context) (time.Time, error) {
+	raw := observability.EventIDFrom(ctx)
+	if raw == "" {
+		return c.Clock.Now(), nil
+	}
+	id, _ := uuid.Parse(raw)
+	at, err := sqlc.New(c.DB).CallEventTime(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return c.Clock.Now(), nil
+	}
+	if err != nil {
+		return time.Time{}, errs.Wrap(err, errs.CodeOf(err), "ranking.Calls.eventTime")
+	}
+	return at, nil
+}
+
 func (c Calls) decisionOfOpened(ctx context.Context, proposal uuid.UUID) (CallDecision, error) {
 	asset, err := sqlc.New(c.DB).CallAssetOfProposal(ctx, proposal)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -132,12 +156,16 @@ func (c Calls) decision(ctx context.Context, proposal uuid.UUID, asset pgtype.UU
 	if err != nil {
 		return CallDecision{}, err
 	}
-	out := CallDecision{assetID: asset, ballots: ballots}
+	at, err := c.eventTime(ctx)
+	if err != nil {
+		return CallDecision{}, err
+	}
+	out := CallDecision{assetID: asset, ballots: ballots, at: at}
 	if !asset.Valid {
 		return out, nil
 	}
 	id := app.AssetIDFrom(asset.Bytes)
-	prices, err := c.Market.PricesAsOf(ctx, []app.AssetID{id}, c.Clock.Now())
+	prices, err := c.Market.PricesAsOf(ctx, []app.AssetID{id}, at)
 	if err != nil {
 		return CallDecision{}, err
 	}
@@ -147,26 +175,26 @@ func (c Calls) decision(ctx context.Context, proposal uuid.UUID, asset pgtype.UU
 	return out, nil
 }
 
-func (Calls) ApplyPassed(ctx context.Context, tx db.Tx, e events.ProposalPassed, f CallDecision, at time.Time) error {
+func (Calls) ApplyPassed(ctx context.Context, tx db.Tx, e events.ProposalPassed, f CallDecision, _ time.Time) error {
 	if f.skip {
 		return nil
 	}
 	return applyDecision(ctx, tx, decided{
 		proposal: e.ProposalID, cabal: e.CabalID, outcome: "passed", side: domain.SideYes,
 		kind: text(e.Kind), symbol: text(e.Symbol), mint: text(string(e.Mint)),
-	}, f, at)
+	}, f)
 }
 
-func (Calls) ApplyFailed(ctx context.Context, tx db.Tx, e events.ProposalFailed, f CallDecision, at time.Time) error {
+func (Calls) ApplyFailed(ctx context.Context, tx db.Tx, e events.ProposalFailed, f CallDecision, _ time.Time) error {
 	return applyDecision(ctx, tx, decided{
 		proposal: e.ProposalID, cabal: e.CabalID, outcome: "failed", side: domain.SideNo,
-	}, f, at)
+	}, f)
 }
 
-func (Calls) ApplyExpired(ctx context.Context, tx db.Tx, e events.ProposalExpired, f CallDecision, at time.Time) error {
+func (Calls) ApplyExpired(ctx context.Context, tx db.Tx, e events.ProposalExpired, f CallDecision, _ time.Time) error {
 	return applyDecision(ctx, tx, decided{
 		proposal: e.ProposalID, cabal: e.CabalID, outcome: "expired", side: domain.SideNo,
-	}, f, at)
+	}, f)
 }
 
 type decided struct {
@@ -175,7 +203,8 @@ type decided struct {
 	kind, symbol, mint pgtype.Text
 }
 
-func applyDecision(ctx context.Context, tx db.Tx, d decided, f CallDecision, at time.Time) error {
+func applyDecision(ctx context.Context, tx db.Tx, d decided, f CallDecision) error {
+	at := f.at
 	q := sqlc.New(tx.Queries())
 	if err := upsertBallots(ctx, q, d.proposal, d.cabal, f.ballots); err != nil {
 		return err

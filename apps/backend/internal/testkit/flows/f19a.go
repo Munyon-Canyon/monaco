@@ -2,15 +2,18 @@ package flows
 
 import (
 	"crypto/rand"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
@@ -32,6 +35,12 @@ type callWant struct {
 	state, source                 string
 	moveBps                       int
 	yesRight, noRight, cabalRight bool
+}
+
+func (defined) SeedsF19a() map[string]Seeder {
+	return map[string]Seeder{
+		"F19aResolveCallsOK": seedSignedInWith(seedResolvedCalls),
+	}
 }
 
 func F19aResolveCallsOK(s *scenario.Scenario) {
@@ -162,4 +171,85 @@ func awaitResolvedEvents(n int) scenario.Step {
 		}
 		return got == n
 	})
+}
+
+const (
+	resolvedCallProposals = 8
+	resolvedCallRef       = 100_000_000
+)
+
+func resolvedCallVoters() []int { return []int{5, 8, 7, 6, 5, 5, 5, 2} }
+
+func seedResolvedCalls(t testkit.SeedT, pool *pgxpool.Pool, user ids.UserID) map[string]string {
+	t.Helper()
+	g, now := ids.Real{}, time.Now().UTC()
+	month := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	cabal := g.NewV7()
+	proposals := make([]uuid.UUID, resolvedCallProposals)
+	for i := range proposals {
+		proposals[i] = g.NewV7()
+		elapsed := now.Sub(month) * time.Duration(i+1) / (resolvedCallProposals + 1)
+		resolvedAt := month.Add(elapsed).Truncate(time.Microsecond)
+		seedResolvedCall(t, pool, proposals[i], cabal, i, resolvedAt)
+	}
+	voters := []uuid.UUID{user.UUID()}
+	out := map[string]string{"cabal": cabal.String()}
+	for k := 1; k < len(resolvedCallVoters()); k++ {
+		opts := testkit.UserOpts{AccountStatus: "active"}
+		other := testkit.SeedUser(t, pool, opts)
+		voters = append(voters, other.ID.UUID())
+		out["user_"+strconv.Itoa(k)] = other.ID.String()
+	}
+	for k, voter := range voters {
+		for i := range resolvedCallVoters()[k] {
+			seedResolvedVote(t, pool, proposals[i], cabal, voter, i, k)
+		}
+	}
+	return out
+}
+
+func yesRightOn(proposal int) bool { return proposal%3 != 0 }
+
+func seedResolvedCall(
+	t testkit.SeedT, pool *pgxpool.Pool, proposal, cabal uuid.UUID, i int, resolvedAt time.Time,
+) {
+	t.Helper()
+	end, bps := int64(resolvedCallRef*11/10), 1000
+	if !yesRightOn(i) {
+		end, bps = resolvedCallRef*9/10, -1000
+	}
+	decided := resolvedAt.Add(-24 * time.Hour)
+	for _, q := range []struct {
+		sql  string
+		args []any
+	}{
+		{
+			`INSERT INTO calls (proposal_id, cabal_id, kind, symbol, opened_at, decided_at, outcome, market_ref_micros,
+			ref_price_micros, ref_source, resolve_at, resolved_at, end_price_micros, move_bps, state, updated_at)
+			VALUES ($1, $2, 'buy', 'TSLAx', $3, $4, 'passed', $5, $5, 'market', $6, $6, $7, $8, 'resolved', $6)`,
+			[]any{proposal, cabal, decided.Add(-time.Hour), decided, int64(resolvedCallRef), resolvedAt, end, bps},
+		},
+		{
+			`INSERT INTO cabal_calls (proposal_id, cabal_id, side, is_right) VALUES ($1, $2, 'yes', $3)`,
+			[]any{proposal, cabal, yesRightOn(i)},
+		},
+	} {
+		if _, err := pool.Exec(t.Context(), q.sql, q.args...); err != nil {
+			t.Fatalf("flows: seed the resolved call %s: %v", proposal, err)
+		}
+	}
+}
+
+func seedResolvedVote(t testkit.SeedT, pool *pgxpool.Pool, proposal, cabal, voter uuid.UUID, i, k int) {
+	t.Helper()
+	choice := "no"
+	if (i+k)%4 != 0 {
+		choice = "yes"
+	}
+	if _, err := pool.Exec(t.Context(), `INSERT INTO call_voters
+		(proposal_id, user_id, cabal_id, choice, choice_at, is_right)
+		VALUES ($1, $2, $3, $4, now() - interval '2 days', $5)`,
+		proposal, voter, cabal, choice, (choice == "yes") == yesRightOn(i)); err != nil {
+		t.Fatalf("flows: seed the vote of %s on %s: %v", voter, proposal, err)
+	}
 }
