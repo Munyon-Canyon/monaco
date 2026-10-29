@@ -160,6 +160,7 @@ private struct GifHarnessScreen: View {
         self.scenario = scenario
         self.host = host
         self.auth = auth
+        if !scenario.showsThread { SampleAPIProtocol.install(ProposalSampleScenario.nvdaOpen.script) }
         _presents = State(initialValue: host == .sheet && scenario != .viewer)
         _viewing = State(initialValue: scenario == .viewer)
     }
@@ -196,7 +197,7 @@ private struct GifHarnessScreen: View {
                     .padding(.top, MonacoTheme.Space.xl)
             }
         } else {
-            Color.clear
+            SampleAppFrame(auth: auth, tab: .cabals, routes: [ProposalSampleScenario.nvdaOpen.route])
         }
     }
 

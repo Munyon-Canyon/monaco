@@ -66,11 +66,11 @@ struct GifSheet: View {
                 .foregroundStyle(MonacoTheme.primaryText)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityIdentifier("gif-title")
+            Spacer(minLength: 0)
             Text(model.attribution)
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .accessibilityIdentifier("gif-attribution")
-            Spacer(minLength: 0)
             MonacoGlassButton(systemImage: "xmark", accessibilityLabel: "Close", style: .quiet, size: .compact) {
                 dismiss()
             }
