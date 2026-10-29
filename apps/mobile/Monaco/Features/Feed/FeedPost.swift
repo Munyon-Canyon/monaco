@@ -11,6 +11,7 @@ struct FeedPost<Foot: View>: View {
     let item: Components.Schemas.FeedItem
     let now: Date
     var style: FeedPostStyle = .standard
+    var opensPost = true
     @ViewBuilder let foot: Foot
 
     @Environment(AppEnvironment.self) private var environment
@@ -18,24 +19,31 @@ struct FeedPost<Foot: View>: View {
     var body: some View {
         let facts = FeedPostFacts(item, now: now)
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            NavigationLink(value: FeedDestination.destination(for: item).route) {
-                HStack(alignment: .top, spacing: FeedPostMetrics.gap) {
-                    FeedPostLead(lead: facts.lead)
-                    FeedPostBody(facts: facts, itemID: item.id, style: style)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(facts.spoken)
-            .accessibilityIdentifier("feed-cell-\(item.id)")
-            .accessibilityActions { openActions(facts) }
+            post(facts)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(facts.spoken)
+                .accessibilityIdentifier("feed-cell-\(item.id)")
+                .accessibilityActions { openActions(facts) }
             foot
                 .padding(.leading, FeedPostMetrics.lead + FeedPostMetrics.gap)
         }
         .padding(.vertical, MonacoTheme.Space.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder private func post(_ facts: FeedPostFacts) -> some View {
+        let content = HStack(alignment: .top, spacing: FeedPostMetrics.gap) {
+            FeedPostLead(lead: facts.lead)
+            FeedPostBody(facts: facts, itemID: item.id, style: style)
+        }
+        .contentShape(Rectangle())
+        if opensPost {
+            NavigationLink(value: FeedDestination.destination(for: item).route) { content }
+                .buttonStyle(.plain)
+        } else {
+            content
+        }
     }
 
     @ViewBuilder private func openActions(_ facts: FeedPostFacts) -> some View {

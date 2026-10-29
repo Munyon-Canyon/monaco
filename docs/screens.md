@@ -473,16 +473,25 @@ States. Loading is a skeleton under the live title and search. Empty: "No update
 
 **Muted** (`FeedMutesRoute`). Title "Muted". One 72pt row per mute with an icon, its label and "Unmute". Empty: "Nothing muted" / "Press and hold a post in your feed to mute its cabal, stock or person. They'll show up here."
 
-**Post and comments** (`FeedItemRoute`, #711). Title "Post & comments", pushed inside the Feed tab.
+**Post (`PostScreen`, `FeedItemRoute`).** The page for any post that is not a proposal or a cabal's result: a member's buy or sale, a join, a right call, a quote. Proposals and cabal results open the Proposal screen instead. F's `05-post`, pushed inside the Feed tab. `FeedItemRoute(itemID:anchorCommentID:)` is the route, and the screen root keeps the id `feed-item-detail`.
 
 | Part | Shows |
 | --- | --- |
-| Author | Avatar (opens `UserProfileRoute`), name, "<time> · <cabal>" ("Public" with no cabal). The one-month return pill waits for the API. A market item shows "Market update" instead |
-| Summary card | The item title, its thesis or detail, and for a stock a row with its logo, name, cabal and a chevron that opens the item's destination |
-| Discussion | "Discussion", then comments: 30pt avatar, name, time and "Reply", with replies indented one step |
-| Composer | Docked bar: ⊕, a "Say something" field with GIF inside it, and a send disc. Replying opens the "Reply to <name>" half sheet with the quote above the field. "Sending…" while the comment posts, and "Your reply wasn’t sent. Your text is still here." after a failure |
+| Bar | Inline title "Post" with the back round and a share round (`FeedShareButton`). No large title and no F header |
+| The post | The same view the Feed card draws (avatar, "Logan sold", age, the 36 pt logo with the ticker line and the return, the B/S chart, the cabal's accent rule), without a link back to itself, then the reaction row (24 pt chips, "+", and the reply control with the count). The reply control focuses the docked composer and opens no sheet |
+| Replies | "Replies" with the count in `secondaryText`, then the rooted thread of `CommentThreadView` on the post's `thread_item_id`: folded answers ("View 1 reply"), quotes that jump, reactions and Reply on each row. A row's own Reply opens the "Reply to <name>" half sheet quoting it |
+| Composer | Docked bar: ⊕, a "Say something" field with GIF inside it, and a send disc. "Sending…" while the comment posts, and "Your reply wasn’t sent. Your text is still here." after a failure |
+| End of the page | The last reply rests 40 above the composer |
 
-States. Loading is a skeleton. No comments: "No replies yet" / "Start the discussion.", composer kept. A post the viewer cannot read (404 or 403): "This update isn’t available" / "It may have been removed, or you may no longer have permission to view it." with "Back to feed", and no composer. Any other failure: "Couldn’t load this view" with "Try again". Comments that fail to load show a "Couldn't load comments." notice with "Try again". A non-member sees "Only members of this cabal can comment." in place of the field. `CommentThreadView` and `CommentComposerBar` are shared with the proposal screen.
+States.
+- Ready: the table above.
+- Loading: a skeleton under the bar, with the composer docked.
+- Empty: no replies shows "No replies yet" / "Start the discussion.", composer kept.
+- Unavailable: a post the viewer cannot read (404 or 403) shows "This update isn’t available" / "It may have been removed, or you may no longer have permission to view it." with "Back to feed", and no composer.
+- Failed: any other failure shows "Couldn’t load this view" with "Try again". Replies that fail to load show "Couldn't load comments." with "Try again".
+- Members-only line: when the viewer cannot reply (not a member of the cabal), "Only members of this cabal can comment." takes the composer's place.
+
+Anchor. `FeedItemRoute(itemID:anchorCommentID:)` opens the page at that reply on first load: it expands the fold when the reply is a folded answer, scrolls to it and highlights it with the sunken fill for 1.2 s, with no sheet and no keyboard. When the reply is not on the first page the page loads forward, up to 10 pages; if the reply is still missing the page stays at the top and shows the toast "That reply was deleted." `CommentThreadView` and `CommentComposerBar` are shared with the Proposal screen. The Debug harness is `-feedPostHarness <ready|empty|replying|sending|failed|unavailable|logan|end>`, where `logan` is Logan's AAPL thread and `end` is that page scrolled to its end.
 
 ## Chat (`ChatRoute`, #676)
 

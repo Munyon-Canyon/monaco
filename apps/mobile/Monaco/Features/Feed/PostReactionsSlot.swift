@@ -30,6 +30,7 @@ private struct ReplySheetState: Identifiable {
 struct PostReactionsSlot: View {
     let item: Components.Schemas.FeedItem
     let model: FeedModel
+    var onReply: (() -> Void)?
 
     @Environment(AppEnvironment.self) private var environment
     @State private var sheet: ReplySheetState?
@@ -52,6 +53,10 @@ struct PostReactionsSlot: View {
     }
 
     private func reply() {
+        if let onReply {
+            onReply()
+            return
+        }
         switch ReplyControlAction.action(for: item) {
         case .openProposal(let proposalID, let focus):
             environment.navigator.open(ProposalRoute(proposalID: proposalID, focus: focus), in: .feed)
