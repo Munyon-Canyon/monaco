@@ -248,27 +248,23 @@ func IsMoney(name string) bool {
 }
 
 func flow(poller string) string {
-	switch poller {
-	case "funding.deposit_watch":
-		return "05"
-	case "funding.withdrawals":
-		return "15"
-	case "funding.treasury-reconcile", "funding.bounce-sweeper":
-		return "08"
-	case "market.prices":
-		return "18"
-	case "identity.nudges":
-		return "28"
-	case "ranking.valuation":
-		return "19"
-	case "ranking.calls_resolver":
-		return "19a"
-	case "ranking.call_board":
-		return "19b"
-	case "notify.vote_reminders":
-		return "33"
-	default:
-		return ""
+	return pollerFlows()[poller]
+}
+
+func pollerFlows() map[string]string {
+	return map[string]string{
+		"funding.deposit_watch":      "05",
+		"funding.withdrawals":        "15",
+		"funding.treasury-reconcile": "08",
+		"funding.bounce-sweeper":     "08",
+		"market.prices":              "18",
+		"identity.nudges":            "28",
+		"ranking.valuation":          "19",
+		"ranking.calls_resolver":     "19a",
+		"ranking.call_board":         "19b",
+		"notify.vote_reminders":      "33",
+		"ranking.weekly_ledger":      "37",
+		"governance.close_reminders": "10b",
 	}
 }
 

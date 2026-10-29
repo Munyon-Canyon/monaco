@@ -238,7 +238,10 @@ func (p marketPort) ListingPrices(
 }
 
 func (m *Module) ledgerPoller() app.LedgerPoller {
-	return app.LedgerPoller{Builder: app.NewBuildLedgers(
-		sqlc.New(m.deps.Pool), m.deps.UoW, m.LedgerInputs, m.ports.Cabals, m.deps.Clock,
-	)}
+	return app.LedgerPoller{
+		Builder: app.NewBuildLedgers(
+			sqlc.New(m.deps.Pool), m.deps.UoW, m.LedgerInputs, m.ports.Cabals, m.deps.Clock,
+		),
+		Every: m.deps.Config.Ranking.LedgerPollInterval,
+	}
 }

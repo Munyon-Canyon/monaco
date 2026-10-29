@@ -79,7 +79,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 		PreStocks: config.PreStocks{BaseURL: "https://prestocks.com"},
 		Market:    config.Market{PricePollInterval: 2 * time.Minute},
 		Identity:  config.Identity{NudgesInterval: 24 * time.Hour, PhotoPurgesInterval: time.Minute},
-		Ranking:   config.Ranking{CallsResolverInterval: time.Minute},
+		Ranking:   config.Ranking{CallsResolverInterval: time.Minute, LedgerPollInterval: 15 * time.Minute},
 		Notify:    config.Notify{VoteRemindersInterval: time.Minute},
 		Funding: config.Funding{
 			DepositPollInterval: 30 * time.Second, DepositRPCRate: 20, DepositTickBudget: 480,
@@ -232,6 +232,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"IDENTITY_NUDGES_INTERVAL=2s",
 		"IDENTITY_PHOTO_PURGES_INTERVAL=3s",
 		"RANKING_CALLS_RESOLVER_INTERVAL=6s",
+		"RANKING_LEDGER_POLL_INTERVAL=8s",
 		"NOTIFY_VOTE_REMINDERS_INTERVAL=7s",
 		"FUNDING_DEPOSIT_POLL_INTERVAL=2s",
 		"FUNDING_DEPOSIT_RPC_RATE=12",
@@ -346,7 +347,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		PreStocks: config.PreStocks{BaseURL: "http://fakes/prestocks"},
 		Market:    config.Market{PricePollInterval: time.Second},
 		Identity:  config.Identity{NudgesInterval: 2 * time.Second, PhotoPurgesInterval: 3 * time.Second},
-		Ranking:   config.Ranking{CallsResolverInterval: 6 * time.Second},
+		Ranking:   config.Ranking{CallsResolverInterval: 6 * time.Second, LedgerPollInterval: 8 * time.Second},
 		Notify:    config.Notify{VoteRemindersInterval: 7 * time.Second},
 		Funding: config.Funding{
 			DepositPollInterval: 2 * time.Second, DepositRPCRate: 12, DepositTickBudget: 90,
@@ -696,6 +697,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"IDENTITY_NUDGES_INTERVAL", "24h0m0s"},
 		{"IDENTITY_PHOTO_PURGES_INTERVAL", "1m0s"},
 		{"RANKING_CALLS_RESOLVER_INTERVAL", "1m0s"},
+		{"RANKING_LEDGER_POLL_INTERVAL", "15m0s"},
 		{"NOTIFY_VOTE_REMINDERS_INTERVAL", "1m0s"},
 		{"FUNDING_DEPOSIT_POLL_INTERVAL", "30s"},
 		{"FUNDING_DEPOSIT_RPC_RATE", "20"},

@@ -98,6 +98,7 @@ type Notify struct {
 
 type Ranking struct {
 	CallsResolverInterval time.Duration
+	LedgerPollInterval    time.Duration
 }
 
 type Auth struct {
@@ -460,6 +461,11 @@ func pollerFields() []field {
 			"RANKING_CALLS_RESOLVER_INTERVAL",
 			time.Minute,
 			func(c *Config) *time.Duration { return &c.Ranking.CallsResolverInterval },
+		),
+		duration(
+			"RANKING_LEDGER_POLL_INTERVAL",
+			15*time.Minute,
+			func(c *Config) *time.Duration { return &c.Ranking.LedgerPollInterval },
 		),
 	}
 }

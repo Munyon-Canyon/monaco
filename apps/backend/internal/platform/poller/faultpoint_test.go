@@ -79,7 +79,8 @@ func TestFlow_associatesOnlyFlowPollers(t *testing.T) {
 	for name, want := range map[string]string{
 		"funding.deposit_watch": "05", "funding.withdrawals": "15", "market.prices": "18", "identity.nudges": "28", "ranking.valuation": "19", "market.catalog": "",
 		"funding.treasury-reconcile": "08", "funding.bounce-sweeper": "08", "ranking.calls_resolver": "19a",
-		"ranking.call_board": "19b", "notify.vote_reminders": "33",
+		"ranking.call_board": "19b", "notify.vote_reminders": "33", "ranking.weekly_ledger": "37",
+		"governance.close_reminders": "10b",
 	} {
 		if got := flow(name); got != want {
 			t.Errorf("flow(%q) = %q, want %q", name, got, want)
