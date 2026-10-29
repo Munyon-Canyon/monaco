@@ -15,7 +15,8 @@ extension Components.Schemas.Proposal {
 extension Components.Schemas.ProposalDetail {
     public static func sample(
         status: Components.Schemas.ProposalStatus = .open, kind: Components.Schemas.ProposalKind = .buy,
-        myBallot: Components.Schemas.BallotChoice? = nil, canVote: Bool = false, swap: SwapPayload? = nil
+        myBallot: Components.Schemas.BallotChoice? = nil, canVote: Bool = false, swap: SwapPayload? = nil,
+        passedPriceMicros: Int64? = nil
     ) -> Self {
         let members = Components.Schemas.Cabal.sampleWithMembers(role: "member").members
         let isOpen = status == .open
@@ -38,6 +39,8 @@ extension Components.Schemas.ProposalDetail {
                 treasuryShareBps: 250, closesAt: .now.addingTimeInterval(isOpen ? 43_200 : -3_600),
                 closedAt: isOpen ? nil : .now.addingTimeInterval(-3_600)),
             replyCount: 6, proposerId: members[1].userId,
+            proposer: .init(id: members[1].userId, displayName: members[1].displayName, photoUrl: nil),
+            passedPriceMicros: passedPriceMicros,
             proposerReturn1mBps: 820, proposerReturnPrivate: false, kind: kind,
             symbol: "GOOGLx", usdcMicros: isSell ? nil : 25_000_000,
             tokenAmount: isSell ? 150_000_000 : nil,
@@ -50,6 +53,23 @@ extension Components.Schemas.ProposalDetail {
                 needed: isOpen ? 3 : 2),
             myBallot: myBallot.flatMap { MyBallotPayload(rawValue: $0.rawValue) }, voters: voters,
             canVote: canVote, canWithdraw: false, swap: swap)
+    }
+
+    public static var degensPassedBuy: Self {
+        var detail = sample(
+            status: .passed, myBallot: .yes,
+            swap: .init(
+                swapId: "swap-1", status: .confirmed, failureCode: nil, failureMessage: nil, txSignature: "sig-1",
+                retryable: false, usdcMicros: 300_938_400, tokenAmount: 42_000_000, tokenDecimals: 8,
+                priceMicros: 716_520_000, feeMicros: nil, filledAt: .now.addingTimeInterval(-3_600)),
+            passedPriceMicros: 709_800_000)
+        detail.cabalName = "Degens"
+        detail.symbol = "META"
+        detail.usdcMicros = 300_000_000
+        detail.tally = .init(yes: 4, no: 1, voters: 6, needed: 4)
+        detail.proposer = .init(
+            id: detail.proposerId, displayName: "Christelle", photoUrl: "https://example.com/christelle.png")
+        return detail
     }
 
     public static func failedSwap(

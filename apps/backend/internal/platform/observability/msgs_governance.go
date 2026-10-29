@@ -15,3 +15,7 @@ var GovernanceProposalComparisonUnlisted = Msg{
 var GovernanceStatsOverflow = Msg{
 	Name: "governance.stats_overflow", Required: []string{"proposal_id", "stat"},
 }
+
+var GovernancePassedPriceUnavailable = Msg{
+	Name: "governance.passed_price.unavailable", Required: []string{"proposal_id", "code"},
+}

@@ -81,7 +81,9 @@ func (m *Module) Mount(r api.Mount) {
 		Comparisons: app.NewProposalComparisons(
 			m.deps.Pool, propose, adapters.PinListings{Market: market.New(m.deps).Catalog()},
 		),
-		Vote:        app.NewCastVoteHandler(m.deps.UoW, ports.Cabals, m.deps.Clock, hints),
+		Vote: app.NewCastVoteHandler(m.deps.UoW, ports.Cabals, m.deps.Clock, hints).Priced(
+			market.New(m.deps).Catalog(), market.New(m.deps).Prices(),
+		),
 		RetractVote: app.NewRetractVoteHandler(m.deps.UoW, m.deps.Clock, hints),
 		Withdraw:    app.NewWithdrawProposalHandler(m.deps.UoW, m.deps.Clock, hints),
 		Void: app.NewVoidProposalHandler(

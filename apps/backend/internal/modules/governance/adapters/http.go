@@ -197,7 +197,11 @@ func (h HTTP) PostCabalProposal(
 	if err != nil {
 		return nil, err
 	}
-	return api.PostCabalProposal201JSONResponse(wireOpenedProposal(opened, name)), nil
+	proposer, err := h.Reads.ProposerCard(ctx, user)
+	if err != nil {
+		return nil, err
+	}
+	return api.PostCabalProposal201JSONResponse(wireOpenedProposal(opened, name, proposer)), nil
 }
 
 func (h HTTP) GetCabalProposalPreview(
@@ -302,8 +306,10 @@ func (h HTTP) detail(ctx context.Context, id ids.ProposalID, user ids.UserID) (a
 		ExpiresAt: p.ExpiresAt, CreatedAt: p.CreatedAt, Tally: p.Tally, MyBallot: p.MyBallot,
 		Voters: make([]api.ProposalVoter, len(got.Voters)), CanVote: got.CanVote, CanWithdraw: got.CanWithdraw,
 		PriceComparison: p.PriceComparison, Network: p.Network,
+		Proposer:            wireProposer(got.Proposer),
 		ProposerReturn1mBps: got.ProposerReturnBps, ProposerReturnPrivate: got.ProposerReturnPrivate,
-		Stats: wireStats(got.Stats), ReplyCount: got.ReplyCount,
+		PassedPriceMicros: got.PassedPriceMicros,
+		Stats:             wireStats(got.Stats), ReplyCount: got.ReplyCount,
 	}
 	if m := got.MyVote; m != nil {
 		mine := api.ProposalMyVote(wireMyVote(*m))
@@ -427,7 +433,11 @@ func wireTally(t app.Tally) api.Tally {
 	return api.Tally{Yes: t.Yes, No: t.No, Voters: t.Voters, Needed: t.Needed}
 }
 
-func wireOpenedProposal(opened app.OpenedProposal, cabalName string) api.ProposalDetail {
+func wireProposer(p app.ProposerCard) api.ProposalProposer {
+	return api.ProposalProposer{Id: p.ID.UUID(), DisplayName: p.DisplayName, PhotoUrl: present(p.PhotoURL)}
+}
+
+func wireOpenedProposal(opened app.OpenedProposal, cabalName string, proposer app.ProposerCard) api.ProposalDetail {
 	d := opened.Draft
 	p := api.Proposal{
 		Id:             d.ID.UUID(),
@@ -454,7 +464,7 @@ func wireOpenedProposal(opened app.OpenedProposal, cabalName string) api.Proposa
 		Symbol: p.Symbol, UsdcMicros: p.UsdcMicros, TokenAmount: p.TokenAmount, QuoteOutAmount: p.QuoteOutAmount,
 		Thesis: p.Thesis, Status: p.Status, StatusReason: p.StatusReason, StatusMessage: p.StatusMessage,
 		ExpiresAt: p.ExpiresAt, CreatedAt: p.CreatedAt, Tally: p.Tally, MyBallot: p.MyBallot, Voters: voters,
-		CanVote: opened.ProposerCanVote, CanWithdraw: true,
+		Proposer: wireProposer(proposer), CanVote: opened.ProposerCanVote, CanWithdraw: true,
 		PriceComparison: wireComparison(opened.PriceComparison), Network: wireNetwork(d.Network),
 		Stats: wireStats(app.QuotedStats(opened.Stats, d)),
 	}

@@ -37,7 +37,7 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
         let transport = StubTransport(
             .json(
                 .ok,
-                #"{"proposals":[{"id":"p","cabal_id":"c","cabal_name":"Cabal","proposer_id":"u","proposer_return_1m_bps":null,"proposer_return_private":false,"kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"open","status_reason":null,"status_message":null,"expires_at":"2026-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":null,"can_vote":false}],"next_cursor":"next"}"#
+                #"{"proposals":[{"id":"p","cabal_id":"c","cabal_name":"Cabal","proposer_id":"u","proposer_return_1m_bps":null,"proposer":{"id":"u","display_name":"Mia","photo_url":null},"passed_price_micros":null,"proposer_return_private":false,"kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"open","status_reason":null,"status_message":null,"expires_at":"2026-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":null,"can_vote":false}],"next_cursor":"next"}"#
             ))
         let result = try await repository(transport).list(cabalID: "c", filter: .open, cursor: nil)
         XCTAssertEqual(result.items.map(\.id), ["p"])
@@ -61,7 +61,7 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
 
     func testDetailMapsPermissionsAndVoters() async throws {
         let body =
-            #"{"id":"p","cabal_id":"c","cabal_name":"Cabal","proposer_id":"u","proposer_return_1m_bps":null,"proposer_return_private":false,"kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"open","status_reason":null,"status_message":null,"expires_at":"2026-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":null,"voters":[{"user_id":"u","choice":null,"cast_at":null}],"can_vote":true,"stats":{"treasury_share_bps":null,"closes_at":"2026-10-04T15:00:00Z","closed_at":null},"my_vote":null,"reply_count":0,"can_withdraw":false,"swap":null}"#
+            #"{"id":"p","cabal_id":"c","cabal_name":"Cabal","proposer_id":"u","proposer_return_1m_bps":null,"proposer":{"id":"u","display_name":"Mia","photo_url":null},"passed_price_micros":null,"proposer_return_private":false,"kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"open","status_reason":null,"status_message":null,"expires_at":"2026-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":null,"voters":[{"user_id":"u","choice":null,"cast_at":null}],"can_vote":true,"stats":{"treasury_share_bps":null,"closes_at":"2026-10-04T15:00:00Z","closed_at":null},"my_vote":null,"reply_count":0,"can_withdraw":false,"swap":null}"#
         let detail = try await repository(StubTransport(.json(.ok, body))).detail(id: "p")
         XCTAssertEqual(detail.id, "p")
         XCTAssertEqual(detail.voters.map(\.id), ["u"])
@@ -95,7 +95,7 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
     @MainActor
     func testListModelLoadsTheFirstPage() async throws {
         let body =
-            #"{"proposals":[{"id":"p","cabal_id":"c","cabal_name":"Cabal","proposer_id":"u","proposer_return_1m_bps":null,"proposer_return_private":false,"kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"open","status_reason":null,"status_message":null,"expires_at":"2026-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":null,"can_vote":false}],"next_cursor":null}"#
+            #"{"proposals":[{"id":"p","cabal_id":"c","cabal_name":"Cabal","proposer_id":"u","proposer_return_1m_bps":null,"proposer":{"id":"u","display_name":"Mia","photo_url":null},"passed_price_micros":null,"proposer_return_private":false,"kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"open","status_reason":null,"status_message":null,"expires_at":"2026-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":null,"can_vote":false}],"next_cursor":null}"#
         let model = ProposalListModel(
             cabalID: "c", filter: .open, repository: repository(StubTransport(.json(.ok, body))),
             hints: FakeHintStream())
@@ -250,7 +250,7 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
     }
 
     private var listBody: String {
-        #"{"proposals":[{"id":"p","cabal_id":"c","cabal_name":"Cabal","proposer_id":"u","proposer_return_1m_bps":null,"proposer_return_private":false,"kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"open","status_reason":null,"status_message":null,"expires_at":"2026-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":null,"can_vote":false}],"next_cursor":null}"#
+        #"{"proposals":[{"id":"p","cabal_id":"c","cabal_name":"Cabal","proposer_id":"u","proposer_return_1m_bps":null,"proposer":{"id":"u","display_name":"Mia","photo_url":null},"passed_price_micros":null,"proposer_return_private":false,"kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"open","status_reason":null,"status_message":null,"expires_at":"2026-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":null,"can_vote":false}],"next_cursor":null}"#
     }
 
     private var cabalBody: String {
@@ -262,7 +262,7 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
     }
 
     private var detailBody: String {
-        #"{"id":"p","cabal_id":"c","cabal_name":"Cabal","proposer_id":"u","proposer_return_1m_bps":null,"proposer_return_private":false,"kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"open","status_reason":null,"status_message":null,"expires_at":"2026-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":null,"voters":[{"user_id":"u","choice":null,"cast_at":null}],"can_vote":true,"stats":{"treasury_share_bps":null,"closes_at":"2026-10-04T15:00:00Z","closed_at":null},"my_vote":null,"reply_count":0,"can_withdraw":false,"swap":null}"#
+        #"{"id":"p","cabal_id":"c","cabal_name":"Cabal","proposer_id":"u","proposer_return_1m_bps":null,"proposer":{"id":"u","display_name":"Mia","photo_url":null},"passed_price_micros":null,"proposer_return_private":false,"kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"open","status_reason":null,"status_message":null,"expires_at":"2026-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":null,"voters":[{"user_id":"u","choice":null,"cast_at":null}],"can_vote":true,"stats":{"treasury_share_bps":null,"closes_at":"2026-10-04T15:00:00Z","closed_at":null},"my_vote":null,"reply_count":0,"can_withdraw":false,"swap":null}"#
     }
 
     private func loadReplies(_ detail: String) -> [StubTransport.Reply] {

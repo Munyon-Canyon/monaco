@@ -8,5 +8,6 @@ func init() {
 		GovernanceProposalComparisonRefreshed,
 		GovernanceProposalComparisonUnlisted,
 		GovernanceStatsOverflow,
+		GovernancePassedPriceUnavailable,
 	)
 }

@@ -74,3 +74,23 @@ func openedProposal(created api.PostCabalProposal201JSONResponse, voters int) bo
 	return created.CabalName == "Friends pot" && created.Status == api.ProposalStatusOpen &&
 		created.Tally.Voters == voters && created.CanVote && created.CanWithdraw && len(created.Voters) == voters
 }
+
+func TestHTTP_PostCabalProposal_failsWhenTheProposerCardCannotBeRead(t *testing.T) {
+	t.Parallel()
+	h := newProposeHarness(t)
+	member := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: h.w.members[0].String()})
+	usdc := int64(5_000_000)
+	adapter := adapters.HTTP{
+		Propose: h.handler(h.d.ids),
+		Reads: app.NewProposalReads(
+			h.d.pool, fakes.NewTrading(), h.w.cabals.current.Load(),
+			marketfake.NewCatalog(marketfake.Fixtures()...),
+			&cardBook{err: errs.New(errs.CodeInternal, "test")}, &returnBook{}, &replyBook{},
+		),
+	}
+	body := api.ProposeTradeRequest{Kind: "buy", Symbol: "AAPLx", UsdcMicros: &usdc}
+	_, err := adapter.PostCabalProposal(member, api.PostCabalProposalRequestObject{Id: h.w.cabal.UUID(), Body: &body})
+	if errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("PostCabalProposal err = %v, want %s", err, errs.CodeInternal)
+	}
+}

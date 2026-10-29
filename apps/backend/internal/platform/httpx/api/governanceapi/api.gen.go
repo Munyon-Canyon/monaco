@@ -739,10 +739,18 @@ type ProposalDetail struct {
 	// Examples: base
 	Network *externalRef0.Network `json:"network,omitempty"`
 
+	// PassedPriceMicros The asset's last stored price when the vote passed; null before it passed, for a proposal that passed before this field existed, or when no price was stored.
+	//
+	// Examples: 709800000
+	PassedPriceMicros *int64 `json:"passed_price_micros"`
+
 	// PriceComparison Every venue checked for the trade, best first. Absent for a sell and until routing fills it.
 	//
 	// Examples: {"quotes":[{"costs":[],"expires_at":"2026-10-10T12:00:30Z","issuer":"xstocks","listing_id":"01928a6e-0000-7000-8000-000000000001","net_micros":"10000000","net_share_nanos":"40000000","network":"solana","quoted_at":"2026-10-10T12:00:00Z","venue":"jupiter"}],"unavailable":[],"winner_listing_id":"01928a6e-0000-7000-8000-000000000001"}
 	PriceComparison *externalRef0.PriceComparison `json:"price_comparison,omitempty"`
+
+	// Proposer The member who proposed it, as the share card shows them.
+	Proposer ProposalProposer `json:"proposer"`
 
 	// ProposerId The member who proposed it.
 	//
@@ -955,6 +963,22 @@ type ProposalPriceComparison struct {
 	//
 	// Examples: 2026-10-10T12:00:00Z
 	QuotedAt time.Time `json:"quoted_at"`
+}
+
+// ProposalProposer The member who proposed it, as the share card shows them.
+type ProposalProposer struct {
+	// DisplayName Empty when the user has none or deleted the account.
+	//
+	// Examples: Mia
+	DisplayName string `json:"display_name"`
+
+	// Id Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+	Id openapi_types.UUID `json:"id"`
+
+	// PhotoUrl Null when the user has none.
+	//
+	// Examples: null
+	PhotoUrl *string `json:"photo_url"`
 }
 
 // ProposalStats Facts about a proposal. `treasury_share_bps`, `closes_at` and `closed_at` are recorded when the proposal opens or closes. `price_micros` and `since_bps` are live, read at request time from the price book, and `shares_atomics` is an estimate until the trade fills.
