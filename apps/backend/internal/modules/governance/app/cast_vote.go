@@ -81,6 +81,9 @@ func (h *CastVoteHandler) candidatePrice(ctx context.Context, proposal ids.Propo
 		return candidate{}
 	}
 	raw, err := sqlc.New(h.uow.Reads()).ProposalMint(ctx, proposal.UUID())
+	if errors.Is(err, sql.ErrNoRows) {
+		return candidate{}
+	}
 	if err != nil {
 		return priceUnavailable(ctx, proposal, errs.Wrap(err, errs.CodeInternal, op))
 	}

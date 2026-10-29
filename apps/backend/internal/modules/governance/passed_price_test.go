@@ -177,7 +177,7 @@ func TestCastVote_anUnreadableMintStoresNullLogsOnceAndTheVotePasses(t *testing.
 	}
 }
 
-func TestCastVote_aMissingProposalLogsOnceAndStillAnswersNotFound(t *testing.T) {
+func TestCastVote_aMissingProposalAnswersNotFoundAndLogsNoDegradedPrice(t *testing.T) {
 	t.Parallel()
 	d := newPricedVote(t)
 	ctx, buf := loggedCtx(t)
@@ -185,8 +185,8 @@ func TestCastVote_aMissingProposalLogsOnceAndStillAnswersNotFound(t *testing.T) 
 	if errs.CodeOf(err) != errs.CodeProposalNotFound {
 		t.Fatalf("CastVote err = %v, want proposal_not_found", err)
 	}
-	if w := warnings(buf); len(w) != 1 {
-		t.Fatalf("warnings = %v, want one", w)
+	if w := warnings(buf); len(w) != 0 {
+		t.Fatalf("warnings = %v, want none", w)
 	}
 }
 
