@@ -157,11 +157,12 @@ extension View {
         title: String,
         titleIdentifier: String? = nil,
         detents: MonacoSheetDetents = .fitted,
-        showsClose: Bool = false
+        showsClose: Bool = false,
+        closeIdentifier: String? = nil
     ) -> some View {
         MonacoSheetFrame(
             title: title, titleIdentifier: titleIdentifier, kind: detents, showsClose: showsClose,
-            closeIdentifier: nil, scrolls: true, content: self)
+            closeIdentifier: closeIdentifier, scrolls: true, content: self)
     }
 
     @ViewBuilder

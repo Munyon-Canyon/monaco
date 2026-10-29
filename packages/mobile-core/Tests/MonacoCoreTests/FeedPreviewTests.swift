@@ -91,7 +91,7 @@ final class FeedItemDetailPreviewTests: XCTestCase {
     func testTheFailedHarnessRefusesAPost() async {
         let model = FeedItemDetailModel.preview(.failed, clock: TestClock())
         await model.load()
-        let posted = await model.comments.post("Count me in.")
+        let posted = await model.comments.post(CommentDraft(text: "Count me in."))
         XCTAssertFalse(posted)
     }
 }

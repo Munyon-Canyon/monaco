@@ -308,9 +308,9 @@ private struct FeedPostHarnessScreen: View {
         try? await Task.sleep(for: .milliseconds(500))
         switch mode {
         case .replying:
-            if let row = model.comments.rows.first { model.comments.beginReply(to: row) }
+            if let row = model.comments.rows.first { model.comments.presentReplySheet(.comment(row)) }
         case .sending, .failed:
-            _ = await model.comments.post("Count me in if we cap it at $25.")
+            _ = await model.comments.post(CommentDraft(text: "Count me in if we cap it at $25."))
         case .ready, .empty, .unavailable:
             break
         }

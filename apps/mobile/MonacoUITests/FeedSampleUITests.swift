@@ -90,9 +90,9 @@ nonisolated final class FeedSampleUITests: XCTestCase {
         let reply = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'comment-reply-'")).firstMatch
         XCTAssertTrue(reply.waitForExistence(timeout: 10), "no Reply")
         reply.tap()
-        XCTAssertTrue(app.staticTexts["Replying to Mia"].waitForExistence(timeout: 5), "no reply target")
-        app.buttons["comment-composer-cancel-reply"].tap()
-        XCTAssertTrue(app.staticTexts["Replying to Mia"].waitForNonExistence(timeout: 5), "cancel kept the target")
+        XCTAssertTrue(app.staticTexts["Reply to Mia"].waitForExistence(timeout: 5), "no reply sheet")
+        app.buttons["reply-sheet-close"].tap()
+        XCTAssertTrue(app.staticTexts["Reply to Mia"].waitForNonExistence(timeout: 5), "close kept the sheet")
     }
 
     @MainActor

@@ -1,11 +1,30 @@
 import MonacoCore
 import SwiftUI
 
-struct CommentComposerBar: View {
-    let model: CommentsModel
+struct CommentComposerBar<Restricted: View>: View {
+    @Bindable var model: CommentsModel
+    var replyOwner: String?
+    var onPlus: (() -> Void)?
+    var onGif: (() -> Void)?
     var onDidStandDown: () -> Void = {}
+    @ViewBuilder var restricted: () -> Restricted
 
     var body: some View {
+        VStack(spacing: 0) {
+            if model.replySheet == nil { bar }
+        }
+        .sheet(item: sheetBinding) { target in
+            ReplySheet(model: model, target: target, owner: replyOwner, onGif: onGif)
+        }
+    }
+
+    private var sheetBinding: Binding<ReplyTarget?> {
+        Binding(
+            get: { model.replySheet },
+            set: { if $0 == nil { model.dismissReplySheet() } })
+    }
+
+    @ViewBuilder private var bar: some View {
         if model.canCommentFailed {
             MonacoErrorRow(thing: "the comment box", identifier: "comment-composer-error") {
                 Task { await model.retryCanComment() }
@@ -15,61 +34,44 @@ struct CommentComposerBar: View {
         } else if !model.canCommentKnown {
             EmptyView()
         } else if model.canComment {
-            CommentComposer(
-                replyTarget: model.replyTarget,
-                isPosting: model.isPosting,
-                lastPostedID: model.lastPostedID,
-                onCancelReply: { model.cancelReply() },
-                onPost: { await model.post($0) },
-                onDidStandDown: onDidStandDown
-            )
+            DockedComposer(model: model, onPlus: onPlus, onGif: onGif, onDidStandDown: onDidStandDown)
         } else {
-            MonacoNotice(.info, message: CommentsCopy.membersOnly)
-                .padding(.horizontal, MonacoTheme.Space.gutter)
-                .padding(.vertical, MonacoTheme.Space.s)
-                .frame(maxWidth: .infinity)
-                .background(MonacoTheme.canvas.ignoresSafeArea(edges: .bottom))
-                .overlay(alignment: .top) { MonacoRule() }
-                .accessibilityIdentifier("comment-members-only")
+            restricted()
         }
     }
 }
 
-struct CommentComposer: View {
-    let replyTarget: CommentThreadRow?
-    let isPosting: Bool
-    let lastPostedID: String?
-    let onCancelReply: () -> Void
-    let onPost: (String) async -> Bool
-    var onDidStandDown: () -> Void = {}
+extension CommentComposerBar where Restricted == EmptyView {
+    init(
+        model: CommentsModel, replyOwner: String? = nil, onPlus: (() -> Void)? = nil, onGif: (() -> Void)? = nil,
+        onDidStandDown: @escaping () -> Void = {}
+    ) {
+        self.init(
+            model: model, replyOwner: replyOwner, onPlus: onPlus, onGif: onGif, onDidStandDown: onDidStandDown,
+            restricted: { EmptyView() })
+    }
+}
 
-    @State private var text = ""
-    @State private var postFailed = false
-    @State private var lastPostedBeforeSend: String?
+private struct DockedComposer: View {
+    @Bindable var model: CommentsModel
+    let onPlus: (() -> Void)?
+    let onGif: (() -> Void)?
+    let onDidStandDown: () -> Void
+
     @FocusState private var focused: Bool
-
-    private var draft: CommentDraft {
-        CommentDraft(text: text)
-    }
-
-    private var canPost: Bool {
-        draft.body != nil && !isPosting
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            notice
-            if let replyTarget { replyRow(replyTarget) }
+            ComposerNotices(model: model)
             HStack(alignment: .bottom, spacing: MonacoTheme.Space.s) {
-                field
-                sendButton
+                if let onPlus { plusButton(onPlus) }
+                ComposerField(model: model, focused: $focused, onGif: onGif)
+                ComposerSendButton(model: model) {
+                    focused = false
+                    onDidStandDown()
+                }
             }
-            if case .tooLong = draft {
-                Text(CommentsCopy.tooLong)
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.loss)
-                    .accessibilityIdentifier("comment-composer-too-long")
-            }
+            ComposerTooLong(draft: CommentDraft(text: model.draft))
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.vertical, MonacoTheme.Space.s)
@@ -77,86 +79,131 @@ struct CommentComposer: View {
         .overlay(alignment: .top) {
             MonacoRule()
         }
-        .onChange(of: replyTarget?.id) { _, newValue in
-            if newValue != nil { focused = true }
-        }
-        .onChange(of: isPosting) { wasPosting, nowPosting in
-            if nowPosting {
-                lastPostedBeforeSend = lastPostedID
-                postFailed = false
-            } else if wasPosting {
-                postFailed = lastPostedID == lastPostedBeforeSend
-            }
-        }
-        .onChange(of: text) { _, _ in postFailed = false }
+        .onChange(of: model.isDockedFocused) { _, wanted in focused = wanted }
+        .onChange(of: focused) { _, isFocused in model.isDockedFocused = isFocused }
+        .onAppear { focused = model.isDockedFocused }
     }
 
-    @ViewBuilder private var notice: some View {
-        if isPosting {
+    private func plusButton(_ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(monaco: .plusCircle)
+                .font(MonacoTheme.Typo.section)
+                .foregroundStyle(MonacoTheme.brand)
+                .frame(width: CommentRowMetrics.replyTarget, height: CommentRowMetrics.replyTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(CommentsCopy.plusAccessibility)
+        .accessibilityIdentifier("comment-composer-plus")
+    }
+}
+
+struct ComposerNotices: View {
+    let model: CommentsModel
+
+    var body: some View {
+        if model.isPosting {
             MonacoNotice(.info, message: CommentsCopy.sending)
                 .accessibilityIdentifier("comment-composer-sending")
-        } else if postFailed {
+        } else if model.sendFailed {
             MonacoNotice(.error, message: CommentsCopy.sendFailed)
                 .accessibilityIdentifier("comment-composer-failed")
         }
     }
+}
 
-    private func replyRow(_ target: CommentThreadRow) -> some View {
-        HStack {
-            Text(CommentsCopy.replyingTo(target.authorName))
+struct ComposerTooLong: View {
+    let draft: CommentDraft
+
+    var body: some View {
+        if case .tooLong = draft {
+            Text(CommentsCopy.tooLong)
                 .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.secondaryText)
-            Spacer()
-            Button {
-                onCancelReply()
-            } label: {
-                Image(monaco: .close)
-                    .font(MonacoTheme.Typo.captionStrong)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                    .frame(width: CommentRowMetrics.replyTarget, height: CommentRowMetrics.replyTarget)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .padding(.trailing, -MonacoTheme.Space.sm)
-            .accessibilityLabel("Cancel reply")
-            .accessibilityIdentifier("comment-composer-cancel-reply")
+                .foregroundStyle(MonacoTheme.loss)
+                .accessibilityIdentifier("comment-composer-too-long")
         }
     }
+}
 
-    private var field: some View {
-        let shape = RoundedRectangle(cornerRadius: MonacoTheme.Radius.cardTight, style: .continuous)
-        return TextField(
-            "",
-            text: $text,
-            prompt: Text(CommentsCopy.placeholder).foregroundStyle(MonacoTheme.secondaryText),
-            axis: .vertical
-        )
-        .font(MonacoTheme.Typo.body)
-        .foregroundStyle(MonacoTheme.primaryText)
-        .tint(MonacoTheme.primaryText)
-        .lineLimit(1...5)
-        .focused($focused)
-        .padding(.horizontal, MonacoTheme.Space.m)
-        .padding(.vertical, MonacoTheme.Space.sm)
+struct ComposerField: View {
+    let model: CommentsModel
+    var focused: FocusState<Bool>.Binding
+    var onGif: (() -> Void)?
+
+    private var text: Binding<String> {
+        Binding(get: { model.draft }, set: { model.edit($0) })
+    }
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: CommentRowMetrics.replyTarget / 2, style: .continuous)
+        HStack(alignment: .bottom, spacing: 0) {
+            TextField(
+                "",
+                text: text,
+                prompt: Text(CommentsCopy.placeholder).foregroundStyle(MonacoTheme.secondaryText),
+                axis: .vertical
+            )
+            .font(MonacoTheme.Typo.body)
+            .foregroundStyle(MonacoTheme.primaryText)
+            .tint(MonacoTheme.primaryText)
+            .lineLimit(1...5)
+            .focused(focused)
+            .padding(.leading, MonacoTheme.Space.m)
+            .padding(.vertical, MonacoTheme.Space.sm)
+            .accessibilityIdentifier("comment-composer-field")
+            .monacoPrivate()
+            if let onGif { ComposerGifButton(action: onGif) }
+        }
+        .padding(.trailing, onGif == nil ? MonacoTheme.Space.m : MonacoTheme.Space.sm)
         .frame(minHeight: CommentRowMetrics.replyTarget)
         .background(shape.fill(MonacoTheme.surfaceSunken))
         .overlay(shape.strokeBorder(MonacoTheme.border, lineWidth: 1))
-        .accessibilityIdentifier("comment-composer-field")
-        .monacoPrivate()
+    }
+}
+
+private struct ComposerGifButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(CommentsCopy.gifTitle)
+                .font(MonacoTheme.Typo.captionStrong)
+                .foregroundStyle(MonacoTheme.secondaryText)
+                .padding(.horizontal, MonacoTheme.Space.s)
+                .padding(.vertical, MonacoTheme.Space.xs)
+                .overlay(
+                    RoundedRectangle(cornerRadius: MonacoTheme.Radius.pill, style: .continuous)
+                        .strokeBorder(MonacoTheme.secondaryText, lineWidth: 1)
+                )
+                .frame(minWidth: CommentRowMetrics.replyTarget, minHeight: CommentRowMetrics.replyTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(CommentsCopy.gifAccessibility)
+        .accessibilityIdentifier("comment-composer-gif")
+    }
+}
+
+struct ComposerSendButton: View {
+    let model: CommentsModel
+    var onSent: () -> Void = {}
+
+    private var draft: CommentDraft {
+        CommentDraft(text: model.draft)
     }
 
-    private var sendButton: some View {
+    private var canPost: Bool {
+        draft.body != nil && !model.isPosting
+    }
+
+    var body: some View {
         Button {
-            guard let body = draft.body else { return }
             Task {
-                guard await onPost(body) else { return }
-                text = CommentDraft.field(text, afterPosting: body)
-                guard text.isEmpty else { return }
-                focused = false
-                onDidStandDown()
+                guard await model.post(draft), model.draft.isEmpty else { return }
+                onSent()
             }
         } label: {
-            ComposerSendDisc(isLive: canPost || isPosting, isSending: isPosting)
+            ComposerSendDisc(isLive: canPost || model.isPosting, isSending: model.isPosting)
         }
         .buttonStyle(.plain)
         .disabled(!canPost)
