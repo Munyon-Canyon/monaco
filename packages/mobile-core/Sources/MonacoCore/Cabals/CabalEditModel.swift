@@ -49,7 +49,13 @@ public final class CabalEditModel {
 
     public func patch(for edited: CabalSettings) -> Components.Schemas.UpdateCabalRequest? {
         guard let cabal else { return nil }
-        return CabalRulesDiff.patch(from: CabalSettings(cabal), to: edited, creatorID: cabal.creator.userId)
+        var body = CabalRulesDiff.patch(from: CabalSettings(cabal), to: edited, creatorID: cabal.creator.userId)
+        body.joinMode = nil
+        body.threshold = nil
+        body.proposalExpirySeconds = nil
+        body.voterMode = nil
+        body.voterIds = nil
+        return body
     }
 
     public func load() async {
@@ -103,12 +109,7 @@ public final class CabalEditModel {
             state = .loaded(saved)
             return .saved
         } catch {
-            let error = APIError(error)
-            if body.voterIds != nil, case .problem(let problem) = error, problem.code == .known(.invalidInput) {
-                await load()
-                return .failed("Someone you picked isn't in the cabal anymore.")
-            }
-            return .failed(ToastCopy.message(for: error))
+            return .failed(ToastCopy.message(for: APIError(error)))
         }
     }
 }
@@ -157,16 +158,6 @@ private actor CabalPreviewTransport: ClientTransport {
 
     private func apply(_ change: Components.Schemas.UpdateCabalRequest) {
         if let name = change.name { cabal.name = name }
-        if let joinMode = change.joinMode { cabal.rules.joinMode = joinMode }
-        if let voterMode = change.voterMode {
-            cabal.rules.voterMode = voterMode
-            let voters = Set(change.voterIds ?? [])
-            for index in cabal.members.indices {
-                cabal.members[index].canVote = voterMode != "list" || voters.contains(cabal.members[index].userId)
-            }
-        }
-        if let threshold = change.threshold { cabal.rules.threshold = threshold }
-        if let expiry = change.proposalExpirySeconds { cabal.rules.proposalExpirySeconds = expiry }
     }
 }
 

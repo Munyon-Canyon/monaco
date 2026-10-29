@@ -54,7 +54,7 @@ struct CabalScreenOrderTests {
             Self.names(CabalTabs.sections(for: .treasury)) == [
                 "CabalHoldingsSlot", "CabalValueChartSlot", "CabalActivitySlot",
             ])
-        #expect(Self.names(CabalTabs.sections(for: .rules)) == ["CabalRulesRowSlot"])
+        #expect(Self.names(CabalTabs.sections(for: .rules)) == ["CabalRulesSlot"])
         #expect(Self.names(CabalTabs.sections(for: .members)) == ["CabalMemberBoardSlot"])
         #expect(Self.names(CabalTabs.sections(for: .voters)) == ["CabalVoterBoardSlot"])
     }

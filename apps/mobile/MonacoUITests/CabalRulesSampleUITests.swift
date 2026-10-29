@@ -1,10 +1,10 @@
 import XCTest
 
 nonisolated final class CabalRulesSampleUITests: XCTestCase {
-    private static let creatorID = "01890a5d-ac96-774b-bcce-b302099a8058"
-    private static let jordanID = "01890a5d-ac96-774b-bcce-b302099a8061"
     private static let rows = [
-        "cabal-rules-join", "cabal-rules-voters", "cabal-rules-expiry", "cabal-rules-threshold",
+        ("votesToPass", "5 of 8"), ("voteWindow", "24 h"), ("maxPerTrade", "20% of cash"),
+        ("whoCanPropose", "Voters"), ("cashOut", "Anytime, your share"),
+        ("showSides", "After a vote closes"),
     ]
 
     nonisolated override func setUpWithError() throws {
@@ -12,9 +12,9 @@ nonisolated final class CabalRulesSampleUITests: XCTestCase {
     }
 
     @MainActor
-    private func launch(role: String) -> XCUIApplication {
+    private func launch(_ scenario: String, extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-cabalRulesHarness", role]
+        app.launchArguments = ["-MonacoGroupDetailSample", scenario] + extra
         app.launch()
         return app
     }
@@ -25,79 +25,36 @@ nonisolated final class CabalRulesSampleUITests: XCTestCase {
     }
 
     @MainActor
-    private func screenshot(_ app: XCUIApplication, _ name: String) {
-        let shot = app.screenshot()
-        let attachment = XCTAttachment(screenshot: shot)
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
-        if let directory = ProcessInfo.processInfo.environment["MONACO_QA_SHOTS"] {
-            try? shot.pngRepresentation.write(to: URL(fileURLWithPath: directory).appendingPathComponent("\(name).png"))
+    func testTheRulesTabListsTheSixRowsAndTheFooter() {
+        let app = launch("fRules")
+        for (kind, value) in Self.rows {
+            let row = element(app, "cabal-rules-\(kind)")
+            app.scrollIntoReach(row)
+            XCTAssertTrue(row.waitForExistence(timeout: 15), "\(kind) shows")
+            XCTAssertTrue(row.label.contains(value), "\(kind) reads \(value), got \(row.label)")
         }
+        let footer = element(app, "cabal-rules-footer")
+        app.scrollIntoReach(footer)
+        XCTAssertTrue(footer.label.contains("admins are Andres and Christelle"), "the footer names the admins")
     }
 
     @MainActor
-    private func assertRuleValues(_ app: XCUIApplication) {
-        let values = ["Approval required", "Everyone", "1 day", "eligible voters"]
-        for (identifier, value) in zip(Self.rows, values) {
-            let row = element(app, identifier)
-            XCTAssertTrue(row.waitForExistence(timeout: 15), "\(identifier) shows")
-            XCTAssertTrue(row.label.contains(value), "\(identifier) reads \(value), got \(row.label)")
-        }
+    func testFlippingTheSwitchOpensTheProposeSheetAndLeavesTheRuleOff() {
+        let app = launch("fRules")
+        let toggle = element(app, "cabal-rules-show-sides-toggle")
+        app.scrollIntoReach(toggle)
+        XCTAssertTrue(toggle.waitForExistence(timeout: 15), "the switch shows")
+        toggle.tap()
+        XCTAssertTrue(
+            element(app, "cabal-rule-proposal-propose").waitForExistence(timeout: 10), "the propose sheet opens")
     }
 
     @MainActor
-    func testTheCreatorPicksAVoterFromTheRules() {
-        let app = launch(role: "creator")
-        XCTAssertTrue(
-            app.navigationBars["Cabal details"].waitForExistence(timeout: 15), "the harness opens on Cabal details")
-        assertRuleValues(app)
-        for identifier in Self.rows {
-            XCTAssertFalse(app.buttons[identifier].exists, "\(identifier) is a static row")
-        }
-        XCTAssertTrue(app.buttons["cabal-rules-edit"].exists, "the creator can open Edit rules")
-        screenshot(app, "1-rules-creator")
-
-        app.buttons["cabal-rules-edit"].tap()
-        let voters = element(app, "edit-rule-voters")
-        XCTAssertTrue(voters.waitForExistence(timeout: 10), "Cabal settings is pushed with a Who votes row")
-        XCTAssertFalse(element(app, "edit-cabal-voters").exists, "Everyone hides the member list")
-        let save = element(app, "edit-cabal-save")
-        XCTAssertFalse(save.isEnabled, "Save waits for a change")
-        voters.buttons["People I pick"].tap()
-        let jordan = element(app, "voters-member-\(Self.jordanID)")
-        app.scrollIntoReach(jordan)
-        XCTAssertTrue(jordan.waitForExistence(timeout: 5), "picking voters lists the members")
-        jordan.tap()
-        XCTAssertTrue(save.isEnabled, "Save is enabled once the list changed")
-        let creator = element(app, "voters-member-\(Self.creatorID)")
-        app.scrollIntoReach(creator)
-        creator.tap()
-        XCTAssertTrue(creator.isSelected, "the creator stays checked")
-        XCTAssertTrue(creator.label.contains("Always votes"), "the creator's row says Always votes")
-        screenshot(app, "2-voters-picked")
-        save.tap()
-        XCTAssertTrue(app.staticTexts["Cabal updated."].waitForExistence(timeout: 10), "the save toasts")
-        screenshot(app, "2-voters-saved")
-        XCTAssertFalse(save.waitForExistence(timeout: 3), "Cabal settings closes after the save")
-
-        let rulesVoters = element(app, "cabal-rules-voters")
-        XCTAssertTrue(rulesVoters.waitForExistence(timeout: 5), "the rules sheet shows again after the save")
-        XCTAssertTrue(
-            rulesVoters.label.contains("People I pick"), "Who votes reads People I pick, got \(rulesVoters.label)")
-        screenshot(app, "3-rules-after-save")
-    }
-
-    @MainActor
-    func testAMemberReadsTheRulesWithoutChevrons() {
-        let app = launch(role: "member")
-        XCTAssertTrue(
-            app.navigationBars["Cabal details"].waitForExistence(timeout: 15), "the harness opens on Cabal details")
-        assertRuleValues(app)
-        for identifier in Self.rows {
-            XCTAssertFalse(app.buttons[identifier].exists, "a member cannot open \(identifier)")
-        }
-        XCTAssertFalse(app.buttons["cabal-rules-edit"].exists, "a member has no Edit rules row")
-        screenshot(app, "4-rules-member")
+    func testTheSidesSampleReadsOnSince() {
+        let app = launch("fRulesSides")
+        let row = element(app, "cabal-rules-showSides")
+        app.scrollIntoReach(row)
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "the row shows")
+        XCTAssertTrue(row.label.contains("on since Oct 20"), "the row reads on since Oct 20, got \(row.label)")
     }
 }
