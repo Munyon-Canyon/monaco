@@ -10,7 +10,7 @@ public enum OwnStanding: Equatable, Sendable {
         guard let payload else { return nil }
         if let rank = payload.rank, let rate = payload.rateBps {
             self = .ranked(
-                ratePercent: Int((Double(rate) / 100).rounded()), right: Int(payload.right),
+                ratePercent: (Int(rate) + 50) / 100, right: Int(payload.right),
                 resolved: Int(payload.resolved), rank: Int(rank), rankedCount: Int(payload.rankedCount))
         } else {
             self = .unranked(resolved: Int(payload.resolved), moreToRank: Int(payload.moreToRank))

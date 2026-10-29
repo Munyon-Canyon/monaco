@@ -22,6 +22,7 @@ enum ProfileCardMetrics {
     static let photo: CGFloat = 56
     static let nameMinHeight: CGFloat = 44
     static let infoGlyph: CGFloat = 17
+    static let skeletonWidth: CGFloat = 120
     static let infoTarget: CGFloat = 44
 }
 
@@ -134,7 +135,7 @@ private struct ProfileCardFigures: View {
                     showsInfo = true
                 } label: {
                     Image(systemName: MonacoIcon.info.symbol)
-                        .font(.system(size: ProfileCardMetrics.infoGlyph))
+                        .font(MonacoTheme.Typo.subhead)
                         .foregroundStyle(MonacoTheme.tint)
                         .frame(width: ProfileCardMetrics.infoTarget, height: ProfileCardMetrics.infoTarget)
                         .contentShape(Rectangle())
@@ -198,7 +199,7 @@ private struct ProfileCardFigures: View {
     }
 
     private var figureSkeleton: some View {
-        Text("$0.00").moneyFont(.card).skeletonBar(width: 120)
+        SkeletonBlock(width: ProfileCardMetrics.skeletonWidth, height: SkeletonMetrics.barHeight)
     }
 
     private func figureText(_ text: String, color: Color) -> some View {
