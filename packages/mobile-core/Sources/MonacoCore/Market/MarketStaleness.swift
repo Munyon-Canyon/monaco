@@ -18,8 +18,4 @@ public enum MarketStaleness {
     public static func pricesDelayed(minutes: Int) -> String {
         "Prices delayed · \(ago(minutes: minutes))."
     }
-
-    public static func tokenPriceDelayed(minutes: Int) -> String {
-        "Token price delayed · \(ago(minutes: minutes))."
-    }
 }

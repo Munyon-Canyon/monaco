@@ -139,8 +139,8 @@ struct PreIpoDetailView: View {
 
     @ViewBuilder
     private var hero: some View {
-        if let url = preIpo?.profile?.imageURL {
-            PreIpoHeroImage(url: url) { mark(PreIpoPageMetrics.markSize) }
+        if let profile = preIpo?.profile {
+            PreIpoHeroImage(url: profile.imageURL) { mark(PreIpoPageMetrics.markSize) }
                 .padding(.horizontal, MonacoTheme.Space.gutter)
         } else {
             mark(PreIpoPageMetrics.loneMarkSize)
@@ -319,7 +319,7 @@ extension PreIpoDetailView {
 }
 
 private struct PreIpoHeroImage<Mark: View>: View {
-    let url: URL
+    let url: URL?
     let mark: () -> Mark
 
     @State private var image: UIImage?
@@ -332,7 +332,7 @@ private struct PreIpoHeroImage<Mark: View>: View {
             .frame(height: PreIpoPageMetrics.heroHeight)
             .frame(maxWidth: .infinity)
             .overlay {
-                if let image = image ?? Self.store.cachedImage(for: url) {
+                if let image = image ?? url.flatMap({ Self.store.cachedImage(for: $0) }) {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
@@ -343,7 +343,10 @@ private struct PreIpoHeroImage<Mark: View>: View {
                 mark().padding(MonacoTheme.Space.sm)
             }
             .clipShape(RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous))
-            .task(id: url) { image = await Self.store.image(for: url) }
+            .task(id: url) {
+                guard let url else { return }
+                image = await Self.store.image(for: url)
+            }
             .accessibilityIdentifier("asset-pre-ipo-hero")
     }
 }

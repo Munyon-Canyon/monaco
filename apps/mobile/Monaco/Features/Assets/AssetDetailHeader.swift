@@ -135,7 +135,7 @@ struct AssetDetailHeader: View {
     }
 
     @ViewBuilder private var session: some View {
-        if detail.market.showsSessionChip, let copy = MarketSessionCopy.chip(for: detail.market.status) {
+        if detail.market.showsSessionChip, let copy = MarketSessionCopy.chip(for: detail.market.status), !copy.isLive {
             MarketSessionChip(session: copy)
                 .accessibilityIdentifier("asset-detail-session")
                 .padding(.bottom, MonacoTheme.Space.s)

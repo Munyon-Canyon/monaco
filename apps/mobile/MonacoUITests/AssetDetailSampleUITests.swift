@@ -145,17 +145,6 @@ nonisolated final class AssetDetailSampleUITests: XCTestCase {
     }
 
     @MainActor
-    func testAnOldPriceShowsTheDelayedNotice() throws {
-        let app = launch("stale")
-        waitForScreen(app, "stale")
-
-        let notice = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Token price delayed ·'"))
-        XCTAssertTrue(notice.firstMatch.waitForExistence(timeout: 30), "no stale notice")
-        XCTAssertTrue(notice.firstMatch.label.hasSuffix("minutes ago."), "the age is not in minutes")
-        attachScreenshot(app, name: "stock-stale")
-    }
-
-    @MainActor
     func testNoHoldersAndNoProposalsSayTheirPiece() throws {
         let holders = launch("noHolders")
         waitForScreen(holders, "noHolders")

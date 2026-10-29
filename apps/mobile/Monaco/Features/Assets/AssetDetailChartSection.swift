@@ -55,7 +55,7 @@ struct AssetDetailChartSection: View {
             intervalSeconds: chart.intervalSeconds,
             style: .line,
             tint: tone,
-            lastPrice: chart.lastPoint?.chartValue,
+            lastPrice: nil,
             isLive: detail.session == .open && (chart.range == .oneDay || chart.range == .oneHour),
             showsEndDot: true,
             selectionStyle: .tooltipPill,

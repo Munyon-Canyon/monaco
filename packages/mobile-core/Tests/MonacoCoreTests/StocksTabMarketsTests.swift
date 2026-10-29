@@ -239,7 +239,6 @@ final class StocksTabMarketsTests: XCTestCase {
         XCTAssertEqual(MarketStaleness.pricesDelayed(minutes: 14), "Prices delayed · 14 minutes ago.")
         XCTAssertEqual(MarketStaleness.pricesDelayed(minutes: 1), "Prices delayed · 1 minute ago.")
         XCTAssertEqual(MarketStaleness.pricesDelayed(minutes: 0), "Prices delayed · just now.")
-        XCTAssertEqual(MarketStaleness.tokenPriceDelayed(minutes: 14), "Token price delayed · 14 minutes ago.")
     }
 
     private func waitUntil(_ predicate: @escaping () async -> Bool) async -> Bool {
