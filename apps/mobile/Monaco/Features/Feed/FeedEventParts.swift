@@ -84,10 +84,10 @@ struct FeedPostObjectLine: View {
     private var inline: some View {
         HStack(spacing: MonacoTheme.Space.s) {
             mark
-            headline.lineLimit(1)
-            if object.place != nil { place.lineLimit(1) }
+            headline
+            if object.place != nil { place }
             Spacer(minLength: MonacoTheme.Space.s)
-            trailing.lineLimit(1)
+            trailing
         }
     }
 

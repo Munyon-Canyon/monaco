@@ -5,6 +5,8 @@ import SwiftUI
 struct FeedQuietWeek: View {
     let seeAll: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -29,25 +31,35 @@ struct FeedQuietWeek: View {
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: MonacoTheme.Space.sm) {
-                NavigationLink(value: AnyAppRoute(FriendsRoute())) {
-                    Label("Find people", systemImage: "person.badge.plus")
-                }
-                .buttonStyle(.monacoPrimary)
-                .accessibilityIdentifier("feed-find-people")
-                NavigationLink(value: AnyAppRoute(CreateCabalRoute())) {
-                    Label("Start a cabal", systemImage: MonacoIcon.plus.symbol)
-                }
-                .buttonStyle(.monacoSecondary)
-                .accessibilityIdentifier("feed-start-cabal")
-            }
-            .padding(.top, MonacoTheme.Space.s)
+            actions
+                .padding(.top, MonacoTheme.Space.s)
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.vertical, MonacoTheme.Space.l)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("feed-quiet-week")
+    }
+
+    @ViewBuilder private var actions: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: MonacoTheme.Space.sm) { buttons }
+        } else {
+            HStack(spacing: MonacoTheme.Space.sm) { buttons }
+        }
+    }
+
+    @ViewBuilder private var buttons: some View {
+        NavigationLink(value: AnyAppRoute(FriendsRoute())) {
+            Label("Find people", systemImage: "person.badge.plus")
+        }
+        .buttonStyle(.monacoPrimary)
+        .accessibilityIdentifier("feed-find-people")
+        NavigationLink(value: AnyAppRoute(CreateCabalRoute())) {
+            Label("Start a cabal", systemImage: MonacoIcon.plus.symbol)
+        }
+        .buttonStyle(.monacoSecondary)
+        .accessibilityIdentifier("feed-start-cabal")
     }
 }
 

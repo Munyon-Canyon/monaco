@@ -50,6 +50,8 @@ private struct PostQuote: View {
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
+    private var lineLimit: Int? { dynamicTypeSize.isAccessibilitySize ? nil : 1 }
+
     var body: some View {
         QuoteFrame(label: facts.spoken) {
             if let object = facts.object, object.showsLogo {
@@ -73,7 +75,7 @@ private struct PostQuote: View {
             + Text(facts.verb.isEmpty ? "" : " \(facts.verb)").font(MonacoTheme.Typo.body)
             .foregroundStyle(MonacoTheme.secondaryText)
             + Text(headerObject).font(MonacoTheme.Typo.body).foregroundStyle(MonacoTheme.secondaryText))
-            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+            .lineLimit(lineLimit)
             .monacoPrivate()
     }
 
@@ -82,31 +84,38 @@ private struct PostQuote: View {
         return " \(object.headline)"
     }
 
-    private func objectLine(_ object: FeedPostFacts.Object) -> some View {
-        HStack(spacing: MonacoTheme.Space.s) {
-            Text(object.headline)
-                .font(MonacoTheme.Typo.section)
-                .foregroundStyle(MonacoTheme.primaryText)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-                .monacoPrivate()
-            if let place = object.place {
-                Text(place).font(.footnote).foregroundStyle(MonacoTheme.secondaryText).lineLimit(
-                    dynamicTypeSize.isAccessibilitySize ? nil : 1
-                ).monacoPrivate()
+    @ViewBuilder private func objectLine(_ object: FeedPostFacts.Object) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                objectFigures(object)
             }
-            trailing(object)
+        } else {
+            HStack(spacing: MonacoTheme.Space.s) {
+                objectFigures(object)
+            }
         }
+    }
+
+    @ViewBuilder private func objectFigures(_ object: FeedPostFacts.Object) -> some View {
+        Text(object.headline)
+            .font(MonacoTheme.Typo.section)
+            .foregroundStyle(MonacoTheme.primaryText)
+            .lineLimit(lineLimit)
+            .monacoPrivate()
+        if let place = object.place {
+            Text(place).font(.footnote).foregroundStyle(MonacoTheme.secondaryText).lineLimit(lineLimit)
+                .monacoPrivate()
+        }
+        trailing(object)
     }
 
     @ViewBuilder private func trailing(_ object: FeedPostFacts.Object) -> some View {
         switch object.trailing {
         case .figure(let bps):
             let text = PercentFormatter.format(basisPoints: bps, signed: true, fractionDigits: 1)
-            Text(text).font(.footnote).foregroundStyle(MonacoTheme.signed(text)).lineLimit(
-                dynamicTypeSize.isAccessibilitySize ? nil : 1)
+            Text(text).font(.footnote).foregroundStyle(MonacoTheme.signed(text)).lineLimit(lineLimit)
         case .text(let text):
-            Text(text).font(.footnote).foregroundStyle(MonacoTheme.secondaryText).lineLimit(
-                dynamicTypeSize.isAccessibilitySize ? nil : 1)
+            Text(text).font(.footnote).foregroundStyle(MonacoTheme.secondaryText).lineLimit(lineLimit)
         case nil:
             EmptyView()
         }
