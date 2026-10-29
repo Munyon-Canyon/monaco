@@ -2280,9 +2280,7 @@ func TestCheck_aFlowChangeRunsTheFlowsRowForTheAffectedFlowsOnly(t *testing.T) {
 	want := []string{
 		"apps/backend: flows --affected --base " + h.mergeBase(t, "origin/fb"),
 		"apps/backend: " + strings.Join(testDB{}.testEnv(), " ") +
-			" bash -c go test -tags faultpoints -p " + strconv.Itoa(testParallelism(runtime.NumCPU(), 1)) +
-			" -parallel " + strconv.Itoa(testParallelPerPackage(runtime.NumCPU(), 1, testParallelism(runtime.NumCPU(), 1))) +
-			" -json -run \"$1\" \"${@:3}\" > \"$2\" || true flows " +
+			" bash -c go test -tags faultpoints -json -run \"$1\" \"${@:3}\" > \"$2\" || true flows " +
 			"^TestFlow(00)_ " + results + " ./internal/modules/system/... ./internal/modules/identity/...",
 		"apps/backend: flows check --affected --base " + h.mergeBase(t, "origin/fb") + " --from " + results,
 		"apps/backend: mobile-core-test.sh --filter (F|Flow)(00)[^a-z0-9]",
