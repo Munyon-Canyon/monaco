@@ -43,6 +43,14 @@ while read -r uid; do
     <<<"UPDATE users SET display_name = :'name' WHERE id = :'uid'"
 done < <(python3 -c 'import json,sys; ids=json.load(sys.stdin)["ids"]; print(*[v for k, v in ids.items() if k.startswith("user_") and v != sys.argv[1]], sep="\n")' "$voter" <<<"$seed")
 
+# The seed's cabal has calls but no cabals row, and the Cabals board ranks only cabals rows.
+cabal="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["ids"]["cabal"])' <<<"$seed")"
+qa_sql -v cabal="$cabal" -v me="$me" >/dev/null <<'SQL'
+INSERT INTO cabals (id, name, creator_id, join_mode, voter_mode, threshold, proposal_expiry_seconds, created_at, updated_at)
+VALUES (:'cabal', 'QA called cabal', :'me', 'request', 'all', 'majority', 86400, now(), now())
+ON CONFLICT (id) DO NOTHING;
+SQL
+
 triggered="$(qa_sql <<<"INSERT INTO call_board_triggers (reason, created_at) VALUES ('qa_journey', now()) RETURNING created_at")"
 triggered="${triggered%%$'\n'*}"
 rebuilt=

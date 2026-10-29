@@ -38,9 +38,10 @@ enum FeedReactAndReplyJourney {
         element.waitForNonExistence(timeout: timeout)
     }
 
-    static func repliesHeader(_ app: XCUIApplication, count: Int) -> XCUIElement {
-        app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Replies' AND label CONTAINS %@", "\(count)"))
-            .firstMatch
+    static func waitForRepliesHeader(_ app: XCUIApplication, count: Int, timeout: TimeInterval) -> Bool {
+        let title = app.staticTexts["Replies"]
+        let number = app.staticTexts.matching(NSPredicate(format: "label == %@", "\(count)")).firstMatch
+        return title.waitForExistence(timeout: timeout) && number.waitForExistence(timeout: timeout)
     }
 
     static func chooseEveryone(_ app: XCUIApplication) {
@@ -152,7 +153,7 @@ enum FeedReactAndReplyJourney {
             XCTAssertTrue(app.element("feed-item-detail").waitForExistence(timeout: 15), "S2.1: no post page")
             XCTAssertTrue(app.navigationBars["Post"].waitForExistence(timeout: 5), "S2.1: the title is not 'Post'")
             XCTAssertTrue(app.element("reaction-add-feed-\(item)").exists, "S2.1: no reaction row on the post")
-            XCTAssertTrue(repliesHeader(app, count: 2).waitForExistence(timeout: 10), "S2.1: no 'Replies 2'")
+            XCTAssertTrue(waitForRepliesHeader(app, count: 2, timeout: 10), "S2.1: no 'Replies 2'")
             XCTAssertTrue(row(app, reading: root(run: run)).waitForExistence(timeout: 10), "S2.1: no root reply")
             XCTAssertTrue(row(app, reading: reply(run: run)).waitForExistence(timeout: 10), "S2.1: no reply by A")
         }
@@ -241,7 +242,7 @@ extension FeedReactAndReplyJourney {
                 waitGone(row(app, reading: reply(run: run)), timeout: 10), "S2.6: the reply stayed within 10 s"
             )
             XCTAssertTrue(
-                repliesHeader(app, count: 2).waitForExistence(timeout: 10), "S2.6: the header is not 'Replies 2'"
+                waitForRepliesHeader(app, count: 2, timeout: 10), "S2.6: the header is not 'Replies 2'"
             )
         }
     }
