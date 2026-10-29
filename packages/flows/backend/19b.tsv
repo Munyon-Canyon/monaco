@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+19b	Right-call boards	ranking	poller:ranking.call_board	RunCallBoard	ranking.call_board_written	ranking.hints.call_board_written	ok;crash:before-commit	built	docs/architecture/right-calls.md#boards

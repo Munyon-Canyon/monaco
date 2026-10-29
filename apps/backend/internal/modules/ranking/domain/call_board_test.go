@@ -144,3 +144,65 @@ func TestProperty_AnExtraRightCallNeverLowersTheRank(t *testing.T) {
 		}
 	})
 }
+
+func TestMovement_isTheBaselineRankMinusTheRankNow(t *testing.T) {
+	t.Parallel()
+	const up, down, same, fresh, unranked, order = 1, 2, 3, 4, 5, 6
+	entries := domain.RankCalls([]domain.CallSubject{
+		callSubject(up, 9, 10, 10, 10), callSubject(order, 8, 10, 10, 10), callSubject(down, 7, 10, 10, 10),
+		callSubject(same, 6, 10, 10, 10), callSubject(fresh, 5, 10, 10, 10), callSubject(unranked, 2, 3, 3, 3),
+	})
+	baseline := map[uuid.UUID]int{
+		callID(up):       3,
+		callID(order):    2,
+		callID(down):     1,
+		callID(same):     4,
+		callID(unranked): 6,
+	}
+	got := map[uuid.UUID]domain.CallEntry{}
+	for _, e := range domain.Movement(baseline, entries) {
+		got[e.ID] = e
+	}
+	for name, tc := range map[string]struct {
+		n        int
+		kind     domain.MovementKind
+		movement *int
+		baseline *int
+	}{
+		"up two":                    {up, domain.MovementUp, new(2), new(3)},
+		"unchanged":                 {order, domain.MovementSame, new(0), new(2)},
+		"down two":                  {down, domain.MovementDown, new(-2), new(1)},
+		"same rank":                 {same, domain.MovementSame, new(0), new(4)},
+		"first ranked today":        {fresh, domain.MovementNew, nil, nil},
+		"still below five resolved": {unranked, domain.MovementNew, nil, new(6)},
+	} {
+		e := got[callID(tc.n)]
+		if e.MovementKind != tc.kind || !equalInts(e.Movement, tc.movement) || !equalInts(e.BaselineRank, tc.baseline) {
+			t.Errorf("%s = kind %q movement %v baseline %v, want %q %v %v", name, e.MovementKind,
+				deref(e.Movement), deref(e.BaselineRank), tc.kind, deref(tc.movement), deref(tc.baseline))
+		}
+	}
+}
+
+func TestMovement_everyRowIsNewOnTheFirstDayOfAPeriod(t *testing.T) {
+	t.Parallel()
+	entries := domain.RankCalls([]domain.CallSubject{callSubject(1, 5, 5, 5, 5), callSubject(2, 1, 2, 2, 2)})
+	got := domain.Movement(nil, entries)
+	for _, e := range got {
+		if e.MovementKind != domain.MovementNew || e.Movement != nil || e.BaselineRank != nil {
+			t.Errorf("entry %v = %+v, want new with no movement", e.ID, e)
+		}
+	}
+	if entries[0].MovementKind != "" {
+		t.Errorf("Movement changed its input: %+v", entries[0])
+	}
+}
+
+func equalInts(a, b *int) bool { return (a == nil) == (b == nil) && (a == nil || *a == *b) }
+
+func deref(n *int) any {
+	if n == nil {
+		return nil
+	}
+	return *n
+}

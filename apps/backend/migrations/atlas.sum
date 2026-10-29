@@ -1,4 +1,4 @@
-h1:vHaLfwfNxavvPXFhSGxHhrLcThRllWsamPWcM6woKOY=
+h1:DIRImji3cm5/SFUq3zAEnD62HU1QnPj+anhy6aa33q0=
 20260927140427_platform.sql h1:dpKT9ALI2RTf1SBI4IzLY9kt47VTa8+JAziYaHsX5Jw=
 20260927185159_idempotency.sql h1:iYIp5Y5kBuPj5UJGcOifMeosr8qf0tj17c+5bmF37zE=
 20260929120000_system.sql h1:m6n0Y3tCc4MlfYNzi6Fh01YnogvlBbpQb1/X4WCtW40=
@@ -130,3 +130,4 @@ h1:vHaLfwfNxavvPXFhSGxHhrLcThRllWsamPWcM6woKOY=
 20261028204838_governance_passed_price.sql h1:hCXAlZZEJhgzsAeBNEW4oJvl/vaUNIyzJPQQ/Uc/8Ww=
 20261029002747_ranking_call_board.sql h1:tkmVPrjSEyPTKFkJkSTQax5DoYNMq/IqI/OC38PzFYA=
 20261029013640_notify_reminder_cursor.sql h1:4eFX+tU2JxefDoIr3KTrFgaZjimxirpb98LOmQff370=
+20261029020819_ranking_call_board_history.sql h1:9R22keqL0hBUfe+lpLGZB+LGKQzAi6HcRThUvoDavVw=

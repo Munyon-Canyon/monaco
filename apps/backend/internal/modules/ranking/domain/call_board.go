@@ -22,11 +22,49 @@ type CallSubject struct {
 	CreatedAt time.Time
 }
 
+type MovementKind string
+
+const (
+	MovementUp   MovementKind = "up"
+	MovementDown MovementKind = "down"
+	MovementSame MovementKind = "same"
+	MovementNew  MovementKind = "new"
+)
+
 type CallEntry struct {
 	CallSubject
-	Rank       *int
-	RateBps    *int
-	TurnoutBps int
+	Rank         *int
+	RateBps      *int
+	TurnoutBps   int
+	BaselineRank *int
+	Movement     *int
+	MovementKind MovementKind
+}
+
+func Movement(baseline map[uuid.UUID]int, entries []CallEntry) []CallEntry {
+	out := slices.Clone(entries)
+	for i := range out {
+		out[i].BaselineRank, out[i].Movement, out[i].MovementKind = nil, nil, MovementNew
+		from, ok := baseline[out[i].ID]
+		if !ok {
+			continue
+		}
+		out[i].BaselineRank = &from
+		if out[i].Rank == nil {
+			continue
+		}
+		moved := from - *out[i].Rank
+		out[i].Movement = &moved
+		switch {
+		case moved > 0:
+			out[i].MovementKind = MovementUp
+		case moved < 0:
+			out[i].MovementKind = MovementDown
+		default:
+			out[i].MovementKind = MovementSame
+		}
+	}
+	return out
 }
 
 func RankCalls(subjects []CallSubject) []CallEntry {

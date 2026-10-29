@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
@@ -59,6 +61,26 @@ func (c CallBoards) CallLeader(
 		PictureURL: row.SubjectPictureUrl.String, RateBps: int(row.RateBps.Int32), Right: int(row.RightCount),
 		Resolved: int(row.Resolved), PeriodStart: row.PeriodStart.Time,
 	}, nil
+}
+
+func (c CallBoards) ClosedTops(
+	ctx context.Context, subjectID uuid.UUID, board domain.Board, period domain.PeriodKind,
+) ([]port.ClosedTop, error) {
+	rows, err := sqlc.New(c.db).ClosedTopsOf(ctx, sqlc.ClosedTopsOfParams{
+		SubjectID: subjectID, Board: string(board), Period: string(period),
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]port.ClosedTop, len(rows))
+	for i, row := range rows {
+		out[i] = port.ClosedTop{
+			PeriodStart: row.PeriodStart.Time,
+			Right:       int(row.RightCount),
+			Resolved:    int(row.Resolved),
+		}
+	}
+	return out, nil
 }
 
 func intOrNil(n int32, valid bool) *int {
