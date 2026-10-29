@@ -139,6 +139,12 @@ struct V3LargeTextLayoutTests {
         #expect(Self.fitted(Self.card(.list), at: size).height >= CabalCoverCardMetrics.listLargeTextHeight)
     }
 
+    @Test(arguments: [DynamicTypeSize.large, .xxxLarge, .accessibility1, .accessibility5])
+    func thePickerLabelAndKeypadSourceWrapOnlyAtAccessibilitySizes(size: DynamicTypeSize) {
+        #expect(MonacoMenuSelect<String>.wraps(at: size) == size.isAccessibilitySize)
+        #expect(AmountKeypadSourceLayout.wraps(at: size) == size.isAccessibilitySize)
+    }
+
     @Test func theMoneyStripWrapsOnceTheFiguresStopFittingOneLine() {
         let strip = MoneyStrip(netWorth: "$1,234,567.89", cash: "$500,000.00", depositTitle: "Deposit", onDeposit: {})
         let inline = Self.fitted(strip, at: .large).height

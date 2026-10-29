@@ -84,6 +84,7 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
         VStack(spacing: 0) {
             navRow
             header
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                 .padding(.horizontal, MonacoTheme.Space.gutter)
                 .padding(.top, MonacoTheme.Space.s)
             amountRegion
@@ -123,10 +124,14 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
 
     @ViewBuilder
     private var sourcePill: some View {
+        let sourceLayout = AmountKeypadSourceLayout.layout(at: dynamicTypeSize)
         let pill = HStack(spacing: MonacoTheme.Space.s) {
-            source
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+            sourceLayout {
+                source
+            }
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+            .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.8)
+            .multilineTextAlignment(.center)
             Image(systemName: "chevron.down")
                 .font(MonacoTheme.Typo.subhead)
                 .foregroundStyle(MonacoTheme.secondaryText)
@@ -217,20 +222,16 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
     @ViewBuilder
     private var presetsOrLimit: some View {
         if case .invalid(let limitLine, _) = state {
-            presetRow
-                .hidden()
-                .accessibilityHidden(true)
-                .overlay {
-                    HStack(spacing: MonacoTheme.Space.xs) {
-                        Image(systemName: "info.circle").accessibilityHidden(true)
-                        Text(limitLine).multilineTextAlignment(.center)
-                    }
-                    .font(MonacoTheme.Typo.subhead)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                    .monacoPrivate()
-                    .accessibilityElement(children: .combine)
-                    .accessibilityIdentifier("amount-keypad-limit-line")
-                }
+            if dynamicTypeSize.isAccessibilitySize {
+                AmountKeypadLimitLine(text: limitLine)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .padding(.vertical, MonacoTheme.Space.s)
+            } else {
+                presetRow
+                    .hidden()
+                    .accessibilityHidden(true)
+                    .overlay { AmountKeypadLimitLine(text: limitLine) }
+            }
         } else {
             presetRow
         }
@@ -355,5 +356,33 @@ extension AmountKeypadScreen where Header == EmptyView {
             amountText: amountText, state: state, line: line, presets: presets, max: max, emptySlot: emptySlot,
             action: action, onClose: onClose, onSource: onSource, source: source
         ) { EmptyView() }
+    }
+}
+
+struct AmountKeypadLimitLine: View {
+    let text: String
+
+    var body: some View {
+        HStack(spacing: MonacoTheme.Space.xs) {
+            Image(systemName: "info.circle").accessibilityHidden(true)
+            Text(text).multilineTextAlignment(.center)
+        }
+        .font(MonacoTheme.Typo.subhead)
+        .foregroundStyle(MonacoTheme.secondaryText)
+        .monacoPrivate()
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("amount-keypad-limit-line")
+    }
+}
+
+enum AmountKeypadSourceLayout {
+    static func wraps(at size: DynamicTypeSize) -> Bool {
+        size.isAccessibilitySize
+    }
+
+    static func layout(at size: DynamicTypeSize) -> AnyLayout {
+        wraps(at: size)
+            ? AnyLayout(VStackLayout(spacing: MonacoTheme.Space.xs))
+            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.s))
     }
 }
