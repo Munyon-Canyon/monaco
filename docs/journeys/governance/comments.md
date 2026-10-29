@@ -50,9 +50,7 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Known failures on staging
 
-| Step | Why | Ticket |
-| --- | --- | --- |
-| S1.2 | The empty thread draws no "Replies" header: `CommentThreadView` hides it while the thread is empty | #6541 |
+None known.
 
 ## Not covered
 

@@ -15,11 +15,9 @@ struct CommentThreadView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if model.phase != .empty {
-                MonacoSectionHeader(CommentsCopy.title, count: model.commentCount)
-                    .secondaryCount()
-                    .padding(.horizontal, MonacoTheme.Space.gutter)
-            }
+            MonacoSectionHeader(CommentsCopy.title, count: model.commentCount)
+                .secondaryCount()
+                .padding(.horizontal, MonacoTheme.Space.gutter)
             content
         }
         .task(id: model.scrollRequest) { await scrollToRequest() }
