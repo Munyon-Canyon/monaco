@@ -53,6 +53,7 @@ struct MonacoToastBanner: View {
     @ScaledMetric(relativeTo: .subheadline) private var glyphSize: CGFloat = MonacoToastLayout.glyphSize
     @MonacoReduceTransparency private var reduceTransparency
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var gate = MonacoToastActionGate()
 
     var body: some View {
@@ -66,7 +67,7 @@ struct MonacoToastBanner: View {
                 .font(MonacoTheme.Typo.subheadStrong)
                 .foregroundStyle(MonacoTheme.toastLabel)
                 .multilineTextAlignment(.leading)
-                .lineLimit(2)
+                .lineLimit(MonacoToastLayout.lineLimit(dynamicTypeSize))
                 .fixedSize(horizontal: false, vertical: true)
                 .toastFocus(focus)
             if let link {
@@ -142,6 +143,11 @@ enum MonacoToastLayout {
     static let alignment: Alignment = .top
 
     static let minimumHeight: CGFloat = 44
+
+    static func lineLimit(_ dynamicTypeSize: DynamicTypeSize) -> Int? {
+        dynamicTypeSize.isAccessibilitySize ? nil : 2
+    }
+
     static let glyphSize: CGFloat = 17
     /// How far the capsule slides in from above.
     static let slide: CGFloat = MonacoTheme.Space.s

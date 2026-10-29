@@ -60,9 +60,16 @@ struct MonacoSectionHeader: View {
 
     @ScaledMetric(relativeTo: .subheadline) private var countSize = SectionHeaderMetrics.countSize
     @ScaledMetric(relativeTo: .subheadline) private var chevronSize = SectionHeaderMetrics.chevronSize
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var stacks: Bool { dynamicTypeSize.isAccessibilitySize }
 
     var body: some View {
-        HStack(spacing: 0) {
+        let layout =
+            stacks
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
+            : AnyLayout(HStackLayout(spacing: 0))
+        layout {
             HStack(spacing: MonacoTheme.Space.s) {
                 Text(title)
                     .font(MonacoTheme.Typo.section)
@@ -96,14 +103,14 @@ struct MonacoSectionHeader: View {
                     .accessibilityIdentifier(infoIdentifier ?? "")
                 }
             }
-            Spacer(minLength: MonacoTheme.Space.s)
+            if !stacks { Spacer(minLength: MonacoTheme.Space.s) }
             if let trailing {
                 if let action {
                     Button(action: action) {
                         HStack(spacing: MonacoTheme.Space.xs) {
                             Text(trailing)
                                 .font(MonacoTheme.Typo.captionStrong)
-                                .lineLimit(1)
+                                .lineLimit(stacks ? nil : 1)
                             Image(systemName: "chevron.right")
                                 .font(.system(size: chevronSize, weight: .semibold))
                                 .accessibilityHidden(true)
@@ -118,7 +125,7 @@ struct MonacoSectionHeader: View {
                     Text(trailing)
                         .font(MonacoTheme.Typo.caption)
                         .foregroundStyle(MonacoTheme.secondaryText)
-                        .lineLimit(1)
+                        .lineLimit(stacks ? nil : 1)
                 }
             }
         }

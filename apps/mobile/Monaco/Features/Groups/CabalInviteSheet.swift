@@ -204,7 +204,11 @@ struct CabalInviteSheet: View {
     }
 
     private var buttons: some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
+        let layout =
+            dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: MonacoTheme.Space.sm))
+            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
+        return layout {
             Button {
                 share()
             } label: {

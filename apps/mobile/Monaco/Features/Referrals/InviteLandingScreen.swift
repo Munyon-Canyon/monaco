@@ -18,6 +18,7 @@ struct InviteLandingScreen: View {
     let onRedirect: (InviteLandingModel.Redirect) -> Void
 
     @Environment(ToastCenter.self) private var toasts
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         content
@@ -169,7 +170,11 @@ struct InviteLandingScreen: View {
     }
 
     private func stats(_ stats: InviteLandingContent.Stats) -> some View {
-        HStack(alignment: .top, spacing: MonacoTheme.Space.s) {
+        let layout =
+            dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.sm))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: MonacoTheme.Space.s))
+        return layout {
             figure("Treasury", stats.treasury)
             figure("1M", stats.oneMonth, color: stats.oneMonthIsLoss ? MonacoTheme.loss : MonacoTheme.primaryText)
             figure("Turnout", stats.turnout)
