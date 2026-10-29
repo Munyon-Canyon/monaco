@@ -29,12 +29,6 @@ enum CabalsInfoAndMembersJourney {
         JoinJourney.waitForLabel(element, containing: text, timeout: timeout)
     }
 
-    static func memberRow(_ app: XCUIApplication, label predicate: String, _ argument: String) -> XCUIElement {
-        app.buttons.matching(
-            NSPredicate(format: "identifier == 'members-list' AND label \(predicate) %@", argument)
-        ).firstMatch
-    }
-
     static func membersTab(_ app: XCUIApplication, seed: Seed, recorder: JourneyRecorder) {
         recorder.step("S1.1", "open the cabal") {
             app.openCabal(named: seed.cabalName)

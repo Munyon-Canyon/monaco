@@ -35,9 +35,17 @@ enum ProfileUserProfileJourney {
             app.element("cabal-header-name").waitForExistence(timeout: 15), "\(step): the cabal screen did not show")
     }
 
+    static func memberRow(_ app: XCUIApplication, name: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH 'cabal-member-' AND NOT identifier BEGINSWITH 'cabal-member-crown-' "
+                    + "AND label CONTAINS %@", name)
+        ).firstMatch
+    }
+
     static func openMember(_ app: XCUIApplication, name: String, step: String) {
         app.openCabalTab("Members")
-        let row = CabalsInfoAndMembersJourney.memberRow(app, label: "BEGINSWITH", name)
+        let row = memberRow(app, name: name)
         app.scrollIntoReach(row)
         XCTAssertTrue(row.waitForExistence(timeout: 15), "\(step): no member row for \(name)")
         row.tap()

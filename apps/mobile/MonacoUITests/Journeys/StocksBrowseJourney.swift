@@ -2,7 +2,7 @@ import XCTest
 
 enum StocksBrowseJourney {
     static let id = "stocks/browse"
-    static let version = 6
+    static let version = 7
 
     static let searchPlaceholder = "Stocks and Pre-IPO"
     static let alpha = SeededAsset(symbol: "JRNYAx", ticker: "JRNYA", name: "Journey Alpha", price: "$123.45")
@@ -92,6 +92,12 @@ enum StocksBrowseJourney {
         field.typeText(text)
     }
 
+    static func cancelSearch(_ app: XCUIApplication, step: String) {
+        let cancel = app.element("markets-search-cancel")
+        XCTAssertTrue(cancel.waitForExistence(timeout: 10), "\(step): no markets-search-cancel while searching")
+        cancel.tap()
+    }
+
     static func chooseChip(_ app: XCUIApplication, _ title: String, step: String) {
         let target = chip(app, title)
         XCTAssertTrue(target.waitForExistence(timeout: 15), "\(step): no markets-chip-\(title) within 15 s")
@@ -123,7 +129,7 @@ enum StocksBrowseJourney {
         }
 
         recorder.step("S1.3", "choose Pre-IPO") {
-            replaceQuery(app, with: "")
+            cancelSearch(app, step: "S1.3")
             chooseChip(app, "Pre-IPO", step: "S1.3")
             let row = preIpoRow(app, preIpo)
             XCTAssertTrue(row.waitForExistence(timeout: 10), "S1.3: no \(preIpo.preIpoRowID) under Pre-IPO")
@@ -142,7 +148,7 @@ enum StocksBrowseJourney {
         }
 
         recorder.step("S1.5", "choose Held with no holding") {
-            replaceQuery(app, with: "")
+            cancelSearch(app, step: "S1.5")
             chooseChip(app, "Held", step: "S1.5")
             let empty = app.element("markets-held-empty")
             XCTAssertTrue(
@@ -173,7 +179,7 @@ enum StocksBrowseJourney {
         }
 
         recorder.step("S2.3", "clear the search") {
-            replaceQuery(app, with: "")
+            cancelSearch(app, step: "S2.3")
             XCTAssertTrue(app.element("assets-empty").waitForNonExistence(timeout: 10), "S2.3: the empty result stayed")
             XCTAssertTrue(chip(app, "All").waitForExistence(timeout: 10), "S2.3: the chips did not come back")
             XCTAssertTrue(chip(app, "All").isSelected, "S2.3: 'All' is not selected after clearing")
