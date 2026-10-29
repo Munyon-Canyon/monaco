@@ -2,48 +2,16 @@ import MonacoAPI
 import MonacoCore
 import SwiftUI
 
-struct ProposalVoterGroups: Equatable {
-    struct Entry: Equatable, Identifiable {
-        let id: String
-        let name: String
-        let photoURL: URL?
-    }
-
-    struct Row: Equatable, Identifiable {
-        let entry: Entry
-        let ballot: ProposalBallot?
-        var id: String { entry.id }
-    }
-
-    let yes: [Entry]
-    let no: [Entry]
-    let notVoted: [Entry]
-
-    init(voters: [ProposalVoter], members: [ProposalMember]) {
-        let byID = Dictionary(members.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        func entry(_ voter: ProposalVoter) -> Entry {
-            let member = byID[voter.id]
-            return Entry(id: voter.id, name: member?.name ?? "Member", photoURL: member?.photoURL)
-        }
-        yes = voters.filter { $0.ballot == "yes" }.map(entry)
-        no = voters.filter { $0.ballot == "no" }.map(entry)
-        notVoted = voters.filter { $0.ballot != "yes" && $0.ballot != "no" }.map(entry)
-    }
-
-    var rows: [Row] {
-        yes.map { Row(entry: $0, ballot: .yes) } + no.map { Row(entry: $0, ballot: .no) }
-            + notVoted.map { Row(entry: $0, ballot: nil) }
-    }
-
-    var totals: String { "\(yes.count) yes, \(no.count) no, \(notVoted.count) not voted" }
-}
-
 struct ProposalVotersView: View {
     let model: ProposalDetailModel?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    private var groups: ProposalVoterGroups {
-        ProposalVoterGroups(voters: model?.value?.voters ?? [], members: model?.members ?? [])
+    @Environment(AppEnvironment.self) private var environment: AppEnvironment?
+
+    private var sides: ProposalSides {
+        ProposalSides.make(
+            voters: model?.value?.voters ?? [], members: model?.members ?? [],
+            viewerID: environment?.viewer?.userID ?? "", sidesVisible: model?.value?.sidesVisible ?? false)
     }
 
     var body: some View {
@@ -58,15 +26,15 @@ struct ProposalVotersView: View {
 
     @ViewBuilder private var content: some View {
         if model?.value != nil {
-            let groups = groups
+            let sides = sides
             ScrollView {
                 MonacoGroupedList {
-                    ForEach(groups.rows) { row in
-                        voterRow(row, isLast: row.id == groups.rows.last?.id)
+                    ForEach(sides.rows) { row in
+                        voterRow(row, isLast: row.id == sides.rows.last?.id)
                     }
                 }
             }
-            .safeAreaInset(edge: .top, spacing: 0) { totals(groups) }
+            .safeAreaInset(edge: .top, spacing: 0) { totals(sides) }
         } else if model?.errorMessage != nil {
             failure
         } else {
@@ -74,18 +42,21 @@ struct ProposalVotersView: View {
         }
     }
 
-    private func totals(_ groups: ProposalVoterGroups) -> some View {
+    private func totals(_ sides: ProposalSides) -> some View {
         let layout =
             dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.xs))
             : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.s))
+        let counts =
+            sides.sidesVisible
+            ? [("\(sides.yes.count) yes"), "\(sides.no.count) no", "\(sides.notVoted.count) not voted"]
+            : ["\(sides.votedCount) voted", "\(sides.notVoted.count) not voted"]
         return VStack(spacing: MonacoTheme.Space.s) {
             layout {
-                Text("\(groups.yes.count) yes")
-                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: MonacoTheme.Space.s) }
-                Text("\(groups.no.count) no")
-                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: MonacoTheme.Space.s) }
-                Text("\(groups.notVoted.count) not voted")
+                ForEach(Array(counts.enumerated()), id: \.offset) { index, text in
+                    if index > 0, !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: MonacoTheme.Space.s) }
+                    Text(text)
+                }
             }
             .font(MonacoTheme.Typo.caption)
             .foregroundStyle(MonacoTheme.muted)
@@ -97,14 +68,45 @@ struct ProposalVotersView: View {
                     .fill(MonacoTheme.canvas)
             )
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(groups.totals)
+            .accessibilityLabel(sides.strip)
             .padding(.horizontal, MonacoTheme.Space.gutter)
+            if !sides.sidesVisible {
+                Text(privacyCaption)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .accessibilityIdentifier("proposal-voters-private")
+            }
             MonacoRule()
         }
         .padding(.bottom, MonacoTheme.Space.s)
     }
 
-    private func voterRow(_ row: ProposalVoterGroups.Row, isLast: Bool) -> some View {
+    private var privacyCaption: String {
+        let isOpen = model?.summary?.state(now: .now).isOpen == true
+        return "Who voted which way stays private in this cabal." + (isOpen ? " Counts are live." : "")
+    }
+
+    private func badge(_ side: ProposalSides.Side) -> StatusBadge {
+        switch side {
+        case .yes: StatusBadge("Yes", tone: .positive)
+        case .no: StatusBadge("No", tone: .negative)
+        case .voted: StatusBadge("Voted", tone: .neutral)
+        case .notVoted: StatusBadge("Not voted", tone: .neutral)
+        }
+    }
+
+    private func spoken(_ row: ProposalSides.Row) -> String {
+        switch row.side {
+        case .yes: ProposalCardCopy.voter(row.entry.name, choice: "yes")
+        case .no: ProposalCardCopy.voter(row.entry.name, choice: "no")
+        case .voted: "\(row.entry.name) voted"
+        case .notVoted: ProposalCardCopy.voter(row.entry.name, choice: nil)
+        }
+    }
+
+    private func voterRow(_ row: ProposalSides.Row, isLast: Bool) -> some View {
         NavigationLink(value: AnyAppRoute(UserProfileRoute(userID: row.id))) {
             MonacoRow(
                 title: row.entry.name, isLast: isLast,
@@ -113,10 +115,10 @@ struct ProposalVotersView: View {
                         photoURL: row.entry.photoURL?.absoluteString, displayName: row.entry.name, size: 36,
                         seed: row.id)
                 },
-                trailing: { StatusBadge(proposal: .ballot(row.ballot)) })
+                trailing: { badge(row.side) })
         }
         .buttonStyle(.monacoRow)
-        .accessibilityLabel(ProposalCardCopy.voter(row.entry.name, choice: row.ballot?.rawValue))
+        .accessibilityLabel(spoken(row))
         .accessibilityIdentifier("proposal-voter-\(row.id)")
     }
 

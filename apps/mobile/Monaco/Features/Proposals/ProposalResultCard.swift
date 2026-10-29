@@ -7,6 +7,9 @@ struct ProposalResultCard<Sides: View>: View {
     let caption: String?
     let accessibilitySummary: String
     @ViewBuilder var sides: () -> Sides
+    @Environment(\.proposalDetail) private var model
+    @Environment(AppEnvironment.self) private var environment: AppEnvironment?
+    @State private var showsVotes = false
 
     private var seal: (symbol: String, color: Color) {
         switch ProposalResultCopy.seal(status: status) {
@@ -32,15 +35,19 @@ struct ProposalResultCard<Sides: View>: View {
                 VoteTallyBar(
                     yes: tally.yes, no: tally.no, eligible: tally.voters,
                     winner: ProposalResultCopy.seal(status: status) == .passed ? .yes : nil)
-                Text(ProposalResultCopy.tallyLine(tally: tally))
-                    .font(MonacoTheme.Typo.subhead)
-                    .foregroundStyle(MonacoTheme.muted)
-                    .accessibilityIdentifier("proposal-result-tally")
+                tallyLine
                 if let caption {
                     Text(caption)
                         .font(MonacoTheme.Typo.subhead)
                         .foregroundStyle(MonacoTheme.muted)
                         .accessibilityIdentifier("proposal-result-caption")
+                }
+                if let detail = model?.value, detail.sidesVisible {
+                    MonacoRule()
+                    ProposalSidesRow(
+                        sides: .make(
+                            voters: detail.voters, members: model?.members ?? [],
+                            viewerID: environment?.viewer?.userID ?? "", sidesVisible: true))
                 }
                 sides()
             }
@@ -49,5 +56,24 @@ struct ProposalResultCard<Sides: View>: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel(accessibilitySummary)
         .accessibilityIdentifier("proposal-result")
+        .sheet(isPresented: $showsVotes) { ProposalVotesSheet(model: model) }
+    }
+
+    @ViewBuilder private var tallyLine: some View {
+        let text = Text(ProposalResultCopy.tallyLine(tally: tally))
+            .font(MonacoTheme.Typo.subhead)
+            .foregroundStyle(MonacoTheme.muted)
+        if model == nil {
+            text.accessibilityIdentifier("proposal-result-tally")
+        } else {
+            Button {
+                showsVotes = true
+            } label: {
+                text.frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Shows who voted")
+            .accessibilityIdentifier("proposal-result-tally")
+        }
     }
 }

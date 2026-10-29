@@ -498,6 +498,9 @@ proposal-open-dark            -MonacoProposalSample open -AppleInterfaceStyle Da
 proposal-nvda-open            -MonacoProposalSample nvdaOpen
 proposal-nvda-open-dark       -MonacoProposalSample nvdaOpen -AppleInterfaceStyle Dark
 proposal-nvda-passed          -MonacoProposalSample nvdaPassed
+proposal-closed-sides-on      -MonacoProposalSample closedSidesOn
+proposal-closed-sides-on-dark -MonacoProposalSample closedSidesOn -AppleInterfaceStyle Dark
+proposal-closed-sides-private -MonacoProposalSample closedSidesPrivate
 proposal-nvda-filled          -MonacoProposalSample nvdaFilled
 proposal-meta-filled          -MonacoProposalSample metaFilled
 proposal-tsla-failed          -MonacoProposalSample tslaFailed

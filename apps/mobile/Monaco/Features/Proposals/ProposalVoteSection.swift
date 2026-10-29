@@ -23,6 +23,7 @@ struct ProposalVoteSection: View {
     @State private var holding = false
     @State private var showsCommitted = false
     @State private var hold: Task<Void, Never>?
+    @State private var showsVotes = false
 
     private var state: ProposalState { summary.state(now: .now) }
     private var viewer: String? { viewerID ?? environment?.viewer?.userID }
@@ -101,6 +102,17 @@ struct ProposalVoteSection: View {
         }
     }
 
+    private var statusLine: some View {
+        Button {
+            showsVotes = true
+        } label: {
+            VoteStatusLine(result: nil, facts: model.statusFacts, identifierPrefix: "proposal")
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Shows who voted")
+        .sheet(isPresented: $showsVotes) { ProposalVotesSheet(model: model) }
+    }
+
     private var readOnly: some View {
         let middle =
             role == .memberNotVoter
@@ -111,7 +123,7 @@ struct ProposalVoteSection: View {
                 VoteTallyBar(yes: tally.yes, no: tally.no, eligible: voters)
                 VoteTallyEnds(yes: tally.yes, no: tally.no, middle: middle, identifierPrefix: "proposal")
                     .padding(.vertical, MonacoTheme.Space.s)
-                VoteStatusLine(result: nil, facts: model.statusFacts, identifierPrefix: "proposal")
+                statusLine
             }
         }
         .accessibilityElement(children: .ignore)
@@ -130,7 +142,7 @@ struct ProposalVoteSection: View {
                 if let facts = model.settledFacts {
                     settled(facts)
                 } else {
-                    VoteStatusLine(result: nil, facts: model.statusFacts, identifierPrefix: "proposal")
+                    statusLine
                     hint
                 }
             }
@@ -195,7 +207,7 @@ struct ProposalVoteSection: View {
                 .font(MonacoTheme.Typo.subhead)
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel(line.accessibilityLabel)
-                VoteStatusLine(result: nil, facts: model.statusFacts, identifierPrefix: "proposal")
+                statusLine
             }
         }
         .accessibilityElement(children: .contain)

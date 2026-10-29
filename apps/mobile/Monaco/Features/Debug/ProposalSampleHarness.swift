@@ -36,6 +36,8 @@ enum ProposalSampleScenario: String, CaseIterable {
     case closedError
     case nvdaOpen
     case nvdaPassed
+    case closedSidesOn
+    case closedSidesPrivate
     case nvdaFilled
     case metaFilled
     case tslaFailed
@@ -110,6 +112,12 @@ enum ProposalSampleScenario: String, CaseIterable {
         case .nvdaPassed:
             script.asset = .nvda
             script.proposal = .passedNVDA()
+        case .closedSidesOn:
+            script.asset = .nvda
+            script.proposal = .passedNVDA()
+        case .closedSidesPrivate:
+            script.asset = .nvda
+            script.proposal = .passedNVDA().withHiddenSides()
         case .nvdaFilled:
             script.asset = .nvda
             script.proposal = .filledNVDA()
@@ -197,6 +205,18 @@ private enum ProposalSampleDetailSlot: ProposalSection {
 }
 
 extension Components.Schemas.ProposalDetail {
+    fileprivate func withHiddenSides() -> Self {
+        var detail = self
+        detail.sidesVisible = false
+        detail.voters = voters.enumerated().map { index, voter in
+            guard index != 0 else { return voter }
+            return .init(
+                userId: voter.userId, voted: voter.voted, choice: nil, castAt: nil, displayName: voter.displayName,
+                photoUrl: voter.photoUrl)
+        }
+        return detail
+    }
+
     fileprivate func withoutBallots() -> Self {
         var detail = self
         detail.voters = voters.map {
