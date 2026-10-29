@@ -21,6 +21,7 @@ struct MonacoGlassButton: View {
     var size: Size
     var isBusy: Bool
     let action: () -> Void
+    @MonacoReduceTransparency private var reduceTransparency
 
     @ScaledMetric(relativeTo: .body) private var regularDiameter: CGFloat = 44
     @ScaledMetric(relativeTo: .body) private var compactDiameter: CGFloat = 32
@@ -86,7 +87,7 @@ struct MonacoGlassButton: View {
     }
 
     private var drawsCircle: Bool {
-        guard placement == .toolbar else { return true }
+        guard placement == .toolbar, !reduceTransparency else { return true }
         if #available(iOS 26, *) { return false }
         return true
     }

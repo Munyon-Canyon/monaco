@@ -2,6 +2,19 @@ import MonacoAPI
 import MonacoCore
 import SwiftUI
 
+private struct SolidSheetBackground: ViewModifier {
+    let isSolid: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isSolid {
+            content.presentationBackground(MonacoTheme.canvas)
+        } else {
+            content
+        }
+    }
+}
+
 struct ProposeReviewScreen: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.hostMainTab) private var hostMainTab
@@ -58,6 +71,7 @@ struct ProposeReviewScreen: View {
         .task { await load() }
         .onChange(of: model?.isSending ?? false) { _, sending in isSending = sending }
         .onDisappear { if model?.proposalID != nil { closeFlow() } }
+        .modifier(SolidSheetBackground(isSolid: reduceTransparency))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("propose-review-screen")
     }
