@@ -96,6 +96,7 @@ const (
 	LeaveCreatorWithMembers ErrorCode = "leave_creator_with_members"
 	LeaveHoldsShares ErrorCode = "leave_holds_shares"
 	LeaveLastMemberPotNotEmpty ErrorCode = "leave_last_member_pot_not_empty"
+	LedgerNotFound ErrorCode = "ledger_not_found"
 	LedgerUnbalanced ErrorCode = "ledger_unbalanced"
 	LiveSwapExists ErrorCode = "live_swap_exists"
 	LoginMethodNotAllowed ErrorCode = "login_method_not_allowed"
@@ -355,6 +356,8 @@ func (e ErrorCode) Valid() bool {
 	case LeaveHoldsShares:
 		return true
 	case LeaveLastMemberPotNotEmpty:
+		return true
+	case LedgerNotFound:
 		return true
 	case LedgerUnbalanced:
 		return true

@@ -108,3 +108,23 @@ The `ranking.call_board` poller (`RunCallBoard`) turns resolved calls into ranke
 - **Closing a period.** A week or month is closed by the first run at least 6 h after it ends (`unpricedAfter`, so late resolutions have landed). The run ranks that period's window with the same inputs and keeps every row in `call_board_closed`, unranked ones with `rank = NULL`, for good. `ON CONFLICT DO NOTHING` makes a second run add nothing, and the run does not touch a closed period again. `port.CallBoards.ClosedTops(subject, board, period)` returns every closed period in which the subject ranked #1, newest first, with its `Right` and `Resolved` counts.
 - **Flow 19b.** The `ranking.call_board` poller, `RunCallBoard` and the `ranking.call_board_written` event are flow 19b, with an `ok` test and a `crash:before-commit` test. After the restart the rows, baselines, closed rows and the one event are the same.
 - **Not here.** The HTTP route that serves movement is #6472, and a closed-period board view in the app is phase 2.
+
+## The Ledger
+
+The Ledger is one member's week, built once and stored in `weekly_ledgers (user_id, week)`. The row holds the JSON payload as built; `GET /v1/me/ledgers/latest` and `GET /v1/me/ledgers/{week}` return it unchanged and never recompute. A second build for the same `(user, week)` keeps the first payload (`ON CONFLICT DO NOTHING`). `weekly_ledger_skips` records members who got no Ledger that week.
+
+**Window.** The 7 days ending at the delivery time, Sunday 17:00 UTC: `[Sun 17:00 − 7 d, Sun 17:00)`. The week is the ISO week of the Monday inside it (`2026-W42`), labelled with that Monday and the following Sunday.
+
+**Fields.**
+
+- `voted`, `eligible`: proposals opened in the window, as the call board counts them.
+- `right`, `resolved`, `calls`: the member's calls resolved in the window, newest first.
+- `best_call`: the member's right call with the largest move toward their side. `miss`: their wrong call with the largest move against them. Ties go to the later decision, then the proposal id. `move_bps` is signed toward the member's side, so a right call is at least 0 and a miss at most 0.
+- `sharpest`: the best right-call rate in the window among members of the member's cabals, the member included. It needs 2 resolved calls. Ties go to more right calls, then name.
+- `top_reply`: the most-reacted reply on the window's resolved calls in the member's cabals, from the social read.
+- `markers`: the best call (`Called AMZN · Sat`) and each buy that filled in the member's cabals in the window (`B`).
+- `cabals`: the member's cabals, by name for now.
+
+A member with no cabal and no eligible proposal gets no Ledger.
+
+`stake_return_bps` and `series` are always null and empty for now. The window loader that fills them, and the ordering of `cabals` by equity at the window end, land in the follow-up.

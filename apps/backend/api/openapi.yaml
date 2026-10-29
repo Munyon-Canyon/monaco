@@ -3138,6 +3138,49 @@ paths:
                 $ref: "#/components/schemas/LeaderboardPage"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/me/ledgers/latest:
+    get:
+      operationId: getMyLatestLedger
+      tags: [ranking]
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}, ip: {rate: 600, per: 1m, burst: 100}}
+      summary: Read the caller's latest weekly Ledger.
+      description: >-
+        Returns the most recent Ledger stored for the caller, exactly as it was built. It never
+        recomputes. With none stored the answer is ledger_not_found.
+      responses:
+        "200":
+          description: The caller's latest Ledger.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ledger"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/ledgers/{week}:
+    get:
+      operationId: getMyLedger
+      tags: [ranking]
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}, ip: {rate: 600, per: 1m, burst: 100}}
+      summary: Read the caller's weekly Ledger for one week.
+      description: >-
+        Returns the Ledger stored for the caller and the ISO week, exactly as it was built. It never
+        recomputes. A week that is not `YYYY-Www` is invalid_input, and a week with no Ledger stored is
+        ledger_not_found.
+      parameters:
+        - name: week
+          in: path
+          required: true
+          description: The ISO week, for example `2026-W42`.
+          schema: {type: string, pattern: "^\\d{4}-W\\d{2}$", examples: ["2026-W42"]}
+      responses:
+        "200":
+          description: The caller's Ledger for the week.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ledger"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/me/pnl-history:
     get:
       operationId: getMyPnlHistory
@@ -6671,6 +6714,7 @@ components:
         - leave_creator_with_members
         - leave_holds_shares
         - leave_last_member_pot_not_empty
+        - ledger_not_found
         - ledger_unbalanced
         - live_swap_exists
         - login_method_not_allowed
@@ -9352,6 +9396,175 @@ components:
         name: {type: string, description: The cabal or display name., examples: [Alpha]}
         handle: {type: [string, "null"], description: The user's handle. Null for a cabal., examples: [null]}
         picture_url: {type: [string, "null"], description: The picture. Null when there is none., examples: [null]}
+    Ledger:
+      type: object
+      description: One member's week, built once and stored.
+      additionalProperties: false
+      required: [week, label_start, label_end, window_start, window_end, stake_return_bps, cabals, voted, eligible, right, resolved, sharpest, best_call, miss, calls, top_reply, series, markers]
+      properties:
+        week: {type: string, description: The ISO week., examples: ["2026-W42"]}
+        label_start: {type: string, format: date, description: The Monday of the week., examples: ["2026-10-12"]}
+        label_end: {type: string, format: date, description: The Sunday of the week., examples: ["2026-10-18"]}
+        window_start: {type: string, format: date-time, description: "The start of the window, inclusive.", examples: ["2026-10-11T17:00:00Z"]}
+        window_end: {type: string, format: date-time, description: "The end of the window, exclusive.", examples: ["2026-10-18T17:00:00Z"]}
+        stake_return_bps: {type: [integer, "null"], format: int64, description: The return on the caller's stakes over the window in basis points. Null when it cannot be measured., examples: [140]}
+        cabals:
+          type: array
+          description: The cabals the caller held a stake in during the window.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/LedgerCabal"
+        voted: {type: integer, format: int32, description: Proposals the caller voted on., examples: [3]}
+        eligible: {type: integer, format: int32, description: Proposals the caller could vote on., examples: [3]}
+        right: {type: integer, format: int32, description: The caller's right calls resolved in the window., examples: [2]}
+        resolved: {type: integer, format: int32, description: The caller's calls resolved in the window., examples: [3]}
+        sharpest:
+          type: [object, "null"]
+          description: The best right-call rate among the caller's cabalmates. Null when nobody has two resolved calls.
+          x-go-type-name: LedgerSharpestEntry
+          additionalProperties: false
+          required: [user, rate_bps, right, resolved]
+          properties:
+            user:
+              $ref: "#/components/schemas/LedgerUser"
+            rate_bps: {type: integer, format: int32, examples: [10000]}
+            right: {type: integer, format: int32, examples: [2]}
+            resolved: {type: integer, format: int32, examples: [2]}
+        best_call:
+          type: [object, "null"]
+          description: The caller's right call with the largest move their way.
+          x-go-type-name: LedgerBestCall
+          additionalProperties: false
+          required: [proposal_id, cabal, kind, symbol, asset_logo_url, your_choice, move_bps, right, decided_at]
+          properties:
+            proposal_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+            cabal:
+              type: object
+              additionalProperties: false
+              required: [id, name]
+              properties:
+                id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+                name: {type: string, examples: [Degens]}
+            kind: {type: string, enum: [buy, sell], examples: [sell]}
+            symbol: {type: string, examples: [AMZN]}
+            asset_logo_url: {type: [string, "null"], examples: [null]}
+            your_choice: {type: string, enum: [yes, no], examples: [yes]}
+            move_bps: {type: integer, format: int32, description: "The price move toward the caller's side in basis points, negative when it went against them.", examples: [420]}
+            right: {type: boolean, examples: [true]}
+            decided_at: {type: string, format: date-time, examples: ["2026-10-17T15:00:00Z"]}
+        miss:
+          type: [object, "null"]
+          description: The caller's wrong call with the largest move against them.
+          x-go-type-name: LedgerMissCall
+          additionalProperties: false
+          required: [proposal_id, cabal, kind, symbol, asset_logo_url, your_choice, move_bps, right, decided_at]
+          properties:
+            proposal_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+            cabal:
+              type: object
+              additionalProperties: false
+              required: [id, name]
+              properties:
+                id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+                name: {type: string, examples: [Degens]}
+            kind: {type: string, enum: [buy, sell], examples: [sell]}
+            symbol: {type: string, examples: [AMZN]}
+            asset_logo_url: {type: [string, "null"], examples: [null]}
+            your_choice: {type: string, enum: [yes, no], examples: [yes]}
+            move_bps: {type: integer, format: int32, description: "The price move toward the caller's side in basis points, negative when it went against them.", examples: [420]}
+            right: {type: boolean, examples: [true]}
+            decided_at: {type: string, format: date-time, examples: ["2026-10-17T15:00:00Z"]}
+        calls:
+          type: array
+          description: Every call of the caller resolved in the window, newest first.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/LedgerCall"
+        top_reply:
+          type: [object, "null"]
+          description: The most-reacted reply on the window's calls.
+          x-go-type-name: LedgerTopReply
+          additionalProperties: false
+          required: [comment_id, proposal_id, proposal_label, author, excerpt, reaction_count, top_emoji, top_emoji_count]
+          properties:
+            comment_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+            proposal_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+            proposal_label: {type: string, examples: [Buy NVDA]}
+            author:
+              $ref: "#/components/schemas/LedgerUser"
+            excerpt: {type: string, examples: [Earnings are the catalyst.]}
+            reaction_count: {type: integer, format: int32, examples: [5]}
+            top_emoji: {type: string, examples: [fire]}
+            top_emoji_count: {type: integer, format: int32, examples: [3]}
+        series:
+          type: array
+          description: The caller's return since the window start, every 4 hours. Empty until the follow-up lands.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/LedgerPoint"
+        markers:
+          type: array
+          description: The best call and each buy that filled in the caller's cabals.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/LedgerMarker"
+    LedgerCabal:
+      type: object
+      description: A cabal on the Ledger.
+      additionalProperties: false
+      required: [id, name, picture_url]
+      properties:
+        id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        name: {type: string, examples: [Degens]}
+        picture_url: {type: [string, "null"], examples: [null]}
+    LedgerCall:
+      type: object
+      description: One resolved call of the caller.
+      additionalProperties: false
+      required: [proposal_id, cabal, kind, symbol, asset_logo_url, your_choice, move_bps, right, decided_at]
+      properties:
+        proposal_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        cabal:
+          type: object
+          additionalProperties: false
+          required: [id, name]
+          properties:
+            id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+            name: {type: string, examples: [Degens]}
+        kind: {type: string, enum: [buy, sell], examples: [sell]}
+        symbol: {type: string, examples: [AMZN]}
+        asset_logo_url: {type: [string, "null"], examples: [null]}
+        your_choice: {type: string, enum: [yes, no], examples: [yes]}
+        move_bps: {type: integer, format: int32, description: "The price move toward the caller's side in basis points, negative when it went against them.", examples: [420]}
+        right: {type: boolean, examples: [true]}
+        decided_at: {type: string, format: date-time, examples: ["2026-10-17T15:00:00Z"]}
+    LedgerMarker:
+      type: object
+      description: A mark on the week's line.
+      additionalProperties: false
+      required: [at, kind, symbol, label]
+      properties:
+        at: {type: string, format: date-time, examples: ["2026-10-17T15:00:00Z"]}
+        kind: {type: string, enum: [call, buy], examples: [call]}
+        symbol: {type: string, examples: [AMZN]}
+        label: {type: string, examples: [Called AMZN · Sat]}
+    LedgerPoint:
+      type: object
+      description: The caller's return at one instant.
+      additionalProperties: false
+      required: [at, return_bps]
+      properties:
+        at: {type: string, format: date-time, examples: ["2026-10-12T01:00:00Z"]}
+        return_bps: {type: integer, format: int64, examples: [140]}
+    LedgerUser:
+      type: object
+      description: A person on the Ledger.
+      additionalProperties: false
+      required: [id, name, picture_url]
+      properties:
+        id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        name: {type: string, examples: [Christelle]}
+        picture_url: {type: [string, "null"], examples: [null]}
     MyPnlHistory:
       type: object
       description: The caller's equity and P&L curve.

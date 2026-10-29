@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
@@ -70,6 +72,32 @@ func (s Queries) LatestBySource(ctx context.Context, src domain.Source) (SwapVie
 	}
 	v, err := view(op, row)
 	return v, err == nil, err
+}
+
+type FilledBuy struct {
+	CabalID     ids.CabalID
+	Symbol      string
+	ConfirmedAt time.Time
+}
+
+func (s Queries) FilledBuysBetween(
+	ctx context.Context, cabals []ids.CabalID, start, end time.Time,
+) ([]FilledBuy, error) {
+	cabalIDs := make([]uuid.UUID, len(cabals))
+	for i, id := range cabals {
+		cabalIDs[i] = id.UUID()
+	}
+	rows, err := s.q.FilledBuysBetween(ctx, sqlc.FilledBuysBetweenParams{
+		CabalIds: cabalIDs, WindowStart: start, WindowEnd: end,
+	})
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, "trading.FilledBuysBetween")
+	}
+	out := make([]FilledBuy, len(rows))
+	for i, row := range rows {
+		out[i] = FilledBuy{CabalID: ids.CabalIDFrom(row.CabalID), Symbol: row.Symbol, ConfirmedAt: row.ConfirmedAt.Time}
+	}
+	return out, nil
 }
 
 func (s Queries) HasLiveSwap(ctx context.Context, src domain.Source) (bool, error) {

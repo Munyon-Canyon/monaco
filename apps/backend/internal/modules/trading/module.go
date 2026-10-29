@@ -32,6 +32,7 @@ import (
 
 type (
 	SwapView       = app.SwapView
+	FilledBuy      = app.FilledBuy
 	Source         = domain.Source
 	SwapLayer      = app.SwapLayer
 	SwapLayerDeps  = app.SwapLayerDeps

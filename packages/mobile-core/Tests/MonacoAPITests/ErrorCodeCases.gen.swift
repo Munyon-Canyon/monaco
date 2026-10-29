@@ -88,6 +88,7 @@ extension Components.Schemas.ErrorCode {
         case .leaveCreatorWithMembers: true
         case .leaveHoldsShares: true
         case .leaveLastMemberPotNotEmpty: true
+        case .ledgerNotFound: true
         case .ledgerUnbalanced: true
         case .liveSwapExists: true
         case .loginMethodNotAllowed: true
