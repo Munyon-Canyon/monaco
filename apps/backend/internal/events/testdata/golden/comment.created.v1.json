@@ -27,5 +27,8 @@
   "cabal_name": "Alpha Cabal",
   "reply_rule": "members",
   "attachment_kind": "",
-  "poll_question": ""
+  "poll_question": "",
+  "mentioned_user_ids": [
+    "019b76da-a809-7c3a-8e5d-1a2b3c4d5e6f"
+  ]
 }

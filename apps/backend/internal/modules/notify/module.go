@@ -160,6 +160,7 @@ func (m *Module) Consumers() []bus.Consumer {
 		adapters.Push(pusher,
 			app.CommentReply{Users: m.users, Cabals: m.cabals, Blocks: socials.Follows()},
 			app.PostReply{Users: m.users, Cabals: m.cabals, Blocks: socials.Follows()},
+			app.CommentMention{Users: m.users, Cabals: m.cabals, Blocks: socials.Follows()},
 		),
 		adapters.Push(
 			pusher,
