@@ -1,7 +1,7 @@
 ---
 id: governance/propose-sell
 title: Propose a sell
-version: 5
+version: 6
 milestone: M13
 requires: [auth/sign-in]
 actors: [A]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/GovernanceProposeSellJourney.swift
 
 # Propose a sell
 
-A voter in a cabal that holds a stock taps Propose, picks "Sell something the cabal owns", picks the holding, enters 25%, reviews and sends the proposal. The rules are [Proposals](../../architecture/proposals.md).
+A voter in a cabal that holds a stock taps Propose, picks Sell, picks the holding, enters 25% on the keypad, reviews and sends the proposal. The rules are [Proposals](../../architecture/proposals.md).
 
 Old app (`c838bd24`): Cabal -> Propose -> `ProposeChooserView` -> `ProposeSellView` -> `ProposeAmountView` -> `ProposeReviewView` -> Send -> toast. Spec: "Sell" under "Propose" in [screens.md](../../screens.md#propose-613).
 
@@ -31,12 +31,12 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA sell {QA.run}` | `cabal-header-name` reads `QA sell {QA.run}`, and `cabal-action-propose` "Propose" is enabled within 15 s |
-| S1.2 | A | tap | `cabal-action-propose` | | The Propose action sheet (`propose-chooser-sheet`) shows `propose-kind-sell` within 10 s, and it is enabled, not "No holdings to sell" |
+| S1.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA sell {QA.run}` | `cabal-header-name` reads `QA sell {QA.run}`, and `cabal-action-propose` "Propose" next to `cabal-action-fund` "Fund" is enabled within 15 s (F `03-cabal-treasury`) |
+| S1.2 | A | tap | `cabal-action-propose` | | Propose offers Buy and Sell (`propose-chooser-sheet` while PV keeps the sheet) and shows `propose-kind-sell` within 10 s, and it is enabled, not "No holdings to sell" |
 | S1.3 | A | tap | `propose-kind-sell` | | The screen titled "Sell" shows the header "What the cabal owns" and the AAPL row within 10 s (old app: `ProposeSellView`) |
-| S1.4 | A | tap | `propose-sell-<symbol>` for AAPL | | The amount screen shows the chips "25%", "50%", "All" and the helper "The cabal holds …" within 10 s |
-| S1.5 | A | tap, tap, then tap | `propose-amount-reason-done` "Done" (the amount keypad hides the chips), "25%", then `propose-amount-review` "Review proposal" | | The amount reads a figure, not $0, and the sheet titled "Propose sell" reads "Sell · market order" with the stat row `propose-review-stats` within 10 s |
-| S1.6 | A | tap | `propose-review-send` "Send to cabal" | | The toast "Proposal sent to QA sell {QA.run}" shows and the flow closes back to the cabal screen within 10 s |
+| S1.4 | A | tap | `propose-sell-<symbol>` for AAPL | | The keypad (`amount-keypad-screen`, #6573) shows within 10 s, `amount-keypad-source` reads the shares held, and the chips `amount-keypad-preset-<label>` read "25%", "50%", "All" |
+| S1.5 | A | tap, then tap | `amount-keypad-preset-25%`, then `amount-keypad-action` | | `amount-keypad-amount` reads a figure, not $0, and the sheet titled "Propose sell" (`propose-review-sheet`, #6567) shows the stat row `propose-review-stats` "Shares · Price · Of treasury · To pass" within 10 s |
+| S1.6 | A | tap | `propose-review-send` "Send to vote" | | The toast "Proposal sent" shows and the flow closes back to the cabal screen within 10 s |
 
 ## Ground truth
 

@@ -1,7 +1,7 @@
 ---
 id: governance/propose-from-asset
 title: Propose a buy from a stock
-version: 7
+version: 8
 milestone: M13
 requires: [auth/sign-in]
 actors: [A]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/GovernanceProposeFromAssetJourney.
 
 # Propose a buy from a stock
 
-A voter opens GOOGL on the Markets tab, taps "Propose a buy", picks a cabal and reaches the Amount screen, where an amount over the cabal's empty pot is refused. The rules are [Proposals](../../architecture/proposals.md).
+A voter opens GOOGL on the Markets tab, taps "Propose buy", picks a cabal and reaches the Phantom keypad, where an amount over the cabal's empty pot is refused. The rules are [Proposals](../../architecture/proposals.md).
 
 Old app (`c838bd24`): Asset `AssetTradeBar` "Propose buy" -> `GroupPickerForProposalView` -> `ProposeAmountView` -> `ProposeReviewView` -> Send -> toast. Spec: "Choose a cabal" and "Amount" under "Propose" and "Stock screen" in [screens.md](../../screens.md#propose-613).
 
@@ -31,10 +31,10 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap, type, then tap | the Markets tab, the search "Search stocks or tickers", then `assets-row-GOOGL…` | `GOOGL` | `asset-detail-root` shows, and `asset-detail-propose-buy` reads "Propose a buy" over "Your cabal votes before anything is bought", within 15 s |
+| S1.1 | A | tap, type, then tap | the Markets tab, the search "Search stocks or tickers", then `assets-row-GOOGL…` | `GOOGL` | `asset-detail-root` shows, and `asset-detail-propose-buy` reads "Propose buy", within 15 s |
 | S1.2 | A | tap | `asset-detail-propose-buy` | | A half sheet titled "Choose a cabal" (`propose-pick-cabal-sheet`) opens over the stock and asks "Which cabal should buy GOOGL?" (`propose-pick-cabal-question`) and lists `QA asset {QA.run}` within 10 s (old app: `GroupPickerForProposalView`) |
-| S1.3 | A | tap | the `QA asset {QA.run}` row (`propose-pick-cabal-<id>`) | | The sheet closes and the screen titled "Buy Alphabet" shows the chips "$25", "$50", "$100", "Max" within 10 s, with no Buy search step (old app: `ProposeAmountView`) |
-| S1.4 | A | type | `amount-entry-field` | `5` | The message "Amount exceeds the cash balance." shows within 10 s, and `propose-amount-review` is disabled (screens.md Amount: "An amount over the limit shows an error notice") |
+| S1.3 | A | tap | the `QA asset {QA.run}` row (`propose-pick-cabal-<id>`) | | The sheet closes and the keypad (`amount-keypad-screen`, #6573) shows within 10 s, `amount-keypad-source` names `QA asset {QA.run}` and its cash, and the chips `amount-keypad-preset-<label>` read "+$1", "+$10", "+$20", "Max", with no Buy search step |
+| S1.4 | A | tap | `amount-keypad-5` | | `amount-keypad-limit-line` reads "… available · … over" in place of the chips within 10 s, and `amount-keypad-action` does not show (founder decision Q2: the keypad replaces the chips with one grey limit line) |
 
 ## Ground truth
 

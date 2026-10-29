@@ -1,7 +1,7 @@
 journey: governance/propose-from-asset
 expect-fail: S1
 
-The asset screen's CTA reads "Buy", the old direct-buy wording. S1.1 checks it reads "Propose a buy", so it must fail.
+The asset screen's CTA reads "Buy", the old direct-buy wording. S1.1 checks it reads "Propose buy", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Assets/AssetDetailActions.swift b/apps/mobile/Monaco/Features/Assets/AssetDetailActions.swift
 index 4166cfc8d..d38035212 100644

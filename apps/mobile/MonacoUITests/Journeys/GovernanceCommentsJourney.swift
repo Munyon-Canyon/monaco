@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceCommentsJourney {
     static let id = "governance/comments"
-    static let version = 7
+    static let version = 8
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -58,13 +58,17 @@ enum GovernanceCommentsJourney {
                 app.staticTexts["No replies yet"].waitForExistence(timeout: 10),
                 "S1.2: no 'No replies yet' within 10 s"
             )
-            XCTAssertFalse(app.staticTexts["Replies"].exists, "S1.2: an empty thread shows the 'Replies' header")
+            XCTAssertTrue(
+                app.staticTexts["Replies"].waitForExistence(timeout: 10),
+                "S1.2: an empty thread shows no 'Replies' header"
+            )
         }
 
         recorder.step("S1.3", "post a comment") {
             let field = app.element("comment-composer-field")
             XCTAssertTrue(field.waitForExistence(timeout: 10), "S1.3: no comment composer")
             XCTAssertEqual(field.placeholderValue, "Say something", "S1.3: the composer placeholder is not the spec's")
+            XCTAssertTrue(app.element("comment-composer-gif").exists, "S1.3: no GIF button in the composer")
             post(app, comment(run: run), step: "S1.3")
         }
     }
@@ -88,14 +92,18 @@ enum GovernanceCommentsJourney {
                 app.element("reply-sheet").waitForExistence(timeout: 5),
                 "S2.3: the composer is not replying"
             )
+            let quote = app.element("reply-sheet-quote")
+            XCTAssertTrue(quote.waitForExistence(timeout: 5), "S2.3: no quoted line in the reply sheet")
+            XCTAssertTrue(quote.label.contains(ask(run: run)), "S2.3: the quote reads \(quote.label)")
         }
 
         recorder.step("S2.4", "post the reply") {
             post(app, answer(run: run), step: "S2.4")
-            XCTAssertLessThan(
-                row(app, reading: ask(run: run)).frame.minY, row(app, reading: answer(run: run)).frame.minY,
-                "S2.4: the reply is not below the comment it answers"
-            )
+            let answered = row(app, reading: answer(run: run))
+            let quote = app.element("comment-quote-\(answered.identifier.dropFirst(bodyPrefix.count))")
+            XCTAssertTrue(
+                quote.waitForExistence(timeout: 10), "S2.4: the reply shows no quote of the comment it answers")
+            XCTAssertTrue(quote.label.contains(ask(run: run)), "S2.4: the quote reads \(quote.label)")
         }
     }
 }

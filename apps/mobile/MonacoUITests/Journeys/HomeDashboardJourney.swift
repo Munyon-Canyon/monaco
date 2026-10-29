@@ -2,7 +2,7 @@ import XCTest
 
 enum HomeDashboardJourney {
     static let id = "home/dashboard"
-    static let version = 5
+    static let version = 6
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -24,20 +24,25 @@ enum HomeDashboardJourney {
             openHome(app)
             XCTAssertTrue(total.waitForExistence(timeout: 15), "S1.1: no total in the hero within 15 s")
             XCTAssertTrue(total.label.contains("$"), "S1.1: the hero total reads '\(total.label)', not dollars")
+            XCTAssertTrue(app.element("home-wordmark").exists, "S1.1: no wordmark")
+            XCTAssertTrue(app.element("home-notifications-button").exists, "S1.1: no bell")
+            XCTAssertTrue(
+                app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'past month'")).firstMatch.exists,
+                "S1.1: no '· past month' line under the figure")
         }
 
-        recorder.step("S1.2", "the money strip with Net worth, Cash and Deposit") {
-            let netWorth = app.element("home-net-worth")
-            XCTAssertTrue(netWorth.waitForExistence(timeout: 10), "S1.2: no \"Net worth\" in the money strip")
-            XCTAssertEqual(netWorth.label, "Net worth", "S1.2: the net worth metric reads '\(netWorth.label)'")
+        recorder.step("S1.2", "the cash row with Cash, USDC, APY and Deposit") {
+            let cashRow = app.element("home-cash-row")
+            XCTAssertTrue(cashRow.waitForExistence(timeout: 10), "S1.2: no cash row")
+            for word in ["Cash", "USDC", "3.5% APY"] {
+                XCTAssertTrue(cashRow.label.contains(word), "S1.2: the cash row reads '\(cashRow.label)', no \(word)")
+            }
             let cash = app.element("platform-balance-value")
-            XCTAssertTrue(cash.waitForExistence(timeout: 10), "S1.2: no \"Cash\" amount in the money strip")
-            XCTAssertEqual(cash.label, "Cash", "S1.2: the cash metric reads '\(cash.label)'")
             XCTAssertTrue(
                 (cash.value as? String)?.hasPrefix("$") == true,
                 "S1.2: the cash amount reads '\(cash.value as? String ?? "")', not dollars")
             let deposit = app.element("home-add-money-link")
-            XCTAssertTrue(deposit.exists, "S1.2: no \"Deposit\" in the money strip")
+            XCTAssertTrue(deposit.exists, "S1.2: no \"Deposit\" in the cash row")
             XCTAssertEqual(deposit.label, "Deposit", "S1.2: the deposit button reads '\(deposit.label)'")
         }
 
@@ -77,12 +82,15 @@ enum HomeDashboardJourney {
             XCTAssertTrue(app.tab("Profile").isSelected, "S1.6: the Profile tab is not selected")
         }
 
-        recorder.step("S1.7", "the hero shows the return chip") {
+        recorder.step("S1.7", "the chart shows plain range labels") {
             openHome(app)
             app.swipeDown()
-            XCTAssertTrue(
-                app.element("home-portfolio-chip").waitForExistence(timeout: 10),
-                "S1.7: no return chip under the hero total within 10 s")
+            for range in ["1H", "1D", "1W", "1M", "3M", "6M", "All"] {
+                XCTAssertTrue(
+                    app.element("home-range-\(range)").waitForExistence(timeout: 10),
+                    "S1.7: no \(range) range label within 10 s")
+            }
+            XCTAssertTrue(app.element("home-range-1M").isSelected, "S1.7: 1M is not selected")
         }
     }
 

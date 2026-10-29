@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceProposeSellJourney {
     static let id = "governance/propose-sell"
-    static let version = 5
+    static let version = 6
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -35,38 +35,23 @@ enum GovernanceProposeSellJourney {
             let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'propose-sell-AAPL'")).firstMatch
             XCTAssertTrue(row.waitForExistence(timeout: 10), "S1.4: no AAPL holding within 10 s (#2136)")
             row.tap()
+            XCTAssertTrue(app.element("amount-keypad-screen").waitForExistence(timeout: 10), "S1.4: no keypad")
+            XCTAssertTrue(app.element("amount-keypad-source").exists, "S1.4: no keypad source")
             for chip in ["25%", "50%", "All"] {
-                XCTAssertTrue(app.buttons[chip].waitForExistence(timeout: 10), "S1.4: no \(chip) chip")
+                XCTAssertTrue(
+                    app.element("amount-keypad-preset-\(chip)").waitForExistence(timeout: 10), "S1.4: no \(chip) chip")
             }
-            let helper = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'The cabal holds'")).firstMatch
-            XCTAssertTrue(helper.exists, "S1.4: no The cabal holds helper")
         }
 
         recorder.step("S1.5", "review 25%") {
-            let amount = app.element("amount-entry-field")
-            let chip = app.buttons["25%"].firstMatch
-            let done = app.buttons["propose-amount-reason-done"].firstMatch
-            if done.waitForExistence(timeout: 3) { done.tap() }
-            _ = app.keyboards.firstMatch.waitForNonExistence(timeout: 3)
-            XCTAssertTrue(
-                ProfileOverviewJourney.waitUntil(15) {
-                    if (amount.value as? String) != "$0" { return true }
-                    if chip.isEnabled { chip.tap() }
-                    return false
-                },
-                "S1.5: the 25% chip left the amount at \(amount.value as? String ?? "nil"), enabled \(chip.isEnabled)"
-            )
-            let thesis = app.element("propose-amount-reason")
-            XCTAssertTrue(thesis.waitForExistence(timeout: 10), "S1.5: no thesis field")
-            thesis.tap()
-            thesis.typeText("Journey sell \(run)")
-            tapID(app, "propose-amount-review", step: "S1.5")
+            let amount = app.element("amount-keypad-amount")
+            tapID(app, "amount-keypad-preset-25%", step: "S1.5")
+            XCTAssertTrue(amount.waitForExistence(timeout: 10), "S1.5: no keypad amount")
+            XCTAssertNotEqual(amount.label, "$0", "S1.5: the 25% chip left the amount at \(amount.label)")
+            tapID(app, "amount-keypad-action", step: "S1.5")
             buy.expectTitle(sheet: app, step: "S1.5")
-            let summary = app.descendants(matching: .any).matching(
-                NSPredicate(format: "label BEGINSWITH 'Sell ' AND label CONTAINS 'AAPL'")
-            ).firstMatch
-            XCTAssertTrue(summary.waitForExistence(timeout: 10), "S1.5: no Sell AAPL line")
-            buy.expectTexts(app, ["Raises", "Cabal keeps", "Who votes"], step: "S1.5")
+            XCTAssertTrue(app.element("propose-review-stats").waitForExistence(timeout: 10), "S1.5: no stat row")
+            buy.expectTexts(app, ["Shares", "Price", "Of treasury", "To pass"], step: "S1.5")
         }
 
         recorder.step("S1.6", "send to the cabal") {
