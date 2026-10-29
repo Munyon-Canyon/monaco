@@ -18,6 +18,7 @@ public struct AssetDetailPresentation: Equatable, Sendable {
     public let isQuotable: Bool
     public let stats: AssetStats?
     public let preIpo: PreIpoDetail?
+    public let marketStats: MarketStatsFacts
 
     public var todayMove: AssetTodayMove? {
         AssetTodayMove(priceMicros: priceMicros, basisPoints: changeBasisPoints)
@@ -260,7 +261,8 @@ public final class AssetDetailClientModel {
                     marketCapMicros: detail.stats?.marketCapMicros, volume24hMicros: detail.volume24hMicros,
                     openMicros: detail.stats?.openMicros, yearLowMicros: detail.stats?.yearLowMicros,
                     yearHighMicros: detail.stats?.yearHighMicros, heldByCabals: detail.stats?.heldByCabals),
-            preIpo: PreIpoDetail(detail)
+            preIpo: PreIpoDetail(detail),
+            marketStats: MarketStatsFacts(detail)
         )
     }
 

@@ -341,6 +341,7 @@ public struct ProposalAsset: Equatable, Sendable {
     public let logoURL: URL?
     public let preIpo: PreIpoDetail?
     public let tradable: Bool
+    public let marketStats: MarketStatsFacts
 
     var estimateMicros: Int64? { preIpo?.profile?.steps.last { $0.isEstimate }?.priceMicros }
 
@@ -351,6 +352,7 @@ public struct ProposalAsset: Equatable, Sendable {
         logoURL = value.logoUrl.flatMap(URL.init(string:))
         preIpo = PreIpoDetail(value)
         tradable = value.tradable
+        marketStats = MarketStatsFacts(value)
     }
 }
 

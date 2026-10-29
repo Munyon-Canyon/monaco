@@ -85,4 +85,13 @@ final class ProposalDetailMappingTests: XCTestCase {
         XCTAssertEqual(ProposalAsset(research).preIpo?.eligibility, .researchOnly)
         XCTAssertNil(ProposalAsset(.nvda).preIpo)
     }
+
+    func testTheNVDAAssetDetailMapsItsMarketStats() async throws {
+        let stats = ProposalAsset(.nvda).marketStats
+        XCTAssertEqual(stats.listingNetworks, [.solana])
+        XCTAssertEqual(stats.priceSource, .jupiter)
+        XCTAssertEqual(stats.priceAsOf, Date(timeIntervalSince1970: 1_772_596_200))
+        XCTAssertEqual(stats.pollInterval, .seconds(120))
+        XCTAssertFalse(stats.tradesContinuously)
+    }
 }

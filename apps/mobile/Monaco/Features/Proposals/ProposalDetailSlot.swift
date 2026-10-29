@@ -9,6 +9,11 @@ enum ProposalDetailSlot: ProposalSection {
     }
 }
 
+private enum ProposalInfoSheet: String, Identifiable {
+    case price, estimate
+    var id: String { rawValue }
+}
+
 struct ProposalDetailSlotView: View {
     let proposalID: String
     @Environment(AppEnvironment.self) private var environment
@@ -20,6 +25,7 @@ struct ProposalDetailSlotView: View {
     @State private var pause: ProposalPauseModel?
     @State private var showsVotes = false
     @State private var confirmingWithdrawal = false
+    @State private var infoSheet: ProposalInfoSheet?
 
     init(proposalID: String, model: ProposalDetailModel? = nil) {
         self.proposalID = proposalID
@@ -40,6 +46,12 @@ struct ProposalDetailSlotView: View {
             .onAppear { if presentsVotes { showsVotes = true } }
             .sheet(isPresented: $showsVotes) {
                 ProposalVotesSheet(model: model)
+            }
+            .sheet(item: $infoSheet) { sheet in
+                switch sheet {
+                case .price: if let asset = model?.asset { MarketStatsSheet(facts: asset.marketStats) }
+                case .estimate: if let preIpo = model?.asset?.preIpo { EstimateInfoSheet(preIpo: preIpo) }
+                }
             }
             .confirmationDialog(
                 "Withdraw this proposal?", isPresented: $confirmingWithdrawal, titleVisibility: .visible
@@ -81,7 +93,9 @@ struct ProposalDetailSlotView: View {
             )
             .padding(.horizontal, MonacoTheme.Space.gutter)
             if let stats = model.stats {
-                ProposalStatRow(stats: stats)
+                ProposalStatRow(
+                    stats: stats,
+                    onInfo: { infoSheet = model.asset?.preIpo == nil ? .price : .estimate })
             }
             if let preIpo = model.asset?.preIpo, let profile = preIpo.profile {
                 ProposalPreIpoLedger(lines: profile.ledger, eligibility: preIpo.eligibility)

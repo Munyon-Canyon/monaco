@@ -90,5 +90,6 @@ public enum MainFlowCopyManifest {
             CabalPause(reasons: ["external_deposit"]).message,
             CabalPause(reasons: []).message,
             CashOutJob.failure("sale_short"),
-        ] + PreIpoCopy.auditedStrings + OnboardingCopy.auditedStrings + AccountCopy.auditedStrings
+        ] + PreIpoCopy.auditedStrings + MarketStatsCopy.auditedStrings
+        + OnboardingCopy.auditedStrings + AccountCopy.auditedStrings
 }
