@@ -31,10 +31,15 @@ public enum LedgerCopy {
     }
 
     public static func title(start: String, end: String) -> String {
-        guard let from = parts(start), let to = parts(end) else { return "The Ledger" }
+        guard let range = range(start: start, end: end) else { return "The Ledger" }
+        return "The Ledger · \(range)"
+    }
+
+    public static func range(start: String, end: String) -> String? {
+        guard let from = parts(start), let to = parts(end) else { return nil }
         let first = "\(months[from.month - 1]) \(from.day)"
         let last = from.month == to.month ? "\(to.day)" : "\(months[to.month - 1]) \(to.day)"
-        return "The Ledger · \(first) – \(last)"
+        return "\(first) – \(last)"
     }
 
     private static func parts(_ date: String) -> (month: Int, day: Int)? {

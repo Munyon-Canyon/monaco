@@ -87,11 +87,13 @@ public struct ShareFacts: Equatable, Sendable {
     public let symbol: String?
     public let firstBoughtAt: Date?
     public let side: Side?
+    public let isLedger: Bool
 
-    public init(symbol: String? = nil, firstBoughtAt: Date? = nil, side: Side? = nil) {
+    public init(symbol: String? = nil, firstBoughtAt: Date? = nil, side: Side? = nil, isLedger: Bool = false) {
         self.symbol = symbol
         self.firstBoughtAt = firstBoughtAt
         self.side = side
+        self.isLedger = isLedger
     }
 }
 

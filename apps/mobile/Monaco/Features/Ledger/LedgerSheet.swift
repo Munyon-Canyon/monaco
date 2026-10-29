@@ -1,10 +1,11 @@
 import MonacoAPI
 import MonacoAnalytics
+import MonacoCore
 import MonacoRanking
 import SwiftUI
 
 enum LedgerFeature {
-    static let storyShareEnabled = false
+    static let storyShareEnabled = true
 }
 
 nonisolated struct LedgerRoute: Identifiable, Hashable, Sendable {
@@ -77,9 +78,13 @@ struct LedgerSheet: View {
             stats(screen)
             callsCard(screen)
             if LedgerFeature.storyShareEnabled {
-                Button(LedgerCopy.shareTitle) {}
-                    .buttonStyle(.monacoPrimary)
-                    .accessibilityIdentifier("ledger-share")
+                Button(LedgerCopy.shareTitle) {
+                    environment.navigator.open(
+                        ShareRoute(.ledger(week: screen.week)), in: .home)
+                    dismiss()
+                }
+                .buttonStyle(.monacoPrimary)
+                .accessibilityIdentifier("ledger-share")
             }
             Spacer(minLength: 0)
         }

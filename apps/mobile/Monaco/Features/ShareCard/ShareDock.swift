@@ -22,6 +22,24 @@ enum ShareEye: CaseIterable {
         }
     }
 
+    func title(ledger: Bool) -> String {
+        guard ledger else { return title }
+        return switch self {
+        case .pnl: "Return"
+        case .trades: "Calls"
+        case .code: "Code"
+        }
+    }
+
+    func identifier(ledger: Bool) -> String {
+        guard ledger else { return identifier }
+        return switch self {
+        case .pnl: "ledger-share-toggle-return"
+        case .trades: "ledger-share-toggle-calls"
+        case .code: "ledger-share-toggle-code"
+        }
+    }
+
     func isOn(_ eyes: ShareEyes) -> Bool {
         switch self {
         case .pnl: eyes.pnlDollars
@@ -58,6 +76,7 @@ struct ShareDock: View {
     @Binding var eyes: ShareEyes
     @Binding var format: ShareFormat
     var unusedEyes: Set<ShareEye> = []
+    var isLedger = false
     let share: () -> Void
     let copyImage: () -> Void
 
@@ -65,7 +84,8 @@ struct ShareDock: View {
         VStack(spacing: MonacoTheme.Space.xs) {
             HStack(spacing: MonacoTheme.Space.s) {
                 ForEach(ShareEye.allCases, id: \.self) { eye in
-                    ShareEyeChip(eye: eye, isOn: eye.isOn(eyes), isUnused: unusedEyes.contains(eye)) {
+                    ShareEyeChip(eye: eye, isOn: eye.isOn(eyes), isUnused: unusedEyes.contains(eye), isLedger: isLedger)
+                    {
                         eyes = eye.toggled(eyes)
                     }
                 }
@@ -100,6 +120,7 @@ struct ShareEyeChip: View {
     let eye: ShareEye
     let isOn: Bool
     var isUnused = false
+    var isLedger = false
     let toggle: () -> Void
 
     var body: some View {
@@ -110,7 +131,7 @@ struct ShareEyeChip: View {
             HStack(spacing: MonacoTheme.Space.xs) {
                 Image(systemName: isOn ? MonacoIcon.eye.symbol : "eye.slash")
                     .accessibilityHidden(true)
-                Text(eye.title)
+                Text(eye.title(ledger: isLedger))
             }
             .font(MonacoTheme.Typo.subheadStrong)
             .foregroundStyle(isOn ? MonacoTheme.primaryText : MonacoTheme.secondaryText)
@@ -124,10 +145,10 @@ struct ShareEyeChip: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(eye.title)
+        .accessibilityLabel(eye.title(ledger: isLedger))
         .accessibilityValue(isOn ? "On" : "Off")
         .accessibilityHint(isUnused ? "Not used on a vote card" : "")
         .accessibilityAddTraits(.isToggle)
-        .accessibilityIdentifier(eye.identifier)
+        .accessibilityIdentifier(eye.identifier(ledger: isLedger))
     }
 }

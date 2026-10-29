@@ -1,5 +1,6 @@
 import Foundation
 import MonacoAPI
+import MonacoRanking
 import Observation
 
 @Observable
@@ -51,8 +52,13 @@ public final class ShareScreenModel {
         return switch loadedKind {
         case .vote: Self.voteTitle
         case .passed, .position, .stake, .portfolio: Self.positionTitle
+        case .ledger: ledgerTitle
         case nil:
-            if case .openVote = subject { Self.voteTitle } else { Self.positionTitle }
+            switch subject {
+            case .openVote: Self.voteTitle
+            case .ledger: ledgerTitle
+            default: Self.positionTitle
+            }
         }
     }
 
@@ -83,6 +89,7 @@ public final class ShareScreenModel {
         case .passedProposal: (ShareEyes(pnlDollars: false), .square)
         case .openVote: (voteDefaults, .square)
         case .portfolio: (ShareEyes(), .post)
+        case .ledger: (ShareEyes(), .story)
         default: (ShareEyes(), .post)
         }
     }
@@ -99,6 +106,8 @@ public final class ShareScreenModel {
             await run { try await self.loadStake(cabalID: cabalID) }
         case .portfolio:
             await run { try await self.loadPortfolio() }
+        case .ledger(let week):
+            await run { try await self.loadLedger(week: week) }
         }
     }
 
@@ -121,7 +130,7 @@ public final class ShareScreenModel {
         loadedKind = loaded.kind
         shareURL = loaded.shareURL
         switch loaded.kind {
-        case .position, .stake, .portfolio: break
+        case .position, .stake, .portfolio, .ledger: break
         case .vote, .passed:
             if format != .sticker {
                 self.eyes = loaded.kind == .vote ? Self.voteDefaults : Self.defaults(for: .passedProposal(id: "")).eyes
@@ -153,6 +162,9 @@ public final class ShareScreenModel {
                 SharePortfolioBuilder.build(
                     portfolio: portfolio, history: loaded.chart, code: loaded.code, eyes: eyes, now: now(),
                     timeZone: timeZone))
+        case .ledger(let content):
+            let shown = format == .sticker ? ShareEyes(pnlDollars: true, buySell: false, code: false) : eyes
+            state = .loaded(ShareLedgerBuilder.build(content: content, eyes: shown))
         case .vote(let proposal):
             state = .loaded(
                 ShareVoteBuilder.build(
@@ -167,6 +179,7 @@ public final class ShareScreenModel {
         case vote
         case stake
         case portfolio
+        case ledger
     }
 
     private enum Content: Sendable {
@@ -175,6 +188,7 @@ public final class ShareScreenModel {
         case vote(Components.Schemas.ProposalDetail)
         case stake(ShareStake)
         case portfolio(SharePortfolio)
+        case ledger(LedgerShareContent)
     }
 
     private struct Loaded: Sendable {
@@ -191,6 +205,7 @@ public final class ShareScreenModel {
             case .vote: .vote
             case .stake: .stake
             case .portfolio: .portfolio
+            case .ledger: .ledger
             }
         }
     }
@@ -265,6 +280,12 @@ public final class ShareScreenModel {
 }
 
 extension ShareScreenModel {
+    fileprivate var ledgerTitle: String {
+        if case .ledger(let content)? = loaded?.content { return content.weekTitle }
+        if case .ledger(let week) = subject { return LedgerShareContent.weekTitle(week) }
+        return Self.positionTitle
+    }
+
     private func loadStake(cabalID: String) async throws -> Loaded {
         let api = api
         async let pot = api.read { try await $0.getCabalPot(path: .init(id: cabalID)).ok.body.json }
@@ -290,6 +311,22 @@ extension ShareScreenModel {
             content: .stake(stake), crest: crest,
             chart: curve.points.map { ShareChartPoint(time: $0.at, priceMicros: $0.equityMicros) },
             code: link?.value.uppercased(), shareURL: link.map { ReferralLink.url(for: $0, cabalID: cabalID) })
+    }
+
+    private func loadLedger(week: String) async throws -> Loaded {
+        let (api, timeZone) = (api, timeZone)
+        async let ledger = api.read { try await $0.getMyLedger(path: .init(week: week)).ok.body.json }
+        async let me = api.read { try await $0.getMe().ok.body.json }
+        async let referral = try? api.read { try await $0.getMyReferralCode().ok.body.json }
+        let user = try await me
+        let link = await referral.flatMap(Self.link)
+        let name = user.displayName.split(separator: " ").first.map(String.init) ?? user.displayName
+        let content = LedgerShareContent(
+            try await ledger, name: name, photoURL: user.photoUrl.flatMap(URL.init(string:)),
+            code: link?.value, timeZone: timeZone)
+        return Loaded(
+            content: .ledger(content), crest: ShareCrest(cabalID: "", name: "", pictureURL: nil), chart: [],
+            code: content.code, shareURL: link.map { ReferralLink.url(for: $0) })
     }
 
     private func loadPortfolio() async throws -> Loaded {

@@ -172,9 +172,9 @@ Opens from the Sunday "The Ledger · Week 42" push (`kind = weekly_ledger`, `wee
 | Hero | "+1.4%" in the gain colour (loss colour for "−0.8%", "—" when the return is null), "your stake that week · 3 cabals" |
 | Stat card | Voted "3 of 3", Right calls "2 of 3", Sharpest the first name or "—" |
 | Card | The best call ("Best call · Sell AMZN", "Degens · you voted Yes", "+4.2%"; "No call landed this week" with no best call) and the "Full Ledger" row |
-| Share | "Share the Ledger", hidden behind `LedgerFeature.storyShareEnabled` until #6581 |
+| Share | "Share the Ledger" (`ledger-share`) closes the sheet and pushes the share screen with the Ledger subject (`ShareSubject.ledger`), titled "Week 42". The Ledger card (`ledger-share-card`) is a brand-green frame with the cabal cover band, "Andres · Week 42", the week's line with the seal marker "Called AMZN · Sat" and a B per buy, "+1.4% this week", Best call · Sharpest · Voted, and the wordmark with "Join with code ANDRES". The eyes are named Return, Calls and Code (`ledger-share-toggle-<return\|calls\|code>`, remembered per viewer); "Replay the week" is `ledger-share-replay`. Harness: `-MonacoLedgerSample <story\|storyNoCalls>` |
 
-The Full Ledger row dismisses the sheet and pushes `FullLedgerRoute(week:)` on the Home tab: "Every call" (a row per call, "you voted Yes · right", the move; a tap opens its proposal), "The miss" and "Top reply" (the author's photo, name and excerpt, then "🔥 3 · Buy NVDA"). States. Loading: a skeleton. A 404 `ledger_not_found`: "This week's Ledger isn't ready yet." with Close. Any other failure: "Try again". Harness: `-MonacoLedgerSample <week42|noBestCall|loss|notReady|loading>`.
+The Full Ledger row dismisses the sheet and pushes `FullLedgerRoute(week:)` on the Home tab: "Every call" (a row per call, "you voted Yes · right", the move; a tap opens its proposal), "The miss" and "Top reply" (the author's photo, name and excerpt, then "🔥 3 · Buy NVDA"). States. Loading: a skeleton. A 404 `ledger_not_found`: "This week's Ledger isn't ready yet." with Close. Any other failure: "Try again". Harness: `-MonacoLedgerSample <week42|noBestCall|loss|notReady|loading|story|storyNoCalls>`.
 
 ## Cabals tab
 

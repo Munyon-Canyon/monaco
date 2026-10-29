@@ -6,4 +6,5 @@ public enum ShareSubject: Hashable, Sendable {
     case openVote(id: String)
     case stake(cabalID: String)
     case portfolio
+    case ledger(week: String)
 }
