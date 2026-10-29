@@ -77,6 +77,7 @@ struct HomeVoteCard: View {
                 side, selection: .picked(held), holding: held, progress: progress, isEnabled: true)
         )
         .accessibilityIdentifier(VoteIdentifier.make(identifierPrefix, "vote-\(side.title.lowercased())", model.id))
+        .accessibilityActions { Button("Vote \(side.title)") { commit(side) } }
     }
 
     @ViewBuilder private var hint: some View {
