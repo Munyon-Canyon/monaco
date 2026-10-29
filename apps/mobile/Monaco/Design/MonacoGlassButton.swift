@@ -50,8 +50,8 @@ struct MonacoGlassButton: View {
             mark
                 .frame(width: diameter, height: diameter)
                 .modifier(MonacoGlassFill(style: style, drawsCircle: drawsCircle))
-                .frame(width: hitSide, height: hitSide)
-                .contentShape(Circle())
+                .frame(minWidth: hitSide, minHeight: hitSide)
+                .contentShape(Rectangle())
         }
         .buttonStyle(MonacoGlassPressStyle())
         .frame(minWidth: 44, minHeight: 44)

@@ -114,7 +114,11 @@ struct MonacoPlainLabelRow<Item: Hashable>: View {
                 .foregroundStyle(isSelected ? MonacoTheme.primaryText : MonacoTheme.secondaryText)
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
-                .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: MonacoButtonMetrics.hitTarget)
+                .frame(
+                    minWidth: MonacoButtonMetrics.hitTarget,
+                    maxWidth: fillsWidth ? .infinity : nil,
+                    minHeight: MonacoButtonMetrics.hitTarget
+                )
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

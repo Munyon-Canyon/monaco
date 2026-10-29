@@ -136,7 +136,8 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
         .padding(.horizontal, MonacoTheme.Space.m)
         .background(MonacoTheme.surface, in: Capsule())
         .overlay(Capsule().strokeBorder(MonacoTheme.hairline, lineWidth: 1 / displayScale))
-        .contentShape(Capsule())
+        .frame(minHeight: MonacoButtonMetrics.hitTarget)
+        .contentShape(Rectangle())
         if let onSource {
             Button(action: onSource) { pill }
                 .buttonStyle(.plain)
