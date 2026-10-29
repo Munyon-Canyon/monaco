@@ -194,8 +194,8 @@ founder:
 
 | Frame | Appearance | Verdict | Difference | Follow-up |
 | --- | --- | --- | --- | --- |
-| [`08-review-sheet`](../screens/08-review-sheet.png) | dark | difference | Frame shows the NVIDIA stock page dimmed behind the sheet and a "Why this trade? (optional)" field; app shows a black screen behind it and the filled note. | #7028 (#6567) |
-| [`08-review-sheet-preipo`](../screens/08-review-sheet-preipo.png) | dark | difference | Frame shows the SpaceX page behind, "Buy ≈ 2.70 sh at the estimate" and a Last round / Secondary estimate card; app has a black backdrop, "Buy at the estimate" and no round card. | #7028 (#6567) |
+| [`08-review-sheet`](../screens/08-review-sheet.png) | dark | match | The sample draws the NVIDIA stock page behind the sheet and the empty "Why this trade? (optional)" row. | #7028 (#6567) |
+| [`08-review-sheet-preipo`](../screens/08-review-sheet-preipo.png) | dark | match | The sample draws the SpaceX page behind the sheet, "Buy ≈ 2.70 sh at the estimate" and the Last round / Secondary estimate card. | #7028 (#6567) |
 
 founder:
 

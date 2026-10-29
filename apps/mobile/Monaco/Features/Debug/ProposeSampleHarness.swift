@@ -58,6 +58,8 @@ enum ProposeSampleScenario: String, CaseIterable {
         case .pickCabal: script.cabalCount = 2
         case .noCabal: script.cabalCount = 0
         case .buyListPaused: script.includesPausedStock = true
+        case .reviewNvidia, .reviewNvidiaTwoCabals: script.show(.nvda)
+        case .reviewSpaceX: script.show(.spaceX)
         default: break
         }
         return script
@@ -185,8 +187,7 @@ struct ProposeReviewSample: View {
     @State private var presents = true
 
     var body: some View {
-        Color.clear
-            .monacoCanvas()
+        backdrop
             .sheet(isPresented: $presents) {
                 ProposeReviewSheet(
                     service: service, cabalID: GroupDetailSampleData.cabalID, draft: draft,
@@ -196,10 +197,17 @@ struct ProposeReviewSample: View {
             }
     }
 
+    @ViewBuilder private var backdrop: some View {
+        switch scenario {
+        case .reviewNvidia, .reviewNvidiaTwoCabals, .reviewSpaceX: AssetRoute(symbol: symbol).destination()
+        default: Color.clear.monacoCanvas()
+        }
+    }
+
     private var symbol: String {
         switch scenario {
         case .reviewNvidia, .reviewNvidiaTwoCabals: "NVDAx"
-        case .reviewSpaceX: "SPACEX"
+        case .reviewSpaceX: "tSpaceX"
         default: "GOOGLx"
         }
     }
@@ -251,9 +259,12 @@ struct ProposeReviewSample: View {
     }
 
     private var thesis: String {
-        scenario == .reviewLongThesis
-            ? String(repeating: "Earnings next week and the cloud business keeps compounding. ", count: 4)
-            : "Earnings next week."
+        switch scenario {
+        case .reviewLongThesis:
+            String(repeating: "Earnings next week and the cloud business keeps compounding. ", count: 4)
+        case .reviewNvidia, .reviewNvidiaTwoCabals, .reviewSpaceX: ""
+        default: "Earnings next week."
+        }
     }
 
     private var buyMicros: Int64 {
