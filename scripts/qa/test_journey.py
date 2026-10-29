@@ -7,6 +7,7 @@ Run: python3 scripts/qa/test_journey.py
 import contextlib
 import fcntl
 import json
+import multiprocessing
 import os
 import shutil
 import signal
@@ -1132,6 +1133,60 @@ class XctestrunCommand(Output):
         args = self.command("build-for-testing")
         self.assertEqual(args[:3], ["scripts/qa/xcode-lock.sh", "xcode", "xcodebuild"])
         self.assertEqual(args[-1], "build-for-testing")
+
+
+class SlotRelease(unittest.TestCase):
+    """Two multi-journey calls that share the simulator slots and the logins never wait on each other."""
+
+    def stream(self, names, logins, slots, barrier, result):
+        locks = {}
+
+        class Holder:
+            def __init__(self):
+                self.stdin = self.stdout = self
+                self.released = False
+
+            def close(self):
+                if not self.released:
+                    self.released = True
+                    slots.release()
+
+            def wait(self):
+                return 0
+
+        def run_journey(args, url, journey_id, builder):
+            login = logins[journey_id[-1]]
+            login.acquire()
+            try:
+                if not slots.acquire(timeout=3):
+                    return 9
+                journey.SIM_SLOTS["sim-" + journey_id] = Holder()
+                if journey_id.endswith("1"):
+                    barrier.wait(timeout=5)
+            finally:
+                login.release()
+            return 0
+
+        journeys = {name: unittest.mock.Mock(id=name, funds={}, requires=[]) for name in names}
+        with unittest.mock.patch.object(journey, "run_journey", run_journey), \
+                unittest.mock.patch.object(journey, "release_sim_slot", REAL_RELEASE_SIM_SLOT), \
+                unittest.mock.patch.object(journey, "load_journeys", lambda: journeys), \
+                unittest.mock.patch.object(journey, "simulator_devices", lambda: {}), \
+                redirect_stdout(StringIO()):
+            args = unittest.mock.Mock(keep_sims=False)
+            result.put(journey.run_all(args, "http://127.0.0.1:8080", lambda sim: None, only=names))
+
+    def test_two_streams_with_crossed_logins_both_finish(self):
+        ctx = multiprocessing.get_context("fork")
+        slots, barrier, result = ctx.Semaphore(2), ctx.Barrier(2), ctx.Queue()
+        logins = {"A": ctx.Lock(), "B": ctx.Lock()}
+        streams = [ctx.Process(target=self.stream, args=(names, {"1": logins[a], "2": logins[b]}, slots, barrier, result))
+                   for names, a, b in ((["x1", "x2"], "A", "B"), (["y1", "y2"], "B", "A"))]
+        for process in streams:
+            process.start()
+        for process in streams:
+            process.join(timeout=20)
+        self.assertEqual(sorted(result.get(timeout=1) for _ in streams), [0, 0])
 
 
 class RemappedRun(Output):

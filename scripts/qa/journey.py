@@ -1547,7 +1547,10 @@ def run_all(args, api_base_url, builder, only=None):
                 continue
         print("== %s" % journey_id, flush=True)
         try:
-            code = run_journey(args, api_base_url, journey_id, builder)
+            # Each journey's simulators go down and their `sim` slots go back before the next journey
+            # takes its logins, so no call holds a slot while it waits for logins another call holds.
+            with simulator_shutdown(args.keep_sims):
+                code = run_journey(args, api_base_url, journey_id, builder)
         except JourneyError as error:
             print("error: %s: %s" % (journey_id, error), file=sys.stderr)
             code = 2
