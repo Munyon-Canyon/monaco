@@ -5,15 +5,15 @@ The Proposal screen's vote section toasts "Voted" instead of the voter's place i
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift b/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift
-index 7e02c3e85..c5e5dfcff 100644
+index 14a9351e4..62207ab49 100644
 --- a/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift
 +++ b/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift
-@@ -216,7 +216,7 @@ struct ProposalVoteSection: View {
+@@ -220,7 +220,7 @@ struct ProposalVoteSection: View {
              toast.offersUndo
              ? MonacoToastAction(title: "Undo", expiresAt: outcome.undoUntil) { undo() }
              : nil
 -        toasts.show(success: toast.message, action: action)
 +        toasts.show(success: "Voted", action: action)
-     }
- 
-     private func refused() {
+         guard let prompt = environment?.pushPrePrompt else { return }
+         let sample = PushSample.afterVote(
+             symbol: summary.symbol, status: outcome.status, tally: outcome.tally, isSell: summary.kind == "sell",

@@ -8,34 +8,71 @@ struct PushPrePromptSheet: View {
 
     var body: some View {
         VStack(spacing: MonacoTheme.Space.m) {
-            Text("We'll tell you when a vote opens or passes, when a trade fills, and when a cabal lets you in.")
+            Image(systemName: "bell.badge")
+                .font(MonacoTheme.Typo.section)
+                .foregroundStyle(MonacoTheme.accent)
+                .frame(width: 56, height: 56)
+                .background(MonacoTheme.brandSoft, in: Circle())
+                .accessibilityHidden(true)
+            Text("Get each result when a vote closes. No more vote reminders after you vote.")
                 .font(MonacoTheme.Typo.body)
-                .foregroundStyle(MonacoTheme.muted)
+                .foregroundStyle(MonacoTheme.secondaryText)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            buttons {
+            if let sample = prompt.sample { sampleCard(sample) }
+            Button {
+                Task { await prompt.turnOn() }
+            } label: {
+                Text("Turn on notifications").lineLimit(2).multilineTextAlignment(.center)
+            }
+            .buttonStyle(.monacoPrimary)
+            .accessibilityIdentifier("push-pre-prompt-turn-on")
+            textButtons {
+                Button("Deliver quietly") { Task { await prompt.deliverQuietly() } }
+                    .buttonStyle(.monacoText)
+                    .accessibilityIdentifier("push-pre-prompt-quietly")
                 Button("Not now", action: prompt.notNow)
-                    .buttonStyle(.monacoSecondary)
+                    .buttonStyle(.monacoText)
                     .accessibilityIdentifier("push-pre-prompt-not-now")
-                Button {
-                    Task { await prompt.turnOn() }
-                } label: {
-                    Text("Turn on notifications").lineLimit(2).multilineTextAlignment(.center)
-                }
-                .buttonStyle(.monacoPrimary)
-                .accessibilityIdentifier("push-pre-prompt-turn-on")
             }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.bottom, MonacoTheme.Space.m)
-        .monacoFittedSheet(title: "Know when your cabal votes and trades", titleIdentifier: "push-pre-prompt-title")
+        .monacoFittedSheet(title: "Hear how votes end?", titleIdentifier: "push-pre-prompt-title")
         .accessibilityIdentifier("push-pre-prompt")
     }
 
-    private func buttons<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+    private func sampleCard(_ sample: PushSample) -> some View {
+        HStack(alignment: .top, spacing: MonacoTheme.Space.sm) {
+            CabalMark(
+                groupId: "push-sample", name: "Cabal", size: .row, pictureUrl: sample.cabalImageURL?.absoluteString)
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                Text(sample.title)
+                    .font(MonacoTheme.Typo.subheadStrong)
+                    .foregroundStyle(MonacoTheme.ink)
+                Text(sample.body)
+                    .font(MonacoTheme.Typo.subhead)
+                    .foregroundStyle(MonacoTheme.bodyText)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Text("now")
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.muted)
+        }
+        .padding(MonacoTheme.Space.sm)
+        .background(
+            MonacoTheme.surface,
+            in: RoundedRectangle(
+                cornerRadius: MonacoTheme.Radius.cardTight, style: .continuous)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("push-pre-prompt-sample")
+    }
+
+    private func textButtons<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         let layout =
             dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(spacing: MonacoTheme.Space.s))
-            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
+            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.m))
         return layout { content() }
     }
 }

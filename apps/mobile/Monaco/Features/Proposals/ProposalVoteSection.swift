@@ -221,6 +221,11 @@ struct ProposalVoteSection: View {
             ? MonacoToastAction(title: "Undo", expiresAt: outcome.undoUntil) { undo() }
             : nil
         toasts.show(success: toast.message, action: action)
+        guard let prompt = environment?.pushPrePrompt else { return }
+        let sample = PushSample.afterVote(
+            symbol: summary.symbol, status: outcome.status, tally: outcome.tally, isSell: summary.kind == "sell",
+            usdcMicros: summary.usdcMicros, closesAt: summary.expiresAt, swap: summary.swap, pendingUnits: nil)
+        Task { await prompt.noteFirstVote(sample: sample, after: toasts) }
     }
 
     private func refused() {
