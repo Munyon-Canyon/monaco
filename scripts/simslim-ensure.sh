@@ -2,7 +2,7 @@
 # Make a lane or journey simulator persistently slim with SimSlim.
 #   simslim-ensure.sh create <udid>   just created: run `simslim on`
 #   simslim-ensure.sh check <udid>    before a run: `simslim verify`, re-run `simslim on` once if not slim
-# Never fails: a missing simslim or a failed `on` warns on stderr and the sim stays stock.
+# A missing simslim exits 1, so no simulator boots stock unnoticed. A failed `on` warns and the sim stays stock.
 # MONACO_NO_SIMSLIM=1 skips everything. Never boots a simulator; --preserve-boot-state
 # returns a shut down simulator to shutdown.
 set -uo pipefail
@@ -17,8 +17,8 @@ if [[ "${MONACO_NO_SIMSLIM:-}" == 1 ]]; then
   exit 0
 fi
 if ! command -v simslim >/dev/null 2>&1; then
-  echo "warning: SimSlim not installed. ${udid} stays a stock simulator (set MONACO_NO_SIMSLIM=1 to silence)." >&2
-  exit 0
+  echo "error: SimSlim not installed: brew install mobai-app/tap/simslim (README), or set MONACO_NO_SIMSLIM=1 to use a stock simulator" >&2
+  exit 1
 fi
 
 # The repo's profile, not a per-user copy of it: a copy that slims away `siri` leaves a simulator

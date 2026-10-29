@@ -108,8 +108,8 @@ every journey actor simulator right after it is created, with no watcher running
 `simslim on <udid> --profile "${SIMSLIM_PROFILE:-ci/profiles/base-slim.json}" --preserve-boot-state`.
 Before a later run the same script calls `simslim verify`, and if the simulator is no
 longer slim (recreated or erased) it re-runs `simslim on` once. A missing `simslim`
-warns on stderr and the simulator stays stock; nothing fails. `MONACO_NO_SIMSLIM=1`
-opts out.
+stops the lane or journey with an error that names the install, so no simulator boots
+stock unnoticed. `MONACO_NO_SIMSLIM=1` opts out and uses a stock simulator.
 
 The Homebrew formula (`mobai-app/tap/simslim`) is arm64 only. On an Intel Mac install it with
 `go install github.com/mobai-app/simslim/cmd/simslim@v0.11.0`, which lands in

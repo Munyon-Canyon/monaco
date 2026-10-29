@@ -749,8 +749,8 @@ def use_derived_data(logins):
 
 
 def simslim_ensure(mode, udid):
-    """Slims a dedicated simulator when it is created, or repairs it once before a run. Never fails."""
-    sh([str(ROOT / "scripts" / "simslim-ensure.sh"), mode, udid], check=False)
+    """Slims a dedicated simulator when it is created, or repairs it once before a run. Raises when SimSlim is missing."""
+    sh([str(ROOT / "scripts" / "simslim-ensure.sh"), mode, udid], check=True)
 
 
 def resolve_simulator(override="", logins=None):
