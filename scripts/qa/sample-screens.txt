@@ -983,3 +983,8 @@ catch-up-legacy-unread        -activityFeedHarness unread
 catch-up-caught-up            -MonacoCatchUpSample caughtUp
 catch-up-caught-up-dark       -MonacoCatchUpSample caughtUp -AppleInterfaceStyle Dark
 catch-up-first-use            -MonacoCatchUpSample firstUse
+gif-sheet-trending            -gifHarness trending
+gif-sheet-trending-dark       -gifHarness trending -AppleInterfaceStyle Dark
+gif-sheet-search              -gifHarness search
+gif-sheet-empty               -gifHarness empty
+gif-sheet-failed              -gifHarness failed

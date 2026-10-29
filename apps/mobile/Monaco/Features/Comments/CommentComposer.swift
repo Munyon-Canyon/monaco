@@ -5,17 +5,19 @@ struct CommentComposerBar<Restricted: View>: View {
     @Bindable var model: CommentsModel
     var replyOwner: String?
     var onPlus: (() -> Void)?
-    var onGif: (() -> Void)?
     var onDidStandDown: () -> Void = {}
     @ViewBuilder var restricted: () -> Restricted
+
+    @State private var picksGif = false
 
     var body: some View {
         VStack(spacing: 0) {
             if model.replySheet == nil { bar }
         }
         .sheet(item: sheetBinding) { target in
-            ReplySheet(model: model, target: target, owner: replyOwner, onGif: onGif)
+            ReplySheet(model: model, target: target, owner: replyOwner)
         }
+        .gifPicker(isPresented: $picksGif, model: model)
     }
 
     private var sheetBinding: Binding<ReplyTarget?> {
@@ -34,7 +36,7 @@ struct CommentComposerBar<Restricted: View>: View {
         } else if !model.canCommentKnown {
             EmptyView()
         } else if model.canComment {
-            DockedComposer(model: model, onPlus: onPlus, onGif: onGif, onDidStandDown: onDidStandDown)
+            DockedComposer(model: model, onPlus: onPlus, onGif: { picksGif = true }, onDidStandDown: onDidStandDown)
         } else {
             restricted()
         }
@@ -43,11 +45,11 @@ struct CommentComposerBar<Restricted: View>: View {
 
 extension CommentComposerBar where Restricted == EmptyView {
     init(
-        model: CommentsModel, replyOwner: String? = nil, onPlus: (() -> Void)? = nil, onGif: (() -> Void)? = nil,
+        model: CommentsModel, replyOwner: String? = nil, onPlus: (() -> Void)? = nil,
         onDidStandDown: @escaping () -> Void = {}
     ) {
         self.init(
-            model: model, replyOwner: replyOwner, onPlus: onPlus, onGif: onGif, onDidStandDown: onDidStandDown,
+            model: model, replyOwner: replyOwner, onPlus: onPlus, onDidStandDown: onDidStandDown,
             restricted: { EmptyView() })
     }
 }
@@ -55,7 +57,7 @@ extension CommentComposerBar where Restricted == EmptyView {
 private struct DockedComposer: View {
     @Bindable var model: CommentsModel
     let onPlus: (() -> Void)?
-    let onGif: (() -> Void)?
+    let onGif: () -> Void
     let onDidStandDown: () -> Void
 
     @FocusState private var focused: Bool
@@ -65,7 +67,12 @@ private struct DockedComposer: View {
             ComposerNotices(model: model)
             HStack(alignment: .bottom, spacing: MonacoTheme.Space.s) {
                 if let onPlus { plusButton(onPlus) }
-                ComposerField(model: model, focused: $focused, onGif: onGif)
+                ComposerField(
+                    model: model, focused: $focused,
+                    onGif: {
+                        focused = false
+                        onGif()
+                    })
                 ComposerSendButton(model: model) {
                     focused = false
                     onDidStandDown()
