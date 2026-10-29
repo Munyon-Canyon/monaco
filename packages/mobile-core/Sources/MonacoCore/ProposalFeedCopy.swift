@@ -263,7 +263,12 @@ public enum ProposeFlowCopy {
     public static let reviewProposal = "Review proposal"
     public static let votingWindowRow = "Voting window"
     public static let votesToPassRow = "Votes to pass"
-    public static let sendProposal = "Send proposal"
+    public static let sendProposal = "Send to vote"
+    public static let changeCabal = "Change"
+    public static let whyThisTrade = "Why this trade? (optional)"
+    public static let marketOrderTitle = "Market order"
+    public static let marketOrderBody =
+        "The cabal buys at the market price when the vote passes. Monaco fills at the best price it finds."
     public static let sending = "Sending…"
     public static let sendFailedNotice = "Couldn’t send your proposal. Your draft is saved here."
     public static let proposalSentTitle = "Proposal sent"

@@ -4,6 +4,8 @@ import SwiftUI
 struct ProposalPreIpoLedger: View {
     let lines: [PreIpoCopy.LedgerLine]
     let eligibility: PreIpoEligibility
+    var showsEligibility = true
+    var identifier = "proposal-preipo-ledger"
 
     private var eligible: Bool { eligibility == .eligible }
 
@@ -27,19 +29,21 @@ struct ProposalPreIpoLedger: View {
                     }
                 }
             }
-            HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
-                Image(systemName: (eligible ? MonacoIcon.check : MonacoIcon.info).symbol)
-                    .foregroundStyle(eligible ? MonacoTheme.profit : MonacoTheme.secondaryText)
-                    .accessibilityHidden(true)
-                Text(PreIpoCopy.proposalEligibilityLine(eligibility))
-                    .font(MonacoTheme.Typo.subhead)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+            if showsEligibility {
+                HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
+                    Image(systemName: (eligible ? MonacoIcon.check : MonacoIcon.info).symbol)
+                        .foregroundStyle(eligible ? MonacoTheme.profit : MonacoTheme.secondaryText)
+                        .accessibilityHidden(true)
+                    Text(PreIpoCopy.proposalEligibilityLine(eligibility))
+                        .font(MonacoTheme.Typo.subhead)
+                        .foregroundStyle(MonacoTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityElement(children: .combine)
             }
-            .accessibilityElement(children: .combine)
         }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.horizontal, showsEligibility ? MonacoTheme.Space.gutter : 0)
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("proposal-preipo-ledger")
+        .accessibilityIdentifier(identifier)
     }
 }

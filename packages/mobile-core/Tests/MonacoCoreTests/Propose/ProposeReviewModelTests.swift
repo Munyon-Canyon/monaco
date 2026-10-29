@@ -1,7 +1,8 @@
 import Foundation
 import MonacoAPI
-import MonacoCore
 import XCTest
+
+@testable import MonacoCore
 
 @MainActor
 final class ProposeReviewModelTests: XCTestCase {
@@ -82,7 +83,7 @@ final class ProposeReviewModelTests: XCTestCase {
         let service = ReviewService()
         let model = makeModel(kind: .stock, service: service)
 
-        XCTAssertEqual(model.sendTitle, "Send proposal")
+        XCTAssertEqual(model.sendTitle, "Send to vote")
         await model.send()
 
         XCTAssertEqual(model.proposalID, "proposal-1")

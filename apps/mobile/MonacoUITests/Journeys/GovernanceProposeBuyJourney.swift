@@ -99,7 +99,7 @@ enum GovernanceProposeBuyJourney {
     }
 
     static func send(_ app: XCUIApplication, to cabal: String, step: String) {
-        tapLabel(app, "Send proposal", step: step)
+        tapLabel(app, "Send to vote", step: step)
         expectLabel(app, "Proposal sent", step: step)
         expectLabel(app, cabal, step: step)
     }
@@ -176,8 +176,7 @@ enum GovernanceProposeBuyJourney {
             expectLabels(
                 app,
                 [
-                    "Voting window", "Votes to pass", "Cabal gets", "Price", "Pot", "Who votes", "Thesis",
-                    reason(run: run),
+                    "Shares", "Price", "Of treasury", "To pass", reason(run: run),
                 ],
                 step: "S2.5")
         }

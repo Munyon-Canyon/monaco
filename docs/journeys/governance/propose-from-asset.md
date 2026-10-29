@@ -46,6 +46,6 @@ None known.
 
 ## Not covered
 
-- Review and Send. The cabal `QA asset {QA.run}` has an empty pot, and seeding cash needs real USDC, so the Review sheet cannot open here. [governance/propose-buy](propose-buy.md) funds a pot and covers the thesis, Review proposal, Send proposal and the vote.
+- Review and Send. The cabal `QA asset {QA.run}` has an empty pot, and seeding cash needs real USDC, so the Review sheet cannot open here. [governance/propose-buy](propose-buy.md) funds a pot and covers the thesis, Review proposal, Send to vote and the vote.
 - One cabal (straight to Amount) and no cabal (the sheet "Join a cabal first" with "Find a cabal"). The QA account votes in many cabals, so neither state is reachable without a fresh account.
 - "Can't buy right now" for a stock that cannot trade.

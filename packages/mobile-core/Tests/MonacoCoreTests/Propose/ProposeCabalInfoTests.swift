@@ -61,6 +61,7 @@ final class ProposeCabalInfoTests: XCTestCase {
         XCTAssertEqual(
             info,
             ProposeCabalInfo(
-                name: "QA pot", voters: "All 3 members", votingWindow: "1 day", votesToPass: "Everyone agrees"))
+                name: "QA pot", voters: "All 3 members", votingWindow: "1 day", votesToPass: "Everyone agrees",
+                votingWindowShort: "24 h", voterCount: 3, neededToPass: 3))
     }
 }
