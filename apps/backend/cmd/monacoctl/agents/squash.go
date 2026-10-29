@@ -22,6 +22,8 @@ const (
 	mergeableFor   = time.Minute
 	queuedLookback = 3 * time.Hour
 	stage2For      = 5 * time.Minute
+	stage2SwiftFor = 15 * time.Minute
+	swiftPaths     = "packages/mobile-core apps/mobile apps/backend/api/openapi.yaml"
 	tailLines      = 20
 	watchedPaths   = "apps/backend packages/flows"
 )
@@ -144,36 +146,82 @@ func (s *stage2) wait(stdout io.Writer) error {
 	return nil
 }
 
+type stage2Plan struct {
+	backend, swift bool
+}
+
+func changedUnder(ctx context.Context, sh *shell, dir, from, to, paths string) []string {
+	diff := append([]string{"diff", "--name-only", from, to, "--"}, strings.Fields(paths)...)
+	return slices.DeleteFunc(strings.Fields(sh.run(ctx, dir, "git", diff...)), func(f string) bool {
+		return !slices.ContainsFunc(strings.Fields(paths), func(p string) bool {
+			return f == p || strings.HasPrefix(f, p+"/")
+		})
+	})
+}
+
 func (env *Env) startStage2(ctx context.Context, dir string, top stackPR) (*stage2, error) {
 	trunk := "origin/" + env.Config.FeatureBranch
 	sh := &shell{env: env}
 	base := sh.run(ctx, dir, "git", "merge-base", trunk, top.HeadOID)
-	diff := append([]string{"diff", "--name-only", base, trunk, "--"}, strings.Fields(watchedPaths)...)
-	moved := strings.Fields(sh.run(ctx, dir, "git", diff...))
+	moved := changedUnder(ctx, sh, dir, base, trunk, watchedPaths)
+	swiftMoved := changedUnder(ctx, sh, dir, base, trunk, swiftPaths)
+	plan := stage2Plan{backend: len(moved) > 0}
+	if len(swiftMoved) > 0 {
+		plan.swift = len(changedUnder(ctx, sh, dir, base, top.HeadOID, swiftPaths)) > 0
+	}
 	if sh.err != nil {
 		return nil, landFailed(sh.err)
 	}
-	runCtx, cancel := context.WithTimeout(ctx, stage2For)
-	s := &stage2{env: env, cancel: cancel, done: make(chan error, 1), start: env.Now(), ran: len(moved) > 0}
+	limit := stage2For
+	if plan.swift {
+		limit += stage2SwiftFor
+	}
+	runCtx, cancel := context.WithTimeout(ctx, limit)
+	s := &stage2{env: env, cancel: cancel, done: make(chan error, 1), start: env.Now(), ran: plan.backend || plan.swift}
 	if !s.ran {
 		s.note = fmt.Sprintf("trunk unchanged under apps/backend and packages/flows since %s; "+
 			"stage 0's ready row stands", sha12(base))
 		s.done <- nil
 		return s, nil
 	}
-	s.note = fmt.Sprintf("stage 2 on the merged tree (trunk moved in %d files since %s)", len(moved), sha12(base))
-	go func() { s.done <- env.stage2On(runCtx, dir, top) }()
+	switch {
+	case plan.backend && plan.swift:
+		s.note = fmt.Sprintf("stage 2 on the merged tree (trunk moved in %d files since %s; mobile-core too)",
+			len(moved), sha12(base))
+	case plan.backend:
+		s.note = fmt.Sprintf("stage 2 on the merged tree (trunk moved in %d files since %s)", len(moved), sha12(base))
+	default:
+		s.note = fmt.Sprintf("stage 2 mobile-core on the merged tree (trunk moved in %d Swift files since %s)",
+			len(swiftMoved), sha12(base))
+	}
+	go func() { s.done <- env.stage2On(runCtx, dir, top, plan) }()
 	return s, nil
 }
 
-func (env *Env) stage2On(ctx context.Context, dir string, top stackPR) error {
+func (env *Env) stage2On(ctx context.Context, dir string, top stackPR, plan stage2Plan) error {
 	trunk := "origin/" + env.Config.FeatureBranch
-	root := filepath.Dir(env.Common)
-	wt := filepath.Join(root, ".worktrees", fmt.Sprintf(".land-%d", top.Number))
 	sh := &shell{env: env}
 	tree, _, _ := strings.Cut(sh.run(ctx, dir, "git", "merge-tree", "--write-tree", trunk, top.HeadOID), "\n")
 	msg := fmt.Sprintf("land-stack #%d: stage 2 on the merged tree", top.Number)
-	commit := sh.run(ctx, dir, "git", "commit-tree", tree, "-p", trunk, "-m", msg)
+	commit := strings.TrimSpace(sh.run(ctx, dir, "git", "commit-tree", tree, "-p", trunk, "-m", msg))
+	if sh.err != nil {
+		return landFailed(sh.err)
+	}
+	if plan.backend {
+		if err := env.readyOnMerged(ctx, dir, top, commit); err != nil {
+			return err
+		}
+	}
+	if plan.swift {
+		return env.mobileCoreOnMerged(ctx, dir, commit)
+	}
+	return nil
+}
+
+func (env *Env) readyOnMerged(ctx context.Context, dir string, top stackPR, commit string) error {
+	root := filepath.Dir(env.Common)
+	wt := filepath.Join(root, ".worktrees", fmt.Sprintf(".land-%d", top.Number))
+	sh := &shell{env: env}
 	defer func() {
 		bg := context.WithoutCancel(ctx)
 		_, _ = env.Run(bg, dir, "", "git", "worktree", "remove", "--force", "--force", wt)
@@ -189,6 +237,46 @@ func (env *Env) stage2On(ctx context.Context, dir string, top stackPR) error {
 			"Restack with gt restack, run monacoctl agents check, then land-stack again", tail(out, err)))
 	}
 	return nil
+}
+
+func (env *Env) mobileCoreOnMerged(ctx context.Context, dir, commit string) error {
+	root := filepath.Dir(env.Common)
+	wt := filepath.Join(root, ".worktrees", ".land-swift")
+	release, err := env.holdLandSwift(ctx)
+	if err != nil {
+		return landFailed(err)
+	}
+	defer release()
+	sh := &shell{env: env}
+	if _, statErr := os.Stat(wt); statErr != nil {
+		sh.run(ctx, dir, "git", "worktree", "add", "--detach", wt, commit)
+	} else {
+		sh.run(ctx, wt, "git", "checkout", "--detach", "--force", commit)
+	}
+	if sh.err != nil {
+		return landFailed(sh.err)
+	}
+	env.copyTools(ctx, root, wt)
+	core := filepath.Join(wt, "packages", "mobile-core")
+	if out, err := env.Run(ctx, core, "", "../../scripts/mobile-core-test.sh"); err != nil {
+		return landErr(fmt.Sprintf("stage 2 mobile-core on the merged tree failed: %s. "+
+			"Restack with gt restack, run monacoctl agents check, then land-stack again", tail(out, err)))
+	}
+	return nil
+}
+
+var errLandSwiftHeld = errors.New("another landing held")
+
+func (env *Env) holdLandSwift(ctx context.Context) (func(), error) {
+	lock := filepath.Join(env.Common, ".monaco", "land-swift.lock")
+	deadline := env.Now().Add(stage2SwiftFor)
+	for os.Mkdir(lock, 0o750) != nil {
+		if ctx.Err() != nil || env.Now().After(deadline) {
+			return nil, fmt.Errorf("%w: %s for %s", errLandSwiftHeld, lock, stage2SwiftFor)
+		}
+		<-env.After(2 * time.Second)
+	}
+	return func() { _ = os.Remove(lock) }, nil
 }
 
 func (env *Env) copyTools(ctx context.Context, root, wt string) {
