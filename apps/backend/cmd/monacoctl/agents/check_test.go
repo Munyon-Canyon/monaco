@@ -611,8 +611,9 @@ func TestCheck_aThirdFailureOnOneRowHandsBackWithExitThree(t *testing.T) {
 		}
 	}
 	code, stdout, _ := h.check(t)
-	want := "go vet failed 3 checks in a row: push the draft (gt submit --stack --no-interactive --draft) " +
-		"and hand back under \"What came up\"; do not run agents check again on this failure"
+	want := "go vet failed 3 checks in a row: hand back to the orchestrator with this log under " +
+		"\"What came up\" without pushing (the guard refuses a push without a passing check); " +
+		"do not run agents check again on this failure"
 	if code != 3 || !strings.HasSuffix(stdout, want+"\n") {
 		t.Fatalf("third failure: %d %q", code, stdout)
 	}

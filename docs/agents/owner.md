@@ -11,7 +11,7 @@ Read the [standing orders](standing-orders.md) first. The dispatch prompt names 
 - Change files only in the worktree. It starts detached: begin with `git switch -c <n>-<slug>` and `gt track --parent staging`.
 <!-- END GENERATED rules:owner-brief -->
 
-Test changed packages with go test -short ./<pkg>/... first, then run agents check once; after its third failure on one row, push the draft and hand back.
+Test changed packages with go test -short ./<pkg>/... first, then run agents check once; after its third failure on one row, hand back unpushed.
 
 For `apps/mobile`, run `just build mobile` once; report a failed rerun.
 

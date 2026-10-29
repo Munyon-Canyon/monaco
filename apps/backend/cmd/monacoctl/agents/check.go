@@ -133,8 +133,8 @@ func (env *Env) noteFailure(runErr error, row, tree string, stdout io.Writer) er
 	if count < handBackAfter {
 		return runErr
 	}
-	_, _ = fmt.Fprintf(stdout, "%s failed %d checks in a row: push the draft "+
-		"(gt submit --stack --no-interactive --draft) and hand back under \"What came up\"; "+
+	_, _ = fmt.Fprintf(stdout, "%s failed %d checks in a row: hand back to the orchestrator with this log "+
+		"under \"What came up\" without pushing (the guard refuses a push without a passing check); "+
 		"do not run agents check again on this failure\n", row, count)
 	return &exitStatusError{error: runErr, code: 3}
 }
