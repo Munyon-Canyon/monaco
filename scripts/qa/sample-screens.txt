@@ -712,6 +712,7 @@ flow-15-privy-unavailable     -MonacoFlow 15 privyUnavailable
 flow-15-step-up-required      -MonacoFlow 15 stepUpRequired
 flow-15-step-up-mismatch      -MonacoFlow 15 stepUpMismatch
 flow-15-interrupted           -MonacoFlow 15 interrupted
+flow-19a-interrupted          -MonacoFlow 19a interrupted
 flow-20a-cannot-block-self    -MonacoFlow 20a cannotBlockSelf
 flow-20a-user-not-found       -MonacoFlow 20a userNotFound
 flow-20a-report-target-not-found -MonacoFlow 20a reportTargetNotFound
@@ -755,6 +756,8 @@ leaderboard-people-month      -MonacoLeaderboardSample peopleMonth
 leaderboard-people-month-dark -MonacoLeaderboardSample peopleMonth -AppleInterfaceStyle Dark
 leaderboard-lead-change         -MonacoLeaderboardSample leadChange
 leaderboard-lead-change-dark    -MonacoLeaderboardSample leadChange -AppleInterfaceStyle Dark
+leaderboard-friends-month       -MonacoLeaderboardSample friendsMonth
+leaderboard-friends-month-dark  -MonacoLeaderboardSample friendsMonth -AppleInterfaceStyle Dark
 leaderboard-empty             -MonacoLeaderboardSample empty
 leaderboard-loading           -MonacoLeaderboardSample loading
 leaderboard-error             -MonacoLeaderboardSample error

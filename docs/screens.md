@@ -205,13 +205,13 @@ Create then pushes `CabalRoute` with the toast "Cabal created.". A failed create
 
 ## Leaderboard (`LeaderboardRoute`)
 
-Leaderboard C ("Around you"): it ranks right calls over a plain period, with no filters and no dollars. Pushed as `AnyAppRoute` from any tab; `LeaderboardRoute(tab:period:)` opens a given tab and period (People and Month by default), and the older `LeaderboardRoute(board:range:)` maps 1W to Week, 1M to Month and any other range to All time. Home's "View all" opens it. The model is `CallBoardModel` in `MonacoRanking` over `getCallLeaderboard`: one GET per period or tab switch, and one reload on a `leaderboards_updated` hint while the screen is visible. Frames: `docs/design/f/screens/13-leaderboard-C-people.png` (People, This month); the Cabals and Friends frames follow in #6514 and #6499.
+Leaderboard C ("Around you"): it ranks right calls over a plain period, with no filters and no dollars. Pushed as `AnyAppRoute` from any tab; `LeaderboardRoute(tab:period:)` opens a given tab and period (People and Month by default), and the older `LeaderboardRoute(board:range:)` maps 1W to Week, 1M to Month and any other range to All time. Home's "View all" opens it. The model is `CallBoardModel` in `MonacoRanking` over `getCallLeaderboard`: one GET per period or tab switch, and one reload on a `leaderboards_updated` hint while the screen is visible. Frames: `docs/design/f/screens/13-leaderboard-C-people.png` (People, This month); `13-leaderboard-C.png` and `13-leaderboard-C-scrolled.png` (Friends); the Cabals frame follows in #6514.
 
 | # | Section | What it shows |
 | --- | --- | --- |
 | 1 | Header | Back button, large title "Leaderboard" that folds inline, the period line "This month Oct 1 – 31" (or "This week Oct 19 – 25", "All time") with plain labels Week · Month · All time on the right (`leaderboard-period-<week|month|all>`), then the underline tabs People · Cabals · Friends (`leaderboard-tab-<tab>`) pinned under the bar |
 | 2 | You card (`leaderboard-you-card`) | Your photo "You · 78% · 7 of 9 right", the centre "#8 / of 24 people / Kai is #7", the neighbour's photo "79% · 11 of 14 right", the climb bar and the gap line ("One right call puts you past Kai.", "3 right calls put you past Kai.", "Kai hasn't missed this month.", "You lead. Logan is 1 point behind.", "You lead. Logan is level.") |
-| 3 | Top three (`leaderboard-podium-<id>`) | The flat podium in 2-1-3 order with #1 raised and crowned: name, rate with movement ("92% ▲ 1"), "12 of 13 right" |
+| 3 | Top three (`leaderboard-podium-<1|2|3>`; "Top of your friends" on Friends) | The flat podium in 2-1-3 order with #1 raised and crowned: name, rate with movement ("92% ▲ 1"), "12 of 13 right" |
 | 4 | Around you (`leaderboard-row-<id>`) | Every row the response holds, in order: rank with movement, photo, name, "Voted 14 of 15", rate over "11 of 14 right". Your row sits on the raised band. People open `UserProfileRoute`, cabals `CabalRoute` |
 
 States and exact copy:
@@ -219,9 +219,11 @@ States and exact copy:
 - Loading: the header stays; six row skeletons.
 - Empty: "Nobody ranked yet" / "No one has five resolved votes yet this month." (this week; "yet." for All time).
 - Failed: "Can't load the leaderboard" / "Check your connection and try again." with "Try again" (`leaderboard-error`).
-- Pull to refresh reloads. Friends and Cabals show the People layout with the response they get until #6499 and #6514 land.
+- Pull to refresh reloads. Friends draws "of 10 friends", "Top of your friends" and, when empty, "None of your friends has five resolved votes yet this month." Cabals shows the People layout until #6514 lands.
+- Scrolling to the last row loads the next 20 through `after_cursor`; a `cursor_stale` reply reloads the board once. The **i** button (`leaderboard-info`) opens a half sheet "How the board works" with five lines.
+- Analytics: screen `leaderboard`, steps `leaderboard_tab_selected`, `leaderboard_period_selected`, `leaderboard_info_opened`.
 
-Harness: `-MonacoLeaderboardSample <peopleMonth|empty|loading|error>`.
+Harness: `-MonacoLeaderboardSample <peopleMonth|friendsMonth|empty|loading|error>`.
 
 ## Cabal screen (`CabalRoute`)
 

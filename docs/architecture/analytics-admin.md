@@ -129,10 +129,13 @@ The PostHog call is an outbound HTTP call, so it sits behind a port with an anti
 | Catch up | cleared; opened_item; open_feed |
 | Ledger | opened |
 | Full Ledger | opened |
+| Leaderboard | tab_selected; period_selected; info_opened |
 
 `catch_up_cleared` and `catch_up_opened_item` carry `kind` (the item kind).
 
 `ledger_opened` carries `source` (`push`).
+
+`leaderboard_tab_selected` carries `tab` (`people`, `cabals`, `friends`) and `leaderboard_period_selected` carries `period` (`week`, `month`, `all`).
 
 `vote_push_action` carries `action` (`vote_yes`, `vote_no`, `read_thesis`, `default`) and `kind` (the push kind).
 

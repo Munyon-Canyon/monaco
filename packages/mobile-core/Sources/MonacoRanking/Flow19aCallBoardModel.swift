@@ -12,6 +12,7 @@ public final class CallBoardModel {
     private let api: APIClient
     private let hints: any HintSource
     private var generation = 0
+    private var isPaging = false
     @ObservationIgnored private lazy var refresher = HintRefresher { [weak self] in await self?.load() }
 
     public init(api: APIClient, hints: any HintSource, board: CallBoardKind, period: CallPeriod, filter: CallFilter) {
@@ -52,6 +53,32 @@ public final class CallBoardModel {
         } catch {
             guard mine == generation else { return }
             state = .failed(APIError(error))
+        }
+    }
+
+    public func loadMore() async {
+        guard case .loaded(let screen) = state, let cursor = screen.afterCursor, !isPaging else { return }
+        isPaging = true
+        defer { isPaging = false }
+        let mine = generation
+        let (board, period, filter) = (tab.board, period, tab.filter)
+        do {
+            let page = try await api.read { client in
+                try await client.getCallLeaderboard(
+                    query: .init(
+                        board: board == .cabals ? .cabals : .people,
+                        period: Self.generated(period),
+                        filter: filter == .friends ? .friends : .all,
+                        cursor: cursor)
+                ).ok.body.json
+            }
+            guard mine == generation, case .loaded(let current) = state else { return }
+            state = .loaded(current.appending(page))
+        } catch {
+            guard mine == generation, case .problem(let problem) = APIError(error),
+                problem.code == .known(.cursorStale)
+            else { return }
+            await load()
         }
     }
 

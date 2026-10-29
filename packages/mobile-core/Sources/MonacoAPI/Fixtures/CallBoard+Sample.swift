@@ -83,13 +83,44 @@ extension Components.Schemas.CallBoard {
     private static let diego = row(11, "Diego", 67, right: 4, resolved: 6, voted: 7, eligible: 9)
     private static let maya = row(12, "Maya", 60, right: 3, resolved: 5, voted: 6, eligible: 9)
 
+    private static let friendJordan = row(4, "Jordan", 88, right: 7, resolved: 8, voted: 9, eligible: 9)
+    private static let friendKai = row(5, "Kai", 85, right: 11, resolved: 13, voted: 14, eligible: 15)
+    private static let friendAndres = row(
+        6, "Andres", 78, right: 7, resolved: 9, voted: 11, eligible: 11, up: 1, viewer: true, last: ("NVDA", true))
+    private static let friendRosa = row(
+        7, "Rosa", 75, right: 6, resolved: 8, voted: 9, eligible: 10, up: -1, last: ("TSLA", false))
+    private static let friendNora = row(8, "Nora", 71, right: 5, resolved: 7, voted: 8, eligible: 10)
+    private static let friendDiego = row(9, "Diego", 67, right: 4, resolved: 6, voted: 7, eligible: 9)
+    private static let friendMaya = row(10, "Maya", 60, right: 3, resolved: 5, voted: 6, eligible: 9)
+
     public static let peopleMonth = Self(
         board: .people, filter: .all,
         period: .init(kind: .month, start: "2026-10-01", end: "2026-10-31"),
         computedAt: Date(timeIntervalSince1970: 1_791_766_800), totalRanked: 24, top: [christelle, logan, mia],
         me: .init(andres), above: .init(kai), below: .init(rosa),
         gap: .init(versus: .above, points: -1, callsToPass: 1, aboveIsPerfect: false), climbBps: 7_777,
-        around: .init(rows: [sam, kai, andres, rosa, nora, diego, maya]), unranked: [])
+        around: .init(rows: [sam, kai, andres, rosa, nora, diego, maya], afterCursor: "cursor-page-2"), unranked: [])
+
+    public static let peopleMonthPage2 = Self(
+        board: .people, filter: .all,
+        period: .init(kind: .month, start: "2026-10-01", end: "2026-10-31"),
+        computedAt: Date(timeIntervalSince1970: 1_791_766_800), totalRanked: 24, top: [], climbBps: 0,
+        around: .init(
+            rows: (13...24).map {
+                row(Int32($0), "Member \($0)", Int32(60 - ($0 - 13)), right: 3, resolved: 5, voted: 5, eligible: 6)
+            }, afterCursor: nil),
+        unranked: [])
+
+    public static let friendsMonth = Self(
+        board: .people, filter: .friends,
+        period: .init(kind: .month, start: "2026-10-01", end: "2026-10-31"),
+        computedAt: Date(timeIntervalSince1970: 1_791_766_800), totalRanked: 10, top: [christelle, logan, mia],
+        me: .init(friendAndres), above: .init(friendKai), below: .init(friendRosa),
+        gap: .init(versus: .above, points: -7, callsToPass: 1, aboveIsPerfect: false), climbBps: 7_800,
+        around: .init(
+            rows: [friendJordan, friendKai, friendAndres, friendRosa, friendNora, friendDiego, friendMaya],
+            afterCursor: nil),
+        unranked: [])
 
     public static let peopleMonthLeadChange: Self = {
         var board = peopleMonth

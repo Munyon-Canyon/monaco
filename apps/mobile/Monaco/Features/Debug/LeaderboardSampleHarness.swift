@@ -1,6 +1,7 @@
 #if DEBUG
 import MonacoAPI
 import MonacoCore
+import MonacoFlows
 import MonacoRanking
 import SwiftUI
 
@@ -10,6 +11,7 @@ enum LeaderboardSampleScenario: String, CaseIterable {
     case cabalsMonth
     case cabalsUnranked
     case peopleWeekUnranked
+    case friendsMonth
     case empty
     case loading
     case error
@@ -26,6 +28,7 @@ enum LeaderboardSampleScenario: String, CaseIterable {
     var tab: CallBoardTab {
         switch self {
         case .cabalsMonth, .cabalsUnranked: .cabals
+        case .friendsMonth: .friends
         default: .people
         }
     }
@@ -39,6 +42,7 @@ enum LeaderboardSampleScenario: String, CaseIterable {
         case .cabalsMonth: .loaded(CallBoardScreen(.cabalsMonth))
         case .cabalsUnranked: .loaded(CallBoardScreen(.cabalsUnranked))
         case .peopleWeekUnranked: .loaded(CallBoardScreen(.peopleWeekUnranked))
+        case .friendsMonth: .loaded(CallBoardScreen(.friendsMonth))
         case .empty: .loaded(CallBoardScreen(.empty))
         case .loading: .loading
         case .error: .failed(.transport(URLError(.notConnectedToInternet)))
@@ -62,6 +66,14 @@ final class LeaderboardSampleHarnessEntry: SampleHarnessEntry {
         guard let scenario = LeaderboardSampleScenario.matching(arguments) else { return nil }
         SampleAPIProtocol.install(SampleAPIScript())
         return AnyView(SampleAppFrame(auth: auth, tab: .cabals, routes: [LeaderboardSampleRoute(scenario: scenario)]))
+    }
+}
+
+final class LeaderboardFlowHarnessEntry: SampleHarnessEntry {
+    @MainActor
+    override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
+        guard Flow19aScenario.matching(arguments) != nil else { return nil }
+        return AnyView(SampleAppFrame(auth: auth, tab: .cabals, routes: [LeaderboardSampleRoute(scenario: .error)]))
     }
 }
 #endif
