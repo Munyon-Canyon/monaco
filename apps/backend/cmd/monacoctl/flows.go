@@ -376,6 +376,7 @@ func flowsSeed(ctx context.Context, repo fs.FS, environ []string, id, outcome st
 	result, err := seed(ctx, testflows.SeedEnv{
 		DatabaseURL: vars["DATABASE_URL"], NatsURL: vars["NATS_URL"],
 		FakesURL: vars["MONACO_FAKES_URL"], TokenKey: vars["MONACO_DEV_TOKEN_KEY"],
+		Environ: environ,
 	})
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "monacoctl flows seed: %s: %v\n", name, err)

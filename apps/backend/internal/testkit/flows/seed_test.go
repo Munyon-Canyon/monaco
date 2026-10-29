@@ -115,3 +115,32 @@ func TestSeeds_anonymousSeedHasNoToken(t *testing.T) {
 		t.Fatalf("anonymous seed = %+v, want no token, no user and an empty ids map", got)
 	}
 }
+
+func TestSeedsWithoutFakesNeedAnAbsolutePrivyURL(t *testing.T) {
+	t.Parallel()
+	seed := flows.Seeds()["F19aResolveCallsOK"]
+	if seed == nil {
+		t.Fatal("no F19aResolveCallsOK seeder")
+	}
+	base := []string{
+		"MONACO_ENV=test", "DATABASE_URL=postgres://u:p@127.0.0.1:1/db", "NATS_URL=nats://127.0.0.1:1",
+		"MONACO_DEV_TOKEN_KEY=k", "PRIVY_APP_ID=a", "PRIVY_APP_SECRET=s",
+	}
+	for name, environ := range map[string][]string{
+		"relative": append(slices.Clone(base), "PRIVY_BASE_URL=/privy"),
+		"empty":    append(slices.Clone(base), "PRIVY_BASE_URL="),
+		"missing":  {},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			_, err := seed(context.Background(), flows.SeedEnv{Environ: environ})
+			if err == nil {
+				t.Fatal("seed succeeded without a fakes server or a real Privy URL")
+			}
+		})
+	}
+	_, err := seed(context.Background(), flows.SeedEnv{Environ: append(slices.Clone(base), "PRIVY_BASE_URL=/privy")})
+	if err == nil || !strings.Contains(err.Error(), "MONACO_FAKES_URL") {
+		t.Fatalf("err = %v, want a message naming MONACO_FAKES_URL", err)
+	}
+}
