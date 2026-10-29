@@ -13,6 +13,7 @@ enum StocksTabSampleScenario: String, CaseIterable {
     case failed
     case empty
     case paused
+    case held
 
     static let launchArgument = "-MonacoStocksTabSample"
 
@@ -27,6 +28,7 @@ enum StocksTabSampleScenario: String, CaseIterable {
         var script = SampleAPIScript(catalog: MarketsSampleCatalog.marketsAssets)
         switch self {
         case .ready, .watchlistEmpty, .noResults: break
+        case .held: script.held = .sampleAndres
         case .search: script = SampleAPIScript(catalog: MarketsSampleCatalog.searchAssets)
         case .loading: script.mode = .hang
         case .stale: script.failsAfterAssetReads = 1 + StocksTabSampleScenario.watchedCount
@@ -40,7 +42,7 @@ enum StocksTabSampleScenario: String, CaseIterable {
     var watched: [String] {
         switch self {
         case .ready, .stale: MarketsSampleCatalog.marketsWatched
-        case .watchlistEmpty, .noResults, .search, .loading, .failed, .empty, .paused: []
+        case .watchlistEmpty, .noResults, .search, .loading, .failed, .empty, .paused, .held: []
         }
     }
 
@@ -51,6 +53,8 @@ enum StocksTabSampleScenario: String, CaseIterable {
         default: ""
         }
     }
+
+    var browse: MonacoCore.StocksTabModel.Browse { self == .held ? .held : .all }
 
     var hints: any HintConnecting {
         self == .stale ? SampleTickHints(after: .seconds(2)) : SampleSilentHints()
@@ -84,6 +88,7 @@ final class StocksTabSampleHarnessEntry: SampleHarnessEntry {
         SampleAPIProtocol.install(scenario.script)
         MarketsSampleCatalog.install(watched: scenario.watched)
         StocksTab.sampleQuery = scenario.query
+        StocksTabView.sampleBrowse = scenario.browse
         return AnyView(SampleAppFrame(auth: auth, tab: .stocks, hints: scenario.hints))
     }
 }

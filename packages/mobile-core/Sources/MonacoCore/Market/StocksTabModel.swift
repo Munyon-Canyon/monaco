@@ -26,7 +26,7 @@ public final class StocksTabModel {
             }
         }
     }
-    public nonisolated static let availableBrowses: [Browse] = [.all, .watchlist, .preIpo]
+    public nonisolated static let availableBrowses: [Browse] = [.all, .watchlist, .preIpo, .held]
     public enum Section: Equatable, Sendable { case preIpo, all, search }
     public enum Phase: Equatable, Sendable {
         case idle, loading, loaded

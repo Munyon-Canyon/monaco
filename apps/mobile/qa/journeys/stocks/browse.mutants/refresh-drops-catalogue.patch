@@ -2,16 +2,15 @@ journey: stocks/browse
 expect-fail: S3
 
 A pull to refresh swaps the list for a search that matches nothing. S3.2 expects the seeded row after the refresh, so S3 must fail.
-scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Assets/StocksTabView.swift b/apps/mobile/Monaco/Features/Assets/StocksTabView.swift
 --- a/apps/mobile/Monaco/Features/Assets/StocksTabView.swift
 +++ b/apps/mobile/Monaco/Features/Assets/StocksTabView.swift
-@@ -156,7 +156,7 @@
-                 .padding(.bottom, MonacoTheme.Space.l)
+@@ -207,7 +207,7 @@ private struct StocksTabScreen: View {
+                 if model.browse == .held {
+                     await held.load()
+                 } else {
+-                    await model.loadMarkets()
++                    model.setQuery("zzqj")
+                 }
              }
-             .scrollDismissesKeyboard(.interactively)
--            .refreshable { await model.loadMarkets() }
-+            .refreshable { model.setQuery("zzqj") }
              .accessibilityIdentifier("assets-grid")
-         }
-     }
