@@ -996,3 +996,7 @@ ledger-no-best-call           -MonacoLedgerSample noBestCall
 ledger-loss                   -MonacoLedgerSample loss
 ledger-not-ready              -MonacoLedgerSample notReady
 ledger-loading                -MonacoLedgerSample loading
+gif-reply-bubble              -gifHarness bubble
+gif-reply-bubble-dark         -gifHarness bubble -AppleInterfaceStyle Dark
+gif-reply-reduce-motion       -gifHarness reduceMotion
+gif-viewer                    -gifHarness viewer

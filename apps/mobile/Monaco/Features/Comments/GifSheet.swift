@@ -171,40 +171,18 @@ private struct GifGrid: View {
 private struct GifStill: View {
     let gif: Gif
 
-    @State private var image: UIImage?
-
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: GifSheetMetrics.radius, style: .continuous)
         shape
             .fill(MonacoTheme.surfaceSunken)
             .aspectRatio(1 / GifSheetMetrics.aspect(gif), contentMode: .fit)
-            .overlay { picture }
+            .overlay {
+                GifImageView(
+                    id: gif.id, still: gif.still.url, animated: gif.preview.url, showsPlay: false,
+                    budget: .sheet)
+            }
             .clipShape(shape)
             .contentShape(shape)
-            .task(id: gif.still.url) { await load() }
-    }
-
-    @ViewBuilder private var picture: some View {
-        if let image {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-        } else {
-            #if DEBUG
-            if gif.still.url.host == SampleGifProvider.host {
-                GifSampleStill(id: gif.id)
-            }
-            #endif
-        }
-    }
-
-    private func load() async {
-        #if DEBUG
-        guard gif.still.url.host != SampleGifProvider.host else { return }
-        #endif
-        let url = gif.still.url
-        image = GifSheetMetrics.stills.cachedImage(for: url)
-        if image == nil { image = await GifSheetMetrics.stills.image(for: url) }
     }
 }
 

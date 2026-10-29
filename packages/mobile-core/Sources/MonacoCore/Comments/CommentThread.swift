@@ -12,7 +12,7 @@ public struct CommentThreadRow: Equatable, Sendable, Identifiable {
 
     public var indentLevel: Int { isReply ? 1 : 0 }
 
-    public var isDeleted: Bool { comment.body == nil }
+    public var isDeleted: Bool { comment.body == nil && comment.attachment == nil }
 
     public var text: String { comment.bodyDisplay }
 

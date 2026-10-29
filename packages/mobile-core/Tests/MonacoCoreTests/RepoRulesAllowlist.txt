@@ -32,7 +32,6 @@ observable-object	apps/mobile/Monaco/Features/Auth/PrivyAuthService.swift	4
 observable-object	apps/mobile/Monaco/Features/Groups/CabalPictureEditor.swift	4
 raw-color	apps/mobile/Monaco/Features/Debug/GroupDetailSampleHarness.swift	2
 raw-color	apps/mobile/Monaco/Features/Debug/ProfileSampleHarness.swift	5
-unchecked-sendable	apps/mobile/MonacoTests/MonacoRemoteImageStoreTests.swift	1
 unchecked-sendable	packages/mobile-core/Sources/MonacoAPI/IdempotentSubmission.swift	1
 unchecked-sendable	packages/mobile-core/Sources/MonacoAPI/Stream/HintStream.swift	1
 unchecked-sendable	packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift	1
@@ -52,6 +51,7 @@ unchecked-sendable	packages/mobile-core/Tests/MonacoCoreTests/MonacoHTTPTranspor
 unchecked-sendable	packages/mobile-core/Tests/MonacoCoreTests/StallingURLProtocol.swift	1
 urlsession	apps/mobile/Monaco/API/MonacoAPIClient.swift	1
 urlsession	apps/mobile/Monaco/Design/MonacoRemoteImageStore.swift	2
+urlsession	apps/mobile/Monaco/Features/Comments/GifDataCache.swift	4
 urlsession	packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift	1
 urlsession	packages/mobile-core/Sources/MonacoCore/Networking/MonacoHTTPTransport.swift	2
 urlsession	packages/mobile-core/Sources/MonacoCore/Networking/MonacoRequestTimeout.swift	7

@@ -100,7 +100,7 @@ nonisolated final class MonacoRemoteImageStoreTests: XCTestCase {
 }
 
 /// Canned responses per URL, with a request counter.
-nonisolated private final class AvatarStubProtocol: URLProtocol, @unchecked Sendable {
+nonisolated private final class AvatarStubProtocol: URLProtocol {
     private enum Stub {
         case response(status: Int, body: Data)
         case failure(URLError)
