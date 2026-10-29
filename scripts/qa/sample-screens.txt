@@ -1009,6 +1009,96 @@ f__01-tokens            -MonacoDesignGallery -MonacoDesignGalleryTab tokens -Mon
 f__01-tokens-type       -MonacoDesignGallery -MonacoDesignGalleryTab type -MonacoDesignGalleryAppearance dark
 f__01-tokens-controls   -MonacoDesignGallery -MonacoDesignGalleryTab controls -MonacoDesignGalleryAppearance dark
 f__01-chart-variants    -MonacoDesignGallery -MonacoDesignGalleryTab charts -MonacoDesignGalleryAppearance dark
+f__02-home-dark                     -MonacoHomeSample fReady
+f__02-home-light                    -MonacoHomeSample fReadyLight
+f__02-home-scrolled                 -MonacoHomeSample fScrolled -MonacoSampleScroll 0.35
+f__02-home-empty                    -MonacoHomeSample fFirstUse
+f__04b-hold-1-pick                  -MonacoHomeSample fVotePick -MonacoSampleScroll 0.35
+f__04b-hold-2-holding               -MonacoHomeSample fVoteHolding -MonacoSampleScroll 0.35
+f__04b-hold-3-committed             -MonacoHomeSample fVoteCommitted -MonacoSampleScroll 0.35
+f__03-cabals-tab                    -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario fReady
+f__03-cabals-tab-menu               -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario fMenu
+f__03-cabal-treasury                -MonacoGroupDetailSample fTreasury
+f__03-cabal-treasury-light          -MonacoGroupDetailSample fTreasuryLight
+f__03-cabal-treasury-scrolled       -MonacoGroupDetailSample fTreasuryScrolled -MonacoSampleScroll 1
+f__03-cabal-rules                   -MonacoGroupDetailSample fRules
+f__03-cabal-rules-scrolled          -MonacoGroupDetailSample fRulesScrolled -MonacoSampleScroll 0.6
+f__03-cabal-rules-sides             -MonacoGroupDetailSample fRulesSides -MonacoSampleScroll 0.6
+f__03-cabal-members                 -MonacoGroupDetailSample fMembers
+f__03-cabal-members-scrolled        -MonacoGroupDetailSample fMembersScrolled -MonacoSampleScroll 1
+f__03-cabal-members-all             -MonacoGroupDetailSample fMembersAll
+f__03-cabal-empty                   -MonacoGroupDetailSample fEmpty
+f__15-first-fund                    -MonacoMoneyFlowSample firstFund
+f__04-proposal-dark                 -MonacoProposalSample nvdaOpen
+f__04-proposal-light                -MonacoProposalSample nvdaOpen
+f__04-proposal-scrolled             -MonacoProposalSample nvdaOpen -MonacoSampleScroll bottom
+f__04-vote-idle                     -MonacoProposalSample voteOrdinary
+f__04-vote-committed                -MonacoProposalSample voteSettles
+f__19-permission-sheet              -MonacoProposalSample permissionSheet
+f__04-vote-closed                   -MonacoProposalSample nvdaFilled
+f__04-proposal-passed               -MonacoProposalSample nvdaPassed
+f__15-passed                        -MonacoProposalSample nvdaPassedMoment
+f__04-proposal-sides                -MonacoProposalSample closedSidesOn
+f__04-proposal-failed               -MonacoProposalSample tslaFailed
+f__04-proposal-preipo               -MonacoProposalSample spaceXOpen
+f__04-reply-composer                -composerHarness sheetComment
+f__04-composer-menu                 -composerHarness menu
+f__04-gif-sheet                     -gifHarness trending
+f__04-gif-reply                     -gifHarness bubble
+f__14-hold-sheet                    -MonacoProposalSample holdYes
+f__05-feed-A                        -feedHarness items
+f__05-feed-A-scrolled               -feedHarness items -MonacoSampleScroll bottom
+f__05-feed-light                    -feedHarness items
+f__05-reactions                     -reactionsHarness trayOpen
+f__05-emoji-picker                  -reactionsHarness picker
+f__05-post                          -feedPostHarness logan
+f__05-post-scrolled                 -feedPostHarness end
+f__05-post-reply                    -composerHarness sheetPost
+f__05-post-public                   -MonacoProposalSample nonMember
+f__05-feed-empty                    -feedHarness quietWithEarlier
+f__06-markets-A                     -MonacoStocksTabSample ready
+f__06-markets-A-scrolled            -MonacoStocksTabSample movers -MonacoSampleScroll 1
+f__06-markets-search                -MonacoStocksTabSample search
+f__06-markets-held                  -MonacoStocksTabSample held
+f__07-stock-dark                    -MonacoAssetDetailSample open
+f__07-stock-light                   -MonacoAssetDetailSample open
+f__07-stock-preipo                  -MonacoAssetDetailSample preIpo
+f__07-stock-preipo-scrolled         -MonacoAssetDetailSample preIpo -MonacoSampleScroll bottom
+f__08-review-sheet                  -MonacoProposeSample review
+f__08-review-sheet-preipo           -MonacoProposeSample reviewSpaceX
+f__09-fund-cabal-empty              -MonacoFundCabalSample empty
+f__09-fund-cabal                    -MonacoFundCabalSample typed
+f__09-fund-cabal-invalid            -MonacoFundCabalSample invalid
+f__09-fund-cabal-settled            -MonacoFundCabalSample settled
+f__09-withdraw-empty                -MonacoWithdrawSample empty
+f__09-withdraw                      -MonacoWithdrawSample typed
+f__09-withdraw-invalid              -MonacoWithdrawSample invalid
+f__09-withdraw-settled              -MonacoWithdrawSample settled
+f__10-profile-own                   -MonacoProfileSample ready
+f__10-profile-own-scrolled          -MonacoProfileSample ready -MonacoSampleScroll bottom
+f__10-profile-other                 -MonacoProfileSample personPublic
+f__10-profile-other-cabals          -MonacoProfileSample personChristelleCabals
+f__11-invite-sheet                  -MonacoGroupDetailSample invite
+f__18-invite-landing                -MonacoInviteLandingSample frame
+f__11-share-A                       -MonacoShareSample screenPost
+f__11-share-B                       -MonacoShareSample screenPassed
+f__11-share-C                       -MonacoShareSample screenStake
+f__11-share-card-vote               -MonacoShareSample screenVote
+f__11-share-sticker                 -MonacoShareSample screenSticker
+f__11-share-sticker-on              -MonacoShareSample stickerOn
+f__13-leaderboard-C-people          -MonacoLeaderboardSample peopleMonth
+f__13-leaderboard-C                 -MonacoLeaderboardSample friendsMonth
+f__13-leaderboard-C-scrolled        -MonacoLeaderboardSample peopleMonth -MonacoSampleScroll 1
+f__13-leaderboard-C-cabals          -MonacoLeaderboardSample cabalsMonth
+f__13-leaderboard-C-unranked        -MonacoLeaderboardSample peopleWeekUnranked
+f__15-leaderboard-moment            -MonacoLeaderboardSample leadChange
+f__14-wrap-sheet                    -MonacoLedgerSample week42
+f__14-ledger-story                  -MonacoLedgerSample story
+f__16-catch-up                      -MonacoCatchUpSample six
+f__16-catch-up-open                 -MonacoCatchUpSample deck
+f__16-catch-up-open-scrolled        -MonacoCatchUpSample deckScrolled
+f__16-catch-up-empty                -MonacoCatchUpSample caughtUp
+f__16-catch-up-empty-scrolled       -MonacoCatchUpSample caughtUp -MonacoSampleScroll bottom
 catch-up-six                  -MonacoCatchUpSample six
 catch-up-six-dark             -MonacoCatchUpSample six -AppleInterfaceStyle Dark
 catch-up-loading              -MonacoCatchUpSample loading

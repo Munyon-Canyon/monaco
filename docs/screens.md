@@ -35,8 +35,8 @@ The demo film (`docs/demo/storyboard.md`) and the last pre-rewrite build (`01544
 **Shared patterns.**
 
 - **Ink hero.** The cabal hero is the one dark `heroInk` band, and at most one per screen. Home's money sits on the paper, not on ink. Cabal hero slots stacked one after another each paint the same full-bleed `heroInk` background, so they read as one band.
-- **Section.** Header in `Typo.section`, an optional count badge, an optional "See all" link on the right, then ruled rows (`MonacoSectionHeader`, `MonacoGroupedList`). Sections are ledgers on paper, not cards.
-- **Range chips.** A row of capsule chips under a chart or board. Selected is ink with white text. Boards and value curves use ranking's ranges: "1H", "1D", "1W", "1M", "All". Stock charts use market's ranges: "1D", "1W", "1M", "3M", "6M", "1Y", "ALL".
+- **Section.** Header in `Typo.section`, an optional count badge, an optional "See all" link on the right, then ruled rows (`MonacoSectionHeader`, `MonacoGroupedList`). Sections are ruled rows on the canvas, not cards.
+- **Range chips.** A row of capsule chips under a chart or board. Ranges are plain labels; the selected one is bold. Boards and value curves use ranking's ranges: "1H", "1D", "1W", "1M", "All". Stock charts use market's ranges: "1D", "1W", "1M", "3M", "6M", "1Y", "ALL".
 - **Amount entry** (fund, propose, cash out, withdraw). A large centred "$0" that turns ink when non-zero. Quick-pick chips under it. A grey helper line ("$1,000.00 available"). A short grey explainer. A full-width primary button pinned above the tab bar whose label echoes the amount ("Add $500 to the pot"). The button is disabled at $0 and over the limit, and the helper turns red with the limit message.
 - **Bottom CTA.** Primary actions sit in a pill pinned above the tab bar, with a spinner and a "…ing" label while submitting.
 - **Toasts** confirm every action. A toast is the dark rounded panel above the tab bar. No alerts or banners for confirmations.
@@ -102,7 +102,7 @@ Profile ┬─ Followers / Following ──▶ FollowListRoute
 
 ## Sign in
 
-`LoginView` draws two layouts over one `OTPLoginForm`, so the address, the cooldown and the typed code survive a step change. The design is `docs/design/v3/` (`signin` and `verify`). The journey is [Sign in](journeys/auth/sign-in.md), and it drives the same identifiers in both layouts.
+`LoginView` draws two layouts over one `OTPLoginForm`, so the address, the cooldown and the typed code survive a step change. The journey is [Sign in](journeys/auth/sign-in.md), and it drives the same identifiers in both layouts.
 
 | Layout | Top to bottom |
 | --- | --- |
@@ -123,6 +123,9 @@ Privy does not report an expired code apart from a rejected one, so the design's
 
 ## Home
 
+
+F frames: [02-home-dark](design/f/screens/02-home-dark.png), [02-home-empty](design/f/screens/02-home-empty.png), [02-home-light](design/f/screens/02-home-light.png), [02-home-scrolled](design/f/screens/02-home-scrolled.png), [04b-hold-1-pick](design/f/screens/04b-hold-1-pick.png), [04b-hold-2-holding](design/f/screens/04b-hold-2-holding.png), [04b-hold-3-committed](design/f/screens/04b-hold-3-committed.png), [12-toast](design/f/screens/12-toast.png).
+
 Pull to refresh. Refreshes on the hints its slots name. The F bar: the "monaco" wordmark is the title (a header, read as "Monaco") at the left of the large bar, then the bell (`ActivityFeedRoute`) and the viewer's avatar, which opens the Profile tab. When the figure scrolls under the bar it becomes the inline bar: the wordmark centred, the bell and avatar at the right, and the system hairline under it. There is no greeting. Blocks sit `Space.section` (24) apart; the cabal rail bleeds to the screen edge. Home keeps six blocks in this order, the figure and its chart counting as one block. Empty state: first-use Home (#6564) sets `homeCashEmphasis` to `.quiet` and draws its own blocks; this screen's blocks stay hidden until the portfolio read has an answer.
 
 | Order | Slot | Shows |
@@ -138,6 +141,9 @@ The market updates block and the onboarding nudge are not on Home; Profile keeps
 
 ## Your money (`BalancesRoute`)
 
+
+F frames: [09-fund-cabal](design/f/screens/09-fund-cabal.png), [09-withdraw](design/f/screens/09-withdraw.png).
+
 Opens from the Home money strip (the "Net worth" and "Cash" metrics). A pushed screen with the inline title "Your money", the tab bar visible and pull to refresh, which reloads both reads. `BalancesModel` composes `GET /v1/me/portfolio` and `GET /v1/me/balance`; net worth is the portfolio total plus available cash, summed in `Int64` micros in MonacoCore.
 
 | Part | Shows |
@@ -152,6 +158,9 @@ States. Cash only (the portfolio has no rows): "In cabals" reads "$0.00" and an 
 
 ## Catch up (`ActivityFeedRoute`)
 
+
+F frames: [16-catch-up-empty-scrolled](design/f/screens/16-catch-up-empty-scrolled.png), [16-catch-up-empty](design/f/screens/16-catch-up-empty.png), [16-catch-up-open-scrolled](design/f/screens/16-catch-up-open-scrolled.png), [16-catch-up-open](design/f/screens/16-catch-up-open.png), [16-catch-up](design/f/screens/16-catch-up.png), [19-notifications](design/f/screens/19-notifications.png).
+
 Opens from the Home toolbar bell. A pushed screen with the large title "Catch up" and the sub-line "6 to catch up · what you can still change comes first". `CatchUpModel` (`MonacoNotify`, flow 34) reads `getMyCatchUp(since: startOfLocalDay)` once and reloads on the `catch_up_changed` hint while visible.
 
 | Section | Rows |
@@ -164,6 +173,9 @@ Opens from the Home toolbar bell. A pushed screen with the large title "Catch up
 States. Loading: five row skeletons labelled "Loading Catch up". Failed: "Couldn’t load this view" with "Try again". Harness: `-MonacoCatchUpSample <six|loading|error>`; `-activityFeedHarness <x>` stays as an alias until #6589. Read, clear, keep, the swipe, the caught-up state and the "One by one" card view are #6566 and #6571.
 
 ## The Ledger (`LedgerSheet`, `FullLedgerRoute`)
+
+
+F frames: [14-ledger-story](design/f/screens/14-ledger-story.png), [14-wrap-sheet](design/f/screens/14-wrap-sheet.png).
 
 Opens from the Sunday "The Ledger · Week 42" push (`kind = weekly_ledger`, `week = 2026-W42`) as a half-height sheet over the current tab, through the push-sheet path the hold sheet uses. It never reaches the large detent. `LedgerModel` (`MonacoRanking`, flow 37) makes one `getMyLedger(week)` read; a stored Ledger never changes, so there are no hints.
 
@@ -178,6 +190,9 @@ Opens from the Sunday "The Ledger · Week 42" push (`kind = weekly_ledger`, `wee
 The Full Ledger row dismisses the sheet and pushes `FullLedgerRoute(week:)` on the Home tab: "Every call" (a row per call, "you voted Yes · right", the move; a tap opens its proposal), "The miss" and "Top reply" (the author's photo, name and excerpt, then "🔥 3 · Buy NVDA"). States. Loading: a skeleton. A 404 `ledger_not_found`: "This week's Ledger isn't ready yet." with Close. Any other failure: "Try again". Harness: `-MonacoLedgerSample <week42|noBestCall|loss|notReady|loading|story|storyNoCalls>`.
 
 ## Cabals tab
+
+
+F frames: [03-cabals-tab-menu](design/f/screens/03-cabals-tab-menu.png), [03-cabals-tab](design/f/screens/03-cabals-tab.png).
 
 Large title "Cabals" (`Typo.display`) with the round 44 "+" on the right (`cabals-new-button`, hidden under review). The "+" opens a menu: **Start a cabal** (`CreateCabalRoute`) and **Find a cabal** (`DiscoverCabalsRoute`, there is no search field on the tab). #6564 adds **Join with a link**. Short cabal names (`CabalHeaderCopy.shortName`) everywhere on the tab. Pull to refresh reloads the tab and the vote.
 
@@ -205,6 +220,9 @@ Create then pushes `CabalRoute` with the toast "Cabal created.". A failed create
 
 ## Leaderboard (`LeaderboardRoute`)
 
+
+F frames: [13-leaderboard-C-cabals](design/f/screens/13-leaderboard-C-cabals.png), [13-leaderboard-C-people](design/f/screens/13-leaderboard-C-people.png), [13-leaderboard-C-scrolled](design/f/screens/13-leaderboard-C-scrolled.png), [13-leaderboard-C-unranked](design/f/screens/13-leaderboard-C-unranked.png), [13-leaderboard-C](design/f/screens/13-leaderboard-C.png).
+
 Leaderboard C ("Around you"): it ranks right calls over a plain period, with no filters and no dollars. Pushed as `AnyAppRoute` from any tab; `LeaderboardRoute(tab:period:)` opens a given tab and period (People and Month by default), and the older `LeaderboardRoute(board:range:)` maps 1W to Week, 1M to Month and any other range to All time. Home's "View all" opens it. The model is `CallBoardModel` in `MonacoRanking` over `getCallLeaderboard`: one GET per period or tab switch, and one reload on a `leaderboards_updated` hint while the screen is visible. Frames: `docs/design/f/screens/13-leaderboard-C-people.png` (People, This month); `13-leaderboard-C.png` and `13-leaderboard-C-scrolled.png` (Friends); the Cabals frame follows in #6514.
 
 | # | Section | What it shows |
@@ -226,6 +244,9 @@ States and exact copy:
 Harness: `-MonacoLeaderboardSample <peopleMonth|friendsMonth|empty|loading|error>`.
 
 ## Cabal screen (`CabalRoute`)
+
+
+F frames: [03-cabal-empty](design/f/screens/03-cabal-empty.png), [03-cabal-members-all](design/f/screens/03-cabal-members-all.png), [03-cabal-members-scrolled](design/f/screens/03-cabal-members-scrolled.png), [03-cabal-members](design/f/screens/03-cabal-members.png), [03-cabal-rules-scrolled](design/f/screens/03-cabal-rules-scrolled.png), [03-cabal-rules-sides](design/f/screens/03-cabal-rules-sides.png), [03-cabal-rules](design/f/screens/03-cabal-rules.png), [03-cabal-treasury-light](design/f/screens/03-cabal-treasury-light.png), [03-cabal-treasury-scrolled](design/f/screens/03-cabal-treasury-scrolled.png), [03-cabal-treasury](design/f/screens/03-cabal-treasury.png).
 
 Toolbar: the system back button, the cabal name once the header name scrolls under the bar, and two rounds on the right: share (`cabal-share-button`, "Share cabal", opens the iOS system share sheet in one tap) and "···" (`cabal-more-button`, "More"). Members only; a non-member gets the Public cabal screen below. While loading: a hero skeleton, the pot figure and chart blocks and three action circles. Load error: the full-screen "Couldn’t load this view" with "Try again" (`cabal-failed`). The slots sit on the cream canvas.
 
@@ -266,11 +287,14 @@ Title is the cabal name. A tall cover hero with the name and member count, a ret
 
 ## Members & voters (`MembersRoute`)
 
+
+F frames: [03-cabal-members-all](design/f/screens/03-cabal-members-all.png), [03-cabal-members-scrolled](design/f/screens/03-cabal-members-scrolled.png), [03-cabal-members](design/f/screens/03-cabal-members.png).
+
 Title "Members & voters" with the segments Members, Voters and, for the creator, Requests. Members: "8 members · 8 eligible voters" and a row per member with "Admin" or "Member", opening the profile. Voters: a "Voter" or "Not voting" badge per member, and for a creator who picks voters a "Choose voters" button that opens the "Eligible voters" sheet (tick rows, a pinned "Save voters", toast "Voters saved."). Requests: an info notice when voters are picked, a row per request with a "Review" button that opens a dialog (Approve, Approve and let them vote, Deny, Cancel), and the empty state "No pending requests".
 
 ### Proposal card
 
-Used by Home's "Needs your vote", the cabal's proposals and [All proposals](#all-proposals-pendingvotesroute) (#612). The design is `docs/design/v3/`; the card has no template of its own, so compare it with Home's Proposals section. It is a `MonacoCard`. Nothing on it casts a vote: members vote on the proposal screen. Every badge, button title, note and footer string comes from `ProposalBadge` and `ProposalCardCopy` in MonacoCore, keyed by `ProposalState`.
+Used by Home's "Needs your vote", the cabal's proposals and [All proposals](#all-proposals-pendingvotesroute) (#612). The card is drawn in the F proposal frames ([04-proposal-light](design/f/screens/04-proposal-light.png), [04-proposal-passed](design/f/screens/04-proposal-passed.png)); compare it with Home's Proposals section. It is a `MonacoCard`. Nothing on it casts a vote: members vote on the proposal screen. Every badge, button title, note and footer string comes from `ProposalBadge` and `ProposalCardCopy` in MonacoCore, keyed by `ProposalState`.
 
 | Part | Shows |
 | --- | --- |
@@ -294,6 +318,9 @@ Used by Home's "Needs your vote", the cabal's proposals and [All proposals](#all
 The card is one VoiceOver element, "<cabal>: <badge>. Buy NVIDIA, <amount line>. <note>", with the button and the footer as actions.
 
 ## Proposal screen (`ProposalRoute`)
+
+
+F frames: [04-composer-menu](design/f/screens/04-composer-menu.png), [04-gif-reply](design/f/screens/04-gif-reply.png), [04-gif-sheet](design/f/screens/04-gif-sheet.png), [04-proposal-dark](design/f/screens/04-proposal-dark.png), [04-proposal-failed](design/f/screens/04-proposal-failed.png), [04-proposal-follow](design/f/screens/04-proposal-follow.png), [04-proposal-light](design/f/screens/04-proposal-light.png), [04-proposal-passed](design/f/screens/04-proposal-passed.png), [04-proposal-preipo](design/f/screens/04-proposal-preipo.png), [04-proposal-scrolled](design/f/screens/04-proposal-scrolled.png), [04-proposal-sides](design/f/screens/04-proposal-sides.png), [04-reply-composer](design/f/screens/04-reply-composer.png), [04-vote-closed](design/f/screens/04-vote-closed.png), [04-vote-committed](design/f/screens/04-vote-committed.png), [04-vote-holding](design/f/screens/04-vote-holding.png), [04-vote-idle](design/f/screens/04-vote-idle.png), [04-vote-picked](design/f/screens/04-vote-picked.png), [15-passed](design/f/screens/15-passed.png), [19-permission-sheet](design/f/screens/19-permission-sheet.png).
 
 | Order | Slot | Owner | Shows |
 | --- | --- | --- | --- |
@@ -352,6 +379,9 @@ The vote card holds the vote; nothing but the composer floats at the bottom. `Pr
 
 ## Info sheet (`MonacoInfoSheet`)
 
+
+F frames: [12-info-sheet](design/f/screens/12-info-sheet.png).
+
 A half sheet with a title, a close button, one explanatory line, a ruled card of facts and a full-width "OK". It fits 426 pt and gains the large detent at accessibility text sizes. Two contents:
 
 - **Market stats** (`market-stats-sheet`). Opens from the i beside Price on the proposal screen and from the Market stats i on the stock screen. Rows: Source (Jupiter, CoinGecko or "—"), Updated (the time today, else "Oct 20", or "Not priced yet") and Checked (the polling cadence: "Every 2 min", "Every 30 s", "Every min").
@@ -390,6 +420,9 @@ Every propose screen sits on the v3 parts (`MonacoRow`, `MonacoCard`, `MonacoNot
 
 ## Money
 
+
+F frames: [09-fund-cabal-empty](design/f/screens/09-fund-cabal-empty.png), [09-fund-cabal-invalid](design/f/screens/09-fund-cabal-invalid.png), [09-fund-cabal-settled](design/f/screens/09-fund-cabal-settled.png), [09-fund-cabal](design/f/screens/09-fund-cabal.png), [09-withdraw-empty](design/f/screens/09-withdraw-empty.png), [09-withdraw-invalid](design/f/screens/09-withdraw-invalid.png), [09-withdraw-settled](design/f/screens/09-withdraw-settled.png), [09-withdraw](design/f/screens/09-withdraw.png).
+
 **Shared rules (UI v3).** Cream canvas, `Space.gutter` sides, a `ScrollView` with the primary in a form footer, or in the glass `BottomCTA` while a keypad is up. Notices are `MonacoNotice` (info, warn, error). Key rows sit in a `MonacoCard(.inset)` of `ReceiptLine`s. A confirmed result is an `OutcomeView` over a key-row card (`MoneyOutcome`). A full-screen read failure is "Couldn't load this view" with "Try again". Service refusals keep their toasts. No screen shows a success state before the service has confirmed it.
 
 **Deposit** (`DepositView`, template `add-money`), a half sheet (0.55) presented by `AppNavigator.presentDeposit` and hosted by `MainTabView`. Title "Deposit" with a close round. Choosing a row closes the sheet and pushes the next screen onto the current tab, so back returns to where Deposit opened. Eyebrow "Your cash" over the balance (`deposit-screen-balance-value`; "—" and a scoped error row when it cannot load), the header "Deposit method", then "Card or Apple Pay" (`deposit-card-row`, then pushes `CardFundingRoute`) and "Send crypto" (`deposit-crypto-row`). Warn notice "Some funding methods may be unavailable in your location or account state." only after a card session failed to start; info notice "Money arrives in your cash balance. Funding a cabal is a separate step."
@@ -414,6 +447,9 @@ Every propose screen sits on the v3 parts (`MonacoRow`, `MonacoCard`, `MonacoNot
 
 ## Markets tab
 
+
+F frames: [06-markets-A-scrolled](design/f/screens/06-markets-A-scrolled.png), [06-markets-A](design/f/screens/06-markets-A.png), [06-markets-held](design/f/screens/06-markets-held.png), [06-markets-search](design/f/screens/06-markets-search.png).
+
 Large title "Markets". The tab was "Stocks", and its code and identifiers keep `StocksTab`, `tab-assets` and `assets-root`. Top to bottom:
 
 - **Search.** "Search stocks or tickers". Typing switches the whole screen to search mode (below); clearing returns to browse. The 300 ms debounce sends `q` and `filter` together.
@@ -432,6 +468,9 @@ Rows are logo, name over ticker, price over day change and a chevron. A moon gly
 **Opens soon.** The API does not serve a stock's 24h volume or trade count, a movers ordering, the other sorts or a sector filter. The tab shows "Opens soon" and the disabled sorts until it does.
 
 ## Stock screen
+
+
+F frames: [07-stock-dark](design/f/screens/07-stock-dark.png), [07-stock-light](design/f/screens/07-stock-light.png), [07-stock-preipo-scrolled](design/f/screens/07-stock-preipo-scrolled.png), [07-stock-preipo](design/f/screens/07-stock-preipo.png), [08-review-sheet-preipo](design/f/screens/08-review-sheet-preipo.png), [08-review-sheet](design/f/screens/08-review-sheet.png).
 
 **Stock screen** (`AssetRoute`, template `instrument`). Pushed in whichever tab opened it (Markets, Home, Feed, a cabal), with the glass back button and the stock's name as the title, blank while it loads. Top to bottom, 24 apart:
 
@@ -456,6 +495,9 @@ Rows are logo, name over ticker, price over day change and a chevron. A moon gly
 **Local watchlist.** The list lives on this device only. `WatchlistModel` holds up to 50 symbols, oldest first, and writes through `UserDefaultsWatchlistStore` under `markets-watchlist.<userID>` as a JSON array, so a second account on the device never sees the first one's list. Nothing is sent to the server. The 51st star shows the toast "Your watchlist holds up to 50 stocks." and adds nothing. A symbol the server answers `asset_not_found` for is dropped from the list without a message. `PrivacyInfo.xcprivacy` already declares the UserDefaults category with reason `CA92.1`, which covers this app-only use.
 
 ## Feed tab
+
+
+F frames: [05-emoji-picker](design/f/screens/05-emoji-picker.png), [05-feed-A-scrolled](design/f/screens/05-feed-A-scrolled.png), [05-feed-A](design/f/screens/05-feed-A.png), [05-feed-empty](design/f/screens/05-feed-empty.png), [05-feed-light](design/f/screens/05-feed-light.png), [05-reactions](design/f/screens/05-reactions.png), and for a post page [05-post](design/f/screens/05-post.png), [05-post-scrolled](design/f/screens/05-post-scrolled.png), [05-post-reply](design/f/screens/05-post-reply.png), [05-comment-actions](design/f/screens/05-comment-actions.png), [05-post-public](design/f/screens/05-post-public.png).
 
 Large title "Feed" with two 44pt glass rounds, then the search field "Search the feed" and a list of compact event cards. Pull to refresh; the last five cards load the next page. #671 built the feed, #702 mute and hide, #711 the post, and the UI v3 redesign the layout below.
 
@@ -537,6 +579,9 @@ Data. `GET /v1/cabals/{id}/pot` gives the units, price, value, cost basis and un
 
 ## Profile tab
 
+
+F frames: [10-profile-other-cabals](design/f/screens/10-profile-other-cabals.png), [10-profile-other](design/f/screens/10-profile-other.png), [10-profile-own-scrolled](design/f/screens/10-profile-own-scrolled.png), [10-profile-own](design/f/screens/10-profile-own.png), [10-season-sheet](design/f/screens/10-season-sheet.png), [11-invite-sheet](design/f/screens/11-invite-sheet.png), [11-share-A](design/f/screens/11-share-A.png), [11-share-B](design/f/screens/11-share-B.png), [11-share-C](design/f/screens/11-share-C.png), [11-share-card-vote](design/f/screens/11-share-card-vote.png), [11-share-sticker-on](design/f/screens/11-share-sticker-on.png), [11-share-sticker](design/f/screens/11-share-sticker.png).
+
 Pull to refresh, like Home. Title "Profile" with a glass round "Settings" (`gearshape`, `profile-settings-row`) that opens `SettingsRoute`. The share round sits in the identity card and opens the iOS system share sheet in one tap.
 
 | Order | Slot | Owner | Shows |
@@ -578,6 +623,7 @@ The slot tables above name each owner. Screens and controls added by this map:
 | #2133 | The journey that walks the demo story through all of the above |
 | #5558 to #5571 | The UI v3 screens: sign in, Home, Your money and Activity, the money flows, account activity and Cabal cash, Propose, the proposal screen, the Cabals tab and Discover, the cabal screens, chat and Cabal holding, Markets, the stock screen and the watchlist, Feed, the Leaderboard and Profile with Settings |
 | #5572 to #5575 | The screen parity gallery, and the Dark, Dynamic Type and accessibility checks of every v3 screen |
+| F launch (phase 1) | HC, PV, SO, MK, MP, LN screen tickets, #6421 to #6559, #6411 and #6432 (tracking #6410) |
 | #5576 | This page's tab order, the Markets tab, Propose and the new screens, and the journeys: `home/activity`, `stocks/watchlist`, `cabals/discover`, `cabals/info-and-members` and the Home and Leaderboard steps of `ranking/leaderboards` |
 
 ### Hold sheet
