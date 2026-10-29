@@ -19,6 +19,8 @@ Reduce Transparency: the simulator ignores the system switch, so each frame was 
 
 Shots stay outside the repo.
 
+Reshoot for #7108: `just build mobile` at `ee109c882` on simulator "Monaco 7108", each frame terminated, launched with its manifest arguments and screenshotted every 0.5 to 2 s for 6 to 20 s. `12-toast` was caught mid-hold in the first 2 to 3 s in Light and Dark, each with and without `-MonacoReduceTransparency YES`. The three catch-up frames stayed on Home's "Couldn't load your portfolio" for the whole window in Light.
+
 Audit: `FAppearanceAuditUITests`, run with `test-without-building` in two holds, groups 02 to 08 and then 09 to 19, because one run of all 18 groups exceeds `xcode-lock`'s 1800 s sim hold. Run it one or a few groups at a time (`-only-testing:MonacoUITests/FAppearanceAuditUITests/test07Frames`).
 
 ## Screen frames
@@ -103,23 +105,23 @@ Each frame is judged in the appearance named in the second column against the fr
 | [`11-share-sticker`](../screens/11-share-sticker.png) | Light | match | n/a | The share card is drawn dark on purpose (see the note under the table). | — |
 | [`11-share-sticker-on`](../screens/11-share-sticker-on.png) | Light | match | n/a | The share card is drawn dark on purpose (see the note under the table). | — |
 | [`12-info-sheet`](../screens/12-info-sheet.png) | Light | match | n/a | — | — |
-| [`12-toast`](../screens/12-toast.png) | Light | match | not judged: The toast had auto-dismissed before the shot. | — | #7108 |
+| [`12-toast`](../screens/12-toast.png) | Light | match | match: Light and Dark, with and without Reduce Transparency, the capsule shows "Voted Yes. Passed 5–1." legible on its fill; solid it drops the blur and keeps the same tint. | — | — |
 | [`13-leaderboard-C`](../screens/13-leaderboard-C.png) | Light | match | n/a | — | — |
 | [`13-leaderboard-C-cabals`](../screens/13-leaderboard-C-cabals.png) | Light | match | n/a | — | — |
 | [`13-leaderboard-C-people`](../screens/13-leaderboard-C-people.png) | Light | match | n/a | — | — |
 | [`13-leaderboard-C-scrolled`](../screens/13-leaderboard-C-scrolled.png) | Light | match | n/a | — | — |
 | [`13-leaderboard-C-unranked`](../screens/13-leaderboard-C-unranked.png) | Light | match | n/a | — | — |
 | [`14-hold-sheet`](../screens/14-hold-sheet.png) | Light | match | n/a | — | — |
-| [`14-ledger-story`](../screens/14-ledger-story.png) | Light | not judged | n/a | The Light shot shows Home's "Couldn't load your portfolio" and the reshoot caught the splash. | #7108 |
+| [`14-ledger-story`](../screens/14-ledger-story.png) | Light | match | n/a | The story frame is drawn dark on purpose and reads the same in Light: green figure, white labels and the Share and Copy image buttons on black. The sample uses a placeholder cover and an initial for the avatar. | — |
 | [`14-wrap-sheet`](../screens/14-wrap-sheet.png) | Light | match | n/a | The share card is drawn dark on purpose (see the note under the table). | — |
 | [`15-first-fund`](../screens/15-first-fund.png) | Light | match | n/a | The "You're in." card is the cabal's soft tint, as in the dark frame. | — |
 | [`15-leaderboard-moment`](../screens/15-leaderboard-moment.png) | Light | match | n/a | — | — |
 | [`15-passed`](../screens/15-passed.png) | Light | match | n/a | — | — |
 | [`16-catch-up`](../screens/16-catch-up.png) | Light | difference | n/a | Crest is a bare identity-hue tile with no initials (CabalCover .thumb), in both appearances. | #7087 |
-| [`16-catch-up-empty`](../screens/16-catch-up-empty.png) | Light | not judged | n/a | The Light shot shows Home's "Couldn't load your portfolio" and the reshoot caught the splash. | #7108 |
+| [`16-catch-up-empty`](../screens/16-catch-up-empty.png) | Light | not judged | n/a | Still falls back to Home's "Couldn't load your portfolio" for 20 s after #7110, so there is no frame to judge. | #7114 |
 | [`16-catch-up-empty-scrolled`](../screens/16-catch-up-empty-scrolled.png) | Light | difference | n/a | Crest is a bare identity-hue tile with no initials (CabalCover .thumb), in both appearances. | #7087 |
-| [`16-catch-up-open`](../screens/16-catch-up-open.png) | Light | not judged | n/a | The Light shot shows Home's "Couldn't load your portfolio" and the reshoot caught the splash. | #7108 |
-| [`16-catch-up-open-scrolled`](../screens/16-catch-up-open-scrolled.png) | Light | not judged | n/a | The Light shot shows Home's "Couldn't load your portfolio" and the reshoot caught the splash. | #7108 |
+| [`16-catch-up-open`](../screens/16-catch-up-open.png) | Light | not judged | n/a | Still falls back to Home's "Couldn't load your portfolio" for 20 s after #7110, so there is no frame to judge. | #7114 |
+| [`16-catch-up-open-scrolled`](../screens/16-catch-up-open-scrolled.png) | Light | not judged | n/a | Still falls back to Home's "Couldn't load your portfolio" for 20 s after #7110, so there is no frame to judge. | #7114 |
 | [`18-invite-landing`](../screens/18-invite-landing.png) | Light | match | n/a | The stat and vote cards use `surfaceSunken`, as in the dark frame, which #6583 matched. | — |
 | [`19-permission-sheet`](../screens/19-permission-sheet.png) | Light | match | n/a | — | — |
 
@@ -247,6 +249,6 @@ All 430 pairs are allow-listed by class, each with a reason in `FAppearanceAudit
 
 - #7087 (crest, #6461's area): the crest is a bare identity-hue tile with no initials.
 - #7091 (glass, #6470's area): toolbar-placed rounds and the system half-sheet body ignore Reduce Transparency.
-- #7108 (capture gaps, QA): `14-ledger-story`, `16-catch-up-empty`, `16-catch-up-open`, `16-catch-up-open-scrolled` and the `12-toast` Reduce Transparency shot need a clean reshoot.
+- #7114 (catch-up harness, #6561/#6566's area): `16-catch-up-empty`, `16-catch-up-open` and `16-catch-up-open-scrolled` still fall back to Home in Light after #7110, so they have no Light verdict yet.
 
 Parity follow-ups referenced: #7022, #7025, #7033, #7034.
