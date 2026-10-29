@@ -78,7 +78,7 @@ enum HomeDashboardJourney {
             let avatar = app.element("home-profile-button")
             XCTAssertTrue(avatar.waitForExistence(timeout: 10), "S1.6: no avatar at the top right of Home")
             avatar.tap()
-            XCTAssertTrue(app.element("profile-header").waitForExistence(timeout: 15), "S1.6: Profile did not show")
+            XCTAssertTrue(app.element("profile-card").waitForExistence(timeout: 15), "S1.6: Profile did not show")
             XCTAssertTrue(app.tab("Profile").isSelected, "S1.6: the Profile tab is not selected")
         }
 

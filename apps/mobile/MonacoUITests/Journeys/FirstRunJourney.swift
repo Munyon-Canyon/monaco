@@ -2,7 +2,7 @@ import XCTest
 
 enum FirstRunJourney {
     static let id = "onboarding/first-run"
-    static let version = 4
+    static let version = 5
     static let actors = ["C", "B"]
 
     static let handle = "qa_cayman"

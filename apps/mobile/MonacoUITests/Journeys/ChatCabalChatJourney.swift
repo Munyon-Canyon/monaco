@@ -2,7 +2,7 @@ import XCTest
 
 enum ChatCabalChatJourney {
     static let id = "chat/cabal-chat"
-    static let version = 5
+    static let version = 6
     static let emptyTitle = "Start the conversation"
     static let emptyHint =
         "Messages here stay with your cabal. Proposal-specific discussion stays attached to the proposal."
@@ -15,10 +15,12 @@ enum ChatCabalChatJourney {
     static func message(run: String) -> String { "QA hi \(run)" }
 
     static func openChat(_ app: XCUIApplication, run: String, step: String) {
-        JoinJourney.openBySearch(app, cabal(run: run), step: step)
-        let chat = app.element("cabal-action-chat")
-        app.scrollIntoReach(chat)
-        XCTAssertTrue(chat.waitForExistence(timeout: 10), "\(step): no Chat action on the cabal screen")
+        app.openCabal(named: cabal(run: run))
+        let more = app.element("cabal-more-button")
+        XCTAssertTrue(more.waitForExistence(timeout: 10), "\(step): no '…' button on the cabal page")
+        more.tap()
+        let chat = app.element("cabal-more-chat")
+        XCTAssertTrue(chat.waitForExistence(timeout: 5), "\(step): no Chat item in the '…' menu")
         chat.tap()
         XCTAssertTrue(
             JoinJourney.waitForLabel(app.element("chat-title"), containing: cabal(run: run), timeout: 15),

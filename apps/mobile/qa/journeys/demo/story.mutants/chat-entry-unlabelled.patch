@@ -1,0 +1,19 @@
+journey: demo/story
+expect-fail: S5
+
+The "…" menu loses its cabal-more-chat identifier. S5.1 taps it, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalMoreMenu.swift b/apps/mobile/Monaco/Features/Groups/CabalMoreMenu.swift
+index 9c150ebd9..e1277013d 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalMoreMenu.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalMoreMenu.swift
+@@ -28,7 +28,7 @@ enum CabalMoreItem: CaseIterable {
+ 
+     var identifier: String {
+         switch self {
+-        case .chat: "cabal-more-chat"
++        case .chat: "cabal-more-chat-off"
+         case .edit: "cabal-more-edit"
+         case .treasury: "cabal-more-treasury"
+         case .leave: "cabal-more-leave"

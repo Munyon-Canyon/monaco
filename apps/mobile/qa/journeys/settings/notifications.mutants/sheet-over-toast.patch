@@ -1,0 +1,24 @@
+journey: settings/notifications
+expect-fail: S2
+
+The sheet no longer waits for the vote's toast to end. S2.2 asserts the sheet is absent while the toast shows, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Notifications/PushPrePrompt+Toast.swift b/apps/mobile/Monaco/Features/Notifications/PushPrePrompt+Toast.swift
+index 15ff8bb24..eebaa1440 100644
+--- a/apps/mobile/Monaco/Features/Notifications/PushPrePrompt+Toast.swift
++++ b/apps/mobile/Monaco/Features/Notifications/PushPrePrompt+Toast.swift
+@@ -7,13 +7,6 @@ extension PushPrePrompt {
+     }
+ 
+     func noteFirstVote(sample: PushSample, after toasts: ToastCenter?) async {
+-        while toasts?.current != nil || UIApplication.shared.hasPresentedSheet {
+-            do {
+-                try await Task.sleep(for: .milliseconds(100))
+-            } catch {
+-                return
+-            }
+-        }
+         await noteFirstVote(sample: sample)
+     }
+ }

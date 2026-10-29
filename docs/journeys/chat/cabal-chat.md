@@ -1,7 +1,7 @@
 ---
 id: chat/cabal-chat
 title: Cabal chat
-version: 5
+version: 6
 milestone: M19
 requires: [auth/sign-in]
 actors: [A, B]
@@ -31,11 +31,11 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap, type, tap, then tap | the Cabals tab, `cabals-search-field`, the `cabals-search-result-<id>`, then `cabal-action-chat` | `QA chat {QA.run}` | `chat-title` reads `QA chat {QA.run}` within 15 s (screens.md Chat: "Title is the cabal tile and name"; old app: Cabal -> Chat) |
+| S1.1 | A | tap, type, tap, then tap | `openCabal(named:)` (the Cabals tab, then the cabal's tile), `cabal-more-button`, then `cabal-more-chat` | `QA chat {QA.run}` | `chat-title` reads `QA chat {QA.run}` within 15 s (screens.md Chat: "Title is the cabal tile and name"; old app: Cabal -> Chat) |
 | S1.2 | A | wait | `chat-empty` | | Reads "Start the conversation" over "Messages here stay with your cabal. Proposal-specific discussion stays attached to the proposal." within 10 s (screens.md Chat: "Empty: a chat tile, "Start the conversation" over …") |
 | S1.3 | A | type, then tap | `chat-composer`, then `chat-send` | `QA hi {QA.run}` | The composer's placeholder was "Message your cabal", and a `chat-message-<id>` reads `QA hi {QA.run}` within 10 s (screens.md Chat: "Composer "Message your cabal" with a send disc"; "mine on the right in ink"; old app: `GroupChatView` send) |
 | S1.3b | A | type, tap, type, tap, type `@`, tap, then tap | `chat-composer`, `chat-send`, the first `chat-mention-<handle>` in `chat-mention-picker`, then `chat-send` | `QA two {QA.run}`, `QA three {QA.run}`, then `QA mention {QA.run} @` | Each of the three messages reads in the thread within 10 s, `QA hi {QA.run}` is still there, and the app neither crashes nor hangs (#3467) |
-| S1.4 | B | tap, type, tap, then tap | the Cabals tab, `cabals-search-field`, the `cabals-search-result-<id>`, then `cabal-action-chat` | `QA chat {QA.run}` | A `chat-message-<id>` reads `QA hi {QA.run}` within 15 s, and its label starts with A's name, which is also drawn over the first bubble of a run (`chat-author-<id>` is hidden from VoiceOver, so the label carries it; screens.md Chat: "Others' messages on the left with the author's avatar ... and name over the first of a run"; old app: B waits for the message) |
+| S1.4 | B | tap, type, tap, then tap | `openCabal(named:)` (the Cabals tab, then the cabal's tile), `cabal-more-button`, then `cabal-more-chat` | `QA chat {QA.run}` | A `chat-message-<id>` reads `QA hi {QA.run}` within 15 s, and its label starts with A's name, which is also drawn over the first bubble of a run (`chat-author-<id>` is hidden from VoiceOver, so the label carries it; screens.md Chat: "Others' messages on the left with the author's avatar ... and name over the first of a run"; old app: B waits for the message) |
 
 ## Ground truth
 
@@ -43,7 +43,7 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Known failures on staging
 
-None.
+None. The chat entry is the cabal page's "…" menu (`cabal-more-button`, `cabal-more-chat`), not a tab (founder decision Q53, #6497).
 
 ## Not covered
 

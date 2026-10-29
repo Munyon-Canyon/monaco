@@ -2,7 +2,7 @@ import XCTest
 
 enum TalkItOverJourney {
     static let id = "chat/talk-it-over"
-    static let version = 5
+    static let version = 6
     static let emptyTitle = "Start the conversation"
     static let emptyHint =
         "Messages here stay with your cabal. Proposal-specific discussion stays attached to the proposal."
@@ -22,21 +22,12 @@ enum TalkItOverJourney {
     }
 
     static func openChat(_ app: XCUIApplication, run: String, step: String, from entry: Entry = .card) {
-        switch entry {
-        case .search:
-            JoinJourney.openBySearch(app, cabal(run: run), step: step)
-        case .card:
-            reachCard(app, run: run, step: step).tap()
-            XCTAssertTrue(
-                JoinJourney.waitForLabel(app.element("cabal-header-name"), containing: cabal(run: run), timeout: 15),
-                "\(step): the cabal screen for \(cabal(run: run)) did not show within 15 s"
-            )
-        case .here:
-            break
-        }
-        let chat = app.element("cabal-action-chat")
-        app.scrollIntoReach(chat)
-        XCTAssertTrue(chat.waitForExistence(timeout: 10), "\(step): no Chat action on the cabal screen")
+        if entry != .here { app.openCabal(named: cabal(run: run)) }
+        let more = app.element("cabal-more-button")
+        XCTAssertTrue(more.waitForExistence(timeout: 10), "\(step): no '…' button on the cabal page")
+        more.tap()
+        let chat = app.element("cabal-more-chat")
+        XCTAssertTrue(chat.waitForExistence(timeout: 5), "\(step): no Chat item in the '…' menu")
         chat.tap()
         XCTAssertTrue(
             JoinJourney.waitForLabel(app.element("chat-title"), containing: cabal(run: run), timeout: 15),
@@ -90,15 +81,12 @@ enum TalkItOverJourney {
 
     static func card(_ app: XCUIApplication, run: String) -> XCUIElement {
         app.buttons.matching(
-            NSPredicate(format: "identifier BEGINSWITH 'cabal-cover-card-' AND label CONTAINS %@", cabal(run: run))
+            NSPredicate(format: "identifier BEGINSWITH 'cabals-tile-' AND label CONTAINS %@", cabal(run: run))
         ).firstMatch
     }
 
     static func spoken(_ app: XCUIApplication, _ card: XCUIElement) -> String {
-        let listID = card.identifier.replacingOccurrences(of: "cabal-cover-card-", with: "cabals-list-card-")
-        return [card, app.element(listID)].filter(\.exists)
-            .map { "\($0.label) \($0.value as? String ?? "")" }
-            .joined(separator: " ")
+        "\(card.label) \(card.value as? String ?? "")"
     }
 
     static func clearSearch(_ app: XCUIApplication) {
@@ -267,11 +255,7 @@ extension TalkItOverJourney {
 
     static func bOpensUnreadChat(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S5.3", "B opens the unread chat") {
-            card(app, run: run).tap()
-            let chat = app.element("cabal-action-chat")
-            app.scrollIntoReach(chat)
-            XCTAssertTrue(chat.waitForExistence(timeout: 15), "S5.3: no Chat action on the cabal screen")
-            XCTAssertTrue(chat.label.contains("unread message"), "S5.3: Chat shows no unread count: \(chat.label)")
+            app.openCabal(named: cabal(run: run))
             openChat(app, run: run, step: "S5.3", from: .here)
             wait(
                 for: message(app, containing: "two \(run)"), timeout: 10,
@@ -285,13 +269,8 @@ extension TalkItOverJourney {
     static func bClearsUnread(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S5.4", "the unread dot and badge clear") {
             app.tapBack()
-            let chat = app.element("cabal-action-chat")
-            XCTAssertTrue(chat.waitForExistence(timeout: 10), "S5.4: no Chat action after backing out")
-            let deadline = Date().addingTimeInterval(10)
-            while chat.label.contains("unread message") && Date() < deadline {
-                RunLoop.current.run(until: Date().addingTimeInterval(0.3))
-            }
-            XCTAssertFalse(chat.label.contains("unread message"), "S5.4: Chat still shows unread: \(chat.label)")
+            XCTAssertTrue(
+                app.element("cabal-more-button").waitForExistence(timeout: 10), "S5.4: no cabal page after backing out")
             app.tapBack()
             let found = reachCard(app, run: run, step: "S5.4")
             XCTAssertFalse(

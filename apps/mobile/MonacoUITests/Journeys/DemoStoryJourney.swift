@@ -2,7 +2,7 @@ import XCTest
 
 enum DemoStoryJourney {
     static let id = "demo/story"
-    static let version = 6
+    static let version = 7
 
     static let screenTimeout: TimeInterval = 15
     static let formTimeout: TimeInterval = 10
@@ -19,11 +19,21 @@ enum DemoStoryJourney {
     }
 
     static func tapAction(_ app: XCUIApplication, _ identifier: String, run: String, step: String) {
-        JoinJourney.openBySearch(app, cabal(run: run), step: step)
+        app.openCabal(named: cabal(run: run))
         let action = app.buttons[identifier]
         app.scrollIntoReach(action)
         XCTAssertTrue(action.waitForExistence(timeout: formTimeout), "\(step): no \(identifier) on the cabal screen")
         action.tap()
+    }
+
+    static func openChat(_ app: XCUIApplication, run: String, step: String) {
+        app.openCabal(named: cabal(run: run))
+        let more = app.element("cabal-more-button")
+        XCTAssertTrue(more.waitForExistence(timeout: formTimeout), "\(step): no '…' button on the cabal page")
+        more.tap()
+        let chat = app.element("cabal-more-chat")
+        XCTAssertTrue(chat.waitForExistence(timeout: formTimeout), "\(step): no Chat item in the '…' menu")
+        chat.tap()
     }
 
     static func waitForTitle(_ app: XCUIApplication, _ title: String, step: String, blockedBy tickets: String) {
@@ -81,17 +91,17 @@ enum DemoStoryJourney {
 
     static func fundThePot(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S2.1", "open the cabal") {
-            JoinJourney.openBySearch(app, cabal(run: run), step: "S2.1")
+            app.openCabal(named: cabal(run: run))
         }
 
         recorder.step("S2.2", "open Fund this cabal") {
             MoneyFundCabalJourney.openFund(app, step: "S2.2")
-            XCTAssertTrue(button(app, "Max").exists, "S2.2: no Max")
+            XCTAssertTrue(app.element("amount-keypad-screen").exists, "S2.2: no amount keypad")
         }
 
         recorder.step("S2.3", "fund $1 into the pot") {
             MoneyFundCabalJourney.typeAmount(app, "1")
-            button(app, "Fund $1.00").tap()
+            app.buttons["amount-keypad-action"].tap()
             MoneyFundCabalJourney.confirmDeposit(app, dollars: 1, cabal: cabal(run: run), step: "S2.3")
         }
     }
@@ -105,8 +115,8 @@ enum DemoStoryJourney {
             )
         }
 
-        recorder.step("S3.2", "switch to 1M then 1Y") {
-            for range in ["1M", "1Y"] {
+        recorder.step("S3.2", "switch to 1M then All") {
+            for range in ["1M", "All"] {
                 StocksAssetDetailJourney.rangeChip(app, range).tap()
                 XCTAssertTrue(
                     app.element("asset-detail-range-change").waitForExistence(timeout: formTimeout),
@@ -118,7 +128,7 @@ enum DemoStoryJourney {
         recorder.step("S3.3", "the Pre-IPO listings") {
             app.navigationBars.buttons.firstMatch.tap()
             StocksAssetDetailJourney.openAsset(app, StocksAssetDetailJourney.preIpo, step: "S3.3")
-            StocksAssetDetailJourney.scrollToText(app, "Also available from", step: "S3.3")
+            StocksAssetDetailJourney.scrollToText(app, "Round stats", step: "S3.3")
         }
     }
 
@@ -141,13 +151,9 @@ enum DemoStoryJourney {
             XCTAssertTrue(row.waitForExistence(timeout: formTimeout), "S4.2: no GOOGL row")
             row.tap()
             XCTAssertTrue(
-                app.element("propose-amount-screen").waitForExistence(timeout: formTimeout), "S4.2: no amount screen")
+                app.element("amount-keypad-screen").waitForExistence(timeout: formTimeout), "S4.2: no amount screen")
             MoneyFundCabalJourney.typeAmount(app, "1")
-            let why = app.element("propose-amount-reason")
-            XCTAssertTrue(why.waitForExistence(timeout: formTimeout), "S4.2: no thesis field")
-            why.tap()
-            why.typeText(reason)
-            app.buttons["propose-amount-review"].tap()
+            app.buttons["amount-keypad-action"].tap()
             XCTAssertTrue(
                 app.element("propose-review-screen").waitForExistence(timeout: formTimeout), "S4.2: no review sheet")
             app.buttons["propose-review-send"].tap()
@@ -164,39 +170,42 @@ enum DemoStoryJourney {
     }
 
     static func voteAndBuy(_ app: XCUIApplication, recorder: JourneyRecorder) {
-        recorder.step("S4.3", "vote yes from Home") {
+        recorder.step("S4.3", "vote yes from Home, then answer the permission sheet") {
             let card = GovernanceProposeBuyJourney.openHomeCard(app, step: "S4.3")
-            let proposalID = String(card.identifier.dropFirst("proposal-card-".count))
             GovernanceVoteJourney.openProposal(card)
             GovernanceVoteJourney.waitForProposalScreen(app, step: "S4.3")
-            GovernanceVoteJourney.vote(app, proposalID, "Yes", change: false, step: "S4.3")
+            app.pickAndHold("yes")
+            app.waitForToastGone(timeout: 10)
+            XCTAssertTrue(
+                app.answerVotePermissionSheet(turnOn: false, timeout: 20),
+                "S4.3: no permission sheet after the first vote's toast ended")
         }
     }
 
     static func secondVoteBuys(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S4.4", "the second yes makes the majority and the cabal buys") {
             let card = GovernanceProposeBuyJourney.openHomeCard(app, step: "S4.4")
-            let proposalID = String(card.identifier.dropFirst("proposal-card-".count))
             GovernanceVoteJourney.openProposal(card)
             GovernanceVoteJourney.waitForProposalScreen(app, step: "S4.4")
-            GovernanceVoteJourney.vote(app, proposalID, "Yes", change: false, step: "S4.4")
-            let tracker = app.element("proposal-tracker")
+            app.pickAndHold("yes")
             XCTAssertTrue(
-                JoinJourney.waitForLabel(tracker, containing: "Bought, step 3 of 3, done", timeout: 120),
-                "S4.4: the Status tracker does not read Bought within 120 s: \(tracker.label)")
+                waitForToast(app, startingWith: "Voted Yes. Passed 2", timeout: formTimeout),
+                "S4.4: no toast 'Voted Yes. Passed 2–0.' within 10 s")
+            let filled = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'filled at $'")).firstMatch
+            XCTAssertTrue(filled.waitForExistence(timeout: 120), "S4.4: no status line 'filled at $…' within 120 s")
         }
     }
 
     static func chatFirst(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S5.1", "say it in the chat") {
-            tapAction(app, "cabal-action-chat", run: run, step: "S5.1")
+            openChat(app, run: run, step: "S5.1")
             sendMessage(app, "In. Told you", step: "S5.1")
         }
     }
 
     static func chatReply(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S5.2", "read the friend and reply") {
-            tapAction(app, "cabal-action-chat", run: run, step: "S5.2")
+            openChat(app, run: run, step: "S5.2")
             XCTAssertTrue(
                 app.staticTexts["In. Told you"].waitForExistence(timeout: formTimeout),
                 "S5.2: B's message did not show within 10 s (known failure, #623)"
@@ -208,13 +217,13 @@ enum DemoStoryJourney {
     static func cashOut(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S7.1", "open Cash out") {
             tapAction(app, "cabal-action-cash-out", run: run, step: "S7.1")
-            waitForTitle(app, "Cash out", step: "S7.1", blockedBy: "#657")
-            XCTAssertTrue(button(app, "25%").exists, "S7.1: no 25% (known failure, #657)")
+            waitForTitle(app, "Cash out", step: "S7.1", blockedBy: "#6576")
+            XCTAssertTrue(button(app, "25%").exists, "S7.1: no 25% (known failure, #6576)")
         }
 
         recorder.step("S7.2", "cash out 25%") {
             button(app, "25%").tap()
-            app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Cash out $'")).firstMatch.tap()
+            app.buttons["cash-out-submit"].tap()
             XCTAssertTrue(
                 waitForToast(app, startingWith: "Cashing out", timeout: screenTimeout),
                 "S7.2: no Cashing out toast within 15 s (known failure, #657)"
@@ -223,24 +232,21 @@ enum DemoStoryJourney {
     }
 
     static func seeWhosUp(_ app: XCUIApplication, friend: String, recorder: JourneyRecorder) {
-        recorder.step("S8.1", "find the Leaderboard on Home") {
-            app.tab("Home").tap()
-            let header = app.staticTexts["Leaderboard"].firstMatch
-            app.scrollIntoReach(header)
-            XCTAssertTrue(header.waitForExistence(timeout: screenTimeout), "S8.1: no Leaderboard on Home")
+        recorder.step("S8.1", "Home's leaderboard row opens Leaderboard C") {
+            RankingLeaderboardsJourney.openPage(app, step: "S8.1")
         }
 
-        recorder.step("S8.2", "the friend is on the People board") {
-            let category = app.element("home-leaderboard-category")
-            XCTAssertTrue(category.waitForExistence(timeout: screenTimeout), "S8.2: no leaderboard category select")
-            category.tap()
-            app.buttons["People"].firstMatch.tap()
-            let row = app.buttons.matching(
-                NSPredicate(format: "identifier BEGINSWITH 'home-leaderboard-row-' AND label CONTAINS %@", friend)
+        recorder.step("S8.2", "the friend is not ranked yet") {
+            let section = app.element("leaderboard-section-unranked")
+            app.scrollIntoReach(section)
+            XCTAssertTrue(section.waitForExistence(timeout: screenTimeout), "S8.2: no \"Not ranked yet\" section")
+            let row = app.descendants(matching: .any).matching(
+                NSPredicate(format: "identifier BEGINSWITH 'leaderboard-row-' AND label CONTAINS %@", friend)
             ).firstMatch
             app.scrollIntoReach(row)
+            XCTAssertTrue(row.waitForExistence(timeout: screenTimeout), "S8.2: no unranked row names \(friend)")
             XCTAssertTrue(
-                row.waitForExistence(timeout: screenTimeout), "S8.2: no People board row names \(friend)")
+                row.label.contains("4 more to rank"), "S8.2: the row reads '\(row.label)', not '4 more to rank'")
         }
     }
 }
