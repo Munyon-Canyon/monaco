@@ -19,10 +19,10 @@ nonisolated final class ComposerMenuSampleUITests: XCTestCase {
     }
 
     @MainActor
-    func testThePlusIsHiddenWhileTheMenuHasNoRows() {
+    func testThePlusShowsOnADockedComposerForTheStockRow() {
         let app = launch("docked")
         XCTAssertTrue(app.textFields["comment-composer-field"].waitForExistence(timeout: 15), "no composer")
-        XCTAssertFalse(app.buttons["comment-composer-plus"].exists, "the plus shows with no rows")
+        XCTAssertTrue(app.buttons["comment-composer-plus"].exists, "no plus")
     }
 
     @MainActor
@@ -33,6 +33,7 @@ nonisolated final class ComposerMenuSampleUITests: XCTestCase {
         plus.tap()
         XCTAssertTrue(element(app, "composer-menu-poll").waitForExistence(timeout: 10), "no Poll row")
         XCTAssertTrue(element(app, "composer-menu-thesis").exists, "no thesis row")
+        XCTAssertTrue(element(app, "composer-menu-stock").exists, "no stock row")
     }
 
     @MainActor
@@ -42,6 +43,7 @@ nonisolated final class ComposerMenuSampleUITests: XCTestCase {
         XCTAssertTrue(plus.waitForExistence(timeout: 15), "no plus")
         plus.tap()
         XCTAssertTrue(element(app, "composer-menu-poll").waitForExistence(timeout: 10), "no Poll row")
+        XCTAssertTrue(element(app, "composer-menu-stock").exists, "no stock row on a sale")
         XCTAssertFalse(element(app, "composer-menu-thesis").exists, "the thesis row shows on a sale")
     }
 
@@ -64,12 +66,21 @@ nonisolated final class ComposerMenuSampleUITests: XCTestCase {
     }
 
     @MainActor
+    func testAStockReplyRendersItsBubble() {
+        let app = launch("stockBubble")
+        XCTAssertTrue(element(app, "attachment-stock-c2").waitForExistence(timeout: 15), "no stock bubble")
+    }
+
+    @MainActor
     func testPickingAddsThePreviewAndTheCrossClearsIt() {
         let app = launch("menu")
         let plus = app.buttons["comment-composer-plus"]
         XCTAssertTrue(plus.waitForExistence(timeout: 15), "no plus")
         plus.tap()
         element(app, "composer-menu-stock").tap()
+        let row = element(app, "stock-share-row-AAPL")
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "no stock row in the sheet")
+        row.tap()
         XCTAssertTrue(element(app, "composer-attachment-preview").waitForExistence(timeout: 10), "no preview")
         app.buttons["composer-attachment-remove"].tap()
         XCTAssertFalse(element(app, "composer-attachment-preview").exists, "the draft was not cleared")
