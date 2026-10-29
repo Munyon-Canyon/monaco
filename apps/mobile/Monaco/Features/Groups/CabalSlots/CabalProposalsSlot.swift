@@ -145,7 +145,7 @@ struct CabalOpenProposalRow: View {
     }
 }
 
-private struct CabalLiveCount: View {
+struct CabalLiveCount: View {
     let yes: Int
     let no: Int
 
