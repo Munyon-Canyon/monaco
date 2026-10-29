@@ -5,15 +5,15 @@ The Cabals title + loses its identifier. S1.1 waits for it, so S1 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalsJoinSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalsJoinSlot.swift
-index 6192a14..c07f2ad 100644
+index b0c817c03..6c84ed3b5 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalsJoinSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalsJoinSlot.swift
-@@ -26,7 +26,7 @@ struct CabalsHeaderSection: View {
-                     MonacoGlassButton(systemImage: MonacoIcon.plus.symbol, accessibilityLabel: "Create a cabal") {
-                         environment.navigator.open(CreateCabalRoute(), in: .cabals)
-                     }
--                    .accessibilityIdentifier("cabals-new-button")
-+                    .accessibilityIdentifier("cabals-plus-button")
-                 }
-             }
-             .padding(.vertical, MonacoTheme.Space.m)
+@@ -53,7 +53,7 @@ struct CabalsHeaderSection: View {
+                 .contentShape(Circle())
+         }
+         .accessibilityLabel("Add a cabal")
+-        .accessibilityIdentifier("cabals-new-button")
++        .accessibilityIdentifier("cabals-plus-button")
+     }
+ 
+     private enum PlusMetrics {

@@ -8,13 +8,26 @@ import UIKit
 
 @MainActor
 struct CabalsTabComingSlotsTests {
-    @Test func boardSlotIsLive() {
-        #expect(CabalsBoardSlot.isLive)
+    @Test func theFourSectionsAreLive() {
+        let sections = CabalsTabScreen.sections
+        #expect(sections.count == 4)
+        #expect(sections.allSatisfy { $0.isLive })
+        #expect(sections.contains { $0 == CabalsJoinSlot.self })
+        #expect(sections.contains { $0 == CabalsVoteSlot.self })
+        #expect(sections.contains { $0 == CabalsGridSlot.self })
+        #expect(sections.contains { $0 == CabalsShareListSlot.self })
+    }
+
+    @Test func theOldListInvitesAndBoardSlotsAreGoneFromTheTab() {
+        let sections = CabalsTabScreen.sections
+        #expect(!sections.contains { $0 == CabalsInvitesSlot.self })
+        #expect(!sections.contains { $0 == CabalsBoardSlot.self })
     }
 
     @Test(.timeLimit(.minutes(1)))
-    func emptyListOffersToStartACabal() async throws {
-        let labels = try await Self.labels(restricted: false, body: "[]", until: "Your cabal starts here")
+    func emptyTabOffersToStartACabal() async throws {
+        let labels = try await Self.labels(
+            restricted: false, portfolio: .sampleEmpty, invites: "[]", until: "Your cabal starts here")
 
         #expect(labels.contains("Create a cabal"))
         #expect(labels.contains("Explore cabals"))
@@ -22,8 +35,9 @@ struct CabalsTabComingSlotsTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
-    func restrictedEmptyListHasNoActionToStartACabal() async throws {
-        let labels = try await Self.labels(restricted: true, body: "[]", until: "Your cabal starts here")
+    func restrictedEmptyTabHasNoActionToStartACabal() async throws {
+        let labels = try await Self.labels(
+            restricted: true, portfolio: .sampleEmpty, invites: "[]", until: "Your cabal starts here")
 
         #expect(!labels.contains("Create a cabal"))
         #expect(!labels.contains("Explore cabals"))
@@ -31,23 +45,50 @@ struct CabalsTabComingSlotsTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
-    func listDrawsOneCoverCardAndNoDashedNewCabalCard() async throws {
-        let labels = try await Self.labels(restricted: false, body: Self.oneCabal, until: "Weekend pot")
+    func theGridDrawsEachCabalAndTheInvitationAndTheShareList() async throws {
+        let labels = try await Self.labels(
+            restricted: false, portfolio: .sampleOwnProfile, invites: Self.quantKids, until: "Quant Kids, invited")
 
-        #expect(labels.contains { $0.hasPrefix("Weekend pot") })
-        #expect(!labels.contains("New cabal"))
+        #expect(labels.contains("AC Capital, up 4.7 percent"))
+        #expect(labels.contains("Tech Titans, down 1.7 percent"))
+        #expect(labels.contains("Quant Kids, invited"))
+        #expect(labels.contains("New cabal"))
+        #expect(labels.contains { $0.contains("Hold a cabal for actions") })
+        #expect(labels.contains { $0.contains("$22,580 treasury · 12% yours") })
     }
 
-    private static let oneCabal = """
-        [{"id":"01890a5d-ac96-774b-bcce-b302099a8060","name":"Weekend pot","picture_url":null,"role":"creator","can_vote":true,"member_count":1,"joined_at":"2026-10-02T15:00:00Z","pending_request_count":0,"unread_count":0}]
+    @Test(.timeLimit(.minutes(1)))
+    func aJoinedButUnfundedCabalIsATileNotAnInvitation() async throws {
+        var portfolio = Components.Schemas.MyPortfolio.sampleLoss
+        portfolio.cabals = Array(portfolio.cabals.suffix(1))
+
+        let labels = try await Self.labels(
+            restricted: false, portfolio: portfolio, invites: "[]", until: "Sunday Investors, not funded")
+
+        #expect(labels.contains("Sunday Investors, not funded"))
+        #expect(!labels.contains { $0.hasSuffix("invited") })
+    }
+
+    private static let quantKids = """
+        [{"request_id":"01890a5d-ac96-774b-bcce-b302099a8059","cabal":{"id":"01890a5d-ac96-774b-bcce-b302099a805d","name":"Quant Kids","picture_url":null,"member_count":5},"invited_by":{"user_id":"01890a5d-ac96-774b-bcce-b302099a8058","handle":"kai","display_name":"Kai","photo_url":null},"expires_at":"2026-10-09T15:00:00Z"}]
         """
 
-    private static func labels(restricted: Bool, body: String, until marker: String) async throws -> [String] {
-        let transport = StubTransport(.json(.ok, body))
-        let model = MonacoCore.CabalsTabModel(
-            api: APIClient(
-                serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport))
-        await model.load()
+    private static func labels(
+        restricted: Bool, portfolio: Components.Schemas.MyPortfolio, invites: String, until marker: String
+    ) async throws -> [String] {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let body = String(decoding: try encoder.encode(portfolio), as: UTF8.self)
+        let transport = StubTransport(routes: [
+            "/v1/me/portfolio": [.json(.ok, body)],
+            "/v1/me/cabal-invites": [.json(.ok, invites)],
+            "/v1/me/pending-votes": [.json(.ok, "[]")],
+        ])
+        let api = APIClient(
+            serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
+        let environment = AppEnvironment(
+            auth: PrivyAuthService.processInstance ?? PrivyAuthService(), api: api, hints: FakeHintSource(),
+            isAuthenticated: { true }, endAuthSession: {})
         let scene = try #require(
             UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first,
             "the test host has no window scene"
@@ -55,9 +96,11 @@ struct CabalsTabComingSlotsTests {
         try AccessibilityTree.setAutomation(enabled: true)
         defer { try? AccessibilityTree.setAutomation(enabled: false) }
         let window = UIWindow(windowScene: scene)
-        window.frame = CGRect(x: 0, y: 0, width: 390, height: 800)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 1200)
         window.rootViewController = UIHostingController(
-            rootView: MyCabalsContent(model: model, standings: [:], open: { _ in }, create: {})
+            rootView: CabalsTabScreen()
+                .environment(environment)
+                .environment(ToastCenter())
                 .environment(\.accountRestricted, restricted)
         )
         window.makeKeyAndVisible()

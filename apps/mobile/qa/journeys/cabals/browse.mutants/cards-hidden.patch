@@ -1,19 +1,19 @@
 journey: cabals/browse
 expect-fail: S1
 
-The Cabals tab has no Your cabals cards. S1.1 waits for the card, so it must fail.
+The Cabals tab has no Your cabals grid. S1.1 waits for the card, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Groups/CabalsListSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalsListSlot.swift
-index e9256c8a..27729217 100644
---- a/apps/mobile/Monaco/Features/Groups/CabalsListSlot.swift
-+++ b/apps/mobile/Monaco/Features/Groups/CabalsListSlot.swift
-@@ -3,7 +3,7 @@ import MonacoCore
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalsGridSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalsGridSlot.swift
+index de3876906..c952d4886 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalsGridSlot.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalsGridSlot.swift
+@@ -2,7 +2,7 @@ import MonacoCore
  import SwiftUI
  
- enum CabalsListSlot: CabalsTabSection {
+ enum CabalsGridSlot: CabalsTabSection {
 -    static let isLive = true
 +    static let isLive = false
  
      static func body(for context: Void) -> some View {
-         MyCabalsList()
+         CabalsGridSection()

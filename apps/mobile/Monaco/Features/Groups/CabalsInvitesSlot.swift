@@ -87,7 +87,7 @@ struct CabalInvitesSection: View {
     }
 }
 
-private struct CabalInviteRow: View {
+struct CabalInviteRow: View {
     let invite: ReceivedCabalInvite
     let isAnswering: Bool
     let isLast: Bool
@@ -118,6 +118,63 @@ private struct CabalInviteRow: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("cabal-invite-row")
+    }
+}
+
+struct CabalInviteAnswerSheet: View {
+    let invite: ReceivedCabalInvite
+    let finished: () -> Void
+
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(ToastCenter.self) private var toasts
+    @State private var model: CabalInvitesModel?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+            Text("Invitation")
+                .font(MonacoTheme.Typo.section)
+                .foregroundStyle(MonacoTheme.primaryText)
+                .accessibilityAddTraits(.isHeader)
+            CabalInviteRow(
+                invite: invite, isAnswering: model?.answering.contains(invite.id) ?? false, isLast: true,
+                accept: { accept() }, decline: { decline() }
+            )
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.top, MonacoTheme.Space.l)
+        .presentationDetents([.fraction(MonacoSheetDetents.halfFraction)])
+        .accessibilityIdentifier("cabals-invite-sheet")
+        .onChange(of: model?.toast) { _, toast in
+            guard let toast else { return }
+            toasts.current = MonacoToast(message: toast.message, isSuccess: toast.isSuccess)
+        }
+    }
+
+    private func prepared() -> CabalInvitesModel {
+        if let model { return model }
+        let created = CabalInvitesModel(api: environment.api, hints: environment.hints)
+        model = created
+        return created
+    }
+
+    private func accept() {
+        let model = prepared()
+        Task {
+            guard await model.accept(invite) else { return }
+            Haptics.selection()
+            finished()
+            environment.navigator.open(CabalRoute(id: invite.cabalID), in: .cabals)
+            await environment.pushPrePrompt.noteCabalJoined(after: toasts)
+        }
+    }
+
+    private func decline() {
+        let model = prepared()
+        Task {
+            await model.decline(invite)
+            finished()
+        }
     }
 }
 

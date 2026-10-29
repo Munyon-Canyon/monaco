@@ -31,6 +31,8 @@ enum CabalsTabSampleData {
         case rankLoading
         case rankError
         case rankEmpty
+        case fReady
+        case fUnfunded
     }
 
     static func matches(_ arguments: [String]) -> Bool {
@@ -60,7 +62,40 @@ enum CabalsTabSampleData {
         case .rankLoading: ready(board: .hanging)
         case .rankError: ready(board: .failing)
         case .rankEmpty: ready(board: .empty)
+        case .fReady: fReadyScript
+        case .fUnfunded: fUnfundedScript
         }
+    }
+
+    @MainActor
+    private static var fReadyScript: SampleAPIScript {
+        var script = HomeSampleData.script(.loss, proposals: [.fVote])
+        script.portfolio = .sampleOwnProfile
+        script.pendingVotes = script.pendingVotes.map { vote in
+            var moved = vote
+            moved.cabalId = Components.Schemas.CabalRef.sampleACCapital.id
+            moved.cabalName = Components.Schemas.CabalRef.sampleACCapital.name
+            return moved
+        }
+        script.invites = [quantKidsInvite]
+        return script
+    }
+
+    @MainActor
+    private static var fUnfundedScript: SampleAPIScript {
+        var script = HomeSampleData.script(.loss, proposals: [])
+        var portfolio = Components.Schemas.MyPortfolio.sampleLoss
+        portfolio.cabals = Array(portfolio.cabals.suffix(1))
+        script.portfolio = portfolio
+        return script
+    }
+
+    private static var quantKidsInvite: Components.Schemas.CabalInvite {
+        var invite = Components.Schemas.CabalInvite.sample
+        invite.cabal = Components.Schemas.CabalInviteCabal(
+            id: Components.Schemas.CabalRef.sampleQuantKids.id, name: Components.Schemas.CabalRef.sampleQuantKids.name,
+            pictureUrl: nil, memberCount: 5)
+        return invite
     }
 
     @MainActor

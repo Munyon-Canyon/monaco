@@ -12,34 +12,51 @@ enum CabalsJoinSlot: CabalsTabSection {
 struct CabalsHeaderSection: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.accountRestricted) private var accountRestricted
-    @Environment(\.cabalsFilter) private var filter
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: MonacoTheme.Space.s) {
-                Text(CabalsTab.title)
-                    .font(MonacoTheme.Typo.display)
-                    .foregroundStyle(MonacoTheme.ink)
-                    .accessibilityAddTraits(.isHeader)
-                Spacer(minLength: MonacoTheme.Space.s)
-                if !accountRestricted {
-                    MonacoGlassButton(systemImage: MonacoIcon.plus.symbol, accessibilityLabel: "Create a cabal") {
-                        environment.navigator.open(CreateCabalRoute(), in: .cabals)
-                    }
-                    .accessibilityIdentifier("cabals-new-button")
-                }
+        HStack(spacing: MonacoTheme.Space.s) {
+            Text(CabalsTab.title)
+                .font(MonacoTheme.Typo.display)
+                .foregroundStyle(MonacoTheme.ink)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: MonacoTheme.Space.s)
+            if !accountRestricted {
+                plusMenu
             }
-            .padding(.vertical, MonacoTheme.Space.m)
-            MonacoSearchField(placeholder: "Find or search cabals", text: filter)
-                .onSubmit {
-                    guard !accountRestricted else { return }
-                    let query = filter.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                    environment.navigator.open(DiscoverCabalsRoute(query: query), in: .cabals)
-                }
-                .accessibilityIdentifier("cabals-filter-field")
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.vertical, MonacoTheme.Space.m)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("cabals-header")
+    }
+
+    private var plusMenu: some View {
+        Menu {
+            Button {
+                environment.navigator.open(CreateCabalRoute(), in: .cabals)
+            } label: {
+                Label("Start a cabal", systemImage: MonacoIcon.cabals.symbol)
+            }
+            .accessibilityIdentifier("cabals-menu-start")
+            Button {
+                environment.navigator.open(DiscoverCabalsRoute(query: ""), in: .cabals)
+            } label: {
+                Label("Find a cabal", systemImage: MonacoIcon.search.symbol)
+            }
+            .accessibilityIdentifier("cabals-menu-find")
+        } label: {
+            Image(systemName: MonacoIcon.plus.symbol)
+                .font(.body.weight(.medium))
+                .foregroundStyle(MonacoTheme.primaryText)
+                .frame(width: PlusMetrics.diameter, height: PlusMetrics.diameter)
+                .background(Circle().fill(MonacoTheme.surfaceSunken))
+                .contentShape(Circle())
+        }
+        .accessibilityLabel("Add a cabal")
+        .accessibilityIdentifier("cabals-new-button")
+    }
+
+    private enum PlusMetrics {
+        static let diameter: CGFloat = 44
     }
 }
