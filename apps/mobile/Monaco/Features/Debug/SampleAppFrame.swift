@@ -9,6 +9,7 @@ struct SampleAppFrame: View {
     let sheet: (() -> AnyView)?
     private let tab: MainTab
     private let presentsDeposit: Bool
+    private let opensWithViewer: Bool
     private let routes: [any AppRoute]
     private let store: AppSessionStore
     private let session: @MainActor (AppSessionStore) -> Void
@@ -21,6 +22,7 @@ struct SampleAppFrame: View {
         tab: MainTab = .home,
         routes: [any AppRoute] = [],
         presentsDeposit: Bool = false,
+        opensWithViewer: Bool = false,
         store: AppSessionStore = AppSessionStore(),
         session: @escaping @MainActor (AppSessionStore) -> Void = SampleAppFrame.signedIn,
         sheet: (() -> AnyView)? = nil,
@@ -31,6 +33,7 @@ struct SampleAppFrame: View {
         self.tab = tab
         self.routes = routes
         self.presentsDeposit = presentsDeposit
+        self.opensWithViewer = opensWithViewer
         self.store = store
         self.session = session
         self.sheet = sheet
@@ -70,7 +73,9 @@ struct SampleAppFrame: View {
             isAuthenticated: { true },
             endAuthSession: {}
         )
-        if tab == .profile, let userID = store.profile?.userID { made.viewer = Viewer(userID: userID, handle: nil) }
+        if tab == .profile || opensWithViewer, let userID = store.profile?.userID {
+            made.viewer = Viewer(userID: userID, handle: nil)
+        }
         made.navigator.selectedTab = tab
         for route in routes { made.navigator.open(route, in: tab) }
         if presentsDeposit { made.navigator.presentDeposit() }

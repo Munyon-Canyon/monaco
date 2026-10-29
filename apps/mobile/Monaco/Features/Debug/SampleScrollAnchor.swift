@@ -1,5 +1,6 @@
 #if DEBUG
 import SwiftUI
+import UIKit
 
 enum SampleScrollAnchor {
     static let flag = "-MonacoSampleScroll"
@@ -10,6 +11,7 @@ enum SampleScrollAnchor {
         if value == "center" { return .leading }
         if value == "bottom" { return .bottomLeading }
         guard let fraction = Float(value), (0...1).contains(fraction) else { return nil }
+        if UIApplication.shared.preferredContentSizeCategory.isAccessibilityCategory { return nil }
         return UnitPoint(x: 0, y: CGFloat(fraction))
     }
 }
