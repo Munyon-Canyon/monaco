@@ -11,11 +11,16 @@ public struct CabalPendingRequest: Identifiable, Equatable, Sendable {
     public let userID: String
     public let name: String
     public let photoURL: String?
+    public let via: String?
+    public let createdAt: Date
 
     init(_ request: Components.Schemas.CabalAccessRequest) {
         id = request.id
         userID = request.user.userId
         photoURL = request.user.photoUrl
+        createdAt = request.createdAt
+        let sponsor = request.via?.displayName.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        via = !sponsor.isEmpty ? sponsor : request.via?.handle
         let display = request.user.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         name = !display.isEmpty ? display : request.user.handle.map { "@\($0)" } ?? "Someone"
     }
@@ -115,7 +120,7 @@ public final class CabalAccessModel {
             default: return .join
             }
         }
-        guard me.role == "creator" else { return .hidden }
+        guard me.role == "creator" || me.role == "admin" else { return .hidden }
         let cabalID = cabalID
         let requests = try await api.read { client in
             try await client.getCabalAccessRequests(path: .init(id: cabalID)).ok.body.json
