@@ -3,6 +3,7 @@ package agents
 import (
 	"context"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 )
@@ -28,6 +29,18 @@ func (s *stream) indicatorLines(ctx context.Context, trunkMsg string) []string {
 	}
 	if s.indicatorDue == "" {
 		return nil
+	}
+	runs, err := env.GitHub.DispatchedRuns(ctx, indicatorWorkflow, env.Config.FeatureBranch,
+		env.Now().Add(-indicatorEvery))
+	if err == nil {
+		i := slices.IndexFunc(runs, func(r Run) bool {
+			return strings.HasPrefix(r.HeadSHA, s.indicatorDue) || r.Status == "queued"
+		})
+		if i >= 0 {
+			sha := s.indicatorDue
+			s.indicatorDue, s.indicatorAt = "", env.Now()
+			return []string{"staging run for " + sha + " already dispatched (" + runs[i].URL + ")"}
+		}
 	}
 	if err := env.GitHub.DispatchWorkflow(ctx, indicatorWorkflow, env.Config.FeatureBranch, nil); err != nil {
 		return []string{watchErr("dispatch staging indicator: ", err)}
