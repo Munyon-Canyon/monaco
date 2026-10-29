@@ -157,6 +157,8 @@ struct ProposeReviewScreen: View {
                         } label: {
                             Image(systemName: MonacoIcon.info.symbol).foregroundStyle(MonacoTheme.secondaryText)
                         }
+                        .frame(minWidth: CommentRowMetrics.replyTarget, minHeight: CommentRowMetrics.replyTarget)
+                        .contentShape(Rectangle())
                         .accessibilityLabel(ProposeFlowCopy.marketOrderTitle)
                         .accessibilityIdentifier("propose-review-market-order-info")
                     }

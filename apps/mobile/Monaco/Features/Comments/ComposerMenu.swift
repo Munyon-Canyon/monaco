@@ -81,6 +81,8 @@ struct ComposerMenu: View {
                 }
             }
             .menuOrder(.fixed)
+            .frame(minWidth: CommentRowMetrics.replyTarget, minHeight: CommentRowMetrics.replyTarget)
+            .contentShape(Rectangle())
             .accessibilityLabel(CommentsCopy.plusAccessibility)
             .accessibilityIdentifier("comment-composer-plus")
         }

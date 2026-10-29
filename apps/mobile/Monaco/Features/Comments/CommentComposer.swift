@@ -190,6 +190,8 @@ private struct ComposerGifButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .frame(minWidth: CommentRowMetrics.replyTarget, minHeight: CommentRowMetrics.replyTarget)
+        .contentShape(Rectangle())
         .accessibilityLabel(CommentsCopy.gifAccessibility)
         .accessibilityIdentifier("comment-composer-gif")
     }
@@ -217,6 +219,8 @@ struct ComposerSendButton: View {
             ComposerSendDisc(isLive: canPost || model.isPosting, isSending: model.isPosting)
         }
         .buttonStyle(.plain)
+        .frame(minWidth: CommentRowMetrics.replyTarget, minHeight: CommentRowMetrics.replyTarget)
+        .contentShape(Rectangle())
         .disabled(!canPost)
         .accessibilityLabel(CommentsCopy.postAccessibility)
         .accessibilityIdentifier("comment-composer-send")

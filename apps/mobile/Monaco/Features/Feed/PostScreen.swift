@@ -61,6 +61,8 @@ struct PostScreen: View {
                             .foregroundStyle(MonacoTheme.primaryText)
                             .frame(minWidth: PostMetrics.round, minHeight: PostMetrics.round)
                     }
+                    .frame(minWidth: PostMetrics.round, minHeight: PostMetrics.round)
+                    .contentShape(Rectangle())
                     .accessibilityLabel("Share")
                     .accessibilityIdentifier("post-share")
                 }
