@@ -598,3 +598,108 @@ func TestCIAffectedSelectsSourceScanningTests(t *testing.T) {
 		})
 	}
 }
+
+func specGraph() map[string]listedPackage {
+	const mod = "example.com/m/"
+	pkg := func(dir string, imports, tests []string) listedPackage {
+		p := listedPackage{ImportPath: mod + dir}
+		for _, i := range imports {
+			p.Imports = append(p.Imports, mod+i)
+		}
+		for _, i := range tests {
+			p.TestImports = append(p.TestImports, mod+i)
+		}
+		return p
+	}
+	const (
+		rankingAPI = "internal/platform/httpx/api/rankingapi"
+		fundingAPI = "internal/platform/httpx/api/fundingapi"
+		apiAll     = "internal/platform/httpx/api/apiall"
+		scenario   = "internal/testkit/scenario"
+		httpx      = "internal/platform/httpx"
+	)
+	return map[string]listedPackage{
+		"api":                          pkg("api", nil, nil),
+		httpx:                          pkg(httpx, nil, nil),
+		rankingAPI:                     pkg(rankingAPI, []string{"api"}, nil),
+		fundingAPI:                     pkg(fundingAPI, []string{"api"}, nil),
+		apiAll:                         pkg(apiAll, []string{rankingAPI, fundingAPI, httpx}, nil),
+		"internal/testkit":             pkg("internal/testkit", []string{"api", apiAll}, nil),
+		scenario:                       pkg(scenario, []string{"internal/testkit", "api", apiAll}, nil),
+		"internal/modules/ranking":     pkg("internal/modules/ranking", []string{rankingAPI}, []string{scenario}),
+		"internal/modules/ranking/app": pkg("internal/modules/ranking/app", nil, nil),
+		"internal/modules/social": pkg(
+			"internal/modules/social", []string{"internal/modules/ranking"}, []string{scenario},
+		),
+		"internal/modules/funding":  pkg("internal/modules/funding", []string{fundingAPI}, []string{scenario}),
+		"internal/modules/treasury": pkg("internal/modules/treasury", nil, []string{scenario}),
+		"cmd/monacoctl":             pkg("cmd/monacoctl", []string{"api", apiAll}, nil),
+		"cmd/monacoctl/agents":      pkg("cmd/monacoctl/agents", []string{"api", apiAll}, nil),
+		"cmd/monacoctl/verify":      pkg("cmd/monacoctl/verify", []string{"api", apiAll}, nil),
+	}
+}
+
+func TestReverseDepsSelectsASpecChangeFromItsModule(t *testing.T) {
+	t.Parallel()
+	selected, excluded := reverseDeps(specGraph(), []string{
+		"api/spec/ranking.yaml", "api/openapi.yaml",
+		"internal/platform/httpx/api/rankingapi/api.gen.go",
+	})
+	want := []string{
+		"./api", "./internal/modules/ranking", "./internal/modules/social",
+		"./internal/platform/httpx/api/apiall", "./internal/platform/httpx/api/rankingapi",
+		"./internal/testkit", "./internal/testkit/scenario",
+	}
+	if !slices.Equal(selected, want) {
+		t.Fatalf("selected %v, want %v", selected, want)
+	}
+	wantExcluded := []string{"./cmd/monacoctl", "./cmd/monacoctl/agents", "./cmd/monacoctl/verify"}
+	if !slices.Equal(excluded, wantExcluded) {
+		t.Fatalf("excluded %v, want %v", excluded, wantExcluded)
+	}
+}
+
+func TestReverseDepsSpecChangeWithoutAModulePackageKeepsTheBundleSeed(t *testing.T) {
+	t.Parallel()
+	byDir := specGraph()
+	selected, _ := reverseDeps(byDir, []string{"api/spec/ghost.yaml"})
+	if !slices.Contains(selected, "./internal/modules/funding") || !slices.Contains(selected, "./api") {
+		t.Fatalf("selected %v", selected)
+	}
+	delete(byDir, "api")
+	if got, _ := reverseDeps(byDir, []string{"api/spec/ranking.yaml"}); !slices.Equal(got, []string{allPackages}) {
+		t.Fatalf("selected %v", got)
+	}
+}
+
+func TestReverseDepsSelectsEveryImporterOfAHandEditedBundle(t *testing.T) {
+	t.Parallel()
+	selected, _ := reverseDeps(specGraph(), []string{"api/openapi.yaml"})
+	for _, dir := range []string{"./internal/modules/funding", "./internal/modules/treasury", "./cmd/monacoctl"} {
+		if !slices.Contains(selected, dir) {
+			t.Fatalf("selected %v without %s", selected, dir)
+		}
+	}
+}
+
+func TestReverseDepsSelectsEveryModuleForTheBaseSpec(t *testing.T) {
+	t.Parallel()
+	selected, _ := reverseDeps(specGraph(), []string{"api/spec/base.yaml"})
+	for _, dir := range []string{"./internal/modules/funding", "./internal/modules/treasury", "./internal/modules/ranking"} {
+		if !slices.Contains(selected, dir) {
+			t.Fatalf("selected %v without %s", selected, dir)
+		}
+	}
+}
+
+func TestReverseDepsSelectsEveryModuleForAHarnessOrSharedChange(t *testing.T) {
+	t.Parallel()
+	for _, changed := range []string{"internal/testkit/scenario/app.go", "internal/platform/httpx/problem.go"} {
+		selected, _ := reverseDeps(specGraph(), []string{changed})
+		for _, dir := range []string{"./internal/modules/funding", "./internal/modules/treasury", "./internal/modules/ranking"} {
+			if !slices.Contains(selected, dir) {
+				t.Fatalf("%s selected %v without %s", changed, selected, dir)
+			}
+		}
+	}
+}

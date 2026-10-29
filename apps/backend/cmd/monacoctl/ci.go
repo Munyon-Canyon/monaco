@@ -185,6 +185,15 @@ func flowsReaders() []string {
 	}
 }
 
+func harnessPackages() []string {
+	return []string{
+		"internal/testkit",
+		"internal/testkit/scenario",
+		"internal/testkit/flows",
+		"internal/platform/httpx/api/apiall",
+	}
+}
+
 func agentTooling() []string {
 	return []string{"cmd/monacoctl", "cmd/monacoctl/agents", "cmd/monacoctl/verify"}
 }
@@ -207,9 +216,10 @@ func reverseDeps(byDir map[string]listedPackage, changed []string, scanners ...s
 	for dir, p := range byDir {
 		dirOf[p.ImportPath] = dir
 	}
+	testHit := testPropagation(byDir, dirOf, hit, seeds, local)
 	for dir, p := range byDir {
 		tests := slices.Concat(p.TestImports, p.XTestImports)
-		testsHit := slices.ContainsFunc(tests, func(i string) bool { return hit[i] })
+		testsHit := slices.ContainsFunc(tests, func(i string) bool { return testHit[i] })
 		switch {
 		case !hit[p.ImportPath] && !local[p.ImportPath] && !bare[p.ImportPath] && !testsHit:
 		case slices.Contains(agentTooling(), dir) && !inputsChanged(p, dirOf, seeds, local):
@@ -221,6 +231,40 @@ func reverseDeps(byDir map[string]listedPackage, changed []string, scanners ...s
 	slices.Sort(selected)
 	slices.Sort(excluded)
 	return selected, excluded
+}
+
+func testPropagation(
+	byDir map[string]listedPackage,
+	dirOf map[string]string,
+	hit, seeds, local map[string]bool,
+) map[string]bool {
+	harness := map[string]bool{}
+	for _, dir := range harnessPackages() {
+		if p, found := byDir[dir]; found {
+			harness[p.ImportPath] = true
+		}
+	}
+	api := byDir["api"].ImportPath
+	shared := hit[api]
+	for i := range seeds {
+		shared = shared || sharedSeed(dirOf[i])
+	}
+	for i := range harness {
+		if seeds[i] || local[i] {
+			return hit
+		}
+	}
+	if shared {
+		return hit
+	}
+	rest := maps.Clone(hit)
+	maps.DeleteFunc(rest, func(i string, _ bool) bool { return harness[i] })
+	return rest
+}
+
+func sharedSeed(dir string) bool {
+	moduleAPI := strings.HasPrefix(dir, "internal/platform/httpx/api/") && strings.HasSuffix(dir, "api")
+	return dir == "internal/errs" || (sharedTooling(dir) && !moduleAPI)
 }
 
 func seedScanners(byDir map[string]listedPackage, bare map[string]bool, scanners []string) {
@@ -250,10 +294,7 @@ func inputsChanged(p listedPackage, dirOf map[string]string, seeds, local map[st
 func seedPackages(byDir map[string]listedPackage, changed []string) (hit, local, bare map[string]bool, ok bool) {
 	hit, local, bare = map[string]bool{}, map[string]bool{}, map[string]bool{}
 	for _, f := range changed {
-		if shared, modules, scoped := moduleScoped(byDir, f); scoped {
-			for _, dir := range append(modules, shared) {
-				bare[byDir[dir].ImportPath] = true
-			}
+		if specSeed(byDir, changed, f, hit, bare) || scopedSeed(byDir, f, bare) {
 			continue
 		}
 		dirs := seedDirs(byDir, f)
@@ -273,6 +314,43 @@ func seedPackages(byDir map[string]listedPackage, changed []string) (hit, local,
 		}
 	}
 	return hit, local, bare, true
+}
+
+func scopedSeed(byDir map[string]listedPackage, f string, bare map[string]bool) bool {
+	shared, modules, scoped := moduleScoped(byDir, f)
+	if !scoped {
+		return false
+	}
+	for _, dir := range append(modules, shared) {
+		bare[byDir[dir].ImportPath] = true
+	}
+	return true
+}
+
+func specSeed(byDir map[string]listedPackage, changed []string, f string, hit, bare map[string]bool) bool {
+	api, found := byDir["api"]
+	if !found {
+		return false
+	}
+	module, isSpec := strings.CutSuffix(strings.TrimPrefix(f, "api/spec/"), ".yaml")
+	switch {
+	case f == "api/openapi.yaml":
+		if !slices.ContainsFunc(changed, func(c string) bool {
+			return strings.HasPrefix(c, "api/spec/") && strings.HasSuffix(c, ".yaml")
+		}) {
+			return false
+		}
+		bare[api.ImportPath] = true
+		return true
+	case isSpec && strings.HasPrefix(f, "api/spec/") && module != "base":
+		moduleAPI, found := byDir["internal/platform/httpx/api/"+module+"api"]
+		if !found {
+			return false
+		}
+		hit[moduleAPI.ImportPath], bare[api.ImportPath] = true, true
+		return true
+	}
+	return false
 }
 
 func moduleScoped(byDir map[string]listedPackage, f string) (shared string, modules []string, scoped bool) {
