@@ -260,9 +260,11 @@ The page is the header (#6481: cover, name and facts line, stat block, Fund and 
 | 4 | `CabalJoinSlot` | creator only | fallback | Creator: one row "Join requests" / "2 requests to review" that opens Members & voters on Requests (`cabal-join-requests-heading`). Non-member fallback: the join, pending, declined and invite buttons used by the Public cabal screen |
 | 5 | `CabalPotSlot` | yes | | The pot value in `moneyFont(.hero)`. The "Prices delayed" notice stays hidden until the API sends a valuation time |
 | 6 | `CabalSliceSlot` | yes | | The stat block: "Your share", "Of treasury", "Open votes" and "Bot" |
-| 7 | `CabalActionsSlot` | yes | | "Fund this cabal" (`FundRoute`), "Propose" and "Cash out". Cash out is disabled with no share and an info notice says so; Propose is disabled for a non-voter with "Only voters can propose" |
-| 8 | `CabalProposalsSlot` | yes | read-only | The open votes. Empty: "No proposals need your attention." with "Closed decisions remain in proposal history." and, for a voter, "Propose the first buy." A failed read shows a partial-error card. Settlement toasts are unchanged |
-| 9 | `CabalTabs` | yes | | Underline tabs (`MonacoUnderlineTabs`, `cabal-tabs`): **Treasury**, **Rules**, **Members 8** (the count is `member_count`) and **Voters**, with a hairline under them. They pin under the bar once scrolled to it (`cabal-tabs-pinned`). Each tab is its own slot list, below |
+| 7 | `CabalEmptySlot` | yes | | Only on an empty cabal (member, no open or closed proposal, pot above zero): a card "Quiet in here." with "{name} has $X and no plan yet. The first proposal starts it.", a "Propose buy" button for a member who can propose and "Invite" (`cabal-empty-card`). Hidden otherwise |
+| 8 | `CabalActionsSlot` | yes | | "Fund this cabal" (`FundRoute`), "Propose" and "Cash out". Cash out is disabled with no share and an info notice says so; Propose is disabled for a non-voter with "Only voters can propose" |
+| 9 | `CabalProposalsSlot` | yes | read-only | The open votes. Empty: "No proposals need your attention." with "Closed decisions remain in proposal history." and, for a voter, "Propose the first buy." A failed read shows a partial-error card. Settlement toasts are unchanged |
+| 10 | `CabalStartersSlot` | yes | | Only on an empty cabal: "Cabals like yours start with", rows of assets that open the asset page (`cabal-starters`), each with price and "Eligible" or the day change. Hidden when the list is empty |
+| 11 | `CabalTabs` | yes | | Underline tabs (`MonacoUnderlineTabs`, `cabal-tabs`): **Treasury**, **Rules**, **Members 8** (the count is `member_count`) and **Voters**, with a hairline under them. They pin under the bar once scrolled to it (`cabal-tabs-pinned`). Each tab is its own slot list, below |
 
 | Tab | Slots (until the tab tickets land) |
 | --- | --- |
