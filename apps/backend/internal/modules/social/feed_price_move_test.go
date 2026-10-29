@@ -156,7 +156,11 @@ func TestGetFeed_aPriceMoveCarriesItsFigures(t *testing.T) {
 func TestGetFeed_aTradeCarriesNoPriceMoveFigures(t *testing.T) {
 	t.Parallel()
 	r := newProposalRig(t)
-	if err := r.deliverTrade(t, r.confirmed("buy", "proposal")); err != nil {
+	_, err := r.pool.Exec(t.Context(), `INSERT INTO feed_objects
+		(id, kind, ref_type, ref_id, cabal_id, cabal_name, symbol, title, payload, created_at, updated_at)
+		VALUES ($1, 'trade', 'swaps', $2, $3, 'Alpha', 'AAPLx', 'Alpha bought $500 of Apple', '{}', now(), now())`,
+		r.gen.NewV7(), r.gen.NewV7(), r.cabal)
+	if err != nil {
 		t.Fatal(err)
 	}
 	f := feedFixture{pool: r.pool, gen: r.gen, clock: r.clock}

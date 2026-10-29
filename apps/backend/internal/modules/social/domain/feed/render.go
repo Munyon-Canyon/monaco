@@ -146,6 +146,20 @@ func thresholdTitle(p Payload) string {
 }
 
 func resultTitle(p Payload) string {
+	switch p.FillState {
+	case FillFilled:
+		if p.Shape == ShapeMember {
+			return memberFilledTitle(p)
+		}
+		return passedTitle(p) + " · filled"
+	case FillPartial, FillFailed:
+		return passedTitle(p) + " · trade failed"
+	default:
+		return passedTitle(p)
+	}
+}
+
+func passedTitle(p Payload) string {
 	if p.Shape == ShapeMember {
 		return memberResultTitle(p)
 	}
@@ -154,6 +168,14 @@ func resultTitle(p Payload) string {
 		verb = "failed"
 	}
 	return join(" ", p.CabalName, verb, capitalized(tradeVerbBare(p)), assetLabel(p), resultDollars(p), tallyOf(p))
+}
+
+func memberFilledTitle(p Payload) string {
+	verb := "bought"
+	if p.Action == ActionSell {
+		verb = "sold"
+	}
+	return join(" ", memberOr(p.ActorName), verb, resultAmountOf(p), "in", p.CabalName)
 }
 
 func memberResultTitle(p Payload) string {
@@ -168,6 +190,12 @@ func resultDetail(p Payload) string {
 	switch {
 	case p.Outcome == OutcomeFailed:
 		return "no trade"
+	case p.FillState == FillFilled:
+		return "filled"
+	case p.FillState == FillPartial:
+		return "partly filled · trade failed"
+	case p.FillState == FillFailed:
+		return "trade failed"
 	case p.Action == ActionSell:
 		return "selling"
 	default:

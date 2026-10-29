@@ -71,6 +71,11 @@ type FeedItem struct {
 	Tally              *Tally
 	Shape              feed.Shape
 	Caller             *FeedCaller
+	FillState          string
+	FilledTokens       money.BaseUnits
+	FilledUSDCMicros   money.Micros
+	FilledAt           *time.Time
+	TradeFailed        bool
 	AssetKind          feed.AssetKind
 	CommentCount       int32
 	ThreadItemID       uuid.UUID
@@ -227,7 +232,9 @@ func feedItemOf(row sqlc.ListFeedRow) (FeedItem, error) {
 	threadFacts(&item, row)
 	proposalFacts(&item, kind, payload, row.RefID)
 	if kind == feed.KindResult {
-		resultFacts(&item, payload, row.RefID)
+		if err := resultFacts(&item, payload, row.RefID); err != nil {
+			return FeedItem{}, err
+		}
 	}
 	return item, nil
 }
@@ -252,13 +259,31 @@ func proposalFacts(item *FeedItem, kind feed.Kind, payload feed.Payload, ref uui
 	}
 }
 
-func resultFacts(item *FeedItem, payload feed.Payload, proposal uuid.UUID) {
+func resultFacts(item *FeedItem, payload feed.Payload, proposal uuid.UUID) error {
 	item.ProposalID, item.ShareOfPotBps, item.AssetKind = proposal, payload.ShareOfPotBps, payload.AssetKind
 	item.Outcome, item.Shape = payload.Outcome, payload.Shape
 	item.Tally = &Tally{Yes: payload.Yes, No: payload.No, Voters: payload.Voters, Needed: payload.Needed}
 	if payload.CallerID != uuid.Nil {
 		item.Caller = &FeedCaller{ID: ids.UserIDFrom(payload.CallerID), Name: payload.CallerName}
 	}
+	state, tokens, usdc, lastAt, err := feed.DeriveFill(payload)
+	if err != nil {
+		return err
+	}
+	item.FillState, item.FilledTokens, item.FilledUSDCMicros = state, tokens, usdc
+	if item.TokenDecimals == nil && !tokens.IsZero() {
+		decimals := tokens.Decimals()
+		item.TokenDecimals = &decimals
+	}
+	item.TradeFailed = state == feed.FillPartial || state == feed.FillFailed
+	if !lastAt.IsZero() {
+		at := lastAt.UTC()
+		item.FilledAt = &at
+	}
+	if state == feed.FillFilled || state == feed.FillPartial {
+		item.PriceMicros = money.PricePerUnit(usdc, tokens.Uint64(), tokens.Decimals())
+	}
+	return nil
 }
 
 func filterParams(viewer ids.UserID, f FeedFilter) sqlc.ListFeedParams {

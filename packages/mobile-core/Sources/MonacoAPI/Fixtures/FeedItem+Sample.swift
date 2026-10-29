@@ -64,19 +64,31 @@ extension Components.Schemas.FeedItem {
                 usdcMicros: 300_000_000, title: "Degens passed Buy META $300 4–1", detail: "buying",
                 vote: Vote(yes: 4, no: 1, voters: 6, needed: 4, endsInHours: 0), outcome: .passed, shape: .cabal,
                 assetKind: .equity, called: true, minutesAgo: 300,
-                thread: .members("Degens", of: 18, count: 5))),
+                thread: .members("Degens", of: 18, count: 5),
+                fill: Fill(state: .filled, tokens: 42_000_000, usdcMicros: 300_000_000))),
         result(
             ResultFacts(
                 number: 9, cabal: "Tech Titans", actor: 7, symbol: "AAPLx", assetName: "AAPL", action: "sell",
                 usdcMicros: 480_000_000, title: "Logan's sale of $480 of AAPL in Tech Titans passed 3–1",
                 detail: "selling", vote: Vote(yes: 3, no: 1, voters: 4, needed: 3, endsInHours: 0), outcome: .passed,
-                shape: .member, assetKind: .equity, called: true, minutesAgo: 300, thread: .anyone(count: 5))),
+                shape: .member, assetKind: .equity, called: true, minutesAgo: 300, thread: .anyone(count: 5),
+                fill: Fill(state: .filled, tokens: 7, usdcMicros: 480_000_000))),
         result(
             ResultFacts(
                 number: 10, cabal: "Quant Kids", actor: 4, symbol: "OPENAI", assetName: "OpenAI", action: "buy",
                 usdcMicros: 200_000_000, title: "Sam's buy of $200 of OpenAI in Quant Kids passed",
                 detail: "buying", vote: Vote(yes: 3, no: 0, voters: 5, needed: 3, endsInHours: 0), outcome: .passed,
-                shape: .member, assetKind: .preIpo, called: true, minutesAgo: 60 * 24 * 4)),
+                shape: .member, assetKind: .preIpo, called: true, minutesAgo: 60 * 24 * 4,
+                fill: Fill(state: .filled, tokens: 2_000_000, usdcMicros: 200_000_000))),
+        result(
+            ResultFacts(
+                number: 12, cabal: "Degens", actor: 6, symbol: "NVDAx", assetName: "NVDA", action: "buy",
+                usdcMicros: 400_000_000, title: "Degens passed Buy NVDA $400 4–1 · trade failed",
+                detail: "partly filled · trade failed",
+                vote: Vote(yes: 4, no: 1, voters: 6, needed: 4, endsInHours: 0), outcome: .passed, shape: .cabal,
+                assetKind: .equity, called: true, minutesAgo: 60 * 24 * 2,
+                thread: .members("Degens", of: 18, count: 5),
+                fill: Fill(state: .partial, tokens: 150_000_000, usdcMicros: 200_000_000))),
         result(
             ResultFacts(
                 number: 11, cabal: "Tech Titans", actor: 7, symbol: "TSLAx", assetName: "TSLA", action: "sell",
@@ -113,6 +125,7 @@ extension Components.Schemas.FeedItem {
         let assetKind: Components.Schemas.FeedItem.AssetKindPayload
         let called: Bool, minutesAgo: Double
         var thread: Thread?
+        var fill: Fill?
     }
 
     private static let resultActorNames = [4: "Sam", 6: "Christelle", 7: "Logan"]
@@ -138,7 +151,16 @@ extension Components.Schemas.FeedItem {
                 yes: facts.vote.yes, no: facts.vote.no, voters: facts.vote.voters, needed: facts.vote.needed),
             outcome: facts.outcome, shape: facts.shape,
             caller: facts.called ? .init(id: actorID, name: name, photoUrl: nil) : nil,
-            assetKind: facts.assetKind, returnPrivate: false, createdAt: created, updatedAt: created)
+            assetKind: facts.assetKind, fillState: facts.fill?.state,
+            filledTokenAmount: facts.fill?.tokens, filledUsdcMicros: facts.fill?.usdcMicros,
+            filledAt: facts.fill.map { _ in Date().addingTimeInterval(-5 * 3600) },
+            tradeFailed: facts.fill?.state == .partial || facts.fill?.state == .failed,
+            returnPrivate: false, createdAt: created, updatedAt: created)
+    }
+
+    private struct Fill {
+        let state: Components.Schemas.FeedItem.FillStatePayload
+        let tokens: Int64?, usdcMicros: Int64?
     }
 
     private struct Thread {
@@ -202,7 +224,7 @@ extension Components.Schemas.FeedItem {
             reactionCount: reactions.reduce(0) { $0 + $1.count },
             tally: vote.map { .init(yes: $0.yes, no: $0.no, voters: $0.voters, needed: $0.needed) },
             expiresAt: vote.map { Date(timeIntervalSinceNow: $0.endsInHours * 3600) },
-            returnPrivate: false,
+            tradeFailed: false, returnPrivate: false,
             createdAt: created, updatedAt: created)
     }
 }

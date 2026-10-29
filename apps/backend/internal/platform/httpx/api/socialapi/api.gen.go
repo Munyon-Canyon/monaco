@@ -104,6 +104,33 @@ func (e FeedItemAssetKind) Valid() bool {
 	}
 }
 
+// Defines values for FeedItemFillState.
+const (
+	FeedItemFillStateFailed      FeedItemFillState = "failed"
+	FeedItemFillStateFilled      FeedItemFillState = "filled"
+	FeedItemFillStateLessThannil FeedItemFillState = "<nil>"
+	FeedItemFillStatePartial     FeedItemFillState = "partial"
+	FeedItemFillStatePending     FeedItemFillState = "pending"
+)
+
+// Valid indicates whether the value is a known member of the FeedItemFillState enum.
+func (e FeedItemFillState) Valid() bool {
+	switch e {
+	case FeedItemFillStateFailed:
+		return true
+	case FeedItemFillStateFilled:
+		return true
+	case FeedItemFillStateLessThannil:
+		return true
+	case FeedItemFillStatePartial:
+		return true
+	case FeedItemFillStatePending:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FeedItemOutcome.
 const (
 	FeedItemOutcomeFailed      FeedItemOutcome = "failed"
@@ -945,12 +972,32 @@ type FeedItem struct {
 	// Examples: null
 	ExpiresAt *time.Time `json:"expires_at"`
 
+	// FillState How a passed `result`'s order stands: `pending` until every swap reported, `filled` when every swap confirmed, `partial` when some confirmed and some failed, `failed` when every swap failed. Null on a failed vote and on every other kind.
+	//
+	// Examples: filled
+	FillState *FeedItemFillState `json:"fill_state"`
+
+	// FilledAt When the latest swap confirmed. Null on a `result` with no fill and on every other kind.
+	//
+	// Examples: 2026-10-03T08:41:00Z
+	FilledAt *time.Time `json:"filled_at"`
+
+	// FilledTokenAmount Token base units filled so far across the order's confirmed swaps, at `token_decimals`. Null on a `result` with no fill and on every other kind.
+	//
+	// Examples: 42000000
+	FilledTokenAmount *int64 `json:"filled_token_amount"`
+
+	// FilledUsdcMicros USDC micros the confirmed swaps spent or received. Null on a `result` with no fill and on every other kind.
+	//
+	// Examples: 300000000
+	FilledUsdcMicros *int64 `json:"filled_usdc_micros"`
+
 	// Id The item's id.
 	//
 	// Examples: 01920000-0000-7000-8000-000000000007
 	Id openapi_types.UUID `json:"id"`
 
-	// Kind `proposal`, `trade`, `price_move`, `cabal_created`, `member_joined`, `reply`, `result` or `threshold`. A `reply` is a comment on a proposal's feed item, with the comment text as `body` and the commenter as the actor. A `result` is one post per closed proposal, with its `outcome`, `shape`, `caller` and final `tally`. A `threshold` is a proposal that passed and awaits execution; only older items are `threshold`, no new one is written. A `proposal` carries `tally` and `expires_at`; every other kind has `expires_at` null, and only a `result` besides it has a `tally`.
+	// Kind `proposal`, `trade`, `price_move`, `cabal_created`, `member_joined`, `reply`, `result` or `threshold`. A `trade` is older items only: a proposal's fills are recorded on its `result`. A `reply` is a comment on a proposal's feed item, with the comment text as `body` and the commenter as the actor. A `result` is one post per closed proposal, with its `outcome`, `shape`, `caller` and final `tally`. A `threshold` is a proposal that passed and awaits execution; only older items are `threshold`, no new one is written. A `proposal` carries `tally` and `expires_at`; every other kind has `expires_at` null, and only a `result` besides it has a `tally`.
 	//
 	// Examples: trade
 	Kind string `json:"kind"`
@@ -1073,7 +1120,7 @@ type FeedItem struct {
 	// Examples: 250000000
 	TokenAmount *int64 `json:"token_amount"`
 
-	// TokenDecimals Decimals of `token_amount`. Null when `token_amount` is null.
+	// TokenDecimals Decimals of `token_amount` and of `filled_token_amount`. Null when both are null.
 	//
 	// Examples: 8
 	TokenDecimals *int `json:"token_decimals"`
@@ -1082,6 +1129,11 @@ type FeedItem struct {
 	//
 	// Examples: neutral
 	Tone string `json:"tone"`
+
+	// TradeFailed True when a `result`'s order is `partial` or `failed`. False on every other item.
+	//
+	// Examples: false
+	TradeFailed bool `json:"trade_failed"`
 
 	// UpdatedAt When the item last changed.
 	//
@@ -1118,6 +1170,11 @@ type FeedCaller struct {
 	// Examples: null
 	PhotoUrl *string `json:"photo_url"`
 }
+
+// FeedItemFillState How a passed `result`'s order stands: `pending` until every swap reported, `filled` when every swap confirmed, `partial` when some confirmed and some failed, `failed` when every swap failed. Null on a failed vote and on every other kind.
+//
+// Examples: filled
+type FeedItemFillState string
 
 // FeedItemOutcome How a `result` closed: `passed`, or `failed` when the vote failed or expired. Null on every other kind.
 //

@@ -2,17 +2,11 @@ package adapters
 
 import (
 	"context"
-	"errors"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
-
-	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
-	"github.com/monaco/monaco/apps/backend/internal/modules/social/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -32,34 +26,13 @@ func (h Feed) ApplyTrade(
 	if e.Source.Kind != proposalSource {
 		return nil
 	}
-	q := sqlc.New(tx.Queries())
-	cabal, err := q.FeedCabalName(ctx, e.CabalID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return errs.New(errs.CodeFeedItemPending, "social.Feed.ApplyTrade")
-	}
-	if err != nil {
-		return err
-	}
-	symbol := e.Symbol
-	if symbol == "" {
-		symbol = asset.Symbol
-	}
 	_, tokens := tradeLeg(e)
-	payload := feed.Payload{
-		CabalName: cabal, Symbol: symbol, AssetName: asset.Name, Action: feed.Action(e.Action),
-		USDCMicros: e.USDCMicros, PriceMicros: money.PricePerUnit(e.USDCMicros, tokens, asset.Decimals),
-		TokenAmount: tokens, TokenDecimals: asset.Decimals, ProposalID: e.Source.ID,
+	fill := feed.Fill{
+		TokenAmount: money.NewBaseUnits(tokens, asset.Decimals), USDCMicros: e.USDCMicros, FilledAt: e.ConfirmedAt,
 	}
-	if err := q.InsertFeedConsumerItem(ctx, sqlc.InsertFeedConsumerItemParams{
-		ID: eventID(ctx), Kind: string(feed.KindTrade), RefType: string(feed.RefSwaps), RefID: e.SwapID,
-		CabalID: pgtype.UUID{Bytes: e.CabalID, Valid: true}, CabalName: pgtype.Text{String: cabal, Valid: true},
-		AssetID: pgtype.UUID{Bytes: asset.ID, Valid: true}, Symbol: pgtype.Text{String: symbol, Valid: true},
-		Title: feed.RenderTitle(feed.KindTrade, payload), Payload: payload.JSON(), At: at,
-	}); err != nil {
-		return err
-	}
-	tx.AfterCommit(func(ctx context.Context) { h.Bus.PublishHint(ctx, "global.feed", nil) })
-	return nil
+	return h.recordSwap(ctx, tx, e.Source.ID, func(p *feed.Payload) error {
+		return p.RecordFill(e.SwapID, fill, e.SourceBatchSize)
+	}, at)
 }
 
 func tradeLeg(e events.TradeConfirmed) (chain.SolanaAddress, uint64) {

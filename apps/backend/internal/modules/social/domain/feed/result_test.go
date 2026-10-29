@@ -1,13 +1,14 @@
 package feed_test
 
 import (
-	"encoding/json"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func TestResultShape_namesWhoHeadsEachResult(t *testing.T) {
@@ -38,7 +39,10 @@ func TestPayload_roundTripsTheCloseFactsAndKeepsReservedFillKeys(t *testing.T) {
 	want := feed.Payload{
 		Outcome: feed.OutcomePassed, Yes: 4, No: 1, Voters: 6, Needed: 4, Shape: feed.ShapeCabal,
 		CallerID: uuid.NewSHA1(uuid.Nil, []byte("caller")), CallerName: "Christelle",
-		AssetKind: feed.AssetKindEquity, Fills: json.RawMessage(`[{"n":1}]`), Failures: json.RawMessage(`["x"]`),
+		AssetKind: feed.AssetKindEquity, Fills: map[string]feed.Fill{"swap-a": {
+			TokenAmount: money.NewBaseUnits(42_000_000, 8), USDCMicros: money.MicrosFromUint64(300_000_000),
+			FilledAt: time.Date(2026, 10, 3, 8, 41, 0, 0, time.UTC),
+		}}, Failures: map[string]string{"swap-b": "price_moved"},
 		ExpectedFills: 2, FillState: "partial",
 	}
 	got, err := feed.ParsePayload(want.JSON())

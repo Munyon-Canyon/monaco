@@ -54,6 +54,6 @@ final class FeedDestinationTests: XCTestCase {
             title: "t", tone: "neutral", proposalId: proposalID, commentCount: 0,
             threadItemId: "item", replyCount: 0, canReply: true, canReact: true, replyRule: .anyone,
             replyRuleCabalName: nil, likeCount: 0, likedByMe: false, reactions: [], reactionCount: 0, shape: shape,
-            returnPrivate: false, createdAt: Date(), updatedAt: Date())
+            tradeFailed: false, returnPrivate: false, createdAt: Date(), updatedAt: Date())
     }
 }

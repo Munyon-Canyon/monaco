@@ -266,7 +266,9 @@ func TestFeedResult_aRedeliveredOrReopenedCloseKeepsOneRowAndItsFillKeys(t *test
 func (r proposalRig) setFillKeys(t *testing.T) {
 	t.Helper()
 	_, err := r.pool.Exec(t.Context(), `UPDATE feed_objects SET payload = payload ||
-		'{"fills": [{"n": 1}], "failures": ["x"], "expected_fills": 2, "fill_state": "partial"}'
+		'{"fills": {"swap-a": {"token_amount": "42000000", "token_decimals": 8, "usdc_micros": "300000000",
+		"filled_at": "2026-10-03T08:41:00Z"}}, "failures": {"swap-b": "price_moved"}, "expected_fills": 2,
+		"fill_state": "partial"}'
 		WHERE kind = 'result'`)
 	if err != nil {
 		t.Fatal(err)
@@ -275,8 +277,9 @@ func (r proposalRig) setFillKeys(t *testing.T) {
 
 func wantFillKeys(t *testing.T, p feed.Payload) {
 	t.Helper()
-	if string(p.Fills) != `[{"n": 1}]` || string(p.Failures) != `["x"]` {
-		t.Errorf("fills %s failures %s, want the first close's keys", p.Fills, p.Failures)
+	if fill := p.Fills["swap-a"]; len(p.Fills) != 1 || fill.TokenAmount.Uint64() != 42_000_000 ||
+		p.Failures["swap-b"] != "price_moved" || len(p.Failures) != 1 {
+		t.Errorf("fills %+v failures %v, want the first close's keys", p.Fills, p.Failures)
 	}
 	if p.ExpectedFills != 2 || p.FillState != "partial" {
 		t.Errorf("expected fills %d state %q, want 2 partial", p.ExpectedFills, p.FillState)
