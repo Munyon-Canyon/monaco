@@ -18,10 +18,10 @@ final class ShareVoteBuilderTests: XCTestCase {
         _ detail: Components.Schemas.ProposalDetail? = nil,
         eyes: ShareEyes = ShareEyes(pnlDollars: false, buySell: false)
     ) -> ShareCardSpec {
-        let chart = (0..<4).map {
-            ShareChartPoint(
-                time: now.addingTimeInterval(TimeInterval($0 * 3_600 - 14_400)),
-                priceMicros: Int64(215 + $0) * 1_000_000)
+        let chart: [ShareChartPoint] = (0..<4).map { (i: Int) -> ShareChartPoint in
+            let offset: TimeInterval = TimeInterval(i * 3_600 - 14_400)
+            let priceMicros: Int64 = Int64(215 + i) * 1_000_000
+            return ShareChartPoint(time: now.addingTimeInterval(offset), priceMicros: priceMicros)
         }
         return ShareVoteBuilder.build(
             proposal: detail ?? vote(), crest: crest, chart: chart, code: "andres", eyes: eyes, now: now,
