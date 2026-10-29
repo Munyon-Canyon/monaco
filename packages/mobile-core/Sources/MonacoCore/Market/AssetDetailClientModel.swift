@@ -17,6 +17,7 @@ public struct AssetDetailPresentation: Equatable, Sendable {
     public let isTradable: Bool
     public let isQuotable: Bool
     public let stats: AssetStats?
+    public let preIpo: PreIpoDetail?
 
     public var todayMove: AssetTodayMove? {
         AssetTodayMove(priceMicros: priceMicros, basisPoints: changeBasisPoints)
@@ -218,7 +219,7 @@ public final class AssetDetailClientModel {
             lastError = nil
             noteFresh()
             await loadHeld()
-            if chartPhase != .loading { await refreshChart() }
+            if chartPhase != .loading, detail?.kind != .preIpo { await refreshChart() }
         } catch {
             lastError = APIError(error)
             refreshFailed = detail != nil
@@ -258,7 +259,8 @@ public final class AssetDetailClientModel {
                 : AssetStats(
                     marketCapMicros: detail.stats?.marketCapMicros, volume24hMicros: detail.volume24hMicros,
                     openMicros: detail.stats?.openMicros, yearLowMicros: detail.stats?.yearLowMicros,
-                    yearHighMicros: detail.stats?.yearHighMicros, heldByCabals: detail.stats?.heldByCabals)
+                    yearHighMicros: detail.stats?.yearHighMicros, heldByCabals: detail.stats?.heldByCabals),
+            preIpo: PreIpoDetail(detail)
         )
     }
 

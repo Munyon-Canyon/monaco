@@ -54,6 +54,61 @@ public enum PreIpoCopy {
         }
     }
 
+    public struct LedgerLine: Equatable, Sendable {
+        public let label: String
+        public let value: String
+
+        public init(label: String, value: String) {
+            self.label = label
+            self.value = value
+        }
+    }
+
+    public static let privateLine = "Private · priced per round, not live"
+    public static let estimateTitle = "Secondary estimate"
+    public static let estimateInfoLabel = "About the secondary estimate"
+    public static let eligible = "Proposal eligible"
+    public static let eligibleDetail = "your cabals can vote to buy"
+    public static let researchOnly = "Research only"
+    public static let researchOnlyDetail = "not open to proposals yet"
+    public static let estimateUnavailable = "Estimate not available yet"
+    public static let loadFailed = "Couldn’t load this company"
+    public static let retry = "Retry"
+    public static let roundStatsTitle = "Round stats"
+    public static let roundStatsInfoLabel = "About round stats"
+    public static let valuationLabel = "Valuation"
+    public static let lastRoundLabel = "Last round"
+    public static let minOrderLabel = "Min order"
+    public static let sellWindowLabel = "Sell window"
+    public static let nextTenderLabel = "Next tender"
+    public static let sellWindowTender = "Tender · quarterly"
+    public static let sellWindowAnyTime = "Any time"
+    public static let roundStatsFootnote = "Secondary estimates update between rounds."
+    public static let estimateInfo =
+        "A secondary estimate is what shares traded for between funding rounds. It is not a live price."
+    public static let roundStatsInfo =
+        "Round stats come from the company’s latest funding round. The sell window says when you can sell."
+    public static let heldAtEstimate = "at estimate"
+    public static let rangeOneYear = "1Y"
+    public static let rangeThreeYears = "3Y"
+    public static let rangeAll = "All"
+
+    public static func estimateCaption(asOf: String) -> String { "as of \(asOf)" }
+
+    public static func ledgerLastRound(on date: String, price: String) -> LedgerLine {
+        LedgerLine(label: "\(lastRoundLabel) · \(date)", value: price)
+    }
+
+    public static func ledgerEstimate(asOf date: String, price: String) -> LedgerLine {
+        LedgerLine(label: "\(estimateTitle) · \(date)", value: price)
+    }
+
+    public static func roundsCount(rounds: Int, estimates: Int) -> String {
+        "\(rounds) \(rounds == 1 ? "round" : "rounds") · \(estimates) \(estimates == 1 ? "estimate" : "estimates")"
+    }
+
+    public static func estimateStepLabel(_ date: String) -> String { "\(date) est." }
+
     public static let auditedStrings: [String] = [
         sectionTitle,
         chipLabel,
@@ -75,5 +130,21 @@ public enum PreIpoCopy {
         tokenLabelPlural,
         tokenLabelSingular,
         tokensRowLabel,
+        privateLine,
+        estimateTitle,
+        eligible,
+        eligibleDetail,
+        researchOnly,
+        researchOnlyDetail,
+        estimateUnavailable,
+        loadFailed,
+        roundStatsTitle,
+        sellWindowTender,
+        sellWindowAnyTime,
+        roundStatsFootnote,
+        estimateInfo,
+        roundStatsInfo,
+        heldAtEstimate,
+        roundsCount(rounds: 3, estimates: 1),
     ]
 }

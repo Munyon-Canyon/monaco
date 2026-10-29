@@ -15,6 +15,7 @@ enum AssetDetailSampleScenario: String, CaseIterable {
     case afterHours
     case closed
     case preIpo
+    case preIpoNoProfile
     case untradable
     case paused
     case stale
@@ -47,7 +48,14 @@ enum AssetDetailSampleScenario: String, CaseIterable {
         case .closed:
             script.asset.session = .init(
                 state: .closed, continuous: false, holiday: "Thanksgiving Day", earlyClose: false)
-        case .preIpo: script.asset = .spaceX
+        case .preIpo:
+            script.show(.spaceX)
+            script.showPreIpoInYourCabals()
+        case .preIpoNoProfile:
+            var noProfile = Components.Schemas.AssetDetail.spaceX
+            noProfile.preIpo = nil
+            script.show(noProfile)
+            script.showPreIpoInYourCabals()
         case .untradable: script.asset.tradable = false
         case .paused: script.asset = .paused
         case .stale: break
@@ -74,6 +82,17 @@ extension SampleAPIScript {
         }
         assetFeed = [post(30, open: true, minutesAgo: closedFirst ? 60 * 24 * 9 : 8)]
         if closedFirst { assetFeed += (31...35).map { post($0, open: false, minutesAgo: Double($0 - 30) * 90) } }
+    }
+
+    fileprivate mutating func showPreIpoInYourCabals() {
+        held = .sampleAndres
+        var post = Components.Schemas.FeedItem.sampleProposalPost(
+            number: 40, cabalID: "01890a5d-ac96-774b-bcce-b302099a8062", cabalName: "Tech Titans",
+            symbol: "tSpaceX", usdcMicros: 500_000_000, open: true, minutesAgo: 8)
+        post.tally = .init(yes: 2, no: 0, voters: 6, needed: 4)
+        post.commentCount = 3
+        post.expiresAt = Date(timeIntervalSinceNow: 20 * 3600 + 600)
+        assetFeed = [post]
     }
 
     fileprivate mutating func show(_ detail: Components.Schemas.AssetDetail) {

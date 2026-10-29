@@ -340,6 +340,8 @@ asset-pre-market              -MonacoAssetDetailSample preMarket
 asset-after-hours             -MonacoAssetDetailSample afterHours
 asset-closed                  -MonacoAssetDetailSample closed
 asset-pre-ipo                 -MonacoAssetDetailSample preIpo
+asset-pre-ipo-scrolled        -MonacoAssetDetailSample preIpo -MonacoSampleScroll 0.4
+asset-pre-ipo-no-profile      -MonacoAssetDetailSample preIpoNoProfile
 asset-paused                  -MonacoAssetDetailSample paused
 asset-untradable              -MonacoAssetDetailSample untradable
 asset-stale                   -MonacoAssetDetailSample stale
