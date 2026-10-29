@@ -1,0 +1,19 @@
+journey: profile/overview
+expect-fail: S1
+
+The month standing line never draws. S1.2 waits for `profile-standing`, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Profile/ProfileStandingSlot.swift b/apps/mobile/Monaco/Features/Profile/ProfileStandingSlot.swift
+index 8d65087af..656892426 100644
+--- a/apps/mobile/Monaco/Features/Profile/ProfileStandingSlot.swift
++++ b/apps/mobile/Monaco/Features/Profile/ProfileStandingSlot.swift
+@@ -16,7 +16,7 @@ private struct ProfileStanding: View {
+         if let own, let counts = own.counts {
+             VStack(alignment: .leading, spacing: 0) {
+                 ProfileCountsLine(userID: own.userID, counts: counts)
+-                if let standing = own.standing {
++                if let standing = own.standing, standing.line.plain.isEmpty {
+                     NavigationLink(value: AnyAppRoute(LeaderboardRoute(board: .people, range: .oneMonth))) {
+                         ProfileCopyText(line: standing.line)
+                             .frame(minHeight: MonacoButtonMetrics.hitTarget, alignment: .leading)

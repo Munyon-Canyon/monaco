@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileEditJourney {
     static let id = "profile/edit"
-    static let version = 5
+    static let version = 6
 
     static let emptyNameCopy = "Display name is required."
     static let savedCopy = "Profile saved."
@@ -23,14 +23,27 @@ enum ProfileEditJourney {
 
     static func openProfile(_ app: XCUIApplication, step: String) {
         app.tab("Profile").tap()
+        app.popToRoot()
         XCTAssertTrue(
-            app.element("profile-header").waitForExistence(timeout: 15), "\(step): the Profile header did not show")
+            app.element("profile-card").waitForExistence(timeout: 15), "\(step): the Profile card did not show")
+    }
+
+    static func openSettings(_ app: XCUIApplication, step: String) {
+        let settings = app.element("profile-settings-row")
+        XCTAssertTrue(settings.waitForExistence(timeout: 10), "\(step): no settings round on Profile")
+        settings.tap()
+    }
+
+    static func openSettingsRow(_ app: XCUIApplication, _ id: String, step: String) {
+        openSettings(app, step: step)
+        let row = app.element(id)
+        app.scrollIntoReach(row)
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "\(step): no \(id) row in Settings")
+        row.tap()
     }
 
     static func openEditProfile(_ app: XCUIApplication, step: String) -> XCUIElement {
-        let edit = app.buttons["profile-edit-button"]
-        XCTAssertTrue(edit.waitForExistence(timeout: 10), "\(step): no name block on the Profile card")
-        edit.tap()
+        openSettingsRow(app, "settings-edit-profile", step: step)
         let field = app.textFields["profile-name-field"]
         XCTAssertTrue(field.waitForExistence(timeout: 5), "\(step): the name field did not show")
         XCTAssertTrue(app.navigationBars["Edit profile"].exists, "\(step): the screen is not titled 'Edit profile'")
@@ -39,6 +52,7 @@ enum ProfileEditJourney {
 
     static func closeEditProfile(_ app: XCUIApplication) {
         app.navigationBars["Edit profile"].buttons.firstMatch.tap()
+        app.popToRoot()
     }
 
     static func clear(_ field: XCUIElement) {
@@ -81,19 +95,18 @@ enum ProfileEditJourney {
 
         recorder.step("S1.1", "see the Profile card") {
             openProfile(app, step: "S1.1")
-            let avatar = app.buttons["profile-photo-picker"]
-            XCTAssertTrue(avatar.exists, "S1.1: no avatar on the Profile card")
-            XCTAssertEqual(avatar.frame.width, 64, accuracy: 1, "S1.1: the avatar is not 64 pt wide")
+            XCTAssertTrue(app.element("profile-card").exists, "S1.1: no Profile card")
+            let avatar = app.buttons["profile-photo-edit"]
+            XCTAssertTrue(avatar.exists, "S1.1: no photo pencil badge on the Profile card")
             XCTAssertEqual(avatar.label, photoLabel, "S1.1: the avatar is not labelled '\(photoLabel)'")
             shown = displayName(app)
             XCTAssertFalse(shown.isEmpty, "S1.1: no display name on the Profile card")
             let handle = app.element("profile-handle")
             XCTAssertTrue(
                 handle.exists && handle.label.hasPrefix("@"), "S1.1: the handle does not read '@' and the handle")
-            let since = app.staticTexts["profile-member-since"].label
-            XCTAssertNotNil(
-                since.range(of: #"^Joined \S+ \d{4}$"#, options: .regularExpression),
-                "S1.1: the card reads '\(since)', not 'Joined' with a month and year")
+            XCTAssertTrue(
+                handle.label.localizedCaseInsensitiveContains("joined"),
+                "S1.1: the handle line reads '\(handle.label)', with no 'joined'")
         }
 
         recorder.step("S1.2", "open Edit profile") {
@@ -148,7 +161,7 @@ enum ProfileEditJourney {
     static func changePhoto(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S3.1", "open Your face") {
             openProfile(app, step: "S3.1")
-            app.buttons["profile-photo-picker"].tap()
+            app.buttons["profile-photo-edit"].tap()
             XCTAssertTrue(app.element("face-picker-sheet").waitForExistence(timeout: 5), "S3.1: no face sheet")
             XCTAssertTrue(app.staticTexts["Your face"].exists, "S3.1: the sheet is not titled 'Your face'")
             let animals = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'face-option-'"))
@@ -188,7 +201,7 @@ enum ProfileEditJourney {
             XCTAssertTrue(
                 app.staticTexts[name].waitForExistence(timeout: 30),
                 "S4.1: the card reads '\(displayName(app))', not '\(name)', after the relaunch")
-            XCTAssertTrue(app.buttons["profile-photo-picker"].exists, "S4.1: no avatar after the relaunch")
+            XCTAssertTrue(app.buttons["profile-photo-edit"].exists, "S4.1: no photo pencil badge after the relaunch")
         }
     }
 }

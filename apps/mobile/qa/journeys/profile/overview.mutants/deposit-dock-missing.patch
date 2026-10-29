@@ -1,0 +1,19 @@
+journey: profile/overview
+expect-fail: S1
+
+The docked Deposit button loses its identifier. S1.5 waits for `profile-add-money-link`, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Profile/ProfileDepositDock.swift b/apps/mobile/Monaco/Features/Profile/ProfileDepositDock.swift
+index 6d4ee8f3b..df871901b 100644
+--- a/apps/mobile/Monaco/Features/Profile/ProfileDepositDock.swift
++++ b/apps/mobile/Monaco/Features/Profile/ProfileDepositDock.swift
+@@ -13,7 +13,7 @@ struct ProfileDepositDock: View {
+                     .frame(maxWidth: .infinity)
+             }
+             .buttonStyle(.monacoPrimary)
+-            .accessibilityIdentifier("profile-add-money-link")
++            .accessibilityIdentifier("profile-add-money-link-off")
+         }
+     }
+ }

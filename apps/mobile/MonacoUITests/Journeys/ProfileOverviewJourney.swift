@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileOverviewJourney {
     static let id = "profile/overview"
-    static let version = 8
+    static let version = 9
 
     static let signOutTitle = "Sign out of Monaco?"
     static let signOutMessage =
@@ -29,27 +29,18 @@ enum ProfileOverviewJourney {
         app.tab("Profile").tap()
         app.popToRoot()
         XCTAssertTrue(
-            app.element("profile-header").waitForExistence(timeout: 15), "\(step): the Profile header did not show")
+            app.element("profile-card").waitForExistence(timeout: 15), "\(step): the Profile card did not show")
     }
 
     static func row(_ app: XCUIApplication, _ cabal: Cabal) -> XCUIElement {
-        app.element("cabal-row-\(cabal.id)")
+        app.element("profile-cabal-row-\(cabal.id)")
     }
 
     static func reachCabal(_ app: XCUIApplication, _ target: XCUIElement) {
         let screen = app.windows.firstMatch.frame
-        let cards = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'cabal-cover-card-'"))
         var attempts = 0
         while !(target.exists && screen.contains(target.frame.insetBy(dx: 4, dy: 4))) && attempts < 40 {
-            let card = cards.firstMatch
-            if card.exists, card.frame.midY > 0, card.frame.midY < screen.maxY - 90 {
-                let y = card.frame.midY / screen.height
-                let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: y))
-                let to = app.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: y))
-                from.press(forDuration: 0.05, thenDragTo: to, withVelocity: .fast, thenHoldForDuration: 0)
-            } else {
-                app.swipeUp()
-            }
+            app.swipeUp()
             attempts += 1
         }
     }
@@ -67,10 +58,9 @@ enum ProfileOverviewJourney {
             let handle = app.element("profile-handle")
             XCTAssertTrue(
                 handle.exists && handle.label.hasPrefix("@"), "S1.1: the handle does not read '@' and the handle")
-            let since = app.staticTexts["profile-member-since"].label
-            XCTAssertNotNil(
-                since.range(of: #"^Joined \S+ \d{4}$"#, options: .regularExpression),
-                "S1.1: the header reads '\(since)', not 'Joined' with a month and year")
+            XCTAssertTrue(
+                handle.label.contains("joined"),
+                "S1.1: the handle line reads '\(handle.label)', not '@handle · joined …'")
         }
 
         recorder.step("S1.2", "read the identity card stats") {
@@ -78,22 +68,29 @@ enum ProfileOverviewJourney {
                 waitUntil(15) { (cabalsCount(app) ?? 0) >= 1 },
                 "S1.2: 'Cabals' reads '\(app.element("profile-stat-cabals").label)', not a count of 1 or more")
             XCTAssertTrue(
-                app.element("profile-stat-in-cabals").label.contains("Positions value"),
-                "S1.2: no 'Positions value' column")
+                app.element("profile-positions").label.contains("Positions"),
+                "S1.2: no 'Positions' column")
             XCTAssertTrue(
-                app.element("profile-stat-return").label.contains("Total P&L"), "S1.2: no 'Total P&L' column")
+                app.element("profile-pnl-1m").label.contains("P&L \u{00B7} 1M"), "S1.2: no 'P&L · 1M' column")
             XCTAssertTrue(
                 app.element("profile-stat-cabals").label.contains("cabal"), "S1.2: no 'cabal' or 'cabals' count")
+            let standing = app.element("profile-standing")
+            XCTAssertTrue(standing.waitForExistence(timeout: 15), "S1.2: no month standing line")
+            XCTAssertTrue(
+                standing.label.contains("right calls this month") || standing.label.contains("resolved"),
+                "S1.2: the standing line reads '\(standing.label)', not the month's right calls or the unranked line")
         }
 
         recorder.step("S1.3", "find the cabal under Your cabals") {
+            app.element("profile-tab-cabals").tap()
             let cabalRow = row(app, cabal)
             reachCabal(app, cabalRow)
-            XCTAssertTrue(cabalRow.waitForExistence(timeout: 10), "S1.3: no row for '\(cabal.name)' under Your cabals")
-            XCTAssertTrue(app.staticTexts["Your cabals"].exists, "S1.3: no 'Your cabals' header")
-            let card = app.element("cabal-cover-card-\(cabal.id)")
+            XCTAssertTrue(cabalRow.waitForExistence(timeout: 10), "S1.3: no row for '\(cabal.name)' on the Cabals tab")
             XCTAssertTrue(
-                card.label.contains(cabal.name), "S1.3: the card reads '\(card.label)', not '\(cabal.name)'")
+                cabalRow.label.contains(cabal.name), "S1.3: the row reads '\(cabalRow.label)', not '\(cabal.name)'")
+            XCTAssertTrue(
+                cabalRow.label.contains("admin") || cabalRow.label.contains("voter"),
+                "S1.3: the row reads '\(cabalRow.label)', with no 'admin' or 'voter' role")
         }
 
         recorder.step("S1.4", "find the Settings button") {
@@ -102,10 +99,21 @@ enum ProfileOverviewJourney {
             XCTAssertTrue(
                 settings.label.contains("Settings"), "S1.4: the button reads '\(settings.label)', not 'Settings'")
         }
+
+        recorder.step("S1.5", "read the cash row and the Deposit dock") {
+            let cash = app.element("profile-cash-row")
+            XCTAssertTrue(cash.waitForExistence(timeout: 10), "S1.5: no cash row")
+            for text in ["Cash", "USDC", "3.5% APY"] {
+                XCTAssertTrue(cash.label.contains(text), "S1.5: the cash row reads '\(cash.label)', with no '\(text)'")
+            }
+            let dock = app.element("profile-add-money-link")
+            XCTAssertTrue(dock.waitForExistence(timeout: 5), "S1.5: no Deposit dock above the tab bar")
+            XCTAssertTrue(dock.label.contains("Deposit"), "S1.5: the dock reads '\(dock.label)', not 'Deposit'")
+        }
     }
 
     static func pullToRefresh(_ app: XCUIApplication, cabal: Cabal, recorder: JourneyRecorder) {
-        let header = app.element("profile-header")
+        let header = app.element("profile-card")
 
         recorder.step("S2.1", "open Profile") {
             openProfile(app, step: "S2.1")
@@ -118,6 +126,7 @@ enum ProfileOverviewJourney {
                 waitUntil(15) {
                     header.exists && app.element("profile-stat-cabals").exists && (cabalsCount(app) ?? 0) >= 1
                 }, "S2.2: the header or the stats band was gone after the refresh")
+            app.element("profile-tab-cabals").tap()
             let cabalRow = row(app, cabal)
             reachCabal(app, cabalRow)
             XCTAssertTrue(
@@ -128,6 +137,7 @@ enum ProfileOverviewJourney {
     static func openCabal(_ app: XCUIApplication, cabal: Cabal, recorder: JourneyRecorder) {
         recorder.step("S3.1", "open the cabal from Your cabals") {
             openProfile(app, step: "S3.1")
+            app.element("profile-tab-cabals").tap()
             let cabalRow = row(app, cabal)
             reachCabal(app, cabalRow)
             XCTAssertTrue(cabalRow.waitForExistence(timeout: 15), "S3.1: no row for '\(cabal.name)'")
@@ -172,21 +182,20 @@ enum ProfileOverviewJourney {
     }
 
     static func shareReturn(_ app: XCUIApplication, recorder: JourneyRecorder) {
-        recorder.step("S5.1", "open the system share sheet") {
+        recorder.step("S5.1", "open the share screen") {
             openProfile(app, step: "S5.1")
             let button = app.buttons["profile-share-button"]
             XCTAssertTrue(button.waitForExistence(timeout: 15), "S5.1: no share button within 15 s")
             button.tap()
             XCTAssertTrue(
-                app.otherElements["ActivityListView"].waitForExistence(timeout: 15),
-                "S5.1: the system share sheet did not open within 15 s")
+                app.element("share-screen").waitForExistence(timeout: 15),
+                "S5.1: the share screen did not open within 15 s")
         }
 
-        recorder.step("S5.2", "close the system share sheet") {
-            let close = app.buttons["Close"]
-            if close.waitForExistence(timeout: 3) { close.tap() } else { app.swipeDown() }
+        recorder.step("S5.2", "close the share screen") {
+            app.tapBack()
             XCTAssertTrue(
-                app.element("profile-header").waitForExistence(timeout: 5),
+                app.element("profile-card").waitForExistence(timeout: 5),
                 "S5.2: the Profile tab did not come back within 5 s")
         }
     }
@@ -232,25 +241,26 @@ enum ProfileOverviewJourney {
     static func totals(_ app: XCUIApplication, cabal: Cabal, recorder: JourneyRecorder) {
         recorder.step("S7.1", "the identity card shows the member's totals") {
             openProfile(app, step: "S7.1")
-            let positions = app.element("profile-stat-in-cabals")
-            let performance = app.element("profile-stat-return")
+            let positions = app.element("profile-positions")
+            let performance = app.element("profile-pnl-1m")
             let pending = ["", "loading", "unavailable"]
             XCTAssertTrue(
                 waitUntil(15) { !pending.contains(positions.value as? String ?? "") },
-                "S7.1: 'Positions value' reads '\(positions.value as? String ?? "")', not a dollar figure")
+                "S7.1: 'Positions' reads '\(positions.value as? String ?? "")', not a dollar figure")
             XCTAssertTrue(
                 (positions.value as? String)?.hasPrefix("$") == true,
-                "S7.1: 'Positions value' reads '\(positions.value as? String ?? "")', not a dollar figure")
+                "S7.1: 'Positions' reads '\(positions.value as? String ?? "")', not a dollar figure")
             XCTAssertFalse(
                 pending.contains(performance.value as? String ?? ""),
-                "S7.1: 'Total P&L' reads '\(performance.value as? String ?? "")', not a figure")
+                "S7.1: 'P&L · 1M' reads '\(performance.value as? String ?? "")', not a figure")
         }
 
         recorder.step("S7.2", "the cabal card shows its value") {
-            let card = app.element("cabal-cover-card-\(cabal.id)")
+            app.element("profile-tab-cabals").tap()
+            let card = row(app, cabal)
             reachCabal(app, card)
-            XCTAssertTrue(card.waitForExistence(timeout: 15), "S7.2: no card for '\(cabal.name)'")
-            XCTAssertTrue(card.label.contains("your share $"), "S7.2: the card reads '\(card.label)', not a share")
+            XCTAssertTrue(card.waitForExistence(timeout: 15), "S7.2: no row for '\(cabal.name)'")
+            XCTAssertTrue(card.label.contains("$"), "S7.2: the row reads '\(card.label)', not a share in dollars")
         }
     }
 }

@@ -1,7 +1,7 @@
 ---
 id: profile/find-friends
 title: Find friends
-version: 4
+version: 5
 milestone: M22
 requires: [auth/sign-in]
 actors: [A]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/ProfileFindFriendsJourney.swift, a
 
 # Find friends
 
-A member opens "Find friends" from the Profile tab, reads the contacts explainer, backs out with "Not now", then searches for another member by handle and by name and follows them. The design is the "Find friends" row of `ProfileLinksSlot` on the [Profile tab](../../screens.md#profile-tab): Row "Find friends" (contacts, plus search by name or handle from #2142), opening the "Find friends" screen (search, then a Discover / Following switch). The old app's version is Profile -> Find friends at `c838bd24`.
+A member opens "Find friends" from Settings → Account (the settings round `profile-settings-row`, #6505), reads the contacts explainer, backs out with "Not now", then searches for another member by handle and by name and follows them. The design is the "Find friends" row of `ProfileLinksSlot` on the [Profile tab](../../screens.md#profile-tab): Row "Find friends" (contacts, plus search by name or handle from #2142), opening the "Find friends" screen (search, then a Discover / Following switch). The old app's version is Profile -> Find friends at `c838bd24`.
 
 The format of this doc is in [App journeys](../README.md). The Old app column names the old app's tap or element for each step, or says the step is new in the spec.
 
@@ -31,9 +31,9 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | tap, then scroll to | the Profile tab, then `profile-find-friends` | | The row reads "Find friends" | The "Find friends" row on Profile |
+| S1.1 | tap, tap, then scroll to | the Profile tab, `profile-settings-row`, then `profile-find-friends` in Settings → Account | | The row reads "Find friends" | The "Find friends" row on Profile |
 | S1.2 | tap | `profile-find-friends` | | The "Find friends" screen shows within 10 s, with "See which of your contacts are already on Monaco. Monaco hashes their phone numbers on your phone and sends only the hashes. Names and your address book stay on your phone." | The contacts explainer |
-| S1.3 | tap | `friends-not-now` | | `profile-header` shows again within 10 s | "Not now" |
+| S1.3 | tap | `friends-not-now` | | `profile-card` shows again within 10 s (after popping back to Profile) | "Not now" |
 
 ### S2 Search by handle and follow
 
@@ -41,7 +41,7 @@ Starts signed in (auth/sign-in), with Contacts access not determined, so the exp
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | tap, scroll to, then tap | the Profile tab, `profile-find-friends`, then `friends-search-field` | | The search field is enabled within 10 s, above the contacts explainer | The search field on Find friends |
+| S2.1 | tap, tap, scroll to, then tap | the Profile tab, `profile-settings-row`, `profile-find-friends`, then `friends-search-field` | | The search field is enabled within 10 s, above the contacts explainer | The search field on Find friends |
 | S2.2 | type | `friends-search-field` | `{memberHandle}` | `friends-search-{memberHandle}` shows within 15 s, reading "Bartholomez" and "@" with the handle | Search results by handle |
 | S2.3 | tap | `friends-search-follow-{memberID}` | | Within 10 s it reads "Following" | "Follow" on a result row |
 
@@ -51,7 +51,7 @@ Starts on Find friends, where S2 left off, with Contacts access not determined.
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | tap, tap, scroll to, then tap | the back button on "Find friends", the Profile tab, `profile-find-friends`, then `friends-search-field` | | `profile-header` shows within 10 s. Then the search field is enabled within 10 s, above the contacts explainer | The search field on Find friends |
+| S3.1 | tap, tap, scroll to, then tap | the back button on "Find friends", the Profile tab, `profile-settings-row`, `profile-find-friends`, then `friends-search-field` | | `profile-card` shows within 10 s. Then the search field is enabled within 10 s, above the contacts explainer | The search field on Find friends |
 | S3.2 | type | `friends-search-field` | `Bartholomez` | `friends-search-{memberHandle}` shows within 15 s, reading "Bartholomez" | Search results by name |
 
 ## Ground truth

@@ -1,7 +1,7 @@
 ---
 id: profile/user-profile
 title: Another member's profile
-version: 4
+version: 5
 milestone: M17
 requires: [auth/sign-in]
 actors: [A]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/ProfileUserProfileJourney.swift, a
 
 # Another member's profile
 
-A member opens a cabal, opens Members & voters from the cabal's information screen, taps another member's row, reads their profile, follows and unfollows them, reads the cabals they share, and opens the "…" menu. On their own row the profile hides Follow and the menu. The design is the [User profile](../../screens.md#profile-tab) (`UserProfileRoute`). The old app opened its profile from a leaderboard or member row; the new app's is `UserProfileRoute`, which renders `UserProfileScreen`.
+A member opens a cabal, opens the cabal's Members tab, taps another member's row, reads their profile, follows and unfollows them, reads the cabals they have in common, and opens the "…" menu. On their own row the profile hides Follow and the menu. The design is the [User profile](../../screens.md#profile-tab) (`UserProfileRoute`). The old app opened its profile from a leaderboard or member row; the new app's is `UserProfileRoute`, which renders `UserProfileScreen`.
 
 The format of this doc is in [App journeys](../README.md). The Old app column names the old app's tap or element for each step, or says the step is new in the spec.
 
@@ -32,9 +32,9 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | tap, search, then tap | the Cabals tab, a search for `cabalName`, then its result row | | The cabal screen shows within 15 s, with `cabal-details-button` | A leaderboard or Groups row opens the cabal |
-| S1.2 | tap, tap, then tap | `cabal-details-button`, `cabal-members-row`, then the member's row in `members-list` (B's name, "Bartholomez") | | `user-profile-header` shows within 15 s (screens.md Members & voters: "a row per member ... opening the profile"; the cabal screen's "Member standings" board is hidden on a cabal with no positions, so the journey reaches the member through Members & voters) | A member row opens the profile (`UserProfileRoute`) |
-| S1.3 | read | `user-profile-header` | | `user-profile-name` reads "Bartholomez", and the counts row below the identity card shows a count and "follower" or "followers" (`user-profile-followers`) and a count and "following" (`user-profile-following`), as screens.md's header "avatar, name, "@handle", follower counts" | The profile header: avatar, name, "@handle", counts |
+| S1.1 | open | `openCabal(named: cabalName)` | | The cabal screen shows within 15 s, with `cabal-header-name` reading `cabalName` | A leaderboard or Groups row opens the cabal |
+| S1.2 | tap | the member's row on the Members tab (B's name, "Bartholomez") | | `user-profile-header` shows within 15 s | A member row opens the profile (`UserProfileRoute`) |
+| S1.3 | read | `user-profile-header` | | `user-profile-name` reads "Bartholomez", and the counts row below the identity card shows a count and "follower" or "followers" (`user-profile-followers`) and a count and "following" (`user-profile-following`). `user-profile-right-calls` reads "Right calls · 1M" with a figure | The profile header: avatar, name, "@handle", counts |
 | S1.4 | read | `user-profile-more` | | The "…" menu shows in the toolbar, labelled "More" | The report and block menu |
 
 ### S2 Follow, then unfollow
@@ -43,19 +43,19 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | tap, tap, tap, tap, search, then tap | the Cabals tab, a search for `cabalName`, its result row, `cabal-details-button`, `cabal-members-row`, then the member's row in `members-list` (B's name, "Bartholomez") | | `user-profile-follow` reads "Follow" within 15 s | The "Follow" button |
+| S2.1 | open, open, then tap | `openCabal(named: cabalName)`, `openCabalTab("Members")`, then the member's row (B's name, "Bartholomez") | | `user-profile-follow` reads "Follow" within 15 s | The "Follow" button |
 | S2.2 | tap | `user-profile-follow` | | Within 10 s it reads "Following" | "Follow" turns into "Following" |
 | S2.3 | tap | `user-profile-follow` | | Within 10 s it reads "Follow" again | "Following" (Unfollow) turns back into "Follow" |
 
-### S3 Cabals you share
+### S3 Cabals in common
 
 Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | tap, tap, tap, tap, search, then tap | the Cabals tab, a search for `cabalName`, its result row, `cabal-details-button`, `cabal-members-row`, then the member's row in `members-list` (B's name, "Bartholomez") | | `user-profile-header` shows within 15 s | A member row opens the profile (`UserProfileRoute`) |
-| S3.2 | scroll to | "Cabals you share" | | "Cabals you share" lists a row reading `cabalName` and its pot, within 15 s (the row's `shared-cabal-row-{cabalID}` identifier is shadowed by `user-profile-shared`, so the step finds it by label) | The profile lists the shared groups (`UserProfileSharedCabalsSlot`) |
-| S3.3 | tap | the row reading `cabalName` | | The cabal screen shows within 15 s, with `cabal-details-button` | A shared group row opens the group |
+| S3.1 | open, open, then tap | `openCabal(named: cabalName)`, `openCabalTab("Members")`, then the member's row (B's name, "Bartholomez") | | `user-profile-header` shows within 15 s | A member row opens the profile (`UserProfileRoute`) |
+| S3.2 | tap, then scroll to | the Cabals tab (`user-profile-tab-cabals`), then `user-profile-cabal-row-{cabalID}` | | The tab lists a row reading `cabalName` within 15 s, with B's share unless B turned off sharing their performance (Q42) | The profile lists the shared groups (`UserProfileSharedCabalsSlot`) |
+| S3.3 | tap | `user-profile-cabal-row-{cabalID}` | | The cabal screen shows within 15 s, with `cabal-details-button` | A shared group row opens the group |
 
 ### S4 Report and block
 
@@ -63,7 +63,7 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S4.1 | tap, tap, tap, tap, search, then tap | the Cabals tab, a search for `cabalName`, its result row, `cabal-details-button`, `cabal-members-row`, then the member's row in `members-list` (B's name, "Bartholomez") | | `user-profile-more` shows within 15 s | The profile toolbar |
+| S4.1 | open, open, then tap | `openCabal(named: cabalName)`, `openCabalTab("Members")`, then the member's row (B's name, "Bartholomez") | | `user-profile-more` shows within 15 s | The profile toolbar |
 | S4.2 | tap | `user-profile-more` | | The menu shows "Report" and "Block" within 5 s, both enabled, as screens.md's "a "…" menu with "Report" and "Block"" | The report and block menu |
 
 ### S5 Your own row
@@ -72,7 +72,7 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S5.1 | tap, tap, tap, tap, search, then tap | the Cabals tab, a search for `cabalName`, its result row, `cabal-details-button`, `cabal-members-row`, then A's own row in `members-list` ("Alfred") | | `user-profile-header` shows within 15 s, and neither `user-profile-follow` nor `user-profile-more` shows, as screens.md's "Hidden on your own profile: the Follow button and the menu" | None, new in spec |
+| S5.1 | open, open, then tap | `openCabal(named: cabalName)`, `openCabalTab("Members")`, then A's own row ("Alfred") | | `user-profile-header` shows within 15 s, and neither `user-profile-follow` nor `user-profile-more` shows, as screens.md's "Hidden on your own profile: the Follow button and the menu" | None, new in spec |
 
 ## Ground truth
 

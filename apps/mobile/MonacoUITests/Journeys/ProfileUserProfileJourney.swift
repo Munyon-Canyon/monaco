@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileUserProfileJourney {
     static let id = "profile/user-profile"
-    static let version = 4
+    static let version = 5
 
     static let memberName = "Bartholomez"
 
@@ -30,23 +30,13 @@ enum ProfileUserProfileJourney {
     }
 
     static func openCabal(_ app: XCUIApplication, seed: Seed, step: String) {
-        app.tab("Cabals").tap()
-        app.popToRoot()
-        let clear = app.buttons["Clear search"]
-        if clear.exists { clear.tap() }
-        JoinJourney.openBySearch(app, seed.cabalName, step: step)
+        app.openCabal(named: seed.cabalName)
         XCTAssertTrue(
-            app.element("cabal-details-button").waitForExistence(timeout: 15), "\(step): the cabal screen did not show")
+            app.element("cabal-header-name").waitForExistence(timeout: 15), "\(step): the cabal screen did not show")
     }
 
     static func openMember(_ app: XCUIApplication, name: String, step: String) {
-        let details = app.element("cabal-details-button")
-        XCTAssertTrue(details.waitForExistence(timeout: 15), "\(step): no Cabal information button")
-        details.tap()
-        let members = app.element("cabal-members-row")
-        app.scrollIntoReach(members)
-        XCTAssertTrue(members.waitForExistence(timeout: 15), "\(step): no Members & voters row")
-        members.tap()
+        app.openCabalTab("Members")
         let row = CabalsInfoAndMembersJourney.memberRow(app, label: "BEGINSWITH", name)
         app.scrollIntoReach(row)
         XCTAssertTrue(row.waitForExistence(timeout: 15), "\(step): no member row for \(name)")
@@ -78,6 +68,11 @@ enum ProfileUserProfileJourney {
                 app.element("user-profile-followers").label.contains("follower"), "S1.3: no 'Followers' link")
             XCTAssertTrue(
                 app.element("user-profile-following").label.contains("following"), "S1.3: no 'Following' link")
+            let rightCalls = app.element("user-profile-right-calls")
+            XCTAssertTrue(rightCalls.waitForExistence(timeout: 5), "S1.3: no right-calls line")
+            XCTAssertTrue(
+                rightCalls.label.contains("Right calls"),
+                "S1.3: the line reads '\(rightCalls.label)', not 'Right calls'")
         }
 
         recorder.step("S1.4", "find the more menu") {
@@ -113,18 +108,17 @@ enum ProfileUserProfileJourney {
     }
 
     static func sharedCabals(_ app: XCUIApplication, seed: Seed, recorder: JourneyRecorder) {
-        let shared = app.staticTexts["Cabals you share"]
-        let row = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label BEGINSWITH %@", "\(seed.cabalName), Pot"))
-            .firstMatch
+        let tab = app.element("user-profile-tab-cabals")
+        let row = app.element("user-profile-cabal-row-\(seed.cabalID)")
 
         recorder.step("S3.1", "open the member's profile") {
             openProfile(app, seed: seed, name: memberName, step: "S3.1")
         }
 
-        recorder.step("S3.2", "read Cabals you share") {
-            app.scrollIntoReach(shared)
-            XCTAssertTrue(shared.waitForExistence(timeout: 15), "S3.2: no 'Cabals you share' header")
+        recorder.step("S3.2", "read the Cabals tab") {
+            app.scrollIntoReach(tab)
+            XCTAssertTrue(tab.waitForExistence(timeout: 15), "S3.2: no Cabals tab")
+            tab.tap()
             app.scrollIntoReach(row)
             XCTAssertTrue(row.waitForExistence(timeout: 15), "S3.2: no row for '\(seed.cabalName)'")
             XCTAssertTrue(row.label.contains(seed.cabalName), "S3.2: the row reads '\(row.label)'")
