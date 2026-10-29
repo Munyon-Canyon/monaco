@@ -7,6 +7,7 @@ struct StocksTabView: View {
     @Environment(ToastCenter.self) private var toasts
     @State private var model: MonacoCore.StocksTabModel?
     @State private var query: String
+    @State private var searching: Bool
     private let makeModel: @MainActor (AppEnvironment) -> MonacoCore.StocksTabModel
 
     init(
@@ -14,6 +15,7 @@ struct StocksTabView: View {
         makeModel: @escaping @MainActor (AppEnvironment) -> MonacoCore.StocksTabModel = StocksTabView.liveModel
     ) {
         _query = State(initialValue: query)
+        _searching = State(initialValue: !query.isEmpty)
         self.makeModel = makeModel
     }
 
@@ -21,24 +23,30 @@ struct StocksTabView: View {
         ZStack {
             if let model {
                 StocksTabScreen(
-                    model: model, query: $query, open: openAsset, openSymbol: openSymbol,
+                    model: model, query: $query, searching: searching, open: openAsset, openSymbol: openSymbol,
                     openWatchlist: { environment.navigator.open(WatchlistRoute(), in: .stocks) })
             } else {
                 ScrollView { MarketsLoading() }
             }
         }
         .monacoTopLevelHeader(title: StocksTab.title)
+        .searchable(
+            text: $query, isPresented: $searching, placement: .navigationBarDrawer(displayMode: .always),
+            prompt: "Stocks and Pre-IPO"
+        )
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                MonacoGlassButton(
-                    systemImage: MonacoIcon.star.symbol, accessibilityLabel: "Your watchlist", style: .quiet,
-                    placement: .toolbar
-                ) {
-                    environment.navigator.open(WatchlistRoute(), in: .stocks)
+            if !searching {
+                ToolbarItem(placement: .topBarTrailing) {
+                    MonacoGlassButton(
+                        systemImage: MonacoIcon.star.symbol, accessibilityLabel: "Your watchlist", style: .quiet,
+                        placement: .toolbar
+                    ) {
+                        environment.navigator.open(WatchlistRoute(), in: .stocks)
+                    }
+                    .accessibilityIdentifier("markets-watchlist-manage")
                 }
-                .accessibilityIdentifier("markets-watchlist-manage")
+                .withoutGlass()
             }
-            .withoutGlass()
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("assets-root")
@@ -90,6 +98,7 @@ struct StocksTabView: View {
 private struct StocksTabScreen: View {
     let model: MonacoCore.StocksTabModel
     @Binding var query: String
+    let searching: Bool
     let open: (MarketAsset) -> Void
     let openSymbol: (String) -> Void
     let openWatchlist: () -> Void
@@ -97,11 +106,10 @@ private struct StocksTabScreen: View {
     @State private var showsPreIpoInfo = false
 
     private enum Stage {
-        case loading, failed, browse, search
+        case loading, failed, browse
     }
 
     private var stage: Stage {
-        if model.isSearching { return .search }
         guard model.preIpo.rows.isEmpty, model.watchlistRows.isEmpty else { return .browse }
         switch model.preIpo.phase {
         case .idle, .loading: return .loading
@@ -119,13 +127,26 @@ private struct StocksTabScreen: View {
             .sheet(isPresented: $showsPreIpoInfo) { MarketsPreIpoInfoSheet() }
     }
 
-    @ViewBuilder private var content: some View {
+    private var content: some View {
+        ZStack {
+            browseContent
+                .opacity(searching ? 0 : 1)
+                .allowsHitTesting(!searching)
+                .accessibilityHidden(searching)
+            if searching {
+                MarketsSearch(model: model, open: open)
+                    .background(MonacoTheme.canvas)
+            }
+        }
+    }
+
+    @ViewBuilder private var browseContent: some View {
         switch stage {
         case .loading:
             ScrollView { MarketsLoading() }
         case .failed:
             AssetsLoadFailure(identifier: "assets-failed") { Task { await model.loadMarkets() } }
-        case .browse, .search:
+        case .browse:
             ScrollView {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.section) {
                     header
@@ -136,17 +157,13 @@ private struct StocksTabScreen: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .refreshable { await model.loadMarkets() }
-            .accessibilityIdentifier(model.isSearching ? "assets-grid-search" : "assets-grid")
+            .accessibilityIdentifier("assets-grid")
         }
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-            MonacoSearchField(placeholder: "Stocks and Pre-IPO", text: $query)
-                .padding(.horizontal, MonacoTheme.Space.gutter)
-            if !model.isSearching {
-                MarketsChips(selected: model.browse) { next in Task { await model.show(next) } }
-            }
+            MarketsChips(selected: model.browse) { next in Task { await model.show(next) } }
             if let minutes = model.staleMinutes {
                 MonacoNotice(.warn, message: MarketStaleness.pricesDelayed(minutes: minutes))
                     .accessibilityIdentifier("markets-stale")
@@ -156,15 +173,11 @@ private struct StocksTabScreen: View {
     }
 
     @ViewBuilder private var sections: some View {
-        if stage == .search {
-            MarketsSearchResults(model: model, open: open)
-        } else {
-            switch model.browse {
-            case .all: allSections
-            case .watchlist: watchlistChip
-            case .preIpo: preIpoChip
-            case .held: EmptyView()
-            }
+        switch model.browse {
+        case .all: allSections
+        case .watchlist: watchlistChip
+        case .preIpo: preIpoChip
+        case .held: EmptyView()
         }
     }
 
