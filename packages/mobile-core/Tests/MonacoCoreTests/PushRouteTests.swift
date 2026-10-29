@@ -1,4 +1,5 @@
 import Foundation
+import MonacoAPI
 import MonacoCore
 import XCTest
 
@@ -158,6 +159,63 @@ final class PushRouteTests: XCTestCase {
         }
     }
 
+    private let comment = "0192e8a1-0008-7000-8000-000000000008"
+
+    func testAReplyWithItsCommentOpensTheReplyEvenOnAPost() {
+        let post = wire("post_reply", ["feed_item_id": feedItem, "comment_id": comment, "cabal_id": cabal])
+        let onProposal = wire(
+            "comment_reply",
+            ["feed_item_id": feedItem, "comment_id": comment.uppercased(), "proposal_id": proposal, "cabal_id": cabal])
+
+        XCTAssertEqual(
+            PushRoute.parse(post),
+            .reply(ReplyDestination(feedItemID: feedItem, commentID: comment, proposalID: nil, cabalID: cabal)))
+        XCTAssertEqual(
+            PushRoute.parse(onProposal),
+            .reply(ReplyDestination(feedItemID: feedItem, commentID: comment, proposalID: proposal, cabalID: cabal)))
+    }
+
+    func testAReplyWithoutItsCommentKeepsTheOldRoute() {
+        XCTAssertEqual(
+            PushRoute.parse(
+                wire("comment_reply", ["feed_item_id": feedItem, "proposal_id": proposal, "cabal_id": cabal])),
+            .proposal(proposalID: proposal, cabalID: cabal))
+        XCTAssertEqual(
+            PushRoute.parse(wire("comment_reply", ["feed_item_id": feedItem])), .feedItem(feedItemID: feedItem))
+        XCTAssertEqual(
+            PushRoute.parse(wire("post_reply", ["feed_item_id": feedItem])), .feedItem(feedItemID: feedItem))
+        XCTAssertEqual(
+            PushRoute.parse(wire("post_reply", ["feed_item_id": feedItem, "comment_id": notAnID])),
+            .feedItem(feedItemID: feedItem))
+        XCTAssertEqual(
+            PushRoute.parse(wire("comment_mention", ["feed_item_id": feedItem, "comment_id": comment])), .home)
+    }
+
+    func testACatchUpReplyMakesTheSameDestinationAsItsPush() throws {
+        let at = Date(timeIntervalSince1970: 1_760_000_000)
+        let incoming = Components.Schemas.CatchUpComment(
+            feedItemId: feedItem.uppercased(), commentId: comment, parentCommentId: nil, rootCommentId: comment,
+            proposalId: proposal, cabalId: cabal, author: .init(id: user, name: "Sam", photoUrl: nil), body: "Hi",
+            createdAt: at, reactions: [], reactionCount: 0)
+        let item = Components.Schemas.CatchUpItem(
+            key: "comment:1", kind: .reply, unread: true, at: at, comment: incoming)
+        let push = wire(
+            "comment_reply",
+            ["feed_item_id": feedItem, "comment_id": comment, "proposal_id": proposal, "cabal_id": cabal])
+
+        let destination = try XCTUnwrap(ReplyDestination(catchUpItem: item))
+
+        XCTAssertEqual(destination.route, PushRoute.parse(push))
+        XCTAssertNil(
+            ReplyDestination(
+                catchUpItem: Components.Schemas.CatchUpItem(
+                    key: "comment:2", kind: .mention, unread: true, at: at, comment: incoming)))
+        XCTAssertNil(
+            ReplyDestination(
+                catchUpItem: Components.Schemas.CatchUpItem(
+                    key: "comment:3", kind: .reply, unread: true, at: at)))
+    }
+
     func testAProposalIDThatIsNotAUUIDDoesNotKeepACommentReplyFromItsFeedItem() {
         let reply = wire("comment_reply", ["feed_item_id": feedItem, "proposal_id": notAnID, "cabal_id": cabal])
 
@@ -240,12 +298,12 @@ final class PushRouteTests: XCTestCase {
             ("chat_mention", ["kind", "cabal_id", "message_id"], "chat"),
             ("chat_thread_reply", ["kind", "cabal_id", "message_id"], "chat"),
             ("comment_reply_feed", ["kind", "feed_item_id"], "feedItem"),
-            ("comment_reply_proposal", replyKeys.union(senderKeys).union(["proposal_id"]), "proposal"),
+            ("comment_reply_proposal", replyKeys.union(senderKeys).union(["proposal_id"]), "reply"),
             (
                 "comment_mention", replyKeys.subtracting(["quoted_excerpt"]).union(senderKeys).union(["proposal_id"]),
                 "proposal"
             ),
-            ("post_reply", replyKeys.union(senderKeys.filter { $0.hasPrefix("sender_") }), "feedItem"),
+            ("post_reply", replyKeys.union(senderKeys.filter { $0.hasPrefix("sender_") }), "reply"),
             ("malformed", ["kind", "cabal_id", "txn_id"], "home"),
         ]
         var directory = URL(fileURLWithPath: #filePath)
@@ -277,6 +335,7 @@ final class PushRouteTests: XCTestCase {
         case .proposal: "proposal"
         case .voteHold: "voteHold"
         case .feedItem: "feedItem"
+        case .reply: "reply"
         case .cabal: "cabal"
         case .ledger: "ledger"
         case .home: "home"
