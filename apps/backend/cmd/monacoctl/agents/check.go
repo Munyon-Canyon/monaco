@@ -951,11 +951,17 @@ func importersOf(listing string, dirs []string) []string {
 }
 
 func coverFlags(backend string, pkgs []string, covered map[string]bool, profile string) []string {
-	tested := buildable(backend, pkgs)
-	if len(covered) == 0 || len(tested) == 0 {
+	changed := make([]string, 0, len(covered))
+	for rel := range covered {
+		changed = append(changed, "./"+path.Dir(rel))
+	}
+	instrumented := slices.DeleteFunc(slices.Clone(buildable(backend, pkgs)), func(pkg string) bool {
+		return !slices.Contains(changed, pkg)
+	})
+	if len(instrumented) == 0 {
 		return nil
 	}
-	return []string{"-coverpkg=" + strings.Join(tested, ","), "-coverprofile=" + profile}
+	return []string{"-coverpkg=" + strings.Join(instrumented, ","), "-coverprofile=" + profile}
 }
 
 func coverageRow(backend, self, profile string, only map[string]bool) checkRow {
