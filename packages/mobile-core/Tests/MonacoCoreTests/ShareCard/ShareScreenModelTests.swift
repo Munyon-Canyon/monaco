@@ -125,81 +125,6 @@ final class ShareScreenModelTests: XCTestCase {
         XCTAssertEqual(model.shareURL?.path, "/r/k7m4qx2p")
     }
 
-    func testAnOpenVoteLoadsTheVoteCardWithTheProposalLink() async throws {
-        let server = ShareServer(tradePages: [1], proposal: .openNVDA(now: now))
-        let model = make(server, subject: .openVote(id: "proposal-1"))
-
-        await model.load()
-
-        let spec = try XCTUnwrap(model.spec)
-        XCTAssertEqual(spec.replayTitle, "Replay the price")
-        XCTAssertEqual(model.title, "Share vote")
-        XCTAssertEqual(model.format, .square)
-        XCTAssertEqual(model.eyes, ShareEyes(pnlDollars: false, buySell: false))
-        let items = URLComponents(url: try XCTUnwrap(model.shareURL), resolvingAgainstBaseURL: false)?.queryItems
-        XCTAssertEqual(items?.first { $0.name == "c" }?.value, Components.Schemas.Cabal.sample(role: nil).id)
-        XCTAssertEqual(items?.first { $0.name == "p" }?.value, "proposal-1")
-        let paths = await server.paths
-        XCTAssertEqual(
-            Set(paths),
-            [
-                "/v1/proposals/proposal-1", "/v1/cabals/\(Components.Schemas.Cabal.sample(role: nil).id)",
-                "/v1/assets/NVDAx/chart", "/v1/me/referral-code",
-            ])
-        let queries = await server.chartQueries
-        XCTAssertTrue(queries[0].contains("range=1D"), queries[0])
-    }
-
-    func testAPassedProposalLoadsShareB() async throws {
-        let server = ShareServer(tradePages: [1], proposal: .filledMETA(now: now))
-        let model = make(server, subject: .passedProposal(id: "proposal-1"))
-
-        await model.load()
-
-        let spec = try XCTUnwrap(model.spec)
-        XCTAssertEqual(spec.replayTitle, "Replay the call")
-        XCTAssertEqual(model.title, "Share")
-        XCTAssertEqual(model.eyes, ShareEyes(pnlDollars: false))
-        XCTAssertEqual(model.shareURL?.query, "c=\(Components.Schemas.Cabal.sample(role: nil).id)")
-    }
-
-    func testAStaleEntryPointFallsBackToTheOtherBuilder() async throws {
-        let closed = make(
-            ShareServer(tradePages: [1], proposal: .filledMETA(now: now)), subject: .openVote(id: "proposal-1"))
-        await closed.load()
-        XCTAssertEqual(closed.spec?.replayTitle, "Replay the call")
-        XCTAssertEqual(closed.title, "Share")
-
-        let open = make(
-            ShareServer(tradePages: [1], proposal: .openNVDA(now: now)), subject: .passedProposal(id: "proposal-1"))
-        await open.load()
-        XCTAssertEqual(open.spec?.replayTitle, "Replay the price")
-        XCTAssertEqual(open.title, "Share vote")
-    }
-
-    func testAnExpiredProposalHasNothingToShare() async {
-        var expired = Components.Schemas.ProposalDetail.openNVDA(now: now)
-        expired.status = .expired
-        let model = make(ShareServer(tradePages: [1], proposal: expired), subject: .passedProposal(id: "proposal-1"))
-
-        await model.load()
-
-        guard case .failed = model.state else { return XCTFail("got \(model.state)") }
-    }
-
-    func testAnEyeFlipOnShareBRebuildsWithoutAnotherRead() async throws {
-        let server = ShareServer(tradePages: [1], proposal: .filledMETA(now: now))
-        let model = make(server, subject: .passedProposal(id: "proposal-1"))
-        await model.load()
-        let before = await server.paths.count
-
-        model.eyes.pnlDollars = true
-
-        XCTAssertEqual(model.spec?.figure.main, "+$3.31")
-        let after = await server.paths.count
-        XCTAssertEqual(after, before)
-    }
-
     private func make(_ server: ShareServer, subject: ShareSubject? = nil, maxPages: Int = 20) -> ShareScreenModel {
         let api = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: server)
         let now = now
@@ -214,16 +139,11 @@ private actor ShareServer: ClientTransport {
     private let endless: Bool
     private let failing: String?
     private let locked: Bool
-    private let proposal: Components.Schemas.ProposalDetail?
     private(set) var paths: [String] = []
     private(set) var chartQueries: [String] = []
     private(set) var activityCursors: [String?] = []
 
-    init(
-        tradePages: [Int], endless: Bool = false, failing: String? = nil, locked: Bool = false,
-        proposal: Components.Schemas.ProposalDetail? = nil
-    ) {
-        self.proposal = proposal
+    init(tradePages: [Int], endless: Bool = false, failing: String? = nil, locked: Bool = false) {
         self.tradePages = tradePages
         self.endless = endless
         self.failing = failing
@@ -240,18 +160,13 @@ private actor ShareServer: ClientTransport {
         switch path {
         case "/v1/cabals/cabal-1/pot": return reply(.ok, Self.pot)
         case "/v1/cabals/cabal-1": return reply(.ok, try encode(Components.Schemas.Cabal.sample(role: "member")))
-        case "/v1/proposals/proposal-1":
-            guard let proposal else { return reply(.notFound, "{}") }
-            return reply(.ok, try encode(proposal))
-        case "/v1/cabals/\(Components.Schemas.Cabal.sample(role: nil).id)":
-            return reply(.ok, try encode(Components.Schemas.Cabal.sample(role: "member")))
-        case "/v1/assets/NVDAx/chart", "/v1/assets/METAx/chart":
-            chartQueries.append(components?.query ?? "")
-            return reply(.ok, try encode(Components.Schemas.AssetChart.oneDay))
         case "/v1/me/referral-code":
             return reply(
                 .ok,
                 try encode(locked ? Components.Schemas.MyReferralCode.sampleLocked : .sample))
+        case "/v1/assets/NVDAx/chart":
+            chartQueries.append(components?.query ?? "")
+            return reply(.ok, try encode(Components.Schemas.AssetChart.oneDay))
         case "/v1/cabals/cabal-1/activity":
             let cursor = components?.queryItems?.first { $0.name == "cursor" }?.value
             activityCursors.append(cursor)

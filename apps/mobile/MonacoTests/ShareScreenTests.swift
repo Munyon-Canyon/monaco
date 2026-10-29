@@ -38,36 +38,6 @@ struct ShareScreenTests {
         #expect(ids.contains("share-send"), "\(ids)")
     }
 
-    @Test func theVoteScreenIsTitledShareVoteAndMarksTheUnusedEyes() async throws {
-        let ids = try await Self.shown(.screenVote, expecting: "share-card")
-
-        #expect(ShareSampleCase.screenVote.screenTitle == "Share vote")
-        #expect(ShareSampleCase.screenPassed.screenTitle == "Share")
-        #expect(ShareSampleCase.screenVote.unusedEyes == [.pnl, .trades])
-        for id in Self.screenIdentifiers { #expect(ids.contains(id), "\(id) in \(ids)") }
-    }
-
-    @Test(arguments: [
-        ShareSampleCase.passed, .passedPnlOn, .passedNoPassedPrice, .passedPending, .passedFailed, .passedNoLivePrice,
-        .vote, .screenPassed,
-    ])
-    func everyProposalCaseBuildsACardAndRenders(sample: ShareSampleCase) throws {
-        let spec = try #require(sample.spec)
-
-        #expect(ShareImageExporter.render(spec, format: .square).size.width > 0)
-    }
-
-    @Test func theShareBSampleCarriesTheSealAndTheFill() throws {
-        let spec = try #require(ShareSampleCase.passed.spec)
-
-        #expect(spec.chart.markers.map(\.kind) == [.seal, .buy])
-        #expect(spec.header.title == "Christelle called it")
-    }
-
-    @Test func theFigureCountUpLeavesAPassedTallyAlone() {
-        #expect(ShareReplay.countUp("Passed 4\u{2013}1", progress: 0) == "Passed 4\u{2013}1")
-    }
-
     @Test func loadingAndFailureHaveTheirOwnMarkersAndNoDock() async throws {
         let loading = try await Self.shown(.screenLoading, expecting: "share-loading")
         let failed = try await Self.shown(.screenFailed, expecting: "share-retry")

@@ -57,7 +57,6 @@ extension ShareFormat {
 struct ShareDock: View {
     @Binding var eyes: ShareEyes
     @Binding var format: ShareFormat
-    var unusedEyes: Set<ShareEye> = []
     let share: () -> Void
     let copyImage: () -> Void
 
@@ -65,9 +64,7 @@ struct ShareDock: View {
         VStack(spacing: MonacoTheme.Space.xs) {
             HStack(spacing: MonacoTheme.Space.s) {
                 ForEach(ShareEye.allCases, id: \.self) { eye in
-                    ShareEyeChip(eye: eye, isOn: eye.isOn(eyes), isUnused: unusedEyes.contains(eye)) {
-                        eyes = eye.toggled(eyes)
-                    }
+                    ShareEyeChip(eye: eye, isOn: eye.isOn(eyes)) { eyes = eye.toggled(eyes) }
                 }
             }
             MonacoPlainLabelRow(
@@ -99,7 +96,6 @@ struct ShareDock: View {
 struct ShareEyeChip: View {
     let eye: ShareEye
     let isOn: Bool
-    var isUnused = false
     let toggle: () -> Void
 
     var body: some View {
@@ -126,7 +122,6 @@ struct ShareEyeChip: View {
         .buttonStyle(.plain)
         .accessibilityLabel(eye.title)
         .accessibilityValue(isOn ? "On" : "Off")
-        .accessibilityHint(isUnused ? "Not used on a vote card" : "")
         .accessibilityAddTraits(.isToggle)
         .accessibilityIdentifier(eye.identifier)
     }

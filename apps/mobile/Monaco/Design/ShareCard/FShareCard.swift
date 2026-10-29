@@ -63,10 +63,6 @@ struct FShareCard: View {
         .lineLimit(1)
     }
 
-    private static func crestCorner(_ scale: CGFloat) -> CGSize {
-        CGSize(width: 5 * scale, height: 5 * scale)
-    }
-
     @ViewBuilder
     private var mark: some View {
         switch spec.header.mark {
@@ -74,21 +70,8 @@ struct FShareCard: View {
             CabalMark(
                 groupId: crest.cabalID, name: crest.name, size: 40 * scale, pictureUrl: crest.pictureURL?.absoluteString
             )
-        case .photo(let url, let name, let crest):
+        case .photo(let url, let name, _):
             CabalMark(groupId: name, name: name, size: 40 * scale, pictureUrl: url?.absoluteString, shape: .circle)
-                .overlay(alignment: .bottomTrailing) {
-                    if let crest {
-                        CabalMark(
-                            groupId: crest.cabalID, name: crest.name, size: 18 * scale,
-                            pictureUrl: crest.pictureURL?.absoluteString
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerSize: Self.crestCorner(scale), style: .continuous)
-                                .stroke(Color.black, lineWidth: 2 * scale)
-                        )
-                        .offset(x: 4 * scale, y: 4 * scale)
-                    }
-                }
         }
     }
 

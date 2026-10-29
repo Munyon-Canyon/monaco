@@ -27,8 +27,7 @@ enum ShareReplay {
     }
 
     static func countUp(_ text: String, progress: Double) -> String {
-        guard text.first?.isLetter != true,
-            let range = text.range(of: #"[0-9][0-9,]*(\.[0-9]+)?"#, options: .regularExpression),
+        guard let range = text.range(of: #"[0-9][0-9,]*(\.[0-9]+)?"#, options: .regularExpression),
             let value = Double(text[range].replacingOccurrences(of: ",", with: ""))
         else { return text }
         let digits = text[range].split(separator: ".", omittingEmptySubsequences: false).dropFirst().first?.count ?? 0
@@ -76,7 +75,7 @@ struct ShareScreen: View {
             }
         }
         .monacoCanvas()
-        .navigationTitle(model?.title ?? ShareScreenModel.positionTitle)
+        .navigationTitle("Share")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             guard model == nil else { return }
@@ -91,7 +90,6 @@ struct ShareScreen: View {
             state: model.state,
             eyes: Binding(get: { model.eyes }, set: { model.eyes = $0 }),
             format: Binding(get: { model.format }, set: { model.format = $0 }),
-            unusedEyes: model.isVote ? [.pnl, .trades] : [],
             share: { spec, image in
                 SystemShare.present(ShareActions.payload(for: spec, url: model.shareURL, image: image))
             },
@@ -121,7 +119,6 @@ struct ShareScreenContent: View {
     @Binding var eyes: ShareEyes
     @Binding var format: ShareFormat
     var frozenProgress: Double?
-    var unusedEyes: Set<ShareEye> = []
     let share: (ShareCardSpec, UIImage) -> Void
     let copyImage: (UIImage) -> Void
     let retry: () -> Void
@@ -185,7 +182,7 @@ struct ShareScreenContent: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             ShareDock(
-                eyes: $eyes, format: $format, unusedEyes: unusedEyes,
+                eyes: $eyes, format: $format,
                 share: { share(spec, current(spec)) }, copyImage: { copyImage(current(spec)) })
         }
         .task(id: spec) {
