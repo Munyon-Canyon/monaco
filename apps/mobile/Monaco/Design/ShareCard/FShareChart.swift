@@ -8,6 +8,7 @@ struct FShareChart: View {
     var scale: CGFloat = 1
 
     static let discSize: CGFloat = 16
+    static let sealSize: CGFloat = 20
     static let ringWidth: CGFloat = 2
 
     private var lineColor: Color { tone == .gain ? MonacoTheme.profit : MonacoTheme.loss }
@@ -80,6 +81,7 @@ struct FShareChart: View {
             func y(_ price: Int64) -> Double { top + (1 - Double(price - minP) / spanP) * plotHeight }
             xs = points.map { x($0.time.timeIntervalSince1970) }
             ys = points.map { y($0.priceMicros) }
+            let hasSeal = chart.markers.contains { $0.kind == .seal }
             var placed: [CGPoint] = []
             var built: [Disc] = []
             for marker in chart.markers {
@@ -101,7 +103,7 @@ struct FShareChart: View {
                                 $0,
                                 Self.calloutCenter(
                                     for: marker.kind, text: $0, disc: center, radius: radius, height: calloutHeight,
-                                    scale: scale, size: size)
+                                    scale: scale, size: size, fillsAbove: hasSeal)
                             )
                         }))
             }
@@ -115,9 +117,9 @@ struct FShareChart: View {
 
         private static func calloutCenter(
             for kind: ShareMarker.Kind, text: String, disc: CGPoint, radius: CGFloat, height: CGFloat, scale: CGFloat,
-            size: CGSize
+            size: CGSize, fillsAbove: Bool
         ) -> CGPoint {
-            let above = kind == .sell
+            let above = kind == .sell || (fillsAbove && kind != .seal)
             var y = above ? disc.y - radius - height / 2 - 2 : disc.y + radius + height / 2 + 2
             if y - height / 2 < 0 { y = disc.y + radius + height / 2 + 2 }
             if y + height / 2 > size.height { y = disc.y - radius - height / 2 - 2 }
@@ -135,13 +137,21 @@ private struct FShareDisc: View {
         let size = FShareChart.discSize * scale
         let ring = size + FShareChart.ringWidth * 2 * scale
         ZStack {
-            Circle().fill(Color.black)
-                .frame(width: ring, height: ring)
-            Circle().fill(kind == .sell ? MonacoTheme.loss : MonacoTheme.profit)
-                .frame(width: size, height: size)
-            Text(kind == .sell ? "S" : "B")
-                .font(.system(size: 10 * scale, weight: .heavy))
-                .foregroundStyle(kind == .sell ? Color.white : Color.black)
+            if kind == .seal {
+                Circle().fill(Color.black)
+                    .frame(width: FShareChart.sealSize * scale, height: FShareChart.sealSize * scale)
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.system(size: FShareChart.sealSize * scale))
+                    .foregroundStyle(MonacoTheme.profit)
+            } else {
+                Circle().fill(Color.black)
+                    .frame(width: ring, height: ring)
+                Circle().fill(kind == .sell ? MonacoTheme.loss : MonacoTheme.profit)
+                    .frame(width: size, height: size)
+                Text(kind == .sell ? "S" : "B")
+                    .font(.system(size: 10 * scale, weight: .heavy))
+                    .foregroundStyle(kind == .sell ? Color.white : Color.black)
+            }
         }
     }
 }
@@ -151,9 +161,17 @@ private struct FShareCallout: View {
     let text: String
     let scale: CGFloat
 
+    private var glyph: String {
+        switch kind {
+        case .buy: "B"
+        case .sell: "S"
+        case .seal: "\u{2713}"
+        }
+    }
+
     var body: some View {
         HStack(spacing: 4 * scale) {
-            Text(kind == .sell ? "S" : "B")
+            Text(glyph)
                 .foregroundStyle(kind == .sell ? MonacoTheme.loss : MonacoTheme.profit)
             Text(text).foregroundStyle(Color.white)
         }
