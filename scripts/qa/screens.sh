@@ -45,11 +45,17 @@ selected() { # entries, narrowed to the names matching MONACO_QA_SCREEN_ONLY whe
   if [[ -n "$only" ]]; then entries | awk -F'\t' -v re="$only" '$1 ~ re'; else entries; fi
 }
 
+manifest_args="" # check() points this at a file of the manifest's args, one line each
+
 in_manifest() { # every argument appears, in order, on one manifest line
   local pattern="(^|[[:space:]])$1"; shift
   local arg
   for arg in "$@"; do pattern="${pattern}[[:space:]]+${arg}"; done
-  entries | cut -f2 | grep -E "$pattern([[:space:]]|\$)" >/dev/null
+  if [[ -n "$manifest_args" ]]; then
+    grep -E "$pattern([[:space:]]|\$)" "$manifest_args" >/dev/null
+  else
+    entries | cut -f2 | grep -E "$pattern([[:space:]]|\$)" >/dev/null
+  fi
 }
 
 # Cases of `enum …Sample…: String, CaseIterable` in one file, as their launch values.
@@ -92,8 +98,11 @@ hand_entries() {
 }
 
 check() {
-  local missing=0 flag file flags count scenario id outcome harnesses name args first second hits extra
+  local missing=0 flag file flags count scenario id outcome harnesses index
   harnesses="$(grep -rlE ':[[:space:]]*SampleHarnessEntry\b' "$app_src" --include='*.swift')"
+  index="$(mktemp -d "${TMPDIR:-/tmp}/screens-check.XXXXXX")"
+  entries | cut -f2 > "$index/args"
+  manifest_args="$index/args"
 
   while read -r flag; do
     if ! in_manifest "$flag"; then
@@ -121,46 +130,52 @@ check() {
   done < <(grep -lE 'enum [A-Za-z0-9_]*Sample[A-Za-z0-9_]*: String, CaseIterable' $harnesses)
 
   # Reverse: the flag must be read by a harness file, the scenario by that file or the mobile-core
-  # preview sources it forwards to, and every further -Monaco flag by some app source.
-  while IFS=$'\t' read -r name args; do
-    # $args is split on purpose: it is a list of launch arguments with no spaces inside.
-    # shellcheck disable=SC2086
-    set -- $args
-    first="$1"; second="${2:-}"
-    # shellcheck disable=SC2086
-    hits="$(grep -lF "\"$first\"" $harnesses)"
-    if [[ -z "$hits" ]]; then
-      echo "screens: $name launches $args, which no harness reads" >&2
-      missing=1
-      continue
-    fi
-    if [[ -n "$second" && "$second" != -* ]]; then
-      # shellcheck disable=SC2086
-      if ! grep -qE "\"$second\"|case[[:space:]].*\b$second\b" $hits &&
-        ! grep -rqE "case[[:space:]]+$second\b" "$core_src" --include='*.swift'; then
-        echo "screens: $name launches $args, which no harness reads" >&2
-        missing=1
-        continue
-      fi
-    fi
-    for extra in "$@"; do
-      [[ "$extra" == -Monaco* && "$extra" != "$first" ]] || continue
-      if ! grep -rqF "\"$extra\"" "$app_src" --include='*.swift'; then
-        echo "screens: $name launches $args, which no harness reads" >&2
-        missing=1
-        break
-      fi
-    done
-  done < <(hand_entries)
+  # preview sources it forwards to, and every further -Monaco flag by some app source. The harness
+  # literals, the words after `case` and the app's -Monaco literals are indexed once, then every
+  # manifest line is judged in one awk pass.
+  # shellcheck disable=SC2086
+  grep -oHE '"[^"]*"' $harnesses | sed -E 's/^([^:]*):"(.*)"$/\1\t\2/' > "$index/literal"
+  # shellcheck disable=SC2086
+  grep -HE 'case[[:space:]]' $harnesses | awk '{
+    i=index($0, ":"); file=substr($0, 1, i-1); line=substr($0, i+1)
+    sub(/^[^c]*case[[:space:]]/, "", line)
+    n=split(line, w, /[^A-Za-z0-9_]+/)
+    for (j=1; j<=n; j++) if (w[j] != "") print file "\t" w[j]
+  }' > "$index/case"
+  grep -rhoE 'case[[:space:]]+[A-Za-z0-9_]+' "$core_src" --include='*.swift' | awk '{print $2}' | sort -u > "$index/corecase"
+  grep -rhoE '"-Monaco[^"]*"' "$app_src" --include='*.swift' | tr -d '"' | sort -u > "$index/applit"
+  hand_entries | awk -F'\t' -v literal="$index/literal" -v cases="$index/case" -v corecase="$index/corecase" -v applit="$index/applit" '
+    BEGIN {
+      while ((getline l < literal) > 0) { i=index(l, "\t"); f=substr(l, 1, i-1); v=substr(l, i+1); L[f, v]=1; if (!(v in H)) H[v]=f; else H[v]=H[v] "\n" f }
+      while ((getline l < cases) > 0) { i=index(l, "\t"); C[substr(l, 1, i-1), substr(l, i+1)]=1 }
+      while ((getline l < corecase) > 0) K[l]=1
+      while ((getline l < applit) > 0) A[l]=1
+    }
+    {
+      name=$1; args=$2; n=split(args, a, " "); first=a[1]; second=(n >= 2 ? a[2] : "")
+      if (!(first in H)) { print "screens: " name " launches " args ", which no harness reads" > "/dev/stderr"; missing=1; next }
+      if (second != "" && second !~ /^-/) {
+        found=0; m=split(H[first], files, "\n")
+        for (j=1; j<=m; j++) if ((files[j], second) in L || (files[j], second) in C) found=1
+        if (!found && !(second in K)) { print "screens: " name " launches " args ", which no harness reads" > "/dev/stderr"; missing=1; next }
+      }
+      for (j=2; j<=n; j++) if (a[j] ~ /^-Monaco/ && a[j] != first && !(a[j] in A)) {
+        print "screens: " name " launches " args ", which no harness reads" > "/dev/stderr"; missing=1; break
+      }
+    }
+    END { exit missing }' || missing=1
 
+  # shellcheck disable=SC2086
+  grep -ohE 'Flow[0-9A-Za-z]+Scenario\.matching\(' $harnesses | sort -u > "$index/flows"
   while read -r id outcome; do
-    # shellcheck disable=SC2086
-    if [[ -z "$harnesses" ]] || ! grep -qE "\bFlow${id}Scenario\.matching\(" $harnesses; then
+    if ! grep -qxF "Flow${id}Scenario.matching(" "$index/flows"; then
       echo "screens: -MonacoFlow $id $outcome has no harness entry" >&2
       missing=1
     fi
   done < <(flow_scenarios)
 
+  rm -rf "$index"
+  manifest_args=""
   (( missing == 0 )) && echo "screens: manifest covers every sample harness ($(entries | wc -l | tr -d ' ') screens)"
   return "$missing"
 }
