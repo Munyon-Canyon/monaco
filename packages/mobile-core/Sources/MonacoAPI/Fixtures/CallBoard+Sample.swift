@@ -22,6 +22,54 @@ extension Components.Schemas.CallBoard {
             isViewer: viewer, isMine: false)
     }
 
+    private static func entry(
+        _ id: Int, _ kind: Components.Schemas.LeaderboardSubject.KindPayload, _ name: String, rank: Int32?,
+        pct: Int32?, right: Int32, resolved: Int32, voted: Int32, eligible: Int32, turnout: Int32, up: Int32 = 0,
+        needed: Int32? = nil, viewer: Bool = false, mine: Bool = false
+    ) -> Row {
+        let move: Components.Schemas.CallBoardMovement.KindPayload = up > 0 ? .up : (up < 0 ? .down : .same)
+        return Row(
+            rank: rank,
+            subject: .init(
+                id: "00000000-0000-7000-8000-0000000001\(String(format: "%02d", id))", kind: kind, name: name,
+                handle: kind == .user ? name.lowercased() : nil, pictureUrl: nil),
+            rateBps: pct.map { $0 * 100 }, ratePct: pct, right: right, resolved: resolved, voted: voted,
+            eligible: eligible, turnoutBps: turnout * 100, needed: needed,
+            movement: .init(kind: move, places: abs(up)), lastCall: nil, isViewer: viewer, isMine: mine)
+    }
+
+    private static let pilates = entry(
+        1, .cabal, "Pilates", rank: 1, pct: 93, right: 13, resolved: 14, voted: 14, eligible: 14, turnout: 96, up: 1)
+    private static let techTitans = entry(
+        2, .cabal, "Tech Titans", rank: 2, pct: 89, right: 8, resolved: 9, voted: 12, eligible: 13, turnout: 92,
+        up: -1, mine: true)
+    private static let acCapital = entry(
+        3, .cabal, "AC Capital", rank: 3, pct: 86, right: 6, resolved: 7, voted: 15, eligible: 16, turnout: 94,
+        mine: true)
+    private static let degens = entry(
+        4, .cabal, "Degens", rank: 4, pct: 83, right: 10, resolved: 12, voted: 14, eligible: 16, turnout: 88, up: 2,
+        mine: true)
+    private static let quantKids = entry(
+        5, .cabal, "Quant Kids", rank: 5, pct: 80, right: 4, resolved: 5, voted: 6, eligible: 7, turnout: 85)
+    private static let nightShift = entry(
+        6, .cabal, "Night Shift", rank: 6, pct: 75, right: 6, resolved: 8, voted: 9, eligible: 11, turnout: 81)
+
+    private static let weekChristelle = entry(
+        21, .user, "Christelle", rank: 1, pct: 100, right: 6, resolved: 6, voted: 6, eligible: 6, turnout: 100)
+    private static let weekLogan = entry(
+        22, .user, "Logan", rank: 2, pct: 86, right: 6, resolved: 7, voted: 7, eligible: 7, turnout: 100, up: 1)
+    private static let weekMia = entry(
+        23, .user, "Mia", rank: 3, pct: 83, right: 5, resolved: 6, voted: 6, eligible: 7, turnout: 86, up: -1)
+    private static let weekKai = entry(
+        24, .user, "Kai", rank: 4, pct: 80, right: 4, resolved: 5, voted: 6, eligible: 7, turnout: 86, up: 2)
+    private static let weekJordan = entry(
+        25, .user, "Jordan", rank: 5, pct: 80, right: 4, resolved: 5, voted: 5, eligible: 6, turnout: 83, up: -1)
+    private static let weekAndres = entry(
+        26, .user, "Andres", rank: nil, pct: nil, right: 2, resolved: 3, voted: 5, eligible: 6, turnout: 83,
+        needed: 2, viewer: true)
+    private static let weekRosa = entry(
+        27, .user, "Rosa", rank: nil, pct: nil, right: 1, resolved: 2, voted: 3, eligible: 4, turnout: 75, needed: 3)
+
     private static let christelle = row(1, "Christelle", 92, right: 12, resolved: 13, voted: 14, eligible: 14, up: 1)
     private static let logan = row(2, "Logan", 91, right: 10, resolved: 11, voted: 12, eligible: 12, up: -1)
     private static let mia = row(3, "Mia", 89, right: 8, resolved: 9, voted: 10, eligible: 11)
@@ -60,6 +108,33 @@ extension Components.Schemas.CallBoard {
         board.leadChange?.call = nil
         return board
     }()
+
+    public static let cabalsMonth = Self(
+        board: .cabals, filter: .all, period: .init(kind: .month, start: "2026-10-01", end: "2026-10-31"),
+        computedAt: Date(timeIntervalSince1970: 1_791_766_800), totalRanked: 8, top: [pilates, techTitans, acCapital],
+        me: .init(techTitans), above: .init(pilates),
+        gap: .init(versus: .above, points: -4, callsToPass: nil, aboveIsPerfect: false), climbBps: 8_900,
+        around: .init(rows: [techTitans, acCapital, degens, quantKids, nightShift]), unranked: [])
+
+    public static let cabalsUnranked = Self(
+        board: .cabals, filter: .all, period: .init(kind: .month, start: "2026-10-01", end: "2026-10-31"),
+        computedAt: Date(timeIntervalSince1970: 1_791_766_800), totalRanked: 8, top: [pilates, techTitans, acCapital],
+        climbBps: 6_000,
+        unrankedMe: .init(
+            subject: .init(
+                id: "00000000-0000-7000-8000-000000000199", kind: .cabal, name: "Tech Titans", handle: nil,
+                pictureUrl: nil),
+            resolved: 3, needed: 2, voted: 5, eligible: 6, pendingSymbols: ["SpaceX"]),
+        around: .init(rows: [degens, quantKids]), unranked: [])
+
+    public static let peopleWeekUnranked = Self(
+        board: .people, filter: .all, period: .init(kind: .week, start: "2026-10-19", end: "2026-10-25"),
+        computedAt: Date(timeIntervalSince1970: 1_791_766_800), totalRanked: 5,
+        top: [weekChristelle, weekLogan, weekMia], climbBps: 6_000,
+        unrankedMe: .init(
+            subject: weekAndres.subject, resolved: 3, needed: 2, voted: 5, eligible: 6,
+            pendingSymbols: ["SpaceX", "AMZN"]),
+        around: .init(rows: [weekKai, weekJordan]), unranked: [weekAndres, weekRosa])
 
     public static let empty = Self(
         board: .people, filter: .all, period: .init(kind: .month, start: "2026-10-01", end: "2026-10-31"),

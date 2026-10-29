@@ -12,7 +12,7 @@ struct CallBoardYouCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
             HStack(alignment: .top) {
-                side(card.me, label: "You")
+                side(card.me, label: card.meLabel)
                 VStack(spacing: MonacoTheme.Space.xs) {
                     Text(card.rankText).font(MonacoTheme.Typo.title).foregroundStyle(MonacoTheme.primaryText)
                     Text(card.ofLine).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
@@ -25,7 +25,7 @@ struct CallBoardYouCard: View {
                     side(neighbour, label: nil)
                 }
             }
-            climbBar
+            CallBoardClimbBar(fraction: card.climb)
             if let gap = card.gapLine {
                 Text(gap).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
             }
@@ -51,14 +51,18 @@ struct CallBoardYouCard: View {
             Text(row.record).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
         }
     }
+}
 
-    private var climbBar: some View {
+struct CallBoardClimbBar: View {
+    let fraction: Double
+
+    var body: some View {
         Capsule()
             .fill(MonacoTheme.border)
             .frame(height: CallBoardCardMetrics.barHeight)
             .overlay(alignment: .leading) {
                 GeometryReader { proxy in
-                    Capsule().fill(MonacoTheme.profit).frame(width: proxy.size.width * card.climb)
+                    Capsule().fill(MonacoTheme.profit).frame(width: proxy.size.width * fraction)
                 }
             }
     }

@@ -757,6 +757,10 @@ leaderboard-lead-change-dark    -MonacoLeaderboardSample leadChange -AppleInterf
 leaderboard-empty             -MonacoLeaderboardSample empty
 leaderboard-loading           -MonacoLeaderboardSample loading
 leaderboard-error             -MonacoLeaderboardSample error
+leaderboard-cabals-month       -MonacoLeaderboardSample cabalsMonth
+leaderboard-cabals-month-dark  -MonacoLeaderboardSample cabalsMonth -AppleInterfaceStyle Dark
+leaderboard-cabals-unranked    -MonacoLeaderboardSample cabalsUnranked
+leaderboard-people-unranked    -MonacoLeaderboardSample peopleWeekUnranked
 
 # v3 parity: one line per reference state, named like docs/design/v3/screens
 access__signin__email                              -MonacoWelcomeSample signInEmail

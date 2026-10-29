@@ -154,4 +154,91 @@ final class CallBoardCopyTests: XCTestCase {
             }
         }
     }
+
+    func testCabalGapLinesCoverBehindLevelAndLeads() {
+        func line(_ versus: Gap.VersusPayload, _ points: Int32) -> String {
+            CallBoardCopy.cabalGapLine(
+                .init(versus: versus, points: points, callsToPass: nil, aboveIsPerfect: false),
+                me: "Tech Titans", other: "Pilates")
+        }
+        XCTAssertEqual(line(.above, -4), "Tech Titans is 4 points behind Pilates.")
+        XCTAssertEqual(line(.above, -1), "Tech Titans is 1 point behind Pilates.")
+        XCTAssertEqual(line(.above, 0), "Tech Titans is level with Pilates.")
+        XCTAssertEqual(line(.below, 0), "Tech Titans is level with Pilates.")
+        XCTAssertEqual(line(.below, 1), "Tech Titans leads by 1 point.")
+        XCTAssertEqual(line(.below, 3), "Tech Titans leads by 3 points.")
+    }
+
+    func testPendingLineCoversZeroToFourSymbols() {
+        XCTAssertEqual(CallBoardCopy.pendingLine([]), "Vote on your cabals' proposals to get there.")
+        XCTAssertEqual(CallBoardCopy.pendingLine(["AMZN"]), "Your AMZN vote counts once it resolves.")
+        XCTAssertEqual(
+            CallBoardCopy.pendingLine(["SpaceX", "AMZN"]), "Your SpaceX and AMZN votes count once they resolve.")
+        XCTAssertEqual(
+            CallBoardCopy.pendingLine(["SpaceX", "AMZN", "NVDA"]),
+            "Your SpaceX, AMZN and 1 more vote count once they resolve.")
+        XCTAssertEqual(
+            CallBoardCopy.pendingLine(["SpaceX", "AMZN", "NVDA", "TSLA"]),
+            "Your SpaceX, AMZN and 2 more votes count once they resolve.")
+    }
+
+    func testTurnoutAndYoursOnCabalRows() {
+        XCTAssertEqual(CallBoardCopy.turnoutPercent(bps: 9_200), "Turnout 92%")
+        XCTAssertEqual(CallBoardCopy.turnoutPercent(bps: 9_166), "Turnout 92%")
+        XCTAssertEqual(CallBoardCopy.name("Tech Titans", isMine: true), "Tech Titans · yours")
+        XCTAssertEqual(CallBoardCopy.name("Pilates", isMine: false), "Pilates")
+    }
+
+    func testTheCabalsMonthScreenMatchesTheFrame() throws {
+        let cabals = screen(.cabalsMonth)
+        let card = try XCTUnwrap(cabals.card)
+        XCTAssertEqual(card.rankText, "#2")
+        XCTAssertEqual(card.ofLine, "of 8 cabals")
+        XCTAssertEqual(card.neighbourLine, "your best")
+        XCTAssertEqual(card.gapLine, "Tech Titans is 4 points behind Pilates.")
+        XCTAssertNil(card.meLabel)
+        XCTAssertEqual(cabals.aroundTitle, "Around your cabals")
+        XCTAssertEqual(
+            cabals.around.map(\.title),
+            ["Tech Titans · yours", "AC Capital · yours", "Degens · yours", "Quant Kids", "Night Shift"])
+        XCTAssertEqual(cabals.around.map(\.turnout).prefix(3), ["Turnout 92%", "Turnout 94%", "Turnout 88%"])
+        XCTAssertTrue(cabals.around.allSatisfy(\.isCabal))
+        XCTAssertEqual(cabals.bandID, cabals.around.first?.id)
+        XCTAssertNil(cabals.unrankedCard)
+        XCTAssertEqual(screen().card?.meLabel, "You")
+        XCTAssertEqual(screen().aroundTitle, "Around you")
+    }
+
+    func testTheUnrankedPersonCardAndSections() throws {
+        let week = screen(.peopleWeekUnranked)
+        XCTAssertNil(week.card)
+        XCTAssertFalse(week.isEmpty)
+        let card = try XCTUnwrap(week.unrankedCard)
+        XCTAssertEqual(card.title, "Not ranked yet this week")
+        XCTAssertEqual(card.progress, "3 of 5 resolved votes · 2 more to rank")
+        XCTAssertEqual(card.pending, "Your SpaceX and AMZN votes count once they resolve.")
+        XCTAssertEqual(card.climb, 0.6, accuracy: 0.0001)
+        XCTAssertEqual(card.subject.name, "Andres")
+        XCTAssertEqual(week.aroundTitle, "Ranked")
+        XCTAssertEqual(week.around.map(\.name), ["Kai", "Jordan"])
+        XCTAssertEqual(week.unrankedRows.map(\.name), ["Andres", "Rosa"])
+        let andres = try XCTUnwrap(week.unrankedRows.first)
+        XCTAssertEqual(andres.unrankedSubtitle, "3 resolved · voted 5 of 6")
+        XCTAssertEqual(andres.moreFigure, "2 more")
+        XCTAssertEqual(andres.unrankedSpoken, "Andres, you, not ranked yet, 3 resolved, 2 more to rank.")
+        XCTAssertEqual(week.unrankedRows.last?.unrankedSpoken, "Rosa, not ranked yet, 2 resolved, 3 more to rank.")
+        XCTAssertEqual(week.unrankedRows.last?.moreFigure, "3 more")
+    }
+
+    func testTheUnrankedCardTitlePerPeriodAndCabalForm() throws {
+        XCTAssertEqual(CallBoardCopy.unrankedCardTitle(period: .month), "Not ranked yet this month")
+        XCTAssertEqual(CallBoardCopy.unrankedCardTitle(period: .all), "Not ranked yet")
+        let card = try XCTUnwrap(screen(.cabalsUnranked).unrankedCard)
+        XCTAssertEqual(card.title, "Tech Titans is not ranked yet")
+        XCTAssertEqual(card.progress, "3 of 5 resolved")
+        XCTAssertEqual(card.pending, "Your SpaceX vote counts once it resolves.")
+        XCTAssertTrue(card.subject.isCabal)
+        XCTAssertEqual(CallBoardCopy.unrankedProgress(resolved: 3, needed: 2), "3 of 5 resolved votes · 2 more to rank")
+        XCTAssertEqual(screen(.cabalsUnranked).aroundTitle, "Ranked")
+    }
 }
