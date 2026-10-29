@@ -230,6 +230,10 @@ enum MonacoSheetDetents {
         return scenes.first?.screen.bounds.height ?? 0
     }
 
+    static func scrollsContent(declared: Bool, dynamicTypeSize: DynamicTypeSize) -> Bool {
+        declared || dynamicTypeSize.isAccessibilitySize
+    }
+
     @MainActor
     func detents(
         fittedHeight: CGFloat, screenHeight: CGFloat = MonacoSheetDetents.screenHeight,
@@ -334,7 +338,7 @@ private struct MonacoSheetFrame<Content: View>: View {
 
     @ViewBuilder
     private var sheetContent: some View {
-        if scrolls {
+        if MonacoSheetDetents.scrollsContent(declared: scrolls, dynamicTypeSize: dynamicTypeSize) {
             ScrollView {
                 content
                     .environment(\.insideMonacoSheet, true)

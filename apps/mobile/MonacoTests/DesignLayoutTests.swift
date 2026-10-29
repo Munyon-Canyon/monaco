@@ -261,6 +261,18 @@ struct FLargeTextLayoutRuleTests {
         #expect(MonacoRowLayout(dynamicTypeSize: .accessibility5).isStacked)
     }
 
+    @Test func aSheetScrollsItsContentAtAccessibilitySizesEvenWhenFixed() {
+        #expect(!MonacoSheetDetents.scrollsContent(declared: false, dynamicTypeSize: .xxxLarge))
+        #expect(MonacoSheetDetents.scrollsContent(declared: false, dynamicTypeSize: .accessibility1))
+        #expect(MonacoSheetDetents.scrollsContent(declared: true, dynamicTypeSize: .large))
+    }
+
+    @Test func aToastWrapsWithoutALineLimitAtAccessibilitySizes() {
+        #expect(MonacoToastLayout.lineLimit(.large) == 2)
+        #expect(MonacoToastLayout.lineLimit(.accessibility1) == nil)
+        #expect(MonacoToastLayout.lineLimit(.accessibility5) == nil)
+    }
+
     @Test func theAmountChipsFallIntoTwoByTwoAtAccessibility1() {
         let stacked = DynamicTypeSize.accessibility1.isAccessibilitySize
         #expect(AmountText.presetRows(4, stacked: stacked) == [[0, 1], [2, 3]])
