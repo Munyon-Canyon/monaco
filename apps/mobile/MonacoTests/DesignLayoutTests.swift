@@ -1,3 +1,4 @@
+import MonacoCore
 import SwiftUI
 import Testing
 import UIKit
@@ -224,5 +225,75 @@ struct V3LargeTextLayoutTests {
 
     @Test func theSevenLabelRangeRowFitsThePhoneAtLargeSize() {
         #expect(Self.fitted(RangeProbe(), at: .large).width <= 393)
+    }
+}
+
+@MainActor
+struct FLargeTextLayoutRuleTests {
+    private static let phone = CGSize(width: 390, height: CGFloat.greatestFiniteMagnitude)
+
+    private static func fitted(_ view: some View, at size: DynamicTypeSize) -> CGSize {
+        UIHostingController(rootView: view.environment(\.dynamicTypeSize, size)).sizeThatFits(in: phone)
+    }
+
+    private static func yesNo() -> some View {
+        VoteHoldRow(yes: Color.red.frame(height: 50), no: Color.blue.frame(height: 50))
+    }
+
+    @Test func theVotePairStacksAtAccessibility1AndSitsSideBySideBefore() {
+        #expect(Self.fitted(Self.yesNo(), at: .large).height == 50)
+        #expect(Self.fitted(Self.yesNo(), at: .accessibility1).height > 50)
+        #expect(Self.fitted(Self.yesNo(), at: .accessibility5).height > 50)
+    }
+
+    @Test func theStatRowGoesFourToTwoByTwoAtXXLargeAndOnePerRowAtAccessibility1() {
+        let requested = StatMetrics.defaultColumns
+        #expect(StatMetrics.columns(requested: requested, dynamicTypeSize: .xLarge) == 4)
+        #expect(StatMetrics.columns(requested: requested, dynamicTypeSize: .xxLarge) == 2)
+        #expect(StatMetrics.columns(requested: requested, dynamicTypeSize: .xxxLarge) == 2)
+        #expect(StatMetrics.columns(requested: requested, dynamicTypeSize: .accessibility1) == 1)
+        #expect(StatMetrics.columns(requested: requested, dynamicTypeSize: .accessibility5) == 1)
+    }
+
+    @Test func aRankedRowStacksNameOverRateAtAccessibility1AndNotBefore() {
+        #expect(!MonacoRowLayout(dynamicTypeSize: .xxxLarge).isStacked)
+        #expect(MonacoRowLayout(dynamicTypeSize: .accessibility1).isStacked)
+        #expect(MonacoRowLayout(dynamicTypeSize: .accessibility5).isStacked)
+    }
+
+    @Test func theAmountChipsFallIntoTwoByTwoAtAccessibility1() {
+        let stacked = DynamicTypeSize.accessibility1.isAccessibilitySize
+        #expect(AmountText.presetRows(4, stacked: stacked) == [[0, 1], [2, 3]])
+        #expect(AmountText.presetRows(4, stacked: DynamicTypeSize.xxxLarge.isAccessibilitySize) == [[0, 1, 2, 3]])
+    }
+
+    private struct TabsProbe: View {
+        @State private var selection = "Treasury"
+        var body: some View {
+            MonacoUnderlineTabs(["Treasury", "Rules", "Members", "Activity"], selection: $selection) { $0 }
+        }
+    }
+
+    @Test(arguments: [DynamicTypeSize.large, .xxxLarge, .accessibility1, .accessibility5])
+    func underlineTabsStayOneRowAndScrollInsteadOfWrapping(size: DynamicTypeSize) {
+        let height = Self.fitted(TabsProbe(), at: size).height
+        #expect(height >= MonacoUnderlineTabsMetrics.minHeight, "\(height)pt at \(size)")
+        #expect(height < 2 * MonacoUnderlineTabsMetrics.minHeight + 16, "\(height)pt at \(size)")
+    }
+
+    @Test(arguments: [MonacoSheetDetents.review, .votes, .result, .fitted])
+    func theSheetHelperAddsLargeOnlyAtAccessibilitySizes(sheet: MonacoSheetDetents) {
+        let screen: CGFloat = 800
+        let regular = sheet.detents(fittedHeight: 200, screenHeight: screen, dynamicTypeSize: .xxxLarge)
+        let large = sheet.detents(fittedHeight: 200, screenHeight: screen, dynamicTypeSize: .accessibility1)
+        #expect(!regular.contains(.large))
+        #expect(large == regular + [.large])
+    }
+
+    @Test(arguments: DynamicTypeSize.allCases)
+    func theRemindControlKeepsItsFortyFourPointHit(size: DynamicTypeSize) {
+        let control = RemindControl(isOn: false, onTitle: "Reminder set", action: {})
+        #expect(Self.fitted(control, at: size).height >= RemindMetrics.target, "at \(size)")
+        #expect(RemindMetrics.target == 44)
     }
 }
