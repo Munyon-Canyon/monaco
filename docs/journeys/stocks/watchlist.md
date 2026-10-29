@@ -1,7 +1,7 @@
 ---
 id: stocks/watchlist
 title: Manage the watchlist
-version: 1
+version: 2
 milestone: UI v3
 requires: [auth/sign-in]
 actors: [A]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/StocksWatchlistJourney.swift, apps
 
 # Manage the watchlist
 
-A signed-in member opens Manage under Watchlist on the Markets tab, stars a stock, goes back and sees it in their watchlist, then takes it off from the stock screen's star. The list lives on the device only, so the journey asserts what the screens show and nothing on the server. The spec is [Markets tab](../../screens.md#markets-tab), [Watchlist](../../screens.md#watchlist) and the star in [Stock screen](../../screens.md#stock-screen).
+A signed-in member opens the watchlist from the star round in the Markets bar, stars a stock, goes back and sees it in their watchlist, then takes it off from the stock screen's star. The list lives on the device only, so the journey asserts what the screens show and nothing on the server. The spec is the F frames `06-markets-A` and `06-markets-held`, [Markets tab](../../screens.md#markets-tab), [Watchlist](../../screens.md#watchlist) and the star in [Stock screen](../../screens.md#stock-screen).
 
 The format of this doc is in [App journeys](../README.md).
 
@@ -30,11 +30,11 @@ Starts signed in (auth/sign-in).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap | the Markets tab, `tab-assets` | | Within 15 s, `assets-root` shows and `markets-watchlist-add` shows in the empty Watchlist card "Your market, at a glance". screens.md: with no stars the card "Your market, at a glance" / "Add stocks to your watchlist." with "Add" |
-| S1.2 | A | tap | `markets-watchlist-manage` | | Within 10 s, `watchlist-root` shows under the title "Your watchlist", and `watchlist-count` reads "No stocks selected". screens.md: "Manage" opens `WatchlistRoute`; the count line is "No stocks selected" |
+| S1.1 | A | tap | the Markets tab, `tab-assets` | | Within 15 s, `assets-root` shows, the star round `markets-watchlist-manage` shows in the bar, and the Watchlist section shows its empty state "Your market, at a glance" with `markets-watchlist-add` |
+| S1.2 | A | tap | the star round, `markets-watchlist-manage` | | Within 10 s, `watchlist-root` shows under the title "Your watchlist", and `watchlist-count` reads "No stocks selected". screens.md: "Manage" opens `WatchlistRoute`; the count line is "No stocks selected" |
 | S1.3 | A | type | `monaco-search-field` | `JRNYA` | Within 15 s, `watchlist-row-JRNYAx` shows reading "Journey Alpha" and "JRNYA", with `watchlist-star-JRNYAx` labelled "Add Journey Alpha". screens.md: the search sends `q`; an unstarred row has an outline star labelled "Add <name>" |
 | S1.4 | A | tap | `watchlist-star-JRNYAx` | | Within 5 s, `watchlist-star-JRNYAx` is labelled "Remove Journey Alpha" and `watchlist-count` reads "1 stock selected". screens.md: the star toggles the stock at once; a starred stock is labelled "Remove <name>" |
-| S1.5 | A | tap | the navigation bar's back button | | Within 10 s, `markets-watchlist-row-JRNYAx` shows reading "JRNYA", and `markets-watchlist-add` is gone. screens.md: the first three watched stocks show as rows |
+| S1.5 | A | tap | the navigation bar's back button | | Within 10 s, the Watchlist section lists `markets-watchlist-row-JRNYAx` reading "JRNYA" with its price, and `markets-watchlist-add` is gone. screens.md: "Watchlist 1" lists the starred stock as a row |
 
 ### S2 Take it off from the stock screen
 

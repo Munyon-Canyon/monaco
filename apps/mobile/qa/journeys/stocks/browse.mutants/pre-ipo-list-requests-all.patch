@@ -1,7 +1,7 @@
 journey: stocks/browse
 expect-fail: S1
 
-The Pre-IPO list requests filter=all. S1.4 expects Journey Private and not Journey Alpha under Pre-IPO, so S1 must fail.
+The Pre-IPO list requests filter=all. S1.3 expects Journey Private and not Journey Alpha under Pre-IPO, so S1 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/packages/mobile-core/Sources/MonacoCore/Market/StocksTabModel.swift b/packages/mobile-core/Sources/MonacoCore/Market/StocksTabModel.swift
 --- a/packages/mobile-core/Sources/MonacoCore/Market/StocksTabModel.swift

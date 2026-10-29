@@ -1,7 +1,7 @@
 journey: stocks/browse
 expect-fail: S3
 
-A pull to refresh swaps the list for a search that matches nothing. S3.2 expects the seeded row after the refresh, so S3 must fail.
+A pull to refresh swaps the list for a search that matches nothing. S3.2 expects the Pre-IPO row after the refresh, so S3 must fail.
 diff --git a/apps/mobile/Monaco/Features/Assets/StocksTabView.swift b/apps/mobile/Monaco/Features/Assets/StocksTabView.swift
 --- a/apps/mobile/Monaco/Features/Assets/StocksTabView.swift
 +++ b/apps/mobile/Monaco/Features/Assets/StocksTabView.swift

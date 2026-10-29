@@ -1,0 +1,18 @@
+journey: feed/react-and-reply
+expect-fail: S1
+
+A reaction chip loses its identifier, so the chip does not show after "+". S1.2 waits for reaction-chip-<target>-1f525, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Reactions/ReactionRow.swift b/apps/mobile/Monaco/Features/Reactions/ReactionRow.swift
+--- a/apps/mobile/Monaco/Features/Reactions/ReactionRow.swift
++++ b/apps/mobile/Monaco/Features/Reactions/ReactionRow.swift
+@@ -66,7 +66,7 @@
+                         Haptics.selection()
+                         onToggle(reaction.emoji)
+                     }
+-                    .accessibilityIdentifier("reaction-chip-\(target.key)-\(reaction.emoji.reactionHex)")
++                    .accessibilityIdentifier("reaction-pill-\(target.key)-\(reaction.emoji.reactionHex)")
+                 case .more(let count):
+                     MonacoReactionChip.more(count, size: size, action: openTray)
+                         .accessibilityIdentifier("reaction-more-\(target.key)")

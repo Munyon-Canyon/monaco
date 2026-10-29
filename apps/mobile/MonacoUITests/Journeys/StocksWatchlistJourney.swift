@@ -2,7 +2,7 @@ import XCTest
 
 enum StocksWatchlistJourney {
     static let id = "stocks/watchlist"
-    static let version = 1
+    static let version = 2
 
     static let alpha = StocksBrowseJourney.alpha
     static let starred = "watchlist-star-\(alpha.symbol)"
@@ -27,12 +27,16 @@ enum StocksWatchlistJourney {
             StocksBrowseJourney.openStocks(app, step: "S1.1")
             let add = app.element("markets-watchlist-add")
             app.scrollIntoReach(add)
-            XCTAssertTrue(add.waitForExistence(timeout: 15), "S1.1: no Add button in the empty Watchlist card")
+            XCTAssertTrue(add.waitForExistence(timeout: 15), "S1.1: no Add button in the empty Watchlist section")
+            XCTAssertTrue(
+                app.staticTexts["Your market, at a glance"].exists, "S1.1: no empty Watchlist card copy")
+            XCTAssertTrue(
+                app.element("markets-watchlist-manage").exists, "S1.1: no star round in the Markets bar")
         }
 
-        recorder.step("S1.2", "open Manage") {
+        recorder.step("S1.2", "open the watchlist from the star round") {
             let manage = app.element("markets-watchlist-manage")
-            XCTAssertTrue(manage.waitForExistence(timeout: 10), "S1.2: no Manage button on Watchlist")
+            XCTAssertTrue(manage.waitForExistence(timeout: 10), "S1.2: no star round in the Markets bar")
             manage.tap()
             XCTAssertTrue(
                 app.element("watchlist-root").waitForExistence(timeout: 10), "S1.2: Your watchlist did not open")

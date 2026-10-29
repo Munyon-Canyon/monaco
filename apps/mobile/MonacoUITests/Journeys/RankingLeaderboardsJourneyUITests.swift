@@ -12,21 +12,22 @@ nonisolated final class RankingLeaderboardsJourneyUITests: XCTestCase {
         let recorder = RankingLeaderboardsJourney.recorder()
 
         try session.scenario("S1") {
+            let seed = try RankingLeaderboardsJourney.Seed.handedOff()
             try session.act(as: "A")
-            RankingLeaderboardsJourney.homeLeaderboard(app, recorder: recorder)
-            attachScreenshot(of: app, named: "S1-A-home-leaderboard")
+            RankingLeaderboardsJourney.home(app, seed: seed, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-A-leaderboard")
+        }
+
+        try session.scenario("S2") {
+            try session.act(as: "A")
+            RankingLeaderboardsJourney.cabalsTab(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-A-cabals")
         }
 
         try session.scenario("S3") {
             try session.act(as: "A")
-            RankingLeaderboardsJourney.topCabals(app, recorder: recorder)
-            attachScreenshot(of: app, named: "S3-A-top-cabals")
-        }
-
-        try session.scenario("S4") {
-            try session.act(as: "A")
-            RankingLeaderboardsJourney.viewAll(app, recorder: recorder)
-            attachScreenshot(of: app, named: "S4-A-leaderboard")
+            RankingLeaderboardsJourney.friends(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S3-A-friends")
         }
     }
 }

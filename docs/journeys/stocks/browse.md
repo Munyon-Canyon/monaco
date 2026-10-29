@@ -1,7 +1,7 @@
 ---
 id: stocks/browse
 title: Browse stocks
-version: 5
+version: 6
 milestone: M11
 requires: [auth/sign-in]
 actors: [A]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/StocksBrowseJourney.swift, apps/mo
 
 # Browse stocks
 
-A signed-in member opens the Markets tab, reads the All stocks list and the Filter select's Popular and Pre-IPO options, searches by name, finds nothing for a nonsense query, and pulls to refresh. The spec is [Markets tab](../../screens.md#markets-tab). The old app's tab is `apps/mobile/Monaco/Features/Assets/AssetsTabView.swift` at `c838bd24`, which every step cites as "old app".
+A signed-in member opens the Markets tab, reads the search "Stocks and Pre-IPO" and the chips All, Watchlist, Pre-IPO and Held, searches by name, opens the Pre-IPO and Held chips, finds nothing for a nonsense query, and pulls to refresh. The spec is [Markets tab](../../screens.md#markets-tab) and the F frames `06-markets-A`, `06-markets-search` and `06-markets-held`. F has no Popular section and no Sort or Filter selects.
 
 The format of this doc is in [App journeys](../README.md).
 
@@ -26,17 +26,17 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Scenarios
 
-### S1 Browse with the Filter select
+### S1 Browse with the chips
 
 Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S1.1 | tap | the Markets tab, `tab-assets` | | Within 15 s, `assets-root` shows under the large title "Markets", with `monaco-search-field` holding the placeholder "Search stocks or tickers". Old app: the Markets tab opened `assets-root` with a search placeholder. screens.md: Large title "Markets". Search "Search stocks or tickers" |
-| S1.2 | type, then scroll to | `monaco-search-field`, then `assets-row-JRNYAx` | `Journey` | The catalogue is the whole market sorted by ticker, so the step narrows it to the seeded rows by searching "Journey". Within 15 s, the Sort select `stocks-sort` and the Filter select `stocks-filter` show under "All stocks", with the Filter select reading "All", and `assets-row-JRNYAx` shows reading "JRNYA" and "Journey Alpha" with "$123.45". screens.md: "All stocks" with the Sort and Filter selects, "All" (`filter=all`, the default); rows show logo, name over ticker, price, day change |
-| S1.3 | tap | `stocks-filter`, then "Popular" | | Within 10 s, the Filter select reads "Popular", `assets-row-JRNYAx` shows and `assets-row-JRNYPx` and `assets-row-JRNYZx` do not. screens.md: "Popular" (`filter=popular`) |
-| S1.4 | tap | `stocks-filter`, then "Pre-IPO" | | Within 10 s, the Filter select reads "Pre-IPO", `assets-row-JRNYPx` shows reading "Journey Private", and `assets-row-JRNYAx` does not. screens.md: "Pre-IPO" (`filter=pre_ipo`) |
-| S1.5 | tap, then scroll to | `stocks-filter`, then "All", then `assets-row-JRNYZx` | | Within 30 s, `assets-row-JRNYZx` reading "Journey Zulu" shows. Scrolling loads more pages until the row is in. screens.md: "All" (`filter=all`, paged) |
+| S1.1 | tap | the Markets tab, `tab-assets` | | Within 15 s, `assets-root` shows under the large title "Markets", with `monaco-search-field` holding the placeholder "Stocks and Pre-IPO" and the chips `markets-chip-All` (selected), `markets-chip-Watchlist`, `markets-chip-Pre-IPO` and `markets-chip-Held`. The chip identifiers carry the chip's title, so they are not lowercase |
+| S1.2 | type | `monaco-search-field` | `Journey` | Within 15 s, `assets-row-JRNYAx` shows reading "JRNYA", "Journey Alpha" and "$123.45", and there is no `stocks-sort` and no `stocks-filter` |
+| S1.3 | clear, then tap | `monaco-search-field`, then `markets-chip-Pre-IPO` | | Within 10 s, `markets-chip-Pre-IPO` is selected and `markets-preipo-row-JRNYPx` reads "Journey Private" with "Eligible" or "Research only", and `markets-preipo-row-JRNYAx` does not show |
+| S1.4 | tap, type, then scroll to | `markets-chip-All`, `monaco-search-field`, then `assets-row-JRNYZx` | `Journey` | Within 30 s, `assets-row-JRNYZx` reading "Journey Zulu" shows. The All chip draws only Watchlist, Pre-IPO and Moving today, so the paged catalogue is reached through search |
+| S1.5 | clear, then tap | `monaco-search-field`, then `markets-chip-Held` | | Within 10 s, `markets-held-empty` shows "Your cabals don't hold any stocks yet." for a member whose cabals hold nothing |
 
 ### S2 Search
 
@@ -44,9 +44,9 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S2.1 | tap, then type | the Markets tab, then `monaco-search-field` | `Journey Alpha` | Within 10 s, the "Search results" header replaces the browse sections, `assets-row-JRNYAx` shows, and `assets-row-JRNYZx` does not. Old app: search results in `assets-grid-search`. screens.md: results replace the list |
-| S2.2 | clear, then type | `monaco-search-field` | `zzqj{QA.run}` | Within 10 s, `assets-search-empty` reads "No matching stocks". Old app: "No matches for that search". screens.md: no match shows "No matching stocks" with "Try a company name, ticker or another filter." |
-| S2.3 | clear | `monaco-search-field` | | Within 10 s, "Search results" is gone and the browse sections are back with the filter on All and `markets-popular-row-JRNYAx` under Popular. Old app: an empty query showed the browse sections again |
+| S2.1 | tap, then type | the Markets tab, then `monaco-search-field` | `Journey Alpha` | Within 10 s, `assets-row-JRNYAx` shows and `assets-row-JRNYZx` does not |
+| S2.2 | clear, then type | `monaco-search-field` | `zzqj{QA.run}` | Within 10 s, `assets-empty` reads "No results for" and the query |
+| S2.3 | clear | `monaco-search-field` | | Within 10 s, `assets-empty` is gone and the chips are back with `markets-chip-All` selected |
 
 ### S3 Pull to refresh
 
@@ -54,8 +54,8 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S3.1 | tap | the Markets tab, `tab-assets` | | Within 15 s, `markets-popular-row-JRNYAx` shows under Popular |
-| S3.2 | pull down | `assets-root` | | Within 15 s, `markets-popular-row-JRNYAx` still shows reading "Journey Alpha" with "$123.45", and neither `assets-failed` ("Couldn't load this view") nor a toast shows. Old app: `.refreshable` on `assets-grid-popular`. screens.md: Markets tab, pull to refresh |
+| S3.1 | tap, then tap | the Markets tab, then `markets-chip-Pre-IPO` | | Within 15 s, `markets-preipo-row-JRNYPx` shows |
+| S3.2 | pull down | `assets-root` | | Within 15 s, `markets-preipo-row-JRNYPx` still shows reading "Journey Private", and neither `assets-failed` ("Couldn't load this view") nor a toast shows |
 
 ## Ground truth
 
@@ -63,12 +63,13 @@ Browsing writes nothing. After a run, `apps/mobile/qa/journeys/stocks/browse.tru
 
 ## Known failures on staging
 
-None known.
+None known. The ticket words S2.2 as "No matching stocks", but Markets search says "No results for “<query>”" (`assets-empty`), and the step follows the app.
 
 ## Not covered
 
 - The moon glyph labelled "Market closed" on a row. It shows only while the home market is closed, so a step for it passes or fails by wall-clock time. `MarketSessionCopyTests` in `packages/mobile-core` covers the session copy.
 - The day change chip's value. The seeded samples sit one day apart, and the change window moves with the clock. The step reads the price, which the seed fixes.
-- Top movers and Popular now. The seeded rows carry no day change a mover ranking could read, so `StocksTabSampleUITests` covers them against the sample harness (`-MonacoStocksTabSample ready`). [stocks/watchlist](watchlist.md) covers the Watchlist section, Manage and the stars.
+- Top movers and Moving today. The seeded rows carry no day change a mover ranking could read, so `StocksTabSampleUITests` covers them against the sample harness (`-MonacoStocksTabSample ready`). [stocks/watchlist](watchlist.md) covers the Watchlist section, Manage and the stars.
 - The "Prices delayed" notice and the full-screen "Couldn't load this view" with "Try again". They need the backend to fail mid-run, which belongs to the flow layer. `StocksTabSampleUITests` covers them (`stale` and `failed`).
+- "Secondary estimate · <date>" on a Pre-IPO row. The seeded rows carry no estimate, so the row reads its ticker where the estimate line goes.
 - Logos. The seeded rows have no `logo_url`, so each row draws its monogram.

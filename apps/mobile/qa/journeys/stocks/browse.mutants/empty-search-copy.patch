@@ -1,7 +1,7 @@
 journey: stocks/browse
 expect-fail: S2
 
-A search with no match reads "No results". S2.2 expects "No matching stocks", so S2 must fail.
+A search with no match reads "No results". S2.2 expects "No results for" and the query, so S2 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Assets/MarketsSearch.swift b/apps/mobile/Monaco/Features/Assets/MarketsSearch.swift
 --- a/apps/mobile/Monaco/Features/Assets/MarketsSearch.swift

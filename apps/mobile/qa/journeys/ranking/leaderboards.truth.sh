@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-run="${MONACO_QA_RUN:?journey.py sets MONACO_QA_RUN}"
 # shellcheck source=/dev/null
 source "$(git rev-parse --show-toplevel)/scripts/qa/seed.sh"
+handoff="${MONACO_QA_HANDOFF:?journey.py sets MONACO_QA_HANDOFF}"
 
-got="$(qa_sql -v name="QA ranks $run" <<<"SELECT CASE WHEN count(DISTINCT c.id) = 0 THEN 'none'
-    ELSE count(m.user_id)::text || ' ' || count(m.user_id) FILTER (WHERE m.role = 'creator')::text END
-  FROM cabals c LEFT JOIN cabal_members m ON m.cabal_id = c.id WHERE c.name = :'name'")" ||
+a="$(qa_user_id A)" || exit 2
+unranked="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1])).get("unrankedID", ""))' "$handoff")"
+got="$(qa_sql -v a="$a" -v u="$unranked" <<<"SELECT
+  (SELECT count(*) FROM call_voters WHERE user_id = :'a')::text || ' ' ||
+  (SELECT count(*) FROM call_voters WHERE user_id = NULLIF(:'u', '')::uuid)::text")" ||
   { echo "database cannot be reached" >&2; exit 2; }
-case "$got" in
-  none) echo "ok: the run never created QA ranks $run" ;;
-  "3 1") echo "ok: QA ranks $run has three members, one creator" ;;
-  *) echo "QA ranks $run members and creators: got '$got', want '3 1'"; exit 1 ;;
-esac
+if [[ "$got" != "7 2" ]]; then
+  echo "call_voters rows of A and of the unranked member: got '$got', want '7 2': reading the boards wrote or lost votes"
+  exit 1
+fi
+echo "ok: A still has seven votes and the unranked member two"

@@ -1,0 +1,17 @@
+journey: social/follow-and-boards
+expect-fail: S1
+
+A ranked Leaderboard row loses its leaderboard-row-<id> identifier. S1.1 needs the rows of A and B, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+--- a/apps/mobile/Monaco/Features/Groups/CallBoardRows.swift
++++ b/apps/mobile/Monaco/Features/Groups/CallBoardRows.swift
+@@ -34,7 +34,7 @@
+                 .accessibilityElement(children: .ignore)
+                 .accessibilityLabel(row.spoken)
+                 .accessibilityAddTraits(.isButton)
+-                .accessibilityIdentifier("leaderboard-row-\(row.id)")
++                .accessibilityIdentifier("leaderboard-entry-\(row.id)")
+                 .onAppear { if row.id == rows.last?.id { onLastAppear() } }
+             }
+         }
