@@ -371,6 +371,7 @@ enum MonacoTheme {
 
     enum ReactionChipMetrics {
         static let visibleHeight: CGFloat = 24
+        static let compactVisibleHeight: CGFloat = 22
         static let minWidth: CGFloat = 44
         static let horizontalPadding: CGFloat = 8
         static let gap: CGFloat = 4

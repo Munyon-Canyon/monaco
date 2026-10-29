@@ -607,6 +607,13 @@ composer-sheet-post            -composerHarness sheetPost
 composer-sheet-post-dark       -composerHarness sheetPost -AppleInterfaceStyle Dark
 composer-sending               -composerHarness sending
 composer-failed                -composerHarness failed
+comment-thread-logan          -commentThreadHarness logan
+comment-thread-logan-dark     -commentThreadHarness logan -AppleInterfaceStyle Dark
+comment-thread-nvda           -commentThreadHarness nvda
+comment-thread-pilates        -commentThreadHarness pilates
+comment-thread-long           -commentThreadHarness longThread
+comment-thread-passed         -commentThreadHarness passed
+comment-thread-failed         -commentThreadHarness failed
 feed-post-ready-large-text    -feedPostHarness ready -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 settings                      -settingsHarness
 settings-on                   -settingsHarness on

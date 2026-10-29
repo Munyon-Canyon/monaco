@@ -60,7 +60,8 @@ struct ProposalScreen: View {
         if let comments { return comments }
         let created = CommentsModel(
             source: ProposalCommentsSource(proposalID: context.proposalID, api: environment.api),
-            hints: environment.hints, clock: ContinuousClock())
+            hints: environment.hints, clock: ContinuousClock(),
+            reactions: ReactionsModel(api: environment.api, clock: ContinuousClock()))
         comments = created
         return created
     }

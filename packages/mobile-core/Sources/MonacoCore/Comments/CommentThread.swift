@@ -4,21 +4,66 @@ extension Components.Schemas.CommentThread: Identifiable {
     public var id: String { comment.id }
 }
 
+public struct CommentQuoteRow: Equatable, Sendable {
+    public let name: String
+    public let excerpt: String
+    public let targetID: String
+    public let targetRootID: String
+    public let targetIsFolded: Bool
+    public let isDeleted: Bool
+
+    public init(_ quote: Components.Schemas.CommentQuote) {
+        name = quote.authorDisplayName
+        targetID = quote.commentId
+        targetRootID = quote.rootCommentId
+        targetIsFolded = quote.isFolded
+        isDeleted = quote.isDeleted
+        if quote.isDeleted {
+            excerpt = CommentsCopy.quoteDeleted
+        } else if let text = quote.excerpt, !text.isEmpty {
+            excerpt = text
+        } else if quote.hasAttachment {
+            excerpt = CommentsCopy.gifTitle
+        } else {
+            excerpt = CommentsCopy.quoteDeleted
+        }
+    }
+
+    public var canJump: Bool { !isDeleted }
+}
+
 public struct CommentThreadRow: Equatable, Sendable, Identifiable {
     public let comment: Components.Schemas.Comment
     public let isReply: Bool
+    public let foldedCount: Int
+
+    public init(comment: Components.Schemas.Comment, isReply: Bool, foldedCount: Int = 0) {
+        self.comment = comment
+        self.isReply = isReply
+        self.foldedCount = foldedCount
+    }
 
     public var id: String { comment.id }
+
+    public var isFolded: Bool { isReply }
 
     public var indentLevel: Int { isReply ? 1 : 0 }
 
     public var isDeleted: Bool { comment.body == nil && comment.attachment == nil }
 
+    public var isSystem: Bool { comment.author.kind == .system }
+
     public var text: String { comment.bodyDisplay }
 
     public var authorID: String { comment.author.id }
 
-    public var replyToHandle: String? { comment.replyToHandle }
+    public var quote: CommentQuoteRow? { isSystem ? nil : comment.replyTo.map(CommentQuoteRow.init) }
+
+    public var reactions: [Components.Schemas.Reaction] { comment.reactions }
+
+    public var attachment: Components.Schemas.CommentAttachment? { comment.attachment }
+
+    public var canReact: Bool { !isSystem && !isDeleted }
 
     public var authorName: String {
         let name = comment.author.displayName
@@ -26,12 +71,33 @@ public struct CommentThreadRow: Equatable, Sendable, Identifiable {
         return comment.author.handle ?? CommentsCopy.unknownAuthor
     }
 
-    public var opensAuthorProfile: Bool { !isDeleted }
+    public var opensAuthorProfile: Bool { !isDeleted && !isSystem }
+
+    public func spoken(age: String) -> String {
+        var line = "\(authorName), \(age)"
+        if let quote { line += ", replying to \(quote.name)" }
+        line += ": \(text)."
+        let total = reactions.reduce(0) { $0 + Int($1.count) }
+        if total > 0 { line += " \(total) \(total == 1 ? "reaction" : "reactions")" }
+        return line
+    }
 
     public static func rows(from threads: [Components.Schemas.CommentThread]) -> [CommentThreadRow] {
         threads.flatMap { thread in
-            [CommentThreadRow(comment: thread.comment, isReply: false)]
+            [CommentThreadRow(comment: thread.comment, isReply: false, foldedCount: thread.replies.count)]
                 + thread.replies.map { CommentThreadRow(comment: $0, isReply: true) }
+        }
+    }
+}
+
+public enum CommentThreadEntry: Equatable, Identifiable, Sendable {
+    case row(CommentThreadRow)
+    case fold(rootID: String, count: Int, isExpanded: Bool)
+
+    public var id: String {
+        switch self {
+        case .row(let row): row.id
+        case .fold(let rootID, _, _): "fold-\(rootID)"
         }
     }
 }
@@ -87,7 +153,7 @@ extension CommentDraft {
 }
 
 public enum CommentsCopy {
-    public static let title = "Discussion"
+    public static let title = "Replies"
     public static let empty = "No replies yet"
     public static let emptyMessage = "Start the discussion."
     public static let placeholder = "Say something"
@@ -105,6 +171,14 @@ public enum CommentsCopy {
     public static let sendFailed = "Your reply wasn’t sent. Your text is still here."
     public static let tooLong = "Comments can be up to 1,000 characters."
     public static let unknownAuthor = "Someone"
+    public static let quoteDeleted = "Deleted reply"
+    public static let hideReplies = "Hide replies"
+    public static let goToQuote = "Go to quoted reply"
+    public static let react = "React"
+
+    public static func viewReplies(_ count: Int) -> String {
+        count == 1 ? "View 1 reply" : "View \(count) replies"
+    }
 
     public static func replyTitle(_ name: String) -> String {
         "Reply to \(name)"

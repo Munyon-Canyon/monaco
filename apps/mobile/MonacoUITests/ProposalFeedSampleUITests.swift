@@ -84,8 +84,10 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
         XCTAssertTrue(element("comment-thread").waitForExistence(timeout: 10), "the thread never drew")
         let quotes = app.staticTexts.matching(NSPredicate(format: "label == %@", "Earnings next week."))
         XCTAssertEqual(quotes.count, 1, "the thesis should be quoted once")
+        scrollIntoReach(element("comment-fold-c1"))
+        element("comment-fold-c1").tap()
         scrollIntoReach(element("comment-row-c2"))
-        XCTAssertTrue(element("comment-row-c2").exists, "the nested reply is missing")
+        XCTAssertTrue(element("comment-row-c2").exists, "the folded reply is missing")
         capture("04-detail-thread")
 
         let field = element("comment-composer-field")

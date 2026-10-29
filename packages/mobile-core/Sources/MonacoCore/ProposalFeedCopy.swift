@@ -17,7 +17,7 @@ public enum ProposalFeedCopy {
     public static let voteNotEligible = "You can't vote on this one"
     public static let voteFailed = "Couldn't send your vote. Try again"
 
-    public static let commentsTitle = "Discussion"
+    public static let commentsTitle = "Replies"
     public static let emptyThread = "No comments yet. Make the case for or against this buy."
     public static let composerPlaceholder = "Add a comment"
     public static let reply = "Reply"

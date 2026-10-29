@@ -9,18 +9,26 @@ struct MonacoReactionChip: View {
         case reply(Int)
     }
 
+    enum Size: Equatable {
+        case regular
+        case compact
+    }
+
     let kind: Kind
+    let size: Size
     let action: () -> Void
 
     @ScaledMetric(relativeTo: .subheadline) private var glyphSize: CGFloat = 13
 
-    init(emoji: String, count: Int, mine: Bool, action: @escaping () -> Void) {
+    init(emoji: String, count: Int, mine: Bool, size: Size = .regular, action: @escaping () -> Void) {
         kind = .emoji(emoji, count: count, mine: mine)
+        self.size = size
         self.action = action
     }
 
-    private init(kind: Kind, action: @escaping () -> Void) {
+    private init(kind: Kind, size: Size = .regular, action: @escaping () -> Void) {
         self.kind = kind
+        self.size = size
         self.action = action
     }
 
@@ -28,8 +36,8 @@ struct MonacoReactionChip: View {
         MonacoReactionChip(kind: .add, action: action)
     }
 
-    static func more(_ count: Int, action: @escaping () -> Void) -> MonacoReactionChip {
-        MonacoReactionChip(kind: .more(count), action: action)
+    static func more(_ count: Int, size: Size = .regular, action: @escaping () -> Void) -> MonacoReactionChip {
+        MonacoReactionChip(kind: .more(count), size: size, action: action)
     }
 
     static func reply(count: Int, action: @escaping () -> Void) -> MonacoReactionChip {
@@ -55,17 +63,25 @@ struct MonacoReactionChip: View {
 
     private typealias Metrics = MonacoTheme.ReactionChipMetrics
 
+    private var visibleHeight: CGFloat {
+        size == .compact ? Metrics.compactVisibleHeight : Metrics.visibleHeight
+    }
+
+    private var labelFont: Font {
+        size == .compact ? MonacoTheme.Typo.subhead : MonacoTheme.Typo.subheadStrong
+    }
+
     var body: some View {
         Button(action: action) {
             label
-                .font(MonacoTheme.Typo.subheadStrong)
+                .font(labelFont)
                 .foregroundStyle(isMine ? MonacoTheme.brand : MonacoTheme.primaryText)
                 .lineLimit(1)
                 .padding(.horizontal, Metrics.horizontalPadding)
-                .frame(minWidth: Metrics.minWidth, minHeight: Metrics.visibleHeight)
+                .frame(minWidth: Metrics.minWidth, minHeight: visibleHeight)
                 .background(Capsule().fill(MonacoTheme.surfaceSunken))
                 .overlay { if isMine { Capsule().strokeBorder(MonacoTheme.brand, lineWidth: 1.5) } }
-                .padding(.vertical, (Metrics.tapSize - Metrics.visibleHeight) / 2)
+                .padding(.vertical, (Metrics.tapSize - visibleHeight) / 2)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

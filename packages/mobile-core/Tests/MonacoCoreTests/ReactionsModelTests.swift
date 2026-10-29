@@ -106,6 +106,63 @@ final class ReactionsModelTests: XCTestCase {
         XCTAssertEqual(fresh.map(\.emoji), ["💪", "👀", "🎉"])
     }
 
+    func testACommentAddSendsAPutToTheCommentRouteAndReconciles() async throws {
+        let comment = ReactionTarget.comment("c-1")
+        let transport = StubTransport(scripted: [try summary([("😂", 3, true), ("❤️", 1, false)], total: 4)])
+        let model = ReactionsModel(api: CommentsTestSupport.api(transport), clock: TestClock())
+        let current = [Reaction(emoji: "😂", count: 2, mine: false), Reaction(emoji: "❤️", count: 1, mine: false)]
+
+        let toggled = Task { await model.toggle("😂", on: comment, current: current) }
+        let showed = await CommentsTestSupport.waitUntil {
+            model.reactions(for: comment, fallback: current).first?.mine == true
+        }
+        let reconciled = await toggled.value
+
+        XCTAssertTrue(showed)
+        XCTAssertEqual(reconciled.map(\.count), [3, 1])
+        XCTAssertEqual(reconciled.first?.mine, true)
+        let sent = await transport.sent
+        XCTAssertEqual(sent.map(\.method.rawValue), ["PUT"])
+        XCTAssertEqual(sent.first?.path, "/v1/feed/comments/c-1/reactions/%F0%9F%98%82")
+        XCTAssertNil(model.optimistic[comment])
+    }
+
+    func testACommentRemoveSendsADeleteToTheCommentRoute() async throws {
+        let comment = ReactionTarget.comment("c-1")
+        let transport = StubTransport(scripted: [try summary([("😂", 1, false)], total: 1)])
+        let model = ReactionsModel(api: CommentsTestSupport.api(transport), clock: TestClock())
+
+        let reconciled = await model.toggle(
+            "😂", on: comment, current: [Reaction(emoji: "😂", count: 2, mine: true)])
+
+        XCTAssertEqual(reconciled, [Reaction(emoji: "😂", count: 1, mine: false)])
+        let sent = await transport.sent
+        XCTAssertEqual(sent.map(\.method.rawValue), ["DELETE"])
+        XCTAssertEqual(sent.first?.path, "/v1/feed/comments/c-1/reactions/%F0%9F%98%82")
+    }
+
+    func testACommentFailureRollsBackAndSetsAToast() async throws {
+        let comment = ReactionTarget.comment("c-1")
+        let transport = StubTransport(scripted: [.failure(URLError(.notConnectedToInternet))])
+        let model = ReactionsModel(api: CommentsTestSupport.api(transport), clock: TestClock())
+
+        let result = await model.toggle("🎉", on: comment, current: base)
+
+        XCTAssertEqual(result, base)
+        XCTAssertNil(model.optimistic[comment])
+        XCTAssertEqual(model.notice, "You're offline. Try again.")
+    }
+
+    func testACommentAndAPostWithTheSameIDKeepApartOptimisticState() async throws {
+        let transport = StubTransport(scripted: [try summary([("🎉", 1, true)], total: 1)])
+        let model = ReactionsModel(api: CommentsTestSupport.api(transport), clock: TestClock())
+
+        _ = await model.toggle("🎉", on: .comment("same"), current: [])
+
+        XCTAssertNil(model.optimistic[.feedItem("same")])
+        XCTAssertEqual(model.reactions(for: .feedItem("same"), fallback: base), base)
+    }
+
     private func summary(_ rows: [(String, Int32, Bool)], total: Int32) throws -> StubTransport.Reply {
         let reactions = rows.map { Reaction(emoji: $0.0, count: $0.1, mine: $0.2) }
         return .json(

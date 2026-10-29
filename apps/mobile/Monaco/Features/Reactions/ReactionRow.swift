@@ -8,6 +8,7 @@ struct ReactionRow<Trailing: View>: View {
     let target: ReactionTarget
     let reactions: [Components.Schemas.Reaction]
     let showsAdd: Bool
+    let size: MonacoReactionChip.Size
     let onToggle: (String) -> Void
     let onOpenTray: () -> Void
     let trailing: () -> Trailing
@@ -19,6 +20,7 @@ struct ReactionRow<Trailing: View>: View {
         target: ReactionTarget,
         reactions: [Components.Schemas.Reaction],
         showsAdd: Bool = true,
+        size: MonacoReactionChip.Size = .regular,
         startsOpen: Bool = false,
         onToggle: @escaping (String) -> Void, onOpenTray: @escaping () -> Void = {},
         @ViewBuilder trailing: @escaping () -> Trailing
@@ -26,6 +28,7 @@ struct ReactionRow<Trailing: View>: View {
         self.target = target
         self.reactions = reactions
         self.showsAdd = showsAdd
+        self.size = size
         self.onToggle = onToggle
         self.onOpenTray = onOpenTray
         self.trailing = trailing
@@ -57,13 +60,15 @@ struct ReactionRow<Trailing: View>: View {
             ForEach(Self.chips(for: reactions, limit: limit)) { chip in
                 switch chip {
                 case .emoji(let reaction):
-                    MonacoReactionChip(emoji: reaction.emoji, count: Int(reaction.count), mine: reaction.mine) {
+                    MonacoReactionChip(
+                        emoji: reaction.emoji, count: Int(reaction.count), mine: reaction.mine, size: size
+                    ) {
                         Haptics.selection()
                         onToggle(reaction.emoji)
                     }
                     .accessibilityIdentifier("reaction-chip-\(target.key)-\(reaction.emoji.reactionHex)")
                 case .more(let count):
-                    MonacoReactionChip.more(count, action: openTray)
+                    MonacoReactionChip.more(count, size: size, action: openTray)
                         .accessibilityIdentifier("reaction-more-\(target.key)")
                 }
             }

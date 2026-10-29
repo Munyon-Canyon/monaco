@@ -62,24 +62,31 @@ public final class ReactionsModel {
     private func send(
         _ emoji: String, adding: Bool, on target: ReactionTarget, submission: IdempotentSubmission
     ) async throws -> Components.Schemas.ReactionSummary {
-        let id: String
-        switch target {
-        case .feedItem(let feedID): id = feedID
-        case .comment: preconditionFailure("#6541")
-        }
-        let operation = adding ? "putFeedReaction" : "deleteFeedReaction"
+        let id = target.id
+        let isComment: Bool
+        if case .comment = target { isComment = true } else { isComment = false }
+        let operation = (adding ? "put" : "delete") + (isComment ? "CommentReaction" : "FeedReaction")
         let api = api
         let call: @Sendable () async throws -> Components.Schemas.ReactionSummary = {
             try await api.submit(submission, payload: emoji, operation: operation) { client, key in
-                if adding {
+                switch (isComment, adding) {
+                case (false, true):
                     return try await client.putFeedReaction(
                         path: .init(id: id, emoji: emoji), headers: .init(idempotencyKey: key)
                     ).ok.body.json
+                case (false, false):
+                    return try await client.deleteFeedReaction(
+                        path: .init(id: id, emoji: emoji), headers: .init(idempotencyKey: key)
+                    ).ok.body.json
+                case (true, true):
+                    return try await client.putCommentReaction(
+                        path: .init(commentId: id, emoji: emoji), headers: .init(idempotencyKey: key)
+                    ).ok.body.json
+                case (true, false):
+                    return try await client.deleteCommentReaction(
+                        path: .init(commentId: id, emoji: emoji), headers: .init(idempotencyKey: key)
+                    ).ok.body.json
                 }
-                return try await client.deleteFeedReaction(
-                    path: .init(id: id, emoji: emoji),
-                    headers: .init(idempotencyKey: key)
-                ).ok.body.json
             }
         }
         return try await Self.retryingPending(clock: clock, call)
@@ -141,11 +148,15 @@ private final class ReactionsSampleTransport: ClientTransport, Sendable {
     ) async throws -> (HTTPResponse, HTTPBody?) {
         if fails { throw URLError(.notConnectedToInternet) }
         let parts = (request.path ?? "").split(separator: "/").map(String.init)
-        guard parts.count == 5, let emoji = parts[4].removingPercentEncoding else { throw URLError(.badURL) }
-        let adding = operationID == "putFeedReaction"
+        let isComment = parts.count == 6
+        guard parts.count == 5 || isComment, let emoji = parts[parts.count - 1].removingPercentEncoding else {
+            throw URLError(.badURL)
+        }
+        let id = parts[isComment ? 3 : 2]
+        let adding = operationID.hasPrefix("put")
         let reactions = state.withLock { all -> [Components.Schemas.Reaction] in
-            let next = ReactionsModel.applying(emoji, adding: adding, to: all[parts[2]] ?? [])
-            all[parts[2]] = next
+            let next = ReactionsModel.applying(emoji, adding: adding, to: all[id] ?? [])
+            all[id] = next
             return next
         }
         let summary = Components.Schemas.ReactionSummary(

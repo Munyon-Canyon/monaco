@@ -5,17 +5,20 @@ import UIKit
 
 struct CommentThreadView: View {
     let model: CommentsModel
+    @Environment(\.sectionScrollProxy) private var scroll
     @State private var deleting: CommentThreadRow?
     @State private var reporting: ReportTarget?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if model.phase != .empty {
-                MonacoSectionHeader(CommentsCopy.title)
+                MonacoSectionHeader(CommentsCopy.title, count: model.commentCount)
+                    .secondaryCount()
                     .padding(.horizontal, MonacoTheme.Space.gutter)
             }
             content
         }
+        .task(id: model.scrollRequest) { await scrollToRequest() }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("comment-thread")
         .commentNotices(model)
@@ -57,15 +60,16 @@ struct CommentThreadView: View {
 
     private var loaded: some View {
         LazyVStack(alignment: .leading, spacing: 0) {
-            ForEach(model.rows) { row in
-                CommentRow(
-                    row: row,
-                    onReply: { model.presentReplySheet(.comment(row)) },
-                    onDelete: row.comment.isMine && !row.isDeleted ? { deleting = row } : nil,
-                    onReport: !row.comment.isMine && !row.isDeleted
-                        ? { reporting = ReportTarget(kind: .comment, targetID: row.id) } : nil
-                )
-                .id(row.id)
+            ForEach(model.entries) { entry in
+                switch entry {
+                case .row(let row):
+                    commentRow(row)
+                case .fold(let rootID, let count, let isExpanded):
+                    CommentFoldButton(rootID: rootID, count: count, isExpanded: isExpanded) {
+                        if isExpanded { model.collapse(rootID: rootID) } else { model.expand(rootID: rootID) }
+                    }
+                    .id(entry.id)
+                }
             }
             if model.isLoadingMore {
                 CommentSkeleton(rows: 1)
@@ -76,6 +80,58 @@ struct CommentThreadView: View {
             }
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+extension CommentThreadView {
+    fileprivate func commentRow(_ row: CommentThreadRow) -> some View {
+        CommentRow(
+            row: row,
+            reactions: model.reactions(for: row),
+            isHighlighted: model.highlightedID == row.id,
+            onReply: { model.presentReplySheet(.comment(row)) },
+            onToggleReaction: { emoji in Task { await model.react(emoji, to: row) } },
+            onDoubleTap: { Task { await model.doubleTap(row) } },
+            onJump: { model.jump(to: $0) },
+            onDelete: row.comment.isMine && !row.isDeleted ? { deleting = row } : nil,
+            onReport: !row.comment.isMine && !row.isDeleted && !row.isSystem
+                ? { reporting = ReportTarget(kind: .comment, targetID: row.id) } : nil
+        )
+        .id(row.id)
+    }
+
+    fileprivate func scrollToRequest() async {
+        guard let request = model.scrollRequest else { return }
+        await Task.yield()
+        withAnimation { scroll?.scrollTo(request.id, anchor: .center) }
+    }
+}
+
+private struct CommentFoldButton: View {
+    let rootID: String
+    let count: Int
+    let isExpanded: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: MonacoTheme.Space.s) {
+                Text(isExpanded ? CommentsCopy.hideReplies : CommentsCopy.viewReplies(count))
+                    .font(MonacoTheme.Typo.headline)
+                Image(monaco: .chevronDown)
+                    .font(MonacoTheme.Typo.caption)
+                    .rotationEffect(.degrees(isExpanded ? 180 : 0))
+            }
+            .foregroundStyle(MonacoTheme.brand)
+            .frame(minHeight: CommentRowMetrics.replyTarget, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, CommentThreadLayout.textLeading(level: isExpanded ? 1 : 0))
+        .padding(.trailing, MonacoTheme.Space.gutter)
+        .accessibilityLabel(isExpanded ? CommentsCopy.hideReplies : CommentsCopy.viewReplies(count))
+        .accessibilityIdentifier("comment-fold-\(rootID)")
     }
 }
 
@@ -101,192 +157,6 @@ private struct CommentSkeleton: View {
     }
 }
 
-enum CommentThreadLayout {
-    static let avatarSize: CGFloat = MonacoAvatarSize.comment.rawValue
-    static let indentWidth: CGFloat = avatarSize + MonacoTheme.Space.sm
-
-    static func avatarLeading(level: Int) -> CGFloat {
-        MonacoTheme.Space.gutter + CGFloat(max(level, 0)) * indentWidth
-    }
-
-    static func textLeading(level: Int) -> CGFloat {
-        avatarLeading(level: level) + avatarSize + MonacoTheme.Space.sm
-    }
-}
-
-enum CommentRowMetrics {
-    static let replyTarget: CGFloat = 44
-
-    static func replyOverhang(lineHeight: CGFloat) -> CGFloat {
-        max(0, (replyTarget - lineHeight) / 2)
-    }
-
-    static func nameSlop(overhang: CGFloat) -> CGFloat {
-        overhang > 0 ? 0 : MonacoTheme.Space.s
-    }
-}
-
-struct CommentRow: View {
-    let row: CommentThreadRow
-    let onReply: () -> Void
-    var onDelete: (() -> Void)?
-    var onReport: (() -> Void)?
-
-    @ScaledMetric(relativeTo: .callout) private var nameLineHeight: CGFloat = 20
-
-    private var level: Int { row.indentLevel }
-
-    private var hasGif: Bool {
-        if case .gif? = row.comment.attachment { return true }
-        return false
-    }
-
-    private var authorReturn: FeedReturnFacts? {
-        FeedReturnFacts(FeedFigureFormat.authorReturn(row.comment.author))
-    }
-
-    private var time: String {
-        RelativeTimeFormatter.label(date: row.comment.createdAt, now: Date())
-    }
-
-    var body: some View {
-        HStack(alignment: .top, spacing: MonacoTheme.Space.sm) {
-            authorLink(
-                identifier: "comment-avatar-\(row.id)", height: CommentThreadLayout.avatarSize,
-                widthOverhang: CommentRowMetrics.replyTarget - CommentThreadLayout.avatarSize
-            ) {
-                MonacoAvatar(
-                    photoURL: row.comment.author.photoUrl, displayName: row.authorName,
-                    size: CommentThreadLayout.avatarSize, seed: row.authorID)
-            }
-            .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                byline
-                if row.comment.body != nil || !hasGif {
-                    Text(bodyText)
-                        .font(MonacoTheme.Typo.subhead)
-                        .foregroundStyle(row.isDeleted ? MonacoTheme.secondaryText : MonacoTheme.bodyText)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("comment-body-\(row.id)")
-                        .monacoPrivate()
-                }
-                if let attachment = row.comment.attachment {
-                    AttachmentBubble(commentID: row.id, attachment: attachment)
-                }
-                if !row.isDeleted { replyButton }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.leading, CommentThreadLayout.avatarLeading(level: level))
-        .padding(.trailing, MonacoTheme.Space.gutter)
-        .padding(.top, MonacoTheme.Space.s)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-        .contextMenu {
-            Button("Copy") { UIPasteboard.general.string = row.text }
-                .accessibilityIdentifier("comment-copy-\(row.id)")
-            if let onReport {
-                Button(action: onReport) {
-                    Label("Report", systemImage: "exclamationmark.bubble")
-                }
-                .accessibilityIdentifier("comment-report-\(row.id)")
-            }
-            if let onDelete {
-                Button(CommentsCopy.delete, role: .destructive, action: onDelete)
-                    .accessibilityIdentifier("comment-delete-\(row.id)")
-            }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("comment-row-\(row.id)")
-    }
-
-    private var byline: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
-                nameLink
-                authorReturnPill
-                timeLabel
-            }
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                nameLink
-                authorReturnPill
-                timeLabel
-            }
-        }
-    }
-
-    private var nameLink: some View {
-        authorLink(identifier: "comment-author-\(row.id)", height: nameLineHeight) {
-            Text(row.authorName)
-                .font(MonacoTheme.Typo.subheadStrong)
-                .foregroundStyle(MonacoTheme.primaryText)
-                .lineLimit(1)
-                .monacoPrivate()
-        }
-    }
-
-    @ViewBuilder private var authorReturnPill: some View {
-        if let authorReturn { FeedReturnPill(facts: authorReturn) }
-    }
-
-    private var timeLabel: some View {
-        Text(time)
-            .font(MonacoTheme.Typo.caption)
-            .foregroundStyle(MonacoTheme.secondaryText)
-            .fixedSize()
-    }
-
-    private var bodyText: AttributedString {
-        var text = AttributedString(row.text)
-        if let handle = row.replyToHandle {
-            var mention = AttributedString("@\(handle) ")
-            mention.foregroundColor = MonacoTheme.secondaryText
-            text = mention + text
-        }
-        return text
-    }
-
-    @ViewBuilder private func authorLink(
-        identifier: String, height: CGFloat, widthOverhang: CGFloat = 0, @ViewBuilder label: () -> some View
-    ) -> some View {
-        if row.opensAuthorProfile {
-            NavigationLink(value: AnyAppRoute(UserProfileRoute(userID: row.authorID))) {
-                label()
-                    .padding(.horizontal, CommentRowMetrics.nameSlop(overhang: widthOverhang))
-                    .frame(
-                        minWidth: widthOverhang > 0 ? CommentRowMetrics.replyTarget : nil,
-                        minHeight: CommentRowMetrics.replyTarget, alignment: .leading
-                    )
-                    .contentShape(Rectangle())
-                    .padding(.horizontal, -CommentRowMetrics.nameSlop(overhang: widthOverhang))
-            }
-            .buttonStyle(.plain)
-            .padding(.vertical, -CommentRowMetrics.replyOverhang(lineHeight: height))
-            .padding(.trailing, -widthOverhang)
-            .accessibilityIdentifier(identifier)
-        } else {
-            label()
-        }
-    }
-
-    private var replyButton: some View {
-        Button(action: onReply) {
-            Text(CommentsCopy.reply)
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.brand)
-                .frame(
-                    minWidth: CommentRowMetrics.replyTarget, minHeight: CommentRowMetrics.replyTarget,
-                    alignment: .leading
-                )
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .padding(.top, MonacoTheme.Space.xs)
-        .accessibilityLabel(CommentsCopy.reply)
-        .accessibilityIdentifier("comment-reply-\(row.id)")
-    }
-}
-
 extension View {
     func commentNotices(_ model: CommentsModel) -> some View {
         modifier(CommentNotices(model: model))
@@ -298,12 +168,16 @@ private struct CommentNotices: ViewModifier {
     @Environment(ToastCenter.self) private var toasts
 
     func body(content: Content) -> some View {
-        content.onChange(of: model.noticeTick) { _, _ in
-            switch model.notice {
-            case .failure(let error): toasts.show(error)
-            case .deleted: toasts.show(success: CommentsCopy.deleted)
-            case nil: break
+        content
+            .onChange(of: model.noticeTick) { _, _ in
+                switch model.notice {
+                case .failure(let error): toasts.show(error)
+                case .deleted: toasts.show(success: CommentsCopy.deleted)
+                case nil: break
+                }
             }
-        }
+            .onChange(of: model.reactionNoticeTick) { _, _ in
+                if let message = model.reactionNotice { toasts.current = MonacoToast(message: message) }
+            }
     }
 }

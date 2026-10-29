@@ -31,23 +31,36 @@ public final class CommentsModel {
     public private(set) var attachmentDraft: CommentAttachmentDraft?
     public private(set) var notice: Notice?
     public private(set) var noticeTick = 0
+    public internal(set) var expandedRoots: Set<String> = []
+    public internal(set) var highlightedID: String?
+    public internal(set) var scrollRequest: ScrollRequest?
+
+    public struct ScrollRequest: Equatable, Sendable {
+        public let id: String
+        public let tick: Int
+    }
+
+    public static let highlightDuration: Duration = .milliseconds(1200)
 
     private let source: any CommentsSource
     private let hints: any HintSource
-    private let clock: any Clock<Duration>
+    let clock: any Clock<Duration>
     private let onPosted: (@MainActor () -> Void)?
-    private let pager: CursorPager<Components.Schemas.CommentThread>
+    let reactions: ReactionsModel?
+    @ObservationIgnored var highlightTask: Task<Void, Never>?
+    let pager: CursorPager<Components.Schemas.CommentThread>
     @ObservationIgnored private let postSubmission = IdempotentSubmission()
     @ObservationIgnored private var deleteSubmissions: [String: IdempotentSubmission] = [:]
     @ObservationIgnored private lazy var refresher = HintRefresher { [weak self] in await self?.refresh() }
 
     public init(
         source: any CommentsSource, hints: any HintSource, clock: any Clock<Duration>,
-        onPosted: (@MainActor () -> Void)? = nil
+        reactions: ReactionsModel? = nil, onPosted: (@MainActor () -> Void)? = nil
     ) {
         self.source = source
         self.hints = hints
         self.clock = clock
+        self.reactions = reactions
         self.onPosted = onPosted
         pager = CursorPager { cursor in
             let page = try await Self.retryingPending(clock: clock) { try await source.list(cursor: cursor) }
@@ -61,12 +74,10 @@ public final class CommentsModel {
     ) -> CommentsModel {
         CommentsModel(
             source: FeedCommentsSource(itemID: item.threadItemId, api: api), hints: hints, clock: clock,
-            onPosted: onPosted)
+            reactions: ReactionsModel(api: api, clock: clock), onPosted: onPosted)
     }
 
     public var rows: [CommentThreadRow] { CommentThreadRow.rows(from: pager.items) }
-
-    public var commentCount: Int { rows.filter { !$0.isDeleted }.count }
 
     public var hasMore: Bool { pager.phase != .exhausted && !pager.items.isEmpty }
 
@@ -171,6 +182,7 @@ public final class CommentsModel {
         attachmentDraft = nil
         self.draft = CommentDraft.field(self.draft, afterPosting: body ?? "")
         showPosted(created)
+        if let rootID = created.parentCommentId { expandedRoots.insert(rootID) }
         if case .post = target {} else { await refresh() }
         lastPostedID = created.id
         onPosted?()
@@ -262,6 +274,10 @@ public final class CommentsModel {
 extension Components.Schemas.Comment {
     fileprivate mutating func blank() {
         body = nil
+        attachment = nil
+        reactions = []
+        reactionCount = 0
         bodyDisplay = CommentsCopy.deleted
     }
+
 }
