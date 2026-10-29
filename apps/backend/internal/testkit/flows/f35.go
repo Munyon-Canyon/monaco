@@ -91,7 +91,7 @@ func F35ClearItemCrashBeforeCommit(s *scenario.Scenario) {
 	s.Given(scenario.AsSeededUser("member", invite.member)).
 		When(
 			scenario.Post(catchUpItems+invite.key+"/clear", ""),
-			catchUpStateEmpty(),
+			catchUpStateEmpty(invite.member),
 			scenario.Retry(),
 			scenario.ExpectStatus(http.StatusNoContent),
 		).
@@ -101,11 +101,16 @@ func F35ClearItemCrashBeforeCommit(s *scenario.Scenario) {
 		)
 }
 
-func catchUpStateEmpty() scenario.Step {
+func catchUpStateEmpty(user ids.UserID) scenario.Step {
 	return func(s *scenario.Scenario) {
 		s.Helper()
 		var rows int
-		if err := s.DB().QueryRow(s.Context(), `SELECT count(*) FROM catch_up_state`).Scan(&rows); err != nil {
+		err := s.DB().QueryRow(
+			s.Context(),
+			`SELECT count(*) FROM catch_up_state WHERE user_id = $1`,
+			user.UUID(),
+		).Scan(&rows)
+		if err != nil {
 			s.Fatalf("flows: count catch up state: %v", err)
 		}
 		if rows != 0 {
