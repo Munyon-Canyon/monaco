@@ -9,21 +9,65 @@ struct CabalMemberLine: View {
     var chevron = false
     var isLast = false
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         let row = entry.row
         let name = CabalMemberCopy.name(row, viewerID: viewerID)
-        MonacoRow(
-            title: name, subtitle: subtitle, chevron: chevron, isLast: isLast, isPrivate: true,
-            leading: { CabalMemberPhoto(row: row, name: name) },
-            trailing: {
-                Text(CabalMemberCopy.share(basisPoints: row.ownershipBps))
-                    .font(MonacoTheme.Typo.rowTitle)
-                    .foregroundStyle(MonacoTheme.primaryText)
-                    .lineLimit(1)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                stacked(row: row, name: name)
+            } else {
+                MonacoRow(
+                    title: name, subtitle: subtitle, subtitleLineLimit: dynamicTypeSize >= .xxLarge ? 6 : 1,
+                    chevron: chevron, isLast: isLast, isPrivate: true,
+                    leading: { CabalMemberPhoto(row: row, name: name) },
+                    trailing: { share(row) }
+                )
             }
-        )
+        }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("cabal-member-\(row.userId)")
+    }
+
+    private func share(_ row: Components.Schemas.CabalMemberRow) -> some View {
+        Text(CabalMemberCopy.share(basisPoints: row.ownershipBps))
+            .font(MonacoTheme.Typo.rowTitle)
+            .foregroundStyle(MonacoTheme.primaryText)
+            .lineLimit(1)
+    }
+
+    private func stacked(row: Components.Schemas.CabalMemberRow, name: String) -> some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+            HStack(spacing: MonacoTheme.Space.sm) {
+                CabalMemberPhoto(row: row, name: name)
+                    .frame(width: MonacoRowLayout.baseMarkSize, height: MonacoRowLayout.baseMarkSize)
+                Text(name)
+                    .font(MonacoTheme.Typo.rowTitle)
+                    .foregroundStyle(MonacoTheme.primaryText)
+                    .lineLimit(2)
+                    .monacoPrivate(true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if chevron { MonacoRowChevron() }
+            }
+            share(row)
+            if !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .monacoPrivate(true)
+            }
+        }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.vertical, MonacoTheme.Space.s)
+        .frame(maxWidth: .infinity, minHeight: MonacoRowLayout.minHeight, alignment: .leading)
+        .contentShape(Rectangle())
+        .overlay(alignment: .bottom) {
+            if !isLast {
+                MonacoRule().padding(.horizontal, MonacoTheme.Space.gutter)
+            }
+        }
     }
 }
 
@@ -52,14 +96,16 @@ struct CabalMemberPhoto: View {
     let row: Components.Schemas.CabalMemberRow
     let name: String
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         MonacoAvatar(photoURL: row.photoUrl, displayName: name, size: MonacoRowLayout.baseMarkSize, seed: row.userId)
-            .overlay(alignment: .top) {
+            .overlay(alignment: dynamicTypeSize.isAccessibilitySize ? .topTrailing : .top) {
                 if row.crown {
                     Image(systemName: "crown.fill")
                         .font(MonacoTheme.Typo.captionStrong)
                         .foregroundStyle(MonacoTheme.goldGlyph)
-                        .offset(y: -MonacoTheme.Space.s)
+                        .offset(y: dynamicTypeSize.isAccessibilitySize ? 0 : -MonacoTheme.Space.s)
                         .accessibilityLabel("Month leader")
                         .accessibilityIdentifier("cabal-member-crown-\(row.userId)")
                 }

@@ -267,6 +267,7 @@ struct CabalTreasuryActions: View {
     let open: (any AppRoute) -> Void
 
     @State private var showsChooser = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -333,18 +334,27 @@ struct CabalTreasuryActions: View {
             Haptics.selection()
             open(CabalTreasuryHistoryRoute(cabalID: cabalID))
         } label: {
-            MonacoRow(
-                title: CabalTreasuryRows.historyLabel, chevron: true, isLast: true,
-                leading: { icon(MonacoIcon.clock.symbol) },
-                trailing: {
-                    if let history {
-                        Text(history)
-                            .font(MonacoTheme.Typo.rowTitle)
-                            .foregroundStyle(MonacoTheme.secondaryText)
-                            .lineLimit(1)
+            if dynamicTypeSize >= .xxxLarge {
+                MonacoRow(
+                    title: CabalTreasuryRows.historyLabel, subtitle: history, subtitleLineLimit: 6, chevron: true,
+                    isLast: true,
+                    leading: { icon(MonacoIcon.clock.symbol) },
+                    trailing: { EmptyView() }
+                )
+            } else {
+                MonacoRow(
+                    title: CabalTreasuryRows.historyLabel, chevron: true, isLast: true,
+                    leading: { icon(MonacoIcon.clock.symbol) },
+                    trailing: {
+                        if let history {
+                            Text(history)
+                                .font(MonacoTheme.Typo.rowTitle)
+                                .foregroundStyle(MonacoTheme.secondaryText)
+                                .lineLimit(1)
+                        }
                     }
-                }
-            )
+                )
+            }
         }
         .buttonStyle(.monacoRow)
         .accessibilityIdentifier("cabal-treasury-history")
