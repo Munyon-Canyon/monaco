@@ -26,6 +26,7 @@ public struct AnalyticsStep: Hashable, Sendable {
     public static func catchUp(_ step: CatchUp) -> AnalyticsStep { AnalyticsStep(step) }
     public static func ledger(_ step: Ledger) -> AnalyticsStep { AnalyticsStep(step) }
     public static func fullLedger(_ step: FullLedger) -> AnalyticsStep { AnalyticsStep(step) }
+    public static func leaderboard(_ step: Leaderboard) -> AnalyticsStep { AnalyticsStep(step) }
 
     public static var all: [AnalyticsStep] {
         Onboarding.allCases.map(AnalyticsStep.init) + CryptoDeposit.allCases.map(AnalyticsStep.init)
@@ -35,7 +36,7 @@ public struct AnalyticsStep: Hashable, Sendable {
             + Feed.allCases.map(AnalyticsStep.init) + Social.allCases.map(AnalyticsStep.init)
             + Chat.allCases.map(AnalyticsStep.init) + Referral.allCases.map(AnalyticsStep.init)
             + CatchUp.allCases.map(AnalyticsStep.init) + Ledger.allCases.map(AnalyticsStep.init)
-            + FullLedger.allCases.map(AnalyticsStep.init)
+            + FullLedger.allCases.map(AnalyticsStep.init) + Leaderboard.allCases.map(AnalyticsStep.init)
     }
 
     public enum Onboarding: String, AnalyticsStepName {
@@ -155,5 +156,12 @@ public struct AnalyticsStep: Hashable, Sendable {
     public enum FullLedger: String, AnalyticsStepName {
         case opened
         public static var flow: AnalyticsFlow { .fullLedger }
+    }
+
+    public enum Leaderboard: String, AnalyticsStepName {
+        case tabSelected = "tab_selected"
+        case periodSelected = "period_selected"
+        case infoOpened = "info_opened"
+        public static var flow: AnalyticsFlow { .leaderboard }
     }
 }

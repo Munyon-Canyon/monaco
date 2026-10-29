@@ -23,3 +23,4 @@ Dated record of changes to [analytics-admin.md](../analytics-admin.md). Add one 
 - 2026-10-20: Session replay is on in staging builds, masked by default with explicit masks on money and identity views, and off in production until the founder enables it (#5800).
 - 2026-10-28: Vote flow: added the app step `vote_undone`, tracked when a member taps Undo on the vote toast. The server's `vote_retracted` stays the authoritative event (#6506).
 - 2026-10-29: Catch up flow: added the app steps `catch_up_cleared`, `catch_up_opened_item` and `catch_up_open_feed`; the first two carry the item `kind` (#6566).
+- 2026-10-29: Added the Leaderboard flow to the client steps: `tab_selected`, `period_selected` and `info_opened` (#6499).

@@ -16,6 +16,7 @@ enum CallBoardRoutes {
 struct CallBoardRows: View {
     let rows: [CallBoardRowValue]
     var bandID: String?
+    var onLastAppear: () -> Void = {}
 
     var body: some View {
         VStack(spacing: 0) {
@@ -34,6 +35,7 @@ struct CallBoardRows: View {
                 .accessibilityLabel(row.spoken)
                 .accessibilityAddTraits(.isButton)
                 .accessibilityIdentifier("leaderboard-row-\(row.id)")
+                .onAppear { if row.id == rows.last?.id { onLastAppear() } }
             }
         }
     }

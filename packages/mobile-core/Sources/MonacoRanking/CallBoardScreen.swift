@@ -157,8 +157,11 @@ public struct CallBoardScreen: Equatable, Sendable {
     public let periodTitle: String
     public let periodRange: String?
     public let card: CallBoardCard?
+    public let tab: CallBoardTab
+    public let podiumTitle: String
     public let top: [CallBoardRowValue]
-    public let around: [CallBoardRowValue]
+    public private(set) var around: [CallBoardRowValue]
+    public private(set) var afterCursor: String?
     public let unrankedCard: CallBoardUnrankedCard?
     public let unrankedRows: [CallBoardRowValue]
     public let aroundTitle: String
@@ -181,12 +184,15 @@ public struct CallBoardScreen: Equatable, Sendable {
         let tab = CallBoardTab(
             board: board.board == .cabals ? .cabals : .people, filter: board.filter == .friends ? .friends : .all)
         self.period = period
+        self.tab = tab
+        podiumTitle = CallBoardCopy.podiumTitle(tab)
+        afterCursor = board.around.afterCursor
         periodTitle = CallBoardCopy.periodTitle(period)
         periodRange = CallBoardCopy.periodRange(board.period)
         top = board.top.map(CallBoardRowValue.init)
         around = board.around.rows.map(CallBoardRowValue.init)
         unrankedRows = board.unranked.map(CallBoardRowValue.init)
-        emptyMessage = CallBoardCopy.emptyMessage(period)
+        emptyMessage = CallBoardCopy.emptyMessage(period, tab: tab)
         moment = board.leadChange.map {
             CallBoardMoment($0, seenKey: "\(board.board.rawValue).\(board.filter.rawValue).\(period.rawValue)")
         }
@@ -244,5 +250,13 @@ public struct CallBoardScreen: Equatable, Sendable {
                         tab: tab)
                 })
         }
+    }
+
+    func appending(_ page: Components.Schemas.CallBoard) -> CallBoardScreen {
+        var next = self
+        let known = Set(around.map(\.id))
+        next.around += page.around.rows.map(CallBoardRowValue.init).filter { !known.contains($0.id) }
+        next.afterCursor = page.around.afterCursor
+        return next
     }
 }

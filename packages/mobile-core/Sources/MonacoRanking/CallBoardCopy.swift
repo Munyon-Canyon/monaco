@@ -4,6 +4,7 @@ import MonacoAPI
 public enum CallBoardCopy {
     public static let title = "Leaderboard"
     public static let topThree = "Top three"
+    public static let topFriends = "Top of your friends"
     public static let aroundYou = "Around you"
     public static let loadingLabel = "Loading the leaderboard"
     public static let errorTitle = "Can't load the leaderboard"
@@ -75,6 +76,15 @@ public enum CallBoardCopy {
         "\(isViewer ? "\(name), you" : name), not ranked yet, \(resolved) resolved, \(needed) more to rank."
     }
 
+    public static let infoTitle = "How the board works"
+    public static let infoLines = [
+        "A vote is a call. Yes on a buy is right if the stock is up a day after the vote closes; No is right if it isn't. Sells are the other way round.",
+        "Your rate is right calls out of resolved votes in the period.",
+        "Five resolved votes to rank.",
+        "Turnout is how many of your cabals' votes you cast.",
+        "Cabals rank on their decisions: passing a buy is the cabal's Yes.",
+    ]
+
     public static func tabLabel(_ tab: CallBoardTab) -> String {
         switch tab {
         case .people: "People"
@@ -112,12 +122,15 @@ public enum CallBoardCopy {
         }
     }
 
-    public static func emptyMessage(_ period: CallPeriod) -> String {
+    public static func emptyMessage(_ period: CallPeriod, tab: CallBoardTab) -> String {
+        let who = tab == .friends ? "None of your friends has" : "No one has"
         switch period {
-        case .all: "No one has five resolved votes yet."
-        case .week, .month: "No one has five resolved votes yet \(periodWord(period))."
+        case .all: return "\(who) five resolved votes yet."
+        case .week, .month: return "\(who) five resolved votes yet \(periodWord(period))."
         }
     }
+
+    public static func podiumTitle(_ tab: CallBoardTab) -> String { tab == .friends ? topFriends : topThree }
 
     public static func rankText(_ rank: Int) -> String { "#\(rank)" }
 

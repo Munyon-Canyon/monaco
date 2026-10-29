@@ -122,6 +122,124 @@ final class CallBoardModelTests: XCTestCase {
         XCTAssertTrue(arrived)
     }
 
+    private func staleCursor() throws -> StubTransport.Reply {
+        try .problem(
+            Components.Schemas.Problem(
+                _type: .about_colon_blank, title: "Conflict", status: 409, code: .cursorStale,
+                message: "That page is out of date.", traceId: "4bf92f3577b34da6a3ce929d0e0e4736", retryable: true))
+    }
+
+    func testLoadMoreFollowsTheCursorOnceWithNoDuplicateOrMissingRank() async throws {
+        let (model, transport) = make([try Self.body(.peopleMonth), try Self.body(.peopleMonthPage2)])
+        await model.load()
+
+        await model.loadMore()
+        await model.loadMore()
+
+        guard case .loaded(let screen) = model.state else { return XCTFail("not loaded") }
+        XCTAssertEqual(screen.around.compactMap(\.rank), [6, 7, 8, 9, 10, 11, 12] + Array(13...24))
+        XCTAssertNil(screen.afterCursor)
+        let paths = await transport.sent.compactMap(\.path)
+        XCTAssertEqual(paths.count, 2, paths.description)
+        XCTAssertTrue(paths[1].contains("cursor=cursor-page-2"), paths[1])
+    }
+
+    func testLoadMoreBeforeALoadOrWithoutACursorSendsNothing() async throws {
+        let (model, transport) = make([try Self.body(.friendsMonth)])
+        await model.loadMore()
+        await model.load()
+        await model.loadMore()
+
+        let count = await getCount(transport)
+        XCTAssertEqual(count, 1)
+    }
+
+    func testAStaleCursorReloadsTheCurrentBoardOnce() async throws {
+        let (model, transport) = make([try Self.body(.peopleMonth), try staleCursor(), try Self.body(.peopleMonth)])
+        await model.load()
+
+        await model.loadMore()
+
+        guard case .loaded(let screen) = model.state else { return XCTFail("not loaded") }
+        XCTAssertEqual(screen, CallBoardScreen(.peopleMonth))
+        let paths = await transport.sent.compactMap(\.path)
+        XCTAssertEqual(paths.count, 3, paths.description)
+        XCTAssertFalse(paths[2].contains("cursor="))
+    }
+
+    func testAnotherPagingFailureKeepsTheRowsAndTheCursor() async throws {
+        let (model, transport) = make([
+            try Self.body(.peopleMonth), .failure(URLError(.notConnectedToInternet)), try Self.body(.peopleMonthPage2),
+        ])
+        await model.load()
+
+        await model.loadMore()
+        guard case .loaded(let kept) = model.state else { return XCTFail("not loaded") }
+        XCTAssertEqual(kept, CallBoardScreen(.peopleMonth))
+
+        await model.loadMore()
+        guard case .loaded(let full) = model.state else { return XCTFail("not loaded") }
+        XCTAssertEqual(full.around.count, 19)
+        let count = await getCount(transport)
+        XCTAssertEqual(count, 3)
+    }
+
+    func testAPagingReadInFlightBlocksAnotherAndIsDroppedWhenTheTabChanges() async throws {
+        let (model, transport) = make([
+            try Self.body(.peopleMonth), .gate, try Self.body(.friendsMonth),
+        ])
+        await model.load()
+
+        let paging = Task { await model.loadMore() }
+        await transport.waitForRequests(2)
+        await model.loadMore()
+        var sent = await getCount(transport)
+        XCTAssertEqual(sent, 2)
+
+        await model.select(tab: .friends)
+        await transport.releaseGate(try Self.body(.peopleMonthPage2))
+        await paging.value
+
+        guard case .loaded(let screen) = model.state else { return XCTFail("not loaded") }
+        XCTAssertEqual(screen.tab, .friends)
+        XCTAssertEqual(screen.around.count, 7)
+        sent = await getCount(transport)
+        XCTAssertEqual(sent, 3)
+    }
+
+    func testAPagingStaleCursorAfterATabChangeDoesNotReload() async throws {
+        let (model, transport) = make([
+            try Self.body(.peopleMonth), .gate, try Self.body(.friendsMonth),
+        ])
+        await model.load()
+
+        let paging = Task { await model.loadMore() }
+        await transport.waitForRequests(2)
+        await model.select(tab: .friends)
+        await transport.releaseGate(try staleCursor())
+        await paging.value
+
+        let sent = await getCount(transport)
+        XCTAssertEqual(sent, 3)
+    }
+
+    func testSwitchingPeopleAndFriendsMakesExactlyOneGetEach() async throws {
+        let (model, transport) = make([
+            try Self.body(.peopleMonth), try Self.body(.friendsMonth), try Self.body(.peopleMonth),
+        ])
+        await model.load()
+
+        await model.select(tab: .friends)
+        let afterFriends = await transport.sent.compactMap(\.path)
+        XCTAssertEqual(afterFriends.count, 2)
+        XCTAssertTrue(afterFriends[1].contains("filter=friends"))
+
+        await model.select(tab: .people)
+        let paths = await transport.sent.compactMap(\.path)
+        XCTAssertEqual(paths.count, 3)
+        XCTAssertTrue(paths[2].contains("filter=all"))
+    }
+
     #if DEBUG
     func testThePreviewModelHoldsTheStateItWasGiven() {
         let model = CallBoardModel.preview(state: .loaded(CallBoardScreen(.peopleMonth)), tab: .friends, period: .week)

@@ -1,4 +1,5 @@
 import MonacoAPI
+import MonacoAnalytics
 import MonacoCore
 import MonacoRanking
 import SwiftUI
@@ -17,6 +18,7 @@ struct LeaderboardView: View {
     @Environment(ToastCenter.self) private var toasts
     @State private var model: CallBoardModel?
     @State private var viewerRowVisible = true
+    @State private var showsInfo = false
 
     var body: some View {
         Group {
@@ -37,7 +39,19 @@ struct LeaderboardView: View {
                     placement: .toolbar
                 ) { dismiss() }
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                MonacoGlassButton(
+                    systemImage: "info.circle", accessibilityLabel: CallBoardCopy.infoLabel, style: .quiet,
+                    placement: .toolbar
+                ) {
+                    AppAnalytics.current.step(.leaderboard(.infoOpened))
+                    showsInfo = true
+                }
+                .accessibilityIdentifier("leaderboard-info")
+            }
         }
+        .sheet(isPresented: $showsInfo) { CallBoardInfoSheet() }
+        .analyticsScreen("leaderboard")
         .accessibilityIdentifier("leaderboard-page")
         .onAppear { model = model ?? preview ?? makeModel() }
         .task(id: model == nil) {
@@ -114,7 +128,9 @@ struct LeaderboardView: View {
                 )
                 .accessibilityIdentifier("leaderboard-empty")
             } else {
-                CallBoardBody(screen: screen, viewerRowVisible: $viewerRowVisible)
+                CallBoardBody(
+                    screen: screen, viewerRowVisible: $viewerRowVisible,
+                    onLastAppear: { Task { await model.loadMore() } })
             }
         }
     }
@@ -130,24 +146,37 @@ struct LeaderboardView: View {
     }
 
     private func periodBinding(_ model: CallBoardModel) -> Binding<CallPeriod> {
-        Binding(get: { model.period }, set: { period in Task { await model.select(period: period) } })
+        Binding(
+            get: { model.period },
+            set: { period in
+                AppAnalytics.current.step(
+                    .leaderboard(.periodSelected), properties: ["period": .string(period.rawValue)])
+                Task { await model.select(period: period) }
+            })
     }
 
     private func tabBinding(_ model: CallBoardModel) -> Binding<CallBoardTab> {
-        Binding(get: { model.tab }, set: { tab in Task { await model.select(tab: tab) } })
+        Binding(
+            get: { model.tab },
+            set: { tab in
+                AppAnalytics.current.step(.leaderboard(.tabSelected), properties: ["tab": .string(tab.rawValue)])
+                Task { await model.select(tab: tab) }
+            })
     }
 }
 
 struct CallBoardBody: View {
     let screen: CallBoardScreen
     @Binding var viewerRowVisible: Bool
+    private let onLastAppear: () -> Void
     @State private var showMoment: Bool
 
     private let seen = CallBoardSeenStore()
 
-    init(screen: CallBoardScreen, viewerRowVisible: Binding<Bool>) {
+    init(screen: CallBoardScreen, viewerRowVisible: Binding<Bool>, onLastAppear: @escaping () -> Void = {}) {
         self.screen = screen
         _viewerRowVisible = viewerRowVisible
+        self.onLastAppear = onLastAppear
         _showMoment = State(initialValue: screen.moment.map(CallBoardSeenStore().shouldShow) ?? false)
     }
 
@@ -166,7 +195,7 @@ struct CallBoardBody: View {
                 CallBoardUnrankedCardView(card: unranked)
             }
             if !screen.top.isEmpty {
-                CallBoardSectionTitle(text: CallBoardCopy.topThree)
+                CallBoardSectionTitle(text: screen.podiumTitle)
                 CallBoardPodium(rows: screen.top)
             }
             if !screen.around.isEmpty {
@@ -186,11 +215,14 @@ struct CallBoardBody: View {
     @ViewBuilder private var around: some View {
         if let mine = screen.card?.me, let index = screen.around.firstIndex(where: { $0.id == mine.id }) {
             CallBoardRows(rows: Array(screen.around[..<index]), bandID: screen.bandID)
-            CallBoardRows(rows: [screen.around[index]], bandID: screen.bandID)
-                .onScrollVisibilityChange { viewerRowVisible = $0 }
-            CallBoardRows(rows: Array(screen.around[(index + 1)...]), bandID: screen.bandID)
+            CallBoardRows(
+                rows: [screen.around[index]], bandID: screen.bandID,
+                onLastAppear: index == screen.around.count - 1 ? onLastAppear : {}
+            )
+            .onScrollVisibilityChange { viewerRowVisible = $0 }
+            CallBoardRows(rows: Array(screen.around[(index + 1)...]), bandID: screen.bandID, onLastAppear: onLastAppear)
         } else {
-            CallBoardRows(rows: screen.around, bandID: screen.bandID)
+            CallBoardRows(rows: screen.around, bandID: screen.bandID, onLastAppear: onLastAppear)
         }
     }
 }

@@ -24,7 +24,7 @@ struct CallBoardPodium: View {
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(row.spoken)
                 .accessibilityAddTraits(.isButton)
-                .accessibilityIdentifier("leaderboard-podium-\(row.id)")
+                .accessibilityIdentifier("leaderboard-podium-\(row.rank ?? 0)")
             }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)

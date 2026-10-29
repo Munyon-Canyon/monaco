@@ -125,8 +125,8 @@ final class CallBoardCopyTests: XCTestCase {
         XCTAssertTrue(empty.isEmpty)
         XCTAssertNil(empty.card)
         XCTAssertEqual(empty.emptyMessage, "No one has five resolved votes yet this month.")
-        XCTAssertEqual(CallBoardCopy.emptyMessage(.week), "No one has five resolved votes yet this week.")
-        XCTAssertEqual(CallBoardCopy.emptyMessage(.all), "No one has five resolved votes yet.")
+        XCTAssertEqual(CallBoardCopy.emptyMessage(.week, tab: .people), "No one has five resolved votes yet this week.")
+        XCTAssertEqual(CallBoardCopy.emptyMessage(.all, tab: .people), "No one has five resolved votes yet.")
         XCTAssertFalse(screen().isEmpty)
     }
 
@@ -240,5 +240,39 @@ final class CallBoardCopyTests: XCTestCase {
         XCTAssertTrue(card.subject.isCabal)
         XCTAssertEqual(CallBoardCopy.unrankedProgress(resolved: 3, needed: 2), "3 of 5 resolved votes · 2 more to rank")
         XCTAssertEqual(screen(.cabalsUnranked).aroundTitle, "Ranked")
+    }
+
+    func testFriendsCopyForTheFriendsMonthFixture() throws {
+        let friends = screen(.friendsMonth)
+        let card = try XCTUnwrap(friends.card)
+        XCTAssertEqual(friends.tab, .friends)
+        XCTAssertEqual(card.rankText, "#6")
+        XCTAssertEqual(card.ofLine, "of 10 friends")
+        XCTAssertEqual(card.neighbourLine, "Kai is #5")
+        XCTAssertEqual(card.gapLine, "One right call puts you past Kai.")
+        XCTAssertEqual(friends.podiumTitle, "Top of your friends")
+        XCTAssertEqual(screen().podiumTitle, "Top three")
+        XCTAssertEqual(friends.around.compactMap(\.rank), Array(4...10))
+        XCTAssertEqual(friends.around.first?.name, "Jordan")
+        XCTAssertEqual(friends.around.first?.record, "7 of 8 right")
+        XCTAssertNil(friends.afterCursor)
+    }
+
+    func testFriendsEmptyStateNamesFriendsForEveryPeriod() {
+        var board = Components.Schemas.CallBoard.empty
+        board.filter = .friends
+        XCTAssertEqual(
+            screen(board).emptyMessage, "None of your friends has five resolved votes yet this month.")
+        XCTAssertEqual(
+            CallBoardCopy.emptyMessage(.week, tab: .friends),
+            "None of your friends has five resolved votes yet this week.")
+        XCTAssertEqual(
+            CallBoardCopy.emptyMessage(.all, tab: .friends), "None of your friends has five resolved votes yet.")
+    }
+
+    func testTheInfoSheetHoldsTheFiveLines() {
+        XCTAssertEqual(CallBoardCopy.infoTitle, "How the board works")
+        XCTAssertEqual(CallBoardCopy.infoLines.count, 5)
+        XCTAssertEqual(CallBoardCopy.infoLines[2], "Five resolved votes to rank.")
     }
 }
