@@ -60,7 +60,8 @@ struct FShareChart: View {
             self.size = size
             let radius = FShareChart.discSize * scale / 2
             let calloutHeight = 22 * scale
-            let showsCallouts = size.height >= 100 * scale
+            let showsCallouts = size.height >= 48 * scale
+            let roomy = size.height >= 100 * scale
             let points = chart.points
             let times = points.map(\.time.timeIntervalSince1970) + chart.markers.map(\.time.timeIntervalSince1970)
             let prices = points.map(\.priceMicros) + chart.markers.map(\.priceMicros)
@@ -72,8 +73,8 @@ struct FShareChart: View {
                 discs = []
                 return
             }
-            let top = (showsCallouts ? calloutHeight : 0) + radius + 4 * scale
-            let bottom = top
+            let top = (roomy ? calloutHeight : 0) + radius + 4 * scale
+            let bottom = roomy ? top : 4 * scale
             let spanT = max(maxT - minT, 1)
             let spanP = Double(max(maxP - minP, 1))
             let plotHeight = max(size.height - top - bottom, 1)
@@ -121,10 +122,13 @@ struct FShareChart: View {
         ) -> CGPoint {
             let above = kind == .sell || (fillsAbove && kind != .seal)
             var y = above ? disc.y - radius - height / 2 - 2 : disc.y + radius + height / 2 + 2
-            if y - height / 2 < 0 { y = disc.y + radius + height / 2 + 2 }
-            if y + height / 2 > size.height { y = disc.y - radius - height / 2 - 2 }
+            if size.height >= 100 * scale {
+                if y - height / 2 < 0 { y = disc.y + radius + height / 2 + 2 }
+                if y + height / 2 > size.height { y = disc.y - radius - height / 2 - 2 }
+            }
             let half = (CGFloat(text.count) * 6.4 + 24) * scale / 2
-            return CGPoint(x: min(max(disc.x, half), size.width - half), y: y)
+            let anchor = disc.x > size.width / 2 ? disc.x + radius - half : disc.x - radius + half
+            return CGPoint(x: min(max(anchor, half), size.width - half), y: y)
         }
     }
 }
