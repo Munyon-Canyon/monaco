@@ -50,4 +50,12 @@ final class CatchUpSampleHarnessEntry: SampleHarnessEntry {
         return AnyView(SampleAppFrame(auth: auth, tab: .home, routes: [CatchUpSampleRoute(scenario: scenario)]))
     }
 }
+
+final class CatchUpFlowHarnessEntry: SampleHarnessEntry {
+    @MainActor
+    override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
+        guard Flow34Scenario.matching(arguments) != nil else { return nil }
+        return AnyView(SampleAppFrame(auth: auth, tab: .home, routes: [CatchUpSampleRoute(scenario: .error)]))
+    }
+}
 #endif
