@@ -83,6 +83,47 @@ struct PushRouterTests {
         #expect(untouched(navigator, except: .feed))
     }
 
+    @Test func aReplyPushOnAProposalOpensTheProposalAnchoredAtTheReply() async {
+        let (router, navigator) = open(sessionOpen: true)
+        let destination = ReplyDestination(
+            feedItemID: feedItem, commentID: txn, proposalID: proposal, cabalID: cabal)
+
+        await tap(.reply(destination), on: router)
+
+        #expect(navigator.selectedTab == .cabals)
+        #expect(
+            navigator.cabalsPath == [
+                AnyAppRoute(CabalRoute(id: cabal)),
+                AnyAppRoute(ProposalRoute(proposalID: proposal, focus: .anchor(commentID: txn))),
+            ]
+        )
+        #expect(untouched(navigator, except: .cabals))
+    }
+
+    @Test func aReplyOnAProposalWithoutItsCabalOpensTheProposalAlone() async {
+        let (router, navigator) = open(sessionOpen: true)
+        let destination = ReplyDestination(feedItemID: feedItem, commentID: txn, proposalID: proposal, cabalID: nil)
+
+        await tap(.reply(destination), on: router)
+
+        #expect(
+            navigator.cabalsPath == [
+                AnyAppRoute(ProposalRoute(proposalID: proposal, focus: .anchor(commentID: txn)))
+            ]
+        )
+    }
+
+    @Test func aReplyPushOnAPostOpensThePostAnchoredAtTheReply() async {
+        let (router, navigator) = open(sessionOpen: true)
+        let destination = ReplyDestination(feedItemID: feedItem, commentID: txn, proposalID: nil, cabalID: cabal)
+
+        await tap(.reply(destination), on: router)
+
+        #expect(navigator.selectedTab == .feed)
+        #expect(navigator.feedPath == [AnyAppRoute(FeedItemRoute(itemID: feedItem, anchorCommentID: txn))])
+        #expect(untouched(navigator, except: .feed))
+    }
+
     @Test func aHomePushSelectsHomeAndPopsItsStackToTheRoot() async {
         let (router, navigator) = open(sessionOpen: true)
         navigator.open(UserProfileRoute(userID: user), in: .home)

@@ -8,6 +8,7 @@ public enum PushRoute: Equatable, Sendable {
     case proposal(proposalID: String, cabalID: String)
     case voteHold(proposalID: String, cabalID: String, pick: ProposalBallot)
     case feedItem(feedItemID: String)
+    case reply(ReplyDestination)
     case cabal(cabalID: String)
     case ledger(week: String)
     case home
@@ -17,6 +18,7 @@ public enum PushRoute: Equatable, Sendable {
         return payload.ledger
             ?? payload.profile
             ?? payload.chat
+            ?? payload.reply
             ?? payload.transaction
             ?? payload.proposal
             ?? payload.feedItem
@@ -33,6 +35,7 @@ private enum Key: String {
     case proposalID = "proposal_id"
     case txnID = "txn_id"
     case feedItemID = "feed_item_id"
+    case commentID = "comment_id"
     case week
 }
 
@@ -41,6 +44,7 @@ private enum Kind: String {
     case chatMention = "chat_mention"
     case chatThreadReply = "chat_thread_reply"
     case commentReply = "comment_reply"
+    case postReply = "post_reply"
     case weeklyLedger = "weekly_ledger"
 }
 
@@ -86,8 +90,18 @@ private struct Payload {
         return .proposal(proposalID: proposalID, cabalID: cabalID)
     }
 
+    var reply: PushRoute? {
+        guard kind == .commentReply || kind == .postReply, let feedItemID = id(.feedItemID),
+            let commentID = id(.commentID)
+        else { return nil }
+        return .reply(
+            ReplyDestination(
+                feedItemID: feedItemID, commentID: commentID, proposalID: id(.proposalID), cabalID: id(.cabalID)))
+    }
+
     var feedItem: PushRoute? {
-        guard kind == .commentReply, id(.proposalID) == nil, let feedItemID = id(.feedItemID) else { return nil }
+        guard kind == .commentReply || kind == .postReply, id(.proposalID) == nil, let feedItemID = id(.feedItemID)
+        else { return nil }
         return .feedItem(feedItemID: feedItemID)
     }
 

@@ -140,7 +140,9 @@ struct CatchUpView: View {
         case .waitingVote, .result:
             if let id = item.proposal?.id { environment.navigator.open(ProposalRoute(proposalID: id), in: .home) }
         case .reply, .mention:
-            if let id = item.proposal?.id {
+            if let destination = ReplyDestination(catchUpItem: item) {
+                environment.navigator.open(reply: destination)
+            } else if let id = item.proposal?.id {
                 environment.navigator.open(ProposalRoute(proposalID: id), in: .home)
             } else if let id = item.post?.feedItemId {
                 environment.navigator.open(FeedItemRoute(itemID: id), in: .home)

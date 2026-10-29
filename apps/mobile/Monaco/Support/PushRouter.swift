@@ -83,11 +83,28 @@ final class PushRouter {
             navigator.presentLedger(week: week)
         case .feedItem(let feedItemID):
             navigator.open(FeedItemRoute(itemID: feedItemID), in: .feed)
+        case .reply(let destination):
+            navigator.open(reply: destination)
         case .cabal(let cabalID):
             navigator.open(chain: [CabalRoute(id: cabalID)], in: .cabals)
         case .home:
             navigator.selectedTab = .home
             navigator.homePath = []
+        }
+    }
+}
+
+extension AppNavigator {
+    func open(reply destination: ReplyDestination) {
+        guard let proposalID = destination.proposalID else {
+            open(FeedItemRoute(itemID: destination.feedItemID, anchorCommentID: destination.commentID), in: .feed)
+            return
+        }
+        let route = ProposalRoute(proposalID: proposalID, focus: .anchor(commentID: destination.commentID))
+        if let cabalID = destination.cabalID {
+            open(cabalID: cabalID, then: route, in: .cabals)
+        } else {
+            open(route, in: .cabals)
         }
     }
 }
