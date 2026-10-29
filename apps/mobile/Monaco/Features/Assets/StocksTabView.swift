@@ -32,7 +32,7 @@ struct StocksTabView: View {
         ZStack {
             if let model, let held {
                 StocksTabScreen(
-                    model: model, held: held, query: $query, searching: searching, open: openAsset,
+                    model: model, held: held, query: $query, searching: $searching, open: openAsset,
                     openSymbol: openSymbol,
                     openWatchlist: { environment.navigator.open(WatchlistRoute(), in: .stocks) },
                     openMovers: { environment.navigator.open(MarketsListRoute(order: .movers), in: .stocks) })
@@ -41,10 +41,6 @@ struct StocksTabView: View {
             }
         }
         .monacoTopLevelHeader(title: StocksTab.title)
-        .searchable(
-            text: $query, isPresented: $searching, placement: .navigationBarDrawer(displayMode: .always),
-            prompt: "Stocks and Pre-IPO"
-        )
         .toolbar {
             if !searching {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -147,13 +143,14 @@ private struct StocksTabScreen: View {
     let model: MonacoCore.StocksTabModel
     let held: HeldModel
     @Binding var query: String
-    let searching: Bool
+    @Binding var searching: Bool
     let open: (MarketAsset) -> Void
     let openSymbol: (String) -> Void
     let openWatchlist: () -> Void
     let openMovers: () -> Void
 
     @State private var showsPreIpoInfo = false
+    @FocusState private var fieldFocused: Bool
 
     private enum Stage {
         case loading, failed, browse
@@ -174,7 +171,38 @@ private struct StocksTabScreen: View {
             .monacoCanvas()
             .foregroundStyle(MonacoTheme.primaryText)
             .onChange(of: query) { _, value in model.setQuery(value) }
+            .onChange(of: fieldFocused) { _, focused in
+                if focused { searching = true }
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if stage != .failed { searchRow }
+            }
             .sheet(isPresented: $showsPreIpoInfo) { MarketsPreIpoInfoSheet() }
+    }
+
+    private var searchRow: some View {
+        HStack(spacing: MonacoTheme.Space.m) {
+            MonacoSearchField(placeholder: "Stocks and Pre-IPO", text: $query, showsClear: false)
+                .focused($fieldFocused)
+            if searching {
+                Button {
+                    query = ""
+                    fieldFocused = false
+                    searching = false
+                } label: {
+                    Text("Cancel")
+                        .font(MonacoTheme.Typo.body)
+                        .foregroundStyle(MonacoTheme.accent)
+                        .frame(minHeight: MonacoSearchFieldMetrics.minHeight)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("markets-search-cancel")
+            }
+        }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.bottom, MonacoTheme.Space.s)
+        .background(MonacoTheme.canvas)
     }
 
     private var content: some View {
