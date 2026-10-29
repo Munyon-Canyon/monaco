@@ -87,7 +87,7 @@ Rules that cost a day of throughput to learn:
 - A stacked PR must pass its check without the PR above it. If two PRs each need the other's fix, fold them into one PR.
 - `agents batch` replaces the whole batch. Read `.git/pstack/<milestone>/batch.json` and include the tickets already there.
 - Size Docker Desktop's memory to the test databases: slot 0 has a 4 GB tmpfs and each other slot 1.5 GB, plus headroom (32 GB on a 64 GB Mac). After a Docker restart, start the dev `monaco-postgres` and `monaco-nats` by hand, since they have no restart policy.
-- Keep at least 50 GB of disk free. Every hour, delete Go build cache files not modified in 24 hours (`find "$(go env GOCACHE)" -type f -mtime +1 -delete`), plus the `.build/DerivedData`, `packages/mobile-core/.build` and shut-down `Monaco <lane>` simulator of every landed worktree with no unpushed or uncommitted work. Never `simctl erase`.
+- Keep at least 50 GB of disk free. Every hour, run `scripts/go-cache-trim.sh`: it deletes Go build cache entries untouched for 24 hours, then the oldest entries until the cache is under 100 GB, never one used in the last 3 hours (deleting a fresher one failed lane 6942's running check with `go-build/...: no such file or directory`), plus the `.build/DerivedData`, `packages/mobile-core/.build` and shut-down `Monaco <lane>` simulator of every landed worktree with no unpushed or uncommitted work. Never `simctl erase`.
 - In CI, rerun only failed jobs for a flake, and raise a job timeout (not a test gate) when a job is cancelled while still compiling. Name each hotspot that serializes stacks to the main orchestrator.
 
 ## Mobile QA
