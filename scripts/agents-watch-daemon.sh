@@ -11,6 +11,8 @@ lock="${state}/watch-daemon.lock"
 pidfile="${state}/watch-daemon.pid"
 bin="${MONACO_WATCH_BIN:-${root}/bin/monacoctl}"
 restart_after="${MONACO_WATCH_RESTART_AFTER:-2}"
+stale_poll="${MONACO_WATCH_STALE_POLL:-60}"
+source_dir="apps/backend/cmd/monacoctl"
 max_log_bytes="${MONACO_WATCH_LOG_BYTES:-5242880}"
 
 milestone() {
@@ -60,6 +62,30 @@ rotate() {
   fi
 }
 
+source_commit() {
+  git -C "$root" log -1 --format=%H -- "$source_dir"
+}
+
+# Exits 0 when the clone's binary was built from an older commit under cmd/monacoctl than HEAD has.
+stale() {
+  [[ -z "${MONACO_WATCH_BIN:-}" ]] || return 1
+  [[ -x "$bin" ]] || return 0
+  [[ "$(cat "${bin}.src" 2>/dev/null)" != "$(source_commit)" ]]
+}
+
+# Records the commit it tried, so a failed build keeps the old binary until the next change.
+build() {
+  local commit
+  commit="$(source_commit)"
+  if (cd "${root}/apps/backend" && go build -o "${bin}.new" ./cmd/monacoctl); then
+    mv -f "${bin}.new" "$bin"
+    printf '%s daemon: built %s from %s\n' "$(date -u +%FT%TZ)" "$bin" "$commit"
+  else
+    printf '%s daemon: build from %s failed; keeping the old binary\n' "$(date -u +%FT%TZ)" "$commit"
+  fi
+  echo "$commit" >"${bin}.src"
+}
+
 run() {
   mkdir -p "$state"
   exec 9>>"$lock"
@@ -68,18 +94,29 @@ run() {
     exit 1
   fi
   echo "$$" >"$pidfile"
-  local log child=""
+  local log child="" pause=""
   log="$(logfile)"
-  trap 'if [[ -n "$child" ]]; then kill "$child" 2>/dev/null || true; fi; rm -f "$pidfile"; exit 0' TERM INT
-  if [[ ! -x "$bin" && -z "${MONACO_WATCH_BIN:-}" ]]; then
-    (cd "${root}/apps/backend" && go build -o "$bin" ./cmd/monacoctl)
-  fi
+  trap 'kill $child $pause 2>/dev/null || true; rm -f "$pidfile"; exit 0' TERM INT
   while true; do
     rotate "$log"
+    if stale; then
+      build >>"$log" 2>&1
+    fi
     started="$(date +%s)"
     printf '%s daemon: starting %s agents watch\n' "$(date -u +%FT%TZ)" "$bin" >>"$log"
     "$bin" agents watch >>"$log" 2>&1 9>&- &
     child=$!
+    while kill -0 "$child" 2>/dev/null; do
+      if stale; then
+        printf '%s daemon: %s changed; restarting the watch on a new build\n' "$(date -u +%FT%TZ)" "$source_dir" >>"$log"
+        kill "$child" 2>/dev/null || true
+        break
+      fi
+      sleep "$stale_poll" 9>&- &
+      pause=$!
+      wait "$pause" || true
+      pause=""
+    done
     wait "$child" || true
     child=""
     printf '%s daemon: watch exited after %ss\n' "$(date -u +%FT%TZ)" "$(($(date +%s) - started))" >>"$log"
