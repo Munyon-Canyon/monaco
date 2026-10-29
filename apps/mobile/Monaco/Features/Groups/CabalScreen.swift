@@ -29,8 +29,7 @@ struct CabalScreen: View {
     let context: CabalContext
     let sections: [any CabalSection.Type]
     @Environment(AppEnvironment.self) private var environment
-    @Environment(ToastCenter.self) private var toasts
-    @State private var sharing: String?
+    @Environment(\.hostMainTab) private var hostMainTab
     @State private var selection: CabalTabSelection
     @State private var tabsTop: CGFloat?
     @State private var pendingMore: CabalMoreItem?
@@ -101,7 +100,7 @@ struct CabalScreen: View {
         .environment(\.cabalRetry, CabalRetry(tick: retryTick) { retryTick += 1 })
         .environment(
             \.cabalShare,
-            CabalShare(open: { share(cabal.cabal) }, isBusy: sharing == context.cabalID)
+            CabalShare(open: { share(cabal.cabal) }, isBusy: false)
         )
         .navigationTitle(cabal.cabal?.name ?? "")
         .navigationBarTitleDisplayMode(.inline)
@@ -140,7 +139,7 @@ struct CabalScreen: View {
                         if Self.canShare(cabal: loaded) {
                             MonacoGlassButton(
                                 icon: .share, accessibilityLabel: "Share cabal", style: .quiet,
-                                placement: .toolbar, isBusy: sharing == context.cabalID
+                                placement: .toolbar
                             ) { share(loaded) }
                             .accessibilityIdentifier("cabal-share-button")
                         }
@@ -155,7 +154,8 @@ struct CabalScreen: View {
 
     private func share(_ cabal: Components.Schemas.Cabal?) {
         guard let cabal else { return }
-        Task { await ShareCardLauncher.shareCabal(cabal, api: environment.api, toasts: toasts, busy: $sharing) }
+        ShareCardLauncher.shareCabal(
+            id: cabal.id, navigator: environment.navigator, in: hostMainTab ?? environment.navigator.selectedTab)
     }
 
     private static func showsPublicLayout(_ sections: [any CabalSection.Type]) -> Bool {

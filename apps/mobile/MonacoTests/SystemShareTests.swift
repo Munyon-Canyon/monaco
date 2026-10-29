@@ -8,7 +8,7 @@ import UniformTypeIdentifiers
 
 @MainActor
 struct SystemShareTests {
-    private static let url = URL(string: "https://monacolabs.xyz/ANDRES?c=ac-capital") ?? ShareCardContent.fallbackURL
+    private static let url = URL(string: "https://monacolabs.xyz/ANDRES?c=ac-capital") ?? SharePayload.fallbackURL
 
     private static func image() -> UIImage {
         UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8)).image { context in

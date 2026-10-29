@@ -118,7 +118,7 @@ struct ShareScreenTests {
         let payload = ShareActions.payload(
             for: spec, url: nil, image: ShareImageExporter.render(spec, format: .post))
 
-        #expect(payload.url == ShareCardContent.fallbackURL)
+        #expect(payload.url == SharePayload.fallbackURL)
     }
 
     @Test func copyImagePutsPNGDataOnThePasteboard() throws {

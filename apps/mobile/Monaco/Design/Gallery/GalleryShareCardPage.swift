@@ -7,10 +7,9 @@ struct GalleryShareCardPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                 MonacoSectionHeader("Share card")
-                ForEach(Array(cards.enumerated()), id: \.offset) { _, content in
-                    ShareCardView(content: content, face: nil)
+                ForEach(Array(cards.enumerated()), id: \.offset) { _, spec in
+                    FShareCard(spec: spec, size: CGSize(width: 360, height: 450))
                         .environment(\.colorScheme, .dark)
-                        .clipShape(RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous))
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -19,8 +18,8 @@ struct GalleryShareCardPage: View {
         .monacoCanvas()
     }
 
-    private var cards: [ShareCardContent] {
-        [ShareCardSamples.cabal(.gain), ShareCardSamples.me(.loss), ShareCardSamples.cabalShort]
+    private var cards: [ShareCardSpec] {
+        [ShareSampleData.stake(), ShareSampleData.portfolio()]
     }
 }
 #endif

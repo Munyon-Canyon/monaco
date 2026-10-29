@@ -114,11 +114,6 @@ design-gallery-share-card-50-dark     -MonacoDesignGallery -MonacoDesignGalleryT
 design-gallery-share-card-bottom      -MonacoDesignGallery -MonacoDesignGalleryTab shareCard -MonacoSampleScroll bottom
 design-gallery-share-card-bottom-dark -MonacoDesignGallery -MonacoDesignGalleryTab shareCard -MonacoDesignGalleryAppearance dark -MonacoSampleScroll bottom
 
-share-card-cabal-gain         -MonacoShareCardSample cabalGain
-share-card-cabal-loss         -MonacoShareCardSample cabalLoss
-share-card-cabal-short        -MonacoShareCardSample cabalShort
-share-card-me-gain            -MonacoShareCardSample meGain
-share-card-me-no-code         -MonacoShareCardSample meNoCode
 share-sample                  -MonacoShareSample
 share-sample-post             -MonacoShareSample post
 share-sample-square           -MonacoShareSample square

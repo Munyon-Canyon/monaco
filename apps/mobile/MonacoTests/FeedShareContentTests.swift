@@ -30,6 +30,16 @@ struct FeedShareContentTests {
     }
 
     @Test func withoutAnInviteLinkTheShareFallsBackToTheWebsite() {
-        #expect(FeedShareContent.url(links: nil) == ShareCardContent.fallbackURL)
+        #expect(FeedShareContent.url(links: nil) == SharePayload.fallbackURL)
+    }
+
+    @Test func aFeedItemSharesItsHeadlineAndTheInviteLink() async throws {
+        let links = InviteLinks(Components.Schemas.MyReferralCode.sample)
+        let item = try #require(await items().first)
+        let payload = FeedShareContent.payload(for: item, links: links)
+
+        #expect(payload.title == FeedShareContent.text(for: item))
+        #expect(payload.url == links?.shareURL)
+        #expect(payload.image == nil)
     }
 }
