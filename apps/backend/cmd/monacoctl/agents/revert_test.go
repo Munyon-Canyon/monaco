@@ -943,11 +943,22 @@ func TestWatch_judgesAlreadyRedByTheFailingFlowsAndTests(t *testing.T) {
 		{"a new Go test is new", "--- FAIL: TestA (0.1s)\n", "--- FAIL: TestA (0.1s)\n--- FAIL: TestB (0.2s)\n", true},
 		{
 			"a new XCTest case is new",
-			"",
+			"Test Case '-[MonacoCoreTests.FeedTests testOther]' failed (0.001 seconds).\n",
 			"Test Case '-[MonacoCoreTests.FeedTests testTally]' failed (0.001 seconds).\n",
 			true,
 		},
-		{"a new swift-testing test is new", "", "✘ Test aNumberIsTyped() failed after 0.1 seconds\n", true},
+		{
+			"a new swift-testing test is new",
+			"✘ Test anotherOne() failed after 0.1 seconds\n",
+			"✘ Test aNumberIsTyped() failed after 0.1 seconds\n",
+			true,
+		},
+		{
+			"named failures after a prior build error that named no test are already red",
+			"error: unable to write manifest\n** TEST BUILD FAILED **\n",
+			"✘ Test cabalScreenFollowsTheScreenMap() failed after 0.1 seconds\n",
+			false,
+		},
 		{
 			"a failure with no names (the coverage floor, a type-check) keeps the job name rule",
 			"coverage: 93.76% under floor 93.79%\n",
