@@ -57,7 +57,9 @@ struct WithdrawKeypadView: View {
     private var keypadState: AmountKeypadState {
         switch model.state {
         case .empty: .empty
-        case .invalid: .invalid(limitLine: model.line ?? "", slot: model.limitSlot ?? "")
+        case .invalid(let max, let over):
+            .invalid(
+                limitLine: WithdrawCopy.limitLine(maxMicros: max, overMicros: over), slot: model.limitSlot ?? "")
         case .settled: .settled(line: model.line ?? "")
         case .typed, .belowMinimum, .needsAddress, .submitting, .failed: .typed
         }
@@ -141,11 +143,6 @@ struct WithdrawKeypadView: View {
         }
     }
 
-    private var scanAction: (() -> Void)? {
-        guard AddressScanner.isSupported else { return nil }
-        return { scan() }
-    }
-
     private func scan() {
         guard AddressScanner.isAvailable else {
             Haptics.warning()
@@ -193,7 +190,9 @@ struct WithdrawKeypadView: View {
             WithdrawAddressField(
                 text: Binding(get: { model.address }, set: { model.setAddress($0) }),
                 placeholder: model.network.placeholder, isInvalid: model.addressProblem != nil,
-                focusRequests: focusRequests, onScan: scanAction)
+                focusRequests: focusRequests, onScan: { scan() }
+            )
+            .disabled(isLocked)
             if let problem = model.addressProblem {
                 Text(problem)
                     .font(MonacoTheme.Typo.caption)
@@ -202,8 +201,8 @@ struct WithdrawKeypadView: View {
                     .accessibilityIdentifier("withdraw-address-problem")
             }
             WithdrawNetworkChips(networks: model.networks, selected: model.network) { model.setNetwork($0) }
+                .allowsHitTesting(!isLocked)
         }
-        .disabled(isLocked)
     }
 }
 

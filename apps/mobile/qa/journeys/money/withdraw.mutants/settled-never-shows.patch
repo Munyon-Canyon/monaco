@@ -7,10 +7,10 @@ scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift b/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
 --- a/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
 +++ b/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
-@@ -58,7 +58,7 @@ struct WithdrawKeypadView: View {
-         switch model.state {
-         case .empty: .empty
-         case .invalid: .invalid(limitLine: model.line ?? "", slot: model.limitSlot ?? "")
+@@ -60,7 +60,7 @@ struct WithdrawKeypadView: View {
+         case .invalid(let max, let over):
+             .invalid(
+                 limitLine: WithdrawCopy.limitLine(maxMicros: max, overMicros: over), slot: model.limitSlot ?? "")
 -        case .settled: .settled(line: model.line ?? "")
 +        case .settled: .typed
          case .typed, .belowMinimum, .needsAddress, .submitting, .failed: .typed

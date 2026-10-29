@@ -7,10 +7,10 @@ scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift b/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
 --- a/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
 +++ b/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
-@@ -194,7 +194,7 @@ struct WithdrawKeypadView: View {
-                 text: Binding(get: { model.address }, set: { model.setAddress($0) }),
-                 placeholder: model.network.placeholder, isInvalid: model.addressProblem != nil,
-                 focusRequests: focusRequests, onScan: scanAction)
+@@ -193,7 +193,7 @@ struct WithdrawKeypadView: View {
+                 focusRequests: focusRequests, onScan: { scan() }
+             )
+             .disabled(isLocked)
 -            if let problem = model.addressProblem {
 +            if let problem = model.addressProblem, problem.isEmpty {
                  Text(problem)

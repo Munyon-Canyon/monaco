@@ -169,6 +169,11 @@ struct FundCabalKeypadView: View {
         }
     }
 
+    private var pillCashMicros: Int64 {
+        if case .settled(_, _, let after) = model.state { return after }
+        return model.maxMicros
+    }
+
     @ViewBuilder
     private var sourcePill: some View {
         CabalMark(
@@ -179,7 +184,7 @@ struct FundCabalKeypadView: View {
             .foregroundStyle(MonacoTheme.primaryText)
             .monacoPrivate()
         if model.preview != nil {
-            Text(FundSourceCopy.cash(micros: model.maxMicros))
+            Text(FundSourceCopy.cash(micros: pillCashMicros))
                 .font(MonacoTheme.Typo.subhead)
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .monacoPrivate()

@@ -49,7 +49,7 @@ final class WithdrawModelTests: XCTestCase {
         await flush(rig)
 
         XCTAssertEqual(rig.model.state, .invalid(maxMicros: 499_500_000, overMicros: 150_500_000))
-        XCTAssertEqual(rig.model.line, "You can send $499.50 · $150.50 over")
+        XCTAssertEqual(rig.model.line, "≈ 0.00 USDC · fee $0.50")
         XCTAssertEqual(rig.model.limitSlot, "Up to $499.50")
         XCTAssertNil(rig.model.buttonTitle)
         XCTAssertFalse(rig.model.canSubmit)
