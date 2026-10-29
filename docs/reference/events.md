@@ -572,6 +572,25 @@ Core NATS subject `price.tick`, version 1, never stored.
 | `as_of` | `time.Time` |
 | `prices` | `[]events.TickPrice` |
 
+## `proposal.close_reminder_due`
+
+Subject `events.proposal.close_reminder_due`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `proposal_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `user_id` | `uuid.UUID` |
+| `kind` | `string` |
+| `symbol` | `string` |
+| `usdc_micros` | `money.Micros` |
+| `token_amount` | `uint64` |
+| `expires_at` | `time.Time` |
+| `yes` | `int` |
+| `no` | `int` |
+| `voters` | `int` |
+
 ## `proposal.created`
 
 Subject `events.proposal.created`, version 1.

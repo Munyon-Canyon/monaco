@@ -23,6 +23,8 @@ const (
 	TypeProposalReopened         Type = "proposal.reopened"
 	TypeVoteCast                 Type = "vote.cast"
 	TypeVoteRetracted            Type = "vote.retracted"
+
+	TypeProposalCloseReminderDue Type = "proposal.close_reminder_due"
 )
 
 const proposalAggregate = "proposal"
@@ -92,6 +94,27 @@ func (ProposalExpired) Type() Type { return TypeProposalExpired }
 func (ProposalExpired) AggregateType() string { return proposalAggregate }
 
 func (e ProposalExpired) AggregateID() uuid.UUID { return e.ProposalID }
+
+type ProposalCloseReminderDue struct {
+	V           int          `json:"v"`
+	ProposalID  uuid.UUID    `json:"proposal_id"`
+	CabalID     uuid.UUID    `json:"cabal_id"`
+	UserID      uuid.UUID    `json:"user_id"                      pii:"true"`
+	Kind        string       `json:"kind"`
+	Symbol      string       `json:"symbol"`
+	USDCMicros  money.Micros `json:"usdc_micros,omitzero"`
+	TokenAmount uint64       `json:"token_amount,string,omitzero"`
+	ExpiresAt   time.Time    `json:"expires_at"`
+	Yes         int          `json:"yes"`
+	No          int          `json:"no"`
+	Voters      int          `json:"voters"`
+}
+
+func (ProposalCloseReminderDue) Type() Type { return TypeProposalCloseReminderDue }
+
+func (ProposalCloseReminderDue) AggregateType() string { return proposalAggregate }
+
+func (e ProposalCloseReminderDue) AggregateID() uuid.UUID { return e.ProposalID }
 
 type ProposalWithdrawn struct {
 	V          int       `json:"v"`

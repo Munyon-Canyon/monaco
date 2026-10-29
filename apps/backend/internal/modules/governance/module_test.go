@@ -47,9 +47,10 @@ func TestModule_isNamedGovernanceAndRunsTheExpiryPoller(t *testing.T) {
 	if !slices.Equal(handlers, want) {
 		t.Fatalf("consumers = %q, want %q", handlers, want)
 	}
-	if len(pollers) != 1 || pollers[0].Name() != "governance.proposal_expiry" ||
-		pollers[0].Interval() != 30*time.Second {
-		t.Fatalf("pollers = %v, want governance.proposal_expiry every 30s", pollers)
+	if len(pollers) != 2 || pollers[0].Name() != "governance.proposal_expiry" ||
+		pollers[0].Interval() != 30*time.Second || pollers[1].Name() != "governance.close_reminders" ||
+		pollers[1].Interval() != 30*time.Second {
+		t.Fatalf("pollers = %v, want governance.proposal_expiry and governance.close_reminders every 30s", pollers)
 	}
 }
 
