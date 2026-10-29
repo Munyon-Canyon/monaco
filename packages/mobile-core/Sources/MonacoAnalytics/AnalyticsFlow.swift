@@ -12,4 +12,6 @@ public enum AnalyticsFlow: String, CaseIterable, Sendable {
     case chat
     case referral
     case catchUp = "catch_up"
+    case ledger
+    case fullLedger = "full_ledger"
 }

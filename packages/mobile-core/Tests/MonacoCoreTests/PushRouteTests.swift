@@ -131,6 +131,18 @@ final class PushRouteTests: XCTestCase {
         XCTAssertEqual(PushRoute.parse(wire("cabal_paused", ["cabal_id": cabal])), .cabal(cabalID: cabal))
     }
 
+    func testAWeeklyLedgerPushOpensItsWeekAndAnythingElseOpensHome() {
+        XCTAssertEqual(PushRoute.parse(wire("weekly_ledger", ["week": "2026-W42"])), .ledger(week: "2026-W42"))
+        XCTAssertEqual(
+            PushRoute.parse(wire("weekly_ledger", ["week": "2026-W42", "cabal_id": cabal])), .ledger(week: "2026-W42"))
+        for bad in ["2026-42", "2026-W4", "26-W42", "2026-W42\n", "x2026-W42", ""] {
+            XCTAssertEqual(PushRoute.parse(wire("weekly_ledger", ["week": bad])), .home, "\"\(bad)\"")
+        }
+        XCTAssertEqual(PushRoute.parse(wire("weekly_ledger", ["week": 42])), .home)
+        XCTAssertEqual(PushRoute.parse(wire("weekly_ledger", [:])), .home)
+        XCTAssertEqual(PushRoute.parse(wire("nudge", ["week": "2026-W42"])), .home)
+    }
+
     func testACabalIDOpensTheCabalOnlyWhenNoOtherUsableIDComesWithIt() {
         let rows: [(kind: String, data: [String: Any], route: PushRoute)] = [
             ("future_kind", ["cabal_id": cabal], .cabal(cabalID: cabal)),
@@ -219,7 +231,7 @@ final class PushRouteTests: XCTestCase {
             ("close_reminder", Set(["kind", "cabal_id", "proposal_id"]).union(senderKeys), "proposal"),
             ("deposit_credited", ["kind"], "home"),
             ("nudge", ["kind", "user_id"], "home"),
-            ("weekly_ledger", ["kind", "week", "sender_kind"], "home"),
+            ("weekly_ledger", ["kind", "week", "sender_kind"], "ledger"),
             ("new_follower", ["kind", "user_id"], "userProfile"),
             ("chat_mention", ["kind", "cabal_id", "message_id"], "chat"),
             ("chat_thread_reply", ["kind", "cabal_id", "message_id"], "chat"),
@@ -257,6 +269,7 @@ final class PushRouteTests: XCTestCase {
         case .voteHold: "voteHold"
         case .feedItem: "feedItem"
         case .cabal: "cabal"
+        case .ledger: "ledger"
         case .home: "home"
         }
     }

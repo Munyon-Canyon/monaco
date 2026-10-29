@@ -688,6 +688,7 @@ flow-20a-rate-limited         -MonacoFlow 20a rateLimited
 flow-20a-unauthorized         -MonacoFlow 20a unauthorized
 flow-20a-interrupted          -MonacoFlow 20a interrupted
 flow-34-unauthorized          -MonacoFlow 34 unauthorized
+flow-37-interrupted           -MonacoFlow 37 interrupted
 # END generated flow scenarios
 account-activity-ready        -accountActivityHarness ready
 account-activity-pending      -accountActivityHarness pending
@@ -989,3 +990,9 @@ gif-sheet-trending-dark       -gifHarness trending -AppleInterfaceStyle Dark
 gif-sheet-search              -gifHarness search
 gif-sheet-empty               -gifHarness empty
 gif-sheet-failed              -gifHarness failed
+ledger-week42                 -MonacoLedgerSample week42
+ledger-week42-dark            -MonacoLedgerSample week42 -AppleInterfaceStyle Dark
+ledger-no-best-call           -MonacoLedgerSample noBestCall
+ledger-loss                   -MonacoLedgerSample loss
+ledger-not-ready              -MonacoLedgerSample notReady
+ledger-loading                -MonacoLedgerSample loading

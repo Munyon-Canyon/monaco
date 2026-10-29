@@ -79,6 +79,8 @@ final class PushRouter {
             navigator.open(cabalID: cabalID, then: ProposalRoute(proposalID: proposalID), in: .cabals)
         case .voteHold(let proposalID, _, let pick):
             navigator.presentVoteHold(proposalID: proposalID, pick: pick)
+        case .ledger(let week):
+            navigator.presentLedger(week: week)
         case .feedItem(let feedItemID):
             navigator.open(FeedItemRoute(itemID: feedItemID), in: .feed)
         case .cabal(let cabalID):

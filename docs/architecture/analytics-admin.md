@@ -127,8 +127,12 @@ The PostHog call is an outbound HTTP call, so it sits behind a port with an anti
 | Chat | chat_opened → message_sent |
 | Referral | invite_paste_shown → invite_pasted / invite_skipped |
 | Catch up | cleared; opened_item; open_feed |
+| Ledger | opened |
+| Full Ledger | opened |
 
 `catch_up_cleared` and `catch_up_opened_item` carry `kind` (the item kind).
+
+`ledger_opened` carries `source` (`push`).
 
 `vote_push_action` carries `action` (`vote_yes`, `vote_no`, `read_thesis`, `default`) and `kind` (the push kind).
 
