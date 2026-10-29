@@ -95,7 +95,13 @@ private struct GifRecordingSource: CommentsSource {
     private let replies = GifHarnessReplies()
 
     private static var seededReply: Components.Schemas.Comment {
-        var comment = Components.Schemas.Comment.gifSample("g1", author: "Christelle", parent: "c1")
+        var comment = Components.Schemas.Comment.gifSample(
+            "g1", author: "Jordan", parent: "c1",
+            quote: .init(
+                commentId: "c1", rootCommentId: "c1", authorDisplayName: "Mia",
+                excerpt: "What would our NVIDIA allocation be after this?", isDeleted: false, hasAttachment: false,
+                isFolded: false),
+            reactions: [.init(emoji: "❤️", count: 2, mine: false)])
         if let gif = SampleGifProvider.items.dropFirst().first {
             comment.attachment = .gif(
                 .init(
