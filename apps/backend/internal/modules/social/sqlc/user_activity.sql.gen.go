@@ -16,7 +16,7 @@ const userReplies = `-- name: UserReplies :many
 SELECT c.id, COALESCE(c.body, 'GIF')::text AS body, c.created_at, o.ref_id AS proposal_id
 FROM feed_comments AS c
 JOIN feed_objects AS o ON o.id = c.feed_object_id
-WHERE c.author_id = $1
+WHERE c.author_id = $1::uuid
   AND c.deleted_at IS NULL
   AND o.kind = 'proposal' AND o.ref_type = 'proposals'
   AND (NOT $2::bool OR (c.created_at, c.id) < ($3::timestamptz, $4::uuid))

@@ -99,6 +99,10 @@ type ReservationReader interface {
 	CashOutReservations(ctx context.Context) (map[ids.CabalID]money.Micros, error)
 }
 
+type SwapReader interface {
+	SwapPosted(ctx context.Context, swapID uuid.UUID) (bool, error)
+}
+
 type Queries interface {
 	PositionsReader
 	StakesReader

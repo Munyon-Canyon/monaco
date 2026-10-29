@@ -83,6 +83,24 @@ func (e AdminReportStatus) Valid() bool {
 	}
 }
 
+// Defines values for CommentAuthorKind.
+const (
+	CommentAuthorKindSystem CommentAuthorKind = "system"
+	CommentAuthorKindUser   CommentAuthorKind = "user"
+)
+
+// Valid indicates whether the value is a known member of the CommentAuthorKind enum.
+func (e CommentAuthorKind) Valid() bool {
+	switch e {
+	case CommentAuthorKindSystem:
+		return true
+	case CommentAuthorKindUser:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FeedItemAssetKind.
 const (
 	FeedItemAssetKindEquity      FeedItemAssetKind = "equity"
@@ -828,7 +846,7 @@ type Comment struct {
 	// Examples: {"closed":false,"closes_at":"2026-10-04T08:00:00Z","kind":"poll","my_position":1,"options":[{"count":3,"label":"Yes","position":0},{"count":2,"label":"Wait for earnings","position":1}],"question":"Trim to 40% before earnings?","total":5}
 	Attachment *CommentAttachment `json:"attachment,omitempty"`
 
-	// Author The author of a comment. A deleted account has a null handle and an empty name.
+	// Author The author of a comment. A deleted account has a null handle and an empty name. Monaco's own reply on a closed proposal has `kind` system, the nil UUID as id, a null handle and the display name Monaco.
 	Author CommentAuthor `json:"author"`
 
 	// Body Null on a deleted comment and on a reply that is only an attachment.
@@ -899,7 +917,7 @@ type CommentAttachmentInput struct {
 	union json.RawMessage
 }
 
-// CommentAuthor The author of a comment. A deleted account has a null handle and an empty name.
+// CommentAuthor The author of a comment. A deleted account has a null handle and an empty name. Monaco's own reply on a closed proposal has `kind` system, the nil UUID as id, a null handle and the display name Monaco.
 type CommentAuthor struct {
 	// DisplayName Empty when the user has none.
 	//
@@ -911,10 +929,15 @@ type CommentAuthor struct {
 	// Examples: kai
 	Handle *string `json:"handle"`
 
-	// Id The author's user id.
+	// Id The author's user id. The nil UUID on a system reply.
 	//
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
 	Id openapi_types.UUID `json:"id"`
+
+	// Kind `system` for Monaco's own reply on a closed proposal. It takes no reply, reaction or report: each is invalid_input with `reason=system_reply`.
+	//
+	// Examples: user
+	Kind CommentAuthorKind `json:"kind"`
 
 	// PhotoUrl Null when the user has none.
 	//
@@ -931,6 +954,11 @@ type CommentAuthor struct {
 	// Examples: false
 	ReturnPrivate bool `json:"return_private"`
 }
+
+// CommentAuthorKind `system` for Monaco's own reply on a closed proposal. It takes no reply, reaction or report: each is invalid_input with `reason=system_reply`.
+//
+// Examples: user
+type CommentAuthorKind string
 
 // CommentPage One page of comment threads, oldest first.
 type CommentPage struct {

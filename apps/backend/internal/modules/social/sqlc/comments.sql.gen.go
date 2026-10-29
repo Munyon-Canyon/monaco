@@ -50,22 +50,28 @@ func (q *Queries) DeleteFeedCommentItem(ctx context.Context, commentID uuid.UUID
 }
 
 const getComment = `-- name: GetComment :one
-SELECT c.id, o.kind, o.cabal_id
+SELECT c.id, c.author_kind, o.kind, o.cabal_id
 FROM feed_comments c
 JOIN feed_objects o ON o.id = c.feed_object_id
 WHERE c.id = $1
 `
 
 type GetCommentRow struct {
-	ID      uuid.UUID
-	Kind    string
-	CabalID pgtype.UUID
+	ID         uuid.UUID
+	AuthorKind string
+	Kind       string
+	CabalID    pgtype.UUID
 }
 
 func (q *Queries) GetComment(ctx context.Context, id uuid.UUID) (GetCommentRow, error) {
 	row := q.db.QueryRow(ctx, getComment, id)
 	var i GetCommentRow
-	err := row.Scan(&i.ID, &i.Kind, &i.CabalID)
+	err := row.Scan(
+		&i.ID,
+		&i.AuthorKind,
+		&i.Kind,
+		&i.CabalID,
+	)
 	return i, err
 }
 
@@ -103,7 +109,7 @@ func (q *Queries) GetCommentItem(ctx context.Context, id uuid.UUID) (GetCommentI
 }
 
 const getCommentRef = `-- name: GetCommentRef :one
-SELECT id, feed_object_id, (deleted_at IS NOT NULL)::bool AS deleted
+SELECT id, feed_object_id, author_kind, (deleted_at IS NOT NULL)::bool AS deleted
 FROM feed_comments
 WHERE id = $1
 `
@@ -111,18 +117,24 @@ WHERE id = $1
 type GetCommentRefRow struct {
 	ID           uuid.UUID
 	FeedObjectID uuid.UUID
+	AuthorKind   string
 	Deleted      bool
 }
 
 func (q *Queries) GetCommentRef(ctx context.Context, id uuid.UUID) (GetCommentRefRow, error) {
 	row := q.db.QueryRow(ctx, getCommentRef, id)
 	var i GetCommentRefRow
-	err := row.Scan(&i.ID, &i.FeedObjectID, &i.Deleted)
+	err := row.Scan(
+		&i.ID,
+		&i.FeedObjectID,
+		&i.AuthorKind,
+		&i.Deleted,
+	)
 	return i, err
 }
 
 const getCommentTarget = `-- name: GetCommentTarget :one
-SELECT c.id, c.author_id, c.parent_comment_id, c.body, (c.deleted_at IS NOT NULL)::bool AS deleted,
+SELECT c.id, c.author_id, c.author_kind, c.parent_comment_id, c.body, (c.deleted_at IS NOT NULL)::bool AS deleted,
   EXISTS (SELECT 1 FROM comment_attachments a WHERE a.comment_id = c.id)::bool AS has_attachment,
   EXISTS (
     SELECT 1 FROM user_blocks b WHERE b.blocker_id = $1::uuid AND b.blocked_id = c.author_id
@@ -139,7 +151,8 @@ type GetCommentTargetParams struct {
 
 type GetCommentTargetRow struct {
 	ID              uuid.UUID
-	AuthorID        uuid.UUID
+	AuthorID        pgtype.UUID
+	AuthorKind      string
 	ParentCommentID pgtype.UUID
 	Body            pgtype.Text
 	Deleted         bool
@@ -153,6 +166,7 @@ func (q *Queries) GetCommentTarget(ctx context.Context, arg GetCommentTargetPara
 	err := row.Scan(
 		&i.ID,
 		&i.AuthorID,
+		&i.AuthorKind,
 		&i.ParentCommentID,
 		&i.Body,
 		&i.Deleted,
@@ -176,12 +190,13 @@ func (q *Queries) GetProposalFeedItem(ctx context.Context, proposalID uuid.UUID)
 }
 
 const getProposalFeedSource = `-- name: GetProposalFeedSource :one
-SELECT cabal_id, cabal_name, actor_id, asset_id, symbol, body, payload
+SELECT id, cabal_id, cabal_name, actor_id, asset_id, symbol, body, payload
 FROM feed_objects
 WHERE ref_type = 'proposals' AND ref_id = $1::uuid AND kind = 'proposal'
 `
 
 type GetProposalFeedSourceRow struct {
+	ID        uuid.UUID
 	CabalID   pgtype.UUID
 	CabalName pgtype.Text
 	ActorID   pgtype.UUID
@@ -195,6 +210,7 @@ func (q *Queries) GetProposalFeedSource(ctx context.Context, proposalID uuid.UUI
 	row := q.db.QueryRow(ctx, getProposalFeedSource, proposalID)
 	var i GetProposalFeedSourceRow
 	err := row.Scan(
+		&i.ID,
 		&i.CabalID,
 		&i.CabalName,
 		&i.ActorID,
@@ -211,14 +227,14 @@ INSERT INTO feed_comments (
   id, feed_object_id, author_id, parent_comment_id, reply_to_user_id, reply_to_comment_id, body, created_at
 )
 VALUES (
-  $1, $2, $3,
+  $1, $2, $3::uuid,
   NULLIF($4::uuid, '00000000-0000-0000-0000-000000000000'),
   NULLIF($5::uuid, '00000000-0000-0000-0000-000000000000'),
   NULLIF($6::uuid, '00000000-0000-0000-0000-000000000000'),
   NULLIF($7::text, ''), $8
 )
 RETURNING id, feed_object_id, author_id, parent_comment_id, reply_to_user_id, body, created_at, deleted_at, deleted_by,
-  deleted_by_kind, reply_to_comment_id
+  deleted_by_kind, reply_to_comment_id, author_kind, system_outcome
 `
 
 type InsertCommentParams struct {
@@ -256,6 +272,8 @@ func (q *Queries) InsertComment(ctx context.Context, arg InsertCommentParams) (F
 		&i.DeletedBy,
 		&i.DeletedByKind,
 		&i.ReplyToCommentID,
+		&i.AuthorKind,
+		&i.SystemOutcome,
 	)
 	return i, err
 }
@@ -305,6 +323,7 @@ WITH tops AS (
   FROM feed_comments t
   WHERE t.feed_object_id = $2
     AND t.parent_comment_id IS NULL
+    AND t.author_kind = 'user'
     AND NOT EXISTS (
       SELECT 1 FROM user_blocks b WHERE b.blocker_id = $1::uuid AND b.blocked_id = t.author_id
     )
@@ -328,6 +347,7 @@ FROM feed_comments c
 LEFT JOIN feed_comments r ON r.feed_object_id = c.feed_object_id AND r.id = c.reply_to_comment_id
 LEFT JOIN comment_attachments a ON a.comment_id = c.id
 WHERE c.feed_object_id = $2
+  AND c.author_kind = 'user'
   AND (c.id IN (SELECT id FROM tops) OR c.parent_comment_id IN (SELECT id FROM tops))
   AND NOT EXISTS (
     SELECT 1 FROM user_blocks b WHERE b.blocker_id = $1::uuid AND b.blocked_id = c.author_id
@@ -347,7 +367,7 @@ type ListCommentThreadsParams struct {
 type ListCommentThreadsRow struct {
 	ID                 uuid.UUID
 	FeedObjectID       uuid.UUID
-	AuthorID           uuid.UUID
+	AuthorID           pgtype.UUID
 	ParentCommentID    pgtype.UUID
 	ReplyToUserID      pgtype.UUID
 	ReplyToCommentID   pgtype.UUID
@@ -425,7 +445,7 @@ FOR UPDATE
 type LockCommentRow struct {
 	ID           uuid.UUID
 	FeedObjectID uuid.UUID
-	AuthorID     uuid.UUID
+	AuthorID     pgtype.UUID
 	Deleted      bool
 }
 

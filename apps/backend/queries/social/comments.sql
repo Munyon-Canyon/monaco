@@ -9,7 +9,7 @@ FROM feed_objects
 WHERE ref_type = 'proposals' AND ref_id = sqlc.arg(proposal_id)::uuid AND kind = 'proposal';
 
 -- name: GetProposalFeedSource :one
-SELECT cabal_id, cabal_name, actor_id, asset_id, symbol, body, payload
+SELECT id, cabal_id, cabal_name, actor_id, asset_id, symbol, body, payload
 FROM feed_objects
 WHERE ref_type = 'proposals' AND ref_id = sqlc.arg(proposal_id)::uuid AND kind = 'proposal';
 
@@ -35,7 +35,7 @@ WITH item AS (
 DELETE FROM feed_objects WHERE id IN (SELECT id FROM item);
 
 -- name: GetCommentTarget :one
-SELECT c.id, c.author_id, c.parent_comment_id, c.body, (c.deleted_at IS NOT NULL)::bool AS deleted,
+SELECT c.id, c.author_id, c.author_kind, c.parent_comment_id, c.body, (c.deleted_at IS NOT NULL)::bool AS deleted,
   EXISTS (SELECT 1 FROM comment_attachments a WHERE a.comment_id = c.id)::bool AS has_attachment,
   EXISTS (
     SELECT 1 FROM user_blocks b WHERE b.blocker_id = sqlc.arg(viewer)::uuid AND b.blocked_id = c.author_id
@@ -48,14 +48,14 @@ INSERT INTO feed_comments (
   id, feed_object_id, author_id, parent_comment_id, reply_to_user_id, reply_to_comment_id, body, created_at
 )
 VALUES (
-  sqlc.arg(id), sqlc.arg(feed_object_id), sqlc.arg(author_id),
+  sqlc.arg(id), sqlc.arg(feed_object_id), sqlc.arg(author_id)::uuid,
   NULLIF(sqlc.arg(parent_comment_id)::uuid, '00000000-0000-0000-0000-000000000000'),
   NULLIF(sqlc.arg(reply_to_user_id)::uuid, '00000000-0000-0000-0000-000000000000'),
   NULLIF(sqlc.arg(reply_to_comment_id)::uuid, '00000000-0000-0000-0000-000000000000'),
   NULLIF(sqlc.arg(body)::text, ''), sqlc.arg(created_at)
 )
 RETURNING id, feed_object_id, author_id, parent_comment_id, reply_to_user_id, body, created_at, deleted_at, deleted_by,
-  deleted_by_kind, reply_to_comment_id;
+  deleted_by_kind, reply_to_comment_id, author_kind, system_outcome;
 
 -- name: BumpCommentCount :execrows
 UPDATE feed_objects
@@ -80,6 +80,7 @@ WITH tops AS (
   FROM feed_comments t
   WHERE t.feed_object_id = sqlc.arg(feed_object_id)
     AND t.parent_comment_id IS NULL
+    AND t.author_kind = 'user'
     AND NOT EXISTS (
       SELECT 1 FROM user_blocks b WHERE b.blocker_id = sqlc.arg(viewer)::uuid AND b.blocked_id = t.author_id
     )
@@ -103,6 +104,7 @@ FROM feed_comments c
 LEFT JOIN feed_comments r ON r.feed_object_id = c.feed_object_id AND r.id = c.reply_to_comment_id
 LEFT JOIN comment_attachments a ON a.comment_id = c.id
 WHERE c.feed_object_id = sqlc.arg(feed_object_id)
+  AND c.author_kind = 'user'
   AND (c.id IN (SELECT id FROM tops) OR c.parent_comment_id IN (SELECT id FROM tops))
   AND NOT EXISTS (
     SELECT 1 FROM user_blocks b WHERE b.blocker_id = sqlc.arg(viewer)::uuid AND b.blocked_id = c.author_id
@@ -110,12 +112,12 @@ WHERE c.feed_object_id = sqlc.arg(feed_object_id)
 ORDER BY c.created_at, c.id;
 
 -- name: GetComment :one
-SELECT c.id, o.kind, o.cabal_id
+SELECT c.id, c.author_kind, o.kind, o.cabal_id
 FROM feed_comments c
 JOIN feed_objects o ON o.id = c.feed_object_id
 WHERE c.id = sqlc.arg(id);
 
 -- name: GetCommentRef :one
-SELECT id, feed_object_id, (deleted_at IS NOT NULL)::bool AS deleted
+SELECT id, feed_object_id, author_kind, (deleted_at IS NOT NULL)::bool AS deleted
 FROM feed_comments
 WHERE id = sqlc.arg(id);

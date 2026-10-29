@@ -10365,10 +10365,11 @@ components:
           poll: "#/components/schemas/PollAttachmentInput"
     CommentAuthor:
       type: object
-      description: The author of a comment. A deleted account has a null handle and an empty name.
-      required: [id, handle, display_name, photo_url, return_1m_bps, return_private]
+      description: The author of a comment. A deleted account has a null handle and an empty name. Monaco's own reply on a closed proposal has `kind` system, the nil UUID as id, a null handle and the display name Monaco.
+      required: [kind, id, handle, display_name, photo_url, return_1m_bps, return_private]
       properties:
-        id: {type: string, format: uuid, description: "The author's user id.", examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        kind: {type: string, enum: [user, system], description: "`system` for Monaco's own reply on a closed proposal. It takes no reply, reaction or report: each is invalid_input with `reason=system_reply`.", examples: [user]}
+        id: {type: string, format: uuid, description: "The author's user id. The nil UUID on a system reply.", examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
         handle: {type: [string, "null"], description: Null until onboarding sets one., examples: [kai]}
         display_name: {type: string, description: Empty when the user has none., examples: [Kai]}
         photo_url: {type: [string, "null"], description: Null when the user has none., examples: [null]}

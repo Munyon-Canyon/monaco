@@ -60,6 +60,9 @@ func ListComments(ctx context.Context, db sqlc.DBTX, q CommentsQuery) (CommentsP
 		return CommentsPage{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	page := threadsOf(rows, q.Limit)
+	if err := prependSystemThreads(ctx, queries, q, thread.ID, &page); err != nil {
+		return CommentsPage{}, err
+	}
 	if err := attachCommentReactions(ctx, queries, q.Viewer, &page); err != nil {
 		return CommentsPage{}, err
 	}
@@ -77,6 +80,20 @@ func ListComments(ctx context.Context, db sqlc.DBTX, q CommentsQuery) (CommentsP
 		return CommentsPage{}, err
 	}
 	return page, nil
+}
+
+func prependSystemThreads(
+	ctx context.Context, queries *sqlc.Queries, q CommentsQuery, itemID uuid.UUID, page *CommentsPage,
+) error {
+	if q.After != nil {
+		return nil
+	}
+	system, err := SystemThreads(ctx, queries, itemID)
+	if err != nil {
+		return err
+	}
+	page.Threads = append(system, page.Threads...)
+	return nil
 }
 
 func attachCommentReactions(ctx context.Context, reads *sqlc.Queries, viewer ids.UserID, page *CommentsPage) error {

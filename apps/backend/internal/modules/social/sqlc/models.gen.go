@@ -28,7 +28,7 @@ type CabalMessage struct {
 type FeedComment struct {
 	ID               uuid.UUID
 	FeedObjectID     uuid.UUID
-	AuthorID         uuid.UUID
+	AuthorID         pgtype.UUID
 	ParentCommentID  pgtype.UUID
 	ReplyToUserID    pgtype.UUID
 	Body             pgtype.Text
@@ -37,6 +37,8 @@ type FeedComment struct {
 	DeletedBy        pgtype.UUID
 	DeletedByKind    string
 	ReplyToCommentID pgtype.UUID
+	AuthorKind       string
+	SystemOutcome    pgtype.Text
 }
 
 type Report struct {

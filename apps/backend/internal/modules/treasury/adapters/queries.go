@@ -38,6 +38,7 @@ type Queries struct {
 	reserved  reservationStore
 	signature signatureStore
 	wallet    walletLedgerStore
+	swaps     swapStore
 	transit   transitStore
 	holders   holdersStore
 	catalog   app.MintResolver
@@ -45,6 +46,10 @@ type Queries struct {
 	listings  app.ListingReader
 	clock     clock.Clock
 	usdc      chain.SolanaAddress
+}
+
+type swapStore interface {
+	SwapPosted(context.Context, uuid.UUID) (bool, error)
 }
 
 type queryStore interface {
@@ -97,6 +102,7 @@ func NewQueries(
 	queries := sqlc.New(db)
 	return &Queries{
 		q:         queries,
+		swaps:     queries,
 		pot:       queries,
 		history:   queries,
 		flows:     queries,
@@ -167,6 +173,14 @@ func (q *Queries) WalletLedgerMicros(
 		return money.SignedMicros{}, 0, errs.Wrap(err, errs.CodeInternal, "treasury.WalletLedgerMicros")
 	}
 	return settled, int(row.Pending), nil
+}
+
+func (q *Queries) SwapPosted(ctx context.Context, swapID uuid.UUID) (bool, error) {
+	posted, err := q.swaps.SwapPosted(ctx, swapID)
+	if err != nil {
+		return false, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.SwapPosted")
+	}
+	return posted, nil
 }
 
 func (q *Queries) SolanaPositions(ctx context.Context, cabalID ids.CabalID) ([]port.Position, error) {

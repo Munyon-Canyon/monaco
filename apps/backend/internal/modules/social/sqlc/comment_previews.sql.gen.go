@@ -57,7 +57,7 @@ type CommentPreviewsRow struct {
 	ParentCommentID  pgtype.UUID
 	ReplyToCommentID pgtype.UUID
 	RootCommentID    uuid.UUID
-	AuthorID         uuid.UUID
+	AuthorID         pgtype.UUID
 	Body             pgtype.Text
 	CreatedAt        time.Time
 	OnProposal       bool

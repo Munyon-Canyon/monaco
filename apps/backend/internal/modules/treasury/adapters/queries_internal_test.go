@@ -384,6 +384,7 @@ func TestHistoricalReadsSuccess(t *testing.T) {
 
 type testStore interface {
 	queryStore
+	swapStore
 	fundStore
 	transitStore
 }
@@ -391,6 +392,7 @@ type testStore interface {
 func newTestQueries(store testStore, prices app.PriceReader) *Queries {
 	return &Queries{
 		q:       store,
+		swaps:   store,
 		funds:   store,
 		transit: store,
 		prices:  prices,
@@ -406,6 +408,8 @@ type stakeStore struct {
 	stakes       []uuid.UUID
 	openFund     bool
 	openFundErr  error
+	posted       bool
+	postedErr    error
 	position     sqlc.CabalUserPositionRow
 	positionErr  error
 	total        string
@@ -470,6 +474,10 @@ func (s stakeStore) CabalStakeSnapshot(
 
 func (s stakeStore) UserStakes(context.Context, uuid.UUID) ([]uuid.UUID, error) {
 	return s.stakes, s.stakesErr
+}
+
+func (s stakeStore) SwapPosted(context.Context, uuid.UUID) (bool, error) {
+	return s.posted, s.postedErr
 }
 
 func (s stakeStore) OpenFundTransfer(context.Context, sqlc.OpenFundTransferParams) (bool, error) {
@@ -588,5 +596,17 @@ func TestEVMPositionsReadFailures(t *testing.T) {
 	bad := stakeStore{positions: []sqlc.CabalPositionsRow{{Asset: "base:0xabc", Units: "bad", CostBasisMicros: "0"}}}
 	if _, err := newTestQueries(bad, prices).EVMPositions(t.Context(), ids.CabalID{}); err == nil {
 		t.Fatal("EVMPositions bad units error = nil")
+	}
+}
+
+func TestQueries_SwapPostedPassesTheAnswerAndWrapsFailures(t *testing.T) {
+	t.Parallel()
+	posted, err := newTestQueries(stakeStore{posted: true}, nil).SwapPosted(t.Context(), uuid.Nil)
+	if err != nil || !posted {
+		t.Fatalf("SwapPosted() = %v, %v, want true", posted, err)
+	}
+	if _, err := newTestQueries(stakeStore{postedErr: errs.New(errs.CodeInternal, "test")}, nil).
+		SwapPosted(t.Context(), uuid.Nil); err == nil {
+		t.Fatal("SwapPosted() succeeded despite a store failure")
 	}
 }

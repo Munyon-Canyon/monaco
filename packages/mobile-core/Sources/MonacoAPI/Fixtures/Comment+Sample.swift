@@ -10,12 +10,22 @@ extension Components.Schemas.Comment {
         Self(
             id: id, parentCommentId: parent, rootCommentId: parent,
             author: .init(
-                id: "author-\(author.lowercased())", handle: author.lowercased(), displayName: author, photoUrl: nil,
-                returnPrivate: false),
+                kind: .user, id: "author-\(author.lowercased())", handle: author.lowercased(),
+                displayName: author, photoUrl: nil, returnPrivate: false),
             replyToHandle: replyTo, replyTo: quote, body: body ?? "Comment \(id)",
             bodyDisplay: body ?? "Comment \(id)", attachment: nil, isMine: mine,
             reactions: reactions, reactionCount: Int32(reactions.reduce(0) { $0 + Int($1.count) }),
             createdAt: Date(timeIntervalSinceNow: -minutesAgo * 60))
+    }
+
+    public static func monacoSample(_ id: String, body: String, at: Date) -> Self {
+        Self(
+            id: id,
+            author: .init(
+                kind: .system, id: "00000000-0000-0000-0000-000000000000", handle: nil,
+                displayName: "Monaco", photoUrl: nil, returnPrivate: false),
+            replyToHandle: nil, body: body, bodyDisplay: body, isMine: false, reactions: [], reactionCount: 0,
+            createdAt: at)
     }
 
     public static func gifSample(
@@ -165,6 +175,18 @@ extension Components.Schemas.CommentThread {
             replies: []),
         Self(comment: .stockSample("nvda-jordan", author: "Jordan", minutesAgo: 10), replies: []),
     ]
+
+    public static let nvdaPassedMonacoReply: Self = Self(
+        comment: .monacoSample(
+            "nvda-monaco", body: "Passed and filled. 38 → 39.82 sh NVDA in the treasury.",
+            at: Date(timeIntervalSince1970: 1_792_662_060)),
+        replies: [])
+
+    public static let tslaFailedMonacoReply: Self = Self(
+        comment: .monacoSample(
+            "tsla-monaco", body: "Closed without passing. Nothing was sold.",
+            at: Date(timeIntervalSince1970: 1_792_346_400)),
+        replies: [])
 
     public static let pilatesThread: [Self] = [
         Self(

@@ -195,8 +195,27 @@ func wireQuote(q *app.CommentQuote, who people) *api.CommentQuote {
 	}
 }
 
+func systemComment(c app.Comment) api.Comment {
+	return api.Comment{
+		Id: c.ID,
+		Author: api.CommentAuthor{
+			Kind:        api.CommentAuthorKindSystem,
+			Id:          uuid.Nil,
+			DisplayName: domain.SystemAuthorName,
+		},
+		CreatedAt:   c.CreatedAt,
+		BodyDisplay: c.Body,
+		Body:        &c.Body,
+		Reactions:   wireReactions(nil),
+	}
+}
+
 func wireComment(c app.Comment, viewer ids.UserID, who people) api.Comment {
-	author := api.CommentAuthor{Id: c.AuthorID.UUID()}
+	if c.System {
+		return systemComment(c)
+	}
+	authorID := c.AuthorID.UUID()
+	author := api.CommentAuthor{Kind: api.CommentAuthorKindUser, Id: authorID}
 	if card, ok := who.cards[c.AuthorID]; ok && !card.Deleted {
 		author.Handle, author.DisplayName = optionalWireText(card.Handle), card.DisplayName
 		author.PhotoUrl = optionalWireText(card.PhotoURL)
