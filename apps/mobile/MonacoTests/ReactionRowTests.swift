@@ -70,7 +70,7 @@ struct ReactionRowTests {
         #expect(try !identifiers(in: without).contains("reaction-add-feed-a"))
     }
 
-    @Test func aChipIsFortyFourWideAndTheRowStaysOneLineAtTheLargestTextSize() {
+    @Test func atTheLargestTextSizeChipsStayWholeAndTheRowWrapsByLine() {
         let row = ReactionRow<MonacoReactionChip>(
             target: .feedItem("a"),
             reactions: [reaction("🎉", 5), reaction("💪", 3), reaction("👀", 2), reaction("👏", 1)],
@@ -79,11 +79,39 @@ struct ReactionRowTests {
         .environment(\.dynamicTypeSize, .accessibility5)
         let size = UIHostingController(rootView: row).sizeThatFits(in: CGSize(width: 390, height: 2_000))
 
-        #expect(size.height <= 120)
-        let chip = UIHostingController(rootView: MonacoReactionChip.add {})
-            .sizeThatFits(in: CGSize(width: 390, height: 2_000))
-        #expect(chip.width >= MonacoTheme.ReactionChipMetrics.tapSize)
-        #expect(chip.height >= MonacoTheme.ReactionChipMetrics.tapSize)
+        let chips: [CGSize] = [
+            measured(MonacoReactionChip(emoji: "🎉", count: 5, mine: true) {}),
+            measured(MonacoReactionChip(emoji: "💪", count: 3, mine: false) {}),
+            measured(MonacoReactionChip.more(3) {}),
+            measured(MonacoReactionChip.add {}),
+            measured(MonacoReactionChip.reply(count: 12) {}),
+        ]
+        for chip in chips {
+            #expect(chip.width >= MonacoTheme.ReactionChipMetrics.tapSize)
+            #expect(chip.height >= MonacoTheme.ReactionChipMetrics.tapSize)
+            #expect(chip.width <= 390)
+        }
+
+        let gap = MonacoTheme.ReactionChipMetrics.gap
+        var lines = 1
+        var x: CGFloat = 0
+        for chip in chips {
+            if x > 0, x + chip.width > 390 {
+                lines += 1
+                x = 0
+            }
+            x += chip.width + gap
+        }
+        let tallest = chips.map(\.height).max() ?? 0
+        #expect(size.height <= CGFloat(lines) * tallest + CGFloat(lines - 1) * gap + 1)
+    }
+
+    private func measured(_ chip: MonacoReactionChip) -> CGSize {
+        let host = UIHostingController(rootView: chip.environment(\.dynamicTypeSize, .accessibility5))
+        let ideal = host.sizeThatFits(in: CGSize(width: 10_000, height: 2_000))
+        let fitted = host.sizeThatFits(in: CGSize(width: 390, height: 2_000))
+        #expect(fitted.width == ideal.width)
+        return ideal
     }
 
     @Test func everyIconAddedHereResolvesToASystemSymbol() {
