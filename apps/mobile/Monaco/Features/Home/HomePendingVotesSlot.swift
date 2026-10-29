@@ -1,3 +1,4 @@
+import MonacoAnalytics
 import MonacoCore
 import SwiftUI
 
@@ -18,6 +19,8 @@ enum HomeProposalsMetrics {
 struct HomePendingVotes: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
+    @Environment(ToastCenter.self) private var toasts
+    @Environment(\.analytics) private var analytics
     @Environment(\.homeReads) private var reads
     @Environment(\.homeVoteNeeds) private var voteNeeds
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -151,6 +154,7 @@ struct HomePendingVotes: View {
     private func preparedModel() -> HomePendingVotesModel {
         if let model { return model }
         let created = makeModel(environment)
+        HomeVoteCommit.install(on: created, environment: environment, toasts: toasts, analytics: analytics)
         model = created
         return created
     }

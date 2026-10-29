@@ -12,6 +12,8 @@ enum CabalsVoteSlot: CabalsTabSection {
 struct CabalsVoteSection: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(CabalsTabStore.self) private var store
+    @Environment(ToastCenter.self) private var toasts
+    @Environment(\.analytics) private var analytics
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -23,6 +25,9 @@ struct CabalsVoteSection: View {
             }
         }
         .animation(reduceMotion ? nil : .snappy, value: store.votes.cards.map(\.id))
+        .onAppear {
+            HomeVoteCommit.install(on: store.votes, environment: environment, toasts: toasts, analytics: analytics)
+        }
         .onScreenVisibilityChange { store.votes.setVisible($0) }
         .onChange(of: signature, initial: true) { _, _ in
             store.syncVotes()

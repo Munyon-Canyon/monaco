@@ -15,6 +15,7 @@ public final class HomePendingVotesModel {
     private let releaseAfter: TimeInterval
     private let refresher: HintRefresher
     public var cardSetup: (@MainActor (HomeVoteCardModel) -> Void)?
+    public var onVoteCommitted: (@MainActor (HomeVoteCardModel, CastOutcome) -> Void)?
     private var hasLeftHome = false
 
     public init(
@@ -68,6 +69,10 @@ public final class HomePendingVotesModel {
         let fresh = rows.map { row -> HomeVoteCardModel in
             guard let card = existing[row.id] else {
                 let created = HomeVoteCardModel(api: api, hints: hints, row: row, now: now, releaseAfter: releaseAfter)
+                created.onCommitted = { [weak self, weak created] outcome in
+                    guard let self, let created else { return }
+                    onVoteCommitted?(created, outcome)
+                }
                 cardSetup?(created)
                 return created
             }
