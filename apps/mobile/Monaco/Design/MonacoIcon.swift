@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum MonacoIcon: String, CaseIterable {
-    case home, cabals, markets, feed, profile
+    case home, cabals, pair, markets, feed, profile
     case bell, settings, filter, search, close, expand
     case chevron, chevronDown, plus, minus, check, checkCircle
     case share, info, chat, heart, star, eye, edit
@@ -15,6 +15,7 @@ enum MonacoIcon: String, CaseIterable {
         switch self {
         case .home: return "house"
         case .cabals: return "person.3"
+        case .pair: return "person.2.fill"
         case .markets: return "chart.line.uptrend.xyaxis"
         case .feed: return "newspaper"
         case .profile: return "person.crop.circle"

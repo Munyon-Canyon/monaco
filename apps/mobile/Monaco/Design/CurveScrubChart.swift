@@ -9,6 +9,7 @@ struct CurveScrubChart: View {
     let plot: ValueCurve.Plot
     let range: LeaderboardRange
     var height: CGFloat = CurveScrubChart.defaultHeight
+    var showsDateRange = true
     @Binding var selection: Int?
     let identifier: String
 
@@ -56,7 +57,7 @@ struct CurveScrubChart: View {
             showsLastPriceRule: false,
             showsEndDot: true,
             selectionStyle: .tooltipPill,
-            showsDateRange: true,
+            showsDateRange: showsDateRange,
             resetKey: range.rawValue,
             hasOlder: false,
             initialVisibleBars: bars.count,
@@ -82,12 +83,15 @@ struct CurveScrubChart: View {
 
 struct CurveScrubChartFrame<Content: View>: View {
     var height: CGFloat = CurveScrubChart.defaultHeight
+    var showsDateRange = true
     @ViewBuilder var content: Content
 
     var body: some View {
         VStack(spacing: 0) {
             content.frame(height: height)
-            MonacoChartDateRow(first: " ", last: " ").hidden()
+            if showsDateRange {
+                MonacoChartDateRow(first: " ", last: " ").hidden()
+            }
         }
     }
 }
