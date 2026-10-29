@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -167,10 +168,11 @@ func (env *Env) noLandingRun(ctx context.Context, l Landing) ([]string, func(*La
 
 func (env *Env) relatedFailure(ctx context.Context, r Record, l Landing, run Run) (landingCall, error) {
 	refs := prRefs(l.PRs)
-	failed, err := env.failedJobs(ctx, run.ID)
+	jobs, err := env.failedJobList(ctx, run.ID)
 	if err != nil {
 		return landingCall{}, err
 	}
+	failed := jobNames(jobs)
 	if len(failed) == 0 {
 		return landingCall{lines: []string{fmt.Sprintf("staging run %s ended %s with no failed job; not reverting %s",
 			run.URL, run.Conclusion, refs)}}, nil
@@ -190,7 +192,7 @@ func (env *Env) relatedFailure(ctx context.Context, r Record, l Landing, run Run
 				run.URL, strings.Join(failed, ", "), refs)},
 		}, nil
 	}
-	related, lines, err := env.dropAlreadyRed(ctx, l, run, related)
+	related, lines, err := env.dropAlreadyRed(ctx, l, run, related, jobs)
 	if err != nil {
 		return landingCall{}, err
 	}
@@ -268,49 +270,108 @@ func docsJob(name string) bool {
 	return strings.Contains(name, "docs") || strings.Contains(name, "mkdocs")
 }
 
-func (env *Env) failedJobs(ctx context.Context, runID int64) ([]string, error) {
+func jobNames(jobs []Job) []string {
+	names := make([]string, 0, len(jobs))
+	for _, j := range jobs {
+		names = append(names, j.Name)
+	}
+	return names
+}
+
+func (env *Env) failedJobList(ctx context.Context, runID int64) ([]Job, error) {
 	jobs, err := env.GitHub.Jobs(ctx, runID)
 	if err != nil {
 		return nil, err
 	}
-	var failed []string
-	for _, j := range jobs {
-		if slices.Contains([]string{"failure", "timed_out", "cancelled"}, j.Conclusion) {
-			failed = append(failed, j.Name)
-		}
-	}
-	return failed, nil
+	return slices.DeleteFunc(jobs, func(j Job) bool {
+		return !slices.Contains([]string{"failure", "timed_out", "cancelled"}, j.Conclusion)
+	}), nil
 }
 
-func (env *Env) dropAlreadyRed(ctx context.Context, l Landing, run Run, related []string) ([]string, []string, error) {
+var failingNameRE = regexp.MustCompile(
+	`FAIL flow (\S+ \S+)|--- FAIL: (\S+)|Test Case '-\[(\S+ \S+)\]' failed|✘ Test (\S+) failed`,
+)
+
+func failingNames(log []byte) map[string]bool {
+	names := map[string]bool{}
+	for _, m := range failingNameRE.FindAllSubmatch(log, -1) {
+		for _, g := range m[1:] {
+			if len(g) > 0 {
+				names[string(g)] = true
+			}
+		}
+	}
+	return names
+}
+
+func (env *Env) newFailures(ctx context.Context, before, after Job) []string {
+	if before.ID == 0 || after.ID == 0 {
+		return nil
+	}
+	old, err := env.GitHub.JobLog(ctx, before.ID)
+	if err != nil {
+		return nil
+	}
+	fresh, err := env.GitHub.JobLog(ctx, after.ID)
+	if err != nil {
+		return nil
+	}
+	seen := failingNames(old)
+	var added []string
+	for name := range failingNames(fresh) {
+		if !seen[name] {
+			added = append(added, name)
+		}
+	}
+	slices.Sort(added)
+	return added
+}
+
+func (env *Env) dropAlreadyRed(
+	ctx context.Context, l Landing, run Run, related []string, now []Job,
+) ([]string, []string, error) {
 	prior, found, err := env.GitHub.LatestStagingRunBefore(ctx, indicatorWorkflow, env.Config.FeatureBranch,
 		run.CreatedAt, l.SHA)
 	if err != nil || !found || prior.Conclusion == "success" {
 		return related, nil, err
 	}
-	red, err := env.failedJobs(ctx, prior.ID)
+	red, err := env.failedJobList(ctx, prior.ID)
 	if err != nil {
 		return nil, nil, err
 	}
-	red = slices.DeleteFunc(red, aggregateJob)
-	var already []string
-	remaining := slices.DeleteFunc(slices.Clone(related), func(name string) bool {
-		if slices.Contains(red, name) {
-			already = append(already, name)
-			return true
+	byName := func(jobs []Job, name string) (Job, bool) {
+		i := slices.IndexFunc(jobs, func(j Job) bool { return j.Name == name })
+		if i < 0 {
+			return Job{}, false
 		}
-		return false
+		return jobs[i], true
+	}
+	short := prior.HeadSHA[:min(8, len(prior.HeadSHA))]
+	var already, lines []string
+	remaining := slices.DeleteFunc(slices.Clone(related), func(name string) bool {
+		before, ok := byName(red, name)
+		if !ok || aggregateJob(name) {
+			return false
+		}
+		after, _ := byName(now, name)
+		if added := env.newFailures(ctx, before, after); len(added) > 0 {
+			lines = append(lines, fmt.Sprintf("staging run %s failed on %s, red on %s too, but with new failures: %s",
+				run.URL, name, short, strings.Join(added, ", ")))
+			return false
+		}
+		already = append(already, name)
+		return true
 	})
 	if len(already) == 0 {
-		return related, nil, nil
+		return related, lines, nil
 	}
-	return remaining, []string{fmt.Sprintf(
+	return remaining, append(lines, fmt.Sprintf(
 		"staging run %s failed on %s, already red on %s before %s landed; not reverting for them",
 		run.URL,
 		strings.Join(already, ", "),
-		prior.HeadSHA[:min(8, len(prior.HeadSHA))],
+		short,
 		prRefs(l.PRs),
-	)}, nil
+	)), nil
 }
 
 func aggregateJob(name string) bool {

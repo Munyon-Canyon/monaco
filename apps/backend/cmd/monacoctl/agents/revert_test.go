@@ -871,3 +871,109 @@ func TestWatch_aLaterGreenRunNotContainingTheLandingDoesNot(t *testing.T) {
 		t.Fatalf("second failure: %q", stdout)
 	}
 }
+
+func TestWatch_judgesAlreadyRedByTheFailingFlowsAndTests(t *testing.T) {
+	t.Parallel()
+	const e2e = "staging / E2E (e2e 1 of 3)"
+	for _, tc := range []struct {
+		name, before, after string
+		related             bool
+	}{
+		{
+			"tonight's flow 10b, 35 and 37 failures behind the older feed-ack red are new",
+			"FAIL flow 21b ok (seed 1ms): feed ack\n",
+			"FAIL flow 21b ok (seed 1ms): feed ack\nFAIL flow 37 ok (flow 15s): no tick\n" +
+				"FAIL flow 10b CloseReminderPoller ok: 0 events\nFAIL flow 35 crash:before-commit: a row\n",
+			true,
+		},
+		{"the same failing flows are already red", "FAIL flow 21b ok: x\n", "FAIL flow 21b ok: y\n", false},
+		{"a new Go test is new", "--- FAIL: TestA (0.1s)\n", "--- FAIL: TestA (0.1s)\n--- FAIL: TestB (0.2s)\n", true},
+		{
+			"a new XCTest case is new",
+			"",
+			"Test Case '-[MonacoCoreTests.FeedTests testTally]' failed (0.001 seconds).\n",
+			true,
+		},
+		{"a new swift-testing test is new", "", "✘ Test aNumberIsTyped() failed after 0.1 seconds\n", true},
+		{
+			"a failure with no names (the coverage floor, a type-check) keeps the job name rule",
+			"coverage: 93.76% under floor 93.79%\n",
+			"error: the compiler is unable to type-check this expression in reasonable time\n",
+			false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			l := newLanding(t, func(x *Landing) { x.Reran = false })
+			l.prior(Run{
+				ID: 70, Status: "completed", Conclusion: "failure", HeadSHA: "5555555555555555",
+				CreatedAt: priorAt(l.f),
+			})
+			l.f.hub.on(get("/actions/runs/70/jobs?per_page=100"), map[string]any{"jobs": []Job{
+				{ID: 700, Name: e2e, Conclusion: "failure"},
+			}})
+			l.f.hub.on(get("/actions/jobs/700/logs"), tc.before)
+			l.f.hub.on(get("/actions/jobs/770/logs"), tc.after)
+			l.f.hub.on("POST /repos/o/r/actions/runs/77/rerun-failed-jobs", "")
+			l.run("failure", Job{ID: 770, Name: e2e, Conclusion: "failure"})
+			_, stdout, _ := l.f.agents(t, "watch", "--once")
+			reran := strings.Contains(stdout, "reran the failed jobs once")
+			already := strings.Contains(stdout, "already red on 55555555")
+			if reran != tc.related || already == tc.related {
+				t.Fatalf("related=%v: %q", tc.related, stdout)
+			}
+			if tc.related && !strings.Contains(stdout, "red on 55555555 too, but with new failures: ") {
+				t.Fatalf("no new-failures line: %q", stdout)
+			}
+		})
+	}
+}
+
+func TestWatch_keepsTheJobNameRuleWhenAJobLogCannotBeRead(t *testing.T) {
+	t.Parallel()
+	const e2e = "staging / E2E (e2e 1 of 3)"
+	for _, unreadable := range []string{"700", "770"} {
+		t.Run("job "+unreadable, func(t *testing.T) {
+			t.Parallel()
+			l := newLanding(t, func(x *Landing) { x.Reran = false })
+			l.prior(Run{
+				ID: 70, Status: "completed", Conclusion: "failure", HeadSHA: "5555555555555555",
+				CreatedAt: priorAt(l.f),
+			})
+			l.f.hub.on(get("/actions/runs/70/jobs?per_page=100"), map[string]any{"jobs": []Job{
+				{ID: 700, Name: e2e, Conclusion: "failure"},
+			}})
+			for _, id := range []string{"700", "770"} {
+				l.f.hub.on(get("/actions/jobs/"+id+"/logs"), "FAIL flow 21b ok\nFAIL flow "+id+" ok\n")
+			}
+			l.f.hub.status[get("/actions/jobs/"+unreadable+"/logs")] = 500
+			l.run("failure", Job{ID: 770, Name: e2e, Conclusion: "failure"})
+			_, stdout, _ := l.f.agents(t, "watch", "--once")
+			if !strings.Contains(stdout, "already red on 55555555") || strings.Contains(stdout, "reran") {
+				t.Fatalf("%q", stdout)
+			}
+		})
+	}
+}
+
+func TestWatch_revertsFromItsOwnWorktreeNotThePrimaryCheckout(t *testing.T) {
+	t.Parallel()
+	l := newLanding(t, nil)
+	l.run("failure", Job{Name: "staging / Backend tests (a)", Conclusion: "failure"})
+	_, stdout, _ := l.f.agents(t, "watch", "--once")
+	if !strings.Contains(stdout, "reverted #1 #2 with #99") {
+		t.Fatalf("%q", stdout)
+	}
+	adds := l.sh.lines("git worktree add")
+	if len(adds) != 1 || !strings.Contains(adds[0], filepath.Join(".worktrees", "revert-2")) {
+		t.Fatalf("worktree add %v", adds)
+	}
+	l.sh.mu.Lock()
+	defer l.sh.mu.Unlock()
+	for _, c := range l.sh.calls {
+		inRevert := strings.HasSuffix(c.dir, filepath.Join(".worktrees", "revert-2"))
+		if strings.HasPrefix(c.line, "git revert") && !inRevert {
+			t.Fatalf("a revert ran outside the revert worktree: %q in %q", c.line, c.dir)
+		}
+	}
+}

@@ -281,8 +281,15 @@ func (g *GitHub) Statuses(ctx context.Context, sha string) ([]GHStatus, error) {
 }
 
 type Job struct {
+	ID         int64  `json:"id"`
 	Name       string `json:"name"`
 	Conclusion string `json:"conclusion"`
+}
+
+func (g *GitHub) JobLog(ctx context.Context, id int64) ([]byte, error) {
+	var log []byte
+	err := g.call(ctx, http.MethodGet, g.repo("/actions/jobs/%d/logs", id), "", nil, &log)
+	return log, err
 }
 
 func (g *GitHub) Jobs(ctx context.Context, id int64) ([]Job, error) {
