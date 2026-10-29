@@ -34,11 +34,10 @@ final class MarketStatsCopyTests: XCTestCase {
         )
     }
 
-    func testASessionAssetSaysItsExchangeKeepsMarketHours() {
+    func testASessionAssetReadsTheSameAsAContinuousOne() {
         XCTAssertEqual(
             MarketStatsCopy.message(facts(networks: [.solana], continuous: false)),
-            "Prices are for the tokenized stock on Solana, not the exchange listing. It trades 24/7; the stock's own exchange keeps market hours."
-        )
+            "Prices are for the tokenized stock on Solana, not the exchange listing. It trades 24/7.")
     }
 
     func testTheSourceNamesTheRealProvider() {
@@ -56,20 +55,14 @@ final class MarketStatsCopyTests: XCTestCase {
         XCTAssertEqual(MarketStatsCopy.rows(facts(asOf: nil), now: now, calendar: utc)[1].value, "Not priced yet")
     }
 
-    func testCheckedReadsTheCadence() {
-        func checked(_ seconds: Int) -> String {
+    func testDelayReadsTheCadence() {
+        func delay(_ seconds: Int) -> String {
             MarketStatsCopy.rows(facts(seconds: seconds), now: now, calendar: utc)[2].value
         }
-        XCTAssertEqual(MarketStatsCopy.rows(facts(), now: now, calendar: utc)[2].label, "Checked")
-        XCTAssertEqual(checked(120), "Every 2 min")
-        XCTAssertEqual(checked(30), "Every 30 s")
-        XCTAssertEqual(checked(60), "Every min")
-    }
-
-    func testNoStringSaysUpTo() {
-        let sheet = MarketStatsCopy.sheet(facts(), now: now, calendar: utc)
-        let text = ([sheet.message] + sheet.rows.map(\.value) + MarketStatsCopy.auditedStrings).joined(separator: " ")
-        XCTAssertFalse(text.lowercased().contains("up to"))
+        XCTAssertEqual(MarketStatsCopy.rows(facts(), now: now, calendar: utc)[2].label, "Delay")
+        XCTAssertEqual(delay(120), "up to 2 min")
+        XCTAssertEqual(delay(30), "up to 30 s")
+        XCTAssertEqual(delay(60), "up to 1 min")
     }
 
     func testTheEstimateSheetReusesTheLedgerRows() throws {

@@ -24,24 +24,22 @@ public enum MarketStatsCopy {
         "Pre-IPO companies don't trade on an exchange. The estimate is what secondary buyers paid recently."
     public static let sourceLabel = "Source"
     public static let updatedLabel = "Updated"
-    public static let checkedLabel = "Checked"
+    public static let delayLabel = "Delay"
     public static let noSource = "—"
     public static let notPriced = "Not priced yet"
     public static let ok = "OK"
     static let continuousTail = "It trades 24/7."
-    static let sessionTail = "It trades 24/7; the stock's own exchange keeps market hours."
 
     public static func message(_ facts: MarketStatsFacts) -> String {
         let chains = joined(facts.listingNetworks.map(BestPrice.chainName))
-        let tail = facts.tradesContinuously ? continuousTail : sessionTail
-        return "Prices are for the tokenized stock on \(chains), not the exchange listing. \(tail)"
+        return "Prices are for the tokenized stock on \(chains), not the exchange listing. \(continuousTail)"
     }
 
     public static func rows(_ facts: MarketStatsFacts, now: Date, calendar: Calendar = .autoupdatingCurrent) -> [Row] {
         [
             Row(label: sourceLabel, value: sourceName(facts.priceSource)),
             Row(label: updatedLabel, value: updated(facts.priceAsOf, now: now, calendar: calendar)),
-            Row(label: checkedLabel, value: checked(facts.pollInterval)),
+            Row(label: delayLabel, value: delay(facts.pollInterval)),
         ]
     }
 
@@ -73,11 +71,11 @@ public enum MarketStatsCopy {
         return formatter.string(from: date)
     }
 
-    static func checked(_ interval: Duration) -> String {
+    static func delay(_ interval: Duration) -> String {
         let seconds = Int(interval.components.seconds)
-        if seconds == 60 { return "Every min" }
-        if seconds % 60 == 0 { return "Every \(seconds / 60) min" }
-        return "Every \(seconds) s"
+        if seconds == 60 { return "up to 1 min" }
+        if seconds % 60 == 0 { return "up to \(seconds / 60) min" }
+        return "up to \(seconds) s"
     }
 
     private static func joined(_ names: [String]) -> String {
@@ -86,9 +84,8 @@ public enum MarketStatsCopy {
     }
 
     public static let auditedStrings: [String] = [
-        title, estimateTitle, estimateMessage, sourceLabel, updatedLabel, checkedLabel, noSource, notPriced, ok,
+        title, estimateTitle, estimateMessage, sourceLabel, updatedLabel, delayLabel, noSource, notPriced, ok,
         "Prices are for the tokenized stock on Solana, not the exchange listing. It trades 24/7.",
-        "Prices are for the tokenized stock on Solana, not the exchange listing. \(sessionTail)",
-        "Jupiter", "CoinGecko", "Every min", "Every 2 min", "Every 30 s",
+        "Jupiter", "CoinGecko", "up to 1 min", "up to 2 min", "up to 30 s",
     ]
 }

@@ -77,8 +77,8 @@ founder:
 
 | Frame | Appearance | Verdict | Difference | Follow-up |
 | --- | --- | --- | --- | --- |
-| [`12-toast`](../screens/12-toast.png) | dark | difference | Frame shows the toast over Home with the vote card collapsed to "You voted Yes ✓5 ✗1"; app shows it over an unvoted proposal page (Yes 4 / No 1), with the toast text overlapping the "Proposal" title and a dim check icon. | #7019 (#6458, #6506) |
-| [`12-info-sheet`](../screens/12-info-sheet.png) | dark | difference | Frame's sheet says "Solana, Base and Robinhood Chain ... trades 24/7" with Source CoinGecko, Updated 9:41 AM, Delay up to 1 min; app says "Solana ... keeps market hours" with Source Jupiter, Updated Mar 3, Checked Every 2 min, over a stale-price banner. | #7019 (#6562) |
+| [`12-toast`](../screens/12-toast.png) | dark | match | Toast shows over Home (no route pushed) with the vote card collapsed to "You voted Yes ✓5 ✗1"; no title behind it. | #7019 (#6458, #6506) |
+| [`12-info-sheet`](../screens/12-info-sheet.png) | dark | match | Sheet says "Solana, Base and Robinhood Chain ... trades 24/7" with Source CoinGecko, Updated <now>, Delay up to 1 min, no market-hours sentence, no stale banner behind. | #7019 (#6562) |
 
 founder:
 
