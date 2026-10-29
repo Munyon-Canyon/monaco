@@ -2,24 +2,7 @@ import Foundation
 
 extension StocksTabModel {
     public nonisolated static let sectionLimit = 5
-
-    public enum Sort: CaseIterable, Hashable, Sendable {
-        case standard, volume, tradeCount, name, priceChange
-
-        public var title: String {
-            switch self {
-            case .standard: "Default"
-            case .volume: "Volume"
-            case .tradeCount: "Trade count"
-            case .name: "Name A–Z"
-            case .priceChange: "Price change"
-            }
-        }
-
-        public var isAvailable: Bool { self == .standard }
-
-        public nonisolated static let unavailableNote = "More sorts open soon"
-    }
+    nonisolated static let moversRequested = 10
 
     public var watchlistCount: Int { watchlist?.symbols.count ?? 0 }
 
@@ -28,6 +11,8 @@ extension StocksTabModel {
     public var watchlistPreview: [WatchlistQuotes.Row] {
         Array(watchlistRows.filter { !Self.isPreIpo($0) }.prefix(Self.sectionLimit))
     }
+
+    public var moverPreview: [MarketAsset] { Array(movers.prefix(Self.sectionLimit)) }
 
     public var preIpoPreview: [MarketAsset] { Array(preIpo.rows.prefix(Self.sectionLimit)) }
 
@@ -49,6 +34,17 @@ extension StocksTabModel {
         async let watched: Void = loadQuotes()
         async let known: Void = loadFacts()
         _ = await (watched, known)
+    }
+
+    func loadMovers() async {
+        do {
+            let list = try await api.read { client in
+                try await client.getAssets(query: .init(filter: .movers, limit: Self.moversRequested)).ok.body.json
+            }
+            movers = MarketMapping.page(list).assets
+        } catch {
+            return
+        }
     }
 
     func loadFacts() async {

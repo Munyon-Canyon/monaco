@@ -51,6 +51,7 @@ public final class StocksTabModel {
     public private(set) var lastLoadedAt: Date?
     public private(set) var isStale = false
     public internal(set) var facts: [String: MarketFact] = [:]
+    public internal(set) var movers: [MarketAsset] = []
     public private(set) var isMarkets = false
     public let quotes: WatchlistQuotes?
     public var rows: [MarketAsset] { self[activeSection].rows }
@@ -99,7 +100,8 @@ public final class StocksTabModel {
         async let listed: Void = load()
         async let watched: Void = loadQuotes()
         async let known: Void = loadFacts()
-        _ = await (listed, watched, known)
+        async let moving: Void = loadMovers()
+        _ = await (listed, watched, known, moving)
     }
     public func show(_ next: Browse) async {
         browse = next
@@ -170,8 +172,10 @@ public final class StocksTabModel {
         let issued = generation
         replacementGenerations.insert(issued)
         defer { replacementGenerations.remove(issued) }
+        async let moving: Void = isMarkets ? loadMovers() : ()
         await refresh(activeSection, issued: issued)
         await watchlistChanged()
+        await moving
     }
     private func replace(_ section: Section?, issued: Int) async {
         guard issued == generation else { return }

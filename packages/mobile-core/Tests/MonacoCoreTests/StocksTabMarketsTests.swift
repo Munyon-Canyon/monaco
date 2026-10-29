@@ -13,6 +13,7 @@ final class StocksTabMarketsTests: XCTestCase {
     func testPullToRefreshReloadsThePreIpoListTheWatchlistAndItsFacts() async throws {
         let transport = PrefixTransport([
             ("/v1/assets?filter=pre_ipo", try Self.page(["tSpaceX": 5])),
+            ("/v1/assets?filter=movers", try Self.page(["TSLAx": -240])),
             ("/v1/assets/NVDAx", try Self.detailBody("NVDAx")),
             ("/v1/me/market-facts", Self.factsBody),
         ])
@@ -21,7 +22,8 @@ final class StocksTabMarketsTests: XCTestCase {
         await model.loadMarkets()
 
         let targets = transport.sent
-        XCTAssertEqual(targets.count, 3)
+        XCTAssertEqual(targets.count, 4)
+        XCTAssertEqual(targets.filter { $0.hasPrefix("/v1/assets?filter=movers") }.count, 1)
         XCTAssertEqual(targets.filter { $0.hasPrefix("/v1/assets?filter=pre_ipo") }.count, 1)
         XCTAssertEqual(targets.filter { $0.hasPrefix("/v1/assets/NVDAx") }.count, 1)
         XCTAssertEqual(targets.filter { $0.hasPrefix("/v1/me/market-facts") }.count, 1)
@@ -231,14 +233,6 @@ final class StocksTabMarketsTests: XCTestCase {
 
     func testTheFilterOptionsMapToTheWireValues() async {
         XCTAssertEqual(StocksTabModel.Browse.allCases.map(\.identifier), ["all", "watchlist", "pre_ipo", "held"])
-    }
-
-    func testOnlyTheDefaultSortIsAvailable() async {
-        XCTAssertEqual(
-            StocksTabModel.Sort.allCases.map(\.title),
-            ["Default", "Volume", "Trade count", "Name A–Z", "Price change"])
-        XCTAssertEqual(StocksTabModel.Sort.allCases.filter(\.isAvailable), [.standard])
-        XCTAssertEqual(StocksTabModel.Sort.unavailableNote, "More sorts open soon")
     }
 
     func testTheStaleCopyReadsTheWayTheScreensDo() async {
