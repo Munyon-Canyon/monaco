@@ -73,6 +73,14 @@ final class CommentThreadTests: XCTestCase {
         XCTAssertEqual(rows[1].authorID, "author-maya")
     }
 
+    func testAGifReplyWithNoTextIsNotADeletedRow() {
+        let row = CommentThreadRow(comment: .gifSample("g1", author: "Christelle", parent: "c1"), isReply: true)
+
+        XCTAssertNil(row.comment.body)
+        XCTAssertFalse(row.isDeleted)
+        XCTAssertTrue(row.opensAuthorProfile)
+    }
+
     func testAnAuthorWithNoNameShowsTheHandleThenAPlaceholder() {
         var comment = Comment.sample("c1")
         comment.author.displayName = ""

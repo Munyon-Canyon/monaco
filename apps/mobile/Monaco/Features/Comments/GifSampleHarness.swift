@@ -2,6 +2,8 @@
 import MonacoAPI
 import MonacoCore
 import SwiftUI
+import UIKit
+import UniformTypeIdentifiers
 
 final class GifSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
@@ -12,7 +14,7 @@ final class GifSampleHarnessEntry: SampleHarnessEntry {
         let host =
             arguments.firstIndex(of: "-gifHost").flatMap { index in
                 arguments.indices.contains(index + 1) ? GifHost(rawValue: arguments[index + 1]) : nil
-            } ?? .sheet
+            } ?? (scenario.showsThread ? .docked : .sheet)
         return AnyView(GifHarnessScreen(scenario: scenario, host: host, auth: auth))
     }
 }
@@ -23,19 +25,26 @@ enum GifScenario: String {
     case empty
     case failed
     case live
+    case bubble
+    case reduceMotion
+    case viewer
 
     var query: String {
         switch self {
         case .search: "dance"
         case .empty: "zzzz"
-        case .trending, .failed, .live: ""
+        case .trending, .failed, .live, .bubble, .reduceMotion, .viewer: ""
         }
+    }
+
+    var showsThread: Bool {
+        self == .bubble || self == .reduceMotion
     }
 
     @MainActor
     var provider: any GifProvider {
         switch self {
-        case .trending, .search: SampleGifProvider()
+        case .trending, .search, .bubble, .reduceMotion, .viewer: SampleGifProvider()
         case .empty: SampleGifProvider(mode: .noMatches)
         case .failed: SampleGifProvider(mode: .failing)
         case .live: AppEnvironment.makeGifProvider(key: Config.giphySDKKey, isRunningTests: false)
@@ -62,14 +71,53 @@ struct GifSampleStill: View {
     }
 }
 
+extension Components.Schemas.GifMedia {
+    fileprivate nonisolated init(_ media: GifMedia) {
+        self.init(url: media.url.absoluteString, width: media.width, height: media.height)
+    }
+}
+
+private actor GifHarnessReplies {
+    private var posted: [Components.Schemas.Comment] = []
+
+    func add(_ comment: Components.Schemas.Comment) {
+        posted.append(comment)
+    }
+
+    func all() -> [Components.Schemas.Comment] {
+        posted
+    }
+}
+
 private struct GifRecordingSource: CommentsSource {
+    let seeded: Bool
     let onPost: @MainActor @Sendable (Components.Schemas.CommentAttachmentInput?) -> Void
+    private let replies = GifHarnessReplies()
+
+    private static var seededReply: Components.Schemas.Comment {
+        var comment = Components.Schemas.Comment.gifSample("g1", author: "Christelle", parent: "c1")
+        if let gif = SampleGifProvider.items.dropFirst().first {
+            comment.attachment = .gif(
+                .init(
+                    kind: .gif, id: gif.id, title: gif.title, still: .init(gif.still), preview: .init(gif.preview),
+                    original: .init(gif.original)))
+        }
+        return comment
+    }
+
+    init(
+        seeded: Bool, onPost: @escaping @MainActor @Sendable (Components.Schemas.CommentAttachmentInput?) -> Void
+    ) {
+        self.seeded = seeded
+        self.onPost = onPost
+    }
 
     func list(cursor _: String?) async throws -> CommentsPage {
         let thread = Components.Schemas.CommentThread(
             comment: .sample("c1", author: "Mia", body: "What would our NVIDIA allocation be after this?"),
-            replies: [])
-        return CommentsPage(threads: [thread], nextCursor: nil)
+            replies: seeded ? [Self.seededReply] : [])
+        let posted = await replies.all().map { Components.Schemas.CommentThread(comment: $0, replies: []) }
+        return CommentsPage(threads: [thread] + posted, nextCursor: nil)
     }
 
     func post(
@@ -77,7 +125,17 @@ private struct GifRecordingSource: CommentsSource {
         submission _: IdempotentSubmission
     ) async throws -> Components.Schemas.Comment {
         await onPost(attachment)
-        return .sample("c9", mine: true)
+        var comment = Components.Schemas.Comment.sample("c9", author: "Jordan", mine: true)
+        if case .gif(let input)? = attachment {
+            comment.body = nil
+            comment.bodyDisplay = "GIF"
+            comment.attachment = .gif(
+                .init(
+                    kind: .gif, id: input.gif.id, title: input.gif.title, still: input.gif.still,
+                    preview: input.gif.preview, original: input.gif.original))
+            await replies.add(comment)
+        }
+        return comment
     }
 
     func delete(id _: String, submission _: IdempotentSubmission) async throws {}
@@ -94,6 +152,7 @@ private struct GifHarnessScreen: View {
     @State private var comments: CommentsModel?
     @State private var toasts = ToastCenter()
     @State private var presents: Bool
+    @State private var viewing: Bool
     @State private var postCount = 0
     @State private var lastPost: Components.Schemas.CommentAttachmentInput?
 
@@ -101,11 +160,12 @@ private struct GifHarnessScreen: View {
         self.scenario = scenario
         self.host = host
         self.auth = auth
-        _presents = State(initialValue: host == .sheet)
+        _presents = State(initialValue: host == .sheet && scenario != .viewer)
+        _viewing = State(initialValue: scenario == .viewer)
     }
 
     var body: some View {
-        Color.clear
+        thread
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .monacoCanvas()
             .overlay(alignment: .top) { postsLabel }
@@ -117,10 +177,27 @@ private struct GifHarnessScreen: View {
                     record(attachment)
                 }
             }
+            .fullScreenCover(isPresented: $viewing) {
+                if let item = SampleGifProvider.items.first {
+                    MediaViewer(gif: item.original.url, still: item.still.url)
+                }
+            }
+            .environment(\.gifStillsOnly, scenario == .reduceMotion)
             .environment(toasts)
             .monacoToastCenter(toasts)
             .optionalEnvironment(environment)
             .task { await prepare() }
+    }
+
+    @ViewBuilder private var thread: some View {
+        if let comments, scenario.showsThread {
+            ScrollView {
+                CommentThreadView(model: comments)
+                    .padding(.top, MonacoTheme.Space.xl)
+            }
+        } else {
+            Color.clear
+        }
     }
 
     private var postsLabel: some View {
@@ -142,7 +219,7 @@ private struct GifHarnessScreen: View {
             endAuthSession: {}
         )
         let model = CommentsModel(
-            source: GifRecordingSource { attachment in record(attachment) },
+            source: GifRecordingSource(seeded: scenario.showsThread) { attachment in record(attachment) },
             hints: SampleSilentHints(), clock: ContinuousClock())
         comments = model
         await model.load()
@@ -168,5 +245,57 @@ extension View {
             self
         }
     }
+}
+
+nonisolated final class SampleGifURLProtocol: URLProtocol {
+    nonisolated override class func canInit(with request: URLRequest) -> Bool {
+        request.url?.host == SampleGifProvider.host
+    }
+
+    nonisolated override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    nonisolated override func startLoading() {
+        guard let url = request.url,
+            let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)
+        else { return }
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: SampleGifData.bytes)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    nonisolated override func stopLoading() {}
+}
+
+nonisolated enum SampleGifData {
+    static let bytes: Data = {
+        let colors: [UIColor] = [.systemBlue, .systemGreen, .systemOrange, .systemRed]
+        let data = NSMutableData()
+        guard
+            let destination = CGImageDestinationCreateWithData(
+                data, UTType.gif.identifier as CFString, colors.count, nil)
+        else { return Data() }
+        let file = [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFLoopCount: 0]]
+        CGImageDestinationSetProperties(destination, file as CFDictionary)
+        let frame = [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFDelayTime: 0.3]]
+        let size = CGSize(width: 200, height: 150)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        for (index, color) in colors.enumerated() {
+            let image = renderer.image { context in
+                color.setFill()
+                context.fill(CGRect(origin: .zero, size: size))
+                UIColor.white.setFill()
+                context.fill(CGRect(x: CGFloat(index) * 50, y: 50, width: 50, height: 50))
+            }
+            if let cgImage = image.cgImage {
+                CGImageDestinationAddImage(destination, cgImage, frame as CFDictionary)
+            }
+        }
+        CGImageDestinationFinalize(destination)
+        return data as Data
+    }()
 }
 #endif
