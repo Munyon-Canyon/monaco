@@ -9,7 +9,7 @@ enum MonacoIcon: String, CaseIterable {
     case wallet, card, receipt, qr, copy, link, globe
     case clock, alert, offline, refresh, lock
     case mail, phone, bot, pause, play, trash, news, delete
-    case smiley, hand, leaf, flag, replyArrow, plusCircle, report, thesis, pollCheck
+    case smiley, hand, leaf, flag, replyArrow, plusCircle, report, thesis, pollCheck, invite
 
     var symbol: String {
         switch self {
@@ -71,6 +71,7 @@ enum MonacoIcon: String, CaseIterable {
         case .report: return "exclamationmark.bubble"
         case .thesis: return "list.bullet.rectangle"
         case .pollCheck: return "checkmark.circle"
+        case .invite: return "person.badge.plus"
         }
     }
 

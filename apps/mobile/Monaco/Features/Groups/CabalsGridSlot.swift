@@ -22,6 +22,10 @@ struct CabalsGridSection: View {
     @Environment(\.accountRestricted) private var accountRestricted
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var answering: CabalInviteTile?
+    @State private var inviting: CabalTile?
+    #if DEBUG
+    @State private var sampleMenu: CabalTile?
+    #endif
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -53,6 +57,42 @@ struct CabalsGridSection: View {
                 Task { await store.tab.load() }
             }
         }
+        .sheet(item: $inviting) { tile in
+            CabalInviteHost(cabalID: tile.id)
+        }
+        #if DEBUG
+        .sheet(item: $sampleMenu) { tile in
+            CabalContextMenuSampleSheet(
+                tile: tile, votes: needs?.byCabal[tile.id] ?? 0, actions: menuActions(tile)
+            ) { action in
+                sampleMenu = nil
+                perform(action, on: tile)
+            }
+        }
+        .task(id: store.tiles.first?.id) {
+            guard CabalsTabSampleData.scenario == .fMenu, sampleMenu == nil else { return }
+            sampleMenu = store.tiles.first
+        }
+        #endif
+    }
+
+    private func menuActions(_ tile: CabalTile) -> [CabalMenuAction] {
+        CabalMenuActions.actions(
+            canVote: tile.canVote, restricted: accountRestricted,
+            waiting: store.votes.rows.filter { $0.cabalID == tile.id })
+    }
+
+    private func perform(_ action: CabalMenuAction, on tile: CabalTile) {
+        Haptics.selection()
+        let navigator = environment.navigator
+        switch action.kind {
+        case .vote(let proposalID): navigator.presentVoteHold(proposalID: proposalID, pick: nil)
+        case .openCabal: navigator.open(CabalRoute(id: tile.id), in: .cabals)
+        case .fund: navigator.open(FundRoute(cabalID: tile.id), in: .cabals)
+        case .propose: navigator.open(ProposeRoute(cabalID: tile.id), in: .cabals)
+        case .invite: inviting = tile
+        case .share: navigator.open(ShareRoute(.stake(cabalID: tile.id)), in: .cabals)
+        }
     }
 
     private var columns: [GridItem] {
@@ -80,6 +120,11 @@ struct CabalsGridSection: View {
         }
         .buttonStyle(.plain)
         .draggable(tile.id)
+        .contextMenu {
+            CabalContextMenuItems(actions: menuActions(tile)) { perform($0, on: tile) }
+        } preview: {
+            CabalContextMenuPreview(tile: tile, votes: votes)
+        }
         .dropDestination(for: String.self) { ids, _ in
             guard let dragged = ids.first, dragged != tile.id else { return false }
             Task { await store.order.move(dragged, before: tile.id) }
