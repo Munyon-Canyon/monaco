@@ -218,10 +218,10 @@ founder:
 
 | Frame | Appearance | Verdict | Difference | Follow-up |
 | --- | --- | --- | --- | --- |
-| [`10-profile-own`](../screens/10-profile-own.png) | dark | difference | Harness now settles on the ready profile and draws the bio; the app adds a "$50.00 pending" line under Cash, which the frame doesn't have (sample deposit in flight). | #7030 (#6488) |
-| [`10-profile-own-scrolled`](../screens/10-profile-own-scrolled.png) | dark | no harness | The ready line now settles on the ready profile (10-profile-own); the scrolled shot was not re-taken because the machine was over its simulator cap. | #7030 (#6505) |
-| [`10-profile-other`](../screens/10-profile-other.png) | dark | difference | App has no back / share / more buttons, shows a Follow control, and the followers line has no "·" separators; frame has the three nav buttons. | #7030 (#6530) |
-| [`10-profile-other-cabals`](../screens/10-profile-other-cabals.png) | dark | difference | Same: nav buttons missing, Follow control present, "·" separators missing; cabal emblems are initial tiles (allowed). | #7030 (#6530) |
+| [`10-profile-own`](../screens/10-profile-own.png) | dark | match (15 pt floor) | Re-shot after #7088: ready profile with the bio, no pending line under Cash. Stats lines sit further apart (15 pt floor); positions, cash and cabal list are sample data. | #7030 (#6488) |
+| [`10-profile-own-scrolled`](../screens/10-profile-own-scrolled.png) | dark | difference | Re-shot: the shot shows the top of the ready profile, not the scrolled page. The sample has one cabal, so the page is shorter than the screen and `-MonacoSampleScroll bottom` has nothing to scroll; the frame shows four cabal rows under an inline "Profile" title. | #7030 (#6505) |
+| [`10-profile-other`](../screens/10-profile-other.png) | dark | match | Re-shot after #7064: back / share / more buttons and "·" separators drawn. Follow is in the frame and the app; as a phase 2 element it goes to the founder on #6410. Mia instead of Christelle is sample data. | #7030 (#6530) |
+| [`10-profile-other-cabals`](../screens/10-profile-other-cabals.png) | dark | match | Re-shot after #7064: nav buttons and "·" separators drawn; Follow goes to the founder on #6410; cabal emblems are initial tiles (allowed). | #7030 (#6530) |
 
 founder:
 
