@@ -13,6 +13,6 @@ diff --git a/packages/mobile-core/Sources/MonacoCore/Comments/CommentThread.swif
      public static let emptyMessage = "Start the discussion."
 -    public static let placeholder = "Say something"
 +    public static let placeholder = "Add a comment"
-     public static let membersOnly = "Only members of this cabal can comment."
+     public static func membersReplyHere(_ cabal: String) -> String { "Members of \(cabal) reply here" }
      public static let deleted = "Comment deleted"
      public static let delete = "Delete"

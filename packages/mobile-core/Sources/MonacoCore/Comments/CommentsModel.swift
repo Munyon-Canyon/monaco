@@ -20,6 +20,8 @@ public final class CommentsModel {
     public static let pageSize = 50
 
     public private(set) var canComment = false
+    public private(set) var canReact = true
+    public private(set) var replyRule: ReplyRule?
     public private(set) var isPosting = false
     public private(set) var lastPostedID: String?
     public private(set) var canCommentKnown = false
@@ -232,7 +234,10 @@ public final class CommentsModel {
     private func loadCanComment() async {
         guard !canCommentKnown else { return }
         do {
-            canComment = try await source.canComment()
+            let permissions = try await source.permissions()
+            canComment = permissions.canComment
+            canReact = permissions.canReact
+            replyRule = permissions.replyRule
             canCommentKnown = true
             canCommentFailed = false
         } catch is FeedItemNotLoaded {

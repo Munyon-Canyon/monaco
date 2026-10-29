@@ -89,6 +89,7 @@ extension CommentThreadView {
             row: row,
             reactions: model.reactions(for: row),
             isHighlighted: model.highlightedID == row.id,
+            canReply: !model.canCommentKnown || model.canComment,
             onReply: { model.presentReplySheet(.comment(row)) },
             onToggleReaction: { emoji in Task { await model.react(emoji, to: row) } },
             onDoubleTap: { Task { await model.doubleTap(row) } },
