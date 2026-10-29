@@ -146,6 +146,13 @@ share-sample-passed-no-live   -MonacoShareSample passedNoLivePrice
 share-sample-vote             -MonacoShareSample vote
 share-screen-passed           -MonacoShareSample screenPassed
 share-screen-vote             -MonacoShareSample screenVote
+share-sample-stake            -MonacoShareSample stake
+share-sample-portfolio        -MonacoShareSample portfolio
+share-sample-sticker-off      -MonacoShareSample stickerOff
+share-sample-sticker-on       -MonacoShareSample stickerOn
+share-sample-sticker-passed   -MonacoShareSample stickerPassed
+share-screen-stake            -MonacoShareSample screenStake
+share-screen-portfolio        -MonacoShareSample screenPortfolio
 
 home-populated                -MonacoHomeSample populated
 home-empty                    -MonacoHomeSample empty
@@ -552,6 +559,20 @@ proposal-non-member           -MonacoProposalSample nonMember
 proposal-non-member-dark      -MonacoProposalSample nonMember -AppleInterfaceStyle Dark
 proposal-permission-sheet     -MonacoProposalSample permissionSheet
 proposal-permission-sheet-dark -MonacoProposalSample permissionSheet -AppleInterfaceStyle Dark
+proposal-hold-yes             -MonacoProposalSample holdYes
+proposal-hold-voted           -MonacoProposalSample holdVoted
+proposal-hold-closed          -MonacoProposalSample holdClosed
+proposal-hold-view-only       -MonacoProposalSample holdViewOnly
+proposal-hold-cold            -MonacoProposalSample holdCold
+invite-landing-frame          -MonacoInviteLandingSample frame
+invite-landing-signed-in      -MonacoInviteLandingSample signedIn
+invite-landing-no-proposal    -MonacoInviteLandingSample noProposal
+invite-landing-request        -MonacoInviteLandingSample request
+invite-landing-invited        -MonacoInviteLandingSample invited
+invite-landing-month-null     -MonacoInviteLandingSample monthFactsNull
+invite-landing-request-sent   -MonacoInviteLandingSample requestSent
+invite-landing-loading        -MonacoInviteLandingSample loading
+invite-landing-failed         -MonacoInviteLandingSample failed
 proposal-vote-flow-10-unauthorized      -MonacoFlow 10 unauthorized
 proposal-vote-flow-10-proposal-not-found -MonacoFlow 10 proposalNotFound
 proposal-vote-flow-10-not-a-voter       -MonacoFlow 10 notAVoter
