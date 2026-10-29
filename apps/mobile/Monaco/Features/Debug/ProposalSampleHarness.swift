@@ -140,6 +140,7 @@ enum ProposalSampleScenario: String, CaseIterable {
             script.asset = .nvda
             script.proposal = Components.Schemas.ProposalDetail.filledNVDA()
                 .closedResult(yes: 5, no: 1, voters: 6, needed: 4, ballot: .yes, order: 4, sides: true)
+                .withPhotoVoters()
         case .closedSidesPrivate:
             script.asset = .nvda
             script.proposal = .passedNVDA().withHiddenSides()
@@ -379,6 +380,17 @@ extension Components.Schemas.ProposalDetail {
         var detail = voted(.yes)
         detail.canVote = true
         detail.tally = .init(yes: 2, no: 0, voters: 6, needed: 4)
+        return detail
+    }
+
+    fileprivate func withPhotoVoters() -> Self {
+        var detail = self
+        let tints = MonacoTheme.CabalTint.allCases
+        detail.voters = voters.enumerated().map { index, voter in
+            var photo = voter
+            photo.photoUrl = SampleImage.flat(tints[index % tints.count], name: "voter-\(index)")?.absoluteString
+            return photo
+        }
         return detail
     }
 
