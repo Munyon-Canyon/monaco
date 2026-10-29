@@ -18,7 +18,7 @@ private struct HomeFirstUse: View {
     var body: some View {
         let gate = HomeGate(portfolio: portfolio, reads: reads, balance: environment.balance.state)
         VStack(spacing: MonacoTheme.Space.s) {
-            Image(systemName: MonacoIcon.cabals.symbol)
+            Image(systemName: MonacoIcon.pair.symbol)
                 .font(MonacoTheme.Typo.title)
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .accessibilityHidden(true)
@@ -31,13 +31,17 @@ private struct HomeFirstUse: View {
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .multilineTextAlignment(.center)
             HStack(spacing: MonacoTheme.Space.s) {
-                Button("Start a cabal") {
+                Button {
                     environment.navigator.open(CreateCabalRoute(), in: .home)
+                } label: {
+                    Label("Start a cabal", systemImage: MonacoIcon.plus.symbol)
                 }
                 .buttonStyle(.monacoPrimary)
                 .accessibilityIdentifier("home-first-use-start")
-                Button("Join with a link") {
+                Button {
                     joining = true
+                } label: {
+                    Label("Join with a link", systemImage: MonacoIcon.link.symbol)
                 }
                 .buttonStyle(.monacoSecondary)
                 .accessibilityIdentifier("home-first-use-join")

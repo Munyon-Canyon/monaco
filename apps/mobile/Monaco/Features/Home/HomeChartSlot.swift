@@ -51,7 +51,7 @@ struct HomeChartView: View {
     }
 
     private var chartSkeleton: some View {
-        CurveScrubChartFrame { SkeletonBlock(height: nil, radius: MonacoTheme.Radius.cardTight) }
+        CurveScrubChartFrame(showsDateRange: false) { SkeletonBlock(height: nil, radius: MonacoTheme.Radius.cardTight) }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Loading the chart")
             .accessibilityIdentifier("home-portfolio-chart-loading")
@@ -60,9 +60,10 @@ struct HomeChartView: View {
     @ViewBuilder private func plot(_ curve: ValueCurve?, range: LeaderboardRange) -> some View {
         if let curve {
             CurveScrubChart(
-                curve: curve, plot: .pnl, range: range, selection: $selection, identifier: "home-pnl-chart")
+                curve: curve, plot: .pnl, range: range, showsDateRange: false, selection: $selection,
+                identifier: "home-pnl-chart")
         } else {
-            CurveScrubChartFrame {
+            CurveScrubChartFrame(showsDateRange: false) {
                 Text(range.shortHistoryLine)
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.muted)

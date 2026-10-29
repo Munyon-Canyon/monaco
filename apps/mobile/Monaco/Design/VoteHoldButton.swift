@@ -95,9 +95,11 @@ struct VoteHoldButton: View {
                     .fill(MonacoTheme.brandFill)
                     .frame(width: geometry.size.width * progress)
                 if !reduceMotion {
-                    Rectangle()
-                        .fill(MonacoTheme.tint)
-                        .frame(width: geometry.size.width * progress, height: Self.strokeWidth)
+                    shape.strokeBorder(MonacoTheme.tint, lineWidth: Self.strokeWidth)
+                        .mask(alignment: .topLeading) {
+                            Rectangle().frame(
+                                width: geometry.size.width * progress, height: MonacoTheme.Radius.button)
+                        }
                 }
             }
         }

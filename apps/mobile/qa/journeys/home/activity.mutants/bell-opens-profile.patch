@@ -10,7 +10,7 @@ index 5645bdc9e..09fbcaa58 100644
 +++ b/apps/mobile/Monaco/Features/Home/HomeBellButton.swift
 @@ -15,7 +15,7 @@ struct HomeBellButton: View {
              systemImage: MonacoIcon.bell.symbol, accessibilityLabel: model?.accessibilityLabel ?? "Catch up",
-             style: .quiet, placement: .toolbar
+             style: .glass, placement: .content
          ) {
 -            environment.navigator.open(ActivityFeedRoute(), in: .home)
 +            environment.navigator.selectedTab = .profile

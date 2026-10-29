@@ -13,7 +13,7 @@ struct HomeBellButton: View {
     var body: some View {
         MonacoGlassButton(
             systemImage: MonacoIcon.bell.symbol, accessibilityLabel: model?.accessibilityLabel ?? "Catch up",
-            style: .quiet, placement: .toolbar
+            style: .glass, placement: .content
         ) {
             environment.navigator.open(ActivityFeedRoute(), in: .home)
         }
