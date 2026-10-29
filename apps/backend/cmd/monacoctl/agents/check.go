@@ -1116,7 +1116,7 @@ func (env *Env) changedLinesFile(ctx context.Context, backend, self, base, head 
 	if err != nil {
 		return "", fmt.Errorf("diff the changed lines: %w", err)
 	}
-	return env.writeState("coverage", head[:12]+".changed", []byte(changedRanges(string(diff))))
+	return env.writeState("coverage", head[:12]+".changed", []byte(widenToFuncs(backend, changedRanges(string(diff)))))
 }
 
 var hunkRE = regexp.MustCompile(`^@@ -\S+ \+(\d+)(?:,(\d+))? @@`)
@@ -1162,7 +1162,7 @@ func coverageRow(backend, self, profile, changedLines string, only map[string]bo
 	}
 	if changedLines != "" {
 		cmd = append(cmd, "--changed", changedLines)
-		row.header = "coverage judges changed lines only (scoped selection)"
+		row.header = "coverage judges the changed functions only (scoped selection)"
 	}
 	row.cmds = [][]string{cmd}
 	return row
