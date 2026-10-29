@@ -2,7 +2,7 @@ import XCTest
 
 enum FollowAndBoardsJourney {
     static let id = "social/follow-and-boards"
-    static let version = 3
+    static let version = 4
 
     struct Seed {
         let meID: String
@@ -52,12 +52,7 @@ enum FollowAndBoardsJourney {
     }
 
     static func openFollowing(_ app: XCUIApplication, step: String) {
-        app.tab("Profile").tap()
-        app.popToRoot()
-        let link = app.element("profile-find-friends")
-        app.scrollIntoReach(link)
-        XCTAssertTrue(link.waitForExistence(timeout: 15), "\(step): no 'Find friends' row on Profile")
-        link.tap()
+        ProfileEditJourney.openSettingsRow(app, "profile-find-friends", step: step)
         let following = app.element("friends-tab-following")
         XCTAssertTrue(following.waitForExistence(timeout: 10), "\(step): no Following segment on Find friends")
         following.tap()
