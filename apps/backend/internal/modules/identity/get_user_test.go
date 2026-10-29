@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking"
 	rankingport "github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/identityapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -105,6 +106,7 @@ func TestGetUser_SocialFields(t *testing.T) {
 	f.follow(t, carol.ID, bob.ID)
 	f.follow(t, bob.ID, alice.ID)
 	routes := adapters.HTTP{
+		Clock: clock.Real{}, Standings: stubStandings{},
 		Cards: adapters.NewQueries(f.pool), Follows: social.New(module.Deps{Pool: f.pool}).FollowCounts(),
 		Cabals: stubMemberships(3), Returns: stubReturns{},
 	}
@@ -161,6 +163,7 @@ func TestGetUser_hidesBannedDeletedAndUnknownUsers(t *testing.T) {
 	banned := f.seed(t, portSeed{handle: "banned", status: "banned"})
 	deleted := f.seed(t, portSeed{handle: "gone", softDeleted: true})
 	routes := adapters.HTTP{
+		Clock: clock.Real{}, Standings: stubStandings{},
 		Cards: adapters.NewQueries(f.pool), Follows: stubFollows{}, Cabals: stubCabals{}, Returns: stubReturns{},
 	}
 	for _, id := range []ids.UserID{banned.ID, deleted.ID, f.newID(t)} {
@@ -178,7 +181,10 @@ func TestGetUser_failures(t *testing.T) {
 	viewer, target := ids.NewUserID(gen), ids.NewUserID(gen)
 	cards := fakes.NewIdentity([]app.UserCard{{ID: target, Handle: "target"}}, nil)
 	down := errs.New(errs.CodeInternal, "test")
-	if _, err := (adapters.HTTP{}).GetUser(t.Context(), api.GetUserRequestObject{Id: target.UUID()}); errs.CodeOf(
+	if _, err := (adapters.HTTP{Clock: clock.Real{}, Standings: stubStandings{}}).GetUser(
+		t.Context(),
+		api.GetUserRequestObject{Id: target.UUID()},
+	); errs.CodeOf(
 		err,
 	) != errs.CodeUnauthorized {
 		t.Fatalf("anonymous GetUser = %v, want unauthorized", err)
@@ -187,7 +193,14 @@ func TestGetUser_failures(t *testing.T) {
 		"unwired": app.UnwiredFollowCounts{}, "counts": stubFollows{countsErr: down},
 		"followed": stubFollows{followedErr: down}, "blocked": stubFollows{blockedErr: down},
 	} {
-		routes := adapters.HTTP{Cards: cards, Follows: follows, Cabals: stubCabals{}, Returns: stubReturns{}}
+		routes := adapters.HTTP{
+			Clock:     clock.Real{},
+			Standings: stubStandings{},
+			Cards:     cards,
+			Follows:   follows,
+			Cabals:    stubCabals{},
+			Returns:   stubReturns{},
+		}
 		if _, err := routes.GetUser(asUser(t, viewer), api.GetUserRequestObject{Id: target.UUID()}); err == nil {
 			t.Fatalf("%s: GetUser succeeded", name)
 		}
@@ -209,7 +222,14 @@ func TestGetUser_failures(t *testing.T) {
 	for name, cabals := range map[string]app.CabalCounts{
 		"unwired": app.UnwiredCabalCounts{}, "down": stubCabals{err: down},
 	} {
-		routes := adapters.HTTP{Cards: cards, Follows: stubFollows{}, Cabals: cabals, Returns: stubReturns{}}
+		routes := adapters.HTTP{
+			Clock:     clock.Real{},
+			Standings: stubStandings{},
+			Cards:     cards,
+			Follows:   stubFollows{},
+			Cabals:    cabals,
+			Returns:   stubReturns{},
+		}
 		if _, err := routes.GetUser(asUser(t, viewer), api.GetUserRequestObject{Id: target.UUID()}); err == nil {
 			t.Fatalf("cabals %s: GetUser succeeded", name)
 		}
@@ -220,7 +240,14 @@ func TestGetUser_failures(t *testing.T) {
 		t.Fatalf("unwired cabals = %v, want upstream_unavailable", err)
 	}
 	cards.Fail("UsersByID", down)
-	routes := adapters.HTTP{Cards: cards, Follows: stubFollows{}, Cabals: stubCabals{}, Returns: stubReturns{}}
+	routes := adapters.HTTP{
+		Clock:     clock.Real{},
+		Standings: stubStandings{},
+		Cards:     cards,
+		Follows:   stubFollows{},
+		Cabals:    stubCabals{},
+		Returns:   stubReturns{},
+	}
 	if _, err := routes.GetUser(asUser(t, viewer), api.GetUserRequestObject{Id: target.UUID()}); err == nil {
 		t.Fatal("GetUser succeeded with the user lookup down")
 	}
@@ -251,7 +278,7 @@ func TestGetUser_overHTTPServesAnotherMembersProfile(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixtureIn(t, config.EnvTest, config.EnvTest,
 		identity.WithFollowCounts(stubFollows{}), identity.WithCabalCounts(stubCabals{}),
-		identity.WithReturns(stubReturns{}))
+		identity.WithReturns(stubReturns{}), identity.WithStandings(stubStandings{}))
 	viewer := f.seed(t, portSeed{handle: "viewer"})
 	other := f.seed(t, portSeed{handle: "other", name: "Other"})
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/users/"+other.ID.String(), nil)
@@ -275,6 +302,7 @@ func TestGetUser_servesTheBioJoinedDateAndCabalCount(t *testing.T) {
 		t.Fatal(err)
 	}
 	routes := adapters.HTTP{
+		Clock: clock.Real{}, Standings: stubStandings{},
 		Cards: adapters.NewQueries(f.pool), Follows: stubFollows{}, Cabals: stubMemberships(4), Returns: stubReturns{},
 	}
 	got := getUser(t, routes, viewer.ID, bob.ID)
@@ -316,7 +344,14 @@ func TestGetUser_failuresInTheReturnsPort(t *testing.T) {
 	cards := fakes.NewIdentity([]app.UserCard{{ID: target, Handle: "target", SharePerformance: true}}, nil)
 	down := errs.New(errs.CodeInternal, "test")
 	for name, returns := range map[string]app.Returns{"unwired": app.UnwiredReturns{}, "down": stubReturns{err: down}} {
-		routes := adapters.HTTP{Cards: cards, Follows: stubFollows{}, Cabals: stubCabals{}, Returns: returns}
+		routes := adapters.HTTP{
+			Clock:     clock.Real{},
+			Standings: stubStandings{},
+			Cards:     cards,
+			Follows:   stubFollows{},
+			Cabals:    stubCabals{},
+			Returns:   returns,
+		}
 		if _, err := routes.GetUser(asUser(t, viewer), api.GetUserRequestObject{Id: target.UUID()}); err == nil {
 			t.Fatalf("returns %s: GetUser succeeded", name)
 		}
@@ -363,6 +398,7 @@ func TestGetUser_servesTheOneMonthReturnAndItsPrivacyFlag(t *testing.T) {
 		}
 		var calls []rankingport.Range
 		routes := adapters.HTTP{
+			Clock: clock.Real{}, Standings: stubStandings{},
 			Cards: cards, Follows: stubFollows{}, Cabals: stubCabals{},
 			Returns: stubReturns{byUser: byUser, calls: &calls},
 		}
@@ -386,6 +422,7 @@ func TestGetUser_nullsTheReturnWhenTheCallerBlocksThem(t *testing.T) {
 		bob.ID: {ReturnBps: &bps, PnlMicros: money.SignedMicrosFromInt64(1_000_000)},
 	}}
 	routes := adapters.HTTP{
+		Clock: clock.Real{}, Standings: stubStandings{},
 		Cards: adapters.NewQueries(f.pool), Follows: social.New(module.Deps{Pool: f.pool}).FollowCounts(),
 		Cabals: stubCabals{}, Returns: returns,
 	}
@@ -405,6 +442,7 @@ func TestGetUser_unknownUserMakesNoReturnsCall(t *testing.T) {
 	viewer, missing := ids.NewUserID(gen), ids.NewUserID(gen)
 	var calls []rankingport.Range
 	routes := adapters.HTTP{
+		Clock: clock.Real{}, Standings: stubStandings{},
 		Cards: fakes.NewIdentity(nil, nil), Follows: stubFollows{}, Cabals: stubCabals{},
 		Returns: stubReturns{calls: &calls},
 	}
@@ -433,5 +471,38 @@ func TestModule_wireTakesReturnsFromRankingInTheBuiltSet(t *testing.T) {
 	module.NewSet(winner, ranking.New(d))
 	if _, ok := winner.Returns().(stubReturns); !ok {
 		t.Fatalf("returns = %T, want the injected stub", winner.Returns())
+	}
+}
+
+type stubStandings struct {
+	row rankingport.Standing
+	err error
+}
+
+func (s stubStandings) MonthStanding(context.Context, ids.UserID) (rankingport.Standing, error) {
+	return s.row, s.err
+}
+
+func TestModule_wireTakesStandingsFromRankingInTheBuiltSet(t *testing.T) {
+	t.Parallel()
+	d := module.Deps{}
+	id := identity.New(d)
+	module.NewSet(id, ranking.New(d))
+	if _, unwired := id.Standings().(app.UnwiredStandings); unwired {
+		t.Fatal("standings stayed unwired with ranking in the set")
+	}
+	alone := identity.New(d)
+	module.NewSet(alone)
+	if _, unwired := alone.Standings().(app.UnwiredStandings); !unwired {
+		t.Fatal("standings were wired without ranking in the set")
+	}
+	winner := identity.New(d, identity.WithStandings(stubStandings{}))
+	module.NewSet(winner, ranking.New(d))
+	if _, ok := winner.Standings().(stubStandings); !ok {
+		t.Fatalf("standings = %T, want the injected stub", winner.Standings())
+	}
+	_, err := (app.UnwiredStandings{}).MonthStanding(t.Context(), ids.UserID{})
+	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
+		t.Fatalf("unwired standings = %v, want upstream_unavailable", err)
 	}
 }

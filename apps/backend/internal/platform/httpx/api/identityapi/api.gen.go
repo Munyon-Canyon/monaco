@@ -146,6 +146,21 @@ func (e PublicProfileReturnPeriod) Valid() bool {
 	}
 }
 
+// Defines values for PublicProfileStandingPeriod.
+const (
+	Month PublicProfileStandingPeriod = "month"
+)
+
+// Valid indicates whether the value is a known member of the PublicProfileStandingPeriod enum.
+func (e PublicProfileStandingPeriod) Valid() bool {
+	switch e {
+	case Month:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RevokeSessionsRequestScope.
 const (
 	AllSessions RevokeSessionsRequestScope = "all_sessions"
@@ -360,10 +375,20 @@ type PublicProfile struct {
 	// Examples: 3
 	CabalCount int `json:"cabal_count"`
 
+	// CabalsInCommon How many cabals the caller and the user are both members of today. 0 on the caller's own profile.
+	//
+	// Examples: 2
+	CabalsInCommon int `json:"cabals_in_common"`
+
 	// CreatedAt When the account was created.
 	//
 	// Examples: 2026-09-30T12:00:00Z
 	CreatedAt time.Time `json:"created_at"`
+
+	// Crown True when the user is rank 1 on the month's People call board.
+	//
+	// Examples: false
+	Crown bool `json:"crown"`
 
 	// DisplayName The user's display name.
 	//
@@ -415,16 +440,71 @@ type PublicProfile struct {
 	// Examples: 1M
 	ReturnPeriod PublicProfileReturnPeriod `json:"return_period"`
 
-	// ReturnPrivate True only when the user chose to hide their performance, whatever the board says.
+	// ReturnPrivate True only when the user chose to hide their performance, whatever the board says. The caller still gets their own return and P&L on their own profile.
 	//
 	// Examples: false
 	ReturnPrivate bool `json:"return_private"`
+
+	// Standing The user's right-call standing for the current UTC month, from the month's People call board. Null when they have no calls this month, when the stored board row is from an earlier month, or when either of you blocked the other. Hiding performance does not hide it.
+	//
+	// Examples: {"more_to_rank":0,"period":"month","period_start":"2026-10-01","rank":8,"ranked_count":24,"rate_bps":7800,"resolved":9,"right":7}
+	Standing *ProfileStanding `json:"standing"`
 }
 
 // PublicProfileReturnPeriod The window of the return and P&L, always 1M, so the card's label is server-driven.
 //
 // Examples: 1M
 type PublicProfileReturnPeriod string
+
+// PublicProfileStandingPeriod The window of the standing, always the current UTC month.
+//
+// Examples: month
+type PublicProfileStandingPeriod string
+
+// ProfileStanding The user's right-call standing for the current UTC month, from the month's People call board. Null when they have no calls this month, when the stored board row is from an earlier month, or when either of you blocked the other. Hiding performance does not hide it.
+//
+// Examples: {"more_to_rank":0,"period":"month","period_start":"2026-10-01","rank":8,"ranked_count":24,"rate_bps":7800,"resolved":9,"right":7}
+type ProfileStanding struct {
+	// MoreToRank Resolved calls still needed to rank, 0 when ranked.
+	//
+	// Examples: 0
+	MoreToRank int32 `json:"more_to_rank"`
+
+	// Period The window of the standing, always the current UTC month.
+	//
+	// Examples: month
+	Period PublicProfileStandingPeriod `json:"period"`
+
+	// PeriodStart The first day of the month, from the board row.
+	//
+	// Examples: 2026-10-01
+	PeriodStart openapi_types.Date `json:"period_start"`
+
+	// Rank Rank among ranked people this month. Null below five resolved calls.
+	//
+	// Examples: 8
+	Rank *int32 `json:"rank"`
+
+	// RankedCount How many people are ranked this month.
+	//
+	// Examples: 24
+	RankedCount int32 `json:"ranked_count"`
+
+	// RateBps Right calls as basis points of resolved calls. Null below five resolved calls.
+	//
+	// Examples: 7800
+	RateBps *int32 `json:"rate_bps"`
+
+	// Resolved Resolved calls this month.
+	//
+	// Examples: 9
+	Resolved int32 `json:"resolved"`
+
+	// Right Right calls this month.
+	//
+	// Examples: 7
+	Right int32 `json:"right"`
+}
 
 // ReassignHandleBody The user who receives a handle, and why.
 type ReassignHandleBody struct {

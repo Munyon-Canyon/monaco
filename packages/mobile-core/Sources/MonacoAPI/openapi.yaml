@@ -2442,7 +2442,10 @@ paths:
         follows and blocks them. It also returns their one-month return and P&L from the 1M people board as
         of the last valuation run. Both are null when the user hides performance, is not ranked, or the
         caller blocks them, and a ranked row with no return gives a null return and still sets the P&L.
-        return_private is true only when the user chose to hide it. The counts are of live follows and include members who were banned or
+        return_private is true only when the user chose to hide it, and the caller still gets their own
+        return and P&L on their own profile. standing is the user's right-call standing for the current UTC
+        month, crown is true at rank 1, and cabals_in_common counts the cabals the caller and the user
+        share. Hiding performance does not hide the standing. The counts are of live follows and include members who were banned or
         deleted after following. blocked_by_me says nothing about whether they block the caller. An
         unknown, banned or deleted user is user_not_found.
       parameters:
@@ -2469,6 +2472,9 @@ paths:
                 pnl_1m_micros: 41250000
                 return_period: 1M
                 return_private: false
+                standing: {period: month, period_start: "2026-10-01", rate_bps: 7800, right: 7, resolved: 9, rank: 8, ranked_count: 24, more_to_rank: 0}
+                crown: false
+                cabals_in_common: 2
         default: {$ref: "#/components/responses/Problem"}
   # api/spec/market.yaml
   /v1/assets:
@@ -7605,6 +7611,9 @@ components:
         - pnl_1m_micros
         - return_period
         - return_private
+        - standing
+        - crown
+        - cabals_in_common
       properties:
         id: {type: string, format: uuid, description: "The user's id.", examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
         handle: {type: string, description: "The user's handle.", examples: [maya]}
@@ -7620,7 +7629,27 @@ components:
         return_1m_bps: {type: [integer, "null"], format: int64, description: "The user's one-month return in basis points, from the 1M people board as of the last valuation run. Null when they hide it, are not ranked, have no return on their row, or the caller blocks them.", examples: [820]}
         pnl_1m_micros: {type: [integer, "null"], format: int64, description: "The user's one-month profit and loss in micro-USDC, negative for a loss, from the same board row. Null when they hide it, are not ranked, or the caller blocks them.", examples: [-250000000]}
         return_period: {type: string, enum: ["1M"], description: "The window of the return and P&L, always 1M, so the card's label is server-driven.", examples: ["1M"]}
-        return_private: {type: boolean, description: "True only when the user chose to hide their performance, whatever the board says.", examples: [false]}
+        return_private: {type: boolean, description: "True only when the user chose to hide their performance, whatever the board says. The caller still gets their own return and P&L on their own profile.", examples: [false]}
+        standing:
+          type: [object, "null"]
+          description: >-
+            The user's right-call standing for the current UTC month, from the month's People call board.
+            Null when they have no calls this month, when the stored board row is from an earlier month,
+            or when either of you blocked the other. Hiding performance does not hide it.
+          examples: [{period: month, period_start: "2026-10-01", rate_bps: 7800, right: 7, resolved: 9, rank: 8, ranked_count: 24, more_to_rank: 0}]
+          x-go-type-name: ProfileStanding
+          required: [period, period_start, rate_bps, right, resolved, rank, ranked_count, more_to_rank]
+          properties:
+            period: {type: string, enum: [month], description: "The window of the standing, always the current UTC month.", examples: [month]}
+            period_start: {type: string, format: date, description: "The first day of the month, from the board row.", examples: ["2026-10-01"]}
+            rate_bps: {type: [integer, "null"], format: int32, description: "Right calls as basis points of resolved calls. Null below five resolved calls.", examples: [7800]}
+            right: {type: integer, format: int32, minimum: 0, description: "Right calls this month.", examples: [7]}
+            resolved: {type: integer, format: int32, minimum: 0, description: "Resolved calls this month.", examples: [9]}
+            rank: {type: [integer, "null"], format: int32, description: "Rank among ranked people this month. Null below five resolved calls.", examples: [8]}
+            ranked_count: {type: integer, format: int32, minimum: 0, description: "How many people are ranked this month.", examples: [24]}
+            more_to_rank: {type: integer, format: int32, minimum: 0, description: "Resolved calls still needed to rank, 0 when ranked.", examples: [0]}
+        crown: {type: boolean, description: "True when the user is rank 1 on the month's People call board.", examples: [false]}
+        cabals_in_common: {type: integer, minimum: 0, description: "How many cabals the caller and the user are both members of today. 0 on the caller's own profile.", examples: [2]}
     ReassignHandleBody:
       type: object
       description: The user who receives a handle, and why.

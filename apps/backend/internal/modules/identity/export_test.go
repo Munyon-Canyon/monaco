@@ -12,3 +12,5 @@ func (m *Module) Follows() any { return m.follows }
 func (m *Module) Cabals() any { return m.cabals }
 
 func (m *Module) Returns() any { return m.returns }
+
+func (m *Module) Standings() any { return m.standings }

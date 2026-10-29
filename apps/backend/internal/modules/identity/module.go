@@ -60,6 +60,7 @@ type Module struct {
 	follows    app.FollowCounts
 	cabals     app.CabalCounts
 	returns    app.Returns
+	standings  app.Standings
 	meters     metric.MeterProvider
 }
 
@@ -95,6 +96,10 @@ func WithReturns(returns app.Returns) Option {
 	return func(m *Module) { m.returns = returns }
 }
 
+func WithStandings(standings app.Standings) Option {
+	return func(m *Module) { m.standings = standings }
+}
+
 func WithDepositWallets(wallets adapters.DepositWallets) Option {
 	return func(m *Module) { m.multichain.depositWallets = wallets }
 }
@@ -108,6 +113,7 @@ func New(d module.Deps, opts ...Option) *Module {
 		multichain: newMultichain(d), deps: d, meters: otel.GetMeterProvider(),
 		stakes: app.UnwiredHoldings{}, balances: app.UnwiredHoldings{}, follows: app.UnwiredFollowCounts{},
 		cabals: app.UnwiredCabalCounts{}, returns: app.UnwiredReturns{},
+		standings: app.UnwiredStandings{},
 	}
 	for _, opt := range opts {
 		opt(m)
@@ -126,6 +132,7 @@ func (m *Module) Wire(set module.Set) {
 			m.multichain.depositFees = fees
 		}
 		m.wireProvider(mod)
+		m.wireStandings(mod)
 	}
 }
 
@@ -159,6 +166,13 @@ func (m *Module) wireProvider(mod module.Module) {
 	}
 }
 
+func (m *Module) wireStandings(mod module.Module) {
+	provider, ok := mod.(interface{ CallBoards() rankingport.CallBoards })
+	if _, unwired := m.standings.(app.UnwiredStandings); ok && unwired {
+		m.standings = app.MonthStandings{Boards: provider.CallBoards()}
+	}
+}
+
 func (m *Module) Mount(r api.Mount) {
 	hints := m.hints
 	if hints == nil {
@@ -170,8 +184,16 @@ func (m *Module) Mount(r api.Mount) {
 	}
 	m.ensurePrivy()
 	identityapi.Mount(adapters.HTTP{
-		Open: m.openSession(), Reads: m.deps.Pool, Clock: m.deps.Clock,
-		Cards: adapters.NewQueries(m.deps.Pool), Follows: m.follows, Cabals: m.cabals, Returns: m.returns,
+		Open:  m.openSession(),
+		Reads: m.deps.Pool,
+		Clock: m.deps.Clock,
+		Cards: adapters.NewQueries(
+			m.deps.Pool,
+		),
+		Follows:   m.follows,
+		Cabals:    m.cabals,
+		Returns:   m.returns,
+		Standings: m.standings,
 		Deposits: adapters.DepositAddresses{
 			Members: adapters.NewQueries(m.deps.Pool), EVM: m.multichain.depositWallets, Fees: m.multichain.depositFees,
 			Networks: m.deps.Config.Funding.EVMDepositNetworks,

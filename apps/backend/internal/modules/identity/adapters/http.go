@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"math"
+
+	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
@@ -33,6 +36,7 @@ type HTTP struct {
 	Follows   app.FollowCounts
 	Cabals    app.CabalCounts
 	Returns   app.Returns
+	Standings app.Standings
 	Deposits  DepositAddresses
 }
 
@@ -150,7 +154,17 @@ func (h HTTP) GetUser(ctx context.Context, req api.GetUserRequestObject) (api.Ge
 	if err != nil {
 		return nil, err
 	}
-	user, err := app.GetUser(ctx, h.Cards, h.Follows, h.Cabals, h.Returns, viewer, ids.UserIDFrom(req.Id))
+	user, err := app.GetUser(
+		ctx,
+		h.Cards,
+		h.Follows,
+		h.Cabals,
+		h.Returns,
+		h.Standings,
+		h.Clock.Now(),
+		viewer,
+		ids.UserIDFrom(req.Id),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +174,37 @@ func (h HTTP) GetUser(ctx context.Context, req api.GetUserRequestObject) (api.Ge
 		FollowerCount: user.FollowerCount, FollowingCount: user.FollowingCount, FollowedByMe: user.FollowedByMe,
 		BlockedByMe: user.BlockedByMe, Return1mBps: user.Return1MBps, Pnl1mMicros: user.PnL1MMicros,
 		ReturnPeriod: api.N1M, ReturnPrivate: user.ReturnPrivate,
+		Standing: wireStanding(user.Standing), Crown: user.Crown, CabalsInCommon: user.CabalsInCommon,
 	}, nil
+}
+
+func wireStanding(s *app.MonthCallStanding) *api.ProfileStanding {
+	if s == nil {
+		return nil
+	}
+	return &api.ProfileStanding{
+		Period: api.Month, PeriodStart: openapi_types.Date{Time: s.PeriodStart},
+		RateBps: int32Ptr(s.RateBps), Right: clampInt32(s.Right), Resolved: clampInt32(s.Resolved),
+		Rank: int32Ptr(s.Rank), RankedCount: clampInt32(s.RankedCount), MoreToRank: clampInt32(s.MoreToRank),
+	}
+}
+
+func int32Ptr(v *int) *int32 {
+	if v == nil {
+		return nil
+	}
+	out := clampInt32(*v)
+	return &out
+}
+
+func clampInt32(v int) int32 {
+	switch {
+	case v > math.MaxInt32:
+		return math.MaxInt32
+	case v < math.MinInt32:
+		return math.MinInt32
+	}
+	return int32(v)
 }
 
 func (h HTTP) SearchUsers(
