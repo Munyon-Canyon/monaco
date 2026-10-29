@@ -39,8 +39,8 @@ public struct FirstFundVote: Equatable, Sendable {
     init(_ vote: Components.Schemas.PendingVote) {
         proposalID = vote.proposalId
         kind = vote.kind.rawValue
-        symbol = vote.symbol
-        assetName = vote.assetName
+        symbol = vote.symbol ?? ""
+        assetName = vote.assetName ?? ""
         logoURL = vote.assetLogoUrl
         usdcMicros = vote.usdcMicros
         tokenAmount = vote.tokenAmount
