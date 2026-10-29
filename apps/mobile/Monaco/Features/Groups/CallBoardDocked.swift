@@ -20,6 +20,8 @@ struct CallBoardDocked: View {
     let card: CallBoardCard
     var onShare: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         HStack(spacing: MonacoTheme.Space.s) {
             summary
@@ -49,20 +51,43 @@ struct CallBoardDocked: View {
 
     private var spoken: String { [card.me.spoken, card.gapLine].compactMap { $0 }.joined(separator: " ") }
 
+    private var rankText: some View {
+        Text([card.rankText, card.me.movementGlyph].joined(separator: " "))
+            .font(MonacoTheme.Typo.headline).monospacedDigit().foregroundStyle(MonacoTheme.primaryText)
+    }
+
+    private var nameBlock: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+            Text(card.me.name).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
+            Text(card.me.turnout).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
+        }
+    }
+
+    private func figures(alignment: HorizontalAlignment) -> some View {
+        VStack(alignment: alignment, spacing: MonacoTheme.Space.xs) {
+            Text(card.me.rate).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
+            Text(card.me.record).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
+        }
+    }
+
     private var summary: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            HStack(spacing: MonacoTheme.Space.sm) {
-                Text([card.rankText, card.me.movementGlyph].joined(separator: " "))
-                    .font(MonacoTheme.Typo.headline).monospacedDigit().foregroundStyle(MonacoTheme.primaryText)
-                CallBoardAvatar(row: card.me, size: CallBoardDockedMetrics.avatar)
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                    Text(card.me.name).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
-                    Text(card.me.turnout).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                    HStack(spacing: MonacoTheme.Space.sm) {
+                        rankText
+                        CallBoardAvatar(row: card.me, size: CallBoardDockedMetrics.avatar)
+                        nameBlock
+                    }
+                    figures(alignment: .leading)
                 }
-                Spacer(minLength: 0)
-                VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
-                    Text(card.me.rate).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
-                    Text(card.me.record).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
+            } else {
+                HStack(spacing: MonacoTheme.Space.sm) {
+                    rankText
+                    CallBoardAvatar(row: card.me, size: CallBoardDockedMetrics.avatar)
+                    nameBlock
+                    Spacer(minLength: 0)
+                    figures(alignment: .trailing)
                 }
             }
             Capsule().fill(MonacoTheme.border).frame(height: CallBoardDockedMetrics.barHeight)

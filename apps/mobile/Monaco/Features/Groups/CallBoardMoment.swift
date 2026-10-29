@@ -9,20 +9,27 @@ enum CallBoardMomentMetrics {
 struct CallBoardMomentCard: View {
     let moment: CallBoardMoment
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         NavigationLink(value: route) {
-            HStack(spacing: MonacoTheme.Space.sm) {
-                VStack(spacing: MonacoTheme.Space.xs) {
-                    Image(systemName: "crown.fill").foregroundStyle(MonacoTheme.crown).accessibilityHidden(true)
-                    avatar
-                }
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                    Text(moment.title).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
-                    Text(moment.subline).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
-                }
-                Spacer(minLength: 0)
-                if let glyph = moment.glyph {
-                    Text(glyph).font(MonacoTheme.Typo.headline).monospacedDigit().foregroundStyle(MonacoTheme.profit)
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                        HStack(spacing: MonacoTheme.Space.sm) {
+                            leader
+                            texts
+                        }
+                        glyph
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    HStack(spacing: MonacoTheme.Space.sm) {
+                        leader
+                        texts
+                        Spacer(minLength: 0)
+                        glyph
+                    }
                 }
             }
             .padding(MonacoTheme.Space.m)
@@ -37,6 +44,26 @@ struct CallBoardMomentCard: View {
         .accessibilityLabel(moment.spoken)
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("leaderboard-lead-change")
+    }
+
+    private var leader: some View {
+        VStack(spacing: MonacoTheme.Space.xs) {
+            Image(systemName: "crown.fill").foregroundStyle(MonacoTheme.crown).accessibilityHidden(true)
+            avatar
+        }
+    }
+
+    private var texts: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+            Text(moment.title).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
+            Text(moment.subline).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
+        }
+    }
+
+    @ViewBuilder private var glyph: some View {
+        if let glyph = moment.glyph {
+            Text(glyph).font(MonacoTheme.Typo.headline).monospacedDigit().foregroundStyle(MonacoTheme.profit)
+        }
     }
 
     @ViewBuilder private var avatar: some View {
