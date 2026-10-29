@@ -146,6 +146,7 @@ extension CommentThreadView {
         let row = target.row
         return CommentActionsOverlay(
             row: row, frame: target.frame, reactions: model.reactions(for: row),
+            canReply: !model.canCommentKnown || model.canComment,
             onReact: { emoji in afterDismiss = { Task { await model.react(emoji, to: row) } } },
             onOpenPicker: { afterDismiss = { picking = row } },
             onReply: { afterDismiss = { model.presentReplySheet(.comment(row)) } },
