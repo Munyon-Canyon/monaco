@@ -2,9 +2,11 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -308,16 +310,24 @@ func funds(
 	if trade.USDCMicros.Cmp(pot) > 0 {
 		return errs.New(errs.CodePotExceeded, "governance.funds", slog.String("usdc_micros", trade.USDCMicros.String()))
 	}
-	return cashCovers(ctx, p, cabal, asset, trade)
-}
-
-func cashCovers(
-	ctx context.Context, p TradePorts, cabal ids.CabalID, asset market.Asset, trade domain.Trade,
-) error {
 	cash, cfg, err := spendableCash(ctx, p, cabal, asset)
 	if err != nil {
 		return err
 	}
+	if err := cashCovers(trade, cash, cfg); err != nil {
+		return err
+	}
+	if trade.Kind != domain.KindBuy {
+		return nil
+	}
+	rules, err := p.Cabals.Rules(ctx, cabal)
+	if err != nil {
+		return err
+	}
+	return withinTradeCap(trade, cash, rules)
+}
+
+func cashCovers(trade domain.Trade, cash money.Micros, cfg solana.MintConfig) error {
 	need, err := trade.USDCMicros.Add(money.MicrosFromUint64(cfg.FeeHeadroom(trade.USDCMicros.Uint64())))
 	if err != nil {
 		return err
@@ -327,6 +337,54 @@ func cashCovers(
 			slog.String("usdc_micros", trade.USDCMicros.String()))
 	}
 	return nil
+}
+
+func withinTradeCap(trade domain.Trade, cash money.Micros, rules cabalport.Rules) error {
+	const op = "governance.funds"
+	if rules.MaxTradeBps == nil {
+		return nil
+	}
+	if *rules.MaxTradeBps < 0 {
+		return errs.New(errs.CodeInternal, op, slog.Int("max_trade_bps", int(*rules.MaxTradeBps)))
+	}
+	bps := uint64(*rules.MaxTradeBps)
+	limit, err := money.MulDiv(cash.Uint64(), bps, bpsScale)
+	if err != nil {
+		return errs.Wrap(err, errs.CodeInternal, op)
+	}
+	if trade.USDCMicros.Uint64() <= limit {
+		return nil
+	}
+	return errs.NewWithMessage(errs.CodeOverTradeCap, op,
+		"This cabal caps a trade at "+formatPercent(bps)+" of its cash ("+formatDollars(limit)+")",
+		slog.String("usdc_micros", trade.USDCMicros.String()), slog.Uint64("cap_micros", limit))
+}
+
+const (
+	bpsScale       = 10_000
+	microsPerCent  = 10_000
+	centsPerDollar = 100
+)
+
+func formatPercent(bps uint64) string {
+	whole, frac := bps/100, bps%100
+	if frac == 0 {
+		return strconv.FormatUint(whole, 10) + "%"
+	}
+	return strconv.FormatUint(whole, 10) + "." + strings.TrimRight(fmt.Sprintf("%02d", frac), "0") + "%"
+}
+
+func formatDollars(micros uint64) string {
+	cents := micros / microsPerCent
+	digits := strconv.FormatUint(cents/centsPerDollar, 10)
+	var grouped []byte
+	for i := range digits {
+		if i > 0 && (len(digits)-i)%3 == 0 {
+			grouped = append(grouped, ',')
+		}
+		grouped = append(grouped, digits[i])
+	}
+	return fmt.Sprintf("$%s.%02d", grouped, cents%centsPerDollar)
 }
 
 func spendableCash(

@@ -6361,6 +6361,7 @@ components:
         - onramp_invalid_transition
         - onramp_link_expired
         - onramp_link_invalid
+        - over_trade_cap
         - panic
         - payout_failed
         - phone_linked_elsewhere

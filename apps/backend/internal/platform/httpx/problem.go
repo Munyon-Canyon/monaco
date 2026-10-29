@@ -24,20 +24,20 @@ func Problem(w http.ResponseWriter, r *http.Request, err error) {
 		code, status = errs.CodeClientClosed, statusClientClosedRequest
 		observability.Info(r.Context(), observability.HTTPProblem, slog.String("code", string(code)),
 			slog.Int("status", status), slog.Any("err", err), slog.Bool("alert", false))
-		writeProblem(w, r, code, status)
+		writeProblem(w, r, err, code, status)
 		return
 	}
 	logProblem(r.Context(), err, code, status)
-	writeProblem(w, r, code, status)
+	writeProblem(w, r, err, code, status)
 }
 
-func writeProblem(w http.ResponseWriter, r *http.Request, code errs.Code, status int) {
+func writeProblem(w http.ResponseWriter, r *http.Request, err error, code errs.Code, status int) {
 	body := api.Problem{
 		Type:      api.AboutBlank,
 		Title:     title(status),
 		Status:    status,
 		Code:      api.ErrorCode(code),
-		Message:   errs.Message(code),
+		Message:   errs.MessageFor(err, code),
 		TraceId:   trace.SpanContextFromContext(r.Context()).TraceID().String(),
 		Retryable: errs.Retryable(code),
 	}

@@ -21,10 +21,25 @@ const (
 )
 
 type Error struct {
-	Code  Code
-	Op    string
-	Attrs []slog.Attr
-	Err   error
+	Code    Code
+	Op      string
+	Message string
+	Attrs   []slog.Attr
+	Err     error
+}
+
+func NewWithMessage(code Code, op, message string, attrs ...slog.Attr) error {
+	return &Error{Code: code, Op: op, Message: message, Attrs: attrs}
+}
+
+func MessageFor(err error, code Code) string {
+	var e *Error
+	for cur := err; errors.As(cur, &e); cur = e.Err {
+		if e.Message != "" && e.Code == code {
+			return e.Message
+		}
+	}
+	return Message(code)
 }
 
 func New(code Code, op string, attrs ...slog.Attr) error {

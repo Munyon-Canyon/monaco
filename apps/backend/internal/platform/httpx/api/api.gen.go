@@ -113,6 +113,7 @@ const (
 	OnrampInvalidTransition ErrorCode = "onramp_invalid_transition"
 	OnrampLinkExpired ErrorCode = "onramp_link_expired"
 	OnrampLinkInvalid ErrorCode = "onramp_link_invalid"
+	OverTradeCap ErrorCode = "over_trade_cap"
 	Panic ErrorCode = "panic"
 	PayoutFailed ErrorCode = "payout_failed"
 	PhoneLinkedElsewhere ErrorCode = "phone_linked_elsewhere"
@@ -388,6 +389,8 @@ func (e ErrorCode) Valid() bool {
 	case OnrampLinkExpired:
 		return true
 	case OnrampLinkInvalid:
+		return true
+	case OverTradeCap:
 		return true
 	case Panic:
 		return true
