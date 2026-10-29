@@ -42,6 +42,8 @@ type Module struct {
 	member    app.MemberCabals
 	ownership app.Ownership
 	roles     app.MemberRoles
+	balances  app.DisplayBalances
+	votes     app.OpenVoteCounts
 }
 
 type Option func(*Module)
@@ -63,6 +65,12 @@ func New(d module.Deps, opts ...Option) *Module {
 
 func (m *Module) Wire(set module.Set) {
 	for _, mod := range set {
+		if provider, ok := mod.(interface{ Queries() governanceport.Queries }); ok {
+			m.votes, _ = provider.Queries().(app.OpenVoteCounts)
+		}
+		if provider, ok := mod.(interface{ Balances() fundingport.Balances }); ok {
+			m.balances, _ = provider.Balances().(app.DisplayBalances)
+		}
 		switch provider := mod.(type) {
 		case interface{ Queries() treasuryport.Queries }:
 			m.ports.Treasury = provider.Queries()
@@ -112,6 +120,7 @@ func (m *Module) Mount(r api.Mount) {
 		Boards: boards, Cabals: app.CheckCabal(m.cabals), Pages: m.pages, Follows: follows,
 		Snapshots: boards, Ledger: m.ledger, Histories: m.curves, Stakes: m.stakes, Cards: m.cards,
 		Users: m.users, Members: m.member, Ownership: m.ownership, Roles: m.roles,
+		Balances: m.balances, Votes: m.votes,
 	}, r)
 }
 

@@ -8691,10 +8691,12 @@ components:
             $ref: "#/components/schemas/PnlPoint"
     MyPortfolio:
       type: object
-      description: The caller's stakes, valued by the latest run.
+      description: The caller's stakes, valued by the latest run, and their cash.
       additionalProperties: false
-      required: [total_value_micros, pnl_micros, return_bps, computed_at, prices_as_of, cabals]
+      required: [cash_micros, net_worth_micros, total_value_micros, pnl_micros, return_bps, computed_at, prices_as_of, cabals]
       properties:
+        cash_micros: {type: integer, format: int64, description: "The caller's available cash in USDC micros, the same figure as `Balance.available_micros`.", examples: [500000000]}
+        net_worth_micros: {type: integer, format: int64, description: "`total_value_micros` plus `cash_micros` in USDC micros.", examples: [12082000000]}
         total_value_micros: {type: integer, format: int64, description: The sum of the cabals' values in USDC micros., examples: [1000000]}
         pnl_micros: {type: integer, format: int64, description: "Total value minus the net contributed, negative for a loss.", examples: [-5]}
         return_bps: {type: [integer, "null"], format: int64, description: The return in basis points. Null when nothing is contributed., examples: [250]}
@@ -8702,7 +8704,7 @@ components:
         prices_as_of: {type: [string, "null"], format: date-time, description: The price time of the run. Null before the first run., examples: ["2026-10-04T11:59:00Z"]}
         cabals:
           type: array
-          description: The cabals the caller holds, largest first.
+          description: "Every cabal the caller is an active member of, valued ones largest first, then the ones with no stake or no valuation yet, whose value, P&L, return and ownership are zero."
           examples: [[]]
           items:
             $ref: "#/components/schemas/PortfolioCabal"
@@ -8719,7 +8721,7 @@ components:
       type: object
       description: The caller's stake in one cabal.
       additionalProperties: false
-      required: [cabal, value_micros, share_units, net_contributed_micros, pnl_micros, return_bps, slice_bps, ownership_bps, role, can_vote]
+      required: [cabal, value_micros, share_units, net_contributed_micros, pnl_micros, return_bps, slice_bps, ownership_bps, role, can_vote, pot_value_micros, member_count, open_vote_count]
       properties:
         cabal:
           $ref: "#/components/schemas/CabalRef"
@@ -8732,6 +8734,9 @@ components:
         ownership_bps: {type: integer, format: int32, minimum: 0, maximum: 10000, description: "The caller's share of this cabal's pot in basis points, the same figure as `CabalPot.me.slice_bps` read at the same moment. It is the current split, while the value and the return are as the latest run valued them. 0 when the stake was cashed out after that run.", examples: [3500]}
         role: {type: string, enum: [admin, member], description: "The caller's role in this cabal. `admin` is the cabal's creator or one of its admins.", examples: [admin]}
         can_vote: {type: boolean, description: Whether the caller votes on this cabal's proposals., examples: [true]}
+        pot_value_micros: {type: integer, format: int64, description: "The cabal's treasury value in USDC micros at the latest snapshot, the figure `ownership_bps` is a share of. 0 when the cabal has no snapshot yet.", examples: [20000000000]}
+        member_count: {type: integer, format: int32, minimum: 0, description: The cabal's member count., examples: [8]}
+        open_vote_count: {type: integer, format: int32, minimum: 0, description: "The cabal's open proposals, the same for every member. It does not count the caller's own ballots.", examples: [1]}
     SharedCabal:
       type: object
       description: One shared cabal and its pot figures.

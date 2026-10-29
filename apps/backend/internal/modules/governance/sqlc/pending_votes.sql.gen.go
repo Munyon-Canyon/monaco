@@ -13,6 +13,38 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const openProposalCountsByCabal = `-- name: OpenProposalCountsByCabal :many
+SELECT cabal_id, count(*)::int AS open_count
+FROM proposals
+WHERE status = 'open' AND cabal_id = ANY($1::uuid[])
+GROUP BY cabal_id
+`
+
+type OpenProposalCountsByCabalRow struct {
+	CabalID   uuid.UUID
+	OpenCount int32
+}
+
+func (q *Queries) OpenProposalCountsByCabal(ctx context.Context, cabalIds []uuid.UUID) ([]OpenProposalCountsByCabalRow, error) {
+	rows, err := q.db.Query(ctx, openProposalCountsByCabal, cabalIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []OpenProposalCountsByCabalRow
+	for rows.Next() {
+		var i OpenProposalCountsByCabalRow
+		if err := rows.Scan(&i.CabalID, &i.OpenCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const pendingVotes = `-- name: PendingVotes :many
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, p.token_amount, p.threshold,

@@ -31,7 +31,8 @@ extension Components.Schemas.MyPortfolio {
     static let balancesSample = balancesSample(values: [7_000_000_000, 2_700_000_000, 1_382_320_000])
 
     static let balancesSampleCashOnly = Self(
-        totalValueMicros: 0, pnlMicros: 0, returnBps: nil, computedAt: nil, pricesAsOf: nil, cabals: [])
+        cashMicros: 0, netWorthMicros: 0, totalValueMicros: 0, pnlMicros: 0, returnBps: nil, computedAt: nil,
+        pricesAsOf: nil, cabals: [])
 
     private static func balancesSample(values: [Int64]) -> Self {
         let cabals = [
@@ -44,10 +45,11 @@ extension Components.Schemas.MyPortfolio {
             Components.Schemas.PortfolioCabal(
                 cabal: Components.Schemas.CabalRef(id: cabal.0, name: cabal.1, pictureUrl: nil),
                 valueMicros: value, shareUnits: value, netContributedMicros: value, pnlMicros: 0, returnBps: nil,
-                sliceBps: value * 10_000 / total, ownershipBps: 10_000, role: .admin, canVote: true)
+                sliceBps: value * 10_000 / total, ownershipBps: 10_000, role: .admin, canVote: true,
+                potValueMicros: value, memberCount: 1, openVoteCount: 0)
         }
         return Self(
-            totalValueMicros: total, pnlMicros: 0, returnBps: nil,
+            cashMicros: 0, netWorthMicros: total, totalValueMicros: total, pnlMicros: 0, returnBps: nil,
             computedAt: Date(timeIntervalSince1970: 1_790_996_460),
             pricesAsOf: Date(timeIntervalSince1970: 1_790_996_400), cabals: rows)
     }

@@ -15,6 +15,7 @@ import (
 
 type PortfolioRow struct {
 	CabalID      ids.CabalID
+	PotValue     money.Micros
 	Value        money.Micros
 	Shares       money.SharesUnits
 	Net          money.SignedMicros
@@ -31,7 +32,9 @@ type Portfolio struct {
 	Rows   []PortfolioRow
 }
 
-func NewPortfolio(stakes []StakePoint, latest map[ids.CabalID]Snapshot, skipped func(ids.CabalID)) (Portfolio, error) {
+func NewPortfolio(
+	stakes []StakePoint, latest map[ids.CabalID]Snapshot, memberships []ids.CabalID, skipped func(ids.CabalID),
+) (Portfolio, error) {
 	byCabal := map[ids.CabalID][]StakePoint{}
 	for _, s := range stakes {
 		byCabal[s.CabalID] = append(byCabal[s.CabalID], s)
@@ -65,7 +68,28 @@ func NewPortfolio(stakes []StakePoint, latest map[ids.CabalID]Snapshot, skipped 
 	})
 	out.slice()
 	out.PnL, out.Return, err = Lifetime(out.Total, net)
-	return out, err
+	if err != nil {
+		return Portfolio{}, err
+	}
+	out.Rows = append(out.Rows, unfundedRows(out.Rows, latest, memberships)...)
+	return out, nil
+}
+
+func unfundedRows(valued []PortfolioRow, latest map[ids.CabalID]Snapshot, memberships []ids.CabalID) []PortfolioRow {
+	held := make(map[ids.CabalID]bool, len(valued))
+	for _, row := range valued {
+		held[row.CabalID] = true
+	}
+	rows := []PortfolioRow{}
+	for _, cabal := range memberships {
+		if held[cabal] {
+			continue
+		}
+		held[cabal] = true
+		rows = append(rows, PortfolioRow{CabalID: cabal, PotValue: latest[cabal].Value})
+	}
+	slices.SortFunc(rows, func(a, b PortfolioRow) int { return cmp.Compare(a.CabalID.String(), b.CabalID.String()) })
+	return rows
 }
 
 func (p *Portfolio) sum() (money.SignedMicros, error) {
@@ -90,7 +114,8 @@ func rowOf(stake StakePoint, snap Snapshot) (PortfolioRow, error) {
 	}
 	pnl, ret, err := Lifetime(equity, stake.Net)
 	return PortfolioRow{
-		CabalID: stake.CabalID, Value: equity, Shares: stake.Shares, Net: stake.Net, PnL: pnl, Return: ret,
+		CabalID: stake.CabalID, PotValue: snap.Value, Value: equity, Shares: stake.Shares, Net: stake.Net,
+		PnL: pnl, Return: ret,
 	}, err
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
+	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
@@ -92,3 +93,8 @@ type Ownership interface {
 type MemberRoles interface {
 	MembersOf(context.Context, []ids.CabalID) (map[ids.CabalID][]cabal.MemberView, error)
 }
+
+type (
+	DisplayBalances = fundingport.DisplayBalances
+	Balance         = fundingport.Balance
+)

@@ -120,7 +120,7 @@ func TestNewPortfolio_ACabalWithMoreSharesThanItsSnapshotIsSkippedAndReported(t 
 	stakes := []domain.StakePoint{stake(a, now, 3, 1), stake(b, now, 2, 5)}
 	latest := map[ids.CabalID]domain.Snapshot{a: potSnap(now, 5, 2), b: potSnap(now, 100, 4)}
 	skipped, record := recordSkips()
-	got, err := domain.NewPortfolio(stakes, latest, record)
+	got, err := domain.NewPortfolio(stakes, latest, nil, record)
 	if err != nil || len(got.Rows) != 1 || got.Rows[0].CabalID != b || got.Total != money.MicrosFromUint64(50) ||
 		got.Rows[0].SliceBps != 10_000 {
 		t.Fatalf("NewPortfolio = %+v, %v, want only the cabal %v at 50", got, err, b)
@@ -170,7 +170,7 @@ func TestNewPortfolio_RowsTotalsAndSlices(t *testing.T) {
 	latest := map[ids.CabalID]domain.Snapshot{
 		big: potSnap(now, 2_000, 10), small: potSnap(now, 400, 5), left: potSnap(now, 900, 5),
 	}
-	got, err := domain.NewPortfolio(stakes, latest, skipNone)
+	got, err := domain.NewPortfolio(stakes, latest, nil, skipNone)
 	if err != nil || len(got.Rows) != 2 {
 		t.Fatalf("NewPortfolio = %+v, %v, want the two held and valued cabals", got, err)
 	}
@@ -189,12 +189,18 @@ func TestNewPortfolio_TiesBreakByCabalIDAndAnEmptyPortfolioHasNoReturn(t *testin
 	cabals := idsInOrder(2)
 	stakes := []domain.StakePoint{stake(cabals[1], now, 1, 0), stake(cabals[0], now, 1, 0)}
 	latest := map[ids.CabalID]domain.Snapshot{cabals[0]: potSnap(now, 50, 1), cabals[1]: potSnap(now, 50, 1)}
-	got, err := domain.NewPortfolio(stakes, latest, skipNone)
+	got, err := domain.NewPortfolio(stakes, latest, nil, skipNone)
 	if err != nil || got.Rows[0].CabalID != cabals[0] || got.Rows[0].SliceBps != 5000 || got.Return != nil {
 		t.Fatalf("NewPortfolio = %+v, %v, want the lowest id first and no return with nothing contributed", got, err)
 	}
-	if empty, err := domain.NewPortfolio(nil, nil, skipNone); err != nil || empty.Rows == nil || len(empty.Rows) != 0 ||
-		!empty.Total.IsZero() || empty.Return != nil {
+	if empty, err := domain.NewPortfolio(
+		nil,
+		nil,
+		nil,
+		skipNone,
+	); err != nil || empty.Rows == nil || len(empty.Rows) != 0 ||
+		!empty.Total.IsZero() ||
+		empty.Return != nil {
 		t.Fatalf("empty = %+v, %v", empty, err)
 	}
 }
@@ -225,8 +231,83 @@ func TestNewPortfolio_Failures(t *testing.T) {
 			latest: map[ids.CabalID]domain.Snapshot{a: potSnap(now, huge, 1), b: potSnap(now, huge, 1)},
 		},
 	} {
-		if _, err := domain.NewPortfolio(tc.stakes, tc.latest, skipNone); errs.CodeOf(err) != errs.CodeInvalidInput {
+		if _, err := domain.NewPortfolio(
+			tc.stakes,
+			tc.latest,
+			nil,
+			skipNone,
+		); errs.CodeOf(
+			err,
+		) != errs.CodeInvalidInput {
 			t.Errorf("%s: err = %v, want invalid_input", name, err)
 		}
+	}
+}
+
+type membershipCase struct {
+	funded, noSnapshot, zeroShares, never, oversold ids.CabalID
+	got                                             domain.Portfolio
+	skipped                                         []ids.CabalID
+}
+
+func membershipPortfolio(t *testing.T) membershipCase {
+	t.Helper()
+	now := bucketNowAt()
+	c := idsInOrder(5)
+	m := membershipCase{funded: c[0], noSnapshot: c[1], zeroShares: c[2], never: c[3], oversold: c[4]}
+	stakes := []domain.StakePoint{
+		stake(m.funded, now, 5, 500), stake(m.noSnapshot, now, 1, 1), stake(m.zeroShares, now, 0, 0),
+		stake(m.oversold, now, 3, 1),
+	}
+	latest := map[ids.CabalID]domain.Snapshot{
+		m.funded: potSnap(now, 2_000, 10), m.zeroShares: potSnap(now, 700, 7), m.oversold: potSnap(now, 5, 2),
+	}
+	skipped, record := recordSkips()
+	members := []ids.CabalID{m.never, m.zeroShares, m.funded, m.noSnapshot, m.oversold}
+	var err error
+	if m.got, err = domain.NewPortfolio(stakes, latest, members, record); err != nil {
+		t.Fatalf("NewPortfolio: %v", err)
+	}
+	m.skipped = *skipped
+	return m
+}
+
+func TestNewPortfolio_ListsEveryMembershipAfterTheValuedRowsAndTotalsIgnoreThem(t *testing.T) {
+	t.Parallel()
+	m := membershipPortfolio(t)
+	if len(m.got.Rows) != 5 || m.got.Total.Uint64() != 1_000 || m.got.PnL.Int64() != 500 {
+		t.Fatalf("NewPortfolio = %+v, want five rows and totals from the funded cabal only", m.got)
+	}
+	if first := m.got.Rows[0]; first.CabalID != m.funded || first.PotValue.Uint64() != 2_000 ||
+		first.Value.Uint64() != 1_000 || first.SliceBps != 10_000 {
+		t.Fatalf("first = %+v, want the funded cabal with its pot", first)
+	}
+	if len(m.skipped) != 1 || m.skipped[0] != m.oversold {
+		t.Fatalf("skipped = %v, want [%v]", m.skipped, m.oversold)
+	}
+}
+
+func TestNewPortfolio_AZeroRowKeepsItsPotAndNothingElse(t *testing.T) {
+	t.Parallel()
+	m := membershipPortfolio(t)
+	wantPots := map[ids.CabalID]uint64{m.noSnapshot: 0, m.zeroShares: 700, m.never: 0, m.oversold: 5}
+	zero := m.got.Rows[1:]
+	if !slices.IsSortedFunc(zero, func(a, b domain.PortfolioRow) int { return compareIDs(a.CabalID, b.CabalID) }) {
+		t.Errorf("zero rows = %v, want them in id order", zero)
+	}
+	for _, row := range zero {
+		if row.PotValue.Uint64() != wantPots[row.CabalID] || !row.Value.IsZero() || !row.Shares.IsZero() ||
+			!row.Net.IsZero() || !row.PnL.IsZero() || row.Return != nil || row.SliceBps != 0 || row.OwnershipBps != 0 {
+			t.Errorf("zero row %v = %+v, want a zero row at pot %d", row.CabalID, row, wantPots[row.CabalID])
+		}
+	}
+}
+
+func TestNewPortfolio_AMembershipWithNoStakesIsAZeroRow(t *testing.T) {
+	t.Parallel()
+	only := newCabalID()
+	got, err := domain.NewPortfolio(nil, nil, []ids.CabalID{only, only}, skipNone)
+	if err != nil || len(got.Rows) != 1 || got.Rows[0].CabalID != only || !got.Total.IsZero() || got.Return != nil {
+		t.Fatalf("NewPortfolio = %+v, %v, want one zero row and no return", got, err)
 	}
 }
