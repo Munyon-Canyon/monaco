@@ -11,9 +11,20 @@ struct SettingsCopyTests {
     @Test func theRowsReadInScreenOrder() {
         #expect(
             SettingsRow.allCases.map(\.title) == [
-                "Notifications", "Edit profile", "Account activity", "Withdraw", "Blocked people", "Block explorers",
-                "Sign out", "Delete account",
+                "Notifications", "Edit profile", "Find friends", "Invite friends", "View as others",
+                "Account activity", "Withdraw", "Blocked people", "Block explorers", "Sign out", "Delete account",
             ])
+    }
+
+    @Test func theProfileLinksLiveInSettingsUnderTheirOldIdentifiers() {
+        let moved: [SettingsRow] = [.findFriends, .inviteFriends, .viewAsOthers]
+        #expect(Array(SettingsRow.accountRows.prefix(4)) == [.editProfile] + moved)
+        #expect(moved.map(\.identifier) == ["profile-find-friends", "profile-invite-row", "profile-view-as-others"])
+        #expect(
+            moved.map(\.subtitle) == [
+                "Search people and contacts", "Share your invite link", "See your profile as others do",
+            ])
+        #expect(moved.map(\.systemImage) == ["person.2", "square.and.arrow.up", "eye"])
     }
 
     @Test func theAccountGroupEndsWithSignOutAndDeleteStandsApart() {

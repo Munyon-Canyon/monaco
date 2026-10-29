@@ -25,6 +25,11 @@ public enum ProfileCopy {
     public static let pnlLabel = "P&L · 1M"
     public static let positionsInfoTitle = "Positions"
     public static let positionsInfo = "Only you see your positions and cash. Others see your P&L as a percent."
+    public static let cashLabel = MoneyCopy.cashLabel
+    public static let apyLabel = CabalYield.apy
+    public static let apyInfoTitle = CabalYield.apy
+    public static let apyInfo = CabalYield.fundNote
+    public static let depositLabel = "Deposit"
     public static let editPhotoLabel = "Edit profile photo"
     public static let editDetailsLabel = "Edit name and profile details"
     public static let failedTitle = "Couldn\u{2019}t load this view"

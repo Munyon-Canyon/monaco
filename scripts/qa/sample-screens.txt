@@ -292,6 +292,10 @@ cabal-f-members                   -MonacoGroupDetailSample fMembers -AppleInterf
 profile-placeholder           -MonacoProfileSample placeholder
 profile-photo                 -MonacoProfileSample photo
 profile-ready                 -MonacoProfileSample ready
+profile-unranked              -MonacoProfileSample unranked
+profile-no-standing           -MonacoProfileSample noStanding
+profile-hidden-performance    -MonacoProfileSample hiddenPerformance
+profile-failed                -MonacoProfileSample failed
 profile-face-picker           -MonacoProfileSample facePicker
 profile-cabals                -MonacoProfileSample cabals -MonacoSampleScroll bottom
 profile-tabs-cabals           -MonacoProfileSample tabsCabals

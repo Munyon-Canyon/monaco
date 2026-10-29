@@ -8,10 +8,23 @@ import XCTest
 
 nonisolated final class ProfileShellTests: XCTestCase {
     @MainActor
-    func testTheCardStandingAndLinksSlotsAreLive() {
+    func testTheCardStandingAndCashSlotsAreLive() {
         XCTAssertTrue(ProfileCardSlot.isLive)
         XCTAssertTrue(ProfileStandingSlot.isLive)
-        XCTAssertTrue(ProfileLinksSlot.isLive)
+        XCTAssertTrue(ProfileCashSlot.isLive)
+    }
+
+    @MainActor
+    func testTheDepositDockIsNotAScrollingSection() {
+        let names = ProfileScreen.sections.map { String(describing: $0) }
+        XCTAssertEqual(names, ["ProfileCardSlot", "ProfileStandingSlot", "ProfileCashSlot", "ProfileTabsSlot"])
+    }
+
+    @MainActor
+    func testTheHarnessScenariosForTheTopOfTheProfileResolve() {
+        for name in ["ready", "unranked", "noStanding", "hiddenPerformance", "failed"] {
+            XCTAssertNotNil(ProfileSampleScenario.matching(["-MonacoProfileSample", name]), name)
+        }
     }
 
     @MainActor

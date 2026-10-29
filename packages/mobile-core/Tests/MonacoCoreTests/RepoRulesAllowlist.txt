@@ -80,4 +80,4 @@ unmasked-money-font	apps/mobile/Monaco/Features/Home/HomeBalanceRowSection.swift
 unmasked-money-font	apps/mobile/Monaco/Features/Home/HomeMoneyStrip.swift	2
 unmasked-money-font	apps/mobile/Monaco/Features/Home/HomePortfolioSkeleton.swift	1
 unmasked-money-font	apps/mobile/Monaco/Features/Home/HomePortfolioSlot.swift	2
-unmasked-money-font	apps/mobile/Monaco/Features/Profile/ProfileMoneyStrip.swift	2
+unmasked-money-font	apps/mobile/Monaco/Features/Profile/ProfileCashSlot.swift	2

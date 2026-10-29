@@ -8,6 +8,10 @@ enum ProfileSampleScenario: String, CaseIterable {
     case placeholder
     case photo
     case ready
+    case unranked
+    case noStanding
+    case hiddenPerformance
+    case failed
     case facePicker
     case cabals
     case tabsCabals
@@ -47,8 +51,8 @@ enum ProfileSampleScenario: String, CaseIterable {
 
     var showsBio: Bool {
         switch self {
-        case .ready, .photo, .editProfileReady, .editProfileInvalid, .editProfileSaving, .editProfileSaved,
-            .editProfileSaveFailure:
+        case .ready, .unranked, .noStanding, .hiddenPerformance, .photo, .editProfileReady, .editProfileInvalid,
+            .editProfileSaving, .editProfileSaved, .editProfileSaveFailure:
             true
         default:
             false
@@ -227,11 +231,22 @@ struct ProfileSampleHarness: View {
     static let samplePhotoURL = SampleImage.flat(.purple, name: "avatar")
 }
 
+private func apiScript(for scenario: ProfileSampleScenario) -> SampleAPIScript {
+    var script = SampleAPIScript(mode: apiMode(for: scenario))
+    script.user.returnPrivate = scenario == .hiddenPerformance
+    switch scenario {
+    case .unranked: script.user.standing = .sampleUnranked
+    case .noStanding: script.user.standing = nil
+    default: break
+    }
+    return script
+}
+
 private func apiMode(for scenario: ProfileSampleScenario) -> SampleAPIScript.Mode {
     switch scenario {
     case .empty: return .empty
     case .loading: return .hang
-    case .error: return .offline
+    case .error, .failed: return .offline
     default: return .populated
     }
 }
@@ -240,7 +255,7 @@ final class ProfileSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
         guard let scenario = ProfileSampleScenario.matching(arguments) else { return nil }
-        SampleAPIProtocol.install(SampleAPIScript(mode: apiMode(for: scenario)))
+        SampleAPIProtocol.install(apiScript(for: scenario))
         switch scenario {
         case .tabsCabals, .tabsUnvalued, .tabsActivity, .tabsEmpty, .tabsError:
             return AnyView(ProfileTabsSampleScreen(scenario: scenario))

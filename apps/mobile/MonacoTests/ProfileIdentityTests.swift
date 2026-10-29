@@ -14,26 +14,30 @@ struct ProfileIdentityTests {
         #expect(!ProfileScreen.showsLoadFailure(model: nil))
     }
 
-    @Test func netWorthWaitsForBothCashAndThePortfolio() {
-        let loaded = LoadState.loaded(summary(.sample))
-        let withCash = ProfileMoneyStripSection.netWorth(cash: .amount(500_000_000), portfolio: loaded)
-        #expect(withCash == .amount(1_500_000_000))
-        #expect(ProfileMoneyStripSection.netWorth(cash: .loading, portfolio: loaded) == .loading)
-        #expect(ProfileMoneyStripSection.netWorth(cash: .amount(1), portfolio: .loading) == .loading)
-        #expect(ProfileMoneyStripSection.netWorth(cash: .unavailable, portfolio: loaded) == .unavailable)
-        #expect(ProfileMoneyStripSection.netWorth(cash: .amount(1), portfolio: .failed(.signedOut)) == .unavailable)
+    @Test func theCashRowShowsTheAvailableFigure() throws {
+        let balance = try AccountBalance(Components.Schemas.Balance.sample)
+        #expect(ProfileCashSection.cash(.loaded(balance)) == .amount(balance.availableMicros))
+        #expect(ProfileCashSection.cash(.idle) == .loading)
+        #expect(ProfileCashSection.cash(.loading) == .loading)
+        #expect(ProfileCashSection.cash(.failed(.signedOut)) == .unavailable)
     }
 
-    @Test func theStripSpeaksEachFigure() {
-        #expect(ProfileMoneyStrip.spoken(.amount(500_000_000)) == "$500.00")
-        #expect(ProfileMoneyStrip.spoken(.loading) == "loading")
-        #expect(ProfileMoneyStrip.spoken(.unavailable) == "unavailable")
+    @Test func theCashRowSpeaksEachFigure() {
+        #expect(ProfileCashRow.spoken(.amount(500_000_000)) == "$500.00")
+        #expect(ProfileCashRow.spoken(.loading) == "loading")
+        #expect(ProfileCashRow.spoken(.unavailable) == "unavailable")
+    }
+
+    @Test func theCashRowNamesTheApyAndItsInfo() {
+        #expect(ProfileCopy.cashLabel == "Cash \u{00B7} USDC")
+        #expect(ProfileCopy.apyLabel == "3.5% APY")
+        #expect(ProfileCopy.apyInfo == CabalYield.fundNote)
     }
 
     @Test func theRowsFollowTheDesignOrder() {
         let names = ProfileScreen.sections.map { String(describing: $0) }
         #expect(!names.contains("ProfileStatsSlot"))
         #expect(names.first == "ProfileCardSlot")
-        #expect(names.last == "ProfileLinksSlot")
+        #expect(names == ["ProfileCardSlot", "ProfileStandingSlot", "ProfileCashSlot", "ProfileTabsSlot"])
     }
 }

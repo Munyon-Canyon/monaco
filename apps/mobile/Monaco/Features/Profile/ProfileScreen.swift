@@ -6,9 +6,8 @@ struct ProfileScreen: View {
     static let sections: [any ProfileSection.Type] = [
         ProfileCardSlot.self,
         ProfileStandingSlot.self,
-        ProfileBalanceSlot.self,
+        ProfileCashSlot.self,
         ProfileTabsSlot.self,
-        ProfileLinksSlot.self,
     ]
 
     @Environment(AppEnvironment.self) private var environment
@@ -119,6 +118,7 @@ struct ProfileScreen: View {
             ProfileLoadingSkeleton()
         } else {
             SectionStack(context: (), sections: sections.map { $0.erased })
+                .safeAreaInset(edge: .bottom, spacing: 0) { ProfileDepositDock() }
         }
     }
 

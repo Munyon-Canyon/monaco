@@ -29,6 +29,7 @@ nonisolated struct SampleAPIScript: Sendable {
     var pictureURL: String?
     var pictureWriteFails = false
     var balance = Components.Schemas.Balance.sample
+    var user = Components.Schemas.PublicProfile.sampleOwn
     var asset = Components.Schemas.AssetDetail.googl
     var chart = Components.Schemas.AssetChart.candles
     var cabalCount = 1
@@ -255,7 +256,7 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
         if parts.count >= 2, parts[1] == "assets" {
             return assetReply(tail: Array(parts.dropFirst(2)), query: query, script: script)
         }
-        if path.hasPrefix("/v1/me") { return meReply(path: path, script: script) }
+        if let own = ownReply(path: path, parts: parts, script: script) { return own }
         switch path {
         case "/v1/leaderboards/cabals" where !script.cabalBoard.isEmpty:
             var page = Components.Schemas.LeaderboardPage.samplePeople(count: 0)
@@ -295,6 +296,14 @@ nonisolated extension SampleAPIProtocol {
         var item = Components.Schemas.FeedItem.samples[0]
         item.id = id
         return json(Components.Schemas.FeedItemDetail(item: item, visible: true, canComment: true))
+    }
+
+    private static func ownReply(path: String, parts: [String], script: SampleAPIScript) -> Reply? {
+        if path.hasPrefix("/v1/me") { return meReply(path: path, script: script) }
+        guard parts.count == 3, parts[1] == "users" else { return nil }
+        var user = script.user
+        user.id = parts[2]
+        return json(user)
     }
 
     private static func meReply(path: String, script: SampleAPIScript) -> Reply {
