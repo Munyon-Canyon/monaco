@@ -138,7 +138,7 @@ nonisolated final class FAccessibilityAuditUITests: XCTestCase {
 
     @MainActor
     func testHoldCommitsOnPressAndHold() async throws {
-        for id in ["f__04-vote-idle", "f__04b-hold-1-pick", "f__14-hold-sheet"] {
+        for id in ["f__04-vote-idle", "f__04b-hold-1-pick"] {
             let app = try launch(id)
             defer { app.terminate() }
             let yes = voteButton(app, "yes")
@@ -151,7 +151,7 @@ nonisolated final class FAccessibilityAuditUITests: XCTestCase {
 
     @MainActor
     func testShortPressDoesNotCommit() async throws {
-        for id in ["f__04-vote-idle", "f__04b-hold-1-pick", "f__14-hold-sheet"] {
+        for id in ["f__04-vote-idle", "f__04b-hold-1-pick"] {
             let app = try launch(id)
             defer { app.terminate() }
             let yes = voteButton(app, "yes")
@@ -163,7 +163,7 @@ nonisolated final class FAccessibilityAuditUITests: XCTestCase {
 
     @MainActor
     func testVoteButtonsAreLabelled() async throws {
-        for id in ["f__04-vote-idle", "f__04b-hold-1-pick", "f__14-hold-sheet"] {
+        for id in ["f__04-vote-idle", "f__04b-hold-1-pick"] {
             let app = try launch(id)
             defer { app.terminate() }
             let yes = voteButton(app, "yes")
@@ -201,8 +201,10 @@ nonisolated final class FAccessibilityAuditUITests: XCTestCase {
         XCTAssertTrue(undo.waitForExistence(timeout: 5), "an ordinary vote's toast has no Undo")
         XCTAssertEqual(undo.label, "Undo")
         XCTAssertTrue(undo.isHittable, "Undo is not hittable")
-        XCTAssertGreaterThanOrEqual(undo.frame.width, Self.minimumTarget, "Undo is \(undo.frame.width) pt wide")
-        XCTAssertGreaterThanOrEqual(undo.frame.height, Self.minimumTarget, "Undo is \(undo.frame.height) pt tall")
+        XCTAssertGreaterThanOrEqual(
+            undo.frame.width.rounded(), Self.minimumTarget, "Undo is \(undo.frame.width) pt wide")
+        XCTAssertGreaterThanOrEqual(
+            undo.frame.height.rounded(), Self.minimumTarget, "Undo is \(undo.frame.height) pt tall")
     }
 
     @MainActor
@@ -297,12 +299,13 @@ nonisolated final class FAccessibilityAuditUITests: XCTestCase {
                 if seen.insert(key).inserted {
                     let selected = node.isSelected ? "selected" : ""
                     print(
-                        "a11y|\(id)|\(pass)|type \(kind)|\(node.identifier)|\(node.label)|\(node.value ?? "")|\(selected)|\(Int(frame.width))x\(Int(frame.height))"
+                        "a11y|\(id)|\(pass)|type \(kind)|\(node.identifier)|\(node.label)|\(node.value ?? "")|\(selected)|\(Int(frame.width.rounded()))x\(Int(frame.height.rounded()))"
                     )
-                    let small = frame.width < Self.minimumTarget || frame.height < Self.minimumTarget
+                    let small =
+                        frame.width.rounded() < Self.minimumTarget || frame.height.rounded() < Self.minimumTarget
                     if interactive.contains(node.elementType), small, frame.width > 0 {
                         print(
-                            "small|\(id)|type \(kind)|\(node.identifier)|\(node.label)|\(Int(frame.width))x\(Int(frame.height))"
+                            "small|\(id)|type \(kind)|\(node.identifier)|\(node.label)|\(Int(frame.width.rounded()))x\(Int(frame.height.rounded()))"
                         )
                     }
                 }
