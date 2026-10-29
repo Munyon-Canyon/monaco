@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -28,13 +29,36 @@ func (r flowsRun) key() string {
 	return "flows " + strings.Join(r.flows, " ") + " on staging " + r.staging
 }
 
-func (r flowsRun) latest(statuses []GHStatus) GHStatus {
+func (r flowsRun) keyPrefix() string {
+	return "flows " + strings.Join(r.flows, " ") + " on staging "
+}
+
+func (env *Env) latestEquivalent(ctx context.Context, statuses []GHStatus, r flowsRun, paths []string) GHStatus {
+	tree := ""
 	for _, s := range statuses {
-		if s.Context == flowsVerifyContext && s.Description == r.key() {
+		staging, ok := strings.CutPrefix(s.Description, r.keyPrefix())
+		if s.Context != flowsVerifyContext || !ok {
+			continue
+		}
+		if staging == r.staging {
+			return s
+		}
+		if tree == "" {
+			tree = env.flowsTree(ctx, r.staging, paths)
+		}
+		if tree != "" && env.flowsTree(ctx, staging, paths) == tree {
 			return s
 		}
 	}
 	return GHStatus{}
+}
+
+func (env *Env) flowsTree(ctx context.Context, sha string, paths []string) string {
+	out, err := env.git(ctx, append([]string{"ls-tree", sha, "--"}, paths...)...)
+	if err != nil {
+		return ""
+	}
+	return out
 }
 
 type flowsWait struct {
@@ -59,10 +83,13 @@ func (env *Env) verifyMoved(ctx context.Context, top stackPR, moved []movedFlow)
 	}
 	run := flowsRun{pr: top.Number, head: top.HeadOID, staging: strings.TrimSpace(tip)}
 	why := make([]string, len(moved))
+	var paths []string
 	for i, m := range moved {
 		run.flows = append(run.flows, m.id)
 		why[i] = m.String()
+		paths = append(paths, m.paths...)
 	}
+	paths = slices.Sorted(slices.Values(slices.Compact(slices.Sorted(slices.Values(paths)))))
 	refusal := fmt.Sprintf("not landing #%d: %s", top.Number, strings.Join(why, "; "))
 	if len(run.key()) > statusDescriptionMax {
 		return flowsWait{}, landErr(refusal + ". " + restackLine)
@@ -73,7 +100,7 @@ func (env *Env) verifyMoved(ctx context.Context, top stackPR, moved []movedFlow)
 	}
 	waiting := fmt.Sprintf("flows-verify of flows %s on staging %s: %s",
 		strings.Join(run.flows, " "), shortSHA(run.staging), strings.Join(why, "; "))
-	switch last := run.latest(statuses); {
+	switch last := env.latestEquivalent(ctx, statuses, run, paths); {
 	case last.State == "success":
 		return flowsWait{}, nil
 	case last.State == "failure" || last.State == "error":

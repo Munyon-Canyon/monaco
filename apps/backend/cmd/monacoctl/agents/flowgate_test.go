@@ -378,6 +378,32 @@ func flowsStatus(f *fixture, state, staging string, age time.Duration) GHStatus 
 	}
 }
 
+func TestFlowGate_aVerifyOnAnOlderStagingCountsWhenTheMovedFlowsAreUnchanged(t *testing.T) {
+	t.Parallel()
+	const tree = "100644 blob f00\tpackages/flows/app/00.tsv\n"
+	for _, tc := range []struct {
+		name, state, oldTree, want string
+		dispatches                 int
+	}{
+		{"a passed run on the same content lands", "success", tree, "armed stack #2 landing", 0},
+		{"a pending run on the same content keeps waiting", "pending", tree, "waiting on flows-verify of flows 00 on staging tip", 0},
+		{"a passed run on other content is stale", "success", "100644 blob 0ld\tpackages/flows/app/00.tsv\n", "started flows-verify of flows 00 on staging tip", 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f, s := movedArmedStack(t)
+			s.gitOut["ls-tree tip -- packages/flows/app/00.tsv"] = tree
+			s.gitOut["ls-tree old -- packages/flows/app/00.tsv"] = tc.oldTree
+			f.flowsVerify(flowsStatus(f, tc.state, "old", time.Minute))
+			code, stdout, stderr := f.agents(t, "watch", "--once")
+			dispatches := len(f.hub.callsContaining("/dispatches"))
+			if code != 0 || !strings.Contains(stdout, tc.want) || dispatches != tc.dispatches {
+				t.Fatalf("%d %q %q, dispatches %d", code, stdout, stderr, dispatches)
+			}
+		})
+	}
+}
+
 func TestFlowGate_watchStartsFlowsVerifyOnceAndKeepsTheStackArmed(t *testing.T) {
 	t.Parallel()
 	f, s := movedArmedStack(t)

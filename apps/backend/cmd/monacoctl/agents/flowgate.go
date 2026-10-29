@@ -192,6 +192,7 @@ func (env *Env) git(ctx context.Context, args ...string) (string, error) {
 
 type movedFlow struct {
 	id, by string
+	paths  []string
 }
 
 func (m movedFlow) String() string {
@@ -221,11 +222,12 @@ func (env *Env) stagingMoved(ctx context.Context, reg registry, top stackPR, min
 		if !slices.Contains(mine, id) || !reg.built(id) {
 			continue
 		}
-		by, err := env.lastChange(ctx, span, flowPaths(reg, paths, spec, id))
+		flowPaths := flowPaths(reg, paths, spec, id)
+		by, err := env.lastChange(ctx, span, flowPaths)
 		if err != nil {
 			return nil, err
 		}
-		moved = append(moved, movedFlow{id: id, by: by})
+		moved = append(moved, movedFlow{id: id, by: by, paths: flowPaths})
 	}
 	return moved, nil
 }
