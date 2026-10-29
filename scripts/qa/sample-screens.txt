@@ -458,6 +458,7 @@ propose-sell-no-holdings       -MonacoProposeSample sellNoHoldings
 propose-amount                 -MonacoProposeSample amount
 propose-amount-sell            -MonacoProposeSample amountSell
 propose-amount-sell-base       -MonacoProposeSample amountSellBase
+propose-amount-typed           -MonacoProposeSample amountTyped
 propose-amount-insufficient    -MonacoProposeSample amountInsufficient
 propose-amount-empty-thesis    -MonacoProposeSample amountEmptyThesis
 propose-amount-error           -MonacoProposeSample amountError

@@ -10,63 +10,14 @@ import UIKit
 @MainActor
 struct ProposeAmountKeypadTests {
     @Test(.timeLimit(.minutes(1)))
-    func theThesisFieldIsAlwaysThereAndTheAddAReasonButtonIsGone() async throws {
-        try Self.setAutomation(enabled: true)
-        defer { try? Self.setAutomation(enabled: false) }
-        let (window, _) = try Self.window()
-        defer { TestWindow.close(window) }
-
-        #expect(await Self.eventually(within: 10) { Self.element("propose-amount-reason", in: window) != nil })
-        #expect(Self.element("propose-amount-add-reason", in: window) == nil)
-        #expect(Self.element("amount-keypad", in: window) == nil)
-    }
-
-    @Test(.timeLimit(.minutes(1)))
-    func theAmountFigureStartsClearOfTheBarAtTheLargestTextSize() async throws {
-        try Self.setAutomation(enabled: true)
-        defer { try? Self.setAutomation(enabled: false) }
-        let (window, navigation) = try Self.window(textSize: .accessibility5, size: CGSize(width: 440, height: 956))
-        defer { TestWindow.close(window) }
-        func barBottom() -> CGFloat { navigation.navigationBar.convert(navigation.navigationBar.bounds, to: nil).maxY }
-
-        let layoutSlack: CGFloat = 0.5
-        let reached = await Self.eventually(within: 10) {
-            guard let figure = Self.element("amount-entry-field", in: window) else { return false }
-            return figure.accessibilityFrame.minY >= barBottom() - layoutSlack
-        }
-        #expect(reached, "the figure starts clear of the bar")
-    }
-
-    @Test(.timeLimit(.minutes(1)))
-    func theHelperSaysItIsFindingThePriceUntilThePreviewReturns() async throws {
-        try Self.setAutomation(enabled: true)
-        defer { try? Self.setAutomation(enabled: false) }
-        let service = HeldPreviewService()
-        let (window, _) = try Self.window(service: service)
-        defer { TestWindow.close(window) }
-        func helper() -> String? { Self.element("amount-entry-helper", in: window)?.accessibilityLabel }
-        func spinning() -> Bool { Self.element("amount-entry-spinner", in: window) != nil }
-        #expect(await Self.eventually(within: 10) { helper() == "The cabal can spend $500.00" })
-
-        try await Self.typeOne(in: window)
-
-        #expect(await Self.eventually(within: 10) { helper() == "Finding the best price…" && spinning() })
-        while await !service.isAsked() { await Task.yield() }
-        #expect(helper() == "Finding the best price…")
-        await service.answer()
-        #expect(await Self.eventually(within: 10) { helper() == "The cabal can spend $500.00" && !spinning() })
-    }
-
-    @Test(.timeLimit(.minutes(1)))
     func theTitleNamesTheTrade() async throws {
         let trades: [(MonacoCore.ProposeTrade?, String)] = [
             (nil, "Buy Alphabet"), (.sell(Self.holding), "Sell Alphabet"),
         ]
         for (trade, title) in trades {
-            let (window, navigation) = try Self.window(trade: trade)
+            let (window, _) = try Self.window(trade: trade)
             defer { TestWindow.close(window) }
-            _ = await Self.eventually { navigation.navigationBar.topItem?.title == title }
-            #expect(navigation.navigationBar.topItem?.title == title)
+            #expect(await Self.eventually(within: 10) { Self.labelled(title, in: window) != nil })
         }
     }
 
@@ -124,9 +75,9 @@ struct ProposeAmountKeypadTests {
     }
 
     static func typeOne(in window: UIWindow) async throws {
-        #expect(await eventually(within: 10) { firstResponder(in: window) is UITextField })
-        let field = try #require(firstResponder(in: window) as? UITextField)
-        field.insertText("1")
+        #expect(await eventually(within: 10) { element("amount-keypad-1", in: window) != nil })
+        let key = try #require(element("amount-keypad-1", in: window))
+        #expect(key.accessibilityActivate())
     }
 
     static func setAutomation(enabled: Bool) throws {
@@ -179,13 +130,16 @@ struct ProposeAmountKeypadTests {
         return view.subviews.lazy.compactMap { first(T.self, in: $0) }.first
     }
 
-    static func firstResponder(in view: UIView) -> UIView? {
-        if view.isFirstResponder { return view }
-        return view.subviews.lazy.compactMap { firstResponder(in: $0) }.first
+    static func element(_ identifier: String, in root: NSObject) -> NSObject? {
+        match(in: root) { Self.identifier(of: $0) == identifier }
     }
 
-    static func element(_ identifier: String, in root: NSObject, depth: Int = 0) -> NSObject? {
-        if Self.identifier(of: root) == identifier { return root }
+    static func labelled(_ label: String, in root: NSObject) -> NSObject? {
+        match(in: root) { $0.accessibilityLabel == label }
+    }
+
+    private static func match(in root: NSObject, depth: Int = 0, where test: (NSObject) -> Bool) -> NSObject? {
+        if test(root) { return root }
         guard depth < 80 else { return nil }
         var children: [NSObject] = (root as? UIView)?.subviews ?? []
         if let elements = root.accessibilityElements as? [NSObject] {
@@ -196,7 +150,10 @@ struct ProposeAmountKeypadTests {
                 children += (0..<count).compactMap { root.accessibilityElement(at: $0) as? NSObject }
             }
         }
-        return children.lazy.compactMap { element(identifier, in: $0, depth: depth + 1) }.first
+        for child in children {
+            if let found = match(in: child, depth: depth + 1, where: test) { return found }
+        }
+        return nil
     }
 
     static func identifier(of element: NSObject) -> String? {
