@@ -46,6 +46,123 @@ func (e CabalValueHistoryRange) Valid() bool {
 	}
 }
 
+// Defines values for CallBoardBoard.
+const (
+	CallBoardBoardCabals CallBoardBoard = "cabals"
+	CallBoardBoardPeople CallBoardBoard = "people"
+)
+
+// Valid indicates whether the value is a known member of the CallBoardBoard enum.
+func (e CallBoardBoard) Valid() bool {
+	switch e {
+	case CallBoardBoardCabals:
+		return true
+	case CallBoardBoardPeople:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CallBoardFilter.
+const (
+	CallBoardFilterAll     CallBoardFilter = "all"
+	CallBoardFilterFriends CallBoardFilter = "friends"
+)
+
+// Valid indicates whether the value is a known member of the CallBoardFilter enum.
+func (e CallBoardFilter) Valid() bool {
+	switch e {
+	case CallBoardFilterAll:
+		return true
+	case CallBoardFilterFriends:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CallBoardGapVersus.
+const (
+	Above CallBoardGapVersus = "above"
+	Below CallBoardGapVersus = "below"
+)
+
+// Valid indicates whether the value is a known member of the CallBoardGapVersus enum.
+func (e CallBoardGapVersus) Valid() bool {
+	switch e {
+	case Above:
+		return true
+	case Below:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CallBoardMovementKind.
+const (
+	Down CallBoardMovementKind = "down"
+	New  CallBoardMovementKind = "new"
+	Same CallBoardMovementKind = "same"
+	Up   CallBoardMovementKind = "up"
+)
+
+// Valid indicates whether the value is a known member of the CallBoardMovementKind enum.
+func (e CallBoardMovementKind) Valid() bool {
+	switch e {
+	case Down:
+		return true
+	case New:
+		return true
+	case Same:
+		return true
+	case Up:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CallBoardPeriodKind.
+const (
+	CallBoardPeriodKindAll   CallBoardPeriodKind = "all"
+	CallBoardPeriodKindMonth CallBoardPeriodKind = "month"
+	CallBoardPeriodKindWeek  CallBoardPeriodKind = "week"
+)
+
+// Valid indicates whether the value is a known member of the CallBoardPeriodKind enum.
+func (e CallBoardPeriodKind) Valid() bool {
+	switch e {
+	case CallBoardPeriodKindAll:
+		return true
+	case CallBoardPeriodKindMonth:
+		return true
+	case CallBoardPeriodKindWeek:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CallBoardRowLastCallKind.
+const (
+	CallBoardRowLastCallKindBuy  CallBoardRowLastCallKind = "buy"
+	CallBoardRowLastCallKindSell CallBoardRowLastCallKind = "sell"
+)
+
+// Valid indicates whether the value is a known member of the CallBoardRowLastCallKind enum.
+func (e CallBoardRowLastCallKind) Valid() bool {
+	switch e {
+	case CallBoardRowLastCallKindBuy:
+		return true
+	case CallBoardRowLastCallKindSell:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for LeaderboardPageRange.
 const (
 	LeaderboardPageRangeALL LeaderboardPageRange = "ALL"
@@ -541,6 +658,63 @@ func (e GetCabalsLeaderboardParamsMembership) Valid() bool {
 	}
 }
 
+// Defines values for GetCallLeaderboardParamsBoard.
+const (
+	GetCallLeaderboardParamsBoardCabals GetCallLeaderboardParamsBoard = "cabals"
+	GetCallLeaderboardParamsBoardPeople GetCallLeaderboardParamsBoard = "people"
+)
+
+// Valid indicates whether the value is a known member of the GetCallLeaderboardParamsBoard enum.
+func (e GetCallLeaderboardParamsBoard) Valid() bool {
+	switch e {
+	case GetCallLeaderboardParamsBoardCabals:
+		return true
+	case GetCallLeaderboardParamsBoardPeople:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetCallLeaderboardParamsPeriod.
+const (
+	GetCallLeaderboardParamsPeriodAll   GetCallLeaderboardParamsPeriod = "all"
+	GetCallLeaderboardParamsPeriodMonth GetCallLeaderboardParamsPeriod = "month"
+	GetCallLeaderboardParamsPeriodWeek  GetCallLeaderboardParamsPeriod = "week"
+)
+
+// Valid indicates whether the value is a known member of the GetCallLeaderboardParamsPeriod enum.
+func (e GetCallLeaderboardParamsPeriod) Valid() bool {
+	switch e {
+	case GetCallLeaderboardParamsPeriodAll:
+		return true
+	case GetCallLeaderboardParamsPeriodMonth:
+		return true
+	case GetCallLeaderboardParamsPeriodWeek:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetCallLeaderboardParamsFilter.
+const (
+	GetCallLeaderboardParamsFilterAll     GetCallLeaderboardParamsFilter = "all"
+	GetCallLeaderboardParamsFilterFriends GetCallLeaderboardParamsFilter = "friends"
+)
+
+// Valid indicates whether the value is a known member of the GetCallLeaderboardParamsFilter enum.
+func (e GetCallLeaderboardParamsFilter) Valid() bool {
+	switch e {
+	case GetCallLeaderboardParamsFilterAll:
+		return true
+	case GetCallLeaderboardParamsFilterFriends:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetPeopleLeaderboardParamsRange.
 const (
 	GetPeopleLeaderboardParamsRangeALL GetPeopleLeaderboardParamsRange = "ALL"
@@ -701,6 +875,275 @@ type CabalValuePoint struct {
 	//
 	// Examples: 1000000
 	ValueMicros int64 `json:"value_micros"`
+}
+
+// CallBoard One Leaderboard C screen for a board and a period.
+type CallBoard struct {
+	// Above The row ranked directly above `me`. Null when `me` is
+	//
+	// Examples: null
+	Above *CallBoardRow `json:"above"`
+
+	// Around The rows around the caller, then later pages.
+	Around CallBoardAround `json:"around"`
+
+	// Below The row ranked directly below `me`. Null when `me` is last or null.
+	//
+	// Examples: null
+	Below *CallBoardRow `json:"below"`
+
+	// Board The board.
+	//
+	// Examples: people
+	Board CallBoardBoard `json:"board"`
+
+	// ClimbBps The climb bar's fill: the rate when ranked, else resolved votes as basis points of the five needed.
+	//
+	// Examples: 7777
+	ClimbBps int32 `json:"climb_bps"`
+
+	// ComputedAt When the board was computed.
+	//
+	// Examples: 2026-10-22T13:40:00Z
+	ComputedAt time.Time `json:"computed_at"`
+
+	// Filter Whether the board holds everyone or the caller's friends.
+	//
+	// Examples: all
+	Filter CallBoardFilter `json:"filter"`
+
+	// Gap How `me` compares with its neighbour. Null when `me` is null or has no neighbour.
+	//
+	// Examples: null
+	Gap *CallBoardGap `json:"gap"`
+
+	// Me The caller's row, or on Cabals their best-ranked cabal. Null when not ranked.
+	//
+	// Examples: null
+	Me *CallBoardRow `json:"me"`
+
+	// Period The period a board covers.
+	Period CallBoardPeriod `json:"period"`
+
+	// Top Ranks 1 to 3. On Friends these are the friends' own top three.
+	//
+	// Examples: []
+	Top []CallBoardRow `json:"top"`
+
+	// TotalRanked How many subjects are ranked, in friends on the Friends board.
+	//
+	// Examples: 24
+	TotalRanked int32 `json:"total_ranked"`
+
+	// Unranked The not ranked yet section.
+	//
+	// Examples: []
+	Unranked []CallBoardRow `json:"unranked"`
+
+	// UnrankedMe The not-ranked-yet card. Null when the caller is ranked.
+	//
+	// Examples: null
+	UnrankedMe *CallBoardUnrankedMe `json:"unranked_me"`
+}
+
+// CallBoardAround The rows around the caller, then later pages.
+type CallBoardAround struct {
+	// AfterCursor The cursor for the next 20 rows. Null on the last page.
+	//
+	// Examples: null
+	AfterCursor *string `json:"after_cursor"`
+
+	// Rows Examples: []
+	Rows []CallBoardRow `json:"rows"`
+}
+
+// CallBoardBoard The board.
+//
+// Examples: people
+type CallBoardBoard string
+
+// CallBoardFilter Whether the board holds everyone or the caller's friends.
+//
+// Examples: all
+type CallBoardFilter string
+
+// CallBoardGapVersus The row the card compares with. `above` when there is one.
+//
+// Examples: above
+type CallBoardGapVersus string
+
+// CallBoardGap How `me` compares with its neighbour. Null when `me` is null or has no neighbour.
+//
+// Examples: null
+type CallBoardGap struct {
+	// AboveIsPerfect Whether the row above is at 100%.
+	//
+	// Examples: false
+	AboveIsPerfect bool `json:"above_is_perfect"`
+
+	// CallsToPass The fewest extra right calls, with no misses, that put `me` past `above`. Null when `versus` is below or no run of right calls gets there.
+	//
+	// Examples: 1
+	CallsToPass *int32 `json:"calls_to_pass"`
+
+	// Points `me` minus `versus` in whole percent. Negative when behind, positive when ahead.
+	//
+	// Examples: -1
+	Points int32 `json:"points"`
+
+	// Versus The row the card compares with. `above` when there is one.
+	//
+	// Examples: above
+	Versus CallBoardGapVersus `json:"versus"`
+}
+
+// CallBoardUnrankedMe The not-ranked-yet card. Null when the caller is ranked.
+//
+// Examples: null
+type CallBoardUnrankedMe struct {
+	// Eligible Examples: 6
+	Eligible int32 `json:"eligible"`
+
+	// Needed Resolved votes still needed to rank.
+	//
+	// Examples: 2
+	Needed int32 `json:"needed"`
+
+	// PendingSymbols The symbols of the subject's votes that have not resolved yet.
+	//
+	// Examples: ["SPACEX","AMZN"]
+	PendingSymbols []string `json:"pending_symbols"`
+
+	// Resolved Examples: 3
+	Resolved int32 `json:"resolved"`
+
+	// Subject The cabal or person a row ranks.
+	Subject LeaderboardSubject `json:"subject"`
+
+	// Voted Examples: 5
+	Voted int32 `json:"voted"`
+}
+
+// CallBoardMovement How the row moved since the board's daily baseline.
+type CallBoardMovement struct {
+	// Kind Examples: up
+	Kind CallBoardMovementKind `json:"kind"`
+
+	// Places How many places it moved, 0 unless up or down.
+	//
+	// Examples: 1
+	Places int32 `json:"places"`
+}
+
+// CallBoardMovementKind Examples: up
+type CallBoardMovementKind string
+
+// CallBoardPeriod The period a board covers.
+type CallBoardPeriod struct {
+	// End The last day, inclusive. Null for all time.
+	//
+	// Examples: 2026-10-31
+	End *openapi_types.Date `json:"end"`
+
+	// Kind Examples: month
+	Kind CallBoardPeriodKind `json:"kind"`
+
+	// Start The first day. Null for all time.
+	//
+	// Examples: 2026-10-01
+	Start *openapi_types.Date `json:"start"`
+}
+
+// CallBoardPeriodKind Examples: month
+type CallBoardPeriodKind string
+
+// CallBoardRow One subject on a right-call board.
+type CallBoardRow struct {
+	// Eligible Proposals the subject could vote on in the period.
+	//
+	// Examples: 12
+	Eligible int32 `json:"eligible"`
+
+	// IsMine True on a cabal the caller is a member of. Always false on a person.
+	//
+	// Examples: false
+	IsMine bool `json:"is_mine"`
+
+	// IsViewer True on the caller's own row.
+	//
+	// Examples: false
+	IsViewer bool `json:"is_viewer"`
+
+	// LastCall The subject's latest resolved call. Null when it has none.
+	//
+	// Examples: null
+	LastCall *CallBoardLastCall `json:"last_call"`
+
+	// Movement How the row moved since the board's daily baseline.
+	Movement CallBoardMovement `json:"movement"`
+
+	// Needed Resolved calls still needed to rank. Null when ranked.
+	//
+	// Examples: null
+	Needed *int32 `json:"needed"`
+
+	// Rank The dense rank. Null when the row is not ranked yet.
+	//
+	// Examples: 8
+	Rank *int32 `json:"rank"`
+
+	// RateBps Right calls as basis points of resolved calls. Null when not ranked.
+	//
+	// Examples: 7777
+	RateBps *int32 `json:"rate_bps"`
+
+	// RatePct The rate as a whole percent rounded half up, as the app shows it. Null when not ranked.
+	//
+	// Examples: 78
+	RatePct *int32 `json:"rate_pct"`
+
+	// Resolved Resolved calls in the period.
+	//
+	// Examples: 9
+	Resolved int32 `json:"resolved"`
+
+	// Right Right calls in the period.
+	//
+	// Examples: 7
+	Right int32 `json:"right"`
+
+	// Subject The cabal or person a row ranks.
+	Subject LeaderboardSubject `json:"subject"`
+
+	// TurnoutBps Voted as basis points of eligible.
+	//
+	// Examples: 9166
+	TurnoutBps int32 `json:"turnout_bps"`
+
+	// Voted Proposals voted on in the period.
+	//
+	// Examples: 11
+	Voted int32 `json:"voted"`
+}
+
+// CallBoardRowLastCallKind Examples: buy
+type CallBoardRowLastCallKind string
+
+// CallBoardLastCall The subject's latest resolved call. Null when it has none.
+//
+// Examples: null
+type CallBoardLastCall struct {
+	// Kind Examples: buy
+	Kind CallBoardRowLastCallKind `json:"kind"`
+
+	// ProposalId Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	ProposalId openapi_types.UUID `json:"proposal_id"`
+
+	// Right Examples: true
+	Right bool `json:"right"`
+
+	// Symbol Examples: NVDA
+	Symbol string `json:"symbol"`
 }
 
 // LeaderboardPage One page of a leaderboard from one run.
@@ -1423,6 +1866,30 @@ type GetCabalsLeaderboardParamsSort string
 // GetCabalsLeaderboardParamsMembership defines parameters for GetCabalsLeaderboard.
 type GetCabalsLeaderboardParamsMembership string
 
+// GetCallLeaderboardParams defines parameters for GetCallLeaderboard.
+type GetCallLeaderboardParams struct {
+	// Board `people` ranks people and `cabals` ranks cabals. Defaults to `people`.
+	Board *GetCallLeaderboardParamsBoard `form:"board,omitempty" json:"board,omitempty"`
+
+	// Period The period. Defaults to `month`.
+	Period *GetCallLeaderboardParamsPeriod `form:"period,omitempty" json:"period,omitempty"`
+
+	// Filter `all` reads the whole board. `friends` reads the people the caller follows and the caller.
+	Filter *GetCallLeaderboardParamsFilter `form:"filter,omitempty" json:"filter,omitempty"`
+
+	// Cursor The `around.after_cursor` from the previous response. Absent reads the whole screen.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// GetCallLeaderboardParamsBoard defines parameters for GetCallLeaderboard.
+type GetCallLeaderboardParamsBoard string
+
+// GetCallLeaderboardParamsPeriod defines parameters for GetCallLeaderboard.
+type GetCallLeaderboardParamsPeriod string
+
+// GetCallLeaderboardParamsFilter defines parameters for GetCallLeaderboard.
+type GetCallLeaderboardParamsFilter string
+
 // GetPeopleLeaderboardParams defines parameters for GetPeopleLeaderboard.
 type GetPeopleLeaderboardParams struct {
 	// Range The window the return is measured over. Defaults to `ALL`.
@@ -1473,6 +1940,9 @@ type ServerInterface interface {
 	// GetCabalsLeaderboard Read the cabals leaderboard.
 	// (GET /v1/leaderboards/cabals)
 	GetCabalsLeaderboard(w http.ResponseWriter, r *http.Request, params GetCabalsLeaderboardParams)
+	// GetCallLeaderboard Read a whole right-call leaderboard screen.
+	// (GET /v1/leaderboards/calls)
+	GetCallLeaderboard(w http.ResponseWriter, r *http.Request, params GetCallLeaderboardParams)
 	// GetPeopleLeaderboard Read the people leaderboard.
 	// (GET /v1/leaderboards/people)
 	GetPeopleLeaderboard(w http.ResponseWriter, r *http.Request, params GetPeopleLeaderboardParams)
@@ -1704,6 +2174,78 @@ func (siw *ServerInterfaceWrapper) GetCabalsLeaderboard(w http.ResponseWriter, r
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetCabalsLeaderboard(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCallLeaderboard operation middleware
+func (siw *ServerInterfaceWrapper) GetCallLeaderboard(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetCallLeaderboardParams
+
+	// ------------- Optional query parameter "board" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "board", r.URL.Query(), &params.Board, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "board"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "board", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "period" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "period", r.URL.Query(), &params.Period, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "period"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "period", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "filter" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "filter", r.URL.Query(), &params.Filter, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "filter"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "filter", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCallLeaderboard(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2073,6 +2615,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/leaderboard", wrapper.GetCabalLeaderboard)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/value-history", wrapper.GetCabalValueHistory)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/leaderboards/cabals", wrapper.GetCabalsLeaderboard)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/leaderboards/calls", wrapper.GetCallLeaderboard)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/leaderboards/people", wrapper.GetPeopleLeaderboard)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/ledgers/latest", wrapper.GetMyLatestLedger)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/ledgers/{week}", wrapper.GetMyLedger)
@@ -2192,6 +2735,45 @@ type GetCabalsLeaderboarddefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetCabalsLeaderboarddefaultApplicationProblemPlusJSONResponse) VisitGetCabalsLeaderboardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCallLeaderboardRequestObject struct {
+	Params GetCallLeaderboardParams
+}
+
+type GetCallLeaderboardResponseObject interface {
+	VisitGetCallLeaderboardResponse(w http.ResponseWriter) error
+}
+
+type GetCallLeaderboard200JSONResponse CallBoard
+
+func (response GetCallLeaderboard200JSONResponse) VisitGetCallLeaderboardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCallLeaderboarddefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetCallLeaderboarddefaultApplicationProblemPlusJSONResponse) VisitGetCallLeaderboardResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -2485,6 +3067,9 @@ type StrictServerInterface interface {
 	// GetCabalsLeaderboard Read the cabals leaderboard.
 	// (GET /v1/leaderboards/cabals)
 	GetCabalsLeaderboard(ctx context.Context, request GetCabalsLeaderboardRequestObject) (GetCabalsLeaderboardResponseObject, error)
+	// GetCallLeaderboard Read a whole right-call leaderboard screen.
+	// (GET /v1/leaderboards/calls)
+	GetCallLeaderboard(ctx context.Context, request GetCallLeaderboardRequestObject) (GetCallLeaderboardResponseObject, error)
 	// GetPeopleLeaderboard Read the people leaderboard.
 	// (GET /v1/leaderboards/people)
 	GetPeopleLeaderboard(ctx context.Context, request GetPeopleLeaderboardRequestObject) (GetPeopleLeaderboardResponseObject, error)
@@ -2620,6 +3205,32 @@ func (sh *strictHandler) GetCabalsLeaderboard(w http.ResponseWriter, r *http.Req
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetCabalsLeaderboardResponseObject); ok {
 		if err := validResponse.VisitGetCabalsLeaderboardResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCallLeaderboard operation middleware
+func (sh *strictHandler) GetCallLeaderboard(w http.ResponseWriter, r *http.Request, params GetCallLeaderboardParams) {
+	var request GetCallLeaderboardRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCallLeaderboard(ctx, request.(GetCallLeaderboardRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCallLeaderboard")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCallLeaderboardResponseObject); ok {
+		if err := validResponse.VisitGetCallLeaderboardResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

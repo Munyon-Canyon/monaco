@@ -17,3 +17,4 @@ Dated record of changes to [leaderboards.md](../leaderboards.md). Add one line p
 - 2026-10-28: `GET /v1/users/{id}` serves the month right-call `standing`, `crown` and `cabals_in_common`, and returns your own 1M return and P&L whatever your sharing setting (#6467).
 - 2026-10-28: `ranking` serves `GET /v1/users/{id}/cabals`, another member's cabals with role, shared flag and share of the pot, hidden when they keep performance private (#6437).
 - 2026-10-29: `GET /v1/me/pnl-history` takes an optional `cabal_id` and returns the caller's stake value and P&L in that one cabal (#6477).
+- 2026-10-29: `ranking` serves `GET /v1/leaderboards/calls`, one GET per Leaderboard C screen (top three, you and the row above, the rows around you, Friends, not ranked yet) with a `cursor_stale` code for paging across runs, and rule 8 is superseded for the launch boards (#6472).

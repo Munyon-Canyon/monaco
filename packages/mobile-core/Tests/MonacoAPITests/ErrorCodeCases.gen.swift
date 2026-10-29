@@ -51,6 +51,7 @@ extension Components.Schemas.ErrorCode {
         case .commentParentMismatch: true
         case .conservationBroken: true
         case .contactHashesInvalid: true
+        case .cursorStale: true
         case .dashboardTimeout: true
         case .dbSchemaBehind: true
         case .dbUnavailable: true

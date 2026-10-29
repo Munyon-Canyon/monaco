@@ -134,9 +134,9 @@ Reference addresses (Solana mainnet):
 
 ## Performance
 
-Performance is the product. Rank by **percent return**, never by dollars, so a small pot can beat a big one. Dollar gain or loss sits next to the name.
+Performance is the product, and the launch leaderboard ranks **right calls**, never dollars. People and cabals are ranked on the share of their resolved votes that were right, over Week, Month and All time. A row shows the rate with its record ("91%" over "10 of 11 right"), five resolved votes in the period are needed to rank, and turnout ("Voted 11 of 11") is the sub-line. A vote is judged on the asset's price move after the proposal is decided: [Right calls](architecture/right-calls.md) has the rule. The app reads one screen per board and period from `GET /v1/leaderboards/calls`, which also serves the caller's row with the row above it, the gap to pass it, the rows around it and the not-ranked-yet card.
 
-`percent return = current value ÷ net USDC in − 1`, where net USDC in is money funded minus money cashed out. Anyone with nothing in is left off the board.
+The return boards (`percent return = current value ÷ net USDC in - 1`, where net USDC in is money funded minus money cashed out) are kept for the P&L views, such as a cabal's value history and a member's return on their profile. They no longer rank anyone. Dollar gain or loss sits next to a name only where a screen shows the pot or a stake.
 
 A member can share a gain card, an image of their own all-time gain and return with their invite link, from the cabal screen (for a cabal they are in), from Profile and from Home. It carries only the sharer's own figures and own cabals, never another member's.
 
@@ -144,12 +144,12 @@ A member can share a gain card, an image of their own all-time gain and return w
 
 - **Pot.** USDC plus each holding with units, price, value and purchase price.
 - **You.** Your stake in dollars and as a percent of the pot, with your gain or loss.
-- **Members.** Every member, ranked by their return in this cabal.
+- **Members.** Every member, ranked by their return in this cabal. This is a P&L view, not the launch leaderboard.
 
 **Across the app** (Home and the Cabals tab):
 
-- **Cabal board.** One row per cabal with money in, ranked by the pot's return. Cabals compete on this. Join-by-request hides entry, not the score.
-- **People board.** One row per person across all their cabals. Alex in three cabals is one row.
+- **Cabal board.** One row per cabal with at least five resolved calls in the period, ranked on the cabal's right-call rate. Cabals compete on this. Join-by-request hides entry, not the score.
+- **People board.** One row per person across all their cabals, ranked on their right-call rate. Alex in three cabals is one row. Friends is the same board over the people you follow and you.
 
 Pot value is saved after every fund, trade and cash out, so charts and boards can be replayed without recomputing from wallets.
 

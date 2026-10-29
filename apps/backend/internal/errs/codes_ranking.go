@@ -2,6 +2,7 @@ package errs
 
 const (
 	CodeConservationBroken Code = "conservation_broken"
+	CodeCursorStale        Code = "cursor_stale"
 	CodeLedgerNotFound     Code = "ledger_not_found"
 	CodePricesStale        Code = "prices_stale"
 	CodeRankingRunsStalled Code = "ranking_runs_stalled"
@@ -14,6 +15,10 @@ func (codeFiles) Ranking() map[Code]Row {
 			Kind:    KindInternal,
 			Alert:   true,
 			Message: "Something went wrong.",
+		},
+		CodeCursorStale: {
+			Name: "CursorStale", Kind: KindConflict,
+			Message: "The board changed. Pull to refresh.",
 		},
 		CodeLedgerNotFound: {
 			Name: "LedgerNotFound", Kind: KindNotFound,

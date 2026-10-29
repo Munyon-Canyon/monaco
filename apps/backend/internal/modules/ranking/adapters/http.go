@@ -31,6 +31,7 @@ type HTTP struct {
 	Balances  app.DisplayBalances
 	Votes     app.OpenVoteCounts
 	Ledgers   app.ReadLedger
+	CallBoard app.ReadCallBoard
 }
 
 var _ api.StrictServerInterface = HTTP{}
