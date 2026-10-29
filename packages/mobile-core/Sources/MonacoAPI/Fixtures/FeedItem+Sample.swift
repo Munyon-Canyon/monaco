@@ -144,10 +144,9 @@ extension Components.Schemas.FeedItem {
         let span = 5.0 * 3600
         let start = Date(timeIntervalSinceNow: -span)
         let points = (0..<count).map { index -> Chart.PointsPayloadPayload in
-            let fraction = Double(index) / Double(count - 1)
-            return .init(
-                at: start.addingTimeInterval(span * fraction),
-                priceMicros: first + Int64(Double(last - first) * fraction))
+            .init(
+                at: start.addingTimeInterval(span * TimeInterval(index) / TimeInterval(count - 1)),
+                priceMicros: first + (last - first) * Int64(index) / Int64(count - 1))
         }
         return .init(
             points: points,
