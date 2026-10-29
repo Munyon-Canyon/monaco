@@ -17,7 +17,7 @@ struct ScreenMapOrderTests {
     @Test func cabalsTabFollowsTheScreenMap() {
         #expect(
             names(CabalsTabScreen.sections) == [
-                "CabalsJoinSlot", "CabalsInvitesSlot", "CabalsListSlot", "CabalsBoardSlot",
+                "CabalsJoinSlot", "CabalsVoteSlot", "CabalsGridSlot", "CabalsShareListSlot",
             ])
     }
 

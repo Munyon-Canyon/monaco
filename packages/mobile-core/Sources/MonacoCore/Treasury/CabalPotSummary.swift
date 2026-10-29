@@ -56,6 +56,7 @@ public struct CabalPotSummary: Equatable, Sendable {
     public let shareMicros: Int64
     public let sliceBps: Int
     public private(set) var holdings: [Row]
+    public private(set) var treasury: CabalTreasuryRows
     public let sellable: [ProposeHolding]
     public let legend: [Segment]
     public let state: PotState
@@ -88,6 +89,7 @@ public struct CabalPotSummary: Equatable, Sendable {
                 value: UsdAmountFormatter.format(micros: holding.valueMicros),
                 gain: UsdAmountFormatter.format(signedMicros: holding.pnlMicros))
         }
+        treasury = CabalTreasuryRows(pot)
         sellable = pot.holdings.map(ProposeHolding.init)
         legend =
             pot.holdings.enumerated().map { index, holding in
@@ -111,6 +113,7 @@ public struct CabalPotSummary: Equatable, Sendable {
             row.logoURL = logos[row.symbol]
             return row
         }
+        copy.treasury = treasury.withLogos(logos)
         return copy
     }
 

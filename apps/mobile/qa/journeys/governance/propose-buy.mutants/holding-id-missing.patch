@@ -4,16 +4,16 @@ expect-fail: S4
 The cabal screen names its holding rows `cabal-position-<ticker>` instead of `cabal-holding-<ticker>`. S4.1 looks for `cabal-holding-GOOGL`, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalHoldingsSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalHoldingsSlot.swift
-index e57dbc54c..d70fe8371 100644
---- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalHoldingsSlot.swift
-+++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalHoldingsSlot.swift
-@@ -86,7 +86,7 @@ struct CabalHoldingsSection: View {
-                         HoldingRow(row: row)
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalTreasuryTab.swift b/apps/mobile/Monaco/Features/Groups/CabalTreasuryTab.swift
+index a431b1705..5e4e5a7d5 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalTreasuryTab.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalTreasuryTab.swift
+@@ -120,7 +120,7 @@ struct CabalTreasuryBody: View {
+                         CabalTreasuryPositionRow(position: position, isLast: position.id == positions.last?.id)
                      }
                      .buttonStyle(.monacoRow)
--                    .accessibilityIdentifier("cabal-holding-\(row.ticker)")
-+                    .accessibilityIdentifier("cabal-position-\(row.ticker)")
+-                    .accessibilityIdentifier("cabal-holding-\(position.ticker)")
++                    .accessibilityIdentifier("cabal-position-\(position.ticker)")
                  }
-                 cashRow(summary.cash, yield: summary.cashYield)
              }
+         }

@@ -42,6 +42,7 @@ enum GroupDetailSampleScenario: String, CaseIterable {
     case fTreasury
     case fTreasuryLight
     case fTreasuryScrolled
+    case fTreasuryHistory
     case fRules
     case fRulesScrolled
     case fRulesSides
@@ -69,7 +70,8 @@ extension GroupDetailSampleScenario {
         switch self {
         case .ready, .invitePreview, .inviteInvalid, .invitePending, .inviteMember:
             SampleAPIScript(role: "member", unreadCount: 3)
-        case .fTreasury, .fTreasuryLight, .fTreasuryScrolled, .fRules, .fRulesScrolled, .fRuleProposal:
+        case .fTreasury, .fTreasuryLight, .fTreasuryScrolled, .fTreasuryHistory, .fRules, .fRulesScrolled,
+            .fRuleProposal:
             GroupDetailSampleData.fTreasury
         case .fMembers, .fMembersScrolled, .fVoters: GroupDetailSampleData.fMembers
         case .fMembersAll: GroupDetailSampleData.fMembersAll
@@ -120,6 +122,7 @@ extension GroupDetailSampleScenario {
         switch self {
         case .info, .infoAdmin, .fRules, .fRulesScrolled, .fRulesSides, .fRuleProposal, .fRuleProposalOpen:
             return [CabalRoute(id: id, tab: .rules)]
+        case .fTreasuryHistory: return [CabalTreasuryHistoryRoute(cabalID: id)]
         case .fMembers, .fMembersScrolled: return [CabalRoute(id: id, tab: .members)]
         case .fVoters: return [CabalRoute(id: id, tab: .voters)]
         case .members, .fMembersAll, .fMembersLarge, .requests, .requestsEmpty: return [MembersRoute(cabalID: id)]

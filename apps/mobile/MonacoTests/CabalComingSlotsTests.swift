@@ -6,7 +6,7 @@ import Testing
 struct CabalComingSlotsTests {
     @Test func theComingSlotsAreLive() {
         let slots: [any CabalSection.Type] = [
-            CabalPotSlot.self, CabalValueChartSlot.self, CabalSliceSlot.self, CabalHoldingsSlot.self,
+            CabalPotSlot.self, CabalValueChartSlot.self, CabalSliceSlot.self, CabalTreasuryTabSlot.self,
             CabalPauseSlot.self,
         ]
         #expect(slots.allSatisfy { $0.isLive })

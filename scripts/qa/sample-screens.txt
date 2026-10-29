@@ -293,7 +293,8 @@ cabal-invite-invalid              -MonacoGroupDetailSample inviteInvalid
 cabal-invite-pending              -MonacoGroupDetailSample invitePending
 cabal-f-treasury                  -MonacoGroupDetailSample fTreasury -AppleInterfaceStyle Dark
 cabal-f-treasury-light            -MonacoGroupDetailSample fTreasuryLight
-cabal-f-treasury-scrolled         -MonacoGroupDetailSample fTreasuryScrolled -AppleInterfaceStyle Dark -MonacoSampleScroll 0.3
+cabal-f-treasury-scrolled         -MonacoGroupDetailSample fTreasuryScrolled -AppleInterfaceStyle Dark -MonacoSampleScroll 1
+cabal-f-treasury-history          -MonacoGroupDetailSample fTreasuryHistory -AppleInterfaceStyle Dark
 cabal-f-rules                     -MonacoGroupDetailSample fRules -AppleInterfaceStyle Dark
 cabal-f-rules-scrolled            -MonacoGroupDetailSample fRulesScrolled -AppleInterfaceStyle Dark -MonacoSampleScroll 0.6
 cabal-f-rules-sides               -MonacoGroupDetailSample fRulesSides -AppleInterfaceStyle Dark -MonacoSampleScroll 0.6
