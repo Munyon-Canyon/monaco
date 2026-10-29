@@ -53,12 +53,14 @@ final class FeedModelPickTests: XCTestCase {
     }
 
     func testAPickWithNothingOnScreenStillShowsTheSkeleton() async throws {
-        let transport = StubTransport(scripted: [.json(.ok, try Self.page([])), .gate])
+        let transport = StubTransport(scripted: [
+            .json(.ok, try Self.page([])), .json(.ok, try Self.page([])), .gate,
+        ])
         let model = makeModel(transport)
         await model.load()
         XCTAssertEqual(model.phase, .empty)
         let pick = Task { await model.select(.everyone) }
-        await transport.waitForRequests(2)
+        await transport.waitForRequests(3)
         XCTAssertEqual(model.phase, .loading)
         await transport.releaseGate(.json(.ok, try Self.page([])))
         await pick.value

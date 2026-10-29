@@ -119,8 +119,9 @@ final class FeedModelTests: XCTestCase {
         let model = makeModel(transport)
         await model.load()
         XCTAssertEqual(model.phase, .empty)
-        let sent = await transport.sent.count
-        XCTAssertEqual(sent, 1)
+        let paths = await transport.sent.compactMap(\.path)
+        XCTAssertEqual(paths.count, 2)
+        XCTAssertFalse(paths.contains { $0.hasPrefix("/v1/users") })
     }
 
     func testMutingEveryLoadedItemLoadsTheNextItemsInsteadOfASkeleton() async throws {
