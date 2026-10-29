@@ -11,10 +11,14 @@ struct FeedSaleChartGeometry {
     let size: CGSize
     private let times: ClosedRange<Double>
     private let prices: ClosedRange<Int64>
-    private let inset = FeedSaleChartMetrics.disc / 2 + FeedSaleChartMetrics.ring
+    private let inset: CGFloat
 
-    init(size: CGSize, points: [FeedPostFacts.ChartPoint], markers: [FeedPostFacts.ChartMarker]) {
+    init(
+        size: CGSize, disc: CGFloat = FeedSaleChartMetrics.disc, points: [FeedPostFacts.ChartPoint],
+        markers: [FeedPostFacts.ChartMarker]
+    ) {
         self.size = size
+        inset = disc / 2 + FeedSaleChartMetrics.ring
         let at = points.map { $0.at.timeIntervalSinceReferenceDate }
         let price = points.map(\.priceMicros) + markers.map(\.priceMicros)
         times = (at.min() ?? 0)...(at.max() ?? 0)
@@ -39,11 +43,14 @@ struct FeedSaleChart: View {
     let markers: [FeedPostFacts.ChartMarker]
     let isLoss: Bool
 
+    @ScaledMetric(relativeTo: .caption2) private var disc = FeedSaleChartMetrics.disc
+    @ScaledMetric(relativeTo: .caption2) private var height = FeedSaleChartMetrics.height
+
     private var lineColor: Color { isLoss ? MonacoTheme.lossVivid : MonacoTheme.profitVivid }
 
     var body: some View {
         Canvas { context, size in
-            let geometry = FeedSaleChartGeometry(size: size, points: points, markers: markers)
+            let geometry = FeedSaleChartGeometry(size: size, disc: disc, points: points, markers: markers)
             let xs = points.map { geometry.x($0.at) }
             let ys = points.map { geometry.y($0.priceMicros) }
             if let area = MonacoLineStyle.area(xs: xs, ys: ys, baseline: size.height) {
@@ -57,13 +64,13 @@ struct FeedSaleChart: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .frame(height: FeedSaleChartMetrics.height)
+        .frame(height: height)
         .accessibilityHidden(true)
     }
 
     private func draw(_ marker: FeedPostFacts.ChartMarker, at center: CGPoint, in context: inout GraphicsContext) {
         let isBuy = marker.side == .buy
-        let radius = FeedSaleChartMetrics.disc / 2
+        let radius = disc / 2
         let ring = radius + FeedSaleChartMetrics.ring
         context.fill(circle(at: center, radius: ring), with: .color(MonacoTheme.canvas))
         context.fill(

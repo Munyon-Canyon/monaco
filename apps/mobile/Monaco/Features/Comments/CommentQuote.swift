@@ -31,7 +31,7 @@ struct CommentQuote: View {
             (Text(quote.name).font(MonacoTheme.Typo.subheadStrong).foregroundStyle(MonacoTheme.primaryText)
                 + Text(" ")
                 + Text(quote.excerpt).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText))
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                .lineLimit(dynamicTypeSize > .large ? nil : 1)
                 .truncationMode(.tail)
                 .monacoPrivate()
         }

@@ -11,11 +11,44 @@ struct QuickReactionTray: View {
     let onClose: () -> Void
 
     @State private var restingY: CGFloat?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .title2) private var scaledEmoji = QuickReactionTray.emojiSize
 
     private typealias Metrics = MonacoTheme.ReactionChipMetrics
 
     var body: some View {
-        HStack(spacing: 0) {
+        container
+            .background(
+                RoundedRectangle(cornerRadius: dynamicTypeSize.isAccessibilitySize ? MonacoTheme.Radius.card : 1_000)
+                    .fill(MonacoTheme.surfaceSunken)
+            )
+            .background {
+                Color.clear.frame(width: 4_000, height: 4_000).contentShape(Rectangle()).onTapGesture(perform: onClose)
+            }
+            .onGeometryChange(
+                for: CGFloat.self,
+                of: { $0.frame(in: .global).minY },
+                action: { y in
+                    guard let restingY else {
+                        self.restingY = y
+                        return
+                    }
+                    if abs(y - restingY) > 1 { onClose() }
+                }
+            )
+            .task {
+                try? await Task.sleep(for: Self.autoCloseAfter)
+                if !Task.isCancelled { onClose() }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("reaction-tray-\(target.key)")
+    }
+
+    private var container: some View {
+        let layout =
+            dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(ReactionFlowLayout(spacing: 0)) : AnyLayout(HStackLayout(spacing: 0))
+        return layout {
             ForEach(QuickReactions.six, id: \.self) { emoji in
                 Button {
                     Haptics.selection()
@@ -24,8 +57,8 @@ struct QuickReactionTray: View {
                 } label: {
                     Text(emoji)
                         .font(.title2)
-                        .frame(width: Self.emojiSize, height: Self.emojiSize)
-                        .frame(width: Metrics.tapSize, height: Metrics.tapSize)
+                        .frame(width: scaledEmoji, height: scaledEmoji)
+                        .frame(minWidth: Metrics.tapSize, minHeight: Metrics.tapSize)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -41,9 +74,9 @@ struct QuickReactionTray: View {
                     Image(monaco: .plus)
                         .font(MonacoTheme.Typo.subheadStrong)
                         .foregroundStyle(MonacoTheme.primaryText)
-                        .frame(width: Self.emojiSize, height: Self.emojiSize)
+                        .frame(width: scaledEmoji, height: scaledEmoji)
                         .background(Circle().fill(MonacoTheme.border))
-                        .frame(width: Metrics.tapSize, height: Metrics.tapSize)
+                        .frame(minWidth: Metrics.tapSize, minHeight: Metrics.tapSize)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -51,26 +84,5 @@ struct QuickReactionTray: View {
                 .accessibilityIdentifier("reaction-tray-more-\(target.key)")
             }
         }
-        .background(Capsule().fill(MonacoTheme.surfaceSunken))
-        .background {
-            Color.clear.frame(width: 4_000, height: 4_000).contentShape(Rectangle()).onTapGesture(perform: onClose)
-        }
-        .onGeometryChange(
-            for: CGFloat.self,
-            of: { $0.frame(in: .global).minY },
-            action: { y in
-                guard let restingY else {
-                    self.restingY = y
-                    return
-                }
-                if abs(y - restingY) > 1 { onClose() }
-            }
-        )
-        .task {
-            try? await Task.sleep(for: Self.autoCloseAfter)
-            if !Task.isCancelled { onClose() }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("reaction-tray-\(target.key)")
     }
 }

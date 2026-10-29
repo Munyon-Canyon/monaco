@@ -23,7 +23,7 @@ struct FeedResultAttachment: View {
             Text(ResultCopy.calledIt(sealName))
                 .font(MonacoTheme.Typo.headline)
                 .foregroundStyle(MonacoTheme.primaryText)
-                .lineLimit(1)
+                .fixedSize(horizontal: false, vertical: true)
                 .monacoPrivate()
             Spacer(minLength: MonacoTheme.Space.s)
             if let series = SparklineSeries(usdcMicros: sparkline.map(\.priceMicros)) {

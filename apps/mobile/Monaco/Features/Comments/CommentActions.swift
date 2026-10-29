@@ -23,6 +23,7 @@ struct CommentActionsOverlay: View {
     let onDismiss: () -> Void
 
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var stackHeight: CGFloat = 0
 
     private var canReplyHere: Bool { canReply && row.canReact }
@@ -73,7 +74,11 @@ struct CommentActionsOverlay: View {
             QuickReactionTray(
                 target: .comment(row.id), onOpenPicker: onOpenPicker, onPick: onReact, onClose: onDismiss)
             CommentRow(row: row, reactions: reactions, canReply: false, onReply: {})
-                .frame(width: frame.width, height: frame.height, alignment: .topLeading)
+                .frame(
+                    width: frame.width, height: dynamicTypeSize.isAccessibilitySize ? nil : frame.height,
+                    alignment: .topLeading
+                )
+                .frame(minHeight: frame.height, alignment: .topLeading)
                 .background(
                     RoundedRectangle(cornerRadius: MonacoTheme.Radius.card).fill(MonacoTheme.surface)
                 )

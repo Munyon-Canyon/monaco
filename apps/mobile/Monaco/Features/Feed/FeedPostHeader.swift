@@ -6,27 +6,48 @@ struct FeedPostHeader: View {
     let verb: String
     let age: String
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var nameText: some View {
+        Text(name)
+            .font(MonacoTheme.Typo.subheadStrong)
+            .foregroundStyle(MonacoTheme.primaryText)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+            .layoutPriority(2)
+            .monacoPrivate()
+    }
+
+    private var verbText: some View {
+        Text(verb)
+            .font(MonacoTheme.Typo.body)
+            .foregroundStyle(MonacoTheme.secondaryText)
+    }
+
+    private var ageText: some View {
+        Text(age)
+            .font(MonacoTheme.Typo.body)
+            .foregroundStyle(MonacoTheme.secondaryText)
+            .fixedSize()
+            .layoutPriority(3)
+    }
+
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.xs) {
-            Text(name)
-                .font(MonacoTheme.Typo.subheadStrong)
-                .foregroundStyle(MonacoTheme.primaryText)
-                .lineLimit(1)
-                .layoutPriority(2)
-                .monacoPrivate()
-            if !verb.isEmpty {
-                Text(verb)
-                    .font(MonacoTheme.Typo.body)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                    .lineLimit(1)
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                nameText
+                if !verb.isEmpty { verbText.fixedSize(horizontal: false, vertical: true) }
+                ageText
             }
-            Spacer(minLength: MonacoTheme.Space.s)
-            Text(age)
-                .font(MonacoTheme.Typo.body)
-                .foregroundStyle(MonacoTheme.secondaryText)
-                .fixedSize()
-                .layoutPriority(3)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minHeight: FeedPostMetrics.lead)
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.xs) {
+                nameText
+                if !verb.isEmpty { verbText.lineLimit(1) }
+                Spacer(minLength: MonacoTheme.Space.s)
+                ageText
+            }
+            .frame(minHeight: FeedPostMetrics.lead)
         }
-        .frame(minHeight: FeedPostMetrics.lead)
     }
 }

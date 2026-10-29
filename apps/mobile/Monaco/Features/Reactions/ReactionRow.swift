@@ -15,6 +15,7 @@ struct ReactionRow<Trailing: View>: View {
 
     @State private var isTrayOpen: Bool
     @State private var isPickerOpen = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(
         target: ReactionTarget,
@@ -37,9 +38,16 @@ struct ReactionRow<Trailing: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ViewThatFits(in: .horizontal) {
-                ForEach(Self.limits(for: reactions.count), id: \.self) { limit in
-                    line(limit: limit)
+            if dynamicTypeSize.isAccessibilitySize {
+                ReactionFlowLayout(spacing: MonacoTheme.ReactionChipMetrics.gap) {
+                    lineContent(limit: Self.maxChips)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    ForEach(Self.limits(for: reactions.count), id: \.self) { limit in
+                        line(limit: limit)
+                    }
                 }
             }
             if isTrayOpen {
@@ -57,29 +65,33 @@ struct ReactionRow<Trailing: View>: View {
 
     private func line(limit: Int) -> some View {
         HStack(spacing: MonacoTheme.ReactionChipMetrics.gap) {
-            ForEach(Self.chips(for: reactions, limit: limit)) { chip in
-                switch chip {
-                case .emoji(let reaction):
-                    MonacoReactionChip(
-                        emoji: reaction.emoji, count: Int(reaction.count), mine: reaction.mine, size: size
-                    ) {
-                        Haptics.selection()
-                        onToggle(reaction.emoji)
-                    }
-                    .accessibilityIdentifier("reaction-chip-\(target.key)-\(reaction.emoji.reactionHex)")
-                case .more(let count):
-                    MonacoReactionChip.more(count, size: size, action: openTray)
-                        .accessibilityIdentifier("reaction-more-\(target.key)")
-                }
-            }
-            if showsAdd && !isTrayOpen {
-                MonacoReactionChip.add(action: openTray)
-                    .accessibilityIdentifier("reaction-add-\(target.key)")
-            }
-            trailing()
+            lineContent(limit: limit)
         }
         .fixedSize(horizontal: true, vertical: false)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder private func lineContent(limit: Int) -> some View {
+        ForEach(Self.chips(for: reactions, limit: limit)) { chip in
+            switch chip {
+            case .emoji(let reaction):
+                MonacoReactionChip(
+                    emoji: reaction.emoji, count: Int(reaction.count), mine: reaction.mine, size: size
+                ) {
+                    Haptics.selection()
+                    onToggle(reaction.emoji)
+                }
+                .accessibilityIdentifier("reaction-chip-\(target.key)-\(reaction.emoji.reactionHex)")
+            case .more(let count):
+                MonacoReactionChip.more(count, size: size, action: openTray)
+                    .accessibilityIdentifier("reaction-more-\(target.key)")
+            }
+        }
+        if showsAdd && !isTrayOpen {
+            MonacoReactionChip.add(action: openTray)
+                .accessibilityIdentifier("reaction-add-\(target.key)")
+        }
+        trailing()
     }
 
     private func openTray() {

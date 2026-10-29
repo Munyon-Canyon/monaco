@@ -25,13 +25,14 @@ private struct EmojiSection: Identifiable {
 private enum PickerMetrics {
     static let sheetHeight: CGFloat = 426
     static let columns = 8
+    static let accessibilityColumns = 4
     static let cell: CGFloat = 44
     static let headerHeight: CGFloat = 32
     static let sectionGap: CGFloat = 8
     static let gridInset = MonacoTheme.Space.xs
     static let headerInset = MonacoTheme.Space.gutter - gridInset
 
-    static func height(of section: EmojiSection) -> CGFloat {
+    static func height(of section: EmojiSection, columns: Int, cell: CGFloat, headerHeight: CGFloat) -> CGFloat {
         let rows = (section.emojis.count + columns - 1) / columns
         return headerHeight + CGFloat(rows) * cell + sectionGap
     }
@@ -48,6 +49,17 @@ struct EmojiPickerSheet: View {
     @State private var query: String
     @State private var current = EmojiCategory.smileys
     @State private var recent: [String] = []
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .title) private var scaledCell = PickerMetrics.cell
+    @ScaledMetric(relativeTo: .subheadline) private var scaledHeader = PickerMetrics.headerHeight
+
+    private var isLarge: Bool { dynamicTypeSize.isAccessibilitySize }
+
+    private var columns: Int { isLarge ? PickerMetrics.accessibilityColumns : PickerMetrics.columns }
+
+    private var cell: CGFloat { isLarge ? scaledCell : PickerMetrics.cell }
+
+    private var headerHeight: CGFloat { isLarge ? scaledHeader : PickerMetrics.headerHeight }
 
     init(initialQuery: String = "", catalog: EmojiCatalog = .bundled, onPick: @escaping (String) -> Void) {
         _query = State(initialValue: initialQuery)
@@ -87,7 +99,7 @@ struct EmojiPickerSheet: View {
             }
         }
         .padding(.top, MonacoTheme.Space.l)
-        .presentationDetents([.height(PickerMetrics.sheetHeight)])
+        .presentationDetents(isLarge ? [.large] : [.height(PickerMetrics.sheetHeight)])
         .presentationDragIndicator(.visible)
         .presentationBackground(MonacoTheme.canvas)
         .presentationContentInteraction(.scrolls)
@@ -102,6 +114,7 @@ struct EmojiPickerSheet: View {
             TextField("Search emoji", text: $query)
                 .font(.body)
                 .foregroundStyle(MonacoTheme.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .submitLabel(.search)
@@ -112,7 +125,7 @@ struct EmojiPickerSheet: View {
                 } label: {
                     Image(monaco: .close)
                         .foregroundStyle(MonacoTheme.secondaryText)
-                        .frame(width: PickerMetrics.cell, height: PickerMetrics.cell)
+                        .frame(width: cell, height: cell)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -121,7 +134,7 @@ struct EmojiPickerSheet: View {
             }
         }
         .padding(.horizontal, MonacoTheme.Space.sm)
-        .frame(minHeight: PickerMetrics.cell)
+        .frame(minHeight: cell)
         .background(Capsule().fill(MonacoTheme.border.opacity(0.5)))
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.bottom, MonacoTheme.Space.xs)
@@ -155,7 +168,7 @@ struct EmojiPickerSheet: View {
         for section in sections {
             let isTab = section.id != EmojiCategory.recent && EmojiCategory.all.contains(where: { $0.id == section.id })
             if top <= offset + 1, isTab { found = section.id }
-            top += PickerMetrics.height(of: section)
+            top += PickerMetrics.height(of: section, columns: columns, cell: cell, headerHeight: headerHeight)
         }
         return found
     }
@@ -181,8 +194,9 @@ struct EmojiPickerSheet: View {
             Text(section.title)
                 .font(MonacoTheme.Typo.subheadStrong)
                 .foregroundStyle(MonacoTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: isLarge)
                 .frame(
-                    maxWidth: .infinity, minHeight: PickerMetrics.headerHeight, maxHeight: PickerMetrics.headerHeight,
+                    maxWidth: .infinity, minHeight: headerHeight, maxHeight: isLarge ? nil : headerHeight,
                     alignment: .leading
                 )
                 .padding(.horizontal, PickerMetrics.headerInset)
@@ -194,7 +208,7 @@ struct EmojiPickerSheet: View {
 
     private func grid(_ emojis: [String], identifierPrefix: String) -> some View {
         LazyVGrid(
-            columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: PickerMetrics.columns),
+            columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: columns),
             spacing: 0
         ) {
             ForEach(emojis, id: \.self) { emoji in
@@ -204,7 +218,7 @@ struct EmojiPickerSheet: View {
                     Text(emoji)
                         .font(.title)
                         .frame(maxWidth: .infinity)
-                        .frame(height: PickerMetrics.cell)
+                        .frame(minHeight: cell)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
