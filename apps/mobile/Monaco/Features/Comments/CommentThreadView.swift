@@ -136,9 +136,9 @@ struct CommentRow: View {
 
     private var level: Int { row.indentLevel }
 
-    private var gif: Components.Schemas.GifAttachment? {
-        if case .gif(let gif)? = row.comment.attachment { return gif }
-        return nil
+    private var hasGif: Bool {
+        if case .gif? = row.comment.attachment { return true }
+        return false
     }
 
     private var authorReturn: FeedReturnFacts? {
@@ -162,7 +162,7 @@ struct CommentRow: View {
             .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 byline
-                if row.comment.body != nil || gif == nil {
+                if row.comment.body != nil || !hasGif {
                     Text(bodyText)
                         .font(MonacoTheme.Typo.subhead)
                         .foregroundStyle(row.isDeleted ? MonacoTheme.secondaryText : MonacoTheme.bodyText)
@@ -170,8 +170,8 @@ struct CommentRow: View {
                         .accessibilityIdentifier("comment-body-\(row.id)")
                         .monacoPrivate()
                 }
-                if let gif {
-                    GifBubble(commentID: row.id, attachment: gif)
+                if let attachment = row.comment.attachment {
+                    AttachmentBubble(commentID: row.id, attachment: attachment)
                 }
                 if !row.isDeleted { replyButton }
             }

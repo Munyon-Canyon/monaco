@@ -4,7 +4,7 @@ import SwiftUI
 struct CommentComposerBar<Restricted: View>: View {
     @Bindable var model: CommentsModel
     var replyOwner: String?
-    var onPlus: (() -> Void)?
+    var menuItems: [ComposerMenuItem] = []
     var onDidStandDown: () -> Void = {}
     @ViewBuilder var restricted: () -> Restricted
 
@@ -15,7 +15,7 @@ struct CommentComposerBar<Restricted: View>: View {
             if model.replySheet == nil { bar }
         }
         .sheet(item: sheetBinding) { target in
-            ReplySheet(model: model, target: target, owner: replyOwner)
+            ReplySheet(model: model, target: target, owner: replyOwner, menuItems: menuItems)
         }
         .gifPicker(isPresented: $picksGif, model: model)
     }
@@ -36,7 +36,8 @@ struct CommentComposerBar<Restricted: View>: View {
         } else if !model.canCommentKnown {
             EmptyView()
         } else if model.canComment {
-            DockedComposer(model: model, onPlus: onPlus, onGif: { picksGif = true }, onDidStandDown: onDidStandDown)
+            DockedComposer(
+                model: model, menuItems: menuItems, onGif: { picksGif = true }, onDidStandDown: onDidStandDown)
         } else {
             restricted()
         }
@@ -45,18 +46,18 @@ struct CommentComposerBar<Restricted: View>: View {
 
 extension CommentComposerBar where Restricted == EmptyView {
     init(
-        model: CommentsModel, replyOwner: String? = nil, onPlus: (() -> Void)? = nil,
+        model: CommentsModel, replyOwner: String? = nil, menuItems: [ComposerMenuItem] = [],
         onDidStandDown: @escaping () -> Void = {}
     ) {
         self.init(
-            model: model, replyOwner: replyOwner, onPlus: onPlus, onDidStandDown: onDidStandDown,
+            model: model, replyOwner: replyOwner, menuItems: menuItems, onDidStandDown: onDidStandDown,
             restricted: { EmptyView() })
     }
 }
 
 private struct DockedComposer: View {
     @Bindable var model: CommentsModel
-    let onPlus: (() -> Void)?
+    let menuItems: [ComposerMenuItem]
     let onGif: () -> Void
     let onDidStandDown: () -> Void
 
@@ -65,8 +66,9 @@ private struct DockedComposer: View {
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             ComposerNotices(model: model)
+            ComposerAttachmentSlot(model: model)
             HStack(alignment: .bottom, spacing: MonacoTheme.Space.s) {
-                if let onPlus { plusButton(onPlus) }
+                ComposerMenu(items: menuItems, target: .thread)
                 ComposerField(
                     model: model, focused: $focused,
                     onGif: {
@@ -89,19 +91,6 @@ private struct DockedComposer: View {
         .onChange(of: model.isDockedFocused) { _, wanted in focused = wanted }
         .onChange(of: focused) { _, isFocused in model.isDockedFocused = isFocused }
         .onAppear { focused = model.isDockedFocused }
-    }
-
-    private func plusButton(_ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(monaco: .plusCircle)
-                .font(MonacoTheme.Typo.section)
-                .foregroundStyle(MonacoTheme.brand)
-                .frame(width: CommentRowMetrics.replyTarget, height: CommentRowMetrics.replyTarget)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(CommentsCopy.plusAccessibility)
-        .accessibilityIdentifier("comment-composer-plus")
     }
 }
 
@@ -200,7 +189,7 @@ struct ComposerSendButton: View {
     }
 
     private var canPost: Bool {
-        draft.body != nil && !model.isPosting
+        (draft.body != nil || model.attachmentDraft != nil) && !model.isPosting
     }
 
     var body: some View {

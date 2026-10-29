@@ -20,12 +20,14 @@ enum CommentComposerScenario: String {
     case sheetPost
     case sending
     case failed
+    case menu
+    case draft
 
     var previewMode: FeedItemDetailModel.PreviewMode {
         switch self {
         case .sending: .sending
         case .failed: .failed
-        case .docked, .sheetComment, .sheetPost: .ready
+        case .docked, .sheetComment, .sheetPost, .menu, .draft: .ready
         }
     }
 }
@@ -48,19 +50,38 @@ private struct CommentComposerHarnessScreen: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .monacoCanvas()
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                CommentComposerBar(model: detail.comments, onPlus: {})
+                CommentComposerBar(model: detail.comments, menuItems: menuItems)
             }
             .environment(toasts)
             .monacoToastCenter(toasts)
             .task { await run() }
     }
 
+    private var menuItems: [ComposerMenuItem] {
+        guard scenario == .menu || scenario == .draft else { return [] }
+        let model = detail.comments
+        let toasts = toasts
+        return [
+            ComposerMenuItem(
+                id: "poll", title: "Poll", icon: .pollCheck, isAvailable: { _ in true },
+                action: { model.pick(.sample(title: "Sample poll"), toasts: toasts) }),
+            ComposerMenuItem(
+                id: "thesis", title: "Quote the thesis", icon: .thesis, isAvailable: { _ in true },
+                action: { model.pick(.sample(title: "Sample quote"), toasts: toasts) }),
+            ComposerMenuItem(
+                id: "stock", title: "Share a stock", icon: .markets, isAvailable: { _ in true },
+                action: { model.pick(.sample(title: "Sample stock"), toasts: toasts) }),
+        ]
+    }
+
     private func run() async {
         let model = detail.comments
         await model.load()
         switch scenario {
-        case .docked:
+        case .docked, .menu:
             break
+        case .draft:
+            _ = model.pick(.sample(title: "Sample poll"))
         case .sheetComment:
             if let row = model.rows.first { model.presentReplySheet(.comment(row)) }
         case .sheetPost:

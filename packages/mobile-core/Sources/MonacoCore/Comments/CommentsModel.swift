@@ -28,6 +28,7 @@ public final class CommentsModel {
     public var isDockedFocused = false
     public private(set) var draft = ""
     public private(set) var sendFailed = false
+    public private(set) var attachmentDraft: CommentAttachmentDraft?
     public private(set) var notice: Notice?
     public private(set) var noticeTick = 0
 
@@ -117,6 +118,17 @@ public final class CommentsModel {
         sendFailed = false
     }
 
+    public func pick(_ next: CommentAttachmentDraft) -> String? {
+        let replaced = attachmentDraft.map { CommentsCopy.replacedAttachment($0.kindName) }
+        attachmentDraft = next
+        sendFailed = false
+        return replaced
+    }
+
+    public func removeAttachment() {
+        attachmentDraft = nil
+    }
+
     public func focusDocked() {
         replySheet = nil
         isDockedFocused = true
@@ -136,6 +148,7 @@ public final class CommentsModel {
         _ draft: CommentDraft, attachment: Components.Schemas.CommentAttachmentInput? = nil
     ) async -> Bool {
         let body = draft.body
+        let attachment = attachment ?? attachmentDraft?.input
         if case .tooLong = draft { return false }
         guard body != nil || attachment != nil, !isPosting else { return false }
         isPosting = true
@@ -155,6 +168,7 @@ public final class CommentsModel {
             return false
         }
         replySheet = nil
+        attachmentDraft = nil
         self.draft = CommentDraft.field(self.draft, afterPosting: body ?? "")
         showPosted(created)
         if case .post = target {} else { await refresh() }
