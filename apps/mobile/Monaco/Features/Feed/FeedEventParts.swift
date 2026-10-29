@@ -61,7 +61,7 @@ struct FeedPostObjectLine: View {
     private var place: some View {
         Text(object.place ?? "")
             .font(.footnote)
-            .foregroundStyle(MonacoTheme.secondaryText)
+            .foregroundStyle(object.placeIsWarning ? MonacoTheme.warning : MonacoTheme.secondaryText)
             .monacoPrivate()
     }
 
