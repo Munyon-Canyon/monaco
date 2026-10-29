@@ -35,7 +35,7 @@ enum ParitySampleScenario: String, CaseIterable {
 
     var tab: MainTab {
         switch self {
-        case .addMoneyError: .home
+        case .addMoneyError, .toastSettled: .home
         case .infoSheet: .stocks
         default: .cabals
         }
@@ -48,10 +48,9 @@ enum ParitySampleScenario: String, CaseIterable {
         case .cabalInfoError: return [CabalRoute(id: id, tab: .rules)]
         case .membersError: return [MembersRoute(cabalID: id)]
         case .publicCabalError: return [CabalSampleRoute(kind: .publicMember)]
-        case .toastSettled: return [ParityToastSettledRoute()]
         case .infoSheet: return [ParityInfoSheetRoute()]
         case .votesClosed, .votesExpired, .votesRejected: return [ProposalSampleRoute(votes: .open)]
-        case .feedEveryone, .feedMine: return []
+        case .toastSettled, .feedEveryone, .feedMine: return []
         }
     }
 
@@ -63,23 +62,29 @@ enum ParitySampleScenario: String, CaseIterable {
         case .votesClosed: script.proposal = .sample(status: .executed)
         case .votesExpired: script.proposal = .sample(status: .expired)
         case .votesRejected: script.proposal = .sample(status: .failed)
-        case .toastSettled: script = ProposalSampleScenario.nvdaOpen.script
-        case .infoSheet: script.asset = .nvda
+        case .toastSettled:
+            script = HomeSampleScenario.voted.script
+            script.proposals = script.proposals.mapValues { detail in
+                var settled = detail
+                settled.tally = .init(yes: 5, no: 1, voters: 8, needed: 5)
+                return settled
+            }
+        case .infoSheet:
+            script.asset = .nvda
+            script.asset.priceAsOf = .now
         case .feedEveryone, .feedMine: break
         }
         return script
     }
 }
 
-nonisolated struct ParityToastSettledRoute: AppRoute {
-    @MainActor func destination() -> some View { ParityToastSettledHost() }
-}
-
-private struct ParityToastSettledHost: View {
+private struct ParityToastSettledFrame: View {
     @Environment(ToastCenter.self) private var toasts
+    let auth: PrivyAuthService
+    let scenario: ParitySampleScenario
 
     var body: some View {
-        ProposalSampleRoute(votes: .closed).destination()
+        SampleAppFrame(auth: auth, tab: scenario.tab, routes: scenario.routes)
             .task {
                 let tally = ProposalTally(yes: 5, no: 1, voters: 6, needed: 4)
                 let outcome = CastOutcome(
@@ -96,9 +101,15 @@ nonisolated struct ParityInfoSheetRoute: AppRoute {
 private struct ParityInfoSheetHost: View {
     @State private var shows = true
 
+    private static var facts: MarketStatsFacts {
+        MarketStatsFacts(
+            listingNetworks: [.solana, .base, .robinhood], tradesContinuously: true, priceSource: .coingecko,
+            priceAsOf: .now, pollInterval: .seconds(60))
+    }
+
     var body: some View {
         AssetRoute(symbol: Components.Schemas.AssetDetail.nvda.symbol).destination()
-            .sheet(isPresented: $shows) { MarketStatsSheet(facts: MarketStatsFacts(.nvda)) }
+            .sheet(isPresented: $shows) { MarketStatsSheet(facts: ParityInfoSheetHost.facts) }
     }
 }
 
@@ -125,6 +136,7 @@ final class ParitySampleHarnessEntry: SampleHarnessEntry {
         guard let scenario = ParitySampleScenario.matching(arguments) else { return nil }
         SampleAPIProtocol.install(scenario.script)
         if let scope = scenario.feedScope { return AnyView(ParityFeedScreen(scope: scope)) }
+        if scenario == .toastSettled { return AnyView(ParityToastSettledFrame(auth: auth, scenario: scenario)) }
         return AnyView(
             SampleAppFrame(
                 auth: auth, tab: scenario.tab, routes: scenario.routes, presentsDeposit: scenario == .addMoneyError))
