@@ -47,6 +47,7 @@ struct MonacoInfoSheet: View {
         .padding(.bottom, MonacoTheme.Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
         .monacoFittedSheet(title: title, titleIdentifier: "\(identifier)-title", showsClose: true)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier(identifier)
     }
 }

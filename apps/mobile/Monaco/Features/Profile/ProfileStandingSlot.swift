@@ -45,6 +45,7 @@ private struct ProfileCountsLine: View {
             VStack(alignment: .leading, spacing: 0) { items(separated: false) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("profile-follow-counts")
     }
 

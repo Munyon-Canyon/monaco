@@ -47,6 +47,7 @@ private struct CabalStartersList: View {
                     .accessibilityIdentifier("cabal-starter-\(row.asset.symbol)")
                 }
             }
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("cabal-starters")
         } else {
             Color.clear.frame(height: 0)
