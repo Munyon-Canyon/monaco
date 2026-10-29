@@ -455,3 +455,24 @@ extension MonacoContrastTests {
         #expect(CabalCover<EmptyView>.overlay(for: .thumb(40), reduceTransparency: true) == nil)
     }
 }
+
+extension MonacoContrastTests {
+    private static var fMarkPairs: [Pair] {
+        var pairs: [Pair] = []
+        for (label, color) in [
+            ("VoteTallyBar winner fill", VoteTallyBar.fill(.yes, winner: .yes)),
+            ("VoteTallyBar idle fill", VoteTallyBar.fill(.yes, winner: nil)),
+        ] {
+            pairs.append(Pair("\(label) against its track", color, on: [MonacoTheme.surfaceSunken], minimum: 3))
+        }
+        pairs.append(
+            Pair(
+                "MonacoUnderlineTabs selected underline against canvas", MonacoTheme.primaryText,
+                on: [MonacoTheme.canvas], minimum: 3))
+        return pairs
+    }
+
+    @Test func fMarksClearTheGraphicalMinimumInBothSchemes() {
+        #expect(Self.failures(Self.fMarkPairs).isEmpty, "\(Self.failures(Self.fMarkPairs))")
+    }
+}
