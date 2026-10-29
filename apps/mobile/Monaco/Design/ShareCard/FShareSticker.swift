@@ -9,7 +9,13 @@ struct FShareSticker: View {
     static let designHeight: CGFloat = 204
 
     private var scale: CGFloat { size.width / Self.designWidth }
-    private var tone: Color { spec.tone == .gain ? MonacoTheme.profit : MonacoTheme.loss }
+    private var tone: Color {
+        switch spec.tone {
+        case .gain: MonacoTheme.profit
+        case .loss: MonacoTheme.loss
+        case .neutral: MonacoTheme.primaryText
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s * scale) {

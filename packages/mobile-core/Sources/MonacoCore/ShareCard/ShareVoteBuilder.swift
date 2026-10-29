@@ -13,7 +13,6 @@ public enum ShareVoteBuilder {
         let amount = ShareProposalText.amountText(proposal)
         let share = proposal.stats.treasuryShareBps.map(treasuryText)
         let sorted = chart.sorted { $0.time < $1.time }
-        let tone: ShareFigureTone = (sorted.last?.priceMicros ?? 0) < (sorted.first?.priceMicros ?? 0) ? .loss : .gain
         let endsIn = ProposalVoteCopy.endsIn(proposal.expiresAt, now: now)
         let name = ShareProposalText.proposerName(proposal)
         let voted = "\(tally.yes + tally.no) of \(tally.voters) voted"
@@ -26,7 +25,7 @@ public enum ShareVoteBuilder {
                 dateText: ShareProposalText.day(now, calendar: calendar)),
             chart: ShareChart(points: sorted, markers: []),
             tickerLine: .init(logoURL: nil, symbol: symbol, detail: verb),
-            figure: .init(main: amount, secondary: nil, context: share, tone: tone),
+            figure: .init(main: amount, secondary: nil, context: share, tone: .neutral),
             stats: [
                 .init(label: "Price", value: ShareProposalText.price(proposal.stats.priceMicros)),
                 .init(label: "Votes", value: "\(tally.yes) yes \u{00B7} \(tally.no) no"),

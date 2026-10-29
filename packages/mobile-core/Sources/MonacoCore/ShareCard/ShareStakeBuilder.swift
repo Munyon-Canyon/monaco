@@ -71,7 +71,7 @@ public enum ShareStakeBuilder {
                 mark: .photo(url: stake.photoURL, name: stake.name, crest: stake.crest), title: title,
                 subtitle: "\(ownership) of \(stake.crest.name)", dateText: since ?? ""),
             chart: ShareChart(points: points(chart, from: stake.firstFundedAt), markers: []),
-            tickerLine: .init(logoURL: nil, symbol: stake.crest.name, detail: "Your share"),
+            tickerLine: .init(logoURL: nil, symbol: "", detail: ""),
             figure: ShareFigureText.figure(
                 pnlMicros: stake.pnlMicros, basisPoints: returnBps, dollars: eyes.pnlDollars),
             stats: [

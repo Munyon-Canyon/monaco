@@ -181,11 +181,11 @@ struct ShareScreenContent: View {
             GeometryReader { proxy in
                 let box = CGSize(
                     width: proxy.size.width - MonacoTheme.Space.gutter * 2,
-                    height: proxy.size.height - Self.replayHeight - MonacoTheme.Space.s * 2)
+                    height: proxy.size.height - (showsReplay ? Self.replayHeight : 0) - MonacoTheme.Space.s * 2)
                 let fitted = Self.fit(format, in: box)
                 VStack(spacing: MonacoTheme.Space.s) {
                     stage(spec, fitted: fitted, progress: progress)
-                    replayRow(spec, progress: progress)
+                    if showsReplay { replayRow(spec, progress: progress) }
                 }
                 .frame(width: proxy.size.width, height: proxy.size.height)
             }
@@ -208,6 +208,8 @@ struct ShareScreenContent: View {
             if !Task.isCancelled { replayStart = nil }
         }
     }
+
+    private var showsReplay: Bool { format != .sticker }
 
     private func current(_ spec: ShareCardSpec) -> UIImage {
         if let rendered, rendered.key.spec == spec, rendered.key.format == format, rendered.key.eyes == eyes {

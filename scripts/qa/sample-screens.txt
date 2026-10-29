@@ -1083,7 +1083,7 @@ f__10-profile-own                   -MonacoProfileSample ready
 f__10-profile-own-scrolled          -MonacoProfileSample ready -MonacoSampleScroll bottom
 f__10-profile-other                 -MonacoProfileSample personPublic
 f__10-profile-other-cabals          -MonacoProfileSample personChristelleCabals
-f__11-invite-sheet                  -MonacoGroupDetailSample invite
+f__11-invite-sheet                  -MonacoProfileSample invite
 f__18-invite-landing                -MonacoInviteLandingSample frame
 f__11-share-A                       -MonacoShareSample screenPost
 f__11-share-B                       -MonacoShareSample screenPassed

@@ -10,7 +10,13 @@ struct FShareCard: View {
     static let frameWidth: CGFloat = 4
 
     private var scale: CGFloat { size.width / Self.designWidth }
-    private var tone: Color { spec.figure.tone == .gain ? MonacoTheme.profit : MonacoTheme.loss }
+    private var tone: Color {
+        switch spec.figure.tone {
+        case .gain: MonacoTheme.profit
+        case .loss: MonacoTheme.loss
+        case .neutral: MonacoTheme.primaryText
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -55,6 +61,7 @@ struct FShareCard: View {
             VStack(alignment: .leading, spacing: 2 * scale) {
                 Text(spec.header.title).font(.system(size: 18 * scale, weight: .bold)).foregroundStyle(Color.white)
                 Text(spec.header.subtitle).font(.system(size: 14 * scale)).foregroundStyle(MonacoTheme.secondaryText)
+                    .minimumScaleFactor(0.7)
             }
             Spacer(minLength: 8 * scale)
             Text(spec.header.dateText).font(.system(size: 14 * scale).monospacedDigit())
@@ -94,12 +101,14 @@ struct FShareCard: View {
 
     private var lower: some View {
         VStack(alignment: .leading, spacing: 8 * scale) {
-            HStack(spacing: 8 * scale) {
-                StockMark(symbol: spec.tickerLine.symbol, size: 24 * scale, logoURL: spec.tickerLine.logoURL)
-                Text(spec.tickerLine.symbol).font(.system(size: 18 * scale, weight: .bold))
-                    .foregroundStyle(Color.white)
-                Text(spec.tickerLine.detail).font(.system(size: 14 * scale).monospacedDigit())
-                    .foregroundStyle(MonacoTheme.secondaryText)
+            if !spec.tickerLine.symbol.isEmpty {
+                HStack(spacing: 8 * scale) {
+                    StockMark(symbol: spec.tickerLine.symbol, size: 24 * scale, logoURL: spec.tickerLine.logoURL)
+                    Text(spec.tickerLine.symbol).font(.system(size: 18 * scale, weight: .bold))
+                        .foregroundStyle(Color.white)
+                    Text(spec.tickerLine.detail).font(.system(size: 14 * scale).monospacedDigit())
+                        .foregroundStyle(MonacoTheme.secondaryText)
+                }
             }
             HStack(alignment: .lastTextBaseline, spacing: 6 * scale) {
                 Text(spec.figure.main)

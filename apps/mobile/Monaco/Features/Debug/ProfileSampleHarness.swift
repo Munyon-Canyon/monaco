@@ -39,6 +39,7 @@ enum ProfileSampleScenario: String, CaseIterable {
     case editProfileSaved
     case editProfileSaveFailure
     case editProfileError
+    case invite
 
     static func matching(_ arguments: [String]) -> ProfileSampleScenario? {
         guard let flag = arguments.firstIndex(of: "-MonacoProfileSample"),
@@ -51,8 +52,8 @@ enum ProfileSampleScenario: String, CaseIterable {
 
     var showsBio: Bool {
         switch self {
-        case .ready, .unranked, .noStanding, .hiddenPerformance, .photo, .editProfileReady, .editProfileInvalid,
-            .editProfileSaving, .editProfileSaved, .editProfileSaveFailure:
+        case .ready, .invite, .unranked, .noStanding, .hiddenPerformance, .photo, .editProfileReady,
+            .editProfileInvalid, .editProfileSaving, .editProfileSaved, .editProfileSaveFailure:
             true
         default:
             false
@@ -185,6 +186,9 @@ struct ProfileSampleHarness: View {
         ) { Self.fill($0, for: scenario) }
         .environment(\.profileHeaderPresets, presets)
         .environment(\.editProfilePresets, scenario.editPresets ?? EditProfilePresets())
+        .sheet(isPresented: .constant(scenario == .invite)) {
+            CabalInviteSheet(cabal: .sample(role: "creator"), mode: .share)
+        }
     }
 
     private var presets: ProfileHeaderPresets {
@@ -205,7 +209,7 @@ struct ProfileSampleHarness: View {
             break
         }
 
-        let hasPhoto = scenario == .photo || scenario == .ready || scenario == .cabals
+        let hasPhoto = scenario == .photo || scenario == .ready || scenario == .cabals || scenario == .invite
         session.profile = sampleProfile(
             userID: "sample-user",
             displayName: "Logan Norman",
