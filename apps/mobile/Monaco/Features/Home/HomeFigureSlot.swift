@@ -50,7 +50,13 @@ struct HomeFigureView: View {
     @ViewBuilder private var loaded: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
             stale
-            if let netWorth = portfolio?.netWorth {
+            if let summary = portfolio?.summary, summary.isFirstUse {
+                figure(summary.cash)
+                Text("All cash")
+                    .font(MonacoTheme.Typo.subhead)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .accessibilityIdentifier("home-portfolio-all-cash")
+            } else if let netWorth = portfolio?.netWorth {
                 figure(netWorth)
                 line(netWorth)
             }

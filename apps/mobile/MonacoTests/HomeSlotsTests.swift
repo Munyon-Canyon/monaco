@@ -1,3 +1,5 @@
+import Foundation
+import MonacoAPI
 import MonacoCore
 import Testing
 
@@ -25,11 +27,33 @@ struct HomeSlotsTests {
             HomePendingVotesSlot.self,
             HomeChartSlot.self,
             HomeBalanceSlot.self,
+            HomeFirstUseSlot.self,
             HomeCabalsSlot.self,
             HomeLeaderboardSlot.self,
+            HomeEveryonePreviewSlot.self,
             HomeFeedPreviewSlot.self,
         ]
         #expect(order == expected.map { ObjectIdentifier($0) })
+    }
+
+    @Test func firstUseDrawsItsEmptyStateAndTheEveryoneFeed() {
+        #expect(HomeFirstUseSlot.isLive)
+        #expect(HomeEveryonePreviewSlot.isLive)
+    }
+
+    @Test func firstUseGateFollowsTheEmptyPortfolio() async {
+        let empty = PortfolioModel.preview(.sampleEmpty)
+        let funded = PortfolioModel.previewF
+        await empty.load()
+        await funded.load()
+        #expect(HomeGate(portfolio: empty, reads: nil, balance: .idle).firstUse)
+        #expect(!HomeGate(portfolio: funded, reads: nil, balance: .idle).firstUse)
+        #expect(!HomeGate(portfolio: nil, reads: nil, balance: .idle).firstUse)
+    }
+
+    @Test func joinLinkAcceptsOnlyMonacoInviteLinks() throws {
+        #expect(JoinLinkCopy.accepts(try #require(URL(string: "https://monacolabs.xyz/r/abc123"))))
+        #expect(!JoinLinkCopy.accepts(try #require(URL(string: "https://example.com/r/abc123"))))
     }
 
     @Test func theLeaderboardRowOpensThePeopleBoardForTheMonth() {

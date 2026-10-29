@@ -36,6 +36,11 @@ struct HomePendingVotes: View {
         return !gate.shows { $0.showsProposals }
     }
 
+    private var loadsVotes: Bool {
+        guard let portfolio else { return true }
+        return portfolio.summary.map { !$0.isFirstUse } ?? false
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let model {
@@ -54,7 +59,8 @@ struct HomePendingVotes: View {
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .homeSlotHidden(isHidden)
         .animation(reduceMotion ? nil : .snappy, value: model?.cards.map(\.id))
-        .task {
+        .task(id: loadsVotes) {
+            guard loadsVotes else { return }
             let model = preparedModel()
             await model.load()
             await model.observe()

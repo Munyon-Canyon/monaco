@@ -36,6 +36,7 @@ enum HomeSampleScenario: String, CaseIterable {
     case fScrolled
     case feedPreviewEveryone
     case fUnfunded
+    case fFirstUse
 
     static func matching(_ arguments: [String]) -> HomeSampleScenario? {
         guard let flag = arguments.firstIndex(of: "-MonacoHomeSample"),
@@ -79,6 +80,7 @@ extension HomeSampleScenario {
         case .fVoteRule: HomeSampleData.script(.loss, proposals: [.fRule])
         case .fReady, .fReadyLight, .fScrolled: HomeSampleData.script(.fAccount, proposals: [.fVote])
         case .fUnfunded: HomeSampleData.script(.fUnfunded, proposals: [.fVote])
+        case .fFirstUse: HomeSampleData.firstUseScript()
         }
     }
 
@@ -341,6 +343,18 @@ enum HomeSampleData {
 }
 
 extension HomeSampleData {
+    static func firstUseScript() -> SampleAPIScript {
+        var script = feedPreviewScript(.everyone)
+        var portfolio = Components.Schemas.MyPortfolio.sampleEmpty
+        portfolio.cashMicros = 500_000_000
+        portfolio.netWorthMicros = 500_000_000
+        script.portfolio = portfolio
+        script.balance = balance(micros: 500_000_000)
+        script.homeCabals = []
+        script.pnlHistory = .sampleEmpty
+        return script
+    }
+
     private static let acCapital = Components.Schemas.CabalRef.sampleACCapital
     private static let techTitans = Components.Schemas.CabalRef.sampleTechTitans
     private static let degens = Components.Schemas.CabalRef(

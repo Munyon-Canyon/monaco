@@ -44,6 +44,8 @@ struct HomeGate {
         summary.map { HomeVariant(summary: $0, cashMicros: cashMicros) }
     }
 
+    var firstUse: Bool { summary?.isFirstUse ?? false }
+
     var isLoading: Bool { summary == nil && !sharedFailure }
 
     func shows(_ rule: (HomeVariant) -> Bool) -> Bool {
