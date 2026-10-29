@@ -877,12 +877,10 @@ func goTestRow(env *Env, backend string, tags, pkgs []string, covered map[string
 	return checkRow{
 		label: "go test -short", kind: packageKind, dir: backend, class: "db",
 		dbCmds: func(db testDB) [][]string {
-			p := testParallelism(runtime.NumCPU(), db.busy)
-			parallel := testParallelPerPackage(runtime.NumCPU(), db.busy, p)
+			p := strconv.Itoa(testParallelism(runtime.NumCPU(), db.busy))
 			return [][]string{
 				slices.Concat(db.testEnv(), []string{"go", "test"}, tags, []string{
-					"-short", "-count=1", "-timeout", env.Config.Budget[packageKind].String(),
-					"-p", strconv.Itoa(p), "-parallel", strconv.Itoa(parallel), "-json",
+					"-short", "-count=1", "-timeout", env.Config.Budget[packageKind].String(), "-p", p, "-json",
 				}, coverFlags(backend, pkgs, covered, profile), pkgs),
 			}
 		},
@@ -1036,10 +1034,6 @@ func (env *Env) golangciLint(ctx context.Context, backend string) string {
 
 func testParallelism(cpus, busy int) int {
 	return min(maxTestP, max(2, cpus/max(1, busy)))
-}
-
-func testParallelPerPackage(cpus, busy, p int) int {
-	return min(8, max(2, cpus/max(1, busy*p)))
 }
 
 func buildable(backend string, pkgs []string) []string {
@@ -1318,16 +1312,8 @@ func (r *checkRun) admit(ctx context.Context, row *checkRow, stdout io.Writer) (
 			release()
 			return nil, "", err
 		}
-		p := testParallelism(runtime.NumCPU(), db.busy)
-		_, _ = fmt.Fprintf(
-			&r.log,
-			"test database: port %d; go test -p %d -parallel %d (%d CPUs over %d busy stage 0 slots)\n",
-			db.port(),
-			p,
-			testParallelPerPackage(runtime.NumCPU(), db.busy, p),
-			runtime.NumCPU(),
-			db.busy,
-		)
+		_, _ = fmt.Fprintf(&r.log, "test database: port %d; go test -p %d (%d CPUs over %d busy stage 0 slots)\n",
+			db.port(), testParallelism(runtime.NumCPU(), db.busy), runtime.NumCPU(), db.busy)
 		row.prep, row.cmds = db.row(r.env.Work).cmds, row.dbCmds(db)
 		inner := release
 		release = func() {
