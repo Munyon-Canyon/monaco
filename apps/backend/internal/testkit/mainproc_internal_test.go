@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -34,5 +35,36 @@ func TestChildCoverDir_isolatesEachChildAndMergesItsFilesIntoTheSharedDir(t *tes
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(name), 0o600); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestMainCommand_givesTheChildGOCOVERDIROnlyWhenThisBinaryIsInstrumented(t *testing.T) {
+	t.Parallel()
+	env := append(os.Environ(), "GOCOVERDIR=/inherited/from/go/test")
+	cmd := MainCommand(t, env, "-h")
+	var got []string
+	for _, kv := range cmd.Env {
+		if strings.HasPrefix(kv, "GOCOVERDIR=") {
+			got = append(got, kv)
+		}
+	}
+	instrumented := coverDirFlag() != "" && testing.CoverMode() != ""
+	if instrumented {
+		if len(got) != 1 ||
+			!strings.HasPrefix(got[0], "GOCOVERDIR="+coverDirFlag()+string(filepath.Separator)+"child") {
+			t.Fatalf(
+				"instrumented binary gave the child GOCOVERDIR entries %q, want one child dir under %q",
+				got,
+				coverDirFlag(),
+			)
+		}
+		return
+	}
+	if len(got) != 0 {
+		t.Fatalf(
+			"uninstrumented binary (covermode %q) gave the child GOCOVERDIR entries %q, want none",
+			testing.CoverMode(),
+			got,
+		)
 	}
 }

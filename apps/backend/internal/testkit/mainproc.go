@@ -35,11 +35,23 @@ func MainCommand(t *testing.T, env []string, args ...string) *exec.Cmd {
 		t.Fatal(err)
 	}
 	cmd := exec.CommandContext(t.Context(), exe, args...)
-	cmd.Env = append(withoutRaceExitSleep(env), runMainEnv+"=1")
-	if dir := flag.Lookup("test.gocoverdir"); dir != nil && dir.Value.String() != "" && testing.CoverMode() != "" {
-		cmd.Env = append(cmd.Env, "GOCOVERDIR="+childCoverDir(t, dir.Value.String()))
+	cmd.Env = append(withoutCoverDir(withoutRaceExitSleep(env)), runMainEnv+"=1")
+	if dir := coverDirFlag(); dir != "" && testing.CoverMode() != "" {
+		cmd.Env = append(cmd.Env, "GOCOVERDIR="+childCoverDir(t, dir))
 	}
 	return cmd
+}
+
+func coverDirFlag() string {
+	dir := flag.Lookup("test.gocoverdir")
+	if dir == nil {
+		return ""
+	}
+	return dir.Value.String()
+}
+
+func withoutCoverDir(env []string) []string {
+	return slices.DeleteFunc(slices.Clone(env), func(kv string) bool { return strings.HasPrefix(kv, "GOCOVERDIR=") })
 }
 
 func childCoverDir(t *testing.T, shared string) string {
