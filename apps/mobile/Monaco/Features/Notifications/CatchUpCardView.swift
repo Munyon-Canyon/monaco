@@ -24,6 +24,7 @@ struct CatchUpCardView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
 
@@ -144,8 +145,14 @@ struct CatchUpCardView: View {
             }
     }
 
+    private var dockLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: MonacoTheme.Space.sm))
+            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
+    }
+
     private var dock: some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
+        dockLayout {
             Button {
                 act(.keep)
             } label: {

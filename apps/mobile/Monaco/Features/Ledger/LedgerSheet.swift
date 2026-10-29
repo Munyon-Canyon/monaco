@@ -18,6 +18,7 @@ struct LedgerSheet: View {
     @State private var model: LedgerModel?
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(week: String, model: LedgerModel? = nil) {
         self.week = week
@@ -91,8 +92,20 @@ struct LedgerSheet: View {
         .padding(.horizontal, MonacoTheme.Space.gutter)
     }
 
+    private var heroLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.xs))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s))
+    }
+
+    private var statsLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.s))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: MonacoTheme.Space.s))
+    }
+
     private func hero(_ screen: LedgerScreen) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
+        heroLayout {
             Text(LedgerCopy.hero(bps: screen.returnBps))
                 .moneyFigure(.hero)
                 .foregroundStyle(heroColor(LedgerCopy.heroTone(bps: screen.returnBps)))
@@ -102,7 +115,7 @@ struct LedgerSheet: View {
             Text(LedgerCopy.heroSubtitle(cabals: screen.cabalCount))
                 .font(MonacoTheme.Typo.subhead)
                 .foregroundStyle(MonacoTheme.secondaryText)
-                .lineLimit(1)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(LedgerCopy.heroSpoken(bps: screen.returnBps, cabals: screen.cabalCount))
@@ -117,7 +130,7 @@ struct LedgerSheet: View {
     }
 
     private func stats(_ screen: LedgerScreen) -> some View {
-        HStack(alignment: .top, spacing: MonacoTheme.Space.s) {
+        statsLayout {
             stat(LedgerCopy.votedLabel, LedgerCopy.ofTotal(screen.voted, screen.eligible), "voted")
             stat(LedgerCopy.rightLabel, LedgerCopy.ofTotal(screen.right, screen.resolved), "right")
             stat(LedgerCopy.sharpestLabel, LedgerCopy.sharpest(screen.sharpestName), "sharpest")
@@ -133,7 +146,7 @@ struct LedgerSheet: View {
             Text(value)
                 .font(MonacoTheme.Typo.headline)
                 .foregroundStyle(MonacoTheme.primaryText)
-                .lineLimit(1)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)

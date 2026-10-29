@@ -133,6 +133,7 @@ struct ShareScreenContent: View {
     let retry: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var replayStart: Date?
     @State private var jumped = false
     @State private var rendered: Rendered?
@@ -181,7 +182,7 @@ struct ShareScreenContent: View {
             GeometryReader { proxy in
                 let box = CGSize(
                     width: proxy.size.width - MonacoTheme.Space.gutter * 2,
-                    height: proxy.size.height - (showsReplay ? Self.replayHeight : 0) - MonacoTheme.Space.s * 2)
+                    height: proxy.size.height - (showsReplay ? replayReserve : 0) - MonacoTheme.Space.s * 2)
                 let fitted = Self.fit(format, in: box)
                 VStack(spacing: MonacoTheme.Space.s) {
                     stage(spec, fitted: fitted, progress: progress)
@@ -253,11 +254,11 @@ struct ShareScreenContent: View {
                 replayStart = Date()
             }
         } label: {
-            HStack(spacing: MonacoTheme.Space.sm) {
+            replayLayout {
                 Image(systemName: MonacoIcon.play.symbol)
                     .accessibilityHidden(true)
                 Text(spec.replayTitle)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
                 ShareReplayTrack(progress: jumped ? 1 : (progress ?? 0))
             }
             .font(MonacoTheme.Typo.headline)
@@ -268,6 +269,16 @@ struct ShareScreenContent: View {
         .buttonStyle(.plain)
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .accessibilityIdentifier(spec.facts.isLedger ? "ledger-share-replay" : "share-replay")
+    }
+
+    private var replayLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.xs))
+            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
+    }
+
+    private var replayReserve: CGFloat {
+        Self.replayHeight * (dynamicTypeSize.isAccessibilitySize ? 3 : 1)
     }
 
     static let replayHeight: CGFloat = MonacoButtonMetrics.hitTarget

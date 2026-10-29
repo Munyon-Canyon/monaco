@@ -80,9 +80,23 @@ struct ShareDock: View {
     let share: () -> Void
     let copyImage: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var stacksChips: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.xs))
+            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.s))
+    }
+
+    private var stacksButtons: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: MonacoTheme.Space.sm))
+            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
+    }
+
     var body: some View {
         VStack(spacing: MonacoTheme.Space.xs) {
-            HStack(spacing: MonacoTheme.Space.s) {
+            stacksChips {
                 ForEach(ShareEye.allCases, id: \.self) { eye in
                     ShareEyeChip(eye: eye, isOn: eye.isOn(eyes), isUnused: unusedEyes.contains(eye), isLedger: isLedger)
                     {
@@ -95,7 +109,7 @@ struct ShareDock: View {
                 alwaysFits: true, scrollInset: 0, minLabelWidth: MonacoButtonMetrics.hitTarget, label: \.title,
                 accessibilityName: \.title,
                 identifier: \.identifier, onSelect: { format = $0 })
-            HStack(spacing: MonacoTheme.Space.sm) {
+            stacksButtons {
                 Button(action: share) {
                     Label("Share", systemImage: MonacoIcon.share.symbol)
                 }
@@ -124,6 +138,8 @@ struct ShareEyeChip: View {
     var isLedger = false
     let toggle: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         Button {
             Haptics.selection()
@@ -136,7 +152,7 @@ struct ShareEyeChip: View {
             }
             .font(MonacoTheme.Typo.subheadStrong)
             .foregroundStyle(isOn ? MonacoTheme.primaryText : MonacoTheme.secondaryText)
-            .lineLimit(1)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
             .minimumScaleFactor(0.8)
             .padding(.horizontal, MonacoTheme.Space.sm)
             .frame(minHeight: MonacoButtonMetrics.compactHeight)
