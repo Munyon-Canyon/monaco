@@ -3254,6 +3254,50 @@ paths:
                 $ref: "#/components/schemas/LeaderboardPage"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/leaderboards/calls:
+    get:
+      operationId: getCallLeaderboard
+      tags: [ranking]
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}, ip: {rate: 600, per: 1m, burst: 100}}
+      summary: Read a whole right-call leaderboard screen.
+      description: >-
+        Returns everything one Leaderboard C screen draws for a board and a period, from the latest
+        call-board run: the period, the top three, the caller's row with the row above and the row below
+        it, the gap line, the climb bar, the not-ranked-yet card, the rows around the caller and the not
+        ranked yet list. People and Friends rank people on right calls, and Cabals ranks cabals. `me` is
+        the caller on People and Friends, and the caller's best-ranked cabal on Cabals. It is null when
+        the caller is not ranked, and then `above`, `below` and `gap` are null too. `gap` is also null
+        when `me` is the only ranked row. `around.rows` never repeats the top three on People and
+        Friends, and on Cabals it starts at the caller's best cabal even on the podium. A cursor from an
+        earlier run is cursor_stale; with a cursor only `around` holds rows and the other parts are empty.
+        An unknown board, period or filter, `filter=friends` with `board=cabals`, or a cursor the server
+        did not write is invalid_input.
+      parameters:
+        - name: board
+          in: query
+          required: false
+          description: "`people` ranks people and `cabals` ranks cabals. Defaults to `people`."
+          schema: {type: string, enum: [people, cabals], default: people, examples: [people]}
+        - name: period
+          in: query
+          required: false
+          description: The period. Defaults to `month`.
+          schema: {type: string, enum: [week, month, all], default: month, examples: [month]}
+        - $ref: "#/components/parameters/LeaderboardFilter"
+        - name: cursor
+          in: query
+          required: false
+          description: The `around.after_cursor` from the previous response. Absent reads the whole screen.
+          schema: {type: string, maxLength: 128, examples: [eyJydW4iOiIwMTg5MGE1ZCIsInJhbmsiOjEyfQ]}
+      responses:
+        "200":
+          description: The screen.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CallBoard"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/leaderboards/people:
     get:
       operationId: getPeopleLeaderboard
@@ -6973,6 +7017,7 @@ components:
         - comment_parent_mismatch
         - conservation_broken
         - contact_hashes_invalid
+        - cursor_stale
         - dashboard_timeout
         - db_schema_behind
         - db_unavailable
@@ -9760,6 +9805,230 @@ components:
         value_micros: {type: integer, format: int64, description: The pot value in USDC micros., examples: [1000000]}
         nav_per_share_micros: {type: integer, format: int64, description: The pot value per share in USDC micros., examples: [1000000]}
         pnl_micros: {type: integer, format: int64, description: "The pot value minus the net contributed, negative for a loss.", examples: [-5]}
+    CallBoard:
+      type: object
+      description: One Leaderboard C screen for a board and a period.
+      additionalProperties: false
+      required: [board, filter, period, computed_at, total_ranked, top, me, above, below, gap, climb_bps, unranked_me, around, unranked]
+      properties:
+        board: {type: string, enum: [people, cabals], description: The board., examples: [people]}
+        filter: {type: string, enum: [all, friends], description: Whether the board holds everyone or the caller's friends., examples: [all]}
+        period:
+          $ref: "#/components/schemas/CallBoardPeriod"
+        computed_at: {type: string, format: date-time, description: When the board was computed., examples: ["2026-10-22T13:40:00Z"]}
+        total_ranked: {type: integer, format: int32, description: "How many subjects are ranked, in friends on the Friends board.", examples: [24]}
+        top:
+          type: array
+          description: Ranks 1 to 3. On Friends these are the friends' own top three.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/CallBoardRow"
+        me:
+          type: [object, "null"]
+          description: The caller's row, or on Cabals their best-ranked cabal. Null when not ranked.
+          examples: [null]
+          x-go-type: CallBoardRow
+          additionalProperties: false
+          required: [rank, subject, rate_bps, rate_pct, right, resolved, voted, eligible, turnout_bps, needed, movement, last_call, is_viewer, is_mine]
+          properties:
+            rank: {type: [integer, "null"], format: int32, description: The dense rank. Null when the row is not ranked yet., examples: [8]}
+            subject:
+              $ref: "#/components/schemas/LeaderboardSubject"
+            rate_bps: {type: [integer, "null"], format: int32, description: Right calls as basis points of resolved calls. Null when not ranked., examples: [7777]}
+            rate_pct: {type: [integer, "null"], format: int32, description: "The rate as a whole percent rounded half up, as the app shows it. Null when not ranked.", examples: [78]}
+            right: {type: integer, format: int32, description: Right calls in the period., examples: [7]}
+            resolved: {type: integer, format: int32, description: Resolved calls in the period., examples: [9]}
+            voted: {type: integer, format: int32, description: Proposals voted on in the period., examples: [11]}
+            eligible: {type: integer, format: int32, description: Proposals the subject could vote on in the period., examples: [12]}
+            turnout_bps: {type: integer, format: int32, description: Voted as basis points of eligible., examples: [9166]}
+            needed: {type: [integer, "null"], format: int32, description: Resolved calls still needed to rank. Null when ranked., examples: [null]}
+            movement:
+              $ref: "#/components/schemas/CallBoardMovement"
+            last_call:
+              type: [object, "null"]
+              description: The subject's latest resolved call. Null when it has none.
+              examples: [null]
+              x-go-type-name: CallBoardLastCall
+              additionalProperties: false
+              required: [proposal_id, kind, symbol, right]
+              properties:
+                proposal_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+                kind: {type: string, enum: [buy, sell], examples: [buy]}
+                symbol: {type: string, examples: [NVDA]}
+                right: {type: boolean, examples: [true]}
+            is_viewer: {type: boolean, description: True on the caller's own row., examples: [false]}
+            is_mine: {type: boolean, description: True on a cabal the caller is a member of. Always false on a person., examples: [false]}
+        above:
+          type: [object, "null"]
+          description: The row ranked directly above `me`. Null when `me` is #1 or null.
+          examples: [null]
+          x-go-type: CallBoardRow
+          additionalProperties: false
+          required: [rank, subject, rate_bps, rate_pct, right, resolved, voted, eligible, turnout_bps, needed, movement, last_call, is_viewer, is_mine]
+          properties:
+            rank: {type: [integer, "null"], format: int32, description: The dense rank. Null when the row is not ranked yet., examples: [8]}
+            subject:
+              $ref: "#/components/schemas/LeaderboardSubject"
+            rate_bps: {type: [integer, "null"], format: int32, description: Right calls as basis points of resolved calls. Null when not ranked., examples: [7777]}
+            rate_pct: {type: [integer, "null"], format: int32, description: "The rate as a whole percent rounded half up, as the app shows it. Null when not ranked.", examples: [78]}
+            right: {type: integer, format: int32, description: Right calls in the period., examples: [7]}
+            resolved: {type: integer, format: int32, description: Resolved calls in the period., examples: [9]}
+            voted: {type: integer, format: int32, description: Proposals voted on in the period., examples: [11]}
+            eligible: {type: integer, format: int32, description: Proposals the subject could vote on in the period., examples: [12]}
+            turnout_bps: {type: integer, format: int32, description: Voted as basis points of eligible., examples: [9166]}
+            needed: {type: [integer, "null"], format: int32, description: Resolved calls still needed to rank. Null when ranked., examples: [null]}
+            movement:
+              $ref: "#/components/schemas/CallBoardMovement"
+            last_call:
+              type: [object, "null"]
+              description: The subject's latest resolved call. Null when it has none.
+              examples: [null]
+              x-go-type-name: CallBoardLastCall
+              additionalProperties: false
+              required: [proposal_id, kind, symbol, right]
+              properties:
+                proposal_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+                kind: {type: string, enum: [buy, sell], examples: [buy]}
+                symbol: {type: string, examples: [NVDA]}
+                right: {type: boolean, examples: [true]}
+            is_viewer: {type: boolean, description: True on the caller's own row., examples: [false]}
+            is_mine: {type: boolean, description: True on a cabal the caller is a member of. Always false on a person., examples: [false]}
+        below:
+          type: [object, "null"]
+          description: The row ranked directly below `me`. Null when `me` is last or null.
+          examples: [null]
+          x-go-type: CallBoardRow
+          additionalProperties: false
+          required: [rank, subject, rate_bps, rate_pct, right, resolved, voted, eligible, turnout_bps, needed, movement, last_call, is_viewer, is_mine]
+          properties:
+            rank: {type: [integer, "null"], format: int32, description: The dense rank. Null when the row is not ranked yet., examples: [8]}
+            subject:
+              $ref: "#/components/schemas/LeaderboardSubject"
+            rate_bps: {type: [integer, "null"], format: int32, description: Right calls as basis points of resolved calls. Null when not ranked., examples: [7777]}
+            rate_pct: {type: [integer, "null"], format: int32, description: "The rate as a whole percent rounded half up, as the app shows it. Null when not ranked.", examples: [78]}
+            right: {type: integer, format: int32, description: Right calls in the period., examples: [7]}
+            resolved: {type: integer, format: int32, description: Resolved calls in the period., examples: [9]}
+            voted: {type: integer, format: int32, description: Proposals voted on in the period., examples: [11]}
+            eligible: {type: integer, format: int32, description: Proposals the subject could vote on in the period., examples: [12]}
+            turnout_bps: {type: integer, format: int32, description: Voted as basis points of eligible., examples: [9166]}
+            needed: {type: [integer, "null"], format: int32, description: Resolved calls still needed to rank. Null when ranked., examples: [null]}
+            movement:
+              $ref: "#/components/schemas/CallBoardMovement"
+            last_call:
+              type: [object, "null"]
+              description: The subject's latest resolved call. Null when it has none.
+              examples: [null]
+              x-go-type-name: CallBoardLastCall
+              additionalProperties: false
+              required: [proposal_id, kind, symbol, right]
+              properties:
+                proposal_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+                kind: {type: string, enum: [buy, sell], examples: [buy]}
+                symbol: {type: string, examples: [NVDA]}
+                right: {type: boolean, examples: [true]}
+            is_viewer: {type: boolean, description: True on the caller's own row., examples: [false]}
+            is_mine: {type: boolean, description: True on a cabal the caller is a member of. Always false on a person., examples: [false]}
+        gap:
+          type: [object, "null"]
+          description: How `me` compares with its neighbour. Null when `me` is null or has no neighbour.
+          examples: [null]
+          x-go-type-name: CallBoardGap
+          additionalProperties: false
+          required: [versus, points, calls_to_pass, above_is_perfect]
+          properties:
+            versus: {type: string, enum: [above, below], description: The row the card compares with. `above` when there is one., examples: [above]}
+            points: {type: integer, format: int32, description: "`me` minus `versus` in whole percent. Negative when behind, positive when ahead.", examples: [-1]}
+            calls_to_pass: {type: [integer, "null"], format: int32, description: "The fewest extra right calls, with no misses, that put `me` past `above`. Null when `versus` is below or no run of right calls gets there.", examples: [1]}
+            above_is_perfect: {type: boolean, description: Whether the row above is at 100%., examples: [false]}
+        climb_bps: {type: integer, format: int32, description: "The climb bar's fill: the rate when ranked, else resolved votes as basis points of the five needed.", examples: [7777]}
+        unranked_me:
+          type: [object, "null"]
+          description: The not-ranked-yet card. Null when the caller is ranked.
+          examples: [null]
+          x-go-type-name: CallBoardUnrankedMe
+          additionalProperties: false
+          required: [subject, resolved, needed, voted, eligible, pending_symbols]
+          properties:
+            subject:
+              $ref: "#/components/schemas/LeaderboardSubject"
+            resolved: {type: integer, format: int32, examples: [3]}
+            needed: {type: integer, format: int32, description: Resolved votes still needed to rank., examples: [2]}
+            voted: {type: integer, format: int32, examples: [5]}
+            eligible: {type: integer, format: int32, examples: [6]}
+            pending_symbols:
+              type: array
+              description: The symbols of the subject's votes that have not resolved yet.
+              examples: [["SPACEX", "AMZN"]]
+              items: {type: string}
+        around:
+          type: object
+          description: The rows around the caller, then later pages.
+          x-go-type-name: CallBoardAround
+          additionalProperties: false
+          required: [rows, after_cursor]
+          properties:
+            rows:
+              type: array
+              examples: [[]]
+              items:
+                $ref: "#/components/schemas/CallBoardRow"
+            after_cursor: {type: [string, "null"], description: The cursor for the next 20 rows. Null on the last page., examples: [null]}
+        unranked:
+          type: array
+          description: The not ranked yet section.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/CallBoardRow"
+    CallBoardMovement:
+      type: object
+      description: How the row moved since the board's daily baseline.
+      additionalProperties: false
+      required: [kind, places]
+      properties:
+        kind: {type: string, enum: [up, down, same, new], examples: [up]}
+        places: {type: integer, format: int32, description: "How many places it moved, 0 unless up or down.", examples: [1]}
+    CallBoardPeriod:
+      type: object
+      description: The period a board covers.
+      additionalProperties: false
+      required: [kind, start, end]
+      properties:
+        kind: {type: string, enum: [week, month, all], examples: [month]}
+        start: {type: [string, "null"], format: date, description: The first day. Null for all time., examples: ["2026-10-01"]}
+        end: {type: [string, "null"], format: date, description: "The last day, inclusive. Null for all time.", examples: ["2026-10-31"]}
+    CallBoardRow:
+      type: object
+      description: One subject on a right-call board.
+      additionalProperties: false
+      required: [rank, subject, rate_bps, rate_pct, right, resolved, voted, eligible, turnout_bps, needed, movement, last_call, is_viewer, is_mine]
+      properties:
+        rank: {type: [integer, "null"], format: int32, description: The dense rank. Null when the row is not ranked yet., examples: [8]}
+        subject:
+          $ref: "#/components/schemas/LeaderboardSubject"
+        rate_bps: {type: [integer, "null"], format: int32, description: Right calls as basis points of resolved calls. Null when not ranked., examples: [7777]}
+        rate_pct: {type: [integer, "null"], format: int32, description: "The rate as a whole percent rounded half up, as the app shows it. Null when not ranked.", examples: [78]}
+        right: {type: integer, format: int32, description: Right calls in the period., examples: [7]}
+        resolved: {type: integer, format: int32, description: Resolved calls in the period., examples: [9]}
+        voted: {type: integer, format: int32, description: Proposals voted on in the period., examples: [11]}
+        eligible: {type: integer, format: int32, description: Proposals the subject could vote on in the period., examples: [12]}
+        turnout_bps: {type: integer, format: int32, description: Voted as basis points of eligible., examples: [9166]}
+        needed: {type: [integer, "null"], format: int32, description: Resolved calls still needed to rank. Null when ranked., examples: [null]}
+        movement:
+          $ref: "#/components/schemas/CallBoardMovement"
+        last_call:
+          type: [object, "null"]
+          description: The subject's latest resolved call. Null when it has none.
+          examples: [null]
+          x-go-type-name: CallBoardLastCall
+          additionalProperties: false
+          required: [proposal_id, kind, symbol, right]
+          properties:
+            proposal_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+            kind: {type: string, enum: [buy, sell], examples: [buy]}
+            symbol: {type: string, examples: [NVDA]}
+            right: {type: boolean, examples: [true]}
+        is_viewer: {type: boolean, description: True on the caller's own row., examples: [false]}
+        is_mine: {type: boolean, description: True on a cabal the caller is a member of. Always false on a person., examples: [false]}
     LeaderboardPage:
       type: object
       description: One page of a leaderboard from one run.

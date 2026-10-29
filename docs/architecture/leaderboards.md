@@ -157,7 +157,19 @@ A leaderboard that is fast and wrong is worse than slow. Rules the job enforces:
 5. **Conservation check each run.** For every cabal, the sum of member equity equals pot value (within rounding). A run that fails this for a cabal excludes that cabal and reports a `KindInternal` error, which alerts ([Errors](backend-platform.md#errors)). This catches share-unit or ledger bugs before users see them.
 6. **Deterministic ties.** Ties break by earlier `created_at`, then id, so ranks never flicker between identical runs.
 7. **Audit.** `leaderboard_runs` plus `prices_as_of` let anyone reconstruct why a row had its value: which prices, which positions. `monacoctl replay` does not rebuild `leaderboard_entries`: only the valuation job writes them, and replay runs just the `ranking_membership` and `ranking_names` durables, which rebuild `ranking_triggers` and rename subjects on rows the job wrote ([Replay and seeded states](backend-platform.md#replay-and-seeded-states)). Rebuilding a past board from the event log is not a command yet (#659).
-8. **Rank by % return** (default 2026-09-27). `return_bps` orders every board, with rule 4's minimum size so small pots cannot dominate. A $ gain tab comes later; `pnl_micros` is already stored for it.
+8. **Rank by % return** (default 2026-09-27; superseded 2026-10-26 for the launch boards by [Right-call boards](#right-call-boards-launch)). `return_bps` orders every board, with rule 4's minimum size so small pots cannot dominate. A $ gain tab comes later; `pnl_micros` is already stored for it.
+
+## Right-call boards (launch)
+
+**Current product rule, decided 2026-10-26.** The launch leaderboard ranks people and cabals on right calls over Week, Month and All time, not on return. The rule, the store and the board run are in [right-calls.md](right-calls.md). The return boards on this page stay for P&L views and no longer rank the launch screens.
+
+`GET /v1/leaderboards/calls` (`getCallLeaderboard`) serves a whole Leaderboard C screen for `board=people|cabals`, `period=week|month|all` and `filter=all|friends` from `call_board_entries`, in one GET. It returns the period, the top three, `me` with `above` and `below`, the `gap` ("One right call puts you past Kai"), the climb bar, the not-ranked-yet card, the rows around `me` and the not-ranked-yet list.
+
+- **People and Friends** put `me` at the viewer. `around.rows` is ranks `max(4, me-2)` to `min(total_ranked, me+4)`, so the podium is never repeated. A viewer under five resolved votes has `me: null`, ranks 4 to 10 in `around`, and the viewer plus the people they follow with a resolved call in `unranked`.
+- **Friends** filters to the viewer and the people they follow, re-ranks densely in the board's order, and counts `total_ranked` in friends. Movement is the global board's.
+- **Cabals** put `me` at the viewer's best-ranked cabal, `is_mine` on every one of theirs, and `around.rows` from that cabal to the lowest of theirs within ten ranks, with the podium repeated when a cabal of theirs sits on it.
+- **Paging** is down only. `around.after_cursor` encodes the run and the last rank. A cursor from an earlier run is `409 cursor_stale`, and the app refetches.
+- The top three and the ranked count are cached per `run_id`; the viewer's row, the neighbours and Friends are read per request.
 
 ## Cost and latency budget
 

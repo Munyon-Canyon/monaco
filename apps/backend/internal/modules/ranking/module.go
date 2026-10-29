@@ -29,6 +29,7 @@ import (
 
 const (
 	pageCacheSize  = 512
+	callHeadsSize  = 64
 	curveCacheSize = 256
 )
 
@@ -37,6 +38,7 @@ type Module struct {
 	ports     app.Ports
 	cabals    app.CabalStatus
 	pages     adapters.PageCache
+	callHeads adapters.CallBoardHeadCache
 	curves    adapters.HistoryCache
 	ledger    app.Contributions
 	stakes    app.StakeHistory
@@ -58,10 +60,11 @@ func WithPorts(ports app.Ports) Option { return func(m *Module) { m.ports = port
 
 func New(d module.Deps, opts ...Option) *Module {
 	m := &Module{
-		deps:   d,
-		ports:  app.Ports{Previous: sqlc.New(d.Pool), Snapshots: sqlc.New(d.Pool)},
-		pages:  adapters.PageCache{Cache: adapters.NewCache[app.PageKey, domain.BoardPage](pageCacheSize)},
-		curves: adapters.HistoryCache{Cache: adapters.NewCache[app.HistoryKey, domain.ValueHistory](curveCacheSize)},
+		deps:      d,
+		ports:     app.Ports{Previous: sqlc.New(d.Pool), Snapshots: sqlc.New(d.Pool)},
+		pages:     adapters.PageCache{Cache: adapters.NewCache[app.PageKey, domain.BoardPage](pageCacheSize)},
+		callHeads: adapters.NewCallBoardHeadCache(callHeadsSize),
+		curves:    adapters.HistoryCache{Cache: adapters.NewCache[app.HistoryKey, domain.ValueHistory](curveCacheSize)},
 	}
 	for _, opt := range opts {
 		opt(m)
@@ -154,8 +157,23 @@ func (m *Module) Mount(r api.Mount) {
 		Snapshots: boards, Ledger: m.ledger, Histories: m.curves, Stakes: m.stakes, Cards: m.cards,
 		Users: m.users, Members: m.member, Ownership: m.ownership, Roles: m.roles,
 		Blocks: blocks, Balances: m.balances, Votes: m.votes,
-		Ledgers: app.ReadLedger{Reads: sqlc.New(m.deps.Pool)},
+		Ledgers: app.ReadLedger{Reads: sqlc.New(m.deps.Pool)}, CallBoard: m.readCallBoard(follows),
 	}, r)
+}
+
+func (m *Module) readCallBoard(follows app.Follows) app.ReadCallBoard {
+	reads := sqlc.New(m.deps.Pool)
+	return app.ReadCallBoard{
+		Runs:     reads,
+		Ranks:    reads,
+		Subjects: reads,
+		Pending:  adapters.NewCallStore(m.deps.Pool),
+		Users:    m.users,
+		Follows:  follows,
+		Members:  m.member,
+		Heads:    m.callHeads,
+		Clock:    m.deps.Clock,
+	}
 }
 
 func (m *Module) Consumers() []bus.Consumer { return m.consumers() }

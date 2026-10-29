@@ -44,6 +44,31 @@ type Call struct {
 	UpdatedAt           time.Time
 }
 
+type CallBoardEntry struct {
+	Board             string
+	Period            string
+	PeriodStart       pgtype.Date
+	SubjectID         uuid.UUID
+	SubjectKind       string
+	SubjectName       string
+	SubjectHandle     pgtype.Text
+	SubjectPictureUrl pgtype.Text
+	SubjectCreatedAt  time.Time
+	Rank              pgtype.Int4
+	RightCount        int32
+	Resolved          int32
+	Voted             int32
+	Eligible          int32
+	RateBps           pgtype.Int4
+	TurnoutBps        int32
+	BaselineRank      pgtype.Int4
+	Movement          pgtype.Int4
+	MovementKind      string
+	LastCall          []byte
+	RunID             uuid.UUID
+	ComputedAt        time.Time
+}
+
 type CallBoardRun struct {
 	RunID       uuid.UUID
 	StartedAt   time.Time
