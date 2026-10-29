@@ -21,9 +21,10 @@ type Kind string
 const (
 	KindBuy  Kind = "buy"
 	KindSell Kind = "sell"
+	KindRule Kind = "rule"
 )
 
-func Kinds() []Kind { return []Kind{KindBuy, KindSell} }
+func Kinds() []Kind { return []Kind{KindBuy, KindSell, KindRule} }
 
 func ParseKind(raw string) (Kind, error) {
 	if !slices.Contains(Kinds(), Kind(raw)) {
@@ -97,6 +98,8 @@ func tradeField(kind Kind, usdc, tokens uint64, thesis string) string {
 		spends, unused = usdc, tokens
 	case KindSell:
 		spends, unused = tokens, usdc
+	case KindRule:
+		fallthrough
 	default:
 		return "kind"
 	}
