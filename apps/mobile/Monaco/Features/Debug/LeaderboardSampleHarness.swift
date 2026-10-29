@@ -72,7 +72,9 @@ final class LeaderboardSampleHarnessEntry: SampleHarnessEntry {
 final class LeaderboardFlowHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
-        guard Flow19aScenario.matching(arguments) != nil else { return nil }
+        guard Flow19aScenario.matching(arguments) != nil || Flow19bScenario.matching(arguments) != nil else {
+            return nil
+        }
         return AnyView(SampleAppFrame(auth: auth, tab: .cabals, routes: [LeaderboardSampleRoute(scenario: .error)]))
     }
 }

@@ -57,6 +57,13 @@ func closedPeople() []boardPerson {
 	}
 }
 
+func (defined) SeedsF19b() map[string]Seeder {
+	return map[string]Seeder{
+		"F19bRunCallBoardOK":                seedSignedInWith(seedResolvedCalls),
+		"F19bRunCallBoardCrashBeforeCommit": seedSignedInWith(seedResolvedCalls),
+	}
+}
+
 func F19bRunCallBoardOK(s *scenario.Scenario) {
 	fx := seedCallBoard(s, time.Now().UTC())
 	s.Given().When(
