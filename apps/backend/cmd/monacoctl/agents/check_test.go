@@ -34,7 +34,7 @@ func upTestDB(slot int) string {
 	}
 	n := strconv.Itoa(slot)
 	return ".: env MONACO_TEST_DB_NAME=monaco-postgres-test-" + n + " MONACO_TEST_DB_PORT=" + strconv.Itoa(54323+slot) +
-		" MONACO_TEST_DB_TMPFS=1536m docker compose -p monaco-test-" + n + " --profile test up -d --wait postgres-test"
+		" MONACO_TEST_DB_TMPFS=3g docker compose -p monaco-test-" + n + " --profile test up -d --wait postgres-test"
 }
 
 type reply struct {

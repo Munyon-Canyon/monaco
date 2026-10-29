@@ -15,7 +15,7 @@ import (
 const (
 	testDBPort  = 54323
 	testDBSlots = 16
-	slotTmpfs   = "1536m"
+	slotTmpfs   = "3g"
 	maxTestP    = 4
 	perSlotVar  = "MONACO_TEST_DB_PORT"
 )
