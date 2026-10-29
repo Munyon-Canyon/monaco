@@ -95,18 +95,15 @@ final class FundCabalModelTests: XCTestCase {
         try XCTUnwrap(HTTPField.Name(IdempotentSubmission.keyHeader))
     }
 
-    private func typedRig(
-        _ rest: [StubTransport.Reply], now: Int = 3500, first: String? = "2026-10-03T15:00:00Z"
-    ) async -> Rig {
+    private func typedRig(_ rest: [StubTransport.Reply], first: String? = "2026-10-03T15:00:00Z") async -> Rig {
         let rig = rig(
             StubTransport(
                 scripted: [
-                    .json(.ok, preview(now: now, first: first)),
-                    .json(.ok, preview(now: now, after: now + 100, first: first)),
+                    .json(.ok, preview(first: first)), .json(.ok, preview(after: 3600, first: first)),
                 ] + rest))
         await rig.model.load()
         await type("250", into: rig)
-        await settle(rig, .typed(sliceNow: Int32(now), sliceAfter: Int32(now + 100)))
+        await settle(rig, .typed(sliceNow: 3500, sliceAfter: 3600))
         return rig
     }
 
@@ -340,19 +337,13 @@ extension FundCabalModelTests {
         XCTAssertTrue(rig.model.canSubmit)
     }
 
-    func testFirstFundFollowsTheShareHeldBeforeTheFundNotFirstFundedAt() async {
+    func testFirstFundFollowsFirstFundedAtNotTheShare() async {
         let never = await typedRig(
-            [.json(.accepted, accepted), .json(.ok, transfer("settled", sliceBps: 100))], now: 0, first: nil)
+            [.json(.accepted, accepted), .json(.ok, transfer("settled", sliceBps: 0))], first: nil)
         XCTAssertFalse(never.model.firstFund)
         await never.model.submit()
-        await settle(never, .settled(amountMicros: 250_000_000, sliceNow: 100, cashAfterMicros: 250_000_000))
+        await settle(never, .settled(amountMicros: 250_000_000, sliceNow: 0, cashAfterMicros: 250_000_000))
         XCTAssertTrue(never.model.firstFund)
-
-        let cashedOut = await typedRig(
-            [.json(.accepted, accepted), .json(.ok, transfer("settled", sliceBps: 100))], now: 0)
-        await cashedOut.model.submit()
-        await settle(cashedOut, .settled(amountMicros: 250_000_000, sliceNow: 100, cashAfterMicros: 250_000_000))
-        XCTAssertTrue(cashedOut.model.firstFund)
 
         let before = await typedRig([.json(.accepted, accepted), .json(.ok, transfer("settled", sliceBps: 3600))])
         await before.model.submit()
