@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The ground truth of docs/journeys/governance/vote.md: after S1, A's and B's ballots on S1's proposal
-# are yes and the proposal has left open. Exits 1 when a row is wrong and 2 when it cannot be read.
+# are yes (one row each: A's change moved the ballot and B's undone No left no extra row) and the proposal has
+# left open. Exits 1 when a row is wrong and 2 when it cannot be read.
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
@@ -27,13 +28,14 @@ proposal_id="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1])).
   "$MONACO_QA_HANDOFF" 2>/dev/null || true)"
 [[ -n "$proposal_id" ]] || unreadable "the hand-off has no S1ProposalID: S1's setup did not run"
 
-IFS='|' read -r status ballot_a ballot_b <<<"$(row -v id="$proposal_id" \
+IFS='|' read -r status ballot_a ballot_b ballots <<<"$(row -v id="$proposal_id" \
   -v a="$(apps/mobile/qa/journeys/privy-user-id.sh A)" -v b="$(apps/mobile/qa/journeys/privy-user-id.sh B)" <<'SQL'
 SELECT p.status,
   coalesce((SELECT v.choice FROM votes v JOIN users u ON u.id = v.voter_id
     WHERE v.proposal_id = p.id AND u.privy_user_id = :'a'), 'none'),
   coalesce((SELECT v.choice FROM votes v JOIN users u ON u.id = v.voter_id
     WHERE v.proposal_id = p.id AND u.privy_user_id = :'b'), 'none')
+  , (SELECT count(*) FROM votes v WHERE v.proposal_id = p.id)
 FROM proposals p WHERE p.id = :'id'
 SQL
 )"
@@ -47,6 +49,10 @@ if [[ "$ballot_a" != yes ]]; then
 fi
 if [[ "$ballot_b" != yes ]]; then
   echo "actor B's ballot on $proposal_id is '$ballot_b', not 'yes'"
+  failed=1
+fi
+if [[ "$ballots" != 2 ]]; then
+  echo "proposal $proposal_id has $ballots ballot rows, not 2"
   failed=1
 fi
 if [[ "$status" == open ]]; then

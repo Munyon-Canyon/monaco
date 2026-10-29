@@ -1,0 +1,19 @@
+journey: home/activity
+expect-fail: S1.3
+
+Clearing the result row sends nothing and reloads Catch up, so the row comes back. S1.3 expects it gone, so S1.3 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Notifications/CatchUpView.swift b/apps/mobile/Monaco/Features/Notifications/CatchUpView.swift
+index 3ece2521a..45ab26c24 100644
+--- a/apps/mobile/Monaco/Features/Notifications/CatchUpView.swift
++++ b/apps/mobile/Monaco/Features/Notifications/CatchUpView.swift
+@@ -123,7 +123,7 @@ struct CatchUpView: View {
+         let model = model
+         AppAnalytics.current.step(.catchUp(.cleared), properties: ["kind": .string(item.kind.rawValue)])
+         Task {
+-            let cleared = await model?.clear(item.key) ?? true
++            let cleared = await model?.load() == nil
+             if !cleared { toasts.current = MonacoToast(message: CatchUpCopy.clearFailedToast) }
+         }
+     }

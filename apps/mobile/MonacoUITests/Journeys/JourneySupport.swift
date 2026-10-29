@@ -258,10 +258,87 @@ extension XCUIApplication {
     }
 
     func dismissPushPrePromptIfShown(timeout: TimeInterval = 3) {
-        let notNow = buttons["push-pre-prompt-not-now"].firstMatch
-        guard notNow.waitForExistence(timeout: timeout) else { return }
-        notNow.tap()
-        _ = element("push-pre-prompt").waitForNonExistence(timeout: 5)
+        guard element("push-pre-prompt").waitForExistence(timeout: timeout) else { return }
+        answerVotePermissionSheet(turnOn: false, timeout: timeout)
+    }
+
+    func holdToCommit(_ element: XCUIElement, duration: TimeInterval = 0.9) {
+        element.press(forDuration: duration)
+    }
+
+    func pickAndHold(_ choice: String, timeout: TimeInterval = 10) {
+        let button = element("proposal-vote-\(choice)")
+        XCTAssertTrue(
+            JourneyDiagnostics.wait(for: button, in: self, timeout: timeout),
+            "proposal-vote-\(choice) did not show within \(Int(timeout)) s")
+        button.tap()
+        holdToCommit(button)
+    }
+
+    func changeVote(to choice: String, timeout: TimeInterval = 10) {
+        let change = element("proposal-change-vote")
+        XCTAssertTrue(
+            JourneyDiagnostics.wait(for: change, in: self, timeout: timeout),
+            "proposal-change-vote did not show within \(Int(timeout)) s")
+        change.tap()
+        pickAndHold(choice, timeout: timeout)
+    }
+
+    func homeVoteCardPickAndHold(proposalID: String, choice: String, timeout: TimeInterval = 10) {
+        let button = element("home-vote-\(choice)-\(proposalID)")
+        XCTAssertTrue(
+            JourneyDiagnostics.wait(for: button, in: self, timeout: timeout),
+            "home-vote-\(choice)-\(proposalID) did not show within \(Int(timeout)) s")
+        button.tap()
+        holdToCommit(button)
+    }
+
+    func toastText(timeout: TimeInterval = 10) -> String? {
+        let banner = element("monaco-toast-banner")
+        guard JourneyDiagnostics.wait(for: banner, in: self, timeout: timeout) else { return nil }
+        return banner.label
+    }
+
+    @discardableResult
+    func tapToastAction(timeout: TimeInterval = 10) -> Bool {
+        let action = element("monaco-toast-action")
+        guard JourneyDiagnostics.wait(for: action, in: self, timeout: timeout) else { return false }
+        action.tap()
+        return true
+    }
+
+    @discardableResult
+    func answerVotePermissionSheet(turnOn: Bool, timeout: TimeInterval = 10) -> Bool {
+        let sheet = element("push-pre-prompt")
+        guard JourneyDiagnostics.wait(for: sheet, in: self, timeout: timeout) else { return false }
+        buttons[turnOn ? "push-pre-prompt-turn-on" : "push-pre-prompt-not-now"].firstMatch.tap()
+        return sheet.waitForNonExistence(timeout: 5)
+    }
+
+    func openCabal(named name: String, timeout: TimeInterval = 15) {
+        tab("Cabals").tap()
+        let tile = buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'cabals-tile-' AND label CONTAINS %@", name)
+        ).firstMatch
+        if tile.waitForExistence(timeout: 5) {
+            tile.tap()
+        } else {
+            JoinJourney.openBySearch(self, name, step: "openCabal")
+        }
+        let header = element("cabal-header-name")
+        let shown = NSPredicate(format: "label CONTAINS %@", name)
+        let ready = XCTNSPredicateExpectation(predicate: shown, object: header)
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [ready], timeout: timeout), .completed,
+            "cabal-header-name did not read \(name) within \(Int(timeout)) s")
+    }
+
+    func openCabalTab(_ name: String, timeout: TimeInterval = 10) {
+        let tab = element("cabal-tab-\(name.lowercased())")
+        XCTAssertTrue(
+            JourneyDiagnostics.wait(for: tab, in: self, timeout: timeout),
+            "cabal-tab-\(name.lowercased()) did not show within \(Int(timeout)) s")
+        tab.tap()
     }
 
     func tapBack(timeout: TimeInterval = 5) {

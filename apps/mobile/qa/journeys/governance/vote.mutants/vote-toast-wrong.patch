@@ -1,14 +1,14 @@
 journey: governance/vote
 expect-fail: S1
 
-The Proposal screen's vote section toasts "Voted" instead of the voter's place in the vote ("Voted Yes. 6th of 8."). S1.3 waits for that toast, so it must fail.
+The Proposal screen's vote section toasts "Voted" instead of the voter's place in the vote ("Voted Yes. 1st of 3."). S1.4 waits for that toast, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift b/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift
-index 14a9351e4..62207ab49 100644
+index ebe5cb715..ae5f48833 100644
 --- a/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift
 +++ b/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift
-@@ -220,7 +220,7 @@ struct ProposalVoteSection: View {
+@@ -233,7 +233,7 @@ struct ProposalVoteSection: View {
              toast.offersUndo
              ? MonacoToastAction(title: "Undo", expiresAt: outcome.undoUntil) { undo() }
              : nil

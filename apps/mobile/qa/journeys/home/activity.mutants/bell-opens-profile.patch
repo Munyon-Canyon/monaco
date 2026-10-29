@@ -1,8 +1,9 @@
 journey: home/activity
 expect-fail: S1
 
-The Home bell opens the Profile tab. S1.1 expects the Activity screen, so S1 must fail.
+The Home bell opens the Profile tab. S1.1 expects Catch up, so S1 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
 diff --git a/apps/mobile/Monaco/Features/Home/HomeBellButton.swift b/apps/mobile/Monaco/Features/Home/HomeBellButton.swift
 index 5645bdc9e..09fbcaa58 100644
 --- a/apps/mobile/Monaco/Features/Home/HomeBellButton.swift

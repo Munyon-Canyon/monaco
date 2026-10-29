@@ -1,0 +1,19 @@
+journey: governance/vote
+expect-fail: S4
+
+A closed proposal never shows who voted what. S4.1 expects proposal-sides with the rule on, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Proposals/ProposalResultCard.swift b/apps/mobile/Monaco/Features/Proposals/ProposalResultCard.swift
+index 66e976c68..717d11079 100644
+--- a/apps/mobile/Monaco/Features/Proposals/ProposalResultCard.swift
++++ b/apps/mobile/Monaco/Features/Proposals/ProposalResultCard.swift
+@@ -42,7 +42,7 @@ struct ProposalResultCard<Sides: View>: View {
+                         .foregroundStyle(MonacoTheme.muted)
+                         .accessibilityIdentifier("proposal-result-caption")
+                 }
+-                if let detail = model?.value, detail.sidesVisible {
++                if let detail = model?.value, detail.sidesVisible, false {
+                     MonacoRule()
+                     ProposalSidesRow(
+                         sides: .make(
