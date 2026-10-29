@@ -205,26 +205,23 @@ Create then pushes `CabalRoute` with the toast "Cabal created.". A failed create
 
 ## Leaderboard (`LeaderboardRoute`)
 
-Pushed as `AnyAppRoute` from any tab; `LeaderboardRoute(board:range:)` defaults to Cabals and 1M. Home's "View all" opens it. The page shows one board at a time, built from `BoardRow` and a `LeaderboardPageModel` that owns one `LeaderboardLoader` per board, so switching back does not reload.
+Leaderboard C ("Around you"): it ranks right calls over a plain period, with no filters and no dollars. Pushed as `AnyAppRoute` from any tab; `LeaderboardRoute(tab:period:)` opens a given tab and period (People and Month by default), and the older `LeaderboardRoute(board:range:)` maps 1W to Week, 1M to Month and any other range to All time. Home's "View all" opens it. The model is `CallBoardModel` in `MonacoRanking` over `getCallLeaderboard`: one GET per period or tab switch, and one reload on a `leaderboards_updated` hint while the screen is visible. Frames: `docs/design/f/screens/13-leaderboard-C-people.png` (People, This month); the Cabals and Friends frames follow in #6514 and #6499.
 
 | # | Section | What it shows |
 | --- | --- | --- |
-| 1 | Tools (`leaderboard-category`, `leaderboard-period`, `leaderboard-filter`) | Category menu "Leaderboard category" (Cabals / People), period menu "Leaderboard period" (1H / 1D / 1W / 1M / All; 3M waits on the API) and a round filter button "Filter and sort leaderboard" with a brand dot and the value "Filters on" while any filter differs from its default |
-| 2 | Context line | "Cabal P&L · 1M · Rank change vs previous snapshot" or "Shared personal P&L · 1M · …". Live data has no snapshot movement, so the tail reads "Rank change opens soon". The info button "About this ranking" (`leaderboard-info`) opens a sheet with two paragraphs |
-| 3 | Rows (`leaderboard-row-<id>`) | Rank with ↑n / ↓n / – / "New" under it when the row carries movement, 36pt mark, name, "12 members" or "@handle", signed P&L over signed percent, chevron. Cabals open `CabalRoute`, people `UserProfileRoute`. Under a sort other than "Return %" the movement cell shows – and VoiceOver says "Rank movement not compared for this sort". Reaching the last row loads the next page, and "All <n> eligible cabals shown" (or "people") ends the list |
+| 1 | Header | Back button, large title "Leaderboard" that folds inline, the period line "This month Oct 1 – 31" (or "This week Oct 19 – 25", "All time") with plain labels Week · Month · All time on the right (`leaderboard-period-<week|month|all>`), then the underline tabs People · Cabals · Friends (`leaderboard-tab-<tab>`) pinned under the bar |
+| 2 | You card (`leaderboard-you-card`) | Your photo "You · 78% · 7 of 9 right", the centre "#8 / of 24 people / Kai is #7", the neighbour's photo "79% · 11 of 14 right", the climb bar and the gap line ("One right call puts you past Kai.", "3 right calls put you past Kai.", "Kai hasn't missed this month.", "You lead. Logan is 1 point behind.", "You lead. Logan is level.") |
+| 3 | Top three (`leaderboard-podium-<id>`) | The flat podium in 2-1-3 order with #1 raised and crowned: name, rate with movement ("92% ▲ 1"), "12 of 13 right" |
+| 4 | Around you (`leaderboard-row-<id>`) | Every row the response holds, in order: rank with movement, photo, name, "Voted 14 of 15", rate over "11 of 14 right". Your row sits on the raised band. People open `UserProfileRoute`, cabals `CabalRoute` |
 
 States and exact copy:
 
-- Loading: tools and context stay; six row skeletons.
-- Empty: "No eligible rankings" / "No public data for this period." People you follow: "Follow people to see how they do." with "Find friends".
-- Filtered empty: "No matching rankings" / "Try removing a filter." with the outline "Reset filters".
-- Stale (every row's prices delayed): the warn notice "Rankings paused while valuations update." and no rows.
-- First load failed: the tools hide; "Couldn’t load this view" / "Your existing information hasn’t been changed. Try again when your connection is available." with "Try again" (`leaderboard-error`).
-- A refresh or switch that fails with rows on screen shows the loader's error toast.
+- Loading: the header stays; six row skeletons.
+- Empty: "Nobody ranked yet" / "No one has five resolved votes yet this month." (this week; "yet." for All time).
+- Failed: "Can't load the leaderboard" / "Check your connection and try again." with "Try again" (`leaderboard-error`).
+- Pull to refresh reloads. Friends and Cabals show the People layout with the response they get until #6499 and #6514 land.
 
-The filter sheet "Leaderboard filters" holds "Sort by" (Return % / P&L amount / Name A–Z), "Membership" (All / Accepting requests / Open / Approval) and "Minimum members" (Any cabal size / 5+ members / 10+ members) for cabals, and "Show" (Everyone / People you follow) for people, with "Apply filters" and "Reset". Closing without Apply drops the draft. Live, Apply sends `sort` to both boards and `membership` and `min_members` to the cabals board, and "Show" sends `filter=friends`. The board then holds the matching rows in that order, ranked from 1.
-
-Missing APIs: rank movement against the previous snapshot, a cabal member count on a board row and the 3M range. The sample harness (`-MonacoLeaderboardSample <cabals|people|filtered|empty|loading|stale|error>`) drives all of it from fixtures.
+Harness: `-MonacoLeaderboardSample <peopleMonth|empty|loading|error>`.
 
 ## Cabal screen (`CabalRoute`)
 
