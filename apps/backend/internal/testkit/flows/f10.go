@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -113,6 +114,55 @@ func passedProposal(p openProposal) events.ProposalPassed {
 		Symbol: "AAPLx", Mint: chain.SolanaAddress(aaplxMint), USDCMicros: money.MicrosFromUint64(5_000_000),
 		QuoteOutAmount: 21_000_000,
 	}
+}
+
+func (defined) SeedsF10() map[string]Seeder {
+	return map[string]Seeder{
+		"F10CastVoteOK":                seedSignedInWith(arrangeVotable),
+		"F10CastVoteUnauthorized":      seedAnonymous,
+		"F10CastVoteProposalNotFound":  seedSignedIn,
+		"F10CastVoteNotAVoter":         seedSignedInWith(arrangeForeignProposal),
+		"F10CastVoteProposalClosed":    seedSignedInWith(arrangeClosedProposal),
+		"F10CastVoteCrashAfterPublish": seedSignedInWith(arrangeVotable),
+	}
+}
+
+func arrangeVotable(t testkit.SeedT, pool *pgxpool.Pool, user ids.UserID) map[string]string {
+	t.Helper()
+	return arrangeProposal(t, pool, testkit.WithCreator(user), testkit.WithMembers(3))
+}
+
+func arrangeForeignProposal(t testkit.SeedT, pool *pgxpool.Pool, _ ids.UserID) map[string]string {
+	t.Helper()
+	return arrangeProposal(t, pool, testkit.WithMembers(1))
+}
+
+func arrangeClosedProposal(t testkit.SeedT, pool *pgxpool.Pool, user ids.UserID) map[string]string {
+	t.Helper()
+	out := arrangeProposal(t, pool, testkit.WithCreator(user), testkit.WithMembers(1))
+	if _, err := pool.Exec(t.Context(), `UPDATE proposals SET status = 'failed', closed_at = now() WHERE id = $1`,
+		out["proposal"]); err != nil {
+		t.Fatalf("flows: close the proposal: %v", err)
+	}
+	return out
+}
+
+func arrangeProposal(t testkit.SeedT, pool *pgxpool.Pool, opts ...testkit.CabalOption) map[string]string {
+	t.Helper()
+	c := testkit.NewCabal(t, pool, opts...)
+	id, now := ids.Real{}.NewV7(), time.Now().UTC()
+	params := sqlc.InsertProposalParams{
+		ID: id, CabalID: c.ID.UUID(), ProposerID: c.Creator.ID.UUID(), Kind: "buy", Symbol: "AAPLx",
+		Mint: aaplxMint, UsdcMicros: pgtype.Int8{Int64: 5_000_000, Valid: true},
+		QuoteOutAmount: 21_000_000, ExpiresAt: now.Add(24 * time.Hour), CreatedAt: now, Threshold: "majority",
+	}
+	for _, m := range c.Members {
+		params.VoterIds = append(params.VoterIds, m.ID.UUID())
+	}
+	if _, err := sqlc.New(pool).InsertProposal(t.Context(), params); err != nil {
+		t.Fatalf("flows: insert proposal: %v", err)
+	}
+	return map[string]string{"proposal": id.String(), "cabal": c.ID.String()}
 }
 
 func F10CastVoteOK(s *scenario.Scenario) {

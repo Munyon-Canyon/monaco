@@ -227,3 +227,16 @@ func F21CreateCommentCrashBeforeCommit(s *scenario.Scenario) {
 			scenario.EventuallyPublished(events.TypeCommentCreated, 1),
 		)
 }
+
+func (defined) SeedsF21() map[string]Seeder {
+	return map[string]Seeder{
+		"F21CreateCommentOK":                    seedSignedIn,
+		"F21CreateCommentInvalidInput":          seedSignedIn,
+		"F21CreateCommentFeedItemNotFound":      seedSignedIn,
+		"F21CreateCommentCommentParentMismatch": seedSignedIn,
+		"F21CreateCommentCommentMembersOnly":    seedSignedIn,
+		"F21CreateCommentUnauthorized":          seedAnonymous,
+		"F21CreateCommentRateLimited":           seedSignedIn,
+		"F21CreateCommentCrashBeforeCommit":     seedSignedIn,
+	}
+}

@@ -1,10 +1,15 @@
 package flows
 
 import (
+	"context"
 	"net/http"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
@@ -57,6 +62,70 @@ func banned() scenario.Step {
 
 func refused(code errs.Code, typ events.Type, n int) []scenario.Step {
 	return []scenario.Step{scenario.ExpectProblem(code), scenario.ExpectEvents(typ, n), cabalHolds()}
+}
+
+func (defined) SeedsF03() map[string]Seeder {
+	return map[string]Seeder{
+		"F03JoinCabalOK":                         seedF03Outsider("open", nil),
+		"F03JoinCabalUnauthorized":               seedAnonymous,
+		"F03JoinCabalCabalNotFound":              seedF03Missing,
+		"F03JoinCabalCabalBanned":                seedF03Outsider("open", bannedCabal),
+		"F03JoinCabalAlreadyMember":              seedF03Member("open", nil),
+		"F03JoinCabalJoinNeedsRequest":           seedF03Outsider("request", nil),
+		"F03RequestAccessOK":                     seedF03Outsider("request", nil),
+		"F03RequestAccessUnauthorized":           seedAnonymous,
+		"F03RequestAccessCabalNotFound":          seedF03Missing,
+		"F03RequestAccessCabalBanned":            seedF03Outsider("request", bannedCabal),
+		"F03RequestAccessAlreadyMember":          seedF03Member("request", nil),
+		"F03RequestAccessRequestNotNeeded":       seedF03Outsider("open", nil),
+		"F03RequestAccessRequestPending":         seedF03Outsider("request", nil),
+		"F03DecideAccessOK":                      seedF03Member("request", nil),
+		"F03DecideAccessInvalidInput":            seedF03Member("request", nil),
+		"F03DecideAccessUnauthorized":            seedAnonymous,
+		"F03DecideAccessCabalNotFound":           seedF03Missing,
+		"F03DecideAccessNotCabalAdmin":           seedF03Outsider("request", nil),
+		"F03DecideAccessAccessRequestNotPending": seedF03Member("request", nil),
+		"F03DecideAccessCabalBanned":             seedF03Member("request", bannedCabal),
+		"F03RevokeAccessOK":                      seedF03Member("request", nil),
+		"F03RevokeAccessUnauthorized":            seedAnonymous,
+		"F03RevokeAccessCabalNotFound":           seedF03Missing,
+		"F03RevokeAccessAccessRequestNotPending": seedF03Member("request", nil),
+		"F03RevokeAccessCannotRevokeAccess":      seedF03Member("request", nil),
+		"F03InviteMemberOK":                      seedF03Member("request", nil),
+		"F03InviteMemberUnauthorized":            seedAnonymous,
+		"F03InviteMemberCabalNotFound":           seedF03Missing,
+		"F03InviteMemberUserNotFound":            seedF03Member("request", nil),
+		"F03InviteMemberNotCabalMember":          seedF03Outsider("request", nil),
+		"F03InviteMemberNotCabalAdmin":           seedF03Outsider("request", nil),
+		"F03InviteMemberCabalBanned":             seedF03Member("request", bannedCabal),
+		"F03InviteMemberAlreadyMember":           seedF03Member("request", nil),
+		"F03InviteMemberRequestPending":          seedF03Member("request", nil),
+		"F03DecideAccessInviteExpired":           seedF03Member("request", nil),
+	}
+}
+
+func seedF03Missing(ctx context.Context, env SeedEnv) (SeedResult, error) {
+	return seedSignedIn(ctx, env)
+}
+
+func seedF03Outsider(join string, arrange func(t testkit.SeedT, pool *pgxpool.Pool, cabal ids.CabalID)) Seeder {
+	return seedSignedInWith(func(t testkit.SeedT, pool *pgxpool.Pool, _ ids.UserID) map[string]string {
+		cabal := testkit.NewCabal(t, pool, testkit.WithJoinMode(join))
+		if arrange != nil {
+			arrange(t, pool, cabal.ID)
+		}
+		return map[string]string{"cabal": cabal.ID.String()}
+	})
+}
+
+func seedF03Member(join string, arrange func(t testkit.SeedT, pool *pgxpool.Pool, cabal ids.CabalID)) Seeder {
+	return seedSignedInWith(func(t testkit.SeedT, pool *pgxpool.Pool, member ids.UserID) map[string]string {
+		cabal := testkit.NewCabal(t, pool, testkit.WithCreator(member), testkit.WithJoinMode(join))
+		if arrange != nil {
+			arrange(t, pool, cabal.ID)
+		}
+		return map[string]string{"cabal": cabal.ID.String()}
+	})
 }
 
 func F03JoinCabalOK(s *scenario.Scenario) {
