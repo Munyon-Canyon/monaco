@@ -43,7 +43,7 @@ func (h *DeleteCommentHandler) Handle(ctx context.Context, cmd DeleteComment) er
 			return errs.New(errs.CodeCommentNotFound, op, slog.String("comment_id", cmd.CommentID.String()))
 		case err != nil:
 			return errs.Wrap(err, errs.CodeInternal, op)
-		case row.AuthorID != cmd.Caller.UUID():
+		case row.AuthorID.Bytes != cmd.Caller.UUID():
 			return errs.New(errs.CodeCommentNotAuthor, op)
 		case row.Deleted:
 			return nil

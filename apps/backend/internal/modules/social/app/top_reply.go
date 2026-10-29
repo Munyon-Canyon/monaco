@@ -43,7 +43,7 @@ func FindTopReply(
 	top := found[row.CommentID].Reactions[0]
 	body := domain.CommentBody(row.Body.String)
 	return TopReply{
-		CommentID: row.CommentID, ProposalID: row.ProposalID, AuthorID: ids.UserIDFrom(row.AuthorID),
+		CommentID: row.CommentID, ProposalID: row.ProposalID, AuthorID: ids.UserIDFrom(row.AuthorID.Bytes),
 		Excerpt: body.Excerpt(), ReactionCount: int(row.ReactionCount), TopEmoji: top.Emoji.String(),
 		TopEmojiCount: int(top.Count),
 	}, true, nil

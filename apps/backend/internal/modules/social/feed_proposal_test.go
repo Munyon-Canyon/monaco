@@ -452,6 +452,7 @@ func TestSeed_feedTwoCabalsHoldsAnOpenAndAnExecutedProposal(t *testing.T) {
 	m := social.New(
 		module.Deps{Pool: f.pool, Bus: testkit.NATS(t).Conn, Clock: f.clock, IDs: f.gen},
 		social.WithUsers(users), social.WithAssets(marketfake.NewCatalog(marketfake.AAPLx())),
+		social.WithHoldings(social.PositionHoldings{Positions: fakes.NewTreasury(), Swaps: fakes.NewTreasury()}),
 		social.WithTallies(&fakeTallies{votes: map[ids.ProposalID]app.Tally{
 			ids.ProposalIDFrom(seedProposal): {
 				Yes:    2,

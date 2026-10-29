@@ -20,6 +20,29 @@ final class CommentThreadTests: XCTestCase {
         XCTAssertEqual(rows.map(\.isReply), [false, true, true, false])
     }
 
+    func testMonacosOutcomeRowsLeadTheirThreadsAsTheSystemAuthor() {
+        let threads = [Thread.nvdaPassedMonacoReply, Thread.tslaFailedMonacoReply]
+
+        let rows = CommentThreadRow.rows(from: threads)
+
+        XCTAssertEqual(rows.map(\.id), ["nvda-monaco", "tsla-monaco"])
+        XCTAssertEqual(threads.map(\.comment.author.kind), [.system, .system])
+        XCTAssertEqual(threads.map(\.comment.author.displayName), ["Monaco", "Monaco"])
+        XCTAssertEqual(
+            threads.map(\.comment.body),
+            ["Passed and filled. 38 → 39.82 sh NVDA in the treasury.", "Closed without passing. Nothing was sold."])
+    }
+
+    func testTheSampleThreadsFlattenIntoOneRowPerComment() {
+        let sets = [Thread.samples, Thread.loganAAPLThread, Thread.nvdaThread, Thread.pilatesThread]
+
+        for threads in sets {
+            let rows = CommentThreadRow.rows(from: threads)
+            XCTAssertEqual(rows.count, threads.reduce(0) { $0 + 1 + $1.replies.count })
+            XCTAssertEqual(Set(rows.map(\.id)).count, rows.count)
+        }
+    }
+
     func testAReplyToAReplyStaysOneLevelDeepAndNamesWhoItAnswers() {
         let threads = [
             Thread(

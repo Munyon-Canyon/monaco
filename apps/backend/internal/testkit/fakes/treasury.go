@@ -22,6 +22,7 @@ type Treasury struct {
 	testkit.Faults
 	mu               sync.Mutex
 	positions        map[ids.CabalID][]treasury.Position
+	unposted         map[uuid.UUID]bool
 	potValues        map[ids.CabalID]money.Micros
 	totalShares      map[ids.CabalID]money.SharesUnits
 	stakes           []treasury.Stake
@@ -56,6 +57,7 @@ func NewTreasury() *Treasury {
 		positions:     map[ids.CabalID][]treasury.Position{},
 		potValues:     map[ids.CabalID]money.Micros{},
 		openFunds:     map[[2]uuid.UUID]bool{},
+		unposted:      map[uuid.UUID]bool{},
 		totalShares:   map[ids.CabalID]money.SharesUnits{},
 		contributions: map[ids.CabalID][]port.ContributionPoint{},
 		stakeHistory:  map[ids.UserID][]port.StakePoint{},
@@ -155,6 +157,21 @@ func (f *Treasury) SolanaPositions(_ context.Context, cabalID ids.CabalID) ([]tr
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return slices.Clone(f.positions[cabalID]), nil
+}
+
+func (f *Treasury) SetSwapUnposted(swapID uuid.UUID) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.unposted[swapID] = true
+}
+
+func (f *Treasury) SwapPosted(_ context.Context, swapID uuid.UUID) (bool, error) {
+	if err := f.Check("SwapPosted"); err != nil {
+		return false, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return !f.unposted[swapID], nil
 }
 
 func (f *Treasury) PotValue(_ context.Context, cabalID ids.CabalID) (money.Micros, error) {

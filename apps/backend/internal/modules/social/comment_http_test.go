@@ -72,7 +72,11 @@ func TestPostFeedComment_returnsTheCommentWithItsAuthor(t *testing.T) {
 	body := "first"
 	want := api.Comment{
 		Id: top.Id, Author: api.CommentAuthor{
-			Id: kai.UUID(), Handle: ptr("kai"), DisplayName: "Kai", PhotoUrl: ptr("https://cdn.example.com/kai.jpg"),
+			Kind:        api.CommentAuthorKindUser,
+			Id:          kai.UUID(),
+			Handle:      ptr("kai"),
+			DisplayName: "Kai",
+			PhotoUrl:    ptr("https://cdn.example.com/kai.jpg"),
 		},
 		Body: &body, BodyDisplay: "first", IsMine: true, CreatedAt: f.clock.Now(), Reactions: []baseapi.Reaction{},
 	}
@@ -179,8 +183,9 @@ func TestPostFeedComment_aDeletedAuthorShowsOnlyTheId(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := (api.CommentAuthor{Id: gone.UUID()}); got.Author != want {
-		t.Fatalf("author = %+v, want %+v", got.Author, want)
+	if a := got.Author; a.Kind != api.CommentAuthorKindUser || a.Id != gone.UUID() ||
+		a.Handle != nil || a.DisplayName != "" {
+		t.Fatalf("author = %+v, want only the user kind and id", a)
 	}
 }
 
@@ -235,7 +240,7 @@ func TestGetFeedComments_rendersADeletedCommentInPlaceAndMarksOwnComments(t *tes
 	}
 	gotTop, gotReply := page.Items[0].Comment, page.Items[0].Replies[0]
 	if gotTop.Body != nil || gotTop.BodyDisplay != "Comment deleted" || gotTop.IsMine ||
-		gotTop.Author.Id != f.outsider.UUID() {
+		!authorIs(gotTop.Author, f.outsider) {
 		t.Errorf("deleted top-level comment = %+v", gotTop)
 	}
 	if gotReply.Id != reply.Id || gotReply.Body == nil || *gotReply.Body != "reply" || !gotReply.IsMine {
@@ -362,4 +367,8 @@ func TestComments_hintTheFeedThroughTheBusAfterACreateAndADelete(t *testing.T) {
 	if got := seen.seen(); !slices.Equal(got, []string{"global.feed", "global.feed"}) {
 		t.Fatalf("hints = %v, want two global.feed", got)
 	}
+}
+
+func authorIs(a api.CommentAuthor, id ids.UserID) bool {
+	return a.Id == id.UUID()
 }

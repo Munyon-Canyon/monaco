@@ -98,6 +98,9 @@ func (h *CreateReportHandler) requireTarget(
 		if err != nil {
 			return lookupFailure(err, kind)
 		}
+		if err := refuseSystemReply(row.AuthorKind, op, target); err != nil {
+			return err
+		}
 		if feed.Kind(row.Kind) != feed.KindProposal {
 			return nil
 		}

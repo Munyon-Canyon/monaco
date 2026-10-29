@@ -37,7 +37,7 @@ func (p CommentPreviews) CommentPreviews(
 	}
 	authors := make([]ids.UserID, 0, len(rows))
 	for _, row := range rows {
-		author := ids.UserIDFrom(row.AuthorID)
+		author := ids.UserIDFrom(row.AuthorID.Bytes)
 		if !slices.Contains(authors, author) {
 			authors = append(authors, author)
 		}
@@ -70,7 +70,7 @@ func (p CommentPreviews) CommentPreviews(
 }
 
 func previewOf(row sqlc.CommentPreviewsRow, cards map[ids.UserID]UserCard) port.CommentPreview {
-	author := ids.UserIDFrom(row.AuthorID)
+	author := ids.UserIDFrom(row.AuthorID.Bytes)
 	card := cards[author]
 	preview := port.CommentPreview{
 		FeedItemID: row.FeedObjectID, CommentID: row.ID, RootCommentID: row.RootCommentID,

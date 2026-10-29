@@ -288,7 +288,7 @@ type TopReplyBetweenParams struct {
 type TopReplyBetweenRow struct {
 	CommentID     uuid.UUID
 	ProposalID    uuid.UUID
-	AuthorID      uuid.UUID
+	AuthorID      pgtype.UUID
 	Body          pgtype.Text
 	ReactionCount int32
 }

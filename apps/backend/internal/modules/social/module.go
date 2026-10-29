@@ -22,6 +22,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
@@ -43,6 +44,7 @@ type Module struct {
 	logos    app.AssetLogos
 	pictures app.CabalPictures
 	treasury app.Treasury
+	holdings app.Holdings
 	activity app.MemberActivity
 	tops     app.ClosedTops
 	catalog  market.Catalog
@@ -70,6 +72,10 @@ func WithCabals(cabals app.Cabals) Option {
 
 func WithCabalPictures(pictures app.CabalPictures) Option {
 	return func(m *Module) { m.pictures = pictures }
+}
+
+func WithHoldings(holdings app.Holdings) Option {
+	return func(m *Module) { m.holdings = holdings }
 }
 
 func WithTreasury(treasury app.Treasury) Option {
@@ -200,6 +206,9 @@ func New(d module.Deps, opts ...Option) *Module {
 	}
 	if m.treasury == nil {
 		m.treasury = treasury.New(d).Queries()
+	}
+	if m.holdings == nil {
+		m.holdings = PositionHoldings{Positions: treasury.New(d).Queries(), Swaps: treasury.New(d).Swaps()}
 	}
 	m.useDefaultRealtime()
 	queries := cabal.New(d).Queries()
@@ -359,6 +368,9 @@ func (m *Module) Consumers() []bus.Consumer {
 		Bus: m.deps.Bus, Users: m.users, Cabals: m.cabals, Assets: m.assets, Treasury: m.treasury,
 		Tallies: m.tallies, IDs: m.deps.IDs, UoW: m.deps.UoW,
 	}
+	thread := adapters.Thread{
+		Hints: m.deps.Bus, Assets: m.assets, Holdings: m.holdings, Tallies: m.tallies,
+	}
 	referrals := adapters.ReferralFollows{Users: m.users, IDs: m.deps.IDs}
 	revoke := adapters.RealtimeRevoke{Realtime: m.realtime}
 	leftSettled := adapters.Settled[events.CabalMemberLeft]
@@ -387,6 +399,15 @@ func (m *Module) Consumers() []bus.Consumer {
 				bus.HandleFetched("social.feed.trade_confirmed", feed.FetchTrade, feed.ApplyTrade),
 				bus.Handle("social.feed.price_moved", feed.PriceMoved),
 				bus.Handle("social.feed.cabal_banned", feed.CabalBanned),
+			},
+		},
+		{
+			Durable: "social_thread",
+			Handlers: []bus.HandlerSpec{
+				bus.HandleFetched("social.thread.trade_confirmed", thread.FetchConfirmed, thread.ApplyConfirmed),
+				bus.HandleFetched("social.thread.proposal_failed", thread.FetchClosed, thread.ApplyFailed),
+				bus.HandleFetched("social.thread.proposal_expired", thread.FetchExpired, thread.ApplyExpired),
+				bus.Handle("social.thread.trade_failed", thread.TradeFailed),
 			},
 		},
 		{
@@ -464,4 +485,34 @@ func (c chartTrades) TradeMarks(
 		out[app.ChartPair{CabalID: pair.CabalID, Symbol: pair.Symbol}] = trades
 	}
 	return out, nil
+}
+
+type PositionReader interface {
+	SolanaPositions(ctx context.Context, cabalID ids.CabalID) ([]treasuryport.Position, error)
+}
+
+type SwapReader interface {
+	SwapPosted(ctx context.Context, swapID uuid.UUID) (bool, error)
+}
+
+type PositionHoldings struct {
+	Positions PositionReader
+	Swaps     SwapReader
+}
+
+func (p PositionHoldings) Posted(ctx context.Context, swapID uuid.UUID) (bool, error) {
+	return p.Swaps.SwapPosted(ctx, swapID)
+}
+
+func (p PositionHoldings) Holding(ctx context.Context, cabalID ids.CabalID, mint chain.SolanaAddress) (uint64, error) {
+	positions, err := p.Positions.SolanaPositions(ctx, cabalID)
+	if err != nil {
+		return 0, err
+	}
+	for _, position := range positions {
+		if position.Mint == mint {
+			return position.Units.Uint64(), nil
+		}
+	}
+	return 0, nil
 }

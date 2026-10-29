@@ -341,6 +341,10 @@ func (m *Module) transfers() (*relayer.Transfers, error) {
 	return relayer.NewTransfers(r, signer), nil
 }
 
+func (m *Module) Swaps() *adapters.Queries {
+	return m.reads()
+}
+
 func (m *Module) Queries() port.Queries {
 	return m.reads()
 }
