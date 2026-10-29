@@ -65,7 +65,9 @@ struct CabalActionsRetryTests {
     }
 
     private static func reply(_ cabal: Components.Schemas.Cabal) throws -> StubTransport.Reply {
-        .response(status: .ok, contentType: "application/json", body: try JSONEncoder().encode(cabal))
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return .response(status: .ok, contentType: "application/json", body: try encoder.encode(cabal))
     }
 
     private static func window(hosting view: RetryHost) throws -> UIWindow {
