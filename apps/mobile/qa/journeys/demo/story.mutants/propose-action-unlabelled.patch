@@ -4,15 +4,14 @@ expect-fail: S4
 The Propose button loses cabal-action-propose. S4.1 taps it, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
 --- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
-@@ -133,7 +133,7 @@
-             CabalCopy.fundTerm, MonacoIcon.deposit.symbol, id: "cabal-action-fund", FundRoute(cabalID: cabalID))
-         let propose = CircleAction("Propose", systemImage: MonacoIcon.propose.symbol) { showsProposeChooser = true }
-             .frame(maxWidth: .infinity)
--            .accessibilityIdentifier("cabal-action-propose")
-+            .accessibilityIdentifier("cabal-action-suggest")
-             .disabled(!canPropose)
-             .proposeChooser(isPresented: $showsProposeChooser, cabalID: cabalID)
-         let cashOut = action(
+@@ -145,7 +145,7 @@
+                     Label("Propose", systemImage: MonacoIcon.propose.symbol)
+                 }
+                 .buttonStyle(.monacoSecondary)
+-                .accessibilityIdentifier("cabal-action-propose")
++                .accessibilityIdentifier("cabal-action-suggest")
+                 .proposeChooser(isPresented: $showsProposeChooser, cabalID: cabalID)
+             }
+         }

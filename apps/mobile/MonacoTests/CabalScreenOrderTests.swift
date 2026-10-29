@@ -12,7 +12,7 @@ struct CabalScreenOrderTests {
     private static let cabalPath = "/v1/cabals/cabal-1"
     private static let potPath = "/v1/cabals/cabal-1/pot"
     private static let myCabalsPath = "/v1/me/cabals"
-    private static let actionIDs = ["cabal-action-fund", "cabal-action-propose", "cabal-action-cash-out"]
+    private static let actionIDs = ["cabal-action-fund", "cabal-action-propose"]
 
     enum Variant: String, CaseIterable, Sendable, CustomTestStringConvertible {
         case member
@@ -37,17 +37,23 @@ struct CabalScreenOrderTests {
         }
     }
 
-    @Test func theActionsAndTheVoteComeBeforeTheChart() throws {
+    @Test func theHeaderComesFirstThenTheTreasuryTheStatsTheActionsAndTheOpenVotes() throws {
         let names = CabalScreen.sections.map { String(describing: $0) }
-        let position = { (name: String) in names.firstIndex(of: name) }
-        let firstFive = Array(names.prefix(5))
         #expect(
-            firstFive == [
-                "CabalHeaderSlot", "CabalClosedSlot", "CabalPotSlot", "CabalActionsSlot", "CabalProposalsSlot",
+            Array(names.prefix(8)) == [
+                "CabalHeaderSlot", "CabalClosedSlot", "CabalPauseSlot", "CabalJoinSlot", "CabalPotSlot",
+                "CabalSliceSlot", "CabalActionsSlot", "CabalProposalsSlot",
             ])
-        let chart = try #require(position("CabalValueChartSlot"))
-        #expect(try #require(position("CabalActionsSlot")) < chart)
-        #expect(try #require(position("CabalProposalsSlot")) < chart)
+        let chart = try #require(names.firstIndex(of: "CabalValueChartSlot"))
+        #expect(try #require(names.firstIndex(of: "CabalProposalsSlot")) < chart)
+    }
+
+    @Test func theInlineTitleShowsOnceTheNameScrollsUnderTheBar() {
+        #expect(!CabalHeaderTitle.isShown(nameBottom: nil, barBottom: 103))
+        #expect(!CabalHeaderTitle.isShown(nameBottom: 240, barBottom: 103))
+        #expect(!CabalHeaderTitle.isShown(nameBottom: 103.5, barBottom: 103))
+        #expect(CabalHeaderTitle.isShown(nameBottom: 103, barBottom: 103))
+        #expect(CabalHeaderTitle.isShown(nameBottom: -40, barBottom: 103))
     }
 
     @Test(.timeLimit(.minutes(1)), arguments: Variant.allCases)
@@ -66,7 +72,7 @@ struct CabalScreenOrderTests {
             hosting: CabalScreen(cabalID: "cabal-1", sections: sections), over: transport)
         defer { TestWindow.close(window) }
 
-        let ready = (variant == .closed) ? "cabal-closed-row" : "cabal-action-cash-out"
+        let ready = (variant == .closed) ? "cabal-closed-row" : "cabal-action-propose"
         await ProposalTestWindow.until { AccessibilityTree.identifiers(in: window).contains(ready) }
         await ProposalTestWindow.until { AccessibilityTree.identifiers(in: window).contains("cabal-pot-value") }
         for _ in 0..<500 { await Task.yield() }

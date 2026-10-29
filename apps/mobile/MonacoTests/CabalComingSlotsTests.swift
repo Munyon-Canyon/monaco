@@ -12,11 +12,12 @@ struct CabalComingSlotsTests {
         #expect(slots.allSatisfy { $0.isLive })
     }
 
-    @Test func cabalScreenOrderIsUnchanged() {
+    @Test func cabalScreenOrderPutsTheHeaderFirst() {
         #expect(
             CabalScreen.sections.map { String(describing: $0) } == [
-                "CabalHeaderSlot", "CabalClosedSlot", "CabalPotSlot", "CabalActionsSlot", "CabalProposalsSlot",
-                "CabalValueChartSlot", "CabalSliceSlot", "CabalPauseSlot", "CabalJoinSlot", "CabalChatPreviewSlot",
+                "CabalHeaderSlot", "CabalClosedSlot", "CabalPauseSlot", "CabalJoinSlot", "CabalPotSlot",
+                "CabalSliceSlot",
+                "CabalActionsSlot", "CabalProposalsSlot", "CabalValueChartSlot", "CabalChatPreviewSlot",
                 "CabalHoldingsSlot", "CabalMemberBoardSlot", "CabalActivitySlot", "CabalRulesRowSlot",
             ])
     }

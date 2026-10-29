@@ -14,17 +14,10 @@ struct CabalProposals: View {
     let cabalID: String
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
-    @Environment(\.cabalModel) private var cabalModel
-    @Environment(\.cabalPotModel) private var potModel
     @Environment(\.hostMainTab) private var hostMainTab
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @State private var model: ProposalListModel?
-    @State private var pause: ProposalPauseModel?
-    @State private var voting: ProposalVoteModel?
-    @State private var context: ProposalCardContext?
-    @State private var expanded = false
-    @State private var showsProposeChooser = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var assets = CabalProposalAssets()
     private let makeModel: @MainActor (AppEnvironment, String) -> ProposalListModel
 
     init(
@@ -36,194 +29,65 @@ struct CabalProposals: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            if let model {
+        VStack(spacing: 0) { content }
+            .padding(.top, -(SectionStackMetrics.spacing - MonacoTheme.Space.l))
+            .task {
+                let model = preparedModel()
+                refresh?.register("cabal-proposals") { await model.refresh() }
+                await model.load()
+            }
+            .task(id: Self.open(model?.pager.items ?? []).map(\.symbol)) { await loadAssets() }
+            .task { await preparedModel().observe(cabalID: cabalID) }
+            .onScreenVisibilityChange { model?.setVisible($0) }
+    }
+
+    @ViewBuilder private var content: some View {
+        if let model {
+            let open = Self.open(model.pager.items)
+            if open.isEmpty {
                 switch model.pager.phase {
-                case .loadingFirst where model.pager.items.isEmpty:
-                    ProposalCardSkeleton()
-                        .padding(.horizontal, MonacoTheme.Space.gutter)
-                case .failed where model.pager.items.isEmpty:
-                    MonacoErrorRow(
-                        thing: "proposals", identifier: "cabal-votes-error", inset: false, style: .card
-                    ) { Task { await model.load() } }
+                case .loadingFirst:
+                    MonacoRowSkeleton(rows: 1)
+                case .failed:
+                    MonacoErrorRow(thing: "proposals", identifier: "cabal-votes-error", inset: false) {
+                        Task { await model.load() }
+                    }
                     .padding(.horizontal, MonacoTheme.Space.gutter)
                 default:
-                    if !model.pager.items.isEmpty, context?.hasLoaded != true {
-                        ProposalCardSkeleton()
-                            .padding(.horizontal, MonacoTheme.Space.gutter)
-                    } else {
-                        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                            content(model)
-                        }
-                        .padding(.horizontal, MonacoTheme.Space.gutter)
-                    }
+                    Color.clear.frame(height: 0)
                 }
-            }
-        }
-        .task {
-            let model = preparedModel()
-            refresh?.register("cabal-proposals") { await model.refresh() }
-            await model.load()
-        }
-        .task(id: model?.pager.items.map(\.id)) { await context?.load(for: model?.pager.items ?? []) }
-        .task { await preparedModel().observe(cabalID: cabalID) }
-        .task {
-            let pause = preparedPause()
-            await pause.load()
-            await pause.observe()
-        }
-        .onScreenVisibilityChange {
-            model?.setVisible($0)
-            pause?.setVisible($0)
-        }
-    }
-
-    @ViewBuilder private func content(_ model: ProposalListModel) -> some View {
-        let votedThisSession = voting?.votedIDs ?? []
-        let section = model.cabalSection(votedThisSession: votedThisSession)
-        let inProgress = model.trading
-        let recent = model.recentOutcomes(now: .now)
-        if section == nil && inProgress.isEmpty && recent.isEmpty {
-            if hasNoPositions {
-                Color.clear.frame(height: 0)
             } else {
-                MonacoSectionHeader(
-                    "Proposals", trailing: model.pager.items.isEmpty ? nil : "See all", action: openAll)
-                emptyLine
-            }
-        } else {
-            let split = Self.split(section?.proposals ?? [])
-            let hidden = split.rest.count + inProgress.count + recent.count
-            MonacoSectionHeader("Proposals", count: section?.count, trailing: "See all", action: openAll)
-            Text(
-                Self.summary(
-                    needsVote: section?.count ?? 0, open: section?.proposals.count ?? 0,
-                    inProgress: inProgress.count, closed: recent.count)
-            )
-            .font(MonacoTheme.Typo.caption)
-            .foregroundStyle(MonacoTheme.secondaryText)
-            .lineLimit(1)
-            .accessibilityIdentifier("cabal-proposals-context")
-            if let section {
-                self.section(section.title == "Proposals" ? nil : section.title, split.preview, model: model)
-            }
-            if hidden > 0 {
-                disclosure(hidden: hidden)
-                if expanded {
-                    self.section(nil, split.rest, model: model)
-                    if !inProgress.isEmpty {
-                        self.section("In progress", inProgress, model: model)
-                    }
-                    if !recent.isEmpty {
-                        self.section("Recently closed", recent, model: model)
+                VStack(spacing: 0) {
+                    ForEach(Array(open.enumerated()), id: \.element.id) { index, proposal in
+                        CabalOpenProposalRow(
+                            proposal: proposal, asset: assets.byTicker[proposal.symbol],
+                            isLast: index == open.count - 1, open: { openProposal(proposal) })
                     }
                 }
             }
         }
     }
 
-    private var hasNoPositions: Bool {
-        guard let state = potModel?.summary?.state else { return false }
-        return state != .invested
+    static func open(_ proposals: [ProposalSummary]) -> [ProposalSummary] {
+        proposals.filter { $0.status == .open }.sorted { $0.createdAt > $1.createdAt }
     }
 
-    @ViewBuilder private var emptyLine: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-            MonacoQuietEmpty(CabalCopy.noProposalsLine, systemImage: "checkmark.circle")
-            Text(CabalCopy.proposalHistoryHelper)
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.secondaryText)
-            if cabalModel?.cabal?.me?.canVote == true {
-                Button("Propose the first buy.") { showsProposeChooser = true }
-                    .buttonStyle(.monacoText)
-                    .accessibilityIdentifier("cabal-proposals-propose-first")
-                    .proposeChooser(isPresented: $showsProposeChooser, cabalID: cabalID)
-            }
-        }
-        .accessibilityIdentifier("cabal-proposals-empty")
-    }
-
-    private func disclosure(hidden: Int) -> some View {
-        Button {
-            withAnimation(reduceMotion ? nil : .snappy) { expanded.toggle() }
-        } label: {
-            HStack(spacing: MonacoTheme.Space.s) {
-                Text(expanded ? "Show less" : "Show \(hidden) more")
-                Image(systemName: "chevron.down")
-                    .rotationEffect(.degrees(expanded ? 180 : 0))
-                    .accessibilityHidden(true)
-                Spacer(minLength: 0)
-            }
-            .font(MonacoTheme.Typo.captionStrong)
-            .foregroundStyle(MonacoTheme.brand)
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("cabal-proposals-disclosure")
-        .accessibilityValue(expanded ? "Expanded" : "Collapsed")
-        .accessibilityHint("Shows more proposals")
-    }
-
-    static let previewLimit = 2
-
-    static func split(_ open: [ProposalSummary]) -> (preview: [ProposalSummary], rest: [ProposalSummary]) {
-        (Array(open.prefix(previewLimit)), Array(open.dropFirst(previewLimit)))
-    }
-
-    static func summary(needsVote: Int, open: Int, inProgress: Int, closed: Int) -> String {
-        var parts: [String] = []
-        if needsVote > 0 {
-            parts.append("\(needsVote) to vote on")
-        } else if open > 0 {
-            parts.append("\(open) open")
-        }
-        if inProgress > 0 { parts.append("\(inProgress) trading") }
-        if closed > 0 { parts.append("\(closed) closed recently") }
-        return parts.joined(separator: " · ")
-    }
-
-    @ViewBuilder private func section(_ label: String?, _ proposals: [ProposalSummary], model: ProposalListModel)
-        -> some View
-    {
-        if let label {
-            Text(label)
-                .font(MonacoTheme.Typo.captionStrong)
-                .foregroundStyle(MonacoTheme.secondaryText)
-                .padding(.top, MonacoTheme.Space.s)
-                .accessibilityAddTraits(.isHeader)
-        }
-        ForEach(proposals) { proposal in
-            if let voting {
-                ProposalVoteCard(
-                    proposal: proposal, voting: voting, asset: context?.assets[proposal.symbol],
-                    members: context?.members ?? [], paused: pause?.isPaused == true,
-                    onVoted: { await model.refresh() })
-            }
-        }
-    }
-
-    private func openAll() {
+    private func openProposal(_ proposal: ProposalSummary) {
         environment.navigator.open(
-            CabalProposalListRoute(cabalID: cabalID), in: hostMainTab ?? environment.navigator.selectedTab)
+            ProposalRoute(proposalID: proposal.id), in: hostMainTab ?? environment.navigator.selectedTab)
     }
 
-    private func preparedPause() -> ProposalPauseModel {
-        if let pause { return pause }
-        let created = ProposalPauseModel(
-            cabalID: cabalID, repository: ProposalsRepository(api: environment.api), hints: environment.hints)
-        pause = created
-        return created
+    private func loadAssets() async {
+        await assets.load(
+            symbols: Self.open(model?.pager.items ?? []).map(\.symbol),
+            repository: ProposalsRepository(api: environment.api))
     }
 
     private func preparedModel() -> ProposalListModel {
         if let model { return model }
-        voting = ProposalVoteModel(repository: ProposalsRepository(api: environment.api))
-        context = ProposalCardContext(cabalID: cabalID, repository: ProposalsRepository(api: environment.api))
         let created = makeModel(environment, cabalID)
-        created.onOutcome = { [weak context, toasts] outcome in
-            let asset = context?.assets[outcome.proposal.symbol]
-            let message = outcome.toast(asset: asset)
+        created.onOutcome = { [assets, toasts] outcome in
+            let message = outcome.toast(asset: assets.byTicker[outcome.proposal.symbol])
             if outcome.proposal.status == .executed {
                 toasts.show(success: message)
             } else {
@@ -241,100 +105,66 @@ struct CabalProposals: View {
     }
 }
 
-private nonisolated struct CabalProposalListRoute: Hashable, AppRoute {
-    let cabalID: String
-    @MainActor func destination() -> some View { CabalAllProposals(cabalID: cabalID) }
-}
-
-private struct CabalAllProposals: View {
-    let cabalID: String
-    @Environment(AppEnvironment.self) private var environment
-    @State private var segments: ProposalSegmentsModel?
-    @State private var voting: ProposalVoteModel?
-    @State private var context: ProposalCardContext?
+struct CabalOpenProposalRow: View {
+    let proposal: ProposalSummary
+    let asset: ProposalAsset?
+    var isLast = false
+    let open: () -> Void
 
     var body: some View {
-        VStack(spacing: MonacoTheme.Space.s) {
-            if let segments, let voting, let context {
-                MonacoSegmented(ProposalSegment.allCases, selection: Bindable(segments).selected) { $0.title }
-                    .padding(.horizontal, MonacoTheme.Space.gutter)
-                CabalProposalSegmentList(
-                    segment: segments.selected, model: segments.model(for: segments.selected), voting: voting,
-                    context: context, cabalID: cabalID, onVoted: { await segments.refreshLoaded() }
-                )
-                .id(segments.selected)
-            }
+        Button(action: open) {
+            MonacoRow(
+                title: Self.title(proposal, asset: asset), subtitle: Self.statusLine(proposal), isLast: isLast,
+                isPrivate: true,
+                leading: {
+                    StockMark(
+                        symbol: proposal.symbol, displayName: asset?.displayName, assetKind: asset?.kind ?? .stock,
+                        size: MonacoRowLayout.baseMarkSize, logoURL: asset?.logoURL)
+                },
+                trailing: { CabalLiveCount(yes: proposal.tally.yes, no: proposal.tally.no) })
         }
-        .navigationTitle("Proposals")
-        .task { prepare() }
+        .buttonStyle(.monacoRow)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens the proposal")
+        .accessibilityIdentifier("cabal-open-proposal-\(proposal.id)")
     }
 
-    private func prepare() {
-        guard segments == nil else { return }
-        let repository = ProposalsRepository(api: environment.api)
-        segments = ProposalSegmentsModel(cabalID: cabalID, repository: repository, hints: environment.hints)
-        voting = ProposalVoteModel(repository: repository)
-        context = ProposalCardContext(cabalID: cabalID, repository: repository)
+    static func title(_ proposal: ProposalSummary, asset: ProposalAsset?) -> String {
+        let isSell = proposal.kind == "sell"
+        let amount =
+            isSell
+            ? ProposalCard.shareLabel(summary: proposal, asset: asset)
+            : proposal.usdcMicros.map(CabalHeaderCopy.compactDollars)
+        let ticker = AssetSymbolFormatter.display(proposal.symbol, kind: asset?.kind ?? .stock)
+        let name = "\(isSell ? "Sell" : "Buy") \(ticker)"
+        return [name, amount].compactMap { $0 }.joined(separator: " \u{00B7} ")
     }
-}
 
-private struct CabalProposalSegmentList: View {
-    let segment: ProposalSegment
-    let model: ProposalListModel
-    let voting: ProposalVoteModel
-    let context: ProposalCardContext
-    let cabalID: String
-    let onVoted: () async -> Void
-
-    var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                if model.pager.items.isEmpty {
-                    switch model.pager.phase {
-                    case .idle, .loadingFirst:
-                        ProposalCardSkeleton()
-                            .padding(.horizontal, MonacoTheme.Space.gutter)
-                    case .failed:
-                        MonacoErrorRow(thing: "proposals", identifier: "cabal-proposals-error") {
-                            Task { await model.load() }
-                        }
-                    default:
-                        EmptyState(title: segment.emptyTitle)
-                            .padding(.horizontal, MonacoTheme.Space.gutter)
-                    }
-                }
-                ForEach(model.pager.items) { proposal in
-                    ProposalVoteCard(
-                        proposal: proposal, voting: voting, asset: context.assets[proposal.symbol],
-                        members: context.members, onVoted: onVoted
-                    )
-                    .padding(.horizontal, MonacoTheme.Space.gutter)
-                    .onAppear {
-                        if proposal.id == model.pager.items.last?.id { Task { await model.pager.loadMore() } }
-                    }
-                }
-            }
-            .padding(.vertical, MonacoTheme.Space.m)
-        }
-        .task { await model.load() }
-        .task { await model.observe(cabalID: cabalID) }
-        .task(id: model.pager.items.map(\.id)) { await context.load(for: model.pager.items) }
-        .onScreenVisibilityChange { model.setVisible($0) }
+    static func statusLine(_ proposal: ProposalSummary, now: Date = .now) -> String {
+        ProposalVoteCopy.statusLine(tally: proposal.tally, replies: 0, expiresAt: proposal.expiresAt, now: now)
     }
 }
 
-private struct ProposalCardSkeleton: View {
+private struct CabalLiveCount: View {
+    let yes: Int
+    let no: Int
+
     var body: some View {
-        MonacoCard {
-            HStack(spacing: MonacoTheme.Space.sm) {
-                SkeletonBlock(
-                    width: 36, height: 36, radius: 36 * MonacoTheme.Radius.tile / MonacoRowLayout.baseMarkSize)
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                    SkeletonBlock(width: 120, height: 14)
-                    SkeletonBlock(width: 64, height: 11)
-                }
-            }
+        HStack(spacing: MonacoTheme.Space.xs) {
+            Image(systemName: "checkmark")
+                .foregroundStyle(MonacoTheme.profit)
+                .accessibilityHidden(true)
+            Text("\(yes)")
+            Text("\u{00B7}")
+                .foregroundStyle(MonacoTheme.secondaryText)
+            Image(systemName: "xmark")
+                .foregroundStyle(MonacoTheme.loss)
+                .accessibilityHidden(true)
+            Text("\(no)")
         }
-        .accessibilityHidden(true)
+        .font(MonacoTheme.Typo.rank)
+        .foregroundStyle(MonacoTheme.primaryText)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(yes) yes, \(no) no")
     }
 }
