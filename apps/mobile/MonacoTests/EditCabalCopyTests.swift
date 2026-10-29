@@ -7,7 +7,6 @@ import Testing
 struct EditCabalCopyTests {
     @Test func theEditScreenSpeaksTheProductLanguage() {
         #expect(MainFlowCopyAudit.stringsAreClean(EditCabalCopy.auditedStrings))
-        #expect(EditCabalCopy.rulesFooter == "Vote rules apply to new proposals. Who can join applies right away.")
         #expect(EditCabalCopy.saved == "Cabal updated.")
         #expect(EditCabalCopy.votersHeader == "Voters")
         #expect(EditCabalCopy.alwaysVotes == "Always votes")
@@ -26,13 +25,7 @@ struct EditCabalCopyTests {
         #expect(CabalJoinCopy.canVote == "Can vote")
     }
 
-    @Test func toPassShowsOnlyWhenTheCabalHasMoreThanOneMember() {
-        #expect(EditCabalView.showsThreshold(memberCount: 1) == false)
-        #expect(EditCabalView.showsThreshold(memberCount: 2) == true)
-    }
-
     @Test func theRulesSectionSpeaksTheProductLanguage() {
-        #expect(MainFlowCopyAudit.stringsAreClean(CabalRulesSlotCopy.auditedStrings))
-        #expect(CabalRulesSlotCopy.failedThing == "the rules")
+        #expect(CabalRulesTabCopy.failedThing == "the rules")
     }
 }

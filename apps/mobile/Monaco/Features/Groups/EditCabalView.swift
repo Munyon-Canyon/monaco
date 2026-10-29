@@ -7,12 +7,11 @@ enum EditCabalCopy {
     static let save = "Save"
     static let saving = "Saving…"
     static let saved = "Cabal updated."
-    static let rulesFooter = "Vote rules apply to new proposals. Who can join applies right away."
     static let votersHeader = "Voters"
     static let alwaysVotes = "Always votes"
 
     static var auditedStrings: [String] {
-        [screenTitle, save, saving, saved, rulesFooter, votersHeader, alwaysVotes]
+        [screenTitle, save, saving, saved, votersHeader, alwaysVotes]
     }
 }
 
@@ -48,27 +47,6 @@ struct EditCabalView: View {
                 .frame(maxWidth: .infinity)
                 nameField
                     .padding(.horizontal, MonacoTheme.Space.gutter)
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                    CabalRulesSection(
-                        joinPolicy: $edited.joinPolicy,
-                        voterSet: voterSet,
-                        threshold: threshold,
-                        voteExpiry: voteExpiry,
-                        identifierPrefix: "edit-rule",
-                        showsThreshold: Self.showsThreshold(memberCount: Int((model.cabal ?? cabal).memberCount))
-                    )
-                    Text(EditCabalCopy.rulesFooter)
-                        .font(MonacoTheme.Typo.caption)
-                        .foregroundStyle(MonacoTheme.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, MonacoTheme.Space.gutter)
-                        .accessibilityIdentifier("edit-cabal-rules-footer")
-                }
-                .disabled(model.isSaving)
-                if edited.voters != .everyone {
-                    CabalVoterChecklist(
-                        cabal: model.cabal ?? cabal, voters: $edited.voters, isDisabled: model.isSaving)
-                }
             }
             .padding(.top, MonacoTheme.Space.m)
             .padding(.bottom, MonacoTheme.Space.xl)
@@ -116,8 +94,6 @@ struct EditCabalView: View {
         CreateCabalForm(name: edited.name).nameProblem?.message
     }
 
-    static func showsThreshold(memberCount: Int) -> Bool { memberCount > 1 }
-
     private var canSave: Bool {
         guard !model.isSaving, CreateCabalForm(name: edited.name).nameProblem == nil else {
             return false
@@ -136,31 +112,5 @@ struct EditCabalView: View {
         case .failed(let message):
             toasts?.current = MonacoToast(message: message)
         }
-    }
-
-    private var voterSet: Binding<CabalVoterMode> {
-        Binding(
-            get: { edited.voters == .everyone ? .everyone : .picked },
-            set: { mode in
-                switch mode {
-                case .everyone: edited.voters = .everyone
-                case .picked: if edited.voters == .everyone { edited.voters = .list([]) }
-                }
-            }
-        )
-    }
-
-    private var threshold: Binding<CabalThreshold> {
-        Binding(
-            get: { CabalThreshold(rawValue: edited.threshold) ?? .majority },
-            set: { edited.threshold = $0.rawValue }
-        )
-    }
-
-    private var voteExpiry: Binding<CabalProposalExpiry> {
-        Binding(
-            get: { CabalProposalExpiry(rawValue: edited.proposalExpirySeconds) ?? CreateCabalForm.defaultExpiry },
-            set: { edited.proposalExpirySeconds = $0.rawValue }
-        )
     }
 }

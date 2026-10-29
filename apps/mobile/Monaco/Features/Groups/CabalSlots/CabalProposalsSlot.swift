@@ -117,9 +117,17 @@ struct CabalOpenProposalRow: View {
                 title: Self.title(proposal, asset: asset), subtitle: Self.statusLine(proposal), isLast: isLast,
                 isPrivate: true,
                 leading: {
-                    StockMark(
-                        symbol: proposal.symbol, displayName: asset?.displayName, assetKind: asset?.kind ?? .stock,
-                        size: MonacoRowLayout.baseMarkSize, logoURL: asset?.logoURL)
+                    if proposal.kind == CabalOpenProposalRow.ruleKind {
+                        Image(monaco: .eye)
+                            .font(MonacoTheme.Typo.rowTitle)
+                            .foregroundStyle(MonacoTheme.secondaryText)
+                            .frame(width: MonacoRowLayout.baseMarkSize, height: MonacoRowLayout.baseMarkSize)
+                            .accessibilityHidden(true)
+                    } else {
+                        StockMark(
+                            symbol: proposal.symbol, displayName: asset?.displayName, assetKind: asset?.kind ?? .stock,
+                            size: MonacoRowLayout.baseMarkSize, logoURL: asset?.logoURL)
+                    }
                 },
                 trailing: { CabalLiveCount(yes: proposal.tally.yes, no: proposal.tally.no) })
         }
@@ -129,7 +137,11 @@ struct CabalOpenProposalRow: View {
         .accessibilityIdentifier("cabal-open-proposal-\(proposal.id)")
     }
 
+    static let ruleKind = "rule"
+    static let ruleTitle = "Rule change"
+
     static func title(_ proposal: ProposalSummary, asset: ProposalAsset?) -> String {
+        if proposal.kind == ruleKind { return ruleTitle }
         let isSell = proposal.kind == "sell"
         let amount =
             isSell

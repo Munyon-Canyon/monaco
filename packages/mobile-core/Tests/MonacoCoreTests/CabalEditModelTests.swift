@@ -61,7 +61,7 @@ final class CabalEditModelTests: XCTestCase {
         let bodies = await transport.sentBodies
         let body = try XCTUnwrap(bodies.last ?? nil)
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
-        XCTAssertEqual(json, ["name": "QA pot 2", "threshold": "majority"])
+        XCTAssertEqual(json, ["name": "QA pot 2"])
     }
 
     func testSavingNothingSendsNoRequest() async throws {
@@ -107,7 +107,7 @@ final class CabalEditModelTests: XCTestCase {
         ])
         await model.load()
         var edited = try XCTUnwrap(model.settings)
-        edited.threshold = "majority"
+        edited.name = "QA pot 2"
 
         let outcome = await model.save(edited)
 

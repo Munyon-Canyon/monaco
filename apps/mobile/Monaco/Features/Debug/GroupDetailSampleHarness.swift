@@ -43,6 +43,10 @@ enum GroupDetailSampleScenario: String, CaseIterable {
     case fTreasuryLight
     case fTreasuryScrolled
     case fRules
+    case fRulesScrolled
+    case fRulesSides
+    case fRuleProposal
+    case fRuleProposalOpen
     case fMembers
 
     static let launchArgument = "-MonacoGroupDetailSample"
@@ -61,7 +65,10 @@ extension GroupDetailSampleScenario {
         switch self {
         case .ready, .invitePreview, .inviteInvalid, .invitePending, .inviteMember:
             SampleAPIScript(role: "member", unreadCount: 3)
-        case .fTreasury, .fTreasuryLight, .fTreasuryScrolled, .fRules, .fMembers: GroupDetailSampleData.fTreasury
+        case .fTreasury, .fTreasuryLight, .fTreasuryScrolled, .fRules, .fRulesScrolled, .fRuleProposal, .fMembers:
+            GroupDetailSampleData.fTreasury
+        case .fRulesSides: GroupDetailSampleData.fRulesSides
+        case .fRuleProposalOpen: GroupDetailSampleData.fRuleProposalOpen
         case .invite: SampleAPIScript(role: "creator", unreadCount: 3)
         case .inviteNoProposal: SampleAPIScript(role: "creator", unreadCount: 3, invitePreview: .noProposal)
         case .inviteLoading: SampleAPIScript(role: "creator", unreadCount: 3, invitePreview: .hang)
@@ -104,7 +111,8 @@ extension GroupDetailSampleScenario {
     var routes: [any AppRoute] {
         let id = GroupDetailSampleData.cabalID
         switch self {
-        case .info, .infoAdmin, .fRules: return [CabalRoute(id: id, tab: .rules)]
+        case .info, .infoAdmin, .fRules, .fRulesScrolled, .fRulesSides, .fRuleProposal, .fRuleProposalOpen:
+            return [CabalRoute(id: id, tab: .rules)]
         case .fMembers: return [CabalRoute(id: id, tab: .members)]
         case .members: return [MembersRoute(cabalID: id, tab: .members)]
         case .voters: return [MembersRoute(cabalID: id, tab: .voters)]
@@ -150,6 +158,17 @@ enum GroupDetailSampleData {
             cabal.voterCount = 8
             cabal.openProposalCount = 1
             cabal.createdAt = Date(timeIntervalSince1970: 1_786_000_000)
+            cabal.rules.threshold = "majority"
+            cabal.rules.proposalExpirySeconds = 86_400
+            cabal.rules.maxTradeBps = 2000
+            cabal.admins = [
+                .init(
+                    userId: "01890a5d-ac96-774b-bcce-b302099a8071", handle: "andres", displayName: "Andres",
+                    photoUrl: nil),
+                .init(
+                    userId: "01890a5d-ac96-774b-bcce-b302099a8072", handle: "christelle",
+                    displayName: "Christelle", photoUrl: nil),
+            ]
         }
         var proposal = Components.Schemas.Proposal.sample()
         proposal.id = "proposal-nvda"
@@ -169,6 +188,30 @@ enum GroupDetailSampleData {
                     navPerShareMicros: 1_000_000 - Int64(day) * 1_366, pnlMicros: 0)
             },
             pricesAsOf: start.addingTimeInterval(30 * 86_400))
+        return script
+    }
+
+    @MainActor
+    static var fRulesSides: SampleAPIScript {
+        var script = fTreasury
+        let edit = script.cabalEdit
+        script.cabalEdit = { cabal in
+            edit?(&cabal)
+            let year = Calendar.current.component(.year, from: .now)
+            cabal.rules.showSides = true
+            cabal.rules.showSidesSince = Calendar.current.date(
+                from: DateComponents(year: year, month: 10, day: 20, hour: 12))
+        }
+        return script
+    }
+
+    @MainActor
+    static var fRuleProposalOpen: SampleAPIScript {
+        var script = fTreasury
+        var proposal = Components.Schemas.Proposal.ruleSample(now: .now)
+        proposal.id = "proposal-rule"
+        proposal.cabalName = "AC Capital Management"
+        script.openProposal = proposal
         return script
     }
 
