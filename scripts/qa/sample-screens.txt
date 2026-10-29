@@ -1093,7 +1093,7 @@ f__11-share-sticker                 -MonacoShareSample screenSticker
 f__11-share-sticker-on              -MonacoShareSample stickerOn
 f__13-leaderboard-C-people          -MonacoLeaderboardSample peopleMonth
 f__13-leaderboard-C                 -MonacoLeaderboardSample friendsMonth
-f__13-leaderboard-C-scrolled        -MonacoLeaderboardSample peopleMonth -MonacoSampleScroll 1
+f__13-leaderboard-C-scrolled        -MonacoLeaderboardSample friendsMonth -MonacoSampleScroll 1
 f__13-leaderboard-C-cabals          -MonacoLeaderboardSample cabalsMonth
 f__13-leaderboard-C-unranked        -MonacoLeaderboardSample peopleWeekUnranked
 f__15-leaderboard-moment            -MonacoLeaderboardSample leadChange

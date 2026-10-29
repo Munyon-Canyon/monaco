@@ -245,8 +245,8 @@ founder:
 | --- | --- | --- | --- | --- |
 | [`13-leaderboard-C-people`](../screens/13-leaderboard-C-people.png) | dark | match (15 pt floor) | Rival's name is missing under the rival avatar; top-three names added (small). | — |
 | [`13-leaderboard-C`](../screens/13-leaderboard-C.png) | dark | match (15 pt floor) | — | — |
-| [`13-leaderboard-C-scrolled`](../screens/13-leaderboard-C-scrolled.png) | dark | difference | Frame pins the compact "Leaderboard" bar with the tabs under it and no period row, on the Friends tab; app shows the People tab with the tabs scrolling away and the period row still visible. | #7032 (#6484) |
-| [`13-leaderboard-C-cabals`](../screens/13-leaderboard-C-cabals.png) | dark | difference | Frame names both cabals under the head-to-head emblems; app shows no names under them. | #7032 (#6514) |
+| [`13-leaderboard-C-scrolled`](../screens/13-leaderboard-C-scrolled.png) | dark | match (15 pt floor) | — | #7032 (#6484) |
+| [`13-leaderboard-C-cabals`](../screens/13-leaderboard-C-cabals.png) | dark | match (15 pt floor) | — | #7032 (#6514) |
 | [`13-leaderboard-C-unranked`](../screens/13-leaderboard-C-unranked.png) | dark | match (15 pt floor) | — | — |
 
 founder:
