@@ -14,7 +14,9 @@ struct LeaderboardView: View {
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
+    @Environment(ToastCenter.self) private var toasts
     @State private var model: CallBoardModel?
+    @State private var viewerRowVisible = true
 
     var body: some View {
         Group {
@@ -70,6 +72,26 @@ struct LeaderboardView: View {
             }
         }
         .refreshable { await model.load() }
+        .safeAreaInset(edge: .bottom) {
+            if case .loaded(let screen) = model.state, screen.showsDocked(viewerRowVisible: viewerRowVisible),
+                let card = screen.card
+            {
+                CallBoardDocked(card: card) { share(card) }
+            }
+        }
+    }
+
+    private func share(_ card: CallBoardCard) {
+        guard let standing = card.standing else { return }
+        Task { @MainActor in
+            do {
+                let code = try await environment.api.read { try await $0.getMyReferralCode().ok.body.json }
+                guard let links = InviteLinks(code) else { return }
+                SystemShare.present(CallBoardSharePayload.make(standing: standing, inviteURL: links.shareURL))
+            } catch {
+                toasts.show(APIError(error))
+            }
+        }
     }
 
     @ViewBuilder private func content(_ model: CallBoardModel) -> some View {
@@ -92,7 +114,7 @@ struct LeaderboardView: View {
                 )
                 .accessibilityIdentifier("leaderboard-empty")
             } else {
-                CallBoardBody(screen: screen)
+                CallBoardBody(screen: screen, viewerRowVisible: $viewerRowVisible)
             }
         }
     }
@@ -118,10 +140,26 @@ struct LeaderboardView: View {
 
 struct CallBoardBody: View {
     let screen: CallBoardScreen
+    @Binding var viewerRowVisible: Bool
+    @State private var showMoment: Bool
+
+    private let seen = CallBoardSeenStore()
+
+    init(screen: CallBoardScreen, viewerRowVisible: Binding<Bool>) {
+        self.screen = screen
+        _viewerRowVisible = viewerRowVisible
+        _showMoment = State(initialValue: screen.moment.map(CallBoardSeenStore().shouldShow) ?? false)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if let card = screen.card {
+            if showMoment, let moment = screen.moment {
+                CallBoardMomentCard(moment: moment)
+                    .task(id: moment.id) {
+                        try? await Task.sleep(for: .seconds(1))
+                        seen.markSeen(moment)
+                    }
+            } else if let card = screen.card {
                 CallBoardYouCard(card: card)
             }
             if !screen.top.isEmpty {
@@ -130,10 +168,21 @@ struct CallBoardBody: View {
             }
             if !screen.around.isEmpty {
                 CallBoardSectionTitle(text: CallBoardCopy.aroundYou)
-                CallBoardRows(rows: screen.around)
+                around
             }
         }
         .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder private var around: some View {
+        if let mine = screen.card?.me, let index = screen.around.firstIndex(where: { $0.id == mine.id }) {
+            CallBoardRows(rows: Array(screen.around[..<index]))
+            CallBoardRows(rows: [screen.around[index]])
+                .onScrollVisibilityChange { viewerRowVisible = $0 }
+            CallBoardRows(rows: Array(screen.around[(index + 1)...]))
+        } else {
+            CallBoardRows(rows: screen.around)
+        }
     }
 }
 

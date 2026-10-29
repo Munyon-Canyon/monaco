@@ -127,4 +127,36 @@ public enum CallBoardCopy {
         }
         return parts.joined(separator: ", ") + "."
     }
+
+    public static func leadTitle(leader: String, isCabal: Bool) -> String {
+        "\(isCabal ? leader : firstName(leader)) took the lead"
+    }
+
+    public static func leadSubline(passed: String, isCabal: Bool, call: (kind: String, symbol: String)?, ratePct: Int)
+        -> String
+    {
+        let who = isCabal ? passed : firstName(passed)
+        guard let call else { return "Past \(who) · \(ratePct)%" }
+        return "Past \(who), right on \(call.kind) \(call.symbol) · \(ratePct)%"
+    }
+
+    public static func leadGlyph(places: Int) -> String? { places > 0 ? "▲\(places)" : nil }
+
+    public static func leadSpoken(
+        leader: String, passed: String, isCabal: Bool, call: (kind: String, symbol: String)?, ratePct: Int
+    ) -> String {
+        let reason = call.map { ", right on \($0.kind) \($0.symbol)" } ?? ""
+        let (a, b) = isCabal ? (leader, passed) : (firstName(leader), firstName(passed))
+        return "\(a) took the lead from \(b)\(reason), \(ratePct) percent."
+    }
+
+    public static let shareStanding = "Share your standing"
+
+    public static func standing(rank: Int, total: Int, ratePct: Int?, period: CallPeriod, tab: CallBoardTab) -> String {
+        let when = period == .all ? "all time" : periodWord(period)
+        let rate = ratePct.map { " · \($0)% right calls" } ?? ""
+        return "I'm #\(rank) of \(total) on Monaco \(when)\(rate)"
+    }
+
+    private static func firstName(_ name: String) -> String { String(name.split(separator: " ").first ?? "") }
 }

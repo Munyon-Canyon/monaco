@@ -6,6 +6,7 @@ import SwiftUI
 
 enum LeaderboardSampleScenario: String, CaseIterable {
     case peopleMonth
+    case leadChange
     case empty
     case loading
     case error
@@ -22,6 +23,7 @@ enum LeaderboardSampleScenario: String, CaseIterable {
     var state: LoadState<CallBoardScreen> {
         switch self {
         case .peopleMonth: .loaded(CallBoardScreen(.peopleMonth))
+        case .leadChange: .loaded(CallBoardScreen(.peopleMonthLeadChange))
         case .empty: .loaded(CallBoardScreen(.empty))
         case .loading: .loading
         case .error: .failed(.transport(URLError(.notConnectedToInternet)))

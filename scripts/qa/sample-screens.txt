@@ -752,6 +752,8 @@ cabal-holding-ready-dark      -MonacoCabalHoldingSample ready -AppleInterfaceSty
 cabal-holding-ready-ax        -MonacoCabalHoldingSample ready -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityXXXL
 leaderboard-people-month      -MonacoLeaderboardSample peopleMonth
 leaderboard-people-month-dark -MonacoLeaderboardSample peopleMonth -AppleInterfaceStyle Dark
+leaderboard-lead-change         -MonacoLeaderboardSample leadChange
+leaderboard-lead-change-dark    -MonacoLeaderboardSample leadChange -AppleInterfaceStyle Dark
 leaderboard-empty             -MonacoLeaderboardSample empty
 leaderboard-loading           -MonacoLeaderboardSample loading
 leaderboard-error             -MonacoLeaderboardSample error

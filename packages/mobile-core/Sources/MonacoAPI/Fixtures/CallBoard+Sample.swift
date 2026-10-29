@@ -43,6 +43,24 @@ extension Components.Schemas.CallBoard {
         gap: .init(versus: .above, points: -1, callsToPass: 1, aboveIsPerfect: false), climbBps: 7_777,
         around: .init(rows: [sam, kai, andres, rosa, nora, diego, maya]), unranked: [])
 
+    public static let peopleMonthLeadChange: Self = {
+        var board = peopleMonth
+        board.around = .init(rows: [sam, kai])
+        board.leadChange = .init(
+            id: "00000000-0000-7000-8000-00000000c001", leader: christelle.subject, passed: logan.subject,
+            leaderRatePct: 92,
+            call: .init(proposalId: "00000000-0000-7000-8000-00000000b001", kind: .buy, symbol: "META"),
+            changedAt: Date(timeIntervalSince1970: 1_791_766_800), movementPlaces: 1)
+        return board
+    }()
+
+    public static let peopleMonthLeadChangeNoCall: Self = {
+        var board = peopleMonthLeadChange
+        board.leadChange?.id = "00000000-0000-7000-8000-00000000c002"
+        board.leadChange?.call = nil
+        return board
+    }()
+
     public static let empty = Self(
         board: .people, filter: .all, period: .init(kind: .month, start: "2026-10-01", end: "2026-10-31"),
         computedAt: Date(timeIntervalSince1970: 1_791_766_800), totalRanked: 0, top: [], climbBps: 0,
