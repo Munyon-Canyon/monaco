@@ -8,7 +8,7 @@ import XCTest
 
 @MainActor
 final class LedgerShareModelTests: XCTestCase {
-    func testTheLedgerSubjectDefaultsToTheStoryWithEveryEyeOn() {
+    func testTheLedgerSubjectDefaultsToTheStoryWithEveryEyeOn() async {
         let defaults = ShareScreenModel.defaults(for: .ledger(week: "2026-W42"))
 
         XCTAssertEqual(defaults.format, .story)

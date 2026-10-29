@@ -79,16 +79,72 @@ enum FeedPreviewFixtures {
         item(
             5, kind: "member_joined", cabal: "Big Ballers", actor: 7, symbol: nil,
             title: "Nora joined Big Ballers", detail: nil, minutes: 95, likes: 2, figures: .init()),
-        Components.Schemas.FeedItem.results[3],
+        Components.Schemas.FeedItem.results[4],
         Components.Schemas.FeedItem.results[2],
-        item(
-            8, kind: "trade", cabal: "Big Ballers", actor: 3, symbol: "AMZNx",
-            title: "Priya sold $320.00 of Amazon in Big Ballers", detail: "Filled at $160.00", comments: 1,
-            minutes: 60 * 5, likes: 3, returnBps: 140,
-            figures: .init(
-                action: "sell", usdcMicros: 320_000_000, assetName: "Amazon", tokenAmount: 200_000_000,
-                tokenDecimals: 8, priceMicros: 160_000_000)),
+        priyasLoss,
+        Components.Schemas.FeedItem.results[3],
+        unfilledPass,
+        tradeFailedPass,
     ]
+
+    private typealias Chart = Components.Schemas.FeedItem.ChartPayload
+
+    private static func derivedResult(
+        number: Int, from base: Components.Schemas.FeedItem, minutesAgo: Double,
+        edit: (inout Components.Schemas.FeedItem) -> Void
+    ) -> Components.Schemas.FeedItem {
+        var item = base
+        item.id = String(format: "00000000-0000-7000-8000-0000000fe%03d", number)
+        item.createdAt = Date(timeIntervalSinceNow: -minutesAgo * 60)
+        item.updatedAt = item.createdAt
+        edit(&item)
+        return item
+    }
+
+    static let priyasLoss = derivedResult(
+        number: 20, from: Components.Schemas.FeedItem.results[1], minutesAgo: 60 * 24 * 5
+    ) { item in
+        item.actorName = "Priya"
+        item.symbol = "AMZNx"
+        item.assetName = "AMZN"
+        item.usdcMicros = 250_000_000
+        item.cabalName = "Degens"
+        item.returnBps = -210
+        item.title = "Priya's sale of $250 of AMZN in Degens passed 3–1"
+        item.chart = item.chart.map { chart in
+            let mirror = (chart.points.first?.priceMicros ?? 0) + (chart.points.last?.priceMicros ?? 0)
+            return Chart(
+                points: chart.points.map { .init(at: $0.at, priceMicros: mirror - $0.priceMicros) },
+                markers: chart.markers.map { .init(at: $0.at, side: $0.side, priceMicros: mirror - $0.priceMicros) })
+        }
+    }
+
+    static let unfilledPass = derivedResult(
+        number: 21, from: Components.Schemas.FeedItem.results[0], minutesAgo: 25
+    ) { item in
+        item.symbol = "MSFTx"
+        item.assetName = "MSFT"
+        item.fillState = .pending
+        item.filledTokenAmount = nil
+        item.filledUsdcMicros = nil
+        item.filledAt = nil
+        item.returnBps = nil
+        item.chart = nil
+    }
+
+    static let tradeFailedPass = derivedResult(
+        number: 22, from: Components.Schemas.FeedItem.results[0], minutesAgo: 60 * 24 * 3
+    ) { item in
+        item.symbol = "GOOGLx"
+        item.assetName = "GOOGL"
+        item.fillState = .failed
+        item.tradeFailed = true
+        item.filledTokenAmount = nil
+        item.filledUsdcMicros = nil
+        item.filledAt = nil
+        item.returnBps = nil
+        item.chart = nil
+    }
 
     static let olderItems: [Components.Schemas.FeedItem] = [
         item(
@@ -101,7 +157,7 @@ enum FeedPreviewFixtures {
     ]
 
     static let outsideItems: [Components.Schemas.FeedItem] = {
-        var ivan = Components.Schemas.FeedItem.results[3]
+        var ivan = Components.Schemas.FeedItem.results[4]
         ivan.actorName = "Ivan"
         ivan.title = "Ivan’s sale of $900 of TSLA in Tech Titans failed 2–2"
         return Components.Schemas.FeedItem.publicProposals + [Components.Schemas.FeedItem.results[2], ivan]
