@@ -38,7 +38,6 @@ struct CallBoardPodium: View {
                 .opacity(first ? 1 : 0)
                 .accessibilityHidden(true)
             CallBoardAvatar(row: row, size: CallBoardPodiumMetrics.avatar)
-            Text(row.name).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText).lineLimit(1)
             Text("\(row.rate) \(row.movementGlyph)")
                 .font(MonacoTheme.Typo.headline).monospacedDigit().foregroundStyle(MonacoTheme.primaryText)
             Text(row.record).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)

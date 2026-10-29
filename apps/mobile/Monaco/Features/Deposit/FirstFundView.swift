@@ -181,7 +181,8 @@ struct FirstFundContent: View {
                 onVote(vote.proposalID)
             } label: {
                 MonacoRow(
-                    title: FirstFundCopy.voteTitle(vote), subtitle: FirstFundCopy.voteStatus(vote), isLast: true,
+                    title: FirstFundCopy.voteTitle(vote), subtitle: FirstFundCopy.voteStatus(vote),
+                    subtitleLineLimit: 2, isLast: true,
                     isPrivate: true,
                     leading: {
                         StockMark(
@@ -198,11 +199,20 @@ struct FirstFundContent: View {
 
     private var members: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            MonacoSectionHeader(
-                FirstFundCopy.members, count: value.memberCount, trailing: FirstFundCopy.seeAll,
-                actionIdentifier: "first-fund-see-all", action: onSeeAll
-            )
-            .secondaryCount()
+            MonacoSectionHeader(FirstFundCopy.members, count: value.memberCount)
+                .secondaryCount()
+                .overlay(alignment: .topTrailing) {
+                    Button(action: onSeeAll) {
+                        Text(FirstFundCopy.seeAll)
+                            .font(MonacoTheme.Typo.captionStrong)
+                            .foregroundStyle(MonacoTheme.brand)
+                            .lineLimit(1)
+                            .frame(minHeight: SectionHeaderMetrics.hitHeight)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("first-fund-see-all")
+                }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: MonacoTheme.Space.s) {
                     ForEach(value.members) { member in
