@@ -39,6 +39,7 @@ enum ProposalSampleScenario: String, CaseIterable {
     case closedSidesOn
     case closedSidesPrivate
     case nvdaFilled
+    case nvdaPassedMoment
     case metaFilled
     case tslaFailed
     case spaceXOpen
@@ -130,6 +131,9 @@ enum ProposalSampleScenario: String, CaseIterable {
         case .nvdaFilled:
             script.asset = .nvda
             script.proposal = .filledNVDA()
+        case .nvdaPassedMoment:
+            script.asset = .nvda
+            script.proposal = Components.Schemas.ProposalDetail.filledNVDA().voted(.yes)
         case .metaFilled:
             script.asset = .nvda
             script.proposal = .filledMETA()

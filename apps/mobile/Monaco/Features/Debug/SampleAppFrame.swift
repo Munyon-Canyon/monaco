@@ -66,6 +66,7 @@ struct SampleAppFrame: View {
             hints: hints,
             sessionStore: store,
             gifs: SampleGifProvider(),
+            defaults: Self.throwawayDefaults(),
             isAuthenticated: { true },
             endAuthSession: {}
         )
@@ -73,6 +74,12 @@ struct SampleAppFrame: View {
         for route in routes { made.navigator.open(route, in: tab) }
         if presentsDeposit { made.navigator.presentDeposit() }
         return made
+    }
+
+    private static func throwawayDefaults() -> UserDefaults {
+        let suite = "MonacoSampleHarness"
+        UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
+        return UserDefaults(suiteName: suite) ?? .standard
     }
 
     @MainActor static func signedIn(_ store: AppSessionStore) {

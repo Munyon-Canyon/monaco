@@ -526,6 +526,8 @@ proposal-closed-sides-on      -MonacoProposalSample closedSidesOn
 proposal-closed-sides-on-dark -MonacoProposalSample closedSidesOn -AppleInterfaceStyle Dark
 proposal-closed-sides-private -MonacoProposalSample closedSidesPrivate
 proposal-nvda-filled          -MonacoProposalSample nvdaFilled
+proposal-passed-moment         -MonacoProposalSample nvdaPassedMoment
+proposal-passed-moment-dark    -MonacoProposalSample nvdaPassedMoment -AppleInterfaceStyle Dark
 proposal-meta-filled          -MonacoProposalSample metaFilled
 proposal-tsla-failed          -MonacoProposalSample tslaFailed
 proposal-spacex-open          -MonacoProposalSample spaceXOpen
