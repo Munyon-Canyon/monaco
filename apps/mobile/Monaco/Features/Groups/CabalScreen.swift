@@ -12,12 +12,7 @@ struct CabalScreen: View {
         CabalSliceSlot.self,
         CabalActionsSlot.self,
         CabalProposalsSlot.self,
-        CabalValueChartSlot.self,
-        CabalChatPreviewSlot.self,
-        CabalHoldingsSlot.self,
-        CabalMemberBoardSlot.self,
-        CabalActivitySlot.self,
-        CabalRulesRowSlot.self,
+        CabalTabs.self,
     ]
 
     static let detailsSections: [any CabalSection.Type] = [
@@ -32,18 +27,21 @@ struct CabalScreen: View {
     let context: CabalContext
     let sections: [any CabalSection.Type]
     @Environment(AppEnvironment.self) private var environment
-    @Environment(\.hostMainTab) private var hostMainTab
     @Environment(ToastCenter.self) private var toasts
     @State private var sharing: String?
+    @State private var selection: CabalTabSelection
+    @State private var tabsTop: CGFloat?
+    @State private var pendingMore: CabalMoreItem?
     @State private var models = CabalScreenModels()
     @State private var retryTick = 0
     @State private var refresh = ScreenRefresh()
     @State private var nameBottom: CGFloat?
     @State private var barBottom: CGFloat = 0
 
-    init(cabalID: String, sections: [any CabalSection.Type] = Self.sections) {
+    init(cabalID: String, tab: CabalTab = .default, sections: [any CabalSection.Type] = Self.sections) {
         self.context = CabalContext(cabalID: cabalID)
         self.sections = sections
+        _selection = State(initialValue: CabalTabSelection(tab))
     }
 
     static func canShare(cabal: Components.Schemas.Cabal?) -> Bool {
@@ -68,6 +66,7 @@ struct CabalScreen: View {
                 SectionStack(context: context, sections: sections)
                     .environment(\.cabalModel, cabal)
                     .environment(\.cabalPotModel, pot)
+                    .environment(\.cabalTabSelection, selection)
                     .environment(refresh)
                     .refreshable {
                         retryTick += 1
@@ -76,6 +75,20 @@ struct CabalScreen: View {
             }
         }
         .onPreferenceChange(CabalHeaderNameBottom.self) { nameBottom = $0 }
+        .onPreferenceChange(CabalTabsTop.self) { tabsTop = $0 }
+        .overlay(alignment: .top) {
+            if CabalTabsPin.isPinned(tabsTop: tabsTop, barBottom: barBottom), cabal.cabal?.me != nil {
+                CabalTabBar(
+                    selection: selection, memberCount: cabal.cabal?.memberCount, identifierPrefix: "cabal-tab-pinned"
+                )
+                .monacoUnderlineTabsPinned()
+                .accessibilityIdentifier("cabal-tabs-pinned")
+            }
+        }
+        .cabalMoreActions(
+            cabalID: context.cabalID, cabal: cabal,
+            edit: models.preparedEdit(cabalID: context.cabalID, environment: environment), pending: $pendingMore
+        )
         .onGeometryChange(for: CGFloat.self) {
             $0.safeAreaInsets.top
         } action: {
@@ -124,15 +137,9 @@ struct CabalScreen: View {
                             ) { share(loaded) }
                             .accessibilityIdentifier("cabal-share-button")
                         }
-                        MonacoGlassButton(
-                            icon: .info, accessibilityLabel: "Cabal information", style: .quiet,
-                            placement: .toolbar
-                        ) {
-                            environment.navigator.open(
-                                CabalInfoRoute(cabalID: context.cabalID),
-                                in: hostMainTab ?? environment.navigator.selectedTab)
+                        CabalMoreMenu(items: CabalMoreItem.items(role: loaded.me?.role, status: loaded.status)) {
+                            pendingMore = $0
                         }
-                        .accessibilityIdentifier("cabal-details-button")
                     }
                 }
             }

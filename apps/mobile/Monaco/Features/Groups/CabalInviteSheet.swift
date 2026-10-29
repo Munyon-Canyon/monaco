@@ -141,7 +141,7 @@ struct CabalInviteSheet: View {
             Button {
                 dismiss()
                 environment.navigator.open(
-                    CabalInfoRoute(cabalID: cabal.id), in: hostMainTab ?? environment.navigator.selectedTab)
+                    CabalRoute(id: cabal.id, tab: .rules), in: hostMainTab ?? environment.navigator.selectedTab)
             } label: {
                 Label(CabalInviteCopy.joiningLine(joinMode: cabal.rules.joinMode), systemImage: "person.badge.plus")
             }

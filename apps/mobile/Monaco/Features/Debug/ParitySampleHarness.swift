@@ -42,7 +42,7 @@ enum ParitySampleScenario: String, CaseIterable {
         let id = GroupDetailSampleData.cabalID
         switch self {
         case .addMoneyError: return []
-        case .cabalInfoError: return [CabalInfoRoute(cabalID: id)]
+        case .cabalInfoError: return [CabalRoute(id: id, tab: .rules)]
         case .membersError: return [MembersRoute(cabalID: id, tab: .members)]
         case .publicCabalError: return [CabalSampleRoute(kind: .publicMember)]
         case .votesClosed, .votesExpired, .votesRejected: return [ProposalSampleRoute(votes: .open)]

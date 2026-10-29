@@ -66,9 +66,11 @@ Cabals ┬─ + ──▶ Start a cabal ──▶ create ──▶ CabalRoute
        ├─ empty state "Explore cabals" | "Search public cabals" link | keyboard Search ──▶ DiscoverCabalsRoute ──▶ CabalRoute
        ├─ card / leaderboard row ──▶ CabalRoute
 CabalRoute ─┬─ non-member ──▶ Public cabal (join, request, accept an invite)
-            ├─ i, Rules & members ──▶ CabalInfoRoute ─┬─ Members & voters ──▶ MembersRoute ──▶ UserProfileRoute
-            │                                         ├─ Invite ──▶ Invite to cabal sheet
-            │                                         └─ Edit ──▶ Cabal settings
+            ├─ tabs Treasury | Rules | Members | Voters (CabalRoute tab:)
+            ├─ ···  ──┬─ Chat ──▶ ChatRoute
+            │         ├─ Edit name and picture ──▶ Cabal settings (creator)
+            │         ├─ Treasury address ──▶ sheet
+            │         └─ Leave cabal ──▶ sheet with the confirm dialog
             ├─ share ──▶ iOS system share sheet (cabal card preview and invite link), members only
             ├─ Fund this cabal ─▶ FundRoute
             ├─ Propose ────▶ action sheet ──▶ ProposeRoute ──▶ Buy | Sell ──▶ Amount ──▶ Review sheet
@@ -209,40 +211,42 @@ Missing APIs: rank movement against the previous snapshot, a cabal member count 
 
 ## Cabal screen (`CabalRoute`)
 
-Toolbar: the system back button, the cabal name centred and always shown, and two glass rounds on the right: share (`cabal-share-button`, "Share cabal", opens the iOS system share sheet in one tap) and information (`cabal-details-button`, "Cabal information"), which pushes `CabalInfoRoute`. Members only; a non-member gets the Public cabal screen below. While loading: a hero skeleton, the pot figure and chart blocks and three action circles. Load error: the full-screen "Couldn’t load this view" with "Try again" (`cabal-failed`). The slots sit on the cream canvas, a hero first and then rules and tiles, with no ink band.
+Toolbar: the system back button, the cabal name once the header name scrolls under the bar, and two rounds on the right: share (`cabal-share-button`, "Share cabal", opens the iOS system share sheet in one tap) and "···" (`cabal-more-button`, "More"). Members only; a non-member gets the Public cabal screen below. While loading: a hero skeleton, the pot figure and chart blocks and three action circles. Load error: the full-screen "Couldn’t load this view" with "Try again" (`cabal-failed`). The slots sit on the cream canvas.
+
+The page is the header (#6481: cover, name and facts line, stat block, Fund and Propose, open votes) and then the tabs. `CabalRoute(id:tab:)` opens the page on a tab (`CabalTab`, MonacoCore): every `CabalRoute(id:)` opens Treasury. The selected tab is per page.
 
 | Order | Slot | Member | Non-member | Shows |
 | --- | --- | --- | --- | --- |
-| 1 | `CabalHeaderSlot` | yes | | Cover hero (`CabalCover`: the cabal tint, its picture under the flat cover overlay): name, "8 members" and a share disc (`cabal-hero-share`) that opens the iOS system share sheet in one tap; on Cabal information it opens the invite sheet. The creator taps the cover to change the picture or long-presses it to remove it |
-| 2 | `CabalClosedSlot` | yes | | Error notice when `status` is `banned`: "Monaco closed this cabal. Everyone's slice is being cashed out to their account balance." A banned cabal also hides the actions and the chat preview |
-| 3 | `CabalPotSlot` | yes | | The pot value in `moneyFont(.hero)`. The "Prices delayed" notice stays hidden until the API sends a valuation time |
-| 4 | `CabalActionsSlot` | yes | | Three soft tiles: "Fund this cabal" (`FundRoute`), "Propose" and "Cash out". Cash out is disabled with no share and an info notice says so; Propose is disabled for a non-voter with "Only voters can propose" |
-| 5 | `CabalProposalsSlot` | yes | read-only | "Proposals" with a count and "See all", then the proposal cards. Empty: "No proposals need your attention." with "Closed decisions remain in proposal history." and, for a voter, "Propose the first buy." Hidden on a cash-only cabal with no proposals. A failed read shows a partial-error card. Settlement toasts are unchanged |
-| 6 | `CabalValueChartSlot` | yes | | The return line (signed percent and "past month"), the small `CurveScrubChart` (crosshair, pinch, tooltip pill), start and end dates and the periods `1W 1M All` (default 1M). A cash-only pot shows the quiet chart "No positions yet" and no periods; short history shows "Not enough history for the last month yet" |
-| 7 | `CabalSliceSlot` | yes | | Two stats between hairlines: "Your share" (`$0.00` with no stake, `cabal-slice-none`) and "Cash". They stack at accessibility sizes |
-| 8 | `CabalPauseSlot` | yes | | Warning notice while the cabal is paused |
-| 9 | `CabalJoinSlot` | creator only | fallback | Creator: one row "Join requests" / "2 requests to review" that opens Members & voters on Requests (`cabal-join-requests-heading`). Non-member fallback: the join, pending, declined and invite buttons used by the Public cabal screen |
-| 10 | `CabalChatPreviewSlot` | yes | | "Chat" with "Open chat". A card holds the newest message, its author and age, "Cabal name · 3 new messages" and an unread pill. No messages: "No messages yet". A failed read leaves an "Open chat" row |
-| 11 | `CabalHoldingsSlot` | yes | | "Holdings": the allocation bar and legend, one row per holding (opens `CabalHoldingRoute`) and a "Cash" row (opens `GroupCashRoute`). Empty pot copy is unchanged |
-| 12 | `CabalMemberBoardSlot` | yes | | "Member standings" with "Within Big Ballers · Share return · 1M", compact rows (rank, avatar, name, signed return, "—" without a stake) and the viewer's row washed with a "You" badge. Hidden on a cash-only cabal |
-| 13 | `CabalActivitySlot` | yes | | "Group activity" with "See all" past five rows and the helper "Decisions and transactions in this pot". Hidden on a cash-only cabal while empty |
-| 14 | `CabalRulesRowSlot` | yes | | A "Rules & members" row that pushes Cabal information (`cabal-rules-row`) |
+| 1 | `CabalHeaderSlot` | yes | | Cover, name, "8 members · since Aug 2026 · you are admin" and the share disc. The creator taps the cover to change the picture or long-presses it to remove it |
+| 2 | `CabalClosedSlot` | yes | | Error notice when `status` is `banned`: "Monaco closed this cabal. Everyone's slice is being cashed out to their account balance." A banned cabal also hides the actions and the Chat item |
+| 3 | `CabalPauseSlot` | yes | | Warning notice while the cabal is paused |
+| 4 | `CabalJoinSlot` | creator only | fallback | Creator: one row "Join requests" / "2 requests to review" that opens Members & voters on Requests (`cabal-join-requests-heading`). Non-member fallback: the join, pending, declined and invite buttons used by the Public cabal screen |
+| 5 | `CabalPotSlot` | yes | | The pot value in `moneyFont(.hero)`. The "Prices delayed" notice stays hidden until the API sends a valuation time |
+| 6 | `CabalSliceSlot` | yes | | The stat block: "Your share", "Of treasury", "Open votes" and "Bot" |
+| 7 | `CabalActionsSlot` | yes | | "Fund this cabal" (`FundRoute`), "Propose" and "Cash out". Cash out is disabled with no share and an info notice says so; Propose is disabled for a non-voter with "Only voters can propose" |
+| 8 | `CabalProposalsSlot` | yes | read-only | The open votes. Empty: "No proposals need your attention." with "Closed decisions remain in proposal history." and, for a voter, "Propose the first buy." A failed read shows a partial-error card. Settlement toasts are unchanged |
+| 9 | `CabalTabs` | yes | | Underline tabs (`MonacoUnderlineTabs`, `cabal-tabs`): **Treasury**, **Rules**, **Members 8** (the count is `member_count`) and **Voters**, with a hairline under them. They pin under the bar once scrolled to it (`cabal-tabs-pinned`). Each tab is its own slot list, below |
 
-The actions and the proposals that need a vote sit above the chart, so a member sees Fund, Propose, Cash out and any required vote in the first screen without scrolling. A closed cabal keeps its notice second and hides the actions.
+| Tab | Slots (until the tab tickets land) |
+| --- | --- |
+| Treasury (`cabal-tab-treasury`) | `CabalHoldingsSlot` (the allocation bar, one row per holding that opens `CabalHoldingRoute`, a "Cash" row that opens `GroupCashRoute`), `CabalValueChartSlot` (the return line, the chart and `1W 1M All`), `CabalActivitySlot` ("Group activity" with "See all"). #6511 fills it |
+| Rules (`cabal-tab-rules`) | `CabalRulesRowSlot`: today's "The rules" card (Who can join, Who votes, Votes stay open, Current threshold) with "Edit" for the creator. #6523 fills it |
+| Members (`cabal-tab-members`) | `CabalMemberBoardSlot`: "Member standings", compact rows and the viewer's row washed with a "You" badge. Hidden on a cash-only cabal. #6534 fills it |
+| Voters (`cabal-tab-voters`) | `CabalVoterBoardSlot`: the same board filtered to members who can vote ("Voter standings"). #6534 fills it |
+
+**The ··· menu** (`cabal-more-button`) holds Chat (`cabal-more-chat`, opens `ChatRoute`; hidden on a closed cabal), Edit name and picture (`cabal-more-edit`, creator only, opens Cabal settings), Treasury address (`cabal-more-treasury`, a sheet with the warning, the address and "View on Solscan") and Leave cabal (`cabal-more-leave`, destructive and last, a sheet whose "Leave cabal" button asks for confirmation). There is no information screen: the chat screen’s details sheet is the only place that still lists the rules, links and treasury sections together.
+
+The actions and the proposals that need a vote sit above the tabs. A closed cabal keeps its notice second and hides the actions.
 
 The trading-bot slot and its route are not on the screen: the agent feature was removed in #5493.
 
-**Invite to cabal sheet** (`CabalInviteSheet`). Opens from Cabal information ("Invite to this cabal"). A half sheet titled "Invite to {cabal}" with three rounds: the QR toggle (`cabal-invite-qr-toggle`), the settings gear (`cabal-invite-settings`, admins only: "Invite by handle" and "Joining: Open / By request") and close. The card (`cabal-invite-link`) previews what the invitee lands on: the cover, the crest, "{n} members · {treasury} treasury", "{name} invited you" with four member faces and "+N", and the open proposal with its live split (`cabal-invite-proposal`). The QR toggle flips the card to a QR code of the link (`cabal-invite-qr`) and "Scan to join {cabal}". Docked "Share" (`share-card-share`, the system share sheet with the card as the preview image) and "Copy link" (`share-card-copy`, toast "Link copied."). The link is the member's own referral link with the cabal, `https://monacolabs.xyz/r/<code>?c=<cabal_id>`. The invitee side of the sheet reads "You’re invited", "Request sent" or "Invitation unavailable".
+**Invite to cabal sheet** (`CabalInviteSheet`). Opens from the chat details sheet ("Invite to this cabal"). A half sheet titled "Invite to {cabal}" with three rounds: the QR toggle (`cabal-invite-qr-toggle`), the settings gear (`cabal-invite-settings`, admins only: "Invite by handle" and "Joining: Open / By request") and close. The card (`cabal-invite-link`) previews what the invitee lands on: the cover, the crest, "{n} members · {treasury} treasury", "{name} invited you" with four member faces and "+N", and the open proposal with its live split (`cabal-invite-proposal`). The QR toggle flips the card to a QR code of the link (`cabal-invite-qr`) and "Scan to join {cabal}". Docked "Share" (`share-card-share`, the system share sheet with the card as the preview image) and "Copy link" (`share-card-copy`, toast "Link copied."). The link is the member's own referral link with the cabal, `https://monacolabs.xyz/r/<code>?c=<cabal_id>`. The invitee side of the sheet reads "You’re invited", "Request sent" or "Invitation unavailable".
 
 **System share (cabal, profile, feed).** Every Share button (the cabal toolbar and hero disc, the cabal cover disc on Home and Profile, the Profile identity round and a feed item) opens the iOS share sheet directly, with no Monaco sheet before it, at a half-height detent. The button shows a spinner while the app loads the card data and the invite link. The sheet gets one link: the sharer's invite link (`/r/<code>`), or the website link when the invite link is not available. The preview is the 4:5 card, a dark image of the all-time gain and return, the gain curve, three stats and the sharer's invite link, drawn by `ShareCardRenderer`; a feed item has no card and previews its headline. If the card data cannot load, the toast "Couldn’t open sharing. Try again." shows and nothing opens.
 
 ## Public cabal (`CabalRoute`, non-member)
 
 Title is the cabal name. A tall cover hero with the name and member count, a return block ("—" with "Returns open soon" until the API exposes a non-member return), a "Membership" card (Joining, Voting, Voting window) and one call to action: "Join", "Request to join", a disabled "Request pending" with "Cancel request", "Ask again" after a denial, "Accept invite" with "Decline", or "Open your cabal". The private state ("This cabal is private" with "Back") is built and unreachable until the API reports a private cabal. The About block stays hidden until a cabal has a description.
-
-## Cabal information (`CabalInfoRoute`)
-
-Pushed from the toolbar information button and the Rules & members row. Title "Cabal information". A short cover ("You’re a member" or "You’re an administrator"), "The rules" (a card with Who can join, Who votes, Votes stay open and Current threshold, and an "Edit" link for the creator that opens Cabal settings), rows "Members & voters", "Invite to this cabal" and, for the creator, "Join requests", then "Cabal treasury" (the warning, the address, "View on Solscan"), a "Saving your changes…" notice while a save runs, an outline "View your share" (members with a share) and the destructive-outline "Leave cabal" with its confirm dialog. The chat screen’s details sheet reuses the same sections.
 
 ## Members & voters (`MembersRoute`)
 
@@ -457,7 +461,7 @@ States. Loading is a skeleton. No comments: "No replies yet" / "Start the discus
 
 ## Chat (`ChatRoute`, #676)
 
-Toolbar: the back button on the left, the cabal name centred in `Typo.headline` (one line, `chat-title`) and an info round on the right (`chat-info`, "Cabal information") that opens the same "Cabal details" sheet as the cabal screen's "i". No tab bar. The timeline sits on the cabal canvas.
+Toolbar: the back button on the left, the cabal name centred in `Typo.headline` (one line, `chat-title`) and an info round on the right (`chat-info`, "Cabal information") that opens the "Cabal details" sheet. No tab bar. The timeline sits on the cabal canvas.
 
 - **Day label.** A centred caption ("Today", "Yesterday" or the date), with no rule.
 - **Their messages.** A 26pt avatar (opens `UserProfileRoute`) on the first message of a run, with a spacer on the rest. The bubble is `surfaceSunken` with no stroke, 87% of the content width at most, a 4pt tail on the top-leading corner and 17pt on the others. The author's name sits inside the bubble over the first message of a run. The time sits under the bubble.
