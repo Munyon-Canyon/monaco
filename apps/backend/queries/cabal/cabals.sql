@@ -1,9 +1,9 @@
 -- name: InsertCabal :execrows
 INSERT INTO cabals (id, name, creator_id, join_mode, voter_mode, threshold, proposal_expiry_seconds, slippage_bps,
-  created_at, updated_at)
+  show_sides, show_sides_changed_at, max_trade_bps, created_at, updated_at)
 VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(creator_id), sqlc.arg(join_mode), sqlc.arg(voter_mode),
   sqlc.arg(threshold), sqlc.arg(proposal_expiry_seconds), sqlc.arg(slippage_bps),
-  sqlc.arg(now), sqlc.arg(now));
+  sqlc.arg(show_sides), sqlc.narg(show_sides_changed_at), sqlc.narg(max_trade_bps), sqlc.arg(now), sqlc.arg(now));
 
 -- name: LockCabalShared :one
 SELECT id FROM cabals WHERE id = $1 FOR SHARE;
@@ -25,23 +25,29 @@ FOR SHARE OF c;
 
 -- name: FindCabal :one
 SELECT c.id, c.name, c.picture_url, c.creator_id, c.join_mode, c.voter_mode, c.threshold,
-  c.proposal_expiry_seconds, c.slippage_bps, c.status, c.created_at, c.updated_at,
-  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count
+  c.proposal_expiry_seconds, c.slippage_bps, c.show_sides, c.show_sides_changed_at, c.max_trade_bps,
+  c.status, c.created_at, c.updated_at,
+  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count,
+  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id AND m.can_vote)::int AS voter_count
 FROM cabals c
 WHERE c.id = $1;
 
 -- name: ListCabals :many
 SELECT c.id, c.name, c.picture_url, c.creator_id, c.join_mode, c.voter_mode, c.threshold,
-  c.proposal_expiry_seconds, c.slippage_bps, c.status, c.created_at, c.updated_at,
-  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count
+  c.proposal_expiry_seconds, c.slippage_bps, c.show_sides, c.show_sides_changed_at, c.max_trade_bps,
+  c.status, c.created_at, c.updated_at,
+  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count,
+  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id AND m.can_vote)::int AS voter_count
 FROM cabals c
 WHERE c.id = ANY(sqlc.arg(cabal_ids)::uuid[])
 ORDER BY c.created_at, c.id;
 
 -- name: AllCabals :many
 SELECT c.id, c.name, c.picture_url, c.creator_id, c.join_mode, c.voter_mode, c.threshold,
-  c.proposal_expiry_seconds, c.slippage_bps, c.status, c.created_at, c.updated_at,
-  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count
+  c.proposal_expiry_seconds, c.slippage_bps, c.show_sides, c.show_sides_changed_at, c.max_trade_bps,
+  c.status, c.created_at, c.updated_at,
+  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count,
+  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id AND m.can_vote)::int AS voter_count
 FROM cabals c
 ORDER BY c.created_at, c.id;
 

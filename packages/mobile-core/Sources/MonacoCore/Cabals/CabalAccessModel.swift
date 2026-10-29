@@ -316,7 +316,7 @@ private actor CabalAccessPreviewTransport: ClientTransport {
             cabal.myAccessRequest = nil
             return (response, HTTPBody(access))
         case "postCabalMember":
-            cabal.me = .init(role: "member", canVote: true)
+            cabal.me = .init(role: "member", canVote: true, canPropose: true)
             return (response, HTTPBody(try encoder.encode(cabal)))
         default:
             return (response, HTTPBody(try encoder.encode(cabal)))

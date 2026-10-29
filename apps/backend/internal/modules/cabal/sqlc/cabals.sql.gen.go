@@ -15,8 +15,10 @@ import (
 
 const allCabals = `-- name: AllCabals :many
 SELECT c.id, c.name, c.picture_url, c.creator_id, c.join_mode, c.voter_mode, c.threshold,
-  c.proposal_expiry_seconds, c.slippage_bps, c.status, c.created_at, c.updated_at,
-  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count
+  c.proposal_expiry_seconds, c.slippage_bps, c.show_sides, c.show_sides_changed_at, c.max_trade_bps,
+  c.status, c.created_at, c.updated_at,
+  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count,
+  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id AND m.can_vote)::int AS voter_count
 FROM cabals c
 ORDER BY c.created_at, c.id
 `
@@ -31,10 +33,14 @@ type AllCabalsRow struct {
 	Threshold             string
 	ProposalExpirySeconds int32
 	SlippageBps           int32
+	ShowSides             bool
+	ShowSidesChangedAt    pgtype.Timestamptz
+	MaxTradeBps           pgtype.Int4
 	Status                string
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 	MemberCount           int32
+	VoterCount            int32
 }
 
 func (q *Queries) AllCabals(ctx context.Context) ([]AllCabalsRow, error) {
@@ -56,10 +62,14 @@ func (q *Queries) AllCabals(ctx context.Context) ([]AllCabalsRow, error) {
 			&i.Threshold,
 			&i.ProposalExpirySeconds,
 			&i.SlippageBps,
+			&i.ShowSides,
+			&i.ShowSidesChangedAt,
+			&i.MaxTradeBps,
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.MemberCount,
+			&i.VoterCount,
 		); err != nil {
 			return nil, err
 		}
@@ -126,8 +136,10 @@ func (q *Queries) CabalCounts(ctx context.Context) (CabalCountsRow, error) {
 
 const findCabal = `-- name: FindCabal :one
 SELECT c.id, c.name, c.picture_url, c.creator_id, c.join_mode, c.voter_mode, c.threshold,
-  c.proposal_expiry_seconds, c.slippage_bps, c.status, c.created_at, c.updated_at,
-  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count
+  c.proposal_expiry_seconds, c.slippage_bps, c.show_sides, c.show_sides_changed_at, c.max_trade_bps,
+  c.status, c.created_at, c.updated_at,
+  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count,
+  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id AND m.can_vote)::int AS voter_count
 FROM cabals c
 WHERE c.id = $1
 `
@@ -142,10 +154,14 @@ type FindCabalRow struct {
 	Threshold             string
 	ProposalExpirySeconds int32
 	SlippageBps           int32
+	ShowSides             bool
+	ShowSidesChangedAt    pgtype.Timestamptz
+	MaxTradeBps           pgtype.Int4
 	Status                string
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 	MemberCount           int32
+	VoterCount            int32
 }
 
 func (q *Queries) FindCabal(ctx context.Context, id uuid.UUID) (FindCabalRow, error) {
@@ -161,20 +177,24 @@ func (q *Queries) FindCabal(ctx context.Context, id uuid.UUID) (FindCabalRow, er
 		&i.Threshold,
 		&i.ProposalExpirySeconds,
 		&i.SlippageBps,
+		&i.ShowSides,
+		&i.ShowSidesChangedAt,
+		&i.MaxTradeBps,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.MemberCount,
+		&i.VoterCount,
 	)
 	return i, err
 }
 
 const insertCabal = `-- name: InsertCabal :execrows
 INSERT INTO cabals (id, name, creator_id, join_mode, voter_mode, threshold, proposal_expiry_seconds, slippage_bps,
-  created_at, updated_at)
+  show_sides, show_sides_changed_at, max_trade_bps, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5,
   $6, $7, $8,
-  $9, $9)
+  $9, $10, $11, $12, $12)
 `
 
 type InsertCabalParams struct {
@@ -186,6 +206,9 @@ type InsertCabalParams struct {
 	Threshold             string
 	ProposalExpirySeconds int32
 	SlippageBps           int32
+	ShowSides             bool
+	ShowSidesChangedAt    pgtype.Timestamptz
+	MaxTradeBps           pgtype.Int4
 	Now                   time.Time
 }
 
@@ -199,6 +222,9 @@ func (q *Queries) InsertCabal(ctx context.Context, arg InsertCabalParams) (int64
 		arg.Threshold,
 		arg.ProposalExpirySeconds,
 		arg.SlippageBps,
+		arg.ShowSides,
+		arg.ShowSidesChangedAt,
+		arg.MaxTradeBps,
 		arg.Now,
 	)
 	if err != nil {
@@ -209,8 +235,10 @@ func (q *Queries) InsertCabal(ctx context.Context, arg InsertCabalParams) (int64
 
 const listCabals = `-- name: ListCabals :many
 SELECT c.id, c.name, c.picture_url, c.creator_id, c.join_mode, c.voter_mode, c.threshold,
-  c.proposal_expiry_seconds, c.slippage_bps, c.status, c.created_at, c.updated_at,
-  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count
+  c.proposal_expiry_seconds, c.slippage_bps, c.show_sides, c.show_sides_changed_at, c.max_trade_bps,
+  c.status, c.created_at, c.updated_at,
+  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count,
+  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id AND m.can_vote)::int AS voter_count
 FROM cabals c
 WHERE c.id = ANY($1::uuid[])
 ORDER BY c.created_at, c.id
@@ -226,10 +254,14 @@ type ListCabalsRow struct {
 	Threshold             string
 	ProposalExpirySeconds int32
 	SlippageBps           int32
+	ShowSides             bool
+	ShowSidesChangedAt    pgtype.Timestamptz
+	MaxTradeBps           pgtype.Int4
 	Status                string
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 	MemberCount           int32
+	VoterCount            int32
 }
 
 func (q *Queries) ListCabals(ctx context.Context, cabalIds []uuid.UUID) ([]ListCabalsRow, error) {
@@ -251,10 +283,14 @@ func (q *Queries) ListCabals(ctx context.Context, cabalIds []uuid.UUID) ([]ListC
 			&i.Threshold,
 			&i.ProposalExpirySeconds,
 			&i.SlippageBps,
+			&i.ShowSides,
+			&i.ShowSidesChangedAt,
+			&i.MaxTradeBps,
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.MemberCount,
+			&i.VoterCount,
 		); err != nil {
 			return nil, err
 		}

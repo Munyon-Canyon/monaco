@@ -69,7 +69,7 @@ final class CabalActionsModelTests: XCTestCase {
     }
 
     func testAMemberWhoCannotVoteCannotPropose() async {
-        let (model, _, _) = make([.json(.ok, Self.cabal(me: #"{"role":"member","can_vote":false}"#))])
+        let (model, _, _) = make([.json(.ok, Self.cabal(me: Self.nonVoter))])
 
         await model.load()
 
@@ -105,7 +105,7 @@ final class CabalActionsModelTests: XCTestCase {
     func testAMembersHintForThisCabalReadsItAgainAndOneForAnotherCabalDoesNot() async {
         let (model, transport, hints) = make([
             .json(.ok, Self.cabal(me: Self.voter)),
-            .json(.ok, Self.cabal(me: #"{"role":"member","can_vote":false}"#)),
+            .json(.ok, Self.cabal(me: #"{"role":"member","can_vote":false,"can_propose":false}"#)),
         ])
         await model.load()
         let observer = await observing(model, hints)
@@ -297,15 +297,16 @@ final class CabalActionsModelTests: XCTestCase {
             + ##""member_count":2,"joined_at":"2026-10-02T15:00:00Z","pending_request_count":0,"unread_count":\##(unread)}]"##
     }
 
-    private static let voter = #"{"role":"member","can_vote":true}"#
+    private static let voter = #"{"role":"member","can_vote":true,"can_propose":true}"#
+    private static let nonVoter = #"{"role":"member","can_vote":false,"can_propose":false}"#
 
     private static func cabal(me: String) -> String {
         ##"{"id":"\##(cabalID)","name":"QA pot","picture_url":null,"status":"active","##
             + ##""rules":{"join_mode":"request","voter_mode":"all","threshold":"unanimous","##
-            + ##""proposal_expiry_seconds":86400,"slippage_bps":100},"##
+            + ##""proposal_expiry_seconds":86400,"slippage_bps":100,"show_sides":false,"show_sides_since":null,"max_trade_bps":null,"who_can_propose":"voters"},"##
             + ##""creator":{"user_id":"01890a5d-ac96-774b-bcce-b302099a8058","handle":"kai","##
             + ##""display_name":"Kai","photo_url":null},"##
-            + ##""member_count":2,"members":[],"me":\##(me),"my_access_request":null,"##
+            + ##""created_at":"2026-09-30T12:00:00Z","open_proposal_count":0,"voter_count":1,"member_count":2,"members":[],"me":\##(me),"my_access_request":null,"##
             + ##""invite_code":null,"treasury_address":"Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf"}"##
     }
 }

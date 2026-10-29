@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -37,8 +38,19 @@ type Member struct {
 }
 
 type Membership struct {
-	Role    string
-	CanVote bool
+	Role       string
+	CanVote    bool
+	CanPropose bool
+}
+
+type OpenVotes interface {
+	OpenVoteCounts(ctx context.Context, cabals []ids.CabalID) (map[ids.CabalID]int, error)
+}
+
+type NoOpenVotes struct{}
+
+func (NoOpenVotes) OpenVoteCounts(context.Context, []ids.CabalID) (map[ids.CabalID]int, error) {
+	return map[ids.CabalID]int{}, nil
 }
 
 type Access struct {
@@ -57,6 +69,12 @@ type CabalView struct {
 	Threshold       string
 	ExpirySeconds   int32
 	SlippageBps     int32
+	ShowSides       bool
+	ShowSidesSince  *time.Time
+	MaxTradeBps     *int32
+	CreatedAt       time.Time
+	OpenProposals   int32
+	VoterCount      int32
 	Creator         Person
 	Admins          []Person
 	MemberCount     int32
@@ -67,7 +85,7 @@ type CabalView struct {
 }
 
 func GetCabal(
-	ctx context.Context, q sqlc.DBTX, users UserCards, cabalID ids.CabalID, actor ids.UserID,
+	ctx context.Context, q sqlc.DBTX, users UserCards, votes OpenVotes, cabalID ids.CabalID, actor ids.UserID,
 ) (CabalView, error) {
 	dbq := sqlc.New(q)
 	row, err := dbq.FindCabal(ctx, cabalID.UUID())
@@ -89,6 +107,10 @@ func GetCabal(
 	if err != nil {
 		return CabalView{}, errs.Wrap(err, errs.CodeInternal, getCabalOp)
 	}
+	open, err := votes.OpenVoteCounts(ctx, []ids.CabalID{cabalID})
+	if err != nil {
+		return CabalView{}, errs.Wrap(err, errs.CodeInternal, getCabalOp)
+	}
 	members, me := membersOf(memberRows, cards, actor.UUID())
 	var access *Access
 	if me == nil {
@@ -101,6 +123,9 @@ func GetCabal(
 		ID: cabalID, Name: row.Name, PictureURL: textPtr(row.PictureUrl.Valid, row.PictureUrl.String),
 		Status: row.Status, JoinMode: row.JoinMode, VoterMode: row.VoterMode, Threshold: row.Threshold,
 		ExpirySeconds: row.ProposalExpirySeconds, SlippageBps: row.SlippageBps,
+		ShowSides: row.ShowSides, ShowSidesSince: timePtr(row.ShowSidesChangedAt.Valid, row.ShowSidesChangedAt.Time),
+		MaxTradeBps: int32Ptr(row.MaxTradeBps.Valid, row.MaxTradeBps.Int32), CreatedAt: row.CreatedAt,
+		OpenProposals: clampInt32(open[cabalID]), VoterCount: row.VoterCount,
 		Creator: person(row.CreatorID, cards), Admins: adminsOf(memberRows, cards), MemberCount: row.MemberCount,
 		Members: members, Me: me,
 		Access: access, TreasuryAddress: chain.SolanaAddress(wallet.Address),
@@ -142,7 +167,7 @@ func membersOf(
 			Person: person(row.UserID, cards), Role: row.Role, CanVote: row.CanVote, JoinedAt: row.JoinedAt,
 		})
 		if row.UserID == actor {
-			me = &Membership{Role: row.Role, CanVote: row.CanVote}
+			me = &Membership{Role: row.Role, CanVote: row.CanVote, CanPropose: row.CanVote}
 		}
 	}
 	return members, me
@@ -163,6 +188,27 @@ func adminsOf(rows []sqlc.ListMembersRow, cards map[ids.UserID]port.UserCard) []
 func person(id uuid.UUID, cards map[ids.UserID]port.UserCard) Person {
 	card := cards[ids.UserIDFrom(id)]
 	return Person{UserID: id, Handle: card.Handle, DisplayName: card.DisplayName, PhotoURL: card.PhotoURL}
+}
+
+func timePtr(ok bool, value time.Time) *time.Time {
+	if !ok {
+		return nil
+	}
+	return &value
+}
+
+func int32Ptr(ok bool, value int32) *int32 {
+	if !ok {
+		return nil
+	}
+	return &value
+}
+
+func clampInt32(n int) int32 {
+	if n < 0 || n > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	return int32(n)
 }
 
 func textPtr(ok bool, value string) *string {

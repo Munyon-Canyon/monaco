@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/domain"
@@ -200,7 +201,16 @@ func (r Postgres) Rules(ctx context.Context, id ids.CabalID) (port.Rules, error)
 		Threshold:      domain.Threshold(row.Threshold),
 		ProposalExpiry: time.Duration(row.ProposalExpirySeconds) * time.Second,
 		SlippageBps:    row.SlippageBps,
+		ShowSides:      row.ShowSides,
+		MaxTradeBps:    intPtr(row.MaxTradeBps),
 	}, nil
+}
+
+func intPtr(v pgtype.Int4) *int32 {
+	if !v.Valid {
+		return nil
+	}
+	return &v.Int32
 }
 
 func (r Postgres) SlippageBps(ctx context.Context, id ids.CabalID) (int32, error) {

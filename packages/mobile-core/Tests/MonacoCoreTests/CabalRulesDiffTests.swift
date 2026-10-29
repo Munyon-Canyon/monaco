@@ -91,11 +91,13 @@ final class CabalRulesDiffTests: XCTestCase {
         let raw =
             ##"{"id":"\##(creatorID)","name":"QA pot","picture_url":null,"status":"active","##
             + ##""rules":{"join_mode":"request","voter_mode":"list","threshold":"majority","##
-            + ##""proposal_expiry_seconds":3600,"slippage_bps":100},"##
+            + ##""proposal_expiry_seconds":3600,"slippage_bps":100,"show_sides":false,"show_sides_since":null,"max_trade_bps":null,"who_can_propose":"voters"},"##
             + ##""creator":{"user_id":"\##(creatorID)","handle":"kai","display_name":"Kai","photo_url":null},"##
-            + ##""member_count":1,"members":[],"me":{"role":"creator","can_vote":true},"my_access_request":null,"##
+            + ##""created_at":"2026-09-30T12:00:00Z","open_proposal_count":0,"voter_count":1,"member_count":1,"members":[],"me":{"role":"creator","can_vote":true,"can_propose":true},"my_access_request":null,"##
             + ##""invite_code":null,"treasury_address":"Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf"}"##
-        let cabal = try JSONDecoder().decode(Components.Schemas.Cabal.self, from: Data(raw.utf8))
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let cabal = try decoder.decode(Components.Schemas.Cabal.self, from: Data(raw.utf8))
 
         XCTAssertEqual(
             CabalSettings(cabal),

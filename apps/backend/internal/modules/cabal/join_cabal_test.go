@@ -284,7 +284,7 @@ func (f accessFixture) routes(users app.UserCards) adapters.HTTP {
 		Update:  app.NewUpdateCabalHandler(f.uow, f.clock),
 		Picture: app.NewSetCabalPictureHandler(f.uow, f.pool, f.ids, f.clock, nil),
 		Invite:  f.inviteHandler(),
-		DB:      f.pool, Users: users, Clock: f.clock,
+		DB:      f.pool, Users: users, Votes: app.NoOpenVotes{}, Clock: f.clock,
 	}
 }
 

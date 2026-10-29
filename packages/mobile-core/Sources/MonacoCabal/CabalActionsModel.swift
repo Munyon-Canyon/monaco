@@ -140,7 +140,9 @@ private struct CabalActionsPreviewTransport: ClientTransport {
     ) async throws -> (HTTPResponse, HTTPBody?) {
         var response = HTTPResponse(status: .ok)
         response.headerFields[.contentType] = "application/json"
-        return (response, HTTPBody(try JSONEncoder().encode(cabal)))
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return (response, HTTPBody(try encoder.encode(cabal)))
     }
 }
 
