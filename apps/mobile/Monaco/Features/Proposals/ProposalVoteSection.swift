@@ -144,6 +144,7 @@ struct ProposalVoteSection: View {
                 } else {
                     statusLine
                     hint
+                    remindControl
                 }
             }
         }
@@ -255,6 +256,36 @@ struct ProposalVoteSection: View {
             } else if let message = model.undoRefusal?.message ?? model.errorMessage {
                 toasts.current = MonacoToast(message: message)
             }
+        }
+    }
+}
+
+extension ProposalVoteSection {
+    private var hasCommitted: Bool {
+        if case .committed = model.voteSelection { return true }
+        return false
+    }
+
+    @ViewBuilder private var remindControl: some View {
+        if let remind = model.remind, state.isOpen, role == .voter, summary.myBallot == nil,
+            !hasCommitted
+        {
+            RemindControl(isOn: remind.isOn, onTitle: "Remind me at close") { toggleRemind(remind) }
+                .disabled(remind.isSending)
+                .accessibilityLabel(remind.isOn ? "Remind me at close, on" : "Remind me at close")
+                .accessibilityIdentifier("proposal-remind")
+        }
+    }
+
+    private func toggleRemind(_ remind: ProposalRemindModel) {
+        Task {
+            guard let state = await remind.toggle() else {
+                if let message = remind.errorMessage { toasts.current = MonacoToast(message: message) }
+                return
+            }
+            toasts.show(
+                success: state.isSet
+                    ? ProposalRemindModel.toastAfterOn(dueAt: state.dueAt, now: .now) : ProposalRemindModel.offToast)
         }
     }
 }
