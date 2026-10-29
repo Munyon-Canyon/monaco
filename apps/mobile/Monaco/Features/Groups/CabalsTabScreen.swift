@@ -46,6 +46,8 @@ struct CabalsTabScreen: View {
                     guard store.content != nil, let error = store.tab.lastError else { return }
                     toasts.show(error)
                 }
+            } else {
+                ProgressView()
             }
         }
         .task { await start() }
