@@ -38,13 +38,15 @@ struct CabalContextMenuPreview: View {
     let tile: CabalTile
     let votes: Int
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         HStack(spacing: MonacoTheme.Space.m) {
             CabalMark(
                 groupId: tile.id, name: tile.name, size: CabalsGridMetrics.crest, pictureUrl: tile.pictureURL
             )
             .crestVoteRing(votes > 0)
-            .crestBadge(votes)
+            .cabalCrestBadge(votes)
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(tile.shortName)
                     .font(MonacoTheme.Typo.headline)
@@ -52,13 +54,15 @@ struct CabalContextMenuPreview: View {
                     .lineLimit(1)
                 figures
                     .font(MonacoTheme.Typo.dataCaption)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                    .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
                 Text(
                     CabalMenuActions.membersLine(memberCount: tile.memberCount, role: tile.role, canVote: tile.canVote)
                 )
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.secondaryText)
-                .lineLimit(1)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
             }
         }
         .padding(MonacoTheme.Space.m)

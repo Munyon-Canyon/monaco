@@ -105,7 +105,8 @@ private struct CabalRulesBody: View {
     private func ruleRow(_ row: CabalRulesRows.Row, isLast: Bool, showSides: Bool) -> some View {
         if row.kind == .showSides {
             MonacoRow(
-                title: row.title, subtitle: row.value, isLast: isLast, trailingIsInteractive: true,
+                title: row.title, subtitle: row.value, subtitleLineLimit: 6, isLast: isLast,
+                trailingIsInteractive: true,
                 leading: { icon(row.kind) },
                 trailing: {
                     Toggle(row.title, isOn: sidesBinding(current: showSides))

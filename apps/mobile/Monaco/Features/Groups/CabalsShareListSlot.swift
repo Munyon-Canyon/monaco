@@ -12,6 +12,7 @@ enum CabalsShareListSlot: CabalsTabSection {
 struct CabalsShareListSection: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(CabalsTabStore.self) private var store
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         let tiles = store.tiles
@@ -34,7 +35,10 @@ struct CabalsShareListSection: View {
             Haptics.selection()
             environment.navigator.open(CabalRoute(id: tile.id), in: .cabals)
         } label: {
-            MonacoRow(title: tile.shortName, subtitle: tile.shareLine, isLast: isLast) {
+            MonacoRow(
+                title: tile.shortName, subtitle: tile.shareLine,
+                subtitleLineLimit: dynamicTypeSize >= .xxLarge ? 6 : 1, isLast: isLast
+            ) {
                 CabalMark(groupId: tile.id, name: tile.name, size: .row, pictureUrl: tile.pictureURL)
             } trailing: {
                 VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {

@@ -193,8 +193,39 @@ struct CabalsGridSection: View {
         Text(text)
             .font(MonacoTheme.Typo.caption)
             .foregroundStyle(MonacoTheme.primaryText)
-            .lineLimit(1)
+            .lineLimit(dynamicTypeSize > .large ? 2 : 1)
+            .fixedSize(horizontal: false, vertical: true)
             .truncationMode(.middle)
+    }
+}
+
+private struct CabalCrestBadge: ViewModifier {
+    let votes: Int
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    func body(content: Content) -> some View {
+        if dynamicTypeSize.isAccessibilitySize, let text = CrestMetrics.badgeText(votes) {
+            HStack(alignment: .top, spacing: MonacoTheme.Space.xs) {
+                content
+                Text(text)
+                    .font(MonacoTheme.Typo.captionStrong)
+                    .foregroundStyle(MonacoTheme.voteNeededLabel)
+                    .lineLimit(1)
+                    .padding(.horizontal, MonacoTheme.Space.xs)
+                    .frame(minWidth: CrestMetrics.badgeHeight, minHeight: CrestMetrics.badgeHeight)
+                    .background(MonacoTheme.voteNeededFill, in: Capsule())
+                    .accessibilityHidden(true)
+            }
+        } else {
+            content.crestBadge(votes)
+        }
+    }
+}
+
+extension View {
+    func cabalCrestBadge(_ votes: Int) -> some View {
+        modifier(CabalCrestBadge(votes: votes))
     }
 }
 
@@ -208,7 +239,7 @@ private struct CabalGridTile: View {
                 groupId: tile.id, name: tile.name, size: CabalsGridMetrics.crest, pictureUrl: tile.pictureURL
             )
             .crestVoteRing(votes > 0)
-            .crestBadge(votes)
+            .cabalCrestBadge(votes)
             Text(tile.shortName)
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.primaryText)
