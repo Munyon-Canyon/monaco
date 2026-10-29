@@ -992,6 +992,12 @@ catch-up-legacy-unread        -activityFeedHarness unread
 catch-up-caught-up            -MonacoCatchUpSample caughtUp
 catch-up-caught-up-dark       -MonacoCatchUpSample caughtUp -AppleInterfaceStyle Dark
 catch-up-first-use            -MonacoCatchUpSample firstUse
+catch-up-deck                 -MonacoCatchUpSample deck
+catch-up-deck-dark            -MonacoCatchUpSample deck -AppleInterfaceStyle Dark
+catch-up-deck-scrolled        -MonacoCatchUpSample deckScrolled
+catch-up-deck-scrolled-dark   -MonacoCatchUpSample deckScrolled -AppleInterfaceStyle Dark
+catch-up-deck-post-reply      -MonacoCatchUpSample deckPostReply
+catch-up-deck-post-reply-dark -MonacoCatchUpSample deckPostReply -AppleInterfaceStyle Dark
 gif-sheet-trending            -gifHarness trending
 gif-sheet-trending-dark       -gifHarness trending -AppleInterfaceStyle Dark
 gif-sheet-search              -gifHarness search

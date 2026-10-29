@@ -5,7 +5,7 @@ import MonacoCore
 import SwiftUI
 
 enum CatchUpSampleScenario: String {
-    case six, loading, error, caughtUp, firstUse
+    case six, loading, error, caughtUp, firstUse, deck, deckScrolled, deckPostReply
 
     static let launchArgument = "-MonacoCatchUpSample"
     static let legacyArgument = "-activityFeedHarness"
@@ -23,11 +23,22 @@ enum CatchUpSampleScenario: String {
         }
     }
 
+    var deckStart: CatchUpDeckStart? {
+        switch self {
+        case .deck: CatchUpDeckStart(key: "comment:00000000-0000-7000-8000-00000000d001")
+        case .deckScrolled: CatchUpDeckStart(key: "comment:00000000-0000-7000-8000-00000000d001", scrolledToEnd: true)
+        case .deckPostReply: CatchUpDeckStart(key: "comment:00000000-0000-7000-8000-00000000d003")
+        case .six, .loading, .error, .caughtUp, .firstUse: nil
+        }
+    }
+
     var state: LoadState<CatchUpScreen> {
         switch self {
         case .six: .loaded(CatchUpScreen(.six))
         case .caughtUp: .loaded(CatchUpScreen(.caughtUp))
         case .firstUse: .loaded(CatchUpScreen(.firstUse))
+        case .deck, .deckScrolled: .loaded(CatchUpScreen(.deck))
+        case .deckPostReply: .loaded(CatchUpScreen(.deckPostReply))
         case .loading: .loading
         case .error: .failed(.transport(URLError(.notConnectedToInternet)))
         }
@@ -39,7 +50,8 @@ nonisolated struct CatchUpSampleRoute: AppRoute {
 
     @MainActor func destination() -> some View {
         let now = Components.Schemas.CatchUp.sampleNow
-        return CatchUpView(model: .preview(state: scenario.state, now: now), now: { now })
+        return CatchUpView(
+            model: .preview(state: scenario.state, now: now), now: { now }, opensDeckAt: scenario.deckStart)
     }
 }
 
