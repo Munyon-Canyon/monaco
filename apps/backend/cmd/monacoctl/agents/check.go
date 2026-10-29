@@ -823,7 +823,10 @@ func (env *Env) goRows(ctx context.Context, self, base, head string, changed, re
 	if err != nil {
 		return nil, fmt.Errorf("find excluded packages: %w", err)
 	}
-	dependents, err := env.testDependents(ctx, backend, slices.Concat(changed, removed))
+	listing := sync.OnceValues(func() ([]byte, error) {
+		return env.Run(ctx, backend, "", "go", "list", "-f", importListFormat, "./...")
+	})
+	dependents, err := testDependents(listing, slices.Concat(changed, removed))
 	if err != nil {
 		return nil, err
 	}
@@ -846,7 +849,12 @@ func (env *Env) goRows(ctx context.Context, self, base, head string, changed, re
 		return nil, err
 	}
 	covered := coverageFiles(backend, changed, removed)
-	testRow := goTestRow(env, backend, tags, tested, covered, profile)
+	flags := coverFlags(backend, tested, covered, profile)
+	linked, unlinked, err := splitByCover(listing, tested, flags)
+	if err != nil {
+		return nil, err
+	}
+	testRow := goTestRow(env, backend, tags, linked, unlinked, flags)
 	testRow.header = testHeader(tested, strings.Fields(string(skipped)))
 	if len(tested) == 0 {
 		testRow.skip = "every affected package is excluded: " + strings.Join(strings.Fields(string(skipped)), " ")
@@ -877,20 +885,102 @@ func testHeader(tested, skipped []string) string {
 	return header
 }
 
-func goTestRow(env *Env, backend string, tags, pkgs []string, covered map[string]bool, profile string) checkRow {
+func goTestRow(env *Env, backend string, tags, linked, unlinked, coverFlags []string) checkRow {
 	return checkRow{
 		label: "go test -short", kind: packageKind, dir: backend, class: "db",
 		dbCmds: func(db testDB) [][]string {
 			p := testParallelism(runtime.NumCPU(), db.busy)
 			parallel := testParallelPerPackage(runtime.NumCPU(), db.busy, p)
-			return [][]string{
-				slices.Concat(db.testEnv(), []string{"go", "test"}, tags, []string{
-					"-short", "-count=1", "-timeout", env.Config.Budget[packageKind].String(),
-					"-p", strconv.Itoa(p), "-parallel", strconv.Itoa(parallel), "-json",
-				}, coverFlags(backend, pkgs, covered, profile), pkgs),
+			goTest := slices.Concat(db.testEnv(), []string{"go", "test"}, tags, []string{
+				"-short", "-count=1", "-timeout", env.Config.Budget[packageKind].String(),
+				"-p", strconv.Itoa(p), "-parallel", strconv.Itoa(parallel), "-json",
+			})
+			var cmds [][]string
+			if len(linked) > 0 {
+				cmds = append(cmds, slices.Concat(goTest, coverFlags, linked))
 			}
+			if len(unlinked) > 0 {
+				cmds = append(cmds, slices.Concat(goTest, unlinked))
+			}
+			return cmds
 		},
 	}
+}
+
+func splitByCover(listing func() ([]byte, error), tested, coverFlags []string) ([]string, []string, error) {
+	if len(coverFlags) == 0 {
+		return nil, tested, nil
+	}
+	out, err := listing()
+	if err != nil {
+		return nil, nil, fmt.Errorf("list the imports of the tested packages: %w", err)
+	}
+	instrumented := strings.Split(strings.TrimPrefix(coverFlags[0], "-coverpkg="), ",")
+	linked, unlinked := linkedPackages(string(out), tested, instrumented)
+	return linked, unlinked, nil
+}
+
+func linkedPackages(listing string, tested, instrumented []string) (linked, unlinked []string) {
+	g := parseImportListing(listing)
+	wanted := map[string]bool{}
+	for _, pkg := range instrumented {
+		wanted[g.full(pkg)] = true
+	}
+	for _, pkg := range tested {
+		if g.reaches(g.full(pkg), wanted) {
+			linked = append(linked, pkg)
+		} else {
+			unlinked = append(unlinked, pkg)
+		}
+	}
+	return linked, unlinked
+}
+
+type importGraph struct {
+	module      string
+	imports     map[string][]string
+	testImports map[string][]string
+}
+
+func parseImportListing(listing string) importGraph {
+	g := importGraph{imports: map[string][]string{}, testImports: map[string][]string{}}
+	for line := range strings.SplitSeq(listing, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		g.module = fields[0]
+		deps := fields[2:]
+		if i := slices.Index(deps, importListSeparator); i >= 0 {
+			deps, g.testImports[fields[1]] = deps[:i], deps[i+1:]
+		}
+		g.imports[fields[1]] = deps
+	}
+	return g
+}
+
+func (g importGraph) full(pkg string) string {
+	if pkg == "." {
+		return g.module
+	}
+	return path.Join(g.module, strings.TrimPrefix(pkg, "./"))
+}
+
+func (g importGraph) reaches(root string, wanted map[string]bool) bool {
+	seen := map[string]bool{root: true}
+	queue := slices.Concat(g.imports[root], g.testImports[root])
+	for ; len(queue) > 0; queue = queue[1:] {
+		dep := queue[0]
+		if seen[dep] {
+			continue
+		}
+		seen[dep] = true
+		if wanted[dep] {
+			return true
+		}
+		queue = append(queue, g.imports[dep]...)
+	}
+	return wanted[root]
 }
 
 func coverageFiles(backend string, changed, removed []string) map[string]bool {
@@ -915,10 +1005,13 @@ func coverageFiles(backend string, changed, removed []string) map[string]bool {
 	return only
 }
 
-const importListFormat = `{{.Module.Path}} {{.ImportPath}} ` +
-	`{{join .Imports " "}} {{join .TestImports " "}} {{join .XTestImports " "}}`
+const (
+	importListSeparator = "|"
+	importListFormat    = `{{.Module.Path}} {{.ImportPath}} {{join .Imports " "}} ` +
+		importListSeparator + ` {{join .TestImports " "}} {{join .XTestImports " "}}`
+)
 
-func (env *Env) testDependents(ctx context.Context, backend string, files []string) ([]string, error) {
+func testDependents(listing func() ([]byte, error), files []string) ([]string, error) {
 	var dirs []string
 	for _, f := range files {
 		rel, ok := strings.CutPrefix(f, "apps/backend/")
@@ -929,7 +1022,7 @@ func (env *Env) testDependents(ctx context.Context, backend string, files []stri
 	if len(dirs) == 0 {
 		return nil, nil
 	}
-	out, err := env.Run(ctx, backend, "", "go", "list", "-f", importListFormat, "./...")
+	out, err := listing()
 	if err != nil {
 		return nil, fmt.Errorf("list the importers of the packages whose tests changed: %w", err)
 	}
@@ -937,22 +1030,19 @@ func (env *Env) testDependents(ctx context.Context, backend string, files []stri
 }
 
 func importersOf(listing string, dirs []string) []string {
+	g := parseImportListing(listing)
 	importers := map[string][]string{}
-	var module string
-	for line := range strings.SplitSeq(listing, "\n") {
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		module = fields[0]
-		for _, imported := range fields[2:] {
-			importers[imported] = append(importers[imported], fields[1])
+	for _, edges := range []map[string][]string{g.imports, g.testImports} {
+		for importer, imported := range edges {
+			for _, dep := range imported {
+				importers[dep] = append(importers[dep], importer)
+			}
 		}
 	}
 	seen := map[string]bool{}
 	queue := make([]string, 0, len(dirs))
 	for _, dir := range dirs {
-		queue = append(queue, path.Join(module, dir))
+		queue = append(queue, path.Join(g.module, dir))
 	}
 	for ; len(queue) > 0; queue = queue[1:] {
 		for _, importer := range importers[queue[0]] {
@@ -964,7 +1054,7 @@ func importersOf(listing string, dirs []string) []string {
 	}
 	deps := make([]string, 0, len(seen))
 	for pkg := range seen {
-		deps = append(deps, "./"+strings.TrimPrefix(pkg, module+"/"))
+		deps = append(deps, "./"+strings.TrimPrefix(pkg, g.module+"/"))
 	}
 	slices.Sort(deps)
 	return deps

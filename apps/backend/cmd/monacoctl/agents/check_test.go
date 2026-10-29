@@ -257,6 +257,12 @@ func (h *checkHarness) goTest(t *testing.T, p, parallel, cover string, pkgs ...s
 	}
 }
 
+func (h *checkHarness) goTestNoCover(p, parallel string, pkgs ...string) string {
+	return "apps/backend: " + strings.Join(testDB{}.testEnv(), " ") +
+		" go test -tags faultpoints -short -count=1 -timeout 1m20s -p " + p + " -parallel " + parallel +
+		" -json " + strings.Join(pkgs, " ")
+}
+
 func (h *checkHarness) profile(t *testing.T) string {
 	t.Helper()
 	return filepath.Join(h.stateDir(t, "coverage"), h.head(t)[:12]+".out")
@@ -414,22 +420,16 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		`{"Time":"2026-09-27T12:00:01Z","Action":"start","Package":"github.com/monaco/monaco/apps/backend/internal/x"}`,
 		`{"Action":"output","Package":"github.com/monaco/monaco/apps/backend/internal/x","Test":"TestX","Output":"=== RUN   TestX\n"}`,
 		`{"Action":"pass","Package":"github.com/monaco/monaco/apps/backend/internal/x","Elapsed":1.5,"Output":"ok  \tx\t1.5s\n"}`,
-	}, "\n")}}
+	}, "\n")}, {prefix: "go list", out: "m m/internal/x |\nm m/internal/t | m/internal/x\nm m/cmd/api m/internal/x |\n"}}
 
 	code, stdout, stderr := h.check(t)
 	if code != 0 {
 		t.Fatalf("check: %d %q %q", code, stdout, stderr)
 	}
 	pr := ".: env BASE_SHA=" + h.mergeBase(t, "origin/fb") + " HEAD_SHA=" + h.head(t) + " PR_LABELS=[] python3 scripts/"
-	goTest := h.goTest(
-		t,
-		strconv.Itoa(testParallelism(runtime.NumCPU(), 1)),
-		strconv.Itoa(testParallelPerPackage(runtime.NumCPU(), 1, testParallelism(runtime.NumCPU(), 1))),
-		"./internal/x",
-		"./internal/x",
-		"./internal/t",
-		"./cmd/api",
-	)
+	p := strconv.Itoa(testParallelism(runtime.NumCPU(), 1))
+	parallel := strconv.Itoa(testParallelPerPackage(runtime.NumCPU(), 1, testParallelism(runtime.NumCPU(), 1)))
+	goTest := h.goTest(t, p, parallel, "./internal/x", "./internal/x", "./internal/t", "./cmd/api")
 	want := []string{
 		".: gt parent --no-interactive",
 		"apps/backend: ci affected --base origin/fb",
@@ -511,7 +511,7 @@ func TestCheck_overBudgetExitsOneNamingTheSlowestPackageAndRecordsNothing(t *tes
 	h := newCheckHarness(t)
 	tree := h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
 	h.affected = "./internal/a\n./internal/slow\n"
-	h.replies = []reply{{
+	h.replies = []reply{{prefix: "go list", out: "m m/internal/a |\nm m/internal/slow m/internal/a |\n"}, {
 		prefix: "go test", took: 75 * time.Second, err: errors.New("signal: killed"),
 		out: strings.Join([]string{
 			`{"Time":"2026-09-27T12:00:02Z","Action":"start","Package":"github.com/monaco/monaco/apps/backend/internal/a"}`,
@@ -2388,15 +2388,72 @@ func TestCheck_coverpkgInstrumentsOnlyChangedPackages(t *testing.T) {
 		"apps/backend/internal/c/c_test.go": "package c // changed\n",
 	})
 	h.affected = "./internal/a\n./internal/b\n./internal/c\n./internal/d\n"
+	h.replies = []reply{
+		{
+			prefix: "go list",
+			out:    "m m/internal/a |\nm m/internal/b m/internal/a |\nm m/internal/c |\nm m/internal/d |\n",
+		},
+	}
 	h.calls = nil
 	if code, stdout, stderr := h.check(t); code != 0 {
 		t.Fatalf("check: %d %q %q", code, stdout, stderr)
 	}
-	want := h.goTest(t, strconv.Itoa(testParallelism(runtime.NumCPU(), 1)),
-		strconv.Itoa(testParallelPerPackage(runtime.NumCPU(), 1, testParallelism(runtime.NumCPU(), 1))), "./internal/a",
-		"./internal/a", "./internal/b", "./internal/c", "./internal/d")[0]
-	if !slices.Contains(h.calls, want) {
-		t.Fatalf("calls: %s\nwant %s", strings.Join(h.calls, "\n"), want)
+	p := strconv.Itoa(testParallelism(runtime.NumCPU(), 1))
+	parallel := strconv.Itoa(testParallelPerPackage(runtime.NumCPU(), 1, testParallelism(runtime.NumCPU(), 1)))
+	covered := h.goTest(t, p, parallel, "./internal/a", "./internal/a", "./internal/b")[0]
+	if !slices.Contains(h.calls, covered) {
+		t.Fatalf("calls: %s\nwant %s", strings.Join(h.calls, "\n"), covered)
+	}
+	uncovered := h.goTestNoCover(p, parallel, "./internal/c", "./internal/d")
+	if !slices.Contains(h.calls, uncovered) {
+		t.Fatalf(
+			"the packages that link no instrumented package ran with -cover: %s\nwant %s",
+			strings.Join(h.calls, "\n"),
+			uncovered,
+		)
+	}
+}
+
+func TestLinkedPackages(t *testing.T) {
+	t.Parallel()
+	listing := strings.Join([]string{
+		"m m/internal/a |",
+		"m m/internal/b m/internal/a |",
+		"m m/internal/c m/internal/d |",
+		"m m/internal/d | m/internal/a",
+		"m m/internal/e | m/internal/a",
+		"m m/internal/f |",
+		"m m/internal/g m/internal/h m/internal/c |",
+		"m m/internal/h m/internal/c |",
+		"m m |",
+	}, "\n")
+	tested := []string{
+		"./internal/a",
+		"./internal/b",
+		"./internal/c",
+		"./internal/d",
+		"./internal/e",
+		"./internal/f",
+		".",
+	}
+	linked, unlinked := linkedPackages(listing, tested, []string{"./internal/a"})
+	if want := []string{"./internal/a", "./internal/b", "./internal/d", "./internal/e"}; !slices.Equal(linked, want) {
+		t.Fatalf(
+			"linked %v, want %v (b imports a, d's and e's tests import a, c reaches a only through d's tests)",
+			linked,
+			want,
+		)
+	}
+	if want := []string{"./internal/c", "./internal/f", "."}; !slices.Equal(unlinked, want) {
+		t.Fatalf("unlinked %v, want %v", unlinked, want)
+	}
+	linked, unlinked = linkedPackages(listing, tested, []string{"."})
+	if !slices.Equal(linked, []string{"."}) || len(unlinked) != 6 {
+		t.Fatalf("the root package: linked %v unlinked %v", linked, unlinked)
+	}
+	linked, unlinked = linkedPackages(listing, []string{"./internal/g"}, []string{"./internal/f"})
+	if len(linked) != 0 || !slices.Equal(unlinked, []string{"./internal/g"}) {
+		t.Fatalf("a diamond that never reaches f: linked %v unlinked %v", linked, unlinked)
 	}
 }
 
@@ -2430,6 +2487,12 @@ func TestCheck_coverpkgNoDependencyNoticesAreNotWarnings(t *testing.T) {
 	code, stdout, stderr := h.check(t)
 	if code != 0 || strings.Contains(stdout, "warnings in the log") {
 		t.Fatalf("check: %d %q %q", code, stdout, stderr)
+	}
+
+	h.replies = []reply{{prefix: "go list", err: errors.New("x")}}
+	if code, _, stderr := h.check(t, "--fresh"); code != 1 ||
+		!strings.Contains(stderr, "list the imports of the tested packages") {
+		t.Fatalf("go list failure: %d %q", code, stderr)
 	}
 }
 
