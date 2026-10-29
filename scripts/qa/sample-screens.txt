@@ -299,6 +299,7 @@ cabal-f-treasury-history          -MonacoGroupDetailSample fTreasuryHistory -App
 cabal-f-rules                     -MonacoGroupDetailSample fRules -AppleInterfaceStyle Dark
 cabal-f-rules-scrolled            -MonacoGroupDetailSample fRulesScrolled -AppleInterfaceStyle Dark -MonacoSampleScroll 0.6
 cabal-f-rules-sides               -MonacoGroupDetailSample fRulesSides -AppleInterfaceStyle Dark -MonacoSampleScroll 0.6
+cabal-f-empty                     -MonacoGroupDetailSample fEmpty -AppleInterfaceStyle Dark
 cabal-f-rule-proposal             -MonacoGroupDetailSample fRuleProposal -MonacoSampleRuleSheet -AppleInterfaceStyle Dark
 cabal-f-rule-proposal-open        -MonacoGroupDetailSample fRuleProposalOpen -AppleInterfaceStyle Dark
 cabal-f-members                   -MonacoGroupDetailSample fMembers -AppleInterfaceStyle Dark
