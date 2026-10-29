@@ -83,6 +83,21 @@ func (e AdminReportStatus) Valid() bool {
 	}
 }
 
+// Defines values for CommentAttachmentInputKind.
+const (
+	CommentAttachmentInputKindGif CommentAttachmentInputKind = "gif"
+)
+
+// Valid indicates whether the value is a known member of the CommentAttachmentInputKind enum.
+func (e CommentAttachmentInputKind) Valid() bool {
+	switch e {
+	case CommentAttachmentInputKindGif:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FeedItemAssetKind.
 const (
 	FeedItemAssetKindEquity      FeedItemAssetKind = "equity"
@@ -212,6 +227,21 @@ func (e FeedMuteRequestTargetType) Valid() bool {
 	case FeedMuteRequestTargetTypeKind:
 		return true
 	case FeedMuteRequestTargetTypeUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GifAttachmentKind.
+const (
+	GifAttachmentKindGif GifAttachmentKind = "gif"
+)
+
+// Valid indicates whether the value is a known member of the GifAttachmentKind enum.
+func (e GifAttachmentKind) Valid() bool {
+	switch e {
+	case GifAttachmentKindGif:
 		return true
 	default:
 		return false
@@ -685,15 +715,18 @@ type ChatThread struct {
 
 // Comment One comment on a feed item.
 type Comment struct {
+	// Attachment A reply's attachment, keyed by `kind` (only `gif` today).
+	Attachment *GifAttachment `json:"attachment,omitempty"`
+
 	// Author The author of a comment. A deleted account has a null handle and an empty name.
 	Author CommentAuthor `json:"author"`
 
-	// Body Null on a deleted comment.
+	// Body Null on a deleted comment and on a reply that is only an attachment.
 	//
 	// Examples: nice
 	Body *string `json:"body"`
 
-	// BodyDisplay The body, `Comment deleted` once the author deletes it, or `Removed by Monaco` once a moderator removes it.
+	// BodyDisplay The body, `GIF` for a GIF-only reply, `Comment deleted` once the author deletes it, or `Removed by Monaco` once a moderator removes it.
 	//
 	// Examples: nice
 	BodyDisplay string `json:"body_display"`
@@ -731,6 +764,22 @@ type Comment struct {
 	// Examples: null
 	RootCommentId *openapi_types.UUID `json:"root_comment_id,omitempty"`
 }
+
+// CommentAttachmentInput The attachment of a reply. At most one per reply.
+type CommentAttachmentInput struct {
+	// Gif A GIF as the GIPHY SDK returned it. Every URL must be https on a GIPHY media host and carry the GIF's id in its path; the server drops each URL's query string.
+	Gif GifInput `json:"gif"`
+
+	// Kind The attachment kind. Only `gif` is accepted.
+	//
+	// Examples: gif
+	Kind CommentAttachmentInputKind `json:"kind"`
+}
+
+// CommentAttachmentInputKind The attachment kind. Only `gif` is accepted.
+//
+// Examples: gif
+type CommentAttachmentInputKind string
 
 // CommentAuthor The author of a comment. A deleted account has a null handle and an empty name.
 type CommentAuthor struct {
@@ -790,10 +839,15 @@ type CommentQuote struct {
 	// Examples: 01920000-0000-7000-8000-000000000006
 	CommentId openapi_types.UUID `json:"comment_id"`
 
-	// Excerpt The first 120 characters of the answered comment. Null once it is deleted or removed, and when the caller blocked its author.
+	// Excerpt The first 120 characters of the answered comment, `GIF` when it is only a GIF. Null once it is deleted or removed, and when the caller blocked its author.
 	//
 	// Examples: Good timing on this one.
 	Excerpt *string `json:"excerpt"`
+
+	// HasAttachment True when the answered comment is live and has an attachment.
+	//
+	// Examples: false
+	HasAttachment bool `json:"has_attachment"`
 
 	// IsDeleted True when the answered comment is deleted or removed.
 	//
@@ -859,10 +913,13 @@ type ContactMatchRequest struct {
 
 // CreateCommentRequest A comment to post.
 type CreateCommentRequest struct {
-	// Body The text, trimmed by the server to 1 to 1000 Unicode scalars.
+	// Attachment The attachment of a reply. At most one per reply.
+	Attachment *CommentAttachmentInput `json:"attachment,omitempty"`
+
+	// Body The text, trimmed by the server to 1 to 1000 Unicode scalars. Optional when `attachment` is present, otherwise required.
 	//
 	// Examples: nice
-	Body string `json:"body"`
+	Body *string `json:"body,omitempty"`
 
 	// ParentCommentId The comment this replies to, on the same item. Absent for a top-level comment.
 	//
@@ -1303,6 +1360,78 @@ type FollowsPage struct {
 	//
 	// Examples: null
 	NextCursor *string `json:"next_cursor"`
+}
+
+// GifAttachment A reply's attachment, keyed by `kind` (only `gif` today).
+type GifAttachment struct {
+	// Id The GIPHY id.
+	//
+	// Examples: xT9IgDEI1iZyb2wqo8
+	Id string `json:"id"`
+
+	// Kind The attachment kind.
+	//
+	// Examples: gif
+	Kind GifAttachmentKind `json:"kind"`
+
+	// Original One rendition of a GIF.
+	Original GifMedia `json:"original"`
+
+	// Preview One rendition of a GIF.
+	Preview GifMedia `json:"preview"`
+
+	// Still One rendition of a GIF.
+	Still GifMedia `json:"still"`
+
+	// Title The GIF's title.
+	//
+	// Examples: happy dance
+	Title string `json:"title"`
+}
+
+// GifAttachmentKind The attachment kind.
+//
+// Examples: gif
+type GifAttachmentKind string
+
+// GifInput A GIF as the GIPHY SDK returned it. Every URL must be https on a GIPHY media host and carry the GIF's id in its path; the server drops each URL's query string.
+type GifInput struct {
+	// Id The GIPHY id, 1 to 64 letters and digits.
+	//
+	// Examples: xT9IgDEI1iZyb2wqo8
+	Id string `json:"id"`
+
+	// Original One rendition of a GIF.
+	Original GifMedia `json:"original"`
+
+	// Preview One rendition of a GIF.
+	Preview GifMedia `json:"preview"`
+
+	// Still One rendition of a GIF.
+	Still GifMedia `json:"still"`
+
+	// Title The GIF's title, at most 140 characters.
+	//
+	// Examples: happy dance
+	Title string `json:"title"`
+}
+
+// GifMedia One rendition of a GIF.
+type GifMedia struct {
+	// Height Height in pixels.
+	//
+	// Examples: 150
+	Height int `json:"height"`
+
+	// Url The GIPHY media URL.
+	//
+	// Examples: https://media.giphy.com/media/xT9IgDEI1iZyb2wqo8/200.gif
+	Url string `json:"url"`
+
+	// Width Width in pixels.
+	//
+	// Examples: 200
+	Width int `json:"width"`
 }
 
 // PostChatMessageRequest A chat message to post.

@@ -30,11 +30,19 @@ func (h HTTP) PostFeedComment(
 	if req.Body == nil {
 		return nil, errs.New(errs.CodeInvalidInput, "social.PostFeedComment")
 	}
-	body, err := domain.ParseCommentBody(req.Body.Body)
+	var att *domain.AttachmentInput
+	if a := req.Body.Attachment; a != nil {
+		gif := domain.GifInput{
+			ID: a.Gif.Id, Title: a.Gif.Title, Still: mediaInput(a.Gif.Still), Preview: mediaInput(a.Gif.Preview),
+			Original: mediaInput(a.Gif.Original),
+		}
+		att = &domain.AttachmentInput{Kind: string(a.Kind), GIF: &gif}
+	}
+	input, err := domain.ParseCommentInput(req.Body.Body, att)
 	if err != nil {
 		return nil, err
 	}
-	cmd := app.CreateComment{FeedObjectID: req.Id, Author: me, Body: body}
+	cmd := app.CreateComment{FeedObjectID: req.Id, Author: me, Input: input}
 	if req.Body.ParentCommentId != nil {
 		cmd.ParentID = *req.Body.ParentCommentId
 	}
@@ -47,6 +55,21 @@ func (h HTTP) PostFeedComment(
 		return nil, err
 	}
 	return api.PostFeedComment201JSONResponse(wire[0]), nil
+}
+
+func mediaInput(m api.GifMedia) domain.Media {
+	return domain.Media{URL: m.Url, Width: m.Width, Height: m.Height}
+}
+
+func wireMedia(m domain.Media) api.GifMedia {
+	return api.GifMedia{Url: m.URL, Width: m.Width, Height: m.Height}
+}
+
+func wireAttachment(a *domain.Attachment) *api.GifAttachment {
+	return &api.GifAttachment{
+		Kind: api.GifAttachmentKindGif, Id: a.GIF.ID, Title: a.GIF.Title, Still: wireMedia(a.GIF.Still),
+		Preview: wireMedia(a.GIF.Preview), Original: wireMedia(a.GIF.Original),
+	}
 }
 
 func wireComments(
@@ -90,7 +113,7 @@ func wireQuote(q *app.CommentQuote, who people) *api.CommentQuote {
 	}
 	return &api.CommentQuote{
 		CommentId: q.CommentID, RootCommentId: q.RootID, AuthorDisplayName: name, Excerpt: q.Excerpt,
-		IsDeleted: q.Deleted, IsFolded: q.Folded,
+		IsDeleted: q.Deleted, IsFolded: q.Folded, HasAttachment: q.HasAttachment,
 	}
 }
 
@@ -122,9 +145,22 @@ func wireComment(c app.Comment, viewer ids.UserID, who people) api.Comment {
 	case c.Deleted:
 		out.BodyDisplay = commentDeletedDisplay
 	default:
-		out.Body = &c.Body
+		wireLiveBody(&out, c)
 	}
 	return out
+}
+
+func wireLiveBody(out *api.Comment, c app.Comment) {
+	if c.Body != "" {
+		out.Body = &c.Body
+	}
+	if c.Attachment == nil {
+		return
+	}
+	out.Attachment = wireAttachment(c.Attachment)
+	if c.Body == "" {
+		out.BodyDisplay = string(domain.GifDisplay)
+	}
 }
 
 func (h HTTP) GetFeedComments(

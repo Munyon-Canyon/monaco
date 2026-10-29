@@ -431,6 +431,7 @@ Subject `events.comment.created`, version 1.
 | `item_noun` | `string` |
 | `cabal_name` | `*string` |
 | `reply_rule` | `string` |
+| `attachment_kind` | `string` |
 
 ## `comment.deleted`
 

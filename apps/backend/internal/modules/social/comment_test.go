@@ -92,7 +92,8 @@ func (f commentFixture) comment(
 		t.Fatal(err)
 	}
 	ctx := observability.WithActor(t.Context(), "user:"+author.String())
-	return f.create.Handle(ctx, app.CreateComment{FeedObjectID: item, Author: author, Body: parsed, ParentID: parent})
+	input := domain.CommentInput{Body: &parsed}
+	return f.create.Handle(ctx, app.CreateComment{FeedObjectID: item, Author: author, Input: input, ParentID: parent})
 }
 
 func (f commentFixture) mustComment(
@@ -296,7 +297,7 @@ func TestCreateComment_passesAMembershipLookupFailureThrough(t *testing.T) {
 	})
 	body, _ := domain.ParseCommentBody("hi")
 	_, err := h.Handle(t.Context(), app.CreateComment{
-		FeedObjectID: f.item(t, feed.KindProposal), Author: f.outsider, Body: body,
+		FeedObjectID: f.item(t, feed.KindProposal), Author: f.outsider, Input: domain.CommentInput{Body: &body},
 	})
 	wantCode(t, err, errs.CodeUpstreamUnavailable)
 }

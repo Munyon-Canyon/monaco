@@ -9527,10 +9527,21 @@ components:
           examples: [null]
         reply_to:
           $ref: "#/components/schemas/CommentQuote"
-        body: {type: [string, "null"], description: Null on a deleted comment., examples: [nice]}
-        body_display: {type: string, description: "The body, `Comment deleted` once the author deletes it, or `Removed by Monaco` once a moderator removes it.", examples: [nice]}
+        body: {type: [string, "null"], description: Null on a deleted comment and on a reply that is only an attachment., examples: [nice]}
+        body_display: {type: string, description: "The body, `GIF` for a GIF-only reply, `Comment deleted` once the author deletes it, or `Removed by Monaco` once a moderator removes it.", examples: [nice]}
+        attachment:
+          $ref: "#/components/schemas/GifAttachment"
         is_mine: {type: boolean, description: True when the caller wrote it., examples: [true]}
         created_at: {type: string, format: date-time, description: When the server stored it., examples: ["2026-10-03T12:00:00Z"]}
+    CommentAttachmentInput:
+      type: object
+      description: The attachment of a reply. At most one per reply.
+      additionalProperties: false
+      required: [kind, gif]
+      properties:
+        kind: {type: string, enum: [gif], description: "The attachment kind. Only `gif` is accepted.", examples: [gif]}
+        gif:
+          $ref: "#/components/schemas/GifInput"
     CommentAuthor:
       type: object
       description: The author of a comment. A deleted account has a null handle and an empty name.
@@ -9563,13 +9574,14 @@ components:
       type: object
       description: The comment a reply answers, as the quote above the reply.
       additionalProperties: false
-      required: [comment_id, root_comment_id, author_display_name, excerpt, is_deleted, is_folded]
+      required: [comment_id, root_comment_id, author_display_name, excerpt, is_deleted, is_folded, has_attachment]
       properties:
         comment_id: {type: string, format: uuid, description: "The answered comment.", examples: ["01920000-0000-7000-8000-000000000006"]}
         root_comment_id: {type: string, format: uuid, description: "The answered comment's top-level comment: its parent, or itself when it is top-level. The app expands this comment before it jumps.", examples: ["01920000-0000-7000-8000-000000000006"]}
         author_display_name: {type: string, description: "The answered comment's author, `Someone` once that account is deleted.", examples: [Andres]}
-        excerpt: {type: [string, "null"], description: "The first 120 characters of the answered comment. Null once it is deleted or removed, and when the caller blocked its author.", examples: [Good timing on this one.]}
+        excerpt: {type: [string, "null"], description: "The first 120 characters of the answered comment, `GIF` when it is only a GIF. Null once it is deleted or removed, and when the caller blocked its author.", examples: [Good timing on this one.]}
         is_deleted: {type: boolean, description: True when the answered comment is deleted or removed., examples: [false]}
+        has_attachment: {type: boolean, description: "True when the answered comment is live and has an attachment.", examples: [false]}
         is_folded: {type: boolean, description: "True when the answered comment is a folded answer, so the app expands its root before it jumps.", examples: [false]}
     CommentThread:
       type: object
@@ -9626,12 +9638,13 @@ components:
       type: object
       description: A comment to post.
       additionalProperties: false
-      required: [body]
       properties:
         body:
           type: string
-          description: The text, trimmed by the server to 1 to 1000 Unicode scalars.
+          description: The text, trimmed by the server to 1 to 1000 Unicode scalars. Optional when `attachment` is present, otherwise required.
           examples: [nice]
+        attachment:
+          $ref: "#/components/schemas/CommentAttachmentInput"
         parent_comment_id:
           type: string
           format: uuid
@@ -9930,6 +9943,44 @@ components:
           type: [string, "null"]
           description: The cursor for the next page. Null on the last page.
           examples: [null]
+    GifAttachment:
+      type: object
+      description: A reply's attachment, keyed by `kind` (only `gif` today).
+      additionalProperties: false
+      required: [kind, id, title, still, preview, original]
+      properties:
+        kind: {type: string, enum: [gif], description: The attachment kind., examples: [gif]}
+        id: {type: string, description: The GIPHY id., examples: [xT9IgDEI1iZyb2wqo8]}
+        title: {type: string, description: The GIF's title., examples: [happy dance]}
+        still:
+          $ref: "#/components/schemas/GifMedia"
+        preview:
+          $ref: "#/components/schemas/GifMedia"
+        original:
+          $ref: "#/components/schemas/GifMedia"
+    GifInput:
+      type: object
+      description: A GIF as the GIPHY SDK returned it. Every URL must be https on a GIPHY media host and carry the GIF's id in its path; the server drops each URL's query string.
+      additionalProperties: false
+      required: [id, title, still, preview, original]
+      properties:
+        id: {type: string, description: "The GIPHY id, 1 to 64 letters and digits.", examples: [xT9IgDEI1iZyb2wqo8]}
+        title: {type: string, description: "The GIF's title, at most 140 characters.", examples: [happy dance]}
+        still:
+          $ref: "#/components/schemas/GifMedia"
+        preview:
+          $ref: "#/components/schemas/GifMedia"
+        original:
+          $ref: "#/components/schemas/GifMedia"
+    GifMedia:
+      type: object
+      description: One rendition of a GIF.
+      additionalProperties: false
+      required: [url, width, height]
+      properties:
+        url: {type: string, description: "The GIPHY media URL.", examples: ["https://media.giphy.com/media/xT9IgDEI1iZyb2wqo8/200.gif"]}
+        width: {type: integer, minimum: 1, maximum: 2000, description: Width in pixels., examples: [200]}
+        height: {type: integer, minimum: 1, maximum: 2000, description: Height in pixels., examples: [150]}
     PostChatMessageRequest:
       type: object
       description: A chat message to post.

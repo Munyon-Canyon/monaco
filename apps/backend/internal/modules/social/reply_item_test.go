@@ -293,7 +293,9 @@ func TestCreateComment_namesACommenterWithoutADisplayNameByHandle(t *testing.T) 
 	body, _ := domain.ParseCommentBody("hi")
 	author := f.cabal.Members[0].ID
 	ctx := observability.WithActor(t.Context(), "user:"+author.String())
-	_, err := h.Handle(ctx, app.CreateComment{FeedObjectID: f.item(t, feed.KindProposal), Author: author, Body: body})
+	_, err := h.Handle(ctx, app.CreateComment{
+		FeedObjectID: f.item(t, feed.KindProposal), Author: author, Input: domain.CommentInput{Body: &body},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

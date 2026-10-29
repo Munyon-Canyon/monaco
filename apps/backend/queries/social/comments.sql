@@ -36,6 +36,7 @@ DELETE FROM feed_objects WHERE id IN (SELECT id FROM item);
 
 -- name: GetCommentTarget :one
 SELECT c.id, c.author_id, c.parent_comment_id, c.body, (c.deleted_at IS NOT NULL)::bool AS deleted,
+  EXISTS (SELECT 1 FROM comment_attachments a WHERE a.comment_id = c.id)::bool AS has_attachment,
   EXISTS (
     SELECT 1 FROM user_blocks b WHERE b.blocker_id = sqlc.arg(viewer)::uuid AND b.blocked_id = c.author_id
   )::bool AS blocked
@@ -51,7 +52,7 @@ VALUES (
   NULLIF(sqlc.arg(parent_comment_id)::uuid, '00000000-0000-0000-0000-000000000000'),
   NULLIF(sqlc.arg(reply_to_user_id)::uuid, '00000000-0000-0000-0000-000000000000'),
   NULLIF(sqlc.arg(reply_to_comment_id)::uuid, '00000000-0000-0000-0000-000000000000'),
-  sqlc.arg(body), sqlc.arg(created_at)
+  NULLIF(sqlc.arg(body)::text, ''), sqlc.arg(created_at)
 )
 RETURNING id, feed_object_id, author_id, parent_comment_id, reply_to_user_id, body, created_at, deleted_at, deleted_by,
   deleted_by_kind, reply_to_comment_id;
@@ -93,11 +94,14 @@ SELECT c.id, c.feed_object_id, c.author_id, c.parent_comment_id, c.reply_to_user
   c.created_at, c.deleted_at, c.deleted_by, c.deleted_by_kind,
   r.id AS quote_id, r.author_id AS quote_author_id, r.parent_comment_id AS quote_parent_id, r.body AS quote_body,
   (r.deleted_at IS NOT NULL)::bool AS quote_deleted,
+  EXISTS (SELECT 1 FROM comment_attachments qa WHERE qa.comment_id = r.id)::bool AS quote_has_attachment,
+  a.kind AS attachment_kind, a.payload AS attachment_payload,
   EXISTS (
     SELECT 1 FROM user_blocks b WHERE b.blocker_id = sqlc.arg(viewer)::uuid AND b.blocked_id = r.author_id
   )::bool AS quote_blocked
 FROM feed_comments c
 LEFT JOIN feed_comments r ON r.feed_object_id = c.feed_object_id AND r.id = c.reply_to_comment_id
+LEFT JOIN comment_attachments a ON a.comment_id = c.id
 WHERE c.feed_object_id = sqlc.arg(feed_object_id)
   AND (c.id IN (SELECT id FROM tops) OR c.parent_comment_id IN (SELECT id FROM tops))
   AND NOT EXISTS (

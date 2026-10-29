@@ -28,7 +28,7 @@ func (f commentRoutes) postProposal(
 ) (api.Comment, error) {
 	t.Helper()
 	res, err := f.routes.PostProposalComment(asUser(t.Context(), author),
-		api.PostProposalCommentRequestObject{Id: proposal, Body: &api.CreateCommentRequest{Body: body}})
+		api.PostProposalCommentRequestObject{Id: proposal, Body: &api.CreateCommentRequest{Body: &body}})
 	if err != nil {
 		return api.Comment{}, err
 	}
@@ -122,7 +122,7 @@ func TestProposalComments_ALookupFailureIsInternal(t *testing.T) {
 	_, err := f.routes.GetProposalComments(ctx, api.GetProposalCommentsRequestObject{Id: proposal})
 	wantCode(t, err, errs.CodeInternal)
 	_, err = f.routes.PostProposalComment(ctx, api.PostProposalCommentRequestObject{
-		Id: proposal, Body: &api.CreateCommentRequest{Body: "x"},
+		Id: proposal, Body: &api.CreateCommentRequest{Body: ptr("x")},
 	})
 	wantCode(t, err, errs.CodeInternal)
 }

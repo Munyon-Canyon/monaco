@@ -27,6 +27,7 @@ type Comment struct {
 	ParentID       uuid.UUID
 	ReplyToUserID  ids.UserID
 	Body           string
+	Attachment     *domain.Attachment
 	CreatedAt      time.Time
 	Deleted        bool
 	RemovedByAdmin bool
@@ -34,24 +35,33 @@ type Comment struct {
 }
 
 type CommentQuote struct {
-	CommentID uuid.UUID
-	RootID    uuid.UUID
-	AuthorID  ids.UserID
-	Excerpt   *string
-	Deleted   bool
-	Folded    bool
+	CommentID     uuid.UUID
+	RootID        uuid.UUID
+	AuthorID      ids.UserID
+	Excerpt       *string
+	Deleted       bool
+	Folded        bool
+	HasAttachment bool
 }
 
-func quoteOf(id, author, parent uuid.UUID, body string, deleted, blocked bool) *CommentQuote {
+func quotedText(body string, attached bool) *domain.CommentBody {
+	text := domain.CommentBody(body)
+	if text == "" && attached {
+		text = domain.GifDisplay
+	}
+	return &text
+}
+
+func quoteOf(id, author, parent uuid.UUID, body string, attached, deleted, blocked bool) *CommentQuote {
 	quote := &CommentQuote{
 		CommentID: id, RootID: id, AuthorID: ids.UserIDFrom(author), Deleted: deleted, Folded: parent != uuid.Nil,
+		HasAttachment: attached && !deleted,
 	}
 	if parent != uuid.Nil {
 		quote.RootID = parent
 	}
 	if !blocked {
-		text := domain.CommentBody(body)
-		quote.Excerpt = domain.QuoteExcerpt(&text, deleted)
+		quote.Excerpt = domain.QuoteExcerpt(quotedText(body, attached), deleted)
 	}
 	return quote
 }
@@ -59,7 +69,7 @@ func quoteOf(id, author, parent uuid.UUID, body string, deleted, blocked bool) *
 type CreateComment struct {
 	FeedObjectID uuid.UUID
 	Author       ids.UserID
-	Body         domain.CommentBody
+	Input        domain.CommentInput
 	ParentID     uuid.UUID
 }
 
@@ -140,10 +150,14 @@ func (h *CreateCommentHandler) store(
 	if err != nil {
 		return Comment{}, err
 	}
+	body := ""
+	if cmd.Input.Body != nil {
+		body = cmd.Input.Body.String()
+	}
 	row, err := q.InsertComment(ctx, sqlc.InsertCommentParams{
 		ID: h.d.IDs.NewV7(), FeedObjectID: cmd.FeedObjectID, AuthorID: cmd.Author.UUID(),
 		ParentCommentID: place.ParentID, ReplyToUserID: place.ReplyToUserID, ReplyToCommentID: place.ReplyToCommentID,
-		Body: cmd.Body.String(), CreatedAt: h.d.Clock.Now().UTC(),
+		Body: body, CreatedAt: h.d.Clock.Now().UTC(),
 	})
 	if err != nil {
 		return Comment{}, errs.Wrap(err, errs.CodeInternal, op)
@@ -151,17 +165,28 @@ func (h *CreateCommentHandler) store(
 	if _, err := q.BumpCommentCount(ctx, sqlc.BumpCommentCountParams{Delta: 1, ID: cmd.FeedObjectID}); err != nil {
 		return Comment{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	if err := reply.insert(ctx, q, h.d.IDs.NewV7(), row); err != nil {
+	if err := reply.insert(ctx, q, h.d.IDs.NewV7(), row, cmd.Input.Text().String()); err != nil {
 		return Comment{}, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	if att := cmd.Input.Attachment; att != nil {
+		err := q.InsertCommentAttachment(ctx, sqlc.InsertCommentAttachmentParams{
+			CommentID: row.ID, FeedObjectID: row.FeedObjectID, Kind: string(att.Kind), Payload: att.Payload(),
+			CreatedAt: row.CreatedAt,
+		})
+		if err != nil {
+			return Comment{}, errs.Wrap(err, errs.CodeInternal, op)
+		}
 	}
 	tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, FeedHint, nil) })
 	created := commentOf(row)
+	created.Attachment = cmd.Input.Attachment
 	if target.ID != uuid.Nil {
 		created.ReplyTo = quoteOf(
-			target.ID, target.AuthorID, target.ParentCommentID.Bytes, target.Body, target.Deleted, target.Blocked,
+			target.ID, target.AuthorID, target.ParentCommentID.Bytes, target.Body.String, target.HasAttachment,
+			target.Deleted, target.Blocked,
 		)
 	}
-	return created, tx.Events.Append(ctx, createdEvent(at, row, target, cmd.Body))
+	return created, tx.Events.Append(ctx, createdEvent(at, row, target, cmd.Input))
 }
 
 type replyDraft struct {
@@ -200,18 +225,20 @@ func (h *CreateCommentHandler) replyDraft(
 	}, nil
 }
 
-func (d replyDraft) insert(ctx context.Context, q *sqlc.Queries, id uuid.UUID, comment sqlc.FeedComment) error {
+func (d replyDraft) insert(
+	ctx context.Context, q *sqlc.Queries, id uuid.UUID, comment sqlc.FeedComment, body string,
+) error {
 	if d.title == "" {
 		return nil
 	}
 	return q.InsertFeedReply(ctx, sqlc.InsertFeedReplyParams{
 		ID: id, FeedObjectID: d.feedObjectID, CommentID: comment.ID, ActorID: comment.AuthorID, Title: d.title,
-		Body: comment.Body, Payload: d.payload.JSON(), At: comment.CreatedAt,
+		Body: body, Payload: d.payload.JSON(), At: comment.CreatedAt,
 	})
 }
 
 func createdEvent(
-	at postedOn, row sqlc.FeedComment, target sqlc.GetCommentTargetRow, body domain.CommentBody,
+	at postedOn, row sqlc.FeedComment, target sqlc.GetCommentTargetRow, input domain.CommentInput,
 ) events.CommentCreated {
 	thread := at.thread
 	threadPayload, _ := feed.ParsePayload(thread.Payload)
@@ -222,16 +249,19 @@ func createdEvent(
 		RefID: thread.RefID, CabalID: parentOf(thread.CabalID.Bytes), AuthorID: row.AuthorID,
 		ParentCommentID: parentOf(row.ParentCommentID.Bytes), ParentAuthorID: parentOf(target.AuthorID),
 		ParentDeleted: target.Deleted, ReplyToUserID: parentOf(row.ReplyToUserID.Bytes),
-		ItemActorID: parentOf(thread.ActorID.Bytes), Excerpt: body.Excerpt(),
+		ItemActorID: parentOf(thread.ActorID.Bytes), Excerpt: input.Text().Excerpt(),
 		ItemKind: at.item.Kind, ThreadFeedObjectID: thread.ID, ItemActorName: threadPayload.ActorName,
 		ItemLabel: feed.RenderLabel(itemKind, itemPayload), ItemNoun: feed.RenderNoun(itemKind, itemPayload),
 		ReplyRule: string(at.rule),
 	}
+	if input.Attachment != nil {
+		e.AttachmentKind = string(input.Attachment.Kind)
+	}
 	if target.ID != uuid.Nil {
-		answered := domain.CommentBody(target.Body)
+		answered := quotedText(target.Body.String, target.HasAttachment)
 		root := domain.CommentTarget{ID: target.ID, ParentID: target.ParentCommentID.Bytes}.RootID()
 		e.ReplyToCommentID, e.ReplyToAuthorID, e.ReplyToRootID = &target.ID, &target.AuthorID, &root
-		e.ReplyToDeleted, e.ReplyToExcerpt = target.Deleted, domain.QuoteExcerpt(&answered, target.Deleted)
+		e.ReplyToDeleted, e.ReplyToExcerpt = target.Deleted, domain.QuoteExcerpt(answered, target.Deleted)
 	}
 	if threadPayload.CabalName != "" {
 		e.CabalName = &threadPayload.CabalName
@@ -246,7 +276,7 @@ func commentOf(row sqlc.FeedComment) Comment {
 	return Comment{
 		ID: row.ID, FeedObjectID: row.FeedObjectID, AuthorID: ids.UserIDFrom(row.AuthorID),
 		ParentID: row.ParentCommentID.Bytes, ReplyToUserID: ids.UserIDFrom(row.ReplyToUserID.Bytes),
-		Body: row.Body, CreatedAt: row.CreatedAt.UTC(), Deleted: row.DeletedAt.Valid,
+		Body: row.Body.String, CreatedAt: row.CreatedAt.UTC(), Deleted: row.DeletedAt.Valid,
 		RemovedByAdmin: row.DeletedByKind == CommentDeletedByAdmin,
 	}
 }
