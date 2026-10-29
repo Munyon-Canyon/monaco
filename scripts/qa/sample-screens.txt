@@ -323,6 +323,7 @@ cabal-picture-upload-failure  -MonacoGroupDetailSample pictureUploadFailure
 stocks-tab-ready              -MonacoStocksTabSample ready
 stocks-tab-watchlist-empty    -MonacoStocksTabSample watchlistEmpty
 stocks-tab-no-results         -MonacoStocksTabSample noResults
+stocks-tab-search             -MonacoStocksTabSample search
 stocks-tab-loading            -MonacoStocksTabSample loading
 stocks-tab-stale              -MonacoStocksTabSample stale
 stocks-tab-failed             -MonacoStocksTabSample failed

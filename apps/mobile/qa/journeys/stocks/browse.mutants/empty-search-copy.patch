@@ -3,16 +3,15 @@ expect-fail: S2
 
 A search with no match reads "No results". S2.2 expects "No matching stocks", so S2 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
-diff --git a/apps/mobile/Monaco/Features/Assets/MarketsSections.swift b/apps/mobile/Monaco/Features/Assets/MarketsSections.swift
-index 9d3126fbf..0423ef1ab 100644
---- a/apps/mobile/Monaco/Features/Assets/MarketsSections.swift
-+++ b/apps/mobile/Monaco/Features/Assets/MarketsSections.swift
-@@ -148,7 +148,7 @@ struct MarketsSearchResults: View {
+diff --git a/apps/mobile/Monaco/Features/Assets/MarketsSearch.swift b/apps/mobile/Monaco/Features/Assets/MarketsSearch.swift
+--- a/apps/mobile/Monaco/Features/Assets/MarketsSearch.swift
++++ b/apps/mobile/Monaco/Features/Assets/MarketsSearch.swift
+@@ -53,7 +53,7 @@
              MonacoErrorRow(thing: "stocks", identifier: "assets-failed") { Task { await model.load() } }
          case .loaded:
              EmptyState(
--                title: "No matching stocks", message: "Try a company name, ticker or another filter.",
-+                title: "No results", message: "Try a company name, ticker or another filter.",
-                 systemImage: "magnifyingglass"
+-                title: "No results for “\(model.query.trimmingCharacters(in: .whitespacesAndNewlines))”",
++                title: "No results",
+                 message: "Try a company name or ticker.", systemImage: "magnifyingglass"
              )
-             .accessibilityIdentifier("assets-search-empty")
+             .accessibilityIdentifier("assets-empty")

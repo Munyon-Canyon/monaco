@@ -7,6 +7,7 @@ enum StocksTabSampleScenario: String, CaseIterable {
     case ready
     case watchlistEmpty
     case noResults
+    case search
     case loading
     case stale
     case failed
@@ -26,6 +27,7 @@ enum StocksTabSampleScenario: String, CaseIterable {
         var script = SampleAPIScript(catalog: MarketsSampleCatalog.marketsAssets)
         switch self {
         case .ready, .watchlistEmpty, .noResults: break
+        case .search: script = SampleAPIScript(catalog: MarketsSampleCatalog.searchAssets)
         case .loading: script.mode = .hang
         case .stale: script.failsAfterAssetReads = 1 + StocksTabSampleScenario.watchedCount
         case .failed: script.mode = .assetsUnavailable
@@ -38,11 +40,17 @@ enum StocksTabSampleScenario: String, CaseIterable {
     var watched: [String] {
         switch self {
         case .ready, .stale: MarketsSampleCatalog.marketsWatched
-        case .watchlistEmpty, .noResults, .loading, .failed, .empty, .paused: []
+        case .watchlistEmpty, .noResults, .search, .loading, .failed, .empty, .paused: []
         }
     }
 
-    var query: String { self == .noResults ? "zzzz" : "" }
+    var query: String {
+        switch self {
+        case .noResults: "zzzz"
+        case .search: "micro"
+        default: ""
+        }
+    }
 
     var hints: any HintConnecting {
         self == .stale ? SampleTickHints(after: .seconds(2)) : SampleSilentHints()

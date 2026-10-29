@@ -57,6 +57,9 @@ public final class StocksTabModel {
     public var phase: Phase { self[activeSection].phase }
     public var nextCursor: String? { self[activeSection].nextCursor }
     public var hasMore: Bool { nextCursor != nil }
+    public var searchResults: [MarketAsset] {
+        search.rows.filter { $0.kind != .preIpo } + search.rows.filter { $0.kind == .preIpo }
+    }
     public var isSearching: Bool { !Self.trimmed(query).isEmpty }
     public var loadMoreFailed: Bool { false }
     public var refreshFailed: Bool { lastError != nil }
@@ -99,16 +102,22 @@ public final class StocksTabModel {
         _ = await (listed, watched, known)
     }
     public func show(_ next: Browse) async {
+        browse = next
+        guard !isSearching else { return }
         searchTask?.cancel()
         searchTask = nil
-        browse = next
         isStale = false
-        if isSearching {
-            search = .init(phase: .loading)
-            await load()
-        } else if !isMarkets {
-            await load()
+        if !isMarkets { await load() }
+    }
+    public func searchLines(for asset: MarketAsset) -> (title: String, subline: String) {
+        let name = asset.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ticker = asset.ticker
+        guard name.count > ticker.count, name.lowercased().hasPrefix(ticker.lowercased()) else {
+            return (name, ticker)
         }
+        let trim = CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters)
+        let rest = name.dropFirst(ticker.count).trimmingCharacters(in: trim)
+        return (ticker, rest.isEmpty ? name : rest)
     }
     public func setQuery(_ text: String) {
         query = text
@@ -196,8 +205,7 @@ public final class StocksTabModel {
     }
     private func page(_ section: Section?, cursor: String?) async throws -> MarketAssetPage {
         let searchQuery = section == .search ? Self.trimmed(query) : nil
-        let wantsPreIpo = section == .preIpo || (section == .search && browse == .preIpo)
-        let filter: Operations.GetAssets.Input.Query.FilterPayload = wantsPreIpo ? .preIpo : .all
+        let filter: Operations.GetAssets.Input.Query.FilterPayload = section == .preIpo ? .preIpo : .all
         let list = try await api.read { client in
             try await client.getAssets(
                 query: .init(q: searchQuery, filter: filter, limit: Self.pageLimit, cursor: cursor)

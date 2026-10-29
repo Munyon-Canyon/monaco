@@ -27,6 +27,14 @@ enum MarketsSampleCatalog {
 
     static let marketsAssets = assets + preIpo
 
+    static let searchAssets: [Components.Schemas.AssetSummary] = [
+        searchListing("MSFTx", "Microsoft xStock", 512_300_000, 60),
+        searchListing("AMDx", "AMD Advanced Micro Devices xStock", 162_300_000, 790),
+        searchListing("MUx", "Micron xStock", 188_400_000, 190),
+        searchListing("SMCIx", "Supermicro xStock", 44_100_000, 260),
+        searchListing("MCHPx", "Microchip xStock", 71_200_000, -70),
+    ]
+
     static let watched = ["AAPLx", "NVDAx", "MSFTx"]
 
     static let marketsWatched = ["NVDAx", "AAPLx", "TSLAx", "METAx", "AMZNx", "MSFTx", "tSpaceX"]
@@ -49,6 +57,19 @@ enum MarketsSampleCatalog {
             sparklineMicros: [estimateMicros / 4 - 1_000_000, estimateMicros / 4], quotable: true,
             session: .init(state: .open, continuous: true, holiday: "", earlyClose: false), tradable: eligible,
             estimate: .init(priceMicros: estimateMicros, asOf: "2026-10-20"))
+    }
+
+    private static func searchListing(
+        _ symbol: String, _ name: String, _ priceMicros: Int64, _ changeBps: Int32
+    ) -> Components.Schemas.AssetSummary {
+        let step = priceMicros / 200
+        let slope: Int64 = changeBps < 0 ? -1 : 1
+        let wobble: [Int64] = [0, 3, 1, 4, 2, 5, 4, 7, 6, 9, 8, 11]
+        let series = wobble.map { priceMicros - slope * (11 - $0) * step }
+        return Components.Schemas.AssetSummary(
+            symbol: symbol, displayName: name, issuer: .xstocks, kind: .equity, logoUrl: nil,
+            priceMicros: priceMicros, priceAsOf: Date(), changeBps: changeBps, sparklineMicros: series,
+            quotable: true, session: .open, tradable: true)
     }
 
     private static func listing(

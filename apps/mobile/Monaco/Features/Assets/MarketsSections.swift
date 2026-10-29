@@ -114,48 +114,6 @@ struct MarketsPreIpoInfoSheet: View {
     }
 }
 
-struct MarketsSearchResults: View {
-    let model: MonacoCore.StocksTabModel
-    let open: (MarketAsset) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            MonacoSectionHeader("Search results").padding(.horizontal, MonacoTheme.Space.gutter)
-            if model.rows.isEmpty {
-                noRows
-            } else {
-                LazyVStack(spacing: 0) {
-                    ForEach(model.rows) { asset in
-                        AssetRowButton(
-                            asset: asset, isLast: asset.id == model.rows.last?.id,
-                            identifier: "assets-row-\(asset.symbol)", open: open
-                        )
-                        .onAppear {
-                            guard model.hasMore, asset.id == model.rows.last?.id else { return }
-                            Task { await model.loadMore() }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder private var noRows: some View {
-        switch model.phase {
-        case .idle, .loading:
-            MonacoRowSkeleton(rows: 4, markShape: .circle, hasTrailing: false)
-        case .failed:
-            MonacoErrorRow(thing: "stocks", identifier: "assets-failed") { Task { await model.load() } }
-        case .loaded:
-            EmptyState(
-                title: "No matching stocks", message: "Try a company name, ticker or another filter.",
-                systemImage: "magnifyingglass"
-            )
-            .accessibilityIdentifier("assets-search-empty")
-        }
-    }
-}
-
 struct MarketsWatchlistEmpty: View {
     let add: () -> Void
 

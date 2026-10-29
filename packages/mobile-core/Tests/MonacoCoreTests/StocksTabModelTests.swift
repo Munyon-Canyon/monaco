@@ -222,13 +222,27 @@ final class StocksTabModelTests: XCTestCase {
         cursor: String? = nil
     ) -> String {
         let next = cursor.map { "\"\($0)\"" } ?? "null"
+        let listed = asset(
+            symbol: symbol, name: name, kind: kind, issuer: issuer, continuous: continuous, price: price,
+            change: change, spark: spark)
+        return #"{"assets":[\#(listed)],"next_cursor":\#(next)}"#
+    }
+    private static func asset(
+        symbol: String,
+        name: String,
+        kind: String,
+        issuer: String = "xstocks",
+        continuous: Bool = false,
+        price: String = "110000000",
+        change: String = "1000",
+        spark: String = "[100000000,110000000]"
+    ) -> String {
         let session = """
             {"state":"open","continuous":\(continuous),"holiday":"","early_close":false,"next_state":null,"next_transition":null}
             """
-        let asset = """
+        return """
             {"symbol":"\(symbol)","display_name":"\(name)","issuer":"\(issuer)","kind":"\(kind)","logo_url":null,"price_micros":\(price),"price_as_of":null,"change_bps":\(change),"sparkline_micros":\(spark),"quotable":true,"session":\(session)}
             """
-        return #"{"assets":[\#(asset)],"next_cursor":\#(next)}"#
     }
 }
 
@@ -253,30 +267,82 @@ extension StocksTabModelTests {
         XCTAssertTrue(targets[0].contains("filter=all"), targets.description)
         XCTAssertTrue(targets[1].contains("filter=pre_ipo"), targets.description)
     }
-    func testSearchWithPreIpoSelectedSendsTheQueryAndTheFilter() async throws {
+    func testSearchWithPreIpoSelectedStillSendsFilterAll() async throws {
         let transport = StubTransport(scripted: [
             .json(.ok, Self.page(symbol: "AAPLx", name: "Apple xStock", kind: "equity")),
             .json(.ok, Self.page(symbol: "tSpaceX", name: "T-SpaceX", kind: "pre_ipo", issuer: "tessera")),
-            .json(.ok, Self.page(symbol: "tOpenAI", name: "T-OpenAI", kind: "pre_ipo", issuer: "tessera")),
-            .json(.ok, Self.page(symbol: "NVDAx", name: "NVIDIA xStock", kind: "equity")),
+            .json(.ok, Self.page(symbol: "MSFTx", name: "Microsoft xStock", kind: "equity")),
+            .json(.ok, Self.page(symbol: "tSpaceX", name: "T-SpaceX", kind: "pre_ipo", issuer: "tessera")),
         ])
         let clock = TestClock()
         let model = makeModel(transport, clock: clock)
         await model.load()
         await model.show(.preIpo)
-        model.setQuery("open")
-        _ = await clock.state.until { $0.pending == 1 }
+        model.setQuery("micro")
+        let parked = await clock.state.until { $0.pending == 1 }
+        XCTAssertTrue(parked)
+        let beforeDebounce = await targets(transport)
+        XCTAssertEqual(beforeDebounce.count, 2)
         clock.advance(by: StocksTabModel.searchDebounce)
-        let arrived = await waitUntil { model.rows.map(\.name) == ["OpenAI"] }
+        let arrived = await waitUntil { model.rows.map(\.ticker) == ["MSFT"] }
         XCTAssertTrue(arrived)
         XCTAssertEqual(model.browse, .preIpo)
         await model.show(.all)
-        let switched = await waitUntil { model.rows.map(\.ticker) == ["NVDA"] }
-        XCTAssertTrue(switched)
-        XCTAssertEqual(model.query, "open")
+        XCTAssertEqual(model.query, "micro")
+        XCTAssertEqual(model.rows.map(\.ticker), ["MSFT"])
         let targets = await targets(transport)
-        XCTAssertTrue(targets[2].contains("q=open") && targets[2].contains("filter=pre_ipo"), targets[2])
-        XCTAssertTrue(targets[3].contains("q=open") && targets[3].contains("filter=all"), targets[3])
+        XCTAssertEqual(targets.count, 3)
+        XCTAssertTrue(targets[2].contains("q=micro") && targets[2].contains("filter=all"), targets[2])
+    }
+    func testCancelRestoresTheChipThatWasOn() async throws {
+        let transport = StubTransport(scripted: [
+            .json(.ok, Self.page(symbol: "tSpaceX", name: "T-SpaceX", kind: "pre_ipo", issuer: "tessera")),
+            .json(.ok, Self.page(symbol: "MSFTx", name: "Microsoft xStock", kind: "equity")),
+            .json(.ok, Self.page(symbol: "tSpaceX", name: "T-SpaceX", kind: "pre_ipo", issuer: "tessera")),
+        ])
+        let clock = TestClock()
+        let model = makeModel(transport, clock: clock)
+        await model.show(.preIpo)
+        model.setQuery("micro")
+        _ = await clock.state.until { $0.pending == 1 }
+        clock.advance(by: StocksTabModel.searchDebounce)
+        let found = await waitUntil { model.rows.map(\.ticker) == ["MSFT"] }
+        XCTAssertTrue(found)
+        model.setQuery("")
+        let restored = await waitUntil { await self.targets(transport).count == 3 }
+        XCTAssertTrue(restored)
+        XCTAssertFalse(model.isSearching)
+        XCTAssertEqual(model.browse, .preIpo)
+        let targets = await targets(transport)
+        XCTAssertTrue(targets[2].contains("filter=pre_ipo") && !targets[2].contains("q="), targets.description)
+    }
+    func testSearchDrawsPreIpoRowsAfterTheStocks() async throws {
+        let body = """
+            {"assets":[\(Self.asset(symbol: "tMicroPay", name: "T-MicroPay", kind: "pre_ipo", issuer: "tessera")),\
+            \(Self.asset(symbol: "MSFTx", name: "Microsoft xStock", kind: "equity")),\
+            \(Self.asset(symbol: "MUx", name: "Micron xStock", kind: "equity"))],"next_cursor":null}
+            """
+        let transport = StubTransport(.json(.ok, body))
+        let clock = TestClock()
+        let model = makeModel(transport, clock: clock)
+        model.setQuery("micro")
+        _ = await clock.state.until { $0.pending == 1 }
+        clock.advance(by: StocksTabModel.searchDebounce)
+        let arrived = await waitUntil { model.rows.count == 3 }
+        XCTAssertTrue(arrived)
+        XCTAssertEqual(model.searchResults.map(\.ticker), ["MSFT", "MU", "tMicroPay"])
+    }
+    func testSearchLinesShowTheCompanyWhenTheTickerStartsTheName() async throws {
+        let body = """
+            {"assets":[\(Self.asset(symbol: "AMDx", name: "AMD Advanced Micro Devices xStock", kind: "equity")),\
+            \(Self.asset(symbol: "MUx", name: "Micron xStock", kind: "equity")),\
+            \(Self.asset(symbol: "SMCIx", name: "SMCI xStock", kind: "equity"))],"next_cursor":null}
+            """
+        let model = makeModel(StubTransport(.json(.ok, body)))
+        await model.load()
+        let lines = model.rows.map { model.searchLines(for: $0) }
+        XCTAssertEqual(lines.map(\.title), ["AMD", "Micron", "SMCI"])
+        XCTAssertEqual(lines.map(\.subline), ["Advanced Micro Devices", "MU", "SMCI"])
     }
     func testStaleBrowseReplacementDoesNotBlockSearchPagination() async throws {
         let transport = StubTransport(scripted: [
