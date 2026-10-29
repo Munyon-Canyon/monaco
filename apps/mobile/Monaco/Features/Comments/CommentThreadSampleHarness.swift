@@ -5,6 +5,7 @@ import SwiftUI
 
 enum CommentThreadScenario: String, CaseIterable {
     case logan
+    case actions
     case nvda
     case pilates
     case longThread
@@ -29,7 +30,7 @@ enum CommentThreadScenario: String, CaseIterable {
     var threads: [Components.Schemas.CommentThread] {
         typealias Thread = Components.Schemas.CommentThread
         switch self {
-        case .logan: return Thread.loganAAPLThread.filter { $0.comment.id != "aapl-jordan" }
+        case .logan, .actions: return Thread.loganAAPLThread.filter { $0.comment.id != "aapl-jordan" }
         case .nvda: return Thread.nvdaThread
         case .pilates: return Thread.pilatesThread
         case .longThread:
@@ -104,10 +105,27 @@ private struct CommentThreadHarnessScreen: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if scenario == .pilates { CommentComposerBar(model: model) }
         }
+        .overlay { if scenario == .actions { actionsMenu } }
         .monacoCanvas()
         .environment(toasts)
         .monacoToastCenter(toasts)
         .task { await model.load() }
+    }
+}
+
+extension CommentThreadHarnessScreen {
+    @ViewBuilder fileprivate var actionsMenu: some View {
+        if let row = model.rows.first(where: { !$0.comment.isMine && !$0.isSystem }) {
+            GeometryReader { proxy in
+                CommentActionsOverlay(
+                    row: row,
+                    frame: CGRect(
+                        x: MonacoTheme.Space.gutter, y: proxy.size.height / 3,
+                        width: proxy.size.width - 2 * MonacoTheme.Space.gutter, height: proxy.size.height / 8),
+                    reactions: model.reactions(for: row), onReact: { _ in }, onOpenPicker: {}, onReply: {},
+                    onCopy: {}, onReport: {}, onDismiss: {})
+            }
+        }
     }
 }
 

@@ -63,7 +63,7 @@ enum FeedPreviewFixtures {
     static let cabalID = "00000000-0000-7000-8000-0000000fc002"
     static let newCabalID = "00000000-0000-7000-8000-0000000fc003"
 
-    static let items: [Components.Schemas.FeedItem] = [
+    static let items: [Components.Schemas.FeedItem] = reacted([
         item(
             1, kind: "proposal", cabal: "Big Ballers", actor: 1, symbol: "NVDAx",
             title: "Mia proposed buying $400.00 of NVIDIA in Big Ballers", detail: "Voting open",
@@ -79,7 +79,7 @@ enum FeedPreviewFixtures {
             4, kind: "reply", cabal: "Tech Titans", actor: 6, symbol: "TSLAx",
             title: "Logan replied to Sell TSLA", detail: "TSLA · Replied to Sell TSLA",
             body: "Taking profit here is the right call before the deliveries print.", comments: 2, minutes: 70,
-            likes: 5, returnBps: 310, figures: .init()),
+            likes: 5, returnBps: 310, figures: .init(action: "sell")),
         item(
             5, kind: "member_joined", cabal: "Big Ballers", actor: 7, symbol: nil,
             title: "Nora joined Big Ballers", detail: nil, minutes: 95, likes: 2, figures: .init()),
@@ -89,7 +89,18 @@ enum FeedPreviewFixtures {
         Components.Schemas.FeedItem.results[3],
         unfilledPass,
         tradeFailedPass,
-    ]
+    ])
+
+    private static func reacted(_ items: [Components.Schemas.FeedItem]) -> [Components.Schemas.FeedItem] {
+        items.map { item in
+            var item = item
+            if item.reactions.isEmpty {
+                item.reactions = [.init(emoji: "💪", count: 3, mine: false), .init(emoji: "👀", count: 2, mine: false)]
+                item.reactionCount = 5
+            }
+            return item
+        }
+    }
 
     private typealias Chart = Components.Schemas.FeedItem.ChartPayload
 
@@ -150,7 +161,7 @@ enum FeedPreviewFixtures {
         item.chart = nil
     }
 
-    static let olderItems: [Components.Schemas.FeedItem] = [
+    static let olderItems: [Components.Schemas.FeedItem] = reacted([
         item(
             9, kind: "trade", cabal: "Big Ballers", actor: 1, symbol: "GOOGLx",
             title: "Big Ballers bought $600.00 of Alphabet", detail: "Filled at $200.00", comments: 1,
@@ -158,13 +169,23 @@ enum FeedPreviewFixtures {
             figures: .init(
                 action: "buy", usdcMicros: 600_000_000, assetName: "Alphabet", tokenAmount: 300_000_000,
                 tokenDecimals: 8, priceMicros: 200_000_000))
-    ]
+    ])
 
     static let outsideItems: [Components.Schemas.FeedItem] = {
         var ivan = Components.Schemas.FeedItem.results[4]
         ivan.actorName = "Ivan"
         ivan.title = "Ivan’s sale of $900 of TSLA in Tech Titans failed 2–2"
-        return Components.Schemas.FeedItem.publicProposals + [Components.Schemas.FeedItem.results[2], ivan]
+        let proposals = Components.Schemas.FeedItem.publicProposals.enumerated().map { index, proposal in
+            var proposal = proposal
+            proposal.action = "buy"
+            proposal.usdcMicros = index == 0 ? 250_000_000 : 300_000_000
+            if index == 1 {
+                proposal.symbol = "Stripe"
+                proposal.assetKind = .preIpo
+            }
+            return proposal
+        }
+        return proposals + [Components.Schemas.FeedItem.results[2], ivan]
     }()
 
     static func earlierItems() -> [Components.Schemas.FeedItem] {

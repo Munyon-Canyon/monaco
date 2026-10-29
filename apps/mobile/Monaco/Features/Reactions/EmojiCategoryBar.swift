@@ -2,6 +2,7 @@ import SwiftUI
 
 struct EmojiCategory: Identifiable, Equatable {
     static let recent = "recent"
+    static let smileys = "smileys"
 
     let id: String
     let icon: MonacoIcon
@@ -9,7 +10,7 @@ struct EmojiCategory: Identifiable, Equatable {
 
     static let all = [
         EmojiCategory(id: recent, icon: .clock, label: "Frequently used"),
-        EmojiCategory(id: "smileys", icon: .smiley, label: "Smileys and people"),
+        EmojiCategory(id: smileys, icon: .smiley, label: "Smileys and people"),
         EmojiCategory(id: "people", icon: .hand, label: "People and body"),
         EmojiCategory(id: "nature", icon: .leaf, label: "Animals and nature"),
         EmojiCategory(id: "flags", icon: .flag, label: "Flags"),

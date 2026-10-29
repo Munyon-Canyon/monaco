@@ -37,6 +37,7 @@ nonisolated struct SampleAPIScript: Sendable {
     var sparseCandles = false
     var pot = Components.Schemas.CabalPot.sampleInvested
     var proposal: Components.Schemas.ProposalDetail?
+    var membersOnlyReplies = false
     var vote = VoteAnswer.ordinary
     var undo = UndoAnswer.accepted
     var pendingVotes: [Components.Schemas.PendingVote] = []
@@ -271,7 +272,9 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
         case "/v1/feed":
             return feedReply(query: query, script: script, empty: empty)
         default:
-            if path.hasPrefix("/v1/feed/") { return feedItemReply(id: String(path.dropFirst("/v1/feed/".count))) }
+            if path.hasPrefix("/v1/feed/") {
+                return feedItemReply(id: String(path.dropFirst("/v1/feed/".count)), script: script)
+            }
             return problem(404, "not_found", "Not in the sample data.")
         }
     }
@@ -295,9 +298,14 @@ nonisolated extension SampleAPIProtocol {
         return reply
     }
 
-    private static func feedItemReply(id: String) -> Reply {
+    private static func feedItemReply(id: String, script: SampleAPIScript) -> Reply {
         var item = Components.Schemas.FeedItem.samples[0]
         item.id = id
+        if script.membersOnlyReplies {
+            item.canReply = false
+            item.replyRule = .members
+            item.replyRuleCabalName = script.proposal?.cabalName
+        }
         return json(Components.Schemas.FeedItemDetail(item: item, visible: true, canComment: true))
     }
 

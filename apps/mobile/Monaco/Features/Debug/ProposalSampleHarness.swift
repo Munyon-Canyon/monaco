@@ -168,6 +168,7 @@ enum ProposalSampleScenario: String, CaseIterable {
         case .nonMember:
             script.asset = .pilatesAMZN
             script.proposal = .pilatesAMZN()
+            script.membersOnlyReplies = true
         }
         return script
     }
