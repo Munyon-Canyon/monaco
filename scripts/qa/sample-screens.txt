@@ -1010,3 +1010,4 @@ gif-reply-bubble              -gifHarness bubble
 gif-reply-bubble-dark         -gifHarness bubble -AppleInterfaceStyle Dark
 gif-reply-reduce-motion       -gifHarness reduceMotion
 gif-viewer                    -gifHarness viewer
+upgrade-required              -upgradeHarness blocked
