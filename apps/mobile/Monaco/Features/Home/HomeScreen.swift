@@ -11,8 +11,10 @@ struct HomeScreen: View {
         HomePendingVotesSlot.self,
         HomeChartSlot.self,
         HomeBalanceSlot.self,
+        HomeFirstUseSlot.self,
         HomeCabalsSlot.self,
         HomeLeaderboardSlot.self,
+        HomeEveryonePreviewSlot.self,
         HomeFeedPreviewSlot.self,
     ]
 
@@ -41,6 +43,7 @@ struct HomeScreen: View {
                     .environment(portfolio)
                     .environment(\.homeReads, reads)
                     .environment(\.homeVoteNeeds, voteNeeds)
+                    .environment(\.homeCashEmphasis, portfolio?.summary?.isFirstUse == true ? .quiet : .prominent)
             }
         }
         .toolbar {
@@ -62,11 +65,14 @@ struct HomeScreen: View {
             let portfolio = preparedPortfolio()
             refresh?.register("home-portfolio") { await portfolio.load() }
             refresh?.register("home-portfolio-chart") { await portfolio.chart.refresh() }
+            await portfolio.load()
+            let loadsChart = portfolio.summary.map { !$0.isFirstUse } ?? true
             await withTaskGroup(of: Void.self) { group in
-                group.addTask { await portfolio.load() }
                 group.addTask { await portfolio.observe() }
-                group.addTask { await portfolio.chart.load() }
-                group.addTask { await portfolio.chart.observe() }
+                if loadsChart {
+                    group.addTask { await portfolio.chart.load() }
+                    group.addTask { await portfolio.chart.observe() }
+                }
             }
         }
         .onScreenVisibilityChange {

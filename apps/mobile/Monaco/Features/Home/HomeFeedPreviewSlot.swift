@@ -7,7 +7,7 @@ enum HomeFeedPreviewSlot: HomeSection {
     static let isLive = true
 
     static func body(for context: Void) -> some View {
-        HomeFeedPreview(source: .yourCabals, header: "From your cabals")
+        HomeFeedPreview(source: .yourCabals, header: "From your cabals", firstUseOnly: false)
     }
 }
 
@@ -15,19 +15,26 @@ enum HomeEveryonePreviewSlot: HomeSection {
     static let isLive = true
 
     static func body(for context: Void) -> some View {
-        HomeFeedPreview(source: .everyone, header: "From everyone")
+        HomeFeedPreview(source: .everyone, header: "From everyone", firstUseOnly: true)
     }
 }
 
 private struct HomeFeedPreview: View {
     let source: HomeFeedPreviewModel.Source
     let header: String
+    let firstUseOnly: Bool
 
     private static let log = Logger(subsystem: "so.monaco.app", category: "home-feed-preview")
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
+    @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
     @State private var model: HomeFeedPreviewModel?
+
+    private var waitsForFirstUse: Bool {
+        guard firstUseOnly, let portfolio else { return false }
+        return portfolio.summary?.isFirstUse != true
+    }
 
     private var items: [Components.Schemas.FeedItem] {
         guard case .loaded(let items) = model?.state else { return [] }
@@ -51,10 +58,11 @@ private struct HomeFeedPreview: View {
                 }
             }
         }
-        .homeSlotHidden(rows.isEmpty)
+        .homeSlotHidden(rows.isEmpty || waitsForFirstUse)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(source == .yourCabals ? "home-feed-preview" : "home-feed-everyone")
-        .task {
+        .task(id: waitsForFirstUse) {
+            guard !waitsForFirstUse else { return }
             let model = preparedModel()
             refresh?.register("home-feed-preview-\(header)") { await model.load() }
             await model.load()

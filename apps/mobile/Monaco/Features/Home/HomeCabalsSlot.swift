@@ -26,7 +26,7 @@ private struct HomeCabals: View {
                 case .loading:
                     EmptyView()
                 case .empty:
-                    startWithPeople
+                    EmptyView()
                 case .cabals(let content):
                     section(content)
                 }
@@ -55,18 +55,6 @@ private struct HomeCabals: View {
         let created = HomeCabalContextModel(api: environment.api)
         details = created
         return created
-    }
-
-    private var startWithPeople: some View {
-        EmptyState(
-            title: "Start with your people",
-            message: "Create a cabal or open an invitation from a friend.",
-            actionTitle: "Create a cabal", systemImage: MonacoIcon.cabals.symbol,
-            secondaryActionTitle: "Explore cabals",
-            action: { environment.navigator.open(CreateCabalRoute(), in: .home) },
-            secondaryAction: { environment.navigator.selectedTab = .cabals }
-        )
-        .accessibilityIdentifier("home-cabals-empty")
     }
 
     private func section(_ content: HomeCabalsContent) -> some View {

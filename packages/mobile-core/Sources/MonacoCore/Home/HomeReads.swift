@@ -1,6 +1,10 @@
 import MonacoAPI
 import Observation
 
+extension PortfolioSummary {
+    public var isFirstUse: Bool { rows.isEmpty }
+}
+
 public enum HomeReadSlot: CaseIterable, Sendable {
     case portfolio
     case balance

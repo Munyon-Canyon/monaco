@@ -12,6 +12,7 @@ enum CabalsJoinSlot: CabalsTabSection {
 struct CabalsHeaderSection: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.accountRestricted) private var accountRestricted
+    @State private var joining = false
 
     var body: some View {
         HStack(spacing: MonacoTheme.Space.s) {
@@ -27,6 +28,7 @@ struct CabalsHeaderSection: View {
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.vertical, MonacoTheme.Space.m)
         .accessibilityElement(children: .contain)
+        .sheet(isPresented: $joining) { JoinLinkSheet() }
         .accessibilityIdentifier("cabals-header")
     }
 
@@ -38,6 +40,12 @@ struct CabalsHeaderSection: View {
                 Label("Start a cabal", systemImage: MonacoIcon.cabals.symbol)
             }
             .accessibilityIdentifier("cabals-menu-start")
+            Button {
+                joining = true
+            } label: {
+                Label("Join with a link", systemImage: MonacoIcon.link.symbol)
+            }
+            .accessibilityIdentifier("cabals-menu-join")
             Button {
                 environment.navigator.open(DiscoverCabalsRoute(query: ""), in: .cabals)
             } label: {
