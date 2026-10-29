@@ -67,7 +67,13 @@ type Config struct {
 	Web        Web
 	Trade      Trade
 	Admin      Admin
+	App        App
 	Faultpoint string
+}
+
+type App struct {
+	MinIOSBuild int32
+	StoreURL    string
 }
 
 type Admin struct {
@@ -408,6 +414,7 @@ func fields() []field {
 		webFields(),
 		tradeFields(),
 		adminFields(),
+		appFields(),
 		ablyFields(),
 		evmFields(),
 		listingsFields(),
@@ -585,6 +592,28 @@ func adminFields() []field {
 			func(c *Config) *time.Duration { return &c.Admin.DeadLettersInterval }),
 		duration("ADMIN_APPROVALS_EXPIRE_INTERVAL", 5*time.Minute,
 			func(c *Config) *time.Duration { return &c.Admin.ApprovalsExpireInterval }),
+	}
+}
+
+func appFields() []field {
+	return []field{
+		buildFloor("APP_MIN_IOS_BUILD", func(c *Config) *int32 { return &c.App.MinIOSBuild }),
+		text("APP_STORE_URL", "https://testflight.apple.com/join/monaco",
+			func(c *Config) *string { return &c.App.StoreURL }),
+	}
+}
+
+func buildFloor(key string, at func(*Config) *int32) field {
+	return field{
+		key:      key,
+		fallback: "0",
+		want:     "integer from 0 (no gate)",
+		set: func(c *Config, v string) bool {
+			n, err := strconv.ParseInt(v, 10, 32)
+			*at(c) = int32(n)
+			return err == nil && n >= 0
+		},
+		get: func(c *Config) string { return strconv.Itoa(int(*at(c))) },
 	}
 }
 

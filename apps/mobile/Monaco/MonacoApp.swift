@@ -4,6 +4,7 @@
 //
 
 import Combine
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 import os
@@ -13,6 +14,7 @@ struct MonacoApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
     @State private var appEnvironment: AppEnvironment
+    @State private var minBuildGate: MinBuildGate
 
     init() {
         APITelemetryRegistry.shared.register(APILogTelemetry())
@@ -22,12 +24,27 @@ struct MonacoApp: App {
         AppLogger.session.info("API environment: \(api.debugSummary, privacy: .public)")
         MonacoAppearance.configureUIKit()
         MonacoLaunchTrace.markSceneReady()
-        _appEnvironment = State(initialValue: AppEnvironment())
+        let environment = AppEnvironment()
+        _appEnvironment = State(initialValue: environment)
+        let build = Int(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "") ?? Int.max
+        let client = environment.api
+        _minBuildGate = State(
+            initialValue: MinBuildGate(currentBuild: build) {
+                let config = try await client.read { try await $0.getAppConfig().ok.body.json }
+                guard let url = URL(string: config.storeUrl) else { throw URLError(.badURL) }
+                return (Int(config.minIosBuild), url)
+            })
     }
 
     var body: some Scene {
         WindowGroup {
             root
+                .overlay {
+                    if case .blocked(let storeURL) = minBuildGate.state {
+                        UpgradeRequiredView(storeURL: storeURL)
+                    }
+                }
+                .task { await minBuildGate.refresh() }
                 .environment(appEnvironment)
                 .environment(appEnvironment.sessionStore)
                 .environmentObject(appEnvironment.auth)
@@ -36,6 +53,7 @@ struct MonacoApp: App {
                 .tint(MonacoTheme.ink)
                 .onChange(of: scenePhase) { _, phase in
                     Task { await appEnvironment.sceneDidChange(phase) }
+                    if phase == .active { Task { await minBuildGate.refresh() } }
                 }
                 .onReceive(appEnvironment.auth.$accessToken.removeDuplicates()) { _ in
                     Task { await appEnvironment.sessionDidChange(scenePhase: scenePhase) }
