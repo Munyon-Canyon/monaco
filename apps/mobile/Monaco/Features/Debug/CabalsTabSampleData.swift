@@ -33,6 +33,7 @@ enum CabalsTabSampleData {
         case rankEmpty
         case fReady
         case fUnfunded
+        case fMenu
     }
 
     static func matches(_ arguments: [String]) -> Bool {
@@ -62,7 +63,7 @@ enum CabalsTabSampleData {
         case .rankLoading: ready(board: .hanging)
         case .rankError: ready(board: .failing)
         case .rankEmpty: ready(board: .empty)
-        case .fReady: fReadyScript
+        case .fReady, .fMenu: fReadyScript
         case .fUnfunded: fUnfundedScript
         }
     }

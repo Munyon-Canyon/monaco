@@ -12,6 +12,10 @@ public struct CabalTile: Identifiable, Equatable, Sendable {
     public let treasuryText: String
     public let ownershipText: String
     public let valueText: String
+    public let valueMicros: Int64
+    public let memberCount: Int32
+    public let role: String
+    public let canVote: Bool
 
     init(_ cabal: Components.Schemas.PortfolioCabal) {
         let funded = cabal.valueMicros > 0
@@ -26,6 +30,10 @@ public struct CabalTile: Identifiable, Equatable, Sendable {
         ownershipText = PercentFormatter.format(
             basisPoints: Int64(cabal.ownershipBps), signed: false, fractionDigits: 0)
         valueText = UsdAmountFormatter.format(micros: cabal.valueMicros)
+        valueMicros = cabal.valueMicros
+        memberCount = cabal.memberCount
+        role = cabal.role.rawValue
+        canVote = cabal.canVote
     }
 
     public var shareLine: String { "\(treasuryText) treasury · \(ownershipText) yours" }
