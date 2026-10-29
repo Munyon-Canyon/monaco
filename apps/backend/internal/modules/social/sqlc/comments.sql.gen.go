@@ -100,6 +100,25 @@ func (q *Queries) GetCommentItem(ctx context.Context, id uuid.UUID) (GetCommentI
 	return i, err
 }
 
+const getCommentRef = `-- name: GetCommentRef :one
+SELECT id, feed_object_id, (deleted_at IS NOT NULL)::bool AS deleted
+FROM feed_comments
+WHERE id = $1
+`
+
+type GetCommentRefRow struct {
+	ID           uuid.UUID
+	FeedObjectID uuid.UUID
+	Deleted      bool
+}
+
+func (q *Queries) GetCommentRef(ctx context.Context, id uuid.UUID) (GetCommentRefRow, error) {
+	row := q.db.QueryRow(ctx, getCommentRef, id)
+	var i GetCommentRefRow
+	err := row.Scan(&i.ID, &i.FeedObjectID, &i.Deleted)
+	return i, err
+}
+
 const getCommentTarget = `-- name: GetCommentTarget :one
 SELECT c.id, c.author_id, c.parent_comment_id, c.body, (c.deleted_at IS NOT NULL)::bool AS deleted,
   EXISTS (SELECT 1 FROM comment_attachments a WHERE a.comment_id = c.id)::bool AS has_attachment,

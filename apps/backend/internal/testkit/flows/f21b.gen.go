@@ -10,5 +10,11 @@ func (defined) ScriptsF21b() map[string]Script {
 		"F21bReactFeedItemUnauthorized":      F21bReactFeedItemUnauthorized,
 		"F21bReactFeedItemRateLimited":       F21bReactFeedItemRateLimited,
 		"F21bReactFeedItemCrashBeforeCommit": F21bReactFeedItemCrashBeforeCommit,
+		"F21bReactCommentOK":                 F21bReactCommentOK,
+		"F21bReactCommentInvalidInput":       F21bReactCommentInvalidInput,
+		"F21bReactCommentCommentNotFound":    F21bReactCommentCommentNotFound,
+		"F21bReactCommentUnauthorized":       F21bReactCommentUnauthorized,
+		"F21bReactCommentRateLimited":        F21bReactCommentRateLimited,
+		"F21bReactCommentCrashBeforeCommit":  F21bReactCommentCrashBeforeCommit,
 	}
 }

@@ -37,3 +37,13 @@ func TestFlow21b_ReactFeedItem_CrashBeforeCommit(t *testing.T) {
 		t.Fatalf("the first reaction put never crashed at before-commit; logs:\n%s", logs.Bytes())
 	}
 }
+
+func TestFlow21b_ReactComment_CrashBeforeCommit(t *testing.T) {
+	t.Parallel()
+	logs := &testkit.Logs{}
+	flows.F21bReactCommentCrashBeforeCommit(scenario.New(t, withSocial(),
+		scenario.WithLogs(logs), scenario.WithRequestMiddleware(crashFirstReactionPut(faultpoint.BeforeCommit))))
+	if !bytes.Contains(logs.Bytes(), []byte("faultpoint: crash at before-commit")) {
+		t.Fatalf("the first reply reaction put never crashed at before-commit; logs:\n%s", logs.Bytes())
+	}
+}

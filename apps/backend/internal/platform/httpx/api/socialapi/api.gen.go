@@ -751,6 +751,16 @@ type Comment struct {
 	// Examples: null
 	ParentCommentId *openapi_types.UUID `json:"parent_comment_id"`
 
+	// ReactionCount The number of reactions on the comment, over every emoji.
+	//
+	// Examples: 3
+	ReactionCount int32 `json:"reaction_count"`
+
+	// Reactions The comment's reactions, one per emoji, most used first, then the emoji first used earliest. At most the top 20; `reaction_count` still counts every reaction. Empty on a deleted comment.
+	//
+	// Examples: [{"count":3,"emoji":"😂","mine":false},{"count":1,"emoji":"❤️","mine":true}]
+	Reactions []Reaction `json:"reactions"`
+
 	// ReplyTo The comment a reply answers, as the quote above the reply.
 	ReplyTo *CommentQuote `json:"reply_to,omitempty"`
 
@@ -1884,6 +1894,18 @@ type DeleteFeedCommentParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// DeleteCommentReactionParams defines parameters for DeleteCommentReaction.
+type DeleteCommentReactionParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// PutCommentReactionParams defines parameters for PutCommentReaction.
+type PutCommentReactionParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // DeleteFeedLikeParams defines parameters for DeleteFeedLike.
 type DeleteFeedLikeParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -2284,6 +2306,12 @@ type ServerInterface interface {
 	// DeleteFeedComment Delete your comment.
 	// (DELETE /v1/feed/comments/{comment_id})
 	DeleteFeedComment(w http.ResponseWriter, r *http.Request, commentId openapi_types.UUID, params DeleteFeedCommentParams)
+	// DeleteCommentReaction Remove your emoji reaction from a reply.
+	// (DELETE /v1/feed/comments/{comment_id}/reactions/{emoji})
+	DeleteCommentReaction(w http.ResponseWriter, r *http.Request, commentId openapi_types.UUID, emoji string, params DeleteCommentReactionParams)
+	// PutCommentReaction React to a reply with an emoji.
+	// (PUT /v1/feed/comments/{comment_id}/reactions/{emoji})
+	PutCommentReaction(w http.ResponseWriter, r *http.Request, commentId openapi_types.UUID, emoji string, params PutCommentReactionParams)
 	// DeleteFeedLike Unlike a feed item.
 	// (DELETE /v1/feed/likes/{id})
 	DeleteFeedLike(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DeleteFeedLikeParams)
@@ -3020,6 +3048,132 @@ func (siw *ServerInterfaceWrapper) DeleteFeedComment(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeleteFeedComment(w, r, commentId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteCommentReaction operation middleware
+func (siw *ServerInterfaceWrapper) DeleteCommentReaction(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "comment_id" -------------
+	var commentId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "comment_id", r.PathValue("comment_id"), &commentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "comment_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "emoji" -------------
+	var emoji string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "emoji", r.PathValue("emoji"), &emoji, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "emoji", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteCommentReactionParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteCommentReaction(w, r, commentId, emoji, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutCommentReaction operation middleware
+func (siw *ServerInterfaceWrapper) PutCommentReaction(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "comment_id" -------------
+	var commentId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "comment_id", r.PathValue("comment_id"), &commentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "comment_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "emoji" -------------
+	var emoji string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "emoji", r.PathValue("emoji"), &emoji, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "emoji", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PutCommentReactionParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutCommentReaction(w, r, commentId, emoji, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4416,6 +4570,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}/thread", wrapper.GetChatThread)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed", wrapper.GetFeed)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/feed/comments/{comment_id}", wrapper.DeleteFeedComment)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/feed/comments/{comment_id}/reactions/{emoji}", wrapper.DeleteCommentReaction)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/feed/comments/{comment_id}/reactions/{emoji}", wrapper.PutCommentReaction)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/feed/likes/{id}", wrapper.DeleteFeedLike)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/feed/likes/{id}", wrapper.PutFeedLike)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed/{id}", wrapper.GetFeedItem)
@@ -4817,6 +4973,88 @@ type DeleteFeedCommentdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response DeleteFeedCommentdefaultApplicationProblemPlusJSONResponse) VisitDeleteFeedCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteCommentReactionRequestObject struct {
+	CommentId openapi_types.UUID `json:"comment_id"`
+	Emoji     string             `json:"emoji"`
+	Params    DeleteCommentReactionParams
+}
+
+type DeleteCommentReactionResponseObject interface {
+	VisitDeleteCommentReactionResponse(w http.ResponseWriter) error
+}
+
+type DeleteCommentReaction200JSONResponse ReactionSummary
+
+func (response DeleteCommentReaction200JSONResponse) VisitDeleteCommentReactionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteCommentReactiondefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response DeleteCommentReactiondefaultApplicationProblemPlusJSONResponse) VisitDeleteCommentReactionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutCommentReactionRequestObject struct {
+	CommentId openapi_types.UUID `json:"comment_id"`
+	Emoji     string             `json:"emoji"`
+	Params    PutCommentReactionParams
+}
+
+type PutCommentReactionResponseObject interface {
+	VisitPutCommentReactionResponse(w http.ResponseWriter) error
+}
+
+type PutCommentReaction200JSONResponse ReactionSummary
+
+func (response PutCommentReaction200JSONResponse) VisitPutCommentReactionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutCommentReactiondefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response PutCommentReactiondefaultApplicationProblemPlusJSONResponse) VisitPutCommentReactionResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -5784,6 +6022,12 @@ type StrictServerInterface interface {
 	// DeleteFeedComment Delete your comment.
 	// (DELETE /v1/feed/comments/{comment_id})
 	DeleteFeedComment(ctx context.Context, request DeleteFeedCommentRequestObject) (DeleteFeedCommentResponseObject, error)
+	// DeleteCommentReaction Remove your emoji reaction from a reply.
+	// (DELETE /v1/feed/comments/{comment_id}/reactions/{emoji})
+	DeleteCommentReaction(ctx context.Context, request DeleteCommentReactionRequestObject) (DeleteCommentReactionResponseObject, error)
+	// PutCommentReaction React to a reply with an emoji.
+	// (PUT /v1/feed/comments/{comment_id}/reactions/{emoji})
+	PutCommentReaction(ctx context.Context, request PutCommentReactionRequestObject) (PutCommentReactionResponseObject, error)
 	// DeleteFeedLike Unlike a feed item.
 	// (DELETE /v1/feed/likes/{id})
 	DeleteFeedLike(ctx context.Context, request DeleteFeedLikeRequestObject) (DeleteFeedLikeResponseObject, error)
@@ -6174,6 +6418,62 @@ func (sh *strictHandler) DeleteFeedComment(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DeleteFeedCommentResponseObject); ok {
 		if err := validResponse.VisitDeleteFeedCommentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteCommentReaction operation middleware
+func (sh *strictHandler) DeleteCommentReaction(w http.ResponseWriter, r *http.Request, commentId openapi_types.UUID, emoji string, params DeleteCommentReactionParams) {
+	var request DeleteCommentReactionRequestObject
+
+	request.CommentId = commentId
+	request.Emoji = emoji
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteCommentReaction(ctx, request.(DeleteCommentReactionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteCommentReaction")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteCommentReactionResponseObject); ok {
+		if err := validResponse.VisitDeleteCommentReactionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutCommentReaction operation middleware
+func (sh *strictHandler) PutCommentReaction(w http.ResponseWriter, r *http.Request, commentId openapi_types.UUID, emoji string, params PutCommentReactionParams) {
+	var request PutCommentReactionRequestObject
+
+	request.CommentId = commentId
+	request.Emoji = emoji
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutCommentReaction(ctx, request.(PutCommentReactionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutCommentReaction")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutCommentReactionResponseObject); ok {
+		if err := validResponse.VisitPutCommentReactionResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

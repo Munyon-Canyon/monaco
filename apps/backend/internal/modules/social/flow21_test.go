@@ -22,7 +22,7 @@ func TestFlow21_CreateComment_InvalidInput(t *testing.T) {
 	flows.F21CreateCommentInvalidInput(scenario.New(t, withSocial()))
 }
 
-func TestFlow21_CreateComment_InvalidGifCases(t *testing.T) {
+func TestCreateComment_refusesInvalidGifCases(t *testing.T) {
 	t.Parallel()
 	f := newCommentRoutes(t)
 	item := f.item(t, feed.KindTrade)

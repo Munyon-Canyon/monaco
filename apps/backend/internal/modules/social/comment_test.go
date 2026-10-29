@@ -149,7 +149,7 @@ func TestCreateComment_storesTheCommentCountsItAndAppendsTheEvent(t *testing.T) 
 	want := app.Comment{
 		ID: got.ID, FeedObjectID: item, AuthorID: author, Body: "buy it before earnings", CreatedAt: f.clock.Now(),
 	}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("comment = %+v, want %+v", got, want)
 	}
 	if stored, counted := f.count(t, item); stored != 1 || counted != 1 {

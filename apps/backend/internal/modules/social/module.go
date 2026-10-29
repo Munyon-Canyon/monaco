@@ -2,6 +2,7 @@ package social
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -172,8 +173,20 @@ func (m *Module) useDefaultRealtime() {
 
 type FollowsPort = app.FollowsPort
 
+type TopReply = app.TopReply
+
 func (m *Module) ReplyCounts(ctx context.Context, proposalIDs []ids.ProposalID) (map[ids.ProposalID]int, error) {
 	return app.ReplyCounts(ctx, m.deps.Pool, proposalIDs)
+}
+
+func (m *Module) TopReply(
+	ctx context.Context, proposalIDs []ids.ProposalID, start, end time.Time,
+) (*TopReply, error) {
+	top, found, err := app.FindTopReply(ctx, m.deps.Pool, proposalIDs, start, end)
+	if err != nil || !found {
+		return nil, err
+	}
+	return &top, nil
 }
 
 func (m *Module) Follows() app.Follows { return app.NewFollows(m.deps.Pool) }
@@ -239,6 +252,8 @@ func (m *Module) http() adapters.HTTP {
 		UnlikeFeedItem:  app.NewUnlikeFeedItemHandler(likes),
 		ReactFeedItem:   app.NewReactFeedItemHandler(likes),
 		UnreactFeedItem: app.NewUnreactFeedItemHandler(likes),
+		ReactComment:    app.NewReactCommentHandler(likes),
+		UnreactComment:  app.NewUnreactCommentHandler(likes),
 		Match: app.NewMatchContactsHandler(app.MatchContactsDeps{
 			UoW: m.deps.UoW, Users: m.users, Clock: m.deps.Clock,
 		}),

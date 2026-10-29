@@ -10,7 +10,36 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const addCommentReaction = `-- name: AddCommentReaction :one
+INSERT INTO comment_reactions (comment_id, feed_object_id, user_id, emoji, created_at)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (comment_id, user_id, emoji) DO NOTHING
+RETURNING created_at
+`
+
+type AddCommentReactionParams struct {
+	CommentID    uuid.UUID
+	FeedObjectID uuid.UUID
+	UserID       uuid.UUID
+	Emoji        string
+	CreatedAt    time.Time
+}
+
+func (q *Queries) AddCommentReaction(ctx context.Context, arg AddCommentReactionParams) (time.Time, error) {
+	row := q.db.QueryRow(ctx, addCommentReaction,
+		arg.CommentID,
+		arg.FeedObjectID,
+		arg.UserID,
+		arg.Emoji,
+		arg.CreatedAt,
+	)
+	var created_at time.Time
+	err := row.Scan(&created_at)
+	return created_at, err
+}
 
 const addReaction = `-- name: AddReaction :one
 INSERT INTO feed_reactions (feed_object_id, user_id, emoji, created_at)
@@ -38,6 +67,81 @@ func (q *Queries) AddReaction(ctx context.Context, arg AddReactionParams) (time.
 	return created_at, err
 }
 
+const commentReactionSummaries = `-- name: CommentReactionSummaries :many
+WITH counted AS (
+  SELECT r.comment_id, r.emoji, count(*)::int AS count, bool_or(r.user_id = $1::uuid) AS mine,
+    min(r.created_at) AS first_at
+  FROM comment_reactions r
+  WHERE r.comment_id = ANY($2::uuid[])
+  GROUP BY r.comment_id, r.emoji
+), ranked AS (
+  SELECT c.comment_id, c.emoji, c.count, c.mine,
+    row_number() OVER (PARTITION BY c.comment_id ORDER BY c.count DESC, c.first_at, c.emoji) AS rank,
+    sum(c.count) OVER (PARTITION BY c.comment_id)::int AS total
+  FROM counted c
+)
+SELECT ranked.comment_id, ranked.emoji, ranked.count, ranked.mine::bool AS mine, ranked.total
+FROM ranked
+WHERE ranked.rank <= 20
+ORDER BY ranked.comment_id, ranked.rank
+`
+
+type CommentReactionSummariesParams struct {
+	Viewer     uuid.UUID
+	CommentIds []uuid.UUID
+}
+
+type CommentReactionSummariesRow struct {
+	CommentID uuid.UUID
+	Emoji     string
+	Count     int32
+	Mine      bool
+	Total     int32
+}
+
+func (q *Queries) CommentReactionSummaries(ctx context.Context, arg CommentReactionSummariesParams) ([]CommentReactionSummariesRow, error) {
+	rows, err := q.db.Query(ctx, commentReactionSummaries, arg.Viewer, arg.CommentIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CommentReactionSummariesRow
+	for rows.Next() {
+		var i CommentReactionSummariesRow
+		if err := rows.Scan(
+			&i.CommentID,
+			&i.Emoji,
+			&i.Count,
+			&i.Mine,
+			&i.Total,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countUserCommentReactions = `-- name: CountUserCommentReactions :one
+SELECT count(*)::int FROM comment_reactions
+WHERE comment_id = $1 AND user_id = $2
+`
+
+type CountUserCommentReactionsParams struct {
+	CommentID uuid.UUID
+	UserID    uuid.UUID
+}
+
+func (q *Queries) CountUserCommentReactions(ctx context.Context, arg CountUserCommentReactionsParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countUserCommentReactions, arg.CommentID, arg.UserID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countUserReactionsOnItem = `-- name: CountUserReactionsOnItem :one
 SELECT count(*)::int FROM feed_reactions
 WHERE feed_object_id = $1 AND user_id = $2
@@ -53,6 +157,18 @@ func (q *Queries) CountUserReactionsOnItem(ctx context.Context, arg CountUserRea
 	var column_1 int32
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const deleteCommentReactions = `-- name: DeleteCommentReactions :execrows
+DELETE FROM comment_reactions WHERE comment_id = $1
+`
+
+func (q *Queries) DeleteCommentReactions(ctx context.Context, commentID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteCommentReactions, commentID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const reactionSummaries = `-- name: ReactionSummaries :many
@@ -113,6 +229,25 @@ func (q *Queries) ReactionSummaries(ctx context.Context, arg ReactionSummariesPa
 	return items, nil
 }
 
+const removeCommentReaction = `-- name: RemoveCommentReaction :execrows
+DELETE FROM comment_reactions
+WHERE comment_id = $1 AND user_id = $2 AND emoji = $3
+`
+
+type RemoveCommentReactionParams struct {
+	CommentID uuid.UUID
+	UserID    uuid.UUID
+	Emoji     string
+}
+
+func (q *Queries) RemoveCommentReaction(ctx context.Context, arg RemoveCommentReactionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, removeCommentReaction, arg.CommentID, arg.UserID, arg.Emoji)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const removeReaction = `-- name: RemoveReaction :execrows
 DELETE FROM feed_reactions
 WHERE feed_object_id = $1 AND user_id = $2 AND emoji = $3
@@ -130,4 +265,43 @@ func (q *Queries) RemoveReaction(ctx context.Context, arg RemoveReactionParams) 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const topReplyBetween = `-- name: TopReplyBetween :one
+SELECT c.id AS comment_id, o.ref_id AS proposal_id, c.author_id, c.body, count(*)::int AS reaction_count
+FROM comment_reactions r
+JOIN feed_comments c ON c.id = r.comment_id AND c.deleted_at IS NULL
+JOIN feed_objects o ON o.id = c.feed_object_id AND o.ref_type = 'proposals' AND o.kind = 'proposal'
+WHERE o.ref_id = ANY($1::uuid[])
+  AND r.created_at >= $2::timestamptz AND r.created_at < $3::timestamptz
+GROUP BY c.id, o.ref_id, c.author_id, c.body, c.created_at
+ORDER BY count(*) DESC, c.created_at, c.id
+LIMIT 1
+`
+
+type TopReplyBetweenParams struct {
+	ProposalIds []uuid.UUID
+	WindowStart time.Time
+	WindowEnd   time.Time
+}
+
+type TopReplyBetweenRow struct {
+	CommentID     uuid.UUID
+	ProposalID    uuid.UUID
+	AuthorID      uuid.UUID
+	Body          pgtype.Text
+	ReactionCount int32
+}
+
+func (q *Queries) TopReplyBetween(ctx context.Context, arg TopReplyBetweenParams) (TopReplyBetweenRow, error) {
+	row := q.db.QueryRow(ctx, topReplyBetween, arg.ProposalIds, arg.WindowStart, arg.WindowEnd)
+	var i TopReplyBetweenRow
+	err := row.Scan(
+		&i.CommentID,
+		&i.ProposalID,
+		&i.AuthorID,
+		&i.Body,
+		&i.ReactionCount,
+	)
+	return i, err
 }

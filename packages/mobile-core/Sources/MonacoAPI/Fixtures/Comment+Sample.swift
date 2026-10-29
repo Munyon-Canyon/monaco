@@ -4,7 +4,8 @@ import Foundation
 extension Components.Schemas.Comment {
     public static func sample(
         _ id: String, author: String = "Maya", parent: String? = nil, replyTo: String? = nil, body: String? = nil,
-        mine: Bool = false, minutesAgo: Double = 5, quote: Components.Schemas.CommentQuote? = nil
+        mine: Bool = false, minutesAgo: Double = 5, quote: Components.Schemas.CommentQuote? = nil,
+        reactions: [Components.Schemas.Reaction] = []
     ) -> Self {
         Self(
             id: id, parentCommentId: parent, rootCommentId: parent,
@@ -13,14 +14,16 @@ extension Components.Schemas.Comment {
                 returnPrivate: false),
             replyToHandle: replyTo, replyTo: quote, body: body ?? "Comment \(id)",
             bodyDisplay: body ?? "Comment \(id)", attachment: nil, isMine: mine,
+            reactions: reactions, reactionCount: Int32(reactions.reduce(0) { $0 + Int($1.count) }),
             createdAt: Date(timeIntervalSinceNow: -minutesAgo * 60))
     }
 
     public static func gifSample(
         _ id: String, author: String, parent: String? = nil, minutesAgo: Double = 5,
-        quote: Components.Schemas.CommentQuote? = nil
+        quote: Components.Schemas.CommentQuote? = nil, reactions: [Components.Schemas.Reaction] = []
     ) -> Self {
-        var comment = sample(id, author: author, parent: parent, minutesAgo: minutesAgo, quote: quote)
+        var comment = sample(
+            id, author: author, parent: parent, minutesAgo: minutesAgo, quote: quote, reactions: reactions)
         comment.body = nil
         comment.bodyDisplay = "GIF"
         comment.attachment = .sample()
@@ -69,7 +72,9 @@ extension Components.Schemas.CommentThread {
 
     public static let loganAAPLThread: [Self] = [
         Self(
-            comment: .sample("aapl-nora", author: "Nora", body: "Why sell here?", minutesAgo: 50),
+            comment: .sample(
+                "aapl-nora", author: "Nora", body: "Why sell here?", minutesAgo: 50,
+                reactions: [.init(emoji: "❤️", count: 1, mine: false)]),
             replies: [
                 .sample(
                     "aapl-logan", author: "Logan", parent: "aapl-nora", body: "Took the gain while it was there.",
@@ -77,14 +82,17 @@ extension Components.Schemas.CommentThread {
                     quote: .sample("aapl-nora", author: "Nora", excerpt: "Why sell here?"))
             ]),
         Self(
-            comment: .sample("aapl-andres", author: "Andres", body: "Good timing on this one.", minutesAgo: 40),
+            comment: .sample(
+                "aapl-andres", author: "Andres", body: "Good timing on this one.", minutesAgo: 40,
+                reactions: [.init(emoji: "❤️", count: 2, mine: false)]),
             replies: []),
         Self(
             comment: .gifSample(
                 "aapl-christelle", author: "Christelle", minutesAgo: 30,
                 quote: .sample(
                     "aapl-logan", root: "aapl-nora", author: "Logan", excerpt: "Took the gain while it was there.",
-                    folded: true)),
+                    folded: true),
+                reactions: [.init(emoji: "😂", count: 3, mine: false), .init(emoji: "❤️", count: 1, mine: false)]),
             replies: []),
         Self(
             comment: .sample(

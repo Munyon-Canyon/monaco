@@ -114,3 +114,8 @@ SELECT c.id, o.kind, o.cabal_id
 FROM feed_comments c
 JOIN feed_objects o ON o.id = c.feed_object_id
 WHERE c.id = sqlc.arg(id);
+
+-- name: GetCommentRef :one
+SELECT id, feed_object_id, (deleted_at IS NOT NULL)::bool AS deleted
+FROM feed_comments
+WHERE id = sqlc.arg(id);

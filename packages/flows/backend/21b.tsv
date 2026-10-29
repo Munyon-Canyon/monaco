@@ -1,2 +1,2 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
-21b	React to a feed post	social	PUT /v1/feed/{id}/reactions/{emoji}	ReactFeedItem	reaction.added		ok;InvalidInput;FeedItemNotFound;Unauthorized;RateLimited;crash:before-commit	built	docs/architecture/feed.md#reactions
+21b	React to a feed post or a reply	social	PUT /v1/feed/{id}/reactions/{emoji};PUT /v1/feed/comments/{comment_id}/reactions/{emoji}	ReactFeedItem;ReactComment	reaction.added		ok;InvalidInput;FeedItemNotFound;CommentNotFound;Unauthorized;RateLimited;crash:before-commit	built	docs/architecture/feed.md#reactions
