@@ -147,20 +147,18 @@ Opens from the Home money strip (the "Net worth" and "Cash" metrics). A pushed s
 
 States. Cash only (the portfolio has no rows): "In cabals" reads "$0.00" and an info notice "No funds are allocated to a cabal yet." replaces the cabal rows. Loading: a skeleton labelled "Loading your money". Either read failed with nothing cached: "Couldn’t load this view" with "Try again", which reloads both reads. A refresh that fails over cached figures keeps them and raises the error toast. Harness: `-balancesHarness <ready|cashOnly|loading|error>`.
 
-## Activity (`ActivityFeedRoute`)
+## Catch up (`ActivityFeedRoute`)
 
-Opens from the Home toolbar bell. A pushed screen with the inline title "Activity" and the tab bar visible. `ActivityFeedModel` is fixture-backed: the live source returns `comingSoon` until the backend serves notifications.
+Opens from the Home toolbar bell. A pushed screen with the large title "Catch up" and the sub-line "6 to catch up · what you can still change comes first". `CatchUpModel` (`MonacoNotify`, flow 34) reads `getMyCatchUp(since: startOfLocalDay)` once and reloads on the `catch_up_changed` hint while visible.
 
-| Part | Shows |
+| Section | Rows |
 | --- | --- |
-| Mark all read | A trailing text button in every loaded state, including empty. It marks every item read with a 0.2 s fade; a no-op when nothing is unread |
-| Group label | "New" while any item is unread, otherwise "Earlier" |
-| Items | A 38pt avatar, the title, up to three lines of body, "<Cabal> · <age>" and an optional `StatusBadge` (for example the warn badge "Execution pending"), then a chevron. Unread items sit on a `brandSoft` block 8pt apart; read items are plain rows divided by hairlines. A tap marks the item read and opens its `PushRoute` destination through `PushRouter` |
-| Account update | A wallet-glyph `MonacoRow` ("Deposit received", "$100.00 · Yesterday") that opens `AccountActivityRoute()`. It stands for a settled deposit only; an accepted or pending one is never announced as confirmed |
+| Waiting on you | The asset logo with the cabal crest, "Buy NVDA · $400", "AC Capital · 5 of 8 voted · ends in 4h", a tally "✓ 4 · ✕ 1" and a "Vote" button that opens the hold sheet |
+| Replies and mentions | The person's photo with the crest, "Christelle mentioned you" or "Mia replied to you", "<Cabal> · <proposal or post>", a quote line with a bold author ("You" for your own), the time over a green unread dot. A tap opens the proposal or the feed item |
+| Invites | The inviter's photo with the cabal's crest, "Sam invited you to Quant Kids", "5 members · holds OpenAI" and a "Join" button that joins and toasts "You're in Quant Kids." |
+| Results | The asset logo with the crest, "Buy META passed 4–1", "Degens · you voted Yes · filled", the time. A tap opens the proposal |
 
-States. Empty: "You’re caught up" / "Replies, votes and proposal updates appear here.". Loading: five row skeletons labelled "Loading activity". Failed: "Couldn’t load this view" with "Try again". Live app until the API ships: the nav title and one centred caption, "Your activity shows up here soon.", with no fixture people or amounts. Harness: `-activityFeedHarness <unread|read|empty|loading|error|live>`.
-
-Missing API (file a backend ticket): `GET /v1/me/notifications` (paged, newest first, each item with `id`, `kind`, `title`, `body`, `cabal`, `actor`, `created_at`, `read_at`, an optional status badge and a destination that maps onto the `PushRoute` cases), `POST /v1/me/notifications/read` (all, or up to an item id), and an unread count or `has_unread` flag on an existing Home read for the bell's dot. Read state is local to the model until then.
+States. Loading: five row skeletons labelled "Loading Catch up". Failed: "Couldn’t load this view" with "Try again". Harness: `-MonacoCatchUpSample <six|loading|error>`; `-activityFeedHarness <x>` stays as an alias until #6589. Read, clear, keep, the swipe, the caught-up state and the "One by one" card view are #6566 and #6571.
 
 ## Cabals tab
 

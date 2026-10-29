@@ -42,7 +42,7 @@ final class PrivateDataMaskTests: XCTestCase {
         "apps/mobile/Monaco/Features/Groups/MembersView.swift": 3,
         "apps/mobile/Monaco/Features/Home/BalancesView.swift": 4,
         "apps/mobile/Monaco/Features/Home/HomePortfolioSlot.swift": 2,
-        "apps/mobile/Monaco/Features/Notifications/ActivityView.swift": 2,
+        "apps/mobile/Monaco/Features/Notifications/CatchUpRows.swift": 1,
         "apps/mobile/Monaco/Features/Onboarding/HandleStepView.swift": 1,
         "apps/mobile/Monaco/Features/Onboarding/PhoneStepView.swift": 2,
         "apps/mobile/Monaco/Features/Profile/DisplayNameField.swift": 1,

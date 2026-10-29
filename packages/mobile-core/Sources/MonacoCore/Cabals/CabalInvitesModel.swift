@@ -14,6 +14,15 @@ public struct ReceivedCabalInvite: Identifiable, Equatable, Sendable {
     public let members: String
     public let invitedBy: String
 
+    public init(requestID: String, cabalID: String, cabalName: String) {
+        id = requestID
+        self.cabalID = cabalID
+        self.cabalName = cabalName
+        pictureURL = nil
+        members = ""
+        invitedBy = ""
+    }
+
     init(_ invite: Components.Schemas.CabalInvite) {
         id = invite.requestId
         cabalID = invite.cabal.id
