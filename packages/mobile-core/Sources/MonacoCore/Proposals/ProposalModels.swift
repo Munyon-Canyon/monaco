@@ -169,7 +169,7 @@ public final class ProposalDetailModel {
     public private(set) var priceMove: ProposalPriceMove?
     public let livePrice: LiveBestPriceModel
     private let id: String
-    private let cabalID: String
+    private var cabalID: String?
     private let repository: ProposalsRepository
     private let hints: any HintSource
     private let now: @Sendable () -> Date
@@ -181,9 +181,10 @@ public final class ProposalDetailModel {
     private var retriedSwapID: String?
     private let proposeService: any ProposeService
     @ObservationIgnored private var isVisible = false
+    @ObservationIgnored private var isObserving = false
 
     public init(
-        id: String, cabalID: String, repository: ProposalsRepository, hints: any HintSource,
+        id: String, cabalID: String?, repository: ProposalsRepository, hints: any HintSource,
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
         now: @escaping @Sendable () -> Date = Date.init, calendar: Calendar = .current
     ) {
@@ -223,6 +224,8 @@ public final class ProposalDetailModel {
             async let members = try? repository.members(cabalID: detail.summary.cabalID)
             async let asset = try? repository.asset(symbol: detail.summary.symbol)
             value = detail
+            if cabalID == nil && isObserving { Task { await observe() } }
+            cabalID = detail.summary.cabalID
             syncVoteSelection(with: voting.applying(detail.summary))
             voting.acknowledge(detail.summary)
             if let members = await members { self.members = members }
@@ -405,7 +408,8 @@ public final class ProposalDetailModel {
     }
 
     public func observe() async {
-        let cabalID = value?.summary.cabalID ?? cabalID
+        isObserving = true
+        guard let cabalID = value?.summary.cabalID ?? cabalID else { return }
         await refresher.observe([
             hints.hints(matching: .cabal(id: cabalID, what: "proposal_updated")),
             hints.hints(matching: .cabal(id: cabalID, what: "swap_updated")),
@@ -427,6 +431,12 @@ public final class ProposalDetailModel {
         let summary = value?.summary
         let isLive = isVisible && summary.map(LiveBestPriceModel.isLive) == true
         livePrice.poll(cabalID: isLive ? summary?.cabalID : nil)
+    }
+}
+
+extension ProposalDetailModel {
+    public convenience init(id: String, repository: ProposalsRepository, hints: any HintSource) {
+        self.init(id: id, cabalID: nil, repository: repository, hints: hints)
     }
 }
 
