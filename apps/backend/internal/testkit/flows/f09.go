@@ -159,6 +159,18 @@ func F09ProposeTradePotExceeded(s *scenario.Scenario) {
 		Then(scenario.ExpectProblem(errs.CodePotExceeded), scenario.ExpectEvents(events.TypeProposalCreated, 0))
 }
 
+func F09ProposeTradeOverTradeCap(s *scenario.Scenario) {
+	c := seedF09(s, "100000000")
+	if _, err := s.DB().
+		Exec(s.Context(), `UPDATE cabals SET max_trade_bps = 2000 WHERE id = $1`, c.id.UUID()); err != nil {
+		s.Fatalf("flows: set flow 09 trade cap: %v", err)
+	}
+	s.Given(f09Member(c), func(s *scenario.Scenario) {
+		f09Route(s, "25000000", fakes.ActionSucceed, "/jupiter/swap/v2/order")
+	}).When(scenario.Post(f09Path(c), f09Buy)).
+		Then(scenario.ExpectProblem(errs.CodeOverTradeCap), scenario.ExpectEvents(events.TypeProposalCreated, 0))
+}
+
 func F09ProposeTradeCabalSharesShort(s *scenario.Scenario) {
 	c := seedF09(s, "aapl")
 	s.Given(f09Member(c)).When(scenario.Post(f09Path(c), `{"kind":"sell","symbol":"AAPLx","token_amount":11000001}`)).

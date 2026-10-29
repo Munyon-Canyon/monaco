@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
@@ -118,6 +119,15 @@ func TestFlow09_ProposeTrade_PotExceeded(t *testing.T) {
 	t.Parallel()
 	w := newTradeWorld(t)
 	w.refused(t, w.asMember(), `{"kind":"buy","symbol":"AAPLx","usdc_micros":100000001}`, errs.CodePotExceeded)
+}
+
+func TestFlow09_ProposeTrade_OverTradeCap(t *testing.T) {
+	t.Parallel()
+	w := newTradeWorld(t)
+	bps := int32(2000)
+	w.seed.Rules.MaxTradeBps = &bps
+	w.cabals.current.Store(fakes.NewCabal([]fakes.CabalSeed{w.seed}, w.rows))
+	w.refused(t, w.asMember(), `{"kind":"buy","symbol":"AAPLx","usdc_micros":20000001}`, errs.CodeOverTradeCap)
 }
 
 func TestFlow09_ProposeTrade_CabalSharesShort(t *testing.T) {

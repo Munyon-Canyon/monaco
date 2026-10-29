@@ -104,6 +104,7 @@ extension Components.Schemas.ErrorCode {
         case .onrampInvalidTransition: true
         case .onrampLinkExpired: true
         case .onrampLinkInvalid: true
+        case .overTradeCap: true
         case .panic: true
         case .payoutFailed: true
         case .phoneLinkedElsewhere: true

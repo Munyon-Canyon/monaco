@@ -10,6 +10,7 @@ const (
 	CodePotExceeded        Code = "pot_exceeded"
 	CodeProposalStillOpen  Code = "proposal_still_open"
 	CodePotCashShort       Code = "pot_cash_short"
+	CodeOverTradeCap       Code = "over_trade_cap"
 	CodeVoteNotFound       Code = "vote_not_found"
 	CodeUndoExpired        Code = "undo_expired"
 )
@@ -39,6 +40,9 @@ func (codeFiles) Governance() map[Code]Row {
 		CodePotCashShort: {
 			Name: "PotCashShort", Kind: KindBlocked,
 			Message: "The pot doesn't have that much cash. Sell a holding first or propose less.",
+		},
+		CodeOverTradeCap: {
+			Name: "OverTradeCap", Kind: KindBlocked, Message: "That trade is over this cabal's cap per trade.",
 		},
 		CodeVoteNotFound: {Name: "VoteNotFound", Kind: KindNotFound, Message: "You haven't voted on this proposal."},
 		CodeUndoExpired: {
