@@ -19,6 +19,7 @@ struct ProposeAmountScreen: View {
     @State private var model: ProposeAmountModel
     @State private var reviewMemory = MonacoCore.ProposeReviewMemory()
     @State private var amountText = ""
+    @State private var context = MonacoCore.ProposeCabalContext()
 
     init(
         service: MonacoCore.ProposeService, cabalID: String, stock: ProposeStock, trade: ProposeTrade? = nil,
@@ -38,7 +39,7 @@ struct ProposeAmountScreen: View {
                 initialAmountMicros: initialAmountMicros))
     }
 
-    static let markSize: CGFloat = 48
+    static let markSize: CGFloat = 32
 
     private var displayName: String { AssetDisplayName.format(catalogName: stock.name, kind: stock.assetKind) }
     private var operation: String { model.trade.isSell ? "Sell" : "Buy" }
@@ -49,54 +50,78 @@ struct ProposeAmountScreen: View {
                 EmptyState.loadFailed(identifier: "propose-amount-cash-error") { Task { await model.load() } }
                     .frame(maxHeight: .infinity, alignment: .top)
             } else {
-                content
+                keypad
             }
         }
         .monacoCanvas()
         .task { await model.load() }
         .task { await model.prefetchBestChain() }
         .task { await applySeed() }
+        .task { await context.load(api: environment.api, cabalID: cabalID) }
         .task {
             guard !model.trade.isSell,
                 let asset = try? await ProposalsRepository(api: environment.api).asset(symbol: stock.symbol)
             else { return }
             model.resolveAsset(kind: asset.kind, decimals: asset.decimals)
         }
-        .navigationTitle("\(operation) \(displayName)")
-        .navigationBarTitleDisplayMode(.inline)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("propose-amount-screen")
     }
 
-    private var content: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-                header
-                ProposeContextCard(cabalID: cabalID, detail: contextDetail)
-                location
-                amountEntry
-                notices
-                thesisSection
-            }
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.top, MonacoTheme.Space.m)
-            .padding(.bottom, MonacoTheme.Space.m)
-        }
-        .scrollBounceBehavior(.basedOnSize)
-        .scrollDismissesKeyboard(.interactively)
-        .safeAreaInset(edge: .bottom) {
-            BottomCTA {
-                Button(model.reviewTitle) { review() }
-                    .buttonStyle(.monacoPrimary)
-                    .disabled(!model.reviewEnabled(assetName: stock.name))
-                    .accessibilityIdentifier("propose-amount-review")
-            }
+    private var keypad: some View {
+        AmountKeypadScreen(
+            amountText: $amountText,
+            state: AmountKeypadState(model.keypadState),
+            line: (model.keypadLine ?? model.message(assetName: stock.name)).map { AmountKeypadLine(text: $0) },
+            presets: presets,
+            max: max,
+            action: AmountKeypadAction(title: model.reviewTitle, isWorking: model.isLoading) {
+                if model.previewFailed { model.retryPreview() } else { review() }
+            },
+            onClose: { environment.navigator.closeProposeFlow(in: environment.navigator.selectedTab) },
+            onSource: onChangeCabal.map { change in { change(model.amountMicros) } },
+            source: { sourcePill },
+            header: { header }
+        )
+        .onChange(of: amountText) { _, value in
+            model.setAmount(micros: AmountText.micros(value) ?? 0)
         }
         .sheet(isPresented: $showsReview) {
             if let preview = model.preview {
                 reviewSheet(preview)
             }
         }
+    }
+
+    @ViewBuilder private var sourcePill: some View {
+        CabalMark(
+            groupId: cabalID, name: context.name ?? "", size: Self.markSize, pictureUrl: context.pictureURL)
+        Text(context.name ?? " ")
+            .font(MonacoTheme.Typo.headline)
+            .foregroundStyle(MonacoTheme.primaryText)
+            .monacoPrivate()
+        Text(sourceDetail)
+            .font(MonacoTheme.Typo.subhead)
+            .foregroundStyle(MonacoTheme.secondaryText)
+            .monacoPrivate()
+    }
+
+    private var sourceDetail: String {
+        if case .sell(let holding) = model.trade { return "\(holding.heldQuantity) held" }
+        return model.spendableCashMicros.map(FundSourceCopy.cash(micros:)) ?? ""
+    }
+
+    private var header: some View {
+        HStack(spacing: MonacoTheme.Space.s) {
+            StockMark(
+                symbol: stock.symbol, displayName: stock.name, assetKind: stock.assetKind, size: Self.markSize,
+                logoURL: stock.logoURL)
+            Text("\(operation) \(displayName)").font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(operation) \(displayName)")
+        .accessibilityAddTraits(.isHeader)
     }
 
     private func reviewSheet(_ preview: MonacoCore.ProposePreview) -> ProposeReviewSheet {
@@ -126,109 +151,7 @@ struct ProposeAmountScreen: View {
     }
 
     private func review() {
-        if model.requestReview(assetName: stock.name) { showsReview = true }
-    }
-
-    private var header: some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
-            StockMark(
-                symbol: stock.symbol, displayName: stock.name, assetKind: stock.assetKind, size: Self.markSize,
-                logoURL: stock.logoURL)
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                Text(displayName).font(MonacoTheme.Typo.section).foregroundStyle(MonacoTheme.ink)
-                Text(stock.ticker).font(MonacoTheme.Typo.caption).foregroundStyle(MonacoTheme.muted)
-            }
-            Spacer(minLength: 0)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(operation) \(displayName)")
-        .accessibilityAddTraits(.isHeader)
-        .accessibilityIdentifier("propose-amount-operation")
-    }
-
-    @ViewBuilder private var location: some View {
-        if case .sell(let holding) = model.trade, holding.locations.count > 1 {
-            ProposeLocationSection(holding: holding) { network in
-                amountText = ""
-                model.chooseLocation(network)
-            }
-        }
-    }
-
-    private var contextDetail: ProposeContextDetail {
-        if case .sell(let holding) = model.trade {
-            return .units("\(holding.heldQuantity) held")
-        }
-        guard let micros = model.spendableCashMicros else { return .loading }
-        return .cash(micros: micros)
-    }
-
-    private var amountEntry: some View {
-        AmountEntry(
-            amountText: $amountText, max: max, presets: presets,
-            caption: model.trade.isSell ? ProposeFlowCopy.sellAmountEyebrow : ProposeFlowCopy.buyAmountEyebrow,
-            helper: model.helperText, overLimitHelper: model.helperText ?? "", isLoading: model.isLoading
-        ) {
-            VStack(spacing: MonacoTheme.Space.s) {
-                if let note = model.sellQuantityNote { AmountEntryNote(note) }
-                if let note = model.buyQuantityNote {
-                    AmountEntryNote(note).accessibilityIdentifier("propose-amount-quantity")
-                }
-            }
-            .padding(.top, MonacoTheme.Space.s)
-        }
-        .padding(.top, MonacoTheme.Space.s)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("propose-amount-entry")
-        .onChange(of: amountText) { _, value in
-            model.setAmount(micros: AmountEntryText.micros(value) ?? 0)
-        }
-    }
-
-    @ViewBuilder private var notices: some View {
-        if model.isOverLimit {
-            MonacoNotice(
-                .error, message: model.trade.isSell ? ProposeFlowCopy.overHolding : ProposeFlowCopy.overCash)
-        } else if let problem = model.message(assetName: stock.name) {
-            MonacoNotice(.error, message: problem)
-        }
-        if model.previewFailed {
-            MonacoErrorRow(thing: "the price", identifier: "propose-amount-price-error", inset: false) {
-                model.retryPreview()
-            }
-        }
-    }
-
-    private var thesisSection: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            Text(ProposeFlowCopy.thesisTitle)
-                .font(MonacoTheme.Typo.subheadStrong)
-                .foregroundStyle(MonacoTheme.ink)
-            MonacoTextField(
-                ProposeFlowCopy.thesisPlaceholder,
-                text: Binding(get: { model.thesis }, set: { model.setThesis($0) }), isMultiline: true
-            )
-            .toolbar {
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") {
-                        UIApplication.shared.sendAction(
-                            #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                    }
-                    .accessibilityIdentifier("propose-amount-reason-done")
-                }
-            }
-            .accessibilityIdentifier("propose-amount-reason")
-            if ProposeReasonRules.showsCounter(for: model.thesis) {
-                Text("\(model.thesis.count)/\(ProposeReasonRules.thesisLimit)")
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.muted)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-            }
-            if model.showsThesisRequired {
-                MonacoNotice(.error, message: ProposeFlowCopy.thesisRequired)
-            }
-        }
+        if model.reviewEnabled(assetName: stock.name) { showsReview = true }
     }
 
     private var presets: [AmountPreset] {
@@ -240,6 +163,13 @@ struct ProposeAmountScreen: View {
     private var max: Decimal? { model.maxMicros.flatMap(ProposeMath.usd(fromMicros:)) }
 }
 
-extension ProposeContextDetail {
-    static func cash(micros: Int64) -> ProposeContextDetail { .cash(micros: micros, failed: false) }
+extension AmountKeypadState {
+    init(_ value: AmountKeypadStateValue) {
+        switch value {
+        case .empty: self = .empty
+        case .typed: self = .typed
+        case .invalid(let limitLine, let slot): self = .invalid(limitLine: limitLine, slot: slot)
+        case .settled(let line): self = .settled(line: line)
+        }
+    }
 }

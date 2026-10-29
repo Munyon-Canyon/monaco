@@ -19,6 +19,7 @@ enum ProposeSampleScenario: String, CaseIterable {
     case amount
     case amountSell
     case amountSellBase
+    case amountTyped
     case amountInsufficient
     case amountEmptyThesis
     case amountError
@@ -64,8 +65,8 @@ enum ProposeSampleScenario: String, CaseIterable {
 
     var tab: MainTab {
         switch self {
-        case .amount, .amountSell, .amountSellBase, .amountInsufficient, .amountEmptyThesis, .amountError, .potFailed,
-            .pickCabal, .noCabal, .sell:
+        case .amount, .amountSell, .amountSellBase, .amountTyped, .amountInsufficient, .amountEmptyThesis,
+            .amountError, .potFailed, .pickCabal, .noCabal, .sell:
             .stocks
         default: .cabals
         }
@@ -82,7 +83,7 @@ enum ProposeSampleScenario: String, CaseIterable {
         case .sellList, .sellNoHoldings: ProposeRoute(cabalID: GroupDetailSampleData.cabalID, start: .sell)
         case .amount, .potFailed, .pickCabal, .noCabal: ProposeFromAssetRoute(symbol: "GOOGLx", kind: .buy)
         case .amountSell, .amountSellBase, .sell: ProposeFromAssetRoute(symbol: "GOOGLx", kind: .sell)
-        case .amountInsufficient, .amountEmptyThesis, .amountError: ProposeSampleRoute(scenario: self)
+        case .amountTyped, .amountInsufficient, .amountEmptyThesis, .amountError: ProposeSampleRoute(scenario: self)
         case .review: SampleScreenRoute(screen: .proposeReview(.buy), arguments: [])
         case .sellReview: SampleScreenRoute(screen: .proposeReview(.sell), arguments: [])
         case .reviewLongThesis, .reviewSubmitting, .reviewSent, .reviewError, .reviewNvidia, .reviewNvidiaTwoCabals,
@@ -112,6 +113,8 @@ private struct ProposeSampleScreen: View {
                 isPresented: $presentsChooser, cabalID: GroupDetailSampleData.cabalID)
         case .buyNoResults:
             ProposeBuyStockView(cabalID: GroupDetailSampleData.cabalID, initialQuery: "zzzz")
+        case .amountTyped:
+            amount(seed: ProposeAmountSeed(amount: "400"))
         case .amountInsufficient:
             amount(seed: ProposeAmountSeed(amount: "9999", thesis: "Earnings next week."))
         case .amountEmptyThesis:

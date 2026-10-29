@@ -257,6 +257,7 @@ public enum ProposeFlowCopy {
     public static let sellFromHint = "Chooses where the cabal sells this stock"
     public static let overCash = "Amount exceeds the cash balance."
     public static let overHolding = "Amount exceeds this holding’s value."
+    public static func upTo(_ micros: Int64) -> String { "Up to \(UsdAmountFormatter.format(micros: micros))" }
     public static let thesisTitle = "Thesis"
     public static let thesisPlaceholder = "Why should the cabal make this trade?"
     public static let thesisRequired = "Add a thesis before sending your proposal."
@@ -283,7 +284,8 @@ public enum ProposeFlowCopy {
         onlyVoters, fallbackBuyDetail, fallbackSellDetail, fallbackBotDetail, buyListTitle, sellListTitle,
         buySearchPlaceholder, sellSearchPlaceholder, sortVolume, sortName, sortChange, filterAll, filterPopular,
         filterPreIpo, noStocksTitle, noStocksMessage, noPositionsMessage, backToCabal, buyAmountEyebrow,
-        sellAmountEyebrow, sellFromTitle, sellFromHint, overCash, overHolding, thesisTitle, thesisPlaceholder,
+        sellAmountEyebrow, sellFromTitle, sellFromHint, overCash, overHolding,
+        upTo(5_100_000_000), thesisTitle, thesisPlaceholder,
         thesisRequired, reviewProposal,
         votingWindowRow, votesToPassRow, sendProposal, sending, sendFailedNotice, proposalSentTitle, viewProposal,
         chooseCabalTitle, chooseCabalQuestion(verb: "buy", ticker: "NVDA"),

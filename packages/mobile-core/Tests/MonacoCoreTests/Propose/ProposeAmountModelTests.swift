@@ -287,6 +287,54 @@ final class ProposeAmountModelTests: XCTestCase {
     }
 }
 
+extension ProposeAmountModelTests {
+    func testKeypadStateFollowsTheAmountAndTheLimit() async {
+        let clock = TestClock()
+        let model = ProposeAmountModel(service: PreviewService(), cabalID: "cabal", trade: Self.buy, clock: clock)
+        await model.load()
+
+        XCTAssertEqual(model.keypadState, .empty)
+        model.setAmount(micros: 400_000_000)
+        XCTAssertEqual(model.keypadState, .typed)
+        model.setAmount(micros: 600_000_000)
+        XCTAssertEqual(
+            model.keypadState, .invalid(limitLine: "Amount exceeds the cash balance.", slot: "Up to $500.00"))
+    }
+
+    func testKeypadStateForASellOverTheHolding() {
+        let apple = ProposeHoldingTests.holding(
+            name: "Apple", units: "1.0000", tokenAmount: 100_000_000, valueMicros: 100_000_000)
+        let model = ProposeAmountModel(
+            service: PreviewService(), cabalID: "cabal", trade: .sell(apple), clock: TestClock())
+
+        model.setAmount(micros: 25_000_000)
+        XCTAssertEqual(model.keypadState, .typed)
+        model.setAmount(micros: 100_000_001)
+        XCTAssertEqual(
+            model.keypadState,
+            .invalid(limitLine: "Amount exceeds this holding’s value.", slot: "Up to $100.00"))
+        XCTAssertEqual(model.keypadLine, model.sellQuantityNote)
+    }
+
+    func testKeypadLineIsTheSellNoteOrTheBuyNote() async {
+        let clock = TestClock()
+        let model = ProposeAmountModel(
+            service: PreviewService(quoteOut: 182_000_000), cabalID: "cabal", trade: Self.buy, clock: clock)
+        XCTAssertNil(model.keypadLine)
+        model.setAmount(micros: 400_000_000)
+        await settle()
+        clock.advance(by: .milliseconds(400))
+        await settle()
+
+        XCTAssertNotNil(model.buyQuantityNote)
+        XCTAssertEqual(model.keypadLine, model.buyQuantityNote)
+    }
+
+    func testUpToFormatsTheLimit() {
+        XCTAssertEqual(ProposeFlowCopy.upTo(5_100_000_000), "Up to $5,100.00")
+    }
+}
+
 actor PreviewService: ProposeService {
     struct Failure: Error {}
     let code: String?

@@ -2,6 +2,13 @@ import Foundation
 import MonacoAPI
 import Observation
 
+public enum AmountKeypadStateValue: Equatable, Sendable {
+    case empty
+    case typed
+    case invalid(limitLine: String, slot: String)
+    case settled(line: String)
+}
+
 @Observable @MainActor
 public final class ProposeAmountModel {
     public private(set) var amountMicros: Int64 = 0
@@ -68,6 +75,19 @@ public final class ProposeAmountModel {
         guard case .sell(let holding) = trade, amountMicros > 0, holding.valueMicros > 0 else { return nil }
         return "About \(holding.quantity(of: holding.tokenAmount(forMicros: amountMicros)))"
     }
+
+    public var keypadState: AmountKeypadStateValue {
+        guard amountMicros > 0 else { return .empty }
+        guard isOverLimit else { return .typed }
+        switch trade {
+        case .buy:
+            return .invalid(limitLine: ProposeFlowCopy.overCash, slot: ProposeFlowCopy.upTo(spendableCashMicros ?? 0))
+        case .sell(let holding):
+            return .invalid(limitLine: ProposeFlowCopy.overHolding, slot: ProposeFlowCopy.upTo(holding.valueMicros))
+        }
+    }
+
+    public var keypadLine: String? { buyQuantityNote ?? sellQuantityNote }
 
     public var reviewTitle: String {
         ProposeFlowCopy.reviewProposal

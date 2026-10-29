@@ -17,7 +17,7 @@ extension ProposeAmountKeypadTests {
         await store.refreshIfNeeded(symbol: "GOOGLx")
         let (window, _) = try Self.window(service: service, bestChains: store)
         defer { TestWindow.close(window) }
-        func note() -> String? { Self.element("propose-amount-quantity", in: window)?.accessibilityLabel }
+        func note() -> String? { Self.element("amount-keypad-line", in: window)?.accessibilityLabel }
         try await ProposeAmountKeypadTests.typeOne(in: window)
 
         #expect(await Self.eventually(within: 10) { note() == "Estimate: about 0.004 shares on Base" })
@@ -37,17 +37,12 @@ extension ProposeAmountKeypadTests {
         let store = Self.bestChains(answer: nil)
         let (window, _) = try Self.window(service: service, bestChains: store)
         defer { TestWindow.close(window) }
-        func helper() -> String? { Self.element("amount-entry-helper", in: window)?.accessibilityLabel }
-        #expect(await Self.eventually(within: 10) { helper() == "The cabal can spend $500.00" })
-
         try await ProposeAmountKeypadTests.typeOne(in: window)
 
-        #expect(await Self.eventually(within: 10) { helper() == "Finding the best price…" })
         while await !service.isAsked() { await Task.yield() }
-        #expect(Self.element("propose-amount-quantity", in: window) == nil)
+        #expect(Self.element("amount-keypad-line", in: window) == nil)
         #expect(await service.networks == [nil])
         await service.answer()
-        #expect(await Self.eventually(within: 10) { helper() == "The cabal can spend $500.00" })
     }
 
     fileprivate static func bestChains(answer: MonacoCore.AssetBestChain?) -> MonacoCore.AssetBestChainStore {
