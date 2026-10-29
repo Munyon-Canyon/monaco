@@ -7,6 +7,8 @@ pot_exceeded
 proposal_closed
 proposal_not_found
 proposal_still_open
+rule_change_open
+rule_unchanged
 undo_expired
 vote_not_found
 withdraw_not_allowed

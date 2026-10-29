@@ -154,6 +154,14 @@ There is no `PATCH` for trade parameters. Changing what the cabal is voting on a
 
 The acceptance tests, outcome codes and crash points for flows 9, 10 and 13 live in their [flow files](backend-platform.md#flows), not here.
 
+## Rule proposals
+
+A proposal has one of three kinds: `buy`, `sell` and `rule`. A `rule` proposal asks to change one cabal rule and carries no trade fields. `ProposeRuleChange` (`POST /v1/cabals/{id}/rule-proposals`, flow 38) checks that the caller is a member and a voter, reads the rule's current value as `from`, and refuses an unchanged value with `rule_unchanged`. Removing the last admin, making a non-voter an admin and targeting the cabal's creator are `invalid_input`. It copies the voter set and the threshold, as `ProposeTrade` does, and emits `proposal.created` with `kind` `rule` and no symbol or amounts.
+
+At most one rule proposal is open for each rule, and for each member of a `voter` or `admin` rule. The partial unique indexes `proposals_open_rule_cabal_uq` and `proposals_open_rule_member_uq` enforce this. A second request, including a racing one, gets `rule_change_open` (409).
+
+A rule proposal votes, expires and fails exactly like a trade. When a ballot settles one as passed, `CastVote` emits `proposal.rule_passed` instead of `proposal.passed`, in the same transaction. The event carries the proposer (`proposer_id`), the change and the pass time. Trading consumes only `proposal.passed`, so a rule proposal never reaches it. A failed or expired rule proposal emits `proposal.failed` or `proposal.expired` with `kind` `rule`, and their consumers skip it. The feed and push notifications skip rule proposals at launch.
+
 ## Future: referencing a proposal from cabal chat
 
 Goal: in cabal chat, a member can drop a proposal into the conversation, it renders as a live card (status, tally, vote buttons), and replies to it form a thread.

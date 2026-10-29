@@ -1844,6 +1844,46 @@ paths:
               example: {quote_out_amount: 40000000, quoted_at: "2026-10-10T12:00:00Z", price_comparison: {winner_listing_id: 01928a6e-0000-7000-8000-000000000001, quotes: [{listing_id: 01928a6e-0000-7000-8000-000000000001, issuer: xstocks, network: solana, venue: jupiter, net_share_nanos: "40000000", net_micros: "10000000", costs: [], quoted_at: "2026-10-10T12:00:00Z", expires_at: "2026-10-10T12:00:30Z"}], unavailable: []}}
         default:
           $ref: "#/components/responses/Problem"
+  /v1/cabals/{id}/rule-proposals:
+    post:
+      operationId: postCabalRuleProposal
+      tags: [governance]
+      x-idempotent: true
+      summary: Propose a change to a cabal rule for the cabal to vote on.
+      description: >-
+        Checks that the caller is a member and is in the cabal's voter set (a non-voter gets
+        `not_a_voter`). `from` is read from the cabal now and the voter set and threshold are copied from it,
+        so a rule proposal is voted on and settled like a trade. A value the rule already has gets
+        `rule_unchanged`. Removing the last admin, making a non-voter an admin and targeting the proposer
+        get `invalid_input`. A second open proposal for the same rule, or for the same member's `voter` or
+        `admin` rule, gets `rule_change_open`. A replay with the same Idempotency-Key returns the first
+        response.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The rule change to propose.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RuleChangeRequest"
+            example: {change: {rule: show_sides, to: true}, thesis: Let everyone see who voted what.}
+      responses:
+        "201":
+          description: The new proposal, as its detail shows it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProposalDetail"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/me/market-facts:
     get:
       operationId: getMyMarketFacts
@@ -6985,6 +7025,8 @@ components:
         - request_not_needed
         - request_pending
         - rpc_unavailable
+        - rule_change_open
+        - rule_unchanged
         - sale_short
         - same_approver
         - session_required
@@ -8254,6 +8296,32 @@ components:
           $ref: "#/components/schemas/ProposalStatus"
         tally:
           $ref: "#/components/schemas/Tally"
+    RuleChangeRequest:
+      type: object
+      description: A change to one cabal rule to propose.
+      additionalProperties: false
+      required: [change]
+      examples: [{change: {rule: show_sides, to: true}, thesis: Let everyone see who voted what.}]
+      properties:
+        change:
+          type: object
+          description: >-
+            The rule and the value it should take. `to` is a boolean for `show_sides`, `voter` and `admin`,
+            an integer or null for `max_trade_bps`, an integer for `proposal_expiry_seconds` and a string for
+            `threshold` and `join_mode`. `user_id` names the member a `voter` or `admin` change targets.
+          examples: [{rule: show_sides, to: true}]
+          x-go-type-name: RuleChangeRequestChange
+          additionalProperties: false
+          required: [rule, to]
+          properties:
+            rule:
+              type: string
+              description: Which rule to change.
+              enum: [show_sides, max_trade_bps, threshold, proposal_expiry_seconds, join_mode, voter, admin]
+              examples: [show_sides]
+            to: {description: The value the rule should take., examples: [true]}
+            user_id: {type: string, format: uuid, description: The member a `voter` or `admin` change targets., examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        thesis: {type: string, maxLength: 280, description: "The proposer's reason, up to 280 characters.", examples: [Let everyone see who voted what.]}
     Tally:
       type: object
       description: The ballots counted against the proposal's frozen voter set.

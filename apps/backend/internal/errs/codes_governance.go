@@ -13,6 +13,8 @@ const (
 	CodeOverTradeCap       Code = "over_trade_cap"
 	CodeVoteNotFound       Code = "vote_not_found"
 	CodeUndoExpired        Code = "undo_expired"
+	CodeRuleUnchanged      Code = "rule_unchanged"
+	CodeRuleChangeOpen     Code = "rule_change_open"
 )
 
 func (codeFiles) Governance() map[Code]Row {
@@ -48,6 +50,13 @@ func (codeFiles) Governance() map[Code]Row {
 		CodeUndoExpired: {
 			Name: "UndoExpired", Kind: KindBlocked,
 			Message: "It's too late to undo that vote. You can still change it.",
+		},
+		CodeRuleUnchanged: {
+			Name: "RuleUnchanged", Kind: KindBlocked, Message: "That rule already has that value.",
+		},
+		CodeRuleChangeOpen: {
+			Name: "RuleChangeOpen", Kind: KindConflict,
+			Message: "A proposal to change that rule is already open.",
 		},
 		CodeProposalStillOpen: {
 			Name: "ProposalStillOpen", Kind: KindUnavailable, Retryable: true,
