@@ -12,6 +12,7 @@ final class AppNavigator {
     var profilePath: [AnyAppRoute] = []
     var deposit: DepositRequest?
     var voteHold: VoteHoldRequest?
+    var signedOutLanding: InviteLandingRoute?
     var tabBadges: [MainTab: Int] = [:]
 
     func reset() {
@@ -23,6 +24,7 @@ final class AppNavigator {
         profilePath = []
         deposit = nil
         voteHold = nil
+        signedOutLanding = nil
     }
 
     func path(for tab: MainTab) -> [AnyAppRoute] {
@@ -50,6 +52,15 @@ final class AppNavigator {
     func presentVoteHold(proposalID: String, pick: ProposalBallot?) {
         deposit = nil
         voteHold = VoteHoldRequest(proposalID: proposalID, pick: pick)
+    }
+
+    func presentSignedOutLanding(_ route: InviteLandingRoute) {
+        signedOutLanding = InviteLandingRoute(
+            code: route.code, cabalID: route.cabalID, onSignIn: { [weak self] in self?.dismissSignedOutLanding() })
+    }
+
+    func dismissSignedOutLanding() {
+        signedOutLanding = nil
     }
 
     func dismissVoteHold() {

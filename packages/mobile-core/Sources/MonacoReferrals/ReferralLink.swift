@@ -23,6 +23,18 @@ public enum ReferralSource: String, Codable, Sendable, CaseIterable {
     case manual
 }
 
+public struct ReferralLinkTarget: Hashable, Sendable {
+    public let code: ReferralCode
+    public let cabalID: String?
+    public let proposalID: String?
+
+    public init(code: ReferralCode, cabalID: String?, proposalID: String?) {
+        self.code = code
+        self.cabalID = cabalID
+        self.proposalID = proposalID
+    }
+}
+
 public enum ReferralLink {
     static let host = "monacolabs.xyz"
     private static let hosts: Set<String> = [host, "www.\(host)"]
@@ -67,5 +79,20 @@ public enum ReferralLink {
         if path.hasSuffix("/") { path = path.dropLast() }
         guard !path.contains("/") else { return nil }
         return ReferralCode(String(path))
+    }
+
+    public static func parseTarget(_ url: URL) -> ReferralLinkTarget? {
+        guard let code = parse(url) else { return nil }
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        let cabalID = uuid(items, named: "c")
+        let proposalID = cabalID == nil ? nil : uuid(items, named: "p")
+        return ReferralLinkTarget(code: code, cabalID: cabalID, proposalID: proposalID)
+    }
+
+    private static func uuid(_ items: [URLQueryItem], named name: String) -> String? {
+        guard let value = items.first(where: { $0.name == name })?.value, UUID(uuidString: value) != nil else {
+            return nil
+        }
+        return value.lowercased()
     }
 }

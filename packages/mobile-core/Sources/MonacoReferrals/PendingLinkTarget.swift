@@ -36,6 +36,14 @@ public struct PendingLinkTargetStore {
         store.set(try? JSONEncoder().encode(target), forKey: Self.key)
     }
 
+    public func save(_ target: ReferralLinkTarget, now: Date) {
+        guard let cabalID = target.cabalID else { return }
+        save(
+            PendingLinkTarget(
+                kind: target.proposalID == nil ? .join : .vote, code: target.code.value, cabalID: cabalID,
+                proposalID: target.proposalID, joinTapped: false, savedAt: now))
+    }
+
     public func peek(now: Date) -> PendingLinkTarget? {
         guard let data = store.data(forKey: Self.key) else { return nil }
         guard let target = try? JSONDecoder().decode(PendingLinkTarget.self, from: data),

@@ -90,4 +90,40 @@ final class PendingLinkTargetTests: XCTestCase {
         referrals.clear()
         XCTAssertEqual(store.take(now: now)?.code, "k7m4qx2p")
     }
+
+    func testSavingAVoteTargetRoundTripsItsProposalAndCode() throws {
+        let store = PendingLinkTargetStore(store: MemoryStore())
+        let code = try XCTUnwrap(ReferralCode("k7m4qx2p"))
+        store.save(ReferralLinkTarget(code: code, cabalID: "c1", proposalID: "p1"), now: now)
+        let taken = store.take(now: now)
+        XCTAssertEqual(taken?.kind, .vote)
+        XCTAssertEqual(taken?.proposalID, "p1")
+        XCTAssertEqual(taken?.cabalID, "c1")
+        XCTAssertEqual(taken?.code, "k7m4qx2p")
+        XCTAssertNil(store.take(now: now))
+    }
+
+    func testSavingACabalTargetKeepsJoinUntapped() throws {
+        let store = PendingLinkTargetStore(store: MemoryStore())
+        let code = try XCTUnwrap(ReferralCode("k7m4qx2p"))
+        store.save(ReferralLinkTarget(code: code, cabalID: "c1", proposalID: nil), now: now)
+        let taken = store.peek(now: now)
+        XCTAssertEqual(taken?.kind, .join)
+        XCTAssertEqual(taken?.joinTapped, false)
+        XCTAssertFalse(store.takeJoin(cabalID: "c1", now: now))
+    }
+
+    func testSavingACodeOnlyTargetStoresNothing() throws {
+        let store = PendingLinkTargetStore(store: MemoryStore())
+        let code = try XCTUnwrap(ReferralCode("k7m4qx2p"))
+        store.save(ReferralLinkTarget(code: code, cabalID: nil, proposalID: nil), now: now)
+        XCTAssertNil(store.peek(now: now))
+    }
+
+    func testASavedTargetExpiresAfterSevenDays() throws {
+        let store = PendingLinkTargetStore(store: MemoryStore())
+        let code = try XCTUnwrap(ReferralCode("k7m4qx2p"))
+        store.save(ReferralLinkTarget(code: code, cabalID: "c1", proposalID: nil), now: now)
+        XCTAssertNil(store.take(now: now.addingTimeInterval(8 * 24 * 60 * 60)))
+    }
 }
