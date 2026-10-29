@@ -23,6 +23,8 @@ func TestTradePriceMicros_pricesOneDisplayShareAndRoundsDown(t *testing.T) {
 		"two tokens at 3/2 are 3 shares": {300_000_000, 200_000_000, 8, 3, 2, 100_000_000},
 		"six decimals":                   {10_000_000, 4_000_000, 6, 1, 1, 2_500_000},
 		"a third rounds down":            {10_000_000, 6_000_000, 6, 1, 1, 1_666_666},
+		"shares past uint64":             {1, math.MaxUint64, 8, 2, 1, 0},
+		"split multiplier past uint64":   {100_000_000, 105_000_000, 8, 10032690125398187, 10000000000000000, 94_927_775},
 	} {
 		got, ok, err := domain.TradePriceMicros(
 			money.MicrosFromUint64(c.usdc), money.NewBaseUnits(c.units, c.decimals), c.num, c.den,
@@ -52,9 +54,8 @@ func TestTradePriceMicros_hasNoPriceForZeroUnitsAndRefusesWhatItCannotHold(t *te
 		"zero numerator":       {1, 1, 8, 0, 1},
 		"negative denominator": {1, 1, 8, 1, -1},
 		"twenty decimals":      {1, 1, 20, 1, 1},
-		"scale past uint64":    {1, 1, 19, 1, 2},
-		"shares past uint64":   {1, math.MaxUint64, 8, 2, 1},
 		"price past uint64":    {math.MaxUint64, 1, 8, 1, 1},
+		"scale past uint64":    {1, 1, 19, 1, 2},
 	} {
 		if _, ok, err := domain.TradePriceMicros(
 			money.MicrosFromUint64(c.usdc), money.NewBaseUnits(c.units, c.decimals), c.num, c.den,

@@ -106,9 +106,6 @@ func TestCabalPot_refusesBadReadsAndOverflows(t *testing.T) {
 			pricesErr: errs.New(errs.CodeInternal, "test"),
 		},
 		"holding pnl overflows": {store: potFake{snapshot: []sqlc.CabalPotSnapshotRow{potRow(aapl, "1", maxUint64)}}},
-		"average entry overflows": {
-			store: potFake{snapshot: []sqlc.CabalPotSnapshotRow{potRow(aapl, "1", "1000000000000")}},
-		},
 		"first buys read fails": {
 			store: potFake{
 				snapshot:     []sqlc.CabalPotSnapshotRow{potRow(aapl, "1", "1")},
@@ -290,6 +287,16 @@ func TestCabalPot_anEmptyPotHasZeroWeightsAndNoReturn(t *testing.T) {
 		CabalPot(t.Context(), ids.CabalID{}, potViewer(), false)
 	if err != nil || !pot.PotValueMicros.IsZero() || pot.CashWeightBps != 0 || pot.ReturnBps != nil || pot.Me != nil {
 		t.Fatalf("CabalPot() = %#v, %v", pot, err)
+	}
+}
+
+func TestCabalPot_keepsAHoldingWhoseAverageEntryOverflows(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx().Mint.String()
+	pot, err := potQueries(potFake{snapshot: []sqlc.CabalPotSnapshotRow{potRow(aapl, "1", "1000000000000")}}, nil).
+		CabalPot(t.Context(), ids.CabalID{}, potViewer(), false)
+	if err != nil || len(pot.Holdings) != 1 || pot.Holdings[0].AvgEntryMicros != nil {
+		t.Fatalf("CabalPot() = %#v, %v, want the holding with no average entry", pot, err)
 	}
 }
 

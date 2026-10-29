@@ -2,7 +2,7 @@ package domain
 
 import (
 	"log/slog"
-	"math/bits"
+	"math/big"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -19,15 +19,15 @@ func TradePriceMicros(usdc money.Micros, units money.BaseUnits, num, den int64) 
 		return money.Micros{}, false, errs.New(errs.CodeInvalidInput, op,
 			slog.Int64("num", num), slog.Int64("den", den), slog.Int("decimals", int(units.Decimals())))
 	}
-	scaleHi, scale := bits.Mul64(money.OneWhole(units.Decimals()), uint64(den))
-	sharesHi, shares := bits.Mul64(units.Uint64(), uint64(num))
-	if scaleHi != 0 || sharesHi != 0 {
+	numerator := new(big.Int).SetUint64(usdc.Uint64())
+	numerator.Mul(numerator, new(big.Int).SetUint64(money.OneWhole(units.Decimals())))
+	numerator.Mul(numerator, big.NewInt(den))
+	denominator := new(big.Int).SetUint64(units.Uint64())
+	denominator.Mul(denominator, big.NewInt(num))
+	price := numerator.Quo(numerator, denominator)
+	if !price.IsUint64() {
 		return money.Micros{}, false, errs.New(errs.CodeInvalidInput, op,
 			slog.String("units", units.String()), slog.Int64("num", num), slog.Int64("den", den))
 	}
-	price, err := money.MulDiv(usdc.Uint64(), scale, shares)
-	if err != nil {
-		return money.Micros{}, false, errs.Wrap(err, errs.CodeInvalidInput, op)
-	}
-	return money.MicrosFromUint64(price), true, nil
+	return money.MicrosFromUint64(price.Uint64()), true, nil
 }
