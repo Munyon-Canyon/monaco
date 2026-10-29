@@ -20,12 +20,17 @@ private struct CabalTreasuryLine: View {
     @Environment(\.hostMainTab) private var hostMainTab
 
     var body: some View {
-        CabalMoveReader(cabalID: cabalID) { move in
-            CabalPotBand(model: model, move: move) {
-                environment.navigator.open(
-                    CabalTreasuryHistoryRoute(cabalID: cabalID), in: hostMainTab ?? environment.navigator.selectedTab)
+        CabalEmptyReader { isEmpty in
+            let action: (() -> Void)? = isEmpty ? nil : { openHistory() }
+            CabalMoveReader(cabalID: cabalID) { move in
+                CabalPotBand(model: model, move: move, openHistory: action)
             }
         }
+    }
+
+    private func openHistory() {
+        environment.navigator.open(
+            CabalTreasuryHistoryRoute(cabalID: cabalID), in: hostMainTab ?? environment.navigator.selectedTab)
     }
 }
 

@@ -75,12 +75,14 @@ struct CabalActionsRow: View {
     }
 
     @ViewBuilder private var content: some View {
-        if cabalModel?.cabal?.status == CabalClosedModel.closedStatus {
-            Color.clear.frame(height: 0)
-        } else {
-            actionsContent
-                .padding(.horizontal, MonacoTheme.Space.gutter)
-                .padding(.top, -(SectionStackMetrics.spacing - MonacoTheme.Space.sm))
+        CabalEmptyReader { isEmpty in
+            if isEmpty || cabalModel?.cabal?.status == CabalClosedModel.closedStatus {
+                Color.clear.frame(height: 0)
+            } else {
+                actionsContent
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .padding(.top, -(SectionStackMetrics.spacing - MonacoTheme.Space.sm))
+            }
         }
     }
 
