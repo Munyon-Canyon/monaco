@@ -9,6 +9,7 @@ public final class PortfolioModel {
     public private(set) var toast: String?
     public private(set) var lastUpdated: Date?
     public private(set) var isStale = false
+    public let chart: ValueChartModel
 
     private let api: APIClient
     private let hints: any HintSource
@@ -21,7 +22,15 @@ public final class PortfolioModel {
         self.api = api
         self.hints = hints
         self.now = now
+        chart = ValueChartModel(
+            subjects: [.me], ranges: LeaderboardRange.figurePeriods, range: .oneMonth, api: api, hints: hints)
     }
+
+    public var netWorth: Int64? { summary?.netWorth }
+    public var cash: Int64? { summary?.cash }
+    public var pnl: Int64? { chart.curve?.rangePnlMicros }
+    public var returnBps: Int64? { chart.curve?.rangeReturnBps }
+    public var shownRange: LeaderboardRange { chart.shownRange ?? chart.range }
 
     public var summary: PortfolioSummary? {
         if case .loaded(let summary) = state { return summary }

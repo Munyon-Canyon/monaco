@@ -5,7 +5,11 @@ public enum LeaderboardRange: String, CaseIterable, Sendable {
     case oneDay = "1D"
     case oneWeek = "1W"
     case oneMonth = "1M"
+    case threeMonths = "3M"
+    case sixMonths = "6M"
     case all = "ALL"
+
+    public static let allCases: [LeaderboardRange] = [.oneHour, .oneDay, .oneWeek, .oneMonth, .all]
 
     public var label: String {
         switch self {
@@ -13,6 +17,8 @@ public enum LeaderboardRange: String, CaseIterable, Sendable {
         case .oneDay: "1D"
         case .oneWeek: "1W"
         case .oneMonth: "1M"
+        case .threeMonths: "3M"
+        case .sixMonths: "6M"
         case .all: "All"
         }
     }
@@ -23,6 +29,8 @@ public enum LeaderboardRange: String, CaseIterable, Sendable {
         case .oneDay: "the past day"
         case .oneWeek: "the past week"
         case .oneMonth: "the past month"
+        case .threeMonths: "the past 3 months"
+        case .sixMonths: "the past 6 months"
         case .all: "all time"
         }
     }
@@ -32,6 +40,8 @@ public enum LeaderboardRange: String, CaseIterable, Sendable {
         case .oneHour, .oneDay: .oneDay
         case .oneWeek: .oneWeek
         case .oneMonth: .oneMonth
+        case .threeMonths: .threeMonths
+        case .sixMonths: .sixMonths
         case .all: .all
         }
     }
@@ -52,7 +62,7 @@ public enum LeaderboardRange: String, CaseIterable, Sendable {
         case .oneDay: ._1d
         case .oneWeek: ._1w
         case .oneMonth: ._1m
-        case .all: .all
+        case .all, .threeMonths, .sixMonths: .all
         }
     }
 
@@ -62,6 +72,8 @@ public enum LeaderboardRange: String, CaseIterable, Sendable {
         case .oneDay: ._1d
         case .oneWeek: ._1w
         case .oneMonth: ._1m
+        case .threeMonths: ._3m
+        case .sixMonths: ._6m
         case .all: .all
         }
     }

@@ -57,10 +57,10 @@ struct HomeBalanceLayoutTests {
     }
 
     @Test(.timeLimit(.minutes(1)), arguments: Phone.allCases)
-    func theMoneyStripKeepsDepositAtTheTrailingGutterWithAFullHitTarget(phone: Phone) async throws {
+    func theCashRowKeepsDepositAtTheTrailingGutterWithAFullHitTarget(phone: Phone) async throws {
         try ProposeAmountKeypadTests.setAutomation(enabled: true)
         defer { try? ProposeAmountKeypadTests.setAutomation(enabled: false) }
-        let strip = HomeMoneyStrip(netWorthMicros: 11_582_320_000, display: .amount(500_000_000))
+        let strip = HomeCashRow(display: .amount(500_000_000))
         let window = try Self.window(strip, size: phone.size)
         defer { TestWindow.close(window) }
 

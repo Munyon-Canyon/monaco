@@ -2,35 +2,26 @@ import MonacoAPI
 import MonacoCore
 import SwiftUI
 
-enum HomeMoneyStripMetrics {
-    static let netWorthWeight: CGFloat = 1.4
-    static let accessibilityRuleHeight: CGFloat = 1
+enum HomeCashRowMetrics {
+    static let skeletonWidth: CGFloat = 96
+    static let tile: CGFloat = 40
+    static let infoTarget: CGFloat = 44
 }
 
-struct HomeMoneyStrip: View {
-    let netWorthMicros: Int64?
+struct HomeCashRow: View {
     let display: HomeBalanceDisplay
     var status: String?
     var arrivingMicros: Int64 = 0
     var retry: (() -> Void)?
 
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.depositNavigator) private var depositNavigator
-    @Environment(\.displayScale) private var displayScale
+    @Environment(\.homeCashEmphasis) private var emphasis
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var showsInfo = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            VStack(spacing: 0) {
-                MonacoRule(color: MonacoTheme.hairline)
-                Text("Your money")
-                    .font(MonacoTheme.Typo.subheadStrong)
-                    .foregroundStyle(MonacoTheme.ink)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, MonacoTheme.Space.m)
-                    .accessibilityAddTraits(.isHeader)
-                    .accessibilityIdentifier("home-money-title")
-                strip.padding(.top, MonacoTheme.Space.xs)
-            }
+            MonacoCard(style: .tight) { row }
             if let retry {
                 MonacoErrorRow(
                     thing: "your balance", identifier: "home-balance-error", inset: false, retry: retry)
@@ -39,111 +30,113 @@ struct HomeMoneyStrip: View {
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .sheet(isPresented: $showsInfo) { HomeApyInfoSheet() }
     }
 
-    @ViewBuilder private var strip: some View {
+    @ViewBuilder private var row: some View {
         if dynamicTypeSize.isAccessibilitySize {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
-                netWorth
-                MonacoRule(color: MonacoTheme.hairline)
-                cash
-                MonacoRule(color: MonacoTheme.hairline)
-                deposit(fillsWidth: true)
+                summary
+                deposit.frame(maxWidth: .infinity)
             }
         } else {
-            HomeMoneyStripRow(spacing: MonacoTheme.Space.s, weights: [HomeMoneyStripMetrics.netWorthWeight, 1]) {
-                netWorth
-                    .padding(.trailing, MonacoTheme.Space.s)
-                    .overlay(alignment: .trailing) {
-                        Rectangle().fill(MonacoTheme.hairline).frame(width: 1 / displayScale)
-                    }
-                cash
-                deposit(fillsWidth: false)
+            HStack(spacing: MonacoTheme.Space.sm) {
+                summary
+                deposit
             }
         }
     }
 
-    private var netWorth: some View {
-        let text = netWorthMicros.map { Self.spoken($0) }
-        return metric("Net worth", spoken: text ?? Self.unavailableText, identifier: "home-net-worth") {
-            switch display {
-            case .loading: placeholderBar
-            case .amount, .unavailable:
-                if let netWorthMicros {
-                    MoneyText(micros: UsdAmountFormatter.flooredToCents(netWorthMicros), style: .row)
-                } else {
-                    unavailable
+    private var summary: some View {
+        HStack(spacing: MonacoTheme.Space.sm) {
+            Image(systemName: MonacoIcon.card.symbol)
+                .font(MonacoTheme.Typo.title2)
+                .foregroundStyle(MonacoTheme.primaryText)
+                .frame(width: HomeCashRowMetrics.tile, height: HomeCashRowMetrics.tile)
+                .background(
+                    MonacoTheme.surfaceSunken,
+                    in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.chip)
+                )
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(MoneyCopy.cashLabel)
+                    .font(MonacoTheme.Typo.headline)
+                    .foregroundStyle(MonacoTheme.primaryText)
+                    .accessibilityIdentifier("home-cash-label")
+                HStack(spacing: 0) {
+                    Text(ProfileCopy.apyLabel)
+                        .font(MonacoTheme.Typo.subhead)
+                        .foregroundStyle(MonacoTheme.secondaryText)
+                    infoButton
                 }
             }
-        }
-    }
-
-    private var cash: some View {
-        switch display {
-        case .loading:
-            return AnyView(
-                metric("Cash", spoken: Self.loadingText, identifier: "platform-balance-loading") { placeholderBar })
-        case .amount(let micros):
-            return AnyView(
-                metric("Cash", spoken: Self.spoken(micros), identifier: "platform-balance-value") {
-                    MoneyText(micros: UsdAmountFormatter.flooredToCents(micros), style: .row)
-                })
-        case .unavailable:
-            return AnyView(
-                metric("Cash", spoken: Self.unavailableText, identifier: "platform-balance-unavailable") {
-                    unavailable
-                })
-        }
-    }
-
-    private static let unavailableText = "unavailable"
-    private static let loadingText = "loading"
-
-    private static func spoken(_ micros: Int64) -> String {
-        UsdAmountFormatter.format(micros: UsdAmountFormatter.flooredToCents(micros))
-    }
-
-    private var placeholderBar: some View {
-        Text("$0.00").moneyFont(.row).skeletonBar(width: 96)
-    }
-
-    private var unavailable: some View {
-        Text("—")
-            .moneyFont(.row)
-            .foregroundStyle(MonacoTheme.muted)
-    }
-
-    private func metric<Value: View>(
-        _ label: String, spoken: String, identifier: String, @ViewBuilder value: () -> Value
-    ) -> some View {
-        NavigationLink(value: AnyAppRoute(BalancesRoute())) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(label)
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.muted)
-                value()
-                    .lineLimit(1)
-                    .minimumScaleFactor(MoneyStyle.row.minimumScaleFactor)
-            }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(minHeight: MonacoButtonMetrics.hitTarget)
-            .contentShape(Rectangle())
+            figure
+                .lineLimit(1)
+                .minimumScaleFactor(MoneyStyle.row.minimumScaleFactor)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Cash")
+                .accessibilityValue(spoken)
+                .accessibilityIdentifier(valueIdentifier)
+        }
+        .frame(minHeight: MonacoButtonMetrics.hitTarget)
+    }
+
+    private var infoButton: some View {
+        Button {
+            showsInfo = true
+        } label: {
+            Image(systemName: MonacoIcon.info.symbol)
+                .font(MonacoTheme.Typo.subhead)
+                .foregroundStyle(MonacoTheme.tint)
+                .frame(width: HomeCashRowMetrics.infoTarget, height: HomeCashRowMetrics.infoTarget)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(label)
-        .accessibilityValue(spoken)
-        .accessibilityIdentifier(identifier)
+        .padding(.vertical, -HomeCashRowMetrics.infoTarget / 4)
+        .padding(.leading, MonacoTheme.Space.xs)
+        .accessibilityLabel("About \(ProfileCopy.apyLabel)")
+        .accessibilityIdentifier("home-apy-info")
     }
 
-    private func deposit(fillsWidth: Bool) -> some View {
-        Button {
+    @ViewBuilder private var figure: some View {
+        switch display {
+        case .loading:
+            Text("$0.00").moneyFont(.row).skeletonBar(width: HomeCashRowMetrics.skeletonWidth)
+        case .amount(let micros):
+            MoneyText(micros: UsdAmountFormatter.flooredToCents(micros), style: .row)
+        case .unavailable:
+            Text("\u{2014}").moneyFont(.row).foregroundStyle(MonacoTheme.muted)
+        }
+    }
+
+    private var valueIdentifier: String {
+        switch display {
+        case .loading: "platform-balance-loading"
+        case .amount: "platform-balance-value"
+        case .unavailable: "platform-balance-unavailable"
+        }
+    }
+
+    private var spoken: String {
+        switch display {
+        case .loading: "loading"
+        case .amount(let micros): UsdAmountFormatter.format(micros: UsdAmountFormatter.flooredToCents(micros))
+        case .unavailable: "unavailable"
+        }
+    }
+
+    @ViewBuilder private var deposit: some View {
+        let button = Button {
             depositNavigator?.presentDeposit()
         } label: {
-            Text("Deposit").frame(maxWidth: fillsWidth ? .infinity : nil)
+            Text("Deposit")
         }
-        .buttonStyle(.monacoCompactProminent)
         .accessibilityIdentifier("home-add-money-link")
+        switch emphasis {
+        case .prominent: button.buttonStyle(.monacoCompactProminent)
+        case .quiet: button.buttonStyle(.monacoCompact)
+        }
     }
 
     @ViewBuilder private var arriving: some View {
@@ -170,39 +163,20 @@ struct HomeMoneyStrip: View {
     }
 }
 
-private struct HomeMoneyStripRow: Layout {
-    let spacing: CGFloat
-    let weights: [CGFloat]
-
-    private func widths(_ subviews: Subviews, in total: CGFloat) -> [CGFloat] {
-        let button = subviews[2].sizeThatFits(.unspecified).width
-        let room = max(total - button - spacing * 2, 0)
-        let shares = weights.reduce(0, +)
-        return weights.map { room * $0 / shares } + [button]
-    }
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        guard subviews.count == 3 else { return .zero }
-        let width = proposal.width ?? 0
-        let heights = zip(subviews, widths(subviews, in: width)).map {
-            $0.sizeThatFits(ProposedViewSize(width: $1, height: nil)).height
-        }
-        return CGSize(width: width, height: heights.max() ?? 0)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        guard subviews.count == 3 else { return }
-        var x = bounds.minX
-        for (subview, width) in zip(subviews, widths(subviews, in: bounds.width)) {
-            subview.place(
-                at: CGPoint(x: x, y: bounds.midY), anchor: .leading,
-                proposal: ProposedViewSize(width: width, height: nil))
-            x += width + spacing
-        }
+private struct HomeApyInfoSheet: View {
+    var body: some View {
+        Text(ProfileCopy.apyInfo)
+            .font(MonacoTheme.Typo.subhead)
+            .foregroundStyle(MonacoTheme.secondaryText)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .padding(.bottom, MonacoTheme.Space.m)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .monacoFittedSheet(title: ProfileCopy.apyInfoTitle, showsClose: true)
+            .accessibilityIdentifier("home-apy-info-sheet")
     }
 }
 
-struct HomeMoneyStripSection: View {
+struct HomeCashRowSection: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
@@ -213,8 +187,7 @@ struct HomeMoneyStripSection: View {
         let state = environment.balance.state
         let gate = HomeGate(portfolio: portfolio, reads: reads, balance: state)
         let display = HomeBalanceDisplay.resolve(state)
-        HomeMoneyStrip(
-            netWorthMicros: netWorth(gate: gate, display: display),
+        HomeCashRow(
             display: display,
             status: PlatformBalanceCard.statusLine(
                 cardProcessing: environment.cardDeposit.isProcessing, pendingMicros: inFlight(state)),
@@ -222,7 +195,6 @@ struct HomeMoneyStripSection: View {
             retry: HomeBalanceRowSection.showsRetryRow(state) && reads.showsOwnRow(.balance)
                 ? { Task { await environment.balance.load() } } : nil
         )
-        .padding(.top, MonacoTheme.Space.m - MonacoTheme.Space.section)
         .homeSlotHidden(!gate.shows { $0.showsMoneyStrip })
         .onChange(of: HomeReadStatus(state), initial: true) { _, status in
             reads?.report(.balance, status)
@@ -238,11 +210,6 @@ struct HomeMoneyStripSection: View {
             guard phase == .active else { return }
             Task { await environment.cardDeposit.foregrounded() }
         }
-    }
-
-    private func netWorth(gate: HomeGate, display: HomeBalanceDisplay) -> Int64? {
-        guard let summary = gate.summary, case .amount = display else { return nil }
-        return summary.netWorthMicros(cashMicros: gate.cashMicros)
     }
 
     private func inFlight(_ state: LoadState<AccountBalance>) -> Int64 {

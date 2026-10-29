@@ -1,5 +1,6 @@
 import Foundation
 import MonacoAPI
+import SwiftUI
 import Testing
 
 @testable import Monaco
@@ -22,44 +23,15 @@ struct HomePortfolioSlotsTests {
         #expect(names == ["Past hour", "Past day", "Past week", "Past month", "All time"])
     }
 
-    @Test func theHeroNamesItselfInEveryPeriod() {
-        for range in LeaderboardRange.allCases {
-            let figures = HomeHeroFigures(
-                amount: "−$417.68", percent: "−3.4%", direction: .down, period: range.returnPeriodPhrase)
+    @Test func theFigureRangesAreTheSevenChips() {
+        let labels = LeaderboardRange.figurePeriods.map(\.label)
+        let names = LeaderboardRange.figurePeriods.map(\.accessibilityName)
 
-            #expect(figures.title == "Investment return · \(range.returnPeriodPhrase)")
-            #expect(figures.spokenTitle == "Investment return, \(range.returnPeriodPhrase)")
-        }
+        #expect(labels == ["1H", "1D", "1W", "1M", "3M", "6M", "All"])
+        #expect(names.suffix(3) == ["Past 3 months", "Past 6 months", "All time"])
     }
 
-    @Test func theHeroIsCalledReturnNotBalance() {
-        let figures = HomeHeroFigures.resolve(summary: PortfolioSummary(.sample), change: nil, range: .oneMonth)
-
-        #expect(figures.title.hasPrefix("Investment return"))
-        #expect(!figures.title.localizedCaseInsensitiveContains("balance"))
-        #expect(figures.period == "all time")
-    }
-
-    @Test func cashOnlyLeadsWithCashAndOneAction() {
-        #expect(HomeCashLead(.amount(500_000_000)) == .ready)
-        #expect(HomeCashLead.ready.headline == "Ready to fund a cabal")
-        #expect(HomeCashLead.ready.actionTitle == "Choose a cabal")
-        #expect(HomeCashLead.ready.explainsPooling)
-    }
-
-    @Test func cashOnlyWithNoCashSendsYouToAddMoney() {
-        #expect(HomeCashLead(.amount(0)) == .needsMoney)
-        #expect(HomeCashLead.needsMoney.actionTitle == "Add money")
-        #expect(HomeCashLead.needsMoney.headline == "Add money to fund a cabal")
-    }
-
-    @Test func cashThatHasNotLoadedIsNeverShownAsZeroOrFundable() {
-        #expect(HomeCashLead(.loading) == .loading)
-        #expect(HomeCashLead(.unavailable) == .unavailable)
-        for lead in [HomeCashLead.loading, .unavailable] {
-            #expect(lead.actionTitle == nil)
-            #expect(!lead.explainsPooling)
-        }
-        #expect(HomeCashLead.unavailable.headline == "We couldn't load your cash.")
+    @Test func theCashRowDepositEmphasisDefaultsToProminent() {
+        #expect(EnvironmentValues().homeCashEmphasis == .prominent)
     }
 }

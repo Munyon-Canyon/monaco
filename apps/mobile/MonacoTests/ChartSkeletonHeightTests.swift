@@ -91,7 +91,7 @@ struct ChartSkeletonHeightTests {
         portfolio: StubTransport.Reply, history: StubTransport.Reply, waitingFor marker: String? = nil
     ) async throws -> CGFloat {
         try await height(
-            of: HomeScreen(sections: [HomePortfolioSlot.self]),
+            of: HomeScreen(sections: [HomeChartSlot.self]),
             replies: [portfolioPath: portfolio, homeHistoryPath: history], waitingFor: marker)
     }
 

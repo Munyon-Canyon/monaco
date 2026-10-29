@@ -14,6 +14,16 @@ extension PortfolioModel {
     }
 }
 
+extension Components.Schemas.MyPortfolio {
+    public static let sampleF = Components.Schemas.MyPortfolio(
+        cashMicros: 500_000_000, netWorthMicros: 12_082_000_000, totalValueMicros: 11_582_000_000,
+        pnlMicros: 241_100_000, returnBps: 203, computedAt: nil, pricesAsOf: nil, cabals: [])
+}
+
+extension PortfolioModel {
+    public static var previewF: PortfolioModel { preview(.sampleF) }
+}
+
 private struct PortfolioPreviewTransport: ClientTransport {
     let portfolio: Components.Schemas.MyPortfolio
 

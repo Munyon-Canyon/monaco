@@ -34,19 +34,27 @@ public struct ValueCurve: Equatable, Sendable {
     }
 
     public let samples: [Sample]
+    public let rangePnlMicros: Int64?
+    public let rangeReturnBps: Int64?
 
     public init(samples: [Sample]) {
         self.samples = samples
+        rangePnlMicros = nil
+        rangeReturnBps = nil
     }
 
     public init(_ history: Components.Schemas.MyPnlHistory) {
         samples = history.points.map { Sample(at: $0.at, value: $0.equityMicros, pnl: $0.pnlMicros) }
+        rangePnlMicros = history.pnlMicros
+        rangeReturnBps = history.returnBps
     }
 
     public init(_ history: Components.Schemas.CabalValueHistory) {
         samples = history.points.map {
             Sample(at: $0.at, value: $0.valueMicros, pnl: $0.pnlMicros, nav: $0.navPerShareMicros)
         }
+        rangePnlMicros = nil
+        rangeReturnBps = nil
     }
 
     public var points: [CurvePoint] {

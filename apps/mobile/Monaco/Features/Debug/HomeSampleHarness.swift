@@ -31,6 +31,9 @@ enum HomeSampleScenario: String, CaseIterable {
     case fVoteHolding
     case fVoteCommitted
     case fVoteRule
+    case fReady
+    case fReadyLight
+    case fScrolled
 
     static func matching(_ arguments: [String]) -> HomeSampleScenario? {
         guard let flag = arguments.firstIndex(of: "-MonacoHomeSample"),
@@ -71,6 +74,7 @@ extension HomeSampleScenario {
         case .error: SampleAPIScript(mode: .offline)
         case .fVotePick, .fVoteHolding, .fVoteCommitted: HomeSampleData.script(.loss, proposals: [.fVote])
         case .fVoteRule: HomeSampleData.script(.loss, proposals: [.fRule])
+        case .fReady, .fReadyLight, .fScrolled: HomeSampleData.script(.fAccount, proposals: [.fVote])
         }
     }
 
@@ -97,7 +101,7 @@ extension HomeSampleScenario {
 
 enum HomeSampleData {
     enum Figures {
-        case loss, gain, cashOnly, unfunded, partlyFunded, empty
+        case loss, gain, cashOnly, unfunded, partlyFunded, empty, fAccount
     }
 
     enum Proposal {
@@ -147,7 +151,7 @@ enum HomeSampleData {
         switch figures {
         case .cashOnly, .unfunded: 0
         case .partlyFunded: cabal.id == bigBallers ? cabal.ownershipBps : 0
-        case .loss, .gain, .empty: cabal.ownershipBps
+        case .loss, .gain, .empty, .fAccount: cabal.ownershipBps
         }
     }
 
@@ -173,6 +177,8 @@ enum HomeSampleData {
         case .partlyFunded:
             values = [7_000_000_000, 0, 0]
             pnls = [-300_000_000, 0, 0]
+        case .fAccount:
+            return .sampleF
         case .unfunded, .empty:
             return .sampleEmpty
         }
@@ -205,6 +211,7 @@ enum HomeSampleData {
         switch figures {
         case .loss, .partlyFunded: target = -417_680_000
         case .gain: target = 1_482_320_000
+        case .fAccount: target = 241_100_000
         case .cashOnly, .unfunded, .empty: return .sampleEmpty
         }
         let count = 31

@@ -172,6 +172,9 @@ home-f-vote-pick              -MonacoHomeSample fVotePick -AppleInterfaceStyle D
 home-f-vote-holding           -MonacoHomeSample fVoteHolding -AppleInterfaceStyle Dark -MonacoSampleScroll 0.35
 home-f-vote-committed         -MonacoHomeSample fVoteCommitted -AppleInterfaceStyle Dark -MonacoSampleScroll 0.35
 home-f-vote-rule              -MonacoHomeSample fVoteRule -AppleInterfaceStyle Dark -MonacoSampleScroll 0.35
+home-f-ready                  -MonacoHomeSample fReady -AppleInterfaceStyle Dark
+home-f-ready-light            -MonacoHomeSample fReadyLight -AppleInterfaceStyle Light
+home-f-scrolled               -MonacoHomeSample fScrolled -AppleInterfaceStyle Dark -MonacoSampleScroll 0.35
 home-v3-executing             -MonacoHomeSample executing
 home-v3-completed             -MonacoHomeSample completed
 home-v3-expired               -MonacoHomeSample expired

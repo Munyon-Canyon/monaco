@@ -190,6 +190,8 @@ extension LeaderboardRange {
         case .oneDay: "Past day"
         case .oneWeek: "Past week"
         case .oneMonth: "Past month"
+        case .threeMonths: "Past 3 months"
+        case .sixMonths: "Past 6 months"
         case .all: "All time"
         }
     }

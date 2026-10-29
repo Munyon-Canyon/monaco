@@ -9,8 +9,8 @@ struct ScreenMapOrderTests {
     @Test func homeFollowsTheScreenMap() {
         #expect(
             names(HomeScreen.sections) == [
-                "HomeNudgeSlot", "HomePortfolioSlot", "HomeBalanceSlot", "HomePendingVotesSlot", "HomeCabalsSlot",
-                "HomeLeaderboardSlot", "HomeMarketUpdatesSlot",
+                "HomeFigureSlot", "HomePendingVotesSlot", "HomeChartSlot", "HomeBalanceSlot", "HomeCabalsSlot",
+                "HomeLeaderboardSlot",
             ])
     }
 

@@ -1,15 +1,18 @@
 import MonacoCore
 import SwiftUI
 
+enum HomeScreenMetrics {
+    static let scrolledOffset: CGFloat = 1
+}
+
 struct HomeScreen: View {
     static let sections: [any HomeSection.Type] = [
-        HomeNudgeSlot.self,
-        HomePortfolioSlot.self,
-        HomeBalanceSlot.self,
+        HomeFigureSlot.self,
         HomePendingVotesSlot.self,
+        HomeChartSlot.self,
+        HomeBalanceSlot.self,
         HomeCabalsSlot.self,
         HomeLeaderboardSlot.self,
-        HomeMarketUpdatesSlot.self,
     ]
 
     @Environment(AppEnvironment.self) private var environment
@@ -18,6 +21,7 @@ struct HomeScreen: View {
     @State private var portfolio: PortfolioModel?
     @State private var reads = HomeReads()
     @State private var voteNeeds = HomeVoteNeeds()
+    @State private var scrolled = false
     let sections: [any HomeSection.Type]
 
     init(sections: [any HomeSection.Type] = Self.sections) {
@@ -28,24 +32,18 @@ struct HomeScreen: View {
         let sections = sections.map { $0.erased }
         let live = SectionStack<Void>.live(sections)
         Group {
-            if live.contains(where: { ObjectIdentifier($0) != ObjectIdentifier(HomeNudgeSlot.self) }) {
-                HomeSectionStack(sections: sections)
+            if live.isEmpty {
+                NotMigratedView(screen: "Home")
+                    .monacoCanvas()
+            } else {
+                HomeSectionStack(sections: sections, scrolled: $scrolled)
                     .environment(portfolio)
                     .environment(\.homeReads, reads)
                     .environment(\.homeVoteNeeds, voteNeeds)
-            } else {
-                VStack(spacing: 0) {
-                    if !live.isEmpty {
-                        OnboardingNudgeBanner()
-                            .padding(.top, MonacoTheme.Space.m)
-                    }
-                    NotMigratedView(screen: "Home")
-                }
-                .monacoCanvas()
             }
         }
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: scrolled ? .principal : .topBarLeading) {
                 MonacoWordmark(.toolbar, isTitle: true)
                     .fixedSize()
             }
@@ -62,12 +60,23 @@ struct HomeScreen: View {
         .task {
             let portfolio = preparedPortfolio()
             refresh?.register("home-portfolio") { await portfolio.load() }
+            refresh?.register("home-portfolio-chart") { await portfolio.chart.refresh() }
             await withTaskGroup(of: Void.self) { group in
                 group.addTask { await portfolio.load() }
                 group.addTask { await portfolio.observe() }
+                group.addTask { await portfolio.chart.load() }
+                group.addTask { await portfolio.chart.observe() }
             }
         }
-        .onScreenVisibilityChange { portfolio?.setVisible($0) }
+        .onScreenVisibilityChange {
+            portfolio?.setVisible($0)
+            portfolio?.chart.setVisible($0)
+        }
+        .onChange(of: portfolio?.chart.toast) { _, message in
+            guard let message else { return }
+            toasts.current = MonacoToast(message: message)
+            portfolio?.chart.dismissToast()
+        }
         .onChange(of: portfolio?.toast) { _, message in
             guard let message else { return }
             toasts.current = MonacoToast(message: message)
@@ -114,6 +123,7 @@ struct HomeScreen: View {
 
 private struct HomeSectionStack: View {
     let sections: [any ScreenSection<Void>.Type]
+    @Binding var scrolled: Bool
     @Environment(\.insideMonacoSheet) private var insideSheet
 
     var body: some View {
@@ -126,6 +136,11 @@ private struct HomeSectionStack: View {
                 }
             }
             .contentMargins(.bottom, MonacoTheme.Space.l, for: .scrollContent)
+            .onScrollGeometryChange(for: Bool.self) {
+                $0.contentOffset.y + $0.contentInsets.top > HomeScreenMetrics.scrolledOffset
+            } action: { _, isScrolled in
+                scrolled = isScrolled
+            }
             .scrollDismissesKeyboard(.interactively)
             .environment(\.sectionScrollProxy, proxy)
             .background { if !insideSheet { MonacoCanvasBackground() } }
