@@ -123,8 +123,10 @@ The Ledger is one member's week, built once and stored in `weekly_ledgers (user_
 - `sharpest`: the best right-call rate in the window among members of the member's cabals, the member included. It needs 2 resolved calls. Ties go to more right calls, then name.
 - `top_reply`: the most-reacted reply on the window's resolved calls in the member's cabals, from the social read.
 - `markers`: the best call (`Called AMZN · Sat`) and each buy that filled in the member's cabals in the window (`B`).
-- `cabals`: the member's cabals, by name for now.
+- `cabals`: the cabals the member held a stake in during the window, ordered by their equity in each at `window_end`, largest first, ties by name. `cabals[0]` is the Story card's cover.
+- `stake_return_bps`: the member's Modified Dietz return across those stakes (see the window loader), or null.
+- `series`: the member's return since `window_start` at every 4 h step, 42 points ending at `window_end`, from the `GET /v1/me/pnl-history` equity curve (`domain.PnLCurve`, 1W) with the member's window flows; a step before the member held anything is 0.
 
-A member with no cabal and no eligible proposal gets no Ledger.
+A member who held no stake in the window and was eligible on no proposal gets no Ledger.
 
-`stake_return_bps` and `series` are always null and empty for now. The window loader that fills them, and the ordering of `cabals` by equity at the window end, land in the follow-up.
+**Window loader.** `NewLedgerWindow` loads once per batch `MemberStakesAt` at `window_start` and `window_end`, `SnapshotsAt` for both instants and `MemberFlowsBetween`, and splits the flows with `RangeFlows`: a flow exactly at `window_start` is outside the window and one exactly at `window_end` is inside. Per member and cabal, the end equity is `MemberEquity(sharesAtEnd, snap1.TotalShares, snap1.Value)` and the part is `MemberRanged` over a 1W-shaped window; `SumRanged(...).Gain()` gives the return, already floored to bps by `ModifiedDietz` and never re-rounded. A member who joined mid-week has a zero start and their deposit is weighted by Dietz. A member who cashed out fully has a zero end. `stake_return_bps` is null when a start or end snapshot is unusable: the end snapshot must be at or before `window_end`, no older than `MaxSnapshotGap(Range1W)`, and carry the ledger's total shares at `window_end`.

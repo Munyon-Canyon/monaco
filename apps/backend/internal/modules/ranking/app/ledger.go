@@ -42,10 +42,13 @@ type LedgerInputs struct {
 	Store   LedgerStore
 	Market  Market
 	Users   Users
-	Members MemberCabals
 	Cards   CabalCards
 	Trades  Trades
 	Replies Replies
+	Ports   Ports
+	Stakes  StakeHistory
+	Snaps   CabalSnapshots
+	Window  *LedgerWindow
 }
 
 func BuildLedger(
@@ -56,11 +59,13 @@ func BuildLedger(
 		Week: week, LabelStart: labelStart.Format(time.DateOnly), LabelEnd: labelEnd.Format(time.DateOnly),
 		WindowStart: start, WindowEnd: end, Series: []domain.LedgerPoint{},
 	}
-	cabalIDs, err := in.Members.CabalsOf(ctx, user)
+	win, member, err := in.memberWindow(ctx, user, start, end)
 	if err != nil {
 		return domain.Ledger{}, false, err
 	}
-	if ledger.Cabals, err = in.cabals(ctx, cabalIDs); err != nil {
+	ledger.StakeReturnBps = member.returnBps
+	cabalIDs := member.ids()
+	if ledger.Cabals, err = in.cabals(ctx, member.cabals); err != nil {
 		return domain.Ledger{}, false, err
 	}
 	turnout, err := in.Store.UserTurnoutBetween(ctx, sqlc.UserTurnoutBetweenParams{
@@ -76,11 +81,9 @@ func BuildLedger(
 	if ledger.Calls, err = in.calls(ctx, user, start, end); err != nil {
 		return domain.Ledger{}, false, err
 	}
-	for _, c := range ledger.Calls {
-		ledger.Resolved++
-		if c.Right {
-			ledger.Right++
-		}
+	ledger.Tally()
+	if ledger.Series, err = in.series(ctx, user, win, member); err != nil {
+		return domain.Ledger{}, false, err
 	}
 	ledger.BestCall, ledger.Miss = domain.PickBest(ledger.Calls), domain.PickMiss(ledger.Calls)
 	if ledger.Sharpest, err = in.sharpest(ctx, cabalIDs, start, end); err != nil {
@@ -95,21 +98,44 @@ func BuildLedger(
 	return ledger, true, nil
 }
 
-func (in LedgerInputs) cabals(ctx context.Context, cabalIDs []ids.CabalID) ([]domain.LedgerCabal, error) {
+func (in LedgerInputs) memberWindow(
+	ctx context.Context, user ids.UserID, start, end time.Time,
+) (*LedgerWindow, memberWindow, error) {
+	win, err := in.Window, error(nil)
+	if win == nil {
+		win, err = NewLedgerWindow(ctx, in.Ports, start, end)
+	}
+	if err != nil {
+		return nil, memberWindow{}, err
+	}
+	member, err := win.member(user)
+	return win, member, err
+}
+
+func (in LedgerInputs) cabals(ctx context.Context, held []heldCabal) ([]domain.LedgerCabal, error) {
+	cabalIDs := make([]ids.CabalID, len(held))
+	for i, h := range held {
+		cabalIDs[i] = h.id
+	}
 	cards, err := in.Cards.Cabals(ctx, cabalIDs)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]domain.LedgerCabal, 0, len(cards))
-	for _, card := range cards {
+	slices.SortFunc(held, func(a, b heldCabal) int {
+		return cmp.Or(
+			b.equity.Cmp(a.equity),
+			strings.Compare(cards[a.id].Name, cards[b.id].Name),
+			strings.Compare(a.id.String(), b.id.String()),
+		)
+	})
+	out := make([]domain.LedgerCabal, 0, len(held))
+	for _, h := range held {
+		card := cards[h.id]
 		out = append(
 			out,
-			domain.LedgerCabal{ID: card.ID.UUID(), Name: card.Name, PictureURL: textOrNilString(card.PictureURL)},
+			domain.LedgerCabal{ID: h.id.UUID(), Name: card.Name, PictureURL: textOrNilString(card.PictureURL)},
 		)
 	}
-	slices.SortFunc(out, func(a, b domain.LedgerCabal) int {
-		return cmp.Or(strings.Compare(a.Name, b.Name), strings.Compare(a.ID.String(), b.ID.String()))
-	})
 	return out, nil
 }
 

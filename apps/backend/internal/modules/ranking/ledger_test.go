@@ -69,15 +69,6 @@ func (w *tripwire) trip() error {
 	return nil
 }
 
-type fakeMembers struct {
-	cabals []ids.CabalID
-	wire   *tripwire
-}
-
-func (f fakeMembers) CabalsOf(context.Context, ids.UserID) ([]ids.CabalID, error) {
-	return f.cabals, f.wire.trip()
-}
-
 type fakeCards struct {
 	names map[ids.CabalID]string
 	wire  *tripwire
@@ -210,13 +201,13 @@ func seedWeek42(t *testing.T) week42 {
 		Users: fakeUsers{
 			names: map[ids.UserID]string{w.andres: "Andres", w.christelle: "Christelle"}, wire: &tripwire{},
 		},
-		Members: fakeMembers{cabals: []ids.CabalID{w.degens, w.techTitans, w.acCapital}, wire: &tripwire{}},
 		Cards: fakeCards{
 			names: map[ids.CabalID]string{w.acCapital: "AC Capital", w.techTitans: "Tech Titans", w.degens: "Degens"},
 			wire:  &tripwire{},
 		},
 		Trades: w.trades, Replies: w.replies,
 	}
+	w.inputs = fixtureChain(w).wire(w.inputs)
 	return w
 }
 
@@ -284,7 +275,8 @@ func TestBuildLedger_Week42(t *testing.T) {
 	want := week42Summary{
 		Week: "2026-W42", LabelStart: "2026-10-12", LabelEnd: "2026-10-18",
 		Voted: 3, Eligible: 3, Right: 2, Resolved: 3, Calls: 3,
-		Cabals:   []string{"AC Capital", "Degens", "Tech Titans"},
+		Cabals:    []string{"AC Capital", "Tech Titans", "Degens"},
+		HasReturn: true, Series: 42,
 		Sharpest: "Christelle 10000",
 		Best:     "AMZN Degens yes 420 true https://logo.test/amzn.png",
 		Miss:     "TSLA Tech Titans no -240 false https://logo.test/amzn.png",
@@ -314,7 +306,6 @@ func TestBuildLedger_BuyMarkersAndNoTopReply(t *testing.T) {
 func TestBuildLedger_NoLedgerForAMemberWithNothing(t *testing.T) {
 	t.Parallel()
 	w := seedWeek42(t)
-	w.inputs.Members = fakeMembers{wire: &tripwire{}}
 	_, ok, err := app.BuildLedger(t.Context(), w.inputs, ids.UserIDFrom(idOf("stranger")), ledgerDelivery())
 	if err != nil || ok {
 		t.Fatalf("BuildLedger = %v, %v, want no Ledger", ok, err)
@@ -324,7 +315,9 @@ func TestBuildLedger_NoLedgerForAMemberWithNothing(t *testing.T) {
 func TestBuildLedger_AMemberWithOnlyAQuietWeekStillGetsOne(t *testing.T) {
 	t.Parallel()
 	w := seedWeek42(t)
-	got, ok, err := app.BuildLedger(t.Context(), w.inputs, ids.UserIDFrom(idOf("stranger")), ledgerDelivery())
+	quiet := ids.UserIDFrom(idOf("quiet"))
+	w.inputs = newChain(quiet, chainCabal{w.acCapital, 100, 101}).wire(w.inputs)
+	got, ok, err := app.BuildLedger(t.Context(), w.inputs, quiet, ledgerDelivery())
 	if err != nil || !ok || len(got.Calls) != 0 || got.BestCall != nil || got.Miss != nil || got.Eligible != 0 {
 		t.Fatalf("BuildLedger = %+v, %v, %v, want an empty week for a member with cabals", got, ok, err)
 	}
@@ -333,7 +326,6 @@ func TestBuildLedger_AMemberWithOnlyAQuietWeekStillGetsOne(t *testing.T) {
 func TestBuildLedger_PortFailuresSurface(t *testing.T) {
 	t.Parallel()
 	for name, mutate := range map[string]func(w *week42){
-		"members": func(w *week42) { w.inputs.Members = fakeMembers{wire: &tripwire{failOn: 1}} },
 		"cabal cards": func(w *week42) {
 			w.inputs.Cards = fakeCards{wire: &tripwire{failOn: 1}}
 		},
@@ -600,7 +592,8 @@ func TestModule_LedgerInputsAreWired(t *testing.T) {
 		trading.New(deps),
 	)
 	in := m.LedgerInputs()
-	if in.Trades == nil || in.Replies == nil || in.Members == nil || in.Cards == nil || in.Users == nil {
+	if in.Trades == nil || in.Replies == nil || in.Stakes == nil || in.Snaps == nil || in.Cards == nil ||
+		in.Users == nil {
 		t.Fatalf("LedgerInputs = %+v, want every port bound", in)
 	}
 	if _, ok, err := app.BuildLedger(
