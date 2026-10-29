@@ -16,6 +16,8 @@ import (
 
 const voteReminderPoller = "notify.vote_reminders"
 
+func (defined) WorkerEnvF33() []string { return []string{"NOTIFY_VOTE_REMINDERS_INTERVAL=1s"} }
+
 type voteReminderWorld struct {
 	proposal ids.ProposalID
 	voted    []ids.UserID

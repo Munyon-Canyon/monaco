@@ -71,7 +71,7 @@ func (u cancelingUsers) UsersByID(ctx context.Context, users []ids.UserID) (map[
 }
 
 func (w voteWorld) remindersOn(ports app.VotePorts, users app.Users) *app.RemindVoters {
-	return app.NewRemindVoters(app.NewPusher(w.r.uow, users, w.r.sender, w.r.ids, w.r.clock), ports)
+	return app.NewRemindVoters(app.NewPusher(w.r.uow, users, w.r.sender, w.r.ids, w.r.clock), ports, 0)
 }
 
 func tickIn(ctx context.Context, p *app.RemindVoters) error {

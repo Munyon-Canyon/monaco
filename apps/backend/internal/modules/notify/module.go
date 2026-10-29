@@ -132,5 +132,6 @@ func (m *Module) votePorts() app.VotePorts {
 
 func (m *Module) Pollers() []poller.Poller {
 	pusher := m.pusher()
-	return []poller.Poller{app.NewFollowDigest(pusher), app.NewRemindVoters(pusher, m.votePorts())}
+	reminders := app.NewRemindVoters(pusher, m.votePorts(), m.deps.Config.Notify.VoteRemindersInterval)
+	return []poller.Poller{app.NewFollowDigest(pusher), reminders}
 }
