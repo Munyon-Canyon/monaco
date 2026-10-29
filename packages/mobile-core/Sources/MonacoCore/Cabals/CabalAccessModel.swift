@@ -51,6 +51,8 @@ public final class CabalAccessModel {
     public private(set) var joinPolicy: CabalJoinPolicy = .request
     public private(set) var membershipChanges = 0
     public private(set) var loadFailed = false
+    public private(set) var lastRefusal: APIError?
+    public var viaCode: String?
 
     public let cabalID: String
     private let api: APIClient
@@ -137,7 +139,7 @@ public final class CabalAccessModel {
         guard standing == .join || standing == .declined, !isBusy else { return }
         isBusy = true
         defer { isBusy = false }
-        switch await api.enterCabal(cabalID, policy: joinPolicy, submission: entry) {
+        switch await api.enterCabal(cabalID, policy: joinPolicy, viaCode: viaCode, submission: entry) {
         case .requested: show(CabalEntry.requestedToast, success: true)
         case .joined:
             show(Self.joinedToast, success: true)
@@ -145,6 +147,7 @@ public final class CabalAccessModel {
         case .alreadyMember: membershipChanges += 1
         case .requestPending: break
         case .refused(let error):
+            lastRefusal = error
             show(ToastCopy.message(for: error), success: false)
             return
         }

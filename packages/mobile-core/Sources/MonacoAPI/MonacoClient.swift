@@ -13,6 +13,7 @@ import FoundationNetworking
 
 struct HeadersMiddleware: ClientMiddleware {
     static let freshOperations: Set<String> = [Operations.AuthorizeWithdrawal.id]
+    static let optionalTokenOperations: Set<String> = [Operations.GetReferralCabal.id]
 
     let accessToken: @Sendable () async throws -> String?
     let freshAccessToken: @Sendable () async throws -> String?
@@ -35,7 +36,11 @@ struct HeadersMiddleware: ClientMiddleware {
         var request = request
         if operationID != Operations.GetHealthz.id {
             let source = Self.freshOperations.contains(operationID) ? freshAccessToken : accessToken
-            guard let token = try await source(), !token.isEmpty else {
+            let token = try await source()
+            if Self.optionalTokenOperations.contains(operationID), token?.isEmpty ?? true {
+                return try await next(request, body, baseURL)
+            }
+            guard let token, !token.isEmpty else {
                 #if canImport(os)
                 Logger(subsystem: "xyz.monacolabs.app", category: "api").error(
                     "Refusing unsigned API request operation=\(operationID, privacy: .public)"
