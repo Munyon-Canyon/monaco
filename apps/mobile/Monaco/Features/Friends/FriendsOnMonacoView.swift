@@ -39,6 +39,7 @@ struct FriendsOnMonacoView: View {
                     .buttonStyle(.monacoSecondary)
                     .accessibilityIdentifier("friends-invite")
             }
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("friends-empty")
         case .loaded:
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {

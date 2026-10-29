@@ -82,6 +82,7 @@ struct FollowListView: View {
                         .accessibilityIdentifier("follow-list-find-friends")
                 }
             }
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("follow-list-empty")
         case .failed:
             MonacoErrorRow(thing: "this list", identifier: "follow-list-error") {

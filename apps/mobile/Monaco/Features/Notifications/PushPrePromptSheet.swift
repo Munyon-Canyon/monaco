@@ -47,6 +47,7 @@ struct PushPrePromptSheet: View {
         .padding(.top, MonacoTheme.Space.l)
         .padding(.bottom, MonacoTheme.Space.m)
         .monacoFittedSheet(title: "Hear how votes end?", showsHeading: false)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("push-pre-prompt")
     }
 
