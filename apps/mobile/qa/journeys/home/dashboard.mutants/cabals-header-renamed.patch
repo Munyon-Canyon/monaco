@@ -4,15 +4,15 @@ expect-fail: S1
 Home names its cabal list "My cabals". S1.3 reads "Your cabals", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Home/HomeCabalsSlot.swift b/apps/mobile/Monaco/Features/Home/HomeCabalsSlot.swift
-index c8c83fbaa..167cc65fc 100644
+index 52654f8b1..ad0190d26 100644
 --- a/apps/mobile/Monaco/Features/Home/HomeCabalsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Home/HomeCabalsSlot.swift
-@@ -90,7 +90,7 @@ private struct HomeCabals: View {
-     }
+@@ -79,7 +79,7 @@ private struct HomeCabals: View {
  
      private func header(_ content: HomeCabalsContent) -> some View {
--        MonacoSectionHeader("Your cabals", trailing: "See all", actionIdentifier: "home-cabals-see-all") {
-+        MonacoSectionHeader("My cabals", trailing: "See all", actionIdentifier: "home-cabals-see-all") {
+         HomeSectionHeader(
+-            title: "Your cabals", countText: content.countText, trailing: "See all",
++            title: "My cabals", countText: content.countText, trailing: "See all",
+             actionIdentifier: "home-cabals-see-all"
+         ) {
              environment.navigator.selectedTab = .cabals
-         }
-         .countText(content.countText)

@@ -28,6 +28,7 @@ struct ProfileCashRow: View {
     var status: String?
     var arrivingMicros: Int64 = 0
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showsInfo = false
 
     var body: some View {
@@ -53,39 +54,63 @@ struct ProfileCashRow: View {
         .accessibilityIdentifier("profile-cash-row")
     }
 
-    private var row: some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
-            Image(systemName: MonacoIcon.card.symbol)
-                .font(MonacoTheme.Typo.title2)
-                .foregroundStyle(MonacoTheme.primaryText)
-                .frame(width: ProfileCashMetrics.glyphWidth)
-                .accessibilityHidden(true)
-                .allowsHitTesting(false)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(ProfileCopy.cashLabel)
-                    .font(MonacoTheme.Typo.headline)
-                    .foregroundStyle(MonacoTheme.primaryText)
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-                HStack(spacing: 0) {
-                    Text(ProfileCopy.apyLabel)
-                        .font(MonacoTheme.Typo.subhead)
-                        .foregroundStyle(MonacoTheme.secondaryText)
-                        .allowsHitTesting(false)
-                    infoButton
+    @ViewBuilder private var row: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            HStack(alignment: .top, spacing: MonacoTheme.Space.sm) {
+                glyph
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                    labels
+                    amount
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            figure
-                .lineLimit(1)
-                .minimumScaleFactor(MoneyStyle.row.minimumScaleFactor)
-                .allowsHitTesting(false)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Cash")
-                .accessibilityValue(Self.spoken(cash))
-                .accessibilityIdentifier("profile-balance-value")
+            .frame(minHeight: MonacoButtonMetrics.hitTarget)
+        } else {
+            HStack(spacing: MonacoTheme.Space.sm) {
+                glyph
+                labels.frame(maxWidth: .infinity, alignment: .leading)
+                amount
+            }
+            .frame(minHeight: MonacoButtonMetrics.hitTarget)
         }
-        .frame(minHeight: MonacoButtonMetrics.hitTarget)
+    }
+
+    private var glyph: some View {
+        Image(systemName: MonacoIcon.card.symbol)
+            .font(MonacoTheme.Typo.title2)
+            .foregroundStyle(MonacoTheme.primaryText)
+            .frame(width: ProfileCashMetrics.glyphWidth)
+            .accessibilityHidden(true)
+            .allowsHitTesting(false)
+    }
+
+    private var labels: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(ProfileCopy.cashLabel)
+                .font(MonacoTheme.Typo.headline)
+                .foregroundStyle(MonacoTheme.primaryText)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            HStack(spacing: 0) {
+                Text(ProfileCopy.apyLabel)
+                    .font(MonacoTheme.Typo.subhead)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .allowsHitTesting(false)
+                infoButton
+            }
+        }
+    }
+
+    private var amount: some View {
+        figure
+            .lineLimit(1)
+            .minimumScaleFactor(MoneyStyle.row.minimumScaleFactor)
+            .allowsHitTesting(false)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Cash")
+            .accessibilityValue(Self.spoken(cash))
+            .accessibilityIdentifier("profile-balance-value")
     }
 
     private var infoButton: some View {

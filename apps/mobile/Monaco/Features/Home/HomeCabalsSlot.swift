@@ -78,10 +78,12 @@ private struct HomeCabals: View {
     }
 
     private func header(_ content: HomeCabalsContent) -> some View {
-        MonacoSectionHeader("Your cabals", trailing: "See all", actionIdentifier: "home-cabals-see-all") {
+        HomeSectionHeader(
+            title: "Your cabals", countText: content.countText, trailing: "See all",
+            actionIdentifier: "home-cabals-see-all"
+        ) {
             environment.navigator.selectedTab = .cabals
         }
-        .countText(content.countText)
         .padding(.horizontal, MonacoTheme.Space.gutter)
     }
 }

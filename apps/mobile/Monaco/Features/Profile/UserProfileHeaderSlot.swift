@@ -217,6 +217,7 @@ struct UserProfileContent: View {
 }
 
 private struct UserProfileCard: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let data: UserProfileContentData
 
     var body: some View {
@@ -235,7 +236,11 @@ private struct UserProfileCard: View {
                         .accessibilityIdentifier("user-profile-bio")
                 }
                 MonacoRule()
-                HStack(alignment: .top, spacing: MonacoTheme.Space.sm) {
+                let statsLayout =
+                    dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.sm))
+                    : AnyLayout(HStackLayout(alignment: .top, spacing: MonacoTheme.Space.sm))
+                statsLayout {
                     figure("P&L \u{00B7} 1M", data.pnl, tint: Self.tint(data.pnl), id: "user-profile-pnl")
                     figure(
                         "Right calls \u{00B7} 1M", data.rightCalls, tint: MonacoTheme.primaryText,
@@ -277,8 +282,7 @@ private struct UserProfileCard: View {
                 Text(data.handleLine)
                     .font(MonacoTheme.Typo.subhead)
                     .foregroundStyle(MonacoTheme.secondaryText)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("user-profile-handle")
                     .monacoPrivate()
             }
@@ -315,30 +319,43 @@ private struct UserProfileCard: View {
 private struct UserProfileCounts: View {
     let data: UserProfileContentData
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var stacked: Bool { dynamicTypeSize >= .xxLarge }
+
     var body: some View {
-        HStack(spacing: MonacoTheme.Space.s) {
-            link(
-                FollowCountFormatter.count(data.followers), FollowCountFormatter.followersNoun(data.followers),
-                .followers, id: "user-profile-followers")
-            separator
-            link(FollowCountFormatter.count(data.following), "following", .following, id: "user-profile-following")
-            if let cabals = data.cabals {
-                separator
-                item(FollowCountFormatter.count(cabals), cabals == 1 ? "cabal" : "cabals")
-                    .accessibilityIdentifier("user-profile-stat-cabals")
-            }
-            if data.inCommon > 0 {
-                separator
-                Text("\(data.inCommon) in common")
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.muted)
-                    .accessibilityIdentifier("user-profile-in-common")
-            }
+        let layout =
+            stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
+            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.s))
+        layout {
+            parts(separated: !stacked)
         }
-        .lineLimit(1)
-        .minimumScaleFactor(0.8)
+        .lineLimit(stacked ? nil : 1)
+        .minimumScaleFactor(stacked ? 1 : 0.8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, MonacoTheme.Space.gutter)
+    }
+
+    @ViewBuilder private func parts(separated: Bool) -> some View {
+        link(
+            FollowCountFormatter.count(data.followers), FollowCountFormatter.followersNoun(data.followers),
+            .followers, id: "user-profile-followers")
+        if separated { separator }
+        link(FollowCountFormatter.count(data.following), "following", .following, id: "user-profile-following")
+        if let cabals = data.cabals {
+            if separated { separator }
+            item(FollowCountFormatter.count(cabals), cabals == 1 ? "cabal" : "cabals")
+                .accessibilityIdentifier("user-profile-stat-cabals")
+        }
+        if data.inCommon > 0 {
+            if separated { separator }
+            Text("\(data.inCommon) in common")
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.muted)
+                .frame(minHeight: stacked ? MonacoButtonMetrics.hitTarget : 0, alignment: .leading)
+                .accessibilityIdentifier("user-profile-in-common")
+        }
     }
 
     private var separator: some View {

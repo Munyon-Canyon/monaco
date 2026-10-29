@@ -16,6 +16,8 @@ struct ProfileCabalRowView: View {
     let identifier: String
     let isLast: Bool
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     init(row: ProfileCabalRow.Member, isLast: Bool) {
         cabalID = row.id
         name = row.name
@@ -48,20 +50,25 @@ struct ProfileCabalRowView: View {
 
     var body: some View {
         NavigationLink(value: AnyAppRoute(CabalRoute(id: cabalID))) {
-            HStack(spacing: MonacoTheme.Space.sm) {
+            HStack(alignment: dynamicTypeSize.isAccessibilitySize ? .top : .center, spacing: MonacoTheme.Space.sm) {
                 CabalMark(groupId: cabalID, name: name, size: .header, pictureUrl: pictureURL)
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                     Text(name)
                         .font(MonacoTheme.Typo.rowTitle)
                         .foregroundStyle(MonacoTheme.primaryText)
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(subtitle)
                         .font(MonacoTheme.Typo.caption)
                         .foregroundStyle(MonacoTheme.secondaryText)
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if dynamicTypeSize.isAccessibilitySize {
+                        trailingView
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                trailingView
+                if !dynamicTypeSize.isAccessibilitySize {
+                    trailingView
+                }
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.vertical, MonacoTheme.Space.s)
@@ -83,7 +90,8 @@ struct ProfileCabalRowView: View {
     @ViewBuilder private var trailingView: some View {
         switch trailing {
         case .figures(let value, let returnText, let tone):
-            VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
+            VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: MonacoTheme.Space.xs)
+            {
                 Text(value)
                     .font(MonacoTheme.Typo.rowTitle)
                     .foregroundStyle(MonacoTheme.primaryText)

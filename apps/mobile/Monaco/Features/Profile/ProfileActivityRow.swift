@@ -7,6 +7,8 @@ struct ProfileActivityRowView: View {
     let isLast: Bool
     var identifierPrefix = "profile"
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     private var route: AnyAppRoute {
         switch row.destination {
         case .proposal(let id): AnyAppRoute(ProposalRoute(proposalID: id))
@@ -16,7 +18,7 @@ struct ProfileActivityRowView: View {
 
     var body: some View {
         NavigationLink(value: route) {
-            HStack(spacing: MonacoTheme.Space.sm) {
+            HStack(alignment: dynamicTypeSize.isAccessibilitySize ? .top : .center, spacing: MonacoTheme.Space.sm) {
                 Image(systemName: row.glyph.symbol)
                     .font(MonacoTheme.Typo.headline)
                     .foregroundStyle(MonacoTheme.secondaryText)
@@ -26,16 +28,15 @@ struct ProfileActivityRowView: View {
                     Text(row.title)
                         .font(MonacoTheme.Typo.rowTitle)
                         .foregroundStyle(MonacoTheme.primaryText)
-                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(row.subtitle)
                         .font(MonacoTheme.Typo.caption)
                         .foregroundStyle(MonacoTheme.secondaryText)
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if dynamicTypeSize.isAccessibilitySize { timeText }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                Text(row.time)
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.secondaryText)
+                if !dynamicTypeSize.isAccessibilitySize { timeText }
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.vertical, MonacoTheme.Space.s)
@@ -52,5 +53,11 @@ struct ProfileActivityRowView: View {
         .buttonStyle(.monacoRow)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("\(identifierPrefix)-activity-row-\(index)")
+    }
+
+    private var timeText: some View {
+        Text(row.time)
+            .font(MonacoTheme.Typo.caption)
+            .foregroundStyle(MonacoTheme.secondaryText)
     }
 }
