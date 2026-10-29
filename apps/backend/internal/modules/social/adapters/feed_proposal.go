@@ -128,7 +128,7 @@ func (h Feed) TradeFailed(ctx context.Context, tx db.Tx, e events.TradeFailed, a
 	err := h.recordSwap(ctx, tx, e.Source.ID, func(p *feed.Payload) error {
 		return p.RecordFailure(e.SwapID, e.FailureCode, e.SourceBatchSize)
 	}, at)
-	if err != nil {
+	if err != nil && errs.CodeOf(err) != errs.CodeFeedItemPending {
 		return err
 	}
 	return h.advance(ctx, tx, e.Source.ID, feed.StatusExecutionFailed, e.FailureCode, at)

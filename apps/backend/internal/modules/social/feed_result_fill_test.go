@@ -167,9 +167,6 @@ func TestFeedResult_aTradeBeforeTheCloseRetriesAndLandsAfterIt(t *testing.T) {
 	if got := errs.CodeOf(r.deliverTrade(t, e)); got != errs.CodeFeedItemPending {
 		t.Fatalf("confirmed before the close = %s, want %s", got, errs.CodeFeedItemPending)
 	}
-	if got := errs.CodeOf(r.failedSwap(t, r.swap(1), "x")); got != errs.CodeFeedItemPending {
-		t.Fatalf("failed before the close = %s, want %s", got, errs.CodeFeedItemPending)
-	}
 	if rows := r.results(t); len(rows) != 0 {
 		t.Fatalf("result rows = %d, want the fill never to create one", len(rows))
 	}
@@ -180,6 +177,21 @@ func TestFeedResult_aTradeBeforeTheCloseRetriesAndLandsAfterIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.wantFill(t, feed.FillFilled, "filled")
+}
+
+func TestFeedResult_aFailedSwapBeforeTheCloseAcksAndAdvancesTheProposal(t *testing.T) {
+	t.Parallel()
+	r := newProposalRig(t)
+	r.mustCreate(t, func(*events.ProposalCreated) {})
+	if err := r.failedSwap(t, r.swap(1), "x"); err != nil {
+		t.Fatalf("failed before the close = %v, want an ack", err)
+	}
+	if got := r.row(t).Status; got != string(feed.StatusExecutionFailed) {
+		t.Fatalf("proposal status = %q, want %q", got, feed.StatusExecutionFailed)
+	}
+	if rows := r.results(t); len(rows) != 0 {
+		t.Fatalf("result rows = %d, want none", len(rows))
+	}
 }
 
 func TestFeedResult_aReopenAndSecondCloseKeepTheFillAndTheFailure(t *testing.T) {
