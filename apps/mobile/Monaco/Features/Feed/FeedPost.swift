@@ -105,14 +105,6 @@ private struct FeedPostBody: View {
             case .outside:
                 FeedOutsideTally(tally: tally, identifier: itemID)
             }
-        case .result(let sealName, let sparkline, let isLoss):
-            FeedAccentRule(cabalID: facts.accentCabalID) {
-                FeedResultAttachment(sealName: sealName, sparkline: sparkline, isLoss: isLoss)
-            }
-        case .sale(let points, let markers, let isLoss):
-            FeedAccentRule(cabalID: facts.accentCabalID) {
-                FeedSaleChart(points: points, markers: markers, isLoss: isLoss)
-            }
         case .quote(let text):
             FeedPostQuote(text: text)
         case .none:
