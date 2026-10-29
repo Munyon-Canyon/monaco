@@ -132,16 +132,41 @@ func (env *Env) oldestRunContaining(ctx context.Context, l Landing, runs []Run) 
 	return Run{}, false, nil
 }
 
-func (env *Env) laterGreenRun(ctx context.Context, l Landing) (Run, bool, error) {
+func (env *Env) laterGreenRun(ctx context.Context, l Landing, related []string) (Run, bool, error) {
 	runs, err := env.GitHub.DispatchedRuns(ctx, indicatorWorkflow, env.Config.FeatureBranch, l.At)
 	if err != nil {
 		return Run{}, false, err
 	}
-	runs = slices.DeleteFunc(runs, func(x Run) bool { return !x.done() || x.Conclusion != "success" })
-	if len(runs) == 0 {
+	var passed []Run
+	for _, run := range runs {
+		ok, err := env.passedJobs(ctx, run, related)
+		if err != nil {
+			return Run{}, false, err
+		}
+		if ok {
+			passed = append(passed, run)
+		}
+	}
+	if len(passed) == 0 {
 		return Run{}, false, nil
 	}
-	return env.oldestRunContaining(ctx, l, runs)
+	return env.oldestRunContaining(ctx, l, passed)
+}
+
+func (env *Env) passedJobs(ctx context.Context, run Run, related []string) (bool, error) {
+	if !run.done() || run.Conclusion == "success" {
+		return run.done(), nil
+	}
+	jobs, err := env.GitHub.Jobs(ctx, run.ID)
+	if err != nil {
+		return false, err
+	}
+	for _, name := range related {
+		if !slices.ContainsFunc(jobs, func(j Job) bool { return j.Name == name && j.Conclusion == "success" }) {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func (env *Env) noLandingRun(ctx context.Context, l Landing) ([]string, func(*Landing)) {
@@ -210,14 +235,14 @@ func (env *Env) settleRerunOrRevert(
 	ctx context.Context, r Record, l Landing, run Run, related, lines []string,
 ) (landingCall, error) {
 	refs := prRefs(l.PRs)
-	later, settled, err := env.laterGreenRun(ctx, l)
+	later, settled, err := env.laterGreenRun(ctx, l, related)
 	if err != nil {
 		return landingCall{}, err
 	}
 	if settled {
 		return landingCall{lines: append(lines, fmt.Sprintf(
-			"staging run %s failed, but %s at %s contains %s and passed; not reverting",
-			run.URL, later.URL, sha12(later.HeadSHA), refs))}, nil
+			"staging run %s failed, but %s at %s contains %s and passed %s; not reverting",
+			run.URL, later.URL, sha12(later.HeadSHA), refs, strings.Join(related, ", ")))}, nil
 	}
 	if !l.Reran {
 		if err := env.GitHub.RerunFailed(ctx, run.ID); err != nil {

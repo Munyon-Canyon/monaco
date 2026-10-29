@@ -2,6 +2,7 @@ package agents
 
 import (
 	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -828,7 +829,7 @@ func TestWatch_aLaterGreenRunContainingTheLandingSettlesIt(t *testing.T) {
 	l.sh.first(shellRule{prefix: "git merge-base " + lastSHA + " " + baseSHA, out: lastSHA + "\n"})
 	_, stdout, _ := l.f.agents(t, "watch", "--once")
 	want := "staging run https://gh/run/77 failed, but https://gh/run/80 at " + baseSHA[:12] +
-		" contains #1 #2 and passed; not reverting\n"
+		" contains #1 #2 and passed staging / Backend tests (a); not reverting\n"
 	if !strings.Contains(stdout, want) || strings.Contains(stdout, "reverted") || strings.Contains(stdout, "reran") {
 		t.Fatalf("%q", stdout)
 	}
@@ -837,6 +838,58 @@ func TestWatch_aLaterGreenRunContainingTheLandingSettlesIt(t *testing.T) {
 	}
 	if len(l.f.hub.callsContaining("/rerun")) != 0 || len(l.sh.lines("git revert", "gt submit")) != 0 {
 		t.Fatal("the landing was rerun or reverted")
+	}
+}
+
+func TestWatch_aLaterRunThatPassedTheFailedJobsSettlesItWhileAnotherJobIsRed(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		conclusion string
+		settles    bool
+	}{
+		"the related job passed":      {conclusion: "success", settles: true},
+		"the related job was skipped": {conclusion: "skipped"},
+	} {
+		l := newLanding(t, func(x *Landing) { x.Reran = false })
+		l.run("failure", Job{Name: "staging / Backend tests (a)", Conclusion: "failure"})
+		laterRuns(l, Run{
+			ID: 80, Status: "completed", Conclusion: "failure", URL: "https://gh/run/80", HeadSHA: baseSHA,
+			CreatedAt: l.f.now.Add(-2 * time.Minute),
+		})
+		l.f.hub.on(get("/actions/runs/80/jobs?per_page=100"), map[string]any{"jobs": []Job{
+			{Name: "staging / Backend tests (a)", Conclusion: tc.conclusion},
+			{Name: "staging / ios / iOS app build", Conclusion: "failure"},
+		}})
+		l.sh.first(shellRule{prefix: "git merge-base " + lastSHA + " " + baseSHA, out: lastSHA + "\n"})
+		_, stdout, _ := l.f.agents(t, "watch", "--once")
+		want := "staging run https://gh/run/77 failed, but https://gh/run/80 at " + baseSHA[:12] +
+			" contains #1 #2 and passed staging / Backend tests (a); not reverting\n"
+		if strings.Contains(stdout, want) != tc.settles {
+			t.Fatalf("%s: %q", name, stdout)
+		}
+		if reran := len(l.f.hub.callsContaining("/rerun")) != 0; reran == tc.settles {
+			t.Fatalf("%s: rerun %v, want %v", name, reran, !tc.settles)
+		}
+	}
+}
+
+func TestWatch_aLaterRunWhoseJobsCannotBeReadNeitherSettlesNorReverts(t *testing.T) {
+	t.Parallel()
+	l := newLanding(t, func(x *Landing) { x.Reran = false })
+	l.run("failure", Job{Name: "staging / Backend tests (a)", Conclusion: "failure"})
+	laterRuns(l, Run{
+		ID: 80, Status: "completed", Conclusion: "failure", URL: "https://gh/run/80", HeadSHA: baseSHA,
+		CreatedAt: l.f.now.Add(-2 * time.Minute),
+	})
+	route := get("/actions/runs/80/jobs?per_page=100")
+	l.f.hub.on(route, `{"message":"boom"}`)
+	l.f.hub.mu.Lock()
+	l.f.hub.status[route] = http.StatusInternalServerError
+	l.f.hub.mu.Unlock()
+	_, stdout, _ := l.f.agents(t, "watch", "--once")
+	if !strings.Contains(stdout, "watch error") || strings.Contains(stdout, "not reverting\n") ||
+		len(l.f.hub.callsContaining("/rerun")) != 0 || l.count("git worktree add") != 0 {
+		t.Fatalf("%q", stdout)
 	}
 }
 
