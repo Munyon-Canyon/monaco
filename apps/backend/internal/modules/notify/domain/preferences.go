@@ -17,7 +17,7 @@ func CategoryOf(kind string) (Category, bool) {
 		"cabal_paused",
 		"cabal_resumed":
 		return CategoryDecisionRequests, true
-	case "comment_reply", "post_reply", "chat_mention", "chat_thread_reply":
+	case "comment_reply", "post_reply", "comment_mention", "chat_mention", "chat_thread_reply":
 		return CategoryRepliesAndMentions, true
 	}
 	return "", false

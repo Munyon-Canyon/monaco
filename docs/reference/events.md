@@ -433,6 +433,7 @@ Subject `events.comment.created`, version 1.
 | `reply_rule` | `string` |
 | `attachment_kind` | `string` |
 | `poll_question` | `string` |
+| `mentioned_user_ids` | `[]uuid.UUID` |
 
 ## `comment.deleted`
 

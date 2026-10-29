@@ -40,6 +40,8 @@ type CommentCreated struct {
 	ReplyRule          string    `json:"reply_rule"`
 	AttachmentKind     string    `json:"attachment_kind"`
 	PollQuestion       string    `json:"poll_question"`
+
+	MentionedUserIDs []uuid.UUID `json:"mentioned_user_ids" pii:"true"`
 }
 
 func (CommentCreated) Type() Type { return TypeCommentCreated }

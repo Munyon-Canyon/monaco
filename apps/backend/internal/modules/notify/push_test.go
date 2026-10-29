@@ -718,6 +718,10 @@ func copyCases(
 			events.TypeCommentCreated,
 			renderer[events.CommentCreated](app.PostReply{Users: users, Cabals: cabals, Blocks: blocks{}}),
 		},
+		"comment_mention": {
+			events.TypeCommentCreated,
+			renderer[events.CommentCreated](app.CommentMention{Users: users, Cabals: cabals, Blocks: blocks{}}),
+		},
 		"chat_mention": {
 			events.TypeChatMessagePosted,
 			renderer[events.ChatMessagePosted](app.ChatMention{Cabals: cabals, Users: users}),

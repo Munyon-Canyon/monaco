@@ -199,13 +199,19 @@ func (h *CreateCommentHandler) store(
 		}
 	}
 	tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, FeedHint, nil) })
+	mentioned, err := h.resolveCommentMentions(ctx, tx, at, cmd.Author, cmd.Input.Text().String())
+	if err != nil {
+		return Comment{}, err
+	}
 	if target.ID != uuid.Nil {
 		created.ReplyTo = quoteOf(
 			target.ID, target.AuthorID.Bytes, target.ParentCommentID.Bytes, target.Body.String, target.HasAttachment,
 			target.Deleted, target.Blocked,
 		)
 	}
-	return created, tx.Events.Append(ctx, createdEvent(at, row, target, cmd.Input))
+	event := createdEvent(at, row, target, cmd.Input)
+	event.MentionedUserIDs = mentioned
+	return created, tx.Events.Append(ctx, event)
 }
 
 type replyDraft struct {

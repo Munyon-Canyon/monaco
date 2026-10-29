@@ -29,6 +29,9 @@ func (k PostReply) Recipients(ctx context.Context, e events.CommentCreated) ([]i
 	if owner == ids.UserIDFrom(e.AuthorID) {
 		return nil, nil
 	}
+	if mentioned(e, owner) {
+		return nil, nil
+	}
 	if answered, ok := answeredAuthor(e); ok && answered == owner {
 		return nil, nil
 	}

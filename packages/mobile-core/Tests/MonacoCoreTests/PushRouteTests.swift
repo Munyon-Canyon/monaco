@@ -241,6 +241,10 @@ final class PushRouteTests: XCTestCase {
             ("chat_thread_reply", ["kind", "cabal_id", "message_id"], "chat"),
             ("comment_reply_feed", ["kind", "feed_item_id"], "feedItem"),
             ("comment_reply_proposal", replyKeys.union(senderKeys).union(["proposal_id"]), "proposal"),
+            (
+                "comment_mention", replyKeys.subtracting(["quoted_excerpt"]).union(senderKeys).union(["proposal_id"]),
+                "proposal"
+            ),
             ("post_reply", replyKeys.union(senderKeys.filter { $0.hasPrefix("sender_") }), "feedItem"),
             ("malformed", ["kind", "cabal_id", "txn_id"], "home"),
         ]

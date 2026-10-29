@@ -269,7 +269,7 @@ func TestCategoryOf_classifiesEveryKindExactlyOnce(t *testing.T) {
 		"proposal_created", "proposal_result", "vote_reminder", "vote_deciding", "close_reminder",
 		"cabal_paused", "cabal_resumed",
 	}
-	replies := []string{"comment_reply", "post_reply", "chat_mention", "chat_thread_reply"}
+	replies := []string{"comment_reply", "post_reply", "comment_mention", "chat_mention", "chat_thread_reply"}
 	always := domain.AlwaysOnKinds()
 	names := kindNames(t)
 	known := len(decisions) + len(replies) + len(always)

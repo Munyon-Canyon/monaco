@@ -45,7 +45,7 @@ func answeredAuthor(e events.CommentCreated) (ids.UserID, bool) {
 
 func (k CommentReply) Recipients(ctx context.Context, e events.CommentCreated) ([]ids.UserID, error) {
 	to, ok := answeredAuthor(e)
-	if !ok {
+	if !ok || mentioned(e, to) {
 		return nil, nil
 	}
 	return unblocked(ctx, k.Blocks, e, to)
