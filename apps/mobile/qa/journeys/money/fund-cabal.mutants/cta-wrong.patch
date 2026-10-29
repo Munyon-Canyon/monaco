@@ -1,7 +1,7 @@
 journey: money/fund-cabal
-expect-fail: S1
+expect-fail: S1 S2
 
-The button reads "Deposit $1.00" instead of "Fund $1.00". S1.5 waits for it, so it must fail.
+The button reads "Deposit $1" instead of "Fund $1". S1.5 and S2.2 assert its label, so both must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/packages/mobile-core/Sources/MonacoCore/Funding/FundCabalCopy.swift b/packages/mobile-core/Sources/MonacoCore/Funding/FundCabalCopy.swift

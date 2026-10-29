@@ -1,7 +1,7 @@
 ---
 id: money/deposit
 title: Add money
-version: 4
+version: 5
 milestone: M12
 requires: [auth/sign-in]
 actors: [A]
@@ -18,6 +18,8 @@ A member opens Add money from Home, picks "Send crypto", chooses a network, sees
 Version 2 (M24, #4968): Add money lists "Card" first and "Send crypto" second, "Send crypto" opens "Choose a network" when the member can deposit on more than one network, and each network has its own address screen titled "Send USDC on <network>". It replaces version 1's "Crypto" chooser and its S2.
 
 Version 4 (#5762): Add money is a half sheet over Home titled "Deposit" (`deposit-sheet-title`), not a pushed screen. Choosing an option closes the sheet and pushes the next screen onto Home, so back returns to Home.
+
+Version 5 (F launch, #6576): Home's cash row link reads "Deposit" (still `home-add-money-link`), and S3 opens the same sheet from Profile's docked "Deposit" (`profile-deposit-dock`).
 
 Old app (`c838bd24`): Home -> "Add money" -> `Deposit/DepositView.swift`: the address, "Copy", the copied toast, "How it works", and the deposit-received toast. Spec: **Add money** in [screens.md](../../screens.md) (Money).
 
@@ -39,7 +41,7 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap, then wait | the Home tab, then `platform-balance-value` | | The account balance reads at least "$1.00" within 30 s: the runner's deposit arrived (old app: Home balance) |
-| S1.2 | A | tap | `home-add-money-link` "Add money" | | The half sheet titled "Deposit" (`deposit-sheet-title`) shows `deposit-card-row` "Card or Apple Pay" above `deposit-crypto-row` "Send crypto" and `deposit-screen-balance-value` within 15 s |
+| S1.2 | A | tap | `home-add-money-link` "Deposit" | | The half sheet titled "Deposit" (`deposit-sheet-title`) shows `deposit-card-row` "Card or Apple Pay" above `deposit-crypto-row` "Send crypto" and `deposit-screen-balance-value` within 15 s |
 | S1.3 | A | tap | `deposit-crypto-row` | | The screen titled "Choose a network" lists `deposit-network-solana` "Solana" first and `deposit-network-base` "Base" after it within 15 s |
 | S1.4 | A | tap | `deposit-network-solana` | | The screen titled "Receive USDC" shows "USDC on Solana", "Your deposit address" and `deposit-address-value` within 15 s, and no `deposit-arrival-note` |
 | S1.5 | A | tap | `deposit-address-copy-button` "Copy address" | | The toast "Address copied." shows within 5 s, and `deposit-network-warning`, above the address, reads "Only USDC on Solana" (old app: `DepositView.swift` Copy and its toast) |
@@ -49,9 +51,15 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, tap, then tap | the Home tab, `home-add-money-link`, then `deposit-crypto-row` | | "Choose a network" shows `deposit-network-base` "Base" within 15 s |
+| S2.1 | A | tap, tap, then tap | the Home tab, `home-add-money-link` "Deposit", then `deposit-crypto-row` | | "Choose a network" shows `deposit-network-base` "Base" within 15 s |
 | S2.2 | A | tap | `deposit-network-base` | | The screen titled "Receive USDC" shows "USDC on Base", `deposit-address-value` with an address that starts "0x" within 15 s. `deposit-network-warning`, above the address, reads "Only USDC on Base" and `deposit-arrival-note` reads "Arrives in a few minutes" |
 | S2.3 | A | tap | `deposit-address-copy-button` "Copy address" | | The toast "Address copied." shows within 5 s |
+
+### S3 Deposit from Profile
+
+| Step | Actor | Action | Target | Input | Expect |
+| --- | --- | --- | --- | --- | --- |
+| S3.1 | A | tap, then tap | the Profile tab, then `profile-deposit-dock` "Deposit" | | The half sheet titled "Deposit" (`deposit-sheet-title`) shows `deposit-crypto-row` within 15 s |
 
 ## Ground truth
 
@@ -59,7 +67,7 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Known failures on staging
 
-None known.
+- S3.1: the app sets no `profile-deposit-dock` identifier yet (#6488 and #6505 own the Profile dock). It is a follow-up against those tickets.
 
 ## Not covered
 

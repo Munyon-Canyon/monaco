@@ -1,0 +1,18 @@
+journey: money/withdraw
+expect-fail: S1 S2
+
+The keypad never reaches the settled state: the button stays on Withdraw. S1.4 waits for amount-keypad-settled, so S1 and S2.4 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift b/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
+--- a/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
++++ b/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
+@@ -58,7 +58,7 @@ struct WithdrawKeypadView: View {
+         switch model.state {
+         case .empty: .empty
+         case .invalid: .invalid(limitLine: model.line ?? "", slot: model.limitSlot ?? "")
+-        case .settled: .settled(line: model.line ?? "")
++        case .settled: .typed
+         case .typed, .belowMinimum, .needsAddress, .submitting, .failed: .typed
+         }
+     }

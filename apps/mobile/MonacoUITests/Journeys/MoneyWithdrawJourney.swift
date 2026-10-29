@@ -2,16 +2,12 @@ import XCTest
 
 enum MoneyWithdrawJourney {
     static let id = "money/withdraw"
-    static let version = 5
+    static let version = 6
 
     static let screenTimeout: TimeInterval = 15
     static let badAddress = "not a solana address"
     static let badBaseAddress = "not a base address"
     static let baseAddress = "0x000000000000000000000000000000000000dEaD"
-    static let confirmCopy = [
-        "Review withdrawal", "Destination", "Network", "From", "Your cash", "Arrives", "About a minute",
-        "Double-check the address and network. Transfers can't be undone.",
-    ]
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -28,162 +24,146 @@ enum MoneyWithdrawJourney {
     static func openWithdraw(_ app: XCUIApplication, step: String) {
         app.popToRoot()
         app.tab("Profile").tap()
-        let row = app.element("profile-withdraw-row")
-        app.scrollIntoReach(row)
-        XCTAssertTrue(row.waitForExistence(timeout: screenTimeout), "\(step): no Withdraw row on Profile")
+        let settings = app.element("profile-settings-row")
+        app.scrollIntoReach(settings)
+        XCTAssertTrue(settings.waitForExistence(timeout: screenTimeout), "\(step): no Settings on Profile")
+        settings.tap()
+        let row = app.element("settings-withdraw")
+        XCTAssertTrue(row.waitForExistence(timeout: screenTimeout), "\(step): no Withdraw in Settings")
         row.tap()
+        XCTAssertTrue(
+            app.element("amount-keypad-screen").waitForExistence(timeout: screenTimeout),
+            "\(step): the Withdraw keypad did not show within \(Int(screenTimeout)) s"
+        )
+    }
+
+    static func expectFunded(_ app: XCUIApplication, step: String) {
+        let source = app.element("amount-keypad-source")
+        XCTAssertTrue(
+            JoinJourney.waitForLabel(source, containing: "Cash $", timeout: screenTimeout),
+            "\(step): the source pill does not read Cash $…: \(source.label)")
+        XCTAssertFalse(source.label.contains("$0.00"), "\(step): the account is not funded: \(source.label)")
+    }
+
+    static func replaceAddress(_ app: XCUIApplication, with text: String, clearing old: String = "") {
+        let field = app.element("withdraw-address-field")
+        field.tap()
+        if !old.isEmpty {
+            field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: old.count))
+        }
+        field.typeText(text)
+        app.dismissKeyboard()
+    }
+
+    static func tapMax(_ app: XCUIApplication, step: String) {
+        let max = app.buttons["amount-keypad-preset-Max"]
+        XCTAssertTrue(max.waitForExistence(timeout: 10), "\(step): no Max chip")
+        max.tap()
     }
 
     static func withdrawAll(_ app: XCUIApplication, to address: String, recorder: JourneyRecorder) {
-        let field = app.element("withdraw-address-field")
-        let problem = app.element("withdraw-address-problem")
-        let continueButton = app.buttons["withdraw-continue-button"]
+        withdraw(app, to: address, recorder: recorder, checksBadAddress: false)
+    }
 
-        recorder.step("S1.1", "open Withdraw from Profile") {
+    static func withdraw(
+        _ app: XCUIApplication, to address: String, recorder: JourneyRecorder, checksBadAddress: Bool
+    ) {
+        let problem = app.element("withdraw-address-problem")
+
+        recorder.step("S1.1", "open Withdraw from Settings") {
             openWithdraw(app, step: "S1.1")
+            expectFunded(app, step: "S1.1")
+            let field = app.element("withdraw-address-field")
+            XCTAssertTrue(field.waitForExistence(timeout: 5), "S1.1: no address field")
+            XCTAssertTrue(app.buttons["withdraw-paste"].exists, "S1.1: no paste")
+            XCTAssertTrue(app.buttons["withdraw-scan"].exists, "S1.1: no scan")
             XCTAssertTrue(
-                app.navigationBars["Withdraw to wallet"].waitForExistence(timeout: screenTimeout),
-                "S1.1: the Withdraw screen did not show within 15 s"
-            )
-            let helper = app.element("amount-entry-helper")
-            XCTAssertTrue(
-                JoinJourney.waitForLabel(helper, containing: "available", timeout: screenTimeout),
-                "S1.1: no balance helper within 15 s"
-            )
-            XCTAssertFalse(helper.label.hasPrefix("$0.00"), "S1.1: the account is not funded: \(helper.label)")
+                app.buttons["withdraw-network-solana"].isSelected, "S1.1: the Solana chip is not selected")
         }
 
-        recorder.step("S1.2", "a bad address is refused inline") {
-            XCTAssertTrue(
-                app.buttons["withdraw-network-picker"].label.contains("Solana"),
-                "S1.2: the network picker does not start on Solana")
-            field.tap()
-            field.typeText(badAddress)
-            XCTAssertTrue(problem.waitForExistence(timeout: 5), "S1.2: no inline address error within 5 s")
-            XCTAssertTrue(
-                app.staticTexts["A Solana address that accepts USDC. Transfers can't be undone."].exists,
-                "S1.2: no caveat under the address"
-            )
-            XCTAssertFalse(continueButton.isEnabled, "S1.2: Continue is enabled for a bad address")
+        if checksBadAddress {
+            recorder.step("S1.2", "a bad address is refused inline") {
+                replaceAddress(app, with: badAddress)
+                XCTAssertTrue(problem.waitForExistence(timeout: 5), "S1.2: no inline address error within 5 s")
+                XCTAssertFalse(app.element("amount-keypad-action").exists, "S1.2: a button shows for a bad address")
+            }
         }
 
         recorder.step("S1.3", "Max and the agent wallet address") {
-            app.buttons["Max"].firstMatch.tap()
-            field.tap()
-            field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: badAddress.count))
-            field.typeText(address)
+            replaceAddress(app, with: address, clearing: checksBadAddress ? badAddress : "")
+            XCTAssertTrue(problem.waitForNonExistence(timeout: 5), "S1.3: the address error stayed for \(address)")
+            tapMax(app, step: "S1.3")
+            let line = app.element("amount-keypad-line")
             XCTAssertTrue(
-                problem.waitForNonExistence(timeout: 5), "S1.3: the inline address error stayed for \(address)")
-            XCTAssertTrue(continueButton.isEnabled, "S1.3: Continue is disabled with Max and a good address")
+                JoinJourney.waitForLabel(line, containing: "USDC", timeout: screenTimeout),
+                "S1.3: the line does not read ≈ … USDC · fee …: \(line.label)")
+            XCTAssertTrue(line.label.hasPrefix("≈"), "S1.3: the line does not start with ≈: \(line.label)")
+            XCTAssertNotEqual(app.element("amount-keypad-amount").label, "$0", "S1.3: Max left the amount at $0")
         }
 
-        recorder.step("S1.4", "Confirm shows the withdrawal") {
-            continueButton.tap()
-            XCTAssertTrue(
-                app.navigationBars["Withdraw to wallet"].waitForExistence(timeout: 10),
-                "S1.4: Confirm did not show within 10 s")
-            for text in confirmCopy {
-                XCTAssertTrue(
-                    app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch.exists,
-                    "S1.4: Confirm has no \"\(text)\""
-                )
-            }
-            XCTAssertTrue(
-                app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", address)).firstMatch.exists,
-                "S1.4: Confirm does not show the whole address \(address)"
-            )
-            XCTAssertTrue(confirmShows(app, "Solana"), "S1.4: Confirm does not name Solana")
-            JoinJourney.snap(app, "S1-A-withdraw-confirm")
-        }
-
-        recorder.step("S1.5", "Withdraw sends and toasts") {
-            let withdraw = app.buttons["withdraw-confirm-button"]
-            XCTAssertTrue(withdraw.isEnabled, "S1.5: Withdraw is disabled")
+        recorder.step("S1.4", "Withdraw sends and settles") {
+            let withdraw = app.buttons["amount-keypad-action"]
+            XCTAssertTrue(withdraw.waitForExistence(timeout: screenTimeout), "S1.4: no Withdraw button")
+            XCTAssertTrue(withdraw.label.hasPrefix("Withdraw $"), "S1.4: the button reads \(withdraw.label)")
             withdraw.tap()
-            let toast = app.staticTexts.matching(
-                NSPredicate(format: "label BEGINSWITH 'Withdrawing $' AND label ENDSWITH 'It lands in about a minute.'")
-            ).firstMatch
-            XCTAssertTrue(toast.waitForExistence(timeout: 10), "S1.5: no Withdrawing toast within 10 s")
+            let settled = app.element("amount-keypad-settled")
+            XCTAssertTrue(settled.waitForExistence(timeout: 10), "S1.4: no settled button within 10 s")
+            XCTAssertTrue(settled.label.contains(" to "), "S1.4: the settled button reads \(settled.label)")
+            XCTAssertTrue(
+                JoinJourney.waitForLabel(
+                    app.element("amount-keypad-line"),
+                    containing: "Sent just now · arrives on Solana in about a minute",
+                    timeout: 5),
+                "S1.4: the line does not read Sent just now: \(app.element("amount-keypad-line").label)")
+            JoinJourney.snap(app, "S1-A-withdraw-settled")
         }
-    }
-
-    static func networkOption(_ app: XCUIApplication, _ name: String) -> XCUIElement {
-        app.buttons["withdraw-network-picker"].tap()
-        return app.buttons[name]
-    }
-
-    static func confirmShows(_ app: XCUIApplication, _ text: String) -> Bool {
-        app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch.exists
     }
 
     static func checkBase(_ app: XCUIApplication, recorder: JourneyRecorder) {
-        let field = app.element("withdraw-address-field")
         let problem = app.element("withdraw-address-problem")
-        let continueButton = app.buttons["withdraw-continue-button"]
 
         recorder.step("S2.1", "open Withdraw and pick Base") {
             openWithdraw(app, step: "S2.1")
-            XCTAssertTrue(
-                app.navigationBars["Withdraw to wallet"].waitForExistence(timeout: screenTimeout),
-                "S2.1: the Withdraw screen did not show within 15 s"
-            )
-            let helper = app.element("amount-entry-helper")
-            XCTAssertTrue(
-                JoinJourney.waitForLabel(helper, containing: "available", timeout: screenTimeout),
-                "S2.1: no balance helper within 15 s"
-            )
-            XCTAssertFalse(helper.label.hasPrefix("$0.00"), "S2.1: the account is not funded: \(helper.label)")
-            let base = networkOption(app, "Base")
-            XCTAssertTrue(base.waitForExistence(timeout: 5), "S2.1: no Base in the network picker")
+            expectFunded(app, step: "S2.1")
+            let base = app.buttons["withdraw-network-base"]
+            XCTAssertTrue(base.waitForExistence(timeout: 5), "S2.1: no Base chip")
             base.tap()
             XCTAssertTrue(
-                app.staticTexts["A Base address that accepts USDC. Transfers can't be undone."]
-                    .waitForExistence(timeout: 5),
-                "S2.1: no Base caveat under the address"
-            )
+                JoinJourney.waitForLabel(app.element("amount-keypad-line"), containing: "on Base", timeout: 5),
+                "S2.1: the line does not name Base: \(app.element("amount-keypad-line").label)")
+            XCTAssertEqual(
+                app.element("withdraw-address-field").placeholderValue, "USDC address on Base",
+                "S2.1: the placeholder does not name Base")
         }
 
         recorder.step("S2.2", "an address that isn't Base is refused inline") {
-            field.tap()
-            field.typeText(badBaseAddress)
+            replaceAddress(app, with: badBaseAddress)
             XCTAssertTrue(
                 JoinJourney.waitForLabel(
                     problem, containing: "Check the address. It doesn't look like a Base address.", timeout: 5),
                 "S2.2: no Base address error within 5 s: \(problem.label)"
             )
-            XCTAssertFalse(continueButton.isEnabled, "S2.2: Continue is enabled for a bad Base address")
+            XCTAssertFalse(app.element("amount-keypad-action").exists, "S2.2: a button shows for a bad Base address")
         }
 
         recorder.step("S2.3", "Max, a Base address and the estimate") {
-            app.buttons["Max"].firstMatch.tap()
-            field.tap()
-            field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: badBaseAddress.count))
-            field.typeText(baseAddress)
+            replaceAddress(app, with: baseAddress, clearing: badBaseAddress)
             XCTAssertTrue(
-                problem.waitForNonExistence(timeout: 5), "S2.3: the inline address error stayed for \(baseAddress)")
-            let receive = app.element("withdraw-receive")
+                problem.waitForNonExistence(timeout: 5), "S2.3: the address error stayed for \(baseAddress)")
+            tapMax(app, step: "S2.3")
+            let line = app.element("amount-keypad-line")
             XCTAssertTrue(
-                JoinJourney.waitForLabel(receive, containing: "You'll receive ~$", timeout: screenTimeout),
-                "S2.3: no estimate within \(Int(screenTimeout)) s: \(receive.label)"
-            )
-            XCTAssertTrue(continueButton.isEnabled, "S2.3: Continue is disabled with Max and a Base address")
-        }
-
-        recorder.step("S2.4", "Confirm names Base and B does not send") {
-            continueButton.tap()
-            XCTAssertTrue(
-                app.navigationBars["Withdraw to wallet"].waitForExistence(timeout: 10),
-                "S2.4: Confirm did not show within 10 s")
-            XCTAssertTrue(confirmShows(app, baseAddress), "S2.4: Confirm does not show the whole address")
-            XCTAssertTrue(confirmShows(app, "Network"), "S2.4: Confirm has no Network row")
-            XCTAssertTrue(confirmShows(app, "Base"), "S2.4: Confirm does not name Base")
-            XCTAssertTrue(app.buttons["withdraw-confirm-button"].isEnabled, "S2.4: Withdraw is disabled")
-            JoinJourney.snap(app, "S2-B-base-confirm")
+                JoinJourney.waitForLabel(line, containing: "USDC", timeout: screenTimeout),
+                "S2.3: the line does not read ≈ … USDC · fee …: \(line.label)")
+            XCTAssertTrue(line.label.contains("fee"), "S2.3: the line has no fee: \(line.label)")
+            XCTAssertTrue(app.buttons["amount-keypad-action"].exists, "S2.3: no Withdraw button")
+            JoinJourney.snap(app, "S2-B-base-keypad")
         }
     }
 
     static func refundOnSolana(_ app: XCUIApplication, to address: String, recorder: JourneyRecorder) {
-        recorder.step("S2.5", "back out and withdraw on Solana") {
+        recorder.step("S2.4", "close without sending and withdraw on Solana") {
+            app.buttons["amount-keypad-close"].tap()
             app.popToRoot()
             withdrawAll(app, to: address, recorder: MoneyWithdrawJourney.recorder())
         }

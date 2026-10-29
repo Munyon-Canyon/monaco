@@ -22,5 +22,11 @@ nonisolated final class MoneyDepositJourneyUITests: XCTestCase {
             MoneyDepositJourney.copyBase(app, recorder: recorder)
             attachScreenshot(of: app, named: "S2-A-base-copied")
         }
+
+        try session.scenario("S3") {
+            try session.act(as: "A")
+            MoneyDepositJourney.openFromProfile(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S3-A-profile-deposit")
+        }
     }
 }

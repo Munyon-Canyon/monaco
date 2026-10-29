@@ -1,0 +1,19 @@
+journey: governance/propose-buy
+expect-fail: S1
+
+A funded keypad never reaches its settled state. S1.1 waits for `amount-keypad-settled`, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Deposit/FundCabalScreen.swift b/apps/mobile/Monaco/Features/Deposit/FundCabalScreen.swift
+index 01f5078f2..773a334c1 100644
+--- a/apps/mobile/Monaco/Features/Deposit/FundCabalScreen.swift
++++ b/apps/mobile/Monaco/Features/Deposit/FundCabalScreen.swift
+@@ -106,7 +106,7 @@ struct FundCabalKeypadView: View {
+         switch model.state {
+         case .empty: .empty
+         case .invalid: .invalid(limitLine: model.limitLine ?? "", slot: model.slotHint)
+-        case .settled: .settled(line: model.line)
++        case .settled: .typed
+         case .typed, .belowMinimum, .paused, .submitting, .unconfirmed, .failed: .typed
+         }
+     }

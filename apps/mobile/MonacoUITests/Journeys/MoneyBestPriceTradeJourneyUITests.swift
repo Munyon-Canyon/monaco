@@ -22,7 +22,7 @@ nonisolated final class MoneyBestPriceTradeJourneyUITests: XCTestCase {
         try session.scenario("S2") {
             let cabal = try JourneyHandoff.read("cabalName")
             try session.act(as: "A")
-            MoneyBestPriceTradeJourney.proposeAndCompare(app, cabal: cabal, recorder: recorder)
+            MoneyBestPriceTradeJourney.propose(app, cabal: cabal, recorder: recorder)
             attachScreenshot(of: app, named: "S2-A-proposal-sent")
         }
 
