@@ -143,6 +143,16 @@ F makes the cabal the invite: whoever opens the link before they have an account
 - **No cache.** The tally is live, so the response carries `Cache-Control: no-cache` and the API keeps nothing in process. The web page caches its own rendered HTML at the edge for 60 s, which absorbs a burst of link-preview fetches.
 - **Joining.** The link does not skip the cabal's rules. After sign-in an `open` cabal joins at once (`JoinCabal`), and a `request` cabal makes a request the creator decides (`RequestAccess`).
 
+- **Link shapes.** There are three, all on the one `/r/*` link:
+
+  | Shape | Opens | Built by | Stored by | Routed by |
+  | --- | --- | --- | --- | --- |
+  | `/r/<code>` | Referral only (the "use this code" screen) | `ReferralLink.url(for:)` | `PendingReferralStore` | `ReferralDeepLink` |
+  | `/r/<code>?c=<cabal_id>` | The cabal's invite landing (in app `InviteLandingRoute`; on the web the cabal landing) | `ReferralLink.url(for:cabalID:)` | `PendingLinkTarget` (kind `join`) | `ReferralDeepLink`, `DeepLinkRouter.resumePending` |
+  | `/r/<code>?c=<cabal_id>&p=<proposal_id>` | The vote hold sheet over the current tab (`AppNavigator.presentVoteHold`) | `ReferralLink.url(for:cabalID:proposalID:)`, used by the open-vote share card | `PendingLinkTarget` (kind `vote`) | `ReferralDeepLink`, `DeepLinkRouter.resumePending` |
+
+  `ReferralLink.parseTarget` reads `c` and `p`: each must be a UUID and is lowercased, and `p` without `c` is dropped. Signed out, a link with `c` shows the landing over the sign-in screen and saves the code and target; after sign-in `DeepLinkRouter.resumePending` opens the landing or the hold sheet once, within the 7-day window. The clipboard bridge saves the same target. Push notifications route through `PushRouter`, not here.
+
 ## Web
 
 - `monacolabs.xyz/r/<code>` is a server-rendered route in `apps/web` (Cloudflare function): looks up the referrer's display name and photo from the API with `GET /v1/referrals/{code}`, renders the page, and sets Open Graph tags so the link preview in Messages shows "Alex invited you to Monaco" with their photo.

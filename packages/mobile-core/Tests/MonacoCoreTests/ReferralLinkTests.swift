@@ -111,6 +111,42 @@ final class ReferralLinkTests: XCTestCase {
         XCTAssertEqual(ReferralLink.parse(url.absoluteString), code)
     }
 
+    func testParseTargetReadsTheCabalAndTheProposal() throws {
+        let c = "01890a5d-ac96-774b-bcce-b302099a8058"
+        let p = "01890a5d-ac96-774b-bcce-b302099a8057"
+        let cases: [(String, String?, String?)] = [
+            ("https://monacolabs.xyz/r/abc", nil, nil),
+            ("https://monacolabs.xyz/r/abc?c=\(c)", c, nil),
+            ("https://monacolabs.xyz/r/abc?c=\(c)&p=\(p)", c, p),
+            ("https://www.monacolabs.xyz/r/abc?c=\(c)&p=\(p)", c, p),
+            ("https://monacolabs.xyz/r/abc/?c=\(c)", c, nil),
+            ("https://monacolabs.xyz/r/abc?c=\(c.uppercased())&p=\(p.uppercased())", c, p),
+            ("https://monacolabs.xyz/r/abc?c=nope&p=\(p)", nil, nil),
+            ("https://monacolabs.xyz/r/abc?p=\(p)", nil, nil),
+            ("https://monacolabs.xyz/r/abc?c=\(c)&p=nope", c, nil),
+            ("https://monacolabs.xyz/r/abc?utm=x&c=\(c)&z=1", c, nil),
+        ]
+        for (raw, cabalID, proposalID) in cases {
+            let target = try XCTUnwrap(ReferralLink.parseTarget(try XCTUnwrap(URL(string: raw))), raw)
+            XCTAssertEqual(target.code.value, "abc", raw)
+            XCTAssertEqual(target.cabalID, cabalID, raw)
+            XCTAssertEqual(target.proposalID, proposalID, raw)
+        }
+        XCTAssertNil(ReferralLink.parseTarget(try XCTUnwrap(URL(string: "https://example.com/r/abc?c=\(c)"))))
+    }
+
+    func testBuiltLinksRoundTripThroughParseTarget() throws {
+        let c = "01890a5d-ac96-774b-bcce-b302099a8058"
+        let p = "01890a5d-ac96-774b-bcce-b302099a8057"
+        let code = try XCTUnwrap(ReferralCode("kaicenat"))
+        XCTAssertEqual(
+            ReferralLink.parseTarget(ReferralLink.url(for: code, cabalID: c)),
+            ReferralLinkTarget(code: code, cabalID: c, proposalID: nil))
+        XCTAssertEqual(
+            ReferralLink.parseTarget(ReferralLink.url(for: code, cabalID: c, proposalID: p)),
+            ReferralLinkTarget(code: code, cabalID: c, proposalID: p))
+    }
+
     func testSourceRawValuesMatchAPI() {
         XCTAssertEqual(ReferralSource.allCases.map(\.rawValue), ["universal_link", "clipboard", "manual"])
     }

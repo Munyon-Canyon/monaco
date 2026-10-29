@@ -36,6 +36,7 @@ struct MainTabView: View {
         .tint(MonacoTheme.tint)
         .environment(\.depositNavigator, navigator)
         .modifier(AccountBalanceHost())
+        .task { await DeepLinkRouter.resumePending(navigator: navigator) }
         .preference(key: TabToastHostKey.self, value: true)
         // Each stack knows its tab (`hostMainTab`) and which one is showing, so screens in a tab
         // the member switched away from stop polling. See `pollWhileVisible`.

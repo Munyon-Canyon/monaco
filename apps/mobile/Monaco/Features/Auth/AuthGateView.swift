@@ -7,6 +7,7 @@ struct AuthGateView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
+        @Bindable var navigator = environment.navigator
         Group {
             if Config.privy.isConfigured {
                 if hasLoginMethod {
@@ -32,6 +33,9 @@ struct AuthGateView: View {
             } else {
                 missingConfigView
             }
+        }
+        .fullScreenCover(item: $navigator.signedOutLanding) { route in
+            NavigationStack { route.destination() }
         }
         .authScreenBackground()
         .tint(MonacoTheme.accent)
@@ -136,4 +140,8 @@ private struct AuthGatePreview: View {
         AuthGateView(auth: environment.auth)
             .environment(environment)
     }
+}
+
+extension InviteLandingRoute: Identifiable {
+    var id: String { cabalID }
 }

@@ -74,6 +74,27 @@ final class InvitePasteModelTests: XCTestCase {
         XCTAssertFalse(again)
     }
 
+    func testAPasteCarryingACabalSavesTheTargetToo() async throws {
+        let c = "01890a5d-ac96-774b-bcce-b302099a8058"
+        let p = "01890a5d-ac96-774b-bcce-b302099a8057"
+        let model = makeModel()
+
+        XCTAssertEqual(model.paste(try XCTUnwrap(URL(string: "https://monacolabs.xyz/r/k7m4qx2p?c=\(c)"))), .added)
+        XCTAssertEqual(PendingLinkTargetStore(store: store).take(now: now)?.kind, .join)
+
+        let voteURL = try XCTUnwrap(URL(string: "https://monacolabs.xyz/r/k7m4qx2p?c=\(c)&p=\(p)"))
+        XCTAssertEqual(model.paste(voteURL), .added)
+        let vote = PendingLinkTargetStore(store: store).take(now: now)
+        XCTAssertEqual(vote?.kind, .vote)
+        XCTAssertEqual(vote?.proposalID, p)
+        XCTAssertEqual(PendingReferralStore(store: store).load(now: now)?.code.value, "k7m4qx2p")
+    }
+
+    func testAPasteWithoutACabalSavesNoTarget() async throws {
+        _ = makeModel().paste(try XCTUnwrap(URL(string: "https://monacolabs.xyz/r/k7m4qx2p")))
+        XCTAssertNil(PendingLinkTargetStore(store: store).peek(now: now))
+    }
+
     func testAnInvalidPasteSavesNothingAndMarksTheOfferDone() async throws {
         let model = makeModel()
         let url = try XCTUnwrap(URL(string: "https://example.com/r/k7m4qx2p"))

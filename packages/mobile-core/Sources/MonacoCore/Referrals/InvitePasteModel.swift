@@ -18,6 +18,7 @@ public final class InvitePasteModel {
 
     private let gate: InvitePasteGate
     private let pending: PendingReferralStore
+    private let targets: PendingLinkTargetStore
     private let now: @Sendable () -> Date
     private let track: @MainActor (ReferralAppEvent) -> Void
 
@@ -27,6 +28,7 @@ public final class InvitePasteModel {
     ) {
         gate = InvitePasteGate(store: store)
         pending = PendingReferralStore(store: store)
+        targets = PendingLinkTargetStore(store: store)
         self.now = now
         self.track = track
     }
@@ -47,12 +49,13 @@ public final class InvitePasteModel {
 
     public func paste(_ url: URL) -> Result {
         gate.markOffered()
-        guard let code = ReferralLink.parse(url) else { return .notAnInvite }
+        guard let target = ReferralLink.parseTarget(url) else { return .notAnInvite }
         do {
-            try pending.save(code, source: .clipboard, at: now())
+            try pending.save(target.code, source: .clipboard, at: now())
         } catch {
             return .notAnInvite
         }
+        targets.save(target, now: now())
         track(.invitePasted)
         return .added
     }
