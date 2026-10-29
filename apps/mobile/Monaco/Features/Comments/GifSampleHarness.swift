@@ -208,10 +208,10 @@ private struct GifHarnessScreen: View {
     }
 
     private var postsLabel: some View {
-        Text(summary)
-            .font(MonacoTheme.Typo.caption)
-            .foregroundStyle(MonacoTheme.secondaryText)
-            .padding(.top, MonacoTheme.Space.l)
+        Color.clear
+            .frame(width: 1, height: 1)
+            .accessibilityElement()
+            .accessibilityLabel(summary)
             .accessibilityIdentifier("gif-harness-posts")
     }
 

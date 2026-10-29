@@ -70,7 +70,29 @@ struct ProposalHero: View {
     }
 
     private var heroRow: some View {
-        HStack(alignment: .center, spacing: MonacoTheme.Space.sm) {
+        let layout =
+            dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.s))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: MonacoTheme.Space.sm))
+        return layout {
+            heroTitle
+            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: MonacoTheme.Space.s) }
+            if let micros = amountMicros {
+                Text(Self.amountLabel(micros: micros))
+                    .moneyFigure(.card)
+                    .foregroundStyle(MonacoTheme.ink)
+                    .accessibilityIdentifier("proposal-hero-amount")
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var heroTitle: some View {
+        let layout =
+            dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.s))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: MonacoTheme.Space.sm))
+        return layout {
             StockMark(
                 symbol: summary.symbol, displayName: asset?.displayName, assetKind: asset?.kind ?? .stock,
                 size: .review, logoURL: asset?.logoURL)
@@ -83,22 +105,16 @@ struct ProposalHero: View {
                     Text(subtitle)
                         .font(MonacoTheme.Typo.subhead)
                         .foregroundStyle(MonacoTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("proposal-hero-subtitle")
                 } else {
                     Text(summary.assetName(asset: asset))
                         .font(MonacoTheme.Typo.subhead)
                         .foregroundStyle(MonacoTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Spacer(minLength: MonacoTheme.Space.s)
-            if let micros = amountMicros {
-                Text(Self.amountLabel(micros: micros))
-                    .moneyFigure(.card)
-                    .foregroundStyle(MonacoTheme.ink)
-                    .accessibilityIdentifier("proposal-hero-amount")
-            }
         }
-        .accessibilityElement(children: .combine)
     }
 
     private var amountMicros: Int64? {

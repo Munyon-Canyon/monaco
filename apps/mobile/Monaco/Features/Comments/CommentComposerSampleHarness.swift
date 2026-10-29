@@ -119,8 +119,10 @@ private struct CommentComposerHarnessScreen: View {
         stage
             .monacoCanvas()
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                CommentComposerBar(
-                    model: detail.comments, menuItems: [], thesis: thesisText, offersPoll: offersPoll)
+                if ![.menu, .menuSale].contains(scenario) {
+                    CommentComposerBar(
+                        model: detail.comments, menuItems: [], thesis: thesisText, offersPoll: offersPoll)
+                }
             }
             .environment(\.pollVoting, PreviewPollVoting())
             .environment(\.stockSearch, Self.stockSearch)

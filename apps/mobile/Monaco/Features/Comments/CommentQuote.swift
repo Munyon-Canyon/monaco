@@ -6,6 +6,8 @@ struct CommentQuote: View {
     let rowID: String
     let onJump: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     private enum Metrics {
         static let rule: CGFloat = 2
         static let tap: CGFloat = 44
@@ -29,7 +31,7 @@ struct CommentQuote: View {
             (Text(quote.name).font(MonacoTheme.Typo.subheadStrong).foregroundStyle(MonacoTheme.primaryText)
                 + Text(" ")
                 + Text(quote.excerpt).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText))
-                .lineLimit(1)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                 .truncationMode(.tail)
                 .monacoPrivate()
         }

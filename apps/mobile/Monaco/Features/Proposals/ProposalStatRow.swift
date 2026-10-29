@@ -7,10 +7,16 @@ struct ProposalStatRow: View {
     var onInfo: () -> Void = {}
 
     var body: some View {
-        StatGrid(items: Self.items(stats, showsInfo: showsInfo, onInfo: onInfo))
+        StatGrid(items: Self.items(stats, showsInfo: showsInfo, onInfo: onInfo), columns: Self.columns(stats))
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("proposal-stat-row")
+    }
+
+    static let longValue = 10
+
+    static func columns(_ stats: ProposalStats) -> Int {
+        stats.cells.contains { $0.value.count > longValue } ? StatMetrics.wideTextColumns : StatMetrics.defaultColumns
     }
 
     static func items(_ stats: ProposalStats, showsInfo: Bool, onInfo: @escaping () -> Void) -> [StatItem] {
