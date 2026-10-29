@@ -15,6 +15,18 @@ LEFT JOIN votes USING (proposal_id, voter_id)
 WHERE proposal_voters.proposal_id = @proposal_id
 ORDER BY proposal_voters.voter_id;
 
+-- name: FindProposalID :one
+SELECT id, status, sides_after_close FROM proposals WHERE id = @id;
+
+-- name: ProposalVotersPage :many
+SELECT proposal_voters.voter_id, votes.choice, votes.cast_at
+FROM proposal_voters
+LEFT JOIN votes USING (proposal_id, voter_id)
+WHERE proposal_voters.proposal_id = @proposal_id
+  AND (NOT @has_cursor::boolean OR proposal_voters.voter_id > @cursor_voter_id::uuid)
+ORDER BY proposal_voters.voter_id
+LIMIT @row_limit;
+
 -- name: BallotOrder :one
 WITH ranked AS (
   SELECT

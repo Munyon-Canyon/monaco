@@ -184,6 +184,41 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/members:
+    get:
+      operationId: getCabalMembers
+      tags: [cabal]
+      summary: Page through a cabal's members.
+      description: >-
+        Returns one page of the cabal's members, oldest joiner first, each with the user card and vote standing.
+        Page with the `next_cursor` of the previous page until it is null. The cursor is keyed on the join time
+        and user id, so a member who joins or leaves between pages never repeats or skips another row.
+        `GET /v1/cabals/{id}` keeps `members` only for builds that predate this route.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema: {type: string, format: uuid}
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` of the previous page. Absent reads the first page.
+          schema: {type: string, maxLength: 512}
+        - name: limit
+          in: query
+          required: false
+          description: The number of members to return, from 1 through 200. Defaults to 50.
+          schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+      responses:
+        "200":
+          description: One page of members.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CabalMemberPage"
+              example: {items: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null, role: creator, can_vote: true, joined_at: "2026-09-30T12:00:00Z"}], next_cursor: null}
+        default:
+          $ref: "#/components/responses/Problem"
     post:
       operationId: postCabalMember
       tags: [cabal]
@@ -538,7 +573,11 @@ components:
         open_proposal_count: {type: integer, format: int32, description: Proposals open for a vote right now., examples: [1]}
         voter_count: {type: integer, format: int32, description: Members who can vote., examples: [1]}
         admins: {type: array, items: {$ref: "#/components/schemas/CabalPerson"}, description: "The cabal's admins, the creator first. Always present.", examples: [[{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]]}
-        members: {type: array, items: {$ref: "#/components/schemas/CabalMember"}, examples: [[]]}
+        members:
+          type: array
+          description: "Deprecated, but kept for builds that predate the paged route. Every member, which costs the whole membership on each read. Page `GET /v1/cabals/{id}/members` instead."
+          items: {$ref: "#/components/schemas/CabalMember"}
+          examples: [[]]
         me:
           type: [object, "null"]
           description: "Null when the caller is not a member."
@@ -645,6 +684,17 @@ components:
         picture_url: {type: [string, "null"], description: Null when the cabal has no picture., examples: [null]}
         join_mode: {type: string, description: "`open` (anyone joins at once) or `request` (the creator approves each request).", examples: [request]}
         member_count: {type: integer, format: int32, examples: [3]}
+    CabalMemberPage:
+      type: object
+      description: One page of a cabal's members.
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/CabalMember"}
+          examples: [[]]
+        next_cursor: {type: [string, "null"], description: Null on the last page., examples: [null]}
     CabalSearchPage:
       type: object
       description: One page of public cabals.

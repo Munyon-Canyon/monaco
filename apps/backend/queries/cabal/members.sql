@@ -17,6 +17,13 @@ SELECT user_id, role, can_vote, joined_at FROM cabal_members
 WHERE cabal_id = $1
 ORDER BY joined_at, user_id;
 
+-- name: ListMembersPage :many
+SELECT user_id, role, can_vote, joined_at FROM cabal_members
+WHERE cabal_id = @cabal_id
+  AND (NOT @has_cursor::boolean OR (joined_at, user_id) > (@cursor_joined_at::timestamptz, @cursor_user_id::uuid))
+ORDER BY joined_at, user_id
+LIMIT @row_limit;
+
 -- name: ListMembersOf :many
 SELECT cabal_id, user_id, role, can_vote, joined_at FROM cabal_members
 WHERE cabal_id = ANY(sqlc.arg(cabal_ids)::uuid[])

@@ -340,6 +340,43 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
   /v1/proposals/{id}/votes:
+    get:
+      operationId: getProposalVotes
+      tags: [governance]
+      summary: Page through a proposal's voters and their ballots.
+      description: >-
+        Returns one page of the proposal's frozen voter set, ordered by user id, each with the user card and
+        whether they voted. A voter's side is private: `choice` and `cast_at` are set only on the caller's own row. Page with the `next_cursor` of the
+        previous page until it is null. A non-member reads the same page as a member.
+        `GET /v1/proposals/{id}` keeps `voters` only for builds that predate this route.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The proposal id.
+          schema:
+            type: string
+            format: uuid
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` of the previous page. Absent reads the first page.
+          schema: {type: string, maxLength: 512}
+        - name: limit
+          in: query
+          required: false
+          description: The number of voters to return, from 1 through 200. Defaults to 50.
+          schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+      responses:
+        "200":
+          description: One page of voters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProposalVotePage"
+              example: {items: [{user_id: 01890a5d-ac96-774b-bcce-b302099a8059, voted: true, handle: mia, display_name: Mia, photo_url: null, choice: "yes", cast_at: "2026-10-03T16:00:00Z"}, {user_id: 01890a5d-ac96-774b-bcce-b302099a8061, voted: true, handle: kai, display_name: Kai, photo_url: null, choice: null, cast_at: null}], next_cursor: null}
+        default:
+          $ref: "#/components/responses/Problem"
     post:
       operationId: postProposalVote
       tags: [governance]
@@ -648,6 +685,39 @@ components:
       description: Whether the proposal spends USDC on the token or sells the token for USDC.
       enum: [buy, sell]
       examples: [buy]
+    ProposalVoteItem:
+      type: object
+      description: One member of the proposal's frozen voter set with their card and ballot.
+      additionalProperties: false
+      required: [user_id, voted, handle, display_name, photo_url, choice, cast_at]
+      properties:
+        user_id: {type: string, format: uuid, description: The voter., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
+        voted: {type: boolean, description: "Whether the voter has cast a ballot. Always set, even while their side is private.", examples: [true]}
+        handle: {type: [string, "null"], description: The voter handle. Null until onboarding sets one., examples: [mia]}
+        display_name: {type: string, description: The voter name. Empty when the user has none., examples: [Mia]}
+        photo_url: {type: [string, "null"], description: The voter photo. Null when the user has none., examples: [null]}
+        choice:
+          description: The voter's ballot. Null until they vote, and null for every voter but the caller, because the side of a ballot is private.
+          examples: ["yes"]
+          type: [string, "null"]
+          enum: ["yes", "no", null]
+          x-go-type: BallotChoice
+        cast_at:
+          type: [string, "null"]
+          format: date-time
+          description: When the ballot was last cast. Null until they vote, and null for every voter but the caller.
+          examples: ["2026-10-03T16:00:00Z"]
+    ProposalVotePage:
+      type: object
+      description: One page of a proposal's voters.
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/ProposalVoteItem"}
+          examples: [[]]
+        next_cursor: {type: [string, "null"], description: Null on the last page., examples: [null]}
     ProposeTradeRequest:
       type: object
       description: A trade to propose. A buy sets `usdc_micros` only, and a sell sets `token_amount` only.
@@ -968,7 +1038,7 @@ components:
           x-go-type: BallotChoice
         voters:
           type: array
-          description: Every member of the frozen voter set, ordered by user id.
+          description: "Deprecated, but kept for builds that predate the paged route. Every member of the frozen voter set, ordered by user id. Page `GET /v1/proposals/{id}/votes` instead."
           examples: [[]]
           items:
             $ref: "#/components/schemas/ProposalVoter"

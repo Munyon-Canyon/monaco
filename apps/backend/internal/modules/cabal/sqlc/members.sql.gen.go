@@ -208,6 +208,60 @@ func (q *Queries) ListMembersOf(ctx context.Context, cabalIds []uuid.UUID) ([]Ca
 	return items, nil
 }
 
+const listMembersPage = `-- name: ListMembersPage :many
+SELECT user_id, role, can_vote, joined_at FROM cabal_members
+WHERE cabal_id = $1
+  AND (NOT $2::boolean OR (joined_at, user_id) > ($3::timestamptz, $4::uuid))
+ORDER BY joined_at, user_id
+LIMIT $5
+`
+
+type ListMembersPageParams struct {
+	CabalID        uuid.UUID
+	HasCursor      bool
+	CursorJoinedAt time.Time
+	CursorUserID   uuid.UUID
+	RowLimit       int32
+}
+
+type ListMembersPageRow struct {
+	UserID   uuid.UUID
+	Role     string
+	CanVote  bool
+	JoinedAt time.Time
+}
+
+func (q *Queries) ListMembersPage(ctx context.Context, arg ListMembersPageParams) ([]ListMembersPageRow, error) {
+	rows, err := q.db.Query(ctx, listMembersPage,
+		arg.CabalID,
+		arg.HasCursor,
+		arg.CursorJoinedAt,
+		arg.CursorUserID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMembersPageRow
+	for rows.Next() {
+		var i ListMembersPageRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Role,
+			&i.CanVote,
+			&i.JoinedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listVoterIDs = `-- name: ListVoterIDs :many
 SELECT user_id FROM cabal_members
 WHERE cabal_id = $1 AND can_vote

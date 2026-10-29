@@ -195,3 +195,11 @@ func TestSinceBps_aChangeBeyondInt64BpsIsAnErrorNotAValue(t *testing.T) {
 		t.Fatalf("SinceBps(5000, near MaxInt64) = %v, %v, want nil and an error", got, err)
 	}
 }
+
+func TestSinceBps_failsWhenTheMoveOverflowsBasisPoints(t *testing.T) {
+	t.Parallel()
+	got, err := app.SinceBps(money.MicrosFromUint64(1), money.MicrosFromUint64(math.MaxInt64))
+	if err == nil || got != nil {
+		t.Fatalf("SinceBps = %v, %v, want an overflow error", got, err)
+	}
+}

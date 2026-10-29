@@ -233,6 +233,32 @@ func (h HTTP) GetCabal(
 	return api.GetCabal200JSONResponse(wireCabal(view)), nil
 }
 
+func (h HTTP) GetCabalMembers(
+	ctx context.Context, req api.GetCabalMembersRequestObject,
+) (api.GetCabalMembersResponseObject, error) {
+	if _, err := caller(ctx); err != nil {
+		return nil, err
+	}
+	query := app.ListMembersQuery{CabalID: ids.CabalIDFrom(req.Id), Limit: app.ListMembersDefault}
+	if req.Params.Limit != nil {
+		query.Limit = *req.Params.Limit
+	}
+	if req.Params.Cursor != nil {
+		query.Cursor = *req.Params.Cursor
+	}
+	page, err := app.ListMembersPage(ctx, h.DB, h.Users, query)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]api.CabalMember, 0, len(page.Items))
+	for _, member := range page.Items {
+		items = append(items, wireMember(member))
+	}
+	return api.GetCabalMembers200JSONResponse(
+		api.CabalMemberPage{Items: items, NextCursor: nullString(page.NextCursor)},
+	), nil
+}
+
 func (h HTTP) PatchCabal(
 	ctx context.Context, req api.PatchCabalRequestObject,
 ) (api.PatchCabalResponseObject, error) {
@@ -560,11 +586,7 @@ const whoCanProposeVoters = "voters"
 func wireCabal(view app.CabalView) api.Cabal {
 	members := make([]api.CabalMember, 0, len(view.Members))
 	for _, member := range view.Members {
-		members = append(members, api.CabalMember{
-			UserId: member.UserID, Handle: nullString(member.Handle), DisplayName: member.DisplayName,
-			PhotoUrl: nullString(member.PhotoURL), Role: member.Role, CanVote: member.CanVote,
-			JoinedAt: member.JoinedAt,
-		})
+		members = append(members, wireMember(member))
 	}
 	admins := make([]api.CabalPerson, 0, len(view.Admins))
 	for _, admin := range view.Admins {
@@ -583,6 +605,14 @@ func wireCabal(view app.CabalView) api.Cabal {
 		MemberCount: view.MemberCount, Members: members, Me: wireMe(view.Me),
 		MyAccessRequest: wireAccess(view.Access),
 		TreasuryAddress: string(view.TreasuryAddress),
+	}
+}
+
+func wireMember(member app.Member) api.CabalMember {
+	return api.CabalMember{
+		UserId: member.UserID, Handle: nullString(member.Handle), DisplayName: member.DisplayName,
+		PhotoUrl: nullString(member.PhotoURL), Role: member.Role, CanVote: member.CanVote,
+		JoinedAt: member.JoinedAt,
 	}
 }
 
