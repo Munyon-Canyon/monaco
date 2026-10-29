@@ -1,0 +1,40 @@
+paths:
+  /v1/app/config:
+    get:
+      operationId: getAppConfig
+      tags: [app]
+      security: []
+      x-rate-limit: {ip: {rate: 60, per: 1m, burst: 60}}
+      summary: Read the app's launch configuration.
+      description: >-
+        Public, called by the app on launch and after it returns to the foreground. `min_ios_build` is the
+        lowest build number allowed to run, and 0 means no gate. A build below it shows an update screen
+        that opens `store_url`.
+      responses:
+        "200":
+          description: The minimum build number and where to get the update.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppConfig"
+        default:
+          $ref: "#/components/responses/Problem"
+components:
+  schemas:
+    AppConfig:
+      type: object
+      description: What the app needs to know at launch.
+      required: [min_ios_build, store_url]
+      properties:
+        min_ios_build:
+          type: integer
+          format: int32
+          minimum: 0
+          description: The lowest iOS build number allowed to run. 0 means no gate.
+          examples: [120]
+        store_url:
+          type: string
+          description: Where the update screen sends people.
+          examples: ["https://testflight.apple.com/join/monaco"]
+      examples:
+        - {min_ios_build: 120, store_url: "https://testflight.apple.com/join/monaco"}

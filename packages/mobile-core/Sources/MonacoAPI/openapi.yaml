@@ -21,6 +21,8 @@ tags:
     description: Administrator access to Monaco operations.
   - name: analytics
     description: The business numbers behind the admin dashboards.
+  - name: app
+    description: What the app needs at launch.
   - name: cabal
     description: A group treasury and its members.
   - name: funding
@@ -604,6 +606,27 @@ paths:
           description: The social dashboard.
           content: {application/json: {schema: {$ref: "#/components/schemas/SocialDashboard"}}}
         default: {$ref: "#/components/responses/Problem"}
+  # api/spec/app.yaml
+  /v1/app/config:
+    get:
+      operationId: getAppConfig
+      tags: [app]
+      security: []
+      x-rate-limit: {ip: {rate: 60, per: 1m, burst: 60}}
+      summary: Read the app's launch configuration.
+      description: >-
+        Public, called by the app on launch and after it returns to the foreground. `min_ios_build` is the
+        lowest build number allowed to run, and 0 means no gate. A build below it shows an update screen
+        that opens `store_url`.
+      responses:
+        "200":
+          description: The minimum build number and where to get the update.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppConfig"
+        default:
+          $ref: "#/components/responses/Problem"
   # api/spec/cabal.yaml
   /v1/cabals:
     get:
@@ -6391,6 +6414,24 @@ components:
         auth_state: {type: string, description: The auth state., examples: [ONBOARDING_COMPLETED]}
         account_status: {type: string, description: The account status., examples: [active]}
         users: {type: integer, format: int64, description: Users in this state., examples: [120]}
+  # api/spec/app.yaml
+    AppConfig:
+      type: object
+      description: What the app needs to know at launch.
+      required: [min_ios_build, store_url]
+      properties:
+        min_ios_build:
+          type: integer
+          format: int32
+          minimum: 0
+          description: The lowest iOS build number allowed to run. 0 means no gate.
+          examples: [120]
+        store_url:
+          type: string
+          description: Where the update screen sends people.
+          examples: ["https://testflight.apple.com/join/monaco"]
+      examples:
+        - {min_ios_build: 120, store_url: "https://testflight.apple.com/join/monaco"}
   # api/spec/base.yaml
     Network:
       type: string

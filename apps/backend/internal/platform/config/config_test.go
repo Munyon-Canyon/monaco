@@ -99,6 +99,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 			Engine: config.TradeEngineLive, SwapSweepInterval: 30 * time.Second, SwapSweepAge: 2 * time.Minute,
 		},
 		Admin: config.Admin{DeadLettersInterval: 10 * time.Second, ApprovalsExpireInterval: 5 * time.Minute},
+		App:   config.App{StoreURL: "https://testflight.apple.com/join/monaco"},
 		Solana: config.Solana{
 			RPCURL:   "https://api.mainnet-beta.solana.com",
 			USDCMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
@@ -245,6 +246,8 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"TRADE_SWAP_SWEEP_INTERVAL=4s",
 		"TRADE_SWAP_SWEEP_AGE=5s",
 		"ADMIN_DEADLETTERS_INTERVAL=8s",
+		"APP_MIN_IOS_BUILD=120",
+		"APP_STORE_URL=https://testflight.apple.com/join/example",
 		"ADMIN_APPROVALS_EXPIRE_INTERVAL=7s",
 		"FUNDING_TREASURY_RECONCILE_INTERVAL=3s",
 		"FUNDING_WINDDOWN_INTERVAL=9s",
@@ -393,6 +396,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 			Engine: config.TradeEngineLive, SwapSweepInterval: 4 * time.Second, SwapSweepAge: 5 * time.Second,
 		},
 		Admin:      config.Admin{DeadLettersInterval: 8 * time.Second, ApprovalsExpireInterval: 7 * time.Second},
+		App:        config.App{MinIOSBuild: 120, StoreURL: "https://testflight.apple.com/join/example"},
 		Faultpoint: "before-commit",
 	}
 	if !reflect.DeepEqual(cfg, want) {
@@ -752,6 +756,8 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"TRADE_SWAP_SWEEP_AGE", "2m0s"},
 		{"ADMIN_DEADLETTERS_INTERVAL", "10s"},
 		{"ADMIN_APPROVALS_EXPIRE_INTERVAL", "5m0s"},
+		{"APP_MIN_IOS_BUILD", "0"},
+		{"APP_STORE_URL", "https://testflight.apple.com/join/monaco"},
 		{"TRUST_PROXY_HEADERS", "false"},
 		{"FUND_PAGE_URL", ""},
 		{"WEB_ALLOWED_ORIGINS", ""},
@@ -863,6 +869,15 @@ func TestLoadCoinGeckoPlanPicksTheHostHeaderAndBudget(t *testing.T) {
 		}
 	}
 	for _, bad := range []string{"COINGECKO_PLAN=free", "COINGECKO_MONTHLY_BUDGET=-1"} {
+		if _, err := config.Load(append(required(), bad)); err == nil {
+			t.Fatalf("%s loaded, want an error", bad)
+		}
+	}
+}
+
+func TestLoad_rejectsANegativeOrNonNumericMinimumBuild(t *testing.T) {
+	t.Parallel()
+	for _, bad := range []string{"APP_MIN_IOS_BUILD=-1", "APP_MIN_IOS_BUILD=newest"} {
 		if _, err := config.Load(append(required(), bad)); err == nil {
 			t.Fatalf("%s loaded, want an error", bad)
 		}

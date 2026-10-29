@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+39	App config	app	GET /v1/app/config	GetConfig			ok	built	docs/architecture/backend-platform.md

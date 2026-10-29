@@ -10,6 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/adminapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/agentsapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/analyticsapi"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/appapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/cabalapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/fundingapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/governanceapi"
@@ -36,6 +37,9 @@ func DecodeOnly(m api.Mount) {
 	analyticsapi.Mount(struct {
 		analyticsapi.StrictServerInterface
 	}{}, m, func(analyticsapi.StrictHandlerFunc, string) analyticsapi.StrictHandlerFunc { return decoded })
+	appapi.Mount(struct {
+		appapi.StrictServerInterface
+	}{}, m, func(appapi.StrictHandlerFunc, string) appapi.StrictHandlerFunc { return decoded })
 	cabalapi.Mount(struct {
 		cabalapi.StrictServerInterface
 	}{}, m, func(cabalapi.StrictHandlerFunc, string) cabalapi.StrictHandlerFunc { return decoded })

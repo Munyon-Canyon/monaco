@@ -19,6 +19,8 @@ tags:
     description: Administrator access to Monaco operations.
   - name: analytics
     description: The business numbers behind the admin dashboards.
+  - name: app
+    description: What the app needs at launch.
   - name: cabal
     description: A group treasury and its members.
   - name: funding
