@@ -54,8 +54,6 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Why | Ticket |
 | --- | --- | --- |
-| S1.1 | `home-wordmark` has no identifier in the app | #6496 |
-| S1.2 | `home-cash-row` has no identifier in the app (the row has `home-cash-label` and `platform-balance-value`) | #6496 |
 | S1.7 | The range labels carry `home-portfolio-<label>` (`MonacoRangeChips`), not `home-range-<range>` | #6496 |
 
 ## Not covered
