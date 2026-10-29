@@ -1069,7 +1069,7 @@ f__07-stock-dark                    -MonacoAssetDetailSample open
 f__07-stock-light                   -MonacoAssetDetailSample open
 f__07-stock-preipo                  -MonacoAssetDetailSample preIpo
 f__07-stock-preipo-scrolled         -MonacoAssetDetailSample preIpo -MonacoSampleScroll bottom
-f__08-review-sheet                  -MonacoProposeSample review
+f__08-review-sheet                  -MonacoProposeSample reviewNvidia
 f__08-review-sheet-preipo           -MonacoProposeSample reviewSpaceX
 f__09-fund-cabal-empty              -MonacoFundCabalSample empty
 f__09-fund-cabal                    -MonacoFundCabalSample typed

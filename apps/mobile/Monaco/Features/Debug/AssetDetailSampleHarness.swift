@@ -95,7 +95,7 @@ extension SampleAPIScript {
         assetFeed = [post]
     }
 
-    fileprivate mutating func show(_ detail: Components.Schemas.AssetDetail) {
+    mutating func show(_ detail: Components.Schemas.AssetDetail) {
         asset = detail
         assets[detail.symbol] = detail
     }
