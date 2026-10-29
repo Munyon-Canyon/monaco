@@ -1385,13 +1385,69 @@ func TestCheck_theSwiftRowDoesNotChargeLockWaitToItsBudget(t *testing.T) {
 	}
 }
 
-func TestCheck_theOpenAPISpecAloneRunsTheSwiftRow(t *testing.T) {
+func swiftCalls(h *checkHarness) []string {
+	var out []string
+	for _, c := range h.calls {
+		if strings.HasPrefix(c, "packages/mobile-core: ") {
+			out = append(out, strings.TrimPrefix(c, "packages/mobile-core: "))
+		}
+	}
+	return out
+}
+
+func TestCheck_generatedSwiftAloneRunsOnlyMonacoAPITests(t *testing.T) {
+	t.Parallel()
+	const header = "generated Swift only; MonacoAPITests, lint skipped"
+	for name, files := range map[string]map[string]string{
+		"the spec": {openAPISpec: "openapi: 3.1.0\n"},
+		"the flows generated files": {
+			"packages/flows/Sources/MonacoFlows/Flow19b.gen.swift":                "let a = 1\n",
+			"packages/flows/Tests/MonacoFlowsTests/Flow19bOutcomeTests.gen.swift": "let b = 1\n",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h := newCheckHarness(t)
+			h.commit(t, files)
+			code, stdout, stderr := h.check(t)
+			if want := []string{"mobile-core-test.sh --filter MonacoAPITests"}; code != 0 ||
+				!slices.Equal(swiftCalls(h), want) || !strings.Contains(stdout, header) {
+				t.Fatalf("generated Swift runs only the filtered tests: %d %q %q %v", code, stdout, stderr, h.calls)
+			}
+		})
+	}
+}
+
+func TestCheck_aHandWrittenSwiftFileAmongGeneratedOnesRunsTheFullSwiftRow(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
-	h.commit(t, map[string]string{openAPISpec: "openapi: 3.1.0\n"})
-	if code, stdout, stderr := h.check(t); code != 0 ||
-		!slices.Contains(h.calls, "packages/mobile-core: mobile-core-test.sh") {
-		t.Fatalf("openapi.yaml runs swift test: %d %q %q %v", code, stdout, stderr, h.calls)
+	h.commit(t, map[string]string{
+		"packages/mobile-core/Sources/MonacoCore/Foo.swift":   "let a = 1\n",
+		"packages/mobile-core/Sources/MonacoAPI/openapi.yaml": "openapi: 3.1.0\n",
+	})
+	code, stdout, stderr := h.check(t)
+	got := swiftCalls(h)
+	if code != 0 || len(got) != 3 || !strings.HasPrefix(got[0], "swift format lint") ||
+		!strings.HasPrefix(got[1], "swiftlint-ratchet.sh") || got[2] != "mobile-core-test.sh" ||
+		strings.Contains(stdout, "lint skipped") {
+		t.Fatalf("hand-written Swift runs the full row: %d %q %q %v", code, stdout, stderr, h.calls)
+	}
+}
+
+func TestGeneratedSwift(t *testing.T) {
+	t.Parallel()
+	for f, want := range map[string]bool{
+		openAPISpec:        true,
+		swiftSpecCopy:      true,
+		errorCodeCasesFile: true,
+		"packages/flows/Sources/MonacoFlows/Flow19b.gen.swift": true,
+		"packages/mobile-core/Sources/MonacoCore/Foo.swift":    false,
+		"apps/mobile/Monaco/Foo.gen.swift":                     false,
+		".swiftlint.yml":                                       false,
+	} {
+		if got := generatedSwift(f); got != want {
+			t.Errorf("generatedSwift(%q) = %v, want %v", f, got, want)
+		}
 	}
 }
 

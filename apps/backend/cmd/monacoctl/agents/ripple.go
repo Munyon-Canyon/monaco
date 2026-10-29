@@ -19,8 +19,10 @@ import (
 )
 
 const (
-	backendDir  = "apps/backend/"
-	openAPIPair = backendDir + "api/openapi.yaml\n" + "packages/mobile-core/Sources/MonacoAPI/openapi.yaml"
+	backendDir         = "apps/backend/"
+	swiftSpecCopy      = "packages/mobile-core/Sources/MonacoAPI/openapi.yaml"
+	errorCodeCasesFile = "packages/mobile-core/Tests/MonacoAPITests/ErrorCodeCases.gen.swift"
+	openAPIPair        = backendDir + "api/openapi.yaml\n" + swiftSpecCopy
 )
 
 func rippleRules() []rippleRule {
@@ -28,7 +30,7 @@ func rippleRules() []rippleRule {
 		{
 			regexp.MustCompile(`^apps/backend/internal/errs/(codes_\w+)\.go$`),
 			backendDir + "internal/errs/testdata/$1.golden\ndocs/reference/errors.md\n" + openAPIPair +
-				"\npackages/mobile-core/Tests/MonacoAPITests/ErrorCodeCases.gen.swift",
+				"\n" + errorCodeCasesFile,
 		},
 		{
 			regexp.MustCompile(`^apps/backend/api/spec/\w+\.yaml$`),
