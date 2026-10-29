@@ -178,9 +178,10 @@ struct VoteHoldSheet: View {
         let ballot: ProposalBallot = side == .yes ? .yes : .no
         Task {
             guard await model.commit(ballot), let outcome = model.detail.lastVote else {
-                Haptics.warning()
                 if let message = model.detail.voteRefusal?.message ?? model.detail.errorMessage {
                     toasts.current = MonacoToast(message: message)
+                } else {
+                    Haptics.warning()
                 }
                 return
             }

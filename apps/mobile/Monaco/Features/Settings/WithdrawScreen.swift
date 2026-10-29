@@ -122,7 +122,6 @@ struct WithdrawKeypadView: View {
         .sensoryFeedback(.error, trigger: isInvalid) { was, now in !was && now }
         .onChange(of: failure) { _, message in
             guard let message else { return }
-            Haptics.warning()
             toasts.current = MonacoToast(message: message)
         }
         .sheet(isPresented: $showsNote) {
@@ -145,7 +144,6 @@ struct WithdrawKeypadView: View {
 
     private func scan() {
         guard AddressScanner.isAvailable else {
-            Haptics.warning()
             toasts.current = MonacoToast(message: AddressScannerCopy.unavailable)
             return
         }

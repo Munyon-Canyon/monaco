@@ -150,7 +150,6 @@ struct HomeVoteCard: View {
     }
 
     private func refused(_ message: String) {
-        Haptics.warning()
         toasts.current = MonacoToast(message: message)
         model.dismissFailure()
     }
