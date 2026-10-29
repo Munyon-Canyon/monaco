@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -48,6 +49,7 @@ func stakePoints(history []StakePoint) ([]domain.StakePoint, []ids.CabalID) {
 type ReadPnLHistory struct {
 	User  ids.UserID
 	Range domain.Range
+	Cabal *ids.CabalID
 }
 
 func (r ReadPnLHistory) Run(
@@ -60,6 +62,12 @@ func (r ReadPnLHistory) Run(
 	history, err := stakes.UserStakeHistory(ctx, r.User)
 	if err != nil || len(history) == 0 {
 		return []domain.PnLPoint{}, err
+	}
+	if r.Cabal != nil {
+		history = slices.DeleteFunc(slices.Clone(history), func(p StakePoint) bool { return p.CabalID != *r.Cabal })
+		if len(history) == 0 {
+			return []domain.PnLPoint{}, nil
+		}
 	}
 	points, cabals := stakePoints(history)
 	since, ok := r.Range.Start(run.AsOf)

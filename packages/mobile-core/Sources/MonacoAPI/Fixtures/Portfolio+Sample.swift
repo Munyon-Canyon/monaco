@@ -106,6 +106,15 @@ extension Components.Schemas.MyPnlHistory {
 
     public static let sampleEmpty = Self(range: ._1d, points: [])
 
+    public static let sampleACCapitalStake = Self(
+        range: .all,
+        points: [
+            (1_785_542_400, 2_500_000_000, 0), (1_788_220_800, 4_100_000_000, 85_000_000),
+            (1_790_812_800, 5_600_000_000, 190_000_000), (1_790_996_460, 7_000_000_000, 312_400_000),
+        ].map { at, equity, pnl in
+            Components.Schemas.PnlPoint(at: Date(timeIntervalSince1970: at), equityMicros: equity, pnlMicros: pnl)
+        })
+
     public static func sampleCurve(range: RangePayload = ._1d, count: Int = 49) -> Self {
         let walk = SampleWalk.equity(count: count, base: 962_000_000, step: 4_000_000, seed: 7)
         return Self(
