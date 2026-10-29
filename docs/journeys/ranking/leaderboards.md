@@ -1,19 +1,17 @@
 ---
 id: ranking/leaderboards
-title: The leaderboards
-version: 6
-milestone: M16
+title: Leaderboard C
+version: 7
+milestone: F launch (phase 1)
 requires: [auth/sign-in]
 actors: [A]
 flows: []
 xcuitest: [apps/mobile/MonacoUITests/Journeys/RankingLeaderboardsJourney.swift, apps/mobile/MonacoUITests/Journeys/RankingLeaderboardsJourneyUITests.swift]
 ---
 
-# The leaderboards
+# Leaderboard C
 
-Monaco ranks people and cabals by return. Home has a "Leaderboard" of cabals or people, and the Cabals tab has the "Cabal leaderboard". A row opens that person's profile. The copy is in [screens.md](../../screens.md#home) (Home slot 6) and the [Leaderboard](../../screens.md#leaderboard-leaderboardroute) page, `CabalMemberBoardSlot` on the [cabal screen](../../screens.md#cabal-screen-cabalroute) and `CabalsBoardSlot` on the [Cabals tab](../../screens.md#cabals-tab).
-
-Old app (`c838bd24`): `Home/HomeLeaderboardSection.swift` (Top investors, "Everyone" / "Friends", range chips), a row opening the profile with the cabals you share (now `UserProfileRoute`), the member board on `GroupDetailView` opening a profile, and Top cabals on the Cabals tab.
+Monaco ranks right calls, never dollars. Home has one leaderboard row ("Christelle leads · 92%", "This month · you are #8 of 24") that opens the Leaderboard page: the periods Week, Month and All time, the tabs People, Cabals and Friends, the You card, "Top three", "Around you", and the members still under the five-vote floor. A member needs at least 5 resolved votes in the period to rank, else the row reads "n more to rank". The design frames are `13-leaderboard-C-people`, `-C-cabals`, `-C` (Friends), `-C-unranked` and `02-home-dark`.
 
 The format of this doc is in [App journeys](../README.md).
 
@@ -21,47 +19,44 @@ The format of this doc is in [App journeys](../README.md).
 
 | Id | What must be true |
 | --- | --- |
-| P1 | Actors A, B and C have signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv`. Only A drives the app |
+| P1 | Actor A has signed in once (`auth/sign-in`), and its `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv`. Only A drives the app |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
-| P3 | `apps/mobile/qa/journeys/ranking/leaderboards.setup.sh` ran right before the scenario. It marks A, B and C as done with onboarding and sets their display names. A creates the cabal `QA ranks {QA.run}` and B and C join it through the API, the same shape as testkit `cabal-with-members` (one creator, two open joiners). The setup hands the cabal id, B's user id and B's display name to the test |
+| P3 | `apps/mobile/qa/journeys/ranking/leaderboards.setup.sh` ran right before S1. It marks A as done with onboarding, then runs `qa_flow_seed 19a ok` (`F19aResolveCallsOK`, which seeds eight voters with 5, 8, 7, 6, 5, 5, 5 and 2 resolved votes this month under fresh users). The seed does not use A, so the setup moves the votes of the third voter (7 resolved, 4 right, 57%, below the top three) to A and hands the test A's id and the id of the voter with two resolved votes. S2 and S3 run with no setup of their own. A follows nobody |
 
 ## Scenarios
 
-### S1 The Home leaderboard
+### S1 Home's row opens the Leaderboard
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap, then scroll | the Home tab, then "Leaderboard" | | The header "Leaderboard" with "View all" and `home-people-board` show within 15 s (screens.md Home slot 6: "Leaderboard" and "View all") |
-| S1.2 | A | read | `home-leaderboard-category`, `home-leaderboard-period` | | The category select reads "Cabals", the period select reads "1M" and the line "Cabal P&L · 1M" shows within 10 s (screens.md: a Cabals / People menu select and a 1W / 1M / All menu select, default Cabals, 1M) |
-| S1.3 | A | tap | `home-leaderboard-category`, then "People" | | The select reads "People" and the line "Personal P&L · 1M" shows within 10 s (screens.md: the line "Cabal P&L · 1M" or "Personal P&L · 1M") |
-| S1.4 | A | read | `home-people-board` | | Ranked `home-leaderboard-row-<id>` rows show, or the empty copy `home-leaderboard-empty` "No investors yet" does, within 15 s, and `home-leaderboard-loading` is gone (screens.md: the top three `BoardRow`s; empty: "No investors yet" / "Fund a cabal to get on the board.") |
+| S1.1 | A | tap, then tap | the Home tab, then `home-leaderboard-row` | | The row reads "… leads · …%" and "This month · you are #n of m" within 15 s, and tapping it opens `leaderboard-page` titled "Leaderboard" within 15 s |
+| S1.2 | A | read | `leaderboard-period-week`, `-month`, `-alltime`, `leaderboard-tab-people`, `-cabals`, `-friends` | | "Month" is the selected period and People is the selected tab (`13-leaderboard-C-people`) |
+| S1.3 | A | read | `leaderboard-you-card`, "Top three", "Around you" | | The You card reads "#n of m people". "Top three" shows three `leaderboard-podium-<rank>` places. "Around you" lists `leaderboard-row-<A id>` reading a rate with "percent" and "n of m right" |
+| S1.4 | A | scroll to | `leaderboard-section-unranked`, then `leaderboard-row-<unranked id>` | | The section "Not ranked yet" shows the voter with two resolved votes, who reads "not ranked yet" and "3 more to rank" (`13-leaderboard-C-unranked`) |
 
-### S3 Cabal leaderboard on the Cabals tab
-
-| Step | Actor | Action | Target | Input | Expect |
-| --- | --- | --- | --- | --- | --- |
-| S3.1 | A | tap | the Cabals tab | | `cabals-board` shows "Cabal leaderboard" and the context line "Cabal P&L · 1M" within 15 s (screens.md `CabalsBoardSlot`; old app: Cabals tab Top cabals) |
-| S3.2 | A | read | `cabals-board` | | Ranked rows or the empty copy "No public rankings for this period." replace `cabals-board-coming` "Rankings show up here soon." within 10 s (screens.md `CabalsBoardSlot`: rows with rank, tile, name and P&L; old app: Cabals tab Top cabals rows) |
-
-### S4 View all opens the Leaderboard
+### S2 The Cabals tab
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S4.1 | A | tap | the Home tab, then "View all" under "Leaderboard" | | `leaderboard-page` shows within 15 s, with the inline title "Leaderboard" (screens.md Leaderboard: the standalone page; Home's "View all" opens it) |
-| S4.2 | A | read | `leaderboard-category`, `leaderboard-period` | | The category menu and the period menu read what Home's Leaderboard card read when "View all" was tapped (`home-leaderboard-category`, `home-leaderboard-period`) within 10 s, and ranked `leaderboard-row-<id>` rows show, or `leaderboard-empty` "No eligible rankings" or `leaderboard-stale` "Rankings paused while valuations update." does (screens.md Leaderboard: tools, rows and the empty state) |
+| S2.1 | A | tap, tap, then tap | the Home tab, `home-leaderboard-row`, then `leaderboard-tab-cabals` | | The tab is selected and at least one cabal row (`leaderboard-row-<id>` or `leaderboard-podium-<rank>`) reads a rate with "percent" and "n of m right" within 15 s (`13-leaderboard-C-cabals`) |
+
+### S3 The Friends tab with no follows
+
+| Step | Actor | Action | Target | Input | Expect |
+| --- | --- | --- | --- | --- | --- |
+| S3.1 | A | tap, tap, then tap | the Home tab, `home-leaderboard-row`, then `leaderboard-tab-friends` | | `leaderboard-empty` shows within 15 s (`13-leaderboard-C`; #6499 builds Friends and the ⓘ sheet) |
 
 ## Ground truth
 
-`apps/mobile/qa/journeys/ranking/leaderboards.truth.sh` reads `cabal_members`. `QA ranks {QA.run}` has three members, A as creator and B and C as members, so reading the boards and opening a profile wrote nothing.
+`apps/mobile/qa/journeys/ranking/leaderboards.truth.sh` reads `call_voters`. After the run, A still has seven vote rows and the unranked voter two, so reading the boards wrote and lost nothing.
 
 ## Known failures on staging
 
-None.
+None known. Targets this journey does not read because the app has no identifier for them: the ⓘ round (`leaderboard-info` exists but no step opens it) and the climb bar and the crown on #1 (hidden from accessibility; S1.3 counts the three podium places instead).
 
 ## Not covered
 
-- A cabal's "Member standings" (the former S2). The board is hidden while the cabal holds no position, and the journey's cabal is unfunded, so a run cannot show it without moving money.
-- The rank-change glyph and "Rank change" on the boards. The backend serves no rank movement.
-- The leaderboard filter sheet (sort, membership and minimum members) is covered by unit tests, not by this journey. The 3M period is missing because the API has no 3M range yet.
-- Ranks that change after a trade. That needs a funded cabal and a confirmed trade (`funds:`), which belongs to the trade journeys.
-- A ranked People row for B. Personal ranking needs funded positions, so S1.4 accepts the empty copy "No investors yet".
+- The Friends tab with follows. That needs a seeded follow and belongs to `social/follow-and-boards`.
+- The Week and All time periods' contents. The seed resolves its votes across the month, so only Month is stable.
+- The leaderboard moment, the ⓘ sheet and the docked row. Unit tests cover them.
+- Ranks that change after a trade. A trade needs a funded cabal, which belongs to the trade journeys.

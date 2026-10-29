@@ -1,0 +1,18 @@
+journey: feed/react-and-reply
+expect-fail: S2
+
+A reply whose quote cannot be jumped to loses the quote identifier, as if the GIF reply posted without its quote. S2.3 expects comment-quote-<id> on the new row, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Comments/CommentQuote.swift b/apps/mobile/Monaco/Features/Comments/CommentQuote.swift
+--- a/apps/mobile/Monaco/Features/Comments/CommentQuote.swift
++++ b/apps/mobile/Monaco/Features/Comments/CommentQuote.swift
+@@ -17,7 +17,7 @@
+                 .buttonStyle(.plain)
+                 .accessibilityIdentifier("comment-quote-\(rowID)")
+         } else {
+-            line.accessibilityIdentifier("comment-quote-\(rowID)")
++            line.accessibilityIdentifier("comment-cite-\(rowID)")
+         }
+     }
+ 

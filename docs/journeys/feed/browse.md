@@ -1,7 +1,7 @@
 ---
 id: feed/browse
 title: Browse the feed
-version: 6
+version: 7
 milestone: M18
 requires: [auth/sign-in]
 actors: [A]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/FeedBrowseJourney.swift, apps/mobi
 
 # Browse the feed
 
-The Feed tab lists what happens across Monaco as event cards: cabals started, members joining, proposals, trades, price moves, replies and approvals. A member narrows it with the filter menu's kind toggles, any number at once, switches between everyone and the people they follow in the same menu, searches it, and taps a card to open what it is about.
+The Feed tab lists what happens across Monaco as event cards: cabals started, members joining, proposals, trades, price moves, replies and approvals. A member narrows it with the filter menu, which switches between everyone and the people they follow in the same menu, and taps a card to open what it is about.
 
 Old app (`c838bd24`): the Feed tab, its single-choice chips, the "Everyone" / "Following" toggle, search, and cells that open the proposal. Spec: [Feed tab](../../screens.md#feed-tab).
 
@@ -27,29 +27,29 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Scenarios
 
-### S1 Kind toggles and search narrow the feed
+### S1 The filter menu scopes the feed
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap, then tap | the Feed tab, then `feed-filter` | | `feed-root` shows within 15 s with `monaco-search-field` ("Search the feed"), and the open filter menu offers `feed-scope-Everyone`, `feed-scope-My cabals`, `feed-scope-Following`, `feed-chip-All` (checked), `feed-chip-Proposals`, `feed-chip-Completed trades`, `feed-chip-Price moves`, `feed-chip-Replies & votes`, `feed-chip-Proposal outcomes`, `feed-chip-Cabal activity` and `feed-muted-link` (screens.md Feed tab: the filter menu; old app: Feed tab chips and toggle) |
-| S1.2 | A | tap, tap, then tap outside the menu | `feed-filter`, `feed-chip-Cabal activity`, then the left margin beside the menu | | A card reads "started QA feed {QA.run}" within 15 s (screens.md: a cabal block reads the item's title; old app: Feed tab cells) |
-| S1.3 | A | type | `monaco-search-field` | `QA feed {QA.run}` | A card reads "joined QA feed {QA.run}" within 10 s, and no card reads "started QA own {QA.run}" (screens.md: "search"; old app: Feed tab search) |
-| S1.4 | A | replace text | `monaco-search-field` | `nomatch {QA.run}` | `feed-empty` reads "No matching updates" within 10 s (screens.md: "No matching updates" with a search or filter) |
+| S1.1 | A | tap, then tap | the Feed tab, then `feed-filter` | | `feed-root` shows within 15 s, and the open filter menu offers `feed-scope-Your cabals and friends` (checked), `feed-scope-Your cabals`, `feed-scope-Friends`, `feed-scope-Everyone` and `feed-muted-link` (screens.md Feed tab: the filter menu) |
+| S1.2 | A | tap outside the menu | the left margin beside the menu | | A card reads "started QA feed {QA.run}" within 15 s (screens.md: a cabal block reads the item's title) |
+| S1.3 | A | look | `monaco-search-field`, `feed-bell` | | Neither exists: the Feed has no search and no bell (Q40) |
+| S1.4 | A | tap, tap, then tap outside the menu | `feed-filter`, `feed-scope-Your cabals`, then the left margin beside the menu | | A card reads "started QA own {QA.run}" within 15 s |
 
-### S2 Following shows only people A follows
+### S2 Friends shows only people A follows
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, tap, tap, then tap outside the menu | the Feed tab, `feed-filter`, the "Following" item, then the left margin beside the menu | | No card reads "started QA feed {QA.run}" after 5 s (screens.md: the filter menu's "From" picks; old app: Feed tab "Following") |
+| S2.1 | A | tap, tap, tap, then tap outside the menu | the Feed tab, `feed-filter`, `feed-scope-Friends`, then the left margin beside the menu | | No card reads "started QA feed {QA.run}" after 5 s (screens.md: the filter menu's "From" picks; old app: Feed tab "Following") |
 | S2.2 | A | wait | the text "Follow people to see what they do.", then `feed-find-friends` | | The message shows within 10 s with `feed-find-friends` reading "Find friends" under it (screens.md: "Following with no follows: "Follow people to see what they do." with "Find friends"") |
 
 ### S3 A cell opens what it is about
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | A | tap, clear the search, pick `feed-scope-Everyone` from `feed-filter` (closing the menu), then tap | the Feed tab, then the card reading "started QA feed {QA.run}" | | `cabal-header-name` reads `QA feed {QA.run}` within 15 s (old app: a feed cell opens its subject) |
-| S3.2 | A | tap back, switch `feed-chip-Cabal activity` off and `feed-chip-Proposals` on in `feed-filter`, then tap | the first `feed-cell-<id>` | | `proposal-votes` shows within 15 s, and the screen reads `QA proposal {QA.run}` within 10 s (old app: Feed cell -> proposal; screens.md Proposal screen `ProposalDetailSlot`) |
-| S3.3 | A | tap back, switch `feed-chip-Proposals` off and `feed-chip-Cabal activity` on in `feed-filter`, then press and hold, then tap | the card reading "started QA feed {QA.run}", then "Hide this post" | | The card is gone within 5 s (screens.md: a long-press mutes or hides) |
+| S3.1 | A | tap, pick `feed-scope-Your cabals and friends` from `feed-filter` (closing the menu), then tap | the Feed tab, then the card reading "started QA feed {QA.run}" | | `cabal-header-name` reads `QA feed {QA.run}` within 15 s (old app: a feed cell opens its subject) |
+| S3.2 | A | tap back, then tap | the first `feed-cell-<id>` | | `proposal-vote-yes` shows within 15 s, and the screen reads `QA proposal {QA.run}` within 10 s (screens.md Proposal screen) |
+| S3.3 | A | tap back, then press and hold, then tap | the card reading "started QA feed {QA.run}", then "Hide this post" | | The card is gone within 5 s (Q40: a long-press hides) |
 
 ## Ground truth
 
@@ -57,12 +57,13 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Known failures on staging
 
-None known.
+- S1.2 of the v7 design (picking a kind narrows the cards): the app has no kind options in `feed-filter` today, so no `feed-chip-*` identifier exists to drive. The journey covers the scope options only.
 
 ## Not covered
 
-- The filter menu stays open after each pick (every pick applies at once), so each step taps the left margin beside the menu to close it before it goes on. The options are picked by their `feed-scope-<title>` and `feed-chip-<title>` identifiers. The kind options are toggles that stay on until tapped again, so S3 relies on S1.2 having left `feed-chip-Cabal activity` on and on S2 having left only the scope changed; `feed-chip-All` is checked while no kind is, and choosing a kind unchecks it.
+- Feed search: F draws none (Q40), so there is no "Search the feed" field and no "No matching updates" step. S1.3 asserts it is absent.
+- The filter menu stays open after each pick, so each step taps the left margin beside the menu to close it. Scope options are picked by `feed-scope-<title>`.
 - Feed cards have no stable per-run identifier: `feed-cell-<id>` carries the server's feed item id, so the steps find a card by its title text. A cabal card's block reads the item's title to VoiceOver.
 - "Hide this post" and the mute items are context-menu items with no identifiers, found by label.
 - "Find friends" on the empty Following scope (#671) and the author avatar opening `UserProfileRoute`, which `profile/overview` covers.
-- The Completed trades, Price moves, Replies & votes and Proposal outcomes options: no trade, price move, reply or approval can be seeded without a swap, a price feed or a live proposal. `feed-chip-Replies & votes` sends `reply` alone, because votes have no feed kind.
+- Kind options (Proposals, Completed trades, Price moves, Replies & votes, Proposal outcomes, Cabal activity): not in the filter menu yet, and no trade, price move, reply or approval can be seeded without a swap, a price feed or a live proposal.

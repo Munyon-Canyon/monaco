@@ -32,8 +32,8 @@ nonisolated final class StocksAssetDetailJourneyUITests: XCTestCase {
 
         try session.scenario("S4") {
             try session.act(as: "A")
-            StocksAssetDetailJourney.zoomAndPan(app, recorder: recorder)
-            attachScreenshot(of: app, named: "S4-zoom-and-pan")
+            StocksAssetDetailJourney.scrubLine(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S4-scrub")
         }
 
         try session.scenario("S5") {

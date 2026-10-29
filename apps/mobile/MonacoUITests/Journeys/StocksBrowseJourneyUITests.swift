@@ -14,8 +14,8 @@ nonisolated final class StocksBrowseJourneyUITests: XCTestCase {
 
         try session.scenario("S1") {
             try session.act(as: "A")
-            StocksBrowseJourney.browseSections(app, recorder: recorder)
-            attachScreenshot(of: app, named: "S1-all-stocks")
+            StocksBrowseJourney.browseChips(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-chips")
         }
 
         try session.scenario("S2") {

@@ -2,7 +2,7 @@ import XCTest
 
 enum FollowAndBoardsJourney {
     static let id = "social/follow-and-boards"
-    static let version = 2
+    static let version = 3
 
     struct Seed {
         let meID: String
@@ -28,38 +28,27 @@ enum FollowAndBoardsJourney {
     }
 
     static func row(_ app: XCUIApplication, _ userID: String) -> XCUIElement {
-        app.element("home-leaderboard-row-\(userID)")
-    }
-
-    static func boardRows(_ app: XCUIApplication) -> XCUIElementQuery {
-        app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier BEGINSWITH 'home-leaderboard-row-'"))
+        app.element("leaderboard-row-\(userID)")
     }
 
     static func showsReturn(_ element: XCUIElement) -> Bool {
-        element.exists && element.label.contains("percent") && !element.label.contains("no return yet")
-    }
-
-    static func choose(_ app: XCUIApplication, menu: XCUIElement, option: String, step: String) {
-        if menu.label.contains(option) { return }
-        menu.tap()
-        let item = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier == ''", option)).firstMatch
-        XCTAssertTrue(item.waitForExistence(timeout: 10), "\(step): no \"\(option)\" option in the menu")
-        item.tap()
-        XCTAssertTrue(
-            waitUntil(10) { menu.label.contains(option) },
-            "\(step): the menu reads '\(menu.label)', not \"\(option)\"")
+        element.exists && element.label.contains("percent") && !element.label.contains("not ranked")
     }
 
     static func openBoard(_ app: XCUIApplication, step: String) {
         app.tab("Home").tap()
-        let header = app.staticTexts["Leaderboard"].firstMatch
-        XCTAssertTrue(header.waitForExistence(timeout: 15), "\(step): no \"Leaderboard\" on Home within 15 s")
-        let category = app.element("home-leaderboard-category")
-        app.scrollIntoReach(category)
-        XCTAssertTrue(category.waitForExistence(timeout: 10), "\(step): no Cabals / People menu")
-        choose(app, menu: category, option: "People", step: step)
-        choose(app, menu: app.element("home-leaderboard-period"), option: "All", step: step)
+        app.popToRoot()
+        let home = app.element("home-leaderboard-row")
+        app.scrollIntoReach(home)
+        XCTAssertTrue(home.waitForExistence(timeout: 15), "\(step): no home-leaderboard-row on Home within 15 s")
+        home.tap()
+        XCTAssertTrue(
+            app.element("leaderboard-page").waitForExistence(timeout: 15),
+            "\(step): the Home row did not open leaderboard-page")
+        XCTAssertTrue(
+            app.element("leaderboard-tab-people").waitForExistence(timeout: 10),
+            "\(step): no leaderboard-tab-people")
+        app.element("leaderboard-tab-people").tap()
     }
 
     static func openFollowing(_ app: XCUIApplication, step: String) {
@@ -88,7 +77,7 @@ enum FollowAndBoardsJourney {
         app.scrollIntoReach(member)
         XCTAssertTrue(
             member.waitForExistence(timeout: 30),
-            "\(step): no row for \(seed.memberName) on the People board within 30 s")
+            "\(step): no leaderboard row for \(seed.memberName) on the People board within 30 s")
         app.scrollIntoReach(member)
         member.tap()
         XCTAssertTrue(
@@ -97,18 +86,15 @@ enum FollowAndBoardsJourney {
     }
 
     static func bothRank(_ app: XCUIApplication, seed: Seed, recorder: JourneyRecorder) {
-        recorder.step("S1.1", "the People board ranks A and B with a crown on first") {
+        recorder.step("S1.1", "Leaderboard C People ranks A and B") {
             openBoard(app, step: "S1.1")
             let me = row(app, seed.meID)
             let member = row(app, seed.memberID)
+            app.scrollIntoReach(member)
             XCTAssertTrue(
                 waitUntil(30) { showsReturn(me) && showsReturn(member) },
-                "S1.1: rows for A and B with a return did not show within 30 s: A reads '\(me.label)', B reads '\(member.label)'"
+                "S1.1: rows for A and B with a rate did not show within 30 s: A reads '\(me.label)', B reads '\(member.label)'"
             )
-            let first = boardRows(app).element(boundBy: 0)
-            XCTAssertTrue(
-                first.label.hasPrefix("First,"),
-                "S1.1: the first row reads '\(first.label)', not the crown")
         }
     }
 

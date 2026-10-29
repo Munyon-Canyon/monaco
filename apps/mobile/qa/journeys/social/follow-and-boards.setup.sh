@@ -50,7 +50,14 @@ case "$scenario" in
   S1)
     ready_actor A
     ready_actor B
-    _qa_monacoctl seed two-cabals-ranked --users "$member_a,$member_b"
+    # F19aResolveCallsOK seeds eight voters with 5, 8, 7, 6, 5, 5, 5 and 2 resolved votes
+    # this month under fresh users. A takes the third voter's votes (7 resolved, 4 right) and
+    # B the seventh's (5 resolved, 2 right), so both rank with five or more and neither is in
+    # the top three, which the page draws without a leaderboard-row identifier.
+    seed="$(qa_flow_seed 19a ok)"
+    read -r voter_a voter_b < <(python3 -c 'import json,sys; ids=json.load(sys.stdin)["ids"]; print(ids["user_2"], ids["user_6"])' <<<"$seed")
+    qa_sql -v a="$member_a" -v va="$voter_a" -v b="$member_b" -v vb="$voter_b" >/dev/null \
+      <<<"UPDATE call_voters SET user_id = CASE user_id WHEN :'va' THEN :'a'::uuid ELSE :'b'::uuid END WHERE user_id IN (:'va', :'vb')"
     while read -r follower followee; do
       [[ -n "$follower" ]] && unfollow "$follower" "$followee"
     done < <(live_follows "$member_a" "$member_b")
@@ -60,7 +67,7 @@ case "$scenario" in
     fi
     hand_off followRowsBefore "$(qa_sql -v a="$member_a" -v b="$member_b" \
       <<<"SELECT count(*) FROM follows WHERE follower_id = :'a' AND followee_id = :'b'")"
-    echo "seeded: A and B rank on two-cabals-ranked, A and B follow nobody, B has no followers"
+    echo "seeded: F19aResolveCallsOK, A and B hold seeded resolved votes and rank, A and B follow nobody, B has no followers"
     ;;
   S4)
     hand_off liveAfterFollow "$(qa_sql -v a="$member_a" -v b="$member_b" \

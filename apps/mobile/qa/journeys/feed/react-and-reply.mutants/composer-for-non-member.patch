@@ -1,0 +1,18 @@
+journey: feed/react-and-reply
+expect-fail: S3
+
+The docked composer shows for a member-only reply rule. S3.2 expects comment-members-only and no comment-composer-field, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Comments/CommentComposer.swift b/apps/mobile/Monaco/Features/Comments/CommentComposer.swift
+--- a/apps/mobile/Monaco/Features/Comments/CommentComposer.swift
++++ b/apps/mobile/Monaco/Features/Comments/CommentComposer.swift
+@@ -42,7 +42,7 @@
+             .overlay(alignment: .top) { MonacoRule() }
+         } else if !model.canCommentKnown {
+             EmptyView()
+-        } else if model.canComment {
++        } else if model.canComment || true {
+             DockedComposer(
+                 model: model, menuItems: menuItems, thesis: thesis, onPoll: offersPoll ? { picksPoll = true } : nil,
+                 onGif: { picksGif = true }, onDidStandDown: onDidStandDown)

@@ -2,7 +2,7 @@ import XCTest
 
 enum FeedBrowseJourney {
     static let id = "feed/browse"
-    static let version = 6
+    static let version = 7
     static let filterOptions = [
         "feed-scope-Your cabals and friends", "feed-scope-Your cabals", "feed-scope-Friends", "feed-scope-Everyone",
         "feed-muted-link",
@@ -128,7 +128,7 @@ enum FeedBrowseJourney {
             XCTAssertTrue(cell.waitForExistence(timeout: 15), "S3.2: no proposal cell within 15 s")
             cell.tap()
             XCTAssertTrue(
-                app.element("proposal-votes").waitForExistence(timeout: 15),
+                app.element("proposal-vote-yes").waitForExistence(timeout: 15),
                 "S3.2: the proposal did not open within 15 s"
             )
             XCTAssertTrue(

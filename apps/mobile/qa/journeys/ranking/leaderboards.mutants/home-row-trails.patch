@@ -1,0 +1,17 @@
+journey: ranking/leaderboards
+expect-fail: S1
+
+Home's leaderboard row says "trails" instead of "leads". S1.1 reads "leads", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+--- a/packages/mobile-core/Sources/MonacoCore/Home/HomeLeaderboardModel.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Home/HomeLeaderboardModel.swift
+@@ -16,7 +16,7 @@
+         self.leaderID = leaderID
+         self.leaderName = leaderName
+         self.leaderPictureURL = leaderPictureURL
+-        let who = viewerLeads ? "You lead" : "\(Self.firstName(leaderName)) leads"
++        let who = viewerLeads ? "You lead" : "\(Self.firstName(leaderName)) trails"
+         title = leaderPercent.map { "\(who) · \($0)%" } ?? who
+         if let rank, rate != nil {
+             subtitle = "This month · you are #\(rank) of \(totalRanked)"
