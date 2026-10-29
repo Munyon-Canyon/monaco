@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -756,4 +757,125 @@ func TestStage2_removesTheWorktreeWhenReadyFails(t *testing.T) {
 		!strings.Contains(got[0], "--force --force") {
 		t.Fatalf("calls %v", got)
 	}
+}
+
+func TestLandStack_buildsMobileCoreOnTheMergedTreeWhenBothSidesTouchSwift(t *testing.T) {
+	t.Parallel()
+	trunkSwift := shellRule{
+		prefix: "git diff --name-only " + baseSHA + " origin/fb -- packages/mobile-core",
+		out:    "packages/mobile-core/Sources/MonacoAPI/openapi.yaml\n",
+	}
+	mineSwift := shellRule{
+		prefix: "git diff --name-only " + baseSHA + " b2-oid -- packages/mobile-core",
+		out:    "packages/mobile-core/Sources/MonacoTreasury/FirstFundModel.swift\n",
+	}
+	mineBackend := shellRule{prefix: "git diff --name-only " + baseSHA + " b2-oid -- packages/mobile-core", out: ""}
+	t.Run("the reland of #6894 over #6903 is refused on the merged compile error", func(t *testing.T) {
+		t.Parallel()
+		d := newDirect(t, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
+		d.sh.first(trunkSwift, mineSwift, shellRule{
+			prefix: "../../scripts/mobile-core-test.sh",
+			out:    "FirstFundModel.swift:42: error: value of optional type 'String?' must be unwrapped\n",
+			err:    errors.New("exit status 1"),
+		})
+		code, _, stderr := d.f.agents(t, "land-stack", "2")
+		if code != 1 || !strings.Contains(stderr, "stage 2 mobile-core on the merged tree failed: ") ||
+			!strings.Contains(stderr, "must be unwrapped") {
+			t.Fatalf("%d %q", code, stderr)
+		}
+		if got := d.mergeCalls(); len(got) != 0 {
+			t.Fatalf("merged %v", got)
+		}
+		wt := d.f.root() + "/.worktrees/.land-swift"
+		if got := d.sh.dirOf("../../scripts/mobile-core-test.sh"); got != wt+"/packages/mobile-core" {
+			t.Fatalf("mobile-core-test.sh ran in %s", got)
+		}
+		if _, err := os.Stat(filepath.Join(d.f.dir, ".git", ".monaco", "land-swift.lock")); err == nil {
+			t.Fatal("the land-swift lock was left behind")
+		}
+	})
+	t.Run("a passing merged build lands and says so", func(t *testing.T) {
+		t.Parallel()
+		d := newDirect(t, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
+		d.sh.first(trunkSwift, mineSwift, shellRule{prefix: "../../scripts/mobile-core-test.sh", out: ""})
+		code, stdout, stderr := d.f.agents(t, "land-stack", "2")
+		want := "stage 2 mobile-core on the merged tree (trunk moved in 1 Swift files"
+		if code != 0 || !strings.Contains(stdout, want) || !strings.Contains(stdout, "#2 landed as ") {
+			t.Fatalf("%d %q %q", code, stdout, stderr)
+		}
+	})
+	t.Run("a held lock waits for the other landing", func(t *testing.T) {
+		t.Parallel()
+		d := newDirect(t, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
+		d.sh.first(trunkSwift, mineSwift, shellRule{prefix: "../../scripts/mobile-core-test.sh", out: ""})
+		lock := filepath.Join(d.f.dir, ".git", ".monaco", "land-swift.lock")
+		if err := os.MkdirAll(lock, 0o750); err != nil {
+			t.Fatal(err)
+		}
+		d.f.onWait = func(int) { _ = os.Remove(lock) }
+		code, stdout, stderr := d.f.agents(t, "land-stack", "2")
+		if code != 0 || !strings.Contains(stdout, "#2 landed as ") {
+			t.Fatalf("%d %q %q", code, stdout, stderr)
+		}
+	})
+	t.Run("a worktree that cannot be set up refuses the landing", func(t *testing.T) {
+		t.Parallel()
+		d := newDirect(t, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
+		d.sh.first(trunkSwift, mineSwift, shellRule{
+			prefix: "git worktree add --detach " + d.f.root() + "/.worktrees/.land-swift",
+			err:    errors.New("fatal: invalid reference"),
+		})
+		code, _, stderr := d.f.agents(t, "land-stack", "2")
+		if code != 1 || !strings.Contains(stderr, "invalid reference") {
+			t.Fatalf("%d %q", code, stderr)
+		}
+		if got := d.mergeCalls(); len(got) != 0 {
+			t.Fatalf("merged %v", got)
+		}
+	})
+	t.Run("a lock held past the limit refuses the landing", func(t *testing.T) {
+		t.Parallel()
+		d := newDirect(t, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
+		d.sh.first(trunkSwift, mineSwift)
+		if err := os.MkdirAll(filepath.Join(d.f.dir, ".git", ".monaco", "land-swift.lock"), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		code, _, stderr := d.f.agents(t, "land-stack", "2")
+		if code != 1 || !strings.Contains(stderr, "another landing held") {
+			t.Fatalf("%d %q", code, stderr)
+		}
+	})
+	t.Run("a kept worktree is checked out at the merged commit and backend runs too", func(t *testing.T) {
+		t.Parallel()
+		d := newDirect(t, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
+		d.sh.first(
+			shellRule{
+				prefix: "git diff --name-only " + baseSHA + " origin/fb -- apps/backend",
+				out:    "apps/backend/a.go\n",
+			},
+			trunkSwift, mineSwift, shellRule{prefix: "../../scripts/mobile-core-test.sh", out: ""},
+			shellRule{prefix: "git checkout --detach --force mergedcommit", out: ""},
+		)
+		wt := filepath.Join(d.f.root(), ".worktrees", ".land-swift")
+		if err := os.MkdirAll(wt, 0o750); err != nil {
+			t.Fatal(err)
+		}
+		code, stdout, stderr := d.f.agents(t, "land-stack", "2")
+		if code != 0 || !strings.Contains(stdout, "; mobile-core too): ok in ") {
+			t.Fatalf("%d %q %q", code, stdout, stderr)
+		}
+		if got := d.sh.lines("git checkout --detach --force mergedcommit"); len(got) != 1 {
+			t.Fatalf("checkout %v", got)
+		}
+	})
+	t.Run("a stack with no Swift change skips the mobile-core leg", func(t *testing.T) {
+		t.Parallel()
+		d := newDirect(t, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
+		d.sh.first(trunkSwift, mineBackend)
+		code, stdout, _ := d.f.agents(t, "land-stack", "2")
+		ran := d.sh.lines("../../scripts/mobile-core-test.sh")
+		if code != 0 || strings.Contains(stdout, "mobile-core") || len(ran) != 0 {
+			t.Fatalf("%d %q", code, stdout)
+		}
+	})
 }
