@@ -83,6 +83,7 @@ public final class HomeVoteCardModel: Identifiable {
     private var submission = IdempotentSubmission()
     private var retraction = IdempotentSubmission()
     private var isSubmitting = false
+    public var onCommitted: (@MainActor (CastOutcome) -> Void)?
 
     public init(
         api: APIClient, hints: any HintSource, row: HomePendingVote, now: @escaping @Sendable () -> Date = Date.init,
@@ -171,6 +172,7 @@ public final class HomeVoteCardModel: Identifiable {
                 myVote: result.myVote)
             committedAt = now()
             phase = .committed(outcome)
+            onCommitted?(outcome)
             if result.status == .passed, !row.isRule { await loadSettlement() }
             return outcome
         } catch {

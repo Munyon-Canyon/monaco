@@ -65,6 +65,39 @@ final class HomePendingVotesModelTests: XCTestCase {
         XCTAssertEqual(model.cards.map(\.id), ["p-1"])
     }
 
+    func testACommittedVoteFiresOnVoteCommittedWhileTheCardIsStillListed() async {
+        let transport = StubTransport(
+            routes: [
+                pendingPath: [list(pending("p-1", closes: "2033-05-17T15:00:00Z"))],
+                "/v1/proposals/p-1/votes": [.json(.ok, cast)],
+            ])
+        let model = model(transport)
+        var fired: [(String, [String])] = []
+        model.onVoteCommitted = { card, outcome in
+            fired.append((card.id, model.cards.map(\.id)))
+            XCTAssertEqual(outcome.choice, .yes)
+        }
+        await model.load()
+        _ = await model.shown?.vote(.yes)
+        XCTAssertEqual(fired.count, 1)
+        XCTAssertEqual(fired.first?.0, "p-1")
+        XCTAssertEqual(fired.first?.1, ["p-1"])
+    }
+
+    func testARefusedVoteDoesNotFireOnVoteCommitted() async {
+        let transport = StubTransport(
+            routes: [
+                pendingPath: [list(pending("p-1", closes: "2033-05-17T15:00:00Z"))],
+                "/v1/proposals/p-1/votes": [.json(.conflict, "{}")],
+            ])
+        let model = model(transport)
+        var count = 0
+        model.onVoteCommitted = { _, _ in count += 1 }
+        await model.load()
+        _ = await model.shown?.vote(.yes)
+        XCTAssertEqual(count, 0)
+    }
+
     func testTheCommittedCardSurvivesAReloadThatDropsIt() async {
         let transport = StubTransport(
             routes: [

@@ -8,7 +8,6 @@ struct HomeVoteCard: View {
     var tab: MainTab = .home
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
-    @Environment(\.analytics) private var analytics
     @State private var holding = false
 
     private var row: HomePendingVote { model.row }
@@ -131,20 +130,41 @@ struct HomeVoteCard: View {
 
     private func phaseChanged(_ phase: HomeVoteCardModel.Phase) {
         switch phase {
-        case .committed(let outcome): accepted(outcome)
         case .failed(let message): refused(message)
-        case .idle, .picked, .holding, .committing: break
+        case .idle, .picked, .holding, .committing, .committed: break
         }
     }
 
-    private func accepted(_ outcome: CastOutcome) {
+    private func refused(_ message: String) {
+        toasts.current = MonacoToast(message: message)
+        model.dismissFailure()
+    }
+}
+
+@MainActor
+enum HomeVoteCommit {
+    static func install(
+        on votes: HomePendingVotesModel, environment: AppEnvironment, toasts: ToastCenter, analytics: Analytics
+    ) {
+        votes.onVoteCommitted = { card, outcome in
+            accepted(card, outcome, environment: environment, toasts: toasts, analytics: analytics)
+        }
+    }
+
+    private static func accepted(
+        _ card: HomeVoteCardModel, _ outcome: CastOutcome, environment: AppEnvironment, toasts: ToastCenter,
+        analytics: Analytics
+    ) {
         analytics.step(.vote(.voteCast))
         let toast = ProposalVoteCopy.toast(outcome: outcome)
         let action =
             toast.offersUndo
-            ? MonacoToastAction(title: "Undo", expiresAt: outcome.undoUntil) { undo() }
+            ? MonacoToastAction(title: "Undo", expiresAt: outcome.undoUntil) {
+                undo(card, toasts: toasts, analytics: analytics)
+            }
             : nil
         toasts.show(success: toast.message, action: action)
+        let row = card.row
         guard !row.isRule, let symbol = row.symbol else { return }
         let sample = PushSample.afterVote(
             symbol: symbol, status: outcome.status, tally: outcome.tally, isSell: row.isSell,
@@ -152,17 +172,12 @@ struct HomeVoteCard: View {
         Task { await environment.pushPrePrompt.noteFirstVote(sample: sample, after: toasts) }
     }
 
-    private func refused(_ message: String) {
-        toasts.current = MonacoToast(message: message)
-        model.dismissFailure()
-    }
-
-    private func undo() {
+    private static func undo(_ card: HomeVoteCardModel, toasts: ToastCenter, analytics: Analytics) {
         Task {
-            if await model.undo() {
+            if await card.undo() {
                 analytics.step(.vote(.voteUndone))
                 toasts.show(success: ProposalVoteCopy.undone)
-            } else if let message = model.errorMessage {
+            } else if let message = card.errorMessage {
                 toasts.current = MonacoToast(message: message)
             }
         }
