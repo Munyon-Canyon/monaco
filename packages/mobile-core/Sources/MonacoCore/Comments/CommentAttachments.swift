@@ -3,16 +3,19 @@ import MonacoAPI
 
 public enum CommentAttachmentDraft: Equatable, Sendable {
     case thesis(start: Int, end: Int)
+    case stock(assetID: String)
 
     public var kindName: String {
         switch self {
         case .thesis: "quote"
+        case .stock: "stock"
         }
     }
 
     public var input: Components.Schemas.CommentAttachmentInput {
         switch self {
         case .thesis(let start, let end): .thesisQuote(.init(kind: .thesisQuote, start: start, end: end))
+        case .stock(let assetID): .stock(.init(kind: .stock, assetId: assetID))
         }
     }
 }

@@ -9,8 +9,8 @@ struct AttachmentBubble: View {
         switch attachment {
         case .gif(let gif): GifBubble(commentID: commentID, attachment: gif)
         case .thesisQuote(let quote): ThesisQuoteBubble(commentID: commentID, attachment: quote)
+        case .stock(let stock): StockShareBubble(commentID: commentID, stock: stock)
         case .poll(let poll): PollBubble(commentID: commentID, poll: poll)
-        default: EmptyView()
         }
     }
 }

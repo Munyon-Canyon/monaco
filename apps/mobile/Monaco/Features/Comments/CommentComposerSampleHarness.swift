@@ -25,6 +25,8 @@ enum CommentComposerScenario: String {
     case menuSale
     case thesisSheet
     case thesisBubble
+    case stockSheet
+    case stockBubble
     case poll
 
     var previewMode: FeedItemDetailModel.PreviewMode {
@@ -32,7 +34,9 @@ enum CommentComposerScenario: String {
         case .sending: .sending
         case .failed: .failed
         case .poll: .poll
-        case .docked, .sheetComment, .sheetPost, .menu, .draft, .menuSale, .thesisSheet, .thesisBubble: .ready
+        case .docked, .sheetComment, .sheetPost, .menu, .draft, .menuSale, .thesisSheet, .thesisBubble,
+            .stockSheet, .stockBubble:
+            .ready
         }
     }
 }
@@ -59,8 +63,30 @@ private struct CommentComposerHarnessScreen: View {
         }
     }
 
+    private static let stockSearch: StockSearch = { _ in
+        [
+            Components.Schemas.AssetSummary(
+                id: "01890a5d-ac96-774b-bcce-b302099a8070",
+                symbol: "AAPLx", displayName: "Apple", issuer: .xstocks, kind: .equity, logoUrl: nil,
+                priceMicros: 180_000_000, priceAsOf: Date(timeIntervalSince1970: 0), changeBps: -80,
+                sparklineMicros: [181_000_000, 180_000_000], quotable: true, session: .open, tradable: true)
+        ]
+    }
+
     @ViewBuilder private var stage: some View {
-        if scenario == .thesisBubble {
+        if scenario == .stockBubble {
+            AttachmentBubble(
+                commentID: "c2",
+                attachment: .stock(
+                    .init(
+                        kind: .stock, assetId: "01890a5d-ac96-774b-bcce-b302099a8070", symbol: "AAPL",
+                        name: "Apple", logoUrl: "", isPreIpo: false, priceMicros: 180_000_000, changeBps: -80))
+            )
+            .padding(MonacoTheme.Space.gutter)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        } else if scenario == .stockSheet {
+            StockShareSheet(search: Self.stockSearch) { detail.comments.pick($0, toasts: toasts) }
+        } else if scenario == .thesisBubble {
             AttachmentBubble(
                 commentID: "c1",
                 attachment: .thesisQuote(
@@ -80,9 +106,10 @@ private struct CommentComposerHarnessScreen: View {
             .monacoCanvas()
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 CommentComposerBar(
-                    model: detail.comments, menuItems: menuItems, thesis: thesisText, offersPoll: offersPoll)
+                    model: detail.comments, menuItems: [], thesis: thesisText, offersPoll: offersPoll)
             }
             .environment(\.pollVoting, PreviewPollVoting())
+            .environment(\.stockSearch, Self.stockSearch)
             .environment(toasts)
             .monacoToastCenter(toasts)
             .task { await run() }
@@ -108,22 +135,11 @@ private struct CommentComposerHarnessScreen: View {
         }
     }
 
-    private var menuItems: [ComposerMenuItem] {
-        guard scenario == .menu || scenario == .draft || scenario == .menuSale else { return [] }
-        let model = detail.comments
-        let toasts = toasts
-        return [
-            ComposerMenuItem(
-                id: "stock", title: "Share a stock", icon: .markets, isAvailable: { _ in true },
-                action: { model.pick(.thesis(start: 0, end: 5), toasts: toasts) })
-        ]
-    }
-
     private func run() async {
         let model = detail.comments
         await model.load()
         switch scenario {
-        case .docked, .menu, .menuSale, .thesisSheet, .thesisBubble, .poll:
+        case .docked, .menu, .menuSale, .thesisSheet, .thesisBubble, .stockSheet, .stockBubble, .poll:
             break
         case .draft:
             _ = model.pick(.thesis(start: 0, end: 5))

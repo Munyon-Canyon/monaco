@@ -41,6 +41,15 @@ struct ComposerAttachmentPreview: View {
                     .font(MonacoTheme.Typo.subhead)
                     .foregroundStyle(MonacoTheme.primaryText)
             }
+        case .stock:
+            HStack(spacing: MonacoTheme.Space.s) {
+                Image(monaco: .markets)
+                    .font(MonacoTheme.Typo.subhead)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                Text("Sharing a stock")
+                    .font(MonacoTheme.Typo.subhead)
+                    .foregroundStyle(MonacoTheme.primaryText)
+            }
         }
     }
 }

@@ -41,6 +41,24 @@ final class CommentAttachmentTests: XCTestCase {
         XCTAssertEqual(model.attachmentDraft, .thesis(start: 2, end: 3))
     }
 
+    func testPickingAStockAfterAThesisReplacesItWithAToast() async throws {
+        let (model, _) = try await make([])
+        _ = model.pick(.thesis(start: 0, end: 1))
+
+        let toast = model.pick(.stock(assetID: "a1"))
+
+        XCTAssertEqual(toast, "Replaced the quote")
+        XCTAssertEqual(model.attachmentDraft, .stock(assetID: "a1"))
+    }
+
+    func testAStockDraftMapsToTheStockInput() {
+        let draft = CommentAttachmentDraft.stock(assetID: "01890a5d-ac96-774b-bcce-b302099a8070")
+
+        XCTAssertEqual(draft.kindName, "stock")
+        guard case .stock(let input) = draft.input else { return XCTFail("not a stock input") }
+        XCTAssertEqual(input.assetId, "01890a5d-ac96-774b-bcce-b302099a8070")
+    }
+
     func testRemovingClearsTheDraft() async throws {
         let (model, _) = try await make([])
         _ = model.pick(.thesis(start: 0, end: 1))
