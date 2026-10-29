@@ -238,6 +238,7 @@ struct ProfileSampleHarness: View {
 private func apiScript(for scenario: ProfileSampleScenario) -> SampleAPIScript {
     var script = SampleAPIScript(mode: apiMode(for: scenario))
     script.user.returnPrivate = scenario == .hiddenPerformance
+    if scenario.showsBio { script.user.bio = ProfileSampleScenario.sampleBio }
     switch scenario {
     case .unranked: script.user.standing = .sampleUnranked
     case .noStanding: script.user.standing = nil
