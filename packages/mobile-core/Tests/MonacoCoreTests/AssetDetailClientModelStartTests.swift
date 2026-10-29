@@ -5,28 +5,33 @@ import XCTest
 
 @MainActor
 final class AssetDetailClientModelStartTests: XCTestCase {
-    func testStartReadsTheAssetOneChartAndTheCabalsBeforeAnyAnswerArrives() async {
-        let transport = StubTransport(scripted: [.hang, .hang, .hang])
+    func testStartReadsTheAssetOneChartTheHeldReadAndTheOpenFeedBeforeAnyAnswerArrives() async {
+        let transport = StubTransport(scripted: [.hang, .hang, .hang, .hang])
         let api = APIClient(
             serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
         let model = AssetDetailClientModel(api: api, symbol: "AAPLx", hints: FakeHintStream())
 
         let started = Task { await model.start() }
-        await transport.waitForRequests(3)
+        await transport.waitForRequests(4)
         started.cancel()
 
         let paths = await transport.sent.compactMap(\.path)
         XCTAssertEqual(
             paths.filter { $0.hasPrefix("/v1/assets/AAPLx/chart") }.count, 1, "no second chart call for stats")
         XCTAssertEqual(paths.filter { $0 == "/v1/assets/AAPLx" }.count, 1)
-        XCTAssertEqual(paths.filter { $0 == "/v1/me/cabals" }.count, 1)
+        XCTAssertEqual(paths.filter { $0.hasPrefix("/v1/me/held") }.count, 1)
+        XCTAssertEqual(paths.filter { $0.hasPrefix("/v1/feed") }.count, 1)
     }
 
     func testStatsComeFromTheAssetReadAndMakeNoChartCall() async throws {
         let transport = StubTransport(routes: [
             "/v1/assets/NVDAx": [try reply(Components.Schemas.AssetDetail.nvda)],
             "/v1/assets/NVDAx/chart?range=1D": [try reply(chart(range: ._1d, interval: ._15m, prices: [100, 113]))],
-            "/v1/me/cabals": [.json(.ok, "[]")],
+            "/v1/me/held?symbol=NVDAx": [
+                .json(
+                    .ok,
+                    #"{"total_value_micros":0,"cabal_count":0,"prices_as_of":"2026-10-03T15:00:00Z","holdings":[]}"#)
+            ],
         ])
         let api = APIClient(
             serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
