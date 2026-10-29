@@ -184,7 +184,7 @@ final class FeedModelTests: XCTestCase {
         """
         {"id":"\(viewerID)","handle":"maya","display_name":"Maya","photo_url":null,"bio":null,\
         "created_at":"2026-09-30T12:00:00Z","cabal_count":0,"follower_count":0,"following_count":\(followingCount),"followed_by_me":false,"blocked_by_me":false,\
-        "return_1m_bps":null,"pnl_1m_micros":null,"return_period":"1M","return_private":false}
+        "return_1m_bps":null,"pnl_1m_micros":null,"return_period":"1M","return_private":false,"standing":null,"crown":false,"cabals_in_common":0}
         """
     }
 
