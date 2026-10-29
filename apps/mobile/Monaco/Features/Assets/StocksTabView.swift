@@ -28,6 +28,18 @@ struct StocksTabView: View {
             }
         }
         .monacoTopLevelHeader(title: StocksTab.title)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                MonacoGlassButton(
+                    systemImage: MonacoIcon.star.symbol, accessibilityLabel: "Your watchlist", style: .quiet,
+                    placement: .toolbar
+                ) {
+                    environment.navigator.open(WatchlistRoute(), in: .stocks)
+                }
+                .accessibilityIdentifier("markets-watchlist-manage")
+            }
+            .withoutGlass()
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("assets-root")
         .task { await start() }
@@ -37,7 +49,7 @@ struct StocksTabView: View {
             toasts.show(error)
         }
         .onChange(of: environment.watchlist.symbols) { _, _ in
-            Task { await model?.quotes?.load() }
+            Task { await model?.watchlistChanged() }
         }
     }
 
@@ -82,25 +94,19 @@ private struct StocksTabScreen: View {
     let openSymbol: (String) -> Void
     let openWatchlist: () -> Void
 
+    @State private var showsPreIpoInfo = false
+
     private enum Stage {
-        case loading, failed, empty, browse, search
+        case loading, failed, browse, search
     }
 
     private var stage: Stage {
         if model.isSearching { return .search }
-        guard model.browse == .all, model.rows.isEmpty else { return .browse }
-        switch model.phase {
+        guard model.preIpo.rows.isEmpty, model.watchlistRows.isEmpty else { return .browse }
+        switch model.preIpo.phase {
         case .idle, .loading: return .loading
         case .failed: return .failed
-        case .loaded: return .empty
-        }
-    }
-
-    private var popularIsLoading: Bool {
-        guard model.popular.rows.isEmpty else { return false }
-        switch model.popular.phase {
-        case .idle, .loading: return true
-        case .loaded, .failed: return false
+        case .loaded: return .browse
         }
     }
 
@@ -110,6 +116,7 @@ private struct StocksTabScreen: View {
             .monacoCanvas()
             .foregroundStyle(MonacoTheme.primaryText)
             .onChange(of: query) { _, value in model.setQuery(value) }
+            .sheet(isPresented: $showsPreIpoInfo) { MarketsPreIpoInfoSheet() }
     }
 
     @ViewBuilder private var content: some View {
@@ -118,7 +125,7 @@ private struct StocksTabScreen: View {
             ScrollView { MarketsLoading() }
         case .failed:
             AssetsLoadFailure(identifier: "assets-failed") { Task { await model.loadMarkets() } }
-        case .empty, .browse, .search:
+        case .browse, .search:
             ScrollView {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.section) {
                     header
@@ -135,33 +142,76 @@ private struct StocksTabScreen: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-            MonacoSearchField(placeholder: "Search stocks or tickers", text: $query)
+            MonacoSearchField(placeholder: "Stocks and Pre-IPO", text: $query)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
+            if !model.isSearching {
+                MarketsChips(selected: model.browse) { next in Task { await model.show(next) } }
+            }
             if let minutes = model.staleMinutes {
                 MonacoNotice(.warn, message: MarketStaleness.pricesDelayed(minutes: minutes))
                     .accessibilityIdentifier("markets-stale")
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
             }
         }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
     }
 
     @ViewBuilder private var sections: some View {
-        switch stage {
-        case .search:
-            MarketsAllStocks(model: model, title: "Search results", open: open)
-        case .empty:
+        if stage == .search {
+            MarketsSearchResults(model: model, open: open)
+        } else {
+            switch model.browse {
+            case .all: allSections
+            case .watchlist: watchlistChip
+            case .preIpo: preIpoChip
+            case .held: EmptyView()
+            }
+        }
+    }
+
+    @ViewBuilder private var allSections: some View {
+        if model.watchlistRows.isEmpty, model.preIpo.phase == .loaded, model.preIpo.rows.isEmpty {
             EmptyState(title: "No stocks to show", systemImage: "chart.line.uptrend.xyaxis")
                 .accessibilityIdentifier("assets-empty")
-        case .browse:
-            if popularIsLoading || !model.topMovers.isEmpty {
-                MarketsMoversSection(movers: model.topMovers, isLoading: popularIsLoading, open: open)
-            }
-            MarketsWatchlistSection(rows: model.quotes?.rows ?? [], open: openSymbol, manage: openWatchlist)
-            if popularIsLoading || !model.popularNow.isEmpty {
-                MarketsPopularSection(rows: model.popularNow, isLoading: popularIsLoading, open: open)
-            }
-            MarketsAllStocks(model: model, title: "All stocks", open: open)
-        case .loading, .failed:
-            EmptyView()
+        }
+        MarketsWatchlistSection(
+            model: model, rows: model.watchlistPreview, open: open, openSymbol: openSymbol,
+            seeAll: { Task { await model.show(.watchlist) } }, manage: openWatchlist)
+        if !model.preIpoPreview.isEmpty {
+            MarketsPreIpoSection(
+                rows: model.preIpoPreview, open: open, seeAll: { Task { await model.show(.preIpo) } },
+                info: { showsPreIpoInfo = true })
+        }
+    }
+
+    private var watchlistChip: some View {
+        MarketsWatchlistSection(
+            model: model, rows: model.watchlistRows, showsSeeAll: false, open: open, openSymbol: openSymbol,
+            seeAll: {}, manage: openWatchlist)
+    }
+
+    @ViewBuilder private var preIpoChip: some View {
+        if model.preIpo.rows.isEmpty {
+            EmptyState(title: "No Pre-IPO companies yet", systemImage: "chart.line.uptrend.xyaxis")
+                .accessibilityIdentifier("assets-empty")
+        } else {
+            MarketsPreIpoSection(
+                rows: model.preIpo.rows, showsSeeAll: false, open: open, seeAll: {},
+                info: { showsPreIpoInfo = true },
+                onLastAppear: {
+                    guard model.hasMore else { return }
+                    Task { await model.loadMore() }
+                })
+        }
+    }
+}
+
+extension ToolbarContent {
+    @ToolbarContentBuilder
+    fileprivate func withoutGlass() -> some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            sharedBackgroundVisibility(.hidden)
+        } else {
+            self
         }
     }
 }

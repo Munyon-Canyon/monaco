@@ -1,0 +1,18 @@
+journey: stocks/browse
+expect-fail: S1
+
+The Pre-IPO list requests filter=all. S1.4 expects Journey Private and not Journey Alpha under Pre-IPO, so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+diff --git a/packages/mobile-core/Sources/MonacoCore/Market/StocksTabModel.swift b/packages/mobile-core/Sources/MonacoCore/Market/StocksTabModel.swift
+index 3624bcbdd..2f00b61f0 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Market/StocksTabModel.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Market/StocksTabModel.swift
+@@ -197,7 +197,7 @@ public final class StocksTabModel {
+     private func page(_ section: Section?, cursor: String?) async throws -> MarketAssetPage {
+         let searchQuery = section == .search ? Self.trimmed(query) : nil
+         let wantsPreIpo = section == .preIpo || (section == .search && browse == .preIpo)
+-        let filter: Operations.GetAssets.Input.Query.FilterPayload = wantsPreIpo ? .preIpo : .all
++        let filter: Operations.GetAssets.Input.Query.FilterPayload = wantsPreIpo ? .all : .all
+         let list = try await api.read { client in
+             try await client.getAssets(
+                 query: .init(q: searchQuery, filter: filter, limit: Self.pageLimit, cursor: cursor)

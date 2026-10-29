@@ -21,10 +21,11 @@ struct StocksTabLoadTests {
         let window = try Self.window(hosting: StocksTabView(makeModel: { _ in model }))
         defer { TestWindow.close(window) }
 
-        await Self.until { model.all.phase != .idle && model.all.phase != .loading }
+        await Self.until { model.preIpo.phase != .idle && model.preIpo.phase != .loading }
 
         let paths = await transport.sent.map { URLComponents(string: $0.path ?? "")?.path }
         #expect(paths.first == "/v1/assets")
+        #expect(model.isMarkets)
     }
 
     private static func window(hosting view: StocksTabView) throws -> UIWindow {

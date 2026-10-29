@@ -4,8 +4,6 @@ import Observation
 @Observable
 @MainActor
 public final class WatchlistQuotes {
-    public nonisolated static let previewCount = 3
-
     public enum Row: Equatable, Sendable, Identifiable {
         case quoted(MarketAsset)
         case loading(symbol: String)
@@ -37,14 +35,14 @@ public final class WatchlistQuotes {
     }
 
     public var rows: [Row] {
-        watchlist.symbols.prefix(Self.previewCount).map { symbol in
+        watchlist.symbols.map { symbol in
             if let asset = quotes[symbol] { return .quoted(asset) }
             return failed.contains(symbol) ? .unavailable(symbol: symbol) : .loading(symbol: symbol)
         }
     }
 
     public func load() async {
-        let symbols = Array(watchlist.symbols.prefix(Self.previewCount))
+        let symbols = watchlist.symbols
         let api = api
         let reads = await withTaskGroup(of: (String, Read).self) { group in
             for symbol in symbols { group.addTask { (symbol, await Self.read(api, symbol)) } }

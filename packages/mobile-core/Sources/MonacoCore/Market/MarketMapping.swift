@@ -24,7 +24,8 @@ public enum MarketMapping {
             showsSessionChip: !summary.session.continuous,
             isTradable: summary.tradable ?? false,
             isQuotable: summary.quotable,
-            volume24hMicros: summary.volume24hMicros
+            volume24hMicros: summary.volume24hMicros,
+            estimate: summary.estimate.map { MarketEstimate(priceMicros: $0.priceMicros, asOf: $0.asOf) }
         )
     }
 
@@ -54,7 +55,8 @@ public enum MarketMapping {
             showsSessionChip: !value.session.continuous,
             isTradable: value.tradable,
             isQuotable: value.quotable,
-            volume24hMicros: value.volume24hMicros
+            volume24hMicros: value.volume24hMicros,
+            estimate: value.preIpo.map { MarketEstimate(priceMicros: $0.estimate.priceMicros, asOf: $0.estimate.asOf) }
         )
         return MarketAssetDetail(asset: asset, otherListings: value.otherListings.map(listing))
     }

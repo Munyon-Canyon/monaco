@@ -23,6 +23,9 @@ struct MonacoSectionHeader: View {
     /// A count beside the title — "Needs your vote" with a `2` — for a section that is an errand.
     private var count: Int?
     private var actionIdentifier: String?
+    private var countIsSecondary = false
+    private var infoAction: (() -> Void)?
+    private var infoIdentifier: String?
 
     init(
         _ title: String, count: Int? = nil, trailing: String? = nil, actionIdentifier: String? = nil,
@@ -33,6 +36,19 @@ struct MonacoSectionHeader: View {
         self.trailing = trailing
         self.actionIdentifier = actionIdentifier
         self.action = action
+    }
+
+    func secondaryCount() -> Self {
+        var copy = self
+        copy.countIsSecondary = true
+        return copy
+    }
+
+    func info(identifier: String, action: @escaping () -> Void) -> Self {
+        var copy = self
+        copy.infoAction = action
+        copy.infoIdentifier = identifier
+        return copy
     }
 
     @ScaledMetric(relativeTo: .subheadline) private var countSize = SectionHeaderMetrics.countSize
@@ -47,13 +63,26 @@ struct MonacoSectionHeader: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
                 if let count, count > 0 {
-                    Text("\(count)")
-                        .font(MonacoTheme.Typo.captionStrong.monospacedDigit())
-                        .foregroundStyle(MonacoTheme.brand)
-                        .padding(.horizontal, count > 9 ? MonacoTheme.Space.xs : 0)
-                        .frame(minWidth: countSize, minHeight: countSize)
-                        .background(Capsule().fill(MonacoTheme.brandSoft))
-                        .accessibilityLabel("\(count)")
+                    if countIsSecondary {
+                        Text("\(count)")
+                            .font(MonacoTheme.Typo.section.monospacedDigit())
+                            .foregroundStyle(MonacoTheme.secondaryText)
+                    } else {
+                        Text("\(count)")
+                            .font(MonacoTheme.Typo.captionStrong.monospacedDigit())
+                            .foregroundStyle(MonacoTheme.brand)
+                            .padding(.horizontal, count > 9 ? MonacoTheme.Space.xs : 0)
+                            .frame(minWidth: countSize, minHeight: countSize)
+                            .background(Capsule().fill(MonacoTheme.brandSoft))
+                            .accessibilityLabel("\(count)")
+                    }
+                }
+                if let infoAction {
+                    MonacoGlassButton(
+                        systemImage: MonacoIcon.info.symbol, accessibilityLabel: "About \(title)", style: .quiet,
+                        size: .compact, action: infoAction
+                    )
+                    .accessibilityIdentifier(infoIdentifier ?? "")
                 }
             }
             Spacer(minLength: MonacoTheme.Space.s)
