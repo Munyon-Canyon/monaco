@@ -549,3 +549,18 @@ The slot tables above name each owner. Screens and controls added by this map:
 | #5558 to #5571 | The UI v3 screens: sign in, Home, Your money and Activity, the money flows, account activity and Cabal cash, Propose, the proposal screen, the Cabals tab and Discover, the cabal screens, chat and Cabal holding, Markets, the stock screen and the watchlist, Feed, the Leaderboard and Profile with Settings |
 | #5572 to #5575 | The screen parity gallery, and the Dark, Dynamic Type and accessibility checks of every v3 screen |
 | #5576 | This page's tab order, the Markets tab, Propose and the new screens, and the journeys: `home/activity`, `stocks/watchlist`, `cabals/discover`, `cabals/info-and-members` and the Home and Leaderboard steps of `ranking/leaderboards` |
+
+### Hold sheet
+
+A half sheet that opens over any screen from a proposal id alone, for a vote push's Yes / No or a vote link. Entry point: `AppNavigator.presentVoteHold(proposalID:pick:)`, shown by `MainTabView` (`VoteHoldSheet`, model `VoteHoldModel`). One `GET /v1/proposals/{id}` loads it; the cabal comes from that response.
+
+| State | Shows |
+| --- | --- |
+| Loading | Spinner (`vote-hold-loading`) |
+| Ready | The proposal row, the tally and `VotePair` with the pushed side picked (`proposal-vote-yes`, `proposal-vote-no`), the status and hint lines, "Read the thesis" (`vote-hold-thesis`) |
+| Already voted | "You voted Yes" with Change (`proposal-change-vote`); the pick is dropped |
+| Closed | "This vote has closed." and "See the result" (`vote-hold-closed`, `vote-hold-result`) |
+| View only | The read-only label (`vote-hold-view-only`) |
+| Failed | The error and "Try again" (`vote-hold-failed`) |
+
+Other identifiers: `vote-hold-sheet`, `vote-hold-close`, `vote-hold-row`. An ordinary vote shows the committed row for 0.6 s, dismisses, and toasts with Undo. A vote that settles the proposal shows the settled line for 1 s, dismisses, and toasts without Undo. A refused vote toasts and keeps the sheet open on the picked side. Sample scenarios: `-MonacoProposalSample holdYes|holdVoted|holdClosed|holdViewOnly|holdCold`.

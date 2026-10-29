@@ -1,3 +1,4 @@
+import MonacoCore
 import SwiftUI
 
 @Observable
@@ -10,6 +11,7 @@ final class AppNavigator {
     var stocksPath: [AnyAppRoute] = []
     var profilePath: [AnyAppRoute] = []
     var deposit: DepositRequest?
+    var voteHold: VoteHoldRequest?
     var tabBadges: [MainTab: Int] = [:]
 
     func reset() {
@@ -20,6 +22,7 @@ final class AppNavigator {
         stocksPath = []
         profilePath = []
         deposit = nil
+        voteHold = nil
     }
 
     func path(for tab: MainTab) -> [AnyAppRoute] {
@@ -42,6 +45,15 @@ final class AppNavigator {
 
     func presentDeposit(prefillMicros: Int64? = nil, cabalID: String? = nil) {
         deposit = DepositRequest(prefillMicros: prefillMicros, cabalID: cabalID)
+    }
+
+    func presentVoteHold(proposalID: String, pick: ProposalBallot?) {
+        deposit = nil
+        voteHold = VoteHoldRequest(proposalID: proposalID, pick: pick)
+    }
+
+    func dismissVoteHold() {
+        voteHold = nil
     }
 
     func continueDeposit(with route: AnyAppRoute) {

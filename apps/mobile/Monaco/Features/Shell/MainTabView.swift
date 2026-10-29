@@ -47,6 +47,10 @@ struct MainTabView: View {
             DepositView(prefillMicros: request.prefillMicros, cabalID: request.cabalID)
                 .analyticsScreen("deposit")
         }
+        .sheet(item: $navigator.voteHold) { request in
+            VoteHoldSheet(request: request)
+                .analyticsScreen("vote_hold")
+        }
         .sheet(isPresented: $pushPrePrompt.isPresented, onDismiss: pushPrePrompt.notNow) {
             PushPrePromptSheet(prompt: pushPrePrompt)
         }

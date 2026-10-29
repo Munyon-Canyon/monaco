@@ -46,6 +46,11 @@ enum ProposalSampleScenario: String, CaseIterable {
     case voteSettles
     case nonMember
     case permissionSheet
+    case holdYes
+    case holdVoted
+    case holdClosed
+    case holdViewOnly
+    case holdCold
 
     static let launchArgument = "-MonacoProposalSample"
 
@@ -64,6 +69,8 @@ enum ProposalSampleScenario: String, CaseIterable {
         case .votesOpen, .votesRecorded, .votesEmpty, .votesLoading, .votesError:
             ProposalSampleRoute(votes: .open)
         case .permissionSheet: PermissionSheetSampleRoute()
+        case .holdYes, .holdVoted, .holdClosed, .holdViewOnly: VoteHoldSampleRoute(pick: .yes)
+        case .holdCold: VoteHoldSampleRoute(pick: nil)
         default: ProposalSampleRoute(votes: .closed)
         }
     }
@@ -142,6 +149,18 @@ enum ProposalSampleScenario: String, CaseIterable {
         case .permissionSheet:
             script.asset = .nvda
             script.proposal = .votableNVDA()
+        case .holdYes, .holdCold:
+            script.asset = .nvda
+            script.proposal = .votableNVDA()
+        case .holdVoted:
+            script.asset = .nvda
+            script.proposal = .votableNVDA().voted(.no)
+        case .holdClosed:
+            script.asset = .nvda
+            script.proposal = .passedNVDA()
+        case .holdViewOnly:
+            script.asset = .pilatesAMZN
+            script.proposal = .pilatesAMZN()
         case .nonMember:
             script.asset = .pilatesAMZN
             script.proposal = .pilatesAMZN()
@@ -161,6 +180,24 @@ nonisolated struct ProposalSampleRoute: AppRoute {
     @MainActor func destination() -> some View {
         ProposalScreen(proposalID: "proposal-1", sections: [ProposalSampleDetailSlot.self, ProposalCommentsSlot.self])
             .environment(\.presentsProposalVotes, votes == .open)
+    }
+}
+
+nonisolated struct VoteHoldSampleRoute: AppRoute {
+    let pick: ProposalBallot?
+
+    @MainActor func destination() -> some View {
+        VoteHoldSampleHost(pick: pick)
+    }
+}
+
+private struct VoteHoldSampleHost: View {
+    let pick: ProposalBallot?
+    @Environment(AppEnvironment.self) private var environment
+
+    var body: some View {
+        ProposalSampleRoute(votes: .closed).destination()
+            .task { environment.navigator.presentVoteHold(proposalID: "proposal-1", pick: pick) }
     }
 }
 
@@ -237,6 +274,12 @@ private enum ProposalSampleDetailSlot: ProposalSection {
 }
 
 extension Components.Schemas.ProposalDetail {
+    fileprivate func voted(_ side: Components.Schemas.BallotChoice) -> Self {
+        var detail = self
+        detail.myBallot = MyBallotPayload(rawValue: side.rawValue)
+        return detail
+    }
+
     fileprivate func withHiddenSides() -> Self {
         var detail = self
         detail.sidesVisible = false
