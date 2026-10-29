@@ -153,25 +153,42 @@ func TestListMembersPage_reportsBrokenReadsAndMalformedCursors(t *testing.T) {
 	f := newCreate(t)
 	seeded := testkit.NewCabal(t, f.pool, testkit.WithMembers(2))
 	users := f.routes(nil).Users
-	req := app.ListMembersQuery{CabalID: seeded.ID, Limit: 10}
-	if _, err := app.ListMembersPage(t.Context(), f.pool, failCards{}, req); errs.CodeOf(err) != errs.CodeInternal {
+	reads := app.MemberReads{Ownership: app.NoOwnership{}, Calls: app.NoCalls{}, Now: f.clock.Now}
+	req := app.ListMembersQuery{CabalID: seeded.ID, Limit: 10, Order: app.OrderJoined}
+	if _, err := app.ListMembersPage(
+		t.Context(),
+		f.pool,
+		failCards{},
+		reads,
+		req,
+	); errs.CodeOf(
+		err,
+	) != errs.CodeInternal {
 		t.Fatalf("card lookup failure = %v", err)
 	}
 	for name, raw := range map[string]string{
 		"no separator": "nosep", "bad time": "abc\x00" + seeded.ID.String(), "bad id": "123\x00not-a-uuid",
 	} {
 		req.Cursor = base64.RawURLEncoding.EncodeToString([]byte(raw))
-		if _, err := app.ListMembersPage(t.Context(), f.pool, users, req); errs.CodeOf(err) != errs.CodeInvalidInput {
+		if _, err := app.ListMembersPage(
+			t.Context(),
+			f.pool,
+			users,
+			reads,
+			req,
+		); errs.CodeOf(
+			err,
+		) != errs.CodeInvalidInput {
 			t.Fatalf("%s: %v", name, err)
 		}
 	}
 	req.Cursor = ""
 	execSQL(t, f.pool, `ALTER TABLE cabal_members RENAME COLUMN role TO role_gone`)
-	if _, err := app.ListMembersPage(t.Context(), f.pool, users, req); errs.CodeOf(err) != errs.CodeInternal {
+	if _, err := app.ListMembersPage(t.Context(), f.pool, users, reads, req); errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("members read failure = %v", err)
 	}
 	execSQL(t, f.pool, `ALTER TABLE cabals RENAME TO cabals_gone`)
-	if _, err := app.ListMembersPage(t.Context(), f.pool, users, req); errs.CodeOf(err) != errs.CodeInternal {
+	if _, err := app.ListMembersPage(t.Context(), f.pool, users, reads, req); errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("cabal read failure = %v", err)
 	}
 }
@@ -190,7 +207,7 @@ func TestGetCabalMembers_pastTheLastMemberIsAnEmptyPage(t *testing.T) {
 	t.Parallel()
 	f := newCreate(t)
 	seeded := testkit.NewCabal(t, f.pool, testkit.WithMembers(2))
-	last := base64.RawURLEncoding.EncodeToString([]byte("9999999999999999\x00" + uuid.Max.String()))
+	last := base64.RawURLEncoding.EncodeToString([]byte("9\x000\x009999999999999999\x00" + uuid.Max.String()))
 	page, err := membersPage(t, f, seeded.ID, nil, &last)
 	if err != nil || len(page.Items) != 0 || page.NextCursor != nil {
 		t.Fatalf("page = %+v, %v", page, err)

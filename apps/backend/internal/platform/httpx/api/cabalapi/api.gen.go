@@ -39,6 +39,27 @@ func (e AccessDecisionRequestDecision) Valid() bool {
 	}
 }
 
+// Defines values for CabalMemberRowRole.
+const (
+	Admin   CabalMemberRowRole = "admin"
+	Creator CabalMemberRowRole = "creator"
+	Member  CabalMemberRowRole = "member"
+)
+
+// Valid indicates whether the value is a known member of the CabalMemberRowRole enum.
+func (e CabalMemberRowRole) Valid() bool {
+	switch e {
+	case Admin:
+		return true
+	case Creator:
+		return true
+	case Member:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CabalRulesWhoCanPropose.
 const (
 	Voters CabalRulesWhoCanPropose = "voters"
@@ -78,6 +99,24 @@ const (
 func (e GetCabalInvitesParamsStatus) Valid() bool {
 	switch e {
 	case GetCabalInvitesParamsStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetCabalMembersParamsOrder.
+const (
+	Joined    GetCabalMembersParamsOrder = "joined"
+	RoleShare GetCabalMembersParamsOrder = "role_share"
+)
+
+// Valid indicates whether the value is a known member of the GetCabalMembersParamsOrder enum.
+func (e GetCabalMembersParamsOrder) Valid() bool {
+	switch e {
+	case Joined:
+		return true
+	case RoleShare:
 		return true
 	default:
 		return false
@@ -302,12 +341,81 @@ type CabalMember struct {
 // CabalMemberPage One page of a cabal's members.
 type CabalMemberPage struct {
 	// Items Examples: []
-	Items []CabalMember `json:"items"`
+	Items []CabalMemberRow `json:"items"`
 
 	// NextCursor Null on the last page.
 	//
 	// Examples: null
 	NextCursor *string `json:"next_cursor"`
+
+	// Totals The whole cabal's people by group, the same on every page. Admins count creator and admin, voters the other members who can vote, members the rest.
+	//
+	// Examples: {"admins":2,"members":0,"voters":6}
+	Totals CabalMemberTotals `json:"totals"`
+}
+
+// CabalMemberRow A cabal member on the paged read, with share, month record and crown.
+type CabalMemberRow struct {
+	// CanVote Examples: true
+	CanVote bool `json:"can_vote"`
+
+	// Crown True for the one member ranked first in this cabal this month with at least five resolved calls.
+	//
+	// Examples: false
+	Crown bool `json:"crown"`
+
+	// DisplayName The member name. Empty when the user has none.
+	//
+	// Examples: Kai
+	DisplayName string `json:"display_name"`
+
+	// Handle The member handle. Null until onboarding sets one.
+	//
+	// Examples: kai
+	Handle *string `json:"handle"`
+
+	// JoinedAt Examples: 2026-09-30T12:00:00Z
+	JoinedAt time.Time `json:"joined_at"`
+
+	// Month A member's calls in this cabal over the calendar month in UTC.
+	//
+	// Examples: {"eligible":11,"resolved":9,"right":7,"voted":11}
+	Month MemberMonth `json:"month"`
+
+	// OwnershipBps The member's share units over the cabal's total, rounded down.
+	//
+	// Examples: 3500
+	OwnershipBps int32 `json:"ownership_bps"`
+
+	// PhotoUrl The member photo. Null when the user has none.
+	//
+	// Examples: null
+	PhotoUrl *string `json:"photo_url"`
+
+	// Role `creator`, `admin` or `member`. Clients treat `creator` as an admin.
+	//
+	// Examples: creator
+	Role CabalMemberRowRole `json:"role"`
+
+	// UserId Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	UserId openapi_types.UUID `json:"user_id"`
+}
+
+// CabalMemberRowRole `creator`, `admin` or `member`. Clients treat `creator` as an admin.
+//
+// Examples: creator
+type CabalMemberRowRole string
+
+// CabalMemberTotals The whole cabal's people by group, the same on every page. Admins count creator and admin, voters the other members who can vote, members the rest.
+type CabalMemberTotals struct {
+	// Admins Examples: 2
+	Admins int32 `json:"admins"`
+
+	// Members Examples: 0
+	Members int32 `json:"members"`
+
+	// Voters Examples: 6
+	Voters int32 `json:"voters"`
 }
 
 // CabalPerson A user as shown on a cabal.
@@ -485,6 +593,29 @@ type InviteMemberRequest struct {
 	Handle string `json:"handle"`
 }
 
+// MemberMonth A member's calls in this cabal over the calendar month in UTC.
+type MemberMonth struct {
+	// Eligible Votes that were open to the member.
+	//
+	// Examples: 11
+	Eligible int32 `json:"eligible"`
+
+	// Resolved Votes whose trade has resolved.
+	//
+	// Examples: 9
+	Resolved int32 `json:"resolved"`
+
+	// Right Votes that matched how the trade did.
+	//
+	// Examples: 7
+	Right int32 `json:"right"`
+
+	// Voted Ballots the member cast.
+	//
+	// Examples: 11
+	Voted int32 `json:"voted"`
+}
+
 // MyCabal A cabal the caller belongs to.
 type MyCabal struct {
 	CanVote             bool               `json:"can_vote"`
@@ -617,7 +748,13 @@ type GetCabalMembersParams struct {
 
 	// Limit The number of members to return, from 1 through 200. Defaults to 50.
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Order `role_share` (the default) or `joined`. Send the same order with every cursor.
+	Order *GetCabalMembersParamsOrder `form:"order,omitempty" json:"order,omitempty"`
 }
+
+// GetCabalMembersParamsOrder defines parameters for GetCabalMembers.
+type GetCabalMembersParamsOrder string
 
 // PostCabalMemberParams defines parameters for PostCabalMember.
 type PostCabalMemberParams struct {
@@ -1276,6 +1413,19 @@ func (siw *ServerInterfaceWrapper) GetCabalMembers(w http.ResponseWriter, r *htt
 			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
 		} else {
 			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "order" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "order", r.URL.Query(), &params.Order, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "order"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "order", Err: err})
 		}
 		return
 	}

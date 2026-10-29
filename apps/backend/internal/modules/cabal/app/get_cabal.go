@@ -35,7 +35,13 @@ type Member struct {
 	Role     string
 	CanVote  bool
 	JoinedAt time.Time
+
+	OwnershipBps int32
+	Month        MemberMonth
+	Crown        bool
 }
+
+type MemberMonth = domain.MemberCalls
 
 type Membership struct {
 	Role       string

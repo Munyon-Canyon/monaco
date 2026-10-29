@@ -618,7 +618,7 @@ nonisolated extension SampleAPIProtocol {
     private static func membersReply(id: String, tail: [String], method: String, script: SampleAPIScript) -> Reply? {
         guard method == "GET", tail == ["members"] else { return nil }
         let members = cabalRead(id: id, script: script).members
-        return json(Components.Schemas.CabalMemberPage(items: members, nextCursor: nil))
+        return json(Components.Schemas.CabalMemberPage.sample(members: members))
     }
 
     private static func votesReply(_ proposal: Components.Schemas.ProposalDetail) -> Reply {

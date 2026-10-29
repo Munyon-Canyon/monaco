@@ -49,7 +49,8 @@ func (f createFixture) routes(users app.UserCards) adapters.HTTP {
 		users = identity.New(module.Deps{Pool: f.pool}).Queries()
 	}
 	return adapters.HTTP{
-		Create: f.handler(), DB: f.pool, Users: users, Votes: app.NoOpenVotes{},
+		Create: f.handler(), DB: f.pool, Users: users, Votes: app.NoOpenVotes{}, Clock: f.clock,
+		Ownership: app.NoOwnership{}, Calls: app.NoCalls{},
 		Unread: social.New(module.Deps{Pool: f.pool}).Chat(),
 	}
 }

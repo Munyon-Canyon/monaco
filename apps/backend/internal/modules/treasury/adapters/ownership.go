@@ -14,6 +14,30 @@ import (
 
 type holdersStore interface {
 	MemberSharesInCabalsOf(context.Context, uuid.UUID) ([]sqlc.MemberSharesInCabalsOfRow, error)
+	ShareUnitsByCabal(context.Context, uuid.UUID) ([]sqlc.ShareUnitsByCabalRow, error)
+}
+
+func (q *Queries) Ownership(ctx context.Context, cabal ids.CabalID) (map[ids.UserID]int32, error) {
+	const op = "treasury.Queries.Ownership"
+	rows, err := q.holders.ShareUnitsByCabal(ctx, cabal.UUID())
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	units := make([]money.SharesUnits, len(rows))
+	for i, row := range rows {
+		if units[i], err = shares(row.ShareUnits); err != nil {
+			return nil, errs.Wrap(err, errs.CodeOf(err), op)
+		}
+	}
+	bps, err := domain.SlicesBps(units)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	out := make(map[ids.UserID]int32, len(rows))
+	for i, row := range rows {
+		out[ids.UserIDFrom(row.UserID)] = bps[i]
+	}
+	return out, nil
 }
 
 func (q *Queries) OwnershipBps(ctx context.Context, user ids.UserID) (map[ids.CabalID]int32, error) {

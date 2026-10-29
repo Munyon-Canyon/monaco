@@ -17,8 +17,13 @@ import (
 )
 
 type holdersFake struct {
-	rows []sqlc.MemberSharesInCabalsOfRow
-	err  error
+	rows  []sqlc.MemberSharesInCabalsOfRow
+	units []sqlc.ShareUnitsByCabalRow
+	err   error
+}
+
+func (f holdersFake) ShareUnitsByCabal(context.Context, uuid.UUID) ([]sqlc.ShareUnitsByCabalRow, error) {
+	return f.units, f.err
 }
 
 func (f holdersFake) MemberSharesInCabalsOf(context.Context, uuid.UUID) ([]sqlc.MemberSharesInCabalsOfRow, error) {
@@ -107,4 +112,51 @@ func TestOwnershipBps_isEachHoldersSlicesBpsEntry(t *testing.T) {
 			t.Fatalf("holders sum to %d bps, want 10000", sum)
 		}
 	})
+}
+
+func TestOwnership_splitsTheCabalAndLeavesNonHoldersOut(t *testing.T) {
+	t.Parallel()
+	a, b, c := ids.UserIDFrom(uuid.UUID{1}), ids.UserIDFrom(uuid.UUID{2}), ids.UserIDFrom(uuid.UUID{3})
+	q := &Queries{holders: holdersFake{units: []sqlc.ShareUnitsByCabalRow{
+		{UserID: a.UUID(), ShareUnits: "1"}, {UserID: b.UUID(), ShareUnits: "1"}, {UserID: c.UUID(), ShareUnits: "1"},
+	}}}
+	got, err := q.Ownership(t.Context(), ids.CabalIDFrom(uuid.UUID{9}))
+	var sum int32
+	for _, bps := range got {
+		sum += bps
+	}
+	if err != nil || len(got) != 3 || sum != 10000 || got[a] != 3334 || got[b] != 3333 {
+		t.Fatalf("Ownership = %v, %v, want three holders summing to 10000", got, err)
+	}
+	if _, ok := got[ids.UserIDFrom(uuid.UUID{4})]; ok {
+		t.Fatal("a member without a position must be absent")
+	}
+}
+
+func TestOwnership_refusesBadReads(t *testing.T) {
+	t.Parallel()
+	cabal := ids.CabalIDFrom(uuid.UUID{9})
+	big := sqlc.ShareUnitsByCabalRow{UserID: uuid.UUID{1}, ShareUnits: maxUint64}
+	for name, tt := range map[string]struct {
+		store holdersFake
+		want  errs.Code
+	}{
+		"read fails": {store: holdersFake{err: errs.New(errs.CodeDBUnavailable, "test")}, want: errs.CodeDBUnavailable},
+		"bad units": {
+			store: holdersFake{units: []sqlc.ShareUnitsByCabalRow{{UserID: uuid.UUID{1}, ShareUnits: "bad"}}},
+			want:  errs.CodeDecodeFailed,
+		},
+		"units overflow": {
+			store: holdersFake{units: []sqlc.ShareUnitsByCabalRow{big, {UserID: uuid.UUID{2}, ShareUnits: maxUint64}}},
+			want:  errs.CodeInvalidInput,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			got, err := (&Queries{holders: tt.store}).Ownership(t.Context(), cabal)
+			if got != nil || errs.CodeOf(err) != tt.want {
+				t.Fatalf("Ownership = %v, %v, want nil and %s", got, err, tt.want)
+			}
+		})
+	}
 }

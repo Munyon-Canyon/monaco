@@ -932,9 +932,12 @@ paths:
       tags: [cabal]
       summary: Page through a cabal's members.
       description: >-
-        Returns one page of the cabal's members, oldest joiner first, each with the user card and vote standing.
-        Page with the `next_cursor` of the previous page until it is null. The cursor is keyed on the join time
-        and user id, so a member who joins or leaves between pages never repeats or skips another row.
+        Returns one page of the cabal's members, each with the user card, vote standing, share, this month's record in
+        this cabal and the crown. The default `role_share` order lists creator and admins, then voters, then non-voting
+        members, each by `ownership_bps` descending, then join time, then user id; `joined` lists the oldest joiner first.
+        Page with the `next_cursor` of the previous page until it is null. The cursor is keyed on the sort key of the
+        last row, so a member who joins or leaves between pages never repeats or skips another row, and a share that
+        changes between pages moves a member at most once. `totals` describe the whole cabal on every page.
         `GET /v1/cabals/{id}` keeps `members` only for builds that predate this route.
       parameters:
         - name: id
@@ -952,6 +955,11 @@ paths:
           required: false
           description: The number of members to return, from 1 through 200. Defaults to 50.
           schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+        - name: order
+          in: query
+          required: false
+          description: "`role_share` (the default) or `joined`. Send the same order with every cursor."
+          schema: {type: string, enum: [role_share, joined], default: role_share}
       responses:
         "200":
           description: One page of members.
@@ -959,7 +967,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CabalMemberPage"
-              example: {items: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null, role: creator, can_vote: true, joined_at: "2026-09-30T12:00:00Z"}], next_cursor: null}
+              example: {items: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null, role: creator, can_vote: true, joined_at: "2026-09-30T12:00:00Z", ownership_bps: 10000, month: {right: 0, resolved: 0, voted: 0, eligible: 0}, crown: false}], next_cursor: null, totals: {admins: 1, voters: 0, members: 0}}
         default:
           $ref: "#/components/responses/Problem"
     post:
@@ -6506,13 +6514,37 @@ components:
     CabalMemberPage:
       type: object
       description: One page of a cabal's members.
-      required: [items, next_cursor]
+      required: [items, next_cursor, totals]
       properties:
         items:
           type: array
-          items: {$ref: "#/components/schemas/CabalMember"}
+          items: {$ref: "#/components/schemas/CabalMemberRow"}
           examples: [[]]
         next_cursor: {type: [string, "null"], description: Null on the last page., examples: [null]}
+        totals: {$ref: "#/components/schemas/CabalMemberTotals", examples: [{admins: 2, voters: 6, members: 0}]}
+    CabalMemberRow:
+      type: object
+      description: A cabal member on the paged read, with share, month record and crown.
+      required: [user_id, handle, display_name, photo_url, role, can_vote, joined_at, ownership_bps, month, crown]
+      properties:
+        user_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        handle: {type: [string, "null"], description: "The member handle. Null until onboarding sets one.", examples: [kai]}
+        display_name: {type: string, description: "The member name. Empty when the user has none.", examples: [Kai]}
+        photo_url: {type: [string, "null"], description: "The member photo. Null when the user has none.", examples: [null]}
+        role: {type: string, enum: [creator, admin, member], description: "`creator`, `admin` or `member`. Clients treat `creator` as an admin.", examples: [creator]}
+        can_vote: {type: boolean, examples: [true]}
+        joined_at: {type: string, format: date-time, examples: ["2026-09-30T12:00:00Z"]}
+        ownership_bps: {type: integer, format: int32, minimum: 0, maximum: 10000, description: "The member's share units over the cabal's total, rounded down.", examples: [3500]}
+        month: {$ref: "#/components/schemas/MemberMonth", examples: [{right: 7, resolved: 9, voted: 11, eligible: 11}]}
+        crown: {type: boolean, description: True for the one member ranked first in this cabal this month with at least five resolved calls., examples: [false]}
+    CabalMemberTotals:
+      type: object
+      description: The whole cabal's people by group, the same on every page. Admins count creator and admin, voters the other members who can vote, members the rest.
+      required: [admins, voters, members]
+      properties:
+        admins: {type: integer, format: int32, examples: [2]}
+        voters: {type: integer, format: int32, examples: [6]}
+        members: {type: integer, format: int32, examples: [0]}
     CabalPerson:
       type: object
       description: A user as shown on a cabal.
@@ -6595,6 +6627,15 @@ components:
       required: [handle]
       properties:
         handle: {type: string, description: The invitee's handle., examples: [kai]}
+    MemberMonth:
+      type: object
+      description: A member's calls in this cabal over the calendar month in UTC.
+      required: [right, resolved, voted, eligible]
+      properties:
+        right: {type: integer, format: int32, description: Votes that matched how the trade did., examples: [7]}
+        resolved: {type: integer, format: int32, description: Votes whose trade has resolved., examples: [9]}
+        voted: {type: integer, format: int32, description: Ballots the member cast., examples: [11]}
+        eligible: {type: integer, format: int32, description: Votes that were open to the member., examples: [11]}
     MyCabal:
       type: object
       description: A cabal the caller belongs to.

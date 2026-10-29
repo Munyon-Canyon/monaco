@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -39,6 +40,9 @@ type HTTP struct {
 	Unread  app.UnreadCounter
 	Votes   app.OpenVotes
 	Clock   clock.Clock
+
+	Ownership app.MemberOwnership
+	Calls     app.MemberCalls
 }
 
 var _ api.StrictServerInterface = HTTP{}
@@ -240,23 +244,35 @@ func (h HTTP) GetCabalMembers(
 		return nil, err
 	}
 	query := app.ListMembersQuery{CabalID: ids.CabalIDFrom(req.Id), Limit: app.ListMembersDefault}
+	if req.Params.Order != nil {
+		query.Order = string(*req.Params.Order)
+	}
 	if req.Params.Limit != nil {
 		query.Limit = *req.Params.Limit
 	}
 	if req.Params.Cursor != nil {
 		query.Cursor = *req.Params.Cursor
 	}
-	page, err := app.ListMembersPage(ctx, h.DB, h.Users, query)
+	page, err := app.ListMembersPage(ctx, h.DB, h.Users, app.MemberReads{
+		Ownership: h.Ownership, Calls: h.Calls, Now: h.Clock.Now,
+	}, query)
 	if err != nil {
 		return nil, err
 	}
-	items := make([]api.CabalMember, 0, len(page.Items))
+	items := make([]api.CabalMemberRow, 0, len(page.Items))
 	for _, member := range page.Items {
-		items = append(items, wireMember(member))
+		items = append(items, wireMemberRow(member))
 	}
-	return api.GetCabalMembers200JSONResponse(
-		api.CabalMemberPage{Items: items, NextCursor: nullString(page.NextCursor)},
-	), nil
+	return api.GetCabalMembers200JSONResponse(api.CabalMemberPage{
+		Items: items, NextCursor: nullString(page.NextCursor),
+		Totals: api.CabalMemberTotals{
+			Admins: clamp32(
+				page.Totals.Admins,
+			),
+			Voters:  clamp32(page.Totals.Voters),
+			Members: clamp32(page.Totals.Members),
+		},
+	}), nil
 }
 
 func (h HTTP) PatchCabal(
@@ -613,6 +629,25 @@ func wireMember(member app.Member) api.CabalMember {
 		UserId: member.UserID, Handle: nullString(member.Handle), DisplayName: member.DisplayName,
 		PhotoUrl: nullString(member.PhotoURL), Role: member.Role, CanVote: member.CanVote,
 		JoinedAt: member.JoinedAt,
+	}
+}
+
+func clamp32(n int) int32 {
+	if n < 0 || n > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	return int32(n)
+}
+
+func wireMemberRow(member app.Member) api.CabalMemberRow {
+	return api.CabalMemberRow{
+		UserId: member.UserID, Handle: nullString(member.Handle), DisplayName: member.DisplayName,
+		PhotoUrl: nullString(member.PhotoURL), Role: api.CabalMemberRowRole(member.Role), CanVote: member.CanVote,
+		JoinedAt: member.JoinedAt, OwnershipBps: member.OwnershipBps, Crown: member.Crown,
+		Month: api.MemberMonth{
+			Right: clamp32(member.Month.Right), Resolved: clamp32(member.Month.Resolved),
+			Voted: clamp32(member.Month.Voted), Eligible: clamp32(member.Month.Eligible),
+		},
 	}
 }
 
