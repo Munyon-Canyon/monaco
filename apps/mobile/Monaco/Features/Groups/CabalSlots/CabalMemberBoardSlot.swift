@@ -11,8 +11,18 @@ enum CabalMemberBoardSlot: CabalSection {
     }
 }
 
+enum CabalVoterBoardSlot: CabalSection {
+    static let isLive = true
+
+    static func body(for context: CabalContext) -> some View {
+        CabalMemberBoard(cabalID: context.cabalID, votersOnly: true)
+            .id("cabal-voter-board")
+    }
+}
+
 private struct CabalMemberBoard: View {
     let cabalID: String
+    var votersOnly = false
     @Environment(\.cabalRetry) private var retry
     @Environment(\.cabalModel) private var cabalModel
     @Environment(\.cabalPotModel) private var potModel
@@ -30,11 +40,18 @@ private struct CabalMemberBoard: View {
         }
     }
 
+    private var voterIDs: Set<String> {
+        Set((cabalModel?.cabal?.members ?? []).filter(\.canVote).map(\.userId))
+    }
+
     private var board: some View {
-        LeaderboardHost(board: .cabalMembers(id: cabalID), refreshKey: "cabal-member-board", reloadID: retry.tick) {
-            loader in
+        let voters = voterIDs
+        return LeaderboardHost(
+            board: .cabalMembers(id: cabalID), refreshKey: "cabal-member-board", reloadID: retry.tick
+        ) { loader in
+            let lastVisible = votersOnly ? loader.rows.last(where: { voters.contains($0.id) })?.id : nil
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                MonacoSectionHeader("Member standings")
+                MonacoSectionHeader(votersOnly ? "Voter standings" : "Member standings")
                     .padding(.horizontal, MonacoTheme.Space.gutter)
                     .padding(.bottom, -MonacoTheme.Space.s)
                 Text(helper)
@@ -47,18 +64,20 @@ private struct CabalMemberBoard: View {
                     identifier: "cabal-member-board", showsEmpty: false,
                     empty: { EmptyView() },
                     rowContent: { row, isLast in
-                        NavigationLink(
-                            value: AnyAppRoute(
-                                UserProfileRoute(
-                                    userID: row.id,
-                                    preview: UserPreview(
-                                        displayName: row.name, handle: row.handle, photoURL: row.pictureURL)
-                                ))
-                        ) {
-                            CabalStandingRow(row: row, isLast: isLast)
+                        if !votersOnly || voters.contains(row.id) {
+                            NavigationLink(
+                                value: AnyAppRoute(
+                                    UserProfileRoute(
+                                        userID: row.id,
+                                        preview: UserPreview(
+                                            displayName: row.name, handle: row.handle, photoURL: row.pictureURL)
+                                    ))
+                            ) {
+                                CabalStandingRow(row: row, isLast: votersOnly ? row.id == lastVisible : isLast)
+                            }
+                            .buttonStyle(.monacoRow)
+                            .accessibilityIdentifier("cabal-member-\(row.id)")
                         }
-                        .buttonStyle(.monacoRow)
-                        .accessibilityIdentifier("cabal-member-\(row.id)")
                     })
                 LeaderboardFreshnessText(
                     loader: loader, identifier: "cabal-member-board-freshness", font: MonacoTheme.Typo.caption

@@ -37,15 +37,79 @@ struct CabalScreenOrderTests {
         }
     }
 
-    @Test func theHeaderComesFirstThenTheTreasuryTheStatsTheActionsAndTheOpenVotes() throws {
-        let names = CabalScreen.sections.map { String(describing: $0) }
+    private static func names(_ sections: [any CabalSection.Type]) -> [String] {
+        sections.map { String(describing: $0) }
+    }
+
+    @Test func theTopLevelIsTheHeaderOrderThenTheTabs() {
         #expect(
-            Array(names.prefix(8)) == [
+            Self.names(CabalScreen.sections) == [
                 "CabalHeaderSlot", "CabalClosedSlot", "CabalPauseSlot", "CabalJoinSlot", "CabalPotSlot",
-                "CabalSliceSlot", "CabalActionsSlot", "CabalProposalsSlot",
+                "CabalSliceSlot", "CabalActionsSlot", "CabalProposalsSlot", "CabalTabs",
             ])
-        let chart = try #require(names.firstIndex(of: "CabalValueChartSlot"))
-        #expect(try #require(names.firstIndex(of: "CabalProposalsSlot")) < chart)
+    }
+
+    @Test func eachTabHostsItsSlots() {
+        #expect(
+            Self.names(CabalTabs.sections(for: .treasury)) == [
+                "CabalHoldingsSlot", "CabalValueChartSlot", "CabalActivitySlot",
+            ])
+        #expect(Self.names(CabalTabs.sections(for: .rules)) == ["CabalRulesRowSlot"])
+        #expect(Self.names(CabalTabs.sections(for: .members)) == ["CabalMemberBoardSlot"])
+        #expect(Self.names(CabalTabs.sections(for: .voters)) == ["CabalVoterBoardSlot"])
+    }
+
+    @Test func theTabSlotsAndTheChatPreviewLeaveTheTopLevel() {
+        let top = Self.names(CabalScreen.sections)
+        let moved = CabalTab.allCases.flatMap { Self.names(CabalTabs.sections(for: $0)) } + ["CabalChatPreviewSlot"]
+        #expect(moved.allSatisfy { !top.contains($0) })
+    }
+
+    @Test func theMoreMenuOffersChatEditTreasuryAddressAndLeave() {
+        #expect(
+            CabalMoreItem.items(role: "creator", status: "active") == [.chat, .edit, .treasury, .leave])
+        #expect(CabalMoreItem.items(role: "member", status: "active") == [.chat, .treasury, .leave])
+        #expect(CabalMoreItem.items(role: "member", status: CabalClosedModel.closedStatus) == [.treasury, .leave])
+        #expect(CabalMoreItem.items(role: nil, status: "active").isEmpty)
+        #expect(CabalMoreItem.items(role: "creator", status: "active").last == .leave)
+    }
+
+    @Test func aRouteOpensTreasuryUnlessItNamesATab() {
+        #expect(CabalRoute(id: "cabal-1").tab == .treasury)
+        #expect(CabalRoute(id: "cabal-1", tab: .members).tab == .members)
+        #expect(CabalRoute(id: "cabal-1") != CabalRoute(id: "cabal-1", tab: .rules))
+    }
+
+    @Test func theTabsPinOnceTheirTopReachesTheBar() {
+        #expect(!CabalTabsPin.isPinned(tabsTop: nil, barBottom: 103))
+        #expect(!CabalTabsPin.isPinned(tabsTop: 480, barBottom: 103))
+        #expect(CabalTabsPin.isPinned(tabsTop: 103, barBottom: 103))
+        #expect(CabalTabsPin.isPinned(tabsTop: -60, barBottom: 103))
+    }
+
+    @Test(.timeLimit(.minutes(1)), arguments: [CabalTab.treasury, .rules, .members])
+    func theScreenShowsTheFourTabsAndOpensOnTheRoutesTab(tab: CabalTab) async throws {
+        let transport = StubTransport(routes: [
+            Self.cabalPath: Array(repeating: .json(.ok, try Self.json(Variant.member.cabal)), count: 8),
+            Self.potPath: Array(repeating: .json(.ok, try Self.json(Variant.member.pot)), count: 8),
+            Self.myCabalsPath: Array(repeating: .json(.ok, "[]"), count: 8),
+        ])
+        let sections: [any CabalSection.Type] = [CabalHeaderSlot.self, CabalTabs.self]
+        try AccessibilityTree.setAutomation(enabled: true)
+        defer { try? AccessibilityTree.setAutomation(enabled: false) }
+        let window = try Self.window(
+            hosting: CabalScreen(cabalID: "cabal-1", tab: tab, sections: sections), over: transport)
+        defer { TestWindow.close(window) }
+
+        await ProposalTestWindow.until { AccessibilityTree.identifiers(in: window).contains("cabal-tab-members") }
+        let identifiers = AccessibilityTree.identifiers(in: window)
+        for shown in CabalTab.allCases {
+            #expect(identifiers.contains("cabal-tab-\(shown.rawValue)"), "identifiers: \(identifiers)")
+        }
+        if tab == .rules {
+            await ProposalTestWindow.until { AccessibilityTree.identifiers(in: window).contains("cabal-rules") }
+            #expect(AccessibilityTree.identifiers(in: window).contains("cabal-rules"))
+        }
     }
 
     @Test func theInlineTitleShowsOnceTheNameScrollsUnderTheBar() {

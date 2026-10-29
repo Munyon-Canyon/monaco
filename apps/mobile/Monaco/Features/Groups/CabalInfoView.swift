@@ -2,64 +2,6 @@ import MonacoAPI
 import MonacoCore
 import SwiftUI
 
-nonisolated struct CabalInfoRoute: AppRoute {
-    let cabalID: String
-
-    @MainActor func destination() -> some View {
-        CabalInfoView(cabalID: cabalID)
-    }
-}
-
-struct CabalInfoView: View {
-    let cabalID: String
-    var savingPreview = false
-
-    @Environment(AppEnvironment.self) private var environment
-    @State private var models = CabalScreenModels()
-    @State private var retryTick = 0
-    @State private var showsInvite = false
-
-    var body: some View {
-        let (cabal, pot) = models.prepared(cabalID: cabalID, environment: environment)
-        let edit = models.preparedEdit(cabalID: cabalID, environment: environment)
-        Group {
-            if cabal.cabal == nil, case .failed = cabal.state {
-                CabalFullScreenError(identifier: "cabal-info-failed") { retryTick += 1 }
-            } else {
-                SectionStack(
-                    context: CabalContext(cabalID: cabalID), sections: CabalScreen.detailsSections.map { $0.erased }
-                )
-                .environment(\.cabalModel, cabal)
-                .environment(\.cabalPotModel, pot)
-                .environment(\.cabalEditModel, edit)
-                .environment(\.cabalInfoSaving, savingPreview || edit.isSaving)
-                .environment(\.cabalShare, CabalShare { showsInvite = true })
-                .environment(\.cabalRetry, CabalRetry(tick: retryTick) { retryTick += 1 })
-            }
-        }
-        .navigationTitle("Cabal information")
-        .navigationBarTitleDisplayMode(.inline)
-        .monacoCanvas()
-        .task(id: retryTick) {
-            async let loadedCabal: Void = cabal.load()
-            async let loadedPot: Void = pot.load()
-            _ = await (loadedCabal, loadedPot)
-            async let observedCabal: Void = cabal.observe()
-            async let observedPot: Void = pot.observe()
-            _ = await (observedCabal, observedPot)
-        }
-        .onScreenVisibilityChange { visible in
-            cabal.setVisible(visible)
-            pot.setVisible(visible)
-        }
-        .sheet(isPresented: $showsInvite) {
-            if let shared = cabal.cabal {
-                CabalInviteSheet(cabal: shared)
-            }
-        }
-    }
-}
-
 enum CabalInfoCoverSlot: CabalSection {
     static let isLive = true
 

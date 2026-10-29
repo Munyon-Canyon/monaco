@@ -27,7 +27,6 @@ enum GroupDetailSampleScenario: String, CaseIterable {
     case publicPrivate
     case info
     case infoAdmin
-    case infoSaving
     case members
     case voters
     case requests
@@ -43,6 +42,8 @@ enum GroupDetailSampleScenario: String, CaseIterable {
     case fTreasury
     case fTreasuryLight
     case fTreasuryScrolled
+    case fRules
+    case fMembers
 
     static let launchArgument = "-MonacoGroupDetailSample"
 
@@ -60,7 +61,7 @@ extension GroupDetailSampleScenario {
         switch self {
         case .ready, .invitePreview, .inviteInvalid, .invitePending, .inviteMember:
             SampleAPIScript(role: "member", unreadCount: 3)
-        case .fTreasury, .fTreasuryLight, .fTreasuryScrolled: GroupDetailSampleData.fTreasury
+        case .fTreasury, .fTreasuryLight, .fTreasuryScrolled, .fRules, .fMembers: GroupDetailSampleData.fTreasury
         case .invite: SampleAPIScript(role: "creator", unreadCount: 3)
         case .inviteNoProposal: SampleAPIScript(role: "creator", unreadCount: 3, invitePreview: .noProposal)
         case .inviteLoading: SampleAPIScript(role: "creator", unreadCount: 3, invitePreview: .hang)
@@ -88,7 +89,7 @@ extension GroupDetailSampleScenario {
         case .publicMember, .publicPrivate:
             SampleAPIScript(role: "member")
         case .info, .members, .voters: SampleAPIScript(role: "member")
-        case .infoAdmin, .infoSaving:
+        case .infoAdmin:
             SampleAPIScript(role: "creator", accessRequests: Components.Schemas.CabalAccessRequest.samples)
         case .requests:
             SampleAPIScript(role: "creator", accessRequests: Components.Schemas.CabalAccessRequest.samples)
@@ -103,8 +104,8 @@ extension GroupDetailSampleScenario {
     var routes: [any AppRoute] {
         let id = GroupDetailSampleData.cabalID
         switch self {
-        case .info, .infoAdmin: return [CabalInfoRoute(cabalID: id)]
-        case .infoSaving: return [CabalSampleRoute(kind: .infoSaving)]
+        case .info, .infoAdmin, .fRules: return [CabalRoute(id: id, tab: .rules)]
+        case .fMembers: return [CabalRoute(id: id, tab: .members)]
         case .members: return [MembersRoute(cabalID: id, tab: .members)]
         case .voters: return [MembersRoute(cabalID: id, tab: .voters)]
         case .requests, .requestsEmpty: return [MembersRoute(cabalID: id, tab: .requests)]
@@ -228,7 +229,6 @@ nonisolated struct CabalSampleRoute: AppRoute {
     enum Kind: Hashable, Sendable {
         case publicMember
         case publicPrivate
-        case infoSaving
         case invite(CabalInviteMode, role: String)
     }
 
@@ -259,8 +259,6 @@ private struct CabalSampleHost: View {
             PublicCabalView(cabal: cabal, retry: {})
         case .publicPrivate:
             PublicCabalView(cabal: cabal, isPrivate: true, retry: {})
-        case .infoSaving:
-            CabalInfoView(cabalID: cabalID, savingPreview: true)
         case .invite(let mode, let role):
             CabalScreen(cabalID: cabalID)
                 .sheet(isPresented: .constant(true)) {

@@ -26,8 +26,7 @@ struct ScreenMapOrderTests {
             names(CabalScreen.sections) == [
                 "CabalHeaderSlot", "CabalClosedSlot", "CabalPauseSlot", "CabalJoinSlot", "CabalPotSlot",
                 "CabalSliceSlot",
-                "CabalActionsSlot", "CabalProposalsSlot", "CabalValueChartSlot", "CabalChatPreviewSlot",
-                "CabalHoldingsSlot", "CabalMemberBoardSlot", "CabalActivitySlot", "CabalRulesRowSlot",
+                "CabalActionsSlot", "CabalProposalsSlot", "CabalTabs",
             ])
     }
 
