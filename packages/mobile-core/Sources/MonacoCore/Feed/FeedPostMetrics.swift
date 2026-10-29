@@ -1,4 +1,4 @@
-import CoreGraphics
+import Foundation
 
 public enum FeedPostMetrics {
     public static let gutter: CGFloat = 16
