@@ -1,7 +1,7 @@
 ---
 id: governance/comments
 title: Comment on a proposal
-version: 7
+version: 8
 milestone: M18
 requires: [auth/sign-in]
 actors: [A]
@@ -32,8 +32,8 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap, pick, then tap | the Feed tab, the "Proposals" item from `feed-filter`, then the first `feed-cell-<id>` | | `proposal-votes` shows within 15 s (old app: Proposal detail; screens.md `ProposalDetailSlot`) |
-| S1.2 | A | wait | `comment-thread` | | The text "No replies yet" shows in the thread within 10 s, and no "Discussion" header shows on the empty thread (screens.md `ProposalCommentsSlot`: ""Discussion", the thread ... Empty: "No replies yet""; old app: `CommentThreadView` read) |
-| S1.3 | A | type, then tap | `comment-composer-field`, then `comment-composer-send` | `QA comment {QA.run}` | The field's placeholder is "Say something", and a `comment-body-<id>` reads `QA comment {QA.run}` within 10 s (F: the docked composer, "Say something"; old app: `CommentThreadView` post) |
+| S1.2 | A | wait | `comment-thread` | | The section header "Replies" (no count) and the empty line "No replies yet" show in the thread within 10 s (F `04-proposal-dark`, #6541; old app: `CommentThreadView` read) |
+| S1.3 | A | type, then tap | `comment-composer-field`, then `comment-composer-send` | `QA comment {QA.run}` | The field's placeholder is "Say something", the GIF button `comment-composer-gif` shows inside the field, and a `comment-body-<id>` reads `QA comment {QA.run}` within 10 s (F: the docked composer, "Say something"; old app: `CommentThreadView` post) |
 
 ### S2 Reply to a comment
 
@@ -41,8 +41,8 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | tap, pick, then tap | the Feed tab, the "Proposals" item from `feed-filter`, then the first `feed-cell-<id>` | | `proposal-votes` shows within 15 s |
 | S2.2 | A | type, then tap | `comment-composer-field`, then `comment-composer-send` | `QA ask {QA.run}` | A `comment-body-<id>` reads `QA ask {QA.run}` within 10 s |
-| S2.3 | A | tap | the `comment-reply-<id>` with the id of the `comment-body-<id>` reading `QA ask {QA.run}` | | `reply-sheet` shows within 5 s (F: the reply half sheet; old app: `CommentThreadView` reply) |
-| S2.4 | A | type, then tap | `comment-composer-field`, then `comment-composer-send` | `QA answer {QA.run}` | A `comment-body-<id>` reads `QA answer {QA.run}` within 10 s, below the comment it answers |
+| S2.3 | A | tap | the `comment-reply-<id>` with the id of the `comment-body-<id>` reading `QA ask {QA.run}` | | `reply-sheet` shows within 5 s and its `reply-sheet-quote` reads "QA ask {QA.run}" (F `04-reply-composer`, #6548: the reply half sheet; old app: `CommentThreadView` reply) |
+| S2.4 | A | type, then tap | `comment-composer-field`, then `comment-composer-send` | `QA answer {QA.run}` | A `comment-body-<id>` reads `QA answer {QA.run}` within 10 s, one indent in, and its row shows `comment-quote-<id>` naming the comment it answers (#6541) |
 
 ## Ground truth
 
@@ -50,7 +50,9 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Known failures on staging
 
-None known.
+| Step | Why | Ticket |
+| --- | --- | --- |
+| S1.2 | The empty thread draws no "Replies" header: `CommentThreadView` hides it while the thread is empty | #6541 |
 
 ## Not covered
 

@@ -1,0 +1,18 @@
+journey: governance/propose-from-asset
+expect-fail: S1
+
+The keypad keeps the "+$1", "+$10", "+$20", "Max" chips up over the limit instead of the grey limit line. S1.4 expects `amount-keypad-limit-line`, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+diff --git a/apps/mobile/Monaco/Design/AmountKeypadScreen.swift b/apps/mobile/Monaco/Design/AmountKeypadScreen.swift
+index 71bdaf1cf..b8faf9d20 100644
+--- a/apps/mobile/Monaco/Design/AmountKeypadScreen.swift
++++ b/apps/mobile/Monaco/Design/AmountKeypadScreen.swift
+@@ -215,7 +215,7 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
+ 
+     @ViewBuilder
+     private var presetsOrLimit: some View {
+-        if case .invalid(let limitLine, _) = state {
++        if false, case .invalid(let limitLine, _) = state {
+             presetRow
+                 .hidden()
+                 .accessibilityHidden(true)

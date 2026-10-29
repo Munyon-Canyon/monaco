@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceProposeFromAssetJourney {
     static let id = "governance/propose-from-asset"
-    static let version = 7
+    static let version = 8
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -26,10 +26,9 @@ enum GovernanceProposeFromAssetJourney {
             row.tap()
             XCTAssertTrue(app.element("asset-detail-root").waitForExistence(timeout: 15), "S1.1: no asset screen")
             let propose = app.buttons["asset-detail-propose-buy"]
-            XCTAssertTrue(propose.waitForExistence(timeout: 15), "S1.1: no Propose a buy")
+            XCTAssertTrue(propose.waitForExistence(timeout: 15), "S1.1: no Propose buy")
             app.scrollIntoReach(propose)
-            XCTAssertEqual(propose.label, "Propose a buy", "S1.1: the asset CTA")
-            buy.expectText(app, "Your cabal votes before anything is bought", step: "S1.1")
+            XCTAssertEqual(propose.label, "Propose buy", "S1.1: the asset CTA")
         }
 
         recorder.step("S1.2", "pick a cabal") {
@@ -46,18 +45,24 @@ enum GovernanceProposeFromAssetJourney {
             app.scrollIntoReach(row)
             XCTAssertTrue(row.waitForExistence(timeout: 10), "S1.3: no \(name) in the picker")
             row.tap()
-            buy.expectTitle(app, "Buy Alphabet", step: "S1.3")
-            for chip in ["$25", "$50", "$100", "Max"] {
+            XCTAssertTrue(app.element("amount-keypad-screen").waitForExistence(timeout: 10), "S1.3: no keypad")
+            let source = app.element("amount-keypad-source")
+            XCTAssertTrue(source.waitForExistence(timeout: 10), "S1.3: no keypad source")
+            XCTAssertTrue(source.label.contains(name), "S1.3: the source reads \(source.label), not \(name)")
+            for chip in ["+$1", "+$10", "+$20", "Max"] {
                 XCTAssertTrue(
-                    app.buttons[chip].firstMatch.waitForExistence(timeout: 10), "S1.3: no \(chip) chip on Amount")
+                    app.element("amount-keypad-preset-\(chip)").waitForExistence(timeout: 10),
+                    "S1.3: no \(chip) chip on the keypad")
             }
             XCTAssertFalse(app.element("monaco-search-field").exists, "S1.3: Amount asks for a stock again")
         }
 
         recorder.step("S1.4", "an amount over the empty pot is refused") {
-            MoneyFundCabalJourney.typeAmount(app, "5")
-            buy.expectLabel(app, "Amount exceeds the cash balance.", step: "S1.4")
-            XCTAssertFalse(app.buttons["propose-amount-review"].isEnabled, "S1.4: Review is enabled over the pot")
+            app.element("amount-keypad-5").tap()
+            XCTAssertTrue(
+                app.element("amount-keypad-limit-line").waitForExistence(timeout: 10),
+                "S1.4: no limit line within 10 s")
+            XCTAssertFalse(app.element("amount-keypad-action").exists, "S1.4: an action shows over the pot")
         }
     }
 }
