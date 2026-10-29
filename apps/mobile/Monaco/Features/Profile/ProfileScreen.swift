@@ -111,8 +111,11 @@ struct ProfileScreen: View {
         } else if own?.card == nil {
             ProfileLoadingSkeleton()
         } else {
-            SectionStack(context: (), sections: sections.map { $0.erased })
-                .safeAreaInset(edge: .bottom, spacing: 0) { ProfileDepositDock() }
+            VStack(spacing: 0) {
+                OnboardingNudgeBanner()
+                SectionStack(context: (), sections: sections.map { $0.erased })
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) { ProfileDepositDock() }
         }
     }
 

@@ -1,7 +1,7 @@
 ---
 id: onboarding/first-run
 title: First run
-version: 5
+version: 6
 milestone: M9
 requires: [auth/sign-in]
 actors: [C, B]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/FirstRunJourney.swift, apps/mobile
 
 # First run
 
-A new member signs in, picks a handle, and skips the phone and X steps to reach Home. The nudge now lives on Profile, not Home (founder decision Q49, #6496, #6564); Profile then nudges them to add a number. They try a number that belongs to someone else, relaunch and stay past the gate, then link a number of their own. A new dev user links a fake X account and the nudge goes away. The design is [Navigation](../../screens.md#navigation), and the states come from [`auth_state`](../../architecture/auth.md#auth_state).
+A new member signs in, picks a handle, and skips the phone and X steps to reach the tabs. The nudge lives on Profile, not Home (founder decision Q49, #6496, #6564); Profile nudges them to add a number. They try a number that belongs to someone else, relaunch and stay past the gate, then link a number of their own. A new dev user links a fake X account and the nudge goes away. The design is [Navigation](../../screens.md#navigation), and the states come from [`auth_state`](../../architecture/auth.md#auth_state).
 
 The format of this doc is in [App journeys](../README.md). The Old app column names the old app's tap or element at `c838bd24` for each step, or says the step is new in the spec. The old first run was one screen, `Onboarding/OnboardingNameView.swift`.
 
@@ -40,7 +40,7 @@ Starts signed out, with C a new member (P2).
 | S1.3 | clear, then type | `handle-step-field` | `qa_cayman` | `handle-step-status` reads "@qa_cayman is available" within 5 s, and `onboarding-handle-step-continue` is enabled | None, new in spec (#693) |
 | S1.4 | tap | `onboarding-handle-step-continue` | | `onboarding-phone-step` shows within 10 s with "Add your number" and "We match your contacts to find friends. Your number stays private." | `onboarding-continue` ("Continue") |
 | S1.5 | tap | `phone-step-skip` | | `onboarding-socials-step` shows within 10 s with "Connect X" and "Find people you follow on Monaco." | None, new in spec (#694) |
-| S1.6 | tap | `socials-step-skip` | | The tab bar shows on Home within 10 s, and `onboarding-nudge` reads "Add your number to find friends" | "Continue" went straight to the tabs |
+| S1.6 | tap | `socials-step-skip` | | The tab bar shows within 10 s, and after a tap on the Profile tab `onboarding-nudge` reads "Add your number to find friends" | "Continue" went straight to the tabs |
 
 ### S2 A number linked to someone else
 
@@ -59,7 +59,7 @@ Starts from S1 (P6).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | relaunch | the app | | The tab bar shows on Home within 30 s, never `onboarding-handle-step` or `onboarding-phone-step`, and `onboarding-nudge` reads "Add your number to find friends" | The gate skipped `.nameSetup` once the name was set |
+| S3.1 | relaunch | the app | | The tab bar shows within 30 s, never `onboarding-handle-step` or `onboarding-phone-step`, and on the Profile tab `onboarding-nudge` reads "Add your number to find friends" | The gate skipped `.nameSetup` once the name was set |
 | S3.2 | tap | the Profile tab | | `profile-handle` reads "@qa_cayman" within 15 s | `profile-header` on the Profile tab |
 
 ### S4 Link a number
@@ -68,9 +68,9 @@ Starts from S1 (P6), with `{L.phone}` free (P3).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S4.1 | tap, then tap | the Home tab, then `onboarding-nudge-open` | | A sheet shows `onboarding-phone-step` within 5 s with "Add your number" | None, new in spec (#694) |
+| S4.1 | tap, then tap | the Profile tab, then `onboarding-nudge-open` | | A sheet shows `onboarding-phone-step` within 5 s with "Add your number" | None, new in spec (#694) |
 | S4.2 | type, then tap | `phone-step-number-field`, then `phone-step-send-code` | `{L.phone}` | `phone-step-sent-to` reads "Code sent to" and the number within 20 s | None, new in spec (#694) |
-| S4.3 | type | `phone-step-code-field` | `{L.code}` | The sixth digit submits the code. The sheet closes within 20 s, `monaco-toast-banner` reads "Number added.", the tab bar and the Home tab stay and no Find friends screen shows (`friends-not-now` does not exist), and `onboarding-nudge` reads "Connect X to find people you follow" | None, new in spec (#694) |
+| S4.3 | type | `phone-step-code-field` | `{L.code}` | The sixth digit submits the code. The sheet closes within 20 s, `monaco-toast-banner` reads "Number added.", the tab bar stays and no Find friends screen shows (`friends-not-now` does not exist), and `onboarding-nudge` on Profile reads "Connect X to find people you follow" | None, new in spec (#694) |
 
 ### S5 Link X as a new dev user
 
@@ -79,23 +79,13 @@ Starts with a new dev user at `AWAITING_SOCIALS` (P7). The app launches with `MO
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
 | S5.1 | launch, then sign out | the app, then, when C is still signed in, `profile-settings-row`, `profileSignOutButton` and `profile-sign-out-confirm` as in [auth/sign-in](../auth/sign-in.md) S3 | | `devSignInButton` shows on the login form within 30 s | None, new in spec (#694) |
-| S5.2 | tap | `devSignInButton` | | The tab bar shows on Home within 30 s, and `onboarding-nudge` reads "Connect X to find people you follow" | None, new in spec (#694) |
+| S5.2 | tap | `devSignInButton` | | The tab bar shows within 30 s, and after a tap on the Profile tab `onboarding-nudge` reads "Connect X to find people you follow" | None, new in spec (#694) |
 | S5.3 | tap | `onboarding-nudge-open` | | A sheet shows `onboarding-socials-step` within 5 s with "Connect X", and `socials-step-skip` reads "Not now" | None, new in spec (#694) |
-| S5.4 | tap | `socials-step-connect` | | The sheet closes within 20 s with no web sheet, `monaco-toast-banner` reads "X connected.", and `onboarding-nudge` does not show on Home | None, new in spec (#694) |
+| S5.4 | tap | `socials-step-connect` | | The sheet closes within 20 s with no web sheet, `monaco-toast-banner` reads "X connected.", and `onboarding-nudge` does not show on Profile | None, new in spec (#694) |
 
 ## Ground truth
 
 After a run, C's `users` row has `handle = 'qa_cayman'`, `phone_e164 = {L.phone}` and `auth_state = 'AWAITING_SOCIALS'`. The dev user from S5 (`devUserID`) has an `x_username` that starts with `dev_x_` and `auth_state = 'ONBOARDING_COMPLETED'`. `apps/mobile/qa/journeys/onboarding/first-run.truth.sh` checks both rows through `apps/mobile/qa/journeys/psql.sh`.
-
-## Known failures on staging
-
-The onboarding nudge left Home for Profile (Q49), and Profile does not render it yet, so these steps fail until #6496 lands. They name Home's `onboarding-nudge` and `onboarding-nudge-open`, which are gone from Home. Once Profile draws the nudge, point each at it and remove this entry:
-
-- S1.6, which expects `onboarding-nudge` on Home after the skip.
-- S2.1 to S2.4, which open the phone step from the nudge and expect it to stay.
-- S3.1, which expects the nudge after a relaunch.
-- S4.1 to S4.3, which open the phone step from the nudge.
-- S5.2 to S5.4, which open the socials step from the nudge and expect it to go.
 
 ## Not covered
 

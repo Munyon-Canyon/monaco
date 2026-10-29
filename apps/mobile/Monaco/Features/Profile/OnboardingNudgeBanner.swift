@@ -7,9 +7,13 @@ struct OnboardingNudgeBanner: View {
     @State private var opened: OnboardingNudge?
     @State private var pushesPhone = false
 
+    static func nudge(profile: SessionProfile?, dismissed: Bool, connectX: Bool) -> OnboardingNudge? {
+        guard !dismissed, let profile else { return nil }
+        return MonacoCore.nudge(for: profile, connectX: connectX)
+    }
+
     private var current: OnboardingNudge? {
-        guard !session.nudgeDismissed, let profile = session.profile else { return nil }
-        return nudge(for: profile, connectX: AppFeatures.current.connectX)
+        Self.nudge(profile: session.profile, dismissed: session.nudgeDismissed, connectX: AppFeatures.current.connectX)
     }
 
     private var isOpen: Binding<Bool> {

@@ -2,7 +2,7 @@ import XCTest
 
 enum FirstRunJourney {
     static let id = "onboarding/first-run"
-    static let version = 5
+    static let version = 6
     static let actors = ["C", "B"]
 
     static let handle = "qa_cayman"
@@ -131,14 +131,15 @@ enum FirstRunJourney {
             XCTAssertTrue(app.staticTexts["Find people you follow on Monaco."].exists, "S1.5: no X step subtext")
         }
 
-        recorder.step("S1.6", "Skip opens Home with the add-number nudge") {
+        recorder.step("S1.6", "Skip opens the tabs and Profile shows the add-number nudge") {
             app.buttons["socials-step-skip"].tap()
             XCTAssertTrue(
                 app.tab("Home").waitForExistence(timeout: stepTimeout),
                 "S1.6: the tab bar did not show within \(Int(stepTimeout)) s of Skip")
+            app.tab("Profile").tap()
             XCTAssertTrue(
                 waitForNudge(app, reading: addPhoneNudge, timeout: stepTimeout),
-                "S1.6: the nudge did not read '\(addPhoneNudge)' on Home, it read '\(nudge(app).label)'")
+                "S1.6: the nudge did not read '\(addPhoneNudge)' on Profile, it read '\(nudge(app).label)'")
         }
     }
 
@@ -158,12 +159,12 @@ enum FirstRunJourney {
         }
     }
 
-    static func openHome(_ app: XCUIApplication, step: String) {
+    static func openProfile(_ app: XCUIApplication, step: String) {
         XCTAssertTrue(
-            app.tab("Home").waitForExistence(timeout: signedInTimeout),
+            app.tab("Profile").waitForExistence(timeout: signedInTimeout),
             "\(step): C did not reach the tab bar within \(Int(signedInTimeout)) s. The setup script puts C past the first run (P6)"
         )
-        app.tab("Home").tap()
+        app.tab("Profile").tap()
     }
 
     static func numberLinkedElsewhere(_ app: XCUIApplication, other: JourneyAccount) {
@@ -171,7 +172,7 @@ enum FirstRunJourney {
         let skip = app.buttons["phone-step-skip"]
 
         recorder.step("S2.1", "the nudge opens the phone sheet") {
-            openHome(app, step: "S2.1")
+            openProfile(app, step: "S2.1")
             XCTAssertTrue(
                 waitForNudge(app, reading: addPhoneNudge, timeout: stepTimeout),
                 "S2.1: the nudge did not read '\(addPhoneNudge)', it read '\(nudge(app).label)'")
@@ -210,7 +211,7 @@ enum FirstRunJourney {
     static func relaunchPastTheGate(_ app: XCUIApplication) {
         let recorder = recorder()
 
-        recorder.step("S3.1", "a relaunch opens Home, not a first-run step") {
+        recorder.step("S3.1", "a relaunch opens the tabs, not a first-run step") {
             app.terminate()
             app.launch()
             var sawStep = false
@@ -220,6 +221,7 @@ enum FirstRunJourney {
             }
             XCTAssertFalse(sawStep, "S3.1: the handle or phone step showed after the relaunch")
             XCTAssertTrue(landed, "S3.1: the tab bar did not show within \(Int(signedInTimeout)) s of the relaunch")
+            app.tab("Profile").tap()
             XCTAssertTrue(
                 waitForNudge(app, reading: addPhoneNudge, timeout: stepTimeout),
                 "S3.1: the nudge did not read '\(addPhoneNudge)', it read '\(nudge(app).label)'")
@@ -238,7 +240,7 @@ enum FirstRunJourney {
         let recorder = recorder()
 
         recorder.step("S4.1", "the nudge opens the phone sheet") {
-            openHome(app, step: "S4.1")
+            openProfile(app, step: "S4.1")
             XCTAssertTrue(
                 waitForNudge(app, reading: addPhoneNudge, timeout: stepTimeout),
                 "S4.1: the nudge did not read '\(addPhoneNudge)', it read '\(nudge(app).label)'")
@@ -284,11 +286,12 @@ extension FirstRunJourney {
                 "S5.1: no Dev: sign in button on the login form. The setup script hands the test a dev token (P7)")
         }
 
-        recorder.step("S5.2", "Dev: sign in opens Home with the X nudge") {
+        recorder.step("S5.2", "Dev: sign in opens the tabs and Profile shows the X nudge") {
             devSignIn.tap()
             XCTAssertTrue(
                 app.tab("Home").waitForExistence(timeout: signedInTimeout),
                 "S5.2: the tab bar did not show within \(Int(signedInTimeout)) s of Dev: sign in")
+            app.tab("Profile").tap()
             XCTAssertTrue(
                 waitForNudge(app, reading: linkXNudge, timeout: stepTimeout),
                 "S5.2: the nudge did not read '\(linkXNudge)', it read '\(nudge(app).label)'")
@@ -317,7 +320,7 @@ extension FirstRunJourney {
                 "S5.4: no 'X connected.' toast")
             XCTAssertTrue(
                 app.element("onboarding-nudge").waitForNonExistence(timeout: stepTimeout),
-                "S5.4: the onboarding nudge is still on Home after the X link")
+                "S5.4: the onboarding nudge is still on Profile after the X link")
         }
     }
 
