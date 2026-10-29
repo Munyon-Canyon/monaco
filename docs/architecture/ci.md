@@ -101,7 +101,7 @@ With `[land] on_stage0 = true` in `.monaco/agents.toml` or `agents.local.toml` (
 | `web` | `web` |
 | `unknown` | never covered |
 
-The `unknown` filter negates every tracked top-level path that no job tests, so a new top-level path must be added to a filter or to that negation list.
+The `unknown` filter negates every tracked top-level path that no job tests, so a new top-level path must be added to a filter or to that negation list. The `ios` filter and stage 0's xcode gate both key on `packages/flows/Sources/**` and `Package.swift`, not the backend TSVs, so a flow change that regenerates no Swift attests without an xcode row.
 
 `stage0-attested.sh` prints which row covered which filter, or which filter nothing covered. MonacoTests and the `ios` build still run in the hourly `staging.yml` indicator, and a red run reverts the landing. A status with no rows covers no filter; a status on a different tree skips nothing, and a failed status lookup runs the full stage 1. A skipped stage 1 records no patch ID on `ci-ok`, so it never becomes a reuse key for a later push. Stage 0 never runs `-race`: on a loaded Mac it cost 2.3 times the CPU of the same tests without it (285 s against 124 s over `ranking`, `referrals` and `agents`), so a PR whose stage 1 is skipped meets the race detector first in the hourly `staging.yml` indicator, after it lands.
 

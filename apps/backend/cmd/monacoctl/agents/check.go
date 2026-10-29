@@ -625,7 +625,9 @@ func lockWaited(file string) time.Duration {
 func mobileTreeChanged(changed []string) bool {
 	return slices.ContainsFunc(changed, func(f string) bool {
 		return strings.HasPrefix(f, "apps/mobile/") ||
-			strings.HasPrefix(f, "packages/mobile-core/") && !strings.HasPrefix(f, "packages/mobile-core/Tests/")
+			strings.HasPrefix(f, "packages/mobile-core/") && !strings.HasPrefix(f, "packages/mobile-core/Tests/") ||
+			strings.HasPrefix(f, "packages/flows/Sources/") ||
+			f == "packages/flows/Package.swift"
 	})
 }
 
