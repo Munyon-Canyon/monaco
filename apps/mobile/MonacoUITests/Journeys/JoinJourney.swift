@@ -17,8 +17,10 @@ enum JoinJourney {
     static let requestedToast = "Request sent. You'll be in once the creator says yes."
 
     static func waitForToast(_ app: XCUIApplication, _ message: String, step: String) {
+        let banner = app.element("monaco-toast-banner")
+        let text = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", message)).firstMatch
         XCTAssertTrue(
-            app.staticTexts[message].firstMatch.waitForExistence(timeout: 10),
+            FollowAndBoardsJourney.waitUntil(10) { (banner.exists && banner.label.contains(message)) || text.exists },
             "\(step): the toast \"\(message)\" did not show within 10 s"
         )
     }
