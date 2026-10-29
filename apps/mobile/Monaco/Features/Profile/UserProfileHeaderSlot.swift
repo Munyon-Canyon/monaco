@@ -320,12 +320,15 @@ private struct UserProfileCounts: View {
             link(
                 FollowCountFormatter.count(data.followers), FollowCountFormatter.followersNoun(data.followers),
                 .followers, id: "user-profile-followers")
+            separator
             link(FollowCountFormatter.count(data.following), "following", .following, id: "user-profile-following")
             if let cabals = data.cabals {
+                separator
                 item(FollowCountFormatter.count(cabals), cabals == 1 ? "cabal" : "cabals")
                     .accessibilityIdentifier("user-profile-stat-cabals")
             }
             if data.inCommon > 0 {
+                separator
                 Text("\(data.inCommon) in common")
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.muted)
@@ -336,6 +339,13 @@ private struct UserProfileCounts: View {
         .minimumScaleFactor(0.8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, MonacoTheme.Space.gutter)
+    }
+
+    private var separator: some View {
+        Text("\u{00B7}")
+            .font(MonacoTheme.Typo.caption)
+            .foregroundStyle(MonacoTheme.muted)
+            .accessibilityHidden(true)
     }
 
     private func link(_ count: String, _ noun: String, _ kind: FollowListKind, id: String) -> some View {
