@@ -43,7 +43,7 @@ struct HomeSlotsTests {
 
     @Test func firstUseGateFollowsTheEmptyPortfolio() async {
         let empty = PortfolioModel.preview(.sampleEmpty)
-        let funded = PortfolioModel.previewF
+        let funded = PortfolioModel.preview(.sample)
         await empty.load()
         await funded.load()
         #expect(HomeGate(portfolio: empty, reads: nil, balance: .idle).firstUse)

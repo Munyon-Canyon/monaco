@@ -59,7 +59,7 @@ struct CabalScreenLoadTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
-    func theHeaderReadsTheCabalThePotTheMonthAndTheOpenProposalsOnce() async throws {
+    func theHeaderReadsTheCabalThePotTheMonthTheOpenProposalsAndTheLatestClosedOneOnce() async throws {
         let transport = try Self.transport(
             cabal: .sample(role: "member"), pot: .sampleInvested, proposals: [.sample(status: .open)])
         let screen = CabalScreen(cabalID: "cabal-1", sections: Self.headerSections)
@@ -72,9 +72,14 @@ struct CabalScreenLoadTests {
 
         let sent = await transport.sent
         let paths = sent.map { URLComponents(string: $0.path ?? "")?.path }
-        for path in [Self.cabalPath, Self.potPath, Self.historyPath, Self.proposalsPath] {
+        for path in [Self.cabalPath, Self.potPath, Self.historyPath] {
             #expect(paths.filter { $0 == path }.count == 1, "\(path) requests sent: \(paths)")
         }
+        let proposalReads = sent.compactMap(\.path).filter { $0.hasPrefix(Self.proposalsPath) }
+        #expect(proposalReads.filter { $0.contains("filter=all") }.count == 1, "proposal reads: \(proposalReads)")
+        #expect(
+            proposalReads.filter { $0.contains("filter=closed") && $0.contains("limit=1") }.count == 1,
+            "proposal reads: \(proposalReads)")
         let history = try #require(sent.first { $0.path?.hasPrefix(Self.historyPath) == true })
         #expect(history.path?.contains("range=1M") == true, "history request: \(history.path ?? "")")
     }
@@ -143,6 +148,9 @@ struct CabalScreenLoadTests {
             "\(historyPath)?range=1M": Array(
                 repeating: .json(.ok, try json(Components.Schemas.CabalValueHistory.sampleCurve())), count: 8),
             "\(proposalsPath)?filter=all": Array(repeating: .json(.ok, try json(page)), count: 8),
+            "\(proposalsPath)?filter=closed&limit=1": Array(
+                repeating: .json(.ok, try json(Components.Schemas.ProposalList(proposals: [], nextCursor: nil))),
+                count: 8),
             myCabalsPath: Array(repeating: .json(.ok, "[]"), count: 8),
         ])
     }
