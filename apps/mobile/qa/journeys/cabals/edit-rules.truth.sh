@@ -24,8 +24,8 @@ check() {
 
 
 
-rules="$(sql <<<"SELECT threshold, proposal_expiry_seconds, voter_mode FROM cabals WHERE name = 'QA renamed $run'")"
-check "QA rules $run was renamed and its rules saved" "$rules" "unanimous 604800 list"
+rules="$(sql <<<"SELECT show_sides FROM cabals WHERE name = 'QA renamed $run'")"
+check "QA rules $run was renamed and Show who voted what passed by proposal" "$rules" "t"
 voters="$(sql <<<"SELECT count(*) FROM cabal_members m JOIN cabals c ON c.id = m.cabal_id
   WHERE c.name = 'QA renamed $run' AND m.can_vote")"
 check "voters of QA renamed $run" "$voters" 2

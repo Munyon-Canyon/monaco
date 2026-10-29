@@ -1,0 +1,19 @@
+journey: cabals/edit-rules
+expect-fail: S2
+
+The Show who voted what switch never opens the proposal sheet, so the row never turns on. S2.1 waits for the sheet, so S2 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalRulesTab.swift b/apps/mobile/Monaco/Features/Groups/CabalRulesTab.swift
+index 20daf887e..fd02bcf2c 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalRulesTab.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalRulesTab.swift
+@@ -141,7 +141,7 @@ private struct CabalRulesBody: View {
+         Binding(
+             get: { current },
+             set: { requested in
+-                guard requested != current else { return }
++                guard requested != current, !requested else { return }
+                 proposal = CabalRuleProposalModel(
+                     cabal: cabal, change: .showSides(requested), api: environment.api)
+             }

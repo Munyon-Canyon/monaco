@@ -1,7 +1,7 @@
 ---
 id: cabals/edit-rules
 title: Edit a cabal's rules and name
-version: 7
+version: 8
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -11,9 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/CabalsEditRulesJourney.swift, apps
 
 # Edit a cabal's rules and name
 
-The creator opens a cabal's information screen, opens Cabal settings from the Edit link of "The rules", renames the cabal, changes what passes and how long votes stay open, and saves. In the same editor the creator picks who votes, and one Save sends it all. The information screen reads the new rules back. The rules are [Cabals](../../architecture/cabals.md#rules).
-
-Old app (`c838bd24`): Cabal -> i -> Rules -> the editor -> Save; the name and picture in the same editor (`GroupDetailsSheet.swift`, `CabalPictureEditor.swift`). Spec: `CabalRulesSlot` and `CabalInfoView` in [screens.md](../../screens.md#cabal-screen-cabalroute).
+The creator opens the cabal with `openCabal(named:)`, reads the six rows of the Rules tab and the footer, and renames the cabal from the "…" menu. Per founder decision Q4 every rule changes by proposal, so S2 turns "Show who voted what" on by proposal: A sends it, A and B hold Yes, and the Rules tab reads "on since". Only the name, picture and slippage stay direct edits. The rules are [Cabals](../../architecture/cabals.md#rules).
 
 The format of this doc is in [App journeys](../README.md).
 
@@ -27,32 +25,38 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Scenarios
 
-### S1 Rename, change the rules, pick the voters
+### S1 Read the rules, rename
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA rules {QA.run}` | `cabal-header-name` reads `QA rules {QA.run}` within 15 s |
-| S1.2 | A | tap, then scroll to | `cabal-details-button`, then `cabal-rules` | | `cabal-rules-voters` reads "Who votes" "Everyone", `cabal-rules-threshold` "Current threshold" "2 of 2 eligible voters" and `cabal-rules-expiry` "Votes stay open" "1 day" within 10 s |
-| S1.3 | A | tap | `cabal-rules-edit` | | The "Cabal settings" screen shows `edit-cabal-name` and `edit-cabal-rules-footer` reading "Vote rules apply to new proposals. Who can join applies right away." within 10 s |
-| S1.4 | A | clear, then type | `edit-cabal-name` | `QA renamed {QA.run}` | `edit-cabal-save` "Save" is enabled |
-| S1.5 | A | tap, then tap | "Everyone agrees" in `edit-rule-threshold`, then "1 week" in `edit-rule-expiry` | | `edit-rule-threshold` reads "Passes only if every voter says yes." and `edit-rule-expiry` reads "A vote that hasn't passed closes after 1 week." |
-| S1.6 | A | tap | "People I pick" in `edit-rule-voters` | | `edit-rule-voters` first showed "Everyone" selected, and now `edit-cabal-voters` lists the members within 10 s |
-| S1.7 | A | tap | `voters-member-<member-id>` | | The row names B and is selected |
-| S1.8 | A | tap | `edit-cabal-save` | | The toast "Cabal updated." shows within 10 s, and Cabal settings closes on its own. One Save sends the name, threshold, expiry and voters in one PATCH |
-| S1.9 | A | wait | `cabal-rules` | | The information screen is back under Cabal settings and shows `cabal-rules-threshold` "2 of 2 eligible voters", `cabal-rules-expiry` "1 week" and `cabal-rules-voters` "People I pick" within 10 s |
-| S1.10 | A | tap back | the navigation bar's back button | | `cabal-header-name` reads `QA renamed {QA.run}` within 10 s |
+| S1.1 | A | `openCabal(named:)` | the Cabals tab and the tile | `QA rules {QA.run}` | `cabal-header-name` reads `QA rules {QA.run}` within 15 s |
+| S1.2 | A | `openCabalTab("Rules")` | `cabal-rules` | | Within 10 s: `cabal-rules-votesToPass` "2 of 2", `cabal-rules-voteWindow` "24 h", `cabal-rules-maxPerTrade` "No limit", `cabal-rules-whoCanPropose` "Voters", `cabal-rules-cashOut` "Anytime, your share", `cabal-rules-showSides` "After a vote closes · off"; `cabal-rules-footer` starts "Counts are live for every member." and contains "Rules change by proposal;" |
+| S1.3 | A | tap, then tap | `cabal-more-button`, then `cabal-more-edit` | | The editor shows `edit-cabal-name` within 10 s |
+| S1.4 | A | clear, type, then tap | `edit-cabal-name`, then `edit-cabal-save` | `QA renamed {QA.run}` | The toast "Cabal updated." shows within 10 s and `cabal-header-name` reads `QA renamed {QA.run}` |
+
+### S2 Show who voted what, by proposal
+
+Starts on the renamed cabal.
+
+| Step | Actor | Action | Target | Input | Expect |
+| --- | --- | --- | --- | --- | --- |
+| S2.1 | A | `openCabalTab("Rules")`, then tap | `cabal-rules-show-sides-toggle` | | `cabal-rule-proposal-words` reads "Show who voted what after a vote closes: on" within 10 s |
+| S2.2 | A | tap | `cabal-rule-proposal-propose` | | The toast "Proposed. Your cabal votes on it." shows within 10 s |
+| S2.3 | A | tap, then `pickAndHold("yes")` | the `cabal-open-proposal-<id>` row | | A holds Yes |
+| S2.4 | B | `openCabal(named:)`, tap, then `pickAndHold("yes")` | the open proposal row | `QA renamed {QA.run}` | B holds Yes; two of two voters pass it |
+| S2.5 | A | `openCabal(named:)`, `openCabalTab("Rules")` | `cabal-rules-showSides` | | The row reads "on since" within 20 s |
 
 ## Ground truth
 
-`apps/mobile/qa/journeys/cabals/edit-rules.truth.sh` reads the cabal A created in this run. Its name is `QA renamed {QA.run}`, its threshold is `unanimous`, its proposal expiry is 604800 seconds, its voter mode is `list`, and A and B can both vote.
+`apps/mobile/qa/journeys/cabals/edit-rules.truth.sh` reads the cabal A created in this run. Its name is `QA renamed {QA.run}`, `show_sides` is true, and A and B can both vote.
 
 ## Known failures on staging
 
-None known.
+- Votes to pass, Vote window and Max per trade have no control on the Rules tab: the rows are read-only text, and only the Show who voted what switch starts a proposal (`CabalRulesTab.swift`). The `cabal-rule-proposal-threshold`, `-window` and `-max-trade` pickers are in the sheet but nothing on the page opens them. The ticket's "propose the change from the Rules tab" for those three is not drivable until HC (#6523 / #6498) adds a tap target; S2 covers the switch.
 
 ## Not covered
 
-- The text in `edit-cabal-name` before and after typing. `MonacoTextField` sets `accessibilityValue` to an empty string, so the field's text is not readable by XCUITest or VoiceOver. S1.4 deletes as many characters as `QA rules {QA.run}` has, and the ground truth check reads the renamed cabal, which proves the field took the typing.
-- Changing the picture. `cabal-picture-picker` opens the system photo picker, which the journey does not drive (`apps/mobile/Monaco/Features/Groups/CabalPicturePicker.swift`). `CabalPictureEditorTests` covers the upload on the host.
-- The "Who can join" rule (`edit-rule-join`). `cabals/join` S2.1 changes it, and `cabals/approve-request` covers requests.
-- A non-creator's rules rows, which are read-only. `cabals/join` opens a cabal as a member but does not open its details.
+- The text in `edit-cabal-name` before and after typing. `MonacoTextField` sets `accessibilityValue` to an empty string, so the ground truth reads the renamed cabal.
+- Changing the picture, which opens the system photo picker.
+- The "Who can join" rule. `cabals/join` S2.1 changes it.
+- A non-creator's Rules tab, where the switch is disabled.

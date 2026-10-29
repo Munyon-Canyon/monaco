@@ -1,0 +1,19 @@
+journey: cabals/info-and-members
+expect-fail: S1
+
+The Members footer drops "by proposal". S1.2 checks the footer, so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Cabals/CabalMemberCopy.swift b/packages/mobile-core/Sources/MonacoCore/Cabals/CabalMemberCopy.swift
+index e09c03dfa..f3369af7a 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Cabals/CabalMemberCopy.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Cabals/CabalMemberCopy.swift
+@@ -35,7 +35,7 @@ public enum CabalMemberGroup: Equatable, Sendable {
+ 
+ public enum CabalMemberCopy {
+     public static let membersFooter =
+-        "Voters decide; members hold a share. A right call is a vote that matched how the trade did, counted once it resolves. Turnout is the votes cast of the votes open. Make a member a voter by proposal."
++        "Voters decide; members hold a share. A right call is a vote that matched how the trade did, counted once it resolves. Turnout is the votes cast of the votes open. Make a member a voter by hand."
+     public static let votersFooter = "Voters decide on every trade and rule. Change who votes by proposal."
+     public static let invite = "Invite to this cabal"
+     public static let approve = "Approve"

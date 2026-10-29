@@ -115,6 +115,9 @@ path.write_text(json.dumps(values))
 PY
     echo "seeded: A created the cabal 'QA rules $run', B joined it, member-id is B"
     ;;
+  S2)
+    echo "nothing to seed for S2: it runs on the cabal S1 renamed"
+    ;;
   *)
     echo "no setup for scenario $scenario" >&2
     exit 1

@@ -14,14 +14,14 @@ nonisolated final class CabalsInfoAndMembersJourneyUITests: XCTestCase {
         try session.scenario("S1") {
             let seed = try CabalsInfoAndMembersJourney.Seed.handedOff()
             try session.act(as: "A")
-            CabalsInfoAndMembersJourney.informationAndMembers(app, seed: seed, recorder: recorder)
+            CabalsInfoAndMembersJourney.membersTab(app, seed: seed, recorder: recorder)
             attachScreenshot(of: app, named: "S1-A-members")
         }
 
         try session.scenario("S2") {
             let seed = try CabalsInfoAndMembersJourney.Seed.handedOff()
             try session.act(as: "A")
-            CabalsInfoAndMembersJourney.pickAVoter(app, seed: seed, recorder: recorder)
+            CabalsInfoAndMembersJourney.makeAVoter(app, seed: seed, recorder: recorder)
             attachScreenshot(of: app, named: "S2-A-voters-saved")
         }
     }

@@ -1,7 +1,7 @@
 ---
 id: cabals/leave
 title: Leave a cabal
-version: 5
+version: 6
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -11,13 +11,11 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/CabalsLeaveJourney.swift, apps/mob
 
 # Leave a cabal
 
-A member opens a cabal's details, taps "Leave cabal", confirms, and lands back on the Cabals tab. A creator with other members sees why they cannot leave yet. The rules are [Cabals](../../architecture/cabals.md#leave).
+A member opens the cabal's “…” menu, taps "Leave cabal", confirms, and the cabal's tile is gone from the Cabals tab. A creator with other members sees why they cannot leave yet. The rules are [Cabals](../../architecture/cabals.md#leave).
 
-Old app (`c838bd24`): `GroupDetailView.swift` -> "Leave cabal" -> the dialog "Leave X?" with "Leave cabal" (`GroupDetailsSheet.swift` "Leaving…"). The old dialog also had "Sell and leave" for a member with a stake; the app now refuses that leave and offers "Cash out" first ([Cabals](../../architecture/cabals.md#leave)). Spec: `CabalLeaveSlot` in [screens.md](../../screens.md#cabal-screen-cabalroute), the last section of Cabal information.
+Old app (`c838bd24`): `GroupDetailView.swift` -> "Leave cabal" -> the dialog "Leave X?" with "Leave cabal" (`GroupDetailsSheet.swift` "Leaving…"). The old dialog also had "Sell and leave" for a member with a stake; the app now refuses that leave and offers "Cash out" first ([Cabals](../../architecture/cabals.md#leave)). Spec: `CabalLeaveSlot` in [screens.md](../../screens.md#cabal-screen-cabalroute), now offered from the cabal page's “…” menu.
 
 The format of this doc is in [App journeys](../README.md).
-
-Discover cabals is where `cabals-search-field` lives. A step that says "Discover cabals" reaches it from the Cabals tab by typing a name the actor has no cabal called, such as `zzqq`, in `cabals-filter-field` ("Find or search cabals"), then tapping `cabals-search-public` ("Search public cabals for …") or pressing the keyboard Search key, which pushes Discover cabals with that text in `cabals-search-field`; an actor with no cabals taps "Explore cabals" instead. The step then replaces the text in `cabals-search-field`.
 
 ## Preconditions
 
@@ -33,18 +31,18 @@ Discover cabals is where `cabals-search-field` lives. A step that says "Discover
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | B | tap, type, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA leave {QA.run}` | `cabal-header-name` reads `QA leave {QA.run}` and `cabal-member-count` reads "2 members" within 15 s |
-| S1.2 | B | tap, then scroll to | `cabal-details-button`, then `cabalLeaveButton` | | The Cabal information screen shows, and `cabalLeaveButton` reads "Leave cabal" within 10 s |
+| S1.1 | B | `openCabal(named:)` | the Cabals tab and the tile | `QA leave {QA.run}` | `cabal-header-name` reads `QA leave {QA.run}` and `cabal-member-count` reads "2 members" within 15 s |
+| S1.2 | B | tap, then tap | `cabal-more-button`, then `cabal-more-leave` | | The Leave cabal sheet shows `cabalLeaveButton` reading "Leave cabal" within 10 s |
 | S1.3 | B | tap | `cabalLeaveButton` | | The dialog "Leave QA leave {QA.run}?" shows `cabalLeaveConfirmButton` "Leave cabal" within 5 s |
-| S1.4 | B | tap | `cabalLeaveConfirmButton` | | The toast "You left QA leave {QA.run}." shows within 10 s, and the cabal screens close back to the screen B opened the cabal from: `cabal-header-name` is gone and the Discover cabals search field (`cabals-search-field`) shows within 10 s |
-| S1.5 | B | type | `cabals-search-field` on the Discover cabals screen S1.4 returned to | `QA leave {QA.run}` | The `cabals-search-enter-<id>` for `QA leave {QA.run}` is labelled "Request to join QA leave {QA.run}" within 10 s, with no `cabals-search-joined` badge: B is no longer a member |
+| S1.4 | B | tap | `cabalLeaveConfirmButton` | | The toast "You left QA leave {QA.run}." shows within 10 s and `cabal-header-name` is gone within 10 s |
+| S1.5 | B | tap | the Cabals tab | | No `cabals-tile-<id>` for `QA leave {QA.run}` shows within 10 s: B is no longer a member |
 
 ### S2 The creator cannot leave while others remain
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, type, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA stay {QA.run}` | `cabal-member-count` reads "2 members" within 15 s |
-| S2.2 | A | tap, then scroll to | `cabal-details-button`, then `cabalLeaveCreatorNote` | | `cabalLeaveCreatorNote` reads "You can leave once everyone else has left." within 10 s, and there is no `cabalLeaveButton` |
+| S2.1 | A | `openCabal(named:)` | the Cabals tab and the tile | `QA stay {QA.run}` | `cabal-member-count` reads "2 members" within 15 s |
+| S2.2 | A | tap, then tap | `cabal-more-button`, then `cabal-more-leave` | | The sheet shows `cabalLeaveCreatorNote` reading "You can leave once everyone else has left." within 10 s, and there is no `cabalLeaveButton` |
 
 ## Ground truth
 

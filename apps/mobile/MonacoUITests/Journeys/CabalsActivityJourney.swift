@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsActivityJourney {
     static let id = "cabals/activity"
-    static let version = 8
+    static let version = 9
 
     static let screenTimeout: TimeInterval = 15
 
@@ -18,7 +18,7 @@ enum CabalsActivityJourney {
 
     static func openCabal(_ app: XCUIApplication, run: String, step: String) {
         let name = cabal(run: run)
-        JoinJourney.openBySearch(app, name, step: step)
+        app.openCabal(named: name)
         XCTAssertTrue(
             JoinJourney.waitForLabel(app.element("cabal-header-name"), containing: name, timeout: screenTimeout),
             "\(step): the header does not read \(name)"
@@ -33,11 +33,10 @@ enum CabalsActivityJourney {
             openCabal(app, run: run, step: "S1.1")
         }
 
-        recorder.step("S1.2", "the Activity section shows the failed trade first") {
+        recorder.step("S1.2", "Treasury history opens with the failed trade first") {
+            openHistory(app, step: "S1.2")
             let section = app.element("cabal-activity")
-            app.scrollIntoReach(section)
-            XCTAssertTrue(section.waitForExistence(timeout: screenTimeout), "S1.2: no Activity section within 15 s")
-            XCTAssertTrue(app.element("cabal-activity-see-all").exists, "S1.2: the Activity header has no See all")
+            XCTAssertTrue(section.waitForExistence(timeout: screenTimeout), "S1.2: no activity list within 15 s")
             let newest = row(app, failed)
             app.scrollIntoReach(newest)
             XCTAssertTrue(newest.waitForExistence(timeout: screenTimeout), "S1.2: no row for the failed trade")
@@ -46,20 +45,13 @@ enum CabalsActivityJourney {
             JoinJourney.snap(app, "S1-A-activity-section")
         }
 
-        recorder.step("S1.3", "See all lists every row") {
-            let seeAll = app.buttons["cabal-activity-see-all"]
-            app.scrollIntoReach(seeAll)
-            XCTAssertTrue(seeAll.isHittable, "S1.3: See all is not tappable")
-            seeAll.tap()
-            XCTAssertTrue(
-                app.navigationBars["Group activity"].waitForExistence(timeout: 10),
-                "S1.3: no Group activity screen within 10 s")
+        recorder.step("S1.3", "Treasury history lists every row") {
             let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'cabal-activity-row-'"))
             let deadline = Date().addingTimeInterval(10)
             while rows.count < 6 && Date() < deadline {
                 RunLoop.current.run(until: Date().addingTimeInterval(0.25))
             }
-            XCTAssertEqual(rows.count, 6, "S1.3: the Group activity screen's rows")
+            XCTAssertEqual(rows.count, 6, "S1.3: the Treasury history rows")
             XCTAssertTrue(
                 app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Money added'")).firstMatch.exists,
                 "S1.3: no Money added row"
@@ -86,35 +78,36 @@ enum CabalsActivityJourney {
     }
 
     static func backOutOfReceipts(_ app: XCUIApplication, recorder: JourneyRecorder) {
-        recorder.step("S1.5", "Back from the receipt returns to the full list") {
+        recorder.step("S1.5", "Back from the receipt returns to Treasury history") {
             app.navigationBars["Transaction"].buttons.element(boundBy: 0).tap()
             XCTAssertTrue(
-                app.navigationBars["Group activity"].waitForExistence(timeout: 10), "S1.5: no Group activity list")
-            app.navigationBars["Group activity"].buttons.element(boundBy: 0).tap()
-            XCTAssertTrue(app.element("cabal-header-name").waitForExistence(timeout: 10), "S1.5: no cabal")
+                app.navigationBars["Treasury history"].waitForExistence(timeout: 10), "S1.5: no Treasury history")
         }
 
-        recorder.step("S1.6", "open a Money added receipt from the cabal") {
+        recorder.step("S1.6", "open a Money added receipt from the history") {
             openDepositReceipt(app, step: "S1.6")
         }
 
-        recorder.step("S1.7", "Back returns straight to the cabal") {
-            backToCabal(app, step: "S1.7")
+        recorder.step("S1.7", "Back returns straight to the history") {
+            backToHistory(app, step: "S1.7")
         }
 
         recorder.step("S1.8", "open a Money added receipt again") {
             openDepositReceipt(app, step: "S1.8")
         }
 
-        recorder.step("S1.9", "Back again lands on one cabal screen") {
-            backToCabal(app, step: "S1.9")
+        recorder.step("S1.9", "Back again lands on one history screen") {
+            backToHistory(app, step: "S1.9")
         }
 
-        recorder.step("S1.10", "Back from the cabal reaches the Cabals list") {
+        recorder.step("S1.10", "Back from the history and the cabal leaves the cabal") {
+            app.navigationBars["Treasury history"].buttons.element(boundBy: 0).tap()
+            XCTAssertTrue(
+                app.element("cabal-header-name").waitForExistence(timeout: 10),
+                "S1.10: Back from the history did not reach the cabal")
             app.navigationBars.buttons.element(boundBy: 0).tap()
             XCTAssertTrue(
-                JoinJourney.searchField(app).waitForExistence(timeout: 10),
-                "S1.10: Back from the cabal did not reach Discover cabals")
+                app.tab("Cabals").waitForExistence(timeout: 10), "S1.10: Back from the cabal did not leave it")
             XCTAssertFalse(app.element("cabal-header-name").exists, "S1.10: a second cabal screen was under the first")
         }
     }
@@ -127,6 +120,7 @@ enum CabalsActivityJourney {
         }
 
         recorder.step("S2.2", "open the failed trade's receipt") {
+            openHistory(app, step: "S2.2")
             let target = row(app, failed)
             app.scrollIntoReach(target)
             XCTAssertTrue(target.waitForExistence(timeout: screenTimeout), "S2.2: no row for the failed trade")
@@ -154,14 +148,26 @@ enum CabalsActivityJourney {
             app.navigationBars["Transaction"].waitForExistence(timeout: 10), "\(step): no receipt within 10 s")
     }
 
-    static func backToCabal(_ app: XCUIApplication, step: String) {
+    static func openHistory(_ app: XCUIApplication, step: String) {
+        app.openCabalTab("Treasury")
+        let history = app.buttons["cabal-treasury-history"]
+        app.scrollIntoReach(history)
+        XCTAssertTrue(history.waitForExistence(timeout: screenTimeout), "\(step): no Treasury history row")
+        history.tap()
+        XCTAssertTrue(
+            app.navigationBars["Treasury history"].waitForExistence(timeout: 10),
+            "\(step): no Treasury history screen within 10 s")
+    }
+
+    static func backToHistory(_ app: XCUIApplication, step: String) {
         app.navigationBars["Transaction"].buttons.element(boundBy: 0).tap()
         XCTAssertTrue(
-            app.element("cabal-header-name").waitForExistence(timeout: 10), "\(step): Back did not land on the cabal")
+            app.navigationBars["Treasury history"].waitForExistence(timeout: 10),
+            "\(step): Back did not land on the history")
         XCTAssertFalse(app.navigationBars["Transaction"].exists, "\(step): the receipt is still up")
         XCTAssertEqual(
             app.sheets.count + app.alerts.count + app.popovers.count + app.menus.count, 0,
             "\(step): Back opened a prompt")
-        JoinJourney.snap(app, "S1-A-back-to-cabal-\(step)")
+        JoinJourney.snap(app, "S1-A-back-to-history-\(step)")
     }
 }

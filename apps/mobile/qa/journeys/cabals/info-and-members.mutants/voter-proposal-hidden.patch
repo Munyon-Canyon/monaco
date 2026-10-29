@@ -1,0 +1,19 @@
+journey: cabals/info-and-members
+expect-fail: S2
+
+The Voters tab offers no Propose making a voter action. S2.2 waits for it, so S2 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalVotersTab.swift b/apps/mobile/Monaco/Features/Groups/CabalVotersTab.swift
+index 13e90a4a5..55748af57 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalVotersTab.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalVotersTab.swift
+@@ -89,7 +89,7 @@ private struct CabalVotersTabBody: View {
+ 
+     @ViewBuilder
+     private func actions(_ entry: CabalMemberEntry) -> some View {
+-        if model.canPropose {
++        if false, model.canPropose {
+             let group = CabalMemberGroup(entry.row)
+             Button(CabalMemberCopy.voterAction(group)) {
+                 propose(.voter(userID: entry.id, canVote: !group.votes))
