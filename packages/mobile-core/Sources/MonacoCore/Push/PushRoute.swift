@@ -9,11 +9,13 @@ public enum PushRoute: Equatable, Sendable {
     case voteHold(proposalID: String, cabalID: String, pick: ProposalBallot)
     case feedItem(feedItemID: String)
     case cabal(cabalID: String)
+    case ledger(week: String)
     case home
 
     public static func parse(_ userInfo: [String: Any]) -> PushRoute {
         let payload = Payload(values: userInfo)
-        return payload.profile
+        return payload.ledger
+            ?? payload.profile
             ?? payload.chat
             ?? payload.transaction
             ?? payload.proposal
@@ -31,6 +33,7 @@ private enum Key: String {
     case proposalID = "proposal_id"
     case txnID = "txn_id"
     case feedItemID = "feed_item_id"
+    case week
 }
 
 private enum Kind: String {
@@ -38,6 +41,7 @@ private enum Kind: String {
     case chatMention = "chat_mention"
     case chatThreadReply = "chat_thread_reply"
     case commentReply = "comment_reply"
+    case weeklyLedger = "weekly_ledger"
 }
 
 private struct Payload {
@@ -50,6 +54,13 @@ private struct Payload {
     func id(_ key: Key) -> String? {
         guard let text = values[key.rawValue] as? String, let uuid = UUID(uuidString: text) else { return nil }
         return uuid.uuidString.lowercased()
+    }
+
+    var ledger: PushRoute? {
+        guard kind == .weeklyLedger, let week = values[Key.week.rawValue] as? String,
+            week.range(of: "^\\d{4}-W\\d{2}\\z", options: .regularExpression) != nil
+        else { return nil }
+        return .ledger(week: week)
     }
 
     var profile: PushRoute? {

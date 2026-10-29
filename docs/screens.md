@@ -162,6 +162,20 @@ Opens from the Home toolbar bell. A pushed screen with the large title "Catch up
 
 States. Loading: five row skeletons labelled "Loading Catch up". Failed: "Couldn’t load this view" with "Try again". Harness: `-MonacoCatchUpSample <six|loading|error>`; `-activityFeedHarness <x>` stays as an alias until #6589. Read, clear, keep, the swipe, the caught-up state and the "One by one" card view are #6566 and #6571.
 
+## The Ledger (`LedgerSheet`, `FullLedgerRoute`)
+
+Opens from the Sunday "The Ledger · Week 42" push (`kind = weekly_ledger`, `week = 2026-W42`) as a half-height sheet over the current tab, through the push-sheet path the hold sheet uses. It never reaches the large detent. `LedgerModel` (`MonacoRanking`, flow 37) makes one `getMyLedger(week)` read; a stored Ledger never changes, so there are no hints.
+
+| Part | Shows |
+| --- | --- |
+| Title | "The Ledger · Oct 12 – 18" with a glass close button |
+| Hero | "+1.4%" in the gain colour (loss colour for "−0.8%", "—" when the return is null), "your stake that week · 3 cabals" |
+| Stat card | Voted "3 of 3", Right calls "2 of 3", Sharpest the first name or "—" |
+| Card | The best call ("Best call · Sell AMZN", "Degens · you voted Yes", "+4.2%"; "No call landed this week" with no best call) and the "Full Ledger" row |
+| Share | "Share the Ledger", hidden behind `LedgerFeature.storyShareEnabled` until #6581 |
+
+The Full Ledger row dismisses the sheet and pushes `FullLedgerRoute(week:)` on the Home tab: "Every call" (a row per call, "you voted Yes · right", the move; a tap opens its proposal), "The miss" and "Top reply" (the author's photo, name and excerpt, then "🔥 3 · Buy NVDA"). States. Loading: a skeleton. A 404 `ledger_not_found`: "This week's Ledger isn't ready yet." with Close. Any other failure: "Try again". Harness: `-MonacoLedgerSample <week42|noBestCall|loss|notReady|loading>`.
+
 ## Cabals tab
 
 Large title "Cabals" (`Typo.display`) with the glass "+" on the right ("Create a cabal", `cabals-new-button`, hidden under review). The "+" pushes **Start a cabal** (`CreateCabalRoute`) directly, with no sheet in between. Joining a cabal goes through Discover cabals (below) and the cabal screen's "Join" or "Request to join". Pull to refresh reloads every slot.

@@ -12,6 +12,7 @@ final class AppNavigator {
     var profilePath: [AnyAppRoute] = []
     var deposit: DepositRequest?
     var voteHold: VoteHoldRequest?
+    var ledger: LedgerRoute?
     var signedOutLanding: InviteLandingRoute?
     var tabBadges: [MainTab: Int] = [:]
 
@@ -24,6 +25,7 @@ final class AppNavigator {
         profilePath = []
         deposit = nil
         voteHold = nil
+        ledger = nil
         signedOutLanding = nil
     }
 
@@ -51,7 +53,14 @@ final class AppNavigator {
 
     func presentVoteHold(proposalID: String, pick: ProposalBallot?) {
         deposit = nil
+        ledger = nil
         voteHold = VoteHoldRequest(proposalID: proposalID, pick: pick)
+    }
+
+    func presentLedger(week: String) {
+        deposit = nil
+        voteHold = nil
+        ledger = LedgerRoute(week: week)
     }
 
     func presentSignedOutLanding(_ route: InviteLandingRoute) {

@@ -52,6 +52,10 @@ struct MainTabView: View {
             VoteHoldSheet(request: request)
                 .analyticsScreen("vote_hold")
         }
+        .sheet(item: $navigator.ledger) { route in
+            LedgerSheet(week: route.week)
+                .analyticsScreen("ledger")
+        }
         .sheet(isPresented: $pushPrePrompt.isPresented, onDismiss: pushPrePrompt.notNow) {
             PushPrePromptSheet(prompt: pushPrePrompt)
         }
