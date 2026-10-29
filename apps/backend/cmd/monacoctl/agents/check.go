@@ -411,6 +411,7 @@ func (env *Env) stage0(ctx context.Context, lane, base, parent, head string) ([]
 		rows = append(rows, checkRow{
 			label: "journeys", kind: "journeys", dir: env.Work,
 			cmds: [][]string{
+				{"scripts/qa/screens.sh", "--check"},
 				{"python3", "scripts/qa/journey.py", "check"},
 				{"python3", "scripts/qa/test_journey.py"},
 				{"python3", "scripts/qa/test_skill_eval.py"},
