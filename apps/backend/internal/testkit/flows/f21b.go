@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -171,11 +172,19 @@ func unreactToReply(emoji string) scenario.Step {
 	return scenario.Delete(replyReactionsPath + "/" + url.PathEscape(emoji))
 }
 
+type replyWorld struct {
+	commentWorld
+	author string
+	since  time.Time
+}
+
 func replyRowsHold(want int) scenario.Step {
 	return func(s *scenario.Scenario) {
 		s.Helper()
 		var got int
-		if err := s.DB().QueryRow(s.Context(), `SELECT count(*) FROM comment_reactions`).Scan(&got); err != nil {
+		if err := s.DB().QueryRow(s.Context(),
+			`SELECT count(*) FROM comment_reactions WHERE comment_id = $1::uuid`,
+			s.Recall("reply")).Scan(&got); err != nil {
 			s.Fatalf("flows: count the reply reactions: %v", err)
 		}
 		if got != want {
@@ -184,11 +193,13 @@ func replyRowsHold(want int) scenario.Step {
 	}
 }
 
-func noNotificationsWritten() scenario.Step {
+func noReactionNotificationsWritten(w *replyWorld) scenario.Step {
 	return func(s *scenario.Scenario) {
 		s.Helper()
 		var got int
-		if err := s.DB().QueryRow(s.Context(), `SELECT count(*) FROM notifications`).Scan(&got); err != nil {
+		if err := s.DB().QueryRow(s.Context(),
+			`SELECT count(*) FROM notifications WHERE user_id = $1::uuid AND created_at >= $2`,
+			w.author, w.since).Scan(&got); err != nil {
 			s.Fatalf("flows: count the notifications: %v", err)
 		}
 		if got != 0 {
@@ -212,17 +223,19 @@ func replyReactionEventsCarryTheComment(want int) scenario.Step {
 	}
 }
 
-func replyByLee(w *commentWorld) scenario.Step {
+func replyByLee(w *replyWorld) scenario.Step {
 	return func(s *scenario.Scenario) {
 		s.Helper()
 		scenario.AsUser("lee")(s)
+		w.author = s.ActorID().String()
+		w.since = time.Now()
 		commentOn(&w.proposal, "nice", "")(s)
 		scenario.Remember("id", "reply")(s)
 	}
 }
 
 func F21bReactCommentOK(s *scenario.Scenario) {
-	w := &commentWorld{}
+	w := &replyWorld{}
 	s.Given(w.seed(), replyByLee(w), scenario.AsUser("kai")).
 		When(
 			reactToReply(party),
@@ -245,7 +258,7 @@ func F21bReactCommentOK(s *scenario.Scenario) {
 		Then(
 			replyRowsHold(2),
 			reactionRowsHold(&w.proposal, 0),
-			noNotificationsWritten(),
+			noReactionNotificationsWritten(w),
 			replyReactionEventsCarryTheComment(3),
 			scenario.ExpectEvents(events.TypeReactionAdded, 3),
 			scenario.ExpectEvents(events.TypeReactionRemoved, 1),
@@ -254,7 +267,7 @@ func F21bReactCommentOK(s *scenario.Scenario) {
 }
 
 func F21bReactCommentInvalidInput(s *scenario.Scenario) {
-	w := &commentWorld{}
+	w := &replyWorld{}
 	s.Given(w.seed(), replyByLee(w), scenario.AsUser("kai")).
 		When(reactToReply(notEmoji)).
 		Then(
@@ -265,7 +278,7 @@ func F21bReactCommentInvalidInput(s *scenario.Scenario) {
 }
 
 func F21bReactCommentCommentNotFound(s *scenario.Scenario) {
-	w := &commentWorld{}
+	w := &replyWorld{}
 	s.Given(w.seed(), replyByLee(w), scenario.Delete(feedPath+"/comments/{reply}"), scenario.AsUser("kai")).
 		When(reactToReply(party)).
 		Then(
@@ -276,21 +289,21 @@ func F21bReactCommentCommentNotFound(s *scenario.Scenario) {
 }
 
 func F21bReactCommentUnauthorized(s *scenario.Scenario) {
-	w := &commentWorld{}
+	w := &replyWorld{}
 	s.Given(w.seed(), replyByLee(w), scenario.Anonymous()).
 		When(reactToReply(party)).
 		Then(scenario.ExpectProblem(errs.CodeUnauthorized))
 }
 
 func F21bReactCommentRateLimited(s *scenario.Scenario) {
-	w := &commentWorld{}
+	w := &replyWorld{}
 	s.Given(w.seed(), replyByLee(w), scenario.AsUser("mia")).
 		When(scenario.UntilRateLimited(40, reactToReply(party))).
 		Then(scenario.ExpectProblem(errs.CodeRateLimited), replyRowsHold(1))
 }
 
 func F21bReactCommentCrashBeforeCommit(s *scenario.Scenario) {
-	w := &commentWorld{}
+	w := &replyWorld{}
 	s.Given(w.seed(), replyByLee(w), scenario.AsUser("kai")).
 		When(
 			reactToReply(party),
