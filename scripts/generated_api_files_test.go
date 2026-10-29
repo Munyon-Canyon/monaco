@@ -65,7 +65,7 @@ func TestRestackRegen_settlesASameModuleConflictInTheAPIFiles(t *testing.T) {
 	cmd := exec.Command(filepath.Join(repoRoot(t), "scripts", "restack-regen.sh"))
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), regenGitEnv...)
-	cmd.Env = append(cmd.Env, "GT="+gt, "GENERATE="+gen)
+	cmd.Env = append(cmd.Env, "GT="+gt, "GENERATE="+gen, "MIGRATE_ORDER=true")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("restack-regen on the default globs: %v\n%s", err, out)

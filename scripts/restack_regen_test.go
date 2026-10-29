@@ -61,11 +61,12 @@ func runRegen(t *testing.T, dir string, extraEnv ...string) (string, error) {
 	// The fake gt lives outside the repo so the script's git add -A cannot stage it.
 	// restack rebases onto main and continue continues the rebase.
 	gt := filepath.Join(t.TempDir(), "gt")
-	writeExecutable(t, gt, "#!/bin/sh\ncase \"$1\" in restack) git rebase main ;; continue) git rebase --continue ;; esac\n")
+	writeExecutable(t, gt, "#!/bin/sh\ncase \"$1\" in restack) git rebase main ;; continue) git rebase --continue ;;"+
+		" modify) echo modify >> \"$(dirname \"$0\")/calls\"; git commit -q --amend --no-edit ;; esac\n")
 	cmd := exec.Command(filepath.Join(repoRoot(t), "scripts", "restack-regen.sh"))
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), regenGitEnv...)
-	cmd.Env = append(cmd.Env, "GT="+gt, "GENERATED_GLOBS=docs/reference/events.md")
+	cmd.Env = append(cmd.Env, "GT="+gt, "GENERATED_GLOBS=docs/reference/events.md", "MIGRATE_ORDER=true")
 	cmd.Env = append(cmd.Env, extraEnv...)
 	out, err := cmd.CombinedOutput()
 	return string(out), err
@@ -137,5 +138,73 @@ func TestRestackRegen_stopsOnAHandWrittenConflict(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, ".git", "rebase-merge")); err != nil {
 		t.Fatalf("the rebase should stay stopped for a hand merge: %v", err)
+	}
+}
+
+// migrationRepo is regenRepo plus a migration on feature that main overtakes with a later one.
+func migrationRepo(t *testing.T) string {
+	t.Helper()
+	dir := regenRepo(t)
+	mig := filepath.Join(dir, "apps", "backend", "migrations")
+	regenRun(t, dir, "git", "checkout", "-q", "main")
+	if err := os.MkdirAll(mig, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(mig, "20261029090000_trunk.sql"), "select 1;\n")
+	regenRun(t, dir, "git", "add", "-A")
+	regenRun(t, dir, "git", "commit", "-q", "-m", "trunk migration")
+	regenRun(t, dir, "git", "checkout", "-q", "feature")
+	if err := os.MkdirAll(mig, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(mig, "20261029080000_mine.sql"), "select 2;\n")
+	regenRun(t, dir, "git", "add", "-A")
+	regenRun(t, dir, "git", "commit", "-q", "-m", "my migration")
+	return dir
+}
+
+// The fake order check fails while 20261029080000_mine.sql exists; the fake rebase renames it past the trunk's.
+const (
+	fakeOrder  = "MIGRATE_ORDER=test ! -e apps/backend/migrations/20261029080000_mine.sql || { echo 'adds 20261029080000_mine.sql at or below 20261029090000_trunk.sql'; exit 1; }"
+	fakeRebase = "MIGRATE_REBASE=git mv apps/backend/migrations/20261029080000_mine.sql apps/backend/migrations/20261029090001_mine.sql"
+)
+
+func TestRestackRegen_rebasesAMigrationTheTrunkOvertook(t *testing.T) {
+	t.Parallel()
+	dir := migrationRepo(t)
+	out, err := runRegen(t, dir, "GENERATE=sort src/*.txt > docs/reference/events.md", fakeOrder, fakeRebase)
+	if err != nil {
+		t.Fatalf("restack-regen: %v\n%s", err, out)
+	}
+	for _, want := range []string{
+		"the restack left a migration out of order", "adds 20261029080000_mine.sql at or below 20261029090000_trunk.sql",
+		"renamed:", "20261029090001_mine.sql",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("output lacks %q:\n%s", want, out)
+		}
+	}
+	tree, err := exec.Command("git", "-C", dir, "ls-tree", "--name-only", "HEAD", "apps/backend/migrations/").Output()
+	if err != nil || !strings.Contains(string(tree), "20261029090001_mine.sql") || strings.Contains(string(tree), "080000") {
+		t.Fatalf("HEAD migrations %q %v", tree, err)
+	}
+}
+
+func TestRestackRegen_leavesAnInOrderMigrationAlone(t *testing.T) {
+	t.Parallel()
+	dir := regenRepo(t)
+	out, err := runRegen(t, dir, "GENERATE=sort src/*.txt > docs/reference/events.md", "MIGRATE_REBASE=false")
+	if err != nil || strings.Contains(out, "out of order") || strings.Contains(out, "renamed") {
+		t.Fatalf("restack-regen: %v\n%s", err, out)
+	}
+}
+
+func TestRestackRegen_stopsWhenTheRenameDoesNotFixTheOrder(t *testing.T) {
+	t.Parallel()
+	dir := migrationRepo(t)
+	out, err := runRegen(t, dir, "GENERATE=sort src/*.txt > docs/reference/events.md",
+		"MIGRATE_ORDER=echo 'a lower branch adds it'; exit 1", "MIGRATE_REBASE=true")
+	if err == nil || !strings.Contains(out, "still out of order after the rename") {
+		t.Fatalf("restack-regen: %v\n%s", err, out)
 	}
 }
