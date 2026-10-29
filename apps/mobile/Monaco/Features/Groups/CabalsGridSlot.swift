@@ -141,6 +141,7 @@ struct CabalsGridSection: View {
     static func spoken(_ tile: CabalTile, votes: Int) -> String {
         var parts = [tile.shortName, tile.spokenReturn]
         if votes > 0 { parts.append(votes == 1 ? "1 vote waiting" : "\(votes) votes waiting") }
+        if let unread = CabalsTabCopy.unread(tile.unreadCount) { parts.append(unread) }
         return parts.joined(separator: ", ")
     }
 
@@ -240,6 +241,14 @@ private struct CabalGridTile: View {
             )
             .crestVoteRing(votes > 0)
             .cabalCrestBadge(votes)
+            .overlay(alignment: .topLeading) {
+                if tile.unreadCount > 0 {
+                    Circle()
+                        .fill(MonacoTheme.accent)
+                        .frame(width: MonacoTheme.Space.sm, height: MonacoTheme.Space.sm)
+                        .accessibilityHidden(true)
+                }
+            }
             Text(tile.shortName)
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.primaryText)

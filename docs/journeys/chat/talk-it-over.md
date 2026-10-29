@@ -73,7 +73,7 @@ B has not opened the chat since S3, so the two messages A sends here are all B h
 
 ## Known failures on staging
 
-- S5.2 to S5.4 read an unread count on the cabal tile that the F cabal page does not draw (no "unread message" copy exists in the app). They stay in the doc until the Cabals tile draws one; ticket #6497 owns the chat entry.
+- S5.2 to S5.4 read an unread count on the Cabals tile, which lands with #7157.
 
 ## Not covered
 

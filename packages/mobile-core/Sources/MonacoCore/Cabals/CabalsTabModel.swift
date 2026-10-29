@@ -16,8 +16,9 @@ public struct CabalTile: Identifiable, Equatable, Sendable {
     public let memberCount: Int32
     public let role: String
     public let canVote: Bool
+    public let unreadCount: Int
 
-    init(_ cabal: Components.Schemas.PortfolioCabal) {
+    init(_ cabal: Components.Schemas.PortfolioCabal, unreadCount: Int) {
         let funded = cabal.valueMicros > 0
         id = cabal.cabal.id
         name = cabal.cabal.name
@@ -34,6 +35,7 @@ public struct CabalTile: Identifiable, Equatable, Sendable {
         memberCount = cabal.memberCount
         role = cabal.role.rawValue
         canVote = cabal.canVote
+        self.unreadCount = unreadCount
     }
 
     public var shareLine: String { "\(treasuryText) treasury · \(ownershipText) yours" }
@@ -70,6 +72,14 @@ public struct CabalsTabContent: Equatable, Sendable {
 public enum CabalsTabCopy {
     public static let reorderHint = "Hold a cabal for actions · drag to reorder"
 
+    public static func unread(_ count: Int) -> String? {
+        switch count {
+        case ..<1: nil
+        case 1: "1 unread message"
+        default: "\(count) unread messages"
+        }
+    }
+
     public static func wholeDollars(micros: Int64) -> String {
         let dollars = (micros + 500_000) / 1_000_000
         return String(UsdAmountFormatter.format(micros: dollars * 1_000_000).dropLast(3))
@@ -103,7 +113,11 @@ public final class CabalsTabModel {
         do {
             async let portfolio = api.read { try await $0.getMyPortfolio().ok.body.json }
             async let invites = api.read { try await $0.getMyCabalInvites().ok.body.json }
-            let tiles = try await portfolio.cabals.map(CabalTile.init)
+            async let cabals = api.read { try await $0.getMyCabals().ok.body.json }
+            let portfolioCabals = try await portfolio.cabals
+            let mine = (try? await cabals) ?? []
+            let unread = Dictionary(mine.map { ($0.id, Int($0.unreadCount)) }, uniquingKeysWith: { first, _ in first })
+            let tiles = portfolioCabals.map { CabalTile($0, unreadCount: unread[$0.cabal.id] ?? 0) }
             let pending = try await invites.map { CabalInviteTile(invite: ReceivedCabalInvite($0)) }
             guard issued > settled else { return }
             settled = issued
