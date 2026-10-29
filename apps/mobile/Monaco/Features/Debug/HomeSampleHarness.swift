@@ -11,22 +11,8 @@ enum HomeSampleScenario: String, CaseIterable {
     case nudgeXEmpty
     case prePrompt
     case votes
-    case loss
-    case gain
-    case cashOnly
     case notFunded
     case partlyFunded
-    case multipleProposals
-    case voted
-    case executing
-    case completed
-    case expired
-    case blocked
-    case noProposals
-    case proposalsLoading
-    case proposalsError
-    case stale
-    case error
     case fVotePick
     case fVoteHolding
     case fVoteCommitted
@@ -60,22 +46,8 @@ extension HomeSampleScenario {
             SampleAPIScript(
                 proposal: .sample(canVote: true), pendingVotes: Components.Schemas.PendingVote.samples,
                 viewerCanVote: true)
-        case .loss: HomeSampleData.script(.loss, proposals: [.needsVote])
-        case .gain: HomeSampleData.script(.gain, proposals: [.needsVote])
-        case .cashOnly: HomeSampleData.script(.cashOnly, proposals: [])
         case .notFunded: HomeSampleData.script(.unfunded, proposals: [])
         case .partlyFunded: HomeSampleData.script(.partlyFunded, proposals: [])
-        case .multipleProposals: HomeSampleData.script(.loss, proposals: [.needsVote, .second])
-        case .voted: HomeSampleData.script(.loss, proposals: [.voted])
-        case .executing: HomeSampleData.script(.loss, proposals: [.executing])
-        case .completed: HomeSampleData.script(.loss, proposals: [.completed])
-        case .expired: HomeSampleData.script(.loss, proposals: [.expired])
-        case .blocked: HomeSampleData.script(.loss, proposals: [.blocked])
-        case .noProposals: HomeSampleData.script(.loss, proposals: [])
-        case .proposalsLoading: HomeSampleData.script(.loss, proposals: [.needsVote], pendingVotesHang: true)
-        case .proposalsError: HomeSampleData.script(.loss, proposals: [], pendingVotesFail: true)
-        case .stale: HomeSampleData.script(.loss, proposals: [.needsVote], portfolioReadsBeforeFailing: 1)
-        case .error: SampleAPIScript(mode: .offline)
         case .fVotePick, .fVoteHolding, .fVoteCommitted: HomeSampleData.script(.loss, proposals: [.fVote])
         case .fVoteRule: HomeSampleData.script(.loss, proposals: [.fRule])
         case .fReady, .fReadyLight, .fScrolled: HomeSampleData.script(.fAccount, proposals: [.fVote])
@@ -101,17 +73,17 @@ extension HomeSampleScenario {
     }
 
     var hints: any HintConnecting {
-        self == .stale ? SampleResyncHints(delay: .seconds(2)) : SampleSilentHints()
+        SampleSilentHints()
     }
 }
 
 enum HomeSampleData {
     enum Figures {
-        case loss, gain, cashOnly, unfunded, partlyFunded, empty, fAccount, fUnfunded
+        case loss, unfunded, partlyFunded, empty, fAccount, fUnfunded
     }
 
     enum Proposal {
-        case needsVote, second, voted, executing, completed, expired, blocked, fVote, fRule
+        case needsVote, voted, fVote, fRule
     }
 
     static let bigBallers = "0f1d6a52-0001-7000-8000-000000000001"
@@ -148,8 +120,7 @@ enum HomeSampleData {
 
     @MainActor
     static func script(
-        _ figures: Figures, proposals: [Proposal], pendingVotesHang: Bool = false, pendingVotesFail: Bool = false,
-        portfolioReadsBeforeFailing: Int? = nil
+        _ figures: Figures, proposals: [Proposal]
     ) -> SampleAPIScript {
         var script = SampleAPIScript(mode: figures == .empty ? .empty : .populated)
         script.portfolio = portfolio(figures)
@@ -167,9 +138,6 @@ enum HomeSampleData {
         script.catalog = [
             catalogEntry("NVDAx", "NVIDIA", changeBps: 418), catalogEntry("MSFTx", "Microsoft", changeBps: 96), .googl,
         ]
-        script.pendingVotesHang = pendingVotesHang
-        script.pendingVotesFail = pendingVotesFail
-        script.portfolioReadsBeforeFailing = portfolioReadsBeforeFailing
         if figures == .fAccount || figures == .fUnfunded { applyF(&script, unfunded: figures == .fUnfunded) }
         return script
     }
@@ -180,9 +148,9 @@ enum HomeSampleData {
         -> Int32
     {
         switch figures {
-        case .cashOnly, .unfunded: 0
+        case .unfunded: 0
         case .partlyFunded: cabal.id == bigBallers ? cabal.ownershipBps : 0
-        case .loss, .gain, .empty, .fAccount, .fUnfunded: cabal.ownershipBps
+        case .loss, .empty, .fAccount, .fUnfunded: cabal.ownershipBps
         }
     }
 
@@ -199,12 +167,6 @@ enum HomeSampleData {
         case .loss:
             values = [7_000_000_000, 2_782_320_000, 1_300_000_000]
             pnls = [-300_000_000, 50_000_000, -167_680_000]
-        case .gain:
-            values = [8_500_000_000, 3_182_320_000, 1_300_000_000]
-            pnls = [1_100_000_000, 300_000_000, 82_320_000]
-        case .cashOnly:
-            values = [0, 0, 0]
-            pnls = [0, 0, 0]
         case .partlyFunded:
             values = [7_000_000_000, 0, 0]
             pnls = [-300_000_000, 0, 0]
@@ -241,9 +203,8 @@ enum HomeSampleData {
         let target: Int64
         switch figures {
         case .loss, .partlyFunded: target = -417_680_000
-        case .gain: target = 1_482_320_000
         case .fAccount, .fUnfunded: target = 241_100_000
-        case .cashOnly, .unfunded, .empty: return .sampleEmpty
+        case .unfunded, .empty: return .sampleEmpty
         }
         let count = 31
         let wobbles: [Int64] = [0, 18, -12, 25, -20, 10, -25, 15]
@@ -284,7 +245,6 @@ enum HomeSampleData {
     }
 
     private static func pending(_ proposal: Proposal) -> Components.Schemas.PendingVote {
-        let second = proposal == .second
         if proposal == .fRule {
             var rule = Components.Schemas.PendingVote.ruleSample(now: .now)
             rule.proposalId = "home-proposal-1"
@@ -294,31 +254,19 @@ enum HomeSampleData {
         }
         let closes: TimeInterval = proposal == .fVote ? 4 * 3_600 + 600 : 8 * 3_600
         return Components.Schemas.PendingVote.sample(
-            proposalId: "home-proposal-\(second ? 2 : 1)", cabalId: second ? techCrew : bigBallers,
-            cabalName: second ? "Tech Crew" : "Big Ballers", symbol: second ? "MSFTx" : "NVDAx",
-            assetName: second ? "Microsoft" : "NVIDIA", expiresAt: .now.addingTimeInterval(closes))
+            proposalId: "home-proposal-1", cabalId: bigBallers, cabalName: "Big Ballers", symbol: "NVDAx",
+            assetName: "NVIDIA", expiresAt: .now.addingTimeInterval(closes))
     }
 
     private static func detail(_ proposal: Proposal) -> Components.Schemas.ProposalDetail {
         var detail = Components.Schemas.ProposalDetail.sample(
-            status: status(proposal), myBallot: proposal == .voted ? .yes : nil, canVote: true)
-        let second = proposal == .second
-        detail.cabalId = second ? techCrew : bigBallers
-        detail.cabalName = second ? "Tech Crew" : "Big Ballers"
-        detail.symbol = second ? "MSFTx" : "NVDAx"
-        detail.usdcMicros = second ? 250_000_000 : 400_000_000
+            status: .open, myBallot: proposal == .voted ? .yes : nil, canVote: true)
+        detail.cabalId = bigBallers
+        detail.cabalName = "Big Ballers"
+        detail.symbol = "NVDAx"
+        detail.usdcMicros = 400_000_000
         detail.tally = .init(yes: 3, no: 1, voters: 8, needed: 5)
         return detail
-    }
-
-    private static func status(_ proposal: Proposal) -> Components.Schemas.ProposalStatus {
-        switch proposal {
-        case .needsVote, .second, .voted, .fVote, .fRule: .open
-        case .executing: .passed
-        case .completed: .executed
-        case .expired: .expired
-        case .blocked: .executionBlocked
-        }
     }
 
     private static func catalogEntry(

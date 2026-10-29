@@ -26,4 +26,4 @@ Later frames are phase 2: widgets, StandBy, Live Activities, the Dynamic Island,
 
 ## Superseded
 
-`docs/design/v3/` is superseded by this folder and is removed by #6589. Never build from it.
+The earlier v3 design package is removed. Never build from it.

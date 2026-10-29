@@ -174,15 +174,6 @@ struct GalleryBarSamples: View {
     var body: some View {
         GalleryGroup(title: "Bars") {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-                GalleryCase(caption: "Vote bar, open") {
-                    VoteBar(yes: 3, no: 1, notVoted: 4, needed: 5, isClosed: false)
-                }
-                GalleryCase(caption: "Vote bar, all yes") {
-                    VoteBar(yes: 8, no: 0, notVoted: 0, needed: 5, isClosed: false)
-                }
-                GalleryCase(caption: "Vote bar, closed") {
-                    VoteBar(yes: 5, no: 2, notVoted: 1, needed: 5, isClosed: true)
-                }
                 GalleryCase(caption: "Allocation bar, 3 holdings and cash, with legend") {
                     AllocationBar(slices: threeAndCash)
                 }

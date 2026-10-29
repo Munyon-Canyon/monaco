@@ -4,7 +4,6 @@ import XCTest
 final class PrivateDataMaskTests: XCTestCase {
     static let requiredMasks: [String: Int] = [
         "apps/mobile/Monaco/Design/CabalCover.swift": 1,
-        "apps/mobile/Monaco/Design/CabalCoverCard.swift": 3,
         "apps/mobile/Monaco/Design/MonacoAmountEntry.swift": 4,
         "apps/mobile/Monaco/Design/MonacoAvatar.swift": 1,
         "apps/mobile/Monaco/Design/MonacoBoardRow.swift": 1,

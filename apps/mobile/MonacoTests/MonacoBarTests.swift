@@ -40,32 +40,6 @@ struct MonacoBarTests {
         #expect(SegmentedBar.widths([0, 0, 0], in: 100, gap: 3) == [0, 0, 0])
     }
 
-    @Test func aTallyKeepsItsCountsAndAnEmptyOneIsAllNotVoted() {
-        #expect(VoteBar.weights(yes: 3, no: 1, notVoted: 4) == [3, 1, 4])
-        #expect(VoteBar.weights(yes: 0, no: 0, notVoted: 0) == [0, 0, 1])
-        #expect(VoteBar.weights(yes: -2, no: 1, notVoted: 0) == [0, 1, 0])
-    }
-
-    @Test func theVoteBarReadsAsOneElementWithTheListedWording() async throws {
-        let labels = try await RenderedView.labels(
-            VoteBar(yes: 3, no: 1, notVoted: 4, needed: 5, isClosed: false)
-        ) { $0.contains { $0.contains("yes") } }
-
-        #expect(Set(labels) == ["3 yes, 1 no, 4 not voted. 5 yes votes to pass."], "labels: \(labels)")
-    }
-
-    @Test func aClosedVoteSaysSoAndASingleVoteIsNotPlural() async throws {
-        let closed = try await RenderedView.labels(
-            VoteBar(yes: 5, no: 2, notVoted: 1, needed: 5, isClosed: true)
-        ) { $0.contains { $0.contains("yes") } }
-        let single = try await RenderedView.labels(
-            VoteBar(yes: 0, no: 0, notVoted: 1, needed: 1, isClosed: false)
-        ) { $0.contains { $0.contains("yes") } }
-
-        #expect(Set(closed) == ["5 yes, 2 no, 1 not voted. Voting closed."], "labels: \(closed)")
-        #expect(Set(single) == ["0 yes, 0 no, 1 not voted. 1 yes vote to pass."], "labels: \(single)")
-    }
-
     @Test func holdingsTakeTheTintsInOrderAndReuseTheLastHoldingTint() {
         let holdings = (0..<5).map { AllocationBar.Slice(label: "S\($0)", fraction: 0.1) }
 
