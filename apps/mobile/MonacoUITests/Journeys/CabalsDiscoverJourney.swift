@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsDiscoverJourney {
     static let id = "cabals/discover"
-    static let version = 1
+    static let version = 2
 
     static let screenTimeout: TimeInterval = 15
     static let browseCaption = "Browsing every public cabal opens soon. Search by name to find more."
@@ -13,31 +13,37 @@ enum CabalsDiscoverJourney {
 
     static func cabalName(run: String) -> String { "QA discover \(run)" }
 
+    static func openFind(_ app: XCUIApplication, step: String) {
+        if JoinJourney.searchField(app).exists { return }
+        app.tab("Cabals").tap()
+        let plus = app.element("cabals-new-button")
+        XCTAssertTrue(plus.waitForExistence(timeout: 10), "\(step): no + round on the Cabals tab")
+        plus.tap()
+        let find = app.buttons["Find a cabal"].firstMatch
+        XCTAssertTrue(find.waitForExistence(timeout: 10), "\(step): the + menu has no Find a cabal")
+        find.tap()
+        XCTAssertTrue(
+            JoinJourney.searchField(app).waitForExistence(timeout: 10), "\(step): Find a cabal did not open")
+    }
+
     static func emptyStates(_ app: XCUIApplication, recorder: JourneyRecorder) {
-        recorder.step("S1.1", "open Discover cabals with a name nobody has") {
-            app.tab("Cabals").tap()
-            JoinJourney.openDiscover(app, step: "S1.1")
-            XCTAssertTrue(
-                JoinJourney.searchField(app).waitForExistence(timeout: 10), "S1.1: no search field on Discover cabals")
-            XCTAssertTrue(
-                app.element("cabals-search-empty").waitForExistence(timeout: 10),
-                "S1.1: no cabals-search-empty for a name nobody has")
-            XCTAssertEqual(
-                app.element("cabals-search-empty").label, "No matching cabals",
-                "S1.1: the empty result is not the spec's copy")
+        recorder.step("S1.1", "open Find a cabal with nothing typed") {
+            openFind(app, step: "S1.1")
+            XCTAssertTrue(app.staticTexts["Find a cabal"].exists, "S1.1: no Find a cabal title")
+            let caption = app.element("cabals-browse-coming")
+            XCTAssertTrue(caption.waitForExistence(timeout: 10), "S1.1: no cabals-browse-coming for an empty query")
+            XCTAssertEqual(caption.label, browseCaption, "S1.1: the caption reads '\(caption.label)'")
+            XCTAssertFalse(app.element("cabals-search-empty").exists, "S1.1: the empty result shows with nothing typed")
         }
 
-        recorder.step("S1.2", "clear the search") {
-            let field = JoinJourney.searchField(app)
-            let text = field.value as? String ?? ""
-            if !text.isEmpty, text != field.placeholderValue {
-                field.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.5)).tap()
-                field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: text.count))
-            }
-            let caption = app.element("cabals-browse-coming")
-            XCTAssertTrue(caption.waitForExistence(timeout: 10), "S1.2: no cabals-browse-coming for an empty query")
-            XCTAssertEqual(caption.label, browseCaption, "S1.2: the caption reads '\(caption.label)'")
-            XCTAssertFalse(app.element("cabals-search-empty").exists, "S1.2: the empty result is still there")
+        recorder.step("S1.2", "type a name nobody has") {
+            JoinJourney.search(app, for: "zzqq nobody", step: "S1.2")
+            XCTAssertTrue(
+                app.element("cabals-search-empty").waitForExistence(timeout: 10),
+                "S1.2: no cabals-search-empty for a name nobody has")
+            XCTAssertEqual(
+                app.element("cabals-search-empty").label, "No matching cabals",
+                "S1.2: the empty result is not the spec's copy")
         }
     }
 
@@ -45,6 +51,7 @@ enum CabalsDiscoverJourney {
         let name = cabalName(run: run)
 
         recorder.step("S2.1", "search for the public cabal") {
+            openFind(app, step: "S2.1")
             JoinJourney.search(app, for: name, step: "S2.1")
             CabalsBrowseJourney.assertResult(app, named: name, reads: "1 member", step: "S2.1")
             XCTAssertTrue(

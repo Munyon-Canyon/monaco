@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsBrowseJourney {
     static let id = "cabals/browse"
-    static let version = 7
+    static let version = 8
 
     static let screenTimeout: TimeInterval = 15
 
@@ -19,9 +19,9 @@ enum CabalsBrowseJourney {
         ).firstMatch
     }
 
-    static func card(_ app: XCUIApplication, named name: String) -> XCUIElement {
+    static func tile(_ app: XCUIApplication, named name: String) -> XCUIElement {
         app.buttons.matching(
-            NSPredicate(format: "identifier BEGINSWITH 'cabal-cover-card-' AND label CONTAINS %@", name)
+            NSPredicate(format: "identifier BEGINSWITH 'cabals-tile-' AND label CONTAINS %@", name)
         ).firstMatch
     }
 
@@ -34,20 +34,18 @@ enum CabalsBrowseJourney {
     }
 
     static func browses(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
-        recorder.step("S1.1", "open the Cabals tab and see your cards") {
+        recorder.step("S1.1", "open the Cabals tab and see your tiles") {
             app.tab("Cabals").tap()
             XCTAssertTrue(
-                app.textFields["cabals-filter-field"].waitForExistence(timeout: screenTimeout),
-                "S1.1: no filter field")
-            XCTAssertTrue(
-                card(app, named: mine(run: run)).waitForExistence(timeout: screenTimeout),
-                "S1.1: no Your cabals card for \(mine(run: run))")
+                tile(app, named: mine(run: run)).waitForExistence(timeout: screenTimeout),
+                "S1.1: no Your cabals tile for \(mine(run: run))")
             XCTAssertTrue(app.staticTexts["Your cabals"].exists, "S1.1: no Your cabals header")
+            XCTAssertTrue(app.element("cabals-new-tile").exists, "S1.1: no New cabal tile")
             JoinJourney.snap(app, "S1-A-cabals-tab")
         }
 
-        recorder.step("S1.2", "open a card") {
-            card(app, named: mine(run: run)).tap()
+        recorder.step("S1.2", "open a tile") {
+            tile(app, named: mine(run: run)).tap()
             XCTAssertTrue(
                 JoinJourney.waitForLabel(
                     app.element("cabal-header-name"), containing: mine(run: run), timeout: screenTimeout),
@@ -56,7 +54,9 @@ enum CabalsBrowseJourney {
         }
 
         recorder.step("S1.3", "search for the request cabal") {
+            app.waitForToastGone()
             app.tab("Cabals").tap()
+            CabalsDiscoverJourney.openFind(app, step: "S1.3")
             JoinJourney.search(app, for: ask(run: run), step: "S1.3")
             assertResult(app, named: ask(run: run), reads: "1 member", step: "S1.3")
             XCTAssertTrue(
@@ -75,25 +75,32 @@ enum CabalsBrowseJourney {
         }
     }
 
-    static func seesTopCabals(_ app: XCUIApplication, recorder: JourneyRecorder) {
-        recorder.step("S3.1", "the leaderboard lists ranked cabals") {
-            app.dismissKeyboard()
-            let back = app.buttons["BackButton"].firstMatch
-            if back.waitForExistence(timeout: 2) { back.tap() }
+    static func holdsATile(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
+        recorder.step("S2.1", "press and hold a tile") {
             app.tab("Cabals").tap()
-            let board = app.element("cabals-board")
-            app.scrollIntoReach(board)
-            XCTAssertTrue(board.waitForExistence(timeout: screenTimeout), "S3.1: no Cabal leaderboard section")
-            XCTAssertTrue(app.staticTexts["Cabal leaderboard"].exists, "S3.1: no Cabal leaderboard header")
-            XCTAssertTrue(app.staticTexts["Public"].exists, "S3.1: the leaderboard is not marked Public")
-            let list = app.element("cabals-board-list")
-            let empty = app.element("cabals-board-empty")
-            XCTAssertNotNil(
-                app.waitForFirst(of: [list, empty], timeout: screenTimeout),
-                "S3.1: the leaderboard shows neither ranked cabals nor the empty state within \(Int(screenTimeout)) s"
-            )
-            let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'cabals-board-row-'"))
-            XCTAssertLessThanOrEqual(rows.count, 3, "S3.1: the leaderboard lists more than three rows")
+            let held = tile(app, named: mine(run: run))
+            XCTAssertTrue(held.waitForExistence(timeout: screenTimeout), "S2.1: no tile for \(mine(run: run))")
+            held.press(forDuration: 1.0)
+            for item in ["Fund", "Propose buy", "Invite", "Share"] {
+                XCTAssertTrue(
+                    menuItem(app, item).waitForExistence(timeout: 10), "S2.1: the menu has no \(item)")
+            }
+            XCTAssertFalse(
+                app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Vote on'")).firstMatch.exists,
+                "S2.1: the menu offers a vote with none open")
         }
+
+        recorder.step("S2.2", "Fund opens the keypad and closing returns to the tab") {
+            menuItem(app, "Fund").tap()
+            XCTAssertTrue(
+                app.element("amount-keypad-screen").waitForExistence(timeout: 10), "S2.2: Fund did not open the keypad")
+            app.element("amount-keypad-close").tap()
+            XCTAssertTrue(
+                app.element("cabals-grid").waitForExistence(timeout: 10), "S2.2: closing did not return to the tab")
+        }
+    }
+
+    static func menuItem(_ app: XCUIApplication, _ title: String) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "label == %@", title)).firstMatch
     }
 }

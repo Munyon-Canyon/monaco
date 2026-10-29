@@ -1,0 +1,18 @@
+journey: cabals/create-cabal
+expect-fail: S4
+
+Approve on the request row does nothing. S4.5 waits for "Approved.", so S4 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/MembersView.swift b/apps/mobile/Monaco/Features/Groups/MembersView.swift
+--- a/apps/mobile/Monaco/Features/Groups/MembersView.swift
++++ b/apps/mobile/Monaco/Features/Groups/MembersView.swift
+@@ -122,7 +122,7 @@ private struct MembersAllList: View {
+         case .request(let request):
+             MembersRequestRow(
+                 request: request, isDeciding: model.deciding.contains(request.id),
+-                approve: { Task { await model.approve(request.id) } },
++                approve: {},
+                 decline: { Task { await model.deny(request.id) } })
+         case .header(let title):
+             MonacoSectionHeader(title)

@@ -1,0 +1,18 @@
+journey: cabals/browse
+expect-fail: S2
+
+The long-press menu on a Cabals tile loses Fund. S2.1 expects Fund, Propose buy, Invite and Share, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalsGridSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalsGridSlot.swift
+index f7d2fcd3c..8e2e98000 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalsGridSlot.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalsGridSlot.swift
+@@ -78,7 +78,7 @@ struct CabalsGridSection: View {
+ 
+     private func menuActions(_ tile: CabalTile) -> [CabalMenuAction] {
+         CabalMenuActions.actions(
+-            canVote: tile.canVote, restricted: accountRestricted,
++            canVote: tile.canVote, restricted: true,
+             waiting: store.votes.rows.filter { $0.cabalID == tile.id })
+     }
+ 

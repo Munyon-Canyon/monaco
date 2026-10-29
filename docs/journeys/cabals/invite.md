@@ -1,7 +1,7 @@
 ---
 id: cabals/invite
 title: Invite a member
-version: 8
+version: 9
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -11,9 +11,9 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/InviteJourney.swift, apps/mobile/M
 
 # Invite a member
 
-A member answers an invite from the Cabals tab and finds that a member is not offered Invite by handle. The creator of another cabal invites someone by handle, and the invitee sees the invite on their Cabals tab and answers it. The rules are [Cabals](../../architecture/cabals.md#invites).
+A member answers an invite from its "Invited" tile on the Cabals tab, finds the F invite sheet with Share and Copy link, and finds that a member is not offered Invite by handle. The creator of another cabal invites someone by handle from the sheet's gear, and the invitee sees the invite as a tile on their Cabals tab and answers it. The rules are [Cabals](../../architecture/cabals.md#invites).
 
-The copy is the Cabals tab's `CabalsInvitesSlot` and the information screen's `CabalInfoLinksSlot` in [screens.md](../../screens.md#cabal-screen-cabalroute).
+The copy is the Cabals tab's grid and the Members tab's "Invite to <cabal>" row in [screens.md](../../screens.md#cabal-screen-cabalroute); the sheet is `CabalInviteSheet` (frame `11-invite-sheet`).
 
 The old app (`c838bd24`) had no invites by handle, so their Expect cells say "Old app: none".
 
@@ -35,10 +35,10 @@ The setup runs before every scenario, because S1 uses up the invite it makes and
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap | the Cabals tab | | `cabals-invites` shows one `cabal-invite-row` within 10 s, naming `QA pot` and reading "invited you". screens.md: `CabalsInvitesSlot`, "Cabal invites". Old app: none, invites are new in #696 |
-| S1.2 | A | tap | `cabal-invite-accept` | | The toast "You're in." shows within 10 s, and `cabal-details-button` shows within 15 s. Old app: none, invites are new in #696 |
-| S1.3 | A | tap | `cabal-details-button` | | Once the toast goes and the push pre-prompt is answered "Not now" if it shows, the Cabal information screen shows within 10 s (`cabal-members-row`) and `cabal-invite-member-row` shows within 10 s. screens.md: `CabalInfoLinksSlot`, "Invite to this cabal". Old app: none |
-| S1.4 | A | tap, then scroll | `cabal-invite-member-row`, then the "Invite to cabal" sheet | | `share-card-share` shows within 10 s. After a swipe up `cabal-invite-gain-row` "Share your gain as an image" shows, and there is no `cabal-invite-handle-row`: a member who is not the creator is not offered Invite by handle (cabals.md: only the creator invites). Old app: none |
+| S1.1 | A | tap | the Cabals tab | | Exactly one `cabals-invited-<id>` tile shows within 10 s, naming `QA pot` and reading "Invited". Old app: none, invites are new in #696 |
+| S1.2 | A | tap, then tap | the Invited tile, then `cabal-invite-accept` in the invitation sheet | | The toast "You're in." shows within 10 s, and `cabal-header-name` shows within 15 s. Old app: none, invites are new in #696 |
+| S1.3 | A | tap | the Members tab (`openCabalTab("members")`), then `cabal-members-invite` ("Invite to <cabal>") | | Once the toast goes and the push pre-prompt is answered "Not now" if it shows, the invite sheet shows within 10 s (`cabal-invite-title`). Old app: none |
+| S1.4 | A | tap | `share-card-copy` | | `share-card-share` "Share" and `share-card-copy` "Copy link" show, there is no `cabal-invite-settings` gear and no `cabal-invite-handle-row`: a member who is not an admin is not offered Invite by handle. Copy link toasts "Link copied.". The gain row is gone from the sheet. Old app: none |
 
 ### S2 The creator invites by handle
 
@@ -46,15 +46,15 @@ Starts signed in (auth/sign-in).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, type, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA mine {QA.run}` | `cabal-header-name` reads `QA mine {QA.run}` and `cabal-details-button` shows within 15 s |
-| S2.2 | A | tap | `cabal-details-button` | | Once the toast goes and the push pre-prompt is answered "Not now" if it shows, the Cabal information screen shows within 10 s (`cabal-members-row`) and `cabal-invite-member-row` shows within 10 s |
-| S2.3 | A | tap, then tap | `cabal-invite-member-row`, then `cabal-invite-handle-row` in the "Invite to cabal" sheet (swipe up the sheet when the row is below the fold) | | `invite-member-handle-field` and `invite-member-pending-empty` show within 10 s. Old app: none, invites are new in #696 |
+| S2.1 | A | tap | the Cabals tab and the `QA mine {QA.run}` tile (`app.openCabal(named:)`) | `QA mine {QA.run}` | `cabal-header-name` reads `QA mine {QA.run}` within 15 s |
+| S2.2 | A | tap | the Members tab, then `cabal-members-invite` | | Once the toast goes and the push pre-prompt is answered "Not now" if it shows, the invite sheet shows within 10 s |
+| S2.3 | A | tap, then tap | the gear `cabal-invite-settings`, then `cabal-invite-handle-row` ("Invite by handle", admins only) | | `invite-member-handle-field` and `invite-member-pending-empty` show within 10 s. Old app: none, invites are new in #696 |
 | S2.4 | A | type, then tap | `invite-member-handle-field`, then `invite-member-send-button` | `@nobody_zz` | The toast "No one on Monaco has that handle." shows within 10 s. Old app: none, invites are new in #696 |
 | S2.5 | A | clear, type, then tap | `invite-member-handle-field`, then `invite-member-send-button` | `@QA_B` | The toast "Invite sent." shows within 10 s. One `invite-member-pending-row` reads "@qa_b" and "Expires in 7 days". Old app: none, invites are new in #696 |
 | S2.6 | A | tap | `invite-member-revoke-button` | | The toast "Invite revoked." shows within 10 s, and `invite-member-pending-empty` shows. Old app: none, invites are new in #696 |
 | S2.7 | A | type, then tap | `invite-member-handle-field`, then `invite-member-send-button` | `qa_b` | The toast "Invite sent." shows within 10 s, and one `invite-member-pending-row` reads "@qa_b". A refused second invite would toast "They already have a pending invite or request.", so this step also proves S1.7 revoked the first. Old app: none, invites are new in #696 |
-| S2.8 | B | tap | the Cabals tab | | `cabals-invites` shows exactly one `cabal-invite-row` within 10 s, naming `QA mine {QA.run}`. screens.md: `CabalsInvitesSlot`. Old app: none, invites are new in #696 |
-| S2.9 | B | tap | `cabal-invite-decline` | | The toast "Invite declined." shows within 10 s, and no `cabal-invite-row` is left. screens.md: `CabalsInvitesSlot`, Decline. Old app: none, invites are new in #696 |
+| S2.8 | B | tap | the Cabals tab | | Exactly one `cabals-invited-<id>` tile shows within 10 s, naming `QA mine {QA.run}`. Old app: none, invites are new in #696 |
+| S2.9 | B | tap, then tap | the Invited tile, then `cabal-invite-decline` | | The toast "Invite declined." shows within 10 s, and no Invited tile is left. Old app: none, invites are new in #696 |
 
 ## Ground truth
 
@@ -62,10 +62,11 @@ After S1, A is a member of the seeded cabal. After S2, B's invite to `QA mine {Q
 
 ## Known failures on staging
 
-None known.
+- Catch up's "Invites" row "Join" is `catch-up-join-<key>`, not `catch-up-invite-join-<id>` as #6561 names it, and `<key>` is not the cabal id. This journey does not drive it (owner: #6561).
 
 ## Not covered
 
 - A member of an open cabal. S1 covers a member of a request cabal not seeing "Invite by handle"; `CabalInviteTests` and `InviteMemberModelTests` cover both rules on the host.
 - An invite that expires before it is answered. `CabalInvitesModelTests` covers `invite_expired`.
+- Joining from Catch up's "Invites" row (see Known failures).
 - Pull to refresh on the Cabals tab.

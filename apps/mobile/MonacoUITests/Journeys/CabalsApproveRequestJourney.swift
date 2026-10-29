@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsApproveRequestJourney {
     static let id = "cabals/approve-request"
-    static let version = 3
+    static let version = 4
 
     static let screenTimeout: TimeInterval = 15
 
@@ -19,7 +19,7 @@ enum CabalsApproveRequestJourney {
         let requested = app.element("cabal-join-requested")
 
         recorder.step("S1.1", "open the request cabal as a non-member") {
-            JoinJourney.openBySearch(app, name, step: "S1.1")
+            app.openCabal(named: name)
             XCTAssertTrue(
                 JoinJourney.waitForLabel(join, containing: "Request to join", timeout: screenTimeout),
                 "S1.1: no Request to join on \(name) within \(Int(screenTimeout)) s"
@@ -61,23 +61,20 @@ enum CabalsApproveRequestJourney {
     static func creatorSeesRequest(
         _ app: XCUIApplication, cabal: String, member: String, step: String
     ) {
-        JoinJourney.openBySearch(app, cabal, step: step)
-        XCTAssertTrue(
-            JoinJourney.waitForLabel(
-                app.element("cabal-join-requests-heading"), containing: "1 request to review",
-                timeout: screenTimeout),
-            "\(step): no 1 request to review within \(Int(screenTimeout)) s"
-        )
+        app.openCabal(named: cabal)
         JoinJourney.openRequests(app, step: step)
         let rows = app.descendants(matching: .any).matching(identifier: "cabal-join-request-row")
         XCTAssertEqual(rows.count, 1, "\(step): expected one request row")
         XCTAssertTrue(rows.firstMatch.label.contains(member), "\(step): the request does not name \(member)")
+        XCTAssertTrue(
+            rows.firstMatch.label.contains("Asked to join"), "\(step): the request row does not read Asked to join")
     }
 
     static func creatorDenies(_ app: XCUIApplication, run: String, member: String, recorder: JourneyRecorder) {
         recorder.step("S1.5", "open the cabal and see the request") {
             creatorSeesRequest(app, cabal: askCabal(run: run), member: member, step: "S1.5")
-            XCTAssertEqual(app.buttons["cabal-join-review"].firstMatch.label, "Review \(member)", "S1.5: Review")
+            XCTAssertTrue(
+                app.buttons["cabal-join-approve"].firstMatch.exists, "S1.5: the request row has no Approve button")
             JoinJourney.snap(app, "S1-A-request")
         }
 
@@ -85,7 +82,7 @@ enum CabalsApproveRequestJourney {
             JoinJourney.decide(app, approve: false, step: "S1.6")
             JoinJourney.waitForToast(app, "Denied.", step: "S1.6")
             XCTAssertTrue(
-                app.element("members-requests-empty").waitForExistence(timeout: 10),
+                JoinJourney.waitForRequestsGone(app, timeout: 10),
                 "S1.6: the request is still on the Members screen"
             )
             app.navigationBars.buttons.firstMatch.tap()
@@ -105,7 +102,7 @@ enum CabalsApproveRequestJourney {
             JoinJourney.decide(app, approve: true, step: "S2.2")
             JoinJourney.waitForToast(app, "Approved.", step: "S2.2")
             XCTAssertTrue(
-                app.element("members-requests-empty").waitForExistence(timeout: 10),
+                JoinJourney.waitForRequestsGone(app, timeout: 10),
                 "S2.2: the request is still on the Members screen"
             )
             app.navigationBars.buttons.firstMatch.tap()

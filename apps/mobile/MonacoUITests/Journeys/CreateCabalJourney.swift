@@ -3,7 +3,7 @@ import XCTest
 
 enum CreateCabalJourney {
     static let id = "cabals/create-cabal"
-    static let version = 11
+    static let version = 12
 
     private static let listTimeout: TimeInterval = 15
     private static let formTimeout: TimeInterval = 10
@@ -103,19 +103,20 @@ enum CreateCabalJourney {
             XCTAssertEqual(count.label, "1 member", "S2.5: the member count is wrong")
         }
 
-        recorder.step("S2.6", "go back to the Cabals list and find the cabal once") {
+        recorder.step("S2.6", "go back to the Cabals tab and find the cabal tile once") {
             app.waitForToastGone()
             app.dismissPushPrePromptIfShown()
             app.tapBack()
-            let list = app.element("cabals-list")
-            XCTAssertTrue(list.waitForExistence(timeout: formTimeout), "S2.6: Back did not land on the Cabals list")
+            let grid = app.element("cabals-grid")
+            XCTAssertTrue(grid.waitForExistence(timeout: formTimeout), "S2.6: Back did not land on the Cabals tab")
             let named = app.buttons.matching(
                 NSPredicate(
-                    format: "identifier BEGINSWITH 'cabal-cover-card-' AND (label == %@ OR label BEGINSWITH %@)",
+                    format: "identifier BEGINSWITH 'cabals-tile-' AND (label == %@ OR label BEGINSWITH %@)",
                     name, name + ","))
             XCTAssertTrue(
-                named.firstMatch.waitForExistence(timeout: formTimeout), "S2.6: '\(name)' is not on the Cabals list")
-            XCTAssertEqual(named.count, 1, "S2.6: '\(name)' is on the Cabals list \(named.count) times")
+                named.firstMatch.waitForExistence(timeout: formTimeout),
+                "S2.6: '\(name)' is not a tile on the Cabals tab")
+            XCTAssertEqual(named.count, 1, "S2.6: '\(name)' is a tile on the Cabals tab \(named.count) times")
         }
     }
 
@@ -183,7 +184,7 @@ enum CreateCabalJourney {
         let name = duoCabal(run: run)
 
         recorder.step("S4.3", "find the cabal by name") {
-            JoinJourney.openBySearch(app, name, step: "S4.3")
+            app.openCabal(named: name)
             XCTAssertTrue(
                 app.buttons["cabal-join-button"].waitForExistence(timeout: listTimeout),
                 "S4.3: no Request to join on the cabal within \(Int(listTimeout)) s"
@@ -204,18 +205,22 @@ enum CreateCabalJourney {
     static func creatorSeesTheFriend(_ app: XCUIApplication, run: String, friend: String, recorder: JourneyRecorder) {
         let name = duoCabal(run: run)
 
-        recorder.step("S4.5", "approve the friend and find them on Members & voters") {
-            JoinJourney.openBySearch(app, name, step: "S4.5")
-            JoinJourney.openRequests(app, step: "S4.5")
-            JoinJourney.decide(app, approve: true, step: "S4.5")
+        recorder.step("S4.5", "approve the friend from the Members tab and find them under Members") {
+            app.openCabal(named: name)
+            app.openCabalTab("members")
+            let all = app.element("cabal-members-see-all")
+            if !all.waitForExistence(timeout: 3) { app.swipeUp() }
+            XCTAssertTrue(all.waitForExistence(timeout: listTimeout), "S4.5: no See all on the Members tab")
+            all.tap()
+            let approve = app.buttons["cabal-join-approve"].firstMatch
+            XCTAssertTrue(approve.waitForExistence(timeout: listTimeout), "S4.5: no Approve on the request row")
+            approve.tap()
             JoinJourney.waitForToast(app, "Approved.", step: "S4.5")
             XCTAssertTrue(
-                app.element("members-requests-empty").waitForExistence(timeout: listTimeout),
-                "S4.5: the request is still on the Members screen")
-            app.element("members-tab-members").tap()
-            let row = CabalsInfoAndMembersJourney.memberRow(app, label: "CONTAINS", friend)
+                approve.waitForNonExistence(timeout: listTimeout), "S4.5: the request row is still on Members")
+            let row = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", friend)).firstMatch
             XCTAssertTrue(row.waitForExistence(timeout: listTimeout), "S4.5: no Members row names \(friend)")
-            app.navigationBars.buttons.firstMatch.tap()
+            app.tapBack()
             XCTAssertTrue(
                 JoinJourney.waitForLabel(
                     app.element("cabal-member-count"), containing: "2 members", timeout: listTimeout),
