@@ -275,7 +275,11 @@ private struct PassedMomentSampleHost: View {
 
     var body: some View {
         Group {
-            if signedIn { ProposalSampleRoute(votes: .closed).destination() }
+            if signedIn {
+                ProposalSampleRoute(votes: .closed).destination()
+            } else {
+                ProgressView()
+            }
         }
         .onAppear {
             environment.viewer = Viewer(userID: "sample-viewer", handle: nil)

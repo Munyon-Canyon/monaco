@@ -42,12 +42,12 @@ struct SampleAppFrame: View {
             if let environment {
                 MainTabView()
                     .modifier(SampleScrollModifier(anchor: SampleScrollAnchor.requested(by: SampleScrollAnchor.flag)))
+                    .sheet(isPresented: $showsSheet) { sheet?() }
                     .environment(environment)
                     .environment(environment.sessionStore)
                     .environment(
                         \.scrubSelectionPersists, ProcessInfo.processInfo.arguments.contains("-MonacoScrubHolds")
                     )
-                    .sheet(isPresented: $showsSheet) { sheet?() }
             } else {
                 MonacoTheme.canvas.ignoresSafeArea()
             }
