@@ -19,6 +19,8 @@ import (
 
 const callsResolverPoller = "ranking.calls_resolver"
 
+func (defined) WorkerEnvF19a() []string { return []string{"RANKING_CALLS_RESOLVER_INTERVAL=1s"} }
+
 type seededCall struct {
 	proposal, cabal, yes, no uuid.UUID
 	spec                     callSpec

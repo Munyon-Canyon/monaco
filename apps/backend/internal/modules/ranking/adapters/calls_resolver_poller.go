@@ -18,11 +18,17 @@ type CallsResolver interface {
 type CallsResolverPoller struct {
 	Resolver CallsResolver
 	Clock    clock.Clock
+	Every    time.Duration
 }
 
 func (CallsResolverPoller) Name() string { return "ranking.calls_resolver" }
 
-func (CallsResolverPoller) Interval() time.Duration { return CallsResolverInterval }
+func (p CallsResolverPoller) Interval() time.Duration {
+	if p.Every > 0 {
+		return p.Every
+	}
+	return CallsResolverInterval
+}
 
 func (p CallsResolverPoller) Tick(ctx context.Context) (poller.Report, error) {
 	var total poller.Report
