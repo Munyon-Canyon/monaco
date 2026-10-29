@@ -27,6 +27,10 @@ enum HomeSampleScenario: String, CaseIterable {
     case proposalsError
     case stale
     case error
+    case fVotePick
+    case fVoteHolding
+    case fVoteCommitted
+    case fVoteRule
 
     static func matching(_ arguments: [String]) -> HomeSampleScenario? {
         guard let flag = arguments.firstIndex(of: "-MonacoHomeSample"),
@@ -65,6 +69,24 @@ extension HomeSampleScenario {
         case .proposalsError: HomeSampleData.script(.loss, proposals: [], pendingVotesFail: true)
         case .stale: HomeSampleData.script(.loss, proposals: [.needsVote], portfolioReadsBeforeFailing: 1)
         case .error: SampleAPIScript(mode: .offline)
+        case .fVotePick, .fVoteHolding, .fVoteCommitted: HomeSampleData.script(.loss, proposals: [.fVote])
+        case .fVoteRule: HomeSampleData.script(.loss, proposals: [.fRule])
+        }
+    }
+
+    var voteCardSetup: (@MainActor (HomeVoteCardModel) -> Void)? {
+        switch self {
+        case .fVotePick: { $0.preview(.picked(.yes)) }
+        case .fVoteHolding: { $0.preview(.holding(.yes, progress: 0.4)) }
+        case .fVoteCommitted:
+            {
+                let outcome = CastOutcome(
+                    choice: .yes, status: .passed, tally: ProposalTally(yes: 5, no: 1, voters: 8, needed: 5),
+                    undoUntil: nil,
+                    myVote: ProposalMyVote(order: 5, of: 8, yesOrder: 5, noOrder: 0, decided: true))
+                $0.preview(.committed(outcome), sharesEstimate: "1.82")
+            }
+        default: nil
         }
     }
 
@@ -79,7 +101,7 @@ enum HomeSampleData {
     }
 
     enum Proposal {
-        case needsVote, second, voted, executing, completed, expired, blocked
+        case needsVote, second, voted, executing, completed, expired, blocked, fVote, fRule
     }
 
     static let bigBallers = "0f1d6a52-0001-7000-8000-000000000001"
@@ -224,10 +246,18 @@ enum HomeSampleData {
 
     private static func pending(_ proposal: Proposal) -> Components.Schemas.PendingVote {
         let second = proposal == .second
+        if proposal == .fRule {
+            var rule = Components.Schemas.PendingVote.ruleSample(now: .now)
+            rule.proposalId = "home-proposal-1"
+            rule.cabalId = bigBallers
+            rule.cabalName = "Big Ballers"
+            return rule
+        }
+        let closes: TimeInterval = proposal == .fVote ? 4 * 3_600 + 600 : 8 * 3_600
         return Components.Schemas.PendingVote.sample(
             proposalId: "home-proposal-\(second ? 2 : 1)", cabalId: second ? techCrew : bigBallers,
             cabalName: second ? "Tech Crew" : "Big Ballers", symbol: second ? "MSFTx" : "NVDAx",
-            assetName: second ? "Microsoft" : "NVIDIA", expiresAt: .now.addingTimeInterval(8 * 3_600))
+            assetName: second ? "Microsoft" : "NVIDIA", expiresAt: .now.addingTimeInterval(closes))
     }
 
     private static func detail(_ proposal: Proposal) -> Components.Schemas.ProposalDetail {
@@ -244,7 +274,7 @@ enum HomeSampleData {
 
     private static func status(_ proposal: Proposal) -> Components.Schemas.ProposalStatus {
         switch proposal {
-        case .needsVote, .second, .voted: .open
+        case .needsVote, .second, .voted, .fVote, .fRule: .open
         case .executing: .passed
         case .completed: .executed
         case .expired: .expired
