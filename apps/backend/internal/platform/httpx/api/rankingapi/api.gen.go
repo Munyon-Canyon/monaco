@@ -106,6 +106,24 @@ func (e CallBoardGapVersus) Valid() bool {
 	}
 }
 
+// Defines values for CallBoardLeadChangeCallKind.
+const (
+	CallBoardLeadChangeCallKindBuy  CallBoardLeadChangeCallKind = "buy"
+	CallBoardLeadChangeCallKindSell CallBoardLeadChangeCallKind = "sell"
+)
+
+// Valid indicates whether the value is a known member of the CallBoardLeadChangeCallKind enum.
+func (e CallBoardLeadChangeCallKind) Valid() bool {
+	switch e {
+	case CallBoardLeadChangeCallKindBuy:
+		return true
+	case CallBoardLeadChangeCallKindSell:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CallBoardMovementKind.
 const (
 	Down CallBoardMovementKind = "down"
@@ -947,6 +965,11 @@ type CallBoard struct {
 	// Examples: null
 	Gap *CallBoardGap `json:"gap"`
 
+	// LeadChange Who took the lead in the latest run that changed it, for 24 hours. Null when nothing changed, the day is over, or on Friends unless both people are friends and the leader is
+	//
+	// Examples: null
+	LeadChange *CallBoardLeadChange `json:"lead_change"`
+
 	// Me The caller's row, or on Cabals their best-ranked cabal. Null when not ranked.
 	//
 	// Examples: null
@@ -1025,6 +1048,59 @@ type CallBoardGap struct {
 	//
 	// Examples: above
 	Versus CallBoardGapVersus `json:"versus"`
+}
+
+// CallBoardLeadChangeCallKind Examples: buy
+type CallBoardLeadChangeCallKind string
+
+// CallBoardLeadCall The right call of the new leader's that caused the change. Null when no call of theirs did.
+//
+// Examples: null
+type CallBoardLeadCall struct {
+	// Kind Examples: buy
+	Kind CallBoardLeadChangeCallKind `json:"kind"`
+
+	// ProposalId Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	ProposalId openapi_types.UUID `json:"proposal_id"`
+
+	// Symbol Examples: META
+	Symbol string `json:"symbol"`
+}
+
+// CallBoardLeadChange Who took the lead in the latest run that changed it, for 24 hours. Null when nothing changed, the day is over, or on Friends unless both people are friends and the leader is
+//
+// Examples: null
+type CallBoardLeadChange struct {
+	// Call The right call of the new leader's that caused the change. Null when no call of theirs did.
+	//
+	// Examples: null
+	Call *CallBoardLeadCall `json:"call"`
+
+	// ChangedAt The run time of the change.
+	//
+	// Examples: 2026-10-22T14:00:00Z
+	ChangedAt time.Time `json:"changed_at"`
+
+	// Id The lead change id. The app remembers the last one it showed.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	Id openapi_types.UUID `json:"id"`
+
+	// Leader The cabal or person a row ranks.
+	Leader LeaderboardSubject `json:"leader"`
+
+	// LeaderRatePct The new leader's rate as a whole percent when the lead changed.
+	//
+	// Examples: 92
+	LeaderRatePct int32 `json:"leader_rate_pct"`
+
+	// MovementPlaces How many places the new leader climbed in that run. 0 when they were not ranked.
+	//
+	// Examples: 1
+	MovementPlaces int32 `json:"movement_places"`
+
+	// Passed The cabal or person a row ranks.
+	Passed LeaderboardSubject `json:"passed"`
 }
 
 // CallBoardUnrankedMe The not-ranked-yet card. Null when the caller is ranked.

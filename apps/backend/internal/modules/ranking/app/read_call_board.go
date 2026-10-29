@@ -32,6 +32,7 @@ const (
 	callBoardPage        = 20
 	callBoardUnrankedCap = 20
 	climbFullBps         = 10_000
+	leadChangeTTL        = 24 * time.Hour
 )
 
 type CallBoardRuns interface {
@@ -50,6 +51,10 @@ type CallBoardSubjects interface {
 	CallBoardRanked(ctx context.Context, arg sqlc.CallBoardRankedParams) ([]sqlc.CallBoardEntry, error)
 	CallBoardOf(ctx context.Context, arg sqlc.CallBoardOfParams) ([]sqlc.CallBoardEntry, error)
 	CallBoardUnranked(ctx context.Context, arg sqlc.CallBoardUnrankedParams) ([]sqlc.CallBoardEntry, error)
+}
+
+type CallLeadChanges interface {
+	LatestLeadChange(ctx context.Context, arg sqlc.LatestLeadChangeParams) (sqlc.LatestLeadChangeRow, error)
 }
 
 type PendingCallSymbols interface {
@@ -145,6 +150,7 @@ type CallBoardView struct {
 	Around      []CallRow
 	AfterCursor *string
 	Unranked    []CallRow
+	LeadChange  *CallLeadChange
 }
 
 type CallBoardQuery struct {
@@ -164,6 +170,7 @@ type ReadCallBoard struct {
 	Follows  Follows
 	Members  MemberCabals
 	Heads    CallBoardHeads
+	Leads    CallLeadChanges
 	Clock    clock.Clock
 }
 
@@ -442,6 +449,9 @@ func (c *callBoardRead) afterCursor(entries []sqlc.CallBoardEntry) *string {
 func (c *callBoardRead) screen(ctx context.Context) (CallBoardView, error) {
 	view := c.view(c.run.FinishedAt)
 	view.Top = c.rows(c.head.Top)
+	if err := c.leadChange(ctx, &view); err != nil {
+		return view, err
+	}
 	if c.q.Board == domain.BoardCabals {
 		return view, c.cabalsScreen(ctx, &view)
 	}
