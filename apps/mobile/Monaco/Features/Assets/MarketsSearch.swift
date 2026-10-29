@@ -87,11 +87,11 @@ private struct MarketsSearchRow: View {
                 Text(lines.title)
                     .font(MonacoTheme.Typo.rowTitle)
                     .foregroundStyle(MonacoTheme.primaryText)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(lines.subline)
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.secondaryText)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
             } trailing: {
                 if let series = asset.sparkline, !dynamicTypeSize.isAccessibilitySize {
                     Sparkline(

@@ -29,11 +29,11 @@ struct MarketsWatchRow: View {
                 Text(name)
                     .font(MonacoTheme.Typo.rowTitle)
                     .foregroundStyle(MonacoTheme.primaryText)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(subline)
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.secondaryText)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
             } trailing: {
                 if let series = asset.sparkline, !dynamicTypeSize.isAccessibilitySize {
                     Sparkline(

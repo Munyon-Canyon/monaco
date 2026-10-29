@@ -315,3 +315,11 @@ struct FLargeTextLayoutRuleTests {
         #expect(RemindMetrics.target == 44)
     }
 }
+
+struct RangeChipsLargeTextTests {
+    @Test func rangeChipsScrollAtEveryAccessibilitySizeAndOnlyThere() {
+        for size in DynamicTypeSize.allCases {
+            #expect(MonacoPlainLabelMetrics.scrollsAlways(size) == size.isAccessibilitySize)
+        }
+    }
+}

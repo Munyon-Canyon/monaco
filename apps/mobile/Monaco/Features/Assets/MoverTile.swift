@@ -13,6 +13,8 @@ struct MoverTile: View {
     let action: () -> Void
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .title) private var scaledWidth: CGFloat = MoverTile.width
+    @ScaledMetric(relativeTo: .title) private var scaledHeight: CGFloat = MoverTile.height
 
     static let width: CGFloat = 104
     static let height: CGFloat = 152
@@ -39,20 +41,22 @@ struct MoverTile: View {
             StockMark(
                 symbol: asset.symbol, displayName: asset.name, assetKind: asset.kind, size: 32, logoURL: asset.logoURL)
             Spacer(minLength: MonacoTheme.Space.xs)
-            Text(asset.ticker).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
+            Text(asset.ticker)
+                .font(MonacoTheme.Typo.headline)
+                .foregroundStyle(MonacoTheme.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
             Text(move ?? "—")
                 .font(MonacoTheme.Typo.display)
                 .foregroundStyle(MonacoTheme.signed(move))
-                .minimumScaleFactor(0.6)
+                .fixedSize()
             if let series = asset.sparkline, !dynamicTypeSize.isAccessibilitySize {
                 Sparkline(
                     series: series, tone: asset.dayTone,
                     width: Self.width - 2 * MonacoTheme.Space.cardPadding, height: 24)
             }
         }
-        .lineLimit(1)
         .padding(MonacoTheme.Space.cardPadding)
-        .frame(width: Self.width, height: Self.height, alignment: .leading)
+        .frame(width: scaledWidth, height: scaledHeight, alignment: .leading)
     }
 }
 

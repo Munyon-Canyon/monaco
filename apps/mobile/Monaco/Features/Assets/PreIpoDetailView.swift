@@ -28,6 +28,7 @@ struct PreIpoDetailView: View {
     let propose: (ProposeKind) -> Void
     let retry: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var range: PreIpoChartRange = .all
     @State private var infoSheet: Info?
     @State private var nameVisible = true
@@ -213,19 +214,11 @@ extension PreIpoDetailView {
         VStack(spacing: 0) {
             ForEach(Array(profile.ledger.enumerated()), id: \.offset) { index, line in
                 if index > 0 { MonacoRule() }
-                HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
-                    Text(line.label)
-                        .font(MonacoTheme.Typo.headline)
-                        .foregroundStyle(MonacoTheme.primaryText)
-                    Spacer(minLength: MonacoTheme.Space.s)
-                    Text(line.value)
-                        .moneyFigure(.row, weight: .regular)
-                        .foregroundStyle(MonacoTheme.primaryText)
-                }
-                .frame(minHeight: PreIpoPageMetrics.ledgerRowHeight)
-                .padding(.horizontal, StatMetrics.cardPaddingHorizontal)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(line.label), \(line.value)")
+                ledgerLine(line)
+                    .frame(minHeight: PreIpoPageMetrics.ledgerRowHeight)
+                    .padding(.horizontal, StatMetrics.cardPaddingHorizontal)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(line.label), \(line.value)")
             }
         }
         .background(
@@ -234,6 +227,32 @@ extension PreIpoDetailView {
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("asset-pre-ipo-ledger")
+    }
+
+    @ViewBuilder
+    private func ledgerLine(_ line: PreIpoCopy.LedgerLine) -> some View {
+        let label = Text(line.label)
+            .font(MonacoTheme.Typo.headline)
+            .foregroundStyle(MonacoTheme.primaryText)
+            .fixedSize(horizontal: false, vertical: true)
+        let value = Text(line.value)
+            .moneyFigure(.row, weight: .regular)
+            .foregroundStyle(MonacoTheme.primaryText)
+            .fixedSize()
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                label
+                value
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, MonacoTheme.Space.s)
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
+                label
+                Spacer(minLength: MonacoTheme.Space.s)
+                value
+            }
+        }
     }
 
     @ViewBuilder
