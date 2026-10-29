@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 const mobileCoreFakeSwift = `#!/bin/sh
@@ -16,6 +17,13 @@ if [ "$2" = --show-codecov-path ]; then echo "$bin/codecov/MonacoCore.json"; exi
 mkdir -p "$bin/codecov" "$bin/Dir.xctest/Contents/MacOS"
 : > "$bin/Dir.xctest/Contents/MacOS/Dir"
 : > "$bin/File.xctest"
+if [ "$1" = test ] && [ -n "$STUB_HANG" ]; then
+printf "Test Case '-[A.B testFast]' started.\n"
+printf "Test Case '-[A.B testFast]' passed (0.001 seconds).\n"
+printf "Test Case '-[A.B testHangs]' started.\n"
+sleep 30
+exit 0
+fi
 if [ -n "$STUB_TEST_SECS" ]; then
 printf "Test Case 'A.testSlow' started at 2026-10-02 12:00:00.000\n"
 printf "Test Case 'A.testSlow' passed (%s seconds)\n" "$STUB_TEST_SECS"
@@ -309,5 +317,18 @@ func TestMobileCoreTest_buildsTheTestsWithTheTestFlagsFirstAndTimesBoth(t *testi
 		if !found {
 			t.Errorf("no %q line in:\n%s", prefix, run.out)
 		}
+	}
+}
+
+func TestMobileCoreTest_aHungTestFailsWithinTheLimitAndIsNamed(t *testing.T) {
+	t.Parallel()
+	start := time.Now()
+	run := runMobileCoreTestLoaded(t, "darwin 90.50\nlinux 90.50\n", mobileCoreIdleMachine,
+		[]string{"STUB_HANG=1", "MONACO_TEST_HANG_S=2"})
+	if run.err == nil || !strings.Contains(run.out, "mobile-core: A.B testHangs did not finish in 2 s; stopping") {
+		t.Fatalf("mobile-core-test.sh: %v\n%s", run.err, run.out)
+	}
+	if took := time.Since(start); took > 20*time.Second {
+		t.Fatalf("the hung run took %s, want well under the fake's 30 s sleep", took)
 	}
 }

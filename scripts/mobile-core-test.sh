@@ -49,7 +49,43 @@ swift build --build-tests "${swift_flags[@]}" || status=$?
 echo "build: $((SECONDS - build_start)) s"
 ((status == 0)) || exit "$status"
 test_start=$SECONDS
-swift test "${swift_flags[@]}" "$@" | tee .build/test-output.txt || status=$?
+# A test that started and never finished used to run until the swiftpm lock's 1800 s hold cap
+# (lane 6542, 2026-10-29). The watchdog stops swift test MONACO_TEST_HANG_S seconds (default 60)
+# after the last unfinished XCTest case started and names it. set -m puts swift test in its own
+# process group so the kill reaches the test binary it spawned.
+hang_s=${MONACO_TEST_HANG_S:-60}
+: > .build/test-output.txt
+set -m
+swift test "${swift_flags[@]}" "$@" > .build/test-output.txt &
+test_pid=$!
+set +m
+tail -n +1 -f .build/test-output.txt &
+tail_pid=$!
+open_case="" open_since=$SECONDS hung=""
+while kill -0 "$test_pid" 2>/dev/null; do
+  latest=$(grep -E "^Test Case '-\[[^]]+\]' (started|passed|failed|skipped)" .build/test-output.txt | tail -1 || true)
+  if [[ "$latest" == *"' started."* ]]; then
+    if [[ "$latest" != "$open_case" ]]; then
+      open_case=$latest open_since=$SECONDS
+    elif ((SECONDS - open_since >= hang_s)); then
+      case_re='\[([^]]+)\]'
+      [[ $latest =~ $case_re ]] && hung=${BASH_REMATCH[1]}
+      kill -TERM -- "-$test_pid" 2>/dev/null || kill -TERM "$test_pid" 2>/dev/null || true
+      break
+    fi
+  else
+    open_case=""
+  fi
+  sleep 1
+done
+wait "$test_pid" || status=$?
+sleep 1
+kill "$tail_pid" 2>/dev/null || true
+wait "$tail_pid" 2>/dev/null || true
+if [[ -n "$hung" ]]; then
+  echo "mobile-core: $hung did not finish in $hang_s s; stopping" >&2
+  exit 1
+fi
 echo "test: $((SECONDS - test_start)) s"
 ((status == 0)) || exit "$status"
 (($# == 0)) || exit 0
