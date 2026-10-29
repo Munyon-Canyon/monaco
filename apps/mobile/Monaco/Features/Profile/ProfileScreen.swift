@@ -4,20 +4,19 @@ import SwiftUI
 
 struct ProfileScreen: View {
     static let sections: [any ProfileSection.Type] = [
-        ProfileHeaderSlot.self,
-        ProfileFollowCountsSlot.self,
+        ProfileCardSlot.self,
+        ProfileStandingSlot.self,
         ProfileBalanceSlot.self,
         ProfileCabalsSlot.self,
         ProfileLinksSlot.self,
     ]
 
-    @EnvironmentObject private var auth: PrivyAuthService
     @Environment(AppEnvironment.self) private var environment
-    @Environment(AppSessionStore.self) private var session
     @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @State private var portfolio: PortfolioModel?
-    @State private var selfProfile: UserProfileModel?
+    @State private var own: OwnProfileModel?
+    @State private var sharing: String?
     let sections: [any ProfileSection.Type]
 
     init(sections: [any ProfileSection.Type] = Self.sections) {
@@ -30,14 +29,14 @@ struct ProfileScreen: View {
         return ShareCardAccess.canShareMe(hasProfile: profile != nil, portfolioLoaded: loaded)
     }
 
-    static func showsLoadFailure(profile: SessionProfile?, isLoading: Bool) -> Bool {
-        profile == nil && !isLoading
+    static func showsLoadFailure(model: OwnProfileModel?) -> Bool {
+        model?.phase == .failed && model?.card == nil
     }
 
     var body: some View {
         content
             .environment(portfolio)
-            .environment(selfProfile)
+            .environment(own)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .task {
                 let portfolio = preparedPortfolio()
@@ -48,21 +47,35 @@ struct ProfileScreen: View {
                 }
             }
             .task(id: environment.viewer?.userID) {
-                guard let model = preparedSelfProfile() else { return }
-                refresh?.register("profile-follow-counts") { await model.refresh() }
-                if model.profile == nil {
-                    await model.load()
-                } else {
-                    await model.refresh()
+                guard let model = preparedOwn() else { return }
+                refresh?.register("profile-own") { await model.load() }
+                await withTaskGroup(of: Void.self) { group in
+                    group.addTask { await model.load() }
+                    group.addTask { await model.observe() }
                 }
             }
-            .onScreenVisibilityChange { portfolio?.setVisible($0) }
+            .onScreenVisibilityChange { visible in
+                portfolio?.setVisible(visible)
+                own?.setVisible(visible)
+                if visible, own?.phase == .loaded { Task { await own?.load() } }
+            }
             .onChange(of: portfolio?.toast) { _, message in
                 guard let message else { return }
                 toasts.current = MonacoToast(message: message)
                 portfolio?.dismissToast()
             }
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    MonacoGlassButton(
+                        icon: .share, accessibilityLabel: "Share your return", style: .quiet, placement: .toolbar,
+                        isBusy: sharing == ShareCardLauncher.meKey
+                    ) {
+                        share()
+                    }
+                    .disabled(!canShare)
+                    .accessibilityIdentifier("profile-share-button")
+                }
+                .withoutGlass()
                 ToolbarItem(placement: .topBarTrailing) {
                     MonacoGlassButton(
                         icon: .settings, accessibilityLabel: "Settings", style: .quiet, placement: .toolbar
@@ -75,33 +88,45 @@ struct ProfileScreen: View {
             }
     }
 
+    private var canShare: Bool {
+        Self.canShare(profile: own?.sessionProfile, portfolioState: portfolio?.state)
+    }
+
+    private func share() {
+        guard let profile = own?.sessionProfile else { return }
+        Task {
+            await ShareCardLauncher.shareMe(
+                profile: profile, api: environment.api, toasts: toasts, busy: $sharing)
+        }
+    }
+
     @ViewBuilder private var content: some View {
-        if Self.showsLoadFailure(profile: session.profile, isLoading: session.isLoading) {
+        if Self.showsLoadFailure(model: own) {
             ScrollView {
                 EmptyState(
-                    title: EditProfileCopy.failedTitle, message: EditProfileCopy.failedMessage,
-                    actionTitle: "Try again", actionIdentifier: "profile-header-error",
+                    title: ProfileCopy.failedTitle, message: EditProfileCopy.failedMessage,
+                    actionTitle: ProfileCopy.tryAgain, actionIdentifier: "profile-header-error",
                     systemImage: MonacoIcon.offline.symbol
                 ) {
                     Task {
-                        await session.reloadProfile(auth: auth)
+                        await own?.load()
                         await portfolio?.load()
                     }
                 }
             }
             .monacoCanvas()
-        } else if session.profile == nil {
+        } else if own?.card == nil {
             ProfileLoadingSkeleton()
         } else {
             SectionStack(context: (), sections: sections.map { $0.erased })
         }
     }
 
-    private func preparedSelfProfile() -> UserProfileModel? {
+    private func preparedOwn() -> OwnProfileModel? {
         guard let userID = environment.viewer?.userID else { return nil }
-        if let selfProfile, selfProfile.userID == userID { return selfProfile }
-        let created = UserProfileModel(userID: userID, api: environment.api)
-        selfProfile = created
+        if let own, own.userID == userID { return own }
+        let created = OwnProfileModel(api: environment.api, hints: environment.hints, viewerID: userID)
+        own = created
         return created
     }
 

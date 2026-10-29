@@ -41,7 +41,7 @@ struct ScreenMapOrderTests {
     @Test func profileFollowsTheScreenMap() {
         #expect(
             names(ProfileScreen.sections) == [
-                "ProfileHeaderSlot", "ProfileFollowCountsSlot", "ProfileBalanceSlot", "ProfileCabalsSlot",
+                "ProfileCardSlot", "ProfileStandingSlot", "ProfileBalanceSlot", "ProfileCabalsSlot",
                 "ProfileLinksSlot",
             ])
     }
