@@ -45,7 +45,7 @@ Starts where S2 ended.
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | A | tap, tap, tap, then tap | the Home tab, `home-leaderboard-row`, `leaderboard-tab-people`, then `leaderboard-row-<B id>` | | `user-profile-header` shows within 15 s with `user-profile-name` reading "Bartholomez", `user-profile-handle` starting with "@", `user-profile-followers` reading "0 followers", `user-profile-following` reading "0 following" and `user-profile-follow` reading "Follow" |
+| S3.1 | A | tap, tap, tap, then tap | the Home tab, `home-leaderboard-row`, `leaderboard-tab-people`, then `leaderboard-row-<B id>` | | `user-profile-card` shows within 15 s with `user-profile-name` reading "Bartholomez", `user-profile-handle` starting with "@", `user-profile-followers` reading "0 followers", `user-profile-following` reading "0 following" and `user-profile-follow` reading "Follow" |
 | S3.2 | A | tap | `user-profile-follow` | | `user-profile-follow` reads "Following" and `user-profile-followers` reads "1 follower" within 5 s, and `user-profile-following` still reads "0 following" |
 | S3.3 | A | tap, tap, then tap | Settings from the Profile tab, `profile-find-friends`, then `friends-tab-following` | | `friends-following-row-<B id>` shows within 15 s reading "Bartholomez", and `friends-following-empty` is gone (screens.md Find friends: "Following lists the people the viewer follows") |
 
@@ -73,7 +73,7 @@ Starts where S4 ended.
 
 ## Known failures on staging
 
-None known. B's profile (`user-profile-header`, #6530) is read here, not changed.
+None known. B's profile (`user-profile-card`, #6530) is read here, not changed.
 
 ## Not covered
 

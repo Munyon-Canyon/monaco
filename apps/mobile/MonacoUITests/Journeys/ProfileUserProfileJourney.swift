@@ -42,7 +42,7 @@ enum ProfileUserProfileJourney {
         XCTAssertTrue(row.waitForExistence(timeout: 15), "\(step): no member row for \(name)")
         row.tap()
         XCTAssertTrue(
-            app.element("user-profile-header").waitForExistence(timeout: 15), "\(step): the profile did not show")
+            app.element("user-profile-card").waitForExistence(timeout: 15), "\(step): the profile did not show")
     }
 
     static func openProfile(_ app: XCUIApplication, seed: Seed, name: String, step: String) {

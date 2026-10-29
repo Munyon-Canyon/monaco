@@ -77,7 +77,7 @@ enum FollowAndBoardsJourney {
         app.scrollIntoReach(member)
         member.tap()
         XCTAssertTrue(
-            app.element("user-profile-header").waitForExistence(timeout: 15),
+            app.element("user-profile-card").waitForExistence(timeout: 15),
             "\(step): \(seed.memberName)'s profile did not show within 15 s")
     }
 
