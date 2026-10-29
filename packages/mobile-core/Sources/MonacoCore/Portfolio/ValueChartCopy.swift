@@ -7,6 +7,8 @@ extension LeaderboardRange {
         case .oneDay: "Not enough history for the last day yet"
         case .oneWeek: "Not enough history for the last week yet"
         case .oneMonth: "Not enough history for the last month yet"
+        case .threeMonths: "Not enough history for the last 3 months yet"
+        case .sixMonths: "Not enough history for the last 6 months yet"
         case .all: "Not enough history yet"
         }
     }
@@ -14,6 +16,9 @@ extension LeaderboardRange {
 
 extension LeaderboardRange {
     public static let homePeriods: [LeaderboardRange] = [.oneWeek, .oneMonth, .all]
+    public static let figurePeriods: [LeaderboardRange] = [
+        .oneHour, .oneDay, .oneWeek, .oneMonth, .threeMonths, .sixMonths, .all,
+    ]
 
     public var returnPeriodPhrase: String {
         switch self {
@@ -21,6 +26,8 @@ extension LeaderboardRange {
         case .oneDay: "past day"
         case .oneWeek: "past week"
         case .oneMonth: "past month"
+        case .threeMonths: "past 3 months"
+        case .sixMonths: "past 6 months"
         case .all: "all time"
         }
     }

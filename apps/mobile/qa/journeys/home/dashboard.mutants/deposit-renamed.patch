@@ -1,19 +1,18 @@
 journey: home/dashboard
 expect-fail: S1
 
-The money strip calls its deposit button "Add money". S1.2 reads "Deposit", so it must fail.
+The cash row calls its deposit button "Add money". S1.2 reads "Deposit", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Home/HomeMoneyStrip.swift b/apps/mobile/Monaco/Features/Home/HomeMoneyStrip.swift
-index 6e559fd96..b040f26b9 100644
 --- a/apps/mobile/Monaco/Features/Home/HomeMoneyStrip.swift
 +++ b/apps/mobile/Monaco/Features/Home/HomeMoneyStrip.swift
-@@ -133,7 +133,7 @@ struct HomeMoneyStrip: View {
-         Button {
+@@ -130,7 +130,7 @@
+         let button = Button {
              depositNavigator?.presentDeposit()
          } label: {
--            Text("Deposit").frame(maxWidth: fillsWidth ? .infinity : nil)
-+            Text("Add money").frame(maxWidth: fillsWidth ? .infinity : nil)
+-            Text("Deposit")
++            Text("Add money")
          }
-         .buttonStyle(.monacoCompactProminent)
          .accessibilityIdentifier("home-add-money-link")
+         switch emphasis {

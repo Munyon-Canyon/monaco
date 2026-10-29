@@ -60,7 +60,6 @@ None known.
 - The bell (`home-notifications-button`) is [home/activity](activity.md). "Withdraw" is no longer on Home: it is a row on Profile and a tile on Your money.
 - The Leaderboard slot with its Cabals / People and 1W / 1M / All menus and "View all". [ranking/leaderboards](../ranking/leaderboards.md) covers it, and [social/follow-and-boards](../social/follow-and-boards.md) uses the People board.
 - "Proposals" (`HomePendingVotesSlot`). A pending vote needs an open proposal, and a proposal needs a funded treasury. The proposal journeys cover it with a `funds:` block.
-- "Market updates" (`HomeMarketUpdatesSlot`). It needs the catalogue to be loaded and has no fixed mover.
 - The pot value and share on a Home card. The cabal pot journey (`cabals/pot`) covers the same numbers on the cabal screen.
-- The onboarding nudge (`HomeNudgeSlot`). `profile/nudge` and `onboarding/first-run` cover it.
+- The onboarding nudge (`OnboardingNudgeBanner`). `profile/nudge` and `onboarding/first-run` cover it.
 - "$50.00 pending" under the money strip. That needs money moving; the fund journey covers it.

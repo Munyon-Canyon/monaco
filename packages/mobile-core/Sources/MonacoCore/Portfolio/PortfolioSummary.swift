@@ -53,6 +53,8 @@ public struct PortfolioSummary: Equatable, Sendable {
     }
 
     public let totalMicros: Int64
+    public let netWorth: Int64
+    public let cash: Int64
     public let total: String
     public let pnl: String
     public let returnText: String
@@ -71,6 +73,8 @@ public struct PortfolioSummary: Equatable, Sendable {
         rows = portfolio.cabals.map { Row($0, cabalCount: portfolio.cabals.count) }
         stats = ProfileStats(portfolio)
         totalMicros = portfolio.totalValueMicros
+        netWorth = portfolio.netWorthMicros
+        cash = portfolio.cashMicros
         total = UsdAmountFormatter.format(micros: portfolio.totalValueMicros)
         pnl = UsdAmountFormatter.format(signedMicros: portfolio.pnlMicros)
         returnText = Self.percent(portfolio.returnBps)

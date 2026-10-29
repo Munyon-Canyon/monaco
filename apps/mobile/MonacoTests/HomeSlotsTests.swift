@@ -5,23 +5,28 @@ import Testing
 
 @MainActor
 struct HomeSlotsTests {
-    @Test func theHeroCabalsAndBoardSlotsAreLive() {
-        #expect(HomePortfolioSlot.isLive)
+    @Test func theFigureChartCabalsAndBoardSlotsAreLive() {
+        #expect(HomeFigureSlot.isLive)
+        #expect(HomeChartSlot.isLive)
         #expect(HomeCabalsSlot.isLive)
         #expect(HomeLeaderboardSlot.isLive)
-        #expect(HomeMarketUpdatesSlot.isLive)
+    }
+
+    @Test func homeDrawsNoMarketUpdatesAndNoNudge() {
+        let names = HomeScreen.sections.map { String(describing: $0) }
+        #expect(!names.contains("HomeMarketUpdatesSlot"))
+        #expect(!names.contains("HomeNudgeSlot"))
     }
 
     @Test func homeKeepsItsSectionOrder() {
         let order = HomeScreen.sections.map { ObjectIdentifier($0) }
         let expected: [any HomeSection.Type] = [
-            HomeNudgeSlot.self,
-            HomePortfolioSlot.self,
-            HomeBalanceSlot.self,
+            HomeFigureSlot.self,
             HomePendingVotesSlot.self,
+            HomeChartSlot.self,
+            HomeBalanceSlot.self,
             HomeCabalsSlot.self,
             HomeLeaderboardSlot.self,
-            HomeMarketUpdatesSlot.self,
         ]
         #expect(order == expected.map { ObjectIdentifier($0) })
     }
