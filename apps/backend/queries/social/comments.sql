@@ -1,5 +1,5 @@
 -- name: GetCommentItem :one
-SELECT id, kind, ref_type, ref_id, cabal_id, actor_id, payload
+SELECT id, kind, ref_type, ref_id, cabal_id, actor_id, payload, body
 FROM feed_objects
 WHERE id = sqlc.arg(id);
 

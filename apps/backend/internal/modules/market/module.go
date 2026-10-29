@@ -39,6 +39,10 @@ type (
 	Multiplier = domain.Multiplier
 )
 
+func QuoteBps(current, reference money.Micros) (int32, bool) {
+	return domain.QuoteBps(current, reference)
+}
+
 func ParseMint(raw string) (Mint, error) { return domain.ParseMint(raw) }
 
 func AssetIDFrom(u uuid.UUID) AssetID { return domain.AssetIDFrom(u) }

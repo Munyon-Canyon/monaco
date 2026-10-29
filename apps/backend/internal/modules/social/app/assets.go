@@ -28,3 +28,17 @@ type Assets interface {
 type AssetLogos interface {
 	AssetLogos(ctx context.Context, assetIDs []uuid.UUID) (map[uuid.UUID]string, error)
 }
+
+type StockCard struct {
+	ID          uuid.UUID
+	Symbol      string
+	Name        string
+	LogoURL     string
+	IsPreIPO    bool
+	PriceMicros money.Micros
+	ChangeBps   *int32
+}
+
+type StockCards interface {
+	StockCards(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]StockCard, error)
+}

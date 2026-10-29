@@ -40,6 +40,7 @@ type HTTP struct {
 	Match           *app.MatchContactsHandler
 	Members         app.Members
 	Reads           sqlc.DBTX
+	Stocks          app.StockCards
 	Clock           clock.Clock
 	Users           app.Users
 	Returns         app.Returns

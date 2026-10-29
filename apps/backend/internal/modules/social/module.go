@@ -17,8 +17,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters/ably"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -40,6 +42,9 @@ type Module struct {
 	treasury app.Treasury
 	activity app.MemberActivity
 	tops     app.ClosedTops
+	catalog  market.Catalog
+	prices   market.Prices
+	stocks   app.StockCards
 }
 
 type Option func(*Module)
@@ -70,14 +75,72 @@ func WithTreasury(treasury app.Treasury) Option {
 
 func WithAssets(catalog market.Catalog) Option {
 	return func(m *Module) {
-		assets := NewAssets(catalog)
+		m.catalog = catalog
+		assets := NewAssets(catalog).WithPrices(m.prices, m.deps.Clock)
 		m.assets, m.logos = assets, assets
 	}
 }
 
-type CatalogAssets struct{ catalog market.Catalog }
+func WithPrices(prices market.Prices) Option {
+	return func(m *Module) { m.prices = prices }
+}
 
-func NewAssets(catalog market.Catalog) CatalogAssets { return CatalogAssets{catalog} }
+type CatalogAssets struct {
+	catalog market.Catalog
+	prices  market.Prices
+	clock   clock.Clock
+}
+
+func NewAssets(catalog market.Catalog) CatalogAssets { return CatalogAssets{catalog: catalog} }
+
+func (c CatalogAssets) WithPrices(prices market.Prices, clk clock.Clock) CatalogAssets {
+	c.prices, c.clock = prices, clk
+	return c
+}
+
+const stockChangeWindow = 24 * time.Hour
+
+func (c CatalogAssets) StockCards(ctx context.Context, assetIDs []uuid.UUID) (map[uuid.UUID]app.StockCard, error) {
+	cards := make(map[uuid.UUID]app.StockCard, len(assetIDs))
+	var known []market.AssetID
+	for _, id := range assetIDs {
+		asset, err := c.catalog.AssetByID(ctx, market.AssetIDFrom(id))
+		switch {
+		case errs.CodeOf(err) == errs.CodeAssetNotFound:
+			continue
+		case err != nil:
+			return nil, err
+		}
+		cards[id] = app.StockCard{
+			ID: id, Symbol: asset.Symbol, Name: asset.DisplayName, LogoURL: asset.LogoURL,
+			IsPreIPO: string(asset.Kind) == string(feed.AssetKindPreIPO),
+		}
+		known = append(known, asset.ID)
+	}
+	if len(known) == 0 {
+		return cards, nil
+	}
+	latest, err := c.prices.LatestPrices(ctx)
+	if err != nil {
+		return nil, err
+	}
+	earlier, err := c.prices.PricesAsOf(ctx, known, c.clock.Now().Add(-stockChangeWindow))
+	if err != nil {
+		return nil, err
+	}
+	for _, asset := range known {
+		card := cards[asset.UUID()]
+		now := latest[asset]
+		card.PriceMicros = now.Micros
+		if then, ok := earlier[asset]; ok && !card.IsPreIPO {
+			if bps, measured := market.QuoteBps(now.Micros, then.Micros); measured {
+				card.ChangeBps = &bps
+			}
+		}
+		cards[asset.UUID()] = card
+	}
+	return cards, nil
+}
 
 func (c CatalogAssets) AssetByMint(ctx context.Context, raw string) (app.AssetCard, error) {
 	mint, err := market.ParseMint(raw)
@@ -121,9 +184,16 @@ func New(d module.Deps, opts ...Option) *Module {
 	if m.returns == nil {
 		m.returns = ranking.New(d).Queries()
 	}
+	if m.catalog == nil {
+		m.catalog = market.New(d).Catalog()
+	}
+	if m.prices == nil {
+		m.prices = market.New(d).Prices()
+	}
+	stocks := NewAssets(m.catalog).WithPrices(m.prices, m.deps.Clock)
+	m.stocks = stocks
 	if m.assets == nil {
-		assets := NewAssets(market.New(d).Catalog())
-		m.assets, m.logos = assets, assets
+		m.assets, m.logos = stocks, stocks
 	}
 	if m.treasury == nil {
 		m.treasury = treasury.New(d).Queries()
@@ -227,7 +297,7 @@ func (m *Module) http() adapters.HTTP {
 	}
 	comments := app.CommentDeps{
 		UoW: m.deps.UoW, Reads: m.deps.Pool, Members: m.members, Users: m.users, IDs: m.deps.IDs,
-		Clock: m.deps.Clock, Hints: m.deps.Bus,
+		Clock: m.deps.Clock, Hints: m.deps.Bus, Stocks: m.stocks,
 	}
 	likes := app.LikeDeps{UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, Hints: m.deps.Bus}
 	return adapters.HTTP{
@@ -263,6 +333,7 @@ func (m *Module) http() adapters.HTTP {
 		}),
 		Members: m.members,
 		Reads:   m.deps.Pool,
+		Stocks:  m.stocks,
 		Clock:   m.deps.Clock,
 		Users:   m.users,
 		Returns: m.returns,

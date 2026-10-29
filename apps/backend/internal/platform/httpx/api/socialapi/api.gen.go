@@ -83,21 +83,6 @@ func (e AdminReportStatus) Valid() bool {
 	}
 }
 
-// Defines values for CommentAttachmentInputKind.
-const (
-	CommentAttachmentInputKindGif CommentAttachmentInputKind = "gif"
-)
-
-// Valid indicates whether the value is a known member of the CommentAttachmentInputKind enum.
-func (e CommentAttachmentInputKind) Valid() bool {
-	switch e {
-	case CommentAttachmentInputKindGif:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for FeedItemAssetKind.
 const (
 	FeedItemAssetKindEquity      FeedItemAssetKind = "equity"
@@ -248,6 +233,21 @@ func (e GifAttachmentKind) Valid() bool {
 	}
 }
 
+// Defines values for GifAttachmentInputKind.
+const (
+	GifAttachmentInputKindGif GifAttachmentInputKind = "gif"
+)
+
+// Valid indicates whether the value is a known member of the GifAttachmentInputKind enum.
+func (e GifAttachmentInputKind) Valid() bool {
+	switch e {
+	case GifAttachmentInputKindGif:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ReportRequestKind.
 const (
 	ReportRequestKindCabal   ReportRequestKind = "cabal"
@@ -287,6 +287,66 @@ func (e ReportRequestReason) Valid() bool {
 	case ReportRequestReasonOther:
 		return true
 	case ReportRequestReasonSpam:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StockAttachmentKind.
+const (
+	StockAttachmentKindStock StockAttachmentKind = "stock"
+)
+
+// Valid indicates whether the value is a known member of the StockAttachmentKind enum.
+func (e StockAttachmentKind) Valid() bool {
+	switch e {
+	case StockAttachmentKindStock:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StockAttachmentInputKind.
+const (
+	StockAttachmentInputKindStock StockAttachmentInputKind = "stock"
+)
+
+// Valid indicates whether the value is a known member of the StockAttachmentInputKind enum.
+func (e StockAttachmentInputKind) Valid() bool {
+	switch e {
+	case StockAttachmentInputKindStock:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ThesisQuoteAttachmentKind.
+const (
+	ThesisQuoteAttachmentKindThesisQuote ThesisQuoteAttachmentKind = "thesis_quote"
+)
+
+// Valid indicates whether the value is a known member of the ThesisQuoteAttachmentKind enum.
+func (e ThesisQuoteAttachmentKind) Valid() bool {
+	switch e {
+	case ThesisQuoteAttachmentKindThesisQuote:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ThesisQuoteAttachmentInputKind.
+const (
+	ThesisQuoteAttachmentInputKindThesisQuote ThesisQuoteAttachmentInputKind = "thesis_quote"
+)
+
+// Valid indicates whether the value is a known member of the ThesisQuoteAttachmentInputKind enum.
+func (e ThesisQuoteAttachmentInputKind) Valid() bool {
+	switch e {
+	case ThesisQuoteAttachmentInputKindThesisQuote:
 		return true
 	default:
 		return false
@@ -715,8 +775,10 @@ type ChatThread struct {
 
 // Comment One comment on a feed item.
 type Comment struct {
-	// Attachment A reply's attachment, keyed by `kind` (only `gif` today).
-	Attachment *GifAttachment `json:"attachment,omitempty"`
+	// Attachment A reply's attachment, keyed by `kind`.
+	//
+	// Examples: {"kind":"thesis_quote","proposal_id":"0b6c5a3e-6d2f-4f7e-9a51-2c8d1e4f7a90","proposer_name":"Ada","text":"Small add to the position."}
+	Attachment *CommentAttachment `json:"attachment,omitempty"`
 
 	// Author The author of a comment. A deleted account has a null handle and an empty name.
 	Author CommentAuthor `json:"author"`
@@ -775,21 +837,19 @@ type Comment struct {
 	RootCommentId *openapi_types.UUID `json:"root_comment_id,omitempty"`
 }
 
-// CommentAttachmentInput The attachment of a reply. At most one per reply.
-type CommentAttachmentInput struct {
-	// Gif A GIF as the GIPHY SDK returned it. Every URL must be https on a GIPHY media host and carry the GIF's id in its path; the server drops each URL's query string.
-	Gif GifInput `json:"gif"`
-
-	// Kind The attachment kind. Only `gif` is accepted.
-	//
-	// Examples: gif
-	Kind CommentAttachmentInputKind `json:"kind"`
+// CommentAttachment A reply's attachment, keyed by `kind`.
+//
+// Examples: {"kind":"thesis_quote","proposal_id":"0b6c5a3e-6d2f-4f7e-9a51-2c8d1e4f7a90","proposer_name":"Ada","text":"Small add to the position."}
+type CommentAttachment struct {
+	union json.RawMessage
 }
 
-// CommentAttachmentInputKind The attachment kind. Only `gif` is accepted.
+// CommentAttachmentInput The attachment of a reply, keyed by `kind`. At most one per reply.
 //
-// Examples: gif
-type CommentAttachmentInputKind string
+// Examples: {"end":25,"kind":"thesis_quote","start":0}
+type CommentAttachmentInput struct {
+	union json.RawMessage
+}
 
 // CommentAuthor The author of a comment. A deleted account has a null handle and an empty name.
 type CommentAuthor struct {
@@ -923,7 +983,9 @@ type ContactMatchRequest struct {
 
 // CreateCommentRequest A comment to post.
 type CreateCommentRequest struct {
-	// Attachment The attachment of a reply. At most one per reply.
+	// Attachment The attachment of a reply, keyed by `kind`. At most one per reply.
+	//
+	// Examples: {"end":25,"kind":"thesis_quote","start":0}
 	Attachment *CommentAttachmentInput `json:"attachment,omitempty"`
 
 	// Body The text, trimmed by the server to 1 to 1000 Unicode scalars. Optional when `attachment` is present, otherwise required.
@@ -1372,7 +1434,7 @@ type FollowsPage struct {
 	NextCursor *string `json:"next_cursor"`
 }
 
-// GifAttachment A reply's attachment, keyed by `kind` (only `gif` today).
+// GifAttachment A GIF attached to a reply.
 type GifAttachment struct {
 	// Id The GIPHY id.
 	//
@@ -1403,6 +1465,22 @@ type GifAttachment struct {
 //
 // Examples: gif
 type GifAttachmentKind string
+
+// GifAttachmentInput Attach a GIF.
+type GifAttachmentInput struct {
+	// Gif A GIF as the GIPHY SDK returned it. Every URL must be https on a GIPHY media host and carry the GIF's id in its path; the server drops each URL's query string.
+	Gif GifInput `json:"gif"`
+
+	// Kind The attachment kind.
+	//
+	// Examples: gif
+	Kind GifAttachmentInputKind `json:"kind"`
+}
+
+// GifAttachmentInputKind The attachment kind.
+//
+// Examples: gif
+type GifAttachmentInputKind string
 
 // GifInput A GIF as the GIPHY SDK returned it. Every URL must be https on a GIPHY media host and carry the GIF's id in its path; the server drops each URL's query string.
 type GifInput struct {
@@ -1577,6 +1655,123 @@ type ReportRequestKind string
 
 // ReportRequestReason Examples: spam
 type ReportRequestReason string
+
+// StockAttachment A stock card in a reply. Price and change are read live.
+type StockAttachment struct {
+	// AssetId The shared asset.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8070
+	AssetId openapi_types.UUID `json:"asset_id"`
+
+	// ChangeBps The change against 24 hours ago in basis points. Null for a Pre-IPO stock and when no earlier price exists.
+	//
+	// Examples: -80
+	ChangeBps *int32 `json:"change_bps"`
+
+	// IsPreIpo True for a Pre-IPO stock.
+	//
+	// Examples: false
+	IsPreIpo bool `json:"is_pre_ipo"`
+
+	// Kind The attachment kind.
+	//
+	// Examples: stock
+	Kind StockAttachmentKind `json:"kind"`
+
+	// LogoUrl The logo URL when the stock was shared.
+	//
+	// Examples: https://example.com/aapl.png
+	LogoUrl string `json:"logo_url"`
+
+	// Name The stock's name when it was shared.
+	//
+	// Examples: Apple
+	Name string `json:"name"`
+
+	// PriceMicros The latest price in USDC micros, the estimate for a Pre-IPO stock. Null when the asset is gone from the catalog.
+	//
+	// Examples: 180000000
+	PriceMicros *int64 `json:"price_micros"`
+
+	// Symbol The ticker when the stock was shared.
+	//
+	// Examples: AAPL
+	Symbol string `json:"symbol"`
+}
+
+// StockAttachmentKind The attachment kind.
+//
+// Examples: stock
+type StockAttachmentKind string
+
+// StockAttachmentInput Share a stock.
+type StockAttachmentInput struct {
+	// AssetId The asset to share.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8070
+	AssetId openapi_types.UUID `json:"asset_id"`
+
+	// Kind The attachment kind.
+	//
+	// Examples: stock
+	Kind StockAttachmentInputKind `json:"kind"`
+}
+
+// StockAttachmentInputKind The attachment kind.
+//
+// Examples: stock
+type StockAttachmentInputKind string
+
+// ThesisQuoteAttachment The proposal's thesis, or a part of it, quoted in a reply.
+type ThesisQuoteAttachment struct {
+	// Kind The attachment kind.
+	//
+	// Examples: thesis_quote
+	Kind ThesisQuoteAttachmentKind `json:"kind"`
+
+	// ProposalId The proposal whose thesis is quoted.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8057
+	ProposalId openapi_types.UUID `json:"proposal_id"`
+
+	// ProposerName The proposer's display name when the quote was made.
+	//
+	// Examples: Mia
+	ProposerName string `json:"proposer_name"`
+
+	// Text The quoted text, cut by the server from the thesis.
+	//
+	// Examples: Small add to the position.
+	Text string `json:"text"`
+}
+
+// ThesisQuoteAttachmentKind The attachment kind.
+//
+// Examples: thesis_quote
+type ThesisQuoteAttachmentKind string
+
+// ThesisQuoteAttachmentInput Quote the thesis of the proposal this thread is on. The server cuts the text; the client never sends it.
+type ThesisQuoteAttachmentInput struct {
+	// End The rune offset where the quote ends, exclusive. Defaults to the end of the thesis.
+	//
+	// Examples: 40
+	End *int `json:"end,omitempty"`
+
+	// Kind The attachment kind.
+	//
+	// Examples: thesis_quote
+	Kind ThesisQuoteAttachmentInputKind `json:"kind"`
+
+	// Start The first rune of the thesis to quote. Defaults to 0.
+	//
+	// Examples: 0
+	Start *int `json:"start,omitempty"`
+}
+
+// ThesisQuoteAttachmentInputKind The attachment kind.
+//
+// Examples: thesis_quote
+type ThesisQuoteAttachmentInputKind string
 
 // UserActivity One thing the member did, told apart by `kind`: `voted`, `proposed`, `replied` or `topped_board`. `choice` appears only on your own `voted` rows.
 type UserActivity struct {
@@ -2100,6 +2295,280 @@ type PostReportJSONRequestBody = ReportRequest
 
 // PostUserFollowJSONRequestBody defines body for PostUserFollow for application/json ContentType.
 type PostUserFollowJSONRequestBody = FollowRequest
+
+// AsGifAttachment returns the union data inside the CommentAttachment as a GifAttachment
+func (t CommentAttachment) AsGifAttachment() (GifAttachment, error) {
+	var body GifAttachment
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromGifAttachment overwrites any union data inside the CommentAttachment as the provided GifAttachment
+func (t *CommentAttachment) FromGifAttachment(v GifAttachment) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"gif"}`))
+	t.union = b
+	return err
+}
+
+// MergeGifAttachment performs a merge with any union data inside the CommentAttachment, using the provided GifAttachment
+func (t *CommentAttachment) MergeGifAttachment(v GifAttachment) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"gif"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsThesisQuoteAttachment returns the union data inside the CommentAttachment as a ThesisQuoteAttachment
+func (t CommentAttachment) AsThesisQuoteAttachment() (ThesisQuoteAttachment, error) {
+	var body ThesisQuoteAttachment
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromThesisQuoteAttachment overwrites any union data inside the CommentAttachment as the provided ThesisQuoteAttachment
+func (t *CommentAttachment) FromThesisQuoteAttachment(v ThesisQuoteAttachment) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"thesis_quote"}`))
+	t.union = b
+	return err
+}
+
+// MergeThesisQuoteAttachment performs a merge with any union data inside the CommentAttachment, using the provided ThesisQuoteAttachment
+func (t *CommentAttachment) MergeThesisQuoteAttachment(v ThesisQuoteAttachment) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"thesis_quote"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsStockAttachment returns the union data inside the CommentAttachment as a StockAttachment
+func (t CommentAttachment) AsStockAttachment() (StockAttachment, error) {
+	var body StockAttachment
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromStockAttachment overwrites any union data inside the CommentAttachment as the provided StockAttachment
+func (t *CommentAttachment) FromStockAttachment(v StockAttachment) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"stock"}`))
+	t.union = b
+	return err
+}
+
+// MergeStockAttachment performs a merge with any union data inside the CommentAttachment, using the provided StockAttachment
+func (t *CommentAttachment) MergeStockAttachment(v StockAttachment) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"stock"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t CommentAttachment) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"kind"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t CommentAttachment) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "gif":
+		return t.AsGifAttachment()
+	case "stock":
+		return t.AsStockAttachment()
+	case "thesis_quote":
+		return t.AsThesisQuoteAttachment()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t CommentAttachment) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *CommentAttachment) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsGifAttachmentInput returns the union data inside the CommentAttachmentInput as a GifAttachmentInput
+func (t CommentAttachmentInput) AsGifAttachmentInput() (GifAttachmentInput, error) {
+	var body GifAttachmentInput
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromGifAttachmentInput overwrites any union data inside the CommentAttachmentInput as the provided GifAttachmentInput
+func (t *CommentAttachmentInput) FromGifAttachmentInput(v GifAttachmentInput) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"gif"}`))
+	t.union = b
+	return err
+}
+
+// MergeGifAttachmentInput performs a merge with any union data inside the CommentAttachmentInput, using the provided GifAttachmentInput
+func (t *CommentAttachmentInput) MergeGifAttachmentInput(v GifAttachmentInput) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"gif"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsThesisQuoteAttachmentInput returns the union data inside the CommentAttachmentInput as a ThesisQuoteAttachmentInput
+func (t CommentAttachmentInput) AsThesisQuoteAttachmentInput() (ThesisQuoteAttachmentInput, error) {
+	var body ThesisQuoteAttachmentInput
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromThesisQuoteAttachmentInput overwrites any union data inside the CommentAttachmentInput as the provided ThesisQuoteAttachmentInput
+func (t *CommentAttachmentInput) FromThesisQuoteAttachmentInput(v ThesisQuoteAttachmentInput) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"thesis_quote"}`))
+	t.union = b
+	return err
+}
+
+// MergeThesisQuoteAttachmentInput performs a merge with any union data inside the CommentAttachmentInput, using the provided ThesisQuoteAttachmentInput
+func (t *CommentAttachmentInput) MergeThesisQuoteAttachmentInput(v ThesisQuoteAttachmentInput) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"thesis_quote"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsStockAttachmentInput returns the union data inside the CommentAttachmentInput as a StockAttachmentInput
+func (t CommentAttachmentInput) AsStockAttachmentInput() (StockAttachmentInput, error) {
+	var body StockAttachmentInput
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromStockAttachmentInput overwrites any union data inside the CommentAttachmentInput as the provided StockAttachmentInput
+func (t *CommentAttachmentInput) FromStockAttachmentInput(v StockAttachmentInput) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"stock"}`))
+	t.union = b
+	return err
+}
+
+// MergeStockAttachmentInput performs a merge with any union data inside the CommentAttachmentInput, using the provided StockAttachmentInput
+func (t *CommentAttachmentInput) MergeStockAttachmentInput(v StockAttachmentInput) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"stock"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t CommentAttachmentInput) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"kind"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t CommentAttachmentInput) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "gif":
+		return t.AsGifAttachmentInput()
+	case "stock":
+		return t.AsStockAttachmentInput()
+	case "thesis_quote":
+		return t.AsThesisQuoteAttachmentInput()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t CommentAttachmentInput) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *CommentAttachmentInput) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
 
 // AsUserActivityVoted returns the union data inside the UserActivity as a UserActivityVoted
 func (t UserActivity) AsUserActivityVoted() (UserActivityVoted, error) {

@@ -9811,7 +9811,7 @@ components:
         body: {type: [string, "null"], description: Null on a deleted comment and on a reply that is only an attachment., examples: [nice]}
         body_display: {type: string, description: "The body, `GIF` for a GIF-only reply, `Comment deleted` once the author deletes it, or `Removed by Monaco` once a moderator removes it.", examples: [nice]}
         attachment:
-          $ref: "#/components/schemas/GifAttachment"
+          $ref: "#/components/schemas/CommentAttachment"
         is_mine: {type: boolean, description: True when the caller wrote it., examples: [true]}
         reactions:
           type: array
@@ -9823,14 +9823,34 @@ components:
           examples: [[{emoji: "😂", count: 3, mine: false}, {emoji: "❤️", count: 1, mine: true}]]
         reaction_count: {type: integer, format: int32, minimum: 0, description: "The number of reactions on the comment, over every emoji.", examples: [3]}
         created_at: {type: string, format: date-time, description: When the server stored it., examples: ["2026-10-03T12:00:00Z"]}
+    CommentAttachment:
+      description: A reply's attachment, keyed by `kind`.
+      examples:
+        - {kind: thesis_quote, proposal_id: 0b6c5a3e-6d2f-4f7e-9a51-2c8d1e4f7a90, text: Small add to the position., proposer_name: Ada}
+      oneOf:
+        - $ref: "#/components/schemas/GifAttachment"
+        - $ref: "#/components/schemas/ThesisQuoteAttachment"
+        - $ref: "#/components/schemas/StockAttachment"
+      discriminator:
+        propertyName: kind
+        mapping:
+          gif: "#/components/schemas/GifAttachment"
+          thesis_quote: "#/components/schemas/ThesisQuoteAttachment"
+          stock: "#/components/schemas/StockAttachment"
     CommentAttachmentInput:
-      type: object
-      description: The attachment of a reply. At most one per reply.
-      required: [kind, gif]
-      properties:
-        kind: {type: string, enum: [gif], description: "The attachment kind. Only `gif` is accepted.", examples: [gif]}
-        gif:
-          $ref: "#/components/schemas/GifInput"
+      description: The attachment of a reply, keyed by `kind`. At most one per reply.
+      examples:
+        - {kind: thesis_quote, start: 0, end: 25}
+      oneOf:
+        - $ref: "#/components/schemas/GifAttachmentInput"
+        - $ref: "#/components/schemas/ThesisQuoteAttachmentInput"
+        - $ref: "#/components/schemas/StockAttachmentInput"
+      discriminator:
+        propertyName: kind
+        mapping:
+          gif: "#/components/schemas/GifAttachmentInput"
+          thesis_quote: "#/components/schemas/ThesisQuoteAttachmentInput"
+          stock: "#/components/schemas/StockAttachmentInput"
     CommentAuthor:
       type: object
       description: The author of a comment. A deleted account has a null handle and an empty name.
@@ -10215,7 +10235,7 @@ components:
           examples: [null]
     GifAttachment:
       type: object
-      description: A reply's attachment, keyed by `kind` (only `gif` today).
+      description: A GIF attached to a reply.
       required: [kind, id, title, still, preview, original]
       properties:
         kind: {type: string, enum: [gif], description: The attachment kind., examples: [gif]}
@@ -10227,6 +10247,14 @@ components:
           $ref: "#/components/schemas/GifMedia"
         original:
           $ref: "#/components/schemas/GifMedia"
+    GifAttachmentInput:
+      type: object
+      description: Attach a GIF.
+      required: [kind, gif]
+      properties:
+        kind: {type: string, enum: [gif], description: The attachment kind., examples: [gif]}
+        gif:
+          $ref: "#/components/schemas/GifInput"
     GifInput:
       type: object
       description: A GIF as the GIPHY SDK returned it. Every URL must be https on a GIPHY media host and carry the GIF's id in its path; the server drops each URL's query string.
@@ -10343,6 +10371,43 @@ components:
           description: Optional context, at most 500 characters.
           maxLength: 500
           examples: [Sends the same link to everyone.]
+    StockAttachment:
+      type: object
+      description: A stock card in a reply. Price and change are read live.
+      required: [kind, asset_id, symbol, name, logo_url, is_pre_ipo, price_micros, change_bps]
+      properties:
+        kind: {type: string, enum: [stock], description: The attachment kind., examples: [stock]}
+        asset_id: {type: string, format: uuid, description: The shared asset., examples: ["01890a5d-ac96-774b-bcce-b302099a8070"]}
+        symbol: {type: string, description: The ticker when the stock was shared., examples: [AAPL]}
+        name: {type: string, description: The stock's name when it was shared., examples: [Apple]}
+        logo_url: {type: string, description: The logo URL when the stock was shared., examples: ["https://example.com/aapl.png"]}
+        is_pre_ipo: {type: boolean, description: True for a Pre-IPO stock., examples: [false]}
+        price_micros: {type: [integer, "null"], format: int64, description: "The latest price in USDC micros, the estimate for a Pre-IPO stock. Null when the asset is gone from the catalog.", examples: [180000000]}
+        change_bps: {type: [integer, "null"], format: int32, description: "The change against 24 hours ago in basis points. Null for a Pre-IPO stock and when no earlier price exists.", examples: [-80]}
+    StockAttachmentInput:
+      type: object
+      description: Share a stock.
+      required: [kind, asset_id]
+      properties:
+        kind: {type: string, enum: [stock], description: The attachment kind., examples: [stock]}
+        asset_id: {type: string, format: uuid, description: The asset to share., examples: ["01890a5d-ac96-774b-bcce-b302099a8070"]}
+    ThesisQuoteAttachment:
+      type: object
+      description: The proposal's thesis, or a part of it, quoted in a reply.
+      required: [kind, proposal_id, text, proposer_name]
+      properties:
+        kind: {type: string, enum: [thesis_quote], description: The attachment kind., examples: [thesis_quote]}
+        proposal_id: {type: string, format: uuid, description: The proposal whose thesis is quoted., examples: ["01890a5d-ac96-774b-bcce-b302099a8057"]}
+        text: {type: string, description: "The quoted text, cut by the server from the thesis.", examples: [Small add to the position.]}
+        proposer_name: {type: string, description: The proposer's display name when the quote was made., examples: [Mia]}
+    ThesisQuoteAttachmentInput:
+      type: object
+      description: Quote the thesis of the proposal this thread is on. The server cuts the text; the client never sends it.
+      required: [kind]
+      properties:
+        kind: {type: string, enum: [thesis_quote], description: The attachment kind., examples: [thesis_quote]}
+        start: {type: integer, minimum: 0, description: "The first rune of the thesis to quote. Defaults to 0.", examples: [0]}
+        end: {type: integer, minimum: 0, description: "The rune offset where the quote ends, exclusive. Defaults to the end of the thesis.", examples: [40]}
     UserActivity:
       description: >-
         One thing the member did, told apart by `kind`: `voted`, `proposed`, `replied` or `topped_board`.
