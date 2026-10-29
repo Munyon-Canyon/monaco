@@ -52,11 +52,16 @@ enum CommentsTestSupport {
     }
 
     static func detail(canComment: Bool) throws -> Reply {
+        var item = Components.Schemas.FeedItem.samples[0]
+        item.canReply = canComment
+        return try detail(item: item)
+    }
+
+    static func detail(item: Components.Schemas.FeedItem) throws -> Reply {
         .json(
             .ok,
             try encode(
-                Components.Schemas.FeedItemDetail(
-                    item: Components.Schemas.FeedItem.samples[0], visible: true, canComment: canComment)))
+                Components.Schemas.FeedItemDetail(item: item, visible: true, canComment: item.canReply)))
     }
 }
 

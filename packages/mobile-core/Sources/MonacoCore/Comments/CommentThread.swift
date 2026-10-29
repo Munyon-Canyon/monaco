@@ -157,7 +157,7 @@ public enum CommentsCopy {
     public static let empty = "No replies yet"
     public static let emptyMessage = "Start the discussion."
     public static let placeholder = "Say something"
-    public static let membersOnly = "Only members of this cabal can comment."
+    public static func membersReplyHere(_ cabal: String) -> String { "Members of \(cabal) reply here" }
     public static let deleted = "Comment deleted"
     public static let delete = "Delete"
     public static let reply = "Reply"

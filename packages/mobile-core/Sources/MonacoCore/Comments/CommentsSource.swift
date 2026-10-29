@@ -11,6 +11,23 @@ public struct CommentsPage: Sendable {
     }
 }
 
+public enum ReplyRule: Equatable, Sendable {
+    case anyone
+    case members(cabalName: String, cabalPictureURL: String?)
+}
+
+public struct CommentPermissions: Equatable, Sendable {
+    public let canComment: Bool
+    public let canReact: Bool
+    public let replyRule: ReplyRule?
+
+    public init(canComment: Bool, canReact: Bool = true, replyRule: ReplyRule? = nil) {
+        self.canComment = canComment
+        self.canReact = canReact
+        self.replyRule = replyRule
+    }
+}
+
 public protocol CommentsSource: Sendable {
     func list(cursor: String?) async throws -> CommentsPage
     func post(
@@ -18,7 +35,7 @@ public protocol CommentsSource: Sendable {
         submission: IdempotentSubmission
     ) async throws -> Components.Schemas.Comment
     func delete(id: String, submission: IdempotentSubmission) async throws
-    func canComment() async throws -> Bool
+    func permissions() async throws -> CommentPermissions
 }
 
 public struct FeedCommentsSource: CommentsSource {
@@ -55,10 +72,18 @@ public struct FeedCommentsSource: CommentsSource {
         try await api.deleteComment(id: id, submission: submission)
     }
 
-    public func canComment() async throws -> Bool {
-        try await api.read { [itemID] client in
-            try await client.getFeedItem(path: .init(id: itemID)).ok.body.json.canComment
+    public func permissions() async throws -> CommentPermissions {
+        let item = try await api.read { [itemID] client in
+            try await client.getFeedItem(path: .init(id: itemID)).ok.body.json.item
         }
+        let rule: ReplyRule
+        switch item.replyRule {
+        case .anyone: rule = .anyone
+        case .members:
+            let name = item.replyRuleCabalName ?? item.cabalName ?? "this cabal"
+            rule = .members(cabalName: name, cabalPictureURL: item.cabalPictureUrl)
+        }
+        return CommentPermissions(canComment: item.canReply, canReact: item.canReact, replyRule: rule)
     }
 }
 
@@ -101,9 +126,9 @@ public actor ProposalCommentsSource: CommentsSource {
         try await api.deleteComment(id: id, submission: submission)
     }
 
-    public func canComment() async throws -> Bool {
+    public func permissions() async throws -> CommentPermissions {
         guard let itemID = feedItemID else { throw FeedItemNotLoaded() }
-        return try await FeedCommentsSource(itemID: itemID, api: api).canComment()
+        return try await FeedCommentsSource(itemID: itemID, api: api).permissions()
     }
 }
 

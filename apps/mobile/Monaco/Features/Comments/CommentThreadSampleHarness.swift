@@ -20,6 +20,12 @@ enum CommentThreadScenario: String, CaseIterable {
         return CommentThreadScenario(rawValue: arguments[flag + 1])
     }
 
+    var permissions: CommentPermissions {
+        guard self == .pilates else { return CommentPermissions(canComment: true) }
+        return CommentPermissions(
+            canComment: false, canReact: true, replyRule: .members(cabalName: "Pilates", cabalPictureURL: nil))
+    }
+
     var threads: [Components.Schemas.CommentThread] {
         typealias Thread = Components.Schemas.CommentThread
         switch self {
@@ -50,6 +56,7 @@ enum CommentThreadScenario: String, CaseIterable {
 
 private struct SampleCommentsSource: CommentsSource {
     let threads: [Components.Schemas.CommentThread]
+    var permissions = CommentPermissions(canComment: true)
 
     func list(cursor _: String?) async throws -> CommentsPage {
         CommentsPage(threads: threads, nextCursor: nil)
@@ -64,7 +71,7 @@ private struct SampleCommentsSource: CommentsSource {
 
     func delete(id _: String, submission _: IdempotentSubmission) async throws {}
 
-    func canComment() async throws -> Bool { true }
+    func permissions() async throws -> CommentPermissions { permissions }
 }
 
 private struct CommentThreadHarnessScreen: View {
@@ -80,8 +87,10 @@ private struct CommentThreadHarnessScreen: View {
             uniqueKeysWithValues: threads.flatMap { [$0.comment] + $0.replies }.map { ($0.id, $0.reactions) })
         _model = State(
             initialValue: CommentsModel(
-                source: SampleCommentsSource(threads: threads), hints: SampleSilentHints(), clock: ContinuousClock(),
-                reactions: ReactionsModel.sample(reactions: reactions, fails: false, clock: ContinuousClock())))
+                source: SampleCommentsSource(threads: threads, permissions: scenario.permissions),
+                hints: SampleSilentHints(), clock: ContinuousClock(),
+                reactions: ReactionsModel.sample(
+                    reactions: reactions, fails: false, clock: ContinuousClock())))
     }
 
     var body: some View {
@@ -91,6 +100,9 @@ private struct CommentThreadHarnessScreen: View {
                     .padding(.vertical, MonacoTheme.Space.s)
             }
             .environment(\.sectionScrollProxy, proxy)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if scenario == .pilates { CommentComposerBar(model: model) }
         }
         .monacoCanvas()
         .environment(toasts)

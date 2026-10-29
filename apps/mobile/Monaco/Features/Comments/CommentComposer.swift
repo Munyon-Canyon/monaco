@@ -46,6 +46,8 @@ struct CommentComposerBar<Restricted: View>: View {
             DockedComposer(
                 model: model, menuItems: menuItems, thesis: thesis, onPoll: offersPoll ? { picksPoll = true } : nil,
                 onGif: { picksGif = true }, onDidStandDown: onDidStandDown)
+        } else if case .members(let cabalName, let pictureURL) = model.replyRule {
+            MembersReplyLine(cabalName: cabalName, pictureURL: pictureURL)
         } else {
             restricted()
         }

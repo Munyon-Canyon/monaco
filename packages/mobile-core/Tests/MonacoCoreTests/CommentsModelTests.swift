@@ -26,6 +26,48 @@ final class CommentsModelTests: XCTestCase {
         XCTAssertEqual(paths, ["/v1/feed/item-1/comments", "/v1/feed/item-1"])
     }
 
+    func testAMembersOnlyItemMapsTheReplyRuleAndKeepsReactionsOpen() async throws {
+        var item = Components.Schemas.FeedItem.samples[0]
+        item.canReply = false
+        item.replyRule = .members
+        item.replyRuleCabalName = "Pilates"
+        item.cabalPictureUrl = "https://example.test/pilates.png"
+        let (model, _, _) = try make([try Support.page(Thread.samples), try Support.detail(item: item)])
+
+        await model.load()
+
+        XCTAssertFalse(model.canComment)
+        XCTAssertTrue(model.canReact)
+        XCTAssertEqual(
+            model.replyRule, .members(cabalName: "Pilates", cabalPictureURL: "https://example.test/pilates.png"))
+        XCTAssertEqual(CommentsCopy.membersReplyHere("Pilates"), "Members of Pilates reply here")
+    }
+
+    func testAMembersRuleWithoutACabalNameFallsBackToTheItemsCabal() async throws {
+        var item = Components.Schemas.FeedItem.samples[0]
+        item.replyRule = .members
+        item.replyRuleCabalName = nil
+        item.canReact = false
+        let (model, _, _) = try make([try Support.page(Thread.samples), try Support.detail(item: item)])
+
+        await model.load()
+
+        XCTAssertFalse(model.canReact)
+        XCTAssertEqual(
+            model.replyRule,
+            .members(cabalName: item.cabalName ?? "this cabal", cabalPictureURL: item.cabalPictureUrl))
+    }
+
+    func testAnAnyoneItemMapsTheAnyoneRule() async throws {
+        var item = Components.Schemas.FeedItem.samples[0]
+        item.replyRule = .anyone
+        let (model, _, _) = try make([try Support.page(Thread.samples), try Support.detail(item: item)])
+
+        await model.load()
+
+        XCTAssertEqual(model.replyRule, .anyone)
+    }
+
     func testAViewerOutsideTheCabalCannotComment() async throws {
         let (model, _, _) = try make([try Support.page(Thread.samples), try Support.detail(canComment: false)])
 

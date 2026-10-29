@@ -140,7 +140,7 @@ private struct GifRecordingSource: CommentsSource {
 
     func delete(id _: String, submission _: IdempotentSubmission) async throws {}
 
-    func canComment() async throws -> Bool { true }
+    func permissions() async throws -> CommentPermissions { CommentPermissions(canComment: true) }
 }
 
 private struct GifHarnessScreen: View {
