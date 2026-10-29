@@ -70,17 +70,16 @@ struct LeaderboardView: View {
     private func page(_ model: CallBoardModel) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                CallBoardHeader(
+                    title: headerTitle(model), range: headerRange(model), selection: periodBinding(model))
                 Section {
                     content(model)
                 } header: {
-                    VStack(alignment: .leading, spacing: 0) {
-                        CallBoardHeader(
-                            title: headerTitle(model), range: headerRange(model), selection: periodBinding(model))
-                        MonacoUnderlineTabs(
-                            CallBoardTab.allCases, selection: tabBinding(model),
-                            identifier: { "leaderboard-tab-\($0.rawValue)" },
-                            label: CallBoardCopy.tabLabel)
-                    }
+                    MonacoUnderlineTabs(
+                        CallBoardTab.allCases, selection: tabBinding(model),
+                        identifier: { "leaderboard-tab-\($0.rawValue)" },
+                        label: CallBoardCopy.tabLabel
+                    )
                     .monacoUnderlineTabsPinned()
                 }
             }

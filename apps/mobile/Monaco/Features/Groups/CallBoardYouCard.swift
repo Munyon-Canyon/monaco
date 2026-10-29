@@ -38,14 +38,22 @@ struct CallBoardYouCard: View {
         .padding(.top, MonacoTheme.Space.sm)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            [card.rankText, card.ofLine, card.neighbourLine, card.gapLine].compactMap { $0 }.joined(separator: ". ")
+            (cabalNames + [card.rankText, card.ofLine, card.neighbourLine, card.gapLine]).compactMap { $0 }
+                .joined(separator: ". ")
         )
         .accessibilityIdentifier("leaderboard-you-card")
+    }
+
+    private var cabalNames: [String?] {
+        [card.me, card.neighbour].compactMap { $0 }.filter(\.isCabal).map(\.name)
     }
 
     private func side(_ row: CallBoardRowValue, label: String?) -> some View {
         VStack(spacing: MonacoTheme.Space.xs) {
             CallBoardAvatar(row: row, size: CallBoardCardMetrics.avatar)
+            if row.isCabal {
+                Text(row.name).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText).lineLimit(1)
+            }
             Text([label, row.rate].compactMap { $0 }.joined(separator: " · "))
                 .font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
             Text(row.record).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
