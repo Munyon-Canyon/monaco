@@ -41,7 +41,17 @@ struct ProposalStatRowTests {
             for expected in ["Price, $220.00", "Shares, ≈ 1.82", "Of treasury, 2%", "Closes, 1:53 PM"] {
                 #expect(labels.contains(expected), "\(size): \(labels)")
             }
+            #expect(labels.contains("About Price"), "\(size): \(labels)")
         }
+    }
+
+    @Test func aCellWithAnInfoActionReadsLabelCommaValueThenItsButton() async throws {
+        let labels = try await RenderedView.labels(ProposalStatRow(stats: Self.open), size: .large) {
+            $0.contains("About Price")
+        }
+        let cell = try #require(labels.firstIndex(of: "Price, $220.00"))
+        let button = try #require(labels.firstIndex(of: "About Price"))
+        #expect(cell < button, "\(labels)")
     }
 
     @Test func theInfoGlyphStaysOffUntilTheMarketStatsSheetFlipsIt() {

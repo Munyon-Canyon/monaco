@@ -105,6 +105,7 @@ struct StatGrid: View {
                     .font(MonacoTheme.Typo.subhead)
                     .foregroundStyle(MonacoTheme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel("\(item.label), \(item.spokenValue ?? item.value)")
                 if let info = item.info {
                     Button(action: info) {
                         Image(systemName: "info.circle")
@@ -124,6 +125,7 @@ struct StatGrid: View {
                 .foregroundStyle(StatMetrics.color(for: item.tone))
                 .lineLimit(lineLimit)
                 .minimumScaleFactor(0.8)
+                .accessibilityHidden(item.info != nil)
         }
         .frame(maxWidth: .infinity, minHeight: StatMetrics.cellMinHeight, alignment: .bottomLeading)
         .modifier(StatCellAccessibility(item: item))
