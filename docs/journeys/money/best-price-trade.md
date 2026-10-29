@@ -1,7 +1,7 @@
 ---
 id: money/best-price-trade
 title: Buy at the best price
-version: 1
+version: 2
 milestone: M24
 requires: [auth/sign-in]
 actors: [A]
@@ -13,9 +13,9 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/MoneyBestPriceTradeJourney.swift, 
 
 # Buy at the best price
 
-A funds a cabal where they are the only voter, proposes a $1.00 buy of Apple, and sees the price Monaco found across every venue that lists it: on Review, on the proposal and on the trade. A votes it through and the trade engine buys on the winning venue, which may be on another chain. Last, A cashes out and withdraws what is left to the wallet that funded the run. The rules are [Routing across chains](../../architecture/trade-execution.md#routing-across-chains), and the copy rules are "Best price across chains" in [Product](../../product.md).
+A funds a cabal where they are the only voter, proposes a $1.00 buy of Apple, and A votes it through by pick and hold and the trade engine buys on the winning venue, which may be on another chain. Last, A cashes out and withdraws what is left to the wallet that funded the run. The rules are [Routing across chains](../../architecture/trade-execution.md#routing-across-chains), and the copy rules are "Best price across chains" in [Product](../../product.md).
 
-Apple is the stock because it has the most enabled listings at launch: Solana (two issuers), Ethereum and Base ([Stock listings](../../how-to/stock-listings.md)). Which one wins changes with the market, so the steps check that a comparison shows and the trade completes, not which venue wins. [Verify multichain money](../../how-to/verify-multichain.md) records a run where an EVM venue wins.
+Apple is the stock because it has the most enabled listings at launch: Solana (two issuers), Ethereum and Base ([Stock listings](../../how-to/stock-listings.md)). Which one wins changes with the market, so the steps check that the trade completes, not which venue wins. [Verify multichain money](../../how-to/verify-multichain.md) records a run where an EVM venue wins.
 
 The format of this doc is in [App journeys](../README.md).
 
@@ -35,38 +35,37 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap, type, tap, then tap | the Cabals tab, `cabals-search-field` and its result, `cabal-action-fund`, `amount-entry-field`, then "Add $2 to the pot" | `{cabalName}`, `2` | The toast "Added $2 to {cabalName}." shows within 60 s, then `cabal-pot-value` under "In the pot" reads "$2.00" within 30 s |
+| S1.1 | A | run | `MoneyFundCabalJourney.fundOnKeypad` from the cabal page (`openCabal(named:)`, then `cabal-action-fund`) | `{cabalName}`, `2` | `amount-keypad-action` "Fund $2" is tapped and `amount-keypad-settled` shows within 120 s. Close returns to the cabal page, and `cabal-pot-value` under "Treasury" reads "$2.00" within 30 s |
 
-### S2 Propose Apple and compare prices
+### S2 Propose Apple
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, tap, type, then tap | `cabal-action-propose`, `propose-kind-buy`, `monaco-search-field`, then the `propose-buy-stock-<symbol>` row for AAPL | `AAPL` | `propose-amount-screen` shows within 10 s |
-| S2.2 | A | type, then tap | `amount-entry-field`, then `propose-amount-review` | `1` | `propose-review-screen` reads "Buy $1.00 of AAPL" within 10 s, and its "Price" section shows `best-price-row` within 30 s, reading "<price> a share" and "Best price across <N> venues" with N at least 2 |
-| S2.3 | A | tap | `best-price-row` | | `best-price-sheet` shows within 10 s. Its first row is `best-price-winner` with "Best price", and at least one `best-price-venue` row follows. Every row is named "<exchange> on <network>", such as "Jupiter on Solana" or "Uniswap on Base", and no row names an issuer ("xStocks", "Ondo", "Coinbase") |
-| S2.4 | A | tap, then tap | `best-price-done`, then `propose-review-send` | | The sheet closes, the flow closes back to the cabal screen, and the toast "Proposal sent to {cabalName}" shows, within 10 s |
+| S2.1 | A | tap, tap, type, then tap | `cabal-action-propose`, `propose-kind-buy`, `monaco-search-field`, then the `propose-buy-stock-<symbol>` row for AAPL | `AAPL` | `amount-keypad-screen` shows within 10 s |
+| S2.2 | A | tap, then tap | `amount-keypad-1`, then `amount-keypad-action` | `1` | `propose-review-screen` shows within 10 s with `propose-review-market-order` reading "Buy · market order", the cabal row, `propose-review-thesis` and `propose-review-stats` |
+| S2.3 | A | tap, then tap | `propose-review-send`, then Close | | `propose-review-sent` shows and the flow closes back to the cabal screen within 10 s |
 
 ### S3 Vote it through
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | A | tap, then tap | the Home tab, then the header of the `proposal-card-<id>` for AAPL (its `proposal-closes-in` row) | | The Proposal screen shows `best-price-row` reading "Best price across <N> venues", N at least 2, within 15 s |
-| S3.2 | A | tap | "Yes" on the proposal | | The toast "Vote recorded." shows within 10 s |
-| S3.3 | A | wait | `proposal-tracker` | | The Status tracker reads "Bought, step 3 of 3, done" and `proposal-status-chip` reads "Bought" within 900 s |
+| S3.1 | A | tap, then tap | the Home tab, then the `proposal-card-<id>` for AAPL | | The Proposal screen shows within 15 s |
+| S3.2 | A | pick and hold | `proposal-vote-yes` (`pickAndHold("yes")`) | | The only voter's yes settles it: the toast "Voted Yes. Passed 1–0." shows within 10 s with no Undo action |
+| S3.3 | A | wait | `proposal-vote-status` | | The status line reads "Passed 1–0" and "filled at $" within 900 s (it reads "buying …" first) |
 
 ### S4 See the trade
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S4.1 | A | tap, type, tap, then scroll to | the Cabals tab, `cabals-search-field` and its result, then "Holdings" | `{cabalName}` | `cabal-holding-AAPL` and `cabal-holdings-cash` show within 30 s |
-| S4.2 | A | scroll to, then tap | "Activity" (`cabal-activity`), then the `cabal-activity-row-<id>` that reads "Bought" | | The screen titled "Transaction" shows `cabal-txn-status`, which does not read "In progress", and `best-price-row` reading "Best price across <N> venues", N at least 2, within 30 s |
+| S4.1 | A | run, then tap | `openCabal(named:)`, then `cabal-tab-treasury` | `{cabalName}` | `cabal-holding-AAPL` (the Positions row) and `cabal-holdings-cash` show within 30 s |
+| S4.2 | A | tap | `cabal-treasury-history` | | `cabal-treasury-history-screen` shows and a `cabal-activity-row-<id>` reads "Bought" within 30 s |
 
 ### S5 Refund
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S5.1 | A | tap, tap, then tap | `cabal-action-cash-out`, "All", then `cash-out-submit` | | A toast starting "Cashing out $" shows within 10 s, then one starting "Cashed out $" within 900 s, and `cabal-pot-value` reads "$0.00" within 60 s. Selling Apple may bridge back from another chain |
-| S5.2 | A | run | `MoneyWithdrawJourney.withdrawAll` | `{QA.refund_address}` | The steps of `money/withdraw` S1 pass, ending with a toast starting "Withdrawing $" |
+| S5.2 | A | run | `MoneyWithdrawJourney.withdrawAll` | `{QA.refund_address}` | The steps of `money/withdraw` pass, ending with a toast starting "Withdrawing $" |
 | S5.3 | A | wait | the Home tab | | A toast starting "Withdrawal complete: $" shows within 120 s, and `platform-balance-value` reads "$0.00" within 60 s |
 
 ## Ground truth
@@ -79,7 +78,7 @@ None known.
 
 ## Not covered
 
+- The best price on Review, the proposal and the trade detail. F's review sheet has no best-price row (Q10). `BestPriceSheetTests` and flow 30 cover the comparison.
 - Which venue wins. It follows the market, so a step can't pin it. `router_test.go` in the market module pins the choice and the minimum edge (`TestRouterKeepsSolanaUnlessAnEVMRouteBeatsItByTheEdge`), and the runbook records a real EVM win.
 - The pot while a trade bridges ("in transit"). The bridge leg lasts seconds to minutes and the test can't hold it open. The runbook's step 4 checks it, and flow 30 is the multichain path's backend flow.
 - A routed trade that fails partway. It needs a failing bridge or swap, which mainnet does not give on demand. The partial-failure table in [Routing across chains](../../architecture/trade-execution.md#routing-across-chains) says what happens.
-- A sell's comparison in dollars. `BestPriceSheetTests` covers the sheet for a sell.

@@ -1,0 +1,19 @@
+journey: governance/propose-buy
+expect-fail: S3
+
+A passed vote shows "Done 2–0" instead of "Passed 2–0" in the status line. S3.4 reads "Passed 2–0" on `proposal-vote-status`, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalVoteCopy.swift b/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalVoteCopy.swift
+index 6f2fe889b..a5eb5a6cb 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalVoteCopy.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalVoteCopy.swift
+@@ -93,7 +93,7 @@ public enum ProposalVoteCopy {
+         let score = "\(tally.yes)–\(tally.no)"
+         let turnout = "\(voted) of \(voters) voted"
+         guard status == .passed else { return ["Failed \(score)", turnout, "no trade"] }
+-        var facts = ["Passed \(score)", turnout]
++        var facts = ["Done \(score)", turnout]
+         if let sharesEstimate { facts.append("\(isSell ? "selling" : "buying") \(sharesEstimate) sh") }
+         return facts
+     }

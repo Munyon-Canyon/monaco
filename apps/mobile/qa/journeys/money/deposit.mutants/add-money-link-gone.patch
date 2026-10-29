@@ -1,18 +1,18 @@
 journey: money/deposit
 expect-fail: S1 S2
 
-Home's Add money link loses its identifier. S1.2 and S2.1 tap home-add-money-link, so both must fail.
+Home's Deposit link loses its identifier. S1.2 and S2.1 tap home-add-money-link, so both must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Home/HomeBalanceRowSection.swift b/apps/mobile/Monaco/Features/Home/HomeBalanceRowSection.swift
---- a/apps/mobile/Monaco/Features/Home/HomeBalanceRowSection.swift
-+++ b/apps/mobile/Monaco/Features/Home/HomeBalanceRowSection.swift
-@@ -140,7 +140,7 @@
-                 Text("Add money").frame(maxWidth: .infinity)
-             }
-             .buttonStyle(.monacoCompact)
--            .accessibilityIdentifier("\(identifierPrefix)-add-money-link")
-+            .accessibilityIdentifier("\(identifierPrefix)-add-cash-link")
-             link("Withdraw", WithdrawRoute(), id: "\(identifierPrefix)-withdraw-link")
+diff --git a/apps/mobile/Monaco/Features/Home/HomeMoneyStrip.swift b/apps/mobile/Monaco/Features/Home/HomeMoneyStrip.swift
+--- a/apps/mobile/Monaco/Features/Home/HomeMoneyStrip.swift
++++ b/apps/mobile/Monaco/Features/Home/HomeMoneyStrip.swift
+@@ -132,7 +132,7 @@ struct HomeCashRow: View {
+         } label: {
+             Text("Deposit")
          }
-     }
+-        .accessibilityIdentifier("home-add-money-link")
++        .accessibilityIdentifier("home-add-cash-link")
+         switch emphasis {
+         case .prominent: button.buttonStyle(.monacoCompactProminent)
+         case .quiet: button.buttonStyle(.monacoCompact)

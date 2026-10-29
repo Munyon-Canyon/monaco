@@ -14,7 +14,7 @@ nonisolated final class MoneyWithdrawJourneyUITests: XCTestCase {
 
         try session.scenario("S1") {
             try session.act(as: "A")
-            MoneyWithdrawJourney.withdrawAll(app, to: address, recorder: recorder)
+            MoneyWithdrawJourney.withdraw(app, to: address, recorder: recorder, checksBadAddress: true)
             attachScreenshot(of: app, named: "S1-A-withdrawn")
         }
 

@@ -31,14 +31,11 @@ nonisolated final class GovernanceProposeBuyJourneyUITests: XCTestCase {
         }
 
         try session.scenario("S3") {
-            let proposer = try session.account("A")
-            let voter = try session.account("B")
             try session.act(as: "B")
             GovernanceProposeBuyJourney.secondVoterVotes(app, run: run, recorder: recorder)
             attachScreenshot(of: app, named: "S3-B-voted-yes")
             try session.act(as: "A")
-            GovernanceProposeBuyJourney.firstVoterPasses(
-                app, proposer: proposer.name, voter: voter.name, recorder: recorder)
+            GovernanceProposeBuyJourney.firstVoterPasses(app, recorder: recorder)
             attachScreenshot(of: app, named: "S3-A-bought")
         }
 

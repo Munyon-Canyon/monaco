@@ -2,7 +2,7 @@ import XCTest
 
 enum MoneyCashOutJourney {
     static let id = "money/cash-out"
-    static let version = 3
+    static let version = 4
 
     static let screenTimeout: TimeInterval = 15
 
@@ -80,36 +80,9 @@ enum MoneyCashOutJourney {
     }
 
     static func withdraw(_ app: XCUIApplication, refundAddress: String, recorder: JourneyRecorder) {
-        recorder.step("S2.1", "open Withdraw from Settings") {
-            app.tab("Profile").tap()
-            let settings = app.element("profile-settings-row")
-            app.scrollIntoReach(settings)
-            settings.tap()
-            let row = app.element("settings-withdraw")
-            XCTAssertTrue(row.waitForExistence(timeout: 10), "S2.1: no Withdraw row in Settings")
-            row.tap()
-            XCTAssertTrue(app.element("withdraw-address-field").waitForExistence(timeout: 10), "S2.1: no address field")
-            XCTAssertTrue(app.buttons["withdraw-continue-button"].exists, "S2.1: no Continue")
-        }
-
-        recorder.step("S2.2", "fill in Max and the address") {
-            app.buttons["Max"].tap()
-            let field = app.element("withdraw-address-field")
-            field.tap()
-            field.typeText(refundAddress)
-            app.buttons["withdraw-continue-button"].tap()
-            XCTAssertTrue(
-                app.staticTexts["Review withdrawal"].waitForExistence(timeout: 10), "S2.2: no confirm screen")
-            JoinJourney.snap(app, "S2-A-withdraw-confirm")
-        }
-
-        recorder.step("S2.3", "withdraw") {
-            app.buttons["Withdraw"].firstMatch.tap()
-            XCTAssertTrue(
-                app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Withdrawing $'"))
-                    .firstMatch.waitForExistence(timeout: 10),
-                "S2.3: no Withdrawing toast (known failure, #652)"
-            )
+        recorder.step("S2.1", "withdraw everything from Settings") {
+            MoneyWithdrawJourney.withdrawAll(
+                app, to: refundAddress, recorder: MoneyWithdrawJourney.recorder())
         }
     }
 }

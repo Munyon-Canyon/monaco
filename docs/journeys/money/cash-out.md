@@ -1,7 +1,7 @@
 ---
 id: money/cash-out
 title: Cash out
-version: 3
+version: 4
 milestone: M15
 requires: [auth/sign-in]
 actors: [A]
@@ -14,6 +14,8 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/MoneyCashOutJourney.swift, apps/mo
 # Cash out
 
 A member with money in Monaco opens a cabal's "Cash out", picks 25%, cashes out, and lands back on the cabal with a toast. Then they withdraw their account balance to a wallet.
+
+Version 4 (F launch, #6576): no F frame draws Cash out (founder decision Q26). It keeps today's `AmountEntry` with the restyled keys and the presets "25%", "50%" and "All", and its review step. S2 is `MoneyWithdrawJourney.withdrawAll`, the one-screen Withdraw.
 
 Old app (`c838bd24`): the cabal screen -> "Sell" -> `Redeem/SellCabalView.swift` with "25%", "50%", "All" and "Cash out $X", which pops back with a toast. Then Withdraw to wallet. Spec: "Money: Cash out" (`CashOutRoute`) and "Withdraw" (`WithdrawRoute`) in [screens.md](../../screens.md).
 
@@ -44,9 +46,7 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, tap, then tap | the Profile tab, `profile-settings-row`, then `settings-withdraw` | | The "Withdraw" screen shows `withdraw-address-field` "USDC address on Solana" and `withdraw-continue-button` "Continue" within 10 s |
-| S2.2 | A | tap, type, then tap | "Max", `withdraw-address-field`, then `withdraw-continue-button` | `{QA.refund_address}` | The confirm screen reads "Review withdrawal" within 10 s |
-| S2.3 | A | tap | "Withdraw" | | The toast "Withdrawing $…. It lands in about a minute." shows within 10 s |
+| S2.1 | A | run | `MoneyWithdrawJourney.withdrawAll` (Settings -> `settings-withdraw`, address, `amount-keypad-preset-Max`, `amount-keypad-action`) | `{QA.refund_address}` | `amount-keypad-settled` reads "✓ $… to" and the short address within 10 s, and `amount-keypad-line` reads "Sent just now · arrives on Solana in about a minute" |
 
 ## Ground truth
 
@@ -55,9 +55,8 @@ The format of this doc is in [App journeys](../README.md).
 ## Known failures on staging
 
 - S1.3, S1.4 and S1.5: the screen shows "Your slice shows up here soon." and "Cash outs open soon.", the chips are disabled, and "Cash out" never submits. Cashing out a slice and the balance growing are blocked by #657 and #653.
-- S2.3: the confirm screen shows "Withdrawals open soon." and its "Withdraw" button does nothing: there is no withdraw route. Withdraw to wallet is blocked by #652.
 
 ## Not covered
 
 - "Too small to cash out" under $0.10, and "Nothing to cash out yet" / "Fund this cabal first. Your slice shows up here." for a member with no slice. Both need the live screen (#657).
-- Inline address errors on Withdraw. `WithdrawRouteTests` covers them.
+- Inline address errors on Withdraw. `money/withdraw` covers them.

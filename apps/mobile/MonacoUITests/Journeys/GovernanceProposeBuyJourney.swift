@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceProposeBuyJourney {
     static let id = "governance/propose-buy"
-    static let version = 8
+    static let version = 9
 
     static let screenTimeout: TimeInterval = 15
     static let checkTimeout: TimeInterval = 10
@@ -105,7 +105,7 @@ enum GovernanceProposeBuyJourney {
     }
 
     static func openCabalAsVoter(_ app: XCUIApplication, _ name: String, step: String) {
-        JoinJourney.openBySearch(app, name, step: step)
+        app.openCabal(named: name)
         let propose = app.buttons["cabal-action-propose"]
         app.scrollIntoReach(propose)
         XCTAssertTrue(propose.waitForExistence(timeout: screenTimeout), "\(step): no Propose action")
@@ -138,58 +138,94 @@ enum GovernanceProposeBuyJourney {
         }
 
         recorder.step("S2.3", "pick GOOGL") {
-            tap(app, "propose-kind-buy", step: "S2.3")
-            expectTitle(app, "Buy stock", step: "S2.3")
-            let field = app.element("monaco-search-field")
-            XCTAssertTrue(field.waitForExistence(timeout: checkTimeout), "S2.3: no stock search")
-            field.tap()
-            field.typeText("GOOGL")
-            let row = app.descendants(matching: .any)
-                .matching(NSPredicate(format: "identifier BEGINSWITH 'propose-buy-stock-GOOGL'")).firstMatch
-            XCTAssertTrue(
-                row.waitForExistence(timeout: checkTimeout), "S2.3: no GOOGL row within \(Int(checkTimeout)) s")
-            row.tap()
-            XCTAssertTrue(
-                app.element("propose-amount-screen").waitForExistence(timeout: checkTimeout),
-                "S2.3: no Amount screen within \(Int(checkTimeout)) s"
-            )
+            pickStock(app, symbol: "GOOGL", step: "S2.3")
         }
 
         recorder.step("S2.4", "an amount over the pot is refused") {
             MoneyFundCabalJourney.typeAmount(app, "5")
-            expectLabel(app, "Amount exceeds the cash balance.", timeout: 5, step: "S2.4")
-            XCTAssertFalse(app.buttons["propose-amount-review"].isEnabled, "S2.4: Review is enabled over the pot")
+            XCTAssertTrue(
+                app.element("amount-keypad-limit-line").waitForExistence(timeout: 5),
+                "S2.4: no amount-keypad-limit-line over the pot within 5 s")
+            XCTAssertFalse(app.element("amount-keypad-action").exists, "S2.4: the keypad offers an action over the pot")
         }
 
-        recorder.step("S2.5", "review $1 of GOOGL with a reason") {
+        recorder.step("S2.5", "review $1 of GOOGL") {
+            tap(app, "amount-keypad-delete", step: "S2.5")
             MoneyFundCabalJourney.typeAmount(app, "1")
-            expectHelper(app, "The cabal can spend $3.00", timeout: checkTimeout, step: "S2.5")
-            let why = app.element("propose-amount-reason")
-            XCTAssertTrue(why.waitForExistence(timeout: checkTimeout), "S2.5: no reason field")
-            why.tap()
-            why.typeText(reason(run: run))
-            tap(app, "propose-amount-review", step: "S2.5")
-            XCTAssertTrue(
-                app.element("propose-review-screen").waitForExistence(timeout: checkTimeout),
-                "S2.5: no Review screen within \(Int(checkTimeout)) s"
-            )
-            expectLabels(
-                app,
-                [
-                    "Shares", "Price", "Of treasury", "To pass", reason(run: run),
-                ],
-                step: "S2.5")
+            tap(app, "amount-keypad-action", step: "S2.5")
+            expectReview(app, cabal: cabal, step: "S2.5")
         }
 
         recorder.step("S2.6", "send to the cabal") {
-            tap(app, "propose-review-send", step: "S2.6")
-            expectLabel(app, "Proposal sent", step: "S2.6")
-            tapLabel(app, "Close", step: "S2.6")
-            XCTAssertTrue(
-                JoinJourney.waitForLabel(app.element("cabal-header-name"), containing: cabal, timeout: checkTimeout),
-                "S2.6: the flow did not close back to the cabal screen"
-            )
+            sendAndClose(app, cabal: cabal, step: "S2.6")
         }
+    }
+
+    static func pickStock(_ app: XCUIApplication, symbol: String, step: String) {
+        tap(app, "propose-kind-buy", step: step)
+        expectTitle(app, "Buy stock", step: step)
+        let field = app.element("monaco-search-field")
+        XCTAssertTrue(field.waitForExistence(timeout: checkTimeout), "\(step): no stock search")
+        field.tap()
+        field.typeText(symbol)
+        let row = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "propose-buy-stock-\(symbol)")).firstMatch
+        XCTAssertTrue(
+            row.waitForExistence(timeout: checkTimeout), "\(step): no \(symbol) row within \(Int(checkTimeout)) s")
+        row.tap()
+        XCTAssertTrue(
+            app.element("amount-keypad-screen").waitForExistence(timeout: checkTimeout),
+            "\(step): no keypad within \(Int(checkTimeout)) s"
+        )
+    }
+
+    static func expectReview(_ app: XCUIApplication, cabal: String, step: String) {
+        XCTAssertTrue(
+            app.element("propose-review-screen").waitForExistence(timeout: checkTimeout),
+            "\(step): no Review screen within \(Int(checkTimeout)) s"
+        )
+        let order = app.element("propose-review-market-order")
+        XCTAssertTrue(
+            JoinJourney.waitForLabel(order, containing: "Buy · market order", timeout: checkTimeout),
+            "\(step): the stock row does not read Buy · market order: \(order.label)")
+        expectLabel(app, cabal, step: step)
+        XCTAssertTrue(
+            app.element("propose-review-thesis").waitForExistence(timeout: checkTimeout), "\(step): no thesis row")
+        let stats = app.element("propose-review-stats")
+        XCTAssertTrue(stats.waitForExistence(timeout: checkTimeout), "\(step): no stat row")
+        expectLabels(app, ["Shares", "Price", "Of treasury", "To pass"], step: step)
+    }
+
+    static func sendAndClose(_ app: XCUIApplication, cabal: String, step: String) {
+        tap(app, "propose-review-send", step: step)
+        XCTAssertTrue(
+            app.element("propose-review-sent").waitForExistence(timeout: checkTimeout),
+            "\(step): no sent state within \(Int(checkTimeout)) s")
+        tapLabel(app, "Close", step: step)
+        XCTAssertTrue(
+            JoinJourney.waitForLabel(app.element("cabal-header-name"), containing: cabal, timeout: checkTimeout),
+            "\(step): the flow did not close back to the cabal screen"
+        )
+    }
+
+    static func expectSettlingToast(
+        _ app: XCUIApplication, _ text: String, withUndo: Bool, step: String
+    ) {
+        let toast = app.toastText()
+        XCTAssertTrue(toast?.contains(text) == true, "\(step): no toast \"\(text)\": \(toast ?? "none")")
+        XCTAssertEqual(
+            app.element("monaco-toast-action").exists, withUndo,
+            "\(step): the toast \(withUndo ? "has no" : "has an") Undo")
+    }
+
+    static func expectStatusLine(_ app: XCUIApplication, passed: String, timeout: TimeInterval, step: String) {
+        let line = app.element("proposal-vote-status")
+        app.scrollIntoReach(line)
+        XCTAssertTrue(
+            JoinJourney.waitForLabel(line, containing: "filled at $", timeout: timeout),
+            "\(step): the status line does not read filled at $… within \(Int(timeout)) s: \(line.label)"
+        )
+        XCTAssertTrue(line.label.contains(passed), "\(step): the status line does not read \(passed): \(line.label)")
     }
 
     static func pendingCard(_ app: XCUIApplication) -> XCUIElement {
@@ -215,53 +251,37 @@ enum GovernanceProposeBuyJourney {
     }
 
     static func secondVoterVotes(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
-        recorder.step("S3.1", "Home lists the buy as needing a vote") {
+        var proposalID = ""
+
+        recorder.step("S3.1", "Home lists the buy under Your vote") {
             let card = openHomeCard(app, step: "S3.1")
-            for text in ["Needs your vote", "2 yes votes needed", "Closes in"] {
+            proposalID = String(card.identifier.dropFirst("proposal-card-".count))
+            for text in ["Your vote", "✓ 0 · ✕ 0"] {
                 GovernanceVoteJourney.expectText(card, text, step: "S3.1")
             }
         }
 
-        recorder.step("S3.2", "open the proposal and vote yes") {
-            let card = pendingCard(app)
-            let proposalID = String(card.identifier.dropFirst("proposal-card-".count))
-            GovernanceVoteJourney.openProposal(card)
-            GovernanceVoteJourney.waitForProposalScreen(app, step: "S3.2")
-            expectLabel(app, reason(run: run), timeout: screenTimeout, step: "S3.2")
-            GovernanceVoteJourney.vote(app, proposalID, "Yes", change: false, step: "S3.2")
-            GovernanceVoteJourney.expectVoteBar(app, "1 yes, 0 no, 1 not voted", step: "S3.2")
+        recorder.step("S3.2", "pick yes and hold") {
+            app.homeVoteCardPickAndHold(proposalID: proposalID, choice: "yes")
+            expectSettlingToast(app, "Voted Yes. 1st of 2.", withUndo: true, step: "S3.2")
+            XCTAssertTrue(
+                app.element("monaco-toast-banner").waitForNonExistence(timeout: 15),
+                "S3.2: the toast did not end within 15 s")
+            app.answerVotePermissionSheet(turnOn: false)
         }
     }
 
-    static func firstVoterPasses(
-        _ app: XCUIApplication, proposer: String, voter: String, recorder: JourneyRecorder
-    ) {
-        recorder.step("S3.3", "A sees B's ballot and votes yes") {
+    static func firstVoterPasses(_ app: XCUIApplication, recorder: JourneyRecorder) {
+        recorder.step("S3.3", "A opens the proposal and settles it") {
             let card = openHomeCard(app, step: "S3.3")
-            let proposalID = String(card.identifier.dropFirst("proposal-card-".count))
             GovernanceVoteJourney.openProposal(card)
             GovernanceVoteJourney.waitForProposalScreen(app, step: "S3.3")
-            GovernanceVoteJourney.expectVoteBar(app, "1 yes, 0 no, 1 not voted", step: "S3.3")
-            let seeAll = app.buttons["proposal-votes-see-all"].firstMatch
-            XCTAssertTrue(
-                seeAll.waitForExistence(timeout: screenTimeout), "S3.3: the Proposal screen shows no \"See all\"")
-            seeAll.tap()
-            expectLabel(app, "\(voter) voted yes", timeout: screenTimeout, step: "S3.3")
-            app.buttons["Close"].firstMatch.tap()
-            GovernanceVoteJourney.vote(app, proposalID, "Yes", change: false, step: "S3.3")
+            app.pickAndHold("yes")
+            expectSettlingToast(app, "Voted Yes. Passed 2–0.", withUndo: false, step: "S3.3")
         }
 
-        recorder.step("S3.4", "the passed vote buys") {
-            let tracker = app.element("proposal-tracker")
-            XCTAssertTrue(
-                JoinJourney.waitForLabel(tracker, containing: "Bought, step 3 of 3, done", timeout: tradeTimeout),
-                "S3.4: the Status tracker does not read Bought within \(Int(tradeTimeout)) s: \(tracker.label)"
-            )
-            let chip = app.element("proposal-status-chip")
-            XCTAssertTrue(
-                JoinJourney.waitForLabel(chip, containing: "Bought", timeout: tradeTimeout),
-                "S3.4: the proposal chip does not read Bought within \(Int(tradeTimeout)) s: \(chip.label)"
-            )
+        recorder.step("S3.4", "the status line reads filled") {
+            expectStatusLine(app, passed: "Passed 2–0", timeout: tradeTimeout, step: "S3.4")
         }
     }
 
@@ -269,11 +289,9 @@ enum GovernanceProposeBuyJourney {
 
 extension GovernanceProposeBuyJourney {
     static func fund(_ app: XCUIApplication, cabal: String, dollars: Int, step: String) {
-        JoinJourney.openBySearch(app, cabal, step: step)
-        MoneyFundCabalJourney.openFund(app, step: step)
-        MoneyFundCabalJourney.typeAmount(app, "\(dollars)")
-        tapLabel(app, "Fund $\(dollars).00", step: step)
-        MoneyFundCabalJourney.confirmDeposit(app, dollars: dollars, cabal: cabal, step: step)
+        app.openCabal(named: cabal)
+        MoneyFundCabalJourney.fundOnKeypad(
+            app, cabalName: cabal, dollars: "\(dollars)", recorder: MoneyFundCabalJourney.recorder())
     }
 
     static func fillThePotAsA(_ app: XCUIApplication, cabal: String, recorder: JourneyRecorder) {
@@ -298,34 +316,39 @@ extension GovernanceProposeBuyJourney {
     }
 
     static func seeTheTrade(_ app: XCUIApplication, cabal: String, recorder: JourneyRecorder) {
-        recorder.step("S4.1", "Holdings shows GOOGL and cash") {
-            JoinJourney.openBySearch(app, cabal, step: "S4.1")
-            let holding = app.descendants(matching: .any)
-                .matching(NSPredicate(format: "identifier == 'cabal-holding-GOOGL'")).firstMatch
+        recorder.step("S4.1", "Treasury shows GOOGL and cash") {
+            app.openCabal(named: cabal)
+            app.openCabalTab("treasury")
+            let holding = app.element("cabal-holding-GOOGL")
             app.scrollIntoReach(holding)
             XCTAssertTrue(holding.waitForExistence(timeout: 30), "S4.1: no cabal-holding-GOOGL within 30 s")
             let cash = app.element("cabal-holdings-cash")
             XCTAssertTrue(cash.waitForExistence(timeout: 30), "S4.1: no cabal-holdings-cash within 30 s")
         }
 
-        recorder.step("S4.2", "Activity shows the buy") {
-            let activity = app.element("cabal-activity")
-            app.scrollIntoReach(activity)
+        recorder.step("S4.2", "Treasury history shows the buy") {
+            let history = app.element("cabal-treasury-history")
+            app.scrollIntoReach(history)
+            XCTAssertTrue(history.waitForExistence(timeout: 30), "S4.2: no Treasury history row within 30 s")
+            history.tap()
+            XCTAssertTrue(
+                app.element("cabal-treasury-history-screen").waitForExistence(timeout: 30),
+                "S4.2: no Treasury history screen within 30 s")
             let rows = app.descendants(matching: .any)
                 .matching(NSPredicate(format: "identifier BEGINSWITH 'cabal-activity-row-'"))
             let bought = rows.matching(NSPredicate(format: "label CONTAINS 'Bought'")).firstMatch
-            XCTAssertTrue(bought.waitForExistence(timeout: 30), "S4.2: no Activity row reads Bought within 30 s")
+            XCTAssertTrue(bought.waitForExistence(timeout: 30), "S4.2: no history row reads Bought within 30 s")
             for word in ["Pending", "Failed"] {
                 XCTAssertFalse(
                     rows.matching(NSPredicate(format: "label CONTAINS %@", word)).firstMatch.exists,
-                    "S4.2: an Activity row reads \(word)"
+                    "S4.2: a history row reads \(word)"
                 )
             }
         }
     }
 
     static func cashOutAll(_ app: XCUIApplication, cabal: String, step: String) {
-        JoinJourney.openBySearch(app, cabal, step: step)
+        app.openCabal(named: cabal)
         let action = app.buttons["cabal-action-cash-out"]
         app.scrollIntoReach(action)
         XCTAssertTrue(action.waitForExistence(timeout: screenTimeout), "\(step): no Cash out action")

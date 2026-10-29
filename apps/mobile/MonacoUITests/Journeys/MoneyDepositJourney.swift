@@ -2,7 +2,7 @@ import XCTest
 
 enum MoneyDepositJourney {
     static let id = "money/deposit"
-    static let version = 4
+    static let version = 5
 
     static let screenTimeout: TimeInterval = 15
 
@@ -34,11 +34,12 @@ enum MoneyDepositJourney {
     static func openAddMoney(_ app: XCUIApplication, step: String) {
         app.tab("Home").tap()
         let link = app.element("home-add-money-link")
-        XCTAssertTrue(link.waitForExistence(timeout: screenTimeout), "\(step): no Add money on Home")
+        XCTAssertTrue(link.waitForExistence(timeout: screenTimeout), "\(step): no Deposit on Home")
+        XCTAssertEqual(link.label, "Deposit", "\(step): the cash row's link reads \(link.label)")
         link.tap()
         XCTAssertTrue(
             app.element("deposit-sheet-title").waitForExistence(timeout: screenTimeout),
-            "\(step): the Add money sheet did not show within \(Int(screenTimeout)) s"
+            "\(step): the Deposit sheet did not show within \(Int(screenTimeout)) s"
         )
     }
 
@@ -92,7 +93,7 @@ enum MoneyDepositJourney {
             )
         }
 
-        recorder.step("S1.2", "Add money offers Card, then Send crypto") {
+        recorder.step("S1.2", "Deposit offers Card, then Send crypto") {
             openAddMoney(app, step: "S1.2")
             let card = app.element("deposit-card-row")
             let crypto = app.element("deposit-crypto-row")
@@ -161,6 +162,22 @@ enum MoneyDepositJourney {
 
         recorder.step("S2.3", "copy the Base address") {
             copy(app, step: "S2.3")
+        }
+    }
+
+    static func openFromProfile(_ app: XCUIApplication, recorder: JourneyRecorder) {
+        recorder.step("S3.1", "Profile's docked Deposit opens the sheet") {
+            app.popToRoot()
+            app.tab("Profile").tap()
+            let dock = app.element("profile-deposit-dock")
+            XCTAssertTrue(dock.waitForExistence(timeout: screenTimeout), "S3.1: no docked Deposit on Profile")
+            XCTAssertEqual(dock.label, "Deposit", "S3.1: the dock reads \(dock.label)")
+            dock.tap()
+            XCTAssertTrue(
+                app.element("deposit-sheet-title").waitForExistence(timeout: screenTimeout),
+                "S3.1: the Deposit sheet did not show within \(Int(screenTimeout)) s"
+            )
+            XCTAssertTrue(app.element("deposit-crypto-row").exists, "S3.1: no Send crypto on the sheet")
         }
     }
 }
