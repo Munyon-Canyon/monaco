@@ -5,6 +5,8 @@ import SwiftUI
 struct ReplySheetQuote: View {
     let target: ReplyTarget
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     static func name(of item: Components.Schemas.FeedItem) -> String {
         FeedPostFacts(item, now: Date()).name
     }
@@ -17,7 +19,7 @@ struct ReplySheetQuote: View {
             QuoteFrame(label: "\(row.authorName). \(row.text)") {
                 (Text(row.authorName).font(MonacoTheme.Typo.subheadStrong).foregroundStyle(MonacoTheme.primaryText)
                     + Text(" ") + Text(row.text).font(MonacoTheme.Typo.body).foregroundStyle(MonacoTheme.secondaryText))
-                    .lineLimit(2)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         case .post(let item):
@@ -46,6 +48,8 @@ private struct QuoteFrame<Content: View>: View {
 private struct PostQuote: View {
     let facts: FeedPostFacts
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         QuoteFrame(label: facts.spoken) {
             if let object = facts.object, object.showsLogo {
@@ -69,7 +73,7 @@ private struct PostQuote: View {
             + Text(facts.verb.isEmpty ? "" : " \(facts.verb)").font(MonacoTheme.Typo.body)
             .foregroundStyle(MonacoTheme.secondaryText)
             + Text(headerObject).font(MonacoTheme.Typo.body).foregroundStyle(MonacoTheme.secondaryText))
-            .lineLimit(1)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
             .monacoPrivate()
     }
 
@@ -83,10 +87,12 @@ private struct PostQuote: View {
             Text(object.headline)
                 .font(MonacoTheme.Typo.section)
                 .foregroundStyle(MonacoTheme.primaryText)
-                .lineLimit(1)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                 .monacoPrivate()
             if let place = object.place {
-                Text(place).font(.footnote).foregroundStyle(MonacoTheme.secondaryText).lineLimit(1).monacoPrivate()
+                Text(place).font(.footnote).foregroundStyle(MonacoTheme.secondaryText).lineLimit(
+                    dynamicTypeSize.isAccessibilitySize ? nil : 1
+                ).monacoPrivate()
             }
             trailing(object)
         }
@@ -96,9 +102,11 @@ private struct PostQuote: View {
         switch object.trailing {
         case .figure(let bps):
             let text = PercentFormatter.format(basisPoints: bps, signed: true, fractionDigits: 1)
-            Text(text).font(.footnote).foregroundStyle(MonacoTheme.signed(text)).lineLimit(1)
+            Text(text).font(.footnote).foregroundStyle(MonacoTheme.signed(text)).lineLimit(
+                dynamicTypeSize.isAccessibilitySize ? nil : 1)
         case .text(let text):
-            Text(text).font(.footnote).foregroundStyle(MonacoTheme.secondaryText).lineLimit(1)
+            Text(text).font(.footnote).foregroundStyle(MonacoTheme.secondaryText).lineLimit(
+                dynamicTypeSize.isAccessibilitySize ? nil : 1)
         case nil:
             EmptyView()
         }

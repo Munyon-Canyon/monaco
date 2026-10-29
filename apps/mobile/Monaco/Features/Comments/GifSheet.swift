@@ -29,6 +29,7 @@ struct GifSheet: View {
 
     @State private var model: GifSearchModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(
         gifs: any GifProvider, query: String = "",
@@ -60,13 +61,17 @@ struct GifSheet: View {
     }
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
+        let layout =
+            dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.xs))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s))
+        return layout {
             Text(model.isSearching ? "GIFs" : "Trending GIFs")
                 .font(MonacoTheme.Typo.section)
                 .foregroundStyle(MonacoTheme.primaryText)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityIdentifier("gif-title")
-            Spacer(minLength: 0)
+            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
             Text(model.attribution)
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.secondaryText)

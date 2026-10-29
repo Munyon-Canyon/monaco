@@ -19,6 +19,7 @@ struct ProposeReviewScreen: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.hostMainTab) private var hostMainTab
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @MonacoReduceTransparency private var reduceTransparency
     @State private var model: MonacoCore.ProposeReviewModel?
     @State private var cabalFailed = false
@@ -143,28 +144,14 @@ struct ProposeReviewScreen: View {
     }
 
     private func assetRow(_ model: MonacoCore.ProposeReviewModel) -> some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
-            StockMark(
-                symbol: model.symbol, displayName: model.assetDisplayName, assetKind: model.assetKind,
-                size: ProposeAmountScreen.markSize, logoURL: logoURL)
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                Text(model.assetDisplayName).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.ink)
-                HStack(spacing: MonacoTheme.Space.xs) {
-                    Text(model.assetLine).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
-                    if !model.isSell {
-                        Button {
-                            showsMarketOrder = true
-                        } label: {
-                            Image(systemName: MonacoIcon.info.symbol).foregroundStyle(MonacoTheme.secondaryText)
-                        }
-                        .frame(minWidth: CommentRowMetrics.replyTarget, minHeight: CommentRowMetrics.replyTarget)
-                        .contentShape(Rectangle())
-                        .accessibilityLabel(ProposeFlowCopy.marketOrderTitle)
-                        .accessibilityIdentifier("propose-review-market-order-info")
-                    }
-                }
-            }
-            Spacer(minLength: 0)
+        let stacked = dynamicTypeSize.isAccessibilitySize
+        let layout =
+            stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.s))
+            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
+        return layout {
+            assetTitle(model)
+            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
             Text(model.amountLabel).moneyFigure(.large).foregroundStyle(MonacoTheme.ink).minimumScaleFactor(0.6)
                 .lineLimit(1)
         }
@@ -178,7 +165,9 @@ struct ProposeReviewScreen: View {
             CabalMark(groupId: cabalID, name: model.cabal.name, size: 32)
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(model.cabal.name).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(model.cabalLine).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
             if let onChangeCabal {
@@ -261,6 +250,39 @@ struct ProposeReviewScreen: View {
             return
         }
         if sendsOnAppear { await model?.send() }
+    }
+}
+
+extension ProposeReviewScreen {
+    private func assetTitle(_ model: MonacoCore.ProposeReviewModel) -> some View {
+        let layout =
+            dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.s))
+            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
+        return layout {
+            StockMark(
+                symbol: model.symbol, displayName: model.assetDisplayName, assetKind: model.assetKind,
+                size: ProposeAmountScreen.markSize, logoURL: logoURL)
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                Text(model.assetDisplayName).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: MonacoTheme.Space.xs) {
+                    Text(model.assetLine).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if !model.isSell {
+                        Button {
+                            showsMarketOrder = true
+                        } label: {
+                            Image(systemName: MonacoIcon.info.symbol).foregroundStyle(MonacoTheme.secondaryText)
+                        }
+                        .frame(minWidth: CommentRowMetrics.replyTarget, minHeight: CommentRowMetrics.replyTarget)
+                        .contentShape(Rectangle())
+                        .accessibilityLabel(ProposeFlowCopy.marketOrderTitle)
+                        .accessibilityIdentifier("propose-review-market-order-info")
+                    }
+                }
+            }
+        }
     }
 }
 
