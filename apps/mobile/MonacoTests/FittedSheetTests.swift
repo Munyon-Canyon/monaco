@@ -22,7 +22,7 @@ struct FittedSheetTests {
             defaults: UserDefaults(suiteName: "fitted-sheet-tests") ?? .standard,
             register: {})
         try await Self.expectWhole(
-            "push-pre-prompt-turn-on", titled: "Know when your cabal votes and trades",
+            "push-pre-prompt-turn-on", titled: "Hear how votes end?",
             in: AnyView(PushPrePromptSheet(prompt: prompt)))
     }
 
