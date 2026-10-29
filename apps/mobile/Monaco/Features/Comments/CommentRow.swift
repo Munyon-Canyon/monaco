@@ -28,6 +28,10 @@ enum CommentRowMetrics {
     }
 }
 
+private final class RowFrameBox {
+    var frame: CGRect = .zero
+}
+
 struct CommentRow: View {
     let row: CommentThreadRow
     var reactions: [Components.Schemas.Reaction]?
@@ -39,8 +43,12 @@ struct CommentRow: View {
     var onJump: (CommentQuoteRow) -> Void = { _ in }
     var onDelete: (() -> Void)?
     var onReport: (() -> Void)?
+    var onLongPress: ((CGRect) -> Void)?
 
+    @State private var frameBox = RowFrameBox()
     @ScaledMetric(relativeTo: .callout) private var nameLineHeight: CGFloat = 20
+
+    private var canLongPress: Bool { !row.isDeleted && !row.isSystem }
 
     private var level: Int { row.indentLevel }
 
@@ -83,26 +91,23 @@ struct CommentRow: View {
         .background(isHighlighted ? MonacoTheme.surfaceSunken : Color.clear)
         .animation(.easeOut(duration: 0.2), value: isHighlighted)
         .contentShape(Rectangle())
-        .contextMenu {
-            if !row.isSystem {
-                Button("Copy") { UIPasteboard.general.string = row.text }
-                    .accessibilityIdentifier("comment-copy-\(row.id)")
-            }
-            if let onReport {
-                Button(action: onReport) {
-                    Label("Report", systemImage: "exclamationmark.bubble")
-                }
-                .accessibilityIdentifier("comment-report-\(row.id)")
-            }
-            if let onDelete {
-                Button(CommentsCopy.delete, role: .destructive, action: onDelete)
-                    .accessibilityIdentifier("comment-delete-\(row.id)")
-            }
+        .onGeometryChange(for: CGRect.self) {
+            $0.frame(in: .global)
+        } action: {
+            frameBox.frame = $0
+        }
+        .onLongPressGesture {
+            guard canLongPress, let onLongPress else { return }
+            Haptics.tap()
+            onLongPress(frameBox.frame)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(row.spoken(age: time))
         .accessibilityIdentifier("comment-row-\(row.id)")
-        .modifier(CommentActions(row: row, canReply: canReply, onReply: onReply, onReact: onDoubleTap, onJump: onJump))
+        .modifier(
+            CommentActions(
+                row: row, canReply: canReply, onReply: onReply, onReact: onDoubleTap, onJump: onJump,
+                onReport: onReport, onDelete: onDelete))
     }
 
     @ViewBuilder private var avatar: some View {
@@ -217,6 +222,8 @@ private struct CommentActions: ViewModifier {
     let onReply: () -> Void
     let onReact: () -> Void
     let onJump: (CommentQuoteRow) -> Void
+    let onReport: (() -> Void)?
+    let onDelete: (() -> Void)?
 
     func body(content: Content) -> some View {
         content
@@ -225,5 +232,8 @@ private struct CommentActions: ViewModifier {
             .accessibilityAction(named: CommentsCopy.goToQuote) {
                 if let quote = row.quote, quote.canJump { onJump(quote) }
             }
+            .accessibilityAction(named: "Copy") { if !row.isSystem { UIPasteboard.general.string = row.text } }
+            .accessibilityAction(named: "Report") { onReport?() }
+            .accessibilityAction(named: CommentsCopy.delete) { onDelete?() }
     }
 }

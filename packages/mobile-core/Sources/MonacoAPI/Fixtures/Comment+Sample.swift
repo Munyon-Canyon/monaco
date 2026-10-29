@@ -137,7 +137,7 @@ extension Components.Schemas.CommentThread {
             replies: [
                 .sample(
                     "aapl-logan", author: "Logan", parent: "aapl-nora", body: "Took the gain while it was there.",
-                    minutesAgo: 45,
+                    mine: true, minutesAgo: 45,
                     quote: .sample("aapl-nora", author: "Nora", excerpt: "Why sell here?"))
             ]),
         Self(
