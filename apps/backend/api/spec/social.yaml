@@ -1346,7 +1346,7 @@ components:
       type: object
       description: One feed item with its display strings rendered.
       additionalProperties: false
-      required: [id, kind, ref_type, ref_id, cabal_id, cabal_name, cabal_picture_url, actor_id, actor_name, actor_photo_url, asset_id, asset_logo_url, symbol, title, detail, body, status, tone, action, usdc_micros, asset_name, token_amount, token_decimals, price_micros, share_of_pot_bps, change_bps, mark_micros, prev_close_micros, proposal_id, tally, expires_at, outcome, shape, caller, asset_kind, fill_state, filled_token_amount, filled_usdc_micros, filled_at, trade_failed, comment_count, thread_item_id, reply_count, can_reply, can_react, reply_rule, reply_rule_cabal_name, like_count, liked_by_me, reactions, reaction_count, return_1m_bps, return_private, created_at, updated_at]
+      required: [id, kind, ref_type, ref_id, cabal_id, cabal_name, cabal_picture_url, actor_id, actor_name, actor_photo_url, asset_id, asset_logo_url, symbol, title, detail, body, status, tone, action, usdc_micros, asset_name, token_amount, token_decimals, price_micros, share_of_pot_bps, change_bps, mark_micros, prev_close_micros, proposal_id, tally, expires_at, outcome, shape, caller, asset_kind, fill_state, filled_token_amount, filled_usdc_micros, filled_at, trade_failed, return_bps, chart, comment_count, thread_item_id, reply_count, can_reply, can_react, reply_rule, reply_rule_cabal_name, like_count, liked_by_me, reactions, reaction_count, return_1m_bps, return_private, created_at, updated_at]
       properties:
         id: {type: string, format: uuid, description: "The item's id.", examples: ["01920000-0000-7000-8000-000000000007"]}
         kind:
@@ -1532,6 +1532,44 @@ components:
         filled_usdc_micros: {type: [integer, "null"], format: int64, description: "USDC micros the confirmed swaps spent or received. Null on a `result` with no fill and on every other kind.", examples: [300000000]}
         filled_at: {type: [string, "null"], format: date-time, description: "When the latest swap confirmed. Null on a `result` with no fill and on every other kind.", examples: ["2026-10-03T08:41:00Z"]}
         trade_failed: {type: boolean, description: "True when a `result`'s order is `partial` or `failed`. False on every other item.", examples: [false]}
+        return_bps:
+          type: [integer, "null"]
+          format: int64
+          description: "Since the fill for a buy; the sale's gain over the average cost of what it sold for a sale, in basis points, truncated toward zero. Null when unknown or for Pre-IPO."
+          examples: [109]
+        chart:
+          type: [object, "null"]
+          description: "The line and the buy and sell markers behind `return_bps`. Null when `return_bps` is null or the asset has no price history in the window, and on every other kind."
+          examples: [null]
+          x-go-type-name: FeedChart
+          additionalProperties: false
+          required: [points, markers]
+          properties:
+            points:
+              type: array
+              maxItems: 32
+              description: "Evenly spaced closes, oldest first."
+              items:
+                type: object
+                x-go-type-name: FeedChartPoint
+                additionalProperties: false
+                required: [at, price_micros]
+                properties:
+                  at: {type: string, format: date-time, description: "The bucket time.", examples: ["2026-10-03T08:41:00Z"]}
+                  price_micros: {type: integer, format: int64, description: "The close in USDC micros per whole token.", examples: [716520000]}
+            markers:
+              type: array
+              maxItems: 6
+              description: "Where the cabal bought and sold this stock, oldest first. Empty on a buy."
+              items:
+                type: object
+                x-go-type-name: FeedChartMarker
+                additionalProperties: false
+                required: [at, side, price_micros]
+                properties:
+                  at: {type: string, format: date-time, description: "When the swap confirmed.", examples: ["2026-10-03T08:41:00Z"]}
+                  side: {type: string, enum: [buy, sell], description: "`buy` or `sell`.", examples: [buy]}
+                  price_micros: {type: integer, format: int64, description: "The swap's price in USDC micros per whole token.", examples: [716520000]}
         return_1m_bps: {type: [integer, "null"], format: int64, description: "The author's one-month return in basis points, from the people board's `1M` range as of the last valuation run, not a live figure. Null when the author hides it, has no ranked row, or the item is a system item.", examples: [820]}
         return_private: {type: boolean, description: "True only when the author chose to hide their return. False for a system item or an author with no ranked row.", examples: [false]}
         created_at: {type: string, format: date-time, description: "When the item was created.", examples: ["2026-10-03T08:00:00Z"]}

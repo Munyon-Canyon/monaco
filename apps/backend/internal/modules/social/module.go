@@ -12,6 +12,7 @@ import (
 	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
+	marketport "github.com/monaco/monaco/apps/backend/internal/modules/market/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking"
 	rankingport "github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters"
@@ -19,12 +20,14 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
+	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
@@ -342,6 +345,8 @@ func (m *Module) http() adapters.HTTP {
 		Returns: m.returns,
 		Tallies: m.tallies,
 		Logos:   m.logos, Pictures: m.pictures,
+		History: chartPrices{market.New(m.deps).History()},
+		Marks:   chartTrades{treasury.New(m.deps).TradeMarks()},
 		Activity: &app.UserActivityQuery{
 			Store: app.NewActivityStore(m.deps.Pool), Users: m.users, Cabals: m.pictures,
 			Activity: m.activity, Tops: m.tops,
@@ -406,3 +411,57 @@ func (m *Module) Consumers() []bus.Consumer {
 }
 
 func (*Module) Pollers() []poller.Poller { return nil }
+
+type chartPrices struct{ history marketport.History }
+
+func (c chartPrices) Latest(ctx context.Context, assetIDs []uuid.UUID) (map[uuid.UUID]money.Micros, error) {
+	return c.history.Latest(ctx, assetIDs)
+}
+
+func (c chartPrices) Closes(
+	ctx context.Context, windows []app.ChartWindow, buckets int,
+) (map[uuid.UUID][]app.ChartPoint, error) {
+	in := make([]marketport.Window, len(windows))
+	for i, w := range windows {
+		in[i] = marketport.Window{Key: w.Key, AssetID: w.AssetID, From: w.From, To: w.To}
+	}
+	closes, err := c.history.Closes(ctx, in, buckets)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[uuid.UUID][]app.ChartPoint, len(closes))
+	for key, points := range closes {
+		out[key] = make([]app.ChartPoint, len(points))
+		for i, p := range points {
+			out[key][i] = app.ChartPoint{At: p.At, PriceMicros: p.PriceMicros}
+		}
+	}
+	return out, nil
+}
+
+type chartTrades struct{ marks treasuryport.TradeMarks }
+
+func (c chartTrades) TradeMarks(
+	ctx context.Context, pairs []app.ChartPair,
+) (map[app.ChartPair][]app.ChartTrade, error) {
+	in := make([]treasuryport.CabalAsset, len(pairs))
+	for i, p := range pairs {
+		in[i] = treasuryport.CabalAsset{CabalID: p.CabalID, Symbol: p.Symbol}
+	}
+	marks, err := c.marks.TradeMarks(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[app.ChartPair][]app.ChartTrade, len(marks))
+	for pair, list := range marks {
+		trades := make([]app.ChartTrade, len(list))
+		for i, t := range list {
+			trades[i] = app.ChartTrade{
+				At: t.At, Side: t.Side, USDCMicros: t.USDCMicros, PriceMicros: t.PriceMicros,
+				CostOfSoldMicros: t.CostOfSoldMicros, CycleStart: t.CycleStart,
+			}
+		}
+		out[app.ChartPair{CabalID: pair.CabalID, Symbol: pair.Symbol}] = trades
+	}
+	return out, nil
+}

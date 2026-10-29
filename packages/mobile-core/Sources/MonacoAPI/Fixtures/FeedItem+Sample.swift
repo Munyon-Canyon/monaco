@@ -65,14 +65,18 @@ extension Components.Schemas.FeedItem {
                 vote: Vote(yes: 4, no: 1, voters: 6, needed: 4, endsInHours: 0), outcome: .passed, shape: .cabal,
                 assetKind: .equity, called: true, minutesAgo: 300,
                 thread: .members("Degens", of: 18, count: 5),
-                fill: Fill(state: .filled, tokens: 42_000_000, usdcMicros: 300_000_000))),
+                fill: Fill(state: .filled, tokens: 42_000_000, usdcMicros: 300_000_000), returnBps: 109,
+                chart: chart(from: 716_520_000, to: 724_400_000, markers: []))),
         result(
             ResultFacts(
                 number: 9, cabal: "Tech Titans", actor: 7, symbol: "AAPLx", assetName: "AAPL", action: "sell",
                 usdcMicros: 480_000_000, title: "Logan's sale of $480 of AAPL in Tech Titans passed 3–1",
                 detail: "selling", vote: Vote(yes: 3, no: 1, voters: 4, needed: 3, endsInHours: 0), outcome: .passed,
                 shape: .member, assetKind: .equity, called: true, minutesAgo: 300, thread: .anyone(count: 5),
-                fill: Fill(state: .filled, tokens: 7, usdcMicros: 480_000_000))),
+                fill: Fill(state: .filled, tokens: 7, usdcMicros: 480_000_000), returnBps: 670,
+                chart: chart(
+                    from: 440_000_000, to: 485_000_000,
+                    markers: [(0.12, .buy, 449_850_000), (0.88, .sell, 480_000_000)]))),
         result(
             ResultFacts(
                 number: 10, cabal: "Quant Kids", actor: 4, symbol: "OPENAI", assetName: "OpenAI", action: "buy",
@@ -126,6 +130,29 @@ extension Components.Schemas.FeedItem {
         let called: Bool, minutesAgo: Double
         var thread: Thread?
         var fill: Fill?
+        var returnBps: Int64?
+        var chart: Chart?
+    }
+
+    private typealias Chart = Components.Schemas.FeedItem.ChartPayload
+
+    private static func chart(
+        from first: Int64, to last: Int64,
+        markers: [(at: Double, side: Chart.MarkersPayloadPayload.SidePayload, price: Int64)]
+    ) -> Chart {
+        let count = 32
+        let span = 5.0 * 3600
+        let start = Date(timeIntervalSinceNow: -span)
+        let points = (0..<count).map { index -> Chart.PointsPayloadPayload in
+            .init(
+                at: start.addingTimeInterval(span * TimeInterval(index) / TimeInterval(count - 1)),
+                priceMicros: first + (last - first) * Int64(index) / Int64(count - 1))
+        }
+        return .init(
+            points: points,
+            markers: markers.map {
+                .init(at: start.addingTimeInterval(span * $0.at), side: $0.side, priceMicros: $0.price)
+            })
     }
 
     private static let resultActorNames = [4: "Sam", 6: "Christelle", 7: "Logan"]
@@ -155,6 +182,7 @@ extension Components.Schemas.FeedItem {
             filledTokenAmount: facts.fill?.tokens, filledUsdcMicros: facts.fill?.usdcMicros,
             filledAt: facts.fill.map { _ in Date().addingTimeInterval(-5 * 3600) },
             tradeFailed: facts.fill?.state == .partial || facts.fill?.state == .failed,
+            returnBps: facts.returnBps, chart: facts.chart,
             returnPrivate: false, createdAt: created, updatedAt: created)
     }
 

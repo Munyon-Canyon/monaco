@@ -238,7 +238,7 @@ func activityPrice(v app.ActivityView) (int64, bool, error) {
 	num, den := v.Asset.MultiplierAt(v.OccurredAt)
 	usdc := money.MicrosFromUint64(uint64(max(*v.USDCMicros, 0)))
 	units := money.NewBaseUnits(uint64(max(*v.Units, 0)), v.Asset.Decimals)
-	price, ok, err := tradePriceMicros(usdc, units, num, den)
+	price, ok, err := domain.TradePriceMicros(usdc, units, num, den)
 	if err != nil || !ok {
 		return 0, false, err
 	}

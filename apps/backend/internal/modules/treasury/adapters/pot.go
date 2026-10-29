@@ -337,7 +337,7 @@ func (q *Queries) holding(
 		Units:       displayUnits(position.Units, num, den),
 		PriceMicros: price.Micros, ValueMicros: value, CostBasisMicros: position.CostBasis, PnLMicros: pnl,
 	}
-	avg, ok, err := tradePriceMicros(position.CostBasis, position.Units, num, den)
+	avg, ok, err := domain.TradePriceMicros(position.CostBasis, position.Units, num, den)
 	if err != nil {
 		return port.Holding{}, time.Time{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.holding")
 	}

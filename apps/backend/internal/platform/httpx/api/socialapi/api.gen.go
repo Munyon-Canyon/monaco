@@ -104,6 +104,24 @@ func (e FeedItemAssetKind) Valid() bool {
 	}
 }
 
+// Defines values for FeedItemChartMarkersSide.
+const (
+	Buy  FeedItemChartMarkersSide = "buy"
+	Sell FeedItemChartMarkersSide = "sell"
+)
+
+// Valid indicates whether the value is a known member of the FeedItemChartMarkersSide enum.
+func (e FeedItemChartMarkersSide) Valid() bool {
+	switch e {
+	case Buy:
+		return true
+	case Sell:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FeedItemFillState.
 const (
 	FeedItemFillStateFailed      FeedItemFillState = "failed"
@@ -1111,6 +1129,11 @@ type FeedItem struct {
 	// Examples: 1000
 	ChangeBps *int64 `json:"change_bps"`
 
+	// Chart The line and the buy and sell markers behind `return_bps`. Null when `return_bps` is null or the asset has no price history in the window, and on every other kind.
+	//
+	// Examples: null
+	Chart *FeedChart `json:"chart"`
+
 	// CommentCount Deprecated, read `reply_count` instead. The number of comments on this item itself.
 	//
 	// Examples: 0
@@ -1234,6 +1257,11 @@ type FeedItem struct {
 	// Examples: 820
 	Return1mBps *int64 `json:"return_1m_bps"`
 
+	// ReturnBps Since the fill for a buy; the sale's gain over the average cost of what it sold for a sale, in basis points, truncated toward zero. Null when unknown or for Pre-IPO.
+	//
+	// Examples: 109
+	ReturnBps *int64 `json:"return_bps"`
+
 	// ReturnPrivate True only when the author chose to hide their return. False for a system item or an author with no ranked row.
 	//
 	// Examples: false
@@ -1328,6 +1356,53 @@ type FeedCaller struct {
 	//
 	// Examples: null
 	PhotoUrl *string `json:"photo_url"`
+}
+
+// FeedItemChartMarkersSide `buy` or `sell`.
+//
+// Examples: buy
+type FeedItemChartMarkersSide string
+
+// FeedChartMarker defines model for FeedItem.Chart.Markers.
+type FeedChartMarker struct {
+	// At When the swap confirmed.
+	//
+	// Examples: 2026-10-03T08:41:00Z
+	At time.Time `json:"at"`
+
+	// PriceMicros The swap's price in USDC micros per whole token.
+	//
+	// Examples: 716520000
+	PriceMicros int64 `json:"price_micros"`
+
+	// Side `buy` or `sell`.
+	//
+	// Examples: buy
+	Side FeedItemChartMarkersSide `json:"side"`
+}
+
+// FeedChartPoint defines model for FeedItem.chart.points.
+type FeedChartPoint struct {
+	// At The bucket time.
+	//
+	// Examples: 2026-10-03T08:41:00Z
+	At time.Time `json:"at"`
+
+	// PriceMicros The close in USDC micros per whole token.
+	//
+	// Examples: 716520000
+	PriceMicros int64 `json:"price_micros"`
+}
+
+// FeedChart The line and the buy and sell markers behind `return_bps`. Null when `return_bps` is null or the asset has no price history in the window, and on every other kind.
+//
+// Examples: null
+type FeedChart struct {
+	// Markers Where the cabal bought and sold this stock, oldest first. Empty on a buy.
+	Markers []FeedChartMarker `json:"markers"`
+
+	// Points Evenly spaced closes, oldest first.
+	Points []FeedChartPoint `json:"points"`
 }
 
 // FeedItemFillState How a passed `result`'s order stands: `pending` until every swap reported, `filled` when every swap confirmed, `partial` when some confirmed and some failed, `failed` when every swap failed. Null on a failed vote and on every other kind.

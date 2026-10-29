@@ -98,6 +98,8 @@ GET /v1/feed?kind=proposal,trade&cabal_id=…&symbol=AAPL&q=earnings
 
 Each item in the response carries `title`, `detail` and `tone` (`neutral`, `positive` or `negative`), all rendered by the server from `payload`, and never the raw `payload`. A `proposal` item also carries `tally` (`yes`, `no`, `voters`, `needed`) and `expires_at`, read from governance once per page; every other kind has both null. `GET /v1/feed/{id}` returns one item plus `visible`, whether it passes the filters sent with the request. The cursor is opaque base64 of the keyset position. `q` filters with `websearch_to_tsquery` under both the `english` and `simple` configurations and keeps the newest-first order.
 
+A `result` item also carries `return_bps` and `chart`, computed on read from market's price history and treasury's trade marks (one query each per page, keyed by feed item). A sale's chart starts at the first buy of the position cycle that sale closed.
+
 This is a CQRS-lite query: it reads `feed_objects` directly through sqlc and bypasses the domain ([Patterns](backend-platform.md#patterns-and-where-each-earns-its-place)). `scope=mine` needs the viewer's cabals. The `social` module keeps that membership from `cabal.member_joined` and `cabal.member_left`, which it already consumes, or reads it through the `cabal` module's query port.
 
 **Filtering out things a user does not like.** A per-user mute list, `feed_mutes (user_id, target_type, target_id)`, where the target is a kind, a cabal, a stock or a user. The feed query excludes muted targets. Hiding a single item is a mute on that item's id.
