@@ -44,8 +44,9 @@ struct HomePendingVotes: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let model {
-                MonacoSectionHeader(
-                    "Your vote", count: model.waitingCount > 0 ? model.waitingCount : nil, trailing: "All proposals"
+                HomeSectionHeader(
+                    title: "Your vote", count: model.waitingCount > 0 ? model.waitingCount : nil,
+                    trailing: "All proposals"
                 ) {
                     environment.navigator.open(PendingVotesRoute(), in: .home)
                 }

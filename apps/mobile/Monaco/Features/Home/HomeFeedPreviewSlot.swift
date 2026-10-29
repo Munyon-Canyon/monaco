@@ -92,24 +92,29 @@ private struct HomeFeedPreviewRow: View {
     private var layout: MonacoRowLayout { MonacoRowLayout(dynamicTypeSize: dynamicTypeSize) }
 
     var body: some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
+        HStack(alignment: layout.isStacked ? .top : .center, spacing: MonacoTheme.Space.sm) {
             lead
                 .frame(width: MonacoRowLayout.baseMarkSize, height: MonacoRowLayout.baseMarkSize)
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(row.title)
                     .font(MonacoTheme.Typo.rowTitle)
                     .foregroundStyle(MonacoTheme.primaryText)
-                    .lineLimit(layout.titleLineLimit)
+                    .lineLimit(layout.isStacked ? nil : layout.titleLineLimit)
                     .truncationMode(.tail)
                 subtitle
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.secondaryText)
-                    .lineLimit(layout.subtitleLineLimit)
-                    .truncationMode(.tail)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                if layout.isStacked {
+                    trailing
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            trailing
-                .layoutPriority(1)
+            if !layout.isStacked {
+                trailing
+                    .layoutPriority(1)
+            }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.vertical, MonacoTheme.Space.s)

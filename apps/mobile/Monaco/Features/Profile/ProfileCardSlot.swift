@@ -95,8 +95,7 @@ private struct ProfileCard: View {
             Text(card.identityLine)
                 .font(MonacoTheme.Typo.subhead)
                 .foregroundStyle(MonacoTheme.secondaryText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("profile-handle")
                 .monacoPrivate()
         }

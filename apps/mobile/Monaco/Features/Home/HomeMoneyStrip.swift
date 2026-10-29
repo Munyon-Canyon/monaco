@@ -47,37 +47,65 @@ struct HomeCashRow: View {
         }
     }
 
-    private var summary: some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
-            Image(systemName: MonacoIcon.card.symbol)
-                .font(MonacoTheme.Typo.title2)
-                .foregroundStyle(MonacoTheme.primaryText)
-                .frame(width: HomeCashRowMetrics.tile, height: HomeCashRowMetrics.tile)
-                .background(
-                    MonacoTheme.surfaceSunken,
-                    in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.chip)
-                )
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(MoneyCopy.cashLabel)
-                    .font(MonacoTheme.Typo.headline)
-                    .foregroundStyle(MonacoTheme.primaryText)
-                    .accessibilityIdentifier("home-cash-label")
-                HStack(spacing: 0) {
-                    Text(ProfileCopy.apyLabel)
-                        .font(MonacoTheme.Typo.subhead)
-                        .foregroundStyle(MonacoTheme.secondaryText)
-                    infoButton
+    @ViewBuilder private var summary: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                HStack(alignment: .top, spacing: MonacoTheme.Space.sm) {
+                    cardTile
+                    labels
                 }
+                cashFigure
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            figure
-                .lineLimit(1)
-                .minimumScaleFactor(MoneyStyle.row.minimumScaleFactor)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Cash")
-                .accessibilityValue(spoken)
-                .accessibilityIdentifier(valueIdentifier)
+        } else {
+            inlineSummary
+        }
+    }
+
+    private var cardTile: some View {
+        Image(systemName: MonacoIcon.card.symbol)
+            .font(MonacoTheme.Typo.title2)
+            .foregroundStyle(MonacoTheme.primaryText)
+            .frame(width: HomeCashRowMetrics.tile, height: HomeCashRowMetrics.tile)
+            .background(
+                MonacoTheme.surfaceSunken,
+                in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.chip)
+            )
+            .accessibilityHidden(true)
+    }
+
+    private var labels: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(MoneyCopy.cashLabel)
+                .font(MonacoTheme.Typo.headline)
+                .foregroundStyle(MonacoTheme.primaryText)
+                .accessibilityIdentifier("home-cash-label")
+            HStack(alignment: .top, spacing: 0) {
+                Text(ProfileCopy.apyLabel)
+                    .font(MonacoTheme.Typo.subhead)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                infoButton
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var cashFigure: some View {
+        figure
+            .lineLimit(1)
+            .minimumScaleFactor(MoneyStyle.row.minimumScaleFactor)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Cash")
+            .accessibilityValue(spoken)
+            .accessibilityIdentifier(valueIdentifier)
+    }
+
+    private var inlineSummary: some View {
+        HStack(spacing: MonacoTheme.Space.sm) {
+            cardTile
+            labels
+            cashFigure
         }
         .frame(minHeight: MonacoButtonMetrics.hitTarget)
     }
