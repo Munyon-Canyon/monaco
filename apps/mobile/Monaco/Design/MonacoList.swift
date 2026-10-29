@@ -165,6 +165,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
     private let titleColor: Color
     private let subtitle: String?
     private let subtitleColor: Color
+    private let subtitleLineLimit: Int?
     private let chevron: Bool
     private let isLast: Bool
     private let trailingIsInteractive: Bool
@@ -180,6 +181,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
         titleColor: Color = MonacoTheme.primaryText,
         subtitle: String? = nil,
         subtitleColor: Color = MonacoTheme.secondaryText,
+        subtitleLineLimit: Int? = nil,
         chevron: Bool = false,
         isLast: Bool = false,
         trailingIsInteractive: Bool = false,
@@ -192,6 +194,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
         self.titleColor = titleColor
         self.subtitle = subtitle
         self.subtitleColor = subtitleColor
+        self.subtitleLineLimit = subtitleLineLimit
         self.chevron = chevron
         self.isLast = isLast
         self.trailingIsInteractive = trailingIsInteractive
@@ -214,7 +217,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
     private var labels: some View {
         MonacoRowLabels(
             title: title, titleFont: titleFont, titleColor: titleColor, subtitle: subtitle,
-            subtitleColor: subtitleColor, layout: layout
+            subtitleColor: subtitleColor, subtitleLineLimit: subtitleLineLimit, layout: layout
         ) {}
         .monacoPrivate(isPrivate)
     }
@@ -281,6 +284,7 @@ struct MonacoRowLabels<Extra: View>: View {
     var titleColor: Color = MonacoTheme.primaryText
     var subtitle: String?
     var subtitleColor: Color = MonacoTheme.secondaryText
+    var subtitleLineLimit: Int?
     let layout: MonacoRowLayout
     @ViewBuilder var extra: Extra
 
@@ -296,7 +300,7 @@ struct MonacoRowLabels<Extra: View>: View {
                 Text(subtitle)
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(subtitleColor)
-                    .lineLimit(layout.subtitleLineLimit)
+                    .lineLimit(subtitleLineLimit ?? layout.subtitleLineLimit)
                     .truncationMode(.tail)
             }
         }

@@ -124,7 +124,9 @@ extension Components.Schemas.CallBoard {
 
     public static let peopleMonthLeadChange: Self = {
         var board = peopleMonth
-        board.around = .init(rows: [sam, kai])
+        var slipped = sam
+        slipped.movement = .init(kind: .down, places: 1)
+        board.around = .init(rows: [slipped, kai])
         board.leadChange = .init(
             id: "00000000-0000-7000-8000-00000000c001", leader: christelle.subject, passed: logan.subject,
             leaderRatePct: 92,

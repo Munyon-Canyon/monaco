@@ -38,12 +38,12 @@ Every `difference` and `no harness` row links one follow-up issue per group; the
 
 | Verdict | Frames |
 | --- | ---: |
-| match | 0 |
-| match (15 pt floor) | 14 |
+| match | 11 |
+| match (15 pt floor) | 21 |
 | no backend at launch | 0 |
-| difference | 77 |
+| difference | 59 |
 | not built | 0 |
-| no harness | 8 |
+| no harness | 7 |
 | system | 5 |
 
 No launch screen shows a season row, a streak or a "Season" word. `10-profile-other` and `10-profile-other-cabals` show a Follow control, and so do their frames; #7030 sends it to the founder on #6410 as a phase 2 element.
@@ -136,9 +136,9 @@ founder:
 
 | Frame | Appearance | Verdict | Difference | Follow-up |
 | --- | --- | --- | --- | --- |
-| [`15-first-fund`](../screens/15-first-fund.png) | dark | difference | The first-vote row subline truncates ("ends in...") where the frame shows "ends in 4h", "See all" has an extra chevron, and the member row order differs (Christelle, Andres, Logan, Mia, Jordan vs Christelle, Logan, Mia, Jordan, Andres). | #7023 (#6509) |
-| [`15-passed`](../screens/15-passed.png) | dark | difference | App shows the plain proposal page with no moment sheet; the frame shows the "Buy NVDA - $400 / Passed / 5 x 1 / Mia called it" sheet with a Share button over the page. | #7023 (#6545) |
-| [`15-leaderboard-moment`](../screens/15-leaderboard-moment.png) | dark | difference | App shows names under the top-three avatars, which the frame omits, and Sam's rank change reads "-" where the frame shows "down 1". | #7023 (#6526) |
+| [`15-first-fund`](../screens/15-first-fund.png) | dark | match | The first-vote subline reads "ends in 4h" in full, "See all" has no chevron, and members run Christelle, Logan, Mia, Jordan, Andres as in the frame. | #7023 (#6509) |
+| [`15-passed`](../screens/15-passed.png) | dark | match | The "Buy NVDA - $400 / Passed / 5 x 1 / Mia called it" sheet with its Share button sits over the proposal page as in the frame. | #7023 (#6545) |
+| [`15-leaderboard-moment`](../screens/15-leaderboard-moment.png) | dark | match | The top-three avatars carry no names and Sam's rank change reads "down 1" as in the frame. | #7023 (#6526) |
 
 founder:
 
