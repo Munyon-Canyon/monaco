@@ -13,3 +13,11 @@ nonisolated struct AssetRoute: AppRoute {
 
     func hash(into hasher: inout Hasher) { hasher.combine(symbol) }
 }
+
+nonisolated struct MarketsListRoute: AppRoute {
+    let order: MonacoCore.MarketsListModel.Order
+
+    @MainActor func destination() -> some View {
+        MarketsListView(order: order)
+    }
+}

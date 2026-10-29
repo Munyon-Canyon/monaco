@@ -342,6 +342,8 @@ stocks-tab-failed             -MonacoStocksTabSample failed
 stocks-tab-empty              -MonacoStocksTabSample empty
 stocks-tab-paused             -MonacoStocksTabSample paused
 stocks-tab-held               -MonacoStocksTabSample held
+stocks-tab-movers             -MonacoStocksTabSample movers -MonacoSampleScroll 1
+stocks-list-movers            -MonacoStocksTabSample listMovers
 stocks-tab-ready-large-text   -MonacoStocksTabSample ready -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 asset-open                    -MonacoAssetDetailSample open
 asset-many-closed             -MonacoAssetDetailSample manyClosed

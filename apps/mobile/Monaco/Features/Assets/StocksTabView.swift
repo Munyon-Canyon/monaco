@@ -34,7 +34,8 @@ struct StocksTabView: View {
                 StocksTabScreen(
                     model: model, held: held, query: $query, searching: searching, open: openAsset,
                     openSymbol: openSymbol,
-                    openWatchlist: { environment.navigator.open(WatchlistRoute(), in: .stocks) })
+                    openWatchlist: { environment.navigator.open(WatchlistRoute(), in: .stocks) },
+                    openMovers: { environment.navigator.open(MarketsListRoute(order: .movers), in: .stocks) })
             } else {
                 ScrollView { MarketsLoading() }
             }
@@ -150,6 +151,7 @@ private struct StocksTabScreen: View {
     let open: (MarketAsset) -> Void
     let openSymbol: (String) -> Void
     let openWatchlist: () -> Void
+    let openMovers: () -> Void
 
     @State private var showsPreIpoInfo = false
 
@@ -201,7 +203,7 @@ private struct StocksTabScreen: View {
                     sections
                 }
                 .padding(.top, MonacoTheme.Space.s)
-                .padding(.bottom, MonacoTheme.Space.l)
+                .padding(.bottom, MonacoTheme.Space.homeClear)
             }
             .scrollDismissesKeyboard(.interactively)
             .refreshable {
@@ -247,6 +249,9 @@ private struct StocksTabScreen: View {
             MarketsPreIpoSection(
                 rows: model.preIpoPreview, open: open, seeAll: { Task { await model.show(.preIpo) } },
                 info: { showsPreIpoInfo = true })
+        }
+        if !model.moverPreview.isEmpty {
+            MarketsMovingToday(movers: model.moverPreview, open: open, seeAll: openMovers)
         }
     }
 
