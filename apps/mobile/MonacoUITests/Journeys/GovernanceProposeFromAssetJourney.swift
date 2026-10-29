@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceProposeFromAssetJourney {
     static let id = "governance/propose-from-asset"
-    static let version = 9
+    static let version = 10
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -18,7 +18,7 @@ enum GovernanceProposeFromAssetJourney {
             app.element("tab-assets").tap()
             XCTAssertTrue(
                 app.element("assets-root").waitForExistence(timeout: 15), "S1.1: the Markets tab did not open")
-            let field = app.searchFields["Stocks and Pre-IPO"].firstMatch
+            let field = StocksBrowseJourney.searchField(app)
             XCTAssertTrue(field.waitForExistence(timeout: 10), "S1.1: no stock search on the Markets tab")
             field.tap()
             field.typeText("GOOGL")

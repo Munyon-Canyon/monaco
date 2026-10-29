@@ -3,7 +3,7 @@ import XCTest
 
 enum JoinJourney {
     static let id = "cabals/join"
-    static let version = 9
+    static let version = 10
 
     static let screenTimeout: TimeInterval = 15
 
@@ -51,20 +51,9 @@ enum JoinJourney {
 
     static func openDiscover(_ app: XCUIApplication, step: String) {
         if searchField(app).waitForExistence(timeout: 2) { return }
-        let filter = app.textFields["cabals-filter-field"]
-        XCTAssertTrue(filter.waitForExistence(timeout: 10), "\(step): no filter field or Discover on the Cabals tab")
-        let held = filter.value as? String ?? ""
-        if held.isEmpty || held == filter.placeholderValue {
-            filter.tap()
-            filter.typeText("zzqq nobody")
-        }
-        let entries = [app.buttons["cabals-search-public"], app.buttons["Explore cabals"]]
-        guard let entry = app.waitForFirst(of: entries, timeout: 10) else {
-            XCTFail("\(step): no Search public cabals link or Explore cabals within 10 s")
-            return
-        }
-        entries[entry].tap()
-        XCTAssertTrue(searchField(app).waitForExistence(timeout: 10), "\(step): Discover cabals did not open")
+        app.tab("Cabals").tap()
+        app.popToRoot()
+        CabalsDiscoverJourney.openFind(app, step: step)
     }
 
     static func search(_ app: XCUIApplication, for query: String, step: String) {
