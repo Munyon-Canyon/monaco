@@ -32,10 +32,9 @@ enum VoteIdentifier {
 
 struct VoteHaptics {
     var pick: @MainActor () -> Void
-    var reached: @MainActor () -> Void
     var landed: @MainActor () -> Void
 
-    static let live = VoteHaptics(pick: Haptics.selection, reached: Haptics.tap, landed: Haptics.success)
+    static let live = VoteHaptics(pick: Haptics.selection, landed: Haptics.success)
 
     static func playsLanded(from old: VoteSelection, to new: VoteSelection) -> Bool {
         guard old != new, case .committed = new else { return false }
@@ -199,10 +198,7 @@ struct VotePair: View {
         for effect in effects {
             switch effect {
             case .picked: haptics.pick()
-            case .reached(let side):
-                haptics.reached()
-                onCommit(side)
-            case .performed(let side): onCommit(side)
+            case .reached(let side), .performed(let side): onCommit(side)
             }
         }
     }

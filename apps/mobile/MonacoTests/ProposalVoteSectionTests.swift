@@ -14,7 +14,7 @@ struct ProposalVoteSectionTests {
         var landed = 0
         var warnings = 0
 
-        var haptics: VoteHaptics { VoteHaptics(pick: {}, reached: {}, landed: { self.landed += 1 }) }
+        var haptics: VoteHaptics { VoteHaptics(pick: {}, landed: { self.landed += 1 }) }
     }
 
     private struct Host: View {

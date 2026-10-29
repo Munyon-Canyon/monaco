@@ -8,11 +8,10 @@ import UIKit
 enum VoteTestKit {
     final class Recorder {
         var picks = 0
-        var reached = 0
         var landed = 0
 
         var haptics: VoteHaptics {
-            VoteHaptics(pick: { self.picks += 1 }, reached: { self.reached += 1 }, landed: { self.landed += 1 })
+            VoteHaptics(pick: { self.picks += 1 }, landed: { self.landed += 1 })
         }
     }
 
@@ -248,6 +247,22 @@ struct VoteTallyViewTests {
         await VoteTestKit.settle()
 
         #expect(recorder.landed == 1)
+        #expect(recorder.picks == 0)
+    }
+
+    @Test func theNoButtonOffersVoteNoAndItsNamedActionCommitsNo() async throws {
+        let box = VoteTestKit.Box(.none)
+        let window = try VoteTestKit.window(VoteTestKit.Host(box: box, recorder: VoteTestKit.Recorder()))
+        defer { TestWindow.close(window) }
+        await VoteTestKit.settle()
+
+        let no = try #require(VoteTestKit.node("proposal-vote-no", in: window))
+        let action = try #require(no.accessibilityCustomActions?.first { $0.name == "Vote No" })
+        _ = action.actionHandler?(action)
+        await VoteTestKit.settle()
+
+        #expect(box.commits == [.no])
+        #expect(box.selection == .pending(.no))
     }
 
     @Test func identifiersFollowThePrefixAndSuffix() async throws {
