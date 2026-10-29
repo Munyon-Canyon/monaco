@@ -105,7 +105,7 @@ founder:
 
 | Frame | Appearance | Verdict | Difference | Follow-up |
 | --- | --- | --- | --- | --- |
-| [`18-invite-landing`](../screens/18-invite-landing.png) | dark | difference | Frame's caption reads "You sign in at your first vote or fund." under an inline Join button; app reads "You'll sign in with your phone to join." on a pinned bottom bar. | #7021 (#6502) |
+| [`18-invite-landing`](../screens/18-invite-landing.png) | dark | match | Caption reads "You sign in at your first vote or fund." under the inline Join button below the vote card (#7021). | |
 
 founder:
 
