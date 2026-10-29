@@ -7,6 +7,9 @@ import SwiftUI
 enum LeaderboardSampleScenario: String, CaseIterable {
     case peopleMonth
     case leadChange
+    case cabalsMonth
+    case cabalsUnranked
+    case peopleWeekUnranked
     case empty
     case loading
     case error
@@ -20,10 +23,22 @@ enum LeaderboardSampleScenario: String, CaseIterable {
         return LeaderboardSampleScenario(rawValue: arguments[flag + 1])
     }
 
+    var tab: CallBoardTab {
+        switch self {
+        case .cabalsMonth, .cabalsUnranked: .cabals
+        default: .people
+        }
+    }
+
+    var period: CallPeriod { self == .peopleWeekUnranked ? .week : .month }
+
     var state: LoadState<CallBoardScreen> {
         switch self {
         case .peopleMonth: .loaded(CallBoardScreen(.peopleMonth))
         case .leadChange: .loaded(CallBoardScreen(.peopleMonthLeadChange))
+        case .cabalsMonth: .loaded(CallBoardScreen(.cabalsMonth))
+        case .cabalsUnranked: .loaded(CallBoardScreen(.cabalsUnranked))
+        case .peopleWeekUnranked: .loaded(CallBoardScreen(.peopleWeekUnranked))
         case .empty: .loaded(CallBoardScreen(.empty))
         case .loading: .loading
         case .error: .failed(.transport(URLError(.notConnectedToInternet)))
@@ -35,7 +50,9 @@ nonisolated struct LeaderboardSampleRoute: AppRoute {
     let scenario: LeaderboardSampleScenario
 
     @MainActor func destination() -> some View {
-        LeaderboardView(tab: .people, period: .month, preview: .preview(state: scenario.state))
+        LeaderboardView(
+            tab: scenario.tab, period: scenario.period,
+            preview: .preview(state: scenario.state, tab: scenario.tab, period: scenario.period))
     }
 }
 

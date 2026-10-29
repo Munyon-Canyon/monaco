@@ -162,13 +162,22 @@ struct CallBoardBody: View {
             } else if let card = screen.card {
                 CallBoardYouCard(card: card)
             }
+            if let unranked = screen.unrankedCard {
+                CallBoardUnrankedCardView(card: unranked)
+            }
             if !screen.top.isEmpty {
                 CallBoardSectionTitle(text: CallBoardCopy.topThree)
                 CallBoardPodium(rows: screen.top)
             }
             if !screen.around.isEmpty {
-                CallBoardSectionTitle(text: CallBoardCopy.aroundYou)
+                CallBoardSectionTitle(text: screen.aroundTitle, identifier: "leaderboard-section-ranked")
                 around
+            }
+            if !screen.unrankedRows.isEmpty {
+                CallBoardSectionTitle(
+                    text: CallBoardCopy.unrankedTitle, count: screen.unrankedRows.count,
+                    identifier: "leaderboard-section-unranked")
+                CallBoardUnrankedRows(rows: screen.unrankedRows)
             }
         }
         .accessibilityElement(children: .contain)
@@ -176,26 +185,29 @@ struct CallBoardBody: View {
 
     @ViewBuilder private var around: some View {
         if let mine = screen.card?.me, let index = screen.around.firstIndex(where: { $0.id == mine.id }) {
-            CallBoardRows(rows: Array(screen.around[..<index]))
-            CallBoardRows(rows: [screen.around[index]])
+            CallBoardRows(rows: Array(screen.around[..<index]), bandID: screen.bandID)
+            CallBoardRows(rows: [screen.around[index]], bandID: screen.bandID)
                 .onScrollVisibilityChange { viewerRowVisible = $0 }
-            CallBoardRows(rows: Array(screen.around[(index + 1)...]))
+            CallBoardRows(rows: Array(screen.around[(index + 1)...]), bandID: screen.bandID)
         } else {
-            CallBoardRows(rows: screen.around)
+            CallBoardRows(rows: screen.around, bandID: screen.bandID)
         }
     }
 }
 
 struct CallBoardSectionTitle: View {
     let text: String
+    var count: Int?
+    var identifier: String?
 
     var body: some View {
-        Text(text)
+        (Text(text).foregroundStyle(MonacoTheme.primaryText)
+            + Text(count.map { " \($0)" } ?? "").foregroundStyle(MonacoTheme.secondaryText))
             .font(MonacoTheme.Typo.section)
-            .foregroundStyle(MonacoTheme.primaryText)
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.top, MonacoTheme.Space.l)
             .padding(.bottom, MonacoTheme.Space.s)
             .accessibilityAddTraits(.isHeader)
+            .accessibilityIdentifier(identifier ?? "leaderboard-section")
     }
 }

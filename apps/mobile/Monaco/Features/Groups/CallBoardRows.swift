@@ -15,6 +15,7 @@ enum CallBoardRoutes {
 
 struct CallBoardRows: View {
     let rows: [CallBoardRowValue]
+    var bandID: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -22,8 +23,8 @@ struct CallBoardRows: View {
                 NavigationLink(value: CallBoardRoutes.route(for: row)) {
                     RankedRow(
                         rank: row.rank.map { .ranked($0, movement: row.movement.signedPlaces) } ?? .unranked,
-                        name: row.name, isYou: row.isViewer, subtitle: row.turnout, figure: row.rate,
-                        detail: row.record
+                        name: row.title, isYou: row.isViewer, subtitle: row.turnout, figure: row.rate,
+                        detail: row.record, isYouBand: row.isViewer || row.id == bandID
                     ) {
                         CallBoardAvatar(row: row, size: RankedRowMetrics.avatarSize)
                     }

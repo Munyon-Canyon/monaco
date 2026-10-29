@@ -13,6 +13,67 @@ public enum CallBoardCopy {
     public static let back = "Back"
     public static let infoLabel = "How the board is ranked"
     public static let dash = "–"
+    public static let aroundCabals = "Around your cabals"
+    public static let rankedTitle = "Ranked"
+    public static let unrankedTitle = "Not ranked yet"
+    public static let yourBest = "your best"
+    public static let toRank = "to rank"
+    public static let youLabel = "You"
+    public static let pendingNone = "Vote on your cabals' proposals to get there."
+    public static let yoursSuffix = " · yours"
+
+    private static func plural(_ count: Int, _ word: String) -> String { count == 1 ? word : word + "s" }
+
+    public static func cabalGapLine(_ gap: Components.Schemas.CallBoard.GapPayload, me: String, other: String)
+        -> String
+    {
+        let points = Int(gap.points)
+        if points == 0 { return "\(me) is level with \(other)." }
+        let count = abs(points)
+        switch gap.versus {
+        case .above: return "\(me) is \(count) \(plural(count, "point")) behind \(other)."
+        case .below: return "\(me) leads by \(count) \(plural(count, "point"))."
+        }
+    }
+
+    public static func turnoutPercent(bps: Int) -> String { "Turnout \((bps + 50) / 100)%" }
+
+    public static func name(_ name: String, isMine: Bool) -> String { isMine ? name + yoursSuffix : name }
+
+    public static func unrankedCardTitle(period: CallPeriod) -> String {
+        period == .all ? "Not ranked yet" : "Not ranked yet \(periodWord(period))"
+    }
+
+    public static func unrankedCabalTitle(name: String) -> String { "\(name) is not ranked yet" }
+
+    public static func unrankedProgress(resolved: Int, needed: Int) -> String {
+        "\(resolved) of \(resolved + needed) resolved votes · \(needed) more to rank"
+    }
+
+    public static func unrankedCabalProgress(resolved: Int, needed: Int) -> String {
+        "\(resolved) of \(resolved + needed) resolved"
+    }
+
+    public static func pendingLine(_ symbols: [String]) -> String {
+        switch symbols.count {
+        case 0: return pendingNone
+        case 1: return "Your \(symbols[0]) vote counts once it resolves."
+        case 2: return "Your \(symbols[0]) and \(symbols[1]) votes count once they resolve."
+        default:
+            let rest = symbols.count - 2
+            return "Your \(symbols[0]), \(symbols[1]) and \(rest) more \(plural(rest, "vote")) count once they resolve."
+        }
+    }
+
+    public static func unrankedSubtitle(resolved: Int, voted: Int, eligible: Int) -> String {
+        "\(resolved) resolved · voted \(voted) of \(eligible)"
+    }
+
+    public static func moreFigure(_ needed: Int) -> String { "\(needed) more" }
+
+    public static func unrankedSpoken(name: String, isViewer: Bool, resolved: Int, needed: Int) -> String {
+        "\(isViewer ? "\(name), you" : name), not ranked yet, \(resolved) resolved, \(needed) more to rank."
+    }
 
     public static func tabLabel(_ tab: CallBoardTab) -> String {
         switch tab {
