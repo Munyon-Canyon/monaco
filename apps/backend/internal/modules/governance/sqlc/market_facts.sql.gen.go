@@ -13,7 +13,7 @@ import (
 )
 
 const calledFacts = `-- name: CalledFacts :many
-SELECT DISTINCT ON (p.symbol) p.symbol, p.proposer_id
+SELECT DISTINCT ON (p.symbol) p.symbol::text AS symbol, p.proposer_id
 FROM unnest($1::text[]) AS wanted(symbol)
 JOIN proposals AS p ON p.symbol = wanted.symbol
 WHERE p.status IN ('passed', 'executed') AND p.closed_at >= $2::timestamptz AND p.cabal_id = ANY($3::uuid[])
@@ -53,7 +53,7 @@ func (q *Queries) CalledFacts(ctx context.Context, arg CalledFactsParams) ([]Cal
 
 const openFactsForVoter = `-- name: OpenFactsForVoter :many
 SELECT DISTINCT ON (p.symbol)
-  p.symbol, p.cabal_id, (count(*) OVER (PARTITION BY p.symbol))::int AS open_count
+  p.symbol::text AS symbol, p.cabal_id, (count(*) OVER (PARTITION BY p.symbol))::int AS open_count
 FROM unnest($1::text[]) AS wanted(symbol)
 JOIN proposals AS p ON p.symbol = wanted.symbol
 JOIN proposal_voters AS pv ON pv.proposal_id = p.id AND pv.voter_id = $2

@@ -1,6 +1,6 @@
 -- name: NewestOpenProposalForCabal :one
 SELECT
-  p.id, p.kind, p.symbol, p.mint, p.usdc_micros, p.proposer_id, p.thesis, p.expires_at,
+  p.id, p.kind, coalesce(p.symbol, '')::text AS symbol, coalesce(p.mint, '')::text AS mint, p.usdc_micros, p.proposer_id, p.thesis, p.expires_at,
   ballots.yes_count, ballots.no_count, ballots.voted_count, electorate.voter_count
 FROM proposals AS p
 CROSS JOIN LATERAL (

@@ -88,8 +88,7 @@ func (r *ProposalReads) Get(ctx context.Context, req GetProposal) (ProposalDetai
 	if err != nil {
 		return ProposalDetail{}, err
 	}
-	view.CabalName, err = r.CabalName(ctx, view.CabalID)
-	if err != nil {
+	if err := r.nameView(ctx, &view); err != nil {
 		return ProposalDetail{}, err
 	}
 	cards, err := r.nameVoters(ctx, view.ProposerID, voters)
@@ -115,8 +114,20 @@ func (r *ProposalReads) Get(ctx context.Context, req GetProposal) (ProposalDetai
 	return out, r.priced(ctx, row, &out)
 }
 
+func (r *ProposalReads) nameView(ctx context.Context, view *ProposalView) error {
+	name, err := r.CabalName(ctx, view.CabalID)
+	view.CabalName = name
+	if err != nil {
+		return err
+	}
+	return r.nameRuleUsers(ctx, []*RuleView{view.Rule})
+}
+
 func (r *ProposalReads) priced(ctx context.Context, row sqlc.GetProposalRow, out *ProposalDetail) error {
-	asset, err := r.assetOf(ctx, row.Mint)
+	if domain.Kind(row.Kind) == domain.KindRule {
+		return nil
+	}
+	asset, err := r.assetOf(ctx, row.Mint.String)
 	if err != nil {
 		return err
 	}
@@ -211,6 +222,7 @@ func listRow(r sqlc.GetProposalRow) sqlc.ListProposalsRow {
 		UsdcMicros: r.UsdcMicros, TokenAmount: r.TokenAmount, QuoteOutAmount: r.QuoteOutAmount, Thesis: r.Thesis,
 		Threshold: r.Threshold, Status: r.Status, StatusReason: r.StatusReason, ExpiresAt: r.ExpiresAt,
 		CreatedAt: r.CreatedAt, MyBallot: r.MyBallot, PriceComparison: r.PriceComparison, Network: r.Network,
+		RuleChange: r.RuleChange,
 	}
 }
 

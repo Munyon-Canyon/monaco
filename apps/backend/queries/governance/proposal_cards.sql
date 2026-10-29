@@ -1,6 +1,6 @@
 -- name: ProposalCards :many
 SELECT
-  p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, p.token_amount, p.threshold,
+  p.id, p.cabal_id, p.proposer_id, p.kind, coalesce(p.symbol, '')::text AS symbol, coalesce(p.mint, '')::text AS mint, p.usdc_micros, p.token_amount, p.threshold,
   p.status, p.decided_by, p.expires_at, p.created_at,
   ballots.yes_count, ballots.no_count, ballots.voted_count, electorate.voter_count,
   mine.choice AS your_choice

@@ -1,7 +1,7 @@
 -- name: PendingVotes :many
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, p.token_amount, p.threshold,
-  p.expires_at, p.created_at,
+  p.expires_at, p.created_at, p.rule_change,
   ballots.yes_count, ballots.no_count, ballots.voted_count, electorate.voter_count
 FROM proposal_voters AS pv
 JOIN proposals AS p ON p.id = pv.proposal_id

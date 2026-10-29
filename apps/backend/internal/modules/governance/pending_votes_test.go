@@ -98,7 +98,8 @@ func TestHTTP_GetMyPendingVotes(t *testing.T) {
 	if err != nil || !ok || len(got) != 1 {
 		t.Fatalf("GetMyPendingVotes = %#v, %v, want one proposal", res, err)
 	}
-	if got[0].ProposalId != p.ID || got[0].CabalId != p.CabalID || got[0].Kind != "buy" || got[0].Symbol != "AAPLx" ||
+	if got[0].ProposalId != p.ID || got[0].CabalId != p.CabalID || got[0].Kind != "buy" || got[0].Symbol == nil ||
+		*got[0].Symbol != "AAPLx" ||
 		!got[0].ExpiresAt.Equal(p.ExpiresAt) {
 		t.Errorf("pending vote = %+v, want proposal %s in cabal %s expiring at %s",
 			got[0], p.ID, p.CabalID, p.ExpiresAt)

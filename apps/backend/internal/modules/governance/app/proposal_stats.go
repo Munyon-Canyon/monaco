@@ -122,7 +122,7 @@ func rowStats(r sqlc.GetProposalRow) (Stats, error) {
 	if !r.PotValueMicros.Valid {
 		return out, nil
 	}
-	value := rowShareValue(r.Kind, r.UsdcMicros.Int64, r.QuoteOutAmount)
+	value := rowShareValue(r.Kind, r.UsdcMicros.Int64, r.QuoteOutAmount.Int64)
 	share, err := TreasuryShareBps(value, money.MicrosFromUint64(unsigned(r.PotValueMicros.Int64)))
 	out.TreasuryShareBps = share
 	return out, err

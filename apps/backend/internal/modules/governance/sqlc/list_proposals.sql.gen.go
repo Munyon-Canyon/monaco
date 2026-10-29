@@ -16,7 +16,7 @@ import (
 const listMyProposals = `-- name: ListMyProposals :many
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.usdc_micros, p.token_amount, p.quote_out_amount,
-  p.thesis, p.threshold, p.status, p.status_reason, p.expires_at, p.created_at,
+  p.thesis, p.threshold, p.status, p.status_reason, p.expires_at, p.created_at, p.rule_change,
   coalesce(mine.choice, '')::text AS my_ballot, p.price_comparison, coalesce(p.network, '')::text AS network
 FROM proposals AS p
 JOIN proposal_voters AS pv ON pv.proposal_id = p.id AND pv.voter_id = $1
@@ -46,16 +46,17 @@ type ListMyProposalsRow struct {
 	CabalID         uuid.UUID
 	ProposerID      uuid.UUID
 	Kind            string
-	Symbol          string
+	Symbol          pgtype.Text
 	UsdcMicros      pgtype.Int8
 	TokenAmount     pgtype.Int8
-	QuoteOutAmount  int64
+	QuoteOutAmount  pgtype.Int8
 	Thesis          pgtype.Text
 	Threshold       string
 	Status          string
 	StatusReason    pgtype.Text
 	ExpiresAt       time.Time
 	CreatedAt       time.Time
+	RuleChange      []byte
 	MyBallot        string
 	PriceComparison []byte
 	Network         string
@@ -92,6 +93,7 @@ func (q *Queries) ListMyProposals(ctx context.Context, arg ListMyProposalsParams
 			&i.StatusReason,
 			&i.ExpiresAt,
 			&i.CreatedAt,
+			&i.RuleChange,
 			&i.MyBallot,
 			&i.PriceComparison,
 			&i.Network,
@@ -109,7 +111,7 @@ func (q *Queries) ListMyProposals(ctx context.Context, arg ListMyProposalsParams
 const listProposals = `-- name: ListProposals :many
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.usdc_micros, p.token_amount, p.quote_out_amount,
-  p.thesis, p.threshold, p.status, p.status_reason, p.expires_at, p.created_at,
+  p.thesis, p.threshold, p.status, p.status_reason, p.expires_at, p.created_at, p.rule_change,
   coalesce(mine.choice, '')::text AS my_ballot, p.price_comparison, coalesce(p.network, '')::text AS network
 FROM proposals AS p
 LEFT JOIN votes AS mine ON mine.proposal_id = p.id AND mine.voter_id = $1
@@ -143,16 +145,17 @@ type ListProposalsRow struct {
 	CabalID         uuid.UUID
 	ProposerID      uuid.UUID
 	Kind            string
-	Symbol          string
+	Symbol          pgtype.Text
 	UsdcMicros      pgtype.Int8
 	TokenAmount     pgtype.Int8
-	QuoteOutAmount  int64
+	QuoteOutAmount  pgtype.Int8
 	Thesis          pgtype.Text
 	Threshold       string
 	Status          string
 	StatusReason    pgtype.Text
 	ExpiresAt       time.Time
 	CreatedAt       time.Time
+	RuleChange      []byte
 	MyBallot        string
 	PriceComparison []byte
 	Network         string
@@ -190,6 +193,7 @@ func (q *Queries) ListProposals(ctx context.Context, arg ListProposalsParams) ([
 			&i.StatusReason,
 			&i.ExpiresAt,
 			&i.CreatedAt,
+			&i.RuleChange,
 			&i.MyBallot,
 			&i.PriceComparison,
 			&i.Network,

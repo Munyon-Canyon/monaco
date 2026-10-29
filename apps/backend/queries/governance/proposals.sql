@@ -5,8 +5,8 @@ WITH proposal AS (
     quote_out_amount, threshold, status, expires_at, created_at, updated_at, sides_after_close
   )
   VALUES (
-    @id, @cabal_id, @proposer_id, @kind, @symbol, @mint, @usdc_micros, @token_amount, @thesis,
-    @quote_out_amount, @threshold, 'open', @expires_at, @created_at, @created_at, @sides_after_close
+    @id, @cabal_id, @proposer_id, @kind, @symbol::text, @mint::text, @usdc_micros, @token_amount, @thesis,
+    @quote_out_amount::bigint, @threshold, 'open', @expires_at, @created_at, @created_at, @sides_after_close
   )
   RETURNING id
 )
@@ -22,7 +22,7 @@ WITH proposal AS (
     pot_value_micros, sides_after_close
   )
   VALUES (
-    sqlc.arg(id), sqlc.arg(cabal_id), sqlc.arg(proposer_id), sqlc.arg(kind), sqlc.arg(symbol), sqlc.arg(mint),
+    sqlc.arg(id), sqlc.arg(cabal_id), sqlc.arg(proposer_id), sqlc.arg(kind), sqlc.arg(symbol)::text, sqlc.arg(mint)::text,
     NULLIF(sqlc.arg(usdc_micros)::text, '0')::bigint, NULLIF(sqlc.arg(token_amount)::text, '0')::bigint,
     NULLIF(sqlc.arg(thesis)::text, ''), sqlc.arg(quote_out_amount)::text::bigint, sqlc.arg(threshold), 'open', sqlc.arg(expires_at),
     sqlc.arg(created_at), sqlc.arg(created_at), sqlc.narg(price_comparison)::jsonb,
@@ -95,7 +95,7 @@ SELECT status FROM proposals WHERE id = @id;
 SELECT cabal_id FROM proposals WHERE id = @id;
 
 -- name: ProposalMint :one
-SELECT mint FROM proposals WHERE id = @id;
+SELECT coalesce(mint, '')::text AS mint FROM proposals WHERE id = @id;
 
 -- name: ProposerOfProposal :one
 SELECT proposer_id FROM proposals WHERE id = @id;
@@ -138,7 +138,7 @@ SELECT
 FROM ballots;
 
 -- name: DueForExpiry :many
-SELECT id, cabal_id
+SELECT id, cabal_id, kind
 FROM proposals
 WHERE status = 'open' AND expires_at <= @now
 ORDER BY expires_at, id

@@ -30,9 +30,15 @@ func seedVoteState(
 	gen := ids.Real{}
 	f := voteFixture{proposal: gen.NewV7()}
 	exec(t, db, `INSERT INTO proposals
-		(id, cabal_id, proposer_id, kind, symbol, mint, usdc_micros, quote_out_amount, threshold, status,
+		(id, cabal_id, proposer_id, kind, symbol, mint, usdc_micros, quote_out_amount, rule_change, threshold, status,
 		 expires_at, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, 'AAPLx', 'mint', 25000000, 1, $5, 'open', $6, $7, $7)`,
+		SELECT $1, $2, $3, $4, t.symbol, t.mint, t.usdc, t.quote, t.change, $5, 'open', $6, $7, $7
+		FROM (SELECT
+			CASE WHEN $4 = 'rule' THEN NULL ELSE 'AAPLx' END AS symbol, CASE WHEN $4 = 'rule' THEN NULL ELSE 'mint' END AS mint,
+			CASE WHEN $4 = 'rule' THEN NULL::bigint ELSE 25000000 END AS usdc,
+			CASE WHEN $4 = 'rule' THEN NULL::bigint ELSE 1 END AS quote,
+			CASE WHEN $4 = 'rule' THEN '{"v":1,"rule":"show_sides","from":false,"to":true}'::jsonb END AS change
+		) AS t`,
 		f.proposal, gen.NewV7(), gen.NewV7(), kind, threshold, created.Add(window), created)
 	for range voters {
 		voter := gen.NewV7()

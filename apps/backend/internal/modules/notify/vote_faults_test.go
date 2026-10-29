@@ -23,6 +23,7 @@ type flakyStates struct {
 	due        []governanceport.DueReminder
 	afterNon   func()
 	stateCalls int
+	kind       string
 }
 
 func (f *flakyStates) VoteState(ctx context.Context, id ids.ProposalID) (governanceport.VoteState, error) {
@@ -30,7 +31,11 @@ func (f *flakyStates) VoteState(ctx context.Context, id ids.ProposalID) (governa
 	if f.failState > 0 && f.stateCalls >= f.failState {
 		return governanceport.VoteState{}, errPort
 	}
-	return f.inner.VoteState(ctx, id)
+	state, err := f.inner.VoteState(ctx, id)
+	if f.kind != "" {
+		state.Kind = f.kind
+	}
+	return state, err
 }
 
 func (f *flakyStates) DueForReminder(
@@ -119,9 +124,8 @@ func TestRemindVoters_failsWhenAPortOrTheStoreFails(t *testing.T) {
 			},
 		},
 		"the proposal is neither a buy nor a sell": {
-			prepare: func(t *testing.T, w voteWorld, proposal string) {
-				t.Helper()
-				w.r.exec(t, `UPDATE proposals SET kind = 'hold' WHERE id = $1`, proposal)
+			states: func(w voteWorld, _ context.CancelFunc) *flakyStates {
+				return &flakyStates{inner: w.ports.States, kind: "hold"}
 			},
 		},
 		"the users cannot be read": {
@@ -242,11 +246,8 @@ func TestVoteDeciding_failsWhenAPortFails(t *testing.T) {
 			w := r.voteWorldOf(t, 8)
 			proposal := w.proposeNow(t)
 			w.castAll(t, proposal, map[int]string{0: "yes", 1: "yes", 2: "yes", 3: "no", 4: "yes"})
-			if tc.kind != "" {
-				r.exec(t, `UPDATE proposals SET kind = $2 WHERE id = $1`, proposal, tc.kind)
-			}
 			kind := w.deciding()
-			kind.States = &flakyStates{inner: w.ports.States, failState: tc.failState}
+			kind.States = &flakyStates{inner: w.ports.States, failState: tc.failState, kind: tc.kind}
 			e := w.voteCast(proposal, w.members[4], "yes")
 			d := r.emit(t, userActor(w.members[4]), e)
 

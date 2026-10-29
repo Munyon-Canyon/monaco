@@ -137,12 +137,12 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
         cabalID = proposal.cabalId
         cabalName = proposal.cabalName
         kind = proposal.kind.rawValue
-        symbol = proposal.symbol
+        symbol = proposal.symbol ?? ""
         proposerID = proposal.proposerId
         thesis = proposal.thesis
         usdcMicros = proposal.usdcMicros
         tokenAmount = proposal.tokenAmount
-        quoteOutAmount = proposal.quoteOutAmount
+        quoteOutAmount = proposal.quoteOutAmount ?? 0
         createdAt = proposal.createdAt
         tally = ProposalTally(proposal.tally)
         myBallot = proposal.myBallot?.rawValue
@@ -405,7 +405,7 @@ public struct PendingVote: Identifiable, Equatable, Sendable {
         cabalID = value.cabalId
         cabalName = value.cabalName
         kind = value.kind.rawValue
-        symbol = value.symbol
+        symbol = value.symbol ?? ""
         expiresAt = value.expiresAt
     }
 }

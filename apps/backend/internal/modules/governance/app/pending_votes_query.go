@@ -42,6 +42,7 @@ type PendingVote struct {
 	TokenAmount money.BaseUnits
 	AssetName   string
 	AssetLogo   string
+	Rule        *RuleView
 	Proposer    PendingProposer
 	Tally       Tally
 	VotedCount  int
@@ -72,30 +73,42 @@ func (r *PendingVoteReads) PendingVotes(ctx context.Context, voter ids.UserID) (
 		return nil, err
 	}
 	out := make([]PendingVote, len(rows))
+	rules := make([]*RuleView, len(rows))
 	for i, row := range rows {
 		kind, err := domain.ParseKind(row.Kind)
 		if err != nil {
 			return nil, err
 		}
+		if rules[i], err = decodeRuleView(row.RuleChange); err != nil {
+			return nil, err
+		}
 		id, cabal, proposer := ids.ProposalIDFrom(row.ID), ids.CabalIDFrom(row.CabalID), ids.UserIDFrom(row.ProposerID)
-		asset := extra.assets[row.Mint]
+		asset := extra.assets[row.Mint.String]
 		voters := int(row.VoterCount)
 		out[i] = PendingVote{
-			ProposalID: id, CabalID: cabal, CabalName: extra.names[cabal], Kind: kind, Symbol: row.Symbol,
+			ProposalID:  id,
+			CabalID:     cabal,
+			CabalName:   extra.names[cabal],
+			Kind:        kind,
+			Symbol:      row.Symbol.String,
+			Rule:        rules[i],
 			USDC:        money.MicrosFromUint64(uint64(max(row.UsdcMicros.Int64, 0))),
 			TokenAmount: money.NewBaseUnits(uint64(max(row.TokenAmount.Int64, 0)), asset.Decimals),
-			AssetName:   nameOr(asset.DisplayName, row.Symbol), AssetLogo: asset.LogoURL,
-			Proposer: extra.proposers[proposer],
+			AssetName:   nameOr(asset.DisplayName, row.Symbol.String),
+			AssetLogo:   asset.LogoURL,
+			Proposer:    extra.proposers[proposer],
 			Tally: Tally{
 				Yes: int(row.YesCount), No: int(row.NoCount), Voters: voters,
 				Needed: domain.ThresholdRule(row.Threshold).Needed(voters),
 			},
-			VotedCount: int(row.VotedCount), ReplyCount: extra.replies[id],
-			CreatedAt: row.CreatedAt, ExpiresAt: row.ExpiresAt,
+			VotedCount: int(row.VotedCount),
+			ReplyCount: extra.replies[id],
+			CreatedAt:  row.CreatedAt,
+			ExpiresAt:  row.ExpiresAt,
 		}
 		out[i].Proposer.ID = proposer
 	}
-	return out, nil
+	return out, r.reads.nameRuleUsers(ctx, rules)
 }
 
 type cardExtras struct {
@@ -112,11 +125,14 @@ type pendingExtras struct {
 func (r *PendingVoteReads) pendingExtras(ctx context.Context, rows []sqlc.PendingVotesRow) (pendingExtras, error) {
 	const op = "governance.PendingVotes"
 	cabalIDs := make([]ids.CabalID, len(rows))
-	mints := make([]string, len(rows))
+	mints := make([]string, 0, len(rows))
 	proposerIDs := make([]ids.UserID, len(rows))
 	proposalIDs := make([]ids.ProposalID, len(rows))
 	for i, row := range rows {
-		cabalIDs[i], mints[i] = ids.CabalIDFrom(row.CabalID), row.Mint
+		cabalIDs[i] = ids.CabalIDFrom(row.CabalID)
+		if row.Mint.Valid {
+			mints = append(mints, row.Mint.String)
+		}
 		proposerIDs[i], proposalIDs[i] = ids.UserIDFrom(row.ProposerID), ids.ProposalIDFrom(row.ID)
 	}
 	var out pendingExtras

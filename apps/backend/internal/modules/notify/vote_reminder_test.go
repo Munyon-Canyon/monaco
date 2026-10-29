@@ -146,7 +146,11 @@ func TestRemindVoters_sendsNothingAfterTheCloseOrForARuleProposal(t *testing.T) 
 	w := r.voteWorldOf(t, 8)
 	closed := w.propose(t, r.clock.Now().Add(-voteWindow))
 	rule := w.openAtOneThird(t)
-	r.exec(t, `UPDATE proposals SET kind = 'rule' WHERE id = $1`, rule)
+	r.exec(
+		t,
+		`UPDATE proposals SET kind = 'rule', rule_change = '{"v":1,"rule":"show_sides","from":false,"to":true}', symbol = NULL, mint = NULL, quote_out_amount = NULL, usdc_micros = NULL, token_amount = NULL WHERE id = $1`,
+		rule,
+	)
 	w.fixtureBallots(t, closed)
 
 	wantTick(t, w.reminders(), 0, 0)

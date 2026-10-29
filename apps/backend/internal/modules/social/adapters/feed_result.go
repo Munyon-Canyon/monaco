@@ -45,10 +45,16 @@ func (h Feed) FetchPassed(ctx context.Context, e events.ProposalPassed) (ClosedP
 }
 
 func (h Feed) FetchFailed(ctx context.Context, e events.ProposalFailed) (ClosedProposal, error) {
+	if e.Kind == ruleProposal {
+		return ClosedProposal{Skip: true}, nil
+	}
 	return h.FetchClosed(ctx, e.ProposalID)
 }
 
 func (h Feed) FetchExpired(ctx context.Context, e events.ProposalExpired) (ClosedProposal, error) {
+	if e.Kind == ruleProposal {
+		return ClosedProposal{Skip: true}, nil
+	}
 	return h.FetchClosed(ctx, e.ProposalID)
 }
 

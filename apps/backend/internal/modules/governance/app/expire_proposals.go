@@ -62,7 +62,10 @@ func (p *ExpiryPoller) expire(ctx context.Context, row sqlc.DueForExpiryRow, now
 			return err
 		}
 		expired = true
-		return tx.Events.Append(ctx, events.ProposalExpired{V: 1, ProposalID: row.ID, CabalID: row.CabalID})
+		return tx.Events.Append(
+			ctx,
+			events.ProposalExpired{V: 1, ProposalID: row.ID, CabalID: row.CabalID, Kind: row.Kind},
+		)
 	})
 	if err != nil {
 		return false, err

@@ -45,25 +45,25 @@ func (e AdminProposalSwapStatus) Valid() bool {
 
 // Defines values for AdminStatusChangeActorType.
 const (
-	Admin   AdminStatusChangeActorType = "admin"
-	Agent   AdminStatusChangeActorType = "agent"
-	Service AdminStatusChangeActorType = "service"
-	System  AdminStatusChangeActorType = "system"
-	User    AdminStatusChangeActorType = "user"
+	AdminStatusChangeActorTypeAdmin   AdminStatusChangeActorType = "admin"
+	AdminStatusChangeActorTypeAgent   AdminStatusChangeActorType = "agent"
+	AdminStatusChangeActorTypeService AdminStatusChangeActorType = "service"
+	AdminStatusChangeActorTypeSystem  AdminStatusChangeActorType = "system"
+	AdminStatusChangeActorTypeUser    AdminStatusChangeActorType = "user"
 )
 
 // Valid indicates whether the value is a known member of the AdminStatusChangeActorType enum.
 func (e AdminStatusChangeActorType) Valid() bool {
 	switch e {
-	case Admin:
+	case AdminStatusChangeActorTypeAdmin:
 		return true
-	case Agent:
+	case AdminStatusChangeActorTypeAgent:
 		return true
-	case Service:
+	case AdminStatusChangeActorTypeService:
 		return true
-	case System:
+	case AdminStatusChangeActorTypeSystem:
 		return true
-	case User:
+	case AdminStatusChangeActorTypeUser:
 		return true
 	default:
 		return false
@@ -109,6 +109,105 @@ func (e MarketFactKind) Valid() bool {
 	}
 }
 
+// Defines values for PendingVoteRuleChangeRule.
+const (
+	PendingVoteRuleChangeRuleAdmin                 PendingVoteRuleChangeRule = "admin"
+	PendingVoteRuleChangeRuleJoinMode              PendingVoteRuleChangeRule = "join_mode"
+	PendingVoteRuleChangeRuleMaxTradeBps           PendingVoteRuleChangeRule = "max_trade_bps"
+	PendingVoteRuleChangeRuleProposalExpirySeconds PendingVoteRuleChangeRule = "proposal_expiry_seconds"
+	PendingVoteRuleChangeRuleShowSides             PendingVoteRuleChangeRule = "show_sides"
+	PendingVoteRuleChangeRuleThreshold             PendingVoteRuleChangeRule = "threshold"
+	PendingVoteRuleChangeRuleVoter                 PendingVoteRuleChangeRule = "voter"
+)
+
+// Valid indicates whether the value is a known member of the PendingVoteRuleChangeRule enum.
+func (e PendingVoteRuleChangeRule) Valid() bool {
+	switch e {
+	case PendingVoteRuleChangeRuleAdmin:
+		return true
+	case PendingVoteRuleChangeRuleJoinMode:
+		return true
+	case PendingVoteRuleChangeRuleMaxTradeBps:
+		return true
+	case PendingVoteRuleChangeRuleProposalExpirySeconds:
+		return true
+	case PendingVoteRuleChangeRuleShowSides:
+		return true
+	case PendingVoteRuleChangeRuleThreshold:
+		return true
+	case PendingVoteRuleChangeRuleVoter:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProposalRuleChangeRule.
+const (
+	ProposalRuleChangeRuleAdmin                 ProposalRuleChangeRule = "admin"
+	ProposalRuleChangeRuleJoinMode              ProposalRuleChangeRule = "join_mode"
+	ProposalRuleChangeRuleMaxTradeBps           ProposalRuleChangeRule = "max_trade_bps"
+	ProposalRuleChangeRuleProposalExpirySeconds ProposalRuleChangeRule = "proposal_expiry_seconds"
+	ProposalRuleChangeRuleShowSides             ProposalRuleChangeRule = "show_sides"
+	ProposalRuleChangeRuleThreshold             ProposalRuleChangeRule = "threshold"
+	ProposalRuleChangeRuleVoter                 ProposalRuleChangeRule = "voter"
+)
+
+// Valid indicates whether the value is a known member of the ProposalRuleChangeRule enum.
+func (e ProposalRuleChangeRule) Valid() bool {
+	switch e {
+	case ProposalRuleChangeRuleAdmin:
+		return true
+	case ProposalRuleChangeRuleJoinMode:
+		return true
+	case ProposalRuleChangeRuleMaxTradeBps:
+		return true
+	case ProposalRuleChangeRuleProposalExpirySeconds:
+		return true
+	case ProposalRuleChangeRuleShowSides:
+		return true
+	case ProposalRuleChangeRuleThreshold:
+		return true
+	case ProposalRuleChangeRuleVoter:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProposalDetailRuleChangeRule.
+const (
+	ProposalDetailRuleChangeRuleAdmin                 ProposalDetailRuleChangeRule = "admin"
+	ProposalDetailRuleChangeRuleJoinMode              ProposalDetailRuleChangeRule = "join_mode"
+	ProposalDetailRuleChangeRuleMaxTradeBps           ProposalDetailRuleChangeRule = "max_trade_bps"
+	ProposalDetailRuleChangeRuleProposalExpirySeconds ProposalDetailRuleChangeRule = "proposal_expiry_seconds"
+	ProposalDetailRuleChangeRuleShowSides             ProposalDetailRuleChangeRule = "show_sides"
+	ProposalDetailRuleChangeRuleThreshold             ProposalDetailRuleChangeRule = "threshold"
+	ProposalDetailRuleChangeRuleVoter                 ProposalDetailRuleChangeRule = "voter"
+)
+
+// Valid indicates whether the value is a known member of the ProposalDetailRuleChangeRule enum.
+func (e ProposalDetailRuleChangeRule) Valid() bool {
+	switch e {
+	case ProposalDetailRuleChangeRuleAdmin:
+		return true
+	case ProposalDetailRuleChangeRuleJoinMode:
+		return true
+	case ProposalDetailRuleChangeRuleMaxTradeBps:
+		return true
+	case ProposalDetailRuleChangeRuleProposalExpirySeconds:
+		return true
+	case ProposalDetailRuleChangeRuleShowSides:
+		return true
+	case ProposalDetailRuleChangeRuleThreshold:
+		return true
+	case ProposalDetailRuleChangeRuleVoter:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProposalDetailSwapStatus.
 const (
 	ProposalDetailSwapStatusConfirmed ProposalDetailSwapStatus = "confirmed"
@@ -136,6 +235,7 @@ func (e ProposalDetailSwapStatus) Valid() bool {
 // Defines values for ProposalKind.
 const (
 	Buy  ProposalKind = "buy"
+	Rule ProposalKind = "rule"
 	Sell ProposalKind = "sell"
 )
 
@@ -143,6 +243,8 @@ const (
 func (e ProposalKind) Valid() bool {
 	switch e {
 	case Buy:
+		return true
+	case Rule:
 		return true
 	case Sell:
 		return true
@@ -305,7 +407,7 @@ type AdminProposal struct {
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8057
 	Id openapi_types.UUID `json:"id"`
 
-	// Kind Whether the proposal spends USDC on the token or sells the token for USDC.
+	// Kind Whether the proposal spends USDC on the token, sells the token for USDC, or changes one of the cabal's rules.
 	//
 	// Examples: buy
 	Kind ProposalKind `json:"kind"`
@@ -568,15 +670,15 @@ type MyVote struct {
 
 // PendingVote An open proposal that still needs the caller's ballot, with the facts its card draws. Soonest-closing first, at most 50.
 type PendingVote struct {
-	// AssetLogoUrl Null when the asset has no logo.
+	// AssetLogoUrl Null when the asset has no logo and for a rule proposal.
 	//
 	// Examples: https://cdn.example.com/logos/nvda.png
 	AssetLogoUrl *string `json:"asset_logo_url"`
 
-	// AssetName The asset's display name.
+	// AssetName The asset's display name. Null for a rule proposal.
 	//
 	// Examples: NVIDIA
-	AssetName string `json:"asset_name"`
+	AssetName *string `json:"asset_name"`
 
 	// CabalId The cabal id.
 	//
@@ -598,7 +700,7 @@ type PendingVote struct {
 	// Examples: 2026-10-04T15:00:00Z
 	ExpiresAt time.Time `json:"expires_at"`
 
-	// Kind Whether the proposal spends USDC on the token or sells the token for USDC.
+	// Kind Whether the proposal spends USDC on the token, sells the token for USDC, or changes one of the cabal's rules.
 	//
 	// Examples: buy
 	Kind ProposalKind `json:"kind"`
@@ -616,20 +718,25 @@ type PendingVote struct {
 	// Examples: 6
 	ReplyCount int `json:"reply_count"`
 
-	// Symbol The token symbol.
+	// RuleChange The change a rule proposal asks for. Null for a buy or a sell. `from` is the value when the proposal opened and `to` the value it asks for. Both are a boolean for `show_sides`, `voter` and `admin`, an integer or null for `max_trade_bps`, an integer for `proposal_expiry_seconds` and a string for `threshold` and `join_mode`.
+	//
+	// Examples: {"from":false,"rule":"show_sides","to":true,"user":null}
+	RuleChange *PendingVoteRuleChange `json:"rule_change"`
+
+	// Symbol The token symbol. Null for a rule proposal.
 	//
 	// Examples: NVDAx
-	Symbol string `json:"symbol"`
+	Symbol *string `json:"symbol"`
 
 	// Tally The ballots counted against the proposal's frozen voter set.
 	Tally Tally `json:"tally"`
 
-	// TokenAmount Token base units a sell spends. Null for a buy.
+	// TokenAmount Token base units a sell spends. Null for a buy and for a rule proposal.
 	//
 	// Examples: null
 	TokenAmount *int64 `json:"token_amount"`
 
-	// UsdcMicros USDC a buy spends, in micros. Null for a sell.
+	// UsdcMicros USDC a buy spends, in micros. Null for a sell and for a rule proposal.
 	//
 	// Examples: 400000000
 	UsdcMicros *int64 `json:"usdc_micros"`
@@ -638,6 +745,59 @@ type PendingVote struct {
 	//
 	// Examples: 5
 	VotedCount int `json:"voted_count"`
+}
+
+// PendingVoteRuleChangeRule Which rule the proposal changes.
+//
+// Examples: show_sides
+type PendingVoteRuleChangeRule string
+
+// PendingVoteRuleChangeUser The member a `voter` or `admin` change targets. Null for a cabal-wide rule.
+//
+// Examples: null
+type PendingVoteRuleChangeUser struct {
+	// DisplayName Empty when the user has none.
+	//
+	// Examples: Kai
+	DisplayName string `json:"display_name"`
+
+	// Handle Null until onboarding sets one.
+	//
+	// Examples: kai
+	Handle *string `json:"handle"`
+
+	// PhotoUrl Null when the user has none.
+	//
+	// Examples: null
+	PhotoUrl *string `json:"photo_url"`
+
+	// UserId Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	UserId openapi_types.UUID `json:"user_id"`
+}
+
+// PendingVoteRuleChange The change a rule proposal asks for. Null for a buy or a sell. `from` is the value when the proposal opened and `to` the value it asks for. Both are a boolean for `show_sides`, `voter` and `admin`, an integer or null for `max_trade_bps`, an integer for `proposal_expiry_seconds` and a string for `threshold` and `join_mode`.
+//
+// Examples: {"from":false,"rule":"show_sides","to":true,"user":null}
+type PendingVoteRuleChange struct {
+	// From The rule's value when the proposal opened.
+	//
+	// Examples: false
+	From interface{} `json:"from"`
+
+	// Rule Which rule the proposal changes.
+	//
+	// Examples: show_sides
+	Rule PendingVoteRuleChangeRule `json:"rule"`
+
+	// To The value the proposal asks for.
+	//
+	// Examples: true
+	To interface{} `json:"to"`
+
+	// User The member a `voter` or `admin` change targets. Null for a cabal-wide rule.
+	//
+	// Examples: null
+	User *PendingVoteRuleChangeUser `json:"user"`
 }
 
 // PendingVoteProposer The member who proposed it.
@@ -693,7 +853,7 @@ type Proposal struct {
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8057
 	Id openapi_types.UUID `json:"id"`
 
-	// Kind Whether the proposal spends USDC on the token or sells the token for USDC.
+	// Kind Whether the proposal spends USDC on the token, sells the token for USDC, or changes one of the cabal's rules.
 	//
 	// Examples: buy
 	Kind ProposalKind `json:"kind"`
@@ -718,10 +878,15 @@ type Proposal struct {
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
 	ProposerId openapi_types.UUID `json:"proposer_id"`
 
-	// QuoteOutAmount The quoted output, in the output asset's base units, when the proposal opened.
+	// QuoteOutAmount The quoted output, in the output asset's base units, when the proposal opened. Null for a rule proposal.
 	//
 	// Examples: 105000000
-	QuoteOutAmount int64 `json:"quote_out_amount"`
+	QuoteOutAmount *int64 `json:"quote_out_amount"`
+
+	// RuleChange The change a rule proposal asks for. Null for a buy or a sell. `from` is the value when the proposal opened and `to` the value it asks for. Both are a boolean for `show_sides`, `voter` and `admin`, an integer or null for `max_trade_bps`, an integer for `proposal_expiry_seconds` and a string for `threshold` and `join_mode`.
+	//
+	// Examples: {"from":false,"rule":"show_sides","to":true,"user":null}
+	RuleChange *ProposalRuleChange `json:"rule_change"`
 
 	// Status Where a proposal is in its lifecycle.
 	//
@@ -738,10 +903,10 @@ type Proposal struct {
 	// Examples: null
 	StatusReason *string `json:"status_reason"`
 
-	// Symbol The token symbol.
+	// Symbol The token symbol. Null for a rule proposal.
 	//
 	// Examples: AAPLx
-	Symbol string `json:"symbol"`
+	Symbol *string `json:"symbol"`
 
 	// Tally The ballots counted against the proposal's frozen voter set.
 	Tally Tally `json:"tally"`
@@ -751,15 +916,68 @@ type Proposal struct {
 	// Examples: Earnings next week.
 	Thesis *string `json:"thesis"`
 
-	// TokenAmount Token base units a sell spends. Null for a buy.
+	// TokenAmount Token base units a sell spends. Null for a buy and for a rule proposal.
 	//
 	// Examples: null
 	TokenAmount *int64 `json:"token_amount"`
 
-	// UsdcMicros USDC a buy spends, in micros. Null for a sell.
+	// UsdcMicros USDC a buy spends, in micros. Null for a sell and for a rule proposal.
 	//
 	// Examples: 25000000
 	UsdcMicros *int64 `json:"usdc_micros"`
+}
+
+// ProposalRuleChangeRule Which rule the proposal changes.
+//
+// Examples: show_sides
+type ProposalRuleChangeRule string
+
+// ProposalRuleChangeUser The member a `voter` or `admin` change targets. Null for a cabal-wide rule.
+//
+// Examples: null
+type ProposalRuleChangeUser struct {
+	// DisplayName Empty when the user has none.
+	//
+	// Examples: Kai
+	DisplayName string `json:"display_name"`
+
+	// Handle Null until onboarding sets one.
+	//
+	// Examples: kai
+	Handle *string `json:"handle"`
+
+	// PhotoUrl Null when the user has none.
+	//
+	// Examples: null
+	PhotoUrl *string `json:"photo_url"`
+
+	// UserId Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	UserId openapi_types.UUID `json:"user_id"`
+}
+
+// ProposalRuleChange The change a rule proposal asks for. Null for a buy or a sell. `from` is the value when the proposal opened and `to` the value it asks for. Both are a boolean for `show_sides`, `voter` and `admin`, an integer or null for `max_trade_bps`, an integer for `proposal_expiry_seconds` and a string for `threshold` and `join_mode`.
+//
+// Examples: {"from":false,"rule":"show_sides","to":true,"user":null}
+type ProposalRuleChange struct {
+	// From The rule's value when the proposal opened.
+	//
+	// Examples: false
+	From interface{} `json:"from"`
+
+	// Rule Which rule the proposal changes.
+	//
+	// Examples: show_sides
+	Rule ProposalRuleChangeRule `json:"rule"`
+
+	// To The value the proposal asks for.
+	//
+	// Examples: true
+	To interface{} `json:"to"`
+
+	// User The member a `voter` or `admin` change targets. Null for a cabal-wide rule.
+	//
+	// Examples: null
+	User *ProposalRuleChangeUser `json:"user"`
 }
 
 // ProposalDetail One proposal with its voters, the caller's permissions and its linked trade.
@@ -799,7 +1017,7 @@ type ProposalDetail struct {
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8057
 	Id openapi_types.UUID `json:"id"`
 
-	// Kind Whether the proposal spends USDC on the token or sells the token for USDC.
+	// Kind Whether the proposal spends USDC on the token, sells the token for USDC, or changes one of the cabal's rules.
 	//
 	// Examples: buy
 	Kind ProposalKind `json:"kind"`
@@ -847,10 +1065,10 @@ type ProposalDetail struct {
 	// Examples: false
 	ProposerReturnPrivate bool `json:"proposer_return_private"`
 
-	// QuoteOutAmount The quoted output, in the output asset's base units, when the proposal opened.
+	// QuoteOutAmount The quoted output, in the output asset's base units, when the proposal opened. Null for a rule proposal.
 	//
 	// Examples: 105000000
-	QuoteOutAmount int64 `json:"quote_out_amount"`
+	QuoteOutAmount *int64 `json:"quote_out_amount"`
 
 	// ReminderSet True when the caller asked to be reminded before this proposal closes and it has not been sent. False after a vote and for a non-member.
 	//
@@ -861,6 +1079,11 @@ type ProposalDetail struct {
 	//
 	// Examples: 6
 	ReplyCount int `json:"reply_count"`
+
+	// RuleChange The change a rule proposal asks for. Null for a buy or a sell. `from` is the value when the proposal opened and `to` the value it asks for. Both are a boolean for `show_sides`, `voter` and `admin`, an integer or null for `max_trade_bps`, an integer for `proposal_expiry_seconds` and a string for `threshold` and `join_mode`.
+	//
+	// Examples: {"from":false,"rule":"show_sides","to":true,"user":null}
+	RuleChange *ProposalDetailRuleChange `json:"rule_change"`
 
 	// SidesVisible True once the proposal has closed in a cabal that showed who voted what when it opened. Then every voter's `choice` is set.
 	//
@@ -890,10 +1113,10 @@ type ProposalDetail struct {
 	// Examples: null
 	Swap *LinkedSwap `json:"swap"`
 
-	// Symbol The token symbol.
+	// Symbol The token symbol. Null for a rule proposal.
 	//
 	// Examples: AAPLx
-	Symbol string `json:"symbol"`
+	Symbol *string `json:"symbol"`
 
 	// Tally The ballots counted against the proposal's frozen voter set.
 	Tally Tally `json:"tally"`
@@ -903,12 +1126,12 @@ type ProposalDetail struct {
 	// Examples: Earnings next week.
 	Thesis *string `json:"thesis"`
 
-	// TokenAmount Token base units a sell spends. Null for a buy.
+	// TokenAmount Token base units a sell spends. Null for a buy and for a rule proposal.
 	//
 	// Examples: null
 	TokenAmount *int64 `json:"token_amount"`
 
-	// UsdcMicros USDC a buy spends, in micros. Null for a sell.
+	// UsdcMicros USDC a buy spends, in micros. Null for a sell and for a rule proposal.
 	//
 	// Examples: 25000000
 	UsdcMicros *int64 `json:"usdc_micros"`
@@ -947,6 +1170,59 @@ type ProposalMyVote struct {
 	//
 	// Examples: 5
 	YesOrder int `json:"yes_order"`
+}
+
+// ProposalDetailRuleChangeRule Which rule the proposal changes.
+//
+// Examples: show_sides
+type ProposalDetailRuleChangeRule string
+
+// ProposalDetailRuleChangeUser The member a `voter` or `admin` change targets. Null for a cabal-wide rule.
+//
+// Examples: null
+type ProposalDetailRuleChangeUser struct {
+	// DisplayName Empty when the user has none.
+	//
+	// Examples: Kai
+	DisplayName string `json:"display_name"`
+
+	// Handle Null until onboarding sets one.
+	//
+	// Examples: kai
+	Handle *string `json:"handle"`
+
+	// PhotoUrl Null when the user has none.
+	//
+	// Examples: null
+	PhotoUrl *string `json:"photo_url"`
+
+	// UserId Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	UserId openapi_types.UUID `json:"user_id"`
+}
+
+// ProposalDetailRuleChange The change a rule proposal asks for. Null for a buy or a sell. `from` is the value when the proposal opened and `to` the value it asks for. Both are a boolean for `show_sides`, `voter` and `admin`, an integer or null for `max_trade_bps`, an integer for `proposal_expiry_seconds` and a string for `threshold` and `join_mode`.
+//
+// Examples: {"from":false,"rule":"show_sides","to":true,"user":null}
+type ProposalDetailRuleChange struct {
+	// From The rule's value when the proposal opened.
+	//
+	// Examples: false
+	From interface{} `json:"from"`
+
+	// Rule Which rule the proposal changes.
+	//
+	// Examples: show_sides
+	Rule ProposalDetailRuleChangeRule `json:"rule"`
+
+	// To The value the proposal asks for.
+	//
+	// Examples: true
+	To interface{} `json:"to"`
+
+	// User The member a `voter` or `admin` change targets. Null for a cabal-wide rule.
+	//
+	// Examples: null
+	User *ProposalDetailRuleChangeUser `json:"user"`
 }
 
 // ProposalDetailSwapStatus Where the trade is.
@@ -1019,7 +1295,7 @@ type LinkedSwap struct {
 	UsdcMicros *int64 `json:"usdc_micros"`
 }
 
-// ProposalKind Whether the proposal spends USDC on the token or sells the token for USDC.
+// ProposalKind Whether the proposal spends USDC on the token, sells the token for USDC, or changes one of the cabal's rules.
 //
 // Examples: buy
 type ProposalKind string
@@ -1221,7 +1497,7 @@ type ProposalVoter struct {
 
 // ProposeTradeRequest A trade to propose. A buy sets `usdc_micros` only, and a sell sets `token_amount` only.
 type ProposeTradeRequest struct {
-	// Kind Whether the proposal spends USDC on the token or sells the token for USDC.
+	// Kind Whether the proposal spends USDC on the token, sells the token for USDC, or changes one of the cabal's rules.
 	//
 	// Examples: buy
 	Kind ProposalKind `json:"kind"`

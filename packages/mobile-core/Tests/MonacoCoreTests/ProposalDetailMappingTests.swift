@@ -87,7 +87,7 @@ final class ProposalDetailMappingTests: XCTestCase {
                 sample: fixture, members: Components.Schemas.Cabal.sampleWithMembers(role: "member").members,
                 asset: asset, repository: ProposalsRepository(api: api), hints: FakeHintStream(), now: { now },
                 calendar: utc)
-            XCTAssertEqual(model.stats?.cells.map(\.value), values, "\(fixture.symbol) \(fixture.status)")
+            XCTAssertEqual(model.stats?.cells.map(\.value), values, "\(fixture.symbol ?? "") \(fixture.status)")
         }
     }
 

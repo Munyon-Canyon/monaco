@@ -123,7 +123,7 @@ func (q *Queries) DeleteBallot(ctx context.Context, arg DeleteBallotParams) (int
 }
 
 const dueForExpiry = `-- name: DueForExpiry :many
-SELECT id, cabal_id
+SELECT id, cabal_id, kind
 FROM proposals
 WHERE status = 'open' AND expires_at <= $1
 ORDER BY expires_at, id
@@ -138,6 +138,7 @@ type DueForExpiryParams struct {
 type DueForExpiryRow struct {
 	ID      uuid.UUID
 	CabalID uuid.UUID
+	Kind    string
 }
 
 func (q *Queries) DueForExpiry(ctx context.Context, arg DueForExpiryParams) ([]DueForExpiryRow, error) {
@@ -149,7 +150,7 @@ func (q *Queries) DueForExpiry(ctx context.Context, arg DueForExpiryParams) ([]D
 	var items []DueForExpiryRow
 	for rows.Next() {
 		var i DueForExpiryRow
-		if err := rows.Scan(&i.ID, &i.CabalID); err != nil {
+		if err := rows.Scan(&i.ID, &i.CabalID, &i.Kind); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -167,8 +168,8 @@ WITH proposal AS (
     quote_out_amount, threshold, status, expires_at, created_at, updated_at, sides_after_close
   )
   VALUES (
-    $2, $3, $4, $5, $6, $7, $8, $9, $10,
-    $11, $12, 'open', $13, $14, $14, $15
+    $2, $3, $4, $5, $6::text, $7::text, $8, $9, $10,
+    $11::bigint, $12, 'open', $13, $14, $14, $15
   )
   RETURNING id
 )
@@ -297,11 +298,11 @@ type LockProposalRow struct {
 	CabalID         uuid.UUID
 	ProposerID      uuid.UUID
 	Kind            string
-	Symbol          string
-	Mint            string
+	Symbol          pgtype.Text
+	Mint            pgtype.Text
 	UsdcMicros      pgtype.Int8
 	TokenAmount     pgtype.Int8
-	QuoteOutAmount  int64
+	QuoteOutAmount  pgtype.Int8
 	Status          string
 	Threshold       string
 	ExpiresAt       time.Time
@@ -341,7 +342,7 @@ WITH proposal AS (
     pot_value_micros, sides_after_close
   )
   VALUES (
-    $2, $3, $4, $5, $6, $7,
+    $2, $3, $4, $5, $6::text, $7::text,
     NULLIF($8::text, '0')::bigint, NULLIF($9::text, '0')::bigint,
     NULLIF($10::text, ''), $11::text::bigint, $12, 'open', $13,
     $14, $14, $15::jsonb,
@@ -404,7 +405,7 @@ func (q *Queries) OpenProposal(ctx context.Context, arg OpenProposalParams) (int
 }
 
 const proposalMint = `-- name: ProposalMint :one
-SELECT mint FROM proposals WHERE id = $1
+SELECT coalesce(mint, '')::text AS mint FROM proposals WHERE id = $1
 `
 
 func (q *Queries) ProposalMint(ctx context.Context, id uuid.UUID) (string, error) {

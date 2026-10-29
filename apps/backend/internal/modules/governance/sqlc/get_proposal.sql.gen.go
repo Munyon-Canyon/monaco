@@ -76,7 +76,7 @@ func (q *Queries) FindProposalID(ctx context.Context, id uuid.UUID) (FindProposa
 const getProposal = `-- name: GetProposal :one
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.usdc_micros, p.token_amount, p.quote_out_amount,
-  p.thesis, p.threshold, p.status, p.status_reason, p.expires_at, p.created_at, p.pot_value_micros, p.closed_at,
+  p.thesis, p.threshold, p.status, p.status_reason, p.expires_at, p.created_at, p.pot_value_micros, p.closed_at, p.rule_change,
   p.passed_price_micros, p.decided_by, p.sides_after_close,
   coalesce(mine.choice, '')::text AS my_ballot, p.price_comparison, coalesce(p.network, '')::text AS network, p.mint,
   EXISTS (
@@ -98,10 +98,10 @@ type GetProposalRow struct {
 	CabalID           uuid.UUID
 	ProposerID        uuid.UUID
 	Kind              string
-	Symbol            string
+	Symbol            pgtype.Text
 	UsdcMicros        pgtype.Int8
 	TokenAmount       pgtype.Int8
-	QuoteOutAmount    int64
+	QuoteOutAmount    pgtype.Int8
 	Thesis            pgtype.Text
 	Threshold         string
 	Status            string
@@ -110,13 +110,14 @@ type GetProposalRow struct {
 	CreatedAt         time.Time
 	PotValueMicros    pgtype.Int8
 	ClosedAt          pgtype.Timestamptz
+	RuleChange        []byte
 	PassedPriceMicros pgtype.Int8
 	DecidedBy         pgtype.UUID
 	SidesAfterClose   bool
 	MyBallot          string
 	PriceComparison   []byte
 	Network           string
-	Mint              string
+	Mint              pgtype.Text
 	ReminderSet       bool
 }
 
@@ -140,6 +141,7 @@ func (q *Queries) GetProposal(ctx context.Context, arg GetProposalParams) (GetPr
 		&i.CreatedAt,
 		&i.PotValueMicros,
 		&i.ClosedAt,
+		&i.RuleChange,
 		&i.PassedPriceMicros,
 		&i.DecidedBy,
 		&i.SidesAfterClose,

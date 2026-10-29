@@ -29,7 +29,7 @@ enum ShareProposalText {
     }
 
     static func symbol(_ proposal: Components.Schemas.ProposalDetail) -> String {
-        AssetSymbolFormatter.display(proposal.symbol)
+        AssetSymbolFormatter.display(proposal.symbol ?? "")
     }
 
     static func sharesText(atomics: Int64?, decimals: Int) -> String? {

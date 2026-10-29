@@ -1,0 +1,15 @@
+# #6482, Implement exactly item 5: a rule proposal has no symbol; shipped builds meet one only after #6498 lets members create rule proposals, which the operator gates.
+GET /v1/proposals/{id} the response property `symbol` became nullable for the status `200`
+GET /v1/admin/cabals/{id}/proposals the response property `proposals/items/quote_out_amount` became nullable for the status `200`
+GET /v1/admin/cabals/{id}/proposals the response property `proposals/items/symbol` became nullable for the status `200`
+GET /v1/cabals/{id}/proposals the response property `proposals/items/quote_out_amount` became nullable for the status `200`
+GET /v1/cabals/{id}/proposals the response property `proposals/items/symbol` became nullable for the status `200`
+POST /v1/cabals/{id}/proposals the response property `quote_out_amount` became nullable for the status `201`
+POST /v1/cabals/{id}/proposals the response property `symbol` became nullable for the status `201`
+GET /v1/me/pending-votes the response property `items/asset_name` became nullable for the status `200`
+GET /v1/me/pending-votes the response property `items/symbol` became nullable for the status `200`
+GET /v1/me/proposals the response property `proposals/items/quote_out_amount` became nullable for the status `200`
+GET /v1/me/proposals the response property `proposals/items/symbol` became nullable for the status `200`
+DELETE /v1/proposals/{id} the response property `quote_out_amount` became nullable for the status `200`
+DELETE /v1/proposals/{id} the response property `symbol` became nullable for the status `200`
+GET /v1/proposals/{id} the response property `quote_out_amount` became nullable for the status `200`

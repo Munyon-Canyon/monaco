@@ -1,6 +1,6 @@
 -- name: GetVoteState :one
 SELECT
-  p.cabal_id, p.kind, p.symbol, p.mint, coalesce(p.usdc_micros, p.quote_out_amount, 0)::bigint AS usdc_micros,
+  p.cabal_id, p.kind, coalesce(p.symbol, '')::text AS symbol, coalesce(p.mint, '')::text AS mint, coalesce(p.usdc_micros, p.quote_out_amount, 0)::bigint AS usdc_micros,
   p.status, p.threshold, p.created_at, p.expires_at,
   (SELECT count(*) FROM votes AS v WHERE v.proposal_id = p.id AND v.choice = 'yes')::int AS yes,
   (SELECT count(*) FROM votes AS v WHERE v.proposal_id = p.id AND v.choice = 'no')::int AS no,

@@ -120,7 +120,7 @@ func raiseCloseReminder(
 		return false, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	err = tx.Events.Append(ctx, events.ProposalCloseReminderDue{
-		V: 1, ProposalID: prop.ID, CabalID: prop.CabalID, UserID: user, Kind: prop.Kind, Symbol: prop.Symbol,
+		V: 1, ProposalID: prop.ID, CabalID: prop.CabalID, UserID: user, Kind: prop.Kind, Symbol: prop.Symbol.String,
 		USDCMicros:  money.MicrosFromUint64(unsigned(prop.UsdcMicros.Int64)),
 		TokenAmount: unsigned(prop.TokenAmount.Int64), ExpiresAt: prop.ExpiresAt,
 		Yes: int(tally.Yes), No: int(tally.No), Voters: int(tally.Voters),

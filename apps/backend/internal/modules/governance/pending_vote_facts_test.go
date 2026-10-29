@@ -233,13 +233,14 @@ func TestHTTP_GetMyPendingVotes_WiresTheCardFacts(t *testing.T) {
 	}
 	logo, handle, photo := marketfake.AAPLx().LogoURL, "mia", "https://cdn.example.com/mia"
 	usdc := int64(400_000_000)
+	symbol, assetName := "AAPLx", "Apple"
 	if !got[0].CreatedAt.Equal(p.CreatedAt) {
 		t.Errorf("created_at = %s, want %s", got[0].CreatedAt, p.CreatedAt)
 	}
 	got[0].CreatedAt, got[0].ExpiresAt = time.Time{}, time.Time{}
 	want := api.PendingVote{
-		ProposalId: p.ID, CabalId: p.CabalID, Kind: "buy", Symbol: "AAPLx", UsdcMicros: &usdc,
-		AssetName: "Apple", AssetLogoUrl: &logo,
+		ProposalId: p.ID, CabalId: p.CabalID, Kind: "buy", Symbol: &symbol, UsdcMicros: &usdc,
+		AssetName: &assetName, AssetLogoUrl: &logo,
 		Proposer: api.PendingVoteProposer{UserId: mia, Handle: &handle, DisplayName: "Mia", PhotoUrl: &photo},
 		Tally:    api.Tally{Yes: 1, Voters: 2, Needed: 2}, VotedCount: 1, ReplyCount: 6,
 	}

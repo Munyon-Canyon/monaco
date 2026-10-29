@@ -7,4 +7,5 @@ set -euo pipefail
 base="$1"
 head="$2"
 levels="$(dirname "$0")/oasdiff-levels.txt"
-oasdiff breaking --fail-on ERR --severity-levels "$levels" "$base" "$head"
+ignore="$(dirname "$0")/oasdiff-ignore.txt"
+oasdiff breaking --fail-on ERR --severity-levels "$levels" --err-ignore "$ignore" "$base" "$head"
