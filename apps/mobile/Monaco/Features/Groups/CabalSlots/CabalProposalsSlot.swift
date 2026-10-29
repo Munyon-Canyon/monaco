@@ -1,6 +1,5 @@
 import MonacoAPI
 import MonacoCore
-import Observation
 import SwiftUI
 
 enum CabalProposalsSlot: CabalSection {
@@ -103,18 +102,6 @@ struct CabalProposals: View {
         ProposalListModel(
             cabalID: cabalID, filter: .all, repository: ProposalsRepository(api: environment.api),
             hints: environment.hints)
-    }
-}
-
-@Observable
-@MainActor
-final class CabalProposalAssets {
-    private(set) var byTicker: [String: ProposalAsset] = [:]
-
-    func load(symbols: [String], repository: ProposalsRepository) async {
-        for symbol in Set(symbols) where byTicker[symbol] == nil {
-            if let asset = try? await repository.asset(symbol: symbol) { byTicker[symbol] = asset }
-        }
     }
 }
 
